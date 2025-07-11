@@ -67,7 +67,7 @@ const ParamsContext = React.createContext<{ collapsible: boolean; scrollable: bo
  * Params component provides a card-like wrapper for parameter content
  * with optional collapsible functionality and scroll area for large content
  */
-function ParamsRoot({
+export function Params({
   className,
   collapsible = false,
   scrollable = false,
@@ -110,7 +110,7 @@ function ParamsRoot({
 /**
  * Params Header component for titles and trigger content
  */
-function ParamsHeader({ className, children, ...props }: ParamsHeaderProps) {
+export function ParamsHeader({ className, children, ...props }: ParamsHeaderProps) {
   const { collapsible } = React.useContext(ParamsContext);
   const styles = paramsVariants({ collapsible });
 
@@ -135,7 +135,7 @@ function ParamsHeader({ className, children, ...props }: ParamsHeaderProps) {
 /**
  * Params Body component for main content with optional scroll area
  */
-function ParamsBody({
+export function ParamsBody({
   className,
   children,
   scrollable: scrollableProp,
@@ -164,9 +164,3 @@ function ParamsBody({
 
   return wrappedContent;
 }
-
-// Export the compound component
-export const Params = Object.assign(ParamsRoot, {
-  Header: ParamsHeader,
-  Body: ParamsBody,
-});

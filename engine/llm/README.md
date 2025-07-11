@@ -39,6 +39,7 @@
 The `llm` package provides a comprehensive LLM integration layer for Compozy's AI agent orchestration system. It implements clean architecture patterns to manage LLM interactions, tool execution, memory management, and multi-provider support.
 
 Key capabilities include:
+
 - **Agent Orchestration**: Coordinate AI agents with custom instructions and actions
 - **Tool Integration**: Execute both local and remote tools through MCP (Model Context Protocol)
 - **Memory Management**: Persistent conversation memory with context integration
@@ -48,7 +49,7 @@ Key capabilities include:
 
 ---
 
-## 💡 Motivation  
+## 💡 Motivation
 
 - **Agent Abstraction**: Provide a clean interface for AI agents without tight coupling to specific LLM providers
 - **Tool Ecosystem**: Enable agents to extend capabilities through standardized tool interfaces
@@ -86,7 +87,7 @@ package main
 import (
     "context"
     "log"
-    
+
     "github.com/compozy/compozy/engine/llm"
     "github.com/compozy/compozy/engine/agent"
     "github.com/compozy/compozy/engine/runtime"
@@ -94,13 +95,13 @@ import (
 
 func main() {
     ctx := context.Background()
-    
+
     // Create runtime (manages tool execution)
     runtime, err := runtime.NewRuntime(ctx)
     if err != nil {
         log.Fatal(err)
     }
-    
+
     // Configure agent
     agentConfig := &agent.Config{
         ID:           "assistant",
@@ -111,26 +112,26 @@ func main() {
             ApiKey:   "your-api-key",
         },
     }
-    
+
     // Create LLM service
     service, err := llm.NewService(ctx, runtime, agentConfig)
     if err != nil {
         log.Fatal(err)
     }
     defer service.Close()
-    
+
     // Create action
     action := &agent.ActionConfig{
         ID:     "greeting",
         Prompt: "Say hello to the user",
     }
-    
+
     // Execute
     result, err := service.GenerateContent(ctx, agentConfig, action)
     if err != nil {
         log.Fatal(err)
     }
-    
+
     log.Printf("Response: %v", result)
 }
 ```
@@ -252,7 +253,7 @@ func (c *CustomLLMAdapter) GenerateContent(ctx context.Context, req *llmadapter.
     if err != nil {
         return nil, err
     }
-    
+
     return &llmadapter.LLMResponse{
         Content:   response.Text,
         ToolCalls: response.ToolCalls,
@@ -317,7 +318,7 @@ llm.WithAdminToken("admin-token")
 ```go
 func ExampleBasicAgent() {
     ctx := context.Background()
-    
+
     // Setup
     runtime, _ := runtime.NewRuntime(ctx)
     agentConfig := &agent.Config{
@@ -329,25 +330,25 @@ func ExampleBasicAgent() {
             ApiKey:   "your-api-key",
         },
     }
-    
+
     service, err := llm.NewService(ctx, runtime, agentConfig)
     if err != nil {
         log.Fatal(err)
     }
     defer service.Close()
-    
+
     // Create action
     action := &agent.ActionConfig{
         ID:     "question",
         Prompt: "Explain quantum computing in simple terms",
     }
-    
+
     // Execute
     result, err := service.GenerateContent(ctx, agentConfig, action)
     if err != nil {
         log.Fatal(err)
     }
-    
+
     fmt.Printf("Response: %v\n", result)
 }
 ```
@@ -357,7 +358,7 @@ func ExampleBasicAgent() {
 ```go
 func ExampleToolAgent() {
     ctx := context.Background()
-    
+
     // Agent with tools
     agentConfig := &agent.Config{
         ID:           "calculator-agent",
@@ -385,23 +386,23 @@ func ExampleToolAgent() {
             },
         },
     }
-    
+
     service, err := llm.NewService(ctx, runtime, agentConfig)
     if err != nil {
         log.Fatal(err)
     }
-    
+
     // Action that will use tools
     action := &agent.ActionConfig{
         ID:     "math-problem",
         Prompt: "What is 15% of 240?",
     }
-    
+
     result, err := service.GenerateContent(ctx, agentConfig, action)
     if err != nil {
         log.Fatal(err)
     }
-    
+
     fmt.Printf("Calculation result: %v\n", result)
 }
 ```
@@ -411,41 +412,41 @@ func ExampleToolAgent() {
 ```go
 func ExampleMemoryAgent() {
     ctx := context.Background()
-    
+
     // Simple memory implementation
     type SimpleMemory struct {
         id       string
         messages []llm.Message
     }
-    
+
     func (s *SimpleMemory) GetID() string {
         return s.id
     }
-    
+
     func (s *SimpleMemory) Append(ctx context.Context, msg llm.Message) error {
         s.messages = append(s.messages, msg)
         return nil
     }
-    
+
     func (s *SimpleMemory) Read(ctx context.Context) ([]llm.Message, error) {
         return s.messages, nil
     }
-    
+
     // Memory provider
     type SimpleMemoryProvider struct {
         memories map[string]*SimpleMemory
     }
-    
+
     func (s *SimpleMemoryProvider) GetMemory(ctx context.Context, memoryID, keyTemplate string) (llm.Memory, error) {
         if s.memories == nil {
             s.memories = make(map[string]*SimpleMemory)
         }
-        
+
         key := memoryID + "-" + keyTemplate
         if memory, exists := s.memories[key]; exists {
             return memory, nil
         }
-        
+
         memory := &SimpleMemory{
             id:       key,
             messages: []llm.Message{},
@@ -453,7 +454,7 @@ func ExampleMemoryAgent() {
         s.memories[key] = memory
         return memory, nil
     }
-    
+
     // Agent with memory
     agentConfig := &agent.Config{
         ID:           "memory-agent",
@@ -470,7 +471,7 @@ func ExampleMemoryAgent() {
             },
         },
     }
-    
+
     // Create service with memory provider
     service, err := llm.NewService(ctx, runtime, agentConfig,
         llm.WithMemoryProvider(&SimpleMemoryProvider{}),
@@ -478,25 +479,25 @@ func ExampleMemoryAgent() {
     if err != nil {
         log.Fatal(err)
     }
-    
+
     // First interaction
     action1 := &agent.ActionConfig{
         ID:     "first-interaction",
         Prompt: "My favorite color is blue. Remember this.",
     }
-    
+
     result1, err := service.GenerateContent(ctx, agentConfig, action1)
     if err != nil {
         log.Fatal(err)
     }
     fmt.Printf("First response: %v\n", result1)
-    
+
     // Second interaction (will remember previous context)
     action2 := &agent.ActionConfig{
         ID:     "second-interaction",
         Prompt: "What's my favorite color?",
     }
-    
+
     result2, err := service.GenerateContent(ctx, agentConfig, action2)
     if err != nil {
         log.Fatal(err)
@@ -510,10 +511,10 @@ func ExampleMemoryAgent() {
 ```go
 func ExampleMultiProvider() {
     ctx := context.Background()
-    
+
     // Custom factory supporting multiple providers
     factory := llmadapter.NewDefaultFactory()
-    
+
     // OpenAI agent
     openaiAgent := &agent.Config{
         ID:           "openai-agent",
@@ -524,7 +525,7 @@ func ExampleMultiProvider() {
             ApiKey:   "openai-key",
         },
     }
-    
+
     // Anthropic agent
     anthropicAgent := &agent.Config{
         ID:           "anthropic-agent",
@@ -535,7 +536,7 @@ func ExampleMultiProvider() {
             ApiKey:   "anthropic-key",
         },
     }
-    
+
     // Create services
     openaiService, err := llm.NewService(ctx, runtime, openaiAgent,
         llm.WithLLMFactory(factory),
@@ -543,24 +544,24 @@ func ExampleMultiProvider() {
     if err != nil {
         log.Fatal(err)
     }
-    
+
     anthropicService, err := llm.NewService(ctx, runtime, anthropicAgent,
         llm.WithLLMFactory(factory),
     )
     if err != nil {
         log.Fatal(err)
     }
-    
+
     // Use different providers for different tasks
     action := &agent.ActionConfig{
         ID:     "comparison",
         Prompt: "Explain the benefits of renewable energy",
     }
-    
+
     // Get responses from both providers
     openaiResult, _ := openaiService.GenerateContent(ctx, openaiAgent, action)
     anthropicResult, _ := anthropicService.GenerateContent(ctx, anthropicAgent, action)
-    
+
     fmt.Printf("OpenAI: %v\n", openaiResult)
     fmt.Printf("Anthropic: %v\n", anthropicResult)
 }
@@ -696,12 +697,12 @@ func IsToolExecutionError(result string) (*ToolError, bool)
 ```go
 func TestService_GenerateContent(t *testing.T) {
     ctx := context.Background()
-    
+
     // Mock runtime
     mockRuntime := &runtime.MockRuntime{}
     mockRuntime.On("ExecuteTool", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
         Return(&core.Output{"result": "success"}, nil)
-    
+
     // Test agent
     agent := &agent.Config{
         ID:           "test-agent",
@@ -711,22 +712,22 @@ func TestService_GenerateContent(t *testing.T) {
             Model:    "test-model",
         },
     }
-    
+
     // Create service with test adapter
     service, err := llm.NewService(ctx, mockRuntime, agent)
     require.NoError(t, err)
-    
+
     // Test action
     action := &agent.ActionConfig{
         ID:     "test-action",
         Prompt: "Test prompt",
     }
-    
+
     // Execute
     result, err := service.GenerateContent(ctx, agent, action)
     require.NoError(t, err)
     assert.NotNil(t, result)
-    
+
     // Verify expectations
     mockRuntime.AssertExpectations(t)
 }
@@ -739,13 +740,13 @@ func TestService_Integration(t *testing.T) {
     if testing.Short() {
         t.Skip("Skipping integration test")
     }
-    
+
     ctx := context.Background()
-    
+
     // Real runtime setup
     runtime, err := runtime.NewRuntime(ctx)
     require.NoError(t, err)
-    
+
     // Agent with real provider
     agent := &agent.Config{
         ID:           "integration-test",
@@ -756,16 +757,16 @@ func TestService_Integration(t *testing.T) {
             ApiKey:   os.Getenv("OPENAI_API_KEY"),
         },
     }
-    
+
     service, err := llm.NewService(ctx, runtime, agent)
     require.NoError(t, err)
     defer service.Close()
-    
+
     action := &agent.ActionConfig{
         ID:     "test",
         Prompt: "Say 'Hello, World!' exactly",
     }
-    
+
     result, err := service.GenerateContent(ctx, agent, action)
     require.NoError(t, err)
     assert.Contains(t, fmt.Sprintf("%v", result), "Hello, World!")

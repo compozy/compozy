@@ -29,6 +29,69 @@ import (
 	"github.com/radovskyb/watcher"
 )
 
+// removeCWDProperties recursively removes any "cwd" properties from the schema map
+func removeCWDProperties(schemaMap map[string]any) bool {
+	updated := false
+
+	// Check and remove CWD from properties (case-insensitive)
+	if props, ok := schemaMap["properties"].(map[string]any); ok {
+		// Check for both lowercase and uppercase CWD
+		for key := range props {
+			if key == "cwd" || key == "CWD" {
+				delete(props, key)
+				updated = true
+			}
+		}
+
+		// Recursively check nested properties
+		for _, prop := range props {
+			if propMap, ok := prop.(map[string]any); ok {
+				if removeCWDProperties(propMap) {
+					updated = true
+				}
+			}
+		}
+	}
+
+	// Check items (for arrays)
+	if items, ok := schemaMap["items"].(map[string]any); ok {
+		if removeCWDProperties(items) {
+			updated = true
+		}
+	}
+
+	// Check definitions
+	if defs, ok := schemaMap["definitions"].(map[string]any); ok {
+		for _, def := range defs {
+			if defMap, ok := def.(map[string]any); ok {
+				if removeCWDProperties(defMap) {
+					updated = true
+				}
+			}
+		}
+	}
+
+	// Also check $defs (JSON Schema Draft 7 style)
+	if defs, ok := schemaMap["$defs"].(map[string]any); ok {
+		for _, def := range defs {
+			if defMap, ok := def.(map[string]any); ok {
+				if removeCWDProperties(defMap) {
+					updated = true
+				}
+			}
+		}
+	}
+
+	// Check additionalProperties
+	if addProps, ok := schemaMap["additionalProperties"].(map[string]any); ok {
+		if removeCWDProperties(addProps) {
+			updated = true
+		}
+	}
+
+	return updated
+}
+
 // GenerateParserSchemas generates JSON schemas for parser structs and writes them to the output directory.
 func GenerateParserSchemas(ctx context.Context, outDir string) error {
 	log := logger.FromContext(ctx)
@@ -122,10 +185,15 @@ func GenerateParserSchemas(ctx context.Context, outDir string) error {
 			return fmt.Errorf("failed to marshal schema for %s: %w", s.name, err)
 		}
 
-		// Post-process schemas to fix cross-package references
+		// Post-process schemas to fix cross-package references and remove CWD properties
 		var schemaMap map[string]any
 		if err := json.Unmarshal(schemaJSON, &schemaMap); err == nil {
 			updated := false
+
+			// Remove CWD properties from all schemas recursively
+			if removeCWDProperties(schemaMap) {
+				updated = true
+			}
 
 			switch s.name {
 			case "agent":

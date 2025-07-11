@@ -1,6 +1,559 @@
 ---
-title: Tool Discovery & Filtering
-description: MCP tool discovery and filtering
+title: "Tool Discovery"
+description: "Automatic tool discovery and registration from MCP servers"
 ---
 
-# Tool Discovery & Filtering
+# Tool Discovery
+
+Tool Discovery is the mechanism by which Compozy automatically discovers, registers, and manages tools from multiple MCP servers. It provides a unified interface for accessing tools across different MCP servers while handling tool aggregation, filtering, and validation.
+
+## Overview
+
+The tool discovery system:
+
+1. **Discovers Tools** - Automatically finds tools from all registered MCP servers
+2. **Aggregates Tools** - Combines tools from multiple servers into a unified catalog
+3. **Validates Tools** - Ensures tool schemas are valid and compatible
+4. **Manages Access** - Controls tool access and permissions
+5. **Handles Conflicts** - Resolves tool name conflicts across servers
+
+## Architecture
+
+```
+┌─────────────────┐
+│ Tool Discovery  │
+├─────────────────┤
+│ ┌─────────────┐ │     ┌─────────────┐
+│ │ MCP Server  │ │────▶│   Tools:    │
+│ │     A       │ │     │ - read_file │
+│ └─────────────┘ │     │ - write_file│
+│ ┌─────────────┐ │     └─────────────┘
+│ │ MCP Server  │ │     ┌─────────────┐
+│ │     B       │ │────▶│   Tools:    │
+│ └─────────────┘ │     │ - query_db  │
+│ ┌─────────────┐ │     │ - execute   │
+│ │ Tool        │ │     └─────────────┘
+│ │ Registry    │ │
+│ └─────────────┘ │
+└─────────────────┘
+```
+
+## Tool Structure
+
+### Tool Definition
+
+```go
+type Tool struct {
+    Name        string            `json:"name"`
+    Description string            `json:"description"`
+    InputSchema map[string]any    `json:"inputSchema"`
+    MCPName     string            `json:"mcpName"`
+    ServerID    string            `json:"serverId"`
+    Tags        []string          `json:"tags,omitempty"`
+    Version     string            `json:"version,omitempty"`
+}
+```
+
+### Tool Schema Example
+
+```json
+{
+  "name": "read_file",
+  "description": "Read contents of a file",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "description": "Path to the file to read"
+      },
+      "encoding": {
+        "type": "string",
+        "description": "File encoding (default: utf-8)",
+        "default": "utf-8"
+      }
+    },
+    "required": ["path"]
+  },
+  "mcpName": "filesystem",
+  "serverId": "filesystem-server-1"
+}
+```
+
+## Discovery Process
+
+### 1. Server Registration
+
+When an MCP server is registered, the discovery system:
+
+```go
+// Register MCP server
+definition := &MCPDefinition{
+    Name:      "filesystem",
+    Transport: TransportStdio,
+    Command:   "mcp-server-filesystem",
+}
+
+// Add to client manager
+err := clientManager.AddClient(ctx, definition)
+if err != nil {
+    return fmt.Errorf("failed to add client: %w", err)
+}
+
+// Discovery automatically triggers
+```
+
+### 2. Tool Discovery
+
+The system automatically discovers tools from the registered server:
+
+```go
+// Get MCP client
+client, err := clientManager.GetClient("filesystem")
+if err != nil {
+    return fmt.Errorf("client not found: %w", err)
+}
+
+// List available tools
+tools, err := client.ListTools(ctx)
+if err != nil {
+    return fmt.Errorf("failed to list tools: %w", err)
+}
+
+// Process and register tools
+for _, tool := range tools {
+    toolRegistry.RegisterTool(tool, "filesystem")
+}
+```
+
+### 3. Tool Validation
+
+Each discovered tool undergoes validation:
+
+```go
+func validateTool(tool *Tool) error {
+    if tool.Name == "" {
+        return errors.New("tool name is required")
+    }
+    
+    if tool.Description == "" {
+        return errors.New("tool description is required")
+    }
+    
+    if tool.InputSchema == nil {
+        return errors.New("tool input schema is required")
+    }
+    
+    return validateSchema(tool.InputSchema)
+}
+```
+
+## Tool Registry
+
+### Registration
+
+```go
+type ToolRegistry struct {
+    tools map[string]*Tool
+    mutex sync.RWMutex
+}
+
+func (r *ToolRegistry) RegisterTool(tool *Tool, serverID string) error {
+    r.mutex.Lock()
+    defer r.mutex.Unlock()
+    
+    tool.ServerID = serverID
+    
+    if err := validateTool(tool); err != nil {
+        return fmt.Errorf("invalid tool: %w", err)
+    }
+    
+    toolKey := fmt.Sprintf("%s.%s", serverID, tool.Name)
+    r.tools[toolKey] = tool
+    
+    return nil
+}
+```
+
+### Listing Tools
+
+```go
+func (r *ToolRegistry) ListTools() ([]*Tool, error) {
+    r.mutex.RLock()
+    defer r.mutex.RUnlock()
+    
+    var tools []*Tool
+    for _, tool := range r.tools {
+        tools = append(tools, tool)
+    }
+    
+    return tools, nil
+}
+```
+
+### Finding Tools
+
+```go
+func (r *ToolRegistry) FindTool(name string) (*Tool, error) {
+    r.mutex.RLock()
+    defer r.mutex.RUnlock()
+    
+    // Try exact match first
+    if tool, exists := r.tools[name]; exists {
+        return tool, nil
+    }
+    
+    // Try server.tool format
+    for key, tool := range r.tools {
+        if strings.HasSuffix(key, "."+name) {
+            return tool, nil
+        }
+    }
+    
+    return nil, fmt.Errorf("tool not found: %s", name)
+}
+```
+
+## Tool Filtering
+
+### Filter Configuration
+
+```go
+type ToolFilter struct {
+    Mode ToolFilterMode `json:"mode"`
+    List []string       `json:"list"`
+}
+
+type ToolFilterMode string
+
+const (
+    ToolFilterAllow ToolFilterMode = "allow"
+    ToolFilterBlock ToolFilterMode = "block"
+)
+```
+
+### Allow List Example
+
+```yaml
+mcps:
+  - id: filesystem
+    command: "mcp-server-filesystem"
+    transport: stdio
+    tool_filter:
+      mode: allow
+      list:
+        - read_file
+        - write_file
+        - list_directory
+```
+
+### Block List Example
+
+```yaml
+mcps:
+  - id: system
+    command: "mcp-server-system"
+    transport: stdio
+    tool_filter:
+      mode: block
+      list:
+        - delete_system_file
+        - format_disk
+        - shutdown_system
+```
+
+## Tool Execution
+
+### Through Proxy
+
+```go
+// Execute tool via proxy
+func (p *ProxyTool) Call(ctx context.Context, input string) (string, error) {
+    // Parse input arguments
+    var args map[string]any
+    if err := json.Unmarshal([]byte(input), &args); err != nil {
+        return "", fmt.Errorf("failed to parse arguments: %w", err)
+    }
+    
+    // Execute via proxy client
+    result, err := p.proxyClient.CallTool(ctx, p.mcpName, p.name, args)
+    if err != nil {
+        return "", fmt.Errorf("tool execution failed: %w", err)
+    }
+    
+    // Return result
+    return formatResult(result)
+}
+```
+
+### Direct Client Access
+
+```go
+// Get client
+client, err := clientManager.GetClient("filesystem")
+if err != nil {
+    return fmt.Errorf("client not found: %w", err)
+}
+
+// Prepare request
+request := mcp.CallToolRequest{
+    Name: "read_file",
+    Arguments: map[string]interface{}{
+        "path": "/data/config.json",
+    },
+}
+
+// Execute tool
+result, err := client.CallTool(ctx, request)
+if err != nil {
+    return fmt.Errorf("tool execution failed: %w", err)
+}
+```
+
+## Conflict Resolution
+
+### Name Conflicts
+
+When multiple MCP servers provide tools with the same name:
+
+```go
+func (r *ToolRegistry) resolveConflict(toolName string, servers []string) error {
+    // Strategy 1: Use server prefix
+    for _, server := range servers {
+        toolKey := fmt.Sprintf("%s.%s", server, toolName)
+        if tool, exists := r.tools[toolKey]; exists {
+            // Register with prefixed name
+            r.tools[fmt.Sprintf("%s_%s", server, toolName)] = tool
+        }
+    }
+    
+    // Strategy 2: Use versioning
+    // Strategy 3: Use priority-based selection
+    
+    return nil
+}
+```
+
+### Priority-Based Selection
+
+```yaml
+mcps:
+  - id: filesystem-primary
+    command: "mcp-server-filesystem"
+    transport: stdio
+    priority: 1
+    
+  - id: filesystem-backup
+    command: "mcp-server-filesystem-backup"
+    transport: stdio
+    priority: 2
+```
+
+## Integration with Agents
+
+### Agent Tool Discovery
+
+```yaml
+agent:
+  id: file-manager
+  instructions: "Manage files using available tools"
+  
+  # Automatically discover tools from MCP servers
+  tool_discovery:
+    enabled: true
+    filters:
+      - server: "filesystem"
+        include: ["read_file", "write_file"]
+      - server: "database"
+        exclude: ["drop_table"]
+```
+
+### Dynamic Tool Loading
+
+```go
+// Load tools dynamically in agent
+func (a *Agent) loadTools(ctx context.Context) error {
+    // Get available tools
+    tools, err := a.toolRegistry.ListTools()
+    if err != nil {
+        return fmt.Errorf("failed to list tools: %w", err)
+    }
+    
+    // Create proxy tools
+    for _, tool := range tools {
+        proxyTool := NewProxyTool(tool, a.proxyClient)
+        a.langchainTools = append(a.langchainTools, proxyTool)
+    }
+    
+    return nil
+}
+```
+
+## Tool Metadata
+
+### Enhanced Tool Information
+
+```go
+type ExtendedTool struct {
+    Tool
+    
+    // Metadata
+    Category    string            `json:"category"`
+    Keywords    []string          `json:"keywords"`
+    Usage       string            `json:"usage"`
+    Examples    []ToolExample     `json:"examples"`
+    
+    // Performance
+    AvgLatency  time.Duration     `json:"avgLatency"`
+    SuccessRate float64           `json:"successRate"`
+    
+    // Dependencies
+    Dependencies []string         `json:"dependencies"`
+    Conflicts    []string         `json:"conflicts"`
+}
+
+type ToolExample struct {
+    Description string            `json:"description"`
+    Input       map[string]any    `json:"input"`
+    Output      string            `json:"output"`
+}
+```
+
+### Tool Categories
+
+```go
+const (
+    CategoryFileSystem = "filesystem"
+    CategoryDatabase   = "database"
+    CategoryNetwork    = "network"
+    CategorySystem     = "system"
+    CategoryUtility    = "utility"
+)
+```
+
+## Performance Optimization
+
+### Tool Caching
+
+```go
+type ToolCache struct {
+    cache map[string]*Tool
+    ttl   time.Duration
+    mutex sync.RWMutex
+}
+
+func (c *ToolCache) Get(key string) (*Tool, bool) {
+    c.mutex.RLock()
+    defer c.mutex.RUnlock()
+    
+    tool, exists := c.cache[key]
+    return tool, exists
+}
+```
+
+### Lazy Loading
+
+```go
+func (r *ToolRegistry) GetTool(name string) (*Tool, error) {
+    // Check cache first
+    if tool, exists := r.cache.Get(name); exists {
+        return tool, nil
+    }
+    
+    // Discover tool if not cached
+    tool, err := r.discoverTool(name)
+    if err != nil {
+        return nil, err
+    }
+    
+    // Cache for future use
+    r.cache.Set(name, tool, 5*time.Minute)
+    
+    return tool, nil
+}
+```
+
+## Monitoring and Debugging
+
+### Tool Usage Metrics
+
+```go
+type ToolMetrics struct {
+    Name            string        `json:"name"`
+    Server          string        `json:"server"`
+    ExecutionCount  int64         `json:"executionCount"`
+    SuccessCount    int64         `json:"successCount"`
+    ErrorCount      int64         `json:"errorCount"`
+    AvgLatency      time.Duration `json:"avgLatency"`
+    LastUsed        time.Time     `json:"lastUsed"`
+}
+```
+
+### Discovery Logs
+
+```go
+func (d *ToolDiscovery) logDiscovery(serverID string, tools []*Tool) {
+    log.Info("Tool discovery completed",
+        "server", serverID,
+        "tool_count", len(tools),
+        "tools", extractToolNames(tools))
+}
+```
+
+## Best Practices
+
+### Tool Design
+1. **Clear Naming** - Use descriptive, unique tool names
+2. **Comprehensive Schemas** - Provide detailed input schemas
+3. **Error Handling** - Return meaningful error messages
+4. **Documentation** - Include usage examples and descriptions
+
+### Performance
+1. **Efficient Discovery** - Cache tool definitions
+2. **Lazy Loading** - Load tools on demand
+3. **Connection Pooling** - Reuse MCP connections
+4. **Timeouts** - Set appropriate execution timeouts
+
+### Security
+1. **Tool Filtering** - Use allow/block lists
+2. **Input Validation** - Validate all tool inputs
+3. **Access Control** - Implement role-based access
+4. **Audit Logging** - Log all tool executions
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Tool Not Found**
+   - Check MCP server status
+   - Verify tool registration
+   - Review filter configurations
+
+2. **Schema Validation Failures**
+   - Validate tool input schemas
+   - Check required parameters
+   - Review data types
+
+3. **Execution Timeouts**
+   - Increase timeout values
+   - Check server performance
+   - Monitor network latency
+
+### Debug Commands
+
+```bash
+# List all discovered tools
+curl -H "Authorization: Bearer admin-token" \
+  http://localhost:8081/admin/tools
+
+# Check specific tool
+curl -H "Authorization: Bearer admin-token" \
+  http://localhost:8081/admin/tools/filesystem.read_file
+```
+
+## Next Steps
+
+- [Transport Configuration](./transport-configuration) - Configure transport types
+- [Security & Authentication](./security-authentication) - Secure tool access
+- [Integration Patterns](./integration-patterns) - Learn integration patterns
+- [Development & Debugging](./development-debugging) - Debug tool issues

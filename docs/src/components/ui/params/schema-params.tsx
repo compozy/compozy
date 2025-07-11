@@ -1,5 +1,3 @@
-"use client";
-
 import { FileJson } from "lucide-react";
 import { tv } from "tailwind-variants";
 import { ConditionalSchema, ParameterDescription } from "./components";
@@ -12,8 +10,8 @@ import {
   getSchemaType,
   resolveRef,
 } from "./helpers";
-import { Param } from "./param";
-import { Params } from "./params";
+import { Param, ParamCollapse, ParamCollapseItem } from "./param";
+import { Params, ParamsBody, ParamsHeader } from "./params";
 import { JSONSchema, hasConditionals, isArraySchema, isObjectSchema, isRefSchema } from "./types";
 
 // Pre-import all schemas that might be referenced
@@ -112,8 +110,8 @@ function SchemaParam({
       >
         <ParameterDescription description={description} />
         {properties.length > 0 && !hasExternalSchemaRef && (
-          <Param.ExpandableRoot defaultValue={path === "" ? "properties" : undefined}>
-            <Param.ExpandableItem value="properties" title={UI_CONSTANTS.PROPERTIES_TITLE}>
+          <ParamCollapse defaultValue={path === "" ? "properties" : undefined}>
+            <ParamCollapseItem value="properties" title={UI_CONSTANTS.PROPERTIES_TITLE}>
               {properties.map(([key, propSchema]) => (
                 <SchemaParam
                   key={key}
@@ -124,8 +122,8 @@ function SchemaParam({
                   paramType={paramType}
                 />
               ))}
-            </Param.ExpandableItem>
-          </Param.ExpandableRoot>
+            </ParamCollapseItem>
+          </ParamCollapse>
         )}
       </Param>
     );
@@ -153,16 +151,16 @@ function SchemaParam({
         paramType={paramType}
       >
         <ParameterDescription description={description} />
-        <Param.ExpandableRoot>
-          <Param.ExpandableItem value="items" title={UI_CONSTANTS.ARRAY_ITEMS_TITLE}>
+        <ParamCollapse>
+          <ParamCollapseItem value="items" title={UI_CONSTANTS.ARRAY_ITEMS_TITLE}>
             <SchemaParam
               path={`${path}[0]`}
               schema={itemSchema}
               rootSchema={itemRootSchema}
               paramType={paramType}
             />
-          </Param.ExpandableItem>
-        </Param.ExpandableRoot>
+          </ParamCollapseItem>
+        </ParamCollapse>
       </Param>
     );
   }
@@ -272,7 +270,7 @@ export function SchemaParams({
   if (shouldBeCollapsible && title) {
     return (
       <Params className={className} collapsible={true} defaultOpen={defaultExpanded}>
-        <Params.Header className="py-4">
+        <ParamsHeader className="py-4">
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-2">
               <FileJson className="size-4" />
@@ -282,8 +280,8 @@ export function SchemaParams({
               <div className="text-sm text-muted-foreground">{schema.description}</div>
             )}
           </div>
-        </Params.Header>
-        <Params.Body>{renderContent()}</Params.Body>
+        </ParamsHeader>
+        <ParamsBody>{renderContent()}</ParamsBody>
       </Params>
     );
   }

@@ -8,22 +8,12 @@
     "getting-started",
     "configuration",
     "yaml-templates",
-    "---Concepts---",
-    "tools",
+    "---Core Concepts---",
     "agents",
     "tasks",
+    "tools",
     "memory",
     "mcp",
-    "signals",
-    "scheduling",
-    "---Setup---",
-    "temporal",
-    "development",
-    "deployment",
-    "metrics",
-    "---Resources---",
-    "examples",
-    "community",
-    "reference"
+    "signals"
   ]
 }

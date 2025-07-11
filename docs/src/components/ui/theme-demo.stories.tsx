@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { Check, Moon, Palette, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 

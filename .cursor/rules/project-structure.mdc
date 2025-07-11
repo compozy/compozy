@@ -18,11 +18,11 @@ compozy/
 ├── engine/           # Core domain logic
 │   ├── agent/        # AI agent management
 │   ├── task/         # Task orchestration (basic, parallel, collection, router types)
-│   ├── tool/         # Tool execution framework (TypeScript/Deno-based)
+│   ├── tool/         # Tool execution framework (TypeScript/Bun-based)
 │   ├── workflow/     # Workflow definition and execution
 │   ├── mcp/          # Model Context Protocol integration for external tool servers
 │   ├── llm/          # LLM service integration (OpenAI, Groq, Ollama)
-│   ├── runtime/      # Deno runtime for executing TypeScript tools
+│   ├── runtime/      # Bun runtime for executing TypeScript tools
 │   ├── worker/       # Temporal-based workflow execution
 │   └── infra/        # Infrastructure (server, db, messaging)
 ├── cli/              # Command-line interface
@@ -44,7 +44,7 @@ See folder structure above for detailed component organization.
 - **Temporal**: Workflow orchestration engine (port 7233, Web UI: 8080)
 - **MCP Proxy**: HTTP proxy for MCP servers (port 8081)
 - **NATS**: High-performance messaging system
-- **Deno**: Secure runtime for TypeScript tool execution
+- **Bun**: Secure runtime for TypeScript tool execution
 </tech_stack>
 
 ## Infrastructure Stack
@@ -55,7 +55,7 @@ Port mappings and service details are included in the Technology Stack above.
 
 <patterns type="design_principles">
 1. **Declarative YAML Configuration**: All components use `$ref` for references and `$use` for dependency injection
-2. **Tool Execution**: TypeScript files executed in Deno with JSON I/O communication
+2. **Tool Execution**: TypeScript files executed in Bun with JSON I/O communication
 3. **MCP Integration**: External tool servers via HTTP/SSE transport protocols
 4. **Microservice Architecture**: Modular components with clear boundaries
 5. **Event-Driven**: Pub/sub messaging for loose coupling
@@ -83,7 +83,7 @@ Configuration examples available in compozy-examples.mdc.
 - Built-in state tracking and persistence
 - Fault-tolerant task scheduling
 
-### Deno Tool Execution
+### Bun Tool Execution
 - Configurable permissions per project (security sandboxing)
 - JSON-based stdin/stdout communication protocol
 - Process isolation with timeout handling
@@ -96,7 +96,7 @@ Configuration examples available in compozy-examples.mdc.
 ### Required Services
 - Docker containers for PostgreSQL, Redis, Temporal, and NATS
 - MCP Proxy service for external tool integration
-- Deno runtime for tool execution
+- Bun runtime for tool execution
 
 ### Key Directories for Development
 - `engine/`: Domain logic implementation

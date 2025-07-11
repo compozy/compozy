@@ -1,6 +1,688 @@
 ---
 title: Basic Tasks
-description: Understanding basic task types
+description: Understanding basic task execution in Compozy workflows with agents and tools
 ---
 
-# Basic Tasks
+Basic tasks are the fundamental building blocks of Compozy workflows. They represent single-step operations that execute agents or tools to perform specific work. Every workflow ultimately decomposes into basic tasks that handle the actual processing.
+
+## Related Documentation
+
+### 🔗 Cross-References
+- **[Core Concepts: Tasks](/docs/core/getting-started/core-concepts#2-tasks)** - Tasks in workflow context
+- **[Agent Overview](/docs/core/agents/overview)** - How agents work with tasks
+- **[Tools Overview](/docs/core/tools/tools-overview)** - How tools work with tasks
+- **[YAML Templates](/docs/core/yaml-templates/overview)** - Dynamic task configuration
+
+### ⚙️ Task-Related Topics
+- **Basic Tasks** ↔ **[Other Task Types](/docs/core/tasks/aggregate-tasks)** ↔ **[Advanced Patterns](/docs/core/tasks/advanced-patterns)**
+- **Task Execution** ↔ **[Agent Actions](/docs/core/agents/instructions-actions)** ↔ **[Tool Development](/docs/core/tools/typescript-development)**
+- **Flow Control** ↔ **[Workflow Configuration](/docs/core/configuration/workflows)** ↔ **[Signal Communication](/docs/core/signals/signal-overview)**
+
+## Overview
+
+Basic tasks provide the core execution model for Compozy workflows:
+
+- **Single Responsibility**: Each basic task performs one specific operation
+- **Agent or Tool Execution**: Uses either AI agents or TypeScript tools for processing
+- **Template Integration**: Full support for dynamic parameters and outputs
+- **Flow Control**: Conditional routing and error handling
+- **Schema Validation**: Input/output validation with JSON Schema
+
+<Callout type="info">
+Basic tasks are the most common task type and serve as the foundation for all other task patterns in Compozy.
+</Callout>
+
+## Task Structure
+
+### Core Configuration
+
+Every basic task shares this fundamental structure:
+
+```yaml
+id: task-name
+type: basic
+$use: agent(local::agents.#(id=="agent-id")) # OR tool(local::tools.#(id=="tool-id"))
+action: action-name # For agents only
+with:
+  parameter: "{{ .workflow.input.value }}"
+outputs:
+  result: "{{ .output.data }}"
+on_success:
+  next: next-task
+on_error:
+  next: error-handler
+```
+
+### Key Components
+
+<Tabs items={["Agent Tasks", "Tool Tasks", "Configuration", "Flow Control"]}>
+<Tab value="Agent Tasks">
+
+Agent tasks execute AI models with specific instructions:
+
+```yaml
+id: analyze-text
+type: basic
+$use: agent(local::agents.#(id=="text-analyzer"))
+action: analyze_sentiment
+
+# Agent configuration (can be inline or referenced)
+agent:
+  id: text-analyzer
+  config:
+    provider: anthropic
+    model: claude-3-haiku-20240307
+  instructions: |
+    Analyze the sentiment of the provided text.
+    Return a score between -1 (negative) and 1 (positive).
+
+with:
+  text: "{{ .workflow.input.content }}"
+  context: "{{ .workflow.input.metadata }}"
+
+outputs:
+  sentiment_score: "{{ .output.score }}"
+  confidence: "{{ .output.confidence }}"
+  explanation: "{{ .output.reasoning }}"
+```
+
+</Tab>
+<Tab value="Tool Tasks">
+
+Tool tasks execute TypeScript functions in secure Bun runtime:
+
+```yaml
+id: format-code
+type: basic
+$use: tool(local::tools.#(id=="formatter"))
+
+# Tool configuration (can be inline or referenced)
+tool:
+  id: formatter
+  description: Code formatter tool
+
+with:
+  code: "{{ .workflow.input.source_code }}"
+  language: "{{ .workflow.input.lang }}"
+  options:
+    indent_size: 2
+    use_tabs: false
+
+outputs:
+  formatted_code: "{{ .output.result }}"
+  changes_made: "{{ .output.modified }}"
+```
+
+</Tab>
+<Tab value="Configuration">
+
+Comprehensive task configuration options:
+
+```yaml
+id: complete-task-example
+type: basic
+$use: agent(local::agents.#(id=="processor"))
+action: process_data
+
+# Input validation schema
+input:
+  type: object
+  properties:
+    data:
+      type: string
+      minLength: 1
+    priority:
+      type: string
+      enum: ["low", "medium", "high"]
+      default: "medium"
+  required: [data]
+
+# Output validation schema
+output:
+  type: object
+  properties:
+    result:
+      type: string
+    confidence:
+      type: number
+      minimum: 0
+      maximum: 1
+  required: [result, confidence]
+
+# Environment variables
+env:
+  LOG_LEVEL: debug
+  API_KEY: "{{ .env.SECRET_KEY }}"
+
+# Runtime options
+timeout: 30s
+heartbeat_timeout: 10s
+
+# Retry configuration
+retry_policy:
+  maximum_attempts: 3
+  initial_interval: 1s
+  maximum_interval: 30s
+  backoff_coefficient: 2.0
+```
+
+</Tab>
+<Tab value="Flow Control">
+
+Advanced flow control and error handling:
+
+```yaml
+id: resilient-task
+type: basic
+$use: agent(local::agents.#(id=="processor"))
+action: process
+
+with:
+  data: "{{ .workflow.input.payload }}"
+
+# Success routing
+on_success:
+  next: validate-result
+  with:
+    processed_data: "{{ .task.outputs.result }}"
+    metadata:
+      processing_time: "{{ .task.duration }}"
+      confidence: "{{ .task.outputs.confidence }}"
+
+# Error handling
+on_error:
+  next: error-recovery
+  with:
+    error_type: "{{ .task.error.type }}"
+    error_message: "{{ .task.error.message }}"
+    original_input: "{{ .task.with }}"
+    retry_count: "{{ .task.retry_count }}"
+
+# Global timeout and retry settings
+schedule_to_close_timeout: 5m
+start_to_close_timeout: 3m
+```
+
+</Tab>
+</Tabs>
+
+## Agent vs Tool Tasks
+
+### When to Use Agents
+
+Choose agent tasks for:
+
+- **Natural Language Processing**: Text analysis, generation, translation
+- **Complex Reasoning**: Decision making, problem solving, planning
+- **Unstructured Data**: Processing varied inputs that require interpretation
+- **Creative Tasks**: Content generation, ideation, creative writing
+
+```yaml
+# Example: Content analysis agent
+id: analyze-content
+type: basic
+$use: agent(local::agents.#(id=="content-analyst"))
+action: analyze_content
+
+agent:
+  id: content-analyst
+  config:
+    provider: anthropic
+    model: claude-3-haiku-20240307
+  instructions: |
+    Analyze the provided content for:
+    1. Key themes and topics
+    2. Sentiment and tone
+    3. Target audience
+    4. Content quality score (1-10)
+
+    Return structured JSON with your analysis.
+  actions:
+    - id: analyze_content
+      json_mode: true
+      output:
+        type: object
+        properties:
+          themes: { type: array, items: { type: string } }
+          sentiment: { type: string, enum: ["positive", "negative", "neutral"] }
+          tone: { type: string }
+          audience: { type: string }
+          quality_score: { type: number, minimum: 1, maximum: 10 }
+        required: [themes, sentiment, tone, audience, quality_score]
+
+with:
+  content: "{{ .workflow.input.text }}"
+  metadata: "{{ .workflow.input.context }}"
+```
+
+### When to Use Tools
+
+Choose tool tasks for:
+
+- **Deterministic Operations**: File I/O, data transformation, calculations
+- **External API Integration**: HTTP requests, database operations
+- **System Operations**: File system access, process management
+- **Performance-Critical Tasks**: High-speed data processing
+
+```yaml
+# Example: Data processing tool
+id: process-csv
+type: basic
+$use: tool(local::tools.#(id=="csv-processor"))
+
+tool:
+  id: csv-processor
+  description: Process CSV data with filtering and transformation
+  input:
+    type: object
+    properties:
+      csv_data: { type: string }
+      filters: { type: object }
+      transformations: { type: array }
+    required: [csv_data]
+
+with:
+  csv_data: "{{ .workflow.input.raw_data }}"
+  filters:
+    status: "active"
+    date_range: "{{ .workflow.input.date_filter }}"
+  transformations:
+    - type: "normalize_names"
+    - type: "calculate_totals"
+
+outputs:
+  processed_data: "{{ .output.data }}"
+  row_count: "{{ .output.count }}"
+  processing_time: "{{ .output.duration }}"
+```
+
+## Template Expressions
+
+Basic tasks support powerful template expressions for dynamic configuration:
+
+### Input Templates
+
+```yaml
+with:
+  # Simple value substitution
+  user_id: "{{ .workflow.input.user_id }}"
+
+  # Complex expressions with functions
+  timestamp: "{{ now | date '2006-01-02 15:04:05' }}"
+
+  # Conditional values
+  priority: "{{ .workflow.input.priority | default 'medium' }}"
+
+  # Nested object construction
+  metadata:
+    source: "{{ .workflow.id }}"
+    user: "{{ .workflow.input.user_id }}"
+    environment: "{{ .env.ENVIRONMENT }}"
+    created_at: "{{ now }}"
+
+  # Array manipulation
+  tags: "{{ .workflow.input.tags | append 'processed' }}"
+
+  # Mathematical operations
+  score: "{{ mul .workflow.input.base_score 1.2 }}"
+```
+
+### Output Templates
+
+```yaml
+outputs:
+  # Direct field mapping
+  result: "{{ .output.data }}"
+
+  # Computed values
+  summary: "Processed {{ .output.count }} items in {{ .task.duration }}"
+
+  # Complex object creation
+  metadata:
+    task_id: "{{ .task.id }}"
+    execution_time: "{{ .task.duration }}"
+    input_size: "{{ len .with.data }}"
+    success: "{{ not .task.error }}"
+
+  # Conditional outputs
+  status: "{{ if .output.errors }}failed{{ else }}success{{ end }}"
+
+  # Type conversions
+  count_string: "{{ .output.count | toString }}"
+  score_number: "{{ .output.score | toNumber }}"
+```
+
+## Practical Examples
+
+### Example 1: Document Processing Pipeline
+
+<Steps>
+<Step>
+
+**Extract Text**: Use a tool to extract text from documents
+
+```yaml
+id: extract-text
+type: basic
+$use: tool(local::tools.#(id=="text-extractor"))
+
+with:
+  document_path: "{{ .workflow.input.file_path }}"
+  format: "{{ .workflow.input.format }}"
+
+outputs:
+  raw_text: "{{ .output.text }}"
+  page_count: "{{ .output.pages }}"
+  metadata: "{{ .output.doc_metadata }}"
+
+on_success:
+  next: analyze-content
+```
+
+</Step>
+<Step>
+
+**Analyze Content**: Use an agent to analyze the extracted text
+
+```yaml
+id: analyze-content
+type: basic
+$use: agent(local::agents.#(id=="document-analyzer"))
+action: analyze_document
+
+with:
+  text: "{{ .tasks.extract-text.outputs.raw_text }}"
+  document_type: "{{ .workflow.input.doc_type }}"
+
+outputs:
+  analysis: "{{ .output.analysis }}"
+  confidence: "{{ .output.confidence }}"
+  key_points: "{{ .output.key_points }}"
+
+on_success:
+  next: generate-summary
+```
+
+</Step>
+<Step>
+
+**Generate Summary**: Create a final summary
+
+```yaml
+id: generate-summary
+type: basic
+$use: agent(local::agents.#(id=="summarizer"))
+action: create_summary
+
+with:
+  original_text: "{{ .tasks.extract-text.outputs.raw_text }}"
+  analysis: "{{ .tasks.analyze-content.outputs.analysis }}"
+  target_length: "{{ .workflow.input.summary_length | default 'medium' }}"
+
+outputs:
+  summary: "{{ .output.summary }}"
+  word_count: "{{ .output.word_count }}"
+
+final: true
+```
+
+</Step>
+</Steps>
+
+### Example 2: API Integration with Error Handling
+
+```yaml
+id: fetch-user-data
+type: basic
+$use: tool(local::tools.#(id=="api-client"))
+
+# Comprehensive input validation
+input:
+  type: object
+  properties:
+    user_id:
+      type: string
+      pattern: "^[a-zA-Z0-9_-]+$"
+    include_profile:
+      type: boolean
+      default: true
+    api_version:
+      type: string
+      enum: ["v1", "v2"]
+      default: "v2"
+  required: [user_id]
+
+with:
+  endpoint: "/users/{{ .workflow.input.user_id }}"
+  headers:
+    Authorization: "Bearer {{ .env.API_TOKEN }}"
+    Accept: "application/json"
+    User-Agent: "Compozy/1.0"
+  query_params:
+    include_profile: "{{ .workflow.input.include_profile }}"
+    version: "{{ .workflow.input.api_version }}"
+  timeout: 30s
+
+# Robust error handling
+retry_policy:
+  maximum_attempts: 3
+  initial_interval: 2s
+  maximum_interval: 30s
+  non_retryable_error_types: ["AuthenticationError", "NotFoundError"]
+
+on_success:
+  next: process-user-data
+  with:
+    user_data: "{{ .output.data }}"
+    api_metadata: "{{ .output.metadata }}"
+
+on_error:
+  next: handle-api-error
+  with:
+    error_type: "{{ .task.error.type }}"
+    user_id: "{{ .workflow.input.user_id }}"
+    retry_count: "{{ .task.retry_count }}"
+```
+
+### Example 3: Multi-Step Data Transformation
+
+```yaml
+id: transform-data
+type: basic
+$use: tool(local::tools.#(id=="data-transformer"))
+
+with:
+  input_data: "{{ .workflow.input.raw_data }}"
+  transformations:
+    # Data cleaning
+    - type: "remove_nulls"
+      fields: ["email", "phone", "address"]
+
+    # Format standardization
+    - type: "normalize_phone"
+      format: "international"
+
+    # Data enrichment
+    - type: "add_metadata"
+      metadata:
+        processed_at: "{{ now }}"
+        processor_version: "2.1.0"
+        source: "{{ .workflow.input.source }}"
+
+    # Validation
+    - type: "validate_schema"
+      schema_ref: "user_profile_v2"
+
+outputs:
+  cleaned_data: "{{ .output.transformed_data }}"
+  validation_errors: "{{ .output.errors }}"
+  statistics:
+    records_processed: "{{ .output.record_count }}"
+    errors_found: "{{ len .output.errors }}"
+    success_rate: "{{ div (sub .output.record_count (len .output.errors)) .output.record_count }}"
+
+# Conditional routing based on validation results
+on_success:
+  next: "{{ if .outputs.validation_errors }}handle-validation-errors{{ else }}save-results{{ end }}"
+```
+
+## Best Practices
+
+### Task Design
+
+1. **Single Responsibility**: Each task should have one clear purpose
+2. **Idempotency**: Tasks should produce the same result when run multiple times
+3. **Error Handling**: Always define error handling strategies
+4. **Input Validation**: Use JSON Schema for input validation
+5. **Output Structure**: Design consistent output formats
+
+### Performance Optimization
+
+```yaml
+# Efficient task configuration
+id: optimized-task
+type: basic
+$use: tool(local::tools.#(id=="processor"))
+
+# Set appropriate timeouts
+timeout: 2m
+heartbeat_timeout: 30s
+
+# Optimize retry strategy
+retry_policy:
+  maximum_attempts: 2
+  initial_interval: 1s
+  maximum_interval: 10s
+
+# Minimal input/output
+with:
+  # Only pass necessary data
+  id: "{{ .workflow.input.item_id }}"
+  action: "process"
+
+outputs:
+  # Only extract needed fields
+  result: "{{ .output.status }}"
+  id: "{{ .output.id }}"
+```
+
+### Error Resilience
+
+```yaml
+id: resilient-task
+type: basic
+$use: agent(local::agents.#(id=="processor"))
+action: process
+
+# Comprehensive error handling
+retry_policy:
+  maximum_attempts: 3
+  initial_interval: 1s
+  maximum_interval: 1m
+  backoff_coefficient: 2.0
+  non_retryable_error_types:
+    - "ValidationError"
+    - "AuthenticationError"
+
+on_error:
+  next: error-recovery
+  with:
+    error_context:
+      original_input: "{{ .task.with }}"
+      error_type: "{{ .task.error.type }}"
+      error_message: "{{ .task.error.message }}"
+      retry_count: "{{ .task.retry_count }}"
+      task_id: "{{ .task.id }}"
+
+# Timeout protection
+schedule_to_close_timeout: 10m
+start_to_close_timeout: 5m
+```
+
+## Common Patterns
+
+### Conditional Execution
+
+```yaml
+# Execute task only if condition is met
+id: conditional-task
+type: basic
+$use: agent(local::agents.#(id=="processor"))
+action: process
+
+# Use template conditions
+with:
+  data: "{{ if .workflow.input.process_data }}{{ .workflow.input.data }}{{ else }}null{{ end }}"
+
+# Skip task if no data
+condition: "{{ ne .workflow.input.data null }}"
+```
+
+### Data Validation
+
+```yaml
+id: validate-input
+type: basic
+$use: tool(local::tools.#(id=="validator"))
+
+input:
+  type: object
+  properties:
+    email:
+      type: string
+      format: email
+    age:
+      type: integer
+      minimum: 0
+      maximum: 150
+    preferences:
+      type: object
+      properties:
+        notifications:
+          type: boolean
+        theme:
+          type: string
+          enum: ["light", "dark"]
+  required: [email, age]
+
+with:
+  email: "{{ .workflow.input.email }}"
+  age: "{{ .workflow.input.age }}"
+  preferences: "{{ .workflow.input.preferences | default dict }}"
+```
+
+Basic tasks form the foundation of all Compozy workflows, providing flexible, reliable execution of both AI agents and tools. Their template system enables dynamic configuration, while their error handling ensures robust operation in production environments.
+
+## Related Documentation
+
+<FeatureCardList cols={2}>
+  <FeatureCard title="Agent Integration" href="/docs/core/agents/overview">
+    Learn how to integrate AI agents with basic tasks for intelligent processing
+  </FeatureCard>
+  <FeatureCard title="Tool Development" href="/docs/core/tools/tools-overview">
+    Understand how to create and use TypeScript tools in basic tasks
+  </FeatureCard>
+  <FeatureCard title="Memory Systems" href="/docs/core/memory/memory-concepts">
+    Add persistent memory to your task workflows for stateful processing
+  </FeatureCard>
+  <FeatureCard title="MCP Integration" href="/docs/core/mcp/mcp-overview">
+    Extend task capabilities with external MCP servers and tools
+  </FeatureCard>
+</FeatureCardList>
+
+## Next Steps
+
+<FeatureCardList cols={2}>
+  <FeatureCard title="Parallel Processing" href="/docs/core/tasks/parallel-processing">
+    Scale your workflows with parallel task execution patterns
+  </FeatureCard>
+  <FeatureCard title="Flow Control" href="/docs/core/tasks/flow-control">
+    Master conditional routing and complex workflow orchestration
+  </FeatureCard>
+  <FeatureCard title="Workflow Patterns" href="/docs/core/examples/basic-examples">
+    Explore real-world examples and common task patterns
+  </FeatureCard>
+  <FeatureCard title="Signals & Coordination" href="/docs/core/signals/signal-overview">
+    Coordinate tasks across workflows with signal patterns
+  </FeatureCard>
+</FeatureCardList>

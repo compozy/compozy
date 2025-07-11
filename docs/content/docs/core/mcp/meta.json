@@ -6,14 +6,14 @@
     "mcp-overview",
     "mcp-proxy-server",
     "transport-configuration",
-    "admin-api",
     "client-manager",
-    "security-authentication",
     "tool-discovery",
+    "security-authentication",
+    "admin-api",
     "storage-backends",
-    "monitoring-metrics",
     "integration-patterns",
     "development-debugging",
-    "production-deployment"
+    "production-deployment",
+    "monitoring-metrics"
   ]
 }

@@ -29,7 +29,7 @@ tasks:
     tool:
       id: nlp_processor
       config:
-        provider: deno
+        provider: bun
         script: nlp_processor.ts
       env:
         MAX_KEYWORDS: "10"
@@ -70,7 +70,7 @@ tasks_definitions:
     tool:
       id: backup_service
       config:
-        provider: deno
+        provider: bun
         script: backup.ts
     input:
       type: object

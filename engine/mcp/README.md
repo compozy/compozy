@@ -38,6 +38,7 @@
 The `mcp` package provides a complete Model Context Protocol (MCP) client implementation for Compozy. MCP is a standardized protocol that enables AI agents to interact with external tools, services, and data sources through a unified interface.
 
 Key capabilities include:
+
 - **MCP Server Registration**: Manage registration and lifecycle of MCP servers with proxy
 - **Transport Support**: Multiple transport mechanisms (SSE, HTTP streaming, stdio)
 - **Tool Discovery**: Automatic discovery and registration of tools from MCP servers
@@ -47,7 +48,7 @@ Key capabilities include:
 
 ---
 
-## 💡 Motivation  
+## 💡 Motivation
 
 - **Tool Extension**: Enable AI agents to access external tools and services beyond core LLM capabilities
 - **Standardization**: Provide a unified interface for tool integration across different providers
@@ -87,23 +88,23 @@ import (
     "context"
     "log"
     "time"
-    
+
     "github.com/compozy/compozy/engine/mcp"
 )
 
 func main() {
     ctx := context.Background()
-    
+
     // Create MCP client
     client := mcp.NewProxyClient(
         "http://localhost:3000",  // MCP proxy URL
         "admin-token",            // Admin token (optional)
         30*time.Second,          // Timeout
     )
-    
+
     // Create register service
     service := mcp.NewRegisterService(client)
-    
+
     // Configure MCP server
     config := &mcp.Config{
         ID:        "filesystem",
@@ -111,19 +112,19 @@ func main() {
         Transport: "sse",
         Proto:     "2025-03-26",
     }
-    
+
     // Register MCP server
     err := service.Ensure(ctx, config)
     if err != nil {
         log.Fatal(err)
     }
-    
+
     // List registered tools
     tools, err := client.ListTools(ctx)
     if err != nil {
         log.Fatal(err)
     }
-    
+
     log.Printf("Available tools: %d", len(tools))
 }
 ```
@@ -335,36 +336,36 @@ const (
 ```go
 func ExampleBasicRegistration() {
     ctx := context.Background()
-    
+
     // Create client and service
     client := mcp.NewProxyClient("http://localhost:3000", "", 30*time.Second)
     service := mcp.NewRegisterService(client)
-    
+
     // Configure MCP server
     config := &mcp.Config{
         ID:        "calculator",
         URL:       "http://localhost:8080/mcp",
         Transport: "sse",
     }
-    
+
     // Set defaults and validate
     config.SetDefaults()
     if err := config.Validate(); err != nil {
         log.Fatal(err)
     }
-    
+
     // Register server
     err := service.Ensure(ctx, config)
     if err != nil {
         log.Fatal(err)
     }
-    
+
     // Verify registration
     registered, err := service.IsRegistered(ctx, "calculator")
     if err != nil {
         log.Fatal(err)
     }
-    
+
     fmt.Printf("Calculator MCP registered: %t\n", registered)
 }
 ```
@@ -374,7 +375,7 @@ func ExampleBasicRegistration() {
 ```go
 func ExampleRemoteServer() {
     ctx := context.Background()
-    
+
     // GitHub API MCP server
     githubConfig := &mcp.Config{
         ID:        "github-api",
@@ -386,7 +387,7 @@ func ExampleRemoteServer() {
             "GITHUB_ORG":   "my-organization",
         },
     }
-    
+
     // Weather API MCP server
     weatherConfig := &mcp.Config{
         ID:        "weather-api",
@@ -398,22 +399,22 @@ func ExampleRemoteServer() {
         },
         MaxSessions: 10,
     }
-    
+
     // Register multiple remote servers
     service := mcp.NewRegisterService(client)
-    
+
     configs := []mcp.Config{*githubConfig, *weatherConfig}
     err := service.EnsureMultiple(ctx, configs)
     if err != nil {
         log.Fatal(err)
     }
-    
+
     // List available tools
     tools, err := client.ListTools(ctx)
     if err != nil {
         log.Fatal(err)
     }
-    
+
     for _, tool := range tools {
         fmt.Printf("Available tool: %s from %s\n", tool.Name, tool.MCPName)
     }
@@ -425,7 +426,7 @@ func ExampleRemoteServer() {
 ```go
 func ExampleLocalProcessServer() {
     ctx := context.Background()
-    
+
     // Filesystem MCP server
     filesystemConfig := &mcp.Config{
         ID:           "filesystem",
@@ -439,7 +440,7 @@ func ExampleLocalProcessServer() {
             "LOG_LEVEL":     "info",
         },
     }
-    
+
     // Python runtime server
     pythonConfig := &mcp.Config{
         ID:           "python-runtime",
@@ -452,21 +453,21 @@ func ExampleLocalProcessServer() {
             "PYTHON_ENV": "production",
         },
     }
-    
+
     service := mcp.NewRegisterService(client)
-    
+
     // Register filesystem server
     err := service.Ensure(ctx, filesystemConfig)
     if err != nil {
         log.Fatal(err)
     }
-    
+
     // Register Python runtime
     err = service.Ensure(ctx, pythonConfig)
     if err != nil {
         log.Fatal(err)
     }
-    
+
     // Test filesystem tool
     result, err := client.CallTool(ctx, "filesystem", "list_directory", map[string]any{
         "path": "/data",
@@ -474,7 +475,7 @@ func ExampleLocalProcessServer() {
     if err != nil {
         log.Fatal(err)
     }
-    
+
     fmt.Printf("Directory listing: %v\n", result)
 }
 ```
@@ -484,7 +485,7 @@ func ExampleLocalProcessServer() {
 ```go
 func ExampleDockerServer() {
     ctx := context.Background()
-    
+
     // PostgreSQL MCP server in Docker
     postgresConfig := &mcp.Config{
         ID:           "postgres-db",
@@ -498,7 +499,7 @@ func ExampleDockerServer() {
             "SCHEMA":       "public",
         },
     }
-    
+
     // Redis MCP server in Docker
     redisConfig := &mcp.Config{
         ID:           "redis-cache",
@@ -510,16 +511,16 @@ func ExampleDockerServer() {
             "REDIS_URL": "redis://redis:6379/0",
         },
     }
-    
+
     service := mcp.NewRegisterService(client)
-    
+
     // Register Docker-based servers
     configs := []mcp.Config{*postgresConfig, *redisConfig}
     err := service.EnsureMultiple(ctx, configs)
     if err != nil {
         log.Fatal(err)
     }
-    
+
     // Use database tool
     result, err := client.CallTool(ctx, "postgres-db", "execute_query", map[string]any{
         "query": "SELECT COUNT(*) FROM users",
@@ -527,7 +528,7 @@ func ExampleDockerServer() {
     if err != nil {
         log.Fatal(err)
     }
-    
+
     fmt.Printf("Query result: %v\n", result)
 }
 ```
@@ -537,17 +538,17 @@ func ExampleDockerServer() {
 ```go
 func ExampleWorkflowIntegration() {
     ctx := context.Background()
-    
+
     // Define workflow with MCP servers
     type DataProcessingWorkflow struct {
         ID   string
         MCPs []mcp.Config
     }
-    
+
     func (w *DataProcessingWorkflow) GetMCPs() []mcp.Config {
         return w.MCPs
     }
-    
+
     // Create workflow configuration
     workflow := &DataProcessingWorkflow{
         ID: "data-processing-pipeline",
@@ -573,26 +574,26 @@ func ExampleWorkflowIntegration() {
             },
         },
     }
-    
+
     // Setup MCP service for workflows
     workflows := []mcp.WorkflowConfig{workflow}
     service, err := mcp.SetupForWorkflows(ctx, workflows)
     if err != nil {
         log.Fatal(err)
     }
-    
+
     // Service automatically registers MCPs in background
     // Give time for registration
     time.Sleep(2 * time.Second)
-    
+
     // Verify registration
     registered, err := service.ListRegistered(ctx)
     if err != nil {
         log.Fatal(err)
     }
-    
+
     fmt.Printf("Registered MCPs: %v\n", registered)
-    
+
     // Cleanup on shutdown
     defer func() {
         if err := service.Shutdown(ctx); err != nil {
@@ -729,26 +730,26 @@ func DefaultRetryConfig() RetryConfig
 ```go
 func TestRegisterService_Ensure(t *testing.T) {
     ctx := context.Background()
-    
+
     // Mock client
     mockClient := &MockClient{}
     service := mcp.NewRegisterService(mockClient)
-    
+
     // Test configuration
     config := &mcp.Config{
         ID:        "test-server",
         URL:       "http://localhost:8080/mcp",
         Transport: "sse",
     }
-    
+
     // Set up expectations
     mockClient.On("Register", mock.Anything, mock.AnythingOfType("*mcp.Definition")).
         Return(nil)
-    
+
     // Test registration
     err := service.Ensure(ctx, config)
     assert.NoError(t, err)
-    
+
     // Verify expectations
     mockClient.AssertExpectations(t)
 }
@@ -761,34 +762,34 @@ func TestClient_Integration(t *testing.T) {
     if testing.Short() {
         t.Skip("Skipping integration test")
     }
-    
+
     ctx := context.Background()
-    
+
     // Setup real proxy client
     proxyURL := os.Getenv("MCP_PROXY_URL")
     if proxyURL == "" {
         t.Skip("MCP_PROXY_URL not set")
     }
-    
+
     client := mcp.NewProxyClient(proxyURL, "", 30*time.Second)
-    
+
     // Test health check
     err := client.Health(ctx)
     assert.NoError(t, err)
-    
+
     // Test MCP registration
     definition := &mcp.Definition{
         Name:      "test-mcp",
         URL:       "http://localhost:8080/mcp",
         Transport: "sse",
     }
-    
+
     err = client.Register(ctx, definition)
     assert.NoError(t, err)
-    
+
     // Cleanup
     defer client.Deregister(ctx, "test-mcp")
-    
+
     // Test listing
     mcps, err := client.ListMCPs(ctx)
     assert.NoError(t, err)

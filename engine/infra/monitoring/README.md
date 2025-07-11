@@ -29,6 +29,7 @@
 The `monitoring` package provides comprehensive observability infrastructure for the Compozy workflow orchestration engine. It integrates OpenTelemetry for distributed tracing and metrics, Prometheus for metric collection, and provides middleware for HTTP servers and Temporal workflows.
 
 Key capabilities include:
+
 - **OpenTelemetry Integration**: Standardized observability with distributed tracing
 - **Prometheus Metrics**: Production-ready metrics collection and exposition
 - **HTTP Monitoring**: Gin middleware for request metrics and tracing
@@ -65,33 +66,33 @@ import (
     "context"
     "log"
     "net/http"
-    
+
     "github.com/compozy/compozy/engine/infra/monitoring"
     "github.com/gin-gonic/gin"
 )
 
 func main() {
     ctx := context.Background()
-    
+
     // Create monitoring service
     config := &monitoring.Config{
         Enabled: true,
         Path:    "/metrics",
     }
-    
+
     service, err := monitoring.NewMonitoringService(ctx, config)
     if err != nil {
         log.Fatal("Failed to initialize monitoring:", err)
     }
     defer service.Shutdown(ctx)
-    
+
     // Setup HTTP server with monitoring
     router := gin.New()
     router.Use(service.GinMiddleware(ctx))
-    
+
     // Add metrics endpoint
     router.GET(config.Path, gin.WrapH(service.ExporterHandler()))
-    
+
     // Start server
     log.Println("Server starting on :8080")
     http.ListenAndServe(":8080", router)
@@ -239,14 +240,14 @@ func setupMonitoringServer(ctx context.Context) error {
         Enabled: true,
         Path:    "/metrics",
     }
-    
+
     service := monitoring.NewMonitoringServiceWithFallback(ctx, config)
-    
+
     // Setup HTTP server
     router := gin.New()
     router.Use(gin.Recovery())
     router.Use(service.GinMiddleware(ctx))
-    
+
     // Health check endpoint
     router.GET("/health", func(c *gin.Context) {
         c.JSON(200, gin.H{
@@ -254,10 +255,10 @@ func setupMonitoringServer(ctx context.Context) error {
             "monitoring": service.IsInitialized(),
         })
     })
-    
+
     // Metrics endpoint
     router.GET(config.Path, gin.WrapH(service.ExporterHandler()))
-    
+
     return http.ListenAndServe(":8080", router)
 }
 ```
@@ -267,7 +268,7 @@ func setupMonitoringServer(ctx context.Context) error {
 ```go
 func createCustomMetrics(service *monitoring.Service) error {
     meter := service.Meter()
-    
+
     // Business metrics
     workflowCounter, err := meter.Int64Counter(
         "workflows_processed_total",
@@ -276,7 +277,7 @@ func createCustomMetrics(service *monitoring.Service) error {
     if err != nil {
         return err
     }
-    
+
     taskDuration, err := meter.Float64Histogram(
         "task_execution_duration_seconds",
         metric.WithDescription("Task execution duration"),
@@ -284,7 +285,7 @@ func createCustomMetrics(service *monitoring.Service) error {
     if err != nil {
         return err
     }
-    
+
     errorRate, err := meter.Float64Counter(
         "workflow_errors_total",
         metric.WithDescription("Total workflow errors"),
@@ -292,13 +293,13 @@ func createCustomMetrics(service *monitoring.Service) error {
     if err != nil {
         return err
     }
-    
+
     // Use metrics in your application
     workflowCounter.Add(ctx, 1, metric.WithAttributes(
         attribute.String("type", "data_processing"),
         attribute.String("status", "completed"),
     ))
-    
+
     return nil
 }
 ```
@@ -312,10 +313,10 @@ func setupMemoryMonitoring(
 ) *monitoring.MemoryMonitoringInterceptor {
     // Create memory monitoring interceptor
     interceptor := monitoring.NewMemoryMonitoringInterceptor(memoryManager)
-    
+
     // Initialize memory monitoring metrics
     monitoring.InitializeMemoryMonitoring(ctx, service.Meter())
-    
+
     return interceptor
 }
 ```
@@ -326,16 +327,16 @@ func setupMemoryMonitoring(
 func monitorDispatcherHealth(service *monitoring.Service) {
     // Initialize dispatcher health metrics
     monitoring.InitDispatcherHealthMetrics(ctx, service.Meter())
-    
+
     // Register dispatcher
     dispatcherID := "dispatcher-1"
     staleThreshold := 30 * time.Second
     monitoring.RegisterDispatcher(ctx, dispatcherID, staleThreshold)
-    
+
     // Update heartbeat periodically
     ticker := time.NewTicker(10 * time.Second)
     defer ticker.Stop()
-    
+
     for {
         select {
         case <-ticker.C:
@@ -354,13 +355,13 @@ func monitorDispatcherHealth(service *monitoring.Service) {
 func setupSystemMetrics(service *monitoring.Service) {
     // Initialize system metrics
     monitoring.InitSystemMetrics(ctx, service.Meter())
-    
+
     // System metrics are automatically collected
     // Access metrics programmatically if needed
     healthyDispatchers := monitoring.GetHealthyDispatcherCount()
     staleDispatchers := monitoring.GetStaleDispatcherCount()
-    
-    log.Printf("Healthy dispatchers: %d, Stale dispatchers: %d", 
+
+    log.Printf("Healthy dispatchers: %d, Stale dispatchers: %d",
         healthyDispatchers, staleDispatchers)
 }
 ```
@@ -372,6 +373,7 @@ func setupSystemMetrics(service *monitoring.Service) {
 ### Core Types
 
 #### `Service`
+
 Main monitoring service providing observability infrastructure.
 
 ```go
@@ -392,6 +394,7 @@ func (s *Service) SetAsGlobal()
 ```
 
 #### `Config`
+
 Configuration for monitoring service.
 
 ```go
@@ -465,26 +468,26 @@ func MetricsHandler() // Returns HTTP handler for metrics endpoint
 ```go
 func TestMonitoringService(t *testing.T) {
     ctx := context.Background()
-    
+
     t.Run("Should initialize with valid config", func(t *testing.T) {
         config := &monitoring.Config{
             Enabled: true,
             Path:    "/metrics",
         }
-        
+
         service, err := monitoring.NewMonitoringService(ctx, config)
         require.NoError(t, err)
         assert.True(t, service.IsInitialized())
-        
+
         defer service.Shutdown(ctx)
     })
-    
+
     t.Run("Should fallback gracefully on initialization failure", func(t *testing.T) {
         config := &monitoring.Config{
             Enabled: true,
             Path:    "invalid-path", // Invalid path
         }
-        
+
         service := monitoring.NewMonitoringServiceWithFallback(ctx, config)
         assert.False(t, service.IsInitialized())
         assert.NotNil(t, service.InitializationError())
@@ -497,7 +500,7 @@ func TestMonitoringService(t *testing.T) {
 ```go
 func TestMonitoringIntegration(t *testing.T) {
     ctx := context.Background()
-    
+
     // Setup monitoring service
     service, err := monitoring.NewMonitoringService(ctx, &monitoring.Config{
         Enabled: true,
@@ -505,7 +508,7 @@ func TestMonitoringIntegration(t *testing.T) {
     })
     require.NoError(t, err)
     defer service.Shutdown(ctx)
-    
+
     // Setup HTTP server with monitoring
     router := gin.New()
     router.Use(service.GinMiddleware(ctx))
@@ -513,23 +516,23 @@ func TestMonitoringIntegration(t *testing.T) {
     router.GET("/test", func(c *gin.Context) {
         c.JSON(200, gin.H{"status": "ok"})
     })
-    
+
     // Test metrics collection
     server := httptest.NewServer(router)
     defer server.Close()
-    
+
     // Make request to generate metrics
     resp, err := http.Get(server.URL + "/test")
     require.NoError(t, err)
     resp.Body.Close()
-    
+
     // Check metrics endpoint
     metricsResp, err := http.Get(server.URL + "/metrics")
     require.NoError(t, err)
     defer metricsResp.Body.Close()
-    
+
     assert.Equal(t, 200, metricsResp.StatusCode)
-    
+
     // Verify metrics content
     body, err := io.ReadAll(metricsResp.Body)
     require.NoError(t, err)
@@ -547,11 +550,11 @@ func setupTestMonitoring(t *testing.T) *monitoring.Service {
         Path:    "/metrics",
     })
     require.NoError(t, err)
-    
+
     t.Cleanup(func() {
         service.Shutdown(ctx)
     })
-    
+
     return service
 }
 

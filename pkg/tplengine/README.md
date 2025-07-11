@@ -218,10 +218,10 @@ result, _ := engine.RenderString("{{ .user.name | upper }}", context)
 templates := []string{
     // Check key existence
     "{{ if hasKey .user \"age\" }}{{ .user.age }}{{ else }}unknown{{ end }}",
-    
+
     // Conditional with default
     "{{ if .user.age }}{{ .user.age }}{{ else }}0{{ end }}",
-    
+
     // Nested conditionals
     "{{ if hasKey . \"database\" }}{{ .database.host | default \"localhost\" }}{{ else }}localhost{{ end }}",
 }
@@ -359,10 +359,12 @@ func (e *TemplateEngine) RenderString(templateStr string, context map[string]any
 Renders a template string with the given context.
 
 **Parameters:**
+
 - `templateStr`: Template string to render
 - `context`: Template context data
 
 **Returns:**
+
 - `string`: Rendered result
 - `error`: Rendering error if any
 
@@ -375,10 +377,12 @@ func (e *TemplateEngine) ParseAny(value any, ctxData map[string]any) (any, error
 Processes a value and resolves any templates within it recursively.
 
 **Parameters:**
+
 - `value`: Value to process (can be string, map, slice, etc.)
 - `ctxData`: Template context data
 
 **Returns:**
+
 - `any`: Processed value with templates resolved
 - `error`: Processing error if any
 
@@ -391,10 +395,12 @@ func (e *TemplateEngine) ProcessFile(filePath string, context map[string]any) (s
 Processes a template file and returns the result.
 
 **Parameters:**
+
 - `filePath`: Path to template file
 - `context`: Template context data
 
 **Returns:**
+
 - `string`: Processed file content
 - `error`: Processing error if any
 
@@ -419,7 +425,7 @@ Renders a template by name.
 #### `AddGlobalValue`
 
 ```go
-func (e *TemplateEngine) AddGlobalValue(name string, value any) 
+func (e *TemplateEngine) AddGlobalValue(name string, value any)
 ```
 
 Adds a global value available in all template contexts.
@@ -483,7 +489,7 @@ Handles numeric conversion with precision preservation.
 ```go
 func TestTemplateEngine_RenderString(t *testing.T) {
     engine := tplengine.NewEngine(tplengine.FormatText)
-    
+
     tests := []struct {
         name     string
         template string
@@ -513,7 +519,7 @@ func TestTemplateEngine_RenderString(t *testing.T) {
             wantErr:  false,
         },
     }
-    
+
     for _, tt := range tests {
         t.Run(tt.name, func(t *testing.T) {
             result, err := engine.RenderString(tt.template, tt.context)
@@ -533,7 +539,7 @@ func TestTemplateEngine_RenderString(t *testing.T) {
 ```go
 func TestTemplateEngine_ParseAny(t *testing.T) {
     engine := tplengine.NewEngine(tplengine.FormatYAML)
-    
+
     data := map[string]any{
         "config": map[string]any{
             "host": "{{ .env.HOST }}",
@@ -544,7 +550,7 @@ func TestTemplateEngine_ParseAny(t *testing.T) {
             "{{ .item2 }}",
         },
     }
-    
+
     context := map[string]any{
         "env": map[string]any{
             "HOST": "localhost",
@@ -553,10 +559,10 @@ func TestTemplateEngine_ParseAny(t *testing.T) {
         "item1": "first",
         "item2": "second",
     }
-    
+
     result, err := engine.ParseAny(data, context)
     assert.NoError(t, err)
-    
+
     resultMap := result.(map[string]any)
     config := resultMap["config"].(map[string]any)
     assert.Equal(t, "localhost", config["host"])
@@ -574,7 +580,7 @@ func BenchmarkTemplateEngine_RenderString(b *testing.B) {
         "name": "John",
         "age":  30,
     }
-    
+
     b.ResetTimer()
     for i := 0; i < b.N; i++ {
         _, err := engine.RenderString(template, context)

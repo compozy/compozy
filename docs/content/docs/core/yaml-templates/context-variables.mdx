@@ -1,6 +1,408 @@
 ---
-title: Context & Variables
-description: Working with context and variables
+title: "Context Variables"
+description: "Accessing workflow data, task outputs, and environment variables in templates"
 ---
 
-# Context & Variables
+# Context Variables
+
+Context variables provide access to data from various sources throughout your Compozy workflows. Understanding the context structure and data access patterns is essential for building dynamic, data-driven configurations.
+
+## Context Structure
+
+The template context is a hierarchical data structure that provides access to:
+
+- **Workflow data**: Input, state, and metadata
+- **Task outputs**: Results from executed tasks
+- **Environment variables**: System and runtime configuration
+- **Collection context**: Iteration variables for collection tasks
+- **Tool and agent data**: Available resources and their state
+
+## Core Context Variables
+
+### Workflow Context
+
+Access workflow-level data and metadata:
+
+```yaml
+# Workflow input data
+user_id: "{{ .workflow.input.user_id }}"
+search_query: "{{ .workflow.input.query }}"
+preferences: "{{ .workflow.input.user_preferences }}"
+
+# Workflow metadata
+workflow_id: "{{ .workflow.id }}"
+workflow_version: "{{ .workflow.version }}"
+started_at: "{{ .workflow.started_at }}"
+
+# Workflow configuration
+timeout: "{{ .workflow.config.timeout }}"
+retry_policy: "{{ .workflow.config.retry_policy }}"
+```
+
+### Task Context
+
+Access outputs and state from other tasks:
+
+```yaml
+# Task outputs
+weather_data: "{{ .tasks.weather_check.output.temperature }}"
+user_profile: "{{ .tasks.get_user.output }}"
+validation_result: "{{ .tasks.validate_input.output.is_valid }}"
+
+# Task metadata
+task_duration: "{{ .tasks.weather_check.duration }}"
+task_status: "{{ .tasks.weather_check.status }}"
+task_attempt: "{{ .tasks.weather_check.attempt }}"
+
+# Complex output access
+nested_data: "{{ .tasks.api_call.output.data.results.0.name }}"
+array_length: "{{ len .tasks.fetch_items.output.items }}"
+```
+
+### Environment Variables
+
+Access system and runtime environment data:
+
+```yaml
+# Environment variables
+api_key: "{{ .env.OPENAI_API_KEY }}"
+database_url: "{{ .env.DATABASE_URL }}"
+debug_mode: "{{ .env.DEBUG | default 'false' | bool }}"
+
+# Environment with defaults
+port: "{{ .env.PORT | default '3000' | int }}"
+timeout: "{{ .env.TIMEOUT | default '30' | int }}"
+log_level: "{{ .env.LOG_LEVEL | default 'info' | lower }}"
+
+# Environment-based configuration
+is_production: "{{ eq .env.NODE_ENV 'production' }}"
+base_url: "{{ .env.API_BASE_URL | default 'http://localhost:3000' }}"
+```
+
+### Collection Context
+
+Special variables available within collection tasks:
+
+```yaml
+# Collection iteration
+- id: process_items
+  type: collection
+  items: "{{ .workflow.input.data_items }}"
+  task:
+    id: "process-{{ .index }}"
+    type: basic
+    with:
+      # Current item data
+      item_id: "{{ .item.id }}"
+      item_name: "{{ .item.name }}"
+      item_data: "{{ .item }}"
+      
+      # Iteration context
+      current_index: "{{ .index }}"
+      is_first: "{{ eq .index 0 }}"
+      is_last: "{{ eq .index (sub (len .items) 1) }}"
+      
+      # Collection metadata
+      total_items: "{{ len .items }}"
+      batch_id: "{{ printf '%s_batch_%d' .workflow.id .index }}"
+```
+
+### Tool and Agent Context
+
+Access available tools and agents:
+
+```yaml
+# Tool availability
+has_weather_tool: "{{ hasKey .tools 'weather_tool' }}"
+available_tools: "{{ keys .tools | join ', ' }}"
+
+# Agent information
+current_agent: "{{ .agents.current.id }}"
+agent_model: "{{ .agents.current.model }}"
+
+# Tool outputs (when used in task context)
+tool_result: "{{ .tool.output }}"
+tool_error: "{{ .tool.error }}"
+```
+
+## Advanced Context Patterns
+
+### Nested Data Access
+
+Navigate complex nested data structures:
+
+```yaml
+# Deep object access
+user_email: "{{ .tasks.get_user.output.profile.contact.email }}"
+first_tag: "{{ .tasks.get_metadata.output.tags.0 }}"
+
+# Safe nested access with defaults
+city: "{{ .tasks.get_location.output.address.city | default 'Unknown' }}"
+phone: "{{ coalesce .user.contact.phone .user.profile.phone 'No phone' }}"
+
+# Array element access
+first_result: "{{ index .tasks.search.output.results 0 }}"
+last_item: "{{ index .tasks.fetch.output.items (sub (len .tasks.fetch.output.items) 1) }}"
+```
+
+### Conditional Context Access
+
+Handle optional or conditional data:
+
+```yaml
+# Check if data exists before using
+user_name: |
+  {{- if .tasks.get_user.output -}}
+    {{ .tasks.get_user.output.name }}
+  {{- else -}}
+    Anonymous
+  {{- end -}}
+
+# Safe access with error handling
+safe_value: "{{ .tasks.risky_operation.output.value | default 'fallback' }}"
+
+# Multiple fallback options
+notification_email: |
+  {{- coalesce 
+      .tasks.get_user.output.notification_email 
+      .tasks.get_user.output.primary_email 
+      .workflow.input.default_email 
+      'noreply@example.com' -}}
+```
+
+### Dynamic Context Building
+
+Build dynamic context data:
+
+```yaml
+# Create custom context objects
+user_context:
+  id: "{{ .workflow.input.user_id }}"
+  profile: "{{ .tasks.get_user.output }}"
+  preferences: "{{ .tasks.get_preferences.output }}"
+  session_id: "{{ .workflow.id }}"
+  timestamp: "{{ now | date '2006-01-02T15:04:05Z' }}"
+
+# Merge multiple contexts
+combined_data: |
+  {{- $base := .tasks.base_data.output -}}
+  {{- $extra := .tasks.extra_data.output -}}
+  {{- merge $base $extra | toJson -}}
+```
+
+## Context in Different Task Types
+
+### Basic Tasks
+
+```yaml
+- id: api_request
+  type: basic
+  $use: tool(local::tools.#(id=="http_client"))
+  with:
+    # Workflow input
+    url: "{{ .workflow.input.api_endpoint }}"
+    
+    # Environment configuration
+    api_key: "{{ .env.API_KEY }}"
+    
+    # Previous task output
+    user_id: "{{ .tasks.authenticate.output.user_id }}"
+    
+    # Dynamic headers
+    headers:
+      Authorization: "Bearer {{ .tasks.authenticate.output.token }}"
+      Content-Type: "application/json"
+      X-Request-ID: "{{ .workflow.id }}"
+```
+
+### Composite Tasks
+
+```yaml
+- id: user_onboarding
+  type: composite
+  tasks:
+    - id: create_account
+      type: basic
+      with:
+        email: "{{ .workflow.input.email }}"
+        name: "{{ .workflow.input.name }}"
+        
+    - id: setup_profile
+      type: basic
+      with:
+        user_id: "{{ .tasks.create_account.output.user_id }}"
+        preferences: "{{ .workflow.input.preferences }}"
+        
+    - id: send_welcome
+      type: basic
+      with:
+        recipient: "{{ .tasks.create_account.output.email }}"
+        user_name: "{{ .tasks.create_account.output.name }}"
+        profile_url: "{{ printf '%s/profile/%s' .env.BASE_URL .tasks.create_account.output.user_id }}"
+```
+
+### Parallel Tasks
+
+```yaml
+- id: parallel_processing
+  type: parallel
+  strategy: wait_all
+  tasks:
+    - id: process_images
+      type: basic
+      with:
+        images: "{{ .workflow.input.images }}"
+        quality: "{{ .workflow.input.quality | default 'medium' }}"
+        
+    - id: process_videos
+      type: basic
+      with:
+        videos: "{{ .workflow.input.videos }}"
+        resolution: "{{ .workflow.input.resolution | default '720p' }}"
+        
+    - id: process_documents
+      type: basic
+      with:
+        documents: "{{ .workflow.input.documents }}"
+        format: "{{ .workflow.input.output_format | default 'pdf' }}"
+```
+
+### Router Tasks
+
+```yaml
+- id: routing_logic
+  type: router
+  condition: |
+    {{- $user_type := .tasks.classify_user.output.type -}}
+    {{- $priority := .tasks.classify_user.output.priority -}}
+    {{- if and (eq $user_type "premium") (gt $priority 8) -}}
+      premium_fast
+    {{- else if eq $user_type "premium" -}}
+      premium_standard
+    {{- else -}}
+      standard
+    {{- end -}}
+  routes:
+    premium_fast:
+      - id: fast_processing
+        with:
+          user_data: "{{ .tasks.classify_user.output }}"
+          priority: 10
+    premium_standard:
+      - id: standard_processing
+        with:
+          user_data: "{{ .tasks.classify_user.output }}"
+          priority: 5
+    standard:
+      - id: basic_processing
+        with:
+          user_data: "{{ .tasks.classify_user.output }}"
+          priority: 1
+```
+
+## Context Debugging
+
+### Inspect Available Context
+
+```yaml
+# Debug: Print entire context
+debug_context: "{{ . | toPrettyJson }}"
+
+# Debug: Print specific sections
+debug_workflow: "{{ .workflow | toPrettyJson }}"
+debug_tasks: "{{ .tasks | toPrettyJson }}"
+debug_env: "{{ .env | toPrettyJson }}"
+
+# Debug: List available keys
+available_tasks: "{{ keys .tasks | join ', ' }}"
+available_env: "{{ keys .env | join ', ' }}"
+```
+
+### Context Validation
+
+```yaml
+# Validate required context
+validation:
+  has_user_id: "{{ hasKey .workflow.input 'user_id' }}"
+  has_auth_token: "{{ hasKey .tasks.authenticate.output 'token' }}"
+  has_api_key: "{{ hasKey .env 'API_KEY' }}"
+  
+# Conditional execution based on context
+process_data: |
+  {{- if and 
+      (hasKey .workflow.input "data") 
+      (not (empty .workflow.input.data)) -}}
+    {{ .workflow.input.data | toJson }}
+  {{- else -}}
+    {}
+  {{- end -}}
+```
+
+## Best Practices
+
+### 1. Use Meaningful Variable Names
+
+```yaml
+# Good - descriptive access
+user_email: "{{ .tasks.get_user_profile.output.email }}"
+auth_token: "{{ .tasks.authenticate_user.output.access_token }}"
+
+# Avoid - unclear references
+data: "{{ .tasks.task1.output.data }}"
+result: "{{ .tasks.step2.output }}"
+```
+
+### 2. Provide Fallback Values
+
+```yaml
+# Always provide sensible defaults
+timeout: "{{ .workflow.config.timeout | default 30 }}"
+retries: "{{ .env.MAX_RETRIES | default 3 | int }}"
+user_name: "{{ .tasks.get_user.output.name | default 'Guest' }}"
+```
+
+### 3. Validate Context Before Use
+
+```yaml
+# Check existence before accessing nested data
+safe_access: |
+  {{- if and .tasks.api_call.output (hasKey .tasks.api_call.output "data") -}}
+    {{ .tasks.api_call.output.data.result }}
+  {{- else -}}
+    null
+  {{- end -}}
+```
+
+### 4. Use Type-Appropriate Conversions
+
+```yaml
+# Convert types as needed
+port_number: "{{ .env.PORT | default '3000' | int }}"
+debug_flag: "{{ .env.DEBUG | default 'false' | bool }}"
+timeout_float: "{{ .config.timeout | default '30.5' | float64 }}"
+```
+
+### 5. Document Complex Context Usage
+
+```yaml
+# Document complex context access patterns
+user_notification_config:
+  # User's preferred notification method from profile
+  method: "{{ .tasks.get_user_profile.output.notifications.method | default 'email' }}"
+  
+  # Fallback to workflow input if profile incomplete
+  email: "{{ coalesce .tasks.get_user_profile.output.email .workflow.input.email }}"
+  
+  # Environment-based configuration
+  service_url: "{{ .env.NOTIFICATION_SERVICE_URL }}"
+  
+  # Dynamic content based on user type
+  template: |
+    {{- if eq .tasks.get_user_profile.output.type "premium" -}}
+      premium_notification
+    {{- else -}}
+      standard_notification
+    {{- end -}}
+```
+
+Context variables are the foundation of dynamic Compozy workflows. Next, learn about [Validation and Debugging](./validation-debugging) to troubleshoot template issues and ensure data quality.

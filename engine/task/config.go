@@ -1,3 +1,71 @@
+// Package task provides configuration types and structures for Compozy task orchestration.
+//
+// Tasks are the **fundamental execution units** in Compozy workflows, representing discrete
+// operations that can be composed into sophisticated automation flows. This package defines
+// the configuration schemas for all task types, their execution parameters, and orchestration
+// patterns that enable powerful workflow orchestration.
+//
+// ## Task Type Overview
+//
+// Compozy supports multiple task types, each optimized for specific orchestration patterns:
+//
+// - **Basic Tasks**: Execute single operations using agents or tools
+// - **Router Tasks**: Implement conditional branching based on runtime data
+// - **Parallel Tasks**: Run multiple tasks concurrently with various strategies
+// - **Collection Tasks**: Iterate over data arrays with batch processing support
+// - **Composite Tasks**: Group related tasks into logical units
+// - **Signal Tasks**: Enable inter-workflow communication and coordination
+// - **Wait Tasks**: Implement delays and synchronization points
+// - **Memory Tasks**: Provide persistent state management across executions
+// - **Aggregate Tasks**: Combine outputs from multiple task executions
+//
+// ## Configuration Philosophy
+//
+// Task configurations follow Compozy's declarative YAML approach, emphasizing:
+//
+// - **Composability**: Tasks can be nested and combined arbitrarily
+// - **Reusability**: Agent and tool references enable configuration reuse
+// - **Expressiveness**: Template expressions provide dynamic runtime behavior
+// - **Validation**: JSON Schema integration ensures configuration correctness
+// - **Observability**: Built-in logging, metrics, and error handling
+//
+// ## Example Usage
+//
+//	# Multi-stage data processing workflow
+//	tasks:
+//	  - id: validate-input
+//	    type: basic
+//	    agent: { id: data-validator }
+//	    with:
+//	      data: "{{ .workflow.input.raw_data }}"
+//
+//	  - id: process-parallel
+//	    type: parallel
+//	    strategy: wait_all
+//	    tasks:
+//	      - id: extract-entities
+//	        type: basic
+//	        agent: { id: entity-extractor }
+//	      - id: analyze-sentiment
+//	        type: basic
+//	        agent: { id: sentiment-analyzer }
+//
+//	  - id: route-results
+//	    type: router
+//	    condition: "tasks.validate_input.output.confidence > 0.8"
+//	    routes:
+//	      true: high-confidence-processor
+//	      false: manual-review-queue
+//
+// ## Integration Points
+//
+// Task configurations integrate with other Compozy components:
+//
+// - **Agents**: AI-powered processing units defined in engine/agent
+// - **Tools**: External command execution defined in engine/tool
+// - **Schemas**: Input/output validation defined in engine/schema
+// - **Memory**: Persistent state management via engine/memory
+// - **MCP**: External tool servers via Model Context Protocol
 package task
 
 import (

@@ -1,6 +1,337 @@
 ---
-title: LLM Integration
-description: Integrating language models
+title: "LLM Integration"
+description: "How agents integrate with various LLM providers through a unified interface"
+icon: "microchip-ai"
 ---
 
-# LLM Integration
+## Overview
+
+Compozy agents integrate with multiple LLM providers through a unified interface, allowing seamless switching between models and providers. This abstraction enables you to choose the best model for each task while maintaining consistent configuration patterns.
+
+## Supported Providers
+
+<FeatureCardList cols={3}>
+  <FeatureCard title="OpenAI" icon="openai">
+    GPT-4, GPT-3.5, and other OpenAI models
+  </FeatureCard>
+  <FeatureCard title="Anthropic" icon="robot">
+    Claude 3 family (Opus, Sonnet, Haiku)
+  </FeatureCard>
+  <FeatureCard title="Google" icon="google">
+    Gemini Pro, Gemini Ultra, PaLM models
+  </FeatureCard>
+  <FeatureCard title="Groq" icon="microchip">
+    Fast inference with Llama, Mixtral models
+  </FeatureCard>
+  <FeatureCard title="Ollama" icon="server">
+    Local models like Llama 2, Mistral, CodeLlama
+  </FeatureCard>
+  <FeatureCard title="Custom" icon="plug">
+    Any OpenAI-compatible API endpoint
+  </FeatureCard>
+</FeatureCardList>
+
+## Provider Configuration
+
+### Basic Configuration
+
+Each agent requires a provider configuration that specifies the LLM to use:
+
+```yaml
+config:
+  provider: openai
+  model: gpt-4-turbo-preview
+  api_key: "{{ .env.OPENAI_API_KEY }}"
+  params:
+    temperature: 0.7
+    max_tokens: 2000
+```
+
+### Provider-Specific Examples
+
+<Tabs>
+  <Tab title="OpenAI">
+    ```yaml
+    config:
+      provider: openai
+      model: gpt-4-turbo-preview
+      api_key: "{{ .env.OPENAI_API_KEY }}"
+      params:
+        temperature: 0.7
+        max_tokens: 4000
+        top_p: 0.9
+        frequency_penalty: 0.1
+        presence_penalty: 0.1
+    ```
+  </Tab>
+  
+  <Tab title="Anthropic">
+    ```yaml
+    config:
+      provider: anthropic
+      model: claude-3-opus-20240229
+      api_key: "{{ .env.ANTHROPIC_API_KEY }}"
+      params:
+        temperature: 0.5
+        max_tokens: 8000
+        top_p: 0.9
+    ```
+  </Tab>
+  
+  <Tab title="Google">
+    ```yaml
+    config:
+      provider: google
+      model: gemini-pro
+      api_key: "{{ .env.GOOGLE_API_KEY }}"
+      params:
+        temperature: 0.8
+        max_tokens: 2048
+        top_p: 0.95
+    ```
+  </Tab>
+  
+  <Tab title="Groq">
+    ```yaml
+    config:
+      provider: groq
+      model: llama-3.3-70b-versatile
+      api_key: "{{ .env.GROQ_API_KEY }}"
+      params:
+        temperature: 0.7
+        max_tokens: 1000
+    ```
+  </Tab>
+  
+  <Tab title="Ollama">
+    ```yaml
+    config:
+      provider: ollama
+      model: llama2:13b
+      api_url: "http://localhost:11434"
+      params:
+        temperature: 0.6
+        max_tokens: 2000
+        repeat_penalty: 1.1
+    ```
+  </Tab>
+</Tabs>
+
+## Model Parameters
+
+### Common Parameters
+
+Most providers support these standard parameters:
+
+| Parameter | Type | Description | Range |
+|-----------|------|-------------|-------|
+| `temperature` | float | Controls randomness in generation | 0.0 - 2.0 |
+| `max_tokens` | int | Maximum tokens to generate | Model-specific |
+| `top_p` | float | Nucleus sampling threshold | 0.0 - 1.0 |
+| `top_k` | int | Top-k sampling parameter | 1 - 100 |
+| `frequency_penalty` | float | Reduces repetitive tokens | -2.0 - 2.0 |
+| `presence_penalty` | float | Encourages new topics | -2.0 - 2.0 |
+
+### Provider-Specific Parameters
+
+<AccordionGroup>
+  <Accordion title="OpenAI Parameters">
+    - `logit_bias`: Modify likelihood of specific tokens
+    - `user`: Unique identifier for end-user
+    - `seed`: For reproducible outputs
+    - `response_format`: Force JSON output structure
+  </Accordion>
+  
+  <Accordion title="Anthropic Parameters">
+    - `stop_sequences`: Custom stop sequences
+    - `metadata`: Request metadata
+    - `system`: System message (handled by instructions)
+  </Accordion>
+  
+  <Accordion title="Ollama Parameters">
+    - `repeat_penalty`: Penalize repetitions
+    - `num_ctx`: Context window size
+    - `num_predict`: Prediction length
+    - `tfs_z`: Tail free sampling
+  </Accordion>
+</AccordionGroup>
+
+## Model Selection Guide
+
+### By Use Case
+
+<Tabs>
+  <Tab title="Code Generation">
+    **Recommended Models:**
+    - OpenAI: `gpt-4-turbo-preview`
+    - Anthropic: `claude-3-opus-20240229`
+    - Ollama: `codellama:34b`
+    
+    **Configuration:**
+    ```yaml
+    config:
+      provider: anthropic
+      model: claude-3-opus-20240229
+      params:
+        temperature: 0.2  # Lower for more deterministic code
+        max_tokens: 8000  # Higher for complete implementations
+    ```
+  </Tab>
+  
+  <Tab title="Creative Writing">
+    **Recommended Models:**
+    - OpenAI: `gpt-4`
+    - Anthropic: `claude-3-sonnet-20240229`
+    - Google: `gemini-pro`
+    
+    **Configuration:**
+    ```yaml
+    config:
+      provider: openai
+      model: gpt-4
+      params:
+        temperature: 0.9  # Higher for creativity
+        top_p: 0.95
+        presence_penalty: 0.3  # Encourage variety
+    ```
+  </Tab>
+  
+  <Tab title="Data Analysis">
+    **Recommended Models:**
+    - OpenAI: `gpt-4-turbo-preview`
+    - Groq: `mixtral-8x7b-32768`
+    - Ollama: `llama2:70b`
+    
+    **Configuration:**
+    ```yaml
+    config:
+      provider: groq
+      model: mixtral-8x7b-32768
+      params:
+        temperature: 0.3  # Lower for accuracy
+        max_tokens: 4000
+        json_mode: true  # For structured outputs
+    ```
+  </Tab>
+</Tabs>
+
+## Global Model Configuration
+
+Define reusable model configurations in your project's `compozy.yaml`:
+
+```yaml
+models:
+  - provider: openai
+    model: gpt-4-turbo-preview
+    api_key: "{{ .env.OPENAI_API_KEY }}"
+    params:
+      temperature: 0.7
+  
+  - provider: anthropic
+    model: claude-3-opus-20240229
+    api_key: "{{ .env.ANTHROPIC_API_KEY }}"
+    
+  - provider: ollama
+    model: llama2:13b
+    api_url: "http://localhost:11434"
+```
+
+Reference global models in agents:
+
+```yaml
+agents:
+  - id: code-reviewer
+    config:
+      $ref: global::models.#(provider=="anthropic")
+    instructions: "Review code for quality..."
+```
+
+## Advanced Features
+
+### Tool Usage
+
+When tools are configured, agents automatically use function calling capabilities:
+
+```yaml
+config:
+  provider: openai
+  model: gpt-4-turbo-preview
+  tool_choice: auto  # auto, none, or specific tool
+
+tools:
+  - id: calculate
+    description: "Perform calculations"
+```
+
+### Streaming Responses
+
+Enable streaming for real-time output (provider-dependent):
+
+```yaml
+config:
+  provider: anthropic
+  model: claude-3-opus-20240229
+  stream: true  # Enable streaming
+```
+
+### Custom Endpoints
+
+Use OpenAI-compatible endpoints:
+
+```yaml
+config:
+  provider: custom
+  model: custom-model
+  api_url: "https://api.custom-llm.com/v1"
+  api_key: "{{ .env.CUSTOM_API_KEY }}"
+```
+
+## Error Handling
+
+The LLM integration includes robust error handling:
+
+<Note>
+All LLM errors are wrapped with context including the provider, model, and error type for easier debugging.
+</Note>
+
+Common error scenarios:
+- **Rate Limits**: Automatic retry with exponential backoff
+- **Token Limits**: Error with clear message about limits
+- **API Errors**: Detailed error messages with status codes
+- **Network Issues**: Timeout and connection error handling
+
+## Performance Optimization
+
+<FeatureCardList cols={2}>
+  <FeatureCard title="Model Caching">
+    Responses are cached when using the same inputs to reduce API calls
+  </FeatureCard>
+  <FeatureCard title="Token Management">
+    Automatic token counting and truncation to stay within limits
+  </FeatureCard>
+  <FeatureCard title="Parallel Processing">
+    Multiple agents can run concurrently with different models
+  </FeatureCard>
+  <FeatureCard title="Local Models">
+    Use Ollama for offline operation and data privacy
+  </FeatureCard>
+</FeatureCardList>
+
+## Best Practices
+
+1. **API Key Management**: Always use environment variables for API keys
+2. **Model Selection**: Choose models based on task requirements and cost
+3. **Temperature Tuning**: Lower for deterministic tasks, higher for creative ones
+4. **Token Limits**: Set appropriate limits to control costs
+5. **Error Recovery**: Implement fallback models for critical workflows
+
+## Next Steps
+
+<FeatureCardList cols={2}>
+  <FeatureCard title="Instructions & Actions" href="/docs/core/agents/instructions-actions">
+    Learn how to craft effective agent instructions
+  </FeatureCard>
+  <FeatureCard title="Structured Outputs" href="/docs/core/agents/structured-outputs">
+    Master JSON mode and schema validation
+  </FeatureCard>
+</FeatureCardList>

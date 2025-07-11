@@ -237,6 +237,7 @@ type StandardResponse struct {
 ```
 
 **Fields:**
+
 - `Status`: HTTP status code
 - `Message`: Human-readable message
 - `Data`: Response payload (omitted if nil)
@@ -322,20 +323,24 @@ func ErrorResponse(code, message, details string) router.Response
 Creates a standardized error response with automatic HTTP status code mapping.
 
 **Parameters:**
+
 - `code`: Error code (e.g., "VALIDATION_ERROR", "NOT_FOUND")
 - `message`: Human-readable error message
 - `details`: Additional error details
 
 **Returns:**
+
 - `router.Response`: Router response with proper status code
 
 **Status Code Mapping:**
+
 - `VALIDATION_ERROR`, `INVALID_INPUT` → 400
 - `NOT_FOUND` → 404
 - `CONFLICT` → 409
 - Default → 500
 
 **Example:**
+
 ```go
 // Returns 400 Bad Request
 return swagger.ErrorResponse("VALIDATION_ERROR", "Invalid input", "Name is required")

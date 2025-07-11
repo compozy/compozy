@@ -29,6 +29,7 @@
 The `autoload` package provides automatic discovery, loading, and registration of configuration files throughout a Compozy project. It scans the project directory for YAML/JSON configuration files, validates them, and makes them available through a centralized registry.
 
 This package handles:
+
 - File discovery using glob patterns
 - Configuration parsing and validation
 - Centralized registry management
@@ -125,7 +126,7 @@ if err != nil {
     log.Fatal(err)
 }
 
-fmt.Printf("Loaded %d configurations from %d files\n", 
+fmt.Printf("Loaded %d configurations from %d files\n",
     result.ConfigsLoaded, result.FilesProcessed)
 ```
 
@@ -184,7 +185,7 @@ config:
 instructions: "You are a helpful coding assistant..."
 
 ---
-# Tool configuration  
+# Tool configuration
 resource: "tool"
 id: "file-reader"
 runtime: "bun"
@@ -241,12 +242,12 @@ if err != nil {
 // Check for loading errors
 if len(result.Errors) > 0 {
     fmt.Printf("Encountered %d errors:\n", len(result.Errors))
-    
+
     for _, loadErr := range result.Errors {
         fmt.Printf("File: %s\n", loadErr.File)
         fmt.Printf("Error: %s\n", loadErr.Error)
     }
-    
+
     // Print error summary
     summary := result.ErrorSummary
     fmt.Printf("Error Summary:\n")
@@ -278,15 +279,15 @@ if len(result.Errors) > 0 {
 
 ### Autoload Configuration Fields
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `enabled` | bool | No | Enable/disable autoloading (default: false) |
-| `strict` | bool | No | Fail on first error vs collect all errors (default: true) |
-| `include` | []string | Yes* | Glob patterns for files to include |
-| `exclude` | []string | No | Glob patterns for files to exclude |
-| `watch_enabled` | bool | No | Enable file watching for changes |
+| Field           | Type     | Required | Description                                               |
+| --------------- | -------- | -------- | --------------------------------------------------------- |
+| `enabled`       | bool     | No       | Enable/disable autoloading (default: false)               |
+| `strict`        | bool     | No       | Fail on first error vs collect all errors (default: true) |
+| `include`       | []string | Yes\*    | Glob patterns for files to include                        |
+| `exclude`       | []string | No       | Glob patterns for files to exclude                        |
+| `watch_enabled` | bool     | No       | Enable file watching for changes                          |
 
-*Required when `enabled` is true
+\*Required when `enabled` is true
 
 ### Default Exclude Patterns
 
@@ -306,6 +307,7 @@ var DefaultExcludes = []string{
 ### Registry Configuration
 
 The `ConfigRegistry` automatically handles:
+
 - Case-insensitive resource types and IDs
 - Duplicate detection and prevention
 - Thread-safe concurrent access
@@ -341,21 +343,21 @@ func main() {
             "**/examples/**",
         },
     }
-    
+
     // Create autoloader
     registry := autoload.NewConfigRegistry()
     loader := autoload.New("/path/to/project", config, registry)
-    
+
     // Load all configurations
     ctx := context.Background()
     if err := loader.Load(ctx); err != nil {
         log.Fatal(err)
     }
-    
+
     // Print statistics
     stats := loader.Stats()
     log.Printf("Loaded configurations: %+v", stats)
-    
+
     // Access specific configuration
     agent, err := registry.Get("agent", "code-assistant")
     if err != nil {
@@ -409,23 +411,23 @@ log.Printf("- Errors encountered: %d", len(result.Errors))
 // Handle different error types
 if len(result.Errors) > 0 {
     summary := result.ErrorSummary
-    
+
     if summary.SecurityErrors > 0 {
         log.Printf("⚠️  Security errors detected: %d", summary.SecurityErrors)
     }
-    
+
     if summary.ParseErrors > 0 {
         log.Printf("📝 Parse errors: %d", summary.ParseErrors)
     }
-    
+
     if summary.ValidationErrors > 0 {
         log.Printf("✅ Validation errors: %d", summary.ValidationErrors)
     }
-    
+
     if summary.DuplicateErrors > 0 {
         log.Printf("🔄 Duplicate configuration errors: %d", summary.DuplicateErrors)
     }
-    
+
     // Print detailed error information
     for _, loadErr := range result.Errors {
         log.Printf("Error in %s: %v", loadErr.File, loadErr.Error)
@@ -473,6 +475,7 @@ for _, file := range files {
 ### Core Types
 
 #### `AutoLoader`
+
 Main autoloader orchestrator.
 
 ```go
@@ -484,6 +487,7 @@ func New(projectRoot string, config *Config, registry *ConfigRegistry) *AutoLoad
 ```
 
 #### `Config`
+
 Autoload configuration.
 
 ```go
@@ -497,6 +501,7 @@ type Config struct {
 ```
 
 #### `ConfigRegistry`
+
 Thread-safe configuration registry.
 
 ```go
@@ -508,6 +513,7 @@ func NewConfigRegistry() *ConfigRegistry
 ```
 
 #### `LoadResult`
+
 Detailed loading results.
 
 ```go
@@ -574,6 +580,7 @@ go test -v ./engine/autoload -tags=integration
 ### Test Structure
 
 The package includes comprehensive tests for:
+
 - Configuration discovery and loading
 - Registry operations and thread safety
 - Error handling and categorization
@@ -590,16 +597,16 @@ func TestAutoLoader_Load(t *testing.T) {
         Strict:  true,
         Include: []string{"**/*.yaml"},
     }
-    
+
     // Create autoloader
     registry := autoload.NewConfigRegistry()
     loader := autoload.New(testProjectRoot, config, registry)
-    
+
     // Test loading
     ctx := context.Background()
     err := loader.Load(ctx)
     assert.NoError(t, err)
-    
+
     // Verify configurations were loaded
     assert.Greater(t, registry.Count(), 0)
 }

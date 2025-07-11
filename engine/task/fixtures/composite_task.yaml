@@ -43,7 +43,7 @@ tasks:
     tool:
       id: email_sender
       config:
-        provider: deno
+        provider: bun
         script: email_sender.ts
       env:
         SMTP_HOST: "{{ .env.SMTP_HOST }}"

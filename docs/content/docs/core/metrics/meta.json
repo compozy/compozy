@@ -2,5 +2,5 @@
   "title": "Metrics",
   "description": "Monitoring and metrics",
   "icon": "ChartBar",
-  "pages": ["observability", "health-checks", "security", "troubleshooting"]
+  "pages": []
 }

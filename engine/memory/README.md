@@ -61,7 +61,7 @@ package main
 import (
     "context"
     "log"
-    
+
     "github.com/compozy/compozy/engine/memory"
     "github.com/compozy/compozy/engine/core"
     "github.com/compozy/compozy/engine/llm"
@@ -69,7 +69,7 @@ import (
 
 func main() {
     ctx := context.Background()
-    
+
     // Create a memory manager
     manager, err := memory.NewManager(&memory.ManagerOptions{
         ResourceRegistry:  registry,    // autoload.ConfigRegistry
@@ -82,39 +82,39 @@ func main() {
     if err != nil {
         log.Fatal(err)
     }
-    
+
     // Get a memory instance
     memoryRef := core.MemoryReference{
         ID:  "conversation-memory",
         Key: "user:{{ .user_id }}:conversation",
     }
-    
+
     workflowContext := map[string]any{
         "user_id": "user123",
     }
-    
+
     memoryInstance, err := manager.GetInstance(ctx, memoryRef, workflowContext)
     if err != nil {
         log.Fatal(err)
     }
-    
+
     // Use the memory
     message := llm.Message{
         Role:    "user",
         Content: "Hello, I need help with my account.",
     }
-    
+
     err = memoryInstance.Append(ctx, message)
     if err != nil {
         log.Fatal(err)
     }
-    
+
     // Read conversation history
     messages, err := memoryInstance.Read(ctx)
     if err != nil {
         log.Fatal(err)
     }
-    
+
     log.Printf("Conversation has %d messages", len(messages))
 }
 ```
@@ -128,6 +128,7 @@ func main() {
 The memory package provides three main components:
 
 #### 1. Manager
+
 Central coordinator that creates and manages memory instances:
 
 ```go
@@ -145,6 +146,7 @@ manager, err := memory.NewManager(&memory.ManagerOptions{
 ```
 
 #### 2. Memory Instances
+
 Individual memory stores with conversation history:
 
 ```go
@@ -162,6 +164,7 @@ tokenCount, err := memory.GetTokenCount(ctx)
 ```
 
 #### 3. Health Monitoring
+
 Built-in diagnostics and monitoring:
 
 ```go
@@ -176,6 +179,7 @@ fmt.Printf("Token count: %d, Message count: %d", health.TokenCount, health.Messa
 ### Manager-Instance Pattern
 
 The package uses a manager-instance pattern where:
+
 - **Manager**: Creates and configures memory instances
 - **Instance**: Handles actual memory operations
 - **Resource**: Defines memory configuration and policies
@@ -263,7 +267,7 @@ type: memory
 storage:
   type: redis
   key_prefix: "memory:conversation:"
-  
+
 # Token management
 token_management:
   max_tokens: 4000
@@ -276,7 +280,7 @@ flushing:
   max_tokens_before_flush: 3500
   keep_first_messages: 3
   keep_last_messages: 10
-  
+
 # Privacy controls
 privacy:
   redaction_enabled: true
@@ -298,7 +302,7 @@ health:
 ```go
 func setupConversationMemory() {
     ctx := context.Background()
-    
+
     // Create manager
     manager, err := memory.NewManager(&memory.ManagerOptions{
         ResourceRegistry:  registry,
@@ -311,40 +315,40 @@ func setupConversationMemory() {
     if err != nil {
         panic(err)
     }
-    
+
     // Get memory instance
     memoryRef := core.MemoryReference{
         ID:  "conversation",
         Key: "user:{{ .user_id }}:conversation",
     }
-    
+
     memory, err := manager.GetInstance(ctx, memoryRef, map[string]any{
         "user_id": "user123",
     })
     if err != nil {
         panic(err)
     }
-    
+
     // Store conversation
     messages := []llm.Message{
         {Role: "user", Content: "Hi, I need help"},
         {Role: "assistant", Content: "I'm here to help!"},
         {Role: "user", Content: "What's my account balance?"},
     }
-    
+
     for _, msg := range messages {
         err = memory.Append(ctx, msg)
         if err != nil {
             panic(err)
         }
     }
-    
+
     // Read back conversation
     history, err := memory.Read(ctx)
     if err != nil {
         panic(err)
     }
-    
+
     fmt.Printf("Conversation has %d messages\n", len(history))
 }
 ```
@@ -354,32 +358,32 @@ func setupConversationMemory() {
 ```go
 func privacyAwareMemory() {
     ctx := context.Background()
-    
+
     // Create memory with privacy controls
     memory, err := getMemoryInstance(ctx, "sensitive-data-memory")
     if err != nil {
         panic(err)
     }
-    
+
     // Message with sensitive data
     message := llm.Message{
         Role:    "user",
         Content: "My email is john@example.com and phone is 555-1234",
     }
-    
+
     // Privacy metadata
     privacyMetadata := memcore.PrivacyMetadata{
         SensitiveFields: []string{"email", "phone"},
         PrivacyLevel:    "confidential",
         RedactionApplied: false,
     }
-    
+
     // Store with privacy controls
     err = memory.AppendWithPrivacy(ctx, message, privacyMetadata)
     if err != nil {
         panic(err)
     }
-    
+
     // Message will be automatically redacted based on privacy rules
 }
 ```
@@ -389,21 +393,21 @@ func privacyAwareMemory() {
 ```go
 func setupHealthMonitoring() {
     ctx := context.Background()
-    
+
     // Initialize global health service
     healthService := memory.InitializeGlobalHealthService(ctx, manager)
-    
+
     // Start background monitoring
     memory.StartGlobalHealthService(ctx)
-    
+
     // Register memory instances
     memory.RegisterInstanceGlobally("user-123-conversation")
     memory.RegisterInstanceGlobally("support-ticket-456")
-    
+
     // Set up HTTP health endpoints
     router := gin.New()
     memory.RegisterMemoryHealthRoutes(router, healthService)
-    
+
     // Custom health checks
     go func() {
         for {
@@ -412,11 +416,11 @@ func setupHealthMonitoring() {
                 log.Printf("Health check failed: %v", err)
                 continue
             }
-            
+
             if systemHealth.TokenUsage > 0.8 {
                 log.Printf("High token usage: %.2f%%", systemHealth.TokenUsage*100)
             }
-            
+
             time.Sleep(30 * time.Second)
         }
     }()
@@ -428,13 +432,13 @@ func setupHealthMonitoring() {
 ```go
 func setupAdvancedFlushing() {
     ctx := context.Background()
-    
+
     // Create token counter
     counter, err := tokens.NewTiktokenCounter("gpt-4")
     if err != nil {
         panic(err)
     }
-    
+
     // Create summarizer with custom rules
     summarizer := memory.NewRuleBasedSummarizerWithOptions(
         counter,
@@ -442,7 +446,7 @@ func setupAdvancedFlushing() {
         5,  // Keep last 5 messages
         50, // Fallback ratio 50%
     )
-    
+
     // Create token manager
     tokenManager, err := memory.NewTokenMemoryManager(
         resourceConfig,
@@ -452,7 +456,7 @@ func setupAdvancedFlushing() {
     if err != nil {
         panic(err)
     }
-    
+
     // Create hybrid flushing strategy
     strategy, err := memory.NewHybridFlushingStrategy(
         &memcore.FlushingStrategyConfig{
@@ -467,13 +471,13 @@ func setupAdvancedFlushing() {
     if err != nil {
         panic(err)
     }
-    
+
     // Use strategy in memory operations
     memory := &flushableMemory{
         baseMemory: baseMemory,
         strategy:   strategy,
     }
-    
+
     // Automatic flushing when thresholds are reached
     err = memory.Append(ctx, llm.Message{
         Role:    "user",
@@ -599,15 +603,15 @@ func TestMemoryBasicOperations(t *testing.T) {
     t.Run("Should append and read messages", func(t *testing.T) {
         ctx := context.Background()
         memory := setupTestMemory(t)
-        
+
         message := llm.Message{
             Role:    "user",
             Content: "Test message",
         }
-        
+
         err := memory.Append(ctx, message)
         require.NoError(t, err)
-        
+
         messages, err := memory.Read(ctx)
         require.NoError(t, err)
         assert.Len(t, messages, 1)

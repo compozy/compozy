@@ -61,7 +61,7 @@ import (
     "context"
     "log"
     "time"
-    
+
     "github.com/compozy/compozy/engine/runtime"
     "github.com/compozy/compozy/engine/core"
 )
@@ -69,10 +69,10 @@ import (
 func main() {
     ctx := context.Background()
     projectRoot := "/path/to/project"
-    
+
     // Create runtime factory
     factory := runtime.NewDefaultFactory(projectRoot)
-    
+
     // Create runtime configuration
     config := &runtime.Config{
         RuntimeType:           "bun",
@@ -83,24 +83,24 @@ func main() {
             "--allow-net=api.example.com",
         },
     }
-    
+
     // Create runtime instance
     rt, err := factory.CreateRuntime(ctx, config)
     if err != nil {
         log.Fatal(err)
     }
-    
+
     // Execute a tool
     input := &core.Input{
         Raw: map[string]any{
             "message": "Hello, world!",
         },
     }
-    
+
     env := core.EnvMap{
         "API_KEY": "secret-key",
     }
-    
+
     result, err := rt.ExecuteTool(
         ctx,
         "greet",           // Tool ID
@@ -111,7 +111,7 @@ func main() {
     if err != nil {
         log.Fatal(err)
     }
-    
+
     log.Printf("Tool executed successfully: %+v", result)
 }
 ```
@@ -171,20 +171,20 @@ config := &runtime.Config{
     EntrypointPath:        "./tools/index.ts",
     ToolExecutionTimeout:  45 * time.Second,
     WorkerFilePerm:        0644,
-    
+
     // Bun-specific permissions
     BunPermissions: []string{
         "--allow-read=/data",
         "--allow-net=api.company.com",
         "--allow-env=API_KEY,DATABASE_URL",
     },
-    
+
     // Node.js-specific options
     NodeOptions: []string{
         "--max-old-space-size=2048",
         "--experimental-modules",
     },
-    
+
     // Backoff configuration for retries
     BackoffInitialInterval: 100 * time.Millisecond,
     BackoffMaxInterval:     5 * time.Second,
@@ -305,18 +305,18 @@ COMPOZY_BACKOFF_MAX_ELAPSED_TIME=30s
 ```go
 func executeBasicTool() {
     ctx := context.Background()
-    
+
     // Create runtime
     factory := runtime.NewDefaultFactory("/path/to/project")
     config := runtime.DefaultConfig()
     config.RuntimeType = "bun"
     config.EntrypointPath = "./tools.ts"
-    
+
     rt, err := factory.CreateRuntime(ctx, config)
     if err != nil {
         panic(err)
     }
-    
+
     // Prepare input
     input := &core.Input{
         Raw: map[string]any{
@@ -326,7 +326,7 @@ func executeBasicTool() {
             },
         },
     }
-    
+
     // Execute tool
     result, err := rt.ExecuteTool(
         ctx,
@@ -338,7 +338,7 @@ func executeBasicTool() {
     if err != nil {
         panic(err)
     }
-    
+
     fmt.Printf("Result: %+v\n", result)
 }
 ```
@@ -348,7 +348,7 @@ func executeBasicTool() {
 ```go
 func executeSecureTool() {
     ctx := context.Background()
-    
+
     // Create runtime with restrictive permissions
     factory := runtime.NewDefaultFactory("/path/to/project")
     config := &runtime.Config{
@@ -361,12 +361,12 @@ func executeSecureTool() {
             "--allow-env=API_KEY",          // Only access specific env var
         },
     }
-    
+
     rt, err := factory.CreateRuntime(ctx, config)
     if err != nil {
         panic(err)
     }
-    
+
     // Execute tool with environment variables
     result, err := rt.ExecuteTool(
         ctx,
@@ -380,7 +380,7 @@ func executeSecureTool() {
     if err != nil {
         panic(err)
     }
-    
+
     fmt.Printf("Secure execution completed: %+v\n", result)
 }
 ```
@@ -390,7 +390,7 @@ func executeSecureTool() {
 ```go
 func executeWithCustomTimeout() {
     ctx := context.Background()
-    
+
     // Create runtime
     factory := runtime.NewDefaultFactory("/path/to/project")
     config := runtime.DefaultConfig()
@@ -398,7 +398,7 @@ func executeWithCustomTimeout() {
     if err != nil {
         panic(err)
     }
-    
+
     // Execute long-running tool with extended timeout
     result, err := rt.ExecuteToolWithTimeout(
         ctx,
@@ -416,7 +416,7 @@ func executeWithCustomTimeout() {
         }
         return
     }
-    
+
     fmt.Printf("Long-running task completed: %+v\n", result)
 }
 
@@ -435,20 +435,20 @@ func isTimeoutError(err error) bool {
 func demonstrateMultiRuntime() {
     ctx := context.Background()
     projectRoot := "/path/to/project"
-    
+
     // Create Bun runtime
     bunConfig := &runtime.Config{
         RuntimeType:    "bun",
         EntrypointPath: "./tools.ts",
         BunPermissions: []string{"--allow-read", "--allow-net"},
     }
-    
+
     factory := runtime.NewDefaultFactory(projectRoot)
     bunRuntime, err := factory.CreateRuntime(ctx, bunConfig)
     if err != nil {
         panic(err)
     }
-    
+
     // Create Node.js runtime (when available)
     nodeConfig := &runtime.Config{
         RuntimeType:    "node",
@@ -458,7 +458,7 @@ func demonstrateMultiRuntime() {
             "--experimental-modules",
         },
     }
-    
+
     nodeRuntime, err := factory.CreateRuntime(ctx, nodeConfig)
     if err != nil {
         if err.Error() == "node.js runtime not yet implemented" {
@@ -467,22 +467,22 @@ func demonstrateMultiRuntime() {
             panic(err)
         }
     }
-    
+
     // Execute with Bun runtime
     result, err := bunRuntime.ExecuteTool(ctx, "fastTool", core.NewID(), input, env)
     if err != nil {
         panic(err)
     }
-    
+
     fmt.Printf("Bun execution: %+v\n", result)
-    
+
     // Execute with Node.js runtime (when available)
     if nodeRuntime != nil {
         result, err := nodeRuntime.ExecuteTool(ctx, "compatTool", core.NewID(), input, env)
         if err != nil {
             panic(err)
         }
-        
+
         fmt.Printf("Node.js execution: %+v\n", result)
     }
 }
@@ -493,7 +493,7 @@ func demonstrateMultiRuntime() {
 ```go
 func handleExecutionErrors() {
     ctx := context.Background()
-    
+
     // Create runtime
     factory := runtime.NewDefaultFactory("/path/to/project")
     config := runtime.DefaultConfig()
@@ -501,7 +501,7 @@ func handleExecutionErrors() {
     if err != nil {
         panic(err)
     }
-    
+
     // Execute tool with error handling
     result, err := rt.ExecuteTool(
         ctx,
@@ -516,17 +516,17 @@ func handleExecutionErrors() {
             fmt.Printf("Process error: %s\n", e.Message)
             fmt.Printf("Exit code: %d\n", e.ExitCode)
             fmt.Printf("Stderr: %s\n", e.Stderr)
-            
+
         case *runtime.ToolExecutionError:
             fmt.Printf("Tool execution error: %s\n", e.Error())
             fmt.Printf("Tool ID: %s\n", e.ToolID)
-            
+
         default:
             fmt.Printf("Unknown error: %v\n", err)
         }
         return
     }
-    
+
     fmt.Printf("Tool executed successfully: %+v\n", result)
 }
 ```
@@ -541,16 +541,16 @@ func checkRuntimeAvailability() {
     } else {
         fmt.Println("Bun runtime is not available")
     }
-    
+
     // Validate runtime type
     if runtime.IsValidRuntimeType("bun") {
         fmt.Println("Bun is a valid runtime type")
     }
-    
+
     if runtime.IsValidRuntimeType("node") {
         fmt.Println("Node.js is a valid runtime type")
     }
-    
+
     if !runtime.IsValidRuntimeType("python") {
         fmt.Println("Python is not a valid runtime type")
     }
@@ -583,7 +583,7 @@ type Runtime interface {
         input *core.Input,
         env core.EnvMap,
     ) (*core.Output, error)
-    
+
     ExecuteToolWithTimeout(
         ctx context.Context,
         toolID string,
@@ -592,7 +592,7 @@ type Runtime interface {
         env core.EnvMap,
         timeout time.Duration,
     ) (*core.Output, error)
-    
+
     GetGlobalTimeout() time.Duration
 }
 ```
@@ -716,18 +716,18 @@ go test -tags=integration ./engine/runtime/...
 func TestRuntimeExecution(t *testing.T) {
     t.Run("Should execute tool successfully", func(t *testing.T) {
         ctx := context.Background()
-        
+
         // Create test runtime
         factory := runtime.NewDefaultFactory("./testdata")
         config := runtime.TestConfig()
         rt, err := factory.CreateRuntime(ctx, config)
         require.NoError(t, err)
-        
+
         // Execute tool
         input := &core.Input{
             Raw: map[string]any{"message": "test"},
         }
-        
+
         result, err := rt.ExecuteTool(
             ctx,
             "testTool",
@@ -735,22 +735,22 @@ func TestRuntimeExecution(t *testing.T) {
             input,
             core.EnvMap{},
         )
-        
+
         require.NoError(t, err)
         assert.NotNil(t, result)
     })
-    
+
     t.Run("Should handle timeout", func(t *testing.T) {
         ctx := context.Background()
-        
+
         // Create runtime with short timeout
         factory := runtime.NewDefaultFactory("./testdata")
         config := runtime.TestConfig()
         config.ToolExecutionTimeout = 100 * time.Millisecond
-        
+
         rt, err := factory.CreateRuntime(ctx, config)
         require.NoError(t, err)
-        
+
         // Execute slow tool
         result, err := rt.ExecuteTool(
             ctx,
@@ -759,7 +759,7 @@ func TestRuntimeExecution(t *testing.T) {
             input,
             core.EnvMap{},
         )
-        
+
         assert.Error(t, err)
         assert.Nil(t, result)
         assert.Contains(t, err.Error(), "timeout")

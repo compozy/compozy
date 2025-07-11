@@ -115,12 +115,22 @@ Options:
 After generation, configure your IDE to use the schemas:
 
 **VS Code (settings.json):**
+
 ```json
 {
   "yaml.schemas": {
-    "./schemas/workflow.json": ["**/workflows/*.yaml", "**/workflows/*.yml"],
-    "./schemas/agent.json": ["**/agents/*.yaml", "**/agents/*.yml"],
-    "./schemas/task.json": ["**/tasks/*.yaml", "**/tasks/*.yml"]
+    "./schemas/workflow.json": [
+      "**/workflows/*.yaml",
+      "**/workflows/*.yml"
+    ],
+    "./schemas/agent.json": [
+      "**/agents/*.yaml",
+      "**/agents/*.yml"
+    ],
+    "./schemas/task.json": [
+      "**/tasks/*.yaml",
+      "**/tasks/*.yml"
+    ]
   }
 }
 ```
@@ -133,18 +143,18 @@ After generation, configure your IDE to use the schemas:
 
 The tool generates schemas for these configuration types:
 
-| Schema | Go Type | Description |
-|--------|---------|-------------|
-| `agent.json` | `agent.Config` | Agent configuration |
+| Schema               | Go Type              | Description                |
+| -------------------- | -------------------- | -------------------------- |
+| `agent.json`         | `agent.Config`       | Agent configuration        |
 | `action-config.json` | `agent.ActionConfig` | Agent action configuration |
-| `project.json` | `project.Config` | Project configuration |
-| `workflow.json` | `workflow.Config` | Workflow configuration |
-| `task.json` | `task.Config` | Task configuration |
-| `tool.json` | `tool.Config` | Tool configuration |
-| `mcp.json` | `mcp.Config` | MCP configuration |
-| `memory.json` | `memory.Config` | Memory configuration |
-| `cache.json` | `cache.Config` | Cache configuration |
-| `monitoring.json` | `monitoring.Config` | Monitoring configuration |
+| `project.json`       | `project.Config`     | Project configuration      |
+| `workflow.json`      | `workflow.Config`    | Workflow configuration     |
+| `task.json`          | `task.Config`        | Task configuration         |
+| `tool.json`          | `tool.Config`        | Tool configuration         |
+| `mcp.json`           | `mcp.Config`         | MCP configuration          |
+| `memory.json`        | `memory.Config`      | Memory configuration       |
+| `cache.json`         | `cache.Config`       | Cache configuration        |
+| `monitoring.json`    | `monitoring.Config`  | Monitoring configuration   |
 
 ### Schema Features
 
@@ -178,13 +188,15 @@ The tool generates schemas for these configuration types:
       }
     },
     "mcps": {
-      "type": "array", 
+      "type": "array",
       "items": {
         "$ref": "mcp.json"
       }
     }
   },
-  "required": ["name"],
+  "required": [
+    "name"
+  ],
   "yamlCompatible": true
 }
 ```
@@ -209,9 +221,9 @@ With generated schemas, your IDE will provide:
 ```yaml
 # Auto-completion and validation
 agent:
-  name: "data-processor"  # ✅ Required field validated
-  model: "gpt-4"         # ✅ Autocomplete available
-  tools:                 # ✅ Array type validated
+  name: "data-processor" # ✅ Required field validated
+  model: "gpt-4" # ✅ Autocomplete available
+  tools: # ✅ Array type validated
     - name: "calculator" # ✅ Tool schema referenced
       type: "function"
 ```
@@ -231,13 +243,16 @@ func GenerateParserSchemas(ctx context.Context, outDir string) error
 Generates JSON schemas for all configuration types and writes them to the specified directory.
 
 **Parameters:**
+
 - `ctx`: Context for cancellation and logging
 - `outDir`: Output directory for generated schema files
 
 **Returns:**
+
 - `error`: Error if schema generation fails
 
 **Example:**
+
 ```go
 ctx := context.Background()
 err := GenerateParserSchemas(ctx, "./schemas")
@@ -255,10 +270,12 @@ func watchConfigFiles(ctx context.Context, outDir string) error
 Watches configuration files for changes and regenerates schemas automatically.
 
 **Parameters:**
+
 - `ctx`: Context for cancellation and signal handling
 - `outDir`: Output directory for generated schema files
 
 **Features:**
+
 - Recursive directory watching
 - File filtering (only `.go` files)
 - Debounced regeneration (500ms delay)

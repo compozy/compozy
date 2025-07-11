@@ -60,20 +60,20 @@ package main
 import (
     "context"
     "log"
-    
+
     "github.com/compozy/compozy/engine/project"
     "github.com/compozy/compozy/engine/core"
 )
 
 func main() {
     ctx := context.Background()
-    
+
     // Set up working directory
     cwd, err := core.CWDFromPath("/path/to/project")
     if err != nil {
         log.Fatal(err)
     }
-    
+
     // Load project configuration
     config, err := project.Load(
         ctx,
@@ -84,23 +84,23 @@ func main() {
     if err != nil {
         log.Fatal(err)
     }
-    
+
     // Access configuration
     log.Printf("Project: %s v%s", config.Name, config.Version)
     log.Printf("Description: %s", config.Description)
     log.Printf("Workflows: %d", len(config.Workflows))
     log.Printf("Models: %d", len(config.Models))
-    
+
     // Validate configuration
     if err := config.Validate(); err != nil {
         log.Fatal("Configuration validation failed:", err)
     }
-    
+
     // Access runtime configuration
     runtime := config.Runtime
     log.Printf("Runtime Type: %s", runtime.Type)
     log.Printf("Entrypoint: %s", runtime.Entrypoint)
-    
+
     log.Println("Project configuration loaded successfully!")
 }
 ```
@@ -242,7 +242,7 @@ models:
     model: gpt-4
     api_key: "{{ .env.OPENAI_API_KEY }}"
     temperature: 0.7
-  
+
   - provider: anthropic
     model: claude-3-opus
     api_key: "{{ .env.ANTHROPIC_API_KEY }}"
@@ -267,7 +267,7 @@ models:
     api_key: "{{ .env.OPENAI_API_KEY }}"
     temperature: 0.7
     max_tokens: 4000
-  
+
   - provider: anthropic
     model: claude-3-opus
     api_key: "{{ .env.ANTHROPIC_API_KEY }}"
@@ -297,7 +297,7 @@ schemas:
 
 # Performance options
 config:
-  max_string_length: 52428800  # 50MB
+  max_string_length: 52428800 # 50MB
   max_nesting_depth: 20
   async_token_counter_workers: 20
   dispatcher_heartbeat_interval: 30
@@ -356,34 +356,34 @@ DISPATCHER_HEARTBEAT_INTERVAL=30
 ```go
 func setupBasicProject() {
     ctx := context.Background()
-    
+
     // Create working directory
     cwd, err := core.CWDFromPath("./my-project")
     if err != nil {
         panic(err)
     }
-    
+
     // Load configuration
     config, err := project.Load(ctx, cwd, "compozy.yaml", ".env")
     if err != nil {
         panic(err)
     }
-    
+
     // Validate configuration
     if err := config.Validate(); err != nil {
         panic(err)
     }
-    
+
     // Access project settings
     fmt.Printf("Project: %s\n", config.Name)
     fmt.Printf("Version: %s\n", config.Version)
     fmt.Printf("Description: %s\n", config.Description)
-    
+
     // Access workflows
     for _, workflow := range config.Workflows {
         fmt.Printf("Workflow: %s\n", workflow.Source)
     }
-    
+
     // Access model configurations
     for _, model := range config.Models {
         fmt.Printf("Model: %s/%s\n", model.Provider, model.Model)
@@ -396,23 +396,23 @@ func setupBasicProject() {
 ```go
 func setupRuntimeConfig() {
     ctx := context.Background()
-    
+
     // Load configuration
     config, err := project.Load(ctx, cwd, "compozy.yaml", ".env")
     if err != nil {
         panic(err)
     }
-    
+
     // Access runtime configuration
     runtime := config.Runtime
     fmt.Printf("Runtime Type: %s\n", runtime.Type)
     fmt.Printf("Entrypoint: %s\n", runtime.Entrypoint)
-    
+
     // Runtime permissions
     for _, perm := range runtime.Permissions {
         fmt.Printf("Permission: %s\n", perm)
     }
-    
+
     // Node.js specific options
     if runtime.Type == "node" {
         for _, option := range runtime.NodeOptions {
@@ -427,26 +427,26 @@ func setupRuntimeConfig() {
 ```go
 func validateConfiguration() {
     ctx := context.Background()
-    
+
     // Load configuration
     config, err := project.Load(ctx, cwd, "compozy.yaml", ".env")
     if err != nil {
         panic(err)
     }
-    
+
     // Validate workflows
     validator := project.NewWorkflowsValidator(config.Workflows)
     if err := validator.Validate(); err != nil {
         fmt.Printf("Workflow validation failed: %v\n", err)
         return
     }
-    
+
     // Validate complete configuration
     if err := config.Validate(); err != nil {
         fmt.Printf("Configuration validation failed: %v\n", err)
         return
     }
-    
+
     fmt.Println("Configuration is valid!")
 }
 ```
@@ -456,23 +456,23 @@ func validateConfiguration() {
 ```go
 func environmentIntegration() {
     ctx := context.Background()
-    
+
     // Load with custom environment file
     config, err := project.Load(ctx, cwd, "compozy.yaml", ".env.production")
     if err != nil {
         panic(err)
     }
-    
+
     // Access environment variables
     env := config.GetEnv()
     fmt.Printf("API Key: %s\n", env["OPENAI_API_KEY"])
-    
+
     // Add or override environment variables
     config.SetEnv(core.EnvMap{
         "CUSTOM_VAR": "custom_value",
         "API_URL":    "https://api.example.com",
     })
-    
+
     // Environment variables are automatically resolved in templates
     // Example: api_key: "{{ .env.OPENAI_API_KEY }}"
 }
@@ -483,40 +483,40 @@ func environmentIntegration() {
 ```go
 func configurationManagement() {
     ctx := context.Background()
-    
+
     // Load base configuration
     config, err := project.Load(ctx, cwd, "compozy.yaml", ".env")
     if err != nil {
         panic(err)
     }
-    
+
     // Clone for modifications
     clonedConfig, err := config.Clone()
     if err != nil {
         panic(err)
     }
-    
+
     // Modify cloned config
     clonedConfig.Description = "Modified description"
-    
+
     // Load override configuration
     overrideConfig, err := project.Load(ctx, cwd, "compozy.override.yaml", ".env")
     if err != nil {
         panic(err)
     }
-    
+
     // Merge configurations
     err = config.Merge(overrideConfig)
     if err != nil {
         panic(err)
     }
-    
+
     // Convert to map for serialization
     configMap, err := config.AsMap()
     if err != nil {
         panic(err)
     }
-    
+
     // Serialize to JSON/YAML
     jsonData, _ := json.Marshal(configMap)
     fmt.Printf("Config as JSON: %s\n", string(jsonData))
@@ -645,15 +645,15 @@ func TestProjectConfiguration(t *testing.T) {
         ctx := context.Background()
         cwd, err := core.CWDFromPath("./testdata")
         require.NoError(t, err)
-        
+
         config, err := project.Load(ctx, cwd, "valid-config.yaml", ".env")
         require.NoError(t, err)
-        
+
         assert.Equal(t, "test-project", config.Name)
         assert.Equal(t, "1.0.0", config.Version)
         assert.NotEmpty(t, config.Description)
     })
-    
+
     t.Run("Should validate configuration", func(t *testing.T) {
         config := &project.Config{
             Name:    "test-project",
@@ -663,7 +663,7 @@ func TestProjectConfiguration(t *testing.T) {
                 Entrypoint: "./tools.ts",
             },
         }
-        
+
         err := config.Validate()
         require.NoError(t, err)
     })

@@ -25,6 +25,7 @@
 The `tool` package is a core component of the Compozy orchestration engine that enables AI agents to interact with external systems, execute scripts, and perform deterministic operations. It provides a standardized interface for defining, validating, and executing tools that extend agent capabilities beyond LLM reasoning.
 
 **Key Features:**
+
 - 🔧 **Multi-runtime Support**: JavaScript/TypeScript, CLI commands, HTTP APIs, and MCP servers
 - 📋 **Schema Validation**: JSON Schema-based input/output validation
 - ⏱️ **Timeout Management**: Configurable execution timeouts with fallback support
@@ -46,19 +47,24 @@ The `tool` package is a core component of the Compozy orchestration engine that 
 ## ⚡ Design Highlights
 
 ### Schema-First Architecture
+
 Tools define their input/output contracts using JSON Schema, ensuring type safety and providing clear documentation for AI agents about expected parameters and return values.
 
 ### Runtime Flexibility
+
 Support for multiple execution environments:
+
 - **JavaScript/TypeScript**: For custom logic and Node.js ecosystem integration
 - **CLI Commands**: For system utilities and existing scripts
 - **HTTP APIs**: For web service integration
 - **MCP Servers**: For Model Context Protocol compliance
 
 ### LLM Function Integration
+
 Automatic generation of LLM function definitions from tool schemas, enabling seamless AI agent integration with proper parameter passing and validation.
 
 ### Environment Isolation
+
 Each tool executes in its own environment context with controlled access to environment variables, preventing interference between tools.
 
 ---
@@ -126,7 +132,7 @@ func main() {
         "path": "/path/to/data.json",
         "format": "json",
     }
-    
+
     ctx := context.Background()
     if err := config.ValidateInput(ctx, input); err != nil {
         panic(err)
@@ -232,12 +238,12 @@ finalInput := mergeInputs(defaultInput, userInput)
 
 ```yaml
 # Required fields
-resource: "tool"              # Must be "tool"
-id: "unique-tool-id"          # Unique identifier
-description: "Tool purpose"   # Human-readable description
+resource: "tool" # Must be "tool"
+id: "unique-tool-id" # Unique identifier
+description: "Tool purpose" # Human-readable description
 
 # Optional fields
-timeout: "30s"                # Execution timeout (Go duration format)
+timeout: "30s" # Execution timeout (Go duration format)
 
 # Input validation schema (JSON Schema Draft 7)
 input:
@@ -276,14 +282,16 @@ env:
 ### Runtime Types
 
 #### JavaScript/TypeScript Tools
+
 ```yaml
 # Detected automatically by .js/.ts extension
 id: "data-processor"
 description: "Process JSON data with custom logic"
-execute: "./scripts/process-data.js"  # or .ts
+execute: "./scripts/process-data.js" # or .ts
 ```
 
 #### CLI Command Tools
+
 ```yaml
 id: "file-converter"
 description: "Convert files using external utility"
@@ -291,6 +299,7 @@ execute: ["pandoc", "-f", "markdown", "-t", "html"]
 ```
 
 #### HTTP API Tools
+
 ```yaml
 id: "api-client"
 description: "Make HTTP requests"
@@ -302,6 +311,7 @@ execute:
 ```
 
 #### MCP Server Tools
+
 ```yaml
 id: "mcp-tool"
 description: "Tool from MCP server"
@@ -488,6 +498,7 @@ env:
 ### Core Types
 
 #### `Config`
+
 Main configuration struct for tools.
 
 ```go
@@ -504,6 +515,7 @@ type Config struct {
 ```
 
 **Key Methods:**
+
 - `Validate() error` - Validates tool configuration
 - `ValidateInput(ctx context.Context, input *core.Input) error` - Validates input parameters
 - `ValidateOutput(ctx context.Context, output *core.Output) error` - Validates output data
@@ -514,6 +526,7 @@ type Config struct {
 ### Functions
 
 #### `Load(cwd *core.PathCWD, path string) (*Config, error)`
+
 Loads tool configuration from file.
 
 ```go
@@ -522,6 +535,7 @@ config, err := tool.Load(cwd, "tools/my-tool.yaml")
 ```
 
 #### `LoadAndEval(cwd *core.PathCWD, path string, ev *ref.Evaluator) (*Config, error)`
+
 Loads tool configuration with template evaluation.
 
 ```go
@@ -530,6 +544,7 @@ config, err := tool.LoadAndEval(cwd, "tools/my-tool.yaml", evaluator)
 ```
 
 #### `IsTypeScript(path string) bool`
+
 Checks if file has TypeScript extension.
 
 ```go
@@ -541,6 +556,7 @@ if tool.IsTypeScript("script.ts") {
 ### Usage Patterns
 
 #### Error Handling
+
 ```go
 if err := config.Validate(); err != nil {
     switch {
@@ -555,6 +571,7 @@ if err := config.Validate(); err != nil {
 ```
 
 #### Configuration Merging
+
 ```go
 // Clone configuration
 cloned, err := config.Clone()
@@ -645,7 +662,7 @@ func TestTool_ExecuteWithValidation(t *testing.T) {
     validInput := &core.Input{
         "message": "Hello, world!",
     }
-    
+
     ctx := context.Background()
     err := config.ValidateInput(ctx, validInput)
     assert.NoError(t, err)
@@ -654,7 +671,7 @@ func TestTool_ExecuteWithValidation(t *testing.T) {
     invalidInput := &core.Input{
         "invalid": "field",
     }
-    
+
     err = config.ValidateInput(ctx, invalidInput)
     assert.Error(t, err)
 }

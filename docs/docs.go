@@ -3681,22 +3681,40 @@ const docTemplate = `{
                     "$ref": "#/definitions/core.PathCWD"
                 },
                 "id": {
+                    "description": "Unique identifier for the action within the agent's scope.\nUsed to invoke specific actions programmatically.\n\n- **Examples:** ` + "`" + `\"analyze-code\"` + "`" + `, ` + "`" + `\"generate-summary\"` + "`" + `, ` + "`" + `\"validate-data\"` + "`" + `",
                     "type": "string"
                 },
                 "input": {
-                    "$ref": "#/definitions/schema.Schema"
+                    "description": "JSON Schema defining the expected input parameters for this action.\nEnables validation and type checking of inputs before execution.\n\nIf ` + "`" + `nil` + "`" + `, the action accepts any input format without validation.\n\n**Schema format:** JSON Schema Draft 7",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/schema.Schema"
+                        }
+                    ]
                 },
                 "json_mode": {
+                    "description": "Forces JSON-formatted output for this specific action.\nWhen ` + "`" + `true` + "`" + `, the agent must return valid JSON that conforms to the output schema.\n\n**Note:** If an ` + "`" + `OutputSchema` + "`" + ` is defined, JSON mode is automatically enabled.\n\n⚠️ **Trade-off:** Enabling JSON mode may limit the agent's ability to provide\nexplanatory text or reasoning alongside the structured output.",
                     "type": "boolean"
                 },
                 "output": {
-                    "$ref": "#/definitions/schema.Schema"
+                    "description": "JSON Schema defining the expected output format from this action.\nUsed for validating agent responses and ensuring consistent output structure.\n\nIf ` + "`" + `nil` + "`" + `, no output validation is performed.\n\n**Schema format:** JSON Schema Draft 7",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/schema.Schema"
+                        }
+                    ]
                 },
                 "prompt": {
+                    "description": "Detailed instructions for the agent when executing this action.\nShould clearly define the expected behavior, output format, and any constraints.\n\n**Best practices:**\n- Be specific about the desired outcome\n- Include examples if complex formatting is required\n- Define clear success criteria\n- Specify any limitations or boundaries",
                     "type": "string"
                 },
                 "with": {
-                    "$ref": "#/definitions/core.Input"
+                    "description": "Default parameters to provide to the action.\nThese are merged with runtime parameters, with runtime values taking precedence.\n\n**Use cases:**\n- Setting default configuration options\n- Providing constant context values\n- Pre-filling common parameters",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.Input"
+                        }
+                    ]
                 }
             }
         },
@@ -3709,57 +3727,79 @@ const docTemplate = `{
             ],
             "properties": {
                 "actions": {
+                    "description": "Structured actions the agent can perform with defined input/output schemas.\nActions provide type-safe interfaces for specific agent capabilities.\n\n**Example:**\n` + "`" + `` + "`" + `` + "`" + `yaml\nactions:\n  - id: \"review-code\"\n    prompt: |\n      Analyze code {{.input.code}} for quality and improvements\n    json_mode: true\n    input:\n      type: \"object\"\n      properties:\n        code:\n          type: \"string\"\n          description: \"The code to review\"\n    output:\n      type: \"object\"\n      properties:\n        quality:\n          type: \"string\"\n          description: \"The quality of the code\"\n` + "`" + `` + "`" + `` + "`" + `\n\n$ref: inline:#action-configuration",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/agent.ActionConfig"
                     }
                 },
                 "config": {
-                    "$ref": "#/definitions/core.ProviderConfig"
+                    "description": "LLM provider configuration defining which AI model to use and its parameters.\nSupports multiple providers including OpenAI, Anthropic, Google, and others.\n\n$ref: schema://provider",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.ProviderConfig"
+                        }
+                    ]
                 },
                 "cwd": {
                     "$ref": "#/definitions/core.PathCWD"
                 },
                 "env": {
-                    "$ref": "#/definitions/core.EnvMap"
+                    "description": "Environment variables available during agent execution.\nUsed for configuration, secrets, and runtime settings.\n\n**Example:**\n` + "`" + `` + "`" + `` + "`" + `yaml\nenv:\n  API_KEY: \"{{.env.OPENAI_API_KEY}}\"\n  DEBUG_MODE: \"true\"\n` + "`" + `` + "`" + `` + "`" + `",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.EnvMap"
+                        }
+                    ]
                 },
                 "id": {
+                    "description": "Unique identifier for the agent within the project scope.\nUsed for referencing the agent in workflows and other configurations.\n\n- **Examples:** ` + "`" + `\"code-assistant\"` + "`" + `, ` + "`" + `\"data-analyst\"` + "`" + `, ` + "`" + `\"customer-support\"` + "`" + `",
                     "type": "string"
                 },
                 "instructions": {
+                    "description": "System instructions that define the agent's personality, behavior, and constraints.\nThese instructions guide how the agent interprets tasks and generates responses.\n\n**Best practices:**\n- Be clear and specific about the agent's role\n- Define boundaries and ethical guidelines\n- Include domain-specific knowledge or constraints\n- Use markdown formatting for better structure",
                     "type": "string"
                 },
                 "json_mode": {
+                    "description": "Forces the agent to always respond in valid JSON format.\nWhen enabled, the agent's responses must be parseable JSON objects.\n\n**Use cases:**\n- API integrations requiring structured data\n- Automated processing of agent outputs\n- Ensuring consistent response formats\n\n⚠️ **Note:** May limit the agent's ability to provide explanatory text",
                     "type": "boolean"
                 },
                 "max_iterations": {
+                    "description": "Maximum number of reasoning iterations the agent can perform.\nThe agent may self-correct and refine its response across iterations.\n\n**Default:** ` + "`" + `5` + "`" + `\n\n**Considerations:**\n- Higher values allow more thorough problem-solving\n- Each iteration consumes tokens and adds latency\n- Set based on task complexity and accuracy requirements",
                     "type": "integer"
                 },
                 "mcps": {
+                    "description": "Model Context Protocol (MCP) server configurations.\nMCPs provide standardized interfaces for extending agent capabilities\nwith external services and data sources.\n\n**Common MCP types:**\n- Database connectors\n- Search engines\n- Knowledge bases\n- External APIs\n$ref: schema://mcp",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/mcp.Config"
                     }
                 },
                 "memory": {
-                    "description": "Memory configuration - simplified single format\nmemory:\n  - id: user_memory\n    key: \"user:{{.workflow.input.user_id}}\"\n    mode: \"read-write\"  # optional, defaults to \"read-write\"",
+                    "description": "Memory references enabling the agent to access persistent context.\nMemory provides stateful interactions across workflow steps and sessions.\n\n**Configuration format:**\n` + "`" + `` + "`" + `` + "`" + `yaml\nmemory:\n  - id: \"user_context\"           # Memory resource ID\n    key: \"user:{{.user_id}}\"     # Dynamic key with template\n    mode: \"read-write\"           # Access mode (default: \"read-write\")\n` + "`" + `` + "`" + `` + "`" + `\n\n**Access modes:**\n- ` + "`" + `\"read-write\"` + "`" + `: Full access to read and modify memory\n- ` + "`" + `\"read-only\"` + "`" + `: Can only read existing memory entries",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/core.MemoryReference"
                     }
                 },
                 "resource": {
+                    "description": "Resource identifier for the autoloader system (must be ` + "`" + `\"agent\"` + "`" + `)\nThis field enables automatic discovery and registration of agent configurations.",
                     "type": "string"
                 },
                 "tools": {
-                    "description": "When defined here, the agent will have toolChoice defined as \"auto\"",
+                    "description": "Tools available to the agent for extending its capabilities.\nWhen tools are defined, the agent automatically has ` + "`" + `toolChoice` + "`" + ` set to ` + "`" + `\"auto\"` + "`" + `,\nallowing it to decide when and how to use available tools.\n\nTools can be:\n- File system operations\n- API integrations\n- Data processing utilities\n- Custom business logic\n$ref: schema://tools",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/tool.Config"
                     }
                 },
                 "with": {
-                    "$ref": "#/definitions/core.Input"
+                    "description": "Default input parameters passed to the agent on every invocation.\nThese values are merged with runtime inputs, with runtime values taking precedence.\n\n**Use cases:**\n- Setting default configuration values\n- Providing constant context or settings\n- Injecting workflow-level parameters",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.Input"
+                        }
+                    ]
                 }
             }
         },
@@ -3767,21 +3807,26 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "contributors": {
+                    "description": "Additional contributors who helped develop the project.\n\nUse this to acknowledge team members, collaborators, or external contributors.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/core.Contributor"
                     }
                 },
                 "email": {
+                    "description": "Email contact for project-related communication.\n\nUse team emails for shared ownership: ` + "`" + `\"ai-team@company.com\"` + "`" + `",
                     "type": "string"
                 },
                 "name": {
+                    "description": "Name of the author or team responsible for the project.\n\nExamples: ` + "`" + `\"Jane Smith\"` + "`" + `, ` + "`" + `\"AI Platform Team\"` + "`" + `, ` + "`" + `\"Data Science Division\"` + "`" + `",
                     "type": "string"
                 },
                 "organization": {
+                    "description": "Organization or company affiliation.\n\nExamples: ` + "`" + `\"ACME Corporation\"` + "`" + `, ` + "`" + `\"AI Research Lab\"` + "`" + `, ` + "`" + `\"Engineering Division\"` + "`" + `",
                     "type": "string"
                 },
                 "url": {
+                    "description": "URL to author's profile, repository, or team page.\n\nExamples: ` + "`" + `\"https://github.com/username\"` + "`" + `, ` + "`" + `\"https://company.com/team/ai\"` + "`" + `",
                     "type": "string"
                 }
             }
@@ -3807,15 +3852,19 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "email": {
+                    "description": "Email address for contributor contact.",
                     "type": "string"
                 },
                 "name": {
+                    "description": "Full name of the contributor.",
                     "type": "string"
                 },
                 "organization": {
+                    "description": "Organization or team the contributor belongs to.",
                     "type": "string"
                 },
                 "url": {
+                    "description": "URL to contributor's profile or portfolio.\n\nExamples: ` + "`" + `\"https://github.com/username\"` + "`" + `, ` + "`" + `\"https://linkedin.com/in/name\"` + "`" + `",
                     "type": "string"
                 }
             }
@@ -3845,10 +3894,16 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "next": {
+                    "description": "ID of the error handler task\n\n- **Example**: \"handle-error\", \"retry-with-fallback\"",
                     "type": "string"
                 },
                 "with": {
-                    "$ref": "#/definitions/core.Input"
+                    "description": "Error context passed to the handler\nIncludes error details: { \"error\": \"{{ .error }}\", \"attempt\": \"{{ .retryCount }}\" }",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.Input"
+                        }
+                    ]
                 }
             }
         },
@@ -3856,21 +3911,35 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "heartbeat_timeout": {
+                    "description": "Interval for task heartbeat signals\nUsed for long-running tasks to indicate progress\n\n- **Example**: \"10s\", \"30s\", \"1m\"",
                     "type": "string"
                 },
                 "on_error": {
-                    "$ref": "#/definitions/core.ErrorTransition"
+                    "description": "Error handler configuration\nDefines what happens when a task fails after all retries",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.ErrorTransition"
+                        }
+                    ]
                 },
                 "retry_policy": {
-                    "$ref": "#/definitions/core.RetryPolicyConfig"
+                    "description": "Retry configuration for transient failures\nAutomatically retries failed tasks with exponential backoff",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.RetryPolicyConfig"
+                        }
+                    ]
                 },
                 "schedule_to_close_timeout": {
+                    "description": "Total timeout from scheduling to completion\nDefault: \"6m\"\n\n- **Example**: \"1m\", \"15m\", \"2h\"",
                     "type": "string"
                 },
                 "schedule_to_start_timeout": {
+                    "description": "Maximum time to wait for a task to start executing\nDefault: \"1m\"\n\n- **Example**: \"30s\", \"5m\", \"1h\"",
                     "type": "string"
                 },
                 "start_to_close_timeout": {
+                    "description": "Maximum time for task execution once started\nDefault: \"5m\"\n\n- **Example**: \"30s\", \"10m\", \"1h\"",
                     "type": "string"
                 }
             }
@@ -3920,33 +3989,42 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "max_length": {
+                    "description": "MaxLength provides an alternative way to specify maximum response length.\nTypically used by providers that distinguish between length and token limits.\n- **Range**: MinLength to provider-specific maximum\n- **Provider Support**: Primarily local models and some API providers",
                     "type": "integer"
                 },
                 "max_tokens": {
+                    "description": "MaxTokens limits the maximum number of tokens in the generated response.\nThis parameter is crucial for cost control and response time management.\n- **Range**: 1 to model-specific maximum (e.g., 8192 for GPT-4)\n- **Default**: Provider-specific default (typically 1000-2000)",
                     "type": "integer"
                 },
                 "min_length": {
+                    "description": "MinLength specifies the minimum number of tokens that must be generated.\nPrevents the model from generating responses that are too short.\n- **Range**: 1 to MaxTokens\n- **Provider Support**: Limited; primarily local models",
                     "type": "integer"
                 },
                 "repetition_penalty": {
+                    "description": "RepetitionPenalty reduces the likelihood of repeating the same tokens.\nValues \u003e 1.0 penalize repetition, values \u003c 1.0 encourage it.\n- **Range**: 0.1 to 2.0\n- **Recommended**: 1.0 (no penalty) to 1.2 (moderate penalty)\n- **Provider Support**: Primarily local models (Ollama, etc.)",
                     "type": "number"
                 },
                 "seed": {
+                    "description": "Seed provides a random seed for reproducible outputs.\nWhen set, the same input with the same parameters will generate identical responses.\n- **Use Cases**: Testing, debugging, demonstration, A/B testing\n\u003e **Note:**: Not all providers support seeding; OpenAI and some others do",
                     "type": "integer"
                 },
                 "stop_words": {
+                    "description": "StopWords defines a list of strings that will halt text generation when encountered.\nUseful for creating structured outputs or preventing unwanted content patterns.\n\n- **Example**: ` + "`" + `[\"END\", \"STOP\", \"\\n\\n---\"]` + "`" + ` for section-based content\n\u003e **Note:**: Not all providers support stop words; check provider documentation",
                     "type": "array",
                     "items": {
                         "type": "string"
                     }
                 },
                 "temperature": {
+                    "description": "Temperature controls the randomness of the generated text.\nLower values produce more deterministic, focused responses.\nHigher values increase creativity and variation but may reduce coherence.\n- **Range**: 0.0 (deterministic) to 1.0 (maximum randomness)\n- **Recommended**: 0.1-0.3 for factual tasks, 0.7-0.9 for creative tasks",
                     "type": "number"
                 },
                 "top_k": {
+                    "description": "TopK limits the number of highest probability tokens considered during sampling.\nLower values focus on the most likely tokens, higher values allow more variety.\n- **Range**: 1 to vocabulary size (typically 1-100)\n- **Provider Support**: Primarily Google models and some local models",
                     "type": "integer"
                 },
                 "top_p": {
+                    "description": "TopP (nucleus sampling) considers only tokens with cumulative probability up to this value.\nDynamically adjusts the vocabulary size based on probability distribution.\n- **Range**: 0.0 to 1.0\n- **Recommended**: 0.9 for balanced outputs, 0.95 for more variety",
                     "type": "number"
                 }
             }
@@ -3955,22 +4033,36 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "api_key": {
+                    "description": "APIKey contains the authentication key for the AI provider.\n\n- **Security**: Use template references to environment variables.\n- **Examples**: ` + "`" + `\"{{ .env.OPENAI_API_KEY }}\"` + "`" + `, ` + "`" + `\"{{ .secrets.ANTHROPIC_KEY }}\"` + "`" + `\n\u003e **Note:**: Required for most cloud providers, optional for local providers",
                     "type": "string"
                 },
                 "api_url": {
+                    "description": "APIURL specifies a custom API endpoint for the provider.\n**Use Cases**:\n  - Local model hosting (Ollama, OpenAI-compatible servers)\n  - Enterprise API gateways\n  - Regional API endpoints\n  - Custom proxy servers\n\n**Examples**: ` + "`" + `\"http://localhost:11434\"` + "`" + `, ` + "`" + `\"https://api.openai.com/v1\"` + "`" + `",
                     "type": "string"
                 },
                 "model": {
+                    "description": "Model defines the specific model identifier to use with the provider.\nModel names are provider-specific and determine capabilities and pricing.\n\n- **Examples**:\n  - OpenAI: ` + "`" + `\"gpt-4-turbo\"` + "`" + `, ` + "`" + `\"gpt-3.5-turbo\"` + "`" + `\n  - Anthropic: ` + "`" + `\"claude-3-opus-20240229\"` + "`" + `, ` + "`" + `\"claude-3-haiku-20240307\"` + "`" + `\n  - Google: ` + "`" + `\"gemini-pro\"` + "`" + `, ` + "`" + `\"gemini-pro-vision\"` + "`" + `\n  - Ollama: ` + "`" + `\"llama2:13b\"` + "`" + `, ` + "`" + `\"mistral:7b\"` + "`" + `",
                     "type": "string"
                 },
                 "organization": {
+                    "description": "Organization specifies the organization ID for providers that support it.\n- **Primary Use**: OpenAI organization management for billing and access control\n\n- **Example**: ` + "`" + `\"org-123456789abcdef\"` + "`" + `\n\u003e **Note:**: Optional for most providers",
                     "type": "string"
                 },
                 "params": {
-                    "$ref": "#/definitions/core.PromptParams"
+                    "description": "Params contains the generation parameters that control LLM behavior.\nThese parameters are applied to all requests using this provider configuration.\nCan be overridden at the task or action level for specific requirements.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.PromptParams"
+                        }
+                    ]
                 },
                 "provider": {
-                    "$ref": "#/definitions/core.ProviderName"
+                    "description": "Provider specifies which AI service to use for LLM operations.\nMust match one of the supported ProviderName constants.\n\n- **Examples**: ` + "`" + `\"openai\"` + "`" + `, ` + "`" + `\"anthropic\"` + "`" + `, ` + "`" + `\"google\"` + "`" + `, ` + "`" + `\"ollama\"` + "`" + `",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.ProviderName"
+                        }
+                    ]
                 }
             }
         },
@@ -3987,7 +4079,14 @@ const docTemplate = `{
                 "mock"
             ],
             "x-enum-comments": {
-                "ProviderMock": "Mock provider for testing"
+                "ProviderAnthropic": "Anthropic Claude models",
+                "ProviderDeepSeek": "DeepSeek AI models",
+                "ProviderGoogle": "Google Gemini models",
+                "ProviderGroq": "Groq fast inference platform",
+                "ProviderMock": "Mock provider for testing",
+                "ProviderOllama": "Ollama local model hosting",
+                "ProviderOpenAI": "OpenAI GPT models (GPT-4, GPT-3.5, etc.)",
+                "ProviderXAI": "xAI Grok models"
             },
             "x-enum-varnames": [
                 "ProviderOpenAI",
@@ -4004,18 +4103,23 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "backoff_coefficient": {
+                    "description": "Multiplier for exponential backoff\n- **Default:** ` + "`" + `2.0` + "`" + ` (doubles each time)\n- **Example:** ` + "`" + `1.5` + "`" + `, ` + "`" + `2.0` + "`" + `, ` + "`" + `3.0` + "`" + `",
                     "type": "number"
                 },
                 "initial_interval": {
+                    "description": "Initial delay before first retry\n- **Default:** ` + "`" + `\"1s\"` + "`" + `\n- **Example:** ` + "`" + `\"500ms\"` + "`" + `, ` + "`" + `\"2s\"` + "`" + `, ` + "`" + `\"1m\"` + "`" + `",
                     "type": "string"
                 },
                 "maximum_attempts": {
+                    "description": "Maximum retry attempts\n- **Default:** ` + "`" + `3` + "`" + `\n- **Example:** ` + "`" + `5` + "`" + ` for critical operations",
                     "type": "integer"
                 },
                 "maximum_interval": {
+                    "description": "Maximum delay between retries\n- **Default:** ` + "`" + `\"1m\"` + "`" + `\n- **Example:** ` + "`" + `\"30s\"` + "`" + `, ` + "`" + `\"5m\"` + "`" + `, ` + "`" + `\"1h\"` + "`" + `",
                     "type": "string"
                 },
                 "non_retryable_error_types": {
+                    "description": "Error types that should not trigger retries\n- **Example:** ` + "`" + `[\"ValidationError\", \"AuthenticationError\"]` + "`" + `",
                     "type": "array",
                     "items": {
                         "type": "string"
@@ -4050,10 +4154,16 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "next": {
+                    "description": "ID of the next task to execute\n- **Example:** ` + "`" + `\"process-results\"` + "`" + `, ` + "`" + `\"send-notification\"` + "`" + `",
                     "type": "string"
                 },
                 "with": {
-                    "$ref": "#/definitions/core.Input"
+                    "description": "Input parameters to pass to the next task\n- **Supports:** Template expressions like ` + "`" + `{ \"data\": \"{{ .output.result }}\" }` + "`" + `",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.Input"
+                        }
+                    ]
                 }
             }
         },
@@ -4065,33 +4175,50 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "command": {
+                    "description": "Command is the **executable command** to spawn a local MCP server process.\n\nUsed for stdio transport to run MCP servers as child processes.\nSupports both direct executables and complex commands with arguments.\n\n- **Examples**:\n` + "`" + `` + "`" + `` + "`" + `yaml\n# Simple executable\ncommand: \"mcp-server-filesystem\"\n\n# Command with arguments\ncommand: \"python /app/mcp_server.py --mode production\"\n\n# Docker container\ncommand: \"docker run --rm -i mcp/postgres:latest\"\n` + "`" + `` + "`" + `` + "`" + `\n\n**Security Note**: Commands are parsed using shell lexing for safety.\nAvoid user-provided input in commands.",
                     "type": "string"
                 },
                 "env": {
+                    "description": "Env contains **environment variables** to pass to the MCP server process.\n\nOnly used when ` + "`" + `command` + "`" + ` is specified for spawning local processes.\nUseful for passing configuration, secrets, or runtime parameters.\n\n- **Examples**:\n` + "`" + `` + "`" + `` + "`" + `yaml\nenv:\n  DATABASE_URL: \"postgres://user:pass@localhost/db\"\n  API_KEY: \"{{ .env.GITHUB_TOKEN }}\"\n  LOG_LEVEL: \"debug\"\n  WORKSPACE_DIR: \"/data/workspace\"\n` + "`" + `` + "`" + `` + "`" + `\n\n**Template Support**: Values can use Go template syntax to reference\nenvironment variables from the host system.",
                     "type": "object",
                     "additionalProperties": {
                         "type": "string"
                     }
                 },
                 "id": {
+                    "description": "ID is the **unique identifier** for this MCP server configuration.\n\nThis identifier is used throughout the system to reference this specific MCP server.\nChoose descriptive IDs that reflect the server's purpose.\n\n- **Examples**:\n- ` + "`" + `filesystem` + "`" + ` - for file system operations\n- ` + "`" + `postgres-db` + "`" + ` - for PostgreSQL database access\n- ` + "`" + `github-api` + "`" + ` - for GitHub integration\n- ` + "`" + `python-runtime` + "`" + ` - for Python code execution",
                     "type": "string"
                 },
                 "max_sessions": {
+                    "description": "MaxSessions defines the **maximum number of concurrent sessions** allowed.\n\nHelps manage resource usage and prevent server overload.\nEach agent connection typically creates one session.\n\n**Values**:\n- ` + "`" + `0` + "`" + ` or negative: Unlimited sessions (default)\n- Positive number: Maximum concurrent sessions\n\n- **Examples**:\n` + "`" + `` + "`" + `` + "`" + `yaml\nmax_sessions: 10  # Allow up to 10 concurrent connections\nmax_sessions: 1   # Single session only (useful for stateful servers)\nmax_sessions: 0   # Unlimited sessions\n` + "`" + `` + "`" + `` + "`" + `",
                     "type": "integer"
                 },
                 "proto": {
+                    "description": "Proto specifies the **MCP protocol version** to use.\n\nDifferent protocol versions may support different features, message formats,\nor capabilities. Always use the version compatible with your MCP server.\n\n**Format**: ` + "`" + `YYYY-MM-DD` + "`" + ` (e.g., \"2025-03-26\")\n\n**Default**: ` + "`" + `DefaultProtocolVersion` + "`" + ` (\"2025-03-26\")\n\n**Version History**:\n- ` + "`" + `2025-03-26` + "`" + ` - Latest version with streaming support\n- ` + "`" + `2024-12-01` + "`" + ` - Initial protocol release",
                     "type": "string"
                 },
                 "resource": {
+                    "description": "Resource reference for the MCP server (optional)\n\nIf not specified, defaults to the value of ID.\nUsed for resource identification and referencing in Compozy's resource system.",
                     "type": "string"
                 },
                 "start_timeout": {
-                    "$ref": "#/definitions/time.Duration"
+                    "description": "StartTimeout is the **maximum time to wait** for the MCP server to start.\n\nOnly applicable when using ` + "`" + `command` + "`" + ` to spawn local processes.\nHelps detect and handle startup failures gracefully.\n\n**Format**: Go duration string (e.g., \"30s\", \"1m\", \"500ms\")\n\n**Default**: No timeout (waits indefinitely)\n\n- **Examples**:\n` + "`" + `` + "`" + `` + "`" + `yaml\nstart_timeout: 30s   # Wait up to 30 seconds\nstart_timeout: 2m    # Wait up to 2 minutes\nstart_timeout: 500ms # Wait up to 500 milliseconds\n` + "`" + `` + "`" + `` + "`" + `\n\n**Recommendation**: Set to at least 10-30s for Docker-based servers.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/time.Duration"
+                        }
+                    ]
                 },
                 "transport": {
-                    "$ref": "#/definitions/mcpproxy.TransportType"
+                    "description": "Transport defines the **communication transport mechanism**.\n\nChoose the transport based on your MCP server's capabilities and deployment model.\n\n**Supported Values**:\n\n| Transport | Description | Use Case |\n|-----------|-------------|----------|\n| ` + "`" + `sse` + "`" + ` | Server-Sent Events | HTTP servers with real-time streaming |\n| ` + "`" + `streamable-http` + "`" + ` | HTTP with streaming | Large responses, file transfers |\n| ` + "`" + `stdio` + "`" + ` | Standard I/O | Local processes, Docker containers |\n\n**Default**: ` + "`" + `sse` + "`" + `\n\n- **Examples**:\n` + "`" + `` + "`" + `` + "`" + `yaml\n# Remote server with SSE\ntransport: sse\n\n# Local process with stdio\ntransport: stdio\n\n# HTTP server with large file support\ntransport: streamable-http\n` + "`" + `` + "`" + `` + "`" + `",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/mcpproxy.TransportType"
+                        }
+                    ]
                 },
                 "url": {
+                    "description": "URL is the **endpoint for remote MCP servers**.\n\nRequired for HTTP-based transports (SSE, streamable-http).\nMust be a valid HTTP or HTTPS URL pointing to an MCP-compatible endpoint.\n\n**Format**: ` + "`" + `http[s]://host[:port]/path` + "`" + `\n\n- **Examples**:\n` + "`" + `` + "`" + `` + "`" + `yaml\nurl: \"http://localhost:3000/mcp\"\nurl: \"https://api.example.com/v1/mcp\"\nurl: \"http://mcp-proxy:8080/filesystem\"\n` + "`" + `` + "`" + `` + "`" + `\n\n**Note**: Mutually exclusive with ` + "`" + `command` + "`" + ` - use either URL or Command, not both.",
                     "type": "string"
                 }
             }
@@ -4645,9 +4772,11 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "backup": {
+                    "description": "Backup data before clearing\nImplementation-dependent, may not be available for all backends",
                     "type": "boolean"
                 },
                 "confirm": {
+                    "description": "Confirm must be true to execute clear operation\nRequired safety check to prevent accidental data loss",
                     "type": "boolean"
                 }
             }
@@ -4667,45 +4796,75 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "CWD": {
-                    "$ref": "#/definitions/core.PathCWD"
+                    "description": "Current working directory for file operations within the task\nInherited from parent context if not explicitly set",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.PathCWD"
+                        }
+                    ]
                 },
                 "action": {
+                    "description": "Action identifier that describes what this task does\nUsed for logging and debugging purposes\n- **Example**: \"process-user-data\", \"send-notification\"",
                     "type": "string"
                 },
                 "agent": {
-                    "$ref": "#/definitions/agent.Config"
+                    "description": "Agent configuration for AI-powered task execution\nOnly used when the task needs to interact with an LLM agent\nMutually exclusive with Tool field\n$ref: schema://agents",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/agent.Config"
+                        }
+                    ]
                 },
                 "batch": {
+                    "description": "Batch size for processing items in groups (0 = no batching)\nUseful for rate limiting or managing resource usage\n- **Example**: 10 means process 10 items at a time",
                     "type": "integer"
                 },
                 "batch_size": {
-                    "description": "Performance controls",
+                    "description": "BatchSize for operations that process multiple keys\nControls how many keys are processed in each batch\nDefault: 100, Maximum: 10,000",
                     "type": "integer"
                 },
                 "clear_config": {
-                    "$ref": "#/definitions/task.ClearConfig"
+                    "description": "Configuration for clear operations\nOnly used when operation is \"clear\"",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/task.ClearConfig"
+                        }
+                    ]
                 },
                 "condition": {
+                    "description": "CEL expression for conditional task execution or routing decisions\nTask only executes if condition evaluates to true\n- **Example**: \"input.status == 'approved' \u0026\u0026 input.amount \u003e 1000\"",
                     "type": "string"
                 },
                 "config": {
-                    "$ref": "#/definitions/core.GlobalOpts"
+                    "description": "Global configuration options inherited from parent contexts\nIncludes provider settings, API keys, and other global parameters",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.GlobalOpts"
+                        }
+                    ]
                 },
                 "env": {
-                    "$ref": "#/definitions/core.EnvMap"
+                    "description": "Environment variables available during task execution\nCan override or extend workflow-level environment variables\n- **Example**: { \"API_KEY\": \"{{ .env.SECRET_KEY }}\" }",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.EnvMap"
+                        }
+                    ]
                 },
                 "file_path": {
-                    "description": "Path and working directory properties",
+                    "description": "Absolute file path where this task configuration was loaded from\nSet automatically during configuration loading",
                     "type": "string"
                 },
                 "filter": {
+                    "description": "Filter is an optional CEL expression to filter items before processing\nEach item is available as 'item' in the expression\n- **Example**: \"item.status != 'inactive'\" or \"item.age \u003e 18\"",
                     "type": "string"
                 },
                 "final": {
+                    "description": "Marks this task as a terminal node in the workflow\nNo subsequent tasks will execute after a final task",
                     "type": "boolean"
                 },
                 "flush_config": {
-                    "description": "Operation-specific configs",
+                    "description": "Configuration for flush operations\nOnly used when operation is \"flush\"",
                     "allOf": [
                         {
                             "$ref": "#/definitions/task.FlushConfig"
@@ -4713,43 +4872,71 @@ const docTemplate = `{
                     ]
                 },
                 "health_config": {
-                    "$ref": "#/definitions/task.HealthConfig"
+                    "description": "Configuration for health check operations\nOnly used when operation is \"health\"",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/task.HealthConfig"
+                        }
+                    ]
                 },
                 "id": {
+                    "description": "Unique identifier for the task instance within a workflow\nMust be unique within the workflow scope",
                     "type": "string"
                 },
                 "index_var": {
+                    "description": "IndexVar is the variable name for the current index (default: \"index\")\nAvailable in task templates as {{ .index }} or custom name\nZero-based index of the current item",
                     "type": "string"
                 },
                 "input": {
-                    "$ref": "#/definitions/schema.Schema"
+                    "description": "Schema definition for validating task input parameters\nFollows JSON Schema specification for type validation\nFormat:\n  type: object\n  properties:\n    user_id: { type: string, description: \"User identifier\" }\n  required: [\"user_id\"]",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/schema.Schema"
+                        }
+                    ]
                 },
                 "item_var": {
+                    "description": "ItemVar is the variable name for the current item (default: \"item\")\nAvailable in task templates as {{ .item }} or custom name\n- **Example**: Set to \"user\" to access as {{ .user }} in templates",
                     "type": "string"
                 },
                 "items": {
+                    "description": "Items is a template expression that evaluates to an array\nThe expression should resolve to a list of items to iterate over\n- **Example**: \"{{ .workflow.input.users }}\" or \"{{ range(1, 10) }}\"",
                     "type": "string"
                 },
                 "key_template": {
+                    "description": "KeyTemplate is a template expression for the memory key\nSupports template variables for dynamic key generation\n- **Example**: \"user:{{ .workflow.input.user_id }}:profile\"",
                     "type": "string"
                 },
                 "max_keys": {
+                    "description": "MaxKeys limits the number of keys processed\nSafety limit to prevent runaway operations\nDefault: 1,000, Maximum: 50,000",
                     "type": "integer"
                 },
                 "max_workers": {
+                    "description": "MaxWorkers limits the number of concurrent task executions\n0 means no limit (all tasks run concurrently)\n- **Example**: 5 means at most 5 tasks run at the same time",
                     "type": "integer"
                 },
                 "memory_ref": {
+                    "description": "MemoryRef identifies which memory store to use\nReferences a memory configuration defined at the project level\n- **Example**: \"user-sessions\", \"workflow-state\", \"cache\"",
                     "type": "string"
                 },
                 "mode": {
-                    "$ref": "#/definitions/task.CollectionMode"
+                    "description": "Mode determines if items are processed in parallel or sequentially\nDefaults to \"parallel\"\nOptions: parallel, sequential",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/task.CollectionMode"
+                        }
+                    ]
                 },
                 "on_error": {
-                    "$ref": "#/definitions/core.ErrorTransition"
+                    "description": "Error handling configuration\nDefines fallback behavior when task execution fails\nCan specify error task ID or retry configuration",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.ErrorTransition"
+                        }
+                    ]
                 },
                 "on_success": {
-                    "description": "Task configuration",
+                    "description": "Task execution control\nDefines what happens after successful task completion\nCan specify next task ID or conditional routing",
                     "allOf": [
                         {
                             "$ref": "#/definitions/core.SuccessTransition"
@@ -4757,67 +4944,131 @@ const docTemplate = `{
                     ]
                 },
                 "on_timeout": {
+                    "description": "OnTimeout specifies the next task to execute if the wait times out\nUses the timeout value from BaseConfig\nIf not specified, the task fails on timeout",
                     "type": "string"
                 },
                 "operation": {
-                    "$ref": "#/definitions/task.MemoryOpType"
+                    "description": "Operation type to perform on memory\nRequired field that determines the action to take",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/task.MemoryOpType"
+                        }
+                    ]
                 },
                 "output": {
-                    "$ref": "#/definitions/schema.Schema"
+                    "description": "Schema definition for validating task output data\nEnsures task results conform to expected structure\nUses same format as InputSchema",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/schema.Schema"
+                        }
+                    ]
                 },
                 "outputs": {
-                    "$ref": "#/definitions/core.Input"
+                    "description": "Output mappings that define what data this task exposes to subsequent tasks\nUses template expressions to transform task results\n- **Example**: { \"processed_data\": \"{{ .task.output.result }}\" }",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.Input"
+                        }
+                    ]
                 },
-                "payload": {},
+                "payload": {
+                    "description": "Payload data for write/append operations\nCan be any JSON-serializable data structure\nRequired for write and append operations"
+                },
                 "processor": {
-                    "$ref": "#/definitions/task.Config"
+                    "description": "Processor is an optional task configuration to process received signals\nAllows custom handling of signal data before continuing\nThe processor receives the signal payload as input\n$ref: inline:#",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/task.Config"
+                        }
+                    ]
                 },
                 "resource": {
+                    "description": "Resource reference for the task\nFormat: \"compozy:task:\u003cname\u003e\" (e.g., \"compozy:task:process-data\")",
                     "type": "string"
                 },
                 "retries": {
+                    "description": "Number of retry attempts for failed task executions\nDefault: 0 (no retries)",
                     "type": "integer"
                 },
                 "routes": {
+                    "description": "Routes maps condition values to task IDs or inline task configurations\nThe condition field in BaseConfig is evaluated, and its result is used\nas the key to select the appropriate route\nValues can be:\n  - Task ID (string): References an existing task\n  - Inline task config (object): Defines task configuration directly\n- **Example**:\n  routes:\n    approved: \"process-payment\"  # Task ID reference\n    rejected:                    # Inline task config\n      type: basic\n      agent: { id: rejection-handler }\n    pending: \"wait-for-approval\"",
                     "type": "object",
                     "additionalProperties": {}
                 },
                 "signal": {
-                    "$ref": "#/definitions/task.SignalConfig"
+                    "description": "Signal configuration containing the signal ID and payload",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/task.SignalConfig"
+                        }
+                    ]
                 },
                 "sleep": {
+                    "description": "Sleep duration after task completion\nFormat: \"5s\", \"1m\", \"500ms\", \"1h30m\"\nUseful for rate limiting or giving external systems time to process",
                     "type": "string"
                 },
                 "stats_config": {
-                    "$ref": "#/definitions/task.StatsConfig"
+                    "description": "Configuration for statistics operations\nOnly used when operation is \"stats\"",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/task.StatsConfig"
+                        }
+                    ]
                 },
                 "strategy": {
-                    "$ref": "#/definitions/task.ParallelStrategy"
+                    "description": "Strategy determines how the parallel execution handles task completion\nDefaults to \"wait_all\" if not specified\nOptions: wait_all, fail_fast, best_effort, race",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/task.ParallelStrategy"
+                        }
+                    ]
                 },
                 "task": {
-                    "$ref": "#/definitions/task.Config"
+                    "description": "Task template for collection tasks\nThis configuration is replicated for each item in the collection\nThe item and index are available as template variables\n$ref: inline:#",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/task.Config"
+                        }
+                    ]
                 },
                 "tasks": {
+                    "description": "Tasks array for parallel, composite, and collection tasks\nContains the list of sub-tasks to execute\nFor parallel: tasks run concurrently\nFor composite: tasks run sequentially\nFor collection: not used (use Task field instead)\n$ref: inline:#",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/task.Config"
                     }
                 },
                 "timeout": {
-                    "description": "Composite and Paralle tasks",
+                    "description": "Maximum execution time for parallel or composite tasks\nFormat: \"30s\", \"5m\", \"1h\"\nTask will be canceled if it exceeds this duration",
                     "type": "string"
                 },
                 "tool": {
-                    "$ref": "#/definitions/tool.Config"
+                    "description": "Tool configuration for executing specific tool operations\nUsed when the task needs to execute a predefined tool\nMutually exclusive with Agent field\n$ref: schema://tools",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/tool.Config"
+                        }
+                    ]
                 },
                 "type": {
-                    "$ref": "#/definitions/task.Type"
+                    "description": "Type of task that determines execution behavior\nIf not specified, defaults to \"basic\"",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/task.Type"
+                        }
+                    ]
                 },
                 "wait_for": {
+                    "description": "WaitFor specifies the signal ID to wait for\nThe task will pause until a signal with this ID is received\nMust match the ID used in a SignalTask\n- **Example**: \"user-approved\", \"payment-completed\"",
                     "type": "string"
                 },
                 "with": {
-                    "$ref": "#/definitions/core.Input"
+                    "description": "Input parameters passed to the task at execution time\nCan include references to workflow inputs, previous task outputs, etc.\n- **Example**: { \"user_id\": \"{{ .workflow.input.user_id }}\" }",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.Input"
+                        }
+                    ]
                 }
             }
         },
@@ -4844,18 +5095,23 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "dry_run": {
+                    "description": "DryRun simulates flush without actually removing data\nUseful for testing what would be removed",
                     "type": "boolean"
                 },
                 "force": {
+                    "description": "Force flush even if below threshold\nBypasses normal threshold checks",
                     "type": "boolean"
                 },
                 "max_keys": {
+                    "description": "Maximum number of keys to flush in one operation\nDefault: 100",
                     "type": "integer"
                 },
                 "strategy": {
+                    "description": "Strategy for selecting keys to flush\nOptions: \"simple_fifo\" (oldest first), \"lru\" (least recently used)\nDefault: \"simple_fifo\"",
                     "type": "string"
                 },
                 "threshold": {
+                    "description": "Threshold (0-1) for triggering flush based on memory usage\n- **Example**: 0.8 means flush when 80% full",
                     "type": "number"
                 }
             }
@@ -4864,9 +5120,11 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "check_connectivity": {
+                    "description": "CheckConnectivity verifies connection to memory backend\nTests actual read/write operations",
                     "type": "boolean"
                 },
                 "include_stats": {
+                    "description": "IncludeStats adds memory statistics to health check results\nProvides additional diagnostic information",
                     "type": "boolean"
                 }
             }
@@ -4902,12 +5160,6 @@ const docTemplate = `{
                 "best_effort",
                 "race"
             ],
-            "x-enum-comments": {
-                "StrategyBestEffort": "Continue even if some tasks fail",
-                "StrategyFailFast": "Stop on first failure",
-                "StrategyRace": "Return when first task completes",
-                "StrategyWaitAll": "Default: wait for all tasks to complete"
-            },
             "x-enum-varnames": [
                 "StrategyWaitAll",
                 "StrategyFailFast",
@@ -4919,9 +5171,11 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "id": {
+                    "description": "ID is the unique identifier for the signal\nWait tasks with matching wait_for values will receive this signal\n- **Example**: \"user-approved\", \"payment-completed\", \"data-ready\"",
                     "type": "string"
                 },
                 "payload": {
+                    "description": "Payload contains data to send with the signal\nThis data is available to the receiving wait task for processing\nCan be any JSON-serializable data structure\n- **Example**: { \"user_id\": \"123\", \"status\": \"approved\", \"timestamp\": \"2024-01-01T00:00:00Z\" }",
                     "type": "object",
                     "additionalProperties": {}
                 }
@@ -4997,9 +5251,11 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "group_by": {
+                    "description": "GroupBy field for aggregating statistics\n- **Example**: \"user\", \"session\", \"workflow\"\nGroups stats by the specified field in stored data",
                     "type": "string"
                 },
                 "include_content": {
+                    "description": "IncludeContent includes actual memory content in stats\nWARNING: May return large amounts of data",
                     "type": "boolean"
                 }
             }
@@ -5059,28 +5315,52 @@ const docTemplate = `{
                     "$ref": "#/definitions/core.PathCWD"
                 },
                 "description": {
+                    "description": "Human-readable description of what the tool does and its purpose.\nThis description is used by AI agents to understand when to use the tool.\nShould clearly explain the tool's functionality and expected use cases.\n\n- **Example:** ` + "`" + `\"Read and parse various file formats including JSON, YAML, and CSV\"` + "`" + `",
                     "type": "string"
                 },
                 "env": {
-                    "$ref": "#/definitions/core.EnvMap"
+                    "description": "Environment variables available during tool execution.\nUsed for configuration, API keys, and runtime settings.\nVariables are isolated to the tool's execution context.\n\n**Example:**\n` + "`" + `` + "`" + `` + "`" + `yaml\nenv:\n  API_KEY: \"secret\"\n  BASE_URL: \"https://api.example.com\"\n` + "`" + `` + "`" + `` + "`" + `",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.EnvMap"
+                        }
+                    ]
                 },
                 "id": {
+                    "description": "Unique identifier for the tool, used in agent configurations and function calls.\nMust be **unique** within the project scope.\n\n- **Examples:** ` + "`" + `\"file-reader\"` + "`" + `, ` + "`" + `\"api-client\"` + "`" + `, ` + "`" + `\"data-processor\"` + "`" + `",
                     "type": "string"
                 },
                 "input": {
-                    "$ref": "#/definitions/schema.Schema"
+                    "description": "JSON schema defining the expected input parameters for the tool.\nUsed for validation and to generate LLM function call definitions.\nShould follow **JSON Schema Draft 7** specification.\n\nIf ` + "`" + `nil` + "`" + `, the tool accepts any input format.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/schema.Schema"
+                        }
+                    ]
                 },
                 "output": {
-                    "$ref": "#/definitions/schema.Schema"
+                    "description": "JSON schema defining the expected output format from the tool.\nUsed for validation and documentation purposes.\nShould follow **JSON Schema Draft 7** specification.\n\nIf ` + "`" + `nil` + "`" + `, no output validation is performed.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/schema.Schema"
+                        }
+                    ]
                 },
                 "resource": {
+                    "description": "Resource identifier for the autoloader system (must be ` + "`" + `\"tool\"` + "`" + `)",
                     "type": "string"
                 },
                 "timeout": {
+                    "description": "Maximum execution time for the tool in **Go duration format**.\nIf not specified, uses the global tool timeout from project configuration.\n\n- **Examples:** ` + "`" + `\"30s\"` + "`" + `, ` + "`" + `\"5m\"` + "`" + `, ` + "`" + `\"1h\"` + "`" + `, ` + "`" + `\"500ms\"` + "`" + `\n\u003e **Note:** Zero or negative values are invalid and will cause validation errors",
                     "type": "string"
                 },
                 "with": {
-                    "$ref": "#/definitions/core.Input"
+                    "description": "Default input parameters to pass to the tool.\nThese values are merged with runtime parameters provided by agents.\n\n- **Precedence:** Runtime parameters take precedence over default values.\n- **Use case:** Setting default configurations or API keys.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.Input"
+                        }
+                    ]
                 }
             }
         },
@@ -5266,66 +5546,101 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "agents": {
+                    "description": "AI agents with specific instructions and capabilities\nConfigure LLM-powered agents with custom prompts, tools access, and behavior\nAgents can be referenced by tasks using $use: agent(...) syntax\n$ref: schema://agents",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/agent.Config"
                     }
                 },
                 "author": {
-                    "$ref": "#/definitions/core.Author"
+                    "description": "Author information for workflow attribution\nHelps track ownership and responsibility for workflow maintenance",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.Author"
+                        }
+                    ]
                 },
                 "config": {
-                    "$ref": "#/definitions/workflow.Opts"
+                    "description": "Configuration options including input schema and environment variables\nControls workflow behavior, validation, and runtime environment",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/workflow.Opts"
+                        }
+                    ]
                 },
                 "cwd": {
-                    "$ref": "#/definitions/core.PathCWD"
+                    "description": "Internal field for the current working directory context",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.PathCWD"
+                        }
+                    ]
                 },
                 "description": {
+                    "description": "Human-readable description of the workflow's purpose\nShould clearly explain what the workflow does and when to use it",
                     "type": "string"
                 },
                 "id": {
+                    "description": "Unique identifier for the workflow (required)\nMust be unique within the project scope. Used for referencing and execution.\n- **Example**: \"customer-support\", \"data-processing\", \"content-generation\"",
                     "type": "string"
                 },
                 "mcps": {
+                    "description": "Model Context Protocol servers for extending AI capabilities\nMCP servers provide specialized tools and knowledge to agents\nEnable integration with external services and domain-specific functionality\n$ref: schema://mcp",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/mcp.Config"
                     }
                 },
                 "outputs": {
-                    "$ref": "#/definitions/core.Output"
+                    "description": "Output mappings to structure the final workflow results\nUse template expressions to extract and transform task outputs\n- **Example**: ticket_id: \"{{ .tasks.create-ticket.output.id }}\"",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.Output"
+                        }
+                    ]
                 },
                 "resource": {
+                    "description": "Resource reference for external workflow definitions\nFormat: \"compozy:workflow:\u003cname\u003e\" - allows referencing pre-built workflows",
                     "type": "string"
                 },
                 "schedule": {
-                    "$ref": "#/definitions/workflow.Schedule"
+                    "description": "Schedule configuration for automated workflow execution\nEnable cron-based scheduling with timezone support and overlap policies",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/workflow.Schedule"
+                        }
+                    ]
                 },
                 "schemas": {
+                    "description": "JSON schemas for validating data structures used in the workflow\nDefine reusable schemas that can be referenced throughout the workflow\nusing $ref syntax (e.g., $ref: local::schemas.#(id=\"user_schema\"))",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/schema.Schema"
                     }
                 },
                 "tasks": {
+                    "description": "Sequential tasks that define the workflow execution plan (required)\nTasks are the core execution units, processed in order with conditional branching\nEach task uses either an agent or tool to perform its operation\n$ref: schema://tasks",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/task.Config"
                     }
                 },
                 "tools": {
+                    "description": "External tools that can be invoked by agents or tasks\nDefine executable scripts or programs that perform specific operations\nTools provide deterministic, non-AI functionality like API calls or data processing\n$ref: schema://tools",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/tool.Config"
                     }
                 },
                 "triggers": {
+                    "description": "Event triggers that can initiate workflow execution\nDefine external events (webhooks, signals) that can start the workflow\nEach trigger can have its own input schema for validation",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/workflow.Trigger"
                     }
                 },
                 "version": {
+                    "description": "Version of the workflow for tracking changes\nFollows semantic versioning (e.g., \"1.0.0\", \"2.1.3\")\nUseful for managing workflow evolution and backwards compatibility",
                     "type": "string"
                 }
             }
@@ -5334,27 +5649,51 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "env": {
-                    "$ref": "#/definitions/core.EnvMap"
+                    "description": "Environment variables available to the workflow and its components\nThese variables are accessible to all tasks, agents, and tools within the workflow",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.EnvMap"
+                        }
+                    ]
                 },
                 "heartbeat_timeout": {
+                    "description": "Interval for task heartbeat signals\nUsed for long-running tasks to indicate progress\n\n- **Example**: \"10s\", \"30s\", \"1m\"",
                     "type": "string"
                 },
                 "input": {
-                    "$ref": "#/definitions/schema.Schema"
+                    "description": "Input schema for validating workflow input parameters\nUses JSON Schema format to define expected input structure and validation rules",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/schema.Schema"
+                        }
+                    ]
                 },
                 "on_error": {
-                    "$ref": "#/definitions/core.ErrorTransition"
+                    "description": "Error handler configuration\nDefines what happens when a task fails after all retries",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.ErrorTransition"
+                        }
+                    ]
                 },
                 "retry_policy": {
-                    "$ref": "#/definitions/core.RetryPolicyConfig"
+                    "description": "Retry configuration for transient failures\nAutomatically retries failed tasks with exponential backoff",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.RetryPolicyConfig"
+                        }
+                    ]
                 },
                 "schedule_to_close_timeout": {
+                    "description": "Total timeout from scheduling to completion\nDefault: \"6m\"\n\n- **Example**: \"1m\", \"15m\", \"2h\"",
                     "type": "string"
                 },
                 "schedule_to_start_timeout": {
+                    "description": "Maximum time to wait for a task to start executing\nDefault: \"1m\"\n\n- **Example**: \"30s\", \"5m\", \"1h\"",
                     "type": "string"
                 },
                 "start_to_close_timeout": {
+                    "description": "Maximum time for task execution once started\nDefault: \"5m\"\n\n- **Example**: \"30s\", \"10m\", \"1h\"",
                     "type": "string"
                 }
             }
@@ -5381,28 +5720,28 @@ const docTemplate = `{
             ],
             "properties": {
                 "cron": {
-                    "description": "Cron expression for scheduling (required)",
+                    "description": "Cron expression for scheduling (required)\nSupports standard cron format: \"minute hour day month weekday\"\nSpecial strings: @yearly, @monthly, @weekly, @daily, @hourly",
                     "type": "string"
                 },
                 "enabled": {
-                    "description": "Whether the schedule is enabled (optional, default true)",
+                    "description": "Whether the schedule is enabled (optional, default true)\nSet to false to temporarily disable scheduled runs without removing the configuration",
                     "type": "boolean"
                 },
                 "end_at": {
-                    "description": "End date for the schedule (optional)",
+                    "description": "End date for the schedule (optional)\nSchedule will not run after this time",
                     "type": "string"
                 },
                 "input": {
-                    "description": "Default input values for scheduled runs (optional)",
+                    "description": "Default input values for scheduled runs (optional)\nThese inputs are merged with any trigger inputs when the workflow executes",
                     "type": "object",
                     "additionalProperties": {}
                 },
                 "jitter": {
-                    "description": "Random delay to add to execution time (optional)",
+                    "description": "Random delay to add to execution time (optional)\nFormat: \"5m\", \"1h\", \"30s\" - helps distribute load when many workflows run at the same time",
                     "type": "string"
                 },
                 "overlap_policy": {
-                    "description": "Policy for handling overlapping executions (optional, default skip)",
+                    "description": "Policy for handling overlapping executions (optional, default skip)\nOptions: skip, allow, buffer_one, cancel_other",
                     "allOf": [
                         {
                             "$ref": "#/definitions/workflow.OverlapPolicy"
@@ -5410,11 +5749,11 @@ const docTemplate = `{
                     ]
                 },
                 "start_at": {
-                    "description": "Start date for the schedule (optional)",
+                    "description": "Start date for the schedule (optional)\nSchedule will not run before this time",
                     "type": "string"
                 },
                 "timezone": {
-                    "description": "Timezone for schedule execution (optional, default UTC)",
+                    "description": "Timezone for schedule execution (optional, default UTC)\nUses IANA timezone names (e.g., \"America/New_York\", \"Europe/London\")",
                     "type": "string"
                 }
             }
@@ -5452,13 +5791,24 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "name": {
+                    "description": "Unique name for identifying this trigger",
                     "type": "string"
                 },
                 "schema": {
-                    "$ref": "#/definitions/schema.Schema"
+                    "description": "Schema for validating trigger input data (optional)",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/schema.Schema"
+                        }
+                    ]
                 },
                 "type": {
-                    "$ref": "#/definitions/workflow.TriggerType"
+                    "description": "Type of trigger mechanism (e.g., \"signal\" for external signals)",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/workflow.TriggerType"
+                        }
+                    ]
                 }
             }
         },

@@ -1,6 +1,1453 @@
 ---
-title: Monitoring & Metrics
-description: MCP monitoring and metrics
+title: "Monitoring & Metrics"
+description: "Comprehensive monitoring, metrics collection, and observability for MCP integrations"
 ---
 
 # Monitoring & Metrics
+
+Effective monitoring and metrics collection are essential for maintaining healthy MCP integrations in production. This guide covers comprehensive observability strategies, metrics collection, alerting, and performance monitoring for MCP systems.
+
+## Metrics Overview
+
+### Core MCP Metrics
+
+Essential metrics for MCP system health:
+
+```go
+// pkg/mcp-proxy/metrics.go
+package mcpproxy
+
+import (
+    "time"
+    
+    "github.com/prometheus/client_golang/prometheus"
+    "github.com/prometheus/client_golang/prometheus/promauto"
+)
+
+// MCP Proxy Metrics
+var (
+    // Request metrics
+    MCPRequestsTotal = promauto.NewCounterVec(
+        prometheus.CounterOpts{
+            Name: "mcp_requests_total",
+            Help: "Total number of MCP requests",
+        },
+        []string{"server_name", "operation", "status"},
+    )
+    
+    MCPRequestDuration = promauto.NewHistogramVec(
+        prometheus.HistogramOpts{
+            Name: "mcp_request_duration_seconds",
+            Help: "Duration of MCP requests",
+            Buckets: []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10},
+        },
+        []string{"server_name", "operation"},
+    )
+    
+    MCPRequestsErrors = promauto.NewCounterVec(
+        prometheus.CounterOpts{
+            Name: "mcp_requests_errors_total",
+            Help: "Total number of MCP request errors",
+        },
+        []string{"server_name", "operation", "error_type"},
+    )
+    
+    // Server health metrics
+    MCPServerHealthStatus = promauto.NewGaugeVec(
+        prometheus.GaugeOpts{
+            Name: "mcp_server_health_status",
+            Help: "Health status of MCP servers (1 = healthy, 0 = unhealthy)",
+        },
+        []string{"server_name", "transport"},
+    )
+    
+    MCPServerLastHealthCheck = promauto.NewGaugeVec(
+        prometheus.GaugeOpts{
+            Name: "mcp_server_last_health_check_timestamp",
+            Help: "Timestamp of last health check",
+        },
+        []string{"server_name"},
+    )
+    
+    // Connection metrics
+    MCPActiveConnections = promauto.NewGaugeVec(
+        prometheus.GaugeOpts{
+            Name: "mcp_active_connections",
+            Help: "Number of active MCP connections",
+        },
+        []string{"server_name", "transport"},
+    )
+    
+    MCPConnectionsTotal = promauto.NewCounterVec(
+        prometheus.CounterOpts{
+            Name: "mcp_connections_total",
+            Help: "Total number of MCP connections",
+        },
+        []string{"server_name", "transport", "status"},
+    )
+    
+    // Tool execution metrics
+    MCPToolExecutionsTotal = promauto.NewCounterVec(
+        prometheus.CounterOpts{
+            Name: "mcp_tool_executions_total",
+            Help: "Total number of tool executions",
+        },
+        []string{"server_name", "tool_name", "status"},
+    )
+    
+    MCPToolExecutionDuration = promauto.NewHistogramVec(
+        prometheus.HistogramOpts{
+            Name: "mcp_tool_execution_duration_seconds",
+            Help: "Duration of tool executions",
+            Buckets: []float64{.01, .05, .1, .25, .5, 1, 2.5, 5, 10, 30, 60},
+        },
+        []string{"server_name", "tool_name"},
+    )
+    
+    // Resource usage metrics
+    MCPMemoryUsage = promauto.NewGaugeVec(
+        prometheus.GaugeOpts{
+            Name: "mcp_memory_usage_bytes",
+            Help: "Memory usage in bytes",
+        },
+        []string{"server_name", "type"},
+    )
+    
+    MCPCPUUsage = promauto.NewGaugeVec(
+        prometheus.GaugeOpts{
+            Name: "mcp_cpu_usage_percent",
+            Help: "CPU usage percentage",
+        },
+        []string{"server_name"},
+    )
+    
+    // Circuit breaker metrics
+    MCPCircuitBreakerState = promauto.NewGaugeVec(
+        prometheus.GaugeOpts{
+            Name: "mcp_circuit_breaker_state",
+            Help: "Circuit breaker state (0 = closed, 1 = open, 2 = half-open)",
+        },
+        []string{"server_name"},
+    )
+    
+    MCPCircuitBreakerTrips = promauto.NewCounterVec(
+        prometheus.CounterOpts{
+            Name: "mcp_circuit_breaker_trips_total",
+            Help: "Total number of circuit breaker trips",
+        },
+        []string{"server_name"},
+    )
+)
+
+// MetricsCollector handles metrics collection
+type MetricsCollector struct {
+    servers map[string]*ServerMetrics
+    mutex   sync.RWMutex
+}
+
+type ServerMetrics struct {
+    Name              string
+    Transport         string
+    LastHealthCheck   time.Time
+    IsHealthy         bool
+    ActiveConnections int
+    ToolExecutions    map[string]int
+    ErrorCounts       map[string]int
+    ResourceUsage     ResourceUsage
+}
+
+type ResourceUsage struct {
+    MemoryBytes   int64
+    CPUPercent    float64
+    GoroutineCount int
+}
+
+func NewMetricsCollector() *MetricsCollector {
+    return &MetricsCollector{
+        servers: make(map[string]*ServerMetrics),
+    }
+}
+
+func (mc *MetricsCollector) RecordRequest(serverName, operation, status string, duration time.Duration) {
+    MCPRequestsTotal.WithLabelValues(serverName, operation, status).Inc()
+    MCPRequestDuration.WithLabelValues(serverName, operation).Observe(duration.Seconds())
+    
+    if status == "error" {
+        MCPRequestsErrors.WithLabelValues(serverName, operation, "unknown").Inc()
+    }
+}
+
+func (mc *MetricsCollector) RecordToolExecution(serverName, toolName, status string, duration time.Duration) {
+    MCPToolExecutionsTotal.WithLabelValues(serverName, toolName, status).Inc()
+    MCPToolExecutionDuration.WithLabelValues(serverName, toolName).Observe(duration.Seconds())
+}
+
+func (mc *MetricsCollector) UpdateServerHealth(serverName string, isHealthy bool) {
+    mc.mutex.Lock()
+    defer mc.mutex.Unlock()
+    
+    var healthValue float64
+    if isHealthy {
+        healthValue = 1
+    }
+    
+    MCPServerHealthStatus.WithLabelValues(serverName, "unknown").Set(healthValue)
+    MCPServerLastHealthCheck.WithLabelValues(serverName).SetToCurrentTime()
+}
+
+func (mc *MetricsCollector) UpdateResourceUsage(serverName string, usage ResourceUsage) {
+    MCPMemoryUsage.WithLabelValues(serverName, "heap").Set(float64(usage.MemoryBytes))
+    MCPCPUUsage.WithLabelValues(serverName).Set(usage.CPUPercent)
+}
+
+func (mc *MetricsCollector) RecordCircuitBreakerTrip(serverName string) {
+    MCPCircuitBreakerTrips.WithLabelValues(serverName).Inc()
+}
+
+func (mc *MetricsCollector) UpdateCircuitBreakerState(serverName string, state int) {
+    MCPCircuitBreakerState.WithLabelValues(serverName).Set(float64(state))
+}
+```
+
+## Metrics Collection
+
+### Automatic Metrics Collection
+
+Implement automatic metrics collection in MCP operations:
+
+```go
+// pkg/mcp-proxy/instrumentation.go
+package mcpproxy
+
+import (
+    "context"
+    "time"
+    
+    "github.com/compozy/compozy/pkg/logger"
+)
+
+// InstrumentedMCPClient wraps MCP client with metrics
+type InstrumentedMCPClient struct {
+    client    MCPClient
+    collector *MetricsCollector
+    logger    logger.Logger
+}
+
+func NewInstrumentedMCPClient(client MCPClient, collector *MetricsCollector, logger logger.Logger) *InstrumentedMCPClient {
+    return &InstrumentedMCPClient{
+        client:    client,
+        collector: collector,
+        logger:    logger,
+    }
+}
+
+func (ic *InstrumentedMCPClient) CallTool(ctx context.Context, serverName, toolName string, params interface{}) (interface{}, error) {
+    start := time.Now()
+    
+    // Execute the tool call
+    result, err := ic.client.CallTool(ctx, serverName, toolName, params)
+    
+    duration := time.Since(start)
+    status := "success"
+    if err != nil {
+        status = "error"
+        ic.collector.RecordError(serverName, "call_tool", err.Error())
+    }
+    
+    // Record metrics
+    ic.collector.RecordRequest(serverName, "call_tool", status, duration)
+    ic.collector.RecordToolExecution(serverName, toolName, status, duration)
+    
+    // Log operation
+    ic.logger.Info("MCP tool execution completed",
+        "server_name", serverName,
+        "tool_name", toolName,
+        "status", status,
+        "duration_ms", duration.Milliseconds(),
+        "error", err,
+    )
+    
+    return result, err
+}
+
+func (ic *InstrumentedMCPClient) ListTools(ctx context.Context, serverName string) ([]Tool, error) {
+    start := time.Now()
+    
+    tools, err := ic.client.ListTools(ctx, serverName)
+    
+    duration := time.Since(start)
+    status := "success"
+    if err != nil {
+        status = "error"
+    }
+    
+    ic.collector.RecordRequest(serverName, "list_tools", status, duration)
+    
+    return tools, err
+}
+
+func (ic *InstrumentedMCPClient) HealthCheck(ctx context.Context, serverName string) error {
+    start := time.Now()
+    
+    err := ic.client.HealthCheck(ctx, serverName)
+    
+    duration := time.Since(start)
+    isHealthy := err == nil
+    
+    ic.collector.UpdateServerHealth(serverName, isHealthy)
+    ic.collector.RecordRequest(serverName, "health_check", 
+        map[bool]string{true: "success", false: "error"}[isHealthy], duration)
+    
+    return err
+}
+```
+
+### Custom Metrics for Tools
+
+Add custom metrics to your tools:
+
+```typescript
+// tools/instrumented_weather_tool.ts
+interface WeatherMetrics {
+  api_calls_total: number;
+  cache_hits_total: number;
+  cache_misses_total: number;
+  response_time_ms: number;
+  error_count: number;
+}
+
+class WeatherToolMetrics {
+  private metrics: WeatherMetrics = {
+    api_calls_total: 0,
+    cache_hits_total: 0,
+    cache_misses_total: 0,
+    response_time_ms: 0,
+    error_count: 0,
+  };
+
+  recordAPICall(responseTime: number, fromCache: boolean, error?: Error) {
+    this.metrics.api_calls_total++;
+    this.metrics.response_time_ms = responseTime;
+    
+    if (fromCache) {
+      this.metrics.cache_hits_total++;
+    } else {
+      this.metrics.cache_misses_total++;
+    }
+    
+    if (error) {
+      this.metrics.error_count++;
+    }
+  }
+
+  getMetrics(): WeatherMetrics {
+    return { ...this.metrics };
+  }
+
+  exportPrometheusMetrics(): string {
+    return [
+      `# HELP weather_api_calls_total Total API calls made`,
+      `# TYPE weather_api_calls_total counter`,
+      `weather_api_calls_total ${this.metrics.api_calls_total}`,
+      
+      `# HELP weather_cache_hits_total Total cache hits`,
+      `# TYPE weather_cache_hits_total counter`,
+      `weather_cache_hits_total ${this.metrics.cache_hits_total}`,
+      
+      `# HELP weather_cache_misses_total Total cache misses`,
+      `# TYPE weather_cache_misses_total counter`,
+      `weather_cache_misses_total ${this.metrics.cache_misses_total}`,
+      
+      `# HELP weather_response_time_ms Response time in milliseconds`,
+      `# TYPE weather_response_time_ms gauge`,
+      `weather_response_time_ms ${this.metrics.response_time_ms}`,
+      
+      `# HELP weather_error_count Total errors`,
+      `# TYPE weather_error_count counter`,
+      `weather_error_count ${this.metrics.error_count}`,
+    ].join('\n');
+  }
+}
+
+const weatherMetrics = new WeatherToolMetrics();
+
+interface WeatherInput {
+  city: string;
+  units?: 'metric' | 'imperial';
+}
+
+interface WeatherOutput {
+  temperature: number;
+  description: string;
+  humidity: number;
+  metrics?: WeatherMetrics;
+}
+
+export default async function weatherTool(input: WeatherInput): Promise<WeatherOutput> {
+  const startTime = Date.now();
+  let fromCache = false;
+  let error: Error | undefined;
+
+  try {
+    console.log(`🌤️  Getting weather for ${input.city}`);
+    
+    // Check cache first
+    const cacheKey = `weather:${input.city}:${input.units || 'metric'}`;
+    const cachedResult = await getFromCache(cacheKey);
+    
+    if (cachedResult) {
+      fromCache = true;
+      const responseTime = Date.now() - startTime;
+      weatherMetrics.recordAPICall(responseTime, fromCache);
+      
+      return {
+        ...cachedResult,
+        metrics: weatherMetrics.getMetrics(),
+      };
+    }
+    
+    // Make API call
+    const apiKey = process.env.OPENWEATHER_API_KEY;
+    if (!apiKey) {
+      throw new Error('OpenWeather API key not configured');
+    }
+    
+    const units = input.units || 'metric';
+    const url = `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(input.city)}&appid=${apiKey}&units=${units}`;
+    
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Weather API error: ${response.status} ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    
+    const result: WeatherOutput = {
+      temperature: data.main.temp,
+      description: data.weather[0].description,
+      humidity: data.main.humidity,
+    };
+    
+    // Cache the result
+    await saveToCache(cacheKey, result, 600); // Cache for 10 minutes
+    
+    const responseTime = Date.now() - startTime;
+    weatherMetrics.recordAPICall(responseTime, fromCache);
+    
+    return {
+      ...result,
+      metrics: weatherMetrics.getMetrics(),
+    };
+    
+  } catch (err) {
+    error = err instanceof Error ? err : new Error(String(err));
+    const responseTime = Date.now() - startTime;
+    weatherMetrics.recordAPICall(responseTime, fromCache, error);
+    
+    console.error('Weather tool error:', error.message);
+    throw error;
+  }
+}
+
+// Cache implementation
+async function getFromCache(key: string): Promise<any | null> {
+  try {
+    const cached = await Bun.file(`/tmp/cache/${key}`).text();
+    const data = JSON.parse(cached);
+    
+    if (data.expiry > Date.now()) {
+      return data.value;
+    }
+    
+    // Remove expired cache
+    await Bun.$`rm -f /tmp/cache/${key}`.catch(() => {});
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+async function saveToCache(key: string, value: any, ttlSeconds: number): Promise<void> {
+  try {
+    await Bun.$`mkdir -p /tmp/cache`;
+    
+    const data = {
+      value,
+      expiry: Date.now() + (ttlSeconds * 1000),
+    };
+    
+    await Bun.write(`/tmp/cache/${key}`, JSON.stringify(data));
+  } catch (error) {
+    console.warn('Failed to save to cache:', error);
+  }
+}
+```
+
+## Monitoring Dashboard
+
+### Grafana Dashboard Configuration
+
+Create comprehensive monitoring dashboards:
+
+```json
+{
+  "dashboard": {
+    "id": null,
+    "title": "MCP Monitoring Dashboard",
+    "description": "Comprehensive monitoring for MCP integrations",
+    "tags": ["mcp", "monitoring", "compozy"],
+    "timezone": "utc",
+    "panels": [
+      {
+        "id": 1,
+        "title": "MCP Request Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(mcp_requests_total[5m])",
+            "legendFormat": "{{server_name}} - {{operation}}",
+            "refId": "A"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Requests/sec",
+            "min": 0
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 0
+        }
+      },
+      {
+        "id": 2,
+        "title": "MCP Error Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(mcp_requests_errors_total[5m])",
+            "legendFormat": "{{server_name}} - {{error_type}}",
+            "refId": "A"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Errors/sec",
+            "min": 0
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 0
+        }
+      },
+      {
+        "id": 3,
+        "title": "MCP Response Time",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, rate(mcp_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "50th percentile",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(mcp_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "95th percentile",
+            "refId": "B"
+          },
+          {
+            "expr": "histogram_quantile(0.99, rate(mcp_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "99th percentile",
+            "refId": "C"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Response Time (seconds)",
+            "min": 0
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 8
+        }
+      },
+      {
+        "id": 4,
+        "title": "MCP Server Health",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "mcp_server_health_status",
+            "legendFormat": "{{server_name}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "red",
+                  "value": 0
+                },
+                {
+                  "color": "green",
+                  "value": 1
+                }
+              ]
+            }
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 8
+        }
+      },
+      {
+        "id": 5,
+        "title": "Active Connections",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "mcp_active_connections",
+            "legendFormat": "{{server_name}} - {{transport}}",
+            "refId": "A"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Connections",
+            "min": 0
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 16
+        }
+      },
+      {
+        "id": 6,
+        "title": "Memory Usage",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "mcp_memory_usage_bytes",
+            "legendFormat": "{{server_name}} - {{type}}",
+            "refId": "A"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Memory (bytes)",
+            "min": 0
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 16
+        }
+      },
+      {
+        "id": 7,
+        "title": "Tool Execution Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(mcp_tool_executions_total[5m])",
+            "legendFormat": "{{server_name}} - {{tool_name}}",
+            "refId": "A"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Executions/sec",
+            "min": 0
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 24
+        }
+      },
+      {
+        "id": 8,
+        "title": "Circuit Breaker State",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "mcp_circuit_breaker_state",
+            "legendFormat": "{{server_name}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "green",
+                  "value": 0
+                },
+                {
+                  "color": "red",
+                  "value": 1
+                },
+                {
+                  "color": "yellow",
+                  "value": 2
+                }
+              ]
+            },
+            "mappings": [
+              {
+                "options": {
+                  "0": {
+                    "text": "Closed"
+                  },
+                  "1": {
+                    "text": "Open"
+                  },
+                  "2": {
+                    "text": "Half-Open"
+                  }
+                },
+                "type": "value"
+              }
+            ]
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 24
+        }
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "refresh": "30s"
+  }
+}
+```
+
+## Alerting Configuration
+
+### AlertManager Configuration
+
+```yaml
+# alertmanager.yml
+global:
+  smtp_smarthost: 'smtp.gmail.com:587'
+  smtp_from: 'alerts@example.com'
+  smtp_auth_username: 'alerts@example.com'
+  smtp_auth_password: 'your-app-password'
+
+route:
+  group_by: ['alertname']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 1h
+  receiver: 'web.hook'
+  routes:
+  - match:
+      severity: critical
+    receiver: 'critical-alerts'
+  - match:
+      severity: warning
+    receiver: 'warning-alerts'
+
+receivers:
+- name: 'web.hook'
+  webhook_configs:
+  - url: 'http://localhost:5001/webhook'
+
+- name: 'critical-alerts'
+  email_configs:
+  - to: 'oncall@example.com'
+    subject: 'CRITICAL: MCP Alert - {{ .GroupLabels.alertname }}'
+    body: |
+      Alert: {{ .GroupLabels.alertname }}
+      Severity: {{ .CommonLabels.severity }}
+      
+      {{ range .Alerts }}
+      Instance: {{ .Labels.instance }}
+      Description: {{ .Annotations.description }}
+      {{ end }}
+  
+  slack_configs:
+  - api_url: 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
+    channel: '#critical-alerts'
+    title: 'MCP Critical Alert'
+    text: |
+      {{ range .Alerts }}
+      Alert: {{ .Labels.alertname }}
+      Instance: {{ .Labels.instance }}
+      Description: {{ .Annotations.description }}
+      {{ end }}
+
+- name: 'warning-alerts'
+  email_configs:
+  - to: 'team@example.com'
+    subject: 'WARNING: MCP Alert - {{ .GroupLabels.alertname }}'
+    body: |
+      Alert: {{ .GroupLabels.alertname }}
+      Severity: {{ .CommonLabels.severity }}
+      
+      {{ range .Alerts }}
+      Instance: {{ .Labels.instance }}
+      Description: {{ .Annotations.description }}
+      {{ end }}
+```
+
+### Advanced Alerting Rules
+
+```yaml
+# advanced_mcp_rules.yml
+groups:
+  - name: mcp-advanced
+    rules:
+      - alert: MCPHighErrorRateByTool
+        expr: |
+          (
+            rate(mcp_tool_executions_total{status="error"}[5m]) / 
+            rate(mcp_tool_executions_total[5m])
+          ) > 0.1
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate for MCP tool {{ $labels.tool_name }}"
+          description: "Tool {{ $labels.tool_name }} on server {{ $labels.server_name }} has error rate of {{ $value | humanizePercentage }}."
+      
+      - alert: MCPSlowToolExecution
+        expr: |
+          histogram_quantile(0.95, 
+            rate(mcp_tool_execution_duration_seconds_bucket[5m])
+          ) > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Slow tool execution detected"
+          description: "Tool {{ $labels.tool_name }} on server {{ $labels.server_name }} has 95th percentile execution time of {{ $value }}s."
+      
+      - alert: MCPCircuitBreakerOpen
+        expr: mcp_circuit_breaker_state == 1
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Circuit breaker open for MCP server"
+          description: "Circuit breaker is open for server {{ $labels.server_name }}."
+      
+      - alert: MCPMemoryLeak
+        expr: |
+          increase(mcp_memory_usage_bytes[1h]) > 104857600 and
+          mcp_memory_usage_bytes > 536870912
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Potential memory leak in MCP server"
+          description: "Memory usage for server {{ $labels.server_name }} has increased by {{ $value | humanizeBytes }} in the last hour and is currently at {{ $labels.mcp_memory_usage_bytes | humanizeBytes }}."
+      
+      - alert: MCPConnectionPoolExhaustion
+        expr: |
+          mcp_active_connections / on(server_name) group_left() 
+          (mcp_active_connections + mcp_available_connections) > 0.9
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Connection pool near exhaustion"
+          description: "Server {{ $labels.server_name }} is using {{ $value | humanizePercentage }} of available connections."
+      
+      - alert: MCPRequestQueueBacklog
+        expr: mcp_request_queue_size > 100
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Request queue backlog detected"
+          description: "Server {{ $labels.server_name }} has {{ $value }} requests in queue."
+```
+
+## Performance Monitoring
+
+### Custom Performance Metrics
+
+```go
+// pkg/mcp-proxy/performance.go
+package mcpproxy
+
+import (
+    "context"
+    "runtime"
+    "time"
+    
+    "github.com/prometheus/client_golang/prometheus"
+    "github.com/prometheus/client_golang/prometheus/promauto"
+)
+
+var (
+    // Performance metrics
+    MCPGoroutines = promauto.NewGauge(
+        prometheus.GaugeOpts{
+            Name: "mcp_goroutines",
+            Help: "Number of goroutines",
+        },
+    )
+    
+    MCPGCDuration = promauto.NewHistogram(
+        prometheus.HistogramOpts{
+            Name: "mcp_gc_duration_seconds",
+            Help: "Time spent in garbage collection",
+            Buckets: []float64{.001, .005, .01, .05, .1, .5, 1},
+        },
+    )
+    
+    MCPHeapSize = promauto.NewGauge(
+        prometheus.GaugeOpts{
+            Name: "mcp_heap_size_bytes",
+            Help: "Current heap size in bytes",
+        },
+    )
+    
+    MCPRequestQueueSize = promauto.NewGaugeVec(
+        prometheus.GaugeOpts{
+            Name: "mcp_request_queue_size",
+            Help: "Number of requests in queue",
+        },
+        []string{"server_name"},
+    )
+    
+    MCPAvailableConnections = promauto.NewGaugeVec(
+        prometheus.GaugeOpts{
+            Name: "mcp_available_connections",
+            Help: "Number of available connections",
+        },
+        []string{"server_name"},
+    )
+)
+
+type PerformanceMonitor struct {
+    ctx     context.Context
+    cancel  context.CancelFunc
+    servers map[string]*ServerMonitor
+}
+
+type ServerMonitor struct {
+    serverName  string
+    queueSize   int
+    connections int
+    available   int
+}
+
+func NewPerformanceMonitor() *PerformanceMonitor {
+    ctx, cancel := context.WithCancel(context.Background())
+    return &PerformanceMonitor{
+        ctx:     ctx,
+        cancel:  cancel,
+        servers: make(map[string]*ServerMonitor),
+    }
+}
+
+func (pm *PerformanceMonitor) Start() {
+    go pm.collectSystemMetrics()
+    go pm.collectServerMetrics()
+}
+
+func (pm *PerformanceMonitor) Stop() {
+    pm.cancel()
+}
+
+func (pm *PerformanceMonitor) collectSystemMetrics() {
+    ticker := time.NewTicker(15 * time.Second)
+    defer ticker.Stop()
+    
+    for {
+        select {
+        case <-pm.ctx.Done():
+            return
+        case <-ticker.C:
+            pm.updateSystemMetrics()
+        }
+    }
+}
+
+func (pm *PerformanceMonitor) updateSystemMetrics() {
+    // Collect goroutine count
+    MCPGoroutines.Set(float64(runtime.NumGoroutine()))
+    
+    // Collect memory statistics
+    var m runtime.MemStats
+    runtime.ReadMemStats(&m)
+    
+    MCPHeapSize.Set(float64(m.HeapSys))
+    MCPMemoryUsage.WithLabelValues("system", "heap").Set(float64(m.HeapInuse))
+    MCPMemoryUsage.WithLabelValues("system", "stack").Set(float64(m.StackInuse))
+    MCPMemoryUsage.WithLabelValues("system", "gc").Set(float64(m.GCSys))
+    
+    // Record GC duration
+    MCPGCDuration.Observe(float64(m.PauseNs[(m.NumGC+255)%256]) / 1e9)
+}
+
+func (pm *PerformanceMonitor) collectServerMetrics() {
+    ticker := time.NewTicker(10 * time.Second)
+    defer ticker.Stop()
+    
+    for {
+        select {
+        case <-pm.ctx.Done():
+            return
+        case <-ticker.C:
+            pm.updateServerMetrics()
+        }
+    }
+}
+
+func (pm *PerformanceMonitor) updateServerMetrics() {
+    for serverName, monitor := range pm.servers {
+        MCPRequestQueueSize.WithLabelValues(serverName).Set(float64(monitor.queueSize))
+        MCPActiveConnections.WithLabelValues(serverName, "unknown").Set(float64(monitor.connections))
+        MCPAvailableConnections.WithLabelValues(serverName).Set(float64(monitor.available))
+    }
+}
+
+func (pm *PerformanceMonitor) UpdateServerQueue(serverName string, queueSize int) {
+    if monitor, exists := pm.servers[serverName]; exists {
+        monitor.queueSize = queueSize
+    } else {
+        pm.servers[serverName] = &ServerMonitor{
+            serverName: serverName,
+            queueSize:  queueSize,
+        }
+    }
+}
+
+func (pm *PerformanceMonitor) UpdateServerConnections(serverName string, active, available int) {
+    if monitor, exists := pm.servers[serverName]; exists {
+        monitor.connections = active
+        monitor.available = available
+    } else {
+        pm.servers[serverName] = &ServerMonitor{
+            serverName:  serverName,
+            connections: active,
+            available:   available,
+        }
+    }
+}
+```
+
+## Log Aggregation
+
+### Structured Logging for Monitoring
+
+```go
+// pkg/mcp-proxy/logging.go
+package mcpproxy
+
+import (
+    "context"
+    "encoding/json"
+    "time"
+    
+    "github.com/compozy/compozy/pkg/logger"
+)
+
+type MCPLogEntry struct {
+    Timestamp   time.Time              `json:"timestamp"`
+    Level       string                 `json:"level"`
+    Message     string                 `json:"message"`
+    ServerName  string                 `json:"server_name,omitempty"`
+    Operation   string                 `json:"operation,omitempty"`
+    ToolName    string                 `json:"tool_name,omitempty"`
+    Duration    int64                  `json:"duration_ms,omitempty"`
+    RequestID   string                 `json:"request_id,omitempty"`
+    UserID      string                 `json:"user_id,omitempty"`
+    Error       string                 `json:"error,omitempty"`
+    Metadata    map[string]interface{} `json:"metadata,omitempty"`
+}
+
+type StructuredMCPLogger struct {
+    logger logger.Logger
+}
+
+func NewStructuredMCPLogger(logger logger.Logger) *StructuredMCPLogger {
+    return &StructuredMCPLogger{logger: logger}
+}
+
+func (sl *StructuredMCPLogger) LogRequest(ctx context.Context, serverName, operation string, duration time.Duration, err error, metadata map[string]interface{}) {
+    entry := MCPLogEntry{
+        Timestamp:  time.Now(),
+        Level:      "info",
+        Message:    "MCP request completed",
+        ServerName: serverName,
+        Operation:  operation,
+        Duration:   duration.Milliseconds(),
+        RequestID:  getRequestID(ctx),
+        UserID:     getUserID(ctx),
+        Metadata:   metadata,
+    }
+    
+    if err != nil {
+        entry.Level = "error"
+        entry.Error = err.Error()
+        entry.Message = "MCP request failed"
+    }
+    
+    sl.logEntry(entry)
+}
+
+func (sl *StructuredMCPLogger) LogToolExecution(ctx context.Context, serverName, toolName string, params interface{}, result interface{}, duration time.Duration, err error) {
+    entry := MCPLogEntry{
+        Timestamp:  time.Now(),
+        Level:      "info",
+        Message:    "MCP tool execution completed",
+        ServerName: serverName,
+        Operation:  "call_tool",
+        ToolName:   toolName,
+        Duration:   duration.Milliseconds(),
+        RequestID:  getRequestID(ctx),
+        UserID:     getUserID(ctx),
+        Metadata: map[string]interface{}{
+            "parameters": params,
+            "result":     result,
+        },
+    }
+    
+    if err != nil {
+        entry.Level = "error"
+        entry.Error = err.Error()
+        entry.Message = "MCP tool execution failed"
+    }
+    
+    sl.logEntry(entry)
+}
+
+func (sl *StructuredMCPLogger) LogHealthCheck(ctx context.Context, serverName string, isHealthy bool, duration time.Duration, err error) {
+    entry := MCPLogEntry{
+        Timestamp:  time.Now(),
+        Level:      "info",
+        Message:    "MCP health check completed",
+        ServerName: serverName,
+        Operation:  "health_check",
+        Duration:   duration.Milliseconds(),
+        RequestID:  getRequestID(ctx),
+        Metadata: map[string]interface{}{
+            "healthy": isHealthy,
+        },
+    }
+    
+    if err != nil {
+        entry.Level = "error"
+        entry.Error = err.Error()
+        entry.Message = "MCP health check failed"
+    }
+    
+    sl.logEntry(entry)
+}
+
+func (sl *StructuredMCPLogger) logEntry(entry MCPLogEntry) {
+    jsonData, _ := json.Marshal(entry)
+    
+    switch entry.Level {
+    case "error":
+        sl.logger.Error(string(jsonData))
+    case "warn":
+        sl.logger.Warn(string(jsonData))
+    default:
+        sl.logger.Info(string(jsonData))
+    }
+}
+
+func getRequestID(ctx context.Context) string {
+    if reqID, ok := ctx.Value("request_id").(string); ok {
+        return reqID
+    }
+    return ""
+}
+
+func getUserID(ctx context.Context) string {
+    if userID, ok := ctx.Value("user_id").(string); ok {
+        return userID
+    }
+    return ""
+}
+```
+
+## Health Checks
+
+### Comprehensive Health Monitoring
+
+```go
+// pkg/mcp-proxy/health.go
+package mcpproxy
+
+import (
+    "context"
+    "encoding/json"
+    "fmt"
+    "net/http"
+    "time"
+)
+
+type HealthStatus struct {
+    Status    string                 `json:"status"`
+    Timestamp time.Time              `json:"timestamp"`
+    Version   string                 `json:"version"`
+    Uptime    time.Duration          `json:"uptime"`
+    Servers   map[string]ServerHealth `json:"servers"`
+    System    SystemHealth           `json:"system"`
+}
+
+type ServerHealth struct {
+    Status         string        `json:"status"`
+    LastCheck      time.Time     `json:"last_check"`
+    ResponseTime   time.Duration `json:"response_time"`
+    Consecutive    int           `json:"consecutive_failures"`
+    TotalRequests  int64         `json:"total_requests"`
+    FailedRequests int64         `json:"failed_requests"`
+    SuccessRate    float64       `json:"success_rate"`
+}
+
+type SystemHealth struct {
+    MemoryUsage    int64   `json:"memory_usage_bytes"`
+    CPUUsage       float64 `json:"cpu_usage_percent"`
+    GoroutineCount int     `json:"goroutine_count"`
+    GCPauseTime    float64 `json:"gc_pause_time_ms"`
+}
+
+type HealthChecker struct {
+    servers     map[string]*ServerHealthTracker
+    startTime   time.Time
+    version     string
+    collector   *MetricsCollector
+}
+
+type ServerHealthTracker struct {
+    client             MCPClient
+    name               string
+    status             string
+    lastCheck          time.Time
+    responseTime       time.Duration
+    consecutiveFailures int
+    totalRequests      int64
+    failedRequests     int64
+}
+
+func NewHealthChecker(version string, collector *MetricsCollector) *HealthChecker {
+    return &HealthChecker{
+        servers:   make(map[string]*ServerHealthTracker),
+        startTime: time.Now(),
+        version:   version,
+        collector: collector,
+    }
+}
+
+func (hc *HealthChecker) AddServer(name string, client MCPClient) {
+    hc.servers[name] = &ServerHealthTracker{
+        client: client,
+        name:   name,
+        status: "unknown",
+    }
+}
+
+func (hc *HealthChecker) StartMonitoring(ctx context.Context, interval time.Duration) {
+    ticker := time.NewTicker(interval)
+    defer ticker.Stop()
+    
+    for {
+        select {
+        case <-ctx.Done():
+            return
+        case <-ticker.C:
+            hc.checkAllServers(ctx)
+        }
+    }
+}
+
+func (hc *HealthChecker) checkAllServers(ctx context.Context) {
+    for _, tracker := range hc.servers {
+        go hc.checkServer(ctx, tracker)
+    }
+}
+
+func (hc *HealthChecker) checkServer(ctx context.Context, tracker *ServerHealthTracker) {
+    start := time.Now()
+    
+    err := tracker.client.HealthCheck(ctx, tracker.name)
+    
+    duration := time.Since(start)
+    tracker.lastCheck = time.Now()
+    tracker.responseTime = duration
+    tracker.totalRequests++
+    
+    if err != nil {
+        tracker.status = "unhealthy"
+        tracker.consecutiveFailures++
+        tracker.failedRequests++
+    } else {
+        tracker.status = "healthy"
+        tracker.consecutiveFailures = 0
+    }
+    
+    // Update metrics
+    hc.collector.UpdateServerHealth(tracker.name, err == nil)
+}
+
+func (hc *HealthChecker) GetHealthStatus() HealthStatus {
+    servers := make(map[string]ServerHealth)
+    
+    for name, tracker := range hc.servers {
+        successRate := float64(tracker.totalRequests-tracker.failedRequests) / float64(tracker.totalRequests)
+        if tracker.totalRequests == 0 {
+            successRate = 0
+        }
+        
+        servers[name] = ServerHealth{
+            Status:         tracker.status,
+            LastCheck:      tracker.lastCheck,
+            ResponseTime:   tracker.responseTime,
+            Consecutive:    tracker.consecutiveFailures,
+            TotalRequests:  tracker.totalRequests,
+            FailedRequests: tracker.failedRequests,
+            SuccessRate:    successRate,
+        }
+    }
+    
+    return HealthStatus{
+        Status:    hc.getOverallStatus(),
+        Timestamp: time.Now(),
+        Version:   hc.version,
+        Uptime:    time.Since(hc.startTime),
+        Servers:   servers,
+        System:    hc.getSystemHealth(),
+    }
+}
+
+func (hc *HealthChecker) getOverallStatus() string {
+    healthy := 0
+    total := len(hc.servers)
+    
+    for _, tracker := range hc.servers {
+        if tracker.status == "healthy" {
+            healthy++
+        }
+    }
+    
+    if total == 0 {
+        return "unknown"
+    }
+    
+    if healthy == total {
+        return "healthy"
+    }
+    
+    if healthy > total/2 {
+        return "degraded"
+    }
+    
+    return "unhealthy"
+}
+
+func (hc *HealthChecker) getSystemHealth() SystemHealth {
+    var m runtime.MemStats
+    runtime.ReadMemStats(&m)
+    
+    return SystemHealth{
+        MemoryUsage:    int64(m.Alloc),
+        CPUUsage:       getCurrentCPUUsage(),
+        GoroutineCount: runtime.NumGoroutine(),
+        GCPauseTime:    float64(m.PauseNs[(m.NumGC+255)%256]) / 1e6,
+    }
+}
+
+func (hc *HealthChecker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+    status := hc.GetHealthStatus()
+    
+    w.Header().Set("Content-Type", "application/json")
+    
+    if status.Status == "healthy" {
+        w.WriteHeader(http.StatusOK)
+    } else {
+        w.WriteHeader(http.StatusServiceUnavailable)
+    }
+    
+    json.NewEncoder(w).Encode(status)
+}
+
+func getCurrentCPUUsage() float64 {
+    // Implementation depends on your system monitoring approach
+    // This is a placeholder - you might use third-party libraries
+    // or system-specific methods to get CPU usage
+    return 0.0
+}
+```
+
+## Best Practices
+
+### 1. Metric Naming Convention
+
+- Use consistent prefixes (`mcp_`)
+- Include relevant labels for filtering
+- Use appropriate metric types (counter, gauge, histogram)
+
+### 2. Monitoring Granularity
+
+- Monitor at server, tool, and operation levels
+- Track both success and failure rates
+- Include response time percentiles
+
+### 3. Alerting Strategy
+
+- Set up alerts for critical failures
+- Use progressive severity levels
+- Include context in alert messages
+
+### 4. Performance Optimization
+
+- Monitor resource usage trends
+- Set up capacity planning alerts
+- Track circuit breaker effectiveness
+
+### 5. Data Retention
+
+- Configure appropriate retention policies
+- Archive historical data for trend analysis
+- Balance storage costs with data needs
+
+This comprehensive monitoring and metrics guide ensures visibility into MCP system health and performance, enabling proactive management and quick issue resolution.
+
+## Next Steps
+
+- Configure [Admin API](/docs/core/mcp/admin-api) for operational management
+- Review [Production Deployment](/docs/core/mcp/production-deployment) for deployment strategies
+- Explore [Security & Authentication](/docs/core/mcp/security-authentication) for security monitoring
+- Set up [Integration Patterns](/docs/core/mcp/integration-patterns) for application-specific metrics

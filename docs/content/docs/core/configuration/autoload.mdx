@@ -1,4 +1,564 @@
 ---
-title: Resources Auto-loading
-description: TODO
+title: AutoLoad Configuration
+description: Automatic loading and hot-reloading of project resources during development
 ---
+
+import { Tabs, Tab } from 'fumadocs-ui/components/tabs';
+import { Callout } from 'fumadocs-ui/components/callout';
+
+# AutoLoad Configuration
+
+Configure automatic loading and hot-reloading of project resources during development in Compozy.
+
+## Overview
+
+**AutoLoad** is a development feature that automatically discovers and loads project resources like agents, workflows, tools, and memory configurations. It provides:
+
+- **Hot-reload** of resources without restart
+- **Automatic discovery** of new resources
+- **Faster iteration** cycles during development
+- **Validation** on file changes
+- **Pattern-based inclusion/exclusion** of files
+
+<Callout type="info">
+AutoLoad is primarily designed for development environments. For production, prefer explicit resource definitions for better performance and predictability.
+</Callout>
+
+## Basic Configuration
+
+### Enable AutoLoad
+
+Add AutoLoad configuration to your `compozy.yaml`:
+
+```yaml
+name: my-project
+version: "1.0.0"
+description: "Development project with AutoLoad"
+
+workflows:
+  - source: ./workflow.yaml
+
+autoload:
+  enabled: true
+  strict: true
+  include:
+    - "agents/**/*.yaml"
+    - "workflows/**/*.yaml"
+    - "tools/**/*.yaml"
+    - "memory/**/*.yaml"
+```
+
+### Complete Configuration
+
+```yaml
+autoload:
+  enabled: true
+  strict: true
+  watch_enabled: true
+  include:
+    - "agents/**/*.yaml"
+    - "workflows/**/*.yaml"
+    - "tools/**/*.yaml"
+    - "memory/**/*.yaml"
+    - "schemas/**/*.yaml"
+  exclude:
+    - "**/*.bak"
+    - "**/*.tmp"
+    - "**/*~"
+    - "**/.#*"
+    - "**/node_modules/**"
+    - "**/.git/**"
+```
+
+## Configuration Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `enabled` | boolean | ✅ | Enable/disable AutoLoad |
+| `strict` | boolean | ❌ | Fail on validation errors (default: true) |
+| `watch_enabled` | boolean | ❌ | Enable file watching for changes |
+| `include` | array | ✅ | Glob patterns for files to include |
+| `exclude` | array | ❌ | Glob patterns for files to exclude |
+
+## Include Patterns
+
+### Common Patterns
+
+```yaml
+autoload:
+  enabled: true
+  include:
+    # All YAML files in agents directory
+    - "agents/**/*.yaml"
+    
+    # All YAML files in nested workflow directories
+    - "workflows/**/*.yaml"
+    
+    # Tools from multiple directories
+    - "tools/**/*.yaml"
+    - "tools/**/*.ts"
+    
+    # Memory configurations
+    - "memory/**/*.yaml"
+    
+    # Schema definitions
+    - "schemas/**/*.yaml"
+    
+    # Configuration files
+    - "config/**/*.yaml"
+```
+
+### Advanced Patterns
+
+```yaml
+autoload:
+  enabled: true
+  include:
+    # Specific subdirectories
+    - "agents/production/*.yaml"
+    - "agents/development/*.yaml"
+    
+    # Multiple file extensions
+    - "tools/**/*.{yaml,yml,ts,js}"
+    
+    # Nested directory structures
+    - "projects/*/agents/*.yaml"
+    - "projects/*/workflows/*.yaml"
+    
+    # Environment-specific resources
+    - "config/{{ .env.ENVIRONMENT }}/**/*.yaml"
+```
+
+## Exclude Patterns
+
+### Default Excludes
+
+Compozy automatically excludes common temporary and backup files:
+
+```yaml
+# Built-in default excludes (always applied)
+exclude:
+  - "**/.#*"      # Emacs lock files
+  - "**/*~"       # Backup files
+  - "**/*.bak"    # Backup files
+  - "**/*.swp"    # Vim swap files
+  - "**/*.tmp"    # Temporary files
+  - "**/._*"      # macOS resource forks
+```
+
+### Custom Excludes
+
+Add your own exclude patterns:
+
+```yaml
+autoload:
+  enabled: true
+  include:
+    - "agents/**/*.yaml"
+    - "workflows/**/*.yaml"
+  exclude:
+    # Version control
+    - "**/.git/**"
+    - "**/.svn/**"
+    
+    # Dependencies
+    - "**/node_modules/**"
+    - "**/vendor/**"
+    
+    # Build artifacts
+    - "**/dist/**"
+    - "**/build/**"
+    
+    # Test files
+    - "**/*.test.yaml"
+    - "**/*.spec.yaml"
+    
+    # Templates
+    - "**/*.template.yaml"
+    - "**/*.example.yaml"
+```
+
+## Project Structure
+
+### Recommended Structure
+
+Organize your project for effective AutoLoad:
+
+```
+my-project/
+├── compozy.yaml              # Main configuration
+├── .env                      # Environment variables
+│
+├── agents/                   # AI agents
+│   ├── research-agent.yaml
+│   ├── writing-agent.yaml
+│   └── review-agent.yaml
+│
+├── workflows/                # Workflows
+│   ├── content-generation.yaml
+│   ├── data-processing.yaml
+│   └── customer-support.yaml
+│
+├── tools/                    # Custom tools
+│   ├── api-client.yaml
+│   ├── data-parser.yaml
+│   └── email-sender.yaml
+│
+├── memory/                   # Memory configurations
+│   ├── conversation.yaml
+│   ├── user-preferences.yaml
+│   └── session-state.yaml
+│
+├── schemas/                  # Data schemas
+│   ├── user-input.yaml
+│   ├── api-response.yaml
+│   └── validation-rules.yaml
+│
+└── config/                   # Additional configs
+    ├── development.yaml
+    └── production.yaml
+```
+
+### Environment-Specific Structure
+
+```
+my-project/
+├── compozy.yaml
+├── environments/
+│   ├── development/
+│   │   ├── agents/
+│   │   ├── workflows/
+│   │   └── config/
+│   ├── staging/
+│   │   ├── agents/
+│   │   ├── workflows/
+│   │   └── config/
+│   └── production/
+│       ├── agents/
+│       ├── workflows/
+│       └── config/
+```
+
+## Development Workflow
+
+### Hot Reloading
+
+When AutoLoad is enabled, changes are automatically detected:
+
+<Tabs items={['File Changes', 'Log Output', 'Error Handling']}>
+  <Tab value="File Changes">
+```bash
+# 1. Edit an agent file
+vim agents/research-agent.yaml
+
+# 2. Save changes - AutoLoad detects and reloads
+[INFO] AutoLoad: Detected changes in agents/research-agent.yaml
+[INFO] AutoLoad: Reloading agent 'research-agent'
+[INFO] AutoLoad: Validation passed
+[INFO] AutoLoad: Agent reloaded successfully
+
+# 3. Changes are immediately available
+compozy agent list  # Shows updated agent
+```
+  </Tab>
+  <Tab value="Log Output">
+```bash
+# Starting with AutoLoad enabled
+[INFO] AutoLoad: Enabled with 15 include patterns
+[INFO] AutoLoad: Scanning for resources...
+[INFO] AutoLoad: Found 8 agents, 5 workflows, 12 tools
+[INFO] AutoLoad: All resources loaded successfully
+
+# During development
+[INFO] AutoLoad: File changed: agents/new-agent.yaml
+[INFO] AutoLoad: Loading new agent 'new-agent'
+[INFO] AutoLoad: Validation passed
+[INFO] AutoLoad: Agent loaded successfully
+
+# Error handling
+[WARN] AutoLoad: Validation failed for workflows/broken-workflow.yaml
+[WARN] AutoLoad: Error: missing required field 'id'
+[WARN] AutoLoad: Skipping file (strict mode: false)
+```
+  </Tab>
+  <Tab value="Error Handling">
+```bash
+# Strict mode enabled (default)
+[ERROR] AutoLoad: Validation failed for agents/invalid-agent.yaml
+[ERROR] AutoLoad: Error: invalid model configuration
+[ERROR] AutoLoad: Stopping due to strict mode
+
+# Strict mode disabled
+[WARN] AutoLoad: Validation failed for agents/invalid-agent.yaml
+[WARN] AutoLoad: Error: invalid model configuration
+[WARN] AutoLoad: Skipping file and continuing
+```
+  </Tab>
+</Tabs>
+
+### Validation Modes
+
+#### Strict Mode (Default)
+
+```yaml
+autoload:
+  enabled: true
+  strict: true  # Fail on any validation error
+  include:
+    - "agents/**/*.yaml"
+```
+
+- **Behavior**: Stops loading if any resource fails validation
+- **Use case**: Ensure all resources are valid before proceeding
+- **Recommended**: For development to catch errors early
+
+#### Permissive Mode
+
+```yaml
+autoload:
+  enabled: true
+  strict: false  # Continue despite validation errors
+  include:
+    - "agents/**/*.yaml"
+```
+
+- **Behavior**: Logs warnings for invalid resources but continues
+- **Use case**: Partial loading during development
+- **Recommended**: For rapid prototyping
+
+## Resource Discovery
+
+### Automatic Discovery
+
+AutoLoad automatically discovers and loads resources based on file patterns:
+
+```yaml
+# This configuration will automatically discover and load:
+autoload:
+  enabled: true
+  include:
+    - "agents/**/*.yaml"      # All agent files
+    - "workflows/**/*.yaml"   # All workflow files
+    - "tools/**/*.yaml"       # All tool files
+    - "memory/**/*.yaml"      # All memory files
+```
+
+### Resource Types
+
+| Pattern | Resource Type | Description |
+|---------|---------------|-------------|
+| `agents/**/*.yaml` | AI Agents | Agent configurations with instructions |
+| `workflows/**/*.yaml` | Workflows | Workflow definitions and task sequences |
+| `tools/**/*.yaml` | Tools | Tool configurations and scripts |
+| `memory/**/*.yaml` | Memory | Memory configurations and storage |
+| `schemas/**/*.yaml` | Schemas | Data validation schemas |
+
+### Discovery Process
+
+1. **Scan**: AutoLoad scans directories matching include patterns
+2. **Filter**: Applies exclude patterns to filter out unwanted files
+3. **Load**: Loads and parses each discovered file
+4. **Validate**: Validates resource configuration
+5. **Register**: Registers valid resources for use
+
+## Performance Considerations
+
+### Optimization Tips
+
+1. **Specific Patterns**: Use specific patterns instead of broad wildcards
+2. **Exclude Unnecessary**: Exclude large directories like `node_modules`
+3. **Limit Depth**: Avoid deep directory traversal
+4. **Cache Results**: AutoLoad caches loaded resources
+
+### Good Patterns
+
+```yaml
+autoload:
+  enabled: true
+  include:
+    # Good: Specific and targeted
+    - "agents/production/*.yaml"
+    - "workflows/api/*.yaml"
+    
+    # Good: Multiple specific patterns
+    - "tools/data/**/*.yaml"
+    - "tools/api/**/*.yaml"
+```
+
+### Patterns to Avoid
+
+```yaml
+autoload:
+  enabled: true
+  include:
+    # Avoid: Too broad, includes everything
+    - "**/*.yaml"
+    
+    # Avoid: Very deep traversal
+    - "deep/nested/structure/**/**/**/*.yaml"
+    
+    # Avoid: Without proper excludes
+    - "**/*.yaml"
+  exclude: []  # No excludes = poor performance
+```
+
+## Best Practices
+
+### Development
+
+1. **Enable AutoLoad**: Use AutoLoad for faster development iteration
+2. **Strict Mode**: Keep strict mode enabled to catch errors early
+3. **Organized Structure**: Organize files in logical directories
+4. **Meaningful Names**: Use descriptive file names
+
+### File Organization
+
+```yaml
+# Good: Organized by purpose
+agents/
+├── research/
+│   ├── web-researcher.yaml
+│   └── data-researcher.yaml
+├── writing/
+│   ├── content-writer.yaml
+│   └── technical-writer.yaml
+└── support/
+    ├── customer-support.yaml
+    └── technical-support.yaml
+```
+
+### Configuration Management
+
+```yaml
+# Good: Environment-specific includes
+autoload:
+  enabled: true
+  include:
+    - "agents/{{ .env.ENVIRONMENT | default \"development\" }}/*.yaml"
+    - "workflows/{{ .env.ENVIRONMENT | default \"development\" }}/*.yaml"
+```
+
+### Testing
+
+```yaml
+# Good: Separate test resources
+autoload:
+  enabled: true
+  include:
+    - "agents/**/*.yaml"
+    - "workflows/**/*.yaml"
+  exclude:
+    - "**/*.test.yaml"
+    - "**/*.spec.yaml"
+    - "test/**/*"
+```
+
+## Common Issues
+
+### Performance Issues
+
+<Callout type="warning">
+**Slow Startup**: Too many files being scanned
+```yaml
+# Solution: More specific patterns
+include:
+  - "agents/active/*.yaml"  # Instead of "**/*.yaml"
+```
+</Callout>
+
+### Validation Errors
+
+<Callout type="error">
+**Missing Required Fields**: Resources missing required configuration
+```yaml
+# Solution: Use strict mode during development
+strict: true
+```
+</Callout>
+
+### File Conflicts
+
+<Callout type="error">
+**Duplicate IDs**: Multiple resources with same ID
+```yaml
+# Solution: Use unique IDs across all resources
+# Or organize by directories to avoid conflicts
+```
+</Callout>
+
+## Debugging
+
+### Debug Commands
+
+```bash
+# Check AutoLoad configuration
+compozy config validate
+
+# List discovered resources
+compozy autoload list
+
+# Debug file patterns
+compozy autoload debug --pattern "agents/**/*.yaml"
+
+# Watch file changes
+compozy autoload watch
+```
+
+### Debug Logging
+
+```bash
+# Enable debug logging
+DEBUG=autoload compozy run workflow.yaml
+
+# Verbose AutoLoad logging
+AUTOLOAD_LOG_LEVEL=debug compozy run workflow.yaml
+```
+
+## Production Considerations
+
+### Disable for Production
+
+```yaml
+# Production configuration
+autoload:
+  enabled: false  # Disable AutoLoad in production
+  
+# Instead, use explicit resource definitions
+workflows:
+  - source: ./workflows/production-workflow.yaml
+```
+
+### Environment Variables
+
+```bash
+# Control AutoLoad via environment
+AUTOLOAD_ENABLED=false
+AUTOLOAD_STRICT=true
+AUTOLOAD_WATCH=false
+```
+
+### Build Process
+
+```bash
+# Build script that validates all resources
+#!/bin/bash
+set -e
+
+# Enable AutoLoad for validation
+export AUTOLOAD_ENABLED=true
+export AUTOLOAD_STRICT=true
+
+# Validate all resources
+compozy config validate
+
+# Build without AutoLoad
+export AUTOLOAD_ENABLED=false
+compozy build
+```
+
+## Next Steps
+
+- Learn about [CLI Configuration](/docs/core/configuration/cli)
+- Set up [Monitoring](/docs/core/configuration/monitoring-config)
+- Explore [Global Configuration](/docs/core/configuration/global)
+- Configure [Agent Development](/docs/core/agents/overview)

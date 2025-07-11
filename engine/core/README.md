@@ -30,6 +30,7 @@
 The `core` package provides the foundational types, interfaces, and utilities that underpin the entire Compozy workflow orchestration engine. It defines the common contracts and shared functionality used across all engine components.
 
 This package handles:
+
 - Core type definitions and constants
 - Configuration interface contracts
 - Unique identifier generation
@@ -154,7 +155,7 @@ type MyConfig struct {
     ID           string            `json:"id"`
     Name         string            `json:"name"`
     Settings     map[string]any    `json:"settings"`
-    
+
     filePath     string
     cwd          *core.PathCWD
 }
@@ -310,7 +311,7 @@ if err != nil {
 // Load with template evaluation
 evaluator := ref.NewEvaluator(context)
 config, path, err := core.LoadConfigWithEvaluator[*MyConfig](
-    "/path/to/config.yaml", 
+    "/path/to/config.yaml",
     evaluator,
 )
 if err != nil {
@@ -331,6 +332,7 @@ if err != nil {
 ### Core Types
 
 #### StatusType
+
 Represents execution status across the system.
 
 ```go
@@ -347,6 +349,7 @@ const (
 ```
 
 #### ComponentType
+
 Identifies different component types in the system.
 
 ```go
@@ -360,6 +363,7 @@ const (
 ```
 
 #### ConfigType
+
 Identifies configuration types for the autoloader.
 
 ```go
@@ -377,6 +381,7 @@ const (
 ### Memory Reference System
 
 #### MemoryReference
+
 Defines how components access memory resources.
 
 ```go
@@ -414,7 +419,7 @@ type MyToolConfig struct {
     Env          *core.EnvMap          `json:"env,omitempty" yaml:"env,omitempty"`
     InputSchema  *schema.Schema        `json:"input,omitempty" yaml:"input,omitempty"`
     OutputSchema *schema.Schema        `json:"output,omitempty" yaml:"output,omitempty"`
-    
+
     filePath     string
     cwd          *core.PathCWD
 }
@@ -483,7 +488,7 @@ func (c *MyToolConfig) Merge(other any) error {
     if !ok {
         return fmt.Errorf("cannot merge: incompatible types")
     }
-    
+
     // Implement merge logic
     if otherConfig.Name != "" {
         c.Name = otherConfig.Name
@@ -491,7 +496,7 @@ func (c *MyToolConfig) Merge(other any) error {
     if otherConfig.Runtime != "" {
         c.Runtime = otherConfig.Runtime
     }
-    
+
     return nil
 }
 
@@ -516,17 +521,17 @@ func main() {
         Runtime: "node",
         Code:    "console.log('Processing file...');",
     }
-    
+
     // Set working directory
     if err := config.SetCWD("/path/to/project"); err != nil {
         log.Fatal(err)
     }
-    
+
     // Validate configuration
     if err := config.Validate(); err != nil {
         log.Fatal(err)
     }
-    
+
     fmt.Printf("Configuration valid: %s\n", config.ID)
 }
 ```
@@ -589,6 +594,7 @@ if errors.As(err, &coreErr) {
 ### Core Types
 
 #### `ID`
+
 Unique identifier type using KSUID.
 
 ```go
@@ -600,6 +606,7 @@ func (c ID) String() string
 ```
 
 #### `Config`
+
 Interface that all configuration types must implement.
 
 ```go
@@ -622,6 +629,7 @@ type Config interface {
 ```
 
 #### `MemoryReference`
+
 Memory access configuration.
 
 ```go
@@ -683,6 +691,7 @@ go test -v ./engine/core -bench=.
 ### Test Structure
 
 The package includes comprehensive tests for:
+
 - ID generation and uniqueness
 - Configuration interface implementation
 - File loading and path resolution
@@ -697,14 +706,14 @@ func TestNewID(t *testing.T) {
     id1, err := core.NewID()
     require.NoError(t, err)
     require.NotEmpty(t, id1)
-    
+
     id2, err := core.NewID()
     require.NoError(t, err)
     require.NotEmpty(t, id2)
-    
+
     // IDs should be unique
     require.NotEqual(t, id1, id2)
-    
+
     // Test MustNewID
     id3 := core.MustNewID()
     require.NotEmpty(t, id3)

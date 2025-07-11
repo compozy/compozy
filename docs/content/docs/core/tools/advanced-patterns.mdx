@@ -1,6 +1,1162 @@
 ---
-title: Advanced Patterns
-description: Advanced tool development patterns
+title: "Advanced Patterns"
+description: "Sophisticated tool development patterns and advanced use cases for Compozy tools"
 ---
 
+import { Alert } from "@/components/ui/alert"
+
 # Advanced Patterns
+
+This guide explores sophisticated tool development patterns, complex orchestration scenarios, and advanced architectural approaches for building robust, scalable tools in Compozy.
+
+## State Management Patterns
+
+### Stateful Tools with Persistence
+
+Tools that maintain state across multiple executions:
+
+```typescript
+// tools/stateful-processor.ts
+interface StateConfig {
+  stateKey: string;
+  persistenceStrategy: 'memory' | 'file' | 'database';
+  ttl?: number;
+}
+
+class StatefulProcessor {
+  private state: Map<string, any> = new Map();
+  private config: StateConfig;
+
+  constructor(config: StateConfig) {
+    this.config = config;
+  }
+
+  async process(input: ProcessorInput): Promise<ProcessorOutput> {
+    const currentState = await this.loadState();
+    const updatedState = await this.updateState(currentState, input);
+    await this.saveState(updatedState);
+
+    return this.generateOutput(updatedState);
+  }
+
+  private async loadState(): Promise<ProcessorState> {
+    switch (this.config.persistenceStrategy) {
+      case 'memory':
+        return this.loadFromMemory();
+      case 'file':
+        return this.loadFromFile();
+      case 'database':
+        return this.loadFromDatabase();
+      default:
+        throw new Error(`Unsupported persistence strategy: ${this.config.persistenceStrategy}`);
+    }
+  }
+
+  private async loadFromMemory(): Promise<ProcessorState> {
+    return this.state.get(this.config.stateKey) || { initialized: false };
+  }
+
+  private async loadFromFile(): Promise<ProcessorState> {
+    const stateFile = `./state/${this.config.stateKey}.json`;
+    try {
+      const data = await Bun.file(stateFile).text();
+      return JSON.parse(data);
+    } catch {
+      return { initialized: false };
+    }
+  }
+
+  private async loadFromDatabase(): Promise<ProcessorState> {
+    // Implementation depends on database choice
+    // This is a placeholder for database integration
+    return { initialized: false };
+  }
+
+  private async updateState(
+    currentState: ProcessorState,
+    input: ProcessorInput
+  ): Promise<ProcessorState> {
+    return {
+      ...currentState,
+      lastProcessed: new Date().toISOString(),
+      processCount: (currentState.processCount || 0) + 1,
+      lastInput: input,
+      initialized: true,
+    };
+  }
+
+  private async saveState(state: ProcessorState): Promise<void> {
+    switch (this.config.persistenceStrategy) {
+      case 'memory':
+        this.state.set(this.config.stateKey, state);
+        break;
+      case 'file':
+        await this.saveToFile(state);
+        break;
+      case 'database':
+        await this.saveToDatabase(state);
+        break;
+    }
+  }
+
+  private async saveToFile(state: ProcessorState): Promise<void> {
+    const stateFile = `./state/${this.config.stateKey}.json`;
+    await Bun.$`mkdir -p ./state`;
+    await Bun.write(stateFile, JSON.stringify(state, null, 2));
+  }
+
+  private async saveToDatabase(state: ProcessorState): Promise<void> {
+    // Database save implementation
+  }
+}
+
+interface ProcessorState {
+  initialized: boolean;
+  lastProcessed?: string;
+  processCount?: number;
+  lastInput?: any;
+  [key: string]: any;
+}
+
+interface ProcessorInput {
+  data: any;
+  operation: string;
+  metadata?: Record<string, any>;
+}
+
+interface ProcessorOutput {
+  result: any;
+  state: ProcessorState;
+  metadata: {
+    processedAt: string;
+    stateKey: string;
+    processCount: number;
+  };
+}
+```
+
+### Multi-Phase Processing
+
+Tools that implement complex multi-phase processing workflows:
+
+```typescript
+// tools/multi-phase-processor.ts
+interface Phase {
+  name: string;
+  processor: (input: any, context: PhaseContext) => Promise<any>;
+  validator?: (output: any) => boolean;
+  retryConfig?: RetryConfig;
+}
+
+interface PhaseContext {
+  phaseIndex: number;
+  totalPhases: number;
+  previousResults: any[];
+  globalContext: Record<string, any>;
+}
+
+interface RetryConfig {
+  maxAttempts: number;
+  backoffMs: number;
+  backoffMultiplier: number;
+}
+
+class MultiPhaseProcessor {
+  private phases: Phase[] = [];
+  private globalContext: Record<string, any> = {};
+
+  addPhase(phase: Phase): void {
+    this.phases.push(phase);
+  }
+
+  async process(input: any): Promise<MultiPhaseResult> {
+    const results: any[] = [];
+    let currentInput = input;
+
+    for (let i = 0; i < this.phases.length; i++) {
+      const phase = this.phases[i];
+      const context: PhaseContext = {
+        phaseIndex: i,
+        totalPhases: this.phases.length,
+        previousResults: [...results],
+        globalContext: this.globalContext,
+      };
+
+      try {
+        const result = await this.executePhase(phase, currentInput, context);
+        results.push(result);
+        currentInput = result; // Pass result to next phase
+      } catch (error) {
+        return {
+          success: false,
+          error: `Phase ${phase.name} failed: ${error.message}`,
+          completedPhases: i,
+          results,
+        };
+      }
+    }
+
+    return {
+      success: true,
+      results,
+      completedPhases: this.phases.length,
+      finalResult: results[results.length - 1],
+    };
+  }
+
+  private async executePhase(
+    phase: Phase,
+    input: any,
+    context: PhaseContext
+  ): Promise<any> {
+    const retryConfig = phase.retryConfig || { maxAttempts: 1, backoffMs: 1000, backoffMultiplier: 2 };
+
+    for (let attempt = 1; attempt <= retryConfig.maxAttempts; attempt++) {
+      try {
+        const result = await phase.processor(input, context);
+
+        if (phase.validator && !phase.validator(result)) {
+          throw new Error(`Phase ${phase.name} validation failed`);
+        }
+
+        return result;
+      } catch (error) {
+        if (attempt === retryConfig.maxAttempts) {
+          throw error;
+        }
+
+        const delay = retryConfig.backoffMs * Math.pow(retryConfig.backoffMultiplier, attempt - 1);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+}
+
+interface MultiPhaseResult {
+  success: boolean;
+  results: any[];
+  completedPhases: number;
+  finalResult?: any;
+  error?: string;
+}
+
+// Usage example
+async function createDataProcessor(): Promise<MultiPhaseProcessor> {
+  const processor = new MultiPhaseProcessor();
+
+  processor.addPhase({
+    name: 'validation',
+    processor: async (input, context) => {
+      if (!input.data) {
+        throw new Error('No data provided');
+      }
+      return { ...input, validated: true };
+    },
+    validator: (output) => output.validated === true,
+  });
+
+  processor.addPhase({
+    name: 'transformation',
+    processor: async (input, context) => {
+      return {
+        ...input,
+        transformedData: input.data.map((item: any) => ({
+          ...item,
+          processed: true,
+          timestamp: new Date().toISOString(),
+        })),
+      };
+    },
+    retryConfig: { maxAttempts: 3, backoffMs: 1000, backoffMultiplier: 2 },
+  });
+
+  processor.addPhase({
+    name: 'aggregation',
+    processor: async (input, context) => {
+      const summary = {
+        totalItems: input.transformedData.length,
+        processedAt: new Date().toISOString(),
+        phaseContext: context,
+      };
+      return { ...input, summary };
+    },
+  });
+
+  return processor;
+}
+```
+
+## Advanced Orchestration Patterns
+
+### Dynamic Tool Composition
+
+Tools that can dynamically compose and orchestrate other tools:
+
+```typescript
+// tools/dynamic-orchestrator.ts
+interface ToolDefinition {
+  id: string;
+  name: string;
+  description: string;
+  inputSchema: any;
+  outputSchema: any;
+  executor: (input: any) => Promise<any>;
+}
+
+interface OrchestrationPlan {
+  tools: ToolDefinition[];
+  connections: Connection[];
+  strategy: 'sequential' | 'parallel' | 'conditional';
+  errorHandling: 'stop' | 'continue' | 'retry';
+}
+
+interface Connection {
+  from: string;
+  to: string;
+  inputMapping: Record<string, string>;
+  condition?: string;
+}
+
+class DynamicOrchestrator {
+  private registeredTools: Map<string, ToolDefinition> = new Map();
+  private executionHistory: ExecutionRecord[] = [];
+
+  registerTool(tool: ToolDefinition): void {
+    this.registeredTools.set(tool.id, tool);
+  }
+
+  async execute(plan: OrchestrationPlan, input: any): Promise<OrchestrationResult> {
+    const executionContext = new ExecutionContext(plan, input);
+
+    switch (plan.strategy) {
+      case 'sequential':
+        return this.executeSequential(executionContext);
+      case 'parallel':
+        return this.executeParallel(executionContext);
+      case 'conditional':
+        return this.executeConditional(executionContext);
+      default:
+        throw new Error(`Unknown strategy: ${plan.strategy}`);
+    }
+  }
+
+  private async executeSequential(context: ExecutionContext): Promise<OrchestrationResult> {
+    const results: Record<string, any> = {};
+    let currentInput = context.initialInput;
+
+    for (const tool of context.plan.tools) {
+      try {
+        const toolInput = this.mapInput(currentInput, tool.inputSchema);
+        const result = await tool.executor(toolInput);
+        results[tool.id] = result;
+        currentInput = result; // Chain results
+
+        this.recordExecution(tool.id, toolInput, result, 'success');
+      } catch (error) {
+        this.recordExecution(tool.id, currentInput, null, 'error', error.message);
+
+        if (context.plan.errorHandling === 'stop') {
+          return { success: false, error: error.message, results };
+        }
+      }
+    }
+
+    return { success: true, results };
+  }
+
+  private async executeParallel(context: ExecutionContext): Promise<OrchestrationResult> {
+    const promises = context.plan.tools.map(async (tool) => {
+      try {
+        const toolInput = this.mapInput(context.initialInput, tool.inputSchema);
+        const result = await tool.executor(toolInput);
+        this.recordExecution(tool.id, toolInput, result, 'success');
+        return { toolId: tool.id, result, success: true };
+      } catch (error) {
+        this.recordExecution(tool.id, context.initialInput, null, 'error', error.message);
+        return { toolId: tool.id, error: error.message, success: false };
+      }
+    });
+
+    const results = await Promise.all(promises);
+    const successfulResults = results.filter(r => r.success);
+    const failedResults = results.filter(r => !r.success);
+
+    if (failedResults.length > 0 && context.plan.errorHandling === 'stop') {
+      return {
+        success: false,
+        error: `${failedResults.length} tools failed`,
+        results: Object.fromEntries(successfulResults.map(r => [r.toolId, r.result]))
+      };
+    }
+
+    return {
+      success: true,
+      results: Object.fromEntries(successfulResults.map(r => [r.toolId, r.result]))
+    };
+  }
+
+  private async executeConditional(context: ExecutionContext): Promise<OrchestrationResult> {
+    const results: Record<string, any> = {};
+    const executionGraph = this.buildExecutionGraph(context.plan);
+
+    for (const node of executionGraph) {
+      const shouldExecute = await this.evaluateCondition(node.condition, results);
+
+      if (shouldExecute) {
+        try {
+          const tool = this.registeredTools.get(node.toolId);
+          if (!tool) {
+            throw new Error(`Tool ${node.toolId} not found`);
+          }
+
+          const toolInput = this.mapInputFromResults(results, node.inputMapping);
+          const result = await tool.executor(toolInput);
+          results[node.toolId] = result;
+
+          this.recordExecution(tool.id, toolInput, result, 'success');
+        } catch (error) {
+          this.recordExecution(node.toolId, {}, null, 'error', error.message);
+
+          if (context.plan.errorHandling === 'stop') {
+            return { success: false, error: error.message, results };
+          }
+        }
+      }
+    }
+
+    return { success: true, results };
+  }
+
+  private mapInput(input: any, schema: any): any {
+    // Implement input mapping based on schema
+    return input;
+  }
+
+  private mapInputFromResults(results: Record<string, any>, mapping: Record<string, string>): any {
+    const mapped: any = {};
+
+    for (const [key, path] of Object.entries(mapping)) {
+      mapped[key] = this.getValueFromPath(results, path);
+    }
+
+    return mapped;
+  }
+
+  private getValueFromPath(obj: any, path: string): any {
+    return path.split('.').reduce((current, key) => current?.[key], obj);
+  }
+
+  private buildExecutionGraph(plan: OrchestrationPlan): ExecutionNode[] {
+    // Build execution graph from connections
+    return plan.tools.map(tool => ({
+      toolId: tool.id,
+      condition: null,
+      inputMapping: {},
+    }));
+  }
+
+  private async evaluateCondition(condition: string | null, context: Record<string, any>): Promise<boolean> {
+    if (!condition) return true;
+
+    // Implement condition evaluation logic
+    // This could use a simple expression evaluator or a more sophisticated rule engine
+    return true;
+  }
+
+  private recordExecution(
+    toolId: string,
+    input: any,
+    output: any,
+    status: 'success' | 'error',
+    error?: string
+  ): void {
+    this.executionHistory.push({
+      toolId,
+      input,
+      output,
+      status,
+      error,
+      timestamp: new Date().toISOString(),
+    });
+  }
+}
+
+class ExecutionContext {
+  constructor(
+    public plan: OrchestrationPlan,
+    public initialInput: any
+  ) {}
+}
+
+interface ExecutionNode {
+  toolId: string;
+  condition: string | null;
+  inputMapping: Record<string, string>;
+}
+
+interface ExecutionRecord {
+  toolId: string;
+  input: any;
+  output: any;
+  status: 'success' | 'error';
+  error?: string;
+  timestamp: string;
+}
+
+interface OrchestrationResult {
+  success: boolean;
+  results: Record<string, any>;
+  error?: string;
+}
+```
+
+### Streaming and Real-time Processing
+
+Tools that handle streaming data and real-time processing:
+
+```typescript
+// tools/streaming-processor.ts
+interface StreamConfig {
+  bufferSize: number;
+  flushInterval: number;
+  backpressureThreshold: number;
+}
+
+class StreamingProcessor {
+  private config: StreamConfig;
+  private buffer: any[] = [];
+  private flushTimer: number | null = null;
+  private subscribers: StreamSubscriber[] = [];
+
+  constructor(config: StreamConfig) {
+    this.config = config;
+    this.startFlushTimer();
+  }
+
+  async processStream(input: StreamInput): Promise<StreamOutput> {
+    const { data, isComplete } = input;
+
+    // Add data to buffer
+    this.buffer.push(...data);
+
+    // Check for backpressure
+    if (this.buffer.length >= this.config.backpressureThreshold) {
+      await this.flush();
+    }
+
+    // If stream is complete, flush remaining data
+    if (isComplete) {
+      await this.flush();
+      this.stopFlushTimer();
+    }
+
+    return {
+      processed: data.length,
+      bufferSize: this.buffer.length,
+      isComplete,
+    };
+  }
+
+  subscribe(subscriber: StreamSubscriber): void {
+    this.subscribers.push(subscriber);
+  }
+
+  private async flush(): Promise<void> {
+    if (this.buffer.length === 0) return;
+
+    const batch = this.buffer.splice(0, this.config.bufferSize);
+    const processedBatch = await this.processBatch(batch);
+
+    // Notify subscribers
+    for (const subscriber of this.subscribers) {
+      await subscriber.onBatch(processedBatch);
+    }
+  }
+
+  private async processBatch(batch: any[]): Promise<ProcessedBatch> {
+    const processed = batch.map(item => this.processItem(item));
+
+    return {
+      items: processed,
+      processedAt: new Date().toISOString(),
+      batchSize: batch.length,
+    };
+  }
+
+  private processItem(item: any): any {
+    // Implement item processing logic
+    return {
+      ...item,
+      processed: true,
+      timestamp: Date.now(),
+    };
+  }
+
+  private startFlushTimer(): void {
+    this.flushTimer = setInterval(() => {
+      this.flush();
+    }, this.config.flushInterval);
+  }
+
+  private stopFlushTimer(): void {
+    if (this.flushTimer) {
+      clearInterval(this.flushTimer);
+      this.flushTimer = null;
+    }
+  }
+}
+
+interface StreamInput {
+  data: any[];
+  isComplete: boolean;
+  metadata?: Record<string, any>;
+}
+
+interface StreamOutput {
+  processed: number;
+  bufferSize: number;
+  isComplete: boolean;
+}
+
+interface StreamSubscriber {
+  onBatch(batch: ProcessedBatch): Promise<void>;
+}
+
+interface ProcessedBatch {
+  items: any[];
+  processedAt: string;
+  batchSize: number;
+}
+```
+
+## Advanced Error Handling and Recovery
+
+### Circuit Breaker Pattern
+
+Implement circuit breaker pattern for resilient tool execution:
+
+```typescript
+// tools/circuit-breaker.ts
+enum CircuitState {
+  CLOSED = 'CLOSED',
+  OPEN = 'OPEN',
+  HALF_OPEN = 'HALF_OPEN',
+}
+
+interface CircuitBreakerConfig {
+  failureThreshold: number;
+  recoveryTimeout: number;
+  monitoringWindow: number;
+  halfOpenMaxCalls: number;
+}
+
+class CircuitBreaker {
+  private state: CircuitState = CircuitState.CLOSED;
+  private failureCount = 0;
+  private lastFailureTime = 0;
+  private halfOpenCalls = 0;
+  private config: CircuitBreakerConfig;
+
+  constructor(config: CircuitBreakerConfig) {
+    this.config = config;
+  }
+
+  async execute<T>(operation: () => Promise<T>): Promise<T> {
+    if (this.state === CircuitState.OPEN) {
+      if (this.shouldAttemptRecovery()) {
+        this.state = CircuitState.HALF_OPEN;
+        this.halfOpenCalls = 0;
+      } else {
+        throw new Error('Circuit breaker is OPEN');
+      }
+    }
+
+    if (this.state === CircuitState.HALF_OPEN) {
+      if (this.halfOpenCalls >= this.config.halfOpenMaxCalls) {
+        throw new Error('Circuit breaker HALF_OPEN limit exceeded');
+      }
+      this.halfOpenCalls++;
+    }
+
+    try {
+      const result = await operation();
+      this.onSuccess();
+      return result;
+    } catch (error) {
+      this.onFailure();
+      throw error;
+    }
+  }
+
+  private shouldAttemptRecovery(): boolean {
+    return Date.now() - this.lastFailureTime >= this.config.recoveryTimeout;
+  }
+
+  private onSuccess(): void {
+    this.failureCount = 0;
+
+    if (this.state === CircuitState.HALF_OPEN) {
+      this.state = CircuitState.CLOSED;
+    }
+  }
+
+  private onFailure(): void {
+    this.failureCount++;
+    this.lastFailureTime = Date.now();
+
+    if (this.state === CircuitState.HALF_OPEN) {
+      this.state = CircuitState.OPEN;
+    } else if (this.failureCount >= this.config.failureThreshold) {
+      this.state = CircuitState.OPEN;
+    }
+  }
+
+  getState(): CircuitState {
+    return this.state;
+  }
+
+  getMetrics(): CircuitBreakerMetrics {
+    return {
+      state: this.state,
+      failureCount: this.failureCount,
+      lastFailureTime: this.lastFailureTime,
+      halfOpenCalls: this.halfOpenCalls,
+    };
+  }
+}
+
+interface CircuitBreakerMetrics {
+  state: CircuitState;
+  failureCount: number;
+  lastFailureTime: number;
+  halfOpenCalls: number;
+}
+
+// Usage in a tool
+class ResilientApiTool {
+  private circuitBreaker: CircuitBreaker;
+
+  constructor() {
+    this.circuitBreaker = new CircuitBreaker({
+      failureThreshold: 5,
+      recoveryTimeout: 30000, // 30 seconds
+      monitoringWindow: 60000, // 1 minute
+      halfOpenMaxCalls: 3,
+    });
+  }
+
+  async execute(input: ApiInput): Promise<ApiOutput> {
+    return this.circuitBreaker.execute(async () => {
+      const response = await fetch(input.url, {
+        method: input.method,
+        headers: input.headers,
+        body: input.body,
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      return await response.json();
+    });
+  }
+}
+```
+
+### Compensating Actions
+
+Implement compensating actions for complex workflows:
+
+```typescript
+// tools/compensating-actions.ts
+interface CompensatingAction {
+  id: string;
+  execute: () => Promise<void>;
+  description: string;
+}
+
+class CompensatingActionManager {
+  private actions: CompensatingAction[] = [];
+  private executed: Set<string> = new Set();
+
+  addAction(action: CompensatingAction): void {
+    this.actions.push(action);
+  }
+
+  async executeAll(): Promise<CompensationResult> {
+    const results: CompensationResult = {
+      successful: [],
+      failed: [],
+      totalActions: this.actions.length,
+    };
+
+    // Execute actions in reverse order (LIFO)
+    for (let i = this.actions.length - 1; i >= 0; i--) {
+      const action = this.actions[i];
+
+      if (this.executed.has(action.id)) {
+        continue; // Skip already executed actions
+      }
+
+      try {
+        await action.execute();
+        this.executed.add(action.id);
+        results.successful.push(action.id);
+      } catch (error) {
+        results.failed.push({
+          actionId: action.id,
+          error: error.message,
+          description: action.description,
+        });
+      }
+    }
+
+    return results;
+  }
+
+  clear(): void {
+    this.actions = [];
+    this.executed.clear();
+  }
+}
+
+interface CompensationResult {
+  successful: string[];
+  failed: Array<{
+    actionId: string;
+    error: string;
+    description: string;
+  }>;
+  totalActions: number;
+}
+
+// Usage in a complex workflow tool
+class TransactionalWorkflowTool {
+  private compensatingActions: CompensatingActionManager;
+
+  constructor() {
+    this.compensatingActions = new CompensatingActionManager();
+  }
+
+  async execute(input: WorkflowInput): Promise<WorkflowOutput> {
+    try {
+      // Step 1: Create user
+      const user = await this.createUser(input.userData);
+      this.compensatingActions.addAction({
+        id: 'delete-user',
+        execute: () => this.deleteUser(user.id),
+        description: `Delete user ${user.id}`,
+      });
+
+      // Step 2: Send welcome email
+      await this.sendWelcomeEmail(user.email);
+      this.compensatingActions.addAction({
+        id: 'send-cancellation-email',
+        execute: () => this.sendCancellationEmail(user.email),
+        description: `Send cancellation email to ${user.email}`,
+      });
+
+      // Step 3: Create subscription
+      const subscription = await this.createSubscription(user.id, input.plan);
+      this.compensatingActions.addAction({
+        id: 'cancel-subscription',
+        execute: () => this.cancelSubscription(subscription.id),
+        description: `Cancel subscription ${subscription.id}`,
+      });
+
+      // If we get here, everything succeeded
+      this.compensatingActions.clear();
+
+      return {
+        success: true,
+        user,
+        subscription,
+      };
+    } catch (error) {
+      // Execute compensating actions
+      const compensation = await this.compensatingActions.executeAll();
+
+      return {
+        success: false,
+        error: error.message,
+        compensation,
+      };
+    }
+  }
+
+  private async createUser(userData: any): Promise<User> {
+    // Implementation
+    return { id: 'user-123', email: userData.email };
+  }
+
+  private async deleteUser(userId: string): Promise<void> {
+    // Implementation
+  }
+
+  private async sendWelcomeEmail(email: string): Promise<void> {
+    // Implementation
+  }
+
+  private async sendCancellationEmail(email: string): Promise<void> {
+    // Implementation
+  }
+
+  private async createSubscription(userId: string, plan: string): Promise<Subscription> {
+    // Implementation
+    return { id: 'sub-456', userId, plan };
+  }
+
+  private async cancelSubscription(subscriptionId: string): Promise<void> {
+    // Implementation
+  }
+}
+```
+
+## Performance Optimization Patterns
+
+### Lazy Loading and Caching
+
+Implement sophisticated caching strategies:
+
+```typescript
+// tools/advanced-caching.ts
+interface CacheConfig {
+  ttl: number;
+  maxSize: number;
+  strategy: 'lru' | 'lfu' | 'fifo';
+  persistToDisk: boolean;
+}
+
+class AdvancedCache<T> {
+  private cache = new Map<string, CacheEntry<T>>();
+  private accessCount = new Map<string, number>();
+  private accessOrder: string[] = [];
+  private config: CacheConfig;
+
+  constructor(config: CacheConfig) {
+    this.config = config;
+  }
+
+  async get(key: string): Promise<T | null> {
+    const entry = this.cache.get(key);
+
+    if (!entry) {
+      return null;
+    }
+
+    // Check TTL
+    if (Date.now() - entry.timestamp > this.config.ttl) {
+      this.cache.delete(key);
+      return null;
+    }
+
+    // Update access patterns
+    this.updateAccessPatterns(key);
+
+    return entry.value;
+  }
+
+  async set(key: string, value: T): Promise<void> {
+    // Check if we need to evict
+    if (this.cache.size >= this.config.maxSize) {
+      this.evict();
+    }
+
+    const entry: CacheEntry<T> = {
+      value,
+      timestamp: Date.now(),
+    };
+
+    this.cache.set(key, entry);
+    this.updateAccessPatterns(key);
+
+    if (this.config.persistToDisk) {
+      await this.persistEntry(key, entry);
+    }
+  }
+
+  private updateAccessPatterns(key: string): void {
+    // Update access count for LFU
+    this.accessCount.set(key, (this.accessCount.get(key) || 0) + 1);
+
+    // Update access order for LRU
+    const index = this.accessOrder.indexOf(key);
+    if (index > -1) {
+      this.accessOrder.splice(index, 1);
+    }
+    this.accessOrder.push(key);
+  }
+
+  private evict(): void {
+    let keyToEvict: string;
+
+    switch (this.config.strategy) {
+      case 'lru':
+        keyToEvict = this.accessOrder[0];
+        break;
+      case 'lfu':
+        keyToEvict = this.findLeastFrequentlyUsed();
+        break;
+      case 'fifo':
+        keyToEvict = this.cache.keys().next().value;
+        break;
+      default:
+        throw new Error(`Unknown eviction strategy: ${this.config.strategy}`);
+    }
+
+    this.cache.delete(keyToEvict);
+    this.accessCount.delete(keyToEvict);
+    const orderIndex = this.accessOrder.indexOf(keyToEvict);
+    if (orderIndex > -1) {
+      this.accessOrder.splice(orderIndex, 1);
+    }
+  }
+
+  private findLeastFrequentlyUsed(): string {
+    let minCount = Infinity;
+    let leastUsedKey = '';
+
+    for (const [key, count] of this.accessCount) {
+      if (count < minCount) {
+        minCount = count;
+        leastUsedKey = key;
+      }
+    }
+
+    return leastUsedKey;
+  }
+
+  private async persistEntry(key: string, entry: CacheEntry<T>): Promise<void> {
+    const cacheDir = './cache';
+    await Bun.$`mkdir -p ${cacheDir}`;
+
+    const filePath = `${cacheDir}/${key}.json`;
+    await Bun.write(filePath, JSON.stringify(entry));
+  }
+}
+
+interface CacheEntry<T> {
+  value: T;
+  timestamp: number;
+}
+```
+
+<Callout type="info">
+These advanced patterns demonstrate sophisticated approaches to tool development in Compozy. They provide foundations for building highly resilient, performant, and maintainable tools that can handle complex real-world scenarios.
+</Callout>
+
+## Integration with Workflow Patterns
+
+### Complex Task Orchestration
+
+Tools that integrate with complex workflow patterns:
+
+```yaml
+# Example: Multi-phase processing workflow
+id: advanced-data-processing
+version: 1.0.0
+description: Advanced data processing with multiple phases and error recovery
+
+tasks:
+  - id: data-validation
+    type: basic
+    $use: tool(local::tools.#(id=="multi-phase-processor"))
+    with:
+      phase: validation
+      data: "{{ .workflow.input.raw_data }}"
+      config:
+        strict: true
+        schema: "{{ .workflow.input.validation_schema }}"
+
+  - id: data-transformation
+    type: basic
+    $use: tool(local::tools.#(id=="multi-phase-processor"))
+    with:
+      phase: transformation
+      data: "{{ .tasks.data-validation.output.validated_data }}"
+      config:
+        batch_size: 1000
+        parallel_processing: true
+
+  - id: data-aggregation
+    type: basic
+    $use: tool(local::tools.#(id=="multi-phase-processor"))
+    with:
+      phase: aggregation
+      data: "{{ .tasks.data-transformation.output.transformed_data }}"
+      config:
+        aggregation_rules: "{{ .workflow.input.aggregation_config }}"
+
+  - id: error-recovery
+    type: basic
+    $use: tool(local::tools.#(id=="compensating-actions"))
+    with:
+      failed_task: "{{ .workflow.failed_task }}"
+      compensation_strategy: rollback
+    condition: "{{ .workflow.has_errors }}"
+```
+
+### Dynamic Tool Selection
+
+Workflows that dynamically select tools based on conditions:
+
+```yaml
+# Example: Dynamic tool selection based on input type
+id: dynamic-processing
+version: 1.0.0
+description: Dynamic tool selection and orchestration
+
+tasks:
+  - id: input-analyzer
+    type: basic
+    $use: tool(local::tools.#(id=="input-analyzer"))
+    with:
+      data: "{{ .workflow.input.data }}"
+      analyze_type: true
+      analyze_complexity: true
+
+  - id: tool-selector
+    type: router
+    condition: "{{ .tasks.input-analyzer.output.data_type }}"
+    routes:
+      text:
+        $ref: local::tasks.#(id=="text-processor")
+      image:
+        $ref: local::tasks.#(id=="image-processor")
+      json:
+        $ref: local::tasks.#(id=="json-processor")
+      default:
+        $ref: local::tasks.#(id=="generic-processor")
+
+  - id: text-processor
+    type: basic
+    $use: tool(local::tools.#(id=="text-processing-tool"))
+    with:
+      text: "{{ .workflow.input.data }}"
+      operations: "{{ .tasks.input-analyzer.output.recommended_operations }}"
+
+  - id: image-processor
+    type: basic
+    $use: tool(local::tools.#(id=="image-processing-tool"))
+    with:
+      image: "{{ .workflow.input.data }}"
+      operations: "{{ .tasks.input-analyzer.output.recommended_operations }}"
+
+  - id: json-processor
+    type: basic
+    $use: tool(local::tools.#(id=="json-processing-tool"))
+    with:
+      json: "{{ .workflow.input.data }}"
+      operations: "{{ .tasks.input-analyzer.output.recommended_operations }}"
+
+  - id: generic-processor
+    type: basic
+    $use: tool(local::tools.#(id=="generic-processing-tool"))
+    with:
+      data: "{{ .workflow.input.data }}"
+      operations: "{{ .tasks.input-analyzer.output.recommended_operations }}"
+```
+
+These advanced patterns provide the foundation for building sophisticated, resilient, and highly performant tools in Compozy. They demonstrate how to handle complex scenarios, implement robust error handling, and create tools that can adapt to changing requirements and conditions.
+
+The patterns shown here can be combined and extended to create even more sophisticated tool architectures that meet the demands of complex real-world applications.

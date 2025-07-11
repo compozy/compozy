@@ -1,4 +1,443 @@
 ---
-title: Directives
-description: TODO
+title: "Template Directives"
+description: "Resource composition and references using $ref and $use directives"
 ---
+
+# Template Directives
+
+Template directives are special YAML keys that enable resource composition, references, and dynamic configuration in Compozy. They allow you to build modular, reusable configurations by referencing and composing other resources.
+
+## Overview of Directives
+
+Compozy provides two main directive types:
+
+- **`$ref`**: Reference existing resources by path and filter criteria
+- **`$use`**: Use and instantiate resources like tools and agents
+
+These directives enable powerful composition patterns while maintaining clean, readable configurations.
+
+## `$ref` Directive
+
+The `$ref` directive creates references to existing resources using path-based queries with optional filtering.
+
+### Basic Syntax
+
+```yaml
+$ref: scope::path.#(filter_expression)
+```
+
+- **scope**: `local`, `global`, or `resource`
+- **path**: Dot-notation path to the resource collection
+- **filter**: JSONPath-style filter expression
+
+### Local References
+
+Reference resources within the same file:
+
+```yaml
+# Reference a schema by ID
+input:
+  $ref: local::schemas.#(id=="user_input")
+
+# Reference a tool by ID  
+tools:
+  - $ref: local::tools.#(id=="weather_tool")
+
+# Reference a task by ID
+on_success:
+  next:
+    $ref: local::tasks.#(id=="next_step")
+
+# Reference multiple tools by type
+tools:
+  - $ref: local::tools.#(category=="data_processing")
+```
+
+### Global References
+
+Reference project-level resources from `compozy.yaml`:
+
+```yaml
+# Reference a model configuration
+model:
+  $ref: global::models.#(provider=="openai")
+
+# Reference environment configuration
+env:
+  $ref: global::environment.#(name=="production")
+```
+
+### Resource References
+
+Reference resources from external files:
+
+```yaml
+# Reference an agent from another file
+$use: agent(resource::agent::#(id=="classifier_agent"))
+
+# Reference a workflow component
+component:
+  $ref: resource::workflow::#(id=="data_processor")
+
+# Reference shared schemas
+schema:
+  $ref: resource::schema::#(type=="user_profile")
+```
+
+### Filter Expressions
+
+Filter expressions use JSONPath-like syntax to select specific resources:
+
+```yaml
+# Exact match
+$ref: local::tools.#(id=="weather_tool")
+
+# Property equality
+$ref: local::agents.#(type=="classifier")
+
+# Multiple conditions (AND)
+$ref: local::tools.#(category=="api" && version=="1.0")
+
+# String matching
+$ref: local::schemas.#(name matches "user_.*")
+
+# Numeric comparisons
+$ref: local::tasks.#(priority > 5)
+
+# Array contains
+$ref: local::tools.#(tags contains "nlp")
+```
+
+## `$use` Directive
+
+The `$use` directive instantiates and configures tools, agents, and other executable resources.
+
+### Using Tools
+
+```yaml
+# Basic tool usage
+- id: weather_check
+  type: basic
+  $use: tool(local::tools.#(id=="weather_tool"))
+  with:
+    city: "{{ .workflow.input.city }}"
+
+# Tool with specific version
+- id: data_processor  
+  type: basic
+  $use: tool(local::tools.#(id=="processor" && version=="2.1"))
+  with:
+    input_data: "{{ .workflow.input.data }}"
+
+# External tool usage
+- id: external_api
+  type: basic
+  $use: tool(resource::tool::#(id=="external_service"))
+  with:
+    endpoint: "{{ .env.API_ENDPOINT }}"
+    api_key: "{{ .env.API_KEY }}"
+```
+
+### Using Agents
+
+```yaml
+# Basic agent usage
+- id: classify_intent
+  type: basic
+  $use: agent(local::agents.#(id=="intent_classifier"))
+
+# Agent with specific capabilities
+- id: nlp_processor
+  type: basic  
+  $use: agent(local::agents.#(type=="nlp" && capabilities contains "sentiment"))
+
+# External agent usage
+- id: specialized_agent
+  type: basic
+  $use: agent(resource::agent::#(id=="domain_expert"))
+```
+
+### Using with Configuration
+
+You can pass configuration to used resources:
+
+```yaml
+- id: configurable_tool
+  type: basic
+  $use: tool(local::tools.#(id=="http_client"))
+  with:
+    # Tool-specific configuration
+    base_url: "{{ .env.API_BASE_URL }}"
+    timeout: 30
+    headers:
+      Content-Type: "application/json"
+      Authorization: "Bearer {{ .env.API_TOKEN }}"
+  config:
+    # Override tool defaults
+    retry_attempts: 5
+    cache_enabled: true
+```
+
+## Composition Patterns
+
+### Schema Composition
+
+Build complex schemas from simpler ones:
+
+```yaml
+schemas:
+  # Base user schema
+  - id: base_user
+    type: object
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+      email:
+        type: string
+
+  # Extended user schema
+  - id: full_user
+    type: object
+    allOf:
+      - $ref: local::schemas.#(id=="base_user")
+      - type: object
+        properties:
+          profile:
+            $ref: local::schemas.#(id=="user_profile")
+          preferences:
+            $ref: local::schemas.#(id=="user_preferences")
+```
+
+### Tool Chain Composition
+
+Chain multiple tools together:
+
+```yaml
+tasks:
+  - id: data_pipeline
+    type: composite
+    tasks:
+      # Step 1: Extract data
+      - id: extract
+        type: basic
+        $use: tool(local::tools.#(id=="data_extractor"))
+        with:
+          source: "{{ .workflow.input.source_url }}"
+          
+      # Step 2: Transform data  
+      - id: transform
+        type: basic
+        $use: tool(local::tools.#(id=="data_transformer"))
+        with:
+          input: "{{ .tasks.extract.output }}"
+          rules: "{{ .workflow.input.transform_rules }}"
+          
+      # Step 3: Load data
+      - id: load
+        type: basic
+        $use: tool(local::tools.#(id=="data_loader"))
+        with:
+          data: "{{ .tasks.transform.output }}"
+          destination: "{{ .workflow.input.destination }}"
+```
+
+### Conditional Resource Usage
+
+Use different resources based on conditions:
+
+```yaml
+# Router task with conditional tool usage
+- id: processor_router
+  type: router
+  condition: "{{ .workflow.input.data_type }}"
+  routes:
+    text:
+      - id: text_processor
+        type: basic
+        $use: tool(local::tools.#(id=="text_processor"))
+        
+    image:
+      - id: image_processor
+        type: basic
+        $use: tool(local::tools.#(id=="image_processor"))
+        
+    video:
+      - id: video_processor
+        type: basic
+        $use: tool(local::tools.#(id=="video_processor"))
+```
+
+## Advanced Reference Patterns
+
+### Dynamic References
+
+Use templates in reference expressions:
+
+```yaml
+# Dynamic tool selection
+$use: tool(local::tools.#(id=="{{ .workflow.input.processor_type }}_tool"))
+
+# Dynamic schema reference
+schema:
+  $ref: local::schemas.#(version=="{{ .config.schema_version }}")
+
+# Environment-based references
+model:
+  $ref: global::models.#(environment=="{{ .env.DEPLOYMENT_ENV }}")
+```
+
+### Nested References
+
+References can be nested within referenced resources:
+
+```yaml
+workflows:
+  - id: complex_workflow
+    tasks:
+      - $ref: local::task_templates.#(id=="data_validation")
+      - $ref: local::task_templates.#(id=="data_processing")  
+      - $ref: local::task_templates.#(id=="result_storage")
+
+task_templates:
+  - id: data_validation
+    type: composite
+    tasks:
+      - id: schema_validation
+        type: basic
+        $use: tool(local::tools.#(id=="schema_validator"))
+        with:
+          schema: 
+            $ref: local::schemas.#(id=="input_schema")
+```
+
+### Collection References
+
+Reference collections of resources:
+
+```yaml
+# Include all validation tools
+validation_tools:
+  $ref: local::tools.#(category=="validation")
+
+# Include all NLP agents
+nlp_agents:
+  $ref: local::agents.#(type=="nlp")
+
+# Include tools by tag
+data_tools:
+  $ref: local::tools.#(tags contains "data")
+```
+
+## Error Handling
+
+### Reference Resolution Errors
+
+When references cannot be resolved:
+
+```yaml
+# Provide fallback options
+primary_tool:
+  $ref: local::tools.#(id=="preferred_tool")
+fallback_tool:
+  $ref: local::tools.#(id=="backup_tool")
+
+# Use conditional references
+tool_ref: |
+  {{- if .tools.advanced_tool -}}
+  local::tools.#(id=="advanced_tool")
+  {{- else -}}
+  local::tools.#(id=="basic_tool")
+  {{- end -}}
+```
+
+### Validation
+
+Compozy validates references at configuration load time:
+
+- **Missing references** generate clear error messages
+- **Type mismatches** are caught early
+- **Circular references** are detected and prevented
+
+## Best Practices
+
+### 1. Use Descriptive IDs
+
+```yaml
+# Good - descriptive IDs
+- id: validate_user_input
+- id: process_payment_data
+- id: send_notification_email
+
+# Avoid - generic IDs
+- id: tool1
+- id: step_a
+- id: task_x
+```
+
+### 2. Organize by Scope
+
+```yaml
+# Keep local references in the same file
+input:
+  $ref: local::schemas.#(id=="user_input")
+
+# Use global references for project-wide resources
+model:
+  $ref: global::models.#(provider=="openai")
+
+# Use resource references for external components
+agent:
+  $ref: resource::agent::#(id=="specialized_processor")
+```
+
+### 3. Group Related References
+
+```yaml
+# Group related schemas
+schemas:
+  - id: user_input
+    # ... definition
+  - id: user_output  
+    # ... definition
+  - id: user_profile
+    # ... definition
+
+# Group related tools
+tools:
+  - id: user_validator
+    # ... definition
+  - id: user_processor
+    # ... definition  
+  - id: user_formatter
+    # ... definition
+```
+
+### 4. Use Meaningful Filters
+
+```yaml
+# Good - specific, meaningful filters
+$ref: local::tools.#(id=="weather_api" && version=="2.0")
+$ref: local::agents.#(type=="classifier" && domain=="finance")
+
+# Avoid - overly complex filters
+$ref: local::tools.#(id matches ".*_tool" && (version > "1.0" || tags contains "legacy"))
+```
+
+### 5. Document Complex References
+
+```yaml
+# Document complex reference patterns
+nlp_pipeline:
+  description: "Multi-stage NLP processing pipeline"
+  tasks:
+    # Stage 1: Text preprocessing
+    - $ref: local::nlp_tasks.#(stage=="preprocessing")
+    # Stage 2: Entity extraction  
+    - $ref: local::nlp_tasks.#(stage=="extraction")
+    # Stage 3: Sentiment analysis
+    - $ref: local::nlp_tasks.#(stage=="sentiment")
+```
+
+Template directives enable powerful composition and modularity in Compozy configurations. Next, explore [Sprig Functions](./sprig-functions) to learn about data transformation capabilities.

@@ -1,21 +1,20 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { FileJson, Settings, User } from "lucide-react";
-import { Param } from "./param";
-import { Params } from "./params";
+import type { Meta, StoryObj } from "@storybook/nextjs-vite";
+import {
+  Param,
+  ParamBody,
+  ParamCollapse,
+  ParamCollapseItem,
+  Params,
+  ParamsBody,
+  ParamsHeader,
+} from "./index";
 
 const meta: Meta<typeof Params> = {
   title: "UI/Params/Params",
   component: Params,
   parameters: {
     layout: "padded",
-    docs: {
-      description: {
-        component:
-          "A card-like wrapper component for parameters with optional collapsible functionality. Use Params.Header for titles and Params.Body for content.",
-      },
-    },
   },
-  tags: ["autodocs"],
   decorators: [
     Story => (
       <div style={{ maxWidth: 700 }}>
@@ -23,289 +22,231 @@ const meta: Meta<typeof Params> = {
       </div>
     ),
   ],
+  tags: ["autodocs"],
   argTypes: {
     collapsible: {
-      control: { type: "boolean" },
-      description: "Whether the params container should be collapsible",
+      control: "boolean",
+      description: "Whether the params should be collapsible",
     },
     scrollable: {
-      control: { type: "boolean" },
-      description: "Whether the params content should be scrollable (default: false)",
-    },
-    defaultOpen: {
-      control: { type: "boolean" },
-      description: "Whether the collapsible should be open by default",
-    },
-    className: {
-      control: { type: "text" },
-      description: "Additional CSS classes",
+      control: "boolean",
+      description: "Whether the params content should be scrollable",
     },
   },
 };
 
 export default meta;
-type Story = StoryObj<typeof Params>;
+type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
   args: {
-    collapsible: false,
-    scrollable: false,
+    children: (
+      <>
+        <ParamsHeader>
+          <h3 className="text-lg font-semibold">Request Parameters</h3>
+          <p className="text-sm text-muted-foreground">Configuration options for the API request</p>
+        </ParamsHeader>
+        <ParamsBody>
+          <Param path="api_key" paramType="header" type="string" required>
+            <ParamBody>Your API key for authentication</ParamBody>
+          </Param>
+          <Param path="timeout" paramType="query" type="number" default="30">
+            <ParamBody>Request timeout in seconds</ParamBody>
+          </Param>
+          <Param path="retries" paramType="query" type="integer" default="3">
+            <ParamBody>Number of retry attempts</ParamBody>
+          </Param>
+        </ParamsBody>
+      </>
+    ),
   },
-  render: args => (
-    <Params {...args}>
-      <Params.Header>
-        <Settings className="size-4" />
-        <span>Configuration Parameters (No Scroll)</span>
-      </Params.Header>
-      <Params.Body>
-        <Param path="apiKey" type="string" required paramType="body">
-          <Param.Body>Your API key for authentication</Param.Body>
+};
+
+export const BasicUsage: Story = {
+  render: () => (
+    <Params>
+      <ParamsHeader>
+        <h3 className="text-lg font-semibold">User Information</h3>
+        <p className="text-sm text-muted-foreground">Basic user data structure</p>
+      </ParamsHeader>
+      <ParamsBody>
+        <Param path="name" paramType="body" type="string" required>
+          <ParamBody>User's full name</ParamBody>
         </Param>
-        <Param path="timeout" type="number" default="30" paramType="body">
-          <Param.Body>Request timeout in seconds</Param.Body>
+        <Param path="email" paramType="body" type="string" required>
+          <ParamBody>User's email address</ParamBody>
         </Param>
-        <Param path="retries" type="number" default="3" paramType="body">
-          <Param.Body>Number of retry attempts</Param.Body>
+        <Param path="age" paramType="body" type="integer">
+          <ParamBody>User's age (optional)</ParamBody>
         </Param>
-      </Params.Body>
+      </ParamsBody>
     </Params>
   ),
 };
 
-export const Collapsible: Story = {
-  args: {
-    collapsible: true,
-    defaultOpen: true,
-  },
-  render: args => (
-    <Params {...args}>
-      <Params.Header>
-        <User className="size-4" />
-        <span>User Parameters</span>
-      </Params.Header>
-      <Params.Body>
-        <Param path="name" type="string" required paramType="body">
-          <Param.Body>User's full name</Param.Body>
+export const ResponseFormat: Story = {
+  render: () => (
+    <Params>
+      <ParamsHeader>
+        <h3 className="text-lg font-semibold">Response Format</h3>
+        <p className="text-sm text-muted-foreground">Structure of the API response</p>
+      </ParamsHeader>
+      <ParamsBody>
+        <Param path="success" paramType="response" type="boolean" required>
+          <ParamBody>Indicates if the request was successful</ParamBody>
         </Param>
-        <Param path="email" type="string" required paramType="body">
-          <Param.Body>User's email address</Param.Body>
+        <Param path="data" paramType="response" type="object">
+          <ParamBody>Response data payload</ParamBody>
         </Param>
-        <Param path="age" type="number" paramType="body">
-          <Param.Body>User's age (optional)</Param.Body>
+        <Param path="errors" paramType="response" type="array">
+          <ParamBody>Array of error messages if any</ParamBody>
         </Param>
-      </Params.Body>
+      </ParamsBody>
     </Params>
   ),
 };
 
-export const CollapsibleClosed: Story = {
-  args: {
-    collapsible: true,
-    defaultOpen: false,
-  },
-  render: args => (
-    <Params {...args}>
-      <Params.Header>
-        <FileJson className="size-4" />
-        <span>API Response Schema</span>
-      </Params.Header>
-      <Params.Body>
-        <Param path="success" type="boolean" required paramType="response">
-          <Param.Body>Indicates if the request was successful</Param.Body>
+export const CollapsibleParams: Story = {
+  render: () => (
+    <Params collapsible defaultOpen>
+      <ParamsHeader>
+        <h3 className="text-lg font-semibold">Database Configuration</h3>
+        <p className="text-sm text-muted-foreground">Connection settings for the database</p>
+      </ParamsHeader>
+      <ParamsBody>
+        <Param path="host" paramType="body" type="string" required>
+          <ParamBody>Database host address</ParamBody>
         </Param>
-        <Param path="data" type="object" paramType="response">
-          <Param.Body>Response data payload</Param.Body>
+        <Param path="port" paramType="body" type="integer" default="5432">
+          <ParamBody>Database port number</ParamBody>
         </Param>
-        <Param path="errors" type="array" paramType="response">
-          <Param.Body>Array of error messages if any</Param.Body>
-        </Param>
-      </Params.Body>
-    </Params>
-  ),
-};
-
-export const WithNestedParams: Story = {
-  args: {
-    collapsible: true,
-    defaultOpen: true,
-  },
-  render: args => (
-    <Params {...args}>
-      <Params.Header>
-        <Settings className="size-4" />
-        <span>Database Configuration</span>
-      </Params.Header>
-      <Params.Body>
-        <Param path="host" type="string" required paramType="body">
-          <Param.Body>Database host address</Param.Body>
-        </Param>
-        <Param path="port" type="number" default="5432" paramType="body">
-          <Param.Body>Database port number</Param.Body>
-        </Param>
-        <Param path="connection" type="object" paramType="body">
-          <Param.Body>Connection configuration options</Param.Body>
-          <Param.ExpandableRoot defaultValue="properties">
-            <Param.ExpandableItem value="properties" title="Properties">
-              <Param path="ssl" type="boolean" default="true" paramType="body">
-                <Param.Body>Enable SSL connection</Param.Body>
+        <Param path="options" paramType="body" type="object">
+          <ParamBody>Connection configuration options</ParamBody>
+          <ParamCollapse defaultValue="properties">
+            <ParamCollapseItem value="properties" title="Properties">
+              <Param path="ssl" type="boolean" default="true">
+                <ParamBody>Enable SSL connection</ParamBody>
               </Param>
-              <Param path="timeout" type="number" default="10000" paramType="body">
-                <Param.Body>Connection timeout in milliseconds</Param.Body>
+              <Param path="timeout" type="integer" default="5000">
+                <ParamBody>Connection timeout in milliseconds</ParamBody>
               </Param>
-              <Param path="poolSize" type="number" default="10" paramType="body">
-                <Param.Body>Maximum number of connections in pool</Param.Body>
+              <Param path="pool_size" type="integer" default="10">
+                <ParamBody>Maximum number of connections in pool</ParamBody>
               </Param>
-            </Param.ExpandableItem>
-          </Param.ExpandableRoot>
+            </ParamCollapseItem>
+          </ParamCollapse>
         </Param>
-      </Params.Body>
+      </ParamsBody>
     </Params>
   ),
 };
 
-export const MinimalHeader: Story = {
-  args: {
-    collapsible: false,
-  },
-  render: args => (
-    <Params {...args}>
-      <Params.Header>
-        <span>Simple Parameters</span>
-      </Params.Header>
-      <Params.Body>
-        <Param path="id" type="string" required paramType="path">
-          <Param.Body>Unique identifier</Param.Body>
+export const QueryAndPathParams: Story = {
+  render: () => (
+    <Params>
+      <ParamsHeader>
+        <h3 className="text-lg font-semibold">Endpoint Parameters</h3>
+      </ParamsHeader>
+      <ParamsBody>
+        <Param path="userId" paramType="path" type="string" required>
+          <ParamBody>Unique identifier</ParamBody>
         </Param>
-        <Param path="format" type="string" default="json" paramType="query">
-          <Param.Body>Response format</Param.Body>
+        <Param path="format" paramType="query" type="string" default="json">
+          <ParamBody>Response format</ParamBody>
         </Param>
-      </Params.Body>
+      </ParamsBody>
     </Params>
   ),
 };
 
-export const EmptyState: Story = {
-  args: {
-    collapsible: true,
-    defaultOpen: true,
-  },
-  render: args => (
-    <Params {...args}>
-      <Params.Header>
-        <FileJson className="size-4" />
-        <span>No Parameters</span>
-      </Params.Header>
-      <Params.Body>
-        <div className="text-sm text-muted-foreground py-4 text-center">
-          No parameters defined for this endpoint
-        </div>
-      </Params.Body>
+export const LongContentExample: Story = {
+  render: () => (
+    <Params>
+      <ParamsHeader>
+        <h3 className="text-lg font-semibold">Complex Object Structure</h3>
+        <p className="text-sm text-muted-foreground">
+          Detailed parameter documentation with extensive descriptions
+        </p>
+      </ParamsHeader>
+      <ParamsBody>
+        <Param path="configuration" paramType="body" type="object" required>
+          <ParamBody>
+            <p>
+              A comprehensive configuration object that controls various aspects of the application
+              behavior. This object contains multiple nested properties that allow fine-grained
+              control over different subsystems.
+            </p>
+          </ParamBody>
+        </Param>
+      </ParamsBody>
     </Params>
   ),
 };
 
-export const DifferentParamTypes: Story = {
-  args: {
-    collapsible: true,
-    defaultOpen: true,
-  },
-  render: args => (
-    <Params {...args}>
-      <Params.Header>
-        <Settings className="size-4" />
-        <span>Mixed Parameter Types</span>
-      </Params.Header>
-      <Params.Body>
-        <Param path="userId" type="string" required paramType="path">
-          <Param.Body>User ID from URL path</Param.Body>
+export const MixedParameterTypes: Story = {
+  render: () => (
+    <Params>
+      <ParamsHeader>
+        <h3 className="text-lg font-semibold">Update User Endpoint</h3>
+        <p className="text-sm text-muted-foreground">
+          Complete parameter documentation for user update operation
+        </p>
+      </ParamsHeader>
+      <ParamsBody>
+        <Param path="userId" paramType="path" type="string" required>
+          <ParamBody>User ID from URL path</ParamBody>
         </Param>
-        <Param path="include" type="string" paramType="query">
-          <Param.Body>Fields to include in response</Param.Body>
+        <Param path="fields" paramType="query" type="string">
+          <ParamBody>Fields to include in response</ParamBody>
         </Param>
-        <Param path="authorization" type="string" required paramType="header">
-          <Param.Body>Bearer token for authentication</Param.Body>
+        <Param path="Authorization" paramType="header" type="string" required>
+          <ParamBody>Bearer token for authentication</ParamBody>
         </Param>
-        <Param path="userData" type="object" required paramType="body">
-          <Param.Body>User data to update</Param.Body>
+        <Param path="user" paramType="body" type="object" required>
+          <ParamBody>User data to update</ParamBody>
         </Param>
-      </Params.Body>
+      </ParamsBody>
     </Params>
   ),
 };
 
-export const LargeContentWithScroll: Story = {
-  args: {
-    collapsible: true,
-    defaultOpen: true,
-    scrollable: true,
-  },
-  render: args => (
-    <Params {...args}>
-      <Params.Header>
-        <FileJson className="size-4" />
-        <span>Large Schema (With Scrollable Prop)</span>
-      </Params.Header>
-      <Params.Body>
-        {Array.from({ length: 30 }, (_, i) => (
-          <Param key={i} path={`field${i + 1}`} type="string" paramType="body">
-            <Param.Body>
-              This is field {i + 1} with a longer description to demonstrate how the scroll area
-              works when content exceeds 500px height. Lorem ipsum dolor sit amet, consectetur
-              adipiscing elit.
-            </Param.Body>
+export const ScrollableContent: Story = {
+  render: () => (
+    <Params>
+      <ParamsHeader>
+        <h3 className="text-lg font-semibold">Large Parameter Set</h3>
+        <p className="text-sm text-muted-foreground">
+          Example with many parameters that require scrolling
+        </p>
+      </ParamsHeader>
+      <ParamsBody>
+        {Array.from({ length: 15 }, (_, i) => (
+          <Param key={i} path={`param_${i + 1}`} paramType="body" type="string">
+            <ParamBody>
+              This is parameter number {i + 1} with a detailed description that explains its purpose
+              and usage within the API.
+            </ParamBody>
           </Param>
         ))}
-      </Params.Body>
+      </ParamsBody>
     </Params>
   ),
 };
 
-export const LargeContentWithoutScroll: Story = {
-  args: {
-    collapsible: false,
-    scrollable: false,
-  },
-  render: args => (
-    <Params {...args}>
-      <Params.Header>
-        <FileJson className="size-4" />
-        <span>Large Content (No Scroll)</span>
-      </Params.Header>
-      <Params.Body>
-        {Array.from({ length: 10 }, (_, i) => (
-          <Param key={i} path={`field${i + 1}`} type="string" paramType="body">
-            <Param.Body>
-              This is field {i + 1}. Without scrollable prop, content will expand naturally.
-            </Param.Body>
-          </Param>
-        ))}
-      </Params.Body>
-    </Params>
-  ),
-};
-
-export const ScrollableOnBody: Story = {
-  args: {
-    collapsible: false,
-    scrollable: false, // Root level is false
-  },
-  render: args => (
-    <Params {...args}>
-      <Params.Header>
-        <Settings className="size-4" />
-        <span>Scrollable Override on Body</span>
-      </Params.Header>
-      <Params.Body scrollable={true}>
-        {" "}
-        {/* Override at body level */}
+export const WithScrollableBody: Story = {
+  render: () => (
+    <Params>
+      <ParamsHeader>
+        <h3 className="text-lg font-semibold">Scrollable Parameter List</h3>
+        <p className="text-sm text-muted-foreground">Parameters with scrollable content area</p>
+      </ParamsHeader>
+      <ParamsBody scrollable={true}>
         {Array.from({ length: 20 }, (_, i) => (
-          <Param key={i} path={`param${i + 1}`} type="string" paramType="body">
-            <Param.Body>
-              Parameter {i + 1} - Body has scrollable=true while root has scrollable=false
-            </Param.Body>
+          <Param key={i} path={`config_${i + 1}`} paramType="body" type="string">
+            <ParamBody>Configuration parameter {i + 1}</ParamBody>
           </Param>
         ))}
-      </Params.Body>
+      </ParamsBody>
     </Params>
   ),
 };

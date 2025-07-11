@@ -1,6 +1,832 @@
 ---
-title: Configuration & Schemas
-description: Tool configuration and schemas
+title: "Configuration Schemas"
+description: "Comprehensive guide to defining tool interfaces using JSON Schema for input/output validation"
 ---
 
-# Configuration & Schemas
+# Configuration Schemas
+
+Tool configuration schemas define the interface between AI agents and your tools. This guide covers how to create robust, validated tool configurations using JSON Schema.
+
+## Schema Fundamentals
+
+### Tool Configuration Structure
+
+Every tool configuration follows this schema:
+
+```yaml
+# Required fields
+resource: "tool"              # Must be "tool"
+id: "unique-tool-id"          # Unique identifier
+description: "Tool purpose"   # Human-readable description
+
+# Optional execution configuration
+timeout: "30s"                # Execution timeout
+
+# Schema definitions
+input:                        # Input validation schema
+  type: "object"
+  properties: {}
+  required: []
+
+output:                       # Output validation schema
+  type: "object"
+  properties: {}
+
+# Default parameters and environment
+with:                         # Default input parameters
+  param: "default_value"
+
+env:                          # Environment variables
+  VAR_NAME: "value"
+```
+
+### JSON Schema Basics
+
+Compozy uses JSON Schema Draft 7 for validation:
+
+```yaml
+# Basic types
+input:
+  type: "object"
+  properties:
+    name:
+      type: "string"
+      description: "User name"
+      minLength: 1
+      maxLength: 100
+    age:
+      type: "integer"
+      minimum: 0
+      maximum: 150
+    email:
+      type: "string"
+      format: "email"
+    active:
+      type: "boolean"
+      default: true
+  required: ["name", "email"]
+```
+
+## Input Schema Design
+
+### Simple Input Schema
+
+For basic tools with straightforward parameters:
+
+```yaml
+# tools/file-reader.yaml
+resource: "tool"
+id: "file-reader"
+description: "Read file contents with encoding support"
+
+input:
+  type: "object"
+  properties:
+    path:
+      type: "string"
+      description: "Path to the file to read"
+      minLength: 1
+    encoding:
+      type: "string"
+      description: "File encoding"
+      enum: ["utf8", "utf16", "ascii", "base64"]
+      default: "utf8"
+    max_size:
+      type: "integer"
+      description: "Maximum file size in bytes"
+      minimum: 1
+      maximum: 10485760  # 10MB
+      default: 1048576   # 1MB
+  required: ["path"]
+```
+
+### Complex Input Schema
+
+For tools with nested objects and arrays:
+
+```yaml
+# tools/data-processor.yaml
+resource: "tool"
+id: "data-processor"
+description: "Process structured data with transformations"
+
+input:
+  type: "object"
+  properties:
+    data:
+      type: "array"
+      description: "Input data array"
+      items:
+        type: "object"
+        additionalProperties: true
+      minItems: 1
+      maxItems: 10000
+
+    transformations:
+      type: "array"
+      description: "Data transformation pipeline"
+      items:
+        type: "object"
+        properties:
+          type:
+            type: "string"
+            enum: ["filter", "map", "reduce", "sort", "group"]
+
+          config:
+            type: "object"
+            description: "Transformation configuration"
+            properties:
+              field:
+                type: "string"
+                description: "Field to operate on"
+              operation:
+                type: "string"
+                description: "Operation to perform"
+              value:
+                description: "Operation value"
+                anyOf:
+                  - type: "string"
+                  - type: "number"
+                  - type: "boolean"
+                  - type: "array"
+                  - type: "object"
+            required: ["field", "operation"]
+        required: ["type", "config"]
+
+    output_format:
+      type: "string"
+      description: "Output format"
+      enum: ["json", "csv", "xml", "yaml"]
+      default: "json"
+
+    options:
+      type: "object"
+      description: "Processing options"
+      properties:
+        parallel:
+          type: "boolean"
+          description: "Enable parallel processing"
+          default: false
+        batch_size:
+          type: "integer"
+          description: "Batch size for processing"
+          minimum: 1
+          maximum: 1000
+          default: 100
+        strict_mode:
+          type: "boolean"
+          description: "Enable strict validation"
+          default: true
+      additionalProperties: false
+
+  required: ["data", "transformations"]
+```
+
+### Conditional Schema
+
+Use conditional logic for dynamic validation:
+
+```yaml
+# tools/api-client.yaml
+resource: "tool"
+id: "api-client"
+description: "HTTP client with conditional validation"
+
+input:
+  type: "object"
+  properties:
+    method:
+      type: "string"
+      enum: ["GET", "POST", "PUT", "DELETE", "PATCH"]
+
+    url:
+      type: "string"
+      format: "uri"
+      description: "Request URL"
+
+    headers:
+      type: "object"
+      additionalProperties:
+        type: "string"
+
+    body:
+      description: "Request body"
+      anyOf:
+        - type: "string"
+        - type: "object"
+        - type: "array"
+
+    auth:
+      type: "object"
+      properties:
+        type:
+          type: "string"
+          enum: ["basic", "bearer", "api_key"]
+        credentials:
+          type: "object"
+      required: ["type", "credentials"]
+
+  required: ["method", "url"]
+
+  # Conditional validation
+  if:
+    properties:
+      method:
+        const: "POST"
+  then:
+    required: ["method", "url", "body"]
+  else:
+    not:
+      required: ["body"]
+```
+
+## Output Schema Design
+
+### Structured Output Schema
+
+Define clear output contracts:
+
+```yaml
+# tools/weather-api.yaml
+resource: "tool"
+id: "weather-api"
+description: "Weather data fetcher with structured output"
+
+output:
+  type: "object"
+  properties:
+    location:
+      type: "object"
+      properties:
+        city:
+          type: "string"
+        country:
+          type: "string"
+        coordinates:
+          type: "object"
+          properties:
+            lat:
+              type: "number"
+            lon:
+              type: "number"
+          required: ["lat", "lon"]
+      required: ["city", "country", "coordinates"]
+
+    current:
+      type: "object"
+      properties:
+        temperature:
+          type: "number"
+          description: "Temperature in Celsius"
+        humidity:
+          type: "integer"
+          minimum: 0
+          maximum: 100
+        pressure:
+          type: "number"
+          minimum: 0
+        wind_speed:
+          type: "number"
+          minimum: 0
+        conditions:
+          type: "string"
+          enum: ["sunny", "cloudy", "rainy", "snowy", "stormy"]
+        timestamp:
+          type: "string"
+          format: "date-time"
+      required: ["temperature", "humidity", "conditions", "timestamp"]
+
+    forecast:
+      type: "array"
+      items:
+        type: "object"
+        properties:
+          date:
+            type: "string"
+            format: "date"
+          temperature_high:
+            type: "number"
+          temperature_low:
+            type: "number"
+          conditions:
+            type: "string"
+            enum: ["sunny", "cloudy", "rainy", "snowy", "stormy"]
+        required: ["date", "temperature_high", "temperature_low", "conditions"]
+      minItems: 1
+      maxItems: 7
+
+    metadata:
+      type: "object"
+      properties:
+        source:
+          type: "string"
+        last_updated:
+          type: "string"
+          format: "date-time"
+        units:
+          type: "string"
+          enum: ["metric", "imperial"]
+          default: "metric"
+      required: ["source", "last_updated"]
+
+  required: ["location", "current", "metadata"]
+```
+
+### Flexible Output Schema
+
+For tools with variable output structures:
+
+```yaml
+# tools/data-analyzer.yaml
+resource: "tool"
+id: "data-analyzer"
+description: "Flexible data analysis tool"
+
+output:
+  type: "object"
+  properties:
+    analysis_type:
+      type: "string"
+      enum: ["statistical", "pattern", "anomaly", "classification"]
+
+    results:
+      anyOf:
+        # Statistical analysis
+        - type: "object"
+          properties:
+            statistics:
+              type: "object"
+              properties:
+                mean:
+                  type: "number"
+                median:
+                  type: "number"
+                mode:
+                  type: "number"
+                std_dev:
+                  type: "number"
+                min:
+                  type: "number"
+                max:
+                  type: "number"
+                count:
+                  type: "integer"
+
+        # Pattern analysis
+        - type: "object"
+          properties:
+            patterns:
+              type: "array"
+              items:
+                type: "object"
+                properties:
+                  pattern:
+                    type: "string"
+                  confidence:
+                    type: "number"
+                    minimum: 0
+                    maximum: 1
+                  frequency:
+                    type: "integer"
+                  examples:
+                    type: "array"
+                    items:
+                      type: "string"
+
+        # Anomaly detection
+        - type: "object"
+          properties:
+            anomalies:
+              type: "array"
+              items:
+                type: "object"
+                properties:
+                  value:
+                    description: "Anomalous value"
+                  score:
+                    type: "number"
+                    description: "Anomaly score"
+                  context:
+                    type: "object"
+                    description: "Surrounding context"
+
+    confidence:
+      type: "number"
+      minimum: 0
+      maximum: 1
+      description: "Overall confidence in results"
+
+    processing_time:
+      type: "number"
+      description: "Processing time in milliseconds"
+
+  required: ["analysis_type", "results", "confidence"]
+```
+
+## Advanced Schema Patterns
+
+### Reusable Schema Components
+
+Define reusable schema components:
+
+```yaml
+# tools/shared-schemas.yaml
+$defs:
+  # Common data types
+  timestamp:
+    type: "string"
+    format: "date-time"
+    description: "ISO 8601 timestamp"
+
+  pagination:
+    type: "object"
+    properties:
+      page:
+        type: "integer"
+        minimum: 1
+        default: 1
+      limit:
+        type: "integer"
+        minimum: 1
+        maximum: 100
+        default: 20
+      total:
+        type: "integer"
+        minimum: 0
+    required: ["page", "limit"]
+
+  error_response:
+    type: "object"
+    properties:
+      code:
+        type: "string"
+        description: "Error code"
+      message:
+        type: "string"
+        description: "Error message"
+      details:
+        type: "object"
+        description: "Additional error details"
+    required: ["code", "message"]
+
+  # Business objects
+  user:
+    type: "object"
+    properties:
+      id:
+        type: "string"
+        pattern: "^[a-zA-Z0-9-_]+$"
+      email:
+        type: "string"
+        format: "email"
+      name:
+        type: "string"
+        minLength: 1
+        maxLength: 100
+      created_at:
+        $ref: "#/$defs/timestamp"
+      updated_at:
+        $ref: "#/$defs/timestamp"
+    required: ["id", "email", "name"]
+
+# Tool using shared schemas
+resource: "tool"
+id: "user-manager"
+description: "User management operations"
+
+input:
+  type: "object"
+  properties:
+    operation:
+      type: "string"
+      enum: ["create", "read", "update", "delete", "list"]
+
+    user_data:
+      $ref: "#/$defs/user"
+
+    pagination:
+      $ref: "#/$defs/pagination"
+
+  required: ["operation"]
+
+output:
+  oneOf:
+    - $ref: "#/$defs/user"
+    - type: "object"
+      properties:
+        users:
+          type: "array"
+          items:
+            $ref: "#/$defs/user"
+        pagination:
+          $ref: "#/$defs/pagination"
+    - $ref: "#/$defs/error_response"
+```
+
+### Dynamic Schema Validation
+
+Create schemas that adapt based on input:
+
+```yaml
+# tools/dynamic-validator.yaml
+resource: "tool"
+id: "dynamic-validator"
+description: "Dynamic validation based on data type"
+
+input:
+  type: "object"
+  properties:
+    data_type:
+      type: "string"
+      enum: ["user", "product", "order", "custom"]
+
+    data:
+      description: "Data to validate"
+
+    custom_schema:
+      type: "object"
+      description: "Custom validation schema"
+
+  required: ["data_type", "data"]
+
+  # Dynamic validation based on data_type
+  allOf:
+    - if:
+        properties:
+          data_type:
+            const: "user"
+      then:
+        properties:
+          data:
+            type: "object"
+            properties:
+              id:
+                type: "string"
+              email:
+                type: "string"
+                format: "email"
+              age:
+                type: "integer"
+                minimum: 0
+            required: ["id", "email"]
+
+    - if:
+        properties:
+          data_type:
+            const: "product"
+      then:
+        properties:
+          data:
+            type: "object"
+            properties:
+              sku:
+                type: "string"
+              name:
+                type: "string"
+              price:
+                type: "number"
+                minimum: 0
+            required: ["sku", "name", "price"]
+
+    - if:
+        properties:
+          data_type:
+            const: "custom"
+      then:
+        required: ["data_type", "data", "custom_schema"]
+```
+
+## Schema Validation Best Practices
+
+### Input Validation
+
+```yaml
+# Comprehensive input validation
+input:
+  type: "object"
+  properties:
+    # String validation
+    name:
+      type: "string"
+      minLength: 1
+      maxLength: 100
+      pattern: "^[a-zA-Z0-9\\s-_]+$"
+      description: "Alphanumeric name with spaces, hyphens, underscores"
+
+    # Numeric validation
+    quantity:
+      type: "integer"
+      minimum: 1
+      maximum: 1000
+      multipleOf: 1
+      description: "Quantity must be a positive integer"
+
+    # Array validation
+    tags:
+      type: "array"
+      items:
+        type: "string"
+        minLength: 1
+        maxLength: 50
+      minItems: 1
+      maxItems: 10
+      uniqueItems: true
+      description: "Array of unique tags"
+
+    # Object validation
+    metadata:
+      type: "object"
+      properties:
+        created_by:
+          type: "string"
+        department:
+          type: "string"
+          enum: ["sales", "marketing", "engineering", "support"]
+      additionalProperties: false
+      required: ["created_by"]
+
+    # Date validation
+    start_date:
+      type: "string"
+      format: "date"
+      description: "Start date in YYYY-MM-DD format"
+
+    # Custom format validation
+    phone:
+      type: "string"
+      pattern: "^\\+?[1-9]\\d{1,14}$"
+      description: "Phone number in E.164 format"
+
+    # Conditional validation
+    notification_type:
+      type: "string"
+      enum: ["email", "sms", "push"]
+
+  required: ["name", "quantity"]
+
+  # Additional validation rules
+  if:
+    properties:
+      notification_type:
+        const: "email"
+  then:
+    properties:
+      email:
+        type: "string"
+        format: "email"
+    required: ["email"]
+```
+
+### Error Response Schema
+
+Define consistent error response format:
+
+```yaml
+# Error handling schema
+output:
+  oneOf:
+    # Success response
+    - type: "object"
+      properties:
+        success:
+          type: "boolean"
+          const: true
+        data:
+          type: "object"
+          # Success data schema
+        metadata:
+          type: "object"
+          properties:
+            processing_time:
+              type: "number"
+            version:
+              type: "string"
+      required: ["success", "data"]
+
+    # Error response
+    - type: "object"
+      properties:
+        success:
+          type: "boolean"
+          const: false
+        error:
+          type: "object"
+          properties:
+            code:
+              type: "string"
+              enum: [
+                "VALIDATION_ERROR",
+                "PROCESSING_ERROR",
+                "TIMEOUT_ERROR",
+                "NETWORK_ERROR",
+                "PERMISSION_ERROR"
+              ]
+            message:
+              type: "string"
+              description: "Human-readable error message"
+            details:
+              type: "object"
+              description: "Additional error context"
+            timestamp:
+              type: "string"
+              format: "date-time"
+          required: ["code", "message"]
+      required: ["success", "error"]
+```
+
+## Schema Testing
+
+### Validation Testing
+
+Test your schemas thoroughly:
+
+```typescript
+// schema-validator.test.ts
+import { validateSchema } from './schema-validator';
+
+describe('Tool Schema Validation', () => {
+  const toolSchema = {
+    input: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', minLength: 1 },
+        age: { type: 'integer', minimum: 0 }
+      },
+      required: ['name']
+    }
+  };
+
+  test('should validate correct input', () => {
+    const validInput = { name: 'John', age: 30 };
+    const result = validateSchema(validInput, toolSchema.input);
+    expect(result.valid).toBe(true);
+  });
+
+  test('should reject missing required field', () => {
+    const invalidInput = { age: 30 };
+    const result = validateSchema(invalidInput, toolSchema.input);
+    expect(result.valid).toBe(false);
+    expect(result.errors).toContain('name is required');
+  });
+
+  test('should reject invalid data type', () => {
+    const invalidInput = { name: 'John', age: 'thirty' };
+    const result = validateSchema(invalidInput, toolSchema.input);
+    expect(result.valid).toBe(false);
+    expect(result.errors).toContain('age must be integer');
+  });
+});
+```
+
+### Schema Documentation
+
+Generate documentation from schemas:
+
+```typescript
+// schema-docs.ts
+interface SchemaDoc {
+  field: string;
+  type: string;
+  required: boolean;
+  description?: string;
+  constraints?: string[];
+}
+
+function generateSchemaDoc(schema: any): SchemaDoc[] {
+  const docs: SchemaDoc[] = [];
+
+  if (schema.type === 'object' && schema.properties) {
+    for (const [field, fieldSchema] of Object.entries(schema.properties)) {
+      docs.push({
+        field,
+        type: fieldSchema.type,
+        required: schema.required?.includes(field) || false,
+        description: fieldSchema.description,
+        constraints: extractConstraints(fieldSchema)
+      });
+    }
+  }
+
+  return docs;
+}
+
+function extractConstraints(schema: any): string[] {
+  const constraints: string[] = [];
+
+  if (schema.minLength) constraints.push(`minLength: ${schema.minLength}`);
+  if (schema.maxLength) constraints.push(`maxLength: ${schema.maxLength}`);
+  if (schema.minimum) constraints.push(`minimum: ${schema.minimum}`);
+  if (schema.maximum) constraints.push(`maximum: ${schema.maximum}`);
+  if (schema.pattern) constraints.push(`pattern: ${schema.pattern}`);
+  if (schema.enum) constraints.push(`enum: ${schema.enum.join(', ')}`);
+
+  return constraints;
+}
+```
+
+## Next Steps
+
+- [External Integrations](./external-integrations) - Connect to external services
+- [Testing & Debugging](./testing-debugging) - Validate your schemas
+- [Performance & Security](./performance-security) - Schema optimization
+- [Advanced Patterns](./advanced-patterns) - Complex schema patterns

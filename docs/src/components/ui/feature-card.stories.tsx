@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { Cloud, Code, Database, Palette, Rocket, Shield, Sparkles, Zap } from "lucide-react";
 import { FeatureCard, FeatureCardList } from "./feature-card";
 

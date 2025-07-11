@@ -1,11 +1,11 @@
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { SchemaParams } from "./schema-params";
 
 // Import actual schemas from the schemas folder
-import agentSchema from "../../../../schemas/agent.json";
-import memorySchema from "../../../../schemas/memory.json";
-import taskSchema from "../../../../schemas/task.json";
-import toolSchema from "../../../../schemas/tool.json";
+import agentSchema from "@/schemas/agent.json";
+import memorySchema from "@/schemas/memory.json";
+import taskSchema from "@/schemas/task.json";
+import toolSchema from "@/schemas/tool.json";
 
 const meta: Meta<typeof SchemaParams> = {
   title: "UI/Params/SchemaParams",

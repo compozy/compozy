@@ -1,4 +1,413 @@
 ---
 title: Project Setup
-description: How to set up and structure Compozy projects
+description: Setting up Compozy projects with compozy.yaml configuration
 ---
+
+# Project Setup
+
+Learn how to set up and configure Compozy projects using the `compozy.yaml` configuration file.
+
+## Overview
+
+A **Compozy project** is a declarative configuration that coordinates AI agents, workflows, and tools to build complex AI-powered applications. Projects serve as the top-level container that:
+
+- **Defines reusable workflows** composed of AI agent tasks
+- **Configures LLM providers** and model access
+- **Establishes data schemas** for type-safe operations
+- **Sets up tool execution** environments and security policies
+- **Manages performance** through caching, monitoring, and optimization
+
+## Project Structure
+
+Here's the recommended structure for a Compozy project:
+
+```
+my-ai-project/
+├── compozy.yaml           # Project configuration
+├── .env                   # Environment variables
+├── workflows/             # Workflow definitions
+│   ├── data-analysis.yaml
+│   └── content-generation.yaml
+├── agents/                # Agent configurations (with autoload)
+│   ├── researcher.yaml
+│   └── writer.yaml
+├── tools.ts               # Custom tool implementations
+├── schemas/               # Data schema definitions
+│   └── user-input.yaml
+└── memory/                # Memory resources (with autoload)
+    └── conversation.yaml
+```
+
+## Basic Configuration
+
+### Minimal Project
+
+The simplest `compozy.yaml` configuration:
+
+```yaml
+name: my-project
+version: 1.0.0
+description: My AI project
+
+workflows:
+  - source: ./workflow.yaml
+
+models:
+  - provider: openai
+    model: gpt-4
+    api_key: "{{ .env.OPENAI_API_KEY }}"
+```
+
+### Complete Project Configuration
+
+A full-featured project configuration with all available options:
+
+<Tabs items={['compozy.yaml', '.env']}>
+  <Tab value="compozy.yaml">
+```yaml
+name: enterprise-ai-system
+version: 2.1.0
+description: Multi-agent system for enterprise automation
+
+author:
+name: AI Team
+email: ai@company.com
+organization: ACME Corp
+
+workflows:
+
+- source: ./workflows/customer-support.yaml
+- source: ./workflows/data-pipeline.yaml
+
+models:
+
+- provider: openai
+  model: gpt-4
+  api_key: "{{ .env.OPENAI_API_KEY }}"
+  temperature: 0.7
+  max_tokens: 4000
+- provider: anthropic
+  model: claude-3-opus
+  api_key: "{{ .env.ANTHROPIC_API_KEY }}"
+- provider: groq
+  model: llama-3.3-70b-versatile
+  api_key: "{{ .env.GROQ_API_KEY }}"
+- provider: ollama
+  model: llama2:13b
+  api_url: "http://localhost:11434"
+
+runtime:
+type: bun
+entrypoint: ./tools/index.ts
+permissions: - --allow-read=/data - --allow-net=api.company.com - --allow-env=API_KEY,DATABASE_URL
+
+autoload:
+enabled: true
+strict: true
+include: - "agents/**/\*.yaml" - "memory/**/_.yaml" - "tools/\*\*/_.yaml"
+exclude: - "**/\*.bak" - "**/\*.tmp"
+
+cache:
+url: redis://localhost:6379/0
+pool_size: 10
+ttl: 1h
+
+monitoring:
+enabled: true
+path: /metrics
+
+config:
+max_string_length: 52428800 # 50MB
+async_token_counter_workers: 20
+max_nesting_depth: 10
+
+````
+  </Tab>
+  <Tab value=".env">
+```bash
+# LLM Provider API Keys
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+GROQ_API_KEY=gsk_...
+
+# Database Configuration
+DATABASE_URL=postgresql://user:password@localhost:5432/compozy
+
+# Cache Configuration
+REDIS_URL=redis://localhost:6379/0
+
+# Monitoring
+MONITORING_ENABLED=true
+MONITORING_PATH=/metrics
+
+# Custom Environment Variables
+API_KEY=your-api-key
+DEBUG_MODE=true
+````
+
+  </Tab>
+</Tabs>
+
+## Configuration Fields
+
+### Core Project Information
+
+| Field         | Type   | Required | Description                                                    |
+| ------------- | ------ | -------- | -------------------------------------------------------------- |
+| `name`        | string | ✅       | Unique project identifier (alphanumeric, hyphens, underscores) |
+| `version`     | string | ✅       | Semantic version (e.g., "1.2.3")                               |
+| `description` | string | ✅       | Human-readable project description                             |
+| `author`      | object | ❌       | Author information with name, email, organization              |
+
+### Workflows
+
+Define the workflow files that compose your project:
+
+```yaml
+workflows:
+  - source: ./workflow.yaml
+  - source: ./workflows/data-analysis.yaml
+  - source: ./workflows/content-generation.yaml
+```
+
+<Callout type="info">
+  Workflow paths are relative to the project root directory.
+</Callout>
+
+### Models
+
+Configure LLM providers and model settings:
+
+```yaml
+models:
+  # Primary model for complex reasoning
+  - provider: openai
+    model: gpt-4-turbo
+    api_key: "{{ .env.OPENAI_API_KEY }}"
+    temperature: 0.7
+    max_tokens: 4000
+
+  # Fallback for cost optimization
+  - provider: anthropic
+    model: claude-3-haiku
+    api_key: "{{ .env.ANTHROPIC_API_KEY }}"
+
+  # Local model for sensitive data
+  - provider: ollama
+    model: llama2:13b
+    api_url: "http://localhost:11434"
+```
+
+**Supported Providers:**
+
+- **OpenAI**: GPT-4, GPT-3.5, etc.
+- **Anthropic**: Claude models
+- **Google**: Gemini models
+- **Groq**: Fast inference
+- **Ollama**: Local models
+- **Custom**: API-compatible providers
+
+### Schemas
+
+Define reusable data validation schemas:
+
+```yaml
+schemas:
+  - id: user-input
+    type: object
+    properties:
+      name:
+        type: string
+        minLength: 1
+      age:
+        type: integer
+        minimum: 0
+    required: ["name"]
+```
+
+### Runtime Configuration
+
+Configure the JavaScript/TypeScript execution environment:
+
+```yaml
+runtime:
+  type: bun # or "node"
+  entrypoint: ./tools.ts
+  permissions:
+    - --allow-read
+    - --allow-net
+    - --allow-env
+    - --allow-write
+```
+
+**Runtime Types:**
+
+- **bun** (default): Fast TypeScript runtime with security sandboxing
+- **node**: Node.js runtime for compatibility
+
+**Permission Examples:**
+
+- `--allow-read=/data` - Read access to specific directory
+- `--allow-net=api.company.com` - Network access to specific domain
+- `--allow-env=API_KEY,DATABASE_URL` - Access to specific environment variables
+
+### Performance Options
+
+Configure system limits and performance settings:
+
+```yaml
+config:
+  max_string_length: 52428800 # 50MB string limit
+  max_nesting_depth: 20 # Template nesting limit
+  async_token_counter_workers: 20 # Token counting workers
+  max_message_content: 10240 # Max message size
+  max_total_content_size: 102400 # Max total content size
+```
+
+## Environment Variables
+
+Environment variables provide secure configuration without hardcoding sensitive values:
+
+### Template Syntax
+
+Use Go template syntax to reference environment variables:
+
+```yaml
+models:
+  - provider: openai
+    api_key: "{{ .env.OPENAI_API_KEY }}"
+    base_url: '{{ .env.OPENAI_BASE_URL | default "https://api.openai.com/v1" }}'
+```
+
+### Common Environment Variables
+
+| Variable            | Description                | Example                    |
+| ------------------- | -------------------------- | -------------------------- |
+| `OPENAI_API_KEY`    | OpenAI API key             | `sk-...`                   |
+| `ANTHROPIC_API_KEY` | Anthropic API key          | `sk-ant-...`               |
+| `GROQ_API_KEY`      | Groq API key               | `gsk_...`                  |
+| `DATABASE_URL`      | Database connection string | `postgresql://...`         |
+| `REDIS_URL`         | Redis connection string    | `redis://localhost:6379/0` |
+
+## Validation
+
+### Configuration Validation
+
+Validate your project configuration:
+
+```bash
+compozy config validate
+```
+
+### Schema Validation
+
+Projects automatically validate:
+
+- Required fields presence
+- Type constraints
+- Format validation
+- Custom validation rules
+
+### Common Validation Errors
+
+<Callout type="error">
+  **Common Issues:** - Missing required fields (`name`, `version`,
+  `description`) - Invalid runtime type (must be "bun" or "node") - Nonexistent
+  entrypoint files - Invalid cron expressions in schedules - Malformed
+  environment variable references
+</Callout>
+
+## Best Practices
+
+### Project Organization
+
+1. **Descriptive Names**: Use clear, descriptive project names
+2. **Version Control**: Follow semantic versioning
+3. **Documentation**: Include comprehensive descriptions
+4. **Environment Separation**: Use different configs for dev/staging/prod
+
+### Security
+
+1. **Environment Variables**: Never hardcode sensitive values
+2. **Least Privilege**: Grant minimal required permissions
+3. **Validation**: Always validate inputs and outputs
+4. **Monitoring**: Enable monitoring for production projects
+
+### Performance
+
+1. **Caching**: Enable caching for frequently accessed data
+2. **Limits**: Set appropriate system limits
+3. **Monitoring**: Track performance metrics
+4. **Optimization**: Regularly review and optimize configurations
+
+## Implementation Integration
+
+<FeatureCardList cols={2}>
+  <FeatureCard
+    title="Create Your First Agent"
+    href="/docs/core/agents/overview"
+  >
+    Build intelligent AI agents using the configured models
+  </FeatureCard>
+  <FeatureCard title="Design Workflows" href="/docs/core/tasks/basic-tasks">
+    Create task-based workflows to orchestrate your agents
+  </FeatureCard>
+  <FeatureCard
+    title="Add Memory Systems"
+    href="/docs/core/memory/memory-concepts"
+  >
+    Configure persistent memory for stateful agent interactions
+  </FeatureCard>
+  <FeatureCard title="MCP Integration" href="/docs/core/mcp/mcp-overview">
+    Connect external tools and services to extend capabilities
+  </FeatureCard>
+</FeatureCardList>
+
+## Configuration Deep Dive
+
+<FeatureCardList cols={2}>
+  <FeatureCard
+    title="Workflow Configuration"
+    href="/docs/core/configuration/workflows"
+  >
+    Learn advanced workflow configuration patterns and best practices
+  </FeatureCard>
+  <FeatureCard
+    title="Runtime Configuration"
+    href="/docs/core/configuration/runtime-config"
+  >
+    Set up secure tool execution environments and permissions
+  </FeatureCard>
+  <FeatureCard title="LLM Providers" href="/docs/core/configuration/providers">
+    Configure multiple AI providers and model fallback strategies
+  </FeatureCard>
+  <FeatureCard title="AutoLoad Setup" href="/docs/core/configuration/autoload">
+    Enable automatic discovery of agents, tools, and memory resources
+  </FeatureCard>
+</FeatureCardList>
+
+## Production Readiness
+
+<FeatureCardList cols={2}>
+  <FeatureCard title="Monitoring Setup" href="/docs/core/metrics/observability">
+    Configure monitoring, logging, and alerting for production deployments
+  </FeatureCard>
+  <FeatureCard
+    title="Deployment Options"
+    href="/docs/core/deployment/deployment-options"
+  >
+    Deploy your configured project to various environments
+  </FeatureCard>
+  <FeatureCard
+    title="Security Configuration"
+    href="/docs/core/mcp/security-authentication"
+  >
+    Implement security best practices for production systems
+  </FeatureCard>
+  <FeatureCard
+    title="Performance Tuning"
+    href="/docs/core/development/performance"
+  >
+    Optimize your configuration for performance and scale
+  </FeatureCard>
+</FeatureCardList>

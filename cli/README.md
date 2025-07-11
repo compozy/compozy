@@ -101,12 +101,14 @@ compozy dev [flags]
 Starts the Compozy development server with hot-reloading support.
 
 **Key Features:**
+
 - Auto-restart on configuration changes
 - Port conflict resolution
 - Environment file loading
 - Debug mode support
 
 **Common Options:**
+
 ```bash
 --config string      Configuration file path (default: compozy.yaml)
 --port int          Server port (default: 3000)
@@ -118,12 +120,13 @@ Starts the Compozy development server with hot-reloading support.
 #### Configuration Management (`config`)
 
 ```bash
-compozy config [show|validate|diagnostics] [flags]
+compozy config [show | validate | diagnostics] [flags]
 ```
 
 Manage and inspect configuration settings.
 
 **Subcommands:**
+
 - `show` - Display current configuration values
 - `validate` - Validate configuration files
 - `diagnostics` - Run comprehensive configuration diagnostics
@@ -137,6 +140,7 @@ compozy mcp-proxy [flags]
 Run an HTTP proxy for Model Context Protocol servers.
 
 **Features:**
+
 - Admin API for client management
 - Global authentication tokens
 - IP-based access control
@@ -323,6 +327,7 @@ go tool cover -html=coverage.out
 ### Test Coverage
 
 The CLI package includes tests for:
+
 - Command configuration and flag parsing
 - Configuration loading and validation
 - File watching and hot-reload functionality

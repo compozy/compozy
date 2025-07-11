@@ -1,6 +1,368 @@
 ---
-title: Sprig Functions
-description: Using Sprig template functions
+title: "Sprig Functions"
+description: "Complete reference for Sprig functions available in Compozy templates"
 ---
 
-# Sprig Functions
+# Sprig Functions Reference
+
+Compozy's template engine includes the full [Sprig function library](https://masterminds.github.io/sprig/), providing powerful data transformation capabilities within your YAML templates. This reference covers the most commonly used functions with practical examples.
+
+## String Functions
+
+### String Manipulation
+
+```yaml
+# Convert case
+title: "{{ .user.name | title }}"                    # "john doe" → "John Doe"
+upper: "{{ .status | upper }}"                       # "success" → "SUCCESS"  
+lower: "{{ .env.NODE_ENV | lower }}"                 # "PRODUCTION" → "production"
+
+# Trim whitespace
+cleaned: "{{ .input | trim }}"                       # "  hello  " → "hello"
+trimPrefix: "{{ .filename | trimPrefix 'tmp_' }}"    # "tmp_file.txt" → "file.txt"
+trimSuffix: "{{ .filename | trimSuffix '.txt' }}"    # "file.txt" → "file"
+
+# String replacement
+slug: "{{ .title | lower | replace ' ' '-' }}"       # "My Title" → "my-title"
+sanitized: "{{ .input | replace '/' '_' }}"          # "path/to/file" → "path_to_file"
+
+# Substrings
+first_chars: "{{ .text | substr 0 5 }}"              # First 5 characters
+last_chars: "{{ .text | substr -3 }}"                # Last 3 characters
+```
+
+### String Testing
+
+```yaml
+# Check if string contains substring
+has_error: "{{ .message | contains 'error' }}"       # true/false
+is_email: "{{ .input | contains '@' }}"              # Basic email check
+
+# Check string properties
+is_empty: "{{ .value | empty }}"                     # true if empty/nil
+has_value: "{{ .value | empty | not }}"              # true if not empty
+
+# String comparison
+is_production: "{{ .env.NODE_ENV | eq 'production' }}"
+is_dev_or_test: "{{ .env.NODE_ENV | has 'dev test' }}"
+```
+
+### String Formatting
+
+```yaml
+# Printf-style formatting
+formatted: "{{ printf '%s-%04d' .prefix .number }}"  # "user-0001"
+padded: "{{ printf '%10s' .name }}"                  # Right-padded to 10 chars
+
+# Quotes and escaping
+quoted: "{{ .value | quote }}"                       # Wraps in quotes
+squote: "{{ .value | squote }}"                      # Single quotes
+```
+
+## Numeric Functions
+
+### Arithmetic Operations
+
+```yaml
+# Basic math
+sum: "{{ add 10 5 }}"                                # 15
+difference: "{{ sub 10 5 }}"                         # 5
+product: "{{ mul 10 5 }}"                            # 50
+quotient: "{{ div 10 5 }}"                           # 2
+remainder: "{{ mod 10 3 }}"                          # 1
+
+# With template variables
+total: "{{ add .price .tax }}"
+percentage: "{{ div (mul .part 100) .total }}"
+scaled: "{{ mul .value .scale_factor }}"
+```
+
+### Numeric Comparisons
+
+```yaml
+# Comparison operators
+is_greater: "{{ gt .score 80 }}"                     # Greater than
+is_less: "{{ lt .age 18 }}"                          # Less than
+is_equal: "{{ eq .status 200 }}"                     # Equal
+is_not_equal: "{{ ne .result 'error' }}"             # Not equal
+is_gte: "{{ ge .score 70 }}"                         # Greater than or equal
+is_lte: "{{ le .attempts 3 }}"                       # Less than or equal
+```
+
+### Numeric Utilities
+
+```yaml
+# Min/max values
+minimum: "{{ min .value1 .value2 .value3 }}"
+maximum: "{{ max .attempts 1 5 }}"
+
+# Absolute value
+absolute: "{{ abs .difference }}"                     # Remove negative sign
+
+# Rounding
+rounded: "{{ round .float_value }}"                   # Round to nearest integer
+ceiling: "{{ ceil .float_value }}"                    # Round up
+floor: "{{ floor .float_value }}"                     # Round down
+```
+
+## Collection Functions
+
+### Array Operations
+
+```yaml
+# Array length
+count: "{{ len .items }}"                             # Number of items
+is_empty: "{{ empty .items }}"                        # true if empty array
+
+# Access elements
+first_item: "{{ first .items }}"                      # First element
+last_item: "{{ last .items }}"                        # Last element
+rest_items: "{{ rest .items }}"                       # All except first
+initial_items: "{{ initial .items }}"                 # All except last
+
+# Array membership
+has_item: "{{ has .item .items }}"                    # Check if array contains item
+```
+
+### Array Transformation
+
+```yaml
+# Join array elements
+csv: "{{ .tags | join ',' }}"                         # "tag1,tag2,tag3"
+list: "{{ .names | join ', ' }}"                      # "John, Jane, Bob"
+
+# Sort arrays
+sorted_asc: "{{ .numbers | sortAlpha }}"              # Alphabetical sort
+sorted_desc: "{{ .numbers | reverse | sortAlpha }}"   # Reverse alphabetical
+
+# Unique elements
+unique_items: "{{ .items | uniq }}"                   # Remove duplicates
+```
+
+### Map Operations
+
+```yaml
+# Get map keys
+all_keys: "{{ keys .config }}"                        # Array of keys
+sorted_keys: "{{ keys .config | sortAlpha }}"         # Sorted keys
+
+# Get map values  
+all_values: "{{ values .config }}"                    # Array of values
+
+# Check for key existence
+has_key: "{{ hasKey .config 'database' }}"            # true/false
+
+# Pick specific keys
+subset: "{{ pick .config 'host' 'port' 'database' }}" # Create subset map
+without: "{{ omit .config 'password' 'secret' }}"     # Exclude keys
+```
+
+## Date and Time Functions
+
+### Current Time
+
+```yaml
+# Current timestamp
+now_timestamp: "{{ now }}"                            # Current time object
+unix_timestamp: "{{ now | unixEpoch }}"               # Unix timestamp
+
+# Formatted current time
+current_date: "{{ now | date '2006-01-02' }}"         # "2023-10-15"
+current_time: "{{ now | date '15:04:05' }}"           # "14:30:25"
+current_iso: "{{ now | date '2006-01-02T15:04:05Z' }}" # ISO format
+```
+
+### Date Formatting
+
+```yaml
+# Common date formats
+us_date: "{{ .timestamp | date '01/02/2006' }}"       # "10/15/2023"
+eu_date: "{{ .timestamp | date '02/01/2006' }}"       # "15/10/2023"
+full_date: "{{ .timestamp | date 'January 2, 2006' }}" # "October 15, 2023"
+timestamp: "{{ .timestamp | date '2006-01-02 15:04:05' }}" # "2023-10-15 14:30:25"
+
+# Custom formats
+log_format: "{{ .timestamp | date '2006/01/02 15:04:05.000' }}"
+filename_date: "{{ .timestamp | date '20060102_150405' }}"
+```
+
+### Date Arithmetic
+
+```yaml
+# Add/subtract time
+expires_at: "{{ now | dateModify '+24h' }}"           # 24 hours from now
+yesterday: "{{ now | dateModify '-24h' }}"            # 24 hours ago
+next_week: "{{ now | dateModify '+168h' }}"           # 7 days from now
+next_month: "{{ now | dateModify '+720h' }}"          # ~30 days from now
+
+# Complex date math
+future_date: "{{ .start_date | dateModify '+2h30m' }}" # Add 2.5 hours
+past_date: "{{ .end_date | dateModify '-1h15m' }}"     # Subtract 1.25 hours
+```
+
+## Logical Functions
+
+### Boolean Logic
+
+```yaml
+# Boolean operations
+both_true: "{{ and .condition1 .condition2 }}"       # Logical AND
+either_true: "{{ or .condition1 .condition2 }}"      # Logical OR
+negated: "{{ not .condition }}"                       # Logical NOT
+
+# Complex boolean expressions
+valid_user: "{{ and .user.verified (not (empty .user.email)) }}"
+should_process: "{{ or .force_process (and .auto_process (gt .priority 5)) }}"
+```
+
+### Conditional Logic
+
+```yaml
+# Ternary operator (if-then-else)
+status: "{{ .error | empty | ternary 'success' 'failed' }}"
+message: "{{ .user.premium | ternary 'Welcome VIP!' 'Welcome!' }}"
+
+# Default values
+username: "{{ .user.name | default 'Anonymous' }}"
+timeout: "{{ .config.timeout | default 30 }}"
+retries: "{{ .config.retries | default 3 }}"
+
+# Coalesce (first non-empty value)
+name: "{{ coalesce .user.nickname .user.first_name .user.email 'Unknown' }}"
+```
+
+## Encoding Functions
+
+### JSON Operations
+
+```yaml
+# Convert to JSON
+json_string: "{{ .data | toJson }}"                   # Convert object to JSON
+pretty_json: "{{ .data | toPrettyJson }}"             # Pretty-printed JSON
+
+# Parse JSON (in combination with templates)
+parsed_data: "{{ .json_string | fromJson }}"          # Parse JSON string
+```
+
+### URL Encoding
+
+```yaml
+# URL encoding
+encoded_param: "{{ .search_query | urlquery }}"       # URL encode query params
+encoded_path: "{{ .file_path | urlpath }}"            # URL encode path segments
+
+# Build URLs
+api_url: "{{ .base_url }}/users/{{ .user_id | urlpath }}?q={{ .query | urlquery }}"
+```
+
+### Base64 Encoding
+
+```yaml
+# Base64 operations
+encoded: "{{ .data | b64enc }}"                       # Base64 encode
+decoded: "{{ .encoded_data | b64dec }}"               # Base64 decode
+
+# Common use case: encoding credentials
+auth_header: "Basic {{ printf '%s:%s' .username .password | b64enc }}"
+```
+
+## Type Conversion Functions
+
+### String Conversions
+
+```yaml
+# Convert to string
+string_value: "{{ .number | toString }}"              # Convert number to string
+string_bool: "{{ .flag | toString }}"                 # Convert boolean to string
+
+# Convert from string
+number_value: "{{ .string_number | int }}"            # String to integer
+float_value: "{{ .string_float | float64 }}"          # String to float
+bool_value: "{{ .string_bool | bool }}"               # String to boolean
+```
+
+### Type Checking
+
+```yaml
+# Check value types
+is_string: "{{ kindIs 'string' .value }}"             # Check if string
+is_number: "{{ kindIs 'float64' .value }}"            # Check if number
+is_bool: "{{ kindIs 'bool' .value }}"                 # Check if boolean
+is_array: "{{ kindIs 'slice' .value }}"               # Check if array
+is_map: "{{ kindIs 'map' .value }}"                   # Check if map/object
+
+# Type-safe operations
+safe_number: "{{ if kindIs 'string' .value }}{{ .value | int }}{{ else }}{{ .value }}{{ end }}"
+```
+
+## Compozy-Specific Functions
+
+In addition to Sprig functions, Compozy provides HTML security functions:
+
+### Security Functions
+
+```yaml
+# HTML escaping (prevent XSS)
+safe_html: "{{ .user_input | htmlEscape }}"           # Escape HTML entities
+safe_attr: "{{ .user_data | htmlAttrEscape }}"        # Escape for HTML attributes
+safe_js: "{{ .user_data | jsEscape }}"                # Escape for JavaScript strings
+```
+
+## Common Use Cases
+
+### Configuration Management
+
+```yaml
+# Environment-based configuration
+database_url: "{{ .env.DATABASE_URL | default 'sqlite://local.db' }}"
+debug_mode: "{{ .env.DEBUG | default 'false' | bool }}"
+port: "{{ .env.PORT | default '3000' | int }}"
+
+# Feature flags
+feature_enabled: "{{ and .env.ENABLE_FEATURE (eq .env.ENVIRONMENT 'production') }}"
+```
+
+### Data Processing
+
+```yaml
+# File path operations
+output_file: "{{ .input_file | trimSuffix '.txt' }}_processed.json"
+backup_path: "{{ printf '%s/backup_%s_%s' .backup_dir (now | date '20060102') .filename }}"
+
+# Data validation
+is_valid_email: "{{ and (contains .email '@') (gt (len .email) 5) }}"
+is_valid_age: "{{ and (ge .age 0) (le .age 150) }}"
+```
+
+### Task Orchestration
+
+```yaml
+# Dynamic task naming
+task_id: "{{ printf '%s_%s_%d' .workflow.id .task_type .index }}"
+batch_name: "{{ printf 'batch_%s_%s' (now | date '20060102_150405') .batch_id }}"
+
+# Conditional execution
+should_retry: "{{ and (gt .attempts 0) (lt .attempts .max_retries) }}"
+is_timeout: "{{ gt (now | unixEpoch) (.start_time | add .timeout) }}"
+```
+
+### Error Handling
+
+```yaml
+# Error message formatting
+error_msg: "{{ printf 'Task %s failed after %d attempts: %s' .task_id .attempts .error }}"
+status_code: "{{ .response.status | default 500 | int }}"
+
+# Fallback values
+primary_url: "{{ coalesce .config.primary_url .config.backup_url .default_url }}"
+timeout: "{{ min (.config.timeout | default 30) 300 }}"  # Max 5 minutes
+```
+
+## Performance Tips
+
+1. **Cache expensive operations**: Store complex calculations in variables
+2. **Use type-appropriate functions**: `sortAlpha` for strings, numeric comparisons for numbers
+3. **Minimize nested function calls**: Break complex expressions into steps
+4. **Use defaults early**: Apply `default` before other transformations
+
+The Sprig function library provides extensive data manipulation capabilities. Next, explore [Context Variables](./context-variables) to understand data sources and access patterns.

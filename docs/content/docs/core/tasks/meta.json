@@ -4,11 +4,12 @@
   "icon": "ListCheck",
   "pages": [
     "basic-tasks",
-    "flow-control",
+    "aggregate-tasks",
+    "collection-tasks",
     "parallel-processing",
     "memory-tasks",
-    "aggregate-tasks",
-    "advanced-patterns",
-    "custom-task-types"
+    "custom-task-types",
+    "flow-control",
+    "advanced-patterns"
   ]
 }

@@ -1,6 +1,357 @@
 ---
-title: MCP Proxy Server
-description: Setting up the MCP proxy server
+title: "MCP Proxy Server"
+description: "Understanding the MCP proxy server architecture and deployment"
 ---
 
 # MCP Proxy Server
+
+The MCP Proxy Server is the central gateway that manages all MCP server connections in Compozy. It acts as a reverse proxy, connection manager, and administration hub for MCP servers, providing a unified HTTP interface for multiple MCP servers.
+
+## Architecture
+
+```
+┌─────────────┐     ┌─────────────────┐     ┌─────────────┐
+│   Clients   │────▶│   MCP Proxy     │────▶│ MCP Server  │
+│  (Agents)   │     │   Server        │     │      A      │
+└─────────────┘     │                 │     └─────────────┘
+                    │  ┌───────────┐  │     ┌─────────────┐
+                    │  │  Admin    │  │────▶│ MCP Server  │
+                    │  │   API     │  │     │      B      │
+                    │  └───────────┘  │     └─────────────┘
+                    │                 │     ┌─────────────┐
+                    │  ┌───────────┐  │────▶│ MCP Server  │
+                    │  │ Storage   │  │     │      C      │
+                    │  │(Redis/Mem)│  │     └─────────────┘
+                    │  └───────────┘  │
+                    └─────────────────┘
+```
+
+## Key Features
+
+### Multi-Transport Support
+- **stdio**: Standard I/O for local process communication
+- **sse**: Server-Sent Events for HTTP-based real-time streaming
+- **streamable-http**: HTTP with streaming support for large responses
+
+### Dynamic Registration
+- Hot-add, update, or remove servers via Admin API
+- No downtime required for server management
+- Automatic connection recovery with configurable back-off
+
+### Security
+- Token-based authentication for admin operations
+- IP allow-lists for admin API access
+- Trusted proxy support for X-Forwarded-For headers
+- Global authentication tokens for all MCP requests
+
+### Storage Options
+- **In-memory**: Default storage for development
+- **Redis**: Persistent storage for production environments
+
+## Configuration
+
+### Server Configuration
+
+```go
+type Config struct {
+    Port               string        // TCP port (default: "8081")
+    Host               string        // Listen address (default: "0.0.0.0")
+    BaseURL            string        // Base URL for generating paths
+    ShutdownTimeout    time.Duration // Graceful shutdown timeout
+    AdminTokens        []string      // Admin API bearer tokens
+    AdminAllowIPs      []string      // Admin API IP allow-list
+    TrustedProxies     []string      // Trusted proxy IPs
+    GlobalAuthTokens   []string      // Global auth tokens
+}
+```
+
+### Environment Variables
+
+```bash
+# Server configuration
+MCP_PROXY_HOST=0.0.0.0
+MCP_PROXY_PORT=8081
+MCP_PROXY_BASE_URL=http://localhost:8081
+
+# Security
+MCP_PROXY_ADMIN_TOKEN=your-admin-token
+MCP_PROXY_GLOBAL_AUTH_TOKEN=global-token
+```
+
+## Starting the Proxy Server
+
+### Using CLI
+
+```bash
+# Start with default configuration
+compozy mcp-proxy
+
+# Start with custom configuration
+compozy mcp-proxy \
+  --host 0.0.0.0 \
+  --port 8081 \
+  --admin-tokens "secure-admin-token" \
+  --admin-allow-ips "10.0.0.0/8,192.168.1.0/24"
+```
+
+### Using Docker
+
+```dockerfile
+FROM compozy/compozy:latest
+
+EXPOSE 8081
+
+CMD ["compozy", "mcp-proxy", "--host", "0.0.0.0", "--port", "8081"]
+```
+
+```bash
+# Run with Docker
+docker run -p 8081:8081 \
+  -e MCP_PROXY_ADMIN_TOKEN=secure-token \
+  compozy/compozy:latest \
+  compozy mcp-proxy
+```
+
+### Programmatic Usage
+
+```go
+package main
+
+import (
+    "context"
+    "time"
+    
+    "github.com/compozy/compozy/pkg/mcp-proxy"
+)
+
+func main() {
+    // Create configuration
+    config := &mcpproxy.Config{
+        Host:             "0.0.0.0",
+        Port:             "8081",
+        BaseURL:          "http://localhost:8081",
+        ShutdownTimeout:  30 * time.Second,
+        AdminTokens:      []string{"secure-admin-token"},
+        AdminAllowIPs:    []string{"127.0.0.1", "::1"},
+        GlobalAuthTokens: []string{"global-token"},
+    }
+    
+    // Create storage
+    storage := mcpproxy.NewInMemoryStorage()
+    
+    // Create and start proxy
+    proxy := mcpproxy.NewProxy(config, storage)
+    if err := proxy.Start(); err != nil {
+        panic(err)
+    }
+    
+    defer proxy.Stop()
+    
+    // Server is now running on http://localhost:8081
+    select {}
+}
+```
+
+## API Endpoints
+
+### System Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/healthz` | GET | Health check |
+| `/metrics` | GET | Prometheus metrics |
+
+### Admin API Endpoints
+
+All admin endpoints require authentication via `Authorization: Bearer <token>`.
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/admin/mcps` | POST | Register MCP server |
+| `/admin/mcps` | GET | List all MCP servers |
+| `/admin/mcps/{name}` | GET | Get specific MCP server |
+| `/admin/mcps/{name}` | PUT | Update MCP server |
+| `/admin/mcps/{name}` | DELETE | Remove MCP server |
+| `/admin/tools` | GET | List all tools |
+
+### Proxy Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/{name}/sse` | GET | SSE proxy endpoint |
+| `/{name}/stream` | POST | Streamable HTTP proxy |
+
+## Storage Backends
+
+### In-Memory Storage (Default)
+
+```go
+// For development and testing
+storage := mcpproxy.NewInMemoryStorage()
+```
+
+**Pros:**
+- Fast and simple
+- No external dependencies
+- Good for development
+
+**Cons:**
+- Data lost on restart
+- Not suitable for production
+
+### Redis Storage
+
+```go
+// For production environments
+redisConfig := &mcpproxy.RedisConfig{
+    Addr:     "localhost:6379",
+    Password: "secret",
+    DB:       0,
+}
+
+storage, err := mcpproxy.NewRedisStorage(redisConfig)
+```
+
+**Pros:**
+- Persistent storage
+- High availability
+- Scalable
+
+**Cons:**
+- Requires Redis instance
+- Additional complexity
+
+## Health Checks
+
+The proxy server provides comprehensive health checks:
+
+```bash
+# Basic health check
+curl http://localhost:8081/healthz
+
+# Detailed metrics
+curl http://localhost:8081/metrics
+```
+
+## Security Considerations
+
+### Authentication
+- Use strong, unique admin tokens
+- Rotate tokens regularly
+- Store tokens securely (environment variables)
+
+### Network Security
+- Configure IP allow-lists for admin API
+- Use HTTPS in production
+- Set up proper firewall rules
+
+### Access Control
+- Limit admin API access to specific IP ranges
+- Use global auth tokens for client access
+- Configure trusted proxies correctly
+
+## Monitoring
+
+### Metrics
+- Connection counts per MCP server
+- Request latency and error rates
+- Health check status
+- Resource utilization
+
+### Logging
+- Structured logging with configurable levels
+- Request/response logging
+- Error tracking and alerting
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Connection Refused**
+   - Check if proxy is running
+   - Verify port configuration
+   - Check firewall settings
+
+2. **Authentication Failures**
+   - Verify admin tokens
+   - Check IP allow-lists
+   - Ensure proper headers
+
+3. **MCP Server Connection Issues**
+   - Check MCP server status
+   - Verify transport configuration
+   - Review network connectivity
+
+### Debug Mode
+
+```bash
+# Enable debug logging
+compozy mcp-proxy --debug
+
+# Or with environment variable
+MCP_PROXY_LOG_LEVEL=debug compozy mcp-proxy
+```
+
+## Production Deployment
+
+### High Availability
+
+```yaml
+# docker-compose.yml
+version: '3.8'
+services:
+  mcp-proxy-1:
+    image: compozy/compozy:latest
+    ports:
+      - "8081:8081"
+    environment:
+      - MCP_PROXY_ADMIN_TOKEN=secure-token
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+      
+  mcp-proxy-2:
+    image: compozy/compozy:latest
+    ports:
+      - "8082:8081"
+    environment:
+      - MCP_PROXY_ADMIN_TOKEN=secure-token
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+      
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+      
+volumes:
+  redis_data:
+```
+
+### Load Balancing
+
+```nginx
+upstream mcp_proxy {
+    server mcp-proxy-1:8081;
+    server mcp-proxy-2:8081;
+}
+
+server {
+    listen 80;
+    location / {
+        proxy_pass http://mcp_proxy;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+}
+```
+
+## Next Steps
+
+- [Client Manager](./client-manager) - Learn about MCP client management
+- [Transport Configuration](./transport-configuration) - Configure transport types
+- [Security & Authentication](./security-authentication) - Secure your deployment
+- [Monitoring & Metrics](./monitoring-metrics) - Monitor your proxy server

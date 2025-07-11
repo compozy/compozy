@@ -1,6 +1,1274 @@
 ---
-title: External Integrations
-description: Integrating external services
+title: "External Integrations"
+description: "Guide to integrating external services, APIs, and systems with Compozy tools"
 ---
 
 # External Integrations
+
+This guide covers integrating external services, APIs, databases, and systems with Compozy tools. Learn how to create robust integrations that handle authentication, rate limiting, error handling, and data transformation.
+
+## API Integration Patterns
+
+### RESTful API Client
+
+Create a flexible REST API client tool:
+
+```yaml
+# tools/rest-client.yaml
+resource: "tool"
+id: "rest-client"
+description: "Generic REST API client with authentication support"
+timeout: "30s"
+
+input:
+  type: "object"
+  properties:
+    url:
+      type: "string"
+      format: "uri"
+      description: "API endpoint URL"
+
+    method:
+      type: "string"
+      enum: ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"]
+      default: "GET"
+
+    headers:
+      type: "object"
+      additionalProperties:
+        type: "string"
+      description: "HTTP headers"
+
+    body:
+      description: "Request body"
+      oneOf:
+        - type: "string"
+        - type: "object"
+        - type: "array"
+
+    auth:
+      type: "object"
+      properties:
+        type:
+          type: "string"
+          enum: ["bearer", "basic", "api_key", "oauth2"]
+        token:
+          type: "string"
+          description: "Bearer token or API key"
+        username:
+          type: "string"
+          description: "Username for basic auth"
+        password:
+          type: "string"
+          description: "Password for basic auth"
+        header_name:
+          type: "string"
+          description: "Custom header name for API key"
+          default: "Authorization"
+      required: ["type"]
+
+    options:
+      type: "object"
+      properties:
+        timeout:
+          type: "integer"
+          minimum: 1000
+          maximum: 300000
+          default: 30000
+        retry_count:
+          type: "integer"
+          minimum: 0
+          maximum: 5
+          default: 3
+        retry_delay:
+          type: "integer"
+          minimum: 100
+          maximum: 10000
+          default: 1000
+        follow_redirects:
+          type: "boolean"
+          default: true
+        validate_ssl:
+          type: "boolean"
+          default: true
+      additionalProperties: false
+
+  required: ["url"]
+
+output:
+  type: "object"
+  properties:
+    status:
+      type: "integer"
+      description: "HTTP status code"
+
+    headers:
+      type: "object"
+      additionalProperties:
+        type: "string"
+      description: "Response headers"
+
+    data:
+      description: "Response data"
+      oneOf:
+        - type: "string"
+        - type: "object"
+        - type: "array"
+
+    metadata:
+      type: "object"
+      properties:
+        response_time:
+          type: "number"
+          description: "Response time in milliseconds"
+        content_type:
+          type: "string"
+        content_length:
+          type: "integer"
+        final_url:
+          type: "string"
+          description: "Final URL after redirects"
+      required: ["response_time"]
+
+  required: ["status", "headers", "data", "metadata"]
+
+env:
+  USER_AGENT: "Compozy/1.0 REST Client"
+  DEFAULT_TIMEOUT: "30000"
+```
+
+### REST Client Implementation
+
+```typescript
+// tools/rest-client.ts
+interface RestClientInput {
+  url: string;
+  method?: string;
+  headers?: Record<string, string>;
+  body?: unknown;
+  auth?: {
+    type: 'bearer' | 'basic' | 'api_key' | 'oauth2';
+    token?: string;
+    username?: string;
+    password?: string;
+    header_name?: string;
+  };
+  options?: {
+    timeout?: number;
+    retry_count?: number;
+    retry_delay?: number;
+    follow_redirects?: boolean;
+    validate_ssl?: boolean;
+  };
+}
+
+interface RestClientOutput {
+  status: number;
+  headers: Record<string, string>;
+  data: unknown;
+  metadata: {
+    response_time: number;
+    content_type?: string;
+    content_length?: number;
+    final_url?: string;
+  };
+}
+
+class RestClient {
+  private static async sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  private static buildHeaders(
+    baseHeaders: Record<string, string> = {},
+    auth?: RestClientInput['auth']
+  ): Record<string, string> {
+    const headers = { ...baseHeaders };
+
+    // Set default headers
+    if (!headers['User-Agent']) {
+      headers['User-Agent'] = process.env.USER_AGENT || 'Compozy/1.0';
+    }
+
+    if (!headers['Accept']) {
+      headers['Accept'] = 'application/json, */*';
+    }
+
+    // Add authentication headers
+    if (auth) {
+      switch (auth.type) {
+        case 'bearer':
+          headers['Authorization'] = `Bearer ${auth.token}`;
+          break;
+        case 'basic':
+          const credentials = btoa(`${auth.username}:${auth.password}`);
+          headers['Authorization'] = `Basic ${credentials}`;
+          break;
+        case 'api_key':
+          const headerName = auth.header_name || 'Authorization';
+          headers[headerName] = auth.token || '';
+          break;
+        case 'oauth2':
+          headers['Authorization'] = `Bearer ${auth.token}`;
+          break;
+      }
+    }
+
+    return headers;
+  }
+
+  private static async makeRequest(
+    url: string,
+    options: RequestInit,
+    retryCount: number = 0,
+    maxRetries: number = 3,
+    retryDelay: number = 1000
+  ): Promise<Response> {
+    try {
+      const response = await fetch(url, options);
+
+      // Retry on 5xx errors and specific 4xx errors
+      if (response.status >= 500 || response.status === 429) {
+        if (retryCount < maxRetries) {
+          await this.sleep(retryDelay * Math.pow(2, retryCount)); // Exponential backoff
+          return this.makeRequest(url, options, retryCount + 1, maxRetries, retryDelay);
+        }
+      }
+
+      return response;
+    } catch (error) {
+      if (retryCount < maxRetries) {
+        await this.sleep(retryDelay * Math.pow(2, retryCount));
+        return this.makeRequest(url, options, retryCount + 1, maxRetries, retryDelay);
+      }
+      throw error;
+    }
+  }
+
+  static async execute(input: RestClientInput): Promise<RestClientOutput> {
+    const startTime = performance.now();
+
+    try {
+      // Build request options
+      const headers = this.buildHeaders(input.headers, input.auth);
+      const options: RequestInit = {
+        method: input.method || 'GET',
+        headers,
+        signal: AbortSignal.timeout(input.options?.timeout || 30000),
+      };
+
+      // Add body for non-GET requests
+      if (input.body && !['GET', 'HEAD'].includes(input.method || 'GET')) {
+        if (typeof input.body === 'string') {
+          options.body = input.body;
+        } else {
+          options.body = JSON.stringify(input.body);
+          headers['Content-Type'] = 'application/json';
+        }
+      }
+
+      // Make request with retries
+      const response = await this.makeRequest(
+        input.url,
+        options,
+        0,
+        input.options?.retry_count || 3,
+        input.options?.retry_delay || 1000
+      );
+
+      // Parse response
+      const contentType = response.headers.get('Content-Type') || '';
+      let data: unknown;
+
+      if (contentType.includes('application/json')) {
+        data = await response.json();
+      } else if (contentType.includes('text/')) {
+        data = await response.text();
+      } else {
+        data = await response.arrayBuffer();
+      }
+
+      // Build response
+      const endTime = performance.now();
+      const responseHeaders: Record<string, string> = {};
+      response.headers.forEach((value, key) => {
+        responseHeaders[key] = value;
+      });
+
+      return {
+        status: response.status,
+        headers: responseHeaders,
+        data,
+        metadata: {
+          response_time: endTime - startTime,
+          content_type: contentType,
+          content_length: parseInt(response.headers.get('Content-Length') || '0'),
+          final_url: response.url,
+        },
+      };
+
+    } catch (error) {
+      const endTime = performance.now();
+
+      if (error.name === 'AbortError') {
+        throw new Error('Request timeout');
+      }
+
+      throw new Error(`HTTP request failed: ${error.message}`);
+    }
+  }
+}
+
+export async function run(input: RestClientInput): Promise<RestClientOutput> {
+  return RestClient.execute(input);
+}
+```
+
+## Database Integration
+
+### Database Client Tool
+
+Create a database client for multiple database types:
+
+```yaml
+# tools/database-client.yaml
+resource: "tool"
+id: "database-client"
+description: "Multi-database client with connection pooling"
+timeout: "60s"
+
+input:
+  type: "object"
+  properties:
+    connection:
+      type: "object"
+      properties:
+        type:
+          type: "string"
+          enum: ["postgresql", "mysql", "mongodb", "redis", "sqlite"]
+        host:
+          type: "string"
+          description: "Database host"
+        port:
+          type: "integer"
+          minimum: 1
+          maximum: 65535
+        database:
+          type: "string"
+          description: "Database name"
+        username:
+          type: "string"
+        password:
+          type: "string"
+        ssl:
+          type: "boolean"
+          default: false
+        connection_string:
+          type: "string"
+          description: "Complete connection string (overrides other fields)"
+      required: ["type"]
+
+    operation:
+      type: "string"
+      enum: ["query", "execute", "transaction", "batch"]
+      description: "Database operation type"
+
+    query:
+      type: "string"
+      description: "SQL query or command"
+
+    parameters:
+      type: "array"
+      items:
+        description: "Query parameters"
+      description: "Parameterized query values"
+
+    queries:
+      type: "array"
+      items:
+        type: "object"
+        properties:
+          query:
+            type: "string"
+          parameters:
+            type: "array"
+        required: ["query"]
+      description: "Multiple queries for batch operations"
+
+    options:
+      type: "object"
+      properties:
+        timeout:
+          type: "integer"
+          minimum: 1000
+          maximum: 300000
+          default: 30000
+        max_rows:
+          type: "integer"
+          minimum: 1
+          maximum: 10000
+          default: 1000
+        streaming:
+          type: "boolean"
+          default: false
+        read_only:
+          type: "boolean"
+          default: false
+      additionalProperties: false
+
+  required: ["connection", "operation"]
+
+output:
+  type: "object"
+  properties:
+    success:
+      type: "boolean"
+
+    data:
+      description: "Query results"
+      oneOf:
+        - type: "array"
+          items:
+            type: "object"
+        - type: "object"
+        - type: "null"
+
+    metadata:
+      type: "object"
+      properties:
+        rows_affected:
+          type: "integer"
+        execution_time:
+          type: "number"
+        query_plan:
+          type: "string"
+        warnings:
+          type: "array"
+          items:
+            type: "string"
+      required: ["execution_time"]
+
+    error:
+      type: "object"
+      properties:
+        code:
+          type: "string"
+        message:
+          type: "string"
+        details:
+          type: "object"
+
+  required: ["success"]
+
+env:
+  DB_POOL_SIZE: "10"
+  DB_TIMEOUT: "30000"
+  DB_SSL_MODE: "prefer"
+```
+
+### Database Implementation
+
+```typescript
+// tools/database-client.ts
+interface DatabaseConnection {
+  type: 'postgresql' | 'mysql' | 'mongodb' | 'redis' | 'sqlite';
+  host?: string;
+  port?: number;
+  database?: string;
+  username?: string;
+  password?: string;
+  ssl?: boolean;
+  connection_string?: string;
+}
+
+interface DatabaseInput {
+  connection: DatabaseConnection;
+  operation: 'query' | 'execute' | 'transaction' | 'batch';
+  query?: string;
+  parameters?: unknown[];
+  queries?: Array<{
+    query: string;
+    parameters?: unknown[];
+  }>;
+  options?: {
+    timeout?: number;
+    max_rows?: number;
+    streaming?: boolean;
+    read_only?: boolean;
+  };
+}
+
+interface DatabaseOutput {
+  success: boolean;
+  data?: unknown;
+  metadata?: {
+    rows_affected?: number;
+    execution_time: number;
+    query_plan?: string;
+    warnings?: string[];
+  };
+  error?: {
+    code: string;
+    message: string;
+    details?: unknown;
+  };
+}
+
+class DatabaseClient {
+  private static connectionPools = new Map<string, unknown>();
+
+  private static getConnectionKey(conn: DatabaseConnection): string {
+    return `${conn.type}://${conn.host}:${conn.port}/${conn.database}`;
+  }
+
+  private static async createConnection(conn: DatabaseConnection): Promise<unknown> {
+    const key = this.getConnectionKey(conn);
+
+    if (this.connectionPools.has(key)) {
+      return this.connectionPools.get(key);
+    }
+
+    let client: unknown;
+
+    switch (conn.type) {
+      case 'postgresql':
+        const { Pool } = await import('pg');
+        client = new Pool({
+          host: conn.host,
+          port: conn.port,
+          database: conn.database,
+          user: conn.username,
+          password: conn.password,
+          ssl: conn.ssl,
+          max: parseInt(process.env.DB_POOL_SIZE || '10'),
+          idleTimeoutMillis: 30000,
+          connectionTimeoutMillis: parseInt(process.env.DB_TIMEOUT || '30000'),
+        });
+        break;
+
+      case 'mysql':
+        const mysql = await import('mysql2/promise');
+        client = mysql.createPool({
+          host: conn.host,
+          port: conn.port,
+          database: conn.database,
+          user: conn.username,
+          password: conn.password,
+          ssl: conn.ssl,
+          connectionLimit: parseInt(process.env.DB_POOL_SIZE || '10'),
+          acquireTimeout: parseInt(process.env.DB_TIMEOUT || '30000'),
+        });
+        break;
+
+      case 'mongodb':
+        const { MongoClient } = await import('mongodb');
+        const url = conn.connection_string ||
+          `mongodb://${conn.username}:${conn.password}@${conn.host}:${conn.port}/${conn.database}`;
+        client = new MongoClient(url, {
+          maxPoolSize: parseInt(process.env.DB_POOL_SIZE || '10'),
+          serverSelectionTimeoutMS: parseInt(process.env.DB_TIMEOUT || '30000'),
+        });
+        await (client as any).connect();
+        break;
+
+      case 'redis':
+        const { createClient } = await import('redis');
+        client = createClient({
+          url: conn.connection_string ||
+            `redis://${conn.username}:${conn.password}@${conn.host}:${conn.port}/${conn.database}`,
+          socket: {
+            connectTimeout: parseInt(process.env.DB_TIMEOUT || '30000'),
+          },
+        });
+        await (client as any).connect();
+        break;
+
+      case 'sqlite':
+        const sqlite = await import('sqlite3');
+        client = new sqlite.Database(conn.database || ':memory:');
+        break;
+
+      default:
+        throw new Error(`Unsupported database type: ${conn.type}`);
+    }
+
+    this.connectionPools.set(key, client);
+    return client;
+  }
+
+  private static async executeQuery(
+    client: unknown,
+    type: DatabaseConnection['type'],
+    query: string,
+    parameters?: unknown[]
+  ): Promise<{ data: unknown; metadata: { rows_affected?: number; execution_time: number } }> {
+    const startTime = performance.now();
+
+    try {
+      let result: unknown;
+      let rowsAffected: number | undefined;
+
+      switch (type) {
+        case 'postgresql':
+          const pgResult = await (client as any).query(query, parameters);
+          result = pgResult.rows;
+          rowsAffected = pgResult.rowCount;
+          break;
+
+        case 'mysql':
+          const [mysqlRows, mysqlFields] = await (client as any).execute(query, parameters);
+          result = mysqlRows;
+          rowsAffected = (mysqlRows as any).affectedRows;
+          break;
+
+        case 'mongodb':
+          // MongoDB operations would be different based on query type
+          const db = (client as any).db();
+          result = await db.collection('default').find(JSON.parse(query)).toArray();
+          break;
+
+        case 'redis':
+          result = await (client as any).sendCommand(query.split(' '));
+          break;
+
+        case 'sqlite':
+          result = await new Promise((resolve, reject) => {
+            (client as any).all(query, parameters, (err: any, rows: any) => {
+              if (err) reject(err);
+              else resolve(rows);
+            });
+          });
+          break;
+      }
+
+      const endTime = performance.now();
+      return {
+        data: result,
+        metadata: {
+          rows_affected: rowsAffected,
+          execution_time: endTime - startTime,
+        },
+      };
+
+    } catch (error) {
+      const endTime = performance.now();
+      throw {
+        error,
+        execution_time: endTime - startTime,
+      };
+    }
+  }
+
+  static async execute(input: DatabaseInput): Promise<DatabaseOutput> {
+    try {
+      const client = await this.createConnection(input.connection);
+
+      switch (input.operation) {
+        case 'query':
+          if (!input.query) {
+            throw new Error('Query is required for query operation');
+          }
+
+          const result = await this.executeQuery(
+            client,
+            input.connection.type,
+            input.query,
+            input.parameters
+          );
+
+          return {
+            success: true,
+            data: result.data,
+            metadata: result.metadata,
+          };
+
+        case 'batch':
+          if (!input.queries || input.queries.length === 0) {
+            throw new Error('Queries array is required for batch operation');
+          }
+
+          const batchResults = [];
+          let totalExecutionTime = 0;
+
+          for (const queryItem of input.queries) {
+            const batchResult = await this.executeQuery(
+              client,
+              input.connection.type,
+              queryItem.query,
+              queryItem.parameters
+            );
+            batchResults.push(batchResult.data);
+            totalExecutionTime += batchResult.metadata.execution_time;
+          }
+
+          return {
+            success: true,
+            data: batchResults,
+            metadata: {
+              execution_time: totalExecutionTime,
+            },
+          };
+
+        default:
+          throw new Error(`Unsupported operation: ${input.operation}`);
+      }
+
+    } catch (error) {
+      return {
+        success: false,
+        error: {
+          code: error.code || 'DATABASE_ERROR',
+          message: error.message,
+          details: error.details,
+        },
+        metadata: {
+          execution_time: error.execution_time || 0,
+        },
+      };
+    }
+  }
+}
+
+export async function run(input: DatabaseInput): Promise<DatabaseOutput> {
+  return DatabaseClient.execute(input);
+}
+```
+
+## Cloud Service Integration
+
+### AWS S3 Integration
+
+Create an S3 client tool:
+
+```yaml
+# tools/s3-client.yaml
+resource: "tool"
+id: "s3-client"
+description: "AWS S3 client for file operations"
+timeout: "120s"
+
+input:
+  type: "object"
+  properties:
+    operation:
+      type: "string"
+      enum: ["upload", "download", "list", "delete", "copy", "metadata"]
+
+    bucket:
+      type: "string"
+      description: "S3 bucket name"
+
+    key:
+      type: "string"
+      description: "S3 object key"
+
+    local_path:
+      type: "string"
+      description: "Local file path"
+
+    content:
+      type: "string"
+      description: "File content for upload"
+
+    metadata:
+      type: "object"
+      additionalProperties:
+        type: "string"
+      description: "Object metadata"
+
+    options:
+      type: "object"
+      properties:
+        content_type:
+          type: "string"
+        cache_control:
+          type: "string"
+        expires:
+          type: "string"
+          format: "date-time"
+        public_read:
+          type: "boolean"
+          default: false
+        encryption:
+          type: "string"
+          enum: ["AES256", "aws:kms"]
+        storage_class:
+          type: "string"
+          enum: ["STANDARD", "REDUCED_REDUNDANCY", "STANDARD_IA", "ONEZONE_IA", "GLACIER", "DEEP_ARCHIVE"]
+          default: "STANDARD"
+      additionalProperties: false
+
+  required: ["operation", "bucket"]
+
+output:
+  type: "object"
+  properties:
+    success:
+      type: "boolean"
+
+    data:
+      description: "Operation result"
+      oneOf:
+        - type: "object"
+        - type: "array"
+        - type: "string"
+
+    metadata:
+      type: "object"
+      properties:
+        size:
+          type: "integer"
+        etag:
+          type: "string"
+        last_modified:
+          type: "string"
+          format: "date-time"
+        content_type:
+          type: "string"
+        storage_class:
+          type: "string"
+
+  required: ["success"]
+
+env:
+  AWS_ACCESS_KEY_ID: "{{ .env.AWS_ACCESS_KEY_ID }}"
+  AWS_SECRET_ACCESS_KEY: "{{ .env.AWS_SECRET_ACCESS_KEY }}"
+  AWS_REGION: "{{ .env.AWS_REGION | default \"us-east-1\" }}"
+  AWS_S3_ENDPOINT: "{{ .env.AWS_S3_ENDPOINT }}"
+```
+
+### Webhook Integration
+
+Create a webhook client for real-time integrations:
+
+```yaml
+# tools/webhook-client.yaml
+resource: "tool"
+id: "webhook-client"
+description: "Webhook client for real-time integrations"
+timeout: "30s"
+
+input:
+  type: "object"
+  properties:
+    url:
+      type: "string"
+      format: "uri"
+      description: "Webhook URL"
+
+    method:
+      type: "string"
+      enum: ["POST", "PUT", "PATCH"]
+      default: "POST"
+
+    payload:
+      type: "object"
+      description: "Webhook payload"
+
+    headers:
+      type: "object"
+      additionalProperties:
+        type: "string"
+      description: "Custom headers"
+
+    signature:
+      type: "object"
+      properties:
+        secret:
+          type: "string"
+          description: "Webhook secret for signature"
+        header:
+          type: "string"
+          description: "Signature header name"
+          default: "X-Signature"
+        algorithm:
+          type: "string"
+          enum: ["sha1", "sha256", "md5"]
+          default: "sha256"
+      required: ["secret"]
+
+    retry:
+      type: "object"
+      properties:
+        max_attempts:
+          type: "integer"
+          minimum: 1
+          maximum: 10
+          default: 3
+        backoff:
+          type: "string"
+          enum: ["linear", "exponential"]
+          default: "exponential"
+        delay:
+          type: "integer"
+          minimum: 100
+          maximum: 10000
+          default: 1000
+      additionalProperties: false
+
+  required: ["url", "payload"]
+
+output:
+  type: "object"
+  properties:
+    success:
+      type: "boolean"
+
+    response:
+      type: "object"
+      properties:
+        status:
+          type: "integer"
+        headers:
+          type: "object"
+        body:
+          description: "Response body"
+
+    attempts:
+      type: "integer"
+      description: "Number of attempts made"
+
+    total_time:
+      type: "number"
+      description: "Total execution time"
+
+  required: ["success", "attempts", "total_time"]
+
+env:
+  WEBHOOK_TIMEOUT: "30000"
+  WEBHOOK_USER_AGENT: "Compozy/1.0 Webhook Client"
+```
+
+## Message Queue Integration
+
+### Queue Client Tool
+
+```yaml
+# tools/queue-client.yaml
+resource: "tool"
+id: "queue-client"
+description: "Message queue client for RabbitMQ, SQS, and Redis"
+timeout: "60s"
+
+input:
+  type: "object"
+  properties:
+    provider:
+      type: "string"
+      enum: ["rabbitmq", "sqs", "redis", "kafka"]
+
+    connection:
+      type: "object"
+      properties:
+        url:
+          type: "string"
+          description: "Connection URL"
+        host:
+          type: "string"
+        port:
+          type: "integer"
+        username:
+          type: "string"
+        password:
+          type: "string"
+        ssl:
+          type: "boolean"
+          default: false
+      required: ["url"]
+
+    operation:
+      type: "string"
+      enum: ["publish", "consume", "subscribe", "ack", "nack", "purge", "info"]
+
+    queue:
+      type: "string"
+      description: "Queue name"
+
+    topic:
+      type: "string"
+      description: "Topic name (for pub/sub)"
+
+    message:
+      description: "Message to publish"
+      oneOf:
+        - type: "string"
+        - type: "object"
+        - type: "array"
+
+    options:
+      type: "object"
+      properties:
+        durable:
+          type: "boolean"
+          default: true
+        auto_delete:
+          type: "boolean"
+          default: false
+        exclusive:
+          type: "boolean"
+          default: false
+        priority:
+          type: "integer"
+          minimum: 0
+          maximum: 255
+        ttl:
+          type: "integer"
+          minimum: 1
+          description: "Message TTL in seconds"
+        delay:
+          type: "integer"
+          minimum: 0
+          description: "Message delay in seconds"
+        batch_size:
+          type: "integer"
+          minimum: 1
+          maximum: 100
+          default: 10
+        timeout:
+          type: "integer"
+          minimum: 1000
+          maximum: 300000
+          default: 30000
+      additionalProperties: false
+
+  required: ["provider", "connection", "operation"]
+
+output:
+  type: "object"
+  properties:
+    success:
+      type: "boolean"
+
+    data:
+      description: "Operation result"
+      oneOf:
+        - type: "object"
+        - type: "array"
+        - type: "string"
+        - type: "null"
+
+    metadata:
+      type: "object"
+      properties:
+        message_count:
+          type: "integer"
+        consumer_count:
+          type: "integer"
+        queue_size:
+          type: "integer"
+        processing_time:
+          type: "number"
+
+  required: ["success"]
+
+env:
+  RABBITMQ_URL: "{{ .env.RABBITMQ_URL }}"
+  SQS_REGION: "{{ .env.AWS_REGION | default \"us-east-1\" }}"
+  REDIS_URL: "{{ .env.REDIS_URL }}"
+  KAFKA_BROKERS: "{{ .env.KAFKA_BROKERS }}"
+```
+
+## Authentication & Security
+
+### OAuth2 Client
+
+```typescript
+// tools/oauth2-client.ts
+interface OAuth2Config {
+  client_id: string;
+  client_secret: string;
+  authorize_url: string;
+  token_url: string;
+  scope?: string;
+  redirect_uri?: string;
+}
+
+interface OAuth2Input {
+  config: OAuth2Config;
+  grant_type: 'authorization_code' | 'client_credentials' | 'refresh_token';
+  code?: string;
+  refresh_token?: string;
+  state?: string;
+}
+
+interface OAuth2Output {
+  access_token: string;
+  token_type: string;
+  expires_in?: number;
+  refresh_token?: string;
+  scope?: string;
+}
+
+class OAuth2Client {
+  static async getToken(input: OAuth2Input): Promise<OAuth2Output> {
+    const { config, grant_type, code, refresh_token } = input;
+
+    const tokenParams = new URLSearchParams({
+      grant_type,
+      client_id: config.client_id,
+      client_secret: config.client_secret,
+    });
+
+    if (grant_type === 'authorization_code' && code) {
+      tokenParams.append('code', code);
+      tokenParams.append('redirect_uri', config.redirect_uri || '');
+    } else if (grant_type === 'refresh_token' && refresh_token) {
+      tokenParams.append('refresh_token', refresh_token);
+    }
+
+    if (config.scope) {
+      tokenParams.append('scope', config.scope);
+    }
+
+    const response = await fetch(config.token_url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json',
+      },
+      body: tokenParams,
+    });
+
+    if (!response.ok) {
+      throw new Error(`OAuth2 token request failed: ${response.statusText}`);
+    }
+
+    const tokenData = await response.json();
+    return tokenData as OAuth2Output;
+  }
+
+  static generateAuthUrl(config: OAuth2Config, state?: string): string {
+    const params = new URLSearchParams({
+      response_type: 'code',
+      client_id: config.client_id,
+      redirect_uri: config.redirect_uri || '',
+      scope: config.scope || '',
+    });
+
+    if (state) {
+      params.append('state', state);
+    }
+
+    return `${config.authorize_url}?${params}`;
+  }
+}
+
+export async function run(input: OAuth2Input): Promise<OAuth2Output> {
+  return OAuth2Client.getToken(input);
+}
+```
+
+## Rate Limiting & Throttling
+
+### Rate Limiter Implementation
+
+```typescript
+// tools/rate-limiter.ts
+class RateLimiter {
+  private static instances = new Map<string, RateLimiter>();
+  private requests: number[] = [];
+  private windowMs: number;
+  private maxRequests: number;
+
+  constructor(maxRequests: number, windowMs: number) {
+    this.maxRequests = maxRequests;
+    this.windowMs = windowMs;
+  }
+
+  static getInstance(key: string, maxRequests: number, windowMs: number): RateLimiter {
+    if (!this.instances.has(key)) {
+      this.instances.set(key, new RateLimiter(maxRequests, windowMs));
+    }
+    return this.instances.get(key)!;
+  }
+
+  async checkLimit(): Promise<{ allowed: boolean; retryAfter?: number }> {
+    const now = Date.now();
+
+    // Remove old requests outside the window
+    this.requests = this.requests.filter(time => now - time < this.windowMs);
+
+    if (this.requests.length >= this.maxRequests) {
+      const oldestRequest = Math.min(...this.requests);
+      const retryAfter = Math.ceil((oldestRequest + this.windowMs - now) / 1000);
+
+      return {
+        allowed: false,
+        retryAfter,
+      };
+    }
+
+    this.requests.push(now);
+    return { allowed: true };
+  }
+
+  async waitForSlot(): Promise<void> {
+    const check = await this.checkLimit();
+
+    if (!check.allowed && check.retryAfter) {
+      await new Promise(resolve => setTimeout(resolve, check.retryAfter * 1000));
+      return this.waitForSlot();
+    }
+  }
+}
+
+// Usage in API tools
+export async function rateLimitedRequest(
+  url: string,
+  options: RequestInit,
+  rateLimit: { requests: number; windowMs: number }
+): Promise<Response> {
+  const limiter = RateLimiter.getInstance(
+    url,
+    rateLimit.requests,
+    rateLimit.windowMs
+  );
+
+  await limiter.waitForSlot();
+  return fetch(url, options);
+}
+```
+
+## Best Practices
+
+### 1. Error Handling
+- Implement comprehensive error handling
+- Use structured error responses
+- Provide meaningful error messages
+- Include retry logic for transient failures
+
+### 2. Authentication
+- Store credentials securely in environment variables
+- Implement token refresh logic
+- Use least privilege principle
+- Support multiple authentication methods
+
+### 3. Rate Limiting
+- Implement client-side rate limiting
+- Handle 429 responses gracefully
+- Use exponential backoff for retries
+- Monitor API usage quotas
+
+### 4. Data Validation
+- Validate all inputs and outputs
+- Sanitize user inputs
+- Check data types and formats
+- Implement size limits
+
+### 5. Performance
+- Use connection pooling
+- Implement caching where appropriate
+- Stream large datasets
+- Monitor execution times
+
+### 6. Security
+- Use HTTPS for all external communications
+- Validate SSL certificates
+- Implement request signing
+- Log security events
+
+## Next Steps
+
+- [Testing & Debugging](./testing-debugging) - Test your integrations
+- [Performance & Security](./performance-security) - Optimize and secure tools
+- [Advanced Patterns](./advanced-patterns) - Complex integration patterns

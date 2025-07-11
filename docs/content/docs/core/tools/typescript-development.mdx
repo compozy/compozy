@@ -1,6 +1,683 @@
 ---
-title: TypeScript Development
-description: Developing tools with TypeScript
+title: "TypeScript Development"
+description: "Guide to developing custom tools using TypeScript with Compozy's runtime environment"
 ---
 
 # TypeScript Development
+
+This guide covers developing custom tools using TypeScript in Compozy's Bun runtime environment. Learn how to create powerful, type-safe tools that extend AI agent capabilities.
+
+## Development Environment Setup
+
+### Project Structure
+
+```
+project/
+├── tools/
+│   ├── data-processor.yaml    # Tool configuration
+│   ├── data-processor.ts      # Tool implementation
+│   ├── api-client.yaml
+│   └── api-client.ts
+├── package.json               # Dependencies
+├── tsconfig.json             # TypeScript config
+└── compozy.yaml              # Project config
+```
+
+### TypeScript Configuration
+
+Create a `tsconfig.json` optimized for Bun runtime:
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true
+  },
+  "include": ["**/*.ts", "**/*.tsx"],
+  "exclude": ["node_modules"]
+}
+```
+
+### Package Dependencies
+
+Example `package.json` for tool development:
+
+```json
+{
+  "name": "my-compozy-tools",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "axios": "^1.6.0",
+    "cheerio": "^1.0.0",
+    "csv-parse": "^5.5.0",
+    "yaml": "^2.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0",
+    "prettier": "^3.0.0"
+  }
+}
+```
+
+## Tool Implementation Patterns
+
+### Basic Tool Structure
+
+Every TypeScript tool follows this pattern:
+
+```typescript
+// tool-name.ts
+interface ToolInput {
+  // Define your input parameters with types
+}
+
+interface ToolOutput {
+  // Define your expected output structure
+}
+
+export async function run(input: ToolInput): Promise<ToolOutput> {
+  // Tool implementation
+  return output;
+}
+```
+
+### Input Validation
+
+Implement robust input validation:
+
+```typescript
+interface ProcessDataInput {
+  data: unknown[];
+  format: 'json' | 'csv' | 'xml';
+  options?: {
+    delimiter?: string;
+    headers?: boolean;
+  };
+}
+
+export async function run(input: ProcessDataInput): Promise<ProcessDataOutput> {
+  // Validate required fields
+  if (!input.data || !Array.isArray(input.data)) {
+    throw new Error('Input data must be a non-empty array');
+  }
+
+  if (!['json', 'csv', 'xml'].includes(input.format)) {
+    throw new Error('Format must be one of: json, csv, xml');
+  }
+
+  // Validate data array contents
+  if (input.data.length === 0) {
+    throw new Error('Data array cannot be empty');
+  }
+
+  // Process the data...
+  return processData(input);
+}
+```
+
+### Error Handling
+
+Implement comprehensive error handling:
+
+```typescript
+interface ToolError {
+  code: string;
+  message: string;
+  details?: unknown;
+}
+
+class ToolExecutionError extends Error {
+  constructor(
+    public code: string,
+    message: string,
+    public details?: unknown
+  ) {
+    super(message);
+    this.name = 'ToolExecutionError';
+  }
+}
+
+export async function run(input: ApiCallInput): Promise<ApiCallOutput> {
+  try {
+    const response = await fetch(input.url, {
+      method: input.method || 'GET',
+      headers: input.headers,
+      body: input.body ? JSON.stringify(input.body) : undefined,
+    });
+
+    if (!response.ok) {
+      throw new ToolExecutionError(
+        'HTTP_ERROR',
+        `HTTP ${response.status}: ${response.statusText}`,
+        {
+          status: response.status,
+          statusText: response.statusText,
+          url: input.url,
+        }
+      );
+    }
+
+    const data = await response.json();
+    return { status: response.status, data };
+
+  } catch (error) {
+    if (error instanceof ToolExecutionError) {
+      throw error;
+    }
+
+    // Handle network errors
+    if (error.cause?.code === 'ENOTFOUND') {
+      throw new ToolExecutionError(
+        'NETWORK_ERROR',
+        'Failed to resolve hostname',
+        { url: input.url }
+      );
+    }
+
+    throw new ToolExecutionError(
+      'UNKNOWN_ERROR',
+      error.message || 'An unexpected error occurred',
+      { originalError: error }
+    );
+  }
+}
+```
+
+### Async Operations
+
+Handle asynchronous operations properly:
+
+```typescript
+interface FileProcessorInput {
+  paths: string[];
+  operation: 'read' | 'analyze' | 'transform';
+  options?: Record<string, unknown>;
+}
+
+export async function run(input: FileProcessorInput): Promise<FileProcessorOutput> {
+  const results: ProcessedFile[] = [];
+
+  // Process files in parallel with concurrency limit
+  const CONCURRENCY_LIMIT = 5;
+  const semaphore = new Array(CONCURRENCY_LIMIT).fill(null);
+
+  await Promise.all(
+    input.paths.map(async (path, index) => {
+      // Wait for available semaphore slot
+      await semaphore[index % CONCURRENCY_LIMIT];
+
+      try {
+        const result = await processFile(path, input.operation, input.options);
+        results.push({
+          path,
+          success: true,
+          data: result,
+        });
+      } catch (error) {
+        results.push({
+          path,
+          success: false,
+          error: error.message,
+        });
+      }
+    })
+  );
+
+  return {
+    processed: results.length,
+    successful: results.filter(r => r.success).length,
+    failed: results.filter(r => !r.success).length,
+    results,
+  };
+}
+```
+
+## Advanced Patterns
+
+### Configuration-Driven Tools
+
+Create flexible tools that adapt to configuration:
+
+```typescript
+interface ConfigurableToolInput {
+  operation: string;
+  config: Record<string, unknown>;
+  data: unknown;
+}
+
+interface OperationHandler {
+  validate(config: Record<string, unknown>): void;
+  execute(data: unknown, config: Record<string, unknown>): Promise<unknown>;
+}
+
+class DataTransformer {
+  private handlers = new Map<string, OperationHandler>();
+
+  constructor() {
+    this.registerHandlers();
+  }
+
+  private registerHandlers() {
+    this.handlers.set('filter', new FilterHandler());
+    this.handlers.set('transform', new TransformHandler());
+    this.handlers.set('aggregate', new AggregateHandler());
+  }
+
+  async execute(operation: string, data: unknown, config: Record<string, unknown>) {
+    const handler = this.handlers.get(operation);
+    if (!handler) {
+      throw new Error(`Unknown operation: ${operation}`);
+    }
+
+    handler.validate(config);
+    return await handler.execute(data, config);
+  }
+}
+
+export async function run(input: ConfigurableToolInput): Promise<unknown> {
+  const transformer = new DataTransformer();
+  return await transformer.execute(input.operation, input.data, input.config);
+}
+```
+
+### Streaming Data Processing
+
+Handle large datasets efficiently:
+
+```typescript
+interface StreamProcessorInput {
+  source: string;
+  chunkSize?: number;
+  processors: Array<{
+    type: string;
+    config: Record<string, unknown>;
+  }>;
+}
+
+export async function run(input: StreamProcessorInput): Promise<StreamProcessorOutput> {
+  const chunkSize = input.chunkSize || 1000;
+  const results: ProcessedChunk[] = [];
+
+  // Create processing pipeline
+  const pipeline = input.processors.map(proc =>
+    createProcessor(proc.type, proc.config)
+  );
+
+  try {
+    const stream = await createDataStream(input.source);
+
+    for await (const chunk of chunkData(stream, chunkSize)) {
+      let processedChunk = chunk;
+
+      // Apply each processor in pipeline
+      for (const processor of pipeline) {
+        processedChunk = await processor.process(processedChunk);
+      }
+
+      results.push({
+        index: results.length,
+        size: processedChunk.length,
+        data: processedChunk,
+      });
+
+      // Yield control to prevent blocking
+      await new Promise(resolve => setImmediate(resolve));
+    }
+
+    return {
+      totalChunks: results.length,
+      totalRecords: results.reduce((sum, chunk) => sum + chunk.size, 0),
+      results,
+    };
+
+  } catch (error) {
+    throw new Error(`Stream processing failed: ${error.message}`);
+  }
+}
+```
+
+### Cache Management
+
+Implement caching for performance:
+
+```typescript
+interface CacheConfig {
+  ttl?: number; // Time to live in seconds
+  maxSize?: number; // Maximum cache entries
+}
+
+class ToolCache {
+  private cache = new Map<string, { value: unknown; expires: number }>();
+  private config: CacheConfig;
+
+  constructor(config: CacheConfig = {}) {
+    this.config = {
+      ttl: config.ttl || 300, // 5 minutes default
+      maxSize: config.maxSize || 100,
+    };
+  }
+
+  get(key: string): unknown | null {
+    const entry = this.cache.get(key);
+    if (!entry) return null;
+
+    if (Date.now() > entry.expires) {
+      this.cache.delete(key);
+      return null;
+    }
+
+    return entry.value;
+  }
+
+  set(key: string, value: unknown): void {
+    // Implement LRU eviction if needed
+    if (this.cache.size >= this.config.maxSize!) {
+      const firstKey = this.cache.keys().next().value;
+      this.cache.delete(firstKey);
+    }
+
+    this.cache.set(key, {
+      value,
+      expires: Date.now() + (this.config.ttl! * 1000),
+    });
+  }
+}
+
+const cache = new ToolCache({ ttl: 600 }); // 10 minutes
+
+export async function run(input: ApiInput): Promise<ApiOutput> {
+  const cacheKey = `api_${JSON.stringify(input)}`;
+
+  // Try cache first
+  const cached = cache.get(cacheKey);
+  if (cached) {
+    return cached as ApiOutput;
+  }
+
+  // Fetch fresh data
+  const result = await fetchApiData(input);
+
+  // Cache the result
+  cache.set(cacheKey, result);
+
+  return result;
+}
+```
+
+## Testing Tools
+
+### Unit Testing
+
+Test tools with comprehensive scenarios:
+
+```typescript
+// data-processor.test.ts
+import { run } from './data-processor';
+
+describe('DataProcessor Tool', () => {
+  test('should process valid CSV data', async () => {
+    const input = {
+      data: [
+        { name: 'Alice', age: 30, city: 'NYC' },
+        { name: 'Bob', age: 25, city: 'LA' },
+      ],
+      format: 'csv' as const,
+      options: { headers: true },
+    };
+
+    const result = await run(input);
+
+    expect(result.format).toBe('csv');
+    expect(result.data).toContain('name,age,city');
+    expect(result.rows).toBe(2);
+  });
+
+  test('should handle empty data array', async () => {
+    const input = {
+      data: [],
+      format: 'json' as const,
+    };
+
+    await expect(run(input)).rejects.toThrow('Data array cannot be empty');
+  });
+
+  test('should validate format parameter', async () => {
+    const input = {
+      data: [{ test: 'value' }],
+      format: 'invalid' as any,
+    };
+
+    await expect(run(input)).rejects.toThrow('Format must be one of: json, csv, xml');
+  });
+});
+```
+
+### Mock External Dependencies
+
+Mock external services for testing:
+
+```typescript
+// api-client.test.ts
+import { run } from './api-client';
+
+// Mock fetch
+global.fetch = jest.fn();
+const mockFetch = fetch as jest.MockedFunction<typeof fetch>;
+
+describe('API Client Tool', () => {
+  beforeEach(() => {
+    mockFetch.mockReset();
+  });
+
+  test('should handle successful API call', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ success: true, data: 'test' }),
+    } as Response);
+
+    const result = await run({
+      url: 'https://api.example.com/test',
+      method: 'GET',
+    });
+
+    expect(result.status).toBe(200);
+    expect(result.data).toEqual({ success: true, data: 'test' });
+  });
+
+  test('should handle HTTP errors', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+      statusText: 'Not Found',
+    } as Response);
+
+    await expect(run({
+      url: 'https://api.example.com/notfound',
+    })).rejects.toThrow('HTTP 404: Not Found');
+  });
+});
+```
+
+## Debugging Tools
+
+### Logging and Debugging
+
+Add comprehensive logging:
+
+```typescript
+interface DebugConfig {
+  enabled: boolean;
+  level: 'info' | 'debug' | 'warn' | 'error';
+}
+
+class Logger {
+  constructor(private config: DebugConfig) {}
+
+  debug(message: string, data?: unknown) {
+    if (this.config.enabled && this.config.level === 'debug') {
+      console.debug(`[DEBUG] ${message}`, data);
+    }
+  }
+
+  info(message: string, data?: unknown) {
+    if (this.config.enabled) {
+      console.info(`[INFO] ${message}`, data);
+    }
+  }
+
+  warn(message: string, data?: unknown) {
+    if (this.config.enabled) {
+      console.warn(`[WARN] ${message}`, data);
+    }
+  }
+
+  error(message: string, error?: unknown) {
+    if (this.config.enabled) {
+      console.error(`[ERROR] ${message}`, error);
+    }
+  }
+}
+
+export async function run(input: ComplexInput): Promise<ComplexOutput> {
+  const logger = new Logger({
+    enabled: Boolean(process.env.DEBUG),
+    level: (process.env.LOG_LEVEL as any) || 'info',
+  });
+
+  logger.info('Tool execution started', { inputSize: JSON.stringify(input).length });
+
+  try {
+    const result = await processData(input);
+    logger.info('Tool execution completed', { outputSize: JSON.stringify(result).length });
+    return result;
+  } catch (error) {
+    logger.error('Tool execution failed', error);
+    throw error;
+  }
+}
+```
+
+### Performance Monitoring
+
+Track execution performance:
+
+```typescript
+interface PerformanceMetrics {
+  startTime: number;
+  endTime?: number;
+  duration?: number;
+  memoryUsage?: {
+    before: NodeJS.MemoryUsage;
+    after: NodeJS.MemoryUsage;
+  };
+}
+
+class PerformanceMonitor {
+  private metrics: PerformanceMetrics;
+
+  constructor() {
+    this.metrics = {
+      startTime: performance.now(),
+      memoryUsage: {
+        before: process.memoryUsage(),
+        after: process.memoryUsage(), // Will be updated
+      },
+    };
+  }
+
+  finish(): PerformanceMetrics {
+    this.metrics.endTime = performance.now();
+    this.metrics.duration = this.metrics.endTime - this.metrics.startTime;
+    this.metrics.memoryUsage!.after = process.memoryUsage();
+
+    return this.metrics;
+  }
+
+  getMemoryDelta() {
+    const { before, after } = this.metrics.memoryUsage!;
+    return {
+      rss: after.rss - before.rss,
+      heapUsed: after.heapUsed - before.heapUsed,
+      heapTotal: after.heapTotal - before.heapTotal,
+    };
+  }
+}
+
+export async function run(input: DataInput): Promise<DataOutput & { _performance?: PerformanceMetrics }> {
+  const monitor = new PerformanceMonitor();
+
+  try {
+    const result = await heavyDataProcessing(input);
+
+    const perfMetrics = monitor.finish();
+    const memoryDelta = monitor.getMemoryDelta();
+
+    // Include performance data in development
+    if (process.env.NODE_ENV === 'development') {
+      return {
+        ...result,
+        _performance: {
+          ...perfMetrics,
+          memoryDelta,
+        },
+      };
+    }
+
+    return result;
+  } catch (error) {
+    monitor.finish();
+    throw error;
+  }
+}
+```
+
+## Best Practices
+
+### 1. Type Safety
+- Define explicit interfaces for inputs and outputs
+- Use TypeScript strict mode
+- Validate runtime types match compile-time types
+
+### 2. Error Handling
+- Use structured error types
+- Provide meaningful error messages
+- Include context in error details
+
+### 3. Performance
+- Implement timeout handling
+- Use streaming for large datasets
+- Cache expensive operations
+- Monitor memory usage
+
+### 4. Security
+- Validate all inputs
+- Sanitize file paths
+- Limit resource usage
+- Use environment variables for secrets
+
+### 5. Testing
+- Write comprehensive unit tests
+- Mock external dependencies
+- Test error conditions
+- Validate schema compliance
+
+## Next Steps
+
+- [Runtime Environment](./runtime-environment) - Understand Bun execution
+- [Configuration Schemas](./configuration-schemas) - Define tool interfaces
+- [Testing & Debugging](./testing-debugging) - Advanced testing techniques
+- [Performance & Security](./performance-security) - Optimization and security

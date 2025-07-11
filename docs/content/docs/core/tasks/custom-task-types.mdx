@@ -1,6 +1,1090 @@
 ---
 title: Custom Task Types
-description: Creating custom task types
+description: Create custom task types to extend Compozy's task system with domain-specific functionality
 ---
 
 # Custom Task Types
+
+Extend Compozy's task system by creating custom task types that encapsulate domain-specific functionality and complex orchestration patterns. This guide covers the architecture, implementation, and best practices for building custom task types.
+
+## Overview
+
+Custom task types allow you to:
+
+- **Encapsulate domain logic** into reusable task components
+- **Implement specialized execution patterns** beyond the built-in types
+- **Create industry-specific workflows** with custom behavior
+- **Extend the task system** with new capabilities
+- **Maintain consistency** across similar operations
+
+<Callout type="info">
+Custom task types are implemented as Go plugins that integrate with Compozy's task engine. They follow the same lifecycle and state management patterns as built-in tasks.
+</Callout>
+
+## Architecture
+
+### Task Type Interface
+
+All custom task types must implement the core task interface:
+
+```go
+// TaskExecutor defines the interface for all task types
+type TaskExecutor interface {
+    // Execute runs the task with the provided context and configuration
+    Execute(ctx context.Context, config *Config) (*Response, error)
+
+    // Validate checks if the task configuration is valid
+    Validate(config *Config) error
+
+    // GetSchema returns the JSON schema for task configuration
+    GetSchema() *schema.Schema
+
+    // GetType returns the task type identifier
+    GetType() string
+}
+```
+
+### Task Lifecycle
+
+Custom tasks follow the standard lifecycle:
+
+1. **Configuration Loading**: Parse and validate task configuration
+2. **State Initialization**: Create task state in the database
+3. **Execution**: Run the custom task logic
+4. **State Updates**: Update task state and outputs
+5. **Completion**: Mark task as completed or failed
+
+## Implementation Guide
+
+### 1. Define Task Configuration
+
+Create a configuration struct for your custom task:
+
+<Tabs items={['Go Config', 'YAML Schema', 'Usage Example']}>
+  <Tab value="Go Config">
+```go
+// EmailCampaignConfig defines configuration for email campaign tasks
+type EmailCampaignConfig struct {
+    BaseConfig `yaml:",inline"`
+
+    // Email campaign specific fields
+    Recipients    []string            `yaml:"recipients"    json:"recipients"`
+    Template      string              `yaml:"template"      json:"template"`
+    Subject       string              `yaml:"subject"       json:"subject"`
+    Schedule      *ScheduleConfig     `yaml:"schedule"      json:"schedule,omitempty"`
+    Personalization map[string]string `yaml:"personalization" json:"personalization,omitempty"`
+
+    // Advanced options
+    BatchSize     int                 `yaml:"batch_size"    json:"batch_size"`
+    RateLimit     *RateLimitConfig    `yaml:"rate_limit"    json:"rate_limit,omitempty"`
+    Analytics     *AnalyticsConfig    `yaml:"analytics"     json:"analytics,omitempty"`
+}
+
+type ScheduleConfig struct {
+    SendAt        time.Time `yaml:"send_at"        json:"send_at"`
+    TimeZone      string    `yaml:"timezone"       json:"timezone"`
+    Recurring     bool      `yaml:"recurring"      json:"recurring"`
+    Interval      string    `yaml:"interval"       json:"interval,omitempty"`
+}
+
+type RateLimitConfig struct {
+    EmailsPerSecond int `yaml:"emails_per_second" json:"emails_per_second"`
+    MaxConcurrent   int `yaml:"max_concurrent"    json:"max_concurrent"`
+}
+```
+  </Tab>
+  <Tab value="YAML Schema">
+```go
+// GetSchema returns the JSON schema for email campaign configuration
+func (e *EmailCampaignExecutor) GetSchema() *schema.Schema {
+    return &schema.Schema{
+        Type: "object",
+        Properties: map[string]*schema.Property{
+            "recipients": {
+                Type: "array",
+                Items: &schema.Property{Type: "string"},
+                Description: "List of email recipients",
+            },
+            "template": {
+                Type: "string",
+                Description: "Email template identifier",
+            },
+            "subject": {
+                Type: "string",
+                Description: "Email subject line",
+            },
+            "schedule": {
+                Type: "object",
+                Properties: map[string]*schema.Property{
+                    "send_at": {
+                        Type: "string",
+                        Format: "date-time",
+                        Description: "When to send the email",
+                    },
+                    "timezone": {
+                        Type: "string",
+                        Description: "Timezone for scheduling",
+                    },
+                },
+            },
+            "batch_size": {
+                Type: "integer",
+                Minimum: 1,
+                Maximum: 1000,
+                Default: 100,
+                Description: "Number of emails to send per batch",
+            },
+        },
+        Required: []string{"recipients", "template", "subject"},
+    }
+}
+```
+  </Tab>
+  <Tab value="Usage Example">
+```yaml
+# Email campaign task configuration
+- id: newsletter_campaign
+  type: email_campaign
+  with:
+    recipients:
+      - "{{ .workflow.input.subscriber_list }}"
+    template: "newsletter_template"
+    subject: "Monthly Newsletter - {{ .workflow.input.month }}"
+
+    schedule:
+      send_at: "{{ .workflow.input.send_time }}"
+      timezone: "UTC"
+
+    batch_size: 50
+
+    rate_limit:
+      emails_per_second: 10
+      max_concurrent: 5
+
+    personalization:
+      user_name: "{{ .workflow.input.user_name }}"
+      company: "{{ .workflow.input.company }}"
+
+    analytics:
+      track_opens: true
+      track_clicks: true
+      campaign_id: "{{ .workflow.input.campaign_id }}"
+```
+  </Tab>
+</Tabs>
+
+### 2. Implement Task Executor
+
+Create the main executor for your custom task:
+
+```go
+// EmailCampaignExecutor implements the TaskExecutor interface
+type EmailCampaignExecutor struct {
+    emailService EmailService
+    templateEngine TemplateEngine
+    analytics AnalyticsService
+    scheduler SchedulerService
+}
+
+// Execute implements the main task execution logic
+func (e *EmailCampaignExecutor) Execute(ctx context.Context, config *Config) (*Response, error) {
+    // Parse configuration
+    campaignConfig, err := e.parseConfig(config)
+    if err != nil {
+        return nil, fmt.Errorf("failed to parse config: %w", err)
+    }
+
+    // Initialize progress tracking
+    progress := &Progress{
+        Total: len(campaignConfig.Recipients),
+        Completed: 0,
+        Failed: 0,
+    }
+
+    // Handle scheduling if configured
+    if campaignConfig.Schedule != nil {
+        return e.scheduleExecution(ctx, campaignConfig, progress)
+    }
+
+    // Execute immediately
+    return e.executeImmediate(ctx, campaignConfig, progress)
+}
+
+// executeImmediate runs the email campaign immediately
+func (e *EmailCampaignExecutor) executeImmediate(ctx context.Context, config *EmailCampaignConfig, progress *Progress) (*Response, error) {
+    // Create batches
+    batches := e.createBatches(config.Recipients, config.BatchSize)
+
+    // Process batches with rate limiting
+    results := make([]BatchResult, len(batches))
+
+    for i, batch := range batches {
+        select {
+        case <-ctx.Done():
+            return nil, ctx.Err()
+        default:
+            // Process batch
+            result, err := e.processBatch(ctx, batch, config)
+            if err != nil {
+                return nil, fmt.Errorf("failed to process batch %d: %w", i, err)
+            }
+
+            results[i] = result
+            progress.Completed += result.Sent
+            progress.Failed += result.Failed
+
+            // Update progress
+            if err := e.updateProgress(ctx, progress); err != nil {
+                log.Warn("Failed to update progress", "error", err)
+            }
+        }
+    }
+
+    // Aggregate results
+    totalSent := 0
+    totalFailed := 0
+    for _, result := range results {
+        totalSent += result.Sent
+        totalFailed += result.Failed
+    }
+
+    // Create response
+    response := &Response{
+        Success: totalFailed == 0,
+        Output: map[string]interface{}{
+            "sent": totalSent,
+            "failed": totalFailed,
+            "batches": len(batches),
+            "campaign_id": config.Analytics.CampaignID,
+        },
+    }
+
+    if totalFailed > 0 {
+        response.Error = fmt.Sprintf("Failed to send %d emails", totalFailed)
+    }
+
+    return response, nil
+}
+
+// processBatch sends emails to a batch of recipients
+func (e *EmailCampaignExecutor) processBatch(ctx context.Context, recipients []string, config *EmailCampaignConfig) (BatchResult, error) {
+    result := BatchResult{}
+
+    // Apply rate limiting
+    if config.RateLimit != nil {
+        rateLimiter := rate.NewLimiter(rate.Limit(config.RateLimit.EmailsPerSecond), 1)
+        defer rateLimiter.Stop()
+    }
+
+    // Process recipients concurrently
+    semaphore := make(chan struct{}, config.RateLimit.MaxConcurrent)
+    var wg sync.WaitGroup
+    var mu sync.Mutex
+
+    for _, recipient := range recipients {
+        wg.Add(1)
+        go func(email string) {
+            defer wg.Done()
+
+            // Acquire semaphore
+            semaphore <- struct{}{}
+            defer func() { <-semaphore }()
+
+            // Wait for rate limiter
+            if err := rateLimiter.Wait(ctx); err != nil {
+                mu.Lock()
+                result.Failed++
+                mu.Unlock()
+                return
+            }
+
+            // Send email
+            if err := e.sendEmail(ctx, email, config); err != nil {
+                mu.Lock()
+                result.Failed++
+                mu.Unlock()
+                return
+            }
+
+            mu.Lock()
+            result.Sent++
+            mu.Unlock()
+        }(recipient)
+    }
+
+    wg.Wait()
+    return result, nil
+}
+
+// Validate ensures the configuration is valid
+func (e *EmailCampaignExecutor) Validate(config *Config) error {
+    campaignConfig, err := e.parseConfig(config)
+    if err != nil {
+        return err
+    }
+
+    // Validate recipients
+    if len(campaignConfig.Recipients) == 0 {
+        return errors.New("recipients list cannot be empty")
+    }
+
+    // Validate email addresses
+    for _, recipient := range campaignConfig.Recipients {
+        if !e.isValidEmail(recipient) {
+            return fmt.Errorf("invalid email address: %s", recipient)
+        }
+    }
+
+    // Validate template exists
+    if !e.templateEngine.Exists(campaignConfig.Template) {
+        return fmt.Errorf("template not found: %s", campaignConfig.Template)
+    }
+
+    // Validate schedule if provided
+    if campaignConfig.Schedule != nil {
+        if err := e.validateSchedule(campaignConfig.Schedule); err != nil {
+            return fmt.Errorf("invalid schedule: %w", err)
+        }
+    }
+
+    return nil
+}
+
+// GetType returns the task type identifier
+func (e *EmailCampaignExecutor) GetType() string {
+    return "email_campaign"
+}
+```
+
+### 3. Register Custom Task Type
+
+Register your custom task type with the task engine:
+
+```go
+// Register the custom task type
+func init() {
+    // Create executor instance
+    executor := &EmailCampaignExecutor{
+        emailService: NewEmailService(),
+        templateEngine: NewTemplateEngine(),
+        analytics: NewAnalyticsService(),
+        scheduler: NewSchedulerService(),
+    }
+
+    // Register with task engine
+    task.RegisterExecutor("email_campaign", executor)
+}
+```
+
+## Advanced Patterns
+
+### 1. Stateful Tasks
+
+Implement tasks that maintain state across executions:
+
+```go
+// StatefulTaskExecutor maintains state between executions
+type StatefulTaskExecutor struct {
+    stateStore StateStore
+    processor  DataProcessor
+}
+
+func (s *StatefulTaskExecutor) Execute(ctx context.Context, config *Config) (*Response, error) {
+    // Load existing state
+    state, err := s.stateStore.Load(ctx, config.TaskID)
+    if err != nil {
+        state = &TaskState{
+            TaskID: config.TaskID,
+            Phase: "initialize",
+            Data: make(map[string]interface{}),
+        }
+    }
+
+    // Execute based on current phase
+    switch state.Phase {
+    case "initialize":
+        return s.executeInitialize(ctx, config, state)
+    case "process":
+        return s.executeProcess(ctx, config, state)
+    case "finalize":
+        return s.executeFinalize(ctx, config, state)
+    default:
+        return nil, fmt.Errorf("unknown phase: %s", state.Phase)
+    }
+}
+
+func (s *StatefulTaskExecutor) executeInitialize(ctx context.Context, config *Config, state *TaskState) (*Response, error) {
+    // Initialize processing
+    state.Data["processed_items"] = 0
+    state.Data["total_items"] = len(config.With["items"].([]interface{}))
+    state.Phase = "process"
+
+    // Save state
+    if err := s.stateStore.Save(ctx, state); err != nil {
+        return nil, err
+    }
+
+    return &Response{
+        Success: true,
+        Output: map[string]interface{}{
+            "phase": state.Phase,
+            "message": "Initialization complete",
+        },
+        ContinueExecution: true, // Signal to continue to next phase
+    }, nil
+}
+```
+
+### 2. Composite Custom Tasks
+
+Create custom tasks that orchestrate other tasks:
+
+```go
+// DataPipelineExecutor orchestrates a data processing pipeline
+type DataPipelineExecutor struct {
+    taskEngine TaskEngine
+    validator  DataValidator
+}
+
+func (d *DataPipelineExecutor) Execute(ctx context.Context, config *Config) (*Response, error) {
+    pipelineConfig, err := d.parseConfig(config)
+    if err != nil {
+        return nil, err
+    }
+
+    // Create pipeline stages
+    stages := []Stage{
+        {Type: "extract", Config: pipelineConfig.Extract},
+        {Type: "transform", Config: pipelineConfig.Transform},
+        {Type: "validate", Config: pipelineConfig.Validate},
+        {Type: "load", Config: pipelineConfig.Load},
+    }
+
+    // Execute stages in sequence
+    var stageResults []StageResult
+    for i, stage := range stages {
+        stageCtx := context.WithValue(ctx, "stage_index", i)
+
+        result, err := d.executeStage(stageCtx, stage, stageResults)
+        if err != nil {
+            return nil, fmt.Errorf("stage %d failed: %w", i, err)
+        }
+
+        stageResults = append(stageResults, result)
+
+        // Check if pipeline should continue
+        if !result.Success && pipelineConfig.FailFast {
+            break
+        }
+    }
+
+    // Aggregate results
+    return d.aggregateResults(stageResults), nil
+}
+
+func (d *DataPipelineExecutor) executeStage(ctx context.Context, stage Stage, previousResults []StageResult) (StageResult, error) {
+    // Create task configuration for stage
+    taskConfig := &Config{
+        Type: stage.Type,
+        With: stage.Config,
+        Input: d.buildStageInput(previousResults),
+    }
+
+    // Execute stage as a task
+    response, err := d.taskEngine.Execute(ctx, taskConfig)
+    if err != nil {
+        return StageResult{Success: false, Error: err.Error()}, nil
+    }
+
+    return StageResult{
+        Success: response.Success,
+        Output: response.Output,
+        Error: response.Error,
+    }, nil
+}
+```
+
+## Integration Patterns
+
+### 1. External Service Integration
+
+Integrate with external services through custom tasks:
+
+```go
+// CRMIntegrationExecutor integrates with CRM systems
+type CRMIntegrationExecutor struct {
+    crmClient CRMClient
+    cache     CacheService
+}
+
+func (c *CRMIntegrationExecutor) Execute(ctx context.Context, config *Config) (*Response, error) {
+    crmConfig, err := c.parseConfig(config)
+    if err != nil {
+        return nil, err
+    }
+
+    // Check cache first
+    if crmConfig.UseCache {
+        if cached, found := c.cache.Get(ctx, crmConfig.CacheKey); found {
+            return &Response{
+                Success: true,
+                Output: cached,
+                Metadata: map[string]interface{}{
+                    "cached": true,
+                    "cache_key": crmConfig.CacheKey,
+                },
+            }, nil
+        }
+    }
+
+    // Execute CRM operation
+    var result interface{}
+    switch crmConfig.Operation {
+    case "create_contact":
+        result, err = c.createContact(ctx, crmConfig)
+    case "update_contact":
+        result, err = c.updateContact(ctx, crmConfig)
+    case "get_contact":
+        result, err = c.getContact(ctx, crmConfig)
+    case "list_contacts":
+        result, err = c.listContacts(ctx, crmConfig)
+    default:
+        return nil, fmt.Errorf("unsupported operation: %s", crmConfig.Operation)
+    }
+
+    if err != nil {
+        return &Response{
+            Success: false,
+            Error: err.Error(),
+        }, nil
+    }
+
+    // Cache result if enabled
+    if crmConfig.UseCache {
+        c.cache.Set(ctx, crmConfig.CacheKey, result, crmConfig.CacheTTL)
+    }
+
+    return &Response{
+        Success: true,
+        Output: result,
+        Metadata: map[string]interface{}{
+            "operation": crmConfig.Operation,
+            "cached": false,
+        },
+    }, nil
+}
+```
+
+### 2. Machine Learning Pipeline
+
+Create ML-specific task types:
+
+```go
+// MLPipelineExecutor handles machine learning workflows
+type MLPipelineExecutor struct {
+    dataStore   DataStore
+    modelStore  ModelStore
+    computePool ComputePool
+}
+
+func (m *MLPipelineExecutor) Execute(ctx context.Context, config *Config) (*Response, error) {
+    mlConfig, err := m.parseConfig(config)
+    if err != nil {
+        return nil, err
+    }
+
+    // Acquire compute resources
+    resources, err := m.computePool.Acquire(ctx, mlConfig.ResourceRequirements)
+    if err != nil {
+        return nil, fmt.Errorf("failed to acquire compute resources: %w", err)
+    }
+    defer m.computePool.Release(resources)
+
+    // Execute ML pipeline
+    switch mlConfig.PipelineType {
+    case "training":
+        return m.executeTraining(ctx, mlConfig, resources)
+    case "inference":
+        return m.executeInference(ctx, mlConfig, resources)
+    case "evaluation":
+        return m.executeEvaluation(ctx, mlConfig, resources)
+    default:
+        return nil, fmt.Errorf("unsupported pipeline type: %s", mlConfig.PipelineType)
+    }
+}
+
+func (m *MLPipelineExecutor) executeTraining(ctx context.Context, config *MLConfig, resources *ComputeResources) (*Response, error) {
+    // Load training data
+    trainData, err := m.dataStore.LoadDataset(ctx, config.TrainingDataset)
+    if err != nil {
+        return nil, fmt.Errorf("failed to load training data: %w", err)
+    }
+
+    // Initialize model
+    model, err := m.modelStore.CreateModel(ctx, config.ModelConfig)
+    if err != nil {
+        return nil, fmt.Errorf("failed to create model: %w", err)
+    }
+
+    // Train model with progress tracking
+    metrics, err := m.trainModel(ctx, model, trainData, resources, config)
+    if err != nil {
+        return nil, fmt.Errorf("training failed: %w", err)
+    }
+
+    // Save trained model
+    modelID, err := m.modelStore.SaveModel(ctx, model, config.ModelVersion)
+    if err != nil {
+        return nil, fmt.Errorf("failed to save model: %w", err)
+    }
+
+    return &Response{
+        Success: true,
+        Output: map[string]interface{}{
+            "model_id": modelID,
+            "metrics": metrics,
+            "training_time": metrics.TrainingTime,
+            "accuracy": metrics.Accuracy,
+        },
+    }, nil
+}
+```
+
+## Best Practices
+
+### 1. Error Handling
+
+Implement comprehensive error handling:
+
+```go
+func (e *CustomExecutor) Execute(ctx context.Context, config *Config) (*Response, error) {
+    // Validate configuration
+    if err := e.Validate(config); err != nil {
+        return &Response{
+            Success: false,
+            Error: fmt.Sprintf("Configuration validation failed: %v", err),
+        }, nil // Return Response with error, not Go error
+    }
+
+    // Handle context cancellation
+    select {
+    case <-ctx.Done():
+        return &Response{
+            Success: false,
+            Error: "Task execution was cancelled",
+        }, nil
+    default:
+        // Continue execution
+    }
+
+    // Implement retry logic for transient failures
+    var lastErr error
+    for attempt := 0; attempt < config.MaxRetries; attempt++ {
+        result, err := e.executeWithRetry(ctx, config)
+        if err == nil {
+            return result, nil
+        }
+
+        lastErr = err
+
+        // Check if error is retryable
+        if !e.isRetryableError(err) {
+            break
+        }
+
+        // Exponential backoff
+        backoff := time.Duration(attempt+1) * time.Second
+        select {
+        case <-time.After(backoff):
+            continue
+        case <-ctx.Done():
+            return &Response{
+                Success: false,
+                Error: "Task execution was cancelled during retry",
+            }, nil
+        }
+    }
+
+    return &Response{
+        Success: false,
+        Error: fmt.Sprintf("Task failed after %d attempts: %v", config.MaxRetries, lastErr),
+    }, nil
+}
+```
+
+### 2. Progress Tracking
+
+Implement progress reporting for long-running tasks:
+
+```go
+func (e *LongRunningExecutor) Execute(ctx context.Context, config *Config) (*Response, error) {
+    // Initialize progress
+    progress := &Progress{
+        TaskID: config.TaskID,
+        Total: config.TotalItems,
+        Completed: 0,
+        Phase: "starting",
+    }
+
+    // Report initial progress
+    if err := e.reportProgress(ctx, progress); err != nil {
+        log.Warn("Failed to report progress", "error", err)
+    }
+
+    // Process items with progress updates
+    for i, item := range config.Items {
+        select {
+        case <-ctx.Done():
+            return &Response{
+                Success: false,
+                Error: "Task execution was cancelled",
+            }, nil
+        default:
+            // Process item
+            if err := e.processItem(ctx, item); err != nil {
+                log.Error("Failed to process item", "index", i, "error", err)
+                continue
+            }
+
+            // Update progress
+            progress.Completed++
+            progress.Phase = fmt.Sprintf("processing %d/%d", progress.Completed, progress.Total)
+
+            // Report progress every 10 items or on completion
+            if progress.Completed%10 == 0 || progress.Completed == progress.Total {
+                if err := e.reportProgress(ctx, progress); err != nil {
+                    log.Warn("Failed to report progress", "error", err)
+                }
+            }
+        }
+    }
+
+    return &Response{
+        Success: true,
+        Output: map[string]interface{}{
+            "processed": progress.Completed,
+            "total": progress.Total,
+            "completion_rate": float64(progress.Completed) / float64(progress.Total),
+        },
+    }, nil
+}
+```
+
+### 3. Resource Management
+
+Properly manage resources in custom tasks:
+
+```go
+func (e *ResourceManagedExecutor) Execute(ctx context.Context, config *Config) (*Response, error) {
+    // Acquire resources
+    resources, err := e.acquireResources(ctx, config)
+    if err != nil {
+        return nil, fmt.Errorf("failed to acquire resources: %w", err)
+    }
+
+    // Ensure resources are released
+    defer func() {
+        if err := e.releaseResources(resources); err != nil {
+            log.Error("Failed to release resources", "error", err)
+        }
+    }()
+
+    // Set up cleanup on context cancellation
+    ctx, cancel := context.WithCancel(ctx)
+    defer cancel()
+
+    go func() {
+        <-ctx.Done()
+        // Perform cleanup
+        e.cleanup(resources)
+    }()
+
+    // Execute task with acquired resources
+    return e.executeWithResources(ctx, config, resources)
+}
+```
+
+## Testing Custom Tasks
+
+### Unit Testing
+
+```go
+func TestEmailCampaignExecutor(t *testing.T) {
+    // Set up test dependencies
+    mockEmailService := &MockEmailService{}
+    mockTemplateEngine := &MockTemplateEngine{}
+
+    executor := &EmailCampaignExecutor{
+        emailService: mockEmailService,
+        templateEngine: mockTemplateEngine,
+    }
+
+    // Test successful execution
+    t.Run("successful campaign", func(t *testing.T) {
+        config := &Config{
+            Type: "email_campaign",
+            With: map[string]interface{}{
+                "recipients": []string{"test@example.com"},
+                "template": "test_template",
+                "subject": "Test Subject",
+                "batch_size": 10,
+            },
+        }
+
+        mockTemplateEngine.On("Exists", "test_template").Return(true)
+        mockEmailService.On("Send", mock.Anything).Return(nil)
+
+        response, err := executor.Execute(context.Background(), config)
+
+        assert.NoError(t, err)
+        assert.True(t, response.Success)
+        assert.Equal(t, 1, response.Output["sent"])
+    })
+
+    // Test validation errors
+    t.Run("validation failure", func(t *testing.T) {
+        config := &Config{
+            Type: "email_campaign",
+            With: map[string]interface{}{
+                "recipients": []string{}, // Empty recipients
+                "template": "test_template",
+                "subject": "Test Subject",
+            },
+        }
+
+        err := executor.Validate(config)
+        assert.Error(t, err)
+        assert.Contains(t, err.Error(), "recipients list cannot be empty")
+    })
+}
+```
+
+### Integration Testing
+
+```go
+func TestEmailCampaignIntegration(t *testing.T) {
+    // Set up test environment
+    testDB := setupTestDatabase(t)
+    defer testDB.Close()
+
+    taskEngine := setupTaskEngine(t, testDB)
+
+    // Register custom task
+    executor := &EmailCampaignExecutor{
+        emailService: NewTestEmailService(),
+        templateEngine: NewTestTemplateEngine(),
+    }
+    taskEngine.RegisterExecutor("email_campaign", executor)
+
+    // Create workflow with custom task
+    workflow := &Workflow{
+        Tasks: []Task{
+            {
+                ID: "send_campaign",
+                Type: "email_campaign",
+                Config: EmailCampaignConfig{
+                    Recipients: []string{"test@example.com"},
+                    Template: "welcome_email",
+                    Subject: "Welcome!",
+                    BatchSize: 5,
+                },
+            },
+        },
+    }
+
+    // Execute workflow
+    result, err := taskEngine.ExecuteWorkflow(context.Background(), workflow)
+
+    assert.NoError(t, err)
+    assert.True(t, result.Success)
+
+    // Verify task execution
+    taskState := getTaskState(t, testDB, "send_campaign")
+    assert.Equal(t, "completed", taskState.Status)
+}
+```
+
+## Examples
+
+### Real-World Custom Task Types
+
+<Tabs items={['CI/CD Pipeline', 'Data Sync', 'Report Generation', 'API Integration']}>
+  <Tab value="CI/CD Pipeline">
+```yaml
+# CI/CD Pipeline Task
+- id: deploy_application
+  type: cicd_pipeline
+  with:
+    pipeline_type: "deployment"
+    environment: "production"
+
+    source:
+      repository: "https://github.com/company/app"
+      branch: "main"
+      commit: "{{ .workflow.input.commit_sha }}"
+
+    build:
+      dockerfile: "Dockerfile"
+      build_args:
+        NODE_ENV: "production"
+        API_URL: "{{ .env.PRODUCTION_API_URL }}"
+
+    tests:
+      unit_tests: true
+      integration_tests: true
+      security_scan: true
+
+    deployment:
+      platform: "kubernetes"
+      namespace: "production"
+      replicas: 3
+
+    rollback:
+      enabled: true
+      health_check_timeout: "5m"
+
+  outputs:
+    deployment_id: "{{ .output.deployment_id }}"
+    image_tag: "{{ .output.image_tag }}"
+    status: "{{ .output.status }}"
+```
+  </Tab>
+  <Tab value="Data Sync">
+```yaml
+# Data Synchronization Task
+- id: sync_customer_data
+  type: data_sync
+  with:
+    sync_type: "incremental"
+
+    source:
+      type: "database"
+      connection: "{{ .env.SOURCE_DB_URL }}"
+      query: "SELECT * FROM customers WHERE updated_at > ?"
+      parameters: ["{{ .workflow.input.last_sync_time }}"]
+
+    destination:
+      type: "database"
+      connection: "{{ .env.DEST_DB_URL }}"
+      table: "customers"
+      mode: "upsert"
+
+    transformations:
+      - type: "field_mapping"
+        config:
+          first_name: "fname"
+          last_name: "lname"
+          email_address: "email"
+
+      - type: "validation"
+        config:
+          required_fields: ["email", "first_name"]
+          email_format: true
+
+    batch_size: 1000
+    parallel_workers: 4
+
+  outputs:
+    records_processed: "{{ .output.records_processed }}"
+    records_failed: "{{ .output.records_failed }}"
+    sync_duration: "{{ .output.sync_duration }}"
+```
+  </Tab>
+  <Tab value="Report Generation">
+```yaml
+# Report Generation Task
+- id: generate_sales_report
+  type: report_generator
+  with:
+    report_type: "sales_analytics"
+
+    data_sources:
+      - type: "database"
+        connection: "{{ .env.ANALYTICS_DB_URL }}"
+        queries:
+          sales_data: "SELECT * FROM sales WHERE date >= ? AND date <= ?"
+          customer_data: "SELECT * FROM customers"
+        parameters:
+          - "{{ .workflow.input.start_date }}"
+          - "{{ .workflow.input.end_date }}"
+
+    template:
+      format: "pdf"
+      template_file: "sales_report_template.html"
+
+    charts:
+      - type: "line_chart"
+        title: "Sales Trend"
+        data: "sales_data"
+        x_axis: "date"
+        y_axis: "amount"
+
+      - type: "pie_chart"
+        title: "Sales by Category"
+        data: "sales_data"
+        category: "product_category"
+        value: "amount"
+
+    output:
+      format: "pdf"
+      filename: "sales_report_{{ .workflow.input.start_date }}_{{ .workflow.input.end_date }}.pdf"
+
+  outputs:
+    report_url: "{{ .output.report_url }}"
+    file_size: "{{ .output.file_size }}"
+    generation_time: "{{ .output.generation_time }}"
+```
+  </Tab>
+  <Tab value="API Integration">
+```yaml
+# API Integration Task
+- id: sync_with_crm
+  type: api_integration
+  with:
+    api_type: "rest"
+
+    authentication:
+      type: "oauth2"
+      client_id: "{{ .env.CRM_CLIENT_ID }}"
+      client_secret: "{{ .env.CRM_CLIENT_SECRET }}"
+      token_url: "{{ .env.CRM_TOKEN_URL }}"
+
+    operations:
+      - name: "get_contacts"
+        method: "GET"
+        endpoint: "/api/v1/contacts"
+        parameters:
+          updated_since: "{{ .workflow.input.last_sync_time }}"
+          limit: 100
+
+      - name: "update_contact"
+        method: "PUT"
+        endpoint: "/api/v1/contacts/{{ .item.id }}"
+        body: "{{ .item.data }}"
+
+    batch_processing:
+      enabled: true
+      batch_size: 50
+
+    rate_limiting:
+      requests_per_second: 10
+      burst_size: 20
+
+    error_handling:
+      max_retries: 3
+      retry_delay: "2s"
+
+  outputs:
+    contacts_retrieved: "{{ .output.contacts_retrieved }}"
+    contacts_updated: "{{ .output.contacts_updated }}"
+    api_calls_made: "{{ .output.api_calls_made }}"
+```
+  </Tab>
+</Tabs>
+
+## Next Steps
+
+- Explore [Advanced Patterns](./advanced-patterns) for complex task orchestration
+- Learn about [Testing Strategies](/docs/core/development/testing-strategies)
+- Review [Performance Optimization](/docs/core/development/performance) for custom tasks
+- Check out [Tool Integration](/docs/core/tools/overview) for extending functionality

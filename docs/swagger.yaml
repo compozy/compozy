@@ -4,65 +4,231 @@ definitions:
   agent.ActionConfig:
     properties:
       cwd:
-        $ref: "#/definitions/core.PathCWD"
+        $ref: '#/definitions/core.PathCWD'
       id:
+        description: |-
+          Unique identifier for the action within the agent's scope.
+          Used to invoke specific actions programmatically.
+
+          - **Examples:** `"analyze-code"`, `"generate-summary"`, `"validate-data"`
         type: string
       input:
-        $ref: "#/definitions/schema.Schema"
+        allOf:
+          - $ref: '#/definitions/schema.Schema'
+        description: |-
+          JSON Schema defining the expected input parameters for this action.
+          Enables validation and type checking of inputs before execution.
+
+          If `nil`, the action accepts any input format without validation.
+
+          **Schema format:** JSON Schema Draft 7
       json_mode:
+        description: |-
+          Forces JSON-formatted output for this specific action.
+          When `true`, the agent must return valid JSON that conforms to the output schema.
+
+          **Note:** If an `OutputSchema` is defined, JSON mode is automatically enabled.
+
+          ⚠️ **Trade-off:** Enabling JSON mode may limit the agent's ability to provide
+          explanatory text or reasoning alongside the structured output.
         type: boolean
       output:
-        $ref: "#/definitions/schema.Schema"
+        allOf:
+          - $ref: '#/definitions/schema.Schema'
+        description: |-
+          JSON Schema defining the expected output format from this action.
+          Used for validating agent responses and ensuring consistent output structure.
+
+          If `nil`, no output validation is performed.
+
+          **Schema format:** JSON Schema Draft 7
       prompt:
+        description: |-
+          Detailed instructions for the agent when executing this action.
+          Should clearly define the expected behavior, output format, and any constraints.
+
+          **Best practices:**
+          - Be specific about the desired outcome
+          - Include examples if complex formatting is required
+          - Define clear success criteria
+          - Specify any limitations or boundaries
         type: string
       with:
-        $ref: "#/definitions/core.Input"
+        allOf:
+          - $ref: '#/definitions/core.Input'
+        description: |-
+          Default parameters to provide to the action.
+          These are merged with runtime parameters, with runtime values taking precedence.
+
+          **Use cases:**
+          - Setting default configuration options
+          - Providing constant context values
+          - Pre-filling common parameters
     required:
       - prompt
     type: object
   agent.Config:
     properties:
       actions:
+        description: |-
+          Structured actions the agent can perform with defined input/output schemas.
+          Actions provide type-safe interfaces for specific agent capabilities.
+
+          **Example:**
+          ```yaml
+          actions:
+            - id: "review-code"
+              prompt: |
+                Analyze code {{.input.code}} for quality and improvements
+              json_mode: true
+              input:
+                type: "object"
+                properties:
+                  code:
+                    type: "string"
+                    description: "The code to review"
+              output:
+                type: "object"
+                properties:
+                  quality:
+                    type: "string"
+                    description: "The quality of the code"
+          ```
+
+          $ref: inline:#action-configuration
         items:
-          $ref: "#/definitions/agent.ActionConfig"
+          $ref: '#/definitions/agent.ActionConfig'
         type: array
       config:
-        $ref: "#/definitions/core.ProviderConfig"
+        allOf:
+          - $ref: '#/definitions/core.ProviderConfig'
+        description: |-
+          LLM provider configuration defining which AI model to use and its parameters.
+          Supports multiple providers including OpenAI, Anthropic, Google, and others.
+
+          $ref: schema://provider
       cwd:
-        $ref: "#/definitions/core.PathCWD"
+        $ref: '#/definitions/core.PathCWD'
       env:
-        $ref: "#/definitions/core.EnvMap"
+        allOf:
+          - $ref: '#/definitions/core.EnvMap'
+        description: |-
+          Environment variables available during agent execution.
+          Used for configuration, secrets, and runtime settings.
+
+          **Example:**
+          ```yaml
+          env:
+            API_KEY: "{{.env.OPENAI_API_KEY}}"
+            DEBUG_MODE: "true"
+          ```
       id:
+        description: |-
+          Unique identifier for the agent within the project scope.
+          Used for referencing the agent in workflows and other configurations.
+
+          - **Examples:** `"code-assistant"`, `"data-analyst"`, `"customer-support"`
         type: string
       instructions:
+        description: |-
+          System instructions that define the agent's personality, behavior, and constraints.
+          These instructions guide how the agent interprets tasks and generates responses.
+
+          **Best practices:**
+          - Be clear and specific about the agent's role
+          - Define boundaries and ethical guidelines
+          - Include domain-specific knowledge or constraints
+          - Use markdown formatting for better structure
         type: string
       json_mode:
+        description: |-
+          Forces the agent to always respond in valid JSON format.
+          When enabled, the agent's responses must be parseable JSON objects.
+
+          **Use cases:**
+          - API integrations requiring structured data
+          - Automated processing of agent outputs
+          - Ensuring consistent response formats
+
+          ⚠️ **Note:** May limit the agent's ability to provide explanatory text
         type: boolean
       max_iterations:
+        description: |-
+          Maximum number of reasoning iterations the agent can perform.
+          The agent may self-correct and refine its response across iterations.
+
+          **Default:** `5`
+
+          **Considerations:**
+          - Higher values allow more thorough problem-solving
+          - Each iteration consumes tokens and adds latency
+          - Set based on task complexity and accuracy requirements
         type: integer
       mcps:
+        description: |-
+          Model Context Protocol (MCP) server configurations.
+          MCPs provide standardized interfaces for extending agent capabilities
+          with external services and data sources.
+
+          **Common MCP types:**
+          - Database connectors
+          - Search engines
+          - Knowledge bases
+          - External APIs
+          $ref: schema://mcp
         items:
-          $ref: "#/definitions/mcp.Config"
+          $ref: '#/definitions/mcp.Config'
         type: array
       memory:
         description: |-
-          Memory configuration - simplified single format
+          Memory references enabling the agent to access persistent context.
+          Memory provides stateful interactions across workflow steps and sessions.
+
+          **Configuration format:**
+          ```yaml
           memory:
-            - id: user_memory
-              key: "user:{{.workflow.input.user_id}}"
-              mode: "read-write"  # optional, defaults to "read-write"
+            - id: "user_context"  # Memory resource ID
+              key: "user:{{.user_id}}"  # Dynamic key with template
+              mode: "read-write"  # Access mode (default: "read-write")
+          ```
+
+          **Access modes:**
+          - `"read-write"`: Full access to read and modify memory
+          - `"read-only"`: Can only read existing memory entries
         items:
-          $ref: "#/definitions/core.MemoryReference"
+          $ref: '#/definitions/core.MemoryReference'
         type: array
       resource:
+        description: |-
+          Resource identifier for the autoloader system (must be `"agent"`)
+          This field enables automatic discovery and registration of agent configurations.
         type: string
       tools:
-        description: When defined here, the agent will have toolChoice defined as "auto"
+        description: |-
+          Tools available to the agent for extending its capabilities.
+          When tools are defined, the agent automatically has `toolChoice` set to `"auto"`,
+          allowing it to decide when and how to use available tools.
+
+          Tools can be:
+          - File system operations
+          - API integrations
+          - Data processing utilities
+          - Custom business logic
+          $ref: schema://tools
         items:
-          $ref: "#/definitions/tool.Config"
+          $ref: '#/definitions/tool.Config'
         type: array
       with:
-        $ref: "#/definitions/core.Input"
+        allOf:
+          - $ref: '#/definitions/core.Input'
+        description: |-
+          Default input parameters passed to the agent on every invocation.
+          These values are merged with runtime inputs, with runtime values taking precedence.
+
+          **Use cases:**
+          - Setting default configuration values
+          - Providing constant context or settings
+          - Injecting workflow-level parameters
     required:
       - config
       - id
@@ -71,16 +237,36 @@ definitions:
   core.Author:
     properties:
       contributors:
+        description: |-
+          Additional contributors who helped develop the project.
+
+          Use this to acknowledge team members, collaborators, or external contributors.
         items:
-          $ref: "#/definitions/core.Contributor"
+          $ref: '#/definitions/core.Contributor'
         type: array
       email:
+        description: |-
+          Email contact for project-related communication.
+
+          Use team emails for shared ownership: `"ai-team@company.com"`
         type: string
       name:
+        description: |-
+          Name of the author or team responsible for the project.
+
+          Examples: `"Jane Smith"`, `"AI Platform Team"`, `"Data Science Division"`
         type: string
       organization:
+        description: |-
+          Organization or company affiliation.
+
+          Examples: `"ACME Corporation"`, `"AI Research Lab"`, `"Engineering Division"`
         type: string
       url:
+        description: |-
+          URL to author's profile, repository, or team page.
+
+          Examples: `"https://github.com/username"`, `"https://company.com/team/ai"`
         type: string
     type: object
   core.ComponentType:
@@ -100,12 +286,19 @@ definitions:
   core.Contributor:
     properties:
       email:
+        description: Email address for contributor contact.
         type: string
       name:
+        description: Full name of the contributor.
         type: string
       organization:
+        description: Organization or team the contributor belongs to.
         type: string
       url:
+        description: |-
+          URL to contributor's profile or portfolio.
+
+          Examples: `"https://github.com/username"`, `"https://linkedin.com/in/name"`
         type: string
     type: object
   core.EnvMap:
@@ -125,23 +318,59 @@ definitions:
   core.ErrorTransition:
     properties:
       next:
+        description: |-
+          ID of the error handler task
+
+          - **Example**: "handle-error", "retry-with-fallback"
         type: string
       with:
-        $ref: "#/definitions/core.Input"
+        allOf:
+          - $ref: '#/definitions/core.Input'
+        description: |-
+          Error context passed to the handler
+          Includes error details: { "error": "{{ .error }}", "attempt": "{{ .retryCount }}" }
     type: object
   core.GlobalOpts:
     properties:
       heartbeat_timeout:
+        description: |-
+          Interval for task heartbeat signals
+          Used for long-running tasks to indicate progress
+
+          - **Example**: "10s", "30s", "1m"
         type: string
       on_error:
-        $ref: "#/definitions/core.ErrorTransition"
+        allOf:
+          - $ref: '#/definitions/core.ErrorTransition'
+        description: |-
+          Error handler configuration
+          Defines what happens when a task fails after all retries
       retry_policy:
-        $ref: "#/definitions/core.RetryPolicyConfig"
+        allOf:
+          - $ref: '#/definitions/core.RetryPolicyConfig'
+        description: |-
+          Retry configuration for transient failures
+          Automatically retries failed tasks with exponential backoff
       schedule_to_close_timeout:
+        description: |-
+          Total timeout from scheduling to completion
+          Default: "6m"
+
+          - **Example**: "1m", "15m", "2h"
         type: string
       schedule_to_start_timeout:
+        description: |-
+          Maximum time to wait for a task to start executing
+          Default: "1m"
+
+          - **Example**: "30s", "5m", "1h"
         type: string
       start_to_close_timeout:
+        description: |-
+          Maximum time for task execution once started
+          Default: "5m"
+
+          - **Example**: "30s", "10m", "1h"
         type: string
     type: object
   core.Input:
@@ -178,40 +407,129 @@ definitions:
   core.PromptParams:
     properties:
       max_length:
+        description: |-
+          MaxLength provides an alternative way to specify maximum response length.
+          Typically used by providers that distinguish between length and token limits.
+          - **Range**: MinLength to provider-specific maximum
+          - **Provider Support**: Primarily local models and some API providers
         type: integer
       max_tokens:
+        description: |-
+          MaxTokens limits the maximum number of tokens in the generated response.
+          This parameter is crucial for cost control and response time management.
+          - **Range**: 1 to model-specific maximum (e.g., 8192 for GPT-4)
+          - **Default**: Provider-specific default (typically 1000-2000)
         type: integer
       min_length:
+        description: |-
+          MinLength specifies the minimum number of tokens that must be generated.
+          Prevents the model from generating responses that are too short.
+          - **Range**: 1 to MaxTokens
+          - **Provider Support**: Limited; primarily local models
         type: integer
       repetition_penalty:
+        description: |-
+          RepetitionPenalty reduces the likelihood of repeating the same tokens.
+          Values > 1.0 penalize repetition, values < 1.0 encourage it.
+          - **Range**: 0.1 to 2.0
+          - **Recommended**: 1.0 (no penalty) to 1.2 (moderate penalty)
+          - **Provider Support**: Primarily local models (Ollama, etc.)
         type: number
       seed:
+        description: |-
+          Seed provides a random seed for reproducible outputs.
+          When set, the same input with the same parameters will generate identical responses.
+          - **Use Cases**: Testing, debugging, demonstration, A/B testing
+          > **Note:**: Not all providers support seeding; OpenAI and some others do
         type: integer
       stop_words:
+        description: |-
+          StopWords defines a list of strings that will halt text generation when encountered.
+          Useful for creating structured outputs or preventing unwanted content patterns.
+
+          - **Example**: `["END", "STOP", "\n\n---"]` for section-based content
+          > **Note:**: Not all providers support stop words; check provider documentation
         items:
           type: string
         type: array
       temperature:
+        description: |-
+          Temperature controls the randomness of the generated text.
+          Lower values produce more deterministic, focused responses.
+          Higher values increase creativity and variation but may reduce coherence.
+          - **Range**: 0.0 (deterministic) to 1.0 (maximum randomness)
+          - **Recommended**: 0.1-0.3 for factual tasks, 0.7-0.9 for creative tasks
         type: number
       top_k:
+        description: |-
+          TopK limits the number of highest probability tokens considered during sampling.
+          Lower values focus on the most likely tokens, higher values allow more variety.
+          - **Range**: 1 to vocabulary size (typically 1-100)
+          - **Provider Support**: Primarily Google models and some local models
         type: integer
       top_p:
+        description: |-
+          TopP (nucleus sampling) considers only tokens with cumulative probability up to this value.
+          Dynamically adjusts the vocabulary size based on probability distribution.
+          - **Range**: 0.0 to 1.0
+          - **Recommended**: 0.9 for balanced outputs, 0.95 for more variety
         type: number
     type: object
   core.ProviderConfig:
     properties:
       api_key:
+        description: |-
+          APIKey contains the authentication key for the AI provider.
+
+          - **Security**: Use template references to environment variables.
+          - **Examples**: `"{{ .env.OPENAI_API_KEY }}"`, `"{{ .secrets.ANTHROPIC_KEY }}"`
+          > **Note:**: Required for most cloud providers, optional for local providers
         type: string
       api_url:
+        description: |-
+          APIURL specifies a custom API endpoint for the provider.
+          **Use Cases**:
+            - Local model hosting (Ollama, OpenAI-compatible servers)
+            - Enterprise API gateways
+            - Regional API endpoints
+            - Custom proxy servers
+
+          **Examples**: `"http://localhost:11434"`, `"https://api.openai.com/v1"`
         type: string
       model:
+        description: |-
+          Model defines the specific model identifier to use with the provider.
+          Model names are provider-specific and determine capabilities and pricing.
+
+          - **Examples**:
+            - OpenAI: `"gpt-4-turbo"`, `"gpt-3.5-turbo"`
+            - Anthropic: `"claude-3-opus-20240229"`, `"claude-3-haiku-20240307"`
+            - Google: `"gemini-pro"`, `"gemini-pro-vision"`
+            - Ollama: `"llama2:13b"`, `"mistral:7b"`
         type: string
       organization:
+        description: |-
+          Organization specifies the organization ID for providers that support it.
+          - **Primary Use**: OpenAI organization management for billing and access control
+
+          - **Example**: `"org-123456789abcdef"`
+          > **Note:**: Optional for most providers
         type: string
       params:
-        $ref: "#/definitions/core.PromptParams"
+        allOf:
+          - $ref: '#/definitions/core.PromptParams'
+        description: |-
+          Params contains the generation parameters that control LLM behavior.
+          These parameters are applied to all requests using this provider configuration.
+          Can be overridden at the task or action level for specific requirements.
       provider:
-        $ref: "#/definitions/core.ProviderName"
+        allOf:
+          - $ref: '#/definitions/core.ProviderName'
+        description: |-
+          Provider specifies which AI service to use for LLM operations.
+          Must match one of the supported ProviderName constants.
+
+          - **Examples**: `"openai"`, `"anthropic"`, `"google"`, `"ollama"`
     type: object
   core.ProviderName:
     enum:
@@ -225,7 +543,14 @@ definitions:
       - mock
     type: string
     x-enum-comments:
+      ProviderAnthropic: Anthropic Claude models
+      ProviderDeepSeek: DeepSeek AI models
+      ProviderGoogle: Google Gemini models
+      ProviderGroq: Groq fast inference platform
       ProviderMock: Mock provider for testing
+      ProviderOllama: Ollama local model hosting
+      ProviderOpenAI: OpenAI GPT models (GPT-4, GPT-3.5, etc.)
+      ProviderXAI: xAI Grok models
     x-enum-varnames:
       - ProviderOpenAI
       - ProviderGroq
@@ -238,14 +563,33 @@ definitions:
   core.RetryPolicyConfig:
     properties:
       backoff_coefficient:
+        description: |-
+          Multiplier for exponential backoff
+          - **Default:** `2.0` (doubles each time)
+          - **Example:** `1.5`, `2.0`, `3.0`
         type: number
       initial_interval:
+        description: |-
+          Initial delay before first retry
+          - **Default:** `"1s"`
+          - **Example:** `"500ms"`, `"2s"`, `"1m"`
         type: string
       maximum_attempts:
+        description: |-
+          Maximum retry attempts
+          - **Default:** `3`
+          - **Example:** `5` for critical operations
         type: integer
       maximum_interval:
+        description: |-
+          Maximum delay between retries
+          - **Default:** `"1m"`
+          - **Example:** `"30s"`, `"5m"`, `"1h"`
         type: string
       non_retryable_error_types:
+        description: |-
+          Error types that should not trigger retries
+          - **Example:** `["ValidationError", "AuthenticationError"]`
         items:
           type: string
         type: array
@@ -273,9 +617,16 @@ definitions:
   core.SuccessTransition:
     properties:
       next:
+        description: |-
+          ID of the next task to execute
+          - **Example:** `"process-results"`, `"send-notification"`
         type: string
       with:
-        $ref: "#/definitions/core.Input"
+        allOf:
+          - $ref: '#/definitions/core.Input'
+        description: |-
+          Input parameters to pass to the next task
+          - **Supports:** Template expressions like `{ "data": "{{ .output.result }}" }`
     type: object
   gin.H:
     additionalProperties: {}
@@ -283,24 +634,168 @@ definitions:
   mcp.Config:
     properties:
       command:
+        description: |-
+          Command is the **executable command** to spawn a local MCP server process.
+
+          Used for stdio transport to run MCP servers as child processes.
+          Supports both direct executables and complex commands with arguments.
+
+          - **Examples**:
+          ```yaml
+          # Simple executable
+          command: "mcp-server-filesystem"
+
+          # Command with arguments
+          command: "python /app/mcp_server.py --mode production"
+
+          # Docker container
+          command: "docker run --rm -i mcp/postgres:latest"
+          ```
+
+          **Security Note**: Commands are parsed using shell lexing for safety.
+          Avoid user-provided input in commands.
         type: string
       env:
         additionalProperties:
           type: string
+        description: |-
+          Env contains **environment variables** to pass to the MCP server process.
+
+          Only used when `command` is specified for spawning local processes.
+          Useful for passing configuration, secrets, or runtime parameters.
+
+          - **Examples**:
+          ```yaml
+          env:
+            DATABASE_URL: "postgres://user:pass@localhost/db"
+            API_KEY: "{{ .env.GITHUB_TOKEN }}"
+            LOG_LEVEL: "debug"
+            WORKSPACE_DIR: "/data/workspace"
+          ```
+
+          **Template Support**: Values can use Go template syntax to reference
+          environment variables from the host system.
         type: object
       id:
+        description: |-
+          ID is the **unique identifier** for this MCP server configuration.
+
+          This identifier is used throughout the system to reference this specific MCP server.
+          Choose descriptive IDs that reflect the server's purpose.
+
+          - **Examples**:
+          - `filesystem` - for file system operations
+          - `postgres-db` - for PostgreSQL database access
+          - `github-api` - for GitHub integration
+          - `python-runtime` - for Python code execution
         type: string
       max_sessions:
+        description: |-
+          MaxSessions defines the **maximum number of concurrent sessions** allowed.
+
+          Helps manage resource usage and prevent server overload.
+          Each agent connection typically creates one session.
+
+          **Values**:
+          - `0` or negative: Unlimited sessions (default)
+          - Positive number: Maximum concurrent sessions
+
+          - **Examples**:
+          ```yaml
+          max_sessions: 10  # Allow up to 10 concurrent connections
+          max_sessions: 1  # Single session only (useful for stateful servers)
+          max_sessions: 0  # Unlimited sessions
+          ```
         type: integer
       proto:
+        description: |-
+          Proto specifies the **MCP protocol version** to use.
+
+          Different protocol versions may support different features, message formats,
+          or capabilities. Always use the version compatible with your MCP server.
+
+          **Format**: `YYYY-MM-DD` (e.g., "2025-03-26")
+
+          **Default**: `DefaultProtocolVersion` ("2025-03-26")
+
+          **Version History**:
+          - `2025-03-26` - Latest version with streaming support
+          - `2024-12-01` - Initial protocol release
         type: string
       resource:
+        description: |-
+          Resource reference for the MCP server (optional)
+
+          If not specified, defaults to the value of ID.
+          Used for resource identification and referencing in Compozy's resource system.
         type: string
       start_timeout:
-        $ref: "#/definitions/time.Duration"
+        allOf:
+          - $ref: '#/definitions/time.Duration'
+        description: |-
+          StartTimeout is the **maximum time to wait** for the MCP server to start.
+
+          Only applicable when using `command` to spawn local processes.
+          Helps detect and handle startup failures gracefully.
+
+          **Format**: Go duration string (e.g., "30s", "1m", "500ms")
+
+          **Default**: No timeout (waits indefinitely)
+
+          - **Examples**:
+          ```yaml
+          start_timeout: 30s  # Wait up to 30 seconds
+          start_timeout: 2m  # Wait up to 2 minutes
+          start_timeout: 500ms  # Wait up to 500 milliseconds
+          ```
+
+          **Recommendation**: Set to at least 10-30s for Docker-based servers.
       transport:
-        $ref: "#/definitions/mcpproxy.TransportType"
+        allOf:
+          - $ref: '#/definitions/mcpproxy.TransportType'
+        description: |-
+          Transport defines the **communication transport mechanism**.
+
+          Choose the transport based on your MCP server's capabilities and deployment model.
+
+          **Supported Values**:
+
+          | Transport | Description | Use Case |
+          |-----------|-------------|----------|
+          | `sse` | Server-Sent Events | HTTP servers with real-time streaming |
+          | `streamable-http` | HTTP with streaming | Large responses, file transfers |
+          | `stdio` | Standard I/O | Local processes, Docker containers |
+
+          **Default**: `sse`
+
+          - **Examples**:
+          ```yaml
+          # Remote server with SSE
+          transport: sse
+
+          # Local process with stdio
+          transport: stdio
+
+          # HTTP server with large file support
+          transport: streamable-http
+          ```
       url:
+        description: |-
+          URL is the **endpoint for remote MCP servers**.
+
+          Required for HTTP-based transports (SSE, streamable-http).
+          Must be a valid HTTP or HTTPS URL pointing to an MCP-compatible endpoint.
+
+          **Format**: `http[s]://host[:port]/path`
+
+          - **Examples**:
+          ```yaml
+          url: "http://localhost:3000/mcp"
+          url: "https://api.example.com/v1/mcp"
+          url: "http://mcp-proxy:8080/filesystem"
+          ```
+
+          **Note**: Mutually exclusive with `command` - use either URL or Command, not both.
         type: string
     type: object
   mcpproxy.CallToolRequest:
@@ -331,7 +826,7 @@ definitions:
         type: integer
       mcps:
         items:
-          $ref: "#/definitions/mcpproxy.MCPDetailsResponse"
+          $ref: '#/definitions/mcpproxy.MCPDetailsResponse'
         type: array
     type: object
   mcpproxy.MCPDefinition:
@@ -370,7 +865,7 @@ definitions:
       healthCheckEnabled:
         type: boolean
       healthCheckInterval:
-        $ref: "#/definitions/time.Duration"
+        $ref: '#/definitions/time.Duration'
       logEnabled:
         type: boolean
       maxReconnects:
@@ -380,7 +875,7 @@ definitions:
         minLength: 1
         type: string
       reconnectDelay:
-        $ref: "#/definitions/time.Duration"
+        $ref: '#/definitions/time.Duration'
       requireAuth:
         type: boolean
       tags:
@@ -389,13 +884,13 @@ definitions:
         description: Metadata
         type: object
       timeout:
-        $ref: "#/definitions/time.Duration"
+        $ref: '#/definitions/time.Duration'
       toolFilter:
         allOf:
-          - $ref: "#/definitions/mcpproxy.ToolFilter"
+          - $ref: '#/definitions/mcpproxy.ToolFilter'
         description: Tool filtering
       transport:
-        $ref: "#/definitions/mcpproxy.TransportType"
+        $ref: '#/definitions/mcpproxy.TransportType'
       updatedAt:
         type: string
       url:
@@ -408,14 +903,14 @@ definitions:
   mcpproxy.MCPDetailsResponse:
     properties:
       definition:
-        $ref: "#/definitions/mcpproxy.MCPDefinition"
+        $ref: '#/definitions/mcpproxy.MCPDefinition'
       status:
-        $ref: "#/definitions/mcpproxy.MCPStatus"
+        $ref: '#/definitions/mcpproxy.MCPStatus'
     type: object
   mcpproxy.MCPStatus:
     properties:
       avgResponseTime:
-        $ref: "#/definitions/time.Duration"
+        $ref: '#/definitions/time.Duration'
       lastConnected:
         type: string
       lastError:
@@ -427,13 +922,13 @@ definitions:
       reconnectAttempts:
         type: integer
       status:
-        $ref: "#/definitions/mcpproxy.ConnectionStatus"
+        $ref: '#/definitions/mcpproxy.ConnectionStatus'
       totalErrors:
         type: integer
       totalRequests:
         type: integer
       upTime:
-        $ref: "#/definitions/time.Duration"
+        $ref: '#/definitions/time.Duration'
     type: object
   mcpproxy.ToolFilter:
     properties:
@@ -442,7 +937,7 @@ definitions:
           type: string
         type: array
       mode:
-        $ref: "#/definitions/mcpproxy.ToolFilterMode"
+        $ref: '#/definitions/mcpproxy.ToolFilterMode'
     required:
       - mode
     type: object
@@ -477,7 +972,7 @@ definitions:
       memory_id:
         type: string
       token_usage:
-        $ref: "#/definitions/memory.TokenUsageHealth"
+        $ref: '#/definitions/memory.TokenUsageHealth'
     type: object
   memory.SystemHealth:
     properties:
@@ -487,7 +982,7 @@ definitions:
         type: integer
       instance_health:
         additionalProperties:
-          $ref: "#/definitions/memory.InstanceHealth"
+          $ref: '#/definitions/memory.InstanceHealth'
         type: object
       last_checked:
         type: string
@@ -584,7 +1079,7 @@ definitions:
     properties:
       data: {}
       error:
-        $ref: "#/definitions/router.ErrorInfo"
+        $ref: '#/definitions/router.ErrorInfo'
       message:
         type: string
       status:
@@ -620,13 +1115,13 @@ definitions:
         example: daily-report
         type: string
       yaml_config:
-        $ref: "#/definitions/workflow.Schedule"
+        $ref: '#/definitions/workflow.Schedule'
     type: object
   schedulerouter.ScheduleListResponse:
     properties:
       schedules:
         items:
-          $ref: "#/definitions/schedulerouter.ScheduleInfoResponse"
+          $ref: '#/definitions/schedulerouter.ScheduleInfoResponse'
         type: array
       total:
         example: 5
@@ -674,8 +1169,14 @@ definitions:
   task.ClearConfig:
     properties:
       backup:
+        description: |-
+          Backup data before clearing
+          Implementation-dependent, may not be available for all backends
         type: boolean
       confirm:
+        description: |-
+          Confirm must be true to execute clear operation
+          Required safety check to prevent accidental data loss
         type: boolean
     type: object
   task.CollectionMode:
@@ -689,106 +1190,311 @@ definitions:
   task.Config:
     properties:
       CWD:
-        $ref: "#/definitions/core.PathCWD"
+        allOf:
+          - $ref: '#/definitions/core.PathCWD'
+        description: |-
+          Current working directory for file operations within the task
+          Inherited from parent context if not explicitly set
       action:
+        description: |-
+          Action identifier that describes what this task does
+          Used for logging and debugging purposes
+          - **Example**: "process-user-data", "send-notification"
         type: string
       agent:
-        $ref: "#/definitions/agent.Config"
+        allOf:
+          - $ref: '#/definitions/agent.Config'
+        description: |-
+          Agent configuration for AI-powered task execution
+          Only used when the task needs to interact with an LLM agent
+          Mutually exclusive with Tool field
+          $ref: schema://agents
       batch:
+        description: |-
+          Batch size for processing items in groups (0 = no batching)
+          Useful for rate limiting or managing resource usage
+          - **Example**: 10 means process 10 items at a time
         type: integer
       batch_size:
-        description: Performance controls
+        description: |-
+          BatchSize for operations that process multiple keys
+          Controls how many keys are processed in each batch
+          Default: 100, Maximum: 10,000
         type: integer
       clear_config:
-        $ref: "#/definitions/task.ClearConfig"
+        allOf:
+          - $ref: '#/definitions/task.ClearConfig'
+        description: |-
+          Configuration for clear operations
+          Only used when operation is "clear"
       condition:
+        description: |-
+          CEL expression for conditional task execution or routing decisions
+          Task only executes if condition evaluates to true
+          - **Example**: "input.status == 'approved' && input.amount > 1000"
         type: string
       config:
-        $ref: "#/definitions/core.GlobalOpts"
+        allOf:
+          - $ref: '#/definitions/core.GlobalOpts'
+        description: |-
+          Global configuration options inherited from parent contexts
+          Includes provider settings, API keys, and other global parameters
       env:
-        $ref: "#/definitions/core.EnvMap"
+        allOf:
+          - $ref: '#/definitions/core.EnvMap'
+        description: |-
+          Environment variables available during task execution
+          Can override or extend workflow-level environment variables
+          - **Example**: { "API_KEY": "{{ .env.SECRET_KEY }}" }
       file_path:
-        description: Path and working directory properties
+        description: |-
+          Absolute file path where this task configuration was loaded from
+          Set automatically during configuration loading
         type: string
       filter:
+        description: |-
+          Filter is an optional CEL expression to filter items before processing
+          Each item is available as 'item' in the expression
+          - **Example**: "item.status != 'inactive'" or "item.age > 18"
         type: string
       final:
+        description: |-
+          Marks this task as a terminal node in the workflow
+          No subsequent tasks will execute after a final task
         type: boolean
       flush_config:
         allOf:
-          - $ref: "#/definitions/task.FlushConfig"
-        description: Operation-specific configs
+          - $ref: '#/definitions/task.FlushConfig'
+        description: |-
+          Configuration for flush operations
+          Only used when operation is "flush"
       health_config:
-        $ref: "#/definitions/task.HealthConfig"
+        allOf:
+          - $ref: '#/definitions/task.HealthConfig'
+        description: |-
+          Configuration for health check operations
+          Only used when operation is "health"
       id:
+        description: |-
+          Unique identifier for the task instance within a workflow
+          Must be unique within the workflow scope
         type: string
       index_var:
+        description: |-
+          IndexVar is the variable name for the current index (default: "index")
+          Available in task templates as {{ .index }} or custom name
+          Zero-based index of the current item
         type: string
       input:
-        $ref: "#/definitions/schema.Schema"
+        allOf:
+          - $ref: '#/definitions/schema.Schema'
+        description: |-
+          Schema definition for validating task input parameters
+          Follows JSON Schema specification for type validation
+          Format:
+            type: object
+            properties:
+              user_id: { type: string, description: "User identifier" }
+            required: ["user_id"]
       item_var:
+        description: |-
+          ItemVar is the variable name for the current item (default: "item")
+          Available in task templates as {{ .item }} or custom name
+          - **Example**: Set to "user" to access as {{ .user }} in templates
         type: string
       items:
+        description: |-
+          Items is a template expression that evaluates to an array
+          The expression should resolve to a list of items to iterate over
+          - **Example**: "{{ .workflow.input.users }}" or "{{ range(1, 10) }}"
         type: string
       key_template:
+        description: |-
+          KeyTemplate is a template expression for the memory key
+          Supports template variables for dynamic key generation
+          - **Example**: "user:{{ .workflow.input.user_id }}:profile"
         type: string
       max_keys:
+        description: |-
+          MaxKeys limits the number of keys processed
+          Safety limit to prevent runaway operations
+          Default: 1,000, Maximum: 50,000
         type: integer
       max_workers:
+        description: |-
+          MaxWorkers limits the number of concurrent task executions
+          0 means no limit (all tasks run concurrently)
+          - **Example**: 5 means at most 5 tasks run at the same time
         type: integer
       memory_ref:
+        description: |-
+          MemoryRef identifies which memory store to use
+          References a memory configuration defined at the project level
+          - **Example**: "user-sessions", "workflow-state", "cache"
         type: string
       mode:
-        $ref: "#/definitions/task.CollectionMode"
+        allOf:
+          - $ref: '#/definitions/task.CollectionMode'
+        description: |-
+          Mode determines if items are processed in parallel or sequentially
+          Defaults to "parallel"
+          Options: parallel, sequential
       on_error:
-        $ref: "#/definitions/core.ErrorTransition"
+        allOf:
+          - $ref: '#/definitions/core.ErrorTransition'
+        description: |-
+          Error handling configuration
+          Defines fallback behavior when task execution fails
+          Can specify error task ID or retry configuration
       on_success:
         allOf:
-          - $ref: "#/definitions/core.SuccessTransition"
-        description: Task configuration
+          - $ref: '#/definitions/core.SuccessTransition'
+        description: |-
+          Task execution control
+          Defines what happens after successful task completion
+          Can specify next task ID or conditional routing
       on_timeout:
+        description: |-
+          OnTimeout specifies the next task to execute if the wait times out
+          Uses the timeout value from BaseConfig
+          If not specified, the task fails on timeout
         type: string
       operation:
-        $ref: "#/definitions/task.MemoryOpType"
+        allOf:
+          - $ref: '#/definitions/task.MemoryOpType'
+        description: |-
+          Operation type to perform on memory
+          Required field that determines the action to take
       output:
-        $ref: "#/definitions/schema.Schema"
+        allOf:
+          - $ref: '#/definitions/schema.Schema'
+        description: |-
+          Schema definition for validating task output data
+          Ensures task results conform to expected structure
+          Uses same format as InputSchema
       outputs:
-        $ref: "#/definitions/core.Input"
-      payload: {}
+        allOf:
+          - $ref: '#/definitions/core.Input'
+        description: |-
+          Output mappings that define what data this task exposes to subsequent tasks
+          Uses template expressions to transform task results
+          - **Example**: { "processed_data": "{{ .task.output.result }}" }
+      payload:
+        description: |-
+          Payload data for write/append operations
+          Can be any JSON-serializable data structure
+          Required for write and append operations
       processor:
-        $ref: "#/definitions/task.Config"
+        allOf:
+          - $ref: '#/definitions/task.Config'
+        description: |-
+          Processor is an optional task configuration to process received signals
+          Allows custom handling of signal data before continuing
+          The processor receives the signal payload as input
+          $ref: inline:#
       resource:
+        description: |-
+          Resource reference for the task
+          Format: "compozy:task:<name>" (e.g., "compozy:task:process-data")
         type: string
       retries:
+        description: |-
+          Number of retry attempts for failed task executions
+          Default: 0 (no retries)
         type: integer
       routes:
         additionalProperties: {}
+        description: |-
+          Routes maps condition values to task IDs or inline task configurations
+          The condition field in BaseConfig is evaluated, and its result is used
+          as the key to select the appropriate route
+          Values can be:
+            - Task ID (string): References an existing task
+            - Inline task config (object): Defines task configuration directly
+          - **Example**:
+            routes:
+              approved: "process-payment"  # Task ID reference
+              rejected:  # Inline task config
+                type: basic
+                agent: { id: rejection-handler }
+              pending: "wait-for-approval"
         type: object
       signal:
-        $ref: "#/definitions/task.SignalConfig"
+        allOf:
+          - $ref: '#/definitions/task.SignalConfig'
+        description: Signal configuration containing the signal ID and payload
       sleep:
+        description: |-
+          Sleep duration after task completion
+          Format: "5s", "1m", "500ms", "1h30m"
+          Useful for rate limiting or giving external systems time to process
         type: string
       stats_config:
-        $ref: "#/definitions/task.StatsConfig"
+        allOf:
+          - $ref: '#/definitions/task.StatsConfig'
+        description: |-
+          Configuration for statistics operations
+          Only used when operation is "stats"
       strategy:
-        $ref: "#/definitions/task.ParallelStrategy"
+        allOf:
+          - $ref: '#/definitions/task.ParallelStrategy'
+        description: |-
+          Strategy determines how the parallel execution handles task completion
+          Defaults to "wait_all" if not specified
+          Options: wait_all, fail_fast, best_effort, race
       task:
-        $ref: "#/definitions/task.Config"
+        allOf:
+          - $ref: '#/definitions/task.Config'
+        description: |-
+          Task template for collection tasks
+          This configuration is replicated for each item in the collection
+          The item and index are available as template variables
+          $ref: inline:#
       tasks:
+        description: |-
+          Tasks array for parallel, composite, and collection tasks
+          Contains the list of sub-tasks to execute
+          For parallel: tasks run concurrently
+          For composite: tasks run sequentially
+          For collection: not used (use Task field instead)
+          $ref: inline:#
         items:
-          $ref: "#/definitions/task.Config"
+          $ref: '#/definitions/task.Config'
         type: array
       timeout:
-        description: Composite and Paralle tasks
+        description: |-
+          Maximum execution time for parallel or composite tasks
+          Format: "30s", "5m", "1h"
+          Task will be canceled if it exceeds this duration
         type: string
       tool:
-        $ref: "#/definitions/tool.Config"
+        allOf:
+          - $ref: '#/definitions/tool.Config'
+        description: |-
+          Tool configuration for executing specific tool operations
+          Used when the task needs to execute a predefined tool
+          Mutually exclusive with Agent field
+          $ref: schema://tools
       type:
-        $ref: "#/definitions/task.Type"
+        allOf:
+          - $ref: '#/definitions/task.Type'
+        description: |-
+          Type of task that determines execution behavior
+          If not specified, defaults to "basic"
       wait_for:
+        description: |-
+          WaitFor specifies the signal ID to wait for
+          The task will pause until a signal with this ID is received
+          Must match the ID used in a SignalTask
+          - **Example**: "user-approved", "payment-completed"
         type: string
       with:
-        $ref: "#/definitions/core.Input"
+        allOf:
+          - $ref: '#/definitions/core.Input'
+        description: |-
+          Input parameters passed to the task at execution time
+          Can include references to workflow inputs, previous task outputs, etc.
+          - **Example**: { "user_id": "{{ .workflow.input.user_id }}" }
     type: object
   task.ExecutionType:
     enum:
@@ -809,21 +1515,43 @@ definitions:
   task.FlushConfig:
     properties:
       dry_run:
+        description: |-
+          DryRun simulates flush without actually removing data
+          Useful for testing what would be removed
         type: boolean
       force:
+        description: |-
+          Force flush even if below threshold
+          Bypasses normal threshold checks
         type: boolean
       max_keys:
+        description: |-
+          Maximum number of keys to flush in one operation
+          Default: 100
         type: integer
       strategy:
+        description: |-
+          Strategy for selecting keys to flush
+          Options: "simple_fifo" (oldest first), "lru" (least recently used)
+          Default: "simple_fifo"
         type: string
       threshold:
+        description: |-
+          Threshold (0-1) for triggering flush based on memory usage
+          - **Example**: 0.8 means flush when 80% full
         type: number
     type: object
   task.HealthConfig:
     properties:
       check_connectivity:
+        description: |-
+          CheckConnectivity verifies connection to memory backend
+          Tests actual read/write operations
         type: boolean
       include_stats:
+        description: |-
+          IncludeStats adds memory statistics to health check results
+          Provides additional diagnostic information
         type: boolean
     type: object
   task.MemoryOpType:
@@ -853,11 +1581,6 @@ definitions:
       - best_effort
       - race
     type: string
-    x-enum-comments:
-      StrategyBestEffort: Continue even if some tasks fail
-      StrategyFailFast: Stop on first failure
-      StrategyRace: Return when first task completes
-      StrategyWaitAll: "Default: wait for all tasks to complete"
     x-enum-varnames:
       - StrategyWaitAll
       - StrategyFailFast
@@ -866,9 +1589,18 @@ definitions:
   task.SignalConfig:
     properties:
       id:
+        description: |-
+          ID is the unique identifier for the signal
+          Wait tasks with matching wait_for values will receive this signal
+          - **Example**: "user-approved", "payment-completed", "data-ready"
         type: string
       payload:
         additionalProperties: {}
+        description: |-
+          Payload contains data to send with the signal
+          This data is available to the receiving wait task for processing
+          Can be any JSON-serializable data structure
+          - **Example**: { "user_id": "123", "status": "approved", "timestamp": "2024-01-01T00:00:00Z" }
         type: object
     type: object
   task.State:
@@ -880,26 +1612,26 @@ definitions:
         type: string
       component:
         allOf:
-          - $ref: "#/definitions/core.ComponentType"
+          - $ref: '#/definitions/core.ComponentType'
         description: Core identification
       created_at:
         description: Timestamps for audit trails and progress tracking
         type: string
       error:
-        $ref: "#/definitions/core.Error"
+        $ref: '#/definitions/core.Error'
       execution_type:
         allOf:
-          - $ref: "#/definitions/task.ExecutionType"
+          - $ref: '#/definitions/task.ExecutionType'
         description: Execution type and strategy
       input:
-        $ref: "#/definitions/core.Input"
+        $ref: '#/definitions/core.Input'
       output:
-        $ref: "#/definitions/core.Output"
+        $ref: '#/definitions/core.Output'
       parent_state_id:
         description: Parent-child relationship for hierarchical tasks
         type: string
       status:
-        $ref: "#/definitions/core.StatusType"
+        $ref: '#/definitions/core.StatusType'
       task_exec_id:
         type: string
       task_id:
@@ -916,8 +1648,15 @@ definitions:
   task.StatsConfig:
     properties:
       group_by:
+        description: |-
+          GroupBy field for aggregating statistics
+          - **Example**: "user", "session", "workflow"
+          Groups stats by the specified field in stored data
         type: string
       include_content:
+        description: |-
+          IncludeContent includes actual memory content in stats
+          WARNING: May return large amounts of data
         type: boolean
     type: object
   task.Type:
@@ -965,23 +1704,74 @@ definitions:
   tool.Config:
     properties:
       cwd:
-        $ref: "#/definitions/core.PathCWD"
+        $ref: '#/definitions/core.PathCWD'
       description:
+        description: |-
+          Human-readable description of what the tool does and its purpose.
+          This description is used by AI agents to understand when to use the tool.
+          Should clearly explain the tool's functionality and expected use cases.
+
+          - **Example:** `"Read and parse various file formats including JSON, YAML, and CSV"`
         type: string
       env:
-        $ref: "#/definitions/core.EnvMap"
+        allOf:
+          - $ref: '#/definitions/core.EnvMap'
+        description: |-
+          Environment variables available during tool execution.
+          Used for configuration, API keys, and runtime settings.
+          Variables are isolated to the tool's execution context.
+
+          **Example:**
+          ```yaml
+          env:
+            API_KEY: "secret"
+            BASE_URL: "https://api.example.com"
+          ```
       id:
+        description: |-
+          Unique identifier for the tool, used in agent configurations and function calls.
+          Must be **unique** within the project scope.
+
+          - **Examples:** `"file-reader"`, `"api-client"`, `"data-processor"`
         type: string
       input:
-        $ref: "#/definitions/schema.Schema"
+        allOf:
+          - $ref: '#/definitions/schema.Schema'
+        description: |-
+          JSON schema defining the expected input parameters for the tool.
+          Used for validation and to generate LLM function call definitions.
+          Should follow **JSON Schema Draft 7** specification.
+
+          If `nil`, the tool accepts any input format.
       output:
-        $ref: "#/definitions/schema.Schema"
+        allOf:
+          - $ref: '#/definitions/schema.Schema'
+        description: |-
+          JSON schema defining the expected output format from the tool.
+          Used for validation and documentation purposes.
+          Should follow **JSON Schema Draft 7** specification.
+
+          If `nil`, no output validation is performed.
       resource:
+        description: Resource identifier for the autoloader system (must be `"tool"`)
         type: string
       timeout:
+        description: |-
+          Maximum execution time for the tool in **Go duration format**.
+          If not specified, uses the global tool timeout from project configuration.
+
+          - **Examples:** `"30s"`, `"5m"`, `"1h"`, `"500ms"`
+          > **Note:** Zero or negative values are invalid and will cause validation errors
         type: string
       with:
-        $ref: "#/definitions/core.Input"
+        allOf:
+          - $ref: '#/definitions/core.Input'
+        description: |-
+          Default input parameters to pass to the tool.
+          These values are merged with runtime parameters provided by agents.
+
+          - **Precedence:** Runtime parameters take precedence over default values.
+          - **Use case:** Setting default configurations or API keys.
     type: object
   uc.ClearMemoryResult:
     properties:
@@ -1052,7 +1842,7 @@ definitions:
       message_count:
         type: integer
       pagination_info:
-        $ref: "#/definitions/uc.PaginationInfo"
+        $ref: '#/definitions/uc.PaginationInfo'
       role_distribution:
         additionalProperties:
           type: integer
@@ -1069,7 +1859,7 @@ definitions:
       name:
         type: string
       payload:
-        $ref: "#/definitions/core.Input"
+        $ref: '#/definitions/core.Input'
     required:
       - name
     type: object
@@ -1103,65 +1893,162 @@ definitions:
   workflow.Config:
     properties:
       agents:
+        description: |-
+          AI agents with specific instructions and capabilities
+          Configure LLM-powered agents with custom prompts, tools access, and behavior
+          Agents can be referenced by tasks using $use: agent(...) syntax
+          $ref: schema://agents
         items:
-          $ref: "#/definitions/agent.Config"
+          $ref: '#/definitions/agent.Config'
         type: array
       author:
-        $ref: "#/definitions/core.Author"
+        allOf:
+          - $ref: '#/definitions/core.Author'
+        description: |-
+          Author information for workflow attribution
+          Helps track ownership and responsibility for workflow maintenance
       config:
-        $ref: "#/definitions/workflow.Opts"
+        allOf:
+          - $ref: '#/definitions/workflow.Opts'
+        description: |-
+          Configuration options including input schema and environment variables
+          Controls workflow behavior, validation, and runtime environment
       cwd:
-        $ref: "#/definitions/core.PathCWD"
+        allOf:
+          - $ref: '#/definitions/core.PathCWD'
+        description: Internal field for the current working directory context
       description:
+        description: |-
+          Human-readable description of the workflow's purpose
+          Should clearly explain what the workflow does and when to use it
         type: string
       id:
+        description: |-
+          Unique identifier for the workflow (required)
+          Must be unique within the project scope. Used for referencing and execution.
+          - **Example**: "customer-support", "data-processing", "content-generation"
         type: string
       mcps:
+        description: |-
+          Model Context Protocol servers for extending AI capabilities
+          MCP servers provide specialized tools and knowledge to agents
+          Enable integration with external services and domain-specific functionality
+          $ref: schema://mcp
         items:
-          $ref: "#/definitions/mcp.Config"
+          $ref: '#/definitions/mcp.Config'
         type: array
       outputs:
-        $ref: "#/definitions/core.Output"
+        allOf:
+          - $ref: '#/definitions/core.Output'
+        description: |-
+          Output mappings to structure the final workflow results
+          Use template expressions to extract and transform task outputs
+          - **Example**: ticket_id: "{{ .tasks.create-ticket.output.id }}"
       resource:
+        description: |-
+          Resource reference for external workflow definitions
+          Format: "compozy:workflow:<name>" - allows referencing pre-built workflows
         type: string
       schedule:
-        $ref: "#/definitions/workflow.Schedule"
+        allOf:
+          - $ref: '#/definitions/workflow.Schedule'
+        description: |-
+          Schedule configuration for automated workflow execution
+          Enable cron-based scheduling with timezone support and overlap policies
       schemas:
+        description: |-
+          JSON schemas for validating data structures used in the workflow
+          Define reusable schemas that can be referenced throughout the workflow
+          using $ref syntax (e.g., $ref: local::schemas.#(id="user_schema"))
         items:
-          $ref: "#/definitions/schema.Schema"
+          $ref: '#/definitions/schema.Schema'
         type: array
       tasks:
+        description: |-
+          Sequential tasks that define the workflow execution plan (required)
+          Tasks are the core execution units, processed in order with conditional branching
+          Each task uses either an agent or tool to perform its operation
+          $ref: schema://tasks
         items:
-          $ref: "#/definitions/task.Config"
+          $ref: '#/definitions/task.Config'
         type: array
       tools:
+        description: |-
+          External tools that can be invoked by agents or tasks
+          Define executable scripts or programs that perform specific operations
+          Tools provide deterministic, non-AI functionality like API calls or data processing
+          $ref: schema://tools
         items:
-          $ref: "#/definitions/tool.Config"
+          $ref: '#/definitions/tool.Config'
         type: array
       triggers:
+        description: |-
+          Event triggers that can initiate workflow execution
+          Define external events (webhooks, signals) that can start the workflow
+          Each trigger can have its own input schema for validation
         items:
-          $ref: "#/definitions/workflow.Trigger"
+          $ref: '#/definitions/workflow.Trigger'
         type: array
       version:
+        description: |-
+          Version of the workflow for tracking changes
+          Follows semantic versioning (e.g., "1.0.0", "2.1.3")
+          Useful for managing workflow evolution and backwards compatibility
         type: string
     type: object
   workflow.Opts:
     properties:
       env:
-        $ref: "#/definitions/core.EnvMap"
+        allOf:
+          - $ref: '#/definitions/core.EnvMap'
+        description: |-
+          Environment variables available to the workflow and its components
+          These variables are accessible to all tasks, agents, and tools within the workflow
       heartbeat_timeout:
+        description: |-
+          Interval for task heartbeat signals
+          Used for long-running tasks to indicate progress
+
+          - **Example**: "10s", "30s", "1m"
         type: string
       input:
-        $ref: "#/definitions/schema.Schema"
+        allOf:
+          - $ref: '#/definitions/schema.Schema'
+        description: |-
+          Input schema for validating workflow input parameters
+          Uses JSON Schema format to define expected input structure and validation rules
       on_error:
-        $ref: "#/definitions/core.ErrorTransition"
+        allOf:
+          - $ref: '#/definitions/core.ErrorTransition'
+        description: |-
+          Error handler configuration
+          Defines what happens when a task fails after all retries
       retry_policy:
-        $ref: "#/definitions/core.RetryPolicyConfig"
+        allOf:
+          - $ref: '#/definitions/core.RetryPolicyConfig'
+        description: |-
+          Retry configuration for transient failures
+          Automatically retries failed tasks with exponential backoff
       schedule_to_close_timeout:
+        description: |-
+          Total timeout from scheduling to completion
+          Default: "6m"
+
+          - **Example**: "1m", "15m", "2h"
         type: string
       schedule_to_start_timeout:
+        description: |-
+          Maximum time to wait for a task to start executing
+          Default: "1m"
+
+          - **Example**: "30s", "5m", "1h"
         type: string
       start_to_close_timeout:
+        description: |-
+          Maximum time for task execution once started
+          Default: "5m"
+
+          - **Example**: "30s", "10m", "1h"
         type: string
     type: object
   workflow.OverlapPolicy:
@@ -1179,30 +2066,47 @@ definitions:
   workflow.Schedule:
     properties:
       cron:
-        description: Cron expression for scheduling (required)
+        description: |-
+          Cron expression for scheduling (required)
+          Supports standard cron format: "minute hour day month weekday"
+          Special strings: @yearly, @monthly, @weekly, @daily, @hourly
         type: string
       enabled:
-        description: Whether the schedule is enabled (optional, default true)
+        description: |-
+          Whether the schedule is enabled (optional, default true)
+          Set to false to temporarily disable scheduled runs without removing the configuration
         type: boolean
       end_at:
-        description: End date for the schedule (optional)
+        description: |-
+          End date for the schedule (optional)
+          Schedule will not run after this time
         type: string
       input:
         additionalProperties: {}
-        description: Default input values for scheduled runs (optional)
+        description: |-
+          Default input values for scheduled runs (optional)
+          These inputs are merged with any trigger inputs when the workflow executes
         type: object
       jitter:
-        description: Random delay to add to execution time (optional)
+        description: |-
+          Random delay to add to execution time (optional)
+          Format: "5m", "1h", "30s" - helps distribute load when many workflows run at the same time
         type: string
       overlap_policy:
         allOf:
-          - $ref: "#/definitions/workflow.OverlapPolicy"
-        description: Policy for handling overlapping executions (optional, default skip)
+          - $ref: '#/definitions/workflow.OverlapPolicy'
+        description: |-
+          Policy for handling overlapping executions (optional, default skip)
+          Options: skip, allow, buffer_one, cancel_other
       start_at:
-        description: Start date for the schedule (optional)
+        description: |-
+          Start date for the schedule (optional)
+          Schedule will not run before this time
         type: string
       timezone:
-        description: Timezone for schedule execution (optional, default UTC)
+        description: |-
+          Timezone for schedule execution (optional, default UTC)
+          Uses IANA timezone names (e.g., "America/New_York", "Europe/London")
         type: string
     required:
       - cron
@@ -1210,16 +2114,16 @@ definitions:
   workflow.State:
     properties:
       error:
-        $ref: "#/definitions/core.Error"
+        $ref: '#/definitions/core.Error'
       input:
-        $ref: "#/definitions/core.Input"
+        $ref: '#/definitions/core.Input'
       output:
-        $ref: "#/definitions/core.Output"
+        $ref: '#/definitions/core.Output'
       status:
-        $ref: "#/definitions/core.StatusType"
+        $ref: '#/definitions/core.StatusType'
       tasks:
         additionalProperties:
-          $ref: "#/definitions/task.State"
+          $ref: '#/definitions/task.State'
         type: object
       workflow_exec_id:
         type: string
@@ -1229,11 +2133,16 @@ definitions:
   workflow.Trigger:
     properties:
       name:
+        description: Unique name for identifying this trigger
         type: string
       schema:
-        $ref: "#/definitions/schema.Schema"
+        allOf:
+          - $ref: '#/definitions/schema.Schema'
+        description: Schema for validating trigger input data (optional)
       type:
-        $ref: "#/definitions/workflow.TriggerType"
+        allOf:
+          - $ref: '#/definitions/workflow.TriggerType'
+        description: Type of trigger mechanism (e.g., "signal" for external signals)
     type: object
   workflow.TriggerType:
     enum:
@@ -1611,7 +2520,7 @@ paths:
         "200":
           description: List of MCPs with their status
           schema:
-            $ref: "#/definitions/mcpproxy.ListMCPsResponse"
+            $ref: '#/definitions/mcpproxy.ListMCPsResponse'
         "401":
           description: Unauthorized
           schema:
@@ -1640,7 +2549,7 @@ paths:
           name: mcp
           required: true
           schema:
-            $ref: "#/definitions/mcpproxy.MCPDefinition"
+            $ref: '#/definitions/mcpproxy.MCPDefinition'
       produces:
         - application/json
       responses:
@@ -1731,7 +2640,7 @@ paths:
         "200":
           description: MCP details with status
           schema:
-            $ref: "#/definitions/mcpproxy.MCPDetailsResponse"
+            $ref: '#/definitions/mcpproxy.MCPDetailsResponse'
         "401":
           description: Unauthorized
           schema:
@@ -1770,7 +2679,7 @@ paths:
           name: mcp
           required: true
           schema:
-            $ref: "#/definitions/mcpproxy.MCPDefinition"
+            $ref: '#/definitions/mcpproxy.MCPDefinition'
       produces:
         - application/json
       responses:
@@ -1848,7 +2757,7 @@ paths:
           name: request
           required: true
           schema:
-            $ref: "#/definitions/mcpproxy.CallToolRequest"
+            $ref: '#/definitions/mcpproxy.CallToolRequest'
       produces:
         - application/json
       responses:
@@ -1897,7 +2806,7 @@ paths:
           name: body
           required: true
           schema:
-            $ref: "#/definitions/memrouter.AppendMemoryRequest"
+            $ref: '#/definitions/memrouter.AppendMemoryRequest'
       produces:
         - application/json
       responses:
@@ -1905,28 +2814,28 @@ paths:
           description: Memory appended successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    $ref: "#/definitions/service.AppendResponse"
+                    $ref: '#/definitions/service.AppendResponse'
                 type: object
         "400":
           description: Invalid request
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
       summary: Append to memory
       tags:
@@ -1948,7 +2857,7 @@ paths:
           name: body
           required: true
           schema:
-            $ref: "#/definitions/memrouter.ClearMemoryRequest"
+            $ref: '#/definitions/memrouter.ClearMemoryRequest'
       produces:
         - application/json
       responses:
@@ -1956,28 +2865,28 @@ paths:
           description: Memory cleared successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    $ref: "#/definitions/uc.ClearMemoryResult"
+                    $ref: '#/definitions/uc.ClearMemoryResult'
                 type: object
         "400":
           description: Invalid request
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
       summary: Clear memory
       tags:
@@ -1999,7 +2908,7 @@ paths:
           name: body
           required: true
           schema:
-            $ref: "#/definitions/memrouter.DeleteMemoryRequest"
+            $ref: '#/definitions/memrouter.DeleteMemoryRequest'
       produces:
         - application/json
       responses:
@@ -2007,28 +2916,28 @@ paths:
           description: Memory deleted successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    $ref: "#/definitions/service.DeleteResponse"
+                    $ref: '#/definitions/service.DeleteResponse'
                 type: object
         "400":
           description: Invalid request
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
       summary: Delete memory
       tags:
@@ -2051,7 +2960,7 @@ paths:
           name: body
           required: true
           schema:
-            $ref: "#/definitions/memrouter.FlushMemoryRequest"
+            $ref: '#/definitions/memrouter.FlushMemoryRequest'
       produces:
         - application/json
       responses:
@@ -2060,28 +2969,28 @@ paths:
             strategy was used
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    $ref: "#/definitions/uc.FlushMemoryResult"
+                    $ref: '#/definitions/uc.FlushMemoryResult'
                 type: object
         "400":
           description: Invalid request
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
       summary: Flush memory
       tags:
@@ -2116,28 +3025,28 @@ paths:
           description: Memory health retrieved successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    $ref: "#/definitions/uc.HealthMemoryResult"
+                    $ref: '#/definitions/uc.HealthMemoryResult'
                 type: object
         "400":
           description: Invalid request
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
       summary: Check memory health
       tags:
@@ -2160,7 +3069,7 @@ paths:
           name: key
           required: true
           type: string
-        - description: "Maximum number of messages to return (default: 50, max: 1000)"
+        - description: 'Maximum number of messages to return (default: 50, max: 1000)'
           example: 50
           in: query
           name: limit
@@ -2177,7 +3086,7 @@ paths:
           description: Memory read successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
                     properties:
@@ -2206,28 +3115,28 @@ paths:
           description: Invalid request
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
         "404":
           description: Memory not found
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
       summary: Read memory content
       tags:
@@ -2250,7 +3159,7 @@ paths:
           name: key
           required: true
           type: string
-        - description: "Limit for role distribution calculation (default: 100, max: 10000)"
+        - description: 'Limit for role distribution calculation (default: 100, max: 10000)'
           example: 100
           in: query
           name: limit
@@ -2267,28 +3176,28 @@ paths:
           description: Memory statistics retrieved successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    $ref: "#/definitions/uc.StatsMemoryOutput"
+                    $ref: '#/definitions/uc.StatsMemoryOutput'
                 type: object
         "400":
           description: Invalid request
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
       summary: Get memory statistics
       tags:
@@ -2310,7 +3219,7 @@ paths:
           name: body
           required: true
           schema:
-            $ref: "#/definitions/memrouter.WriteMemoryRequest"
+            $ref: '#/definitions/memrouter.WriteMemoryRequest'
       produces:
         - application/json
       responses:
@@ -2318,28 +3227,28 @@ paths:
           description: Memory written successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    $ref: "#/definitions/service.WriteResponse"
+                    $ref: '#/definitions/service.WriteResponse'
                 type: object
         "400":
           description: Invalid request
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
       summary: Write memory content
       tags:
@@ -2355,7 +3264,7 @@ paths:
           name: event
           required: true
           schema:
-            $ref: "#/definitions/wfrouter.EventRequest"
+            $ref: '#/definitions/wfrouter.EventRequest'
       produces:
         - application/json
       responses:
@@ -2363,19 +3272,19 @@ paths:
           description: Accepted
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    $ref: "#/definitions/wfrouter.EventResponse"
+                    $ref: '#/definitions/wfrouter.EventResponse'
                 type: object
         "400":
           description: Bad Request
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
       summary: Send event
       tags:
@@ -2392,13 +3301,13 @@ paths:
           description: Workflow executions retrieved successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
                     properties:
                       executions:
                         items:
-                          $ref: "#/definitions/workflow.State"
+                          $ref: '#/definitions/workflow.State'
                         type: array
                     type: object
                 type: object
@@ -2406,10 +3315,10 @@ paths:
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
       summary: List all workflow executions
       tags:
@@ -2433,37 +3342,37 @@ paths:
           description: Workflow execution retrieved successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    $ref: "#/definitions/workflow.State"
+                    $ref: '#/definitions/workflow.State'
                 type: object
         "400":
           description: Invalid execution ID
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
         "404":
           description: Execution not found
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
       summary: Get workflow execution by ID
       tags:
@@ -2487,7 +3396,7 @@ paths:
           description: Workflow execution canceled successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
                     type: string
@@ -2496,19 +3405,19 @@ paths:
           description: Invalid execution ID
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
       summary: Cancel workflow execution
       tags:
@@ -2532,7 +3441,7 @@ paths:
           description: Workflow execution paused successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
                     type: string
@@ -2541,19 +3450,19 @@ paths:
           description: Invalid execution ID
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
       summary: Pause workflow execution
       tags:
@@ -2577,7 +3486,7 @@ paths:
           description: Workflow execution resumed successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
                     type: string
@@ -2586,19 +3495,19 @@ paths:
           description: Invalid execution ID
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
       summary: Resume workflow execution
       tags:
@@ -2620,7 +3529,7 @@ paths:
           name: signal
           required: true
           schema:
-            $ref: "#/definitions/wfrouter.SignalRequest"
+            $ref: '#/definitions/wfrouter.SignalRequest'
       produces:
         - application/json
       responses:
@@ -2628,37 +3537,37 @@ paths:
           description: Signal sent successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    $ref: "#/definitions/wfrouter.SignalResponse"
+                    $ref: '#/definitions/wfrouter.SignalResponse'
                 type: object
         "400":
           description: Invalid execution ID or signal data
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
         "404":
           description: Execution not found
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
       summary: Send signal to workflow execution
       tags:
@@ -2674,11 +3583,11 @@ paths:
         "200":
           description: Memory system is healthy
           schema:
-            $ref: "#/definitions/memory.SystemHealth"
+            $ref: '#/definitions/memory.SystemHealth'
         "503":
           description: Memory system is unhealthy
           schema:
-            $ref: "#/definitions/memory.SystemHealth"
+            $ref: '#/definitions/memory.SystemHealth'
       summary: Get memory system health
       tags:
         - memory
@@ -2700,11 +3609,11 @@ paths:
         "200":
           description: Memory instance health retrieved
           schema:
-            $ref: "#/definitions/memory.InstanceHealth"
+            $ref: '#/definitions/memory.InstanceHealth'
         "404":
           description: Memory instance not found
           schema:
-            $ref: "#/definitions/gin.H"
+            $ref: '#/definitions/gin.H'
       summary: Get memory instance health
       tags:
         - memory
@@ -2748,19 +3657,19 @@ paths:
           description: Schedules retrieved successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    $ref: "#/definitions/schedulerouter.ScheduleListResponse"
+                    $ref: '#/definitions/schedulerouter.ScheduleListResponse'
                 type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
       summary: List all scheduled workflows
       tags:
@@ -2787,28 +3696,28 @@ paths:
           description: Invalid workflow ID
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
         "404":
           description: Schedule not found
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
       summary: Delete schedule
       tags:
@@ -2831,37 +3740,37 @@ paths:
           description: Schedule retrieved successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    $ref: "#/definitions/schedulerouter.ScheduleInfoResponse"
+                    $ref: '#/definitions/schedulerouter.ScheduleInfoResponse'
                 type: object
         "400":
           description: Invalid workflow ID
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
         "404":
           description: Schedule not found
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
       summary: Get schedule by workflow ID
       tags:
@@ -2883,7 +3792,7 @@ paths:
           name: request
           required: true
           schema:
-            $ref: "#/definitions/schedulerouter.UpdateScheduleRequest"
+            $ref: '#/definitions/schedulerouter.UpdateScheduleRequest'
       produces:
         - application/json
       responses:
@@ -2891,37 +3800,37 @@ paths:
           description: Schedule updated successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    $ref: "#/definitions/schedulerouter.ScheduleInfoResponse"
+                    $ref: '#/definitions/schedulerouter.ScheduleInfoResponse'
                 type: object
         "400":
           description: Invalid request
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
         "404":
           description: Schedule not found
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
       summary: Update schedule
       tags:
@@ -2938,13 +3847,13 @@ paths:
           description: Workflows retrieved successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
                     properties:
                       workflows:
                         items:
-                          $ref: "#/definitions/workflow.Config"
+                          $ref: '#/definitions/workflow.Config'
                         type: array
                     type: object
                 type: object
@@ -2952,10 +3861,10 @@ paths:
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
       summary: List all workflows
       tags:
@@ -2979,37 +3888,37 @@ paths:
           description: Workflow retrieved successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    $ref: "#/definitions/workflow.Config"
+                    $ref: '#/definitions/workflow.Config'
                 type: object
         "400":
           description: Invalid workflow ID
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
         "404":
           description: Workflow not found
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
       summary: Get workflow by ID
       tags:
@@ -3032,13 +3941,13 @@ paths:
           description: Agents retrieved successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
                     properties:
                       agents:
                         items:
-                          $ref: "#/definitions/agent.Config"
+                          $ref: '#/definitions/agent.Config'
                         type: array
                     type: object
                 type: object
@@ -3046,10 +3955,10 @@ paths:
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
       summary: List all agents
       tags:
@@ -3078,37 +3987,37 @@ paths:
           description: Agent retrieved successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    $ref: "#/definitions/agent.Config"
+                    $ref: '#/definitions/agent.Config'
                 type: object
         "400":
           description: Invalid agent ID
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
         "404":
           description: Agent not found
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
       summary: Get agent by ID
       tags:
@@ -3132,13 +4041,13 @@ paths:
           description: Workflow executions retrieved successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
                     properties:
                       executions:
                         items:
-                          $ref: "#/definitions/workflow.State"
+                          $ref: '#/definitions/workflow.State'
                         type: array
                     type: object
                 type: object
@@ -3146,19 +4055,19 @@ paths:
           description: Invalid workflow ID
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
       summary: List executions by workflow ID
       tags:
@@ -3187,37 +4096,37 @@ paths:
           description: Workflow triggered successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    $ref: "#/definitions/wfrouter.ExecuteWorkflowResponse"
+                    $ref: '#/definitions/wfrouter.ExecuteWorkflowResponse'
                 type: object
         "400":
           description: Invalid input or workflow ID
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
         "404":
           description: Workflow not found
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
       summary: Execute workflow
       tags:
@@ -3241,13 +4150,13 @@ paths:
           description: Tasks retrieved successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
                     properties:
                       tasks:
                         items:
-                          $ref: "#/definitions/task.Config"
+                          $ref: '#/definitions/task.Config'
                         type: array
                     type: object
                 type: object
@@ -3255,28 +4164,28 @@ paths:
           description: Invalid workflow ID
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
         "404":
           description: Workflow not found
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
       summary: List tasks for a workflow
       tags:
@@ -3306,37 +4215,37 @@ paths:
           description: Task retrieved successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    $ref: "#/definitions/task.Config"
+                    $ref: '#/definitions/task.Config'
                 type: object
         "400":
           description: Invalid workflow or task ID
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
         "404":
           description: Task not found
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
       summary: Get task by ID
       tags:
@@ -3359,13 +4268,13 @@ paths:
           description: Tools retrieved successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
                     properties:
                       tools:
                         items:
-                          $ref: "#/definitions/tool.Config"
+                          $ref: '#/definitions/tool.Config'
                         type: array
                     type: object
                 type: object
@@ -3373,10 +4282,10 @@ paths:
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
       summary: List all tools
       tags:
@@ -3405,37 +4314,37 @@ paths:
           description: Tool retrieved successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
-                    $ref: "#/definitions/tool.Config"
+                    $ref: '#/definitions/tool.Config'
                 type: object
         "400":
           description: Invalid tool ID
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
         "404":
           description: Tool not found
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
-                    $ref: "#/definitions/router.ErrorInfo"
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
       summary: Get tool by ID
       tags:

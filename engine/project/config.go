@@ -241,17 +241,17 @@ type Config struct {
 
 	// Runtime specifies the JavaScript/TypeScript execution environment for custom tools.
 	//
-	// $ref: inline:#runtime-configuration
+	// $ref: inline:#runtime
 	Runtime RuntimeConfig `json:"runtime" yaml:"runtime" mapstructure:"runtime"`
 
 	// CacheConfig enables and configures caching for improved performance and cost reduction.
 	//
-	// $ref: inline:#cache-configuration
+	// $ref: inline:#cache
 	CacheConfig *cache.Config `json:"cache,omitempty" yaml:"cache,omitempty" mapstructure:"cache"`
 
 	// AutoLoad configures automatic loading and reloading of project resources during development.
 	//
-	// $ref: inline:#autoload-configuration
+	// $ref: inline:#autoload
 	//
 	// **Development Benefits**:
 	//   - Hot-reload agents and workflows without restart
@@ -278,7 +278,7 @@ type Config struct {
 
 	// MonitoringConfig enables observability and metrics collection for performance tracking.
 	//
-	// $ref: inline:#monitoring-configuration
+	// $ref: inline:#monitoring
 	MonitoringConfig *monitoring.Config `json:"monitoring,omitempty" yaml:"monitoring,omitempty" mapstructure:"monitoring"`
 
 	// filePath stores the absolute path to the configuration file for internal use

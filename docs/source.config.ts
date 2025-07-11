@@ -13,6 +13,25 @@ export const docs = defineDocs({
 
 export default defineConfig({
   mdxOptions: {
-    // MDX options
+    rehypeCodeOptions: {
+      themes: {
+        light: "vitesse-light",
+        dark: "vitesse-dark",
+      },
+      langs: [
+        "yaml",
+        "yml",
+        "typescript",
+        "javascript",
+        "tsx",
+        "jsx",
+        "json",
+        "bash",
+        "shell",
+        "css",
+        "html",
+        "markdown",
+      ],
+    },
   },
 });

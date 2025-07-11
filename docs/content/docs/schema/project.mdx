@@ -1,5 +1,5 @@
 ---
-title: Project Schema
+title: Configuration Schemas
 description: JSON Schema for project configuration
 icon: Settings
 ---
@@ -14,28 +14,10 @@ import cacheSchema from "@/schemas/cache.json";
 import autoloadSchema from "@/schemas/autoload.json";
 import monitoringSchema from "@/schemas/monitoring.json";
 
+## Project
+
 <SchemaParams
   schema={projectSchema}
-  title="Schema Definition"
-  collapsible={true}
-  defaultExpanded={true}
-  paramType="path"
-/>
-
-## Author
-
-<SchemaParams
-  schema={authorSchema}
-  title="Schema Definition"
-  collapsible={true}
-  defaultExpanded={true}
-  paramType="path"
-/>
-
-## Runtime Configuration
-
-<SchemaParams
-  schema={runtimeSchema}
   title="Schema Definition"
   collapsible={true}
   defaultExpanded={true}
@@ -52,7 +34,27 @@ import monitoringSchema from "@/schemas/monitoring.json";
   paramType="path"
 />
 
-## Cache Configuration
+## Author
+
+<SchemaParams
+  schema={authorSchema}
+  title="Schema Definition"
+  collapsible={true}
+  defaultExpanded={true}
+  paramType="path"
+/>
+
+## Runtime
+
+<SchemaParams
+  schema={runtimeSchema}
+  title="Schema Definition"
+  collapsible={true}
+  defaultExpanded={true}
+  paramType="path"
+/>
+
+## Cache
 
 <SchemaParams
   schema={cacheSchema}
@@ -62,7 +64,7 @@ import monitoringSchema from "@/schemas/monitoring.json";
   paramType="path"
 />
 
-## Autoload Configuration
+## Autoload
 
 <SchemaParams
   schema={autoloadSchema}
@@ -72,7 +74,7 @@ import monitoringSchema from "@/schemas/monitoring.json";
   paramType="path"
 />
 
-## Monitoring Configuration
+## Monitoring
 
 <SchemaParams
   schema={monitoringSchema}

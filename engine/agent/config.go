@@ -1,3 +1,6 @@
+// Package agent provides AI agent configuration and management for Compozy workflows.
+// Agents combine LLM capabilities with structured actions, tools, and memory to solve
+// complex tasks through iterative reasoning and decision-making.
 package agent
 
 import (
@@ -26,16 +29,16 @@ import (
 // - **Iterative problem-solving** with self-correction
 // - **Memory integration** for maintaining context across interactions
 //
-// ## Key Capabilities
+// ## Architecture Integration
 //
-// Agents combine several powerful features:
+// Agents integrate seamlessly with Compozy's workflow engine:
 //
-// - **LLM Integration**: Connect to various AI providers (OpenAI, Anthropic, etc.)
-// - **Action System**: Define structured actions with input/output schemas
-// - **Tool Access**: Utilize external tools and APIs dynamically
-// - **MCP Support**: Extend capabilities through Model Context Protocol servers
-// - **Memory Management**: Access shared context across workflow steps
-// - **Iterative Execution**: Self-correct and refine responses over multiple iterations
+// - **LLM Providers**: Support OpenAI, Anthropic, Google, Groq, and local models
+// - **Action System**: Type-safe interfaces with JSON Schema validation
+// - **Tool Ecosystem**: Dynamic access to filesystem, APIs, and custom tools
+// - **MCP Protocol**: Extensible capabilities through external servers
+// - **Memory Layer**: Persistent context across workflow sessions
+// - **Workflow Tasks**: Execute as part of basic, parallel, or collection tasks
 //
 // ## Example Configuration
 //
@@ -80,7 +83,7 @@ import (
 // json_mode: false
 // ```
 type Config struct {
-	// Resource identifier for the autoloader system (must be `"agent"`)
+	// Resource identifier for the autoloader system (must be `"agent"`).
 	// This field enables automatic discovery and registration of agent configurations.
 	Resource string `json:"resource,omitempty"       yaml:"resource,omitempty"       mapstructure:"resource,omitempty"`
 	// Unique identifier for the agent within the project scope.
@@ -89,9 +92,10 @@ type Config struct {
 	// - **Examples:** `"code-assistant"`, `"data-analyst"`, `"customer-support"`
 	ID string `json:"id"                       yaml:"id"                       mapstructure:"id"                       validate:"required"`
 	// LLM provider configuration defining which AI model to use and its parameters.
-	// Supports multiple providers including OpenAI, Anthropic, Google, and others.
+	// Supports multiple providers including OpenAI, Anthropic, Google, Groq, and local models.
 	//
-	// $ref: schema://provider
+	// **Required fields:** provider, model
+	// **Optional fields:** api_key, api_url, params (temperature, max_tokens, etc.)
 	Config core.ProviderConfig `json:"config"                   yaml:"config"                   mapstructure:"config"                   validate:"required"`
 	// System instructions that define the agent's personality, behavior, and constraints.
 	// These instructions guide how the agent interprets tasks and generates responses.
@@ -148,35 +152,38 @@ type Config struct {
 	Env *core.EnvMap `json:"env,omitempty"            yaml:"env,omitempty"            mapstructure:"env,omitempty"`
 	// Tools available to the agent for extending its capabilities.
 	// When tools are defined, the agent automatically has `toolChoice` set to `"auto"`,
-	// allowing it to decide when and how to use available tools.
+	// enabling autonomous tool selection and invocation during task execution.
 	//
-	// Tools can be:
-	// - File system operations
-	// - API integrations
-	// - Data processing utilities
-	// - Custom business logic
-	// $ref: schema://tools
+	// **Tool types supported:**
+	// - File system operations (read, write, list)
+	// - API integrations (HTTP requests, webhooks)
+	// - Data processing utilities (parsing, transformation)
+	// - Custom business logic (TypeScript/JavaScript execution)
+	//
+	// Tools are referenced by ID and can be shared across multiple agents.
 	Tools []tool.Config `json:"tools,omitempty"          yaml:"tools,omitempty"          mapstructure:"tools,omitempty"`
 	// Model Context Protocol (MCP) server configurations.
 	// MCPs provide standardized interfaces for extending agent capabilities
-	// with external services and data sources.
+	// with external services and data sources through protocol-based communication.
 	//
-	// **Common MCP types:**
-	// - Database connectors
-	// - Search engines
-	// - Knowledge bases
-	// - External APIs
-	// $ref: schema://mcp
+	// **Common MCP integrations:**
+	// - Database connectors (PostgreSQL, Redis, MongoDB)
+	// - Search engines (Elasticsearch, Solr)
+	// - Knowledge bases (vector databases, documentation systems)
+	// - External APIs (REST, GraphQL, gRPC services)
+	//
+	// MCPs support both stdio and HTTP transport protocols.
 	MCPs []mcp.Config `json:"mcps,omitempty"           yaml:"mcps,omitempty"           mapstructure:"mcps,omitempty"`
 	// Maximum number of reasoning iterations the agent can perform.
-	// The agent may self-correct and refine its response across iterations.
+	// The agent may self-correct and refine its response across multiple iterations
+	// to improve accuracy and address complex multi-step problems.
 	//
-	// **Default:** `5`
+	// **Default:** `5` iterations
 	//
-	// **Considerations:**
-	// - Higher values allow more thorough problem-solving
-	// - Each iteration consumes tokens and adds latency
-	// - Set based on task complexity and accuracy requirements
+	// **Trade-offs:**
+	// - Higher values enable more thorough problem-solving and self-correction
+	// - Each iteration consumes additional tokens and increases response latency
+	// - Configure based on task complexity, accuracy requirements, and cost constraints
 	MaxIterations int `json:"max_iterations,omitempty" yaml:"max_iterations,omitempty" mapstructure:"max_iterations,omitempty"`
 	// Forces the agent to always respond in valid JSON format.
 	// When enabled, the agent's responses must be parseable JSON objects.
@@ -208,18 +215,26 @@ type Config struct {
 	CWD      *core.PathCWD
 }
 
+// Component returns the configuration type identifier for agents.
+// This method implements the core.Config interface and is used by the
+// configuration system to identify agent configurations during processing.
 func (a *Config) Component() core.ConfigType {
 	return core.ConfigAgent
 }
 
+// GetFilePath returns the source file path of this configuration.
 func (a *Config) GetFilePath() string {
 	return a.filePath
 }
 
+// SetFilePath sets the source file path for this configuration.
 func (a *Config) SetFilePath(path string) {
 	a.filePath = path
 }
 
+// SetCWD sets the working directory and propagates it to all actions.
+// This ensures that all relative paths in the agent configuration and its actions
+// are resolved consistently from the same base directory.
 func (a *Config) SetCWD(path string) error {
 	CWD, err := core.CWDFromPath(path)
 	if err != nil {
@@ -234,10 +249,12 @@ func (a *Config) SetCWD(path string) error {
 	return nil
 }
 
+// GetCWD returns the current working directory.
 func (a *Config) GetCWD() *core.PathCWD {
 	return a.CWD
 }
 
+// GetInput returns the default input configuration, creating one if needed.
 func (a *Config) GetInput() *core.Input {
 	if a.With == nil {
 		a.With = &core.Input{}
@@ -245,6 +262,7 @@ func (a *Config) GetInput() *core.Input {
 	return a.With
 }
 
+// GetEnv returns the environment variables map, creating one if needed.
 func (a *Config) GetEnv() core.EnvMap {
 	if a.Env == nil {
 		a.Env = &core.EnvMap{}
@@ -253,13 +271,16 @@ func (a *Config) GetEnv() core.EnvMap {
 	return *a.Env
 }
 
+// HasSchema indicates whether this configuration supports schema validation.
+// Returns false for agents since they operate on dynamic natural language prompts
+// rather than structured input/output schemas like tools.
 func (a *Config) HasSchema() bool {
 	return false
 }
 
-// GetMaxIterations returns the maximum number of iterations for the agent.
-// If not explicitly set, defaults to 5 iterations to balance between
-// thorough problem-solving and resource consumption.
+// GetMaxIterations returns the maximum iteration count, defaulting to 5.
+// This provides a safe default for agents that don't explicitly configure
+// iteration limits, balancing thoroughness with performance.
 func (a *Config) GetMaxIterations() int {
 	if a.MaxIterations == 0 {
 		return 5
@@ -267,13 +288,8 @@ func (a *Config) GetMaxIterations() int {
 	return a.MaxIterations
 }
 
-// NormalizeAndValidateMemoryConfig processes and validates the memory configuration.
-// It ensures all memory references have required fields (id, key) and valid access modes.
-// Sets default mode to "read-write" if not specified.
-//
-// Returns an error if:
-// - Missing required fields (id or key)
-// - Invalid access mode (must be "read-write" or "read-only")
+// NormalizeAndValidateMemoryConfig validates memory references and sets default mode to "read-write".
+// This ensures all memory configurations have valid IDs, keys, and access modes before agent execution.
 func (a *Config) NormalizeAndValidateMemoryConfig() error {
 	const defaultMemoryMode = "read-write"
 
@@ -297,6 +313,9 @@ func (a *Config) NormalizeAndValidateMemoryConfig() error {
 	return nil
 }
 
+// Validate ensures the agent configuration is complete and correct.
+// This performs comprehensive validation including struct fields, memory configuration,
+// actions, and MCP server settings to prevent runtime errors.
 func (a *Config) Validate() error {
 	// Initial struct validation (for required fields like ID, Config, Instructions)
 	baseValidator := schema.NewStructValidator(a)
@@ -331,24 +350,34 @@ func (a *Config) Validate() error {
 	return nil
 }
 
+// ValidateInput is a no-op for agents as they don't have input schemas.
+// Agents accept dynamic natural language inputs that cannot be validated against
+// predefined schemas, unlike tools which have structured input requirements.
 func (a *Config) ValidateInput(_ context.Context, _ *core.Input) error {
-	// Does not make sense the agent having a schema
 	return nil
 }
 
+// ValidateOutput is a no-op for agents as they don't have output schemas.
+// Agents generate dynamic natural language outputs that cannot be validated against
+// predefined schemas, unlike tools which have structured output formats.
 func (a *Config) ValidateOutput(_ context.Context, _ *core.Output) error {
-	// Does not make sense the agent having a schema
 	return nil
 }
 
+// Merge combines this configuration with another, with the other taking precedence.
+// This enables configuration inheritance and composition patterns where base agent
+// configurations can be extended or overridden by more specific configurations.
 func (a *Config) Merge(other any) error {
 	otherConfig, ok := other.(*Config)
 	if !ok {
-		return fmt.Errorf("failed to merge agent configs: %s", "invalid type for merge")
+		return fmt.Errorf("failed to merge agent configs: invalid type for merge")
 	}
 	return mergo.Merge(a, otherConfig, mergo.WithOverride)
 }
 
+// Clone creates a deep copy of the configuration.
+// This is useful for creating independent configuration instances when
+// multiple agents need similar but not identical configurations.
 func (a *Config) Clone() (*Config, error) {
 	if a == nil {
 		return nil, nil
@@ -356,10 +385,15 @@ func (a *Config) Clone() (*Config, error) {
 	return core.DeepCopy(a)
 }
 
+// AsMap converts the configuration to a map representation.
+// This is primarily used for serialization and template evaluation processes.
 func (a *Config) AsMap() (map[string]any, error) {
 	return core.AsMapDefault(a)
 }
 
+// FromMap populates the configuration from a map representation.
+// This is used during configuration loading and template evaluation to
+// reconstruct agent configurations from deserialized data.
 func (a *Config) FromMap(data any) error {
 	config, err := core.FromMapDefault[*Config](data)
 	if err != nil {
@@ -368,13 +402,9 @@ func (a *Config) FromMap(data any) error {
 	return a.Merge(config)
 }
 
-// Load reads and parses an agent configuration from the specified file path.
-// The path can be absolute or relative to the provided working directory.
-// Supports YAML and JSON formats.
-//
-// - **Example**:
-//
-//	config, err := agent.Load(cwd, "agents/code-assistant.yaml")
+// Load reads an agent configuration from a YAML or JSON file.
+// This function resolves the file path relative to the provided working directory
+// and loads the configuration without template evaluation.
 func Load(cwd *core.PathCWD, path string) (*Config, error) {
 	filePath, err := core.ResolvePath(cwd, path)
 	if err != nil {
@@ -387,18 +417,9 @@ func Load(cwd *core.PathCWD, path string) (*Config, error) {
 	return config, nil
 }
 
-// LoadAndEval loads an agent configuration and evaluates any template expressions.
-// This allows for dynamic configuration values using the Compozy template syntax.
-//
-// Template expressions can reference:
-// - Environment variables: {{.env.VARIABLE_NAME}}
-// - Workflow inputs: {{.workflow.input.field_name}}
-// - Other context values provided by the evaluator
-//
-// - **Example**:
-//
-//	evaluator := ref.NewEvaluator(context)
-//	config, err := agent.LoadAndEval(cwd, "agents/dynamic-agent.yaml", evaluator)
+// LoadAndEval loads a configuration with template evaluation support.
+// This function processes template expressions like {{.env.API_KEY}} and {{.workflow.input.value}}
+// before loading the agent configuration, enabling dynamic configuration patterns.
 func LoadAndEval(cwd *core.PathCWD, path string, ev *ref.Evaluator) (*Config, error) {
 	filePath, err := core.ResolvePath(cwd, path)
 	if err != nil {

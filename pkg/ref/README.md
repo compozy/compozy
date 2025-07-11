@@ -63,7 +63,7 @@ package main
 import (
     "fmt"
     "log"
-    
+
     "github.com/compozy/compozy/pkg/ref"
 )
 
@@ -79,7 +79,7 @@ func main() {
             "logging": true,
         },
     }
-    
+
     // YAML with directives
     yamlDoc := `
 app:
@@ -90,13 +90,13 @@ app:
     $ref: "local::features"
     debug: true
 `
-    
+
     // Process the document
     result, err := ref.ProcessBytes([]byte(yamlDoc), ref.WithLocalScope(localScope))
     if err != nil {
         log.Fatal(err)
     }
-    
+
     fmt.Printf("%+v\n", result)
     // Output: map[app:map[config:map[auth:true debug:true logging:true] db:map[host:localhost port:5432] name:my-service]]
 }
@@ -220,7 +220,7 @@ if err != nil {
 // Use in YAML
 yamlDoc := `
 database:
-  host: 
+  host:
     $env: "DB_HOST"
   port: 5432
 `
@@ -307,7 +307,7 @@ package main
 import (
     "fmt"
     "log"
-    
+
     "github.com/compozy/compozy/pkg/ref"
 )
 
@@ -337,7 +337,7 @@ func main() {
             },
         },
     }
-    
+
     globalScope := map[string]any{
         "env": map[string]any{
             "production": map[string]any{
@@ -352,25 +352,25 @@ func main() {
             },
         },
     }
-    
+
     yamlDoc := `
 app:
   name: my-service
   version: "1.0.0"
-  
+
   # Server configuration with inline merge
   server:
     $ref: "local::defaults.server"
     port: 9090
     ssl: true
-    
+
   # Database configuration with declarative merge
   database:
     $merge:
       - $ref: "local::defaults.database"
       - $ref: "global::env.production.database"
       - timeout: "10s"
-      
+
   # Worker deployment with component transformation
   deployment:
     $use: "agent(local::agents.worker)"
@@ -381,7 +381,7 @@ app:
       enabled: true
       min: 1
       max: 10
-      
+
   # Feature flags with merge strategies
   features:
     $merge:
@@ -392,19 +392,19 @@ app:
         - analytics: true
         - logging: true
 `
-    
+
     // Process with caching for performance
     ev := ref.NewEvaluator(
         ref.WithLocalScope(localScope),
         ref.WithGlobalScope(globalScope),
         ref.WithCacheEnabled(),
     )
-    
+
     result, err := ref.ProcessBytesWithEvaluator([]byte(yamlDoc), ev)
     if err != nil {
         log.Fatal(err)
     }
-    
+
     fmt.Printf("%+v\n", result)
 }
 ```
@@ -561,15 +561,15 @@ func TestBasicReference(t *testing.T) {
             "value": "hello",
         },
     }
-    
+
     yamlDoc := `
 result:
   $ref: "local::test.value"
 `
-    
+
     result, err := ref.ProcessBytes([]byte(yamlDoc), ref.WithLocalScope(scope))
     require.NoError(t, err)
-    
+
     expected := map[string]any{
         "result": "hello",
     }
@@ -583,17 +583,17 @@ func TestInlineMerge(t *testing.T) {
             "port": 8080,
         },
     }
-    
+
     yamlDoc := `
 server:
   $ref: "local::base"
   port: 9090
   ssl: true
 `
-    
+
     result, err := ref.ProcessBytes([]byte(yamlDoc), ref.WithLocalScope(scope))
     require.NoError(t, err)
-    
+
     server := result.(map[string]any)["server"].(map[string]any)
     require.Equal(t, "localhost", server["host"])
     require.Equal(t, 9090, server["port"]) // Overridden
@@ -613,18 +613,18 @@ func BenchmarkEvaluatorWithCache(b *testing.B) {
             },
         },
     }
-    
+
     yamlDoc := `
 app:
   server:
     $ref: "local::config.server"
 `
-    
+
     ev := ref.NewEvaluator(
         ref.WithLocalScope(scope),
         ref.WithCacheEnabled(),
     )
-    
+
     b.ResetTimer()
     for i := 0; i < b.N; i++ {
         _, err := ref.ProcessBytesWithEvaluator([]byte(yamlDoc), ev)

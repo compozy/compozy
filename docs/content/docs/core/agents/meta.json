@@ -3,13 +3,13 @@
   "description": "Agent development and LLM integration",
   "icon": "Bot",
   "pages": [
-    "agent-overview",
+    "overview",
     "llm-integration",
     "instructions-actions",
-    "tool-integration",
-    "memory-systems",
-    "multi-agent-patterns",
-    "testing-validation",
-    "performance-optimization"
+    "tools",
+    "memory",
+    "context",
+    "structured-outputs",
+    "multi-agent-patterns"
   ]
 }

@@ -28,6 +28,7 @@
 The `cache` package provides a comprehensive Redis-based caching and coordination layer for the Compozy workflow orchestration engine. It combines Redis client operations, distributed locking using the Redlock algorithm, and pub/sub notifications into a unified interface.
 
 This package is designed to handle:
+
 - **Distributed caching** for workflow state and temporary data
 - **Distributed locking** for coordinating concurrent workflow execution
 - **Real-time notifications** for workflow events and task updates
@@ -67,27 +68,27 @@ import (
 
 func main() {
     ctx := context.Background()
-    
+
     // Setup cache with default configuration
     cache, err := cache.SetupCache(ctx, nil)
     if err != nil {
         panic(err)
     }
     defer cache.Close()
-    
+
     // Basic cache operation
     err = cache.Redis.Set(ctx, "key", "value", time.Hour).Err()
     if err != nil {
         panic(err)
     }
-    
+
     // Distributed locking
     lock, err := cache.LockManager.Acquire(ctx, "resource", time.Minute)
     if err != nil {
         panic(err)
     }
     defer lock.Release(ctx)
-    
+
     // Work with exclusive access to resource
     // ...
 }
@@ -207,26 +208,26 @@ config := &cache.Config{
     Password: "secret",
     DB:       0,
     PoolSize: 10,
-    
+
     // Timeouts
     DialTimeout:  5 * time.Second,
     ReadTimeout:  3 * time.Second,
     WriteTimeout: 3 * time.Second,
     PoolTimeout:  4 * time.Second,
     PingTimeout:  1 * time.Second,
-    
+
     // TLS
     TLSEnabled: false,
-    
+
     // Retry configuration
     MaxRetries:      3,
     MinRetryBackoff: 8 * time.Millisecond,
     MaxRetryBackoff: 512 * time.Millisecond,
-    
+
     // Pool configuration
     MaxIdleConns: 5,
     MinIdleConns: 2,
-    
+
     // Notifications
     NotificationBufferSize: 100,
 }
@@ -265,7 +266,7 @@ func processTask(cache *cache.Cache, taskID string) error {
         return fmt.Errorf("task already being processed: %w", err)
     }
     defer lock.Release(ctx)
-    
+
     // Process task exclusively
     return processTaskExclusively(taskID)
 }
@@ -278,7 +279,7 @@ func startWorkflowNotifications(cache *cache.Cache) {
     // Subscribe to workflow events
     subscriber := cache.Notification.Subscribe(ctx, "workflow:*")
     defer subscriber.Close()
-    
+
     // Handle workflow events
     for {
         select {
@@ -288,10 +289,10 @@ func startWorkflowNotifications(cache *cache.Cache) {
                 log.Error("Failed to unmarshal workflow event", "error", err)
                 continue
             }
-            
+
             // Process workflow event
             handleWorkflowEvent(&event)
-            
+
         case <-ctx.Done():
             return
         }
@@ -326,6 +327,7 @@ func getNotificationMetrics(cache *cache.Cache) *cache.NotificationMetrics {
 ### Core Types
 
 #### `Cache`
+
 Main cache wrapper combining Redis, LockManager, and NotificationSystem.
 
 ```go
@@ -341,6 +343,7 @@ func (c *Cache) HealthCheck(ctx context.Context) error
 ```
 
 #### `Redis`
+
 Redis client wrapper implementing RedisInterface.
 
 ```go
@@ -354,6 +357,7 @@ func (r *Redis) HealthCheck(ctx context.Context) error
 ```
 
 #### `LockManager`
+
 Distributed locking interface.
 
 ```go
@@ -370,6 +374,7 @@ type Lock interface {
 ```
 
 #### `NotificationSystem`
+
 Pub/sub notification system interface.
 
 ```go
@@ -389,6 +394,7 @@ type Subscriber interface {
 ### Configuration
 
 #### `Config`
+
 Configuration struct with validation.
 
 ```go
@@ -399,25 +405,25 @@ type Config struct {
     Password string        `json:"password,omitempty"`
     DB       int           `json:"db,omitempty"`
     PoolSize int           `json:"pool_size,omitempty"`
-    
+
     // TLS Configuration
     TLSEnabled bool        `json:"tls_enabled,omitempty"`
     TLSConfig  *tls.Config `json:"-"`
-    
+
     // Timeout Configuration
     DialTimeout  time.Duration `json:"dial_timeout,omitempty"`
     ReadTimeout  time.Duration `json:"read_timeout,omitempty"`
     WriteTimeout time.Duration `json:"write_timeout,omitempty"`
     PoolTimeout  time.Duration `json:"pool_timeout,omitempty"`
     PingTimeout  time.Duration `json:"ping_timeout,omitempty"`
-    
+
     // Pool Configuration
     MaxRetries      int           `json:"max_retries,omitempty"`
     MinRetryBackoff time.Duration `json:"min_retry_backoff,omitempty"`
     MaxRetryBackoff time.Duration `json:"max_retry_backoff,omitempty"`
     MaxIdleConns    int           `json:"max_idle_conns,omitempty"`
     MinIdleConns    int           `json:"min_idle_conns,omitempty"`
-    
+
     // Notification Configuration
     NotificationBufferSize int `json:"notification_buffer_size,omitempty"`
 }
@@ -428,6 +434,7 @@ func (c *Config) Validate() error
 ### Event Types
 
 #### `WorkflowEvent`
+
 Workflow notification event structure.
 
 ```go
@@ -439,6 +446,7 @@ type WorkflowEvent struct {
 ```
 
 #### `TaskEvent`
+
 Task notification event structure.
 
 ```go
@@ -465,7 +473,7 @@ func getEnvOrDefault(value, defaultValue string) string
 ```go
 func TestCache(t *testing.T) {
     ctx := context.Background()
-    
+
     // Setup test cache
     cache, err := cache.SetupCache(ctx, &cache.Config{
         Host: "localhost",
@@ -474,11 +482,11 @@ func TestCache(t *testing.T) {
     })
     require.NoError(t, err)
     defer cache.Close()
-    
+
     t.Run("Should set and get values", func(t *testing.T) {
         err := cache.Redis.Set(ctx, "test:key", "test:value", time.Minute).Err()
         require.NoError(t, err)
-        
+
         val, err := cache.Redis.Get(ctx, "test:key").Result()
         require.NoError(t, err)
         assert.Equal(t, "test:value", val)
@@ -491,22 +499,22 @@ func TestCache(t *testing.T) {
 ```go
 func TestDistributedLocking(t *testing.T) {
     ctx := context.Background()
-    
+
     // Setup two cache instances
     cache1, err := cache.SetupCache(ctx, testConfig())
     require.NoError(t, err)
     defer cache1.Close()
-    
+
     cache2, err := cache.SetupCache(ctx, testConfig())
     require.NoError(t, err)
     defer cache2.Close()
-    
+
     t.Run("Should prevent concurrent access", func(t *testing.T) {
         // Acquire lock from first instance
         lock1, err := cache1.LockManager.Acquire(ctx, "resource", time.Minute)
         require.NoError(t, err)
         defer lock1.Release(ctx)
-        
+
         // Try to acquire same lock from second instance
         _, err = cache2.LockManager.Acquire(ctx, "resource", time.Second)
         assert.Error(t, err, "Should fail to acquire already held lock")
@@ -531,12 +539,12 @@ func setupTestCache(t *testing.T) *cache.Cache {
     ctx := context.Background()
     cache, err := cache.SetupCache(ctx, testConfig())
     require.NoError(t, err)
-    
+
     // Cleanup function
     t.Cleanup(func() {
         cache.Close()
     })
-    
+
     return cache
 }
 ```

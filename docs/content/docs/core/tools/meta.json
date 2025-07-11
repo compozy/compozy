@@ -4,9 +4,9 @@
   "icon": "Wrench",
   "pages": [
     "tools-overview",
-    "typescript-development",
     "configuration-schemas",
     "runtime-environment",
+    "typescript-development",
     "external-integrations",
     "testing-debugging",
     "performance-security",

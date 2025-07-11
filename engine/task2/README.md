@@ -64,7 +64,7 @@ import (
     "context"
     "fmt"
     "log"
-    
+
     "github.com/compozy/compozy/engine/task"
     "github.com/compozy/compozy/engine/task2"
     "github.com/compozy/compozy/engine/task2/core"
@@ -75,7 +75,7 @@ import (
 func main() {
     // Create template engine
     templateEngine := tplengine.New()
-    
+
     // Create factory
     factory, err := task2.NewFactory(&task2.FactoryConfig{
         TemplateEngine: templateEngine,
@@ -84,24 +84,24 @@ func main() {
     if err != nil {
         log.Fatal(err)
     }
-    
+
     // Create orchestrator
     orchestrator, err := task2.NewConfigOrchestrator(factory)
     if err != nil {
         log.Fatal(err)
     }
-    
+
     // Create workflow and task configurations
     workflowConfig := &workflow.Config{
         ID: "demo-workflow",
         // ... workflow configuration
     }
-    
+
     workflowState := &workflow.State{
         WorkflowID: "demo-workflow",
         // ... workflow state
     }
-    
+
     taskConfig := &task.Config{
         BaseConfig: task.BaseConfig{
             ID:   "demo-task",
@@ -112,13 +112,13 @@ func main() {
         },
         // ... task configuration
     }
-    
+
     // Normalize task configuration
     err = orchestrator.NormalizeTask(workflowState, workflowConfig, taskConfig)
     if err != nil {
         log.Fatal(err)
     }
-    
+
     fmt.Println("Task configuration normalized successfully")
 }
 ```
@@ -317,12 +317,12 @@ func normalizeComplexWorkflow() error {
     if err != nil {
         return err
     }
-    
+
     orchestrator, err := task2.NewConfigOrchestrator(factory)
     if err != nil {
         return err
     }
-    
+
     // Define workflow state
     workflowState := &workflow.State{
         WorkflowID: "data-processing",
@@ -334,7 +334,7 @@ func normalizeComplexWorkflow() error {
         Output: &core.Output{},
         Tasks: make(map[string]*task.State),
     }
-    
+
     // Define workflow config
     workflowConfig := &workflow.Config{
         ID: "data-processing",
@@ -401,16 +401,16 @@ func normalizeComplexWorkflow() error {
             },
         },
     }
-    
+
     // Normalize all tasks
     for i := range workflowConfig.Tasks {
         taskConfig := &workflowConfig.Tasks[i]
-        
+
         err := orchestrator.NormalizeTask(workflowState, workflowConfig, taskConfig)
         if err != nil {
             return fmt.Errorf("failed to normalize task %s: %w", taskConfig.ID, err)
         }
-        
+
         // Normalize agent if present
         if taskConfig.Agent != nil {
             allTaskConfigs := task2.BuildTaskConfigsMap(workflowConfig.Tasks)
@@ -425,7 +425,7 @@ func normalizeComplexWorkflow() error {
                 return fmt.Errorf("failed to normalize agent for task %s: %w", taskConfig.ID, err)
             }
         }
-        
+
         // Normalize tool if present
         if taskConfig.Tool != nil {
             allTaskConfigs := task2.BuildTaskConfigsMap(workflowConfig.Tasks)
@@ -441,7 +441,7 @@ func normalizeComplexWorkflow() error {
             }
         }
     }
-    
+
     return nil
 }
 ```
@@ -463,7 +463,7 @@ func processWaitTaskWithSignal() error {
             "timestamp": time.Now().Unix(),
         },
     }
-    
+
     // Create wait task configuration
     waitTaskConfig := &task.Config{
         BaseConfig: task.BaseConfig{
@@ -497,7 +497,7 @@ func processWaitTaskWithSignal() error {
             },
         },
     }
-    
+
     // Normalize with signal context
     err := orchestrator.NormalizeTaskWithSignal(
         waitTaskConfig,
@@ -508,7 +508,7 @@ func processWaitTaskWithSignal() error {
     if err != nil {
         return fmt.Errorf("failed to normalize wait task with signal: %w", err)
     }
-    
+
     return nil
 }
 ```
@@ -523,7 +523,7 @@ func createCustomResponseHandler() error {
     if err != nil {
         return err
     }
-    
+
     // Create mock task state
     taskState := &task.State{
         TaskID:         "custom-task",
@@ -542,7 +542,7 @@ func createCustomResponseHandler() error {
             },
         },
     }
-    
+
     // Create task config with output transformation
     taskConfig := &task.Config{
         BaseConfig: task.BaseConfig{
@@ -555,7 +555,7 @@ func createCustomResponseHandler() error {
             },
         },
     }
-    
+
     // Process response
     response, err := responseHandler.HandleResponse(
         ctx,
@@ -566,7 +566,7 @@ func createCustomResponseHandler() error {
     if err != nil {
         return fmt.Errorf("failed to handle response: %w", err)
     }
-    
+
     fmt.Printf("Processed response: %+v\n", response)
     return nil
 }
@@ -579,6 +579,7 @@ func createCustomResponseHandler() error {
 ### Core Interfaces
 
 #### `Factory`
+
 ```go
 type Factory interface {
     CreateNormalizer(taskType task.Type) (contracts.TaskNormalizer, error)
@@ -596,6 +597,7 @@ type Factory interface {
 Central factory for creating all task2 components.
 
 #### `ConfigOrchestrator`
+
 ```go
 type ConfigOrchestrator struct { /* ... */ }
 
@@ -605,6 +607,7 @@ func NewConfigOrchestrator(factory Factory) (*ConfigOrchestrator, error)
 High-level orchestrator for configuration normalization.
 
 **Methods:**
+
 - `NormalizeTask(workflowState, workflowConfig, taskConfig) error`
 - `NormalizeAgentComponent(...) error`
 - `NormalizeToolComponent(...) error`
@@ -617,6 +620,7 @@ High-level orchestrator for configuration normalization.
 ### Factory Implementation
 
 #### `DefaultNormalizerFactory`
+
 ```go
 type DefaultNormalizerFactory struct { /* ... */ }
 
@@ -626,6 +630,7 @@ func NewFactory(config *FactoryConfig) (Factory, error)
 Default implementation of the Factory interface.
 
 #### `FactoryConfig`
+
 ```go
 type FactoryConfig struct {
     TemplateEngine *tplengine.TemplateEngine
@@ -657,6 +662,7 @@ task.TaskTypeAggregate  // Aggregate operations
 ### Normalization Contracts
 
 #### `TaskNormalizer`
+
 ```go
 type TaskNormalizer interface {
     Normalize(config *task.Config, ctx *shared.NormalizationContext) error
@@ -666,6 +672,7 @@ type TaskNormalizer interface {
 Interface for task-specific normalization logic.
 
 #### `TaskResponseHandler`
+
 ```go
 type TaskResponseHandler interface {
     HandleResponse(
@@ -682,6 +689,7 @@ Interface for task response processing.
 ### Utility Functions
 
 #### `BuildTaskConfigsMap`
+
 ```go
 func BuildTaskConfigsMap(taskConfigSlice []task.Config) map[string]*task.Config
 ```

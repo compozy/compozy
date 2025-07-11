@@ -1,6 +1,11 @@
 {
   "title": "Getting Started",
-  "description": "Quick start guide and core concepts for Compozy",
+  "description": "Get up and running with Compozy workflow orchestration engine",
   "icon": "Rocket",
-  "pages": ["quick-start", "installation", "core-concepts", "first-workflow"]
+  "pages": [
+    "installation",
+    "quick-start",
+    "core-concepts",
+    "first-workflow"
+  ]
 }

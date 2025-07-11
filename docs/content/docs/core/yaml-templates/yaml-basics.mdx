@@ -1,6 +1,434 @@
 ---
-title: YAML Configuration Basics
-description: Basic YAML configuration in Compozy
+title: "YAML Basics"
+description: "Fundamental YAML syntax and patterns for Compozy configurations"
 ---
 
-# YAML Configuration Basics
+# YAML Basics for Compozy
+
+This guide covers the fundamental YAML syntax and patterns used throughout Compozy configurations. Understanding these basics is essential for creating effective workflows, agents, and tools.
+
+## YAML Fundamentals
+
+### Basic Data Types
+
+```yaml
+# Strings
+name: "Compozy"
+description: 'A workflow orchestration engine'
+multiline: |
+  This is a multiline string
+  that preserves line breaks
+folded: >
+  This is a folded string
+  that converts line breaks to spaces
+
+# Numbers
+version: 1.0
+timeout: 30
+port: 8080
+
+# Booleans
+enabled: true
+debug: false
+strict: yes  # Also valid: no, on, off
+
+# Null values
+result: null
+output: ~
+```
+
+### Collections
+
+#### Lists (Arrays)
+```yaml
+# Simple list
+colors:
+  - red
+  - green
+  - blue
+
+# Inline list
+numbers: [1, 2, 3, 4, 5]
+
+# List of objects
+tasks:
+  - id: task1
+    type: basic
+    action: process
+  - id: task2
+    type: parallel
+    strategy: wait_all
+```
+
+#### Maps (Objects)
+```yaml
+# Simple map
+config:
+  timeout: 30
+  retries: 3
+  debug: true
+
+# Nested maps
+database:
+  connection:
+    host: localhost
+    port: 5432
+    credentials:
+      username: admin
+      password: secret
+
+# Inline map
+metadata: {author: "John", version: "1.0"}
+```
+
+## Compozy-Specific Patterns
+
+### Resource Definitions
+
+All Compozy resources follow a consistent structure:
+
+```yaml
+# Basic resource structure
+resource: workflow  # or agent, tool, schema
+id: unique-identifier
+version: "1.0.0"
+description: "Human-readable description"
+
+# Resource-specific configuration
+config:
+  # Configuration properties
+
+# Resource content
+# ... specific to resource type
+```
+
+### Workflow Structure
+
+```yaml
+# Complete workflow example
+id: weather-workflow
+version: "1.0.0"
+description: "Get weather and suggest activities"
+
+# Input schema definition
+config:
+  input:
+    type: object
+    properties:
+      city:
+        type: string
+        description: "City name"
+    required:
+      - city
+
+# Schema definitions
+schemas:
+  - id: weather_response
+    type: object
+    properties:
+      temperature:
+        type: number
+      condition:
+        type: string
+
+# Tool definitions
+tools:
+  - id: weather_tool
+    description: "Get current weather"
+    input:
+      $ref: local::schemas.#(id=="city_input")
+
+# Task definitions
+tasks:
+  - id: get_weather
+    type: basic
+    $use: tool(local::tools.#(id=="weather_tool"))
+    with:
+      city: "{{ .workflow.input.city }}"
+```
+
+### Agent Structure
+
+```yaml
+resource: agent
+id: weather-assistant
+version: "1.0.0"
+description: "Weather advisory agent"
+
+# Model configuration
+config:
+  provider: openai
+  model: gpt-4
+  api_key: "{{ .env.OPENAI_API_KEY }}"
+
+# Agent instructions
+instructions: |
+  You are a weather assistant.
+  Provide helpful weather information and suggestions.
+
+# Available tools
+tools:
+  - $ref: local::tools.#(id=="weather_tool")
+
+# Agent actions
+actions:
+  - id: get_weather
+    prompt: "What's the weather in {{ .workflow.input.city }}?"
+
+  - id: suggest_activities
+    json_mode: true
+    prompt: |
+      Based on this weather: {{ .tasks.get_weather.output | toJson }}
+      Suggest 3 activities.
+    output:
+      type: object
+      properties:
+        activities:
+          type: array
+          items:
+            type: string
+```
+
+### Project Configuration
+
+```yaml
+# compozy.yaml - Project configuration
+name: my-project
+version: "0.1.0"
+description: "Project description"
+
+# Author information
+author:
+  name: "Developer Name"
+  email: "dev@example.com"
+
+# Workflow sources
+workflows:
+  - source: ./workflow.yaml
+  - source: ./workflows/*.yaml
+
+# Model configurations
+models:
+  - provider: openai
+    model: gpt-4
+    api_key: "{{ .env.OPENAI_API_KEY }}"
+  - provider: groq
+    model: llama-3.3-70b-versatile
+    api_key: "{{ .env.GROQ_API_KEY }}"
+
+# Runtime configuration
+runtime:
+  permissions:
+    - --allow-read
+    - --allow-net
+    - --allow-env
+
+# AutoLoad configuration
+autoload:
+  enabled: true
+  strict: false
+  include:
+    - "agents/*.yaml"
+    - "tools/*.yaml"
+  exclude:
+    - "**/*~"
+    - "**/*.tmp"
+```
+
+## Template Integration
+
+### Template Markers
+
+Templates are embedded in YAML values using Go template syntax:
+
+```yaml
+# Simple value substitution
+message: "Hello {{ .user.name }}"
+
+# Complex expressions
+timeout: "{{ .config.base_timeout | mul 2 }}"
+
+# Conditional values
+mode: "{{ .env.NODE_ENV | default 'development' }}"
+
+# Object references
+result: "{{ .tasks.previous.output }}"
+```
+
+### Preserving YAML Types
+
+The template engine preserves YAML data types appropriately:
+
+```yaml
+# Numbers remain numbers
+count: 42
+ratio: 3.14
+
+# Booleans remain booleans
+enabled: true
+
+# Arrays remain arrays
+items:
+  - first
+  - second
+  - third
+
+# Objects remain objects
+config:
+  host: localhost
+  port: 8080
+```
+
+## Common Patterns
+
+### Environment Variables
+
+```yaml
+# Simple environment reference
+api_key: "{{ .env.API_KEY }}"
+
+# With default value
+database_url: "{{ .env.DATABASE_URL | default 'sqlite://local.db' }}"
+
+# Complex environment configuration
+config:
+  database:
+    host: "{{ .env.DB_HOST | default 'localhost' }}"
+    port: "{{ .env.DB_PORT | default '5432' | int }}"
+    ssl: "{{ .env.DB_SSL | default 'false' | bool }}"
+```
+
+### Input/Output References
+
+```yaml
+# Workflow input
+city: "{{ .workflow.input.city }}"
+user_id: "{{ .workflow.input.user.id }}"
+
+# Task outputs
+weather: "{{ .tasks.weather_check.output.temperature }}"
+status: "{{ .tasks.validation.output.is_valid }}"
+
+# Collection context
+item_name: "{{ .item.name }}"
+batch_index: "{{ .index }}"
+```
+
+### Conditional Logic
+
+```yaml
+# Simple conditionals
+status: "{{ .error | empty | ternary 'success' 'failed' }}"
+
+# Complex routing conditions
+condition: |
+  {{- $temp := .tasks.weather.output.temperature -}}
+  {{- if gt $temp 25 -}}hot
+  {{- else if gt $temp 15 -}}warm
+  {{- else -}}cold
+  {{- end -}}
+```
+
+## Best Practices
+
+### 1. Use Quotes for Template Strings
+```yaml
+# Good - quoted template strings
+message: "{{ .user.name }} logged in"
+
+# Avoid - unquoted templates
+message: {{ .user.name }} logged in  # May cause parsing issues
+```
+
+### 2. Validate Required Fields
+```yaml
+# Use required fields in schemas
+config:
+  input:
+    type: object
+    properties:
+      user_id:
+        type: string
+    required:
+      - user_id
+```
+
+### 3. Provide Default Values
+```yaml
+# Provide sensible defaults
+timeout: "{{ .config.timeout | default 30 }}"
+retries: "{{ .config.retries | default 3 }}"
+```
+
+### 4. Structure Complex Objects
+```yaml
+# Break complex configurations into logical sections
+database:
+  connection:
+    host: "{{ .env.DB_HOST }}"
+    port: "{{ .env.DB_PORT | int }}"
+  pool:
+    min: "{{ .env.DB_POOL_MIN | default 5 | int }}"
+    max: "{{ .env.DB_POOL_MAX | default 20 | int }}"
+```
+
+### 5. Use Descriptive IDs and Names
+```yaml
+# Good - descriptive identifiers
+- id: validate_user_input
+  type: basic
+  description: "Validate incoming user data"
+
+# Avoid - cryptic identifiers
+- id: task1
+  type: basic
+```
+
+## Common Gotchas
+
+### 1. YAML Indentation
+```yaml
+# Correct indentation
+tasks:
+  - id: first
+    type: basic
+    with:
+      param: value
+
+# Incorrect indentation will cause parsing errors
+tasks:
+- id: first
+  type: basic
+    with:
+      param: value  # Wrong indentation
+```
+
+### 2. String vs Number Types
+```yaml
+# String port
+port: "8080"  # This is a string
+
+# Numeric port
+port: 8080    # This is a number
+
+# Template to number conversion
+port: "{{ .env.PORT | int }}"  # Converts to number
+```
+
+### 3. List Item Structure
+```yaml
+# Correct list structure
+items:
+  - name: first
+    value: 1
+  - name: second
+    value: 2
+
+# Incorrect mixing of maps and scalars
+items:
+  - name: first
+    value: 1
+  - second  # Error: inconsistent list item types
+```
+
+Understanding these YAML fundamentals will help you create clean, maintainable Compozy configurations. Next, explore [Template Directives](./directives) to learn about resource references and composition.

@@ -1,4 +1,4 @@
-import type { Meta } from "@storybook/react";
+import type { Meta } from "@storybook/nextjs-vite";
 import {
   Code,
   Database,
@@ -31,6 +31,20 @@ export const Default = {
         <Step title="Account Setup" description="Create your account and profile" />
         <Step title="Preferences" description="Configure your settings" />
         <Step title="Complete" description="Review and finish" />
+      </Steps>
+    </div>
+  ),
+};
+
+// Steps with numbers instead of icons
+export const Numbered = {
+  render: () => (
+    <div className="max-w-md">
+      <Steps currentStep={2} numbered>
+        <Step title="First Step" description="This is the first step with a number" />
+        <Step title="Second Step" description="This is the second step with a number" />
+        <Step title="Third Step" description="This is the third step with a number" />
+        <Step title="Fourth Step" description="This is the fourth step with a number" />
       </Steps>
     </div>
   ),
@@ -96,6 +110,46 @@ export const Sizes = {
         <h3 className="text-sm font-medium mb-4">Large</h3>
         <div className="max-w-md">
           <Steps currentStep={1} size="lg">
+            <Step title="Initialize" description="Set up project structure" />
+            <Step title="Configure" description="Add dependencies" />
+            <Step title="Build" description="Compile the application" />
+          </Steps>
+        </div>
+      </div>
+    </div>
+  ),
+};
+
+// Different sizes with numbers
+export const NumberedSizes = {
+  render: () => (
+    <div className="space-y-12">
+      <div>
+        <h3 className="text-sm font-medium mb-4">Small Numbered Steps</h3>
+        <div className="max-w-md">
+          <Steps currentStep={1} size="sm" numbered>
+            <Step title="Initialize" description="Set up project structure" />
+            <Step title="Configure" description="Add dependencies" />
+            <Step title="Build" description="Compile the application" />
+          </Steps>
+        </div>
+      </div>
+
+      <div>
+        <h3 className="text-sm font-medium mb-4">Medium Numbered Steps</h3>
+        <div className="max-w-md">
+          <Steps currentStep={1} size="md" numbered>
+            <Step title="Initialize" description="Set up project structure" />
+            <Step title="Configure" description="Add dependencies" />
+            <Step title="Build" description="Compile the application" />
+          </Steps>
+        </div>
+      </div>
+
+      <div>
+        <h3 className="text-sm font-medium mb-4">Large Numbered Steps</h3>
+        <div className="max-w-md">
+          <Steps currentStep={1} size="lg" numbered>
             <Step title="Initialize" description="Set up project structure" />
             <Step title="Configure" description="Add dependencies" />
             <Step title="Build" description="Compile the application" />

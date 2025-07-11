@@ -1,6 +1,595 @@
 ---
-title: Operations
-description: Memory operations and management
+title: "Memory Operations"
+description: "Complete guide to memory operations: store, retrieve, search, and manage conversation context"
 ---
 
-# Operations
+# Memory Operations
+
+Memory operations are the core interactions with Compozy's memory system. This guide covers all available operations, their APIs, and best practices for implementation.
+
+## Core Operations
+
+### Store Operations
+
+#### Append Messages
+Add new messages to memory instances:
+
+```typescript
+// TypeScript tool example
+export default async function memoryTool(input: MemoryInput) {
+  const { operation, memory_key, message } = input;
+  
+  if (operation === 'append') {
+    return await appendToMemory(memory_key, {
+      role: 'user',
+      content: message,
+      timestamp: new Date().toISOString()
+    });
+  }
+}
+```
+
+```yaml
+# YAML workflow task
+- id: save_message
+  type: basic
+  $use: tool(local::tools.#(id="memory_tool"))
+  with:
+    operation: "append"
+    memory_key: "user:{{.workflow.input.user_id}}"
+    message: |
+      User: {{.workflow.input.message}}
+      Assistant: {{.tasks.chat.output.response}}
+```
+
+#### Batch Append
+Store multiple messages atomically:
+
+```typescript
+export default async function batchMemoryTool(input: BatchMemoryInput) {
+  const { operation, memory_key, messages } = input;
+  
+  if (operation === 'batch_append') {
+    return await batchAppendToMemory(memory_key, messages);
+  }
+}
+```
+
+#### Replace Messages
+Replace entire memory content (useful for summarization):
+
+```typescript
+export default async function replaceMemoryTool(input: ReplaceMemoryInput) {
+  const { memory_key, messages } = input;
+  
+  return await replaceMemoryContent(memory_key, messages);
+}
+```
+
+### Retrieve Operations
+
+#### Read All Messages
+Retrieve complete message history:
+
+```typescript
+export default async function readMemoryTool(input: ReadMemoryInput) {
+  const { memory_key } = input;
+  
+  const messages = await readAllMessages(memory_key);
+  return {
+    messages,
+    count: messages.length,
+    total_tokens: calculateTokens(messages)
+  };
+}
+```
+
+```yaml
+# YAML workflow task
+- id: load_history
+  type: basic
+  $use: tool(local::tools.#(id="memory_tool"))
+  with:
+    operation: "read"
+    memory_key: "conversation:{{.conversation_id}}"
+```
+
+#### Paginated Read
+Retrieve messages with pagination for large histories:
+
+```typescript
+export default async function paginatedMemoryTool(input: PaginatedMemoryInput) {
+  const { memory_key, offset = 0, limit = 20 } = input;
+  
+  const result = await readMessagesPaginated(memory_key, offset, limit);
+  return {
+    messages: result.messages,
+    total_count: result.total_count,
+    offset,
+    limit,
+    has_more: (offset + limit) < result.total_count
+  };
+}
+```
+
+#### Recent Messages
+Get the most recent messages:
+
+```typescript
+export default async function recentMemoryTool(input: RecentMemoryInput) {
+  const { memory_key, count = 10 } = input;
+  
+  const allMessages = await readAllMessages(memory_key);
+  const recent = allMessages.slice(-count);
+  
+  return {
+    messages: recent,
+    count: recent.length,
+    total_available: allMessages.length
+  };
+}
+```
+
+### Search Operations
+
+#### Keyword Search
+Search messages by content:
+
+```typescript
+export default async function searchMemoryTool(input: SearchMemoryInput) {
+  const { memory_key, query, limit = 10 } = input;
+  
+  const messages = await readAllMessages(memory_key);
+  const results = messages.filter(msg => 
+    msg.content.toLowerCase().includes(query.toLowerCase())
+  ).slice(0, limit);
+  
+  return {
+    results,
+    query,
+    total_matches: results.length
+  };
+}
+```
+
+#### Semantic Search
+Search by semantic similarity (requires embeddings):
+
+```typescript
+export default async function semanticSearchTool(input: SemanticSearchInput) {
+  const { memory_key, query, threshold = 0.8 } = input;
+  
+  // Generate embedding for query
+  const queryEmbedding = await generateEmbedding(query);
+  
+  // Search similar messages
+  const results = await searchSimilarMessages(memory_key, queryEmbedding, threshold);
+  
+  return {
+    results,
+    query,
+    similarity_threshold: threshold
+  };
+}
+```
+
+#### Time-Based Search
+Search messages within time ranges:
+
+```typescript
+export default async function timeSearchTool(input: TimeSearchInput) {
+  const { memory_key, start_time, end_time } = input;
+  
+  const messages = await readAllMessages(memory_key);
+  const filtered = messages.filter(msg => {
+    const msgTime = new Date(msg.timestamp);
+    return msgTime >= new Date(start_time) && msgTime <= new Date(end_time);
+  });
+  
+  return {
+    messages: filtered,
+    time_range: { start_time, end_time },
+    count: filtered.length
+  };
+}
+```
+
+### Management Operations
+
+#### Clear Memory
+Remove all messages from memory:
+
+```typescript
+export default async function clearMemoryTool(input: ClearMemoryInput) {
+  const { memory_key } = input;
+  
+  await clearMemory(memory_key);
+  return {
+    success: true,
+    message: `Memory cleared for key: ${memory_key}`
+  };
+}
+```
+
+```yaml
+# YAML workflow task
+- id: clear_memory
+  type: basic
+  $use: tool(local::tools.#(id="memory_tool"))
+  with:
+    operation: "clear"
+    memory_key: "user:{{.workflow.input.user_id}}"
+```
+
+#### Memory Health Check
+Get memory instance health and statistics:
+
+```typescript
+export default async function memoryHealthTool(input: MemoryHealthInput) {
+  const { memory_key } = input;
+  
+  const health = await getMemoryHealth(memory_key);
+  return {
+    memory_key,
+    token_count: health.token_count,
+    message_count: health.message_count,
+    last_flush: health.last_flush,
+    strategy: health.actual_strategy,
+    health_status: health.token_count > 0 ? 'active' : 'empty'
+  };
+}
+```
+
+#### Force Flush
+Trigger memory flushing manually:
+
+```typescript
+export default async function flushMemoryTool(input: FlushMemoryInput) {
+  const { memory_key, force = false } = input;
+  
+  const result = await flushMemory(memory_key, force);
+  return {
+    success: result.success,
+    summary_generated: result.summary_generated,
+    messages_processed: result.message_count,
+    tokens_processed: result.token_count,
+    error: result.error
+  };
+}
+```
+
+## Advanced Operations
+
+### Privacy-Aware Operations
+
+#### Append with Privacy Controls
+Store messages with privacy metadata:
+
+```typescript
+export default async function privacyAppendTool(input: PrivacyAppendInput) {
+  const { memory_key, message, privacy_metadata } = input;
+  
+  return await appendWithPrivacy(memory_key, message, {
+    do_not_persist: privacy_metadata.do_not_persist || false,
+    sensitive_fields: privacy_metadata.sensitive_fields || [],
+    privacy_level: privacy_metadata.privacy_level || 'public'
+  });
+}
+```
+
+#### Redact and Store
+Apply redaction before storing:
+
+```typescript
+export default async function redactAndStoreTool(input: RedactStoreInput) {
+  const { memory_key, message, redaction_patterns } = input;
+  
+  // Apply redaction patterns
+  let redactedContent = message.content;
+  for (const pattern of redaction_patterns) {
+    redactedContent = redactedContent.replace(new RegExp(pattern, 'gi'), '[REDACTED]');
+  }
+  
+  const redactedMessage = {
+    ...message,
+    content: redactedContent,
+    metadata: { ...message.metadata, redacted: true }
+  };
+  
+  return await appendToMemory(memory_key, redactedMessage);
+}
+```
+
+### Token-Aware Operations
+
+#### Append with Token Counting
+Store messages with accurate token counts:
+
+```typescript
+export default async function tokenAppendTool(input: TokenAppendInput) {
+  const { memory_key, message, provider = 'openai', model = 'gpt-4' } = input;
+  
+  // Count tokens using specified provider
+  const tokenCount = await countTokens(message.content, provider, model);
+  
+  return await appendWithTokenCount(memory_key, message, tokenCount);
+}
+```
+
+#### Token Budget Management
+Check token usage before operations:
+
+```typescript
+export default async function tokenBudgetTool(input: TokenBudgetInput) {
+  const { memory_key, max_tokens } = input;
+  
+  const health = await getMemoryHealth(memory_key);
+  const currentTokens = health.token_count;
+  const remainingTokens = max_tokens - currentTokens;
+  
+  return {
+    current_tokens: currentTokens,
+    max_tokens,
+    remaining_tokens: remainingTokens,
+    utilization: (currentTokens / max_tokens) * 100,
+    needs_flush: remainingTokens < (max_tokens * 0.2) // Flush when 80% full
+  };
+}
+```
+
+### Batch Operations
+
+#### Bulk Message Processing
+Process multiple messages efficiently:
+
+```typescript
+export default async function bulkProcessTool(input: BulkProcessInput) {
+  const { operations } = input;
+  const results = [];
+  
+  for (const op of operations) {
+    try {
+      let result;
+      switch (op.type) {
+        case 'append':
+          result = await appendToMemory(op.memory_key, op.message);
+          break;
+        case 'read':
+          result = await readAllMessages(op.memory_key);
+          break;
+        case 'clear':
+          result = await clearMemory(op.memory_key);
+          break;
+        default:
+          result = { error: `Unknown operation: ${op.type}` };
+      }
+      
+      results.push({
+        operation: op,
+        result,
+        success: !result.error
+      });
+    } catch (error) {
+      results.push({
+        operation: op,
+        error: error.message,
+        success: false
+      });
+    }
+  }
+  
+  return {
+    results,
+    total_operations: operations.length,
+    successful: results.filter(r => r.success).length,
+    failed: results.filter(r => !r.success).length
+  };
+}
+```
+
+## Operation Patterns
+
+### Workflow Integration Patterns
+
+#### Load-Process-Store Pattern
+```yaml
+tasks:
+  # 1. Load existing context
+  - id: load_context
+    type: basic
+    $use: tool(local::tools.#(id="memory_tool"))
+    with:
+      operation: "read"
+      memory_key: "user:{{.workflow.input.user_id}}"
+  
+  # 2. Process with context
+  - id: process_with_context
+    type: basic
+    $use: agent(local::agents.#(id="chat_agent"))
+    with:
+      message: "{{.workflow.input.message}}"
+      context: "{{.tasks.load_context.output.messages}}"
+  
+  # 3. Store interaction
+  - id: store_interaction
+    type: basic
+    $use: tool(local::tools.#(id="memory_tool"))
+    with:
+      operation: "append"
+      memory_key: "user:{{.workflow.input.user_id}}"
+      message: |
+        User: {{.workflow.input.message}}
+        Assistant: {{.tasks.process_with_context.output.response}}
+```
+
+#### Conditional Memory Operations
+```yaml
+tasks:
+  # Check if memory exists
+  - id: check_memory
+    type: basic
+    $use: tool(local::tools.#(id="memory_tool"))
+    with:
+      operation: "health"
+      memory_key: "user:{{.workflow.input.user_id}}"
+  
+  # Route based on memory state
+  - id: route_based_on_memory
+    type: router
+    condition: '{{.tasks.check_memory.output.message_count > 0}}'
+    routes:
+      has_memory:
+        $ref: local::tasks.#(id="load_and_process")
+      no_memory:
+        $ref: local::tasks.#(id="initialize_memory")
+```
+
+### Error Handling Patterns
+
+#### Retry on Failure
+```typescript
+export default async function resilientMemoryTool(input: MemoryInput) {
+  const { operation, memory_key, message } = input;
+  const maxRetries = 3;
+  let lastError;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      switch (operation) {
+        case 'append':
+          return await appendToMemory(memory_key, message);
+        case 'read':
+          return await readAllMessages(memory_key);
+        default:
+          throw new Error(`Unknown operation: ${operation}`);
+      }
+    } catch (error) {
+      lastError = error;
+      if (attempt === maxRetries) {
+        throw error;
+      }
+      
+      // Wait before retry with exponential backoff
+      await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 100));
+    }
+  }
+}
+```
+
+#### Graceful Degradation
+```typescript
+export default async function gracefulMemoryTool(input: MemoryInput) {
+  const { operation, memory_key, message, fallback_enabled = true } = input;
+  
+  try {
+    // Attempt primary operation
+    switch (operation) {
+      case 'read':
+        return await readAllMessages(memory_key);
+      case 'append':
+        return await appendToMemory(memory_key, message);
+    }
+  } catch (error) {
+    if (!fallback_enabled) {
+      throw error;
+    }
+    
+    // Fallback strategies
+    switch (operation) {
+      case 'read':
+        return {
+          messages: [],
+          error: 'Memory unavailable, using empty context',
+          fallback_used: true
+        };
+      case 'append':
+        return {
+          success: false,
+          error: 'Memory unavailable, message not stored',
+          fallback_used: true
+        };
+    }
+  }
+}
+```
+
+## Performance Optimization
+
+### Efficient Pagination
+```typescript
+export default async function efficientPaginationTool(input: PaginationInput) {
+  const { memory_key, page = 1, page_size = 20, cache_enabled = true } = input;
+  
+  const offset = (page - 1) * page_size;
+  
+  // Use pagination to avoid loading all messages
+  const result = await readMessagesPaginated(memory_key, offset, page_size);
+  
+  return {
+    messages: result.messages,
+    pagination: {
+      page,
+      page_size,
+      total_count: result.total_count,
+      total_pages: Math.ceil(result.total_count / page_size),
+      has_next: offset + page_size < result.total_count,
+      has_previous: page > 1
+    }
+  };
+}
+```
+
+### Lazy Loading
+```typescript
+export default async function lazyLoadMemoryTool(input: LazyLoadInput) {
+  const { memory_key, include_content = false, include_metadata = true } = input;
+  
+  if (include_content) {
+    // Load full messages
+    return await readAllMessages(memory_key);
+  } else {
+    // Load only metadata for preview
+    const health = await getMemoryHealth(memory_key);
+    return {
+      message_count: health.message_count,
+      token_count: health.token_count,
+      last_flush: health.last_flush,
+      strategy: health.actual_strategy,
+      // Content can be loaded separately when needed
+      content_available: true
+    };
+  }
+}
+```
+
+## Best Practices
+
+### Operation Design
+- Use atomic operations when possible
+- Implement proper error handling with retries
+- Consider token limits when storing large messages
+- Use pagination for large message histories
+- Implement graceful degradation for memory unavailability
+
+### Performance Considerations
+- Cache frequently accessed memory keys
+- Use batch operations for multiple messages
+- Implement lazy loading for large datasets
+- Monitor token usage and implement budgeting
+- Use appropriate TTL settings for your use case
+
+### Security Practices
+- Always validate input before storage
+- Apply privacy controls consistently
+- Use redaction patterns for sensitive data
+- Implement proper access controls
+- Monitor for unusual access patterns
+
+### Error Handling
+- Implement retry logic for transient failures
+- Provide meaningful error messages
+- Log operations for debugging
+- Implement fallback mechanisms
+- Monitor error rates and patterns
+
+This comprehensive guide to memory operations provides the foundation for building robust, efficient memory-enabled applications with Compozy.

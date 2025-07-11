@@ -12,8 +12,6 @@ const clashDisplay = localFont({
   variable: "--font-clash-display",
   display: "swap",
   weight: "200 700", // Variable font weight range
-  // Unified family name for all weights
-  declarations: [{ prop: "font-family", value: "ClashDisplay" }],
 });
 
 export const metadata: Metadata = {

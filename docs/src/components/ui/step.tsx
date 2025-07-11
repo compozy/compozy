@@ -9,17 +9,17 @@ import { tv, type VariantProps } from "tailwind-variants";
 // Step component using tailwind-variants
 const stepVariants = tv({
   slots: {
-    base: "relative grid grid-cols-[auto_1fr]",
+    base: "relative grid grid-cols-[auto_1fr] gap-2 w-full",
     left: "flex flex-col items-center",
     indicator: [
-      "relative flex items-center justify-center",
+      "font-display relative flex items-center justify-center",
       "font-medium transition-all duration-200",
       "rounded-full flex-shrink-0 border-2",
       // Force minimum sizes to prevent collapse
       "min-w-[2rem] min-h-[2rem]",
     ],
     connector: "relative w-px h-full transition-all duration-300",
-    content: "flex flex-col ml-4 pb-8",
+    content: "flex flex-col ml-4 pb-8 w-full min-w-0 overflow-x-auto",
     title: "transition-colors duration-200 mt-0 font-semibold",
     description: "text-sm text-muted-foreground mt-1",
   },
@@ -28,23 +28,23 @@ const stepVariants = tv({
       sm: {
         indicator: ["w-8 h-8 !min-w-[2rem] !min-h-[2rem]", "text-xs"],
         connector: "",
-        content: "ml-3",
+        content: "ml-3 min-w-0",
         title: "text-sm",
-        description: "text-xs",
+        description: "text-md",
       },
       md: {
         indicator: ["w-12 h-12 !min-w-[2.5rem] !min-h-[2.5rem]", "text-sm"],
         connector: "",
-        content: "ml-4",
+        content: "ml-4 min-w-0",
         title: "text-base",
-        description: "text-sm",
+        description: "text-md",
       },
       lg: {
         indicator: ["w-14 h-14 !min-w-[3rem] !min-h-[3rem]", "text-base"],
         connector: "",
-        content: "ml-8",
+        content: "ml-8 min-w-0",
         title: "text-lg",
-        description: "text-base",
+        description: "text-md",
       },
     },
     state: {
@@ -87,6 +87,7 @@ type TitleComponent = "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "div" | "span" |
 interface StepsContextValue {
   titleComponent?: TitleComponent;
   size?: "sm" | "md" | "lg";
+  numbered?: boolean;
 }
 
 const StepsContext = createContext<StepsContextValue | undefined>(undefined);
@@ -164,6 +165,7 @@ interface StepIndicatorProps {
   icon?: React.ReactNode;
   stepNumber?: number;
   className?: string;
+  numbered?: boolean;
 }
 
 function StepIndicator({
@@ -174,6 +176,7 @@ function StepIndicator({
   icon,
   stepNumber,
   className,
+  numbered,
 }: StepIndicatorProps) {
   const styles = stepVariants({ size, state });
 
@@ -184,7 +187,12 @@ function StepIndicator({
     lg: "w-6 h-6",
   };
 
-  const renderIcon = () => {
+  const renderContent = () => {
+    // If numbered prop is true, always show the step number
+    if (numbered && stepNumber !== undefined) {
+      return stepNumber;
+    }
+
     if (state === "completed" || (isInView && connectorProgress > 0.8)) {
       return <Check className={iconSizeClasses[size]} />;
     }
@@ -201,7 +209,7 @@ function StepIndicator({
         : icon;
     }
 
-    return stepNumber;
+    return stepNumber !== undefined ? stepNumber : null;
   };
 
   return (
@@ -213,7 +221,7 @@ function StepIndicator({
       }}
       transition={{ duration: 0.5, ease: "easeOut" }}
     >
-      {renderIcon()}
+      {renderContent()}
     </motion.div>
   );
 }
@@ -269,14 +277,14 @@ function StepContent({
   const styles = stepVariants({ size, state });
 
   // Determine which title component to use (individual overrides global)
-  const TitleTag = (titleComponent || stepsContext?.titleComponent || "div") as React.ElementType;
+  const TitleTag = (titleComponent || stepsContext?.titleComponent || "h3") as React.ElementType;
 
   return (
     <motion.div
       className={cn(styles.content(), className)}
       animate={{
         opacity: isInView ? 1 : 0.6,
-        x: isInView ? 0 : -10,
+        x: isInView ? 0 : -5,
       }}
       transition={{ duration: 0.3 }}
     >
@@ -305,6 +313,7 @@ export interface StepsProps {
   className?: string;
   size?: "sm" | "md" | "lg";
   titleComponent?: TitleComponent;
+  numbered?: boolean;
 }
 
 // Individual Step component
@@ -323,14 +332,9 @@ export function Step({
 }: StepProps) {
   const stepsContext = useStepsContext();
   const stepRef = useRef<HTMLDivElement>(null);
-
-  // Use custom hook for scroll animation
   const { isInView, connectorProgress } = useStepScrollAnimation(stepRef, scrollOffset);
-
-  // Use context values with local prop fallbacks
   const currentSize = size || stepsContext?.size || "md";
   const currentState = isInView ? "active" : state || "upcoming";
-
   const styles = stepVariants({
     size: currentSize,
     state: currentState,
@@ -347,6 +351,7 @@ export function Step({
           connectorProgress={connectorProgress}
           icon={icon}
           stepNumber={stepNumber}
+          numbered={stepsContext?.numbered}
         />
 
         {/* Connector Line */}
@@ -375,6 +380,7 @@ export function Steps({
   children,
   size = "md",
   titleComponent,
+  numbered,
 }: StepsProps) {
   const styles = stepsVariants();
   const totalSteps = React.Children.count(children);
@@ -382,14 +388,14 @@ export function Steps({
   const contextValue: StepsContextValue = {
     titleComponent,
     size,
+    numbered,
   };
 
   const steps = React.Children.toArray(children).map((child, index) => {
-    if (React.isValidElement<StepProps>(child) && child.type === Step) {
+    if (React.isValidElement<StepProps>(child)) {
       const isCompleted = currentStep > index;
       const isActive = currentStep === index;
       const isLast = index === totalSteps - 1;
-
       return React.cloneElement(child, {
         ...child.props,
         state: child.props.state || (isCompleted ? "completed" : isActive ? "active" : "upcoming"),

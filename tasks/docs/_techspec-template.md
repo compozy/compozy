@@ -14,7 +14,7 @@
 - task/ - Task execution and state management
 - tool/ - Tool definitions and execution
 - workflow/ - Workflow orchestration and management
-- runtime/ - Deno runtime for tool execution
+- runtime/ - Bun runtime for tool execution
 - infra/ - Infrastructure (cache, monitoring, server, store)
 - llm/ - LLM integration and orchestration
 - mcp/ - Model Context Protocol integration

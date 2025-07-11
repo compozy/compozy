@@ -32,7 +32,7 @@ See [compozy-task-patterns.mdc](mdc:.cursor/rules/compozy-task-patterns.mdc) for
 - Tool configuration
 - Execution strategies
 - Trigger patterns
-- Deno configuration
+- Bun configuration
 
 ### Agent Configuration
 See [compozy-agent-config.mdc](mdc:.cursor/rules/compozy-agent-config.mdc) for:

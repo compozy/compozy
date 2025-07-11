@@ -1,9 +1,8 @@
-"use client";
-
+import { default as FumaLink } from "fumadocs-core/link";
 import { ChevronRight, Link } from "lucide-react";
 import React from "react";
 import { Markdown } from "../markdown";
-import { Param } from "./param";
+import { ParamCollapse, ParamCollapseItem } from "./param";
 import { JSONSchema } from "./types";
 
 interface ParameterDescriptionProps {
@@ -50,9 +49,12 @@ export function ParameterDescription({ description }: ParameterDescriptionProps)
     parts.push(
       <div key="external-ref" className="flex items-center gap-1 mt-3">
         <Link className="size-3" /> <strong>Schema Reference:</strong>{" "}
-        <a href={`/docs/schema/${referencedSchema}`} className="underline hover:no-underline">
+        <FumaLink
+          href={`/docs/schema/${referencedSchema}`}
+          className="underline hover:no-underline"
+        >
           {referencedSchema}.json
-        </a>
+        </FumaLink>
       </div>
     );
   }
@@ -99,12 +101,12 @@ export function ConditionalSchema({
   renderSchema,
 }: ConditionalSchemaProps) {
   return (
-    <Param.ExpandableRoot>
+    <ParamCollapse>
       {variants.map((variant, index) => {
         const optionTitle = getOptionTitle(variant, index);
 
         return (
-          <Param.ExpandableItem
+          <ParamCollapseItem
             key={index}
             value={`option-${index}`}
             title={optionTitle}
@@ -117,9 +119,9 @@ export function ConditionalSchema({
               required,
               paramType,
             })}
-          </Param.ExpandableItem>
+          </ParamCollapseItem>
         );
       })}
-    </Param.ExpandableRoot>
+    </ParamCollapse>
   );
 }

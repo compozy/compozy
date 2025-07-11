@@ -53,3 +53,5 @@ Thumbs.db
 
 .claude/commands/**
 .cursor/rules/**
+
+*.mdx

@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { ScrollArea } from "./scroll-area";
 
 const meta: Meta<typeof ScrollArea> = {

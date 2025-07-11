@@ -78,7 +78,7 @@ import (
 func main() {
     // Create configuration service
     service := config.NewService()
-    
+
     // Load configuration from multiple sources
     cfg, err := service.Load(context.Background(),
         config.NewDefaultProvider(),
@@ -88,7 +88,7 @@ func main() {
     if err != nil {
         panic(err)
     }
-    
+
     // Use configuration
     fmt.Printf("Server running on %s:%d\n", cfg.Server.Host, cfg.Server.Port)
 }
@@ -207,7 +207,7 @@ The `SensitiveString` type automatically redacts sensitive values in logs and ou
 ```go
 func LoadConfig() (*config.Config, error) {
     service := config.NewService()
-    
+
     return service.Load(context.Background(),
         config.NewDefaultProvider(),
         config.NewEnvProvider(),
@@ -222,21 +222,21 @@ func LoadConfig() (*config.Config, error) {
 func SetupHotReload() error {
     service := config.NewService()
     manager := config.NewManager(service)
-    
+
     // Register change callback
     manager.OnChange(func(cfg *config.Config) {
         // Update application configuration
         updateServerConfig(cfg.Server)
         updateDatabaseConfig(cfg.Database)
     })
-    
+
     // Load with watching
     _, err := manager.Load(context.Background(),
         config.NewDefaultProvider(),
         config.NewEnvProvider(),
         config.NewYAMLProvider("compozy.yaml"),
     )
-    
+
     return err
 }
 ```
@@ -246,7 +246,7 @@ func SetupHotReload() error {
 ```go
 func DiagnoseConfig() error {
     service := config.NewService()
-    
+
     // Load configuration
     cfg, err := service.Load(context.Background(),
         config.NewDefaultProvider(),
@@ -256,16 +256,16 @@ func DiagnoseConfig() error {
     if err != nil {
         return fmt.Errorf("failed to load config: %w", err)
     }
-    
+
     // Validate
     if err := service.Validate(cfg); err != nil {
         return fmt.Errorf("validation failed: %w", err)
     }
-    
+
     // Check sources
     serverPortSource := service.GetSource("server.port")
     fmt.Printf("Server port from: %s\n", serverPortSource)
-    
+
     return nil
 }
 ```
@@ -283,7 +283,7 @@ func (c *consulProvider) Load() (map[string]any, error) {
     if err != nil {
         return nil, err
     }
-    
+
     return data, nil
 }
 
@@ -306,11 +306,11 @@ func (c *consulProvider) Close() error {
 ```go
 func PrintEnvMappings() {
     mappings := config.GenerateEnvMappings()
-    
+
     for _, mapping := range mappings {
         fmt.Printf("%s -> %s\n", mapping.EnvVar, mapping.ConfigPath)
     }
-    
+
     // Output:
     // SERVER_HOST -> server.host
     // SERVER_PORT -> server.port
@@ -326,6 +326,7 @@ func PrintEnvMappings() {
 ### Core Types
 
 #### Config
+
 ```go
 type Config struct {
     Server   ServerConfig   `koanf:"server"`
@@ -337,6 +338,7 @@ type Config struct {
 The main configuration struct with all application settings.
 
 #### Service Interface
+
 ```go
 type Service interface {
     Load(ctx context.Context, sources ...Source) (*Config, error)
@@ -347,6 +349,7 @@ type Service interface {
 ```
 
 #### Source Interface
+
 ```go
 type Source interface {
     Load() (map[string]any, error)
@@ -359,6 +362,7 @@ type Source interface {
 ### Factory Functions
 
 #### NewService
+
 ```go
 func NewService() Service
 ```
@@ -366,6 +370,7 @@ func NewService() Service
 Creates a new configuration service with validation support.
 
 #### NewManager
+
 ```go
 func NewManager(service Service) *Manager
 ```
@@ -384,6 +389,7 @@ func NewCLIProvider(flags map[string]any) Source
 ### Manager Methods
 
 #### Load
+
 ```go
 func (m *Manager) Load(ctx context.Context, sources ...Source) (*Config, error)
 ```
@@ -391,6 +397,7 @@ func (m *Manager) Load(ctx context.Context, sources ...Source) (*Config, error)
 Load configuration from sources and start watching.
 
 #### Get
+
 ```go
 func (m *Manager) Get() *Config
 ```
@@ -398,6 +405,7 @@ func (m *Manager) Get() *Config
 Get current configuration atomically.
 
 #### Reload
+
 ```go
 func (m *Manager) Reload(ctx context.Context) error
 ```
@@ -405,6 +413,7 @@ func (m *Manager) Reload(ctx context.Context) error
 Force configuration reload from all sources.
 
 #### OnChange
+
 ```go
 func (m *Manager) OnChange(callback func(*Config))
 ```
@@ -414,6 +423,7 @@ Register callback for configuration changes.
 ### Utility Functions
 
 #### GenerateEnvMappings
+
 ```go
 func GenerateEnvMappings() []EnvMapping
 ```
@@ -421,6 +431,7 @@ func GenerateEnvMappings() []EnvMapping
 Generate environment variable to configuration path mappings.
 
 #### GetEnvVarForConfigPath
+
 ```go
 func GetEnvVarForConfigPath(configPath string) string
 ```
@@ -428,6 +439,7 @@ func GetEnvVarForConfigPath(configPath string) string
 Get environment variable name for configuration path.
 
 #### IsSensitiveConfigPath
+
 ```go
 func IsSensitiveConfigPath(configPath string) bool
 ```
@@ -455,6 +467,7 @@ go test -v ./pkg/config -run TestManager_Load
 ### Test Coverage
 
 The config package includes comprehensive tests for:
+
 - Configuration loading from all source types
 - Hot reload functionality with file watching
 - Validation with custom business rules
@@ -477,20 +490,20 @@ go test -v ./pkg/config -run TestWatcher
 ```go
 func TestConfigLoad(t *testing.T) {
     service := config.NewService()
-    
+
     // Create test environment
     os.Setenv("SERVER_PORT", "8080")
     defer os.Unsetenv("SERVER_PORT")
-    
+
     // Load configuration
     cfg, err := service.Load(context.Background(),
         config.NewDefaultProvider(),
         config.NewEnvProvider(),
     )
-    
+
     assert.NoError(t, err)
     assert.Equal(t, 8080, cfg.Server.Port)
-    
+
     // Validate
     assert.NoError(t, service.Validate(cfg))
 }

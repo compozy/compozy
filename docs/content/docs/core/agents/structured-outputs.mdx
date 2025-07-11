@@ -1,0 +1,645 @@
+---
+title: "Structured Outputs"
+description: "JSON mode and schema validation for predictable agent responses"
+icon: "brackets-curly"
+---
+
+## Overview
+
+Structured outputs ensure agents return data in predictable, machine-readable formats. This is essential for workflow automation, API integrations, and reliable data processing. Compozy provides JSON mode and schema validation to guarantee consistent output structures.
+
+## JSON Mode
+
+JSON mode forces agents to respond with valid JSON, enabling reliable parsing and processing of agent outputs.
+
+### Enabling JSON Mode
+
+JSON mode can be enabled at multiple levels:
+
+<Tabs>
+  <Tab title="Agent Level">
+    ```yaml
+    agents:
+      - id: data-processor
+        config:
+          provider: openai
+          model: gpt-4-turbo-preview
+        json_mode: true  # All actions default to JSON
+        instructions: |
+          Always respond with valid JSON objects.
+    ```
+  </Tab>
+
+  <Tab title="Action Level">
+    ```yaml
+    actions:
+      - id: analyze-data
+        prompt: "Analyze the data and return findings"
+        json_mode: true  # Only this action uses JSON mode
+        output:
+          type: object
+          properties:
+            findings:
+              type: array
+    ```
+  </Tab>
+
+  <Tab title="Automatic">
+    ```yaml
+    actions:
+      - id: get-metrics
+        prompt: "Calculate metrics"
+        # json_mode automatically enabled when output schema is defined
+        output:
+          type: object
+          properties:
+            metrics:
+              type: object
+    ```
+  </Tab>
+</Tabs>
+
+### JSON Mode Behavior
+
+When JSON mode is enabled:
+- Agent must respond with valid JSON
+- No markdown formatting or explanatory text
+- Response is directly parseable
+- Errors occur if response isn't valid JSON
+
+<Callout>
+JSON mode may limit the agent's ability to provide explanations or reasoning. Consider if you need pure data or contextual responses.
+</Callout>
+
+## Output Schemas
+
+Output schemas define the expected structure of agent responses using JSON Schema (Draft 7).
+
+### Basic Schema Definition
+
+```yaml
+actions:
+  - id: classify-text
+    prompt: "Classify the sentiment of the text"
+    output:
+      type: object
+      properties:
+        sentiment:
+          type: string
+          enum: ["positive", "negative", "neutral"]
+          description: "Overall sentiment"
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: "Confidence score"
+        keywords:
+          type: array
+          items:
+            type: string
+          description: "Key words indicating sentiment"
+      required: ["sentiment", "confidence"]
+```
+
+### Schema Types and Validation
+
+<AccordionGroup>
+  <Accordion title="Object Schemas">
+    ```yaml
+    output:
+      type: object
+      properties:
+        user:
+          type: object
+          properties:
+            id:
+              type: string
+              pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            name:
+              type: string
+              minLength: 1
+              maxLength: 100
+            email:
+              type: string
+              format: email
+            age:
+              type: integer
+              minimum: 0
+              maximum: 150
+            roles:
+              type: array
+              items:
+                type: string
+                enum: ["admin", "user", "moderator"]
+              minItems: 1
+          required: ["id", "name", "email"]
+          additionalProperties: false
+      required: ["user"]
+    ```
+  </Accordion>
+
+  <Accordion title="Array Schemas">
+    ```yaml
+    output:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              score:
+                type: number
+              tags:
+                type: array
+                items:
+                  type: string
+                uniqueItems: true
+          minItems: 1
+          maxItems: 100
+        total:
+          type: integer
+          minimum: 0
+    ```
+  </Accordion>
+
+  <Accordion title="Conditional Schemas">
+    ```yaml
+    output:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: ["success", "error", "partial"]
+        data:
+          type: object
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+      # Conditional validation
+      oneOf:
+        - properties:
+            status:
+              const: "success"
+          required: ["status", "data"]
+        - properties:
+            status:
+              const: "error"
+          required: ["status", "error"]
+    ```
+  </Accordion>
+
+  <Accordion title="Complex Types">
+    ```yaml
+    output:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        metrics:
+          type: object
+          additionalProperties:
+            type: number
+        metadata:
+          type: object
+          properties:
+            version:
+              type: string
+              pattern: "^\\d+\\.\\d+\\.\\d+$"
+            checksum:
+              type: string
+              pattern: "^[a-f0-9]{64}$"
+        nested:
+          type: object
+          properties:
+            level1:
+              type: object
+              properties:
+                level2:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      value:
+                        type: ["string", "number", "boolean", "null"]
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Practical Examples
+
+### Data Extraction
+
+Extract structured data from unstructured text:
+
+```yaml
+actions:
+  - id: extract-invoice
+    prompt: |
+      Extract invoice information from the text:
+      {{.input.text}}
+
+      Return all monetary values as numbers without currency symbols.
+      Return dates in ISO 8601 format.
+    json_mode: true
+    output:
+      type: object
+      properties:
+        invoice_number:
+          type: string
+        date:
+          type: string
+          format: date
+        due_date:
+          type: string
+          format: date
+        vendor:
+          type: object
+          properties:
+            name:
+              type: string
+            address:
+              type: string
+            tax_id:
+              type: string
+        line_items:
+          type: array
+          items:
+            type: object
+            properties:
+              description:
+                type: string
+              quantity:
+                type: number
+              unit_price:
+                type: number
+              total:
+                type: number
+        subtotal:
+          type: number
+        tax:
+          type: number
+        total:
+          type: number
+      required: ["invoice_number", "date", "vendor", "line_items", "total"]
+```
+
+### Multi-Step Analysis
+
+Complex analysis with structured intermediate results:
+
+```yaml
+actions:
+  - id: analyze-customer
+    prompt: |
+      Analyze customer behavior from transaction data:
+      {{.input.transactions | toJson}}
+    output:
+      type: object
+      properties:
+        customer_profile:
+          type: object
+          properties:
+            segment:
+              type: string
+              enum: ["high-value", "regular", "at-risk", "churned"]
+            lifetime_value:
+              type: number
+            average_order_value:
+              type: number
+            purchase_frequency:
+              type: string
+              enum: ["daily", "weekly", "monthly", "sporadic"]
+        patterns:
+          type: array
+          items:
+            type: object
+            properties:
+              pattern_type:
+                type: string
+              description:
+                type: string
+              confidence:
+                type: number
+        recommendations:
+          type: array
+          items:
+            type: object
+            properties:
+              action:
+                type: string
+              priority:
+                type: string
+                enum: ["high", "medium", "low"]
+              expected_impact:
+                type: string
+```
+
+### Error Handling
+
+Structure error responses consistently:
+
+```yaml
+actions:
+  - id: process-request
+    prompt: |
+      Process the request and handle any errors gracefully.
+      If an error occurs, provide detailed information.
+    output:
+      type: object
+      properties:
+        success:
+          type: boolean
+        result:
+          type: object
+          description: "Present when success is true"
+        error:
+          type: object
+          description: "Present when success is false"
+          properties:
+            code:
+              type: string
+              pattern: "^ERR_[A-Z_]+$"
+            message:
+              type: string
+            details:
+              type: object
+            suggestions:
+              type: array
+              items:
+                type: string
+      # Ensure either result or error is present
+      if:
+        properties:
+          success:
+            const: true
+      then:
+        required: ["success", "result"]
+      else:
+        required: ["success", "error"]
+```
+
+## Validation and Error Handling
+
+### Schema Validation Process
+
+<Steps>
+  <Step title="Pre-execution">
+    Input schema validates incoming parameters
+  </Step>
+  <Step title="Agent Processing">
+    Agent generates response following the schema
+  </Step>
+  <Step title="Post-execution">
+    Output schema validates agent response
+  </Step>
+  <Step title="Error Handling">
+    Validation errors are returned with details
+  </Step>
+</Steps>
+
+### Validation Error Example
+
+When validation fails, you receive detailed error information:
+
+```json
+{
+  "error": "output validation failed",
+  "details": {
+    "path": ".customer_profile.segment",
+    "expected": ["high-value", "regular", "at-risk", "churned"],
+    "actual": "premium",
+    "message": "value must be one of the allowed values"
+  }
+}
+```
+
+### Handling Validation Gracefully
+
+```yaml
+tasks:
+  - id: safe-processing
+    type: basic
+    $use: agent(local::agents.#(id="processor"))
+    action: process
+    on_error:
+      - type: basic
+        $use: agent(local::agents.#(id="error-handler"))
+        action: handle-validation-error
+        with:
+          error: "{{.error}}"
+          original_input: "{{.input}}"
+```
+
+## Advanced Patterns
+
+### Dynamic Schemas
+
+Build schemas based on runtime conditions:
+
+```yaml
+actions:
+  - id: dynamic-extraction
+    prompt: |
+      Extract fields based on document type: {{.input.doc_type}}
+    output:
+      $if: .input.doc_type == "invoice"
+      $then:
+        $ref: "#/definitions/InvoiceSchema"
+      $else:
+        $if: .input.doc_type == "purchase_order"
+        $then:
+          $ref: "#/definitions/PurchaseOrderSchema"
+        $else:
+          $ref: "#/definitions/GenericDocSchema"
+```
+
+### Schema Composition
+
+Reuse schema definitions:
+
+```yaml
+definitions:
+  Address:
+    type: object
+    properties:
+      street:
+        type: string
+      city:
+        type: string
+      state:
+        type: string
+      zip:
+        type: string
+      country:
+        type: string
+    required: ["street", "city", "country"]
+
+  Contact:
+    type: object
+    properties:
+      name:
+        type: string
+      email:
+        type: string
+        format: email
+      phone:
+        type: string
+      address:
+        $ref: "#/definitions/Address"
+
+actions:
+  - id: extract-contacts
+    output:
+      type: object
+      properties:
+        contacts:
+          type: array
+          items:
+            $ref: "#/definitions/Contact"
+```
+
+### Polymorphic Outputs
+
+Handle different output types:
+
+```yaml
+output:
+  type: object
+  properties:
+    result_type:
+      type: string
+      enum: ["user", "organization", "group"]
+    data:
+      oneOf:
+        - type: object
+          properties:
+            user_id:
+              type: string
+            username:
+              type: string
+          required: ["user_id", "username"]
+        - type: object
+          properties:
+            org_id:
+              type: string
+            org_name:
+              type: string
+          required: ["org_id", "org_name"]
+        - type: object
+          properties:
+            group_id:
+              type: string
+            members:
+              type: array
+          required: ["group_id", "members"]
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Schema Design">
+    - Start simple and iterate
+    - Use descriptive property names
+    - Include descriptions for complex fields
+    - Set reasonable constraints (min/max values)
+    - Use enums for known value sets
+  </Accordion>
+
+  <Accordion title="Performance">
+    - Avoid overly complex nested structures
+    - Use references for repeated patterns
+    - Consider schema size impact on tokens
+    - Balance validation strictness with flexibility
+  </Accordion>
+
+  <Accordion title="Error Recovery">
+    - Design schemas that allow partial success
+    - Include error information in output schema
+    - Provide fallback values where appropriate
+    - Log validation failures for debugging
+  </Accordion>
+
+  <Accordion title="Maintainability">
+    - Version your schemas
+    - Document breaking changes
+    - Use consistent naming conventions
+    - Test schemas with edge cases
+  </Accordion>
+</AccordionGroup>
+
+## Integration Patterns
+
+### API Integration
+
+```yaml
+actions:
+  - id: api-compatible
+    prompt: "Generate API-compatible response"
+    output:
+      type: object
+      properties:
+        status:
+          type: integer
+          enum: [200, 201, 400, 404, 500]
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+        body:
+          type: object
+        _links:
+          type: object
+          properties:
+            self:
+              type: string
+              format: uri
+            next:
+              type: string
+              format: uri
+```
+
+### Database Integration
+
+```yaml
+actions:
+  - id: db-record
+    prompt: "Extract data for database insertion"
+    output:
+      type: object
+      properties:
+        table:
+          type: string
+        record:
+          type: object
+          additionalProperties: true
+        relationships:
+          type: array
+          items:
+            type: object
+            properties:
+              table:
+                type: string
+              foreign_key:
+                type: string
+              value:
+                type: string
+```
+
+## Next Steps
+
+<FeatureCardList cols={2}>
+  <FeatureCard title="Multi-Agent Patterns" href="/docs/core/agents/multi-agent-patterns">
+    Learn how structured outputs enable multi-agent workflows
+  </FeatureCard>
+  <FeatureCard title="Workflow Integration" href="/docs/core/workflows/overview">
+    See how structured outputs integrate with workflow tasks
+  </FeatureCard>
+</FeatureCardList>

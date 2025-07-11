@@ -34,7 +34,7 @@ This package serves as the foundation for validating task parameters, workflow c
 ## 💡 Motivation
 
 - **Type Safety**: Enforce strict validation of workflow configurations and task parameters
-- **Developer Experience**: Provide clear, actionable error messages for configuration issues  
+- **Developer Experience**: Provide clear, actionable error messages for configuration issues
 - **Default Values**: Automatically apply schema-defined defaults to simplify configuration
 - **Composite Validation**: Support complex validation scenarios with multiple validators
 
@@ -61,7 +61,7 @@ import (
     "context"
     "fmt"
     "log"
-    
+
     "github.com/compozy/compozy/engine/schema"
 )
 
@@ -86,25 +86,25 @@ func main() {
         },
         "required": []string{"email"},
     }
-    
+
     // Validate user data
     userData := map[string]any{
         "email": "user@example.com",
         "age": 30,
     }
-    
+
     // Apply defaults first
     withDefaults, err := userSchema.ApplyDefaults(userData)
     if err != nil {
         log.Fatal(err)
     }
-    
+
     // Then validate
     result, err := userSchema.Validate(context.Background(), withDefaults)
     if err != nil {
         log.Fatal(err)
     }
-    
+
     fmt.Printf("Validation successful: %v\n", result.Valid)
     fmt.Printf("Data with defaults: %+v\n", withDefaults)
 }
@@ -375,6 +375,7 @@ fmt.Println("Workflow input validation passed")
 ### Core Types
 
 #### `Schema`
+
 ```go
 type Schema map[string]any
 ```
@@ -382,6 +383,7 @@ type Schema map[string]any
 The main schema type that wraps a JSON Schema definition.
 
 **Methods:**
+
 - `String() string` - Returns JSON representation of schema
 - `Compile() (*jsonschema.Schema, error)` - Compiles schema for validation
 - `Validate(ctx context.Context, value any) (*Result, error)` - Validates value against schema
@@ -389,6 +391,7 @@ The main schema type that wraps a JSON Schema definition.
 - `ApplyDefaults(input map[string]any) (map[string]any, error)` - Applies default values
 
 #### `ParamsValidator`
+
 ```go
 func NewParamsValidator[T any](with T, schema *Schema, id string) *ParamsValidator
 ```
@@ -396,9 +399,11 @@ func NewParamsValidator[T any](with T, schema *Schema, id string) *ParamsValidat
 Creates a validator for parameters against a schema.
 
 **Methods:**
+
 - `Validate(ctx context.Context) error` - Validates parameters
 
 #### `CompositeValidator`
+
 ```go
 func NewCompositeValidator(validators ...Validator) *CompositeValidator
 ```
@@ -406,10 +411,12 @@ func NewCompositeValidator(validators ...Validator) *CompositeValidator
 Combines multiple validators into a single validation step.
 
 **Methods:**
+
 - `AddValidator(validator Validator)` - Adds a validator to the composite
 - `Validate() error` - Validates using all contained validators
 
 #### `StructValidator`
+
 ```go
 func NewStructValidator(value any) *StructValidator
 ```
@@ -417,10 +424,12 @@ func NewStructValidator(value any) *StructValidator
 Validates Go structs using struct tags.
 
 **Methods:**
+
 - `Validate() error` - Validates struct
 - `RegisterValidation(tag string, fn validator.Func) error` - Registers custom validation
 
 #### `CWDValidator`
+
 ```go
 func NewCWDValidator(cwd *core.PathCWD, id string) *CWDValidator
 ```
@@ -428,11 +437,13 @@ func NewCWDValidator(cwd *core.PathCWD, id string) *CWDValidator
 Validates current working directory is set.
 
 **Methods:**
+
 - `Validate() error` - Validates CWD is present
 
 ### Interfaces
 
 #### `Validator`
+
 ```go
 type Validator interface {
     Validate() error

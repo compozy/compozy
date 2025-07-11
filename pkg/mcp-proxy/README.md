@@ -63,7 +63,7 @@ import (
     "context"
     "log"
     "time"
-    
+
     "github.com/compozy/compozy/pkg/mcp-proxy"
 )
 
@@ -78,18 +78,18 @@ func main() {
         AdminAllowIPs:      []string{"127.0.0.1", "::1"},
         GlobalAuthTokens:   []string{"global-token"},
     }
-    
+
     // Create storage (in-memory)
     storage := mcpproxy.NewInMemoryStorage()
-    
+
     // Create and start proxy
     proxy := mcpproxy.NewProxy(config, storage)
     if err := proxy.Start(); err != nil {
         log.Fatal(err)
     }
-    
+
     defer proxy.Stop()
-    
+
     // Register an MCP server
     ctx := context.Background()
     definition := &mcpproxy.MCPDefinition{
@@ -98,11 +98,11 @@ func main() {
         Command:   "echo",
         Args:      []string{"Hello, MCP!"},
     }
-    
+
     if err := proxy.RegisterMCP(ctx, definition); err != nil {
         log.Fatal(err)
     }
-    
+
     log.Println("Proxy running on http://127.0.0.1:8080")
     select {} // Keep running
 }
@@ -163,7 +163,7 @@ curl http://127.0.0.1:8080/healthz
 resp, err := http.Get("http://127.0.0.1:8080/chat-llm/sse")
 
 // For streamable-http transport
-resp, err := http.Post("http://127.0.0.1:8080/api-server/stream", 
+resp, err := http.Post("http://127.0.0.1:8080/api-server/stream",
     "application/json", bytes.NewBuffer(payload))
 ```
 
@@ -174,10 +174,10 @@ config := &mcpproxy.Config{
     // Admin API security
     AdminTokens:   []string{"secure-admin-token"},
     AdminAllowIPs: []string{"10.0.0.0/8", "192.168.1.0/24"},
-    
+
     // Global authentication for all MCP requests
     GlobalAuthTokens: []string{"global-auth-token"},
-    
+
     // Trusted proxies for X-Forwarded-For headers
     TrustedProxies: []string{"10.0.0.1", "172.16.0.0/12"},
 }
@@ -210,29 +210,29 @@ type MCPDefinition struct {
     Name        string        `json:"name"`
     Description string        `json:"description,omitempty"`
     Transport   TransportType `json:"transport"`
-    
+
     // Stdio transport
     Command string            `json:"command,omitempty"`
     Args    []string          `json:"args,omitempty"`
     Env     map[string]string `json:"env,omitempty"`
-    
+
     // HTTP-based transports
     URL     string            `json:"url,omitempty"`
     Headers map[string]string `json:"headers,omitempty"`
     Timeout time.Duration     `json:"timeout,omitempty"`
-    
+
     // Security
     AuthTokens  []string `json:"authTokens,omitempty"`
     AllowedIPs  []string `json:"allowedIPs,omitempty"`
     RequireAuth bool     `json:"requireAuth,omitempty"`
-    
+
     // Behavior
     AutoReconnect       bool          `json:"autoReconnect,omitempty"`
     MaxReconnects       int           `json:"maxReconnects,omitempty"`
     ReconnectDelay      time.Duration `json:"reconnectDelay,omitempty"`
     HealthCheckEnabled  bool          `json:"healthCheckEnabled,omitempty"`
     HealthCheckInterval time.Duration `json:"healthCheckInterval,omitempty"`
-    
+
     // Tool filtering
     ToolFilter *ToolFilter `json:"toolFilter,omitempty"`
 }
@@ -269,7 +269,7 @@ import (
     "os/signal"
     "syscall"
     "time"
-    
+
     "github.com/compozy/compozy/pkg/mcp-proxy"
 )
 
@@ -285,27 +285,27 @@ func main() {
         TrustedProxies:  []string{"10.0.0.1"},
         GlobalAuthTokens: []string{os.Getenv("GLOBAL_AUTH_TOKEN")},
     }
-    
+
     // Redis storage for persistence
     redisConfig := &mcpproxy.RedisConfig{
         Addr:     os.Getenv("REDIS_URL"),
         Password: os.Getenv("REDIS_PASSWORD"),
     }
-    
+
     storage, err := mcpproxy.NewRedisStorage(redisConfig)
     if err != nil {
         log.Fatal("Failed to create Redis storage:", err)
     }
-    
+
     // Create and start proxy
     proxy := mcpproxy.NewProxy(config, storage)
     if err := proxy.Start(); err != nil {
         log.Fatal("Failed to start proxy:", err)
     }
-    
+
     // Register some MCP servers
     ctx := context.Background()
-    
+
     // OpenAI-compatible LLM server
     llmServer := &mcpproxy.MCPDefinition{
         Name:        "openai-llm",
@@ -321,11 +321,11 @@ func main() {
         HealthCheckEnabled:  true,
         HealthCheckInterval: 30 * time.Second,
     }
-    
+
     if err := proxy.RegisterMCP(ctx, llmServer); err != nil {
         log.Printf("Failed to register LLM server: %v", err)
     }
-    
+
     // Local stdio MCP server
     toolServer := &mcpproxy.MCPDefinition{
         Name:      "local-tools",
@@ -338,18 +338,18 @@ func main() {
         AutoReconnect:      true,
         HealthCheckEnabled: true,
     }
-    
+
     if err := proxy.RegisterMCP(ctx, toolServer); err != nil {
         log.Printf("Failed to register tool server: %v", err)
     }
-    
+
     log.Printf("Proxy running on %s", config.BaseURL)
-    
+
     // Graceful shutdown
     sigChan := make(chan os.Signal, 1)
     signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
     <-sigChan
-    
+
     log.Println("Shutting down...")
     proxy.Stop()
 }
@@ -363,25 +363,25 @@ package main
 import (
     "context"
     "time"
-    
+
     "github.com/compozy/compozy/engine/mcp"
 )
 
 func main() {
     ctx := context.Background()
-    
+
     // Create MCP proxy client
     client := mcp.NewProxyClient(
         "http://127.0.0.1:8080",
         "admin-token",
         30*time.Second,
     )
-    
+
     // Health check
     if err := client.Health(ctx); err != nil {
         panic(err)
     }
-    
+
     // Register MCP programmatically
     definition := &mcp.Definition{
         Name:      "search-engine",
@@ -393,17 +393,17 @@ func main() {
         AutoReconnect:      true,
         HealthCheckEnabled: true,
     }
-    
+
     if err := client.Register(ctx, definition); err != nil {
         panic(err)
     }
-    
+
     // List all available tools
     tools, err := client.ListTools(ctx)
     if err != nil {
         panic(err)
     }
-    
+
     for _, tool := range tools {
         log.Printf("Tool: %s from %s", tool.Name, tool.MCPName)
     }
@@ -465,10 +465,12 @@ type MCPStatus struct { ... }
 ### HTTP API Endpoints
 
 #### System Endpoints
+
 - `GET /healthz` - Health check
 - `GET /admin/metrics` - Metrics
 
 #### Admin API (requires authentication)
+
 - `POST /admin/mcps` - Register MCP server
 - `PUT /admin/mcps/{name}` - Update MCP server
 - `DELETE /admin/mcps/{name}` - Remove MCP server
@@ -477,6 +479,7 @@ type MCPStatus struct { ... }
 - `GET /admin/tools` - List all tools
 
 #### Proxy Endpoints
+
 - `/{name}/sse[/{path}]` - SSE proxy endpoint
 - `/{name}/stream[/{path}]` - Streamable HTTP proxy endpoint
 
@@ -502,12 +505,12 @@ func TestProxyBasicFunctionality(t *testing.T) {
         Host:        "127.0.0.1",
         AdminTokens: []string{"test-token"},
     }
-    
+
     proxy := mcpproxy.NewProxy(config, storage)
     err := proxy.Start()
     require.NoError(t, err)
     defer proxy.Stop()
-    
+
     // Test registration
     ctx := context.Background()
     definition := &mcpproxy.MCPDefinition{
@@ -516,10 +519,10 @@ func TestProxyBasicFunctionality(t *testing.T) {
         Command:   "echo",
         Args:      []string{"hello"},
     }
-    
+
     err = proxy.RegisterMCP(ctx, definition)
     require.NoError(t, err)
-    
+
     // Test listing
     mcps, err := proxy.ListMCPs(ctx)
     require.NoError(t, err)

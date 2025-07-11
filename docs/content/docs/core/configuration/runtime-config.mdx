@@ -1,4 +1,550 @@
 ---
 title: Runtime Configuration
-description: TODO
+description: Configure JavaScript/TypeScript runtime for tool execution
 ---
+
+# Runtime Configuration
+
+Configure the JavaScript/TypeScript execution environment for custom tools in Compozy.
+
+## Overview
+
+Compozy uses a secure runtime environment to execute custom tools written in JavaScript or TypeScript. The runtime configuration allows you to:
+
+- **Choose the runtime engine** (Bun or Node.js)
+- **Configure security permissions** for tool execution
+- **Set entry points** for custom tool implementations
+- **Manage execution timeouts** and resource limits
+- **Enable development features** like hot reloading
+
+## Runtime Types
+
+### Bun Runtime (Recommended)
+
+**Bun** is the default runtime engine, chosen for its superior performance and security features:
+
+```yaml
+runtime:
+  type: bun
+  entrypoint: ./tools.ts
+  permissions:
+    - --allow-read
+    - --allow-net
+    - --allow-env
+```
+
+**Benefits:**
+- **Superior performance** compared to Node.js
+- **Built-in TypeScript support** without compilation
+- **Comprehensive permission system** for security isolation
+- **Faster startup times** improving tool execution latency
+
+### Node.js Runtime
+
+**Node.js** runtime for compatibility with existing Node.js tools:
+
+```yaml
+runtime:
+  type: node
+  entrypoint: ./tools.js
+  options:
+    - --experimental-modules
+    - --max-old-space-size=4096
+```
+
+**Use Cases:**
+- Legacy tool compatibility
+- Specific Node.js dependencies
+- Debugging with Node.js tools
+
+## Configuration Options
+
+### Basic Configuration
+
+```yaml
+runtime:
+  type: bun                    # Runtime engine: "bun" or "node"
+  entrypoint: ./tools.ts       # Entry point file
+  permissions:                 # Security permissions (Bun only)
+    - --allow-read
+    - --allow-net
+    - --allow-env
+```
+
+### Complete Configuration
+
+```yaml
+runtime:
+  type: bun
+  entrypoint: ./tools/index.ts
+  permissions:
+    # File system permissions
+    - --allow-read=/data
+    - --allow-write=/tmp
+
+    # Network permissions
+    - --allow-net=api.example.com
+    - --allow-net=127.0.0.1:8080
+
+    # Environment access
+    - --allow-env=API_KEY,DATABASE_URL
+
+    # System permissions
+    - --allow-run=git
+    - --allow-sys=osRelease
+```
+
+## Security Permissions
+
+<Callout type="warning">
+**Security First**: Compozy follows the principle of least privilege. Only grant permissions that tools actually need.
+</Callout>
+
+### File System Permissions
+
+Control file system access:
+
+```yaml
+permissions:
+  # Read-only access to specific directory
+  - --allow-read=/data
+
+  # Read access to multiple directories
+  - --allow-read=/data,/config
+
+  # Write access to temporary directory
+  - --allow-write=/tmp
+
+  # Full read access (use with caution)
+  - --allow-read
+
+  # Full write access (use with extreme caution)
+  - --allow-write
+```
+
+### Network Permissions
+
+Control network access:
+
+```yaml
+permissions:
+  # Allow specific domain
+  - --allow-net=api.example.com
+
+  # Allow specific IP and port
+  - --allow-net=127.0.0.1:8080
+
+  # Allow multiple hosts
+  - --allow-net=api.example.com,127.0.0.1:8080
+
+  # Allow all network access (use with caution)
+  - --allow-net
+```
+
+### Environment Variable Access
+
+Control environment variable access:
+
+```yaml
+permissions:
+  # Access to specific variables
+  - --allow-env=API_KEY,DATABASE_URL
+
+  # Access to all environment variables (use with caution)
+  - --allow-env
+```
+
+### System Permissions
+
+Control system-level access:
+
+```yaml
+permissions:
+  # Allow running specific commands
+  - --allow-run=git,npm
+
+  # Allow system information access
+  - --allow-sys=osRelease,hostname
+
+  # Allow all system access (use with extreme caution)
+  - --allow-sys
+```
+
+## Tool Entry Points
+
+### Single Entry Point
+
+Most projects use a single entry point that exports all tools:
+
+<Tabs items={['compozy.yaml', 'tools.ts', 'tools/weather.ts', 'tools/email.ts']}>
+  <Tab value="compozy.yaml">
+```yaml
+runtime:
+  type: bun
+  entrypoint: ./tools.ts
+  permissions:
+    - --allow-read
+    - --allow-net
+    - --allow-env
+```
+  </Tab>
+  <Tab value="tools.ts">
+```typescript
+// Main entry point that exports all tools
+export { default as weather } from './tools/weather.ts';
+export { default as sendEmail } from './tools/email.ts';
+export { default as processData } from './tools/data-processor.ts';
+export { default as validateInput } from './tools/validator.ts';
+
+// Re-export utility functions
+export * from './tools/utils.ts';
+```
+  </Tab>
+  <Tab value="tools/weather.ts">
+```typescript
+interface WeatherInput {
+  city: string;
+  units?: 'metric' | 'imperial';
+}
+
+interface WeatherOutput {
+  temperature: number;
+  condition: string;
+  humidity: number;
+  wind_speed: number;
+}
+
+export default async function getWeather(input: WeatherInput): Promise<WeatherOutput> {
+  const apiKey = process.env.WEATHER_API_KEY;
+  if (!apiKey) {
+    throw new Error('WEATHER_API_KEY environment variable is required');
+  }
+
+  const units = input.units || 'metric';
+  const response = await fetch(
+    `https://api.openweathermap.org/data/2.5/weather?q=${input.city}&appid=${apiKey}&units=${units}`
+  );
+
+  if (!response.ok) {
+    throw new Error(`Weather API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+
+  return {
+    temperature: data.main.temp,
+    condition: data.weather[0].description,
+    humidity: data.main.humidity,
+    wind_speed: data.wind.speed,
+  };
+}
+```
+  </Tab>
+  <Tab value="tools/email.ts">
+```typescript
+interface EmailInput {
+  to: string;
+  subject: string;
+  body: string;
+  from?: string;
+}
+
+interface EmailOutput {
+  message_id: string;
+  status: 'sent' | 'failed';
+  timestamp: string;
+}
+
+export default async function sendEmail(input: EmailInput): Promise<EmailOutput> {
+  const apiKey = process.env.EMAIL_API_KEY;
+  const fromEmail = input.from || process.env.DEFAULT_FROM_EMAIL;
+
+  if (!apiKey) {
+    throw new Error('EMAIL_API_KEY environment variable is required');
+  }
+
+  const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      personalizations: [
+        {
+          to: [{ email: input.to }],
+        },
+      ],
+      from: { email: fromEmail },
+      subject: input.subject,
+      content: [
+        {
+          type: 'text/plain',
+          value: input.body,
+        },
+      ],
+    }),
+  });
+
+  const messageId = response.headers.get('X-Message-Id') || 'unknown';
+
+  return {
+    message_id: messageId,
+    status: response.ok ? 'sent' : 'failed',
+    timestamp: new Date().toISOString(),
+  };
+}
+```
+  </Tab>
+</Tabs>
+
+### Modular Entry Points
+
+For larger projects, you can organize tools into modules:
+
+```typescript
+// tools/index.ts
+export * from './api/index.ts';
+export * from './data/index.ts';
+export * from './utils/index.ts';
+
+// tools/api/index.ts
+export { default as httpRequest } from './http-request.ts';
+export { default as webhookHandler } from './webhook-handler.ts';
+
+// tools/data/index.ts
+export { default as csvParser } from './csv-parser.ts';
+export { default as jsonValidator } from './json-validator.ts';
+```
+
+## Environment Variables
+
+### Runtime-Specific Variables
+
+Configure runtime behavior through environment variables:
+
+```bash
+# Bun runtime configuration
+BUN_CONFIG_VERBOSE=true
+BUN_CONFIG_PREFER_FAST_REFRESH=true
+
+# Node.js runtime configuration
+NODE_ENV=development
+NODE_OPTIONS="--max-old-space-size=4096"
+
+# Custom tool environment
+TOOL_TIMEOUT=30000
+TOOL_CACHE_SIZE=1000
+```
+
+### Tool Environment Variables
+
+Tools can access environment variables when granted permission:
+
+```typescript
+// Accessing environment variables in tools
+const apiKey = process.env.API_KEY;
+const debugMode = process.env.DEBUG_MODE === 'true';
+const timeout = parseInt(process.env.TIMEOUT || '30000');
+```
+
+## Performance Tuning
+
+### Timeout Configuration
+
+Set appropriate timeouts for tool execution:
+
+```yaml
+runtime:
+  type: bun
+  entrypoint: ./tools.ts
+  timeout: 60s  # Tool execution timeout
+  permissions:
+    - --allow-read
+    - --allow-net
+```
+
+### Memory Management
+
+Configure memory limits for Node.js:
+
+```yaml
+runtime:
+  type: node
+  entrypoint: ./tools.js
+  options:
+    - --max-old-space-size=4096  # 4GB memory limit
+    - --max-semi-space-size=256   # Young generation size
+```
+
+### Optimization Tips
+
+1. **Use Bun for Performance**: Bun generally provides better performance than Node.js
+2. **Minimize Permissions**: Only grant necessary permissions
+3. **Cache Dependencies**: Cache expensive operations when possible
+4. **Optimize Imports**: Use specific imports to reduce bundle size
+5. **Monitor Resource Usage**: Track memory and CPU usage
+
+## Development Features
+
+### Hot Reloading
+
+Enable hot reloading for development:
+
+```yaml
+runtime:
+  type: bun
+  entrypoint: ./tools.ts
+  permissions:
+    - --allow-read
+    - --allow-net
+    - --allow-env
+  development:
+    hot_reload: true
+    watch_patterns:
+      - "tools/**/*.ts"
+      - "tools/**/*.js"
+```
+
+### Debug Mode
+
+Enable debug mode for development:
+
+```bash
+# Enable debug mode
+DEBUG=true compozy run workflow.yaml
+
+# Verbose runtime logging
+RUNTIME_LOG_LEVEL=debug compozy run workflow.yaml
+```
+
+## Security Best Practices
+
+### Principle of Least Privilege
+
+1. **Minimal Permissions**: Grant only necessary permissions
+2. **Specific Paths**: Use specific file paths instead of broad access
+3. **Limited Network**: Restrict network access to required domains
+4. **Environment Isolation**: Only expose necessary environment variables
+
+### Permission Examples
+
+<Tabs items={['Restrictive', 'Moderate', 'Permissive']}>
+  <Tab value="Restrictive">
+```yaml
+# Highly restrictive - read-only file access
+runtime:
+  type: bun
+  entrypoint: ./tools.ts
+  permissions:
+    - --allow-read=/data
+    - --allow-net=api.example.com
+    - --allow-env=API_KEY
+```
+  </Tab>
+  <Tab value="Moderate">
+```yaml
+# Moderate - typical application needs
+runtime:
+  type: bun
+  entrypoint: ./tools.ts
+  permissions:
+    - --allow-read
+    - --allow-write=/tmp
+    - --allow-net=api.example.com,127.0.0.1
+    - --allow-env=API_KEY,DATABASE_URL,DEBUG_MODE
+```
+  </Tab>
+  <Tab value="Permissive">
+```yaml
+# Permissive - for development or trusted environments
+runtime:
+  type: bun
+  entrypoint: ./tools.ts
+  permissions:
+    - --allow-read
+    - --allow-write
+    - --allow-net
+    - --allow-env
+    - --allow-run
+```
+  </Tab>
+</Tabs>
+
+### Security Validation
+
+Validate tool security:
+
+```typescript
+// Validate environment variables
+function validateEnvironment() {
+  const requiredVars = ['API_KEY', 'DATABASE_URL'];
+  const missing = requiredVars.filter(key => !process.env[key]);
+
+  if (missing.length > 0) {
+    throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
+  }
+}
+
+// Validate input data
+function validateInput(input: unknown): asserts input is ValidInput {
+  if (typeof input !== 'object' || input === null) {
+    throw new Error('Input must be an object');
+  }
+
+  // Additional validation logic
+}
+```
+
+## Troubleshooting
+
+### Common Issues
+
+<Callout type="error">
+**Permission Denied**: Tool lacks necessary permissions
+```bash
+# Solution: Add required permissions
+permissions:
+  - --allow-read=/path/to/file
+```
+</Callout>
+
+<Callout type="error">
+**Module Not Found**: Entry point file doesn't exist
+```bash
+# Solution: Verify entry point path
+entrypoint: ./tools.ts  # Check file exists
+```
+</Callout>
+
+<Callout type="error">
+**Runtime Error**: Tool execution fails
+```bash
+# Solution: Check tool implementation and dependencies
+# Enable debug logging for more details
+DEBUG=true compozy run workflow.yaml
+```
+</Callout>
+
+### Debug Commands
+
+```bash
+# Test runtime configuration
+compozy config validate
+
+# Run with debug logging
+DEBUG=true compozy run workflow.yaml
+
+# Check runtime environment
+compozy runtime info
+
+# Test tool execution
+compozy tool test tool-name
+```
+
+## Next Steps
+
+- Learn about [LLM Providers](/docs/core/configuration/providers)
+- Set up [AutoLoad](/docs/core/configuration/autoload)
+- Explore [Tool Integration](/docs/core/tools/overview)
+- Configure [Monitoring](/docs/core/configuration/monitoring-config)

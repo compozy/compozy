@@ -38,6 +38,7 @@
 The `store` package provides a clean, production-ready data access layer for Compozy's workflow orchestration engine. It implements the repository pattern with PostgreSQL-specific optimizations for storing and retrieving workflow execution states, task states, and their relationships.
 
 Key capabilities include:
+
 - **Workflow State Management**: Store and track workflow execution lifecycle
 - **Task State Management**: Persist task execution states with hierarchical relationships
 - **Transactional Operations**: Ensure data consistency across complex operations
@@ -46,7 +47,7 @@ Key capabilities include:
 
 ---
 
-## 💡 Motivation  
+## 💡 Motivation
 
 - **Workflow Persistence**: Compozy needs reliable storage for long-running workflow executions that may span hours or days
 - **Task Hierarchy**: Complex workflows create parent-child task relationships that require efficient querying and updates
@@ -82,14 +83,14 @@ package main
 import (
     "context"
     "log"
-    
+
     "github.com/compozy/compozy/engine/infra/store"
     "github.com/compozy/compozy/pkg/config"
 )
 
 func main() {
     ctx := context.Background()
-    
+
     // Option 1: Using app configuration
     appConfig := &config.Config{
         Database: config.DatabaseConfig{
@@ -101,16 +102,16 @@ func main() {
             SSLMode:  "disable",
         },
     }
-    
+
     store, err := store.SetupStoreWithConfig(ctx, appConfig)
     if err != nil {
         log.Fatal(err)
     }
-    
+
     // Create repository instances
     taskRepo := store.NewTaskRepo()
     workflowRepo := store.NewWorkflowRepo()
-    
+
     // Start using repositories...
 }
 ```
@@ -220,11 +221,11 @@ err = taskRepo.WithTx(ctx, func(tx pgx.Tx) error {
     if err != nil {
         return err
     }
-    
+
     // Update task status
     taskState.Status = core.StatusCompleted
     taskState.Output = &core.Output{"result": "success"}
-    
+
     // Save within transaction
     return taskRepo.UpsertStateWithTx(ctx, tx, taskState)
 })
@@ -270,10 +271,10 @@ func ExampleTaskOperations() {
     ctx := context.Background()
     store, _ := setupStore(ctx)
     taskRepo := store.NewTaskRepo()
-    
+
     // Create task execution ID
     taskExecID, _ := core.NewID()
-    
+
     // Create and save task state
     taskState := &task.State{
         TaskExecID:      taskExecID,
@@ -284,30 +285,30 @@ func ExampleTaskOperations() {
         ExecutionType:   core.ExecutionTypeTask,
         Input:           &core.Input{"source": "database"},
     }
-    
+
     err := taskRepo.UpsertState(ctx, taskState)
     if err != nil {
         log.Fatal(err)
     }
-    
+
     // Update task with results
     taskState.Status = core.StatusCompleted
     taskState.Output = &core.Output{
         "processed_rows": 1000,
         "duration_ms":    2500,
     }
-    
+
     err = taskRepo.UpsertState(ctx, taskState)
     if err != nil {
         log.Fatal(err)
     }
-    
+
     // Query tasks by status
     completedTasks, err := taskRepo.ListTasksByStatus(ctx, workflowExecID, core.StatusCompleted)
     if err != nil {
         log.Fatal(err)
     }
-    
+
     fmt.Printf("Completed tasks: %d\n", len(completedTasks))
 }
 ```
@@ -319,7 +320,7 @@ func ExampleWorkflowManagement() {
     ctx := context.Background()
     store, _ := setupStore(ctx)
     workflowRepo := store.NewWorkflowRepo()
-    
+
     // Create workflow execution
     execID, _ := core.NewID()
     workflowExec := &workflow.Execution{
@@ -328,22 +329,22 @@ func ExampleWorkflowManagement() {
         Status:     core.StatusRunning,
         Input:      &core.Input{"environment": "production"},
     }
-    
+
     err := workflowRepo.UpsertExecution(ctx, workflowExec)
     if err != nil {
         log.Fatal(err)
     }
-    
+
     // Get workflow with related tasks
     execution, err := workflowRepo.GetExecution(ctx, execID)
     if err != nil {
         log.Fatal(err)
     }
-    
+
     // Update workflow status
     execution.Status = core.StatusCompleted
     execution.Output = &core.Output{"total_processed": 5000}
-    
+
     err = workflowRepo.UpsertExecution(ctx, execution)
     if err != nil {
         log.Fatal(err)
@@ -358,9 +359,9 @@ func ExampleTransactionUsage() {
     ctx := context.Background()
     store, _ := setupStore(ctx)
     taskRepo := store.NewTaskRepo()
-    
+
     parentTaskID, _ := core.NewID()
-    
+
     // Create multiple child tasks atomically
     childStates := []*task.State{
         {
@@ -382,19 +383,19 @@ func ExampleTransactionUsage() {
             ParentStateID:   &parentTaskID,
         },
     }
-    
+
     err := taskRepo.CreateChildStatesInTransaction(ctx, parentTaskID, childStates)
     if err != nil {
         log.Fatal(err)
     }
-    
+
     // Get progress information
     progress, err := taskRepo.GetProgressInfo(ctx, parentTaskID)
     if err != nil {
         log.Fatal(err)
     }
-    
-    fmt.Printf("Total children: %d, Pending: %d\n", 
+
+    fmt.Printf("Total children: %d, Pending: %d\n",
         progress.TotalChildren, progress.PendingCount)
 }
 ```
@@ -422,7 +423,7 @@ func (s *Store) NewWorkflowRepo() *WorkflowRepo
 type Config struct {
     ConnString string // Full PostgreSQL connection string
     Host       string // Database host
-    Port       string // Database port  
+    Port       string // Database port
     User       string // Database username
     Password   string // Database password
     DBName     string // Database name

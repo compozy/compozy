@@ -1,6 +1,787 @@
 ---
-title: Integration Patterns
-description: Memory integration patterns
+title: "Integration Patterns"
+description: "Best practices for integrating memory with agents, workflows, and tools in Compozy"
 ---
 
 # Integration Patterns
+
+Memory integration is essential for building context-aware AI applications. This guide provides proven patterns for integrating memory with agents, workflows, and tools effectively.
+
+## Agent Memory Integration
+
+### Single Memory Configuration
+Simple agent with one memory resource:
+
+```yaml
+agents:
+  - id: chat_agent
+    config:
+      $ref: global::models.#(provider=="openai")
+      temperature: 0.7
+      max_tokens: 1000
+    
+    # Single memory resource
+    memory:
+      - id: conversation_memory
+        key: "user:{{.workflow.input.user_id}}"
+    
+    instructions: |
+      You are a helpful assistant with access to conversation history.
+      Use the context from previous messages to provide relevant responses.
+    
+    actions:
+      - id: chat
+        prompt: |
+          Current message: {{.workflow.input.message}}
+          
+          Respond helpfully using any relevant context from our conversation history.
+```
+
+### Multi-Memory Configuration
+Agent with multiple memory resources for different contexts:
+
+```yaml
+agents:
+  - id: support_agent
+    config:
+      $ref: global::models.#(provider=="openai")
+    
+    # Multiple memory resources
+    memory:
+      - id: conversation_memory
+        key: "support:{{.ticket_id}}"
+      - id: user_profile_memory
+        key: "user:{{.user_id}}"
+      - id: knowledge_base_memory
+        key: "kb:{{.category}}"
+    
+    instructions: |
+      You are a customer support agent with access to:
+      1. Current conversation history
+      2. User profile and preferences
+      3. Knowledge base information
+      
+      Use all available context to provide comprehensive support.
+    
+    actions:
+      - id: provide_support
+        prompt: |
+          Support Request: {{.workflow.input.request}}
+          
+          Conversation Context: {{.memory.conversation_memory}}
+          User Profile: {{.memory.user_profile_memory}}
+          Knowledge Base: {{.memory.knowledge_base_memory}}
+          
+          Provide detailed support using all available context.
+```
+
+### Conditional Memory Access
+Agent that conditionally accesses memory based on context:
+
+```yaml
+agents:
+  - id: adaptive_agent
+    config:
+      $ref: global::models.#(provider=="openai")
+    
+    memory:
+      - id: personal_memory
+        key: "user:{{.workflow.input.user_id}}"
+        # Only load if user is authenticated
+        condition: "{{.workflow.input.authenticated}}"
+      - id: session_memory
+        key: "session:{{.session_id}}"
+        # Always available for session context
+    
+    instructions: |
+      You are an adaptive assistant that uses different memory contexts
+      based on user authentication and session state.
+    
+    actions:
+      - id: respond
+        prompt: |
+          Message: {{.workflow.input.message}}
+          
+          {% if .workflow.input.authenticated %}
+          Personal Context: {{.memory.personal_memory}}
+          {% endif %}
+          
+          Session Context: {{.memory.session_memory}}
+          
+          Respond appropriately based on available context.
+```
+
+## Workflow Memory Patterns
+
+### Load-Process-Store Pattern
+Standard pattern for memory-enabled workflows:
+
+```yaml
+id: memory_workflow
+version: 1.0.0
+description: Standard memory workflow pattern
+
+tasks:
+  # 1. Load existing context
+  - id: load_context
+    type: basic
+    $use: tool(local::tools.#(id="memory_tool"))
+    with:
+      operation: "read"
+      memory_key: "user:{{.workflow.input.user_id}}"
+      include_metadata: true
+    outputs:
+      context: "{{.output.messages}}"
+      token_count: "{{.output.token_count}}"
+  
+  # 2. Check memory health and decide on processing
+  - id: check_memory_health
+    type: basic
+    $use: tool(local::tools.#(id="memory_health_tool"))
+    with:
+      memory_key: "user:{{.workflow.input.user_id}}"
+      max_tokens: 4000
+    outputs:
+      needs_flush: "{{.output.needs_flush}}"
+      remaining_tokens: "{{.output.remaining_tokens}}"
+  
+  # 3. Conditional flush if memory is full
+  - id: flush_if_needed
+    type: router
+    condition: "{{.tasks.check_memory_health.output.needs_flush}}"
+    routes:
+      needs_flush:
+        $ref: local::tasks.#(id="flush_memory")
+      no_flush:
+        $ref: local::tasks.#(id="process_message")
+  
+  # 4. Flush memory task
+  - id: flush_memory
+    type: basic
+    $use: tool(local::tools.#(id="memory_tool"))
+    with:
+      operation: "flush"
+      memory_key: "user:{{.workflow.input.user_id}}"
+      force: true
+    on_success:
+      next: process_message
+  
+  # 5. Process message with context
+  - id: process_message
+    type: basic
+    $use: agent(local::agents.#(id="chat_agent"))
+    with:
+      message: "{{.workflow.input.message}}"
+      context: "{{.tasks.load_context.output.context}}"
+    outputs:
+      response: "{{.output.response}}"
+  
+  # 6. Store interaction
+  - id: store_interaction
+    type: basic
+    $use: tool(local::tools.#(id="memory_tool"))
+    with:
+      operation: "append"
+      memory_key: "user:{{.workflow.input.user_id}}"
+      message: |
+        User: {{.workflow.input.message}}
+        Assistant: {{.tasks.process_message.output.response}}
+        Timestamp: {{now}}
+```
+
+### Parallel Memory Operations
+Efficient parallel loading of multiple memory contexts:
+
+```yaml
+id: parallel_memory_workflow
+version: 1.0.0
+description: Parallel memory loading pattern
+
+tasks:
+  # Load multiple memory contexts in parallel
+  - id: load_memories
+    type: parallel
+    strategy: wait_all
+    tasks:
+      - id: load_conversation
+        type: basic
+        $use: tool(local::tools.#(id="memory_tool"))
+        with:
+          operation: "read"
+          memory_key: "conversation:{{.conversation_id}}"
+      
+      - id: load_user_profile
+        type: basic
+        $use: tool(local::tools.#(id="memory_tool"))
+        with:
+          operation: "read"
+          memory_key: "user:{{.user_id}}"
+      
+      - id: load_preferences
+        type: basic
+        $use: tool(local::tools.#(id="memory_tool"))
+        with:
+          operation: "read"
+          memory_key: "preferences:{{.user_id}}"
+  
+  # Process with all contexts
+  - id: process_with_contexts
+    type: basic
+    $use: agent(local::agents.#(id="multi_context_agent"))
+    with:
+      message: "{{.workflow.input.message}}"
+      conversation_context: "{{.tasks.load_memories.output.load_conversation}}"
+      user_context: "{{.tasks.load_memories.output.load_user_profile}}"
+      preferences_context: "{{.tasks.load_memories.output.load_preferences}}"
+  
+  # Store results in parallel
+  - id: store_results
+    type: parallel
+    strategy: best_effort
+    tasks:
+      - id: store_conversation
+        type: basic
+        $use: tool(local::tools.#(id="memory_tool"))
+        with:
+          operation: "append"
+          memory_key: "conversation:{{.conversation_id}}"
+          message: "{{.tasks.process_with_contexts.output.response}}"
+      
+      - id: update_user_profile
+        type: basic
+        $use: tool(local::tools.#(id="memory_tool"))
+        with:
+          operation: "update"
+          memory_key: "user:{{.user_id}}"
+          updates: "{{.tasks.process_with_contexts.output.user_updates}}"
+```
+
+### Memory Aggregation Pattern
+Combine multiple memory sources for comprehensive context:
+
+```yaml
+id: memory_aggregation_workflow
+version: 1.0.0
+description: Memory aggregation pattern
+
+tasks:
+  # Aggregate multiple memory sources
+  - id: aggregate_memories
+    type: basic
+    $use: tool(local::tools.#(id="memory_aggregator_tool"))
+    with:
+      memory_keys:
+        - "conversation:{{.conversation_id}}"
+        - "user:{{.user_id}}"
+        - "project:{{.project_id}}"
+      aggregation_strategy: "weighted"
+      weights:
+        conversation: 0.6
+        user: 0.3
+        project: 0.1
+      max_total_tokens: 2000
+    outputs:
+      aggregated_context: "{{.output.context}}"
+      source_breakdown: "{{.output.sources}}"
+  
+  # Process with aggregated context
+  - id: process_with_aggregated_context
+    type: basic
+    $use: agent(local::agents.#(id="context_aware_agent"))
+    with:
+      message: "{{.workflow.input.message}}"
+      context: "{{.tasks.aggregate_memories.output.aggregated_context}}"
+      context_sources: "{{.tasks.aggregate_memories.output.source_breakdown}}"
+```
+
+## Tool Integration Patterns
+
+### Memory Tool Implementation
+Complete memory tool with all operations:
+
+```typescript
+interface MemoryToolInput {
+  operation: 'read' | 'append' | 'clear' | 'health' | 'search' | 'flush';
+  memory_key: string;
+  message?: string;
+  search_query?: string;
+  search_limit?: number;
+  force_flush?: boolean;
+  include_metadata?: boolean;
+}
+
+interface MemoryToolOutput {
+  success: boolean;
+  messages?: Array<{
+    role: string;
+    content: string;
+    timestamp: string;
+    metadata?: Record<string, any>;
+  }>;
+  message_count?: number;
+  token_count?: number;
+  error?: string;
+  search_results?: Array<{
+    message: any;
+    relevance_score?: number;
+  }>;
+  health?: {
+    token_count: number;
+    message_count: number;
+    last_flush?: string;
+    strategy: string;
+  };
+}
+
+export default async function memoryTool(input: MemoryToolInput): Promise<MemoryToolOutput> {
+  const { operation, memory_key, message, search_query, search_limit = 10, force_flush = false, include_metadata = true } = input;
+  
+  try {
+    switch (operation) {
+      case 'read':
+        return await readMemoryOperation(memory_key, include_metadata);
+      
+      case 'append':
+        if (!message) {
+          throw new Error('Message is required for append operation');
+        }
+        return await appendMemoryOperation(memory_key, message);
+      
+      case 'clear':
+        return await clearMemoryOperation(memory_key);
+      
+      case 'health':
+        return await healthMemoryOperation(memory_key);
+      
+      case 'search':
+        if (!search_query) {
+          throw new Error('Search query is required for search operation');
+        }
+        return await searchMemoryOperation(memory_key, search_query, search_limit);
+      
+      case 'flush':
+        return await flushMemoryOperation(memory_key, force_flush);
+      
+      default:
+        throw new Error(`Unknown operation: ${operation}`);
+    }
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message || 'Unknown error occurred'
+    };
+  }
+}
+
+async function readMemoryOperation(memoryKey: string, includeMetadata: boolean): Promise<MemoryToolOutput> {
+  // Implementation for reading memory
+  const messages = await readAllMessages(memoryKey);
+  const health = await getMemoryHealth(memoryKey);
+  
+  return {
+    success: true,
+    messages: messages.map(msg => ({
+      role: msg.role,
+      content: msg.content,
+      timestamp: msg.timestamp,
+      ...(includeMetadata && { metadata: msg.metadata })
+    })),
+    message_count: health.message_count,
+    token_count: health.token_count
+  };
+}
+
+async function appendMemoryOperation(memoryKey: string, message: string): Promise<MemoryToolOutput> {
+  // Implementation for appending to memory
+  const messageObj = {
+    role: 'user',
+    content: message,
+    timestamp: new Date().toISOString()
+  };
+  
+  await appendToMemory(memoryKey, messageObj);
+  const health = await getMemoryHealth(memoryKey);
+  
+  return {
+    success: true,
+    message_count: health.message_count,
+    token_count: health.token_count
+  };
+}
+
+async function searchMemoryOperation(memoryKey: string, query: string, limit: number): Promise<MemoryToolOutput> {
+  // Implementation for searching memory
+  const messages = await readAllMessages(memoryKey);
+  const results = messages
+    .filter(msg => msg.content.toLowerCase().includes(query.toLowerCase()))
+    .slice(0, limit)
+    .map(msg => ({
+      message: msg,
+      relevance_score: calculateRelevanceScore(msg.content, query)
+    }));
+  
+  return {
+    success: true,
+    search_results: results
+  };
+}
+```
+
+### Specialized Memory Tools
+Different tools for specific memory operations:
+
+```typescript
+// Token management tool
+export async function tokenMemoryTool(input: TokenMemoryInput): Promise<TokenMemoryOutput> {
+  const { memory_key, max_tokens, operation } = input;
+  
+  const health = await getMemoryHealth(memory_key);
+  const currentTokens = health.token_count;
+  
+  switch (operation) {
+    case 'check_budget':
+      return {
+        current_tokens: currentTokens,
+        max_tokens,
+        remaining_tokens: max_tokens - currentTokens,
+        utilization_percent: (currentTokens / max_tokens) * 100,
+        needs_flush: currentTokens > (max_tokens * 0.8)
+      };
+    
+    case 'estimate_append':
+      const { message } = input;
+      const estimatedTokens = await estimateTokenCount(message);
+      return {
+        estimated_tokens: estimatedTokens,
+        current_tokens: currentTokens,
+        projected_tokens: currentTokens + estimatedTokens,
+        will_exceed_limit: (currentTokens + estimatedTokens) > max_tokens
+      };
+  }
+}
+
+// Privacy-aware memory tool
+export async function privacyMemoryTool(input: PrivacyMemoryInput): Promise<PrivacyMemoryOutput> {
+  const { memory_key, message, privacy_level, redact_patterns } = input;
+  
+  let processedMessage = message;
+  
+  // Apply redaction patterns
+  if (redact_patterns) {
+    for (const pattern of redact_patterns) {
+      processedMessage = processedMessage.replace(new RegExp(pattern, 'gi'), '[REDACTED]');
+    }
+  }
+  
+  // Apply privacy metadata
+  const privacyMetadata = {
+    privacy_level,
+    redaction_applied: redact_patterns ? true : false,
+    do_not_persist: privacy_level === 'confidential'
+  };
+  
+  if (privacyMetadata.do_not_persist) {
+    return {
+      success: true,
+      message: 'Message processed but not persisted due to privacy level',
+      persisted: false
+    };
+  }
+  
+  await appendWithPrivacy(memory_key, processedMessage, privacyMetadata);
+  return {
+    success: true,
+    message: 'Message processed and stored with privacy controls',
+    persisted: true,
+    redaction_applied: privacyMetadata.redaction_applied
+  };
+}
+```
+
+## Advanced Integration Patterns
+
+### Memory-Aware Agent Router
+Route agents based on memory state:
+
+```yaml
+id: memory_aware_router
+version: 1.0.0
+description: Route to different agents based on memory state
+
+tasks:
+  # Check memory state
+  - id: check_memory_state
+    type: basic
+    $use: tool(local::tools.#(id="memory_tool"))
+    with:
+      operation: "health"
+      memory_key: "user:{{.workflow.input.user_id}}"
+  
+  # Route based on memory state
+  - id: route_by_memory
+    type: router
+    condition: |
+      {{- if gt .tasks.check_memory_state.output.message_count 0 -}}
+        existing_user
+      {{- else -}}
+        new_user
+      {{- end -}}
+    routes:
+      existing_user:
+        $ref: local::tasks.#(id="existing_user_flow")
+      new_user:
+        $ref: local::tasks.#(id="new_user_flow")
+  
+  # Existing user flow with context
+  - id: existing_user_flow
+    type: basic
+    $use: agent(local::agents.#(id="returning_user_agent"))
+    with:
+      message: "{{.workflow.input.message}}"
+      user_history: "{{.tasks.check_memory_state.output.messages}}"
+  
+  # New user flow with onboarding
+  - id: new_user_flow
+    type: basic
+    $use: agent(local::agents.#(id="onboarding_agent"))
+    with:
+      message: "{{.workflow.input.message}}"
+```
+
+### Memory Synchronization Pattern
+Sync memory across multiple instances:
+
+```yaml
+id: memory_sync_workflow
+version: 1.0.0
+description: Synchronize memory across multiple instances
+
+tasks:
+  # Primary memory operation
+  - id: primary_operation
+    type: basic
+    $use: tool(local::tools.#(id="memory_tool"))
+    with:
+      operation: "append"
+      memory_key: "primary:{{.workflow.input.user_id}}"
+      message: "{{.workflow.input.message}}"
+  
+  # Sync to secondary memories
+  - id: sync_memories
+    type: parallel
+    strategy: best_effort
+    tasks:
+      - id: sync_analytics
+        type: basic
+        $use: tool(local::tools.#(id="memory_tool"))
+        with:
+          operation: "append"
+          memory_key: "analytics:{{.workflow.input.user_id}}"
+          message: "{{.workflow.input.message}}"
+      
+      - id: sync_backup
+        type: basic
+        $use: tool(local::tools.#(id="memory_tool"))
+        with:
+          operation: "append"
+          memory_key: "backup:{{.workflow.input.user_id}}"
+          message: "{{.workflow.input.message}}"
+  
+  # Handle sync failures
+  - id: handle_sync_failures
+    type: basic
+    $use: tool(local::tools.#(id="sync_error_handler"))
+    with:
+      primary_result: "{{.tasks.primary_operation.output}}"
+      sync_results: "{{.tasks.sync_memories.output}}"
+```
+
+### Context-Aware Memory Management
+Intelligent memory management based on context:
+
+```typescript
+export async function contextAwareMemoryTool(input: ContextAwareMemoryInput): Promise<ContextAwareMemoryOutput> {
+  const { memory_key, message, context, smart_flush = true } = input;
+  
+  // Analyze context to determine memory strategy
+  const contextAnalysis = await analyzeContext(context);
+  
+  // Check current memory state
+  const health = await getMemoryHealth(memory_key);
+  
+  // Determine if flush is needed based on context
+  let shouldFlush = false;
+  if (smart_flush) {
+    shouldFlush = await shouldFlushBasedOnContext(health, contextAnalysis);
+  }
+  
+  // Perform flush if needed
+  if (shouldFlush) {
+    await flushMemory(memory_key, false);
+  }
+  
+  // Determine message priority based on context
+  const priority = determinePriority(message, contextAnalysis);
+  
+  // Store message with context-aware metadata
+  await appendWithMetadata(memory_key, message, {
+    priority,
+    context_type: contextAnalysis.type,
+    importance_score: contextAnalysis.importance,
+    timestamp: new Date().toISOString()
+  });
+  
+  return {
+    success: true,
+    flush_performed: shouldFlush,
+    priority_assigned: priority,
+    context_analysis: contextAnalysis
+  };
+}
+
+async function analyzeContext(context: any): Promise<ContextAnalysis> {
+  // Implement context analysis logic
+  return {
+    type: 'conversation',
+    importance: 0.8,
+    topic: 'technical_support',
+    sentiment: 'neutral',
+    urgency: 'medium'
+  };
+}
+
+async function shouldFlushBasedOnContext(health: MemoryHealth, analysis: ContextAnalysis): Promise<boolean> {
+  // Implement smart flush logic based on context
+  const tokenUtilization = health.token_count / 4000; // Assuming 4000 max tokens
+  
+  if (tokenUtilization > 0.9) return true; // Always flush when very full
+  if (analysis.importance > 0.9) return false; // Don't flush during important conversations
+  if (analysis.urgency === 'high') return false; // Don't flush during urgent interactions
+  
+  return tokenUtilization > 0.7; // Normal threshold
+}
+```
+
+## Performance Patterns
+
+### Memory Caching Pattern
+Cache frequently accessed memory data:
+
+```typescript
+const memoryCache = new Map<string, { data: any; timestamp: number; ttl: number }>();
+
+export async function cachedMemoryTool(input: CachedMemoryInput): Promise<CachedMemoryOutput> {
+  const { memory_key, operation, cache_ttl = 300000 } = input; // 5 minutes default TTL
+  
+  const cacheKey = `${memory_key}:${operation}`;
+  const now = Date.now();
+  
+  // Check cache for read operations
+  if (operation === 'read') {
+    const cached = memoryCache.get(cacheKey);
+    if (cached && (now - cached.timestamp) < cached.ttl) {
+      return {
+        success: true,
+        data: cached.data,
+        cache_hit: true
+      };
+    }
+  }
+  
+  // Perform actual operation
+  const result = await performMemoryOperation(memory_key, operation, input);
+  
+  // Cache the result for read operations
+  if (operation === 'read' && result.success) {
+    memoryCache.set(cacheKey, {
+      data: result.data,
+      timestamp: now,
+      ttl: cache_ttl
+    });
+  }
+  
+  // Invalidate cache for write operations
+  if (operation === 'append' || operation === 'clear') {
+    memoryCache.delete(`${memory_key}:read`);
+  }
+  
+  return {
+    ...result,
+    cache_hit: false
+  };
+}
+```
+
+### Batch Memory Operations
+Optimize multiple memory operations:
+
+```typescript
+export async function batchMemoryTool(input: BatchMemoryInput): Promise<BatchMemoryOutput> {
+  const { operations, parallel = true } = input;
+  
+  if (parallel) {
+    // Execute operations in parallel
+    const results = await Promise.allSettled(
+      operations.map(op => performMemoryOperation(op.memory_key, op.operation, op))
+    );
+    
+    return {
+      success: true,
+      results: results.map((result, index) => ({
+        operation: operations[index],
+        success: result.status === 'fulfilled',
+        data: result.status === 'fulfilled' ? result.value : undefined,
+        error: result.status === 'rejected' ? result.reason : undefined
+      }))
+    };
+  } else {
+    // Execute operations sequentially
+    const results = [];
+    for (const op of operations) {
+      try {
+        const result = await performMemoryOperation(op.memory_key, op.operation, op);
+        results.push({ operation: op, success: true, data: result });
+      } catch (error) {
+        results.push({ operation: op, success: false, error: error.message });
+      }
+    }
+    
+    return {
+      success: true,
+      results
+    };
+  }
+}
+```
+
+## Best Practices for Integration
+
+### Error Handling
+- Implement comprehensive retry logic
+- Provide graceful degradation when memory is unavailable
+- Log all memory operations for debugging
+- Monitor memory health and performance
+- Handle concurrent access conflicts
+
+### Performance Optimization
+- Use pagination for large memory datasets
+- Implement caching for frequently accessed data
+- Batch operations when possible
+- Monitor token usage and implement budgeting
+- Use appropriate TTL settings
+
+### Security Considerations
+- Validate all memory keys and inputs
+- Implement proper access controls
+- Use privacy controls for sensitive data
+- Monitor for unusual access patterns
+- Implement rate limiting for memory operations
+
+### Monitoring and Observability
+- Track memory usage metrics
+- Monitor operation latency
+- Alert on memory failures
+- Track token consumption
+- Monitor flush frequency and effectiveness
+
+These integration patterns provide a solid foundation for building memory-enabled applications that are performant, secure, and maintainable.

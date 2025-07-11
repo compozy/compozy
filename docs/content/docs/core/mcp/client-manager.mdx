@@ -1,6 +1,466 @@
 ---
-title: Client Manager & Connection Pooling
-description: Managing MCP clients and connections
+title: "Client Manager"
+description: "Managing MCP clients and connections"
 ---
 
-# Client Manager & Connection Pooling
+# Client Manager
+
+The Client Manager is responsible for managing MCP server connections, handling client lifecycle, and providing a unified interface for interacting with multiple MCP servers. It manages connection pooling, health checks, and automatic reconnection.
+
+## Architecture
+
+```
+┌─────────────────┐
+│ Client Manager  │
+├─────────────────┤
+│ ┌─────────────┐ │     ┌─────────────┐
+│ │ MCP Client  │ │────▶│ MCP Server  │
+│ │     A       │ │     │      A      │
+│ └─────────────┘ │     └─────────────┘
+│ ┌─────────────┐ │     ┌─────────────┐
+│ │ MCP Client  │ │────▶│ MCP Server  │
+│ │     B       │ │     │      B      │
+│ └─────────────┘ │     └─────────────┘
+│ ┌─────────────┐ │
+│ │ Health      │ │
+│ │ Monitor     │ │
+│ └─────────────┘ │
+└─────────────────┘
+```
+
+## Key Features
+
+### Connection Management
+- **Automatic Connection** - Establishes connections to MCP servers
+- **Connection Pooling** - Reuses connections for efficiency
+- **Health Monitoring** - Continuous health checks
+- **Reconnection Logic** - Automatic reconnection with exponential backoff
+
+### Client Lifecycle
+- **Registration** - Add new MCP servers dynamically
+- **Deregistration** - Remove servers gracefully
+- **Status Tracking** - Monitor connection states
+- **Metrics Collection** - Gather performance metrics
+
+## Client Interface
+
+### Basic Operations
+
+```go
+type MCPClientInterface interface {
+    // Core operations
+    GetDefinition() *MCPDefinition
+    GetStatus() *MCPStatus
+    IsConnected() bool
+    
+    // Connection management
+    Connect(ctx context.Context) error
+    Disconnect(ctx context.Context) error
+    Health(ctx context.Context) error
+    WaitUntilConnected(ctx context.Context) error
+    
+    // Tool operations
+    ListTools(ctx context.Context) ([]mcp.Tool, error)
+    CallTool(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error)
+    
+    // Prompt operations
+    ListPrompts(ctx context.Context) ([]mcp.Prompt, error)
+    GetPrompt(ctx context.Context, request mcp.GetPromptRequest) (*mcp.GetPromptResult, error)
+    
+    // Resource operations
+    ListResources(ctx context.Context) ([]mcp.Resource, error)
+    ReadResource(ctx context.Context, request mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error)
+    ListResourceTemplates(ctx context.Context) ([]mcp.ResourceTemplate, error)
+}
+```
+
+### Manager Interface
+
+```go
+type ClientManager interface {
+    // Lifecycle management
+    Start(ctx context.Context) error
+    Stop(ctx context.Context) error
+    
+    // Client management
+    AddClient(ctx context.Context, def *MCPDefinition) error
+    RemoveClient(ctx context.Context, name string) error
+    GetClient(name string) (MCPClientInterface, error)
+    
+    // Status and metrics
+    GetClientStatus(name string) (*MCPStatus, error)
+    GetMetrics() map[string]any
+}
+```
+
+## Creating and Managing Clients
+
+### Basic Client Creation
+
+```go
+// Create MCP definition
+definition := &MCPDefinition{
+    Name:        "filesystem",
+    Description: "File system operations",
+    Transport:   TransportStdio,
+    Command:     "mcp-server-filesystem",
+    Args:        []string{"--root", "/data"},
+    Env: map[string]string{
+        "LOG_LEVEL": "info",
+    },
+    AutoReconnect:       true,
+    MaxReconnects:       5,
+    ReconnectDelay:      5 * time.Second,
+    HealthCheckEnabled:  true,
+    HealthCheckInterval: 30 * time.Second,
+}
+
+// Add client to manager
+err := clientManager.AddClient(ctx, definition)
+if err != nil {
+    return fmt.Errorf("failed to add client: %w", err)
+}
+```
+
+### Client Configuration Options
+
+```go
+type MCPDefinition struct {
+    // Core identification
+    Name        string        `json:"name"`
+    Description string        `json:"description,omitempty"`
+    Transport   TransportType `json:"transport"`
+    
+    // Stdio transport configuration
+    Command string            `json:"command,omitempty"`
+    Args    []string          `json:"args,omitempty"`
+    Env     map[string]string `json:"env,omitempty"`
+    
+    // HTTP transport configuration
+    URL     string            `json:"url,omitempty"`
+    Headers map[string]string `json:"headers,omitempty"`
+    Timeout time.Duration     `json:"timeout,omitempty"`
+    
+    // Security
+    AuthTokens  []string `json:"authTokens,omitempty"`
+    AllowedIPs  []string `json:"allowedIPs,omitempty"`
+    RequireAuth bool     `json:"requireAuth,omitempty"`
+    
+    // Behavior
+    AutoReconnect       bool          `json:"autoReconnect,omitempty"`
+    MaxReconnects       int           `json:"maxReconnects,omitempty"`
+    ReconnectDelay      time.Duration `json:"reconnectDelay,omitempty"`
+    HealthCheckEnabled  bool          `json:"healthCheckEnabled,omitempty"`
+    HealthCheckInterval time.Duration `json:"healthCheckInterval,omitempty"`
+    
+    // Tool filtering
+    ToolFilter *ToolFilter `json:"toolFilter,omitempty"`
+}
+```
+
+## Connection States
+
+### Status Tracking
+
+```go
+type ConnectionStatus string
+
+const (
+    StatusDisconnected ConnectionStatus = "disconnected"
+    StatusConnecting   ConnectionStatus = "connecting"
+    StatusConnected    ConnectionStatus = "connected"
+    StatusError        ConnectionStatus = "error"
+)
+
+type MCPStatus struct {
+    Name              string           `json:"name"`
+    Status            ConnectionStatus `json:"status"`
+    LastConnected     *time.Time       `json:"lastConnected,omitempty"`
+    LastError         string           `json:"lastError,omitempty"`
+    LastErrorTime     *time.Time       `json:"lastErrorTime,omitempty"`
+    ReconnectAttempts int              `json:"reconnectAttempts"`
+    UpTime            time.Duration    `json:"upTime"`
+    TotalRequests     int64            `json:"totalRequests"`
+    TotalErrors       int64            `json:"totalErrors"`
+    AvgResponseTime   time.Duration    `json:"avgResponseTime"`
+}
+```
+
+### Status Monitoring
+
+```go
+// Get client status
+status, err := clientManager.GetClientStatus("filesystem")
+if err != nil {
+    return fmt.Errorf("failed to get status: %w", err)
+}
+
+fmt.Printf("Client: %s, Status: %s\n", status.Name, status.Status)
+fmt.Printf("Uptime: %v\n", status.UpTime)
+fmt.Printf("Total Requests: %d\n", status.TotalRequests)
+fmt.Printf("Error Rate: %.2f%%\n", 
+    float64(status.TotalErrors)/float64(status.TotalRequests)*100)
+```
+
+## Health Monitoring
+
+### Health Check Configuration
+
+```go
+definition := &MCPDefinition{
+    Name:                "api-server",
+    Transport:           TransportSSE,
+    URL:                 "https://api.example.com/mcp",
+    HealthCheckEnabled:  true,
+    HealthCheckInterval: 30 * time.Second,
+    Timeout:             10 * time.Second,
+}
+```
+
+### Health Check Implementation
+
+```go
+// Manual health check
+client, err := clientManager.GetClient("api-server")
+if err != nil {
+    return fmt.Errorf("client not found: %w", err)
+}
+
+if err := client.Health(ctx); err != nil {
+    log.Printf("Health check failed: %v", err)
+    // Handle unhealthy client
+}
+```
+
+## Reconnection Logic
+
+### Automatic Reconnection
+
+```go
+definition := &MCPDefinition{
+    Name:           "database",
+    Transport:      TransportStdio,
+    Command:        "mcp-db-server",
+    AutoReconnect:  true,
+    MaxReconnects:  5,
+    ReconnectDelay: 5 * time.Second,
+}
+```
+
+### Exponential Backoff
+
+The client manager implements exponential backoff for reconnection attempts:
+
+```go
+// Reconnection delays
+attempt := 1: 5 seconds
+attempt := 2: 10 seconds
+attempt := 3: 20 seconds
+attempt := 4: 40 seconds
+attempt := 5: 80 seconds (max)
+```
+
+## Tool Discovery and Management
+
+### Listing Available Tools
+
+```go
+// Get client
+client, err := clientManager.GetClient("filesystem")
+if err != nil {
+    return fmt.Errorf("client not found: %w", err)
+}
+
+// List available tools
+tools, err := client.ListTools(ctx)
+if err != nil {
+    return fmt.Errorf("failed to list tools: %w", err)
+}
+
+for _, tool := range tools {
+    fmt.Printf("Tool: %s - %s\n", tool.Name, tool.Description)
+}
+```
+
+### Tool Execution
+
+```go
+// Prepare tool request
+request := mcp.CallToolRequest{
+    Name: "read_file",
+    Arguments: map[string]interface{}{
+        "path": "/data/config.json",
+    },
+}
+
+// Execute tool
+result, err := client.CallTool(ctx, request)
+if err != nil {
+    return fmt.Errorf("tool execution failed: %w", err)
+}
+
+fmt.Printf("Tool result: %v\n", result.Content)
+```
+
+## Error Handling
+
+### Error Classification
+
+```go
+type errorClassification int
+
+const (
+    errorUnknown errorClassification = iota
+    errorNotFound
+    errorAlreadyExists
+    errorHotReloadFailed
+    errorInvalidDefinition
+    errorClientNotConnected
+)
+
+// Error handling
+func handleClientError(err error) {
+    switch classifyError(err) {
+    case errorNotFound:
+        // Handle client not found
+    case errorAlreadyExists:
+        // Handle duplicate client
+    case errorClientNotConnected:
+        // Handle connection issues
+    default:
+        // Handle unknown errors
+    }
+}
+```
+
+### Retry Logic
+
+```go
+// Retry configuration
+type RetryConfig struct {
+    MaxAttempts uint64
+    BaseDelay   time.Duration
+    MaxDelay    time.Duration
+}
+
+func DefaultRetryConfig() RetryConfig {
+    return RetryConfig{
+        MaxAttempts: 3,
+        BaseDelay:   1 * time.Second,
+        MaxDelay:    30 * time.Second,
+    }
+}
+```
+
+## Metrics and Monitoring
+
+### Available Metrics
+
+```go
+// Get manager metrics
+metrics := clientManager.GetMetrics()
+
+// Example metrics structure
+{
+    "total_clients": 3,
+    "connected_clients": 2,
+    "failed_clients": 1,
+    "total_requests": 1234,
+    "total_errors": 56,
+    "avg_response_time": "150ms",
+    "clients": {
+        "filesystem": {
+            "status": "connected",
+            "uptime": "2h30m",
+            "requests": 456,
+            "errors": 12
+        }
+    }
+}
+```
+
+### Monitoring Integration
+
+```go
+// Prometheus metrics integration
+import "github.com/prometheus/client_golang/prometheus"
+
+var (
+    clientConnections = prometheus.NewGaugeVec(
+        prometheus.GaugeOpts{
+            Name: "mcp_client_connections",
+            Help: "Number of active MCP client connections",
+        },
+        []string{"client_name", "status"},
+    )
+    
+    clientRequests = prometheus.NewCounterVec(
+        prometheus.CounterOpts{
+            Name: "mcp_client_requests_total",
+            Help: "Total number of MCP client requests",
+        },
+        []string{"client_name", "status"},
+    )
+)
+```
+
+## Best Practices
+
+### Connection Management
+1. **Enable Health Checks** - Monitor connection health
+2. **Configure Timeouts** - Set appropriate timeout values
+3. **Use Reconnection** - Enable automatic reconnection
+4. **Monitor Metrics** - Track connection statistics
+
+### Resource Management
+1. **Limit Connections** - Use connection pooling
+2. **Clean Shutdown** - Gracefully close connections
+3. **Resource Cleanup** - Free unused resources
+4. **Memory Management** - Monitor memory usage
+
+### Error Handling
+1. **Implement Retries** - Handle transient failures
+2. **Log Errors** - Comprehensive error logging
+3. **Graceful Degradation** - Handle client failures
+4. **Circuit Breakers** - Prevent cascading failures
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Connection Timeouts**
+   - Increase timeout values
+   - Check network connectivity
+   - Verify server availability
+
+2. **Frequent Reconnections**
+   - Check server stability
+   - Adjust reconnection delays
+   - Monitor network conditions
+
+3. **High Error Rates**
+   - Review error logs
+   - Check server capacity
+   - Validate request formats
+
+### Debug Information
+
+```go
+// Get detailed client status
+status, err := clientManager.GetClientStatus("problematic-client")
+if err != nil {
+    log.Printf("Failed to get status: %v", err)
+    return
+}
+
+log.Printf("Client Status: %+v", status)
+log.Printf("Last Error: %s", status.LastError)
+log.Printf("Reconnect Attempts: %d", status.ReconnectAttempts)
+```
+
+## Next Steps
+
+- [Tool Discovery](./tool-discovery) - Learn about tool discovery mechanisms
+- [Transport Configuration](./transport-configuration) - Configure transport types
+- [Security & Authentication](./security-authentication) - Secure client connections
+- [Monitoring & Metrics](./monitoring-metrics) - Monitor client performance

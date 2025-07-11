@@ -1,6 +1,1386 @@
 ---
-title: Admin API & Management
-description: MCP admin API and management
+title: "Admin API"
+description: "Administrative API for managing MCP servers, monitoring operations, and system configuration"
 ---
 
-# Admin API & Management
+# Admin API
+
+The MCP Admin API provides comprehensive administrative capabilities for managing MCP servers, monitoring operations, and configuring system settings. This API enables operational teams to manage MCP deployments effectively.
+
+## API Overview
+
+### Base Configuration
+
+```go
+// pkg/mcp-proxy/admin/api.go
+package admin
+
+import (
+    "context"
+    "encoding/json"
+    "net/http"
+    "time"
+    
+    "github.com/gin-gonic/gin"
+    "github.com/compozy/compozy/pkg/logger"
+)
+
+type AdminAPI struct {
+    manager     *MCPManager
+    metrics     *MetricsCollector
+    logger      logger.Logger
+    authEnabled bool
+    authSecret  string
+}
+
+type AdminConfig struct {
+    Port        int           `yaml:"port"`
+    Host        string        `yaml:"host"`
+    AuthEnabled bool          `yaml:"auth_enabled"`
+    AuthSecret  string        `yaml:"auth_secret"`
+    TLSEnabled  bool          `yaml:"tls_enabled"`
+    TLSCert     string        `yaml:"tls_cert"`
+    TLSKey      string        `yaml:"tls_key"`
+    RateLimit   int           `yaml:"rate_limit"`
+    Timeout     time.Duration `yaml:"timeout"`
+}
+
+func NewAdminAPI(manager *MCPManager, metrics *MetricsCollector, config AdminConfig, logger logger.Logger) *AdminAPI {
+    return &AdminAPI{
+        manager:     manager,
+        metrics:     metrics,
+        logger:      logger,
+        authEnabled: config.AuthEnabled,
+        authSecret:  config.AuthSecret,
+    }
+}
+
+func (api *AdminAPI) SetupRoutes() *gin.Engine {
+    r := gin.New()
+    
+    // Middleware
+    r.Use(gin.Recovery())
+    r.Use(api.loggingMiddleware())
+    r.Use(api.corsMiddleware())
+    
+    if api.authEnabled {
+        r.Use(api.authMiddleware())
+    }
+    
+    // API versioning
+    v1 := r.Group("/api/v1/admin")
+    
+    // Server management
+    servers := v1.Group("/servers")
+    {
+        servers.GET("", api.listServers)
+        servers.POST("", api.createServer)
+        servers.GET("/:id", api.getServer)
+        servers.PUT("/:id", api.updateServer)
+        servers.DELETE("/:id", api.deleteServer)
+        servers.POST("/:id/start", api.startServer)
+        servers.POST("/:id/stop", api.stopServer)
+        servers.POST("/:id/restart", api.restartServer)
+        servers.GET("/:id/health", api.getServerHealth)
+        servers.GET("/:id/logs", api.getServerLogs)
+        servers.GET("/:id/metrics", api.getServerMetrics)
+    }
+    
+    // Tool management
+    tools := v1.Group("/tools")
+    {
+        tools.GET("", api.listAllTools)
+        tools.GET("/:server_id", api.listServerTools)
+        tools.POST("/:server_id/:tool_name/execute", api.executeToolAdmin)
+        tools.GET("/:server_id/:tool_name/schema", api.getToolSchema)
+        tools.POST("/:server_id/:tool_name/validate", api.validateToolParameters)
+    }
+    
+    // System management
+    system := v1.Group("/system")
+    {
+        system.GET("/health", api.getSystemHealth)
+        system.GET("/metrics", api.getSystemMetrics)
+        system.GET("/config", api.getSystemConfig)
+        system.PUT("/config", api.updateSystemConfig)
+        system.POST("/reload", api.reloadConfiguration)
+        system.GET("/logs", api.getSystemLogs)
+        system.POST("/gc", api.forceGarbageCollection)
+    }
+    
+    // Monitoring and diagnostics
+    monitoring := v1.Group("/monitoring")
+    {
+        monitoring.GET("/dashboard", api.getDashboardData)
+        monitoring.GET("/alerts", api.getActiveAlerts)
+        monitoring.POST("/alerts/:id/acknowledge", api.acknowledgeAlert)
+        monitoring.GET("/events", api.getSystemEvents)
+        monitoring.GET("/performance", api.getPerformanceMetrics)
+    }
+    
+    // Security and access control
+    security := v1.Group("/security")
+    {
+        security.GET("/tokens", api.listTokens)
+        security.POST("/tokens", api.createToken)
+        security.DELETE("/tokens/:id", api.revokeToken)
+        security.GET("/audit", api.getAuditLog)
+        security.POST("/rotate-keys", api.rotateKeys)
+    }
+    
+    return r
+}
+```
+
+## Server Management
+
+### List and Manage Servers
+
+```go
+// Server listing and management
+func (api *AdminAPI) listServers(c *gin.Context) {
+    servers, err := api.manager.ListServers()
+    if err != nil {
+        api.logger.Error("Failed to list servers", "error", err)
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
+    }
+    
+    response := make([]ServerInfo, len(servers))
+    for i, server := range servers {
+        response[i] = ServerInfo{
+            ID:          server.ID,
+            Name:        server.Name,
+            Transport:   server.Transport,
+            Status:      server.Status,
+            LastSeen:    server.LastSeen,
+            Version:     server.Version,
+            Uptime:      server.Uptime,
+            ToolCount:   len(server.Tools),
+            RequestCount: server.RequestCount,
+            ErrorCount:  server.ErrorCount,
+        }
+    }
+    
+    c.JSON(http.StatusOK, gin.H{
+        "servers": response,
+        "count":   len(response),
+    })
+}
+
+func (api *AdminAPI) createServer(c *gin.Context) {
+    var req CreateServerRequest
+    if err := c.ShouldBindJSON(&req); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+    
+    // Validate server configuration
+    if err := api.validateServerConfig(req.Config); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+    
+    server, err := api.manager.CreateServer(req.Config)
+    if err != nil {
+        api.logger.Error("Failed to create server", "error", err, "config", req.Config)
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
+    }
+    
+    api.logger.Info("Server created successfully", "server_id", server.ID, "name", server.Name)
+    
+    c.JSON(http.StatusCreated, gin.H{
+        "server": ServerInfo{
+            ID:        server.ID,
+            Name:      server.Name,
+            Transport: server.Transport,
+            Status:    server.Status,
+            CreatedAt: server.CreatedAt,
+        },
+    })
+}
+
+func (api *AdminAPI) getServer(c *gin.Context) {
+    serverID := c.Param("id")
+    
+    server, err := api.manager.GetServer(serverID)
+    if err != nil {
+        if err == ErrServerNotFound {
+            c.JSON(http.StatusNotFound, gin.H{"error": "Server not found"})
+            return
+        }
+        api.logger.Error("Failed to get server", "error", err, "server_id", serverID)
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
+    }
+    
+    response := DetailedServerInfo{
+        ID:           server.ID,
+        Name:         server.Name,
+        Description:  server.Description,
+        Transport:    server.Transport,
+        Status:       server.Status,
+        LastSeen:     server.LastSeen,
+        Version:      server.Version,
+        Uptime:       server.Uptime,
+        Configuration: server.Config,
+        Tools:        server.Tools,
+        Statistics: ServerStatistics{
+            RequestCount:     server.RequestCount,
+            ErrorCount:       server.ErrorCount,
+            SuccessRate:      server.SuccessRate,
+            AverageLatency:   server.AverageLatency,
+            LastRequestTime:  server.LastRequestTime,
+            ConnectionCount:  server.ConnectionCount,
+        },
+        Health: HealthInfo{
+            Status:      server.Health.Status,
+            LastCheck:   server.Health.LastCheck,
+            CheckCount:  server.Health.CheckCount,
+            FailureCount: server.Health.FailureCount,
+        },
+    }
+    
+    c.JSON(http.StatusOK, response)
+}
+
+func (api *AdminAPI) startServer(c *gin.Context) {
+    serverID := c.Param("id")
+    
+    err := api.manager.StartServer(serverID)
+    if err != nil {
+        if err == ErrServerNotFound {
+            c.JSON(http.StatusNotFound, gin.H{"error": "Server not found"})
+            return
+        }
+        api.logger.Error("Failed to start server", "error", err, "server_id", serverID)
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
+    }
+    
+    api.logger.Info("Server started successfully", "server_id", serverID)
+    c.JSON(http.StatusOK, gin.H{"message": "Server started successfully"})
+}
+
+func (api *AdminAPI) stopServer(c *gin.Context) {
+    serverID := c.Param("id")
+    
+    err := api.manager.StopServer(serverID)
+    if err != nil {
+        if err == ErrServerNotFound {
+            c.JSON(http.StatusNotFound, gin.H{"error": "Server not found"})
+            return
+        }
+        api.logger.Error("Failed to stop server", "error", err, "server_id", serverID)
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
+    }
+    
+    api.logger.Info("Server stopped successfully", "server_id", serverID)
+    c.JSON(http.StatusOK, gin.H{"message": "Server stopped successfully"})
+}
+
+func (api *AdminAPI) restartServer(c *gin.Context) {
+    serverID := c.Param("id")
+    
+    err := api.manager.RestartServer(serverID)
+    if err != nil {
+        if err == ErrServerNotFound {
+            c.JSON(http.StatusNotFound, gin.H{"error": "Server not found"})
+            return
+        }
+        api.logger.Error("Failed to restart server", "error", err, "server_id", serverID)
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
+    }
+    
+    api.logger.Info("Server restarted successfully", "server_id", serverID)
+    c.JSON(http.StatusOK, gin.H{"message": "Server restarted successfully"})
+}
+```
+
+### Server Health and Logs
+
+```go
+func (api *AdminAPI) getServerHealth(c *gin.Context) {
+    serverID := c.Param("id")
+    
+    health, err := api.manager.GetServerHealth(serverID)
+    if err != nil {
+        if err == ErrServerNotFound {
+            c.JSON(http.StatusNotFound, gin.H{"error": "Server not found"})
+            return
+        }
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
+    }
+    
+    c.JSON(http.StatusOK, health)
+}
+
+func (api *AdminAPI) getServerLogs(c *gin.Context) {
+    serverID := c.Param("id")
+    
+    // Parse query parameters
+    limit := c.DefaultQuery("limit", "100")
+    since := c.Query("since")
+    level := c.Query("level")
+    
+    req := LogRequest{
+        ServerID: serverID,
+        Limit:    parseInt(limit, 100),
+        Since:    parseTime(since),
+        Level:    level,
+    }
+    
+    logs, err := api.manager.GetServerLogs(req)
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
+    }
+    
+    c.JSON(http.StatusOK, gin.H{
+        "logs":  logs,
+        "count": len(logs),
+    })
+}
+
+func (api *AdminAPI) getServerMetrics(c *gin.Context) {
+    serverID := c.Param("id")
+    
+    // Parse time range
+    start := c.Query("start")
+    end := c.Query("end")
+    
+    req := MetricsRequest{
+        ServerID: serverID,
+        Start:    parseTime(start),
+        End:      parseTime(end),
+    }
+    
+    metrics, err := api.metrics.GetServerMetrics(req)
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
+    }
+    
+    c.JSON(http.StatusOK, metrics)
+}
+```
+
+## Tool Management
+
+### Tool Operations
+
+```go
+func (api *AdminAPI) listAllTools(c *gin.Context) {
+    tools, err := api.manager.ListAllTools()
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
+    }
+    
+    response := make([]ToolInfo, len(tools))
+    for i, tool := range tools {
+        response[i] = ToolInfo{
+            ServerID:        tool.ServerID,
+            ServerName:      tool.ServerName,
+            Name:            tool.Name,
+            Description:     tool.Description,
+            InputSchema:     tool.InputSchema,
+            OutputSchema:    tool.OutputSchema,
+            ExecutionCount:  tool.ExecutionCount,
+            ErrorCount:      tool.ErrorCount,
+            AverageLatency:  tool.AverageLatency,
+            LastExecuted:    tool.LastExecuted,
+        }
+    }
+    
+    c.JSON(http.StatusOK, gin.H{
+        "tools": response,
+        "count": len(response),
+    })
+}
+
+func (api *AdminAPI) listServerTools(c *gin.Context) {
+    serverID := c.Param("server_id")
+    
+    tools, err := api.manager.ListServerTools(serverID)
+    if err != nil {
+        if err == ErrServerNotFound {
+            c.JSON(http.StatusNotFound, gin.H{"error": "Server not found"})
+            return
+        }
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
+    }
+    
+    c.JSON(http.StatusOK, gin.H{
+        "server_id": serverID,
+        "tools":     tools,
+        "count":     len(tools),
+    })
+}
+
+func (api *AdminAPI) executeToolAdmin(c *gin.Context) {
+    serverID := c.Param("server_id")
+    toolName := c.Param("tool_name")
+    
+    var req ToolExecutionRequest
+    if err := c.ShouldBindJSON(&req); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+    
+    // Add admin execution context
+    ctx := context.WithValue(c.Request.Context(), "admin_execution", true)
+    ctx = context.WithValue(ctx, "admin_user", c.GetString("user_id"))
+    
+    result, err := api.manager.ExecuteTool(ctx, serverID, toolName, req.Parameters)
+    if err != nil {
+        api.logger.Error("Admin tool execution failed", 
+            "error", err, 
+            "server_id", serverID, 
+            "tool_name", toolName,
+            "admin_user", c.GetString("user_id"))
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
+    }
+    
+    api.logger.Info("Admin tool execution completed", 
+        "server_id", serverID, 
+        "tool_name", toolName,
+        "admin_user", c.GetString("user_id"))
+    
+    c.JSON(http.StatusOK, gin.H{
+        "server_id": serverID,
+        "tool_name": toolName,
+        "result":    result,
+        "executed_at": time.Now(),
+        "executed_by": c.GetString("user_id"),
+    })
+}
+
+func (api *AdminAPI) getToolSchema(c *gin.Context) {
+    serverID := c.Param("server_id")
+    toolName := c.Param("tool_name")
+    
+    schema, err := api.manager.GetToolSchema(serverID, toolName)
+    if err != nil {
+        if err == ErrToolNotFound {
+            c.JSON(http.StatusNotFound, gin.H{"error": "Tool not found"})
+            return
+        }
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
+    }
+    
+    c.JSON(http.StatusOK, schema)
+}
+
+func (api *AdminAPI) validateToolParameters(c *gin.Context) {
+    serverID := c.Param("server_id")
+    toolName := c.Param("tool_name")
+    
+    var req ParameterValidationRequest
+    if err := c.ShouldBindJSON(&req); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+    
+    result, err := api.manager.ValidateToolParameters(serverID, toolName, req.Parameters)
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
+    }
+    
+    c.JSON(http.StatusOK, result)
+}
+```
+
+## System Management
+
+### System Health and Configuration
+
+```go
+func (api *AdminAPI) getSystemHealth(c *gin.Context) {
+    health := api.manager.GetSystemHealth()
+    
+    c.JSON(http.StatusOK, health)
+}
+
+func (api *AdminAPI) getSystemMetrics(c *gin.Context) {
+    metrics := api.metrics.GetSystemMetrics()
+    
+    c.JSON(http.StatusOK, metrics)
+}
+
+func (api *AdminAPI) getSystemConfig(c *gin.Context) {
+    config := api.manager.GetSystemConfig()
+    
+    // Remove sensitive information
+    sanitizedConfig := api.sanitizeConfig(config)
+    
+    c.JSON(http.StatusOK, sanitizedConfig)
+}
+
+func (api *AdminAPI) updateSystemConfig(c *gin.Context) {
+    var req SystemConfigUpdateRequest
+    if err := c.ShouldBindJSON(&req); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+    
+    // Validate configuration changes
+    if err := api.validateSystemConfig(req.Config); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+    
+    err := api.manager.UpdateSystemConfig(req.Config)
+    if err != nil {
+        api.logger.Error("Failed to update system config", "error", err)
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
+    }
+    
+    api.logger.Info("System configuration updated", "admin_user", c.GetString("user_id"))
+    c.JSON(http.StatusOK, gin.H{"message": "Configuration updated successfully"})
+}
+
+func (api *AdminAPI) reloadConfiguration(c *gin.Context) {
+    err := api.manager.ReloadConfiguration()
+    if err != nil {
+        api.logger.Error("Failed to reload configuration", "error", err)
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
+    }
+    
+    api.logger.Info("Configuration reloaded", "admin_user", c.GetString("user_id"))
+    c.JSON(http.StatusOK, gin.H{"message": "Configuration reloaded successfully"})
+}
+
+func (api *AdminAPI) getSystemLogs(c *gin.Context) {
+    // Parse query parameters
+    limit := c.DefaultQuery("limit", "100")
+    since := c.Query("since")
+    level := c.Query("level")
+    component := c.Query("component")
+    
+    req := SystemLogRequest{
+        Limit:     parseInt(limit, 100),
+        Since:     parseTime(since),
+        Level:     level,
+        Component: component,
+    }
+    
+    logs, err := api.manager.GetSystemLogs(req)
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
+    }
+    
+    c.JSON(http.StatusOK, gin.H{
+        "logs":  logs,
+        "count": len(logs),
+    })
+}
+
+func (api *AdminAPI) forceGarbageCollection(c *gin.Context) {
+    runtime.GC()
+    
+    var m runtime.MemStats
+    runtime.ReadMemStats(&m)
+    
+    api.logger.Info("Forced garbage collection", "admin_user", c.GetString("user_id"))
+    
+    c.JSON(http.StatusOK, gin.H{
+        "message": "Garbage collection completed",
+        "memory_stats": map[string]interface{}{
+            "alloc":       m.Alloc,
+            "sys":         m.Sys,
+            "num_gc":      m.NumGC,
+            "pause_ns":    m.PauseNs[(m.NumGC+255)%256],
+        },
+    })
+}
+```
+
+## Monitoring and Diagnostics
+
+### Dashboard and Alerts
+
+```go
+func (api *AdminAPI) getDashboardData(c *gin.Context) {
+    // Get time range from query parameters
+    start := c.Query("start")
+    end := c.Query("end")
+    
+    req := DashboardRequest{
+        Start: parseTime(start),
+        End:   parseTime(end),
+    }
+    
+    data, err := api.manager.GetDashboardData(req)
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
+    }
+    
+    c.JSON(http.StatusOK, data)
+}
+
+func (api *AdminAPI) getActiveAlerts(c *gin.Context) {
+    alerts, err := api.manager.GetActiveAlerts()
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
+    }
+    
+    c.JSON(http.StatusOK, gin.H{
+        "alerts": alerts,
+        "count":  len(alerts),
+    })
+}
+
+func (api *AdminAPI) acknowledgeAlert(c *gin.Context) {
+    alertID := c.Param("id")
+    
+    var req AlertAcknowledgmentRequest
+    if err := c.ShouldBindJSON(&req); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+    
+    err := api.manager.AcknowledgeAlert(alertID, req.Message, c.GetString("user_id"))
+    if err != nil {
+        if err == ErrAlertNotFound {
+            c.JSON(http.StatusNotFound, gin.H{"error": "Alert not found"})
+            return
+        }
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
+    }
+    
+    api.logger.Info("Alert acknowledged", "alert_id", alertID, "admin_user", c.GetString("user_id"))
+    c.JSON(http.StatusOK, gin.H{"message": "Alert acknowledged successfully"})
+}
+
+func (api *AdminAPI) getSystemEvents(c *gin.Context) {
+    // Parse query parameters
+    limit := c.DefaultQuery("limit", "100")
+    since := c.Query("since")
+    eventType := c.Query("type")
+    
+    req := EventsRequest{
+        Limit:     parseInt(limit, 100),
+        Since:     parseTime(since),
+        EventType: eventType,
+    }
+    
+    events, err := api.manager.GetSystemEvents(req)
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
+    }
+    
+    c.JSON(http.StatusOK, gin.H{
+        "events": events,
+        "count":  len(events),
+    })
+}
+
+func (api *AdminAPI) getPerformanceMetrics(c *gin.Context) {
+    // Parse query parameters
+    start := c.Query("start")
+    end := c.Query("end")
+    granularity := c.DefaultQuery("granularity", "1m")
+    
+    req := PerformanceMetricsRequest{
+        Start:       parseTime(start),
+        End:         parseTime(end),
+        Granularity: granularity,
+    }
+    
+    metrics, err := api.metrics.GetPerformanceMetrics(req)
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
+    }
+    
+    c.JSON(http.StatusOK, metrics)
+}
+```
+
+## Security and Access Control
+
+### Token Management
+
+```go
+func (api *AdminAPI) listTokens(c *gin.Context) {
+    tokens, err := api.manager.ListTokens()
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
+    }
+    
+    // Remove sensitive information
+    sanitizedTokens := make([]TokenInfo, len(tokens))
+    for i, token := range tokens {
+        sanitizedTokens[i] = TokenInfo{
+            ID:          token.ID,
+            Name:        token.Name,
+            Description: token.Description,
+            CreatedAt:   token.CreatedAt,
+            ExpiresAt:   token.ExpiresAt,
+            LastUsed:    token.LastUsed,
+            Permissions: token.Permissions,
+            IsActive:    token.IsActive,
+        }
+    }
+    
+    c.JSON(http.StatusOK, gin.H{
+        "tokens": sanitizedTokens,
+        "count":  len(sanitizedTokens),
+    })
+}
+
+func (api *AdminAPI) createToken(c *gin.Context) {
+    var req CreateTokenRequest
+    if err := c.ShouldBindJSON(&req); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+    
+    token, err := api.manager.CreateToken(req, c.GetString("user_id"))
+    if err != nil {
+        api.logger.Error("Failed to create token", "error", err)
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
+    }
+    
+    api.logger.Info("Token created", "token_id", token.ID, "admin_user", c.GetString("user_id"))
+    
+    c.JSON(http.StatusCreated, gin.H{
+        "token_id": token.ID,
+        "token":    token.Token, // Only returned once
+        "expires_at": token.ExpiresAt,
+    })
+}
+
+func (api *AdminAPI) revokeToken(c *gin.Context) {
+    tokenID := c.Param("id")
+    
+    err := api.manager.RevokeToken(tokenID, c.GetString("user_id"))
+    if err != nil {
+        if err == ErrTokenNotFound {
+            c.JSON(http.StatusNotFound, gin.H{"error": "Token not found"})
+            return
+        }
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
+    }
+    
+    api.logger.Info("Token revoked", "token_id", tokenID, "admin_user", c.GetString("user_id"))
+    c.JSON(http.StatusOK, gin.H{"message": "Token revoked successfully"})
+}
+
+func (api *AdminAPI) getAuditLog(c *gin.Context) {
+    // Parse query parameters
+    limit := c.DefaultQuery("limit", "100")
+    since := c.Query("since")
+    action := c.Query("action")
+    user := c.Query("user")
+    
+    req := AuditLogRequest{
+        Limit:  parseInt(limit, 100),
+        Since:  parseTime(since),
+        Action: action,
+        User:   user,
+    }
+    
+    logs, err := api.manager.GetAuditLog(req)
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
+    }
+    
+    c.JSON(http.StatusOK, gin.H{
+        "logs":  logs,
+        "count": len(logs),
+    })
+}
+
+func (api *AdminAPI) rotateKeys(c *gin.Context) {
+    var req KeyRotationRequest
+    if err := c.ShouldBindJSON(&req); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+    
+    result, err := api.manager.RotateKeys(req.KeyType, c.GetString("user_id"))
+    if err != nil {
+        api.logger.Error("Failed to rotate keys", "error", err, "key_type", req.KeyType)
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
+    }
+    
+    api.logger.Info("Keys rotated", "key_type", req.KeyType, "admin_user", c.GetString("user_id"))
+    c.JSON(http.StatusOK, result)
+}
+```
+
+## Data Types and Structures
+
+### Request and Response Types
+
+```go
+// Request types
+type CreateServerRequest struct {
+    Config ServerConfig `json:"config"`
+}
+
+type ServerConfig struct {
+    Name        string            `json:"name"`
+    Description string            `json:"description"`
+    Transport   string            `json:"transport"`
+    Command     string            `json:"command,omitempty"`
+    Args        []string          `json:"args,omitempty"`
+    URL         string            `json:"url,omitempty"`
+    Env         map[string]string `json:"env,omitempty"`
+    Timeout     time.Duration     `json:"timeout"`
+}
+
+type ToolExecutionRequest struct {
+    Parameters map[string]interface{} `json:"parameters"`
+    Timeout    time.Duration          `json:"timeout,omitempty"`
+}
+
+type ParameterValidationRequest struct {
+    Parameters map[string]interface{} `json:"parameters"`
+}
+
+type SystemConfigUpdateRequest struct {
+    Config SystemConfig `json:"config"`
+}
+
+type CreateTokenRequest struct {
+    Name        string        `json:"name"`
+    Description string        `json:"description"`
+    Permissions []string      `json:"permissions"`
+    ExpiresAt   *time.Time    `json:"expires_at,omitempty"`
+}
+
+type AlertAcknowledgmentRequest struct {
+    Message string `json:"message"`
+}
+
+type KeyRotationRequest struct {
+    KeyType string `json:"key_type"`
+}
+
+// Response types
+type ServerInfo struct {
+    ID           string    `json:"id"`
+    Name         string    `json:"name"`
+    Transport    string    `json:"transport"`
+    Status       string    `json:"status"`
+    LastSeen     time.Time `json:"last_seen"`
+    Version      string    `json:"version"`
+    Uptime       time.Duration `json:"uptime"`
+    ToolCount    int       `json:"tool_count"`
+    RequestCount int64     `json:"request_count"`
+    ErrorCount   int64     `json:"error_count"`
+}
+
+type DetailedServerInfo struct {
+    ID            string              `json:"id"`
+    Name          string              `json:"name"`
+    Description   string              `json:"description"`
+    Transport     string              `json:"transport"`
+    Status        string              `json:"status"`
+    LastSeen      time.Time           `json:"last_seen"`
+    Version       string              `json:"version"`
+    Uptime        time.Duration       `json:"uptime"`
+    Configuration ServerConfig        `json:"configuration"`
+    Tools         []ToolInfo          `json:"tools"`
+    Statistics    ServerStatistics    `json:"statistics"`
+    Health        HealthInfo          `json:"health"`
+}
+
+type ToolInfo struct {
+    ServerID       string      `json:"server_id"`
+    ServerName     string      `json:"server_name"`
+    Name           string      `json:"name"`
+    Description    string      `json:"description"`
+    InputSchema    interface{} `json:"input_schema"`
+    OutputSchema   interface{} `json:"output_schema"`
+    ExecutionCount int64       `json:"execution_count"`
+    ErrorCount     int64       `json:"error_count"`
+    AverageLatency time.Duration `json:"average_latency"`
+    LastExecuted   time.Time   `json:"last_executed"`
+}
+
+type ServerStatistics struct {
+    RequestCount     int64         `json:"request_count"`
+    ErrorCount       int64         `json:"error_count"`
+    SuccessRate      float64       `json:"success_rate"`
+    AverageLatency   time.Duration `json:"average_latency"`
+    LastRequestTime  time.Time     `json:"last_request_time"`
+    ConnectionCount  int           `json:"connection_count"`
+}
+
+type HealthInfo struct {
+    Status       string    `json:"status"`
+    LastCheck    time.Time `json:"last_check"`
+    CheckCount   int64     `json:"check_count"`
+    FailureCount int64     `json:"failure_count"`
+}
+
+type TokenInfo struct {
+    ID          string    `json:"id"`
+    Name        string    `json:"name"`
+    Description string    `json:"description"`
+    CreatedAt   time.Time `json:"created_at"`
+    ExpiresAt   *time.Time `json:"expires_at"`
+    LastUsed    *time.Time `json:"last_used"`
+    Permissions []string  `json:"permissions"`
+    IsActive    bool      `json:"is_active"`
+}
+```
+
+## Client SDK
+
+### TypeScript Client
+
+```typescript
+// admin-client.ts
+interface AdminClientConfig {
+  baseURL: string;
+  token: string;
+  timeout?: number;
+}
+
+interface ServerInfo {
+  id: string;
+  name: string;
+  transport: string;
+  status: string;
+  last_seen: string;
+  version: string;
+  uptime: number;
+  tool_count: number;
+  request_count: number;
+  error_count: number;
+}
+
+interface ToolInfo {
+  server_id: string;
+  server_name: string;
+  name: string;
+  description: string;
+  input_schema: any;
+  output_schema: any;
+  execution_count: number;
+  error_count: number;
+  average_latency: number;
+  last_executed: string;
+}
+
+class MCPAdminClient {
+  private config: AdminClientConfig;
+  private baseURL: string;
+  private headers: Record<string, string>;
+
+  constructor(config: AdminClientConfig) {
+    this.config = config;
+    this.baseURL = config.baseURL.replace(/\/$/, '');
+    this.headers = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${config.token}`,
+    };
+  }
+
+  // Server management
+  async listServers(): Promise<ServerInfo[]> {
+    const response = await this.request('GET', '/api/v1/admin/servers');
+    return response.servers;
+  }
+
+  async getServer(id: string): Promise<ServerInfo> {
+    return await this.request('GET', `/api/v1/admin/servers/${id}`);
+  }
+
+  async createServer(config: any): Promise<ServerInfo> {
+    return await this.request('POST', '/api/v1/admin/servers', { config });
+  }
+
+  async updateServer(id: string, config: any): Promise<ServerInfo> {
+    return await this.request('PUT', `/api/v1/admin/servers/${id}`, { config });
+  }
+
+  async deleteServer(id: string): Promise<void> {
+    await this.request('DELETE', `/api/v1/admin/servers/${id}`);
+  }
+
+  async startServer(id: string): Promise<void> {
+    await this.request('POST', `/api/v1/admin/servers/${id}/start`);
+  }
+
+  async stopServer(id: string): Promise<void> {
+    await this.request('POST', `/api/v1/admin/servers/${id}/stop`);
+  }
+
+  async restartServer(id: string): Promise<void> {
+    await this.request('POST', `/api/v1/admin/servers/${id}/restart`);
+  }
+
+  async getServerHealth(id: string): Promise<any> {
+    return await this.request('GET', `/api/v1/admin/servers/${id}/health`);
+  }
+
+  async getServerLogs(id: string, options?: {
+    limit?: number;
+    since?: string;
+    level?: string;
+  }): Promise<any[]> {
+    const params = new URLSearchParams();
+    if (options?.limit) params.append('limit', options.limit.toString());
+    if (options?.since) params.append('since', options.since);
+    if (options?.level) params.append('level', options.level);
+    
+    const response = await this.request('GET', `/api/v1/admin/servers/${id}/logs?${params}`);
+    return response.logs;
+  }
+
+  async getServerMetrics(id: string, options?: {
+    start?: string;
+    end?: string;
+  }): Promise<any> {
+    const params = new URLSearchParams();
+    if (options?.start) params.append('start', options.start);
+    if (options?.end) params.append('end', options.end);
+    
+    return await this.request('GET', `/api/v1/admin/servers/${id}/metrics?${params}`);
+  }
+
+  // Tool management
+  async listAllTools(): Promise<ToolInfo[]> {
+    const response = await this.request('GET', '/api/v1/admin/tools');
+    return response.tools;
+  }
+
+  async listServerTools(serverId: string): Promise<ToolInfo[]> {
+    const response = await this.request('GET', `/api/v1/admin/tools/${serverId}`);
+    return response.tools;
+  }
+
+  async executeTool(serverId: string, toolName: string, parameters: any): Promise<any> {
+    return await this.request('POST', `/api/v1/admin/tools/${serverId}/${toolName}/execute`, {
+      parameters,
+    });
+  }
+
+  async getToolSchema(serverId: string, toolName: string): Promise<any> {
+    return await this.request('GET', `/api/v1/admin/tools/${serverId}/${toolName}/schema`);
+  }
+
+  async validateToolParameters(serverId: string, toolName: string, parameters: any): Promise<any> {
+    return await this.request('POST', `/api/v1/admin/tools/${serverId}/${toolName}/validate`, {
+      parameters,
+    });
+  }
+
+  // System management
+  async getSystemHealth(): Promise<any> {
+    return await this.request('GET', '/api/v1/admin/system/health');
+  }
+
+  async getSystemMetrics(): Promise<any> {
+    return await this.request('GET', '/api/v1/admin/system/metrics');
+  }
+
+  async getSystemConfig(): Promise<any> {
+    return await this.request('GET', '/api/v1/admin/system/config');
+  }
+
+  async updateSystemConfig(config: any): Promise<void> {
+    await this.request('PUT', '/api/v1/admin/system/config', { config });
+  }
+
+  async reloadConfiguration(): Promise<void> {
+    await this.request('POST', '/api/v1/admin/system/reload');
+  }
+
+  async getSystemLogs(options?: {
+    limit?: number;
+    since?: string;
+    level?: string;
+    component?: string;
+  }): Promise<any[]> {
+    const params = new URLSearchParams();
+    if (options?.limit) params.append('limit', options.limit.toString());
+    if (options?.since) params.append('since', options.since);
+    if (options?.level) params.append('level', options.level);
+    if (options?.component) params.append('component', options.component);
+    
+    const response = await this.request('GET', `/api/v1/admin/system/logs?${params}`);
+    return response.logs;
+  }
+
+  async forceGarbageCollection(): Promise<any> {
+    return await this.request('POST', '/api/v1/admin/system/gc');
+  }
+
+  // Monitoring
+  async getDashboardData(options?: {
+    start?: string;
+    end?: string;
+  }): Promise<any> {
+    const params = new URLSearchParams();
+    if (options?.start) params.append('start', options.start);
+    if (options?.end) params.append('end', options.end);
+    
+    return await this.request('GET', `/api/v1/admin/monitoring/dashboard?${params}`);
+  }
+
+  async getActiveAlerts(): Promise<any[]> {
+    const response = await this.request('GET', '/api/v1/admin/monitoring/alerts');
+    return response.alerts;
+  }
+
+  async acknowledgeAlert(alertId: string, message: string): Promise<void> {
+    await this.request('POST', `/api/v1/admin/monitoring/alerts/${alertId}/acknowledge`, {
+      message,
+    });
+  }
+
+  async getSystemEvents(options?: {
+    limit?: number;
+    since?: string;
+    type?: string;
+  }): Promise<any[]> {
+    const params = new URLSearchParams();
+    if (options?.limit) params.append('limit', options.limit.toString());
+    if (options?.since) params.append('since', options.since);
+    if (options?.type) params.append('type', options.type);
+    
+    const response = await this.request('GET', `/api/v1/admin/monitoring/events?${params}`);
+    return response.events;
+  }
+
+  async getPerformanceMetrics(options?: {
+    start?: string;
+    end?: string;
+    granularity?: string;
+  }): Promise<any> {
+    const params = new URLSearchParams();
+    if (options?.start) params.append('start', options.start);
+    if (options?.end) params.append('end', options.end);
+    if (options?.granularity) params.append('granularity', options.granularity);
+    
+    return await this.request('GET', `/api/v1/admin/monitoring/performance?${params}`);
+  }
+
+  // Security
+  async listTokens(): Promise<any[]> {
+    const response = await this.request('GET', '/api/v1/admin/security/tokens');
+    return response.tokens;
+  }
+
+  async createToken(tokenData: {
+    name: string;
+    description: string;
+    permissions: string[];
+    expires_at?: string;
+  }): Promise<any> {
+    return await this.request('POST', '/api/v1/admin/security/tokens', tokenData);
+  }
+
+  async revokeToken(tokenId: string): Promise<void> {
+    await this.request('DELETE', `/api/v1/admin/security/tokens/${tokenId}`);
+  }
+
+  async getAuditLog(options?: {
+    limit?: number;
+    since?: string;
+    action?: string;
+    user?: string;
+  }): Promise<any[]> {
+    const params = new URLSearchParams();
+    if (options?.limit) params.append('limit', options.limit.toString());
+    if (options?.since) params.append('since', options.since);
+    if (options?.action) params.append('action', options.action);
+    if (options?.user) params.append('user', options.user);
+    
+    const response = await this.request('GET', `/api/v1/admin/security/audit?${params}`);
+    return response.logs;
+  }
+
+  async rotateKeys(keyType: string): Promise<any> {
+    return await this.request('POST', '/api/v1/admin/security/rotate-keys', {
+      key_type: keyType,
+    });
+  }
+
+  // Private helper methods
+  private async request(method: string, path: string, body?: any): Promise<any> {
+    const url = `${this.baseURL}${path}`;
+    const options: RequestInit = {
+      method,
+      headers: this.headers,
+    };
+
+    if (body) {
+      options.body = JSON.stringify(body);
+    }
+
+    try {
+      const response = await fetch(url, options);
+      
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      throw new Error(`Request failed: ${error.message}`);
+    }
+  }
+}
+
+export default MCPAdminClient;
+```
+
+## Usage Examples
+
+### Managing Servers
+
+```typescript
+// Example: Server lifecycle management
+const client = new MCPAdminClient({
+  baseURL: 'https://mcp-admin.example.com',
+  token: 'your-admin-token',
+});
+
+// List all servers
+const servers = await client.listServers();
+console.log('Active servers:', servers.length);
+
+// Create a new server
+const newServer = await client.createServer({
+  name: 'filesystem-server',
+  description: 'File operations server',
+  transport: 'stdio',
+  command: 'mcp-filesystem-server',
+  args: ['--root', '/data'],
+  env: {
+    LOG_LEVEL: 'INFO',
+  },
+  timeout: 30000,
+});
+
+// Start the server
+await client.startServer(newServer.id);
+
+// Monitor server health
+const health = await client.getServerHealth(newServer.id);
+console.log('Server health:', health.status);
+```
+
+### Tool Management
+
+```typescript
+// Example: Tool discovery and execution
+const tools = await client.listAllTools();
+console.log('Available tools:', tools.map(t => `${t.server_name}.${t.name}`));
+
+// Execute a tool
+const result = await client.executeTool(
+  'filesystem-server',
+  'read_file',
+  { path: '/data/config.json' }
+);
+console.log('Tool result:', result);
+
+// Validate parameters before execution
+const validation = await client.validateToolParameters(
+  'filesystem-server',
+  'read_file',
+  { path: '/data/config.json' }
+);
+console.log('Validation result:', validation);
+```
+
+### System Monitoring
+
+```typescript
+// Example: System monitoring and alerting
+const systemHealth = await client.getSystemHealth();
+console.log('System status:', systemHealth.status);
+
+// Get active alerts
+const alerts = await client.getActiveAlerts();
+if (alerts.length > 0) {
+  console.log('Active alerts:', alerts);
+  
+  // Acknowledge an alert
+  await client.acknowledgeAlert(alerts[0].id, 'Investigating the issue');
+}
+
+// Get performance metrics
+const metrics = await client.getPerformanceMetrics({
+  start: '2024-01-01T00:00:00Z',
+  end: '2024-01-02T00:00:00Z',
+  granularity: '1h',
+});
+console.log('Performance metrics:', metrics);
+```
+
+## Best Practices
+
+### 1. Authentication and Authorization
+
+- Use JWT tokens with appropriate expiration times
+- Implement role-based access control
+- Audit all administrative actions
+- Rotate tokens regularly
+
+### 2. Error Handling
+
+- Provide meaningful error messages
+- Implement proper HTTP status codes
+- Log errors with sufficient context
+- Handle rate limiting gracefully
+
+### 3. Security
+
+- Use HTTPS in production
+- Implement request validation
+- Sanitize sensitive data in responses
+- Use secure headers
+
+### 4. Performance
+
+- Implement pagination for large datasets
+- Use appropriate caching strategies
+- Optimize database queries
+- Monitor API performance
+
+### 5. Monitoring
+
+- Track API usage and performance
+- Set up alerts for critical issues
+- Monitor resource utilization
+- Maintain audit logs
+
+This comprehensive Admin API provides full operational control over MCP deployments, enabling effective management, monitoring, and troubleshooting of MCP systems.
+
+## Next Steps
+
+- Review [Security & Authentication](/docs/core/mcp/security-authentication) for securing the admin API
+- Configure [Monitoring & Metrics](/docs/core/mcp/monitoring-metrics) for comprehensive observability
+- Set up [Production Deployment](/docs/core/mcp/production-deployment) for scalable admin API deployment
+- Explore [Integration Patterns](/docs/core/mcp/integration-patterns) for custom admin workflows

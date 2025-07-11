@@ -4,10 +4,11 @@
   "icon": "FileCode",
   "pages": [
     "overview",
-    "context-variables",
+    "yaml-basics",
     "directives",
     "sprig-functions",
-    "advanced-patterns",
-    "validation-debugging"
+    "context-variables",
+    "validation-debugging",
+    "advanced-patterns"
   ]
 }

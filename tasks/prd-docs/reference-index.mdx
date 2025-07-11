@@ -1,0 +1,164 @@
+---
+title: "Documentation Reference Index"
+description: "Complete cross-reference system and navigation guide for Compozy documentation"
+icon: "Map"
+---
+
+
+# Documentation Reference Index
+
+This comprehensive index shows how all Compozy concepts interconnect and provides quick navigation to related topics.
+
+## Core Concept Relationships
+
+### 🏗️ Foundation Layer
+<FeatureCardList cols={3}>
+  <FeatureCard title="Core Concepts" href="/docs/core/getting-started/core-concepts">
+    Foundation principles and architecture overview
+  </FeatureCard>
+  <FeatureCard title="Installation" href="/docs/core/getting-started/installation">
+    Getting started with Compozy setup
+  </FeatureCard>
+  <FeatureCard title="Quick Start" href="/docs/core/getting-started/quick-start">
+    Your first workflow in 5 minutes
+  </FeatureCard>
+</FeatureCardList>
+
+### 🤖 AI Components
+<FeatureCardList cols={2}>
+  <FeatureCard title="Agents" href="/docs/core/agents/overview">
+    **Primary Hub**: AI-powered autonomous entities
+    - **Configuration**: [LLM Integration](/docs/core/agents/llm-integration), [Instructions & Actions](/docs/core/agents/instructions-actions)
+    - **Capabilities**: [Tools](/docs/core/agents/tools), [Memory](/docs/core/agents/memory), [Context](/docs/core/agents/context)
+    - **Patterns**: [Multi-Agent](/docs/core/agents/multi-agent-patterns), [Structured Outputs](/docs/core/agents/structured-outputs)
+  </FeatureCard>
+  <FeatureCard title="Memory & Context" href="/docs/core/memory/memory-concepts">
+    **Related to**: Agents, Tasks, Workflows
+    - **Setup**: [Configuration](/docs/core/memory/configuration), [Operations](/docs/core/memory/operations)
+    - **Usage**: [Integration Patterns](/docs/core/memory/integration-patterns), [Privacy & Security](/docs/core/memory/privacy-security)
+  </FeatureCard>
+</FeatureCardList>
+
+### ⚙️ Execution Engine
+<FeatureCardList cols={3}>
+  <FeatureCard title="Tasks" href="/docs/core/tasks/basic-tasks">
+    **Building blocks** of workflows
+    - **Types**: [Basic](/docs/core/tasks/basic-tasks), [Aggregate](/docs/core/tasks/aggregate-tasks), [Collection](/docs/core/tasks/collection-tasks)
+    - **Advanced**: [Parallel Processing](/docs/core/tasks/parallel-processing), [Flow Control](/docs/core/tasks/flow-control)
+    - **Specialized**: [Memory Tasks](/docs/core/tasks/memory-tasks), [Custom Types](/docs/core/tasks/custom-task-types)
+  </FeatureCard>
+  <FeatureCard title="Tools" href="/docs/core/tools/tools-overview">
+    **Extend capabilities** with TypeScript
+    - **Development**: [TypeScript](/docs/core/tools/typescript-development), [Runtime](/docs/core/tools/runtime-environment)
+    - **Configuration**: [Schemas](/docs/core/tools/configuration-schemas), [Testing](/docs/core/tools/testing-debugging)
+    - **Integration**: [External](/docs/core/tools/external-integrations), [Performance](/docs/core/tools/performance-security)
+  </FeatureCard>
+  <FeatureCard title="Signals" href="/docs/core/signals/signal-overview">
+    **Communication** between workflows
+    - **Tasks**: [Signal Tasks](/docs/core/signals/signal-tasks), [Wait Tasks](/docs/core/signals/wait-tasks)
+    - **Patterns**: [Triggers](/docs/core/signals/signal-triggers), [Event API](/docs/core/signals/event-api)
+  </FeatureCard>
+</FeatureCardList>
+
+### 🔌 Integration Layer
+<FeatureCardList cols={2}>
+  <FeatureCard title="MCP (Model Context Protocol)" href="/docs/core/mcp/mcp-overview">
+    **External tool integration** standard
+    - **Setup**: [Proxy Server](/docs/core/mcp/mcp-proxy-server), [Client Manager](/docs/core/mcp/client-manager)
+    - **Configuration**: [Transport](/docs/core/mcp/transport-configuration), [Storage](/docs/core/mcp/storage-backends)
+    - **Operations**: [Tool Discovery](/docs/core/mcp/tool-discovery), [Integration Patterns](/docs/core/mcp/integration-patterns)
+  </FeatureCard>
+  <FeatureCard title="YAML Templates" href="/docs/core/yaml-templates/overview">
+    **Dynamic configuration** system
+    - **Basics**: [YAML Fundamentals](/docs/core/yaml-templates/yaml-basics), [Context Variables](/docs/core/yaml-templates/context-variables)
+    - **Advanced**: [Directives](/docs/core/yaml-templates/directives), [Sprig Functions](/docs/core/yaml-templates/sprig-functions)
+  </FeatureCard>
+</FeatureCardList>
+
+### ⚙️ Configuration & Setup
+<FeatureCardList cols={3}>
+  <FeatureCard title="Project Setup" href="/docs/core/configuration/project-setup">
+    **Foundation** configuration
+  </FeatureCard>
+  <FeatureCard title="Workflows" href="/docs/core/configuration/workflows">
+    **Orchestration** configuration
+  </FeatureCard>
+  <FeatureCard title="Providers" href="/docs/core/configuration/providers">
+    **LLM provider** configuration
+  </FeatureCard>
+</FeatureCardList>
+
+## Cross-Reference Map
+
+### Agent-Centric References
+- **Agent Memory** ↔ [Memory Concepts](/docs/core/memory/memory-concepts) ↔ [Memory Operations](/docs/core/memory/operations)
+- **Agent Tools** ↔ [Tools Overview](/docs/core/tools/tools-overview) ↔ [Tool Development](/docs/core/tools/typescript-development)
+- **Agent Context** ↔ [YAML Templates](/docs/core/yaml-templates/overview) ↔ [Context Variables](/docs/core/yaml-templates/context-variables)
+- **Agent LLM Integration** ↔ [Provider Configuration](/docs/core/configuration/providers)
+
+### Task-Centric References
+- **Task Types** ↔ [Core Concepts Tasks](/docs/core/getting-started/core-concepts#2-tasks) ↔ [Flow Control](/docs/core/tasks/flow-control)
+- **Memory Tasks** ↔ [Memory Operations](/docs/core/memory/operations) ↔ [Agent Memory](/docs/core/agents/memory)
+- **Signal Tasks** ↔ [Signal Overview](/docs/core/signals/signal-overview) ↔ [Event-Driven Workflows](/docs/core/getting-started/core-concepts#event-driven-workflows)
+
+### Integration-Centric References
+- **MCP Tools** ↔ [Agent Tools](/docs/core/agents/tools) ↔ [Tools External Integration](/docs/core/tools/external-integrations)
+- **Template System** ↔ [All Configuration Sections](/docs/core/configuration) ↔ [Dynamic Workflows](/docs/core/getting-started/core-concepts#dynamic-workflows)
+
+## Learning Paths
+
+### 🎯 Quick Start Path (30 minutes)
+1. [Installation](/docs/core/getting-started/installation) → Set up Compozy
+2. [Quick Start](/docs/core/getting-started/quick-start) → Build first workflow
+3. [Core Concepts](/docs/core/getting-started/core-concepts) → Understand fundamentals
+
+### 🤖 Agent Development Path (2-3 hours)
+1. [Agent Overview](/docs/core/agents/overview) → Understand agent capabilities
+2. [LLM Integration](/docs/core/agents/llm-integration) → Connect AI providers
+3. [Instructions & Actions](/docs/core/agents/instructions-actions) → Define agent behavior
+4. [Agent Tools](/docs/core/agents/tools) → Add external capabilities
+5. [Agent Memory](/docs/core/agents/memory) → Implement stateful interactions
+
+### 🔧 Tool Development Path (1-2 hours)
+1. [Tools Overview](/docs/core/tools/tools-overview) → Understand tool system
+2. [TypeScript Development](/docs/core/tools/typescript-development) → Build custom tools
+3. [Configuration Schemas](/docs/core/tools/configuration-schemas) → Define interfaces
+4. [Testing & Debugging](/docs/core/tools/testing-debugging) → Quality assurance
+
+### 🏗️ Workflow Architecture Path (3-4 hours)
+1. [Core Concepts](/docs/core/getting-started/core-concepts) → Foundation knowledge
+2. [Basic Tasks](/docs/core/tasks/basic-tasks) → Task fundamentals
+3. [Advanced Task Patterns](/docs/core/tasks/advanced-patterns) → Complex orchestration
+4. [YAML Templates](/docs/core/yaml-templates/overview) → Dynamic configuration
+5. [Memory Integration](/docs/core/memory/integration-patterns) → Stateful workflows
+
+### 🔌 Integration Specialist Path (2-3 hours)
+1. [MCP Overview](/docs/core/mcp/mcp-overview) → Protocol fundamentals
+2. [MCP Integration Patterns](/docs/core/mcp/integration-patterns) → Implementation strategies
+3. [External Tool Integration](/docs/core/tools/external-integrations) → Custom integrations
+4. [Signal Communication](/docs/core/signals/signal-overview) → Inter-workflow coordination
+
+## Topic-Based Quick Reference
+
+### Configuration Files
+- **Project Config**: [Project Setup](/docs/core/configuration/project-setup) + [Global Config](/docs/core/configuration/global)
+- **Workflow Config**: [Workflow Configuration](/docs/core/configuration/workflows) + [YAML Templates](/docs/core/yaml-templates/overview)
+- **Agent Config**: [Agent Overview](/docs/core/agents/overview) + [Instructions & Actions](/docs/core/agents/instructions-actions)
+
+### Development Workflows
+- **Agent Development**: [Overview](/docs/core/agents/overview) → [LLM Integration](/docs/core/agents/llm-integration) → [Tools](/docs/core/agents/tools)
+- **Tool Development**: [Overview](/docs/core/tools/tools-overview) → [TypeScript](/docs/core/tools/typescript-development) → [Testing](/docs/core/tools/testing-debugging)
+- **Workflow Development**: [Core Concepts](/docs/core/getting-started/core-concepts) → [Tasks](/docs/core/tasks/basic-tasks) → [Templates](/docs/core/yaml-templates/overview)
+
+### Common Integration Patterns
+- **Memory + Agents**: [Agent Memory](/docs/core/agents/memory) + [Memory Operations](/docs/core/memory/operations)
+- **Tools + Agents**: [Agent Tools](/docs/core/agents/tools) + [Tools Overview](/docs/core/tools/tools-overview)
+- **MCP + Everything**: [MCP Overview](/docs/core/mcp/mcp-overview) + [Integration Patterns](/docs/core/mcp/integration-patterns)
+
+<Callout type="info">
+**Need help finding something?** Use the search function (Cmd/Ctrl + K) or browse by the logical learning paths above based on your current focus.
+</Callout>
+
+## Contributing to Documentation
+
+Missing a cross-reference or found a broken link? See our [contribution guidelines](#) for adding documentation improvements.

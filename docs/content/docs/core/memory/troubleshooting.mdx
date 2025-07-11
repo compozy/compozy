@@ -1,6 +1,841 @@
 ---
-title: Troubleshooting
-description: Troubleshooting memory issues
+title: "Troubleshooting Memory Issues"
+description: "Complete guide to diagnosing and resolving memory system issues, performance problems, and common configuration errors"
 ---
 
-# Troubleshooting
+# Troubleshooting Memory Issues
+
+This guide provides comprehensive troubleshooting procedures for common memory system issues, performance problems, and configuration errors.
+
+## Common Issues and Solutions
+
+### Memory Instance Not Found
+
+**Symptoms:**
+- "Memory instance not found" errors
+- Agents unable to load conversation history
+- Empty memory responses
+
+**Common Causes:**
+1. **Invalid key template evaluation**
+2. **TTL expiration**
+3. **Configuration mismatch**
+4. **Redis connectivity issues**
+
+**Diagnostic Steps:**
+
+```bash
+# Check memory instance existence
+curl -X GET "http://localhost:8080/api/v0/memory/health" \
+  -H "Authorization: Bearer $TOKEN"
+
+# Verify key template evaluation
+curl -X POST "http://localhost:8080/api/v0/memory/debug/key-resolution" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "memory_resource_id": "user_memory",
+    "workflow_context": {
+      "user_id": "test_user",
+      "session_id": "test_session"
+    }
+  }'
+```
+
+**Solution Steps:**
+
+1. **Verify key template syntax:**
+```yaml
+# ❌ Incorrect
+key: "user:{{.workflow.input.user_id"  # Missing closing brace
+
+# ✅ Correct
+key: "user:{{.workflow.input.user_id}}"
+```
+
+2. **Check TTL configuration:**
+```yaml
+# Ensure TTL is appropriate for your use case
+persistence:
+  ttl: 24h        # Not too short
+append_ttl: "30m" # Reasonable extension
+```
+
+3. **Validate workflow context:**
+```typescript
+// Ensure required context variables are provided
+const workflowContext = {
+  user_id: "user123",        // Required for template
+  session_id: "session456",  // If used in template
+  project_id: "proj789"      // If used in template
+};
+```
+
+### Memory Operations Timeout
+
+**Symptoms:**
+- Operations hang or timeout
+- "Context deadline exceeded" errors
+- Slow response times
+
+**Common Causes:**
+1. **Lock contention**
+2. **Large message processing**
+3. **Redis performance issues**
+4. **Network latency**
+
+**Diagnostic Commands:**
+
+```bash
+# Check Redis performance
+redis-cli --latency-history -h localhost -p 6379
+
+# Monitor lock usage
+curl -X GET "http://localhost:8080/api/v0/memory/debug/locks" \
+  -H "Authorization: Bearer $TOKEN"
+
+# Check memory instance health
+curl -X GET "http://localhost:8080/api/v0/memory/health/user:test_user" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**Solution Steps:**
+
+1. **Optimize lock configuration:**
+```yaml
+# Adjust lock timeouts
+lock_config:
+  append_ttl: "30s"   # Shorter for high concurrency
+  clear_ttl: "10s"    # Quick cleanup
+  flush_ttl: "2m"     # Longer for complex operations
+```
+
+2. **Implement pagination for large datasets:**
+```typescript
+export async function paginatedMemoryRead(input: PaginatedInput) {
+  const { memory_key, page = 1, page_size = 20 } = input;
+  
+  const offset = (page - 1) * page_size;
+  const result = await readMessagesPaginated(memory_key, offset, page_size);
+  
+  return {
+    messages: result.messages,
+    pagination: {
+      page,
+      page_size,
+      total_count: result.total_count,
+      has_more: offset + page_size < result.total_count
+    }
+  };
+}
+```
+
+3. **Configure appropriate timeouts:**
+```yaml
+# Circuit breaker configuration
+persistence:
+  circuit_breaker:
+    enabled: true
+    timeout: "200ms"    # Reasonable timeout
+    max_failures: 3     # Conservative failure threshold
+    reset_timeout: "30s"
+```
+
+### Token Count Inconsistencies
+
+**Symptoms:**
+- Incorrect token count reporting
+- Memory flushing at wrong thresholds
+- Token budget miscalculations
+
+**Common Causes:**
+1. **Token counting provider issues**
+2. **Metadata synchronization problems**
+3. **Configuration mismatches**
+
+**Diagnostic Steps:**
+
+```typescript
+// Debug token counting
+export async function debugTokenCounting(input: DebugTokenInput) {
+  const { memory_key, message } = input;
+  
+  // Get current token count
+  const health = await getMemoryHealth(memory_key);
+  
+  // Count tokens with different providers
+  const tiktokenCount = await countTokens(message, 'tiktoken');
+  const openaiCount = await countTokens(message, 'openai');
+  
+  // Compare with stored metadata
+  const storedCount = await getTokenCountMetadata(memory_key);
+  
+  return {
+    health_token_count: health.token_count,
+    tiktoken_count: tiktokenCount,
+    openai_count: openaiCount,
+    stored_metadata: storedCount,
+    discrepancy: Math.abs(health.token_count - storedCount)
+  };
+}
+```
+
+**Solution Steps:**
+
+1. **Verify token provider configuration:**
+```yaml
+token_provider:
+  provider: openai
+  model: gpt-4
+  api_key_env: OPENAI_API_KEY
+  fallback: tiktoken      # Important fallback
+  settings:
+    timeout: "30s"
+    max_retries: 3
+```
+
+2. **Force metadata resync:**
+```typescript
+export async function resyncTokenMetadata(input: ResyncInput) {
+  const { memory_key } = input;
+  
+  // Read all messages
+  const messages = await readAllMessages(memory_key);
+  
+  // Recalculate token count
+  let totalTokens = 0;
+  for (const message of messages) {
+    totalTokens += await countTokens(message.content, 'openai');
+  }
+  
+  // Update metadata
+  await setTokenCountMetadata(memory_key, totalTokens);
+  
+  return {
+    success: true,
+    messages_processed: messages.length,
+    total_tokens: totalTokens
+  };
+}
+```
+
+### Memory Flushing Issues
+
+**Symptoms:**
+- Memory not flushing when expected
+- Summaries not being generated
+- Flush operations failing
+
+**Common Causes:**
+1. **Incorrect flush strategy configuration**
+2. **Summarization service issues**
+3. **Temporal workflow problems**
+
+**Diagnostic Steps:**
+
+```bash
+# Check flush pending status
+curl -X GET "http://localhost:8080/api/v0/memory/debug/flush-status/user:test_user" \
+  -H "Authorization: Bearer $TOKEN"
+
+# Manually trigger flush
+curl -X POST "http://localhost:8080/api/v0/memory/flush" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "memory_key": "user:test_user",
+    "force": true
+  }'
+
+# Check Temporal workflow status
+curl -X GET "http://localhost:8080/api/v0/temporal/workflows/memory-flush" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**Solution Steps:**
+
+1. **Validate flush strategy configuration:**
+```yaml
+flushing_strategy:
+  type: hybrid_summary
+  summarize_threshold: 0.8      # Trigger at 80% capacity
+  summary_tokens: 500           # Reasonable summary size
+  summarize_oldest_percent: 0.3 # Summarize oldest 30%
+```
+
+2. **Implement manual flush capability:**
+```typescript
+export async function manualFlushTool(input: ManualFlushInput) {
+  const { memory_key, force = false, strategy_override } = input;
+  
+  try {
+    // Check if flush is already pending
+    const flushPending = await isFlushPending(memory_key);
+    if (flushPending && !force) {
+      return {
+        success: false,
+        message: 'Flush already pending, use force=true to override'
+      };
+    }
+    
+    // Perform flush with optional strategy override
+    const result = await performFlushWithStrategy(
+      memory_key, 
+      strategy_override || 'default'
+    );
+    
+    return {
+      success: result.success,
+      messages_processed: result.message_count,
+      tokens_processed: result.token_count,
+      summary_generated: result.summary_generated
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+```
+
+## Performance Troubleshooting
+
+### Slow Memory Operations
+
+**Diagnostic Tools:**
+
+```typescript
+// Performance monitoring tool
+export async function performanceMonitor(input: PerformanceMonitorInput) {
+  const { memory_key, operation, duration_threshold = 1000 } = input;
+  
+  const startTime = Date.now();
+  
+  try {
+    const result = await performMemoryOperation(memory_key, operation, input);
+    const duration = Date.now() - startTime;
+    
+    // Log slow operations
+    if (duration > duration_threshold) {
+      await logSlowOperation({
+        memory_key,
+        operation,
+        duration,
+        timestamp: new Date().toISOString(),
+        threshold: duration_threshold
+      });
+    }
+    
+    return {
+      ...result,
+      performance: {
+        duration,
+        slow_operation: duration > duration_threshold
+      }
+    };
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    
+    await logFailedOperation({
+      memory_key,
+      operation,
+      duration,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+    
+    throw error;
+  }
+}
+```
+
+**Optimization Strategies:**
+
+1. **Implement connection pooling:**
+```typescript
+// Redis connection pool configuration
+const redisConfig = {
+  host: 'localhost',
+  port: 6379,
+  maxRetriesPerRequest: 3,
+  retryDelayOnFailover: 100,
+  lazyConnect: true,
+  maxRetriesPerRequest: 3,
+  // Connection pooling
+  family: 4,
+  keepAlive: true,
+  db: 0
+};
+```
+
+2. **Use batch operations:**
+```typescript
+export async function batchMemoryOperations(input: BatchOperationsInput) {
+  const { operations, max_concurrent = 5 } = input;
+  
+  // Process operations in batches to avoid overwhelming Redis
+  const results = [];
+  for (let i = 0; i < operations.length; i += max_concurrent) {
+    const batch = operations.slice(i, i + max_concurrent);
+    const batchResults = await Promise.all(
+      batch.map(op => performMemoryOperation(op.memory_key, op.operation, op))
+    );
+    results.push(...batchResults);
+  }
+  
+  return {
+    success: true,
+    results,
+    total_operations: operations.length
+  };
+}
+```
+
+### Memory Leaks and Resource Issues
+
+**Diagnostic Commands:**
+
+```bash
+# Check memory usage
+curl -X GET "http://localhost:8080/api/v0/memory/debug/resource-usage" \
+  -H "Authorization: Bearer $TOKEN"
+
+# Monitor active connections
+curl -X GET "http://localhost:8080/api/v0/memory/debug/connections" \
+  -H "Authorization: Bearer $TOKEN"
+
+# Check for memory leaks
+curl -X GET "http://localhost:8080/api/v0/memory/debug/gc-stats" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**Solution Steps:**
+
+1. **Implement proper resource cleanup:**
+```typescript
+export async function resourceManagedMemoryTool(input: ResourceManagedInput) {
+  const { memory_key, operation } = input;
+  
+  // Create resource manager
+  const resourceManager = new ResourceManager();
+  
+  try {
+    // Acquire resources
+    const connection = await resourceManager.acquireConnection();
+    const lock = await resourceManager.acquireLock(memory_key);
+    
+    // Perform operation
+    const result = await performMemoryOperation(memory_key, operation, input);
+    
+    return result;
+  } finally {
+    // Always cleanup resources
+    await resourceManager.releaseAll();
+  }
+}
+
+class ResourceManager {
+  private resources: Array<{ type: string; resource: any }> = [];
+  
+  async acquireConnection(): Promise<any> {
+    const connection = await createRedisConnection();
+    this.resources.push({ type: 'connection', resource: connection });
+    return connection;
+  }
+  
+  async acquireLock(key: string): Promise<any> {
+    const lock = await createDistributedLock(key);
+    this.resources.push({ type: 'lock', resource: lock });
+    return lock;
+  }
+  
+  async releaseAll(): Promise<void> {
+    for (const { type, resource } of this.resources) {
+      try {
+        switch (type) {
+          case 'connection':
+            await resource.disconnect();
+            break;
+          case 'lock':
+            await resource.release();
+            break;
+        }
+      } catch (error) {
+        console.error(`Failed to release ${type}:`, error);
+      }
+    }
+    this.resources = [];
+  }
+}
+```
+
+## Configuration Troubleshooting
+
+### Invalid Configuration Errors
+
+**Common Configuration Issues:**
+
+1. **Invalid TTL formats:**
+```yaml
+# ❌ Incorrect
+append_ttl: "30 minutes"
+clear_ttl: "5 mins"
+
+# ✅ Correct
+append_ttl: "30m"
+clear_ttl: "5m"
+```
+
+2. **Missing required fields:**
+```yaml
+# ❌ Incomplete
+resource: memory
+id: test_memory
+type: token_based
+# Missing max_tokens or max_context_ratio
+
+# ✅ Complete
+resource: memory
+id: test_memory
+type: token_based
+max_tokens: 4000
+persistence:
+  type: redis
+  ttl: 24h
+```
+
+3. **Invalid regex patterns:**
+```yaml
+# ❌ Invalid regex
+privacy_policy:
+  redact_patterns:
+    - "[0-9+"  # Unclosed bracket
+
+# ✅ Valid regex
+privacy_policy:
+  redact_patterns:
+    - '\b\d{3}-\d{2}-\d{4}\b'  # SSN pattern
+```
+
+**Configuration Validation Tool:**
+
+```typescript
+export async function validateMemoryConfig(input: ValidateConfigInput) {
+  const { config } = input;
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  
+  // Validate required fields
+  if (!config.id) {
+    errors.push('Missing required field: id');
+  }
+  
+  if (!config.type) {
+    errors.push('Missing required field: type');
+  }
+  
+  // Validate type-specific requirements
+  if (config.type === 'token_based') {
+    if (!config.max_tokens && !config.max_context_ratio) {
+      errors.push('Token-based memory requires max_tokens or max_context_ratio');
+    }
+  }
+  
+  // Validate TTL formats
+  if (config.append_ttl && !isValidDuration(config.append_ttl)) {
+    errors.push(`Invalid append_ttl format: ${config.append_ttl}`);
+  }
+  
+  // Validate regex patterns
+  if (config.privacy_policy?.redact_patterns) {
+    for (const pattern of config.privacy_policy.redact_patterns) {
+      try {
+        new RegExp(pattern);
+      } catch (error) {
+        errors.push(`Invalid regex pattern: ${pattern}`);
+      }
+    }
+  }
+  
+  // Performance warnings
+  if (config.max_tokens && config.max_tokens > 100000) {
+    warnings.push('Very large max_tokens may impact performance');
+  }
+  
+  return {
+    valid: errors.length === 0,
+    errors,
+    warnings
+  };
+}
+```
+
+### Template Evaluation Issues
+
+**Diagnostic Tool:**
+
+```typescript
+export async function debugTemplateEvaluation(input: DebugTemplateInput) {
+  const { key_template, workflow_context } = input;
+  
+  try {
+    // Evaluate template
+    const resolvedKey = await evaluateTemplate(key_template, workflow_context);
+    
+    // Validate resolved key
+    const isValid = await validateMemoryKey(resolvedKey);
+    
+    return {
+      success: true,
+      key_template,
+      workflow_context,
+      resolved_key: resolvedKey,
+      is_valid: isValid,
+      evaluation_steps: getEvaluationSteps(key_template, workflow_context)
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message,
+      key_template,
+      workflow_context
+    };
+  }
+}
+
+function getEvaluationSteps(template: string, context: any): Array<{step: string; value: any}> {
+  const steps = [];
+  
+  // Extract template variables
+  const variables = template.match(/\{\{[^}]+\}\}/g) || [];
+  
+  for (const variable of variables) {
+    const path = variable.slice(2, -2).trim();
+    const value = getValueFromPath(context, path);
+    
+    steps.push({
+      step: `Evaluate ${variable}`,
+      value: value || 'undefined'
+    });
+  }
+  
+  return steps;
+}
+```
+
+## Monitoring and Debugging
+
+### Health Check Endpoints
+
+```bash
+# Overall memory system health
+curl -X GET "http://localhost:8080/api/v0/memory/health"
+
+# Specific memory instance health
+curl -X GET "http://localhost:8080/api/v0/memory/health/user:test_user"
+
+# System resource usage
+curl -X GET "http://localhost:8080/api/v0/memory/debug/resources"
+
+# Active memory instances
+curl -X GET "http://localhost:8080/api/v0/memory/debug/active-instances"
+```
+
+### Debug Information Tool
+
+```typescript
+export async function memoryDebugTool(input: DebugInput) {
+  const { memory_key, include_messages = false } = input;
+  
+  const debugInfo = {
+    memory_key,
+    timestamp: new Date().toISOString(),
+    instance_info: await getInstanceInfo(memory_key),
+    health_info: await getMemoryHealth(memory_key),
+    lock_info: await getLockInfo(memory_key),
+    flush_info: await getFlushInfo(memory_key),
+    performance_metrics: await getPerformanceMetrics(memory_key),
+    configuration: await getMemoryConfiguration(memory_key)
+  };
+  
+  if (include_messages) {
+    debugInfo.recent_messages = await getRecentMessages(memory_key, 5);
+  }
+  
+  return debugInfo;
+}
+```
+
+### Log Analysis
+
+**Common Log Patterns to Watch:**
+
+```bash
+# Memory operation failures
+grep "memory.*error" /var/log/compozy/memory.log
+
+# Lock contention issues
+grep "lock.*timeout" /var/log/compozy/memory.log
+
+# Flush operation problems
+grep "flush.*failed" /var/log/compozy/memory.log
+
+# Performance warnings
+grep "slow.*operation" /var/log/compozy/memory.log
+```
+
+**Structured Logging for Debugging:**
+
+```typescript
+export async function loggedMemoryTool(input: LoggedMemoryInput) {
+  const { memory_key, operation, user_id } = input;
+  
+  const logger = createLogger({
+    service: 'memory',
+    operation,
+    memory_key,
+    user_id,
+    trace_id: generateTraceId()
+  });
+  
+  logger.info('Memory operation started', {
+    operation,
+    memory_key,
+    user_id
+  });
+  
+  try {
+    const result = await performMemoryOperation(memory_key, operation, input);
+    
+    logger.info('Memory operation completed', {
+      success: true,
+      duration: result.duration,
+      token_count: result.token_count
+    });
+    
+    return result;
+  } catch (error) {
+    logger.error('Memory operation failed', {
+      error: error.message,
+      stack: error.stack
+    });
+    
+    throw error;
+  }
+}
+```
+
+## Emergency Procedures
+
+### Memory System Recovery
+
+**Complete System Recovery:**
+
+```bash
+#!/bin/bash
+# Emergency memory system recovery script
+
+echo "Starting memory system recovery..."
+
+# 1. Stop all memory operations
+curl -X POST "http://localhost:8080/api/v0/memory/admin/stop-operations"
+
+# 2. Check Redis connectivity
+redis-cli ping
+
+# 3. Clear any stuck locks
+curl -X POST "http://localhost:8080/api/v0/memory/admin/clear-locks"
+
+# 4. Restart memory services
+systemctl restart compozy-memory
+
+# 5. Verify system health
+curl -X GET "http://localhost:8080/api/v0/memory/health"
+
+echo "Memory system recovery completed"
+```
+
+### Data Recovery
+
+**Backup and Recovery Tool:**
+
+```typescript
+export async function emergencyBackupTool(input: BackupInput) {
+  const { memory_keys, backup_location } = input;
+  
+  const backupResults = [];
+  
+  for (const memoryKey of memory_keys) {
+    try {
+      // Read all messages
+      const messages = await readAllMessages(memoryKey);
+      
+      // Create backup
+      const backup = {
+        memory_key: memoryKey,
+        timestamp: new Date().toISOString(),
+        messages,
+        metadata: await getMemoryHealth(memoryKey)
+      };
+      
+      // Save backup
+      await saveBackup(backup, backup_location);
+      
+      backupResults.push({
+        memory_key: memoryKey,
+        success: true,
+        message_count: messages.length
+      });
+    } catch (error) {
+      backupResults.push({
+        memory_key: memoryKey,
+        success: false,
+        error: error.message
+      });
+    }
+  }
+  
+  return {
+    success: true,
+    backup_results: backupResults,
+    backup_location
+  };
+}
+
+export async function emergencyRestoreTool(input: RestoreInput) {
+  const { backup_location, memory_keys } = input;
+  
+  const restoreResults = [];
+  
+  for (const memoryKey of memory_keys) {
+    try {
+      // Load backup
+      const backup = await loadBackup(memoryKey, backup_location);
+      
+      // Clear existing data
+      await clearMemory(memoryKey);
+      
+      // Restore messages
+      await replaceMessages(memoryKey, backup.messages);
+      
+      restoreResults.push({
+        memory_key: memoryKey,
+        success: true,
+        restored_messages: backup.messages.length
+      });
+    } catch (error) {
+      restoreResults.push({
+        memory_key: memoryKey,
+        success: false,
+        error: error.message
+      });
+    }
+  }
+  
+  return {
+    success: true,
+    restore_results: restoreResults
+  };
+}
+```
+
+This comprehensive troubleshooting guide provides the tools and procedures needed to diagnose and resolve memory system issues effectively, ensuring reliable operation of your memory-enabled applications.

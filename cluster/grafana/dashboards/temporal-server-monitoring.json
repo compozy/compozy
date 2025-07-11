@@ -1031,7 +1031,11 @@
   ],
   "schemaVersion": 30,
   "style": "dark",
-  "tags": ["temporal", "server", "builtin-metrics"],
+  "tags": [
+    "temporal",
+    "server",
+    "builtin-metrics"
+  ],
   "templating": {
     "list": []
   },

@@ -14,6 +14,11 @@ import {
   GitMerge,
   Code,
   Cloud,
+  Book,
+  Link,
+  GraduationCap,
+  Network,
+  Search,
 } from "lucide-react";
 
 ## Why Compozy?
@@ -57,45 +62,68 @@ We solve these challenges by providing a comprehensive, open platform that simpl
     title="Declarative Open Source Engine"
     description="Build powerful AI workflows using an intuitive, open-source YAML specification. Inspired by GitHub Actions, our format lets you define complex automation with simple, human-readable syntax - from triggers and actions to data flows and conditional logic."
     icon={FileCode}
-    href="/core/base-structure/overview"
+    href="/docs/core/yaml-templates/overview"
   />
 
 <FeatureCard
   title="Community-Powered Registry"
   description="Access and contribute to a growing ecosystem of pre-built tools, agents, and MCP servers. Extend your workflow capabilities with community-driven components."
   icon={Store}
-  href="/getting-started/registry"
+  href="/docs/core/getting-started/quick-start"
 />
 
 <FeatureCard
   title="Seamless Agent Orchestration"
   description="Create complex workflows, chaining actions and connecting multiple agents seamlessly, with built-in context management, memory systems, and MCP integration for consistent decision-making."
   icon={Puzzle}
-  href="/core/agents/overview"
+  href="/docs/core/agents/overview"
 />
 
 <FeatureCard
   title="Language & Tool Agnostic"
   description="Build AI agents and workflows using your preferred programming languages and tools. Compozy's platform-agnostic approach ensures seamless integration with any AI framework, model, or development stack."
   icon={GitMerge}
-  href="/core/integrations/overview"
+  href="/docs/core/agents/tools"
 />
 
 <FeatureCard
   title="Developer-First Experience"
   description="Comprehensive CLI tooling for development, testing, and deployment. Access a marketplace of pre-built tools and agents, or create and publish your own."
   icon={Code}
-  href="/getting-started/cli-overview"
+  href="/docs/core/getting-started/installation"
 />
 
   <FeatureCard
     title="Flexible Deployment Options"
     description="Deploy to Compozy Cloud with a single command or self-host on your own infrastructure using Docker or Kubernetes. Full control over your deployment environment."
     icon={Cloud}
-    href="/deployment/overview"
+    href="/docs/core/getting-started/installation"
   />
 </FeatureCardList>
 
 ## Getting Started
 
-Ready to transform your AI workflow? Check out our [Quickstart Guide](/quickstart) to begin building your first workflow, or explore our [Key Features](/key-features) to understand the fundamentals of Compozy.
+Ready to transform your AI workflow? Check out our [Quick Start Guide](/docs/core/getting-started/quick-start) to begin building your first workflow, or explore our [Core Concepts](/docs/core/getting-started/core-concepts) to understand the fundamentals of Compozy.
+
+### Quick Navigation
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Learning Paths"
+    description="Structured guides for different skill levels and use cases"
+    href="/docs/core/reference-index#learning-paths"
+    icon={GraduationCap}
+  />
+  <ReferenceCard
+    title="Cross-References"
+    description="See how all concepts connect and relate to each other"
+    href="/docs/core/reference-index#cross-reference-map"
+    icon={Network}
+  />
+  <ReferenceCard
+    title="Quick Reference"
+    description="Topic-based quick access to related documentation"
+    href="/docs/core/reference-index#topic-based-quick-reference"
+    icon={Search}
+  />
+</ReferenceCardList>

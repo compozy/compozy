@@ -161,36 +161,6 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 }
 ```
 
-## Compound Component Patterns
-
-<compound_components>
-**Advanced Component Architecture:**
-
-- Embrace the compound component pattern
-- Keep related components together
-- Use dot notation for exports
-- Maintain clear component boundaries
-  </compound_components>
-
-```typescript
-// Card compound component
-export const Card = Object.assign(CardRoot, {
-  Header: CardHeader,
-  Title: CardTitle,
-  Description: CardDescription,
-  Content: CardContent,
-  Footer: CardFooter,
-})
-
-// Usage
-<Card>
-  <Card.Header>
-    <Card.Title>Title</Card.Title>
-  </Card.Header>
-  <Card.Content>Content</Card.Content>
-</Card>
-```
-
 ## Form Handling with @tanstack/react-form
 
 <form_integration>
@@ -322,33 +292,8 @@ const columns: ColumnDef<User>[] = [
 
 - Keep UI components in components/ui
 - Create feature-specific components separately
-- Use barrel exports for cleaner imports
 - Document component props with JSDoc
   </component_organization>
-
-```typescript
-// components/ui/index.ts (barrel export)
-export * from './button'
-export * from './card'
-export * from './dialog'
-export * from './form'
-
-// Feature component using UI components
-import { Button, Card } from '@/components/ui'
-
-export function FeatureCard() {
-  return (
-    <Card>
-      <Card.Header>
-        <Card.Title>Feature</Card.Title>
-      </Card.Header>
-      <Card.Footer>
-        <Button>Action</Button>
-      </Card.Footer>
-    </Card>
-  )
-}
-```
 
 ## Performance Considerations
 

@@ -1,6 +1,449 @@
 ---
-title: Validation & Debugging
-description: Validating and debugging templates
+title: "Validation & Debugging"
+description: "Template validation techniques and debugging strategies for reliable workflows"
 ---
 
-# Validation & Debugging
+# Validation and Debugging
+
+Template validation and debugging are crucial for building reliable Compozy workflows. This guide covers validation techniques, debugging strategies, and common troubleshooting approaches for template-related issues.
+
+## Template Validation
+
+### Syntax Validation
+
+Compozy validates template syntax at configuration load time:
+
+```yaml
+# Valid template syntax
+user_name: "{{ .workflow.input.name }}"
+formatted_date: "{{ now | date '2006-01-02' }}"
+
+# Invalid syntax (missing closing braces)
+invalid_template: "{{ .workflow.input.name"  # ❌ Parse error
+
+# Invalid syntax (unknown function)
+bad_function: "{{ .data | unknownFunc }}"     # ❌ Function not found
+```
+
+### Reference Validation
+
+Resource references are validated during configuration parsing:
+
+```yaml
+# Valid reference
+tool_ref:
+  $ref: local::tools.#(id=="weather_tool")     # ✅ Reference exists
+
+# Invalid reference
+missing_ref:
+  $ref: local::tools.#(id=="nonexistent")     # ❌ Reference not found
+
+# Invalid scope
+bad_scope:
+  $ref: invalid::tools.#(id=="weather_tool")  # ❌ Invalid scope
+```
+
+### Type Validation
+
+Template outputs are validated against expected types:
+
+```yaml
+# Schema with type constraints
+schemas:
+  - id: user_input
+    type: object
+    properties:
+      age:
+        type: integer
+        minimum: 0
+        maximum: 150
+      email:
+        type: string
+        format: email
+
+# Template that validates against schema
+task_with_validation:
+  input:
+    $ref: local::schemas.#(id=="user_input")
+  with:
+    age: "{{ .workflow.input.age | int }}"      # Converts to integer
+    email: "{{ .workflow.input.email }}"       # Must be valid email format
+```
+
+## Debugging Techniques
+
+### Context Inspection
+
+Debug templates by inspecting the available context:
+
+```yaml
+# Print entire context for debugging
+debug_all: "{{ . | toPrettyJson }}"
+
+# Print specific context sections
+debug_workflow: "{{ .workflow | toPrettyJson }}"
+debug_tasks: "{{ .tasks | toPrettyJson }}"
+debug_env: "{{ .env | toPrettyJson }}"
+
+# List available keys
+workflow_keys: "{{ keys .workflow | join ', ' }}"
+task_keys: "{{ keys .tasks | join ', ' }}"
+env_keys: "{{ keys .env | join ', ' }}"
+```
+
+### Step-by-Step Debugging
+
+Break complex templates into smaller, debuggable parts:
+
+```yaml
+# Complex template (hard to debug)
+complex: "{{ printf '%s_%s_%d' .workflow.id (.tasks.auth.output.user_id | upper) (now | unixEpoch) }}"
+
+# Broken down for debugging
+debug_workflow_id: "{{ .workflow.id }}"
+debug_user_id: "{{ .tasks.auth.output.user_id }}"
+debug_user_id_upper: "{{ .tasks.auth.output.user_id | upper }}"
+debug_timestamp: "{{ now | unixEpoch }}"
+debug_final: "{{ printf '%s_%s_%d' .workflow.id (.tasks.auth.output.user_id | upper) (now | unixEpoch) }}"
+```
+
+### Conditional Debugging
+
+Add debug information only when needed:
+
+```yaml
+# Environment-based debugging
+debug_info: |
+  {{- if eq .env.DEBUG "true" -}}
+  Debug Information:
+  - Workflow ID: {{ .workflow.id }}
+  - Current Task: {{ .current_task | default "none" }}
+  - Available Tasks: {{ keys .tasks | join ", " }}
+  - Environment: {{ .env.NODE_ENV | default "unknown" }}
+  {{- end -}}
+
+# Error condition debugging
+error_debug: |
+  {{- if .tasks.api_call.error -}}
+  Error Details:
+  - Task: api_call
+  - Error: {{ .tasks.api_call.error }}
+  - Status: {{ .tasks.api_call.status }}
+  - Input: {{ .tasks.api_call.input | toPrettyJson }}
+  {{- end -}}
+```
+
+## Error Handling
+
+### Safe Template Access
+
+Use safe access patterns to handle missing data:
+
+```yaml
+# Safe nested access
+safe_email: "{{ .tasks.get_user.output.profile.email | default 'unknown@example.com' }}"
+
+# Check existence before access
+conditional_data: |
+  {{- if and .tasks.fetch_data .tasks.fetch_data.output -}}
+    {{ .tasks.fetch_data.output.result }}
+  {{- else -}}
+    No data available
+  {{- end -}}
+
+# Multiple fallback options
+user_identifier: "{{ coalesce .tasks.get_user.output.id .workflow.input.user_id .env.DEFAULT_USER_ID 'anonymous' }}"
+```
+
+### Template Error Recovery
+
+Handle template errors gracefully:
+
+```yaml
+# Try-catch pattern using conditionals
+robust_template: |
+  {{- $result := "" -}}
+  {{- if .tasks.risky_operation.output -}}
+    {{- $result = .tasks.risky_operation.output.value -}}
+  {{- else -}}
+    {{- $result = "default_value" -}}
+  {{- end -}}
+  {{ $result }}
+
+# Validation before processing
+validated_input: |
+  {{- if and .workflow.input.data (gt (len .workflow.input.data) 0) -}}
+    {{ .workflow.input.data | toJson }}
+  {{- else -}}
+    {"error": "No input data provided"}
+  {{- end -}}
+```
+
+### Type Conversion Safety
+
+Safely convert between types:
+
+```yaml
+# Safe string to number conversion
+safe_port: |
+  {{- $port := .env.PORT | default "3000" -}}
+  {{- if kindIs "string" $port -}}
+    {{ $port | int }}
+  {{- else -}}
+    {{ $port }}
+  {{- end -}}
+
+# Safe boolean conversion
+safe_flag: |
+  {{- $flag := .config.enabled | default false -}}
+  {{- if kindIs "string" $flag -}}
+    {{ eq $flag "true" }}
+  {{- else -}}
+    {{ $flag }}
+  {{- end -}}
+```
+
+## Common Issues and Solutions
+
+### Issue 1: Missing Context Data
+
+**Problem**: Template references unavailable context
+
+```yaml
+# This fails if task hasn't run yet
+user_data: "{{ .tasks.get_user.output.name }}"  # ❌ Task might not exist
+```
+
+**Solution**: Add existence checks and defaults
+
+```yaml
+# Safe access with fallback
+user_data: "{{ .tasks.get_user.output.name | default 'Unknown User' }}"
+
+# Or conditional access
+user_data: |
+  {{- if hasKey .tasks "get_user" -}}
+    {{ .tasks.get_user.output.name }}
+  {{- else -}}
+    Unknown User
+  {{- end -}}
+```
+
+### Issue 2: Type Mismatches
+
+**Problem**: Template produces wrong data type
+
+```yaml
+# String when number expected
+port: "{{ .env.PORT | default '3000' }}"  # ❌ Returns string "3000"
+```
+
+**Solution**: Use appropriate type conversion
+
+```yaml
+# Convert to number
+port: "{{ .env.PORT | default '3000' | int }}"  # ✅ Returns number 3000
+
+# Validate type before conversion
+port: |
+  {{- $port := .env.PORT | default "3000" -}}
+  {{- if kindIs "string" $port -}}
+    {{ $port | int }}
+  {{- else -}}
+    {{ $port }}
+  {{- end -}}
+```
+
+### Issue 3: Complex Nested Access
+
+**Problem**: Deep object access is fragile
+
+```yaml
+# Fragile nested access
+email: "{{ .tasks.get_user.output.profile.contact.email }}"  # ❌ Fails if any level missing
+```
+
+**Solution**: Use safe access patterns
+
+```yaml
+# Safe nested access with multiple checks
+email: |
+  {{- if and .tasks.get_user.output 
+           .tasks.get_user.output.profile 
+           .tasks.get_user.output.profile.contact -}}
+    {{ .tasks.get_user.output.profile.contact.email }}
+  {{- else -}}
+    No email available
+  {{- end -}}
+
+# Or use coalesce for multiple fallbacks
+email: "{{ coalesce 
+    .tasks.get_user.output.profile.contact.email 
+    .tasks.get_user.output.email 
+    .workflow.input.email 
+    'noreply@example.com' }}"
+```
+
+### Issue 4: Array Access Errors
+
+**Problem**: Array index out of bounds
+
+```yaml
+# Dangerous array access
+first_item: "{{ index .tasks.fetch_items.output.items 0 }}"  # ❌ Fails if array empty
+```
+
+**Solution**: Check array length first
+
+```yaml
+# Safe array access
+first_item: |
+  {{- $items := .tasks.fetch_items.output.items -}}
+  {{- if and $items (gt (len $items) 0) -}}
+    {{ index $items 0 }}
+  {{- else -}}
+    No items available
+  {{- end -}}
+
+# Or use first function (returns nil for empty array)
+first_item: "{{ first .tasks.fetch_items.output.items | default 'No items' }}"
+```
+
+## Testing Templates
+
+### Unit Testing Templates
+
+Create test scenarios for your templates:
+
+```yaml
+# Test data setup
+test_context:
+  workflow:
+    id: "test-workflow-123"
+    input:
+      user_id: "user-456"
+      name: "Test User"
+  tasks:
+    get_user:
+      output:
+        id: "user-456"
+        name: "Test User"
+        email: "test@example.com"
+  env:
+    API_KEY: "test-key-789"
+    DEBUG: "true"
+
+# Template under test
+user_summary: "User {{ .workflow.input.name }} ({{ .tasks.get_user.output.email }}) in {{ .env.NODE_ENV | default 'test' }} mode"
+
+# Expected result: "User Test User (test@example.com) in test mode"
+```
+
+### Integration Testing
+
+Test templates within actual workflow execution:
+
+```yaml
+# Test workflow with template validation
+test_workflow:
+  id: template-test
+  tasks:
+    - id: setup_test_data
+      type: basic
+      with:
+        test_value: "{{ .workflow.input.test_param }}"
+        
+    - id: validate_template
+      type: basic
+      with:
+        processed_value: "{{ .tasks.setup_test_data.output.test_value | upper }}"
+        
+    - id: assert_result
+      type: basic
+      with:
+        expected: "{{ .workflow.input.expected_result }}"
+        actual: "{{ .tasks.validate_template.output.processed_value }}"
+        matches: "{{ eq .tasks.validate_template.output.processed_value .workflow.input.expected_result }}"
+```
+
+## Performance Debugging
+
+### Template Performance
+
+Monitor template processing performance:
+
+```yaml
+# Performance debugging
+perf_debug:
+  template_start: "{{ now }}"
+  complex_calculation: "{{ range .large_dataset }}{{ . | someExpensiveFunction }}{{ end }}"
+  template_end: "{{ now }}"
+  duration: "{{ sub (now | unixEpoch) (.template_start | unixEpoch) }}"
+```
+
+### Optimization Strategies
+
+Optimize slow templates:
+
+```yaml
+# Slow: Multiple expensive operations
+slow_template: "{{ .data | expensiveFunc | anotherExpensiveFunc | finalExpensiveFunc }}"
+
+# Optimized: Cache intermediate results
+optimized_template: |
+  {{- $step1 := .data | expensiveFunc -}}
+  {{- $step2 := $step1 | anotherExpensiveFunc -}}
+  {{ $step2 | finalExpensiveFunc }}
+
+# Optimized: Conditional expensive operations
+conditional_expensive: |
+  {{- if .should_process -}}
+    {{ .data | expensiveFunc }}
+  {{- else -}}
+    {{ .data }}
+  {{- end -}}
+```
+
+## Debugging Tools and Tips
+
+### 1. Use Pretty Printing
+
+```yaml
+# Pretty print complex data structures
+debug_output: "{{ .complex_data | toPrettyJson }}"
+```
+
+### 2. Add Intermediate Variables
+
+```yaml
+# Break complex templates into steps
+debug_step1: "{{ .input | step1 }}"
+debug_step2: "{{ .debug_step1 | step2 }}"
+debug_final: "{{ .debug_step2 | step3 }}"
+```
+
+### 3. Use Conditional Debugging
+
+```yaml
+# Only show debug info when needed
+debug: |
+  {{- if .env.TEMPLATE_DEBUG -}}
+  Template Debug Info:
+  {{- range $key, $value := . }}
+  - {{ $key }}: {{ $value | toString | truncate 100 }}
+  {{- end }}
+  {{- end -}}
+```
+
+### 4. Validate Assumptions
+
+```yaml
+# Validate your assumptions about data types and structure
+validation:
+  is_string: "{{ kindIs 'string' .data }}"
+  is_array: "{{ kindIs 'slice' .items }}"
+  has_key: "{{ hasKey .object 'expected_key' }}"
+  length: "{{ len .collection }}"
+```
+
+Effective validation and debugging practices help ensure your templates work reliably across different scenarios. Next, explore [Advanced Patterns](./advanced-patterns) for sophisticated template techniques and use cases.

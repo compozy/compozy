@@ -25,6 +25,7 @@
 The `workflow` package is the orchestration foundation of Compozy, providing a declarative YAML-based configuration system for defining complex AI workflows. It enables developers to create sophisticated multi-step processes that coordinate AI agents, external tools, and business logic through a powerful configuration-driven approach.
 
 **Key Features:**
+
 - 📝 **Declarative Configuration**: Define workflows through expressive YAML configuration
 - 🤖 **AI Agent Coordination**: Seamless integration with multiple AI models and providers
 - 🔧 **Tool Integration**: Comprehensive support for external tools and MCP servers
@@ -49,18 +50,23 @@ The `workflow` package is the orchestration foundation of Compozy, providing a d
 ## ⚡ Design Highlights
 
 ### Configuration-Driven Architecture
+
 Workflows are defined entirely through YAML configuration, enabling rapid development, easy maintenance, and non-technical team collaboration without requiring code changes.
 
 ### AI Agent Orchestration
+
 Native support for coordinating multiple AI agents with different capabilities, instructions, and tool access, enabling complex multi-agent workflows and specialized task distribution.
 
 ### Advanced Template System
+
 Powerful Go template expressions enable dynamic data flow between tasks, conditional logic, and sophisticated data transformations throughout the workflow execution.
 
 ### Comprehensive Validation
+
 JSON Schema-based validation ensures type safety and data integrity at every step, from input validation to task parameter checking and output verification.
 
 ### Enterprise Scheduling
+
 Production-ready scheduling with cron expressions, timezone support, overlap policies, and execution windows for automated workflow management.
 
 ---
@@ -119,7 +125,7 @@ tasks:
         Analyze this customer issue:
         Customer: {{ .workflow.input.customer_email }}
         Issue: {{ .workflow.input.issue_description }}
-        
+
         Provide:
         1. Issue category
         2. Priority level
@@ -172,7 +178,7 @@ func main() {
         "customer_email": "user@example.com",
         "issue_description": "I can't access my account after password reset",
     }
-    
+
     ctx := context.Background()
     if err := config.ValidateInput(ctx, input); err != nil {
         panic(err)
@@ -271,10 +277,10 @@ mcps := config.GetMCPs()
 
 ```yaml
 # Workflow identification
-id: "workflow-id"                    # Required: Unique identifier
-version: "1.0.0"                     # Optional: Semantic version
-description: "Workflow description"   # Optional: Human-readable description
-author:                              # Optional: Author information
+id: "workflow-id" # Required: Unique identifier
+version: "1.0.0" # Optional: Semantic version
+description: "Workflow description" # Optional: Human-readable description
+author: # Optional: Author information
   name: "Developer Name"
   email: "dev@example.com"
 
@@ -292,7 +298,7 @@ config:
         minimum: 1
         default: 10
     required: [param1]
-  
+
   # Environment variables
   env:
     API_KEY: "{{ .secrets.API_KEY }}"
@@ -370,24 +376,24 @@ schedule:
 ```yaml
 schedule:
   # Cron expression (required)
-  cron: "0 9 * * MON-FRI"        # 9 AM on weekdays
-  
+  cron: "0 9 * * MON-FRI" # 9 AM on weekdays
+
   # Timezone (optional, default UTC)
   timezone: "America/New_York"
-  
+
   # Overlap policy (optional, default skip)
-  overlap_policy: "skip"         # skip, allow, buffer_one, cancel_other
-  
+  overlap_policy: "skip" # skip, allow, buffer_one, cancel_other
+
   # Schedule enabled state (optional, default true)
   enabled: true
-  
+
   # Execution window (optional)
   start_at: "2024-01-01T00:00:00Z"
   end_at: "2024-12-31T23:59:59Z"
-  
+
   # Random execution delay (optional)
   jitter: "5m"
-  
+
   # Default input for scheduled runs (optional)
   input:
     source: "scheduled"
@@ -416,7 +422,7 @@ triggers:
   - type: signal
     name: "order-completed"
     schema:
-      $ref: "local::schemas.#(id=\"order_schema\")"
+      $ref: 'local::schemas.#(id="order_schema")'
 ```
 
 ---
@@ -496,7 +502,7 @@ tasks:
       prompt: |
         Write content based on this outline:
         {{ .tasks.generate-outline.output.outline }}
-        
+
         Requirements:
         - Topic: {{ .workflow.input.topic }}
         - Audience: {{ .workflow.input.audience }}
@@ -521,7 +527,7 @@ tasks:
       prompt: |
         Optimize this content for readability and SEO:
         {{ .tasks.write-content.output.content }}
-        
+
         Keep the same tone and target audience: {{ .workflow.input.audience }}
     final: true
 
@@ -532,7 +538,7 @@ tasks:
       prompt: |
         Revise this content to be more original:
         {{ .tasks.write-content.output.content }}
-        
+
         Plagiarism score: {{ .tasks.check-plagiarism.output.similarity_score }}
     on_success:
       next: optimize-content
@@ -637,7 +643,7 @@ tasks:
     $use: tool(local::tools.#(id="data-validator"))
     with:
       records: "{{ .tasks.extract-data.output.records }}"
-      schema: "{{ .local.schemas.#(id=\"data_record\") }}"
+      schema: '{{ .local.schemas.#(id="data_record") }}'
     on_success:
       next: transform-data
 
@@ -664,7 +670,7 @@ outputs:
   transformation_summary: "{{ .tasks.transform-data.output.summary }}"
 
 schedule:
-  cron: "0 2 * * *"  # Daily at 2 AM
+  cron: "0 2 * * *" # Daily at 2 AM
   timezone: "UTC"
   overlap_policy: "skip"
   enabled: true
@@ -765,7 +771,7 @@ tasks:
         - User type: {{ .workflow.input.user_type }}
         - Email: {{ .workflow.input.email }}
         - Preferences: {{ .workflow.input.preferences }}
-        
+
         Include:
         1. Warm welcome
         2. Next steps guide
@@ -839,6 +845,7 @@ outputs:
 ### Core Types
 
 #### `Config`
+
 Main workflow configuration struct.
 
 ```go
@@ -860,6 +867,7 @@ type Config struct {
 ```
 
 **Key Methods:**
+
 - `Validate() error` - Validates workflow configuration
 - `ValidateInput(ctx context.Context, input *core.Input) error` - Validates input parameters
 - `ApplyInputDefaults(input *core.Input) (*core.Input, error)` - Applies schema defaults
@@ -869,6 +877,7 @@ type Config struct {
 - `HasSchema() bool` - Checks if workflow has input schema
 
 #### `Schedule`
+
 Scheduling configuration for automated execution.
 
 ```go
@@ -885,6 +894,7 @@ type Schedule struct {
 ```
 
 #### `Trigger`
+
 Event trigger configuration.
 
 ```go
@@ -896,6 +906,7 @@ type Trigger struct {
 ```
 
 #### `State`
+
 Runtime workflow state management.
 
 ```go
@@ -913,6 +924,7 @@ type State struct {
 ### Functions
 
 #### `Load(cwd *core.PathCWD, path string) (*Config, error)`
+
 Loads workflow configuration from file.
 
 ```go
@@ -921,6 +933,7 @@ config, err := workflow.Load(cwd, "workflows/my-workflow.yaml")
 ```
 
 #### `LoadAndEval(cwd *core.PathCWD, path string, ev *ref.Evaluator) (*Config, error)`
+
 Loads workflow configuration with template evaluation.
 
 ```go
@@ -929,6 +942,7 @@ config, err := workflow.LoadAndEval(cwd, "workflows/my-workflow.yaml", evaluator
 ```
 
 #### `FindConfig(workflows []*Config, workflowID string) (*Config, error)`
+
 Finds workflow configuration by ID.
 
 ```go
@@ -936,6 +950,7 @@ config, err := workflow.FindConfig(workflows, "my-workflow")
 ```
 
 #### `FindAgentConfig[C core.Config](workflows []*Config, agentID string) (C, error)`
+
 Finds agent configuration across workflows.
 
 ```go
@@ -943,6 +958,7 @@ agentConfig, err := workflow.FindAgentConfig[*agent.Config](workflows, "my-agent
 ```
 
 #### `WorkflowsFromProject(projectConfig *project.Config, ev *ref.Evaluator) ([]*Config, error)`
+
 Loads all workflows from project configuration.
 
 ```go
@@ -952,12 +968,15 @@ workflows, err := workflow.WorkflowsFromProject(projectConfig, evaluator)
 ### Validation
 
 #### `NewWorkflowValidator(config *Config) *Validator`
+
 Creates comprehensive workflow validator.
 
 #### `NewInputValidator(config *Config, input *core.Input) *InputValidator`
+
 Creates input validator for workflow.
 
 #### `ValidateSchedule(cfg *Schedule) error`
+
 Validates schedule configuration.
 
 ---
@@ -1027,17 +1046,17 @@ tasks:
     with:
       prompt: "Test prompt"
 `)
-    
+
     // Load workflow
     cwd, _ := core.CWDFromPath(filepath.Dir(workflowPath))
     config, err := workflow.Load(cwd, filepath.Base(workflowPath))
     require.NoError(t, err)
-    
+
     // Validate configuration
     assert.Equal(t, "test-workflow", config.ID)
     assert.Len(t, config.Tasks, 1)
     assert.Equal(t, "test-task", config.Tasks[0].ID)
-    
+
     // Validate workflow structure
     err = config.Validate()
     assert.NoError(t, err)

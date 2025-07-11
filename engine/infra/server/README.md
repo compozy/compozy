@@ -29,6 +29,7 @@
 The `server` package provides a comprehensive HTTP server infrastructure for the Compozy workflow orchestration engine. It combines Gin web framework with production-ready features including monitoring integration, rate limiting, graceful shutdown, and centralized application state management.
 
 Key features include:
+
 - **Gin-based HTTP Server**: High-performance web framework with middleware support
 - **Application State Management**: Centralized dependency injection and state sharing
 - **Graceful Shutdown**: Signal handling with proper resource cleanup
@@ -65,14 +66,14 @@ package main
 import (
     "context"
     "log"
-    
+
     "github.com/compozy/compozy/engine/infra/server"
     "github.com/compozy/compozy/pkg/config"
 )
 
 func main() {
     ctx := context.Background()
-    
+
     // Create unified configuration
     appConfig := &config.Config{
         Server: config.ServerConfig{
@@ -82,10 +83,10 @@ func main() {
         },
         // Add database, temporal, and other configs...
     }
-    
+
     // Create server instance
     srv := server.NewServer(ctx, appConfig, ".", "compozy.yaml", ".env")
-    
+
     // Start server (blocks until shutdown)
     if err := srv.Run(); err != nil {
         log.Fatal("Server failed:", err)
@@ -125,7 +126,7 @@ if err := srv.Run(); err != nil {
 func myHandler(c *gin.Context) {
     // Application state is automatically injected
     state := appstate.FromContext(c)
-    
+
     // Use state for database access, etc.
     workflows := state.Store.NewWorkflowRepo()
     // ...
@@ -148,7 +149,7 @@ type State struct {
 // Access state in handlers
 func getWorkflows(c *gin.Context) {
     state := appstate.FromContext(c)
-    
+
     // Access database
     repo := state.Store.NewWorkflowRepo()
     workflows, err := repo.GetAll(c.Request.Context())
@@ -156,7 +157,7 @@ func getWorkflows(c *gin.Context) {
         c.JSON(500, gin.H{"error": err.Error()})
         return
     }
-    
+
     c.JSON(200, workflows)
 }
 ```
@@ -174,7 +175,7 @@ func CreateHealthHandler(server *server.Server, version string) gin.HandlerFunc 
             "status":  "ok",
             "version": version,
         }
-        
+
         // Add reconciliation status
         if ready, lastAttempt, attempts, err := server.GetReconciliationStatus(); err != nil {
             status["reconciliation"] = gin.H{
@@ -188,7 +189,7 @@ func CreateHealthHandler(server *server.Server, version string) gin.HandlerFunc 
                 "ready": ready,
             }
         }
-        
+
         c.JSON(200, status)
     }
 }
@@ -272,16 +273,16 @@ serverConfig := &server.Config{
 ```go
 func startProductionServer() error {
     ctx := context.Background()
-    
+
     // Load configuration from files and environment
     appConfig, err := config.LoadConfig("compozy.yaml", ".env")
     if err != nil {
         return fmt.Errorf("failed to load config: %w", err)
     }
-    
+
     // Create server with production settings
     srv := server.NewServer(ctx, appConfig, ".", "compozy.yaml", ".env")
-    
+
     // Run server with graceful shutdown
     return srv.Run()
 }
@@ -295,10 +296,10 @@ func customMiddleware() gin.HandlerFunc {
     return func(c *gin.Context) {
         // Custom logic before request
         start := time.Now()
-        
+
         // Process request
         c.Next()
-        
+
         // Custom logic after request
         duration := time.Since(start)
         log.Printf("Request processed in %v", duration)
@@ -314,20 +315,20 @@ func customMiddleware() gin.HandlerFunc {
 ```go
 func getScheduleStatus(c *gin.Context) {
     state := appstate.FromContext(c)
-    
+
     // Get schedule manager from extensions
     scheduleManager, exists := state.Extensions[appstate.ScheduleManagerKey]
     if !exists {
         c.JSON(500, gin.H{"error": "schedule manager not available"})
         return
     }
-    
+
     manager := scheduleManager.(schedule.Manager)
-    
+
     // Get schedule information
     // This would require extending the schedule manager interface
     // with status methods
-    
+
     c.JSON(200, gin.H{
         "status": "active",
         "manager": "initialized",
@@ -341,12 +342,12 @@ func getScheduleStatus(c *gin.Context) {
 func advancedHealthCheck(server *server.Server) gin.HandlerFunc {
     return func(c *gin.Context) {
         state := appstate.FromContext(c)
-        
+
         health := gin.H{
             "status":    "ok",
             "timestamp": time.Now().ISO8601(),
         }
-        
+
         // Check database health
         if err := state.Store.HealthCheck(c.Request.Context()); err != nil {
             health["database"] = gin.H{
@@ -356,7 +357,7 @@ func advancedHealthCheck(server *server.Server) gin.HandlerFunc {
         } else {
             health["database"] = gin.H{"status": "healthy"}
         }
-        
+
         // Check reconciliation status
         ready, lastAttempt, attempts, err := server.GetReconciliationStatus()
         health["reconciliation"] = gin.H{
@@ -367,14 +368,14 @@ func advancedHealthCheck(server *server.Server) gin.HandlerFunc {
         if err != nil {
             health["reconciliation"].(gin.H)["error"] = err.Error()
         }
-        
+
         // Check worker health
         if state.Worker != nil {
             health["worker"] = gin.H{"status": "running"}
         } else {
             health["worker"] = gin.H{"status": "not_initialized"}
         }
-        
+
         c.JSON(200, health)
     }
 }
@@ -389,20 +390,20 @@ func runServerWithGracefulShutdown(srv *server.Server) error {
     go func() {
         errChan <- srv.Run()
     }()
-    
+
     // Wait for shutdown signal or error
     sigChan := make(chan os.Signal, 1)
     signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-    
+
     select {
     case err := <-errChan:
         return err
     case sig := <-sigChan:
         log.Printf("Received signal %v, shutting down...", sig)
-        
+
         // Trigger graceful shutdown
         srv.Shutdown()
-        
+
         // Wait for shutdown to complete
         return <-errChan
     }
@@ -416,6 +417,7 @@ func runServerWithGracefulShutdown(srv *server.Server) error {
 ### Core Types
 
 #### `Server`
+
 Main server struct managing HTTP server lifecycle.
 
 ```go
@@ -433,6 +435,7 @@ func (s *Server) IsReconciliationReady() bool
 ```
 
 #### `Config`
+
 Server configuration structure.
 
 ```go
@@ -523,7 +526,7 @@ const (
 ```go
 func TestServer(t *testing.T) {
     ctx := context.Background()
-    
+
     // Create test configuration
     appConfig := &config.Config{
         Server: config.ServerConfig{
@@ -535,7 +538,7 @@ func TestServer(t *testing.T) {
             Name:   ":memory:",
         },
     }
-    
+
     t.Run("Should create server instance", func(t *testing.T) {
         srv := server.NewServer(ctx, appConfig, ".", "test.yaml", ".env")
         assert.NotNil(t, srv)
@@ -549,27 +552,27 @@ func TestServer(t *testing.T) {
 ```go
 func TestServerIntegration(t *testing.T) {
     ctx := context.Background()
-    
+
     // Setup test server
     srv := setupTestServer(t)
-    
+
     // Start server in background
     go func() {
         if err := srv.Run(); err != nil {
             t.Errorf("Server failed: %v", err)
         }
     }()
-    
+
     // Wait for server to be ready
     time.Sleep(100 * time.Millisecond)
-    
+
     // Test health endpoint
     resp, err := http.Get(fmt.Sprintf("http://localhost:%d/health", srv.Config.Port))
     require.NoError(t, err)
     defer resp.Body.Close()
-    
+
     assert.Equal(t, 200, resp.StatusCode)
-    
+
     // Test graceful shutdown
     srv.Shutdown()
 }
@@ -580,7 +583,7 @@ func TestServerIntegration(t *testing.T) {
 ```go
 func setupTestServer(t *testing.T) *server.Server {
     ctx := context.Background()
-    
+
     appConfig := &config.Config{
         Server: config.ServerConfig{
             Host: "localhost",
@@ -591,13 +594,13 @@ func setupTestServer(t *testing.T) *server.Server {
             Name:   ":memory:",
         },
     }
-    
+
     srv := server.NewServer(ctx, appConfig, ".", "test.yaml", ".env")
-    
+
     t.Cleanup(func() {
         srv.Shutdown()
     })
-    
+
     return srv
 }
 
@@ -607,7 +610,7 @@ func getFreePort() int {
         return 8080
     }
     defer listener.Close()
-    
+
     return listener.Addr().(*net.TCPAddr).Port
 }
 ```
@@ -619,23 +622,23 @@ func TestServerLoad(t *testing.T) {
     if testing.Short() {
         t.Skip("Skipping load test in short mode")
     }
-    
+
     srv := setupTestServer(t)
-    
+
     // Start server
     go srv.Run()
     time.Sleep(100 * time.Millisecond)
-    
+
     // Concurrent requests
     var wg sync.WaitGroup
     concurrency := 100
     requestsPerWorker := 10
-    
+
     for i := 0; i < concurrency; i++ {
         wg.Add(1)
         go func() {
             defer wg.Done()
-            
+
             for j := 0; j < requestsPerWorker; j++ {
                 resp, err := http.Get(fmt.Sprintf("http://localhost:%d/health", srv.Config.Port))
                 if err != nil {
@@ -643,7 +646,7 @@ func TestServerLoad(t *testing.T) {
                     return
                 }
                 resp.Body.Close()
-                
+
                 if resp.StatusCode != 200 {
                     t.Errorf("Expected 200, got %d", resp.StatusCode)
                     return
@@ -651,7 +654,7 @@ func TestServerLoad(t *testing.T) {
             }
         }()
     }
-    
+
     wg.Wait()
     srv.Shutdown()
 }

@@ -17,10 +17,21 @@
     "isolatedModules": true,
     "verbatimModuleSyntax": false,
     "jsx": "react-jsx",
-    "lib": ["dom", "dom.iterable", "esnext"],
-    "types": ["bun-types"]
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
+    "types": [
+      "bun-types"
+    ]
   },
-  "include": ["examples/**/*", "docs/**/*"],
+  "include": [
+    "examples/**/*",
+    "docs/**/*",
+    "tasks/prd-docs/reference-index.mdx",
+    "tasks/prd-docs/cross-reference-summary.mdx"
+  ],
   "exclude": [
     "node_modules",
     "dist",

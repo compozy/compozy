@@ -25,6 +25,7 @@
 The `worker` package is the distributed execution engine that powers Compozy's workflow orchestration. Built on top of Temporal, it provides robust, scalable, and fault-tolerant execution of AI workflows with advanced features like signal handling, event-driven processing, and comprehensive monitoring.
 
 **Key Features:**
+
 - 🔄 **Temporal Integration**: Built on proven Temporal workflow engine for reliability
 - 📡 **Event-Driven Architecture**: Signal-based triggers and external event processing
 - 🔧 **MCP Integration**: Seamless Model Context Protocol server management
@@ -49,18 +50,23 @@ The `worker` package is the distributed execution engine that powers Compozy's w
 ## ⚡ Design Highlights
 
 ### Temporal-Based Architecture
+
 Built on Temporal's proven workflow engine, providing durable execution, automatic retries, and workflow versioning. Workflows can survive process restarts and system failures.
 
 ### Event-Driven Signal Processing
+
 Advanced signal handling system that allows workflows to respond to external events, webhooks, and system signals in real-time while maintaining execution state.
 
 ### Distributed Dispatcher System
+
 Each worker instance manages its own dispatcher for handling external events, ensuring no single point of failure and enabling horizontal scaling.
 
 ### Comprehensive Monitoring
+
 Built-in monitoring with metrics collection, health checks, and observability features that provide deep insights into workflow execution and system performance.
 
 ### Memory and Privacy Management
+
 Sophisticated memory management system with privacy controls, ensuring sensitive data is handled securely throughout the workflow lifecycle.
 
 ---
@@ -75,7 +81,7 @@ package main
 import (
     "context"
     "log"
-    
+
     "github.com/compozy/compozy/engine/worker"
     "github.com/compozy/compozy/engine/project"
     "github.com/compozy/compozy/engine/workflow"
@@ -83,26 +89,26 @@ import (
 
 func main() {
     ctx := context.Background()
-    
+
     // Load project configuration
     projectConfig, err := project.Load("./compozy.yaml")
     if err != nil {
         log.Fatal(err)
     }
-    
+
     // Load workflow configurations
     workflows, err := workflow.LoadAllFromProject(projectConfig)
     if err != nil {
         log.Fatal(err)
     }
-    
+
     // Configure Temporal connection
     temporalConfig := &worker.TemporalConfig{
         HostPort:  "localhost:7233",
         Namespace: "default",
         TaskQueue: "compozy-tasks",
     }
-    
+
     // Create worker configuration
     workerConfig := &worker.Config{
         WorkflowRepo:      func() workflow.Repository { return myWorkflowRepo },
@@ -111,17 +117,17 @@ func main() {
         ResourceRegistry:  resourceRegistry,
         AppConfig:         appConfig,
     }
-    
+
     // Create and start worker
     w, err := worker.NewWorker(ctx, workerConfig, temporalConfig, projectConfig, workflows)
     if err != nil {
         log.Fatal(err)
     }
-    
+
     if err := w.Setup(ctx); err != nil {
         log.Fatal(err)
     }
-    
+
     // Worker is now running and processing workflows
     log.Println("Worker started successfully")
 }
@@ -246,13 +252,13 @@ type Config struct {
     // Repository factories
     WorkflowRepo      func() workflow.Repository
     TaskRepo          func() task.Repository
-    
+
     // Monitoring and observability
     MonitoringService *monitoring.Service
-    
+
     // Resource management
     ResourceRegistry  *autoload.ConfigRegistry
-    
+
     // Application configuration
     AppConfig         *config.Config
 }
@@ -302,23 +308,23 @@ METRICS_PORT=8080
 ```go
 func setupWorker() (*worker.Worker, error) {
     ctx := context.Background()
-    
+
     // Load project configuration
     projectConfig, err := project.Load("./compozy.yaml")
     if err != nil {
         return nil, fmt.Errorf("failed to load project: %w", err)
     }
-    
+
     // Load workflows
     workflows, err := workflow.WorkflowsFromProject(projectConfig, evaluator)
     if err != nil {
         return nil, fmt.Errorf("failed to load workflows: %w", err)
     }
-    
+
     // Setup repositories
     workflowRepo := setupWorkflowRepository()
     taskRepo := setupTaskRepository()
-    
+
     // Setup monitoring
     monitoringService, err := monitoring.NewService(&monitoring.Config{
         Enabled:     true,
@@ -327,10 +333,10 @@ func setupWorker() (*worker.Worker, error) {
     if err != nil {
         return nil, fmt.Errorf("failed to setup monitoring: %w", err)
     }
-    
+
     // Setup resource registry for memory management
     resourceRegistry := autoload.NewConfigRegistry()
-    
+
     // Create worker
     w, err := worker.NewWorker(ctx, &worker.Config{
         WorkflowRepo:      func() workflow.Repository { return workflowRepo },
@@ -343,11 +349,11 @@ func setupWorker() (*worker.Worker, error) {
         Namespace: "default",
         TaskQueue: "compozy-tasks",
     }, projectConfig, workflows)
-    
+
     if err != nil {
         return nil, fmt.Errorf("failed to create worker: %w", err)
     }
-    
+
     return w, nil
 }
 ```
@@ -362,12 +368,12 @@ func setupEventDrivenWorkflow() error {
     if err != nil {
         return err
     }
-    
+
     // Start worker
     if err := w.Setup(context.Background()); err != nil {
         return err
     }
-    
+
     // The worker automatically handles signals defined in workflow configs
     // Example workflow config with signal trigger:
     /*
@@ -383,7 +389,7 @@ func setupEventDrivenWorkflow() error {
               type: string
               format: email
     */
-    
+
     return nil
 }
 
@@ -397,7 +403,7 @@ func sendUserRegistrationEvent(userID, email string) error {
             "email":   email,
         },
     }
-    
+
     return worker.SendSignal(context.Background(), signal)
 }
 ```
@@ -433,7 +439,7 @@ func setupBatchProcessor() error {
             },
         },
     }
-    
+
     // Worker will handle parallel execution automatically
     return nil
 }
@@ -460,17 +466,17 @@ func setupMonitoredWorker() (*worker.Worker, error) {
     if err != nil {
         return nil, err
     }
-    
+
     // Worker automatically integrates with monitoring
     w, err := worker.NewWorker(ctx, &worker.Config{
         MonitoringService: monitoringService,
         // ... other config
     }, temporalConfig, projectConfig, workflows)
-    
+
     if err != nil {
         return nil, err
     }
-    
+
     // Setup health check endpoint
     go func() {
         http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -483,7 +489,7 @@ func setupMonitoredWorker() (*worker.Worker, error) {
         })
         log.Fatal(http.ListenAndServe(":8081", nil))
     }()
-    
+
     return w, nil
 }
 ```
@@ -495,23 +501,24 @@ func setupMonitoredWorker() (*worker.Worker, error) {
 ### Core Types
 
 #### `Worker`
+
 Main worker instance that manages workflow execution.
 
 ```go
 type Worker struct {
     // Temporal client for workflow operations
     client        *Client
-    
+
     // Worker configuration
     config        *Config
-    
+
     // Activity implementations
     activities    *Activities
-    
+
     // Project and workflow configurations
     projectConfig *project.Config
     workflows     []*workflow.Config
-    
+
     // Resource management
     memoryManager  *memory.Manager
     templateEngine *tplengine.TemplateEngine
@@ -519,6 +526,7 @@ type Worker struct {
 ```
 
 **Key Methods:**
+
 - `Setup(ctx context.Context) error` - Initialize and start worker
 - `Stop(ctx context.Context)` - Gracefully shutdown worker
 - `TriggerWorkflow(ctx context.Context, workflowID string, input *core.Input, initTaskID string) (*WorkflowInput, error)` - Start workflow execution
@@ -529,6 +537,7 @@ type Worker struct {
 - `GetTaskQueue() string` - Get task queue name
 
 #### `Client`
+
 Temporal client wrapper with additional functionality.
 
 ```go
@@ -539,11 +548,13 @@ type Client struct {
 ```
 
 **Key Methods:**
+
 - `NewWorker(taskQueue string, options *worker.Options) worker.Worker` - Create Temporal worker
 - `Config() *TemporalConfig` - Get client configuration
 - `Close()` - Close client connection
 
 #### `Activities`
+
 Container for all workflow activities.
 
 ```go
@@ -551,18 +562,18 @@ type Activities struct {
     // Core workflow activities
     GetWorkflowData    func(context.Context, *GetWorkflowDataInput) (*GetWorkflowDataOutput, error)
     TriggerWorkflow    func(context.Context, *TriggerWorkflowInput) (*TriggerWorkflowOutput, error)
-    
+
     // Task execution activities
     ExecuteBasicTask     func(context.Context, *ExecuteBasicTaskInput) (*ExecuteBasicTaskOutput, error)
     ExecuteRouterTask    func(context.Context, *ExecuteRouterTaskInput) (*ExecuteRouterTaskOutput, error)
     ExecuteAggregateTask func(context.Context, *ExecuteAggregateTaskInput) (*ExecuteAggregateTaskOutput, error)
-    
+
     // Signal and event activities
     ExecuteSignalTask func(context.Context, *ExecuteSignalTaskInput) (*ExecuteSignalTaskOutput, error)
-    
+
     // Memory management activities
     ExecuteMemoryTask func(context.Context, *ExecuteMemoryTaskInput) (*ExecuteMemoryTaskOutput, error)
-    
+
     // Monitoring activities
     DispatcherHeartbeat func(context.Context, *DispatcherHeartbeatInput) (*DispatcherHeartbeatOutput, error)
 }
@@ -571,6 +582,7 @@ type Activities struct {
 ### Functions
 
 #### `NewWorker(ctx context.Context, config *Config, clientConfig *TemporalConfig, projectConfig *project.Config, workflows []*workflow.Config) (*Worker, error)`
+
 Creates a new worker instance.
 
 ```go
@@ -584,6 +596,7 @@ w, err := worker.NewWorker(ctx, &worker.Config{
 ```
 
 #### `NewClient(ctx context.Context, cfg *TemporalConfig) (*Client, error)`
+
 Creates a new Temporal client.
 
 ```go
@@ -595,6 +608,7 @@ client, err := worker.NewClient(ctx, &worker.TemporalConfig{
 ```
 
 #### `GetTaskQueue(projectName string) string`
+
 Generates task queue name from project name.
 
 ```go
@@ -605,17 +619,21 @@ taskQueue := worker.GetTaskQueue("my-project")
 ### Workflow Functions
 
 #### `CompozyWorkflow(ctx workflow.Context, input WorkflowInput) (*workflow.State, error)`
+
 Main workflow execution function.
 
 #### `DispatcherWorkflow(ctx workflow.Context, projectName string, serverID string) error`
+
 Dispatcher workflow for handling external events.
 
 ### Signal Processing
 
 #### `ProcessEventSignal(ctx workflow.Context, signal EventSignal, signalMap map[string]*CompiledTrigger) bool`
+
 Process incoming event signals.
 
 #### `BuildSignalRoutingMap(ctx workflow.Context, data *activities.GetData) (map[string]*CompiledTrigger, error)`
+
 Build routing map for signal processing.
 
 ---
@@ -655,10 +673,10 @@ func TestWorker_TriggerWorkflow(t *testing.T) {
     for _, tt := range tests {
         t.Run(tt.name, func(t *testing.T) {
             w := setupTestWorker(t)
-            
-            result, err := w.TriggerWorkflow(context.Background(), 
+
+            result, err := w.TriggerWorkflow(context.Background(),
                 tt.workflowID, tt.input, tt.initTaskID)
-            
+
             if tt.wantErr {
                 assert.Error(t, err)
                 assert.Nil(t, result)
@@ -679,27 +697,27 @@ func TestWorker_Integration(t *testing.T) {
     // Setup test environment
     temporalTestServer := setupTemporalTestServer(t)
     defer temporalTestServer.Stop()
-    
+
     // Create test worker
     w := setupTestWorker(t)
-    
+
     // Setup worker
     ctx := context.Background()
     err := w.Setup(ctx)
     require.NoError(t, err)
-    
+
     // Test workflow execution
     input := &core.Input{
         "test_param": "test_value",
     }
-    
+
     result, err := w.TriggerWorkflow(ctx, "test-workflow", input, "start")
     require.NoError(t, err)
-    
+
     // Verify workflow execution
     assert.NotEmpty(t, result.WorkflowExecID)
     assert.Equal(t, "test-workflow", result.WorkflowID)
-    
+
     // Cleanup
     w.Stop(ctx)
 }
@@ -710,7 +728,7 @@ func TestWorker_Integration(t *testing.T) {
 ```go
 func TestActivities_ExecuteBasicTask(t *testing.T) {
     activities := setupTestActivities(t)
-    
+
     input := &ExecuteBasicTaskInput{
         TaskConfig: &task.Config{
             ID:   "test-task",
@@ -721,10 +739,10 @@ func TestActivities_ExecuteBasicTask(t *testing.T) {
             "param": "value",
         },
     }
-    
+
     output, err := activities.ExecuteBasicTask(context.Background(), input)
     require.NoError(t, err)
-    
+
     assert.NotNil(t, output)
     assert.Equal(t, "test-task", output.TaskID)
 }

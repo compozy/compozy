@@ -1,6 +1,925 @@
 ---
 title: Core Concepts
-description: Understanding Compozy's fundamental concepts
+description: Understanding Compozy's fundamental concepts and architecture
 ---
 
-# Core Concepts
+import {
+  FileText,
+  Database,
+  Package,
+  GitBranch,
+  Eye,
+  Atom,
+  Activity,
+  Shield,
+  ArrowRightLeft,
+  Layers,
+  Cpu,
+  BrainCircuit,
+  Zap,
+  Target,
+  Globe,
+  CheckCircle,
+  Code,
+  Lock,
+  HardDrive,
+  Settings,
+  RotateCcw,
+  Key,
+  Workflow,
+  FileCheck,
+  Calendar,
+  Play,
+  RefreshCw,
+  Rocket,
+  Users,
+  Link2,
+  BookOpen,
+  FileJson,
+  FileCode,
+  Terminal,
+} from "lucide-react";
+
+## Overview
+
+At its core, Compozy operates on a simple principle: **define what you want to happen, not how it happens**. You describe your workflows, agents, and tools in YAML configuration files, and Compozy handles the execution, coordination, and state management.
+
+```yaml title="hello-world.yaml"
+# A simple workflow that demonstrates core concepts
+id: hello-world
+tasks:
+  - id: greet
+    type: basic
+    $use: agent(local::agents.#(id="assistant"))
+    action: say_hello
+    with:
+      name: "{{ .workflow.input.name }}"
+```
+
+## Workflows
+
+**Workflows** are the top-level orchestration units that define a sequence of tasks to accomplish a goal. [Learn more about workflow configuration →](/docs/core/configuration/workflows)
+
+```yaml title="customer-support.yaml"
+id: customer-support
+version: 0.1.0
+description: Handle customer inquiries with AI agents
+
+config:
+  input:
+    type: object
+    properties:
+      customer_message:
+        type: string
+      customer_id:
+        type: string
+
+tasks:
+  - id: classify_intent
+    type: basic
+    # ... task definition
+
+  - id: generate_response
+    type: basic
+    # ... task definition
+
+outputs:
+  response: "{{ .tasks.generate_response.output }}"
+  confidence: "{{ .tasks.classify_intent.output.confidence }}"
+```
+
+**Key characteristics:**
+
+<List>
+  <ListItem title="Declarative" icon={FileText}>
+    Describe the desired outcome, not implementation details
+  </ListItem>
+  <ListItem title="Stateful" icon={Database}>
+    Compozy tracks execution state and handles failures
+  </ListItem>
+  <ListItem title="Composable" icon={Package}>
+    Workflows can call other workflows or be called by external systems
+  </ListItem>
+  <ListItem title="Observable" icon={Eye}>
+    Built-in monitoring, logging, and debugging capabilities
+  </ListItem>
+</List>
+
+## Tasks
+
+**Tasks** are the building blocks of workflows. Each task represents a single unit of work. [Explore all task types →](/docs/core/tasks/basic-tasks)
+
+<Tabs items={["Basic", "Composite", "Parallel", "Collection", "Router", "Memory", "Signal"]}>
+<Tab>
+Execute a single tool or agent action
+
+```yaml title="Basic Task"
+- id: fetch_data
+  type: basic
+  $use: tool(local::tools.#(id=="api_client"))
+  with:
+    endpoint: "/users/{{ .workflow.input.user_id }}"
+```
+</Tab>
+
+<Tab>
+Group multiple sub-tasks with shared strategy
+
+```yaml title="Composite Task"
+- id: data_processing
+  type: composite
+  strategy: fail_fast  # or best_effort
+  tasks:
+    - id: validate_data
+      type: basic
+      # ... validation task
+    - id: transform_data
+      type: basic
+      # ... transformation task
+```
+</Tab>
+
+<Tab>
+Execute multiple tasks concurrently
+
+```yaml title="Parallel Task"
+- id: gather_info
+  type: parallel
+  strategy: wait_all  # or race
+  tasks:
+    - id: get_weather
+      type: basic
+      # ... weather task
+    - id: get_traffic
+      type: basic
+      # ... traffic task
+```
+
+[Learn more about parallel processing →](/docs/core/tasks/parallel-processing)
+</Tab>
+
+<Tab>
+Process arrays of data
+
+```yaml title="Collection Task"
+- id: process_emails
+  type: collection
+  items: "{{ .workflow.input.emails }}"
+  mode: parallel  # or sequential
+  task:
+    id: "process-email-{{ .index }}"
+    type: basic
+    $use: agent(local::agents.#(id=="email_processor"))
+    with:
+      email: "{{ .item }}"
+```
+
+[Learn more about collection tasks →](/docs/core/tasks/collection-tasks)
+</Tab>
+
+<Tab>
+Conditional branching based on data
+
+```yaml title="Router Task"
+- id: route_by_priority
+  type: router
+  condition: '{{ .tasks.classify.output.priority }}'
+  routes:
+    high:
+      $ref: local::tasks.#(id="urgent_handler")
+    low:
+      $ref: local::tasks.#(id="standard_handler")
+```
+</Tab>
+
+<Tab>
+Interact with persistent memory systems
+
+```yaml title="Memory Task"
+- id: remember_conversation
+  type: memory
+  operation: append
+  key: "conversation:{{ .workflow.input.user_id }}"
+  content: "{{ .tasks.generate_response.output }}"
+```
+
+[Learn more about memory tasks →](/docs/core/tasks/memory-tasks)
+</Tab>
+
+<Tab>
+Send or wait for cross-workflow communication
+
+```yaml title="Signal Task"
+- id: notify_completion
+  type: signal
+  signal:
+    id: workflow-completed
+    payload:
+      workflow_id: "{{ .workflow.id }}"
+      result: "{{ .tasks.final_step.output }}"
+```
+</Tab>
+</Tabs>
+
+**Key characteristics:**
+
+<List>
+  <ListItem title="Atomic operations" icon={Atom}>
+    Each task represents a single, indivisible unit of work
+  </ListItem>
+  <ListItem title="State management" icon={Activity}>
+    Automatic tracking of task execution state and outputs
+  </ListItem>
+  <ListItem title="Error handling" icon={Shield}>
+    Built-in retry policies and failure recovery mechanisms
+  </ListItem>
+  <ListItem title="Data flow" icon={ArrowRightLeft}>
+    Seamless output passing between tasks using template expressions
+  </ListItem>
+  <ListItem title="Flexible execution" icon={Layers}>
+    Support for sequential, parallel, conditional, and collection-based patterns
+  </ListItem>
+</List>
+
+## Agents
+
+**Agents** are AI-powered components that can understand natural language instructions and execute actions. [Learn more about agents →](/docs/core/agents/overview)
+
+```yaml title="customer_service_agent.yaml"
+resource: agent
+id: customer_service_agent
+version: 0.1.0
+
+config:
+  provider: groq
+  model: llama-3.3-70b-versatile
+  api_key: "{{ .env.GROQ_API_KEY }}"
+
+instructions: |
+  You are a helpful customer service agent. Your role is to:
+  - Understand customer inquiries and classify their intent
+  - Provide accurate, helpful responses
+  - Escalate complex issues when necessary
+  Always maintain a professional, friendly tone.
+
+tools:
+  - $ref: local::tools.#(id=="knowledge_base")
+  - $ref: local::tools.#(id=="ticket_system")
+
+actions:
+  - id: classify_intent
+    prompt: |
+      Analyze this customer message: "{{ .input.message }}"
+      Classify the intent as: question, complaint, request, or compliment.
+    output:
+      type: object
+      properties:
+        intent:
+          type: string
+          enum: [question, complaint, request, compliment]
+        confidence:
+          type: number
+        reasoning:
+          type: string
+
+  - id: generate_response
+    json_mode: true
+    prompt: |
+      Based on the customer's message and intent:
+      Message: {{ .input.message }}
+      Intent: {{ .input.intent }}
+
+      Generate an appropriate response that addresses their needs.
+```
+
+**Key features:**
+
+<List>
+  <ListItem title="Multi-model support" icon={Cpu}>
+    OpenAI, Groq, Ollama, and more. [See all providers →](/docs/core/configuration/providers)
+  </ListItem>
+  <ListItem title="Tool integration" icon={Zap}>
+    Agents can call external tools and APIs
+  </ListItem>
+  <ListItem title="Structured outputs" icon={Target}>
+    Define JSON schemas for reliable data extraction. [Learn more →](/docs/core/agents/structured-outputs)
+  </ListItem>
+  <ListItem title="Context awareness" icon={BrainCircuit}>
+    Access workflow data and previous task outputs
+  </ListItem>
+  <ListItem title="Memory integration" icon={Database}>
+    Persistent conversation and context memory
+  </ListItem>
+</List>
+
+## Tools
+
+**Tools** are TypeScript/JavaScript functions that perform specific operations like API calls, data processing, or file operations. [Learn more about tool development →](/docs/core/tools/tools-overview)
+
+```typescript title="weather_tool.ts"
+interface WeatherInput {
+  city: string;
+}
+
+interface WeatherOutput {
+  temperature: number;
+  humidity: number;
+  weather: string;
+  city: string;
+}
+
+export function weatherTool({ input }: { input: WeatherInput }): WeatherOutput {
+  // TODO: Implement your tool logic here
+  return {
+    temperature: 22,
+    humidity: 65,
+    weather: "sunny",
+    city: input.city,
+  }
+}
+```
+
+**Tool configuration:**
+```yaml title="Tool Configuration"
+tools:
+  - id: weather_service
+    description: Get current weather and forecast
+    input:
+      type: object
+      properties:
+        city:
+          type: string
+        units:
+          type: string
+          enum: [metric, imperial]
+          default: metric
+      required: [city]
+```
+
+**Key characteristics:**
+
+<List>
+  <ListItem title="TypeScript/JavaScript execution" icon={Code}>
+    Run in secure Bun runtime with configurable permissions. [Learn more →](/docs/core/tools/runtime-environment)
+  </ListItem>
+  <ListItem title="JSON I/O communication" icon={ArrowRightLeft}>
+    Standardized input/output protocol for reliable data exchange
+  </ListItem>
+  <ListItem title="External API integration" icon={Globe}>
+    Connect to databases, web services, and third-party systems
+  </ListItem>
+  <ListItem title="Schema validation" icon={CheckCircle}>
+    Define input/output schemas for type safety and validation
+  </ListItem>
+  <ListItem title="Sandboxed execution" icon={Lock}>
+    Isolated runtime environment with controlled access to system resources
+  </ListItem>
+</List>
+
+## Memory Systems
+
+**Memory** enables persistent context and conversation history across workflow executions. [Learn more about memory systems →](/docs/core/memory/memory-concepts)
+
+```yaml title="memory-config.yaml"
+# Configure memory in your project
+memory:
+  provider: redis
+  config:
+    url: "{{ .env.REDIS_URL }}"
+  strategies:
+    conversation:
+      type: token_lru
+      max_tokens: 4000
+      eviction_policy: lru
+    facts:
+      type: fifo
+      max_entries: 100
+```
+
+**Using memory in workflows:**
+
+<Tabs items={["Memory Tasks", "Agent Integration", "HTTP API"]}>
+<Tab>
+Dedicated memory tasks for explicit memory operations
+
+```yaml title="Memory Tasks"
+tasks:
+  - id: recall_context
+    type: memory # [!code highlight]
+    operation: read # [!code highlight]
+    key: "user:{{ .workflow.input.user_id }}:context" # [!code highlight]
+    on_success:
+      next: process_with_context
+
+  - id: process_with_context
+    type: basic
+    $use: agent(local::agents.#(id=="assistant"))
+    action: respond
+    with:
+      message: "{{ .workflow.input.message }}"
+      context: "{{ .tasks.recall_context.output }}"
+    on_success:
+      next: update_memory
+
+  - id: update_memory
+    final: true
+    type: memory # [!code highlight]
+    operation: append # [!code highlight]
+    key: "user:{{ .workflow.input.user_id }}:context" # [!code highlight]
+    content: |
+      Human: {{ .workflow.input.message }}
+      Assistant: {{ .tasks.process_with_context.output }}
+```
+</Tab>
+
+<Tab>
+Agents with built-in memory integration for automatic context management
+
+```yaml title="Agent with Memory"
+agents:
+  - id: memory_agent
+    config:
+      $ref: global::models.#(id=="gpt-4o-mini")
+    instructions: |
+      You are a helpful assistant with persistent memory.
+      Use conversation history to provide contextual responses.
+    memory: # [!code highlight]
+      id: conversation-memory # [!code highlight]
+      key: "user:{{ .workflow.input.user_id }}:conversation" # [!code highlight]
+    actions:
+      - id: chat_with_memory
+        prompt: |
+          Respond to: {{ .workflow.input.message }}
+          Consider previous conversation context.
+
+tasks:
+  - id: conversational_response
+    type: basic
+    $use: agent(local::agents.#(id=="memory_agent"))
+    action: chat_with_memory
+    with:
+      message: "{{ .workflow.input.message }}"
+```
+</Tab>
+
+<Tab>
+HTTP API calls for external memory management integration
+
+```http title="memory-operations.http"
+@baseUrl = http://localhost:3001/api/v0
+@memoryRef = user_memory
+@userId = user123
+@memoryKey = user:{{userId}}:conversation
+
+### Read memory content
+GET {{baseUrl}}/memory/{{memoryRef}}/read?key={{memoryKey}}
+Accept: application/json
+
+### Write new memory content
+POST {{baseUrl}}/memory/{{memoryRef}}/write
+Content-Type: application/json
+
+{
+  "key": "{{memoryKey}}",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hello, I need help with my account."
+    },
+    {
+      "role": "assistant",
+      "content": "I can help you with your account. What do you need?"
+    }
+  ]
+}
+
+### Append to existing memory
+POST {{baseUrl}}/memory/{{memoryRef}}/append
+Content-Type: application/json
+
+{
+  "key": "{{memoryKey}}",
+  "messages": [
+    {
+      "role": "user",
+      "content": "What's my current balance?"
+    },
+    {
+      "role": "assistant",
+      "content": "Let me check your current account balance for you."
+    }
+  ]
+}
+
+### Clear memory content
+POST {{baseUrl}}/memory/{{memoryRef}}/clear
+Content-Type: application/json
+
+{
+  "key": "{{memoryKey}}",
+  "confirm": true,
+  "backup": true
+}
+
+### Get memory statistics
+GET {{baseUrl}}/memory/{{memoryRef}}/stats?key={{memoryKey}}
+Accept: application/json
+
+### Get memory health
+GET {{baseUrl}}/memory/{{memoryRef}}/health?key={{memoryKey}}
+Accept: application/json
+```
+</Tab>
+</Tabs>
+
+**Key characteristics:**
+
+<List>
+  <ListItem title="Persistent storage" icon={HardDrive}>
+    Context and conversation history survives across workflow executions with Redis
+  </ListItem>
+  <ListItem title="Flexible strategies" icon={Settings}>
+    Token-based LRU, FIFO, and custom eviction policies
+  </ListItem>
+  <ListItem title="Hierarchical keys" icon={Key}>
+    Organize memory with user-specific, session-based, or global scopes
+  </ListItem>
+  <ListItem title="Seamless integration" icon={Workflow}>
+    Access memory through simple read, write, append, and delete operations
+  </ListItem>
+</List>
+
+## Template Engine
+
+Our powerful **template engine** enable modular, reusable configurations using a powerful query syntax. [Learn more about YAML templates →](/docs/core/yaml-templates/overview)
+
+### Reference Types
+
+<Tabs items={["Local References", "Global References", "Resource References"]}>
+<Tab>
+References within the same YAML file using local scope
+
+```yaml title="Local References"
+# Reference tools defined in the same file
+$ref: local::tools.#(id=="weather_tool")
+
+# Reference agents in the current workflow
+$ref: local::agents.#(id=="assistant")
+
+# Reference schemas for validation
+$ref: local::schemas.#(id=="user_input")
+
+# Reference tasks for routing
+$ref: local::tasks.#(id=="save_results")
+```
+</Tab>
+
+<Tab>
+Project-level references that span across the entire project
+
+```yaml title="Global References"
+# Reference models from compozy.yaml
+$ref: global::models.#(provider=="groq")
+
+# Reference global configuration
+$ref: global::models.#(model=="gpt-4o-mini")
+
+# Access project-wide settings
+$ref: global::runtime.#(type=="bun")
+```
+</Tab>
+
+<Tab>
+External file references for modular configurations
+
+```yaml title="Resource References"
+# Reference agents from external files
+$ref: resource::agent::#(id=="specialist")
+
+# Reference tools from tool files
+$ref: resource::tool::#(id=="data_processor")
+
+# Reference workflows from other files
+$ref: resource::workflow::#(id=="preprocessing")
+```
+</Tab>
+</Tabs>
+
+### Use Directives
+
+**Use directives** enable execution of tools and agents:
+
+```yaml title="Use Directives"
+# Use a tool for execution
+$use: tool(local::tools.#(id=="api_client"))
+
+# Use an agent for intelligent processing
+$use: agent(local::agents.#(id=="assistant"))
+
+# Use external resources
+$use: agent(resource::agent::#(id=="specialist"))
+```
+
+### Template Expressions
+
+**[Sprig template engine](https://github.com/Masterminds/sprig)** with custom functions for dynamic values. [See all template functions →](/docs/core/yaml-templates/sprig-functions)
+
+```yaml title="Template Expressions"
+# Access workflow input
+with:
+  message: "{{ .workflow.input.message }}"
+
+# Access previous task outputs
+condition: "{{ .tasks.classify.output.category }}"
+
+# Transform data
+formatted_data: "{{ .tasks.process.output | toJson }}"
+
+# Conditional logic
+status: |
+  {{ if eq .tasks.validate.output.valid true }}
+  approved
+  {{ else }}
+  rejected
+  {{ end }}
+
+# Current timestamp
+timestamp: "{{ now }}"
+
+# Array operations
+count: "{{ len .tasks.collection.output }}"
+first_item: "{{ index .tasks.collection.output 0 }}"
+
+# Collection item access
+item_value: "{{ .item }}"
+item_index: "{{ .index }}"
+```
+
+## Data Flow and Execution Model
+
+### Execution Flow
+
+<FeatureCardList cols={3} size="sm">
+  <FeatureCard
+    title="Workflow Initialization"
+    description="Parse configuration and validate schema"
+    icon={FileCheck}
+  />
+  <FeatureCard
+    title="Task Scheduling"
+    description="Temporal orchestrates task execution based on dependencies"
+    icon={Calendar}
+  />
+  <FeatureCard
+    title="Tool/Agent Execution"
+    description="Run in secure Bun runtime with defined permissions"
+    icon={Play}
+  />
+  <FeatureCard
+    title="State Management"
+    description="Track execution state in PostgreSQL with Redis caching"
+    icon={Database}
+  />
+  <FeatureCard
+    title="Output Processing"
+    description="Transform and route outputs to next tasks"
+    icon={ArrowRightLeft}
+  />
+  <FeatureCard
+    title="Error Handling"
+    description="Automatic retries and fallback strategies"
+    icon={RefreshCw}
+  />
+</FeatureCardList>
+
+### State Management
+
+```yaml title="State Management"
+# Task outputs are automatically available to subsequent tasks
+tasks:
+  - id: step1
+    type: basic
+    outputs:
+      result: "{{ .output.data }}"
+      metadata:
+        processed_at: "{{ now }}"
+
+  - id: step2
+    type: basic
+    with:
+      # Access step1's outputs
+      previous_result: "{{ .tasks.step1.output.result }}" # [!code highlight]
+      timestamp: "{{ .tasks.step1.output.metadata.processed_at }}" # [!code highlight]
+```
+
+[Learn more about context variables →](/docs/core/yaml-templates/context-variables)
+
+### Error Handling
+
+```yaml title="Error Handling" {5-9}
+tasks:
+  - id: risky_operation
+    type: basic
+    $use: agent(local::agents.#(id=="sophisticated_agent"))
+    retry: # [!code highlight]
+      max_attempts: 3 # [!code highlight]
+      backoff: exponential # [!code highlight]
+    on_error: # [!code highlight]
+      next: handle_error # [!code highlight]
+    on_success:
+      next: continue_workflow
+
+  - id: handle_error
+    type: basic
+    $use: tool(local::tools.#(id=="error_handler"))
+    with:
+      error: "{{ .tasks.risky_operation.error }}" # [!code highlight]
+```
+
+[Learn more about task flow control →](/docs/core/tasks/flow-control)
+
+## Best Practices
+
+<Steps numbered>
+  <Step
+    title="Design Principles"
+    description="Foundation principles for building maintainable workflows"
+  >
+    - **Single Responsibility**: Each task should have one clear purpose
+    - **Idempotency**: Tasks should produce the same result when re-run
+    - **Loose Coupling**: Minimize dependencies between components
+    - **Observable**: Include logging and monitoring in your workflows
+  </Step>
+
+  <Step
+    title="Configuration Organization"
+    description="Structure your YAML configurations for maintainability"
+  >
+    ```yaml title="Configuration Organization"
+    # Use schemas for input validation
+    schemas:
+      - id: user_request
+        type: object
+        properties:
+          message: { type: string }
+          priority: { type: string, enum: [low, medium, high] }
+        required: [message]
+
+    config:
+      input:
+        $ref: local::schemas.#(id=="user_request")
+    ```
+  </Step>
+
+  <Step
+    title="Error Handling Strategy"
+    description="Implement robust error handling and recovery patterns"
+  >
+    ```yaml title="Error Handling Strategy"
+    # Define error handling at the workflow level
+    error_handling:
+      default_retry:
+        max_attempts: 3
+        backoff: exponential
+      critical_tasks:
+        - validate_input
+        - save_results
+    ```
+  </Step>
+
+  <Step
+    title="Security Considerations"
+    description="Apply minimal permissions and secure runtime configuration"
+  >
+    ```yaml title="Security Considerations"
+    # Minimal runtime permissions
+    runtime:
+      permissions:
+        - --allow-read=./data  # Only specific directories
+        - --allow-net=api.example.com  # Only specific hosts
+        - --allow-env=API_KEY,DB_URL  # Only required env vars
+    ```
+  </Step>
+</Steps>
+
+## Next Steps
+
+Choose your learning path based on your needs:
+
+### Quick Start
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="First Workflow Tutorial"
+    description="Build your first complete workflow step-by-step with guided examples"
+    href="/docs/core/getting-started/first-workflow"
+    icon={Rocket}
+  />
+  <ReferenceCard
+    title="Quick Start Guide"
+    description="Get up and running in 15 minutes with a working weather advisory system"
+    href="/docs/core/getting-started/quick-start"
+    icon={Zap}
+  />
+  <ReferenceCard
+    title="Project Configuration"
+    description="Learn how to configure projects, models, and runtime settings"
+    href="/docs/core/configuration/project-setup"
+    icon={Settings}
+  />
+  <ReferenceCard
+    title="Basic Tasks"
+    description="Master the fundamental building blocks of all workflows"
+    href="/docs/core/tasks/basic-tasks"
+    icon={Package}
+  />
+</ReferenceCardList>
+
+### Agent Development
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Agent Overview"
+    description="Master AI agents with structured outputs, tools, and memory integration"
+    href="/docs/core/agents/overview"
+    icon={BrainCircuit}
+  />
+  <ReferenceCard
+    title="Agent Configuration"
+    description="Define agent behavior with instructions, actions, and tool integration"
+    href="/docs/core/agents/instructions-actions"
+    icon={Users}
+  />
+  <ReferenceCard
+    title="Multi-Agent Patterns"
+    description="Advanced coordination between multiple AI agents in complex workflows"
+    href="/docs/core/agents/multi-agent-patterns"
+    icon={GitBranch}
+  />
+  <ReferenceCard
+    title="Agent Memory"
+    description="Persistent conversation and context memory for intelligent agents"
+    href="/docs/core/agents/memory"
+    icon={Database}
+  />
+</ReferenceCardList>
+
+### Advanced Implementation
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Task Types Reference"
+    description="Deep dive into parallel, collection, router, and composite task patterns"
+    href="/docs/core/tasks/basic-tasks"
+    icon={Layers}
+  />
+  <ReferenceCard
+    title="Tool Development"
+    description="Create custom TypeScript tools for specialized operations and integrations"
+    href="/docs/core/tools/tools-overview"
+    icon={Code}
+  />
+  <ReferenceCard
+    title="MCP Integration"
+    description="Connect external tools and services using Model Context Protocol"
+    href="/docs/core/mcp/mcp-overview"
+    icon={Link2}
+  />
+  <ReferenceCard
+    title="Memory Systems"
+    description="Implement persistent, stateful memory across workflow executions"
+    href="/docs/core/memory/memory-concepts"
+    icon={HardDrive}
+  />
+</ReferenceCardList>
+
+### Complete Reference
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Documentation Index"
+    description="Complete cross-reference system for all Compozy documentation"
+    href="/docs/core/reference-index"
+    icon={BookOpen}
+  />
+  <ReferenceCard
+    title="Configuration Reference"
+    description="Complete YAML configuration guide and schema reference"
+    href="/docs/core/configuration"
+    icon={FileJson}
+  />
+  <ReferenceCard
+    title="YAML Templates"
+    description="Dynamic configuration with template expressions and functions"
+    href="/docs/core/yaml-templates/overview"
+    icon={FileCode}
+  />
+  <ReferenceCard
+    title="CLI Commands"
+    description="Command-line interface reference and usage patterns"
+    href="/docs/core/configuration/cli"
+    icon={Terminal}
+  />
+</ReferenceCardList>
+
+The power of Compozy lies in combining these concepts to create sophisticated AI-powered workflows that are both maintainable and scalable.

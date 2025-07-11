@@ -1,5 +1,5 @@
 import { DecoratorHelpers } from "@storybook/addon-themes";
-import type { Decorator } from "@storybook/react";
+import type { Decorator } from "@storybook/nextjs-vite";
 import { RootProvider } from "fumadocs-ui/provider";
 import React, { useEffect } from "react";
 

@@ -1,6 +1,179 @@
 ---
-title: Overview
-description: Understanding the template engine
+title: "YAML Template Overview"
+description: "Understanding Compozy's YAML template engine for dynamic configuration and data flow"
 ---
 
-# Template Engine Overview
+# YAML Template Overview
+
+Compozy's YAML template engine is a powerful system that enables dynamic configuration and data flow throughout your workflows. It combines standard YAML syntax with Go template expressions, Sprig function library, and custom directives to create flexible, reusable configurations.
+
+## What are YAML Templates?
+
+YAML templates in Compozy allow you to:
+
+- **Inject dynamic values** from context data, environment variables, and task outputs
+- **Reference other resources** using `$ref` and `$use` directives  
+- **Apply transformations** using Sprig functions and custom filters
+- **Create conditional logic** for routing and decision making
+- **Build reusable configurations** that adapt to different contexts
+
+## Template Expression Syntax
+
+Template expressions use Go template syntax wrapped in double curly braces:
+
+```yaml
+# Basic value injection
+city: "{{ .workflow.input.city }}"
+
+# With transformation
+timestamp: "{{ now | date '2006-01-02' }}"
+
+# Conditional logic
+route: '{{ .status | eq "success" | ternary "continue" "retry" }}'
+```
+
+## Core Features
+
+### Context Variables
+Access data from various sources in your templates:
+
+```yaml
+# Workflow input
+location: "{{ .workflow.input.location }}"
+
+# Task outputs
+weather: "{{ .tasks.weather_check.output.temperature }}"
+
+# Environment variables
+api_key: "{{ .env.OPENAI_API_KEY }}"
+
+# Collection iteration
+item_id: "{{ .item.id }}"
+index: "{{ .index }}"
+```
+
+### Resource References
+Use directives to reference and compose resources:
+
+```yaml
+# Reference a schema
+input:
+  $ref: local::schemas.#(id=="user_input")
+
+# Use a tool
+$use: tool(local::tools.#(id=="weather_tool"))
+
+# Reference external agents
+$use: agent(resource::agent::#(id=="classifier"))
+```
+
+### Sprig Functions
+Leverage the full Sprig function library for data manipulation:
+
+```yaml
+# String operations
+name: "{{ .user.name | title }}"
+slug: "{{ .title | lower | replace ' ' '-' }}"
+
+# Array operations
+total: "{{ len .items }}"
+first_item: "{{ first .items }}"
+
+# Date/time operations
+expires: "{{ now | dateModify '+24h' }}"
+formatted: "{{ .timestamp | date '2006-01-02 15:04:05' }}"
+
+# Conditional operations
+status: "{{ .error | empty | ternary 'success' 'failed' }}"
+```
+
+## Template Processing
+
+The template engine processes your YAML configurations in multiple phases:
+
+1. **Parse Phase**: YAML structure is parsed and template expressions are identified
+2. **Context Resolution**: Context data is gathered from workflow state, environment, etc.
+3. **Template Rendering**: Go templates are executed with the context data
+4. **Type Conversion**: Results are converted to appropriate types (strings, numbers, objects)
+5. **Reference Resolution**: `$ref` and `$use` directives are resolved to actual resources
+
+## Use Cases
+
+### Dynamic Task Configuration
+```yaml
+- id: api_call
+  type: basic
+  $use: tool(local::tools.#(id=="http_request"))
+  with:
+    url: "{{ .env.API_BASE_URL }}/users/{{ .workflow.input.user_id }}"
+    method: "{{ .workflow.input.method | default 'GET' }}"
+    headers:
+      Authorization: "Bearer {{ .env.API_TOKEN }}"
+```
+
+### Conditional Routing
+```yaml
+- id: result_router
+  type: router
+  condition: '{{ .tasks.validation.output.valid | ternary "success" "failure" }}'
+  routes:
+    success:
+      $ref: local::tasks.#(id="process_success")
+    failure:
+      $ref: local::tasks.#(id="handle_error")
+```
+
+### Collection Processing
+```yaml
+- id: process_items
+  type: collection
+  items: "{{ .workflow.input.data_items }}"
+  task:
+    id: "process-{{ .index }}"
+    type: basic
+    $use: tool(local::tools.#(id=="data_processor"))
+    with:
+      item: "{{ .item }}"
+      batch_id: "{{ .workflow.id }}_{{ .index }}"
+```
+
+### Agent Instructions
+```yaml
+instructions: |
+  You are a helpful assistant for {{ .workflow.input.domain }}.
+  Current context: {{ .tasks.context.output | toJson }}
+  
+  User query: {{ .workflow.input.query }}
+  Available tools: {{ .tools | keys | join ", " }}
+```
+
+## Security Considerations
+
+The template engine includes built-in security features:
+
+- **HTML Escaping**: Use `htmlEscape` for user input in HTML contexts
+- **XSS Prevention**: Built-in escaping functions prevent injection attacks
+- **Sandboxed Execution**: Templates run in a controlled environment
+
+```yaml
+# Safe HTML rendering
+message: "{{ .user_input | htmlEscape }}"
+
+# Safe JavaScript strings
+script_var: "{{ .data | jsEscape }}"
+```
+
+## Performance Features
+
+- **Template Caching**: Parsed templates are cached for reuse
+- **Concurrent Safety**: Thread-safe execution for parallel processing
+- **Lazy Evaluation**: Templates are only processed when values are needed
+- **Type Preservation**: Numeric precision and object types are maintained
+
+## Next Steps
+
+- Learn about [YAML Basics](./yaml-basics) for fundamental syntax
+- Explore [Template Directives](./directives) for resource references
+- Discover [Sprig Functions](./sprig-functions) for data transformation
+- Understand [Context Variables](./context-variables) for data access
+- Master [Advanced Patterns](./advanced-patterns) for complex scenarios

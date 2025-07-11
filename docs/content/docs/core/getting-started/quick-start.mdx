@@ -1,68 +1,563 @@
 ---
 title: Quick Start
-description: Get started with Compozy in 15 minutes
+description: Get Compozy running in 15 minutes and create your first AI-powered workflow. This guide will walk you through setting up Compozy and building a simple weather advisory system.
 ---
 
-# Quick Start
-
-Get Compozy running in 15 minutes with our interactive TUI.
+import {
+  BookOpen,
+  Code,
+  Rocket,
+  Settings,
+  Users,
+  Zap,
+  BrainCircuit,
+  GitBranch,
+  Package,
+  Database,
+  Link2,
+  Radio,
+  Cloud,
+  BarChart3,
+  CloudSun,
+  HeadphonesIcon,
+  Cpu,
+  PenTool,
+  FileJson,
+  Terminal,
+  FileCode,
+  Shield,
+  Github,
+  MessageSquare,
+  FolderOpen,
+  HandHeart,
+  ShieldCheck,
+  TrendingUp,
+  Eye,
+  Layers,
+  Lock,
+  RefreshCw,
+} from "lucide-react";
+import { FeatureCard, FeatureCardList } from "@/components/ui/feature-card";
 
 ## Prerequisites
 
-- Docker and Docker Compose
-- Go 1.21+ (for development)
-- Node.js 18+ (for tools development)
+Ensure you have these installed:
+- [Docker and Docker Compose](https://docs.docker.com/get-docker/) - For running services
+- [Bun](https://bun.sh/docs/installation) - As runtime for your workflow
+- [Compozy CLI](/docs/core/getting-started/installation) - For initializing and managing your project
 
-## Installation
+<Steps numbered size="sm">
+<Step title="Initialize a new project" description="Run compozy init to generate a new project">
 
 ```bash
-# Clone the repository
-git clone https://github.com/compozy/compozy.git
-cd compozy
-
-# Start the infrastructure
-make cluster-up
-
-# Initialize a new project
-compozy init my-project
-cd my-project
+compozy init my-weather-app
+cd my-weather-app
 ```
 
-## Your First Workflow
+</Step>
 
-Create a simple workflow that uses an AI agent:
+<Step title="Configure your project" description="Update `compozy.yaml` to your liking. Here you will add your workflows, models and other global configurations.">
 
-```yaml
-# workflows/hello.yaml
-name: hello-world
-description: My first Compozy workflow
+```yaml title="compozy.yaml"
+name: my-weather-app
+version: "0.1.0"
+description: A simple weather advisory system
+
+workflows:
+  - source: ./workflow.yaml
+
+models:
+  - provider: openai
+    model: gpt-4o-mini
+    api_key: "{{ .env.OPENAI_API_KEY }}"
+
+runtime:
+  type: bun
+  entrypoint: "./main.ts"
+  permissions:
+    - --allow-read
+    - --allow-net
+    - --allow-env
+```
+
+</Step>
+<Step title="Environment Variables" description="Create a `.env` file with your API keys">
+
+```bash title=".env"
+OPENAI_API_KEY=your_openai_api_key_here
+```
+
+</Step>
+
+<Step title="Defining your tools" description="Let's now create a tool that will get weather data for a city">
+
+```typescript title="weather_tool.ts"
+interface WeatherInput {
+  city: string;
+}
+
+interface WeatherOutput {
+  temperature: number;
+  humidity: number;
+  weather: string;
+  city: string;
+}
+
+export function weatherTool({ input }: { input: WeatherInput }): WeatherOutput {
+  // TODO: Implement your tool logic here
+  return {
+    temperature: 22,
+    humidity: 65,
+    weather: "sunny",
+    city: input.city,
+  }
+}
+```
+
+Then create the runtime entrypoint `main.ts`:
+
+```typescript title="main.ts"
+import { weatherTool } from "./weather_tool.ts";
+
+export default {
+  "weather_tool": weatherTool,
+}
+```
+
+<Callout type="warning">
+You need to export your tool using the `tool_id` as the key here, if you don't, the tool will not be available in your workflow.
+</Callout>
+
+</Step>
+
+<Step title="Creating your first workflow" description="Workflows are the top-level orchestration units that define a sequence of tasks to accomplish a goal">
+
+```yaml title="workflow.yaml"
+id: weather-advisor
+version: 0.1.0
+description: Get weather info and activity recommendations
+
+schemas:
+  - id: city_input
+    type: object
+    properties:
+      city:
+        type: string
+        description: The city to get weather for
+    required:
+      - city
+
+config:
+  input:
+    $ref: local::schemas.#(id=="city_input")
+
+tools:
+  - id: weather_tool
+    description: Get current weather for a city
+    input:
+      $ref: local::schemas.#(id=="city_input")
+
+agents:
+  - id: advisor
+    config:
+      # Uses OpenAI from compozy.yaml
+      $ref: global::models.#(provider=="openai")
+    instructions: |
+      You are a helpful weather advisor.
+      Based on weather data, suggest:
+      1. Appropriate clothing
+      2. Outdoor activities
+      3. Any weather-related tips
+      Respond in a friendly, conversational tone.
+    tools:
+      - $ref: local::tools.#(id=="weather_tool")
+    actions:
+      - id: get_weather
+        prompt: |
+          What is the current weather in {{ .workflow.input.city }}?
+      - id: give_advice
+        prompt: |
+          Based on the weather in {{ .workflow.input.city }}:
+          {{ .tasks.get_weather.output | toJson }}
+          Please provide helpful advice for today.
 
 tasks:
-  - name: greet
-    type: agent
-    config:
-      agent: assistant
-      instruction: "Say hello to {{'{{'}.name{{'}}'}}"
+  - id: get_weather
+    type: basic
+    $use: agent(local::agents.#(id=="advisor"))
+    action: get_weather
+    with:
+      city: "{{ .workflow.input.city }}"
+    on_success:
+      next: get_advice
 
-input:
-  name: World
+  - id: get_advice
+    type: basic
+    $use: agent(local::agents.#(id=="advisor"))
+    action: give_advice
+    final: true
+
+outputs:
+  city: "{{ .workflow.input.city }}"
+  weather: "{{ .tasks.get_weather.output }}"
+  advice: "{{ .tasks.get_advice.output }}"
 ```
 
-## Run the Workflow
+</Step>
+
+<Step title="Testing your workflow" description="Compozy provides a local development server that you can use to test your workflow">
 
 ```bash
-# Deploy the workflow
-compozy workflow deploy
-
-# Execute it
-compozy run create hello-world --input name=Compozy
-
-# Check status
-compozy run status
+# From your project directory
+compozy dev
 ```
+
+After running your have a local server running at `http://localhost:3001`.
+
+<Tabs items={["Rest Client", "cURL"]}>
+
+<Tab>
+You can use any HTTP client to test your workflow. We high recommend using [Rest Client](https://marketplace.visualstudio.com/items?itemName=humao.rest-client) extension for VSCode because it provides an easy way to test your workflow.
+
+```http title="test.http"
+@baseUrl = http://localhost:3001/api/v0
+@workflowId = weather-advisor
+
+### Execute the workflow
+POST {{baseUrl}}/workflows/{{workflowId}}/execute
+Content-Type: application/json
+
+{
+  "input": {
+    "city": "San Francisco"
+  }
+}
+
+### Check execution status (replace {execution_id} with actual ID)
+@execId = {{exec.response.body.data.exec_id}}
+GET {{baseUrl}}/executions/{{execId}}
+```
+
+</Tab>
+
+<Tab>
+
+Or you can use cURL to test your workflow.
+
+```bash
+# Execute the workflow
+curl -X POST http://localhost:8000/api/v0/workflows/weather-advisor/execute \
+  -H "Content-Type: application/json" \
+  -d '{"input": {"city": "San Francisco"}}'
+```
+
+</Tab>
+</Tabs>
+
+</Step>
+
+<Step title="View Results">
+
+Your workflow will return something like:
+
+```json
+{
+  "execution_id": "exec_123456",
+  "status": "completed",
+  "outputs": {
+    "city": "San Francisco",
+    "weather": {
+      "temperature": 22,
+      "humidity": 65,
+      "weather": "partly cloudy",
+      "city": "San Francisco"
+    },
+    "advice": "Great weather in San Francisco today! With 22°C and partly cloudy skies, it's perfect for outdoor activities. I'd recommend:\n\n1. **Clothing**: Light layers - a t-shirt with a light sweater or jacket for when the fog rolls in\n2. **Activities**: Perfect for walking, cycling, or visiting outdoor attractions like Golden Gate Park\n3. **Tips**: San Francisco weather can change quickly, so keep a light jacket handy!"
+  }
+}
+```
+
+</Step>
+</Steps>
+
+## Behind the Scenes
+
+Here's what actually happens when you execute a Compozy workflow:
+
+<Mermaid chart={`sequenceDiagram
+    participant Client
+    participant API as HTTP API
+    participant Worker as Worker Service
+    participant Temporal
+    participant Executor as Task Executor
+    participant Runtime as Bun Runtime
+    participant LLM as OpenAI
+    participant DB as PostgreSQL
+
+    Client->>API: POST /workflows/weather-advisor/execute
+    API->>Worker: TriggerWorkflow(input: {city: "SF"})
+    Worker->>Worker: Validate input & Generate exec ID
+    Worker->>Temporal: StartWorkflow(CompozyWorkflow)
+
+    Note over Temporal: Durable workflow orchestration
+    Temporal->>Executor: Execute Activity: TriggerWorkflow
+    Executor->>DB: Create workflow state (status: running)
+
+    Note over Temporal,Runtime: Task 1: get_weather (Basic Task + Agent)
+    Temporal->>Executor: Execute Activity: Task[get_weather]
+    Executor->>DB: Create task state
+    Executor->>LLM: GenerateContent(action: get_weather)
+    LLM->>LLM: Process with tool definitions
+    LLM->>Runtime: Execute weather_tool({city: "SF"})
+    Runtime-->>LLM: {temp: 22, weather: "sunny"}
+    LLM-->>Executor: Complete with tool result
+    Executor->>DB: Update task state (status: completed)
+
+    Note over Temporal,LLM: Task 2: get_advice (Basic Task + Agent)
+    Temporal->>Executor: Execute Activity: Task[get_advice]
+    Executor->>DB: Create task state
+    Executor->>LLM: GenerateContent(action: give_advice)
+    LLM-->>Executor: Generated advice text
+    Executor->>DB: Update task state (status: completed)
+
+    Note over Temporal: Workflow completion
+    Temporal->>Executor: Execute Activity: CompleteWorkflow
+    Executor->>DB: Update workflow state (status: completed)
+    Temporal-->>Worker: Workflow result
+    Worker-->>API: Execution result
+    API-->>Client: {exec_id, status, outputs}`} />
+
+<List>
+  <ListItem title="HTTP API Layer">
+    The WorkflowController receives your request at `/api/v0/workflows/{id}/execute`
+  </ListItem>
+  <ListItem title="Worker Service Validation">
+    Validates input against JSON schema, generates unique execution ID, and loads workflow configuration
+  </ListItem>
+  <ListItem title="Temporal Workflow Engine">
+    Provides durable execution that survives crashes, manages retry logic with exponential backoff, and records complete execution history
+  </ListItem>
+  <ListItem title="Task Execution Loop">
+    Each task runs as a Temporal activity with built-in retry policies and transactional state persistence
+  </ListItem>
+  <ListItem title="Agent Intelligence">
+    LLM receives custom instructions and tool definitions, autonomously decides when to call tools, with execution in sandboxed Deno/Bun runtime
+  </ListItem>
+  <ListItem title="State Management">
+    PostgreSQL stores workflow and task states with optimistic locking and complete audit trail
+  </ListItem>
+</List>
+
+## Key Architectural Benefits
+
+<FeatureCardList cols={3} size="sm">
+  <FeatureCard
+    title="Fault Tolerance"
+    description="Temporal ensures workflows continue from where they left off after failures"
+    icon={ShieldCheck}
+  />
+  <FeatureCard
+    title="Scalability"
+    description="Multiple workers can process workflows concurrently across distributed nodes"
+    icon={TrendingUp}
+  />
+  <FeatureCard
+    title="Observability"
+    description="Complete execution history available in Temporal Web UI for debugging"
+    icon={Eye}
+  />
+  <FeatureCard
+    title="Flexibility"
+    description="Support for parallel, sequential, conditional, and collection-based task execution"
+    icon={Layers}
+  />
+  <FeatureCard
+    title="Security"
+    description="Sandboxed tool execution with configurable runtime permissions (read, network, env)"
+    icon={Lock}
+  />
+  <FeatureCard
+    title="Retry Intelligence"
+    description="Configurable retry policies with exponential backoff and non-retryable error types"
+    icon={RefreshCw}
+  />
+</FeatureCardList>
 
 ## Next Steps
 
-- [Installation Guide](/docs/getting-started/installation) - Detailed setup options
-- [Core Concepts](/docs/getting-started/core-concepts) - Deep dive into Compozy
-- [Examples](/docs/examples) - More workflow examples
+Congratulations! You've built your first Compozy workflow. Now you are ready to explore more advanced features.
+
+### Learning Pathways
+
+<Tabs items={["For Beginners", "For Intermediate Users", "For Advanced Users"]}>
+<Tab>
+<ReferenceCardList>
+  <ReferenceCard
+    title="Core Concepts"
+    description="Understand fundamental Compozy concepts: agents, tasks, and workflows"
+    href="/docs/core/getting-started/core-concepts"
+    icon={BookOpen}
+  />
+  <ReferenceCard
+    title="First Workflow Tutorial"
+    description="Build a complete workflow step-by-step with guided examples"
+    href="/docs/core/getting-started/first-workflow"
+    icon={Rocket}
+  />
+  <ReferenceCard
+    title="Project Configuration"
+    description="Learn how to configure projects, models, and runtime settings"
+    href="/docs/core/configuration/project-setup"
+    icon={Settings}
+  />
+  <ReferenceCard
+    title="Basic Tasks"
+    description="Master the fundamental building blocks of all workflows"
+    href="/docs/core/tasks/basic-tasks"
+    icon={Package}
+  />
+</ReferenceCardList>
+</Tab>
+
+<Tab>
+<ReferenceCardList>
+  <ReferenceCard
+    title="Agent Patterns"
+    description="Create intelligent AI agents with structured outputs and memory"
+    href="/docs/core/agents/overview"
+    icon={BrainCircuit}
+  />
+  <ReferenceCard
+    title="Advanced Tasks"
+    description="Use parallel, collection, router, and composite task patterns"
+    href="/docs/core/tasks/parallel-processing"
+    icon={GitBranch}
+  />
+  <ReferenceCard
+    title="Tool Development"
+    description="Build custom TypeScript tools for specialized operations"
+    href="/docs/core/tools/tools-overview"
+    icon={Code}
+  />
+  <ReferenceCard
+    title="Memory Systems"
+    description="Add persistent, stateful memory to your AI workflows"
+    href="/docs/core/memory/memory-concepts"
+    icon={Database}
+  />
+</ReferenceCardList>
+</Tab>
+
+<Tab>
+<ReferenceCardList>
+  <ReferenceCard
+    title="MCP Integration"
+    description="Connect external tools and services using Model Context Protocol"
+    href="/docs/core/mcp/mcp-overview"
+    icon={Link2}
+  />
+  <ReferenceCard
+    title="Signals & Coordination"
+    description="Coordinate complex multi-workflow systems with signals"
+    href="/docs/core/signals/signal-overview"
+    icon={Radio}
+  />
+  <ReferenceCard
+    title="Production Deployment"
+    description="Deploy and scale Compozy in production environments"
+    href="/docs/core/deployment/deployment-options"
+    icon={Cloud}
+  />
+  <ReferenceCard
+    title="Monitoring & Observability"
+    description="Monitor, debug, and optimize your workflows in production"
+    href="/docs/core/metrics/observability"
+    icon={BarChart3}
+  />
+</ReferenceCardList>
+</Tab>
+</Tabs>
+
+### Use Cases
+<ReferenceCardList>
+  <ReferenceCard
+    title="Weather System"
+    description="Complete weather advisory system with agents and tools"
+    href="/docs/core/examples/weather"
+    icon={CloudSun}
+  />
+  <ReferenceCard
+    title="Customer Support"
+    description="Multi-agent support workflows with memory and routing"
+    href="/docs/core/examples/customer-support"
+    icon={HeadphonesIcon}
+  />
+  <ReferenceCard
+    title="Data Processing"
+    description="Batch processing pipelines with parallel task execution"
+    href="/docs/core/examples/data-processing"
+    icon={Cpu}
+  />
+  <ReferenceCard
+    title="Content Generation"
+    description="AI-powered content creation and optimization workflows"
+    href="/docs/core/examples/content-generation"
+    icon={PenTool}
+  />
+</ReferenceCardList>
+
+### Reference & Configuration
+<ReferenceCardList>
+  <ReferenceCard
+    title="Configuration Reference"
+    description="Complete YAML configuration guide and schema reference"
+    href="/docs/core/configuration/global"
+    icon={FileJson}
+  />
+  <ReferenceCard
+    title="CLI Commands"
+    description="Command-line interface reference and usage patterns"
+    href="/docs/core/configuration/cli"
+    icon={Terminal}
+  />
+  <ReferenceCard
+    title="YAML Templates"
+    description="Dynamic configuration with template expressions and functions"
+    href="/docs/core/yaml-templates/overview"
+    icon={FileCode}
+  />
+  <ReferenceCard
+    title="Environment Variables"
+    description="Complete environment variable reference and best practices"
+    href="/docs/core/reference/environment-variables"
+    icon={Shield}
+  />
+</ReferenceCardList>
+
+### Community & Support
+<ReferenceCardList>
+  <ReferenceCard
+    title="GitHub Discussions"
+    description="Ask questions, share projects, and get community support"
+    href="https://github.com/compozy/compozy/discussions"
+    icon={Github}
+  />
+  <ReferenceCard
+    title="Discord Community"
+    description="Real-time help, discussions, and community events"
+    href="https://discord.gg/compozy"
+    icon={MessageSquare}
+  />
+  <ReferenceCard
+    title="Examples Repository"
+    description="Production-ready workflow examples and templates"
+    href="https://github.com/compozy/examples"
+    icon={FolderOpen}
+  />
+  <ReferenceCard
+    title="Contributing Guide"
+    description="Contribute to Compozy development and documentation"
+    href="/docs/core/community/contributing-guide"
+    icon={HandHeart}
+  />
+</ReferenceCardList>

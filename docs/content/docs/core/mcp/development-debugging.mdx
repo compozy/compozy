@@ -1,6 +1,1119 @@
 ---
-title: Development & Debugging
-description: MCP development and debugging
+title: "Development & Debugging"
+description: "Tools, techniques, and best practices for developing and debugging MCP integrations in Compozy"
 ---
 
 # Development & Debugging
+
+Developing and debugging MCP integrations requires specialized tools and techniques. This guide provides comprehensive approaches for efficient MCP development, testing, and troubleshooting.
+
+## Development Environment Setup
+
+### Local Development Configuration
+
+Set up a complete local development environment:
+
+```yaml
+# compozy.yaml - Development configuration
+name: mcp-development
+version: "1.0.0"
+description: "MCP development environment"
+
+# Development-specific MCP servers
+mcps:
+  - id: filesystem_dev
+    transport: stdio
+    command: npx
+    args:
+      - -y
+      - "@modelcontextprotocol/server-filesystem"
+      - "./dev-workspace"
+    proto: "2025-03-26"
+    env:
+      LOG_LEVEL: "DEBUG"
+      ENABLE_TRACING: "true"
+    start_timeout: 30s
+
+  - id: database_dev
+    transport: stdio
+    command: python
+    args:
+      - "./dev-tools/mcp_db_server.py"
+      - "--connection-string"
+      - "sqlite:///./dev.db"
+      - "--debug"
+    proto: "2025-03-26"
+    env:
+      SQL_LOG_LEVEL: "DEBUG"
+      ENABLE_QUERY_TRACING: "true"
+
+  - id: web_dev
+    url: "http://localhost:3000"
+    transport: sse
+    env:
+      NODE_ENV: "development"
+      DEBUG: "mcp:*"
+    proto: "2025-03-26"
+    health_check:
+      enabled: true
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+# Development tools
+tools:
+  - id: mcp_debug_tool
+    description: Debug MCP server interactions
+
+  - id: mcp_test_tool
+    description: Test MCP server functionality
+```
+
+### Development Scripts
+
+Create helpful development scripts:
+
+```bash
+#!/bin/bash
+# dev-setup.sh - Set up development environment
+
+set -e
+
+echo "Setting up MCP development environment..."
+
+# Create development workspace
+mkdir -p dev-workspace
+mkdir -p dev-tools
+mkdir -p logs
+
+# Install MCP server dependencies
+echo "Installing MCP server dependencies..."
+npm install -g @modelcontextprotocol/server-filesystem
+pip install -r dev-requirements.txt
+
+# Start development services
+echo "Starting development services..."
+docker-compose -f docker-compose.dev.yml up -d
+
+# Wait for services to be ready
+echo "Waiting for services to be ready..."
+sleep 10
+
+# Test MCP connections
+echo "Testing MCP connections..."
+./dev-tools/test-mcp-connections.sh
+
+echo "Development environment ready!"
+```
+
+```bash
+#!/bin/bash
+# dev-tools/test-mcp-connections.sh - Test MCP server connections
+
+test_mcp_server() {
+    local server_name=$1
+    local test_command=$2
+
+    echo "Testing MCP server: $server_name"
+
+    if compozy mcp test "$server_name" --command "$test_command"; then
+        echo "✅ $server_name connection successful"
+    else
+        echo "❌ $server_name connection failed"
+        return 1
+    fi
+}
+
+# Test all MCP servers
+test_mcp_server "filesystem_dev" "list_tools"
+test_mcp_server "database_dev" "list_tools"
+test_mcp_server "web_dev" "list_tools"
+
+echo "All MCP server tests completed."
+```
+
+## Debugging Tools
+
+### MCP Debug Tool
+
+Comprehensive debugging tool for MCP interactions:
+
+```typescript
+// dev-tools/mcp_debug_tool.ts
+interface DebugInput {
+  server_name: string;
+  operation: 'list_tools' | 'call_tool' | 'health_check' | 'inspect';
+  tool_name?: string;
+  parameters?: Record<string, any>;
+  verbose?: boolean;
+}
+
+interface DebugOutput {
+  success: boolean;
+  server_info?: any;
+  tools?: any[];
+  result?: any;
+  error?: string;
+  debug_info?: any;
+  timing?: {
+    start: string;
+    end: string;
+    duration_ms: number;
+  };
+}
+
+export default async function mcpDebugTool(input: DebugInput): Promise<DebugOutput> {
+  const { server_name, operation, tool_name, parameters = {}, verbose = false } = input;
+
+  const startTime = Date.now();
+  const start = new Date().toISOString();
+
+  try {
+    console.log(`🔍 DEBUG: Starting ${operation} for server ${server_name}`);
+
+    const proxyUrl = process.env.MCP_PROXY_URL || 'http://localhost:8081';
+    const authToken = process.env.MCP_PROXY_TOKEN;
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'X-Debug': 'true',
+    };
+
+    if (authToken) {
+      headers['Authorization'] = `Bearer ${authToken}`;
+    }
+
+    let url: string;
+    let method: string = 'GET';
+    let body: string | undefined;
+
+    switch (operation) {
+      case 'list_tools':
+        url = `${proxyUrl}/api/v1/mcp/${server_name}/tools`;
+        break;
+      case 'call_tool':
+        if (!tool_name) {
+          throw new Error('tool_name is required for call_tool operation');
+        }
+        url = `${proxyUrl}/api/v1/mcp/${server_name}/tool/${tool_name}`;
+        method = 'POST';
+        body = JSON.stringify(parameters);
+        break;
+      case 'health_check':
+        url = `${proxyUrl}/api/v1/mcp/${server_name}/health`;
+        break;
+      case 'inspect':
+        url = `${proxyUrl}/api/v1/mcp/${server_name}/inspect`;
+        break;
+      default:
+        throw new Error(`Unknown operation: ${operation}`);
+    }
+
+    if (verbose) {
+      console.log(`📝 DEBUG: Request URL: ${url}`);
+      console.log(`📝 DEBUG: Request method: ${method}`);
+      console.log(`📝 DEBUG: Request headers:`, headers);
+      if (body) {
+        console.log(`📝 DEBUG: Request body:`, body);
+      }
+    }
+
+    const response = await fetch(url, {
+      method,
+      headers,
+      body,
+    });
+
+    const responseText = await response.text();
+    let responseData: any;
+
+    try {
+      responseData = JSON.parse(responseText);
+    } catch (e) {
+      responseData = responseText;
+    }
+
+    if (verbose) {
+      console.log(`📝 DEBUG: Response status: ${response.status}`);
+      console.log(`📝 DEBUG: Response headers:`, Object.fromEntries(response.headers));
+      console.log(`📝 DEBUG: Response body:`, responseData);
+    }
+
+    const endTime = Date.now();
+    const end = new Date().toISOString();
+    const duration = endTime - startTime;
+
+    if (!response.ok) {
+      return {
+        success: false,
+        error: `HTTP ${response.status}: ${response.statusText}`,
+        debug_info: {
+          url,
+          method,
+          headers,
+          body,
+          response_status: response.status,
+          response_headers: Object.fromEntries(response.headers),
+          response_body: responseData,
+        },
+        timing: {
+          start,
+          end,
+          duration_ms: duration,
+        },
+      };
+    }
+
+    console.log(`✅ DEBUG: ${operation} completed successfully in ${duration}ms`);
+
+    return {
+      success: true,
+      result: responseData,
+      timing: {
+        start,
+        end,
+        duration_ms: duration,
+      },
+    };
+
+  } catch (error) {
+    const endTime = Date.now();
+    const end = new Date().toISOString();
+    const duration = endTime - startTime;
+
+    console.error(`❌ DEBUG: ${operation} failed:`, error.message);
+
+    return {
+      success: false,
+      error: error.message,
+      timing: {
+        start,
+        end,
+        duration_ms: duration,
+      },
+    };
+  }
+}
+```
+
+### MCP Test Tool
+
+Automated testing tool for MCP servers:
+
+```typescript
+// dev-tools/mcp_test_tool.ts
+interface TestInput {
+  server_name: string;
+  test_suite?: 'basic' | 'comprehensive' | 'custom';
+  custom_tests?: TestCase[];
+  timeout?: number;
+}
+
+interface TestCase {
+  name: string;
+  operation: string;
+  tool_name?: string;
+  parameters?: Record<string, any>;
+  expected_result?: any;
+  should_fail?: boolean;
+}
+
+interface TestOutput {
+  success: boolean;
+  total_tests: number;
+  passed_tests: number;
+  failed_tests: number;
+  test_results: TestResult[];
+  summary: string;
+}
+
+interface TestResult {
+  test_name: string;
+  passed: boolean;
+  duration_ms: number;
+  error?: string;
+  result?: any;
+}
+
+export default async function mcpTestTool(input: TestInput): Promise<TestOutput> {
+  const { server_name, test_suite = 'basic', custom_tests = [], timeout = 30000 } = input;
+
+  let testCases: TestCase[] = [];
+
+  // Define test suites
+  switch (test_suite) {
+    case 'basic':
+      testCases = [
+        {
+          name: 'List Tools',
+          operation: 'list_tools',
+        },
+        {
+          name: 'Health Check',
+          operation: 'health_check',
+        },
+        {
+          name: 'Server Inspect',
+          operation: 'inspect',
+        },
+      ];
+      break;
+
+    case 'comprehensive':
+      testCases = [
+        {
+          name: 'List Tools',
+          operation: 'list_tools',
+        },
+        {
+          name: 'Health Check',
+          operation: 'health_check',
+        },
+        {
+          name: 'Server Inspect',
+          operation: 'inspect',
+        },
+        {
+          name: 'Invalid Tool Call',
+          operation: 'call_tool',
+          tool_name: 'non_existent_tool',
+          parameters: {},
+          should_fail: true,
+        },
+        {
+          name: 'Tool Call with Invalid Parameters',
+          operation: 'call_tool',
+          tool_name: 'test_tool',
+          parameters: { invalid_param: 'value' },
+          should_fail: true,
+        },
+      ];
+      break;
+
+    case 'custom':
+      testCases = custom_tests;
+      break;
+  }
+
+  const results: TestResult[] = [];
+  let passedTests = 0;
+  let failedTests = 0;
+
+  console.log(`🧪 Starting test suite: ${test_suite} for server: ${server_name}`);
+  console.log(`📋 Running ${testCases.length} tests...`);
+
+  for (const testCase of testCases) {
+    const testStart = Date.now();
+
+    try {
+      console.log(`\n🔍 Running test: ${testCase.name}`);
+
+      const debugResult = await mcpDebugTool({
+        server_name,
+        operation: testCase.operation as any,
+        tool_name: testCase.tool_name,
+        parameters: testCase.parameters,
+        verbose: false,
+      });
+
+      const testEnd = Date.now();
+      const duration = testEnd - testStart;
+
+      let passed = false;
+      let error: string | undefined;
+
+      if (testCase.should_fail) {
+        // Test should fail
+        passed = !debugResult.success;
+        if (debugResult.success) {
+          error = 'Test expected to fail but succeeded';
+        }
+      } else {
+        // Test should succeed
+        passed = debugResult.success;
+        if (!debugResult.success) {
+          error = debugResult.error;
+        }
+      }
+
+      // Check expected result if provided
+      if (passed && testCase.expected_result && debugResult.result) {
+        const resultMatches = JSON.stringify(debugResult.result) === JSON.stringify(testCase.expected_result);
+        if (!resultMatches) {
+          passed = false;
+          error = 'Result does not match expected value';
+        }
+      }
+
+      if (passed) {
+        console.log(`✅ ${testCase.name}: PASSED (${duration}ms)`);
+        passedTests++;
+      } else {
+        console.log(`❌ ${testCase.name}: FAILED (${duration}ms) - ${error}`);
+        failedTests++;
+      }
+
+      results.push({
+        test_name: testCase.name,
+        passed,
+        duration_ms: duration,
+        error,
+        result: debugResult.result,
+      });
+
+    } catch (error) {
+      const testEnd = Date.now();
+      const duration = testEnd - testStart;
+
+      console.log(`❌ ${testCase.name}: ERROR (${duration}ms) - ${error.message}`);
+
+      results.push({
+        test_name: testCase.name,
+        passed: false,
+        duration_ms: duration,
+        error: error.message,
+      });
+
+      failedTests++;
+    }
+  }
+
+  const totalTests = testCases.length;
+  const successRate = (passedTests / totalTests) * 100;
+
+  console.log(`\n📊 Test Results Summary:`);
+  console.log(`   Total Tests: ${totalTests}`);
+  console.log(`   Passed: ${passedTests}`);
+  console.log(`   Failed: ${failedTests}`);
+  console.log(`   Success Rate: ${successRate.toFixed(1)}%`);
+
+  const summary = `${passedTests}/${totalTests} tests passed (${successRate.toFixed(1)}%)`;
+
+  return {
+    success: passedTests === totalTests,
+    total_tests: totalTests,
+    passed_tests: passedTests,
+    failed_tests: failedTests,
+    test_results: results,
+    summary,
+  };
+}
+```
+
+## Logging and Monitoring
+
+### Structured Logging
+
+Implement comprehensive logging for MCP operations:
+
+```typescript
+// dev-tools/mcp_logger.ts
+interface LogEntry {
+  timestamp: string;
+  level: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
+  component: string;
+  server_name?: string;
+  tool_name?: string;
+  operation?: string;
+  message: string;
+  metadata?: Record<string, any>;
+  error?: string;
+  stack_trace?: string;
+}
+
+class MCPLogger {
+  private static instance: MCPLogger;
+  private logLevel: string;
+  private enableConsole: boolean;
+  private enableFile: boolean;
+  private logFile: string;
+
+  private constructor() {
+    this.logLevel = process.env.MCP_LOG_LEVEL || 'INFO';
+    this.enableConsole = process.env.MCP_LOG_CONSOLE !== 'false';
+    this.enableFile = process.env.MCP_LOG_FILE === 'true';
+    this.logFile = process.env.MCP_LOG_FILE_PATH || './logs/mcp.log';
+  }
+
+  static getInstance(): MCPLogger {
+    if (!MCPLogger.instance) {
+      MCPLogger.instance = new MCPLogger();
+    }
+    return MCPLogger.instance;
+  }
+
+  private shouldLog(level: string): boolean {
+    const levels = ['DEBUG', 'INFO', 'WARN', 'ERROR'];
+    const currentLevelIndex = levels.indexOf(this.logLevel);
+    const msgLevelIndex = levels.indexOf(level);
+    return msgLevelIndex >= currentLevelIndex;
+  }
+
+  private formatLogEntry(entry: LogEntry): string {
+    const metadata = entry.metadata ? JSON.stringify(entry.metadata) : '';
+    const errorInfo = entry.error ? ` ERROR: ${entry.error}` : '';
+
+    return `[${entry.timestamp}] ${entry.level} ${entry.component}${entry.server_name ? `(${entry.server_name})` : ''}: ${entry.message}${metadata ? ` ${metadata}` : ''}${errorInfo}`;
+  }
+
+  private async writeToFile(entry: LogEntry): Promise<void> {
+    if (!this.enableFile) return;
+
+    try {
+      const logLine = this.formatLogEntry(entry) + '\n';
+      await Bun.write(this.logFile, logLine, { append: true });
+    } catch (error) {
+      console.error('Failed to write to log file:', error);
+    }
+  }
+
+  private log(level: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR', component: string, message: string, metadata?: Record<string, any>, error?: Error): void {
+    if (!this.shouldLog(level)) return;
+
+    const entry: LogEntry = {
+      timestamp: new Date().toISOString(),
+      level,
+      component,
+      message,
+      metadata,
+      error: error?.message,
+      stack_trace: error?.stack,
+    };
+
+    if (this.enableConsole) {
+      const formattedMessage = this.formatLogEntry(entry);
+      switch (level) {
+        case 'DEBUG':
+          console.debug(formattedMessage);
+          break;
+        case 'INFO':
+          console.info(formattedMessage);
+          break;
+        case 'WARN':
+          console.warn(formattedMessage);
+          break;
+        case 'ERROR':
+          console.error(formattedMessage);
+          break;
+      }
+    }
+
+    this.writeToFile(entry);
+  }
+
+  debug(component: string, message: string, metadata?: Record<string, any>): void {
+    this.log('DEBUG', component, message, metadata);
+  }
+
+  info(component: string, message: string, metadata?: Record<string, any>): void {
+    this.log('INFO', component, message, metadata);
+  }
+
+  warn(component: string, message: string, metadata?: Record<string, any>): void {
+    this.log('WARN', component, message, metadata);
+  }
+
+  error(component: string, message: string, error?: Error, metadata?: Record<string, any>): void {
+    this.log('ERROR', component, message, metadata, error);
+  }
+
+  mcpOperation(serverName: string, operation: string, toolName?: string, parameters?: any, result?: any, error?: Error): void {
+    const metadata = {
+      server_name: serverName,
+      tool_name: toolName,
+      operation,
+      parameters: parameters ? JSON.stringify(parameters) : undefined,
+      result: result ? JSON.stringify(result) : undefined,
+    };
+
+    if (error) {
+      this.error('MCP_OPERATION', `${operation} failed`, error, metadata);
+    } else {
+      this.info('MCP_OPERATION', `${operation} completed`, metadata);
+    }
+  }
+}
+
+export default MCPLogger.getInstance();
+```
+
+### Performance Monitoring
+
+Track MCP performance metrics:
+
+```typescript
+// dev-tools/mcp_monitor.ts
+interface PerformanceMetrics {
+  server_name: string;
+  operation: string;
+  tool_name?: string;
+  start_time: number;
+  end_time: number;
+  duration_ms: number;
+  success: boolean;
+  error?: string;
+  payload_size?: number;
+  response_size?: number;
+}
+
+class MCPMonitor {
+  private static instance: MCPMonitor;
+  private metrics: PerformanceMetrics[] = [];
+  private maxMetrics: number = 10000;
+
+  private constructor() {}
+
+  static getInstance(): MCPMonitor {
+    if (!MCPMonitor.instance) {
+      MCPMonitor.instance = new MCPMonitor();
+    }
+    return MCPMonitor.instance;
+  }
+
+  startOperation(serverName: string, operation: string, toolName?: string): string {
+    const operationId = `${serverName}-${operation}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+    // Store start time for this operation
+    (globalThis as any).mcpOperationStarts = (globalThis as any).mcpOperationStarts || new Map();
+    (globalThis as any).mcpOperationStarts.set(operationId, {
+      server_name: serverName,
+      operation,
+      tool_name: toolName,
+      start_time: Date.now(),
+    });
+
+    return operationId;
+  }
+
+  endOperation(operationId: string, success: boolean, error?: string, payloadSize?: number, responseSize?: number): void {
+    const operationStarts = (globalThis as any).mcpOperationStarts || new Map();
+    const startData = operationStarts.get(operationId);
+
+    if (!startData) {
+      console.warn(`No start data found for operation: ${operationId}`);
+      return;
+    }
+
+    const endTime = Date.now();
+    const duration = endTime - startData.start_time;
+
+    const metric: PerformanceMetrics = {
+      server_name: startData.server_name,
+      operation: startData.operation,
+      tool_name: startData.tool_name,
+      start_time: startData.start_time,
+      end_time: endTime,
+      duration_ms: duration,
+      success,
+      error,
+      payload_size: payloadSize,
+      response_size: responseSize,
+    };
+
+    this.metrics.push(metric);
+
+    // Clean up old metrics
+    if (this.metrics.length > this.maxMetrics) {
+      this.metrics = this.metrics.slice(-this.maxMetrics);
+    }
+
+    // Clean up start data
+    operationStarts.delete(operationId);
+
+    // Log slow operations
+    if (duration > 5000) {
+      console.warn(`Slow MCP operation detected: ${startData.server_name}.${startData.operation} took ${duration}ms`);
+    }
+  }
+
+  getMetrics(serverName?: string, operation?: string, timeRange?: { start: number; end: number }): PerformanceMetrics[] {
+    let filtered = this.metrics;
+
+    if (serverName) {
+      filtered = filtered.filter(m => m.server_name === serverName);
+    }
+
+    if (operation) {
+      filtered = filtered.filter(m => m.operation === operation);
+    }
+
+    if (timeRange) {
+      filtered = filtered.filter(m => m.start_time >= timeRange.start && m.end_time <= timeRange.end);
+    }
+
+    return filtered;
+  }
+
+  getStatistics(serverName?: string, operation?: string): {
+    total_operations: number;
+    successful_operations: number;
+    failed_operations: number;
+    success_rate: number;
+    average_duration_ms: number;
+    min_duration_ms: number;
+    max_duration_ms: number;
+    p95_duration_ms: number;
+    p99_duration_ms: number;
+  } {
+    const metrics = this.getMetrics(serverName, operation);
+
+    if (metrics.length === 0) {
+      return {
+        total_operations: 0,
+        successful_operations: 0,
+        failed_operations: 0,
+        success_rate: 0,
+        average_duration_ms: 0,
+        min_duration_ms: 0,
+        max_duration_ms: 0,
+        p95_duration_ms: 0,
+        p99_duration_ms: 0,
+      };
+    }
+
+    const successful = metrics.filter(m => m.success).length;
+    const failed = metrics.length - successful;
+    const durations = metrics.map(m => m.duration_ms).sort((a, b) => a - b);
+
+    const p95Index = Math.floor(durations.length * 0.95);
+    const p99Index = Math.floor(durations.length * 0.99);
+
+    return {
+      total_operations: metrics.length,
+      successful_operations: successful,
+      failed_operations: failed,
+      success_rate: (successful / metrics.length) * 100,
+      average_duration_ms: durations.reduce((sum, d) => sum + d, 0) / durations.length,
+      min_duration_ms: durations[0],
+      max_duration_ms: durations[durations.length - 1],
+      p95_duration_ms: durations[p95Index],
+      p99_duration_ms: durations[p99Index],
+    };
+  }
+
+  clearMetrics(): void {
+    this.metrics = [];
+  }
+}
+
+export default MCPMonitor.getInstance();
+```
+
+## Common Debugging Scenarios
+
+### Connection Issues
+
+Debug MCP server connection problems:
+
+```typescript
+// dev-tools/connection_debugger.ts
+interface ConnectionDebugResult {
+  server_name: string;
+  transport_type: string;
+  connection_status: 'connected' | 'failed' | 'timeout';
+  error?: string;
+  latency_ms?: number;
+  server_info?: any;
+  recommendations?: string[];
+}
+
+async function debugConnection(serverName: string): Promise<ConnectionDebugResult> {
+  const result: ConnectionDebugResult = {
+    server_name: serverName,
+    transport_type: 'unknown',
+    connection_status: 'failed',
+    recommendations: [],
+  };
+
+  try {
+    // Get server configuration
+    const config = await getServerConfig(serverName);
+    result.transport_type = config.transport;
+
+    // Test basic connectivity
+    const startTime = Date.now();
+    const healthCheck = await mcpDebugTool({
+      server_name: serverName,
+      operation: 'health_check',
+      verbose: true,
+    });
+
+    if (healthCheck.success) {
+      result.connection_status = 'connected';
+      result.latency_ms = Date.now() - startTime;
+      result.server_info = healthCheck.result;
+    } else {
+      result.connection_status = 'failed';
+      result.error = healthCheck.error;
+
+      // Provide recommendations based on error
+      if (healthCheck.error?.includes('timeout')) {
+        result.recommendations.push('Increase timeout configuration');
+        result.recommendations.push('Check if server is running');
+      } else if (healthCheck.error?.includes('connection refused')) {
+        result.recommendations.push('Verify server is running on correct port');
+        result.recommendations.push('Check firewall settings');
+      } else if (healthCheck.error?.includes('authentication')) {
+        result.recommendations.push('Verify authentication credentials');
+        result.recommendations.push('Check token/API key configuration');
+      }
+    }
+
+  } catch (error) {
+    result.error = error.message;
+    result.recommendations.push('Check server configuration');
+    result.recommendations.push('Verify MCP proxy is running');
+  }
+
+  return result;
+}
+```
+
+### Tool Execution Issues
+
+Debug tool execution problems:
+
+```typescript
+// dev-tools/tool_debugger.ts
+interface ToolDebugResult {
+  server_name: string;
+  tool_name: string;
+  available: boolean;
+  parameters_valid: boolean;
+  execution_status: 'success' | 'failed' | 'timeout';
+  error?: string;
+  result?: any;
+  recommendations?: string[];
+}
+
+async function debugTool(serverName: string, toolName: string, parameters: any): Promise<ToolDebugResult> {
+  const result: ToolDebugResult = {
+    server_name: serverName,
+    tool_name: toolName,
+    available: false,
+    parameters_valid: false,
+    execution_status: 'failed',
+    recommendations: [],
+  };
+
+  try {
+    // Check if tool is available
+    const toolsList = await mcpDebugTool({
+      server_name: serverName,
+      operation: 'list_tools',
+    });
+
+    if (toolsList.success) {
+      const tools = toolsList.result?.tools || [];
+      const tool = tools.find((t: any) => t.name === toolName);
+
+      if (tool) {
+        result.available = true;
+
+        // Validate parameters against tool schema
+        if (tool.inputSchema) {
+          const validationResult = validateParameters(parameters, tool.inputSchema);
+          result.parameters_valid = validationResult.valid;
+
+          if (!validationResult.valid) {
+            result.error = validationResult.error;
+            result.recommendations.push('Check parameter types and required fields');
+            result.recommendations.push('Refer to tool schema documentation');
+            return result;
+          }
+        } else {
+          result.parameters_valid = true;
+        }
+
+        // Execute tool
+        const execution = await mcpDebugTool({
+          server_name: serverName,
+          operation: 'call_tool',
+          tool_name: toolName,
+          parameters,
+          verbose: true,
+        });
+
+        if (execution.success) {
+          result.execution_status = 'success';
+          result.result = execution.result;
+        } else {
+          result.execution_status = 'failed';
+          result.error = execution.error;
+
+          // Provide specific recommendations
+          if (execution.error?.includes('timeout')) {
+            result.recommendations.push('Increase tool timeout');
+            result.recommendations.push('Check if tool operation is computationally expensive');
+          } else if (execution.error?.includes('permission')) {
+            result.recommendations.push('Check tool permissions');
+            result.recommendations.push('Verify file/directory access rights');
+          }
+        }
+      } else {
+        result.recommendations.push('Check tool name spelling');
+        result.recommendations.push('Verify tool is installed on server');
+      }
+    } else {
+      result.error = 'Failed to list tools';
+      result.recommendations.push('Check server connection');
+    }
+
+  } catch (error) {
+    result.error = error.message;
+    result.recommendations.push('Check server and tool configuration');
+  }
+
+  return result;
+}
+
+function validateParameters(parameters: any, schema: any): { valid: boolean; error?: string } {
+  // Implement JSON schema validation
+  try {
+    // This would use a JSON schema validator
+    return { valid: true };
+  } catch (error) {
+    return { valid: false, error: error.message };
+  }
+}
+```
+
+## Testing Strategies
+
+### Unit Testing
+
+Test individual MCP operations:
+
+```typescript
+// tests/mcp_unit_tests.ts
+import { assertEquals, assertRejects } from "https://deno.land/std@0.208.0/testing/asserts.ts";
+
+test("MCP Filesystem - List Directory", async () => {
+  const result = await mcpDebugTool({
+    server_name: "filesystem_dev",
+    operation: "call_tool",
+    tool_name: "list_directory",
+    parameters: { path: "./dev-workspace" },
+  });
+
+  assertEquals(result.success, true);
+  assertEquals(typeof result.result, "object");
+  assertEquals(Array.isArray(result.result?.files), true);
+});
+
+test("MCP Database - Query", async () => {
+  const result = await mcpDebugTool({
+    server_name: "database_dev",
+    operation: "call_tool",
+    tool_name: "query",
+    parameters: {
+      sql: "SELECT 1 as test_value",
+      parameters: {}
+    },
+  });
+
+  assertEquals(result.success, true);
+  assertEquals(result.result?.rows?.[0]?.test_value, 1);
+});
+
+test("MCP Tool - Invalid Parameters", async () => {
+  const result = await mcpDebugTool({
+    server_name: "filesystem_dev",
+    operation: "call_tool",
+    tool_name: "read_file",
+    parameters: {}, // Missing required 'path' parameter
+  });
+
+  assertEquals(result.success, false);
+  assertEquals(typeof result.error, "string");
+});
+```
+
+### Integration Testing
+
+Test complete MCP workflows:
+
+```typescript
+// tests/mcp_integration_tests.ts
+test("MCP Workflow - File Processing", async () => {
+  // Create test file
+  const createResult = await mcpDebugTool({
+    server_name: "filesystem_dev",
+    operation: "call_tool",
+    tool_name: "write_file",
+    parameters: {
+      path: "./dev-workspace/test.txt",
+      content: "Hello, MCP!"
+    },
+  });
+
+  assertEquals(createResult.success, true);
+
+  // Read file
+  const readResult = await mcpDebugTool({
+    server_name: "filesystem_dev",
+    operation: "call_tool",
+    tool_name: "read_file",
+    parameters: {
+      path: "./dev-workspace/test.txt"
+    },
+  });
+
+  assertEquals(readResult.success, true);
+  assertEquals(readResult.result?.content, "Hello, MCP!");
+
+  // Clean up
+  await mcpDebugTool({
+    server_name: "filesystem_dev",
+    operation: "call_tool",
+    tool_name: "delete_file",
+    parameters: {
+      path: "./dev-workspace/test.txt"
+    },
+  });
+});
+```
+
+## Best Practices
+
+### Development Workflow
+
+1. **Start with Local Testing**: Use local MCP servers for development
+2. **Use Debug Mode**: Enable verbose logging and debug output
+3. **Test Incrementally**: Test each MCP operation individually
+4. **Monitor Performance**: Track operation timing and resource usage
+5. **Handle Errors Gracefully**: Implement proper error handling and recovery
+
+### Debugging Checklist
+
+```bash
+# MCP Debugging Checklist
+echo "🔍 MCP Debugging Checklist"
+echo "1. Check server configuration"
+echo "2. Verify server is running"
+echo "3. Test basic connectivity"
+echo "4. List available tools"
+echo "5. Validate tool parameters"
+echo "6. Test tool execution"
+echo "7. Check logs for errors"
+echo "8. Monitor performance metrics"
+echo "9. Test error handling"
+echo "10. Verify cleanup processes"
+```
+
+### Common Pitfalls
+
+1. **Timeout Configuration**: Set appropriate timeouts for long-running operations
+2. **Parameter Validation**: Always validate parameters before tool execution
+3. **Resource Cleanup**: Ensure proper cleanup of resources and connections
+4. **Error Handling**: Implement comprehensive error handling
+5. **Security**: Validate all inputs and sanitize outputs
+
+This comprehensive development and debugging guide provides the tools and techniques needed for efficient MCP development and troubleshooting.
+
+## Next Steps
+
+- Set up [Monitoring & Metrics](/docs/core/mcp/monitoring-metrics) for production debugging
+- Configure [Production Deployment](/docs/core/mcp/production-deployment) with proper logging
+- Review [Security & Authentication](/docs/core/mcp/security-authentication) for secure debugging
+- Explore [Integration Patterns](/docs/core/mcp/integration-patterns) for advanced debugging scenarios

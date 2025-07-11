@@ -7,7 +7,7 @@ default_stages:
 exclude: |
   (?x)^(
     CHANGELOG.md|
-    deno.lock|
+    bun.lockb|
     node_modules|
   )$
 

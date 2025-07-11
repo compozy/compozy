@@ -29,6 +29,7 @@
 The `agent` package provides the core configuration structures and validation logic for AI agents within the Compozy workflow orchestration engine. Agents are autonomous AI-powered entities that can reason, make decisions, and execute actions based on natural language instructions.
 
 This package handles:
+
 - Agent configuration parsing and validation
 - Action definition and management
 - Memory reference configuration
@@ -234,31 +235,31 @@ if err := config.NormalizeAndValidateMemoryConfig(); err != nil {
 
 ### Agent Configuration Fields
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `resource` | string | No | Must be "agent" for autoloader |
-| `id` | string | Yes | Unique identifier for the agent |
-| `config` | ProviderConfig | Yes | LLM provider configuration |
-| `instructions` | string | Yes | System instructions for the agent |
-| `actions` | []ActionConfig | No | Structured actions the agent can perform |
-| `with` | Input | No | Default input parameters |
-| `env` | EnvMap | No | Environment variables |
-| `tools` | []tool.Config | No | Available tools |
-| `mcps` | []mcp.Config | No | MCP server configurations |
-| `max_iterations` | int | No | Maximum reasoning iterations (default: 5) |
-| `json_mode` | bool | No | Force JSON output format |
-| `memory` | []MemoryReference | No | Memory references |
+| Field            | Type              | Required | Description                               |
+| ---------------- | ----------------- | -------- | ----------------------------------------- |
+| `resource`       | string            | No       | Must be "agent" for autoloader            |
+| `id`             | string            | Yes      | Unique identifier for the agent           |
+| `config`         | ProviderConfig    | Yes      | LLM provider configuration                |
+| `instructions`   | string            | Yes      | System instructions for the agent         |
+| `actions`        | []ActionConfig    | No       | Structured actions the agent can perform  |
+| `with`           | Input             | No       | Default input parameters                  |
+| `env`            | EnvMap            | No       | Environment variables                     |
+| `tools`          | []tool.Config     | No       | Available tools                           |
+| `mcps`           | []mcp.Config      | No       | MCP server configurations                 |
+| `max_iterations` | int               | No       | Maximum reasoning iterations (default: 5) |
+| `json_mode`      | bool              | No       | Force JSON output format                  |
+| `memory`         | []MemoryReference | No       | Memory references                         |
 
 ### Action Configuration Fields
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `id` | string | Yes | Unique action identifier |
-| `prompt` | string | Yes | Action-specific instructions |
-| `input` | Schema | No | Input validation schema |
-| `output` | Schema | No | Output validation schema |
-| `with` | Input | No | Default action parameters |
-| `json_mode` | bool | No | Force JSON output for this action |
+| Field       | Type   | Required | Description                       |
+| ----------- | ------ | -------- | --------------------------------- |
+| `id`        | string | Yes      | Unique action identifier          |
+| `prompt`    | string | Yes      | Action-specific instructions      |
+| `input`     | Schema | No       | Input validation schema           |
+| `output`    | Schema | No       | Output validation schema          |
+| `with`      | Input  | No       | Default action parameters         |
+| `json_mode` | bool   | No       | Force JSON output for this action |
 
 ---
 
@@ -415,6 +416,7 @@ max_iterations: 8
 ### Core Types
 
 #### `Config`
+
 Main agent configuration structure.
 
 ```go
@@ -435,6 +437,7 @@ type Config struct {
 ```
 
 #### `ActionConfig`
+
 Configuration for structured agent actions.
 
 ```go
@@ -451,21 +454,27 @@ type ActionConfig struct {
 ### Key Functions
 
 #### `Load(cwd *core.PathCWD, path string) (*Config, error)`
+
 Loads an agent configuration from a file.
 
 #### `LoadAndEval(cwd *core.PathCWD, path string, ev *ref.Evaluator) (*Config, error)`
+
 Loads and evaluates an agent configuration with template processing.
 
 #### `FindActionConfig(actions []*ActionConfig, id string) (*ActionConfig, error)`
+
 Finds an action configuration by ID.
 
 #### `(c *Config) Validate() error`
+
 Validates the entire agent configuration.
 
 #### `(c *Config) GetMaxIterations() int`
+
 Returns the maximum iterations with default fallback.
 
 #### `(c *Config) NormalizeAndValidateMemoryConfig() error`
+
 Validates memory reference configuration.
 
 ---
@@ -488,6 +497,7 @@ go test -v ./engine/agent -cover
 ### Test Structure
 
 The package includes comprehensive tests for:
+
 - Configuration validation
 - Action system functionality
 - Memory reference validation
@@ -506,7 +516,7 @@ func TestConfig_Validate(t *testing.T) {
         },
         Instructions: "Test instructions",
     }
-    
+
     err := config.Validate()
     assert.NoError(t, err)
 }

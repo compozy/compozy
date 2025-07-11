@@ -64,7 +64,7 @@ import (
     "context"
     "fmt"
     "log"
-    
+
     "github.com/compozy/compozy/engine/core"
     "github.com/compozy/compozy/engine/task"
 )
@@ -86,7 +86,7 @@ func main() {
             "style": "friendly",
         },
     }
-    
+
     // Create task state
     state := task.CreateState(
         &task.CreateStateInput{
@@ -101,7 +101,7 @@ func main() {
             Input:         taskConfig.With,
         },
     )
-    
+
     fmt.Printf("Created task state: %+v\n", state)
 }
 ```
@@ -505,6 +505,7 @@ routerTask := &task.Config{
 ### Core Types
 
 #### `Config`
+
 ```go
 type Config struct {
     BaseConfig
@@ -522,6 +523,7 @@ type Config struct {
 Primary configuration structure for all task types.
 
 #### `State`
+
 ```go
 type State struct {
     // Core identification
@@ -529,20 +531,20 @@ type State struct {
     TaskExecID     core.ID
     WorkflowID     string
     WorkflowExecID core.ID
-    
+
     // Execution details
     Component     core.ComponentType
     Status        core.StatusType
     ExecutionType ExecutionType
-    
+
     // Parent-child relationships
     ParentStateID *core.ID
-    
+
     // Execution data
     Input  *core.Input
     Output *core.Output
     Error  *core.Error
-    
+
     // Timestamps
     CreatedAt time.Time
     UpdatedAt time.Time
@@ -552,6 +554,7 @@ type State struct {
 Represents the runtime state of a task execution.
 
 #### `ExecutionType`
+
 ```go
 type ExecutionType string
 
@@ -570,6 +573,7 @@ Defines the execution strategy for tasks.
 ### State Creation Functions
 
 #### `CreateState`
+
 ```go
 func CreateState(input *CreateStateInput, result *PartialState) *State
 ```
@@ -577,6 +581,7 @@ func CreateState(input *CreateStateInput, result *PartialState) *State
 Creates a new task state with the provided configuration.
 
 #### `CreateSubTaskState`
+
 ```go
 func CreateSubTaskState(
     taskID string,
@@ -593,6 +598,7 @@ func CreateSubTaskState(
 Creates a child task state with parent relationship.
 
 #### `CreateAgentSubTaskState`
+
 ```go
 func CreateAgentSubTaskState(
     taskID string,
@@ -610,6 +616,7 @@ Creates a child task state specifically for agent execution.
 ### State Methods
 
 #### Hierarchy Methods
+
 ```go
 func (s *State) CanHaveChildren() bool
 func (s *State) IsChildTask() bool
@@ -619,6 +626,7 @@ func (s *State) ValidateParentChild(parentID core.ID) error
 ```
 
 #### Status Methods
+
 ```go
 func (s *State) UpdateStatus(status core.StatusType)
 func (s *State) AsMap() (map[core.ID]any, error)
@@ -627,6 +635,7 @@ func (s *State) AsMap() (map[core.ID]any, error)
 ### Signal Processing
 
 #### `SignalEnvelope`
+
 ```go
 type SignalEnvelope struct {
     Payload  map[string]any
@@ -637,6 +646,7 @@ type SignalEnvelope struct {
 Contains signal data and system metadata.
 
 #### `SignalProcessor`
+
 ```go
 type SignalProcessor interface {
     Process(ctx context.Context, signal *SignalEnvelope) (*ProcessorOutput, error)
@@ -646,6 +656,7 @@ type SignalProcessor interface {
 Interface for processing signals in wait tasks.
 
 #### `WaitTaskExecutor`
+
 ```go
 type WaitTaskExecutor interface {
     Execute(ctx context.Context, config *Config) (*WaitTaskResult, error)

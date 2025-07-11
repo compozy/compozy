@@ -1,0 +1,140 @@
+# Cross-Reference Component Templates
+
+This file provides reusable templates for consistent cross-referencing across all Compozy documentation sections.
+
+## Standard Cross-Reference Section Template
+
+```mdx
+## Related Documentation
+
+### 🔗 Cross-References
+- **[Core Concepts: {TOPIC}](/docs/core/getting-started/core-concepts#{SECTION})** - {TOPIC} in workflow context
+- **[{MAIN_COMPONENT} Overview](/docs/core/{COMPONENT}/{MAIN_PAGE})** - How {COMPONENT} integrates
+- **[{RELATED_COMPONENT}](/docs/core/{RELATED_PATH})** - Related functionality
+- **[YAML Templates](/docs/core/yaml-templates/overview)** - Dynamic configuration
+
+### {ICON} {TOPIC}-Related Topics
+- **{CURRENT_TOPIC}** ↔ **[{RELATED_A}](/docs/core/{PATH_A})** ↔ **[{RELATED_B}](/docs/core/{PATH_B})**
+- **{INTEGRATION_TOPIC}** ↔ **[{INTEGRATION_A}](/docs/core/{PATH_C})** ↔ **[{INTEGRATION_B}](/docs/core/{PATH_D})**
+- **{ADVANCED_TOPIC}** ↔ **[{ADVANCED_A}](/docs/core/{PATH_E})** ↔ **[{ADVANCED_B}](/docs/core/{PATH_F})**
+```
+
+## Agent-Focused Cross-References
+
+```mdx
+### 🤖 Agent-Related Topics
+- **Agent Memory** ↔ **[Memory Systems](/docs/core/memory/memory-concepts)** ↔ **[Memory Operations](/docs/core/memory/operations)**
+- **Agent Tools** ↔ **[Tools Overview](/docs/core/tools/tools-overview)** ↔ **[Tool Development](/docs/core/tools/typescript-development)**
+- **Agent Context** ↔ **[YAML Templates](/docs/core/yaml-templates/overview)** ↔ **[Context Variables](/docs/core/yaml-templates/context-variables)**
+- **Agent LLM Integration** ↔ **[Provider Configuration](/docs/core/configuration/providers)**
+```
+
+## Task-Focused Cross-References
+
+```mdx
+### ⚙️ Task-Related Topics
+- **Basic Tasks** ↔ **[Other Task Types](/docs/core/tasks/aggregate-tasks)** ↔ **[Advanced Patterns](/docs/core/tasks/advanced-patterns)**
+- **Task Execution** ↔ **[Agent Actions](/docs/core/agents/instructions-actions)** ↔ **[Tool Development](/docs/core/tools/typescript-development)**
+- **Flow Control** ↔ **[Workflow Configuration](/docs/core/configuration/workflows)** ↔ **[Signal Communication](/docs/core/signals/signal-overview)**
+```
+
+## Tool-Focused Cross-References
+
+```mdx
+### 🔧 Tool-Related Topics
+- **Tool Development** ↔ **[TypeScript Development](/docs/core/tools/typescript-development)** ↔ **[Runtime Environment](/docs/core/tools/runtime-environment)**
+- **Tool Configuration** ↔ **[Configuration Schemas](/docs/core/tools/configuration-schemas)** ↔ **[YAML Templates](/docs/core/yaml-templates/overview)**
+- **External Integration** ↔ **[MCP Servers](/docs/core/mcp/mcp-overview)** ↔ **[Agent Capabilities](/docs/core/agents/tools)**
+```
+
+## Memory-Focused Cross-References
+
+```mdx
+### 🧠 Memory-Related Topics
+- **Memory Operations** ↔ **[Agent Memory](/docs/core/agents/memory)** ↔ **[Memory Tasks](/docs/core/tasks/memory-tasks)**
+- **Memory Configuration** ↔ **[Project Setup](/docs/core/configuration/project-setup)** ↔ **[Runtime Configuration](/docs/core/configuration/runtime-config)**
+- **Memory Integration** ↔ **[Multi-Agent Patterns](/docs/core/agents/multi-agent-patterns)** ↔ **[Advanced Task Patterns](/docs/core/tasks/advanced-patterns)**
+```
+
+## Standard Learning Paths Template
+
+```mdx
+## Next Steps
+
+<FeatureCardList cols={2}>
+  <FeatureCard title="{NEXT_TOPIC_1}" href="/docs/core/{PATH_1}">
+    {Description of next topic}
+  </FeatureCard>
+  <FeatureCard title="{NEXT_TOPIC_2}" href="/docs/core/{PATH_2}">
+    {Description of next topic}
+  </FeatureCard>
+  <FeatureCard title="{NEXT_TOPIC_3}" href="/docs/core/{PATH_3}">
+    {Description of next topic}
+  </FeatureCard>
+  <FeatureCard title="{NEXT_TOPIC_4}" href="/docs/core/{PATH_4}">
+    {Description of next topic}
+  </FeatureCard>
+</FeatureCardList>
+
+### 📚 Learning Paths
+- **Beginner**: [Current Topic] → [{NEXT_BASIC}](/docs/core/{PATH_BASIC}) → [{FOLLOW_UP}](/docs/core/{PATH_FOLLOW})
+- **Intermediate**: [{INTERMEDIATE_START}](/docs/core/{PATH_INT_1}) → [{INTERMEDIATE_CONTINUE}](/docs/core/{PATH_INT_2}) → [{INTERMEDIATE_ADVANCED}](/docs/core/{PATH_INT_3})
+- **Advanced**: [{ADVANCED_START}](/docs/core/{PATH_ADV_1}) → [{ADVANCED_CONTINUE}](/docs/core/{PATH_ADV_2})
+```
+
+## Learning Path Breadcrumbs
+
+```mdx
+<Callout type="info">
+**Learning Path**: [{PREVIOUS}](/docs/core/{PREV_PATH}) → [{CURRENT}](/docs/core/{CURRENT_PATH}) → **{CURRENT_TITLE}** → [{NEXT}](/docs/core/{NEXT_PATH})
+</Callout>
+```
+
+## See Also Section Template
+
+```mdx
+## See Also
+
+### 📖 Related Documentation
+- **[{RELATED_CORE}](/docs/core/{CORE_PATH})** - {Description}
+- **[{RELATED_COMPONENT}](/docs/core/{COMPONENT_PATH})** - {Description}
+- **[Documentation Index](/docs/core/reference-index)** - Complete cross-reference system
+
+### 🔧 Technical Deep Dives
+- **[{TECHNICAL_1}](/docs/core/{TECH_PATH_1})** - {Technical description}
+- **[{TECHNICAL_2}](/docs/core/{TECH_PATH_2})** - {Technical description}
+- **[{TECHNICAL_3}](/docs/core/{TECH_PATH_3})** - {Technical description}
+
+### 🏗️ Architecture & Patterns
+- **[{ARCH_1}](/docs/core/{ARCH_PATH_1})** - {Architecture description}
+- **[{ARCH_2}](/docs/core/{ARCH_PATH_2})** - {Architecture description}
+- **[{ARCH_3}](/docs/core/{ARCH_PATH_3})** - {Architecture description}
+```
+
+## Usage Instructions
+
+### When to Use Each Template
+
+1. **Standard Cross-Reference Section**: Use on every documentation page for basic navigation
+2. **Component-Specific Cross-References**: Use based on the primary focus of the page (agent, task, tool, memory)
+3. **Learning Paths**: Include on overview pages and tutorial content
+4. **Learning Path Breadcrumbs**: Use in sequential tutorial content
+5. **See Also Section**: Use at the end of comprehensive guides and detailed documentation
+
+### Customization Guidelines
+
+1. **Replace placeholders** in `{BRACKETS}` with actual content
+2. **Choose appropriate icons** (🤖 for agents, ⚙️ for tasks, 🔧 for tools, 🧠 for memory)
+3. **Use bidirectional arrows** (↔) to show two-way relationships
+4. **Include time estimates** for learning paths where appropriate
+5. **Keep descriptions brief** but informative
+
+### Consistency Requirements
+
+1. **Always use the same section headers** ("Related Documentation", "Cross-References", etc.)
+2. **Maintain bidirectional linking** - if page A links to page B, page B should link back to page A
+3. **Update learning paths** when new documentation is added
+4. **Use consistent URL patterns** and link text
+5. **Test all links** before publishing
+
+This template system ensures consistent cross-referencing patterns across all Compozy documentation while making it easy for maintainers to add proper navigation to new content.

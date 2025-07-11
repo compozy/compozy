@@ -1,6 +1,604 @@
 ---
-title: Transport Configuration
-description: Configuring MCP transports
+title: "Transport Configuration"
+description: "Configuring different transport mechanisms for MCP communication"
 ---
 
 # Transport Configuration
+
+MCP supports multiple transport mechanisms for communication between clients and servers. Each transport has different characteristics and use cases. This guide covers the configuration and usage of all supported transport types.
+
+## Transport Types Overview
+
+| Transport | Description | Best For | Protocol |
+|-----------|-------------|----------|----------|
+| **stdio** | Standard I/O | Local processes, Docker containers | Binary/JSON over pipes |
+| **sse** | Server-Sent Events | Real-time HTTP streaming | HTTP/EventSource |
+| **streamable-http** | HTTP with streaming | Large responses, file transfers | HTTP/Streaming |
+
+## stdio Transport
+
+The stdio transport spawns MCP servers as local processes and communicates via standard input/output streams.
+
+### Configuration
+
+```yaml
+mcps:
+  - id: filesystem
+    transport: stdio
+    command: "mcp-server-filesystem"
+    args: ["--root", "/data", "--log-level", "info"]
+    env:
+      WORKSPACE_ROOT: "/data"
+      LOG_LEVEL: "info"
+      MAX_FILE_SIZE: "10MB"
+    start_timeout: 30s
+    max_sessions: 5
+```
+
+### Go Configuration
+
+```go
+config := &mcp.Config{
+    ID:           "filesystem",
+    Transport:    mcpproxy.TransportStdio,
+    Command:      "mcp-server-filesystem",
+    Args:         []string{"--root", "/data"},
+    Env: map[string]string{
+        "WORKSPACE_ROOT": "/data",
+        "LOG_LEVEL":      "info",
+    },
+    StartTimeout: 30 * time.Second,
+    MaxSessions:  5,
+}
+```
+
+### Use Cases
+
+**Local File System Operations:**
+```yaml
+mcps:
+  - id: filesystem
+    transport: stdio
+    command: "mcp-server-filesystem"
+    args: ["--allowed-paths", "/data,/tmp"]
+    env:
+      LOG_LEVEL: "debug"
+```
+
+**Database Access:**
+```yaml
+mcps:
+  - id: postgres
+    transport: stdio
+    command: "mcp-server-postgres"
+    env:
+      DATABASE_URL: "postgres://user:pass@localhost/db"
+      POOL_SIZE: "10"
+```
+
+**Python Script Execution:**
+```yaml
+mcps:
+  - id: python-runtime
+    transport: stdio
+    command: "python"
+    args: ["-m", "mcp_server", "--mode", "production"]
+    env:
+      PYTHONPATH: "/app/libs:/app/modules"
+      PYTHON_ENV: "production"
+```
+
+**Docker Container:**
+```yaml
+mcps:
+  - id: docker-python
+    transport: stdio
+    command: "docker"
+    args: ["run", "--rm", "-i", "python:3.9", "python", "-m", "mcp_server"]
+    env:
+      DOCKER_HOST: "unix:///var/run/docker.sock"
+    start_timeout: 60s
+```
+
+### Advanced stdio Configuration
+
+```yaml
+mcps:
+  - id: complex-stdio
+    transport: stdio
+    command: "mcp-server-complex"
+    args: 
+      - "--config"
+      - "/etc/mcp/config.json"
+      - "--workers"
+      - "4"
+    env:
+      CONFIG_PATH: "/etc/mcp/config.json"
+      WORKER_COUNT: "4"
+      LOG_LEVEL: "info"
+      METRICS_PORT: "9090"
+    start_timeout: 45s
+    max_sessions: 10
+    auto_reconnect: true
+    max_reconnects: 3
+    reconnect_delay: 10s
+```
+
+## sse (Server-Sent Events) Transport
+
+The SSE transport uses HTTP Server-Sent Events for real-time bidirectional communication with remote MCP servers.
+
+### Configuration
+
+```yaml
+mcps:
+  - id: weather-api
+    transport: sse
+    url: "https://api.weather-mcp.com/v1/stream"
+    headers:
+      Authorization: "Bearer {{ .env.WEATHER_API_KEY }}"
+      Content-Type: "application/json"
+    timeout: 30s
+    auto_reconnect: true
+    max_reconnects: 5
+    reconnect_delay: 5s
+```
+
+### Go Configuration
+
+```go
+config := &mcp.Config{
+    ID:        "weather-api",
+    Transport: mcpproxy.TransportSSE,
+    URL:       "https://api.weather-mcp.com/v1/stream",
+    Headers: map[string]string{
+        "Authorization": "Bearer " + os.Getenv("WEATHER_API_KEY"),
+        "Content-Type":  "application/json",
+    },
+    Timeout:       30 * time.Second,
+    AutoReconnect: true,
+    MaxReconnects: 5,
+    ReconnectDelay: 5 * time.Second,
+}
+```
+
+### Use Cases
+
+**Real-time APIs:**
+```yaml
+mcps:
+  - id: live-data
+    transport: sse
+    url: "https://api.livedata.com/mcp/stream"
+    headers:
+      Authorization: "Bearer {{ .env.LIVE_DATA_TOKEN }}"
+      X-Client-ID: "compozy-client"
+    timeout: 60s
+    health_check_enabled: true
+    health_check_interval: 30s
+```
+
+**Chat/Messaging Services:**
+```yaml
+mcps:
+  - id: chat-service
+    transport: sse
+    url: "https://chat.example.com/mcp/events"
+    headers:
+      Authorization: "Bearer {{ .env.CHAT_TOKEN }}"
+      X-User-ID: "{{ .env.USER_ID }}"
+    timeout: 0  # No timeout for persistent connections
+    auto_reconnect: true
+    max_reconnects: -1  # Infinite reconnects
+```
+
+**Third-party Services:**
+```yaml
+mcps:
+  - id: github-api
+    transport: sse
+    url: "https://api.github.com/mcp/v1"
+    headers:
+      Authorization: "token {{ .env.GITHUB_TOKEN }}"
+      User-Agent: "Compozy/1.0"
+      Accept: "application/vnd.github.v3+json"
+    timeout: 30s
+```
+
+### Advanced SSE Configuration
+
+```yaml
+mcps:
+  - id: advanced-sse
+    transport: sse
+    url: "https://api.advanced.com/mcp/stream"
+    headers:
+      Authorization: "Bearer {{ .env.API_TOKEN }}"
+      X-Client-Version: "1.0"
+      X-Request-ID: "{{ .request_id }}"
+    timeout: 45s
+    auth_tokens: ["{{ .env.API_TOKEN }}"]
+    allowed_ips: ["10.0.0.0/8", "192.168.1.0/24"]
+    require_auth: true
+    auto_reconnect: true
+    max_reconnects: 10
+    reconnect_delay: 15s
+    health_check_enabled: true
+    health_check_interval: 60s
+```
+
+## streamable-http Transport
+
+The streamable-http transport uses HTTP with streaming support for handling large responses and file transfers.
+
+### Configuration
+
+```yaml
+mcps:
+  - id: file-processor
+    transport: streamable-http
+    url: "https://files.example.com/mcp/process"
+    headers:
+      Authorization: "Bearer {{ .env.FILE_API_TOKEN }}"
+      Content-Type: "application/json"
+    timeout: 300s  # 5 minutes for large files
+    max_sessions: 3
+```
+
+### Go Configuration
+
+```go
+config := &mcp.Config{
+    ID:        "file-processor",
+    Transport: mcpproxy.TransportStreamableHTTP,
+    URL:       "https://files.example.com/mcp/process",
+    Headers: map[string]string{
+        "Authorization": "Bearer " + os.Getenv("FILE_API_TOKEN"),
+        "Content-Type":  "application/json",
+    },
+    Timeout:     300 * time.Second,
+    MaxSessions: 3,
+}
+```
+
+### Use Cases
+
+**Large File Processing:**
+```yaml
+mcps:
+  - id: document-processor
+    transport: streamable-http
+    url: "https://docs.example.com/mcp/process"
+    headers:
+      Authorization: "Bearer {{ .env.DOC_API_TOKEN }}"
+      Content-Type: "application/json"
+    timeout: 600s  # 10 minutes
+    max_sessions: 2
+```
+
+**Data Analytics:**
+```yaml
+mcps:
+  - id: analytics-engine
+    transport: streamable-http
+    url: "https://analytics.example.com/mcp/query"
+    headers:
+      Authorization: "Bearer {{ .env.ANALYTICS_TOKEN }}"
+      X-Dataset: "production"
+    timeout: 180s
+    max_sessions: 5
+```
+
+**Media Processing:**
+```yaml
+mcps:
+  - id: media-converter
+    transport: streamable-http
+    url: "https://media.example.com/mcp/convert"
+    headers:
+      Authorization: "Bearer {{ .env.MEDIA_TOKEN }}"
+      Content-Type: "application/json"
+    timeout: 900s  # 15 minutes
+    max_sessions: 2
+```
+
+## Transport-Specific Features
+
+### stdio-specific Features
+
+**Process Management:**
+```yaml
+mcps:
+  - id: managed-process
+    transport: stdio
+    command: "mcp-server"
+    start_timeout: 30s
+    health_check_enabled: true
+    health_check_interval: 30s
+    auto_reconnect: true
+    max_reconnects: 3
+```
+
+**Environment Isolation:**
+```yaml
+mcps:
+  - id: isolated-env
+    transport: stdio
+    command: "env"
+    args: ["-i", "mcp-server"]  # Clear environment
+    env:
+      PATH: "/usr/local/bin:/usr/bin:/bin"
+      HOME: "/tmp"
+      USER: "mcp-user"
+```
+
+### HTTP-specific Features (SSE and streamable-http)
+
+**Authentication:**
+```yaml
+mcps:
+  - id: authenticated-service
+    transport: sse
+    url: "https://api.example.com/mcp"
+    headers:
+      Authorization: "Bearer {{ .env.API_TOKEN }}"
+      X-API-Version: "2023-10-01"
+    auth_tokens: ["{{ .env.API_TOKEN }}"]
+    require_auth: true
+```
+
+**Custom Headers:**
+```yaml
+mcps:
+  - id: custom-headers
+    transport: sse
+    url: "https://api.example.com/mcp"
+    headers:
+      User-Agent: "Compozy/1.0"
+      Accept: "application/json"
+      X-Custom-Header: "custom-value"
+      X-Request-ID: "{{ .request_id }}"
+```
+
+## Security Configuration
+
+### Authentication
+
+```yaml
+mcps:
+  - id: secure-service
+    transport: sse
+    url: "https://secure.example.com/mcp"
+    headers:
+      Authorization: "Bearer {{ .env.SECURE_TOKEN }}"
+    auth_tokens: ["{{ .env.SECURE_TOKEN }}"]
+    require_auth: true
+```
+
+### IP Restrictions
+
+```yaml
+mcps:
+  - id: ip-restricted
+    transport: sse
+    url: "https://internal.example.com/mcp"
+    allowed_ips:
+      - "10.0.0.0/8"
+      - "192.168.1.0/24"
+      - "172.16.0.0/12"
+```
+
+### TLS Configuration
+
+```yaml
+mcps:
+  - id: tls-secured
+    transport: sse
+    url: "https://secure.example.com/mcp"
+    headers:
+      Authorization: "Bearer {{ .env.TLS_TOKEN }}"
+    # TLS configuration handled by underlying HTTP client
+```
+
+## Error Handling and Resilience
+
+### Retry Configuration
+
+```yaml
+mcps:
+  - id: resilient-service
+    transport: sse
+    url: "https://api.example.com/mcp"
+    auto_reconnect: true
+    max_reconnects: 10
+    reconnect_delay: 5s
+    health_check_enabled: true
+    health_check_interval: 30s
+```
+
+### Timeout Configuration
+
+```yaml
+mcps:
+  - id: timeout-config
+    transport: streamable-http
+    url: "https://slow.example.com/mcp"
+    timeout: 300s  # 5 minutes
+    health_check_enabled: true
+    health_check_interval: 60s
+```
+
+### Circuit Breaker Pattern
+
+```yaml
+mcps:
+  - id: circuit-breaker
+    transport: sse
+    url: "https://unreliable.example.com/mcp"
+    auto_reconnect: true
+    max_reconnects: 5
+    reconnect_delay: 10s
+    health_check_enabled: true
+    health_check_interval: 30s
+    # Circuit breaker implemented in proxy layer
+```
+
+## Performance Optimization
+
+### Connection Pooling
+
+```yaml
+mcps:
+  - id: pooled-connections
+    transport: sse
+    url: "https://api.example.com/mcp"
+    max_sessions: 10  # Connection pool size
+    timeout: 30s
+```
+
+### Caching
+
+```yaml
+mcps:
+  - id: cached-service
+    transport: sse
+    url: "https://cacheable.example.com/mcp"
+    headers:
+      Cache-Control: "max-age=300"
+    timeout: 30s
+```
+
+### Load Balancing
+
+```yaml
+mcps:
+  - id: load-balanced-1
+    transport: sse
+    url: "https://lb1.example.com/mcp"
+    priority: 1
+    
+  - id: load-balanced-2
+    transport: sse
+    url: "https://lb2.example.com/mcp"
+    priority: 2
+```
+
+## Monitoring and Debugging
+
+### Health Checks
+
+```yaml
+mcps:
+  - id: monitored-service
+    transport: sse
+    url: "https://api.example.com/mcp"
+    health_check_enabled: true
+    health_check_interval: 30s
+    timeout: 10s
+```
+
+### Logging
+
+```yaml
+mcps:
+  - id: logged-service
+    transport: stdio
+    command: "mcp-server"
+    env:
+      LOG_LEVEL: "debug"
+    log_enabled: true
+```
+
+### Metrics
+
+```yaml
+mcps:
+  - id: metrics-enabled
+    transport: sse
+    url: "https://api.example.com/mcp"
+    headers:
+      X-Metrics-Enabled: "true"
+    # Metrics automatically collected by proxy
+```
+
+## Best Practices
+
+### Transport Selection
+
+1. **Use stdio for:**
+   - Local processes
+   - Docker containers
+   - Command-line tools
+   - High-performance local communication
+
+2. **Use SSE for:**
+   - Real-time APIs
+   - Event-driven services
+   - Long-lived connections
+   - WebSocket alternatives
+
+3. **Use streamable-http for:**
+   - Large file transfers
+   - Batch processing
+   - Data analytics
+   - Media processing
+
+### Configuration Guidelines
+
+1. **Set appropriate timeouts** based on expected response times
+2. **Enable health checks** for production services
+3. **Configure reconnection logic** for resilient connections
+4. **Use environment variables** for sensitive configuration
+5. **Implement proper authentication** for all external services
+
+### Security Best Practices
+
+1. **Never hardcode secrets** in configuration files
+2. **Use TLS/HTTPS** for all external connections
+3. **Implement proper authentication** and authorization
+4. **Configure IP restrictions** where appropriate
+5. **Regularly rotate** API tokens and credentials
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Connection Timeouts**
+   - Increase timeout values
+   - Check network connectivity
+   - Verify server availability
+
+2. **Authentication Failures**
+   - Verify tokens and credentials
+   - Check token expiration
+   - Review authentication headers
+
+3. **Process Startup Issues (stdio)**
+   - Check command path and arguments
+   - Verify environment variables
+   - Increase start timeout
+
+4. **SSL/TLS Issues**
+   - Verify certificate validity
+   - Check certificate chains
+   - Review TLS configuration
+
+### Debug Commands
+
+```bash
+# Test stdio transport
+mcp-server-test --transport stdio --command "echo hello"
+
+# Test SSE transport
+curl -H "Accept: text/event-stream" https://api.example.com/mcp/stream
+
+# Test streamable-http transport
+curl -X POST https://api.example.com/mcp/process -d '{"test": true}'
+```
+
+## Next Steps
+
+- [Security & Authentication](./security-authentication) - Secure your transport
+- [Client Manager](./client-manager) - Manage transport connections
+- [Monitoring & Metrics](./monitoring-metrics) - Monitor transport performance
+- [Development & Debugging](./development-debugging) - Debug transport issues

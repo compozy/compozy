@@ -1,6 +1,833 @@
 ---
-title: Privacy & Security
-description: Memory privacy and security
+title: "Privacy & Security"
+description: "Comprehensive guide to privacy controls, data protection, and security best practices for memory systems"
 ---
 
 # Privacy & Security
+
+Compozy's memory system includes comprehensive privacy and security features to protect sensitive data while maintaining functionality. This guide covers all aspects of secure memory management.
+
+## Privacy Controls
+
+### Redaction Patterns
+Automatically redact sensitive information using regex patterns:
+
+```yaml
+resource: memory
+id: secure_memory
+description: Memory with privacy protection
+
+privacy_policy:
+  redact_patterns:
+    # Social Security Numbers (XXX-XX-XXXX)
+    - '\b\d{3}-\d{2}-\d{4}\b'
+    
+    # Credit card numbers (various formats)
+    - '\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{3,6}\b'
+    
+    # Email addresses
+    - '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+    
+    # Phone numbers (US formats)
+    - '\b(?:\+?1[-.\s]?)?\(?[2-9]\d{2}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b'
+    
+    # IP addresses
+    - '\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b'
+    
+    # Account numbers
+    - '\baccount\s*#?\s*\d{6,12}\b'
+    
+    # API keys and tokens
+    - '\b[A-Za-z0-9+/]{20,}\b'
+    
+    # Custom business-specific patterns
+    - '\b[A-Z]{2,3}-\d{4,6}\b'  # Internal reference numbers
+  
+  # Replacement text for redacted content
+  default_redaction_string: "[REDACTED]"
+```
+
+### Common Redaction Patterns
+Pre-built patterns for common sensitive data types:
+
+```yaml
+privacy_policy:
+  redact_patterns:
+    # Financial information
+    - '\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{3,6}\b'  # Credit cards
+    - '\b\d{3}-\d{2}-\d{4}\b'                         # SSN
+    - '\b\d{2}-\d{7}\b'                               # Bank routing
+    
+    # Personal identifiers
+    - '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'  # Email
+    - '\b\d{3}[-.]?\d{3}[-.]?\d{4}\b'                         # Phone
+    
+    # Technical identifiers
+    - '\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b'  # UUID
+    - '\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b'  # IP
+    
+    # Authentication tokens
+    - '\b[A-Za-z0-9+/]{40,}\b'                        # Long tokens
+    - '\bBearer\s+[A-Za-z0-9+/=]{20,}\b'             # Bearer tokens
+    - '\b[A-Za-z0-9]{32,}\b'                          # API keys
+```
+
+### Non-Persistable Message Types
+Prevent certain message types from being stored:
+
+```yaml
+privacy_policy:
+  non_persistable_message_types:
+    - system          # System messages
+    - tool_internal   # Internal tool communications
+    - debug          # Debug information
+    - error          # Error messages
+    - authentication # Authentication-related messages
+    - admin          # Administrative messages
+    - temporary      # Temporary messages
+```
+
+### Privacy-Aware Message Storage
+Store messages with privacy metadata:
+
+```typescript
+interface PrivacyMetadata {
+  do_not_persist: boolean;
+  sensitive_fields: string[];
+  redaction_applied: boolean;
+  privacy_level: 'public' | 'private' | 'confidential';
+  retention_period?: string;
+}
+
+export async function privacyAwareMemoryTool(input: PrivacyMemoryInput): Promise<PrivacyMemoryOutput> {
+  const { memory_key, message, privacy_metadata } = input;
+  
+  // Apply privacy controls
+  const processedMessage = await applyPrivacyControls(message, privacy_metadata);
+  
+  // Check if message should be persisted
+  if (privacy_metadata.do_not_persist) {
+    return {
+      success: true,
+      message: 'Message processed but not persisted due to privacy controls',
+      persisted: false
+    };
+  }
+  
+  // Store with privacy metadata
+  await appendWithPrivacy(memory_key, processedMessage, privacy_metadata);
+  
+  return {
+    success: true,
+    message: 'Message stored with privacy controls applied',
+    persisted: true,
+    redaction_applied: privacy_metadata.redaction_applied
+  };
+}
+
+async function applyPrivacyControls(message: any, metadata: PrivacyMetadata): Promise<any> {
+  let processedMessage = { ...message };
+  
+  // Apply redaction to sensitive fields
+  if (metadata.sensitive_fields.length > 0) {
+    for (const field of metadata.sensitive_fields) {
+      if (processedMessage[field]) {
+        processedMessage[field] = '[REDACTED]';
+      }
+    }
+    metadata.redaction_applied = true;
+  }
+  
+  // Apply privacy level restrictions
+  if (metadata.privacy_level === 'confidential') {
+    processedMessage.content = await encryptContent(processedMessage.content);
+  }
+  
+  return processedMessage;
+}
+```
+
+## Security Architecture
+
+### Access Control
+Implement role-based access control for memory operations:
+
+```typescript
+interface AccessControlConfig {
+  roles: {
+    [role: string]: {
+      permissions: string[];
+      memory_patterns: string[];
+      max_retention: string;
+    };
+  };
+}
+
+const accessConfig: AccessControlConfig = {
+  roles: {
+    admin: {
+      permissions: ['read', 'write', 'delete', 'flush', 'export'],
+      memory_patterns: ['*'],
+      max_retention: '365d'
+    },
+    agent: {
+      permissions: ['read', 'write', 'flush'],
+      memory_patterns: ['agent:*', 'conversation:*'],
+      max_retention: '30d'
+    },
+    user: {
+      permissions: ['read'],
+      memory_patterns: ['user:{{.user_id}}', 'conversation:{{.conversation_id}}'],
+      max_retention: '7d'
+    },
+    analytics: {
+      permissions: ['read'],
+      memory_patterns: ['analytics:*'],
+      max_retention: '90d'
+    }
+  }
+};
+
+export async function secureMemoryTool(input: SecureMemoryInput): Promise<SecureMemoryOutput> {
+  const { memory_key, operation, user_role, user_id, message } = input;
+  
+  // Validate access permissions
+  const hasAccess = await validateAccess(user_role, operation, memory_key, user_id);
+  if (!hasAccess) {
+    throw new Error('Access denied: insufficient permissions');
+  }
+  
+  // Validate memory key pattern
+  const isValidPattern = await validateMemoryKeyPattern(memory_key, user_role, user_id);
+  if (!isValidPattern) {
+    throw new Error('Access denied: invalid memory key pattern');
+  }
+  
+  // Apply operation-specific security controls
+  const secureInput = await applySecurityControls(input, user_role);
+  
+  // Perform operation
+  const result = await performSecureOperation(secureInput);
+  
+  // Audit log the operation
+  await auditLog({
+    user_id,
+    user_role,
+    operation,
+    memory_key,
+    timestamp: new Date().toISOString(),
+    success: result.success
+  });
+  
+  return result;
+}
+```
+
+### Encryption at Rest
+Encrypt sensitive memory data:
+
+```typescript
+interface EncryptionConfig {
+  enabled: boolean;
+  algorithm: 'AES-256-GCM';
+  key_rotation_interval: string;
+  encrypt_fields: string[];
+}
+
+export async function encryptedMemoryTool(input: EncryptedMemoryInput): Promise<EncryptedMemoryOutput> {
+  const { memory_key, message, encryption_config } = input;
+  
+  if (!encryption_config.enabled) {
+    return await standardMemoryOperation(memory_key, message);
+  }
+  
+  // Encrypt specified fields
+  const encryptedMessage = await encryptMessage(message, encryption_config);
+  
+  // Store encrypted message
+  const result = await appendToMemory(memory_key, encryptedMessage);
+  
+  return {
+    ...result,
+    encryption_applied: true,
+    encrypted_fields: encryption_config.encrypt_fields
+  };
+}
+
+async function encryptMessage(message: any, config: EncryptionConfig): Promise<any> {
+  const encrypted = { ...message };
+  
+  for (const field of config.encrypt_fields) {
+    if (encrypted[field]) {
+      encrypted[field] = await encrypt(encrypted[field], config.algorithm);
+    }
+  }
+  
+  return encrypted;
+}
+```
+
+### Data Masking
+Mask sensitive data in memory operations:
+
+```typescript
+interface MaskingConfig {
+  enabled: boolean;
+  mask_fields: string[];
+  mask_patterns: RegExp[];
+  mask_character: string;
+  preserve_length: boolean;
+}
+
+export async function maskedMemoryTool(input: MaskedMemoryInput): Promise<MaskedMemoryOutput> {
+  const { memory_key, operation, masking_config } = input;
+  
+  if (operation === 'read') {
+    const messages = await readAllMessages(memory_key);
+    const maskedMessages = messages.map(msg => applyMasking(msg, masking_config));
+    
+    return {
+      success: true,
+      messages: maskedMessages,
+      masking_applied: true
+    };
+  }
+  
+  // For write operations, apply masking before storage
+  if (operation === 'append' && input.message) {
+    const maskedMessage = applyMasking(input.message, masking_config);
+    await appendToMemory(memory_key, maskedMessage);
+    
+    return {
+      success: true,
+      masking_applied: true
+    };
+  }
+  
+  return await standardMemoryOperation(memory_key, input);
+}
+
+function applyMasking(message: any, config: MaskingConfig): any {
+  if (!config.enabled) return message;
+  
+  const masked = { ...message };
+  
+  // Mask specific fields
+  for (const field of config.mask_fields) {
+    if (masked[field]) {
+      masked[field] = maskField(masked[field], config);
+    }
+  }
+  
+  // Apply pattern-based masking
+  if (typeof masked.content === 'string') {
+    for (const pattern of config.mask_patterns) {
+      masked.content = masked.content.replace(pattern, (match) => 
+        config.preserve_length 
+          ? config.mask_character.repeat(match.length)
+          : '[MASKED]'
+      );
+    }
+  }
+  
+  return masked;
+}
+```
+
+## Data Protection
+
+### Data Retention Policies
+Implement automated data retention and deletion:
+
+```yaml
+resource: memory
+id: retention_managed_memory
+description: Memory with automated retention policies
+
+privacy_policy:
+  retention_policy:
+    default_retention: "30d"
+    max_retention: "365d"
+    rules:
+      - message_type: "user"
+        retention: "90d"
+      - message_type: "system"
+        retention: "7d"
+      - privacy_level: "confidential"
+        retention: "1d"
+      - contains_patterns:
+          - "sensitive"
+          - "private"
+        retention: "7d"
+  
+  auto_deletion:
+    enabled: true
+    check_interval: "24h"
+    batch_size: 100
+```
+
+### Audit Logging
+Track all memory operations for compliance:
+
+```typescript
+interface AuditLog {
+  timestamp: string;
+  user_id: string;
+  user_role: string;
+  operation: string;
+  memory_key: string;
+  success: boolean;
+  error?: string;
+  ip_address?: string;
+  user_agent?: string;
+  privacy_controls_applied?: boolean;
+}
+
+export async function auditedMemoryTool(input: AuditedMemoryInput): Promise<AuditedMemoryOutput> {
+  const { memory_key, operation, user_id, user_role, audit_metadata } = input;
+  
+  const auditEntry: AuditLog = {
+    timestamp: new Date().toISOString(),
+    user_id,
+    user_role,
+    operation,
+    memory_key,
+    success: false,
+    ...audit_metadata
+  };
+  
+  try {
+    // Perform memory operation
+    const result = await performMemoryOperation(memory_key, operation, input);
+    
+    auditEntry.success = true;
+    auditEntry.privacy_controls_applied = result.privacy_controls_applied;
+    
+    // Log successful operation
+    await logAuditEntry(auditEntry);
+    
+    return result;
+  } catch (error) {
+    auditEntry.success = false;
+    auditEntry.error = error.message;
+    
+    // Log failed operation
+    await logAuditEntry(auditEntry);
+    
+    throw error;
+  }
+}
+
+async function logAuditEntry(entry: AuditLog): Promise<void> {
+  // Store audit log in secure, tamper-proof storage
+  await storeAuditLog(entry);
+  
+  // Send to external audit system if configured
+  if (process.env.EXTERNAL_AUDIT_ENDPOINT) {
+    await sendToExternalAudit(entry);
+  }
+}
+```
+
+### Data Anonymization
+Anonymize data while preserving utility:
+
+```typescript
+interface AnonymizationConfig {
+  enabled: boolean;
+  anonymize_user_ids: boolean;
+  anonymize_content: boolean;
+  preserve_patterns: string[];
+  hash_salt: string;
+}
+
+export async function anonymizedMemoryTool(input: AnonymizedMemoryInput): Promise<AnonymizedMemoryOutput> {
+  const { memory_key, operation, anonymization_config } = input;
+  
+  if (!anonymization_config.enabled) {
+    return await standardMemoryOperation(memory_key, input);
+  }
+  
+  if (operation === 'read') {
+    const messages = await readAllMessages(memory_key);
+    const anonymizedMessages = messages.map(msg => anonymizeMessage(msg, anonymization_config));
+    
+    return {
+      success: true,
+      messages: anonymizedMessages,
+      anonymization_applied: true
+    };
+  }
+  
+  if (operation === 'append' && input.message) {
+    const anonymizedMessage = anonymizeMessage(input.message, anonymization_config);
+    await appendToMemory(memory_key, anonymizedMessage);
+    
+    return {
+      success: true,
+      anonymization_applied: true
+    };
+  }
+  
+  return await standardMemoryOperation(memory_key, input);
+}
+
+function anonymizeMessage(message: any, config: AnonymizationConfig): any {
+  const anonymized = { ...message };
+  
+  // Anonymize user IDs
+  if (config.anonymize_user_ids && anonymized.user_id) {
+    anonymized.user_id = hashValue(anonymized.user_id, config.hash_salt);
+  }
+  
+  // Anonymize content while preserving patterns
+  if (config.anonymize_content && anonymized.content) {
+    anonymized.content = anonymizeContent(anonymized.content, config);
+  }
+  
+  return anonymized;
+}
+```
+
+## Compliance Features
+
+### GDPR Compliance
+Implement GDPR-compliant memory operations:
+
+```typescript
+interface GDPRConfig {
+  enabled: boolean;
+  data_controller: string;
+  retention_period: string;
+  anonymization_delay: string;
+  deletion_method: 'immediate' | 'scheduled' | 'anonymize';
+}
+
+export async function gdprCompliantMemoryTool(input: GDPRMemoryInput): Promise<GDPRMemoryOutput> {
+  const { memory_key, operation, user_id, gdpr_config } = input;
+  
+  if (!gdpr_config.enabled) {
+    return await standardMemoryOperation(memory_key, input);
+  }
+  
+  switch (operation) {
+    case 'right_to_access':
+      return await handleRightToAccess(user_id, memory_key);
+    
+    case 'right_to_rectification':
+      return await handleRightToRectification(user_id, memory_key, input.corrections);
+    
+    case 'right_to_erasure':
+      return await handleRightToErasure(user_id, memory_key, gdpr_config);
+    
+    case 'right_to_portability':
+      return await handleRightToPortability(user_id, memory_key);
+    
+    case 'right_to_restriction':
+      return await handleRightToRestriction(user_id, memory_key);
+    
+    default:
+      // Apply standard privacy controls
+      const result = await standardMemoryOperation(memory_key, input);
+      
+      // Track data processing for compliance
+      await trackDataProcessing({
+        user_id,
+        operation,
+        memory_key,
+        timestamp: new Date().toISOString(),
+        legal_basis: 'legitimate_interest',
+        data_controller: gdpr_config.data_controller
+      });
+      
+      return result;
+  }
+}
+
+async function handleRightToErasure(userId: string, memoryKey: string, config: GDPRConfig): Promise<GDPRMemoryOutput> {
+  switch (config.deletion_method) {
+    case 'immediate':
+      await deleteUserData(userId, memoryKey);
+      break;
+    
+    case 'scheduled':
+      await scheduleDataDeletion(userId, memoryKey, config.retention_period);
+      break;
+    
+    case 'anonymize':
+      await anonymizeUserData(userId, memoryKey, config.anonymization_delay);
+      break;
+  }
+  
+  return {
+    success: true,
+    gdpr_request: 'right_to_erasure',
+    processing_method: config.deletion_method,
+    completion_time: new Date().toISOString()
+  };
+}
+```
+
+### SOC 2 Compliance
+Implement SOC 2 compliance features:
+
+```typescript
+interface SOC2Config {
+  enabled: boolean;
+  control_objectives: string[];
+  monitoring_interval: string;
+  incident_response: {
+    enabled: boolean;
+    notification_threshold: number;
+    escalation_rules: any[];
+  };
+}
+
+export async function soc2CompliantMemoryTool(input: SOC2MemoryInput): Promise<SOC2MemoryOutput> {
+  const { memory_key, operation, soc2_config } = input;
+  
+  if (!soc2_config.enabled) {
+    return await standardMemoryOperation(memory_key, input);
+  }
+  
+  // Apply security controls
+  const securityResult = await applySecurityControls(input);
+  if (!securityResult.success) {
+    await handleSecurityIncident(securityResult.violation, soc2_config);
+    throw new Error('Security control violation');
+  }
+  
+  // Monitor availability
+  const availabilityResult = await monitorAvailability(memory_key);
+  if (!availabilityResult.available) {
+    await handleAvailabilityIncident(availabilityResult, soc2_config);
+  }
+  
+  // Ensure processing integrity
+  const integrityResult = await ensureProcessingIntegrity(input);
+  if (!integrityResult.valid) {
+    await handleIntegrityIncident(integrityResult, soc2_config);
+    throw new Error('Processing integrity violation');
+  }
+  
+  // Apply confidentiality controls
+  const confidentialityResult = await applyConfidentialityControls(input);
+  
+  // Ensure privacy controls
+  const privacyResult = await ensurePrivacyControls(input);
+  
+  // Perform operation with all controls applied
+  const result = await performControlledOperation(memory_key, operation, {
+    ...input,
+    security_applied: securityResult.success,
+    integrity_verified: integrityResult.valid,
+    confidentiality_applied: confidentialityResult.success,
+    privacy_applied: privacyResult.success
+  });
+  
+  return {
+    ...result,
+    soc2_compliance: {
+      security: securityResult.success,
+      availability: availabilityResult.available,
+      processing_integrity: integrityResult.valid,
+      confidentiality: confidentialityResult.success,
+      privacy: privacyResult.success
+    }
+  };
+}
+```
+
+## Security Best Practices
+
+### Input Validation
+Validate all memory inputs for security:
+
+```typescript
+interface ValidationRules {
+  max_message_length: number;
+  allowed_roles: string[];
+  blocked_patterns: RegExp[];
+  required_fields: string[];
+}
+
+export async function validatedMemoryTool(input: ValidatedMemoryInput): Promise<ValidatedMemoryOutput> {
+  const { memory_key, message, validation_rules } = input;
+  
+  // Validate memory key format
+  if (!isValidMemoryKey(memory_key)) {
+    throw new Error('Invalid memory key format');
+  }
+  
+  // Validate message content
+  if (message) {
+    const validationResult = validateMessage(message, validation_rules);
+    if (!validationResult.valid) {
+      throw new Error(`Message validation failed: ${validationResult.error}`);
+    }
+  }
+  
+  // Sanitize inputs
+  const sanitizedInput = sanitizeInput(input);
+  
+  return await performMemoryOperation(memory_key, sanitizedInput);
+}
+
+function validateMessage(message: any, rules: ValidationRules): { valid: boolean; error?: string } {
+  // Check message length
+  if (message.content && message.content.length > rules.max_message_length) {
+    return { valid: false, error: 'Message too long' };
+  }
+  
+  // Check for blocked patterns
+  for (const pattern of rules.blocked_patterns) {
+    if (pattern.test(message.content)) {
+      return { valid: false, error: 'Message contains blocked content' };
+    }
+  }
+  
+  // Check required fields
+  for (const field of rules.required_fields) {
+    if (!message[field]) {
+      return { valid: false, error: `Missing required field: ${field}` };
+    }
+  }
+  
+  return { valid: true };
+}
+```
+
+### Rate Limiting
+Implement rate limiting for memory operations:
+
+```typescript
+interface RateLimitConfig {
+  enabled: boolean;
+  max_requests_per_minute: number;
+  max_requests_per_hour: number;
+  burst_limit: number;
+  penalty_duration: string;
+}
+
+const rateLimitStore = new Map<string, { count: number; timestamp: number; penalty_until?: number }>();
+
+export async function rateLimitedMemoryTool(input: RateLimitedMemoryInput): Promise<RateLimitedMemoryOutput> {
+  const { memory_key, user_id, operation, rate_limit_config } = input;
+  
+  if (!rate_limit_config.enabled) {
+    return await standardMemoryOperation(memory_key, input);
+  }
+  
+  const rateLimitKey = `${user_id}:${operation}`;
+  const now = Date.now();
+  
+  // Check penalty period
+  const limitData = rateLimitStore.get(rateLimitKey);
+  if (limitData?.penalty_until && now < limitData.penalty_until) {
+    throw new Error('Rate limit exceeded, request blocked');
+  }
+  
+  // Check rate limits
+  const isAllowed = await checkRateLimit(rateLimitKey, rate_limit_config);
+  if (!isAllowed) {
+    // Apply penalty
+    const penaltyUntil = now + parseDuration(rate_limit_config.penalty_duration);
+    rateLimitStore.set(rateLimitKey, {
+      count: 0,
+      timestamp: now,
+      penalty_until: penaltyUntil
+    });
+    
+    throw new Error('Rate limit exceeded');
+  }
+  
+  return await standardMemoryOperation(memory_key, input);
+}
+```
+
+### Monitoring and Alerting
+Monitor memory operations for security events:
+
+```typescript
+interface SecurityMonitoringConfig {
+  enabled: boolean;
+  alert_thresholds: {
+    failed_operations_per_minute: number;
+    unusual_access_patterns: number;
+    large_data_operations: number;
+  };
+  notification_channels: string[];
+}
+
+export async function monitoredMemoryTool(input: MonitoredMemoryInput): Promise<MonitoredMemoryOutput> {
+  const { memory_key, operation, user_id, monitoring_config } = input;
+  
+  if (!monitoring_config.enabled) {
+    return await standardMemoryOperation(memory_key, input);
+  }
+  
+  const operationStart = Date.now();
+  
+  try {
+    // Perform operation
+    const result = await performMemoryOperation(memory_key, operation, input);
+    
+    // Log successful operation
+    await logSecurityEvent({
+      type: 'memory_operation',
+      user_id,
+      operation,
+      memory_key,
+      success: true,
+      duration: Date.now() - operationStart,
+      timestamp: new Date().toISOString()
+    });
+    
+    return result;
+  } catch (error) {
+    // Log failed operation
+    await logSecurityEvent({
+      type: 'memory_operation_failure',
+      user_id,
+      operation,
+      memory_key,
+      success: false,
+      error: error.message,
+      duration: Date.now() - operationStart,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Check for security anomalies
+    await checkSecurityAnomalies(user_id, operation, error, monitoring_config);
+    
+    throw error;
+  }
+}
+
+async function checkSecurityAnomalies(userId: string, operation: string, error: Error, config: SecurityMonitoringConfig): Promise<void> {
+  // Check for unusual failure patterns
+  const recentFailures = await getRecentFailures(userId, operation, '1m');
+  if (recentFailures.length > config.alert_thresholds.failed_operations_per_minute) {
+    await sendSecurityAlert({
+      type: 'excessive_failures',
+      user_id: userId,
+      operation,
+      failure_count: recentFailures.length,
+      time_window: '1m'
+    });
+  }
+  
+  // Check for unusual access patterns
+  const accessPattern = await analyzeAccessPattern(userId);
+  if (accessPattern.anomaly_score > config.alert_thresholds.unusual_access_patterns) {
+    await sendSecurityAlert({
+      type: 'unusual_access_pattern',
+      user_id: userId,
+      anomaly_score: accessPattern.anomaly_score,
+      details: accessPattern.details
+    });
+  }
+}
+```
+
+This comprehensive privacy and security guide ensures that your memory system meets enterprise-level security requirements while maintaining usability and performance.

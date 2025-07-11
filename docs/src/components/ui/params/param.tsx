@@ -1,5 +1,3 @@
-"use client";
-
 import { cn } from "@/lib/utils";
 import { ChevronDown, TableProperties } from "lucide-react";
 import React from "react";
@@ -77,12 +75,12 @@ const bodyVariants = tv({
 });
 
 // Body component for parameter descriptions
-interface BodyProps {
+export interface BodyProps {
   children: React.ReactNode;
   className?: string;
 }
 
-function Body({ children, className }: BodyProps) {
+export function Body({ children, className }: BodyProps) {
   const styles = bodyVariants();
   return <div className={cn(styles.base(), className)}>{children}</div>;
 }
@@ -107,19 +105,19 @@ const expandableVariants = tv({
 });
 
 // Expandable Root component
-interface ExpandableRootProps {
+export interface ParamCollapseProps {
   children: React.ReactNode;
   className?: string;
   type?: "single" | "multiple";
   defaultValue?: string | string[];
 }
 
-function ExpandableRoot({
+export function ParamCollapse({
   children,
   className,
   type = "single",
   defaultValue,
-}: ExpandableRootProps) {
+}: ParamCollapseProps) {
   const styles = expandableVariants();
 
   // Handle type-specific props for Accordion
@@ -143,19 +141,19 @@ function ExpandableRoot({
 }
 
 // Expandable Item component
-interface ExpandableItemProps {
+export interface ParamCollapseItemProps {
   title: string;
   children: React.ReactNode;
   value: string;
   icon?: React.ReactNode;
 }
 
-function ExpandableItem({
+export function ParamCollapseItem({
   title,
   children,
   value,
   icon = <TableProperties className="size-3" />,
-}: ExpandableItemProps) {
+}: ParamCollapseItemProps) {
   const styles = expandableVariants();
   return (
     <AccordionItem value={value} className={styles.accordionItem()}>
@@ -241,11 +239,3 @@ export function Param(props: ParamProps) {
     </div>
   );
 }
-
-// Compound component exports
-Param.Body = Body;
-Param.ExpandableRoot = ExpandableRoot;
-Param.ExpandableItem = ExpandableItem;
-
-// Export types
-export type { BodyProps, ExpandableItemProps, ExpandableRootProps };

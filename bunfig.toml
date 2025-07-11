@@ -1,5 +1,5 @@
 # Bun configuration file
-# This replaces the previous deno.json configuration
+# This configuration replaces deno.json and provides Bun-specific settings
 
 [install]
 # Auto-install dependencies when importing

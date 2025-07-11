@@ -1,6 +1,1044 @@
 ---
-title: Production Deployment
-description: Deploying MCP to production
+title: "Production Deployment"
+description: "Best practices and considerations for deploying MCP integrations in production environments"
 ---
 
 # Production Deployment
+
+Deploying MCP integrations in production requires careful consideration of reliability, scalability, security, and operational concerns. This guide covers comprehensive deployment strategies and best practices for production MCP environments.
+
+## Deployment Architecture
+
+### High-Availability Setup
+
+Configure MCP services for high availability:
+
+```yaml
+# compozy.yaml - Production configuration
+name: production-mcp
+version: "1.0.0"
+description: "Production MCP deployment"
+
+# MCP Proxy configuration for production
+mcp_proxy:
+  enabled: true
+  port: 8081
+  host: "0.0.0.0"
+  
+  # High availability settings
+  cluster:
+    enabled: true
+    nodes:
+      - id: "mcp-proxy-1"
+        host: "mcp-proxy-1.internal"
+        port: 8081
+        weight: 100
+      - id: "mcp-proxy-2"
+        host: "mcp-proxy-2.internal"
+        port: 8081
+        weight: 100
+    
+    # Load balancing strategy
+    load_balancer:
+      strategy: "round_robin"  # round_robin, least_connections, ip_hash
+      health_check:
+        enabled: true
+        interval: 30s
+        timeout: 5s
+        retries: 3
+        path: "/health"
+  
+  # Resource limits
+  resources:
+    memory_limit: "1Gi"
+    cpu_limit: "1000m"
+    max_connections: 1000
+    connection_timeout: 30s
+    
+  # Security configuration
+  security:
+    tls:
+      enabled: true
+      cert_file: "/etc/ssl/certs/mcp-proxy.crt"
+      key_file: "/etc/ssl/private/mcp-proxy.key"
+      ca_file: "/etc/ssl/certs/ca.crt"
+    
+    auth:
+      enabled: true
+      method: "jwt"
+      secret: "{{ .env.MCP_JWT_SECRET }}"
+      
+  # Logging and monitoring
+  logging:
+    level: "info"
+    format: "json"
+    output: "stdout"
+    
+  monitoring:
+    metrics:
+      enabled: true
+      port: 9090
+      path: "/metrics"
+    
+    health_check:
+      enabled: true
+      port: 8080
+      path: "/health"
+
+# Production MCP servers
+mcps:
+  - id: filesystem_prod
+    transport: stdio
+    command: /usr/local/bin/mcp-filesystem-server
+    args:
+      - "--root-path"
+      - "/var/lib/compozy/workspace"
+      - "--max-file-size"
+      - "100MB"
+      - "--allowed-extensions"
+      - "txt,json,yaml,yml,md,csv"
+    proto: "2025-03-26"
+    
+    # Production environment settings
+    env:
+      LOG_LEVEL: "warn"
+      ENABLE_METRICS: "true"
+      MAX_CONCURRENT_OPERATIONS: "50"
+      OPERATION_TIMEOUT: "30s"
+      
+    # Resource limits
+    resources:
+      memory_limit: "512Mi"
+      cpu_limit: "500m"
+      max_processes: 10
+      
+    # Health check configuration
+    health_check:
+      enabled: true
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      command: ["/usr/local/bin/health-check", "--server", "filesystem"]
+      
+    # Restart policy
+    restart_policy:
+      max_retries: 3
+      backoff_factor: 2
+      max_backoff: 300s
+      
+  - id: database_prod
+    transport: stdio
+    command: /usr/local/bin/mcp-database-server
+    args:
+      - "--connection-string"
+      - "{{ .env.DATABASE_URL }}"
+      - "--pool-size"
+      - "20"
+      - "--max-query-timeout"
+      - "30s"
+    proto: "2025-03-26"
+    
+    env:
+      LOG_LEVEL: "warn"
+      ENABLE_QUERY_LOGGING: "false"
+      CONNECTION_POOL_SIZE: "20"
+      MAX_QUERY_TIMEOUT: "30s"
+      
+    resources:
+      memory_limit: "1Gi"
+      cpu_limit: "1000m"
+      max_connections: 50
+      
+    health_check:
+      enabled: true
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      command: ["/usr/local/bin/health-check", "--server", "database"]
+      
+  - id: external_api_prod
+    url: "https://api.external-service.com"
+    transport: sse
+    proto: "2025-03-26"
+    
+    env:
+      API_KEY: "{{ .env.EXTERNAL_API_KEY }}"
+      RATE_LIMIT: "1000"
+      TIMEOUT: "30s"
+      
+    # Circuit breaker configuration
+    circuit_breaker:
+      enabled: true
+      failure_threshold: 5
+      recovery_timeout: 60s
+      half_open_max_calls: 3
+      
+    # Retry configuration
+    retry:
+      enabled: true
+      max_attempts: 3
+      backoff_strategy: "exponential"
+      initial_interval: 1s
+      max_interval: 30s
+      multiplier: 2
+      
+    health_check:
+      enabled: true
+      interval: 60s
+      timeout: 10s
+      retries: 2
+      url: "https://api.external-service.com/health"
+```
+
+## Container Deployment
+
+### Docker Configuration
+
+Deploy MCP components using Docker:
+
+```dockerfile
+# Dockerfile.mcp-proxy
+FROM golang:1.21-alpine AS builder
+
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -o mcp-proxy ./cmd/mcp-proxy
+
+FROM alpine:latest
+RUN apk --no-cache add ca-certificates tzdata
+WORKDIR /root/
+
+# Create non-root user
+RUN addgroup -g 1001 -S mcpuser && \
+    adduser -u 1001 -S mcpuser -G mcpuser
+
+# Copy binary and set permissions
+COPY --from=builder /app/mcp-proxy .
+RUN chmod +x mcp-proxy
+
+# Create directories
+RUN mkdir -p /var/lib/compozy/workspace /var/log/compozy
+RUN chown -R mcpuser:mcpuser /var/lib/compozy /var/log/compozy
+
+# Switch to non-root user
+USER mcpuser
+
+EXPOSE 8081 8080 9090
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+  CMD ["./mcp-proxy", "health-check"]
+
+CMD ["./mcp-proxy", "serve"]
+```
+
+### Docker Compose Configuration
+
+```yaml
+# docker-compose.prod.yml
+version: '3.8'
+
+services:
+  mcp-proxy-1:
+    build:
+      context: .
+      dockerfile: Dockerfile.mcp-proxy
+    hostname: mcp-proxy-1
+    environment:
+      - MCP_NODE_ID=mcp-proxy-1
+      - MCP_CLUSTER_ENABLED=true
+      - MCP_JWT_SECRET_FILE=/run/secrets/jwt_secret
+      - DATABASE_URL_FILE=/run/secrets/database_url
+    volumes:
+      - mcp_workspace:/var/lib/compozy/workspace
+      - mcp_logs:/var/log/compozy
+      - /etc/ssl/certs:/etc/ssl/certs:ro
+      - /etc/ssl/private:/etc/ssl/private:ro
+    networks:
+      - mcp_network
+    secrets:
+      - jwt_secret
+      - database_url
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+    healthcheck:
+      test: ["CMD", "./mcp-proxy", "health-check"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  mcp-proxy-2:
+    build:
+      context: .
+      dockerfile: Dockerfile.mcp-proxy
+    hostname: mcp-proxy-2
+    environment:
+      - MCP_NODE_ID=mcp-proxy-2
+      - MCP_CLUSTER_ENABLED=true
+      - MCP_JWT_SECRET_FILE=/run/secrets/jwt_secret
+      - DATABASE_URL_FILE=/run/secrets/database_url
+    volumes:
+      - mcp_workspace:/var/lib/compozy/workspace
+      - mcp_logs:/var/log/compozy
+      - /etc/ssl/certs:/etc/ssl/certs:ro
+      - /etc/ssl/private:/etc/ssl/private:ro
+    networks:
+      - mcp_network
+    secrets:
+      - jwt_secret
+      - database_url
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+    healthcheck:
+      test: ["CMD", "./mcp-proxy", "health-check"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  load-balancer:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - /etc/ssl/certs:/etc/ssl/certs:ro
+      - /etc/ssl/private:/etc/ssl/private:ro
+    depends_on:
+      - mcp-proxy-1
+      - mcp-proxy-2
+    networks:
+      - mcp_network
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - mcp_network
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=compozy
+      - POSTGRES_USER=compozy
+      - POSTGRES_PASSWORD_FILE=/run/secrets/postgres_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - mcp_network
+    secrets:
+      - postgres_password
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    networks:
+      - mcp_network
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 512M
+
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD_FILE=/run/secrets/grafana_password
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - mcp_network
+    secrets:
+      - grafana_password
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+networks:
+  mcp_network:
+    driver: overlay
+    attachable: true
+
+volumes:
+  mcp_workspace:
+  mcp_logs:
+  redis_data:
+  postgres_data:
+  prometheus_data:
+  grafana_data:
+
+secrets:
+  jwt_secret:
+    external: true
+  database_url:
+    external: true
+  postgres_password:
+    external: true
+  grafana_password:
+    external: true
+```
+
+## Kubernetes Deployment
+
+### MCP Proxy Deployment
+
+```yaml
+# k8s/mcp-proxy-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-proxy
+  namespace: compozy
+  labels:
+    app: mcp-proxy
+    version: v1.0.0
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: mcp-proxy
+  template:
+    metadata:
+      labels:
+        app: mcp-proxy
+        version: v1.0.0
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+      
+      containers:
+      - name: mcp-proxy
+        image: compozy/mcp-proxy:v1.0.0
+        ports:
+        - containerPort: 8081
+          name: http
+        - containerPort: 8080
+          name: health
+        - containerPort: 9090
+          name: metrics
+        
+        env:
+        - name: MCP_NODE_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: MCP_CLUSTER_ENABLED
+          value: "true"
+        - name: MCP_JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: mcp-secrets
+              key: jwt-secret
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: mcp-secrets
+              key: database-url
+        
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+          requests:
+            cpu: 500m
+            memory: 512Mi
+        
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: health
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: health
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        
+        volumeMounts:
+        - name: workspace
+          mountPath: /var/lib/compozy/workspace
+        - name: logs
+          mountPath: /var/log/compozy
+        - name: tls-certs
+          mountPath: /etc/ssl/certs
+          readOnly: true
+        - name: tls-private
+          mountPath: /etc/ssl/private
+          readOnly: true
+      
+      volumes:
+      - name: workspace
+        persistentVolumeClaim:
+          claimName: mcp-workspace
+      - name: logs
+        persistentVolumeClaim:
+          claimName: mcp-logs
+      - name: tls-certs
+        secret:
+          secretName: mcp-tls-certs
+      - name: tls-private
+        secret:
+          secretName: mcp-tls-private
+      
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - mcp-proxy
+              topologyKey: kubernetes.io/hostname
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-proxy-service
+  namespace: compozy
+  labels:
+    app: mcp-proxy
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8081
+    targetPort: 8081
+    name: http
+  - port: 8080
+    targetPort: 8080
+    name: health
+  - port: 9090
+    targetPort: 9090
+    name: metrics
+  selector:
+    app: mcp-proxy
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: mcp-proxy-ingress
+  namespace: compozy
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+spec:
+  tls:
+  - hosts:
+    - mcp.example.com
+    secretName: mcp-tls-secret
+  rules:
+  - host: mcp.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: mcp-proxy-service
+            port:
+              number: 8081
+```
+
+### ConfigMap and Secrets
+
+```yaml
+# k8s/mcp-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mcp-config
+  namespace: compozy
+data:
+  config.yaml: |
+    server:
+      port: 8081
+      host: "0.0.0.0"
+      read_timeout: 30s
+      write_timeout: 30s
+      max_header_bytes: 1048576
+    
+    cluster:
+      enabled: true
+      discovery:
+        method: "kubernetes"
+        namespace: "compozy"
+        label_selector: "app=mcp-proxy"
+    
+    logging:
+      level: "info"
+      format: "json"
+      output: "stdout"
+    
+    metrics:
+      enabled: true
+      port: 9090
+      path: "/metrics"
+    
+    health:
+      enabled: true
+      port: 8080
+      path: "/health"
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mcp-secrets
+  namespace: compozy
+type: Opaque
+stringData:
+  jwt-secret: "your-jwt-secret-here"
+  database-url: "postgresql://user:password@postgres:5432/compozy"
+  external-api-key: "your-external-api-key-here"
+```
+
+## Monitoring and Alerting
+
+### Prometheus Configuration
+
+```yaml
+# prometheus.yml
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+
+rule_files:
+  - "mcp_rules.yml"
+
+scrape_configs:
+  - job_name: 'mcp-proxy'
+    static_configs:
+      - targets: ['mcp-proxy-1:9090', 'mcp-proxy-2:9090']
+    scrape_interval: 15s
+    metrics_path: /metrics
+    
+  - job_name: 'mcp-servers'
+    static_configs:
+      - targets: ['mcp-proxy-1:8081', 'mcp-proxy-2:8081']
+    scrape_interval: 30s
+    metrics_path: /api/v1/metrics
+    
+  - job_name: 'kubernetes-pods'
+    kubernetes_sd_configs:
+      - role: pod
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+        action: keep
+        regex: true
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+        action: replace
+        target_label: __metrics_path__
+        regex: (.+)
+```
+
+### Alerting Rules
+
+```yaml
+# mcp_rules.yml
+groups:
+  - name: mcp-proxy
+    rules:
+      - alert: MCPProxyDown
+        expr: up{job="mcp-proxy"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "MCP Proxy instance is down"
+          description: "MCP Proxy instance {{ $labels.instance }} has been down for more than 1 minute."
+      
+      - alert: MCPHighErrorRate
+        expr: rate(mcp_requests_errors_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate in MCP requests"
+          description: "Error rate for MCP requests is {{ $value }} per second on {{ $labels.instance }}."
+      
+      - alert: MCPHighLatency
+        expr: histogram_quantile(0.95, rate(mcp_request_duration_seconds_bucket[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High latency in MCP requests"
+          description: "95th percentile latency is {{ $value }} seconds on {{ $labels.instance }}."
+      
+      - alert: MCPServerUnhealthy
+        expr: mcp_server_health_status != 1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "MCP Server is unhealthy"
+          description: "MCP Server {{ $labels.server_name }} on {{ $labels.instance }} is unhealthy."
+      
+      - alert: MCPHighMemoryUsage
+        expr: process_resident_memory_bytes{job="mcp-proxy"} > 1073741824
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage in MCP Proxy"
+          description: "MCP Proxy instance {{ $labels.instance }} is using more than 1GB of memory."
+```
+
+## Security Hardening
+
+### Network Security
+
+```yaml
+# k8s/network-policy.yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mcp-proxy-network-policy
+  namespace: compozy
+spec:
+  podSelector:
+    matchLabels:
+      app: mcp-proxy
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    - podSelector:
+        matchLabels:
+          app: compozy-app
+    ports:
+    - protocol: TCP
+      port: 8081
+  
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    ports:
+    - protocol: TCP
+      port: 9090
+    - protocol: TCP
+      port: 8080
+  
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: database
+    ports:
+    - protocol: TCP
+      port: 5432
+  
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: cache
+    ports:
+    - protocol: TCP
+      port: 6379
+  
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 53
+    - protocol: UDP
+      port: 53
+  
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+```
+
+### Security Scanning
+
+```yaml
+# .github/workflows/security-scan.yml
+name: Security Scan
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: 'compozy/mcp-proxy:latest'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+    
+    - name: Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: 'trivy-results.sarif'
+    
+    - name: Run Snyk to check for vulnerabilities
+      uses: snyk/actions/node@master
+      env:
+        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      with:
+        args: --severity-threshold=high
+```
+
+## Backup and Recovery
+
+### Backup Strategy
+
+```bash
+#!/bin/bash
+# backup-mcp-data.sh
+
+set -e
+
+BACKUP_DIR="/var/backups/mcp"
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+BACKUP_NAME="mcp_backup_${TIMESTAMP}"
+
+# Create backup directory
+mkdir -p "${BACKUP_DIR}/${BACKUP_NAME}"
+
+# Backup configuration
+echo "Backing up MCP configuration..."
+kubectl get configmap mcp-config -n compozy -o yaml > "${BACKUP_DIR}/${BACKUP_NAME}/config.yaml"
+kubectl get secret mcp-secrets -n compozy -o yaml > "${BACKUP_DIR}/${BACKUP_NAME}/secrets.yaml"
+
+# Backup persistent volumes
+echo "Backing up persistent volumes..."
+kubectl get pvc -n compozy -o yaml > "${BACKUP_DIR}/${BACKUP_NAME}/pvc.yaml"
+
+# Backup database
+echo "Backing up database..."
+kubectl exec -n compozy postgres-0 -- pg_dump -U compozy compozy > "${BACKUP_DIR}/${BACKUP_NAME}/database.sql"
+
+# Backup Redis data
+echo "Backing up Redis data..."
+kubectl exec -n compozy redis-0 -- redis-cli --rdb > "${BACKUP_DIR}/${BACKUP_NAME}/redis.rdb"
+
+# Backup workspace data
+echo "Backing up workspace data..."
+kubectl cp compozy/mcp-proxy-0:/var/lib/compozy/workspace "${BACKUP_DIR}/${BACKUP_NAME}/workspace"
+
+# Create tar archive
+echo "Creating backup archive..."
+tar -czf "${BACKUP_DIR}/${BACKUP_NAME}.tar.gz" -C "${BACKUP_DIR}" "${BACKUP_NAME}"
+
+# Clean up temporary directory
+rm -rf "${BACKUP_DIR}/${BACKUP_NAME}"
+
+# Upload to remote storage (optional)
+if [ -n "${BACKUP_S3_BUCKET}" ]; then
+    echo "Uploading backup to S3..."
+    aws s3 cp "${BACKUP_DIR}/${BACKUP_NAME}.tar.gz" "s3://${BACKUP_S3_BUCKET}/mcp-backups/"
+fi
+
+echo "Backup completed: ${BACKUP_NAME}.tar.gz"
+```
+
+### Recovery Procedure
+
+```bash
+#!/bin/bash
+# restore-mcp-data.sh
+
+set -e
+
+BACKUP_FILE="$1"
+RESTORE_DIR="/tmp/mcp_restore"
+
+if [ -z "$BACKUP_FILE" ]; then
+    echo "Usage: $0 <backup_file>"
+    exit 1
+fi
+
+# Extract backup
+echo "Extracting backup..."
+mkdir -p "$RESTORE_DIR"
+tar -xzf "$BACKUP_FILE" -C "$RESTORE_DIR"
+
+BACKUP_NAME=$(basename "$BACKUP_FILE" .tar.gz)
+BACKUP_PATH="${RESTORE_DIR}/${BACKUP_NAME}"
+
+# Restore configuration
+echo "Restoring configuration..."
+kubectl apply -f "${BACKUP_PATH}/config.yaml"
+kubectl apply -f "${BACKUP_PATH}/secrets.yaml"
+
+# Restore persistent volumes
+echo "Restoring persistent volumes..."
+kubectl apply -f "${BACKUP_PATH}/pvc.yaml"
+
+# Restore database
+echo "Restoring database..."
+kubectl exec -n compozy postgres-0 -- psql -U compozy -d compozy < "${BACKUP_PATH}/database.sql"
+
+# Restore Redis data
+echo "Restoring Redis data..."
+kubectl cp "${BACKUP_PATH}/redis.rdb" compozy/redis-0:/data/dump.rdb
+kubectl rollout restart deployment/redis -n compozy
+
+# Restore workspace data
+echo "Restoring workspace data..."
+kubectl cp "${BACKUP_PATH}/workspace" compozy/mcp-proxy-0:/var/lib/compozy/workspace
+
+# Clean up
+rm -rf "$RESTORE_DIR"
+
+echo "Recovery completed successfully"
+```
+
+## Best Practices
+
+### 1. Resource Management
+
+- Set appropriate resource limits and requests
+- Use horizontal pod autoscaling for dynamic scaling
+- Monitor resource usage and adjust as needed
+
+### 2. Security
+
+- Use least privilege access principles
+- Implement network policies to restrict traffic
+- Regular security scanning and updates
+- Use secrets management for sensitive data
+
+### 3. Monitoring
+
+- Implement comprehensive monitoring and alerting
+- Use distributed tracing for request tracking
+- Monitor both infrastructure and application metrics
+- Set up log aggregation and analysis
+
+### 4. Reliability
+
+- Implement circuit breakers for external dependencies
+- Use health checks and readiness probes
+- Design for graceful degradation
+- Implement proper retry logic with exponential backoff
+
+### 5. Operational Excellence
+
+- Use Infrastructure as Code (IaC)
+- Implement automated deployment pipelines
+- Regular backup and recovery testing
+- Documentation and runbooks for operations
+
+This comprehensive production deployment guide ensures that MCP integrations are deployed securely, reliably, and efficiently in production environments.
+
+## Next Steps
+
+- Configure [Monitoring & Metrics](/docs/core/mcp/monitoring-metrics) for comprehensive observability
+- Set up [Admin API](/docs/core/mcp/admin-api) for operational management
+- Review [Security & Authentication](/docs/core/mcp/security-authentication) for additional security measures
+- Explore [Integration Patterns](/docs/core/mcp/integration-patterns) for advanced deployment scenarios

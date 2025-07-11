@@ -1,6 +1,225 @@
 ---
-title: MCP Overview & Architecture
-description: Understanding Model Context Protocol
+title: "MCP Overview"
+description: "Understanding Model Context Protocol (MCP) integration in Compozy"
 ---
 
-# MCP Overview & Architecture
+# MCP Overview
+
+Model Context Protocol (MCP) is a standardized protocol that enables AI agents to interact with external tools, services, and data sources through a unified interface. It bridges the gap between language models and the external world, providing a consistent way for agents to extend their capabilities beyond their core language model functionality.
+
+## Related Documentation
+
+### 🔗 Cross-References
+- **[Agent Tools](/docs/core/agents/tools)** - How agents use MCP tools
+- **[Tools Overview](/docs/core/tools/tools-overview)** - Built-in tool system vs MCP
+- **[External Integrations](/docs/core/tools/external-integrations)** - Integration patterns
+- **[Configuration](/docs/core/configuration/project-setup)** - MCP server configuration
+
+### 🔌 MCP-Related Topics
+- **MCP Integration** ↔ **[Agent Capabilities](/docs/core/agents/tools)** ↔ **[Tool Development](/docs/core/tools/tools-overview)**
+- **MCP Servers** ↔ **[External Tools](/docs/core/tools/external-integrations)** ↔ **[Proxy Configuration](/docs/core/mcp/mcp-proxy-server)**
+- **Transport Layer** ↔ **[Security Authentication](/docs/core/mcp/security-authentication)** ↔ **[Production Deployment](/docs/core/mcp/production-deployment)**
+
+## What is MCP?
+
+MCP is a protocol that allows AI agents to:
+
+- **Access file systems and databases** - Read, write, and manipulate files and data
+- **Call APIs and web services** - Interact with external REST APIs and web services
+- **Execute code in various runtimes** - Run Python, JavaScript, and other code
+- **Interact with specialized tools** - Use domain-specific tools and utilities
+
+## Architecture Overview
+
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│   AI Agent  │────▶│  MCP Proxy  │────▶│ MCP Server  │
+└─────────────┘     └─────────────┘     └─────────────┘
+      │                    │                    │
+      └── Uses tools ──────┴── Manages ────────┴── Provides tools
+```
+
+### Key Components
+
+1. **MCP Proxy** - Central gateway that manages all MCP server connections
+2. **MCP Servers** - External services that provide tools and capabilities
+3. **AI Agents** - Your AI applications that use MCP tools
+4. **Transport Layer** - Communication protocols (SSE, HTTP, stdio)
+
+## MCP Server Types
+
+### 1. Remote MCP Servers (HTTP/HTTPS)
+
+Remote servers accessed via network endpoints using Server-Sent Events (SSE) or HTTP streaming:
+
+```yaml
+mcps:
+  - id: weather-api
+    url: "https://api.weather-mcp.com/v1"
+    transport: sse
+    proto: "2025-03-26"
+    env:
+      API_KEY: "{{ .env.WEATHER_API_KEY }}"
+```
+
+### 2. Local Process Servers (stdio)
+
+Child processes spawned locally, communicating via standard I/O:
+
+```yaml
+mcps:
+  - id: filesystem
+    command: "mcp-server-filesystem"
+    args: ["--root", "/data"]
+    transport: stdio
+    env:
+      LOG_LEVEL: "debug"
+```
+
+### 3. Docker-based Servers
+
+Run MCP servers in containers with environment configuration:
+
+```yaml
+mcps:
+  - id: database
+    command: "docker run --rm -i mcp-postgres:latest"
+    transport: stdio
+    env:
+      DATABASE_URL: "postgres://user:pass@db/myapp"
+    start_timeout: 30s
+```
+
+## Transport Types
+
+| Transport | Description | Use Case |
+|-----------|-------------|----------|
+| **sse** | Server-Sent Events | Real-time streaming from HTTP servers |
+| **streamable-http** | HTTP with streaming | Large responses, file transfers |
+| **stdio** | Standard I/O | Local processes, Docker containers |
+
+## Key Features
+
+### Dynamic Registration
+- Hot-add, update, or remove servers via Admin API
+- No downtime required for server management
+- Automatic reconnection with configurable back-off
+
+### Security
+- Token-based authentication
+- IP allow-lists and trusted proxy support
+- Environment variable management for secrets
+
+### Observability
+- Health checks and connection monitoring
+- Metrics and performance tracking
+- Comprehensive logging
+
+### Tool Discovery
+- Automatic tool discovery from all registered servers
+- Aggregated tool listing across multiple servers
+- Tool filtering and access control
+
+## Environment Requirements
+
+The MCP system requires these environment variables:
+
+```bash
+# Required: MCP proxy service URL
+MCP_PROXY_URL=http://localhost:8081
+
+# Optional: Admin token for proxy management
+MCP_PROXY_ADMIN_TOKEN=your-admin-token
+```
+
+## Quick Start Example
+
+```yaml
+# In your agent configuration
+agent:
+  id: data-analyst
+  instructions: "Analyze data using available tools"
+  
+  mcps:
+    - id: sql-server
+      url: "http://mcp-proxy:3000/sql"
+      transport: sse
+      
+    - id: python-runtime
+      command: "mcp-python-server"
+      transport: stdio
+      env:
+        PYTHONPATH: "/app/libs"
+  
+  actions:
+    - prompt: "Query the sales database and create a visualization"
+```
+
+## Integration with Compozy
+
+MCP seamlessly integrates with Compozy's workflow system:
+
+1. **Agent Configuration** - Define MCP servers in agent YAML files
+2. **Tool Discovery** - Automatically discover and register tools
+3. **Workflow Integration** - Use MCP tools in workflow tasks
+4. **Error Handling** - Robust error handling with retries
+5. **Resource Management** - Automatic cleanup and connection management
+
+## Integration with Compozy Components
+
+<FeatureCardList cols={2}>
+  <FeatureCard title="Agent Configuration" href="/docs/core/agents/overview">
+    Configure MCP servers in your AI agents for extended capabilities
+  </FeatureCard>
+  <FeatureCard title="Task Integration" href="/docs/core/tasks/basic-tasks">
+    Use MCP tools within workflow tasks for external service integration
+  </FeatureCard>
+  <FeatureCard title="Tool Development" href="/docs/core/tools/tools-overview">
+    Learn how MCP complements TypeScript tool development
+  </FeatureCard>
+  <FeatureCard title="Configuration Setup" href="/docs/core/configuration/providers">
+    Set up MCP providers in your project configuration
+  </FeatureCard>
+</FeatureCardList>
+
+## Technical Deep Dive
+
+<FeatureCardList cols={2}>
+  <FeatureCard title="MCP Proxy Server" href="/docs/core/mcp/mcp-proxy-server">
+    Learn about the proxy architecture and management
+  </FeatureCard>
+  <FeatureCard title="Transport Configuration" href="/docs/core/mcp/transport-configuration">
+    Configure different transport types and protocols
+  </FeatureCard>
+  <FeatureCard title="Security & Authentication" href="/docs/core/mcp/security-authentication">
+    Secure your MCP setup with proper authentication
+  </FeatureCard>
+  <FeatureCard title="Tool Discovery" href="/docs/core/mcp/tool-discovery">
+    Understand automatic tool discovery mechanisms
+  </FeatureCard>
+</FeatureCardList>
+
+## User Journey Navigation
+
+### For Beginners
+- Start with [Getting Started Guide](/docs/core/getting-started/quick-start) to understand basic concepts
+- Follow [First Workflow Tutorial](/docs/core/getting-started/first-workflow) for hands-on experience
+- Learn [Agent Basics](/docs/core/agents/overview) before diving into MCP integration
+
+### For Intermediate Users
+- Explore [Integration Patterns](/docs/core/mcp/integration-patterns) for advanced use cases
+- Study [Production Deployment](/docs/core/mcp/production-deployment) for scaling considerations
+- Review [Monitoring & Metrics](/docs/core/mcp/monitoring-metrics) for observability
+
+### For Advanced Users
+- Master [Development & Debugging](/docs/core/mcp/development-debugging) techniques
+- Implement [Custom Storage Backends](/docs/core/mcp/storage-backends)
+- Build [Custom MCP Servers](/docs/core/examples/advanced-examples) for specialized tools
+
+## Benefits
+
+- **Standardization** - Unified interface for tool integration
+- **Extensibility** - Easy to add new tools and services
+- **Reliability** - Built-in retry logic and error handling
+- **Performance** - Efficient connection pooling and caching
+- **Security** - Comprehensive authentication and authorization

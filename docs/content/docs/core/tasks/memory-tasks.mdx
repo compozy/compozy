@@ -1,6 +1,957 @@
 ---
 title: Memory Tasks
-description: Working with memory tasks
+description: Manage persistent memory storage with read, write, append, and memory management operations
 ---
 
-# Memory Tasks
+Memory tasks provide persistent storage capabilities for workflows, enabling data persistence, session management, and context preservation across workflow executions. They integrate seamlessly with Compozy's memory management system to provide scalable, efficient storage.
+
+## Overview
+
+Memory tasks offer comprehensive memory management capabilities:
+
+- **CRUD Operations**: Create, read, update, and delete memory entries
+- **Session Management**: Maintain user sessions and conversation history
+- **Context Preservation**: Store and retrieve workflow context
+- **Memory Health**: Monitor memory usage and performance
+- **Automatic Cleanup**: Configurable memory flushing and eviction
+- **Multi-Backend Support**: Redis, in-memory, and custom storage backends
+
+<Callout type="info">
+Memory tasks are stateful operations that persist data beyond individual workflow executions, making them ideal for conversational AI, user session management, and data caching.
+</Callout>
+
+## Task Structure
+
+### Basic Memory Task
+
+```yaml
+id: store-user-data
+type: memory
+operation: write
+memory_ref: user_session
+key_template: "user:{{ .workflow.input.user_id }}:profile"
+
+payload:
+  role: "system"
+  content: |
+    User Profile:
+    Name: {{ .workflow.input.name }}
+    Email: {{ .workflow.input.email }}
+    Preferences: {{ .workflow.input.preferences | toJson }}
+    Created: {{ now | date "2006-01-02 15:04:05" }}
+
+on_success:
+  next: process-user-data
+```
+
+### Memory Operations
+
+<Tabs items={["Read/Write", "Append", "Management", "Health"]}>
+<Tab value="Read/Write">
+
+Basic read and write operations:
+
+```yaml
+# Write operation
+id: write-memory
+type: memory
+operation: write
+memory_ref: conversation_memory
+key_template: "conversation:{{ .workflow.input.session_id }}:{{ .workflow.input.message_id }}"
+
+payload:
+  role: "user"
+  content: "{{ .workflow.input.message }}"
+  timestamp: "{{ now }}"
+  metadata:
+    user_id: "{{ .workflow.input.user_id }}"
+    session_id: "{{ .workflow.input.session_id }}"
+
+on_success:
+  next: read-conversation-history
+
+---
+
+# Read operation
+id: read-conversation-history
+type: memory
+operation: read
+memory_ref: conversation_memory
+key_template: "conversation:{{ .workflow.input.session_id }}:*"
+
+# Optional read configuration
+read_config:
+  limit: 50
+  pattern: "conversation:*"
+  include_metadata: true
+
+outputs:
+  conversation_history: "{{ .output.messages }}"
+  message_count: "{{ len .output.messages }}"
+
+on_success:
+  next: process-conversation
+
+---
+
+# Conditional read with fallback
+id: read-user-preferences
+type: memory
+operation: read
+memory_ref: user_memory
+key_template: "user:{{ .workflow.input.user_id }}:preferences"
+
+outputs:
+  preferences: "{{ .output | default .workflow.input.default_preferences }}"
+  has_stored_preferences: "{{ ne .output null }}"
+
+on_success:
+  next: "{{ if .outputs.has_stored_preferences }}use-preferences{{ else }}create-preferences{{ end }}"
+```
+
+</Tab>
+<Tab value="Append">
+
+Append operations for growing datasets:
+
+```yaml
+# Append to conversation
+id: append-message
+type: memory
+operation: append
+memory_ref: conversation_memory
+key_template: "conversation:{{ .workflow.input.session_id }}:history"
+
+payload:
+  role: "assistant"
+  content: "{{ .tasks.generate_response.output.response }}"
+  timestamp: "{{ now }}"
+  metadata:
+    model: "{{ .tasks.generate_response.output.model }}"
+    tokens_used: "{{ .tasks.generate_response.output.tokens }}"
+    confidence: "{{ .tasks.generate_response.output.confidence }}"
+
+on_success:
+  next: update-session-stats
+
+---
+
+# Append to activity log
+id: log-activity
+type: memory
+operation: append
+memory_ref: activity_log
+key_template: "activity:{{ .workflow.input.user_id }}:{{ now | date '2006-01-02' }}"
+
+payload:
+  role: "system"
+  content: |
+    Activity: {{ .workflow.input.activity_type }}
+    Details: {{ .workflow.input.details | toJson }}
+    Timestamp: {{ now | date "15:04:05" }}
+    IP: {{ .workflow.input.client_ip }}
+
+# Append with size limits
+append_config:
+  max_entries: 1000
+  auto_truncate: true
+  truncate_strategy: "oldest_first"
+
+on_success:
+  next: analyze-activity-patterns
+
+---
+
+# Append with conditional logic
+id: conditional-append
+type: memory
+operation: append
+memory_ref: user_memory
+key_template: "user:{{ .workflow.input.user_id }}:notifications"
+
+# Only append if condition is met
+condition: "{{ .workflow.input.notification_enabled }}"
+
+payload:
+  role: "system"
+  content: |
+    Notification: {{ .workflow.input.notification_type }}
+    Message: {{ .workflow.input.message }}
+    Priority: {{ .workflow.input.priority }}
+    Sent: {{ now | date "2006-01-02 15:04:05" }}
+
+on_success:
+  next: send-notification
+on_skip:
+  next: skip-notification
+```
+
+</Tab>
+<Tab value="Management">
+
+Memory management operations:
+
+```yaml
+# Clear memory
+id: clear-user-session
+type: memory
+operation: clear
+memory_ref: user_session
+key_template: "user:{{ .workflow.input.user_id }}:*"
+
+clear_config:
+  confirm: true
+  backup: true
+  pattern: "user:*:session"
+
+on_success:
+  next: session-cleared-notification
+
+---
+
+# Delete specific memory entry
+id: delete-expired-data
+type: memory
+operation: delete
+memory_ref: temp_storage
+key_template: "temp:{{ .workflow.input.temp_id }}"
+
+on_success:
+  next: cleanup-complete
+
+---
+
+# Flush memory (trigger eviction)
+id: flush-memory
+type: memory
+operation: flush
+memory_ref: user_memory
+key_template: "user:{{ .workflow.input.user_id }}:*"
+
+flush_config:
+  strategy: "lru"  # or "fifo", "priority"
+  threshold: 0.8
+  max_keys: 100
+  dry_run: false
+  force: false
+
+outputs:
+  flushed_keys: "{{ .output.flushed_keys }}"
+  remaining_keys: "{{ .output.remaining_keys }}"
+  memory_freed: "{{ .output.memory_freed }}"
+
+on_success:
+  next: memory-optimization-complete
+```
+
+</Tab>
+<Tab value="Health">
+
+Memory health and statistics:
+
+```yaml
+# Get memory statistics
+id: get-memory-stats
+type: memory
+operation: stats
+memory_ref: user_memory
+key_template: "user:{{ .workflow.input.user_id }}:*"
+
+stats_config:
+  include_content: false
+  group_by: "user"
+  include_metadata: true
+
+outputs:
+  memory_usage: "{{ .output.usage }}"
+  key_count: "{{ .output.key_count }}"
+  total_size: "{{ .output.total_size }}"
+  last_access: "{{ .output.last_access }}"
+
+on_success:
+  next: analyze-memory-usage
+
+---
+
+# Health check
+id: memory-health-check
+type: memory
+operation: health
+memory_ref: user_memory
+key_template: "user:{{ .workflow.input.user_id }}:profile"
+
+health_config:
+  check_connectivity: true
+  include_stats: true
+  test_operations: true
+
+outputs:
+  health_status: "{{ .output.status }}"
+  connection_ok: "{{ .output.connectivity.ok }}"
+  response_time: "{{ .output.connectivity.response_time }}"
+  memory_stats: "{{ .output.stats }}"
+
+on_success:
+  next: "{{ if eq .outputs.health_status 'healthy' }}continue-processing{{ else }}handle-memory-issues{{ end }}"
+
+---
+
+# Combined stats and health
+id: comprehensive-memory-check
+type: memory
+operation: stats
+memory_ref: system_memory
+key_template: "*"
+
+stats_config:
+  include_content: false
+  group_by: "namespace"
+  include_health: true
+
+outputs:
+  system_stats: "{{ .output }}"
+  memory_pressure: "{{ gt .output.usage_percentage 0.8 }}"
+  needs_cleanup: "{{ gt .output.stale_keys 100 }}"
+
+on_success:
+  next: "{{ if .outputs.memory_pressure }}memory-cleanup{{ else }}continue-processing{{ end }}"
+```
+
+</Tab>
+</Tabs>
+
+## Memory Key Patterns
+
+### Dynamic Key Generation
+
+Create flexible, scalable key patterns:
+
+```yaml
+# User session keys
+id: user-session-keys
+type: memory
+operation: write
+memory_ref: user_sessions
+key_template: "session:{{ .workflow.input.user_id }}:{{ .workflow.input.session_id }}:{{ now | date '2006-01-02' }}"
+
+payload:
+  role: "system"
+  content: "Session started"
+
+---
+
+# Hierarchical keys
+id: hierarchical-keys
+type: memory
+operation: write
+memory_ref: organization_data
+key_template: "org:{{ .workflow.input.org_id }}:dept:{{ .workflow.input.dept_id }}:user:{{ .workflow.input.user_id }}"
+
+payload:
+  role: "user"
+  content: "{{ .workflow.input.data }}"
+
+---
+
+# Time-based keys
+id: time-based-keys
+type: memory
+operation: write
+memory_ref: analytics
+key_template: "metrics:{{ .workflow.input.metric_type }}:{{ now | date '2006-01-02-15' }}"
+
+payload:
+  role: "system"
+  content: |
+    Metric: {{ .workflow.input.metric_type }}
+    Value: {{ .workflow.input.value }}
+    Timestamp: {{ now }}
+
+---
+
+# Conditional key patterns
+id: conditional-keys
+type: memory
+operation: write
+memory_ref: user_data
+key_template: |
+  {{
+    if .workflow.input.is_premium
+      "premium:user:{{ .workflow.input.user_id }}:data"
+    else
+      "basic:user:{{ .workflow.input.user_id }}:data"
+  }}
+
+payload:
+  role: "user"
+  content: "{{ .workflow.input.content }}"
+```
+
+### Key Namespace Management
+
+Organize memory with namespaces:
+
+```yaml
+# Application namespaces
+id: app-namespace
+type: memory
+operation: write
+memory_ref: app_memory
+key_template: "app:{{ .env.APP_NAME }}:{{ .workflow.input.feature }}:{{ .workflow.input.key }}"
+
+payload:
+  role: "system"
+  content: "{{ .workflow.input.data }}"
+
+---
+
+# Environment-specific keys
+id: env-specific-keys
+type: memory
+operation: write
+memory_ref: config_memory
+key_template: "config:{{ .env.ENVIRONMENT }}:{{ .workflow.input.config_key }}"
+
+payload:
+  role: "system"
+  content: "{{ .workflow.input.config_value }}"
+
+---
+
+# Multi-tenant keys
+id: tenant-keys
+type: memory
+operation: write
+memory_ref: tenant_memory
+key_template: "tenant:{{ .workflow.input.tenant_id }}:{{ .workflow.input.resource_type }}:{{ .workflow.input.resource_id }}"
+
+payload:
+  role: "system"
+  content: "{{ .workflow.input.resource_data }}"
+```
+
+## Advanced Memory Patterns
+
+### Conversation Management
+
+Manage conversational AI memory:
+
+```yaml
+id: conversation-memory-system
+type: memory
+operation: read
+memory_ref: conversation_memory
+key_template: "conversation:{{ .workflow.input.session_id }}:*"
+
+outputs:
+  conversation_history: "{{ .output }}"
+  message_count: "{{ len .output }}"
+
+on_success:
+  next: process-conversation-context
+
+---
+
+id: process-conversation-context
+type: basic
+$use: agent(local::agents.#(id=="conversation-processor"))
+action: process_with_context
+
+with:
+  current_message: "{{ .workflow.input.message }}"
+  conversation_history: "{{ .tasks.conversation-memory-system.outputs.conversation_history }}"
+  user_context: "{{ .workflow.input.user_context }}"
+
+on_success:
+  next: store-response
+
+---
+
+id: store-response
+type: memory
+operation: append
+memory_ref: conversation_memory
+key_template: "conversation:{{ .workflow.input.session_id }}:history"
+
+payload:
+  role: "assistant"
+  content: "{{ .tasks.process-conversation-context.output.response }}"
+  timestamp: "{{ now }}"
+  metadata:
+    model: "{{ .tasks.process-conversation-context.output.model }}"
+    tokens: "{{ .tasks.process-conversation-context.output.tokens }}"
+    confidence: "{{ .tasks.process-conversation-context.output.confidence }}"
+
+# Manage conversation length
+append_config:
+  max_entries: 100
+  auto_truncate: true
+  truncate_strategy: "sliding_window"
+
+on_success:
+  next: update-conversation-stats
+```
+
+### Session State Management
+
+Maintain user session state:
+
+```yaml
+id: session-state-manager
+type: memory
+operation: read
+memory_ref: user_sessions
+key_template: "session:{{ .workflow.input.session_id }}:state"
+
+outputs:
+  session_state: "{{ .output | default (dict 'step' 'initial' 'data' (dict)) }}"
+
+on_success:
+  next: update-session-state
+
+---
+
+id: update-session-state
+type: memory
+operation: write
+memory_ref: user_sessions
+key_template: "session:{{ .workflow.input.session_id }}:state"
+
+payload:
+  role: "system"
+  content: |
+    Session State Update:
+    Previous Step: {{ .tasks.session-state-manager.outputs.session_state.step }}
+    Current Step: {{ .workflow.input.current_step }}
+    Data: {{ .workflow.input.step_data | toJson }}
+    Updated: {{ now | date "2006-01-02 15:04:05" }}
+
+on_success:
+  next: process-step
+
+---
+
+id: process-step
+type: basic
+$use: agent(local::agents.#(id=="step-processor"))
+action: process_step
+
+with:
+  step: "{{ .workflow.input.current_step }}"
+  session_state: "{{ .tasks.session-state-manager.outputs.session_state }}"
+  input_data: "{{ .workflow.input.step_data }}"
+
+on_success:
+  next: save-step-result
+
+---
+
+id: save-step-result
+type: memory
+operation: write
+memory_ref: user_sessions
+key_template: "session:{{ .workflow.input.session_id }}:step:{{ .workflow.input.current_step }}"
+
+payload:
+  role: "system"
+  content: |
+    Step Result:
+    Step: {{ .workflow.input.current_step }}
+    Result: {{ .tasks.process-step.output | toJson }}
+    Completed: {{ now | date "2006-01-02 15:04:05" }}
+
+final: true
+```
+
+### Cache Management
+
+Implement caching patterns:
+
+```yaml
+id: cache-lookup
+type: memory
+operation: read
+memory_ref: api_cache
+key_template: "cache:{{ .workflow.input.cache_key }}"
+
+outputs:
+  cached_data: "{{ .output }}"
+  cache_hit: "{{ ne .output null }}"
+
+on_success:
+  next: "{{ if .outputs.cache_hit }}use-cached-data{{ else }}fetch-fresh-data{{ end }}"
+
+---
+
+id: fetch-fresh-data
+type: basic
+$use: tool(local::tools.#(id=="api-client"))
+
+with:
+  endpoint: "{{ .workflow.input.endpoint }}"
+  parameters: "{{ .workflow.input.parameters }}"
+
+on_success:
+  next: cache-fresh-data
+
+---
+
+id: cache-fresh-data
+type: memory
+operation: write
+memory_ref: api_cache
+key_template: "cache:{{ .workflow.input.cache_key }}"
+
+payload:
+  role: "system"
+  content: |
+    Cached Data:
+    Source: {{ .workflow.input.endpoint }}
+    Data: {{ .tasks.fetch-fresh-data.output | toJson }}
+    Cached: {{ now | date "2006-01-02 15:04:05" }}
+    TTL: {{ .workflow.input.cache_ttl | default "1h" }}
+
+# Set TTL for cache expiration
+write_config:
+  ttl: "{{ .workflow.input.cache_ttl | default '1h' }}"
+
+on_success:
+  next: use-fresh-data
+
+---
+
+id: use-cached-data
+type: aggregate
+
+outputs:
+  data: "{{ .tasks.cache-lookup.outputs.cached_data }}"
+  source: "cache"
+
+final: true
+
+---
+
+id: use-fresh-data
+type: aggregate
+
+outputs:
+  data: "{{ .tasks.fetch-fresh-data.output }}"
+  source: "api"
+
+final: true
+```
+
+## Real-World Examples
+
+### Example 1: Multi-User Chat System
+
+<Steps>
+<Step>
+
+**Message Storage**: Store incoming messages with metadata
+
+```yaml
+id: store-message
+type: memory
+operation: append
+memory_ref: chat_memory
+key_template: "chat:{{ .workflow.input.room_id }}:messages"
+
+payload:
+  role: "user"
+  content: |
+    User: {{ .workflow.input.user_id }}
+    Message: {{ .workflow.input.message }}
+    Timestamp: {{ now | date "15:04:05" }}
+    Type: {{ .workflow.input.message_type | default "text" }}
+
+append_config:
+  max_entries: 500
+  auto_truncate: true
+  truncate_strategy: "sliding_window"
+
+on_success:
+  next: update-room-stats
+```
+
+</Step>
+<Step>
+
+**Room Statistics**: Track room activity and user participation
+
+```yaml
+id: update-room-stats
+type: memory
+operation: write
+memory_ref: chat_memory
+key_template: "chat:{{ .workflow.input.room_id }}:stats"
+
+payload:
+  role: "system"
+  content: |
+    Room Statistics:
+    Last Activity: {{ now | date "2006-01-02 15:04:05" }}
+    Message Count: {{ add (.tasks.get-room-stats.output.message_count | default 0) 1 }}
+    Active Users: {{ .workflow.input.active_users | toJson }}
+    User: {{ .workflow.input.user_id }}
+
+on_success:
+  next: get-recent-messages
+```
+
+</Step>
+<Step>
+
+**Message Retrieval**: Get recent messages for new users
+
+```yaml
+id: get-recent-messages
+type: memory
+operation: read
+memory_ref: chat_memory
+key_template: "chat:{{ .workflow.input.room_id }}:messages"
+
+read_config:
+  limit: 20
+  reverse: true  # Most recent first
+
+outputs:
+  recent_messages: "{{ .output }}"
+  message_count: "{{ len .output }}"
+
+on_success:
+  next: broadcast-message
+```
+
+</Step>
+</Steps>
+
+### Example 2: User Preference Learning
+
+```yaml
+id: user-preference-learning
+type: memory
+operation: read
+memory_ref: user_preferences
+key_template: "user:{{ .workflow.input.user_id }}:preferences"
+
+outputs:
+  current_preferences: "{{ .output | default (dict 'initialized' false) }}"
+
+on_success:
+  next: analyze-user-behavior
+
+---
+
+id: analyze-user-behavior
+type: basic
+$use: agent(local::agents.#(id=="behavior-analyzer"))
+action: analyze_preferences
+
+with:
+  user_action: "{{ .workflow.input.action }}"
+  current_preferences: "{{ .tasks.user-preference-learning.outputs.current_preferences }}"
+  action_context: "{{ .workflow.input.context }}"
+
+on_success:
+  next: update-preferences
+
+---
+
+id: update-preferences
+type: memory
+operation: write
+memory_ref: user_preferences
+key_template: "user:{{ .workflow.input.user_id }}:preferences"
+
+payload:
+  role: "system"
+  content: |
+    Updated Preferences:
+    Previous: {{ .tasks.user-preference-learning.outputs.current_preferences | toJson }}
+    Changes: {{ .tasks.analyze-user-behavior.output.changes | toJson }}
+    New Preferences: {{ .tasks.analyze-user-behavior.output.updated_preferences | toJson }}
+    Updated: {{ now | date "2006-01-02 15:04:05" }}
+    Confidence: {{ .tasks.analyze-user-behavior.output.confidence }}
+
+on_success:
+  next: apply-preferences
+
+---
+
+id: apply-preferences
+type: basic
+$use: agent(local::agents.#(id=="preference-applier"))
+action: apply_user_preferences
+
+with:
+  user_preferences: "{{ .tasks.analyze-user-behavior.output.updated_preferences }}"
+  current_request: "{{ .workflow.input.request }}"
+
+final: true
+```
+
+### Example 3: Analytics Data Collection
+
+```yaml
+id: analytics-collector
+type: memory
+operation: append
+memory_ref: analytics_memory
+key_template: "analytics:{{ .workflow.input.event_type }}:{{ now | date '2006-01-02' }}"
+
+payload:
+  role: "system"
+  content: |
+    Analytics Event:
+    Type: {{ .workflow.input.event_type }}
+    User: {{ .workflow.input.user_id }}
+    Data: {{ .workflow.input.event_data | toJson }}
+    Timestamp: {{ now | date "15:04:05" }}
+    Session: {{ .workflow.input.session_id }}
+
+append_config:
+  max_entries: 10000
+  auto_truncate: true
+  truncate_strategy: "time_based"
+
+on_success:
+  next: update-daily-stats
+
+---
+
+id: update-daily-stats
+type: memory
+operation: read
+memory_ref: analytics_memory
+key_template: "analytics:daily_stats:{{ now | date '2006-01-02' }}"
+
+outputs:
+  daily_stats: "{{ .output | default (dict 'events' 0 'unique_users' (list)) }}"
+
+on_success:
+  next: calculate-updated-stats
+
+---
+
+id: calculate-updated-stats
+type: aggregate
+
+outputs:
+  updated_stats:
+    events: "{{ add (.tasks.update-daily-stats.outputs.daily_stats.events | default 0) 1 }}"
+    unique_users: "{{ append (.tasks.update-daily-stats.outputs.daily_stats.unique_users | default (list)) .workflow.input.user_id | unique }}"
+    last_event: "{{ now | date '2006-01-02 15:04:05' }}"
+    event_types: "{{ .tasks.update-daily-stats.outputs.daily_stats.event_types | default (dict) | set .workflow.input.event_type (add (.tasks.update-daily-stats.outputs.daily_stats.event_types.(.workflow.input.event_type) | default 0) 1) }}"
+
+on_success:
+  next: store-updated-stats
+
+---
+
+id: store-updated-stats
+type: memory
+operation: write
+memory_ref: analytics_memory
+key_template: "analytics:daily_stats:{{ now | date '2006-01-02' }}"
+
+payload:
+  role: "system"
+  content: |
+    Daily Statistics:
+    Total Events: {{ .tasks.calculate-updated-stats.outputs.updated_stats.events }}
+    Unique Users: {{ len .tasks.calculate-updated-stats.outputs.updated_stats.unique_users }}
+    Last Updated: {{ now | date "2006-01-02 15:04:05" }}
+    Event Breakdown: {{ .tasks.calculate-updated-stats.outputs.updated_stats.event_types | toJson }}
+
+final: true
+```
+
+## Memory Optimization
+
+### Efficient Key Design
+
+```yaml
+# Good key design - hierarchical and searchable
+id: efficient-keys
+type: memory
+operation: write
+memory_ref: user_data
+key_template: "user:{{ .workflow.input.user_id }}:session:{{ .workflow.input.session_id }}:data"
+
+# Bad key design - flat and hard to query
+# key_template: "{{ .workflow.input.user_id }}_{{ .workflow.input.session_id }}_data"
+
+payload:
+  role: "user"
+  content: "{{ .workflow.input.data }}"
+```
+
+### Memory Cleanup Strategies
+
+```yaml
+id: memory-cleanup
+type: memory
+operation: flush
+memory_ref: user_memory
+key_template: "user:*:temp:*"
+
+flush_config:
+  strategy: "time_based"
+  max_age: "24h"
+  batch_size: 100
+  dry_run: false
+
+on_success:
+  next: cleanup-expired-sessions
+
+---
+
+id: cleanup-expired-sessions
+type: memory
+operation: clear
+memory_ref: user_sessions
+key_template: "session:*:expired"
+
+clear_config:
+  confirm: true
+  backup: false
+  batch_size: 50
+
+on_success:
+  next: memory-health-check
+```
+
+### Performance Monitoring
+
+```yaml
+id: memory-performance-monitor
+type: memory
+operation: stats
+memory_ref: user_memory
+key_template: "*"
+
+stats_config:
+  include_content: false
+  group_by: "prefix"
+  include_timing: true
+
+outputs:
+  performance_metrics: "{{ .output }}"
+  slow_operations: "{{ filter .output.operations 'response_time' 'gt' 1000 }}"
+
+on_success:
+  next: "{{ if .outputs.slow_operations }}optimize-memory{{ else }}continue-processing{{ end }}"
+```
+
+## Best Practices
+
+1. **Design Hierarchical Keys**: Use consistent, searchable key patterns
+2. **Implement TTL**: Set appropriate time-to-live for temporary data
+3. **Monitor Memory Usage**: Regular health checks and statistics
+4. **Use Appropriate Operations**: Choose read/write/append based on use case
+5. **Implement Cleanup**: Regular maintenance and garbage collection
+6. **Handle Failures**: Graceful degradation when memory is unavailable
+7. **Security**: Validate and sanitize memory keys and payloads
+
+Memory tasks provide powerful persistent storage capabilities that enable stateful workflows, user session management, and efficient data caching in your Compozy applications.

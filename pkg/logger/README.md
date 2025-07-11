@@ -68,7 +68,7 @@ func main() {
     // Get logger from context (falls back to default)
     ctx := context.Background()
     log := logger.FromContext(ctx)
-    
+
     // Start logging with structured key-value pairs
     log.Info("Application starting", "version", "1.0.0", "env", "development")
     log.Debug("Debug information", "component", "main", "pid", os.Getpid())
@@ -117,7 +117,7 @@ childLog.Debug("Database query", "table", "users", "duration", "15ms")
 log := logger.NewLogger(nil)
 
 // Key-value pairs for structured logging
-log.Info("User login", 
+log.Info("User login",
     "userId", 123,
     "email", "user@example.com",
     "ip", "192.168.1.1",
@@ -142,24 +142,24 @@ import (
 
 func setupRouter() *gin.Engine {
     r := gin.New()
-    
+
     // Create logger with configuration
     log := logger.NewLogger(&logger.Config{
         Level: logger.InfoLevel,
         JSON:  false,
         AddSource: false,
     })
-    
+
     // Add logging middleware - automatically logs requests
     r.Use(logger.Middleware(log))
-    
+
     r.GET("/api/users", func(c *gin.Context) {
         // Logger is automatically available in context
         log := logger.FromContext(c.Request.Context())
         log.Info("Processing users request", "userAgent", c.GetHeader("User-Agent"))
         c.JSON(200, gin.H{"users": []string{}})
     })
-    
+
     return r
 }
 ```
@@ -182,18 +182,18 @@ func main() {
             if err != nil {
                 panic(err)
             }
-            
+
             // Setup logger with parsed configuration
             log := logger.SetupLogger(logLevel, logJSON, logSource)
             log.Info("Application started", "args", args)
         },
     }
-    
+
     // Add standard logging flags
     rootCmd.PersistentFlags().String("log-level", "info", "Log level (debug, info, warn, error, disabled)")
     rootCmd.PersistentFlags().Bool("log-json", false, "Output logs in JSON format")
     rootCmd.PersistentFlags().Bool("log-source", false, "Include source file and line numbers")
-    
+
     rootCmd.Execute()
 }
 ```
@@ -265,7 +265,7 @@ import (
     "net/http"
     "os"
     "time"
-    
+
     "github.com/gin-gonic/gin"
     "github.com/compozy/compozy/pkg/logger"
 )
@@ -288,38 +288,38 @@ func main() {
             TimeFormat: "15:04:05",
         }
     }
-    
+
     log := logger.NewLogger(config)
-    
+
     // Setup Gin with logging middleware
     r := gin.New()
     r.Use(logger.Middleware(log))
-    
+
     // API endpoint with structured logging
     r.GET("/users/:id", func(c *gin.Context) {
         log := logger.FromContext(c.Request.Context())
         userID := c.Param("id")
-        
+
         log.Info("Fetching user", "userId", userID, "ip", c.ClientIP())
-        
+
         // Simulate some processing
         user, err := fetchUser(userID)
         if err != nil {
-            log.Error("Failed to fetch user", 
+            log.Error("Failed to fetch user",
                 "err", err,
                 "userId", userID,
                 "duration", time.Since(start))
             c.JSON(500, gin.H{"error": "Internal server error"})
             return
         }
-        
-        log.Info("User fetched successfully", 
+
+        log.Info("User fetched successfully",
             "userId", userID,
             "userName", user.Name,
             "duration", time.Since(start))
         c.JSON(200, user)
     })
-    
+
     log.Info("Server starting", "port", 8080, "env", os.Getenv("ENV"))
     http.ListenAndServe(":8080", r)
 }
@@ -330,34 +330,34 @@ func main() {
 ```go
 func processJobWithLogging(ctx context.Context, jobID string) {
     log := logger.FromContext(ctx).With("jobId", jobID, "component", "jobProcessor")
-    
+
     log.Info("Job started", "timestamp", time.Now().Unix())
-    
+
     defer func() {
         if r := recover(); r != nil {
             log.Error("Job panicked", "panic", r, "stack", debug.Stack())
         }
     }()
-    
+
     // Process job steps with detailed logging
     for i, step := range steps {
         stepLog := log.With("step", i, "stepName", step.Name)
         stepLog.Debug("Step starting", "input", step.Input)
-        
+
         start := time.Now()
         if err := step.Execute(); err != nil {
-            stepLog.Error("Step failed", 
-                "err", err, 
+            stepLog.Error("Step failed",
+                "err", err,
                 "duration", time.Since(start),
                 "attempt", step.Attempt)
             return
         }
-        
-        stepLog.Info("Step completed", 
+
+        stepLog.Info("Step completed",
             "duration", time.Since(start),
             "output", step.Output)
     }
-    
+
     log.Info("Job completed successfully", "totalDuration", time.Since(jobStart))
 }
 ```
@@ -367,18 +367,18 @@ func processJobWithLogging(ctx context.Context, jobID string) {
 ```go
 func handleRequest(ctx context.Context) {
     log := logger.FromContext(ctx)
-    
+
     // Create service-specific logger
     serviceLog := log.With("service", "userService")
-    
+
     // Further nest for specific operations
     authLog := serviceLog.With("operation", "authenticate")
     authLog.Info("Authenticating user", "method", "oauth")
-    
+
     // Database operation logging
     dbLog := serviceLog.With("operation", "database")
     dbLog.Debug("Querying users table", "query", "SELECT * FROM users")
-    
+
     // Response logging
     responseLog := serviceLog.With("operation", "response")
     responseLog.Info("Sending response", "status", 200, "size", 1024)
@@ -452,6 +452,7 @@ func IsTestEnvironment() bool
 ### Styling
 
 The logger uses Tailwind CSS-inspired colors:
+
 - **Debug**: Emerald-500 (`#10b981`)
 - **Info**: Indigo-500 (`#6366f1`)
 - **Warn**: Amber-500 (`#f59e0b`)
@@ -468,10 +469,10 @@ The logger automatically detects test environments and uses quiet configuration:
 func TestMyFunction(t *testing.T) {
     ctx := context.Background()
     log := logger.FromContext(ctx) // Automatically uses TestConfig()
-    
+
     // This won't produce output during tests
     log.Info("Test message", "testCase", "basic")
-    
+
     // Verify logger behavior
     assert.NotNil(t, log)
 }
@@ -480,7 +481,7 @@ func TestMyFunction(t *testing.T) {
 func TestWithExplicitLogger(t *testing.T) {
     log := logger.NewForTests()
     log.Info("This is silent in tests")
-    
+
     // Test with custom configuration
     testConfig := &logger.Config{
         Level:  logger.DebugLevel,
@@ -494,6 +495,7 @@ func TestWithExplicitLogger(t *testing.T) {
 ### Test Detection
 
 The logger detects test environments by checking:
+
 - Command line arguments ending in `.test`
 - Environment variables `GO_TEST=1` or `TESTING=1`
 - Binary names containing `___` (Go test binaries)
@@ -503,7 +505,7 @@ The logger detects test environments by checking:
 ```go
 func BenchmarkLogger(b *testing.B) {
     log := logger.NewForTests()
-    
+
     b.ResetTimer()
     for i := 0; i < b.N; i++ {
         log.Info("Benchmark message", "iteration", i)

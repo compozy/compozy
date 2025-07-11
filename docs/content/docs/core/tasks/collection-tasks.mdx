@@ -1,0 +1,796 @@
+---
+title: Collection Tasks
+description: Process arrays and collections with parallel or sequential iteration patterns
+---
+
+Collection tasks provide powerful iteration patterns for processing arrays and collections in Compozy workflows. They enable efficient processing of multiple items with support for filtering, batching, and both sequential and parallel execution modes.
+
+## Overview
+
+Collection tasks offer comprehensive collection processing capabilities:
+
+- **Array Processing**: Iterate over arrays of data with dynamic task generation
+- **Flexible Modes**: Sequential or parallel execution with configurable batching
+- **Filtering**: Process only items that match specific conditions
+- **Context Variables**: Access current item, index, and collection metadata
+- **Result Aggregation**: Collect and organize results from all iterations
+- **Error Handling**: Sophisticated failure handling with partial results
+
+<Callout type="info">
+Collection tasks are ideal for batch processing, data transformation pipelines, and scenarios where you need to apply the same operation to multiple items.
+</Callout>
+
+## Task Structure
+
+### Basic Collection Task
+
+```yaml
+id: process-users
+type: collection
+mode: parallel
+strategy: best_effort
+
+# Source collection
+items: "{{ .workflow.input.users }}"
+
+# Optional filtering
+filter: "{{ ne .item.status 'inactive' }}"
+
+# Task template applied to each item
+task:
+  id: "process-user-{{ .index }}"
+  type: basic
+  $use: agent(local::agents.#(id=="user-processor"))
+  action: process_user
+  with:
+    user_id: "{{ .item.id }}"
+    user_data: "{{ .item }}"
+    processing_index: "{{ .index }}"
+
+outputs:
+  processed_users: "{{ .output }}"
+  total_processed: "{{ len .output }}"
+```
+
+### Configuration Options
+
+<Tabs items={["Execution Modes", "Filtering", "Batching", "Variables"]}>
+<Tab value="Execution Modes">
+
+Control how collection items are processed:
+
+```yaml
+# Sequential processing - items processed one by one
+id: sequential-collection
+type: collection
+mode: sequential
+items: "{{ .workflow.input.documents }}"
+
+task:
+  id: "process-doc-{{ .index }}"
+  type: basic
+  $use: tool(local::tools.#(id=="document-processor"))
+  with:
+    document: "{{ .item }}"
+    sequence_number: "{{ .index }}"
+
+---
+
+# Parallel processing - items processed concurrently
+id: parallel-collection
+type: collection
+mode: parallel
+strategy: wait_all
+max_workers: 8
+items: "{{ .workflow.input.images }}"
+
+task:
+  id: "process-image-{{ .index }}"
+  type: basic
+  $use: tool(local::tools.#(id=="image-processor"))
+  with:
+    image: "{{ .item }}"
+    parallel_index: "{{ .index }}"
+
+---
+
+# Batched processing - process items in batches
+id: batched-collection
+type: collection
+mode: parallel
+batch_size: 5
+items: "{{ .workflow.input.records }}"
+
+task:
+  id: "process-batch-{{ .batch_index }}"
+  type: basic
+  $use: tool(local::tools.#(id=="batch-processor"))
+  with:
+    records: "{{ .batch }}"
+    batch_number: "{{ .batch_index }}"
+```
+
+</Tab>
+<Tab value="Filtering">
+
+Filter items before processing:
+
+```yaml
+# Simple property filtering
+id: filter-by-status
+type: collection
+items: "{{ .workflow.input.orders }}"
+filter: "{{ eq .item.status 'pending' }}"
+
+task:
+  id: "process-order-{{ .index }}"
+  type: basic
+  $use: agent(local::agents.#(id=="order-processor"))
+  action: process_order
+  with:
+    order: "{{ .item }}"
+
+---
+
+# Complex filtering with multiple conditions
+id: complex-filter
+type: collection
+items: "{{ .workflow.input.users }}"
+filter: "{{ and (ne .item.status 'inactive') (gt .item.age 18) (ne .item.email '') }}"
+
+task:
+  id: "process-user-{{ .index }}"
+  type: basic
+  $use: agent(local::agents.#(id=="user-processor"))
+  action: process_adult_user
+  with:
+    user: "{{ .item }}"
+
+---
+
+# Date-based filtering
+id: date-filter
+type: collection
+items: "{{ .workflow.input.events }}"
+filter: "{{ and (gt .item.date '2024-01-01') (lt .item.date '2024-12-31') }}"
+
+task:
+  id: "process-event-{{ .index }}"
+  type: basic
+  $use: tool(local::tools.#(id=="event-processor"))
+  with:
+    event: "{{ .item }}"
+    year: "2024"
+```
+
+</Tab>
+<Tab value="Batching">
+
+Process items in batches for efficiency:
+
+```yaml
+# Fixed batch size
+id: fixed-batch
+type: collection
+mode: parallel
+batch_size: 10
+items: "{{ .workflow.input.large_dataset }}"
+
+task:
+  id: "process-batch-{{ .batch_index }}"
+  type: basic
+  $use: tool(local::tools.#(id=="batch-processor"))
+  with:
+    batch: "{{ .batch }}"
+    batch_size: "{{ len .batch }}"
+    batch_number: "{{ .batch_index }}"
+
+---
+
+# Dynamic batch sizing
+id: dynamic-batch
+type: collection
+mode: parallel
+batch_size: "{{ .env.BATCH_SIZE | default 5 | toNumber }}"
+items: "{{ .workflow.input.items }}"
+
+task:
+  id: "process-batch-{{ .batch_index }}"
+  type: basic
+  $use: agent(local::agents.#(id=="batch-processor"))
+  action: process_batch
+  with:
+    items: "{{ .batch }}"
+    batch_meta:
+      size: "{{ len .batch }}"
+      index: "{{ .batch_index }}"
+      total_batches: "{{ .total_batches }}"
+
+---
+
+# Batch with overlap
+id: overlapping-batch
+type: collection
+mode: sequential
+batch_size: 8
+batch_overlap: 2
+items: "{{ .workflow.input.time_series }}"
+
+task:
+  id: "analyze-window-{{ .batch_index }}"
+  type: basic
+  $use: agent(local::agents.#(id=="time-series-analyzer"))
+  action: analyze_window
+  with:
+    window_data: "{{ .batch }}"
+    window_size: "{{ len .batch }}"
+    overlap: 2
+```
+
+</Tab>
+<Tab value="Variables">
+
+Use collection-specific variables in tasks:
+
+```yaml
+id: collection-variables
+type: collection
+items: "{{ .workflow.input.products }}"
+item_var: product     # Custom variable name for current item
+index_var: idx        # Custom variable name for current index
+
+task:
+  id: "process-product-{{ .idx }}"
+  type: basic
+  $use: agent(local::agents.#(id=="product-processor"))
+  action: process_product
+  with:
+    # Access current item
+    product_id: "{{ .product.id }}"
+    product_name: "{{ .product.name }}"
+    product_price: "{{ .product.price }}"
+
+    # Access index information
+    position: "{{ .idx }}"
+    is_first: "{{ eq .idx 0 }}"
+    is_last: "{{ eq .idx (sub (len .collection) 1) }}"
+
+    # Access collection metadata
+    total_items: "{{ len .collection }}"
+    collection_size: "{{ .collection_size }}"
+
+    # Access parent context
+    workflow_id: "{{ .workflow.id }}"
+    processing_mode: "{{ .workflow.input.mode }}"
+
+---
+
+# Default variable names (.item and .index)
+id: default-variables
+type: collection
+items: "{{ .workflow.input.tasks }}"
+
+task:
+  id: "execute-task-{{ .index }}"
+  type: basic
+  $use: tool(local::tools.#(id=="task-executor"))
+  with:
+    task_definition: "{{ .item }}"
+    execution_order: "{{ .index }}"
+    total_tasks: "{{ len .collection }}"
+```
+
+</Tab>
+</Tabs>
+
+## Processing Patterns
+
+### Sequential Processing
+
+Process items one after another, maintaining order:
+
+```yaml
+id: sequential-document-processing
+type: collection
+mode: sequential
+items: "{{ .workflow.input.documents }}"
+
+# Filter for PDF documents only
+filter: "{{ eq .item.type 'pdf' }}"
+
+task:
+  id: "process-pdf-{{ .index }}"
+  type: basic
+  $use: agent(local::agents.#(id=="pdf-processor"))
+  action: extract_and_analyze
+  with:
+    document_path: "{{ .item.path }}"
+    document_name: "{{ .item.name }}"
+    previous_results: "{{ if gt .index 0 }}{{ index .collection_results (sub .index 1) }}{{ else }}null{{ end }}"
+
+  # Each task can access results from previous tasks
+  outputs:
+    extracted_text: "{{ .output.text }}"
+    analysis: "{{ .output.analysis }}"
+    sequence_number: "{{ .index }}"
+    references_previous: "{{ ne .with.previous_results null }}"
+
+# Sequential processing enables building on previous results
+outputs:
+  processed_documents: "{{ .output }}"
+  processing_sequence: "{{ range .output }}{{ .sequence_number }}{{ end }}"
+  total_processed: "{{ len .output }}"
+```
+
+### Parallel Processing
+
+Process items concurrently for better performance:
+
+```yaml
+id: parallel-image-processing
+type: collection
+mode: parallel
+strategy: wait_all
+max_workers: 6
+items: "{{ .workflow.input.images }}"
+
+task:
+  id: "process-image-{{ .index }}"
+  type: basic
+  $use: tool(local::tools.#(id=="image-processor"))
+  with:
+    image_data: "{{ .item.data }}"
+    image_format: "{{ .item.format }}"
+    transformations:
+      - resize: "{{ .workflow.input.target_size }}"
+      - optimize: true
+      - watermark: "{{ .workflow.input.watermark }}"
+
+  # Parallel processing with individual timeouts
+  timeout: 2m
+
+  outputs:
+    processed_image: "{{ .output.image }}"
+    original_size: "{{ .output.original_size }}"
+    new_size: "{{ .output.new_size }}"
+    processing_time: "{{ .output.duration }}"
+
+# Aggregate results from parallel processing
+outputs:
+  processed_images: "{{ .output }}"
+  total_processed: "{{ len .output }}"
+  total_processing_time: "{{ sum (map .output 'processing_time') }}"
+  average_processing_time: "{{ div (sum (map .output 'processing_time')) (len .output) }}"
+```
+
+### Batch Processing
+
+Process items in batches for efficiency:
+
+```yaml
+id: batch-user-processing
+type: collection
+mode: parallel
+batch_size: 50
+items: "{{ .workflow.input.users }}"
+
+task:
+  id: "process-user-batch-{{ .batch_index }}"
+  type: basic
+  $use: agent(local::agents.#(id=="user-batch-processor"))
+  action: process_user_batch
+  with:
+    users: "{{ .batch }}"
+    batch_metadata:
+      batch_number: "{{ .batch_index }}"
+      batch_size: "{{ len .batch }}"
+      total_batches: "{{ .total_batches }}"
+      is_final_batch: "{{ eq .batch_index (sub .total_batches 1) }}"
+
+    processing_options:
+      include_analytics: true
+      generate_reports: "{{ eq .batch_index (sub .total_batches 1) }}"
+
+  outputs:
+    processed_users: "{{ .output.users }}"
+    batch_statistics: "{{ .output.stats }}"
+    batch_number: "{{ .batch_index }}"
+
+# Aggregate batch results
+outputs:
+  all_processed_users: "{{ flatten (map .output 'processed_users') }}"
+  batch_statistics: "{{ map .output 'batch_statistics' }}"
+  total_batches: "{{ len .output }}"
+  processing_summary:
+    total_users: "{{ len (flatten (map .output 'processed_users')) }}"
+    successful_batches: "{{ len (filter .output 'batch_statistics.success') }}"
+    failed_batches: "{{ len (filter .output 'batch_statistics.failed') }}"
+```
+
+## Advanced Features
+
+### Conditional Processing
+
+Use dynamic conditions for sophisticated filtering:
+
+```yaml
+id: conditional-processing
+type: collection
+items: "{{ .workflow.input.transactions }}"
+
+# Complex filtering with multiple conditions
+filter: |
+  {{
+    and
+    (gt .item.amount 100)
+    (or
+      (eq .item.type 'purchase')
+      (eq .item.type 'refund')
+    )
+    (not (contains .item.tags 'test'))
+  }}
+
+task:
+  id: "process-transaction-{{ .index }}"
+  type: basic
+  $use: agent(local::agents.#(id=="transaction-processor"))
+  action: process_transaction
+  with:
+    transaction: "{{ .item }}"
+    special_handling: "{{ gt .item.amount 1000 }}"
+    risk_level: |
+      {{
+        if (gt .item.amount 10000) "high"
+        else if (gt .item.amount 1000) "medium"
+        else "low"
+      }}
+```
+
+### Error Handling and Partial Results
+
+Handle failures gracefully while preserving successful results:
+
+```yaml
+id: resilient-collection
+type: collection
+mode: parallel
+strategy: best_effort  # Continue despite failures
+items: "{{ .workflow.input.data_sources }}"
+
+task:
+  id: "fetch-data-{{ .index }}"
+  type: basic
+  $use: tool(local::tools.#(id=="data-fetcher"))
+  with:
+    source: "{{ .item }}"
+    timeout: 30s
+
+  # Individual task error handling
+  retry_policy:
+    maximum_attempts: 3
+    initial_interval: 1s
+    maximum_interval: 30s
+
+  on_error:
+    next: log-fetch-error
+    with:
+      source: "{{ .item }}"
+      error: "{{ .task.error }}"
+      index: "{{ .index }}"
+
+# Handle collection-level errors
+on_error:
+  next: handle-collection-errors
+  with:
+    successful_items: "{{ .successful_tasks }}"
+    failed_items: "{{ .failed_tasks }}"
+    partial_results: "{{ .output }}"
+
+outputs:
+  successful_results: "{{ .output }}"
+  success_count: "{{ len .output }}"
+  failure_count: "{{ len .failed_tasks }}"
+  success_rate: "{{ div (len .output) (len .collection) }}"
+  partial_success: "{{ and (gt (len .output) 0) (gt (len .failed_tasks) 0) }}"
+```
+
+### Nested Collections
+
+Process collections within collections:
+
+```yaml
+id: nested-collection-processing
+type: collection
+items: "{{ .workflow.input.departments }}"
+
+task:
+  id: "process-department-{{ .index }}"
+  type: collection
+  mode: parallel
+  items: "{{ .item.employees }}"
+
+  task:
+    id: "process-employee-{{ .parent_index }}-{{ .index }}"
+    type: basic
+    $use: agent(local::agents.#(id=="employee-processor"))
+    action: process_employee
+    with:
+      employee: "{{ .item }}"
+      department: "{{ .parent_item.name }}"
+      department_index: "{{ .parent_index }}"
+      employee_index: "{{ .index }}"
+
+  outputs:
+    department_name: "{{ .item.name }}"
+    processed_employees: "{{ .output }}"
+    employee_count: "{{ len .output }}"
+
+outputs:
+  all_departments: "{{ .output }}"
+  total_employees: "{{ sum (map .output 'employee_count') }}"
+  department_summaries: "{{ map .output (dict 'name' .department_name 'count' .employee_count) }}"
+```
+
+## Real-World Examples
+
+### Example 1: E-commerce Product Processing
+
+<Steps>
+<Step>
+
+**Setup**: Process a catalog of products with multiple operations
+
+```yaml
+id: product-catalog-processing
+type: collection
+mode: parallel
+strategy: wait_all
+max_workers: 8
+items: "{{ .workflow.input.products }}"
+
+# Filter for active products only
+filter: "{{ eq .item.status 'active' }}"
+
+task:
+  id: "process-product-{{ .index }}"
+  type: basic
+  $use: agent(local::agents.#(id=="product-processor"))
+  action: enhance_product_data
+  with:
+    product: "{{ .item }}"
+    enhancement_options:
+      generate_seo_description: true
+      optimize_images: true
+      suggest_categories: true
+      calculate_pricing: true
+
+    market_context:
+      competitor_data: "{{ .workflow.input.market_data }}"
+      seasonal_factors: "{{ .workflow.input.seasonal_data }}"
+      target_demographics: "{{ .workflow.input.demographics }}"
+```
+
+</Step>
+<Step>
+
+**Process**: Each product gets comprehensive enhancement
+
+```yaml
+  outputs:
+    enhanced_product:
+      id: "{{ .item.id }}"
+      name: "{{ .item.name }}"
+      original_description: "{{ .item.description }}"
+      seo_description: "{{ .output.seo_description }}"
+      optimized_images: "{{ .output.images }}"
+      suggested_categories: "{{ .output.categories }}"
+      pricing_analysis: "{{ .output.pricing }}"
+      market_position: "{{ .output.market_analysis }}"
+
+    processing_metadata:
+      processing_time: "{{ .task.duration }}"
+      enhancements_applied: "{{ .output.enhancements }}"
+      confidence_score: "{{ .output.confidence }}"
+```
+
+</Step>
+<Step>
+
+**Aggregate**: Combine results with analytics
+
+```yaml
+outputs:
+  processed_products: "{{ .output }}"
+  processing_summary:
+    total_products: "{{ len .output }}"
+    average_processing_time: "{{ div (sum (map .output 'processing_metadata.processing_time')) (len .output) }}"
+    categories_suggested: "{{ len (unique (flatten (map .output 'enhanced_product.suggested_categories'))) }}"
+    high_confidence_products: "{{ len (filter .output 'processing_metadata.confidence_score' 'gt' 0.8) }}"
+
+  business_insights:
+    top_categories: "{{ take 10 (sort (group (flatten (map .output 'enhanced_product.suggested_categories'))) 'count' 'desc') }}"
+    pricing_ranges: "{{ group (map .output 'enhanced_product.pricing_analysis.recommended_price') 'range' }}"
+    optimization_opportunities: "{{ filter .output 'processing_metadata.confidence_score' 'lt' 0.6 }}"
+```
+
+</Step>
+</Steps>
+
+### Example 2: Document Analysis Pipeline
+
+```yaml
+id: document-analysis-pipeline
+type: collection
+mode: sequential  # Sequential to maintain document order
+items: "{{ .workflow.input.documents }}"
+
+# Filter for supported document types
+filter: "{{ in .item.type ['pdf', 'docx', 'txt', 'md'] }}"
+
+task:
+  id: "analyze-document-{{ .index }}"
+  type: basic
+  $use: agent(local::agents.#(id=="document-analyzer"))
+  action: comprehensive_analysis
+  with:
+    document: "{{ .item }}"
+    analysis_options:
+      extract_entities: true
+      sentiment_analysis: true
+      topic_modeling: true
+      summary_generation: true
+      key_phrases: true
+
+    context:
+      previous_documents: "{{ if gt .index 0 }}{{ slice .collection_results 0 .index }}{{ else }}[]{{ end }}"
+      collection_size: "{{ len .collection }}"
+      document_position: "{{ .index }}"
+
+  outputs:
+    document_analysis:
+      id: "{{ .item.id }}"
+      title: "{{ .item.title }}"
+      type: "{{ .item.type }}"
+      content_summary: "{{ .output.summary }}"
+      entities: "{{ .output.entities }}"
+      sentiment: "{{ .output.sentiment }}"
+      topics: "{{ .output.topics }}"
+      key_phrases: "{{ .output.key_phrases }}"
+      word_count: "{{ .output.word_count }}"
+      readability_score: "{{ .output.readability }}"
+
+    relationships:
+      references_previous: "{{ .output.references }}"
+      similar_documents: "{{ .output.similar_docs }}"
+      topic_overlap: "{{ .output.topic_overlap }}"
+
+outputs:
+  analyzed_documents: "{{ .output }}"
+  collection_analytics:
+    total_documents: "{{ len .output }}"
+    total_words: "{{ sum (map .output 'document_analysis.word_count') }}"
+    document_types: "{{ group (map .output 'document_analysis.type') 'count' }}"
+    average_readability: "{{ div (sum (map .output 'document_analysis.readability_score')) (len .output) }}"
+    common_topics: "{{ take 10 (sort (group (flatten (map .output 'document_analysis.topics'))) 'count' 'desc') }}"
+    sentiment_distribution: "{{ group (map .output 'document_analysis.sentiment') 'count' }}"
+
+  document_relationships:
+    reference_network: "{{ map .output 'relationships.references_previous' }}"
+    similarity_matrix: "{{ map .output 'relationships.similar_documents' }}"
+    topic_clusters: "{{ cluster (map .output 'document_analysis.topics') 'similarity' }}"
+```
+
+### Example 3: Multi-Language Content Processing
+
+```yaml
+id: multi-language-content
+type: collection
+mode: parallel
+strategy: best_effort
+max_workers: 6
+items: "{{ .workflow.input.content_pieces }}"
+
+task:
+  id: "process-content-{{ .index }}"
+  type: collection
+  mode: sequential
+  items: "{{ .item.languages }}"
+
+  task:
+    id: "translate-{{ .parent_index }}-{{ .index }}"
+    type: basic
+    $use: agent(local::agents.#(id=="translator"))
+    action: translate_and_localize
+    with:
+      content: "{{ .parent_item.content }}"
+      source_language: "{{ .parent_item.source_language }}"
+      target_language: "{{ .item }}"
+      localization_options:
+        adapt_cultural_references: true
+        adjust_formatting: true
+        preserve_technical_terms: true
+
+      context:
+        content_type: "{{ .parent_item.type }}"
+        target_audience: "{{ .parent_item.audience }}"
+        brand_guidelines: "{{ .workflow.input.brand_guidelines }}"
+
+    outputs:
+      translated_content: "{{ .output.content }}"
+      language: "{{ .item }}"
+      quality_score: "{{ .output.quality_score }}"
+      cultural_adaptations: "{{ .output.adaptations }}"
+      word_count: "{{ .output.word_count }}"
+
+  outputs:
+    content_id: "{{ .item.id }}"
+    source_language: "{{ .item.source_language }}"
+    translations: "{{ .output }}"
+    total_languages: "{{ len .output }}"
+
+outputs:
+  localized_content: "{{ .output }}"
+  localization_summary:
+    total_content_pieces: "{{ len .output }}"
+    total_translations: "{{ sum (map .output 'total_languages') }}"
+    languages_covered: "{{ unique (flatten (map .output 'translations' 'language')) }}"
+    average_quality: "{{ div (sum (flatten (map .output 'translations' 'quality_score'))) (sum (map .output 'total_languages')) }}"
+    high_quality_translations: "{{ len (filter (flatten (map .output 'translations')) 'quality_score' 'gt' 0.85) }}"
+```
+
+## Performance Optimization
+
+### Memory-Efficient Processing
+
+```yaml
+id: memory-efficient-collection
+type: collection
+mode: parallel
+batch_size: 20  # Process in smaller batches
+max_workers: 4
+items: "{{ .workflow.input.large_dataset }}"
+
+task:
+  id: "process-batch-{{ .batch_index }}"
+  type: basic
+  $use: tool(local::tools.#(id=="memory-efficient-processor"))
+  with:
+    batch: "{{ .batch }}"
+    batch_size: "{{ len .batch }}"
+    memory_limit: "256MB"
+    processing_options:
+      stream_processing: true
+      garbage_collection: true
+      memory_monitoring: true
+```
+
+### Adaptive Processing
+
+```yaml
+id: adaptive-collection
+type: collection
+mode: parallel
+# Adjust workers based on system resources
+max_workers: "{{ min (.env.MAX_WORKERS | default 8 | toNumber) (div (len .collection) 10) }}"
+items: "{{ .workflow.input.items }}"
+
+task:
+  id: "adaptive-process-{{ .index }}"
+  type: basic
+  $use: tool(local::tools.#(id=="adaptive-processor"))
+  with:
+    item: "{{ .item }}"
+    processing_intensity: "{{ if gt (len .collection) 1000 }}light{{ else }}full{{ end }}"
+    timeout: "{{ if gt (len .collection) 500 }}30s{{ else }}60s{{ end }}"
+```
+
+## Best Practices
+
+1. **Choose the Right Mode**: Use sequential for order-dependent processing, parallel for independent operations
+2. **Implement Filtering**: Filter early to reduce processing load
+3. **Handle Partial Failures**: Use `best_effort` strategy for non-critical operations
+4. **Optimize Batch Sizes**: Balance memory usage with processing efficiency
+5. **Monitor Performance**: Track processing times and adjust configuration accordingly
+6. **Use Appropriate Timeouts**: Set realistic timeouts for individual items and overall collection
+
+Collection tasks provide powerful patterns for processing arrays and collections efficiently while maintaining flexibility and reliability in your Compozy workflows.

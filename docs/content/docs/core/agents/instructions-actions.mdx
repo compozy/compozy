@@ -1,6 +1,469 @@
 ---
-title: Instructions & Actions
-description: Defining agent instructions and actions
+title: "Instructions & Actions"
+description: "Master agent instructions and structured actions for precise AI behavior"
+icon: "list-check"
 ---
 
-# Instructions & Actions
+## Overview
+
+Agent instructions and actions form the core of agent behavior in Compozy. Instructions define the agent's personality and general behavior, while actions provide structured interfaces for specific tasks with validated inputs and outputs.
+
+## Agent Instructions
+
+Instructions are the system prompts that define how an agent should behave, think, and respond. They establish the agent's identity, capabilities, and constraints.
+
+### Writing Effective Instructions
+
+<Tabs>
+  <Tab title="Basic Structure">
+    ```yaml
+    instructions: |
+      You are a [role/identity].
+      
+      Your primary responsibilities:
+      - [Responsibility 1]
+      - [Responsibility 2]
+      - [Responsibility 3]
+      
+      Guidelines:
+      - [Behavioral guideline 1]
+      - [Behavioral guideline 2]
+      
+      Constraints:
+      - [Limitation 1]
+      - [Limitation 2]
+    ```
+  </Tab>
+  
+  <Tab title="Detailed Example">
+    ```yaml
+    instructions: |
+      You are an expert software architect specializing in distributed systems.
+      
+      Your primary responsibilities:
+      - Analyze system designs for scalability and reliability
+      - Identify potential bottlenecks and failure points
+      - Suggest architectural improvements based on best practices
+      - Consider security implications in all recommendations
+      
+      Guidelines:
+      - Always consider trade-offs between complexity and benefits
+      - Prioritize solutions that align with cloud-native principles
+      - Use concrete examples from real-world systems
+      - Explain technical concepts clearly for various audience levels
+      
+      Constraints:
+      - Do not make assumptions about budget or team size
+      - Focus on technical merit rather than specific vendor solutions
+      - Always acknowledge when a problem requires domain expertise you lack
+    ```
+  </Tab>
+</Tabs>
+
+### Instruction Best Practices
+
+<AccordionGroup>
+  <Accordion title="Be Specific and Clear">
+    - Define the exact role and expertise level
+    - List concrete responsibilities
+    - Avoid vague or ambiguous language
+    - Use bullet points for clarity
+  </Accordion>
+  
+  <Accordion title="Set Boundaries">
+    - Explicitly state what the agent should NOT do
+    - Define ethical guidelines
+    - Specify output format preferences
+    - Include safety constraints
+  </Accordion>
+  
+  <Accordion title="Provide Context">
+    - Include relevant domain knowledge
+    - Reference specific methodologies or frameworks
+    - Mention tools or systems the agent should be familiar with
+    - Add examples of expected behavior
+  </Accordion>
+  
+  <Accordion title="Optimize for Task">
+    - Tailor instructions to the specific use case
+    - Balance between general guidance and specific rules
+    - Consider the target audience
+    - Include performance criteria
+  </Accordion>
+</AccordionGroup>
+
+## Actions
+
+Actions are structured tasks that agents can perform with defined inputs, outputs, and specific prompts. They provide type-safe interfaces for agent capabilities.
+
+### Action Structure
+
+```yaml
+actions:
+  - id: action_identifier
+    prompt: "Specific instructions for this action"
+    input:
+      type: object
+      properties:
+        param1:
+          type: string
+          description: "Parameter description"
+      required: ["param1"]
+    output:
+      type: object
+      properties:
+        result:
+          type: string
+          description: "Result description"
+    json_mode: true
+    with:
+      default_param: "default_value"
+```
+
+### Action Components
+
+<Steps>
+  <Step title="ID">
+    Unique identifier used to invoke the action from workflow tasks
+  </Step>
+  <Step title="Prompt">
+    Specific instructions for this action, can include template variables
+  </Step>
+  <Step title="Input Schema">
+    JSON Schema defining expected input parameters and validation rules
+  </Step>
+  <Step title="Output Schema">
+    JSON Schema defining the structure of the action's response
+  </Step>
+  <Step title="JSON Mode">
+    Forces structured JSON output when enabled
+  </Step>
+  <Step title="Default Parameters">
+    Pre-configured values merged with runtime inputs
+  </Step>
+</Steps>
+
+### Action Examples
+
+<Tabs>
+  <Tab title="Code Review">
+    ```yaml
+    actions:
+      - id: review-code
+        prompt: |
+          Analyze the provided {{.input.language}} code for:
+          1. Code quality and readability
+          2. Potential bugs or errors
+          3. Performance optimizations
+          4. Security vulnerabilities
+          5. Best practice violations
+          
+          Provide specific, actionable feedback with examples.
+        input:
+          type: object
+          properties:
+            code:
+              type: string
+              description: "Source code to review"
+            language:
+              type: string
+              enum: ["python", "javascript", "go", "java"]
+              description: "Programming language"
+            focus_areas:
+              type: array
+              items:
+                type: string
+                enum: ["security", "performance", "style", "bugs"]
+              description: "Specific areas to focus on"
+          required: ["code", "language"]
+        output:
+          type: object
+          properties:
+            summary:
+              type: string
+              description: "Overall assessment"
+            issues:
+              type: array
+              items:
+                type: object
+                properties:
+                  severity:
+                    type: string
+                    enum: ["critical", "high", "medium", "low"]
+                  category:
+                    type: string
+                  line_number:
+                    type: integer
+                  description:
+                    type: string
+                  suggestion:
+                    type: string
+            score:
+              type: number
+              minimum: 0
+              maximum: 10
+        json_mode: true
+    ```
+  </Tab>
+  
+  <Tab title="Data Analysis">
+    ```yaml
+    actions:
+      - id: analyze-data
+        prompt: |
+          Analyze the provided dataset and generate insights:
+          - Identify key patterns and trends
+          - Calculate relevant statistics
+          - Detect anomalies or outliers
+          - Provide actionable recommendations
+          
+          Focus on: {{.input.analysis_type}}
+        input:
+          type: object
+          properties:
+            data:
+              type: array
+              description: "Dataset to analyze"
+            analysis_type:
+              type: string
+              enum: ["statistical", "trend", "anomaly", "comparative"]
+            metrics:
+              type: array
+              items:
+                type: string
+              description: "Specific metrics to calculate"
+          required: ["data", "analysis_type"]
+        output:
+          type: object
+          properties:
+            insights:
+              type: array
+              items:
+                type: object
+                properties:
+                  type:
+                    type: string
+                  description:
+                    type: string
+                  confidence:
+                    type: number
+            statistics:
+              type: object
+              additionalProperties:
+                type: number
+            recommendations:
+              type: array
+              items:
+                type: string
+        json_mode: true
+    ```
+  </Tab>
+  
+  <Tab title="Content Generation">
+    ```yaml
+    actions:
+      - id: generate-content
+        prompt: |
+          Create {{.input.content_type}} content based on the following:
+          Topic: {{.input.topic}}
+          Tone: {{.input.tone}}
+          Length: {{.input.word_count}} words
+          
+          Additional requirements:
+          {{range .input.requirements}}
+          - {{.}}
+          {{end}}
+        input:
+          type: object
+          properties:
+            content_type:
+              type: string
+              enum: ["blog_post", "email", "social_media", "documentation"]
+            topic:
+              type: string
+            tone:
+              type: string
+              enum: ["professional", "casual", "technical", "persuasive"]
+            word_count:
+              type: integer
+              minimum: 50
+              maximum: 5000
+            requirements:
+              type: array
+              items:
+                type: string
+          required: ["content_type", "topic", "tone"]
+        output:
+          type: object
+          properties:
+            title:
+              type: string
+            content:
+              type: string
+            metadata:
+              type: object
+              properties:
+                word_count:
+                  type: integer
+                reading_time:
+                  type: string
+                key_points:
+                  type: array
+                  items:
+                    type: string
+        json_mode: true
+        with:
+          word_count: 500
+          tone: "professional"
+    ```
+  </Tab>
+</Tabs>
+
+### Template Variables in Actions
+
+Actions support template variables from various contexts:
+
+```yaml
+prompt: |
+  Analyze the activity "{{.item}}" in {{.workflow.input.city}}
+  Weather conditions: {{.tasks.weather.output | toJson}}
+  User preferences: {{.memory.user_preferences}}
+  Current iteration: {{.index}}
+```
+
+Available contexts:
+- `{{.input.*}}` - Action input parameters
+- `{{.workflow.input.*}}` - Workflow input data
+- `{{.tasks.*.output}}` - Previous task outputs
+- `{{.item}}` - Current item in collection tasks
+- `{{.index}}` - Current index in collection tasks
+- `{{.memory.*}}` - Memory values
+- `{{.env.*}}` - Environment variables
+
+### Dynamic Action Selection
+
+Actions can be selected dynamically based on workflow state:
+
+```yaml
+tasks:
+  - id: process-request
+    type: router
+    condition: '{{.workflow.input.request_type}}'
+    routes:
+      analysis:
+        type: basic
+        $use: agent(local::agents.#(id="analyst"))
+        action: analyze-data
+      generation:
+        type: basic
+        $use: agent(local::agents.#(id="writer"))
+        action: generate-content
+```
+
+## Advanced Patterns
+
+### Multi-Step Actions
+
+Create complex workflows by chaining actions:
+
+```yaml
+actions:
+  - id: research
+    prompt: "Research the topic and gather key information"
+    output:
+      type: object
+      properties:
+        findings:
+          type: array
+          items:
+            type: string
+  
+  - id: outline
+    prompt: |
+      Based on research findings: {{.tasks.research.output.findings | toJson}}
+      Create a detailed outline for the article
+    output:
+      type: object
+      properties:
+        sections:
+          type: array
+  
+  - id: write
+    prompt: |
+      Using the outline: {{.tasks.outline.output | toJson}}
+      Write the complete article
+```
+
+### Conditional Instructions
+
+Adapt agent behavior based on context:
+
+```yaml
+instructions: |
+  You are a customer service agent.
+  
+  {{if eq .workflow.input.priority "high"}}
+  IMPORTANT: This is a high-priority customer. Provide expedited service
+  and escalate any issues immediately.
+  {{end}}
+  
+  {{if .workflow.input.customer_tier}}
+  Customer tier: {{.workflow.input.customer_tier}}
+  Apply appropriate service level protocols.
+  {{end}}
+```
+
+### Action Composition
+
+Combine multiple actions for complex behaviors:
+
+```yaml
+actions:
+  - id: analyze-and-fix
+    prompt: |
+      1. First, analyze the code for issues
+      2. Then, generate fixed versions for any problems found
+      3. Finally, explain the changes made
+    input:
+      type: object
+      properties:
+        code:
+          type: string
+    output:
+      type: object
+      properties:
+        analysis:
+          $ref: "#/definitions/CodeAnalysis"
+        fixed_code:
+          type: string
+        explanation:
+          type: string
+```
+
+## Best Practices
+
+<FeatureCardList cols={2}>
+  <FeatureCard title="Instruction Clarity">
+    Write instructions that are clear, specific, and leave no room for ambiguity
+  </FeatureCard>
+  <FeatureCard title="Action Focus">
+    Each action should have a single, well-defined purpose
+  </FeatureCard>
+  <FeatureCard title="Schema Validation">
+    Always define input/output schemas for predictable behavior
+  </FeatureCard>
+  <FeatureCard title="Error Handling">
+    Include error scenarios in prompts and output schemas
+  </FeatureCard>
+</FeatureCardList>
+
+## Next Steps
+
+<FeatureCardList cols={2}>
+  <FeatureCard title="Tools" href="/docs/core/agents/tools">
+    Learn how agents use tools to extend their capabilities
+  </FeatureCard>
+  <FeatureCard title="Structured Outputs" href="/docs/core/agents/structured-outputs">
+    Master JSON mode and output validation
+  </FeatureCard>
+</FeatureCardList>

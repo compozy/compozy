@@ -1,6 +1,717 @@
 ---
 title: Event API
-description: Using the event API
+description: Programmatic access to Compozy's signal system for external integrations and advanced signal management
 ---
 
 # Event API
+
+The Event API provides **programmatic access** to Compozy's signal system, enabling external applications to send signals, monitor signal activity, and integrate with workflow execution patterns. This API is essential for building complex integrations and managing signals from external systems.
+
+## Overview
+
+The Event API exposes RESTful endpoints for signal management, allowing external systems to:
+
+- **Send signals** to trigger workflows or notify waiting tasks
+- **Query signal status** and delivery information
+- **Monitor signal activity** across workflows
+- **Manage signal subscriptions** for external systems
+
+## Authentication
+
+All Event API requests require authentication using project-level API keys:
+
+```bash
+# Set authentication header
+curl -H "Authorization: Bearer YOUR_API_KEY" \
+     -H "Content-Type: application/json" \
+     https://api.compozy.io/v1/signals
+```
+
+## Core API Endpoints
+
+### Send Signal
+
+Send a signal to the Compozy system:
+
+```http
+POST /api/v1/signals
+Content-Type: application/json
+Authorization: Bearer YOUR_API_KEY
+
+{
+  "signal_id": "user-approved",
+  "payload": {
+    "user_id": "123",
+    "approval_status": "approved",
+    "approved_by": "manager@company.com",
+    "timestamp": "2024-01-01T12:00:00Z"
+  },
+  "correlation_id": "req-abc123",
+  "ttl": 300
+}
+```
+
+#### Response
+
+```json
+{
+  "success": true,
+  "signal_id": "user-approved",
+  "message_id": "msg_abc123def456",
+  "dispatched_at": "2024-01-01T12:00:00Z",
+  "ttl": 300,
+  "waiting_tasks": 2
+}
+```
+
+### Query Signal Status
+
+Check the delivery status of a sent signal:
+
+```http
+GET /api/v1/signals/{message_id}
+Authorization: Bearer YOUR_API_KEY
+```
+
+#### Response
+
+```json
+{
+  "message_id": "msg_abc123def456",
+  "signal_id": "user-approved",
+  "status": "delivered",
+  "sent_at": "2024-01-01T12:00:00Z",
+  "delivered_at": "2024-01-01T12:00:01Z",
+  "delivery_count": 2,
+  "deliveries": [
+    {
+      "workflow_id": "approval-workflow",
+      "workflow_exec_id": "exec_123",
+      "task_id": "wait-approval",
+      "delivered_at": "2024-01-01T12:00:01Z",
+      "status": "processed"
+    },
+    {
+      "workflow_id": "notification-workflow",
+      "workflow_exec_id": "exec_456",
+      "task_id": "wait-notification",
+      "delivered_at": "2024-01-01T12:00:01Z",
+      "status": "processed"
+    }
+  ]
+}
+```
+
+### List Signals
+
+Retrieve recent signal activity:
+
+```http
+GET /api/v1/signals?limit=50&offset=0&signal_id=user-approved
+Authorization: Bearer YOUR_API_KEY
+```
+
+#### Response
+
+```json
+{
+  "signals": [
+    {
+      "message_id": "msg_abc123def456",
+      "signal_id": "user-approved",
+      "payload": {
+        "user_id": "123",
+        "approval_status": "approved"
+      },
+      "sent_at": "2024-01-01T12:00:00Z",
+      "status": "delivered",
+      "delivery_count": 2
+    }
+  ],
+  "total": 1,
+  "limit": 50,
+  "offset": 0
+}
+```
+
+### Get Waiting Tasks
+
+List tasks currently waiting for signals:
+
+```http
+GET /api/v1/signals/waiting?signal_id=user-approved
+Authorization: Bearer YOUR_API_KEY
+```
+
+#### Response
+
+```json
+{
+  "waiting_tasks": [
+    {
+      "workflow_id": "approval-workflow",
+      "workflow_exec_id": "exec_123",
+      "task_id": "wait-approval",
+      "task_exec_id": "task_exec_789",
+      "signal_id": "user-approved",
+      "waiting_since": "2024-01-01T11:55:00Z",
+      "timeout_at": "2024-01-01T12:55:00Z",
+      "condition": "signal.payload.user_id == '123'"
+    }
+  ],
+  "total": 1
+}
+```
+
+## Advanced API Features
+
+### Batch Signal Sending
+
+Send multiple signals in a single request:
+
+```http
+POST /api/v1/signals/batch
+Content-Type: application/json
+Authorization: Bearer YOUR_API_KEY
+
+{
+  "signals": [
+    {
+      "signal_id": "user-approved",
+      "payload": {
+        "user_id": "123",
+        "status": "approved"
+      }
+    },
+    {
+      "signal_id": "notification-sent",
+      "payload": {
+        "user_id": "123",
+        "notification_type": "approval"
+      }
+    }
+  ]
+}
+```
+
+#### Response
+
+```json
+{
+  "success": true,
+  "results": [
+    {
+      "signal_id": "user-approved",
+      "message_id": "msg_abc123",
+      "status": "dispatched",
+      "waiting_tasks": 1
+    },
+    {
+      "signal_id": "notification-sent",
+      "message_id": "msg_def456",
+      "status": "dispatched",
+      "waiting_tasks": 0
+    }
+  ]
+}
+```
+
+### Signal Subscriptions
+
+Subscribe to signal events for real-time monitoring:
+
+```http
+POST /api/v1/signals/subscriptions
+Content-Type: application/json
+Authorization: Bearer YOUR_API_KEY
+
+{
+  "webhook_url": "https://your-app.com/webhooks/signals",
+  "signal_patterns": ["user-*", "order-completed"],
+  "events": ["signal_sent", "signal_delivered", "signal_timeout"]
+}
+```
+
+#### Webhook Payload
+
+```json
+{
+  "event": "signal_delivered",
+  "signal_id": "user-approved",
+  "message_id": "msg_abc123",
+  "payload": {
+    "user_id": "123",
+    "status": "approved"
+  },
+  "delivered_to": {
+    "workflow_id": "approval-workflow",
+    "task_id": "wait-approval"
+  },
+  "timestamp": "2024-01-01T12:00:01Z"
+}
+```
+
+## Integration Examples
+
+### External System Integration
+
+Integrate with external systems using the Event API:
+
+```javascript
+// Node.js example
+const axios = require('axios');
+
+class CompozySignalClient {
+  constructor(apiKey, baseUrl = 'https://api.compozy.io/v1') {
+    this.apiKey = apiKey;
+    this.baseUrl = baseUrl;
+    this.client = axios.create({
+      baseURL: baseUrl,
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      }
+    });
+  }
+
+  async sendSignal(signalId, payload, options = {}) {
+    try {
+      const response = await this.client.post('/signals', {
+        signal_id: signalId,
+        payload: payload,
+        correlation_id: options.correlationId,
+        ttl: options.ttl || 300
+      });
+      return response.data;
+    } catch (error) {
+      throw new Error(`Failed to send signal: ${error.message}`);
+    }
+  }
+
+  async getSignalStatus(messageId) {
+    try {
+      const response = await this.client.get(`/signals/${messageId}`);
+      return response.data;
+    } catch (error) {
+      throw new Error(`Failed to get signal status: ${error.message}`);
+    }
+  }
+
+  async getWaitingTasks(signalId) {
+    try {
+      const response = await this.client.get('/signals/waiting', {
+        params: { signal_id: signalId }
+      });
+      return response.data;
+    } catch (error) {
+      throw new Error(`Failed to get waiting tasks: ${error.message}`);
+    }
+  }
+}
+
+// Usage example
+const client = new CompozySignalClient('your-api-key');
+
+// Send approval signal
+await client.sendSignal('user-approved', {
+  user_id: '123',
+  approval_status: 'approved',
+  approved_by: 'manager@company.com'
+});
+
+// Check waiting tasks
+const waitingTasks = await client.getWaitingTasks('user-approved');
+console.log(`${waitingTasks.total} tasks waiting for approval`);
+```
+
+### Python Integration
+
+```python
+import requests
+import json
+from datetime import datetime
+
+class CompozySignalClient:
+    def __init__(self, api_key, base_url='https://api.compozy.io/v1'):
+        self.api_key = api_key
+        self.base_url = base_url
+        self.session = requests.Session()
+        self.session.headers.update({
+            'Authorization': f'Bearer {api_key}',
+            'Content-Type': 'application/json'
+        })
+    
+    def send_signal(self, signal_id, payload, correlation_id=None, ttl=300):
+        """Send a signal to Compozy"""
+        data = {
+            'signal_id': signal_id,
+            'payload': payload,
+            'ttl': ttl
+        }
+        if correlation_id:
+            data['correlation_id'] = correlation_id
+        
+        response = self.session.post(f'{self.base_url}/signals', json=data)
+        response.raise_for_status()
+        return response.json()
+    
+    def get_signal_status(self, message_id):
+        """Get the status of a sent signal"""
+        response = self.session.get(f'{self.base_url}/signals/{message_id}')
+        response.raise_for_status()
+        return response.json()
+    
+    def send_batch_signals(self, signals):
+        """Send multiple signals in batch"""
+        data = {'signals': signals}
+        response = self.session.post(f'{self.base_url}/signals/batch', json=data)
+        response.raise_for_status()
+        return response.json()
+
+# Usage example
+client = CompozySignalClient('your-api-key')
+
+# Send payment confirmation
+result = client.send_signal('payment-confirmed', {
+    'transaction_id': 'txn_123',
+    'amount': 99.99,
+    'currency': 'USD',
+    'customer_id': 'cust_456'
+})
+
+print(f"Signal sent with message ID: {result['message_id']}")
+```
+
+### Webhook Integration
+
+Handle Compozy webhooks for real-time signal monitoring:
+
+```javascript
+// Express.js webhook handler
+const express = require('express');
+const app = express();
+
+app.use(express.json());
+
+app.post('/webhooks/signals', (req, res) => {
+  const { event, signal_id, message_id, payload } = req.body;
+  
+  switch (event) {
+    case 'signal_sent':
+      console.log(`Signal ${signal_id} sent with ID ${message_id}`);
+      break;
+    
+    case 'signal_delivered':
+      console.log(`Signal ${signal_id} delivered to workflow`);
+      handleSignalDelivery(signal_id, payload);
+      break;
+    
+    case 'signal_timeout':
+      console.log(`Signal ${signal_id} timed out`);
+      handleSignalTimeout(signal_id, payload);
+      break;
+  }
+  
+  res.status(200).json({ success: true });
+});
+
+function handleSignalDelivery(signalId, payload) {
+  // Process successful signal delivery
+  console.log(`Processing delivered signal: ${signalId}`);
+}
+
+function handleSignalTimeout(signalId, payload) {
+  // Handle signal timeout
+  console.log(`Signal ${signalId} timed out - taking corrective action`);
+}
+```
+
+## Use Cases
+
+### 1. External Approval System
+
+Integrate with external approval systems:
+
+```javascript
+// External approval system integration
+class ApprovalSystemIntegration {
+  constructor(compozyClient) {
+    this.compozy = compozyClient;
+  }
+  
+  async handleApprovalDecision(approvalId, decision, approver) {
+    // Send approval signal to Compozy
+    await this.compozy.sendSignal('approval-decision', {
+      approval_id: approvalId,
+      decision: decision,
+      approver: approver,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Also send user notification signal
+    await this.compozy.sendSignal('user-notification', {
+      user_id: approver,
+      message: `Approval ${approvalId} has been ${decision}`,
+      type: 'approval_update'
+    });
+  }
+}
+```
+
+### 2. Payment Gateway Integration
+
+Handle payment webhooks and send signals:
+
+```javascript
+// Payment gateway webhook handler
+app.post('/webhooks/payment', async (req, res) => {
+  const { transaction_id, status, amount, customer_id } = req.body;
+  
+  // Send payment status signal
+  await compozyClient.sendSignal('payment-status-update', {
+    transaction_id,
+    status,
+    amount,
+    customer_id,
+    processed_at: new Date().toISOString()
+  });
+  
+  // Send specific success/failure signals
+  if (status === 'completed') {
+    await compozyClient.sendSignal('payment-completed', {
+      transaction_id,
+      amount,
+      customer_id
+    });
+  } else if (status === 'failed') {
+    await compozyClient.sendSignal('payment-failed', {
+      transaction_id,
+      amount,
+      customer_id,
+      error_code: req.body.error_code
+    });
+  }
+  
+  res.status(200).json({ success: true });
+});
+```
+
+### 3. IoT Device Integration
+
+Handle IoT device events:
+
+```python
+# IoT device event handler
+class IoTDeviceHandler:
+    def __init__(self, compozy_client):
+        self.compozy = compozy_client
+    
+    def handle_device_event(self, device_id, event_type, data):
+        """Handle IoT device events"""
+        # Send device event signal
+        self.compozy.send_signal(f'device-{event_type}', {
+            'device_id': device_id,
+            'event_type': event_type,
+            'data': data,
+            'timestamp': datetime.now().isoformat()
+        })
+        
+        # Send specific signals for critical events
+        if event_type == 'alarm':
+            self.compozy.send_signal('device-alarm', {
+                'device_id': device_id,
+                'severity': data.get('severity', 'medium'),
+                'message': data.get('message', 'Device alarm triggered')
+            })
+        elif event_type == 'offline':
+            self.compozy.send_signal('device-offline', {
+                'device_id': device_id,
+                'last_seen': data.get('last_seen'),
+                'location': data.get('location')
+            })
+```
+
+## Error Handling
+
+### API Error Responses
+
+Handle API errors gracefully:
+
+```javascript
+// Error handling example
+async function sendSignalWithRetry(client, signalId, payload, maxRetries = 3) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const result = await client.sendSignal(signalId, payload);
+      return result;
+    } catch (error) {
+      if (error.response?.status === 429) {
+        // Rate limit - wait and retry
+        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+        continue;
+      } else if (error.response?.status >= 500) {
+        // Server error - retry
+        if (attempt < maxRetries) {
+          await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+          continue;
+        }
+      }
+      
+      // Non-retryable error or max retries reached
+      throw error;
+    }
+  }
+}
+```
+
+### Common Error Codes
+
+| Status Code | Description | Action |
+|-------------|-------------|---------|
+| 400 | Bad Request | Check signal format and payload |
+| 401 | Unauthorized | Verify API key |
+| 403 | Forbidden | Check permissions |
+| 404 | Not Found | Verify signal or message ID |
+| 429 | Rate Limited | Implement backoff and retry |
+| 500 | Server Error | Retry with exponential backoff |
+
+## Performance Optimization
+
+### Batch Operations
+
+Use batch operations for multiple signals:
+
+```javascript
+// Batch signal sending for better performance
+async function sendMultipleSignals(client, signals) {
+  const BATCH_SIZE = 100;
+  const results = [];
+  
+  for (let i = 0; i < signals.length; i += BATCH_SIZE) {
+    const batch = signals.slice(i, i + BATCH_SIZE);
+    try {
+      const batchResult = await client.sendBatchSignals(batch);
+      results.push(...batchResult.results);
+    } catch (error) {
+      console.error(`Batch ${i / BATCH_SIZE + 1} failed:`, error);
+      // Handle batch failure
+    }
+  }
+  
+  return results;
+}
+```
+
+### Connection Pooling
+
+Use connection pooling for high-throughput scenarios:
+
+```javascript
+// Connection pooling for high-throughput
+const axios = require('axios');
+
+const client = axios.create({
+  baseURL: 'https://api.compozy.io/v1',
+  timeout: 10000,
+  maxRedirects: 3,
+  maxContentLength: 10 * 1024 * 1024, // 10MB
+  // Connection pooling
+  httpAgent: new require('http').Agent({
+    keepAlive: true,
+    maxSockets: 50
+  }),
+  httpsAgent: new require('https').Agent({
+    keepAlive: true,
+    maxSockets: 50
+  })
+});
+```
+
+## Best Practices
+
+### 1. Signal Naming
+
+Use consistent naming conventions:
+
+```javascript
+// ✅ Good signal naming
+const signals = {
+  USER_REGISTERED: 'user-registered',
+  ORDER_COMPLETED: 'order-completed',
+  PAYMENT_PROCESSED: 'payment-processed'
+};
+
+// ❌ Poor signal naming
+const signals = {
+  SIGNAL1: 'sig1',
+  DONE: 'done',
+  EVENT: 'event'
+};
+```
+
+### 2. Payload Structure
+
+Maintain consistent payload structures:
+
+```javascript
+// ✅ Consistent payload structure
+const signalPayload = {
+  entity_id: 'user-123',
+  entity_type: 'user',
+  event: {
+    type: 'registration',
+    timestamp: new Date().toISOString(),
+    source: 'web-app'
+  },
+  data: {
+    user_id: '123',
+    email: 'user@example.com',
+    registration_method: 'email'
+  },
+  metadata: {
+    ip_address: '192.168.1.1',
+    user_agent: 'Mozilla/5.0...'
+  }
+};
+```
+
+### 3. Error Handling
+
+Implement comprehensive error handling:
+
+```javascript
+// ✅ Comprehensive error handling
+async function robustSignalSend(client, signalId, payload) {
+  try {
+    const result = await client.sendSignal(signalId, payload);
+    
+    // Log successful sends
+    console.log(`Signal ${signalId} sent successfully:`, result.message_id);
+    
+    return result;
+  } catch (error) {
+    // Log error details
+    console.error(`Failed to send signal ${signalId}:`, {
+      error: error.message,
+      payload: payload,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Handle specific error types
+    if (error.response?.status === 429) {
+      throw new Error('Rate limit exceeded - please retry later');
+    } else if (error.response?.status >= 500) {
+      throw new Error('Server error - please retry');
+    } else {
+      throw new Error(`Signal send failed: ${error.message}`);
+    }
+  }
+}
+```
+
+## Next Steps
+
+- Learn about [Signal Tasks](/docs/core/signals/signal-tasks) for workflow-based signal sending
+- Explore [Wait Tasks](/docs/core/signals/wait-tasks) for signal reception
+- Review [Signal Triggers](/docs/core/signals/signal-triggers) for event-driven workflows
+- Study [Advanced Patterns](/docs/core/signals/advanced-patterns) for complex scenarios

@@ -7,23 +7,23 @@ import (
 	// "github.com/compozy/compozy/engine/autoload" // Will be needed for registry lookup later
 )
 
+// Memory access mode constants.
 const (
-	MemoryModeReadWrite = "read-write"
-	MemoryModeReadOnly  = "read-only"
+	MemoryModeReadWrite = "read-write" // Full read and write access
+	MemoryModeReadOnly  = "read-only"  // Read-only access
 )
 
-// -----------------------------------------------------------------------------
-// ActionsValidator
-// -----------------------------------------------------------------------------
-
+// ActionsValidator validates agent action configurations.
 type ActionsValidator struct {
 	actions []*ActionConfig
 }
 
+// NewActionsValidator creates a validator for agent actions.
 func NewActionsValidator(actions []*ActionConfig) *ActionsValidator {
 	return &ActionsValidator{actions: actions}
 }
 
+// Validate ensures all actions have valid configurations.
 func (v *ActionsValidator) Validate() error {
 	if v.actions == nil {
 		return nil
@@ -36,23 +36,19 @@ func (v *ActionsValidator) Validate() error {
 	return nil
 }
 
-// -----------------------------------------------------------------------------
-// AgentMemoryValidator
-// -----------------------------------------------------------------------------
-
-// MemoryValidator validates the resolved memory references in an agent's configuration.
+// MemoryValidator validates memory references in agent configurations.
 type MemoryValidator struct {
 	references []core.MemoryReference
 }
 
-// NewMemoryValidator creates a new validator for agent memory configurations.
-// It expects normalized core.MemoryReference structs.
+// NewMemoryValidator creates a validator for memory references.
 func NewMemoryValidator(refs []core.MemoryReference /*, reg *autoload.Registry */) *MemoryValidator {
 	return &MemoryValidator{
 		references: refs,
 	}
 }
 
+// Validate ensures memory references have valid IDs, keys, and access modes.
 func (v *MemoryValidator) Validate() error {
 	if v.references == nil {
 		// This means no memory configuration was found or explicitly set to none, which is valid.

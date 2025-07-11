@@ -1,6 +1,570 @@
 ---
-title: Advanced Patterns
-description: TODO
+title: "Advanced Patterns"
+description: "Sophisticated template techniques for complex workflows and dynamic configurations"
 ---
 
-# Advanced Templating
+# Advanced Template Patterns
+
+Advanced template patterns enable sophisticated workflows, dynamic configurations, and complex data transformations in Compozy. This guide covers advanced techniques for building powerful, maintainable template-driven systems.
+
+## Dynamic Resource Selection
+
+### Runtime Tool Selection
+
+Select tools dynamically based on context and conditions:
+
+```yaml
+# Dynamic tool selection based on input type
+- id: process_data
+  type: basic
+  $use: |
+    {{- $data_type := .workflow.input.data_type -}}
+    {{- if eq $data_type "image" -}}
+      tool(local::tools.#(id=="image_processor"))
+    {{- else if eq $data_type "text" -}}
+      tool(local::tools.#(id=="text_processor"))
+    {{- else if eq $data_type "video" -}}
+      tool(local::tools.#(id=="video_processor"))
+    {{- else -}}
+      tool(local::tools.#(id=="generic_processor"))
+    {{- end -}}
+  with:
+    input_data: "{{ .workflow.input.data }}"
+    processor_config: "{{ .workflow.input.config }}"
+```
+
+### Conditional Agent Selection
+
+Choose agents based on complexity or domain:
+
+```yaml
+# Select agent based on query complexity
+- id: analyze_query
+  type: basic
+  $use: |
+    {{- $complexity := .tasks.assess_complexity.output.score -}}
+    {{- $domain := .workflow.input.domain -}}
+    {{- if and (gt $complexity 8) (eq $domain "legal") -}}
+      agent(resource::agent::#(id=="legal_expert_advanced"))
+    {{- else if eq $domain "legal" -}}
+      agent(resource::agent::#(id=="legal_assistant"))
+    {{- else if gt $complexity 6 -}}
+      agent(resource::agent::#(id=="general_expert"))
+    {{- else -}}
+      agent(resource::agent::#(id=="general_assistant"))
+    {{- end -}}
+```
+
+### Environment-Based Configuration
+
+Adapt configurations based on environment:
+
+```yaml
+# Environment-specific model selection
+model_config: |
+  {{- $env := .env.DEPLOYMENT_ENV | default "development" -}}
+  {{- if eq $env "production" -}}
+    {{- $ref := "global::models.#(tier=='premium' && provider=='openai')" -}}
+  {{- else if eq $env "staging" -}}
+    {{- $ref := "global::models.#(tier=='standard' && provider=='groq')" -}}
+  {{- else -}}
+    {{- $ref := "global::models.#(tier=='basic' && provider=='ollama')" -}}
+  {{- end -}}
+  {{ $ref }}
+```
+
+## Template Composition
+
+### Reusable Template Fragments
+
+Create reusable template components:
+
+```yaml
+# Define reusable fragments
+fragments:
+  - id: auth_headers
+    template: |
+      Authorization: "Bearer {{ .env.API_TOKEN }}"
+      X-Client-ID: "{{ .env.CLIENT_ID }}"
+      X-Request-ID: "{{ .workflow.id }}"
+      
+  - id: error_response
+    template: |
+      {
+        "error": true,
+        "message": "{{ .error_message }}",
+        "timestamp": "{{ now | date '2006-01-02T15:04:05Z' }}",
+        "request_id": "{{ .workflow.id }}"
+      }
+
+# Use fragments in tasks
+- id: api_call
+  type: basic
+  $use: tool(local::tools.#(id=="http_client"))
+  with:
+    headers:
+      $template: "{{ .fragments.auth_headers }}"
+    error_handler:
+      $template: "{{ .fragments.error_response }}"
+```
+
+### Template Inheritance
+
+Build complex templates from simpler ones:
+
+```yaml
+# Base notification template
+base_notification: |
+  Dear {{ .user.name | default "User" }},
+  
+  {{ .message }}
+  
+  Best regards,
+  The {{ .env.APP_NAME | default "Compozy" }} Team
+
+# Extended notification with action
+action_notification: |
+  {{ template "base" . }}
+  
+  To take action, click here: {{ .action_url }}
+  
+  This link expires on {{ .expires_at | date "January 2, 2006" }}.
+
+# Usage in task
+- id: send_notification
+  type: basic
+  with:
+    email_body: |
+      {{- $data := merge .workflow.input .tasks.get_user.output -}}
+      {{- template "action_notification" $data -}}
+```
+
+## Advanced Data Transformation
+
+### Complex Object Manipulation
+
+Transform and reshape complex data structures:
+
+```yaml
+# Transform array of objects
+transformed_data: |
+  {{- $users := .tasks.get_users.output.users -}}
+  {{- $result := list -}}
+  {{- range $user := $users -}}
+    {{- $transformed := dict 
+        "id" $user.id
+        "full_name" (printf "%s %s" $user.first_name $user.last_name)
+        "contact" (dict 
+          "email" $user.email 
+          "phone" ($user.phone | default "N/A"))
+        "status" (ternary "active" "inactive" $user.is_active)
+        "join_date" ($user.created_at | date "2006-01-02")
+    -}}
+    {{- $result = append $result $transformed -}}
+  {{- end -}}
+  {{ $result | toJson }}
+```
+
+### Data Aggregation
+
+Aggregate data from multiple sources:
+
+```yaml
+# Aggregate metrics from multiple tasks
+aggregated_metrics: |
+  {{- $performance := .tasks.get_performance.output -}}
+  {{- $usage := .tasks.get_usage.output -}}
+  {{- $errors := .tasks.get_errors.output -}}
+  
+  {{- $summary := dict
+      "total_requests" (add $performance.requests $usage.api_calls)
+      "average_response_time" (div (add $performance.response_time $usage.latency) 2)
+      "error_rate" (div (mul $errors.count 100) $performance.requests)
+      "uptime_percentage" (sub 100 $errors.downtime_percentage)
+      "peak_concurrent_users" (max $performance.peak_users $usage.peak_connections)
+      "data_processed_gb" (div $usage.bytes_processed 1073741824)
+  -}}
+  {{ $summary | toPrettyJson }}
+```
+
+### Conditional Data Processing
+
+Process data conditionally based on complex rules:
+
+```yaml
+# Complex conditional processing
+processed_orders: |
+  {{- $orders := .tasks.get_orders.output.orders -}}
+  {{- $processed := list -}}
+  {{- range $order := $orders -}}
+    {{- $priority := "standard" -}}
+    {{- $shipping := "ground" -}}
+    
+    {{- if and (gt $order.total 1000) (eq $order.customer.tier "premium") -}}
+      {{- $priority = "high" -}}
+      {{- $shipping = "express" -}}
+    {{- else if gt $order.total 500 -}}
+      {{- $priority = "medium" -}}
+      {{- $shipping = "priority" -}}
+    {{- end -}}
+    
+    {{- $processing_time := 24 -}}
+    {{- if eq $priority "high" -}}
+      {{- $processing_time = 2 -}}
+    {{- else if eq $priority "medium" -}}
+      {{- $processing_time = 12 -}}
+    {{- end -}}
+    
+    {{- $enhanced_order := merge $order (dict
+        "priority" $priority
+        "shipping_method" $shipping
+        "estimated_processing_hours" $processing_time
+        "estimated_delivery" (now | dateModify (printf "+%dh" (add $processing_time 48)) | date "2006-01-02")
+    ) -}}
+    {{- $processed = append $processed $enhanced_order -}}
+  {{- end -}}
+  {{ $processed | toJson }}
+```
+
+## State Machine Patterns
+
+### Workflow State Management
+
+Implement state machine logic using templates:
+
+```yaml
+# State transition logic
+- id: state_manager
+  type: router
+  condition: |
+    {{- $current_state := .tasks.get_state.output.state -}}
+    {{- $event := .workflow.input.event -}}
+    
+    {{- if eq $current_state "pending" -}}
+      {{- if eq $event "approve" -}}approved
+      {{- else if eq $event "reject" -}}rejected
+      {{- else -}}pending
+      {{- end -}}
+    {{- else if eq $current_state "approved" -}}
+      {{- if eq $event "process" -}}processing
+      {{- else if eq $event "cancel" -}}cancelled
+      {{- else -}}approved
+      {{- end -}}
+    {{- else if eq $current_state "processing" -}}
+      {{- if eq $event "complete" -}}completed
+      {{- else if eq $event "fail" -}}failed
+      {{- else -}}processing
+      {{- end -}}
+    {{- else -}}
+      {{- $current_state -}}
+    {{- end -}}
+  routes:
+    approved:
+      - id: handle_approval
+        with:
+          previous_state: "{{ .tasks.get_state.output.state }}"
+          timestamp: "{{ now }}"
+    processing:
+      - id: start_processing
+        with:
+          job_id: "{{ .workflow.id }}"
+          priority: "{{ .workflow.input.priority | default 'normal' }}"
+    completed:
+      - id: finalize_process
+        with:
+          result: "{{ .tasks.start_processing.output }}"
+```
+
+### Multi-Step Approval Workflow
+
+Implement complex approval chains:
+
+```yaml
+# Multi-level approval logic
+approval_chain: |
+  {{- $amount := .workflow.input.amount -}}
+  {{- $department := .workflow.input.department -}}
+  {{- $approvers := list -}}
+  
+  {{- if gt $amount 10000 -}}
+    {{- $approvers = append $approvers "cfo" -}}
+  {{- end -}}
+  
+  {{- if gt $amount 50000 -}}
+    {{- $approvers = append $approvers "ceo" -}}
+  {{- end -}}
+  
+  {{- if eq $department "engineering" -}}
+    {{- $approvers = append $approvers "cto" -}}
+  {{- else if eq $department "marketing" -}}
+    {{- $approvers = append $approvers "cmo" -}}
+  {{- end -}}
+  
+  {{- if gt $amount 1000 -}}
+    {{- $approvers = append $approvers "department_head" -}}
+  {{- end -}}
+  
+  {{ dict "approvers" $approvers "total_levels" (len $approvers) | toJson }}
+```
+
+## Dynamic Workflow Generation
+
+### Template-Based Task Generation
+
+Generate tasks dynamically based on input:
+
+```yaml
+# Dynamic task generation
+dynamic_tasks: |
+  {{- $data_sources := .workflow.input.data_sources -}}
+  {{- $tasks := list -}}
+  
+  {{- range $i, $source := $data_sources -}}
+    {{- $task := dict
+        "id" (printf "process_source_%d" $i)
+        "type" "basic"
+        "use" (printf "tool(local::tools.#(id==\"%s_processor\"))" $source.type)
+        "with" (dict
+          "source_url" $source.url
+          "credentials" $source.credentials
+          "options" $source.options
+        )
+    -}}
+    {{- $tasks = append $tasks $task -}}
+  {{- end -}}
+  
+  {{ $tasks | toJson }}
+```
+
+### Parallel Processing Patterns
+
+Create dynamic parallel processing workflows:
+
+```yaml
+# Dynamic parallel processing
+- id: parallel_data_processing
+  type: parallel
+  strategy: wait_all
+  tasks: |
+    {{- $datasets := .workflow.input.datasets -}}
+    {{- $tasks := list -}}
+    
+    {{- range $i, $dataset := $datasets -}}
+      {{- $task := dict
+          "id" (printf "process_dataset_%d" $i)
+          "type" "collection"
+          "mode" "parallel"
+          "items" $dataset.chunks
+          "task" (dict
+            "id" (printf "chunk_%s" "{{ .index }}")
+            "type" "basic"
+            "use" (printf "tool(local::tools.#(id==\"%s_processor\"))" $dataset.processor_type)
+            "with" (dict
+              "chunk_data" "{{ .item }}"
+              "dataset_id" $dataset.id
+              "chunk_index" "{{ .index }}"
+            )
+          )
+      -}}
+      {{- $tasks = append $tasks $task -}}
+    {{- end -}}
+    
+    {{ $tasks | toJson }}
+```
+
+## Advanced Error Handling
+
+### Comprehensive Error Recovery
+
+Implement sophisticated error handling patterns:
+
+```yaml
+# Error recovery with retry logic
+- id: resilient_operation
+  type: basic
+  $use: tool(local::tools.#(id=="api_client"))
+  with:
+    # Primary configuration
+    url: "{{ .env.PRIMARY_API_URL }}"
+    timeout: "{{ .config.timeout | default 30 }}"
+    
+    # Fallback configuration
+    fallback_config: |
+      {{- if .tasks.resilient_operation.error -}}
+        {{- $attempt := .tasks.resilient_operation.attempt | default 1 -}}
+        {{- if lt $attempt 3 -}}
+          {
+            "retry": true,
+            "delay": {{ mul $attempt 5 }},
+            "url": "{{ .env.PRIMARY_API_URL }}",
+            "timeout": {{ mul (.config.timeout | default 30) 2 }}
+          }
+        {{- else -}}
+          {
+            "retry": true,
+            "delay": 10,
+            "url": "{{ .env.BACKUP_API_URL }}",
+            "timeout": {{ mul (.config.timeout | default 30) 3 }}
+          }
+        {{- end -}}
+      {{- else -}}
+        {"retry": false}
+      {{- end -}}
+      
+    # Circuit breaker logic
+    circuit_breaker: |
+      {{- $failures := .metrics.api_failures | default 0 -}}
+      {{- $success_rate := .metrics.success_rate | default 100 -}}
+      {{- if or (gt $failures 10) (lt $success_rate 50) -}}
+        {
+          "enabled": true,
+          "timeout": 300,
+          "fallback_response": "Service temporarily unavailable"
+        }
+      {{- else -}}
+        {"enabled": false}
+      {{- end -}}
+```
+
+### Validation and Sanitization
+
+Advanced input validation and sanitization:
+
+```yaml
+# Comprehensive input validation
+validated_input: |
+  {{- $input := .workflow.input -}}
+  {{- $errors := list -}}
+  {{- $sanitized := dict -}}
+  
+  {{- /* Email validation */ -}}
+  {{- if $input.email -}}
+    {{- if and (contains $input.email "@") (gt (len $input.email) 5) -}}
+      {{- $sanitized = set $sanitized "email" ($input.email | lower | trim) -}}
+    {{- else -}}
+      {{- $errors = append $errors "Invalid email format" -}}
+    {{- end -}}
+  {{- else -}}
+    {{- $errors = append $errors "Email is required" -}}
+  {{- end -}}
+  
+  {{- /* Age validation */ -}}
+  {{- if $input.age -}}
+    {{- $age := $input.age | int -}}
+    {{- if and (ge $age 0) (le $age 150) -}}
+      {{- $sanitized = set $sanitized "age" $age -}}
+    {{- else -}}
+      {{- $errors = append $errors "Age must be between 0 and 150" -}}
+    {{- end -}}
+  {{- end -}}
+  
+  {{- /* Phone validation */ -}}
+  {{- if $input.phone -}}
+    {{- $phone := $input.phone | regexReplaceAll "[^0-9+]" "" -}}
+    {{- if ge (len $phone) 10 -}}
+      {{- $sanitized = set $sanitized "phone" $phone -}}
+    {{- else -}}
+      {{- $errors = append $errors "Invalid phone number" -}}
+    {{- end -}}
+  {{- end -}}
+  
+  {{- dict "valid" (empty $errors) "errors" $errors "data" $sanitized | toJson -}}
+```
+
+## Performance Optimization
+
+### Template Caching Patterns
+
+Implement caching for expensive template operations:
+
+```yaml
+# Cached expensive calculations
+cached_calculation: |
+  {{- $cache_key := printf "calc_%s_%s" .workflow.input.type .workflow.input.id -}}
+  {{- $cached_result := .cache.get $cache_key -}}
+  
+  {{- if $cached_result -}}
+    {{ $cached_result }}
+  {{- else -}}
+    {{- $result := .workflow.input.data | expensiveCalculation -}}
+    {{- .cache.set $cache_key $result 3600 -}}
+    {{ $result }}
+  {{- end -}}
+```
+
+### Lazy Evaluation Patterns
+
+Defer expensive operations until needed:
+
+```yaml
+# Lazy loading of user data
+user_data: |
+  {{- if .workflow.input.include_user_details -}}
+    {{ .tasks.get_detailed_user.output }}
+  {{- else -}}
+    {
+      "id": "{{ .workflow.input.user_id }}",
+      "name": "{{ .workflow.input.user_name }}",
+      "details": "not_loaded"
+    }
+  {{- end -}}
+```
+
+## Best Practices Summary
+
+### 1. Modular Template Design
+
+```yaml
+# Break complex templates into logical modules
+user_module:
+  profile: "{{ template 'user_profile' . }}"
+  permissions: "{{ template 'user_permissions' . }}"
+  preferences: "{{ template 'user_preferences' . }}"
+```
+
+### 2. Error-First Design
+
+```yaml
+# Always consider error cases first
+safe_operation: |
+  {{- if .errors -}}
+    {{ template 'error_response' . }}
+  {{- else if .validation_failed -}}
+    {{ template 'validation_error' . }}
+  {{- else -}}
+    {{ template 'success_response' . }}
+  {{- end -}}
+```
+
+### 3. Documentation in Templates
+
+```yaml
+# Document complex template logic
+complex_logic: |
+  {{- /* 
+  This template calculates user priority based on:
+  1. Account tier (premium = +10, standard = +5, basic = +0)
+  2. Activity score (scaled 0-10)
+  3. Support history (penalties for excessive tickets)
+  */ -}}
+  
+  {{- $base_score := .user.tier | tierToScore -}}
+  {{- $activity_score := .user.activity | scaleToTen -}}
+  {{- $support_penalty := .user.support_tickets | calculatePenalty -}}
+  
+  {{ add $base_score $activity_score | sub $support_penalty }}
+```
+
+### 4. Type Safety
+
+```yaml
+# Ensure type safety in templates
+type_safe_config: |
+  {{- $config := dict -}}
+  {{- $config = set $config "port" (.env.PORT | default "3000" | int) -}}
+  {{- $config = set $config "debug" (.env.DEBUG | default "false" | bool) -}}
+  {{- $config = set $config "timeout" (.env.TIMEOUT | default "30.5" | float64) -}}
+  {{ $config | toJson }}
+```
+
+Advanced template patterns enable powerful, maintainable workflows that can adapt to complex requirements while maintaining readability and reliability. These patterns form the foundation for sophisticated Compozy applications.

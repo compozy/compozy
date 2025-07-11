@@ -1,6 +1,496 @@
 ---
-title: Configuration
-description: Configuring the memory system
+title: "Memory Configuration"
+description: "Complete guide to configuring memory resources, strategies, and persistence in Compozy"
 ---
 
-# Configuration
+# Memory Configuration
+
+Memory resources are configured through YAML files that define how agents store and manage conversation context. This guide covers all configuration options and best practices.
+
+## Basic Configuration
+
+### Minimal Memory Resource
+
+```yaml
+resource: memory
+id: simple_memory
+description: Basic conversation memory
+version: 1.0.0
+
+key: "user:{{.workflow.input.user_id}}"
+type: token_based
+max_tokens: 2000
+
+persistence:
+  type: redis
+  ttl: 24h
+```
+
+### Complete Configuration Example
+
+```yaml
+resource: memory
+id: advanced_memory
+description: Advanced conversation memory with all features
+version: 1.0.0
+
+# Dynamic key template with workflow context
+key: "conversation:{{.session_id}}:{{.agent_id}}"
+
+# Memory management strategy
+type: token_based
+max_tokens: 8000
+max_messages: 200
+max_context_ratio: 0.8
+model: gpt-4
+model_context_size: 8192
+
+# Eviction policy configuration
+eviction_policy:
+  type: priority
+  priority_keywords:
+    - "error"
+    - "critical"
+    - "important"
+    - "warning"
+    - "user_preference"
+
+# Token allocation strategy
+token_allocation:
+  short_term: 0.6    # 60% for recent messages
+  long_term: 0.3     # 30% for summaries/context
+  system: 0.1        # 10% for system prompts
+
+# Flushing strategy configuration
+flushing_strategy:
+  type: hybrid_summary
+  summarize_threshold: 0.8
+  summary_tokens: 500
+  summarize_oldest_percent: 0.4
+
+# Persistence configuration
+persistence:
+  type: redis
+  ttl: 168h  # 7 days
+  circuit_breaker:
+    enabled: true
+    timeout: "100ms"
+    max_failures: 5
+    reset_timeout: "30s"
+
+# TTL configuration
+append_ttl: "30m"
+clear_ttl: "5m"
+flush_ttl: "2h"
+
+# Privacy and security
+privacy_policy:
+  redact_patterns:
+    - '\b\d{3}-\d{2}-\d{4}\b'  # SSN
+    - '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'  # Email
+  non_persistable_message_types:
+    - system
+    - tool_internal
+  default_redaction_string: "[REDACTED]"
+
+# Token counting configuration
+token_provider:
+  provider: openai
+  model: gpt-4
+  api_key_env: OPENAI_API_KEY
+  fallback: tiktoken
+  settings:
+    timeout: "30s"
+
+# Custom metadata
+metadata:
+  team: "ai-engineering"
+  environment: "production"
+  version: "v2.1"
+```
+
+## Configuration Sections
+
+### Core Settings
+
+#### Resource Identification
+```yaml
+resource: memory        # Resource type (always "memory")
+id: unique_memory_id   # Unique identifier
+description: "Purpose and context"
+version: "1.0.0"       # Configuration version
+```
+
+#### Memory Key Template
+```yaml
+# Simple user-based key
+key: "user:{{.workflow.input.user_id}}"
+
+# Complex hierarchical key
+key: "project:{{.project_id}}:agent:{{.agent_id}}:session:{{.session_id}}"
+
+# Conditional key template
+key: "{{if .workflow.input.org_id}}org:{{.workflow.input.org_id}}{{else}}user{{end}}:{{.user_id}}"
+```
+
+**Available Template Variables:**
+- `{{.workflow.input.*}}` - Any workflow input parameter
+- `{{.session_id}}` - Current session identifier
+- `{{.project_id}}` - Project context
+- `{{.agent_id}}` - Agent identifier
+- `{{.user_id}}` - User identifier
+- Custom variables from workflow execution context
+
+### Memory Type Configuration
+
+#### Token-Based Memory
+Best for LLM-optimized context management:
+
+```yaml
+type: token_based
+max_tokens: 4000                # Hard token limit
+max_context_ratio: 0.8          # Use 80% of model context
+model: gpt-4                    # Model for token counting
+model_context_size: 8192        # Override model context size
+```
+
+#### Message Count-Based Memory
+Best for predictable message limits:
+
+```yaml
+type: message_count_based
+max_messages: 100               # Maximum number of messages
+max_tokens: 8000               # Optional token fallback limit
+```
+
+#### Buffer Memory
+Simple storage for development:
+
+```yaml
+type: buffer
+max_messages: 50               # Simple message limit
+```
+
+### Eviction Policies
+
+Control which messages are removed when limits are reached:
+
+#### FIFO (First In, First Out)
+```yaml
+eviction_policy:
+  type: fifo  # Remove oldest messages first
+```
+
+#### LRU (Least Recently Used)
+```yaml
+eviction_policy:
+  type: lru   # Remove least recently accessed messages
+```
+
+#### Priority-Based Eviction
+```yaml
+eviction_policy:
+  type: priority
+  priority_keywords:
+    - "error"
+    - "critical"
+    - "important"
+    - "user_preference"
+    - "decision"
+    - "context"
+```
+
+Messages containing priority keywords are preserved longer.
+
+### Flushing Strategies
+
+Control how memory is managed when approaching limits:
+
+#### Simple FIFO Flushing
+```yaml
+flushing_strategy:
+  type: simple_fifo
+```
+
+#### LRU Flushing
+```yaml
+flushing_strategy:
+  type: lru
+```
+
+#### Token-Aware LRU
+```yaml
+flushing_strategy:
+  type: token_aware_lru
+```
+
+#### Hybrid Summary Flushing
+Intelligent summarization of older messages:
+
+```yaml
+flushing_strategy:
+  type: hybrid_summary
+  summarize_threshold: 0.8      # Start summarizing at 80% capacity
+  summary_tokens: 500           # Target tokens for summary
+  summarize_oldest_percent: 0.3 # Summarize oldest 30% of messages
+```
+
+### Persistence Configuration
+
+#### Redis Persistence (Recommended)
+```yaml
+persistence:
+  type: redis
+  ttl: 24h                     # Time-to-live for memory instances
+  circuit_breaker:
+    enabled: true
+    timeout: "100ms"           # Operation timeout
+    max_failures: 5           # Failures before opening circuit
+    reset_timeout: "30s"      # Time before retry attempt
+```
+
+#### In-Memory Persistence (Testing Only)
+```yaml
+persistence:
+  type: in_memory
+  ttl: 1h                     # Shorter TTL for testing
+```
+
+### TTL Configuration
+
+Fine-tune time-to-live behavior for different operations:
+
+```yaml
+append_ttl: "30m"    # Extend TTL by 30 minutes on each append
+clear_ttl: "5m"      # Set TTL to 5 minutes after clear
+flush_ttl: "1h"      # Set TTL to 1 hour after flush
+```
+
+**TTL Duration Formats:**
+- `30s` - 30 seconds
+- `5m` - 5 minutes
+- `2h` - 2 hours
+- `24h` - 24 hours
+- `168h` - 7 days
+
+### Token Provider Configuration
+
+Configure accurate token counting with provider APIs:
+
+#### OpenAI Provider
+```yaml
+token_provider:
+  provider: openai
+  model: gpt-4
+  api_key_env: OPENAI_API_KEY   # Environment variable name
+  endpoint: "https://api.openai.com/v1"  # Optional custom endpoint
+  fallback: tiktoken
+  settings:
+    timeout: "30s"
+    max_retries: 3
+```
+
+#### Anthropic Provider
+```yaml
+token_provider:
+  provider: anthropic
+  model: claude-3-sonnet
+  api_key_env: ANTHROPIC_API_KEY
+  fallback: tiktoken
+```
+
+#### Google Provider
+```yaml
+token_provider:
+  provider: google
+  model: gemini-pro
+  api_key_env: GOOGLE_API_KEY
+  fallback: tiktoken
+```
+
+#### Fallback Configuration
+```yaml
+token_provider:
+  provider: tiktoken    # Local token counting only
+  model: gpt-4         # Model for tiktoken encoding
+```
+
+### Privacy Policy Configuration
+
+Protect sensitive information in memory:
+
+```yaml
+privacy_policy:
+  # Regex patterns for redaction
+  redact_patterns:
+    # Social Security Numbers
+    - '\b\d{3}-\d{2}-\d{4}\b'
+    # Credit card numbers (basic pattern)
+    - '\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{3,6}\b'
+    # Email addresses
+    - '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+    # Phone numbers
+    - '\b(?:\+?1[-.\s]?)?\(?[2-9]\d{2}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b'
+    # IP addresses
+    - '\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b'
+    # Custom patterns
+    - '\baccount\s*#?\s*\d{6,12}\b'  # Account numbers
+  
+  # Message types that should not be persisted
+  non_persistable_message_types:
+    - system
+    - tool_internal
+    - debug
+  
+  # Replacement text for redacted content
+  default_redaction_string: "[REDACTED]"
+```
+
+## Environment Variable Integration
+
+Use environment variables for sensitive configuration:
+
+```yaml
+# Direct environment variable reference
+api_key: "{{ .env.OPENAI_API_KEY }}"
+
+# Environment variable with fallback
+api_key: "{{ .env.OPENAI_API_KEY | default \"fallback-key\" }}"
+
+# Conditional environment variables
+api_key: "{{ if .env.USE_OPENAI }}{{ .env.OPENAI_API_KEY }}{{ else }}{{ .env.FALLBACK_KEY }}{{ end }}"
+```
+
+## AutoLoad Configuration
+
+Configure automatic discovery of memory resources:
+
+### Project-Level AutoLoad
+```yaml
+# In compozy.yaml
+autoload:
+  enabled: true
+  strict: true
+  include:
+    - "memory/*.yaml"
+    - "config/memory/*.yaml"
+  exclude:
+    - "**/*~"
+    - "**/*.bak"
+    - "**/*.tmp"
+```
+
+### Directory Structure
+```
+project/
+├── compozy.yaml
+├── memory/
+│   ├── user_memory.yaml
+│   ├── conversation_memory.yaml
+│   └── analytics_memory.yaml
+└── workflows/
+    └── chat.yaml
+```
+
+## Validation and Best Practices
+
+### Configuration Validation
+Memory configurations are validated at startup:
+
+- Required fields are present
+- TTL durations are valid
+- Token limits are positive
+- Eviction policies are correctly configured
+- Privacy patterns compile correctly
+
+### Best Practices
+
+#### Key Design
+```yaml
+# ✅ Good: Hierarchical and descriptive
+key: "user:{{.user_id}}:conversation:{{.conversation_id}}"
+
+# ❌ Bad: Too simple, potential collisions
+key: "{{.user_id}}"
+
+# ✅ Good: Include necessary context
+key: "project:{{.project_id}}:agent:{{.agent_id}}:session:{{.session_id}}"
+```
+
+#### Memory Limits
+```yaml
+# ✅ Good: Reasonable limits for use case
+type: token_based
+max_tokens: 4000        # Fits within model context
+max_messages: 100       # Reasonable conversation length
+
+# ❌ Bad: Limits too high
+max_tokens: 100000      # Exceeds most model contexts
+```
+
+#### TTL Configuration
+```yaml
+# ✅ Good: Balanced TTL settings
+persistence:
+  ttl: 24h             # Main TTL
+append_ttl: "30m"      # Reasonable extension
+clear_ttl: "5m"        # Quick cleanup
+flush_ttl: "2h"        # Longer preservation after flush
+```
+
+#### Privacy Patterns
+```yaml
+# ✅ Good: Specific, tested patterns
+redact_patterns:
+  - '\b\d{3}-\d{2}-\d{4}\b'  # Specific SSN format
+
+# ❌ Bad: Overly broad patterns
+redact_patterns:
+  - '\d+'  # Too broad, redacts all numbers
+```
+
+## Troubleshooting Configuration
+
+### Common Issues
+
+#### Invalid Key Templates
+```yaml
+# ❌ Error: Invalid template syntax
+key: "user:{{.workflow.input.user_id"  # Missing closing braces
+
+# ✅ Fix: Correct template syntax
+key: "user:{{.workflow.input.user_id}}"
+```
+
+#### TTL Format Errors
+```yaml
+# ❌ Error: Invalid duration format
+append_ttl: "30 minutes"
+
+# ✅ Fix: Use Go duration format
+append_ttl: "30m"
+```
+
+#### Token Limit Conflicts
+```yaml
+# ❌ Error: Token limit exceeds model context
+type: token_based
+max_tokens: 10000
+model_context_size: 4096
+
+# ✅ Fix: Align limits with model capacity
+max_tokens: 3000
+model_context_size: 4096
+```
+
+### Validation Commands
+
+```bash
+# Validate memory configuration
+compozy validate --config memory/user_memory.yaml
+
+# Test memory configuration with dry run
+compozy test memory --dry-run --config memory/user_memory.yaml
+```
+
+This comprehensive configuration guide enables you to set up memory resources that match your specific use case requirements while following best practices for performance, security, and reliability.

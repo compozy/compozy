@@ -1,7 +1,12 @@
-export { Param } from "./param";
-export type { BodyProps, ExpandableItemProps, ExpandableRootProps, ParamProps } from "./param";
+export { Param, Body as ParamBody, ParamCollapse, ParamCollapseItem } from "./param";
+export type {
+  BodyProps as ParamBodyProps,
+  ParamCollapseItemProps,
+  ParamCollapseProps,
+  ParamProps,
+} from "./param";
 
-export { Params } from "./params";
+export { Params, ParamsBody, ParamsHeader } from "./params";
 export type { ParamsBodyProps, ParamsHeaderProps, ParamsProps } from "./params";
 
 export { SchemaParams } from "./schema-params";
