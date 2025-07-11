@@ -1,0 +1,31 @@
+---
+title: Schedules
+description: Schedule management operations
+full: true
+icon: Code
+group: API Reference
+_openapi:
+  toc: []
+  structuredData:
+    headings: []
+    contents:
+      - content: >-
+          Retrieve a list of all scheduled workflows with their current status
+          and override information
+      - content: >-
+          Retrieve detailed information about a specific scheduled workflow
+          including YAML configuration
+      - content: >-
+          Update a scheduled workflow's enabled state and/or cron expression. At
+          least one field must be provided. This creates a temporary override
+          that persists until the next YAML reload.
+      - content: >-
+          Remove a scheduled workflow from Temporal. The schedule will be
+          recreated on the next YAML reload if still defined.
+---
+
+{/* <!-- This file was auto-generated from OpenAPI\/Swagger. Do not edit manually. --> */}
+
+Schedule management operations
+
+<APIPage document={"swagger.json"} operations={[{"path":"/schedules","method":"get"},{"path":"/schedules/{workflow_id}","method":"get"},{"path":"/schedules/{workflow_id}","method":"patch"},{"path":"/schedules/{workflow_id}","method":"delete"}]} webhooks={[]} hasHead={true} />

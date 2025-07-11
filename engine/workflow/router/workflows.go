@@ -16,7 +16,7 @@ import (
 //	@Accept			json
 //	@Produce		json
 //	@Param			workflow_id	path		string									true	"Workflow ID"	example("data-processing")
-//	@Success		200			{object}	router.Response{data=workflow.Config}	"Workflow retrieved successfully"
+//	@Success		200			{object}	router.Response{data=wfrouter.WorkflowResponse}	"Workflow retrieved successfully"
 //	@Failure		400			{object}	router.Response{error=router.ErrorInfo}	"Invalid workflow ID"
 //	@Failure		404			{object}	router.Response{error=router.ErrorInfo}	"Workflow not found"
 //	@Failure		500			{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
@@ -41,7 +41,8 @@ func getWorkflowByID(c *gin.Context) {
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
-	router.RespondOK(c, "workflow retrieved", workflow)
+	workflowResponse := ConvertWorkflowConfigToResponse(workflow)
+	router.RespondOK(c, "workflow retrieved", workflowResponse)
 }
 
 // listWorkflows retrieves all workflows
@@ -51,7 +52,7 @@ func getWorkflowByID(c *gin.Context) {
 //	@Tags			workflows
 //	@Accept			json
 //	@Produce		json
-//	@Success		200	{object}	router.Response{data=object{workflows=[]workflow.Config}}	"Workflows retrieved successfully"
+//	@Success		200	{object}	router.Response{data=object{workflows=[]wfrouter.WorkflowResponse}}	"Workflows retrieved successfully"
 //	@Failure		500	{object}	router.Response{error=router.ErrorInfo}						"Internal server error"
 //	@Router			/workflows [get]
 func listWorkflows(c *gin.Context) {
@@ -70,7 +71,8 @@ func listWorkflows(c *gin.Context) {
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
+	workflowResponses := ConvertWorkflowConfigsToResponses(workflows)
 	router.RespondOK(c, "workflows retrieved", gin.H{
-		"workflows": workflows,
+		"workflows": workflowResponses,
 	})
 }

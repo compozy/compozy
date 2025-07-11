@@ -17,7 +17,7 @@ import (
 //	@Produce		json
 //	@Param			workflow_id	path		string									true	"Workflow ID"	example("data-processing")
 //	@Param			task_id		path		string									true	"Task ID"		example("validate-input")
-//	@Success		200			{object}	router.Response{data=task.Config}		"Task retrieved successfully"
+//	@Success		200			{object}	router.Response{data=tkrouter.TaskResponse}		"Task retrieved successfully"
 //	@Failure		400			{object}	router.Response{error=router.ErrorInfo}	"Invalid workflow or task ID"
 //	@Failure		404			{object}	router.Response{error=router.ErrorInfo}	"Task not found"
 //	@Failure		500			{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
@@ -46,7 +46,8 @@ func getTaskByID(c *gin.Context) {
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
-	router.RespondOK(c, "task retrieved", task)
+	taskResponse := ConvertTaskConfigToResponse(task)
+	router.RespondOK(c, "task retrieved", taskResponse)
 }
 
 // listTasks retrieves all tasks for a workflow
@@ -57,7 +58,7 @@ func getTaskByID(c *gin.Context) {
 //	@Accept			json
 //	@Produce		json
 //	@Param			workflow_id	path		string												true	"Workflow ID"	example("data-processing")
-//	@Success		200			{object}	router.Response{data=object{tasks=[]task.Config}}	"Tasks retrieved successfully"
+//	@Success		200			{object}	router.Response{data=object{tasks=[]tkrouter.TaskResponse}}	"Tasks retrieved successfully"
 //	@Failure		400			{object}	router.Response{error=router.ErrorInfo}				"Invalid workflow ID"
 //	@Failure		404			{object}	router.Response{error=router.ErrorInfo}				"Workflow not found"
 //	@Failure		500			{object}	router.Response{error=router.ErrorInfo}				"Internal server error"
@@ -82,7 +83,8 @@ func listTasks(c *gin.Context) {
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
+	taskResponses := ConvertTaskConfigsToResponses(tasks)
 	router.RespondOK(c, "tasks retrieved", gin.H{
-		"tasks": tasks,
+		"tasks": taskResponses,
 	})
 }

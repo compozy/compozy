@@ -32,17 +32,5 @@
     "typescript": "5.8.3",
     "vite": "^7.0.4"
   },
-  "dependencies": {
-    "@radix-ui/react-dialog": "^1.1.14",
-    "@radix-ui/react-tooltip": "^1.2.7",
-    "cmdk": "^1.1.1",
-    "mermaid": "^11.8.1",
-    "next-themes": "^0.4.6",
-    "openmeteo": "1.2.0",
-    "react-markdown": "10.1.0",
-    "rehype-mermaid": "^3.0.0",
-    "remark-gfm": "4.0.1",
-    "svg-pan-zoom": "^3.6.2"
-  },
   "packageManager": "bun@1.2.18"
 }

@@ -226,7 +226,7 @@ type SignalRequest struct {
 	// SignalName is the name of the signal to send to the workflow execution
 	SignalName string `json:"signal_name" binding:"required" example:"ready_signal"`
 	// Payload contains the data to send with the signal
-	Payload core.Input `json:"payload"                        example:"{}"`
+	Payload core.Input `json:"payload"`
 }
 
 // SignalResponse represents the response for sending a signal

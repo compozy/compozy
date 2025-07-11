@@ -1,0 +1,388 @@
+---
+title: API Overview
+description: Compozy provides a comprehensive **REST API** that enables programmatic access to the workflow orchestration engine for AI agents, tasks, and tools. The API follows RESTful design principles and provides a unified interface for managing all aspects of your AI-powered workflows.
+icon: Globe
+---
+
+import {
+  Workflow,
+  Layers,
+  Users,
+  Wrench,
+  Calendar,
+  Database,
+  Activity,
+  Globe,
+  Code,
+  Zap,
+  Shield,
+  BarChart3,
+  BookOpen,
+  Rocket,
+  Settings,
+  Package,
+  CheckCircle,
+  ArrowRightLeft,
+  Lock,
+  Eye,
+  GitBranch,
+  CheckSquare,
+  Bot,
+  Brain,
+} from "lucide-react";
+import { FeatureCard, FeatureCardList } from "@/components/ui/feature-card";
+import { ReferenceCard, ReferenceCardList } from "@/components/ui/reference-card";
+
+## About the API
+
+The Compozy REST API serves as the **central management interface** for the workflow orchestration engine, providing powerful capabilities for building and managing AI-powered automation systems.
+
+<FeatureCardList cols={3} size="sm">
+  <FeatureCard
+    title="RESTful Design"
+    description="Standard HTTP methods, status codes, and consistent JSON communication patterns"
+    icon={Globe}
+  />
+  <FeatureCard
+    title="OpenAPI Specification"
+    description="Complete Swagger documentation with interactive testing and code generation"
+    icon={BookOpen}
+  />
+  <FeatureCard
+    title="Orchestration"
+    description="Create, execute, and monitor complex AI agent workflows with sophisticated task coordination and state management"
+    icon={Workflow}
+  />
+  <FeatureCard
+    title="Manage Resources"
+    description="Configure agents, tasks, tools, and schedules programmatically with full CRUD operations and validation"
+    icon={Settings}
+  />
+  <FeatureCard
+    title="Monitor Operations"
+    description="Access real-time execution status, comprehensive metrics, and detailed health information for production environments"
+    icon={Eye}
+  />
+  <FeatureCard
+    title="Integrate Systems"
+    description="Connect external applications and services seamlessly to Compozy workflows with standardized interfaces"
+    icon={ArrowRightLeft}
+  />
+</FeatureCardList>
+
+
+## API Categories
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Workflows"
+    description="Manage workflow definitions and executions. Create, start, pause, resume, and cancel AI-powered workflows with complex orchestration patterns."
+    icon={Workflow}
+    href="/docs/api/workflows"
+  />
+  <ReferenceCard
+    title="Tasks"
+    description="Access task configurations within workflows. Retrieve task definitions, parameters, and execution requirements for workflow components."
+    icon={Layers}
+    href="/docs/api/tasks"
+  />
+  <ReferenceCard
+    title="Agents"
+    description="Discover and configure AI agents. Access agent definitions, LLM configurations, instructions, and available actions for workflow execution."
+    icon={Users}
+    href="/docs/api/agents"
+  />
+  <ReferenceCard
+    title="Tools"
+    description="Manage external tool integrations. Retrieve tool definitions, schemas, and configurations for extending agent capabilities."
+    icon={Wrench}
+    href="/docs/api/tools"
+  />
+  <ReferenceCard
+    title="Schedules"
+    description="Control scheduled workflow executions. Manage cron-based schedules, enable/disable recurring workflows, and configure timing parameters."
+    icon={Calendar}
+    href="/docs/api/schedules"
+  />
+  <ReferenceCard
+    title="Memory"
+    description="Manage persistent agent memory. Store, retrieve, and manage conversation context, agent state, and workflow memory across executions."
+    icon={Database}
+    href="/docs/api/memory"
+  />
+  <ReferenceCard
+    title="Operations"
+    description="Monitor system health and metrics. Access Prometheus metrics, health checks, and operational data for production monitoring."
+    icon={Activity}
+    href="/docs/api/operations"
+  />
+</ReferenceCardList>
+
+## Getting Started
+
+<Steps numbered size="sm" className="mt-12">
+<Step title="Configure Base URL" description="Set up your API client with the correct Compozy endpoint. All API endpoints are available at:">
+
+```
+http://<your-compozy-instance>/api/v0
+```
+
+</Step>
+
+<Step title="Authentication Setup" description="Configure secure access for API requests">
+
+Most endpoints require authentication. Include your API key in requests:
+
+```bash
+Authorization: Bearer your_api_key_here
+```
+
+</Step>
+
+<Step title="Make Your First Request" description="Test the API with a simple workflow execution">
+
+<Tabs items={["cURL", "JavaScript", "Python", "HTTP Client"]} className="mt-6">
+<Tab>
+
+```bash
+# Execute a workflow
+curl -X POST http://localhost:3001/api/v0/workflows/my-workflow/executions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your_api_key" \
+  -d '{
+    "input": {
+      "message": "Hello, world!"
+    }
+  }'
+```
+
+</Tab>
+
+<Tab>
+
+```javascript
+const response = await fetch('http://localhost:3001/api/v0/workflows/my-workflow/executions', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': 'Bearer your_api_key'
+  },
+  body: JSON.stringify({
+    input: {
+      message: 'Hello, world!'
+    }
+  })
+});
+
+const result = await response.json();
+console.log('Execution ID:', result.data.exec_id);
+```
+
+</Tab>
+
+<Tab>
+
+```python
+import requests
+
+response = requests.post(
+    'http://localhost:3001/api/v0/workflows/my-workflow/executions',
+    headers={
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer your_api_key'
+    },
+    json={
+        'input': {
+            'message': 'Hello, world!'
+        }
+    }
+)
+
+result = response.json()
+print(f"Execution ID: {result['data']['exec_id']}")
+```
+
+</Tab>
+
+<Tab>
+
+```http
+@baseUrl = http://localhost:3001/api/v0
+@apiKey = your_api_key_here
+
+### Execute workflow
+POST {{baseUrl}}/workflows/my-workflow/executions
+Content-Type: application/json
+Authorization: Bearer {{apiKey}}
+
+{
+  "input": {
+    "message": "Hello, world!"
+  }
+}
+
+### Check execution status
+@execId = {{exec.response.body.data.exec_id}}
+GET {{baseUrl}}/executions/workflows/{{execId}}
+Authorization: Bearer {{apiKey}}
+```
+
+</Tab>
+</Tabs>
+
+</Step>
+
+<Step title="Monitor Execution" description="Track workflow progress and retrieve results">
+
+Check execution status and retrieve outputs:
+
+```bash
+# Get execution status
+curl -X GET http://localhost:3001/api/v0/executions/workflows/{execution_id} \
+  -H "Authorization: Bearer your_api_key"
+
+# Get execution outputs (when completed)
+curl -X GET http://localhost:3001/api/v0/executions/workflows/{execution_id}/outputs \
+  -H "Authorization: Bearer your_api_key"
+```
+
+</Step>
+</Steps>
+
+## Response Format Standards
+
+<Tabs items={["Success Response", "Error Response", "Execution Status", "Streaming Response"]}>
+<Tab>
+
+**Standard Success Response:**
+```json
+{
+  "data": {
+    "exec_id": "exec_01234567-89ab-cdef-0123-456789abcdef",
+    "workflow_id": "my-workflow",
+    "status": "running",
+    "created_at": "2024-01-15T10:30:00Z",
+    "updated_at": "2024-01-15T10:30:00Z"
+  },
+  "message": "Workflow execution started successfully"
+}
+```
+
+</Tab>
+
+<Tab>
+
+**Error Response Structure:**
+```json
+{
+  "error": "VALIDATION_FAILED",
+  "details": "Input validation failed: field 'city' is required",
+  "timestamp": "2024-01-15T10:30:00Z",
+  "request_id": "req_12345"
+}
+```
+
+**Common Error Codes:**
+- `VALIDATION_FAILED` - Input validation errors
+- `WORKFLOW_NOT_FOUND` - Requested workflow doesn't exist
+- `EXECUTION_FAILED` - Workflow execution encountered an error
+- `AUTHENTICATION_REQUIRED` - Missing or invalid API key
+
+</Tab>
+
+<Tab>
+
+**Execution Status Response:**
+```json
+{
+  "data": {
+    "exec_id": "exec_01234567-89ab-cdef-0123-456789abcdef",
+    "workflow_id": "my-workflow",
+    "status": "completed",
+    "progress": {
+      "completed_tasks": 3,
+      "total_tasks": 3,
+      "percentage": 100
+    },
+    "outputs": {
+      "result": "Success",
+      "processed_items": 42
+    },
+    "duration": "00:02:34",
+    "created_at": "2024-01-15T10:30:00Z",
+    "completed_at": "2024-01-15T10:32:34Z"
+  }
+}
+```
+
+**Status Values:**
+- `pending` - Execution queued
+- `running` - Currently executing
+- `completed` - Successfully finished
+- `failed` - Execution failed
+- `cancelled` - Manually cancelled
+
+</Tab>
+
+<Tab>
+
+**Streaming Response (Server-Sent Events):**
+```
+event: execution.started
+data: {"exec_id": "exec_123", "workflow_id": "my-workflow"}
+
+event: task.completed
+data: {"task_id": "task_1", "status": "completed", "output": "..."}
+
+event: execution.completed
+data: {"exec_id": "exec_123", "status": "completed", "outputs": "..."}
+```
+
+</Tab>
+</Tabs>
+
+## Authentication & Security
+
+<List>
+  <ListItem title="API Key Authentication" icon={Lock}>
+    Use Bearer tokens in the Authorization header for secure API access
+  </ListItem>
+  <ListItem title="Role-Based Access" icon={Shield}>
+    Different endpoints require different permission levels (read, write, admin)
+  </ListItem>
+  <ListItem title="Rate Limiting" icon={Activity}>
+    Built-in rate limiting to prevent abuse and ensure fair resource usage
+  </ListItem>
+  <ListItem title="Request Validation" icon={CheckCircle}>
+    All inputs validated against JSON schemas before processing
+  </ListItem>
+</List>
+
+## Next Steps
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Workflow Execution"
+    description="Learn how to create, execute, and monitor workflows via the REST API"
+    href="/docs/api/workflows"
+    icon={Workflow}
+  />
+  <ReferenceCard
+    title="Agent Configuration"
+    description="Configure AI agents with custom instructions, tools, and provider settings"
+    href="/docs/api/agents"
+    icon={Users}
+  />
+  <ReferenceCard
+    title="Task Management"
+    description="Understand task execution patterns, monitoring, and coordination strategies"
+    href="/docs/api/tasks"
+    icon={Layers}
+  />
+  <ReferenceCard
+    title="Memory Systems"
+    description="Manage persistent context and conversation history across executions"
+    href="/docs/api/memory"
+    icon={Database}
+  />
+</ReferenceCardList>

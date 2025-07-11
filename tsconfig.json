@@ -28,9 +28,7 @@
   },
   "include": [
     "examples/**/*",
-    "docs/**/*",
-    "tasks/prd-docs/reference-index.mdx",
-    "tasks/prd-docs/cross-reference-summary.mdx"
+    "docs/**/*"
   ],
   "exclude": [
     "node_modules",

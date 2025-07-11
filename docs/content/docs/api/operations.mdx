@@ -1,0 +1,31 @@
+---
+title: Operations
+description: Operational endpoints for monitoring and health
+full: true
+icon: Code
+group: API Reference
+_openapi:
+  method: GET
+  route: /metrics
+  toc: []
+  structuredData:
+    headings: []
+    contents:
+      - content: |-
+          Exposes application metrics in Prometheus exposition format.
+          This endpoint is used by Prometheus servers to scrape metrics.
+
+          The response is in text/plain format following the Prometheus
+          exposition format specification.
+
+          Available metrics include:
+          - HTTP request rates and latencies
+          - Temporal workflow execution metrics
+          - System health information
+---
+
+{/* <!-- This file was auto-generated from OpenAPI\/Swagger. Do not edit manually. --> */}
+
+Operational endpoints for monitoring and health
+
+<APIPage document={"swagger.json"} operations={[{"path":"/metrics","method":"get"}]} webhooks={[]} hasHead={true} />

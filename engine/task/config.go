@@ -2308,12 +2308,12 @@ type Config struct {
 	// For composite: tasks run sequentially
 	// For collection: not used (use Task field instead)
 	// $ref: inline:#
-	Tasks []Config `json:"tasks"          yaml:"tasks"          mapstructure:"tasks"`
+	Tasks []Config `json:"tasks"          yaml:"tasks"          mapstructure:"tasks"          swaggerignore:"true"`
 	// Task template for collection tasks
 	// This configuration is replicated for each item in the collection
 	// The item and index are available as template variables
 	// $ref: inline:#
-	Task *Config `json:"task,omitempty" yaml:"task,omitempty" mapstructure:"task,omitempty"`
+	Task *Config `json:"task,omitempty" yaml:"task,omitempty" mapstructure:"task,omitempty" swaggerignore:"true"`
 }
 
 func (t *Config) GetEnv() core.EnvMap {
