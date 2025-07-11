@@ -3,6 +3,29 @@ title: First Workflow
 description: Interactive walkthrough to build your first complete workflow
 ---
 
+import {
+  Database,
+  Radio,
+  Link2,
+  Calendar,
+  Users,
+  Shield,
+  BarChart3,
+  FileCode,
+  HeadphonesIcon,
+  Cpu,
+  PenTool,
+  Github,
+  MessageSquare,
+  FileText,
+  Rocket,
+  BookOpen,
+  BrainCircuit,
+  GitBranch,
+  Code,
+  Zap
+} from "lucide-react";
+
 <Mermaid chart={`graph LR
     A[Installation] --> B[Core Concepts]
     B --> C[First Workflow]
@@ -20,20 +43,45 @@ In this comprehensive tutorial, you'll build a complete AI-powered workflow that
 
 ## Related Concepts
 
-This tutorial demonstrates key Compozy concepts:
-- **[Agent Configuration](/docs/core/agents/overview)** - Setting up AI agents with specific instructions
-- **[Task Orchestration](/docs/core/tasks/basic-tasks)** - Coordinating multiple processing steps
-- **[YAML Templates](/docs/core/yaml-templates/overview)** - Dynamic configuration and data flow
-- **[Provider Integration](/docs/core/configuration/providers)** - Connecting to LLM services
+<ReferenceCardList>
+  <ReferenceCard
+    title="Agent Configuration"
+    description="Setting up AI agents with specific instructions"
+    href="/docs/core/agents/overview"
+    icon={BrainCircuit}
+  />
+  <ReferenceCard
+    title="Task Orchestration"
+    description="Coordinating multiple processing steps"
+    href="/docs/core/tasks/basic-tasks"
+    icon={GitBranch}
+  />
+  <ReferenceCard
+    title="YAML Templates"
+    description="Dynamic configuration and data flow"
+    href="/docs/core/yaml-templates/overview"
+    icon={FileCode}
+  />
+  <ReferenceCard
+    title="Provider Integration"
+    description="Connecting to LLM services"
+    href="/docs/core/configuration/providers"
+    icon={Zap}
+  />
+</ReferenceCardList>
 
 ## What You'll Build
 
+
 By the end of this tutorial, you'll have a workflow that:
-- Accepts article content as input
-- Analyzes readability and sentiment
-- Extracts key topics and entities
-- Generates a comprehensive summary
-- Provides actionable insights and recommendations
+
+<List>
+  <ListItem title="Content Input">Accepts article content as input for comprehensive analysis</ListItem>
+  <ListItem title="Sentiment Analysis">Analyzes readability metrics and emotional sentiment</ListItem>
+  <ListItem title="Entity Extraction">Extracts key topics, people, organizations, and entities</ListItem>
+  <ListItem title="Summary Generation">Generates a comprehensive executive summary</ListItem>
+  <ListItem title="Actionable Insights">Provides actionable insights and strategic recommendations</ListItem>
+</List>
 
 ## Prerequisites
 
@@ -41,9 +89,8 @@ Before starting, ensure you have:
 - Compozy installed and running ([Installation Guide](/docs/getting-started/installation))
 - Basic understanding of [Core Concepts](/docs/getting-started/core-concepts)
 - A text editor or IDE
-- API key for an LLM provider (we'll use Groq in this example)
+- API key for an LLM provider (we'll use OpenAI in this example)
 
-import { Steps, Step } from "@/components/ui/step";
 
 ## Building the project
 
@@ -62,29 +109,26 @@ cd content-analyzer
 
 Create `compozy.yaml` to define your project:
 
-```yaml
+```yaml title="compozy.yaml"
 name: content-analyzer
 version: "1.0.0"
 description: AI-powered content analysis and insights generation
 
 author:
   name: Your Name
-  email: your.email@example.com
+  url: https://github.com/yourusername
 
 workflows:
   - source: ./workflow.yaml
 
 models:
-  - provider: groq
-    model: llama-3.3-70b-versatile
-    api_key: "{{ .env.GROQ_API_KEY }}"
-  - provider: groq
-    model: llama-3.1-8b-instant
-    api_key: "{{ .env.GROQ_API_KEY }}"
+  - provider: openai
+    model: gpt-4o-mini
+    api_key: "{{ .env.OPENAI_API_KEY }}"
 
 runtime:
-  type: deno
-  entrypoint: "./main.ts"
+  type: bun
+  entrypoint: "./entrypoint.ts"
   permissions:
     - --allow-read
     - --allow-net
@@ -95,21 +139,35 @@ runtime:
 
 Create `.env` file:
 
-```bash
-# Get your free API key from https://groq.com
-GROQ_API_KEY=your_groq_api_key_here
+```bash title=".env"
+# Get your API key from https://platform.openai.com
+OPENAI_API_KEY=your_openai_api_key_here
 ```
 
 </Step>
 
 <Step title="Create Analysis Tools" description="Build TypeScript tools for text analysis">
 
+<Tabs items={["Entrypoint", "Readability Tool", "Entity Extractor"]} className="mt-6">
 
-### Readability Analysis Tool
+<Tab value="Entrypoint">
 
-Create `readability_tool.ts`:
+```typescript title="entrypoint.ts"
+import { readabilityAnalyzer } from "./readability_tool.ts";
+import { entityExtractor } from "./entity_extractor.ts";
 
-```typescript
+// Export tools with snake_case keys for Compozy runtime
+export default {
+  readability_analyzer: readabilityAnalyzer,
+  entity_extractor: entityExtractor,
+};
+```
+
+</Tab>
+
+<Tab value="Readability Tool">
+
+```typescript title="readability_tool.ts"
 interface ReadabilityInput {
   content: string;
 }
@@ -122,11 +180,10 @@ interface ReadabilityOutput {
   readability_score: number;
 }
 
-const input: ReadabilityInput = JSON.parse(await Bun.stdin.text());
-
-function calculateReadability(text: string): ReadabilityOutput {
-  const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
-  const words = text.split(/\s+/).filter(w => w.length > 0);
+// Note: This function will be called by Compozy runtime
+export async function readabilityAnalyzer(input: ReadabilityInput): Promise<ReadabilityOutput> {
+  const sentences = input.content.split(/[.!?]+/).filter(s => s.trim().length > 0);
+  const words = input.content.split(/\s+/).filter(w => w.length > 0);
   const complexWords = words.filter(word => word.length > 6);
 
   const avgSentenceLength = words.length / sentences.length;
@@ -152,16 +209,13 @@ function calculateReadability(text: string): ReadabilityOutput {
     readability_score: Math.round(readabilityScore * 100) / 100
   };
 }
-
-const result = calculateReadability(input.content);
-console.log(JSON.stringify(result));
 ```
 
-### Entity Extraction Tool
+</Tab>
 
-Create `entity_extractor.ts`:
+<Tab value="Entity Extractor">
 
-```typescript
+```typescript title="entity_extractor.ts"
 interface EntityInput {
   content: string;
 }
@@ -174,24 +228,23 @@ interface EntityOutput {
   topics: string[];
 }
 
-const input: EntityInput = JSON.parse(await Bun.stdin.text());
-
-function extractEntities(text: string): EntityOutput {
+// Note: This function will be called by Compozy runtime
+export async function entityExtractor(input: EntityInput): Promise<EntityOutput> {
   // Simple regex-based entity extraction (in production, use NLP libraries)
   const peopleRegex = /\b[A-Z][a-z]+ [A-Z][a-z]+\b/g;
   const orgRegex = /\b[A-Z][a-z]+ (?:Inc|Corp|LLC|Ltd|Company|Organization|Foundation)\b/g;
   const locationRegex = /\b(?:in|at|from) ([A-Z][a-z]+(?:, [A-Z][a-z]+)*)\b/g;
   const dateRegex = /\b(?:January|February|March|April|May|June|July|August|September|October|November|December) \d{1,2}, \d{4}\b/g;
 
-  const people = [...new Set(text.match(peopleRegex) || [])];
-  const organizations = [...new Set(text.match(orgRegex) || [])];
-  const locations = [...new Set(Array.from(text.matchAll(locationRegex), m => m[1]))];
-  const dates = [...new Set(text.match(dateRegex) || [])];
+  const people = [...new Set(input.content.match(peopleRegex) || [])];
+  const organizations = [...new Set(input.content.match(orgRegex) || [])];
+  const locations = [...new Set(Array.from(input.content.matchAll(locationRegex), m => m[1]))];
+  const dates = [...new Set(input.content.match(dateRegex) || [])];
 
   // Extract topics using simple keyword analysis
   const commonWords = new Set(['the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'must', 'can', 'shall', 'this', 'that', 'these', 'those', 'a', 'an']);
 
-  const words = text.toLowerCase().split(/\s+/).map(w => w.replace(/[^\w]/g, ''));
+  const words = input.content.toLowerCase().split(/\s+/).map(w => w.replace(/[^\w]/g, ''));
   const wordFreq = new Map<string, number>();
 
   words.forEach(word => {
@@ -213,47 +266,30 @@ function extractEntities(text: string): EntityOutput {
     topics
   };
 }
-
-const result = extractEntities(input.content);
-console.log(JSON.stringify(result));
 ```
 
-### Main Runtime Entry Point
+</Tab>
 
-Create `main.ts`:
-
-```typescript
-// Main runtime entry point for Bun
-// This initializes the runtime environment for tools
-
-console.log("Content Analyzer runtime initialized");
-
-// Export any shared utilities or configurations
-export const config = {
-  version: "1.0.0",
-  name: "content-analyzer"
-};
-```
+</Tabs>
 
 </Step>
 
 <Step title="Define AI Agents" description="Create agents that perform different analysis tasks using AI">
 
+<Tabs items={["Content Analyzer", "Insight Generator"]} className="mt-6">
 
-### Content Analysis Agent
+<Tab value="Content Analyzer">
 
-Create `agents/content_analyzer.yaml`:
-
-```yaml
+```yaml title="agents/content_analyzer.yaml"
 resource: agent
 id: content_analyzer
 description: Analyzes content for sentiment, tone, and quality
 version: 1.0.0
 
 config:
-  provider: groq
-  model: llama-3.3-70b-versatile
-  api_key: "{{ .env.GROQ_API_KEY }}"
+  provider: openai
+  model: gpt-4o-mini
+  api_key: "{{ .env.OPENAI_API_KEY }}"
 
 instructions: |
   You are a professional content analyst with expertise in:
@@ -264,6 +300,10 @@ instructions: |
 
   Always provide detailed, actionable insights with specific examples from the content.
   Be objective and constructive in your analysis.
+
+tools:
+  - $ref: local::tools.#(id=="readability_analyzer")
+  - $ref: local::tools.#(id=="entity_extractor")
 
 actions:
   - id: analyze_sentiment
@@ -357,20 +397,20 @@ actions:
         - detailed_feedback
 ```
 
-### Insight Generator Agent
+</Tab>
 
-Create `agents/insight_generator.yaml`:
+<Tab value="Insight Generator">
 
-```yaml
+```yaml title="agents/insight_generator.yaml"
 resource: agent
 id: insight_generator
 description: Generates actionable insights and recommendations
 version: 1.0.0
 
 config:
-  provider: groq
-  model: llama-3.1-8b-instant
-  api_key: "{{ .env.GROQ_API_KEY }}"
+  provider: openai
+  model: gpt-4o-mini
+  api_key: "{{ .env.OPENAI_API_KEY }}"
 
 instructions: |
   You are a strategic content consultant who specializes in:
@@ -380,6 +420,10 @@ instructions: |
   - Creating executive summaries
 
   Always focus on practical, implementable suggestions that add real value.
+
+tools:
+  - $ref: local::tools.#(id=="readability_analyzer")
+  - $ref: local::tools.#(id=="entity_extractor")
 
 actions:
   - id: generate_summary
@@ -468,14 +512,15 @@ actions:
         - success_metrics
 ```
 
+</Tab>
+
+</Tabs>
+
 </Step>
 
 <Step title="Create the Main Workflow" description="Orchestrate all components into a cohesive workflow">
 
-
-Create `workflow.yaml`:
-
-```yaml
+```yaml title="workflow.yaml"
 id: content-analyzer
 version: 1.0.0
 description: Comprehensive content analysis and insights generation workflow
@@ -519,8 +564,8 @@ tools:
       $ref: local::schemas.#(id=="content_input")
 
 agents:
-  - $ref: resource::agent::agents/content_analyzer.yaml#(id=="content_analyzer")
-  - $ref: resource::agent::agents/insight_generator.yaml#(id=="insight_generator")
+  - $ref: resource::agent::#(id=="content_analyzer")
+  - $ref: resource::agent::#(id=="insight_generator")
 
 tasks:
   # Phase 1: Technical Analysis
@@ -615,19 +660,15 @@ tasks:
         author: "{{ .workflow.input.author | default \"Unknown\" }}"
         analyzed_at: "{{ now }}"
         word_count: "{{ .tasks.analyze_readability.output.readability_metrics.word_count }}"
-
       technical_analysis:
         readability: "{{ .tasks.analyze_readability.output.readability_metrics }}"
         entities: "{{ .tasks.extract_entities.output.entities }}"
-
       ai_analysis:
         sentiment: "{{ .tasks.ai_analysis.children.sentiment_analysis.output.sentiment_results }}"
         quality: "{{ .tasks.ai_analysis.children.quality_assessment.output.quality_results }}"
-
       insights:
         executive_summary: "{{ .tasks.generate_insights.children.create_summary.output.executive_summary }}"
         strategic_insights: "{{ .tasks.generate_insights.children.strategic_insights.output.strategic_insights }}"
-
       overall_score: "{{ .tasks.generate_insights.children.create_summary.output.executive_summary.content_score }}"
     final: true
 
@@ -644,24 +685,9 @@ outputs:
 
 <Step title="Test Your Workflow" description="Validate the workflow with sample content">
 
+Create `test.http` with the following content to test your workflow:
 
-Create `test_content.txt`:
-
-```text
-Artificial Intelligence is revolutionizing the way we work and live. Companies like OpenAI and Google are leading the charge in developing advanced AI systems that can understand and generate human-like text. The implications of this technology are far-reaching, affecting industries from healthcare to finance.
-
-In healthcare, AI is being used to diagnose diseases more accurately and develop personalized treatment plans. For instance, machine learning algorithms can analyze medical images to detect cancer cells with greater precision than human radiologists. This technology was first demonstrated at Stanford University in 2019 and has since been adopted by major hospitals worldwide.
-
-The financial sector is also experiencing significant changes due to AI adoption. Banks are using AI-powered systems to detect fraudulent transactions in real-time, while investment firms leverage algorithms to make trading decisions. However, these advances also raise important questions about job displacement and the need for workforce retraining.
-
-As we move forward, it's crucial to ensure that AI development remains ethical and transparent. Organizations must implement proper governance frameworks and consider the societal impact of their AI systems. The future of AI depends on our ability to harness its power responsibly while addressing potential risks and challenges.
-```
-
-### Test the Workflow
-
-Create `test.http` to test your workflow:
-
-```http
+```http title="test.http"
 ### Execute the content analyzer workflow
 POST http://localhost:8000/api/v0/workflows/content-analyzer/execute
 Content-Type: application/json
@@ -750,223 +776,144 @@ Your workflow should return a comprehensive analysis like this:
 
 </Step>
 
-<Step title="Understanding the Workflow" description="Learn how the components work together">
+</Steps>
 
+## Understanding the Workflow
 
 Your workflow demonstrates several key Compozy concepts:
 
-1. **Multi-phase execution**: Technical analysis → AI analysis → Insight generation → Final report
-2. **Parallel processing**: Sentiment and quality analysis run simultaneously
-3. **Composite tasks**: Multiple insight generation tasks grouped together
-4. **Data flow**: Results from each phase feed into the next
-5. **Resource references**: External agent configurations loaded dynamically
+<List>
+  <ListItem title="Multi-phase execution">
+    Technical analysis → AI analysis → Insight generation → Final report
+  </ListItem>
+  <ListItem title="Parallel processing">
+    Sentiment and quality analysis run simultaneously
+  </ListItem>
+  <ListItem title="Composite tasks">
+    Multiple insight generation tasks grouped together
+  </ListItem>
+  <ListItem title="Data flow">
+    Results from each phase feed into the next
+  </ListItem>
+  <ListItem title="Resource references">
+    External agent configurations loaded dynamically
+  </ListItem>
+</List>
 
 ### Task Dependencies
 
-```mermaid
-graph TD
-    A[analyze_readability] --> B[extract_entities]
-    B --> C[ai_analysis]
-    C --> D[generate_insights]
-    D --> E[final_report]
+<Mermaid chart={`graph TD
+    A[analyze_readability<br/><i>basic task + tool</i>] --> B[extract_entities<br/><i>basic task + tool</i>]
+    B --> C[ai_analysis<br/><i>parallel task</i>]
+    C --> D[generate_insights<br/><i>composite task</i>]
+    D --> E[final_report<br/><i>aggregate task</i>]
 
-    C --> C1[sentiment_analysis]
-    C --> C2[quality_assessment]
+    C --> C1[sentiment_analysis<br/><i>basic task + agent</i>]
+    C --> C2[quality_assessment<br/><i>basic task + agent</i>]
 
-    D --> D1[create_summary]
-    D --> D2[strategic_insights]
-```
-
-### Key Features Demonstrated
-
-- **Tool Integration**: TypeScript tools for technical analysis
-- **Agent Actions**: Structured AI analysis with JSON schemas
-- **Parallel Execution**: Multiple AI analyses running concurrently
-- **Data Aggregation**: Combining results from multiple sources
-- **Template Expressions**: Dynamic data access and transformation
-- **Resource References**: Modular agent configurations
-
-</Step>
-
-<Step title="Extending Your Workflow" description="Add additional features and capabilities">
-
-
-Create `sentiment_tool.ts` for additional sentiment analysis:
-
-```typescript
-interface SentimentInput {
-  content: string;
-}
-
-interface SentimentOutput {
-  polarity: number;
-  subjectivity: number;
-  emotions: Record<string, number>;
-}
-
-const input: SentimentInput = JSON.parse(await Bun.stdin.text());
-
-// Simple sentiment analysis implementation
-function analyzeSentiment(text: string): SentimentOutput {
-  const positiveWords = ['good', 'great', 'excellent', 'amazing', 'wonderful', 'fantastic', 'beneficial', 'effective', 'successful'];
-  const negativeWords = ['bad', 'terrible', 'awful', 'horrible', 'disappointing', 'problematic', 'challenging', 'difficult', 'concerning'];
-
-  const words = text.toLowerCase().split(/\s+/);
-  const positiveCount = words.filter(word => positiveWords.some(pos => word.includes(pos))).length;
-  const negativeCount = words.filter(word => negativeWords.some(neg => word.includes(neg))).length;
-
-  const polarity = (positiveCount - negativeCount) / words.length;
-  const subjectivity = (positiveCount + negativeCount) / words.length;
-
-  return {
-    polarity: Math.round(polarity * 1000) / 1000,
-    subjectivity: Math.round(subjectivity * 1000) / 1000,
-    emotions: {
-      positive: positiveCount,
-      negative: negativeCount,
-      neutral: words.length - positiveCount - negativeCount
-    }
-  };
-}
-
-const result = analyzeSentiment(input.content);
-console.log(JSON.stringify(result));
-```
-
-### Add Memory Integration
-
-Enhance your workflow with memory for historical analysis:
-
-```yaml
-# Add to workflow.yaml
-tasks:
-  - id: store_analysis
-    type: memory
-    operation: append
-    key: "content_analysis:{{ .workflow.input.title | default \"untitled\" }}"
-    content: |
-      Analysis completed at {{ now }}:
-      Score: {{ .tasks.final_report.output.overall_score }}
-      Summary: {{ .tasks.final_report.output.insights.executive_summary.executive_summary }}
-    on_success:
-      next: final_report
-```
-
-### Add Conditional Logic
-
-Use router tasks for different analysis paths:
-
-```yaml
-tasks:
-  - id: content_router
-    type: router
-    condition: "{{ .tasks.analyze_readability.output.readability_metrics.word_count }}"
-    routes:
-      short:  # < 500 words
-        condition: "{{ lt .tasks.analyze_readability.output.readability_metrics.word_count 500 }}"
-        next: short_content_analysis
-      long:   # >= 500 words
-        condition: "{{ ge .tasks.analyze_readability.output.readability_metrics.word_count 500 }}"
-        next: full_analysis
-```
-
-</Step>
-
-</Steps>
-
-## Troubleshooting
-
-### Common Issues
-
-**Agent not found errors**:
-```bash
-# Ensure agent files are in the correct location
-ls -la agents/
-# Check agent resource references in workflow.yaml
-```
-
-**Tool execution failures**:
-```bash
-# Test tools independently
-deno run --allow-all readability_tool.ts
-echo '{"content": "test"}' | deno run --allow-all readability_tool.ts
-```
-
-**API key issues**:
-```bash
-# Verify environment variables
-echo $GROQ_API_KEY
-# Test API connectivity
-curl -H "Authorization: Bearer $GROQ_API_KEY" https://api.groq.com/openai/v1/models
-```
-
-**Template expression errors**:
-```yaml
-# Debug template expressions
-debug_output: "{{ .tasks.analyze_readability.output | toJson }}"
-```
-
-### Performance Optimization
-
-**Parallel execution**:
-```yaml
-# Use parallel tasks for independent operations
-type: parallel
-strategy: wait_all
-```
-
-**Resource management**:
-```yaml
-# Optimize runtime permissions
-runtime:
-  permissions:
-    - --allow-read=./
-    - --allow-net=api.groq.com
-    - --allow-env=GROQ_API_KEY
-```
+    D --> D1[create_summary<br/><i>basic task + agent</i>]
+    D --> D2[strategic_insights<br/><i>basic task + agent</i>]`} />
 
 ## Next Steps
 
 Congratulations! You've built a sophisticated AI-powered content analysis workflow. Here's how to continue learning:
 
-### 🚀 Advanced Features
-- **[Memory Systems](/docs/core/memory)** - Add persistent memory for user preferences
-- **[Signal Tasks](/docs/core/signals)** - Create event-driven workflows
-- **[MCP Integration](/docs/core/mcp)** - Connect external services and APIs
-- **[Scheduled Workflows](/docs/core/scheduling)** - Automate content analysis
+### Advanced Features
 
-### 🔧 Workflow Patterns
-- **[Multi-Agent Patterns](/docs/core/agents/multi-agent-patterns)** - Coordinate multiple AI agents
-- **[Error Handling](/docs/core/tasks/flow-control)** - Robust error recovery strategies
-- **[Performance Optimization](/docs/core/tasks/parallel-processing)** - Scale your workflows
+<ReferenceCardList>
+  <ReferenceCard
+    title="Memory Systems"
+    description="Add persistent memory for user preferences and conversation history"
+    href="/docs/core/memory/memory-concepts"
+    icon={Database}
+  />
+  <ReferenceCard
+    title="Signal Tasks"
+    description="Create event-driven workflows with cross-workflow communication"
+    href="/docs/core/signals/signal-overview"
+    icon={Radio}
+  />
+  <ReferenceCard
+    title="MCP Integration"
+    description="Connect external services and APIs using Model Context Protocol"
+    href="/docs/core/mcp/mcp-overview"
+    icon={Link2}
+  />
+  <ReferenceCard
+    title="Scheduled Workflows"
+    description="Automate content analysis with cron-based scheduling"
+    href="/docs/core/scheduling/overview"
+    icon={Calendar}
+  />
+</ReferenceCardList>
 
-### 💡 Real-World Applications
-- **[Content Management](/docs/examples/content-generation)** - Automated content workflows
-- **[Customer Support](/docs/examples/customer-support)** - AI-powered support systems
-- **[Data Processing](/docs/examples/data-processing)** - Batch analysis pipelines
+### Workflow Patterns
 
-### 🌍 Community & Resources
-- **[GitHub Repository](https://github.com/compozy/compozy)** - Source code and examples
-- **[Discord Community](https://discord.gg/compozy)** - Get help and share projects
-- **[Documentation](https://docs.compozy.dev)** - Complete reference guides
+<ReferenceCardList>
+  <ReferenceCard
+    title="Multi-Agent Patterns"
+    description="Coordinate multiple AI agents for complex orchestration"
+    href="/docs/core/agents/multi-agent-patterns"
+    icon={Users}
+  />
+  <ReferenceCard
+    title="Error Handling"
+    description="Implement robust error recovery and retry strategies"
+    href="/docs/core/tasks/flow-control"
+    icon={Shield}
+  />
+  <ReferenceCard
+    title="Performance Optimization"
+    description="Scale your workflows with parallel processing and caching"
+    href="/docs/core/tasks/parallel-processing"
+    icon={BarChart3}
+  />
+</ReferenceCardList>
 
-## See Also
+### Real-World Applications
 
-### 📖 Related Documentation
-- **[Quick Start Guide](/docs/core/getting-started/quick-start)** - Faster workflow creation for experienced users
-- **[Core Concepts](/docs/core/getting-started/core-concepts)** - Deep dive into Compozy fundamentals
-- **[Documentation Index](/docs/core/reference-index)** - Complete cross-reference system
+<ReferenceCardList>
+  <ReferenceCard
+    title="Content Generation"
+    description="Build automated content creation and optimization workflows"
+    href="/docs/core/examples/content-generation"
+    icon={PenTool}
+  />
+  <ReferenceCard
+    title="Customer Support"
+    description="Create AI-powered support systems with intelligent routing"
+    href="/docs/core/examples/customer-support"
+    icon={HeadphonesIcon}
+  />
+  <ReferenceCard
+    title="Data Processing"
+    description="Design batch analysis pipelines for large-scale data"
+    href="/docs/core/examples/data-processing"
+    icon={Cpu}
+  />
+</ReferenceCardList>
 
-### 🔧 Technical Deep Dives
-- **[Agent Instructions & Actions](/docs/core/agents/instructions-actions)** - Master agent behavior definition
-- **[Task Flow Control](/docs/core/tasks/flow-control)** - Advanced workflow orchestration
-- **[YAML Template System](/docs/core/yaml-templates/overview)** - Dynamic configuration mastery
-- **[Tool Development Guide](/docs/core/tools/typescript-development)** - Build custom tools
+### Community & Resources
 
-### 🏗️ Architecture & Patterns
-- **[Multi-Agent Coordination](/docs/core/agents/multi-agent-patterns)** - Scale beyond single agents
-- **[Memory & Context Management](/docs/core/memory/memory-concepts)** - Stateful workflow patterns
-- **[Error Handling Strategies](/docs/core/tasks/flow-control)** - Production-ready resilience
-- **[Performance Optimization](/docs/core/tasks/parallel-processing)** - High-performance workflows
+<ReferenceCardList>
+  <ReferenceCard
+    title="GitHub Repository"
+    description="Explore source code, examples, and contribute to the project"
+    href="https://github.com/compozy/compozy"
+    icon={Github}
+  />
+  <ReferenceCard
+    title="Discord Community"
+    description="Get help, share projects, and connect with other developers"
+    href="https://discord.gg/compozy"
+    icon={MessageSquare}
+  />
+  <ReferenceCard
+    title="Documentation"
+    description="Access complete reference guides and API documentation"
+    href="https://docs.compozy.dev"
+    icon={FileText}
+  />
+</ReferenceCardList>
 
 You now have the foundation to build complex AI workflows with Compozy. The patterns you've learned here can be adapted to countless use cases across different industries and applications.
