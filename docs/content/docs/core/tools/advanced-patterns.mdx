@@ -1,19 +1,78 @@
 ---
 title: "Advanced Patterns"
-description: "Sophisticated tool development patterns and advanced use cases for Compozy tools"
+description: "Sophisticated tool development patterns including state management, multi-phase processing, circuit breakers, and complex orchestration for building resilient, scalable tools in Compozy"
 ---
-
-import { Alert } from "@/components/ui/alert"
 
 # Advanced Patterns
 
-This guide explores sophisticated tool development patterns, complex orchestration scenarios, and advanced architectural approaches for building robust, scalable tools in Compozy.
+Build sophisticated, production-ready tools with advanced patterns for state management, error recovery, performance optimization, and complex orchestration. These patterns enable you to create highly resilient tools that can handle complex real-world scenarios.
+
+## Pattern Overview
+
+<FeatureCardList>
+  <FeatureCard
+    icon="Database"
+    title="State Management"
+    description="Persistent state across executions with memory, file, or database storage"
+  />
+  <FeatureCard
+    icon="GitBranch"
+    title="Multi-Phase Processing"
+    description="Complex workflows with validation, transformation, and aggregation phases"
+  />
+  <FeatureCard
+    icon="Shield"
+    title="Circuit Breakers"
+    description="Fault tolerance with automatic failure detection and recovery"
+  />
+  <FeatureCard
+    icon="Workflow"
+    title="Dynamic Orchestration"
+    description="Runtime tool composition and conditional workflow execution"
+  />
+  <FeatureCard
+    icon="Activity"
+    title="Real-time Processing"
+    description="Streaming data processing with backpressure and buffering"
+  />
+  <FeatureCard
+    icon="RefreshCw"
+    title="Compensating Actions"
+    description="Transactional workflows with automatic rollback capabilities"
+  />
+</FeatureCardList>
 
 ## State Management Patterns
 
+State management is crucial for tools that need to maintain context across multiple executions, track processing history, or coordinate complex workflows. These patterns provide robust state persistence with flexible storage backends.
+
 ### Stateful Tools with Persistence
 
-Tools that maintain state across multiple executions:
+<Callout type="info">
+State management enables tools to maintain context across executions, essential for incremental processing, progress tracking, and complex workflows.
+</Callout>
+
+<Steps>
+  <Step>
+    **Configure State Storage**
+    
+    Choose from memory, file, or database storage based on your persistence needs:
+  </Step>
+  <Step>
+    **Implement State Operations**
+    
+    Create load, update, and save operations for your state data:
+  </Step>
+  <Step>
+    **Handle State Lifecycle**
+    
+    Manage state initialization, updates, and cleanup:
+  </Step>
+</Steps>
+
+<Tabs defaultValue="implementation">
+<Tab value="implementation" label="Implementation">
+Create a stateful processor that persists data across executions:
 
 ```typescript
 // tools/stateful-processor.ts
@@ -135,9 +194,122 @@ interface ProcessorOutput {
 }
 ```
 
+```
+</Tab>
+<Tab value="configuration" label="Configuration">
+Configure the stateful processor in your workflow:
+
+```yaml
+# tools/stateful-processor.yaml
+resource: "tool"
+id: "stateful-processor"
+description: "Processor with persistent state management"
+timeout: "60s"
+
+input:
+  type: "object"
+  properties:
+    data:
+      type: "object"
+      description: "Input data to process"
+    operation:
+      type: "string"
+      enum: ["process", "reset", "status"]
+      default: "process"
+    state_config:
+      type: "object"
+      properties:
+        persistence_strategy:
+          type: "string"
+          enum: ["memory", "file", "database"]
+          default: "file"
+        state_key:
+          type: "string"
+          description: "Unique key for state storage"
+      required: ["state_key"]
+  required: ["data", "state_config"]
+
+output:
+  type: "object"
+  properties:
+    result:
+      description: "Processing result"
+    state:
+      type: "object"
+      description: "Current state information"
+    metadata:
+      type: "object"
+      properties:
+        process_count:
+          type: "integer"
+        last_processed:
+          type: "string"
+          format: "date-time"
+  required: ["result", "state", "metadata"]
+```
+</Tab>
+<Tab value="usage" label="Usage">
+Use the stateful processor in your workflow:
+
+```yaml
+# workflow.yaml
+tasks:
+  - id: process-with-state
+    type: basic
+    $use: tool(local::tools.#(id=="stateful-processor"))
+    with:
+      data: "{{ .workflow.input.batch_data }}"
+      operation: "process"
+      state_config:
+        persistence_strategy: "file"
+        state_key: "batch_processor_{{ .workflow.input.batch_id }}"
+    outputs:
+      processed_data: "{{ .output.result }}"
+      process_count: "{{ .output.metadata.process_count }}"
+      
+  - id: check-processing-status
+    type: basic
+    $use: tool(local::tools.#(id=="stateful-processor"))
+    with:
+      data: {}
+      operation: "status"
+      state_config:
+        state_key: "batch_processor_{{ .workflow.input.batch_id }}"
+    outputs:
+      status: "{{ .output.state }}"
+```
+</Tab>
+</Tabs>
+
 ### Multi-Phase Processing
 
-Tools that implement complex multi-phase processing workflows:
+Multi-phase processing enables complex workflows with validation, transformation, and aggregation phases. Each phase can have its own retry logic, validation rules, and error handling.
+
+<Callout type="warning">
+Design phases to be idempotent when possible. This ensures that retrying a phase produces the same result and doesn't cause side effects.
+</Callout>
+
+<Steps>
+  <Step>
+    **Define Processing Phases**
+    
+    Break down complex operations into discrete, manageable phases:
+  </Step>
+  <Step>
+    **Configure Phase Validation**
+    
+    Set up validation rules and retry policies for each phase:
+  </Step>
+  <Step>
+    **Implement Phase Orchestration**
+    
+    Create the orchestration logic that manages phase execution:
+  </Step>
+</Steps>
+
+<Tabs defaultValue="phases">
+<Tab value="phases" label="Phase Definition">
+Define processing phases with validation and retry configuration:
 
 ```typescript
 // tools/multi-phase-processor.ts
@@ -240,21 +412,26 @@ interface MultiPhaseResult {
   error?: string;
 }
 
-// Usage example
+// Usage example: Create a complete data processing pipeline
 async function createDataProcessor(): Promise<MultiPhaseProcessor> {
   const processor = new MultiPhaseProcessor();
 
+  // Phase 1: Input validation
   processor.addPhase({
     name: 'validation',
     processor: async (input, context) => {
       if (!input.data) {
         throw new Error('No data provided');
       }
+      if (!Array.isArray(input.data)) {
+        throw new Error('Data must be an array');
+      }
       return { ...input, validated: true };
     },
     validator: (output) => output.validated === true,
   });
 
+  // Phase 2: Data transformation with retry logic
   processor.addPhase({
     name: 'transformation',
     processor: async (input, context) => {
@@ -264,12 +441,14 @@ async function createDataProcessor(): Promise<MultiPhaseProcessor> {
           ...item,
           processed: true,
           timestamp: new Date().toISOString(),
+          phaseIndex: context.phaseIndex,
         })),
       };
     },
     retryConfig: { maxAttempts: 3, backoffMs: 1000, backoffMultiplier: 2 },
   });
 
+  // Phase 3: Result aggregation
   processor.addPhase({
     name: 'aggregation',
     processor: async (input, context) => {
@@ -277,6 +456,7 @@ async function createDataProcessor(): Promise<MultiPhaseProcessor> {
         totalItems: input.transformedData.length,
         processedAt: new Date().toISOString(),
         phaseContext: context,
+        processingHistory: context.previousResults.map(r => r.summary || {}),
       };
       return { ...input, summary };
     },
@@ -284,13 +464,129 @@ async function createDataProcessor(): Promise<MultiPhaseProcessor> {
 
   return processor;
 }
+
+export async function run(input: ProcessorInput) {
+  const processor = await createDataProcessor();
+  return processor.process(input);
+}
 ```
+</Tab>
+<Tab value="configuration" label="Configuration">
+Configure multi-phase processing in your workflow:
+
+```yaml
+# tools/multi-phase-processor.yaml
+resource: "tool"
+id: "multi-phase-processor"
+description: "Multi-phase data processor with validation and retry"
+timeout: "120s"
+
+input:
+  type: "object"
+  properties:
+    data:
+      type: "array"
+      description: "Input data array to process"
+    phase_config:
+      type: "object"
+      properties:
+        skip_validation:
+          type: "boolean"
+          default: false
+        retry_failed_phases:
+          type: "boolean"
+          default: true
+        max_phase_retries:
+          type: "integer"
+          default: 3
+          minimum: 1
+          maximum: 10
+      additionalProperties: false
+  required: ["data"]
+
+output:
+  type: "object"
+  properties:
+    success:
+      type: "boolean"
+    results:
+      type: "array"
+      description: "Results from each phase"
+    final_result:
+      description: "Final processed result"
+    completed_phases:
+      type: "integer"
+    error:
+      type: "string"
+      description: "Error message if processing failed"
+  required: ["success", "results", "completed_phases"]
+```
+</Tab>
+<Tab value="workflow" label="Workflow Usage">
+Use multi-phase processing in complex workflows:
+
+```yaml
+# workflow.yaml
+tasks:
+  - id: data-processing-pipeline
+    type: basic
+    $use: tool(local::tools.#(id=="multi-phase-processor"))
+    with:
+      data: "{{ .workflow.input.raw_data }}"
+      phase_config:
+        skip_validation: false
+        retry_failed_phases: true
+        max_phase_retries: 5
+    outputs:
+      processed_data: "{{ .output.final_result }}"
+      phase_results: "{{ .output.results }}"
+      
+  # Handle processing errors with conditional routing
+  - id: error-handler
+    type: router
+    condition: '{{ .tasks.data-processing-pipeline.output.success | ternary "success" "error" }}'
+    routes:
+      success:
+        $ref: local::tasks.#(id="save-results")
+      error:
+        $ref: local::tasks.#(id="handle-processing-error")
+```
+</Tab>
+</Tabs>
 
 ## Advanced Orchestration Patterns
 
+Dynamic orchestration enables tools to compose and coordinate other tools at runtime, creating flexible, adaptive workflows that respond to changing conditions and requirements.
+
 ### Dynamic Tool Composition
 
-Tools that can dynamically compose and orchestrate other tools:
+Dynamic tool composition allows tools to discover, register, and orchestrate other tools based on runtime conditions. This creates flexible architectures that can adapt to changing requirements without code modifications.
+
+<Callout type="info">
+Dynamic orchestration is powerful for building adaptive systems that can respond to different scenarios, but be careful to maintain clear execution boundaries and error handling.
+</Callout>
+
+<Steps>
+  <Step>
+    **Tool Registration**
+    
+    Register available tools with their capabilities and requirements:
+  </Step>
+  <Step>
+    **Orchestration Planning**
+    
+    Create execution plans based on available tools and requirements:
+  </Step>
+  <Step>
+    **Dynamic Execution**
+    
+    Execute orchestration plans with proper error handling and monitoring:
+  </Step>
+</Steps>
+
+<Tabs defaultValue="orchestrator">
+<Tab value="orchestrator" label="Orchestrator">
+Build a dynamic orchestrator that can compose and execute tool chains:
 
 ```typescript
 // tools/dynamic-orchestrator.ts
@@ -507,12 +803,287 @@ interface OrchestrationResult {
   success: boolean;
   results: Record<string, any>;
   error?: string;
+  executionTrace: ExecutionTrace[];
+}
+
+interface ExecutionTrace {
+  toolId: string;
+  startTime: string;
+  endTime: string;
+  duration: number;
+  success: boolean;
+  error?: string;
+}
+
+export async function run(input: OrchestrationInput) {
+  const orchestrator = new DynamicOrchestrator();
+  
+  // Register available tools
+  orchestrator.registerTool({
+    id: 'validator',
+    name: 'Data Validator',
+    description: 'Validates input data structure',
+    inputSchema: { type: 'object', properties: { data: { type: 'array' } } },
+    outputSchema: { type: 'object', properties: { valid: { type: 'boolean' } } },
+    executor: async (input) => ({ valid: Array.isArray(input.data) }),
+  });
+  
+  orchestrator.registerTool({
+    id: 'processor',
+    name: 'Data Processor',
+    description: 'Processes validated data',
+    inputSchema: { type: 'object', properties: { data: { type: 'array' } } },
+    outputSchema: { type: 'object', properties: { processed: { type: 'array' } } },
+    executor: async (input) => ({ processed: input.data.map(item => ({ ...item, timestamp: new Date() })) }),
+  });
+  
+  return orchestrator.execute(input.plan, input.input);
 }
 ```
+</Tab>
+<Tab value="planning" label="Planning">
+Create sophisticated orchestration plans with conditional logic:
+
+```typescript
+// tools/orchestration-planner.ts
+interface OrchestrationPlan {
+  id: string;
+  name: string;
+  description: string;
+  tools: ToolDefinition[];
+  connections: Connection[];
+  strategy: 'sequential' | 'parallel' | 'conditional';
+  errorHandling: 'stop' | 'continue' | 'retry';
+  conditions?: Record<string, string>;
+  metadata?: Record<string, any>;
+}
+
+class OrchestrationPlanner {
+  static createDataProcessingPlan(): OrchestrationPlan {
+    return {
+      id: 'data-processing',
+      name: 'Data Processing Pipeline',
+      description: 'Validates, processes, and aggregates data',
+      tools: [
+        {
+          id: 'validator',
+          name: 'Input Validator',
+          description: 'Validates input data structure and format',
+          inputSchema: { type: 'object', properties: { data: { type: 'array' } } },
+          outputSchema: { type: 'object', properties: { valid: { type: 'boolean' } } },
+          executor: async (input) => ({ valid: Array.isArray(input.data) && input.data.length > 0 }),
+        },
+        {
+          id: 'processor',
+          name: 'Data Processor',
+          description: 'Transforms and enriches data',
+          inputSchema: { type: 'object', properties: { data: { type: 'array' } } },
+          outputSchema: { type: 'object', properties: { processed: { type: 'array' } } },
+          executor: async (input) => ({
+            processed: input.data.map(item => ({
+              ...item,
+              processed: true,
+              timestamp: new Date().toISOString(),
+            })),
+          }),
+        },
+        {
+          id: 'aggregator',
+          name: 'Data Aggregator',
+          description: 'Aggregates processed data',
+          inputSchema: { type: 'object', properties: { processed: { type: 'array' } } },
+          outputSchema: { type: 'object', properties: { summary: { type: 'object' } } },
+          executor: async (input) => ({
+            summary: {
+              totalItems: input.processed.length,
+              processedAt: new Date().toISOString(),
+              categories: input.processed.reduce((acc, item) => {
+                acc[item.category] = (acc[item.category] || 0) + 1;
+                return acc;
+              }, {}),
+            },
+          }),
+        },
+      ],
+      connections: [
+        {
+          from: 'validator',
+          to: 'processor',
+          inputMapping: { data: 'data' },
+          condition: 'valid === true',
+        },
+        {
+          from: 'processor',
+          to: 'aggregator',
+          inputMapping: { processed: 'processed' },
+        },
+      ],
+      strategy: 'conditional',
+      errorHandling: 'stop',
+      conditions: {
+        'valid === true': 'output.valid === true',
+      },
+    };
+  }
+  
+  static createParallelProcessingPlan(): OrchestrationPlan {
+    return {
+      id: 'parallel-processing',
+      name: 'Parallel Processing Pipeline',
+      description: 'Processes data in parallel with multiple processors',
+      tools: [
+        {
+          id: 'text-processor',
+          name: 'Text Processor',
+          description: 'Processes text data',
+          inputSchema: { type: 'object', properties: { text: { type: 'string' } } },
+          outputSchema: { type: 'object', properties: { processed: { type: 'string' } } },
+          executor: async (input) => ({ processed: input.text.toUpperCase() }),
+        },
+        {
+          id: 'number-processor',
+          name: 'Number Processor',
+          description: 'Processes numeric data',
+          inputSchema: { type: 'object', properties: { numbers: { type: 'array' } } },
+          outputSchema: { type: 'object', properties: { sum: { type: 'number' } } },
+          executor: async (input) => ({ sum: input.numbers.reduce((a, b) => a + b, 0) }),
+        },
+      ],
+      connections: [],
+      strategy: 'parallel',
+      errorHandling: 'continue',
+    };
+  }
+}
+
+export { OrchestrationPlanner };
+```
+</Tab>
+<Tab value="usage" label="Usage">
+Use dynamic orchestration in workflows:
+
+```yaml
+# tools/dynamic-orchestrator.yaml
+resource: "tool"
+id: "dynamic-orchestrator"
+description: "Dynamic tool orchestration with runtime composition"
+timeout: "180s"
+
+input:
+  type: "object"
+  properties:
+    plan:
+      type: "object"
+      description: "Orchestration plan definition"
+      properties:
+        id:
+          type: "string"
+        strategy:
+          type: "string"
+          enum: ["sequential", "parallel", "conditional"]
+        error_handling:
+          type: "string"
+          enum: ["stop", "continue", "retry"]
+        tools:
+          type: "array"
+          items:
+            type: "object"
+        connections:
+          type: "array"
+          items:
+            type: "object"
+      required: ["id", "strategy", "tools"]
+    input:
+      type: "object"
+      description: "Input data for orchestration"
+  required: ["plan", "input"]
+
+output:
+  type: "object"
+  properties:
+    success:
+      type: "boolean"
+    results:
+      type: "object"
+      description: "Results from orchestrated tools"
+    execution_trace:
+      type: "array"
+      description: "Execution trace for debugging"
+    error:
+      type: "string"
+      description: "Error message if orchestration failed"
+  required: ["success", "results"]
+
+# workflow.yaml
+tasks:
+  - id: orchestrate-data-pipeline
+    type: basic
+    $use: tool(local::tools.#(id=="dynamic-orchestrator"))
+    with:
+      plan:
+        id: "data-processing"
+        strategy: "conditional"
+        error_handling: "stop"
+        tools:
+          - id: "validator"
+            name: "Data Validator"
+            description: "Validates input data"
+          - id: "processor"
+            name: "Data Processor"
+            description: "Processes validated data"
+        connections:
+          - from: "validator"
+            to: "processor"
+            condition: "valid === true"
+      input:
+        data: "{{ .workflow.input.raw_data }}"
+    outputs:
+      orchestration_results: "{{ .output.results }}"
+      execution_trace: "{{ .output.execution_trace }}"
+```
+</Tab>
+</Tabs>
 
 ### Streaming and Real-time Processing
 
-Tools that handle streaming data and real-time processing:
+Streaming processing handles continuous data flows with buffering, backpressure management, and real-time event handling. Essential for high-throughput scenarios and real-time data processing.
+
+<List>
+  <ListItem>
+    **Buffering Strategy**: Configurable buffer sizes with automatic flushing
+  </ListItem>
+  <ListItem>
+    **Backpressure Management**: Prevents memory overflow with configurable thresholds
+  </ListItem>
+  <ListItem>
+    **Subscriber Pattern**: Event-driven processing with multiple subscribers
+  </ListItem>
+  <ListItem>
+    **Batch Processing**: Efficient processing of data in configurable batches
+  </ListItem>
+</List>
+
+<Steps>
+  <Step>
+    **Configure Stream Processing**
+    
+    Set up buffer sizes, flush intervals, and backpressure thresholds:
+  </Step>
+  <Step>
+    **Implement Subscribers**
+    
+    Create subscribers to handle processed batches:
+  </Step>
+  <Step>
+    **Handle Stream Lifecycle**
+    
+    Manage stream start, processing, and completion:
+  </Step>
+</Steps>
+
+<Tabs defaultValue="streaming">
+<Tab value="streaming" label="Streaming Implementation">
+Build a streaming processor with buffering and backpressure management:
 
 ```typescript
 // tools/streaming-processor.ts
@@ -626,8 +1197,227 @@ interface ProcessedBatch {
   items: any[];
   processedAt: string;
   batchSize: number;
+  batchId: string;
+  metadata: {
+    totalProcessed: number;
+    averageProcessingTime: number;
+    errorCount: number;
+  };
+}
+
+export async function run(input: StreamProcessorInput) {
+  const config: StreamConfig = {
+    bufferSize: input.config?.bufferSize || 1000,
+    flushInterval: input.config?.flushInterval || 5000,
+    backpressureThreshold: input.config?.backpressureThreshold || 5000,
+  };
+  
+  const processor = new StreamingProcessor(config);
+  
+  // Subscribe to process batches
+  processor.subscribe({
+    async onBatch(batch: ProcessedBatch) {
+      console.log(`Processed batch ${batch.batchId} with ${batch.batchSize} items`);
+    },
+  });
+  
+  return processor.processStream(input);
 }
 ```
+</Tab>
+<Tab value="subscribers" label="Subscriber Pattern">
+Implement subscribers for handling processed data:
+
+```typescript
+// tools/stream-subscribers.ts
+interface StreamSubscriber {
+  onBatch(batch: ProcessedBatch): Promise<void>;
+  onError?(error: Error): Promise<void>;
+  onComplete?(): Promise<void>;
+}
+
+class DatabaseSubscriber implements StreamSubscriber {
+  private db: any; // Database connection
+  
+  constructor(db: any) {
+    this.db = db;
+  }
+  
+  async onBatch(batch: ProcessedBatch): Promise<void> {
+    try {
+      await this.db.transaction(async (trx) => {
+        for (const item of batch.items) {
+          await trx('processed_items').insert({
+            id: item.id,
+            data: JSON.stringify(item),
+            batch_id: batch.batchId,
+            processed_at: batch.processedAt,
+          });
+        }
+      });
+    } catch (error) {
+      console.error('Database save error:', error);
+      throw error;
+    }
+  }
+  
+  async onError(error: Error): Promise<void> {
+    console.error('Stream processing error:', error);
+    // Log error or send to monitoring system
+  }
+  
+  async onComplete(): Promise<void> {
+    console.log('Stream processing completed');
+    // Cleanup resources
+  }
+}
+
+class FileSubscriber implements StreamSubscriber {
+  private outputPath: string;
+  private fileHandle: any;
+  
+  constructor(outputPath: string) {
+    this.outputPath = outputPath;
+  }
+  
+  async onBatch(batch: ProcessedBatch): Promise<void> {
+    const data = batch.items.map(item => JSON.stringify(item)).join('\n') + '\n';
+    
+    if (!this.fileHandle) {
+      this.fileHandle = await Bun.file(this.outputPath).writer();
+    }
+    
+    await this.fileHandle.write(data);
+  }
+  
+  async onComplete(): Promise<void> {
+    if (this.fileHandle) {
+      await this.fileHandle.end();
+    }
+  }
+}
+
+class NotificationSubscriber implements StreamSubscriber {
+  private threshold: number;
+  
+  constructor(threshold: number = 1000) {
+    this.threshold = threshold;
+  }
+  
+  async onBatch(batch: ProcessedBatch): Promise<void> {
+    if (batch.metadata.totalProcessed % this.threshold === 0) {
+      // Send notification every threshold items
+      console.log(`Milestone: ${batch.metadata.totalProcessed} items processed`);
+      // Send to notification service
+    }
+  }
+}
+
+export { DatabaseSubscriber, FileSubscriber, NotificationSubscriber };
+```
+</Tab>
+<Tab value="configuration" label="Configuration">
+Configure streaming processing in your workflow:
+
+```yaml
+# tools/streaming-processor.yaml
+resource: "tool"
+id: "streaming-processor"
+description: "High-throughput streaming data processor"
+timeout: "300s"
+
+input:
+  type: "object"
+  properties:
+    data:
+      type: "array"
+      description: "Input data stream"
+    is_complete:
+      type: "boolean"
+      default: false
+      description: "Whether this is the final batch"
+    config:
+      type: "object"
+      properties:
+        buffer_size:
+          type: "integer"
+          default: 1000
+          minimum: 100
+          maximum: 10000
+        flush_interval:
+          type: "integer"
+          default: 5000
+          description: "Flush interval in milliseconds"
+        backpressure_threshold:
+          type: "integer"
+          default: 5000
+          description: "Backpressure threshold"
+        subscribers:
+          type: "array"
+          items:
+            type: "object"
+            properties:
+              type:
+                type: "string"
+                enum: ["database", "file", "notification"]
+              config:
+                type: "object"
+          description: "Subscriber configurations"
+      additionalProperties: false
+  required: ["data"]
+
+output:
+  type: "object"
+  properties:
+    processed:
+      type: "integer"
+      description: "Number of items processed"
+    buffer_size:
+      type: "integer"
+      description: "Current buffer size"
+    is_complete:
+      type: "boolean"
+      description: "Whether processing is complete"
+    metadata:
+      type: "object"
+      properties:
+        total_processed:
+          type: "integer"
+        average_processing_time:
+          type: "number"
+        error_count:
+          type: "integer"
+  required: ["processed", "buffer_size", "is_complete"]
+
+# workflow.yaml
+tasks:
+  - id: stream-data-processing
+    type: basic
+    $use: tool(local::tools.#(id=="streaming-processor"))
+    with:
+      data: "{{ .workflow.input.stream_data }}"
+      is_complete: "{{ .workflow.input.is_final_batch }}"
+      config:
+        buffer_size: 2000
+        flush_interval: 3000
+        backpressure_threshold: 8000
+        subscribers:
+          - type: "database"
+            config:
+              connection_string: "{{ .env.DATABASE_URL }}"
+          - type: "file"
+            config:
+              output_path: "/data/processed/output.jsonl"
+          - type: "notification"
+            config:
+              threshold: 5000
+    outputs:
+      processed_count: "{{ .output.processed }}"
+      stream_complete: "{{ .output.is_complete }}"
+      processing_metadata: "{{ .output.metadata }}"
+```
+</Tab>
+</Tabs>
 
 ## Advanced Error Handling and Recovery
 
@@ -1160,3 +1950,38 @@ tasks:
 These advanced patterns provide the foundation for building sophisticated, resilient, and highly performant tools in Compozy. They demonstrate how to handle complex scenarios, implement robust error handling, and create tools that can adapt to changing requirements and conditions.
 
 The patterns shown here can be combined and extended to create even more sophisticated tool architectures that meet the demands of complex real-world applications.
+
+## Related Documentation
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="External Integrations"
+    href="/docs/core/tools/external-integrations"
+    description="Connect to external APIs, databases, and services with robust integration patterns"
+  />
+  <ReferenceCard
+    title="Quick Start"
+    href="/docs/core/tools/quick-start"
+    description="Get started with basic tool development and workflow integration"
+  />
+  <ReferenceCard
+    title="Testing & Debugging"
+    href="/docs/core/tools/testing-debugging"
+    description="Test your advanced patterns with comprehensive debugging and validation tools"
+  />
+  <ReferenceCard
+    title="Performance & Security"
+    href="/docs/core/tools/performance-security"
+    description="Optimize performance and secure your advanced tool implementations"
+  />
+  <ReferenceCard
+    title="MCP Protocol"
+    href="/docs/core/mcp"
+    description="Deep dive into Model Context Protocol for advanced tool integrations"
+  />
+  <ReferenceCard
+    title="Workflow Orchestration"
+    href="/docs/core/workflows"
+    description="Advanced workflow patterns for complex task orchestration"
+  />
+</ReferenceCardList>

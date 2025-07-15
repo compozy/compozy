@@ -3,295 +3,777 @@ title: "TypeScript Development"
 description: "Guide to developing custom tools using TypeScript with Compozy's runtime environment"
 ---
 
+import { Bug, Cpu, Settings, Shield, Code } from "lucide-react";
+
 # TypeScript Development
 
-This guide covers developing custom tools using TypeScript in Compozy's Bun runtime environment. Learn how to create powerful, type-safe tools that extend AI agent capabilities.
+This guide covers developing custom tools using TypeScript in Compozy's Bun runtime environment. Learn how to create powerful, type-safe tools that extend AI agent capabilities with secure execution and robust error handling.
+
+<Callout type="info">
+TypeScript tools run in an isolated Bun environment with configurable permissions, automatic schema validation, and comprehensive error handling. This enables powerful integrations while maintaining security.
+</Callout>
 
 ## Development Environment Setup
 
 ### Project Structure
 
-```
-project/
-├── tools/
-│   ├── data-processor.yaml    # Tool configuration
-│   ├── data-processor.ts      # Tool implementation
-│   ├── api-client.yaml
-│   └── api-client.ts
-├── package.json               # Dependencies
-├── tsconfig.json             # TypeScript config
-└── compozy.yaml              # Project config
-```
-
-### TypeScript Configuration
-
-Create a `tsconfig.json` optimized for Bun runtime:
-
-```json
-{
-  "compilerOptions": {
-    "target": "ES2022",
-    "lib": ["ES2022", "DOM"],
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
-    "noEmit": true,
-    "strict": true,
-    "skipLibCheck": true,
-    "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
-    "forceConsistentCasingInFileNames": true,
-    "isolatedModules": true,
-    "verbatimModuleSyntax": true
-  },
-  "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": ["node_modules"]
-}
-```
-
-### Package Dependencies
-
-Example `package.json` for tool development:
-
-```json
-{
-  "name": "my-compozy-tools",
-  "version": "1.0.0",
-  "type": "module",
-  "dependencies": {
-    "axios": "^1.6.0",
-    "cheerio": "^1.0.0",
-    "csv-parse": "^5.5.0",
-    "yaml": "^2.3.0"
-  },
-  "devDependencies": {
-    "@types/node": "^20.0.0",
-    "typescript": "^5.3.0",
-    "prettier": "^3.0.0"
-  }
-}
-```
+<Steps>
+  <Step>
+    ### Create Tool Project Structure
+    ```
+    project/
+    ├── tools/
+    │   ├── data-processor.yaml    # Tool configuration
+    │   ├── data-processor.ts      # Tool implementation
+    │   ├── api-client.yaml
+    │   └── api-client.ts
+    ├── package.json               # Dependencies
+    ├── tsconfig.json             # TypeScript config
+    └── compozy.yaml              # Project config
+    ```
+  </Step>
+  
+  <Step>
+    ### Configure TypeScript for Bun
+    Create a `tsconfig.json` optimized for Bun runtime:
+    
+    ```json
+    {
+      "compilerOptions": {
+        "target": "ES2022",
+        "lib": ["ES2022", "DOM"],
+        "module": "ESNext",
+        "moduleResolution": "bundler",
+        "allowImportingTsExtensions": true,
+        "noEmit": true,
+        "strict": true,
+        "skipLibCheck": true,
+        "esModuleInterop": true,
+        "allowSyntheticDefaultImports": true,
+        "forceConsistentCasingInFileNames": true,
+        "isolatedModules": true,
+        "verbatimModuleSyntax": true
+      },
+      "include": ["**/*.ts", "**/*.tsx"],
+      "exclude": ["node_modules"]
+    }
+    ```
+  </Step>
+  
+  <Step>
+    ### Install Dependencies
+    Example `package.json` for tool development:
+    
+    ```json
+    {
+      "name": "my-compozy-tools",
+      "version": "1.0.0",
+      "type": "module",
+      "dependencies": {
+        "axios": "^1.6.0",
+        "cheerio": "^1.0.0",
+        "csv-parse": "^5.5.0",
+        "yaml": "^2.3.0"
+      },
+      "devDependencies": {
+        "@types/node": "^20.0.0",
+        "typescript": "^5.3.0",
+        "prettier": "^3.0.0"
+      }
+    }
+    ```
+  </Step>
+</Steps>
 
 ## Tool Implementation Patterns
 
+<Callout type="note">
+Tools in Compozy are regular TypeScript functions that receive input and return output. The Bun runtime worker automatically handles JSON serialization, timeout management, and error handling. Tools are exported from a main entrypoint file.
+</Callout>
+
 ### Basic Tool Structure
 
-Every TypeScript tool follows this pattern:
+Every TypeScript tool follows this standardized pattern:
 
-```typescript
-// tool-name.ts
-interface ToolInput {
-  // Define your input parameters with types
-}
+<Tabs>
+  <Tab title="Tool Function">
+    ```typescript
+    // data-processor.ts
+    interface ToolInput {
+      data: unknown[];
+      format: 'json' | 'csv' | 'xml';
+      options?: {
+        delimiter?: string;
+        headers?: boolean;
+      };
+    }
 
-interface ToolOutput {
-  // Define your expected output structure
-}
+    interface ToolOutput {
+      success: boolean;
+      data: unknown[];
+      metadata: {
+        processed_count: number;
+        processing_time: number;
+      };
+    }
 
-export async function run(input: ToolInput): Promise<ToolOutput> {
-  // Tool implementation
-  return output;
-}
-```
+    export async function dataProcessor(input: ToolInput): Promise<ToolOutput> {
+      const startTime = Date.now();
+      
+      // Process data based on format
+      const processedData = await processData(input.data, input.format, input.options);
+      
+      return {
+        success: true,
+        data: processedData,
+        metadata: {
+          processed_count: processedData.length,
+          processing_time: Date.now() - startTime
+        }
+      };
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Tool Configuration">
+    ```yaml
+    # data-processor.yaml
+    resource: "tool"
+    id: "data-processor"
+    description: "Process and transform data arrays in various formats"
+    timeout: "60s"
+
+    input:
+      type: object
+      properties:
+        data:
+          type: array
+          description: "Array of data to process"
+        format:
+          type: string
+          enum: ["json", "csv", "xml"]
+          description: "Output format"
+        options:
+          type: object
+          properties:
+            delimiter:
+              type: string
+              default: ","
+            headers:
+              type: boolean
+              default: true
+      required: [data, format]
+
+    output:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+        metadata:
+          type: object
+          properties:
+            processed_count:
+              type: integer
+            processing_time:
+              type: number
+      required: [success, data, metadata]
+    ```
+  </Tab>
+</Tabs>
 
 ### Input Validation
 
-Implement robust input validation:
+<Callout type="warning">
+Input validation is crucial for tool reliability. While Compozy provides JSON Schema validation, additional runtime validation helps catch edge cases and provides better error messages.
+</Callout>
 
-```typescript
-interface ProcessDataInput {
-  data: unknown[];
-  format: 'json' | 'csv' | 'xml';
-  options?: {
-    delimiter?: string;
-    headers?: boolean;
-  };
-}
+Implement robust input validation patterns:
 
-export async function run(input: ProcessDataInput): Promise<ProcessDataOutput> {
-  // Validate required fields
-  if (!input.data || !Array.isArray(input.data)) {
-    throw new Error('Input data must be a non-empty array');
-  }
+<Tabs>
+  <Tab title="Runtime Validation">
+    ```typescript
+    interface ProcessDataInput {
+      data: unknown[];
+      format: 'json' | 'csv' | 'xml';
+      options?: {
+        delimiter?: string;
+        headers?: boolean;
+      };
+    }
 
-  if (!['json', 'csv', 'xml'].includes(input.format)) {
-    throw new Error('Format must be one of: json, csv, xml');
-  }
+    function validateInput(input: ProcessDataInput): void {
+      // Validate required fields
+      if (!input.data || !Array.isArray(input.data)) {
+        throw new Error('Input data must be a non-empty array');
+      }
 
-  // Validate data array contents
-  if (input.data.length === 0) {
-    throw new Error('Data array cannot be empty');
-  }
+      if (!['json', 'csv', 'xml'].includes(input.format)) {
+        throw new Error('Format must be one of: json, csv, xml');
+      }
 
-  // Process the data...
-  return processData(input);
-}
-```
+      // Validate data array contents
+      if (input.data.length === 0) {
+        throw new Error('Data array cannot be empty');
+      }
+
+      // Validate options if provided
+      if (input.options?.delimiter && typeof input.options.delimiter !== 'string') {
+        throw new Error('Delimiter must be a string');
+      }
+    }
+
+    export async function processData(input: ProcessDataInput): Promise<ProcessDataOutput> {
+      validateInput(input);
+      
+      // Process the data...
+      return processDataInternal(input);
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Zod Validation">
+    ```typescript
+    import { z } from 'zod';
+
+    const InputSchema = z.object({
+      data: z.array(z.unknown()).nonempty('Data array cannot be empty'),
+      format: z.enum(['json', 'csv', 'xml']),
+      options: z.object({
+        delimiter: z.string().optional(),
+        headers: z.boolean().optional()
+      }).optional()
+    });
+
+    type ProcessDataInput = z.infer<typeof InputSchema>;
+
+    export async function processDataWithZod(input: unknown): Promise<ProcessDataOutput> {
+      // Validate and parse input
+      const validatedInput = InputSchema.parse(input);
+      
+      // Process the validated data
+      return processDataInternal(validatedInput);
+    }
+    ```
+  </Tab>
+</Tabs>
 
 ### Error Handling
 
-Implement comprehensive error handling:
+<Callout type="info">
+The Bun runtime automatically captures and formats errors from your tools. However, structured error handling helps debugging and provides better error messages for agents.
+</Callout>
 
-```typescript
-interface ToolError {
-  code: string;
-  message: string;
-  details?: unknown;
-}
+Implement comprehensive error handling patterns:
 
-class ToolExecutionError extends Error {
-  constructor(
-    public code: string,
-    message: string,
-    public details?: unknown
-  ) {
-    super(message);
-    this.name = 'ToolExecutionError';
-  }
-}
+<Tabs>
+  <Tab title="Structured Errors">
+    ```typescript
+    interface ToolError {
+      code: string;
+      message: string;
+      details?: unknown;
+    }
 
-export async function run(input: ApiCallInput): Promise<ApiCallOutput> {
-  try {
-    const response = await fetch(input.url, {
-      method: input.method || 'GET',
-      headers: input.headers,
-      body: input.body ? JSON.stringify(input.body) : undefined,
-    });
+    class ToolExecutionError extends Error {
+      constructor(
+        public code: string,
+        message: string,
+        public details?: unknown
+      ) {
+        super(message);
+        this.name = 'ToolExecutionError';
+      }
+    }
 
-    if (!response.ok) {
-      throw new ToolExecutionError(
-        'HTTP_ERROR',
-        `HTTP ${response.status}: ${response.statusText}`,
-        {
-          status: response.status,
-          statusText: response.statusText,
-          url: input.url,
+    export async function apiClient(input: ApiCallInput): Promise<ApiCallOutput> {
+      try {
+        const response = await fetch(input.url, {
+          method: input.method || 'GET',
+          headers: input.headers,
+          body: input.body ? JSON.stringify(input.body) : undefined,
+        });
+
+        if (!response.ok) {
+          throw new ToolExecutionError(
+            'HTTP_ERROR',
+            `HTTP ${response.status}: ${response.statusText}`,
+            {
+              status: response.status,
+              statusText: response.statusText,
+              url: input.url,
+            }
+          );
         }
-      );
+
+        const data = await response.json();
+        return { status: response.status, data };
+
+      } catch (error) {
+        if (error instanceof ToolExecutionError) {
+          throw error;
+        }
+
+        // Handle network errors
+        if (error.cause?.code === 'ENOTFOUND') {
+          throw new ToolExecutionError(
+            'NETWORK_ERROR',
+            'Failed to resolve hostname',
+            { url: input.url }
+          );
+        }
+
+        throw new ToolExecutionError(
+          'UNKNOWN_ERROR',
+          error.message || 'An unexpected error occurred',
+          { originalError: error }
+        );
+      }
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Error Result Pattern">
+    ```typescript
+    interface SuccessResult<T> {
+      success: true;
+      data: T;
     }
 
-    const data = await response.json();
-    return { status: response.status, data };
-
-  } catch (error) {
-    if (error instanceof ToolExecutionError) {
-      throw error;
+    interface ErrorResult {
+      success: false;
+      error: {
+        code: string;
+        message: string;
+        details?: unknown;
+      };
     }
 
-    // Handle network errors
-    if (error.cause?.code === 'ENOTFOUND') {
-      throw new ToolExecutionError(
-        'NETWORK_ERROR',
-        'Failed to resolve hostname',
-        { url: input.url }
-      );
-    }
+    type ToolResult<T> = SuccessResult<T> | ErrorResult;
 
-    throw new ToolExecutionError(
-      'UNKNOWN_ERROR',
-      error.message || 'An unexpected error occurred',
-      { originalError: error }
-    );
-  }
-}
-```
+    export async function safeApiClient(input: ApiCallInput): Promise<ToolResult<ApiData>> {
+      try {
+        const response = await fetch(input.url, {
+          method: input.method || 'GET',
+          headers: input.headers,
+        });
+
+        if (!response.ok) {
+          return {
+            success: false,
+            error: {
+              code: 'HTTP_ERROR',
+              message: `HTTP ${response.status}: ${response.statusText}`,
+              details: { status: response.status, url: input.url }
+            }
+          };
+        }
+
+        const data = await response.json();
+        return {
+          success: true,
+          data: { status: response.status, data }
+        };
+
+      } catch (error) {
+        return {
+          success: false,
+          error: {
+            code: 'NETWORK_ERROR',
+            message: error.message || 'Network request failed',
+            details: { url: input.url }
+          }
+        };
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
 
 ### Async Operations
 
-Handle asynchronous operations properly:
+<Callout type="note">
+The Bun runtime handles tool timeouts automatically. However, implementing proper async patterns improves performance and prevents resource exhaustion.
+</Callout>
 
-```typescript
-interface FileProcessorInput {
-  paths: string[];
-  operation: 'read' | 'analyze' | 'transform';
-  options?: Record<string, unknown>;
-}
+Handle asynchronous operations with proper concurrency control:
 
-export async function run(input: FileProcessorInput): Promise<FileProcessorOutput> {
-  const results: ProcessedFile[] = [];
+<Tabs>
+  <Tab title="Concurrency Control">
+    ```typescript
+    interface FileProcessorInput {
+      paths: string[];
+      operation: 'read' | 'analyze' | 'transform';
+      options?: Record<string, unknown>;
+    }
 
-  // Process files in parallel with concurrency limit
-  const CONCURRENCY_LIMIT = 5;
-  const semaphore = new Array(CONCURRENCY_LIMIT).fill(null);
+    async function processWithConcurrency<T>(
+      items: T[],
+      processor: (item: T) => Promise<unknown>,
+      concurrency: number = 5
+    ): Promise<Array<{ item: T; success: boolean; result?: unknown; error?: string }>> {
+      const results: Array<{ item: T; success: boolean; result?: unknown; error?: string }> = [];
+      const executing: Promise<void>[] = [];
 
-  await Promise.all(
-    input.paths.map(async (path, index) => {
-      // Wait for available semaphore slot
-      await semaphore[index % CONCURRENCY_LIMIT];
+      for (const item of items) {
+        const promise = processor(item).then(
+          (result) => {
+            results.push({ item, success: true, result });
+          },
+          (error) => {
+            results.push({ item, success: false, error: error.message });
+          }
+        );
+        executing.push(promise);
 
-      try {
-        const result = await processFile(path, input.operation, input.options);
-        results.push({
-          path,
-          success: true,
-          data: result,
-        });
-      } catch (error) {
-        results.push({
-          path,
-          success: false,
-          error: error.message,
-        });
+        if (executing.length >= concurrency) {
+          await Promise.race(executing);
+          executing.splice(executing.findIndex(p => p === promise), 1);
+        }
       }
-    })
-  );
 
-  return {
-    processed: results.length,
-    successful: results.filter(r => r.success).length,
-    failed: results.filter(r => !r.success).length,
-    results,
-  };
-}
-```
+      await Promise.all(executing);
+      return results;
+    }
+
+    export async function fileProcessor(input: FileProcessorInput): Promise<FileProcessorOutput> {
+      const results = await processWithConcurrency(
+        input.paths,
+        async (path) => await processFile(path, input.operation, input.options),
+        5 // Concurrency limit
+      );
+
+      return {
+        processed: results.length,
+        successful: results.filter(r => r.success).length,
+        failed: results.filter(r => !r.success).length,
+        results: results.map(r => ({
+          path: r.item,
+          success: r.success,
+          data: r.result,
+          error: r.error
+        }))
+      };
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Timeout Handling">
+    ```typescript
+    async function withTimeout<T>(
+      promise: Promise<T>,
+      timeoutMs: number,
+      errorMessage: string = 'Operation timed out'
+    ): Promise<T> {
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error(errorMessage)), timeoutMs);
+      });
+
+      return Promise.race([promise, timeoutPromise]);
+    }
+
+    export async function timeoutApiClient(input: ApiCallInput): Promise<ApiCallOutput> {
+      try {
+        // Add timeout to fetch requests
+        const response = await withTimeout(
+          fetch(input.url, {
+            method: input.method || 'GET',
+            headers: input.headers,
+            signal: AbortSignal.timeout(30000) // 30 second timeout
+          }),
+          30000,
+          'API request timed out'
+        );
+
+        const data = await withTimeout(
+          response.json(),
+          10000,
+          'JSON parsing timed out'
+        );
+
+        return { status: response.status, data };
+      } catch (error) {
+        throw new ToolExecutionError(
+          'TIMEOUT_ERROR',
+          error.message,
+          { url: input.url }
+        );
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Tool Entrypoint Patterns
+
+<Callout type="info">
+The Bun worker supports two export patterns for tools: **default export** (recommended) and **named exports** (legacy). The default export pattern provides better organization and is the new standard for tool registration.
+</Callout>
+
+### Export Pattern Examples
+
+<Tabs>
+  <Tab title="Default Export (Recommended)">
+    ```typescript
+    // main.ts (entrypoint file)
+    import { dataProcessor } from './tools/data-processor.ts';
+    import { apiClient } from './tools/api-client.ts';
+    import { fileHandler } from './tools/file-handler.ts';
+
+    // Export tools as a default object
+    export default {
+      "data-processor": dataProcessor,
+      "api-client": apiClient,
+      "file-handler": fileHandler,
+    };
+    ```
+  </Tab>
+  
+  <Tab title="Named Exports (Legacy)">
+    ```typescript
+    // main.ts (entrypoint file)
+    export { dataProcessor as data_processor } from './tools/data-processor.ts';
+    export { apiClient as api_client } from './tools/api-client.ts';
+    export { fileHandler as file_handler } from './tools/file-handler.ts';
+    ```
+  </Tab>
+  
+  <Tab title="Mixed Pattern">
+    ```typescript
+    // main.ts (entrypoint file)
+    import { dataProcessor } from './tools/data-processor.ts';
+    import { apiClient } from './tools/api-client.ts';
+
+    // Default export takes precedence
+    export default {
+      "data-processor": dataProcessor,
+      "api-client": apiClient,
+    };
+
+    // Named exports are ignored when default export exists
+    export { dataProcessor as legacy_processor } from './tools/data-processor.ts';
+    ```
+  </Tab>
+</Tabs>
+
+### Tool Discovery and Execution
+
+<Callout type="note">
+The Bun worker automatically discovers tools using this priority order:
+1. **Default export**: If present, uses the exported object's properties as tools
+2. **Named exports**: If no default export, uses all named exports as tools
+3. **Validation**: Ensures the tool ID matches a valid function export
+</Callout>
+
+<ReferenceCard
+  title="Bun Worker Template"
+  description="Understanding the tool discovery mechanism in the Bun runtime"
+  href="/docs/core/tools/runtime-environment#bun-worker-template"
+  icon={Code}
+/>
 
 ## Advanced Patterns
 
-### Configuration-Driven Tools
+### Environment Variable Access
 
-Create flexible tools that adapt to configuration:
+<Callout type="warning">
+Environment variables are automatically filtered and validated by the Bun runtime for security. Only variables defined in your tool configuration are accessible, and dangerous variables like `LD_PRELOAD`, `NODE_OPTIONS`, and `DYLD_INSERT_LIBRARIES` are blocked to prevent code injection attacks.
+</Callout>
 
-```typescript
-interface ConfigurableToolInput {
-  operation: string;
-  config: Record<string, unknown>;
-  data: unknown;
-}
+<Callout type="info">
+**Security Features:**
+- Variable names must be uppercase alphanumeric with underscores only
+- Values cannot contain newlines or null bytes
+- Dangerous system variables are automatically blocked
+- Environment cleanup happens automatically after tool execution
+</Callout>
 
-interface OperationHandler {
-  validate(config: Record<string, unknown>): void;
-  execute(data: unknown, config: Record<string, unknown>): Promise<unknown>;
-}
-
-class DataTransformer {
-  private handlers = new Map<string, OperationHandler>();
-
-  constructor() {
-    this.registerHandlers();
-  }
-
-  private registerHandlers() {
-    this.handlers.set('filter', new FilterHandler());
-    this.handlers.set('transform', new TransformHandler());
-    this.handlers.set('aggregate', new AggregateHandler());
-  }
-
-  async execute(operation: string, data: unknown, config: Record<string, unknown>) {
-    const handler = this.handlers.get(operation);
-    if (!handler) {
-      throw new Error(`Unknown operation: ${operation}`);
+<Tabs>
+  <Tab title="Environment Configuration">
+    ```yaml
+    # api-client.yaml
+    resource: "tool"
+    id: "api-client"
+    description: "HTTP client with authentication"
+    
+    env:
+      API_BASE_URL: "{{ .env.API_BASE_URL }}"
+      API_TOKEN: "{{ .env.API_TOKEN }}"
+      DEBUG: "{{ .env.DEBUG | default(false) }}"
+    
+    with:
+      timeout: 30000
+      retries: 3
+    ```
+  </Tab>
+  
+  <Tab title="Environment Usage">
+    ```typescript
+    interface ApiClientInput {
+      endpoint: string;
+      method?: string;
+      data?: unknown;
     }
 
-    handler.validate(config);
-    return await handler.execute(data, config);
-  }
-}
+    export async function authenticatedApiClient(input: ApiClientInput): Promise<ApiResponse> {
+      // Environment variables are automatically available and validated
+      const baseUrl = process.env.API_BASE_URL;
+      const token = process.env.API_TOKEN;
+      const debug = process.env.DEBUG === 'true';
 
-export async function run(input: ConfigurableToolInput): Promise<unknown> {
-  const transformer = new DataTransformer();
-  return await transformer.execute(input.operation, input.data, input.config);
-}
-```
+      // Validate required environment variables
+      if (!baseUrl || !token) {
+        throw new Error('Missing required environment variables: API_BASE_URL, API_TOKEN');
+      }
+
+      const url = `${baseUrl}${input.endpoint}`;
+      
+      if (debug) {
+        console.log(`Making ${input.method || 'GET'} request to: ${url}`);
+      }
+
+      const response = await fetch(url, {
+        method: input.method || 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: input.data ? JSON.stringify(input.data) : undefined,
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      return {
+        status: response.status,
+        data: await response.json(),
+        headers: Object.fromEntries(response.headers.entries())
+      };
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### Configuration-Driven Tools
+
+Create flexible tools that adapt to runtime configuration:
+
+<Tabs>
+  <Tab title="Plugin Architecture">
+    ```typescript
+    interface PluginConfig {
+      type: string;
+      options: Record<string, unknown>;
+    }
+
+    interface DataProcessor {
+      validate(config: Record<string, unknown>): void;
+      process(data: unknown, config: Record<string, unknown>): Promise<unknown>;
+    }
+
+    class FilterProcessor implements DataProcessor {
+      validate(config: Record<string, unknown>): void {
+        if (!config.field || !config.value) {
+          throw new Error('Filter requires field and value');
+        }
+      }
+
+      async process(data: unknown[], config: Record<string, unknown>): Promise<unknown[]> {
+        return data.filter(item => item[config.field] === config.value);
+      }
+    }
+
+    class TransformProcessor implements DataProcessor {
+      validate(config: Record<string, unknown>): void {
+        if (!config.mapping) {
+          throw new Error('Transform requires mapping configuration');
+        }
+      }
+
+      async process(data: unknown[], config: Record<string, unknown>): Promise<unknown[]> {
+        return data.map(item => {
+          const transformed = {};
+          for (const [from, to] of Object.entries(config.mapping)) {
+            transformed[to] = item[from];
+          }
+          return transformed;
+        });
+      }
+    }
+
+    export async function configurableProcessor(input: ConfigurableToolInput): Promise<ProcessorOutput> {
+      const processors = new Map<string, DataProcessor>([
+        ['filter', new FilterProcessor()],
+        ['transform', new TransformProcessor()],
+      ]);
+
+      const processor = processors.get(input.operation);
+      if (!processor) {
+        throw new Error(`Unknown operation: ${input.operation}`);
+      }
+
+      processor.validate(input.config);
+      const result = await processor.process(input.data, input.config);
+
+      return {
+        operation: input.operation,
+        processed_count: Array.isArray(result) ? result.length : 1,
+        data: result
+      };
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Configuration Validation">
+    ```typescript
+    import { z } from 'zod';
+
+    const ProcessorConfigSchema = z.discriminatedUnion('type', [
+      z.object({
+        type: z.literal('filter'),
+        field: z.string(),
+        value: z.unknown(),
+        operator: z.enum(['eq', 'ne', 'gt', 'lt', 'contains']).optional()
+      }),
+      z.object({
+        type: z.literal('transform'),
+        mapping: z.record(z.string()),
+        defaults: z.record(z.unknown()).optional()
+      }),
+      z.object({
+        type: z.literal('aggregate'),
+        groupBy: z.string(),
+        functions: z.array(z.enum(['sum', 'avg', 'count', 'min', 'max']))
+      })
+    ]);
+
+    interface ConfigurableToolInput {
+      data: unknown[];
+      processors: z.infer<typeof ProcessorConfigSchema>[];
+    }
+
+    export async function validatedProcessor(input: ConfigurableToolInput): Promise<ProcessorOutput> {
+      // Validate configuration
+      const validatedProcessors = input.processors.map(p => ProcessorConfigSchema.parse(p));
+      
+      let result = input.data;
+      
+      // Apply processors in sequence
+      for (const processor of validatedProcessors) {
+        result = await applyProcessor(result, processor);
+      }
+
+      return {
+        processors_applied: validatedProcessors.length,
+        final_count: Array.isArray(result) ? result.length : 1,
+        data: result
+      };
+    }
+    ```
+  </Tab>
+</Tabs>
 
 ### Streaming Data Processing
 
@@ -307,7 +789,7 @@ interface StreamProcessorInput {
   }>;
 }
 
-export async function run(input: StreamProcessorInput): Promise<StreamProcessorOutput> {
+export async function streamProcessor(input: StreamProcessorInput): Promise<StreamProcessorOutput> {
   const chunkSize = input.chunkSize || 1000;
   const results: ProcessedChunk[] = [];
 
@@ -398,7 +880,7 @@ class ToolCache {
 
 const cache = new ToolCache({ ttl: 600 }); // 10 minutes
 
-export async function run(input: ApiInput): Promise<ApiOutput> {
+export async function cachedApiClient(input: ApiInput): Promise<ApiOutput> {
   const cacheKey = `api_${JSON.stringify(input)}`;
 
   // Try cache first
@@ -425,7 +907,7 @@ Test tools with comprehensive scenarios:
 
 ```typescript
 // data-processor.test.ts
-import { run } from './data-processor';
+import { dataProcessor } from './data-processor';
 
 describe('DataProcessor Tool', () => {
   test('should process valid CSV data', async () => {
@@ -438,7 +920,7 @@ describe('DataProcessor Tool', () => {
       options: { headers: true },
     };
 
-    const result = await run(input);
+    const result = await dataProcessor(input);
 
     expect(result.format).toBe('csv');
     expect(result.data).toContain('name,age,city');
@@ -451,7 +933,7 @@ describe('DataProcessor Tool', () => {
       format: 'json' as const,
     };
 
-    await expect(run(input)).rejects.toThrow('Data array cannot be empty');
+    await expect(dataProcessor(input)).rejects.toThrow('Data array cannot be empty');
   });
 
   test('should validate format parameter', async () => {
@@ -460,7 +942,7 @@ describe('DataProcessor Tool', () => {
       format: 'invalid' as any,
     };
 
-    await expect(run(input)).rejects.toThrow('Format must be one of: json, csv, xml');
+    await expect(dataProcessor(input)).rejects.toThrow('Format must be one of: json, csv, xml');
   });
 });
 ```
@@ -471,7 +953,7 @@ Mock external services for testing:
 
 ```typescript
 // api-client.test.ts
-import { run } from './api-client';
+import { apiClient } from './api-client';
 
 // Mock fetch
 global.fetch = jest.fn();
@@ -489,7 +971,7 @@ describe('API Client Tool', () => {
       json: () => Promise.resolve({ success: true, data: 'test' }),
     } as Response);
 
-    const result = await run({
+    const result = await apiClient({
       url: 'https://api.example.com/test',
       method: 'GET',
     });
@@ -505,7 +987,7 @@ describe('API Client Tool', () => {
       statusText: 'Not Found',
     } as Response);
 
-    await expect(run({
+    await expect(apiClient({
       url: 'https://api.example.com/notfound',
     })).rejects.toThrow('HTTP 404: Not Found');
   });
@@ -552,7 +1034,7 @@ class Logger {
   }
 }
 
-export async function run(input: ComplexInput): Promise<ComplexOutput> {
+export async function debuggableProcessor(input: ComplexInput): Promise<ComplexOutput> {
   const logger = new Logger({
     enabled: Boolean(process.env.DEBUG),
     level: (process.env.LOG_LEVEL as any) || 'info',
@@ -561,7 +1043,7 @@ export async function run(input: ComplexInput): Promise<ComplexOutput> {
   logger.info('Tool execution started', { inputSize: JSON.stringify(input).length });
 
   try {
-    const result = await processData(input);
+    const result = await processComplexData(input);
     logger.info('Tool execution completed', { outputSize: JSON.stringify(result).length });
     return result;
   } catch (error) {
@@ -617,7 +1099,7 @@ class PerformanceMonitor {
   }
 }
 
-export async function run(input: DataInput): Promise<DataOutput & { _performance?: PerformanceMetrics }> {
+export async function monitoredProcessor(input: DataInput): Promise<DataOutput & { _performance?: PerformanceMetrics }> {
   const monitor = new PerformanceMonitor();
 
   try {
@@ -647,37 +1129,49 @@ export async function run(input: DataInput): Promise<DataOutput & { _performance
 
 ## Best Practices
 
-### 1. Type Safety
-- Define explicit interfaces for inputs and outputs
-- Use TypeScript strict mode
-- Validate runtime types match compile-time types
-
-### 2. Error Handling
-- Use structured error types
-- Provide meaningful error messages
-- Include context in error details
-
-### 3. Performance
-- Implement timeout handling
-- Use streaming for large datasets
-- Cache expensive operations
-- Monitor memory usage
-
-### 4. Security
-- Validate all inputs
-- Sanitize file paths
-- Limit resource usage
-- Use environment variables for secrets
-
-### 5. Testing
-- Write comprehensive unit tests
-- Mock external dependencies
-- Test error conditions
-- Validate schema compliance
+<List>
+  <ListItem title="Type Safety">
+    Define explicit interfaces for inputs and outputs, use TypeScript strict mode, and validate runtime types match compile-time types
+  </ListItem>
+  <ListItem title="Error Handling">
+    Use structured error types, provide meaningful error messages, and include context in error details
+  </ListItem>
+  <ListItem title="Performance">
+    Implement timeout handling, use streaming for large datasets, cache expensive operations, and monitor memory usage
+  </ListItem>
+  <ListItem title="Security">
+    Validate all inputs, sanitize file paths, limit resource usage, and use environment variables for secrets
+  </ListItem>
+  <ListItem title="Testing">
+    Write comprehensive unit tests, mock external dependencies, test error conditions, and validate schema compliance
+  </ListItem>
+</List>
 
 ## Next Steps
 
-- [Runtime Environment](./runtime-environment) - Understand Bun execution
-- [Configuration Schemas](./configuration-schemas) - Define tool interfaces
-- [Testing & Debugging](./testing-debugging) - Advanced testing techniques
-- [Performance & Security](./performance-security) - Optimization and security
+<ReferenceCardList>
+  <ReferenceCard
+    title="Runtime Environment"
+    description="Understand Bun execution environment and worker template"
+    href="/docs/core/tools/runtime-environment"
+    icon={Cpu}
+  />
+  <ReferenceCard
+    title="Configuration Schemas"
+    description="Define tool interfaces and input/output schemas"
+    href="/docs/core/tools/configuration-schemas"
+    icon={Settings}
+  />
+  <ReferenceCard
+    title="Testing & Debugging"
+    description="Advanced testing techniques and debugging strategies"
+    href="/docs/core/tools/testing-debugging"
+    icon={Bug}
+  />
+  <ReferenceCard
+    title="Performance & Security"
+    description="Optimization and security best practices"
+    href="/docs/core/tools/performance-security"
+    icon={Shield}
+  />
+</ReferenceCardList>
