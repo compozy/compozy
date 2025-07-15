@@ -12,6 +12,9 @@ type Config struct {
 	// Global rate limit settings
 	GlobalRate RateConfig `yaml:"global_rate"`
 
+	// Per-key rate limit for API keys
+	APIKeyRate RateConfig `yaml:"api_key_rate"`
+
 	// Per-route rate limits
 	RouteRates map[string]RateConfig `yaml:"route_rates"`
 
@@ -39,7 +42,6 @@ type Config struct {
 type RateConfig struct {
 	Period   time.Duration `yaml:"period"`
 	Limit    int64         `yaml:"limit"`
-	Burst    int64         `yaml:"burst,omitempty"`
 	Disabled bool          `yaml:"disabled,omitempty"`
 }
 
@@ -47,6 +49,11 @@ type RateConfig struct {
 func DefaultConfig() *Config {
 	return &Config{
 		GlobalRate: RateConfig{
+			Limit:    100,
+			Period:   1 * time.Minute,
+			Disabled: false,
+		},
+		APIKeyRate: RateConfig{
 			Limit:    100,
 			Period:   1 * time.Minute,
 			Disabled: false,
@@ -64,6 +71,17 @@ func DefaultConfig() *Config {
 			},
 			"/api/v0/task": {
 				Limit:    100,
+				Period:   1 * time.Minute,
+				Disabled: false,
+			},
+			// Auth endpoints - stricter limits to prevent brute force attacks
+			"/api/v0/auth": {
+				Limit:    20, // Stricter limit for auth operations
+				Period:   1 * time.Minute,
+				Disabled: false,
+			},
+			"/api/v0/users": {
+				Limit:    30, // Moderate limit for user management (admin only)
 				Period:   1 * time.Minute,
 				Disabled: false,
 			},
@@ -98,6 +116,9 @@ func (rc RateConfig) ToLimiterRate() limiter.Rate {
 func (c *Config) Validate() error {
 	if c.GlobalRate.Limit <= 0 {
 		return fmt.Errorf("global rate limit must be positive")
+	}
+	if c.APIKeyRate.Limit <= 0 {
+		return fmt.Errorf("API key rate limit must be positive")
 	}
 	for route, rate := range c.RouteRates {
 		if rate.Limit <= 0 {

@@ -18,6 +18,8 @@ func CreateRegistry() *Registry {
 	registerOpenAIFields(registry)
 	registerMemoryFields(registry)
 	registerLLMFields(registry)
+	registerRateLimitFields(registry)
+	registerCLIFields(registry)
 
 	return registry
 }
@@ -48,6 +50,34 @@ func registerServerFields(registry *Registry) {
 		EnvVar:  "SERVER_CORS_ENABLED",
 		Type:    reflect.TypeOf(true),
 		Help:    "Enable CORS",
+	})
+
+	// CORS configuration fields
+	registry.Register(&FieldDef{
+		Path:    "server.cors.allowed_origins",
+		Default: []string{"http://localhost:3000", "http://localhost:3001"}, // Development defaults
+		CLIFlag: "cors-allowed-origins",
+		EnvVar:  "SERVER_CORS_ALLOWED_ORIGINS",
+		Type:    reflect.TypeOf([]string{}),
+		Help:    "Allowed CORS origins (comma-separated)",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "server.cors.allow_credentials",
+		Default: true,
+		CLIFlag: "cors-allow-credentials",
+		EnvVar:  "SERVER_CORS_ALLOW_CREDENTIALS",
+		Type:    reflect.TypeOf(true),
+		Help:    "Allow credentials in CORS requests",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "server.cors.max_age",
+		Default: 86400, // 24 hours
+		CLIFlag: "cors-max-age",
+		EnvVar:  "SERVER_CORS_MAX_AGE",
+		Type:    reflect.TypeOf(0),
+		Help:    "CORS preflight max age in seconds",
 	})
 
 	registry.Register(&FieldDef{
@@ -368,5 +398,129 @@ func registerLLMFields(registry *Registry) {
 		EnvVar:  "MCP_ADMIN_TOKEN",
 		Type:    reflect.TypeOf(""),
 		Help:    "LLM admin token",
+	})
+}
+
+func registerRateLimitFields(registry *Registry) {
+	// Global rate limit
+	registry.Register(&FieldDef{
+		Path:    "ratelimit.global_rate.limit",
+		Default: int64(100),
+		CLIFlag: "",
+		EnvVar:  "RATELIMIT_GLOBAL_LIMIT",
+		Type:    reflect.TypeOf(int64(0)),
+		Help:    "Global rate limit (requests per period)",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "ratelimit.global_rate.period",
+		Default: 1 * time.Minute,
+		CLIFlag: "",
+		EnvVar:  "RATELIMIT_GLOBAL_PERIOD",
+		Type:    reflect.TypeOf(time.Minute),
+		Help:    "Global rate limit period",
+	})
+
+	// API key rate limit
+	registry.Register(&FieldDef{
+		Path:    "ratelimit.api_key_rate.limit",
+		Default: int64(100),
+		CLIFlag: "",
+		EnvVar:  "RATELIMIT_API_KEY_LIMIT",
+		Type:    reflect.TypeOf(int64(0)),
+		Help:    "API key rate limit (requests per period)",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "ratelimit.api_key_rate.period",
+		Default: 1 * time.Minute,
+		CLIFlag: "",
+		EnvVar:  "RATELIMIT_API_KEY_PERIOD",
+		Type:    reflect.TypeOf(time.Minute),
+		Help:    "API key rate limit period",
+	})
+
+	// Redis configuration for rate limiting
+	registry.Register(&FieldDef{
+		Path:    "ratelimit.redis_addr",
+		Default: "",
+		CLIFlag: "",
+		EnvVar:  "RATELIMIT_REDIS_ADDR",
+		Type:    reflect.TypeOf(""),
+		Help:    "Redis address for rate limit storage (optional)",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "ratelimit.redis_password",
+		Default: "",
+		CLIFlag: "",
+		EnvVar:  "RATELIMIT_REDIS_PASSWORD",
+		Type:    reflect.TypeOf(""),
+		Help:    "Redis password for rate limit storage",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "ratelimit.redis_db",
+		Default: 0,
+		CLIFlag: "",
+		EnvVar:  "RATELIMIT_REDIS_DB",
+		Type:    reflect.TypeOf(0),
+		Help:    "Redis database for rate limit storage",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "ratelimit.prefix",
+		Default: "compozy:ratelimit:",
+		CLIFlag: "",
+		EnvVar:  "RATELIMIT_PREFIX",
+		Type:    reflect.TypeOf(""),
+		Help:    "Key prefix for rate limit storage",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "ratelimit.max_retry",
+		Default: 3,
+		CLIFlag: "",
+		EnvVar:  "RATELIMIT_MAX_RETRY",
+		Type:    reflect.TypeOf(0),
+		Help:    "Maximum retries for rate limit operations",
+	})
+}
+
+func registerCLIFields(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path:    "cli.api_key",
+		Default: "",
+		CLIFlag: "",
+		EnvVar:  "COMPOZY_API_KEY",
+		Type:    reflect.TypeOf(""),
+		Help:    "Compozy API key for authentication",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "cli.base_url",
+		Default: "http://localhost:8080",
+		CLIFlag: "",
+		EnvVar:  "COMPOZY_BASE_URL",
+		Type:    reflect.TypeOf(""),
+		Help:    "Base URL for Compozy API",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "cli.timeout",
+		Default: 30 * time.Second,
+		CLIFlag: "",
+		EnvVar:  "COMPOZY_TIMEOUT",
+		Type:    reflect.TypeOf(time.Second),
+		Help:    "Timeout for API requests",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "cli.mode",
+		Default: "auto",
+		CLIFlag: "",
+		EnvVar:  "COMPOZY_MODE",
+		Type:    reflect.TypeOf(""),
+		Help:    "CLI mode: auto, json, or tui",
 	})
 }

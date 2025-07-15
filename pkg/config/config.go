@@ -10,14 +10,16 @@ import (
 // Config represents the complete configuration for the Compozy system.
 // It provides type-safe access to all configuration values with validation.
 type Config struct {
-	Server   ServerConfig   `koanf:"server"   validate:"required"`
-	Database DatabaseConfig `koanf:"database" validate:"required"`
-	Temporal TemporalConfig `koanf:"temporal" validate:"required"`
-	Runtime  RuntimeConfig  `koanf:"runtime"  validate:"required"`
-	Limits   LimitsConfig   `koanf:"limits"   validate:"required"`
-	OpenAI   OpenAIConfig   `koanf:"openai"`
-	Memory   MemoryConfig   `koanf:"memory"`
-	LLM      LLMConfig      `koanf:"llm"`
+	Server    ServerConfig    `koanf:"server"    validate:"required"`
+	Database  DatabaseConfig  `koanf:"database"  validate:"required"`
+	Temporal  TemporalConfig  `koanf:"temporal"  validate:"required"`
+	Runtime   RuntimeConfig   `koanf:"runtime"   validate:"required"`
+	Limits    LimitsConfig    `koanf:"limits"    validate:"required"`
+	RateLimit RateLimitConfig `koanf:"ratelimit"`
+	OpenAI    OpenAIConfig    `koanf:"openai"`
+	Memory    MemoryConfig    `koanf:"memory"`
+	LLM       LLMConfig       `koanf:"llm"`
+	CLI       CLIConfig       `koanf:"cli"`
 }
 
 // ServerConfig contains HTTP server configuration.
@@ -25,7 +27,15 @@ type ServerConfig struct {
 	Host        string        `koanf:"host"         validate:"required"        env:"SERVER_HOST"`
 	Port        int           `koanf:"port"         validate:"min=1,max=65535" env:"SERVER_PORT"`
 	CORSEnabled bool          `koanf:"cors_enabled"                            env:"SERVER_CORS_ENABLED"`
+	CORS        CORSConfig    `koanf:"cors"`
 	Timeout     time.Duration `koanf:"timeout"                                 env:"SERVER_TIMEOUT"`
+}
+
+// CORSConfig contains CORS configuration.
+type CORSConfig struct {
+	AllowedOrigins   []string `koanf:"allowed_origins"   env:"SERVER_CORS_ALLOWED_ORIGINS"`
+	AllowCredentials bool     `koanf:"allow_credentials" env:"SERVER_CORS_ALLOW_CREDENTIALS"`
+	MaxAge           int      `koanf:"max_age"           env:"SERVER_CORS_MAX_AGE"`
 }
 
 // DatabaseConfig contains database connection configuration.
@@ -89,6 +99,31 @@ type LLMConfig struct {
 	AdminToken SensitiveString `koanf:"admin_token" env:"MCP_ADMIN_TOKEN" sensitive:"true"`
 }
 
+// RateLimitConfig contains rate limiting configuration.
+type RateLimitConfig struct {
+	GlobalRate    RateConfig `koanf:"global_rate"    env:"RATELIMIT_GLOBAL"`
+	APIKeyRate    RateConfig `koanf:"api_key_rate"   env:"RATELIMIT_API_KEY"`
+	RedisAddr     string     `koanf:"redis_addr"     env:"RATELIMIT_REDIS_ADDR"`
+	RedisPassword string     `koanf:"redis_password" env:"RATELIMIT_REDIS_PASSWORD"`
+	RedisDB       int        `koanf:"redis_db"       env:"RATELIMIT_REDIS_DB"`
+	Prefix        string     `koanf:"prefix"         env:"RATELIMIT_PREFIX"`
+	MaxRetry      int        `koanf:"max_retry"      env:"RATELIMIT_MAX_RETRY"`
+}
+
+// RateConfig represents a single rate limit configuration.
+type RateConfig struct {
+	Limit  int64         `koanf:"limit"  env:"LIMIT"`
+	Period time.Duration `koanf:"period" env:"PERIOD"`
+}
+
+// CLIConfig contains CLI-specific configuration.
+type CLIConfig struct {
+	APIKey  SensitiveString `koanf:"api_key"  env:"COMPOZY_API_KEY"  sensitive:"true"`
+	BaseURL string          `koanf:"base_url" env:"COMPOZY_BASE_URL"`
+	Timeout time.Duration   `koanf:"timeout"  env:"COMPOZY_TIMEOUT"`
+	Mode    string          `koanf:"mode"     env:"COMPOZY_MODE"`
+}
+
 // Service defines the configuration management service interface.
 // It provides methods for loading, watching, and validating configuration.
 type Service interface {
@@ -132,6 +167,13 @@ type Metadata struct {
 	LoadedAt time.Time             `json:"loaded_at"`
 }
 
+// Load loads configuration using the default service.
+// This is a convenience function for simple configuration loading.
+func Load() (*Config, error) {
+	service := NewService()
+	return service.Load(context.Background())
+}
+
 // Default returns a Config with default values for development.
 func Default() *Config {
 	return defaultFromRegistry()
@@ -141,58 +183,16 @@ func Default() *Config {
 func defaultFromRegistry() *Config {
 	registry := definition.CreateRegistry()
 	return &Config{
-		Server: ServerConfig{
-			Host:        getString(registry, "server.host"),
-			Port:        getInt(registry, "server.port"),
-			CORSEnabled: getBool(registry, "server.cors_enabled"),
-			Timeout:     getDuration(registry, "server.timeout"),
-		},
-		Database: DatabaseConfig{
-			Host:     getString(registry, "database.host"),
-			Port:     getString(registry, "database.port"),
-			User:     getString(registry, "database.user"),
-			Password: SensitiveString(getString(registry, "database.password")),
-			DBName:   getString(registry, "database.name"),
-			SSLMode:  getString(registry, "database.ssl_mode"),
-		},
-		Temporal: TemporalConfig{
-			HostPort:  getString(registry, "temporal.host_port"),
-			Namespace: getString(registry, "temporal.namespace"),
-			TaskQueue: getString(registry, "temporal.task_queue"),
-		},
-		Runtime: RuntimeConfig{
-			Environment:                 getString(registry, "runtime.environment"),
-			LogLevel:                    getString(registry, "runtime.log_level"),
-			DispatcherHeartbeatInterval: getDuration(registry, "runtime.dispatcher_heartbeat_interval"),
-			DispatcherHeartbeatTTL:      getDuration(registry, "runtime.dispatcher_heartbeat_ttl"),
-			DispatcherStaleThreshold:    getDuration(registry, "runtime.dispatcher_stale_threshold"),
-			AsyncTokenCounterWorkers:    getInt(registry, "runtime.async_token_counter_workers"),
-			AsyncTokenCounterBufferSize: getInt(registry, "runtime.async_token_counter_buffer_size"),
-		},
-		Limits: LimitsConfig{
-			MaxNestingDepth:       getInt(registry, "limits.max_nesting_depth"),
-			MaxStringLength:       getInt(registry, "limits.max_string_length"),
-			MaxMessageContent:     getInt(registry, "limits.max_message_content"),
-			MaxTotalContentSize:   getInt(registry, "limits.max_total_content_size"),
-			MaxTaskContextDepth:   getInt(registry, "limits.max_task_context_depth"),
-			ParentUpdateBatchSize: getInt(registry, "limits.parent_update_batch_size"),
-		},
-		OpenAI: OpenAIConfig{
-			APIKey:       SensitiveString(getString(registry, "openai.api_key")),
-			BaseURL:      getString(registry, "openai.base_url"),
-			OrgID:        getString(registry, "openai.org_id"),
-			DefaultModel: getString(registry, "openai.default_model"),
-		},
-		Memory: MemoryConfig{
-			RedisURL:    getString(registry, "memory.redis_url"),
-			RedisPrefix: getString(registry, "memory.redis_prefix"),
-			TTL:         getDuration(registry, "memory.ttl"),
-			MaxEntries:  getInt(registry, "memory.max_entries"),
-		},
-		LLM: LLMConfig{
-			ProxyURL:   getString(registry, "llm.proxy_url"),
-			AdminToken: SensitiveString(getString(registry, "llm.admin_token")),
-		},
+		Server:    buildServerConfig(registry),
+		Database:  buildDatabaseConfig(registry),
+		Temporal:  buildTemporalConfig(registry),
+		Runtime:   buildRuntimeConfig(registry),
+		Limits:    buildLimitsConfig(registry),
+		OpenAI:    buildOpenAIConfig(registry),
+		Memory:    buildMemoryConfig(registry),
+		LLM:       buildLLMConfig(registry),
+		RateLimit: buildRateLimitConfig(registry),
+		CLI:       buildCLIConfig(registry),
 	}
 }
 
@@ -231,4 +231,140 @@ func getDuration(registry *definition.Registry, path string) time.Duration {
 		}
 	}
 	return 0
+}
+
+func getInt64(registry *definition.Registry, path string) int64 {
+	if val := registry.GetDefault(path); val != nil {
+		if i, ok := val.(int64); ok {
+			return i
+		}
+	}
+	return 0
+}
+
+func getStringSlice(registry *definition.Registry, path string) []string {
+	if val := registry.GetDefault(path); val != nil {
+		if slice, ok := val.([]string); ok {
+			return slice
+		}
+		// Handle case where it might be stored as []interface{}
+		if interfaceSlice, ok := val.([]any); ok {
+			result := make([]string, len(interfaceSlice))
+			for i, v := range interfaceSlice {
+				if s, ok := v.(string); ok {
+					result[i] = s
+				}
+			}
+			return result
+		}
+	}
+	return []string{}
+}
+
+func buildServerConfig(registry *definition.Registry) ServerConfig {
+	return ServerConfig{
+		Host:        getString(registry, "server.host"),
+		Port:        getInt(registry, "server.port"),
+		CORSEnabled: getBool(registry, "server.cors_enabled"),
+		CORS: CORSConfig{
+			AllowedOrigins:   getStringSlice(registry, "server.cors.allowed_origins"),
+			AllowCredentials: getBool(registry, "server.cors.allow_credentials"),
+			MaxAge:           getInt(registry, "server.cors.max_age"),
+		},
+		Timeout: getDuration(registry, "server.timeout"),
+	}
+}
+
+func buildDatabaseConfig(registry *definition.Registry) DatabaseConfig {
+	return DatabaseConfig{
+		Host:     getString(registry, "database.host"),
+		Port:     getString(registry, "database.port"),
+		User:     getString(registry, "database.user"),
+		Password: SensitiveString(getString(registry, "database.password")),
+		DBName:   getString(registry, "database.name"),
+		SSLMode:  getString(registry, "database.ssl_mode"),
+	}
+}
+
+func buildTemporalConfig(registry *definition.Registry) TemporalConfig {
+	return TemporalConfig{
+		HostPort:  getString(registry, "temporal.host_port"),
+		Namespace: getString(registry, "temporal.namespace"),
+		TaskQueue: getString(registry, "temporal.task_queue"),
+	}
+}
+
+func buildRuntimeConfig(registry *definition.Registry) RuntimeConfig {
+	return RuntimeConfig{
+		Environment:                 getString(registry, "runtime.environment"),
+		LogLevel:                    getString(registry, "runtime.log_level"),
+		DispatcherHeartbeatInterval: getDuration(registry, "runtime.dispatcher_heartbeat_interval"),
+		DispatcherHeartbeatTTL:      getDuration(registry, "runtime.dispatcher_heartbeat_ttl"),
+		DispatcherStaleThreshold:    getDuration(registry, "runtime.dispatcher_stale_threshold"),
+		AsyncTokenCounterWorkers:    getInt(registry, "runtime.async_token_counter_workers"),
+		AsyncTokenCounterBufferSize: getInt(registry, "runtime.async_token_counter_buffer_size"),
+	}
+}
+
+func buildLimitsConfig(registry *definition.Registry) LimitsConfig {
+	return LimitsConfig{
+		MaxNestingDepth:       getInt(registry, "limits.max_nesting_depth"),
+		MaxStringLength:       getInt(registry, "limits.max_string_length"),
+		MaxMessageContent:     getInt(registry, "limits.max_message_content"),
+		MaxTotalContentSize:   getInt(registry, "limits.max_total_content_size"),
+		MaxTaskContextDepth:   getInt(registry, "limits.max_task_context_depth"),
+		ParentUpdateBatchSize: getInt(registry, "limits.parent_update_batch_size"),
+	}
+}
+
+func buildOpenAIConfig(registry *definition.Registry) OpenAIConfig {
+	return OpenAIConfig{
+		APIKey:       SensitiveString(getString(registry, "openai.api_key")),
+		BaseURL:      getString(registry, "openai.base_url"),
+		OrgID:        getString(registry, "openai.org_id"),
+		DefaultModel: getString(registry, "openai.default_model"),
+	}
+}
+
+func buildMemoryConfig(registry *definition.Registry) MemoryConfig {
+	return MemoryConfig{
+		RedisURL:    getString(registry, "memory.redis_url"),
+		RedisPrefix: getString(registry, "memory.redis_prefix"),
+		TTL:         getDuration(registry, "memory.ttl"),
+		MaxEntries:  getInt(registry, "memory.max_entries"),
+	}
+}
+
+func buildLLMConfig(registry *definition.Registry) LLMConfig {
+	return LLMConfig{
+		ProxyURL:   getString(registry, "llm.proxy_url"),
+		AdminToken: SensitiveString(getString(registry, "llm.admin_token")),
+	}
+}
+
+func buildRateLimitConfig(registry *definition.Registry) RateLimitConfig {
+	return RateLimitConfig{
+		GlobalRate: RateConfig{
+			Limit:  getInt64(registry, "ratelimit.global_rate.limit"),
+			Period: getDuration(registry, "ratelimit.global_rate.period"),
+		},
+		APIKeyRate: RateConfig{
+			Limit:  getInt64(registry, "ratelimit.api_key_rate.limit"),
+			Period: getDuration(registry, "ratelimit.api_key_rate.period"),
+		},
+		RedisAddr:     getString(registry, "ratelimit.redis_addr"),
+		RedisPassword: getString(registry, "ratelimit.redis_password"),
+		RedisDB:       getInt(registry, "ratelimit.redis_db"),
+		Prefix:        getString(registry, "ratelimit.prefix"),
+		MaxRetry:      getInt(registry, "ratelimit.max_retry"),
+	}
+}
+
+func buildCLIConfig(registry *definition.Registry) CLIConfig {
+	return CLIConfig{
+		APIKey:  SensitiveString(getString(registry, "cli.api_key")),
+		BaseURL: getString(registry, "cli.base_url"),
+		Timeout: getDuration(registry, "cli.timeout"),
+		Mode:    getString(registry, "cli.mode"),
+	}
 }

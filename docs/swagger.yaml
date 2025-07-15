@@ -1013,6 +1013,58 @@ definitions:
       - key
       - messages
     type: object
+  model.APIKey:
+    properties:
+      createdAt:
+        type: string
+      fingerprint:
+        description: SHA-256 hash for O(1) lookups
+        items:
+          type: integer
+        type: array
+      hash:
+        description: bcrypt-hashed key
+        items:
+          type: integer
+        type: array
+      id:
+        type: string
+      lastUsed:
+        $ref: '#/definitions/sql.NullTime'
+      prefix:
+        description: cpzy_
+        type: string
+      userID:
+        type: string
+    type: object
+  model.Role:
+    enum:
+      - admin
+      - user
+    type: string
+    x-enum-varnames:
+      - RoleAdmin
+      - RoleUser
+  model.User:
+    properties:
+      createdAt:
+        type: string
+      email:
+        type: string
+      id:
+        type: string
+      role:
+        $ref: '#/definitions/model.Role'
+    type: object
+  router.CreateUserRequest:
+    properties:
+      email:
+        type: string
+      role:
+        type: string
+    required:
+      - email
+    type: object
   router.ErrorInfo:
     properties:
       code:
@@ -1031,6 +1083,13 @@ definitions:
         type: string
       status:
         type: integer
+    type: object
+  router.UpdateUserRequest:
+    properties:
+      email:
+        type: string
+      role:
+        type: string
     type: object
   schedulerouter.ScheduleInfoResponse:
     properties:
@@ -1111,6 +1170,14 @@ definitions:
       key:
         type: string
       success:
+        type: boolean
+    type: object
+  sql.NullTime:
+    properties:
+      time:
+        type: string
+      valid:
+        description: Valid is true if Time is not NULL
         type: boolean
     type: object
   task.ExecutionType:
@@ -2763,6 +2830,105 @@ paths:
       summary: Write memory content
       tags:
         - memory
+  /auth/generate:
+    post:
+      consumes:
+        - application/json
+      description: Generate a new API key for the authenticated user
+      produces:
+        - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Generate a new API key
+      tags:
+        - auth
+  /auth/keys:
+    get:
+      consumes:
+        - application/json
+      description: List all API keys for the authenticated user
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/model.APIKey'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List user's API keys
+      tags:
+        - auth
+  /auth/keys/{id}:
+    delete:
+      consumes:
+        - application/json
+      description: Revoke an API key by ID
+      parameters:
+        - description: API Key ID
+          in: path
+          name: id
+          required: true
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Revoke an API key
+      tags:
+        - auth
   /events:
     post:
       consumes:
@@ -3345,6 +3511,189 @@ paths:
       summary: Update schedule
       tags:
         - schedules
+  /users:
+    get:
+      consumes:
+        - application/json
+      description: List all users in the system
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/model.User'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List all users (admin only)
+      tags:
+        - users
+    post:
+      consumes:
+        - application/json
+      description: Create a new user with the specified email and role
+      parameters:
+        - description: User details
+          in: body
+          name: user
+          required: true
+          schema:
+            $ref: '#/definitions/router.CreateUserRequest'
+      produces:
+        - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/model.User'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create a new user (admin only)
+      tags:
+        - users
+  /users/{id}:
+    delete:
+      consumes:
+        - application/json
+      description: Delete a user by ID
+      parameters:
+        - description: User ID
+          in: path
+          name: id
+          required: true
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete a user (admin only)
+      tags:
+        - users
+    patch:
+      consumes:
+        - application/json
+      description: Update a user's email or role
+      parameters:
+        - description: User ID
+          in: path
+          name: id
+          required: true
+          type: string
+        - description: User update details
+          in: body
+          name: user
+          required: true
+          schema:
+            $ref: '#/definitions/router.UpdateUserRequest'
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.User'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update a user (admin only)
+      tags:
+        - users
   /workflows:
     get:
       consumes:
@@ -3875,5 +4224,9 @@ tags:
     name: schedules
   - description: Memory management operations
     name: memory
+  - description: Authentication and API key management operations
+    name: auth
+  - description: User management operations (admin only)
+    name: users
   - description: Operational endpoints for monitoring and health
     name: Operations

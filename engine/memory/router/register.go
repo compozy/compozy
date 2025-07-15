@@ -1,14 +1,18 @@
 package memrouter
 
-import "github.com/gin-gonic/gin"
+import (
+	"github.com/compozy/compozy/engine/auth/uc"
+	authmw "github.com/compozy/compozy/engine/infra/server/middleware/auth"
+	"github.com/gin-gonic/gin"
+)
 
-func Register(apiBase *gin.RouterGroup) {
-	// TODO: CRITICAL SECURITY - Add authentication middleware before production use
-	// All memory routes are currently PUBLIC and accessible without authentication
-	// This must be addressed before deployment to any environment with sensitive data
+func Register(apiBase *gin.RouterGroup, authFactory *uc.Factory) {
+	// Create auth middleware manager
+	authManager := authmw.NewManager(authFactory)
 
-	// Memory routes
+	// Memory routes - all routes require authentication
 	memoryGroup := apiBase.Group("/memory")
+	memoryGroup.Use(authManager.RequireAuth())
 
 	// Routes with memory reference only (key moved to query params or body)
 	refGroup := memoryGroup.Group("/:memory_ref")

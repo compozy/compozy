@@ -10,10 +10,12 @@ import (
 	"syscall"
 	"time"
 
+	authuc "github.com/compozy/compozy/engine/auth/uc"
 	"github.com/compozy/compozy/engine/autoload"
 	"github.com/compozy/compozy/engine/infra/monitoring"
 	"github.com/compozy/compozy/engine/infra/server/appstate"
 	csvc "github.com/compozy/compozy/engine/infra/server/config"
+	authmw "github.com/compozy/compozy/engine/infra/server/middleware/auth"
 	"github.com/compozy/compozy/engine/infra/server/middleware/ratelimit"
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/store"
@@ -108,6 +110,32 @@ func NewServer(ctx context.Context, appConfig *config.Config, cwd, configFile, e
 		EnvFilePath: envFilePath,
 	}
 
+	// Convert rate limit config from unified config if configured
+	if appConfig.RateLimit.GlobalRate.Limit > 0 {
+		serverConfig.RateLimit = &ratelimit.Config{
+			GlobalRate: ratelimit.RateConfig{
+				Limit:  appConfig.RateLimit.GlobalRate.Limit,
+				Period: appConfig.RateLimit.GlobalRate.Period,
+			},
+			APIKeyRate: ratelimit.RateConfig{
+				Limit:  appConfig.RateLimit.APIKeyRate.Limit,
+				Period: appConfig.RateLimit.APIKeyRate.Period,
+			},
+			RedisAddr:     appConfig.RateLimit.RedisAddr,
+			RedisPassword: appConfig.RateLimit.RedisPassword,
+			RedisDB:       appConfig.RateLimit.RedisDB,
+			Prefix:        appConfig.RateLimit.Prefix,
+			MaxRetry:      appConfig.RateLimit.MaxRetry,
+			// Use default excluded paths
+			ExcludedPaths: []string{
+				"/health",
+				"/metrics",
+				"/swagger",
+				"/api/v0/health",
+			},
+		}
+	}
+
 	return &Server{
 		Config:              serverConfig,
 		AppConfig:           appConfig,
@@ -122,12 +150,27 @@ func (s *Server) buildRouter(state *appstate.State) error {
 	r := gin.New()
 	r.Use(gin.Recovery())
 
+	// Setup auth middleware first (before rate limiting)
+	authRepo := state.Store.NewAuthRepo()
+	authFactory := authuc.NewFactory(authRepo)
+	authManager := authmw.NewManager(authFactory)
+	r.Use(authManager.Middleware())
+
 	// Setup rate limiting
 	if s.Config.RateLimit != nil {
 		log := logger.FromContext(s.ctx)
 		// Create rate limit manager without Redis for now
 		// TODO: Add Redis support when available in store
-		manager, err := ratelimit.NewManager(s.Config.RateLimit, nil)
+		var manager *ratelimit.Manager
+		var err error
+
+		// Use NewManagerWithMetrics if monitoring is initialized
+		if s.monitoring != nil && s.monitoring.IsInitialized() {
+			manager, err = ratelimit.NewManagerWithMetrics(s.Config.RateLimit, nil, s.monitoring.Meter())
+		} else {
+			manager, err = ratelimit.NewManager(s.Config.RateLimit, nil)
+		}
+
 		if err != nil {
 			log.Error("Failed to initialize rate limiting", "error", err)
 			// Continue without rate limiting
@@ -146,8 +189,8 @@ func (s *Server) buildRouter(state *appstate.State) error {
 		r.Use(s.monitoring.GinMiddleware(s.ctx))
 	}
 	r.Use(LoggerMiddleware(log))
-	if s.Config.CORSEnabled {
-		r.Use(CORSMiddleware())
+	if s.AppConfig.Server.CORSEnabled {
+		r.Use(CORSMiddleware(s.AppConfig.Server.CORS))
 	}
 	r.Use(appstate.StateMiddleware(state))
 	r.Use(router.ErrorHandler())

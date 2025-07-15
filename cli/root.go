@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"github.com/compozy/compozy/cli/auth"
 	"github.com/spf13/cobra"
 )
 
@@ -14,6 +15,7 @@ func RootCmd() *cobra.Command {
 		DevCmd(),
 		MCPProxyCmd(),
 		ConfigCmd(),
+		auth.Cmd(),
 	)
 
 	return root

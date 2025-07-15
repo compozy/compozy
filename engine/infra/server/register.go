@@ -6,6 +6,8 @@ import (
 
 	docs "github.com/compozy/compozy/docs"
 	agentrouter "github.com/compozy/compozy/engine/agent/router"
+	authrouter "github.com/compozy/compozy/engine/auth/router"
+	authuc "github.com/compozy/compozy/engine/auth/uc"
 	"github.com/compozy/compozy/engine/core"
 	_ "github.com/compozy/compozy/engine/infra/monitoring" // Import for swagger docs
 	"github.com/compozy/compozy/engine/infra/server/appstate"
@@ -139,13 +141,22 @@ func RegisterRoutes(ctx context.Context, router *gin.Engine, state *appstate.Sta
 	// Health check endpoint with readiness probe
 	router.GET("/health", CreateHealthHandler(server, version))
 
+	// Register auth routes with metrics if monitoring is available
+	authRepo := state.Store.NewAuthRepo()
+	authFactory := authuc.NewFactory(authRepo)
+	if server != nil && server.monitoring != nil && server.monitoring.IsInitialized() {
+		authrouter.RegisterRoutesWithMetrics(apiBase, authFactory, server.monitoring.Meter())
+	} else {
+		authrouter.RegisterRoutes(apiBase, authFactory)
+	}
+
 	// Register all component routers
 	wfrouter.Register(apiBase)
 	tkrouter.Register(apiBase)
 	agentrouter.Register(apiBase)
 	toolrouter.Register(apiBase)
 	schedulerouter.Register(apiBase)
-	memrouter.Register(apiBase)
+	memrouter.Register(apiBase, authFactory)
 
 	// Register memory health routes if global health service is available
 	if globalHealthService := memory.GetGlobalHealthService(); globalHealthService != nil {

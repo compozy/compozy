@@ -63,3 +63,8 @@ func (s *Store) NewTaskRepo() *TaskRepo {
 func (s *Store) NewWorkflowRepo() *WorkflowRepo {
 	return &WorkflowRepo{db: s.DB.Pool(), taskRepo: s.NewTaskRepo()}
 }
+
+// NewAuthRepo creates a new AuthRepo.
+func (s *Store) NewAuthRepo() *AuthRepo {
+	return NewAuthRepo(s.DB.Pool())
+}
