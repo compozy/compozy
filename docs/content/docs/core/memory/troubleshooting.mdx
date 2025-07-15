@@ -3,11 +3,251 @@ title: "Troubleshooting Memory Issues"
 description: "Complete guide to diagnosing and resolving memory system issues, performance problems, and common configuration errors"
 ---
 
+import { ReferenceCard, ReferenceCardList } from "@/components/ui/reference-card";
+import { FeatureCard, FeatureCardList } from "@/components/ui/feature-card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { 
+  AlertTriangle, 
+  Wrench, 
+  Activity, 
+  CheckCircle, 
+  Settings,
+  BookOpen,
+  Zap,
+  Users,
+  Eye,
+  Shield,
+  Database,
+  Terminal
+} from "lucide-react";
+
 # Troubleshooting Memory Issues
 
-This guide provides comprehensive troubleshooting procedures for common memory system issues, performance problems, and configuration errors.
+This guide provides comprehensive troubleshooting procedures organized by user role and skill level. Choose your path based on your experience and responsibilities.
+
+## Choose Your Troubleshooting Path
+
+<Tabs defaultValue="developer" className="w-full">
+<TabsList className="grid w-full grid-cols-4">
+  <TabsTrigger value="developer">Developer</TabsTrigger>
+  <TabsTrigger value="operations">Operations</TabsTrigger>
+  <TabsTrigger value="support">Support</TabsTrigger>
+  <TabsTrigger value="emergency">Emergency</TabsTrigger>
+</TabsList>
+
+<TabsContent value="developer">
+### Developer Troubleshooting Path
+
+**When to use:** Development environment issues, integration problems, configuration errors
+
+**Skills Required:** Code debugging, configuration management, log analysis
+
+**Common Scenarios:**
+- Memory operations not working in development
+- Configuration validation errors
+- Integration issues with workflows
+- Performance problems during development
+
+<ReferenceCardList>
+  <ReferenceCard 
+    title="Start Here: Common Issues" 
+    href="#common-issues-and-solutions"
+    description="Quick fixes for frequent development problems"
+    icon={Wrench}
+  />
+  <ReferenceCard 
+    title="Configuration Problems" 
+    href="#configuration-troubleshooting"
+    description="Validate and fix configuration errors"
+    icon={Settings}
+  />
+  <ReferenceCard 
+    title="Debug Tools" 
+    href="#monitoring-and-debugging"
+    description="Use debugging tools and health checks"
+    icon={Eye}
+  />
+  <ReferenceCard 
+    title="Performance Issues" 
+    href="#performance-troubleshooting"
+    description="Optimize memory operations performance"
+    icon={Zap}
+  />
+</ReferenceCardList>
+</TabsContent>
+
+<TabsContent value="operations">
+### Operations Troubleshooting Path
+
+**When to use:** Production issues, system monitoring, infrastructure problems
+
+**Skills Required:** System administration, monitoring, incident response
+
+**Common Scenarios:**
+- Production system failures
+- Performance degradation
+- Resource exhaustion
+- Infrastructure issues
+
+<ReferenceCardList>
+  <ReferenceCard 
+    title="Performance Issues" 
+    href="#performance-troubleshooting"
+    description="Diagnose and fix performance problems"
+    icon={Activity}
+  />
+  <ReferenceCard 
+    title="Resource Management" 
+    href="#memory-leaks-and-resource-issues"
+    description="Handle memory leaks and resource problems"
+    icon={Database}
+  />
+  <ReferenceCard 
+    title="Monitoring Setup" 
+    href="#monitoring-and-debugging"
+    description="Configure monitoring and alerting"
+    icon={Eye}
+  />
+  <ReferenceCard 
+    title="Emergency Response" 
+    href="#emergency-procedures"
+    description="Emergency recovery procedures"
+    icon={AlertTriangle}
+  />
+</ReferenceCardList>
+</TabsContent>
+
+<TabsContent value="support">
+### Support Team Troubleshooting Path
+
+**When to use:** User-reported issues, first-line support, escalation decisions
+
+**Skills Required:** Issue analysis, customer communication, escalation protocols
+
+**Common Scenarios:**
+- User-reported memory issues
+- Application integration problems
+- Data consistency issues
+- Performance complaints
+
+<ReferenceCardList>
+  <ReferenceCard 
+    title="Issue Classification" 
+    href="#common-issues-and-solutions"
+    description="Classify and prioritize reported issues"
+    icon={CheckCircle}
+  />
+  <ReferenceCard 
+    title="Health Checks" 
+    href="#health-check-endpoints"
+    description="Run system health diagnostics"
+    icon={Activity}
+  />
+  <ReferenceCard 
+    title="Log Analysis" 
+    href="#log-analysis"
+    description="Analyze logs for issue patterns"
+    icon={BookOpen}
+  />
+  <ReferenceCard 
+    title="Escalation Guide" 
+    href="#escalation-procedures"
+    description="When and how to escalate issues"
+    icon={Users}
+  />
+</ReferenceCardList>
+</TabsContent>
+
+<TabsContent value="emergency">
+### Emergency Response Path
+
+**When to use:** Critical system failures, data loss, security incidents
+
+**Skills Required:** System recovery, incident management, emergency procedures
+
+**Common Scenarios:**
+- Complete system failures
+- Data corruption or loss
+- Security breaches
+- Service outages
+
+<Alert>
+  <AlertTriangle className="h-4 w-4" />
+  <AlertDescription>
+    <strong>Critical Path:</strong> Follow these procedures for emergency situations
+  </AlertDescription>
+</Alert>
+
+<ReferenceCardList>
+  <ReferenceCard 
+    title="System Recovery" 
+    href="#memory-system-recovery"
+    description="Complete system recovery procedures"
+    icon={AlertTriangle}
+  />
+  <ReferenceCard 
+    title="Data Recovery" 
+    href="#data-recovery"
+    description="Backup and data recovery procedures"
+    icon={Database}
+  />
+  <ReferenceCard 
+    title="Emergency Contacts" 
+    href="#emergency-contacts"
+    description="Contact information for emergency support"
+    icon={Users}
+  />
+</ReferenceCardList>
+</TabsContent>
+</Tabs>
+
+## Cross-Document References
+
+<Alert>
+  <BookOpen className="h-4 w-4" />
+  <AlertDescription>
+    This troubleshooting guide references concepts from other memory documentation:
+  </AlertDescription>
+</Alert>
+
+<ReferenceCardList>
+  <ReferenceCard 
+    title="Memory Concepts" 
+    href="/docs/core/memory/memory-concepts"
+    description="Understanding memory architecture for better troubleshooting"
+    icon={BookOpen}
+  />
+  <ReferenceCard 
+    title="Configuration" 
+    href="/docs/core/memory/configuration"
+    description="Proper configuration to prevent issues"
+    icon={Settings}
+  />
+  <ReferenceCard 
+    title="Privacy & Security" 
+    href="/docs/core/memory/privacy-security"
+    description="Security-related troubleshooting"
+    icon={Shield}
+  />
+  <ReferenceCard 
+    title="Operations" 
+    href="/docs/core/memory/operations"
+    description="Memory operations and best practices"
+    icon={Wrench}
+  />
+</ReferenceCardList>
 
 ## Common Issues and Solutions
+
+<Alert>
+  <Wrench className="h-4 w-4" />
+  <AlertDescription>
+    <strong>Skill Level:</strong> <Badge variant="outline">Beginner</Badge> - Start here for most common issues
+  </AlertDescription>
+</Alert>
 
 ### Memory Instance Not Found
 
@@ -71,6 +311,13 @@ const workflowContext = {
 ```
 
 ### Memory Operations Timeout
+
+<Alert>
+  <Activity className="h-4 w-4" />
+  <AlertDescription>
+    <strong>Impact:</strong> High - Can cause workflow failures and user experience issues
+  </AlertDescription>
+</Alert>
 
 **Symptoms:**
 - Operations hang or timeout
@@ -141,6 +388,13 @@ persistence:
 ```
 
 ### Token Count Inconsistencies
+
+<Alert>
+  <Database className="h-4 w-4" />
+  <AlertDescription>
+    <strong>Skill Level:</strong> <Badge variant="outline">Intermediate</Badge> - Requires understanding of token management
+  </AlertDescription>
+</Alert>
 
 **Symptoms:**
 - Incorrect token count reporting
@@ -220,6 +474,13 @@ export async function resyncTokenMetadata(input: ResyncInput) {
 
 ### Memory Flushing Issues
 
+<Alert>
+  <Zap className="h-4 w-4" />
+  <AlertDescription>
+    <strong>Common Cause:</strong> Temporal workflow issues or summarization service problems
+  </AlertDescription>
+</Alert>
+
 **Symptoms:**
 - Memory not flushing when expected
 - Summaries not being generated
@@ -298,6 +559,13 @@ export async function manualFlushTool(input: ManualFlushInput) {
 ```
 
 ## Performance Troubleshooting
+
+<Alert>
+  <Activity className="h-4 w-4" />
+  <AlertDescription>
+    <strong>Skill Level:</strong> <Badge variant="outline">Intermediate</Badge> - Performance analysis and optimization
+  </AlertDescription>
+</Alert>
 
 ### Slow Memory Operations
 
@@ -392,6 +660,13 @@ export async function batchMemoryOperations(input: BatchOperationsInput) {
 
 ### Memory Leaks and Resource Issues
 
+<Alert>
+  <AlertTriangle className="h-4 w-4" />
+  <AlertDescription>
+    <strong>Critical:</strong> Can lead to system instability and service outages
+  </AlertDescription>
+</Alert>
+
 **Diagnostic Commands:**
 
 ```bash
@@ -469,6 +744,13 @@ class ResourceManager {
 ```
 
 ## Configuration Troubleshooting
+
+<Alert>
+  <Settings className="h-4 w-4" />
+  <AlertDescription>
+    <strong>Skill Level:</strong> <Badge variant="outline">Beginner</Badge> - Configuration validation and fixes
+  </AlertDescription>
+</Alert>
 
 ### Invalid Configuration Errors
 
@@ -571,6 +853,13 @@ export async function validateMemoryConfig(input: ValidateConfigInput) {
 
 ### Template Evaluation Issues
 
+<Alert>
+  <Terminal className="h-4 w-4" />
+  <AlertDescription>
+    <strong>Developer Tool:</strong> Use the template debugging tool for systematic troubleshooting
+  </AlertDescription>
+</Alert>
+
 **Diagnostic Tool:**
 
 ```typescript
@@ -624,6 +913,13 @@ function getEvaluationSteps(template: string, context: any): Array<{step: string
 
 ## Monitoring and Debugging
 
+<Alert>
+  <Eye className="h-4 w-4" />
+  <AlertDescription>
+    <strong>Skill Level:</strong> <Badge variant="outline">Intermediate</Badge> - System monitoring and observability
+  </AlertDescription>
+</Alert>
+
 ### Health Check Endpoints
 
 ```bash
@@ -667,7 +963,11 @@ export async function memoryDebugTool(input: DebugInput) {
 
 ### Log Analysis
 
-**Common Log Patterns to Watch:**
+<Accordion type="single" collapsible>
+<AccordionItem value="log-patterns">
+<AccordionTrigger>Common Log Patterns to Watch</AccordionTrigger>
+<AccordionContent>
+**Critical Log Patterns:**
 
 ```bash
 # Memory operation failures
@@ -683,7 +983,18 @@ grep "flush.*failed" /var/log/compozy/memory.log
 grep "slow.*operation" /var/log/compozy/memory.log
 ```
 
-**Structured Logging for Debugging:**
+**Log Severity Levels:**
+- `ERROR`: Critical issues requiring immediate attention
+- `WARN`: Performance issues or potential problems
+- `INFO`: Normal operations and status updates
+- `DEBUG`: Detailed troubleshooting information
+</AccordionContent>
+</AccordionItem>
+
+<AccordionItem value="structured-logging">
+<AccordionTrigger>Structured Logging for Debugging</AccordionTrigger>
+<AccordionContent>
+**Implement structured logging for better troubleshooting:**
 
 ```typescript
 export async function loggedMemoryTool(input: LoggedMemoryInput) {
@@ -723,8 +1034,101 @@ export async function loggedMemoryTool(input: LoggedMemoryInput) {
   }
 }
 ```
+</AccordionContent>
+</AccordionItem>
+</Accordion>
+
+## Escalation Procedures
+
+<Alert>
+  <Users className="h-4 w-4" />
+  <AlertDescription>
+    <strong>Support Teams:</strong> Clear escalation paths for different issue types
+  </AlertDescription>
+</Alert>
+
+<Tabs defaultValue="level1" className="w-full">
+<TabsList className="grid w-full grid-cols-3">
+  <TabsTrigger value="level1">Level 1 Support</TabsTrigger>
+  <TabsTrigger value="level2">Level 2 Support</TabsTrigger>
+  <TabsTrigger value="emergency">Emergency</TabsTrigger>
+</TabsList>
+
+<TabsContent value="level1">
+### Level 1 Support (First Response)
+
+**Handle These Issues:**
+- Basic configuration problems
+- Common error messages
+- Performance complaints
+- User education
+
+**Escalate When:**
+- System-wide failures
+- Security incidents
+- Data corruption
+- Unknown error patterns
+
+**Required Information for Escalation:**
+- Error messages and timestamps
+- User impact assessment
+- Basic diagnostic results
+- Attempted solutions
+</TabsContent>
+
+<TabsContent value="level2">
+### Level 2 Support (Technical Specialists)
+
+**Handle These Issues:**
+- Complex configuration problems
+- Performance optimization
+- Integration issues
+- Advanced troubleshooting
+
+**Escalate When:**
+- Critical system failures
+- Security breaches
+- Data loss incidents
+- Architecture changes needed
+
+**Required Information for Escalation:**
+- Complete diagnostic reports
+- System logs and traces
+- Impact analysis
+- Recovery recommendations
+</TabsContent>
+
+<TabsContent value="emergency">
+### Emergency Escalation
+
+**Immediate Escalation Required:**
+- Complete system outages
+- Data loss or corruption
+- Security breaches
+- Service unavailability
+
+**Emergency Contacts:**
+- On-call engineer: [Contact Information]
+- Security team: [Contact Information]
+- Management: [Contact Information]
+
+**Emergency Response Protocol:**
+1. Assess immediate impact
+2. Implement containment measures
+3. Notify stakeholders
+4. Begin recovery procedures
+5. Document incident details
+</TabsContent>
+</Tabs>
 
 ## Emergency Procedures
+
+<Alert>
+  <AlertTriangle className="h-4 w-4" />
+  <AlertDescription>
+    <strong>Critical:</strong> Use these procedures only for emergency situations
+  </AlertDescription>
+</Alert>
 
 ### Memory System Recovery
 
@@ -755,6 +1159,13 @@ echo "Memory system recovery completed"
 ```
 
 ### Data Recovery
+
+<Alert>
+  <Database className="h-4 w-4" />
+  <AlertDescription>
+    <strong>Before Recovery:</strong> Assess data integrity and backup validity
+  </AlertDescription>
+</Alert>
 
 **Backup and Recovery Tool:**
 
@@ -838,4 +1249,957 @@ export async function emergencyRestoreTool(input: RestoreInput) {
 }
 ```
 
-This comprehensive troubleshooting guide provides the tools and procedures needed to diagnose and resolve memory system issues effectively, ensuring reliable operation of your memory-enabled applications.
+## Emergency Contacts
+
+<Alert>
+  <Users className="h-4 w-4" />
+  <AlertDescription>
+    <strong>Emergency Support:</strong> Keep these contacts readily available
+  </AlertDescription>
+</Alert>
+
+<Accordion type="single" collapsible>
+<AccordionItem value="contacts">
+<AccordionTrigger>Emergency Contact Information</AccordionTrigger>
+<AccordionContent>
+**Internal Contacts:**
+- Engineering On-Call: [Phone] / [Email]
+- Security Team: [Phone] / [Email]
+- Operations Team: [Phone] / [Email]
+- Management: [Phone] / [Email]
+
+**External Contacts:**
+- Cloud Provider Support: [Phone] / [Account ID]
+- Database Support: [Phone] / [Account ID]
+- Security Incident Response: [Phone] / [Email]
+
+**Escalation Matrix:**
+- P1 (Critical): Immediate response required
+- P2 (High): Response within 2 hours
+- P3 (Medium): Response within 8 hours
+- P4 (Low): Response within 24 hours
+</AccordionContent>
+</AccordionItem>
+</Accordion>
+
+## Troubleshooting Success Metrics
+
+<Alert>
+  <CheckCircle className="h-4 w-4" />
+  <AlertDescription>
+    <strong>Measure Success:</strong> Track these metrics to improve troubleshooting effectiveness
+  </AlertDescription>
+</Alert>
+
+**Key Metrics to Track:**
+- Mean Time to Detection (MTTD)
+- Mean Time to Resolution (MTTR)
+- Issue recurrence rate
+- User satisfaction scores
+- False positive rates
+
+**Improvement Strategies:**
+- Regular training on new issues
+- Documentation updates
+- Tool optimization
+- Process refinement
+- Knowledge sharing sessions
+
+## Next Steps
+
+**After resolving issues:**
+
+<ReferenceCardList>
+  <ReferenceCard 
+    title="Post-Incident Review" 
+    href="#incident-documentation"
+    description="Document lessons learned and improvements"
+    icon={BookOpen}
+  />
+  <ReferenceCard 
+    title="Preventive Measures" 
+    href="/docs/core/memory/operations"
+    description="Implement monitoring and alerting"
+    icon={Eye}
+  />
+  <ReferenceCard 
+    title="Performance Optimization" 
+    href="/docs/core/memory/memory-concepts#performance-characteristics"
+    description="Optimize for better performance"
+    icon={Zap}
+  />
+  <ReferenceCard 
+    title="Team Training" 
+    href="#troubleshooting-training"
+    description="Improve team troubleshooting skills"
+    icon={Users}
+  />
+</ReferenceCardList>
+
+## Incident Documentation
+
+<Alert>
+  <BookOpen className="h-4 w-4" />
+  <AlertDescription>
+    <strong>Important:</strong> Document all incidents for future reference and improvement
+  </AlertDescription>
+</Alert>
+
+**Required Documentation:**
+- Issue description and timeline
+- Root cause analysis
+- Resolution steps taken
+- Lessons learned
+- Preventive measures
+- Team feedback
+
+**Documentation Template:**
+```markdown
+# Incident Report: [Date] - [Issue Title]
+
+## Summary
+- **Impact**: [User/system impact]
+- **Duration**: [Start time - End time]
+- **Severity**: [P1/P2/P3/P4]
+
+## Timeline
+- **Detection**: [Time and method]
+- **Response**: [Initial response actions]
+- **Resolution**: [Final resolution]
+
+## Root Cause
+[Detailed analysis of underlying cause]
+
+## Resolution
+[Steps taken to resolve the issue]
+
+## Lessons Learned
+[Key takeaways and improvements]
+
+## Action Items
+- [ ] [Preventive measure 1]
+- [ ] [Process improvement 1]
+- [ ] [Documentation update 1]
+```
+
+## Troubleshooting Training
+
+<Alert>
+  <Users className="h-4 w-4" />
+  <AlertDescription>
+    <strong>Continuous Improvement:</strong> Regular training improves troubleshooting effectiveness
+  </AlertDescription>
+</Alert>
+
+**Training Topics:**
+- Memory system architecture
+- Common issue patterns
+- Diagnostic tools usage
+- Emergency procedures
+- Communication protocols
+
+**Training Schedule:**
+- Monthly team sessions
+- Quarterly deep-dive training
+- Annual emergency drills
+- On-demand specialized training
+
+## Production Deployment & Monitoring
+
+<Alert>
+  <Shield className="h-4 w-4" />
+  <AlertDescription>
+    <strong>Production-Ready:</strong> Comprehensive monitoring and deployment guidance for production environments
+  </AlertDescription>
+</Alert>
+
+### Monitoring Setup & Configuration
+
+**Prometheus Configuration:**
+
+```yaml
+# prometheus.yml - Memory monitoring configuration
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - "memory-alerts.yaml"
+
+scrape_configs:
+  - job_name: 'compozy-memory'
+    static_configs:
+      - targets: ['localhost:9090']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    honor_labels: true
+    
+  - job_name: 'redis-memory'
+    static_configs:
+      - targets: ['redis:6379']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+```
+
+**Grafana Dashboard Setup:**
+
+```json
+{
+  "dashboard": {
+    "title": "Compozy Memory System",
+    "panels": [
+      {
+        "title": "Memory Health Status",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "compozy_memory_health_status",
+            "legendFormat": "{{memory_id}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "green", "value": 1}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "title": "Memory Operation Latency",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(compozy_memory_operation_duration_seconds_bucket[5m]))",
+            "legendFormat": "95th percentile"
+          },
+          {
+            "expr": "histogram_quantile(0.50, rate(compozy_memory_operation_duration_seconds_bucket[5m]))",
+            "legendFormat": "50th percentile"
+          }
+        ]
+      },
+      {
+        "title": "Token Usage",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "compozy_memory_tokens_used_gauge",
+            "legendFormat": "Used - {{memory_id}}"
+          },
+          {
+            "expr": "compozy_memory_max_tokens_gauge",
+            "legendFormat": "Max - {{memory_id}}"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+### Alerting Rules Configuration
+
+<Tabs defaultValue="critical" className="w-full">
+<TabsList className="grid w-full grid-cols-3">
+  <TabsTrigger value="critical">Critical Alerts</TabsTrigger>
+  <TabsTrigger value="warning">Warning Alerts</TabsTrigger>
+  <TabsTrigger value="info">Info Alerts</TabsTrigger>
+</TabsList>
+
+<TabsContent value="critical">
+**Critical Production Alerts:**
+
+```yaml
+# Critical alerts requiring immediate attention
+groups:
+  - name: memory_critical
+    rules:
+      - alert: MemorySystemDown
+        expr: compozy_memory_health_status == 0
+        for: 1m
+        labels:
+          severity: critical
+          runbook_url: https://docs.compozy.com/troubleshooting/memory-system-down
+        annotations:
+          summary: "Memory system is completely down"
+          description: "Critical memory system failure requiring immediate intervention"
+          
+      - alert: MemoryTokenLimitReached
+        expr: compozy_memory_tokens_used_gauge / compozy_memory_max_tokens_gauge >= 1.0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Memory token limit reached"
+          description: "Memory {{$labels.memory_id}} has reached token limit"
+          
+      - alert: MemoryCircuitBreakerTripped
+        expr: increase(compozy_memory_circuit_breaker_trips_total[5m]) > 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Memory circuit breaker protection activated"
+          description: "Circuit breaker tripped {{$value}} times in 5 minutes"
+```
+</TabsContent>
+
+<TabsContent value="warning">
+**Warning Alerts:**
+
+```yaml
+# Warning alerts for proactive monitoring
+groups:
+  - name: memory_warning
+    rules:
+      - alert: MemoryHighTokenUsage
+        expr: compozy_memory_tokens_used_gauge / compozy_memory_max_tokens_gauge > 0.85
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory token usage"
+          description: "Token usage at {{$value | humanizePercentage}}"
+          
+      - alert: MemoryOpLatencyHigh
+        expr: histogram_quantile(0.95, rate(compozy_memory_operation_duration_seconds_bucket[5m])) > 2.0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Memory operation latency high"
+          description: "95th percentile latency is {{$value}}s"
+          
+      - alert: MemoryLockContentionHigh
+        expr: rate(compozy_memory_lock_contention_total[5m]) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory lock contention"
+          description: "Lock contention at {{$value}} events/sec"
+```
+</TabsContent>
+
+<TabsContent value="info">
+**Informational Alerts:**
+
+```yaml
+# Informational alerts for optimization
+groups:
+  - name: memory_info
+    rules:
+      - alert: MemoryOptimizationLow
+        expr: rate(compozy_memory_tokens_saved_total[10m]) < 100
+        for: 10m
+        labels:
+          severity: info
+        annotations:
+          summary: "Low memory optimization efficiency"
+          description: "Consider reviewing flush strategies"
+          
+      - alert: MemoryRedactionHigh
+        expr: rate(compozy_memory_redaction_operations_total[5m]) > 10.0
+        for: 3m
+        labels:
+          severity: info
+        annotations:
+          summary: "High redaction activity"
+          description: "{{$value}} redactions/sec - review privacy policies"
+```
+</TabsContent>
+</Tabs>
+
+### Performance Optimization Troubleshooting
+
+**Memory Bottleneck Analysis:**
+
+<Accordion type="single" collapsible>
+<AccordionItem value="token-pressure">
+<AccordionTrigger>Token Pressure Analysis</AccordionTrigger>
+<AccordionContent>
+**Symptoms:**
+- High token usage alerts
+- Frequent flush operations
+- Trim operations occurring often
+- Degraded response quality
+
+**Analysis Tools:**
+
+```typescript
+export async function analyzeTokenPressure(input: TokenAnalysisInput) {
+  const { memory_id, time_range } = input;
+  
+  const metrics = await fetchMetrics({
+    query: `
+      rate(compozy_memory_tokens_used_gauge[${time_range}]) by (memory_id),
+      rate(compozy_memory_flush_total[${time_range}]) by (memory_id),
+      rate(compozy_memory_trim_total[${time_range}]) by (memory_id)
+    `,
+    memory_id
+  });
+  
+  const analysis = {
+    token_usage_trend: calculateTrend(metrics.token_usage),
+    flush_frequency: metrics.flush_rate,
+    trim_frequency: metrics.trim_rate,
+    pressure_score: calculatePressureScore(metrics),
+    recommendations: []
+  };
+  
+  if (analysis.pressure_score > 0.8) {
+    analysis.recommendations.push({
+      priority: 'high',
+      action: 'increase_max_tokens',
+      reason: 'Token pressure exceeds 80% threshold'
+    });
+  }
+  
+  if (analysis.flush_frequency > 2.0) {
+    analysis.recommendations.push({
+      priority: 'medium',
+      action: 'optimize_flush_strategy',
+      reason: 'High flush frequency indicates inefficient memory usage'
+    });
+  }
+  
+  return analysis;
+}
+```
+
+**Optimization Strategies:**
+- Increase `max_tokens` for high-traffic memories
+- Implement smarter flush strategies
+- Use token-based memory types appropriately
+- Configure proper `max_context_ratio`
+</AccordionContent>
+</AccordionItem>
+
+<AccordionItem value="lock-contention">
+<AccordionTrigger>Lock Contention Analysis</AccordionTrigger>
+<AccordionContent>
+**Symptoms:**
+- High latency on memory operations
+- Lock contention alerts
+- Goroutine pool exhaustion
+- Timeout errors
+
+**Analysis Tools:**
+
+```typescript
+export async function analyzeLockContention(input: ContentionAnalysisInput) {
+  const { memory_id, time_range } = input;
+  
+  const contentionMetrics = await fetchMetrics({
+    query: `
+      rate(compozy_memory_lock_contention_total[${time_range}]) by (memory_id, operation),
+      histogram_quantile(0.95, rate(compozy_memory_operation_duration_seconds_bucket[${time_range}])) by (memory_id, operation)
+    `,
+    memory_id
+  });
+  
+  const analysis = {
+    contention_rate: contentionMetrics.contention_rate,
+    affected_operations: identifyAffectedOps(contentionMetrics),
+    latency_impact: calculateLatencyImpact(contentionMetrics),
+    concurrent_operations: estimateConcurrency(contentionMetrics),
+    recommendations: []
+  };
+  
+  if (analysis.contention_rate > 1.0) {
+    analysis.recommendations.push({
+      priority: 'high',
+      action: 'implement_read_replicas',
+      reason: 'High contention suggests need for read scaling'
+    });
+  }
+  
+  return analysis;
+}
+```
+
+**Optimization Strategies:**
+- Implement read replicas for high-read workloads
+- Use memory sharding for high-concurrency scenarios
+- Optimize operation batching
+- Consider async operation patterns
+</AccordionContent>
+</AccordionItem>
+
+<AccordionItem value="memory-leaks">
+<AccordionTrigger>Memory Leak Detection</AccordionTrigger>
+<AccordionContent>
+**Symptoms:**
+- Steadily increasing memory usage
+- Goroutine pool growth
+- Redis memory growth
+- Performance degradation over time
+
+**Detection Tools:**
+
+```typescript
+export async function detectMemoryLeaks(input: LeakDetectionInput) {
+  const { time_range } = input;
+  
+  const metrics = await fetchMetrics({
+    query: `
+      increase(compozy_memory_goroutine_pool_active[${time_range}]),
+      increase(redis_memory_used_bytes[${time_range}]),
+      rate(compozy_memory_cleanup_operations_total[${time_range}])
+    `
+  });
+  
+  const analysis = {
+    goroutine_growth: metrics.goroutine_growth,
+    redis_memory_growth: metrics.redis_memory_growth,
+    cleanup_efficiency: metrics.cleanup_rate,
+    leak_indicators: [],
+    recommendations: []
+  };
+  
+  if (analysis.goroutine_growth > 10) {
+    analysis.leak_indicators.push({
+      type: 'goroutine_leak',
+      severity: 'high',
+      evidence: `${analysis.goroutine_growth} goroutines created without cleanup`
+    });
+  }
+  
+  if (analysis.cleanup_efficiency < 0.5) {
+    analysis.recommendations.push({
+      priority: 'high',
+      action: 'review_cleanup_policies',
+      reason: 'Low cleanup efficiency indicates potential resource leaks'
+    });
+  }
+  
+  return analysis;
+}
+```
+
+**Mitigation Strategies:**
+- Implement proper resource cleanup
+- Use context cancellation correctly
+- Monitor goroutine lifecycle
+- Configure appropriate TTL values
+</AccordionContent>
+</AccordionItem>
+</Accordion>
+
+### Security Hardening & Compliance
+
+**Security Monitoring:**
+
+```typescript
+export async function securityHealthCheck(input: SecurityCheckInput) {
+  const { project_id } = input;
+  
+  const checks = await Promise.all([
+    checkPrivacyCompliance(project_id),
+    validateRedactionPolicies(project_id),
+    auditDataAccess(project_id),
+    checkEncryptionStatus(project_id)
+  ]);
+  
+  const securityReport = {
+    privacy_compliance: checks[0],
+    redaction_policies: checks[1],
+    data_access_audit: checks[2],
+    encryption_status: checks[3],
+    overall_score: calculateSecurityScore(checks),
+    recommendations: []
+  };
+  
+  if (securityReport.overall_score < 0.8) {
+    securityReport.recommendations.push({
+      priority: 'critical',
+      action: 'immediate_security_review',
+      reason: 'Security score below acceptable threshold'
+    });
+  }
+  
+  return securityReport;
+}
+```
+
+**Compliance Audit Tools:**
+
+<Tabs defaultValue="gdpr" className="w-full">
+<TabsList className="grid w-full grid-cols-4">
+  <TabsTrigger value="gdpr">GDPR</TabsTrigger>
+  <TabsTrigger value="ccpa">CCPA</TabsTrigger>
+  <TabsTrigger value="hipaa">HIPAA</TabsTrigger>
+  <TabsTrigger value="soc2">SOC2</TabsTrigger>
+</TabsList>
+
+<TabsContent value="gdpr">
+**GDPR Compliance Audit:**
+
+```typescript
+export async function gdprComplianceAudit(input: GDPRauditInput) {
+  const { project_id } = input;
+  
+  const auditResults = {
+    data_processing_lawfulness: await checkLawfulBasis(project_id),
+    data_minimization: await checkDataMinimization(project_id),
+    purpose_limitation: await checkPurposeLimitation(project_id),
+    storage_limitation: await checkStorageLimitation(project_id),
+    data_subject_rights: await checkDataSubjectRights(project_id),
+    security_measures: await checkSecurityMeasures(project_id),
+    breach_procedures: await checkBreachProcedures(project_id),
+    compliance_score: 0
+  };
+  
+  auditResults.compliance_score = calculateGDPRScore(auditResults);
+  
+  return auditResults;
+}
+```
+</TabsContent>
+
+<TabsContent value="ccpa">
+**CCPA Compliance Audit:**
+
+```typescript
+export async function ccpaComplianceAudit(input: CCPAauditInput) {
+  const { project_id } = input;
+  
+  const auditResults = {
+    consumer_rights: await checkConsumerRights(project_id),
+    data_categories: await checkDataCategories(project_id),
+    business_purposes: await checkBusinessPurposes(project_id),
+    third_party_sharing: await checkThirdPartySharing(project_id),
+    opt_out_mechanisms: await checkOptOutMechanisms(project_id),
+    compliance_score: 0
+  };
+  
+  auditResults.compliance_score = calculateCCPAScore(auditResults);
+  
+  return auditResults;
+}
+```
+</TabsContent>
+
+<TabsContent value="hipaa">
+**HIPAA Compliance Audit:**
+
+```typescript
+export async function hipaaComplianceAudit(input: HIPAAauditInput) {
+  const { project_id } = input;
+  
+  const auditResults = {
+    administrative_safeguards: await checkAdministrativeSafeguards(project_id),
+    physical_safeguards: await checkPhysicalSafeguards(project_id),
+    technical_safeguards: await checkTechnicalSafeguards(project_id),
+    access_controls: await checkAccessControls(project_id),
+    audit_controls: await checkAuditControls(project_id),
+    integrity_controls: await checkIntegrityControls(project_id),
+    transmission_security: await checkTransmissionSecurity(project_id),
+    compliance_score: 0
+  };
+  
+  auditResults.compliance_score = calculateHIPAAScore(auditResults);
+  
+  return auditResults;
+}
+```
+</TabsContent>
+
+<TabsContent value="soc2">
+**SOC2 Compliance Audit:**
+
+```typescript
+export async function soc2ComplianceAudit(input: SOC2auditInput) {
+  const { project_id } = input;
+  
+  const auditResults = {
+    security_criteria: await checkSecurityCriteria(project_id),
+    availability_criteria: await checkAvailabilityCriteria(project_id),
+    processing_integrity: await checkProcessingIntegrity(project_id),
+    confidentiality_criteria: await checkConfidentialityCriteria(project_id),
+    privacy_criteria: await checkPrivacyCriteria(project_id),
+    control_environment: await checkControlEnvironment(project_id),
+    risk_assessment: await checkRiskAssessment(project_id),
+    compliance_score: 0
+  };
+  
+  auditResults.compliance_score = calculateSOC2Score(auditResults);
+  
+  return auditResults;
+}
+```
+</TabsContent>
+</Tabs>
+
+### Disaster Recovery & Backup
+
+**Backup Strategy:**
+
+```typescript
+export async function executeBackupStrategy(input: BackupStrategyInput) {
+  const { project_id, backup_type } = input;
+  
+  const backupPlan = {
+    memory_data: await backupMemoryData(project_id),
+    configuration: await backupConfiguration(project_id),
+    metadata: await backupMetadata(project_id),
+    encryption_keys: await backupEncryptionKeys(project_id),
+    status: 'pending'
+  };
+  
+  try {
+    await Promise.all([
+      backupPlan.memory_data,
+      backupPlan.configuration,
+      backupPlan.metadata,
+      backupPlan.encryption_keys
+    ]);
+    
+    backupPlan.status = 'completed';
+    await validateBackupIntegrity(backupPlan);
+    
+  } catch (error) {
+    backupPlan.status = 'failed';
+    await notifyBackupFailure(project_id, error);
+  }
+  
+  return backupPlan;
+}
+```
+
+**Recovery Procedures:**
+
+<Accordion type="single" collapsible>
+<AccordionItem value="full-recovery">
+<AccordionTrigger>Full System Recovery</AccordionTrigger>
+<AccordionContent>
+**Recovery Steps:**
+
+1. **Assess damage and scope**
+2. **Activate disaster recovery team**
+3. **Restore from backup**
+4. **Validate data integrity**
+5. **Test system functionality**
+6. **Gradual traffic restoration**
+
+**Recovery Tool:**
+
+```typescript
+export async function executeDisasterRecovery(input: DisasterRecoveryInput) {
+  const { project_id, recovery_point, recovery_type } = input;
+  
+  const recoveryPlan = {
+    phase: 'assessment',
+    steps: [
+      'damage_assessment',
+      'backup_validation',
+      'system_restoration',
+      'data_validation',
+      'functionality_testing',
+      'traffic_restoration'
+    ],
+    current_step: 0,
+    estimated_time: calculateRecoveryTime(recovery_type),
+    status: 'in_progress'
+  };
+  
+  for (const step of recoveryPlan.steps) {
+    try {
+      await executeRecoveryStep(step, project_id, recovery_point);
+      recoveryPlan.current_step++;
+      await notifyRecoveryProgress(recoveryPlan);
+    } catch (error) {
+      recoveryPlan.status = 'failed';
+      await escalateRecoveryFailure(project_id, step, error);
+      break;
+    }
+  }
+  
+  if (recoveryPlan.current_step === recoveryPlan.steps.length) {
+    recoveryPlan.status = 'completed';
+    await validateFullRecovery(project_id);
+  }
+  
+  return recoveryPlan;
+}
+```
+</AccordionContent>
+</AccordionItem>
+
+<AccordionItem value="partial-recovery">
+<AccordionTrigger>Partial System Recovery</AccordionTrigger>
+<AccordionContent>
+**Selective Recovery:**
+
+```typescript
+export async function executePartialRecovery(input: PartialRecoveryInput) {
+  const { project_id, memory_ids, recovery_point } = input;
+  
+  const recoveryResults = await Promise.allSettled(
+    memory_ids.map(async (memoryId) => {
+      return await recoverSpecificMemory(project_id, memoryId, recovery_point);
+    })
+  );
+  
+  const summary = {
+    total_memories: memory_ids.length,
+    successful_recoveries: recoveryResults.filter(r => r.status === 'fulfilled').length,
+    failed_recoveries: recoveryResults.filter(r => r.status === 'rejected').length,
+    recovery_details: recoveryResults.map((result, index) => ({
+      memory_id: memory_ids[index],
+      status: result.status,
+      result: result.status === 'fulfilled' ? result.value : result.reason
+    }))
+  };
+  
+  await generateRecoveryReport(project_id, summary);
+  
+  return summary;
+}
+```
+</AccordionContent>
+</AccordionItem>
+</Accordion>
+
+### Production Deployment Checklist
+
+**Pre-Deployment Validation:**
+
+<Tabs defaultValue="infrastructure" className="w-full">
+<TabsList className="grid w-full grid-cols-4">
+  <TabsTrigger value="infrastructure">Infrastructure</TabsTrigger>
+  <TabsTrigger value="security">Security</TabsTrigger>
+  <TabsTrigger value="monitoring">Monitoring</TabsTrigger>
+  <TabsTrigger value="performance">Performance</TabsTrigger>
+</TabsList>
+
+<TabsContent value="infrastructure">
+**Infrastructure Checklist:**
+
+- [ ] **Redis Configuration**
+  - [ ] Memory limits properly configured
+  - [ ] Persistence settings validated
+  - [ ] Connection pooling configured
+  - [ ] Cluster mode configured if needed
+  - [ ] Backup strategy implemented
+
+- [ ] **Network Security**
+  - [ ] Redis access restricted to authorized hosts
+  - [ ] TLS encryption enabled for Redis connections
+  - [ ] Firewall rules configured
+  - [ ] VPC/subnet isolation implemented
+
+- [ ] **Resource Limits**
+  - [ ] Memory limits set for containers
+  - [ ] CPU limits configured
+  - [ ] Disk space monitoring enabled
+  - [ ] Network bandwidth limits set
+
+- [ ] **High Availability**
+  - [ ] Redis clustering configured
+  - [ ] Load balancer setup
+  - [ ] Health check endpoints configured
+  - [ ] Failover procedures tested
+</TabsContent>
+
+<TabsContent value="security">
+**Security Checklist:**
+
+- [ ] **Authentication & Authorization**
+  - [ ] Redis authentication enabled
+  - [ ] Role-based access control implemented
+  - [ ] API key management configured
+  - [ ] Service account permissions validated
+
+- [ ] **Encryption**
+  - [ ] Data at rest encryption enabled
+  - [ ] Data in transit encryption configured
+  - [ ] Key management system integrated
+  - [ ] Encryption key rotation scheduled
+
+- [ ] **Privacy & Compliance**
+  - [ ] Privacy policies configured
+  - [ ] Data redaction rules implemented
+  - [ ] Retention policies set
+  - [ ] Audit logging enabled
+  - [ ] Compliance requirements validated
+
+- [ ] **Incident Response**
+  - [ ] Security incident procedures documented
+  - [ ] Alerting rules configured
+  - [ ] Response team contacts updated
+  - [ ] Breach notification procedures tested
+</TabsContent>
+
+<TabsContent value="monitoring">
+**Monitoring Checklist:**
+
+- [ ] **Metrics Collection**
+  - [ ] Prometheus configuration deployed
+  - [ ] Memory-specific metrics enabled
+  - [ ] Custom metrics implemented
+  - [ ] Metrics retention configured
+
+- [ ] **Alerting**
+  - [ ] Critical alert rules configured
+  - [ ] Warning alert thresholds set
+  - [ ] Alert notification channels setup
+  - [ ] Escalation procedures implemented
+
+- [ ] **Dashboards**
+  - [ ] Grafana dashboards deployed
+  - [ ] Real-time monitoring enabled
+  - [ ] Historical trend analysis available
+  - [ ] Custom views for different roles
+
+- [ ] **Logging**
+  - [ ] Centralized logging configured
+  - [ ] Log levels properly set
+  - [ ] Log retention policies implemented
+  - [ ] Log analysis tools integrated
+</TabsContent>
+
+<TabsContent value="performance">
+**Performance Checklist:**
+
+- [ ] **Load Testing**
+  - [ ] Memory operation load tests completed
+  - [ ] Concurrency limits validated
+  - [ ] Performance benchmarks established
+  - [ ] Stress testing performed
+
+- [ ] **Optimization**
+  - [ ] Token limits optimized for workload
+  - [ ] Flush strategies tuned
+  - [ ] Connection pooling configured
+  - [ ] Caching strategies implemented
+
+- [ ] **Scalability**
+  - [ ] Horizontal scaling tested
+  - [ ] Auto-scaling policies configured
+  - [ ] Performance degradation thresholds set
+  - [ ] Capacity planning completed
+
+- [ ] **Monitoring**
+  - [ ] Performance metrics baseline established
+  - [ ] SLA monitoring configured
+  - [ ] Performance alerts set
+  - [ ] Optimization recommendations automated
+</TabsContent>
+</Tabs>
+
+This comprehensive troubleshooting guide provides progressive learning paths, clear escalation procedures, systematic approaches to diagnose and resolve memory system issues, and complete production deployment guidance to ensure reliable operation of your memory-enabled applications in enterprise environments.

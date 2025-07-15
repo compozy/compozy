@@ -19,36 +19,127 @@ Compozy's memory system provides persistent, scalable context management for AI 
 - **Memory Operations** ↔ **[Agent Memory](/docs/core/agents/memory)** ↔ **[Memory Tasks](/docs/core/tasks/memory-tasks)**
 - **Memory Configuration** ↔ **[Project Setup](/docs/core/configuration/project-setup)** ↔ **[Runtime Configuration](/docs/core/configuration/runtime-config)**
 - **Memory Integration** ↔ **[Multi-Agent Patterns](/docs/core/agents/multi-agent-patterns)** ↔ **[Advanced Task Patterns](/docs/core/tasks/advanced-patterns)**
+- **Performance Monitoring** ↔ **[Production Deployment](/docs/core/memory/troubleshooting#production-deployment--monitoring)** ↔ **[Security Hardening](/docs/core/memory/troubleshooting#security-hardening--compliance)**
+- **Advanced Integration** ↔ **[Multi-Agent Memory](/docs/core/memory/integration-patterns#advanced-integration-features)** ↔ **[Enterprise Features](/docs/core/memory/integration-patterns#enterprise-security--compliance)**
 
 ## Core Architecture
 
 The memory system is built around several key components that work together to provide reliable, performant memory management:
 
+```mermaid
+graph TB
+    subgraph "Memory System Architecture"
+        MM[Memory Manager]
+        
+        subgraph "Memory Instances"
+            MI1[Memory Instance 1]
+            MI2[Memory Instance 2]
+            MI3[Memory Instance N]
+        end
+        
+        subgraph "Core Components"
+            TP[Template Engine]
+            PM[Privacy Manager]
+            TM[Token Manager]
+            HC[Health Service]
+        end
+        
+        subgraph "Storage Layer"
+            Redis[(Redis Store)]
+            Meta[Metadata Store]
+            Lock[Lock Manager]
+        end
+        
+        subgraph "Strategies"
+            FS[Flush Strategies]
+            EP[Eviction Policies]
+            TC[Token Counters]
+        end
+        
+        subgraph "External Systems"
+            Temporal[Temporal Client]
+            Agent[AI Agents]
+            Workflow[Workflows]
+        end
+    end
+    
+    MM --> MI1
+    MM --> MI2
+    MM --> MI3
+    
+    MM --> TP
+    MM --> PM
+    MM --> TM
+    MM --> HC
+    
+    MI1 --> Redis
+    MI2 --> Redis
+    MI3 --> Redis
+    
+    MI1 --> Meta
+    MI2 --> Meta
+    MI3 --> Meta
+    
+    MI1 --> Lock
+    MI2 --> Lock
+    MI3 --> Lock
+    
+    MI1 --> FS
+    MI2 --> FS
+    MI3 --> FS
+    
+    MI1 --> EP
+    MI2 --> EP
+    MI3 --> EP
+    
+    TM --> TC
+    
+    MM --> Temporal
+    Agent --> MM
+    Workflow --> MM
+    
+    style MM fill:#e1f5fe
+    style Redis fill:#ffecb3
+    style Temporal fill:#f3e5f5
+    style Agent fill:#e8f5e8
+    style Workflow fill:#e8f5e8
+```
+
 ### Memory Manager
-The central orchestrator that:
+The central orchestrator (`engine/memory/manager.go`) that:
 - Creates and retrieves memory instances based on resource configurations
-- Evaluates key templates using workflow context
-- Manages lifecycle and resource allocation
-- Coordinates with privacy and token management systems
+- Evaluates key templates using workflow context via template engine
+- Manages lifecycle and resource allocation with retry logic
+- Coordinates with privacy manager and token management systems
+- Integrates with Temporal for distributed flush operations
 
 ### Memory Instances
-Individual memory containers that:
+Individual memory containers (`engine/memory/instance/memory_instance.go`) that:
 - Store and retrieve messages with full context preservation
-- Implement configurable eviction and flushing strategies
-- Provide thread-safe concurrent access patterns
+- Implement configurable eviction and flushing strategies (FIFO, LRU, Token-aware)
+- Provide thread-safe concurrent access patterns via Redis locks
 - Support pagination for large conversation histories
+- Maintain health metrics and diagnostic information
 
 ### Storage Layer
-Redis-based persistence with:
-- Atomic operations for consistency
-- TTL management for automatic cleanup
-- Metadata caching for O(1) operations
-- Circuit breaker patterns for resilience
+Redis-based persistence (`engine/memory/store/redis.go`) with:
+- Atomic operations for consistency via Lua scripts
+- TTL management for automatic cleanup (append, clear, flush TTLs)
+- Metadata caching for O(1) operations (token counts, message counts)
+- Circuit breaker patterns for resilience and fault tolerance
 
 ## Memory Types
 
-Compozy supports three distinct memory management strategies:
+Compozy supports three distinct memory management strategies, each optimized for different use cases:
 
+<Tabs defaultValue="token_based" className="w-full">
+<TabsList className="grid w-full grid-cols-3">
+  <TabsTrigger value="token_based">Token-Based</TabsTrigger>
+  <TabsTrigger value="message_count">Message Count</TabsTrigger>
+  <TabsTrigger value="buffer">Buffer</TabsTrigger>
+</TabsList>
+
+<TabsContent value="token_based">
 ### Token-Based Memory (`token_based`)
 Manages memory based on token consumption, ideal for LLM context window optimization:
 
@@ -61,11 +152,37 @@ max_context_ratio: 0.8  # Use 80% of model's context window
 model: gpt-4
 ```
 
+```mermaid
+graph LR
+    subgraph "Token-Based Memory Flow"
+        A[New Message] --> B[Token Count]
+        B --> C{Within Limit?}
+        C -->|Yes| D[Append Message]
+        C -->|No| E[Trigger Flush]
+        E --> F[Apply Strategy]
+        F --> G[Remove/Summarize]
+        G --> D
+    end
+    
+    style A fill:#e8f5e8
+    style D fill:#e1f5fe
+    style E fill:#ffecb3
+```
+
 **Use cases:**
 - Conversation histories with large models
-- Complex multi-turn interactions
+- Complex multi-turn interactions  
 - Token budget optimization
+- LLM context window management
 
+**Key Features:**
+- Dynamic token counting based on model type
+- Context ratio optimization
+- Intelligent flush strategies
+- Integration with model context windows
+</TabsContent>
+
+<TabsContent value="message_count">
 ### Message Count-Based Memory (`message_count_based`)
 Manages memory based on the number of messages:
 
@@ -76,11 +193,37 @@ type: message_count_based
 max_messages: 100
 ```
 
+```mermaid
+graph LR
+    subgraph "Message Count Flow"
+        A[New Message] --> B[Count Check]
+        B --> C{Under Max?}
+        C -->|Yes| D[Append Message]
+        C -->|No| E[Evict Oldest]
+        E --> F[Apply Policy]
+        F --> G[FIFO/LRU/Priority]
+        G --> D
+    end
+    
+    style A fill:#e8f5e8
+    style D fill:#e1f5fe
+    style E fill:#ffecb3
+```
+
 **Use cases:**
 - Simple chat applications
 - Fixed-size conversation windows
 - Predictable memory patterns
+- Testing and development
 
+**Key Features:**
+- Simple message counting
+- Configurable eviction policies
+- Predictable memory usage
+- Fast operations
+</TabsContent>
+
+<TabsContent value="buffer">
 ### Buffer Memory (`buffer`)
 Simple storage without sophisticated eviction, useful for testing:
 
@@ -91,10 +234,34 @@ type: buffer
 max_messages: 50
 ```
 
+```mermaid
+graph LR
+    subgraph "Buffer Memory Flow"
+        A[New Message] --> B[Check Space]
+        B --> C{Space Available?}
+        C -->|Yes| D[Append Message]
+        C -->|No| E[Drop/Error]
+        E --> F[Log Warning]
+    end
+    
+    style A fill:#e8f5e8
+    style D fill:#e1f5fe
+    style E fill:#ffebee
+```
+
 **Use cases:**
 - Development and testing
 - Temporary storage
 - Simple use cases without complex requirements
+- Debugging and diagnostics
+
+**Key Features:**
+- No automatic eviction
+- Simple append-only operation
+- Minimal resource overhead
+- Testing-friendly
+</TabsContent>
+</Tabs>
 
 ## Key Resolution System
 
@@ -125,7 +292,16 @@ Available template variables include:
 
 Memory instances follow a well-defined lifecycle with automated management:
 
-### Creation and Initialization
+<Tabs defaultValue="creation" className="w-full">
+<TabsList className="grid w-full grid-cols-3">
+  <TabsTrigger value="creation">Creation & Initialization</TabsTrigger>
+  <TabsTrigger value="ttl">TTL Management</TabsTrigger>
+  <TabsTrigger value="cleanup">Cleanup & Health</TabsTrigger>
+</TabsList>
+
+<TabsContent value="creation">
+### Creation and Initialization Flow
+
 ```mermaid
 graph TD
     A[Agent Request] --> B[Template Evaluation]
@@ -134,13 +310,69 @@ graph TD
     D --> E[Instance Creation]
     E --> F[TTL Configuration]
     F --> G[Ready for Use]
+    
+    B --> B1[Workflow Context]
+    B1 --> B2[Template Engine]
+    B2 --> C
+    
+    D --> D1[AutoLoad Registry]
+    D1 --> D2[Memory Resource]
+    D2 --> E
+    
+    E --> E1[Memory Instance]
+    E1 --> E2[Redis Store]
+    E2 --> E3[Lock Manager]
+    E3 --> F
+    
+    style A fill:#e8f5e8
+    style G fill:#e1f5fe
+    style E1 fill:#ffecb3
 ```
 
-### TTL Management
+**Initialization Steps:**
+1. Agent provides memory reference with key template
+2. Template engine evaluates key with workflow context
+3. Key resolution creates unique instance identifier
+4. Resource lookup retrieves configuration from registry
+5. Instance creation initializes storage and strategies
+6. TTL configuration sets expiration policies
+7. Instance ready for memory operations
+
+**Key Components:**
+- **Template Engine**: Evaluates dynamic key templates
+- **AutoLoad Registry**: Manages memory resource configurations
+- **Redis Store**: Provides persistent storage layer
+- **Lock Manager**: Ensures thread-safe operations
+</TabsContent>
+
+<TabsContent value="ttl">
+### TTL Management Strategy
+
+```mermaid
+graph LR
+    subgraph "TTL Lifecycle"
+        A[Memory Instance] --> B[Append Operation]
+        B --> C[Extend AppendTTL]
+        A --> D[Clear Operation]
+        D --> E[Set ClearTTL]
+        A --> F[Flush Operation]
+        F --> G[Set FlushTTL]
+        
+        C --> H[30 minutes]
+        E --> I[5 minutes]
+        G --> J[1 hour]
+    end
+    
+    style A fill:#e1f5fe
+    style C fill:#e8f5e8
+    style E fill:#ffecb3
+    style G fill:#f3e5f5
+```
+
 Three distinct TTL behaviors control instance lifecycle:
 
 - **AppendTTL**: Extends TTL on each message append (default: 30m)
-- **ClearTTL**: Sets TTL after memory clear (default: 5m)
+- **ClearTTL**: Sets TTL after memory clear (default: 5m)  
 - **FlushTTL**: Sets TTL after flush operations (default: 1h)
 
 ```yaml
@@ -152,54 +384,335 @@ clear_ttl: "5m"
 flush_ttl: "1h"
 ```
 
-### Automatic Cleanup
-- TTL-based expiration for unused instances
-- Garbage collection of orphaned data
-- Periodic health monitoring and cleanup
+**TTL Behaviors:**
+- **Active Memory**: AppendTTL keeps frequently used instances alive
+- **Cleared Memory**: ClearTTL provides short grace period for cleanup
+- **Flushed Memory**: FlushTTL allows recovery from flush operations
+- **Base TTL**: Default 24h for overall instance lifecycle
+</TabsContent>
+
+<TabsContent value="cleanup">
+### Automatic Cleanup & Health Monitoring
+
+```mermaid
+graph TB
+    subgraph "Cleanup & Health System"
+        A[Health Service] --> B[Memory Instances]
+        B --> C[Health Checks]
+        C --> D{Instance Status}
+        
+        D -->|Healthy| E[Continue Monitoring]
+        D -->|Expired| F[TTL Cleanup]
+        D -->|Orphaned| G[Garbage Collection]
+        D -->|Error| H[Error Recovery]
+        
+        F --> I[Redis Expiration]
+        G --> J[Manual Cleanup]
+        H --> K[Retry Logic]
+        
+        E --> L[Metrics Collection]
+        I --> L
+        J --> L
+        K --> L
+    end
+    
+    style A fill:#e1f5fe
+    style C fill:#e8f5e8
+    style F fill:#ffecb3
+    style G fill:#ffebee
+```
+
+**Cleanup Mechanisms:**
+- **TTL-based expiration**: Automatic Redis key expiration
+- **Garbage collection**: Cleanup of orphaned metadata
+- **Periodic health monitoring**: Proactive instance health checks
+- **Error recovery**: Resilient handling of transient failures
+
+**Health Monitoring:**
+- Token count tracking and validation
+- Message count consistency checks
+- Lock state monitoring
+- Performance metrics collection
+- Circuit breaker status monitoring
+
+**Cleanup Triggers:**
+- TTL expiration (automatic)
+- Manual cleanup requests
+- Health check failures
+- Resource pressure detection
+- Error recovery procedures
+</TabsContent>
+</Tabs>
 
 ## Thread Safety and Concurrency
 
-The memory system provides robust concurrent access through:
+The memory system provides robust concurrent access through distributed locking and atomic operations:
+
+```mermaid
+sequenceDiagram
+    participant A as Agent 1
+    participant B as Agent 2
+    participant L as Lock Manager
+    participant R as Redis Store
+    participant M as Memory Instance
+    
+    A->>L: Request Lock (key)
+    L->>R: Acquire Distributed Lock
+    R-->>L: Lock Acquired
+    L-->>A: Lock Granted
+    
+    B->>L: Request Lock (same key)
+    L->>R: Check Lock Status
+    R-->>L: Lock Busy
+    L-->>B: Wait in Queue
+    
+    A->>M: Append Message
+    M->>R: Atomic Write + Metadata
+    R-->>M: Success
+    M-->>A: Operation Complete
+    
+    A->>L: Release Lock
+    L->>R: Release Distributed Lock
+    R-->>L: Lock Released
+    L-->>B: Lock Granted
+    
+    B->>M: Read Messages
+    M->>R: Read with Metadata
+    R-->>M: Messages + Counts
+    M-->>B: Operation Complete
+    
+    B->>L: Release Lock
+    L->>R: Release Distributed Lock
+```
 
 ### Distributed Locking
-- Redis-based distributed locks for atomic operations
-- Configurable lock timeouts per operation type
-- Automatic lock release and cleanup
-- Deadlock prevention mechanisms
+- **Redis-based distributed locks** for atomic operations across instances
+- **Configurable lock timeouts** per operation type (append: 30s, clear: 10s, flush: 5m)
+- **Automatic lock release** and cleanup to prevent deadlocks
+- **Deadlock prevention** mechanisms with timeout and retry logic
 
 ### Atomic Operations
+The system provides atomic operations that combine message and metadata updates:
+
 ```go
-// Example: Atomic message append with token count update
+// Atomic message append with token count update
 AppendMessageWithTokenCount(ctx, key, message, tokenCount)
 
-// Example: Atomic message replacement with metadata sync
+// Atomic message replacement with metadata sync
 ReplaceMessagesWithMetadata(ctx, key, messages, totalTokens)
+
+// Atomic message trimming with metadata consistency
+TrimMessagesWithMetadata(ctx, key, keepCount, newTokenCount)
 ```
 
 ### Consistency Guarantees
-- Strong consistency for individual memory instances
-- Eventual consistency for cross-instance operations
-- Transactional semantics for complex operations
+- **Strong consistency** for individual memory instances via Redis transactions
+- **Eventual consistency** for cross-instance operations with retry mechanisms
+- **Transactional semantics** for complex operations using Lua scripts
+- **Metadata consistency** ensuring token counts and message counts stay in sync
 
 ## Performance Characteristics
 
-### Scalability
-- Horizontal scaling through Redis clustering
-- Independent instance lifecycle management
-- Configurable connection pooling
-- Circuit breaker patterns for fault tolerance
+The memory system is designed for high performance and scalability with comprehensive optimization features:
 
+```mermaid
+graph TB
+    subgraph "Performance Architecture"
+        subgraph "Scalability Layer"
+            RC[Redis Cluster] 
+            CP[Connection Pool]
+            CB[Circuit Breaker]
+            LB[Load Balancer]
+        end
+        
+        subgraph "Optimization Layer"
+            MC[Metadata Cache]
+            PG[Pagination]
+            LL[Lazy Loading]
+            CS[Caching Strategy]
+        end
+        
+        subgraph "Monitoring Layer"
+            MT[Metrics Collection]
+            HC[Health Checks]
+            PM[Performance Monitor]
+            ET[Error Tracking]
+        end
+        
+        subgraph "Application Layer"
+            MI[Memory Instances]
+            MM[Memory Manager]
+            AG[Agents]
+        end
+        
+        AG --> MM
+        MM --> MI
+        MI --> MC
+        MI --> PG
+        MI --> LL
+        MI --> CS
+        
+        MI --> RC
+        RC --> CP
+        RC --> CB
+        CP --> LB
+        
+        MI --> MT
+        MT --> HC
+        HC --> PM
+        PM --> ET
+    end
+    
+    style RC fill:#e1f5fe
+    style MC fill:#e8f5e8
+    style MT fill:#ffecb3
+    style MI fill:#f3e5f5
+```
+
+<Tabs defaultValue="scalability" className="w-full">
+<TabsList className="grid w-full grid-cols-3">
+  <TabsTrigger value="scalability">Scalability</TabsTrigger>
+  <TabsTrigger value="optimization">Optimization</TabsTrigger>
+  <TabsTrigger value="monitoring">Monitoring</TabsTrigger>
+</TabsList>
+
+<TabsContent value="scalability">
+### Scalability Features
+
+**Horizontal Scaling:**
+- **Redis Clustering**: Automatic data distribution across multiple Redis nodes
+- **Independent Instance Management**: Each memory instance can scale independently
+- **Connection Pooling**: Efficient connection reuse and management
+- **Circuit Breaker Patterns**: Fault tolerance and graceful degradation
+
+**Scaling Patterns:**
+```mermaid
+graph LR
+    subgraph "Scaling Architecture"
+        A[Application] --> LB[Load Balancer]
+        LB --> N1[Node 1]
+        LB --> N2[Node 2]
+        LB --> N3[Node N]
+        
+        N1 --> R1[Redis Cluster 1]
+        N2 --> R2[Redis Cluster 2]
+        N3 --> R3[Redis Cluster N]
+        
+        R1 --> S1[Shard 1]
+        R1 --> S2[Shard 2]
+        R2 --> S3[Shard 3]
+        R2 --> S4[Shard 4]
+        R3 --> S5[Shard 5]
+        R3 --> S6[Shard 6]
+    end
+    
+    style LB fill:#e1f5fe
+    style R1 fill:#e8f5e8
+    style R2 fill:#e8f5e8
+    style R3 fill:#e8f5e8
+```
+
+**Performance Metrics:**
+- **Throughput**: >10,000 operations/second per node
+- **Latency**: <5ms for read operations, <10ms for writes
+- **Scalability**: Linear scaling with additional Redis nodes
+- **Availability**: 99.9% uptime with proper clustering
+</TabsContent>
+
+<TabsContent value="optimization">
 ### Optimization Features
-- O(1) metadata operations (token counts, message counts)
-- Efficient pagination for large histories
-- Lazy loading of message content
-- Configurable caching strategies
 
+**Performance Optimizations:**
+- **O(1) Metadata Operations**: Fast token and message count lookups
+- **Efficient Pagination**: Optimized large history retrieval
+- **Lazy Loading**: On-demand message content loading
+- **Configurable Caching**: Multi-level caching strategies
+
+**Optimization Strategies:**
+```mermaid
+graph TB
+    subgraph "Optimization Flow"
+        REQ[Request] --> CACHE{Cache Hit?}
+        CACHE -->|Yes| FAST[Fast Response]
+        CACHE -->|No| META{Metadata Only?}
+        META -->|Yes| OMETA[O(1) Metadata]
+        META -->|No| LAZY{Lazy Load?}
+        LAZY -->|Yes| PARTIAL[Partial Load]
+        LAZY -->|No| FULL[Full Load]
+        
+        OMETA --> STORE[Update Cache]
+        PARTIAL --> STORE
+        FULL --> STORE
+        STORE --> RESP[Response]
+        FAST --> RESP
+    end
+    
+    style CACHE fill:#e1f5fe
+    style OMETA fill:#e8f5e8
+    style PARTIAL fill:#ffecb3
+    style FULL fill:#f3e5f5
+```
+
+**Caching Strategies:**
+- **L1 Cache**: In-memory metadata cache (token counts, message counts)
+- **L2 Cache**: Redis-based message content cache
+- **TTL Management**: Automatic cache expiration and refresh
+- **Cache Warming**: Proactive cache population for frequently accessed data
+</TabsContent>
+
+<TabsContent value="monitoring">
 ### Monitoring and Observability
-- Comprehensive metrics collection
-- Health check endpoints
-- Performance monitoring
-- Error tracking and alerting
+
+**Comprehensive Metrics:**
+- **Memory Usage**: Token counts, message counts, storage utilization
+- **Performance Metrics**: Operation latency, throughput, error rates
+- **Health Indicators**: Instance health, connection status, circuit breaker state
+- **Business Metrics**: Flush frequency, eviction rates, user activity
+
+**Monitoring Dashboard:**
+```mermaid
+graph TB
+    subgraph "Monitoring Architecture"
+        APP[Application] --> MC[Metrics Collector]
+        MC --> PM[Prometheus]
+        PM --> GR[Grafana]
+        GR --> DASH[Dashboard]
+        
+        MC --> AL[Alerting]
+        AL --> PD[PagerDuty]
+        AL --> SL[Slack]
+        
+        MC --> LOG[Logs]
+        LOG --> ELK[ELK Stack]
+        ELK --> KIBANA[Kibana]
+        
+        subgraph "Metrics Types"
+            PERF[Performance]
+            HEALTH[Health]
+            BUSINESS[Business]
+            ERROR[Errors]
+        end
+        
+        MC --> PERF
+        MC --> HEALTH
+        MC --> BUSINESS
+        MC --> ERROR
+    end
+    
+    style MC fill:#e1f5fe
+    style PM fill:#e8f5e8
+    style GR fill:#ffecb3
+    style AL fill:#f3e5f5
+```
+
+**Key Performance Indicators:**
+- **Availability**: 99.9% uptime target
+- **Latency**: P95 < 10ms, P99 < 50ms
+- **Throughput**: >10,000 ops/sec per instance
+- **Error Rate**: <0.1% for all operations
+- **Resource Utilization**: <80% memory, <70% CPU
+</TabsContent>
+</Tabs>
 
 ## Integration Points
 
@@ -272,6 +785,412 @@ export default async function memoryTool(input: MemoryInput) {
 - Monitor and alert on persistent failures
 
 This foundational understanding of memory concepts and architecture enables effective use of Compozy's memory system for building context-aware AI applications.
+
+## Performance Monitoring & Optimization
+
+Compozy provides comprehensive monitoring and optimization capabilities for memory systems, enabling production-ready performance management:
+
+### Performance Dashboards
+
+<Tabs defaultValue="metrics" className="w-full">
+<TabsList className="grid w-full grid-cols-3">
+  <TabsTrigger value="metrics">Key Metrics</TabsTrigger>
+  <TabsTrigger value="dashboards">Grafana Dashboards</TabsTrigger>
+  <TabsTrigger value="alerting">Alerting Rules</TabsTrigger>
+</TabsList>
+
+<TabsContent value="metrics">
+### Core Performance Metrics
+
+Monitor these essential metrics for memory system health:
+
+```mermaid
+graph TB
+    subgraph "Memory Performance Metrics"
+        subgraph "Operation Metrics"
+            OP1[Memory Operations/sec]
+            OP2[Operation Latency P95]
+            OP3[Operation Success Rate]
+            OP4[Lock Contention Rate]
+        end
+        
+        subgraph "Resource Metrics"
+            RES1[Token Usage %]
+            RES2[Memory Instance Count]
+            RES3[Storage Utilization]
+            RES4[TTL Expiration Rate]
+        end
+        
+        subgraph "Health Metrics"
+            HE1[Circuit Breaker State]
+            HE2[Flush Operation Rate]
+            HE3[Error Rate by Type]
+            HE4[Health Check Status]
+        end
+        
+        subgraph "Business Metrics"
+            BUS1[Active Sessions]
+            BUS2[User Engagement]
+            BUS3[Context Preservation]
+            BUS4[Memory Efficiency]
+        end
+    end
+    
+    style OP1 fill:#e1f5fe
+    style RES1 fill:#e8f5e8
+    style HE1 fill:#ffecb3
+    style BUS1 fill:#f3e5f5
+```
+
+**Key Performance Indicators:**
+- **Operation Latency**: P95 < 10ms for read/write operations
+- **Throughput**: >10,000 operations/second per instance
+- **Error Rate**: <0.1% for all operations
+- **Token Efficiency**: >80% of allocated tokens effectively used
+- **Memory Hit Rate**: >95% for frequently accessed data
+
+**Monitoring Configuration:**
+```yaml
+# Prometheus configuration for memory monitoring
+- job_name: 'compozy-memory'
+  static_configs:
+    - targets: ['localhost:8080']
+  metrics_path: '/metrics'
+  scrape_interval: 15s
+  
+  relabel_configs:
+    - source_labels: [__name__]
+      regex: 'compozy_memory_.*'
+      action: keep
+```
+</TabsContent>
+
+<TabsContent value="dashboards">
+### Grafana Dashboard Templates
+
+Pre-configured dashboards for comprehensive memory monitoring:
+
+```mermaid
+graph TB
+    subgraph "Memory Monitoring Dashboards"
+        subgraph "Executive Dashboard"
+            E1[System Health Overview]
+            E2[Performance SLA Status]
+            E3[Resource Utilization]
+            E4[Business Metrics]
+        end
+        
+        subgraph "Operations Dashboard"
+            O1[Operation Latency Trends]
+            O2[Throughput Analysis]
+            O3[Error Rate Tracking]
+            O4[Lock Contention Monitoring]
+        end
+        
+        subgraph "Capacity Dashboard"
+            C1[Memory Usage Trends]
+            C2[Token Consumption]
+            C3[Instance Scaling]
+            C4[Storage Growth]
+        end
+        
+        subgraph "Troubleshooting Dashboard"
+            T1[Error Analysis]
+            T2[Performance Bottlenecks]
+            T3[Circuit Breaker Status]
+            T4[Health Check Details]
+        end
+    end
+    
+    style E1 fill:#e1f5fe
+    style O1 fill:#e8f5e8
+    style C1 fill:#ffecb3
+    style T1 fill:#f3e5f5
+```
+
+**Dashboard Components:**
+- **Real-time Performance**: Live operation metrics with 1-second resolution
+- **Historical Analysis**: 30-day trend analysis for capacity planning
+- **Alert Correlation**: Integration with alerting rules for root cause analysis
+- **Drill-down Capability**: Deep dive from high-level metrics to specific instances
+
+**Sample Dashboard Query:**
+```promql
+# Memory operation latency by instance
+histogram_quantile(0.95,
+  rate(compozy_memory_operation_duration_seconds_bucket[5m])
+) by (memory_id, operation)
+```
+</TabsContent>
+
+<TabsContent value="alerting">
+### Intelligent Alerting
+
+Production-ready alerting rules with smart thresholds:
+
+```mermaid
+graph TB
+    subgraph "Memory Alerting Hierarchy"
+        subgraph "Critical Alerts"
+            C1[System Down]
+            C2[Token Limit Reached]
+            C3[Circuit Breaker Tripped]
+            C4[Data Loss Risk]
+        end
+        
+        subgraph "Warning Alerts"
+            W1[High Latency]
+            W2[Token Usage >85%]
+            W3[Lock Contention]
+            W4[Flush Failures]
+        end
+        
+        subgraph "Info Alerts"
+            I1[Usage Trends]
+            I2[Optimization Opportunities]
+            I3[Capacity Planning]
+            I4[Performance Insights]
+        end
+        
+        subgraph "Notification Channels"
+            N1[PagerDuty]
+            N2[Slack]
+            N3[Email]
+            N4[Webhook]
+        end
+    end
+    
+    C1 --> N1
+    C2 --> N1
+    W1 --> N2
+    W2 --> N2
+    I1 --> N3
+    I2 --> N3
+    
+    style C1 fill:#ffebee
+    style W1 fill:#ffecb3
+    style I1 fill:#e8f5e8
+    style N1 fill:#f3e5f5
+```
+
+**Alert Categories:**
+- **Critical**: Immediate response required, affects system availability
+- **Warning**: Performance degradation, requires attention within hours
+- **Info**: Trends and optimization opportunities, review within days
+
+**Smart Alert Features:**
+- **Adaptive Thresholds**: Auto-adjusting based on historical patterns
+- **Alert Grouping**: Related alerts bundled to reduce noise
+- **Escalation Policies**: Automatic escalation if not acknowledged
+- **Runbook Integration**: Direct links to troubleshooting procedures
+</TabsContent>
+</Tabs>
+
+### Performance Optimization
+
+<Tabs defaultValue="strategies" className="w-full">
+<TabsList className="grid w-full grid-cols-3">
+  <TabsTrigger value="strategies">Optimization Strategies</TabsTrigger>
+  <TabsTrigger value="tuning">Performance Tuning</TabsTrigger>
+  <TabsTrigger value="scaling">Scaling Patterns</TabsTrigger>
+</TabsList>
+
+<TabsContent value="strategies">
+### Memory Optimization Strategies
+
+```mermaid
+graph TB
+    subgraph "Memory Optimization Framework"
+        subgraph "Token Optimization"
+            T1[Token-Aware Flushing]
+            T2[Compression Algorithms]
+            T3[Context Summarization]
+            T4[Selective Memory]
+        end
+        
+        subgraph "Storage Optimization"
+            S1[Tiered Storage]
+            S2[Compression]
+            S3[Deduplication]
+            S4[Archival Policies]
+        end
+        
+        subgraph "Access Optimization"
+            A1[Caching Layers]
+            A2[Prefetching]
+            A3[Lazy Loading]
+            A4[Connection Pooling]
+        end
+        
+        subgraph "Lifecycle Optimization"
+            L1[TTL Management]
+            L2[Cleanup Strategies]
+            L3[Eviction Policies]
+            L4[Health Monitoring]
+        end
+    end
+    
+    style T1 fill:#e1f5fe
+    style S1 fill:#e8f5e8
+    style A1 fill:#ffecb3
+    style L1 fill:#f3e5f5
+```
+
+**Optimization Techniques:**
+
+1. **Token Efficiency**:
+   - Implement intelligent summarization for long conversations
+   - Use token-aware flushing strategies
+   - Compress repeated patterns and references
+
+2. **Storage Efficiency**:
+   - Implement tiered storage (hot/warm/cold)
+   - Use compression for archived data
+   - Deduplicate common patterns
+
+3. **Access Efficiency**:
+   - Multi-level caching (L1: in-memory, L2: Redis)
+   - Predictive prefetching for common patterns
+   - Lazy loading for large datasets
+
+4. **Lifecycle Efficiency**:
+   - Adaptive TTL based on usage patterns
+   - Intelligent cleanup during low-traffic periods
+   - Proactive health monitoring and recovery
+</TabsContent>
+
+<TabsContent value="tuning">
+### Performance Tuning Guide
+
+```mermaid
+graph LR
+    subgraph "Performance Tuning Process"
+        A[Measure Current State] --> B[Identify Bottlenecks]
+        B --> C[Apply Optimizations]
+        C --> D[Validate Improvements]
+        D --> E[Monitor Results]
+        E --> F{Performance Goal Met?}
+        F -->|No| B
+        F -->|Yes| G[Document Changes]
+    end
+    
+    style A fill:#e1f5fe
+    style C fill:#e8f5e8
+    style F fill:#ffecb3
+    style G fill:#f3e5f5
+```
+
+**Tuning Parameters:**
+
+```yaml
+# High-performance memory configuration
+memory:
+  token_based:
+    max_tokens: 8000
+    max_context_ratio: 0.75
+    flush_strategy: "intelligent"
+    
+  cache_config:
+    l1_cache_size: 1000
+    l2_cache_ttl: "5m"
+    prefetch_enabled: true
+    
+  performance:
+    connection_pool_size: 50
+    operation_timeout: "30s"
+    batch_size: 100
+    
+  optimization:
+    compression_enabled: true
+    deduplication_enabled: true
+    async_writes: true
+```
+
+**Tuning Recommendations:**
+- **High Throughput**: Increase connection pool size, enable async operations
+- **Low Latency**: Optimize caching layers, reduce network round trips
+- **High Concurrency**: Implement lock-free operations, optimize contention
+- **Memory Efficiency**: Enable compression, implement smart eviction
+</TabsContent>
+
+<TabsContent value="scaling">
+### Horizontal Scaling Patterns
+
+```mermaid
+graph TB
+    subgraph "Memory Scaling Architecture"
+        subgraph "Application Layer"
+            A1[Load Balancer]
+            A2[App Instance 1]
+            A3[App Instance 2]
+            A4[App Instance N]
+        end
+        
+        subgraph "Memory Layer"
+            M1[Memory Manager 1]
+            M2[Memory Manager 2]
+            M3[Memory Manager N]
+        end
+        
+        subgraph "Storage Layer"
+            S1[Redis Cluster]
+            S2[Shard 1]
+            S3[Shard 2]
+            S4[Shard N]
+        end
+        
+        subgraph "Monitoring Layer"
+            MO1[Prometheus]
+            MO2[Grafana]
+            MO3[Alertmanager]
+        end
+    end
+    
+    A1 --> A2
+    A1 --> A3
+    A1 --> A4
+    
+    A2 --> M1
+    A3 --> M2
+    A4 --> M3
+    
+    M1 --> S1
+    M2 --> S1
+    M3 --> S1
+    
+    S1 --> S2
+    S1 --> S3
+    S1 --> S4
+    
+    style A1 fill:#e1f5fe
+    style M1 fill:#e8f5e8
+    style S1 fill:#ffecb3
+    style MO1 fill:#f3e5f5
+```
+
+**Scaling Strategies:**
+
+1. **Vertical Scaling**:
+   - Increase memory and CPU for individual instances
+   - Optimize single-instance performance first
+   - Monitor resource utilization patterns
+
+2. **Horizontal Scaling**:
+   - Add more application instances
+   - Distribute load across multiple memory managers
+   - Use Redis clustering for storage scalability
+
+3. **Geographic Scaling**:
+   - Multi-region deployments for global applications
+   - Region-specific memory instances
+   - Cross-region replication for disaster recovery
+
+4. **Auto-scaling**:
+   - CPU and memory-based scaling triggers
+   - Request rate-based scaling
+   - Custom metrics for intelligent scaling
+</TabsContent>
+</Tabs>
 
 ## Integration with Compozy Workflows
 

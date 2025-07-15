@@ -3,11 +3,277 @@ title: "Privacy & Security"
 description: "Comprehensive guide to privacy controls, data protection, and security best practices for memory systems"
 ---
 
+import { ReferenceCard, ReferenceCardList } from "@/components/ui/reference-card";
+import { FeatureCard, FeatureCardList } from "@/components/ui/feature-card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { 
+  Shield, 
+  Eye, 
+  Lock, 
+  CheckCircle, 
+  AlertTriangle,
+  Settings,
+  BookOpen,
+  Zap,
+  Users,
+  Wrench
+} from "lucide-react";
+
 # Privacy & Security
 
-Compozy's memory system includes comprehensive privacy and security features to protect sensitive data while maintaining functionality. This guide covers all aspects of secure memory management.
+Compozy's memory system includes comprehensive privacy and security features to protect sensitive data while maintaining functionality. This guide provides progressive learning paths for different user roles and expertise levels.
+
+## Related Documentation
+
+### 🔗 Cross-References
+- **[Memory Concepts & Architecture](/docs/core/memory/memory-concepts)** - Understanding memory security architecture
+- **[Memory Configuration](/docs/core/memory/configuration)** - Security and privacy configuration options
+- **[Memory Operations](/docs/core/memory/operations)** - Secure memory operations and access patterns
+- **[Integration Patterns](/docs/core/memory/integration-patterns)** - Enterprise security and compliance frameworks
+- **[Troubleshooting](/docs/core/memory/troubleshooting)** - Security monitoring and compliance auditing
+
+### 🧠 Memory-Related Topics
+- **Privacy & Security** ↔ **[Data Protection](/docs/core/memory/integration-patterns#enterprise-security--compliance)** ↔ **[Compliance Auditing](/docs/core/memory/troubleshooting#security-hardening--compliance)**
+- **Access Control** ↔ **[Multi-Agent Security](/docs/core/memory/integration-patterns#advanced-integration-features)** ↔ **[Production Security](/docs/core/memory/troubleshooting#production-deployment-checklist)**
+- **Data Governance** ↔ **[Privacy Monitoring](/docs/core/memory/memory-concepts#performance-monitoring--optimization)** ↔ **[Security Alerting](/docs/core/memory/troubleshooting#alerting-rules-configuration)**
+
+## Choose Your Learning Path
+
+<Tabs defaultValue="developer" className="w-full">
+<TabsList className="grid w-full grid-cols-4">
+  <TabsTrigger value="developer">Developer</TabsTrigger>
+  <TabsTrigger value="security">Security</TabsTrigger>
+  <TabsTrigger value="operations">Operations</TabsTrigger>
+  <TabsTrigger value="management">Management</TabsTrigger>
+</TabsList>
+
+<TabsContent value="developer">
+### Developer Learning Path
+
+**Prerequisites:** Basic understanding of Compozy workflows and memory concepts
+
+**Learning Checkpoints:**
+- [ ] Understand privacy controls and redaction patterns
+- [ ] Implement basic access control in your applications
+- [ ] Configure data masking for development environments
+- [ ] Set up proper error handling for security scenarios
+
+**Next Steps after completion:**
+- Advanced security patterns
+- Integration with compliance frameworks
+- Performance optimization for secure operations
+
+<ReferenceCardList>
+  <ReferenceCard 
+    title="Start Here: Privacy Controls" 
+    href="#privacy-controls"
+    description="Learn redaction patterns and basic privacy features"
+    icon={Eye}
+  />
+  <ReferenceCard 
+    title="Then: Access Control" 
+    href="#access-control"
+    description="Implement role-based access control"
+    icon={Lock}
+  />
+  <ReferenceCard 
+    title="Practice: Data Masking" 
+    href="#data-masking"
+    description="Apply data masking techniques"
+    icon={Shield}
+  />
+  <ReferenceCard 
+    title="Validate: Best Practices" 
+    href="#security-best-practices"
+    description="Follow security implementation guidelines"
+    icon={CheckCircle}
+  />
+</ReferenceCardList>
+</TabsContent>
+
+<TabsContent value="security">
+### Security Professional Learning Path
+
+**Prerequisites:** Security architecture knowledge and compliance requirements
+
+**Learning Checkpoints:**
+- [ ] Evaluate security architecture and threat models
+- [ ] Implement comprehensive audit logging
+- [ ] Configure compliance frameworks (GDPR, SOC2)
+- [ ] Set up monitoring and alerting systems
+- [ ] Design incident response procedures
+
+**Next Steps after completion:**
+- Advanced threat detection
+- Integration with security tools (SIEM, DLP)
+- Compliance automation
+
+<ReferenceCardList>
+  <ReferenceCard 
+    title="Start Here: Security Architecture" 
+    href="#security-architecture"
+    description="Understand the security model and components"
+    icon={Shield}
+  />
+  <ReferenceCard 
+    title="Then: Compliance Features" 
+    href="#compliance-features"
+    description="Implement GDPR, SOC2, and other frameworks"
+    icon={CheckCircle}
+  />
+  <ReferenceCard 
+    title="Practice: Audit Logging" 
+    href="#audit-logging"
+    description="Set up comprehensive audit trails"
+    icon={BookOpen}
+  />
+  <ReferenceCard 
+    title="Validate: Monitoring" 
+    href="#monitoring-and-alerting"
+    description="Configure security monitoring systems"
+    icon={Eye}
+  />
+</ReferenceCardList>
+</TabsContent>
+
+<TabsContent value="operations">
+### Operations/DevOps Learning Path
+
+**Prerequisites:** System administration and deployment experience
+
+**Learning Checkpoints:**
+- [ ] Configure secure deployment environments
+- [ ] Implement backup and recovery procedures
+- [ ] Set up performance monitoring for security features
+- [ ] Create operational runbooks for security incidents
+- [ ] Automate security compliance checks
+
+**Next Steps after completion:**
+- Advanced monitoring and alerting
+- Automated security testing
+- Infrastructure as code for security
+
+<ReferenceCardList>
+  <ReferenceCard 
+    title="Start Here: Data Protection" 
+    href="#data-protection"
+    description="Learn backup, encryption, and retention policies"
+    icon={Shield}
+  />
+  <ReferenceCard 
+    title="Then: Monitoring Setup" 
+    href="#monitoring-and-alerting"
+    description="Configure security monitoring and alerting"
+    icon={Eye}
+  />
+  <ReferenceCard 
+    title="Practice: Emergency Procedures" 
+    href="#emergency-procedures"
+    description="Implement recovery and incident response"
+    icon={AlertTriangle}
+  />
+  <ReferenceCard 
+    title="Validate: Performance" 
+    href="#performance-considerations"
+    description="Optimize security features for production"
+    icon={Zap}
+  />
+</ReferenceCardList>
+</TabsContent>
+
+<TabsContent value="management">
+### Management/Decision Maker Learning Path
+
+**Prerequisites:** Business and risk management understanding
+
+**Learning Checkpoints:**
+- [ ] Understand security capabilities and limitations
+- [ ] Evaluate compliance requirements and gaps
+- [ ] Assess cost-benefit of security features
+- [ ] Plan security training and adoption
+- [ ] Define security governance policies
+
+**Next Steps after completion:**
+- Security strategy development
+- Risk assessment frameworks
+- Vendor security evaluation
+
+<ReferenceCardList>
+  <ReferenceCard 
+    title="Start Here: Security Overview" 
+    href="#security-architecture"
+    description="High-level security capabilities and benefits"
+    icon={Shield}
+  />
+  <ReferenceCard 
+    title="Then: Compliance Impact" 
+    href="#compliance-features"
+    description="Regulatory compliance and risk mitigation"
+    icon={CheckCircle}
+  />
+  <ReferenceCard 
+    title="Evaluate: Cost-Benefit" 
+    href="#performance-considerations"
+    description="Performance impact and resource requirements"
+    icon={Settings}
+  />
+  <ReferenceCard 
+    title="Plan: Implementation" 
+    href="#implementation-roadmap"
+    description="Phased approach to security implementation"
+    icon={Users}
+  />
+</ReferenceCardList>
+</TabsContent>
+</Tabs>
+
+## Cross-Document References
+
+<Alert>
+  <AlertTriangle className="h-4 w-4" />
+  <AlertDescription>
+    This document focuses on privacy and security implementation. For related concepts, see:
+  </AlertDescription>
+</Alert>
+
+<ReferenceCardList>
+  <ReferenceCard 
+    title="Memory Concepts" 
+    href="/docs/core/memory/memory-concepts"
+    description="Fundamental architecture and design principles"
+    icon={BookOpen}
+  />
+  <ReferenceCard 
+    title="Configuration" 
+    href="/docs/core/memory/configuration"
+    description="Basic memory setup and configuration"
+    icon={Settings}
+  />
+  <ReferenceCard 
+    title="Operations" 
+    href="/docs/core/memory/operations"
+    description="Memory operations and management"
+    icon={Wrench}
+  />
+  <ReferenceCard 
+    title="Troubleshooting" 
+    href="/docs/core/memory/troubleshooting"
+    description="Debugging security-related issues"
+    icon={AlertTriangle}
+  />
+</ReferenceCardList>
 
 ## Privacy Controls
+
+<Alert>
+  <Shield className="h-4 w-4" />
+  <AlertDescription>
+    <strong>Skill Level:</strong> <Badge variant="outline">Beginner</Badge> - Basic privacy controls and data redaction
+  </AlertDescription>
+</Alert>
 
 ### Redaction Patterns
 Automatically redact sensitive information using regex patterns:
@@ -48,7 +314,68 @@ privacy_policy:
 ```
 
 ### Common Redaction Patterns
-Pre-built patterns for common sensitive data types:
+
+<Accordion type="single" collapsible>
+<AccordionItem value="financial">
+<AccordionTrigger>Financial Information Patterns</AccordionTrigger>
+<AccordionContent>
+Pre-built patterns for financial data protection:
+
+```yaml
+privacy_policy:
+  redact_patterns:
+    # Credit card numbers (various formats)
+    - '\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{3,6}\b'
+    # Social Security Numbers (XXX-XX-XXXX)
+    - '\b\d{3}-\d{2}-\d{4}\b'
+    # Bank routing numbers
+    - '\b\d{2}-\d{7}\b'
+    # Account numbers
+    - '\baccount\s*#?\s*\d{6,12}\b'
+```
+</AccordionContent>
+</AccordionItem>
+
+<AccordionItem value="personal">
+<AccordionTrigger>Personal Information Patterns</AccordionTrigger>
+<AccordionContent>
+Patterns for personal identifiable information:
+
+```yaml
+privacy_policy:
+  redact_patterns:
+    # Email addresses
+    - '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+    # Phone numbers (US formats)
+    - '\b(?:\+?1[-.\ s]?)?\(?[2-9]\d{2}\)?[-.\ s]?\d{3}[-.\ s]?\d{4}\b'
+    # IP addresses
+    - '\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b'
+```
+</AccordionContent>
+</AccordionItem>
+
+<AccordionItem value="technical">
+<AccordionTrigger>Technical Information Patterns</AccordionTrigger>
+<AccordionContent>
+Patterns for technical identifiers and security tokens:
+
+```yaml
+privacy_policy:
+  redact_patterns:
+    # UUIDs
+    - '\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b'
+    # API keys and tokens
+    - '\b[A-Za-z0-9+/]{40,}\b'
+    # Bearer tokens
+    - '\bBearer\s+[A-Za-z0-9+/=]{20,}\b'
+    # Custom business patterns
+    - '\b[A-Z]{2,3}-\d{4,6}\b'  # Internal reference numbers
+```
+</AccordionContent>
+</AccordionItem>
+</Accordion>
+
+**Learning Checkpoint:** Can you identify which patterns are most relevant to your application's data types?
 
 ```yaml
 privacy_policy:
@@ -149,6 +476,13 @@ async function applyPrivacyControls(message: any, metadata: PrivacyMetadata): Pr
 
 ## Security Architecture
 
+<Alert>
+  <Shield className="h-4 w-4" />
+  <AlertDescription>
+    <strong>Skill Level:</strong> <Badge variant="outline">Intermediate</Badge> - Security architecture and access control
+  </AlertDescription>
+</Alert>
+
 ### Access Control
 Implement role-based access control for memory operations:
 
@@ -224,6 +558,14 @@ export async function secureMemoryTool(input: SecureMemoryInput): Promise<Secure
 ```
 
 ### Encryption at Rest
+
+<Alert>
+  <Lock className="h-4 w-4" />
+  <AlertDescription>
+    <strong>Advanced Feature:</strong> Encryption impacts performance. Monitor and optimize accordingly.
+  </AlertDescription>
+</Alert>
+
 Encrypt sensitive memory data:
 
 ```typescript
@@ -336,6 +678,13 @@ function applyMasking(message: any, config: MaskingConfig): any {
 
 ## Data Protection
 
+<Alert>
+  <Shield className="h-4 w-4" />
+  <AlertDescription>
+    <strong>Skill Level:</strong> <Badge variant="outline">Intermediate</Badge> - Data lifecycle management
+  </AlertDescription>
+</Alert>
+
 ### Data Retention Policies
 Implement automated data retention and deletion:
 
@@ -367,6 +716,14 @@ privacy_policy:
 ```
 
 ### Audit Logging
+
+<Alert>
+  <Eye className="h-4 w-4" />
+  <AlertDescription>
+    <strong>Essential for Compliance:</strong> Audit logging is required for most regulatory frameworks
+  </AlertDescription>
+</Alert>
+
 Track all memory operations for compliance:
 
 ```typescript
@@ -490,6 +847,13 @@ function anonymizeMessage(message: any, config: AnonymizationConfig): any {
 ```
 
 ## Compliance Features
+
+<Alert>
+  <CheckCircle className="h-4 w-4" />
+  <AlertDescription>
+    <strong>Skill Level:</strong> <Badge variant="outline">Advanced</Badge> - Regulatory compliance implementation
+  </AlertDescription>
+</Alert>
 
 ### GDPR Compliance
 Implement GDPR-compliant memory operations:
@@ -640,6 +1004,13 @@ export async function soc2CompliantMemoryTool(input: SOC2MemoryInput): Promise<S
 
 ## Security Best Practices
 
+<Alert>
+  <Shield className="h-4 w-4" />
+  <AlertDescription>
+    <strong>Skill Level:</strong> <Badge variant="outline">Intermediate</Badge> - Security implementation patterns
+  </AlertDescription>
+</Alert>
+
 ### Input Validation
 Validate all memory inputs for security:
 
@@ -698,6 +1069,14 @@ function validateMessage(message: any, rules: ValidationRules): { valid: boolean
 ```
 
 ### Rate Limiting
+
+<Alert>
+  <Zap className="h-4 w-4" />
+  <AlertDescription>
+    <strong>Performance Impact:</strong> Rate limiting affects throughput. Balance security with performance needs.
+  </AlertDescription>
+</Alert>
+
 Implement rate limiting for memory operations:
 
 ```typescript
@@ -830,4 +1209,168 @@ async function checkSecurityAnomalies(userId: string, operation: string, error: 
 }
 ```
 
-This comprehensive privacy and security guide ensures that your memory system meets enterprise-level security requirements while maintaining usability and performance.
+## Implementation Roadmap
+
+<Tabs defaultValue="phase1" className="w-full">
+<TabsList className="grid w-full grid-cols-3">
+  <TabsTrigger value="phase1">Phase 1: Foundation</TabsTrigger>
+  <TabsTrigger value="phase2">Phase 2: Advanced</TabsTrigger>
+  <TabsTrigger value="phase3">Phase 3: Enterprise</TabsTrigger>
+</TabsList>
+
+<TabsContent value="phase1">
+### Phase 1: Security Foundation (Weeks 1-2)
+
+**Priority:** Essential security controls
+
+**Deliverables:**
+- Basic redaction patterns implemented
+- Simple access control configured
+- Input validation in place
+- Basic audit logging enabled
+
+**Success Criteria:**
+- All sensitive data types are redacted
+- Role-based access control is functional
+- Security incidents are logged
+- Basic monitoring is operational
+
+**Next Steps:** Validate implementation before moving to Phase 2
+</TabsContent>
+
+<TabsContent value="phase2">
+### Phase 2: Advanced Security (Weeks 3-6)
+
+**Priority:** Enhanced protection and compliance
+
+**Deliverables:**
+- Encryption at rest implemented
+- Data masking configured
+- Retention policies automated
+- Rate limiting enabled
+- Performance monitoring added
+
+**Success Criteria:**
+- Sensitive data is encrypted
+- Data lifecycle is automated
+- Performance impact is acceptable
+- Security metrics are tracked
+
+**Next Steps:** Compliance assessment and optimization
+</TabsContent>
+
+<TabsContent value="phase3">
+### Phase 3: Enterprise Security (Weeks 7-12)
+
+**Priority:** Compliance and enterprise features
+
+**Deliverables:**
+- GDPR compliance implemented
+- SOC2 controls configured
+- Advanced monitoring deployed
+- Incident response procedures
+- Security automation enabled
+
+**Success Criteria:**
+- Regulatory compliance achieved
+- Security operations are automated
+- Incident response is tested
+- Continuous monitoring is active
+
+**Next Steps:** Regular security assessments and updates
+</TabsContent>
+</Tabs>
+
+## Performance Considerations
+
+<Alert>
+  <Zap className="h-4 w-4" />
+  <AlertDescription>
+    <strong>Important:</strong> Security features impact performance. Monitor and optimize accordingly.
+  </AlertDescription>
+</Alert>
+
+<Accordion type="single" collapsible>
+<AccordionItem value="performance">
+<AccordionTrigger>Performance Impact Analysis</AccordionTrigger>
+<AccordionContent>
+**Security Feature Performance Impact:**
+
+- **Redaction Patterns:** ~5-10ms per message
+- **Encryption:** ~10-20ms per operation
+- **Audit Logging:** ~2-5ms per operation
+- **Rate Limiting:** ~1-3ms per request
+- **Access Control:** ~3-8ms per operation
+
+**Optimization Strategies:**
+- Cache frequently used patterns
+- Batch audit log writes
+- Use async processing for heavy operations
+- Implement intelligent rate limiting
+- Monitor and tune performance thresholds
+</AccordionContent>
+</AccordionItem>
+</Accordion>
+
+## Emergency Procedures
+
+<Alert>
+  <AlertTriangle className="h-4 w-4" />
+  <AlertDescription>
+    <strong>Critical:</strong> Emergency procedures for security incidents and system recovery
+  </AlertDescription>
+</Alert>
+
+<ReferenceCardList>
+  <ReferenceCard 
+    title="Emergency Recovery" 
+    href="/docs/core/memory/troubleshooting#emergency-procedures"
+    description="Complete system recovery procedures"
+    icon={AlertTriangle}
+  />
+  <ReferenceCard 
+    title="Incident Response" 
+    href="/docs/core/memory/troubleshooting#monitoring-and-debugging"
+    description="Security incident response procedures"
+    icon={Shield}
+  />
+  <ReferenceCard 
+    title="Data Recovery" 
+    href="/docs/core/memory/troubleshooting#data-recovery"
+    description="Backup and recovery procedures"
+    icon={Settings}
+  />
+</ReferenceCardList>
+
+## Next Steps
+
+**After completing this guide, you should:**
+- Have a working understanding of privacy and security features
+- Be able to implement appropriate security controls for your use case
+- Understand compliance requirements and implementation strategies
+- Know how to monitor and maintain security systems
+
+**Continue Learning:**
+
+<ReferenceCardList>
+  <ReferenceCard 
+    title="Advanced Integration" 
+    href="/docs/core/memory/integration-patterns"
+    description="Learn advanced security integration patterns"
+    icon={Settings}
+  />
+  <ReferenceCard 
+    title="Troubleshooting" 
+    href="/docs/core/memory/troubleshooting"
+    description="Debug and resolve security-related issues"
+    icon={Wrench}
+  />
+  <ReferenceCard 
+    title="Performance Optimization" 
+    href="/docs/core/memory/operations"
+    description="Optimize security features for production"
+    icon={Zap}
+  />
+</ReferenceCardList>
+
+This comprehensive privacy and security guide ensures that your memory system meets enterprise-level security requirements while maintaining usability and performance through progressive implementation and clear learning paths.

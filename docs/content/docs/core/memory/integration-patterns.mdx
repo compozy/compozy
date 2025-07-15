@@ -7,10 +7,73 @@ description: "Best practices for integrating memory with agents, workflows, and 
 
 Memory integration is essential for building context-aware AI applications. This guide provides proven patterns for integrating memory with agents, workflows, and tools effectively.
 
+## Related Documentation
+
+### 🔗 Cross-References
+- **[Memory Concepts & Architecture](/docs/core/memory/memory-concepts)** - Understanding memory system architecture
+- **[Memory Configuration](/docs/core/memory/configuration)** - Setting up memory resources for integration
+- **[Memory Operations](/docs/core/memory/operations)** - Core memory operations and patterns
+- **[Privacy & Security](/docs/core/memory/privacy-security)** - Securing integrated memory systems
+- **[Troubleshooting](/docs/core/memory/troubleshooting)** - Production deployment and monitoring
+
+### 🧠 Memory-Related Topics
+- **Integration Patterns** ↔ **[Multi-Agent Patterns](/docs/core/agents/multi-agent-patterns)** ↔ **[Advanced Task Patterns](/docs/core/tasks/advanced-patterns)**
+- **Advanced Integration** ↔ **[Performance Monitoring](/docs/core/memory/memory-concepts#performance-monitoring--optimization)** ↔ **[Production Deployment](/docs/core/memory/troubleshooting#production-deployment--monitoring)**
+- **Enterprise Security** ↔ **[Security Hardening](/docs/core/memory/troubleshooting#security-hardening--compliance)** ↔ **[Compliance Auditing](/docs/core/memory/troubleshooting#disaster-recovery--backup)**
+
 ## Agent Memory Integration
 
+Agent-memory integration patterns enable AI agents to maintain context across interactions and provide personalized responses.
+
+```mermaid
+graph TB
+    subgraph "Agent Memory Integration Architecture"
+        A[AI Agent] --> MM[Memory Manager]
+        MM --> MI1[Memory Instance 1]
+        MM --> MI2[Memory Instance 2]
+        MM --> MI3[Memory Instance N]
+        
+        MI1 --> R1[Redis Store]
+        MI2 --> R2[Redis Store]
+        MI3 --> R3[Redis Store]
+        
+        A --> TE[Template Engine]
+        TE --> KR[Key Resolution]
+        KR --> MM
+        
+        A --> WC[Workflow Context]
+        WC --> TE
+        
+        subgraph "Memory Types"
+            T1[Conversation Memory]
+            T2[User Profile Memory]
+            T3[Knowledge Base Memory]
+            T4[Session Memory]
+        end
+        
+        MI1 --> T1
+        MI2 --> T2
+        MI3 --> T3
+    end
+    
+    style A fill:#e1f5fe
+    style MM fill:#e8f5e8
+    style TE fill:#ffecb3
+    style R1 fill:#f3e5f5
+    style R2 fill:#f3e5f5
+    style R3 fill:#f3e5f5
+```
+
+<Tabs defaultValue="single" className="w-full">
+<TabsList className="grid w-full grid-cols-3">
+  <TabsTrigger value="single">Single Memory</TabsTrigger>
+  <TabsTrigger value="multi">Multi-Memory</TabsTrigger>
+  <TabsTrigger value="conditional">Conditional Access</TabsTrigger>
+</TabsList>
+
+<TabsContent value="single">
 ### Single Memory Configuration
-Simple agent with one memory resource:
+Simple agent with one memory resource for basic conversation history:
 
 ```yaml
 agents:
@@ -37,6 +100,20 @@ agents:
           Respond helpfully using any relevant context from our conversation history.
 ```
 
+**Use Cases:**
+- Simple chatbots with basic memory
+- Personal assistants with user-specific context
+- Basic conversation continuity
+- Development and testing scenarios
+
+**Benefits:**
+- Simple configuration and setup
+- Minimal resource overhead
+- Easy to understand and debug
+- Fast performance for single-context use cases
+</TabsContent>
+
+<TabsContent value="multi">
 ### Multi-Memory Configuration
 Agent with multiple memory resources for different contexts:
 
@@ -75,6 +152,66 @@ agents:
           Provide detailed support using all available context.
 ```
 
+```mermaid
+graph TB
+    subgraph "Multi-Memory Agent Architecture"
+        A[Support Agent] --> MM[Memory Manager]
+        
+        MM --> CM[Conversation Memory]
+        MM --> UM[User Profile Memory]
+        MM --> KM[Knowledge Base Memory]
+        
+        CM --> R1[Redis Store]
+        UM --> R2[Redis Store]
+        KM --> R3[Redis Store]
+        
+        subgraph "Memory Configurations"
+            C1[Token-Based<br/>4000 tokens<br/>support:ticket_123]
+            C2[Message-Based<br/>50 messages<br/>user:user_456]
+            C3[Buffer<br/>100 entries<br/>kb:technical]
+        end
+        
+        CM --> C1
+        UM --> C2
+        KM --> C3
+        
+        subgraph "Context Integration"
+            CI1[Conversation Context]
+            CI2[User Profile Context]
+            CI3[Knowledge Context]
+            CI4[Merged Context]
+        end
+        
+        A --> CI1
+        A --> CI2
+        A --> CI3
+        CI1 --> CI4
+        CI2 --> CI4
+        CI3 --> CI4
+    end
+    
+    style A fill:#e1f5fe
+    style MM fill:#e8f5e8
+    style R1 fill:#ffecb3
+    style R2 fill:#ffecb3
+    style R3 fill:#ffecb3
+    style CI4 fill:#f3e5f5
+```
+
+**Use Cases:**
+- Customer support systems
+- Enterprise AI assistants
+- Multi-context applications
+- Complex workflow orchestration
+
+**Benefits:**
+- Rich contextual understanding
+- Personalized responses
+- Scalable architecture
+- Separation of concerns
+</TabsContent>
+
+<TabsContent value="conditional">
 ### Conditional Memory Access
 Agent that conditionally accesses memory based on context:
 
@@ -111,10 +248,124 @@ agents:
           Respond appropriately based on available context.
 ```
 
+```mermaid
+graph TB
+    subgraph "Conditional Memory Access Flow"
+        A[Adaptive Agent] --> AC{Authenticated?}
+        
+        AC -->|Yes| PM[Personal Memory]
+        AC -->|No| SM[Session Memory Only]
+        
+        PM --> R1[Redis Store]
+        SM --> R2[Redis Store]
+        
+        subgraph "Memory Decision Logic"
+            D1[Check Authentication]
+            D2[Evaluate Conditions]
+            D3[Load Available Memories]
+        end
+        
+        A --> D1
+        D1 --> D2
+        D2 --> D3
+        
+        subgraph "Context Types"
+            C1[Personal Context<br/>user:user_123]
+            C2[Session Context<br/>session:sess_456]
+            C3[Anonymous Context<br/>Limited Access]
+        end
+        
+        PM --> C1
+        SM --> C2
+        SM --> C3
+        
+        subgraph "Response Generation"
+            R[Response Generator]
+            RC[Rich Context]
+            LC[Limited Context]
+        end
+        
+        C1 --> RC
+        C2 --> RC
+        C3 --> LC
+        RC --> R
+        LC --> R
+    end
+    
+    style A fill:#e1f5fe
+    style AC fill:#ffecb3
+    style PM fill:#e8f5e8
+    style SM fill:#e8f5e8
+    style R fill:#f3e5f5
+```
+
+**Use Cases:**
+- Multi-tenant applications
+- Privacy-sensitive systems
+- Progressive disclosure scenarios
+- Authentication-based contexts
+
+**Benefits:**
+- Dynamic memory loading
+- Privacy and security controls
+- Resource optimization
+- Flexible access patterns
+</TabsContent>
+</Tabs>
+
 ## Workflow Memory Patterns
 
+Workflow memory patterns define how memory operations are integrated into workflow execution for optimal performance and reliability.
+
+```mermaid
+graph TB
+    subgraph "Workflow Memory Pattern Architecture"
+        WF[Workflow Engine] --> T1[Load Task]
+        WF --> T2[Process Task]
+        WF --> T3[Store Task]
+        
+        T1 --> MT1[Memory Tool]
+        T2 --> AG[AI Agent]
+        T3 --> MT2[Memory Tool]
+        
+        MT1 --> MM1[Memory Manager]
+        MT2 --> MM2[Memory Manager]
+        AG --> MM3[Memory Manager]
+        
+        MM1 --> RS1[Redis Store]
+        MM2 --> RS2[Redis Store]
+        MM3 --> RS3[Redis Store]
+        
+        subgraph "Memory Operations"
+            READ[Read Messages]
+            HEALTH[Health Check]
+            FLUSH[Flush Memory]
+            APPEND[Append Messages]
+        end
+        
+        MT1 --> READ
+        MT1 --> HEALTH
+        MT1 --> FLUSH
+        MT2 --> APPEND
+    end
+    
+    style WF fill:#e1f5fe
+    style AG fill:#e8f5e8
+    style MM1 fill:#ffecb3
+    style MM2 fill:#ffecb3
+    style MM3 fill:#ffecb3
+```
+
+<Tabs defaultValue="load_process_store" className="w-full">
+<TabsList className="grid w-full grid-cols-3">
+  <TabsTrigger value="load_process_store">Load-Process-Store</TabsTrigger>
+  <TabsTrigger value="parallel_ops">Parallel Operations</TabsTrigger>
+  <TabsTrigger value="memory_aggregation">Memory Aggregation</TabsTrigger>
+</TabsList>
+
+<TabsContent value="load_process_store">
 ### Load-Process-Store Pattern
-Standard pattern for memory-enabled workflows:
+Standard pattern for memory-enabled workflows with health checking and conditional flushing:
 
 ```yaml
 id: memory_workflow
@@ -189,8 +440,23 @@ tasks:
         Timestamp: {{now}}
 ```
 
+**Pattern Benefits:**
+- **Systematic approach**: Well-defined stages for memory operations
+- **Health monitoring**: Proactive memory management with health checks
+- **Conditional logic**: Smart decisions based on memory state
+- **Error handling**: Graceful handling of memory issues
+- **Scalability**: Works with any memory type and configuration
+
+**Use Cases:**
+- Standard conversational AI workflows
+- Customer support systems
+- Personal assistant applications
+- Educational chatbots
+</TabsContent>
+
+<TabsContent value="parallel_ops">
 ### Parallel Memory Operations
-Efficient parallel loading of multiple memory contexts:
+Efficient parallel loading and storing of multiple memory contexts:
 
 ```yaml
 id: parallel_memory_workflow
@@ -256,6 +522,66 @@ tasks:
           updates: "{{.tasks.process_with_contexts.output.user_updates}}"
 ```
 
+```mermaid
+graph TB
+    subgraph "Parallel Memory Operations Flow"
+        START[Start Workflow] --> PARALLEL[Parallel Load Task]
+        
+        PARALLEL --> LOAD1[Load Conversation]
+        PARALLEL --> LOAD2[Load User Profile]
+        PARALLEL --> LOAD3[Load Preferences]
+        
+        LOAD1 --> MM1[Memory Manager]
+        LOAD2 --> MM2[Memory Manager]
+        LOAD3 --> MM3[Memory Manager]
+        
+        MM1 --> R1[Redis Store]
+        MM2 --> R2[Redis Store]
+        MM3 --> R3[Redis Store]
+        
+        LOAD1 --> SYNC[Sync Point]
+        LOAD2 --> SYNC
+        LOAD3 --> SYNC
+        
+        SYNC --> PROCESS[Process with All Contexts]
+        PROCESS --> AGENT[Multi-Context Agent]
+        
+        AGENT --> STORE_PARALLEL[Parallel Store Task]
+        STORE_PARALLEL --> STORE1[Store Conversation]
+        STORE_PARALLEL --> STORE2[Update User Profile]
+        
+        STORE1 --> MM4[Memory Manager]
+        STORE2 --> MM5[Memory Manager]
+        
+        MM4 --> R4[Redis Store]
+        MM5 --> R5[Redis Store]
+        
+        STORE1 --> END[End Workflow]
+        STORE2 --> END
+    end
+    
+    style START fill:#e8f5e8
+    style PARALLEL fill:#e1f5fe
+    style SYNC fill:#ffecb3
+    style PROCESS fill:#f3e5f5
+    style STORE_PARALLEL fill:#e1f5fe
+    style END fill:#e8f5e8
+```
+
+**Pattern Benefits:**
+- **Performance optimization**: Parallel execution reduces latency
+- **Resource efficiency**: Concurrent operations maximize throughput
+- **Fault tolerance**: Best-effort storage continues on partial failures
+- **Scalability**: Handles multiple memory contexts efficiently
+
+**Use Cases:**
+- Multi-context AI applications
+- Real-time systems requiring fast response
+- High-throughput conversation systems
+- Enterprise applications with multiple data sources
+</TabsContent>
+
+<TabsContent value="memory_aggregation">
 ### Memory Aggregation Pattern
 Combine multiple memory sources for comprehensive context:
 
@@ -294,8 +620,137 @@ tasks:
       context_sources: "{{.tasks.aggregate_memories.output.source_breakdown}}"
 ```
 
+```mermaid
+graph TB
+    subgraph "Memory Aggregation Architecture"
+        MA[Memory Aggregator Tool] --> SRC1[Conversation Memory]
+        MA --> SRC2[User Memory]
+        MA --> SRC3[Project Memory]
+        
+        SRC1 --> MM1[Memory Manager]
+        SRC2 --> MM2[Memory Manager]
+        SRC3 --> MM3[Memory Manager]
+        
+        MM1 --> R1[Redis Store]
+        MM2 --> R2[Redis Store]
+        MM3 --> R3[Redis Store]
+        
+        subgraph "Weighted Processing"
+            W1[Weight: 0.6<br/>Conversation]
+            W2[Weight: 0.3<br/>User Profile]
+            W3[Weight: 0.1<br/>Project Context]
+        end
+        
+        SRC1 --> W1
+        SRC2 --> W2
+        SRC3 --> W3
+        
+        W1 --> AGG[Aggregated Context]
+        W2 --> AGG
+        W3 --> AGG
+        
+        subgraph "Token Budget Management"
+            TB[Token Budget: 2000]
+            TC[Token Counter]
+            TR[Token Redistributor]
+        end
+        
+        AGG --> TB
+        TB --> TC
+        TC --> TR
+        TR --> FINAL[Final Context]
+        
+        FINAL --> AGENT[Context-Aware Agent]
+        
+        subgraph "Source Breakdown"
+            SB[Source Information]
+            META[Context Metadata]
+        end
+        
+        AGG --> SB
+        SB --> META
+        META --> AGENT
+    end
+    
+    style MA fill:#e1f5fe
+    style AGG fill:#e8f5e8
+    style TB fill:#ffecb3
+    style FINAL fill:#f3e5f5
+    style AGENT fill:#e1f5fe
+```
+
+**Pattern Benefits:**
+- **Unified context**: Single comprehensive view from multiple sources
+- **Weighted prioritization**: Important contexts get more representation
+- **Token budget management**: Controlled resource usage
+- **Source transparency**: Clear indication of context origins
+
+**Use Cases:**
+- Enterprise knowledge management systems
+- Multi-tenant applications
+- Complex decision-making workflows
+- Hierarchical information systems
+</TabsContent>
+</Tabs>
+
+
 ## Tool Integration Patterns
 
+Tool integration patterns provide the interface between workflows and the memory system, enabling flexible and powerful memory operations.
+
+```mermaid
+graph TB
+    subgraph "Tool Integration Architecture"
+        WT[Workflow Task] --> MT[Memory Tool]
+        MT --> BRT[Bun Runtime]
+        BRT --> MM[Memory Manager]
+        MM --> MI[Memory Instance]
+        MI --> RS[Redis Store]
+        
+        subgraph "Memory Operations"
+            READ[Read Messages]
+            APPEND[Append Messages]
+            CLEAR[Clear Memory]
+            HEALTH[Health Check]
+            SEARCH[Search Messages]
+            FLUSH[Flush Memory]
+        end
+        
+        MT --> READ
+        MT --> APPEND
+        MT --> CLEAR
+        MT --> HEALTH
+        MT --> SEARCH
+        MT --> FLUSH
+        
+        subgraph "Tool Types"
+            BASIC[Basic Memory Tool]
+            TOKEN[Token Management Tool]
+            PRIVACY[Privacy-Aware Tool]
+            BATCH[Batch Operations Tool]
+        end
+        
+        BRT --> BASIC
+        BRT --> TOKEN
+        BRT --> PRIVACY
+        BRT --> BATCH
+    end
+    
+    style WT fill:#e1f5fe
+    style MT fill:#e8f5e8
+    style BRT fill:#ffecb3
+    style MM fill:#f3e5f5
+```
+
+<Tabs defaultValue="basic_tool" className="w-full">
+<TabsList className="grid w-full grid-cols-4">
+  <TabsTrigger value="basic_tool">Basic Tool</TabsTrigger>
+  <TabsTrigger value="token_tool">Token Management</TabsTrigger>
+  <TabsTrigger value="privacy_tool">Privacy-Aware</TabsTrigger>
+  <TabsTrigger value="batch_tool">Batch Operations</TabsTrigger>
+</TabsList>
+
+<TabsContent value="basic_tool">
 ### Memory Tool Implementation
 Complete memory tool with all operations:
 
@@ -372,66 +827,39 @@ export default async function memoryTool(input: MemoryToolInput): Promise<Memory
     };
   }
 }
-
-async function readMemoryOperation(memoryKey: string, includeMetadata: boolean): Promise<MemoryToolOutput> {
-  // Implementation for reading memory
-  const messages = await readAllMessages(memoryKey);
-  const health = await getMemoryHealth(memoryKey);
-  
-  return {
-    success: true,
-    messages: messages.map(msg => ({
-      role: msg.role,
-      content: msg.content,
-      timestamp: msg.timestamp,
-      ...(includeMetadata && { metadata: msg.metadata })
-    })),
-    message_count: health.message_count,
-    token_count: health.token_count
-  };
-}
-
-async function appendMemoryOperation(memoryKey: string, message: string): Promise<MemoryToolOutput> {
-  // Implementation for appending to memory
-  const messageObj = {
-    role: 'user',
-    content: message,
-    timestamp: new Date().toISOString()
-  };
-  
-  await appendToMemory(memoryKey, messageObj);
-  const health = await getMemoryHealth(memoryKey);
-  
-  return {
-    success: true,
-    message_count: health.message_count,
-    token_count: health.token_count
-  };
-}
-
-async function searchMemoryOperation(memoryKey: string, query: string, limit: number): Promise<MemoryToolOutput> {
-  // Implementation for searching memory
-  const messages = await readAllMessages(memoryKey);
-  const results = messages
-    .filter(msg => msg.content.toLowerCase().includes(query.toLowerCase()))
-    .slice(0, limit)
-    .map(msg => ({
-      message: msg,
-      relevance_score: calculateRelevanceScore(msg.content, query)
-    }));
-  
-  return {
-    success: true,
-    search_results: results
-  };
-}
 ```
 
-### Specialized Memory Tools
-Different tools for specific memory operations:
+**Tool Benefits:**
+- **Comprehensive operations**: Support for all memory operations
+- **Error handling**: Robust error handling with informative messages
+- **Metadata support**: Optional metadata inclusion for performance optimization
+- **Flexible parameters**: Configurable operation parameters
+- **Type safety**: Full TypeScript type definitions
+</TabsContent>
+
+<TabsContent value="token_tool">
+### Token Management Tool
+Specialized tool for token-based memory management:
 
 ```typescript
-// Token management tool
+interface TokenMemoryInput {
+  memory_key: string;
+  max_tokens: number;
+  operation: 'check_budget' | 'estimate_append';
+  message?: string;
+}
+
+interface TokenMemoryOutput {
+  current_tokens: number;
+  max_tokens: number;
+  remaining_tokens: number;
+  utilization_percent: number;
+  needs_flush: boolean;
+  estimated_tokens?: number;
+  projected_tokens?: number;
+  will_exceed_limit?: boolean;
+}
+
 export async function tokenMemoryTool(input: TokenMemoryInput): Promise<TokenMemoryOutput> {
   const { memory_key, max_tokens, operation } = input;
   
@@ -452,15 +880,46 @@ export async function tokenMemoryTool(input: TokenMemoryInput): Promise<TokenMem
       const { message } = input;
       const estimatedTokens = await estimateTokenCount(message);
       return {
-        estimated_tokens: estimatedTokens,
         current_tokens: currentTokens,
+        max_tokens,
+        remaining_tokens: max_tokens - currentTokens,
+        utilization_percent: (currentTokens / max_tokens) * 100,
+        needs_flush: currentTokens > (max_tokens * 0.8),
+        estimated_tokens: estimatedTokens,
         projected_tokens: currentTokens + estimatedTokens,
         will_exceed_limit: (currentTokens + estimatedTokens) > max_tokens
       };
   }
 }
+```
 
-// Privacy-aware memory tool
+**Token Management Features:**
+- **Budget tracking**: Real-time token usage monitoring
+- **Utilization metrics**: Percentage-based usage tracking
+- **Predictive analysis**: Estimate token usage before append
+- **Threshold management**: Configurable flush thresholds
+- **Cost optimization**: Intelligent token budget management
+</TabsContent>
+
+<TabsContent value="privacy_tool">
+### Privacy-Aware Memory Tool
+Tool with privacy controls and data protection:
+
+```typescript
+interface PrivacyMemoryInput {
+  memory_key: string;
+  message: string;
+  privacy_level: 'public' | 'private' | 'confidential';
+  redact_patterns?: string[];
+}
+
+interface PrivacyMemoryOutput {
+  success: boolean;
+  message: string;
+  persisted: boolean;
+  redaction_applied: boolean;
+}
+
 export async function privacyMemoryTool(input: PrivacyMemoryInput): Promise<PrivacyMemoryOutput> {
   const { memory_key, message, privacy_level, redact_patterns } = input;
   
@@ -484,7 +943,8 @@ export async function privacyMemoryTool(input: PrivacyMemoryInput): Promise<Priv
     return {
       success: true,
       message: 'Message processed but not persisted due to privacy level',
-      persisted: false
+      persisted: false,
+      redaction_applied: privacyMetadata.redaction_applied
     };
   }
   
@@ -498,10 +958,144 @@ export async function privacyMemoryTool(input: PrivacyMemoryInput): Promise<Priv
 }
 ```
 
+**Privacy Features:**
+- **Data redaction**: Automatic pattern-based content redaction
+- **Privacy levels**: Configurable privacy levels for different use cases
+- **Selective persistence**: Choice to persist or process without storage
+- **Metadata tracking**: Privacy metadata for audit and compliance
+- **Compliance support**: Built-in support for privacy regulations
+</TabsContent>
+
+<TabsContent value="batch_tool">
+### Batch Operations Tool
+Tool for efficient batch memory operations:
+
+```typescript
+interface BatchMemoryInput {
+  operations: Array<{
+    memory_key: string;
+    operation: 'read' | 'append' | 'clear' | 'health';
+    message?: string;
+  }>;
+  parallel?: boolean;
+}
+
+interface BatchMemoryOutput {
+  success: boolean;
+  results: Array<{
+    operation: any;
+    success: boolean;
+    data?: any;
+    error?: string;
+  }>;
+}
+
+export async function batchMemoryTool(input: BatchMemoryInput): Promise<BatchMemoryOutput> {
+  const { operations, parallel = true } = input;
+  
+  if (parallel) {
+    // Execute operations in parallel
+    const results = await Promise.allSettled(
+      operations.map(op => performMemoryOperation(op.memory_key, op.operation, op))
+    );
+    
+    return {
+      success: true,
+      results: results.map((result, index) => ({
+        operation: operations[index],
+        success: result.status === 'fulfilled',
+        data: result.status === 'fulfilled' ? result.value : undefined,
+        error: result.status === 'rejected' ? result.reason : undefined
+      }))
+    };
+  } else {
+    // Execute operations sequentially
+    const results = [];
+    for (const op of operations) {
+      try {
+        const result = await performMemoryOperation(op.memory_key, op.operation, op);
+        results.push({ operation: op, success: true, data: result });
+      } catch (error) {
+        results.push({ operation: op, success: false, error: error.message });
+      }
+    }
+    
+    return {
+      success: true,
+      results
+    };
+  }
+}
+```
+
+**Batch Operation Features:**
+- **Parallel execution**: Concurrent operations for better performance
+- **Sequential execution**: Ordered operations when dependencies exist
+- **Error handling**: Graceful handling of individual operation failures
+- **Result aggregation**: Comprehensive result collection and reporting
+- **Flexibility**: Support for mixed operation types in single batch
+</TabsContent>
+</Tabs>
+
+
 ## Advanced Integration Patterns
 
 ### Memory-Aware Agent Router
 Route agents based on memory state:
+
+```mermaid
+graph TB
+    subgraph "Memory-Aware Agent Router Architecture"
+        REQ[User Request] --> CHK[Check Memory State]
+        CHK --> MT[Memory Tool]
+        MT --> MM[Memory Manager]
+        MM --> RS[Redis Store]
+        
+        CHK --> ROUTER{Memory State Router}
+        
+        ROUTER -->|Message Count > 0| EU[Existing User Path]
+        ROUTER -->|Message Count = 0| NU[New User Path]
+        
+        EU --> RUA[Returning User Agent]
+        NU --> OBA[Onboarding Agent]
+        
+        subgraph "Existing User Flow"
+            RUA --> HIST[Load User History]
+            HIST --> CONT[Contextual Response]
+            CONT --> PERS[Personalized Experience]
+        end
+        
+        subgraph "New User Flow"
+            OBA --> ONBD[Onboarding Process]
+            ONBD --> PROF[Profile Creation]
+            PROF --> INIT[Initial Setup]
+        end
+        
+        subgraph "Memory State Analysis"
+            MSA[Memory State Analyzer]
+            TC[Token Count Check]
+            MC[Message Count Check]
+            LF[Last Flush Time]
+            HS[Health Score]
+        end
+        
+        CHK --> MSA
+        MSA --> TC
+        MSA --> MC
+        MSA --> LF
+        MSA --> HS
+        
+        TC --> ROUTER
+        MC --> ROUTER
+        HS --> ROUTER
+    end
+    
+    style REQ fill:#e8f5e8
+    style ROUTER fill:#e1f5fe
+    style RUA fill:#ffecb3
+    style OBA fill:#f3e5f5
+    style MSA fill:#e8f5e8
+```
 
 ```yaml
 id: memory_aware_router
@@ -548,8 +1142,85 @@ tasks:
       message: "{{.workflow.input.message}}"
 ```
 
+**Pattern Benefits:**
+- **Intelligent routing**: Automatic agent selection based on memory state
+- **User experience optimization**: Tailored flows for new vs. returning users
+- **Context preservation**: Leverages existing memory for personalization
+- **Scalable architecture**: Easy to extend with additional routing conditions
+- **Memory-driven decisions**: Uses actual memory data for routing logic
+
 ### Memory Synchronization Pattern
 Sync memory across multiple instances:
+
+```mermaid
+graph TB
+    subgraph "Memory Synchronization Architecture"
+        REQ[User Request] --> PRI[Primary Memory Operation]
+        PRI --> PMM[Primary Memory Manager]
+        PMM --> PRS[Primary Redis Store]
+        
+        PRI --> SYNC[Sync Controller]
+        SYNC --> PAR[Parallel Sync Tasks]
+        
+        PAR --> ANALYTICS[Analytics Memory]
+        PAR --> BACKUP[Backup Memory]
+        PAR --> AUDIT[Audit Memory]
+        
+        ANALYTICS --> AMM[Analytics Memory Manager]
+        BACKUP --> BMM[Backup Memory Manager]
+        AUDIT --> AUMM[Audit Memory Manager]
+        
+        AMM --> ARS[Analytics Redis Store]
+        BMM --> BRS[Backup Redis Store]
+        AUMM --> AURS[Audit Redis Store]
+        
+        subgraph "Sync Status Tracking"
+            ST[Status Tracker]
+            SUCCESS[Success Counter]
+            FAILED[Failed Counter]
+            RETRY[Retry Queue]
+        end
+        
+        PAR --> ST
+        ST --> SUCCESS
+        ST --> FAILED
+        ST --> RETRY
+        
+        subgraph "Error Handling"
+            EH[Error Handler]
+            CIRCUIT[Circuit Breaker]
+            FALLBACK[Fallback Strategy]
+            ALERT[Alert Manager]
+        end
+        
+        FAILED --> EH
+        EH --> CIRCUIT
+        EH --> FALLBACK
+        EH --> ALERT
+        
+        subgraph "Eventual Consistency"
+            EC[Consistency Monitor]
+            RECON[Reconciliation Service]
+            CONFLICT[Conflict Resolution]
+        end
+        
+        ST --> EC
+        EC --> RECON
+        RECON --> CONFLICT
+        
+        CONFLICT --> AMM
+        CONFLICT --> BMM
+        CONFLICT --> AUMM
+    end
+    
+    style REQ fill:#e8f5e8
+    style PRI fill:#e1f5fe
+    style SYNC fill:#ffecb3
+    style PAR fill:#f3e5f5
+    style ST fill:#e8f5e8
+    style EH fill:#ffebee
+    style EC fill:#e1f5fe
+```
 
 ```yaml
 id: memory_sync_workflow
@@ -596,8 +1267,102 @@ tasks:
       sync_results: "{{.tasks.sync_memories.output}}"
 ```
 
+**Pattern Benefits:**
+- **Data consistency**: Ensures multiple memory instances stay synchronized
+- **Fault tolerance**: Best-effort strategy handles partial failures gracefully
+- **Scalability**: Parallel synchronization improves performance
+- **Conflict resolution**: Built-in handling of synchronization conflicts
+- **Monitoring**: Comprehensive tracking of sync status and failures
+
 ### Context-Aware Memory Management
 Intelligent memory management based on context:
+
+```mermaid
+graph TB
+    subgraph "Context-Aware Memory Management"
+        REQ[User Request] --> CA[Context Analyzer]
+        CA --> CT[Context Type Detection]
+        CA --> IS[Importance Scoring]
+        CA --> SA[Sentiment Analysis]
+        CA --> UA[Urgency Assessment]
+        
+        CT --> DECISION[Smart Decision Engine]
+        IS --> DECISION
+        SA --> DECISION
+        UA --> DECISION
+        
+        REQ --> HM[Health Monitor]
+        HM --> TC[Token Count]
+        HM --> MC[Message Count]
+        HM --> LF[Last Flush]
+        
+        TC --> DECISION
+        MC --> DECISION
+        LF --> DECISION
+        
+        DECISION --> FLUSH{Flush Decision}
+        FLUSH -->|Yes| FM[Flush Manager]
+        FLUSH -->|No| STORE[Direct Store]
+        
+        FM --> FS[Flush Strategy]
+        FS --> SUMMARY[Summarization]
+        FS --> EVICT[Eviction]
+        
+        SUMMARY --> STORE
+        EVICT --> STORE
+        
+        STORE --> MM[Memory Manager]
+        MM --> META[Metadata Enrichment]
+        META --> PERSIST[Persist with Context]
+        PERSIST --> RS[Redis Store]
+        
+        subgraph "Context Analysis Components"
+            NLP[NLP Processor]
+            TOPIC[Topic Extraction]
+            PRIORITY[Priority Calculation]
+            PATTERN[Pattern Recognition]
+        end
+        
+        CA --> NLP
+        NLP --> TOPIC
+        NLP --> PRIORITY
+        NLP --> PATTERN
+        
+        subgraph "Smart Flush Logic"
+            THRESH[Threshold Calculator]
+            CONTEXT_RULES[Context Rules Engine]
+            HISTORY[Historical Patterns]
+            PREDICT[Predictive Analysis]
+        end
+        
+        DECISION --> THRESH
+        THRESH --> CONTEXT_RULES
+        CONTEXT_RULES --> HISTORY
+        HISTORY --> PREDICT
+        PREDICT --> FLUSH
+        
+        subgraph "Metadata Enhancement"
+            PRIORITY_TAG[Priority Tagging]
+            CONTEXT_TAG[Context Tagging]
+            TIMESTAMP[Timestamp]
+            RETENTION[Retention Policy]
+        end
+        
+        META --> PRIORITY_TAG
+        META --> CONTEXT_TAG
+        META --> TIMESTAMP
+        META --> RETENTION
+    end
+    
+    style REQ fill:#e8f5e8
+    style CA fill:#e1f5fe
+    style DECISION fill:#ffecb3
+    style FLUSH fill:#f3e5f5
+    style MM fill:#e8f5e8
+    style NLP fill:#e1f5fe
+    style THRESH fill:#ffecb3
+    style META fill:#f3e5f5
+```
 
 ```typescript
 export async function contextAwareMemoryTool(input: ContextAwareMemoryInput): Promise<ContextAwareMemoryOutput> {
@@ -662,10 +1427,103 @@ async function shouldFlushBasedOnContext(health: MemoryHealth, analysis: Context
 }
 ```
 
+**Pattern Benefits:**
+- **Intelligent decision making**: Context-aware flush decisions based on conversation importance
+- **Adaptive memory management**: Dynamic strategies based on conversation context
+- **Priority-based storage**: Important messages get special handling and metadata
+- **Predictive optimization**: Historical patterns inform future memory management decisions
+- **Metadata enrichment**: Rich context information preserved with messages
+
 ## Performance Patterns
 
 ### Memory Caching Pattern
 Cache frequently accessed memory data:
+
+```mermaid
+graph TB
+    subgraph "Memory Caching Architecture"
+        REQ[Memory Request] --> CACHE_CHECK{Cache Check}
+        
+        CACHE_CHECK -->|Hit| CACHE_RETURN[Return Cached Data]
+        CACHE_CHECK -->|Miss| FETCH[Fetch from Memory]
+        
+        FETCH --> MM[Memory Manager]
+        MM --> RS[Redis Store]
+        
+        RS --> RESULT[Memory Result]
+        RESULT --> CACHE_STORE[Store in Cache]
+        CACHE_STORE --> RETURN[Return to Client]
+        
+        subgraph "Cache Management"
+            LRU[LRU Eviction]
+            TTL[TTL Expiration]
+            INVALIDATE[Cache Invalidation]
+            WARM[Cache Warming]
+        end
+        
+        CACHE_STORE --> LRU
+        CACHE_STORE --> TTL
+        
+        subgraph "Cache Invalidation Triggers"
+            WRITE[Write Operations]
+            APPEND[Append Messages]
+            CLEAR[Clear Memory]
+            FLUSH[Flush Memory]
+        end
+        
+        WRITE --> INVALIDATE
+        APPEND --> INVALIDATE
+        CLEAR --> INVALIDATE
+        FLUSH --> INVALIDATE
+        
+        INVALIDATE --> CACHE_CHECK
+        
+        subgraph "Cache Layers"
+            L1[L1: In-Memory Cache]
+            L2[L2: Redis Cache]
+            L3[L3: Persistent Storage]
+        end
+        
+        CACHE_CHECK --> L1
+        L1 -->|Miss| L2
+        L2 -->|Miss| L3
+        L3 --> MM
+        
+        subgraph "Performance Metrics"
+            HIT_RATE[Hit Rate]
+            LATENCY[Cache Latency]
+            THROUGHPUT[Cache Throughput]
+            MEMORY_USAGE[Memory Usage]
+        end
+        
+        CACHE_RETURN --> HIT_RATE
+        CACHE_RETURN --> LATENCY
+        CACHE_RETURN --> THROUGHPUT
+        CACHE_STORE --> MEMORY_USAGE
+        
+        subgraph "Cache Strategies"
+            READ_THROUGH[Read-Through]
+            WRITE_THROUGH[Write-Through]
+            WRITE_BEHIND[Write-Behind]
+            REFRESH_AHEAD[Refresh-Ahead]
+        end
+        
+        FETCH --> READ_THROUGH
+        CACHE_STORE --> WRITE_THROUGH
+        CACHE_STORE --> WRITE_BEHIND
+        WARM --> REFRESH_AHEAD
+    end
+    
+    style REQ fill:#e8f5e8
+    style CACHE_CHECK fill:#e1f5fe
+    style CACHE_RETURN fill:#e8f5e8
+    style FETCH fill:#ffecb3
+    style CACHE_STORE fill:#f3e5f5
+    style INVALIDATE fill:#ffebee
+    style L1 fill:#e1f5fe
+    style L2 fill:#e8f5e8
+    style L3 fill:#ffecb3
+```
 
 ```typescript
 const memoryCache = new Map<string, { data: any; timestamp: number; ttl: number }>();
@@ -712,8 +1570,126 @@ export async function cachedMemoryTool(input: CachedMemoryInput): Promise<Cached
 }
 ```
 
+**Caching Benefits:**
+- **Performance optimization**: Reduced latency for frequently accessed memory data
+- **Resource efficiency**: Minimized Redis load and network traffic
+- **Scalability**: Better handling of high-frequency memory operations
+- **Multi-level caching**: Layered cache hierarchy for optimal performance
+- **Intelligent invalidation**: Smart cache invalidation based on memory operations
+
 ### Batch Memory Operations
 Optimize multiple memory operations:
+
+```mermaid
+graph TB
+    subgraph "Batch Memory Operations Architecture"
+        REQ[Batch Request] --> BATCH_PROC[Batch Processor]
+        BATCH_PROC --> STRATEGY{Execution Strategy}
+        
+        STRATEGY -->|Parallel| PARALLEL[Parallel Execution]
+        STRATEGY -->|Sequential| SEQUENTIAL[Sequential Execution]
+        
+        PARALLEL --> PROMISE_ALL[Promise.allSettled]
+        SEQUENTIAL --> LOOP[Sequential Loop]
+        
+        PROMISE_ALL --> OP1[Operation 1]
+        PROMISE_ALL --> OP2[Operation 2]
+        PROMISE_ALL --> OP3[Operation N]
+        
+        LOOP --> OP4[Operation 1]
+        OP4 --> OP5[Operation 2]
+        OP5 --> OP6[Operation N]
+        
+        OP1 --> MM1[Memory Manager 1]
+        OP2 --> MM2[Memory Manager 2]
+        OP3 --> MM3[Memory Manager N]
+        OP4 --> MM4[Memory Manager]
+        OP5 --> MM4
+        OP6 --> MM4
+        
+        MM1 --> RS1[Redis Store 1]
+        MM2 --> RS2[Redis Store 2]
+        MM3 --> RS3[Redis Store N]
+        MM4 --> RS4[Redis Store]
+        
+        subgraph "Operation Types"
+            READ[Read Operations]
+            WRITE[Write Operations]
+            HEALTH[Health Checks]
+            FLUSH[Flush Operations]
+        end
+        
+        BATCH_PROC --> READ
+        BATCH_PROC --> WRITE
+        BATCH_PROC --> HEALTH
+        BATCH_PROC --> FLUSH
+        
+        subgraph "Result Aggregation"
+            COLLECT[Result Collector]
+            SUCCESS[Success Counter]
+            FAILED[Failed Counter]
+            PARTIAL[Partial Success Handler]
+        end
+        
+        OP1 --> COLLECT
+        OP2 --> COLLECT
+        OP3 --> COLLECT
+        OP4 --> COLLECT
+        OP5 --> COLLECT
+        OP6 --> COLLECT
+        
+        COLLECT --> SUCCESS
+        COLLECT --> FAILED
+        COLLECT --> PARTIAL
+        
+        subgraph "Performance Optimization"
+            CONN_POOL[Connection Pooling]
+            LOAD_BALANCE[Load Balancing]
+            CIRCUIT_BREAKER[Circuit Breaker]
+            RETRY[Retry Logic]
+        end
+        
+        MM1 --> CONN_POOL
+        MM2 --> CONN_POOL
+        MM3 --> CONN_POOL
+        MM4 --> CONN_POOL
+        
+        CONN_POOL --> LOAD_BALANCE
+        LOAD_BALANCE --> CIRCUIT_BREAKER
+        CIRCUIT_BREAKER --> RETRY
+        
+        subgraph "Monitoring & Metrics"
+            LATENCY[Batch Latency]
+            THROUGHPUT[Operations/Second]
+            SUCCESS_RATE[Success Rate]
+            RESOURCE_USAGE[Resource Usage]
+        end
+        
+        COLLECT --> LATENCY
+        COLLECT --> THROUGHPUT
+        COLLECT --> SUCCESS_RATE
+        COLLECT --> RESOURCE_USAGE
+        
+        subgraph "Error Handling"
+            ERROR_HANDLER[Error Handler]
+            FALLBACK[Fallback Strategy]
+            ALERT[Alert Manager]
+        end
+        
+        FAILED --> ERROR_HANDLER
+        ERROR_HANDLER --> FALLBACK
+        ERROR_HANDLER --> ALERT
+    end
+    
+    style REQ fill:#e8f5e8
+    style BATCH_PROC fill:#e1f5fe
+    style STRATEGY fill:#ffecb3
+    style PARALLEL fill:#e8f5e8
+    style SEQUENTIAL fill:#f3e5f5
+    style COLLECT fill:#e1f5fe
+    style CONN_POOL fill:#ffecb3
+    style ERROR_HANDLER fill:#ffebee
+```
 
 ```typescript
 export async function batchMemoryTool(input: BatchMemoryInput): Promise<BatchMemoryOutput> {
@@ -754,6 +1730,922 @@ export async function batchMemoryTool(input: BatchMemoryInput): Promise<BatchMem
 }
 ```
 
+**Batch Operation Benefits:**
+- **Throughput optimization**: Higher operations per second through batching
+- **Resource efficiency**: Better utilization of connections and memory
+- **Fault tolerance**: Graceful handling of partial batch failures
+- **Flexible execution**: Choice between parallel and sequential execution
+- **Comprehensive monitoring**: Detailed metrics and error tracking for batch operations
+
+## Advanced Integration Features
+
+### Multi-Agent Memory Sharing
+
+Complex AI applications often require multiple agents to share memory context for collaborative problem-solving:
+
+<Tabs defaultValue="sharing" className="w-full">
+<TabsList className="grid w-full grid-cols-3">
+  <TabsTrigger value="sharing">Memory Sharing</TabsTrigger>
+  <TabsTrigger value="orchestration">Agent Orchestration</TabsTrigger>
+  <TabsTrigger value="coordination">Memory Coordination</TabsTrigger>
+</TabsList>
+
+<TabsContent value="sharing">
+### Inter-Agent Memory Sharing
+
+```mermaid
+graph TB
+    subgraph "Multi-Agent Memory Architecture"
+        subgraph "Agent Layer"
+            A1[Research Agent]
+            A2[Analysis Agent] 
+            A3[Writing Agent]
+            A4[Review Agent]
+        end
+        
+        subgraph "Shared Memory Layer"
+            SM1[Research Memory]
+            SM2[Analysis Memory]
+            SM3[Draft Memory]
+            SM4[Review Memory]
+        end
+        
+        subgraph "Coordination Layer"
+            C1[Memory Coordinator]
+            C2[Lock Manager]
+            C3[Event Bus]
+            C4[Version Controller]
+        end
+        
+        subgraph "Storage Layer"
+            S1[Redis Cluster]
+            S2[Metadata Store]
+            S3[Event Store]
+        end
+        
+        A1 --> SM1
+        A2 --> SM1
+        A2 --> SM2
+        A3 --> SM2
+        A3 --> SM3
+        A4 --> SM3
+        A4 --> SM4
+        
+        SM1 --> C1
+        SM2 --> C1
+        SM3 --> C1
+        SM4 --> C1
+        
+        C1 --> S1
+        C2 --> S1
+        C3 --> S3
+        C4 --> S2
+    end
+    
+    style A1 fill:#e1f5fe
+    style SM1 fill:#e8f5e8
+    style C1 fill:#ffecb3
+    style S1 fill:#f3e5f5
+```
+
+**Multi-Agent Memory Configuration:**
+```yaml
+# Collaborative research project
+agents:
+  - id: research_agent
+    memory:
+      - id: research_data
+        key: "project:{{.workflow.input.project_id}}:research"
+        mode: "read-write"
+      - id: shared_context
+        key: "project:{{.workflow.input.project_id}}:context"
+        mode: "read-write"
+  
+  - id: analysis_agent
+    memory:
+      - id: research_data
+        key: "project:{{.workflow.input.project_id}}:research"
+        mode: "read-only"
+      - id: analysis_results
+        key: "project:{{.workflow.input.project_id}}:analysis"
+        mode: "read-write"
+      - id: shared_context
+        key: "project:{{.workflow.input.project_id}}:context"
+        mode: "read-write"
+  
+  - id: writing_agent
+    memory:
+      - id: analysis_results
+        key: "project:{{.workflow.input.project_id}}:analysis"
+        mode: "read-only"
+      - id: draft_content
+        key: "project:{{.workflow.input.project_id}}:draft"
+        mode: "read-write"
+      - id: shared_context
+        key: "project:{{.workflow.input.project_id}}:context"
+        mode: "read-write"
+```
+
+**Memory Sharing Patterns:**
+- **Read-Write Access**: Primary agent for data creation and updates
+- **Read-Only Access**: Secondary agents for data consumption
+- **Shared Context**: Common memory for coordination and status
+- **Versioned Memory**: Track changes and maintain consistency
+</TabsContent>
+
+<TabsContent value="orchestration">
+### Agent Orchestration with Memory
+
+```mermaid
+sequenceDiagram
+    participant RC as Research Agent
+    participant AN as Analysis Agent
+    participant WR as Writing Agent
+    participant RV as Review Agent
+    participant MM as Memory Manager
+    participant CB as Coordination Bus
+    
+    RC->>MM: Write research data
+    MM->>CB: Broadcast "research_complete" event
+    CB->>AN: Notify analysis agent
+    
+    AN->>MM: Read research data
+    AN->>MM: Write analysis results
+    MM->>CB: Broadcast "analysis_complete" event
+    CB->>WR: Notify writing agent
+    
+    WR->>MM: Read analysis results
+    WR->>MM: Write draft content
+    MM->>CB: Broadcast "draft_complete" event
+    CB->>RV: Notify review agent
+    
+    RV->>MM: Read draft content
+    RV->>MM: Write review feedback
+    MM->>CB: Broadcast "review_complete" event
+    
+    note over RC,CB: Coordination ensures proper sequencing
+    note over MM: Memory provides persistent context
+    note over CB: Event bus enables loose coupling
+```
+
+**Orchestration Configuration:**
+```yaml
+# Agent orchestration workflow
+id: collaborative_workflow
+version: 1.0.0
+description: Multi-agent collaboration with memory coordination
+
+tasks:
+  - id: research_phase
+    type: basic
+    $use: agent(local::agents.#(id="research_agent"))
+    action: conduct_research
+    with:
+      topic: "{{.workflow.input.research_topic}}"
+      project_id: "{{.workflow.input.project_id}}"
+    
+    on_success:
+      next: analysis_phase
+      event: "research_complete"
+  
+  - id: analysis_phase
+    type: basic
+    $use: agent(local::agents.#(id="analysis_agent"))
+    action: analyze_research
+    with:
+      project_id: "{{.workflow.input.project_id}}"
+    
+    on_success:
+      next: writing_phase
+      event: "analysis_complete"
+  
+  - id: writing_phase
+    type: basic
+    $use: agent(local::agents.#(id="writing_agent"))
+    action: write_content
+    with:
+      project_id: "{{.workflow.input.project_id}}"
+      content_type: "{{.workflow.input.content_type}}"
+    
+    on_success:
+      next: review_phase
+      event: "draft_complete"
+  
+  - id: review_phase
+    type: basic
+    $use: agent(local::agents.#(id="review_agent"))
+    action: review_content
+    with:
+      project_id: "{{.workflow.input.project_id}}"
+    
+    final: true
+```
+</TabsContent>
+
+<TabsContent value="coordination">
+### Memory Coordination Patterns
+
+```mermaid
+graph TB
+    subgraph "Memory Coordination System"
+        subgraph "Coordination Patterns"
+            P1[Lock-Based Coordination]
+            P2[Event-Driven Coordination]
+            P3[Version-Based Coordination]
+            P4[Saga Pattern]
+        end
+        
+        subgraph "Conflict Resolution"
+            CR1[Optimistic Locking]
+            CR2[Pessimistic Locking]
+            CR3[Merge Strategies]
+            CR4[Rollback Mechanisms]
+        end
+        
+        subgraph "Consistency Models"
+            CM1[Strong Consistency]
+            CM2[Eventual Consistency]
+            CM3[Causal Consistency]
+            CM4[Read-After-Write]
+        end
+        
+        subgraph "Coordination Tools"
+            CT1[Memory Coordinator]
+            CT2[Lock Manager]
+            CT3[Event Publisher]
+            CT4[Version Controller]
+        end
+        
+        P1 --> CR1
+        P1 --> CR2
+        P2 --> CR3
+        P3 --> CR4
+        
+        CR1 --> CM1
+        CR2 --> CM2
+        CR3 --> CM3
+        CR4 --> CM4
+        
+        CM1 --> CT1
+        CM2 --> CT2
+        CM3 --> CT3
+        CM4 --> CT4
+    end
+    
+    style P1 fill:#e1f5fe
+    style CR1 fill:#e8f5e8
+    style CM1 fill:#ffecb3
+    style CT1 fill:#f3e5f5
+```
+
+**Coordination Implementation:**
+```typescript
+// Memory coordination service
+export class MemoryCoordinator {
+  private lockManager: LockManager;
+  private eventBus: EventBus;
+  private versionController: VersionController;
+  
+  async coordinateMemoryAccess(
+    memoryKey: string,
+    operation: MemoryOperation,
+    agents: string[]
+  ): Promise<CoordinationResult> {
+    // 1. Acquire coordination lock
+    const lock = await this.lockManager.acquire(
+      `coord:${memoryKey}`, 
+      { timeout: 30000 }
+    );
+    
+    try {
+      // 2. Check current version
+      const version = await this.versionController.getCurrentVersion(memoryKey);
+      
+      // 3. Execute operation with version check
+      const result = await this.executeCoordinatedOperation(
+        memoryKey, 
+        operation, 
+        version
+      );
+      
+      // 4. Update version and notify agents
+      await this.versionController.incrementVersion(memoryKey);
+      await this.eventBus.publish(`memory:${memoryKey}:updated`, {
+        version: version + 1,
+        operation: operation.type,
+        timestamp: Date.now()
+      });
+      
+      return result;
+      
+    } finally {
+      // 5. Release coordination lock
+      await this.lockManager.release(lock);
+    }
+  }
+}
+```
+
+**Coordination Patterns:**
+- **Lock-Based**: Exclusive access for critical operations
+- **Event-Driven**: Asynchronous coordination via events
+- **Version-Based**: Optimistic concurrency with version tracking
+- **Saga Pattern**: Distributed transaction management
+</TabsContent>
+</Tabs>
+
+### Advanced MCP Integration
+
+Model Context Protocol (MCP) integration enables sophisticated memory interactions with external systems:
+
+<Tabs defaultValue="mcp_memory" className="w-full">
+<TabsList className="grid w-full grid-cols-3">
+  <TabsTrigger value="mcp_memory">MCP Memory Tools</TabsTrigger>
+  <TabsTrigger value="external_sync">External Sync</TabsTrigger>
+  <TabsTrigger value="hybrid_memory">Hybrid Memory</TabsTrigger>
+</TabsList>
+
+<TabsContent value="mcp_memory">
+### MCP Memory Tool Integration
+
+```mermaid
+graph TB
+    subgraph "MCP Memory Integration"
+        subgraph "Compozy Memory"
+            CM1[Memory Manager]
+            CM2[Memory Instances]
+            CM3[Redis Storage]
+        end
+        
+        subgraph "MCP Bridge"
+            MB1[MCP Memory Tool]
+            MB2[Protocol Adapter]
+            MB3[Schema Validator]
+            MB4[Type Converter]
+        end
+        
+        subgraph "External MCP Server"
+            ES1[MCP Server]
+            ES2[External Storage]
+            ES3[API Endpoints]
+            ES4[Authentication]
+        end
+        
+        subgraph "Agent Layer"
+            A1[AI Agent]
+            A2[Tool Calls]
+            A3[Memory Operations]
+        end
+        
+        A1 --> A2
+        A2 --> A3
+        A3 --> CM1
+        A3 --> MB1
+        
+        CM1 --> CM2
+        CM2 --> CM3
+        
+        MB1 --> MB2
+        MB2 --> MB3
+        MB3 --> MB4
+        MB4 --> ES1
+        
+        ES1 --> ES2
+        ES1 --> ES3
+        ES1 --> ES4
+    end
+    
+    style CM1 fill:#e1f5fe
+    style MB1 fill:#e8f5e8
+    style ES1 fill:#ffecb3
+    style A1 fill:#f3e5f5
+```
+
+**MCP Memory Tool Configuration:**
+```yaml
+# Agent with MCP memory integration
+agents:
+  - id: advanced_agent
+    memory:
+      - id: local_memory
+        key: "user:{{.workflow.input.user_id}}:local"
+        mode: "read-write"
+    
+    mcps:
+      - id: external_memory
+        transport: http
+        url: "http://memory-service:8080"
+        auth:
+          type: "bearer"
+          token: "{{.env.MEMORY_SERVICE_TOKEN}}"
+    
+    instructions: |
+      You have access to both local and external memory systems.
+      Use local memory for conversation context and external memory for
+      persistent knowledge and shared data.
+    
+    actions:
+      - id: hybrid_memory_search
+        prompt: |
+          Search for information in both local and external memory:
+          Query: {{.input.query}}
+          
+          First check local memory, then use MCP tools to search external systems.
+          Combine results for comprehensive response.
+```
+
+**MCP Memory Operations:**
+```typescript
+// MCP memory tool implementation
+export class MCPMemoryTool {
+  async searchMemory(query: string, sources: string[]): Promise<SearchResult> {
+    const results = await Promise.all(
+      sources.map(source => this.searchSource(source, query))
+    );
+    
+    return {
+      query,
+      sources,
+      results: results.flat(),
+      combined: this.combineResults(results)
+    };
+  }
+  
+  async syncMemory(
+    localKey: string, 
+    externalKey: string,
+    direction: 'local-to-external' | 'external-to-local' | 'bidirectional'
+  ): Promise<SyncResult> {
+    // Implementation for memory synchronization
+  }
+}
+```
+</TabsContent>
+
+<TabsContent value="external_sync">
+### External System Synchronization
+
+```mermaid
+sequenceDiagram
+    participant A as Agent
+    participant CM as Compozy Memory
+    participant MS as MCP Sync Service
+    participant ES as External System
+    participant DB as External Database
+    
+    A->>CM: Write to local memory
+    CM->>MS: Trigger sync event
+    MS->>ES: Check external state
+    ES->>DB: Query current data
+    DB-->>ES: Return current data
+    ES-->>MS: Return state info
+    
+    alt Data needs sync
+        MS->>ES: Sync memory data
+        ES->>DB: Update external storage
+        DB-->>ES: Confirm update
+        ES-->>MS: Confirm sync
+        MS->>CM: Update sync metadata
+    else Data is current
+        MS->>CM: Mark as synchronized
+    end
+    
+    CM-->>A: Confirm memory operation
+    
+    note over A,DB: Bidirectional sync ensures consistency
+    note over MS: Conflict resolution handles differences
+```
+
+**Synchronization Configuration:**
+```yaml
+# External memory synchronization
+mcps:
+  - id: crm_sync
+    transport: http
+    url: "http://crm-system:8080"
+    sync_config:
+      enabled: true
+      direction: "bidirectional"
+      interval: "5m"
+      conflict_resolution: "last_write_wins"
+      
+  - id: knowledge_base
+    transport: sse
+    url: "http://kb-service:8080/events"
+    sync_config:
+      enabled: true
+      direction: "external-to-local"
+      real_time: true
+      
+tools:
+  - id: memory_sync_tool
+    description: Synchronize memory with external systems
+    execute: ./sync_tool.ts
+    input:
+      type: object
+      properties:
+        operation:
+          type: string
+          enum: ["sync", "pull", "push"]
+        target_system:
+          type: string
+        memory_key:
+          type: string
+      required:
+        - operation
+        - target_system
+        - memory_key
+```
+</TabsContent>
+
+<TabsContent value="hybrid_memory">
+### Hybrid Memory Architecture
+
+```mermaid
+graph TB
+    subgraph "Hybrid Memory System"
+        subgraph "Local Memory Layer"
+            LM1[Fast Access Cache]
+            LM2[Session Memory]
+            LM3[Conversation Context]
+        end
+        
+        subgraph "External Memory Layer"
+            EM1[Knowledge Base]
+            EM2[User Profiles]
+            EM3[Historical Data]
+        end
+        
+        subgraph "Coordination Layer"
+            CL1[Memory Router]
+            CL2[Sync Manager]
+            CL3[Cache Manager]
+            CL4[Conflict Resolver]
+        end
+        
+        subgraph "Agent Interface"
+            AI1[Unified Memory API]
+            AI2[Smart Routing]
+            AI3[Transparent Access]
+        end
+        
+        AI1 --> CL1
+        AI2 --> CL2
+        AI3 --> CL3
+        
+        CL1 --> LM1
+        CL1 --> LM2
+        CL1 --> LM3
+        CL1 --> EM1
+        CL1 --> EM2
+        CL1 --> EM3
+        
+        CL2 --> CL4
+        CL3 --> CL4
+    end
+    
+    style LM1 fill:#e1f5fe
+    style EM1 fill:#e8f5e8
+    style CL1 fill:#ffecb3
+    style AI1 fill:#f3e5f5
+```
+
+**Hybrid Memory Implementation:**
+```typescript
+// Hybrid memory manager
+export class HybridMemoryManager {
+  private localMemory: LocalMemoryManager;
+  private externalMemory: ExternalMemoryManager;
+  private router: MemoryRouter;
+  
+  async read(key: string, options?: ReadOptions): Promise<MemoryData> {
+    const route = this.router.determineRoute(key, 'read');
+    
+    switch (route.strategy) {
+      case 'local-first':
+        return this.readLocalFirst(key, options);
+      case 'external-first':
+        return this.readExternalFirst(key, options);
+      case 'merged':
+        return this.readMerged(key, options);
+      default:
+        throw new Error(`Unknown routing strategy: ${route.strategy}`);
+    }
+  }
+  
+  async write(key: string, data: MemoryData, options?: WriteOptions): Promise<WriteResult> {
+    const route = this.router.determineRoute(key, 'write');
+    
+    // Write to appropriate targets based on routing strategy
+    const results = await Promise.allSettled([
+      route.targets.includes('local') ? this.localMemory.write(key, data, options) : null,
+      route.targets.includes('external') ? this.externalMemory.write(key, data, options) : null
+    ]);
+    
+    return this.aggregateWriteResults(results);
+  }
+}
+```
+
+**Routing Strategies:**
+- **Local-First**: Prefer local memory for speed, fallback to external
+- **External-First**: Prefer external memory for consistency, cache locally
+- **Merged**: Combine data from both sources intelligently
+- **Partitioned**: Route based on data type or access patterns
+</TabsContent>
+</Tabs>
+
+### Enterprise Security & Compliance
+
+Production memory systems require robust security and compliance features:
+
+<Tabs defaultValue="security" className="w-full">
+<TabsList className="grid w-full grid-cols-3">
+  <TabsTrigger value="security">Security Hardening</TabsTrigger>
+  <TabsTrigger value="compliance">Compliance</TabsTrigger>
+  <TabsTrigger value="governance">Data Governance</TabsTrigger>
+</TabsList>
+
+<TabsContent value="security">
+### Security Hardening
+
+```mermaid
+graph TB
+    subgraph "Memory Security Architecture"
+        subgraph "Access Control"
+            AC1[Identity Management]
+            AC2[Role-Based Access]
+            AC3[Permission Matrix]
+            AC4[Session Management]
+        end
+        
+        subgraph "Data Protection"
+            DP1[Encryption at Rest]
+            DP2[Encryption in Transit]
+            DP3[Key Management]
+            DP4[Data Masking]
+        end
+        
+        subgraph "Threat Detection"
+            TD1[Anomaly Detection]
+            TD2[Access Monitoring]
+            TD3[Intrusion Detection]
+            TD4[Behavioral Analysis]
+        end
+        
+        subgraph "Audit & Compliance"
+            AU1[Audit Logging]
+            AU2[Compliance Monitoring]
+            AU3[Data Lineage]
+            AU4[Privacy Controls]
+        end
+        
+        AC1 --> DP1
+        AC2 --> DP2
+        AC3 --> DP3
+        AC4 --> DP4
+        
+        DP1 --> TD1
+        DP2 --> TD2
+        DP3 --> TD3
+        DP4 --> TD4
+        
+        TD1 --> AU1
+        TD2 --> AU2
+        TD3 --> AU3
+        TD4 --> AU4
+    end
+    
+    style AC1 fill:#e1f5fe
+    style DP1 fill:#e8f5e8
+    style TD1 fill:#ffecb3
+    style AU1 fill:#f3e5f5
+```
+
+**Security Configuration:**
+```yaml
+# Enterprise security configuration
+memory:
+  security:
+    encryption:
+      at_rest: true
+      in_transit: true
+      key_rotation: "30d"
+      algorithm: "AES-256-GCM"
+      
+    access_control:
+      rbac_enabled: true
+      default_permissions: "read-only"
+      session_timeout: "1h"
+      max_concurrent_sessions: 10
+      
+    monitoring:
+      audit_logging: true
+      anomaly_detection: true
+      failed_access_threshold: 5
+      suspicious_pattern_detection: true
+      
+    compliance:
+      data_retention: "90d"
+      pii_detection: true
+      anonymization: true
+      gdpr_compliance: true
+```
+</TabsContent>
+
+<TabsContent value="compliance">
+### Compliance Framework
+
+```mermaid
+graph TB
+    subgraph "Compliance Management"
+        subgraph "Regulatory Requirements"
+            RR1[GDPR]
+            RR2[CCPA]
+            RR3[HIPAA]
+            RR4[SOC2]
+        end
+        
+        subgraph "Data Classification"
+            DC1[PII Detection]
+            DC2[Sensitivity Levels]
+            DC3[Data Categories]
+            DC4[Retention Policies]
+        end
+        
+        subgraph "Privacy Controls"
+            PC1[Consent Management]
+            PC2[Right to Deletion]
+            PC3[Data Portability]
+            PC4[Access Requests]
+        end
+        
+        subgraph "Audit & Reporting"
+            AR1[Compliance Reports]
+            AR2[Data Processing Records]
+            AR3[Impact Assessments]
+            AR4[Breach Notifications]
+        end
+        
+        RR1 --> DC1
+        RR2 --> DC2
+        RR3 --> DC3
+        RR4 --> DC4
+        
+        DC1 --> PC1
+        DC2 --> PC2
+        DC3 --> PC3
+        DC4 --> PC4
+        
+        PC1 --> AR1
+        PC2 --> AR2
+        PC3 --> AR3
+        PC4 --> AR4
+    end
+    
+    style RR1 fill:#e1f5fe
+    style DC1 fill:#e8f5e8
+    style PC1 fill:#ffecb3
+    style AR1 fill:#f3e5f5
+```
+
+**Compliance Implementation:**
+```typescript
+// Compliance manager for memory operations
+export class ComplianceManager {
+  async processMemoryOperation(
+    operation: MemoryOperation,
+    context: ComplianceContext
+  ): Promise<ComplianceResult> {
+    // 1. Check consent
+    const consent = await this.checkConsent(context.userId, operation.type);
+    if (!consent.valid) {
+      throw new ComplianceError('Insufficient consent for operation');
+    }
+    
+    // 2. Classify data
+    const classification = await this.classifyData(operation.data);
+    
+    // 3. Apply policies
+    const policies = await this.getPolicies(classification);
+    const processedData = await this.applyPolicies(operation.data, policies);
+    
+    // 4. Log for audit
+    await this.auditLog({
+      operation: operation.type,
+      user: context.userId,
+      classification: classification.level,
+      policies: policies.map(p => p.name),
+      timestamp: Date.now()
+    });
+    
+    return {
+      success: true,
+      processedData,
+      classification,
+      appliedPolicies: policies
+    };
+  }
+}
+```
+</TabsContent>
+
+<TabsContent value="governance">
+### Data Governance
+
+```mermaid
+graph TB
+    subgraph "Data Governance Framework"
+        subgraph "Data Stewardship"
+            DS1[Data Owners]
+            DS2[Data Stewards]
+            DS3[Data Custodians]
+            DS4[Data Users]
+        end
+        
+        subgraph "Policy Management"
+            PM1[Data Policies]
+            PM2[Access Policies]
+            PM3[Retention Policies]
+            PM4[Quality Policies]
+        end
+        
+        subgraph "Lifecycle Management"
+            LM1[Data Creation]
+            LM2[Data Usage]
+            LM3[Data Archival]
+            LM4[Data Deletion]
+        end
+        
+        subgraph "Quality Assurance"
+            QA1[Data Validation]
+            QA2[Quality Metrics]
+            QA3[Data Lineage]
+            QA4[Impact Analysis]
+        end
+        
+        DS1 --> PM1
+        DS2 --> PM2
+        DS3 --> PM3
+        DS4 --> PM4
+        
+        PM1 --> LM1
+        PM2 --> LM2
+        PM3 --> LM3
+        PM4 --> LM4
+        
+        LM1 --> QA1
+        LM2 --> QA2
+        LM3 --> QA3
+        LM4 --> QA4
+    end
+    
+    style DS1 fill:#e1f5fe
+    style PM1 fill:#e8f5e8
+    style LM1 fill:#ffecb3
+    style QA1 fill:#f3e5f5
+```
+
+**Governance Configuration:**
+```yaml
+# Data governance configuration
+governance:
+  data_stewardship:
+    data_owners:
+      - name: "Privacy Officer"
+        responsibilities: ["privacy_policy", "consent_management"]
+      - name: "Security Officer"  
+        responsibilities: ["access_control", "encryption"]
+        
+  policies:
+    retention:
+      default_ttl: "90d"
+      pii_ttl: "30d"
+      logs_ttl: "7y"
+      
+    quality:
+      validation_rules:
+        - type: "schema_validation"
+          required: true
+        - type: "data_freshness"
+          threshold: "24h"
+        - type: "completeness"
+          threshold: 0.95
+          
+  lifecycle:
+    stages:
+      - name: "creation"
+        validations: ["schema", "privacy", "security"]
+      - name: "usage"
+        monitoring: ["access_patterns", "performance"]
+      - name: "archival"
+        triggers: ["age", "usage_frequency"]
+      - name: "deletion"
+        confirmations: ["policy_compliance", "legal_hold"]
+```
+</TabsContent>
+</Tabs>
+
 ## Best Practices for Integration
 
 ### Error Handling
@@ -784,4 +2676,11 @@ export async function batchMemoryTool(input: BatchMemoryInput): Promise<BatchMem
 - Track token consumption
 - Monitor flush frequency and effectiveness
 
-These integration patterns provide a solid foundation for building memory-enabled applications that are performant, secure, and maintainable.
+### Production Deployment
+- Implement horizontal scaling strategies
+- Use Redis clustering for high availability
+- Set up comprehensive monitoring and alerting
+- Implement backup and disaster recovery
+- Plan for capacity growth and optimization
+
+These advanced integration patterns provide enterprise-grade capabilities for building sophisticated, secure, and scalable memory-enabled applications.
