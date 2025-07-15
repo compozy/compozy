@@ -1,15 +1,15 @@
 {
   "title": "Configuration",
-  "description": "Project setup and configuration management",
-  "icon": "Settings",
+  "description": "Configure Compozy projects, workflows, and runtime environments",
+  "icon": "Cog",
   "pages": [
     "project-setup",
-    "cli",
     "global",
-    "workflows",
+    "autoload",
     "providers",
     "runtime-config",
-    "autoload",
+    "workflows",
+    "cli",
     "monitoring-config"
   ]
 }

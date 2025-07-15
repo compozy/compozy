@@ -1,6 +1,6 @@
 ---
 title: Quick Start
-description: Get Compozy running in 15 minutes and create your first AI-powered workflow. This guide will walk you through setting up Compozy and building a simple weather advisory system.
+description: Get Compozy running in 5 minutes and create your first AI-powered workflow. This guide will walk you through setting up Compozy and building a simple greeting workflow.
 ---
 
 import {
@@ -50,38 +50,37 @@ Ensure you have these installed:
 <Step title="Initialize a new project" description="Run compozy init to generate a new project">
 
 ```bash
-compozy init my-weather-app
-cd my-weather-app
+compozy init hello-world
+cd hello-world
 ```
 
 </Step>
 
-<Step title="Configure your project" description="Update `compozy.yaml` to your liking. Here you will add your workflows, models and other global configurations.">
+<Step title="Configure your project" description="Update `compozy.yaml` with basic configuration">
 
 ```yaml title="compozy.yaml"
-name: my-weather-app
+name: hello-world
 version: "0.1.0"
-description: A simple weather advisory system
+description: A simple greeting workflow
 
 workflows:
   - source: ./workflow.yaml
 
 models:
   - provider: openai
-    model: gpt-4o-mini
+    model: gpt-4.1-2025-04-14
     api_key: "{{ .env.OPENAI_API_KEY }}"
 
 runtime:
   type: bun
   entrypoint: "./main.ts"
   permissions:
-    - --allow-read
-    - --allow-net
     - --allow-env
 ```
 
 </Step>
-<Step title="Environment Variables" description="Create a `.env` file with your API keys">
+
+<Step title="Environment Variables" description="Create a `.env` file with your API key">
 
 ```bash title=".env"
 OPENAI_API_KEY=your_openai_api_key_here
@@ -89,147 +88,147 @@ OPENAI_API_KEY=your_openai_api_key_here
 
 </Step>
 
-<Step title="Defining your tools" description="Let's now create a tool that will get weather data for a city">
+<Step title="Create a simple tool" description="Create a tool that generates personalized greetings">
 
-```typescript title="weather_tool.ts"
-interface WeatherInput {
-  city: string;
+```typescript title="greeting_tool.ts"
+interface GreetingInput {
+  name: string;
+  style?: string;
 }
 
-interface WeatherOutput {
-  temperature: number;
-  humidity: number;
-  weather: string;
-  city: string;
+interface GreetingOutput {
+  message: string;
+  timestamp: string;
 }
 
-export function weatherTool({ input }: { input: WeatherInput }): WeatherOutput {
-  // TODO: Implement your tool logic here
+export async function greetingTool({ input }: { input: GreetingInput }): Promise<GreetingOutput> {
+  const { name, style = "friendly" } = input;
+
+  const styles = {
+    friendly: `Hello there, ${name}! Hope you're having a great day!`,
+    formal: `Good day, ${name}. It's a pleasure to meet you.`,
+    casual: `Hey ${name}! What's up?`,
+    enthusiastic: `${name}! So excited to meet you! 🎉`
+  };
+
+  const message = styles[style as keyof typeof styles] || styles.friendly;
+
   return {
-    temperature: 22,
-    humidity: 65,
-    weather: "sunny",
-    city: input.city,
-  }
+    message,
+    timestamp: new Date().toISOString()
+  };
 }
 ```
 
-Then create the runtime entrypoint `main.ts`:
+Create the runtime entrypoint:
 
 ```typescript title="main.ts"
-import { weatherTool } from "./weather_tool.ts";
+import { greetingTool } from "./greeting_tool.ts";
 
 export default {
-  "weather_tool": weatherTool,
+  "greeting_tool": greetingTool,
 }
 ```
-
-<Callout type="warning">
-You need to export your tool using the `tool_id` as the key here, if you don't, the tool will not be available in your workflow.
-</Callout>
 
 </Step>
 
-<Step title="Creating your first workflow" description="Workflows are the top-level orchestration units that define a sequence of tasks to accomplish a goal">
+<Step title="Create your workflow" description="Define a simple workflow that generates personalized greetings">
 
 ```yaml title="workflow.yaml"
-id: weather-advisor
+id: hello-world
 version: 0.1.0
-description: Get weather info and activity recommendations
-
-schemas:
-  - id: city_input
-    type: object
-    properties:
-      city:
-        type: string
-        description: The city to get weather for
-    required:
-      - city
+description: Generate personalized greetings
 
 config:
   input:
-    $ref: local::schemas.#(id=="city_input")
+    type: object
+    properties:
+      name:
+        type: string
+        description: The person's name to greet
+      style:
+        type: string
+        description: Greeting style (friendly, formal, casual, enthusiastic)
+        default: friendly
+    required:
+      - name
 
 tools:
-  - id: weather_tool
-    description: Get current weather for a city
+  - id: greeting_tool
+    description: Generate personalized greetings
     input:
-      $ref: local::schemas.#(id=="city_input")
+      type: object
+      properties:
+        name:
+          type: string
+        style:
+          type: string
 
 agents:
-  - id: advisor
+  - id: greeter
     config:
-      # Uses OpenAI from compozy.yaml
       $ref: global::models.#(provider=="openai")
     instructions: |
-      You are a helpful weather advisor.
-      Based on weather data, suggest:
-      1. Appropriate clothing
-      2. Outdoor activities
-      3. Any weather-related tips
-      Respond in a friendly, conversational tone.
+      You are a friendly assistant that creates personalized greetings.
+      Use the greeting tool to generate an appropriate greeting, then enhance it with a thoughtful message.
     tools:
-      - $ref: local::tools.#(id=="weather_tool")
+      - $ref: local::tools.#(id=="greeting_tool")
     actions:
-      - id: get_weather
+      - id: create_greeting
         prompt: |
-          What is the current weather in {{ .workflow.input.city }}?
-      - id: give_advice
-        prompt: |
-          Based on the weather in {{ .workflow.input.city }}:
-          {{ .tasks.get_weather.output | toJson }}
-          Please provide helpful advice for today.
+          Please create a greeting for {{ .workflow.input.name }} using the {{ .workflow.input.style }} style.
+          After generating the greeting, add a brief, personalized message to make it more engaging.
 
 tasks:
-  - id: get_weather
+  - id: greet
     type: basic
-    $use: agent(local::agents.#(id=="advisor"))
-    action: get_weather
-    with:
-      city: "{{ .workflow.input.city }}"
-    on_success:
-      next: get_advice
-
-  - id: get_advice
-    type: basic
-    $use: agent(local::agents.#(id=="advisor"))
-    action: give_advice
+    $use: agent(local::agents.#(id=="greeter"))
+    action: create_greeting
     final: true
 
 outputs:
-  city: "{{ .workflow.input.city }}"
-  weather: "{{ .tasks.get_weather.output }}"
-  advice: "{{ .tasks.get_advice.output }}"
+  greeting: "{{ .tasks.greet.output }}"
+  user: "{{ .workflow.input.name }}"
+  style: "{{ .workflow.input.style }}"
 ```
 
 </Step>
 
-<Step title="Testing your workflow" description="Compozy provides a local development server that you can use to test your workflow">
+<Step title="Test your workflow" description="Start the development server and test your workflow">
 
 ```bash
-# From your project directory
+# Start the development server
 compozy dev
 ```
 
-After running your have a local server running at `http://localhost:3001`.
+Your server will be running at `http://localhost:3001`.
 
 <Tabs items={["Rest Client", "cURL"]}>
 
 <Tab>
-You can use any HTTP client to test your workflow. We high recommend using [Rest Client](https://marketplace.visualstudio.com/items?itemName=humao.rest-client) extension for VSCode because it provides an easy way to test your workflow.
-
 ```http title="test.http"
 @baseUrl = http://localhost:3001/api/v0
-@workflowId = weather-advisor
+@workflowId = hello-world
 
-### Execute the workflow
+### Execute the workflow with friendly greeting
 POST {{baseUrl}}/workflows/{{workflowId}}/execute
 Content-Type: application/json
 
 {
   "input": {
-    "city": "San Francisco"
+    "name": "Alice",
+    "style": "friendly"
+  }
+}
+
+### Execute with formal greeting
+POST {{baseUrl}}/workflows/{{workflowId}}/execute
+Content-Type: application/json
+
+{
+  "input": {
+    "name": "Bob",
+    "style": "formal"
   }
 }
 
@@ -237,20 +236,15 @@ Content-Type: application/json
 @execId = {{exec.response.body.data.exec_id}}
 GET {{baseUrl}}/executions/{{execId}}
 ```
-
 </Tab>
 
 <Tab>
-
-Or you can use cURL to test your workflow.
-
 ```bash
 # Execute the workflow
-curl -X POST http://localhost:8000/api/v0/workflows/weather-advisor/execute \
+curl -X POST http://localhost:3001/api/v0/workflows/hello-world/execute \
   -H "Content-Type: application/json" \
-  -d '{"input": {"city": "San Francisco"}}'
+  -d '{"input": {"name": "Alice", "style": "friendly"}}'
 ```
-
 </Tab>
 </Tabs>
 
@@ -265,14 +259,9 @@ Your workflow will return something like:
   "execution_id": "exec_123456",
   "status": "completed",
   "outputs": {
-    "city": "San Francisco",
-    "weather": {
-      "temperature": 22,
-      "humidity": 65,
-      "weather": "partly cloudy",
-      "city": "San Francisco"
-    },
-    "advice": "Great weather in San Francisco today! With 22°C and partly cloudy skies, it's perfect for outdoor activities. I'd recommend:\n\n1. **Clothing**: Light layers - a t-shirt with a light sweater or jacket for when the fog rolls in\n2. **Activities**: Perfect for walking, cycling, or visiting outdoor attractions like Golden Gate Park\n3. **Tips**: San Francisco weather can change quickly, so keep a light jacket handy!"
+    "greeting": "Hello there, Alice! Hope you're having a great day! I'm delighted to meet you and I hope this greeting brings a smile to your face. Welcome to the wonderful world of Compozy workflows!",
+    "user": "Alice",
+    "style": "friendly"
   }
 }
 ```
@@ -282,7 +271,7 @@ Your workflow will return something like:
 
 ## Behind the Scenes
 
-Here's what actually happens when you execute a Compozy workflow:
+Here's what happens when you execute this simple workflow:
 
 <Mermaid chart={`sequenceDiagram
     participant Client
@@ -291,11 +280,11 @@ Here's what actually happens when you execute a Compozy workflow:
     participant Temporal
     participant Executor as Task Executor
     participant Runtime as Bun Runtime
-    participant LLM as OpenAI
+    participant LLM as GPT-4.1
     participant DB as PostgreSQL
 
-    Client->>API: POST /workflows/weather-advisor/execute
-    API->>Worker: TriggerWorkflow(input: {city: "SF"})
+    Client->>API: POST /workflows/hello-world/execute
+    API->>Worker: TriggerWorkflow(input: {name: "Alice", style: "friendly"})
     Worker->>Worker: Validate input & Generate exec ID
     Worker->>Temporal: StartWorkflow(CompozyWorkflow)
 
@@ -303,21 +292,14 @@ Here's what actually happens when you execute a Compozy workflow:
     Temporal->>Executor: Execute Activity: TriggerWorkflow
     Executor->>DB: Create workflow state (status: running)
 
-    Note over Temporal,Runtime: Task 1: get_weather (Basic Task + Agent)
-    Temporal->>Executor: Execute Activity: Task[get_weather]
+    Note over Temporal,Runtime: Task: greet (Basic Task + Agent)
+    Temporal->>Executor: Execute Activity: Task[greet]
     Executor->>DB: Create task state
-    Executor->>LLM: GenerateContent(action: get_weather)
+    Executor->>LLM: GenerateContent(action: create_greeting)
     LLM->>LLM: Process with tool definitions
-    LLM->>Runtime: Execute weather_tool({city: "SF"})
-    Runtime-->>LLM: {temp: 22, weather: "sunny"}
-    LLM-->>Executor: Complete with tool result
-    Executor->>DB: Update task state (status: completed)
-
-    Note over Temporal,LLM: Task 2: get_advice (Basic Task + Agent)
-    Temporal->>Executor: Execute Activity: Task[get_advice]
-    Executor->>DB: Create task state
-    Executor->>LLM: GenerateContent(action: give_advice)
-    LLM-->>Executor: Generated advice text
+    LLM->>Runtime: Execute greeting_tool({name: "Alice", style: "friendly"})
+    Runtime-->>LLM: {message: "Hello there, Alice! Hope you're having a great day!", timestamp: "2024-01-01T12:00:00Z"}
+    LLM-->>Executor: Complete with enhanced greeting
     Executor->>DB: Update task state (status: completed)
 
     Note over Temporal: Workflow completion
@@ -327,65 +309,65 @@ Here's what actually happens when you execute a Compozy workflow:
     Worker-->>API: Execution result
     API-->>Client: {exec_id, status, outputs}`} />
 
-<List>
+<List className="mt-12">
   <ListItem title="HTTP API Layer">
-    The WorkflowController receives your request at `/api/v0/workflows/{id}/execute`
+    The WorkflowController receives your request at `/api/v0/workflows/hello-world/execute`
   </ListItem>
-  <ListItem title="Worker Service Validation">
-    Validates input against JSON schema, generates unique execution ID, and loads workflow configuration
+  <ListItem title="Input Validation">
+    The system validates that the required `name` field is provided and the optional `style` field is valid
   </ListItem>
   <ListItem title="Temporal Workflow Engine">
-    Provides durable execution that survives crashes, manages retry logic with exponential backoff, and records complete execution history
+    Provides durable execution that survives crashes and manages the workflow lifecycle
   </ListItem>
-  <ListItem title="Task Execution Loop">
-    Each task runs as a Temporal activity with built-in retry policies and transactional state persistence
+  <ListItem title="Task Execution">
+    The single `greet` task runs with the greeter agent, which uses the greeting tool to generate a response
   </ListItem>
   <ListItem title="Agent Intelligence">
-    LLM receives custom instructions and tool definitions, autonomously decides when to call tools, with execution in sandboxed Deno/Bun runtime
+    GPT-4.1 receives the greeting instructions and autonomously calls the greeting tool, then enhances the response
   </ListItem>
-  <ListItem title="State Management">
-    PostgreSQL stores workflow and task states with optimistic locking and complete audit trail
+  <ListItem title="Tool Execution">
+    The greeting tool runs in the sandboxed Bun runtime and returns a structured response
   </ListItem>
 </List>
 
-## Key Architectural Benefits
+## Key Benefits
 
 <FeatureCardList cols={3} size="sm">
   <FeatureCard
-    title="Fault Tolerance"
-    description="Temporal ensures workflows continue from where they left off after failures"
+    title="Simple & Fast"
+    description="Get started in minutes with minimal configuration"
+    icon={Rocket}
+  />
+  <FeatureCard
+    title="AI-Powered"
+    description="Agents intelligently use tools to accomplish tasks"
+    icon={BrainCircuit}
+  />
+  <FeatureCard
+    title="Fault Tolerant"
+    description="Workflows automatically recover from failures"
     icon={ShieldCheck}
   />
   <FeatureCard
-    title="Scalability"
-    description="Multiple workers can process workflows concurrently across distributed nodes"
-    icon={TrendingUp}
+    title="Type Safe"
+    description="Full TypeScript support with schema validation"
+    icon={Code}
   />
   <FeatureCard
-    title="Observability"
-    description="Complete execution history available in Temporal Web UI for debugging"
+    title="Extensible"
+    description="Easy to add new tools, agents, and capabilities"
+    icon={Package}
+  />
+  <FeatureCard
+    title="Observable"
+    description="Complete execution history and monitoring"
     icon={Eye}
-  />
-  <FeatureCard
-    title="Flexibility"
-    description="Support for parallel, sequential, conditional, and collection-based task execution"
-    icon={Layers}
-  />
-  <FeatureCard
-    title="Security"
-    description="Sandboxed tool execution with configurable runtime permissions (read, network, env)"
-    icon={Lock}
-  />
-  <FeatureCard
-    title="Retry Intelligence"
-    description="Configurable retry policies with exponential backoff and non-retryable error types"
-    icon={RefreshCw}
   />
 </FeatureCardList>
 
 ## Next Steps
 
-Congratulations! You've built your first Compozy workflow. Now you are ready to explore more advanced features.
+Congratulations! You've built your first Compozy workflow. This simple example demonstrates the core concepts of agents, tools, and workflows working together.
 
 ### Learning Pathways
 

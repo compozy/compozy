@@ -316,25 +316,48 @@ actions:
 
 **Tools** are TypeScript/JavaScript functions that perform specific operations like API calls, data processing, or file operations. [Learn more about tool development →](/docs/core/tools/tools-overview)
 
-```typescript title="weather_tool.ts"
-interface WeatherInput {
-  city: string;
+```typescript title="claude_analyzer.ts"
+import { query } from "@anthropic-ai/claude-code";
+
+interface ClaudeAnalyzerInput {
+  prompt: string;
 }
 
-interface WeatherOutput {
-  temperature: number;
-  humidity: number;
-  weather: string;
-  city: string;
+interface ClaudeAnalyzerOutput {
+  analysis_result: string;
+  success: boolean;
 }
 
-export function weatherTool({ input }: { input: WeatherInput }): WeatherOutput {
-  // TODO: Implement your tool logic here
-  return {
-    temperature: 22,
-    humidity: 65,
-    weather: "sunny",
-    city: input.city,
+export async function claudeCodeAnalyzer(
+  input: ClaudeAnalyzerInput
+): Promise<ClaudeAnalyzerOutput> {
+  try {
+    let analysisResult = "";
+
+    // Use Claude Code SDK for analysis
+    for await (const message of query({
+      prompt: input.prompt,
+      options: {
+        outputFormat: "text",
+        maxTurns: 1,
+      },
+    })) {
+      if (message.type === "assistant" && message.content) {
+        analysisResult = message.content;
+        break;
+      }
+    }
+
+    if (!analysisResult) {
+      throw new Error("No analysis result generated from Claude Code");
+    }
+
+    return {
+      analysis_result: analysisResult,
+      success: true,
+    };
+  } catch (error: any) {
+    throw new Error(`Claude Code analysis failed: ${error.message}`);
   }
 }
 ```
@@ -342,18 +365,16 @@ export function weatherTool({ input }: { input: WeatherInput }): WeatherOutput {
 **Tool configuration:**
 ```yaml title="Tool Configuration"
 tools:
-  - id: weather_service
-    description: Get current weather and forecast
+  - id: claude_code_analyzer
+    description: Analyzes Go code using Claude Code SDK
     input:
       type: object
       properties:
-        city:
+        prompt:
           type: string
-        units:
-          type: string
-          enum: [metric, imperial]
-          default: metric
-      required: [city]
+          description: Analysis prompt for Claude Code SDK
+      required:
+        - prompt
 ```
 
 **Key characteristics:**

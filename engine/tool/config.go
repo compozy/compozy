@@ -41,7 +41,7 @@ import (
 //
 // Tools support multiple execution patterns:
 //
-// - **JavaScript/TypeScript modules** executed via Deno runtime
+// - **JavaScript/TypeScript modules** executed via Bun runtime
 // - **External command-line utilities** with process isolation
 // - **HTTP API endpoints** for remote service integration
 // - **Model Context Protocol (MCP) servers** for advanced tool capabilities
