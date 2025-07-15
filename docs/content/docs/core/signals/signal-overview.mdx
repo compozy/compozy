@@ -3,9 +3,59 @@ title: Signal System Overview
 description: Comprehensive guide to Compozy's signal system for inter-workflow communication and event-driven patterns
 ---
 
+import {
+  Signal,
+  Radio,
+  MessageSquare,
+  Zap,
+  Clock,
+  Network,
+  CheckCircle,
+  AlertCircle,
+  ArrowRight,
+  Users,
+  Database,
+  Workflow,
+  GitBranch,
+  Share,
+  Bell,
+  Timer,
+  RefreshCw,
+  Code,
+  Settings,
+  Shield,
+  TrendingUp,
+  FileText,
+  AlertTriangle,
+  CheckCircle2,
+  Info,
+  BookOpen,
+  ExternalLink,
+  Link,
+  Layers,
+  Activity,
+  Target,
+  Repeat,
+  Box,
+  Play,
+  Pause,
+  Route,
+  Gauge,
+} from "lucide-react";
+import { FeatureCard, FeatureCardList } from "@/components/ui/feature-card";
+import { ReferenceCard, ReferenceCardList } from "@/components/ui/reference-card";
+import { Callout } from "@/components/ui/callout";
+import { Tabs, Tab } from "@/components/ui/tabs";
+import { Steps, Step } from "@/components/ui/step";
+import { Mermaid } from "@/components/ui/mermaid";
+
 # Signal System Overview
 
 Compozy's signal system provides **event-driven communication** between workflows and tasks, enabling sophisticated coordination patterns and decoupled architectures. Signals allow workflows to communicate asynchronously, coordinate complex processes, and implement reactive patterns.
+
+<Callout type="info" title="Key Insight">
+Signals use **Redis** for high-performance message dispatch, ensuring reliable delivery and scalability across distributed workflow systems.
+</Callout>
 
 ## Core Concepts
 
@@ -13,41 +63,99 @@ Compozy's signal system provides **event-driven communication** between workflow
 
 Signals are **lightweight messages** that can be sent between workflows to trigger actions, share data, or coordinate execution. They provide a publish-subscribe mechanism that enables:
 
-- **Inter-workflow communication**: Different workflows can coordinate through signals
-- **Event-driven patterns**: React to events and state changes across the system
-- **Asynchronous coordination**: Workflows can proceed independently while signaling completion
-- **Data sharing**: Pass structured data between workflows through signal payloads
+<FeatureCardList cols={2} size="sm">
+  <FeatureCard
+    title="Inter-workflow Communication"
+    description="Different workflows can coordinate through signals"
+    icon={Network}
+  />
+  <FeatureCard
+    title="Event-driven Patterns"
+    description="React to events and state changes across the system"
+    icon={Zap}
+  />
+  <FeatureCard
+    title="Asynchronous Coordination"
+    description="Workflows can proceed independently while signaling completion"
+    icon={Clock}
+  />
+  <FeatureCard
+    title="Data Sharing"
+    description="Pass structured data between workflows through signal payloads"
+    icon={Share}
+  />
+</FeatureCardList>
 
 ### Signal Components
 
-The signal system consists of three main components:
+The signal system consists of three main components that work together:
 
-| Component | Purpose | Example |
-|-----------|---------|---------|
-| **Signal Tasks** | Send signals to the system | User approval, payment completion |
-| **Wait Tasks** | Listen for specific signals | Wait for approval, await payment |
-| **Signal Dispatcher** | Routes signals to waiting tasks | Internal messaging system |
+<FeatureCardList cols={3} size="sm">
+  <FeatureCard
+    title="Signal Tasks"
+    description="Send signals to the system with structured payloads"
+    icon={Radio}
+  />
+  <FeatureCard
+    title="Wait Tasks"
+    description="Listen for specific signals with optional conditions"
+    icon={Timer}
+  />
+  <FeatureCard
+    title="Signal Dispatcher"
+    description="Routes signals to waiting tasks via Redis backend"
+    icon={Activity}
+  />
+</FeatureCardList>
 
 ## How Signals Work
 
-```mermaid
-graph TD
+<Mermaid chart={`graph TD
     A[Workflow A] --> B[Signal Task]
-    B --> C[Signal Dispatcher]
+    B --> C[Signal Dispatcher<br/>Redis Backend]
     C --> D[Wait Task]
     D --> E[Workflow B]
     
-    B -.-> F[Signal Payload]
+    B -.-> F[Signal Payload<br/>JSON Data]
     F -.-> D
-```
+    
+    style B fill:#e1f5fe
+    style D fill:#f3e5f5
+    style C fill:#fff3e0`} />
 
 ### Signal Flow
 
-1. **Emission**: A signal task sends a signal with an ID and optional payload
-2. **Dispatch**: The signal dispatcher routes the signal to waiting tasks
-3. **Reception**: Wait tasks with matching signal IDs receive the signal
-4. **Processing**: Optional processors can transform signal data
-5. **Continuation**: Waiting workflows resume execution
+<Steps numbered size="sm">
+  <Step title="Emission" description="A signal task sends a signal with an ID and optional payload" icon={Play}>
+    
+The signal task uses `type: signal` with a `signal.id` and optional `signal.payload` structure.
+
+  </Step>
+  
+  <Step title="Dispatch" description="The signal dispatcher routes the signal to waiting tasks" icon={Activity}>
+    
+Redis handles high-performance message routing and ensures reliable delivery to all matching wait tasks.
+
+  </Step>
+  
+  <Step title="Reception" description="Wait tasks with matching signal IDs receive the signal" icon={Target}>
+    
+Wait tasks using `type: wait` and `wait_for` receive signals with matching IDs.
+
+  </Step>
+  
+  <Step title="Processing" description="Optional processors can transform signal data" icon={Code}>
+    
+Optional processors can transform signal data using agents or tools before continuing workflow execution.
+
+  </Step>
+  
+  <Step title="Continuation" description="Waiting workflows resume execution" icon={ArrowRight}>
+    
+Workflows resume with signal data available in the execution context.
+
+  </Step>
+</Steps>
 
 ## Basic Example
 
@@ -86,7 +194,12 @@ graph TD
 
 ## Signal Types and Patterns
 
-### 1. Notification Signals
+Different signal patterns serve various coordination needs:
+
+<Tabs items={["Notification", "Data Transfer", "Status Change"]}>
+<Tab>
+
+### Notification Signals
 
 Simple event notifications without complex data:
 
@@ -98,7 +211,24 @@ signal:
     timestamp: "{{ now }}"
 ```
 
-### 2. Data Transfer Signals
+<FeatureCardList cols={2} size="sm">
+  <FeatureCard
+    title="Lightweight"
+    description="Minimal data, maximum efficiency"
+    icon={Bell}
+  />
+  <FeatureCard
+    title="Event-driven"
+    description="Trigger reactions to system events"
+    icon={Zap}
+  />
+</FeatureCardList>
+
+</Tab>
+
+<Tab>
+
+### Data Transfer Signals
 
 Signals carrying rich data payloads:
 
@@ -112,7 +242,24 @@ signal:
     customer_data: "{{ .workflow.input.customer }}"
 ```
 
-### 3. Status Change Signals
+<FeatureCardList cols={2} size="sm">
+  <FeatureCard
+    title="Rich Payloads"
+    description="Transfer complex structured data"
+    icon={Database}
+  />
+  <FeatureCard
+    title="Cross-Workflow"
+    description="Share data between workflows"
+    icon={Share}
+  />
+</FeatureCardList>
+
+</Tab>
+
+<Tab>
+
+### Status Change Signals
 
 Workflow state transition notifications:
 
@@ -126,7 +273,44 @@ signal:
     reason: "{{ .task.output.reason }}"
 ```
 
+<FeatureCardList cols={2} size="sm">
+  <FeatureCard
+    title="State Tracking"
+    description="Monitor workflow state changes"
+    icon={Activity}
+  />
+  <FeatureCard
+    title="Audit Trail"
+    description="Maintain change history"
+    icon={FileText}
+  />
+</FeatureCardList>
+
+</Tab>
+</Tabs>
+
 ## Advanced Signal Features
+
+<FeatureCardList cols={3} size="sm">
+  <FeatureCard
+    title="Conditional Processing"
+    description="Filter signals with custom conditions"
+    icon={Route}
+  />
+  <FeatureCard
+    title="Signal Timeouts"
+    description="Handle scenarios where signals may not arrive"
+    icon={Timer}
+  />
+  <FeatureCard
+    title="Multi-Signal Coordination"
+    description="Coordinate multiple signals for complex workflows"
+    icon={GitBranch}
+  />
+</FeatureCardList>
+
+<Tabs items={["Conditional Processing", "Signal Timeouts", "Multi-Signal Coordination"]}>
+<Tab>
 
 ### Conditional Signal Processing
 
@@ -142,6 +326,14 @@ Wait tasks can include conditions to filter signals:
     with:
       priority_order: "{{ .signal.payload }}"
 ```
+
+<Callout type="info">
+Use JavaScript expressions in conditions to filter signals based on payload content, enabling selective processing.
+</Callout>
+
+</Tab>
+
+<Tab>
 
 ### Signal Timeouts
 
@@ -159,6 +351,14 @@ Handle scenarios where signals may not arrive:
     with:
       approval_data: "{{ .signal.payload }}"
 ```
+
+<Callout type="warning">
+Always implement timeout handling for external signals to prevent workflows from hanging indefinitely.
+</Callout>
+
+</Tab>
+
+<Tab>
 
 ### Multi-Signal Coordination
 
@@ -178,9 +378,37 @@ Coordinate multiple signals for complex workflows:
       wait_for: "legal-approved"
 ```
 
+<Callout type="success">
+Use composite tasks to coordinate multiple signals, ensuring all required approvals are received before proceeding.
+</Callout>
+
+</Tab>
+</Tabs>
+
 ## Signal Best Practices
 
-### 1. Naming Conventions
+<FeatureCardList cols={3} size="sm">
+  <FeatureCard
+    title="Naming Conventions"
+    description="Use descriptive, consistent signal names"
+    icon={FileText}
+  />
+  <FeatureCard
+    title="Payload Structure"
+    description="Include essential context in signal payloads"
+    icon={Database}
+  />
+  <FeatureCard
+    title="Error Handling"
+    description="Plan for signal failures and timeouts"
+    icon={Shield}
+  />
+</FeatureCardList>
+
+<Tabs items={["Naming Conventions", "Payload Structure", "Error Handling"]}>
+<Tab>
+
+### Naming Conventions
 
 Use descriptive, consistent signal names:
 
@@ -198,7 +426,15 @@ signal:
   id: "signal1"
 ```
 
-### 2. Payload Structure
+<Callout type="info" title="Best Practice">
+Use **action-object** naming pattern: `payment-completed`, `user-registered`, `document-processed`.
+</Callout>
+
+</Tab>
+
+<Tab>
+
+### Payload Structure
 
 Include essential context in signal payloads:
 
@@ -214,7 +450,15 @@ signal:
     items_count: "{{ .order.items | length }}"
 ```
 
-### 3. Error Handling
+<Callout type="success" title="Payload Guidelines">
+Always include enough context for receivers to process the signal without additional lookups.
+</Callout>
+
+</Tab>
+
+<Tab>
+
+### Error Handling
 
 Plan for signal failures and timeouts:
 
@@ -233,9 +477,37 @@ Plan for signal failures and timeouts:
       response: "{{ .signal.payload }}"
 ```
 
+<Callout type="warning" title="Resilience">
+Always implement timeout and error handling for external signals to maintain workflow reliability.
+</Callout>
+
+</Tab>
+</Tabs>
+
 ## Use Cases
 
-### 1. Approval Workflows
+<FeatureCardList cols={3} size="sm">
+  <FeatureCard
+    title="Approval Workflows"
+    description="Human approval processes and business logic"
+    icon={CheckCircle}
+  />
+  <FeatureCard
+    title="Service Coordination"
+    description="Coordinate distributed services and microservices"
+    icon={Network}
+  />
+  <FeatureCard
+    title="Event-Driven Pipelines"
+    description="Data processing and event-driven architectures"
+    icon={Workflow}
+  />
+</FeatureCardList>
+
+<Tabs items={["Approval Workflows", "Service Coordination", "Event-Driven Pipelines"]}>
+<Tab>
+
+### Human Approval Processes
 
 ```yaml
 # Human approval process
@@ -259,7 +531,15 @@ Plan for signal failures and timeouts:
       instructions: "Process approval request"
 ```
 
-### 2. Service Coordination
+<Callout type="info" title="Use Case">
+Perfect for business processes requiring human intervention: budget approvals, content moderation, manual reviews.
+</Callout>
+
+</Tab>
+
+<Tab>
+
+### Service Coordination
 
 ```yaml
 # Service A completion
@@ -280,7 +560,15 @@ Plan for signal failures and timeouts:
       service_a_result: "{{ .signal.payload.result }}"
 ```
 
-### 3. Event-Driven Pipelines
+<Callout type="success" title="Microservices">
+Enable loose coupling between services while maintaining coordination and data flow.
+</Callout>
+
+</Tab>
+
+<Tab>
+
+### Event-Driven Pipelines
 
 ```yaml
 # Data pipeline trigger
@@ -305,9 +593,67 @@ Plan for signal failures and timeouts:
       dataset: "{{ .signal.payload.dataset_id }}"
 ```
 
+<Callout type="info" title="Event-Driven Architecture">
+Build reactive systems that respond to data changes and system events automatically.
+</Callout>
+
+</Tab>
+</Tabs>
+
 ## Next Steps
 
-- Learn about [Signal Tasks](/docs/core/signals/signal-tasks) for sending signals
-- Explore [Wait Tasks](/docs/core/signals/wait-tasks) for receiving signals
-- Understand [Signal Triggers](/docs/core/signals/signal-triggers) for workflow initiation
-- Review [Advanced Patterns](/docs/core/signals/advanced-patterns) for complex scenarios
+<ReferenceCardList>
+  <ReferenceCard
+    title="Signal Tasks"
+    description="Learn to send signals with structured payloads and trigger coordination"
+    href="/docs/core/signals/signal-tasks"
+    icon={Radio}
+  />
+  <ReferenceCard
+    title="Wait Tasks"
+    description="Explore receiving signals with conditions, timeouts, and processors"
+    href="/docs/core/signals/wait-tasks"
+    icon={Timer}
+  />
+  <ReferenceCard
+    title="Signal Triggers"
+    description="Understand workflow initiation and signal-based automation"
+    href="/docs/core/signals/signal-triggers"
+    icon={Play}
+  />
+  <ReferenceCard
+    title="Advanced Patterns"
+    description="Review complex scenarios and signal coordination strategies"
+    href="/docs/core/signals/advanced-patterns"
+    icon={GitBranch}
+  />
+  <ReferenceCard
+    title="Event API"
+    description="REST API for programmatic signal management and monitoring"
+    href="/docs/core/signals/event-api"
+    icon={Code}
+  />
+</ReferenceCardList>
+
+### Related Documentation
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Task Types"
+    description="Understand all task types including signal and wait tasks"
+    href="/docs/core/tasks/basic-tasks"
+    icon={Box}
+  />
+  <ReferenceCard
+    title="Workflow Orchestration"
+    description="Learn workflow coordination patterns and best practices"
+    href="/docs/core/workflows/orchestration"
+    icon={Workflow}
+  />
+  <ReferenceCard
+    title="Redis Configuration"
+    description="Configure Redis backend for signal dispatch and persistence"
+    href="/docs/core/configuration/redis"
+    icon={Database}
+  />
+</ReferenceCardList>

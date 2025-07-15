@@ -440,4 +440,280 @@ nlp_pipeline:
     - $ref: local::nlp_tasks.#(stage=="sentiment")
 ```
 
+## Global Value References
+
+The template engine supports global value sharing across templates using the `AddGlobalValue()` function. This enables cross-template and cross-workflow data sharing:
+
+### Setting Global Values
+
+```yaml
+# Set global values from workflow context
+tasks:
+  - id: set_global_config
+    type: basic
+    $use: tool(local::tools.#(id="config_manager"))
+    with:
+      global_key: "app_config"
+      config_data:
+        version: "1.0.0"
+        environment: "{{ .env.ENVIRONMENT }}"
+        features:
+          - authentication
+          - logging
+          - monitoring
+```
+
+### Using Global Values in References
+
+```yaml
+# Reference global values in directives
+model:
+  $ref: global::models.#(provider=="{{ .global.preferred_provider }}")
+  
+tools:
+  - $ref: global::tools.#(environment=="{{ .global.environment }}")
+  
+agents:
+  - $ref: global::agents.#(version=="{{ .global.agent_version }}")
+```
+
+### Global Value Patterns
+
+```yaml
+# Global configuration management
+global_config:
+  # System-wide settings
+  system:
+    timeout: "{{ .global.system_timeout | default 30 }}"
+    retries: "{{ .global.system_retries | default 3 }}"
+    
+  # Environment-specific settings
+  environment:
+    database_url: "{{ .global.db_config[.env.ENVIRONMENT].url }}"
+    cache_ttl: "{{ .global.cache_config[.env.ENVIRONMENT].ttl }}"
+    
+  # Feature flags
+  features:
+    new_ui: "{{ .global.feature_flags.new_ui | default false }}"
+    advanced_analytics: "{{ .global.feature_flags.advanced_analytics | default false }}"
+```
+
+## Dynamic Directives
+
+Directives can be dynamically constructed using template expressions:
+
+### Dynamic Reference Construction
+
+```yaml
+# Dynamic tool selection based on input
+tasks:
+  - id: dynamic_processing
+    type: basic
+    $use: tool(local::tools.#(id=="{{ .workflow.input.tool_type }}_processor"))
+    with:
+      data: "{{ .workflow.input.data }}"
+      mode: "{{ .workflow.input.processing_mode }}"
+      
+  # Dynamic agent selection based on user role
+  - id: role_based_agent
+    type: basic
+    $use: agent(local::agents.#(role=="{{ .workflow.input.user_role }}"))
+    with:
+      user_context: "{{ .workflow.input.user_context }}"
+```
+
+### Dynamic Schema References
+
+```yaml
+# Dynamic schema selection
+schemas:
+  - id: dynamic_input
+    $ref: local::schemas.#(type=="{{ .workflow.input.data_type }}_input")
+  - id: dynamic_output
+    $ref: local::schemas.#(type=="{{ .workflow.input.data_type }}_output")
+    
+# Dynamic validation rules
+validation:
+  input_schema:
+    $ref: local::schemas.#(version=="{{ .global.schema_version }}" && type=="input")
+  output_schema:
+    $ref: local::schemas.#(version=="{{ .global.schema_version }}" && type=="output")
+```
+
+### Environment-Based References
+
+```yaml
+# Environment-specific resource selection
+model:
+  $ref: global::models.#(environment=="{{ .env.DEPLOYMENT_ENV }}")
+  
+tools:
+  - $ref: global::tools.#(environment=="{{ .env.DEPLOYMENT_ENV }}" && type=="database")
+  - $ref: global::tools.#(environment=="{{ .env.DEPLOYMENT_ENV }}" && type=="cache")
+  
+agents:
+  - $ref: global::agents.#(environment=="{{ .env.DEPLOYMENT_ENV }}" && capability=="nlp")
+```
+
+## Advanced Resource Referencing
+
+### Conditional Resource Loading
+
+```yaml
+# Load resources conditionally
+tools:
+  # Always load core tools
+  - $ref: local::tools.#(category=="core")
+  
+  # Load optional tools based on feature flags
+  - $ref: |
+      {{- if .global.feature_flags.advanced_processing -}}
+      local::tools.#(category=="advanced")
+      {{- else -}}
+      local::tools.#(category=="basic")
+      {{- end -}}
+      
+  # Load environment-specific tools
+  - $ref: |
+      {{- if eq .env.ENVIRONMENT "production" -}}
+      local::tools.#(category=="production" && verified=="true")
+      {{- else -}}
+      local::tools.#(category=="development")
+      {{- end -}}
+```
+
+### Resource Composition Patterns
+
+```yaml
+# Compose resources from multiple sources
+composed_config:
+  # Base configuration
+  base:
+    $ref: local::configs.#(type=="base")
+    
+  # Environment overrides
+  environment:
+    $ref: global::configs.#(environment=="{{ .env.ENVIRONMENT }}")
+    
+  # Feature-specific additions
+  features:
+    $ref: local::configs.#(features contains "{{ .workflow.input.feature }}")
+    
+  # Final merged configuration
+  merged: |
+    {{- $base := .refs.base -}}
+    {{- $env := .refs.environment -}}
+    {{- $features := .refs.features -}}
+    {{- merge $base $env $features | toJson -}}
+```
+
+### Multi-Level Resource References
+
+```yaml
+# Reference resources at different levels
+resource_hierarchy:
+  # System-level resources
+  system:
+    - $ref: global::system.#(type=="core")
+    - $ref: global::system.#(type=="monitoring")
+    
+  # Application-level resources
+  application:
+    - $ref: local::application.#(module=="auth")
+    - $ref: local::application.#(module=="data")
+    
+  # User-level resources
+  user:
+    - $ref: resource::user::#(id=="{{ .workflow.input.user_id }}")
+    
+  # Context-specific resources
+  context:
+    - $ref: |
+        {{- $context := .workflow.input.context -}}
+        {{- range $key, $value := $context -}}
+        resource::context::#(key=="{{ $key }}" && value=="{{ $value }}")
+        {{- end -}}
+```
+
+## Error Handling for Missing References
+
+### Graceful Reference Fallbacks
+
+```yaml
+# Provide multiple fallback options
+primary_tool:
+  $ref: local::tools.#(id=="preferred_tool" && version=="latest")
+  
+# Fallback chain
+fallback_tools:
+  - $ref: local::tools.#(id=="preferred_tool" && version=="latest")
+  - $ref: local::tools.#(id=="preferred_tool" && version=="stable")
+  - $ref: local::tools.#(id=="backup_tool" && version=="latest")
+  - $ref: local::tools.#(id=="default_tool")
+```
+
+### Error-Resilient References
+
+```yaml
+# Handle missing references gracefully
+tasks:
+  - id: resilient_task
+    type: basic
+    $use: |
+      {{- if .tools.advanced_processor -}}
+      tool(local::tools.#(id=="advanced_processor"))
+      {{- else if .tools.standard_processor -}}
+      tool(local::tools.#(id=="standard_processor"))
+      {{- else -}}
+      tool(local::tools.#(id=="basic_processor"))
+      {{- end -}}
+    with:
+      data: "{{ .workflow.input.data }}"
+      mode: "{{ .workflow.input.mode | default 'safe' }}"
+```
+
+### Reference Validation
+
+```yaml
+# Validate references before use
+validation:
+  required_tools:
+    - name: "data_processor"
+      reference: "local::tools.#(id=='data_processor')"
+      required: true
+    - name: "backup_processor"
+      reference: "local::tools.#(id=='backup_processor')"
+      required: false
+      
+  validation_task:
+    type: basic
+    $use: tool(local::tools.#(id=="validator"))
+    with:
+      references: "{{ .validation.required_tools | toJson }}"
+      context: "{{ . | toJson }}"
+```
+
+### Reference Debugging
+
+```yaml
+# Debug reference resolution
+debug_references:
+  # List all available references
+  available_tools: "{{ keys .tools | sort | join ', ' }}"
+  available_agents: "{{ keys .agents | sort | join ', ' }}"
+  available_schemas: "{{ keys .schemas | sort | join ', ' }}"
+  
+  # Test reference resolution
+  test_references:
+    - reference: "local::tools.#(id=='test_tool')"
+      resolved: "{{ hasKey .tools 'test_tool' }}"
+    - reference: "global::models.#(provider=='openai')"
+      resolved: "{{ hasKey .global.models 'openai' }}"
+      
+  # Debug reference filters
+  filter_debug:
+    all_tools: "{{ .tools | toPrettyJson }}"
+    filtered_tools: "{{ .tools | selectKeys (list 'category' 'nlp') | toPrettyJson }}"
+```
+
 Template directives enable powerful composition and modularity in Compozy configurations. Next, explore [Sprig Functions](./sprig-functions) to learn about data transformation capabilities.

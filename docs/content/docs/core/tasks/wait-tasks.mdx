@@ -1,0 +1,953 @@
+---
+title: Wait Tasks
+description: Complete guide to wait tasks for synchronization, delays, and signal-based coordination in Compozy workflows
+---
+
+Wait tasks enable synchronization and coordination patterns in Compozy workflows. They pause execution until specific conditions are met, signals are received, or timeouts occur. This makes them essential for event-driven architectures, workflow coordination, and external system integration.
+
+## Related Documentation
+
+### 🔗 Cross-References
+- **[Core Concepts: Tasks](/docs/core/getting-started/core-concepts#2-tasks)** - Tasks in workflow context
+- **[Signal System Overview](/docs/core/signals/signal-overview)** - Understanding signal-based communication
+- **[Signal Tasks](/docs/core/signals/signal-tasks)** - Sending signals for coordination
+- **[Signal Triggers](/docs/core/signals/signal-triggers)** - Starting workflows with signals
+
+### ⚙️ Task-Related Topics
+- **Wait Tasks** ↔ **[Basic Tasks](/docs/core/tasks/basic-tasks)** ↔ **[Parallel Processing](/docs/core/tasks/parallel-processing)**
+- **Synchronization** ↔ **[Workflow Configuration](/docs/core/configuration/workflows)** ↔ **[Event API](/docs/core/signals/event-api)**
+- **Coordination** ↔ **[Advanced Patterns](/docs/core/signals/advanced-patterns)** ↔ **[Flow Control](/docs/core/tasks/flow-control)**
+
+## Overview
+
+Wait tasks provide three primary waiting mechanisms:
+
+- **Signal-Based Waiting**: Pause until specific signals arrive from other workflows or external systems
+- **Timeout-Based Delays**: Wait for a specified duration before continuing execution
+- **Condition-Based Waiting**: Wait until specific conditions are met (future capability)
+
+<Callout type="info">
+Wait tasks are commonly used for human approvals, external API callbacks, batch processing coordination, and multi-workflow synchronization patterns.
+</Callout>
+
+## Task Structure
+
+### Basic Wait Task Configuration
+
+```yaml
+id: wait-for-approval
+type: wait
+wait_for: "approval-signal"
+timeout: 5m
+
+# Optional signal processing
+processor:
+  type: basic
+  $use: tool(local::tools.#(id=="approval-processor"))
+  with:
+    signal_data: "{{ .signal.payload }}"
+
+# Optional timeout handling
+on_timeout: handle-timeout-case
+
+outputs:
+  signal_received: "{{ not .task.timed_out }}"
+  wait_duration: "{{ .task.duration }}"
+  signal_data: "{{ .signal.payload }}"
+```
+
+### Required Fields
+
+| Field | Type | Description | Example |
+|-------|------|-------------|---------|
+| `type` | string | Must be `wait` | `wait` |
+| `wait_for` | string | Signal ID to wait for | `"approval-signal"` |
+| `timeout` | duration | Maximum wait time | `5m`, `300s`, `1h` |
+
+### Optional Fields
+
+| Field | Type | Description | Example |
+|-------|------|-------------|---------|
+| `processor` | Config | Task to process received signals | Basic/composite task config |
+| `on_timeout` | string | Task to execute on timeout | `"handle-timeout"` |
+| `condition` | string | CEL expression for signal filtering | `'signal.payload.priority == "high"'` |
+
+## Signal-Based Waiting
+
+### Static Signal Names
+
+Wait for signals with fixed identifiers:
+
+```yaml
+# Wait for a specific signal
+- id: wait-deployment-complete
+  type: wait
+  wait_for: "deployment-finished"
+  timeout: 10m
+
+# Wait for user interaction
+- id: wait-user-confirmation
+  type: wait
+  wait_for: "user-confirmed"
+  timeout: 1h
+  
+  outputs:
+    confirmation_time: "{{ .signal.metadata.received_at_utc }}"
+    user_decision: "{{ .signal.payload.decision }}"
+```
+
+### Dynamic Signal Names
+
+Use templates to create dynamic signal identifiers:
+
+```yaml
+# User-specific signal
+- id: wait-user-action
+  type: wait
+  wait_for: "user-{{ .workflow.input.user_id }}-action"
+  timeout: 30m
+
+# Environment-specific signal
+- id: wait-deployment
+  type: wait
+  wait_for: "deployment-{{ .env.ENVIRONMENT }}-complete"
+  timeout: 15m
+
+# Request-specific signal
+- id: wait-approval
+  type: wait
+  wait_for: "approval-{{ .workflow.input.request_id }}"
+  timeout: 24h
+```
+
+### Signal Filtering with Conditions
+
+Filter signals based on payload content:
+
+```yaml
+# Wait for high-priority orders only
+- id: wait-priority-order
+  type: wait
+  wait_for: "order-created"
+  timeout: 5m
+  condition: 'signal.payload.priority == "high"'
+
+# Complex filtering conditions
+- id: wait-qualified-lead
+  type: wait
+  wait_for: "lead-submitted"
+  timeout: 10m
+  condition: |
+    signal.payload.score > 80 && 
+    signal.payload.budget >= 10000 &&
+    signal.payload.source == "website"
+
+# Multiple condition validation
+- id: wait-valid-submission
+  type: wait
+  wait_for: "form-submitted"
+  timeout: 2m
+  condition: |
+    signal.payload.email != null &&
+    signal.payload.email matches "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$" &&
+    signal.payload.age >= 18
+```
+
+## Signal Processors
+
+Processors allow custom handling of received signal data before the workflow continues:
+
+### Basic Signal Processing
+
+```yaml
+- id: wait-and-process
+  type: wait
+  wait_for: "data-available"
+  timeout: 2m
+  
+  processor:
+    type: basic
+    $use: tool(local::tools.#(id=="data-processor"))
+    with:
+      signal_data: "{{ .signal.payload }}"
+      received_at: "{{ .signal.metadata.received_at_utc }}"
+      signal_id: "{{ .signal.metadata.signal_id }}"
+  
+  outputs:
+    processed_data: "{{ .processor.output.result }}"
+    processing_time: "{{ .processor.output.duration }}"
+```
+
+### Agent-Based Processing
+
+```yaml
+- id: wait-and-analyze
+  type: wait
+  wait_for: "feedback-received"
+  timeout: 1h
+  
+  processor:
+    type: basic
+    $use: agent(local::agents.#(id=="feedback-analyzer"))
+    action: analyze_feedback
+    with:
+      feedback_text: "{{ .signal.payload.feedback }}"
+      user_context: "{{ .signal.payload.user_info }}"
+      timestamp: "{{ .signal.metadata.received_at_utc }}"
+  
+  outputs:
+    sentiment_score: "{{ .processor.output.sentiment }}"
+    key_themes: "{{ .processor.output.themes }}"
+    action_required: "{{ .processor.output.requires_action }}"
+```
+
+### Composite Signal Processing
+
+```yaml
+- id: wait-and-validate
+  type: wait
+  wait_for: "submission-received"
+  timeout: 5m
+  
+  processor:
+    type: composite
+    strategy: fail_fast
+    tasks:
+      - id: validate-schema
+        type: basic
+        $use: tool(local::tools.#(id=="schema-validator"))
+        with:
+          data: "{{ .signal.payload }}"
+          schema: "{{ .workflow.input.validation_schema }}"
+      
+      - id: security-check
+        type: basic
+        $use: agent(local::agents.#(id=="security-analyzer"))
+        action: check_security
+        with:
+          submission: "{{ .signal.payload }}"
+          ip_address: "{{ .signal.metadata.source }}"
+        
+      - id: business-validation
+        type: basic
+        $use: agent(local::agents.#(id=="business-validator"))
+        action: validate_rules
+        with:
+          data: "{{ .signal.payload }}"
+          rules: "{{ .workflow.input.business_rules }}"
+  
+  outputs:
+    validation_passed: "{{ .processor.output.all_valid }}"
+    security_score: "{{ .processor.tasks.security-check.output.score }}"
+    business_valid: "{{ .processor.tasks.business-validation.output.valid }}"
+```
+
+## Timeout Handling
+
+### Basic Timeout Configuration
+
+```yaml
+- id: wait-with-timeout
+  type: wait
+  wait_for: "external-response"
+  timeout: 30s
+  
+  # Execute specific task on timeout
+  on_timeout: handle-timeout-case
+  
+  outputs:
+    signal_received: "{{ not .task.timed_out }}"
+    wait_duration: "{{ .task.duration }}"
+    timeout_occurred: "{{ .task.timed_out }}"
+```
+
+### Timeout with Fallback Processing
+
+```yaml
+- id: wait-with-fallback
+  type: wait
+  wait_for: "premium-service-response"
+  timeout: 10s
+  
+  # Handle timeout with alternative processing
+  on_timeout: use-standard-service
+  
+  processor:
+    type: basic
+    $use: tool(local::tools.#(id=="premium-processor"))
+    with:
+      service_data: "{{ .signal.payload }}"
+      service_level: "premium"
+  
+  outputs:
+    service_used: "{{ .task.timed_out ? 'standard' : 'premium' }}"
+    response_time: "{{ .task.duration }}"
+    data_processed: "{{ .processor.output.result }}"
+```
+
+### Retry on Timeout
+
+```yaml
+- id: wait-with-retry
+  type: wait
+  wait_for: "service-response"
+  timeout: 15s
+  
+  # Retry configuration
+  retry_policy:
+    maximum_attempts: 3
+    initial_interval: 5s
+    maximum_interval: 30s
+    backoff_coefficient: 2.0
+  
+  on_timeout: retry-request
+  on_error: error-handler
+  
+  outputs:
+    attempt_count: "{{ .task.retry_count }}"
+    final_success: "{{ not .task.timed_out and not .task.error }}"
+```
+
+## Practical Examples
+
+### Example 1: Human Approval Workflow
+
+```yaml
+# Request approval from manager
+- id: request-approval
+  type: basic
+  $use: tool(local::tools.#(id=="notification-sender"))
+  with:
+    message: "Budget increase request for {{ .workflow.input.amount }}"
+    recipient: "{{ .workflow.input.manager_email }}"
+    approval_link: "{{ .workflow.input.approval_url }}"
+    request_id: "{{ .workflow.input.request_id }}"
+
+# Wait for approval decision
+- id: wait-approval-decision
+  type: wait
+  wait_for: "approval-decision"
+  timeout: 24h  # 24 hours for human decision
+  condition: 'signal.payload.request_id == workflow.input.request_id'
+  
+  processor:
+    type: basic
+    $use: tool(local::tools.#(id=="approval-processor"))
+    with:
+      decision: "{{ .signal.payload.approved }}"
+      approver: "{{ .signal.payload.approver_id }}"
+      comments: "{{ .signal.payload.comments }}"
+      decision_time: "{{ .signal.metadata.received_at_utc }}"
+  
+  # Escalate if no response
+  on_timeout: escalate-approval
+  
+  outputs:
+    approved: "{{ .processor.output.approved }}"
+    approver_name: "{{ .processor.output.approver_name }}"
+    approval_comments: "{{ .processor.output.comments }}"
+    approval_time: "{{ .processor.output.decision_time }}"
+
+# Handle approval result
+- id: process-approval-result
+  type: basic
+  $use: agent(local::agents.#(id=="approval-handler"))
+  action: process_result
+  with:
+    approval_decision: "{{ .tasks.wait-approval-decision.outputs.approved }}"
+    budget_amount: "{{ .workflow.input.amount }}"
+    approver: "{{ .tasks.wait-approval-decision.outputs.approver_name }}"
+```
+
+### Example 2: External API Callback
+
+```yaml
+# Initiate external processing
+- id: start-external-processing
+  type: basic
+  $use: tool(local::tools.#(id=="api-client"))
+  with:
+    endpoint: "/api/process"
+    method: "POST"
+    payload:
+      data: "{{ .workflow.input.data }}"
+      callback_url: "{{ .env.CALLBACK_URL }}"
+      job_id: "{{ .workflow.input.job_id }}"
+  
+  outputs:
+    job_id: "{{ .output.job_id }}"
+    estimated_duration: "{{ .output.estimated_duration }}"
+
+# Wait for processing completion
+- id: wait-processing-complete
+  type: wait
+  wait_for: "processing-complete"
+  timeout: "{{ .tasks.start-external-processing.outputs.estimated_duration }}"
+  condition: 'signal.payload.job_id == workflow.input.job_id'
+  
+  processor:
+    type: basic
+    $use: tool(local::tools.#(id=="result-processor"))
+    with:
+      job_result: "{{ .signal.payload.result }}"
+      job_metadata: "{{ .signal.payload.metadata }}"
+      processing_time: "{{ .signal.payload.duration }}"
+  
+  # Handle timeout with status check
+  on_timeout: check-job-status
+  
+  outputs:
+    processing_successful: "{{ .processor.output.success }}"
+    result_data: "{{ .processor.output.processed_data }}"
+    job_duration: "{{ .processor.output.actual_duration }}"
+```
+
+### Example 3: Multi-Stage Coordination
+
+```yaml
+# Stage 1: Wait for data preparation
+- id: wait-data-ready
+  type: wait
+  wait_for: "data-prepared"
+  timeout: 30m
+  condition: 'signal.payload.dataset_id == workflow.input.dataset_id'
+  
+  processor:
+    type: basic
+    $use: tool(local::tools.#(id=="data-validator"))
+    with:
+      dataset_path: "{{ .signal.payload.path }}"
+      expected_records: "{{ .workflow.input.expected_count }}"
+  
+  outputs:
+    dataset_path: "{{ .processor.output.validated_path }}"
+    record_count: "{{ .processor.output.actual_count }}"
+    validation_passed: "{{ .processor.output.valid }}"
+
+# Stage 2: Wait for processing authorization
+- id: wait-processing-auth
+  type: wait
+  wait_for: "processing-authorized"
+  timeout: 2h
+  condition: 'signal.payload.dataset_id == workflow.input.dataset_id'
+  
+  processor:
+    type: basic
+    $use: tool(local::tools.#(id=="auth-processor"))
+    with:
+      authorization_token: "{{ .signal.payload.token }}"
+      dataset_info: "{{ .tasks.wait-data-ready.outputs }}"
+  
+  outputs:
+    authorized: "{{ .processor.output.authorized }}"
+    authorization_level: "{{ .processor.output.level }}"
+    expires_at: "{{ .processor.output.expires_at }}"
+
+# Stage 3: Wait for processing completion
+- id: wait-processing-done
+  type: wait
+  wait_for: "processing-finished"
+  timeout: 4h
+  condition: 'signal.payload.dataset_id == workflow.input.dataset_id'
+  
+  processor:
+    type: basic
+    $use: tool(local::tools.#(id=="result-aggregator"))
+    with:
+      results: "{{ .signal.payload.results }}"
+      metadata: "{{ .signal.payload.metadata }}"
+      original_dataset: "{{ .tasks.wait-data-ready.outputs.dataset_path }}"
+  
+  outputs:
+    final_results: "{{ .processor.output.aggregated_results }}"
+    processing_stats: "{{ .processor.output.statistics }}"
+    completion_time: "{{ .signal.metadata.received_at_utc }}"
+```
+
+## Advanced Wait Patterns
+
+### Race Condition Handling
+
+Wait for the first of multiple signals:
+
+```yaml
+- id: wait-first-response
+  type: parallel
+  strategy: race  # First task to complete wins
+  tasks:
+    - id: wait-primary-service
+      type: wait
+      wait_for: "primary-service-response"
+      timeout: 10s
+      
+      processor:
+        type: basic
+        $use: tool(local::tools.#(id=="primary-processor"))
+        with:
+          response_source: "primary"
+          data: "{{ .signal.payload }}"
+    
+    - id: wait-backup-service
+      type: wait
+      wait_for: "backup-service-response"
+      timeout: 30s
+      
+      processor:
+        type: basic
+        $use: tool(local::tools.#(id=="backup-processor"))
+        with:
+          response_source: "backup"
+          data: "{{ .signal.payload }}"
+  
+  outputs:
+    winning_service: "{{ .task.completed_tasks[0].id }}"
+    response_data: "{{ .task.completed_tasks[0].output.data }}"
+    response_time: "{{ .task.completed_tasks[0].duration }}"
+```
+
+### Cascading Wait Sequences
+
+Chain multiple wait tasks for staged processing:
+
+```yaml
+- id: cascading-waits
+  type: composite
+  strategy: fail_fast
+  tasks:
+    - id: wait-initialization
+      type: wait
+      wait_for: "process-initialized"
+      timeout: 1m
+      
+      processor:
+        type: basic
+        $use: tool(local::tools.#(id=="init-processor"))
+        with:
+          process_id: "{{ .signal.payload.process_id }}"
+          config: "{{ .signal.payload.config }}"
+    
+    - id: wait-progress-update
+      type: wait
+      wait_for: "progress-update"
+      timeout: 5m
+      condition: 'signal.payload.process_id == tasks.wait-initialization.processor.output.process_id'
+      
+      processor:
+        type: basic
+        $use: tool(local::tools.#(id=="progress-processor"))
+        with:
+          progress_data: "{{ .signal.payload.progress }}"
+          estimated_completion: "{{ .signal.payload.eta }}"
+    
+    - id: wait-final-result
+      type: wait
+      wait_for: "process-completed"
+      timeout: 15m
+      condition: 'signal.payload.process_id == tasks.wait-initialization.processor.output.process_id'
+      
+      processor:
+        type: basic
+        $use: tool(local::tools.#(id=="result-processor"))
+        with:
+          final_result: "{{ .signal.payload.result }}"
+          completion_metadata: "{{ .signal.payload.metadata }}"
+  
+  outputs:
+    process_id: "{{ .tasks.wait-initialization.processor.output.process_id }}"
+    final_result: "{{ .tasks.wait-final-result.processor.output.result }}"
+    total_duration: "{{ .task.duration }}"
+```
+
+### Conditional Wait Behavior
+
+Adjust wait behavior based on runtime conditions:
+
+```yaml
+- id: dynamic-wait
+  type: wait
+  wait_for: "{{ .workflow.input.signal_type }}"
+  timeout: "{{ .workflow.input.timeout | default('5m') }}"
+  condition: |
+    {{ if .workflow.input.filter_enabled }}
+    signal.payload.priority >= {{ .workflow.input.min_priority }} &&
+    signal.payload.category == "{{ .workflow.input.category }}"
+    {{ else }}
+    true
+    {{ end }}
+  
+  processor:
+    type: basic
+    $use: "{{ .workflow.input.processor_type == 'agent' ? 'agent' : 'tool' }}(local::{{ .workflow.input.processor_type }}s.#(id==\"{{ .workflow.input.processor_id }}\"))"
+    {{ if eq .workflow.input.processor_type "agent" }}
+    action: "{{ .workflow.input.processor_action }}"
+    {{ end }}
+    with:
+      signal_data: "{{ .signal.payload }}"
+      processing_context: "{{ .workflow.input.context }}"
+      processor_config: "{{ .workflow.input.processor_config }}"
+  
+  outputs:
+    signal_matched: "{{ not .task.timed_out }}"
+    processing_result: "{{ .processor.output }}"
+    wait_duration: "{{ .task.duration }}"
+```
+
+## Performance Optimization
+
+### Efficient Wait Configuration
+
+```yaml
+# ✅ Optimized wait task
+- id: efficient-wait
+  type: wait
+  wait_for: "data-event"
+  timeout: 2m  # Reasonable timeout
+  condition: 'signal.payload.size < 1000000'  # Filter large payloads
+  
+  processor:
+    type: basic
+    $use: tool(local::tools.#(id=="lightweight-processor"))
+    with:
+      data_id: "{{ .signal.payload.id }}"  # Process reference, not data
+      metadata: "{{ .signal.payload.metadata }}"
+  
+  outputs:
+    processed_id: "{{ .processor.output.id }}"
+    processing_time: "{{ .processor.output.duration }}"
+```
+
+### Avoiding Common Pitfalls
+
+```yaml
+# ❌ Inefficient wait task
+- id: inefficient-wait
+  type: wait
+  wait_for: "data-event"
+  timeout: 1h  # Too long for responsive systems
+  # No condition - processes all signals
+  
+  processor:
+    type: composite  # Complex processing for simple signals
+    tasks:
+      - id: heavy-processing
+        type: basic
+        $use: tool(local::tools.#(id=="heavy-processor"))
+        with:
+          full_data: "{{ .signal.payload }}"  # Processing entire payload
+          complex_analysis: true
+  
+  outputs:
+    everything: "{{ .processor.output }}"  # Returning unnecessary data
+```
+
+## Error Handling
+
+### Comprehensive Error Recovery
+
+```yaml
+- id: robust-wait
+  type: wait
+  wait_for: "critical-signal"
+  timeout: 2m
+  
+  # Retry configuration for transient failures
+  retry_policy:
+    maximum_attempts: 3
+    initial_interval: 10s
+    maximum_interval: 1m
+    backoff_coefficient: 2.0
+  
+  processor:
+    type: basic
+    $use: tool(local::tools.#(id=="critical-processor"))
+    with:
+      signal_data: "{{ .signal.payload }}"
+      retry_count: "{{ .task.retry_count }}"
+  
+  # Handle different failure scenarios
+  on_timeout: handle-timeout
+  on_error: handle-processing-error
+  
+  outputs:
+    success: "{{ not .task.timed_out and not .task.error }}"
+    signal_received: "{{ not .task.timed_out }}"
+    processing_successful: "{{ .processor.output.success }}"
+    error_details: "{{ .task.error }}"
+```
+
+### Graceful Degradation
+
+```yaml
+- id: wait-with-fallback
+  type: wait
+  wait_for: "premium-data"
+  timeout: 30s
+  
+  processor:
+    type: basic
+    $use: tool(local::tools.#(id=="premium-processor"))
+    with:
+      data: "{{ .signal.payload }}"
+      quality_level: "premium"
+  
+  # Fallback to standard processing on timeout
+  on_timeout: use-standard-data
+  
+  outputs:
+    data_quality: "{{ .task.timed_out ? 'standard' : 'premium' }}"
+    processing_time: "{{ .task.duration }}"
+    fallback_used: "{{ .task.timed_out }}"
+```
+
+## Testing Wait Tasks
+
+### Unit Testing
+
+```yaml
+# Test wait task configuration
+- id: test-wait-config
+  type: wait
+  wait_for: "test-signal"
+  timeout: 5s
+  
+  processor:
+    type: basic
+    $use: tool(local::tools.#(id=="test-processor"))
+    with:
+      test_data: "{{ .signal.payload }}"
+  
+  outputs:
+    wait_configured: true
+    signal_name: "test-signal"
+    processor_ready: "{{ .processor.output.ready }}"
+```
+
+### Integration Testing
+
+```yaml
+# Test complete signal flow
+tasks:
+  - id: emit-test-signal
+    type: signal
+    signal:
+      id: "integration-test-signal"
+      payload:
+        test_id: "{{ .workflow.input.test_id }}"
+        timestamp: "{{ now }}"
+        data: "test-data"
+  
+  - id: receive-test-signal
+    type: wait
+    wait_for: "integration-test-signal"
+    timeout: 10s
+    condition: 'signal.payload.test_id == workflow.input.test_id'
+    
+    processor:
+      type: basic
+      $use: tool(local::tools.#(id=="test-validator"))
+      with:
+        received_data: "{{ .signal.payload }}"
+        expected_test_id: "{{ .workflow.input.test_id }}"
+    
+    outputs:
+      test_passed: "{{ .processor.output.valid }}"
+      signal_received: "{{ not .task.timed_out }}"
+```
+
+## Best Practices
+
+### 1. Timeout Management
+
+Set appropriate timeouts based on expected signal timing:
+
+```yaml
+# Human interactions - longer timeouts
+- id: wait-human-approval
+  type: wait
+  wait_for: "approval"
+  timeout: 24h
+
+# API callbacks - shorter timeouts
+- id: wait-api-response
+  type: wait
+  wait_for: "api-callback"
+  timeout: 30s
+
+# Batch processing - medium timeouts
+- id: wait-batch-complete
+  type: wait
+  wait_for: "batch-finished"
+  timeout: 1h
+```
+
+### 2. Signal Validation
+
+Always validate signal content:
+
+```yaml
+- id: validated-wait
+  type: wait
+  wait_for: "user-input"
+  condition: |
+    signal.payload.user_id != null &&
+    signal.payload.action in ["approve", "reject", "modify"] &&
+    signal.payload.timestamp != null
+  
+  processor:
+    type: basic
+    $use: tool(local::tools.#(id=="input-validator"))
+    with:
+      input_data: "{{ .signal.payload }}"
+      validation_rules: "{{ .workflow.input.validation_rules }}"
+```
+
+### 3. Resource Management
+
+Keep processors lightweight and efficient:
+
+```yaml
+# ✅ Efficient processor
+processor:
+  type: basic
+  $use: tool(local::tools.#(id=="lightweight-processor"))
+  with:
+    signal_id: "{{ .signal.metadata.signal_id }}"
+    key_data: "{{ .signal.payload.essential_field }}"
+
+# ❌ Inefficient processor
+processor:
+  type: composite
+  tasks:
+    - id: heavy-task
+      type: basic
+      $use: tool(local::tools.#(id=="heavy-processor"))
+      with:
+        entire_payload: "{{ .signal.payload }}"
+```
+
+### 4. Error Handling
+
+Always plan for failure scenarios:
+
+```yaml
+- id: resilient-wait
+  type: wait
+  wait_for: "external-signal"
+  timeout: 5m
+  
+  # Handle different failure modes
+  on_timeout: handle-timeout
+  on_error: handle-error
+  
+  outputs:
+    success: "{{ not .task.timed_out and not .task.error }}"
+    signal_received: "{{ not .task.timed_out }}"
+    wait_duration: "{{ .task.duration }}"
+```
+
+## Common Patterns
+
+### Approval Workflows
+
+```yaml
+- id: multi-stage-approval
+  type: composite
+  strategy: fail_fast
+  tasks:
+    - id: wait-manager-approval
+      type: wait
+      wait_for: "manager-approval"
+      timeout: 24h
+      condition: 'signal.payload.request_id == workflow.input.request_id'
+    
+    - id: wait-director-approval
+      type: wait
+      wait_for: "director-approval"
+      timeout: 48h
+      condition: 'signal.payload.request_id == workflow.input.request_id'
+  
+  outputs:
+    all_approved: "{{ len(.tasks) == len(.tasks | selectattr('output.approved', 'eq', true)) }}"
+```
+
+### Data Pipeline Coordination
+
+```yaml
+- id: pipeline-coordination
+  type: composite
+  strategy: fail_fast
+  tasks:
+    - id: wait-data-ingestion
+      type: wait
+      wait_for: "data-ingested"
+      timeout: 1h
+    
+    - id: wait-data-processing
+      type: wait
+      wait_for: "data-processed"
+      timeout: 2h
+    
+    - id: wait-data-validation
+      type: wait
+      wait_for: "data-validated"
+      timeout: 30m
+```
+
+### Event-Driven Microservices
+
+```yaml
+- id: service-orchestration
+  type: parallel
+  strategy: wait_all
+  tasks:
+    - id: wait-user-service
+      type: wait
+      wait_for: "user-service-ready"
+      timeout: 2m
+    
+    - id: wait-payment-service
+      type: wait
+      wait_for: "payment-service-ready"
+      timeout: 2m
+    
+    - id: wait-notification-service
+      type: wait
+      wait_for: "notification-service-ready"
+      timeout: 1m
+```
+
+Wait tasks are fundamental to building robust, coordinated workflows in Compozy. They enable sophisticated synchronization patterns, event-driven architectures, and reliable coordination between different parts of your system.
+
+## Related Documentation
+
+<FeatureCardList cols={2}>
+  <FeatureCard title="Signal Tasks" href="/docs/core/signals/signal-tasks">
+    Learn how to send signals that wait tasks can receive
+  </FeatureCard>
+  <FeatureCard title="Signal System" href="/docs/core/signals/signal-overview">
+    Understand the complete signal communication system
+  </FeatureCard>
+  <FeatureCard title="Basic Tasks" href="/docs/core/tasks/basic-tasks">
+    Master the foundation of all task types in Compozy
+  </FeatureCard>
+  <FeatureCard title="Parallel Processing" href="/docs/core/tasks/parallel-processing">
+    Coordinate multiple wait tasks for complex synchronization
+  </FeatureCard>
+</FeatureCardList>
+
+## Next Steps
+
+<FeatureCardList cols={2}>
+  <FeatureCard title="Advanced Patterns" href="/docs/core/signals/advanced-patterns">
+    Explore sophisticated signal coordination patterns
+  </FeatureCard>
+  <FeatureCard title="Event API" href="/docs/core/signals/event-api">
+    Programmatically send signals from external systems
+  </FeatureCard>
+  <FeatureCard title="Flow Control" href="/docs/core/tasks/flow-control">
+    Master conditional routing and workflow orchestration
+  </FeatureCard>
+  <FeatureCard title="Error Handling" href="/docs/core/workflow/error-handling">
+    Build resilient workflows with proper error handling
+  </FeatureCard>
+</FeatureCardList>

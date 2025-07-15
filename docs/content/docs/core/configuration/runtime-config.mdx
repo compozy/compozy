@@ -1,550 +1,1029 @@
 ---
-title: Runtime Configuration
-description: Configure JavaScript/TypeScript runtime for tool execution
+title: "Runtime Configuration"
+description: "Configure JavaScript/TypeScript execution environments for tools and workflows with comprehensive security, performance, and isolation settings"
 ---
 
-# Runtime Configuration
+import {
+  Shield,
+  Zap,
+  Settings,
+  Lock,
+  AlertTriangle,
+  CheckCircle,
+  XCircle,
+  Eye,
+  Layers,
+  Code,
+  Terminal,
+  FileCode,
+  Cpu,
+  Network,
+  HardDrive,
+  Globe,
+  Database,
+  Timer,
+  RefreshCw,
+  Target,
+  TrendingUp,
+  Activity,
+  Wrench,
+  Bug,
+  BookOpen,
+  Link2,
+  Package,
+  Workflow,
+  GitBranch,
+  ArrowRight,
+  Play,
+  Pause,
+  StopCircle,
+  RotateCcw,
+  Monitor,
+  Server,
+  CloudDownload,
+  CloudUpload,
+  Folder,
+  File,
+  FileText,
+  Download,
+  Upload,
+  ExternalLink,
+  Info,
+  AlertCircle,
+  CheckSquare,
+  X,
+} from "lucide-react";
 
-Configure the JavaScript/TypeScript execution environment for custom tools in Compozy.
+import { FeatureCard, FeatureCardList } from "@/components/ui/feature-card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Steps, Step } from "@/components/ui/step";
+import { Callout } from "@/components/ui/callout";
+
+Runtime configuration controls how Compozy executes JavaScript/TypeScript tools in secure, isolated environments. This system provides comprehensive security controls, performance optimization, and environment isolation for tool execution.
 
 ## Overview
 
-Compozy uses a secure runtime environment to execute custom tools written in JavaScript or TypeScript. The runtime configuration allows you to:
+<FeatureCardList>
+<FeatureCard
+  icon={Shield}
+  title="Security First"
+  description="Capability-based permissions with sandboxing and input validation"
+/>
+<FeatureCard
+  icon={Zap}
+  title="High Performance"
+  description="Optimized execution with buffer pooling and timeout controls"
+/>
+<FeatureCard
+  icon={Settings}
+  title="Flexible Configuration"
+  description="Comprehensive runtime options for different environments"
+/>
+<FeatureCard
+  icon={Lock}
+  title="Environment Isolation"
+  description="Secure environment management with automatic cleanup"
+/>
+</FeatureCardList>
 
-- **Choose the runtime engine** (Bun or Node.js)
-- **Configure security permissions** for tool execution
-- **Set entry points** for custom tool implementations
-- **Manage execution timeouts** and resource limits
-- **Enable development features** like hot reloading
+## Runtime Architecture
 
-## Runtime Types
+The runtime system consists of several key components working together to provide secure and efficient tool execution:
 
-### Bun Runtime (Recommended)
+- **Runtime Manager**: Orchestrates tool execution and manages configuration
+- **Bun Worker**: Executes tools in isolated TypeScript/JavaScript environments
+- **Security Layer**: Validates inputs, controls permissions, and manages sandboxing
+- **Performance Layer**: Optimizes execution with buffer pooling and timeout management
 
-**Bun** is the default runtime engine, chosen for its superior performance and security features:
+## Basic Configuration
 
-```yaml
+### Project Runtime Setup
+
+Configure your project's runtime in `compozy.yaml`:
+
+<Tabs>
+<TabsList>
+<TabsTrigger value="minimal">Minimal Setup</TabsTrigger>
+<TabsTrigger value="standard">Standard Setup</TabsTrigger>
+<TabsTrigger value="enterprise">Enterprise Setup</TabsTrigger>
+</TabsList>
+
+<TabsContent value="minimal">
+```yaml title="compozy.yaml"
+name: my-project
+version: "1.0.0"
+
 runtime:
   type: bun
-  entrypoint: ./tools.ts
+  entrypoint: "./tools.ts"
+  permissions:
+    - --allow-read
+    - --allow-env
+```
+
+<Callout type="info">
+Minimal configuration provides basic read access and environment variables. Suitable for simple tools that don't require network or write access.
+</Callout>
+</TabsContent>
+
+<TabsContent value="standard">
+```yaml title="compozy.yaml"
+name: my-project
+version: "1.0.0"
+
+runtime:
+  type: bun
+  entrypoint: "./tools.ts"
   permissions:
     - --allow-read
     - --allow-net
     - --allow-env
-```
-
-**Benefits:**
-- **Superior performance** compared to Node.js
-- **Built-in TypeScript support** without compilation
-- **Comprehensive permission system** for security isolation
-- **Faster startup times** improving tool execution latency
-
-### Node.js Runtime
-
-**Node.js** runtime for compatibility with existing Node.js tools:
-
-```yaml
-runtime:
-  type: node
-  entrypoint: ./tools.js
-  options:
-    - --experimental-modules
-    - --max-old-space-size=4096
-```
-
-**Use Cases:**
-- Legacy tool compatibility
-- Specific Node.js dependencies
-- Debugging with Node.js tools
-
-## Configuration Options
-
-### Basic Configuration
-
-```yaml
-runtime:
-  type: bun                    # Runtime engine: "bun" or "node"
-  entrypoint: ./tools.ts       # Entry point file
-  permissions:                 # Security permissions (Bun only)
-    - --allow-read
-    - --allow-net
-    - --allow-env
-```
-
-### Complete Configuration
-
-```yaml
-runtime:
-  type: bun
-  entrypoint: ./tools/index.ts
-  permissions:
-    # File system permissions
-    - --allow-read=/data
     - --allow-write=/tmp
-
-    # Network permissions
-    - --allow-net=api.example.com
-    - --allow-net=127.0.0.1:8080
-
-    # Environment access
-    - --allow-env=API_KEY,DATABASE_URL
-
-    # System permissions
-    - --allow-run=git
-    - --allow-sys=osRelease
 ```
 
-## Security Permissions
+<Callout type="info">
+Standard configuration adds network access and scoped write permissions. Suitable for most production workflows.
+</Callout>
+</TabsContent>
+
+<TabsContent value="enterprise">
+```yaml title="compozy.yaml"
+name: my-project
+version: "1.0.0"
+
+runtime:
+  type: bun
+  entrypoint: "./tools.ts"
+  permissions:
+    - --allow-read=/app/data
+    - --allow-write=/app/output
+    - --allow-net=api.company.com,db.company.com
+    - --allow-env=API_KEY,DATABASE_URL
+    - --allow-sys
+```
 
 <Callout type="warning">
-**Security First**: Compozy follows the principle of least privilege. Only grant permissions that tools actually need.
+Enterprise configuration with scoped permissions for production environments. Each permission is carefully scoped to specific resources.
 </Callout>
-
-### File System Permissions
-
-Control file system access:
-
-```yaml
-permissions:
-  # Read-only access to specific directory
-  - --allow-read=/data
-
-  # Read access to multiple directories
-  - --allow-read=/data,/config
-
-  # Write access to temporary directory
-  - --allow-write=/tmp
-
-  # Full read access (use with caution)
-  - --allow-read
-
-  # Full write access (use with extreme caution)
-  - --allow-write
-```
-
-### Network Permissions
-
-Control network access:
-
-```yaml
-permissions:
-  # Allow specific domain
-  - --allow-net=api.example.com
-
-  # Allow specific IP and port
-  - --allow-net=127.0.0.1:8080
-
-  # Allow multiple hosts
-  - --allow-net=api.example.com,127.0.0.1:8080
-
-  # Allow all network access (use with caution)
-  - --allow-net
-```
-
-### Environment Variable Access
-
-Control environment variable access:
-
-```yaml
-permissions:
-  # Access to specific variables
-  - --allow-env=API_KEY,DATABASE_URL
-
-  # Access to all environment variables (use with caution)
-  - --allow-env
-```
-
-### System Permissions
-
-Control system-level access:
-
-```yaml
-permissions:
-  # Allow running specific commands
-  - --allow-run=git,npm
-
-  # Allow system information access
-  - --allow-sys=osRelease,hostname
-
-  # Allow all system access (use with extreme caution)
-  - --allow-sys
-```
-
-## Tool Entry Points
-
-### Single Entry Point
-
-Most projects use a single entry point that exports all tools:
-
-<Tabs items={['compozy.yaml', 'tools.ts', 'tools/weather.ts', 'tools/email.ts']}>
-  <Tab value="compozy.yaml">
-```yaml
-runtime:
-  type: bun
-  entrypoint: ./tools.ts
-  permissions:
-    - --allow-read
-    - --allow-net
-    - --allow-env
-```
-  </Tab>
-  <Tab value="tools.ts">
-```typescript
-// Main entry point that exports all tools
-export { default as weather } from './tools/weather.ts';
-export { default as sendEmail } from './tools/email.ts';
-export { default as processData } from './tools/data-processor.ts';
-export { default as validateInput } from './tools/validator.ts';
-
-// Re-export utility functions
-export * from './tools/utils.ts';
-```
-  </Tab>
-  <Tab value="tools/weather.ts">
-```typescript
-interface WeatherInput {
-  city: string;
-  units?: 'metric' | 'imperial';
-}
-
-interface WeatherOutput {
-  temperature: number;
-  condition: string;
-  humidity: number;
-  wind_speed: number;
-}
-
-export default async function getWeather(input: WeatherInput): Promise<WeatherOutput> {
-  const apiKey = process.env.WEATHER_API_KEY;
-  if (!apiKey) {
-    throw new Error('WEATHER_API_KEY environment variable is required');
-  }
-
-  const units = input.units || 'metric';
-  const response = await fetch(
-    `https://api.openweathermap.org/data/2.5/weather?q=${input.city}&appid=${apiKey}&units=${units}`
-  );
-
-  if (!response.ok) {
-    throw new Error(`Weather API error: ${response.status}`);
-  }
-
-  const data = await response.json();
-
-  return {
-    temperature: data.main.temp,
-    condition: data.weather[0].description,
-    humidity: data.main.humidity,
-    wind_speed: data.wind.speed,
-  };
-}
-```
-  </Tab>
-  <Tab value="tools/email.ts">
-```typescript
-interface EmailInput {
-  to: string;
-  subject: string;
-  body: string;
-  from?: string;
-}
-
-interface EmailOutput {
-  message_id: string;
-  status: 'sent' | 'failed';
-  timestamp: string;
-}
-
-export default async function sendEmail(input: EmailInput): Promise<EmailOutput> {
-  const apiKey = process.env.EMAIL_API_KEY;
-  const fromEmail = input.from || process.env.DEFAULT_FROM_EMAIL;
-
-  if (!apiKey) {
-    throw new Error('EMAIL_API_KEY environment variable is required');
-  }
-
-  const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      personalizations: [
-        {
-          to: [{ email: input.to }],
-        },
-      ],
-      from: { email: fromEmail },
-      subject: input.subject,
-      content: [
-        {
-          type: 'text/plain',
-          value: input.body,
-        },
-      ],
-    }),
-  });
-
-  const messageId = response.headers.get('X-Message-Id') || 'unknown';
-
-  return {
-    message_id: messageId,
-    status: response.ok ? 'sent' : 'failed',
-    timestamp: new Date().toISOString(),
-  };
-}
-```
-  </Tab>
+</TabsContent>
 </Tabs>
 
-### Modular Entry Points
+### Tool Entrypoint Structure
 
-For larger projects, you can organize tools into modules:
+Your entrypoint file should export tools using the following patterns:
 
-```typescript
-// tools/index.ts
-export * from './api/index.ts';
-export * from './data/index.ts';
-export * from './utils/index.ts';
+<Tabs>
+<TabsList>
+<TabsTrigger value="default">Default Export (Recommended)</TabsTrigger>
+<TabsTrigger value="named">Named Exports (Legacy)</TabsTrigger>
+</TabsList>
 
-// tools/api/index.ts
-export { default as httpRequest } from './http-request.ts';
-export { default as webhookHandler } from './webhook-handler.ts';
+<TabsContent value="default">
+```typescript title="tools.ts"
+// Default export pattern (recommended)
+export default {
+  async fetchWeatherData(params: { city: string }) {
+    const response = await fetch(`https://api.weather.com/v1/current?q=${params.city}`);
+    return await response.json();
+  },
 
-// tools/data/index.ts
-export { default as csvParser } from './csv-parser.ts';
-export { default as jsonValidator } from './json-validator.ts';
+  async processData(params: { data: any[], operation: string }) {
+    switch (params.operation) {
+      case "aggregate":
+        return { total: params.data.length, result: params.data.reduce((a, b) => a + b, 0) };
+      default:
+        throw new Error(`Unknown operation: ${params.operation}`);
+    }
+  }
+};
 ```
+</TabsContent>
 
-## Environment Variables
+<TabsContent value="named">
+```typescript title="tools.ts"
+// Named exports pattern (legacy support)
+export async function fetchWeatherData(params: { city: string }) {
+  const response = await fetch(`https://api.weather.com/v1/current?q=${params.city}`);
+  return await response.json();
+}
 
-### Runtime-Specific Variables
-
-Configure runtime behavior through environment variables:
-
-```bash
-# Bun runtime configuration
-BUN_CONFIG_VERBOSE=true
-BUN_CONFIG_PREFER_FAST_REFRESH=true
-
-# Node.js runtime configuration
-NODE_ENV=development
-NODE_OPTIONS="--max-old-space-size=4096"
-
-# Custom tool environment
-TOOL_TIMEOUT=30000
-TOOL_CACHE_SIZE=1000
+export async function processData(params: { data: any[], operation: string }) {
+  switch (params.operation) {
+    case "aggregate":
+      return { total: params.data.length, result: params.data.reduce((a, b) => a + b, 0) };
+    default:
+      throw new Error(`Unknown operation: ${params.operation}`);
+  }
+}
 ```
+</TabsContent>
+</Tabs>
 
-### Tool Environment Variables
+## Security Configuration
 
-Tools can access environment variables when granted permission:
+### Permission System
 
-```typescript
-// Accessing environment variables in tools
-const apiKey = process.env.API_KEY;
-const debugMode = process.env.DEBUG_MODE === 'true';
-const timeout = parseInt(process.env.TIMEOUT || '30000');
-```
+Compozy implements a capability-based security model where tools must be explicitly granted permissions:
 
-## Performance Tuning
+#### Core Permissions
 
-### Timeout Configuration
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+<div className="border rounded-lg p-4">
+<div className="flex items-center gap-2 mb-2">
+  <HardDrive className="w-4 h-4 text-blue-500" />
+  <h4 className="font-semibold">File System Access</h4>
+</div>
+<div className="space-y-2 text-sm">
+  <div><code>--allow-read</code> - Read access to all files</div>
+  <div><code>--allow-read=/path</code> - Scoped read access</div>
+  <div><code>--allow-write</code> - Write access to all files</div>
+  <div><code>--allow-write=/path</code> - Scoped write access</div>
+</div>
+</div>
 
-Set appropriate timeouts for tool execution:
+<div className="border rounded-lg p-4">
+<div className="flex items-center gap-2 mb-2">
+  <Network className="w-4 h-4 text-green-500" />
+  <h4 className="font-semibold">Network Access</h4>
+</div>
+<div className="space-y-2 text-sm">
+  <div><code>--allow-net</code> - All network access</div>
+  <div><code>--allow-net=host</code> - Scoped to specific host</div>
+  <div><code>--allow-net=host:port</code> - Scoped to host and port</div>
+</div>
+</div>
+
+<div className="border rounded-lg p-4">
+<div className="flex items-center gap-2 mb-2">
+  <Database className="w-4 h-4 text-purple-500" />
+  <h4 className="font-semibold">Environment Variables</h4>
+</div>
+<div className="space-y-2 text-sm">
+  <div><code>--allow-env</code> - All environment variables</div>
+  <div><code>--allow-env=VAR</code> - Specific variable access</div>
+  <div><code>--allow-env=VAR1,VAR2</code> - Multiple variables</div>
+</div>
+</div>
+
+<div className="border rounded-lg p-4">
+<div className="flex items-center gap-2 mb-2">
+  <Cpu className="w-4 h-4 text-orange-500" />
+  <h4 className="font-semibold">System Access</h4>
+</div>
+<div className="space-y-2 text-sm">
+  <div><code>--allow-sys</code> - System information access</div>
+  <div><code>--allow-ffi</code> - Foreign Function Interface</div>
+  <div><code>--allow-run</code> - Subprocess execution</div>
+</div>
+</div>
+</div>
+
+### Security Best Practices
+
+<Steps>
+<Step title="Apply Principle of Least Privilege">
+Grant only the minimum permissions required for your tools to function:
 
 ```yaml
+# ✅ Good: Scoped permissions
+permissions:
+  - --allow-read=/app/data
+  - --allow-write=/app/output
+  - --allow-net=api.example.com
+
+# ❌ Bad: Overly broad permissions
+permissions:
+  - --allow-read
+  - --allow-write
+  - --allow-net
+  - --allow-run
+```
+</Step>
+
+<Step title="Validate Input Parameters">
+Always validate and sanitize input parameters in your tools:
+
+```typescript
+export default {
+  async processFile(params: { filename: string }) {
+    // ✅ Good: Validate input
+    if (!params.filename || typeof params.filename !== 'string') {
+      throw new Error('Invalid filename parameter');
+    }
+    
+    // ✅ Good: Prevent path traversal
+    if (params.filename.includes('..') || params.filename.startsWith('/')) {
+      throw new Error('Invalid filename: path traversal detected');
+    }
+    
+    // Safe to process
+    return await processFileContent(params.filename);
+  }
+};
+```
+</Step>
+
+<Step title="Handle Sensitive Data Securely">
+Use environment variables for sensitive data and implement proper cleanup:
+
+```typescript
+export default {
+  async fetchUserData(params: { userId: string }) {
+    // ✅ Good: Use environment variables for secrets
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) {
+      throw new Error('API_KEY not configured');
+    }
+    
+    // ✅ Good: Don't log sensitive data
+    console.log('Fetching user data', { userId: params.userId });
+    
+    try {
+      const response = await fetch(`https://api.example.com/users/${params.userId}`, {
+        headers: { 'Authorization': `Bearer ${apiKey}` }
+      });
+      return await response.json();
+    } catch (error) {
+      // ✅ Good: Don't expose internal details
+      throw new Error('Failed to fetch user data');
+    }
+  }
+};
+```
+</Step>
+</Steps>
+
+### Security Validation
+
+The runtime performs several security validations:
+
+- **Tool ID Validation**: Prevents directory traversal and malicious tool names
+- **Input Sanitization**: Validates all input parameters and environment variables
+- **Permission Enforcement**: Blocks unauthorized access to system resources
+- **Environment Isolation**: Automatic cleanup of environment variables after execution
+
+## Performance Configuration
+
+### Timeout Management
+
+Configure execution timeouts for reliability and performance:
+
+<Tabs>
+<TabsList>
+<TabsTrigger value="global">Global Timeout</TabsTrigger>
+<TabsTrigger value="per-tool">Per-Tool Timeout</TabsTrigger>
+<TabsTrigger value="dynamic">Dynamic Timeout</TabsTrigger>
+</TabsList>
+
+<TabsContent value="global">
+```yaml title="compozy.yaml"
 runtime:
   type: bun
-  entrypoint: ./tools.ts
-  timeout: 60s  # Tool execution timeout
+  entrypoint: "./tools.ts"
+  timeout: 60s  # Global timeout for all tools
   permissions:
     - --allow-read
     - --allow-net
 ```
 
-### Memory Management
+Global timeout applies to all tool executions unless overridden.
+</TabsContent>
 
-Configure memory limits for Node.js:
+<TabsContent value="per-tool">
+```typescript title="tools.ts"
+export default {
+  // Fast operation - inherits global timeout
+  async quickOperation(params: { data: string }) {
+    return { result: params.data.toUpperCase() };
+  },
 
-```yaml
-runtime:
-  type: node
-  entrypoint: ./tools.js
-  options:
-    - --max-old-space-size=4096  # 4GB memory limit
-    - --max-semi-space-size=256   # Young generation size
+  // Long-running operation - specify custom timeout in workflow
+  async longOperation(params: { dataset: any[] }) {
+    // This would be configured with a longer timeout in the workflow
+    return await processLargeDataset(params.dataset);
+  }
+};
 ```
 
-### Optimization Tips
+```yaml title="workflow.yaml"
+tasks:
+  - id: quick_task
+    type: basic
+    $use: tool(local::tools.#(id=="quickOperation"))
+    # Uses global timeout
+    
+  - id: long_task
+    type: basic
+    $use: tool(local::tools.#(id=="longOperation"))
+    timeout: 300s  # 5 minute timeout for this specific task
+```
+</TabsContent>
 
-1. **Use Bun for Performance**: Bun generally provides better performance than Node.js
-2. **Minimize Permissions**: Only grant necessary permissions
-3. **Cache Dependencies**: Cache expensive operations when possible
-4. **Optimize Imports**: Use specific imports to reduce bundle size
-5. **Monitor Resource Usage**: Track memory and CPU usage
+<TabsContent value="dynamic">
+```typescript title="tools.ts"
+export default {
+  async adaptiveOperation(params: { size: number, data: any[] }) {
+    // Implement internal timeout based on data size
+    const estimatedTime = params.size * 100; // 100ms per item
+    const timeoutMs = Math.min(estimatedTime, 60000); // Cap at 60 seconds
+    
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        reject(new Error(`Operation timed out after ${timeoutMs}ms`));
+      }, timeoutMs);
+      
+      processData(params.data)
+        .then(result => {
+          clearTimeout(timer);
+          resolve(result);
+        })
+        .catch(error => {
+          clearTimeout(timer);
+          reject(error);
+        });
+    });
+  }
+};
+```
+</TabsContent>
+</Tabs>
 
-## Development Features
+### Memory and Resource Management
 
-### Hot Reloading
+The runtime includes several performance optimizations:
 
-Enable hot reloading for development:
+- **Buffer Pool**: Reuses buffers for tool I/O to reduce memory allocations
+- **Output Size Limits**: Prevents memory exhaustion with 10MB output limit
+- **Process Isolation**: Each tool execution runs in an isolated process
+- **Automatic Cleanup**: Resources are automatically cleaned up after execution
 
-```yaml
+<Callout type="info">
+The runtime uses a buffer pool with 4KB initial capacity that automatically grows for larger outputs while preventing memory exhaustion attacks through the 10MB limit.
+</Callout>
+
+## Environment Isolation
+
+### Environment Variable Management
+
+The runtime provides secure environment variable handling:
+
+<Tabs>
+<TabsList>
+<TabsTrigger value="scoped">Scoped Variables</TabsTrigger>
+<TabsTrigger value="validation">Validation Rules</TabsTrigger>
+<TabsTrigger value="cleanup">Automatic Cleanup</TabsTrigger>
+</TabsList>
+
+<TabsContent value="scoped">
+```yaml title="compozy.yaml"
 runtime:
   type: bun
-  entrypoint: ./tools.ts
+  entrypoint: "./tools.ts"
   permissions:
-    - --allow-read
-    - --allow-net
-    - --allow-env
-  development:
-    hot_reload: true
-    watch_patterns:
-      - "tools/**/*.ts"
-      - "tools/**/*.js"
+    - --allow-env=API_KEY,DATABASE_URL,LOG_LEVEL
 ```
 
-### Debug Mode
+```typescript title="tools.ts"
+export default {
+  async fetchData(params: { endpoint: string }) {
+    // ✅ Only specified environment variables are accessible
+    const apiKey = process.env.API_KEY;
+    const dbUrl = process.env.DATABASE_URL;
+    const logLevel = process.env.LOG_LEVEL || 'info';
+    
+    // ❌ This would be undefined (not in allowed list)
+    const sysPath = process.env.PATH; // undefined
+    
+    return await fetch(`${params.endpoint}`, {
+      headers: { 'Authorization': `Bearer ${apiKey}` }
+    });
+  }
+};
+```
+</TabsContent>
 
-Enable debug mode for development:
+<TabsContent value="validation">
+Environment variables are validated for security:
 
-```bash
-# Enable debug mode
-DEBUG=true compozy run workflow.yaml
+```typescript
+// ✅ Valid environment variable names
+const validVars = [
+  'API_KEY',
+  'DATABASE_URL',
+  'LOG_LEVEL',
+  'MAX_RETRIES'
+];
 
-# Verbose runtime logging
-RUNTIME_LOG_LEVEL=debug compozy run workflow.yaml
+// ❌ Invalid environment variable names (blocked)
+const invalidVars = [
+  'LD_PRELOAD',         // Dynamic library loading
+  'LD_LIBRARY_PATH',    // Library path manipulation
+  'NODE_OPTIONS',       // Runtime options injection
+  'BUN_CONFIG_PROFILE', // Runtime configuration
+  'PATH'                // Usually not needed for tools
+];
 ```
 
-## Security Best Practices
+Additional validation rules:
+- Variable names must be uppercase alphanumeric with underscores
+- Values cannot contain newlines, carriage returns, or null bytes
+- Dangerous system variables are blocked
+</TabsContent>
 
-### Principle of Least Privilege
+<TabsContent value="cleanup">
+```typescript
+// The runtime automatically handles environment cleanup:
 
-1. **Minimal Permissions**: Grant only necessary permissions
-2. **Specific Paths**: Use specific file paths instead of broad access
-3. **Limited Network**: Restrict network access to required domains
-4. **Environment Isolation**: Only expose necessary environment variables
+// Before tool execution:
+const originalEnv = { ...process.env };
+const addedEnvKeys = new Set<string>();
 
-### Permission Examples
+// During execution:
+// - Set required environment variables
+// - Track which variables were added
 
-<Tabs items={['Restrictive', 'Moderate', 'Permissive']}>
-  <Tab value="Restrictive">
-```yaml
-# Highly restrictive - read-only file access
+// After execution (automatic cleanup):
+for (const key of addedEnvKeys) {
+  delete process.env[key];
+}
+for (const [key, value] of Object.entries(originalEnv)) {
+  if (!addedEnvKeys.has(key) && process.env[key] !== value) {
+    process.env[key] = value;
+  }
+}
+```
+
+<Callout type="success">
+Environment variables are automatically cleaned up after each tool execution, preventing data leakage between tools and maintaining isolation.
+</Callout>
+</TabsContent>
+</Tabs>
+
+### Process Isolation
+
+Each tool execution runs in an isolated process with:
+
+- **Separate Memory Space**: Tools cannot access each other's memory
+- **Clean Environment**: Fresh environment for each execution
+- **Resource Limits**: CPU and memory limits enforced by the runtime
+- **Network Isolation**: Network access controlled by permissions
+
+## Advanced Configuration
+
+### Custom Runtime Settings
+
+For advanced use cases, you can configure additional runtime settings:
+
+```yaml title="compozy.yaml"
 runtime:
   type: bun
-  entrypoint: ./tools.ts
+  entrypoint: "./tools.ts"
   permissions:
-    - --allow-read=/data
+    - --allow-read=/app/data
+    - --allow-write=/app/output
     - --allow-net=api.example.com
-    - --allow-env=API_KEY
+    - --allow-env=API_KEY,DATABASE_URL
+  
+  # Advanced settings (project-specific)
+  timeout: 120s
+  max_memory: 512MB
+  max_cpu: 80%
+  
+  # Development settings
+  hot_reload: true
+  debug_mode: false
+  
+  # Security settings
+  strict_mode: true
+  validate_inputs: true
 ```
-  </Tab>
-  <Tab value="Moderate">
-```yaml
-# Moderate - typical application needs
+
+<Callout type="warning">
+Advanced settings are project-specific and should be configured based on your specific requirements and security policies.
+</Callout>
+
+### Multiple Runtime Configurations
+
+You can configure different runtime settings for different environments:
+
+<Tabs>
+<TabsList>
+<TabsTrigger value="development">Development</TabsTrigger>
+<TabsTrigger value="staging">Staging</TabsTrigger>
+<TabsTrigger value="production">Production</TabsTrigger>
+</TabsList>
+
+<TabsContent value="development">
+```yaml title="compozy.dev.yaml"
 runtime:
   type: bun
-  entrypoint: ./tools.ts
-  permissions:
-    - --allow-read
-    - --allow-write=/tmp
-    - --allow-net=api.example.com,127.0.0.1
-    - --allow-env=API_KEY,DATABASE_URL,DEBUG_MODE
-```
-  </Tab>
-  <Tab value="Permissive">
-```yaml
-# Permissive - for development or trusted environments
-runtime:
-  type: bun
-  entrypoint: ./tools.ts
+  entrypoint: "./tools.ts"
   permissions:
     - --allow-read
     - --allow-write
     - --allow-net
     - --allow-env
-    - --allow-run
+  timeout: 30s
+  debug_mode: true
+  hot_reload: true
 ```
-  </Tab>
+
+Development configuration with relaxed permissions for easier debugging.
+</TabsContent>
+
+<TabsContent value="staging">
+```yaml title="compozy.staging.yaml"
+runtime:
+  type: bun
+  entrypoint: "./tools.ts"
+  permissions:
+    - --allow-read=/app/data
+    - --allow-write=/app/output
+    - --allow-net=staging-api.example.com
+    - --allow-env=API_KEY,DATABASE_URL
+  timeout: 60s
+  debug_mode: false
+  strict_mode: true
+```
+
+Staging configuration with moderate restrictions for testing.
+</TabsContent>
+
+<TabsContent value="production">
+```yaml title="compozy.prod.yaml"
+runtime:
+  type: bun
+  entrypoint: "./tools.ts"
+  permissions:
+    - --allow-read=/app/data
+    - --allow-write=/app/output
+    - --allow-net=api.example.com,metrics.example.com
+    - --allow-env=API_KEY,DATABASE_URL,LOG_LEVEL
+  timeout: 90s
+  debug_mode: false
+  strict_mode: true
+  validate_inputs: true
+```
+
+Production configuration with strict security and validation.
+</TabsContent>
 </Tabs>
 
-### Security Validation
+## Error Handling and Debugging
 
-Validate tool security:
+### Error Types and Handling
 
-```typescript
-// Validate environment variables
-function validateEnvironment() {
-  const requiredVars = ['API_KEY', 'DATABASE_URL'];
-  const missing = requiredVars.filter(key => !process.env[key]);
+The runtime provides structured error handling:
 
-  if (missing.length > 0) {
-    throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
+<Tabs>
+<TabsList>
+<TabsTrigger value="tool-errors">Tool Errors</TabsTrigger>
+<TabsTrigger value="runtime-errors">Runtime Errors</TabsTrigger>
+<TabsTrigger value="security-errors">Security Errors</TabsTrigger>
+</TabsList>
+
+<TabsContent value="tool-errors">
+```typescript title="tools.ts"
+export default {
+  async processData(params: { data: any[] }) {
+    try {
+      if (!params.data || !Array.isArray(params.data)) {
+        throw new Error('Invalid data parameter: expected array');
+      }
+      
+      const result = await processDataInternal(params.data);
+      return { success: true, result };
+      
+    } catch (error) {
+      // ✅ Good: Provide meaningful error messages
+      if (error instanceof ValidationError) {
+        throw new Error(`Validation failed: ${error.message}`);
+      }
+      
+      if (error instanceof NetworkError) {
+        throw new Error(`Network error: ${error.message}`);
+      }
+      
+      // ✅ Good: Don't expose internal implementation details
+      throw new Error('Processing failed');
+    }
   }
-}
+};
+```
 
-// Validate input data
-function validateInput(input: unknown): asserts input is ValidInput {
-  if (typeof input !== 'object' || input === null) {
-    throw new Error('Input must be an object');
+Tool errors are automatically wrapped with execution context including tool ID and execution ID.
+</TabsContent>
+
+<TabsContent value="runtime-errors">
+Runtime errors include:
+
+- **Timeout Errors**: Tool execution exceeded configured timeout
+- **Memory Errors**: Tool exceeded memory limits
+- **Process Errors**: Failed to start or manage tool process
+- **Permission Errors**: Tool attempted unauthorized operations
+
+```json
+{
+  "error": {
+    "type": "ToolExecutionError",
+    "message": "Tool execution failed for tool weather_tool (exec 123) during execution: timeout",
+    "tool_id": "weather_tool",
+    "tool_exec_id": "123",
+    "operation": "execution",
+    "timestamp": "2024-01-15T10:30:00Z"
   }
-
-  // Additional validation logic
 }
 ```
+</TabsContent>
+
+<TabsContent value="security-errors">
+Security errors are thrown for:
+
+- **Invalid Tool IDs**: Path traversal attempts, invalid characters
+- **Permission Violations**: Unauthorized file or network access
+- **Environment Violations**: Invalid environment variable access
+- **Input Validation**: Malformed or dangerous input parameters
+
+```json
+{
+  "error": {
+    "type": "SecurityError",
+    "message": "Invalid tool_id: directory traversal patterns detected",
+    "tool_id": "../malicious_tool",
+    "tool_exec_id": "456",
+    "timestamp": "2024-01-15T10:30:00Z"
+  }
+}
+```
+</TabsContent>
+</Tabs>
+
+### Debugging Tools
+
+<Steps>
+<Step title="Enable Debug Mode">
+```yaml title="compozy.yaml"
+runtime:
+  type: bun
+  entrypoint: "./tools.ts"
+  debug_mode: true
+  permissions:
+    - --allow-read
+    - --allow-net
+    - --allow-env
+```
+
+Debug mode provides detailed execution logs and error information.
+</Step>
+
+<Step title="Use Console Logging">
+```typescript title="tools.ts"
+export default {
+  async debugTool(params: { input: string }) {
+    // ✅ Console output is redirected to stderr and prefixed
+    console.log('Processing input:', params.input);
+    console.debug('Debug information:', { timestamp: new Date() });
+    console.warn('Warning: deprecated parameter used');
+    
+    try {
+      const result = await processInput(params.input);
+      console.info('Processing completed successfully');
+      return result;
+    } catch (error) {
+      console.error('Processing failed:', error);
+      throw error;
+    }
+  }
+};
+```
+
+Console output is automatically prefixed and redirected to stderr to prevent JSON response corruption.
+</Step>
+
+<Step title="Monitor Execution Metrics">
+```typescript title="tools.ts"
+export default {
+  async monitoredTool(params: { data: any }) {
+    const startTime = Date.now();
+    
+    try {
+      const result = await processData(params.data);
+      
+      const executionTime = Date.now() - startTime;
+      console.info('Execution metrics:', {
+        duration: executionTime,
+        success: true,
+        dataSize: JSON.stringify(params.data).length
+      });
+      
+      return result;
+    } catch (error) {
+      const executionTime = Date.now() - startTime;
+      console.error('Execution failed:', {
+        duration: executionTime,
+        error: error.message
+      });
+      throw error;
+    }
+  }
+};
+```
+</Step>
+</Steps>
 
 ## Troubleshooting
 
 ### Common Issues
 
-<Callout type="error">
-**Permission Denied**: Tool lacks necessary permissions
-```bash
-# Solution: Add required permissions
-permissions:
-  - --allow-read=/path/to/file
+<div className="space-y-4">
+
+<div className="border rounded-lg p-4">
+<div className="flex items-center gap-2 mb-2">
+  <AlertTriangle className="w-4 h-4 text-yellow-500" />
+  <h4 className="font-semibold">Tool Not Found</h4>
+</div>
+<div className="text-sm space-y-2">
+  <p><strong>Error:</strong> "Tool tool_name not found in entrypoint exports"</p>
+  <p><strong>Solution:</strong> Ensure your tool is properly exported in the entrypoint file:</p>
+  <pre className="bg-gray-100 p-2 rounded text-xs">
+{`// ✅ Correct export
+export default {
+  tool_name: async (params) => { ... }
+};`}
+  </pre>
+</div>
+</div>
+
+<div className="border rounded-lg p-4">
+<div className="flex items-center gap-2 mb-2">
+  <XCircle className="w-4 h-4 text-red-500" />
+  <h4 className="font-semibold">Permission Denied</h4>
+</div>
+<div className="text-sm space-y-2">
+  <p><strong>Error:</strong> "Permission denied: network access not allowed"</p>
+  <p><strong>Solution:</strong> Add the required permission to your configuration:</p>
+  <pre className="bg-gray-100 p-2 rounded text-xs">
+{`runtime:
+  permissions:
+    - --allow-net=api.example.com`}
+  </pre>
+</div>
+</div>
+
+<div className="border rounded-lg p-4">
+<div className="flex items-center gap-2 mb-2">
+  <Timer className="w-4 h-4 text-orange-500" />
+  <h4 className="font-semibold">Timeout Errors</h4>
+</div>
+<div className="text-sm space-y-2">
+  <p><strong>Error:</strong> "Tool execution timed out after 60000ms"</p>
+  <p><strong>Solution:</strong> Increase timeout or optimize tool performance:</p>
+  <pre className="bg-gray-100 p-2 rounded text-xs">
+{`runtime:
+  timeout: 120s  # Increase global timeout`}
+  </pre>
+</div>
+</div>
+
+<div className="border rounded-lg p-4">
+<div className="flex items-center gap-2 mb-2">
+  <Bug className="w-4 h-4 text-purple-500" />
+  <h4 className="font-semibold">Memory Errors</h4>
+</div>
+<div className="text-sm space-y-2">
+  <p><strong>Error:</strong> "Tool output exceeds maximum size limit"</p>
+  <p><strong>Solution:</strong> Optimize tool output or implement streaming:</p>
+  <pre className="bg-gray-100 p-2 rounded text-xs">
+{`// ✅ Return summarized data instead of full dataset
+return {
+  summary: processedData.summary,
+  count: processedData.items.length
+};`}
+  </pre>
+</div>
+</div>
+
+</div>
+
+### Performance Optimization
+
+<Steps>
+<Step title="Optimize Tool Performance">
+```typescript title="tools.ts"
+// ✅ Good: Efficient data processing
+export default {
+  async processLargeDataset(params: { data: any[] }) {
+    // Process in chunks to avoid memory issues
+    const chunkSize = 1000;
+    const results = [];
+    
+    for (let i = 0; i < params.data.length; i += chunkSize) {
+      const chunk = params.data.slice(i, i + chunkSize);
+      const processed = await processChunk(chunk);
+      results.push(processed);
+    }
+    
+    return { results: results.flat(), total: params.data.length };
+  }
+};
 ```
-</Callout>
+</Step>
 
-<Callout type="error">
-**Module Not Found**: Entry point file doesn't exist
-```bash
-# Solution: Verify entry point path
-entrypoint: ./tools.ts  # Check file exists
+<Step title="Implement Caching">
+```typescript title="tools.ts"
+// Simple in-memory cache for expensive operations
+const cache = new Map();
+
+export default {
+  async expensiveOperation(params: { key: string }) {
+    // Check cache first
+    if (cache.has(params.key)) {
+      console.log('Cache hit for:', params.key);
+      return cache.get(params.key);
+    }
+    
+    const result = await performExpensiveOperation(params.key);
+    cache.set(params.key, result);
+    
+    return result;
+  }
+};
 ```
-</Callout>
+</Step>
 
-<Callout type="error">
-**Runtime Error**: Tool execution fails
-```bash
-# Solution: Check tool implementation and dependencies
-# Enable debug logging for more details
-DEBUG=true compozy run workflow.yaml
+<Step title="Use Streaming for Large Outputs">
+```typescript title="tools.ts"
+export default {
+  async generateReport(params: { query: string }) {
+    // Instead of returning large data, return a reference
+    const reportId = await generateReportAsync(params.query);
+    
+    return {
+      reportId,
+      status: 'generating',
+      downloadUrl: `/api/reports/${reportId}/download`
+    };
+  }
+};
 ```
-</Callout>
+</Step>
+</Steps>
 
-### Debug Commands
+## Security Matrix
 
-```bash
-# Test runtime configuration
-compozy config validate
+| Permission | Risk Level | Use Cases | Recommendation |
+|------------|------------|-----------|----------------|
+| `--allow-read` | <span className="inline-flex items-center gap-1 text-orange-600"><AlertTriangle className="w-3 h-3" /> Medium</span> | File processing, config reading | Scope to specific directories |
+| `--allow-write` | <span className="inline-flex items-center gap-1 text-red-600"><XCircle className="w-3 h-3" /> High</span> | File generation, logging | Scope to output directories only |
+| `--allow-net` | <span className="inline-flex items-center gap-1 text-orange-600"><AlertTriangle className="w-3 h-3" /> Medium</span> | API calls, data fetching | Scope to specific hosts |
+| `--allow-env` | <span className="inline-flex items-center gap-1 text-yellow-600"><Info className="w-3 h-3" /> Low</span> | Configuration, secrets | Scope to specific variables |
+| `--allow-sys` | <span className="inline-flex items-center gap-1 text-orange-600"><AlertTriangle className="w-3 h-3" /> Medium</span> | System monitoring | Use only when necessary |
+| `--allow-run` | <span className="inline-flex items-center gap-1 text-red-600"><XCircle className="w-3 h-3" /> Critical</span> | External commands | Avoid in production |
 
-# Run with debug logging
-DEBUG=true compozy run workflow.yaml
+## Related Documentation
 
-# Check runtime environment
-compozy runtime info
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+<div className="border rounded-lg p-4">
+<div className="flex items-center gap-2 mb-2">
+  <Code className="w-4 h-4 text-blue-500" />
+  <h4 className="font-semibold">Tool Development</h4>
+</div>
+<p className="text-sm text-gray-600 mb-3">Learn how to build and test tools for the runtime</p>
+<a href="/docs/core/tools/typescript-development" className="text-blue-600 hover:text-blue-800 text-sm font-medium">
+  TypeScript Development Guide →
+</a>
+</div>
 
-# Test tool execution
-compozy tool test tool-name
-```
+<div className="border rounded-lg p-4">
+<div className="flex items-center gap-2 mb-2">
+  <Shield className="w-4 h-4 text-green-500" />
+  <h4 className="font-semibold">Security Best Practices</h4>
+</div>
+<p className="text-sm text-gray-600 mb-3">Comprehensive security guidelines for production</p>
+<a href="/docs/core/tools/performance-security" className="text-blue-600 hover:text-blue-800 text-sm font-medium">
+  Security & Performance →
+</a>
+</div>
 
-## Next Steps
+<div className="border rounded-lg p-4">
+<div className="flex items-center gap-2 mb-2">
+  <Settings className="w-4 h-4 text-purple-500" />
+  <h4 className="font-semibold">Project Configuration</h4>
+</div>
+<p className="text-sm text-gray-600 mb-3">Complete project setup and configuration guide</p>
+<a href="/docs/core/configuration/project-setup" className="text-blue-600 hover:text-blue-800 text-sm font-medium">
+  Project Setup Guide →
+</a>
+</div>
 
-- Learn about [LLM Providers](/docs/core/configuration/providers)
-- Set up [AutoLoad](/docs/core/configuration/autoload)
-- Explore [Tool Integration](/docs/core/tools/overview)
-- Configure [Monitoring](/docs/core/configuration/monitoring-config)
+<div className="border rounded-lg p-4">
+<div className="flex items-center gap-2 mb-2">
+  <Bug className="w-4 h-4 text-red-500" />
+  <h4 className="font-semibold">Testing & Debugging</h4>
+</div>
+<p className="text-sm text-gray-600 mb-3">Tools and techniques for debugging runtime issues</p>
+<a href="/docs/core/tools/testing-debugging" className="text-blue-600 hover:text-blue-800 text-sm font-medium">
+  Testing & Debugging →
+</a>
+</div>
+</div>

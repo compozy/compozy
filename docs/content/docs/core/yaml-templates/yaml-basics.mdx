@@ -431,4 +431,231 @@ items:
   - second  # Error: inconsistent list item types
 ```
 
+## Precision Preservation
+
+### Numeric Precision Handling
+
+The template engine provides precision preservation for numeric values, essential for financial calculations and high-precision data processing. Enable precision preservation using the `WithPrecisionPreservation(true)` method:
+
+```yaml
+# Template engine configuration with precision preservation
+engine := NewEngine(FormatYAML).WithPrecisionPreservation(true)
+
+# Financial calculations with precision
+financial_data:
+  # Large integers beyond JavaScript's MAX_SAFE_INTEGER (2^53-1)
+  account_balance: "9007199254740992"  # Preserved as string
+  transaction_id: "12345678901234567890"  # Preserved as string
+  
+  # High-precision decimals
+  exchange_rate: "1.234567890123456789"  # Preserved as string
+  interest_rate: "0.0000123456789012345"  # Preserved as string
+  
+  # Safe numeric values
+  customer_count: 42          # Converted to int64
+  average_score: 3.14         # Converted to float64
+```
+
+### JavaScript-Safe Integer Handling
+
+Numbers within JavaScript's safe integer range (±2^53-1) are automatically converted to appropriate numeric types. The `PrecisionConverter` from `precision_converter.go` handles this conversion:
+
+```yaml
+# Safe integer range: -9007199254740991 to 9007199254740991
+safe_numbers:
+  small_int: "123"                    # → int64(123)
+  large_safe_int: "9007199254740991"  # → int64(9007199254740991)
+  
+unsafe_numbers:
+  # Beyond safe integer range - preserved as strings
+  too_large: "9007199254740992"       # → "9007199254740992"
+  very_large: "123456789012345678901" # → "123456789012345678901"
+```
+
+### Float64 Precision Limits
+
+The engine respects float64's 15-digit precision limit, using the `countSignificantDigits` function:
+
+```yaml
+precision_examples:
+  # Within float64 precision (≤15 significant digits)
+  precise_decimal: "3.14159265358979"  # → float64(3.14159265358979)
+  
+  # Beyond float64 precision (>15 significant digits)
+  high_precision: "3.141592653589793238462643383279"  # → preserved as string
+  
+  # Scientific notation handling
+  scientific: "1.23456789012345e10"  # → float64 if precision allows
+```
+
+### Template Usage with Precision
+
+```yaml
+# In templates with precision preservation enabled
+financial_report:
+  # Direct value processing
+  balance: "{{ .account.balance }}"  # Precision preserved
+  
+  # Calculations maintain precision
+  total: |
+    {{- $sum := .transactions | sum -}}
+    {{ $sum }}  # Result respects precision limits
+  
+  # Complex financial calculations
+  compound_interest: |
+    {{- $principal := .loan.principal -}}
+    {{- $rate := .loan.rate -}}
+    {{- $periods := .loan.periods -}}
+    {{- $amount := mul $principal (pow (add 1 $rate) $periods) -}}
+    {{ $amount }}  # Precision preserved throughout calculation
+```
+
+## Hyphenated Field Handling
+
+### Kubernetes-Style Field Names
+
+The template engine automatically handles hyphenated field names common in Kubernetes configurations using the `preprocessTemplateForHyphens` function:
+
+```yaml
+# Kubernetes-style configuration with hyphens
+kubernetes_config:
+  api-version: "v1"
+  kind: "Deployment"
+  metadata:
+    name: "my-app"
+    namespace: "default"
+  spec:
+    replica-count: 3
+    container-port: 8080
+    image-pull-policy: "Always"
+
+# Template access to hyphenated fields
+deployment_template: |
+  apiVersion: {{ .kubernetes_config.api-version }}
+  kind: {{ .kubernetes_config.kind }}
+  metadata:
+    name: {{ .kubernetes_config.metadata.name }}
+  spec:
+    replicas: {{ .kubernetes_config.spec.replica-count }}
+    template:
+      spec:
+        containers:
+        - name: app
+          image: myapp:latest
+          ports:
+          - containerPort: {{ .kubernetes_config.spec.container-port }}
+          imagePullPolicy: {{ .kubernetes_config.spec.image-pull-policy }}
+```
+
+### Automatic Index Syntax Conversion
+
+The `preprocessTemplateForHyphens` function automatically converts dot notation to index syntax for hyphenated fields:
+
+```yaml
+# Original template with hyphens
+input_template: "{{ .tasks.data-processing.output.result }}"
+
+# Automatically converted to index syntax
+processed_template: "{{ (index . \"tasks\" \"data-processing\" \"output\" \"result\") }}"
+
+# Works with complex nested structures
+complex_example:
+  original: "{{ .workflow.task-groups.pre-processing.validate-input.output.status }}"
+  converted: "{{ (index . \"workflow\" \"task-groups\" \"pre-processing\" \"validate-input\" \"output\" \"status\") }}"
+```
+
+### Real-World Kubernetes Examples
+
+```yaml
+# Pod configuration with hyphenated fields
+pod_config:
+  api-version: "v1"
+  kind: "Pod"
+  metadata:
+    name: "web-server"
+    labels:
+      app-name: "web"
+      version-tag: "v1.0"
+  spec:
+    restart-policy: "Always"
+    dns-policy: "ClusterFirst"
+    containers:
+    - name: "web-container"
+      image: "nginx:latest"
+      ports:
+      - container-port: 80
+        protocol: "TCP"
+      env:
+      - name: "LOG_LEVEL"
+        value: "info"
+      resources:
+        requests:
+          memory: "64Mi"
+          cpu: "250m"
+        limits:
+          memory: "128Mi"
+          cpu: "500m"
+
+# Template using hyphenated fields
+pod_template: |
+  apiVersion: {{ .pod_config.api-version }}
+  kind: {{ .pod_config.kind }}
+  metadata:
+    name: {{ .pod_config.metadata.name }}
+    labels:
+      app: {{ .pod_config.metadata.labels.app-name }}
+      version: {{ .pod_config.metadata.labels.version-tag }}
+  spec:
+    restartPolicy: {{ .pod_config.spec.restart-policy }}
+    dnsPolicy: {{ .pod_config.spec.dns-policy }}
+    containers:
+    - name: {{ .pod_config.spec.containers.0.name }}
+      image: {{ .pod_config.spec.containers.0.image }}
+      ports:
+      - containerPort: {{ .pod_config.spec.containers.0.ports.0.container-port }}
+        protocol: {{ .pod_config.spec.containers.0.ports.0.protocol }}
+```
+
+### Mixed Hyphenated and Non-Hyphenated Fields
+
+```yaml
+# Configuration mixing different naming conventions
+mixed_config:
+  # Standard camelCase
+  apiVersion: "v1"
+  serviceAccount: "my-service-account"
+  
+  # Hyphenated fields
+  image-pull-secrets:
+    - name: "docker-registry"
+  
+  # Snake_case fields
+  security_context:
+    run_as_user: 1000
+    
+  # Kebab-case fields
+  container-security-context:
+    allow-privilege-escalation: false
+    read-only-root-filesystem: true
+
+# Template handling all conventions
+mixed_template: |
+  # Standard access
+  apiVersion: {{ .mixed_config.apiVersion }}
+  serviceAccount: {{ .mixed_config.serviceAccount }}
+  
+  # Hyphenated field access
+  imagePullSecrets:
+  - name: {{ .mixed_config.image-pull-secrets.0.name }}
+  
+  # Snake_case access
+  securityContext:
+    runAsUser: {{ .mixed_config.security_context.run_as_user }}
+    
+  # Kebab-case access
+  containerSecurityContext:
+    allowPrivilegeEscalation: {{ .mixed_config.container-security-context.allow-privilege-escalation }}
+    readOnlyRootFilesystem: {{ .mixed_config.container-security-context.read-only-root-filesystem }}
+```
+
 Understanding these YAML fundamentals will help you create clean, maintainable Compozy configurations. Next, explore [Template Directives](./directives) to learn about resource references and composition.

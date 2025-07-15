@@ -4,6 +4,7 @@
   "icon": "ListCheck",
   "pages": [
     "basic-tasks",
+    "router-tasks",
     "aggregate-tasks",
     "collection-tasks",
     "parallel-processing",

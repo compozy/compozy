@@ -1,3 +1,4 @@
+import ProjectStructure from "@/components/project-structure";
 import {
   AccordionContent,
   AccordionItem,
@@ -118,6 +119,7 @@ export function getMDXComponents(components?: MDXComponents): MDXComponents {
     TooltipTrigger,
     Code,
     Mermaid,
+    ProjectStructure,
     pre: (props: any) => (
       <Code {...props} showLineNumbers>
         {props.children}
