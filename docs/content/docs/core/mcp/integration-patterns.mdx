@@ -3,14 +3,37 @@ title: "Integration Patterns"
 description: "Common patterns and best practices for integrating MCP servers with agents, workflows, and external systems"
 ---
 
+import {
+  BrainCircuit,
+  Code,
+  Users,
+  Link2,
+  BarChart3,
+  Workflow,
+  Target,
+  Settings,
+  CheckCircle,
+  Cloud,
+  RefreshCw,
+  Network,
+  Shield,
+  Gauge,
+  Lock,
+  Monitor,
+  TrendingUp,
+  Database,
+} from "lucide-react";
+import { FeatureCard, FeatureCardList } from "@/components/ui/feature-card";
+import { ReferenceCard, ReferenceCardList } from "@/components/ui/reference-card";
+import { List, ListItem } from "@/components/ui/list";
+
 # Integration Patterns
 
-MCP (Model Context Protocol) integration patterns provide proven approaches for connecting external tools and services with Compozy agents and workflows. This guide covers common patterns, best practices, and implementation strategies.
+MCP (Model Context Protocol) integration patterns provide proven approaches for connecting external tools and services with Compozy agents and workflows. This guide covers common patterns, best practices, and implementation strategies for building robust, scalable MCP integrations.
 
 ## Integration Architecture
 
-```mermaid
-graph TB
+<Mermaid chart={`graph TB
     A[Agent] --> B[MCP Proxy]
     B --> C[MCP Server 1]
     B --> D[MCP Server 2]
@@ -28,16 +51,73 @@ graph TB
 
     M[Load Balancer] --> N[MCP Proxy Cluster]
     N --> O[Storage Backend]
-```
+
+    style A fill:#e1f5fe
+    style B fill:#f3e5f5
+    style I fill:#e8f5e8
+    style M fill:#fff3e0
+    style N fill:#fff3e0
+    style O fill:#fce4ec`} />
+
+<List className="mt-8">
+  <ListItem title="Agent Integration" icon={BrainCircuit}>
+    Direct integration with AI agents for intelligent tool selection and execution
+  </ListItem>
+  <ListItem title="Workflow Orchestration" icon={Workflow}>
+    Coordinate multiple MCP servers within complex workflow processes
+  </ListItem>
+  <ListItem title="External System Bridge" icon={Link2}>
+    Connect external systems and services through MCP protocol adapters
+  </ListItem>
+  <ListItem title="Load Balancing" icon={BarChart3}>
+    Distribute requests across multiple MCP proxy instances for scalability
+  </ListItem>
+</List>
+
+## Integration Patterns Overview
+
+<FeatureCardList cols={3} size="sm" className="mb-12">
+  <FeatureCard
+    title="Agent Integration"
+    description="Connect AI agents directly to MCP servers for intelligent tool usage"
+    icon={BrainCircuit}
+  />
+  <FeatureCard
+    title="Workflow Integration"
+    description="Orchestrate MCP servers within complex workflow processes"
+    icon={Workflow}
+  />
+  <FeatureCard
+    title="Programmatic Integration"
+    description="Direct API integration for custom applications and services"
+    icon={Code}
+  />
+  <FeatureCard
+    title="Multi-Agent Workflows"
+    description="Coordinate multiple agents using shared MCP resources"
+    icon={Users}
+  />
+  <FeatureCard
+    title="External System Bridge"
+    description="Connect legacy systems through MCP protocol adapters"
+    icon={Link2}
+  />
+  <FeatureCard
+    title="Load Balancing"
+    description="Distribute requests across multiple MCP proxy instances"
+    icon={BarChart3}
+  />
+</FeatureCardList>
 
 ## Agent Integration Patterns
 
 ### Single MCP Server Integration
 
-Simple integration with one MCP server:
+The simplest integration pattern connects one agent to one MCP server for focused functionality:
 
-```yaml
-# Agent configuration
+<Tabs items={["Agent Configuration", "Workflow Usage", "Error Handling"]}>
+<Tab>
+```yaml title="agent-filesystem.yaml"
 resource: agent
 id: file_manager
 description: Agent with file system access via MCP
@@ -45,7 +125,7 @@ version: 1.0.0
 
 config:
   provider: openai
-  model: gpt-4
+  model: gpt-4.1-2025-04-14
   api_key: "{{ .env.OPENAI_API_KEY }}"
 
 # MCP server configuration
@@ -59,26 +139,42 @@ mcps:
       - "/workspace"
     proto: "2025-03-26"
     start_timeout: 15s
+    health_check:
+      enabled: true
+      interval: 30s
+      timeout: 5s
 
 instructions: |
   You are a file management assistant with access to the file system.
   You can read, write, and organize files in the workspace directory.
   Always confirm destructive operations before executing them.
+  
+  Available capabilities:
+  - List directory contents with metadata
+  - Read file contents with encoding detection
+  - Write files with backup creation
+  - Create directory structures
+  - Move and copy files safely
+  - Delete files with confirmation
 
 actions:
   - id: list_files
     prompt: |
       List all files in the current workspace directory.
-      Show file sizes and modification dates.
+      Show file sizes, modification dates, and permissions.
+      Include hidden files if requested.
 
   - id: read_file
     prompt: |
       Read the contents of: {{ .workflow.input.filename }}
+      Detect encoding and handle binary files appropriately.
 
   - id: write_file
     prompt: |
       Write the following content to {{ .workflow.input.filename }}:
       {{ .workflow.input.content }}
+      
+      Create backup if file exists and confirm overwrite.
 
   - id: organize_files
     prompt: |
@@ -86,24 +182,56 @@ actions:
       1. Creating appropriate directory structure
       2. Moving files to logical locations
       3. Removing any duplicate files
+      4. Preserving file timestamps and permissions
 ```
+</Tab>
 
-### Multiple MCP Servers Integration
-
-Agent accessing multiple MCP servers:
-
-```yaml
-resource: agent
-id: development_assistant
-description: Development assistant with multiple tool access
+<Tab>
+```yaml title="file-management-workflow.yaml"
+id: file_management
 version: 1.0.0
+description: File management workflow with MCP integration
 
 config:
-  provider: openai
-  model: gpt-4
-  api_key: "{{ .env.OPENAI_API_KEY }}"
+  input:
+    type: object
+    properties:
+      operation:
+        type: string
+        enum: ["list", "read", "write", "organize"]
+      filename:
+        type: string
+        description: Target filename for read/write operations
+      content:
+        type: string
+        description: Content to write to file
+    required:
+      - operation
 
-# Multiple MCP servers
+agents:
+  - id: file_manager
+    $ref: "./agent-filesystem.yaml"
+
+tasks:
+  - id: execute_file_operation
+    type: basic
+    $use: agent(local::agents.#(id=="file_manager"))
+    action: "{{ .workflow.input.operation }}_file{{ if eq .workflow.input.operation "organize" }}s{{ end }}"
+    with:
+      filename: "{{ .workflow.input.filename }}"
+      content: "{{ .workflow.input.content }}"
+    final: true
+
+outputs:
+  operation: "{{ .workflow.input.operation }}"
+  result: "{{ .tasks.execute_file_operation.output }}"
+  timestamp: "{{ now }}"
+```
+</Tab>
+
+<Tab>
+```yaml title="error-handling-config.yaml"
+# Enhanced error handling configuration
 mcps:
   - id: filesystem
     transport: stdio
@@ -113,7 +241,76 @@ mcps:
       - "@modelcontextprotocol/server-filesystem"
       - "/workspace"
     proto: "2025-03-26"
+    start_timeout: 15s
+    
+    # Error handling configuration
+    retry:
+      max_attempts: 3
+      backoff: exponential
+      backoff_factor: 2
+      initial_delay: 1s
+      max_delay: 30s
+    
+    # Health monitoring
+    health_check:
+      enabled: true
+      interval: 30s
+      timeout: 5s
+      failure_threshold: 3
+      success_threshold: 2
+    
+    # Fallback configuration
+    fallback:
+      enabled: true
+      timeout: 60s
+      strategy: "graceful_degradation"
+      
+    # Logging configuration
+    logging:
+      level: "info"
+      format: "json"
+      include_request_body: false
+      include_response_body: false
+      sensitive_fields:
+        - "password"
+        - "token"
+        - "api_key"
+```
+</Tab>
+</Tabs>
 
+### Multiple MCP Servers Integration
+
+Advanced integration pattern connecting one agent to multiple MCP servers for comprehensive functionality:
+
+<Tabs items={["Agent Configuration", "Multi-Agent Workflow", "Performance Optimization", "Security Configuration"]}>
+<Tab>
+```yaml title="multi-mcp-agent.yaml"
+resource: agent
+id: development_assistant
+description: Development assistant with multiple tool access
+version: 1.0.0
+
+config:
+  provider: openai
+  model: gpt-4.1-2025-04-14
+  api_key: "{{ .env.OPENAI_API_KEY }}"
+  temperature: 0.1
+  max_tokens: 4000
+
+# Multiple MCP servers with load balancing
+mcps:
+  - id: filesystem
+    transport: stdio
+    command: npx
+    args:
+      - -y
+      - "@modelcontextprotocol/server-filesystem"
+      - "/workspace"
+    proto: "2025-03-26"
+    priority: 1
+    weight: 100
+    
   - id: database
     transport: stdio
     command: python
@@ -121,44 +318,390 @@ mcps:
       - mcp_server_database.py
       - "--connection-string"
       - "{{ .env.DATABASE_URL }}"
+      - "--pool-size"
+      - "10"
     proto: "2025-03-26"
-
+    priority: 2
+    weight: 80
+    
   - id: web_search
     url: "http://localhost:3001"
     transport: sse
     env:
       SEARCH_API_KEY: "{{ .env.SEARCH_API_KEY }}"
+      RATE_LIMIT: "100/minute"
     proto: "2025-03-26"
+    priority: 3
+    weight: 60
+    
+  - id: code_analysis
+    transport: stdio
+    command: node
+    args:
+      - "mcp-server-code-analysis.js"
+      - "--language"
+      - "typescript,javascript,python,go"
+    proto: "2025-03-26"
+    priority: 2
+    weight: 70
 
 instructions: |
   You are a development assistant with access to:
-  1. File system operations
-  2. Database queries and updates
-  3. Web search capabilities
+  1. File system operations (read, write, organize)
+  2. Database queries and updates (PostgreSQL, MySQL)
+  3. Web search capabilities (research, documentation)
+  4. Code analysis tools (linting, complexity analysis)
 
-  Use these tools to help with development tasks, research, and code management.
+  Use these tools intelligently to help with development tasks:
+  - Prioritize filesystem operations for quick file access
+  - Use database queries for data-driven decisions
+  - Leverage web search for research and documentation
+  - Apply code analysis for quality improvements
 
 actions:
   - id: research_and_implement
     prompt: |
       Research the topic: {{ .workflow.input.topic }}
 
-      Then:
-      1. Search for relevant information online
+      Follow this systematic approach:
+      1. Search for relevant information online using web_search
       2. Check existing code files for related implementations
       3. Query the database for existing data structures
-      4. Implement a solution based on your findings
+      4. Analyze code quality and patterns
+      5. Implement a solution based on your findings
+      6. Validate implementation with code analysis
 
-  - id: code_review
+  - id: comprehensive_code_review
     prompt: |
       Review the code in: {{ .workflow.input.file_path }}
 
-      Check for:
+      Perform comprehensive analysis:
       1. Code quality and best practices
-      2. Security vulnerabilities
+      2. Security vulnerabilities and risks
       3. Performance optimizations
       4. Database query efficiency
+      5. Test coverage and documentation
+      6. Dependency analysis and updates
+      
+      Use all available tools to provide detailed feedback.
+
+  - id: database_optimization
+    prompt: |
+      Optimize database operations for: {{ .workflow.input.query_or_schema }}
+      
+      Tasks:
+      1. Analyze current database schema
+      2. Identify performance bottlenecks
+      3. Suggest indexing strategies
+      4. Recommend query optimizations
+      5. Validate changes with test data
 ```
+</Tab>
+
+<Tab>
+```yaml title="multi-agent-workflow.yaml"
+id: collaborative_development
+version: 1.0.0
+description: Multi-agent workflow with shared MCP resources
+
+config:
+  input:
+    type: object
+    properties:
+      project_path:
+        type: string
+        description: Path to the project directory
+      task_type:
+        type: string
+        enum: ["research", "implement", "review", "optimize"]
+      requirements:
+        type: array
+        items:
+          type: string
+    required:
+      - project_path
+      - task_type
+
+# Shared MCP configuration
+mcps:
+  - id: shared_filesystem
+    transport: stdio
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "{{ .workflow.input.project_path }}"]
+    proto: "2025-03-26"
+  
+  - id: shared_database
+    transport: stdio
+    command: python
+    args: ["mcp_server_database.py", "--connection-string", "{{ .env.DATABASE_URL }}"]
+    proto: "2025-03-26"
+
+agents:
+  - id: researcher
+    $ref: "./agents/research-agent.yaml"
+    mcps:
+      - $ref: "local::mcps.#(id==shared_filesystem)"
+      - $ref: "local::mcps.#(id==shared_database)"
+      - id: web_search
+        url: "http://localhost:3001"
+        transport: sse
+        
+  - id: implementer
+    $ref: "./agents/implementation-agent.yaml"
+    mcps:
+      - $ref: "local::mcps.#(id==shared_filesystem)"
+      - $ref: "local::mcps.#(id==shared_database)"
+      - id: code_gen
+        transport: stdio
+        command: "code-generation-server"
+        
+  - id: reviewer
+    $ref: "./agents/review-agent.yaml"
+    mcps:
+      - $ref: "local::mcps.#(id==shared_filesystem)"
+      - id: code_analysis
+        transport: stdio
+        command: "code-analysis-server"
+
+tasks:
+  - id: execute_collaborative_task
+    type: parallel
+    strategy: coordinate
+    tasks:
+      - id: research_phase
+        type: basic
+        $use: agent(local::agents.#(id=="researcher"))
+        action: "research_and_analyze"
+        with:
+          topic: "{{ .workflow.input.requirements }}"
+          
+      - id: implementation_phase
+        type: basic
+        $use: agent(local::agents.#(id=="implementer"))
+        action: "implement_solution"
+        with:
+          requirements: "{{ .workflow.input.requirements }}"
+        depends_on: [research_phase]
+        
+      - id: review_phase
+        type: basic
+        $use: agent(local::agents.#(id=="reviewer"))
+        action: "comprehensive_review"
+        with:
+          implementation: "{{ .tasks.implementation_phase.output }}"
+        depends_on: [implementation_phase]
+    
+    coordination:
+      shared_context: true
+      event_bus: true
+      conflict_resolution: "merge"
+
+outputs:
+  research_results: "{{ .tasks.execute_collaborative_task.output.research_phase }}"
+  implementation: "{{ .tasks.execute_collaborative_task.output.implementation_phase }}"
+  review_feedback: "{{ .tasks.execute_collaborative_task.output.review_phase }}"
+  collaboration_metrics:
+    total_duration: "{{ .tasks.execute_collaborative_task.duration }}"
+    agent_utilization: "{{ .tasks.execute_collaborative_task.metrics.agent_utilization }}"
+    mcp_calls: "{{ .tasks.execute_collaborative_task.metrics.mcp_calls }}"
+```
+</Tab>
+
+<Tab>
+```yaml title="performance-optimization.yaml"
+# Performance optimization configuration
+mcps:
+  - id: filesystem_optimized
+    transport: stdio
+    command: npx
+    args:
+      - -y
+      - "@modelcontextprotocol/server-filesystem"
+      - "/workspace"
+    proto: "2025-03-26"
+    
+    # Connection pooling
+    pool:
+      size: 5
+      max_idle: 2
+      max_lifetime: 1h
+      
+    # Caching configuration
+    cache:
+      enabled: true
+      ttl: 300s
+      max_size: 100MB
+      strategy: "lru"
+      
+    # Request batching
+    batching:
+      enabled: true
+      max_batch_size: 10
+      batch_timeout: 100ms
+      
+    # Circuit breaker
+    circuit_breaker:
+      enabled: true
+      failure_threshold: 5
+      success_threshold: 3
+      timeout: 60s
+      
+    # Rate limiting
+    rate_limit:
+      requests_per_second: 100
+      burst_size: 20
+      
+  - id: database_optimized
+    transport: stdio
+    command: python
+    args:
+      - mcp_server_database.py
+      - "--connection-string"
+      - "{{ .env.DATABASE_URL }}"
+      - "--pool-size"
+      - "20"
+      - "--max-connections"
+      - "100"
+    proto: "2025-03-26"
+    
+    # Query optimization
+    query_optimization:
+      enabled: true
+      cache_prepared_statements: true
+      connection_pooling: true
+      lazy_loading: true
+      
+    # Monitoring
+    monitoring:
+      slow_query_threshold: 1s
+      log_queries: true
+      metrics_enabled: true
+      
+    # Backup and failover
+    failover:
+      enabled: true
+      backup_servers:
+        - "{{ .env.DATABASE_BACKUP_URL }}"
+      health_check_interval: 30s
+      failover_timeout: 10s
+```
+</Tab>
+
+<Tab>
+```yaml title="security-configuration.yaml"
+# Security configuration for MCP servers
+mcps:
+  - id: secure_filesystem
+    transport: stdio
+    command: npx
+    args:
+      - -y
+      - "@modelcontextprotocol/server-filesystem"
+      - "/workspace"
+    proto: "2025-03-26"
+    
+    # Authentication
+    auth:
+      enabled: true
+      type: "token"
+      token: "{{ .env.FILESYSTEM_MCP_TOKEN }}"
+      
+    # Access control
+    access_control:
+      enabled: true
+      allowed_paths:
+        - "/workspace/**"
+        - "/tmp/**"
+      denied_paths:
+        - "/etc/**"
+        - "/root/**"
+        - "/home/**"
+      permissions:
+        read: true
+        write: true
+        execute: false
+        delete: false
+        
+    # Security policies
+    security:
+      sandbox_mode: true
+      file_size_limit: 10MB
+      allowed_extensions:
+        - ".txt"
+        - ".json"
+        - ".yaml"
+        - ".md"
+        - ".js"
+        - ".ts"
+        - ".py"
+        - ".go"
+      blocked_extensions:
+        - ".exe"
+        - ".sh"
+        - ".bat"
+        - ".cmd"
+        
+    # Audit logging
+    audit:
+      enabled: true
+      log_level: "info"
+      log_file: "/var/log/mcp-filesystem.log"
+      include_request_body: false
+      include_response_body: false
+      retention_days: 90
+      
+  - id: secure_database
+    transport: stdio
+    command: python
+    args:
+      - mcp_server_database.py
+      - "--connection-string"
+      - "{{ .env.DATABASE_URL }}"
+      - "--ssl-mode"
+      - "require"
+    proto: "2025-03-26"
+    
+    # Database security
+    security:
+      ssl_required: true
+      ssl_cert_path: "/etc/ssl/certs/db-client.crt"
+      ssl_key_path: "/etc/ssl/private/db-client.key"
+      ssl_ca_path: "/etc/ssl/certs/ca-cert.pem"
+      
+    # Query restrictions
+    query_restrictions:
+      allowed_schemas:
+        - "public"
+        - "app_data"
+      blocked_tables:
+        - "users_sensitive"
+        - "payment_info"
+      max_rows_returned: 1000
+      read_only_mode: false
+      
+    # IP whitelisting
+    network_security:
+      ip_whitelist:
+        - "10.0.0.0/8"
+        - "172.16.0.0/12"
+        - "192.168.0.0/16"
+      block_public_ips: true
+      
+    # Encryption
+    encryption:
+      encrypt_at_rest: true
+      encrypt_in_transit: true
+      key_rotation_days: 30
+      
+    # Compliance
+    compliance:
+      gdpr_enabled: true
+      data_retention_days: 365
+      anonymization_enabled: true
+      audit_trail_enabled: true
+```
+</Tab>
+</Tabs>
 
 ### Dynamic MCP Server Selection
 
@@ -840,37 +1383,441 @@ async function robustMCPCall(serverName: string, toolName: string, parameters: a
 }
 ```
 
-### Connection Management
+### Advanced Connection Management
 
-```typescript
-// Connection pooling for MCP servers
-class MCPConnectionPool {
-  private connections: Map<string, Connection> = new Map();
-  private maxConnections: number = 10;
+<Tabs items={["Connection Pool", "Health Monitoring", "Circuit Breaker", "Load Balancing"]}>
+<Tab>
+```typescript title="connection-pool.ts"
+// Advanced connection pooling for MCP servers
+import { EventEmitter } from 'events';
+import { Logger } from './logger';
+
+interface ConnectionConfig {
+  maxConnections: number;
+  minConnections: number;
+  idleTimeout: number;
+  connectionTimeout: number;
+  retryAttempts: number;
+  retryDelay: number;
+}
+
+class MCPConnectionPool extends EventEmitter {
+  private connections: Map<string, Connection[]> = new Map();
+  private activeConnections: Map<string, number> = new Map();
+  private config: ConnectionConfig;
+  private logger: Logger;
+
+  constructor(config: ConnectionConfig) {
+    super();
+    this.config = config;
+    this.logger = new Logger('MCPConnectionPool');
+  }
 
   async getConnection(serverName: string): Promise<Connection> {
-    let connection = this.connections.get(serverName);
-
-    if (!connection || !connection.isHealthy()) {
-      connection = await this.createConnection(serverName);
-      this.connections.set(serverName, connection);
+    const connections = this.connections.get(serverName) || [];
+    
+    // Try to get an available connection
+    for (const connection of connections) {
+      if (connection.isAvailable() && connection.isHealthy()) {
+        connection.setInUse(true);
+        this.activeConnections.set(serverName, 
+          (this.activeConnections.get(serverName) || 0) + 1);
+        return connection;
+      }
     }
+
+    // Create new connection if under limit
+    if (connections.length < this.config.maxConnections) {
+      const connection = await this.createConnection(serverName);
+      connections.push(connection);
+      this.connections.set(serverName, connections);
+      
+      connection.setInUse(true);
+      this.activeConnections.set(serverName, 
+        (this.activeConnections.get(serverName) || 0) + 1);
+      
+      this.emit('connectionCreated', { serverName, totalConnections: connections.length });
+      return connection;
+    }
+
+    // Wait for available connection
+    return this.waitForConnection(serverName);
+  }
+
+  async releaseConnection(serverName: string, connection: Connection): Promise<void> {
+    connection.setInUse(false);
+    connection.setLastUsed(Date.now());
+    
+    this.activeConnections.set(serverName, 
+      Math.max(0, (this.activeConnections.get(serverName) || 0) - 1));
+    
+    this.emit('connectionReleased', { serverName, activeConnections: this.activeConnections.get(serverName) });
+  }
+
+  private async createConnection(serverName: string): Promise<Connection> {
+    const connection = new Connection(serverName, {
+      timeout: this.config.connectionTimeout,
+      retryAttempts: this.config.retryAttempts,
+      retryDelay: this.config.retryDelay,
+    });
+
+    await connection.connect();
+    
+    // Set up connection event handlers
+    connection.on('error', (error) => {
+      this.logger.error('Connection error', { serverName, error });
+      this.removeConnection(serverName, connection);
+    });
+
+    connection.on('close', () => {
+      this.logger.info('Connection closed', { serverName });
+      this.removeConnection(serverName, connection);
+    });
 
     return connection;
   }
 
-  private async createConnection(serverName: string): Promise<Connection> {
-    // Implementation depends on MCP server type
-    return new Connection(serverName);
+  private async waitForConnection(serverName: string): Promise<Connection> {
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error(`Connection timeout for server: ${serverName}`));
+      }, this.config.connectionTimeout);
+
+      const checkForConnection = () => {
+        const connection = this.findAvailableConnection(serverName);
+        if (connection) {
+          clearTimeout(timeout);
+          resolve(connection);
+        } else {
+          setTimeout(checkForConnection, 100);
+        }
+      };
+
+      checkForConnection();
+    });
+  }
+
+  private findAvailableConnection(serverName: string): Connection | null {
+    const connections = this.connections.get(serverName) || [];
+    return connections.find(conn => conn.isAvailable() && conn.isHealthy()) || null;
+  }
+
+  private removeConnection(serverName: string, connection: Connection): void {
+    const connections = this.connections.get(serverName) || [];
+    const index = connections.indexOf(connection);
+    if (index > -1) {
+      connections.splice(index, 1);
+      this.connections.set(serverName, connections);
+    }
   }
 
   async closeAll(): Promise<void> {
-    for (const [name, connection] of this.connections) {
-      await connection.close();
+    for (const [serverName, connections] of this.connections) {
+      await Promise.all(connections.map(conn => conn.close()));
     }
     this.connections.clear();
+    this.activeConnections.clear();
+  }
+
+  getStats(): Record<string, any> {
+    const stats: Record<string, any> = {};
+    
+    for (const [serverName, connections] of this.connections) {
+      stats[serverName] = {
+        totalConnections: connections.length,
+        activeConnections: this.activeConnections.get(serverName) || 0,
+        availableConnections: connections.filter(conn => conn.isAvailable()).length,
+        healthyConnections: connections.filter(conn => conn.isHealthy()).length,
+      };
+    }
+    
+    return stats;
   }
 }
+```
+</Tab>
+
+<Tab>
+```typescript title="health-monitor.ts"
+// Health monitoring for MCP connections
+class MCPHealthMonitor {
+  private healthChecks: Map<string, NodeJS.Timer> = new Map();
+  private healthStatus: Map<string, boolean> = new Map();
+  private config: HealthConfig;
+  private logger: Logger;
+
+  constructor(config: HealthConfig) {
+    this.config = config;
+    this.logger = new Logger('MCPHealthMonitor');
+  }
+
+  startMonitoring(serverName: string, connection: Connection): void {
+    // Stop existing monitoring if present
+    this.stopMonitoring(serverName);
+
+    const interval = setInterval(async () => {
+      try {
+        const isHealthy = await this.performHealthCheck(connection);
+        const wasHealthy = this.healthStatus.get(serverName) ?? true;
+        
+        this.healthStatus.set(serverName, isHealthy);
+
+        if (isHealthy && !wasHealthy) {
+          this.logger.info('Server recovered', { serverName });
+          this.emit('serverRecovered', { serverName });
+        } else if (!isHealthy && wasHealthy) {
+          this.logger.warn('Server unhealthy', { serverName });
+          this.emit('serverUnhealthy', { serverName });
+        }
+      } catch (error) {
+        this.logger.error('Health check failed', { serverName, error });
+        this.healthStatus.set(serverName, false);
+        this.emit('healthCheckFailed', { serverName, error });
+      }
+    }, this.config.interval);
+
+    this.healthChecks.set(serverName, interval);
+  }
+
+  stopMonitoring(serverName: string): void {
+    const interval = this.healthChecks.get(serverName);
+    if (interval) {
+      clearInterval(interval);
+      this.healthChecks.delete(serverName);
+    }
+  }
+
+  private async performHealthCheck(connection: Connection): Promise<boolean> {
+    const startTime = Date.now();
+    
+    try {
+      // Perform a simple ping operation
+      await connection.ping();
+      
+      const duration = Date.now() - startTime;
+      
+      // Check if response time is acceptable
+      if (duration > this.config.maxResponseTime) {
+        this.logger.warn('Health check slow response', { duration, threshold: this.config.maxResponseTime });
+        return false;
+      }
+      
+      return true;
+    } catch (error) {
+      this.logger.error('Health check ping failed', { error });
+      return false;
+    }
+  }
+
+  isHealthy(serverName: string): boolean {
+    return this.healthStatus.get(serverName) ?? false;
+  }
+
+  getHealthStatus(): Record<string, boolean> {
+    return Object.fromEntries(this.healthStatus);
+  }
+
+  stopAll(): void {
+    for (const serverName of this.healthChecks.keys()) {
+      this.stopMonitoring(serverName);
+    }
+    this.healthStatus.clear();
+  }
+}
+```
+</Tab>
+
+<Tab>
+```typescript title="circuit-breaker.ts"
+// Circuit breaker pattern for MCP connections
+class MCPCircuitBreaker {
+  private state: 'closed' | 'open' | 'half-open' = 'closed';
+  private failureCount: number = 0;
+  private lastFailureTime: number = 0;
+  private successCount: number = 0;
+  private config: CircuitBreakerConfig;
+  private logger: Logger;
+
+  constructor(config: CircuitBreakerConfig) {
+    this.config = config;
+    this.logger = new Logger('MCPCircuitBreaker');
+  }
+
+  async execute<T>(operation: () => Promise<T>): Promise<T> {
+    if (this.state === 'open') {
+      if (Date.now() - this.lastFailureTime > this.config.timeout) {
+        this.state = 'half-open';
+        this.successCount = 0;
+        this.logger.info('Circuit breaker transitioning to half-open');
+      } else {
+        throw new Error('Circuit breaker is open');
+      }
+    }
+
+    try {
+      const result = await operation();
+      this.onSuccess();
+      return result;
+    } catch (error) {
+      this.onFailure();
+      throw error;
+    }
+  }
+
+  private onSuccess(): void {
+    this.failureCount = 0;
+    
+    if (this.state === 'half-open') {
+      this.successCount++;
+      
+      if (this.successCount >= this.config.successThreshold) {
+        this.state = 'closed';
+        this.logger.info('Circuit breaker closed after recovery');
+      }
+    }
+  }
+
+  private onFailure(): void {
+    this.failureCount++;
+    this.lastFailureTime = Date.now();
+    
+    if (this.failureCount >= this.config.failureThreshold) {
+      this.state = 'open';
+      this.logger.warn('Circuit breaker opened due to failures', { failureCount: this.failureCount });
+    }
+  }
+
+  getState(): string {
+    return this.state;
+  }
+
+  getStats(): Record<string, any> {
+    return {
+      state: this.state,
+      failureCount: this.failureCount,
+      successCount: this.successCount,
+      lastFailureTime: this.lastFailureTime,
+    };
+  }
+
+  reset(): void {
+    this.state = 'closed';
+    this.failureCount = 0;
+    this.successCount = 0;
+    this.lastFailureTime = 0;
+  }
+}
+```
+</Tab>
+
+<Tab>
+```typescript title="load-balancer.ts"
+// Load balancing for multiple MCP servers
+class MCPLoadBalancer {
+  private servers: MCPServer[] = [];
+  private strategy: LoadBalancingStrategy;
+  private currentIndex: number = 0;
+  private serverWeights: Map<string, number> = new Map();
+  private logger: Logger;
+
+  constructor(strategy: LoadBalancingStrategy = 'round-robin') {
+    this.strategy = strategy;
+    this.logger = new Logger('MCPLoadBalancer');
+  }
+
+  addServer(server: MCPServer, weight: number = 1): void {
+    this.servers.push(server);
+    this.serverWeights.set(server.name, weight);
+    this.logger.info('Server added to load balancer', { serverName: server.name, weight });
+  }
+
+  removeServer(serverName: string): void {
+    const index = this.servers.findIndex(s => s.name === serverName);
+    if (index > -1) {
+      this.servers.splice(index, 1);
+      this.serverWeights.delete(serverName);
+      this.logger.info('Server removed from load balancer', { serverName });
+    }
+  }
+
+  async selectServer(): Promise<MCPServer | null> {
+    const healthyServers = this.servers.filter(server => server.isHealthy());
+    
+    if (healthyServers.length === 0) {
+      this.logger.warn('No healthy servers available');
+      return null;
+    }
+
+    switch (this.strategy) {
+      case 'round-robin':
+        return this.roundRobinSelect(healthyServers);
+      case 'weighted-round-robin':
+        return this.weightedRoundRobinSelect(healthyServers);
+      case 'least-connections':
+        return this.leastConnectionsSelect(healthyServers);
+      case 'least-response-time':
+        return this.leastResponseTimeSelect(healthyServers);
+      default:
+        return healthyServers[0];
+    }
+  }
+
+  private roundRobinSelect(servers: MCPServer[]): MCPServer {
+    const server = servers[this.currentIndex % servers.length];
+    this.currentIndex++;
+    return server;
+  }
+
+  private weightedRoundRobinSelect(servers: MCPServer[]): MCPServer {
+    const totalWeight = servers.reduce((sum, server) => 
+      sum + (this.serverWeights.get(server.name) || 1), 0);
+    
+    let random = Math.random() * totalWeight;
+    
+    for (const server of servers) {
+      const weight = this.serverWeights.get(server.name) || 1;
+      random -= weight;
+      if (random <= 0) {
+        return server;
+      }
+    }
+    
+    return servers[0];
+  }
+
+  private leastConnectionsSelect(servers: MCPServer[]): MCPServer {
+    return servers.reduce((least, server) => 
+      server.getActiveConnections() < least.getActiveConnections() ? server : least);
+  }
+
+  private leastResponseTimeSelect(servers: MCPServer[]): MCPServer {
+    return servers.reduce((fastest, server) => 
+      server.getAverageResponseTime() < fastest.getAverageResponseTime() ? server : fastest);
+  }
+
+  getServerStats(): Record<string, any> {
+    return this.servers.reduce((stats, server) => {
+      stats[server.name] = {
+        healthy: server.isHealthy(),
+        activeConnections: server.getActiveConnections(),
+        averageResponseTime: server.getAverageResponseTime(),
+        weight: this.serverWeights.get(server.name) || 1,
+      };
+      return stats;
+    }, {} as Record<string, any>);
+  }
+
+  setStrategy(strategy: LoadBalancingStrategy): void {
+    this.strategy = strategy;
+    this.currentIndex = 0; // Reset for round-robin
+    this.logger.info('Load balancing strategy changed', { strategy });
+  }
+}
+
+type LoadBalancingStrategy = 'round-robin' | 'weighted-round-robin' | 'least-connections' | 'least-response-time';
+```
+</Tab>
+</Tabs>
 ```
 
 ### Configuration Management
@@ -946,11 +1893,229 @@ class MCPLogger {
 }
 ```
 
-This comprehensive guide provides proven patterns for integrating MCP servers with Compozy agents and workflows, ensuring robust, scalable, and maintainable integrations.
+## Integration Checklist
+
+<List className="mb-12">
+  <ListItem title="Planning Phase" icon={Target}>
+    Define integration requirements, identify MCP servers, and plan architecture
+  </ListItem>
+  <ListItem title="Configuration Phase" icon={Settings}>
+    Configure MCP servers, set up authentication, and define access controls
+  </ListItem>
+  <ListItem title="Implementation Phase" icon={Code}>
+    Implement integration patterns, create agents, and build workflows
+  </ListItem>
+  <ListItem title="Testing Phase" icon={CheckCircle}>
+    Test integration functionality, error handling, and performance
+  </ListItem>
+  <ListItem title="Deployment Phase" icon={Cloud}>
+    Deploy to production with monitoring, logging, and alerting
+  </ListItem>
+  <ListItem title="Maintenance Phase" icon={RefreshCw}>
+    Monitor performance, update configurations, and optimize as needed
+  </ListItem>
+</List>
+
+This comprehensive guide provides proven patterns for integrating MCP servers with Compozy agents and workflows, ensuring robust, scalable, and maintainable integrations that can handle enterprise-scale requirements.
+
+## Integration Best Practices
+
+<FeatureCardList cols={2} size="sm" className="mb-12">
+  <FeatureCard
+    title="Connection Management"
+    description="Implement proper connection pooling, health checks, and retry logic"
+    icon={Network}
+  />
+  <FeatureCard
+    title="Error Handling"
+    description="Design robust error handling with graceful degradation strategies"
+    icon={Shield}
+  />
+  <FeatureCard
+    title="Performance Optimization"
+    description="Use caching, batching, and circuit breakers for optimal performance"
+    icon={Gauge}
+  />
+  <FeatureCard
+    title="Security First"
+    description="Implement authentication, authorization, and audit logging"
+    icon={Lock}
+  />
+  <FeatureCard
+    title="Monitoring & Observability"
+    description="Track metrics, logs, and traces for operational excellence"
+    icon={Monitor}
+  />
+  <FeatureCard
+    title="Scalability Planning"
+    description="Design for horizontal scaling and load distribution"
+    icon={TrendingUp}
+  />
+</FeatureCardList>
+
+## Advanced Integration Scenarios
+
+### Enterprise Integration Architecture
+
+<Mermaid chart={`graph TB
+    subgraph "Enterprise Systems"
+        ERP[ERP System]
+        CRM[CRM System]
+        Legacy[Legacy Database]
+        API[External APIs]
+    end
+    
+    subgraph "MCP Layer"
+        MCP1[ERP MCP Server]
+        MCP2[CRM MCP Server]
+        MCP3[Database MCP Server]
+        MCP4[API Gateway MCP]
+    end
+    
+    subgraph "Compozy Platform"
+        Proxy[MCP Proxy Cluster]
+        LB[Load Balancer]
+        Agent1[Sales Agent]
+        Agent2[Support Agent]
+        Agent3[Analytics Agent]
+    end
+    
+    subgraph "Workflows"
+        WF1[Customer Onboarding]
+        WF2[Order Processing]
+        WF3[Support Ticket]
+        WF4[Analytics Report]
+    end
+    
+    ERP --> MCP1
+    CRM --> MCP2
+    Legacy --> MCP3
+    API --> MCP4
+    
+    MCP1 --> LB
+    MCP2 --> LB
+    MCP3 --> LB
+    MCP4 --> LB
+    
+    LB --> Proxy
+    Proxy --> Agent1
+    Proxy --> Agent2
+    Proxy --> Agent3
+    
+    Agent1 --> WF1
+    Agent2 --> WF2
+    Agent2 --> WF3
+    Agent3 --> WF4
+    
+    style ERP fill:#ffcccb
+    style CRM fill:#ffcccb
+    style Legacy fill:#ffcccb
+    style API fill:#ffcccb
+    style MCP1 fill:#e1f5fe
+    style MCP2 fill:#e1f5fe
+    style MCP3 fill:#e1f5fe
+    style MCP4 fill:#e1f5fe
+    style Proxy fill:#f3e5f5
+    style LB fill:#f3e5f5
+    style Agent1 fill:#e8f5e8
+    style Agent2 fill:#e8f5e8
+    style Agent3 fill:#e8f5e8
+    style WF1 fill:#fff3e0
+    style WF2 fill:#fff3e0
+    style WF3 fill:#fff3e0
+    style WF4 fill:#fff3e0`} />
+
+### Microservices Integration Pattern
+
+<Mermaid chart={`graph TB
+    subgraph "Microservices Architecture"
+        UserService[User Service]
+        OrderService[Order Service]
+        PaymentService[Payment Service]
+        NotificationService[Notification Service]
+    end
+    
+    subgraph "MCP Adapters"
+        UserMCP[User MCP]
+        OrderMCP[Order MCP]
+        PaymentMCP[Payment MCP]
+        NotifyMCP[Notification MCP]
+    end
+    
+    subgraph "Service Mesh"
+        ServiceMesh[Istio/Linkerd]
+        ServiceDiscovery[Service Discovery]
+    end
+    
+    subgraph "Compozy Integration"
+        MCPProxy[MCP Proxy]
+        ProcessingAgent[Order Processing Agent]
+        Workflow[E-commerce Workflow]
+    end
+    
+    UserService --> UserMCP
+    OrderService --> OrderMCP
+    PaymentService --> PaymentMCP
+    NotificationService --> NotifyMCP
+    
+    ServiceMesh --> ServiceDiscovery
+    ServiceDiscovery --> MCPProxy
+    
+    UserMCP --> MCPProxy
+    OrderMCP --> MCPProxy
+    PaymentMCP --> MCPProxy
+    NotifyMCP --> MCPProxy
+    
+    MCPProxy --> ProcessingAgent
+    ProcessingAgent --> Workflow
+    
+    style UserService fill:#ffcccb
+    style OrderService fill:#ffcccb
+    style PaymentService fill:#ffcccb
+    style NotificationService fill:#ffcccb
+    style ServiceMesh fill:#e1f5fe
+    style ServiceDiscovery fill:#e1f5fe
+    style MCPProxy fill:#f3e5f5
+    style ProcessingAgent fill:#e8f5e8
+    style Workflow fill:#fff3e0`} />
 
 ## Next Steps
 
-- Configure [Security & Authentication](/docs/core/mcp/security-authentication) for MCP integrations
-- Set up [Monitoring & Metrics](/docs/core/mcp/monitoring-metrics) for integration health
-- Review [Production Deployment](/docs/core/mcp/production-deployment) considerations
-- Explore [Development & Debugging](/docs/core/mcp/development-debugging) techniques
+<ReferenceCardList>
+  <ReferenceCard
+    title="Storage Backends"
+    description="Configure and manage storage backends for MCP data persistence"
+    href="/docs/core/mcp/storage-backends"
+    icon={Database}
+  />
+  <ReferenceCard
+    title="Client Manager"
+    description="Manage MCP client connections and lifecycle"
+    href="/docs/core/mcp/client-manager"
+    icon={Network}
+  />
+  <ReferenceCard
+    title="Security & Authentication"
+    description="Secure MCP integrations with authentication and authorization"
+    href="/docs/core/mcp/security-authentication"
+    icon={Shield}
+  />
+  <ReferenceCard
+    title="Monitoring & Metrics"
+    description="Monitor integration health and performance metrics"
+    href="/docs/core/mcp/monitoring-metrics"
+    icon={Monitor}
+  />
+  <ReferenceCard
+    title="Production Deployment"
+    description="Deploy MCP integrations in production environments"
+    href="/docs/core/mcp/production-deployment"
+    icon={Cloud}
+  />
+  <ReferenceCard
+    title="Development & Debugging"
+    description="Debug and troubleshoot MCP integration issues"
+    href="/docs/core/mcp/development-debugging"
+    icon={Code}
+  />
+</ReferenceCardList>

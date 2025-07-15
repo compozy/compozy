@@ -1,0 +1,1491 @@
+---
+title: "Admin API"
+description: "Administrative API for managing MCP servers, monitoring operations, and system configuration"
+---
+
+import {
+  BookOpen,
+  Code,
+  Rocket,
+  Settings,
+  Users,
+  Zap,
+  BrainCircuit,
+  GitBranch,
+  Package,
+  Database,
+  Link2,
+  Cloud,
+  BarChart3,
+  Cpu,
+  Terminal,
+  Shield,
+  ShieldCheck,
+  TrendingUp,
+  Eye,
+  Layers,
+  Lock,
+  RefreshCw,
+  Server,
+  Container,
+  Monitor,
+  AlertTriangle,
+  CheckCircle,
+  Globe,
+  HardDrive,
+  Network,
+  Gauge,
+  Activity,
+  Timer,
+  Workflow,
+  Play,
+  Pause,
+  FileText,
+  Download,
+  Upload,
+  Copy,
+  Edit,
+  Trash2,
+  AlertCircle,
+  Info,
+  CheckCircle2,
+  Bell,
+  Key,
+  Search,
+  Filter,
+  Tag,
+  Settings2,
+  Wrench,
+  LineChart,
+  PieChart,
+  Target,
+  Navigation,
+  Cog,
+  Home,
+  LayoutDashboard,
+  List,
+  Plus,
+  Minus,
+  X,
+  Save,
+  Trash,
+  ArrowRight,
+  ChevronRight,
+  MoreHorizontal,
+  Maximize,
+  Square,
+  Circle,
+  Star,
+  Flag,
+  Award,
+  Crown,
+} from "lucide-react";
+import { FeatureCard, FeatureCardList } from "@/components/ui/feature-card";
+import { ReferenceCard, ReferenceCardList } from "@/components/ui/reference-card";
+import { Callout } from "@/components/ui/callout";
+import { Steps, Step } from "@/components/ui/step";
+import { Tabs, Tab } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Mermaid } from "@/components/ui/mermaid";
+import { Button } from "@/components/ui/button";
+import { List, ListItem } from "@/components/ui/list";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+
+# Admin API
+
+The MCP Admin API provides comprehensive administrative capabilities for managing MCP servers, monitoring operations, and configuring system settings. This API enables operational teams to manage MCP deployments effectively with enterprise-grade controls.
+
+<Callout type="info" icon={Settings}>
+  **Administrative Control**: The Admin API provides complete operational control over your MCP deployment with comprehensive management capabilities.
+</Callout>
+
+## API Architecture
+
+<Mermaid chart={`graph TB
+    subgraph "Admin API Gateway"
+        API[Admin API<br/>Port :8080]
+        AUTH[Authentication<br/>JWT/OAuth]
+        RBAC[Role-Based Access<br/>Control]
+    end
+    
+    subgraph "Management Operations"
+        SM[Server Management<br/>CRUD Operations]
+        TM[Tool Management<br/>Execution & Monitoring]
+        SYS[System Management<br/>Config & Health]
+        MON[Monitoring<br/>Metrics & Alerts]
+    end
+    
+    subgraph "Backend Services"
+        MCP[MCP Proxy<br/>Service Layer]
+        DB[(Database<br/>Configuration)]
+        CACHE[(Redis<br/>Session Cache)]
+        METRICS[Metrics<br/>Collector]
+    end
+    
+    subgraph "External Integrations"
+        PROM[Prometheus<br/>Metrics]
+        GRAFANA[Grafana<br/>Dashboards]
+        SLACK[Slack<br/>Notifications]
+        WEBHOOK[Webhook<br/>Integrations]
+    end
+    
+    API --> AUTH
+    AUTH --> RBAC
+    RBAC --> SM
+    RBAC --> TM
+    RBAC --> SYS
+    RBAC --> MON
+    
+    SM --> MCP
+    TM --> MCP
+    SYS --> DB
+    MON --> METRICS
+    
+    MCP --> CACHE
+    METRICS --> PROM
+    PROM --> GRAFANA
+    MON --> SLACK
+    MON --> WEBHOOK
+    
+    classDef gateway fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    classDef management fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    classDef backend fill:#e8f5e8,stroke:#1b5e20,stroke-width:2px
+    classDef external fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    
+    class API,AUTH,RBAC gateway
+    class SM,TM,SYS,MON management
+    class MCP,DB,CACHE,METRICS backend
+    class PROM,GRAFANA,SLACK,WEBHOOK external
+`} />
+
+### API Benefits
+
+<FeatureCardList cols={4} size="sm">
+  <FeatureCard
+    title="Centralized Management"
+    description="Unified control over all MCP operations"
+    icon={Settings}
+  />
+  <FeatureCard
+    title="Real-time Monitoring"
+    description="Live system health and performance metrics"
+    icon={Monitor}
+  />
+  <FeatureCard
+    title="Security & Authentication"
+    description="Enterprise-grade access control"
+    icon={Shield}
+  />
+  <FeatureCard
+    title="Operational Insights"
+    description="Comprehensive operational analytics"
+    icon={Eye}
+  />
+</FeatureCardList>
+
+## Authentication & Security
+
+<Callout type="warning" icon={Lock}>
+  **Security First**: All Admin API endpoints require authentication and proper authorization to ensure secure operations.
+</Callout>
+
+### Authentication Methods
+
+<Tabs items={["JWT Authentication", "OAuth 2.0", "API Keys", "Role-Based Access"]}>
+
+<Tab>
+**JWT Authentication** provides secure token-based authentication:
+
+```bash
+# Authenticate and get JWT token
+curl -X POST "http://localhost:8080/api/v1/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "admin",
+    "password": "your-secure-password"
+  }'
+
+# Response
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "expires_in": 3600,
+  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user_info": {
+    "id": "admin",
+    "roles": ["admin", "operator"],
+    "permissions": ["server:read", "server:write", "system:admin"]
+  }
+}
+```
+
+**Using JWT token for API requests:**
+
+```bash
+# Use JWT token in Authorization header
+curl -X GET "http://localhost:8080/api/v1/servers" \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+```
+
+</Tab>
+
+<Tab>
+**OAuth 2.0** integration with enterprise identity providers:
+
+```yaml
+# config/auth.yaml
+oauth:
+  provider: "okta"  # okta, azure, google, keycloak
+  client_id: "your-client-id"
+  client_secret: "your-client-secret"
+  redirect_uri: "http://localhost:8080/auth/callback"
+  scope: "openid profile email"
+  
+  # Provider-specific configuration
+  discovery_url: "https://your-domain.okta.com/.well-known/openid_configuration"
+  
+  # Claims mapping
+  claims:
+    user_id: "sub"
+    username: "preferred_username"
+    email: "email"
+    roles: "groups"
+```
+
+**OAuth flow example:**
+
+```bash
+# Step 1: Redirect to OAuth provider
+GET /auth/oauth/authorize?provider=okta
+
+# Step 2: Handle callback with authorization code
+GET /auth/oauth/callback?code=authorization_code&state=random_state
+
+# Step 3: Exchange code for access token
+POST /auth/oauth/token
+{
+  "access_token": "oauth_access_token",
+  "refresh_token": "oauth_refresh_token",
+  "user_info": {
+    "id": "user123",
+    "email": "user@company.com",
+    "roles": ["mcp-operator"]
+  }
+}
+```
+
+</Tab>
+
+<Tab>
+**API Keys** for service-to-service authentication:
+
+```bash
+# Generate API key
+curl -X POST "http://localhost:8080/api/v1/auth/api-keys" \
+  -H "Authorization: Bearer jwt_token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "monitoring-service",
+    "description": "API key for monitoring service",
+    "permissions": ["metrics:read", "health:read"],
+    "expires_at": "2024-12-31T23:59:59Z"
+  }'
+
+# Response
+{
+  "id": "ak_1234567890",
+  "name": "monitoring-service",
+  "key": "mcp_ak_1234567890abcdef...",
+  "permissions": ["metrics:read", "health:read"],
+  "created_at": "2024-01-01T00:00:00Z",
+  "expires_at": "2024-12-31T23:59:59Z"
+}
+```
+
+**Using API key:**
+
+```bash
+# Use API key in X-API-Key header
+curl -X GET "http://localhost:8080/api/v1/metrics" \
+  -H "X-API-Key: mcp_ak_1234567890abcdef..."
+```
+
+</Tab>
+
+<Tab>
+**Role-Based Access Control (RBAC)**:
+
+<Table>
+  <TableHeader>
+    <TableRow>
+      <TableHead>Role</TableHead>
+      <TableHead>Permissions</TableHead>
+      <TableHead>Description</TableHead>
+    </TableRow>
+  </TableHeader>
+  <TableBody>
+    <TableRow>
+      <TableCell><Badge variant="destructive">admin</Badge></TableCell>
+      <TableCell>Full system access</TableCell>
+      <TableCell>Complete administrative control</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell><Badge variant="default">operator</Badge></TableCell>
+      <TableCell>Server management, monitoring</TableCell>
+      <TableCell>Day-to-day operations</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell><Badge variant="outline">viewer</Badge></TableCell>
+      <TableCell>Read-only access</TableCell>
+      <TableCell>Monitoring and reporting</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell><Badge variant="outline">developer</Badge></TableCell>
+      <TableCell>Tool testing, limited config</TableCell>
+      <TableCell>Development and testing</TableCell>
+    </TableRow>
+  </TableBody>
+</Table>
+
+**Permission Matrix:**
+
+<Table>
+  <TableHeader>
+    <TableRow>
+      <TableHead>Resource</TableHead>
+      <TableHead>Admin</TableHead>
+      <TableHead>Operator</TableHead>
+      <TableHead>Viewer</TableHead>
+      <TableHead>Developer</TableHead>
+    </TableRow>
+  </TableHeader>
+  <TableBody>
+    <TableRow>
+      <TableCell>Server Management</TableCell>
+      <TableCell><CheckCircle className="h-4 w-4 text-green-600" /></TableCell>
+      <TableCell><CheckCircle className="h-4 w-4 text-green-600" /></TableCell>
+      <TableCell><Eye className="h-4 w-4 text-blue-600" /></TableCell>
+      <TableCell><Eye className="h-4 w-4 text-blue-600" /></TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>Tool Execution</TableCell>
+      <TableCell><CheckCircle className="h-4 w-4 text-green-600" /></TableCell>
+      <TableCell><CheckCircle className="h-4 w-4 text-green-600" /></TableCell>
+      <TableCell><Eye className="h-4 w-4 text-blue-600" /></TableCell>
+      <TableCell><CheckCircle className="h-4 w-4 text-green-600" /></TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>System Configuration</TableCell>
+      <TableCell><CheckCircle className="h-4 w-4 text-green-600" /></TableCell>
+      <TableCell><X className="h-4 w-4 text-red-600" /></TableCell>
+      <TableCell><X className="h-4 w-4 text-red-600" /></TableCell>
+      <TableCell><X className="h-4 w-4 text-red-600" /></TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>Metrics & Monitoring</TableCell>
+      <TableCell><CheckCircle className="h-4 w-4 text-green-600" /></TableCell>
+      <TableCell><CheckCircle className="h-4 w-4 text-green-600" /></TableCell>
+      <TableCell><Eye className="h-4 w-4 text-blue-600" /></TableCell>
+      <TableCell><Eye className="h-4 w-4 text-blue-600" /></TableCell>
+    </TableRow>
+  </TableBody>
+</Table>
+
+</Tab>
+</Tabs>
+
+## Server Management API
+
+<Callout type="info" icon={Server}>
+  **Server Lifecycle**: Complete CRUD operations for MCP server management with real-time status monitoring.
+</Callout>
+
+### Server Operations
+
+<Steps>
+<Step title="List Servers" description="Retrieve all registered MCP servers">
+
+```bash
+GET /api/v1/servers
+```
+
+**Response:**
+```json
+{
+  "servers": [
+    {
+      "id": "filesystem-server",
+      "name": "Filesystem Server",
+      "type": "stdio",
+      "status": "healthy",
+      "health_score": 0.98,
+      "last_health_check": "2024-01-15T10:30:00Z",
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-15T10:30:00Z",
+      "configuration": {
+        "command": "/usr/local/bin/mcp-filesystem-server",
+        "args": ["--root-path", "/var/lib/workspace"],
+        "env": {
+          "LOG_LEVEL": "info"
+        }
+      },
+      "metrics": {
+        "requests_per_second": 12.5,
+        "avg_response_time": 145,
+        "error_rate": 0.02,
+        "active_connections": 3
+      }
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "per_page": 20
+}
+```
+
+</Step>
+
+<Step title="Register Server" description="Add a new MCP server to the system">
+
+```bash
+POST /api/v1/servers
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "id": "database-server",
+  "name": "Database Server",
+  "description": "PostgreSQL database access server",
+  "type": "stdio",
+  "configuration": {
+    "command": "/usr/local/bin/mcp-database-server",
+    "args": [
+      "--connection-string", "postgresql://user:pass@localhost/db",
+      "--max-connections", "10"
+    ],
+    "env": {
+      "LOG_LEVEL": "warn",
+      "QUERY_TIMEOUT": "30s"
+    }
+  },
+  "health_check": {
+    "enabled": true,
+    "interval": "30s",
+    "timeout": "5s",
+    "retries": 3
+  },
+  "resource_limits": {
+    "memory_mb": 512,
+    "cpu_percent": 50,
+    "max_processes": 5
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "id": "database-server",
+  "name": "Database Server",
+  "status": "starting",
+  "created_at": "2024-01-15T10:35:00Z",
+  "message": "Server registration initiated"
+}
+```
+
+</Step>
+
+<Step title="Update Server" description="Modify existing server configuration">
+
+```bash
+PUT /api/v1/servers/{server_id}
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "name": "Updated Database Server",
+  "description": "Updated PostgreSQL database server",
+  "configuration": {
+    "env": {
+      "LOG_LEVEL": "info",
+      "QUERY_TIMEOUT": "45s"
+    }
+  },
+  "resource_limits": {
+    "memory_mb": 1024,
+    "cpu_percent": 75
+  }
+}
+```
+
+</Step>
+
+<Step title="Delete Server" description="Remove a server from the system">
+
+```bash
+DELETE /api/v1/servers/{server_id}
+```
+
+**Response:**
+```json
+{
+  "message": "Server deleted successfully",
+  "deleted_at": "2024-01-15T10:40:00Z"
+}
+```
+
+</Step>
+</Steps>
+
+### Server Status & Health
+
+<Card>
+  <CardHeader>
+    <CardTitle className="flex items-center gap-2">
+      <Activity className="h-5 w-5" />
+      Server Health Dashboard
+    </CardTitle>
+    <CardDescription>Real-time server status and health monitoring</CardDescription>
+  </CardHeader>
+  <CardContent>
+    <div className="grid grid-cols-3 gap-4">
+      <div className="p-4 border rounded-lg bg-green-50">
+        <div className="flex items-center justify-between">
+          <div>
+            <h4 className="font-semibold text-green-800">Healthy Servers</h4>
+            <div className="text-2xl font-bold text-green-600">8</div>
+          </div>
+          <CheckCircle className="h-8 w-8 text-green-600" />
+        </div>
+      </div>
+      <div className="p-4 border rounded-lg bg-yellow-50">
+        <div className="flex items-center justify-between">
+          <div>
+            <h4 className="font-semibold text-yellow-800">Warning</h4>
+            <div className="text-2xl font-bold text-yellow-600">2</div>
+          </div>
+          <AlertTriangle className="h-8 w-8 text-yellow-600" />
+        </div>
+      </div>
+      <div className="p-4 border rounded-lg bg-red-50">
+        <div className="flex items-center justify-between">
+          <div>
+            <h4 className="font-semibold text-red-800">Unhealthy</h4>
+            <div className="text-2xl font-bold text-red-600">0</div>
+          </div>
+          <X className="h-8 w-8 text-red-600" />
+        </div>
+      </div>
+    </div>
+  </CardContent>
+</Card>
+
+## Tool Management API
+
+<Callout type="info" icon={Wrench}>
+  **Tool Operations**: Execute, monitor, and manage MCP tools with comprehensive execution tracking.
+</Callout>
+
+### Tool Execution
+
+<Steps>
+<Step title="List Available Tools" description="Get all tools from registered servers">
+
+```bash
+GET /api/v1/tools
+```
+
+**Response:**
+```json
+{
+  "tools": [
+    {
+      "server_id": "filesystem-server",
+      "name": "list_files",
+      "description": "List files in a directory",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Directory path to list"
+          }
+        },
+        "required": ["path"]
+      },
+      "execution_stats": {
+        "total_executions": 1250,
+        "success_rate": 0.998,
+        "avg_duration_ms": 125,
+        "last_executed": "2024-01-15T10:25:00Z"
+      }
+    }
+  ],
+  "total": 1
+}
+```
+
+</Step>
+
+<Step title="Execute Tool" description="Run a specific tool with parameters">
+
+```bash
+POST /api/v1/tools/{server_id}/{tool_name}/execute
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "parameters": {
+    "path": "/var/lib/workspace/documents"
+  },
+  "timeout": "30s",
+  "metadata": {
+    "user_id": "admin",
+    "session_id": "sess_123456"
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "execution_id": "exec_789abc",
+  "status": "completed",
+  "result": {
+    "files": [
+      {
+        "name": "document1.txt",
+        "size": 1024,
+        "modified": "2024-01-15T09:30:00Z"
+      },
+      {
+        "name": "document2.pdf",
+        "size": 2048,
+        "modified": "2024-01-15T09:45:00Z"
+      }
+    ],
+    "total_files": 2
+  },
+  "execution_time": 123,
+  "started_at": "2024-01-15T10:30:00Z",
+  "completed_at": "2024-01-15T10:30:00.123Z"
+}
+```
+
+</Step>
+
+<Step title="Get Execution History" description="Retrieve tool execution history">
+
+```bash
+GET /api/v1/tools/executions?server_id={server_id}&tool_name={tool_name}&limit=50
+```
+
+**Response:**
+```json
+{
+  "executions": [
+    {
+      "id": "exec_789abc",
+      "server_id": "filesystem-server",
+      "tool_name": "list_files",
+      "status": "completed",
+      "duration_ms": 123,
+      "started_at": "2024-01-15T10:30:00Z",
+      "completed_at": "2024-01-15T10:30:00.123Z",
+      "user_id": "admin",
+      "success": true
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "per_page": 50
+}
+```
+
+</Step>
+</Steps>
+
+### Tool Performance Analytics
+
+<Card>
+  <CardHeader>
+    <CardTitle className="flex items-center gap-2">
+      <BarChart3 className="h-5 w-5" />
+      Tool Performance Metrics
+    </CardTitle>
+    <CardDescription>Comprehensive tool execution analytics</CardDescription>
+  </CardHeader>
+  <CardContent>
+    <Tabs items={["Performance Overview", "Success Rates", "Response Times", "Usage Patterns"]}>
+      <Tab>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="p-4 border rounded-lg">
+            <h4 className="font-semibold mb-2">Total Executions</h4>
+            <div className="text-2xl font-bold">12,450</div>
+            <p className="text-sm text-gray-600">Last 24 hours</p>
+          </div>
+          <div className="p-4 border rounded-lg">
+            <h4 className="font-semibold mb-2">Average Response Time</h4>
+            <div className="text-2xl font-bold">145ms</div>
+            <p className="text-sm text-gray-600">P95: 350ms</p>
+          </div>
+        </div>
+      </Tab>
+      <Tab>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between p-3 border rounded">
+            <span>list_files</span>
+            <div className="flex items-center gap-2">
+              <div className="w-32 bg-gray-200 rounded-full h-2">
+                <div className="bg-green-500 h-2 rounded-full" style={{width: '99.8%'}}></div>
+              </div>
+              <span className="text-sm">99.8%</span>
+            </div>
+          </div>
+          <div className="flex items-center justify-between p-3 border rounded">
+            <span>database_query</span>
+            <div className="flex items-center gap-2">
+              <div className="w-32 bg-gray-200 rounded-full h-2">
+                <div className="bg-green-500 h-2 rounded-full" style={{width: '97.5%'}}></div>
+              </div>
+              <span className="text-sm">97.5%</span>
+            </div>
+          </div>
+        </div>
+      </Tab>
+      <Tab>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between p-3 border rounded">
+            <span>list_files</span>
+            <div className="text-right">
+              <div className="font-semibold">125ms</div>
+              <div className="text-sm text-gray-600">avg</div>
+            </div>
+          </div>
+          <div className="flex items-center justify-between p-3 border rounded">
+            <span>database_query</span>
+            <div className="text-right">
+              <div className="font-semibold">280ms</div>
+              <div className="text-sm text-gray-600">avg</div>
+            </div>
+          </div>
+        </div>
+      </Tab>
+      <Tab>
+        <div className="space-y-4">
+          <div className="p-4 border rounded-lg">
+            <h4 className="font-semibold mb-2">Peak Usage Hours</h4>
+            <p className="text-sm text-gray-600">9:00 AM - 5:00 PM UTC</p>
+          </div>
+          <div className="p-4 border rounded-lg">
+            <h4 className="font-semibold mb-2">Most Active Tools</h4>
+            <List>
+              <ListItem title="list_files">4,230 executions</ListItem>
+              <ListItem title="database_query">3,180 executions</ListItem>
+              <ListItem title="send_email">2,890 executions</ListItem>
+            </List>
+          </div>
+        </div>
+      </Tab>
+    </Tabs>
+  </CardContent>
+</Card>
+
+## System Management API
+
+<Callout type="info" icon={Cog}>
+  **System Control**: Comprehensive system configuration and operational management capabilities.
+</Callout>
+
+### Configuration Management
+
+<Steps>
+<Step title="Get System Configuration" description="Retrieve current system configuration">
+
+```bash
+GET /api/v1/system/config
+```
+
+**Response:**
+```json
+{
+  "version": "1.0.0",
+  "deployment_mode": "production",
+  "configuration": {
+    "server": {
+      "host": "0.0.0.0",
+      "port": 8080,
+      "read_timeout": "30s",
+      "write_timeout": "30s"
+    },
+    "database": {
+      "host": "localhost",
+      "port": 5432,
+      "database": "mcp_admin",
+      "max_connections": 100
+    },
+    "cache": {
+      "type": "redis",
+      "host": "localhost",
+      "port": 6379,
+      "ttl": "1h"
+    },
+    "logging": {
+      "level": "info",
+      "format": "json",
+      "output": "stdout"
+    }
+  },
+  "last_updated": "2024-01-15T10:00:00Z"
+}
+```
+
+</Step>
+
+<Step title="Update Configuration" description="Modify system configuration">
+
+```bash
+PUT /api/v1/system/config
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "logging": {
+    "level": "debug",
+    "format": "json"
+  },
+  "cache": {
+    "ttl": "2h"
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "message": "Configuration updated successfully",
+  "updated_at": "2024-01-15T10:35:00Z",
+  "restart_required": false
+}
+```
+
+</Step>
+</Steps>
+
+### System Health & Status
+
+<Card>
+  <CardHeader>
+    <CardTitle className="flex items-center gap-2">
+      <Monitor className="h-5 w-5" />
+      System Health Overview
+    </CardTitle>
+    <CardDescription>Real-time system health and performance monitoring</CardDescription>
+  </CardHeader>
+  <CardContent>
+    <div className="grid grid-cols-2 gap-6">
+      <div className="space-y-4">
+        <h4 className="font-semibold">System Resources</h4>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm">CPU Usage</span>
+            <div className="flex items-center gap-2">
+              <div className="w-24 bg-gray-200 rounded-full h-2">
+                <div className="bg-blue-500 h-2 rounded-full" style={{width: '45%'}}></div>
+              </div>
+              <span className="text-sm">45%</span>
+            </div>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-sm">Memory Usage</span>
+            <div className="flex items-center gap-2">
+              <div className="w-24 bg-gray-200 rounded-full h-2">
+                <div className="bg-green-500 h-2 rounded-full" style={{width: '62%'}}></div>
+              </div>
+              <span className="text-sm">62%</span>
+            </div>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-sm">Disk Usage</span>
+            <div className="flex items-center gap-2">
+              <div className="w-24 bg-gray-200 rounded-full h-2">
+                <div className="bg-yellow-500 h-2 rounded-full" style={{width: '78%'}}></div>
+              </div>
+              <span className="text-sm">78%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="space-y-4">
+        <h4 className="font-semibold">Service Status</h4>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm">Admin API</span>
+            <Badge variant="outline" className="text-green-600 border-green-600">
+              <CheckCircle className="h-3 w-3 mr-1" />
+              Healthy
+            </Badge>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-sm">MCP Proxy</span>
+            <Badge variant="outline" className="text-green-600 border-green-600">
+              <CheckCircle className="h-3 w-3 mr-1" />
+              Healthy
+            </Badge>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-sm">Database</span>
+            <Badge variant="outline" className="text-green-600 border-green-600">
+              <CheckCircle className="h-3 w-3 mr-1" />
+              Healthy
+            </Badge>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-sm">Cache</span>
+            <Badge variant="outline" className="text-yellow-600 border-yellow-600">
+              <AlertTriangle className="h-3 w-3 mr-1" />
+              Warning
+            </Badge>
+          </div>
+        </div>
+      </div>
+    </div>
+  </CardContent>
+</Card>
+
+## Monitoring & Metrics API
+
+<Callout type="info" icon={BarChart3}>
+  **Operational Insights**: Real-time metrics and monitoring data for comprehensive system observability.
+</Callout>
+
+### Metrics Collection
+
+<Steps>
+<Step title="Get System Metrics" description="Retrieve real-time system metrics">
+
+```bash
+GET /api/v1/metrics/system?timerange=1h&step=5m
+```
+
+**Response:**
+```json
+{
+  "metrics": {
+    "cpu_usage": {
+      "current": 45.2,
+      "average": 42.1,
+      "peak": 78.5,
+      "data_points": [
+        {"timestamp": "2024-01-15T10:00:00Z", "value": 40.2},
+        {"timestamp": "2024-01-15T10:05:00Z", "value": 42.1},
+        {"timestamp": "2024-01-15T10:10:00Z", "value": 45.2}
+      ]
+    },
+    "memory_usage": {
+      "current": 62.8,
+      "average": 58.3,
+      "peak": 89.1,
+      "data_points": [
+        {"timestamp": "2024-01-15T10:00:00Z", "value": 55.8},
+        {"timestamp": "2024-01-15T10:05:00Z", "value": 58.3},
+        {"timestamp": "2024-01-15T10:10:00Z", "value": 62.8}
+      ]
+    }
+  },
+  "timestamp": "2024-01-15T10:30:00Z"
+}
+```
+
+</Step>
+
+<Step title="Get Server Metrics" description="Retrieve metrics for specific servers">
+
+```bash
+GET /api/v1/metrics/servers/{server_id}?timerange=24h&step=1h
+```
+
+**Response:**
+```json
+{
+  "server_id": "filesystem-server",
+  "metrics": {
+    "request_rate": {
+      "current": 12.5,
+      "data_points": [
+        {"timestamp": "2024-01-15T09:00:00Z", "value": 8.2},
+        {"timestamp": "2024-01-15T10:00:00Z", "value": 12.5}
+      ]
+    },
+    "response_time": {
+      "p50": 125,
+      "p95": 350,
+      "p99": 800,
+      "data_points": [
+        {"timestamp": "2024-01-15T09:00:00Z", "p50": 120, "p95": 340, "p99": 750},
+        {"timestamp": "2024-01-15T10:00:00Z", "p50": 125, "p95": 350, "p99": 800}
+      ]
+    },
+    "error_rate": {
+      "current": 0.02,
+      "data_points": [
+        {"timestamp": "2024-01-15T09:00:00Z", "value": 0.01},
+        {"timestamp": "2024-01-15T10:00:00Z", "value": 0.02}
+      ]
+    }
+  }
+}
+```
+
+</Step>
+</Steps>
+
+### Real-time Monitoring Dashboard
+
+<Card>
+  <CardHeader>
+    <CardTitle className="flex items-center gap-2">
+      <LineChart className="h-5 w-5" />
+      Live Metrics Dashboard
+    </CardTitle>
+    <CardDescription>Real-time system and application metrics</CardDescription>
+  </CardHeader>
+  <CardContent>
+    <div className="grid grid-cols-2 gap-6">
+      <div className="p-4 border rounded-lg">
+        <h4 className="font-semibold mb-3">Request Throughput</h4>
+        <div className="space-y-2">
+          <div className="flex justify-between">
+            <span className="text-sm">Current</span>
+            <span className="font-semibold">145 req/s</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-sm">Peak (1h)</span>
+            <span className="font-semibold">298 req/s</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-sm">Average (1h)</span>
+            <span className="font-semibold">187 req/s</span>
+          </div>
+        </div>
+      </div>
+      <div className="p-4 border rounded-lg">
+        <h4 className="font-semibold mb-3">Response Times</h4>
+        <div className="space-y-2">
+          <div className="flex justify-between">
+            <span className="text-sm">P50</span>
+            <span className="font-semibold">125ms</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-sm">P95</span>
+            <span className="font-semibold">350ms</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-sm">P99</span>
+            <span className="font-semibold">800ms</span>
+          </div>
+        </div>
+      </div>
+      <div className="p-4 border rounded-lg">
+        <h4 className="font-semibold mb-3">Error Rates</h4>
+        <div className="space-y-2">
+          <div className="flex justify-between">
+            <span className="text-sm">Current</span>
+            <span className="font-semibold text-green-600">0.02%</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-sm">Peak (1h)</span>
+            <span className="font-semibold text-yellow-600">0.15%</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-sm">Target SLA</span>
+            <span className="font-semibold">&lt; 0.1%</span>
+          </div>
+        </div>
+      </div>
+      <div className="p-4 border rounded-lg">
+        <h4 className="font-semibold mb-3">Active Connections</h4>
+        <div className="space-y-2">
+          <div className="flex justify-between">
+            <span className="text-sm">Current</span>
+            <span className="font-semibold">23</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-sm">Peak (1h)</span>
+            <span className="font-semibold">45</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-sm">Limit</span>
+            <span className="font-semibold">100</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </CardContent>
+</Card>
+
+## WebSocket API
+
+<Callout type="info" icon={Network}>
+  **Real-time Updates**: WebSocket connections provide live updates for monitoring dashboards and operational interfaces.
+</Callout>
+
+### WebSocket Connection
+
+```javascript
+// Connect to WebSocket API
+const ws = new WebSocket('ws://localhost:8080/api/v1/ws');
+
+// Authentication
+ws.onopen = function() {
+  ws.send(JSON.stringify({
+    type: 'auth',
+    token: 'your-jwt-token'
+  }));
+};
+
+// Subscribe to events
+ws.send(JSON.stringify({
+  type: 'subscribe',
+  channels: ['server-health', 'metrics', 'tool-executions']
+}));
+
+// Handle incoming messages
+ws.onmessage = function(event) {
+  const data = JSON.parse(event.data);
+  console.log('Received:', data);
+};
+```
+
+### Event Types
+
+<Table>
+  <TableHeader>
+    <TableRow>
+      <TableHead>Event Type</TableHead>
+      <TableHead>Description</TableHead>
+      <TableHead>Frequency</TableHead>
+    </TableRow>
+  </TableHeader>
+  <TableBody>
+    <TableRow>
+      <TableCell><Badge variant="outline">server-health</Badge></TableCell>
+      <TableCell>Server health status changes</TableCell>
+      <TableCell>Real-time</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell><Badge variant="outline">metrics</Badge></TableCell>
+      <TableCell>System and application metrics</TableCell>
+      <TableCell>Every 5 seconds</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell><Badge variant="outline">tool-executions</Badge></TableCell>
+      <TableCell>Tool execution events</TableCell>
+      <TableCell>Real-time</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell><Badge variant="outline">system-alerts</Badge></TableCell>
+      <TableCell>System alerts and notifications</TableCell>
+      <TableCell>Real-time</TableCell>
+    </TableRow>
+  </TableBody>
+</Table>
+
+## Best Practices
+
+<Tabs items={["API Design", "Security", "Performance", "Monitoring", "Error Handling"]}>
+
+<Tab>
+### API Design
+
+<FeatureCardList cols={2} size="sm">
+  <FeatureCard
+    title="RESTful Design"
+    description="Follow REST principles for consistent API design"
+    icon={Code}
+  />
+  <FeatureCard
+    title="Versioning"
+    description="Use API versioning for backward compatibility"
+    icon={GitBranch}
+  />
+  <FeatureCard
+    title="Documentation"
+    description="Comprehensive API documentation with examples"
+    icon={BookOpen}
+  />
+  <FeatureCard
+    title="Pagination"
+    description="Implement pagination for large datasets"
+    icon={List}
+  />
+</FeatureCardList>
+
+**Design Principles:**
+- Use consistent HTTP methods and status codes
+- Implement proper resource naming conventions
+- Provide clear and descriptive error messages
+- Support filtering, sorting, and pagination
+- Include comprehensive API documentation
+
+</Tab>
+
+<Tab>
+### Security
+
+<FeatureCardList cols={2} size="sm">
+  <FeatureCard
+    title="Authentication"
+    description="Strong authentication mechanisms"
+    icon={Lock}
+  />
+  <FeatureCard
+    title="Authorization"
+    description="Role-based access control"
+    icon={Shield}
+  />
+  <FeatureCard
+    title="Input Validation"
+    description="Validate all input parameters"
+    icon={CheckCircle}
+  />
+  <FeatureCard
+    title="Rate Limiting"
+    description="Prevent abuse with rate limiting"
+    icon={Timer}
+  />
+</FeatureCardList>
+
+**Security Requirements:**
+- Implement proper authentication and authorization
+- Use HTTPS for all API communications
+- Validate and sanitize all input data
+- Implement rate limiting and abuse detection
+- Log security events for monitoring
+
+</Tab>
+
+<Tab>
+### Performance
+
+<FeatureCardList cols={2} size="sm">
+  <FeatureCard
+    title="Caching"
+    description="Implement strategic caching"
+    icon={Database}
+  />
+  <FeatureCard
+    title="Connection Pooling"
+    description="Efficient database connections"
+    icon={Network}
+  />
+  <FeatureCard
+    title="Async Operations"
+    description="Non-blocking API operations"
+    icon={Workflow}
+  />
+  <FeatureCard
+    title="Load Balancing"
+    description="Distribute traffic efficiently"
+    icon={Gauge}
+  />
+</FeatureCardList>
+
+**Performance Guidelines:**
+- Use connection pooling for database operations
+- Implement caching for frequently accessed data
+- Design APIs for horizontal scaling
+- Monitor and optimize response times
+- Use asynchronous operations where appropriate
+
+</Tab>
+
+<Tab>
+### Monitoring
+
+<FeatureCardList cols={2} size="sm">
+  <FeatureCard
+    title="Metrics Collection"
+    description="Comprehensive API metrics"
+    icon={BarChart3}
+  />
+  <FeatureCard
+    title="Health Checks"
+    description="API health monitoring"
+    icon={CheckCircle}
+  />
+  <FeatureCard
+    title="Alerting"
+    description="Proactive alert system"
+    icon={Bell}
+  />
+  <FeatureCard
+    title="Logging"
+    description="Structured logging for debugging"
+    icon={FileText}
+  />
+</FeatureCardList>
+
+**Monitoring Strategy:**
+- Track key performance indicators (KPIs)
+- Implement comprehensive health checks
+- Set up alerting for critical issues
+- Use structured logging for debugging
+- Monitor API usage patterns and trends
+
+</Tab>
+
+<Tab>
+### Error Handling
+
+<FeatureCardList cols={2} size="sm">
+  <FeatureCard
+    title="Consistent Errors"
+    description="Standardized error responses"
+    icon={AlertTriangle}
+  />
+  <FeatureCard
+    title="Error Codes"
+    description="Clear error classification"
+    icon={Tag}
+  />
+  <FeatureCard
+    title="Retry Logic"
+    description="Intelligent retry mechanisms"
+    icon={RefreshCw}
+  />
+  <FeatureCard
+    title="Circuit Breakers"
+    description="Fault tolerance patterns"
+    icon={Shield}
+  />
+</FeatureCardList>
+
+**Error Handling Guidelines:**
+- Use consistent error response formats
+- Provide meaningful error messages
+- Implement proper HTTP status codes
+- Include error codes for programmatic handling
+- Log errors for debugging and monitoring
+
+</Tab>
+</Tabs>
+
+## SDK and Client Libraries
+
+<Callout type="info" icon={Package}>
+  **Developer Tools**: Official SDKs and client libraries for seamless integration with the Admin API.
+</Callout>
+
+### JavaScript/TypeScript SDK
+
+```bash
+npm install @compozy/admin-api-sdk
+```
+
+**Basic Usage:**
+
+```typescript
+import { AdminAPIClient } from '@compozy/admin-api-sdk';
+
+const client = new AdminAPIClient({
+  baseURL: 'http://localhost:8080',
+  token: 'your-jwt-token'
+});
+
+// Server management
+const servers = await client.servers.list();
+const server = await client.servers.create({
+  id: 'new-server',
+  name: 'New Server',
+  type: 'stdio',
+  configuration: {
+    command: '/usr/local/bin/mcp-server',
+    args: ['--config', '/etc/mcp/config.json']
+  }
+});
+
+// Tool execution
+const result = await client.tools.execute('filesystem-server', 'list_files', {
+  path: '/var/lib/workspace'
+});
+
+// Metrics
+const metrics = await client.metrics.getSystemMetrics('1h');
+```
+
+### Python SDK
+
+```bash
+pip install compozy-admin-api
+```
+
+**Basic Usage:**
+
+```python
+from compozy_admin_api import AdminAPIClient
+
+client = AdminAPIClient(
+    base_url="http://localhost:8080",
+    token="your-jwt-token"
+)
+
+# Server management
+servers = client.servers.list()
+server = client.servers.create({
+    "id": "new-server",
+    "name": "New Server",
+    "type": "stdio",
+    "configuration": {
+        "command": "/usr/local/bin/mcp-server",
+        "args": ["--config", "/etc/mcp/config.json"]
+    }
+})
+
+# Tool execution
+result = client.tools.execute(
+    server_id="filesystem-server",
+    tool_name="list_files",
+    parameters={"path": "/var/lib/workspace"}
+)
+
+# Metrics
+metrics = client.metrics.get_system_metrics(timerange="1h")
+```
+
+## Next Steps
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Production Deployment"
+    description="Deploy the Admin API in production environments"
+    href="/docs/core/mcp/production-deployment"
+    icon={Rocket}
+  />
+  <ReferenceCard
+    title="Monitoring & Metrics"
+    description="Set up comprehensive monitoring and metrics collection"
+    href="/docs/core/mcp/monitoring-metrics"
+    icon={Monitor}
+  />
+  <ReferenceCard
+    title="Security & Authentication"
+    description="Implement advanced security measures"
+    href="/docs/core/mcp/security-authentication"
+    icon={Shield}
+  />
+  <ReferenceCard
+    title="Integration Patterns"
+    description="Explore integration patterns and best practices"
+    href="/docs/core/mcp/integration-patterns"
+    icon={Workflow}
+  />
+</ReferenceCardList>

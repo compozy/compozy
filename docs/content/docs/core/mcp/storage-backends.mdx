@@ -1,16 +1,34 @@
 ---
 title: "Storage Backends"
-description: "Configure and manage storage backends for MCP proxy data persistence, including in-memory and Redis options"
+description: "Configure and manage storage backends for MCP proxy data persistence, including in-memory, Redis, file, and database options"
 ---
+
+import {
+  Database,
+  Server,
+  Memory,
+  FileText,
+  Cloud,
+  Archive,
+  Layers,
+  Network,
+  Monitor,
+  Shield,
+  Code,
+} from "lucide-react";
+import { FeatureCard, FeatureCardList } from "@/components/ui/feature-card";
+import { ReferenceCard, ReferenceCardList } from "@/components/ui/reference-card";
+import { List, ListItem } from "@/components/ui/list";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 # Storage Backends
 
-The MCP Proxy supports multiple storage backends for persisting MCP server definitions, connection states, and operational data. This guide covers configuration, implementation, and management of different storage options.
+The MCP Proxy supports multiple storage backends for persisting MCP server definitions, connection states, and operational data. This comprehensive guide covers configuration, implementation, and management of different storage options to meet various scalability, performance, and reliability requirements.
 
 ## Storage Architecture
 
-```mermaid
-graph TB
+<Mermaid chart={`graph TB
     A[MCP Proxy] --> B[Storage Interface]
     B --> C[In-Memory Storage]
     B --> D[Redis Storage]
@@ -26,16 +44,248 @@ graph TB
     K --> L[Connection Pool]
     K --> M[Health Checker]
     K --> N[Backup System]
-```
+    
+    style A fill:#e1f5fe
+    style B fill:#f3e5f5
+    style C fill:#e8f5e8
+    style D fill:#fff3e0
+    style E fill:#fce4ec
+    style F fill:#f1f8e9
+    style K fill:#e3f2fd
+    style L fill:#e3f2fd
+    style M fill:#e3f2fd
+    style N fill:#e3f2fd`} />
+
+<List className="mt-8">
+  <ListItem title="Storage Interface" icon={Layers}>
+    Unified abstraction layer providing consistent API across all storage backends
+  </ListItem>
+  <ListItem title="Multiple Backends" icon={Database}>
+    Support for in-memory, Redis, file system, and database storage options
+  </ListItem>
+  <ListItem title="Connection Management" icon={Network}>
+    Intelligent connection pooling and health monitoring for optimal performance
+  </ListItem>
+  <ListItem title="Backup & Recovery" icon={Archive}>
+    Automated backup systems with configurable retention policies
+  </ListItem>
+</List>
+
+## Storage Backend Comparison
+
+<FeatureCardList cols={2} size="sm" className="mb-12">
+  <FeatureCard
+    title="In-Memory Storage"
+    description="Fast access with automatic cleanup. Best for development and testing."
+    icon={Memory}
+    badge="Development"
+  />
+  <FeatureCard
+    title="Redis Storage"
+    description="High-performance distributed caching. Ideal for production environments."
+    icon={Server}
+    badge="Production"
+  />
+  <FeatureCard
+    title="File Storage"
+    description="Persistent local storage with backup support. Good for single-node deployments."
+    icon={FileText}
+    badge="Single Node"
+  />
+  <FeatureCard
+    title="Database Storage"
+    description="ACID compliance with full transaction support. Best for enterprise applications."
+    icon={Database}
+    badge="Enterprise"
+  />
+</FeatureCardList>
+
+## Storage Backend Selection Guide
+
+<Tabs items={["Development", "Production", "Enterprise", "Hybrid"]}>
+<Tab>
+<Card className="mb-6">
+  <CardHeader>
+    <CardTitle className="flex items-center gap-2">
+      <Code className="h-5 w-5" />
+      Development Environment
+    </CardTitle>
+  </CardHeader>
+  <CardContent>
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <Badge>Recommended</Badge>
+        <span className="font-medium">In-Memory Storage</span>
+      </div>
+      <p className="text-sm text-muted-foreground">
+        Fast iteration cycles, automatic cleanup, and minimal configuration overhead.
+        Perfect for local development and testing scenarios.
+      </p>
+      <div className="grid grid-cols-2 gap-4 text-sm">
+        <div>
+          <strong>Pros:</strong>
+          <ul className="list-disc list-inside mt-1 space-y-1">
+            <li>Fastest performance</li>
+            <li>Zero configuration</li>
+            <li>Automatic cleanup</li>
+            <li>No external dependencies</li>
+          </ul>
+        </div>
+        <div>
+          <strong>Cons:</strong>
+          <ul className="list-disc list-inside mt-1 space-y-1">
+            <li>Data loss on restart</li>
+            <li>Memory limitations</li>
+            <li>No persistence</li>
+            <li>Single instance only</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </CardContent>
+</Card>
+</Tab>
+
+<Tab>
+<Card className="mb-6">
+  <CardHeader>
+    <CardTitle className="flex items-center gap-2">
+      <Cloud className="h-5 w-5" />
+      Production Environment
+    </CardTitle>
+  </CardHeader>
+  <CardContent>
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <Badge>Recommended</Badge>
+        <span className="font-medium">Redis Storage</span>
+      </div>
+      <p className="text-sm text-muted-foreground">
+        High-performance, distributed caching with clustering support.
+        Ideal for production workloads with high throughput requirements.
+      </p>
+      <div className="grid grid-cols-2 gap-4 text-sm">
+        <div>
+          <strong>Pros:</strong>
+          <ul className="list-disc list-inside mt-1 space-y-1">
+            <li>High performance</li>
+            <li>Horizontal scaling</li>
+            <li>Persistence options</li>
+            <li>Clustering support</li>
+          </ul>
+        </div>
+        <div>
+          <strong>Cons:</strong>
+          <ul className="list-disc list-inside mt-1 space-y-1">
+            <li>External dependency</li>
+            <li>Memory-based limits</li>
+            <li>Network latency</li>
+            <li>Configuration complexity</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </CardContent>
+</Card>
+</Tab>
+
+<Tab>
+<Card className="mb-6">
+  <CardHeader>
+    <CardTitle className="flex items-center gap-2">
+      <Shield className="h-5 w-5" />
+      Enterprise Environment
+    </CardTitle>
+  </CardHeader>
+  <CardContent>
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <Badge>Recommended</Badge>
+        <span className="font-medium">Database Storage</span>
+      </div>
+      <p className="text-sm text-muted-foreground">
+        ACID compliance, full transaction support, and enterprise-grade reliability.
+        Best for mission-critical applications with strict data consistency requirements.
+      </p>
+      <div className="grid grid-cols-2 gap-4 text-sm">
+        <div>
+          <strong>Pros:</strong>
+          <ul className="list-disc list-inside mt-1 space-y-1">
+            <li>ACID compliance</li>
+            <li>Transaction support</li>
+            <li>Data consistency</li>
+            <li>Enterprise features</li>
+          </ul>
+        </div>
+        <div>
+          <strong>Cons:</strong>
+          <ul className="list-disc list-inside mt-1 space-y-1">
+            <li>Higher latency</li>
+            <li>Complex setup</li>
+            <li>Resource intensive</li>
+            <li>Scaling challenges</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </CardContent>
+</Card>
+</Tab>
+
+<Tab>
+<Card className="mb-6">
+  <CardHeader>
+    <CardTitle className="flex items-center gap-2">
+      <Layers className="h-5 w-5" />
+      Hybrid Environment
+    </CardTitle>
+  </CardHeader>
+  <CardContent>
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <Badge>Recommended</Badge>
+        <span className="font-medium">Multi-Tier Storage</span>
+      </div>
+      <p className="text-sm text-muted-foreground">
+        Combine multiple storage backends for optimal performance and reliability.
+        Use fast storage for hot data and persistent storage for cold data.
+      </p>
+      <div className="grid grid-cols-2 gap-4 text-sm">
+        <div>
+          <strong>Pros:</strong>
+          <ul className="list-disc list-inside mt-1 space-y-1">
+            <li>Optimal performance</li>
+            <li>Cost effective</li>
+            <li>Flexibility</li>
+            <li>Risk mitigation</li>
+          </ul>
+        </div>
+        <div>
+          <strong>Cons:</strong>
+          <ul className="list-disc list-inside mt-1 space-y-1">
+            <li>Complex configuration</li>
+            <li>Consistency challenges</li>
+            <li>Debugging complexity</li>
+            <li>Higher maintenance</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </CardContent>
+</Card>
+</Tab>
+</Tabs>
 
 ## In-Memory Storage
 
 ### Configuration
 
-Configure in-memory storage for development and testing:
+Configure in-memory storage for development and testing environments:
 
-```yaml
-# compozy.yaml
+<Tabs items={["Basic Configuration", "Advanced Configuration", "Monitoring Setup"]}>
+<Tab>
+```yaml title="compozy.yaml"
+# Basic in-memory storage configuration
 mcps:
   - id: development_mcp
     url: "http://localhost:8081"
@@ -47,6 +297,85 @@ mcps:
         cleanup_interval: 300s
         gc_threshold: 0.8
 ```
+</Tab>
+
+<Tab>
+```yaml title="advanced-memory-config.yaml"
+# Advanced in-memory storage configuration
+mcps:
+  - id: development_mcp
+    url: "http://localhost:8081"
+    storage:
+      type: memory
+      config:
+        # Capacity management
+        max_entries: 10000
+        max_memory_mb: 512
+        gc_threshold: 0.8
+        eviction_policy: "lru" # lru, lfu, random
+        
+        # TTL configuration
+        default_ttl: 3600s
+        max_ttl: 86400s
+        ttl_check_interval: 60s
+        
+        # Performance tuning
+        shard_count: 16
+        cleanup_interval: 300s
+        cleanup_batch_size: 100
+        
+        # Monitoring
+        metrics_enabled: true
+        metrics_interval: 30s
+        log_level: "info"
+        
+        # Development features
+        debug_mode: true
+        export_on_shutdown: true
+        export_path: "/tmp/mcp-memory-dump.json"
+```
+</Tab>
+
+<Tab>
+```yaml title="monitoring-config.yaml"
+# Monitoring configuration for in-memory storage
+mcps:
+  - id: development_mcp
+    url: "http://localhost:8081"
+    storage:
+      type: memory
+      config:
+        max_entries: 1000
+        ttl: 3600s
+        
+        # Health check configuration
+        health_check:
+          enabled: true
+          interval: 30s
+          memory_threshold: 90
+          entry_threshold: 95
+          
+        # Alerting configuration
+        alerts:
+          enabled: true
+          memory_high_threshold: 80
+          memory_critical_threshold: 95
+          webhook_url: "{{ .env.ALERT_WEBHOOK_URL }}"
+          
+        # Performance monitoring
+        performance:
+          track_operations: true
+          slow_operation_threshold: 100ms
+          profile_memory: true
+          
+        # Debugging
+        debug:
+          enabled: true
+          log_operations: true
+          dump_stats_interval: 300s
+```
+</Tab>
+</Tabs>
 
 ### Implementation
 
@@ -229,31 +558,228 @@ func (ms *MemoryStorage) Stats() map[string]interface{} {
 
 ### Configuration
 
-Configure Redis storage for production environments:
+Configure Redis storage for production environments with high performance and scalability:
 
-```yaml
-# compozy.yaml
+<Tabs items={["Basic Redis", "Redis Cluster", "Redis Sentinel", "Performance Tuning"]}>
+<Tab>
+```yaml title="basic-redis-config.yaml"
+# Basic Redis storage configuration
 mcps:
   - id: production_mcp
     url: "http://localhost:8081"
     storage:
       type: redis
       config:
+        # Connection settings
         address: "localhost:6379"
         password: "{{ .env.REDIS_PASSWORD }}"
         database: 0
+        
+        # Connection pool
         pool_size: 10
         min_idle_connections: 5
         max_retries: 3
+        
+        # Timeouts
         dial_timeout: 5s
         read_timeout: 3s
         write_timeout: 3s
         pool_timeout: 4s
         idle_timeout: 300s
+        
+        # Key management
         key_prefix: "mcp:"
+        key_separator: ":"
+        
+        # Basic settings
         cluster_mode: false
         sentinel_mode: false
 ```
+</Tab>
+
+<Tab>
+```yaml title="redis-cluster-config.yaml"
+# Redis cluster configuration for high availability
+mcps:
+  - id: clustered_mcp
+    url: "http://localhost:8081"
+    storage:
+      type: redis
+      config:
+        # Cluster configuration
+        cluster_mode: true
+        cluster_addresses:
+          - "redis-node1:6379"
+          - "redis-node2:6379"
+          - "redis-node3:6379"
+          - "redis-node4:6379"
+          - "redis-node5:6379"
+          - "redis-node6:6379"
+        cluster_password: "{{ .env.REDIS_CLUSTER_PASSWORD }}"
+        
+        # Cluster behavior
+        max_redirects: 8
+        read_only: false
+        route_by_latency: true
+        route_randomly: false
+        
+        # Connection pooling
+        pool_size: 20
+        min_idle_connections: 10
+        max_retries: 5
+        
+        # Timeouts
+        dial_timeout: 10s
+        read_timeout: 5s
+        write_timeout: 5s
+        pool_timeout: 8s
+        idle_timeout: 600s
+        
+        # Advanced settings
+        key_prefix: "mcp:cluster:"
+        
+        # Health checking
+        health_check:
+          enabled: true
+          interval: 30s
+          timeout: 5s
+          failure_threshold: 3
+          
+        # Monitoring
+        monitoring:
+          enabled: true
+          slow_log_threshold: 100ms
+          track_commands: true
+```
+</Tab>
+
+<Tab>
+```yaml title="redis-sentinel-config.yaml"
+# Redis Sentinel configuration for high availability
+mcps:
+  - id: sentinel_mcp
+    url: "http://localhost:8081"
+    storage:
+      type: redis
+      config:
+        # Sentinel configuration
+        sentinel_mode: true
+        master_name: "mymaster"
+        sentinel_addresses:
+          - "sentinel1:26379"
+          - "sentinel2:26379"
+          - "sentinel3:26379"
+        sentinel_password: "{{ .env.REDIS_SENTINEL_PASSWORD }}"
+        
+        # Master/slave configuration
+        password: "{{ .env.REDIS_PASSWORD }}"
+        database: 0
+        
+        # Sentinel behavior
+        sentinel_username: "{{ .env.REDIS_SENTINEL_USERNAME }}"
+        
+        # Connection pooling
+        pool_size: 15
+        min_idle_connections: 8
+        max_retries: 3
+        
+        # Timeouts
+        dial_timeout: 8s
+        read_timeout: 4s
+        write_timeout: 4s
+        pool_timeout: 6s
+        idle_timeout: 300s
+        
+        # Failover settings
+        failover:
+          enabled: true
+          max_retry_backoff: 512ms
+          min_retry_backoff: 8ms
+          
+        # Key management
+        key_prefix: "mcp:sentinel:"
+        
+        # Monitoring
+        monitoring:
+          enabled: true
+          track_sentinel_events: true
+          log_failovers: true
+```
+</Tab>
+
+<Tab>
+```yaml title="redis-performance-config.yaml"
+# Redis performance optimization configuration
+mcps:
+  - id: performance_mcp
+    url: "http://localhost:8081"
+    storage:
+      type: redis
+      config:
+        # Connection settings
+        address: "redis-performance:6379"
+        password: "{{ .env.REDIS_PASSWORD }}"
+        database: 0
+        
+        # High-performance connection pool
+        pool_size: 50
+        min_idle_connections: 20
+        max_retries: 5
+        
+        # Optimized timeouts
+        dial_timeout: 2s
+        read_timeout: 1s
+        write_timeout: 1s
+        pool_timeout: 2s
+        idle_timeout: 180s
+        
+        # Performance features
+        pipeline:
+          enabled: true
+          batch_size: 100
+          flush_interval: 10ms
+          
+        # Compression
+        compression:
+          enabled: true
+          algorithm: "lz4" # lz4, gzip, snappy
+          threshold: 1024 # bytes
+          
+        # Caching
+        local_cache:
+          enabled: true
+          size: 1000
+          ttl: 60s
+          
+        # Connection optimization
+        tcp_keep_alive: true
+        tcp_no_delay: true
+        
+        # Memory optimization
+        memory_limit: "2gb"
+        eviction_policy: "allkeys-lru"
+        
+        # Monitoring
+        performance_monitoring:
+          enabled: true
+          sample_rate: 0.1
+          slow_log_threshold: 10ms
+          
+        # Advanced features
+        lua_scripts:
+          enabled: true
+          cache_scripts: true
+          
+        # Security
+        ssl:
+          enabled: true
+          cert_file: "/etc/ssl/certs/redis-client.crt"
+          key_file: "/etc/ssl/private/redis-client.key"
+          ca_file: "/etc/ssl/certs/ca.crt"
+          insecure_skip_verify: false
+```
+</Tab>
+</Tabs>
 
 ### Redis Cluster Configuration
 
@@ -968,18 +1494,292 @@ func (sm *StorageManager) Health(ctx context.Context) map[string]error {
 }
 ```
 
+## Storage Performance Benchmarks
+
+<Tabs items={["Latency Comparison", "Throughput Analysis", "Scalability Metrics", "Resource Usage"]}>
+<Tab>
+<Card>
+  <CardHeader>
+    <CardTitle>Operation Latency (ms)</CardTitle>
+  </CardHeader>
+  <CardContent>
+    <div className="space-y-4">
+      <div className="grid grid-cols-4 gap-4">
+        <div className="text-center">
+          <div className="text-2xl font-bold text-green-600">0.01</div>
+          <div className="text-sm text-muted-foreground">In-Memory</div>
+        </div>
+        <div className="text-center">
+          <div className="text-2xl font-bold text-blue-600">0.5</div>
+          <div className="text-sm text-muted-foreground">Redis Local</div>
+        </div>
+        <div className="text-center">
+          <div className="text-2xl font-bold text-yellow-600">2.0</div>
+          <div className="text-sm text-muted-foreground">Redis Cluster</div>
+        </div>
+        <div className="text-center">
+          <div className="text-2xl font-bold text-red-600">5.0</div>
+          <div className="text-sm text-muted-foreground">Database</div>
+        </div>
+      </div>
+      
+      <div className="mt-6">
+        <h4 className="font-semibold mb-2">Latency Breakdown</h4>
+        <div className="space-y-2 text-sm">
+          <div className="flex justify-between">
+            <span>Get Operation:</span>
+            <span>Memory < Redis < File < Database</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Set Operation:</span>
+            <span>Memory < Redis < File < Database</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Delete Operation:</span>
+            <span>Memory < Redis < File < Database</span>
+          </div>
+          <div className="flex justify-between">
+            <span>List Operation:</span>
+            <span>Memory < Redis < File < Database</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </CardContent>
+</Card>
+</Tab>
+
+<Tab>
+<Card>
+  <CardHeader>
+    <CardTitle>Throughput (ops/sec)</CardTitle>
+  </CardHeader>
+  <CardContent>
+    <div className="space-y-4">
+      <div className="grid grid-cols-4 gap-4">
+        <div className="text-center">
+          <div className="text-2xl font-bold text-green-600">100K</div>
+          <div className="text-sm text-muted-foreground">In-Memory</div>
+        </div>
+        <div className="text-center">
+          <div className="text-2xl font-bold text-blue-600">50K</div>
+          <div className="text-sm text-muted-foreground">Redis Local</div>
+        </div>
+        <div className="text-center">
+          <div className="text-2xl font-bold text-yellow-600">30K</div>
+          <div className="text-sm text-muted-foreground">Redis Cluster</div>
+        </div>
+        <div className="text-center">
+          <div className="text-2xl font-bold text-red-600">5K</div>
+          <div className="text-sm text-muted-foreground">Database</div>
+        </div>
+      </div>
+      
+      <div className="mt-6">
+        <h4 className="font-semibold mb-2">Throughput Factors</h4>
+        <div className="space-y-2 text-sm">
+          <div className="flex justify-between">
+            <span>Network Latency:</span>
+            <span>Major factor for remote storage</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Serialization:</span>
+            <span>JSON/Binary encoding overhead</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Connection Pooling:</span>
+            <span>Reduces connection overhead</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Batch Operations:</span>
+            <span>Improves throughput significantly</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </CardContent>
+</Card>
+</Tab>
+
+<Tab>
+<Card>
+  <CardHeader>
+    <CardTitle>Scalability Characteristics</CardTitle>
+  </CardHeader>
+  <CardContent>
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <h4 className="font-semibold mb-2">Horizontal Scaling</h4>
+          <div className="space-y-2 text-sm">
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-4 w-4 text-green-500" />
+              <span>Redis Cluster</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-4 w-4 text-green-500" />
+              <span>Database Sharding</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <X className="h-4 w-4 text-red-500" />
+              <span>In-Memory</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <X className="h-4 w-4 text-red-500" />
+              <span>File Storage</span>
+            </div>
+          </div>
+        </div>
+        
+        <div>
+          <h4 className="font-semibold mb-2">Vertical Scaling</h4>
+          <div className="space-y-2 text-sm">
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-4 w-4 text-green-500" />
+              <span>All storage types</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Info className="h-4 w-4 text-blue-500" />
+              <span>Memory limited for in-memory</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Info className="h-4 w-4 text-blue-500" />
+              <span>CPU/Memory for Redis</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Info className="h-4 w-4 text-blue-500" />
+              <span>Storage/CPU for Database</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div className="mt-6">
+        <h4 className="font-semibold mb-2">Scaling Recommendations</h4>
+        <div className="space-y-2 text-sm">
+          <div><strong>< 1K ops/sec:</strong> Any storage type</div>
+          <div><strong>1K-10K ops/sec:</strong> Redis or optimized database</div>
+          <div><strong>10K-50K ops/sec:</strong> Redis cluster or in-memory</div>
+          <div><strong>> 50K ops/sec:</strong> In-memory with clustering</div>
+        </div>
+      </div>
+    </div>
+  </CardContent>
+</Card>
+</Tab>
+
+<Tab>
+<Card>
+  <CardHeader>
+    <CardTitle>Resource Usage</CardTitle>
+  </CardHeader>
+  <CardContent>
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <h4 className="font-semibold mb-2">Memory Usage</h4>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span>In-Memory:</span>
+              <span className="text-red-600">High</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Redis:</span>
+              <span className="text-yellow-600">Medium</span>
+            </div>
+            <div className="flex justify-between">
+              <span>File:</span>
+              <span className="text-green-600">Low</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Database:</span>
+              <span className="text-green-600">Low</span>
+            </div>
+          </div>
+        </div>
+        
+        <div>
+          <h4 className="font-semibold mb-2">CPU Usage</h4>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span>In-Memory:</span>
+              <span className="text-green-600">Low</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Redis:</span>
+              <span className="text-yellow-600">Medium</span>
+            </div>
+            <div className="flex justify-between">
+              <span>File:</span>
+              <span className="text-yellow-600">Medium</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Database:</span>
+              <span className="text-red-600">High</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div className="mt-6">
+        <h4 className="font-semibold mb-2">Storage Requirements</h4>
+        <div className="space-y-2 text-sm">
+          <div className="flex justify-between">
+            <span>In-Memory:</span>
+            <span>RAM only</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Redis:</span>
+            <span>RAM + optional persistence</span>
+          </div>
+          <div className="flex justify-between">
+            <span>File:</span>
+            <span>Disk storage</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Database:</span>
+            <span>Disk + WAL + indexes</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </CardContent>
+</Card>
+</Tab>
+</Tabs>
+
 ## Best Practices
 
 ### Storage Selection Guide
 
-1. **Development/Testing**: Use in-memory storage for fast iteration
-2. **Production**: Use Redis for high performance and scalability
-3. **Backup/Archive**: Use file storage for long-term persistence
-4. **Hybrid**: Combine multiple storage types for redundancy
+<FeatureCardList cols={2} size="sm" className="mb-8">
+  <FeatureCard
+    title="Development/Testing"
+    description="Use in-memory storage for fast iteration and zero configuration"
+    icon={Code}
+  />
+  <FeatureCard
+    title="Production"
+    description="Use Redis for high performance and horizontal scalability"
+    icon={Cloud}
+  />
+  <FeatureCard
+    title="Backup/Archive"
+    description="Use file storage for long-term persistence and compliance"
+    icon={Archive}
+  />
+  <FeatureCard
+    title="Hybrid"
+    description="Combine multiple storage types for optimal performance and redundancy"
+    icon={Layers}
+  />
+</FeatureCardList>
 
 ### Configuration Examples
 
-```yaml
+<Tabs items={["Development", "Production", "High Availability", "Multi-Tier"]}>
+<Tab>
+```yaml title="development-config.yaml"
 # Development configuration
 mcps:
   - id: dev_mcp
@@ -988,7 +1788,14 @@ mcps:
       config:
         max_entries: 1000
         ttl: 1h
+        cleanup_interval: 5m
+        debug_mode: true
+        export_on_shutdown: true
+```
+</Tab>
 
+<Tab>
+```yaml title="production-config.yaml"
 # Production configuration
 mcps:
   - id: prod_mcp
@@ -999,7 +1806,21 @@ mcps:
         password: "{{ .env.REDIS_PASSWORD }}"
         pool_size: 20
         key_prefix: "mcp:prod:"
+        
+        # Performance optimization
+        pipeline:
+          enabled: true
+          batch_size: 100
+          
+        # Monitoring
+        monitoring:
+          enabled: true
+          slow_log_threshold: 100ms
+```
+</Tab>
 
+<Tab>
+```yaml title="high-availability-config.yaml"
 # High availability configuration
 mcps:
   - id: ha_mcp
@@ -1010,15 +1831,64 @@ mcps:
           type: redis
           config:
             address: "redis-primary:6379"
+            password: "{{ .env.REDIS_PASSWORD }}"
         secondary:
           type: redis
           config:
             address: "redis-secondary:6379"
+            password: "{{ .env.REDIS_PASSWORD }}"
         fallback:
           type: file
           config:
             base_path: "/var/lib/compozy/fallback"
+            
+        # Failover configuration
+        failover:
+          enabled: true
+          health_check_interval: 30s
+          failure_threshold: 3
+          recovery_threshold: 2
 ```
+</Tab>
+
+<Tab>
+```yaml title="multi-tier-config.yaml"
+# Multi-tier storage configuration
+mcps:
+  - id: tiered_mcp
+    storage:
+      type: tiered
+      config:
+        # Hot tier (frequently accessed data)
+        hot:
+          type: memory
+          config:
+            max_entries: 10000
+            ttl: 300s
+            
+        # Warm tier (moderately accessed data)
+        warm:
+          type: redis
+          config:
+            address: "redis-warm:6379"
+            password: "{{ .env.REDIS_PASSWORD }}"
+            ttl: 3600s
+            
+        # Cold tier (rarely accessed data)
+        cold:
+          type: file
+          config:
+            base_path: "/var/lib/compozy/cold"
+            compression: true
+            
+        # Tiering policy
+        tiering:
+          promote_on_access: true
+          demote_after_idle: 1h
+          background_migration: true
+```
+</Tab>
+</Tabs>
 
 ### Performance Optimization
 
@@ -1036,11 +1906,211 @@ mcps:
 4. **Backup Security**: Encrypt backup files
 5. **Monitoring**: Log all storage operations
 
-This comprehensive storage backend configuration ensures reliable, scalable, and secure data persistence for your MCP deployments.
+This comprehensive storage backend guide ensures reliable, scalable, and secure data persistence for your MCP deployments across all environments, from development to enterprise production.
+
+## Storage Troubleshooting
+
+<Tabs items={["Common Issues", "Performance Problems", "Connection Issues", "Data Consistency"]}>
+<Tab>
+<Card>
+  <CardHeader>
+    <CardTitle>Common Storage Issues</CardTitle>
+  </CardHeader>
+  <CardContent>
+    <div className="space-y-4">
+      <div className="border-l-4 border-red-500 pl-4">
+        <h4 className="font-semibold text-red-700">Memory Exhaustion</h4>
+        <p className="text-sm text-muted-foreground">In-memory storage running out of space</p>
+        <div className="text-sm mt-2">
+          <strong>Solution:</strong> Increase max_entries, reduce TTL, or switch to Redis
+        </div>
+      </div>
+      
+      <div className="border-l-4 border-yellow-500 pl-4">
+        <h4 className="font-semibold text-yellow-700">Connection Timeouts</h4>
+        <p className="text-sm text-muted-foreground">Redis connections timing out under load</p>
+        <div className="text-sm mt-2">
+          <strong>Solution:</strong> Increase pool size, optimize timeouts, check network
+        </div>
+      </div>
+      
+      <div className="border-l-4 border-blue-500 pl-4">
+        <h4 className="font-semibold text-blue-700">Slow File Operations</h4>
+        <p className="text-sm text-muted-foreground">File storage performing slowly</p>
+        <div className="text-sm mt-2">
+          <strong>Solution:</strong> Use SSD storage, enable compression, batch operations
+        </div>
+      </div>
+      
+      <div className="border-l-4 border-green-500 pl-4">
+        <h4 className="font-semibold text-green-700">Database Deadlocks</h4>
+        <p className="text-sm text-muted-foreground">Transaction conflicts in database storage</p>
+        <div className="text-sm mt-2">
+          <strong>Solution:</strong> Implement retry logic, optimize queries, reduce transaction scope
+        </div>
+      </div>
+    </div>
+  </CardContent>
+</Card>
+</Tab>
+
+<Tab>
+<Card>
+  <CardHeader>
+    <CardTitle>Performance Optimization</CardTitle>
+  </CardHeader>
+  <CardContent>
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <h4 className="font-semibold mb-2">Optimization Techniques</h4>
+          <div className="space-y-2 text-sm">
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-4 w-4 text-green-500" />
+              <span>Connection pooling</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-4 w-4 text-green-500" />
+              <span>Batch operations</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-4 w-4 text-green-500" />
+              <span>Compression</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-4 w-4 text-green-500" />
+              <span>Local caching</span>
+            </div>
+          </div>
+        </div>
+        
+        <div>
+          <h4 className="font-semibold mb-2">Monitoring Metrics</h4>
+          <div className="space-y-2 text-sm">
+            <div>• Operation latency</div>
+            <div>• Throughput (ops/sec)</div>
+            <div>• Memory usage</div>
+            <div>• Connection count</div>
+            <div>• Error rates</div>
+            <div>• Cache hit ratio</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </CardContent>
+</Card>
+</Tab>
+
+<Tab>
+<Card>
+  <CardHeader>
+    <CardTitle>Connection Diagnostics</CardTitle>
+  </CardHeader>
+  <CardContent>
+    <div className="space-y-4">
+      <div className="space-y-3">
+        <div className="border rounded p-3">
+          <h4 className="font-semibold mb-2">Check Connection Status</h4>
+          <code className="text-sm bg-gray-100 p-2 rounded block">
+            curl http://localhost:8081/api/v1/health/storage
+          </code>
+        </div>
+        
+        <div className="border rounded p-3">
+          <h4 className="font-semibold mb-2">Test Redis Connection</h4>
+          <code className="text-sm bg-gray-100 p-2 rounded block">
+            redis-cli -h localhost -p 6379 ping
+          </code>
+        </div>
+        
+        <div className="border rounded p-3">
+          <h4 className="font-semibold mb-2">Monitor Connection Pool</h4>
+          <code className="text-sm bg-gray-100 p-2 rounded block">
+            curl http://localhost:8081/api/v1/metrics/storage
+          </code>
+        </div>
+      </div>
+    </div>
+  </CardContent>
+</Card>
+</Tab>
+
+<Tab>
+<Card>
+  <CardHeader>
+    <CardTitle>Data Consistency</CardTitle>
+  </CardHeader>
+  <CardContent>
+    <div className="space-y-4">
+      <div className="space-y-3">
+        <div className="border-l-4 border-blue-500 pl-4">
+          <h4 className="font-semibold text-blue-700">Eventual Consistency</h4>
+          <p className="text-sm text-muted-foreground">Redis cluster and multi-tier storage</p>
+        </div>
+        
+        <div className="border-l-4 border-green-500 pl-4">
+          <h4 className="font-semibold text-green-700">Strong Consistency</h4>
+          <p className="text-sm text-muted-foreground">Database storage with ACID transactions</p>
+        </div>
+        
+        <div className="border-l-4 border-yellow-500 pl-4">
+          <h4 className="font-semibold text-yellow-700">Session Consistency</h4>
+          <p className="text-sm text-muted-foreground">In-memory storage within single instance</p>
+        </div>
+      </div>
+      
+      <div className="mt-4">
+        <h4 className="font-semibold mb-2">Consistency Strategies</h4>
+        <div className="space-y-2 text-sm">
+          <div>• Use read replicas for scaling</div>
+          <div>• Implement write-behind caching</div>
+          <div>• Configure appropriate TTL values</div>
+          <div>• Monitor replication lag</div>
+        </div>
+      </div>
+    </div>
+  </CardContent>
+</Card>
+</Tab>
+</Tabs>
 
 ## Next Steps
 
-- Set up [Monitoring & Metrics](/docs/core/mcp/monitoring-metrics) for storage backends
-- Configure [Security & Authentication](/docs/core/mcp/security-authentication) for secure storage
-- Review [Production Deployment](/docs/core/mcp/production-deployment) considerations
-- Explore [Integration Patterns](/docs/core/mcp/integration-patterns) for storage optimization
+<ReferenceCardList>
+  <ReferenceCard
+    title="Integration Patterns"
+    description="Learn how to integrate storage backends with MCP workflows"
+    href="/docs/core/mcp/integration-patterns"
+    icon={Link2}
+  />
+  <ReferenceCard
+    title="Client Manager"
+    description="Manage MCP client connections and lifecycle"
+    href="/docs/core/mcp/client-manager"
+    icon={Network}
+  />
+  <ReferenceCard
+    title="Monitoring & Metrics"
+    description="Set up monitoring and metrics for storage backends"
+    href="/docs/core/mcp/monitoring-metrics"
+    icon={Monitor}
+  />
+  <ReferenceCard
+    title="Security & Authentication"
+    description="Configure security and authentication for secure storage"
+    href="/docs/core/mcp/security-authentication"
+    icon={Shield}
+  />
+  <ReferenceCard
+    title="Production Deployment"
+    description="Review production deployment considerations for storage"
+    href="/docs/core/mcp/production-deployment"
+    icon={Cloud}
+  />
+  <ReferenceCard
+    title="Development & Debugging"
+    description="Debug and optimize storage backend performance"
+    href="/docs/core/mcp/development-debugging"
+    icon={Code}
+  />
+</ReferenceCardList>
