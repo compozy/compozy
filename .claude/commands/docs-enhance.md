@@ -92,28 +92,6 @@ Before completing the enhancement, verify:
 - [ ] Progressive disclosure is implemented where appropriate
 </validation_checklist>
 
-<zen_mcp_commands>
-Execute the following Zen MCP commands for comprehensive documentation enhancement:
-
-```
-Use zen for analyze with gemini-2.5-pro to examine the current state of documentation files in $ARGUMENTS.
-Focus on identifying enhancement opportunities, content redundancy, and technical accuracy issues.
-Apply the documentation enhancement standards from @.cursor/rules/docs-enhancement.mdc during analysis.
-```
-
-```
-Use zen for codereview with o3-mini to validate technical accuracy of all code examples and configuration snippets.
-Ensure all YAML examples reference existing APIs and all code examples use current syntax.
-Cross-reference against actual project implementation to identify outdated or incorrect information.
-```
-
-```
-Use zen for refactor with gemini-2.5-flash to transform text-heavy sections into visual components.
-Apply the component enhancement patterns from @.cursor/rules/docs-enhancement.mdc.
-Focus on improving visual hierarchy, readability, and user experience.
-```
-</zen_mcp_commands>
-
 <implementation_phases>
 ## Implementation Phases
 
