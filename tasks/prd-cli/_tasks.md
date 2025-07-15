@@ -30,7 +30,7 @@
 - [ ] 4.0 Workflow Management Foundation
 - [ ] 5.0 Workflow Listing Functionality
 - [ ] 6.0 Workflow Detail and Execution Commands
-- [ ] 7.0 Real-time Execution Monitoring
+- [ ] 7.0 Real-time Execution Monitoring [⚠️ DEFERRED]
 - [ ] 8.0 Execution Management Commands
 - [ ] 9.0 Execution Signaling Functionality
 - [ ] 10.0 Schedule Management System

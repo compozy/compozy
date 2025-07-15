@@ -1,0 +1,51 @@
+name: {{ .Name | quote }}
+version: {{ .Version | quote }}
+{{- if .Description }}
+description: {{ .Description | quote }}
+{{- end }}
+{{- if .Author }}
+
+author:
+  name: {{ .Author.Name | quote }}
+  {{- if .Author.URL }}
+  url: {{ .Author.URL | quote }}
+  {{- end }}
+{{- end }}
+
+workflows:
+{{- range .Workflows }}
+  - source: {{ .Source }}
+{{- end }}
+
+models:
+{{- range .Models }}
+  - provider: {{ .Provider }}
+    model: {{ .Model }}
+    {{- if .APIKey }}
+    api_key: "{{ .APIKey }}"
+    {{- end }}
+    {{- if .APIURL }}
+    api_url: "{{ .APIURL }}"
+    {{- end }}
+{{- end }}
+
+runtime:
+  type: {{ .Runtime.Type }}
+  entrypoint: "{{ .Runtime.Entrypoint }}"
+  permissions:
+{{- range .Runtime.Permissions }}
+    - {{ . }}
+{{- end }}
+
+# AutoLoad configuration for discovering agents and tools
+autoload:
+  enabled: {{ .Autoload.Enabled }}
+  strict: {{ .Autoload.Strict }}
+  include:
+{{- range .Autoload.Include }}
+    - "{{ . }}"
+{{- end }}
+  exclude:
+{{- range .Autoload.Exclude }}
+    - "{{ . }}"
+{{- end }}

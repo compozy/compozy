@@ -10,7 +10,7 @@
 <dependencies>temporal</dependencies>
 </task_context>
 
-# Task 7.0: Real-time Execution Monitoring
+# Task 7.0: Real-time Execution Monitoring [⚠️ DEFERRED]
 
 ## Overview
 

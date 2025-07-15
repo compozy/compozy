@@ -12,6 +12,7 @@ func RootCmd() *cobra.Command {
 	}
 
 	root.AddCommand(
+		InitCmd(),
 		DevCmd(),
 		MCPProxyCmd(),
 		ConfigCmd(),

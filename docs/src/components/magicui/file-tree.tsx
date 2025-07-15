@@ -194,7 +194,7 @@ type FolderProps = {
 } & FolderComponentProps;
 
 const Folder = forwardRef<HTMLDivElement, FolderProps & React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, element, value, isSelectable = true, isSelect, children, ...props }, ref) => {
+  ({ className, element, value, isSelectable = true, isSelect, children, ...props }, _ref) => {
     const {
       direction,
       handleExpand,
@@ -254,7 +254,16 @@ const File = forwardRef<
   } & React.ButtonHTMLAttributes<HTMLButtonElement>
 >(
   (
-    { value, className, handleSelect, isSelectable = true, isSelect, fileIcon, children, ...props },
+    {
+      value,
+      className,
+      handleSelect: _handleSelect,
+      isSelectable = true,
+      isSelect,
+      fileIcon,
+      children,
+      ...props
+    },
     ref
   ) => {
     const { direction, selectedId, selectItem } = useTree();
@@ -291,7 +300,7 @@ const CollapseButton = forwardRef<
     elements: TreeViewElement[];
     expandAll?: boolean;
   } & React.HTMLAttributes<HTMLButtonElement>
->(({ className, elements, expandAll = false, children, ...props }, ref) => {
+>(({ className: _className, elements, expandAll = false, children, ...props }, ref) => {
   const { expandedItems, setExpandedItems } = useTree();
 
   const expendAllTree = useCallback((elements: TreeViewElement[]) => {
