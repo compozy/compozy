@@ -3,19 +3,31 @@ You are an AI assistant responsible for ensuring code quality and task completio
 **YOU MUST USE** --deepthink
 
 <critical>@.cursor/rules/critical-validation.mdc</critical>
-
+<arguments>$ARGUMENTS</arguments>
+<arguments_table>
+| Argument | Description         | Example         |
+|----------|---------------------|-----------------|
+| --prd    | PRD identifier      | --prd=123       |
+| --task   | Task identifier     | --task=45       |
+</arguments_table>
 <task_info>
-Task Number: $ARGUMENTS
+Task: ./tasks/prd-[$prd]/[$task]_task.md
 </task_info>
+<prd_info>
+PRD: ./tasks/prd-[$prd]/\_prd.md
+</prd_info>
+<techspec_info>
+Tech Spec: ./tasks/prd-[$prd]/\_techspec.md
+</techspec_info>
 
 <task_definition_validation>
-1. Task Definition Validation
+1. Task Definition Validation (**YOURSELF** without using zen)
 
 First, verify that the implementation aligns with all requirements:
 
-a) Review the task file: ./tasks/prd-[feature-slug]/[num]\_task.md
-b) Check against the PRD: ./tasks/prd-[feature-slug]/\_prd.md
-c) Ensure compliance with the Tech Spec: ./tasks/prd-[feature-slug]/\_techspec.md
+a) Review the task file: <task_info>
+b) Check against the PRD: <prd_info>
+c) Ensure compliance with the Tech Spec: <techspec_info>
 
 Confirm that the implementation satisfies:
 
@@ -26,10 +38,10 @@ Confirm that the implementation satisfies:
 </task_definition_validation>
 
 <rules_analysis>
-2. Rules Analysis & Code Review
+2. Rules Analysis & Code Review (**YOURSELF** without using zen)
 
 2.1 Rules Analysis
-Analyze all Cursor rules applicable to the changed files for task $ARGUMENTS:
+Analyze all Cursor rules applicable to the changed files for task <task_info>:
 
 - Identify relevant @.cursor/rules/\*.mdc files
 - List specific coding standards, patterns, and requirements that apply
@@ -37,7 +49,7 @@ Analyze all Cursor rules applicable to the changed files for task $ARGUMENTS:
 </rules_analysis>
 
 <multi_model_code_review>
-2.2 Multi-Model Code Review
+2.2 Multi-Model Code Review (**NOW WITH ZEN**)
 Use the criteria from @.cursor/rules/review-checklist.mdc as the basis for all code reviews.
 </multi_model_code_review>
 
@@ -45,13 +57,13 @@ Use the criteria from @.cursor/rules/review-checklist.mdc as the basis for all c
 Execute the following Zen MCP commands:
 
 ```
-Use zen for codereview with gemini-2.5-pro-preview-05-06 to analyze the implementation for task $ARGUMENTS.
+Use zen for codereview with gemini-2.5-pro-preview-05-06 to analyze the implementation for task <task_info>.
 Focus on the review checklist criteria: code quality, security, adherence to project standards, error handling, testing patterns, and maintainability.
 Apply the specific rules identified in step 2.1 during the review.
 ```
 
 ```
-Use zen with o3 to perform a logical review of the implementation for task $ARGUMENTS.
+Use zen with o3 to perform a logical review of the implementation for task <task_info>.
 Analyze the logic, edge cases, and potential issues while considering the applicable coding standards and rules.
 ```
 </zen_mcp_commands>
@@ -60,7 +72,7 @@ Analyze the logic, edge cases, and potential issues while considering the applic
 2.3 Rules-Specific Review
 
 ```
-Use zen with gemini-2.5-pro-preview-05-06 to review task $ARGUMENTS implementation specifically against the identified Cursor rules:
+Use zen with gemini-2.5-pro-preview-05-06 to review task <task_info> implementation specifically against the identified Cursor rules:
 - Verify compliance with project-specific coding standards
 - Check adherence to architectural patterns and design principles
 - Validate implementation follows the established conventions
@@ -74,18 +86,6 @@ Address ALL issues identified:
 - Address medium-severity issues unless explicitly justified
 - Document any decisions to skip low-severity issues
 </fix_review_issues>
-
-<pre_commit_validation> 4. Pre-Commit Validation
-Execute the following codereview validation:
-
-```
-Execute codereview validation for task $ARGUMENTS:
-- Path: ./tasks/prd-[feature-slug]/[num]_task.md
-- Model: gemini-2.5-pro-preview-05-06
-- Context: Implementation of $ARGUMENTS as defined in task requirements
-- Review: Comprehensive validation of all staged and unstaged changes
-```
-</pre_commit_validation>
 
 <validation_focus>
 Focus on:
@@ -103,7 +103,7 @@ Focus on:
 ONLY AFTER successful validation, update the Markdown task file with the following:
 
 ```markdown
-- [x] 1.0 $ARGUMENTS ✅ COMPLETED
+- [x] 1.0 <task_info> ✅ COMPLETED
   - [x] 1.1 Implementation completed
   - [x] 1.2 Task definition, PRD, and tech spec validated
   - [x] 1.3 Rules analysis and compliance verified
@@ -119,8 +119,13 @@ Your final output should be a detailed report of the task completion process, in
 2. Rules Analysis findings
 3. Code Review summary (from both gemini-2.5-pro-preview-05-06 and o3 models)
 4. List of issues addressed and their resolutions
-5. Pre-Commit Validation results
-6. Confirmation of task completion and readiness for deployment
+5. Confirmation of task completion and readiness for deployment
 
 Ensure that you only include the final report in your output, without repeating the instructions or intermediate steps.
 </task_completion_report>
+
+<requirements>
+- Your task **WILL BE REJECTED** if you don't follow the instructions above
+- **YOU ALWAYS** need to show the feedback issues and recommendations from Zen MCP
+- Before finish **YOU MUST** need to ask a final review for Zen MCP to make sure your finished indeed
+</requirements>

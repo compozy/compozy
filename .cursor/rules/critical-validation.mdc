@@ -12,7 +12,7 @@ alwaysApply: true
 - **MUST** follow all established project standards:
     - Architecture patterns: @.cursor/rules/architecture.mdc
     - Go coding standards: @.cursor/rules/go-coding-standards.mdc
-    - Testing requirements: @.cursor/rules/testing-standards.mdc
+    - Testing requirements: @.cursor/rules/test-standard.mdc
     - API standards: @.cursor/rules/api-standards.mdc
     - Security & quality: @.cursor/rules/quality-security.md
     - GoGraph MCP tools: @.cursor/rules/gograph.mdc

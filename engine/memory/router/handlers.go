@@ -29,7 +29,7 @@ import (
 //	@Failure		400			{object}	router.Response{error=router.ErrorInfo}	"Invalid request"
 //	@Failure		404			{object}	router.Response{error=router.ErrorInfo}	"Memory not found"
 //	@Failure		500			{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
-//	@Router			/api/v0/memory/{memory_ref}/read [get]
+//	@Router			/memory/{memory_ref}/read [get]
 func readMemory(c *gin.Context) {
 	// Get memory context from middleware
 	memCtx, ok := GetMemoryContext(c)
@@ -127,7 +127,7 @@ func readMemory(c *gin.Context) {
 //	@Success		200			{object}	router.Response{data=service.WriteResponse}	"Memory written successfully"
 //	@Failure		400			{object}	router.Response{error=router.ErrorInfo}	"Invalid request"
 //	@Failure		500			{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
-//	@Router			/api/v0/memory/{memory_ref}/write [post]
+//	@Router			/memory/{memory_ref}/write [post]
 func writeMemory(c *gin.Context) {
 	// Get memory context from middleware
 	memCtx, ok := GetMemoryContext(c)
@@ -203,7 +203,7 @@ func writeMemory(c *gin.Context) {
 //	@Success		200			{object}	router.Response{data=service.AppendResponse}	"Memory appended successfully"
 //	@Failure		400			{object}	router.Response{error=router.ErrorInfo}	"Invalid request"
 //	@Failure		500			{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
-//	@Router			/api/v0/memory/{memory_ref}/append [post]
+//	@Router			/memory/{memory_ref}/append [post]
 func appendMemory(c *gin.Context) {
 	// Get memory context from middleware
 	memCtx, ok := GetMemoryContext(c)
@@ -279,7 +279,7 @@ func appendMemory(c *gin.Context) {
 //	@Success		200			{object}	router.Response{data=service.DeleteResponse}	"Memory deleted successfully"
 //	@Failure		400			{object}	router.Response{error=router.ErrorInfo}	"Invalid request"
 //	@Failure		500			{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
-//	@Router			/api/v0/memory/{memory_ref}/delete [post]
+//	@Router			/memory/{memory_ref}/delete [post]
 func deleteMemory(c *gin.Context) {
 	// Get memory context from middleware
 	memCtx, ok := GetMemoryContext(c)
@@ -336,7 +336,7 @@ func deleteMemory(c *gin.Context) {
 //	@Success		200			{object}	router.Response{data=memuc.FlushMemoryResult}	"Memory flushed successfully. Response includes actual_strategy field showing which strategy was used"
 //	@Failure		400			{object}	router.Response{error=router.ErrorInfo}	"Invalid request"
 //	@Failure		500			{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
-//	@Router			/api/v0/memory/{memory_ref}/flush [post]
+//	@Router			/memory/{memory_ref}/flush [post]
 func flushMemory(c *gin.Context) {
 	// Get memory context from middleware
 	memCtx, ok := GetMemoryContext(c)
@@ -402,7 +402,7 @@ func flushMemory(c *gin.Context) {
 //	@Success		200				{object}	router.Response{data=memuc.HealthMemoryResult}	"Memory health retrieved successfully"
 //	@Failure		400				{object}	router.Response{error=router.ErrorInfo}	"Invalid request"
 //	@Failure		500				{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
-//	@Router			/api/v0/memory/{memory_ref}/health [get]
+//	@Router			/memory/{memory_ref}/health [get]
 func healthMemory(c *gin.Context) {
 	// Get memory context from middleware
 	memCtx, ok := GetMemoryContext(c)
@@ -453,7 +453,7 @@ func healthMemory(c *gin.Context) {
 //	@Success		200			{object}	router.Response{data=memuc.ClearMemoryResult}	"Memory cleared successfully"
 //	@Failure		400			{object}	router.Response{error=router.ErrorInfo}	"Invalid request"
 //	@Failure		500			{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
-//	@Router			/api/v0/memory/{memory_ref}/clear [post]
+//	@Router			/memory/{memory_ref}/clear [post]
 func clearMemory(c *gin.Context) {
 	// Get memory context from middleware
 	memCtx, ok := GetMemoryContext(c)
@@ -518,7 +518,7 @@ func clearMemory(c *gin.Context) {
 //	@Success		200			{object}	router.Response{data=memuc.StatsMemoryOutput}	"Memory statistics retrieved successfully"
 //	@Failure		400			{object}	router.Response{error=router.ErrorInfo}	"Invalid request"
 //	@Failure		500			{object}	router.Response{error=router.ErrorInfo}	"Internal server error"
-//	@Router			/api/v0/memory/{memory_ref}/stats [get]
+//	@Router			/memory/{memory_ref}/stats [get]
 func statsMemory(c *gin.Context) {
 	// Get memory context from middleware
 	memCtx, ok := GetMemoryContext(c)

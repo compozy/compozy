@@ -1,0 +1,97 @@
+package userctx
+
+import (
+	"context"
+	"testing"
+
+	"github.com/compozy/compozy/engine/auth/model"
+	"github.com/compozy/compozy/engine/core"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestWithUser(t *testing.T) {
+	t.Run("Should add user to context", func(t *testing.T) {
+		ctx := context.Background()
+		userID, _ := core.NewID()
+		user := &model.User{
+			ID:    userID,
+			Email: "test@example.com",
+			Role:  model.RoleUser,
+		}
+
+		newCtx := WithUser(ctx, user)
+
+		// Verify context is not the same instance
+		assert.NotEqual(t, ctx, newCtx)
+
+		// Verify user can be retrieved
+		retrievedUser, ok := UserFromContext(newCtx)
+		assert.True(t, ok)
+		assert.Equal(t, user, retrievedUser)
+	})
+}
+
+func TestUserFromContext(t *testing.T) {
+	t.Run("Should return user when present", func(t *testing.T) {
+		userID, _ := core.NewID()
+		user := &model.User{
+			ID:    userID,
+			Email: "test@example.com",
+			Role:  model.RoleAdmin,
+		}
+		ctx := WithUser(context.Background(), user)
+
+		retrievedUser, ok := UserFromContext(ctx)
+
+		assert.True(t, ok)
+		assert.Equal(t, user.ID, retrievedUser.ID)
+		assert.Equal(t, user.Email, retrievedUser.Email)
+		assert.Equal(t, user.Role, retrievedUser.Role)
+	})
+
+	t.Run("Should return false when user not present", func(t *testing.T) {
+		ctx := context.Background()
+
+		user, ok := UserFromContext(ctx)
+
+		assert.False(t, ok)
+		assert.Nil(t, user)
+	})
+}
+
+func TestMustUserFromContext(t *testing.T) {
+	t.Run("Should return user when present", func(t *testing.T) {
+		userID, _ := core.NewID()
+		user := &model.User{
+			ID:    userID,
+			Email: "test@example.com",
+			Role:  model.RoleUser,
+		}
+		ctx := WithUser(context.Background(), user)
+
+		retrievedUser := MustUserFromContext(ctx)
+
+		assert.Equal(t, user, retrievedUser)
+	})
+
+	t.Run("Should panic when user not present", func(t *testing.T) {
+		ctx := context.Background()
+
+		assert.Panics(t, func() {
+			MustUserFromContext(ctx)
+		}, "MustUserFromContext should panic when user is not in context")
+	})
+
+	t.Run("Should panic with correct message", func(t *testing.T) {
+		ctx := context.Background()
+
+		defer func() {
+			r := recover()
+			require.NotNil(t, r, "Should have panicked")
+			assert.Equal(t, "user not found in context", r)
+		}()
+
+		MustUserFromContext(ctx)
+	})
+}

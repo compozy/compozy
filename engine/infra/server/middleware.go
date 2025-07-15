@@ -1,8 +1,10 @@
 package server
 
 import (
+	"fmt"
 	"time"
 
+	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
 )
@@ -44,21 +46,46 @@ func LoggerMiddleware(log logger.Logger) gin.HandlerFunc {
 	}
 }
 
-// CORSMiddleware enables CORS support.
-func CORSMiddleware() gin.HandlerFunc {
+// CORSMiddleware enables CORS support with configurable origins.
+func CORSMiddleware(corsConfig config.CORSConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
-		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		origin := c.Request.Header.Get("Origin")
+
+		// Check if origin is allowed
+		isAllowed := len(corsConfig.AllowedOrigins) > 0 && contains(corsConfig.AllowedOrigins, origin)
+
+		if isAllowed {
+			c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+			if corsConfig.AllowCredentials {
+				c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+			}
+		}
+
 		c.Writer.Header().Set(
 			"Access-Control-Allow-Headers",
 			"Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, "+
 				"Authorization, accept, origin, Cache-Control, X-Requested-With",
 		)
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE")
+
+		if corsConfig.MaxAge > 0 {
+			c.Writer.Header().Set("Access-Control-Max-Age", fmt.Sprintf("%d", corsConfig.MaxAge))
+		}
+
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
 			return
 		}
 		c.Next()
 	}
+}
+
+// contains checks if a string slice contains a specific string
+func contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
 }

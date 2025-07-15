@@ -185,7 +185,7 @@ func (l *loader) loadEnvironment() error {
 	for _, key := range l.koanf.Keys() {
 		valBefore, existed := keysBefore[key]
 		valAfter := l.koanf.Get(key)
-		if !existed || valBefore != valAfter {
+		if !existed || !reflect.DeepEqual(valBefore, valAfter) {
 			l.trackSource(key, SourceEnv)
 		}
 	}
@@ -246,7 +246,7 @@ func (l *loader) loadSource(source Source) error {
 	for _, key := range l.koanf.Keys() {
 		valBefore, existed := keysBefore[key]
 		valAfter := l.koanf.Get(key)
-		if !existed || valBefore != valAfter {
+		if !existed || !reflect.DeepEqual(valBefore, valAfter) {
 			l.trackSource(key, source.Type())
 		}
 	}
