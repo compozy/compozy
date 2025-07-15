@@ -138,11 +138,9 @@ func filterAndSortUsers(users []models.UserInfo, filters *userFilters) []models.
 		}
 
 		// TODO: Apply active filter when KeyCount field is available
-		// For now, we skip the active filter
-		if filters.activeOnly {
-			// Skip for now - would need API key count information
-			continue
-		}
+		// For now, include all users when active filter is requested
+		// This will be updated when API provides key count information
+		_ = filters.activeOnly // Prevent unused variable warning
 
 		filtered = append(filtered, user)
 	}
@@ -291,7 +289,7 @@ func runDeleteUserJSON(ctx context.Context, cmd *cobra.Command, client *Client, 
 	// TODO: If cascade is enabled, also delete user's API keys
 	// This would require additional API endpoint or client method
 	if cascade {
-		log.Debug("cascade deletion requested but not yet implemented")
+		return outputJSONError("cascade deletion is not yet implemented")
 	}
 
 	// Delete the user

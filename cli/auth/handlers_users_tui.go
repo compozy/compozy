@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/compozy/compozy/cli/auth/tui/models"
 	"github.com/compozy/compozy/pkg/logger"
+	"github.com/go-playground/validator/v10"
 	"github.com/spf13/cobra"
 )
 
@@ -208,6 +210,11 @@ func (m *createUserModel) handleConfirmState(msg tea.KeyMsg) (tea.Model, tea.Cmd
 func (m *createUserModel) validateInputs() error {
 	if m.inputs[0] == "" {
 		return fmt.Errorf("email is required")
+	}
+	// Proper email validation using validator library
+	validate := validator.New()
+	if err := validate.Var(m.inputs[0], "email"); err != nil {
+		return fmt.Errorf("invalid email format")
 	}
 	if m.inputs[2] != roleAdmin && m.inputs[2] != roleUser {
 		return fmt.Errorf("role must be '%s' or '%s'", roleAdmin, roleUser)
@@ -760,7 +767,14 @@ func (m *listUsersModel) applyFilters() {
 		})
 	default:
 		sort.Slice(m.filtered, func(i, j int) bool {
-			return m.filtered[i].CreatedAt < m.filtered[j].CreatedAt
+			// Parse timestamps for proper chronological comparison
+			ti, errI := time.Parse(time.RFC3339, m.filtered[i].CreatedAt)
+			tj, errJ := time.Parse(time.RFC3339, m.filtered[j].CreatedAt)
+			// Fallback to string comparison if parsing fails
+			if errI != nil || errJ != nil {
+				return m.filtered[i].CreatedAt < m.filtered[j].CreatedAt
+			}
+			return ti.Before(tj)
 		})
 	}
 

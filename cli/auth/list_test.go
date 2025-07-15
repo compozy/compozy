@@ -9,6 +9,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/compozy/compozy/cli/auth/sorting"
 	"github.com/compozy/compozy/cli/auth/tui/models"
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/spf13/cobra"
@@ -174,7 +175,7 @@ func TestSortKeys(t *testing.T) {
 			{ID: "2", CreatedAt: "2024-01-03"},
 			{ID: "3", CreatedAt: "2024-01-02"},
 		}
-		sortKeys(keys, "created")
+		sorting.SortKeys(keys, "created")
 		assert.Equal(t, "2", keys[0].ID)
 		assert.Equal(t, "3", keys[1].ID)
 		assert.Equal(t, "1", keys[2].ID)
@@ -185,7 +186,7 @@ func TestSortKeys(t *testing.T) {
 			{ID: "2", Prefix: "cpzy_aaa"},
 			{ID: "3", Prefix: "cpzy_bbb"},
 		}
-		sortKeys(keys, "name")
+		sorting.SortKeys(keys, "name")
 		assert.Equal(t, "2", keys[0].ID)
 		assert.Equal(t, "3", keys[1].ID)
 		assert.Equal(t, "1", keys[2].ID)
@@ -198,7 +199,7 @@ func TestSortKeys(t *testing.T) {
 			{ID: "2", LastUsed: nil},
 			{ID: "3", LastUsed: &time2},
 		}
-		sortKeys(keys, "last_used")
+		sorting.SortKeys(keys, "last_used")
 		assert.Equal(t, "3", keys[0].ID) // Most recent
 		assert.Equal(t, "1", keys[1].ID)
 		assert.Equal(t, "2", keys[2].ID) // nil last

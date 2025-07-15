@@ -56,10 +56,8 @@ func NewManager(config *Config, redisClient *redis.Client) (*Manager, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to create Redis store: %w", err)
 		}
-		// Log will be extracted from context when needed
 	} else {
 		store = memory.NewStore()
-		// Log will be extracted from context when needed
 	}
 
 	// Create global limiter

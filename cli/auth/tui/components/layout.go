@@ -225,14 +225,15 @@ func (l *LayoutComponent) renderHeader() string {
 
 // renderMainContent renders the main content area
 func (l *LayoutComponent) renderMainContent(width, height int) string {
-	if l.Content == "" {
-		return ""
-	}
-
 	contentStyle := lipgloss.NewStyle().
 		Width(width).
 		Height(height).
 		Padding(0, 1)
+
+	if l.Content == "" {
+		// Return empty space with consistent dimensions to match GetContentSize calculations
+		return contentStyle.Render("")
+	}
 
 	return contentStyle.Render(l.Content)
 }

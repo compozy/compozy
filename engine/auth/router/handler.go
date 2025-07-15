@@ -12,6 +12,23 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// GenerateKeyResponse represents a successful API key generation response.
+type GenerateKeyResponse struct {
+	Data    GenerateKeyData `json:"data"`
+	Message string          `json:"message"`
+}
+
+// GenerateKeyData contains the generated API key
+type GenerateKeyData struct {
+	APIKey string `json:"api_key"`
+}
+
+// ErrorResponse represents a structured error response.
+type ErrorResponse struct {
+	Error   string `json:"error"`
+	Details string `json:"details"`
+}
+
 // Handler handles auth-related HTTP requests
 type Handler struct {
 	factory *uc.Factory
@@ -63,9 +80,9 @@ func (h *Handler) getUserIDFromContext(c *gin.Context) (core.ID, bool) {
 // @Accept json
 // @Produce json
 // @Param Authorization header string true "Bearer token for authentication"
-// @Success 201 {object} map[string]string
-// @Failure 401 {object} map[string]string
-// @Failure 500 {object} map[string]string
+// @Success 201 {object} GenerateKeyResponse "contains data.api_key and message"
+// @Failure 401 {object} ErrorResponse "authentication failure"
+// @Failure 500 {object} ErrorResponse "internal server error"
 // @Router /auth/generate [post]
 func (h *Handler) GenerateKey(c *gin.Context) {
 	ctx := c.Request.Context()

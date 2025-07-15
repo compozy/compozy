@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"sort"
 	"time"
 
+	"github.com/compozy/compozy/cli/auth/sorting"
 	"github.com/compozy/compozy/cli/auth/tui/models"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/spf13/cobra"
@@ -126,7 +126,7 @@ func runListJSON(ctx context.Context, cmd *cobra.Command, client *Client) error 
 		keys = filtered
 	}
 	// Apply client-side sorting
-	sortKeys(keys, sortBy)
+	sorting.SortKeys(keys, sortBy)
 	// Apply client-side pagination
 	totalKeys := len(keys)
 	startIdx := (page - 1) * limit
@@ -146,7 +146,12 @@ func runListJSON(ctx context.Context, cmd *cobra.Command, client *Client) error 
 		"total": totalKeys,
 		"page":  page,
 		"limit": limit,
-		"pages": (totalKeys + limit - 1) / limit,
+		"pages": func() int {
+			if limit == 0 {
+				return 0
+			}
+			return (totalKeys + limit - 1) / limit
+		}(),
 	}
 	// Output JSON
 	encoder := json.NewEncoder(os.Stdout)
@@ -155,36 +160,6 @@ func runListJSON(ctx context.Context, cmd *cobra.Command, client *Client) error 
 		return fmt.Errorf("failed to encode JSON response: %w", err)
 	}
 	return nil
-}
-
-func sortKeys(keys []models.KeyInfo, sortBy string) {
-	switch sortBy {
-	case sortName:
-		// Sort by prefix (which contains the name prefix)
-		sort.Slice(keys, func(i, j int) bool {
-			return keys[i].Prefix < keys[j].Prefix
-		})
-	case "last_used":
-		// Sort by last used timestamp (most recent first)
-		sort.Slice(keys, func(i, j int) bool {
-			// Handle nil LastUsed values
-			if keys[i].LastUsed == nil && keys[j].LastUsed == nil {
-				return false
-			}
-			if keys[i].LastUsed == nil {
-				return false
-			}
-			if keys[j].LastUsed == nil {
-				return true
-			}
-			return *keys[i].LastUsed > *keys[j].LastUsed
-		})
-	case sortCreated, "":
-		// Sort by created timestamp (most recent first)
-		sort.Slice(keys, func(i, j int) bool {
-			return keys[i].CreatedAt > keys[j].CreatedAt
-		})
-	}
 }
 
 // runRevokeJSON handles JSON mode for key revocation
@@ -205,18 +180,7 @@ func runRevokeJSON(ctx context.Context, cmd *cobra.Command, client *Client, keyI
 	// If not forced, we should show a warning (in a real implementation,
 	// we'd show affected resources)
 	if !force {
-		// For now, just show a confirmation prompt via stderr
-		fmt.Fprintf(os.Stderr, "Warning: This will permanently revoke the API key.\n")
-		fmt.Fprintf(os.Stderr, "Use --force to skip this confirmation.\n")
-		fmt.Fprintf(os.Stderr, "Continue? (y/N): ")
-
-		var response string
-		if _, err := fmt.Scanln(&response); err != nil {
-			return outputJSONError("revocation canceled")
-		}
-		if response != "y" && response != "Y" {
-			return outputJSONError("revocation canceled")
-		}
+		return outputJSONError("revocation requires --force flag in JSON mode")
 	}
 
 	// Revoke the key

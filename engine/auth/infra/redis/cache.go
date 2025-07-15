@@ -154,13 +154,16 @@ func (c *CachedRepository) GetAPIKeyByID(ctx context.Context, id core.ID) (*mode
 	cached := c.client.Get(ctx, cacheKey)
 	if cached.Err() == nil {
 		var key model.APIKey
-		if err := json.Unmarshal([]byte(cached.Val()), &key); err == nil {
+		unmarshalErr := json.Unmarshal([]byte(cached.Val()), &key)
+		if unmarshalErr == nil {
 			log.Debug("API key cache hit", "cache_key", cacheKey)
 			return &key, nil
 		}
+		log.Debug("failed to unmarshal cached API key", "error", unmarshalErr)
 	}
 
 	// Cache miss - fetch from database
+	log.Debug("API key cache miss", "cache_key", cacheKey)
 	key, err := c.repo.GetAPIKeyByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -169,10 +172,14 @@ func (c *CachedRepository) GetAPIKeyByID(ctx context.Context, id core.ID) (*mode
 	// Cache the result
 	keyJSON, err := json.Marshal(key)
 	if err != nil {
-		log.Error("Failed to marshal API key for cache", "error", err)
+		log.Warn("failed to marshal API key for cache", "error", err)
 		return key, nil // Return the key anyway, just skip caching
 	}
-	c.client.Set(ctx, cacheKey, keyJSON, c.ttl)
+	if err := c.client.Set(ctx, cacheKey, keyJSON, c.ttl).Err(); err != nil {
+		log.Warn("failed to cache API key", "error", err)
+	} else {
+		log.Debug("cached API key", "cache_key", cacheKey, "ttl", c.ttl)
+	}
 
 	return key, nil
 }
