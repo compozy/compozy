@@ -9,6 +9,8 @@ import { AlertTriangle, BookOpen, BrainCircuit, MessageSquare, Shield, ShieldChe
 
 Tool configuration schemas define the interface between AI agents and your tools using JSON Schema Draft 7. This guide covers how to create robust, validated tool configurations that ensure type safety and seamless integration with AI workflows.
 
+Tool configurations use [YAML Templates](../yaml-templates/overview) for dynamic behavior. The `with` parameter in tool usage supports full [Context Variables](../yaml-templates/context-variables) and [Sprig Functions](../yaml-templates/sprig-functions) for data transformation. When tools handle user input, ensure proper escaping using [Security Functions](../yaml-templates/sprig-functions#compozy-specific-security-functions).
+
 ## Schema Fundamentals
 
 <Callout type="info">

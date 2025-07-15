@@ -1,0 +1,954 @@
+---
+title: Signal Tasks
+description: Understanding signal tasks for inter-workflow communication and event-driven coordination in Compozy workflows
+---
+
+Signal tasks are the **event broadcasters** of Compozy's event-driven architecture. They send signals to coordinate between workflows, enable decoupled communication patterns, and trigger event-driven processes. Every signal task emits a message that can be received by wait tasks, creating powerful synchronization and coordination mechanisms.
+
+## Related Documentation
+
+### 🔗 Cross-References
+- **[Core Concepts: Tasks](/docs/core/getting-started/core-concepts#2-tasks)** - Tasks in workflow context
+- **[Wait Tasks](/docs/core/signals/wait-tasks)** - Receiving signals and synchronization
+- **[Signal Overview](/docs/core/signals/signal-overview)** - Signal system architecture
+- **[YAML Templates](/docs/core/yaml-templates/overview)** - Dynamic signal configuration
+
+### ⚙️ Task-Related Topics
+- **Signal Tasks** ↔ **[Wait Tasks](/docs/core/signals/wait-tasks)** ↔ **[Signal Triggers](/docs/core/signals/signal-triggers)**
+- **Event Communication** ↔ **[Workflow Configuration](/docs/core/configuration/workflows)** ↔ **[Agent Actions](/docs/core/agents/instructions-actions)**
+- **Coordination Patterns** ↔ **[Parallel Tasks](/docs/core/tasks/parallel-tasks)** ↔ **[Advanced Patterns](/docs/core/tasks/advanced-patterns)**
+
+## Overview
+
+Signal tasks provide the foundation for event-driven workflow coordination:
+
+- **Event Broadcasting**: Send signals to notify other workflows or tasks
+- **Inter-Workflow Communication**: Enable decoupled communication between processes
+- **Synchronization Points**: Create coordination checkpoints in complex workflows
+- **Template Integration**: Dynamic signal IDs and payloads with full template support
+- **Immediate Execution**: Fast, non-blocking signal dispatch
+
+<Callout type="info">
+Signal tasks are fire-and-forget operations that complete immediately after dispatching the signal, making them ideal for event-driven architectures and loose coupling between workflow components.
+</Callout>
+
+## Task Structure
+
+### Core Configuration
+
+Every signal task follows this fundamental structure:
+
+```yaml
+id: signal-task-name
+type: signal
+signal:
+  id: "signal-identifier"
+  payload:
+    data: "{{ .workflow.input.value }}"
+    timestamp: "{{ now }}"
+outputs:
+  signal_dispatched: "{{ .task.outputs.signal_dispatched }}"
+  signal_id: "{{ .task.outputs.signal_id }}"
+```
+
+### Key Components
+
+<Tabs items={["Basic Structure", "Signal Configuration", "Dynamic Signals", "Flow Control"]}>
+<Tab value="Basic Structure">
+
+The minimal signal task configuration:
+
+```yaml
+id: send-notification
+type: signal
+signal:
+  id: "task-completed"
+  payload:
+    status: "success"
+    message: "Task completed successfully"
+    timestamp: "{{ now }}"
+
+description: "Notify workflows that task is complete"
+```
+
+Signal tasks have no dependencies or complex configuration - they simply emit signals and complete immediately.
+
+</Tab>
+<Tab value="Signal Configuration">
+
+Signal configuration with ID and payload:
+
+```yaml
+id: data-ready-signal
+type: signal
+signal:
+  # Signal ID - must match wait_for in receiving tasks
+  id: "data-processed-{{ .workflow.input.dataset_id }}"
+  
+  # Payload - any JSON-serializable data
+  payload:
+    dataset_id: "{{ .workflow.input.dataset_id }}"
+    records_processed: "{{ .task.previous_task.output.count }}"
+    processing_time: "{{ .task.previous_task.duration }}"
+    output_location: "{{ .task.previous_task.output.path }}"
+    metadata:
+      workflow_id: "{{ .workflow.id }}"
+      execution_id: "{{ .workflow.exec_id }}"
+      processor_version: "v2.1.0"
+      completed_at: "{{ now }}"
+
+outputs:
+  signal_sent: "{{ .task.outputs.signal_dispatched }}"
+  recipients_notified: true
+```
+
+</Tab>
+<Tab value="Dynamic Signals">
+
+Dynamic signal generation based on conditions:
+
+```yaml
+id: conditional-signal
+type: signal
+signal:
+  # Dynamic signal ID based on conditions
+  id: "{{ if .workflow.input.priority == 'high' }}urgent-approval-{{ .workflow.input.request_id }}{{ else }}standard-approval-{{ .workflow.input.request_id }}{{ end }}"
+  
+  # Conditional payload structure
+  payload:
+    request_id: "{{ .workflow.input.request_id }}"
+    priority: "{{ .workflow.input.priority }}"
+    amount: "{{ .workflow.input.amount }}"
+    
+    # Conditional fields
+    escalation_required: "{{ .workflow.input.priority == 'high' }}"
+    approval_deadline: "{{ if .workflow.input.priority == 'high' }}{{ now | date_add '1h' }}{{ else }}{{ now | date_add '24h' }}{{ end }}"
+    
+    # Additional context for high priority
+    {{ if .workflow.input.priority == 'high' }}
+    escalation_context:
+      escalated_by: "{{ .workflow.input.user_id }}"
+      escalation_reason: "{{ .workflow.input.reason }}"
+      manager_approval_required: true
+    {{ end }}
+
+# Conditional routing based on priority
+on_success:
+  next: "{{ if .workflow.input.priority == 'high' }}high-priority-followup{{ else }}standard-followup{{ end }}"
+```
+
+</Tab>
+<Tab value="Flow Control">
+
+Advanced flow control with signal tasks:
+
+```yaml
+id: orchestrated-signal
+type: signal
+signal:
+  id: "workflow-checkpoint-{{ .workflow.id }}"
+  payload:
+    checkpoint_name: "{{ .workflow.input.checkpoint }}"
+    workflow_state: "{{ .workflow.state }}"
+    completed_tasks: "{{ .workflow.completed_tasks }}"
+    next_phase: "{{ .workflow.input.next_phase }}"
+    
+    # Include error context if available
+    {{ if .workflow.error }}
+    error_context:
+      error_type: "{{ .workflow.error.type }}"
+      error_message: "{{ .workflow.error.message }}"
+      failed_task: "{{ .workflow.error.task_id }}"
+    {{ end }}
+
+# Success routing
+on_success:
+  next: continue-workflow
+  with:
+    checkpoint_reached: "{{ .workflow.input.checkpoint }}"
+    signal_confirmed: "{{ .task.outputs.signal_dispatched }}"
+
+# Error handling
+on_error:
+  next: signal-failure-handler
+  with:
+    signal_id: "workflow-checkpoint-{{ .workflow.id }}"
+    error_details: "{{ .task.error }}"
+
+# Timeout configuration
+timeout: 10s
+heartbeat_timeout: 5s
+```
+
+</Tab>
+</Tabs>
+
+## Signal Configuration
+
+### Signal ID Patterns
+
+Signal IDs determine which wait tasks receive the signal:
+
+```yaml
+# Static signal IDs
+signal:
+  id: "user-registered"              # Simple static ID
+  id: "order-processed"              # Event-based ID
+  id: "payment-completed"            # Action-based ID
+
+# Dynamic signal IDs with templates
+signal:
+  id: "user-{{ .workflow.input.user_id }}-approved"     # User-specific
+  id: "order-{{ .workflow.input.order_id }}-shipped"   # Order-specific
+  id: "batch-{{ .workflow.input.batch_id }}-processed" # Batch-specific
+
+# Environment-based signal IDs
+signal:
+  id: "deployment-{{ .env.ENVIRONMENT }}-ready"         # Environment-specific
+  id: "service-{{ .env.SERVICE_NAME }}-healthy"         # Service-specific
+
+# Complex dynamic IDs
+signal:
+  id: "{{ .workflow.input.event_type }}-{{ .workflow.input.resource_id }}-{{ .workflow.input.action }}"
+```
+
+### Payload Design Patterns
+
+Signal payloads can contain any JSON-serializable data:
+
+```yaml
+# Simple payload
+signal:
+  id: "task-done"
+  payload:
+    success: true
+    completed_at: "{{ now }}"
+
+# Structured payload
+signal:
+  id: "user-action"
+  payload:
+    user_id: "{{ .workflow.input.user_id }}"
+    action: "{{ .workflow.input.action }}"
+    
+    # Event metadata
+    event:
+      type: "user-action"
+      timestamp: "{{ now }}"
+      source: "{{ .workflow.id }}"
+      correlation_id: "{{ .workflow.exec_id }}"
+    
+    # Context data
+    context:
+      session_id: "{{ .workflow.input.session_id }}"
+      user_agent: "{{ .workflow.input.user_agent }}"
+      ip_address: "{{ .workflow.input.ip_address }}"
+    
+    # Payload data
+    data: "{{ .task.previous_task.output }}"
+
+# Complex nested payload
+signal:
+  id: "order-status-changed"
+  payload:
+    order:
+      id: "{{ .workflow.input.order_id }}"
+      status: "{{ .task.output.new_status }}"
+      previous_status: "{{ .workflow.input.previous_status }}"
+      
+    customer:
+      id: "{{ .workflow.input.customer_id }}"
+      email: "{{ .workflow.input.customer_email }}"
+      
+    items: "{{ .task.output.processed_items }}"
+    
+    shipping:
+      address: "{{ .workflow.input.shipping_address }}"
+      method: "{{ .workflow.input.shipping_method }}"
+      estimated_delivery: "{{ .task.output.estimated_delivery }}"
+    
+    metadata:
+      processed_by: "{{ .workflow.input.processor_id }}"
+      processing_time: "{{ .task.duration }}"
+      system_version: "{{ .env.SYSTEM_VERSION }}"
+```
+
+## Practical Examples
+
+### Example 1: Order Processing Pipeline
+
+<Steps>
+<Step>
+
+**Process Order**: Execute order processing logic
+
+```yaml
+id: process-order
+type: basic
+tool:
+  id: order-processor
+with:
+  order_id: "{{ .workflow.input.order_id }}"
+  customer_id: "{{ .workflow.input.customer_id }}"
+  items: "{{ .workflow.input.items }}"
+
+outputs:
+  processed_order: "{{ .output.order }}"
+  total_amount: "{{ .output.total }}"
+  processing_time: "{{ .output.duration }}"
+```
+
+</Step>
+<Step>
+
+**Signal Order Completion**: Notify other workflows about completion
+
+```yaml
+id: signal-order-processed
+type: signal
+signal:
+  id: "order-processed-{{ .workflow.input.order_id }}"
+  payload:
+    order_id: "{{ .workflow.input.order_id }}"
+    customer_id: "{{ .workflow.input.customer_id }}"
+    total_amount: "{{ .tasks.process-order.outputs.total_amount }}"
+    processed_at: "{{ now }}"
+    
+    # Include order details
+    order_details:
+      items: "{{ .workflow.input.items }}"
+      shipping_address: "{{ .workflow.input.shipping_address }}"
+      payment_method: "{{ .workflow.input.payment_method }}"
+    
+    # Processing metadata
+    processing_metadata:
+      processing_time: "{{ .tasks.process-order.outputs.processing_time }}"
+      processor_version: "v2.1.0"
+      workflow_id: "{{ .workflow.id }}"
+
+outputs:
+  order_signal_sent: "{{ .task.outputs.signal_dispatched }}"
+  notification_id: "order-processed-{{ .workflow.input.order_id }}"
+
+on_success:
+  next: cleanup-resources
+```
+
+</Step>
+<Step>
+
+**Cleanup Resources**: Clean up after signaling
+
+```yaml
+id: cleanup-resources
+type: basic
+tool:
+  id: resource-cleaner
+with:
+  order_id: "{{ .workflow.input.order_id }}"
+  signal_sent: "{{ .tasks.signal-order-processed.outputs.order_signal_sent }}"
+
+outputs:
+  cleanup_completed: "{{ .output.success }}"
+
+final: true
+```
+
+</Step>
+</Steps>
+
+### Example 2: Multi-Stage Approval Workflow
+
+```yaml
+id: request-approvals
+type: signal
+signal:
+  id: "approval-required-{{ .workflow.input.request_id }}"
+  payload:
+    request_id: "{{ .workflow.input.request_id }}"
+    request_type: "{{ .workflow.input.type }}"
+    amount: "{{ .workflow.input.amount }}"
+    requestor: "{{ .workflow.input.user_id }}"
+    
+    # Approval requirements
+    approval_requirements:
+      manager_required: "{{ .workflow.input.amount > 1000 }}"
+      legal_required: "{{ .workflow.input.type == 'contract' }}"
+      finance_required: "{{ .workflow.input.amount > 5000 }}"
+    
+    # Request details
+    request_details:
+      description: "{{ .workflow.input.description }}"
+      justification: "{{ .workflow.input.justification }}"
+      deadline: "{{ .workflow.input.deadline }}"
+      priority: "{{ .workflow.input.priority }}"
+    
+    # Metadata
+    metadata:
+      submitted_at: "{{ now }}"
+      workflow_id: "{{ .workflow.id }}"
+      source_system: "{{ .workflow.input.source_system }}"
+
+outputs:
+  approval_request_sent: "{{ .task.outputs.signal_dispatched }}"
+  approvers_notified: true
+  request_id: "{{ .workflow.input.request_id }}"
+
+on_success:
+  next: wait-for-approvals
+```
+
+### Example 3: Data Pipeline Coordination
+
+```yaml
+id: signal-data-ready
+type: signal
+signal:
+  id: "data-ready-{{ .workflow.input.dataset_id }}"
+  payload:
+    dataset_id: "{{ .workflow.input.dataset_id }}"
+    dataset_type: "{{ .workflow.input.type }}"
+    
+    # Data location and format
+    data_location:
+      path: "{{ .task.previous_task.output.output_path }}"
+      format: "{{ .workflow.input.format }}"
+      size_bytes: "{{ .task.previous_task.output.size_bytes }}"
+      record_count: "{{ .task.previous_task.output.record_count }}"
+    
+    # Processing metadata
+    processing_metadata:
+      started_at: "{{ .workflow.started_at }}"
+      completed_at: "{{ now }}"
+      processing_duration: "{{ .task.previous_task.duration }}"
+      processor_version: "v3.2.1"
+    
+    # Data quality metrics
+    quality_metrics:
+      completeness_score: "{{ .task.previous_task.output.completeness }}"
+      accuracy_score: "{{ .task.previous_task.output.accuracy }}"
+      consistency_score: "{{ .task.previous_task.output.consistency }}"
+      overall_quality: "{{ .task.previous_task.output.overall_quality }}"
+    
+    # Schema information
+    schema:
+      version: "{{ .workflow.input.schema_version }}"
+      columns: "{{ .task.previous_task.output.column_count }}"
+      primary_key: "{{ .task.previous_task.output.primary_key }}"
+
+outputs:
+  data_signal_sent: "{{ .task.outputs.signal_dispatched }}"
+  downstream_notified: true
+  data_available: true
+
+on_success:
+  next: update-catalog
+```
+
+## Advanced Signal Patterns
+
+### Conditional Signal Dispatch
+
+Send different signals based on conditions:
+
+```yaml
+id: conditional-notification
+type: router
+condition: '{{ .task.output.severity }}'
+routes:
+  critical:
+    - id: critical-alert
+      type: signal
+      signal:
+        id: "critical-alert-{{ .workflow.input.system_id }}"
+        payload:
+          severity: "critical"
+          system_id: "{{ .workflow.input.system_id }}"
+          alert_details: "{{ .task.output.alert_details }}"
+          escalation_required: true
+          immediate_action: true
+          
+  warning:
+    - id: warning-notification
+      type: signal
+      signal:
+        id: "warning-notification-{{ .workflow.input.system_id }}"
+        payload:
+          severity: "warning"
+          system_id: "{{ .workflow.input.system_id }}"
+          alert_details: "{{ .task.output.alert_details }}"
+          escalation_required: false
+          
+  info:
+    - id: info-log
+      type: signal
+      signal:
+        id: "info-log-{{ .workflow.input.system_id }}"
+        payload:
+          severity: "info"
+          system_id: "{{ .workflow.input.system_id }}"
+          message: "{{ .task.output.message }}"
+```
+
+### Multi-Signal Broadcasting
+
+Send multiple related signals:
+
+```yaml
+id: multi-signal-broadcast
+type: composite
+tasks:
+  - id: notify-completion
+    type: signal
+    signal:
+      id: "task-completed-{{ .workflow.input.task_id }}"
+      payload:
+        task_id: "{{ .workflow.input.task_id }}"
+        status: "completed"
+        result: "{{ .parent.previous_task.output }}"
+  
+  - id: notify-stakeholders
+    type: signal
+    signal:
+      id: "stakeholder-notification"
+      payload:
+        event_type: "task-completion"
+        task_id: "{{ .workflow.input.task_id }}"
+        stakeholders: "{{ .workflow.input.stakeholders }}"
+        notification_data: "{{ .parent.previous_task.output }}"
+  
+  - id: update-metrics
+    type: signal
+    signal:
+      id: "metrics-update"
+      payload:
+        metric_type: "task_completion"
+        task_id: "{{ .workflow.input.task_id }}"
+        duration: "{{ .parent.previous_task.duration }}"
+        success: true
+        
+outputs:
+  all_signals_sent: "{{ .tasks | map(attr='outputs.signal_dispatched') | all }}"
+  notification_count: "{{ .tasks | length }}"
+```
+
+### Signal Chaining
+
+Create signal chains for complex workflows:
+
+```yaml
+id: signal-chain-start
+type: signal
+signal:
+  id: "chain-step-1-{{ .workflow.input.chain_id }}"
+  payload:
+    chain_id: "{{ .workflow.input.chain_id }}"
+    step: 1
+    step_name: "initialization"
+    data: "{{ .task.previous_task.output }}"
+    next_step: "processing"
+    
+    # Chain metadata
+    chain_metadata:
+      total_steps: "{{ .workflow.input.total_steps }}"
+      initiated_by: "{{ .workflow.input.user_id }}"
+      chain_type: "{{ .workflow.input.chain_type }}"
+
+outputs:
+  chain_initiated: "{{ .task.outputs.signal_dispatched }}"
+  current_step: 1
+  next_step: "processing"
+
+on_success:
+  next: wait-for-chain-step-2
+```
+
+## Integration with Wait Tasks
+
+### Signal-Wait Coordination
+
+Coordinate between signal and wait tasks:
+
+```yaml
+# Signal sender workflow
+id: send-data-signal
+type: signal
+signal:
+  id: "data-processed-{{ .workflow.input.batch_id }}"
+  payload:
+    batch_id: "{{ .workflow.input.batch_id }}"
+    data_location: "{{ .task.output.path }}"
+    record_count: "{{ .task.output.count }}"
+    processing_complete: true
+    
+    # Validation metadata
+    validation_results:
+      passed: "{{ .task.output.validation_passed }}"
+      error_count: "{{ .task.output.error_count }}"
+      warnings: "{{ .task.output.warnings }}"
+
+# Wait receiver workflow (in another workflow file)
+id: wait-for-data
+type: wait
+wait_for: "data-processed-{{ .workflow.input.batch_id }}"
+timeout: 1800s  # 30 minutes
+condition: 'signal.payload.validation_results.passed == true'
+
+processor:
+  type: basic
+  tool:
+    id: data-consumer
+  with:
+    data_location: "{{ .signal.payload.data_location }}"
+    record_count: "{{ .signal.payload.record_count }}"
+    batch_id: "{{ .signal.payload.batch_id }}"
+
+outputs:
+  data_received: "{{ .processor.output.success }}"
+  processing_started: "{{ now }}"
+```
+
+### Cross-Workflow Communication
+
+Enable communication between different workflows:
+
+```yaml
+# Workflow A: Order processing
+id: complete-order-processing
+type: signal
+signal:
+  id: "order-ready-for-fulfillment"
+  payload:
+    order_id: "{{ .workflow.input.order_id }}"
+    customer_id: "{{ .workflow.input.customer_id }}"
+    items: "{{ .task.output.processed_items }}"
+    
+    # Fulfillment instructions
+    fulfillment_instructions:
+      shipping_method: "{{ .workflow.input.shipping_method }}"
+      priority: "{{ .workflow.input.priority }}"
+      special_instructions: "{{ .workflow.input.special_instructions }}"
+    
+    # Order metadata
+    order_metadata:
+      total_amount: "{{ .task.output.total_amount }}"
+      payment_confirmed: "{{ .task.output.payment_confirmed }}"
+      processed_at: "{{ now }}"
+
+# Workflow B: Fulfillment processing
+id: wait-for-order
+type: wait
+wait_for: "order-ready-for-fulfillment"
+timeout: 3600s  # 1 hour
+condition: 'signal.payload.order_metadata.payment_confirmed == true'
+
+processor:
+  type: basic
+  agent:
+    id: fulfillment-processor
+    instructions: "Process order for fulfillment"
+  with:
+    order_data: "{{ .signal.payload }}"
+    fulfillment_center: "{{ .workflow.input.fulfillment_center }}"
+
+outputs:
+  fulfillment_initiated: "{{ .processor.output.initiated }}"
+  estimated_shipping: "{{ .processor.output.estimated_shipping }}"
+```
+
+## Error Handling and Reliability
+
+### Signal Dispatch Failures
+
+Handle cases where signals cannot be sent:
+
+```yaml
+id: reliable-signal
+type: signal
+signal:
+  id: "critical-notification-{{ .workflow.input.event_id }}"
+  payload:
+    event_id: "{{ .workflow.input.event_id }}"
+    event_type: "critical"
+    data: "{{ .task.output }}"
+    timestamp: "{{ now }}"
+
+# Retry configuration
+retry_policy:
+  maximum_attempts: 3
+  initial_interval: 2s
+  maximum_interval: 30s
+  backoff_coefficient: 2.0
+
+# Error handling
+on_error:
+  next: signal-failure-handler
+  with:
+    signal_id: "critical-notification-{{ .workflow.input.event_id }}"
+    error_type: "{{ .task.error.type }}"
+    error_message: "{{ .task.error.message }}"
+    retry_count: "{{ .task.retry_count }}"
+
+# Success handling
+on_success:
+  next: verify-signal-delivery
+  with:
+    signal_sent: "{{ .task.outputs.signal_dispatched }}"
+    signal_id: "critical-notification-{{ .workflow.input.event_id }}"
+
+outputs:
+  signal_status: "{{ .task.outputs.signal_dispatched ? 'sent' : 'failed' }}"
+  dispatch_time: "{{ now }}"
+```
+
+### Signal Validation
+
+Validate signal data before dispatch:
+
+```yaml
+id: validated-signal
+type: signal
+
+# Input validation
+input:
+  type: object
+  properties:
+    user_id:
+      type: string
+      minLength: 1
+      pattern: "^[a-zA-Z0-9_-]+$"
+    event_type:
+      type: string
+      enum: ["created", "updated", "deleted"]
+    data:
+      type: object
+      minProperties: 1
+  required: [user_id, event_type, data]
+
+signal:
+  id: "user-{{ .workflow.input.user_id }}-{{ .workflow.input.event_type }}"
+  payload:
+    user_id: "{{ .workflow.input.user_id }}"
+    event_type: "{{ .workflow.input.event_type }}"
+    data: "{{ .workflow.input.data }}"
+    
+    # Validation metadata
+    validation:
+      validated_at: "{{ now }}"
+      validation_passed: true
+      schema_version: "v1.0"
+
+outputs:
+  validation_passed: true
+  signal_dispatched: "{{ .task.outputs.signal_dispatched }}"
+  signal_id: "user-{{ .workflow.input.user_id }}-{{ .workflow.input.event_type }}"
+```
+
+## Performance Optimization
+
+### Signal Payload Optimization
+
+Optimize signal performance:
+
+```yaml
+# ✅ Optimized signal
+id: optimized-signal
+type: signal
+signal:
+  id: "data-ready-{{ .workflow.input.dataset_id }}"
+  payload:
+    # Use references instead of large objects
+    dataset_id: "{{ .workflow.input.dataset_id }}"
+    data_location: "{{ .task.output.path }}"
+    record_count: "{{ .task.output.count }}"
+    
+    # Minimal metadata
+    metadata:
+      processed_at: "{{ now }}"
+      processor_version: "v2.1.0"
+
+# ❌ Unoptimized signal
+id: heavy-signal
+type: signal
+signal:
+  id: "data-ready-{{ .workflow.input.dataset_id }}"
+  payload:
+    # Large payload with full data
+    dataset_id: "{{ .workflow.input.dataset_id }}"
+    full_data: "{{ .task.output.all_records }}"  # Avoid large payloads
+    processing_log: "{{ .task.output.full_log }}"  # Avoid verbose logs
+```
+
+### Batch Signal Processing
+
+Group related signals for efficiency:
+
+```yaml
+id: batch-signal-dispatch
+type: collection
+items: "{{ .task.output.completed_items }}"
+mode: parallel
+strategy: best_effort
+
+task:
+  id: "signal-item-{{ .index }}"
+  type: signal
+  signal:
+    id: "item-processed-{{ .item.id }}"
+    payload:
+      item_id: "{{ .item.id }}"
+      batch_id: "{{ .workflow.input.batch_id }}"
+      processing_result: "{{ .item.result }}"
+      processed_at: "{{ now }}"
+
+outputs:
+  signals_sent: "{{ .tasks | map(attr='outputs.signal_dispatched') | sum }}"
+  total_items: "{{ .tasks | length }}"
+  success_rate: "{{ .outputs.signals_sent / .outputs.total_items }}"
+```
+
+## Best Practices
+
+### Signal Design
+
+1. **Descriptive Signal IDs**: Use clear, descriptive signal identifiers
+2. **Consistent Payload Structure**: Maintain consistent payload formats
+3. **Include Essential Context**: Provide necessary information for receivers
+4. **Avoid Large Payloads**: Use references for large data
+5. **Version Payloads**: Include version information for compatibility
+
+### Error Resilience
+
+```yaml
+id: resilient-signal
+type: signal
+signal:
+  id: "reliable-event-{{ .workflow.input.event_id }}"
+  payload:
+    event_id: "{{ .workflow.input.event_id }}"
+    event_data: "{{ .task.output }}"
+    timestamp: "{{ now }}"
+
+# Comprehensive error handling
+retry_policy:
+  maximum_attempts: 3
+  initial_interval: 1s
+  maximum_interval: 30s
+  backoff_coefficient: 2.0
+
+timeout: 30s
+heartbeat_timeout: 10s
+
+on_error:
+  next: signal-error-recovery
+  with:
+    error_context:
+      signal_id: "reliable-event-{{ .workflow.input.event_id }}"
+      error_type: "{{ .task.error.type }}"
+      error_message: "{{ .task.error.message }}"
+      retry_count: "{{ .task.retry_count }}"
+
+outputs:
+  signal_status: "{{ .task.outputs.signal_dispatched ? 'sent' : 'failed' }}"
+  error_occurred: "{{ .task.error != null }}"
+```
+
+### Testing Signal Tasks
+
+```yaml
+# Test signal task
+id: test-signal-dispatch
+type: signal
+signal:
+  id: "test-signal-{{ .workflow.input.test_id }}"
+  payload:
+    test_id: "{{ .workflow.input.test_id }}"
+    test_data: "{{ .workflow.input.test_data }}"
+    test_timestamp: "{{ now }}"
+
+# Verify signal dispatch
+outputs:
+  test_signal_sent: "{{ .task.outputs.signal_dispatched }}"
+  test_signal_id: "test-signal-{{ .workflow.input.test_id }}"
+  test_completed: true
+```
+
+## Common Patterns
+
+### Notification Patterns
+
+```yaml
+# Success notification
+id: success-notification
+type: signal
+signal:
+  id: "success-{{ .workflow.input.operation_id }}"
+  payload:
+    operation_id: "{{ .workflow.input.operation_id }}"
+    success: true
+    result: "{{ .task.output }}"
+    completed_at: "{{ now }}"
+
+# Error notification
+id: error-notification
+type: signal
+signal:
+  id: "error-{{ .workflow.input.operation_id }}"
+  payload:
+    operation_id: "{{ .workflow.input.operation_id }}"
+    success: false
+    error: "{{ .task.error }}"
+    failed_at: "{{ now }}"
+```
+
+### Status Update Patterns
+
+```yaml
+# Status change signal
+id: status-update
+type: signal
+signal:
+  id: "status-{{ .workflow.input.resource_id }}"
+  payload:
+    resource_id: "{{ .workflow.input.resource_id }}"
+    previous_status: "{{ .workflow.input.previous_status }}"
+    current_status: "{{ .task.output.new_status }}"
+    changed_at: "{{ now }}"
+    changed_by: "{{ .workflow.input.user_id }}"
+```
+
+Signal tasks form the foundation of event-driven workflows in Compozy, enabling loose coupling, scalable coordination, and sophisticated inter-workflow communication patterns. Their immediate execution and flexible payload system make them ideal for creating responsive, event-driven applications.
+
+## Related Documentation
+
+<FeatureCardList cols={2}>
+  <FeatureCard title="Wait Tasks" href="/docs/core/signals/wait-tasks">
+    Learn how to receive and process signals from signal tasks
+  </FeatureCard>
+  <FeatureCard title="Signal Overview" href="/docs/core/signals/signal-overview">
+    Understand the complete signal system architecture and patterns
+  </FeatureCard>
+  <FeatureCard title="Signal Triggers" href="/docs/core/signals/signal-triggers">
+    Use signals to trigger workflow execution and orchestration
+  </FeatureCard>
+  <FeatureCard title="Event API" href="/docs/core/signals/event-api">
+    Programmatically send signals and manage event-driven workflows
+  </FeatureCard>
+</FeatureCardList>
+
+## Next Steps
+
+<FeatureCardList cols={2}>
+  <FeatureCard title="Advanced Patterns" href="/docs/core/signals/advanced-patterns">
+    Explore sophisticated signal patterns and coordination strategies
+  </FeatureCard>
+  <FeatureCard title="Workflow Orchestration" href="/docs/core/tasks/flow-control">
+    Master complex workflow coordination using signals and other tasks
+  </FeatureCard>
+  <FeatureCard title="Error Handling" href="/docs/core/tasks/error-handling">
+    Implement robust error handling in signal-driven workflows
+  </FeatureCard>
+  <FeatureCard title="Performance Optimization" href="/docs/core/tasks/performance">
+    Optimize signal performance for high-throughput scenarios
+  </FeatureCard>
+</FeatureCardList>

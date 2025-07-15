@@ -446,4 +446,362 @@ validation:
   length: "{{ len .collection }}"
 ```
 
+## Security Validation
+
+Validate templates for security vulnerabilities and implement secure processing patterns.
+
+### XSS Vulnerability Detection
+
+Identify potential XSS vulnerabilities in template processing:
+
+```yaml
+# Validate that user input is properly escaped
+security_validation:
+  raw_input_check: |
+    {{ $input := .user_input }}
+    {{ $escaped := .user_input | htmlEscape }}
+    {{ if ne $input $escaped }}
+      [SECURITY WARNING: Unescaped user input detected]
+    {{ else }}
+      [SAFE: Input properly escaped]
+    {{ end }}
+
+  # Check for dangerous patterns
+  dangerous_patterns: |
+    {{ $input := .user_input }}
+    {{ if or (contains $input "<script") (contains $input "javascript:") (contains $input "onload=") }}
+      [SECURITY ALERT: Dangerous pattern detected]
+    {{ else }}
+      [SAFE: No dangerous patterns found]
+    {{ end }}
+```
+
+### Template Injection Prevention
+
+Prevent template injection attacks by validating template syntax:
+
+```yaml
+# Validate template syntax in user input
+injection_protection:
+  template_syntax_check: |
+    {{ $input := .user_input }}
+    {{ if or (contains $input "{{") (contains $input "}}") }}
+      [SECURITY WARNING: Template injection attempt detected]
+      Safe value: {{ $input | htmlEscape }}
+    {{ else }}
+      {{ $input | htmlEscape }}
+    {{ end }}
+
+  # Whitelist allowed functions
+  function_whitelist: |
+    {{ $allowedFunctions := list "htmlEscape" "jsEscape" "htmlAttrEscape" "toJson" "trim" "upper" "lower" }}
+    {{ range $allowedFunctions }}
+      Function {{ . }} is allowed
+    {{ end }}
+```
+
+### Security Testing Workflows
+
+Create comprehensive security testing workflows:
+
+```yaml
+# Security testing template
+security_test_suite:
+  xss_prevention_test: |
+    {{ $testInputs := list 
+       "<script>alert('XSS')</script>"
+       "'; alert('XSS'); var x='"
+       "<img src=x onerror=alert('XSS')>"
+       "javascript:alert('XSS')"
+    }}
+    {{ range $testInputs }}
+      Input: {{ . }}
+      HTML Escaped: {{ . | htmlEscape }}
+      JS Escaped: {{ . | jsEscape }}
+      Attr Escaped: {{ . | htmlAttrEscape }}
+    {{ end }}
+
+  # Validation test with expected results
+  validation_test: |
+    {{ $testCases := dict 
+       "safe_email" "user@example.com"
+       "malicious_email" "user@example.com<script>alert('XSS')</script>"
+       "safe_number" "123"
+       "malicious_number" "123<script>alert('XSS')</script>"
+    }}
+    {{ range $key, $value := $testCases }}
+      Test: {{ $key }}
+      Input: {{ $value }}
+      Escaped: {{ $value | htmlEscape }}
+      Valid: {{ eq ($value | htmlEscape) $value }}
+    {{ end }}
+```
+
+### Security Configuration Validation
+
+Validate security configurations and policies:
+
+```yaml
+# Security policy validation
+security_policy_validation:
+  escaping_policy: |
+    {{ $policy := .security.escaping_policy | default "strict" }}
+    {{ if eq $policy "strict" }}
+      [SECURITY: Strict escaping enabled]
+      All user input will be escaped by default
+    {{ else if eq $policy "permissive" }}
+      [WARNING: Permissive escaping policy]
+      Manual escaping required for user input
+    {{ else }}
+      [ERROR: Invalid escaping policy]
+    {{ end }}
+
+  # Validate environment-specific security settings
+  environment_security: |
+    {{ if eq .env.NODE_ENV "production" }}
+      [PRODUCTION: Enhanced security enabled]
+      - Debug info disabled: {{ not (.env.DEBUG | default false) }}
+      - Error details hidden: {{ not (.env.SHOW_ERRORS | default false) }}
+      - Security headers enabled: {{ .env.SECURITY_HEADERS | default true }}
+    {{ else }}
+      [DEVELOPMENT: Relaxed security settings]
+      - Debug info enabled: {{ .env.DEBUG | default false }}
+      - Error details visible: {{ .env.SHOW_ERRORS | default false }}
+    {{ end }}
+```
+
+## Performance Debugging
+
+Optimize template performance and identify bottlenecks in template processing.
+
+### Template Performance Profiling
+
+Monitor and profile template execution performance:
+
+```yaml
+# Performance profiling template
+performance_profiling:
+  execution_timing: |
+    {{ $start := now }}
+    {{ .complex_template_operation }}
+    {{ $end := now }}
+    {{ $duration := sub ($end | unixEpoch) ($start | unixEpoch) }}
+    Execution time: {{ $duration }}ms
+    
+  # Cache performance monitoring
+  cache_performance: |
+    {{ $cacheStart := now }}
+    {{ .cached_operation }}
+    {{ $cacheEnd := now }}
+    {{ $cacheDuration := sub ($cacheEnd | unixEpoch) ($cacheStart | unixEpoch) }}
+    Cache access time: {{ $cacheDuration }}ms
+    
+  # Memory usage estimation
+  memory_usage: |
+    {{ $largeDataSet := .large_data_set }}
+    Data size: {{ len $largeDataSet }} items
+    Estimated memory: {{ mul (len $largeDataSet) 1024 }}KB
+```
+
+### Performance Bottleneck Detection
+
+Identify common performance bottlenecks:
+
+```yaml
+# Performance bottleneck detection
+bottleneck_detection:
+  expensive_operations: |
+    {{ $operations := dict 
+       "string_concatenation" (join .string_array "")
+       "complex_filtering" (filter .large_array "complexFilter")
+       "nested_loops" (range .outer_array)
+    }}
+    {{ range $name, $operation := $operations }}
+      {{ $start := now }}
+      {{ $operation }}
+      {{ $end := now }}
+      {{ $duration := sub ($end | unixEpoch) ($start | unixEpoch) }}
+      Operation {{ $name }}: {{ $duration }}ms
+    {{ end }}
+
+  # Template complexity analysis
+  complexity_analysis: |
+    {{ $template := .template_string }}
+    Template length: {{ len $template }}
+    Function count: {{ regexFindAll "\\|\\s*\\w+" $template | len }}
+    Conditional count: {{ regexFindAll "{{\\s*if" $template | len }}
+    Loop count: {{ regexFindAll "{{\\s*range" $template | len }}
+    Complexity score: {{ add (len $template) (mul 10 (regexFindAll "\\|\\s*\\w+" $template | len)) }}
+```
+
+### Template Caching Debugging
+
+Debug template caching behavior and optimize cache performance:
+
+```yaml
+# Cache debugging utilities
+cache_debugging:
+  cache_hit_analysis: |
+    {{ $templateName := .template_name }}
+    {{ $cacheKey := printf "template_%s" $templateName }}
+    Template: {{ $templateName }}
+    Cache key: {{ $cacheKey }}
+    Cached at: {{ .template_cache_time | date "2006-01-02 15:04:05" }}
+    
+  # Cache efficiency monitoring
+  cache_efficiency: |
+    {{ $cacheStats := .cache_statistics }}
+    Cache hit rate: {{ div (mul $cacheStats.hits 100) (add $cacheStats.hits $cacheStats.misses) }}%
+    Total requests: {{ add $cacheStats.hits $cacheStats.misses }}
+    Memory usage: {{ $cacheStats.memory_usage }}KB
+    
+  # Cache invalidation debugging
+  cache_invalidation: |
+    {{ $invalidated := .invalidated_templates }}
+    {{ range $invalidated }}
+      Invalidated template: {{ .name }}
+      Reason: {{ .reason }}
+      Timestamp: {{ .timestamp | date "2006-01-02 15:04:05" }}
+    {{ end }}
+```
+
+### Concurrent Processing Debugging
+
+Debug concurrent template processing and thread safety:
+
+```yaml
+# Concurrent processing debugging
+concurrent_debugging:
+  thread_safety_check: |
+    {{ $processId := .process_id }}
+    {{ $threadId := .thread_id }}
+    Process ID: {{ $processId }}
+    Thread ID: {{ $threadId }}
+    Timestamp: {{ now | date "2006-01-02 15:04:05.000" }}
+    
+  # Lock contention analysis
+  lock_contention: |
+    {{ $lockStats := .lock_statistics }}
+    Read lock acquisitions: {{ $lockStats.read_locks }}
+    Write lock acquisitions: {{ $lockStats.write_locks }}
+    Lock wait time: {{ $lockStats.wait_time }}ms
+    
+  # Concurrent execution monitoring
+  concurrent_execution: |
+    {{ $concurrent := .concurrent_templates }}
+    {{ range $concurrent }}
+      Template {{ .name }} - Goroutine {{ .goroutine_id }}
+      Status: {{ .status }}
+      Duration: {{ .duration }}ms
+    {{ end }}
+```
+
+### Performance Optimization Techniques
+
+Implement performance optimization strategies:
+
+```yaml
+# Performance optimization patterns
+performance_optimization:
+  template_precompilation: |
+    {{ $templates := .precompiled_templates }}
+    {{ range $templates }}
+      Template: {{ .name }}
+      Compilation time: {{ .compile_time }}ms
+      Size: {{ .size }}KB
+      Status: {{ .status }}
+    {{ end }}
+    
+  # Lazy loading optimization
+  lazy_loading: |
+    {{ if .should_load_expensive_data }}
+      {{ $expensiveData := .expensive_data_loader }}
+      Loaded {{ len $expensiveData }} items
+    {{ else }}
+      Skipped expensive data loading
+    {{ end }}
+    
+  # Memory pool optimization
+  memory_pool: |
+    {{ $pool := .memory_pool }}
+    Pool size: {{ $pool.size }}
+    Available: {{ $pool.available }}
+    In use: {{ $pool.in_use }}
+    Peak usage: {{ $pool.peak_usage }}
+```
+
+### Performance Testing Workflows
+
+Create comprehensive performance testing workflows:
+
+```yaml
+# Performance testing suite
+performance_testing:
+  load_testing: |
+    {{ $iterations := .test_iterations | default 1000 }}
+    {{ range $i := until $iterations }}
+      {{ $start := now }}
+      {{ .template_under_test }}
+      {{ $end := now }}
+      {{ $duration := sub ($end | unixEpoch) ($start | unixEpoch) }}
+      Iteration {{ $i }}: {{ $duration }}ms
+    {{ end }}
+    
+  # Memory leak detection
+  memory_leak_detection: |
+    {{ $baseline := .memory_baseline }}
+    {{ range $i := until 100 }}
+      {{ .template_operation }}
+      {{ $current := .current_memory_usage }}
+      {{ $diff := sub $current $baseline }}
+      Memory difference: {{ $diff }}KB
+    {{ end }}
+    
+  # Stress testing
+  stress_testing: |
+    {{ $stress_data := .stress_test_data }}
+    {{ range $stress_data }}
+      {{ $start := now }}
+      {{ .complex_template_operation }}
+      {{ $end := now }}
+      {{ $duration := sub ($end | unixEpoch) ($start | unixEpoch) }}
+      Stress test {{ .id }}: {{ $duration }}ms
+    {{ end }}
+```
+
+## Security Vulnerability Detection
+
+Automated security vulnerability detection for templates:
+
+```yaml
+# Vulnerability scanning
+vulnerability_scanning:
+  # Scan for common XSS patterns
+  xss_detection: |
+    {{ $template := .template_content }}
+    {{ $vulnerabilities := list }}
+    
+    {{ if contains $template "{{ .user" }}
+      {{ $vulnerabilities = append $vulnerabilities "Potential XSS: Direct user input without escaping" }}
+    {{ end }}
+    
+    {{ if and (contains $template "{{") (not (contains $template "htmlEscape")) }}
+      {{ $vulnerabilities = append $vulnerabilities "Warning: Template contains user data without HTML escaping" }}
+    {{ end }}
+    
+    {{ range $vulnerabilities }}
+      [VULNERABILITY] {{ . }}
+    {{ end }}
+    
+  # Template injection detection
+  injection_detection: |
+    {{ $input := .user_input }}
+    {{ $dangerous_patterns := list "{{" "}}" "| exec" "| system" "| shell" }}
+    {{ range $dangerous_patterns }}
+      {{ if contains $input . }}
+        [SECURITY ALERT] Dangerous pattern detected: {{ . }}
+      {{ end }}
+    {{ end }}
+```
+
 Effective validation and debugging practices help ensure your templates work reliably across different scenarios. Next, explore [Advanced Patterns](./advanced-patterns) for sophisticated template techniques and use cases.

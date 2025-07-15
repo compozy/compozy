@@ -175,4 +175,4 @@ type ServiceName interface {
 - Applies go-coding-standards.mdc
 - Uses required libraries from core-libraries.mdc
 - Implements proper error handling
-- Follows testing-standards.mdc]
+- Follows test-standard.mdc]

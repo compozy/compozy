@@ -1992,7 +1992,7 @@ We welcome contributions from the community! Compozy is built to be extensible a
 
 - Follow [Go coding standards](.cursor/rules/go-coding-standards.mdc)
 - Maintain [architecture principles](.cursor/rules/architecture.mdc)
-- Write [comprehensive tests](.cursor/rules/testing-standards.mdc)
+- Write [comprehensive tests](.cursor/rules/test-standard.mdc)
 - Follow [API standards](.cursor/rules/api-standards.mdc)
 
 **Pre-Commit Checklist:**

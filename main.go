@@ -30,6 +30,12 @@
 //	@tag.name			memory
 //	@tag.description	Memory management operations
 
+//	@tag.name			auth
+//	@tag.description	Authentication and API key management operations
+
+//	@tag.name			users
+//	@tag.description	User management operations (admin only)
+
 //	@tag.name			Operations
 //	@tag.description	Operational endpoints for monitoring and health
 
@@ -39,6 +45,7 @@ import (
 	"os"
 
 	"github.com/compozy/compozy/cli"
+	_ "github.com/compozy/compozy/engine/auth/router"              // Import for swagger docs
 	_ "github.com/compozy/compozy/engine/memory/router"            // Import for swagger docs
 	_ "github.com/compozy/compozy/engine/workflow/schedule/router" // Import for swagger docs
 )

@@ -7,6 +7,46 @@ description: "Accessing workflow data, task outputs, and environment variables i
 
 Context variables provide access to data from various sources throughout your Compozy workflows. Understanding the context structure and data access patterns is essential for building dynamic, data-driven configurations.
 
+## Default Context Fields
+
+Compozy's template engine automatically initializes default context fields through the `preprocessContext()` function. These fields are always available in your templates, even if not explicitly provided:
+
+```yaml
+# Default context structure (automatically added)
+context:
+  env: {}        # Environment variables map
+  input: {}      # Workflow input data
+  output: null   # Current task output (null by default)
+  trigger: {}    # Workflow trigger context
+  tools: {}      # Available tools registry
+  tasks: {}      # Task execution results
+  agents: {}     # Agent execution state
+```
+
+### Default Field Behavior
+
+- **env**: Empty map if no environment variables are provided
+- **input**: Empty map if no workflow input is specified
+- **output**: `null` by default, populated during task execution
+- **trigger**: Empty map for signal-based workflows
+- **tools**: Registry of available tools and their state
+- **tasks**: Task execution results, populated as tasks complete
+- **agents**: Agent state and execution context
+
+### Context Preprocessing
+
+The template engine processes context through several stages:
+
+1. **Default Field Initialization**: Missing fields are added with default values
+2. **Global Value Merging**: Global values from `AddGlobalValue()` are merged in
+3. **Template Rendering**: Final context is passed to Go templates
+
+```go
+// Example of context preprocessing
+processedContext := templateEngine.preprocessContext(originalContext)
+// processedContext now has all default fields + global values
+```
+
 ## Context Structure
 
 The template context is a hierarchical data structure that provides access to:
@@ -405,4 +445,291 @@ user_notification_config:
     {{- end -}}
 ```
 
-Context variables are the foundation of dynamic Compozy workflows. Next, learn about [Validation and Debugging](./validation-debugging) to troubleshoot template issues and ensure data quality.
+## Integration Patterns
+
+### MCP Context Integration
+
+MCP (Model Context Protocol) servers provide external context that can be integrated into workflows:
+
+```yaml
+# MCP context variables
+agents:
+  - id: file_agent
+    config:
+      $ref: global::models.#(provider=="groq")
+    mcps:
+      - id: file_server
+        transport: stdio
+        command: docker mcp gateway run
+        proto: "2025-03-26"
+        start_timeout: 15s
+    actions:
+      - id: list_files
+        prompt: |
+          Use MCP tools to list files in {{ .workflow.input.directory }}.
+          Current context: {{ .workflow | toJson }}
+          Available tools: {{ keys .tools | join ", " }}
+```
+
+### Memory Context Integration
+
+Memory references provide persistent context across workflow executions:
+
+```yaml
+# Memory-backed context
+agents:
+  - id: personalized_agent
+    config:
+      $ref: global::models.#(provider=="groq")
+    memory:
+      - id: user_memory
+        key: "user:{{.workflow.input.user_id}}"
+        mode: read-write
+    instructions: |
+      You are a personalized assistant for user {{.workflow.input.user_id}}.
+      Use your memory to provide contextual responses.
+      Current session: {{.workflow.id}}
+      User preferences: {{.workflow.input.preferences | default "none"}}
+```
+
+### Multi-Agent Context Sharing
+
+Share context between multiple agents in complex workflows:
+
+```yaml
+# Shared context across agents
+tasks:
+  - id: analyze_data
+    type: basic
+    $use: agent(local::agents.#(id="analyzer"))
+    with:
+      data: "{{ .workflow.input.data }}"
+      context: "{{ .workflow.input.context }}"
+    outputs:
+      analysis: "{{ .output.analysis }}"
+      confidence: "{{ .output.confidence }}"
+      
+  - id: generate_report
+    type: basic
+    $use: agent(local::agents.#(id="reporter"))
+    with:
+      # Share context from previous task
+      analysis: "{{ .tasks.analyze_data.output.analysis }}"
+      confidence: "{{ .tasks.analyze_data.output.confidence }}"
+      # Add global context
+      report_template: "{{ .global.report_template }}"
+      user_preferences: "{{ .workflow.input.preferences }}"
+```
+
+### Cross-Workflow Context Management
+
+Manage context across different workflows using global values:
+
+```yaml
+# Global context sharing
+tasks:
+  - id: set_global_context
+    type: basic
+    $use: tool(local::tools.#(id="context_manager"))
+    with:
+      # Set global values for other workflows
+      global_key: "session_{{ .workflow.id }}"
+      context_data:
+        user_id: "{{ .workflow.input.user_id }}"
+        session_start: "{{ now }}"
+        preferences: "{{ .workflow.input.preferences }}"
+        
+  - id: use_global_context
+    type: basic
+    $use: agent(local::agents.#(id="context_aware_agent"))
+    with:
+      # Access global context from other workflows
+      session_context: "{{ .global.session_context }}"
+      shared_data: "{{ .global.shared_data }}"
+      # Combine with local context
+      local_data: "{{ .workflow.input.data }}"
+```
+
+### Enterprise Context Patterns
+
+#### Tenant-Aware Context
+
+```yaml
+# Multi-tenant context management
+context_patterns:
+  tenant_context:
+    tenant_id: "{{ .workflow.input.tenant_id }}"
+    tenant_config: "{{ .global.tenant_configs[.workflow.input.tenant_id] }}"
+    user_context: "{{ .workflow.input.user_context }}"
+    
+tasks:
+  - id: tenant_aware_processing
+    type: basic
+    $use: agent(local::agents.#(id="tenant_agent"))
+    with:
+      tenant_id: "{{ .workflow.input.tenant_id }}"
+      tenant_config: "{{ .global.tenant_configs[.workflow.input.tenant_id] }}"
+      user_permissions: "{{ .global.user_permissions[.workflow.input.user_id] }}"
+      data_isolation: "{{ .global.data_isolation[.workflow.input.tenant_id] }}"
+```
+
+#### Audit Context Tracking
+
+```yaml
+# Audit and compliance context
+audit_context:
+  request_id: "{{ .workflow.id }}"
+  user_id: "{{ .workflow.input.user_id }}"
+  timestamp: "{{ now }}"
+  source_ip: "{{ .workflow.input.source_ip }}"
+  user_agent: "{{ .workflow.input.user_agent }}"
+  
+tasks:
+  - id: audited_operation
+    type: basic
+    $use: agent(local::agents.#(id="secure_agent"))
+    with:
+      # Include audit context in all operations
+      audit_trail:
+        request_id: "{{ .workflow.id }}"
+        user_id: "{{ .workflow.input.user_id }}"
+        timestamp: "{{ now }}"
+        operation: "data_processing"
+        compliance_level: "{{ .global.compliance_config.level }}"
+```
+
+#### Configuration Context Hierarchies
+
+```yaml
+# Hierarchical configuration context
+config_hierarchy:
+  # System-level defaults
+  system_config: "{{ .global.system_config }}"
+  
+  # Environment-specific overrides
+  env_config: "{{ .global.env_configs[.env.ENVIRONMENT] }}"
+  
+  # Tenant-specific settings
+  tenant_config: "{{ .global.tenant_configs[.workflow.input.tenant_id] }}"
+  
+  # User-specific preferences
+  user_config: "{{ .workflow.input.user_preferences }}"
+  
+  # Final merged configuration
+  effective_config: |
+    {{- $base := .global.system_config -}}
+    {{- $env := .global.env_configs[.env.ENVIRONMENT] -}}
+    {{- $tenant := .global.tenant_configs[.workflow.input.tenant_id] -}}
+    {{- $user := .workflow.input.user_preferences -}}
+    {{- merge $base $env $tenant $user | toJson -}}
+```
+
+### Context Performance Optimization
+
+#### Context Caching Patterns
+
+```yaml
+# Cache frequently accessed context
+tasks:
+  - id: cache_context
+    type: basic
+    $use: tool(local::tools.#(id="context_cache"))
+    with:
+      cache_key: "user_context_{{ .workflow.input.user_id }}"
+      cache_ttl: 300  # 5 minutes
+      context_data:
+        user_profile: "{{ .tasks.get_user_profile.output }}"
+        preferences: "{{ .tasks.get_preferences.output }}"
+        permissions: "{{ .tasks.get_permissions.output }}"
+        
+  - id: use_cached_context
+    type: basic
+    $use: agent(local::agents.#(id="fast_agent"))
+    with:
+      # Use cached context for better performance
+      cached_context: "{{ .global.context_cache[printf "user_context_%s" .workflow.input.user_id] }}"
+      fresh_data: "{{ .workflow.input.data }}"
+```
+
+#### Lazy Context Loading
+
+```yaml
+# Load context only when needed
+tasks:
+  - id: conditional_context
+    type: router
+    condition: "{{ .workflow.input.requires_profile }}"
+    routes:
+      "true":
+        - id: load_full_context
+          type: basic
+          $use: tool(local::tools.#(id="profile_loader"))
+          with:
+            user_id: "{{ .workflow.input.user_id }}"
+            include_history: true
+            include_preferences: true
+      "false":
+        - id: minimal_context
+          type: basic
+          $use: tool(local::tools.#(id="minimal_loader"))
+          with:
+            user_id: "{{ .workflow.input.user_id }}"
+            minimal: true
+```
+
+### Context Security Patterns
+
+#### Sensitive Data Masking
+
+```yaml
+# Mask sensitive data in context
+tasks:
+  - id: secure_context
+    type: basic
+    $use: agent(local::agents.#(id="secure_agent"))
+    with:
+      # Mask sensitive fields
+      user_data:
+        id: "{{ .workflow.input.user_id }}"
+        email: "{{ .workflow.input.email | mask }}"
+        phone: "{{ .workflow.input.phone | mask }}"
+        # Keep non-sensitive data
+        name: "{{ .workflow.input.name }}"
+        timezone: "{{ .workflow.input.timezone }}"
+      # Sanitize for logging
+      log_context: |
+        {{- $sanitized := dict "user_id" .workflow.input.user_id "action" "processing" -}}
+        {{- $sanitized | toJson -}}
+```
+
+#### Context Access Control
+
+```yaml
+# Role-based context access
+tasks:
+  - id: role_based_context
+    type: basic
+    $use: agent(local::agents.#(id="rbac_agent"))
+    with:
+      # Context varies by user role
+      user_role: "{{ .workflow.input.user_role }}"
+      accessible_data: |
+        {{- if eq .workflow.input.user_role "admin" -}}
+          {{- .global.admin_context | toJson -}}
+        {{- else if eq .workflow.input.user_role "manager" -}}
+          {{- .global.manager_context | toJson -}}
+        {{- else -}}
+          {{- .global.user_context | toJson -}}
+        {{- end -}}
+      permissions: "{{ .global.role_permissions[.workflow.input.user_role] }}"
+```
+
+Context variables are the foundation of dynamic Compozy workflows. Understanding how to access and manipulate this data is essential for building dynamic templates.
+
+## Related Documentation
+
+- **[Sprig Functions](./sprig-functions)**: Transform and manipulate context data with powerful functions
+- **[Advanced Patterns](./advanced-patterns)**: Complex template techniques using context variables  
+- **[Security Functions](./sprig-functions#compozy-specific-security-functions)**: Safely handle user input and untrusted data
+- **[Performance Optimization](./sprig-functions#performance-optimization)**: Optimize template performance when working with large contexts
+- **[Validation and Debugging](./validation-debugging)**: Troubleshoot template issues and ensure data quality

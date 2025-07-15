@@ -2,20 +2,35 @@ You are an AI assistant responsible for managing a software development project.
 
 <critical>@.cursor/rules/critical-validation.mdc</critical>
 
-**YOU MUST USE** --think
+**YOU MUST USE** --think for this task
 
-<task_directories>$ARGUMENTS</task_directories>
-<project_rules>$ARGUMENTS</project_rules>
+<arguments>$ARGUMENTS</arguments>
+<arguments_table>
+| Argument | Description         | Example         |
+|----------|---------------------|-----------------|
+| --prd    | PRD identifier      | --prd=authsystem |
+| --task   | Task identifier     | --task=45       |
+</arguments_table>
+<task_info>
+Task: ./tasks/prd-[$prd]/[$task]_task.md
+</task_info>
+<prd_info>
+PRD: ./tasks/prd-[$prd]/\_prd.md
+</prd_info>
+<techspec_info>
+Tech Spec: ./tasks/prd-[$prd]/\_techspec.md
+</techspec_info>
+<project_rules>.cursor/rules</project_rules>
 
 Please follow these steps to identify and prepare for the next available task:
 
-1. Scan the task directories provided in <task_directories> for task files.
+1. Scan the task directories provided in tasks/prd-[$prd] for task files.
 2. Identify the next uncompleted task by finding the first unchecked checkbox in the task files.
 3. Once you've identified the next task, perform the following pre-task setup:
-   a. Read the task definition from `tasks/prd-$ARGUMENTS/_task.md`
-   b. Review the PRD context from `tasks/prd-$ARGUMENTS/_prd.md`
-   c. Check the tech spec requirements from `tasks/prd-$ARGUMENTS/_techspec.md`
-   d. Read the `tasks/prd-$ARGUMENTS/[num]_task.md` file to understand what needs to be done in the task
+   a. Read the task definition from <task_info>
+   b. Review the PRD context from <prd_info>
+   c. Check the tech spec requirements from <techspec_info>
+   d. Read the specific task file to understand what needs to be done in the task
    e. Understand dependencies from previously completed tasks
 
 4. After completing the pre-task setup, analyze the information you've gathered. Wrap your analysis in <task_analysis> tags, considering the following:
@@ -53,11 +68,17 @@ Important Notes:
 - Adhere to all established project standards as outlined in the <project_rules> provided.
 - Do not consider the task complete until you've followed the @.claude/commands/task-review.md process.
 
-After providing the task summary and approach, end your response with:
+After providing the task summary and approach, immediately begin implementing the task:
 
-<start_task>
-I am ready to begin working on this task. Please provide any additional instructions or context needed to proceed.
-</start_task>
+<task_implementation>
+Now I will begin implementing this task following the approach outlined above.
+</task_implementation>
+
+Then proceed to actually implement the task by:
+- Running necessary commands
+- Making code changes
+- Following the established project patterns
+- Ensuring all requirements are met
 
 Example Output Structure (generic, without specific content):
 
@@ -81,6 +102,12 @@ Potential Risks/Challenges: [Risks/Challenges list]
 3. [Step 3]
 </task_approach>
 
-<start_task>
-[Ready to begin statement]
-</start_task>
+<task_implementation>
+Now I will begin implementing this task following the approach outlined above.
+</task_implementation>
+
+[Continue with actual task implementation...]
+
+<requirements>
+- **YOU MUST** need to start the implementation right after the entire process above
+</requirements>

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -16,6 +17,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/compozy/compozy/engine/auth/model"
+	authuc "github.com/compozy/compozy/engine/auth/uc"
 	"github.com/compozy/compozy/engine/autoload"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/cache"
@@ -199,7 +202,20 @@ func TestMemoryIntegrationComplete(t *testing.T) {
 
 // TestMemoryRESTAPIWithRealWorkflow tests the complete end-to-end flow using actual
 // HTTP server and workflow execution to ensure true integration
+//
+// To run this test locally:
+//  1. Ensure PostgreSQL is running with the auth schema:
+//     make start-docker
+//     make migrate-up
+//  2. Run the test with:
+//     go test -v ./test/integration/api -run TestMemoryRESTAPIWithRealWorkflow
+//
+// Note: This test requires a full database setup and is skipped by default in CI.
+// For CI environments, use TestMemoryRESTAPIWithAuthMiddleware which uses mocks.
 func TestMemoryRESTAPIWithRealWorkflow(t *testing.T) {
+	if os.Getenv("INTEGRATION_TEST_DB") != "true" {
+		t.Skip("Skipping test that requires full database setup. Set INTEGRATION_TEST_DB=true to run.")
+	}
 	// Setup test environment
 	ctx := context.Background()
 	log := logger.NewForTests()
@@ -275,6 +291,24 @@ func TestMemoryRESTAPIWithRealWorkflow(t *testing.T) {
 		memoryKey := "user:" + userID
 		client := server.Client()
 
+		// Create a test user and API key for authentication
+		authRepo := appState.Store.NewAuthRepo()
+
+		// Create test user
+		testUserID := core.MustNewID()
+		testUser := &model.User{
+			ID:    testUserID,
+			Email: "test@example.com",
+			Role:  model.RoleUser,
+		}
+		err := authRepo.CreateUser(ctx, testUser)
+		require.NoError(t, err)
+
+		// Generate API key using the use case
+		generateKeyUC := authuc.NewGenerateAPIKey(authRepo, testUserID)
+		testAPIKey, err := generateKeyUC.Execute(ctx)
+		require.NoError(t, err)
+
 		// Step 1: Store memory via REST API
 		t.Run("Store memory via REST API", func(t *testing.T) {
 			messages := []llm.Message{
@@ -303,6 +337,7 @@ func TestMemoryRESTAPIWithRealWorkflow(t *testing.T) {
 			)
 			require.NoError(t, err)
 			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Authorization", "Bearer "+testAPIKey)
 
 			resp, err := client.Do(req)
 			require.NoError(t, err)
@@ -363,6 +398,7 @@ func TestMemoryRESTAPIWithRealWorkflow(t *testing.T) {
 				http.NoBody,
 			)
 			require.NoError(t, err)
+			req.Header.Set("Authorization", "Bearer "+testAPIKey)
 
 			resp, err := client.Do(req)
 			require.NoError(t, err)
@@ -545,9 +581,11 @@ func setupTestRouter(_ context.Context, state *appstate.State) *gin.Engine {
 	router.Use(appstate.StateMiddleware(state))
 	router.Use(serverrouter.ErrorHandler())
 
-	// Register memory routes
+	// Register memory routes with auth factory
 	apiGroup := router.Group("/api/v0")
-	memrouter.Register(apiGroup)
+	authRepo := state.Store.NewAuthRepo()
+	authFactory := authuc.NewFactory(authRepo)
+	memrouter.Register(apiGroup, authFactory)
 
 	return router
 }

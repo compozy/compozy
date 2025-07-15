@@ -3,11 +3,91 @@ title: Signal Triggers
 description: Complete guide to signal-based workflow triggers and event-driven workflow initiation in Compozy
 ---
 
+import {
+  Zap,
+  Radio,
+  GitBranch,
+  Target,
+  Clock,
+  Filter,
+  Settings,
+  Play,
+  RefreshCw,
+  AlertCircle,
+  CheckCircle,
+  Users,
+  Globe,
+  ShieldCheck,
+  Database,
+  Activity,
+  Eye,
+  Link2,
+  BookOpen,
+  Code,
+  FileText,
+  Layers,
+  ArrowRightLeft,
+  Bell,
+  CloudLightning,
+  Timer,
+  Workflow,
+  MessageSquare,
+  Lock,
+  TrendingUp,
+  Boxes,
+  Network,
+  Route,
+  Cpu,
+  BarChart3,
+  Shield,
+  Rocket,
+  Package,
+  FileCode,
+  Terminal,
+  BrainCircuit,
+  Repeat,
+  Power,
+  Gauge,
+  CloudSun,
+  ShoppingCart,
+  CreditCard,
+  Truck,
+  AlertTriangle,
+  Server,
+  HardDrive,
+  Mail,
+  FileJson,
+  TestTube,
+  Wrench,
+  Lightbulb,
+  Star
+} from "lucide-react";
+import { FeatureCard, FeatureCardList } from "@/components/ui/feature-card";
+import { ReferenceCard, ReferenceCardList } from "@/components/ui/reference-card";
+
 # Signal Triggers
 
 Signal triggers enable **event-driven workflow initiation** in Compozy, allowing workflows to start automatically when specific signals are received. This enables reactive architectures, event-driven automation, and sophisticated workflow orchestration patterns.
 
 ## Overview
+
+<FeatureCardList cols={3} size="sm">
+  <FeatureCard
+    title="Event-Driven"
+    description="Workflows start automatically when signals are received"
+    icon={Radio}
+  />
+  <FeatureCard
+    title="Reactive Architecture"
+    description="Build responsive systems that react to real-time events"
+    icon={Zap}
+  />
+  <FeatureCard
+    title="Publish-Subscribe"
+    description="Decouple signal publishers from workflow consumers"
+    icon={ArrowRightLeft}
+  />
+</FeatureCardList>
 
 Signal triggers work by listening for specific signals in the system and automatically starting workflows when those signals are received. This creates a publish-subscribe pattern where workflows can react to events from other workflows, external systems, or user actions.
 
@@ -26,17 +106,20 @@ graph TD
 
 ## Basic Signal Trigger
 
-### Configuration Structure
+<Steps>
+<Step title="Define Trigger Configuration" description="Set up the trigger section with signal type and name">
 
 ```yaml
-id: signal-triggered-workflow
-version: "1.0"
-description: "Workflow triggered by signals"
-
 triggers:
   - type: signal
     name: "user-registered"
-    
+```
+
+</Step>
+
+<Step title="Configure Input Schema" description="Define the expected input structure">
+
+```yaml
 input:
   type: object
   properties:
@@ -44,7 +127,13 @@ input:
       type: string
     signal_data:
       type: object
+```
 
+</Step>
+
+<Step title="Create Processing Tasks" description="Define tasks that execute when the signal is received">
+
+```yaml
 tasks:
   - id: process-registration
     type: basic
@@ -56,18 +145,43 @@ tasks:
       registration_data: "{{ .workflow.input.signal_data }}"
 ```
 
-### Trigger Configuration
+</Step>
+</Steps>
 
-| Field | Type | Description | Example |
-|-------|------|-------------|---------|
-| `type` | string | Must be `signal` | `signal` |
-| `name` | string | Signal name to listen for | `"user-registered"` |
-| `condition` | string | Optional filter condition | `'payload.priority == "high"'` |
-| `timeout` | duration | Optional trigger timeout | `300s` |
+<Callout type="info">
+**Signal triggers automatically start workflows** when the specified signal is received. The signal payload becomes the workflow input.
+</Callout>
+
+### Trigger Configuration Options
+
+<List>
+  <ListItem title="type" icon={Target}>
+    **Required**: Must be `signal` for signal-based triggers
+  </ListItem>
+  <ListItem title="name" icon={Bell}>
+    **Required**: Signal name to listen for (e.g., `"user-registered"`)
+  </ListItem>
+  <ListItem title="condition" icon={Filter}>
+    **Optional**: Filter condition to selectively trigger workflows
+  </ListItem>
+  <ListItem title="timeout" icon={Clock}>
+    **Optional**: Timeout duration for trigger activation
+  </ListItem>
+</List>
 
 ## Signal Trigger Examples
 
-### 1. User Registration Handler
+<Tabs items={["User Registration", "Order Processing", "System Alerts"]}>
+<Tab>
+
+### User Registration Handler
+
+<FeatureCard
+  title="Registration Workflow"
+  description="Automatically process new user registrations with validation, profile creation, and notifications"
+  icon={Users}
+  size="sm"
+/>
 
 React to new user registrations:
 
@@ -127,7 +241,17 @@ tasks:
     depends_on: [send-welcome-email]
 ```
 
-### 2. Order Processing Pipeline
+</Tab>
+<Tab>
+
+### Order Processing Pipeline
+
+<FeatureCard
+  title="Order Processing"
+  description="Automated order validation, payment processing, and fulfillment coordination"
+  icon={ShoppingCart}
+  size="sm"
+/>
 
 Trigger order processing when orders are created:
 
@@ -208,7 +332,17 @@ tasks:
     depends_on: [update-inventory]
 ```
 
-### 3. System Alert Handler
+</Tab>
+<Tab>
+
+### System Alert Handler
+
+<FeatureCard
+  title="Incident Response"
+  description="Automated incident detection, assessment, and response coordination"
+  icon={AlertTriangle}
+  size="sm"
+/>
 
 Respond to system alerts and incidents:
 
@@ -315,7 +449,23 @@ tasks:
     depends_on: [monitor-resolution]
 ```
 
+</Tab>
+</Tabs>
+
 ## Conditional Signal Triggers
+
+<FeatureCardList cols={2} size="sm">
+  <FeatureCard
+    title="Signal Filtering"
+    description="Use conditions to selectively trigger workflows based on signal content"
+    icon={Filter}
+  />
+  <FeatureCard
+    title="Complex Logic"
+    description="Combine multiple conditions with logical operators"
+    icon={GitBranch}
+  />
+</FeatureCardList>
 
 ### Filtering Signals
 
@@ -659,11 +809,37 @@ tasks:
 
 ## Performance Considerations
 
+<FeatureCardList cols={3} size="sm">
+  <FeatureCard
+    title="Condition Filtering"
+    description="Use specific conditions to reduce unnecessary workflow starts"
+    icon={Filter}
+  />
+  <FeatureCard
+    title="Payload Optimization"
+    description="Include only necessary data in signal payloads"
+    icon={Package}
+  />
+  <FeatureCard
+    title="Frequency Monitoring"
+    description="Monitor trigger frequency to prevent system overload"
+    icon={BarChart3}
+  />
+</FeatureCardList>
+
 ### Trigger Optimization
 
-1. **Use Specific Conditions**: Filter signals to reduce unnecessary workflow starts
-2. **Optimize Signal Payload**: Include only necessary data
-3. **Monitor Trigger Frequency**: Avoid high-frequency triggers that could overwhelm the system
+<List>
+  <ListItem title="Use Specific Conditions" icon={Target}>
+    Filter signals to reduce unnecessary workflow starts and improve performance
+  </ListItem>
+  <ListItem title="Optimize Signal Payload" icon={Package}>
+    Include only necessary data to minimize memory usage and processing time
+  </ListItem>
+  <ListItem title="Monitor Trigger Frequency" icon={Activity}>
+    Avoid high-frequency triggers that could overwhelm the system
+  </ListItem>
+</List>
 
 ```yaml
 # ✅ Optimized trigger
@@ -710,7 +886,29 @@ tasks:
 
 ## Best Practices
 
+<FeatureCardList cols={3} size="sm">
+  <FeatureCard
+    title="Clear Naming"
+    description="Use consistent, descriptive signal names that indicate purpose"
+    icon={FileText}
+  />
+  <FeatureCard
+    title="Condition Design"
+    description="Write maintainable conditions with clear logic"
+    icon={Code}
+  />
+  <FeatureCard
+    title="Error Handling"
+    description="Plan for signal processing failures with proper recovery"
+    icon={Shield}
+  />
+</FeatureCardList>
+
 ### 1. Signal Naming
+
+<Callout type="tip">
+Use consistent, descriptive signal names that clearly indicate the event type and context.
+</Callout>
 
 Use consistent, descriptive signal names:
 
@@ -791,7 +989,58 @@ tasks:
 
 ## Next Steps
 
-- Learn about [Signal Tasks](/docs/core/signals/signal-tasks) for sending signals
-- Explore [Wait Tasks](/docs/core/signals/wait-tasks) for receiving signals
-- Review [Event API](/docs/core/signals/event-api) for programmatic access
-- Study [Advanced Patterns](/docs/core/signals/advanced-patterns) for complex scenarios
+<ReferenceCardList>
+  <ReferenceCard
+    title="Signal Tasks"
+    description="Learn how to send signals from within workflows to trigger other workflows"
+    href="/docs/core/signals/signal-tasks"
+    icon={Zap}
+  />
+  <ReferenceCard
+    title="Wait Tasks"
+    description="Explore how tasks can wait for specific signals before continuing execution"
+    href="/docs/core/signals/wait-tasks"
+    icon={Timer}
+  />
+  <ReferenceCard
+    title="Event API"
+    description="Discover programmatic access to signals for external integrations"
+    href="/docs/core/signals/event-api"
+    icon={Code}
+  />
+  <ReferenceCard
+    title="Advanced Patterns"
+    description="Study complex signal orchestration patterns and best practices"
+    href="/docs/core/signals/advanced-patterns"
+    icon={Layers}
+  />
+</ReferenceCardList>
+
+### Related Documentation
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Signal Overview"
+    description="Understand the fundamental concepts of Compozy's signal system"
+    href="/docs/core/signals/signal-overview"
+    icon={BookOpen}
+  />
+  <ReferenceCard
+    title="Workflow Configuration"
+    description="Learn more about workflow configuration and trigger setup"
+    href="/docs/core/configuration/workflows"
+    icon={Settings}
+  />
+  <ReferenceCard
+    title="Basic Tasks"
+    description="Master the fundamental building blocks of workflow execution"
+    href="/docs/core/tasks/basic-tasks"
+    icon={Play}
+  />
+  <ReferenceCard
+    title="Agent Integration"
+    description="Discover how to integrate AI agents with signal-triggered workflows"
+    href="/docs/core/agents/overview"
+    icon={BrainCircuit}
+  />
+</ReferenceCardList>

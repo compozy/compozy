@@ -1013,6 +1013,15 @@ definitions:
       - key
       - messages
     type: object
+  router.CreateUserRequest:
+    properties:
+      email:
+        type: string
+      role:
+        type: string
+    required:
+      - email
+    type: object
   router.ErrorInfo:
     properties:
       code:
@@ -1031,6 +1040,13 @@ definitions:
         type: string
       status:
         type: integer
+    type: object
+  router.UpdateUserRequest:
+    properties:
+      email:
+        type: string
+      role:
+        type: string
     type: object
   schedulerouter.ScheduleInfoResponse:
     properties:
@@ -2299,470 +2315,121 @@ paths:
       summary: Call a tool on an MCP server
       tags:
         - MCP Tools
-  /api/v0/memory/{memory_ref}/append:
+  /auth/generate:
     post:
       consumes:
         - application/json
-      description: Append messages to existing memory content
+      description: Generate a new API key for the authenticated user
       parameters:
-        - description: Memory reference
-          example: '"user_memory"'
-          in: path
-          name: memory_ref
+        - description: Bearer token for authentication
+          in: header
+          name: Authorization
           required: true
           type: string
-        - description: Key and messages to append
-          in: body
-          name: body
-          required: true
-          schema:
-            $ref: '#/definitions/memrouter.AppendMemoryRequest'
       produces:
         - application/json
       responses:
-        "200":
-          description: Memory appended successfully
+        "201":
+          description: Created
           schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  data:
-                    $ref: '#/definitions/service.AppendResponse'
-                type: object
-        "400":
-          description: Invalid request
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
           schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
+            additionalProperties:
+              type: string
+            type: object
         "500":
-          description: Internal server error
+          description: Internal Server Error
           schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-      summary: Append to memory
+            additionalProperties:
+              type: string
+            type: object
+      summary: Generate a new API key
       tags:
-        - memory
-  /api/v0/memory/{memory_ref}/clear:
-    post:
-      consumes:
-        - application/json
-      description: Clear all memory content with confirmation
-      parameters:
-        - description: Memory reference
-          example: '"user_memory"'
-          in: path
-          name: memory_ref
-          required: true
-          type: string
-        - description: Key and clear options
-          in: body
-          name: body
-          required: true
-          schema:
-            $ref: '#/definitions/memrouter.ClearMemoryRequest'
-      produces:
-        - application/json
-      responses:
-        "200":
-          description: Memory cleared successfully
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  data:
-                    $ref: '#/definitions/uc.ClearMemoryResult'
-                type: object
-        "400":
-          description: Invalid request
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-        "500":
-          description: Internal server error
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-      summary: Clear memory
-      tags:
-        - memory
-  /api/v0/memory/{memory_ref}/delete:
-    post:
-      consumes:
-        - application/json
-      description: Delete all memory content for a specific key
-      parameters:
-        - description: Memory reference
-          example: '"user_memory"'
-          in: path
-          name: memory_ref
-          required: true
-          type: string
-        - description: Key to delete
-          in: body
-          name: body
-          required: true
-          schema:
-            $ref: '#/definitions/memrouter.DeleteMemoryRequest'
-      produces:
-        - application/json
-      responses:
-        "200":
-          description: Memory deleted successfully
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  data:
-                    $ref: '#/definitions/service.DeleteResponse'
-                type: object
-        "400":
-          description: Invalid request
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-        "500":
-          description: Internal server error
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-      summary: Delete memory
-      tags:
-        - memory
-  /api/v0/memory/{memory_ref}/flush:
-    post:
-      consumes:
-        - application/json
-      description: Flush memory content with optional summarization. The actual_strategy field in the
-        response indicates which flush strategy was used.
-      parameters:
-        - description: Memory reference
-          example: '"user_memory"'
-          in: path
-          name: memory_ref
-          required: true
-          type: string
-        - description: Key and flush options
-          in: body
-          name: body
-          required: true
-          schema:
-            $ref: '#/definitions/memrouter.FlushMemoryRequest'
-      produces:
-        - application/json
-      responses:
-        "200":
-          description: Memory flushed successfully. Response includes actual_strategy field showing which
-            strategy was used
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  data:
-                    $ref: '#/definitions/uc.FlushMemoryResult'
-                type: object
-        "400":
-          description: Invalid request
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-        "500":
-          description: Internal server error
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-      summary: Flush memory
-      tags:
-        - memory
-  /api/v0/memory/{memory_ref}/health:
+        - auth
+  /auth/keys:
     get:
       consumes:
         - application/json
-      description: Get health status and metrics for memory
+      description: List all API keys for the authenticated user
       parameters:
-        - description: Memory reference
-          example: '"user_memory"'
-          in: path
-          name: memory_ref
+        - description: Bearer token for authentication
+          in: header
+          name: Authorization
           required: true
           type: string
-        - description: Memory key
-          example: '"user:123:profile"'
-          in: query
-          name: key
-          required: true
-          type: string
-        - description: Include detailed stats
-          example: true
-          in: query
-          name: include_stats
-          type: boolean
       produces:
         - application/json
       responses:
         "200":
-          description: Memory health retrieved successfully
+          description: OK
           schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  data:
-                    $ref: '#/definitions/uc.HealthMemoryResult'
-                type: object
-        "400":
-          description: Invalid request
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
           schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
+            additionalProperties:
+              type: string
+            type: object
         "500":
-          description: Internal server error
+          description: Internal Server Error
           schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-      summary: Check memory health
+            additionalProperties:
+              type: string
+            type: object
+      summary: List user's API keys
       tags:
-        - memory
-  /api/v0/memory/{memory_ref}/read:
-    get:
+        - auth
+  /auth/keys/{id}:
+    delete:
       consumes:
         - application/json
-      description: Retrieve memory content for a specific memory reference and key
+      description: Revoke an API key by ID
       parameters:
-        - description: Memory reference
-          example: '"user_memory"'
+        - description: Bearer token for authentication
+          in: header
+          name: Authorization
+          required: true
+          type: string
+        - description: API Key ID
           in: path
-          name: memory_ref
+          name: id
           required: true
           type: string
-        - description: Memory key
-          example: '"user:123:profile"'
-          in: query
-          name: key
-          required: true
-          type: string
-        - description: 'Maximum number of messages to return (default: 50, max: 1000)'
-          example: 50
-          in: query
-          name: limit
-          type: integer
-        - description: Number of messages to skip (for pagination)
-          example: 0
-          in: query
-          name: offset
-          type: integer
       produces:
         - application/json
       responses:
         "200":
-          description: Memory read successfully
+          description: OK
           schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  data:
-                    properties:
-                      has_more:
-                        type: boolean
-                      key:
-                        type: string
-                      limit:
-                        type: integer
-                      messages:
-                        items:
-                          properties:
-                            content:
-                              type: string
-                            role:
-                              type: string
-                          type: object
-                        type: array
-                      offset:
-                        type: integer
-                      total_count:
-                        type: integer
-                    type: object
-                type: object
-        "400":
-          description: Invalid request
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
           schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
+            additionalProperties:
+              type: string
+            type: object
         "404":
-          description: Memory not found
+          description: Not Found
           schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
+            additionalProperties:
+              type: string
+            type: object
         "500":
-          description: Internal server error
+          description: Internal Server Error
           schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-      summary: Read memory content
+            additionalProperties:
+              type: string
+            type: object
+      summary: Revoke an API key
       tags:
-        - memory
-  /api/v0/memory/{memory_ref}/stats:
-    get:
-      consumes:
-        - application/json
-      description: Retrieve detailed statistics about memory content
-      parameters:
-        - description: Memory reference
-          example: '"user_memory"'
-          in: path
-          name: memory_ref
-          required: true
-          type: string
-        - description: Memory key
-          example: '"user:123:profile"'
-          in: query
-          name: key
-          required: true
-          type: string
-        - description: 'Limit for role distribution calculation (default: 100, max: 10000)'
-          example: 100
-          in: query
-          name: limit
-          type: integer
-        - description: Offset for role distribution calculation
-          example: 0
-          in: query
-          name: offset
-          type: integer
-      produces:
-        - application/json
-      responses:
-        "200":
-          description: Memory statistics retrieved successfully
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  data:
-                    $ref: '#/definitions/uc.StatsMemoryOutput'
-                type: object
-        "400":
-          description: Invalid request
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-        "500":
-          description: Internal server error
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-      summary: Get memory statistics
-      tags:
-        - memory
-  /api/v0/memory/{memory_ref}/write:
-    post:
-      consumes:
-        - application/json
-      description: Write or replace memory content for a specific memory reference and key
-      parameters:
-        - description: Memory reference
-          example: '"user_memory"'
-          in: path
-          name: memory_ref
-          required: true
-          type: string
-        - description: Key and messages to write
-          in: body
-          name: body
-          required: true
-          schema:
-            $ref: '#/definitions/memrouter.WriteMemoryRequest'
-      produces:
-        - application/json
-      responses:
-        "200":
-          description: Memory written successfully
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  data:
-                    $ref: '#/definitions/service.WriteResponse'
-                type: object
-        "400":
-          description: Invalid request
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-        "500":
-          description: Internal server error
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-      summary: Write memory content
-      tags:
-        - memory
+        - auth
   /events:
     post:
       consumes:
@@ -3082,6 +2749,470 @@ paths:
       summary: Send signal to workflow execution
       tags:
         - executions
+  /memory/{memory_ref}/append:
+    post:
+      consumes:
+        - application/json
+      description: Append messages to existing memory content
+      parameters:
+        - description: Memory reference
+          example: '"user_memory"'
+          in: path
+          name: memory_ref
+          required: true
+          type: string
+        - description: Key and messages to append
+          in: body
+          name: body
+          required: true
+          schema:
+            $ref: '#/definitions/memrouter.AppendMemoryRequest'
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Memory appended successfully
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/service.AppendResponse'
+                type: object
+        "400":
+          description: Invalid request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      summary: Append to memory
+      tags:
+        - memory
+  /memory/{memory_ref}/clear:
+    post:
+      consumes:
+        - application/json
+      description: Clear all memory content with confirmation
+      parameters:
+        - description: Memory reference
+          example: '"user_memory"'
+          in: path
+          name: memory_ref
+          required: true
+          type: string
+        - description: Key and clear options
+          in: body
+          name: body
+          required: true
+          schema:
+            $ref: '#/definitions/memrouter.ClearMemoryRequest'
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Memory cleared successfully
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/uc.ClearMemoryResult'
+                type: object
+        "400":
+          description: Invalid request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      summary: Clear memory
+      tags:
+        - memory
+  /memory/{memory_ref}/delete:
+    post:
+      consumes:
+        - application/json
+      description: Delete all memory content for a specific key
+      parameters:
+        - description: Memory reference
+          example: '"user_memory"'
+          in: path
+          name: memory_ref
+          required: true
+          type: string
+        - description: Key to delete
+          in: body
+          name: body
+          required: true
+          schema:
+            $ref: '#/definitions/memrouter.DeleteMemoryRequest'
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Memory deleted successfully
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/service.DeleteResponse'
+                type: object
+        "400":
+          description: Invalid request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      summary: Delete memory
+      tags:
+        - memory
+  /memory/{memory_ref}/flush:
+    post:
+      consumes:
+        - application/json
+      description: Flush memory content with optional summarization. The actual_strategy field in the
+        response indicates which flush strategy was used.
+      parameters:
+        - description: Memory reference
+          example: '"user_memory"'
+          in: path
+          name: memory_ref
+          required: true
+          type: string
+        - description: Key and flush options
+          in: body
+          name: body
+          required: true
+          schema:
+            $ref: '#/definitions/memrouter.FlushMemoryRequest'
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Memory flushed successfully. Response includes actual_strategy field showing which
+            strategy was used
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/uc.FlushMemoryResult'
+                type: object
+        "400":
+          description: Invalid request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      summary: Flush memory
+      tags:
+        - memory
+  /memory/{memory_ref}/health:
+    get:
+      consumes:
+        - application/json
+      description: Get health status and metrics for memory
+      parameters:
+        - description: Memory reference
+          example: '"user_memory"'
+          in: path
+          name: memory_ref
+          required: true
+          type: string
+        - description: Memory key
+          example: '"user:123:profile"'
+          in: query
+          name: key
+          required: true
+          type: string
+        - description: Include detailed stats
+          example: true
+          in: query
+          name: include_stats
+          type: boolean
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Memory health retrieved successfully
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/uc.HealthMemoryResult'
+                type: object
+        "400":
+          description: Invalid request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      summary: Check memory health
+      tags:
+        - memory
+  /memory/{memory_ref}/read:
+    get:
+      consumes:
+        - application/json
+      description: Retrieve memory content for a specific memory reference and key
+      parameters:
+        - description: Memory reference
+          example: '"user_memory"'
+          in: path
+          name: memory_ref
+          required: true
+          type: string
+        - description: Memory key
+          example: '"user:123:profile"'
+          in: query
+          name: key
+          required: true
+          type: string
+        - description: 'Maximum number of messages to return (default: 50, max: 1000)'
+          example: 50
+          in: query
+          name: limit
+          type: integer
+        - description: Number of messages to skip (for pagination)
+          example: 0
+          in: query
+          name: offset
+          type: integer
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Memory read successfully
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    properties:
+                      has_more:
+                        type: boolean
+                      key:
+                        type: string
+                      limit:
+                        type: integer
+                      messages:
+                        items:
+                          properties:
+                            content:
+                              type: string
+                            role:
+                              type: string
+                          type: object
+                        type: array
+                      offset:
+                        type: integer
+                      total_count:
+                        type: integer
+                    type: object
+                type: object
+        "400":
+          description: Invalid request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "404":
+          description: Memory not found
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      summary: Read memory content
+      tags:
+        - memory
+  /memory/{memory_ref}/stats:
+    get:
+      consumes:
+        - application/json
+      description: Retrieve detailed statistics about memory content
+      parameters:
+        - description: Memory reference
+          example: '"user_memory"'
+          in: path
+          name: memory_ref
+          required: true
+          type: string
+        - description: Memory key
+          example: '"user:123:profile"'
+          in: query
+          name: key
+          required: true
+          type: string
+        - description: 'Limit for role distribution calculation (default: 100, max: 10000)'
+          example: 100
+          in: query
+          name: limit
+          type: integer
+        - description: Offset for role distribution calculation
+          example: 0
+          in: query
+          name: offset
+          type: integer
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Memory statistics retrieved successfully
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/uc.StatsMemoryOutput'
+                type: object
+        "400":
+          description: Invalid request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      summary: Get memory statistics
+      tags:
+        - memory
+  /memory/{memory_ref}/write:
+    post:
+      consumes:
+        - application/json
+      description: Write or replace memory content for a specific memory reference and key
+      parameters:
+        - description: Memory reference
+          example: '"user_memory"'
+          in: path
+          name: memory_ref
+          required: true
+          type: string
+        - description: Key and messages to write
+          in: body
+          name: body
+          required: true
+          schema:
+            $ref: '#/definitions/memrouter.WriteMemoryRequest'
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Memory written successfully
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    $ref: '#/definitions/service.WriteResponse'
+                type: object
+        "400":
+          description: Invalid request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      summary: Write memory content
+      tags:
+        - memory
   /memory/health:
     get:
       consumes:
@@ -3345,6 +3476,211 @@ paths:
       summary: Update schedule
       tags:
         - schedules
+  /users:
+    get:
+      consumes:
+        - application/json
+      description: List all users in the system
+      parameters:
+        - description: Bearer token for authentication (admin required)
+          in: header
+          name: Authorization
+          required: true
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: List all users (admin only)
+      tags:
+        - users
+    post:
+      consumes:
+        - application/json
+      description: Create a new user with the specified email and role
+      parameters:
+        - description: Bearer token for authentication (admin required)
+          in: header
+          name: Authorization
+          required: true
+          type: string
+        - description: User details
+          in: body
+          name: user
+          required: true
+          schema:
+            $ref: '#/definitions/router.CreateUserRequest'
+      produces:
+        - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create a new user (admin only)
+      tags:
+        - users
+  /users/{id}:
+    delete:
+      consumes:
+        - application/json
+      description: Delete a user by ID
+      parameters:
+        - description: Bearer token for authentication (admin required)
+          in: header
+          name: Authorization
+          required: true
+          type: string
+        - description: User ID
+          in: path
+          name: id
+          required: true
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete a user (admin only)
+      tags:
+        - users
+    patch:
+      consumes:
+        - application/json
+      description: Update a user's email or role
+      parameters:
+        - description: Bearer token for authentication (admin required)
+          in: header
+          name: Authorization
+          required: true
+          type: string
+        - description: User ID
+          in: path
+          name: id
+          required: true
+          type: string
+        - description: User update details
+          in: body
+          name: user
+          required: true
+          schema:
+            $ref: '#/definitions/router.UpdateUserRequest'
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update a user (admin only)
+      tags:
+        - users
   /workflows:
     get:
       consumes:
@@ -3875,5 +4211,9 @@ tags:
     name: schedules
   - description: Memory management operations
     name: memory
+  - description: Authentication and API key management operations
+    name: auth
+  - description: User management operations (admin only)
+    name: users
   - description: Operational endpoints for monitoring and health
     name: Operations

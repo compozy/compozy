@@ -1,0 +1,145 @@
+# Test Standards for Compozy Go Development
+
+<critical>
+**MANDATORY REQUIREMENTS:**
+- Use `t.Run("Should describe behavior")` pattern for ALL tests
+- Use `stretchr/testify` for assertions and mocks
+- Integration tests MUST be in `test/integration/` directory
+- Achieve >80% coverage for business logic packages
+- **NEVER use testify suite patterns** - use direct functions with `*testing.T`
+</critical>
+
+## 🚨 CRITICAL Anti-Patterns - NEVER DO THESE
+
+<anti_patterns type="immediate_rejection">
+**Based on analysis of 4,000+ tests showing 75-80% redundancy:**
+
+❌ **REDUNDANT TESTS:**
+- Cross-package validation duplication (same validation logic in multiple packages)
+- Identical mock setup patterns repeated across files
+- Constructor tests that only verify non-nil objects
+- Getter/setter tests without business logic
+
+❌ **LOW-VALUE TESTS:**
+- Testing Go standard library functionality
+- Testing obvious field assignments
+- Testing interface implementations without custom logic
+- Mock-heavy tests (90% setup, 10% logic)
+
+❌ **PROHIBITED PATTERNS:**
+- `suite.Suite` embedding or any suite-based structures
+- Suite methods like `s.Equal()`, `s.NoError()`, `s.T()`
+- Weak assertions like `assert.Error(t, err)` without specific validation
+- Duplicate integration/unit test coverage
+</anti_patterns>
+
+## ✅ REQUIRED Patterns
+
+<required_patterns type="mandatory">
+**TEST STRUCTURE:**
+```go
+func TestService_Method(t *testing.T) {
+    t.Run("Should execute workflow and transition state correctly", func(t *testing.T) {
+        // Test actual business logic and state transitions
+        workflow := &Workflow{State: StateRunning}
+        result, err := workflow.Execute(validInput)
+
+        // Specific assertions about behavior
+        require.NoError(t, err)
+        assert.Equal(t, StateCompleted, workflow.State)
+        assert.Equal(t, expectedOutput, result.Output)
+        assert.True(t, workflow.CompletedAt.After(workflow.StartedAt))
+    })
+}
+```
+
+**MOCK USAGE:**
+```go
+type MockService struct {
+    mock.Mock
+}
+
+func (m *MockService) DoSomething(ctx context.Context, param string) error {
+    args := m.Called(ctx, param)
+    return args.Error(0)
+}
+
+// Use mocks ONLY for external dependencies or complex interfaces
+```
+
+**ERROR VALIDATION:**
+```go
+// ✅ SPECIFIC error validation
+assert.ErrorContains(t, err, "validation failed")
+var securityErr *SecurityError
+assert.ErrorAs(t, err, &securityErr)
+
+// ❌ WEAK validation
+assert.Error(t, err) // Don't do this
+```
+</required_patterns>
+
+## 📋 Test Value Requirements
+
+<value_requirements type="mandatory">
+**EVERY TEST MUST:**
+- Test meaningful business logic, not trivial operations
+- Verify behavior outcomes, not just function execution
+- Use specific assertions about expected results
+- Test critical paths: workflows, state management, error handling
+- Focus on integration points between components
+
+**BEFORE WRITING ANY TEST, ASK:**
+1. Does this test verify meaningful business logic?
+2. Would this test fail if business requirements change?
+3. Is this functionality already tested elsewhere?
+4. Does this test contribute to meaningful coverage?
+
+**IF ANY ANSWER IS NO: Reconsider or redesign the test.**
+</value_requirements>
+
+## 🔧 Test Organization
+
+<organization type="mandatory">
+**STRUCTURE:**
+- Unit tests: `*_test.go` alongside implementation files
+- Integration tests: **MUST** be in `test/integration/` directory
+- Use `test/helpers/` for shared test utilities
+- Mock external dependencies using `testify/mock`
+
+**COVERAGE REQUIREMENTS:**
+- Business logic packages: ≥80% coverage
+- All exported functions must have meaningful tests
+- Focus on critical paths, not trivial getters/setters
+- Test error scenarios and recovery mechanisms
+
+**SHARED PATTERNS:**
+- Create generic validation test frameworks
+- Use shared mock factories for common patterns
+- Extract common test patterns into reusable helpers
+- Consolidate identical scenarios across packages
+</organization>
+
+## 🎯 Implementation Guidelines
+
+<implementation type="actionable">
+**IMMEDIATE ACTIONS:**
+1. **Search First:** Check if similar functionality is already tested
+2. **Consolidate:** Use existing test helpers and frameworks
+3. **Focus:** Test business logic and critical paths only
+4. **Validate:** Ensure specific assertions about behavior
+5. **Review:** Apply value requirements before submitting
+
+**WHEN REVIEWING TESTS:**
+- Reject tests matching anti-patterns above
+- Require consolidation of duplicate scenarios
+- Demand specific error validation
+- Enforce business logic testing over framework testing
+- Verify tests can fail when business logic breaks
+</implementation>
+
+This consolidated standard prevents test redundancy while maintaining quality and coverage requirements.
+description:
+globs:
+alwaysApply: false
+---

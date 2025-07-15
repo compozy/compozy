@@ -1,3 +1,4 @@
+import ProjectStructure from "@/components/project-structure";
 import {
   AccordionContent,
   AccordionItem,
