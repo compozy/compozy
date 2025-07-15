@@ -36,6 +36,9 @@ type Config struct {
 
 	// Excluded IPs
 	ExcludedIPs []string `yaml:"excluded_ips"`
+
+	// Fail-open strategy
+	FailOpen bool `yaml:"fail_open"`
 }
 
 // RateConfig represents a single rate limit configuration
@@ -101,6 +104,7 @@ func DefaultConfig() *Config {
 			"/api/v0/health",
 		},
 		ExcludedIPs: []string{},
+		FailOpen:    true, // Default to fail-open for availability
 	}
 }
 

@@ -52,18 +52,7 @@ func CORSMiddleware(corsConfig config.CORSConfig) gin.HandlerFunc {
 		origin := c.Request.Header.Get("Origin")
 
 		// Check if origin is allowed
-		isAllowed := false
-		if len(corsConfig.AllowedOrigins) == 0 {
-			// If no origins configured, allow none (secure default)
-			isAllowed = false
-		} else {
-			for _, allowed := range corsConfig.AllowedOrigins {
-				if origin == allowed {
-					isAllowed = true
-					break
-				}
-			}
-		}
+		isAllowed := len(corsConfig.AllowedOrigins) > 0 && contains(corsConfig.AllowedOrigins, origin)
 
 		if isAllowed {
 			c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
@@ -89,4 +78,14 @@ func CORSMiddleware(corsConfig config.CORSConfig) gin.HandlerFunc {
 		}
 		c.Next()
 	}
+}
+
+// contains checks if a string slice contains a specific string
+func contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
 }

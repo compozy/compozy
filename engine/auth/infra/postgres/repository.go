@@ -90,7 +90,7 @@ func (r *Repository) GetUserByEmail(ctx context.Context, email string) (*model.U
 	return &user, nil
 }
 
-// ListUsers retrieves all users with pagination
+// ListUsers retrieves all users
 func (r *Repository) ListUsers(ctx context.Context) ([]*model.User, error) {
 	qb := squirrel.Select("id", "email", "role", "created_at").
 		From("users").
@@ -203,16 +203,40 @@ func (r *Repository) GetAPIKeyByHash(ctx context.Context, hash []byte) (*model.A
 	}
 
 	var key model.APIKey
+	var dbErr error
 	if err := pgxscan.Get(ctx, r.db, &key, query, args...); err != nil {
 		if pgxscan.NotFound(err) {
+			// To prevent timing attacks, always perform bcrypt comparison even when key not found
+			// Use a dummy hash with same computational cost as a real bcrypt hash
+			dummyHash := []byte("$2a$10$dummy.hash.to.prevent.timing.attack.abcdefghijklmnopqrstuvw")
+			// Dummy operation - error is expected and ignored for timing attack prevention
+			_ = bcrypt.CompareHashAndPassword( //nolint:errcheck // intentional dummy operation for timing attack prevention
+				dummyHash,
+				hash,
+			)
 			return nil, fmt.Errorf("API key not found")
 		}
-		return nil, fmt.Errorf("scanning API key: %w", err)
+		dbErr = err
 	}
 
-	// Verify bcrypt hash matches (defense in depth)
-	if err := bcrypt.CompareHashAndPassword(key.Hash, hash); err != nil {
-		log.Warn("fingerprint collision detected", "key_id", key.ID)
+	// Always perform bcrypt comparison to ensure constant time operation
+	var bcryptErr error
+	if dbErr == nil {
+		bcryptErr = bcrypt.CompareHashAndPassword(key.Hash, hash)
+	} else {
+		// Database error case - still perform dummy bcrypt to maintain constant time
+		dummyHash := []byte("$2a$10$dummy.hash.to.prevent.timing.attack.abcdefghijklmnopqrstuvw")
+		// Dummy operation - error is expected and ignored for timing attack prevention
+		_ = bcrypt.CompareHashAndPassword( //nolint:errcheck // intentional dummy operation for timing attack prevention
+			dummyHash,
+			hash,
+		)
+		return nil, fmt.Errorf("scanning API key: %w", dbErr)
+	}
+
+	// Check bcrypt result
+	if bcryptErr != nil {
+		log.Debug("API key validation failed")
 		return nil, fmt.Errorf("API key not found")
 	}
 

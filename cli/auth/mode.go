@@ -8,14 +8,39 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// isRunningInCI checks if we're running in a CI/CD environment
+func isRunningInCI() bool {
+	// Check standard CI environment variable
+	if os.Getenv("CI") != "" {
+		return true
+	}
+	// Check for common CI/CD environment variables
+	ciVars := []string{
+		"JENKINS_HOME",
+		"GITHUB_ACTIONS",
+		"GITLAB_CI",
+		"CIRCLECI",
+		"TRAVIS",
+		"BUILDKITE",
+		"DRONE",
+		"TF_BUILD", // Azure DevOps
+	}
+	for _, v := range ciVars {
+		if os.Getenv(v) != "" {
+			return true
+		}
+	}
+	return false
+}
+
 // DetectMode intelligently detects the output mode based on environment
 func DetectMode(cmd *cobra.Command) models.Mode {
 	// Check if mode is explicitly set via flag
 	if modeFlag, err := cmd.Flags().GetString("output"); err == nil && modeFlag != "" {
-		if modeFlag == "json" {
+		switch modeFlag {
+		case "json":
 			return models.ModeJSON
-		}
-		if modeFlag == "tui" {
+		case "tui":
 			return models.ModeTUI
 		}
 	}
@@ -30,36 +55,21 @@ func DetectMode(cmd *cobra.Command) models.Mode {
 		return models.ModeTUI
 	}
 
-	// Check CI environment variable
-	if os.Getenv("CI") != "" {
+	// Check if running in CI/CD environment
+	if isRunningInCI() {
 		return models.ModeJSON
 	}
 
-	// Check if running in a non-interactive environment
-	if !isatty.IsTerminal(os.Stdout.Fd()) && !isatty.IsCygwinTerminal(os.Stdout.Fd()) {
+	// Check if running in a non-interactive environment (check both stdin and stdout)
+	stdinIsTerminal := isatty.IsTerminal(os.Stdin.Fd()) || isatty.IsCygwinTerminal(os.Stdin.Fd())
+	stdoutIsTerminal := isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
+	if !stdinIsTerminal || !stdoutIsTerminal {
 		return models.ModeJSON
 	}
 
 	// Check if NO_COLOR environment variable is set (respecting user preferences)
 	if os.Getenv("NO_COLOR") != "" {
 		return models.ModeJSON
-	}
-
-	// Check for common CI/CD environment variables
-	ciVars := []string{
-		"JENKINS_HOME",
-		"GITHUB_ACTIONS",
-		"GITLAB_CI",
-		"CIRCLECI",
-		"TRAVIS",
-		"BUILDKITE",
-		"DRONE",
-		"TF_BUILD", // Azure DevOps
-	}
-	for _, v := range ciVars {
-		if os.Getenv(v) != "" {
-			return models.ModeJSON
-		}
 	}
 
 	// Default to TUI mode for interactive terminals
@@ -72,6 +82,8 @@ func AddModeFlags(cmd *cobra.Command) {
 	cmd.Flags().Bool("tui", false, "Force TUI mode (interactive)")
 	cmd.Flags().String("output", "", "Output format: json or tui")
 
-	// Mark as mutually exclusive (conceptually - Cobra doesn't have built-in support for this)
+	// Mark as mutually exclusive - include output flag with json/tui for completeness
 	cmd.MarkFlagsMutuallyExclusive("json", "tui")
+	cmd.MarkFlagsMutuallyExclusive("output", "json")
+	cmd.MarkFlagsMutuallyExclusive("output", "tui")
 }

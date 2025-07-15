@@ -11,10 +11,10 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/compozy/compozy/cli/auth/sorting"
 	"github.com/compozy/compozy/pkg/logger"
 )
 
-// ListModel represents the TUI model for listing API keys
 // Sort field constants
 const (
 	sortByCreated  = "created"
@@ -389,7 +389,7 @@ func (m *ListModel) applyFilter() {
 // updateTable updates the table with current data
 func (m *ListModel) updateTable() {
 	// Sort the filtered keys
-	sortKeys(m.filtered, m.sortBy)
+	sorting.SortKeys(m.filtered, m.sortBy)
 	// Get current page of keys
 	startIdx := m.currentPage * m.pageSize
 	endIdx := startIdx + m.pageSize
@@ -476,55 +476,4 @@ type keysLoadedMsg struct {
 
 type errMsg struct {
 	err error
-}
-
-// sortKeys sorts a slice of KeyInfo based on the specified field
-// This is the same implementation as in handlers.go
-func sortKeys(keys []KeyInfo, sortBy string) {
-	switch sortBy {
-	case sortByName:
-		sortKeysByName(keys)
-	case sortByLastUsed:
-		sortKeysByLastUsed(keys)
-	case sortByCreated, "":
-		sortKeysByCreated(keys)
-	}
-}
-
-// sortKeysByName sorts keys by prefix
-func sortKeysByName(keys []KeyInfo) {
-	for i := 0; i < len(keys)-1; i++ {
-		for j := i + 1; j < len(keys); j++ {
-			if keys[i].Prefix > keys[j].Prefix {
-				keys[i], keys[j] = keys[j], keys[i]
-			}
-		}
-	}
-}
-
-// sortKeysByLastUsed sorts keys by last used timestamp (most recent first)
-func sortKeysByLastUsed(keys []KeyInfo) {
-	for i := 0; i < len(keys)-1; i++ {
-		for j := i + 1; j < len(keys); j++ {
-			// Handle nil LastUsed values
-			if keys[i].LastUsed == nil && keys[j].LastUsed != nil {
-				keys[i], keys[j] = keys[j], keys[i]
-			} else if keys[i].LastUsed != nil && keys[j].LastUsed != nil {
-				if *keys[i].LastUsed < *keys[j].LastUsed {
-					keys[i], keys[j] = keys[j], keys[i]
-				}
-			}
-		}
-	}
-}
-
-// sortKeysByCreated sorts keys by created timestamp (most recent first)
-func sortKeysByCreated(keys []KeyInfo) {
-	for i := 0; i < len(keys)-1; i++ {
-		for j := i + 1; j < len(keys); j++ {
-			if keys[i].CreatedAt < keys[j].CreatedAt {
-				keys[i], keys[j] = keys[j], keys[i]
-			}
-		}
-	}
 }

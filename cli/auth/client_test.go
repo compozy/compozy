@@ -27,7 +27,7 @@ func TestNewClient(t *testing.T) {
 		client, err := NewClient(cfg, "test-key")
 		require.NoError(t, err)
 		assert.NotNil(t, client)
-		assert.Equal(t, "https://localhost:8080/api/v0", client.baseURL)
+		assert.Equal(t, "http://localhost:8080/api/v0", client.baseURL)
 		assert.Equal(t, "test-key", client.apiKey)
 		assert.NotNil(t, client.httpClient)
 	})
@@ -42,7 +42,7 @@ func TestNewClient(t *testing.T) {
 		client, err := NewClient(cfg, "")
 		require.NoError(t, err)
 		assert.NotNil(t, client)
-		assert.Equal(t, "https://localhost:3000/api/v0", client.baseURL)
+		assert.Equal(t, "http://localhost:3000/api/v0", client.baseURL)
 		assert.Equal(t, "", client.apiKey)
 	})
 }
@@ -134,8 +134,10 @@ func TestGenerateKey(t *testing.T) {
 			assert.Equal(t, "Bearer test-key", r.Header.Get("Authorization"))
 
 			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode(map[string]string{
-				"api_key": "cmp_1234567890",
+			json.NewEncoder(w).Encode(map[string]any{
+				"data": map[string]string{
+					"api_key": "cmp_1234567890",
+				},
 				"message": "API key generated successfully",
 			})
 		}))
@@ -177,6 +179,7 @@ func TestGenerateKey(t *testing.T) {
 
 func TestListKeys(t *testing.T) {
 	t.Run("Should list keys successfully", func(t *testing.T) {
+		lastUsed := "2024-01-03T00:00:00Z"
 		expectedKeys := []models.KeyInfo{
 			{
 				ID:        "key1",
@@ -187,7 +190,7 @@ func TestListKeys(t *testing.T) {
 				ID:        "key2",
 				Prefix:    "cmp_456",
 				CreatedAt: "2024-01-02T00:00:00Z",
-				LastUsed:  &[]string{"2024-01-03T00:00:00Z"}[0],
+				LastUsed:  &lastUsed,
 			},
 		}
 
@@ -196,8 +199,11 @@ func TestListKeys(t *testing.T) {
 			assert.Equal(t, http.MethodGet, r.Method)
 
 			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode(map[string][]models.KeyInfo{
-				"keys": expectedKeys,
+			json.NewEncoder(w).Encode(map[string]any{
+				"data": map[string][]models.KeyInfo{
+					"keys": expectedKeys,
+				},
+				"message": "Success",
 			})
 		}))
 		defer server.Close()
@@ -260,7 +266,10 @@ func TestCreateUser(t *testing.T) {
 			assert.Equal(t, "user", req.Role)
 
 			w.WriteHeader(http.StatusCreated)
-			json.NewEncoder(w).Encode(expectedUser)
+			json.NewEncoder(w).Encode(map[string]any{
+				"data":    expectedUser,
+				"message": "User created successfully",
+			})
 		}))
 		defer server.Close()
 
@@ -305,7 +314,10 @@ func TestUpdateUser(t *testing.T) {
 			assert.Nil(t, req.Role)
 
 			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode(expectedUser)
+			json.NewEncoder(w).Encode(map[string]any{
+				"data":    expectedUser,
+				"message": "User updated successfully",
+			})
 		}))
 		defer server.Close()
 

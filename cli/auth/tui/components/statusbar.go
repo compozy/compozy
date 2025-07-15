@@ -2,6 +2,7 @@ package components
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -46,6 +47,12 @@ func (s StatusBarComponent) SetRight(content string) StatusBarComponent {
 // SetLoading sets the loading state
 func (s StatusBarComponent) SetLoading(loading bool) StatusBarComponent {
 	s.Loading = loading
+	return s
+}
+
+// SetSize sets the width of the status bar
+func (s StatusBarComponent) SetSize(width int) StatusBarComponent {
+	s.Width = width
 	return s
 }
 
@@ -118,12 +125,21 @@ func (s StatusBarComponent) renderProgress() string {
 	if s.Progress <= 0 {
 		return ""
 	}
+	if s.Progress > 1.0 {
+		s.Progress = 1.0
+	}
 
 	width := 20
 	filled := int(s.Progress * float64(width))
+	if filled > width {
+		filled = width
+	}
+
+	filledBar := strings.Repeat("█", filled)
+	emptyBar := strings.Repeat("░", width-filled)
 	progress := fmt.Sprintf("[%s%s] %d%%",
-		styles.ActivePageStyle.Render(string(make([]rune, filled))),
-		string(make([]rune, width-filled)),
+		styles.ActivePageStyle.Render(filledBar),
+		emptyBar,
 		int(s.Progress*100))
 
 	return progress

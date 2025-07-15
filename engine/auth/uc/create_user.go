@@ -43,9 +43,15 @@ func (uc *CreateUser) Execute(ctx context.Context) (*model.User, error) {
 		)
 	}
 
+	// Generate ID for new user
+	userID, err := core.NewID()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate user ID: %w", err)
+	}
+
 	// Create user
 	user := &model.User{
-		ID:    core.MustNewID(),
+		ID:    userID,
 		Email: uc.input.Email,
 		Role:  uc.input.Role,
 	}

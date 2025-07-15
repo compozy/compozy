@@ -1,6 +1,7 @@
 package components
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -346,10 +347,7 @@ func (p *CommandPalette) renderCommandItem(content *strings.Builder, cmd *Comman
 func (p *CommandPalette) renderPaginationHint(content *strings.Builder, start, end int) {
 	showing := end - start
 	total := len(p.Filtered)
-	hint := styles.HelpStyle.Render("Showing " +
-		strings.Replace(strings.Replace("X/Y", "X",
-			strings.Replace("X", "X", string(rune(showing)), 1), 1), "Y",
-			strings.Replace("Y", "Y", string(rune(total)), 1), 1))
+	hint := styles.HelpStyle.Render(fmt.Sprintf("Showing %d/%d", showing, total))
 	content.WriteString("\n")
 	content.WriteString(hint)
 }

@@ -24,7 +24,12 @@ type Client struct {
 
 // NewClient creates a new auth API client
 func NewClient(cfg *config.Config, apiKey string) (*Client, error) {
-	baseURL := fmt.Sprintf("https://%s:%d/api/v0", cfg.Server.Host, cfg.Server.Port)
+	// Use HTTP for localhost development, HTTPS for production
+	scheme := "https"
+	if cfg.Server.Host == "localhost" || cfg.Server.Host == "127.0.0.1" {
+		scheme = "http"
+	}
+	baseURL := fmt.Sprintf("%s://%s:%d/api/v0", scheme, cfg.Server.Host, cfg.Server.Port)
 
 	// Parse and validate base URL
 	if _, err := url.Parse(baseURL); err != nil {
@@ -85,11 +90,6 @@ func (c *Client) shouldRetry(resp *http.Response, attempt, maxRetries int) bool 
 func (c *Client) doRequest(ctx context.Context, method, path string, body any) (*http.Response, error) {
 	log := logger.FromContext(ctx)
 
-	bodyReader, err := c.prepareRequestBody(body)
-	if err != nil {
-		return nil, err
-	}
-
 	url := c.baseURL + path
 	maxRetries := 3
 	backoff := 100 * time.Millisecond
@@ -97,12 +97,20 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body any) (
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		if attempt > 0 {
 			log.Debug("Retrying request", "attempt", attempt, "backoff", backoff)
+			timer := time.NewTimer(backoff)
 			select {
-			case <-time.After(backoff):
+			case <-timer.C:
 				backoff *= 2 // Exponential backoff
 			case <-ctx.Done():
+				timer.Stop()
 				return nil, ctx.Err()
 			}
+		}
+
+		// Create a fresh body reader for each attempt to avoid issues with consumed streams
+		bodyReader, err := c.prepareRequestBody(body)
+		if err != nil {
+			return nil, err
 		}
 
 		req, err := c.createRequest(ctx, method, url, bodyReader)
@@ -136,13 +144,6 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body any) (
 
 // parseResponse parses the API response
 func (c *Client) parseResponse(resp *http.Response, result any) error {
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			// Log but don't fail on close error
-			fmt.Printf("Warning: failed to close response body: %v\n", err)
-		}
-	}()
-
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return fmt.Errorf("failed to read response body: %w", err)
@@ -184,7 +185,9 @@ func (c *Client) GenerateKey(ctx context.Context, req *GenerateKeyRequest) (stri
 	defer resp.Body.Close()
 
 	var result struct {
-		APIKey  string `json:"api_key"`
+		Data struct {
+			APIKey string `json:"api_key"`
+		} `json:"data"`
 		Message string `json:"message"`
 	}
 
@@ -192,7 +195,7 @@ func (c *Client) GenerateKey(ctx context.Context, req *GenerateKeyRequest) (stri
 		return "", err
 	}
 
-	return result.APIKey, nil
+	return result.Data.APIKey, nil
 }
 
 // ListKeys lists all API keys for the authenticated user
@@ -204,14 +207,17 @@ func (c *Client) ListKeys(ctx context.Context) ([]models.KeyInfo, error) {
 	defer resp.Body.Close()
 
 	var result struct {
-		Keys []models.KeyInfo `json:"keys"`
+		Data struct {
+			Keys []models.KeyInfo `json:"keys"`
+		} `json:"data"`
+		Message string `json:"message"`
 	}
 
 	if err := c.parseResponse(resp, &result); err != nil {
 		return nil, err
 	}
 
-	return result.Keys, nil
+	return result.Data.Keys, nil
 }
 
 // RevokeKey revokes an API key by ID
@@ -235,14 +241,17 @@ func (c *Client) ListUsers(ctx context.Context) ([]models.UserInfo, error) {
 	defer resp.Body.Close()
 
 	var result struct {
-		Users []models.UserInfo `json:"users"`
+		Data struct {
+			Users []models.UserInfo `json:"users"`
+		} `json:"data"`
+		Message string `json:"message"`
 	}
 
 	if err := c.parseResponse(resp, &result); err != nil {
 		return nil, err
 	}
 
-	return result.Users, nil
+	return result.Data.Users, nil
 }
 
 // CreateUserRequest represents the request to create a user
@@ -260,12 +269,15 @@ func (c *Client) CreateUser(ctx context.Context, req CreateUserRequest) (*models
 	}
 	defer resp.Body.Close()
 
-	var user models.UserInfo
-	if err := c.parseResponse(resp, &user); err != nil {
+	var result struct {
+		Data    models.UserInfo `json:"data"`
+		Message string          `json:"message"`
+	}
+	if err := c.parseResponse(resp, &result); err != nil {
 		return nil, err
 	}
 
-	return &user, nil
+	return &result.Data, nil
 }
 
 // UpdateUserRequest represents the request to update a user
@@ -284,12 +296,15 @@ func (c *Client) UpdateUser(ctx context.Context, userID string, req UpdateUserRe
 	}
 	defer resp.Body.Close()
 
-	var user models.UserInfo
-	if err := c.parseResponse(resp, &user); err != nil {
+	var result struct {
+		Data    models.UserInfo `json:"data"`
+		Message string          `json:"message"`
+	}
+	if err := c.parseResponse(resp, &result); err != nil {
 		return nil, err
 	}
 
-	return &user, nil
+	return &result.Data, nil
 }
 
 // DeleteUser deletes a user (admin only)

@@ -37,20 +37,23 @@ func TestRunListJSON(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "/api/v0/auth/keys", r.URL.Path)
 			assert.Equal(t, "Bearer test-key", r.Header.Get("Authorization"))
-			// Return test keys
+			// Return test keys in structured format
 			response := map[string]any{
-				"keys": []models.KeyInfo{
-					{
-						ID:        "key1",
-						Prefix:    "cpzy_abc",
-						CreatedAt: "2024-01-01T00:00:00Z",
-					},
-					{
-						ID:        "key2",
-						Prefix:    "cpzy_def",
-						CreatedAt: "2024-01-02T00:00:00Z",
+				"data": map[string][]models.KeyInfo{
+					"keys": {
+						{
+							ID:        "key1",
+							Prefix:    "cpzy_abc",
+							CreatedAt: "2024-01-01T00:00:00Z",
+						},
+						{
+							ID:        "key2",
+							Prefix:    "cpzy_def",
+							CreatedAt: "2024-01-02T00:00:00Z",
+						},
 					},
 				},
+				"message": "Success",
 			}
 			json.NewEncoder(w).Encode(response)
 		}))
@@ -100,23 +103,26 @@ func TestRunListJSON(t *testing.T) {
 		// Create test server
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			response := map[string]any{
-				"keys": []models.KeyInfo{
-					{
-						ID:        "key1",
-						Prefix:    "cpzy_abc123",
-						CreatedAt: "2024-01-01T00:00:00Z",
-					},
-					{
-						ID:        "key2",
-						Prefix:    "cpzy_def456",
-						CreatedAt: "2024-01-02T00:00:00Z",
-					},
-					{
-						ID:        "key3",
-						Prefix:    "cpzy_abc789",
-						CreatedAt: "2024-01-03T00:00:00Z",
+				"data": map[string][]models.KeyInfo{
+					"keys": {
+						{
+							ID:        "key1",
+							Prefix:    "cpzy_abc123",
+							CreatedAt: "2024-01-01T00:00:00Z",
+						},
+						{
+							ID:        "key2",
+							Prefix:    "cpzy_def456",
+							CreatedAt: "2024-01-02T00:00:00Z",
+						},
+						{
+							ID:        "key3",
+							Prefix:    "cpzy_abc789",
+							CreatedAt: "2024-01-03T00:00:00Z",
+						},
 					},
 				},
+				"message": "Success",
 			}
 			json.NewEncoder(w).Encode(response)
 		}))

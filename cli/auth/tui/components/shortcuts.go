@@ -96,9 +96,10 @@ func defaultShortcutCategories() []ShortcutCategory {
 }
 
 // SetSize sets the shortcuts size
-func (k *KeyboardShortcuts) SetSize(width, height int) {
+func (k *KeyboardShortcuts) SetSize(width, height int) *KeyboardShortcuts {
 	k.Width = width
 	k.Height = height
+	return k
 }
 
 // Show shows the keyboard shortcuts

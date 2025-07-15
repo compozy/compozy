@@ -113,6 +113,21 @@ type KeyInfo struct {
 	LastUsed  *string `json:"last_used,omitempty"`
 }
 
+// GetPrefix returns the key prefix for sorting
+func (k KeyInfo) GetPrefix() string {
+	return k.Prefix
+}
+
+// GetCreatedAt returns the creation timestamp for sorting
+func (k KeyInfo) GetCreatedAt() string {
+	return k.CreatedAt
+}
+
+// GetLastUsed returns the last used timestamp for sorting
+func (k KeyInfo) GetLastUsed() *string {
+	return k.LastUsed
+}
+
 // UserInfo represents user information
 type UserInfo struct {
 	ID        string `json:"id"`

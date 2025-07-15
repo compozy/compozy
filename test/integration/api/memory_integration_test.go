@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -201,8 +202,20 @@ func TestMemoryIntegrationComplete(t *testing.T) {
 
 // TestMemoryRESTAPIWithRealWorkflow tests the complete end-to-end flow using actual
 // HTTP server and workflow execution to ensure true integration
+//
+// To run this test locally:
+//  1. Ensure PostgreSQL is running with the auth schema:
+//     make start-docker
+//     make migrate-up
+//  2. Run the test with:
+//     go test -v ./test/integration/api -run TestMemoryRESTAPIWithRealWorkflow
+//
+// Note: This test requires a full database setup and is skipped by default in CI.
+// For CI environments, use TestMemoryRESTAPIWithAuthMiddleware which uses mocks.
 func TestMemoryRESTAPIWithRealWorkflow(t *testing.T) {
-	t.Skip("Skipping test that requires full database setup with auth tables")
+	if os.Getenv("INTEGRATION_TEST_DB") != "true" {
+		t.Skip("Skipping test that requires full database setup. Set INTEGRATION_TEST_DB=true to run.")
+	}
 	// Setup test environment
 	ctx := context.Background()
 	log := logger.NewForTests()

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -12,6 +13,12 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+// Sentinel errors for consistent error handling
+var (
+	ErrUserNotFound   = errors.New("user not found")
+	ErrAPIKeyNotFound = errors.New("API key not found")
 )
 
 // AuthRepo implements the auth.Repository interface
@@ -30,12 +37,12 @@ var _ uc.Repository = (*AuthRepo)(nil)
 // CreateUser creates a new user in the database
 func (r *AuthRepo) CreateUser(ctx context.Context, user *model.User) error {
 	query := `
-		INSERT INTO users (id, email, role, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO users (id, email, role, created_at)
+		VALUES ($1, $2, $3, $4)
 	`
 	now := time.Now()
 	user.CreatedAt = now
-	_, err := r.db.Exec(ctx, query, user.ID, user.Email, user.Role, user.CreatedAt, now)
+	_, err := r.db.Exec(ctx, query, user.ID, user.Email, user.Role, user.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("failed to create user: %w", err)
 	}
@@ -58,7 +65,7 @@ func (r *AuthRepo) GetUserByID(ctx context.Context, id core.ID) (*model.User, er
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return nil, fmt.Errorf("user not found")
+			return nil, ErrUserNotFound
 		}
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
@@ -81,7 +88,7 @@ func (r *AuthRepo) GetUserByEmail(ctx context.Context, email string) (*model.Use
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return nil, fmt.Errorf("user not found")
+			return nil, ErrUserNotFound
 		}
 		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
@@ -139,9 +146,13 @@ func (r *AuthRepo) DeleteUser(ctx context.Context, id core.ID) error {
 		return fmt.Errorf("failed to delete user API keys: %w", err)
 	}
 	// Then delete the user
-	_, err = r.db.Exec(ctx, "DELETE FROM users WHERE id = $1", id)
+	result, err := r.db.Exec(ctx, "DELETE FROM users WHERE id = $1", id)
 	if err != nil {
 		return fmt.Errorf("failed to delete user: %w", err)
+	}
+	rowsAffected := result.RowsAffected()
+	if rowsAffected == 0 {
+		return ErrUserNotFound
 	}
 	return nil
 }
@@ -152,8 +163,8 @@ func (r *AuthRepo) CreateAPIKey(ctx context.Context, key *model.APIKey) error {
 		INSERT INTO api_keys (id, user_id, hash, prefix, fingerprint, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6)
 	`
-	key.CreatedAt = time.Now()
-	_, err := r.db.Exec(ctx, query, key.ID, key.UserID, key.Hash, key.Prefix, key.Fingerprint, key.CreatedAt)
+	createdAt := time.Now()
+	_, err := r.db.Exec(ctx, query, key.ID, key.UserID, key.Hash, key.Prefix, key.Fingerprint, createdAt)
 	if err != nil {
 		return fmt.Errorf("failed to create API key: %w", err)
 	}
@@ -179,7 +190,7 @@ func (r *AuthRepo) GetAPIKeyByID(ctx context.Context, id core.ID) (*model.APIKey
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return nil, fmt.Errorf("API key not found")
+			return nil, ErrAPIKeyNotFound
 		}
 		return nil, fmt.Errorf("failed to get API key: %w", err)
 	}
@@ -187,10 +198,9 @@ func (r *AuthRepo) GetAPIKeyByID(ctx context.Context, id core.ID) (*model.APIKey
 }
 
 // GetAPIKeyByHash retrieves an API key by its hash value (using fingerprint for lookup)
-func (r *AuthRepo) GetAPIKeyByHash(ctx context.Context, hash []byte) (*model.APIKey, error) {
-	// The hash parameter is actually the plaintext key
-	// We need to compute its fingerprint for lookup
-	fingerprint := computeFingerprint(hash)
+func (r *AuthRepo) GetAPIKeyByHash(ctx context.Context, plaintextKey []byte) (*model.APIKey, error) {
+	// Compute fingerprint from the plaintext key for efficient lookup
+	fingerprint := computeFingerprint(plaintextKey)
 	query := `
 		SELECT id, user_id, hash, prefix, fingerprint, created_at, last_used
 		FROM api_keys
@@ -208,7 +218,7 @@ func (r *AuthRepo) GetAPIKeyByHash(ctx context.Context, hash []byte) (*model.API
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return nil, fmt.Errorf("API key not found")
+			return nil, ErrAPIKeyNotFound
 		}
 		return nil, fmt.Errorf("failed to get API key: %w", err)
 	}

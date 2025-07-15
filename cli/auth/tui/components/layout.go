@@ -153,6 +153,14 @@ func (l *LayoutComponent) View() string {
 	errorHeight := l.Error.Height()
 	availableHeight -= errorHeight
 
+	// Validate dimensions haven't become negative
+	if availableHeight < 0 {
+		availableHeight = 0
+	}
+	if availableWidth < 0 {
+		availableWidth = 0
+	}
+
 	// Calculate content area
 	contentWidth := availableWidth
 	sidebarWidth := 0
@@ -160,6 +168,9 @@ func (l *LayoutComponent) View() string {
 	if l.ShowSidebar {
 		sidebarWidth = l.SidebarWidth
 		contentWidth -= sidebarWidth
+		if contentWidth < 0 {
+			contentWidth = 0
+		}
 	}
 
 	// Build layout sections
@@ -265,11 +276,8 @@ func (l *LayoutComponent) GetContentSize() (width, height int) {
 		width -= l.SidebarWidth
 	}
 
-	return width, height
-}
+	// Subtract horizontal padding applied in renderMainContent
+	width -= 2
 
-// SetSize is a helper method for StatusBarComponent
-func (s StatusBarComponent) SetSize(width int) StatusBarComponent {
-	s.Width = width
-	return s
+	return width, height
 }

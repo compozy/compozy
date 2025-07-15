@@ -43,21 +43,33 @@ func (m *MockRepository) UpdateAPIKeyLastUsed(ctx context.Context, keyID core.ID
 }
 
 // Add stub methods to satisfy the Repository interface
-func (m *MockRepository) CreateUser(_ context.Context, _ *model.User) error { return nil }
-func (m *MockRepository) GetUserByEmail(_ context.Context, _ string) (*model.User, error) {
-	return nil, nil
+func (m *MockRepository) CreateUser(_ context.Context, _ *model.User) error {
+	return errors.New("not implemented")
 }
-func (m *MockRepository) ListUsers(_ context.Context) ([]*model.User, error)    { return nil, nil }
-func (m *MockRepository) UpdateUser(_ context.Context, _ *model.User) error     { return nil }
-func (m *MockRepository) DeleteUser(_ context.Context, _ core.ID) error         { return nil }
-func (m *MockRepository) CreateAPIKey(_ context.Context, _ *model.APIKey) error { return nil }
+func (m *MockRepository) GetUserByEmail(_ context.Context, _ string) (*model.User, error) {
+	return nil, errors.New("not implemented")
+}
+func (m *MockRepository) ListUsers(_ context.Context) ([]*model.User, error) {
+	return nil, errors.New("not implemented")
+}
+func (m *MockRepository) UpdateUser(_ context.Context, _ *model.User) error {
+	return errors.New("not implemented")
+}
+func (m *MockRepository) DeleteUser(_ context.Context, _ core.ID) error {
+	return errors.New("not implemented")
+}
+func (m *MockRepository) CreateAPIKey(_ context.Context, _ *model.APIKey) error {
+	return errors.New("not implemented")
+}
 func (m *MockRepository) GetAPIKeyByID(_ context.Context, _ core.ID) (*model.APIKey, error) {
-	return nil, nil
+	return nil, errors.New("not implemented")
 }
 func (m *MockRepository) ListAPIKeysByUserID(_ context.Context, _ core.ID) ([]*model.APIKey, error) {
-	return nil, nil
+	return nil, errors.New("not implemented")
 }
-func (m *MockRepository) DeleteAPIKey(_ context.Context, _ core.ID) error { return nil }
+func (m *MockRepository) DeleteAPIKey(_ context.Context, _ core.ID) error {
+	return errors.New("not implemented")
+}
 
 func TestManager_Middleware(t *testing.T) {
 	gin.SetMode(gin.TestMode)

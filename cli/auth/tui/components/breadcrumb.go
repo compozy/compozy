@@ -105,7 +105,10 @@ func (b *Breadcrumb) View() string {
 			} else {
 				break
 			}
-			breadcrumb = "..." + strings.Join(parts, "")
+			breadcrumb = strings.Join(parts, "")
+		}
+		if len(parts) > 0 {
+			breadcrumb = "..." + breadcrumb
 		}
 	}
 
@@ -122,40 +125,30 @@ func (b *Breadcrumb) GetHeight() int {
 
 // Helper functions for common breadcrumb patterns
 
-// SetAuthPath sets breadcrumb for auth commands
-func (b *Breadcrumb) SetAuthPath(subcommand string) {
+// setPath is a helper to set a breadcrumb path with optional last item
+func (b *Breadcrumb) setPath(items []string, lastItem string) {
 	b.Clear()
-	b.AddItem("Compozy", false)
-	b.AddItem("Auth", false)
-	if subcommand != "" {
-		b.AddItem(subcommand, true)
-	} else {
+	for _, item := range items {
+		b.AddItem(item, false)
+	}
+	if lastItem != "" {
+		b.AddItem(lastItem, true)
+	} else if len(b.Items) > 0 {
 		b.Items[len(b.Items)-1].Active = true
 	}
+}
+
+// SetAuthPath sets breadcrumb for auth commands
+func (b *Breadcrumb) SetAuthPath(subcommand string) {
+	b.setPath([]string{"Compozy", "Auth"}, subcommand)
 }
 
 // SetKeyPath sets breadcrumb for key management
 func (b *Breadcrumb) SetKeyPath(action string) {
-	b.Clear()
-	b.AddItem("Compozy", false)
-	b.AddItem("Auth", false)
-	b.AddItem("Keys", false)
-	if action != "" {
-		b.AddItem(action, true)
-	} else {
-		b.Items[len(b.Items)-1].Active = true
-	}
+	b.setPath([]string{"Compozy", "Auth", "Keys"}, action)
 }
 
 // SetUserPath sets breadcrumb for user management
 func (b *Breadcrumb) SetUserPath(action string) {
-	b.Clear()
-	b.AddItem("Compozy", false)
-	b.AddItem("Auth", false)
-	b.AddItem("Users", false)
-	if action != "" {
-		b.AddItem(action, true)
-	} else {
-		b.Items[len(b.Items)-1].Active = true
-	}
+	b.setPath([]string{"Compozy", "Auth", "Users"}, action)
 }

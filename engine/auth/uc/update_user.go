@@ -2,6 +2,7 @@ package uc
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/compozy/compozy/engine/auth"
@@ -37,7 +38,7 @@ func (uc *UpdateUser) Execute(ctx context.Context) (*model.User, error) {
 	user, err := uc.repo.GetUserByID(ctx, uc.userID)
 	if err != nil {
 		return nil, core.NewError(
-			fmt.Errorf("user not found"),
+			errors.New("user not found"),
 			auth.ErrCodeNotFound,
 			map[string]any{
 				"user_id": uc.userID,

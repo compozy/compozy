@@ -62,8 +62,8 @@ func (f *Factory) RevokeAPIKey(userID, keyID core.ID) *RevokeAPIKey {
 }
 
 // GetAPIKey creates a new get API key use case
-func (f *Factory) GetAPIKey(keyID core.ID) *GetAPIKey {
-	return NewGetAPIKey(f.repo, keyID)
+func (f *Factory) GetAPIKey() *GetAPIKey {
+	return NewGetAPIKey(f.repo)
 }
 
 // ListAPIKeys creates a new list API keys use case

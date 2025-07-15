@@ -135,7 +135,7 @@ func CreateUserCmd() *cobra.Command {
 	cmd.Flags().String("name", "", "Name of the new user")
 	cmd.Flags().String("role", "user", "Role for the new user: admin or user")
 	if err := cmd.MarkFlagRequired("email"); err != nil {
-		panic(fmt.Sprintf("failed to mark email flag as required: %v", err))
+		cmd.PrintErrf("Warning: failed to mark email flag as required: %v\n", err)
 	}
 	AddModeFlags(cmd)
 

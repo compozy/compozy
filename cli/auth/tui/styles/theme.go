@@ -16,6 +16,7 @@ var (
 	Foreground = lipgloss.Color("#FAFAFA") // Light text
 	Border     = lipgloss.Color("#3A3A3A") // Border color
 	Highlight  = lipgloss.Color("#FFD700") // Gold for highlights
+	Surface    = lipgloss.Color("#2A2A2A") // Elevated surface color
 
 	// Base styles
 	BaseStyle = lipgloss.NewStyle().
@@ -102,12 +103,12 @@ var (
 	TableRowStyle = BaseStyle
 
 	SelectedRowStyle = BaseStyle.
-				Background(lipgloss.Color("#2A2A2A")).
+				Background(Surface).
 				Foreground(Highlight)
 
 	// Status bar styles
 	StatusBarStyle = lipgloss.NewStyle().
-			Background(lipgloss.Color("#2A2A2A")).
+			Background(Surface).
 			Padding(0, 1)
 
 	// Spinner styles
@@ -187,6 +188,11 @@ func RenderStatusBar(width int, left, center, right string) string {
 
 	if centerWidth < 0 {
 		centerWidth = 0
+		// When width is too small, prioritize left and right content
+		// and skip center content if necessary
+		if width < leftWidth+rightWidth {
+			return StatusBarStyle.Width(width).Render(left + right)
+		}
 	}
 
 	status := lipgloss.JoinHorizontal(

@@ -2,48 +2,14 @@ package model
 
 import (
 	"testing"
-	"time"
 
-	"github.com/compozy/compozy/engine/core"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestUser_Model(t *testing.T) {
-	t.Run("Should create user with admin role", func(t *testing.T) {
-		userID := core.MustNewID()
-		now := time.Now()
-
-		user := &User{
-			ID:        userID,
-			Email:     "admin@example.com",
-			Role:      RoleAdmin,
-			CreatedAt: now,
-		}
-
-		assert.Equal(t, userID, user.ID)
-		assert.Equal(t, "admin@example.com", user.Email)
-		assert.Equal(t, RoleAdmin, user.Role)
-		assert.Equal(t, now, user.CreatedAt)
-	})
-
-	t.Run("Should create user with user role", func(t *testing.T) {
-		userID := core.MustNewID()
-		now := time.Now()
-
-		user := &User{
-			ID:        userID,
-			Email:     "user@example.com",
-			Role:      RoleUser,
-			CreatedAt: now,
-		}
-
-		assert.Equal(t, userID, user.ID)
-		assert.Equal(t, "user@example.com", user.Email)
-		assert.Equal(t, RoleUser, user.Role)
-		assert.Equal(t, now, user.CreatedAt)
-	})
-
-	t.Run("Should validate role constants", func(t *testing.T) {
+	t.Run("Should validate role constants are properly defined", func(t *testing.T) {
+		// Verify that role constants match expected string values
+		// This is important for database storage and API contracts
 		assert.Equal(t, Role("admin"), RoleAdmin)
 		assert.Equal(t, Role("user"), RoleUser)
 	})

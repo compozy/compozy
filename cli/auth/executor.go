@@ -46,10 +46,12 @@ func NewCommandExecutor(cmd *cobra.Command) (*CommandExecutor, error) {
 		return nil, fmt.Errorf("failed to load configuration: %w", err)
 	}
 
-	// Get API key from CLI config (leverages environment variable mapping)
+	// Get API key from CLI config (supports env vars, config files, and flags)
 	apiKey := string(cfg.CLI.APIKey)
 	if apiKey == "" {
-		return nil, fmt.Errorf("COMPOZY_API_KEY environment variable is required")
+		return nil, fmt.Errorf(
+			"API key is required (set CLI.APIKey in config file or COMPOZY_API_KEY environment variable)",
+		)
 	}
 
 	// Create auth client with proper configuration

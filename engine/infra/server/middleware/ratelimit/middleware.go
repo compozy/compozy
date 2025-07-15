@@ -1,3 +1,10 @@
+// Package ratelimit provides HTTP rate limiting middleware for Gin.
+//
+// The middleware supports configurable fail-open/fail-closed behavior when the backing
+// store (Redis or in-memory) encounters errors. By default, it fails open to prioritize
+// availability - requests are allowed through when rate limit checks fail. This can be
+// changed to fail-closed mode via configuration to prioritize strict rate limiting
+// enforcement over availability.
 package ratelimit
 
 import (
@@ -118,11 +125,17 @@ func (m *Manager) Middleware() gin.HandlerFunc {
 		lctx, err := limiter.Get(c.Request.Context(), key)
 		if err != nil {
 			log := logger.FromContext(c.Request.Context())
-			log.Error("Rate limit check failed", "error", err, "key", key)
-			// DESIGN CHOICE: Failing open. If the backing store fails, we allow the request.
-			// This prioritizes availability over strict rate limiting enforcement.
-			// To fail closed, abort with a 500 error here instead.
-			c.Next() // Fail open on error
+			log.Error("Rate limit check failed", "error", err, "key", key, "fail_open", m.config.FailOpen)
+			if m.config.FailOpen {
+				// Fail open: Allow the request when backing store fails
+				// This prioritizes availability over strict rate limiting enforcement
+				c.Next()
+			} else {
+				// Fail closed: Reject the request with 500 error
+				// This prioritizes rate limiting enforcement over availability
+				c.JSON(500, gin.H{"error": "Internal server error"})
+				c.Abort()
+			}
 			return
 		}
 

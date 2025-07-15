@@ -49,9 +49,9 @@ func InitMetrics(meter metric.Meter) error {
 func ResetMetricsForTesting() {
 	metricsMutex.Lock()
 	defer metricsMutex.Unlock()
+	metricsOnce = sync.Once{}
 	authRequestsTotal = nil
 	authLatency = nil
-	metricsOnce = sync.Once{}
 }
 
 // RecordAuthAttempt records auth request metrics

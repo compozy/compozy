@@ -16,7 +16,7 @@ ALTER COLUMN fingerprint SET NOT NULL;
 CREATE UNIQUE INDEX idx_api_keys_fingerprint ON api_keys(fingerprint);
 
 -- Add comment for documentation
-COMMENT ON COLUMN api_keys.fingerprint IS 'SHA-256 hash of the plaintext API key for O(1) lookups before bcrypt comparison';
+COMMENT ON COLUMN api_keys.fingerprint IS 'SHA-256 hash of the bcrypt hash of the API key for O(1) lookups before bcrypt comparison';
 -- +goose StatementEnd
 
 -- +goose Down

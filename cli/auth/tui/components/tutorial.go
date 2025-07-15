@@ -1,6 +1,8 @@
 package components
 
 import (
+	"fmt"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/compozy/compozy/cli/auth/tui/styles"
@@ -191,8 +193,7 @@ func (t *Tutorial) renderStep(step TutorialStep) string {
 	var content string
 
 	// Progress indicator
-	progress := styles.HelpStyle.Render("Step " +
-		string(rune(t.Current+1)) + " of " + string(rune(len(t.Steps))))
+	progress := styles.HelpStyle.Render(fmt.Sprintf("Step %d of %d", t.Current+1, len(t.Steps)))
 	content += progress + "\n\n"
 
 	// Title

@@ -85,12 +85,35 @@ func (c *CachedRepository) GetAPIKeyByHash(ctx context.Context, hash []byte) (*m
 	return key, nil
 }
 
-// invalidateAPIKeyCache removes cached entries for an API key
-func (c *CachedRepository) invalidateAPIKeyCache(ctx context.Context, keyID core.ID) {
+// invalidateAPIKeyCache invalidates both hash-based and ID-based cache entries for an API key
+func (c *CachedRepository) invalidateAPIKeyCache(ctx context.Context, keyID core.ID) error {
 	log := logger.FromContext(ctx)
-	// We can't easily invalidate by hash since we don't know the hash,
-	// so we rely on TTL for cache invalidation
-	log.Debug("API key cache invalidation requested", "key_id", keyID)
+
+	// First, invalidate the ID-based cache entry
+	idCacheKey := fmt.Sprintf("auth:apikey:id:%s", keyID)
+	if err := c.client.Del(ctx, idCacheKey).Err(); err != nil {
+		log.Warn("failed to delete ID-based cache entry", "cache_key", idCacheKey, "error", err)
+		return fmt.Errorf("failed to delete ID-based cache entry: %w", err)
+	}
+
+	// Get the API key to find its fingerprint for hash-based cache invalidation
+	key, err := c.repo.GetAPIKeyByID(ctx, keyID)
+	if err != nil {
+		log.Warn("failed to get API key for hash-based cache invalidation", "key_id", keyID, "error", err)
+		// Don't return error here - ID cache was invalidated successfully
+		log.Debug("API key ID cache invalidated", "key_id", keyID, "id_cache_key", idCacheKey)
+		return nil
+	}
+
+	// Invalidate the hash-based cache entry
+	hashCacheKey := c.cacheKey(key.Fingerprint)
+	if err := c.client.Del(ctx, hashCacheKey).Err(); err != nil {
+		log.Warn("failed to delete hash-based cache entry", "cache_key", hashCacheKey, "error", err)
+		return fmt.Errorf("failed to delete hash-based cache entry: %w", err)
+	}
+
+	log.Debug("API key cache invalidated", "key_id", keyID, "id_cache_key", idCacheKey, "hash_cache_key", hashCacheKey)
+	return nil
 }
 
 // Delegate all other methods to the wrapped repository
@@ -124,7 +147,34 @@ func (c *CachedRepository) CreateAPIKey(ctx context.Context, key *model.APIKey) 
 }
 
 func (c *CachedRepository) GetAPIKeyByID(ctx context.Context, id core.ID) (*model.APIKey, error) {
-	return c.repo.GetAPIKeyByID(ctx, id)
+	log := logger.FromContext(ctx)
+	cacheKey := fmt.Sprintf("auth:apikey:id:%s", id)
+
+	// Try cache first
+	cached := c.client.Get(ctx, cacheKey)
+	if cached.Err() == nil {
+		var key model.APIKey
+		if err := json.Unmarshal([]byte(cached.Val()), &key); err == nil {
+			log.Debug("API key cache hit", "cache_key", cacheKey)
+			return &key, nil
+		}
+	}
+
+	// Cache miss - fetch from database
+	key, err := c.repo.GetAPIKeyByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Cache the result
+	keyJSON, err := json.Marshal(key)
+	if err != nil {
+		log.Error("Failed to marshal API key for cache", "error", err)
+		return key, nil // Return the key anyway, just skip caching
+	}
+	c.client.Set(ctx, cacheKey, keyJSON, c.ttl)
+
+	return key, nil
 }
 
 func (c *CachedRepository) ListAPIKeysByUserID(ctx context.Context, userID core.ID) ([]*model.APIKey, error) {
@@ -132,11 +182,17 @@ func (c *CachedRepository) ListAPIKeysByUserID(ctx context.Context, userID core.
 }
 
 func (c *CachedRepository) UpdateAPIKeyLastUsed(ctx context.Context, id core.ID) error {
-	c.invalidateAPIKeyCache(ctx, id)
+	// Invalidate cache first, but don't fail the operation if cache invalidation fails
+	if err := c.invalidateAPIKeyCache(ctx, id); err != nil {
+		logger.FromContext(ctx).Warn("cache invalidation failed during update", "error", err)
+	}
 	return c.repo.UpdateAPIKeyLastUsed(ctx, id)
 }
 
 func (c *CachedRepository) DeleteAPIKey(ctx context.Context, id core.ID) error {
-	c.invalidateAPIKeyCache(ctx, id)
+	// Invalidate cache first, but don't fail the operation if cache invalidation fails
+	if err := c.invalidateAPIKeyCache(ctx, id); err != nil {
+		logger.FromContext(ctx).Warn("cache invalidation failed during delete", "error", err)
+	}
 	return c.repo.DeleteAPIKey(ctx, id)
 }

@@ -129,14 +129,14 @@ func TestMemoryAuthenticationRequired(t *testing.T) {
 		expectedError  string
 	}{
 		{
-			name:           "GET /memory/:ref/read without auth",
+			name:           "Should return unauthorized for GET /memory/:ref/read without auth",
 			method:         "GET",
 			path:           "/api/v0/memory/test_memory/read?key=test_key",
 			expectedStatus: http.StatusUnauthorized,
 			expectedError:  "Authentication required",
 		},
 		{
-			name:   "POST /memory/:ref/write without auth",
+			name:   "Should return unauthorized for POST /memory/:ref/write without auth",
 			method: "POST",
 			path:   "/api/v0/memory/test_memory/write",
 			body: map[string]any{
@@ -147,7 +147,7 @@ func TestMemoryAuthenticationRequired(t *testing.T) {
 			expectedError:  "Authentication required",
 		},
 		{
-			name:   "POST /memory/:ref/append without auth",
+			name:   "Should return unauthorized for POST /memory/:ref/append without auth",
 			method: "POST",
 			path:   "/api/v0/memory/test_memory/append",
 			body: map[string]any{
@@ -158,7 +158,7 @@ func TestMemoryAuthenticationRequired(t *testing.T) {
 			expectedError:  "Authentication required",
 		},
 		{
-			name:           "POST /memory/:ref/delete without auth",
+			name:           "Should return unauthorized for POST /memory/:ref/delete without auth",
 			method:         "POST",
 			path:           "/api/v0/memory/test_memory/delete",
 			body:           map[string]any{"key": "test_key"},
@@ -166,14 +166,14 @@ func TestMemoryAuthenticationRequired(t *testing.T) {
 			expectedError:  "Authentication required",
 		},
 		{
-			name:           "GET /memory/:ref/health without auth",
+			name:           "Should return unauthorized for GET /memory/:ref/health without auth",
 			method:         "GET",
 			path:           "/api/v0/memory/test_memory/health?key=test_key",
 			expectedStatus: http.StatusUnauthorized,
 			expectedError:  "Authentication required",
 		},
 		{
-			name:           "GET /memory/:ref/stats without auth",
+			name:           "Should return unauthorized for GET /memory/:ref/stats without auth",
 			method:         "GET",
 			path:           "/api/v0/memory/test_memory/stats?key=test_key",
 			expectedStatus: http.StatusUnauthorized,
