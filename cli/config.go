@@ -11,11 +11,26 @@ import (
 	"sort"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
+
+// Pre-compiled regex for URL token redaction
+var tokenRegex = regexp.MustCompile(`token=[^&\s]+`)
+
+// Sensitive patterns for environment variable detection
+var sensitivePatterns = []string{
+	"PASSWORD",
+	"TOKEN",
+	"API_KEY",
+	"SECRET",
+	"PRIVATE",
+	"CREDENTIALS",
+	"AUTH",
+}
 
 // ConfigCmd returns the config command
 func ConfigCmd() *cobra.Command {
@@ -48,42 +63,55 @@ func configShowCmd() *cobra.Command {
 		Long: `Display the current configuration with optional source information.
 This command shows which source (CLI, YAML, environment, or default) provided each value.`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			ctx := context.Background()
-
-			// Load environment file if specified
-			if envFile != "" {
-				_, err := loadEnvFile(cmd)
-				if err != nil {
-					return err
-				}
-			}
-
-			// Load configuration
-			cfg, sources, err := loadConfigWithSources(ctx, cmd, configFile)
-			if err != nil {
-				return fmt.Errorf("failed to load configuration: %w", err)
-			}
-
-			// Format output based on requested format
-			switch format {
-			case "json":
-				return outputJSON(cfg, sources, showSources)
-			case "yaml":
-				return outputYAML(cfg, sources, showSources)
-			case "table":
-				return outputTable(cfg, sources, showSources)
-			default:
-				return fmt.Errorf("unsupported format: %s", format)
-			}
+			return runConfigShow(cmd, configFile, envFile, format, showSources)
 		},
 	}
 
-	cmd.Flags().StringVarP(&format, "format", "f", "table", "Output format (json, yaml, table)")
-	cmd.Flags().BoolVarP(&showSources, "sources", "s", false, "Show configuration sources")
-	cmd.Flags().StringVar(&configFile, "config", "compozy.yaml", "Path to configuration file")
-	cmd.Flags().StringVar(&envFile, "env-file", ".env", "Path to environment file")
-
+	addConfigShowFlags(cmd, &format, &showSources, &configFile, &envFile)
 	return cmd
+}
+
+// runConfigShow executes the config show command
+func runConfigShow(cmd *cobra.Command, configFile, envFile, format string, showSources bool) error {
+	ctx := context.Background()
+	if envFile != "" {
+		_, err := loadEnvFile(cmd)
+		if err != nil {
+			return err
+		}
+	}
+	cfg, sources, err := loadConfigWithSources(ctx, cmd, configFile)
+	if err != nil {
+		return fmt.Errorf("failed to load configuration: %w", err)
+	}
+	return formatConfigOutput(cfg, sources, format, showSources)
+}
+
+// addConfigShowFlags adds flags to the config show command
+func addConfigShowFlags(cmd *cobra.Command, format *string, showSources *bool, configFile *string, envFile *string) {
+	cmd.Flags().StringVarP(format, "format", "f", "table", "Output format (json, yaml, table)")
+	cmd.Flags().BoolVarP(showSources, "sources", "s", false, "Show configuration sources")
+	cmd.Flags().StringVar(configFile, "config", "compozy.yaml", "Path to configuration file")
+	cmd.Flags().StringVar(envFile, "env-file", ".env", "Path to environment file")
+}
+
+// formatConfigOutput formats and outputs configuration based on requested format
+func formatConfigOutput(
+	cfg *config.Config,
+	sources map[string]config.SourceType,
+	format string,
+	showSources bool,
+) error {
+	switch format {
+	case "json":
+		return outputJSON(cfg, sources, showSources)
+	case "yaml":
+		return outputYAML(cfg, sources, showSources)
+	case "table":
+		return outputTable(cfg, sources, showSources)
+	default:
+		return fmt.Errorf("unsupported format: %s", format)
+	}
 }
 
 // configDiagnosticsCmd provides detailed configuration diagnostics
@@ -118,29 +146,40 @@ func configDiagnosticsCmd() *cobra.Command {
 // runDiagnostics performs the actual diagnostics
 func runDiagnostics(cmd *cobra.Command, configFile, envFile string, verbose bool) error {
 	ctx := context.Background()
-
 	fmt.Println("=== Configuration Diagnostics ===")
+	cwd, err := initializeDiagnostics()
+	if err != nil {
+		return err
+	}
+	checkConfigFiles(cwd, configFile, envFile, cmd)
+	_, sources := loadAndValidateConfiguration(ctx, cmd, configFile)
+	displayDiagnosticResults(sources, verbose)
+	return nil
+}
 
-	// Check working directory
+// initializeDiagnostics initializes the diagnostic environment
+func initializeDiagnostics() (string, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
-		return fmt.Errorf("failed to get working directory: %w", err)
+		return "", fmt.Errorf("failed to get working directory: %w", err)
 	}
 	fmt.Printf("Working Directory: %s\n\n", cwd)
+	return cwd, nil
+}
 
-	// Check files
-	checkConfigFiles(cwd, configFile, envFile, cmd)
-
-	// Load configuration with detailed error reporting
+// loadAndValidateConfiguration loads and validates configuration with error reporting
+func loadAndValidateConfiguration(
+	ctx context.Context,
+	cmd *cobra.Command,
+	configFile string,
+) (*config.Config, map[string]config.SourceType) {
 	fmt.Println("\n--- Configuration Loading ---")
 	cfg, sources, err := loadConfigWithSources(ctx, cmd, configFile)
 	if err != nil {
 		fmt.Printf("❌ Failed to load configuration: %v\n", err)
-		return nil // Don't exit, continue with diagnostics
+		return nil, nil // Don't exit, continue with diagnostics
 	}
 	fmt.Println("✅ Configuration loaded successfully")
-
-	// Validate configuration
 	fmt.Println("\n--- Configuration Validation ---")
 	service := config.NewService()
 	if err := service.Validate(cfg); err != nil {
@@ -148,26 +187,23 @@ func runDiagnostics(cmd *cobra.Command, configFile, envFile string, verbose bool
 	} else {
 		fmt.Println("✅ Configuration is valid")
 	}
+	return cfg, sources
+}
 
-	// Show source precedence
+// displayDiagnosticResults displays diagnostic results including source precedence
+func displayDiagnosticResults(sources map[string]config.SourceType, verbose bool) {
 	fmt.Println("\n--- Source Precedence ---")
 	fmt.Println("Configuration sources (highest to lowest precedence):")
 	fmt.Println("1. CLI flags")
 	fmt.Println("2. YAML configuration file")
 	fmt.Println("3. Environment variables")
 	fmt.Println("4. Default values")
-
-	// Show configured values by source
 	if verbose {
 		fmt.Println("\n--- Configuration Sources ---")
 		displaySourceBreakdown(sources)
 	}
-
-	// Environment variable mapping
 	fmt.Println("\n--- Environment Variable Mapping ---")
 	displayEnvMapping()
-
-	return nil
 }
 
 // checkConfigFiles checks configuration and environment files
@@ -290,47 +326,71 @@ func collectSourcesRecursively(
 	v any,
 	sourceMap map[string]config.SourceType,
 ) {
+	val := getReflectValue(v)
+	if val.Kind() == reflect.Struct {
+		processStructFields(service, prefix, val, sourceMap)
+	}
+}
+
+// getReflectValue gets the reflect value, handling pointers
+func getReflectValue(v any) reflect.Value {
 	val := reflect.ValueOf(v)
 	if val.Kind() == reflect.Ptr {
 		val = val.Elem()
 	}
+	return val
+}
 
-	// Only process struct types
-	if val.Kind() == reflect.Struct {
-		typ := val.Type()
-		for i := 0; i < val.NumField(); i++ {
-			field := typ.Field(i)
-			fieldVal := val.Field(i)
-
-			// Skip unexported fields
-			if !field.IsExported() {
-				continue
-			}
-
-			// Get the koanf tag to determine the key name
-			tag := field.Tag.Get("koanf")
-			if tag == "" || tag == "-" {
-				continue
-			}
-
-			// Build the full key path
-			key := tag
-			if prefix != "" {
-				key = prefix + "." + tag
-			}
-
-			// Get source for this key
-			source := service.GetSource(key)
-			if source != config.SourceDefault {
-				sourceMap[key] = source
-			}
-
-			// Recursively process nested structs
-			if fieldVal.Kind() == reflect.Struct && field.Type.String() != "time.Duration" {
-				collectSourcesRecursively(service, key, fieldVal.Interface(), sourceMap)
-			}
+// processStructFields processes all fields in a struct for source collection
+func processStructFields(
+	service config.Service,
+	prefix string,
+	val reflect.Value,
+	sourceMap map[string]config.SourceType,
+) {
+	typ := val.Type()
+	for i := 0; i < val.NumField(); i++ {
+		field := typ.Field(i)
+		fieldVal := val.Field(i)
+		if !field.IsExported() {
+			continue
 		}
+		processStructField(service, prefix, &field, fieldVal, sourceMap)
 	}
+}
+
+// processStructField processes a single struct field for source collection
+func processStructField(
+	service config.Service,
+	prefix string,
+	field *reflect.StructField,
+	fieldVal reflect.Value,
+	sourceMap map[string]config.SourceType,
+) {
+	tag := field.Tag.Get("koanf")
+	if tag == "" || tag == "-" {
+		return
+	}
+	key := buildFieldKey(prefix, tag)
+	if source := service.GetSource(key); source != config.SourceDefault {
+		sourceMap[key] = source
+	}
+	if shouldRecurse(fieldVal, field) {
+		collectSourcesRecursively(service, key, fieldVal.Interface(), sourceMap)
+	}
+}
+
+// buildFieldKey builds the full key path for a field
+func buildFieldKey(prefix, tag string) string {
+	if prefix != "" {
+		return prefix + "." + tag
+	}
+	return tag
+}
+
+// shouldRecurse determines if a field should be recursively processed
+func shouldRecurse(fieldVal reflect.Value, field *reflect.StructField) bool {
+	return fieldVal.Kind() == reflect.Struct && field.Type != reflect.TypeOf(time.Duration(0))
 }
 
 // outputJSON outputs configuration as JSON
@@ -403,16 +463,29 @@ func outputTable(cfg *config.Config, sources map[string]config.SourceType, showS
 // flattenConfig converts nested config to flat key-value map
 func flattenConfig(cfg *config.Config) map[string]string {
 	result := make(map[string]string)
+	flattenServerConfig(cfg, result)
+	flattenDatabaseConfig(cfg, result)
+	flattenTemporalConfig(cfg, result)
+	flattenRuntimeConfig(cfg, result)
+	flattenLimitsConfig(cfg, result)
+	flattenOpenAIConfig(cfg, result)
+	flattenMemoryConfig(cfg, result)
+	flattenLLMConfig(cfg, result)
+	flattenCLIConfig(cfg, result)
+	return result
+}
 
-	// Server config
+// flattenServerConfig flattens server configuration
+func flattenServerConfig(cfg *config.Config, result map[string]string) {
 	result["server.host"] = cfg.Server.Host
 	result["server.port"] = fmt.Sprintf("%d", cfg.Server.Port)
 	result["server.cors_enabled"] = fmt.Sprintf("%v", cfg.Server.CORSEnabled)
 	result["server.timeout"] = cfg.Server.Timeout.String()
+}
 
-	// Database config
+// flattenDatabaseConfig flattens database configuration
+func flattenDatabaseConfig(cfg *config.Config, result map[string]string) {
 	if cfg.Database.ConnString != "" {
-		// Redact connection string as it may contain passwords
 		result["database.conn_string"] = redactURL(cfg.Database.ConnString)
 	}
 	result["database.host"] = cfg.Database.Host
@@ -421,13 +494,17 @@ func flattenConfig(cfg *config.Config) map[string]string {
 	result["database.password"] = cfg.Database.Password.String()
 	result["database.name"] = cfg.Database.DBName
 	result["database.ssl_mode"] = cfg.Database.SSLMode
+}
 
-	// Temporal config
+// flattenTemporalConfig flattens temporal configuration
+func flattenTemporalConfig(cfg *config.Config, result map[string]string) {
 	result["temporal.host_port"] = cfg.Temporal.HostPort
 	result["temporal.namespace"] = cfg.Temporal.Namespace
 	result["temporal.task_queue"] = cfg.Temporal.TaskQueue
+}
 
-	// Runtime config
+// flattenRuntimeConfig flattens runtime configuration
+func flattenRuntimeConfig(cfg *config.Config, result map[string]string) {
 	result["runtime.environment"] = cfg.Runtime.Environment
 	result["runtime.log_level"] = cfg.Runtime.LogLevel
 	result["runtime.dispatcher_heartbeat_interval"] = cfg.Runtime.DispatcherHeartbeatInterval.String()
@@ -435,16 +512,20 @@ func flattenConfig(cfg *config.Config) map[string]string {
 	result["runtime.dispatcher_stale_threshold"] = cfg.Runtime.DispatcherStaleThreshold.String()
 	result["runtime.async_token_counter_workers"] = fmt.Sprintf("%d", cfg.Runtime.AsyncTokenCounterWorkers)
 	result["runtime.async_token_counter_buffer_size"] = fmt.Sprintf("%d", cfg.Runtime.AsyncTokenCounterBufferSize)
+}
 
-	// Limits config
+// flattenLimitsConfig flattens limits configuration
+func flattenLimitsConfig(cfg *config.Config, result map[string]string) {
 	result["limits.max_nesting_depth"] = fmt.Sprintf("%d", cfg.Limits.MaxNestingDepth)
 	result["limits.max_string_length"] = fmt.Sprintf("%d", cfg.Limits.MaxStringLength)
 	result["limits.max_message_content"] = fmt.Sprintf("%d", cfg.Limits.MaxMessageContent)
 	result["limits.max_total_content_size"] = fmt.Sprintf("%d", cfg.Limits.MaxTotalContentSize)
 	result["limits.max_task_context_depth"] = fmt.Sprintf("%d", cfg.Limits.MaxTaskContextDepth)
 	result["limits.parent_update_batch_size"] = fmt.Sprintf("%d", cfg.Limits.ParentUpdateBatchSize)
+}
 
-	// OpenAI config (optional)
+// flattenOpenAIConfig flattens OpenAI configuration (optional)
+func flattenOpenAIConfig(cfg *config.Config, result map[string]string) {
 	if cfg.OpenAI.APIKey != "" {
 		result["openai.api_key"] = cfg.OpenAI.APIKey.String()
 	}
@@ -457,10 +538,11 @@ func flattenConfig(cfg *config.Config) map[string]string {
 	if cfg.OpenAI.DefaultModel != "" {
 		result["openai.default_model"] = cfg.OpenAI.DefaultModel
 	}
+}
 
-	// Memory config (optional)
+// flattenMemoryConfig flattens memory configuration (optional)
+func flattenMemoryConfig(cfg *config.Config, result map[string]string) {
 	if cfg.Memory.RedisURL != "" {
-		// Redact Redis URL as it may contain authentication credentials
 		result["memory.redis_url"] = redactURL(cfg.Memory.RedisURL)
 	}
 	if cfg.Memory.RedisPrefix != "" {
@@ -472,17 +554,28 @@ func flattenConfig(cfg *config.Config) map[string]string {
 	if cfg.Memory.MaxEntries > 0 {
 		result["memory.max_entries"] = fmt.Sprintf("%d", cfg.Memory.MaxEntries)
 	}
+}
 
-	// LLM config (optional)
+// flattenLLMConfig flattens LLM configuration (optional)
+func flattenLLMConfig(cfg *config.Config, result map[string]string) {
 	if cfg.LLM.ProxyURL != "" {
 		result["llm.proxy_url"] = cfg.LLM.ProxyURL
 	}
 	if cfg.LLM.AdminToken != "" {
-		// Use String() method which already returns "[REDACTED]" for sensitive values
 		result["llm.admin_token"] = cfg.LLM.AdminToken.String()
 	}
+}
 
-	return result
+// flattenCLIConfig flattens CLI configuration
+func flattenCLIConfig(cfg *config.Config, result map[string]string) {
+	result["cli.api_key"] = cfg.CLI.APIKey.String()
+	result["cli.base_url"] = cfg.CLI.BaseURL
+	result["cli.server_url"] = cfg.CLI.ServerURL
+	result["cli.timeout"] = cfg.CLI.Timeout.String()
+	result["cli.mode"] = cfg.CLI.Mode
+	result["cli.default_format"] = cfg.CLI.DefaultFormat
+	result["cli.color_mode"] = cfg.CLI.ColorMode
+	result["cli.page_size"] = fmt.Sprintf("%d", cfg.CLI.PageSize)
 }
 
 // displaySourceBreakdown shows which values come from which sources
@@ -537,8 +630,7 @@ func redactURL(urlStr string) string {
 
 	// Handle URLs with token parameters
 	if strings.Contains(urlStr, "token=") {
-		re := regexp.MustCompile(`token=[^&\s]+`)
-		return re.ReplaceAllString(urlStr, "token=[REDACTED]")
+		return tokenRegex.ReplaceAllString(urlStr, "token=[REDACTED]")
 	}
 
 	return urlStr
@@ -547,37 +639,33 @@ func redactURL(urlStr string) string {
 // isSensitiveEnvVar checks if an environment variable contains sensitive data
 func isSensitiveEnvVar(envName, value string) bool {
 	// Check for common sensitive patterns in the environment variable name
-	sensitivePatterns := []string{
-		"PASSWORD",
-		"TOKEN",
-		"API_KEY",
-		"SECRET",
-		"PRIVATE",
-		"CREDENTIALS",
-		"AUTH",
-	}
-
 	for _, pattern := range sensitivePatterns {
 		if strings.Contains(envName, pattern) {
 			return true
 		}
 	}
 
-	// Check for specific values that look like secrets
-	// Redis URLs often contain passwords: redis://user:password@host:port
-	if strings.Contains(value, "redis://") && strings.Contains(value, "@") {
-		return true
-	}
+	// Single-pass analysis of value for sensitive patterns
+	hasAuth := strings.Contains(value, "@")
+	hasToken := strings.Contains(value, "token=")
 
-	// Database connection strings may contain passwords
-	if strings.Contains(value, "postgres://") || strings.Contains(value, "mysql://") ||
-		strings.Contains(value, "mongodb://") {
-		return true
-	}
+	// Check for URLs with authentication in a single pass
+	if hasAuth || hasToken {
+		// Redis URLs often contain passwords: redis://user:password@host:port
+		if strings.Contains(value, "redis://") && hasAuth {
+			return true
+		}
 
-	// URLs with authentication
-	if strings.HasPrefix(value, "http://") || strings.HasPrefix(value, "https://") {
-		if strings.Contains(value, "@") || strings.Contains(value, "token=") {
+		// Database connection strings may contain passwords
+		if hasAuth && (strings.Contains(value, "postgres://") ||
+			strings.Contains(value, "mysql://") ||
+			strings.Contains(value, "mongodb://")) {
+			return true
+		}
+
+		// HTTP URLs with authentication
+		if (strings.HasPrefix(value, "http://") || strings.HasPrefix(value, "https://")) &&
+			(hasAuth || hasToken) {
 			return true
 		}
 	}

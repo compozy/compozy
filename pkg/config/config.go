@@ -29,7 +29,6 @@ type ServerConfig struct {
 	CORSEnabled bool          `koanf:"cors_enabled"                            env:"SERVER_CORS_ENABLED"`
 	CORS        CORSConfig    `koanf:"cors"`
 	Timeout     time.Duration `koanf:"timeout"                                 env:"SERVER_TIMEOUT"`
-	Auth        AuthConfig    `koanf:"auth"`
 }
 
 // CORSConfig contains CORS configuration.
@@ -37,12 +36,6 @@ type CORSConfig struct {
 	AllowedOrigins   []string `koanf:"allowed_origins"   env:"SERVER_CORS_ALLOWED_ORIGINS"`
 	AllowCredentials bool     `koanf:"allow_credentials" env:"SERVER_CORS_ALLOW_CREDENTIALS"`
 	MaxAge           int      `koanf:"max_age"           env:"SERVER_CORS_MAX_AGE"`
-}
-
-// AuthConfig contains authentication configuration.
-type AuthConfig struct {
-	Enabled            bool     `koanf:"enabled"             env:"SERVER_AUTH_ENABLED"`
-	WorkflowExceptions []string `koanf:"workflow_exceptions" env:"SERVER_AUTH_WORKFLOW_EXCEPTIONS" validate:"dive,workflow_id"`
 }
 
 // DatabaseConfig contains database connection configuration.
@@ -125,10 +118,14 @@ type RateConfig struct {
 
 // CLIConfig contains CLI-specific configuration.
 type CLIConfig struct {
-	APIKey  SensitiveString `koanf:"api_key"  env:"COMPOZY_API_KEY"  sensitive:"true"`
-	BaseURL string          `koanf:"base_url" env:"COMPOZY_BASE_URL"`
-	Timeout time.Duration   `koanf:"timeout"  env:"COMPOZY_TIMEOUT"`
-	Mode    string          `koanf:"mode"     env:"COMPOZY_MODE"`
+	APIKey        SensitiveString `koanf:"api_key"        env:"COMPOZY_API_KEY"        sensitive:"true"`
+	BaseURL       string          `koanf:"base_url"       env:"COMPOZY_BASE_URL"`
+	ServerURL     string          `koanf:"server_url"     env:"COMPOZY_SERVER_URL"`
+	Timeout       time.Duration   `koanf:"timeout"        env:"COMPOZY_TIMEOUT"`
+	Mode          string          `koanf:"mode"           env:"COMPOZY_MODE"`
+	DefaultFormat string          `koanf:"default_format" env:"COMPOZY_DEFAULT_FORMAT"                  validate:"oneof=json tui auto"`
+	ColorMode     string          `koanf:"color_mode"     env:"COMPOZY_COLOR_MODE"                      validate:"oneof=auto on off"`
+	PageSize      int             `koanf:"page_size"      env:"COMPOZY_PAGE_SIZE"                       validate:"min=1,max=1000"`
 }
 
 // Service defines the configuration management service interface.
@@ -279,10 +276,6 @@ func buildServerConfig(registry *definition.Registry) ServerConfig {
 			MaxAge:           getInt(registry, "server.cors.max_age"),
 		},
 		Timeout: getDuration(registry, "server.timeout"),
-		Auth: AuthConfig{
-			Enabled:            getBool(registry, "server.auth.enabled"),
-			WorkflowExceptions: getStringSlice(registry, "server.auth.workflow_exceptions"),
-		},
 	}
 }
 
@@ -373,9 +366,13 @@ func buildRateLimitConfig(registry *definition.Registry) RateLimitConfig {
 
 func buildCLIConfig(registry *definition.Registry) CLIConfig {
 	return CLIConfig{
-		APIKey:  SensitiveString(getString(registry, "cli.api_key")),
-		BaseURL: getString(registry, "cli.base_url"),
-		Timeout: getDuration(registry, "cli.timeout"),
-		Mode:    getString(registry, "cli.mode"),
+		APIKey:        SensitiveString(getString(registry, "cli.api_key")),
+		BaseURL:       getString(registry, "cli.base_url"),
+		ServerURL:     getString(registry, "cli.server_url"),
+		Timeout:       getDuration(registry, "cli.timeout"),
+		Mode:          getString(registry, "cli.mode"),
+		DefaultFormat: getString(registry, "cli.default_format"),
+		ColorMode:     getString(registry, "cli.color_mode"),
+		PageSize:      getInt(registry, "cli.page_size"),
 	}
 }

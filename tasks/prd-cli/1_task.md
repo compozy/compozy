@@ -1,114 +1,77 @@
----
-status: pending
----
+## markdown
+
+## status: completed # Options: pending, in-progress, completed, excluded
 
 <task_context>
-<domain>cli</domain>
+<domain>cli/core</domain>
 <type>implementation</type>
 <scope>core_feature</scope>
 <complexity>medium</complexity>
-<dependencies>cobra,charmbracelet</dependencies>
+<dependencies>http_server</dependencies>
 </task_context>
 
-# Task 1.0: CLI Infrastructure Setup
+# Task 1.0: Core Infrastructure Setup
 
 ## Overview
 
-Establish the foundational CLI infrastructure for Compozy with Cobra command structure, Charmbracelet styling system, API client, and TUI-by-default output management that supports all future CLI features.
+Set up core infrastructure and shared utilities for the enhanced CLI system. This includes creating the API client foundation with HTTP communication, authentication, and error handling, implementing enhanced output mode detection system with CI environment detection for TUI vs JSON selection, and creating command execution framework following existing auth module patterns.
+
+<import>**MUST READ BEFORE STARTING** @.cursor/rules/critical-validation.mdc</import>
+
+<requirements>
+- **REUSE**: Extend cli/auth/client.go to cli/api_client.go for workflow endpoints (retry logic, auth, JSON handling ready)
+- **REUSE**: Apply cli/auth/executor.go CommandExecutor pattern for dual-mode commands (eliminates boilerplate)
+- **ENHANCED**: Extend cli/auth/mode.go DetectMode() with CI environment detection (GITHUB_ACTIONS, CI, etc.)
+- **REUSE**: Use pkg/config CLIConfig structure (APIKey, BaseURL, Timeout, Mode fully implemented)
+- **LIBRARY**: Integrate go-resty/resty/v2 for HTTP middleware, interceptors, and rate limiting
+- **LIBRARY**: Add charmbracelet/bubbletea + bubbles for interactive TUI components
+- **ENHANCED**: Implement interface segregation for API services (read-only vs mutate operations)
+- **REUSE**: Apply logger.FromContext(ctx) pattern consistently (no dependency injection)
+- **ENHANCED**: Add --output flag as alias for --format for CLI consistency
+- Requirements: 7.1, 7.2, 9.1, 9.2
+</requirements>
 
 ## Subtasks
 
-- [ ] 1.1 Extend root command with workflow and execution command groups
-- [ ] 1.2 Implement Lipgloss styling system in cli/shared/styles.go
-- [ ] 1.3 Create API client in cli/shared/client.go for server communication
-- [ ] 1.4 Build output manager with TUI/non-TUI modes (--no-tui flag)
-- [ ] 1.5 Add global flags (--output, --no-tui, --project, --debug)
+- [x] 1.1 Create unified API client with interface segregation and rate limiting
+- [x] 1.2 Implement enhanced output mode detection with CI environment support
+- [x] 1.3 Create command execution framework with dual handlers and context cancellation
+- [x] 1.4 Set up shared utilities and enhanced error handling foundation
+- [x] 1.5 Establish testing patterns for CLI components with improved mocking
 
 ## Implementation Details
 
-### Command Structure
+### Enhanced API Client Architecture
 
-```
-compozy
-├── init        # Project initialization
-├── workflow    # Workflow management (singular)
-├── run         # Execution management
-└── dev         # Existing development server
-```
+Create a modular API client that provides interface segregation for read-only vs mutate operations, enabling easier mocking and future caching layers. Include rate-limiting middleware and aggressive context.Context usage for cancellation.
 
-### TUI-by-Default Architecture
+### Enhanced Mode Detection
 
-```go
-// cli/shared/output.go
-type OutputManager struct {
-    tui    bool  // Default: true, disabled with --no-tui
-    format string // json, yaml, table (for non-TUI mode)
-}
+Implement auto-detection that checks CI environment variables (CI, GITHUB_ACTIONS, JENKINS_URL, etc.) to automatically default to JSON mode in CI environments, plus explicit format flags and terminal capabilities.
 
-func (o *OutputManager) Render(data interface{}) error {
-    if !o.tui || !isTerminal() {
-        return o.renderPlain(data)
-    }
-    return o.renderTUI(data)
-}
-```
+### Command Execution Pattern
 
-### Lipgloss Style System
+Follow the existing auth module pattern with dual handlers for TUI and JSON modes, enhanced with proper context cancellation for long-running operations.
 
-```go
-// cli/shared/styles.go
-var (
-    primaryColor = lipgloss.Color("#7D56F4")
-    successStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#02BA84"))
-    errorStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF5F87"))
-    titleStyle   = lipgloss.NewStyle().Bold(true).Background(primaryColor)
-)
-```
+### Relevant Files
 
-### API Client
+- `cli/api_client.go` - New unified API client with interface segregation
+- `cli/output.go` - Enhanced mode detection with CI environment support
+- `cli/command_executor.go` - New command execution framework with context handling
+- `cli/shared/` - New shared utilities directory
+- `cli/interfaces/` - New service interface definitions with segregation
 
-```go
-// cli/shared/client.go
-type Client struct {
-    BaseURL    string
-    HTTPClient *http.Client
-}
+### Dependent Files
 
-func (c *Client) ListWorkflows(ctx context.Context) ([]Workflow, error)
-func (c *Client) ExecuteWorkflow(ctx context.Context, id string, input map[string]any) (*Execution, error)
-```
-
-### Global Flags
-
-- `--no-tui`: Disable interactive TUI (for CI/scripts)
-- `--output`: Format for non-TUI mode (json, yaml, table)
-- `--project`: Project directory override
-- `--debug`: Enable debug logging
-- `--server-url`: API server URL (default: http://localhost:3001)
+- `cli/auth/client.go` - Existing auth patterns to follow
+- `cli/config.go` - Existing configuration system
+- `cli/tui/` - Existing TUI components to extend
+- `engine/*/router/` - API endpoints to interact with
 
 ## Success Criteria
 
-- [ ] Command structure follows Cobra best practices
-- [ ] TUI renders beautifully by default with Lipgloss styling
-- [ ] Non-TUI mode works perfectly for CI/automation (--no-tui)
-- [ ] API client handles all HTTP communication cleanly
-- [ ] Output manager intelligently switches between TUI and plain modes
-- [ ] Global flags are available to all subcommands
-- [ ] Existing `compozy dev` command continues to work unchanged
-
-<critical>
-**MANDATORY REQUIREMENTS:**
-
-- **ALWAYS** verify against PRD and tech specs - NEVER make assumptions
-- **NEVER** use workarounds, especially in tests - implement proper solutions
-- **MUST** follow all established project standards:
-  - Architecture patterns: `.cursor/rules/architecture.mdc`
-  - Go coding standards: `.cursor/rules/go-coding-standards.mdc`
-  - Testing requirements: `.cursor/rules/testing-standards.mdc`
-  - API standards: `.cursor/rules/api-standards.mdc`
-  - Security & quality: `.cursor/rules/quality-security.mdc`
-- **MUST** run `make lint` and `make test` before completing parent tasks
-- **MUST** follow `.cursor/rules/task-review.mdc` workflow for parent tasks
-
-**Enforcement:** Violating these standards results in immediate task rejection.
-</critical>
+- API client successfully communicates with all Compozy server endpoints using segregated interfaces
+- Output mode detection automatically switches to JSON in CI environments and supports --output alias
+- Command execution framework handles both interactive and automation modes with proper cancellation
+- Rate limiting prevents API abuse and interface segregation enables easier testing
+- All components follow established project patterns and pass linting/testing

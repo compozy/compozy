@@ -1,105 +1,80 @@
----
-status: pending
----
+## markdown
+
+## status: pending # Options: pending, in-progress, completed, excluded
 
 <task_context>
-<domain>cli/cmd/run</domain>
+<domain>cli/workflow</domain>
 <type>implementation</type>
 <scope>core_feature</scope>
 <complexity>medium</complexity>
-<dependencies>api_client,lipgloss,spinner</dependencies>
+<dependencies>http_server</dependencies>
 </task_context>
 
-# Task 4.0: Execution Management Commands
+# Task 4.0: Workflow Management Foundation
 
 ## Overview
 
-Implement workflow execution commands with real-time progress tracking, beautiful TUI spinners, and comprehensive execution management capabilities.
+Create workflow data models and API service interfaces with interface segregation, implement workflow API client methods (list, get, execute), create workflow filtering and sorting logic, and write workflow validation and error handling utilities.
+
+<import>**MUST READ BEFORE STARTING** @.cursor/rules/critical-validation.mdc</import>
+
+<requirements>
+- **REUSE**: Extend cli/auth/client.go HTTP client patterns for workflow endpoints
+- **REUSE**: Apply cli/auth/client.go retry logic, authentication, and JSON handling
+- **LIBRARY**: Use tidwall/gjson (already in project) for JSON path queries and filtering
+- **REUSE**: Follow existing error handling patterns with fmt.Errorf and core.NewError
+- **REUSE**: Apply pkg/config for workflow service configuration
+- **LIBRARY**: Use github.com/gorhill/cronexpr for schedule parsing and validation
+- **REUSE**: Apply go-playground/validator/v10 for workflow validation
+- **ENHANCED**: Implement interface segregation with separate read-only and mutate interfaces
+- **ENHANCED**: Use aggressive context.Context for cancellation and timeouts
+- **REUSE**: Use logger.FromContext(ctx) for API operation logging
+- Requirements: 2.1, 2.2, 2.3, 2.4, 2.5
+</requirements>
 
 ## Subtasks
 
-- [ ] 4.1 Create `run create` command with interactive input collection
-- [ ] 4.2 Implement `run list` with sortable/filterable table
-- [ ] 4.3 Build `run get` with real-time status updates
-- [ ] 4.4 Add `run cancel` with confirmation prompt
-- [ ] 4.5 Implement non-TUI modes for all commands
+- [ ] 4.1 Define workflow data models and types
+- [ ] 4.2 Create segregated WorkflowService interfaces (reader/writer)
+- [ ] 4.3 Implement workflow API client methods with context cancellation
+- [ ] 4.4 Create workflow filtering and sorting utilities
+- [ ] 4.5 Add workflow validation and enhanced error handling
 
 ## Implementation Details
 
-### Interactive Execution
+### Data Models
 
-```go
-// run create with Huh forms for input
-form := huh.NewForm(
-    huh.NewInput().
-        Title("Workflow ID").
-        Value(&workflowID),
-    huh.NewText().
-        Title("Input JSON").
-        Value(&inputJSON),
-)
+Implement the Workflow, WorkflowDetail, and related types as specified in the techspec, including proper JSON tags and validation.
 
-// Real-time progress with spinner
-⠋ Executing workflow...
-  ✓ Task 1: Data validation
-  ⠙ Task 2: Processing...
-  ○ Task 3: Pending
-```
+### Segregated Service Interfaces
 
-### Execution List (TUI)
+Create separate interfaces for read-only operations (WorkflowReader) and mutate operations (WorkflowExecutor), enabling easier mocking in tests and potential future caching layers.
 
-```
-┌─────────────────┬──────────┬───────────┬─────────────┐
-│ Execution ID    │ Workflow │ Status    │ Started     │
-├─────────────────┼──────────┼───────────┼─────────────┤
-│ exec-abc123     │ pipeline │ ✓ Success │ 2 mins ago  │
-│ exec-def456     │ support  │ ⠙ Running │ 30 secs ago │
-│ exec-ghi789     │ pipeline │ ✗ Failed  │ 1 hour ago  │
-└─────────────────┴──────────┴───────────┴─────────────┘
+### API Client Integration
 
-Use ↑/↓ to navigate, Enter to view details, 'c' to cancel
-```
+Integrate workflow methods into the unified API client from Task 1, handling authentication, error responses, timeouts, and aggressive context cancellation for long-running operations.
 
-### Status Updates
+### Filtering and Sorting
 
-```go
-// Polling with graceful updates
-func pollStatus(ctx context.Context, execID string) {
-    ticker := time.NewTicker(2 * time.Second)
-    for {
-        select {
-        case <-ticker.C:
-            status := client.GetExecution(ctx, execID)
-            updateDisplay(status)
-        case <-ctx.Done():
-            return
-        }
-    }
-}
-```
+Implement filtering by status, tags, and other criteria, plus sorting by name, creation date, and other fields with efficient JSON path queries.
+
+### Relevant Files
+
+- `cli/models/workflow.go` - New workflow data models
+- `cli/interfaces/workflow.go` - New segregated workflow service interfaces
+- `cli/services/workflow.go` - New workflow service implementation
+- `cli/api_client.go` - Extend with workflow methods and context handling
+
+### Dependent Files
+
+- `cli/api_client.go` - API client foundation from Task 1
+- `engine/workflow/router/` - Server-side workflow APIs
+- `cli/shared/` - Shared utilities from Task 1
 
 ## Success Criteria
 
-- [ ] Execution starts with beautiful interactive forms
-- [ ] Progress displays with real-time updates and spinners
-- [ ] List shows sortable table with status indicators
-- [ ] Cancel requires confirmation to prevent accidents
-- [ ] Non-TUI mode provides clean JSON output
-- [ ] All commands handle long-running executions gracefully
-
-<critical>
-**MANDATORY REQUIREMENTS:**
-
-- **ALWAYS** verify against PRD and tech specs - NEVER make assumptions
-- **NEVER** use workarounds, especially in tests - implement proper solutions
-- **MUST** follow all established project standards:
-  - Architecture patterns: `.cursor/rules/architecture.mdc`
-  - Go coding standards: `.cursor/rules/go-coding-standards.mdc`
-  - Testing requirements: `.cursor/rules/testing-standards.mdc`
-  - API standards: `.cursor/rules/api-standards.mdc`
-  - Security & quality: `.cursor/rules/quality-security.mdc`
-- **MUST** run `make lint` and `make test` before completing parent tasks
-- **MUST** follow `.cursor/rules/task-review.mdc` workflow for parent tasks
-
-**Enforcement:** Violating these standards results in immediate task rejection.
-</critical>
+- Workflow data models properly represent server API responses with validation
+- Segregated WorkflowService interfaces enable easier testing and future extensions
+- API client methods handle all workflow operations with proper context cancellation
+- Filtering and sorting work efficiently for large workflow collections using JSON path queries
+- Error handling provides helpful feedback with enhanced context for common failure scenarios

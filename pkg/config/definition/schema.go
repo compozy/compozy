@@ -88,25 +88,6 @@ func registerServerFields(registry *Registry) {
 		Type:    reflect.TypeOf(time.Second),
 		Help:    "Server timeout",
 	})
-
-	// Authentication configuration
-	registry.Register(&FieldDef{
-		Path:    "server.auth.enabled",
-		Default: true,
-		CLIFlag: "auth-enabled",
-		EnvVar:  "SERVER_AUTH_ENABLED",
-		Type:    reflect.TypeOf(true),
-		Help:    "Enable or disable authentication for API endpoints",
-	})
-
-	registry.Register(&FieldDef{
-		Path:    "server.auth.workflow_exceptions",
-		Default: []string{},
-		CLIFlag: "auth-workflow-exceptions",
-		EnvVar:  "SERVER_AUTH_WORKFLOW_EXCEPTIONS",
-		Type:    reflect.TypeOf([]string{}),
-		Help:    "List of workflow IDs that are exempt from authentication (comma-separated)",
-	})
 }
 
 func registerDatabaseFields(registry *Registry) {
@@ -519,16 +500,25 @@ func registerCLIFields(registry *Registry) {
 	registry.Register(&FieldDef{
 		Path:    "cli.base_url",
 		Default: "http://localhost:8080",
-		CLIFlag: "",
+		CLIFlag: "base-url",
 		EnvVar:  "COMPOZY_BASE_URL",
 		Type:    reflect.TypeOf(""),
 		Help:    "Base URL for Compozy API",
 	})
 
 	registry.Register(&FieldDef{
+		Path:    "cli.server_url",
+		Default: "http://localhost:8080",
+		CLIFlag: "server-url",
+		EnvVar:  "COMPOZY_SERVER_URL",
+		Type:    reflect.TypeOf(""),
+		Help:    "Server URL for Compozy server connections",
+	})
+
+	registry.Register(&FieldDef{
 		Path:    "cli.timeout",
 		Default: 30 * time.Second,
-		CLIFlag: "",
+		CLIFlag: "timeout",
 		EnvVar:  "COMPOZY_TIMEOUT",
 		Type:    reflect.TypeOf(time.Second),
 		Help:    "Timeout for API requests",
@@ -537,9 +527,36 @@ func registerCLIFields(registry *Registry) {
 	registry.Register(&FieldDef{
 		Path:    "cli.mode",
 		Default: "auto",
-		CLIFlag: "",
+		CLIFlag: "mode",
 		EnvVar:  "COMPOZY_MODE",
 		Type:    reflect.TypeOf(""),
 		Help:    "CLI mode: auto, json, or tui",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "cli.default_format",
+		Default: "auto",
+		CLIFlag: "format",
+		EnvVar:  "COMPOZY_DEFAULT_FORMAT",
+		Type:    reflect.TypeOf(""),
+		Help:    "Default output format: json, tui, or auto",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "cli.color_mode",
+		Default: "auto",
+		CLIFlag: "color",
+		EnvVar:  "COMPOZY_COLOR_MODE",
+		Type:    reflect.TypeOf(""),
+		Help:    "Color mode: auto, on, or off",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "cli.page_size",
+		Default: 20,
+		CLIFlag: "page-size",
+		EnvVar:  "COMPOZY_PAGE_SIZE",
+		Type:    reflect.TypeOf(0),
+		Help:    "Default page size for paginated results (1-1000)",
 	})
 }

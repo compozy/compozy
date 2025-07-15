@@ -9,8 +9,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/compozy/compozy/cli/auth/sorting"
-	"github.com/compozy/compozy/cli/auth/tui/models"
+	"github.com/compozy/compozy/cli/auth/internal/sorting"
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
@@ -40,7 +39,7 @@ func TestRunListJSON(t *testing.T) {
 			assert.Equal(t, "Bearer test-key", r.Header.Get("Authorization"))
 			// Return test keys in structured format
 			response := map[string]any{
-				"data": map[string][]models.KeyInfo{
+				"data": map[string][]KeyInfo{
 					"keys": {
 						{
 							ID:        "key1",
@@ -104,7 +103,7 @@ func TestRunListJSON(t *testing.T) {
 		// Create test server
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			response := map[string]any{
-				"data": map[string][]models.KeyInfo{
+				"data": map[string][]KeyInfo{
 					"keys": {
 						{
 							ID:        "key1",
@@ -170,7 +169,7 @@ func TestRunListJSON(t *testing.T) {
 
 func TestSortKeys(t *testing.T) {
 	t.Run("Should sort by created date", func(t *testing.T) {
-		keys := []models.KeyInfo{
+		keys := []KeyInfo{
 			{ID: "1", CreatedAt: "2024-01-01"},
 			{ID: "2", CreatedAt: "2024-01-03"},
 			{ID: "3", CreatedAt: "2024-01-02"},
@@ -181,7 +180,7 @@ func TestSortKeys(t *testing.T) {
 		assert.Equal(t, "1", keys[2].ID)
 	})
 	t.Run("Should sort by prefix/name", func(t *testing.T) {
-		keys := []models.KeyInfo{
+		keys := []KeyInfo{
 			{ID: "1", Prefix: "cpzy_ccc"},
 			{ID: "2", Prefix: "cpzy_aaa"},
 			{ID: "3", Prefix: "cpzy_bbb"},
@@ -194,7 +193,7 @@ func TestSortKeys(t *testing.T) {
 	t.Run("Should sort by last used with nil handling", func(t *testing.T) {
 		time1 := "2024-01-01"
 		time2 := "2024-01-02"
-		keys := []models.KeyInfo{
+		keys := []KeyInfo{
 			{ID: "1", LastUsed: &time1},
 			{ID: "2", LastUsed: nil},
 			{ID: "3", LastUsed: &time2},

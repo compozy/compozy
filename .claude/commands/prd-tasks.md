@@ -19,10 +19,9 @@ Once you've confirmed both documents exist, follow these steps:
 
 1. Analyze the PRD and Technical Specification
 2. Generate a task structure
-3. Create a complexity report
-4. Produce a tasks summary
-5. Conduct a parallel agent analysis
-6. Generate individual task files
+3. Produce a tasks summary
+4. Conduct a parallel agent analysis
+5. Generate individual task files
 </task_list_steps>
 
 <task_list_analysis>
@@ -42,8 +41,6 @@ Output Specifications:
   - Feature folder: `/tasks/$ARGUMENTS/`
   - Tasks summary: `/tasks/$ARGUMENTS/_tasks.md`
   - Individual tasks: `/tasks/$ARGUMENTS/<num>_task.md`
-  - Complexity report: `/tasks/$ARGUMENTS/task-complexity-report.md`
-  - Merged file: `/tasks/$ARGUMENTS/merged_prd_techspec.md`
 </output_specifications>
 
 <task_creation_guidelines>
@@ -55,16 +52,6 @@ Task Creation Guidelines:
 - Define clear scope and deliverables for each task
 - Include testing as subtasks within each parent task
 </task_creation_guidelines>
-
-<complexity_analysis_factors>
-Complexity Analysis Factors:
-
-- Technical complexity
-- Integration points
-- Dependencies
-- Testing requirements
-- Risk level
-</complexity_analysis_factors>
 
 <parallel_agent_analysis>
 For the parallel agent analysis, consider:
@@ -126,9 +113,11 @@ status: pending # Options: pending, in-progress, completed, excluded
 
 [Brief description of task]
 
-<critical>
+<import>**MUST READ BEFORE STARTING** @.cursor/rules/critical-validation.mdc</import>
+
+<requirements>
 [List of mandatory requirements]
-</critical>
+</requirements>
 
 ## Subtasks
 
@@ -153,33 +142,6 @@ status: pending # Options: pending, in-progress, completed, excluded
 - [Quality requirements]
 ```
 </individual_task_file>
-
-<complexity_report>
-3. Complexity Report (task-complexity-report.md):
-
-```markdown
-# Task Complexity Analysis
-
-## Summary
-
-- Total Tasks: X
-- High Complexity: X
-- Medium Complexity: X
-- Low Complexity: X
-
-## Task Analysis
-
-### Task 1.0: [Title]
-
-- **Complexity:** High/Medium/Low
-- **Factors:**
-  - Technical complexity: [description]
-  - Integration points: [count and description]
-  - Dependencies: [list]
-  - Testing requirements: [description]
-- **Recommendation:** [whether to break down further or keep as is]
-```
-</complexity_report>
 
 <task_list_completion>
 After completing the analysis and generating all required files, present your results to the user and ask for confirmation to proceed with implementation. Wait for the user to respond with "Go" before finalizing the task files.

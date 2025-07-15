@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/compozy/compozy/cli/auth/tui/models"
+	"github.com/compozy/compozy/cli/tui/models"
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/spf13/cobra"

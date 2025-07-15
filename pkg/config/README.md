@@ -164,61 +164,15 @@ if err := service.Validate(cfg); err != nil {
 
 ```go
 type Config struct {
-    Server    ServerConfig    `koanf:"server"`
-    Database  DatabaseConfig  `koanf:"database"`
-    Temporal  TemporalConfig  `koanf:"temporal"`
-    Runtime   RuntimeConfig   `koanf:"runtime"`
-    Limits    LimitsConfig    `koanf:"limits"`
-    RateLimit RateLimitConfig `koanf:"ratelimit"`
-    OpenAI    OpenAIConfig    `koanf:"openai"`
-    Memory    MemoryConfig    `koanf:"memory"`
-    LLM       LLMConfig       `koanf:"llm"`
-    CLI       CLIConfig       `koanf:"cli"`
+    Server   ServerConfig   `koanf:"server"`
+    Database DatabaseConfig `koanf:"database"`
+    Temporal TemporalConfig `koanf:"temporal"`
+    Runtime  RuntimeConfig  `koanf:"runtime"`
+    Limits   LimitsConfig   `koanf:"limits"`
+    OpenAI   OpenAIConfig   `koanf:"openai"`
+    Memory   MemoryConfig   `koanf:"memory"`
+    LLM      LLMConfig      `koanf:"llm"`
 }
-```
-
-### Security Configuration
-
-The config package includes comprehensive security configuration support:
-
-```go
-type AuthConfig struct {
-    Enabled             bool     `koanf:"enabled" env:"SERVER_AUTH_ENABLED"`
-    WorkflowExceptions  []string `koanf:"workflow_exceptions" env:"SERVER_AUTH_WORKFLOW_EXCEPTIONS" validate:"dive,workflow_id"`
-}
-
-type ServerConfig struct {
-    // ... other fields
-    Auth AuthConfig `koanf:"auth"`
-}
-```
-
-#### Authentication Configuration
-
-- **`server.auth.enabled`**: Enable/disable authentication globally (default: `true`)
-- **`server.auth.workflow_exceptions`**: Array of workflow IDs that bypass authentication
-- **Custom Validation**: Workflow IDs are validated using the `workflow_id` validator
-
-#### Environment Variables
-
-```bash
-# Enable/disable authentication
-SERVER_AUTH_ENABLED=true
-
-# Specify workflow exceptions (comma-separated)
-SERVER_AUTH_WORKFLOW_EXCEPTIONS=workflow1,workflow2,test-workflow
-```
-
-#### YAML Configuration
-
-```yaml
-server:
-  auth:
-    enabled: true
-    workflow_exceptions:
-      - "public-workflow"
-      - "health-check"
-      - "metrics-collector"
 ```
 
 ### Environment Variables
@@ -311,111 +265,6 @@ func DiagnoseConfig() error {
     // Check sources
     serverPortSource := service.GetSource("server.port")
     fmt.Printf("Server port from: %s\n", serverPortSource)
-
-    // Check authentication configuration
-    authEnabledSource := service.GetSource("server.auth.enabled")
-    fmt.Printf("Auth enabled from: %s (value: %t)\n", authEnabledSource, cfg.Server.Auth.Enabled)
-
-    return nil
-}
-```
-
-### Security Configuration Examples
-
-#### Basic Authentication Setup
-
-```go
-func SetupSecureWorkflow() error {
-    service := config.NewService()
-
-    // Load configuration with authentication enabled
-    cfg, err := service.Load(context.Background(),
-        config.NewDefaultProvider(),
-        config.NewEnvProvider(),
-        config.NewYAMLProvider("secure-config.yaml"),
-    )
-    if err != nil {
-        return fmt.Errorf("failed to load config: %w", err)
-    }
-
-    // Verify authentication is enabled
-    if !cfg.Server.Auth.Enabled {
-        return fmt.Errorf("authentication must be enabled for secure workflows")
-    }
-
-    // Log workflow exceptions
-    if len(cfg.Server.Auth.WorkflowExceptions) > 0 {
-        fmt.Printf("Workflow exceptions: %v\n", cfg.Server.Auth.WorkflowExceptions)
-    }
-
-    return nil
-}
-```
-
-#### Development Environment Configuration
-
-```go
-func SetupDevelopmentAuth() error {
-    service := config.NewService()
-
-    // Create development configuration with selective authentication
-    devConfig := map[string]any{
-        "server": map[string]any{
-            "auth": map[string]any{
-                "enabled": true,
-                "workflow_exceptions": []string{
-                    "health-check",
-                    "metrics",
-                    "debug-workflow",
-                },
-            },
-        },
-    }
-
-    cfg, err := service.Load(context.Background(),
-        config.NewDefaultProvider(),
-        config.NewRawProvider(devConfig),
-    )
-    if err != nil {
-        return fmt.Errorf("failed to load development config: %w", err)
-    }
-
-    // Validation will automatically check workflow ID format
-    if err := service.Validate(cfg); err != nil {
-        return fmt.Errorf("development config validation failed: %w", err)
-    }
-
-    return nil
-}
-```
-
-#### Production Security Configuration
-
-```go
-func SetupProductionAuth() error {
-    service := config.NewService()
-
-    // Load production configuration with strict authentication
-    cfg, err := service.Load(context.Background(),
-        config.NewDefaultProvider(),
-        config.NewEnvProvider(),
-        config.NewYAMLProvider("production.yaml"),
-    )
-    if err != nil {
-        return fmt.Errorf("failed to load production config: %w", err)
-    }
-
-    // Ensure authentication is enabled in production
-    if !cfg.Server.Auth.Enabled {
-        return fmt.Errorf("authentication must be enabled in production")
-    }
-
-    // Warn about workflow exceptions in production
-    if len(cfg.Server.Auth.WorkflowExceptions) > 0 {
-        fmt.Printf("WARNING: %d workflow exceptions in production: %v\n",
-            len(cfg.Server.Auth.WorkflowExceptions),
-            cfg.Server.Auth.WorkflowExceptions)
-    }
 
     return nil
 }
@@ -657,103 +506,6 @@ func TestConfigLoad(t *testing.T) {
 
     // Validate
     assert.NoError(t, service.Validate(cfg))
-}
-```
-
-### Authentication Configuration Testing
-
-```go
-func TestAuthenticationConfig(t *testing.T) {
-    service := config.NewService()
-
-    t.Run("Should validate workflow exceptions", func(t *testing.T) {
-        // Set valid workflow exceptions
-        os.Setenv("SERVER_AUTH_WORKFLOW_EXCEPTIONS", "health-check,metrics,test-workflow")
-        defer os.Unsetenv("SERVER_AUTH_WORKFLOW_EXCEPTIONS")
-
-        cfg, err := service.Load(context.Background(),
-            config.NewDefaultProvider(),
-            config.NewEnvProvider(),
-        )
-
-        assert.NoError(t, err)
-        assert.True(t, cfg.Server.Auth.Enabled)
-        assert.Equal(t, []string{"health-check", "metrics", "test-workflow"}, cfg.Server.Auth.WorkflowExceptions)
-        assert.NoError(t, service.Validate(cfg))
-    })
-
-    t.Run("Should reject invalid workflow IDs", func(t *testing.T) {
-        // Set invalid workflow exceptions
-        os.Setenv("SERVER_AUTH_WORKFLOW_EXCEPTIONS", "invalid-workflow-id-that-is-too-long-and-exceeds-limit")
-        defer os.Unsetenv("SERVER_AUTH_WORKFLOW_EXCEPTIONS")
-
-        cfg, err := service.Load(context.Background(),
-            config.NewDefaultProvider(),
-            config.NewEnvProvider(),
-        )
-
-        assert.NoError(t, err)
-        // Validation should fail due to invalid workflow ID format
-        assert.Error(t, service.Validate(cfg))
-    })
-
-    t.Run("Should handle authentication disabled", func(t *testing.T) {
-        os.Setenv("SERVER_AUTH_ENABLED", "false")
-        defer os.Unsetenv("SERVER_AUTH_ENABLED")
-
-        cfg, err := service.Load(context.Background(),
-            config.NewDefaultProvider(),
-            config.NewEnvProvider(),
-        )
-
-        assert.NoError(t, err)
-        assert.False(t, cfg.Server.Auth.Enabled)
-        assert.NoError(t, service.Validate(cfg))
-    })
-}
-```
-
-### Custom Validator Testing
-
-```go
-func TestWorkflowIDValidator(t *testing.T) {
-    service := config.NewService()
-
-    testCases := []struct {
-        name      string
-        workflowID string
-        valid     bool
-    }{
-        {"Valid simple ID", "test-workflow", true},
-        {"Valid with underscores", "test_workflow_123", true},
-        {"Valid with numbers", "workflow123", true},
-        {"Invalid too short", "ab", false},
-        {"Invalid empty", "", false},
-        {"Invalid too long", strings.Repeat("a", 101), false},
-        {"Invalid special chars", "test@workflow", false},
-        {"Invalid starts with dash", "-test", false},
-        {"Invalid ends with dash", "test-", false},
-    }
-
-    for _, tc := range testCases {
-        t.Run(tc.name, func(t *testing.T) {
-            cfg := &config.Config{
-                Server: config.ServerConfig{
-                    Auth: config.AuthConfig{
-                        Enabled:            true,
-                        WorkflowExceptions: []string{tc.workflowID},
-                    },
-                },
-            }
-
-            err := service.Validate(cfg)
-            if tc.valid {
-                assert.NoError(t, err)
-            } else {
-                assert.Error(t, err)
-            }
-        })
-    }
 }
 ```
 

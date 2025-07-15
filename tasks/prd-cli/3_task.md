@@ -1,100 +1,77 @@
----
-status: pending
----
+## markdown
+
+## status: pending # Options: pending, in-progress, completed, excluded
 
 <task_context>
-<domain>cli/cmd/workflow</domain>
+<domain>cli/commands</domain>
 <type>implementation</type>
 <scope>core_feature</scope>
 <complexity>medium</complexity>
-<dependencies>api_client,lipgloss,bubbles</dependencies>
+<dependencies>external_apis</dependencies>
 </task_context>
 
-# Task 3.0: Workflow Management Commands
+# Task 3.0: Project Initialization Command
 
 ## Overview
 
-Implement core workflow management commands with beautiful TUI tables by default, interactive selection, and comprehensive validation to ensure workflow correctness before deployment.
+Implement `compozy init` command with interactive project setup form, create project template system with directory structure generation, add template selection interface with both interactive and non-interactive modes, and write project initialization logic with proper error handling and success messaging.
+
+<import>**MUST READ BEFORE STARTING** @.cursor/rules/critical-validation.mdc</import>
+
+<requirements>
+- **REUSE**: Apply cli/auth/executor.go CommandExecutor pattern for dual TUI/JSON modes
+- **REUSE**: Use cli/auth/mode.go DetectMode() for interactive vs non-interactive selection
+- **LIBRARY**: Use text/template with github.com/Masterminds/sprig for project generation
+- **LIBRARY**: Integrate charmbracelet/bubbles/textinput for interactive forms
+- **REUSE**: Apply go-playground/validator/v10 (already in project) for input validation
+- **REUSE**: Leverage pkg/config patterns for compozy.yaml generation and validation
+- **LIBRARY**: Use path/filepath.Clean for safe path handling and os.MkdirAll for directory creation
+- **REUSE**: Apply logger.FromContext(ctx) for setup progress logging
+- Requirements: 1.1, 1.2, 1.3, 1.4, 1.5
+</requirements>
 
 ## Subtasks
 
-- [ ] 3.1 Implement `workflow list` with interactive table (Bubbles)
-- [ ] 3.2 Create `workflow get` with styled detailed view
-- [ ] 3.3 Build `workflow deploy` with validation and TUI confirmation
-- [ ] 3.4 Add `workflow validate` for local validation with styled output
-- [ ] 3.5 Implement non-TUI formatters for CI/automation (--no-tui)
+- [ ] 3.1 Create `compozy init` command structure
+- [ ] 3.2 Implement interactive project setup form
+- [ ] 3.3 Create project template system
+- [ ] 3.4 Build directory structure generation logic
+- [ ] 3.5 Add template selection interface (interactive and CLI flags)
 
 ## Implementation Details
 
-### Interactive List Command
+### Interactive Form
 
-```go
-// Uses Bubbles table component
-type listModel struct {
-    table  table.Model
-    client *shared.Client
-}
+Create an interactive form using the enhanced TUI components for project setup, collecting project name, description, template selection, and other configuration options.
 
-// Interactive selection with arrow keys
-// Press Enter to view workflow details
-// Press 'd' to deploy selected workflow
-```
+### Template System
 
-### Beautiful Styled Output
+Implement a template system that can generate project structures with compozy.yaml, workflows/, tools/, and agents/ directories as specified in Requirement 1.
 
-```go
-// Workflow details with Lipgloss
-╭─ Workflow: customer-support ────────────╮
-│ Version:    1.2.3                       │
-│ Status:     ✓ Active                    │
-│ Tasks:      12                          │
-│ Last Run:   2 hours ago                 │
-│                                         │
-│ Description:                            │
-│ Automated customer support workflow     │
-│ with AI-powered responses               │
-╰─────────────────────────────────────────╯
-```
+### Directory Generation
 
-### Deploy Process (TUI Mode)
+Create safe directory structure generation with proper error handling for existing directories, permissions, and file system issues.
 
-1. Validate workflow locally
-2. Show deployment preview with diff
-3. Interactive confirmation with Huh
-4. Deploy with progress indicator
-5. Show success/error with styling
+### Template Selection
 
-### Non-TUI Mode
+Support both interactive template selection and non-interactive mode using --template flag for automation scenarios.
 
-```bash
-# For CI/automation
-compozy workflow list --no-tui --output json
-compozy workflow deploy my-workflow --no-tui --yes
-```
+### Relevant Files
+
+- `cli/commands/init.go` - New init command implementation
+- `cli/templates/` - New template system directory
+- `cli/tui/forms/` - Enhanced form components
+
+### Dependent Files
+
+- `cli/tui/components/` - Existing TUI components
+- `cli/shared/` - Shared utilities from Task 1
+- `examples/` - Example project structures to use as templates
 
 ## Success Criteria
 
-- [ ] List command shows beautiful interactive table by default
-- [ ] Workflows can be selected and viewed interactively
-- [ ] Deploy shows clear preview and requires confirmation
-- [ ] Validation provides helpful, styled error messages
-- [ ] Non-TUI mode outputs clean JSON/YAML for scripting
-- [ ] All commands handle API errors gracefully
-- [ ] Performance is acceptable for large workflow lists
-
-<critical>
-**MANDATORY REQUIREMENTS:**
-
-- **ALWAYS** verify against PRD and tech specs - NEVER make assumptions
-- **NEVER** use workarounds, especially in tests - implement proper solutions
-- **MUST** follow all established project standards:
-  - Architecture patterns: `.cursor/rules/architecture.mdc`
-  - Go coding standards: `.cursor/rules/go-coding-standards.mdc`
-  - Testing requirements: `.cursor/rules/testing-standards.mdc`
-  - API standards: `.cursor/rules/api-standards.mdc`
-  - Security & quality: `.cursor/rules/quality-security.mdc`
-- **MUST** run `make lint` and `make test` before completing parent tasks
-- **MUST** follow `.cursor/rules/task-review.mdc` workflow for parent tasks
-
-**Enforcement:** Violating these standards results in immediate task rejection.
-</critical>
+- `compozy init` command creates proper project structure with required directories
+- Interactive form provides smooth user experience with validation
+- Template system supports multiple project types and configurations
+- Non-interactive mode works with --template flag for automation
+- Success message displays next steps and helpful guidance

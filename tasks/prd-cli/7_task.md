@@ -1,129 +1,80 @@
----
-status: pending
----
+## markdown
+
+## status: pending # Options: pending, in-progress, completed, excluded
 
 <task_context>
-<domain>cli/internal/tui</domain>
-<type>enhancement</type>
-<scope>enhancement</scope>
+<domain>cli/monitoring</domain>
+<type>implementation</type>
+<scope>core_feature</scope>
 <complexity>high</complexity>
-<dependencies>bubbletea,bubbles,huh,fzf</dependencies>
+<dependencies>temporal</dependencies>
 </task_context>
 
-# Task 7.0: Advanced TUI Features & Polish
+# Task 7.0: Real-time Execution Monitoring
 
 ## Overview
 
-Enhance the CLI with advanced TUI capabilities including fuzzy search, command palette, vim-style navigation, and performance optimizations to create a world-class developer experience.
+Implement execution following with `--follow` flag and real-time progress display, create TUI progress monitor component with live log streaming, build execution event handling and display system with aggressive context cancellation, and add execution status tracking and completion notifications.
+
+<import>**MUST READ BEFORE STARTING** @.cursor/rules/critical-validation.mdc</import>
+
+<requirements>
+- **LIBRARY**: Use github.com/advbet/sseclient for real-time execution updates via SSE
+- **LIBRARY**: Use github.com/gorilla/websocket for bidirectional execution communication
+- **LIBRARY**: Use github.com/schollz/progressbar/v3 for thread-safe progress tracking
+- **LIBRARY**: Use charmbracelet/bubbletea for real-time TUI updates with live streaming
+- **REUSE**: Apply cli/auth/executor.go pattern with extended handlers for follow mode
+- **LIBRARY**: Use tidwall/gjson for parsing execution events and log filtering
+- **REUSE**: Use cli/auth/mode.go for follow vs JSON output mode selection
+- **ENHANCED**: Implement aggressive context.Context usage for cancellation and timeouts
+- **ENHANCED**: Add proper context propagation through streaming connections and goroutines
+- **REUSE**: Apply logger.FromContext(ctx) for monitoring operation logging
+- Requirements: 3.2, 3.4, 3.5
+</requirements>
 
 ## Subtasks
 
-- [ ] 7.1 Implement fuzzy search across workflows and executions
-- [ ] 7.2 Create command palette for quick actions (Ctrl+P)
-- [ ] 7.3 Add vim-style keyboard navigation throughout
-- [ ] 7.4 Build shell completions (bash/zsh/fish/powershell)
-- [ ] 7.5 Add result caching for improved performance
+- [ ] 7.1 Implement `--follow` flag for workflow execution with context cancellation
+- [ ] 7.2 Create real-time progress monitoring TUI component with context handling
+- [ ] 7.3 Build execution event streaming with proper context propagation
+- [ ] 7.4 Add live log display with scrolling, filtering, and cancellation support
+- [ ] 7.5 Implement completion notifications with graceful context cleanup
 
 ## Implementation Details
 
-### Fuzzy Search Integration
+### Follow Mode Implementation
 
-```go
-// Global fuzzy finder with fzf
-// Activated with '/' in any list view
-type FuzzyFinder struct {
-    items   []string
-    matcher *fzf.Matcher
-}
+Extend workflow execution command with --follow flag that switches to real-time monitoring mode instead of just returning execution ID. Implement aggressive context cancellation to ensure streaming connections are properly closed on interruption.
 
-// Search workflows, executions, or help topics
-Press '/' to search → customer|
-  > customer-support-workflow
-    customer-onboarding
-    support-ticket-handler
-```
+### Progress Monitor Component
 
-### Command Palette
+Create ProgressMonitor TUI component as specified in techspec, with real-time updates, log streaming, and status display. Ensure all goroutines respect context cancellation for clean shutdown.
 
-```go
-// Quick command access (Ctrl+P)
-╭─ Command Palette ───────────────────────╮
-│ > deploy                                │
-├─────────────────────────────────────────┤
-│ workflow deploy production              │
-│ workflow deploy staging                 │
-│ run create customer-support             │
-│ run cancel exec-abc123                  │
-╰─────────────────────────────────────────╯
-```
+### Event Streaming with Context Propagation
 
-### Vim Navigation
+Implement execution event streaming using WebSocket or Server-Sent Events for real-time updates from the server. Propagate context through all streaming connections and ensure proper cleanup on cancellation.
 
-```
-j/k     - Move down/up
-h/l     - Navigate back/forward
-gg      - Go to top
-G       - Go to bottom
-/       - Search
-n/N     - Next/previous result
-dd      - Delete/cancel item
-:q      - Quit
-:w      - Save/deploy
-```
+### Log Display with Cancellation
 
-### Shell Completions
+Create scrollable log display with filtering capabilities, timestamps, and proper formatting for different log levels. All background operations must respect context cancellation.
 
-```bash
-# Intelligent completions
-compozy workflow <TAB>
-  deploy    list    get    validate
+### Relevant Files
 
-compozy workflow deploy <TAB>
-  customer-support    data-pipeline    onboarding
+- `cli/commands/workflow_execute.go` - Extend with --follow flag and context handling
+- `cli/tui/components/progress_monitor.go` - New progress monitoring component with context
+- `cli/services/execution.go` - New execution service for streaming with context propagation
+- `cli/streaming/` - New streaming utilities with context cancellation support
 
-# With descriptions
-compozy run create --<TAB>
-  --input       Workflow input as JSON
-  --input-file  Read input from file
-  --no-tui      Disable interactive mode
-```
+### Dependent Files
 
-### Performance Caching
-
-```go
-// Smart caching for responsiveness
-type Cache struct {
-    workflows  *lru.Cache  // LRU with 5min TTL
-    executions *lru.Cache  // LRU with 30s TTL
-}
-
-// Prefetch common data on startup
-// Background refresh for active views
-```
+- `cli/services/workflow.go` - Workflow service from Task 4
+- `cli/tui/components/` - Existing TUI components
+- `engine/task/activities/` - Server-side execution tracking
 
 ## Success Criteria
 
-- [ ] Fuzzy search finds items instantly (<100ms)
-- [ ] Command palette provides quick access to all actions
-- [ ] Vim users feel at home with navigation
-- [ ] Shell completions work across all major shells
-- [ ] Cached operations feel instantaneous
-- [ ] TUI remains responsive with 1000+ items
-- [ ] Help system is contextual and discoverable
-
-<critical>
-**MANDATORY REQUIREMENTS:**
-
-- **ALWAYS** verify against PRD and tech specs - NEVER make assumptions
-- **NEVER** use workarounds, especially in tests - implement proper solutions
-- **MUST** follow all established project standards:
-  - Architecture patterns: `.cursor/rules/architecture.mdc`
-  - Go coding standards: `.cursor/rules/go-coding-standards.mdc`
-  - Testing requirements: `.cursor/rules/testing-standards.mdc`
-  - API standards: `.cursor/rules/api-standards.mdc`
-  - Security & quality: `.cursor/rules/quality-security.mdc`
-- **MUST** run `make lint` and `make test` before completing parent tasks
-- **MUST** follow `.cursor/rules/task-review.mdc` workflow for parent tasks
-
-**Enforcement:** Violating these standards results in immediate task rejection.
-</critical>
+- `--follow` flag provides real-time execution monitoring with proper context cancellation
+- Progress monitor shows current task, overall progress, and live logs with graceful interruption handling
+- Event streaming handles network interruptions and context cancellation gracefully
+- Log display allows scrolling through execution history with responsive cancellation
+- Completion notifications clearly indicate success/failure with proper context cleanup and resource management

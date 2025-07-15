@@ -1,86 +1,77 @@
----
-status: pending
----
+## markdown
+
+## status: pending # Options: pending, in-progress, completed, excluded
 
 <task_context>
-<domain>cli/monitor</domain>
+<domain>cli/commands</domain>
 <type>implementation</type>
 <scope>core_feature</scope>
 <complexity>medium</complexity>
-<dependencies>api_client,progress_bars</dependencies>
+<dependencies>http_server</dependencies>
 </task_context>
 
-# Task 5.0: Execution Monitoring Features
+# Task 5.0: Workflow Listing Functionality
 
 ## Overview
 
-Build comprehensive execution monitoring capabilities including status tracking, progress visualization, execution history, and performance metrics to give developers complete visibility into workflow operations.
+Create workflow list command with dual TUI/JSON output modes, build interactive workflow table component with sorting and filtering, implement JSON output formatter for workflow lists, and add pagination support for large workflow collections.
+
+<import>**MUST READ BEFORE STARTING** @.cursor/rules/critical-validation.mdc</import>
+
+<requirements>
+- **REUSE**: Apply cli/auth/executor.go CommandExecutor pattern for dual TUI/JSON modes
+- **REUSE**: Extend cli/tui patterns for workflow table component (avoid tight coupling from ListModel)
+- **LIBRARY**: Use charmbracelet/bubbles/table for interactive sorting and filtering
+- **LIBRARY**: Use tidwall/pretty for fast JSON pretty-printing (5-10x faster than stdlib)
+- **LIBRARY**: Use tidwall/gjson for filtering and search capabilities
+- **REUSE**: Apply existing pagination patterns from auth module if available
+- **REUSE**: Use cli/auth/mode.go DetectMode() for output selection
+- **REUSE**: Apply logger.FromContext(ctx) for operation logging
+- Requirements: 2.1, 2.2, 10.1, 10.2
+</requirements>
 
 ## Subtasks
 
-- [ ] 5.1 Build `run status` command with detailed execution view
-- [ ] 5.2 Implement wait flags with configurable timeouts
-- [ ] 5.3 Create progress indicators for long-running workflows
-- [ ] 5.4 Add execution history with filtering and search
-- [ ] 5.5 Build performance metrics display with styled output
+- [ ] 5.1 Implement `compozy workflow list` command
+- [ ] 5.2 Create interactive workflow table TUI component
+- [ ] 5.3 Build JSON output formatter for workflow lists
+- [ ] 5.4 Add pagination support for large collections
+- [ ] 5.5 Implement filtering and sorting in TUI mode
 
 ## Implementation Details
 
-### Status Command (TUI)
+### Command Implementation
 
-```go
-// Beautiful real-time status display
-╭─ Execution: exec-abc123 ─────────────────╮
-│ Workflow:   customer-support             │
-│ Status:     ⠙ Running                    │
-│ Progress:   ████████░░░░ 67%             │
-│ Duration:   2m 34s                       │
-│                                          │
-│ Tasks:                                   │
-│   ✓ Initialize     (0.5s)                │
-│   ✓ Load Data      (1.2s)                │
-│   ⠙ Process        (45s...)              │
-│   ○ Finalize       (pending)             │
-╰──────────────────────────────────────────╯
-```
+Create the workflow list command following the dual-handler pattern from Task 1, supporting both TUI and JSON output modes.
 
-### Progress Visualization
+### Interactive Table Component
 
-- Task-level progress bars
-- Overall workflow completion percentage
-- ETA calculation based on historical data
-- Real-time updates without flickering
+Build an enhanced table component based on existing TUI components, with sorting, filtering, and navigation capabilities for workflow data.
 
-### Performance Metrics
+### JSON Output
 
-- Execution duration (per task and total)
-- Resource consumption (if available)
-- Success/failure rates
-- Comparison with previous runs
+Implement consistent JSON output formatting following the JSONResponse structure from the techspec, with proper metadata and pagination info.
+
+### Pagination Support
+
+Add pagination for both TUI and JSON modes to handle large workflow collections efficiently.
+
+### Relevant Files
+
+- `cli/commands/workflow_list.go` - New workflow list command
+- `cli/tui/components/workflow_table.go` - New workflow table component
+- `cli/formatters/json.go` - JSON output formatting utilities
+
+### Dependent Files
+
+- `cli/services/workflow.go` - Workflow service from Task 4
+- `cli/tui/components/` - Existing TUI table components
+- `cli/shared/` - Shared utilities from Task 1
 
 ## Success Criteria
 
-- [ ] Status command provides comprehensive execution details
-- [ ] Progress indicators accurately reflect workflow state
-- [ ] Wait functionality respects timeouts and exit codes
-- [ ] History search is fast and flexible
-- [ ] Metrics help identify performance bottlenecks
-- [ ] Alerts trigger reliably for configured conditions
-- [ ] Monitoring doesn't impact workflow performance
-
-<critical>
-**MANDATORY REQUIREMENTS:**
-
-- **ALWAYS** verify against PRD and tech specs - NEVER make assumptions
-- **NEVER** use workarounds, especially in tests - implement proper solutions
-- **MUST** follow all established project standards:
-  - Architecture patterns: `.cursor/rules/architecture.mdc`
-  - Go coding standards: `.cursor/rules/go-coding-standards.mdc`
-  - Testing requirements: `.cursor/rules/testing-standards.mdc`
-  - API standards: `.cursor/rules/api-standards.mdc`
-  - Security & quality: `.cursor/rules/quality-security.mdc`
-- **MUST** run `make lint` and `make test` before completing parent tasks
-- **MUST** follow `.cursor/rules/task-review.mdc` workflow for parent tasks
-
-**Enforcement:** Violating these standards results in immediate task rejection.
-</critical>
+- `compozy workflow list` displays workflows in styled table format in TUI mode
+- JSON output mode produces machine-readable format for automation
+- Interactive table supports sorting by name, status, creation date
+- Filtering works by workflow status, tags, and search terms
+- Pagination handles large workflow collections efficiently

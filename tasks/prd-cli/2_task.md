@@ -1,93 +1,71 @@
----
-status: pending
----
+## markdown
+
+## status: completed # Options: pending, in-progress, completed, excluded
 
 <task_context>
-<domain>cli/init</domain>
+<domain>cli/config</domain>
 <type>implementation</type>
-<scope>core_feature</scope>
-<complexity>medium</complexity>
-<dependencies>templates,validation</dependencies>
+<scope>configuration</scope>
+<complexity>low</complexity>
+<dependencies>external_apis</dependencies>
 </task_context>
 
-# Task 2.0: Project Initialization Command
+# Task 2.0: Enhanced Configuration Management
 
 ## Overview
 
-Create the `compozy init` command that guides users through project setup with interactive prompts, creates the project structure, and provides example workflows and agents to help users get started quickly.
+Extend existing config system with CLI-specific settings, add configuration validation with detailed error messages and suggestions, and implement configuration display with source tracking and sensitive data redaction.
+
+<import>**MUST READ BEFORE STARTING** @.cursor/rules/critical-validation.mdc</import>
+
+<requirements>
+- **SIMPLIFIED**: pkg/config system is already comprehensive with CLIConfig, validation, source tracking
+- **REUSE**: pkg/config CLIConfig has APIKey, BaseURL, Timeout, Mode - may only need minor additions
+- **REUSE**: Leverage existing koanf-based multi-source loading (env, yaml, cli, defaults)
+- **REUSE**: Use existing SensitiveString type for secure data handling and redaction
+- **REUSE**: Apply pkg/config validation and error handling patterns
+- **LIBRARY**: Consider fsnotify/fsnotify for config file watching if hot-reload needed
+- **OPTIMIZE**: Most configuration infrastructure already exists - focus on workflow-specific additions only
+- Requirements: 8.1, 8.2, 8.3, 8.4
+</requirements>
 
 ## Subtasks
 
-- [ ] 2.1 Create init command with interactive prompts using Bubble Tea
-- [ ] 2.2 Build project scaffolding templates with embedded examples
-- [ ] 2.3 Implement validation framework for project names and structure
-- [ ] 2.4 Add git integration for repository initialization
-- [ ] 2.5 Create example workflows, agents, and tools for common use cases
-- [ ] 2.6 Build project structure validator to ensure consistency
+- [x] 2.1 Extend CLIConfig struct with CLI-specific settings ✅ COMPLETED
+- [x] 2.2 Implement config validation with detailed error messages ✅ COMPLETED
+- [x] 2.3 Create config display command with source tracking ✅ COMPLETED
+- [x] 2.4 Add sensitive data redaction for config output ✅ COMPLETED
+- [x] 2.5 Update config diagnostics functionality ✅ COMPLETED
 
 ## Implementation Details
 
-### Interactive Flow
+### Configuration Extensions
 
-1. **Project name**: Validate against naming rules
-2. **Project type**: API automation, data pipeline, AI workflow
-3. **Features**: Select components (workflows, agents, tools)
-4. **Examples**: Choose from templates or start blank
-5. **Git init**: Optionally initialize git repository
+Add CLI-specific settings to the existing configuration system, including ServerURL, DefaultFormat, ColorMode, PageSize, and Timeout as specified in the techspec CLIConfig struct.
 
-### Project Structure
+### Validation System
 
-```
-my-project/
-├── compozy.yaml          # Project configuration
-├── .compozy/             # Local settings (gitignored)
-├── workflows/            # Workflow definitions
-│   └── example.yaml
-├── agents/               # Agent configurations
-│   └── assistant.yaml
-├── tools/                # Custom tools
-│   └── hello.ts
-├── .gitignore            # Pre-configured
-└── README.md             # Generated documentation
-```
+Implement comprehensive validation with helpful error messages and suggestions for common configuration issues.
 
-### Template System
+### Display and Diagnostics
 
-- Embedded templates using Go embed
-- Variable substitution for project-specific values
-- Multiple template sets for different use cases
-- Ability to extend with custom templates
+Create commands to show current configuration with sources (file, env, defaults) and validate configuration files with specific line numbers and suggestions.
 
-### Validation Rules
+### Relevant Files
 
-- Project name: lowercase, alphanumeric, hyphens
-- No conflicts with existing directories
-- Valid YAML structure for all configs
-- Required fields populated
+- `cli/config.go` - Extend existing configuration
+- `cli/commands/config.go` - New config command implementations
+- `pkg/config/` - Integration with existing config system
+
+### Dependent Files
+
+- `pkg/config/config.go` - Existing configuration foundation
+- `cli/auth/` - Auth configuration patterns to follow
 
 ## Success Criteria
 
-- [ ] Interactive prompts are intuitive and guide users effectively
-- [ ] Generated project structure follows best practices
-- [ ] Example workflows run successfully out of the box
-- [ ] Validation catches common errors before file creation
-- [ ] Git integration works across platforms
-- [ ] Non-interactive mode available for CI/CD (--yes flag)
-- [ ] Generated projects pass `compozy validate` checks
-
-<critical>
-**MANDATORY REQUIREMENTS:**
-
-- **ALWAYS** verify against PRD and tech specs - NEVER make assumptions
-- **NEVER** use workarounds, especially in tests - implement proper solutions
-- **MUST** follow all established project standards:
-  - Architecture patterns: `.cursor/rules/architecture.mdc`
-  - Go coding standards: `.cursor/rules/go-coding-standards.mdc`
-  - Testing requirements: `.cursor/rules/testing-standards.mdc`
-  - API standards: `.cursor/rules/api-standards.mdc`
-  - Security & quality: `.cursor/rules/quality-security.mdc`
-- **MUST** run `make lint` and `make test` before completing parent tasks
-- **MUST** follow `.cursor/rules/task-review.mdc` workflow for parent tasks
-
-**Enforcement:** Violating these standards results in immediate task rejection.
-</critical>
+- CLI-specific configuration settings properly integrated with existing system
+- Configuration validation provides clear, actionable error messages
+- Config display shows source tracking and redacts sensitive information
+- All config commands work in both TUI and JSON modes
+- Configuration diagnostics help users troubleshoot setup issues

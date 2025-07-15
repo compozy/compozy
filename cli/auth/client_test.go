@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/compozy/cli/auth/tui/models"
+	"github.com/compozy/compozy/cli/tui/models"
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -180,7 +180,7 @@ func TestGenerateKey(t *testing.T) {
 func TestListKeys(t *testing.T) {
 	t.Run("Should list keys successfully", func(t *testing.T) {
 		lastUsed := "2024-01-03T00:00:00Z"
-		expectedKeys := []models.KeyInfo{
+		expectedKeys := []KeyInfo{
 			{
 				ID:        "key1",
 				Prefix:    "cmp_123",
@@ -200,7 +200,7 @@ func TestListKeys(t *testing.T) {
 
 			w.WriteHeader(http.StatusOK)
 			json.NewEncoder(w).Encode(map[string]any{
-				"data": map[string][]models.KeyInfo{
+				"data": map[string][]KeyInfo{
 					"keys": expectedKeys,
 				},
 				"message": "Success",
@@ -245,7 +245,7 @@ func TestRevokeKey(t *testing.T) {
 
 func TestCreateUser(t *testing.T) {
 	t.Run("Should create user successfully", func(t *testing.T) {
-		expectedUser := &models.UserInfo{
+		expectedUser := &UserInfo{
 			ID:        "user123",
 			Email:     "test@example.com",
 			Name:      "Test User",
@@ -293,7 +293,7 @@ func TestCreateUser(t *testing.T) {
 func TestUpdateUser(t *testing.T) {
 	t.Run("Should update user successfully", func(t *testing.T) {
 		newName := "Updated Name"
-		expectedUser := &models.UserInfo{
+		expectedUser := &UserInfo{
 			ID:        "user123",
 			Email:     "test@example.com",
 			Name:      newName,

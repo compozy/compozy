@@ -11,7 +11,6 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	_ "github.com/compozy/compozy/engine/infra/monitoring" // Import for swagger docs
 	"github.com/compozy/compozy/engine/infra/server/appstate"
-	authmw "github.com/compozy/compozy/engine/infra/server/middleware/auth"
 	"github.com/compozy/compozy/engine/memory"
 	memrouter "github.com/compozy/compozy/engine/memory/router"
 	tkrouter "github.com/compozy/compozy/engine/task/router"
@@ -151,14 +150,11 @@ func RegisterRoutes(ctx context.Context, router *gin.Engine, state *appstate.Sta
 		authrouter.RegisterRoutes(apiBase, authFactory)
 	}
 
-	// Create auth manager for routers that need authentication
-	authManager := authmw.NewManager(authFactory)
-
-	// Register all component routers with authentication support
-	wfrouter.Register(apiBase, authManager, server.AppConfig)
-	tkrouter.Register(apiBase, authManager, server.AppConfig)
-	agentrouter.Register(apiBase, authManager, server.AppConfig)
-	toolrouter.Register(apiBase, authManager, server.AppConfig)
+	// Register all component routers
+	wfrouter.Register(apiBase)
+	tkrouter.Register(apiBase)
+	agentrouter.Register(apiBase)
+	toolrouter.Register(apiBase)
 	schedulerouter.Register(apiBase)
 	memrouter.Register(apiBase, authFactory)
 

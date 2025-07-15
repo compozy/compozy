@@ -1,6 +1,12 @@
 package cli
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/joho/godotenv"
 	"github.com/spf13/cobra"
 )
 
@@ -51,4 +57,62 @@ func extractCLIFlags(cmd *cobra.Command, flags map[string]any) {
 	for _, def := range flagDefs {
 		addFlag(def.flagName, def.key, def.getter)
 	}
+}
+
+// loadEnvFile loads environment variables from a file with security validation
+func loadEnvFile(cmd *cobra.Command) (string, error) {
+	envFile, err := cmd.Flags().GetString("env-file")
+	if err != nil {
+		return "", fmt.Errorf("failed to get env-file flag: %w", err)
+	}
+	if envFile != "" {
+		pwd, err := os.Getwd()
+		if err != nil {
+			return "", fmt.Errorf("failed to get current working directory: %w", err)
+		}
+		if !filepath.IsAbs(envFile) {
+			envFile = filepath.Join(pwd, envFile)
+		}
+		cleanPath := filepath.Clean(envFile)
+		absPath, err := filepath.Abs(cleanPath)
+		if err != nil {
+			return "", fmt.Errorf("failed to resolve env file path: %w", err)
+		}
+		if !isPathWithinDirectory(absPath, pwd) {
+			return "", fmt.Errorf("env file path '%s' is outside the project directory", envFile)
+		}
+		fileInfo, err := os.Stat(absPath)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return absPath, nil
+			}
+			return "", fmt.Errorf("failed to stat env file: %w", err)
+		}
+		if !fileInfo.Mode().IsRegular() {
+			return "", fmt.Errorf("env file path '%s' is not a regular file", envFile)
+		}
+		if err := godotenv.Load(absPath); err != nil {
+			if !os.IsNotExist(err) {
+				return "", fmt.Errorf("failed to load env file %s: %w", absPath, err)
+			}
+		}
+		return absPath, nil
+	}
+	return envFile, nil
+}
+
+// isPathWithinDirectory checks if a given path is within the specified directory
+func isPathWithinDirectory(path, dir string) bool {
+	absPath, err := filepath.Abs(filepath.Clean(path))
+	if err != nil {
+		return false
+	}
+	absDir, err := filepath.Abs(filepath.Clean(dir))
+	if err != nil {
+		return false
+	}
+	if !strings.HasSuffix(absDir, string(filepath.Separator)) {
+		absDir += string(filepath.Separator)
+	}
+	return strings.HasPrefix(absPath, absDir) || absPath == strings.TrimSuffix(absDir, string(filepath.Separator))
 }

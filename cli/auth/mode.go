@@ -3,7 +3,7 @@ package auth
 import (
 	"os"
 
-	"github.com/compozy/compozy/cli/auth/tui/models"
+	"github.com/compozy/compozy/cli/tui/models"
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
 )

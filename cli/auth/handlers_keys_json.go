@@ -7,8 +7,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/compozy/compozy/cli/auth/sorting"
-	"github.com/compozy/compozy/cli/auth/tui/models"
+	"github.com/compozy/compozy/cli/auth/internal/sorting"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/spf13/cobra"
 )
@@ -116,7 +115,7 @@ func runListJSON(ctx context.Context, cmd *cobra.Command, client *Client) error 
 	}
 	// Apply client-side filtering if needed
 	if filter != "" {
-		filtered := make([]models.KeyInfo, 0)
+		filtered := make([]KeyInfo, 0)
 		for _, key := range keys {
 			// Filter by prefix or ID
 			if contains(key.Prefix, filter) || contains(key.ID, filter) {
@@ -133,7 +132,7 @@ func runListJSON(ctx context.Context, cmd *cobra.Command, client *Client) error 
 	endIdx := startIdx + limit
 	if startIdx >= totalKeys {
 		// Return empty result if page is out of bounds
-		keys = []models.KeyInfo{}
+		keys = []KeyInfo{}
 	} else {
 		if endIdx > totalKeys {
 			endIdx = totalKeys

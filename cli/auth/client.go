@@ -10,7 +10,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/compozy/compozy/cli/auth/tui/models"
+	"github.com/compozy/compozy/cli/tui/models"
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 )
@@ -198,8 +198,13 @@ func (c *Client) GenerateKey(ctx context.Context, req *GenerateKeyRequest) (stri
 	return result.Data.APIKey, nil
 }
 
+// List implements the DataClient interface for KeyInfo
+func (c *Client) List(ctx context.Context) ([]KeyInfo, error) {
+	return c.ListKeys(ctx)
+}
+
 // ListKeys lists all API keys for the authenticated user
-func (c *Client) ListKeys(ctx context.Context) ([]models.KeyInfo, error) {
+func (c *Client) ListKeys(ctx context.Context) ([]KeyInfo, error) {
 	resp, err := c.doRequest(ctx, http.MethodGet, "/auth/keys", nil)
 	if err != nil {
 		return nil, err
@@ -208,7 +213,7 @@ func (c *Client) ListKeys(ctx context.Context) ([]models.KeyInfo, error) {
 
 	var result struct {
 		Data struct {
-			Keys []models.KeyInfo `json:"keys"`
+			Keys []KeyInfo `json:"keys"`
 		} `json:"data"`
 		Message string `json:"message"`
 	}
@@ -233,7 +238,7 @@ func (c *Client) RevokeKey(ctx context.Context, keyID string) error {
 }
 
 // ListUsers lists all users (admin only)
-func (c *Client) ListUsers(ctx context.Context) ([]models.UserInfo, error) {
+func (c *Client) ListUsers(ctx context.Context) ([]UserInfo, error) {
 	resp, err := c.doRequest(ctx, http.MethodGet, "/users", nil)
 	if err != nil {
 		return nil, err
@@ -242,7 +247,7 @@ func (c *Client) ListUsers(ctx context.Context) ([]models.UserInfo, error) {
 
 	var result struct {
 		Data struct {
-			Users []models.UserInfo `json:"users"`
+			Users []UserInfo `json:"users"`
 		} `json:"data"`
 		Message string `json:"message"`
 	}
@@ -262,7 +267,7 @@ type CreateUserRequest struct {
 }
 
 // CreateUser creates a new user (admin only)
-func (c *Client) CreateUser(ctx context.Context, req CreateUserRequest) (*models.UserInfo, error) {
+func (c *Client) CreateUser(ctx context.Context, req CreateUserRequest) (*UserInfo, error) {
 	resp, err := c.doRequest(ctx, http.MethodPost, "/users", req)
 	if err != nil {
 		return nil, err
@@ -270,8 +275,8 @@ func (c *Client) CreateUser(ctx context.Context, req CreateUserRequest) (*models
 	defer resp.Body.Close()
 
 	var result struct {
-		Data    models.UserInfo `json:"data"`
-		Message string          `json:"message"`
+		Data    UserInfo `json:"data"`
+		Message string   `json:"message"`
 	}
 	if err := c.parseResponse(resp, &result); err != nil {
 		return nil, err
@@ -288,7 +293,7 @@ type UpdateUserRequest struct {
 }
 
 // UpdateUser updates a user (admin only)
-func (c *Client) UpdateUser(ctx context.Context, userID string, req UpdateUserRequest) (*models.UserInfo, error) {
+func (c *Client) UpdateUser(ctx context.Context, userID string, req UpdateUserRequest) (*UserInfo, error) {
 	path := fmt.Sprintf("/users/%s", userID)
 	resp, err := c.doRequest(ctx, http.MethodPatch, path, req)
 	if err != nil {
@@ -297,8 +302,8 @@ func (c *Client) UpdateUser(ctx context.Context, userID string, req UpdateUserRe
 	defer resp.Body.Close()
 
 	var result struct {
-		Data    models.UserInfo `json:"data"`
-		Message string          `json:"message"`
+		Data    UserInfo `json:"data"`
+		Message string   `json:"message"`
 	}
 	if err := c.parseResponse(resp, &result); err != nil {
 		return nil, err

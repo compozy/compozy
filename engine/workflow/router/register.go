@@ -1,24 +1,12 @@
 package wfrouter
 
-import (
-	authmw "github.com/compozy/compozy/engine/infra/server/middleware/auth"
-	"github.com/compozy/compozy/pkg/config"
-	"github.com/gin-gonic/gin"
-)
+import "github.com/gin-gonic/gin"
 
-func Register(apiBase *gin.RouterGroup, authManager *authmw.Manager, cfg *config.Config) {
+func Register(apiBase *gin.RouterGroup) {
 	// Event routes (v1)
 	apiBase.POST("/events", handleEvent)
-
 	// Workflow definition routes
 	workflowsGroup := apiBase.Group("/workflows")
-
-	// Apply authentication middleware based on configuration
-	if cfg.Server.Auth.Enabled {
-		workflowsGroup.Use(authManager.Middleware())
-		workflowsGroup.Use(authmw.WorkflowAuthMiddleware(authManager, cfg))
-	}
-
 	{
 		// GET /api/v0/workflows
 		// List all workflows
@@ -39,13 +27,6 @@ func Register(apiBase *gin.RouterGroup, authManager *authmw.Manager, cfg *config
 
 	// Global execution routes
 	executionsGroup := apiBase.Group("/executions")
-
-	// Apply authentication middleware to executions based on configuration
-	if cfg.Server.Auth.Enabled {
-		executionsGroup.Use(authManager.Middleware())
-		executionsGroup.Use(authManager.RequireAuth())
-	}
-
 	{
 		// Workflow execution routes
 		workflowExecGroup := executionsGroup.Group("/workflows")

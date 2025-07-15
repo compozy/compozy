@@ -10,7 +10,7 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/compozy/compozy/cli/auth/tui/models"
+	"github.com/compozy/compozy/cli/tui/models"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/go-playground/validator/v10"
 	"github.com/spf13/cobra"
@@ -66,7 +66,7 @@ type createUserModel struct {
 	name        string
 	role        string
 	created     bool
-	createdUser *models.UserInfo
+	createdUser *UserInfo
 	err         error
 	width       int
 	height      int
@@ -371,7 +371,7 @@ func (m *createUserModel) createUser() tea.Cmd {
 
 // Message types for the create user TUI
 type userCreatedMsg struct {
-	user *models.UserInfo
+	user *UserInfo
 }
 
 // runListUsersTUI handles TUI mode for user listing
@@ -415,8 +415,8 @@ func runListUsersTUI(ctx context.Context, cmd *cobra.Command, client *Client) er
 type listUsersModel struct {
 	ctx        context.Context
 	client     *Client
-	users      []models.UserInfo
-	filtered   []models.UserInfo
+	users      []UserInfo
+	filtered   []UserInfo
 	selected   int
 	offset     int
 	pageSize   int
@@ -546,14 +546,14 @@ func (m *listUsersModel) cycleRoleFilter() {
 // cycleSortBy cycles through sort field options
 func (m *listUsersModel) cycleSortBy() {
 	switch m.sortBy {
-	case "created":
-		m.sortBy = "name"
+	case sortCreated:
+		m.sortBy = sortName
 	case sortName:
-		m.sortBy = "email"
+		m.sortBy = sortEmail
 	case sortEmail:
-		m.sortBy = "role"
+		m.sortBy = sortRole
 	case sortRole:
-		m.sortBy = "created"
+		m.sortBy = sortCreated
 	}
 	m.applyFilters()
 }
@@ -730,7 +730,7 @@ func (m *listUsersModel) View() string {
 
 // applyFilters applies the current filters and sorting to the user list
 func (m *listUsersModel) applyFilters() {
-	m.filtered = []models.UserInfo{}
+	m.filtered = []UserInfo{}
 
 	// Apply filters
 	for _, user := range m.users {
@@ -824,7 +824,7 @@ func minInt(a, b int) int {
 
 // Message types for the list users TUI
 type usersListLoadedMsg struct {
-	users []models.UserInfo
+	users []UserInfo
 }
 
 // runUpdateUserTUI handles TUI mode for user updates
@@ -894,7 +894,7 @@ type updateUserModel struct {
 	models.BaseModel
 	client    *Client
 	userID    string
-	user      *models.UserInfo
+	user      *UserInfo
 	fields    map[string]string
 	selected  int
 	editing   bool
@@ -1160,7 +1160,7 @@ type deleteUserModel struct {
 	models.BaseModel
 	client      *Client
 	userID      string
-	user        *models.UserInfo
+	user        *UserInfo
 	showConfirm bool
 	selected    int
 	spinner     spinner.Model
@@ -1341,11 +1341,11 @@ func (m *deleteUserModel) deleteUser() tea.Cmd {
 
 // Message types for user operations
 type userLoadedMsg struct {
-	user models.UserInfo
+	user UserInfo
 }
 
 type userUpdatedMsg struct {
-	user models.UserInfo
+	user UserInfo
 }
 
 type userDeletedMsg struct {

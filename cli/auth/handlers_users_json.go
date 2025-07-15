@@ -7,7 +7,6 @@ import (
 	"os"
 	"sort"
 
-	"github.com/compozy/compozy/cli/auth/tui/models"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/spf13/cobra"
 )
@@ -121,8 +120,8 @@ func parseListUsersFlags(cmd *cobra.Command) (*userFilters, error) {
 }
 
 // filterAndSortUsers applies filtering and sorting to the user list
-func filterAndSortUsers(users []models.UserInfo, filters *userFilters) []models.UserInfo {
-	filtered := make([]models.UserInfo, 0, len(users))
+func filterAndSortUsers(users []UserInfo, filters *userFilters) []UserInfo {
+	filtered := make([]UserInfo, 0, len(users))
 
 	for _, user := range users {
 		// Apply role filter

@@ -7,9 +7,10 @@ import (
 
 	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/spinner"
+	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/compozy/compozy/cli/auth/tui/models"
+	"github.com/compozy/compozy/cli/tui/models"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/spf13/cobra"
 )
@@ -243,15 +244,22 @@ type keyGeneratedMsg string
 func runListTUI(ctx context.Context, _ *cobra.Command, client *Client) error {
 	log := logger.FromContext(ctx)
 	log.Debug("listing API keys in TUI mode")
+	// Create table columns
+	columns := []table.Column{
+		{Title: "Prefix", Width: 20},
+		{Title: "Created", Width: 20},
+		{Title: "Last Used", Width: 20},
+		{Title: "Usage Count", Width: 12},
+	}
 	// Create and run the TUI model
-	m := models.NewListModel(ctx, client)
+	m := models.NewListModel[KeyInfo](ctx, client, columns)
 	p := tea.NewProgram(m)
 	finalModel, err := p.Run()
 	if err != nil {
 		return fmt.Errorf("failed to run TUI: %w", err)
 	}
 	// Check if there was an error
-	if model, ok := finalModel.(*models.ListModel); ok {
+	if model, ok := finalModel.(*models.ListModel[KeyInfo]); ok {
 		if model.Error() != nil {
 			return model.Error()
 		}
@@ -291,7 +299,7 @@ func runRevokeTUI(ctx context.Context, _ *cobra.Command, client *Client) error {
 type revokeModel struct {
 	ctx      context.Context
 	client   *Client
-	keys     []models.KeyInfo
+	keys     []KeyInfo
 	selected int
 	state    revokeState
 	revoked  bool
@@ -581,7 +589,7 @@ func (m *revokeModel) revokeKey() tea.Cmd {
 
 // Message types for the revoke TUI
 type revokeKeysLoadedMsg struct {
-	keys []models.KeyInfo
+	keys []KeyInfo
 }
 
 type revokeKeyRevokedMsg struct{}
