@@ -1,21 +1,42 @@
 ---
 title: "Runtime Environment"
-description: "Understanding Compozy's Bun-based runtime environment for secure TypeScript tool execution"
+description: "Understanding Compozy's Bun-based runtime environment for secure TypeScript tool execution with comprehensive security model and performance optimizations"
 ---
+
+import { Code, Cpu, FileCode, Shield, TrendingUp, Zap } from "lucide-react";
 
 # Runtime Environment
 
-Compozy uses Bun as its JavaScript/TypeScript runtime environment, providing fast, secure, and efficient execution of tools. This guide explains how the runtime works, its security features, and how to configure it.
+Compozy uses Bun as its JavaScript/TypeScript runtime environment, providing fast, secure, and efficient execution of tools. This guide explains how the runtime works, its security features, performance optimizations, and how to configure it for production use.
 
 ## Why Bun?
 
-Bun was chosen as the runtime for several key advantages:
-
-- **Performance**: Significantly faster startup times and execution compared to Node.js
-- **Built-in TypeScript**: Native TypeScript support without compilation steps
-- **Modern APIs**: Support for modern JavaScript/TypeScript features
-- **Security**: Better sandboxing and permission controls
-- **Bundle Size**: Smaller runtime footprint
+<FeatureCardList>
+<FeatureCard
+  title="Performance"
+  description="Significantly faster startup times and execution compared to Node.js"
+  icon="Zap"
+  size="sm"
+/>
+<FeatureCard
+  title="Built-in TypeScript"
+  description="Native TypeScript support without compilation steps"
+  icon="FileCode"
+  size="sm"
+/>
+<FeatureCard
+  title="Security"
+  description="Better sandboxing and permission controls for tool isolation"
+  icon="Shield"
+  size="sm"
+/>
+<FeatureCard
+  title="Modern APIs"
+  description="Support for modern JavaScript/TypeScript features and Web APIs"
+  icon="Cpu"
+  size="sm"
+/>
+</FeatureCardList>
 
 <Callout type="info">
 While Bun is the primary runtime, Compozy is designed to support multiple runtimes in the future, including Node.js and Deno.
@@ -25,7 +46,7 @@ While Bun is the primary runtime, Compozy is designed to support multiple runtim
 
 ### Execution Model
 
-```mermaid
+<Mermaid>
 graph TD
     A[Tool Request] --> B[Runtime Manager]
     B --> C[Worker Process]
@@ -34,14 +55,26 @@ graph TD
     E --> F[Output Processing]
     F --> G[Result Validation]
     G --> H[Response]
-```
+
+    style A fill:#e1f5fe
+    style B fill:#f3e5f5
+    style C fill:#e8f5e8
+    style D fill:#fff3e0
+    style E fill:#fce4ec
+    style F fill:#e0f2f1
+    style G fill:#fff8e1
+    style H fill:#e3f2fd
+</Mermaid>
 
 ### Process Isolation
 
-Each tool execution runs in an isolated Bun process:
+Each tool execution runs in an isolated Bun process with strict security controls:
 
-```go
-// Runtime execution in Go
+<Tabs>
+<Tab title="Go Runtime Manager">
+
+```go title="engine/runtime/bun_manager.go"
+// BunManager implements the Runtime interface for Bun execution
 type BunManager struct {
     config      *Config
     projectRoot string
@@ -55,76 +88,341 @@ func (bm *BunManager) ExecuteToolWithTimeout(
     env core.EnvMap,
     timeout time.Duration,
 ) (*core.Output, error) {
-    // Create isolated process
+    // Create isolated process with security controls
     cmd := exec.CommandContext(ctx, "bun", "run", workerPath)
 
-    // Set environment variables
+    // Set environment variables with validation
     cmd.Env = buildEnvironment(env)
 
-    // Configure I/O
+    // Configure I/O streams
     cmd.Stdin = inputReader
     cmd.Stdout = outputWriter
     cmd.Stderr = errorWriter
 
-    // Execute with timeout
+    // Execute with timeout and security monitoring
     return executeWithTimeout(cmd, timeout)
 }
 ```
 
+</Tab>
+<Tab title="Security Features">
+
+```go title="Security Controls"
+// Security constants for runtime protection
+const (
+    // Maximum output size to prevent memory exhaustion
+    MaxOutputSize = 10 * 1024 * 1024 // 10MB
+    
+    // Initial buffer size for efficient memory usage
+    InitialBufferSize = 4 * 1024 // 4KB
+    
+    // Key for wrapping primitive values
+    PrimitiveValueKey = "value"
+)
+
+// Tool ID validation for security
+func isValidToolId(toolId string) bool {
+    validPattern := /^[a-zA-Z0-9_/.-]+$/
+    if !validPattern.test(toolId) {
+        return false
+    }
+    if toolId.includes("..") || toolId.startsWith("/") {
+        return false
+    }
+    return true
+}
+
+// Environment variable validation
+func validateEnvironmentVar(key, value string) error {
+    // Validate key format
+    if !regexp.MustCompile(`^[A-Z0-9_]+$`).MatchString(key) {
+        return fmt.Errorf("invalid environment variable name: %s", key)
+    }
+    
+    // Prevent dangerous variables
+    dangerousVars := []string{
+        "LD_PRELOAD", "LD_LIBRARY_PATH", "DYLD_INSERT_LIBRARIES",
+        "DYLD_LIBRARY_PATH", "NODE_OPTIONS", "BUN_CONFIG_PROFILE",
+    }
+    
+    for _, dangerous := range dangerousVars {
+        if key == dangerous {
+            return fmt.Errorf("environment variable %s is not allowed", key)
+        }
+    }
+    
+    return nil
+}
+```
+
+</Tab>
+</Tabs>
+
 ## Worker Template System
+
+<Callout type="note">
+Compozy generates optimized worker scripts that provide a secure, standardized interface between the Go runtime and your TypeScript tools.
+</Callout>
 
 ### Worker Generation
 
-Compozy generates optimized worker scripts for each tool:
+Compozy generates optimized worker scripts for each tool execution:
 
-```typescript
-// Generated worker template (bun/worker.tpl.ts)
-import { ToolExecuteParams, ToolExecuteResult } from './types';
+<Tabs>
+<Tab title="Worker Template">
 
-// Dynamic tool import based on configuration
-const toolModule = await import('./{{ .ToolPath }}');
+```typescript title="engine/runtime/bun/worker.tpl.ts"
+#!/usr/bin/env bun
+// Generated by Compozy - DO NOT EDIT
 
-// Standardized execution interface
-async function executeTool(params: ToolExecuteParams): Promise<ToolExecuteResult> {
-  try {
-    // Validate tool module structure
-    if (typeof toolModule.run !== 'function') {
-      throw new Error('Tool must export a "run" function');
-    }
+// Import all tools from entrypoint
+import * as allExports from "{{.EntrypointPath}}";
 
-    // Execute tool with input
-    const result = await toolModule.run(params.input);
+interface Request {
+  tool_id: string;
+  tool_exec_id: string;
+  input: any;
+  env: Record<string, string>;
+  timeout_ms?: number;
+}
 
-    // Ensure result is serializable
-    return normalizeOutput(result);
+interface Response {
+  result: any;
+  error: ErrorInfo | null;
+  metadata?: {
+    tool_id: string;
+    tool_exec_id: string;
+    execution_time?: number;
+  };
+}
 
-  } catch (error) {
-    throw new Error(`Tool execution failed: ${error.message}`);
+interface ErrorInfo {
+  message: string;
+  stack?: string;
+  name: string;
+  tool_id: string;
+  tool_exec_id: string;
+  timestamp: string;
+}
+
+// Redirect console output to stderr to prevent stdout pollution
+const originalError = console.error;
+console.log = (...args: unknown[]): void => {
+  originalError("[LOG]", ...args);
+};
+console.debug = (...args: unknown[]): void => {
+  originalError("[DEBUG]", ...args);
+};
+console.info = (...args: unknown[]): void => {
+  originalError("[INFO]", ...args);
+};
+console.warn = (...args: unknown[]): void => {
+  originalError("[WARN]", ...args);
+};
+console.error = (...args: unknown[]): void => {
+  originalError("[ERROR]", ...args);
+};
+```
+
+</Tab>
+<Tab title="Security Validation">
+
+```typescript title="Security Controls"
+// Tool ID validation for security
+function isValidToolId(toolId: string): boolean {
+  const validPattern = /^[a-zA-Z0-9_/.-]+$/;
+  if (!validPattern.test(toolId)) return false;
+  if (toolId.includes("..") || toolId.startsWith("/")) return false;
+  return true;
+}
+
+// Environment variable validation
+function validateEnvironmentVar(key: string, value: string): void {
+  // Validate environment variable name
+  if (!/^[A-Z0-9_]+$/.test(key)) {
+    throw new Error(`Invalid environment variable name: ${key}`);
+  }
+
+  // Validate value - prevent newlines and null bytes
+  if (value.includes("\n") || value.includes("\r") || value.includes("\0")) {
+    throw new Error(`Environment variable ${key} contains invalid characters`);
+  }
+
+  // Check for dangerous environment variables
+  const dangerousVars = [
+    "LD_PRELOAD", "LD_LIBRARY_PATH", "DYLD_INSERT_LIBRARIES",
+    "DYLD_LIBRARY_PATH", "NODE_OPTIONS", "BUN_CONFIG_PROFILE",
+  ];
+  
+  if (dangerousVars.includes(key)) {
+    throw new Error(`Environment variable ${key} is not allowed for security reasons`);
   }
 }
 
-// Main execution loop
+// Timeout execution wrapper
+async function executeWithTimeout(
+  fn: (input: any) => Promise<any>,
+  input: any,
+  timeoutMs: number
+): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const timeoutId = setTimeout(
+      () => reject(new Error(`Tool execution timed out after ${timeoutMs}ms`)),
+      timeoutMs
+    );
+
+    Promise.resolve(fn(input))
+      .then(result => {
+        clearTimeout(timeoutId);
+        resolve(result);
+      })
+      .catch(err => {
+        clearTimeout(timeoutId);
+        reject(err);
+      });
+  });
+}
+```
+
+</Tab>
+<Tab title="Tool Execution">
+
+```typescript title="Main Execution Logic"
 async function main() {
+  let inputText = "";
+  let req: Request;
+
   try {
-    // Read input from stdin
-    const input = await readStdin();
-    const params = JSON.parse(input) as ToolExecuteParams;
-
-    // Execute tool
-    const result = await executeTool(params);
-
-    // Write result to stdout
-    process.stdout.write(JSON.stringify(result));
-    process.exit(0);
-
-  } catch (error) {
-    process.stderr.write(error.message);
+    // Read input from stdin using Bun's text() method
+    inputText = await Bun.stdin.text();
+    req = JSON.parse(inputText.trim());
+  } catch (err) {
+    const errorResponse: Response = {
+      result: null,
+      error: {
+        message: "Invalid JSON input",
+        name: "ParseError",
+        tool_id: "",
+        tool_exec_id: "",
+        timestamp: new Date().toISOString(),
+      },
+    };
+    process.stdout.write(JSON.stringify(errorResponse));
     process.exit(1);
   }
+
+  const { tool_id, tool_exec_id, input, env, timeout_ms } = req;
+
+  // Validate tool_id
+  if (!tool_id || typeof tool_id !== "string" || !isValidToolId(tool_id)) {
+    const errorResponse: Response = {
+      result: null,
+      error: {
+        message: "Invalid tool_id: must be a non-empty string without directory traversal",
+        name: "ValidationError",
+        tool_id: tool_id || "",
+        tool_exec_id: tool_exec_id || "",
+        timestamp: new Date().toISOString(),
+      },
+    };
+    process.stdout.write(JSON.stringify(errorResponse));
+    process.exit(1);
+  }
+
+  // Set up environment with validation
+  const originalEnv = { ...process.env };
+  const addedEnvKeys = new Set<string>();
+  
+  if (env && typeof env === "object") {
+    for (const [key, value] of Object.entries(env)) {
+      if (typeof key === "string" && typeof value === "string") {
+        validateEnvironmentVar(key, value);
+        if (!(key in originalEnv)) addedEnvKeys.add(key);
+        process.env[key] = value;
+      }
+    }
+  }
+
+  const startTime = Date.now();
+
+  try {
+    // Support both export patterns
+    let tools: Record<string, any> = {};
+    
+    if (allExports.default && typeof allExports.default === "object") {
+      tools = allExports.default;
+    } else {
+      const { default: _, ...namedExports } = allExports;
+      tools = namedExports;
+    }
+
+    const toolFn = tools[tool_id];
+    if (typeof toolFn !== "function") {
+      const availableTools = Object.keys(tools).filter(key => typeof tools[key] === "function");
+      throw new Error(
+        `Tool ${tool_id} not found. Available tools: ${availableTools.join(", ") || "none"}`
+      );
+    }
+
+    // Execute tool with configurable timeout
+    const timeoutMs = timeout_ms || 60000;
+    const result = await executeWithTimeout(toolFn, input, timeoutMs);
+
+    // Send success response
+    const response: Response = {
+      result,
+      error: null,
+      metadata: {
+        tool_id,
+        tool_exec_id,
+        execution_time: Date.now() - startTime,
+      },
+    };
+    process.stdout.write(JSON.stringify(response));
+    
+  } catch (err) {
+    // Send error response
+    const errorInfo: ErrorInfo = {
+      message: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+      name: err instanceof Error ? err.name : "UnknownError",
+      tool_id,
+      tool_exec_id,
+      timestamp: new Date().toISOString(),
+    };
+
+    const response: Response = {
+      result: null,
+      error: errorInfo,
+    };
+    process.stdout.write(JSON.stringify(response));
+    
+  } finally {
+    // Clean up environment variables
+    try {
+      for (const key of addedEnvKeys) {
+        delete process.env[key];
+      }
+      for (const [key, value] of Object.entries(originalEnv)) {
+        if (!addedEnvKeys.has(key) && process.env[key] !== value) {
+          process.env[key] = value;
+        }
+      }
+    } catch (cleanupErr) {
+      originalError("Error during environment cleanup:", cleanupErr);
+    }
+  }
 }
 
-main();
+// Run main with error handling
+main().catch(err => {
+  originalError("Fatal error:", err);
+  process.exit(1);
+});
 ```
+
+</Tab>
+</Tabs>
 
 ### Performance Optimizations
 
@@ -167,13 +465,21 @@ function normalizeOutput(output: unknown): ToolExecuteResult {
 
 ## Security Features
 
+<Callout type="warning">
+Compozy implements multiple layers of security to protect against malicious code execution, including process isolation, permission controls, and resource limits.
+</Callout>
+
 ### Sandboxing
 
 Tools run in isolated environments with restricted permissions:
 
-```yaml
-# Project configuration
+<Tabs>
+<Tab title="Permission Model">
+
+```yaml title="compozy.yaml"
 runtime:
+  type: bun
+  entrypoint: "./entrypoint.ts"
   permissions:
     - --allow-read=/project/data    # Limited file system access
     - --allow-net=api.example.com   # Restricted network access
@@ -185,6 +491,55 @@ runtime:
     timeout: "30s"                  # Execution timeout
     output_size: "10MB"             # Output size limit
 ```
+
+</Tab>
+<Tab title="Security Layers">
+
+<List>
+<ListItem>**Process Isolation**: Each tool runs in a separate Bun process</ListItem>
+<ListItem>**Permission Controls**: Granular access control for files, network, and environment</ListItem>
+<ListItem>**Resource Limits**: Memory, timeout, and output size constraints</ListItem>
+<ListItem>**Input Validation**: Comprehensive validation of tool IDs and parameters</ListItem>
+<ListItem>**Environment Isolation**: Controlled environment variable access</ListItem>
+<ListItem>**Output Sanitization**: Prevents stdout pollution and ensures clean JSON responses</ListItem>
+</List>
+
+</Tab>
+<Tab title="Security Policies">
+
+```yaml title="Security Configuration Examples"
+# Minimal permissions for read-only tools
+runtime:
+  permissions:
+    - --allow-read=./data
+    - --allow-env=CONFIG_PATH
+  limits:
+    memory: "128MB"
+    timeout: "10s"
+
+# Network-enabled tools with restrictions
+runtime:
+  permissions:
+    - --allow-net=api.openai.com
+    - --allow-net=api.anthropic.com
+    - --allow-env=OPENAI_API_KEY
+  limits:
+    memory: "512MB"
+    timeout: "60s"
+
+# File processing tools with write access
+runtime:
+  permissions:
+    - --allow-read=./input
+    - --allow-write=./output
+    - --allow-env=PROCESSING_CONFIG
+  limits:
+    memory: "1GB"
+    timeout: "300s"
+```
+
+</Tab>
+</Tabs>
 
 ### Permission System
 
@@ -268,15 +623,22 @@ function buildEnvironment(
 
 ## Resource Management
 
+<Callout type="info">
+Compozy implements comprehensive resource management to ensure system stability and prevent resource exhaustion attacks.
+</Callout>
+
 ### Memory Management
 
 The runtime implements several memory management strategies:
 
-```typescript
-// Memory monitoring
+<Tabs>
+<Tab title="Memory Monitoring">
+
+```typescript title="Memory Monitor Implementation"
 class MemoryMonitor {
   private limit: number;
   private interval: NodeJS.Timeout;
+  private readonly checkInterval = 1000; // Check every second
 
   constructor(limitMB: number) {
     this.limit = limitMB * 1024 * 1024; // Convert to bytes
@@ -296,7 +658,7 @@ class MemoryMonitor {
       if (global.gc) {
         global.gc();
       }
-    }, 1000);
+    }, this.checkInterval);
   }
 
   stop(): void {
@@ -304,12 +666,112 @@ class MemoryMonitor {
       clearInterval(this.interval);
     }
   }
+
+  getCurrentUsage(): NodeJS.MemoryUsage {
+    return process.memoryUsage();
+  }
 }
 
 // Usage in worker
 const monitor = new MemoryMonitor(256); // 256MB limit
 process.on('exit', () => monitor.stop());
 ```
+
+</Tab>
+<Tab title="Buffer Pooling">
+
+```go title="engine/runtime/bun_manager.go"
+// Pool for reusing buffers to reduce allocations
+var bufferPool = sync.Pool{
+    New: func() any {
+        return bytes.NewBuffer(make([]byte, 0, InitialBufferSize))
+    },
+}
+
+// getBuffer retrieves a buffer from the pool
+func getBuffer() *bytes.Buffer {
+    return bufferPool.Get().(*bytes.Buffer)
+}
+
+// putBuffer returns a buffer to the pool
+func putBuffer(buf *bytes.Buffer) {
+    if buf.Cap() <= InitialBufferSize*4 { // Prevent memory bloat
+        buf.Reset()
+        bufferPool.Put(buf)
+    }
+}
+
+// Example usage in tool execution
+func processToolOutput(output []byte) (*core.Output, error) {
+    buf := getBuffer()
+    defer putBuffer(buf)
+    
+    // Process output using the pooled buffer
+    buf.Write(output)
+    
+    // Validate output size
+    if buf.Len() > MaxOutputSize {
+        return nil, fmt.Errorf("output too large: %d bytes", buf.Len())
+    }
+    
+    return parseOutput(buf.Bytes())
+}
+```
+
+</Tab>
+<Tab title="Performance Metrics">
+
+```typescript title="Performance Monitoring"
+class PerformanceMonitor {
+  private startTime: number;
+  private metrics: Map<string, number> = new Map();
+
+  constructor() {
+    this.startTime = performance.now();
+  }
+
+  recordMetric(name: string, value: number): void {
+    this.metrics.set(name, value);
+  }
+
+  getExecutionTime(): number {
+    return performance.now() - this.startTime;
+  }
+
+  getMemoryUsage(): NodeJS.MemoryUsage {
+    return process.memoryUsage();
+  }
+
+  getMetrics(): Record<string, unknown> {
+    return {
+      executionTime: this.getExecutionTime(),
+      memoryUsage: this.getMemoryUsage(),
+      customMetrics: Object.fromEntries(this.metrics),
+    };
+  }
+}
+
+// Usage in tool execution
+const perfMonitor = new PerformanceMonitor();
+
+// Record custom metrics
+perfMonitor.recordMetric('inputSize', JSON.stringify(input).length);
+perfMonitor.recordMetric('outputSize', JSON.stringify(result).length);
+
+// Include in response metadata
+const response = {
+  result,
+  error: null,
+  metadata: {
+    ...perfMonitor.getMetrics(),
+    tool_id,
+    tool_exec_id,
+  },
+};
+```
+
+</Tab>
+</Tabs>
 
 ### Timeout Handling
 
@@ -375,15 +837,21 @@ async function executeWithTimeout<T>(
 
 ## Configuration
 
+<Callout type="tip">
+Properly configuring the runtime environment is crucial for security, performance, and reliability. Start with restrictive permissions and gradually add access as needed.
+</Callout>
+
 ### Runtime Configuration
 
 Configure the runtime environment in your project:
 
-```yaml
-# compozy.yaml
+<Tabs>
+<Tab title="Basic Configuration">
+
+```yaml title="compozy.yaml"
 runtime:
   type: "bun"                    # Runtime type
-  version: "1.0.0"               # Bun version requirement
+  entrypoint: "./entrypoint.ts"  # Tool entrypoint file
 
   permissions:
     - --allow-read               # File system read access
@@ -395,12 +863,146 @@ runtime:
     memory: "512MB"              # Memory limit per tool
     timeout: "60s"               # Default timeout
     output_size: "10MB"          # Output size limit
+```
 
+</Tab>
+<Tab title="Security-Focused">
+
+```yaml title="Secure Configuration"
+runtime:
+  type: "bun"
+  entrypoint: "./entrypoint.ts"
+  
+  # Minimal permissions
+  permissions:
+    - --allow-read=./data        # Restricted read access
+    - --allow-net=api.example.com # Specific domain only
+    - --allow-env=API_KEY        # Only required env vars
+  
+  # Conservative limits
+  limits:
+    memory: "256MB"              # Lower memory limit
+    timeout: "30s"               # Shorter timeout
+    output_size: "5MB"           # Smaller output limit
+
+  # Security features
+  security:
+    strict_mode: true            # Enable strict validation
+    validate_schemas: true       # Enforce schema validation
+    log_access: true             # Log all resource access
+```
+
+</Tab>
+<Tab title="Performance-Optimized">
+
+```yaml title="Performance Configuration"
+runtime:
+  type: "bun"
+  entrypoint: "./entrypoint.ts"
+  
+  permissions:
+    - --allow-read
+    - --allow-net
+    - --allow-env
+    - --allow-write=./output
+  
+  limits:
+    memory: "1GB"                # Higher memory for large data
+    timeout: "300s"              # Longer timeout for heavy processing
+    output_size: "50MB"          # Larger output for data processing
+
+  # Performance optimizations
   optimization:
     precompile: true             # Precompile tools
     cache_workers: true          # Cache worker processes
     buffer_pooling: true         # Enable buffer pooling
+    parallel_execution: true     # Enable parallel tool execution
 ```
+
+</Tab>
+</Tabs>
+
+### Tool-Specific Configuration
+
+Override runtime settings per tool:
+
+<Tabs>
+<Tab title="Heavy Processing Tool">
+
+```yaml title="tools/heavy-processor.yaml"
+resource: "tool"
+id: "heavy-processor"
+description: "CPU-intensive data processing tool"
+timeout: "5m"                   # Extended timeout
+
+runtime:
+  permissions:
+    - --allow-read=/data
+    - --allow-write=/tmp
+    - --allow-net=api.bigdata.com
+
+  limits:
+    memory: "2GB"                # Higher memory limit
+    timeout: "10m"               # Tool-specific timeout
+    output_size: "100MB"         # Larger output limit
+```
+
+</Tab>
+<Tab title="Network API Tool">
+
+```yaml title="tools/api-client.yaml"
+resource: "tool"
+id: "api-client"
+description: "HTTP API client with rate limiting"
+timeout: "30s"
+
+runtime:
+  permissions:
+    - --allow-net=api.example.com
+    - --allow-net=auth.example.com
+    - --allow-env=API_KEY,API_SECRET
+
+  limits:
+    memory: "256MB"              # Standard memory
+    timeout: "60s"               # Network timeout
+    output_size: "10MB"          # API response limit
+
+  # API-specific settings
+  rate_limiting:
+    enabled: true
+    requests_per_minute: 60
+    burst_size: 10
+```
+
+</Tab>
+<Tab title="File Processing Tool">
+
+```yaml title="tools/file-processor.yaml"
+resource: "tool"
+id: "file-processor"
+description: "File processing and transformation tool"
+timeout: "2m"
+
+runtime:
+  permissions:
+    - --allow-read=./input
+    - --allow-write=./output
+    - --allow-env=PROCESSING_CONFIG
+
+  limits:
+    memory: "1GB"                # Memory for file processing
+    timeout: "5m"                # File processing timeout
+    output_size: "50MB"          # Processed file size limit
+
+  # File processing settings
+  file_limits:
+    max_input_size: "100MB"
+    allowed_extensions: [".txt", ".json", ".csv", ".yaml"]
+    concurrent_files: 5
+```
+
+</Tab>
+</Tabs>
 
 ### Tool-Specific Configuration
 
@@ -521,59 +1123,200 @@ class HealthMonitor {
 
 ## Best Practices
 
-### 1. Resource Management
-- Set appropriate memory limits
-- Use reasonable timeouts
-- Monitor resource usage
-- Clean up resources properly
+<FeatureCardList>
+<FeatureCard
+  title="Resource Management"
+  description="Set appropriate limits and monitor resource usage"
+  icon="TrendingUp"
+  size="sm"
+/>
+<FeatureCard
+  title="Security"
+  description="Use minimal permissions and validate all inputs"
+  icon="Shield"
+  size="sm"
+/>
+<FeatureCard
+  title="Performance"
+  description="Enable optimizations and monitor execution metrics"
+  icon="Zap"
+  size="sm"
+/>
+<FeatureCard
+  title="Development"
+  description="Use debug mode and test with realistic data"
+  icon="Code"
+  size="sm"
+/>
+</FeatureCardList>
 
-### 2. Security
-- Use minimal permissions
-- Validate inputs and outputs
-- Sanitize file paths
-- Limit network access
+### Resource Management
 
-### 3. Performance
-- Enable worker caching
-- Use buffer pooling
-- Implement proper error handling
-- Monitor execution metrics
+<List>
+<ListItem>**Memory Limits**: Set appropriate memory limits based on tool requirements (128MB-2GB range)</ListItem>
+<ListItem>**Timeout Configuration**: Use reasonable timeouts (10s-300s) based on expected execution time</ListItem>
+<ListItem>**Output Size Limits**: Prevent memory exhaustion with output size constraints (5MB-100MB)</ListItem>
+<ListItem>**Resource Monitoring**: Monitor memory usage and execution time in production</ListItem>
+<ListItem>**Cleanup**: Ensure proper cleanup of resources and environment variables</ListItem>
+</List>
 
-### 4. Development
-- Use debug mode during development
-- Test with realistic data sizes
-- Monitor memory usage
-- Profile execution times
+### Security
+
+<List>
+<ListItem>**Minimal Permissions**: Start with no permissions and add only what's needed</ListItem>
+<ListItem>**Input Validation**: Validate all inputs including tool IDs and environment variables</ListItem>
+<ListItem>**Path Sanitization**: Prevent directory traversal attacks in file paths</ListItem>
+<ListItem>**Network Restrictions**: Limit network access to specific domains when possible</ListItem>
+<ListItem>**Environment Isolation**: Use controlled environment variable access</ListItem>
+<ListItem>**Dangerous Variables**: Block dangerous environment variables that could compromise security</ListItem>
+</List>
+
+### Performance
+
+<List>
+<ListItem>**Worker Caching**: Enable worker process caching for repeated tool execution</ListItem>
+<ListItem>**Buffer Pooling**: Use buffer pooling to reduce memory allocations</ListItem>
+<ListItem>**Parallel Execution**: Enable parallel tool execution when appropriate</ListItem>
+<ListItem>**Precompilation**: Precompile tools to reduce startup time</ListItem>
+<ListItem>**Metrics Collection**: Monitor execution time, memory usage, and error rates</ListItem>
+<ListItem>**Error Handling**: Implement proper error handling with detailed error information</ListItem>
+</List>
+
+### Development
+
+<List>
+<ListItem>**Debug Mode**: Use debug mode during development for detailed logging</ListItem>
+<ListItem>**Realistic Testing**: Test with realistic data sizes and edge cases</ListItem>
+<ListItem>**Memory Profiling**: Monitor memory usage patterns during development</ListItem>
+<ListItem>**Performance Profiling**: Profile execution times and identify bottlenecks</ListItem>
+<ListItem>**Security Testing**: Test with malicious inputs and validate security measures</ListItem>
+<ListItem>**Integration Testing**: Test tools within actual workflow execution</ListItem>
+</List>
 
 ## Troubleshooting
 
+<Callout type="warning">
+When troubleshooting runtime issues, always check logs and use debug mode for detailed information about tool execution.
+</Callout>
+
 ### Common Issues
 
-1. **Tool Not Found**: Ensure tool files exist and are executable
-2. **Permission Denied**: Check runtime permissions configuration
-3. **Memory Limit Exceeded**: Increase memory limits or optimize tool
-4. **Timeout Errors**: Adjust timeout settings or optimize performance
-5. **Import Errors**: Verify TypeScript configuration and dependencies
+<Tabs>
+<Tab title="Execution Errors">
+
+<List>
+<ListItem>**Tool Not Found**: Ensure tool files exist and are properly exported in entrypoint</ListItem>
+<ListItem>**Permission Denied**: Check runtime permissions configuration and file access</ListItem>
+<ListItem>**Memory Limit Exceeded**: Increase memory limits or optimize tool memory usage</ListItem>
+<ListItem>**Timeout Errors**: Adjust timeout settings or optimize performance</ListItem>
+<ListItem>**Import Errors**: Verify TypeScript configuration and dependencies</ListItem>
+<ListItem>**Environment Variable Issues**: Check environment variable validation and access</ListItem>
+</List>
+
+</Tab>
+<Tab title="Security Errors">
+
+<List>
+<ListItem>**Invalid Tool ID**: Tool IDs must be alphanumeric with limited special characters</ListItem>
+<ListItem>**Directory Traversal**: Tool IDs cannot contain ".." or start with "/"</ListItem>
+<ListItem>**Dangerous Environment Variables**: Some environment variables are blocked for security</ListItem>
+<ListItem>**File Access Denied**: Check file permissions and runtime permission configuration</ListItem>
+<ListItem>**Network Access Denied**: Verify network permissions and allowed domains</ListItem>
+<ListItem>**Output Size Exceeded**: Tool output exceeded configured size limits</ListItem>
+</List>
+
+</Tab>
+<Tab title="Performance Issues">
+
+<List>
+<ListItem>**Slow Startup**: Enable worker caching and precompilation</ListItem>
+<ListItem>**Memory Leaks**: Monitor memory usage and enable garbage collection</ListItem>
+<ListItem>**High CPU Usage**: Profile tool execution and optimize algorithms</ListItem>
+<ListItem>**Network Latency**: Implement request caching and connection pooling</ListItem>
+<ListItem>**Large Output Processing**: Use streaming or pagination for large datasets</ListItem>
+<ListItem>**Concurrent Execution**: Monitor resource usage with parallel tool execution</ListItem>
+</List>
+
+</Tab>
+</Tabs>
 
 ### Debug Commands
+
+<Tabs>
+<Tab title="Basic Debugging">
 
 ```bash
 # Check Bun availability
 bun --version
 
-# Test tool execution
+# Test tool execution with debug output
 compozy tool test my-tool --debug
-
-# Monitor runtime performance
-compozy debug runtime --watch
 
 # Validate tool configuration
 compozy tool validate tools/my-tool.yaml
+
+# Check runtime configuration
+compozy runtime info
 ```
+
+</Tab>
+<Tab title="Advanced Debugging">
+
+```bash
+# Monitor runtime performance
+compozy debug runtime --watch
+
+# Trace tool execution
+compozy tool trace my-tool --input '{"key": "value"}'
+
+# Check memory usage
+compozy debug memory --tool my-tool
+
+# Validate security configuration
+compozy security check
+```
+
+</Tab>
+<Tab title="Log Analysis">
+
+```bash
+# View runtime logs
+compozy logs runtime --level debug
+
+# Filter logs by tool ID
+compozy logs runtime --tool my-tool
+
+# Monitor real-time logs
+compozy logs runtime --follow
+
+# Export logs for analysis
+compozy logs export --format json --output runtime-logs.json
+```
+
+</Tab>
+</Tabs>
 
 ## Next Steps
 
-- [Configuration Schemas](./configuration-schemas) - Define tool interfaces
-- [External Integrations](./external-integrations) - Connect to external services
-- [Testing & Debugging](./testing-debugging) - Tool development workflow
-- [Performance & Security](./performance-security) - Optimization and security
+<ReferenceCardList>
+<ReferenceCard
+  title="Configuration Schemas"
+  description="Define robust tool interfaces using JSON Schema validation"
+  href="/docs/core/tools/configuration-schemas"
+/>
+<ReferenceCard
+  title="External Integrations"
+  description="Connect tools to external services and APIs"
+  href="/docs/core/tools/external-integrations"
+/>
+<ReferenceCard
+  title="Testing & Debugging"
+  description="Comprehensive tool development and debugging workflow"
+  href="/docs/core/tools/testing-debugging"
+/>
+<ReferenceCard
+  title="Performance & Security"
+  description="Optimization strategies and security best practices"
+  href="/docs/core/tools/performance-security"
+/>
+</ReferenceCardList>

