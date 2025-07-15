@@ -10,7 +10,7 @@
 <dependencies>http_server</dependencies>
 </task_context>
 
-# Task 11.0: Event Sending Functionality
+# Task 11.0: Event Sending Functionality [⚠️ DEFERRED]
 
 ## Overview
 

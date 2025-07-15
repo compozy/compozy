@@ -454,30 +454,21 @@
                 ],
                 "responses": {
                     "201": {
-                        "description": "Created",
+                        "description": "contains data.api_key and message",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/router.GenerateKeyResponse"
                         }
                     },
                     "401": {
-                        "description": "Unauthorized",
+                        "description": "authentication failure",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/router.ErrorResponse"
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "internal server error",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/router.ErrorResponse"
                         }
                     }
                 }
@@ -5061,6 +5052,36 @@
                 },
                 "details": {
                     "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "router.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "details": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string"
+                }
+            }
+        },
+        "router.GenerateKeyData": {
+            "type": "object",
+            "properties": {
+                "api_key": {
+                    "type": "string"
+                }
+            }
+        },
+        "router.GenerateKeyResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/router.GenerateKeyData"
                 },
                 "message": {
                     "type": "string"

@@ -10,7 +10,7 @@
 <dependencies>temporal</dependencies>
 </task_context>
 
-# Task 8.0: Execution Management Commands
+# Task 8.0: Execution Management Commands [⚠️ DEFERRED]
 
 ## Overview
 

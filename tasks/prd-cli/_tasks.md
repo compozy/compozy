@@ -31,10 +31,10 @@
 - [ ] 5.0 Workflow Listing Functionality
 - [ ] 6.0 Workflow Detail and Execution Commands
 - [ ] 7.0 Real-time Execution Monitoring [⚠️ DEFERRED]
-- [ ] 8.0 Execution Management Commands
-- [ ] 9.0 Execution Signaling Functionality
-- [ ] 10.0 Schedule Management System
-- [ ] 11.0 Event Sending Functionality
+- [ ] 8.0 Execution Management Commands [⚠️ DEFERRED]
+- [ ] 9.0 Execution Signaling Functionality [⚠️ DEFERRED]
+- [ ] 10.0 Schedule Management System [⚠️ DEFERRED]
+- [ ] 11.0 Event Sending Functionality [⚠️ DEFERRED]
 - [ ] 12.0 Enhanced TUI Components and Styling
 - [ ] 13.0 JSON Output Standardization
 - [ ] 14.0 Global Flags and Help System

@@ -1031,6 +1031,25 @@ definitions:
       message:
         type: string
     type: object
+  router.ErrorResponse:
+    properties:
+      details:
+        type: string
+      error:
+        type: string
+    type: object
+  router.GenerateKeyData:
+    properties:
+      api_key:
+        type: string
+    type: object
+  router.GenerateKeyResponse:
+    properties:
+      data:
+        $ref: '#/definitions/router.GenerateKeyData'
+      message:
+        type: string
+    type: object
   router.Response:
     properties:
       data: {}
@@ -2330,23 +2349,17 @@ paths:
         - application/json
       responses:
         "201":
-          description: Created
+          description: contains data.api_key and message
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/router.GenerateKeyResponse'
         "401":
-          description: Unauthorized
+          description: authentication failure
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/router.ErrorResponse'
         "500":
-          description: Internal Server Error
+          description: internal server error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/router.ErrorResponse'
       summary: Generate a new API key
       tags:
         - auth

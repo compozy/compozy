@@ -48,9 +48,7 @@ func NewAPIClient(cfg *config.Config) (*APIClient, error) {
 	}
 
 	client := buildHTTPClient(cfg, baseURL, apiKey)
-
 	rateLimiter := buildRateLimiter(cfg, client)
-
 	apiClient := &APIClient{
 		client:      client,
 		config:      cfg,
@@ -60,7 +58,6 @@ func NewAPIClient(cfg *config.Config) (*APIClient, error) {
 	}
 
 	initializeServices(apiClient)
-
 	return apiClient, nil
 }
 
@@ -280,6 +277,12 @@ type workflowService struct {
 }
 
 func (s *workflowService) List(ctx context.Context, filters services.WorkflowFilters) ([]services.Workflow, error) {
+	log := logger.FromContext(ctx)
+
+	// Add timeout for long-running operations
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
 	var result struct {
 		Data struct {
 			Workflows []services.Workflow `json:"workflows"`
@@ -302,23 +305,51 @@ func (s *workflowService) List(ctx context.Context, filters services.WorkflowFil
 		req.SetQueryParam("offset", fmt.Sprintf("%d", filters.Offset))
 	}
 
-	_, err := req.Get("/workflows")
+	log.Debug("listing workflows", "filters", filters)
+
+	resp, err := req.Get("/workflows")
 	if err != nil {
+		// Check for context cancellation
+		if ctx.Err() == context.Canceled {
+			return nil, fmt.Errorf("workflow listing was canceled")
+		}
+		if ctx.Err() == context.DeadlineExceeded {
+			return nil, fmt.Errorf("workflow listing timed out after 30 seconds")
+		}
 		return nil, fmt.Errorf("failed to list workflows: %w", err)
 	}
+
+	log.Debug("workflows listed successfully", "count", len(result.Data.Workflows), "status", resp.StatusCode())
 
 	return result.Data.Workflows, nil
 }
 
 func (s *workflowService) Get(ctx context.Context, id core.ID) (*services.WorkflowDetail, error) {
+	log := logger.FromContext(ctx)
+
+	// Add timeout for workflow retrieval
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+
 	var result struct {
 		Data services.WorkflowDetail `json:"data"`
 	}
 
+	log.Debug("retrieving workflow", "workflow_id", id)
+
 	err := s.client.doRequest(ctx, "GET", fmt.Sprintf("/workflows/%s", id), nil, &result)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get workflow: %w", err)
+		// Check for context cancellation
+		if ctx.Err() == context.Canceled {
+			return nil, fmt.Errorf("workflow retrieval was canceled")
+		}
+		if ctx.Err() == context.DeadlineExceeded {
+			return nil, fmt.Errorf("workflow retrieval timed out after 15 seconds")
+		}
+		return nil, fmt.Errorf("failed to get workflow %s: %w", id, err)
 	}
+
+	log.Debug("workflow retrieved successfully", "workflow_id", id, "name", result.Data.Name)
 
 	return &result.Data, nil
 }
@@ -333,14 +364,35 @@ func (s *workflowMutateService) Execute(
 	id core.ID,
 	input services.ExecutionInput,
 ) (*services.ExecutionResult, error) {
+	log := logger.FromContext(ctx)
+
+	// Add longer timeout for workflow execution (can be long-running)
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+
 	var result struct {
 		Data services.ExecutionResult `json:"data"`
 	}
 
+	log.Info("executing workflow", "workflow_id", id, "input_data", input.Data != nil)
+
 	err := s.client.doRequest(ctx, "POST", fmt.Sprintf("/workflows/%s/execute", id), input, &result)
 	if err != nil {
-		return nil, fmt.Errorf("failed to execute workflow: %w", err)
+		// Check for context cancellation
+		if ctx.Err() == context.Canceled {
+			return nil, fmt.Errorf("workflow execution was canceled")
+		}
+		if ctx.Err() == context.DeadlineExceeded {
+			return nil, fmt.Errorf("workflow execution timed out after 5 minutes")
+		}
+		return nil, fmt.Errorf("failed to execute workflow %s: %w", id, err)
 	}
+
+	log.Info("workflow executed successfully",
+		"workflow_id", id,
+		"execution_id", result.Data.ExecutionID,
+		"status", result.Data.Status,
+	)
 
 	return &result.Data, nil
 }

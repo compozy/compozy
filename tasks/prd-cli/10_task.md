@@ -10,7 +10,7 @@
 <dependencies>temporal</dependencies>
 </task_context>
 
-# Task 10.0: Schedule Management System
+# Task 10.0: Schedule Management System [⚠️ DEFERRED]
 
 ## Overview
 

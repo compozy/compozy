@@ -10,7 +10,7 @@
 <dependencies>temporal</dependencies>
 </task_context>
 
-# Task 9.0: Execution Signaling Functionality
+# Task 9.0: Execution Signaling Functionality [⚠️ DEFERRED]
 
 ## Overview
 
