@@ -3,11 +3,330 @@ title: "Admin API"
 description: "Administrative API for managing MCP servers, monitoring operations, and system configuration"
 ---
 
+import {
+  BookOpen,
+  Code,
+  Rocket,
+  Settings,
+  Users,
+  Zap,
+  BrainCircuit,
+  GitBranch,
+  Package,
+  Database,
+  Link2,
+  Radio,
+  Cloud,
+  BarChart3,
+  CloudSun,
+  HeadphonesIcon,
+  Cpu,
+  PenTool,
+  FileJson,
+  Terminal,
+  FileCode,
+  Shield,
+  Github,
+  MessageSquare,
+  FolderOpen,
+  HandHeart,
+  ShieldCheck,
+  TrendingUp,
+  Eye,
+  Layers,
+  Lock,
+  RefreshCw,
+  Server,
+  Container,
+  CloudCog,
+  Monitor,
+  AlertTriangle,
+  CheckCircle,
+  Globe,
+  HardDrive,
+  Network,
+  Gauge,
+  Activity,
+  Timer,
+  Boxes,
+  Workflow,
+  Play,
+  Pause,
+  RotateCcw,
+  History,
+  FileText,
+  Download,
+  Upload,
+  ExternalLink,
+  Copy,
+  Edit,
+  Trash2,
+  AlertCircle,
+  Info,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  Calendar,
+  MapPin,
+  Tag,
+  Filter,
+  Search,
+  Bell,
+  Key,
+  UserCheck,
+  LogOut,
+  Settings2,
+  Wrench,
+  LineChart,
+  PieChart,
+  TrendingDown,
+  Wifi,
+  WifiOff,
+  Power,
+  PowerOff,
+  Thermometer,
+  Target,
+  Crosshair,
+  Radar,
+  Compass,
+  Navigation,
+  Layers3,
+  Cog,
+  Home,
+  LayoutDashboard,
+  List,
+  Plus,
+  Minus,
+  X,
+  Check,
+  ChevronRight,
+  ChevronLeft,
+  ChevronUp,
+  ChevronDown,
+  MoreHorizontal,
+  MoreVertical,
+  ExternalLinkIcon,
+  CopyIcon,
+  EditIcon,
+  Trash2Icon,
+  PlayIcon,
+  PauseIcon,
+  StopCircle,
+  RefreshCcw,
+  RotateCcwIcon,
+  Download as DownloadIcon,
+  Upload as UploadIcon,
+  FileText as FileTextIcon,
+  Database as DatabaseIcon,
+  Server as ServerIcon,
+  Settings as SettingsIcon,
+  Users as UsersIcon,
+  Shield as ShieldIcon,
+  Key as KeyIcon,
+  Lock as LockIcon,
+  Bell as BellIcon,
+  Activity as ActivityIcon,
+  BarChart3 as BarChart3Icon,
+  Monitor as MonitorIcon,
+  AlertTriangle as AlertTriangleIcon,
+  CheckCircle as CheckCircleIcon,
+  XCircle as XCircleIcon,
+  Clock as ClockIcon,
+  Calendar as CalendarIcon,
+  MapPin as MapPinIcon,
+  Tag as TagIcon,
+  Filter as FilterIcon,
+  Search as SearchIcon,
+  Eye as EyeIcon,
+  EyeOff,
+  Layers as LayersIcon,
+  Workflow as WorkflowIcon,
+  GitBranch as GitBranchIcon,
+  Package as PackageIcon,
+  Link2 as Link2Icon,
+  Globe as GlobeIcon,
+  Network as NetworkIcon,
+  HardDrive as HardDriveIcon,
+  Cpu as CpuIcon,
+  MemoryStick,
+  Zap as ZapIcon,
+  Timer as TimerIcon,
+  Gauge as GaugeIcon,
+  TrendingUp as TrendingUpIcon,
+  TrendingDown as TrendingDownIcon,
+  LineChart as LineChartIcon,
+  PieChart as PieChartIcon,
+  Target as TargetIcon,
+  Crosshair as CrosshairIcon,
+  Radar as RadarIcon,
+  Compass as CompassIcon,
+  Navigation as NavigationIcon,
+  Layers3 as Layers3Icon,
+  Cog as CogIcon,
+  Home as HomeIcon,
+  LayoutDashboard as LayoutDashboardIcon,
+  List as ListIcon,
+  Plus as PlusIcon,
+  Minus as MinusIcon,
+  X as XIcon,
+  Check as CheckIcon,
+  ChevronRight as ChevronRightIcon,
+  ChevronLeft as ChevronLeftIcon,
+  ChevronUp as ChevronUpIcon,
+  ChevronDown as ChevronDownIcon,
+  MoreHorizontal as MoreHorizontalIcon,
+  MoreVertical as MoreVerticalIcon,
+  EyeOff as EyeOffIcon,
+  Wifi as WifiIcon,
+  WifiOff as WifiOffIcon,
+  Power as PowerIcon,
+  PowerOff as PowerOffIcon,
+  Thermometer as ThermometerIcon,
+  StopCircle as StopCircleIcon,
+  RefreshCcw as RefreshCcwIcon,
+  LogOut as LogOutIcon,
+  Settings2 as Settings2Icon,
+  Wrench as WrenchIcon,
+  UserCheck as UserCheckIcon,
+  History as HistoryIcon,
+  Code as CodeIcon,
+  Terminal as TerminalIcon,
+  FileCode as FileCodeIcon,
+  FileJson as FileJsonIcon,
+  PenTool as PenToolIcon,
+  BookOpen as BookOpenIcon,
+  MessageSquare as MessageSquareIcon,
+  FolderOpen as FolderOpenIcon,
+  HandHeart as HandHeartIcon,
+  Github as GithubIcon,
+  CloudSun as CloudSunIcon,
+  HeadphonesIcon as HeadphonesIconIcon,
+  Rocket as RocketIcon,
+  BrainCircuit as BrainCircuitIcon,
+  ShieldCheck as ShieldCheckIcon,
+  Cloud as CloudIcon,
+  Container as ContainerIcon,
+  CloudCog as CloudCogIcon,
+  Boxes as BoxesIcon,
+  Radio as RadioIcon,
+  Layers as LayersIconIcon,
+  RefreshCw as RefreshCwIcon,
+  AlertCircle as AlertCircleIcon,
+  Info as InfoIcon,
+  CheckCircle2 as CheckCircle2Icon,
+} from "lucide-react";
+import { FeatureCard, FeatureCardList } from "@/components/ui/feature-card";
+import { ReferenceCard, ReferenceCardList } from "@/components/ui/reference-card";
+import { Callout } from "@/components/ui/callout";
+import { Steps, Step } from "@/components/ui/step";
+import { Tabs, Tab } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Mermaid } from "@/components/ui/mermaid";
+import { Button } from "@/components/ui/button";
+import { List, ListItem } from "@/components/ui/list";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+
 # Admin API
 
 The MCP Admin API provides comprehensive administrative capabilities for managing MCP servers, monitoring operations, and configuring system settings. This API enables operational teams to manage MCP deployments effectively.
 
+<Callout type="info" icon={Settings}>
+  **Administrative Control**: The Admin API provides complete operational control over your MCP deployment with comprehensive management capabilities.
+</Callout>
+
 ## API Overview
+
+<Mermaid chart={`graph TB
+    subgraph "Admin API"
+        API[Admin API Gateway<br/>:8080]
+    end
+    
+    subgraph "Management Operations"
+        SM[Server Management<br/>CRUD Operations]
+        TM[Tool Management<br/>Execution & Monitoring]
+        SYS[System Management<br/>Config & Health]
+        MON[Monitoring<br/>Metrics & Alerts]
+        SEC[Security<br/>Auth & Tokens]
+    end
+    
+    subgraph "Backend Services"
+        MGR[MCP Manager<br/>Core Service]
+        MET[Metrics Collector<br/>Telemetry]
+        DB[(Database<br/>State Storage)]
+        REDIS[(Redis<br/>Cache & Sessions)]
+    end
+    
+    subgraph "External Systems"
+        PROM[Prometheus<br/>Metrics]
+        GRAF[Grafana<br/>Dashboards]
+        ALERT[AlertManager<br/>Notifications]
+    end
+    
+    API --> SM
+    API --> TM
+    API --> SYS
+    API --> MON
+    API --> SEC
+    
+    SM --> MGR
+    TM --> MGR
+    SYS --> MGR
+    MON --> MET
+    SEC --> MGR
+    
+    MGR --> DB
+    MGR --> REDIS
+    MET --> PROM
+    
+    PROM --> GRAF
+    PROM --> ALERT
+    
+    classDef api fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    classDef management fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    classDef backend fill:#e8f5e8,stroke:#1b5e20,stroke-width:2px
+    classDef external fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    
+    class API api
+    class SM,TM,SYS,MON,SEC management
+    class MGR,MET,DB,REDIS backend
+    class PROM,GRAF,ALERT external
+`} />
+
+### Admin API Capabilities
+
+<FeatureCardList cols={3} size="sm">
+  <FeatureCard
+    title="Server Management"
+    description="Complete CRUD operations for MCP servers"
+    icon={Server}
+  />
+  <FeatureCard
+    title="Tool Administration"
+    description="Execute and monitor tools across all servers"
+    icon={Wrench}
+  />
+  <FeatureCard
+    title="System Control"
+    description="System configuration and health management"
+    icon={Settings}
+  />
+  <FeatureCard
+    title="Monitoring Interface"
+    description="Real-time monitoring and alerting"
+    icon={Monitor}
+  />
+  <FeatureCard
+    title="Security Management"
+    description="Authentication and authorization control"
+    icon={Shield}
+  />
+  <FeatureCard
+    title="Operational Insights"
+    description="Performance metrics and analytics"
+    icon={BarChart3}
+  />
+</FeatureCardList>
 
 ### Base Configuration
 
@@ -133,6 +452,174 @@ func (api *AdminAPI) SetupRoutes() *gin.Engine {
 ```
 
 ## Server Management
+
+<Callout type="info" icon={Server}>
+  **Server Lifecycle**: Complete server lifecycle management from creation to monitoring and maintenance.
+</Callout>
+
+### Server Management Operations
+
+<Tabs items={["List Servers", "Create Server", "Server Details", "Server Control"]}>
+
+<Tab>
+**List Servers** - Get overview of all MCP servers:
+
+<Card>
+  <CardHeader>
+    <CardTitle>Server List Response</CardTitle>
+    <CardDescription>Example response from GET /api/v1/admin/servers</CardDescription>
+  </CardHeader>
+  <CardContent>
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Field</TableHead>
+          <TableHead>Type</TableHead>
+          <TableHead>Description</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        <TableRow>
+          <TableCell>`id`</TableCell>
+          <TableCell><Badge variant="outline">string</Badge></TableCell>
+          <TableCell>Unique server identifier</TableCell>
+        </TableRow>
+        <TableRow>
+          <TableCell>`name`</TableCell>
+          <TableCell><Badge variant="outline">string</Badge></TableCell>
+          <TableCell>Server display name</TableCell>
+        </TableRow>
+        <TableRow>
+          <TableCell>`status`</TableCell>
+          <TableCell><Badge variant="outline">string</Badge></TableCell>
+          <TableCell>Current server status</TableCell>
+        </TableRow>
+        <TableRow>
+          <TableCell>`tool_count`</TableCell>
+          <TableCell><Badge variant="outline">number</Badge></TableCell>
+          <TableCell>Number of available tools</TableCell>
+        </TableRow>
+        <TableRow>
+          <TableCell>`request_count`</TableCell>
+          <TableCell><Badge variant="outline">number</Badge></TableCell>
+          <TableCell>Total requests processed</TableCell>
+        </TableRow>
+      </TableBody>
+    </Table>
+  </CardContent>
+</Card>
+
+</Tab>
+
+<Tab>
+**Create Server** - Add new MCP server:
+
+<Card>
+  <CardHeader>
+    <CardTitle>Server Creation</CardTitle>
+    <CardDescription>POST /api/v1/admin/servers</CardDescription>
+  </CardHeader>
+  <CardContent>
+    <div className="space-y-4">
+      <div className="p-4 border rounded-lg">
+        <h4 className="font-semibold mb-2">Request Body</h4>
+        <List>
+          <ListItem title="name">Server display name</ListItem>
+          <ListItem title="transport">Communication protocol (stdio, sse)</ListItem>
+          <ListItem title="command">Executable command</ListItem>
+          <ListItem title="args">Command arguments</ListItem>
+          <ListItem title="env">Environment variables</ListItem>
+        </List>
+      </div>
+      <div className="p-4 border rounded-lg">
+        <h4 className="font-semibold mb-2">Validation</h4>
+        <List>
+          <ListItem title="Name Uniqueness">Server names must be unique</ListItem>
+          <ListItem title="Transport Support">Validate transport protocol</ListItem>
+          <ListItem title="Command Validation">Ensure executable exists</ListItem>
+          <ListItem title="Environment Security">Validate environment variables</ListItem>
+        </List>
+      </div>
+    </div>
+  </CardContent>
+</Card>
+
+</Tab>
+
+<Tab>
+**Server Details** - Get comprehensive server information:
+
+<Card>
+  <CardHeader>
+    <CardTitle>Detailed Server Info</CardTitle>
+    <CardDescription>GET /api/v1/admin/servers/{id}</CardDescription>
+  </CardHeader>
+  <CardContent>
+    <div className="grid grid-cols-2 gap-4">
+      <div className="p-4 border rounded-lg">
+        <h4 className="font-semibold mb-2">Basic Information</h4>
+        <List>
+          <ListItem title="Server ID">Unique identifier</ListItem>
+          <ListItem title="Name & Description">Display information</ListItem>
+          <ListItem title="Transport Type">Communication protocol</ListItem>
+          <ListItem title="Status">Current operational state</ListItem>
+        </List>
+      </div>
+      <div className="p-4 border rounded-lg">
+        <h4 className="font-semibold mb-2">Statistics</h4>
+        <List>
+          <ListItem title="Request Count">Total requests processed</ListItem>
+          <ListItem title="Error Count">Number of errors</ListItem>
+          <ListItem title="Success Rate">Request success percentage</ListItem>
+          <ListItem title="Average Latency">Response time metrics</ListItem>
+        </List>
+      </div>
+    </div>
+  </CardContent>
+</Card>
+
+</Tab>
+
+<Tab>
+**Server Control** - Start, stop, and restart servers:
+
+<Card>
+  <CardHeader>
+    <CardTitle>Server Control Operations</CardTitle>
+    <CardDescription>Lifecycle management endpoints</CardDescription>
+  </CardHeader>
+  <CardContent>
+    <div className="space-y-4">
+      <div className="p-4 border rounded-lg">
+        <h4 className="font-semibold mb-2 flex items-center gap-2">
+          <Play className="h-4 w-4 text-green-500" />
+          Start Server
+        </h4>
+        <p className="text-sm text-gray-600 mb-2">POST /api/v1/admin/servers/{id}/start</p>
+        <p className="text-sm">Starts a stopped server and initializes all tools</p>
+      </div>
+      <div className="p-4 border rounded-lg">
+        <h4 className="font-semibold mb-2 flex items-center gap-2">
+          <Pause className="h-4 w-4 text-orange-500" />
+          Stop Server
+        </h4>
+        <p className="text-sm text-gray-600 mb-2">POST /api/v1/admin/servers/{id}/stop</p>
+        <p className="text-sm">Gracefully stops server and closes all connections</p>
+      </div>
+      <div className="p-4 border rounded-lg">
+        <h4 className="font-semibold mb-2 flex items-center gap-2">
+          <RefreshCw className="h-4 w-4 text-blue-500" />
+          Restart Server
+        </h4>
+        <p className="text-sm text-gray-600 mb-2">POST /api/v1/admin/servers/{id}/restart</p>
+        <p className="text-sm">Stops and starts server with configuration reload</p>
+      </div>
+    </div>
+  </CardContent>
+</Card>
+
+</Tab>
+</Tabs>
 
 ### List and Manage Servers
 
@@ -371,7 +858,185 @@ func (api *AdminAPI) getServerMetrics(c *gin.Context) {
 
 ## Tool Management
 
+<Callout type="info" icon={Wrench}>
+  **Tool Administration**: Comprehensive tool management across all MCP servers with execution monitoring.
+</Callout>
+
+### Tool Management Dashboard
+
+<Card>
+  <CardHeader>
+    <CardTitle>Tool Management Overview</CardTitle>
+    <CardDescription>Administrative interface for tool operations</CardDescription>
+  </CardHeader>
+  <CardContent>
+    <div className="grid grid-cols-4 gap-4">
+      <div className="p-4 border rounded-lg text-center">
+        <div className="text-2xl font-bold text-blue-600">47</div>
+        <div className="text-sm text-gray-600">Total Tools</div>
+      </div>
+      <div className="p-4 border rounded-lg text-center">
+        <div className="text-2xl font-bold text-green-600">42</div>
+        <div className="text-sm text-gray-600">Available</div>
+      </div>
+      <div className="p-4 border rounded-lg text-center">
+        <div className="text-2xl font-bold text-orange-600">3</div>
+        <div className="text-sm text-gray-600">Executing</div>
+      </div>
+      <div className="p-4 border rounded-lg text-center">
+        <div className="text-2xl font-bold text-red-600">2</div>
+        <div className="text-sm text-gray-600">Errors</div>
+      </div>
+    </div>
+  </CardContent>
+</Card>
+
 ### Tool Operations
+
+<Tabs items={["List Tools", "Execute Tool", "Tool Schema", "Validation"]}>
+
+<Tab>
+**List Tools** - Discover all available tools:
+
+<Table>
+  <TableHeader>
+    <TableRow>
+      <TableHead>Server</TableHead>
+      <TableHead>Tool Name</TableHead>
+      <TableHead>Description</TableHead>
+      <TableHead>Status</TableHead>
+      <TableHead>Executions</TableHead>
+    </TableRow>
+  </TableHeader>
+  <TableBody>
+    <TableRow>
+      <TableCell>filesystem</TableCell>
+      <TableCell>read_file</TableCell>
+      <TableCell>Read file contents</TableCell>
+      <TableCell><Badge variant="outline">Available</Badge></TableCell>
+      <TableCell>1,234</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>database</TableCell>
+      <TableCell>execute_query</TableCell>
+      <TableCell>Execute SQL query</TableCell>
+      <TableCell><Badge variant="outline">Available</Badge></TableCell>
+      <TableCell>567</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>external-api</TableCell>
+      <TableCell>fetch_data</TableCell>
+      <TableCell>Fetch external data</TableCell>
+      <TableCell><Badge variant="destructive">Error</Badge></TableCell>
+      <TableCell>89</TableCell>
+    </TableRow>
+  </TableBody>
+</Table>
+
+</Tab>
+
+<Tab>
+**Execute Tool** - Run tools with administrative privileges:
+
+<Card>
+  <CardHeader>
+    <CardTitle>Tool Execution</CardTitle>
+    <CardDescription>Administrative tool execution with enhanced logging</CardDescription>
+  </CardHeader>
+  <CardContent>
+    <div className="space-y-4">
+      <div className="p-4 border rounded-lg">
+        <h4 className="font-semibold mb-2">Execution Context</h4>
+        <List>
+          <ListItem title="Admin Context">Execution marked as administrative</ListItem>
+          <ListItem title="Enhanced Logging">Detailed execution logs</ListItem>
+          <ListItem title="Audit Trail">Complete audit trail</ListItem>
+          <ListItem title="Error Handling">Comprehensive error reporting</ListItem>
+        </List>
+      </div>
+      <div className="p-4 border rounded-lg">
+        <h4 className="font-semibold mb-2">Response Information</h4>
+        <List>
+          <ListItem title="Execution Result">Tool output and status</ListItem>
+          <ListItem title="Execution Time">Performance metrics</ListItem>
+          <ListItem title="Admin User">Executing administrator</ListItem>
+          <ListItem title="Timestamp">Execution timestamp</ListItem>
+        </List>
+      </div>
+    </div>
+  </CardContent>
+</Card>
+
+</Tab>
+
+<Tab>
+**Tool Schema** - Inspect tool input/output schemas:
+
+<Card>
+  <CardHeader>
+    <CardTitle>Tool Schema Information</CardTitle>
+    <CardDescription>Detailed schema information for tool integration</CardDescription>
+  </CardHeader>
+  <CardContent>
+    <div className="grid grid-cols-2 gap-4">
+      <div className="p-4 border rounded-lg">
+        <h4 className="font-semibold mb-2">Input Schema</h4>
+        <List>
+          <ListItem title="Parameter Types">Required and optional parameters</ListItem>
+          <ListItem title="Data Types">Parameter data types and formats</ListItem>
+          <ListItem title="Validation Rules">Input validation requirements</ListItem>
+          <ListItem title="Examples">Sample input values</ListItem>
+        </List>
+      </div>
+      <div className="p-4 border rounded-lg">
+        <h4 className="font-semibold mb-2">Output Schema</h4>
+        <List>
+          <ListItem title="Return Types">Expected output structure</ListItem>
+          <ListItem title="Success Format">Successful response format</ListItem>
+          <ListItem title="Error Format">Error response structure</ListItem>
+          <ListItem title="Metadata">Additional response metadata</ListItem>
+        </List>
+      </div>
+    </div>
+  </CardContent>
+</Card>
+
+</Tab>
+
+<Tab>
+**Validation** - Validate tool parameters before execution:
+
+<Card>
+  <CardHeader>
+    <CardTitle>Parameter Validation</CardTitle>
+    <CardDescription>Validate tool parameters before execution</CardDescription>
+  </CardHeader>
+  <CardContent>
+    <div className="space-y-4">
+      <div className="p-4 border rounded-lg">
+        <h4 className="font-semibold mb-2">Validation Types</h4>
+        <List>
+          <ListItem title="Schema Validation">Check against tool schema</ListItem>
+          <ListItem title="Type Checking">Validate parameter types</ListItem>
+          <ListItem title="Range Validation">Check numeric ranges</ListItem>
+          <ListItem title="Format Validation">Validate string formats</ListItem>
+        </List>
+      </div>
+      <div className="p-4 border rounded-lg">
+        <h4 className="font-semibold mb-2">Validation Response</h4>
+        <List>
+          <ListItem title="Valid Status">Parameter validity status</ListItem>
+          <ListItem title="Error Details">Specific validation errors</ListItem>
+          <ListItem title="Suggestions">Correction suggestions</ListItem>
+          <ListItem title="Warnings">Non-critical warnings</ListItem>
+        </List>
+      </div>
+    </div>
+  </CardContent>
+</Card>
+
+</Tab>
+</Tabs>
 
 ```go
 func (api *AdminAPI) listAllTools(c *gin.Context) {
@@ -501,6 +1166,212 @@ func (api *AdminAPI) validateToolParameters(c *gin.Context) {
 
 ## System Management
 
+<Callout type="info" icon={Settings}>
+  **System Control**: Complete system management including health monitoring, configuration, and maintenance operations.
+</Callout>
+
+### System Management Dashboard
+
+<Card>
+  <CardHeader>
+    <CardTitle>System Health Overview</CardTitle>
+    <CardDescription>Real-time system health and performance metrics</CardDescription>
+  </CardHeader>
+  <CardContent>
+    <div className="grid grid-cols-3 gap-4">
+      <div className="p-4 border rounded-lg">
+        <div className="flex items-center gap-2 mb-2">
+          <CheckCircle className="h-4 w-4 text-green-500" />
+          <span className="font-semibold">System Status</span>
+        </div>
+        <div className="text-sm text-gray-600">All systems operational</div>
+      </div>
+      <div className="p-4 border rounded-lg">
+        <div className="flex items-center gap-2 mb-2">
+          <Activity className="h-4 w-4 text-blue-500" />
+          <span className="font-semibold">Performance</span>
+        </div>
+        <div className="text-sm text-gray-600">CPU: 45%, Memory: 62%</div>
+      </div>
+      <div className="p-4 border rounded-lg">
+        <div className="flex items-center gap-2 mb-2">
+          <Clock className="h-4 w-4 text-orange-500" />
+          <span className="font-semibold">Uptime</span>
+        </div>
+        <div className="text-sm text-gray-600">7 days, 14 hours</div>
+      </div>
+    </div>
+  </CardContent>
+</Card>
+
+### System Operations
+
+<Tabs items={["Health Status", "Configuration", "Logs", "Maintenance"]}>
+
+<Tab>
+**Health Status** - System health monitoring:
+
+<div className="space-y-4">
+  <Card>
+    <CardHeader>
+      <CardTitle>Component Health</CardTitle>
+      <CardDescription>Health status of all system components</CardDescription>
+    </CardHeader>
+    <CardContent>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Component</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Last Check</TableHead>
+            <TableHead>Response Time</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          <TableRow>
+            <TableCell>MCP Proxy</TableCell>
+            <TableCell><Badge variant="outline">Healthy</Badge></TableCell>
+            <TableCell>2 minutes ago</TableCell>
+            <TableCell>45ms</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell>Database</TableCell>
+            <TableCell><Badge variant="outline">Healthy</Badge></TableCell>
+            <TableCell>1 minute ago</TableCell>
+            <TableCell>12ms</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell>Redis Cache</TableCell>
+            <TableCell><Badge variant="outline">Healthy</Badge></TableCell>
+            <TableCell>30 seconds ago</TableCell>
+            <TableCell>8ms</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell>External API</TableCell>
+            <TableCell><Badge variant="destructive">Degraded</Badge></TableCell>
+            <TableCell>5 minutes ago</TableCell>
+            <TableCell>1.2s</TableCell>
+          </TableRow>
+        </TableBody>
+      </Table>
+    </CardContent>
+  </Card>
+</div>
+
+</Tab>
+
+<Tab>
+**Configuration** - System configuration management:
+
+<div className="space-y-4">
+  <Card>
+    <CardHeader>
+      <CardTitle>Configuration Management</CardTitle>
+      <CardDescription>View and update system configuration</CardDescription>
+    </CardHeader>
+    <CardContent>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="p-4 border rounded-lg">
+          <h4 className="font-semibold mb-2">Configuration Sources</h4>
+          <List>
+            <ListItem title="Environment Variables">System environment configuration</ListItem>
+            <ListItem title="Configuration Files">YAML/JSON configuration files</ListItem>
+            <ListItem title="Database Settings">Dynamic configuration storage</ListItem>
+            <ListItem title="Runtime Parameters">Live configuration updates</ListItem>
+          </List>
+        </div>
+        <div className="p-4 border rounded-lg">
+          <h4 className="font-semibold mb-2">Configuration Updates</h4>
+          <List>
+            <ListItem title="Validation">Configuration validation before update</ListItem>
+            <ListItem title="Rollback">Automatic rollback on failure</ListItem>
+            <ListItem title="Reload">Hot reload without restart</ListItem>
+            <ListItem title="Audit">Complete audit trail</ListItem>
+          </List>
+        </div>
+      </div>
+    </CardContent>
+  </Card>
+</div>
+
+</Tab>
+
+<Tab>
+**Logs** - System log management:
+
+<div className="space-y-4">
+  <Card>
+    <CardHeader>
+      <CardTitle>Log Management</CardTitle>
+      <CardDescription>View and filter system logs</CardDescription>
+    </CardHeader>
+    <CardContent>
+      <div className="space-y-4">
+        <div className="p-4 border rounded-lg">
+          <h4 className="font-semibold mb-2">Log Filters</h4>
+          <div className="grid grid-cols-4 gap-2">
+            <Badge variant="outline">Level: INFO</Badge>
+            <Badge variant="outline">Component: MCP</Badge>
+            <Badge variant="outline">Since: 1 hour</Badge>
+            <Badge variant="outline">Limit: 100</Badge>
+          </div>
+        </div>
+        <div className="p-4 border rounded-lg">
+          <h4 className="font-semibold mb-2">Recent Logs</h4>
+          <div className="space-y-2 text-sm font-mono">
+            <div className="p-2 bg-gray-50 rounded">
+              <span className="text-blue-600">[INFO]</span> 2024-01-15 10:30:25 - MCP server started successfully
+            </div>
+            <div className="p-2 bg-gray-50 rounded">
+              <span className="text-green-600">[INFO]</span> 2024-01-15 10:30:30 - Tool execution completed in 45ms
+            </div>
+            <div className="p-2 bg-yellow-50 rounded">
+              <span className="text-orange-600">[WARN]</span> 2024-01-15 10:31:15 - High memory usage detected
+            </div>
+          </div>
+        </div>
+      </div>
+    </CardContent>
+  </Card>
+</div>
+
+</Tab>
+
+<Tab>
+**Maintenance** - System maintenance operations:
+
+<div className="space-y-4">
+  <Card>
+    <CardHeader>
+      <CardTitle>Maintenance Operations</CardTitle>
+      <CardDescription>System maintenance and optimization</CardDescription>
+    </CardHeader>
+    <CardContent>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="p-4 border rounded-lg">
+          <h4 className="font-semibold mb-2 flex items-center gap-2">
+            <RefreshCw className="h-4 w-4" />
+            Garbage Collection
+          </h4>
+          <p className="text-sm text-gray-600 mb-2">Force garbage collection to free memory</p>
+          <Button size="sm" variant="outline">Run GC</Button>
+        </div>
+        <div className="p-4 border rounded-lg">
+          <h4 className="font-semibold mb-2 flex items-center gap-2">
+            <Settings className="h-4 w-4" />
+            Configuration Reload
+          </h4>
+          <p className="text-sm text-gray-600 mb-2">Reload configuration without restart</p>
+          <Button size="sm" variant="outline">Reload Config</Button>
+        </div>
+      </div>
+    </CardContent>
+  </Card>
+</div>
+
+</Tab>
+</Tabs>
+
 ### System Health and Configuration
 
 ```go
@@ -609,6 +1480,279 @@ func (api *AdminAPI) forceGarbageCollection(c *gin.Context) {
 
 ## Monitoring and Diagnostics
 
+<Callout type="info" icon={Monitor}>
+  **Operational Intelligence**: Real-time monitoring and diagnostics for proactive system management.
+</Callout>
+
+### Monitoring Dashboard
+
+<Card>
+  <CardHeader>
+    <CardTitle>Real-time Monitoring</CardTitle>
+    <CardDescription>Live system metrics and performance indicators</CardDescription>
+  </CardHeader>
+  <CardContent>
+    <div className="grid grid-cols-2 gap-4">
+      <div className="p-4 border rounded-lg">
+        <h4 className="font-semibold mb-2 flex items-center gap-2">
+          <Activity className="h-4 w-4 text-blue-500" />
+          System Metrics
+        </h4>
+        <div className="space-y-2 text-sm">
+          <div className="flex justify-between">
+            <span>CPU Usage</span>
+            <span className="font-mono">45%</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Memory Usage</span>
+            <span className="font-mono">62%</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Disk Usage</span>
+            <span className="font-mono">78%</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Network I/O</span>
+            <span className="font-mono">1.2 MB/s</span>
+          </div>
+        </div>
+      </div>
+      <div className="p-4 border rounded-lg">
+        <h4 className="font-semibold mb-2 flex items-center gap-2">
+          <BarChart3 className="h-4 w-4 text-green-500" />
+          Performance Metrics
+        </h4>
+        <div className="space-y-2 text-sm">
+          <div className="flex justify-between">
+            <span>Requests/sec</span>
+            <span className="font-mono">125</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Avg Response Time</span>
+            <span className="font-mono">45ms</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Error Rate</span>
+            <span className="font-mono">0.2%</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Success Rate</span>
+            <span className="font-mono">99.8%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </CardContent>
+</Card>
+
+### Monitoring Features
+
+<Tabs items={["Dashboard Data", "Active Alerts", "System Events", "Performance Analysis"]}>
+
+<Tab>
+**Dashboard Data** - Real-time system overview:
+
+<div className="space-y-4">
+  <Card>
+    <CardHeader>
+      <CardTitle>Dashboard Components</CardTitle>
+      <CardDescription>Key metrics displayed on the monitoring dashboard</CardDescription>
+    </CardHeader>
+    <CardContent>
+      <div className="grid grid-cols-3 gap-4">
+        <div className="p-4 border rounded-lg">
+          <h4 className="font-semibold mb-2">System Health</h4>
+          <List>
+            <ListItem title="Overall Status">System-wide health indicator</ListItem>
+            <ListItem title="Component Status">Individual component health</ListItem>
+            <ListItem title="Dependency Status">External dependency health</ListItem>
+            <ListItem title="Service Availability">Service uptime metrics</ListItem>
+          </List>
+        </div>
+        <div className="p-4 border rounded-lg">
+          <h4 className="font-semibold mb-2">Performance Metrics</h4>
+          <List>
+            <ListItem title="Request Throughput">Requests per second</ListItem>
+            <ListItem title="Response Times">Latency percentiles</ListItem>
+            <ListItem title="Error Rates">Error percentage trends</ListItem>
+            <ListItem title="Resource Usage">CPU, memory, disk usage</ListItem>
+          </List>
+        </div>
+        <div className="p-4 border rounded-lg">
+          <h4 className="font-semibold mb-2">Business Metrics</h4>
+          <List>
+            <ListItem title="Active Users">Current user sessions</ListItem>
+            <ListItem title="Tool Executions">Tool usage statistics</ListItem>
+            <ListItem title="Workflow Success">Business process metrics</ListItem>
+            <ListItem title="SLA Compliance">Service level adherence</ListItem>
+          </List>
+        </div>
+      </div>
+    </CardContent>
+  </Card>
+</div>
+
+</Tab>
+
+<Tab>
+**Active Alerts** - Current system alerts:
+
+<div className="space-y-4">
+  <Card>
+    <CardHeader>
+      <CardTitle>Alert Management</CardTitle>
+      <CardDescription>Current active alerts and their status</CardDescription>
+    </CardHeader>
+    <CardContent>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Alert</TableHead>
+            <TableHead>Severity</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Duration</TableHead>
+            <TableHead>Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          <TableRow>
+            <TableCell>High Memory Usage</TableCell>
+            <TableCell><Badge variant="destructive">Critical</Badge></TableCell>
+            <TableCell>Active</TableCell>
+            <TableCell>15 minutes</TableCell>
+            <TableCell>
+              <Button size="sm" variant="outline">Acknowledge</Button>
+            </TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell>Slow Database Queries</TableCell>
+            <TableCell><Badge variant="default">Warning</Badge></TableCell>
+            <TableCell>Active</TableCell>
+            <TableCell>5 minutes</TableCell>
+            <TableCell>
+              <Button size="sm" variant="outline">Acknowledge</Button>
+            </TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell>External API Timeout</TableCell>
+            <TableCell><Badge variant="outline">Info</Badge></TableCell>
+            <TableCell>Acknowledged</TableCell>
+            <TableCell>2 hours</TableCell>
+            <TableCell>
+              <Button size="sm" variant="outline">Resolve</Button>
+            </TableCell>
+          </TableRow>
+        </TableBody>
+      </Table>
+    </CardContent>
+  </Card>
+</div>
+
+</Tab>
+
+<Tab>
+**System Events** - System event history:
+
+<div className="space-y-4">
+  <Card>
+    <CardHeader>
+      <CardTitle>Event Timeline</CardTitle>
+      <CardDescription>Recent system events and activities</CardDescription>
+    </CardHeader>
+    <CardContent>
+      <div className="space-y-4">
+        <div className="p-4 border rounded-lg">
+          <div className="flex items-center gap-2 mb-2">
+            <CheckCircle className="h-4 w-4 text-green-500" />
+            <span className="font-semibold">Server Started</span>
+            <span className="text-sm text-gray-500">2 hours ago</span>
+          </div>
+          <p className="text-sm text-gray-600">MCP proxy server started successfully</p>
+        </div>
+        <div className="p-4 border rounded-lg">
+          <div className="flex items-center gap-2 mb-2">
+            <AlertTriangle className="h-4 w-4 text-orange-500" />
+            <span className="font-semibold">High CPU Usage</span>
+            <span className="text-sm text-gray-500">45 minutes ago</span>
+          </div>
+          <p className="text-sm text-gray-600">CPU usage exceeded 80% threshold</p>
+        </div>
+        <div className="p-4 border rounded-lg">
+          <div className="flex items-center gap-2 mb-2">
+            <Settings className="h-4 w-4 text-blue-500" />
+            <span className="font-semibold">Configuration Updated</span>
+            <span className="text-sm text-gray-500">1 hour ago</span>
+          </div>
+          <p className="text-sm text-gray-600">System configuration reloaded successfully</p>
+        </div>
+      </div>
+    </CardContent>
+  </Card>
+</div>
+
+</Tab>
+
+<Tab>
+**Performance Analysis** - Detailed performance metrics:
+
+<div className="space-y-4">
+  <Card>
+    <CardHeader>
+      <CardTitle>Performance Analysis</CardTitle>
+      <CardDescription>Detailed performance metrics and trends</CardDescription>
+    </CardHeader>
+    <CardContent>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="p-4 border rounded-lg">
+          <h4 className="font-semibold mb-2">Response Time Analysis</h4>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span>50th percentile</span>
+              <span className="font-mono">25ms</span>
+            </div>
+            <div className="flex justify-between">
+              <span>95th percentile</span>
+              <span className="font-mono">75ms</span>
+            </div>
+            <div className="flex justify-between">
+              <span>99th percentile</span>
+              <span className="font-mono">150ms</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Max response time</span>
+              <span className="font-mono">2.1s</span>
+            </div>
+          </div>
+        </div>
+        <div className="p-4 border rounded-lg">
+          <h4 className="font-semibold mb-2">Throughput Analysis</h4>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span>Peak RPS</span>
+              <span className="font-mono">450</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Average RPS</span>
+              <span className="font-mono">125</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Min RPS</span>
+              <span className="font-mono">15</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Total requests</span>
+              <span className="font-mono">1.2M</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </CardContent>
+  </Card>
+</div>
+
+</Tab>
+</Tabs>
+
 ### Dashboard and Alerts
 
 ```go
@@ -714,6 +1858,291 @@ func (api *AdminAPI) getPerformanceMetrics(c *gin.Context) {
 ```
 
 ## Security and Access Control
+
+<Callout type="warning" icon={Shield}>
+  **Security Management**: Comprehensive security controls including authentication, authorization, and audit logging.
+</Callout>
+
+### Security Dashboard
+
+<Card>
+  <CardHeader>
+    <CardTitle>Security Overview</CardTitle>
+    <CardDescription>Current security status and access control</CardDescription>
+  </CardHeader>
+  <CardContent>
+    <div className="grid grid-cols-4 gap-4">
+      <div className="p-4 border rounded-lg text-center">
+        <div className="text-2xl font-bold text-blue-600">12</div>
+        <div className="text-sm text-gray-600">Active Tokens</div>
+      </div>
+      <div className="p-4 border rounded-lg text-center">
+        <div className="text-2xl font-bold text-green-600">8</div>
+        <div className="text-sm text-gray-600">Active Sessions</div>
+      </div>
+      <div className="p-4 border rounded-lg text-center">
+        <div className="text-2xl font-bold text-orange-600">3</div>
+        <div className="text-sm text-gray-600">Expiring Soon</div>
+      </div>
+      <div className="p-4 border rounded-lg text-center">
+        <div className="text-2xl font-bold text-red-600">0</div>
+        <div className="text-sm text-gray-600">Security Alerts</div>
+      </div>
+    </div>
+  </CardContent>
+</Card>
+
+### Security Features
+
+<Tabs items={["Token Management", "Access Control", "Audit Logging", "Security Settings"]}>
+
+<Tab>
+**Token Management** - API token administration:
+
+<div className="space-y-4">
+  <Card>
+    <CardHeader>
+      <CardTitle>API Token Management</CardTitle>
+      <CardDescription>Manage API tokens and access permissions</CardDescription>
+    </CardHeader>
+    <CardContent>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Token Name</TableHead>
+            <TableHead>Permissions</TableHead>
+            <TableHead>Created</TableHead>
+            <TableHead>Expires</TableHead>
+            <TableHead>Last Used</TableHead>
+            <TableHead>Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          <TableRow>
+            <TableCell>Admin Token</TableCell>
+            <TableCell>
+              <div className="flex gap-1">
+                <Badge variant="outline">admin</Badge>
+                <Badge variant="outline">read</Badge>
+                <Badge variant="outline">write</Badge>
+              </div>
+            </TableCell>
+            <TableCell>2024-01-01</TableCell>
+            <TableCell>2024-12-31</TableCell>
+            <TableCell>2 hours ago</TableCell>
+            <TableCell>
+              <Button size="sm" variant="outline">Revoke</Button>
+            </TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell>Monitoring Token</TableCell>
+            <TableCell>
+              <div className="flex gap-1">
+                <Badge variant="outline">read</Badge>
+                <Badge variant="outline">monitor</Badge>
+              </div>
+            </TableCell>
+            <TableCell>2024-01-10</TableCell>
+            <TableCell>2024-06-30</TableCell>
+            <TableCell>1 hour ago</TableCell>
+            <TableCell>
+              <Button size="sm" variant="outline">Revoke</Button>
+            </TableCell>
+          </TableRow>
+        </TableBody>
+      </Table>
+    </CardContent>
+  </Card>
+</div>
+
+</Tab>
+
+<Tab>
+**Access Control** - Role-based access control:
+
+<div className="space-y-4">
+  <Card>
+    <CardHeader>
+      <CardTitle>Role-Based Access Control</CardTitle>
+      <CardDescription>Manage user roles and permissions</CardDescription>
+    </CardHeader>
+    <CardContent>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="p-4 border rounded-lg">
+          <h4 className="font-semibold mb-2">Available Roles</h4>
+          <div className="space-y-2">
+            <div className="p-2 border rounded flex items-center justify-between">
+              <span className="font-medium">Administrator</span>
+              <Badge variant="destructive">Full Access</Badge>
+            </div>
+            <div className="p-2 border rounded flex items-center justify-between">
+              <span className="font-medium">Operator</span>
+              <Badge variant="default">Limited Admin</Badge>
+            </div>
+            <div className="p-2 border rounded flex items-center justify-between">
+              <span className="font-medium">Monitor</span>
+              <Badge variant="outline">Read Only</Badge>
+            </div>
+            <div className="p-2 border rounded flex items-center justify-between">
+              <span className="font-medium">Developer</span>
+              <Badge variant="outline">Tool Access</Badge>
+            </div>
+          </div>
+        </div>
+        <div className="p-4 border rounded-lg">
+          <h4 className="font-semibold mb-2">Permission Matrix</h4>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Permission</TableHead>
+                <TableHead>Admin</TableHead>
+                <TableHead>Operator</TableHead>
+                <TableHead>Monitor</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <TableRow>
+                <TableCell>Server Management</TableCell>
+                <TableCell><CheckCircle className="h-4 w-4 text-green-500" /></TableCell>
+                <TableCell><CheckCircle className="h-4 w-4 text-green-500" /></TableCell>
+                <TableCell><XCircle className="h-4 w-4 text-red-500" /></TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell>Tool Execution</TableCell>
+                <TableCell><CheckCircle className="h-4 w-4 text-green-500" /></TableCell>
+                <TableCell><CheckCircle className="h-4 w-4 text-green-500" /></TableCell>
+                <TableCell><XCircle className="h-4 w-4 text-red-500" /></TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell>View Metrics</TableCell>
+                <TableCell><CheckCircle className="h-4 w-4 text-green-500" /></TableCell>
+                <TableCell><CheckCircle className="h-4 w-4 text-green-500" /></TableCell>
+                <TableCell><CheckCircle className="h-4 w-4 text-green-500" /></TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+    </CardContent>
+  </Card>
+</div>
+
+</Tab>
+
+<Tab>
+**Audit Logging** - Complete audit trail:
+
+<div className="space-y-4">
+  <Card>
+    <CardHeader>
+      <CardTitle>Audit Log</CardTitle>
+      <CardDescription>Complete audit trail of all administrative actions</CardDescription>
+    </CardHeader>
+    <CardContent>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Timestamp</TableHead>
+            <TableHead>User</TableHead>
+            <TableHead>Action</TableHead>
+            <TableHead>Resource</TableHead>
+            <TableHead>Result</TableHead>
+            <TableHead>IP Address</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          <TableRow>
+            <TableCell>2024-01-15 10:30:25</TableCell>
+            <TableCell>admin@example.com</TableCell>
+            <TableCell>server.create</TableCell>
+            <TableCell>filesystem-server</TableCell>
+            <TableCell><Badge variant="outline">Success</Badge></TableCell>
+            <TableCell>192.168.1.100</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell>2024-01-15 10:25:15</TableCell>
+            <TableCell>operator@example.com</TableCell>
+            <TableCell>tool.execute</TableCell>
+            <TableCell>read_file</TableCell>
+            <TableCell><Badge variant="outline">Success</Badge></TableCell>
+            <TableCell>192.168.1.101</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell>2024-01-15 10:20:05</TableCell>
+            <TableCell>monitor@example.com</TableCell>
+            <TableCell>system.config</TableCell>
+            <TableCell>logging.level</TableCell>
+            <TableCell><Badge variant="destructive">Failed</Badge></TableCell>
+            <TableCell>192.168.1.102</TableCell>
+          </TableRow>
+        </TableBody>
+      </Table>
+    </CardContent>
+  </Card>
+</div>
+
+</Tab>
+
+<Tab>
+**Security Settings** - Security configuration:
+
+<div className="space-y-4">
+  <Card>
+    <CardHeader>
+      <CardTitle>Security Configuration</CardTitle>
+      <CardDescription>Security settings and policies</CardDescription>
+    </CardHeader>
+    <CardContent>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="p-4 border rounded-lg">
+          <h4 className="font-semibold mb-2">Authentication Settings</h4>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm">JWT Token Expiry</span>
+              <span className="text-sm font-mono">24 hours</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm">Session Timeout</span>
+              <span className="text-sm font-mono">8 hours</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm">Max Failed Attempts</span>
+              <span className="text-sm font-mono">5</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm">Account Lockout</span>
+              <span className="text-sm font-mono">30 minutes</span>
+            </div>
+          </div>
+        </div>
+        <div className="p-4 border rounded-lg">
+          <h4 className="font-semibold mb-2">Security Policies</h4>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm">Password Policy</span>
+              <Badge variant="outline">Enabled</Badge>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm">Two-Factor Auth</span>
+              <Badge variant="outline">Required</Badge>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm">IP Whitelist</span>
+              <Badge variant="outline">Active</Badge>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm">Audit Logging</span>
+              <Badge variant="outline">Enabled</Badge>
+            </div>
+          </div>
+        </div>
+      </div>
+    </CardContent>
+  </Card>
+</div>
+
+</Tab>
+</Tabs>
 
 ### Token Management
 
@@ -951,6 +2380,45 @@ type TokenInfo struct {
 ```
 
 ## Client SDK
+
+<Callout type="info" icon={Code}>
+  **SDK Integration**: Official TypeScript SDK for seamless integration with the Admin API.
+</Callout>
+
+### SDK Features
+
+<FeatureCardList cols={3} size="sm">
+  <FeatureCard
+    title="Type Safety"
+    description="Full TypeScript support with auto-completion"
+    icon={Shield}
+  />
+  <FeatureCard
+    title="Authentication"
+    description="Built-in JWT token management"
+    icon={Key}
+  />
+  <FeatureCard
+    title="Error Handling"
+    description="Comprehensive error handling and retry logic"
+    icon={AlertTriangle}
+  />
+  <FeatureCard
+    title="Async/Await"
+    description="Modern promise-based API"
+    icon={Zap}
+  />
+  <FeatureCard
+    title="Request Caching"
+    description="Intelligent request caching for performance"
+    icon={Database}
+  />
+  <FeatureCard
+    title="Auto-Retry"
+    description="Automatic retry with exponential backoff"
+    icon={RefreshCw}
+  />
+</FeatureCardList>
 
 ### TypeScript Client
 
@@ -1256,6 +2724,46 @@ export default MCPAdminClient;
 
 ## Usage Examples
 
+<Callout type="info" icon={Code}>
+  **Getting Started**: These examples show common administrative tasks using the Admin API client.
+</Callout>
+
+### Integration Examples
+
+<Tabs items={["Server Management", "Tool Operations", "System Monitoring", "Security Management"]}>
+
+<Tab>
+**Server Management** - Complete server lifecycle:
+
+<Card>
+  <CardHeader>
+    <CardTitle>Server Management Examples</CardTitle>
+    <CardDescription>Common server management operations</CardDescription>
+  </CardHeader>
+  <CardContent>
+    <div className="space-y-4">
+      <div className="p-4 border rounded-lg">
+        <h4 className="font-semibold mb-2">Server Creation Workflow</h4>
+        <List>
+          <ListItem title="Validate Configuration">Check server configuration validity</ListItem>
+          <ListItem title="Create Server">Submit server creation request</ListItem>
+          <ListItem title="Start Server">Initialize server and tools</ListItem>
+          <ListItem title="Monitor Health">Verify server is healthy</ListItem>
+        </List>
+      </div>
+      <div className="p-4 border rounded-lg">
+        <h4 className="font-semibold mb-2">Server Maintenance</h4>
+        <List>
+          <ListItem title="Health Monitoring">Regular health checks</ListItem>
+          <ListItem title="Performance Tracking">Monitor server performance</ListItem>
+          <ListItem title="Log Analysis">Review server logs</ListItem>
+          <ListItem title="Graceful Restart">Restart with zero downtime</ListItem>
+        </List>
+      </div>
+    </div>
+  </CardContent>
+</Card>
+
 ### Managing Servers
 
 ```typescript
@@ -1290,6 +2798,31 @@ const health = await client.getServerHealth(newServer.id);
 console.log('Server health:', health.status);
 ```
 
+</Tab>
+
+<Tab>
+**Tool Operations** - Tool execution and management:
+
+<Card>
+  <CardHeader>
+    <CardTitle>Tool Management Examples</CardTitle>
+    <CardDescription>Tool discovery, validation, and execution</CardDescription>
+  </CardHeader>
+  <CardContent>
+    <div className="space-y-4">
+      <div className="p-4 border rounded-lg">
+        <h4 className="font-semibold mb-2">Tool Discovery</h4>
+        <List>
+          <ListItem title="List Available Tools">Discover all tools across servers</ListItem>
+          <ListItem title="Get Tool Schema">Understand tool parameters</ListItem>
+          <ListItem title="Validate Parameters">Check input validity</ListItem>
+          <ListItem title="Execute Tool">Run tool with monitoring</ListItem>
+        </List>
+      </div>
+    </div>
+  </CardContent>
+</Card>
+
 ### Tool Management
 
 ```typescript
@@ -1313,6 +2846,31 @@ const validation = await client.validateToolParameters(
 );
 console.log('Validation result:', validation);
 ```
+
+</Tab>
+
+<Tab>
+**System Monitoring** - Health and performance monitoring:
+
+<Card>
+  <CardHeader>
+    <CardTitle>System Monitoring Examples</CardTitle>
+    <CardDescription>System health and performance monitoring</CardDescription>
+  </CardHeader>
+  <CardContent>
+    <div className="space-y-4">
+      <div className="p-4 border rounded-lg">
+        <h4 className="font-semibold mb-2">Health Monitoring</h4>
+        <List>
+          <ListItem title="System Health Check">Overall system status</ListItem>
+          <ListItem title="Component Health">Individual component status</ListItem>
+          <ListItem title="Alert Management">Active alert monitoring</ListItem>
+          <ListItem title="Performance Metrics">Resource utilization</ListItem>
+        </List>
+      </div>
+    </div>
+  </CardContent>
+</Card>
 
 ### System Monitoring
 
@@ -1339,48 +2897,269 @@ const metrics = await client.getPerformanceMetrics({
 console.log('Performance metrics:', metrics);
 ```
 
+</Tab>
+
+<Tab>
+**Security Management** - Authentication and access control:
+
+<Card>
+  <CardHeader>
+    <CardTitle>Security Management Examples</CardTitle>
+    <CardDescription>Authentication, authorization, and audit logging</CardDescription>
+  </CardHeader>
+  <CardContent>
+    <div className="space-y-4">
+      <div className="p-4 border rounded-lg">
+        <h4 className="font-semibold mb-2">Token Management</h4>
+        <List>
+          <ListItem title="Create Token">Generate new API tokens</ListItem>
+          <ListItem title="Set Permissions">Configure token permissions</ListItem>
+          <ListItem title="Monitor Usage">Track token usage</ListItem>
+          <ListItem title="Revoke Token">Disable compromised tokens</ListItem>
+        </List>
+      </div>
+      <div className="p-4 border rounded-lg">
+        <h4 className="font-semibold mb-2">Audit Logging</h4>
+        <List>
+          <ListItem title="View Audit Log">Review all administrative actions</ListItem>
+          <ListItem title="Filter Events">Search specific audit events</ListItem>
+          <ListItem title="Export Logs">Download audit logs for compliance</ListItem>
+          <ListItem title="Set Retention">Configure log retention policies</ListItem>
+        </List>
+      </div>
+    </div>
+  </CardContent>
+</Card>
+
+```typescript
+// Example: Security management
+const client = new MCPAdminClient({
+  baseURL: 'https://mcp-admin.example.com',
+  token: 'your-admin-token',
+});
+
+// Create a new token
+const newToken = await client.createToken({
+  name: 'monitoring-token',
+  description: 'Token for monitoring dashboard',
+  permissions: ['read', 'monitor'],
+  expires_at: '2024-12-31T23:59:59Z',
+});
+
+// Get audit log
+const auditLog = await client.getAuditLog({
+  limit: 100,
+  since: '2024-01-01T00:00:00Z',
+  action: 'server.create',
+});
+console.log('Audit events:', auditLog.length);
+```
+
+</Tab>
+</Tabs>
+
 ## Best Practices
 
-### 1. Authentication and Authorization
+<Tabs items={["Authentication", "Error Handling", "Security", "Performance", "Monitoring"]}>
 
-- Use JWT tokens with appropriate expiration times
-- Implement role-based access control
-- Audit all administrative actions
-- Rotate tokens regularly
+<Tab>
+### Authentication and Authorization
 
-### 2. Error Handling
+<FeatureCardList cols={2} size="sm">
+  <FeatureCard
+    title="Token Management"
+    description="Use JWT tokens with appropriate expiration times"
+    icon={Key}
+  />
+  <FeatureCard
+    title="Role-Based Access"
+    description="Implement role-based access control"
+    icon={Users}
+  />
+  <FeatureCard
+    title="Audit Trail"
+    description="Audit all administrative actions"
+    icon={FileText}
+  />
+  <FeatureCard
+    title="Token Rotation"
+    description="Rotate tokens regularly for security"
+    icon={RefreshCw}
+  />
+</FeatureCardList>
 
-- Provide meaningful error messages
-- Implement proper HTTP status codes
-- Log errors with sufficient context
-- Handle rate limiting gracefully
+**Authentication Guidelines:**
+- Use strong, unique tokens for each application
+- Implement token expiration and refresh mechanisms
+- Log all authentication attempts and failures
+- Use multi-factor authentication for sensitive operations
 
-### 3. Security
+</Tab>
 
-- Use HTTPS in production
-- Implement request validation
-- Sanitize sensitive data in responses
-- Use secure headers
+<Tab>
+### Error Handling
 
-### 4. Performance
+<FeatureCardList cols={2} size="sm">
+  <FeatureCard
+    title="Meaningful Messages"
+    description="Provide clear, actionable error messages"
+    icon={MessageSquare}
+  />
+  <FeatureCard
+    title="HTTP Status Codes"
+    description="Use appropriate HTTP status codes"
+    icon={Globe}
+  />
+  <FeatureCard
+    title="Error Context"
+    description="Log errors with sufficient context"
+    icon={FileText}
+  />
+  <FeatureCard
+    title="Rate Limiting"
+    description="Handle rate limiting gracefully"
+    icon={Timer}
+  />
+</FeatureCardList>
 
-- Implement pagination for large datasets
-- Use appropriate caching strategies
-- Optimize database queries
-- Monitor API performance
+**Error Handling Best Practices:**
+- Return structured error responses with error codes
+- Include request IDs for error tracking
+- Implement proper retry logic with exponential backoff
+- Provide helpful error messages without exposing sensitive information
 
-### 5. Monitoring
+</Tab>
 
-- Track API usage and performance
-- Set up alerts for critical issues
-- Monitor resource utilization
-- Maintain audit logs
+<Tab>
+### Security
+
+<FeatureCardList cols={2} size="sm">
+  <FeatureCard
+    title="HTTPS Only"
+    description="Use HTTPS in production environments"
+    icon={Shield}
+  />
+  <FeatureCard
+    title="Input Validation"
+    description="Validate all request input"
+    icon={CheckCircle}
+  />
+  <FeatureCard
+    title="Data Sanitization"
+    description="Sanitize sensitive data in responses"
+    icon={Eye}
+  />
+  <FeatureCard
+    title="Security Headers"
+    description="Use appropriate security headers"
+    icon={Lock}
+  />
+</FeatureCardList>
+
+**Security Requirements:**
+- Implement CORS policies for web applications
+- Use secure authentication mechanisms
+- Regularly scan for security vulnerabilities
+- Keep dependencies up to date
+
+</Tab>
+
+<Tab>
+### Performance
+
+<FeatureCardList cols={2} size="sm">
+  <FeatureCard
+    title="Pagination"
+    description="Implement pagination for large datasets"
+    icon={List}
+  />
+  <FeatureCard
+    title="Caching Strategy"
+    description="Use appropriate caching strategies"
+    icon={Database}
+  />
+  <FeatureCard
+    title="Query Optimization"
+    description="Optimize database queries"
+    icon={Zap}
+  />
+  <FeatureCard
+    title="API Performance"
+    description="Monitor API performance metrics"
+    icon={Activity}
+  />
+</FeatureCardList>
+
+**Performance Optimization:**
+- Implement connection pooling for database connections
+- Use compression for large responses
+- Cache frequently accessed data
+- Monitor response times and optimize slow endpoints
+
+</Tab>
+
+<Tab>
+### Monitoring
+
+<FeatureCardList cols={2} size="sm">
+  <FeatureCard
+    title="Usage Tracking"
+    description="Track API usage and performance"
+    icon={BarChart3}
+  />
+  <FeatureCard
+    title="Critical Alerts"
+    description="Set up alerts for critical issues"
+    icon={Bell}
+  />
+  <FeatureCard
+    title="Resource Monitoring"
+    description="Monitor resource utilization"
+    icon={Gauge}
+  />
+  <FeatureCard
+    title="Audit Logging"
+    description="Maintain comprehensive audit logs"
+    icon={FileText}
+  />
+</FeatureCardList>
+
+**Monitoring Strategy:**
+- Implement health checks for all endpoints
+- Set up alerts for high error rates or slow responses
+- Monitor resource usage and scale accordingly
+- Track business metrics and user behavior
+
+</Tab>
+</Tabs>
 
 This comprehensive Admin API provides full operational control over MCP deployments, enabling effective management, monitoring, and troubleshooting of MCP systems.
 
 ## Next Steps
 
-- Review [Security & Authentication](/docs/core/mcp/security-authentication) for securing the admin API
-- Configure [Monitoring & Metrics](/docs/core/mcp/monitoring-metrics) for comprehensive observability
-- Set up [Production Deployment](/docs/core/mcp/production-deployment) for scalable admin API deployment
-- Explore [Integration Patterns](/docs/core/mcp/integration-patterns) for custom admin workflows
+<ReferenceCardList>
+  <ReferenceCard
+    title="Security & Authentication"
+    description="Secure the admin API with proper authentication"
+    href="/docs/core/mcp/security-authentication"
+    icon={Shield}
+  />
+  <ReferenceCard
+    title="Monitoring & Metrics"
+    description="Configure comprehensive observability"
+    href="/docs/core/mcp/monitoring-metrics"
+    icon={BarChart3}
+  />
+  <ReferenceCard
+    title="Production Deployment"
+    description="Deploy admin API in production environments"
+    href="/docs/core/mcp/production-deployment"
+    icon={Cloud}
+  />
+  <ReferenceCard
+    title="Integration Patterns"
+    description="Explore custom admin workflows"
+    href="/docs/core/mcp/integration-patterns"
+    icon={Workflow}
+  />
+</ReferenceCardList>

@@ -1,57 +1,199 @@
 ---
 title: "Client Manager"
-description: "Managing MCP clients and connections"
+description: "Managing MCP clients and connections with advanced lifecycle management, health monitoring, and performance optimization"
 ---
+
+import {
+  Network,
+  Activity,
+  Shield,
+  Gauge,
+  Timer,
+  RefreshCw,
+  Monitor,
+  Database,
+  Cloud,
+  Code,
+  Lock,
+  Package,
+  Archive,
+} from "lucide-react";
+import { FeatureCard, FeatureCardList } from "@/components/ui/feature-card";
+import { ReferenceCard, ReferenceCardList } from "@/components/ui/reference-card";
+import { List, ListItem } from "@/components/ui/list";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 # Client Manager
 
-The Client Manager is responsible for managing MCP server connections, handling client lifecycle, and providing a unified interface for interacting with multiple MCP servers. It manages connection pooling, health checks, and automatic reconnection.
+The Client Manager is responsible for managing MCP server connections, handling client lifecycle, and providing a unified interface for interacting with multiple MCP servers. It provides advanced connection pooling, intelligent health monitoring, automatic reconnection with exponential backoff, and comprehensive performance optimization.
 
-## Architecture
+## Architecture Overview
 
-```
-┌─────────────────┐
-│ Client Manager  │
-├─────────────────┤
-│ ┌─────────────┐ │     ┌─────────────┐
-│ │ MCP Client  │ │────▶│ MCP Server  │
-│ │     A       │ │     │      A      │
-│ └─────────────┘ │     └─────────────┘
-│ ┌─────────────┐ │     ┌─────────────┐
-│ │ MCP Client  │ │────▶│ MCP Server  │
-│ │     B       │ │     │      B      │
-│ └─────────────┘ │     └─────────────┘
-│ ┌─────────────┐ │
-│ │ Health      │ │
-│ │ Monitor     │ │
-│ └─────────────┘ │
-└─────────────────┘
-```
+<Mermaid chart={`graph TB
+    subgraph "Client Manager"
+        CM[Client Manager Core]
+        CP[Connection Pool]
+        HM[Health Monitor]
+        LB[Load Balancer]
+        CM --> CP
+        CM --> HM
+        CM --> LB
+    end
+    
+    subgraph "MCP Clients"
+        C1[MCP Client A]
+        C2[MCP Client B]
+        C3[MCP Client C]
+        C4[MCP Client D]
+    end
+    
+    subgraph "MCP Servers"
+        S1[MCP Server A]
+        S2[MCP Server B]
+        S3[MCP Server C]
+        S4[MCP Server D]
+    end
+    
+    subgraph "Monitoring & Metrics"
+        M[Metrics Collector]
+        A[Alerting System]
+        D[Dashboard]
+    end
+    
+    CP --> C1
+    CP --> C2
+    CP --> C3
+    CP --> C4
+    
+    C1 --> S1
+    C2 --> S2
+    C3 --> S3
+    C4 --> S4
+    
+    HM --> M
+    M --> A
+    M --> D
+    
+    style CM fill:#e1f5fe
+    style CP fill:#f3e5f5
+    style HM fill:#e8f5e8
+    style LB fill:#fff3e0
+    style M fill:#fce4ec
+    style A fill:#f1f8e9
+    style D fill:#e3f2fd`} />
 
-## Key Features
+<List className="mt-8">
+  <ListItem title="Connection Pool Management" icon={Network}>
+    Intelligent connection pooling with automatic scaling and resource optimization
+  </ListItem>
+  <ListItem title="Health Monitoring" icon={Activity}>
+    Real-time health checks with configurable thresholds and automatic recovery
+  </ListItem>
+  <ListItem title="Load Balancing" icon={BarChart3}>
+    Smart load distribution across multiple MCP servers with failover support
+  </ListItem>
+  <ListItem title="Metrics & Observability" icon={Monitor}>
+    Comprehensive metrics collection and performance monitoring
+  </ListItem>
+</List>
 
-### Connection Management
-- **Automatic Connection** - Establishes connections to MCP servers
-- **Connection Pooling** - Reuses connections for efficiency
-- **Health Monitoring** - Continuous health checks
-- **Reconnection Logic** - Automatic reconnection with exponential backoff
+## Core Features
 
-### Client Lifecycle
-- **Registration** - Add new MCP servers dynamically
-- **Deregistration** - Remove servers gracefully
-- **Status Tracking** - Monitor connection states
-- **Metrics Collection** - Gather performance metrics
+<FeatureCardList cols={2} size="sm" className="mb-12">
+  <FeatureCard
+    title="Connection Management"
+    description="Intelligent connection pooling with automatic scaling and resource optimization"
+    icon={Network}
+  />
+  <FeatureCard
+    title="Health Monitoring"
+    description="Real-time health checks with configurable thresholds and proactive recovery"
+    icon={Activity}
+  />
+  <FeatureCard
+    title="Load Balancing"
+    description="Smart load distribution with weighted routing and failover capabilities"
+    icon={BarChart3}
+  />
+  <FeatureCard
+    title="Lifecycle Management"
+    description="Dynamic client registration and graceful shutdown procedures"
+    icon={RefreshCw}
+  />
+  <FeatureCard
+    title="Performance Optimization"
+    description="Connection pooling, request batching, and circuit breaker patterns"
+    icon={Gauge}
+  />
+  <FeatureCard
+    title="Observability"
+    description="Comprehensive metrics, logging, and distributed tracing support"
+    icon={Monitor}
+  />
+</FeatureCardList>
+
+## Client Management Workflow
+
+<Mermaid chart={`sequenceDiagram
+    participant App as Application
+    participant CM as Client Manager
+    participant CP as Connection Pool
+    participant HM as Health Monitor
+    participant MCP as MCP Server
+    
+    App->>CM: Register MCP Server
+    CM->>CP: Create Connection Pool
+    CM->>HM: Start Health Monitoring
+    
+    loop Health Monitoring
+        HM->>MCP: Health Check
+        MCP-->>HM: Health Status
+        HM->>CM: Update Status
+    end
+    
+    App->>CM: Get Client Connection
+    CM->>CP: Get Available Connection
+    CP->>MCP: Establish Connection
+    MCP-->>CP: Connection Ready
+    CP-->>CM: Connection Available
+    CM-->>App: Client Instance
+    
+    App->>MCP: Execute Operation
+    MCP-->>App: Operation Result
+    
+    App->>CM: Release Connection
+    CM->>CP: Return to Pool
+    
+    Note over CM,MCP: Automatic Reconnection on Failure
+    alt Connection Failure
+        MCP-->>CM: Connection Lost
+        CM->>CP: Remove Failed Connection
+        CM->>HM: Mark as Unhealthy
+        HM->>MCP: Retry Connection
+        MCP-->>HM: Reconnection Success
+        HM->>CM: Mark as Healthy
+    end`} />
 
 ## Client Interface
 
-### Basic Operations
+<Tabs items={["Core Interface", "Advanced Features", "Event Handling", "Configuration"]}>
+<Tab>
+```go title="client-interface.go"
+package mcp
 
-```go
+import (
+    "context"
+    "time"
+)
+
+// MCPClientInterface defines the core client operations
 type MCPClientInterface interface {
     // Core operations
     GetDefinition() *MCPDefinition
     GetStatus() *MCPStatus
     IsConnected() bool
+    GetMetrics() *ClientMetrics
     
     // Connection management
     Connect(ctx context.Context) error
@@ -71,8 +213,259 @@ type MCPClientInterface interface {
     ListResources(ctx context.Context) ([]mcp.Resource, error)
     ReadResource(ctx context.Context, request mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error)
     ListResourceTemplates(ctx context.Context) ([]mcp.ResourceTemplate, error)
+    
+    // Subscription operations
+    Subscribe(ctx context.Context, events []string) (<-chan Event, error)
+    Unsubscribe(ctx context.Context, subscription string) error
+    
+    // Batch operations
+    BatchCall(ctx context.Context, requests []BatchRequest) ([]BatchResponse, error)
+    
+    // Lifecycle management
+    Close() error
+}
+
+// ClientMetrics provides performance and usage statistics
+type ClientMetrics struct {
+    ConnectionCount     int64         `json:"connection_count"`
+    ActiveConnections   int64         `json:"active_connections"`
+    TotalRequests      int64         `json:"total_requests"`
+    SuccessfulRequests int64         `json:"successful_requests"`
+    FailedRequests     int64         `json:"failed_requests"`
+    AverageLatency     time.Duration `json:"average_latency"`
+    P95Latency         time.Duration `json:"p95_latency"`
+    P99Latency         time.Duration `json:"p99_latency"`
+    LastActivity       time.Time     `json:"last_activity"`
+    Uptime             time.Duration `json:"uptime"`
+    BytesSent          int64         `json:"bytes_sent"`
+    BytesReceived      int64         `json:"bytes_received"`
 }
 ```
+</Tab>
+
+<Tab>
+```go title="advanced-client-interface.go"
+// AdvancedMCPClient extends the basic interface with advanced features
+type AdvancedMCPClient interface {
+    MCPClientInterface
+    
+    // Connection pool management
+    GetConnectionPool() ConnectionPool
+    SetConnectionPool(pool ConnectionPool)
+    
+    // Circuit breaker
+    GetCircuitBreaker() CircuitBreaker
+    ConfigureCircuitBreaker(config CircuitBreakerConfig)
+    
+    // Request interception
+    AddRequestInterceptor(interceptor RequestInterceptor)
+    RemoveRequestInterceptor(interceptor RequestInterceptor)
+    
+    // Response transformation
+    AddResponseTransformer(transformer ResponseTransformer)
+    RemoveResponseTransformer(transformer ResponseTransformer)
+    
+    // Caching
+    SetCache(cache ClientCache)
+    GetCache() ClientCache
+    InvalidateCache(pattern string) error
+    
+    // Rate limiting
+    SetRateLimiter(limiter RateLimiter)
+    GetRateLimiter() RateLimiter
+    
+    // Distributed tracing
+    EnableTracing(tracer Tracer)
+    DisableTracing()
+    
+    // Performance monitoring
+    GetPerformanceMonitor() PerformanceMonitor
+    SetPerformanceMonitor(monitor PerformanceMonitor)
+}
+
+// ConnectionPool manages client connections
+type ConnectionPool interface {
+    Get(ctx context.Context) (Connection, error)
+    Put(conn Connection) error
+    Close() error
+    Stats() PoolStats
+}
+
+// CircuitBreaker provides fault tolerance
+type CircuitBreaker interface {
+    Execute(ctx context.Context, fn func() error) error
+    State() CircuitBreakerState
+    Reset()
+}
+
+// RequestInterceptor allows request modification
+type RequestInterceptor interface {
+    Intercept(ctx context.Context, req *Request) (*Request, error)
+}
+
+// ResponseTransformer allows response modification
+type ResponseTransformer interface {
+    Transform(ctx context.Context, resp *Response) (*Response, error)
+}
+```
+</Tab>
+
+<Tab>
+```go title="event-handling.go"
+// EventHandler manages client events and notifications
+type EventHandler interface {
+    OnConnect(ctx context.Context, client MCPClientInterface)
+    OnDisconnect(ctx context.Context, client MCPClientInterface, err error)
+    OnError(ctx context.Context, client MCPClientInterface, err error)
+    OnHealthChange(ctx context.Context, client MCPClientInterface, healthy bool)
+    OnMetricsUpdate(ctx context.Context, client MCPClientInterface, metrics *ClientMetrics)
+}
+
+// Event represents a client event
+type Event struct {
+    Type      EventType   `json:"type"`
+    ClientID  string      `json:"client_id"`
+    Timestamp time.Time   `json:"timestamp"`
+    Data      interface{} `json:"data"`
+    Error     error       `json:"error,omitempty"`
+}
+
+// EventType defines the type of client event
+type EventType string
+
+const (
+    EventTypeConnect       EventType = "connect"
+    EventTypeDisconnect    EventType = "disconnect"
+    EventTypeError         EventType = "error"
+    EventTypeHealthChange  EventType = "health_change"
+    EventTypeMetricsUpdate EventType = "metrics_update"
+    EventTypeToolCall      EventType = "tool_call"
+    EventTypePromptCall    EventType = "prompt_call"
+    EventTypeResourceRead  EventType = "resource_read"
+)
+
+// EventBus manages event distribution
+type EventBus interface {
+    Subscribe(eventType EventType, handler EventHandler) error
+    Unsubscribe(eventType EventType, handler EventHandler) error
+    Publish(event Event) error
+    Close() error
+}
+
+// EventFilter allows filtering events
+type EventFilter interface {
+    Filter(event Event) bool
+}
+
+// EventProcessor processes events asynchronously
+type EventProcessor interface {
+    Process(ctx context.Context, events <-chan Event) error
+    Stop() error
+}
+```
+</Tab>
+
+<Tab>
+```go title="client-configuration.go"
+// ClientConfiguration defines client behavior and settings
+type ClientConfiguration struct {
+    // Basic configuration
+    Name        string        `json:"name"`
+    Description string        `json:"description,omitempty"`
+    Version     string        `json:"version,omitempty"`
+    
+    // Connection settings
+    MaxConnections      int           `json:"max_connections,omitempty"`
+    MinConnections      int           `json:"min_connections,omitempty"`
+    ConnectionTimeout   time.Duration `json:"connection_timeout,omitempty"`
+    IdleTimeout         time.Duration `json:"idle_timeout,omitempty"`
+    KeepAlive          time.Duration `json:"keep_alive,omitempty"`
+    
+    // Health check settings
+    HealthCheckEnabled  bool          `json:"health_check_enabled,omitempty"`
+    HealthCheckInterval time.Duration `json:"health_check_interval,omitempty"`
+    HealthCheckTimeout  time.Duration `json:"health_check_timeout,omitempty"`
+    FailureThreshold    int           `json:"failure_threshold,omitempty"`
+    RecoveryThreshold   int           `json:"recovery_threshold,omitempty"`
+    
+    // Retry configuration
+    RetryConfig *RetryConfig `json:"retry_config,omitempty"`
+    
+    // Circuit breaker configuration
+    CircuitBreakerConfig *CircuitBreakerConfig `json:"circuit_breaker_config,omitempty"`
+    
+    // Rate limiting
+    RateLimitConfig *RateLimitConfig `json:"rate_limit_config,omitempty"`
+    
+    // Caching
+    CacheConfig *CacheConfig `json:"cache_config,omitempty"`
+    
+    // Monitoring
+    MonitoringConfig *MonitoringConfig `json:"monitoring_config,omitempty"`
+    
+    // Security
+    SecurityConfig *SecurityConfig `json:"security_config,omitempty"`
+}
+
+// RetryConfig defines retry behavior
+type RetryConfig struct {
+    MaxAttempts     int           `json:"max_attempts"`
+    InitialDelay    time.Duration `json:"initial_delay"`
+    MaxDelay        time.Duration `json:"max_delay"`
+    BackoffFactor   float64       `json:"backoff_factor"`
+    Jitter          bool          `json:"jitter"`
+    RetryableErrors []string      `json:"retryable_errors"`
+}
+
+// CircuitBreakerConfig defines circuit breaker behavior
+type CircuitBreakerConfig struct {
+    Enabled             bool          `json:"enabled"`
+    FailureThreshold    int           `json:"failure_threshold"`
+    RecoveryThreshold   int           `json:"recovery_threshold"`
+    Timeout             time.Duration `json:"timeout"`
+    MaxRequests         int           `json:"max_requests"`
+    Interval            time.Duration `json:"interval"`
+}
+
+// RateLimitConfig defines rate limiting behavior
+type RateLimitConfig struct {
+    Enabled       bool          `json:"enabled"`
+    RequestsPerSecond int       `json:"requests_per_second"`
+    BurstSize     int           `json:"burst_size"`
+    Algorithm     string        `json:"algorithm"` // token_bucket, sliding_window
+}
+
+// CacheConfig defines caching behavior
+type CacheConfig struct {
+    Enabled    bool          `json:"enabled"`
+    Size       int           `json:"size"`
+    TTL        time.Duration `json:"ttl"`
+    Strategy   string        `json:"strategy"` // lru, lfu, ttl
+}
+
+// MonitoringConfig defines monitoring behavior
+type MonitoringConfig struct {
+    Enabled           bool          `json:"enabled"`
+    MetricsInterval   time.Duration `json:"metrics_interval"`
+    TracingEnabled    bool          `json:"tracing_enabled"`
+    LogLevel          string        `json:"log_level"`
+    SlowRequestThreshold time.Duration `json:"slow_request_threshold"`
+}
+
+// SecurityConfig defines security settings
+type SecurityConfig struct {
+    TLSEnabled        bool     `json:"tls_enabled"`
+    TLSCertFile       string   `json:"tls_cert_file,omitempty"`
+    TLSKeyFile        string   `json:"tls_key_file,omitempty"`
+    TLSCAFile         string   `json:"tls_ca_file,omitempty"`
+    AuthEnabled       bool     `json:"auth_enabled"`
+    AuthToken         string   `json:"auth_token,omitempty"`
+    AllowedHosts      []string `json:"allowed_hosts,omitempty"`
+    RequestSigning    bool     `json:"request_signing"`
+}
+```
+</Tab>
+</Tabs>
 
 ### Manager Interface
 
@@ -424,43 +817,790 @@ var (
 3. **Graceful Degradation** - Handle client failures
 4. **Circuit Breakers** - Prevent cascading failures
 
-## Troubleshooting
+## Advanced Client Management
 
-### Common Issues
+<Tabs items={["Connection Pooling", "Health Monitoring", "Load Balancing", "Circuit Breaker"]}>
+<Tab>
+<Card>
+  <CardHeader>
+    <CardTitle>Connection Pool Configuration</CardTitle>
+  </CardHeader>
+  <CardContent>
+    <div className="space-y-4">
+      ```go title="connection-pool-config.go"
+      // Advanced connection pool configuration
+      type ConnectionPoolConfig struct {
+          // Pool sizing
+          MinSize         int           `json:"min_size"`
+          MaxSize         int           `json:"max_size"`
+          InitialSize     int           `json:"initial_size"`
+          
+          // Connection lifecycle
+          MaxIdleTime     time.Duration `json:"max_idle_time"`
+          MaxLifetime     time.Duration `json:"max_lifetime"`
+          ValidationQuery string        `json:"validation_query,omitempty"`
+          
+          // Scaling behavior
+          ScaleUpThreshold   float64 `json:"scale_up_threshold"`
+          ScaleDownThreshold float64 `json:"scale_down_threshold"`
+          ScaleUpStep        int     `json:"scale_up_step"`
+          ScaleDownStep      int     `json:"scale_down_step"`
+          
+          // Monitoring
+          MetricsEnabled     bool          `json:"metrics_enabled"`
+          MetricsInterval    time.Duration `json:"metrics_interval"`
+          
+          // Cleanup
+          CleanupInterval    time.Duration `json:"cleanup_interval"`
+          CleanupBatchSize   int           `json:"cleanup_batch_size"`
+      }
+      
+      // Implementation example
+      func NewConnectionPool(config *ConnectionPoolConfig) *ConnectionPool {
+          pool := &ConnectionPool{
+              config:      config,
+              connections: make(chan Connection, config.MaxSize),
+              metrics:     NewPoolMetrics(),
+          }
+          
+          // Initialize with minimum connections
+          for i := 0; i < config.InitialSize; i++ {
+              conn, err := pool.createConnection()
+              if err == nil {
+                  pool.connections <- conn
+              }
+          }
+          
+          // Start background maintenance
+          go pool.maintenanceLoop()
+          
+          return pool
+      }
+      ```
+      
+      <div className="mt-4 p-4 bg-blue-50 rounded">
+        <h4 className="font-semibold text-blue-800">Pool Optimization Tips</h4>
+        <ul className="text-sm text-blue-700 mt-2 space-y-1">
+          <li>• Set min_size to handle baseline load</li>
+          <li>• Configure max_size based on server capacity</li>
+          <li>• Use validation_query for health checks</li>
+          <li>• Monitor pool utilization metrics</li>
+        </ul>
+      </div>
+    </div>
+  </CardContent>
+</Card>
+</Tab>
 
-1. **Connection Timeouts**
-   - Increase timeout values
-   - Check network connectivity
-   - Verify server availability
+<Tab>
+<Card>
+  <CardHeader>
+    <CardTitle>Health Monitoring System</CardTitle>
+  </CardHeader>
+  <CardContent>
+    <div className="space-y-4">
+      ```go title="health-monitor.go"
+      // Comprehensive health monitoring
+      type HealthMonitor struct {
+          clients     map[string]*ClientHealth
+          config      *HealthConfig
+          eventBus    EventBus
+          metrics     *HealthMetrics
+          stopCh      chan struct{}
+      }
+      
+      type HealthConfig struct {
+          CheckInterval       time.Duration `json:"check_interval"`
+          CheckTimeout        time.Duration `json:"check_timeout"`
+          FailureThreshold    int           `json:"failure_threshold"`
+          RecoveryThreshold   int           `json:"recovery_threshold"`
+          AlertThreshold      int           `json:"alert_threshold"`
+          
+          // Health check types
+          PingEnabled         bool `json:"ping_enabled"`
+          ToolListEnabled     bool `json:"tool_list_enabled"`
+          CustomChecks        []HealthCheck `json:"custom_checks"`
+      }
+      
+      type ClientHealth struct {
+          ClientID           string        `json:"client_id"`
+          Status             HealthStatus  `json:"status"`
+          LastCheck          time.Time     `json:"last_check"`
+          LastSuccess        time.Time     `json:"last_success"`
+          ConsecutiveFailures int          `json:"consecutive_failures"`
+          TotalFailures      int64         `json:"total_failures"`
+          ResponseTime       time.Duration `json:"response_time"`
+          ErrorMessage       string        `json:"error_message,omitempty"`
+      }
+      
+      type HealthStatus string
+      
+      const (
+          HealthStatusHealthy   HealthStatus = "healthy"
+          HealthStatusUnhealthy HealthStatus = "unhealthy"
+          HealthStatusDegraded  HealthStatus = "degraded"
+          HealthStatusUnknown   HealthStatus = "unknown"
+      )
+      
+      func (hm *HealthMonitor) StartMonitoring() error {
+          ticker := time.NewTicker(hm.config.CheckInterval)
+          defer ticker.Stop()
+          
+          for {
+              select {
+              case <-ticker.C:
+                  hm.performHealthChecks()
+              case <-hm.stopCh:
+                  return nil
+              }
+          }
+      }
+      
+      func (hm *HealthMonitor) performHealthChecks() {
+          for clientID, client := range hm.clients {
+              go func(id string, c *ClientHealth) {
+                  ctx, cancel := context.WithTimeout(context.Background(), hm.config.CheckTimeout)
+                  defer cancel()
+                  
+                  start := time.Now()
+                  healthy := hm.checkClientHealth(ctx, id)
+                  duration := time.Since(start)
+                  
+                  hm.updateClientHealth(id, healthy, duration)
+              }(clientID, client)
+          }
+      }
+      ```
+      
+      <div className="mt-4 p-4 bg-green-50 rounded">
+        <h4 className="font-semibold text-green-800">Health Check Strategies</h4>
+        <ul className="text-sm text-green-700 mt-2 space-y-1">
+          <li>• Ping checks for basic connectivity</li>
+          <li>• Tool list checks for functional health</li>
+          <li>• Custom checks for specific requirements</li>
+          <li>• Degraded state for partial failures</li>
+        </ul>
+      </div>
+    </div>
+  </CardContent>
+</Card>
+</Tab>
 
-2. **Frequent Reconnections**
-   - Check server stability
-   - Adjust reconnection delays
-   - Monitor network conditions
+<Tab>
+<Card>
+  <CardHeader>
+    <CardTitle>Load Balancing Strategies</CardTitle>
+  </CardHeader>
+  <CardContent>
+    <div className="space-y-4">
+      ```go title="load-balancer.go"
+      // Advanced load balancing implementation
+      type LoadBalancer struct {
+          strategy    LoadBalancingStrategy
+          servers     []*ServerInfo
+          healthMap   map[string]bool
+          metrics     *LoadBalancerMetrics
+          mu          sync.RWMutex
+      }
+      
+      type LoadBalancingStrategy interface {
+          Select(servers []*ServerInfo) *ServerInfo
+          UpdateMetrics(server *ServerInfo, responseTime time.Duration, success bool)
+      }
+      
+      // Round Robin Strategy
+      type RoundRobinStrategy struct {
+          current int64
+          mu      sync.Mutex
+      }
+      
+      func (rr *RoundRobinStrategy) Select(servers []*ServerInfo) *ServerInfo {
+          rr.mu.Lock()
+          defer rr.mu.Unlock()
+          
+          if len(servers) == 0 {
+              return nil
+          }
+          
+          server := servers[rr.current%int64(len(servers))]
+          rr.current++
+          return server
+      }
+      
+      // Weighted Round Robin Strategy
+      type WeightedRoundRobinStrategy struct {
+          weights map[string]int
+          current map[string]int
+          mu      sync.Mutex
+      }
+      
+      func (wrr *WeightedRoundRobinStrategy) Select(servers []*ServerInfo) *ServerInfo {
+          wrr.mu.Lock()
+          defer wrr.mu.Unlock()
+          
+          totalWeight := 0
+          for _, server := range servers {
+              weight := wrr.weights[server.ID]
+              totalWeight += weight
+          }
+          
+          if totalWeight == 0 {
+              return servers[0] // Fallback to first server
+          }
+          
+          // Weighted selection logic
+          for _, server := range servers {
+              weight := wrr.weights[server.ID]
+              current := wrr.current[server.ID]
+              
+              if current < weight {
+                  wrr.current[server.ID]++
+                  return server
+              }
+          }
+          
+          // Reset counters and select first
+          for id := range wrr.current {
+              wrr.current[id] = 0
+          }
+          
+          return servers[0]
+      }
+      
+      // Least Connections Strategy
+      type LeastConnectionsStrategy struct {
+          connections map[string]int64
+          mu          sync.RWMutex
+      }
+      
+      func (lc *LeastConnectionsStrategy) Select(servers []*ServerInfo) *ServerInfo {
+          lc.mu.RLock()
+          defer lc.mu.RUnlock()
+          
+          if len(servers) == 0 {
+              return nil
+          }
+          
+          var selectedServer *ServerInfo
+          minConnections := int64(math.MaxInt64)
+          
+          for _, server := range servers {
+              connections := lc.connections[server.ID]
+              if connections < minConnections {
+                  minConnections = connections
+                  selectedServer = server
+              }
+          }
+          
+          return selectedServer
+      }
+      ```
+      
+      <div className="mt-4 p-4 bg-purple-50 rounded">
+        <h4 className="font-semibold text-purple-800">Load Balancing Algorithms</h4>
+        <ul className="text-sm text-purple-700 mt-2 space-y-1">
+          <li>• Round Robin: Simple, even distribution</li>
+          <li>• Weighted: Capacity-based distribution</li>
+          <li>• Least Connections: Load-based selection</li>
+          <li>• Least Response Time: Performance-based</li>
+        </ul>
+      </div>
+    </div>
+  </CardContent>
+</Card>
+</Tab>
 
-3. **High Error Rates**
-   - Review error logs
-   - Check server capacity
-   - Validate request formats
+<Tab>
+<Card>
+  <CardHeader>
+    <CardTitle>Circuit Breaker Implementation</CardTitle>
+  </CardHeader>
+  <CardContent>
+    <div className="space-y-4">
+      ```go title="circuit-breaker.go"
+      // Circuit breaker for fault tolerance
+      type CircuitBreaker struct {
+          config          *CircuitBreakerConfig
+          state           CircuitBreakerState
+          failureCount    int64
+          successCount    int64
+          lastFailureTime time.Time
+          lastStateChange time.Time
+          mu              sync.RWMutex
+      }
+      
+      type CircuitBreakerState int
+      
+      const (
+          StateClosed CircuitBreakerState = iota
+          StateOpen
+          StateHalfOpen
+      )
+      
+      type CircuitBreakerConfig struct {
+          FailureThreshold    int           `json:"failure_threshold"`
+          SuccessThreshold    int           `json:"success_threshold"`
+          Timeout             time.Duration `json:"timeout"`
+          MaxRequests         int           `json:"max_requests"`
+          OnStateChange       func(from, to CircuitBreakerState)
+      }
+      
+      func (cb *CircuitBreaker) Execute(ctx context.Context, fn func() error) error {
+          if !cb.canExecute() {
+              return ErrCircuitBreakerOpen
+          }
+          
+          err := fn()
+          cb.recordResult(err)
+          
+          return err
+      }
+      
+      func (cb *CircuitBreaker) canExecute() bool {
+          cb.mu.RLock()
+          defer cb.mu.RUnlock()
+          
+          switch cb.state {
+          case StateClosed:
+              return true
+          case StateOpen:
+              return time.Since(cb.lastStateChange) > cb.config.Timeout
+          case StateHalfOpen:
+              return cb.successCount < int64(cb.config.MaxRequests)
+          default:
+              return false
+          }
+      }
+      
+      func (cb *CircuitBreaker) recordResult(err error) {
+          cb.mu.Lock()
+          defer cb.mu.Unlock()
+          
+          if err != nil {
+              cb.failureCount++
+              cb.lastFailureTime = time.Now()
+              
+              if cb.state == StateHalfOpen {
+                  cb.changeState(StateOpen)
+              } else if cb.state == StateClosed && cb.failureCount >= int64(cb.config.FailureThreshold) {
+                  cb.changeState(StateOpen)
+              }
+          } else {
+              cb.successCount++
+              
+              if cb.state == StateHalfOpen && cb.successCount >= int64(cb.config.SuccessThreshold) {
+                  cb.changeState(StateClosed)
+              }
+          }
+      }
+      
+      func (cb *CircuitBreaker) changeState(newState CircuitBreakerState) {
+          oldState := cb.state
+          cb.state = newState
+          cb.lastStateChange = time.Now()
+          
+          if newState == StateClosed {
+              cb.failureCount = 0
+              cb.successCount = 0
+          } else if newState == StateHalfOpen {
+              cb.successCount = 0
+          }
+          
+          if cb.config.OnStateChange != nil {
+              go cb.config.OnStateChange(oldState, newState)
+          }
+      }
+      ```
+      
+      <div className="mt-4 p-4 bg-yellow-50 rounded">
+        <h4 className="font-semibold text-yellow-800">Circuit Breaker States</h4>
+        <ul className="text-sm text-yellow-700 mt-2 space-y-1">
+          <li>• <strong>Closed:</strong> Normal operation, tracking failures</li>
+          <li>• <strong>Open:</strong> Failing fast, preventing cascade failures</li>
+          <li>• <strong>Half-Open:</strong> Testing recovery with limited requests</li>
+        </ul>
+      </div>
+    </div>
+  </CardContent>
+</Card>
+</Tab>
+</Tabs>
 
-### Debug Information
+## Performance Optimization
 
-```go
-// Get detailed client status
-status, err := clientManager.GetClientStatus("problematic-client")
-if err != nil {
-    log.Printf("Failed to get status: %v", err)
-    return
-}
+<FeatureCardList cols={3} size="sm" className="mb-8">
+  <FeatureCard
+    title="Request Batching"
+    description="Combine multiple requests into single batch operations"
+    icon={Package}
+  />
+  <FeatureCard
+    title="Connection Reuse"
+    description="Maintain persistent connections to reduce overhead"
+    icon={RefreshCw}
+  />
+  <FeatureCard
+    title="Response Caching"
+    description="Cache frequently accessed data to reduce latency"
+    icon={Database}
+  />
+  <FeatureCard
+    title="Lazy Loading"
+    description="Load resources only when needed to optimize memory"
+    icon={Timer}
+  />
+  <FeatureCard
+    title="Compression"
+    description="Compress request/response payloads to reduce bandwidth"
+    icon={Archive}
+  />
+  <FeatureCard
+    title="Metrics Monitoring"
+    description="Track performance metrics for continuous optimization"
+    icon={BarChart3}
+  />
+</FeatureCardList>
 
-log.Printf("Client Status: %+v", status)
-log.Printf("Last Error: %s", status.LastError)
-log.Printf("Reconnect Attempts: %d", status.ReconnectAttempts)
-```
+## Troubleshooting Guide
+
+<Tabs items={["Connection Issues", "Performance Problems", "Health Check Failures", "Load Balancing Issues"]}>
+<Tab>
+<Card>
+  <CardHeader>
+    <CardTitle>Connection Troubleshooting</CardTitle>
+  </CardHeader>
+  <CardContent>
+    <div className="space-y-4">
+      <div className="space-y-3">
+        <div className="border-l-4 border-red-500 pl-4">
+          <h4 className="font-semibold text-red-700">Connection Timeouts</h4>
+          <p className="text-sm text-muted-foreground">Clients unable to establish connections</p>
+          <div className="text-sm mt-2 space-y-1">
+            <div><strong>Symptoms:</strong> Timeout errors, failed connections</div>
+            <div><strong>Solutions:</strong></div>
+            <ul className="list-disc list-inside ml-4 space-y-1">
+              <li>Increase connection timeout values</li>
+              <li>Check network connectivity and firewalls</li>
+              <li>Verify server availability and capacity</li>
+              <li>Monitor connection pool utilization</li>
+            </ul>
+          </div>
+        </div>
+        
+        <div className="border-l-4 border-yellow-500 pl-4">
+          <h4 className="font-semibold text-yellow-700">Frequent Reconnections</h4>
+          <p className="text-sm text-muted-foreground">Clients constantly reconnecting</p>
+          <div className="text-sm mt-2 space-y-1">
+            <div><strong>Symptoms:</strong> High connection churn, network instability</div>
+            <div><strong>Solutions:</strong></div>
+            <ul className="list-disc list-inside ml-4 space-y-1">
+              <li>Adjust health check intervals</li>
+              <li>Implement exponential backoff</li>
+              <li>Check server stability</li>
+              <li>Monitor network conditions</li>
+            </ul>
+          </div>
+        </div>
+        
+        <div className="border-l-4 border-blue-500 pl-4">
+          <h4 className="font-semibold text-blue-700">Pool Exhaustion</h4>
+          <p className="text-sm text-muted-foreground">Connection pool running out of connections</p>
+          <div className="text-sm mt-2 space-y-1">
+            <div><strong>Symptoms:</strong> Pool full errors, request queueing</div>
+            <div><strong>Solutions:</strong></div>
+            <ul className="list-disc list-inside ml-4 space-y-1">
+              <li>Increase pool size limits</li>
+              <li>Reduce connection idle timeout</li>
+              <li>Implement connection validation</li>
+              <li>Monitor pool metrics</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      
+      <div className="mt-4 p-4 bg-gray-50 rounded">
+        <h4 className="font-semibold mb-2">Diagnostic Commands</h4>
+        <div className="space-y-2 text-sm font-mono">
+          <div>curl http://localhost:8081/api/v1/debug/connections</div>
+          <div>curl http://localhost:8081/api/v1/metrics/pool</div>
+          <div>curl http://localhost:8081/api/v1/health/clients</div>
+        </div>
+      </div>
+    </div>
+  </CardContent>
+</Card>
+</Tab>
+
+<Tab>
+<Card>
+  <CardHeader>
+    <CardTitle>Performance Optimization</CardTitle>
+  </CardHeader>
+  <CardContent>
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <h4 className="font-semibold mb-2">Performance Metrics</h4>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span>Request Latency:</span>
+              <span className="font-mono">&lt; 100ms</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Connection Time:</span>
+              <span className="font-mono">&lt; 50ms</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Pool Utilization:</span>
+              <span className="font-mono">&lt; 80%</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Error Rate:</span>
+              <span className="font-mono">&lt; 1%</span>
+            </div>
+          </div>
+        </div>
+        
+        <div>
+          <h4 className="font-semibold mb-2">Optimization Techniques</h4>
+          <div className="space-y-2 text-sm">
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-4 w-4 text-green-500" />
+              <span>Connection pooling</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-4 w-4 text-green-500" />
+              <span>Request batching</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-4 w-4 text-green-500" />
+              <span>Response caching</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-4 w-4 text-green-500" />
+              <span>Compression</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div className="mt-4">
+        <h4 className="font-semibold mb-2">Performance Configuration</h4>
+        <div className="bg-gray-50 p-3 rounded text-sm">
+          ```yaml
+          performance:
+            connection_pool:
+              size: 50
+              max_idle_time: 300s
+            request_batching:
+              enabled: true
+              batch_size: 10
+              flush_interval: 100ms
+            caching:
+              enabled: true
+              ttl: 300s
+              max_size: 1000
+          ```
+        </div>
+      </div>
+    </div>
+  </CardContent>
+</Card>
+</Tab>
+
+<Tab>
+<Card>
+  <CardHeader>
+    <CardTitle>Health Check Diagnostics</CardTitle>
+  </CardHeader>
+  <CardContent>
+    <div className="space-y-4">
+      <div className="space-y-3">
+        <div className="border rounded p-3">
+          <h4 className="font-semibold mb-2">Health Check Status</h4>
+          <div className="text-sm font-mono bg-gray-100 p-2 rounded">
+            ```go
+            // Get detailed health status
+            status, err := clientManager.GetHealthStatus("client-id")
+            if err != nil {
+                log.Printf("Failed to get health status: %v", err)
+                return
+            }
+            
+            log.Printf("Health Status: %s", status.Status)
+            log.Printf("Last Check: %s", status.LastCheck)
+            log.Printf("Response Time: %v", status.ResponseTime)
+            log.Printf("Consecutive Failures: %d", status.ConsecutiveFailures)
+            ```
+          </div>
+        </div>
+        
+        <div className="border rounded p-3">
+          <h4 className="font-semibold mb-2">Health Check Configuration</h4>
+          <div className="text-sm font-mono bg-gray-100 p-2 rounded">
+            ```yaml
+            health_check:
+              enabled: true
+              interval: 30s
+              timeout: 5s
+              failure_threshold: 3
+              recovery_threshold: 2
+              checks:
+                - type: ping
+                  enabled: true
+                - type: tool_list
+                  enabled: true
+                - type: custom
+                  command: "health_check_tool"
+            ```
+          </div>
+        </div>
+      </div>
+      
+      <div className="mt-4 p-4 bg-blue-50 rounded">
+        <h4 className="font-semibold text-blue-800">Health Check Best Practices</h4>
+        <ul className="text-sm text-blue-700 mt-2 space-y-1">
+          <li>• Use multiple check types for comprehensive monitoring</li>
+          <li>• Set appropriate timeout values to avoid false positives</li>
+          <li>• Configure failure thresholds to prevent flapping</li>
+          <li>• Monitor health check performance metrics</li>
+        </ul>
+      </div>
+    </div>
+  </CardContent>
+</Card>
+</Tab>
+
+<Tab>
+<Card>
+  <CardHeader>
+    <CardTitle>Load Balancing Issues</CardTitle>
+  </CardHeader>
+  <CardContent>
+    <div className="space-y-4">
+      <div className="space-y-3">
+        <div className="border-l-4 border-orange-500 pl-4">
+          <h4 className="font-semibold text-orange-700">Uneven Distribution</h4>
+          <p className="text-sm text-muted-foreground">Requests not distributed evenly across servers</p>
+          <div className="text-sm mt-2 space-y-1">
+            <div><strong>Causes:</strong> Sticky sessions, server capacity differences</div>
+            <div><strong>Solutions:</strong></div>
+            <ul className="list-disc list-inside ml-4 space-y-1">
+              <li>Switch to stateless round-robin</li>
+              <li>Use weighted distribution</li>
+              <li>Implement connection draining</li>
+              <li>Monitor server utilization</li>
+            </ul>
+          </div>
+        </div>
+        
+        <div className="border-l-4 border-red-500 pl-4">
+          <h4 className="font-semibold text-red-700">Server Overload</h4>
+          <p className="text-sm text-muted-foreground">Some servers receiving too much traffic</p>
+          <div className="text-sm mt-2 space-y-1">
+            <div><strong>Causes:</strong> Insufficient capacity, poor algorithm choice</div>
+            <div><strong>Solutions:</strong></div>
+            <ul className="list-disc list-inside ml-4 space-y-1">
+              <li>Implement least connections algorithm</li>
+              <li>Add more server capacity</li>
+              <li>Enable circuit breakers</li>
+              <li>Use adaptive load balancing</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      
+      <div className="mt-4">
+        <h4 className="font-semibold mb-2">Load Balancing Metrics</h4>
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          <div>
+            <div className="font-medium">Distribution Metrics:</div>
+            <ul className="list-disc list-inside ml-4 space-y-1">
+              <li>Requests per server</li>
+              <li>Response time distribution</li>
+              <li>Server utilization</li>
+              <li>Connection count</li>
+            </ul>
+          </div>
+          <div>
+            <div className="font-medium">Health Metrics:</div>
+            <ul className="list-disc list-inside ml-4 space-y-1">
+              <li>Server availability</li>
+              <li>Error rates</li>
+              <li>Circuit breaker state</li>
+              <li>Failover frequency</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </CardContent>
+</Card>
+</Tab>
+</Tabs>
 
 ## Next Steps
 
-- [Tool Discovery](./tool-discovery) - Learn about tool discovery mechanisms
-- [Transport Configuration](./transport-configuration) - Configure transport types
-- [Security & Authentication](./security-authentication) - Secure client connections
-- [Monitoring & Metrics](./monitoring-metrics) - Monitor client performance
+<ReferenceCardList>
+  <ReferenceCard
+    title="Integration Patterns"
+    description="Learn advanced integration patterns for MCP client management"
+    href="/docs/core/mcp/integration-patterns"
+    icon={Link2}
+  />
+  <ReferenceCard
+    title="Storage Backends"
+    description="Configure storage backends for client state persistence"
+    href="/docs/core/mcp/storage-backends"
+    icon={Database}
+  />
+  <ReferenceCard
+    title="Security & Authentication"
+    description="Secure client connections with authentication and authorization"
+    href="/docs/core/mcp/security-authentication"
+    icon={Shield}
+  />
+  <ReferenceCard
+    title="Monitoring & Metrics"
+    description="Monitor client performance and health metrics"
+    href="/docs/core/mcp/monitoring-metrics"
+    icon={Monitor}
+  />
+  <ReferenceCard
+    title="Production Deployment"
+    description="Deploy client managers in production environments"
+    href="/docs/core/mcp/production-deployment"
+    icon={Cloud}
+  />
+  <ReferenceCard
+    title="Development & Debugging"
+    description="Debug and troubleshoot client management issues"
+    href="/docs/core/mcp/development-debugging"
+    icon={Code}
+  />
+</ReferenceCardList>
+
+## Client Manager Best Practices
+
+<List className="mb-12">
+  <ListItem title="Connection Pool Optimization" icon={Network}>
+    Size pools appropriately, implement validation, and monitor utilization metrics
+  </ListItem>
+  <ListItem title="Health Check Strategy" icon={Activity}>
+    Use multiple check types, set appropriate thresholds, and implement graceful degradation
+  </ListItem>
+  <ListItem title="Load Balancing" icon={BarChart3}>
+    Choose appropriate algorithms, monitor distribution, and implement failover mechanisms
+  </ListItem>
+  <ListItem title="Error Handling" icon={Shield}>
+    Implement circuit breakers, retry logic, and comprehensive error classification
+  </ListItem>
+  <ListItem title="Performance Monitoring" icon={Monitor}>
+    Track key metrics, set up alerting, and optimize based on performance data
+  </ListItem>
+  <ListItem title="Security" icon={Lock}>
+    Secure connections, implement authentication, and validate client certificates
+  </ListItem>
+</List>
+
+This comprehensive client manager implementation provides enterprise-grade MCP client management with advanced features for scalability, reliability, and observability.
