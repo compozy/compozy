@@ -29,6 +29,7 @@ type ServerConfig struct {
 	CORSEnabled bool          `koanf:"cors_enabled"                            env:"SERVER_CORS_ENABLED"`
 	CORS        CORSConfig    `koanf:"cors"`
 	Timeout     time.Duration `koanf:"timeout"                                 env:"SERVER_TIMEOUT"`
+	Auth        AuthConfig    `koanf:"auth"`
 }
 
 // CORSConfig contains CORS configuration.
@@ -36,6 +37,12 @@ type CORSConfig struct {
 	AllowedOrigins   []string `koanf:"allowed_origins"   env:"SERVER_CORS_ALLOWED_ORIGINS"`
 	AllowCredentials bool     `koanf:"allow_credentials" env:"SERVER_CORS_ALLOW_CREDENTIALS"`
 	MaxAge           int      `koanf:"max_age"           env:"SERVER_CORS_MAX_AGE"`
+}
+
+// AuthConfig contains authentication configuration.
+type AuthConfig struct {
+	Enabled            bool     `koanf:"enabled"             env:"SERVER_AUTH_ENABLED"`
+	WorkflowExceptions []string `koanf:"workflow_exceptions" env:"SERVER_AUTH_WORKFLOW_EXCEPTIONS" validate:"dive,workflow_id"`
 }
 
 // DatabaseConfig contains database connection configuration.
@@ -272,6 +279,10 @@ func buildServerConfig(registry *definition.Registry) ServerConfig {
 			MaxAge:           getInt(registry, "server.cors.max_age"),
 		},
 		Timeout: getDuration(registry, "server.timeout"),
+		Auth: AuthConfig{
+			Enabled:            getBool(registry, "server.auth.enabled"),
+			WorkflowExceptions: getStringSlice(registry, "server.auth.workflow_exceptions"),
+		},
 	}
 }
 

@@ -88,6 +88,25 @@ func registerServerFields(registry *Registry) {
 		Type:    reflect.TypeOf(time.Second),
 		Help:    "Server timeout",
 	})
+
+	// Authentication configuration
+	registry.Register(&FieldDef{
+		Path:    "server.auth.enabled",
+		Default: true,
+		CLIFlag: "auth-enabled",
+		EnvVar:  "SERVER_AUTH_ENABLED",
+		Type:    reflect.TypeOf(true),
+		Help:    "Enable or disable authentication for API endpoints",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "server.auth.workflow_exceptions",
+		Default: []string{},
+		CLIFlag: "auth-workflow-exceptions",
+		EnvVar:  "SERVER_AUTH_WORKFLOW_EXCEPTIONS",
+		Type:    reflect.TypeOf([]string{}),
+		Help:    "List of workflow IDs that are exempt from authentication (comma-separated)",
+	})
 }
 
 func registerDatabaseFields(registry *Registry) {
