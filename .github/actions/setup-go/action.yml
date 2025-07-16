@@ -1,0 +1,72 @@
+name: 'Setup Go Environment'
+description: 'Sets up Go with caching and common tools for Compozy development'
+author: 'Compozy Team'
+
+inputs:
+  go-version:
+    description: 'Go version to install'
+    required: false
+    default: '1.24.x'
+  cache-key-suffix:
+    description: 'Additional suffix for cache key'
+    required: false
+    default: ''
+  install-tools:
+    description: 'Install common development tools'
+    required: false
+    default: 'true'
+
+outputs:
+  go-version:
+    description: 'The Go version that was installed'
+    value: ${{ steps.setup-go.outputs.go-version }}
+  cache-hit:
+    description: 'Whether the Go modules cache was hit'
+    value: ${{ steps.go-cache.outputs.cache-hit }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Go
+      id: setup-go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ inputs.go-version }}
+        cache: false  # We handle caching manually for better control
+    - name: Cache Go modules
+      id: go-cache
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ inputs.go-version }}-${{ hashFiles('**/go.sum') }}${{ inputs.cache-key-suffix
+          }}
+        restore-keys: |
+          ${{ runner.os }}-go-${{ inputs.go-version }}-
+          ${{ runner.os }}-go-
+
+    - name: Download Go modules
+      shell: bash
+      run: |
+        echo "Downloading Go modules..."
+        go mod download
+        go mod verify
+
+    - name: Install development tools
+      if: inputs.install-tools == 'true'
+      shell: bash
+      run: |
+        echo "Installing Go development tools..."
+        go install gotest.tools/gotestsum@latest
+        go install github.com/swaggo/swag/cmd/swag@latest
+        go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+
+    - name: Report setup status
+      shell: bash
+      run: |-
+        echo "Go setup completed successfully!"
+        echo "Go version: $(go version)"
+        echo "Cache hit: ${{ steps.go-cache.outputs.cache-hit }}"
+        echo "GOPATH: $(go env GOPATH)"
+        echo "GOCACHE: $(go env GOCACHE)"

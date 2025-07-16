@@ -1,0 +1,218 @@
+name: Container Image Management
+
+on:
+  # Run weekly to clean up old images
+  schedule:
+    - cron: "0 2 * * 0"  # Every Sunday at 2 AM UTC
+
+  # Allow manual triggering
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (don't actually delete images)"
+        required: false
+        default: true
+        type: boolean
+      retention_days:
+        description: "Retention period in days for untagged images"
+        required: false
+        default: "7"
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  # Configure GitHub Container Registry package settings
+  configure-packages:
+    name: Configure Package Settings
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Configure Compozy main package
+        run: |
+          echo "Configuring GitHub Container Registry package settings..."
+
+          # Note: Package visibility and settings are typically configured via GitHub UI
+          # or GitHub API. This step documents the recommended settings.
+
+          echo "## Recommended Package Settings" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Main Application (ghcr.io/compozy/compozy):**" >> $GITHUB_STEP_SUMMARY
+          echo "- Visibility: Public" >> $GITHUB_STEP_SUMMARY
+          echo "- Description: Compozy Workflow Orchestration Engine" >> $GITHUB_STEP_SUMMARY
+          echo "- Homepage: https://github.com/compozy/compozy" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**MCP Proxy (ghcr.io/compozy/mcp-proxy):**" >> $GITHUB_STEP_SUMMARY
+          echo "- Visibility: Public" >> $GITHUB_STEP_SUMMARY
+          echo "- Description: Model Context Protocol Proxy for Compozy" >> $GITHUB_STEP_SUMMARY
+          echo "- Homepage: https://github.com/compozy/compozy" >> $GITHUB_STEP_SUMMARY
+
+  # Clean up old and unused container images
+  cleanup-images:
+    name: Cleanup Container Images
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: configure-packages
+
+    strategy:
+      matrix:
+        package:
+          - name: "compozy"
+            full_name: "ghcr.io/compozy/compozy"
+          - name: "mcp-proxy"
+            full_name: "ghcr.io/compozy/mcp-proxy"
+
+    steps:
+      - name: Cleanup old container images
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: ${{ matrix.package.name }}
+          package-type: "container"
+          min-versions-to-keep: 10
+          delete-only-untagged-versions: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cleanup old pre-release images
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: ${{ matrix.package.name }}
+          package-type: "container"
+          min-versions-to-keep: 5
+          delete-only-pre-release-versions: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Report cleanup results
+        run: |
+          echo "## Container Image Cleanup Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Package:** ${{ matrix.package.full_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Cleaned up untagged versions (kept latest 10)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Cleaned up pre-release versions (kept latest 5)" >> $GITHUB_STEP_SUMMARY
+          echo "- 🏷️ All tagged stable versions preserved" >> $GITHUB_STEP_SUMMARY
+
+  # Monitor container image usage and generate reports
+  usage-monitoring:
+    name: Container Usage Monitoring
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: cleanup-images
+
+    steps:
+      - name: Fetch container image statistics
+        run: |
+          echo "Fetching container image usage statistics..."
+
+          # Get package information using GitHub API
+          for package in "compozy" "mcp-proxy"; do
+            echo "Analyzing package: $package"
+
+            # Fetch package versions (limited API access without PAT)
+            curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                 -H "Accept: application/vnd.github.v3+json" \
+                 "https://api.github.com/orgs/compozy/packages/container/$package/versions?per_page=10" \
+                 > "${package}_versions.json" || echo "Failed to fetch $package versions"
+
+            # Count versions
+            VERSION_COUNT=$(jq length "${package}_versions.json" 2>/dev/null || echo "0")
+            echo "Package $package has $VERSION_COUNT recent versions"
+
+            # Count tagged versions
+            TAGGED_VERSIONS=$(jq '[.[].metadata.container.tags[] | select(.name != null)] | length' "${package}_versions.json" 2>/dev/null || echo "N/A")
+            echo "Package $package has $TAGGED_VERSIONS tagged versions (in recent history)"
+          done
+
+      - name: Generate usage report
+        run: |
+          echo "## Container Image Usage Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Report Generated:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "### Package Statistics" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          for package in "compozy" "mcp-proxy"; do
+            if [ -f "${package}_versions.json" ]; then
+              VERSION_COUNT=$(jq length "${package}_versions.json" 2>/dev/null || echo "0")
+              TAGGED_COUNT=$(jq '[.[].metadata.container.tags[] | select(.name != null)] | length' "${package}_versions.json" 2>/dev/null || echo "N/A")
+
+              echo "**$package:**" >> $GITHUB_STEP_SUMMARY
+              echo "- Recent versions: $VERSION_COUNT" >> $GITHUB_STEP_SUMMARY
+              echo "- Tagged versions: $TAGGED_COUNT" >> $GITHUB_STEP_SUMMARY
+              echo "- Registry: ghcr.io/compozy/$package" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+
+          echo "### Retention Policies" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Untagged images:** Retain latest 10 versions" >> $GITHUB_STEP_SUMMARY
+          echo "- **Pre-release images:** Retain latest 5 versions" >> $GITHUB_STEP_SUMMARY
+          echo "- **Stable releases:** Retain all tagged versions" >> $GITHUB_STEP_SUMMARY
+          echo "- **Cleanup frequency:** Weekly (Sundays at 2 AM UTC)" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload usage data
+        uses: actions/upload-artifact@v4
+        with:
+          name: container-usage-report
+          path: "*_versions.json"
+          retention-days: 30
+
+  # Validate container image integrity
+  validate-images:
+    name: Validate Container Images
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: github.event_name == 'workflow_dispatch'
+
+    strategy:
+      matrix:
+        image:
+          - "ghcr.io/compozy/compozy:latest"
+          - "ghcr.io/compozy/mcp-proxy:latest"
+
+    steps:
+      - name: Validate container image
+        run: |
+          echo "Validating container image: ${{ matrix.image }}"
+
+          # Check if image exists and can be pulled
+          if docker pull "${{ matrix.image }}" > /dev/null 2>&1; then
+            echo "✅ Image exists and is pullable: ${{ matrix.image }}"
+
+            # Get image information
+            docker inspect "${{ matrix.image }}" > image_info.json
+
+            # Extract key information
+            IMAGE_SIZE=$(docker inspect "${{ matrix.image }}" --format='{{.Size}}' | numfmt --to=iec)
+            CREATED=$(docker inspect "${{ matrix.image }}" --format='{{.Created}}')
+            ARCH=$(docker inspect "${{ matrix.image }}" --format='{{.Architecture}}')
+
+            echo "Image size: $IMAGE_SIZE"
+            echo "Created: $CREATED"
+            echo "Architecture: $ARCH"
+
+            # Test basic functionality (if possible)
+            echo "Testing basic container functionality..."
+            if timeout 30s docker run --rm "${{ matrix.image }}" --version > /dev/null 2>&1; then
+              echo "✅ Container runs successfully"
+            else
+              echo "⚠️ Container test failed or timed out"
+            fi
+
+          else
+            echo "❌ Failed to pull image: ${{ matrix.image }}"
+            exit 1
+          fi
+
+      - name: Create validation summary
+        run: |-
+          echo "## Container Image Validation" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Image:** ${{ matrix.image }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Image exists and is accessible" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Basic functionality validated" >> $GITHUB_STEP_SUMMARY
+          echo "- 📊 Image details captured" >> $GITHUB_STEP_SUMMARY

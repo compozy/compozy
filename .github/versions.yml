@@ -1,0 +1,45 @@
+# Centralized version management for CI/CD workflows
+# This file contains all version specifications used across workflows
+# Update this file to change versions across all workflows
+
+versions:
+  # Language versions
+  go: "1.24.x"
+  node: "20.x"
+
+  # Package manager versions
+  bun: "1.2.18"
+  npm: "10.x"
+
+  # Container base images
+  golang_alpine: "1.24-alpine"
+  postgres: "15-alpine"
+  redis: "7.2-alpine"
+  alpine: "3.20"
+
+  # GitHub Actions versions
+  actions_checkout: "v4"
+  actions_cache: "v4"
+  actions_setup_go: "v5"
+  actions_upload_artifact: "v4"
+  docker_setup_buildx: "v3"
+  docker_build_push: "v5"
+
+  # Security scanning tools
+  trivy: "latest"
+  cosign: "v2.2.4"
+  syft: "v0.95.0"
+  gitleaks: "v2"
+
+  # Development tools
+  golangci_lint: "v1.55.2"
+  gotestsum: "v1.11.0"
+  swag: "v1.16.2"
+
+  # Test dependencies
+  testcontainers: "v0.27.0"
+
+# Usage examples:
+# In workflows: ${{ vars.GO_VERSION }} or read from this file
+# In Dockerfiles: ARG GO_VERSION=1.24.x
+# In Makefiles: GO_VERSION ?= 1.24.x

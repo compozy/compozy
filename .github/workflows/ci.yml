@@ -1,0 +1,210 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Detect which components have changed to optimize build times
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      docs: ${{ steps.filter.outputs.docs }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check for changes
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - '**/*.go'
+              - 'go.mod'
+              - 'go.sum'
+              - 'Makefile'
+              - '.github/workflows/ci.yml'
+              - 'engine/**'
+              - 'cli/**'
+              - 'pkg/**'
+              - 'schemas/**'
+              - 'main.go'
+            frontend:
+              - 'docs/**'
+              - 'examples/**'
+              - 'package.json'
+              - 'bun.lock'
+              - 'turbo.json'
+              - 'tsconfig.json'
+            docs:
+              - 'docs/**'
+              - '*.md'
+              - 'README.md'
+
+  # Go backend testing with service dependencies
+  test-backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: compozy_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7.2-alpine
+        env:
+          REDIS_PASSWORD: redis_secret
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    env:
+      # Database connection for tests
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: compozy_test
+
+      # Redis connection for tests
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: redis_secret
+
+      # Go environment
+      CGO_ENABLED: 0
+
+    strategy:
+      matrix:
+        go-version:
+          - "1.24.x"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go with caching
+        uses: ./.github/actions/setup-go
+        with:
+          go-version: ${{ matrix.go-version }}
+          install-tools: 'true'
+
+      - name: Verify service readiness
+        run: |
+          echo "Waiting for PostgreSQL to be ready..."
+          timeout 30s bash -c 'until pg_isready -h localhost -p 5432 -U postgres; do sleep 1; done'
+          echo "PostgreSQL is ready!"
+
+          echo "Waiting for Redis to be ready..."
+          timeout 30s bash -c 'until redis-cli -h localhost -p 6379 ping; do sleep 1; done'
+          echo "Redis is ready!"
+
+      # Go tools already installed by setup-go composite action
+
+      - name: Run linting
+        run: |
+          echo "Running Go code quality checks..."
+          golangci-lint run --fix --allow-parallel-runners
+        continue-on-error: false
+
+      - name: Generate Swagger documentation
+        run: |
+          echo "Generating API documentation..."
+          make swagger
+        continue-on-error: false
+
+      - name: Run tests
+        run: |
+          echo "Running unit and integration tests..."
+          make test
+        continue-on-error: false
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-go-${{ matrix.go-version }}
+          path: |
+            coverage.out
+            test-results.xml
+          retention-days: 7
+
+  # Frontend testing
+  test-frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Bun with caching
+        uses: ./.github/actions/setup-bun
+        with:
+          bun-version: "1.2.18"
+          install-dependencies: 'true'
+
+      - name: Run frontend linting
+        run: bun run lint
+
+      - name: Run frontend type checking
+        run: bun run type-check
+
+      - name: Run frontend tests
+        run: bun run test
+
+      - name: Build frontend
+        run: bun run build
+
+  # Summary job to check overall CI status
+  ci-success:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs:
+      - changes
+      - test-backend
+      - test-frontend
+    if: always()
+    steps:
+      - name: Check CI status
+        run: |-
+          if [[ "${{ needs.test-backend.result }}" == "failure" || "${{ needs.test-frontend.result }}" == "failure" ]]; then
+            echo "CI failed"
+            exit 1
+          elif [[ "${{ needs.test-backend.result }}" == "skipped" && "${{ needs.test-frontend.result }}" == "skipped" ]]; then
+            echo "No changes detected, skipping tests"
+          else
+            echo "CI passed"
+          fi

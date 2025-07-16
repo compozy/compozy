@@ -1,0 +1,246 @@
+name: Documentation and Schema Automation
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "docs/**"
+      - "engine/**"
+      - "schemas/**"
+      - "Makefile"
+      - ".github/workflows/docs.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "docs/**"
+      - "engine/**"
+      - "schemas/**"
+      - "Makefile"
+      - ".github/workflows/docs.yml"
+  release:
+    types:
+      - published
+
+env:
+  GO_VERSION: "1.24.x"
+  NODE_VERSION: "20.x"
+
+jobs:
+  swagger-docs:
+    name: Generate Swagger Documentation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go with caching
+        uses: ./.github/actions/setup-go
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          install-tools: 'false'
+
+      - name: Install swag
+        run: go install github.com/swaggo/swag/cmd/swag@latest
+
+      - name: Generate Swagger docs
+        run: make swagger
+
+      - name: Validate Swagger docs
+        run: |
+          if [ ! -f docs/swagger.json ]; then
+            echo "❌ Swagger documentation not generated"
+            exit 1
+          fi
+          echo "✅ Swagger documentation generated successfully"
+
+      - name: Upload Swagger artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: swagger-docs
+          path: |
+            docs/swagger.json
+            docs/swagger.yaml
+          retention-days: 30
+
+  schema-generation:
+    name: Generate JSON Schemas
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go with caching
+        uses: ./.github/actions/setup-go
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          install-tools: 'false'
+
+      - name: Generate JSON schemas
+        run: make schemagen
+
+      - name: Validate schemas
+        run: |
+          if [ ! -f schemas/compozy-schema.json ]; then
+            echo "❌ JSON schemas not generated"
+            exit 1
+          fi
+          echo "✅ JSON schemas generated successfully"
+
+      - name: Upload schema artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: json-schemas
+          path: schemas/
+          retention-days: 30
+
+  docs-build:
+    name: Build Documentation Site
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs:
+      - swagger-docs
+      - schema-generation
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: docs/package.json
+
+      - name: Install dependencies
+        working-directory: docs
+        run: npm ci
+
+      - name: Download Swagger docs
+        uses: actions/download-artifact@v4
+        with:
+          name: swagger-docs
+          path: docs/
+
+      - name: Download JSON schemas
+        uses: actions/download-artifact@v4
+        with:
+          name: json-schemas
+          path: schemas/
+
+      - name: Build documentation
+        working-directory: docs
+        run: npm run build
+
+      - name: Upload docs artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs-site
+          path: docs/out/
+          retention-days: 30
+
+  docs-deploy:
+    name: Deploy Documentation
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs:
+      - docs-build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download docs artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: docs-site
+          path: docs/out/
+
+      - name: Deploy to Vercel
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          vercel-args: "--prod"
+          working-directory: docs
+
+  docs-preview:
+    name: Deploy Preview
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs:
+      - docs-build
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download docs artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: docs-site
+          path: docs/out/
+
+      - name: Deploy preview to Vercel
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          working-directory: docs
+
+  docs-diff-check:
+    name: Check Documentation Changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for breaking changes
+        run: |
+          # Check if Swagger docs have breaking changes
+          if git diff --name-only origin/main...HEAD | grep -E "(docs/swagger\.json|docs/swagger\.yaml)"; then
+            echo "⚠️ Swagger documentation changes detected"
+            echo "Please review for breaking API changes"
+          fi
+
+          # Check if schemas have breaking changes
+          if git diff --name-only origin/main...HEAD | grep -E "schemas/.*\.json"; then
+            echo "⚠️ JSON schema changes detected"
+            echo "Please review for breaking schema changes"
+          fi
+
+  docs-lint:
+    name: Lint Documentation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: docs/package.json
+
+      - name: Install dependencies
+        working-directory: docs
+        run: npm ci
+
+      - name: Run linting
+        working-directory: docs
+        run: npm run lint
+
+      - name: Check for broken links
+        working-directory: docs
+        run: npm run check-links || true

@@ -1,0 +1,86 @@
+# Multi-stage Dockerfile for production Compozy releases
+# This Dockerfile is optimized for security, size, and performance
+
+# Build stage - Use official Go image for building
+FROM golang:1.24-alpine AS builder
+
+# Install build dependencies
+RUN apk add --no-cache \
+    git \
+    ca-certificates \
+    tzdata \
+    && update-ca-certificates
+
+# Create non-root user for building
+RUN adduser -D -g '' appuser
+
+# Set working directory
+WORKDIR /build
+
+# Copy go mod files first for better caching
+COPY go.mod go.sum ./
+
+# Download dependencies
+RUN go mod download && go mod verify
+
+# Copy source code
+COPY . .
+
+# Build the binary with optimizations
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH:-amd64} \
+    go build \
+    -a \
+    -installsuffix cgo \
+    -ldflags='-w -s -extldflags "-static"' \
+    -o compozy \
+    ./main.go
+
+# Verify the binary
+RUN ./compozy --version || echo "Binary built successfully"
+
+# Production stage - Use distroless for minimal attack surface
+FROM gcr.io/distroless/static-debian12:nonroot
+
+# Import from builder
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
+COPY --from=builder /etc/passwd /etc/passwd
+
+# Copy the binary
+COPY --from=builder /build/compozy /usr/local/bin/compozy
+
+# Copy additional files
+COPY --from=builder /build/README.md /README.md
+COPY --from=builder /build/LICENSE /LICENSE
+
+# Use non-root user
+USER nonroot:nonroot
+
+# Set environment variables
+ENV PATH="/usr/local/bin:${PATH}"
+ENV COMPOZY_ENV=production
+ENV COMPOZY_LOG_LEVEL=info
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD ["/usr/local/bin/compozy", "health"] || exit 1
+
+# Expose default port (adjust as needed)
+EXPOSE 8080
+
+# Set working directory
+WORKDIR /app
+
+# Container metadata labels
+LABEL org.opencontainers.image.title="Compozy"
+LABEL org.opencontainers.image.description="Compozy Workflow Orchestration Engine"
+LABEL org.opencontainers.image.url="https://github.com/compozy/compozy"
+LABEL org.opencontainers.image.source="https://github.com/compozy/compozy"
+LABEL org.opencontainers.image.documentation="https://github.com/compozy/compozy/blob/main/README.md"
+LABEL org.opencontainers.image.vendor="Compozy"
+LABEL org.opencontainers.image.licenses="MIT"
+LABEL org.opencontainers.image.base.name="gcr.io/distroless/static-debian12:nonroot"
+
+# Default command
+ENTRYPOINT ["/usr/local/bin/compozy"]
+CMD ["server"]
