@@ -67,7 +67,7 @@ ENV MCP_PROXY_PORT=8081
 # Health checks should be configured at orchestration layer (Kubernetes, Docker Compose, etc.)
 
 # Expose port
-EXPOSE ${MCP_PROXY_PORT}
+EXPOSE 8081
 
 # Container metadata labels
 LABEL org.opencontainers.image.title="Compozy MCP Proxy"
