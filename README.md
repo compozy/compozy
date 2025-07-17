@@ -848,7 +848,7 @@ ASYNC_TOKEN_COUNTER_BUFFER_SIZE=1000
 
 # Monitoring
 PROMETHEUS_ENABLED=true
-GRAFANA_URL=http://localhost:3001
+GRAFANA_URL=http://localhost:5001
 JAEGER_ENDPOINT=http://localhost:14268/api/traces
 ```
 

@@ -146,7 +146,7 @@ Authorization: Bearer your_api_key_here
 
 ```bash
 # Execute a workflow
-curl -X POST http://localhost:3001/api/v0/workflows/my-workflow/executions \
+curl -X POST http://localhost:5001/api/v0/workflows/my-workflow/executions \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer your_api_key" \
   -d '{
@@ -161,7 +161,7 @@ curl -X POST http://localhost:3001/api/v0/workflows/my-workflow/executions \
 <Tab>
 
 ```javascript
-const response = await fetch('http://localhost:3001/api/v0/workflows/my-workflow/executions', {
+const response = await fetch('http://localhost:5001/api/v0/workflows/my-workflow/executions', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
@@ -186,7 +186,7 @@ console.log('Execution ID:', result.data.exec_id);
 import requests
 
 response = requests.post(
-    'http://localhost:3001/api/v0/workflows/my-workflow/executions',
+    'http://localhost:5001/api/v0/workflows/my-workflow/executions',
     headers={
         'Content-Type': 'application/json',
         'Authorization': 'Bearer your_api_key'
@@ -207,7 +207,7 @@ print(f"Execution ID: {result['data']['exec_id']}")
 <Tab>
 
 ```http
-@baseUrl = http://localhost:3001/api/v0
+@baseUrl = http://localhost:5001/api/v0
 @apiKey = your_api_key_here
 
 ### Execute workflow
@@ -238,11 +238,11 @@ Check execution status and retrieve outputs:
 
 ```bash
 # Get execution status
-curl -X GET http://localhost:3001/api/v0/executions/workflows/{execution_id} \
+curl -X GET http://localhost:5001/api/v0/executions/workflows/{execution_id} \
   -H "Authorization: Bearer your_api_key"
 
 # Get execution outputs (when completed)
-curl -X GET http://localhost:3001/api/v0/executions/workflows/{execution_id}/outputs \
+curl -X GET http://localhost:5001/api/v0/executions/workflows/{execution_id}/outputs \
   -H "Authorization: Bearer your_api_key"
 ```
 

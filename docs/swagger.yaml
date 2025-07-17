@@ -739,7 +739,7 @@ definitions:
           ```yaml
           url: "http://localhost:3000/mcp"
           url: "https://api.example.com/v1/mcp"
-          url: "http://mcp-proxy:8080/filesystem"
+          url: "http://mcp-proxy:8081/filesystem"
           ```
 
           **Note**: Mutually exclusive with `command` - use either URL or Command, not both.
@@ -1480,7 +1480,7 @@ definitions:
         example: 2Z4PVTL6K27XVT4A3NPKMDD5BG
         type: string
       exec_url:
-        example: localhost:8080/api/workflows/executions/2Z4PVTL6K27XVT4A3NPKMDD5BG
+        example: localhost:5001/api/workflows/executions/2Z4PVTL6K27XVT4A3NPKMDD5BG
         type: string
       workflow_id:
         example: data-processing

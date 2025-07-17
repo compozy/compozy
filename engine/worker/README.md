@@ -286,7 +286,7 @@ TEMPORAL_TASK_QUEUE=compozy-tasks
 TOOL_EXECUTION_TIMEOUT=60s
 
 # MCP Integration
-MCP_PROXY_URL=http://localhost:3001
+MCP_PROXY_URL=http://localhost:5001
 MCP_PROXY_ADMIN_TOKEN=admin-token-123
 
 # Redis Configuration
@@ -296,7 +296,7 @@ REDIS_PASSWORD=
 
 # Monitoring
 MONITORING_ENABLED=true
-METRICS_PORT=8080
+METRICS_PORT=5001
 ```
 
 ---
@@ -328,7 +328,7 @@ func setupWorker() (*worker.Worker, error) {
     // Setup monitoring
     monitoringService, err := monitoring.NewService(&monitoring.Config{
         Enabled:     true,
-        MetricsPort: 8080,
+        MetricsPort: 5001,
     })
     if err != nil {
         return nil, fmt.Errorf("failed to setup monitoring: %w", err)
@@ -453,7 +453,7 @@ func setupMonitoredWorker() (*worker.Worker, error) {
     // Create monitoring service
     monitoringService, err := monitoring.NewService(&monitoring.Config{
         Enabled:     true,
-        MetricsPort: 8080,
+        MetricsPort: 5001,
         Tracing: &monitoring.TracingConfig{
             Enabled:  true,
             Endpoint: "http://jaeger:14268/api/traces",

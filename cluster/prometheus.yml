@@ -15,7 +15,7 @@ scrape_configs:
   # Compozy application metrics
   - job_name: "compozy"
     static_configs:
-      - targets: ["host.docker.internal:3001"]
+      - targets: ["host.docker.internal:5001"]
     metrics_path: "/metrics"
     scrape_interval: 15s
     scrape_timeout: 10s

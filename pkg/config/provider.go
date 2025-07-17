@@ -306,7 +306,7 @@ func createDefaultMap() map[string]any {
 			"host":        defaultConfig.Database.Host,
 			"port":        defaultConfig.Database.Port,
 			"user":        defaultConfig.Database.User,
-			"password":    string(defaultConfig.Database.Password),
+			"password":    defaultConfig.Database.Password,
 			"name":        defaultConfig.Database.DBName,
 			"ssl_mode":    defaultConfig.Database.SSLMode,
 			"conn_string": defaultConfig.Database.ConnString,

@@ -316,7 +316,7 @@ Manage memory through the HTTP API:
 
 ```bash
 # Write to memory
-curl -X POST http://localhost:8080/api/v0/memory/write \
+curl -X POST http://localhost:5001/api/v0/memory/write \
   -H "Content-Type: application/json" \
   -d '{
     "key": "user:123",
@@ -327,10 +327,10 @@ curl -X POST http://localhost:8080/api/v0/memory/write \
   }'
 
 # Read memory
-curl http://localhost:8080/api/v0/memory/read?key=user:123
+curl http://localhost:5001/api/v0/memory/read?key=user:123
 
 # Clear memory
-curl -X POST http://localhost:8080/api/v0/memory/clear \
+curl -X POST http://localhost:5001/api/v0/memory/clear \
   -H "Content-Type: application/json" \
   -d '{"key": "user:123"}'
 ```

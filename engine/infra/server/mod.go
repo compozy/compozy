@@ -88,6 +88,7 @@ func (rs *reconciliationStatus) setError(err error, nextRetry time.Time) {
 type Server struct {
 	Config              *Config
 	AppConfig           *config.Config // Unified configuration
+	envFilePath         string
 	router              *gin.Engine
 	monitoring          *monitoring.Service
 	ctx                 context.Context
@@ -107,7 +108,6 @@ func NewServer(ctx context.Context, appConfig *config.Config, cwd, configFile, e
 		Port:        appConfig.Server.Port,
 		CORSEnabled: appConfig.Server.CORSEnabled,
 		ConfigFile:  configFile,
-		EnvFilePath: envFilePath,
 	}
 
 	// Convert rate limit config from unified config if configured
@@ -139,6 +139,7 @@ func NewServer(ctx context.Context, appConfig *config.Config, cwd, configFile, e
 	return &Server{
 		Config:              serverConfig,
 		AppConfig:           appConfig,
+		envFilePath:         envFilePath,
 		ctx:                 serverCtx,
 		cancel:              cancel,
 		shutdownChan:        make(chan struct{}, 1),
@@ -226,7 +227,7 @@ func (s *Server) Run() error {
 func (s *Server) setupProjectConfig() (*project.Config, []*workflow.Config, *autoload.ConfigRegistry, error) {
 	log := logger.FromContext(s.ctx)
 	setupStart := time.Now()
-	configService := csvc.NewService(log, s.Config.EnvFilePath)
+	configService := csvc.NewService(s.envFilePath)
 	projectConfig, workflows, configRegistry, err := configService.LoadProject(s.ctx, s.Config.CWD, s.Config.ConfigFile)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to load project: %w", err)

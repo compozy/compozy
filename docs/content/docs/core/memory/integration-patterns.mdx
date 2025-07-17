@@ -2134,7 +2134,7 @@ agents:
     mcps:
       - id: external_memory
         transport: http
-        url: "http://memory-service:8080"
+        url: "http://memory-service:5001"
         auth:
           type: "bearer"
           token: "{{.env.MEMORY_SERVICE_TOKEN}}"
@@ -2222,7 +2222,7 @@ sequenceDiagram
 mcps:
   - id: crm_sync
     transport: http
-    url: "http://crm-system:8080"
+    url: "http://crm-system:5001"
     sync_config:
       enabled: true
       direction: "bidirectional"
@@ -2231,7 +2231,7 @@ mcps:
       
   - id: knowledge_base
     transport: sse
-    url: "http://kb-service:8080/events"
+    url: "http://kb-service:5001/events"
     sync_config:
       enabled: true
       direction: "external-to-local"

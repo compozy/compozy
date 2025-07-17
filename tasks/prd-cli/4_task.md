@@ -1,6 +1,6 @@
 ## markdown
 
-## status: pending # Options: pending, in-progress, completed, excluded
+## status: completed # Options: pending, in-progress, completed, excluded
 
 <task_context>
 <domain>cli/workflow</domain>
@@ -34,11 +34,11 @@ Create workflow data models and API service interfaces with interface segregatio
 
 ## Subtasks
 
-- [ ] 4.1 Define workflow data models and types
-- [ ] 4.2 Create segregated WorkflowService interfaces (reader/writer)
-- [ ] 4.3 Implement workflow API client methods with context cancellation
-- [ ] 4.4 Create workflow filtering and sorting utilities
-- [ ] 4.5 Add workflow validation and enhanced error handling
+- [x] 4.1 Define workflow data models and types
+- [x] 4.2 Create segregated WorkflowService interfaces (reader/writer)
+- [x] 4.3 Implement workflow API client methods with context cancellation
+- [x] 4.4 Create workflow filtering and sorting utilities
+- [x] 4.5 Add workflow validation and enhanced error handling
 
 ## Implementation Details
 

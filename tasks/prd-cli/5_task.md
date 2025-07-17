@@ -32,11 +32,11 @@ Create workflow list command with dual TUI/JSON output modes, build interactive 
 
 ## Subtasks
 
-- [ ] 5.1 Implement `compozy workflow list` command
-- [ ] 5.2 Create interactive workflow table TUI component
-- [ ] 5.3 Build JSON output formatter for workflow lists
-- [ ] 5.4 Add pagination support for large collections
-- [ ] 5.5 Implement filtering and sorting in TUI mode
+- [x] 5.1 Implement `compozy workflow list` command
+- [x] 5.2 Create interactive workflow table TUI component
+- [x] 5.3 Build JSON output formatter for workflow lists
+- [x] 5.4 Add pagination support for large collections
+- [x] 5.5 Implement filtering and sorting in TUI mode
 
 ## Implementation Details
 

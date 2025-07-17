@@ -45,9 +45,14 @@ func sensitiveStringDecodeHook(_ reflect.Type, to reflect.Type, data any) (any, 
 
 // NewService creates a new configuration service with validation support.
 func NewService() Service {
+	v := validator.New()
+	// Register custom validators
+	if err := RegisterCustomValidators(v); err != nil {
+		panic(fmt.Sprintf("Failed to register custom validators: %v", err))
+	}
 	return &loader{
 		koanf:     koanf.New("."),
-		validator: validator.New(),
+		validator: v,
 		metadata: Metadata{
 			Sources: make(map[string]SourceType),
 		},

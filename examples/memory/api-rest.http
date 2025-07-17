@@ -4,7 +4,7 @@
 ### Test the direct memory REST API endpoints and verify they work with the agent
 ### Make sure Compozy is running before executing these requests
 
-@baseUrl = http://localhost:3001/api/v0
+@baseUrl = http://localhost:5001/api/v0
 @memoryRef = user_memory
 @userId = api_test_user
 @memoryKey = user:{{userId}}

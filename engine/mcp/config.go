@@ -194,7 +194,7 @@ type Config struct {
 	// ```yaml
 	// url: "http://localhost:3000/mcp"
 	// url: "https://api.example.com/v1/mcp"
-	// url: "http://mcp-proxy:8080/filesystem"
+	// url: "http://mcp-proxy:8081/filesystem"
 	// ```
 	//
 	// **Note**: Mutually exclusive with `command` - use either URL or Command, not both.
@@ -461,7 +461,7 @@ func (c *Config) validateProxy() error {
 // ```
 // ✓ http://localhost:3000/mcp
 // ✓ https://api.example.com/v1/mcp
-// ✓ http://192.168.1.100:8080
+// ✓ http://192.168.1.100:8081
 // ✓ https://mcp-proxy.internal:443/filesystem
 // ```
 //

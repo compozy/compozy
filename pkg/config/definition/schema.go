@@ -5,6 +5,11 @@ import (
 	"time"
 )
 
+// Standard type definitions for consistency
+var (
+	durationType = reflect.TypeOf(time.Duration(0))
+)
+
 // CreateRegistry creates and populates the configuration registry
 // This is the SINGLE SOURCE OF TRUTH for all configuration defaults
 func CreateRegistry() *Registry {
@@ -36,7 +41,7 @@ func registerServerFields(registry *Registry) {
 
 	registry.Register(&FieldDef{
 		Path:    "server.port",
-		Default: 8080, // Single source of truth - no more 3001 vs 8080 confusion
+		Default: 5001,
 		CLIFlag: "port",
 		EnvVar:  "SERVER_PORT",
 		Type:    reflect.TypeOf(0),
@@ -55,7 +60,7 @@ func registerServerFields(registry *Registry) {
 	// CORS configuration fields
 	registry.Register(&FieldDef{
 		Path:    "server.cors.allowed_origins",
-		Default: []string{"http://localhost:3000", "http://localhost:3001"}, // Development defaults
+		Default: []string{"http://localhost:3000", "http://localhost:5001"}, // Development defaults
 		CLIFlag: "cors-allowed-origins",
 		EnvVar:  "SERVER_CORS_ALLOWED_ORIGINS",
 		Type:    reflect.TypeOf([]string{}),
@@ -85,8 +90,27 @@ func registerServerFields(registry *Registry) {
 		Default: 30 * time.Second,
 		CLIFlag: "",
 		EnvVar:  "SERVER_TIMEOUT",
-		Type:    reflect.TypeOf(time.Second),
+		Type:    durationType,
 		Help:    "Server timeout",
+	})
+
+	// Authentication configuration
+	registry.Register(&FieldDef{
+		Path:    "server.auth.enabled",
+		Default: false, // Default to disabled in development
+		CLIFlag: "auth-enabled",
+		EnvVar:  "SERVER_AUTH_ENABLED",
+		Type:    reflect.TypeOf(true),
+		Help:    "Enable or disable authentication for API endpoints",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "server.auth.workflow_exceptions",
+		Default: []string{},
+		CLIFlag: "auth-workflow-exceptions",
+		EnvVar:  "SERVER_AUTH_WORKFLOW_EXCEPTIONS",
+		Type:    reflect.TypeOf([]string{}),
+		Help:    "List of workflow IDs that are exempt from authentication (comma-separated)",
 	})
 }
 
@@ -208,7 +232,7 @@ func registerRuntimeFields(registry *Registry) {
 		Default: 30 * time.Second,
 		CLIFlag: "dispatcher-heartbeat-interval",
 		EnvVar:  "RUNTIME_DISPATCHER_HEARTBEAT_INTERVAL",
-		Type:    reflect.TypeOf(time.Second),
+		Type:    durationType,
 		Help:    "Dispatcher heartbeat interval",
 	})
 
@@ -217,7 +241,7 @@ func registerRuntimeFields(registry *Registry) {
 		Default: 90 * time.Second,
 		CLIFlag: "dispatcher-heartbeat-ttl",
 		EnvVar:  "RUNTIME_DISPATCHER_HEARTBEAT_TTL",
-		Type:    reflect.TypeOf(time.Second),
+		Type:    durationType,
 		Help:    "Dispatcher heartbeat TTL",
 	})
 
@@ -226,7 +250,7 @@ func registerRuntimeFields(registry *Registry) {
 		Default: 120 * time.Second,
 		CLIFlag: "dispatcher-stale-threshold",
 		EnvVar:  "RUNTIME_DISPATCHER_STALE_THRESHOLD",
-		Type:    reflect.TypeOf(time.Second),
+		Type:    durationType,
 		Help:    "Dispatcher stale threshold",
 	})
 
@@ -246,6 +270,15 @@ func registerRuntimeFields(registry *Registry) {
 		EnvVar:  "RUNTIME_ASYNC_TOKEN_COUNTER_BUFFER_SIZE",
 		Type:    reflect.TypeOf(0),
 		Help:    "Async token counter buffer size",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "runtime.tool_execution_timeout",
+		Default: 60 * time.Second,
+		CLIFlag: "tool-execution-timeout",
+		EnvVar:  "TOOL_EXECUTION_TIMEOUT",
+		Type:    durationType,
+		Help:    "Tool execution timeout",
 	})
 }
 
@@ -367,7 +400,7 @@ func registerMemoryFields(registry *Registry) {
 		Default: 24 * time.Hour,
 		CLIFlag: "",
 		EnvVar:  "MEMORY_TTL",
-		Type:    reflect.TypeOf(time.Hour),
+		Type:    durationType,
 		Help:    "Memory TTL",
 	})
 
@@ -417,7 +450,7 @@ func registerRateLimitFields(registry *Registry) {
 		Default: 1 * time.Minute,
 		CLIFlag: "",
 		EnvVar:  "RATELIMIT_GLOBAL_PERIOD",
-		Type:    reflect.TypeOf(time.Minute),
+		Type:    durationType,
 		Help:    "Global rate limit period",
 	})
 
@@ -436,7 +469,7 @@ func registerRateLimitFields(registry *Registry) {
 		Default: 1 * time.Minute,
 		CLIFlag: "",
 		EnvVar:  "RATELIMIT_API_KEY_PERIOD",
-		Type:    reflect.TypeOf(time.Minute),
+		Type:    durationType,
 		Help:    "API key rate limit period",
 	})
 
@@ -488,42 +521,36 @@ func registerRateLimitFields(registry *Registry) {
 }
 
 func registerCLIFields(registry *Registry) {
+	registerBasicCLIFields(registry)
+	registerOutputFormatFields(registry)
+	registerBehaviorFlags(registry)
+}
+
+func registerBasicCLIFields(registry *Registry) {
 	registry.Register(&FieldDef{
 		Path:    "cli.api_key",
 		Default: "",
-		CLIFlag: "",
+		CLIFlag: "api-key",
 		EnvVar:  "COMPOZY_API_KEY",
 		Type:    reflect.TypeOf(""),
 		Help:    "Compozy API key for authentication",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "cli.base_url",
-		Default: "http://localhost:8080",
+		Default: "http://localhost:5001",
 		CLIFlag: "base-url",
 		EnvVar:  "COMPOZY_BASE_URL",
 		Type:    reflect.TypeOf(""),
 		Help:    "Base URL for Compozy API",
 	})
-
-	registry.Register(&FieldDef{
-		Path:    "cli.server_url",
-		Default: "http://localhost:8080",
-		CLIFlag: "server-url",
-		EnvVar:  "COMPOZY_SERVER_URL",
-		Type:    reflect.TypeOf(""),
-		Help:    "Server URL for Compozy server connections",
-	})
-
 	registry.Register(&FieldDef{
 		Path:    "cli.timeout",
 		Default: 30 * time.Second,
 		CLIFlag: "timeout",
 		EnvVar:  "COMPOZY_TIMEOUT",
-		Type:    reflect.TypeOf(time.Second),
+		Type:    durationType,
 		Help:    "Timeout for API requests",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "cli.mode",
 		Default: "auto",
@@ -532,31 +559,113 @@ func registerCLIFields(registry *Registry) {
 		Type:    reflect.TypeOf(""),
 		Help:    "CLI mode: auto, json, or tui",
 	})
-
 	registry.Register(&FieldDef{
-		Path:    "cli.default_format",
-		Default: "auto",
-		CLIFlag: "format",
-		EnvVar:  "COMPOZY_DEFAULT_FORMAT",
+		Path:    "cli.server_url",
+		Default: "http://localhost:5001",
+		CLIFlag: "server-url",
+		EnvVar:  "COMPOZY_SERVER_URL",
 		Type:    reflect.TypeOf(""),
-		Help:    "Default output format: json, tui, or auto",
+		Help:    "Server URL for Compozy API",
 	})
+}
 
+func registerOutputFormatFields(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path:      "cli.default_format",
+		Default:   "auto",
+		CLIFlag:   "format",
+		Shorthand: "f",
+		EnvVar:    "COMPOZY_DEFAULT_FORMAT",
+		Type:      reflect.TypeOf(""),
+		Help:      "Default output format: json, tui, or auto",
+	})
 	registry.Register(&FieldDef{
 		Path:    "cli.color_mode",
 		Default: "auto",
-		CLIFlag: "color",
+		CLIFlag: "color-mode",
 		EnvVar:  "COMPOZY_COLOR_MODE",
 		Type:    reflect.TypeOf(""),
 		Help:    "Color mode: auto, on, or off",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "cli.page_size",
-		Default: 20,
+		Default: 50,
 		CLIFlag: "page-size",
 		EnvVar:  "COMPOZY_PAGE_SIZE",
 		Type:    reflect.TypeOf(0),
-		Help:    "Default page size for paginated results (1-1000)",
+		Help:    "Default page size for paginated results",
+	})
+	// Add output format alias flag
+	registry.Register(&FieldDef{
+		Path:      "cli.output_format_alias",
+		Default:   "",
+		CLIFlag:   "output",
+		Shorthand: "o",
+		EnvVar:    "",
+		Type:      reflect.TypeOf(""),
+		Help:      "Output format alias (same as --format)",
+	})
+	// Add no-color flag for boolean color control
+	registry.Register(&FieldDef{
+		Path:    "cli.no_color",
+		Default: false,
+		CLIFlag: "no-color",
+		EnvVar:  "",
+		Type:    reflect.TypeOf(true),
+		Help:    "Disable color output",
+	})
+}
+
+func registerBehaviorFlags(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path:      "cli.debug",
+		Default:   false,
+		CLIFlag:   "debug",
+		Shorthand: "d",
+		EnvVar:    "COMPOZY_DEBUG",
+		Type:      reflect.TypeOf(true),
+		Help:      "Enable debug output and verbose logging",
+	})
+	registry.Register(&FieldDef{
+		Path:      "cli.quiet",
+		Default:   false,
+		CLIFlag:   "quiet",
+		Shorthand: "q",
+		EnvVar:    "COMPOZY_QUIET",
+		Type:      reflect.TypeOf(true),
+		Help:      "Suppress non-essential output for automation and scripting",
+	})
+	registry.Register(&FieldDef{
+		Path:    "cli.interactive",
+		Default: false,
+		CLIFlag: "interactive",
+		EnvVar:  "COMPOZY_INTERACTIVE",
+		Type:    reflect.TypeOf(true),
+		Help:    "Force interactive mode even when CI or non-TTY detected",
+	})
+	registry.Register(&FieldDef{
+		Path:      "cli.config_file",
+		Default:   "",
+		CLIFlag:   "config",
+		Shorthand: "c",
+		EnvVar:    "COMPOZY_CONFIG_FILE",
+		Type:      reflect.TypeOf(""),
+		Help:      "Path to configuration file",
+	})
+	registry.Register(&FieldDef{
+		Path:    "cli.cwd",
+		Default: "",
+		CLIFlag: "cwd",
+		EnvVar:  "COMPOZY_CWD",
+		Type:    reflect.TypeOf(""),
+		Help:    "Working directory for the project",
+	})
+	registry.Register(&FieldDef{
+		Path:    "cli.env_file",
+		Default: "",
+		CLIFlag: "env-file",
+		EnvVar:  "COMPOZY_ENV_FILE",
+		Type:    reflect.TypeOf(""),
+		Help:    "Path to the environment variables file",
 	})
 }

@@ -94,8 +94,8 @@ func main() {
     router.GET(config.Path, gin.WrapH(service.ExporterHandler()))
 
     // Start server
-    log.Println("Server starting on :8080")
-    http.ListenAndServe(":8080", router)
+    log.Println("Server starting on :5001")
+    http.ListenAndServe(":5001", router)
 }
 ```
 
@@ -259,7 +259,7 @@ func setupMonitoringServer(ctx context.Context) error {
     // Metrics endpoint
     router.GET(config.Path, gin.WrapH(service.ExporterHandler()))
 
-    return http.ListenAndServe(":8080", router)
+    return http.ListenAndServe(":5001", router)
 }
 ```
 

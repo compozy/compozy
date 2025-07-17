@@ -9,7 +9,8 @@ import (
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/compozy/compozy/cli/services"
+	"github.com/compozy/compozy/cli/api"
+	cliutils "github.com/compozy/compozy/cli/helpers"
 	"github.com/compozy/compozy/cli/tui/styles"
 )
 
@@ -22,7 +23,7 @@ const (
 // WorkflowTableComponent provides an interactive workflow table
 type WorkflowTableComponent struct {
 	table        table.Model
-	workflows    []services.Workflow
+	workflows    []api.Workflow
 	filteredRows []table.Row
 	width        int
 	height       int
@@ -113,7 +114,7 @@ func DefaultWorkflowTableKeyMap() WorkflowTableKeyMap {
 }
 
 // NewWorkflowTableComponent creates a new workflow table component
-func NewWorkflowTableComponent(workflows []services.Workflow) WorkflowTableComponent {
+func NewWorkflowTableComponent(workflows []api.Workflow) WorkflowTableComponent {
 	// Create table columns
 	columns := []table.Column{
 		{Title: "ID", Width: 15},
@@ -170,19 +171,31 @@ func (wt *WorkflowTableComponent) SetSize(width, height int) *WorkflowTableCompo
 	wt.width = width
 	wt.height = height
 
-	// Update table size
-	wt.table.SetHeight(height - 4) // Reserve space for header and pagination
+	// Update table size, ensure minimum height
+	tableHeight := maxInt(1, height-4) // Reserve space for header and pagination
+	wt.table.SetHeight(tableHeight)
+
+	// Guard against very narrow terminals
+	if width < 40 {
+		// Use minimal columns for very narrow terminals
+		columns := []table.Column{
+			{Title: "Name", Width: maxInt(8, width/2)},
+			{Title: "Status", Width: maxInt(6, width/3)},
+		}
+		wt.table.SetColumns(columns)
+		return wt
+	}
 
 	// Adjust column widths based on available space
 	availableWidth := width - 10 // Reserve space for borders and padding
 	columns := []table.Column{
-		{Title: "ID", Width: minInt(15, availableWidth/7)},
-		{Title: "Name", Width: minInt(25, availableWidth/4)},
-		{Title: "Status", Width: minInt(12, availableWidth/8)},
-		{Title: "Version", Width: minInt(10, availableWidth/10)},
-		{Title: "Created", Width: minInt(12, availableWidth/8)},
-		{Title: "Updated", Width: minInt(12, availableWidth/8)},
-		{Title: "Tags", Width: minInt(20, availableWidth/6)},
+		{Title: "ID", Width: maxInt(8, minInt(15, availableWidth/7))},
+		{Title: "Name", Width: maxInt(10, minInt(25, availableWidth/4))},
+		{Title: "Status", Width: maxInt(6, minInt(12, availableWidth/8))},
+		{Title: "Version", Width: maxInt(5, minInt(10, availableWidth/10))},
+		{Title: "Created", Width: maxInt(8, minInt(12, availableWidth/8))},
+		{Title: "Updated", Width: maxInt(8, minInt(12, availableWidth/8))},
+		{Title: "Tags", Width: maxInt(8, minInt(20, availableWidth/6))},
 	}
 	wt.table.SetColumns(columns)
 
@@ -200,7 +213,7 @@ func (wt *WorkflowTableComponent) SetFocused(focused bool) *WorkflowTableCompone
 }
 
 // SetWorkflows updates the workflows data
-func (wt *WorkflowTableComponent) SetWorkflows(workflows []services.Workflow) *WorkflowTableComponent {
+func (wt *WorkflowTableComponent) SetWorkflows(workflows []api.Workflow) *WorkflowTableComponent {
 	wt.workflows = workflows
 	wt.totalItems = len(workflows)
 	wt.updateFilteredRows()
@@ -209,7 +222,7 @@ func (wt *WorkflowTableComponent) SetWorkflows(workflows []services.Workflow) *W
 }
 
 // GetSelectedWorkflow returns the currently selected workflow
-func (wt *WorkflowTableComponent) GetSelectedWorkflow() *services.Workflow {
+func (wt *WorkflowTableComponent) GetSelectedWorkflow() *api.Workflow {
 	if len(wt.filteredRows) == 0 {
 		return nil
 	}
@@ -423,7 +436,7 @@ func (wt *WorkflowTableComponent) updateFilteredRows() {
 
 		row := table.Row{
 			string(workflow.ID),
-			truncateString(workflow.Name, 23),
+			cliutils.Truncate(workflow.Name, 23),
 			string(workflow.Status),
 			workflow.Version,
 			workflow.CreatedAt.Format("2006-01-02"),
@@ -440,7 +453,7 @@ func (wt *WorkflowTableComponent) updateFilteredRows() {
 }
 
 // matchesFilter checks if a workflow matches the current filter
-func (wt *WorkflowTableComponent) matchesFilter(workflow *services.Workflow) bool {
+func (wt *WorkflowTableComponent) matchesFilter(workflow *api.Workflow) bool {
 	filterLower := strings.ToLower(wt.filterTerm)
 
 	// Check name
@@ -516,14 +529,6 @@ func (wt *WorkflowTableComponent) updateTableRows() {
 	wt.table.SetRows(pageRows)
 }
 
-// truncateString truncates a string to the specified length
-func truncateString(s string, length int) string {
-	if len(s) <= length {
-		return s
-	}
-	return s[:length-3] + "..."
-}
-
 // minInt returns the minimum of two integers
 func minInt(a, b int) int {
 	if a < b {
@@ -532,8 +537,16 @@ func minInt(a, b int) int {
 	return b
 }
 
+// maxInt returns the maximum of two integers
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
 // Message types for parent component communication
 type WorkflowRefreshMsg struct{}
 type WorkflowSelectedMsg struct {
-	Workflow services.Workflow
+	Workflow api.Workflow
 }

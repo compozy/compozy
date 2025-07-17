@@ -24,7 +24,7 @@ func TestLoader_Load(t *testing.T) {
 
 		// Should have default values
 		assert.Equal(t, "0.0.0.0", cfg.Server.Host)
-		assert.Equal(t, 8080, cfg.Server.Port)
+		assert.Equal(t, 5001, cfg.Server.Port)
 		assert.Equal(t, "development", cfg.Runtime.Environment)
 	})
 

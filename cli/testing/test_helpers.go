@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/compozy/cli/services"
+	"github.com/compozy/compozy/cli/api"
 	"github.com/compozy/compozy/cli/tui/models"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/pkg/config"
@@ -47,7 +47,7 @@ func TestConfig() *config.Config {
 	return &config.Config{
 		Server: config.ServerConfig{
 			Host: "localhost",
-			Port: 8080,
+			Port: 5001,
 		},
 		CLI: config.CLIConfig{
 			APIKey:  "test-api-key",
@@ -176,12 +176,12 @@ func (ct *CommandTest) AssertError(expectedError string) {
 }
 
 // TestWorkflow creates a test workflow
-func TestWorkflow(id string, name string) services.Workflow {
-	return services.Workflow{
+func TestWorkflow(id string, name string) api.Workflow {
+	return api.Workflow{
 		ID:          core.ID(id),
 		Name:        name,
 		Description: "Test workflow",
-		Status:      services.WorkflowStatusActive,
+		Status:      api.WorkflowStatusActive,
 		CreatedAt:   time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
 		UpdatedAt:   time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
 		Tags:        []string{"test"},
@@ -190,10 +190,10 @@ func TestWorkflow(id string, name string) services.Workflow {
 }
 
 // TestWorkflowDetail creates a detailed test workflow
-func TestWorkflowDetail(id string, name string) services.WorkflowDetail {
-	return services.WorkflowDetail{
+func TestWorkflowDetail(id string, name string) api.WorkflowDetail {
+	return api.WorkflowDetail{
 		Workflow: TestWorkflow(id, name),
-		Tasks: []services.Task{
+		Tasks: []api.Task{
 			{
 				ID:          core.ID("task-1"),
 				Name:        "Test Task",
@@ -201,7 +201,7 @@ func TestWorkflowDetail(id string, name string) services.WorkflowDetail {
 				Description: "A test task",
 			},
 		},
-		Inputs: []services.InputSchema{
+		Inputs: []api.InputSchema{
 			{
 				Name:        "input1",
 				Type:        "string",
@@ -209,14 +209,14 @@ func TestWorkflowDetail(id string, name string) services.WorkflowDetail {
 				Description: "Test input",
 			},
 		},
-		Outputs: []services.OutputSchema{
+		Outputs: []api.OutputSchema{
 			{
 				Name:        "output1",
 				Type:        "string",
 				Description: "Test output",
 			},
 		},
-		Statistics: &services.WorkflowStats{
+		Statistics: &api.WorkflowStats{
 			TotalExecutions:      10,
 			SuccessfulExecutions: 8,
 			FailedExecutions:     2,
@@ -226,11 +226,11 @@ func TestWorkflowDetail(id string, name string) services.WorkflowDetail {
 }
 
 // TestExecution creates a test execution
-func TestExecution(id string, workflowID string) services.Execution {
-	return services.Execution{
+func TestExecution(id string, workflowID string) api.Execution {
+	return api.Execution{
 		ID:         core.ID(id),
 		WorkflowID: core.ID(workflowID),
-		Status:     services.ExecutionStatusRunning,
+		Status:     api.ExecutionStatusRunning,
 		StartedAt:  time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
 		Input: map[string]any{
 			"test": true,
@@ -239,18 +239,18 @@ func TestExecution(id string, workflowID string) services.Execution {
 }
 
 // TestExecutionDetail creates a detailed test execution
-func TestExecutionDetail(id string, workflowID string) services.ExecutionDetail {
+func TestExecutionDetail(id string, workflowID string) api.ExecutionDetail {
 	completedAt := time.Date(2024, 1, 1, 0, 1, 0, 0, time.UTC)
-	return services.ExecutionDetail{
+	return api.ExecutionDetail{
 		Execution: TestExecution(id, workflowID),
-		Logs: []services.LogEntry{
+		Logs: []api.LogEntry{
 			{
 				Timestamp: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
 				Level:     "info",
 				Message:   "Task started",
 			},
 		},
-		TaskResults: []services.TaskResult{
+		TaskResults: []api.TaskResult{
 			{
 				TaskID:      core.ID("task-1"),
 				Status:      "completed",
@@ -259,7 +259,7 @@ func TestExecutionDetail(id string, workflowID string) services.ExecutionDetail 
 				CompletedAt: &completedAt,
 			},
 		},
-		Metrics: &services.ExecutionMetrics{
+		Metrics: &api.ExecutionMetrics{
 			TotalTasks:     1,
 			CompletedTasks: 1,
 			FailedTasks:    0,
@@ -269,9 +269,9 @@ func TestExecutionDetail(id string, workflowID string) services.ExecutionDetail 
 }
 
 // TestSchedule creates a test schedule
-func TestSchedule(workflowID string) services.Schedule {
+func TestSchedule(workflowID string) api.Schedule {
 	lastRun := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
-	return services.Schedule{
+	return api.Schedule{
 		WorkflowID: core.ID(workflowID),
 		CronExpr:   "0 * * * *",
 		Enabled:    true,
@@ -388,22 +388,25 @@ type MockWorkflowService struct {
 	mock.Mock
 }
 
-func (m *MockWorkflowService) List(ctx context.Context, filters services.WorkflowFilters) ([]services.Workflow, error) {
+func (m *MockWorkflowService) List(
+	ctx context.Context,
+	filters *api.WorkflowFilters,
+) ([]api.Workflow, error) {
 	args := m.Called(ctx, filters)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).([]services.Workflow), args.Error(1) //nolint:errcheck // type assertion safe after nil check
+	return args.Get(0).([]api.Workflow), args.Error(1) //nolint:errcheck // type assertion safe after nil check
 }
 
-func (m *MockWorkflowService) Get(ctx context.Context, id core.ID) (*services.WorkflowDetail, error) {
+func (m *MockWorkflowService) Get(ctx context.Context, id core.ID) (*api.WorkflowDetail, error) {
 	args := m.Called(ctx, id)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	result, ok := args.Get(0).(*services.WorkflowDetail)
+	result, ok := args.Get(0).(*api.WorkflowDetail)
 	if !ok {
-		return nil, fmt.Errorf("expected *services.WorkflowDetail, got %T", args.Get(0))
+		return nil, fmt.Errorf("expected *api.WorkflowDetail, got %T", args.Get(0))
 	}
 	return result, args.Error(1)
 }
@@ -415,15 +418,15 @@ type MockWorkflowMutateService struct {
 func (m *MockWorkflowMutateService) Execute(
 	ctx context.Context,
 	id core.ID,
-	input services.ExecutionInput,
-) (*services.ExecutionResult, error) {
+	input api.ExecutionInput,
+) (*api.ExecutionResult, error) {
 	args := m.Called(ctx, id, input)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	result, ok := args.Get(0).(*services.ExecutionResult)
+	result, ok := args.Get(0).(*api.ExecutionResult)
 	if !ok {
-		return nil, fmt.Errorf("expected *services.ExecutionResult, got %T", args.Get(0))
+		return nil, fmt.Errorf("expected *api.ExecutionResult, got %T", args.Get(0))
 	}
 	return result, args.Error(1)
 }
@@ -434,35 +437,35 @@ type MockExecutionService struct {
 
 func (m *MockExecutionService) List(
 	ctx context.Context,
-	filters services.ExecutionFilters,
-) ([]services.Execution, error) {
+	filters api.ExecutionFilters,
+) ([]api.Execution, error) {
 	args := m.Called(ctx, filters)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).([]services.Execution), args.Error(1) //nolint:errcheck // type assertion safe after nil check
+	return args.Get(0).([]api.Execution), args.Error(1) //nolint:errcheck // type assertion safe after nil check
 }
 
-func (m *MockExecutionService) Get(ctx context.Context, id core.ID) (*services.ExecutionDetail, error) {
+func (m *MockExecutionService) Get(ctx context.Context, id core.ID) (*api.ExecutionDetail, error) {
 	args := m.Called(ctx, id)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	result, ok := args.Get(0).(*services.ExecutionDetail)
+	result, ok := args.Get(0).(*api.ExecutionDetail)
 	if !ok {
-		return nil, fmt.Errorf("expected *services.ExecutionDetail, got %T", args.Get(0))
+		return nil, fmt.Errorf("expected *api.ExecutionDetail, got %T", args.Get(0))
 	}
 	return result, args.Error(1)
 }
 
-func (m *MockExecutionService) Follow(ctx context.Context, id core.ID) (<-chan services.ExecutionEvent, error) {
+func (m *MockExecutionService) Follow(ctx context.Context, id core.ID) (<-chan api.ExecutionEvent, error) {
 	args := m.Called(ctx, id)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	result, ok := args.Get(0).(<-chan services.ExecutionEvent)
+	result, ok := args.Get(0).(<-chan api.ExecutionEvent)
 	if !ok {
-		return nil, fmt.Errorf("expected <-chan services.ExecutionEvent, got %T", args.Get(0))
+		return nil, fmt.Errorf("expected <-chan api.ExecutionEvent, got %T", args.Get(0))
 	}
 	return result, args.Error(1)
 }
@@ -485,22 +488,22 @@ type MockScheduleService struct {
 	mock.Mock
 }
 
-func (m *MockScheduleService) List(ctx context.Context) ([]services.Schedule, error) {
+func (m *MockScheduleService) List(ctx context.Context) ([]api.Schedule, error) {
 	args := m.Called(ctx)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).([]services.Schedule), args.Error(1) //nolint:errcheck // type assertion safe after nil check
+	return args.Get(0).([]api.Schedule), args.Error(1) //nolint:errcheck // type assertion safe after nil check
 }
 
-func (m *MockScheduleService) Get(ctx context.Context, workflowID core.ID) (*services.Schedule, error) {
+func (m *MockScheduleService) Get(ctx context.Context, workflowID core.ID) (*api.Schedule, error) {
 	args := m.Called(ctx, workflowID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	result, ok := args.Get(0).(*services.Schedule)
+	result, ok := args.Get(0).(*api.Schedule)
 	if !ok {
-		return nil, fmt.Errorf("expected *services.Schedule, got %T", args.Get(0))
+		return nil, fmt.Errorf("expected *api.Schedule, got %T", args.Get(0))
 	}
 	return result, args.Error(1)
 }
@@ -512,7 +515,7 @@ type MockScheduleMutateService struct {
 func (m *MockScheduleMutateService) Update(
 	ctx context.Context,
 	workflowID core.ID,
-	req services.UpdateScheduleRequest,
+	req api.UpdateScheduleRequest,
 ) error {
 	args := m.Called(ctx, workflowID, req)
 	return args.Error(0)
@@ -527,7 +530,7 @@ type MockEventService struct {
 	mock.Mock
 }
 
-func (m *MockEventService) Send(ctx context.Context, event services.Event) error {
+func (m *MockEventService) Send(ctx context.Context, event api.Event) error {
 	args := m.Called(ctx, event)
 	return args.Error(0)
 }
@@ -546,43 +549,43 @@ func NewMockAPIClient() *MockAPIClient {
 }
 
 // Workflow returns the mock workflow service
-func (m *MockAPIClient) Workflow() services.WorkflowService {
+func (m *MockAPIClient) Workflow() api.WorkflowService {
 	return m.WorkflowMock
 }
 
 // WorkflowMutate returns the mock workflow mutate service
-func (m *MockAPIClient) WorkflowMutate() services.WorkflowMutateService {
+func (m *MockAPIClient) WorkflowMutate() api.WorkflowMutateService {
 	return m.WorkflowMutateMock
 }
 
 // Execution returns the mock execution service
-func (m *MockAPIClient) Execution() services.ExecutionService {
+func (m *MockAPIClient) Execution() api.ExecutionService {
 	return m.ExecutionMock
 }
 
 // ExecutionMutate returns the mock execution mutate service
-func (m *MockAPIClient) ExecutionMutate() services.ExecutionMutateService {
+func (m *MockAPIClient) ExecutionMutate() api.ExecutionMutateService {
 	return m.ExecutionMutateMock
 }
 
 // Schedule returns the mock schedule service
-func (m *MockAPIClient) Schedule() services.ScheduleService {
+func (m *MockAPIClient) Schedule() api.ScheduleService {
 	return m.ScheduleMock
 }
 
 // ScheduleMutate returns the mock schedule mutate service
-func (m *MockAPIClient) ScheduleMutate() services.ScheduleMutateService {
+func (m *MockAPIClient) ScheduleMutate() api.ScheduleMutateService {
 	return m.ScheduleMutateMock
 }
 
 // Event returns the mock event service
-func (m *MockAPIClient) Event() services.EventService {
+func (m *MockAPIClient) Event() api.EventService {
 	return m.EventMock
 }
 
 // TestExecutionEvent creates a test execution event
-func TestExecutionEvent(execID string, eventType string) services.ExecutionEvent {
-	return services.ExecutionEvent{
+func TestExecutionEvent(execID string, eventType string) api.ExecutionEvent {
+	return api.ExecutionEvent{
 		ExecutionID: core.ID(execID),
 		Type:        eventType,
 		Message:     "Test event",
@@ -592,8 +595,8 @@ func TestExecutionEvent(execID string, eventType string) services.ExecutionEvent
 }
 
 // TestEvent creates a test event
-func TestEvent(name string) services.Event {
-	return services.Event{
+func TestEvent(name string) api.Event {
+	return api.Event{
 		Name:      name,
 		Payload:   map[string]any{"test": true},
 		Timestamp: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),

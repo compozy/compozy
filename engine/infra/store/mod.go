@@ -28,7 +28,7 @@ func SetupStoreWithConfig(ctx context.Context, appConfig *config.Config) (*Store
 	// Debug logging
 	log := logger.FromContext(ctx)
 	log.Debug("Database configuration loaded",
-		"has_password", appConfig.Database.Password.Value() != "",
+		"has_password", appConfig.Database.Password != "",
 		"host", appConfig.Database.Host)
 
 	storeConfig := &Config{
@@ -36,7 +36,7 @@ func SetupStoreWithConfig(ctx context.Context, appConfig *config.Config) (*Store
 		Host:       appConfig.Database.Host,
 		Port:       appConfig.Database.Port,
 		User:       appConfig.Database.User,
-		Password:   appConfig.Database.Password.Value(),
+		Password:   appConfig.Database.Password,
 		DBName:     appConfig.Database.DBName,
 		SSLMode:    appConfig.Database.SSLMode,
 	}

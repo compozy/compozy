@@ -25,7 +25,7 @@ folded: >
 # Numbers
 version: 1.0
 timeout: 30
-port: 8080
+port: 5001
 
 # Booleans
 enabled: true
@@ -276,7 +276,7 @@ items:
 # Objects remain objects
 config:
   host: localhost
-  port: 8080
+  port: 5001
 ```
 
 ## Common Patterns
@@ -406,10 +406,10 @@ tasks:
 ### 2. String vs Number Types
 ```yaml
 # String port
-port: "8080"  # This is a string
+port: "5001"  # This is a string
 
 # Numeric port
-port: 8080    # This is a number
+port: 5001    # This is a number
 
 # Template to number conversion
 port: "{{ .env.PORT | int }}"  # Converts to number
@@ -526,7 +526,7 @@ kubernetes_config:
     namespace: "default"
   spec:
     replica-count: 3
-    container-port: 8080
+    container-port: 5001
     image-pull-policy: "Always"
 
 # Template access to hyphenated fields

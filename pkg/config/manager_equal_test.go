@@ -12,7 +12,7 @@ func TestConfigEqual(t *testing.T) {
 		config1 := &Config{
 			Server: ServerConfig{
 				Host:        "localhost",
-				Port:        8080,
+				Port:        5001,
 				CORSEnabled: true,
 				Timeout:     30 * time.Second,
 			},
@@ -27,7 +27,7 @@ func TestConfigEqual(t *testing.T) {
 		config2 := &Config{
 			Server: ServerConfig{
 				Host:        "localhost",
-				Port:        8080,
+				Port:        5001,
 				CORSEnabled: true,
 				Timeout:     30 * time.Second,
 			},
@@ -46,14 +46,14 @@ func TestConfigEqual(t *testing.T) {
 		config1 := &Config{
 			Server: ServerConfig{
 				Host: "localhost",
-				Port: 8080,
+				Port: 5001,
 			},
 		}
 
 		config2 := &Config{
 			Server: ServerConfig{
 				Host: "different.host.com",
-				Port: 8080,
+				Port: 5001,
 			},
 		}
 

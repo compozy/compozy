@@ -20,7 +20,7 @@ This template provides a comprehensive structure that balances requirements gath
 2. **Ask Clarifying Questions:** Before writing the PRD, the AI _must_ ask clarifying questions to gather sufficient detail. Focus on understanding the "what" and "why" of the feature, user needs, and success criteria.
 
 <mandatory_step>
-3. **Create PRD Planning with Zen Planner:** Use zen's planner tool to create a comprehensive PRD development plan:
+3. **Create PRD Planning with Zen MCP:** Use zen's planner tool to create a comprehensive PRD development plan:
   - Analyze the enriched feature specification requirements
   - Break down PRD creation into logical planning steps
   - Identify key sections that need focused attention

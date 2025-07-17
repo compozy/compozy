@@ -75,13 +75,13 @@ go build -o compozy .
 compozy dev
 
 # Start with specific configuration
-compozy dev --config custom.yaml --port 8080
+compozy dev --config custom.yaml --port 5001
 
 # Enable file watching for auto-restart
 compozy dev --watch
 
 # Start MCP proxy
-compozy mcp-proxy --port 8081
+compozy mcp-proxy --port 5002
 ```
 
 ---
@@ -210,7 +210,7 @@ runtime:
 compozy dev
 
 # Custom configuration
-compozy dev --config production.yaml --port 8080
+compozy dev --config production.yaml --port 5001
 
 # Debug mode with file watching
 compozy dev --debug --watch --log-json

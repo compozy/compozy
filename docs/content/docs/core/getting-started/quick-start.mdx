@@ -201,13 +201,13 @@ outputs:
 compozy dev
 ```
 
-Your server will be running at `http://localhost:3001`.
+Your server will be running at `http://localhost:5001`.
 
 <Tabs items={["Rest Client", "cURL"]}>
 
 <Tab>
 ```http title="test.http"
-@baseUrl = http://localhost:3001/api/v0
+@baseUrl = http://localhost:5001/api/v0
 @workflowId = hello-world
 
 ### Execute the workflow with friendly greeting
@@ -241,7 +241,7 @@ GET {{baseUrl}}/executions/{{execId}}
 <Tab>
 ```bash
 # Execute the workflow
-curl -X POST http://localhost:3001/api/v0/workflows/hello-world/execute \
+curl -X POST http://localhost:5001/api/v0/workflows/hello-world/execute \
   -H "Content-Type: application/json" \
   -d '{"input": {"name": "Alice", "style": "friendly"}}'
 ```

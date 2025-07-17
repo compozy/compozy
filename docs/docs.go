@@ -4634,7 +4634,7 @@ const docTemplate = `{
                     ]
                 },
                 "url": {
-                    "description": "URL is the **endpoint for remote MCP servers**.\n\nRequired for HTTP-based transports (SSE, streamable-http).\nMust be a valid HTTP or HTTPS URL pointing to an MCP-compatible endpoint.\n\n**Format**: ` + "`" + `http[s]://host[:port]/path` + "`" + `\n\n- **Examples**:\n` + "`" + `` + "`" + `` + "`" + `yaml\nurl: \"http://localhost:3000/mcp\"\nurl: \"https://api.example.com/v1/mcp\"\nurl: \"http://mcp-proxy:8080/filesystem\"\n` + "`" + `` + "`" + `` + "`" + `\n\n**Note**: Mutually exclusive with ` + "`" + `command` + "`" + ` - use either URL or Command, not both.",
+                    "description": "URL is the **endpoint for remote MCP servers**.\n\nRequired for HTTP-based transports (SSE, streamable-http).\nMust be a valid HTTP or HTTPS URL pointing to an MCP-compatible endpoint.\n\n**Format**: ` + "`" + `http[s]://host[:port]/path` + "`" + `\n\n- **Examples**:\n` + "`" + `` + "`" + `` + "`" + `yaml\nurl: \"http://localhost:3000/mcp\"\nurl: \"https://api.example.com/v1/mcp\"\nurl: \"http://mcp-proxy:8081/filesystem\"\n` + "`" + `` + "`" + `` + "`" + `\n\n**Note**: Mutually exclusive with ` + "`" + `command` + "`" + ` - use either URL or Command, not both.",
                     "type": "string"
                 }
             }
@@ -5646,7 +5646,7 @@ const docTemplate = `{
                 },
                 "exec_url": {
                     "type": "string",
-                    "example": "localhost:8080/api/workflows/executions/2Z4PVTL6K27XVT4A3NPKMDD5BG"
+                    "example": "localhost:5001/api/workflows/executions/2Z4PVTL6K27XVT4A3NPKMDD5BG"
                 },
                 "workflow_id": {
                     "type": "string",

@@ -113,7 +113,7 @@ app:
 localScope := map[string]any{
     "server": map[string]any{
         "host": "localhost",
-        "port": 8080,
+        "port": 5001,
     },
 }
 
@@ -123,7 +123,7 @@ config:
 `
 
 result, err := ref.ProcessBytes([]byte(yamlDoc), ref.WithLocalScope(localScope))
-// Result: map[config:map[host:localhost port:8080]]
+// Result: map[config:map[host:localhost port:5001]]
 ```
 
 ### Component Transformation
@@ -153,7 +153,7 @@ result, err := ref.ProcessBytes([]byte(yamlDoc), ref.WithLocalScope(localScope))
 localScope := map[string]any{
     "base": map[string]any{
         "host": "localhost",
-        "port": 8080,
+        "port": 5001,
     },
     "overrides": map[string]any{
         "port": 9090,
@@ -179,7 +179,7 @@ result, err := ref.ProcessBytes([]byte(yamlDoc), ref.WithLocalScope(localScope))
 localScope := map[string]any{
     "defaults": map[string]any{
         "host": "localhost",
-        "port": 8080,
+        "port": 5001,
     },
 }
 
@@ -317,7 +317,7 @@ func main() {
         "defaults": map[string]any{
             "server": map[string]any{
                 "host": "0.0.0.0",
-                "port": 8080,
+                "port": 5001,
                 "timeout": "30s",
             },
             "database": map[string]any{
@@ -580,7 +580,7 @@ func TestInlineMerge(t *testing.T) {
     scope := map[string]any{
         "base": map[string]any{
             "host": "localhost",
-            "port": 8080,
+            "port": 5001,
         },
     }
 
@@ -609,7 +609,7 @@ func BenchmarkEvaluatorWithCache(b *testing.B) {
         "config": map[string]any{
             "server": map[string]any{
                 "host": "localhost",
-                "port": 8080,
+                "port": 5001,
             },
         },
     }

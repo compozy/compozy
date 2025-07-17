@@ -354,7 +354,7 @@ func TestIsValidYearField(t *testing.T) {
 		{"wildcard", "*", true, "Should accept wildcard"},
 		{"single_year_valid", "2024", true, "Should accept valid single year"},
 		{"single_year_invalid_range", "1900", false, "Should reject year below 1970"},
-		{"single_year_invalid_future", "3001", false, "Should reject year above 3000"},
+		{"single_year_invalid_future", "5001", false, "Should reject year above 3000"},
 		{"range_valid", "2024-2030", true, "Should accept valid year range"},
 		{"range_invalid_order", "2030-2024", false, "Should reject reversed year range"},
 		{"list_valid", "2024,2025,2026", true, "Should accept valid year list"},

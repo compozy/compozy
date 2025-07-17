@@ -34,11 +34,12 @@ Implement consistent global flags (--server-url, --config, --debug, --quiet, --f
 
 ## Subtasks
 
-- [ ] 14.1 Implement global flags across all commands with aliases
-- [ ] 14.2 Create comprehensive help system with examples
-- [ ] 14.3 Build debug logging system with verbose output
-- [ ] 14.4 Add quiet mode for automation scenarios
-- [ ] 14.5 Integrate help content with contextual assistance
+- [x] 14.0 Update cli/dev.go that has redundant arguments that should be using this global system
+- [x] 14.1 Implement global flags across all commands with aliases
+- [x] 14.2 Create comprehensive help system with examples
+- [x] 14.3 Build debug logging system with verbose output
+- [x] 14.4 Add quiet mode for automation scenarios
+- [x] 14.5 Integrate help content with contextual assistance
 
 ## Implementation Details
 

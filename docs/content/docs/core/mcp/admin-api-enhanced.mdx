@@ -104,7 +104,7 @@ The MCP Admin API provides comprehensive administrative capabilities for managin
 
 <Mermaid chart={`graph TB
     subgraph "Admin API Gateway"
-        API[Admin API<br/>Port :8080]
+        API[Admin API<br/>Port :5001]
         AUTH[Authentication<br/>JWT/OAuth]
         RBAC[Role-Based Access<br/>Control]
     end
@@ -199,7 +199,7 @@ The MCP Admin API provides comprehensive administrative capabilities for managin
 
 ```bash
 # Authenticate and get JWT token
-curl -X POST "http://localhost:8080/api/v1/auth/login" \
+curl -X POST "http://localhost:5001/api/v1/auth/login" \
   -H "Content-Type: application/json" \
   -d '{
     "username": "admin",
@@ -223,7 +223,7 @@ curl -X POST "http://localhost:8080/api/v1/auth/login" \
 
 ```bash
 # Use JWT token in Authorization header
-curl -X GET "http://localhost:8080/api/v1/servers" \
+curl -X GET "http://localhost:5001/api/v1/servers" \
   -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 ```
 
@@ -238,7 +238,7 @@ oauth:
   provider: "okta"  # okta, azure, google, keycloak
   client_id: "your-client-id"
   client_secret: "your-client-secret"
-  redirect_uri: "http://localhost:8080/auth/callback"
+  redirect_uri: "http://localhost:5001/auth/callback"
   scope: "openid profile email"
   
   # Provider-specific configuration
@@ -281,7 +281,7 @@ POST /auth/oauth/token
 
 ```bash
 # Generate API key
-curl -X POST "http://localhost:8080/api/v1/auth/api-keys" \
+curl -X POST "http://localhost:5001/api/v1/auth/api-keys" \
   -H "Authorization: Bearer jwt_token" \
   -H "Content-Type: application/json" \
   -d '{
@@ -306,7 +306,7 @@ curl -X POST "http://localhost:8080/api/v1/auth/api-keys" \
 
 ```bash
 # Use API key in X-API-Key header
-curl -X GET "http://localhost:8080/api/v1/metrics" \
+curl -X GET "http://localhost:5001/api/v1/metrics" \
   -H "X-API-Key: mcp_ak_1234567890abcdef..."
 ```
 
@@ -820,7 +820,7 @@ GET /api/v1/system/config
   "configuration": {
     "server": {
       "host": "0.0.0.0",
-      "port": 8080,
+      "port": 5001,
       "read_timeout": "30s",
       "write_timeout": "30s"
     },
@@ -1142,7 +1142,7 @@ GET /api/v1/metrics/servers/{server_id}?timerange=24h&step=1h
 
 ```javascript
 // Connect to WebSocket API
-const ws = new WebSocket('ws://localhost:8080/api/v1/ws');
+const ws = new WebSocket('ws://localhost:5001/api/v1/ws');
 
 // Authentication
 ws.onopen = function() {
@@ -1397,7 +1397,7 @@ npm install @compozy/admin-api-sdk
 import { AdminAPIClient } from '@compozy/admin-api-sdk';
 
 const client = new AdminAPIClient({
-  baseURL: 'http://localhost:8080',
+  baseURL: 'http://localhost:5001',
   token: 'your-jwt-token'
 });
 
@@ -1434,7 +1434,7 @@ pip install compozy-admin-api
 from compozy_admin_api import AdminAPIClient
 
 client = AdminAPIClient(
-    base_url="http://localhost:8080",
+    base_url="http://localhost:5001",
     token="your-jwt-token"
 )
 

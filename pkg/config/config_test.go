@@ -18,7 +18,7 @@ func TestConfig_Default(t *testing.T) {
 
 		// Server defaults
 		assert.Equal(t, "0.0.0.0", cfg.Server.Host)
-		assert.Equal(t, 8080, cfg.Server.Port)
+		assert.Equal(t, 5001, cfg.Server.Port)
 		assert.True(t, cfg.Server.CORSEnabled)
 		assert.Equal(t, 30*time.Second, cfg.Server.Timeout)
 
@@ -65,7 +65,7 @@ func TestConfig_Validation(t *testing.T) {
 			port    int
 			wantErr bool
 		}{
-			{"valid port", 8080, false},
+			{"valid port", 5001, false},
 			{"minimum port", 1, false},
 			{"maximum port", 65535, false},
 			{"port too low", 0, true},

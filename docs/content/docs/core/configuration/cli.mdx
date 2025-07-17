@@ -93,7 +93,7 @@ The `compozy dev` command provides a full-featured development server with hot r
 <Step title="Basic Development Server" description="Start with default settings">
 
 ```bash
-# Start development server on default port (8080)
+# Start development server on default port (5001)
 compozy dev
 
 # Start with custom port
@@ -140,7 +140,7 @@ compozy dev --cwd /path/to/project
 ```bash
 # Server and basic options
 compozy dev \
-  --port 8080 \
+  --port 5001 \
   --host 0.0.0.0 \
   --cors \
   --debug \
@@ -270,7 +270,7 @@ Complete reference for all `compozy dev` options:
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
-| `--port` | int | `8080` | Port to run the development server on |
+| `--port` | int | `5001` | Port to run the development server on |
 | `--host` | string | `"0.0.0.0"` | Host to bind the server to |
 | `--cors` | bool | `true` | Enable CORS |
 | `--cwd` | string | `""` | Working directory for the project |
@@ -403,9 +403,9 @@ compozy dev --watch --debug
 <Step title="Test Your Workflows" description="Access your running server">
 
 ```bash
-# Server runs on http://localhost:8080
-# API available at http://localhost:8080/api/v0
-curl http://localhost:8080/api/v0/workflows
+# Server runs on http://localhost:5001
+# API available at http://localhost:5001/api/v0
+curl http://localhost:5001/api/v0/workflows
 ```
 
 </Step>
@@ -504,7 +504,7 @@ CLI flags have the highest precedence and override environment variables:
 export SERVER_PORT=9000
 
 # CLI flag overrides environment variable
-compozy dev --port 8080  # Uses port 8080, not 9000
+compozy dev --port 5001  # Uses port 5001, not 9000
 ```
 
 ### Environment Variable Patterns
@@ -514,7 +514,7 @@ compozy dev --port 8080  # Uses port 8080, not 9000
 ```bash
 # Server configuration
 export SERVER_HOST=0.0.0.0
-export SERVER_PORT=8080
+export SERVER_PORT=5001
 export SERVER_CORS_ENABLED=true
 export SERVER_TIMEOUT=30s
 
@@ -593,11 +593,11 @@ The file watcher automatically ignores these directories:
 Compozy automatically finds available ports if the requested port is in use:
 
 ```bash
-# Request port 8080
-compozy dev --port 8080
+# Request port 5001
+compozy dev --port 5001
 
-# If 8080 is busy, tries common alternatives:
-# 3001, 3002, 3003, 4000, 4001, 5000, 5001, 8000, 8001, 8081, 9000, 9001
+# If 5001 is busy, tries common alternatives:
+# 5001, 3002, 3003, 4000, 4001, 5000, 5001, 8000, 8001, 8081, 9000, 9001
 
 # Then scans incrementally from requested port
 ```
@@ -614,7 +614,7 @@ Understanding configuration precedence helps debug configuration issues:
 ```bash
 # Example showing precedence
 export SERVER_PORT=9000           # Environment variable
-# compozy.yaml contains: server.port: 8080
+# compozy.yaml contains: server.port: 5001
 compozy dev --port 7000           # CLI flag wins: uses 7000
 ```
 
@@ -689,7 +689,7 @@ compozy dev \
 # Docker development
 compozy dev \
   --host 0.0.0.0 \
-  --port 8080 \
+  --port 5001 \
   --db-host db \
   --temporal-host temporal:7233
 ```

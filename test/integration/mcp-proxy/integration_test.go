@@ -151,9 +151,9 @@ func TestAdminSecurity(t *testing.T) {
 	clientManager := mcpproxy.NewMockClientManager()
 
 	config := &mcpproxy.Config{
-		Port:            "8080",
+		Port:            "8081",
 		Host:            "localhost",
-		BaseURL:         "http://localhost:8080",
+		BaseURL:         "http://localhost:8081",
 		ShutdownTimeout: 5 * time.Second,
 		AdminTokens:     []string{"valid-token"},
 		// Don't restrict IPs for testing httptest

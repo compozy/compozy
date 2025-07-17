@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/compozy/compozy/cli/services"
+	"github.com/compozy/compozy/cli/api"
 	clitesting "github.com/compozy/compozy/cli/testing"
 	"github.com/compozy/compozy/cli/tui/models"
 	"github.com/compozy/compozy/engine/core"
@@ -23,12 +23,12 @@ func TestExampleCommand(t *testing.T) {
 
 		// Set up expectations
 		expectedID := core.ID("test-workflow-id")
-		expectedInput := services.ExecutionInput{
+		expectedInput := api.ExecutionInput{
 			Data: map[string]any{"test": true},
 		}
-		expectedResult := &services.ExecutionResult{
+		expectedResult := &api.ExecutionResult{
 			ExecutionID: core.ID("exec-123"),
-			Status:      services.ExecutionStatusRunning,
+			Status:      api.ExecutionStatusRunning,
 			Message:     "Workflow started",
 		}
 
@@ -86,7 +86,7 @@ func TestExampleCommand(t *testing.T) {
 				_, err := mockClient.WorkflowMutate().Execute(
 					cmd.Context(),
 					core.ID("test"),
-					services.ExecutionInput{},
+					api.ExecutionInput{},
 				)
 				return err
 			},
@@ -174,12 +174,12 @@ func TestWithGeneratedData(t *testing.T) {
 		// Use test data in assertions
 		assert.Equal(t, core.ID("wf-123"), workflow.ID)
 		assert.Equal(t, "Test Workflow", workflow.Name)
-		assert.Equal(t, services.WorkflowStatusActive, workflow.Status)
+		assert.Equal(t, api.WorkflowStatusActive, workflow.Status)
 
 		assert.NotNil(t, workflowDetail.Statistics)
 		assert.Equal(t, int64(10), workflowDetail.Statistics.TotalExecutions)
 
-		assert.Equal(t, services.ExecutionStatusRunning, execution.Status)
+		assert.Equal(t, api.ExecutionStatusRunning, execution.Status)
 		assert.NotNil(t, execution.Input)
 
 		assert.NotNil(t, executionDetail.Metrics)
@@ -206,7 +206,7 @@ func TestErrorFormatting(t *testing.T) {
 		require.NoError(t, err)
 
 		cmd.RunE = func(cmd *cobra.Command, _ []string) error {
-			_, err := mockClient.Workflow().List(cmd.Context(), services.WorkflowFilters{})
+			_, err := mockClient.Workflow().List(cmd.Context(), &api.WorkflowFilters{})
 			return err
 		}
 

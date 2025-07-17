@@ -13,7 +13,6 @@ type Config struct {
 	Port        int
 	CORSEnabled bool
 	ConfigFile  string
-	EnvFilePath string
 	RateLimit   *ratelimit.Config
 }
 

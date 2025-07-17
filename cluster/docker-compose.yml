@@ -170,7 +170,7 @@ services:
       - temporal
     environment:
       - TEMPORAL_ADDRESS=temporal:7233
-      - TEMPORAL_CORS_ORIGINS=http://localhost:3000,http://localhost:8080
+      - TEMPORAL_CORS_ORIGINS=http://localhost:3000,http://localhost:5001
       - TEMPORAL_NAMESPACE=${TEMPORAL_NAMESPACE:-default}
     networks:
       - temporal-network

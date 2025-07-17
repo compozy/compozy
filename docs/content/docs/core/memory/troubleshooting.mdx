@@ -266,11 +266,11 @@ This guide provides comprehensive troubleshooting procedures organized by user r
 
 ```bash
 # Check memory instance existence
-curl -X GET "http://localhost:8080/api/v0/memory/health" \
+curl -X GET "http://localhost:5001/api/v0/memory/health" \
   -H "Authorization: Bearer $TOKEN"
 
 # Verify key template evaluation
-curl -X POST "http://localhost:8080/api/v0/memory/debug/key-resolution" \
+curl -X POST "http://localhost:5001/api/v0/memory/debug/key-resolution" \
   -H "Content-Type: application/json" \
   -d '{
     "memory_resource_id": "user_memory",
@@ -337,11 +337,11 @@ const workflowContext = {
 redis-cli --latency-history -h localhost -p 6379
 
 # Monitor lock usage
-curl -X GET "http://localhost:8080/api/v0/memory/debug/locks" \
+curl -X GET "http://localhost:5001/api/v0/memory/debug/locks" \
   -H "Authorization: Bearer $TOKEN"
 
 # Check memory instance health
-curl -X GET "http://localhost:8080/api/v0/memory/health/user:test_user" \
+curl -X GET "http://localhost:5001/api/v0/memory/health/user:test_user" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -495,11 +495,11 @@ export async function resyncTokenMetadata(input: ResyncInput) {
 
 ```bash
 # Check flush pending status
-curl -X GET "http://localhost:8080/api/v0/memory/debug/flush-status/user:test_user" \
+curl -X GET "http://localhost:5001/api/v0/memory/debug/flush-status/user:test_user" \
   -H "Authorization: Bearer $TOKEN"
 
 # Manually trigger flush
-curl -X POST "http://localhost:8080/api/v0/memory/flush" \
+curl -X POST "http://localhost:5001/api/v0/memory/flush" \
   -H "Content-Type: application/json" \
   -d '{
     "memory_key": "user:test_user",
@@ -507,7 +507,7 @@ curl -X POST "http://localhost:8080/api/v0/memory/flush" \
   }'
 
 # Check Temporal workflow status
-curl -X GET "http://localhost:8080/api/v0/temporal/workflows/memory-flush" \
+curl -X GET "http://localhost:5001/api/v0/temporal/workflows/memory-flush" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -671,15 +671,15 @@ export async function batchMemoryOperations(input: BatchOperationsInput) {
 
 ```bash
 # Check memory usage
-curl -X GET "http://localhost:8080/api/v0/memory/debug/resource-usage" \
+curl -X GET "http://localhost:5001/api/v0/memory/debug/resource-usage" \
   -H "Authorization: Bearer $TOKEN"
 
 # Monitor active connections
-curl -X GET "http://localhost:8080/api/v0/memory/debug/connections" \
+curl -X GET "http://localhost:5001/api/v0/memory/debug/connections" \
   -H "Authorization: Bearer $TOKEN"
 
 # Check for memory leaks
-curl -X GET "http://localhost:8080/api/v0/memory/debug/gc-stats" \
+curl -X GET "http://localhost:5001/api/v0/memory/debug/gc-stats" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -924,16 +924,16 @@ function getEvaluationSteps(template: string, context: any): Array<{step: string
 
 ```bash
 # Overall memory system health
-curl -X GET "http://localhost:8080/api/v0/memory/health"
+curl -X GET "http://localhost:5001/api/v0/memory/health"
 
 # Specific memory instance health
-curl -X GET "http://localhost:8080/api/v0/memory/health/user:test_user"
+curl -X GET "http://localhost:5001/api/v0/memory/health/user:test_user"
 
 # System resource usage
-curl -X GET "http://localhost:8080/api/v0/memory/debug/resources"
+curl -X GET "http://localhost:5001/api/v0/memory/debug/resources"
 
 # Active memory instances
-curl -X GET "http://localhost:8080/api/v0/memory/debug/active-instances"
+curl -X GET "http://localhost:5001/api/v0/memory/debug/active-instances"
 ```
 
 ### Debug Information Tool
@@ -1141,19 +1141,19 @@ export async function loggedMemoryTool(input: LoggedMemoryInput) {
 echo "Starting memory system recovery..."
 
 # 1. Stop all memory operations
-curl -X POST "http://localhost:8080/api/v0/memory/admin/stop-operations"
+curl -X POST "http://localhost:5001/api/v0/memory/admin/stop-operations"
 
 # 2. Check Redis connectivity
 redis-cli ping
 
 # 3. Clear any stuck locks
-curl -X POST "http://localhost:8080/api/v0/memory/admin/clear-locks"
+curl -X POST "http://localhost:5001/api/v0/memory/admin/clear-locks"
 
 # 4. Restart memory services
 systemctl restart compozy-memory
 
 # 5. Verify system health
-curl -X GET "http://localhost:8080/api/v0/memory/health"
+curl -X GET "http://localhost:5001/api/v0/memory/health"
 
 echo "Memory system recovery completed"
 ```
