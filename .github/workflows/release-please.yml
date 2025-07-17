@@ -1,0 +1,99 @@
+name: Release Please
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    name: Release Please
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      release-created: ${{ steps.release.outputs.release_created }}
+      tag-name: ${{ steps.release.outputs.tag_name }}
+      version: ${{ steps.release.outputs.version }}
+      pr-created: ${{ steps.release.outputs.pr_created }}
+      pr-number: ${{ steps.release.outputs.pr_number }}
+
+    steps:
+      - name: Run Release Please
+        uses: google-github-actions/release-please-action@v4
+        id: release
+        with:
+          # Release Please configuration
+          config-file: .release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+          # Token with appropriate permissions
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+          # Command to run (default is 'github-release')
+          command: github-release
+
+      - name: Show Release Please outputs
+        if: always()
+        run: |
+          echo "Release Please Results:"
+          echo "- Release created: ${{ steps.release.outputs.release_created }}"
+          echo "- Tag name: ${{ steps.release.outputs.tag_name }}"
+          echo "- Version: ${{ steps.release.outputs.version }}"
+          echo "- PR created: ${{ steps.release.outputs.pr_created }}"
+          echo "- PR number: ${{ steps.release.outputs.pr_number }}"
+
+          # Add to job summary
+          echo "## Release Please Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.release.outputs.release_created }}" = "true" ]; then
+            echo "🎉 **Release Created!**" >> $GITHUB_STEP_SUMMARY
+            echo "- **Version:** ${{ steps.release.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+            echo "- **Tag:** ${{ steps.release.outputs.tag_name }}" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ steps.release.outputs.pr_created }}" = "true" ]; then
+            echo "📝 **Release PR Created**" >> $GITHUB_STEP_SUMMARY
+            echo "- **PR Number:**  #${{ steps.release.outputs.pr_number }}" >> $GITHUB_STEP_SUMMARY
+            echo "- **Next Version:** ${{ steps.release.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "ℹ️ **No Release Action Needed**" >> $GITHUB_STEP_SUMMARY
+            echo "No conventional commits found that warrant a release." >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Checkout code for release validation
+        if: steps.release.outputs.release_created == 'true'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate release tag
+        if: steps.release.outputs.release_created == 'true'
+        run: |
+          echo "Validating release tag: ${{ steps.release.outputs.tag_name }}"
+
+          # Check if tag exists
+          if git tag -l | grep -q "^${{ steps.release.outputs.tag_name }}$"; then
+            echo "✅ Tag ${{ steps.release.outputs.tag_name }} exists"
+          else
+            echo "❌ Tag ${{ steps.release.outputs.tag_name }} not found"
+            exit 1
+          fi
+
+          # Validate semantic versioning format
+          if echo "${{ steps.release.outputs.version }}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?(\+[a-zA-Z0-9.-]+)?$'; then
+            echo "✅ Version ${{ steps.release.outputs.version }} follows semantic versioning"
+          else
+            echo "❌ Version ${{ steps.release.outputs.version }} does not follow semantic versioning"
+            exit 1
+          fi
+
+      - name: Trigger release workflow
+        if: steps.release.outputs.release_created == 'true'
+        run: |-
+          echo "🚀 Release created - triggering release workflow"
+          echo "The release workflow will be triggered by the tag push event"
+          echo "Tag: ${{ steps.release.outputs.tag_name }}"
+          echo "Version: ${{ steps.release.outputs.version }}"

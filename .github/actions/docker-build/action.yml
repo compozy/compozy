@@ -1,0 +1,99 @@
+name: "Docker Build with Caching"
+description: "Builds Docker images with optimized layer caching for Compozy"
+author: "Compozy Team"
+
+inputs:
+  dockerfile:
+    description: "Path to Dockerfile"
+    required: true
+  context:
+    description: "Build context path"
+    required: false
+    default: "."
+  image-name:
+    description: "Image name (without tag)"
+    required: true
+  platforms:
+    description: "Target platforms for build"
+    required: false
+    default: "linux/amd64"
+  push:
+    description: "Push image to registry"
+    required: false
+    default: "false"
+  cache-from:
+    description: "Cache source for build"
+    required: false
+    default: "type=gha"
+  cache-to:
+    description: "Cache destination for build"
+    required: false
+    default: "type=gha,mode=max"
+  build-args:
+    description: "Build arguments (newline separated)"
+    required: false
+    default: ""
+  labels:
+    description: "Labels for the image (newline separated)"
+    required: false
+    default: ""
+
+outputs:
+  image-id:
+    description: "Image ID"
+    value: ${{ steps.build.outputs.imageid }}
+  image-digest:
+    description: "Image digest"
+    value: ${{ steps.build.outputs.digest }}
+  metadata:
+    description: "Build metadata"
+    value: ${{ steps.meta.outputs.json }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      with:
+        platforms: ${{ inputs.platforms }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ inputs.image-name }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+        labels: |
+          org.opencontainers.image.title=Compozy
+          org.opencontainers.image.description=Workflow orchestration engine for AI agents
+          org.opencontainers.image.vendor=Compozy
+          org.opencontainers.image.licenses=MIT
+          ${{ inputs.labels }}
+
+    - name: Build and push Docker image
+      id: build
+      uses: docker/build-push-action@v5
+      with:
+        context: ${{ inputs.context }}
+        file: ${{ inputs.dockerfile }}
+        platforms: ${{ inputs.platforms }}
+        push: ${{ inputs.push }}
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        build-args: ${{ inputs.build-args }}
+        cache-from: ${{ inputs.cache-from }}
+        cache-to: ${{ inputs.cache-to }}
+
+    - name: Report build status
+      shell: bash
+      run: |-
+        echo "Docker build completed successfully!"
+        echo "Image ID: ${{ steps.build.outputs.imageid }}"
+        echo "Digest: ${{ steps.build.outputs.digest }}"
+        echo "Tags: ${{ steps.meta.outputs.tags }}"
+        echo "Pushed: ${{ inputs.push }}"
+        echo "Platforms: ${{ inputs.platforms }}"

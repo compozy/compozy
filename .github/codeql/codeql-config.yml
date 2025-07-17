@@ -1,0 +1,49 @@
+name: "CodeQL Configuration for Compozy"
+
+# Disable default queries and use security-focused queries
+disable-default-queries: false
+
+# Additional queries to run
+queries:
+  - uses: security-extended
+  - uses: security-and-quality
+
+# Paths to scan
+paths:
+  - "engine/"
+  - "cli/"
+  - "pkg/"
+  - "main.go"
+
+# Paths to ignore
+paths-ignore:
+  - "test/"
+  - "**/*_test.go"
+  - "vendor/"
+  - "**/*.pb.go"
+  - "**/*.gen.go"
+  - "**/*_generated.go"
+  - "docs/"
+  - "*.md"
+  - "*.yml"
+  - "*.yaml"
+  - "*.json"
+
+# Additional configuration
+query-filters:
+  - exclude:
+      id: go/empty-block
+  - exclude:
+      id: go/unused-variable
+  - include:
+      severity: error
+  - include:
+      security-severity: high
+  - include:
+      security-severity: critical
+
+# Enable enhanced security analysis
+advanced-security: true
+
+# Configure build mode
+build-mode: none  # For Go, autobuild is usually sufficient

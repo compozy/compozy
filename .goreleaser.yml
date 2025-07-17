@@ -1,0 +1,343 @@
+version: 2
+
+# Project configuration
+project_name: compozy
+
+# Environment variables
+env:
+  - GO111MODULE=on
+  - CGO_ENABLED=0
+
+# Git configuration
+git:
+  # What should be used to sort tags when gathering the current and previous
+  # tags if there are more than one tag in the same commit.
+  tag_sort: -version:refname
+
+# Build configuration
+builds:
+  - id: compozy
+    main: ./main.go
+    binary: compozy
+
+    # Build for multiple platforms
+    goos:
+      - linux
+      - darwin
+      - windows
+
+    goarch:
+      - amd64
+      - arm64
+
+    # Build constraints
+    ignore:
+      # Skip 32-bit builds
+      - goos: windows
+        goarch: arm64
+
+    # Linker flags for version injection
+    ldflags:
+      - -s -w
+      - -X github.com/compozy/compozy/engine/infra/monitoring.Version={{.Version}}
+      - -X github.com/compozy/compozy/engine/infra/monitoring.CommitHash={{.ShortCommit}}
+      - -X github.com/compozy/compozy/engine/infra/monitoring.BuildDate={{.Date}}
+      - -X github.com/compozy/compozy/engine/infra/monitoring.BuildBy=goreleaser
+
+    # Build environment
+    env:
+      - CGO_ENABLED=0
+
+    # Build flags
+    flags:
+      - -trimpath
+
+    # Build mode
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+# Archive configuration
+archives:
+  - id: compozy-archive
+    builds:
+      - compozy
+
+    # Archive name template
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{\
+      \ end }}"
+
+    # Archive format
+    format: tar.gz
+    format_overrides:
+      - goos: windows
+        format: zip
+
+    # Files to include in archive
+    files:
+      - README.md
+      - LICENSE*
+      - CHANGELOG.md
+      - docs/README.md
+
+    # Wrap in directory
+    wrap_in_directory: true
+
+# Checksum configuration
+checksum:
+  name_template: "{{ .ProjectName }}_{{ .Version }}_checksums.txt"
+  algorithm: sha256
+
+# Snapshot configuration (for non-tagged builds)
+snapshot:
+  name_template: "{{ .Version }}-next-{{ .ShortCommit }}"
+
+# Changelog configuration
+changelog:
+  use: github
+  sort: asc
+  abbrev: 7
+
+  # Changelog groups
+  groups:
+    - title: "New Features"
+      regexp: "^.*feat[(\\w)]*:+.*$"
+      order: 0
+    - title: "Bug Fixes"
+      regexp: "^.*fix[(\\w)]*:+.*$"
+      order: 1
+    - title: "Performance Improvements"
+      regexp: "^.*perf[(\\w)]*:+.*$"
+      order: 2
+    - title: "Documentation"
+      regexp: "^.*docs[(\\w)]*:+.*$"
+      order: 3
+    - title: "Dependencies"
+      regexp: "^.*deps[(\\w)]*:+.*$"
+      order: 4
+    - title: "Security"
+      regexp: "^.*security[(\\w)]*:+.*$"
+      order: 5
+    - title: "Other Changes"
+      order: 999
+
+  # Filters
+  filters:
+    exclude:
+      - "^test:"
+      - "^chore:"
+      - "^ci:"
+      - "^build:"
+      - "^style:"
+      - "merge conflict"
+      - Merge pull request
+      - Merge remote-tracking branch
+      - Merge branch
+
+# Release configuration
+release:
+  # GitHub repository
+  github:
+    owner: compozy
+    name: compozy
+
+  # Release name template
+  name_template: "Release {{ .Version }}"
+
+  # Release mode
+  mode: replace
+
+  # Draft release
+  draft: false
+
+  # Prerelease detection
+  prerelease: auto
+
+  # Release header and footer
+  header: |
+    ## Compozy {{ .Version }}
+
+    Welcome to this new release of Compozy! 🎉
+
+    ### Installation
+
+    #### Binary Download
+    Download the appropriate binary for your platform from the assets below.
+
+    #### Go Install
+    ```bash
+    go install github.com/compozy/compozy@{{ .Tag }}
+    ```
+
+    #### Container Image
+    ```bash
+    docker pull ghcr.io/compozy/compozy:{{ .Version }}
+    ```
+
+  footer: |
+    ### Verification
+
+    All binaries and container images are signed and can be verified using cosign.
+
+    **Full Changelog**: https://github.com/compozy/compozy/compare/{{ .PreviousTag }}...{{ .Tag }}
+
+    ---
+
+    Thank you to all contributors who made this release possible! 🙏
+
+# Docker configuration
+dockers:
+  # Main Compozy application - AMD64
+  - id: compozy-main-amd64
+    ids:
+      - compozy
+    dockerfile: ./cluster/Dockerfile.release
+    use: buildx
+    goos: linux
+    goarch: amd64
+    image_templates:
+      - "ghcr.io/compozy/compozy:{{ .Version }}-amd64"
+      - "ghcr.io/compozy/compozy:latest-amd64"
+    build_flag_templates:
+      - "--platform=linux/amd64"
+      - "--label=org.opencontainers.image.title={{ .ProjectName }}"
+      - "--label=org.opencontainers.image.description=Compozy Workflow Orchestration Engine"
+      - "--label=org.opencontainers.image.url=https://github.com/compozy/compozy"
+      - "--label=org.opencontainers.image.source=https://github.com/compozy/compozy"
+      - "--label=org.opencontainers.image.version={{ .Version }}"
+      - "--label=org.opencontainers.image.created={{ .Date }}"
+      - "--label=org.opencontainers.image.revision={{ .FullCommit }}"
+      - "--label=org.opencontainers.image.licenses=MIT"
+      - "--label=org.opencontainers.image.vendor=Compozy"
+    extra_files:
+      - "README.md"
+      - "LICENSE"
+
+  # Main Compozy application - ARM64
+  - id: compozy-main-arm64
+    ids:
+      - compozy
+    dockerfile: ./cluster/Dockerfile.release
+    use: buildx
+    goos: linux
+    goarch: arm64
+    image_templates:
+      - "ghcr.io/compozy/compozy:{{ .Version }}-arm64"
+      - "ghcr.io/compozy/compozy:latest-arm64"
+    build_flag_templates:
+      - "--platform=linux/arm64"
+      - "--label=org.opencontainers.image.title={{ .ProjectName }}"
+      - "--label=org.opencontainers.image.description=Compozy Workflow Orchestration Engine"
+      - "--label=org.opencontainers.image.url=https://github.com/compozy/compozy"
+      - "--label=org.opencontainers.image.source=https://github.com/compozy/compozy"
+      - "--label=org.opencontainers.image.version={{ .Version }}"
+      - "--label=org.opencontainers.image.created={{ .Date }}"
+      - "--label=org.opencontainers.image.revision={{ .FullCommit }}"
+      - "--label=org.opencontainers.image.licenses=MIT"
+      - "--label=org.opencontainers.image.vendor=Compozy"
+    extra_files:
+      - "README.md"
+      - "LICENSE"
+
+  # MCP Proxy - AMD64
+  - id: mcp-proxy-amd64
+    ids:
+      - compozy
+    dockerfile: cluster/mcpproxy.release.Dockerfile
+    use: buildx
+    goos: linux
+    goarch: amd64
+    image_templates:
+      - "ghcr.io/compozy/mcp-proxy:{{ .Version }}-amd64"
+      - "ghcr.io/compozy/mcp-proxy:latest-amd64"
+    build_flag_templates:
+      - "--platform=linux/amd64"
+      - "--label=org.opencontainers.image.title=Compozy MCP Proxy"
+      - "--label=org.opencontainers.image.description=Model Context Protocol Proxy for Compozy"
+      - "--label=org.opencontainers.image.url=https://github.com/compozy/compozy"
+      - "--label=org.opencontainers.image.source=https://github.com/compozy/compozy"
+      - "--label=org.opencontainers.image.version={{ .Version }}"
+      - "--label=org.opencontainers.image.created={{ .Date }}"
+      - "--label=org.opencontainers.image.revision={{ .FullCommit }}"
+      - "--label=org.opencontainers.image.licenses=MIT"
+      - "--label=org.opencontainers.image.vendor=Compozy"
+    extra_files:
+      - "README.md"
+      - "LICENSE"
+
+  # MCP Proxy - ARM64
+  - id: mcp-proxy-arm64
+    ids:
+      - compozy
+    dockerfile: cluster/mcpproxy.release.Dockerfile
+    use: buildx
+    goos: linux
+    goarch: arm64
+    image_templates:
+      - "ghcr.io/compozy/mcp-proxy:{{ .Version }}-arm64"
+      - "ghcr.io/compozy/mcp-proxy:latest-arm64"
+    build_flag_templates:
+      - "--platform=linux/arm64"
+      - "--label=org.opencontainers.image.title=Compozy MCP Proxy"
+      - "--label=org.opencontainers.image.description=Model Context Protocol Proxy for Compozy"
+      - "--label=org.opencontainers.image.url=https://github.com/compozy/compozy"
+      - "--label=org.opencontainers.image.source=https://github.com/compozy/compozy"
+      - "--label=org.opencontainers.image.version={{ .Version }}"
+      - "--label=org.opencontainers.image.created={{ .Date }}"
+      - "--label=org.opencontainers.image.revision={{ .FullCommit }}"
+      - "--label=org.opencontainers.image.licenses=MIT"
+      - "--label=org.opencontainers.image.vendor=Compozy"
+    extra_files:
+      - "README.md"
+      - "LICENSE"
+
+# Docker manifest configuration for multi-arch images
+docker_manifests:
+  # Main Compozy application manifests
+  - name_template: "ghcr.io/compozy/compozy:{{ .Version }}"
+    image_templates:
+      - "ghcr.io/compozy/compozy:{{ .Version }}-amd64"
+      - "ghcr.io/compozy/compozy:{{ .Version }}-arm64"
+
+  - name_template: "ghcr.io/compozy/compozy:latest"
+    image_templates:
+      - "ghcr.io/compozy/compozy:latest-amd64"
+      - "ghcr.io/compozy/compozy:latest-arm64"
+
+  # MCP Proxy manifests
+  - name_template: "ghcr.io/compozy/mcp-proxy:{{ .Version }}"
+    image_templates:
+      - "ghcr.io/compozy/mcp-proxy:{{ .Version }}-amd64"
+      - "ghcr.io/compozy/mcp-proxy:{{ .Version }}-arm64"
+
+  - name_template: "ghcr.io/compozy/mcp-proxy:latest"
+    image_templates:
+      - "ghcr.io/compozy/mcp-proxy:latest-amd64"
+      - "ghcr.io/compozy/mcp-proxy:latest-arm64"
+
+# Container image signing with cosign
+docker_signs:
+  - cmd: cosign
+    args:
+      - "sign"
+      - "--yes"
+      - "${artifact}@${digest}"
+    artifacts: images
+    output: true
+
+# Before hooks (run before building)
+before:
+  hooks:
+    # Clean up any previous builds
+    - go clean -cache
+    # Download dependencies
+    - go mod download
+    # Verify dependencies
+    - go mod verify
+    # Run tests
+    - make test
+    # Generate documentation
+    - make swagger || true
+    - make schemagen || true
+
+# Metadata
+metadata:
+  mod_timestamp: "{{ .CommitTimestamp }}"
