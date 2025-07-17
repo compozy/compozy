@@ -854,7 +854,7 @@ graph TB
 # Prometheus configuration for memory monitoring
 - job_name: 'compozy-memory'
   static_configs:
-    - targets: ['localhost:8080']
+    - targets: ['localhost:5001']
   metrics_path: '/metrics'
   scrape_interval: 15s
   

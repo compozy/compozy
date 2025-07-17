@@ -1,0 +1,50 @@
+# {{ .Name }}
+
+{{ .Description }}
+
+## Version
+
+{{ .Version }}
+
+## Getting Started
+
+This is a Compozy project. To get started:
+
+1. Install dependencies:
+   ```bash
+   bun install
+   ```
+
+2. Run the project:
+   ```bash
+   compozy dev
+   ```
+
+3. Edit the workflow in `workflows/main.yaml` to customize your project.
+
+## Project Structure
+
+- `compozy.yaml` - Main configuration file
+- `workflows/` - Workflow definitions
+- `tools/` - Custom tools
+- `agents/` - Agent configurations
+- `entrypoint.ts` - Main entry point
+
+## Configuration
+
+The project uses the following configuration:
+
+- **Runtime**: {{ .Runtime.Type }}
+- **Entrypoint**: {{ .Runtime.Entrypoint }}
+- **Autoload**: {{ if .Autoload.Enabled }}Enabled{{ else }}Disabled{{ end }}
+
+{{- if .Author }}
+
+## Author
+
+{{ .Author.Name }}{{- if .Author.URL }} - {{ .Author.URL }}{{ end }}
+{{- end }}
+
+---
+
+Generated with Compozy CLI

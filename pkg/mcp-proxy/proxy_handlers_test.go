@@ -19,7 +19,7 @@ func TestProxyHandlers(t *testing.T) {
 	clientManager := NewMockClientManager()
 
 	// Create proxy handlers
-	proxyHandlers := NewProxyHandlers(storage, clientManager, "http://localhost:8080", nil)
+	proxyHandlers := NewProxyHandlers(storage, clientManager, "http://localhost:8081", nil)
 
 	// Create a router with proxy endpoints
 	router := gin.New()
@@ -79,7 +79,7 @@ func TestProxyHandlers(t *testing.T) {
 	t.Run("Direct Proxy Server Access - Success Path", func(t *testing.T) {
 		// Test successful access when proxy server is already registered
 		mockClientManager := NewMockClientManagerWithClient()
-		proxyHandlers := NewProxyHandlers(storage, mockClientManager, "http://localhost:8080", nil)
+		proxyHandlers := NewProxyHandlers(storage, mockClientManager, "http://localhost:8081", nil)
 
 		// Create a new router for this test
 		successRouter := gin.New()
@@ -138,7 +138,7 @@ func TestProxyServerManagement(t *testing.T) {
 	storage := NewMemoryStorage()
 	clientManager := NewMockClientManager()
 	// Create proxy handlers
-	proxyHandlers := NewProxyHandlers(storage, clientManager, "http://localhost:8080", nil)
+	proxyHandlers := NewProxyHandlers(storage, clientManager, "http://localhost:8081", nil)
 
 	t.Run("Unregister Nonexistent Proxy", func(t *testing.T) {
 		err := proxyHandlers.UnregisterMCPProxy(t.Context(), "nonexistent")

@@ -218,7 +218,6 @@ func TestMemoryRESTAPIWithRealWorkflow(t *testing.T) {
 	}
 	// Setup test environment
 	ctx := context.Background()
-	log := logger.NewForTests()
 
 	// Create memory test environment
 	memoryEnv := memorytest.NewTestEnvironment(t)
@@ -229,7 +228,7 @@ func TestMemoryRESTAPIWithRealWorkflow(t *testing.T) {
 	require.NoError(t, err)
 
 	// Load project configuration
-	configService := config.NewService(log, "")
+	configService := config.NewService("")
 	projectConfig, workflows, configRegistry, err := configService.LoadProject(ctx, projectRoot, "compozy.yaml")
 	require.NoError(t, err)
 

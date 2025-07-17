@@ -1,0 +1,20 @@
+name: main-workflow
+description: Main workflow for {{ .Name }}
+version: "1.0"
+
+tasks:
+  - name: welcome
+    type: basic
+    agent: 
+      provider: groq
+      model: llama-3.3-70b-versatile
+      instructions: |
+        You are a helpful assistant for the {{ .Name }} project.
+        Welcome the user and provide helpful information.
+      input: |
+        Welcome to {{ .Name }}!
+        
+        This is your main workflow. You can customize it to fit your needs.
+        
+        Project Description: {{ .Description }}
+        Version: {{ .Version }}

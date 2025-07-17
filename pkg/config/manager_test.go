@@ -52,7 +52,7 @@ func TestManager_Load(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, config)
 		assert.Equal(t, "0.0.0.0", config.Server.Host)
-		assert.Equal(t, 8080, config.Server.Port)
+		assert.Equal(t, 5001, config.Server.Port)
 	})
 
 	t.Run("Should store configuration atomically", func(t *testing.T) {
@@ -242,7 +242,7 @@ func TestManager_WatchIntegration(t *testing.T) {
 		initialContent := `
 server:
   host: initial.example.com
-  port: 8080
+  port: 5001
 `
 		err := os.WriteFile(yamlPath, []byte(initialContent), 0o644)
 		require.NoError(t, err)

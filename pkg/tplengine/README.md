@@ -242,7 +242,7 @@ data := map[string]any{
     "services": map[string]any{
         "web": map[string]any{
             "host": "{{ .env.WEB_HOST }}",
-            "port": "{{ .env.WEB_PORT | default \"8080\" }}",
+            "port": "{{ .env.WEB_PORT | default \"5001\" }}",
         },
         "db": map[string]any{
             "host": "{{ .env.DB_HOST }}",
@@ -543,7 +543,7 @@ func TestTemplateEngine_ParseAny(t *testing.T) {
     data := map[string]any{
         "config": map[string]any{
             "host": "{{ .env.HOST }}",
-            "port": "{{ .env.PORT | default \"8080\" }}",
+            "port": "{{ .env.PORT | default \"5001\" }}",
         },
         "items": []any{
             "{{ .item1 }}",

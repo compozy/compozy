@@ -43,14 +43,14 @@ Confirm that the implementation satisfies:
 2.1 Rules Analysis
 Analyze all Cursor rules applicable to the changed files for task <task_info>:
 
-- Identify relevant @.cursor/rules/\*.mdc files
+- Identify relevant .cursor/rules/\*.mdc files
 - List specific coding standards, patterns, and requirements that apply
 - Check for rule violations or areas needing attention
 </rules_analysis>
 
 <multi_model_code_review>
 2.2 Multi-Model Code Review (**NOW WITH ZEN**)
-Use the criteria from @.cursor/rules/review-checklist.mdc as the basis for all code reviews.
+Use the criteria from .cursor/rules/review-checklist.mdc as the basis for all code reviews.
 </multi_model_code_review>
 
 <zen_mcp_commands>
@@ -123,6 +123,10 @@ Your final output should be a detailed report of the task completion process, in
 
 Ensure that you only include the final report in your output, without repeating the instructions or intermediate steps.
 </task_completion_report>
+
+<output_requirement>
+**IF YOUR ANALYSIS IS ABOUT A [num]_task.md FILE**, you need to create a [num]_task_review.md report after all the review is done to serve as context/base.
+</output_requirement>
 
 <requirements>
 - Your task **WILL BE REJECTED** if you don't follow the instructions above

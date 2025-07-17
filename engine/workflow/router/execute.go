@@ -17,7 +17,7 @@ type ExecuteWorkflowRequest struct {
 
 // ExecuteWorkflowResponse represents the response for workflow execution
 type ExecuteWorkflowResponse struct {
-	ExecURL    string `json:"exec_url"    example:"localhost:8080/api/workflows/executions/2Z4PVTL6K27XVT4A3NPKMDD5BG"`
+	ExecURL    string `json:"exec_url"    example:"localhost:5001/api/workflows/executions/2Z4PVTL6K27XVT4A3NPKMDD5BG"`
 	ExecID     string `json:"exec_id"     example:"2Z4PVTL6K27XVT4A3NPKMDD5BG"`
 	WorkflowID string `json:"workflow_id" example:"data-processing"`
 }

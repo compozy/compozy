@@ -172,7 +172,7 @@ func TestSetNested(t *testing.T) {
 
 		// Act
 		err1 := setNested(m, "server.host", "test.example.com")
-		err2 := setNested(m, "server.port", 8080)
+		err2 := setNested(m, "server.port", 5001)
 		err3 := setNested(m, "database.connection.host", "db.example.com")
 
 		// Assert
@@ -183,7 +183,7 @@ func TestSetNested(t *testing.T) {
 		server, ok := m["server"].(map[string]any)
 		require.True(t, ok)
 		assert.Equal(t, "test.example.com", server["host"])
-		assert.Equal(t, 8080, server["port"])
+		assert.Equal(t, 5001, server["port"])
 
 		database, ok := m["database"].(map[string]any)
 		require.True(t, ok)
@@ -342,7 +342,7 @@ func TestDefaultProvider(t *testing.T) {
 		server, ok := data["server"].(map[string]any)
 		require.True(t, ok)
 		assert.Equal(t, "0.0.0.0", server["host"])
-		assert.Equal(t, 8080, server["port"])
+		assert.Equal(t, 5001, server["port"])
 		assert.Equal(t, true, server["cors_enabled"])
 
 		database, ok := data["database"].(map[string]any)

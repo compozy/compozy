@@ -643,7 +643,7 @@ func TestConfigLoad(t *testing.T) {
     service := config.NewService()
 
     // Create test environment
-    os.Setenv("SERVER_PORT", "8080")
+    os.Setenv("SERVER_PORT", "5001")
     defer os.Unsetenv("SERVER_PORT")
 
     // Load configuration
@@ -653,7 +653,7 @@ func TestConfigLoad(t *testing.T) {
     )
 
     assert.NoError(t, err)
-    assert.Equal(t, 8080, cfg.Server.Port)
+    assert.Equal(t, 5001, cfg.Server.Port)
 
     // Validate
     assert.NoError(t, service.Validate(cfg))

@@ -47,13 +47,13 @@ type AuthConfig struct {
 
 // DatabaseConfig contains database connection configuration.
 type DatabaseConfig struct {
-	ConnString string          `koanf:"conn_string" env:"DB_CONN_STRING"`
-	Host       string          `koanf:"host"        env:"DB_HOST"`
-	Port       string          `koanf:"port"        env:"DB_PORT"`
-	User       string          `koanf:"user"        env:"DB_USER"`
-	Password   SensitiveString `koanf:"password"    env:"DB_PASSWORD"    sensitive:"true"`
-	DBName     string          `koanf:"name"        env:"DB_NAME"`
-	SSLMode    string          `koanf:"ssl_mode"    env:"DB_SSL_MODE"`
+	ConnString string `koanf:"conn_string" env:"DB_CONN_STRING"`
+	Host       string `koanf:"host"        env:"DB_HOST"`
+	Port       string `koanf:"port"        env:"DB_PORT"`
+	User       string `koanf:"user"        env:"DB_USER"`
+	Password   string `koanf:"password"    env:"DB_PASSWORD"`
+	DBName     string `koanf:"name"        env:"DB_NAME"`
+	SSLMode    string `koanf:"ssl_mode"    env:"DB_SSL_MODE"`
 }
 
 // TemporalConfig contains Temporal workflow engine configuration.
@@ -72,6 +72,7 @@ type RuntimeConfig struct {
 	DispatcherStaleThreshold    time.Duration `koanf:"dispatcher_stale_threshold"                                                      env:"RUNTIME_DISPATCHER_STALE_THRESHOLD"`
 	AsyncTokenCounterWorkers    int           `koanf:"async_token_counter_workers"     validate:"min=1"                                env:"RUNTIME_ASYNC_TOKEN_COUNTER_WORKERS"`
 	AsyncTokenCounterBufferSize int           `koanf:"async_token_counter_buffer_size" validate:"min=1"                                env:"RUNTIME_ASYNC_TOKEN_COUNTER_BUFFER_SIZE"`
+	ToolExecutionTimeout        time.Duration `koanf:"tool_execution_timeout"                                                          env:"TOOL_EXECUTION_TIMEOUT"`
 }
 
 // LimitsConfig contains system limits and constraints.
@@ -125,10 +126,22 @@ type RateConfig struct {
 
 // CLIConfig contains CLI-specific configuration.
 type CLIConfig struct {
-	APIKey  SensitiveString `koanf:"api_key"  env:"COMPOZY_API_KEY"  sensitive:"true"`
-	BaseURL string          `koanf:"base_url" env:"COMPOZY_BASE_URL"`
-	Timeout time.Duration   `koanf:"timeout"  env:"COMPOZY_TIMEOUT"`
-	Mode    string          `koanf:"mode"     env:"COMPOZY_MODE"`
+	APIKey            SensitiveString `koanf:"api_key"             env:"COMPOZY_API_KEY"        sensitive:"true"`
+	BaseURL           string          `koanf:"base_url"            env:"COMPOZY_BASE_URL"`
+	ServerURL         string          `koanf:"server_url"          env:"COMPOZY_SERVER_URL"`
+	Timeout           time.Duration   `koanf:"timeout"             env:"COMPOZY_TIMEOUT"`
+	Mode              string          `koanf:"mode"                env:"COMPOZY_MODE"`
+	DefaultFormat     string          `koanf:"default_format"      env:"COMPOZY_DEFAULT_FORMAT"                  validate:"oneof=json tui auto"`
+	ColorMode         string          `koanf:"color_mode"          env:"COMPOZY_COLOR_MODE"                      validate:"oneof=auto on off"`
+	PageSize          int             `koanf:"page_size"           env:"COMPOZY_PAGE_SIZE"                       validate:"min=1,max=1000"`
+	OutputFormatAlias string          `koanf:"output_format_alias" env:""`
+	NoColor           bool            `koanf:"no_color"            env:""`
+	Debug             bool            `koanf:"debug"               env:"COMPOZY_DEBUG"`
+	Quiet             bool            `koanf:"quiet"               env:"COMPOZY_QUIET"`
+	Interactive       bool            `koanf:"interactive"         env:"COMPOZY_INTERACTIVE"`
+	ConfigFile        string          `koanf:"config_file"         env:"COMPOZY_CONFIG_FILE"`
+	CWD               string          `koanf:"cwd"                 env:"COMPOZY_CWD"`
+	EnvFile           string          `koanf:"env_file"            env:"COMPOZY_ENV_FILE"`
 }
 
 // Service defines the configuration management service interface.
@@ -291,7 +304,7 @@ func buildDatabaseConfig(registry *definition.Registry) DatabaseConfig {
 		Host:     getString(registry, "database.host"),
 		Port:     getString(registry, "database.port"),
 		User:     getString(registry, "database.user"),
-		Password: SensitiveString(getString(registry, "database.password")),
+		Password: getString(registry, "database.password"),
 		DBName:   getString(registry, "database.name"),
 		SSLMode:  getString(registry, "database.ssl_mode"),
 	}
@@ -314,6 +327,7 @@ func buildRuntimeConfig(registry *definition.Registry) RuntimeConfig {
 		DispatcherStaleThreshold:    getDuration(registry, "runtime.dispatcher_stale_threshold"),
 		AsyncTokenCounterWorkers:    getInt(registry, "runtime.async_token_counter_workers"),
 		AsyncTokenCounterBufferSize: getInt(registry, "runtime.async_token_counter_buffer_size"),
+		ToolExecutionTimeout:        getDuration(registry, "runtime.tool_execution_timeout"),
 	}
 }
 
@@ -373,9 +387,21 @@ func buildRateLimitConfig(registry *definition.Registry) RateLimitConfig {
 
 func buildCLIConfig(registry *definition.Registry) CLIConfig {
 	return CLIConfig{
-		APIKey:  SensitiveString(getString(registry, "cli.api_key")),
-		BaseURL: getString(registry, "cli.base_url"),
-		Timeout: getDuration(registry, "cli.timeout"),
-		Mode:    getString(registry, "cli.mode"),
+		APIKey:            SensitiveString(getString(registry, "cli.api_key")),
+		BaseURL:           getString(registry, "cli.base_url"),
+		ServerURL:         getString(registry, "cli.server_url"),
+		Timeout:           getDuration(registry, "cli.timeout"),
+		Mode:              getString(registry, "cli.mode"),
+		DefaultFormat:     getString(registry, "cli.default_format"),
+		ColorMode:         getString(registry, "cli.color_mode"),
+		PageSize:          getInt(registry, "cli.page_size"),
+		OutputFormatAlias: getString(registry, "cli.output_format_alias"),
+		NoColor:           getBool(registry, "cli.no_color"),
+		Debug:             getBool(registry, "cli.debug"),
+		Quiet:             getBool(registry, "cli.quiet"),
+		Interactive:       getBool(registry, "cli.interactive"),
+		ConfigFile:        getString(registry, "cli.config_file"),
+		CWD:               getString(registry, "cli.cwd"),
+		EnvFile:           getString(registry, "cli.env_file"),
 	}
 }

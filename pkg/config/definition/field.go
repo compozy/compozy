@@ -5,12 +5,13 @@ import "reflect"
 // FieldDef defines a configuration field with its metadata
 // Keep it simple - just what we need to solve the duplication problem
 type FieldDef struct {
-	Path    string       // Config path like "server.port"
-	Default any          // Default value
-	CLIFlag string       // CLI flag name like "port"
-	EnvVar  string       // Environment variable name like "SERVER_PORT"
-	Type    reflect.Type // Field type for validation
-	Help    string       // Help text for CLI
+	Path      string       // Config path like "server.port"
+	Default   any          // Default value
+	CLIFlag   string       // CLI flag name like "port"
+	Shorthand string       // Single character shorthand like "p"
+	EnvVar    string       // Environment variable name like "SERVER_PORT"
+	Type      reflect.Type // Field type for validation
+	Help      string       // Help text for CLI
 }
 
 // Registry holds all configuration field definitions

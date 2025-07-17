@@ -60,7 +60,7 @@ Make sure you have these environment variables set:
 1. **User introduces themselves:**
 
    ```bash
-   curl -X POST http://localhost:3001/api/v0/workflows/basic-memory/executions \
+   curl -X POST http://localhost:5001/api/v0/workflows/basic-memory/executions \
      -H "Content-Type: application/json" \
      -d '{
        "input": {
@@ -73,7 +73,7 @@ Make sure you have these environment variables set:
 2. **Ask where you live (agent should remember):**
 
    ```bash
-   curl -X POST http://localhost:3001/api/v0/workflows/basic-memory/executions \
+   curl -X POST http://localhost:5001/api/v0/workflows/basic-memory/executions \
      -H "Content-Type: application/json" \
      -d '{
        "input": {
@@ -88,7 +88,7 @@ Make sure you have these environment variables set:
 1. **Initialize user profile:**
 
    ```bash
-   curl -X POST http://localhost:3001/api/v0/workflows/memory-task/executions \
+   curl -X POST http://localhost:5001/api/v0/workflows/memory-task/executions \
      -H "Content-Type: application/json" \
      -d '{
        "input": {
@@ -110,7 +110,7 @@ Make sure you have these environment variables set:
 2. **Update user profile:**
 
    ```bash
-   curl -X POST http://localhost:3001/api/v0/workflows/memory-task/executions \
+   curl -X POST http://localhost:5001/api/v0/workflows/memory-task/executions \
      -H "Content-Type: application/json" \
      -d '{
        "input": {
@@ -127,7 +127,7 @@ Make sure you have these environment variables set:
 3. **Get memory statistics:**
 
    ```bash
-   curl -X POST http://localhost:3001/api/v0/workflows/memory-task/executions \
+   curl -X POST http://localhost:5001/api/v0/workflows/memory-task/executions \
      -H "Content-Type: application/json" \
      -d '{
        "input": {
@@ -141,7 +141,7 @@ Make sure you have these environment variables set:
 4. **Cleanup user data:**
 
    ```bash
-   curl -X POST http://localhost:3001/api/v0/workflows/memory-task/executions \
+   curl -X POST http://localhost:5001/api/v0/workflows/memory-task/executions \
      -H "Content-Type: application/json" \
      -d '{
        "input": {

@@ -14,7 +14,7 @@ import (
 
 func TestNewServer(t *testing.T) {
 	config := &Config{
-		Port:            "8080",
+		Port:            "8081",
 		Host:            "localhost",
 		ShutdownTimeout: 5 * time.Second,
 	}

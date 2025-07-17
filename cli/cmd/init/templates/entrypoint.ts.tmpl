@@ -1,0 +1,19 @@
+#!/usr/bin/env bun
+
+/**
+ * Compozy Project: {{ .Name }}
+ * Description: {{ .Description }}
+ * Version: {{ .Version }}
+ */
+
+console.log("🚀 Starting {{ .Name }} project...");
+
+// Your project initialization code goes here
+export default function main() {
+  console.log("✅ {{ .Name }} is ready!");
+}
+
+// Run main function if this is the entry point
+if (import.meta.main) {
+  main();
+}

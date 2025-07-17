@@ -235,7 +235,7 @@ global:
 scrape_configs:
   - job_name: 'compozy'
     static_configs:
-      - targets: ['localhost:8080']
+      - targets: ['localhost:5001']
     metrics_path: '/metrics'
     scrape_interval: 10s
     scrape_timeout: 5s
@@ -268,14 +268,14 @@ spec:
     metadata:
       annotations:
         prometheus.io/scrape: "true"
-        prometheus.io/port: "8080"
+        prometheus.io/port: "5001"
         prometheus.io/path: "/metrics"
     spec:
       containers:
       - name: compozy
         image: my-compozy-app:latest
         ports:
-        - containerPort: 8080
+        - containerPort: 5001
         env:
         - name: MONITORING_ENABLED
           value: "true"
@@ -292,7 +292,7 @@ spec:
 scrape_configs:
   - job_name: 'compozy'
     static_configs:
-      - targets: ['localhost:8080']
+      - targets: ['localhost:5001']
     metric_relabel_configs:
       # Drop high-cardinality labels
       - source_labels: [__name__]
@@ -752,7 +752,7 @@ time_intervals:
     scrape_configs:
       - job_name: 'compozy'
         static_configs:
-          - targets: ['localhost:8080']
+          - targets: ['localhost:5001']
         scrape_interval: 30s      # Reduce frequency for less critical metrics
         scrape_timeout: 10s       # Increase timeout for slow responses
         metrics_path: '/metrics'
@@ -857,13 +857,13 @@ time_intervals:
           - name: compozy
             image: my-compozy-app:latest
             ports:
-            - containerPort: 8080
+            - containerPort: 5001
             
             # Readiness probe - when to start receiving traffic
             readinessProbe:
               httpGet:
                 path: /health
-                port: 8080
+                port: 5001
               initialDelaySeconds: 10
               periodSeconds: 5
               timeoutSeconds: 3
@@ -873,7 +873,7 @@ time_intervals:
             livenessProbe:
               httpGet:
                 path: /health
-                port: 8080
+                port: 5001
               initialDelaySeconds: 30
               periodSeconds: 10
               timeoutSeconds: 5
@@ -899,7 +899,7 @@ time_intervals:
             startupProbe:
               httpGet:
                 path: /health
-                port: 8080
+                port: 5001
               initialDelaySeconds: 0
               periodSeconds: 10
               timeoutSeconds: 3
@@ -909,7 +909,7 @@ time_intervals:
             readinessProbe:
               httpGet:
                 path: /health/ready
-                port: 8080
+                port: 5001
                 httpHeaders:
                 - name: X-Health-Check
                   value: "readiness"
@@ -922,7 +922,7 @@ time_intervals:
                 command:
                 - /bin/sh
                 - -c
-                - "curl -f http://localhost:8080/health/live || exit 1"
+                - "curl -f http://localhost:5001/health/live || exit 1"
               initialDelaySeconds: 30
               periodSeconds: 10
     ```
@@ -934,9 +934,9 @@ time_intervals:
 ```yaml
 # nginx-upstream.conf
 upstream compozy_backend {
-    server app1:8080 max_fails=3 fail_timeout=30s;
-    server app2:8080 max_fails=3 fail_timeout=30s;
-    server app3:8080 max_fails=3 fail_timeout=30s;
+    server app1:5001 max_fails=3 fail_timeout=30s;
+    server app2:5001 max_fails=3 fail_timeout=30s;
+    server app3:5001 max_fails=3 fail_timeout=30s;
 }
 
 server {
@@ -1033,7 +1033,7 @@ func checkTemporal(ctx context.Context) string {
     **Solutions**:
     ```bash
     # Check if monitoring is enabled
-    curl http://localhost:8080/metrics
+    curl http://localhost:5001/metrics
     
     # Verify configuration
     export MONITORING_ENABLED=true
@@ -1191,16 +1191,16 @@ func checkTemporal(ctx context.Context) string {
   <TabsContent value="curl">
     ```bash
     # Test metrics endpoint
-    curl -v http://localhost:8080/metrics
+    curl -v http://localhost:5001/metrics
     
     # Check specific metrics
-    curl -s http://localhost:8080/metrics | grep compozy_
+    curl -s http://localhost:5001/metrics | grep compozy_
     
     # Test with authentication
-    curl -H "Authorization: Bearer token" http://localhost:8080/metrics
+    curl -H "Authorization: Bearer token" http://localhost:5001/metrics
     
     # Check health endpoint
-    curl http://localhost:8080/health
+    curl http://localhost:5001/health
     
     # Prometheus API queries
     curl "http://localhost:9090/api/v1/query?query=up{job=\"compozy\"}"
@@ -1339,7 +1339,7 @@ func checkTemporal(ctx context.Context) string {
       
     # Network security
     server:
-      listen: "127.0.0.1:8080"  # Bind to localhost only
+      listen: "127.0.0.1:5001"  # Bind to localhost only
       
     # Authentication for metrics endpoint
     middleware:
@@ -1357,12 +1357,12 @@ func checkTemporal(ctx context.Context) string {
     **Firewall rules**:
     ```bash
     # Allow only Prometheus servers
-    iptables -A INPUT -p tcp --dport 8080 -s prometheus-server-ip -j ACCEPT
-    iptables -A INPUT -p tcp --dport 8080 -j DROP
+    iptables -A INPUT -p tcp --dport 5001 -s prometheus-server-ip -j ACCEPT
+    iptables -A INPUT -p tcp --dport 5001 -j DROP
     
     # Allow metrics endpoint only from internal network
-    iptables -A INPUT -p tcp --dport 8080 -s 10.0.0.0/8 -j ACCEPT
-    iptables -A INPUT -p tcp --dport 8080 -j DROP
+    iptables -A INPUT -p tcp --dport 5001 -s 10.0.0.0/8 -j ACCEPT
+    iptables -A INPUT -p tcp --dport 5001 -j DROP
     ```
   </TabsContent>
 </Tabs>

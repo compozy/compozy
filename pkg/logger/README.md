@@ -320,8 +320,8 @@ func main() {
         c.JSON(200, user)
     })
 
-    log.Info("Server starting", "port", 8080, "env", os.Getenv("ENV"))
-    http.ListenAndServe(":8080", r)
+    log.Info("Server starting", "port", 5001, "env", os.Getenv("ENV"))
+    http.ListenAndServe(":5001", r)
 }
 ```
 

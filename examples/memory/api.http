@@ -1,9 +1,9 @@
 ### Memory Demo API Tests
 ### Simple conversational agent that remembers user information
 ### Click each request in order to test the complete memory flow
-### Make sure Compozy is running on localhost:3001 before executing these requests
+### Make sure Compozy is running on localhost:5001 before executing these requests
 
-@baseUrl = http://localhost:3001/api/v0
+@baseUrl = http://localhost:5001/api/v0
 @workflowId = basic-memory
 
 ### =============================================================================

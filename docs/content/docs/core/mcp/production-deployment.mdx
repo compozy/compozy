@@ -238,7 +238,7 @@ mcp_proxy:
     
     health_check:
       enabled: true
-      port: 8080
+      port: 5001
       path: "/health"
 
 # Production MCP servers
@@ -385,7 +385,7 @@ RUN chown -R mcpuser:mcpuser /var/lib/compozy /var/log/compozy
 # Switch to non-root user
 USER mcpuser
 
-EXPOSE 8081 8080 9090
+EXPOSE 8081 5001 9090
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
   CMD ["./mcp-proxy", "health-check"]
@@ -656,7 +656,7 @@ spec:
         ports:
         - containerPort: 8081
           name: http
-        - containerPort: 8080
+        - containerPort: 5001
           name: health
         - containerPort: 9090
           name: metrics
@@ -758,8 +758,8 @@ spec:
   - port: 8081
     targetPort: 8081
     name: http
-  - port: 8080
-    targetPort: 8080
+  - port: 5001
+    targetPort: 5001
     name: health
   - port: 9090
     targetPort: 9090
@@ -836,7 +836,7 @@ data:
     
     health:
       enabled: true
-      port: 8080
+      port: 5001
       path: "/health"
 
 ---
@@ -1022,7 +1022,7 @@ spec:
     - protocol: TCP
       port: 9090
     - protocol: TCP
-      port: 8080
+      port: 5001
   
   egress:
   - to:

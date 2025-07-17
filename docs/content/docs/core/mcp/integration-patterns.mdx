@@ -148,7 +148,7 @@ instructions: |
   You are a file management assistant with access to the file system.
   You can read, write, and organize files in the workspace directory.
   Always confirm destructive operations before executing them.
-  
+
   Available capabilities:
   - List directory contents with metadata
   - Read file contents with encoding detection
@@ -173,7 +173,7 @@ actions:
     prompt: |
       Write the following content to {{ .workflow.input.filename }}:
       {{ .workflow.input.content }}
-      
+
       Create backup if file exists and confirm overwrite.
 
   - id: organize_files
@@ -242,7 +242,7 @@ mcps:
       - "/workspace"
     proto: "2025-03-26"
     start_timeout: 15s
-    
+
     # Error handling configuration
     retry:
       max_attempts: 3
@@ -250,7 +250,7 @@ mcps:
       backoff_factor: 2
       initial_delay: 1s
       max_delay: 30s
-    
+
     # Health monitoring
     health_check:
       enabled: true
@@ -258,13 +258,13 @@ mcps:
       timeout: 5s
       failure_threshold: 3
       success_threshold: 2
-    
+
     # Fallback configuration
     fallback:
       enabled: true
       timeout: 60s
       strategy: "graceful_degradation"
-      
+
     # Logging configuration
     logging:
       level: "info"
@@ -310,7 +310,7 @@ mcps:
     proto: "2025-03-26"
     priority: 1
     weight: 100
-    
+
   - id: database
     transport: stdio
     command: python
@@ -323,9 +323,9 @@ mcps:
     proto: "2025-03-26"
     priority: 2
     weight: 80
-    
+
   - id: web_search
-    url: "http://localhost:3001"
+    url: "http://localhost:5001"
     transport: sse
     env:
       SEARCH_API_KEY: "{{ .env.SEARCH_API_KEY }}"
@@ -333,7 +333,7 @@ mcps:
     proto: "2025-03-26"
     priority: 3
     weight: 60
-    
+
   - id: code_analysis
     transport: stdio
     command: node
@@ -382,13 +382,13 @@ actions:
       4. Database query efficiency
       5. Test coverage and documentation
       6. Dependency analysis and updates
-      
+
       Use all available tools to provide detailed feedback.
 
   - id: database_optimization
     prompt: |
       Optimize database operations for: {{ .workflow.input.query_or_schema }}
-      
+
       Tasks:
       1. Analyze current database schema
       2. Identify performance bottlenecks
@@ -429,7 +429,7 @@ mcps:
     command: npx
     args: ["-y", "@modelcontextprotocol/server-filesystem", "{{ .workflow.input.project_path }}"]
     proto: "2025-03-26"
-  
+
   - id: shared_database
     transport: stdio
     command: python
@@ -443,9 +443,9 @@ agents:
       - $ref: "local::mcps.#(id==shared_filesystem)"
       - $ref: "local::mcps.#(id==shared_database)"
       - id: web_search
-        url: "http://localhost:3001"
+        url: "http://localhost:5001"
         transport: sse
-        
+
   - id: implementer
     $ref: "./agents/implementation-agent.yaml"
     mcps:
@@ -454,7 +454,7 @@ agents:
       - id: code_gen
         transport: stdio
         command: "code-generation-server"
-        
+
   - id: reviewer
     $ref: "./agents/review-agent.yaml"
     mcps:
@@ -474,7 +474,7 @@ tasks:
         action: "research_and_analyze"
         with:
           topic: "{{ .workflow.input.requirements }}"
-          
+
       - id: implementation_phase
         type: basic
         $use: agent(local::agents.#(id=="implementer"))
@@ -482,7 +482,7 @@ tasks:
         with:
           requirements: "{{ .workflow.input.requirements }}"
         depends_on: [research_phase]
-        
+
       - id: review_phase
         type: basic
         $use: agent(local::agents.#(id=="reviewer"))
@@ -490,7 +490,7 @@ tasks:
         with:
           implementation: "{{ .tasks.implementation_phase.output }}"
         depends_on: [implementation_phase]
-    
+
     coordination:
       shared_context: true
       event_bus: true
@@ -519,38 +519,38 @@ mcps:
       - "@modelcontextprotocol/server-filesystem"
       - "/workspace"
     proto: "2025-03-26"
-    
+
     # Connection pooling
     pool:
       size: 5
       max_idle: 2
       max_lifetime: 1h
-      
+
     # Caching configuration
     cache:
       enabled: true
       ttl: 300s
       max_size: 100MB
       strategy: "lru"
-      
+
     # Request batching
     batching:
       enabled: true
       max_batch_size: 10
       batch_timeout: 100ms
-      
+
     # Circuit breaker
     circuit_breaker:
       enabled: true
       failure_threshold: 5
       success_threshold: 3
       timeout: 60s
-      
+
     # Rate limiting
     rate_limit:
       requests_per_second: 100
       burst_size: 20
-      
+
   - id: database_optimized
     transport: stdio
     command: python
@@ -563,20 +563,20 @@ mcps:
       - "--max-connections"
       - "100"
     proto: "2025-03-26"
-    
+
     # Query optimization
     query_optimization:
       enabled: true
       cache_prepared_statements: true
       connection_pooling: true
       lazy_loading: true
-      
+
     # Monitoring
     monitoring:
       slow_query_threshold: 1s
       log_queries: true
       metrics_enabled: true
-      
+
     # Backup and failover
     failover:
       enabled: true
@@ -599,13 +599,13 @@ mcps:
       - "@modelcontextprotocol/server-filesystem"
       - "/workspace"
     proto: "2025-03-26"
-    
+
     # Authentication
     auth:
       enabled: true
       type: "token"
       token: "{{ .env.FILESYSTEM_MCP_TOKEN }}"
-      
+
     # Access control
     access_control:
       enabled: true
@@ -621,7 +621,7 @@ mcps:
         write: true
         execute: false
         delete: false
-        
+
     # Security policies
     security:
       sandbox_mode: true
@@ -640,7 +640,7 @@ mcps:
         - ".sh"
         - ".bat"
         - ".cmd"
-        
+
     # Audit logging
     audit:
       enabled: true
@@ -649,7 +649,7 @@ mcps:
       include_request_body: false
       include_response_body: false
       retention_days: 90
-      
+
   - id: secure_database
     transport: stdio
     command: python
@@ -660,14 +660,14 @@ mcps:
       - "--ssl-mode"
       - "require"
     proto: "2025-03-26"
-    
+
     # Database security
     security:
       ssl_required: true
       ssl_cert_path: "/etc/ssl/certs/db-client.crt"
       ssl_key_path: "/etc/ssl/private/db-client.key"
       ssl_ca_path: "/etc/ssl/certs/ca-cert.pem"
-      
+
     # Query restrictions
     query_restrictions:
       allowed_schemas:
@@ -678,7 +678,7 @@ mcps:
         - "payment_info"
       max_rows_returned: 1000
       read_only_mode: false
-      
+
     # IP whitelisting
     network_security:
       ip_whitelist:
@@ -686,13 +686,13 @@ mcps:
         - "172.16.0.0/12"
         - "192.168.0.0/16"
       block_public_ips: true
-      
+
     # Encryption
     encryption:
       encrypt_at_rest: true
       encrypt_in_transit: true
       key_rotation_days: 30
-      
+
     # Compliance
     compliance:
       gdpr_enabled: true
@@ -726,7 +726,7 @@ mcps:
     condition: '{{ eq .workflow.input.environment "local" }}'
 
   - id: remote_filesystem
-    url: "http://remote-mcp:8080"
+    url: "http://remote-mcp:8081"
     transport: sse
     condition: '{{ eq .workflow.input.environment "remote" }}'
 
@@ -1140,7 +1140,7 @@ Integrate external APIs through MCP:
 # MCP Server for API Gateway
 mcps:
   - id: api_gateway
-    url: "http://api-gateway-mcp:8080"
+    url: "http://api-gateway-mcp:8081"
     transport: sse
     env:
       API_GATEWAY_TOKEN: "{{ .env.API_GATEWAY_TOKEN }}"
@@ -1415,12 +1415,12 @@ class MCPConnectionPool extends EventEmitter {
 
   async getConnection(serverName: string): Promise<Connection> {
     const connections = this.connections.get(serverName) || [];
-    
+
     // Try to get an available connection
     for (const connection of connections) {
       if (connection.isAvailable() && connection.isHealthy()) {
         connection.setInUse(true);
-        this.activeConnections.set(serverName, 
+        this.activeConnections.set(serverName,
           (this.activeConnections.get(serverName) || 0) + 1);
         return connection;
       }
@@ -1431,11 +1431,11 @@ class MCPConnectionPool extends EventEmitter {
       const connection = await this.createConnection(serverName);
       connections.push(connection);
       this.connections.set(serverName, connections);
-      
+
       connection.setInUse(true);
-      this.activeConnections.set(serverName, 
+      this.activeConnections.set(serverName,
         (this.activeConnections.get(serverName) || 0) + 1);
-      
+
       this.emit('connectionCreated', { serverName, totalConnections: connections.length });
       return connection;
     }
@@ -1447,10 +1447,10 @@ class MCPConnectionPool extends EventEmitter {
   async releaseConnection(serverName: string, connection: Connection): Promise<void> {
     connection.setInUse(false);
     connection.setLastUsed(Date.now());
-    
-    this.activeConnections.set(serverName, 
+
+    this.activeConnections.set(serverName,
       Math.max(0, (this.activeConnections.get(serverName) || 0) - 1));
-    
+
     this.emit('connectionReleased', { serverName, activeConnections: this.activeConnections.get(serverName) });
   }
 
@@ -1462,7 +1462,7 @@ class MCPConnectionPool extends EventEmitter {
     });
 
     await connection.connect();
-    
+
     // Set up connection event handlers
     connection.on('error', (error) => {
       this.logger.error('Connection error', { serverName, error });
@@ -1521,7 +1521,7 @@ class MCPConnectionPool extends EventEmitter {
 
   getStats(): Record<string, any> {
     const stats: Record<string, any> = {};
-    
+
     for (const [serverName, connections] of this.connections) {
       stats[serverName] = {
         totalConnections: connections.length,
@@ -1530,7 +1530,7 @@ class MCPConnectionPool extends EventEmitter {
         healthyConnections: connections.filter(conn => conn.isHealthy()).length,
       };
     }
-    
+
     return stats;
   }
 }
@@ -1559,7 +1559,7 @@ class MCPHealthMonitor {
       try {
         const isHealthy = await this.performHealthCheck(connection);
         const wasHealthy = this.healthStatus.get(serverName) ?? true;
-        
+
         this.healthStatus.set(serverName, isHealthy);
 
         if (isHealthy && !wasHealthy) {
@@ -1589,19 +1589,19 @@ class MCPHealthMonitor {
 
   private async performHealthCheck(connection: Connection): Promise<boolean> {
     const startTime = Date.now();
-    
+
     try {
       // Perform a simple ping operation
       await connection.ping();
-      
+
       const duration = Date.now() - startTime;
-      
+
       // Check if response time is acceptable
       if (duration > this.config.maxResponseTime) {
         this.logger.warn('Health check slow response', { duration, threshold: this.config.maxResponseTime });
         return false;
       }
-      
+
       return true;
     } catch (error) {
       this.logger.error('Health check ping failed', { error });
@@ -1666,10 +1666,10 @@ class MCPCircuitBreaker {
 
   private onSuccess(): void {
     this.failureCount = 0;
-    
+
     if (this.state === 'half-open') {
       this.successCount++;
-      
+
       if (this.successCount >= this.config.successThreshold) {
         this.state = 'closed';
         this.logger.info('Circuit breaker closed after recovery');
@@ -1680,7 +1680,7 @@ class MCPCircuitBreaker {
   private onFailure(): void {
     this.failureCount++;
     this.lastFailureTime = Date.now();
-    
+
     if (this.failureCount >= this.config.failureThreshold) {
       this.state = 'open';
       this.logger.warn('Circuit breaker opened due to failures', { failureCount: this.failureCount });
@@ -1742,7 +1742,7 @@ class MCPLoadBalancer {
 
   async selectServer(): Promise<MCPServer | null> {
     const healthyServers = this.servers.filter(server => server.isHealthy());
-    
+
     if (healthyServers.length === 0) {
       this.logger.warn('No healthy servers available');
       return null;
@@ -1769,11 +1769,11 @@ class MCPLoadBalancer {
   }
 
   private weightedRoundRobinSelect(servers: MCPServer[]): MCPServer {
-    const totalWeight = servers.reduce((sum, server) => 
+    const totalWeight = servers.reduce((sum, server) =>
       sum + (this.serverWeights.get(server.name) || 1), 0);
-    
+
     let random = Math.random() * totalWeight;
-    
+
     for (const server of servers) {
       const weight = this.serverWeights.get(server.name) || 1;
       random -= weight;
@@ -1781,17 +1781,17 @@ class MCPLoadBalancer {
         return server;
       }
     }
-    
+
     return servers[0];
   }
 
   private leastConnectionsSelect(servers: MCPServer[]): MCPServer {
-    return servers.reduce((least, server) => 
+    return servers.reduce((least, server) =>
       server.getActiveConnections() < least.getActiveConnections() ? server : least);
   }
 
   private leastResponseTimeSelect(servers: MCPServer[]): MCPServer {
-    return servers.reduce((fastest, server) => 
+    return servers.reduce((fastest, server) =>
       server.getAverageResponseTime() < fastest.getAverageResponseTime() ? server : fastest);
   }
 
@@ -1964,14 +1964,14 @@ This comprehensive guide provides proven patterns for integrating MCP servers wi
         Legacy[Legacy Database]
         API[External APIs]
     end
-    
+
     subgraph "MCP Layer"
         MCP1[ERP MCP Server]
         MCP2[CRM MCP Server]
         MCP3[Database MCP Server]
         MCP4[API Gateway MCP]
     end
-    
+
     subgraph "Compozy Platform"
         Proxy[MCP Proxy Cluster]
         LB[Load Balancer]
@@ -1979,34 +1979,34 @@ This comprehensive guide provides proven patterns for integrating MCP servers wi
         Agent2[Support Agent]
         Agent3[Analytics Agent]
     end
-    
+
     subgraph "Workflows"
         WF1[Customer Onboarding]
         WF2[Order Processing]
         WF3[Support Ticket]
         WF4[Analytics Report]
     end
-    
+
     ERP --> MCP1
     CRM --> MCP2
     Legacy --> MCP3
     API --> MCP4
-    
+
     MCP1 --> LB
     MCP2 --> LB
     MCP3 --> LB
     MCP4 --> LB
-    
+
     LB --> Proxy
     Proxy --> Agent1
     Proxy --> Agent2
     Proxy --> Agent3
-    
+
     Agent1 --> WF1
     Agent2 --> WF2
     Agent2 --> WF3
     Agent3 --> WF4
-    
+
     style ERP fill:#ffcccb
     style CRM fill:#ffcccb
     style Legacy fill:#ffcccb
@@ -2034,41 +2034,41 @@ This comprehensive guide provides proven patterns for integrating MCP servers wi
         PaymentService[Payment Service]
         NotificationService[Notification Service]
     end
-    
+
     subgraph "MCP Adapters"
         UserMCP[User MCP]
         OrderMCP[Order MCP]
         PaymentMCP[Payment MCP]
         NotifyMCP[Notification MCP]
     end
-    
+
     subgraph "Service Mesh"
         ServiceMesh[Istio/Linkerd]
         ServiceDiscovery[Service Discovery]
     end
-    
+
     subgraph "Compozy Integration"
         MCPProxy[MCP Proxy]
         ProcessingAgent[Order Processing Agent]
         Workflow[E-commerce Workflow]
     end
-    
+
     UserService --> UserMCP
     OrderService --> OrderMCP
     PaymentService --> PaymentMCP
     NotificationService --> NotifyMCP
-    
+
     ServiceMesh --> ServiceDiscovery
     ServiceDiscovery --> MCPProxy
-    
+
     UserMCP --> MCPProxy
     OrderMCP --> MCPProxy
     PaymentMCP --> MCPProxy
     NotifyMCP --> MCPProxy
-    
+
     MCPProxy --> ProcessingAgent
     ProcessingAgent --> Workflow
-    
+
     style UserService fill:#ffcccb
     style OrderService fill:#ffcccb
     style PaymentService fill:#ffcccb

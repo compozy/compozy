@@ -409,7 +409,7 @@ func TestAPIResponseFormat(t *testing.T) {
 
 ```bash
 # Test error response generation
-curl -X POST http://localhost:8080/api/v1/workflows \
+curl -X POST http://localhost:5001/api/v1/workflows \
   -H "Content-Type: application/json" \
   -d '{}'
 

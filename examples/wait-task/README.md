@@ -34,7 +34,7 @@ make dev
 1. **Start the workflow:**
 
    ```bash
-   curl -X POST http://localhost:8080/api/v1/workflows/wait-task/trigger \
+   curl -X POST http://localhost:5001/api/v1/workflows/wait-task/trigger \
      -H "Content-Type: application/json" \
      -d '{
        "input": {
@@ -48,12 +48,12 @@ make dev
 2. **Monitor workflow status:**
 
    ```bash
-   curl http://localhost:8080/api/v1/workflows/{workflow_execution_id}/status
+   curl http://localhost:5001/api/v1/workflows/{workflow_execution_id}/status
    ```
 
 3. **Send the signal to trigger continuation:**
    ```bash
-   curl -X POST http://localhost:8080/api/v1/workflows/{workflow_execution_id}/signals/ready_signal \
+   curl -X POST http://localhost:5001/api/v1/workflows/{workflow_execution_id}/signals/ready_signal \
      -H "Content-Type: application/json" \
      -d '{
        "payload": {

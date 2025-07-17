@@ -333,11 +333,11 @@ include:
 include:
   # Flat structure
   - "*.yaml"                  # All files in root
-  
+
   # Nested structure
   - "**/*.yaml"              # All YAML files recursively
   - "config/**/*.yaml"       # All configs in subdirectories
-  
+
   # Mixed structure
   - "agents/*.yaml"          # Direct agents
   - "tools/**/tool.yaml"     # Nested tool configs
@@ -710,7 +710,7 @@ config:
     host: "{{ .env.REDIS_HOST | default \"localhost\" }}"
     port: "{{ .env.REDIS_PORT | default \"6379\" }}"
     database: 0
-  
+
   retention:
     max_messages: 1000
     ttl: 86400  # 24 hours
@@ -760,14 +760,14 @@ tasks:
     $use: tool(resource::tool::#(id=='file-parser'))
     with:
       source: "{{ .workflow.input.data_source }}"
-    
+
   - id: transform
     type: basic
     $use: agent(resource::agent::#(id=='data-processor'))
     action: process_data
     with:
       data: "{{ .tasks.extract.output }}"
-    
+
   - id: load
     type: basic
     $use: tool(resource::tool::#(id=='format-converter'))
@@ -814,14 +814,14 @@ tasks:
     type: basic
     $use: agent(resource::agent::#(id=='researcher'))
     action: research_topic
-    
+
   - id: write
     type: basic
     $use: agent(resource::agent::#(id=='writer'))
     action: create_content
     with:
       research_data: "{{ .tasks.research.output }}"
-    
+
   - id: review
     type: basic
     $use: agent(resource::agent::#(id=='reviewer'))
@@ -853,12 +853,12 @@ actions:
     prompt: |
       Create a high-quality article on: {{ .input.topic }}
       Use the style guide from memory and check grammar/style.
-      
+
   - id: optimize_content
     prompt: |
       Optimize this content for readability and engagement:
       {{ .input.content }}
-      
+
       Use available tools to check grammar, style, and originality.
 ```
 </Tab>
@@ -983,7 +983,7 @@ WARN: YAML syntax error at line 15: invalid character
 INFO: Loaded 8 out of 9 resources successfully
 
 # Application continues running
-Server listening on :3001
+Server listening on :5001
 ```
 
 **Use Cases:**
@@ -1419,15 +1419,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      
+
       - name: Setup Compozy
         uses: compozy/setup-action@v1
-        
+
       - name: Validate AutoLoad Configuration
         run: |
           compozy validate --autoload
           compozy autoload --dry-run
-          
+
       - name: Test Resource Loading
         run: |
           compozy autoload --list
@@ -1461,7 +1461,7 @@ validate-autoload:
 ```groovy title="Jenkinsfile"
 pipeline {
     agent any
-    
+
     stages {
         stage('Validate AutoLoad') {
             steps {
@@ -1469,7 +1469,7 @@ pipeline {
                 sh 'compozy autoload --dry-run'
             }
         }
-        
+
         stage('Test Resource Loading') {
             steps {
                 sh 'compozy autoload --list'
@@ -1478,7 +1478,7 @@ pipeline {
             }
         }
     }
-    
+
     post {
         always {
             publishHTML([

@@ -78,7 +78,7 @@ func main() {
     appConfig := &config.Config{
         Server: config.ServerConfig{
             Host:        "0.0.0.0",
-            Port:        8080,
+            Port:        5001,
             CORSEnabled: true,
         },
         // Add database, temporal, and other configs...
@@ -220,7 +220,7 @@ type Config struct {
 appConfig := &config.Config{
     Server: config.ServerConfig{
         Host:        "0.0.0.0",
-        Port:        8080,
+        Port:        5001,
         CORSEnabled: true,
     },
     Database: config.DatabaseConfig{
@@ -259,7 +259,7 @@ rateLimitConfig := &ratelimit.Config{
 
 serverConfig := &server.Config{
     Host:      "0.0.0.0",
-    Port:      8080,
+    Port:      5001,
     RateLimit: rateLimitConfig,
 }
 ```
@@ -607,7 +607,7 @@ func setupTestServer(t *testing.T) *server.Server {
 func getFreePort() int {
     listener, err := net.Listen("tcp", ":0")
     if err != nil {
-        return 8080
+        return 5001
     }
     defer listener.Close()
 

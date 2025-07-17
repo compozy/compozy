@@ -81,7 +81,7 @@ compozy dev --port 9000 --log-level debug --cors
 # Global system configuration
 server:
   host: "0.0.0.0"
-  port: 8080
+  port: 5001
   cors_enabled: true
   timeout: 30s
 
@@ -100,7 +100,7 @@ database:
 ```bash title=".env"
 # Server configuration
 SERVER_HOST=0.0.0.0
-SERVER_PORT=8080
+SERVER_PORT=5001
 SERVER_CORS_ENABLED=true
 
 # Database configuration
@@ -132,7 +132,7 @@ Controls the HTTP server that hosts your workflows and provides the API endpoint
 ```yaml title="compozy.yaml"
 server:
   host: "0.0.0.0"        # Bind to all interfaces
-  port: 8080             # HTTP port
+  port: 5001             # HTTP port
   cors_enabled: true     # Enable CORS for development
   timeout: 30s           # Request timeout
 ```
@@ -142,7 +142,7 @@ server:
 ```yaml title="compozy.yaml"
 server:
   host: "127.0.0.1"      # Bind to localhost only
-  port: 8080
+  port: 5001
   cors_enabled: false    # Disable CORS in production
   timeout: 60s           # Longer timeout for production
 ```
@@ -151,7 +151,7 @@ server:
 <Tab>
 ```bash title=".env"
 SERVER_HOST=0.0.0.0
-SERVER_PORT=8080
+SERVER_PORT=5001
 SERVER_CORS_ENABLED=true
 SERVER_TIMEOUT=30s
 ```
@@ -163,7 +163,7 @@ SERVER_TIMEOUT=30s
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `host` | string | `"0.0.0.0"` | IP address to bind the server to |
-| `port` | int | `8080` | Port number for the HTTP server |
+| `port` | int | `5001` | Port number for the HTTP server |
 | `cors_enabled` | bool | `true` | Enable Cross-Origin Resource Sharing |
 | `timeout` | duration | `30s` | Request timeout for HTTP operations |
 
@@ -492,9 +492,6 @@ database:
 # Show all configuration values
 compozy config show
 
-# Show configuration with sources
-compozy config show --sources
-
 # Show as JSON
 compozy config show --format json
 
@@ -541,9 +538,6 @@ compozy config validate
 # Run with debug logging
 compozy dev --debug
 
-# Check configuration sources
-compozy config show --sources
-
 # Validate configuration
 compozy config validate
 ```
@@ -555,7 +549,7 @@ compozy config validate
 ```yaml title="compozy.yaml"
 server:
   host: "0.0.0.0"
-  port: 8080
+  port: 5001
   cors_enabled: true
 
 database:
@@ -579,7 +573,7 @@ limits:
 ```yaml title="compozy.yaml"
 server:
   host: "0.0.0.0"
-  port: 8080
+  port: 5001
   cors_enabled: false
   timeout: 60s
 
