@@ -11,6 +11,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	dateFormat = "2006-01-02"
+)
+
 // GenerateJSON handles the key generation in JSON mode
 func GenerateJSON(
 	ctx context.Context,
@@ -58,7 +62,7 @@ func parseGenerateKeyFlags(cobraCmd *cobra.Command) (*api.GenerateKeyRequest, er
 		Description: description,
 	}
 	if expiresStr != "" {
-		if _, err := time.Parse("2006-01-02", expiresStr); err != nil {
+		if _, err := time.Parse(dateFormat, expiresStr); err != nil {
 			return nil, fmt.Errorf("invalid expiration date format, use YYYY-MM-DD")
 		}
 		req.Expires = expiresStr
@@ -81,7 +85,7 @@ func buildGenerateKeyResponse(apiKey string, req *api.GenerateKeyRequest) map[st
 		data["description"] = req.Description
 	}
 	if req.Expires != "" {
-		if expires, err := time.Parse("2006-01-02", req.Expires); err == nil {
+		if expires, err := time.Parse(dateFormat, req.Expires); err == nil {
 			data["expires"] = expires.Format(time.RFC3339)
 		}
 	}

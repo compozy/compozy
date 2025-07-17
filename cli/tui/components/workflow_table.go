@@ -14,10 +14,12 @@ import (
 	"github.com/compozy/compozy/cli/tui/styles"
 )
 
+type SortOrder string
+
 // Sort direction constants
 const (
-	SortAsc  = "asc"
-	SortDesc = "desc"
+	SortOrderAsc  SortOrder = "asc"
+	SortOrderDesc SortOrder = "desc"
 )
 
 // WorkflowTableComponent provides an interactive workflow table
@@ -32,7 +34,7 @@ type WorkflowTableComponent struct {
 	// Filtering and sorting
 	filterTerm    string
 	sortColumn    string
-	sortDirection string // "asc" or "desc"
+	sortDirection SortOrder
 
 	// Pagination
 	currentPage  int
@@ -152,7 +154,7 @@ func NewWorkflowTableComponent(workflows []api.Workflow) WorkflowTableComponent 
 		table:         t,
 		workflows:     workflows,
 		sortColumn:    "name",
-		sortDirection: SortAsc,
+		sortDirection: SortOrderAsc,
 		currentPage:   0,
 		itemsPerPage:  20,
 		totalItems:    len(workflows),
@@ -362,14 +364,14 @@ func (wt *WorkflowTableComponent) renderPagination() string {
 func (wt *WorkflowTableComponent) setSortColumn(column string) {
 	if wt.sortColumn == column {
 		// Toggle direction
-		if wt.sortDirection == SortAsc {
-			wt.sortDirection = SortDesc
+		if wt.sortDirection == SortOrderAsc {
+			wt.sortDirection = SortOrderDesc
 		} else {
-			wt.sortDirection = SortAsc
+			wt.sortDirection = SortOrderAsc
 		}
 	} else {
 		wt.sortColumn = column
-		wt.sortDirection = SortAsc
+		wt.sortDirection = SortOrderAsc
 	}
 
 	wt.updateFilteredRows()
@@ -499,7 +501,7 @@ func (wt *WorkflowTableComponent) sortRows(rows []table.Row) {
 			less = strings.ToLower(rows[i][1]) < strings.ToLower(rows[j][1])
 		}
 
-		if wt.sortDirection == SortDesc {
+		if wt.sortDirection == SortOrderDesc {
 			less = !less
 		}
 

@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/compozy/cli/cmd/dev"
 	initcmd "github.com/compozy/compozy/cli/cmd/init"
 	mcpproxycmd "github.com/compozy/compozy/cli/cmd/mcp_proxy"
+	"github.com/compozy/compozy/cli/cmd/start"
 	workflowcmd "github.com/compozy/compozy/cli/cmd/workflow"
 	"github.com/compozy/compozy/cli/helpers"
 	"github.com/compozy/compozy/pkg/config"
@@ -33,6 +34,7 @@ and events with both interactive TUI and automation-friendly JSON output.`,
 	root.AddCommand(
 		initcmd.NewInitCommand(),
 		dev.NewDevCommand(),
+		start.NewStartCommand(),
 		mcpproxycmd.NewMCPProxyCommand(),
 		configcmd.NewConfigCommand(),
 		authcmd.Cmd(),

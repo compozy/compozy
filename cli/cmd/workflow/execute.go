@@ -161,9 +161,9 @@ func parseInputParameters(cmd *cobra.Command) (map[string]any, error) {
 		key := strings.TrimSpace(parts[0])
 		value := strings.TrimSpace(parts[1])
 
-		// Try to parse value as JSON first, with explicit type checking
-		if gjson.Valid(value) {
-			result := gjson.Parse(value)
+		// Try to parse value as JSON first
+		result := gjson.Parse(value)
+		if result.Type != gjson.Null {
 			// Only use JSON parsing for structured data (objects, arrays, booleans, numbers)
 			// String values wrapped in quotes should be treated as JSON strings
 			switch result.Type {
@@ -222,7 +222,8 @@ func renderExecutionStatus(status api.ExecutionStatus) string {
 	case api.ExecutionStatusCancelled:
 		return styles.ErrorStyle.Render(string(status))
 	default:
-		return string(status)
+		// Handle unknown status values with warning styling for better visibility
+		return styles.WarningStyle.Render(fmt.Sprintf("Unknown status: %s", status))
 	}
 }
 

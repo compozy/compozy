@@ -108,9 +108,10 @@ func TestFormatError(t *testing.T) {
 	t.Run("Should format error for JSON mode", func(t *testing.T) {
 		err := NewCliError("TEST_ERROR", "Test message", "Test details")
 		formatted := FormatError(err, models.ModeJSON)
-		assert.Contains(t, formatted, "TEST_ERROR")
 		assert.Contains(t, formatted, "Test message")
 		assert.Contains(t, formatted, "Test details")
+		assert.Contains(t, formatted, "\"error\":")
+		assert.Contains(t, formatted, "\"details\":")
 	})
 
 	t.Run("Should format error for TUI mode", func(t *testing.T) {

@@ -483,8 +483,13 @@ func IsValidFilename(filename string) bool {
 		return false
 	}
 
-	// Check for invalid characters
-	invalidChars := []string{"/", "\\", ":", "*", "?", "\"", "<", ">", "|"}
+	// Check if it's just a filename without path components
+	if filename != filepath.Base(filename) {
+		return false
+	}
+
+	// Check for invalid characters (excluding path separators since they're handled above)
+	invalidChars := []string{":", "*", "?", "\"", "<", ">", "|"}
 	for _, char := range invalidChars {
 		if strings.Contains(filename, char) {
 			return false

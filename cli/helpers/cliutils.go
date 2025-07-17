@@ -133,27 +133,19 @@ func FormatError(err error, mode models.Mode) string {
 	}
 }
 
-// formatErrorJSON formats errors for JSON output
+// formatErrorJSON formats errors for JSON output according to API standards
 func formatErrorJSON(err error) string {
 	var errorResponse map[string]any
 
 	if cliErr, ok := err.(*CliError); ok {
 		errorResponse = map[string]any{
-			"error": map[string]any{
-				"code":      cliErr.Code,
-				"message":   cliErr.Message,
-				"details":   cliErr.Details,
-				"context":   cliErr.Context,
-				"timestamp": cliErr.Timestamp.Format(time.RFC3339),
-			},
+			"error":   cliErr.Message,
+			"details": cliErr.Details,
 		}
 	} else {
 		errorResponse = map[string]any{
-			"error": map[string]any{
-				"code":      "CLI_ERROR",
-				"message":   err.Error(),
-				"timestamp": time.Now().Format(time.RFC3339),
-			},
+			"error":   err.Error(),
+			"details": "",
 		}
 	}
 
@@ -161,15 +153,14 @@ func formatErrorJSON(err error) string {
 	if err != nil {
 		// Fallback to simple error message if JSON marshaling fails
 		fallbackResponse := map[string]any{
-			"error": map[string]any{
-				"message": err.Error(),
-			},
+			"error":   "JSON marshaling failed",
+			"details": "",
 		}
 		if fallbackBytes, fallbackErr := json.Marshal(fallbackResponse); fallbackErr == nil {
 			return string(fallbackBytes)
 		}
 		// Last resort - return minimal JSON with escaped message
-		return `{"error": {"message": "JSON marshaling failed"}}`
+		return `{"error": "JSON marshaling failed", "details": ""}`
 	}
 	return string(jsonBytes)
 }
@@ -398,8 +389,8 @@ func FormatDuration(d time.Duration) string {
 
 // SanitizeForJSON sanitizes a string for safe JSON output
 func SanitizeForJSON(s string) string {
-	// Remove non-printable characters
-	reg := regexp.MustCompile(`[^\x20-\x7E]`)
+	// Remove control characters except tab, newline, and carriage return
+	reg := regexp.MustCompile(`[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]`)
 	return reg.ReplaceAllString(s, "")
 }
 

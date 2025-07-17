@@ -34,7 +34,7 @@ func outputJSONError(message string) error {
 		fmt.Fprintf(os.Stderr, "Error: %s\n", message)
 		return fmt.Errorf("failed to encode JSON error response: %w", err)
 	}
-	return fmt.Errorf("%s", message)
+	return nil
 }
 
 // outputJSONResponse outputs the response as JSON

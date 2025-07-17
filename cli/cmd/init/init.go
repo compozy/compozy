@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
+	html_template "html/template"
 	"os"
 	"path/filepath"
 	"strings"
@@ -625,11 +626,15 @@ func createReadme(opts *Options, config *ProjectConfig) error {
 func createFromTemplate(opts *Options, fileName, templateContent string, config *ProjectConfig) error {
 	// Create custom template functions with enhanced escaping
 	funcMap := sprig.TxtFuncMap()
-	funcMap["jsEscape"] = func(s string) string {
-		return strings.ReplaceAll(strings.ReplaceAll(s, "\\", "\\\\"), "\"", "\\\"")
-	}
+	funcMap["jsEscape"] = html_template.JSEscapeString
 	funcMap["yamlEscape"] = func(s string) string {
-		return strings.ReplaceAll(strings.ReplaceAll(s, "\\", "\\\\"), "\":", "\\\"")
+		// For YAML, properly escape quotes and special characters
+		if strings.ContainsAny(s, "\"'\\:\n\r\t") {
+			// Quote the string and escape internal quotes
+			escaped := strings.ReplaceAll(s, "\"", "\\\"")
+			return "\"" + escaped + "\""
+		}
+		return s
 	}
 	funcMap["htmlEscape"] = html.EscapeString
 

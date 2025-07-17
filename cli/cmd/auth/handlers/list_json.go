@@ -62,9 +62,15 @@ func parseListParams(cmd *cobra.Command) (*listParams, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get page flag: %w", err)
 	}
+	if page < 1 {
+		return nil, fmt.Errorf("page number must be positive, got %d", page)
+	}
 	limit, err := cmd.Flags().GetInt("limit")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get limit flag: %w", err)
+	}
+	if limit < 0 {
+		return nil, fmt.Errorf("limit cannot be negative, got %d", limit)
 	}
 	return &listParams{
 		sortBy: sortBy,
