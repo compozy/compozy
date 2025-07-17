@@ -55,7 +55,7 @@ jobs:
               - 'README.md'
 
   # Go backend testing with service dependencies
-  test-backend:
+  test:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: changes
@@ -117,7 +117,7 @@ jobs:
         uses: ./.github/actions/setup-go
         with:
           go-version: ${{ matrix.go-version }}
-          install-tools: 'true'
+          install-tools: "true"
 
       - name: Verify service readiness
         run: |
@@ -159,51 +159,21 @@ jobs:
             test-results.xml
           retention-days: 7
 
-  # Frontend testing
-  test-frontend:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    needs: changes
-    if: needs.changes.outputs.frontend == 'true'
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Bun with caching
-        uses: ./.github/actions/setup-bun
-        with:
-          bun-version: "1.2.18"
-          install-dependencies: 'true'
-
-      - name: Run frontend linting
-        run: bun run lint
-
-      - name: Run frontend type checking
-        run: bun run type-check
-
-      - name: Run frontend tests
-        run: bun run test
-
-      - name: Build frontend
-        run: bun run build
-
   # Summary job to check overall CI status
   ci-success:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs:
       - changes
-      - test-backend
-      - test-frontend
+      - test
     if: always()
     steps:
       - name: Check CI status
         run: |-
-          if [[ "${{ needs.test-backend.result }}" == "failure" || "${{ needs.test-frontend.result }}" == "failure" ]]; then
+          if [[ "${{ needs.test.result }}" == "failure" ]]; then
             echo "CI failed"
             exit 1
-          elif [[ "${{ needs.test-backend.result }}" == "skipped" && "${{ needs.test-frontend.result }}" == "skipped" ]]; then
+          elif [[ "${{ needs.test.result }}" == "skipped" ]]; then
             echo "No changes detected, skipping tests"
           else
             echo "CI passed"

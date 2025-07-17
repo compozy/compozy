@@ -5,59 +5,70 @@ This directory contains reusable composite actions for the Compozy project's CI/
 ## Available Actions
 
 ### 🔧 setup-go
+
 Sets up Go development environment with caching and tools.
 
 **Usage:**
+
 ```yaml
 - uses: ./.github/actions/setup-go
   with:
-    go-version: '1.24.x'
-    install-tools: 'true'
+    go-version: "1.24.x"
+    install-tools: "true"
 ```
 
 **Inputs:**
+
 - `go-version`: Go version to install (default: '1.24.x')
 - `cache-key-suffix`: Additional cache key suffix (optional)
 - `install-tools`: Install development tools (default: 'true')
 
 **Outputs:**
+
 - `go-version`: Installed Go version
 - `cache-hit`: Whether cache was hit
 
 ### 🟨 setup-bun
+
 Sets up Bun JavaScript runtime with caching and dependencies.
 
 **Usage:**
+
 ```yaml
 - uses: ./.github/actions/setup-bun
   with:
-    bun-version: '1.2.18'
-    install-dependencies: 'true'
+    bun-version: "1.2.18"
+    install-dependencies: "true"
 ```
 
 **Inputs:**
+
 - `bun-version`: Bun version to install (default: '1.2.18')
 - `cache-key-suffix`: Additional cache key suffix (optional)
 - `install-dependencies`: Install dependencies (default: 'true')
 
 **Outputs:**
+
 - `bun-version`: Installed Bun version
 - `cache-hit`: Whether cache was hit
 
 ### 🐳 docker-build
+
 Builds Docker images with optimized layer caching.
 
 **Usage:**
+
 ```yaml
 - uses: ./.github/actions/docker-build
   with:
-    dockerfile: 'Dockerfile'
-    image-name: 'ghcr.io/compozy/app'
-    platforms: 'linux/amd64,linux/arm64'
-    push: 'true'
+    dockerfile: "Dockerfile"
+    image-name: "ghcr.io/compozy/app"
+    platforms: "linux/amd64,linux/arm64"
+    push: "true"
 ```
 
 **Inputs:**
+
 - `dockerfile`: Path to Dockerfile (required)
 - `context`: Build context path (default: '.')
 - `image-name`: Image name without tag (required)
@@ -69,6 +80,7 @@ Builds Docker images with optimized layer caching.
 - `labels`: Additional labels (optional)
 
 **Outputs:**
+
 - `image-id`: Built image ID
 - `image-digest`: Image digest
 - `metadata`: Build metadata JSON
@@ -76,16 +88,19 @@ Builds Docker images with optimized layer caching.
 ## Benefits
 
 ### 🚀 Performance
+
 - **Faster builds**: Optimized caching strategies reduce build times by 30-50%
 - **Parallel execution**: Actions can run concurrently where possible
 - **Smart caching**: Layer caching for Docker, module caching for Go/Bun
 
 ### 🔒 Security
+
 - **Consistent setup**: Same security practices across all workflows
 - **Version pinning**: Centralized version management
 - **Minimal permissions**: Actions request only necessary permissions
 
 ### 🛠️ Maintainability
+
 - **DRY principle**: Eliminate code duplication across workflows
 - **Centralized updates**: Change action logic in one place
 - **Standardized patterns**: Consistent setup patterns across projects
@@ -105,6 +120,7 @@ versions:
 ## Usage Examples
 
 ### Basic Go Setup
+
 ```yaml
 jobs:
   test:
@@ -116,6 +132,7 @@ jobs:
 ```
 
 ### Frontend Build
+
 ```yaml
 jobs:
   build:
@@ -127,6 +144,7 @@ jobs:
 ```
 
 ### Docker Build with Multi-platform
+
 ```yaml
 jobs:
   docker:
@@ -135,10 +153,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/docker-build
         with:
-          dockerfile: 'Dockerfile'
-          image-name: 'ghcr.io/compozy/app'
-          platforms: 'linux/amd64,linux/arm64'
-          push: 'true'
+          dockerfile: "Dockerfile"
+          image-name: "ghcr.io/compozy/app"
+          platforms: "linux/amd64,linux/arm64"
+          push: "true"
 ```
 
 ## Contributing

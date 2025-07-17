@@ -8,7 +8,7 @@ on:
     branches:
       - main
   schedule:
-    - cron: '0 4 * * 1'  # Weekly scan on Mondays at 4 AM UTC
+    - cron: "0 4 * * 1"  # Weekly scan on Mondays at 4 AM UTC
 
 permissions:
   actions: read
@@ -25,7 +25,7 @@ jobs:
       fail-fast: false
       matrix:
         language:
-          - 'go'
+          - "go"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -34,7 +34,7 @@ jobs:
         uses: ./.github/actions/setup-go
         with:
           go-version: "1.24.x"
-          install-tools: 'false'
+          install-tools: "false"
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:

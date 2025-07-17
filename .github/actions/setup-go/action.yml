@@ -1,31 +1,31 @@
-name: 'Setup Go Environment'
-description: 'Sets up Go with caching and common tools for Compozy development'
-author: 'Compozy Team'
+name: "Setup Go Environment"
+description: "Sets up Go with caching and common tools for Compozy development"
+author: "Compozy Team"
 
 inputs:
   go-version:
-    description: 'Go version to install'
+    description: "Go version to install"
     required: false
-    default: '1.24.x'
+    default: "1.24.x"
   cache-key-suffix:
-    description: 'Additional suffix for cache key'
+    description: "Additional suffix for cache key"
     required: false
-    default: ''
+    default: ""
   install-tools:
-    description: 'Install common development tools'
+    description: "Install common development tools"
     required: false
-    default: 'true'
+    default: "true"
 
 outputs:
   go-version:
-    description: 'The Go version that was installed'
+    description: "The Go version that was installed"
     value: ${{ steps.setup-go.outputs.go-version }}
   cache-hit:
-    description: 'Whether the Go modules cache was hit'
+    description: "Whether the Go modules cache was hit"
     value: ${{ steps.go-cache.outputs.cache-hit }}
 
 runs:
-  using: 'composite'
+  using: "composite"
   steps:
     - name: Set up Go
       id: setup-go

@@ -1,56 +1,56 @@
-name: 'Docker Build with Caching'
-description: 'Builds Docker images with optimized layer caching for Compozy'
-author: 'Compozy Team'
+name: "Docker Build with Caching"
+description: "Builds Docker images with optimized layer caching for Compozy"
+author: "Compozy Team"
 
 inputs:
   dockerfile:
-    description: 'Path to Dockerfile'
+    description: "Path to Dockerfile"
     required: true
   context:
-    description: 'Build context path'
+    description: "Build context path"
     required: false
-    default: '.'
+    default: "."
   image-name:
-    description: 'Image name (without tag)'
+    description: "Image name (without tag)"
     required: true
   platforms:
-    description: 'Target platforms for build'
+    description: "Target platforms for build"
     required: false
-    default: 'linux/amd64'
+    default: "linux/amd64"
   push:
-    description: 'Push image to registry'
+    description: "Push image to registry"
     required: false
-    default: 'false'
+    default: "false"
   cache-from:
-    description: 'Cache source for build'
+    description: "Cache source for build"
     required: false
-    default: 'type=gha'
+    default: "type=gha"
   cache-to:
-    description: 'Cache destination for build'
+    description: "Cache destination for build"
     required: false
-    default: 'type=gha,mode=max'
+    default: "type=gha,mode=max"
   build-args:
-    description: 'Build arguments (newline separated)'
+    description: "Build arguments (newline separated)"
     required: false
-    default: ''
+    default: ""
   labels:
-    description: 'Labels for the image (newline separated)'
+    description: "Labels for the image (newline separated)"
     required: false
-    default: ''
+    default: ""
 
 outputs:
   image-id:
-    description: 'Image ID'
+    description: "Image ID"
     value: ${{ steps.build.outputs.imageid }}
   image-digest:
-    description: 'Image digest'
+    description: "Image digest"
     value: ${{ steps.build.outputs.digest }}
   metadata:
-    description: 'Build metadata'
+    description: "Build metadata"
     value: ${{ steps.meta.outputs.json }}
 
 runs:
-  using: 'composite'
+  using: "composite"
   steps:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3

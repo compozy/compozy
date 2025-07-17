@@ -14,6 +14,7 @@
     "storybook": "turbo run storybook",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,js,tsx,json,md}\"",
+    "format:yaml": "prettier --write \"**/*.{yml,yaml}\"",
     "type-check": "turbo run type-check",
     "test": "turbo run test",
     "clean": "turbo run clean",
