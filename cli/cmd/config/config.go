@@ -5,12 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"reflect"
 	"regexp"
 	"sort"
 	"strings"
 	"text/tabwriter"
-	"time"
 
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -44,15 +42,14 @@ func NewConfigCommand() *cobra.Command {
 func NewConfigShowCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "show",
-		Short: "Show current configuration values and their sources",
-		Long: `Display the current configuration with optional source information.
-This command shows which source (CLI, YAML, environment, or default) provided each value.`,
+		Short: "Show current configuration values",
+		Long: `Display the current configuration values in different formats.
+Supports JSON, YAML, and table output formats.`,
 		RunE: executeConfigShowCommand,
 	}
 
 	// Command-specific flags
 	cmd.Flags().StringP("format", "f", "table", "Output format (json, yaml, table)")
-	cmd.Flags().BoolP("sources", "s", false, "Show configuration sources")
 
 	return cmd
 }
@@ -61,7 +58,6 @@ This command shows which source (CLI, YAML, environment, or default) provided ea
 func executeConfigShowCommand(cobraCmd *cobra.Command, args []string) error {
 	return cmd.ExecuteCommand(cobraCmd, cmd.ExecutorOptions{
 		RequireAuth: false,
-		RequireAPI:  false,
 	}, cmd.ModeHandlers{
 		JSON: handleConfigShowJSON,
 		TUI:  handleConfigShowTUI,
@@ -83,18 +79,8 @@ func handleConfigShowJSON(
 	if err != nil {
 		return fmt.Errorf("failed to get format flag: %w", err)
 	}
-	showSources, err := cobraCmd.Flags().GetBool("sources")
-	if err != nil {
-		return fmt.Errorf("failed to get sources flag: %w", err)
-	}
 
-	// Get source information
-	sources := make(map[string]config.SourceType)
-	if showSources {
-		collectSourcesRecursively(executor, "", cfg, sources)
-	}
-
-	return formatConfigOutput(cfg, sources, format, showSources)
+	return formatConfigOutput(cfg, nil, format, false)
 }
 
 // handleConfigShowTUI handles config show in TUI mode
@@ -112,18 +98,8 @@ func handleConfigShowTUI(
 	if err != nil {
 		return fmt.Errorf("failed to get format flag: %w", err)
 	}
-	showSources, err := cobraCmd.Flags().GetBool("sources")
-	if err != nil {
-		return fmt.Errorf("failed to get sources flag: %w", err)
-	}
 
-	// Get source information
-	sources := make(map[string]config.SourceType)
-	if showSources {
-		collectSourcesRecursively(executor, "", cfg, sources)
-	}
-
-	return formatConfigOutput(cfg, sources, format, showSources)
+	return formatConfigOutput(cfg, nil, format, false)
 }
 
 // NewConfigDiagnosticsCommand creates the config diagnostics subcommand
@@ -150,7 +126,6 @@ func NewConfigDiagnosticsCommand() *cobra.Command {
 func executeConfigDiagnosticsCommand(cobraCmd *cobra.Command, args []string) error {
 	return cmd.ExecuteCommand(cobraCmd, cmd.ExecutorOptions{
 		RequireAuth: false,
-		RequireAPI:  false,
 	}, cmd.ModeHandlers{
 		JSON: handleConfigDiagnosticsJSON,
 		TUI:  handleConfigDiagnosticsTUI,
@@ -199,7 +174,6 @@ func NewConfigValidateCommand() *cobra.Command {
 func executeConfigValidateCommand(cobraCmd *cobra.Command, args []string) error {
 	return cmd.ExecuteCommand(cobraCmd, cmd.ExecutorOptions{
 		RequireAuth: false,
-		RequireAPI:  false,
 	}, cmd.ModeHandlers{
 		JSON: handleConfigValidateJSON,
 		TUI:  handleConfigValidateTUI,
@@ -319,9 +293,8 @@ func runDiagnostics(
 		}
 
 		if verbose {
-			sources := make(map[string]config.SourceType)
-			collectSourcesRecursively(executor, "", cfg, sources)
-			diagnostics["sources"] = sources
+			// Note: Source tracking is not currently implemented
+			diagnostics["sources"] = map[string]any{"note": "Source tracking not implemented"}
 		}
 
 		return outputDiagnosticsJSON(diagnostics)
@@ -337,9 +310,7 @@ func runDiagnostics(
 
 	if verbose {
 		fmt.Println("\n--- Configuration Sources ---")
-		sources := make(map[string]config.SourceType)
-		collectSourcesRecursively(executor, "", cfg, sources)
-		displaySourceBreakdown(sources)
+		fmt.Println("Note: Source tracking is not currently implemented")
 	}
 
 	fmt.Println("\n--- Source Precedence ---")
@@ -351,82 +322,6 @@ func runDiagnostics(
 
 	log.Debug("diagnostics completed successfully")
 	return nil
-}
-
-// collectSourcesRecursively walks through the configuration struct and collects source information
-func collectSourcesRecursively(
-	executor *cmd.CommandExecutor,
-	prefix string,
-	v any,
-	sourceMap map[string]config.SourceType,
-) {
-	val := getReflectValue(v)
-	if val.Kind() == reflect.Struct {
-		processStructFields(executor, prefix, val, sourceMap)
-	}
-}
-
-// getReflectValue gets the reflect value, handling pointers
-func getReflectValue(v any) reflect.Value {
-	val := reflect.ValueOf(v)
-	if val.Kind() == reflect.Ptr {
-		val = val.Elem()
-	}
-	return val
-}
-
-// processStructFields processes all fields in a struct for source collection
-func processStructFields(
-	executor *cmd.CommandExecutor,
-	prefix string,
-	val reflect.Value,
-	sourceMap map[string]config.SourceType,
-) {
-	typ := val.Type()
-	for i := 0; i < val.NumField(); i++ {
-		field := typ.Field(i)
-		fieldVal := val.Field(i)
-		if !field.IsExported() {
-			continue
-		}
-		processStructField(executor, prefix, &field, fieldVal, sourceMap)
-	}
-}
-
-// processStructField processes a single struct field for source collection
-func processStructField(
-	executor *cmd.CommandExecutor,
-	prefix string,
-	field *reflect.StructField,
-	fieldVal reflect.Value,
-	sourceMap map[string]config.SourceType,
-) {
-	tag := field.Tag.Get("koanf")
-	if tag == "" || tag == "-" {
-		return
-	}
-	key := buildFieldKey(prefix, tag)
-
-	// For now, we'll mark all values as default since we don't have direct access to the service
-	// This is a limitation that would need to be addressed in the pkg/config package
-	sourceMap[key] = config.SourceDefault
-
-	if shouldRecurse(fieldVal, field) {
-		collectSourcesRecursively(executor, key, fieldVal.Interface(), sourceMap)
-	}
-}
-
-// buildFieldKey builds the full key path for a field
-func buildFieldKey(prefix, tag string) string {
-	if prefix != "" {
-		return prefix + "." + tag
-	}
-	return tag
-}
-
-// shouldRecurse determines if a field should be recursively processed
-func shouldRecurse(fieldVal reflect.Value, field *reflect.StructField) bool {
-	return fieldVal.Kind() == reflect.Struct && field.Type != reflect.TypeOf(time.Duration(0))
 }
 
 // outputJSON outputs configuration as JSON
@@ -619,37 +514,6 @@ func flattenCLIConfig(cfg *config.Config, result map[string]string) {
 	result["cli.config_file"] = cfg.CLI.ConfigFile
 	result["cli.cwd"] = cfg.CLI.CWD
 	result["cli.env_file"] = cfg.CLI.EnvFile
-}
-
-// displaySourceBreakdown shows which values come from which sources
-func displaySourceBreakdown(sources map[string]config.SourceType) {
-	if len(sources) == 0 {
-		fmt.Println("No overridden configuration values found")
-		return
-	}
-
-	// Group by source
-	bySource := make(map[config.SourceType][]string)
-	for key, source := range sources {
-		bySource[source] = append(bySource[source], key)
-	}
-
-	// Display by source
-	for _, sourceType := range []config.SourceType{
-		config.SourceCLI,
-		config.SourceYAML,
-		config.SourceEnv,
-		config.SourceDefault,
-	} {
-		keys := bySource[sourceType]
-		if len(keys) > 0 {
-			sort.Strings(keys)
-			fmt.Printf("\n%s:\n", sourceType)
-			for _, key := range keys {
-				fmt.Printf("  - %s\n", key)
-			}
-		}
-	}
 }
 
 // redactURL redacts sensitive information from URLs (passwords, tokens, etc.)

@@ -3,6 +3,7 @@ package workflow
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"strings"
@@ -61,13 +62,6 @@ const (
 	// API and validation constants
 	maxWorkflowLimit      = 1000
 	errorMessageMaxLength = 200
-
-	// HTTP status code constants
-	httpStatusBadRequest   = 400
-	httpStatusUnauthorized = 401
-	httpStatusForbidden    = 403
-	httpStatusNotFound     = 404
-	httpStatusServerError  = 500
 
 	// Date format constants
 	dateTimeFormat = "2006-01-02 15:04"
@@ -156,7 +150,6 @@ func ListCmd() *cobra.Command {
 func runList(cobraCmd *cobra.Command, args []string) error {
 	return cmd.ExecuteCommand(cobraCmd, cmd.ExecutorOptions{
 		RequireAuth: true,
-		RequireAPI:  true,
 	}, cmd.ModeHandlers{
 		JSON: listJSONHandler,
 		TUI:  listTUIHandler,
@@ -529,7 +522,7 @@ func (s *workflowAPIService) executeWorkflowListRequest(req *resty.Request) (*st
 	if err != nil {
 		return nil, s.handleRequestError(err)
 	}
-	if resp.StatusCode() >= httpStatusBadRequest {
+	if resp.StatusCode() >= http.StatusBadRequest {
 		return nil, s.handleHTTPError(resp)
 	}
 	return &result, nil
@@ -552,14 +545,14 @@ func (s *workflowAPIService) handleRequestError(err error) error {
 // handleHTTPError handles HTTP status errors
 func (s *workflowAPIService) handleHTTPError(resp *resty.Response) error {
 	switch resp.StatusCode() {
-	case httpStatusUnauthorized:
+	case http.StatusUnauthorized:
 		return fmt.Errorf("authentication failed: please check your API key or login credentials")
-	case httpStatusForbidden:
+	case http.StatusForbidden:
 		return fmt.Errorf("permission denied: you don't have access to list workflows")
-	case httpStatusNotFound:
+	case http.StatusNotFound:
 		return fmt.Errorf("workflow endpoint not found: server may be misconfigured")
 	default:
-		if resp.StatusCode() >= httpStatusServerError {
+		if resp.StatusCode() >= http.StatusInternalServerError {
 			return fmt.Errorf("server error (status %d): try again later or contact support", resp.StatusCode())
 		}
 		errorMsg := cliutils.SanitizeForJSON(resp.String())
@@ -592,17 +585,17 @@ func (s *workflowAPIService) Get(ctx context.Context, id core.ID) (*api.Workflow
 	}
 
 	// Handle HTTP errors
-	if resp.StatusCode() >= httpStatusBadRequest {
-		if resp.StatusCode() == httpStatusUnauthorized {
+	if resp.StatusCode() >= http.StatusBadRequest {
+		if resp.StatusCode() == http.StatusUnauthorized {
 			return nil, fmt.Errorf("authentication failed: please check your API key or login credentials")
 		}
-		if resp.StatusCode() == httpStatusForbidden {
+		if resp.StatusCode() == http.StatusForbidden {
 			return nil, fmt.Errorf("permission denied: you don't have access to this workflow")
 		}
-		if resp.StatusCode() == httpStatusNotFound {
+		if resp.StatusCode() == http.StatusNotFound {
 			return nil, fmt.Errorf("workflow not found: workflow with ID %s does not exist", id)
 		}
-		if resp.StatusCode() >= httpStatusServerError {
+		if resp.StatusCode() >= http.StatusInternalServerError {
 			return nil, fmt.Errorf("server error (status %d): try again later", resp.StatusCode())
 		}
 		return nil, fmt.Errorf("API error: %s (status %d)", resp.String(), resp.StatusCode())
@@ -640,13 +633,12 @@ func displayWorkflowTable(workflows []api.Workflow) {
 
 	// Print workflows
 	for i := range workflows {
-		workflow := &workflows[i]
 		fmt.Printf("%-*s %-*s %-*s %-*s %-*s\n",
-			widths.id, cliutils.Truncate(string(workflow.ID), widths.id),
-			widths.status, string(workflow.Status),
-			widths.name, cliutils.Truncate(workflow.Name, widths.name),
-			widths.created, workflow.CreatedAt.Format(dateTimeFormat),
-			widths.updated, workflow.UpdatedAt.Format(dateTimeFormat),
+			widths.id, cliutils.Truncate(string(workflows[i].ID), widths.id),
+			widths.status, string(workflows[i].Status),
+			widths.name, cliutils.Truncate(workflows[i].Name, widths.name),
+			widths.created, workflows[i].CreatedAt.Format(dateTimeFormat),
+			widths.updated, workflows[i].UpdatedAt.Format(dateTimeFormat),
 		)
 	}
 

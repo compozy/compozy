@@ -45,7 +45,6 @@ func NewMCPProxyCommand() *cobra.Command {
 func executeMCPProxyCommand(cobraCmd *cobra.Command, args []string) error {
 	return cmd.ExecuteCommand(cobraCmd, cmd.ExecutorOptions{
 		RequireAuth: false,
-		RequireAPI:  false,
 	}, cmd.ModeHandlers{
 		JSON: handleMCPProxyJSON,
 		TUI:  handleMCPProxyTUI,

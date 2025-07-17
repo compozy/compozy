@@ -99,8 +99,8 @@ func buildUpdateUserRequest(flags *updateUserFlags) api.UpdateUserRequest {
 // outputUpdateUserSuccess outputs the successful user update response
 func outputUpdateUserSuccess(user *api.UserInfo) error {
 	response := map[string]any{
-		"user":    user,
-		"message": "User updated successfully",
+		"data":    user,
+		"message": "Success",
 	}
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")

@@ -3,6 +3,7 @@ package helpers
 import (
 	"context"
 	"fmt"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -224,7 +225,7 @@ func (rc *RetryConfig) CalculateRetryWait(attempt int) time.Duration {
 		return rc.InitialWait
 	}
 
-	wait := time.Duration(float64(rc.InitialWait) * (rc.Multiplier * float64(attempt)))
+	wait := time.Duration(float64(rc.InitialWait) * math.Pow(rc.Multiplier, float64(attempt)))
 	if wait > rc.MaxWait {
 		wait = rc.MaxWait
 	}

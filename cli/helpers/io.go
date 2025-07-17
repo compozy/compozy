@@ -55,24 +55,18 @@ func (ow *OutputWriter) writeJSON(data any) error {
 }
 
 // writeTable writes data as a table (placeholder implementation)
-func (ow *OutputWriter) writeTable(data any) error {
-	// This would need to be implemented based on specific data types
-	// For now, fall back to JSON
-	return ow.writeJSON(data)
+func (ow *OutputWriter) writeTable(_ any) error {
+	return fmt.Errorf("table output format not yet implemented")
 }
 
 // writeYAML writes data as YAML (placeholder implementation)
-func (ow *OutputWriter) writeYAML(data any) error {
-	// This would need YAML library integration
-	// For now, fall back to JSON
-	return ow.writeJSON(data)
+func (ow *OutputWriter) writeYAML(_ any) error {
+	return fmt.Errorf("YAML output format not yet implemented")
 }
 
 // writeTUI writes data for TUI mode (placeholder implementation)
-func (ow *OutputWriter) writeTUI(data any) error {
-	// This would need TUI-specific formatting
-	// For now, fall back to JSON
-	return ow.writeJSON(data)
+func (ow *OutputWriter) writeTUI(_ any) error {
+	return fmt.Errorf("TUI output format not yet implemented")
 }
 
 // ReadInput reads input from various sources
@@ -144,7 +138,7 @@ func AppendToFile(path string, data []byte) error {
 	}
 
 	// Open file for appending
-	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
 		return NewCliError("FILE_OPEN_ERROR", fmt.Sprintf("Failed to open file: %s", path), err.Error())
 	}

@@ -37,7 +37,7 @@ func getConfigFromContext(cmd *cobra.Command) (*config.Config, error) {
 // CommandExecutor handles common setup and execution patterns for CLI commands.
 // It eliminates boilerplate code by providing a single place for:
 // - Configuration loading
-// - Client creation (auth or general API)
+// - Client creation (auth)
 // - Mode detection
 // - Context cancellation
 // - Error handling
@@ -47,13 +47,7 @@ type CommandExecutor struct {
 
 	// Clients - only populated as needed
 	authClient api.AuthClient
-	apiClient  APIClient
 }
-
-// APIClient interface for general API operations
-type APIClient any
-
-// Add common API methods here as needed
 
 // HandlerFunc defines the signature for command handlers.
 type HandlerFunc func(ctx context.Context, cmd *cobra.Command, executor *CommandExecutor, args []string) error
@@ -67,7 +61,6 @@ type ModeHandlers struct {
 // ExecutorOptions allows customization of the command executor
 type ExecutorOptions struct {
 	RequireAuth bool
-	RequireAPI  bool
 }
 
 // NewCommandExecutor creates a new command executor with all necessary setup.
@@ -108,9 +101,6 @@ func NewCommandExecutor(cmd *cobra.Command, opts ExecutorOptions) (*CommandExecu
 		executor.authClient = authClient
 	}
 
-	// Initialize general API client if required
-	// TODO: Implement general API client initialization when needed
-
 	return executor, nil
 }
 
@@ -131,13 +121,6 @@ func (e *CommandExecutor) Execute(ctx context.Context, cmd *cobra.Command, handl
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	// Handle context cancellation gracefully
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	default:
-	}
-
 	switch e.mode {
 	case models.ModeJSON:
 		if handlers.JSON == nil {
@@ -157,11 +140,6 @@ func (e *CommandExecutor) Execute(ctx context.Context, cmd *cobra.Command, handl
 // GetAuthClient returns the configured auth client.
 func (e *CommandExecutor) GetAuthClient() api.AuthClient {
 	return e.authClient
-}
-
-// GetAPIClient returns the configured general API client.
-func (e *CommandExecutor) GetAPIClient() APIClient {
-	return e.apiClient
 }
 
 // GetConfig returns the loaded configuration.

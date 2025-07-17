@@ -2,9 +2,7 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/compozy/compozy/cli/api"
@@ -21,68 +19,74 @@ func GenerateJSON(
 	_ []string,
 ) error {
 	log := logger.FromContext(ctx)
-	// Parse flags
-	name, err := cobraCmd.Flags().GetString("name")
+	req, err := parseGenerateKeyFlags(cobraCmd)
 	if err != nil {
-		return fmt.Errorf("failed to get name flag: %w", err)
-	}
-	description, err := cobraCmd.Flags().GetString("description")
-	if err != nil {
-		return fmt.Errorf("failed to get description flag: %w", err)
-	}
-	expiresStr, err := cobraCmd.Flags().GetString("expires")
-	if err != nil {
-		return fmt.Errorf("failed to get expires flag: %w", err)
-	}
-	// Validate expiration date if provided
-	var expires *time.Time
-	if expiresStr != "" {
-		t, err := time.Parse("2006-01-02", expiresStr)
-		if err != nil {
-			return outputJSONError("invalid expiration date format, use YYYY-MM-DD")
-		}
-		expires = &t
+		return outputJSONError(err.Error())
 	}
 	log.Debug("generating API key in JSON mode",
-		"name", name,
-		"description", description,
-		"expires", expiresStr)
-	// Get the auth client from executor
+		"name", req.Name,
+		"description", req.Description,
+		"expires", req.Expires)
 	authClient := executor.GetAuthClient()
 	if authClient == nil {
 		return outputJSONError("auth client not available")
-	}
-	// Generate the key
-	req := &api.GenerateKeyRequest{
-		Name:        name,
-		Description: description,
-	}
-	if expires != nil {
-		req.Expires = expires.Format("2006-01-02")
 	}
 	apiKey, err := authClient.GenerateKey(ctx, req)
 	if err != nil {
 		return outputJSONError(fmt.Sprintf("failed to generate API key: %v", err))
 	}
-	// Prepare response
-	response := map[string]any{
+	response := buildGenerateKeyResponse(apiKey, req)
+	return outputJSONResponse(response)
+}
+
+// parseGenerateKeyFlags extracts and validates flags for key generation
+func parseGenerateKeyFlags(cobraCmd *cobra.Command) (*api.GenerateKeyRequest, error) {
+	name, err := cobraCmd.Flags().GetString("name")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get name flag: %w", err)
+	}
+	description, err := cobraCmd.Flags().GetString("description")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get description flag: %w", err)
+	}
+	expiresStr, err := cobraCmd.Flags().GetString("expires")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get expires flag: %w", err)
+	}
+	req := &api.GenerateKeyRequest{
+		Name:        name,
+		Description: description,
+	}
+	if expiresStr != "" {
+		if _, err := time.Parse("2006-01-02", expiresStr); err != nil {
+			return nil, fmt.Errorf("invalid expiration date format, use YYYY-MM-DD")
+		}
+		req.Expires = expiresStr
+	}
+	return req, nil
+}
+
+// buildGenerateKeyResponse constructs the JSON response for key generation
+func buildGenerateKeyResponse(apiKey string, req *api.GenerateKeyRequest) map[string]any {
+	data := map[string]any{
 		"api_key": apiKey,
+		// Note: Using current time as the API doesn't return creation timestamp
+		// This is a limitation of the current API design
 		"created": time.Now().Format(time.RFC3339),
 	}
-	if name != "" {
-		response["name"] = name
+	if req.Name != "" {
+		data["name"] = req.Name
 	}
-	if description != "" {
-		response["description"] = description
+	if req.Description != "" {
+		data["description"] = req.Description
 	}
-	if expires != nil {
-		response["expires"] = expires.Format(time.RFC3339)
+	if req.Expires != "" {
+		if expires, err := time.Parse("2006-01-02", req.Expires); err == nil {
+			data["expires"] = expires.Format(time.RFC3339)
+		}
 	}
-	// Output JSON
-	encoder := json.NewEncoder(os.Stdout)
-	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(response); err != nil {
-		return fmt.Errorf("failed to encode JSON response: %w", err)
+	return map[string]any{
+		"data":    data,
+		"message": "Success",
 	}
-	return nil
 }

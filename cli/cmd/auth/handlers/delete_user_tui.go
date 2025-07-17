@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/compozy/compozy/cli/api"
 	"github.com/compozy/compozy/cli/cmd"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/spf13/cobra"
@@ -66,10 +67,8 @@ func DeleteUserTUI(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.C
 
 // deleteUserModel represents the TUI model for user deletion
 type deleteUserModel struct {
-	ctx    context.Context
-	client interface {
-		DeleteUser(ctx context.Context, userID string) error
-	}
+	ctx     context.Context
+	client  api.UserDeleter
 	state   deleteUserState
 	userID  string
 	force   bool
@@ -94,9 +93,12 @@ const (
 type userDeletedMsg struct{}
 
 // newDeleteUserModel creates a new TUI model for user deletion
-func newDeleteUserModel(ctx context.Context, client interface {
-	DeleteUser(ctx context.Context, userID string) error
-}, userID string, force, cascade bool) *deleteUserModel {
+func newDeleteUserModel(
+	ctx context.Context,
+	client api.UserDeleter,
+	userID string,
+	force, cascade bool,
+) *deleteUserModel {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("69"))

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/compozy/compozy/cli/api"
 )
@@ -23,11 +22,6 @@ type errMsg struct {
 	err error
 }
 
-// contains checks if string s contains substr (case-insensitive)
-func contains(s, substr string) bool {
-	return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
-}
-
 // outputJSONError outputs an error in JSON format
 func outputJSONError(message string) error {
 	errorResponse := map[string]any{
@@ -36,7 +30,19 @@ func outputJSONError(message string) error {
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")
 	if err := encoder.Encode(errorResponse); err != nil {
+		// Output a simple error message to stderr if JSON encoding fails
+		fmt.Fprintf(os.Stderr, "Error: %s\n", message)
 		return fmt.Errorf("failed to encode JSON error response: %w", err)
 	}
 	return fmt.Errorf("%s", message)
+}
+
+// outputJSONResponse outputs the response as JSON
+func outputJSONResponse(response map[string]any) error {
+	encoder := json.NewEncoder(os.Stdout)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(response); err != nil {
+		return outputJSONError(fmt.Sprintf("failed to encode JSON response: %v", err))
+	}
+	return nil
 }

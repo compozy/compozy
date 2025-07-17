@@ -40,7 +40,6 @@ func ExecuteCmd() *cobra.Command {
 func runWorkflowExecute(cobraCmd *cobra.Command, args []string) error {
 	return cmd.ExecuteCommand(cobraCmd, cmd.ExecutorOptions{
 		RequireAuth: true,
-		RequireAPI:  true,
 	}, cmd.ModeHandlers{
 		JSON: executeJSONHandler,
 		TUI:  executeTUIHandler,
@@ -67,15 +66,17 @@ func executeTUIHandler(
 	return workflowExecuteTUIHandler(ctx, cobraCmd, executor.GetAuthClient(), args)
 }
 
-// workflowExecuteJSONHandler handles JSON output mode
-func workflowExecuteJSONHandler(ctx context.Context, cmd *cobra.Command, client api.AuthClient, args []string) error {
-	log := logger.FromContext(ctx)
-	workflowID := core.ID(args[0])
-
+// executeWorkflow handles the common workflow execution logic
+func executeWorkflow(
+	ctx context.Context,
+	cmd *cobra.Command,
+	client api.AuthClient,
+	workflowID core.ID,
+) (*api.ExecutionResult, error) {
 	// Parse input parameters
 	inputs, err := parseInputParameters(cmd)
 	if err != nil {
-		return fmt.Errorf("failed to parse input parameters: %w", err)
+		return nil, fmt.Errorf("failed to parse input parameters: %w", err)
 	}
 
 	// Create workflow mutate API client
@@ -89,10 +90,22 @@ func workflowExecuteJSONHandler(ctx context.Context, cmd *cobra.Command, client 
 	// Start workflow execution
 	result, err := apiClient.Execute(ctx, workflowID, input)
 	if err != nil {
-		return fmt.Errorf("failed to execute workflow: %w", err)
+		return nil, fmt.Errorf("failed to execute workflow: %w", err)
 	}
 
-	log.Debug("workflow execution started", "workflow_id", workflowID, "execution_id", result.ExecutionID)
+	logger.FromContext(ctx).
+		Debug("workflow execution started", "workflow_id", workflowID, "execution_id", result.ExecutionID)
+	return result, nil
+}
+
+// workflowExecuteJSONHandler handles JSON output mode
+func workflowExecuteJSONHandler(ctx context.Context, cmd *cobra.Command, client api.AuthClient, args []string) error {
+	workflowID := core.ID(args[0])
+
+	result, err := executeWorkflow(ctx, cmd, client, workflowID)
+	if err != nil {
+		return err
+	}
 
 	// Create JSON formatter
 	formatter := cliutils.NewJSONFormatter(true)
@@ -111,30 +124,12 @@ func workflowExecuteJSONHandler(ctx context.Context, cmd *cobra.Command, client 
 
 // workflowExecuteTUIHandler handles TUI output mode
 func workflowExecuteTUIHandler(ctx context.Context, cmd *cobra.Command, client api.AuthClient, args []string) error {
-	log := logger.FromContext(ctx)
 	workflowID := core.ID(args[0])
 
-	// Parse input parameters
-	inputs, err := parseInputParameters(cmd)
+	result, err := executeWorkflow(ctx, cmd, client, workflowID)
 	if err != nil {
-		return fmt.Errorf("failed to parse input parameters: %w", err)
+		return err
 	}
-
-	// Create workflow mutate API client
-	apiClient := createWorkflowMutateAPIClient(client)
-
-	// Create execution input
-	input := api.ExecutionInput{
-		Data: inputs,
-	}
-
-	// Start workflow execution
-	result, err := apiClient.Execute(ctx, workflowID, input)
-	if err != nil {
-		return fmt.Errorf("failed to execute workflow: %w", err)
-	}
-
-	log.Debug("workflow execution started", "workflow_id", workflowID, "execution_id", result.ExecutionID)
 
 	// Display result
 	fmt.Println(styles.SuccessStyle.Render("✓ Workflow execution started"))

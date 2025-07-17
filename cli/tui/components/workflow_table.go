@@ -172,15 +172,15 @@ func (wt *WorkflowTableComponent) SetSize(width, height int) *WorkflowTableCompo
 	wt.height = height
 
 	// Update table size, ensure minimum height
-	tableHeight := maxInt(1, height-4) // Reserve space for header and pagination
+	tableHeight := max(1, height-4) // Reserve space for header and pagination
 	wt.table.SetHeight(tableHeight)
 
 	// Guard against very narrow terminals
 	if width < 40 {
 		// Use minimal columns for very narrow terminals
 		columns := []table.Column{
-			{Title: "Name", Width: maxInt(8, width/2)},
-			{Title: "Status", Width: maxInt(6, width/3)},
+			{Title: "Name", Width: max(8, width/2)},
+			{Title: "Status", Width: max(6, width/3)},
 		}
 		wt.table.SetColumns(columns)
 		return wt
@@ -189,13 +189,13 @@ func (wt *WorkflowTableComponent) SetSize(width, height int) *WorkflowTableCompo
 	// Adjust column widths based on available space
 	availableWidth := width - 10 // Reserve space for borders and padding
 	columns := []table.Column{
-		{Title: "ID", Width: maxInt(8, minInt(15, availableWidth/7))},
-		{Title: "Name", Width: maxInt(10, minInt(25, availableWidth/4))},
-		{Title: "Status", Width: maxInt(6, minInt(12, availableWidth/8))},
-		{Title: "Version", Width: maxInt(5, minInt(10, availableWidth/10))},
-		{Title: "Created", Width: maxInt(8, minInt(12, availableWidth/8))},
-		{Title: "Updated", Width: maxInt(8, minInt(12, availableWidth/8))},
-		{Title: "Tags", Width: maxInt(8, minInt(20, availableWidth/6))},
+		{Title: "ID", Width: max(8, min(15, availableWidth/7))},
+		{Title: "Name", Width: max(10, min(25, availableWidth/4))},
+		{Title: "Status", Width: max(6, min(12, availableWidth/8))},
+		{Title: "Version", Width: max(5, min(10, availableWidth/10))},
+		{Title: "Created", Width: max(8, min(12, availableWidth/8))},
+		{Title: "Updated", Width: max(8, min(12, availableWidth/8))},
+		{Title: "Tags", Width: max(8, min(20, availableWidth/6))},
 	}
 	wt.table.SetColumns(columns)
 
@@ -339,7 +339,7 @@ func (wt *WorkflowTableComponent) renderPagination() string {
 	}
 
 	startItem := wt.currentPage*wt.itemsPerPage + 1
-	endItem := minInt(startItem+wt.itemsPerPage-1, len(wt.filteredRows))
+	endItem := min(startItem+wt.itemsPerPage-1, len(wt.filteredRows))
 	totalPages := (len(wt.filteredRows) + wt.itemsPerPage - 1) / wt.itemsPerPage
 
 	if totalPages == 0 {
@@ -516,33 +516,17 @@ func (wt *WorkflowTableComponent) updateTableRows() {
 
 	// Calculate page bounds
 	start := wt.currentPage * wt.itemsPerPage
-	end := minInt(start+wt.itemsPerPage, len(wt.filteredRows))
+	end := min(start+wt.itemsPerPage, len(wt.filteredRows))
 
 	// Ensure bounds are valid
 	if start >= len(wt.filteredRows) {
 		start = 0
 		wt.currentPage = 0
-		end = minInt(wt.itemsPerPage, len(wt.filteredRows))
+		end = min(wt.itemsPerPage, len(wt.filteredRows))
 	}
 
 	pageRows := wt.filteredRows[start:end]
 	wt.table.SetRows(pageRows)
-}
-
-// minInt returns the minimum of two integers
-func minInt(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-// maxInt returns the maximum of two integers
-func maxInt(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }
 
 // Message types for parent component communication

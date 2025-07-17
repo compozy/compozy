@@ -362,7 +362,6 @@ Examples:
 func executeInitCommand(cobraCmd *cobra.Command, opts *Options, args []string) error {
 	return cmd.ExecuteCommand(cobraCmd, cmd.ExecutorOptions{
 		RequireAuth: false,
-		RequireAPI:  false,
 	}, cmd.ModeHandlers{
 		JSON: func(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.CommandExecutor, _ []string) error {
 			return runInitJSON(ctx, cobraCmd, executor, opts)

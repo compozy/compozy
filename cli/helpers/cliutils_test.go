@@ -2,6 +2,7 @@ package helpers
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -289,13 +290,23 @@ func TestFileExists(t *testing.T) {
 	})
 
 	t.Run("Should return false for directory", func(t *testing.T) {
-		assert.False(t, FileExists("/tmp")) // directory should return false
+		// Create a temporary directory for testing
+		tempDir, err := os.MkdirTemp("", "test_dir")
+		require.NoError(t, err)
+		defer os.RemoveAll(tempDir)
+
+		assert.False(t, FileExists(tempDir)) // directory should return false
 	})
 }
 
 func TestDirExists(t *testing.T) {
 	t.Run("Should return true for existing directory", func(t *testing.T) {
-		assert.True(t, DirExists("/tmp"))
+		// Create a temporary directory for testing
+		tempDir, err := os.MkdirTemp("", "test_dir")
+		require.NoError(t, err)
+		defer os.RemoveAll(tempDir)
+
+		assert.True(t, DirExists(tempDir))
 	})
 
 	t.Run("Should return false for non-existent directory", func(t *testing.T) {

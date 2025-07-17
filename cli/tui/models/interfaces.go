@@ -20,7 +20,7 @@ type Searchable interface {
 
 // DataClient represents a generic client for data operations
 type DataClient[T any] interface {
-	List(ctx context.Context) ([]T, error)
+	ListKeys(ctx context.Context) ([]T, error)
 }
 
 // ListableItem combines all the interfaces needed for list display

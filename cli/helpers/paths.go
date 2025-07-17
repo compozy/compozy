@@ -81,8 +81,13 @@ func isPathWithinDirectory(path, dir string) bool {
 	if err != nil {
 		return false
 	}
-	if !strings.HasSuffix(absDir, string(filepath.Separator)) {
-		absDir += string(filepath.Separator)
+
+	// Use filepath.Rel for more robust validation
+	rel, err := filepath.Rel(absDir, absPath)
+	if err != nil {
+		return false
 	}
-	return strings.HasPrefix(absPath, absDir) || absPath == strings.TrimSuffix(absDir, string(filepath.Separator))
+
+	// Check if the relative path starts with ".." (outside directory)
+	return !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && rel != ".."
 }

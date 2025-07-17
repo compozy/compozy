@@ -203,9 +203,6 @@ The `compozy config` command provides comprehensive configuration inspection, va
 # Show current configuration
 compozy config show
 
-# Show with source information
-compozy config show --sources
-
 # Show in different formats
 compozy config show --format json
 compozy config show --format yaml
@@ -355,7 +352,6 @@ Complete reference for all `compozy dev` options:
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
 | `--format, -f` | string | `"table"` | Output format (json, yaml, table) |
-| `--sources, -s` | bool | `false` | Show configuration sources |
 | `--config` | string | `"compozy.yaml"` | Path to configuration file |
 | `--env-file` | string | `".env"` | Path to environment file |
 
@@ -429,8 +425,8 @@ compozy config validate --config production.yaml
 <Step title="Inspect Configuration" description="View effective configuration">
 
 ```bash
-# Show current configuration with sources
-compozy config show --sources
+# Show current configuration
+compozy config show
 
 # Export configuration for review
 compozy config show --format yaml > current-config.yaml

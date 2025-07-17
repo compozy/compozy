@@ -17,7 +17,7 @@ func IsPortAvailable(host string, port int) bool {
 	if err != nil {
 		return false
 	}
-	listener.Close()
+	defer listener.Close()
 	return true
 }
 

@@ -1,8 +1,6 @@
 package auth
 
 import (
-	"context"
-
 	"github.com/compozy/compozy/cli/cmd"
 	"github.com/compozy/compozy/cli/cmd/auth/handlers"
 	"github.com/spf13/cobra"
@@ -51,31 +49,10 @@ func GenerateCmd() *cobra.Command {
 func runGenerate(cobraCmd *cobra.Command, args []string) error {
 	return cmd.ExecuteCommand(cobraCmd, cmd.ExecutorOptions{
 		RequireAuth: true,
-		RequireAPI:  true,
 	}, cmd.ModeHandlers{
-		JSON: generateJSONHandler,
-		TUI:  generateTUIHandler,
+		JSON: handlers.GenerateJSON,
+		TUI:  handlers.GenerateTUI,
 	}, args)
-}
-
-// generateJSONHandler uses the new handlers with unified executor pattern
-func generateJSONHandler(
-	ctx context.Context,
-	cobraCmd *cobra.Command,
-	executor *cmd.CommandExecutor,
-	args []string,
-) error {
-	return handlers.GenerateJSON(ctx, cobraCmd, executor, args)
-}
-
-// generateTUIHandler uses the new handlers with unified executor pattern
-func generateTUIHandler(
-	ctx context.Context,
-	cobraCmd *cobra.Command,
-	executor *cmd.CommandExecutor,
-	args []string,
-) error {
-	return handlers.GenerateTUI(ctx, cobraCmd, executor, args)
 }
 
 // ListCmd returns the key listing command
@@ -100,31 +77,10 @@ func ListCmd() *cobra.Command {
 func runList(cobraCmd *cobra.Command, args []string) error {
 	return cmd.ExecuteCommand(cobraCmd, cmd.ExecutorOptions{
 		RequireAuth: true,
-		RequireAPI:  true,
 	}, cmd.ModeHandlers{
-		JSON: listJSONHandler,
-		TUI:  listTUIHandler,
+		JSON: handlers.ListJSON,
+		TUI:  handlers.ListTUI,
 	}, args)
-}
-
-// listJSONHandler handles key listing in JSON mode
-func listJSONHandler(
-	ctx context.Context,
-	cobraCmd *cobra.Command,
-	executor *cmd.CommandExecutor,
-	args []string,
-) error {
-	return handlers.ListJSON(ctx, cobraCmd, executor, args)
-}
-
-// listTUIHandler handles key listing in TUI mode
-func listTUIHandler(
-	ctx context.Context,
-	cobraCmd *cobra.Command,
-	executor *cmd.CommandExecutor,
-	args []string,
-) error {
-	return handlers.ListTUI(ctx, cobraCmd, executor, args)
 }
 
 // RevokeCmd returns the key revocation command
@@ -146,31 +102,10 @@ func RevokeCmd() *cobra.Command {
 func runRevoke(cobraCmd *cobra.Command, args []string) error {
 	return cmd.ExecuteCommand(cobraCmd, cmd.ExecutorOptions{
 		RequireAuth: true,
-		RequireAPI:  true,
 	}, cmd.ModeHandlers{
-		JSON: revokeJSONHandler,
-		TUI:  revokeTUIHandler,
+		JSON: handlers.RevokeJSON,
+		TUI:  handlers.RevokeTUI,
 	}, args)
-}
-
-// revokeJSONHandler handles key revocation in JSON mode
-func revokeJSONHandler(
-	ctx context.Context,
-	cobraCmd *cobra.Command,
-	executor *cmd.CommandExecutor,
-	args []string,
-) error {
-	return handlers.RevokeJSON(ctx, cobraCmd, executor, args)
-}
-
-// revokeTUIHandler handles key revocation in TUI mode
-func revokeTUIHandler(
-	ctx context.Context,
-	cobraCmd *cobra.Command,
-	executor *cmd.CommandExecutor,
-	args []string,
-) error {
-	return handlers.RevokeTUI(ctx, cobraCmd, executor, args)
 }
 
 // CreateUserCmd returns the user creation command
@@ -194,31 +129,10 @@ func CreateUserCmd() *cobra.Command {
 func runCreateUser(cobraCmd *cobra.Command, args []string) error {
 	return cmd.ExecuteCommand(cobraCmd, cmd.ExecutorOptions{
 		RequireAuth: true,
-		RequireAPI:  true,
 	}, cmd.ModeHandlers{
-		JSON: createUserJSONHandler,
-		TUI:  createUserTUIHandler,
+		JSON: handlers.CreateUserJSON,
+		TUI:  handlers.CreateUserTUI,
 	}, args)
-}
-
-// createUserJSONHandler handles user creation in JSON mode
-func createUserJSONHandler(
-	ctx context.Context,
-	cobraCmd *cobra.Command,
-	executor *cmd.CommandExecutor,
-	args []string,
-) error {
-	return handlers.CreateUserJSON(ctx, cobraCmd, executor, args)
-}
-
-// createUserTUIHandler handles user creation in TUI mode
-func createUserTUIHandler(
-	ctx context.Context,
-	cobraCmd *cobra.Command,
-	executor *cmd.CommandExecutor,
-	args []string,
-) error {
-	return handlers.CreateUserTUI(ctx, cobraCmd, executor, args)
 }
 
 // ListUsersCmd returns the user listing command
@@ -245,31 +159,10 @@ func ListUsersCmd() *cobra.Command {
 func runListUsers(cobraCmd *cobra.Command, args []string) error {
 	return cmd.ExecuteCommand(cobraCmd, cmd.ExecutorOptions{
 		RequireAuth: true,
-		RequireAPI:  true,
 	}, cmd.ModeHandlers{
-		JSON: listUsersJSONHandler,
-		TUI:  listUsersTUIHandler,
+		JSON: handlers.ListUsersJSON,
+		TUI:  handlers.ListUsersTUI,
 	}, args)
-}
-
-// listUsersJSONHandler handles user listing in JSON mode
-func listUsersJSONHandler(
-	ctx context.Context,
-	cobraCmd *cobra.Command,
-	executor *cmd.CommandExecutor,
-	args []string,
-) error {
-	return handlers.ListUsersJSON(ctx, cobraCmd, executor, args)
-}
-
-// listUsersTUIHandler handles user listing in TUI mode
-func listUsersTUIHandler(
-	ctx context.Context,
-	cobraCmd *cobra.Command,
-	executor *cmd.CommandExecutor,
-	args []string,
-) error {
-	return handlers.ListUsersTUI(ctx, cobraCmd, executor, args)
 }
 
 // UpdateUserCmd returns the user update command
@@ -293,31 +186,10 @@ func UpdateUserCmd() *cobra.Command {
 func runUpdateUser(cobraCmd *cobra.Command, args []string) error {
 	return cmd.ExecuteCommand(cobraCmd, cmd.ExecutorOptions{
 		RequireAuth: true,
-		RequireAPI:  true,
 	}, cmd.ModeHandlers{
-		JSON: updateUserJSONHandler,
-		TUI:  updateUserTUIHandler,
+		JSON: handlers.UpdateUserJSON,
+		TUI:  handlers.UpdateUserTUI,
 	}, args)
-}
-
-// updateUserJSONHandler handles user update in JSON mode
-func updateUserJSONHandler(
-	ctx context.Context,
-	cobraCmd *cobra.Command,
-	executor *cmd.CommandExecutor,
-	args []string,
-) error {
-	return handlers.UpdateUserJSON(ctx, cobraCmd, executor, args)
-}
-
-// updateUserTUIHandler handles user update in TUI mode
-func updateUserTUIHandler(
-	ctx context.Context,
-	cobraCmd *cobra.Command,
-	executor *cmd.CommandExecutor,
-	args []string,
-) error {
-	return handlers.UpdateUserTUI(ctx, cobraCmd, executor, args)
 }
 
 // DeleteUserCmd returns the user deletion command
@@ -340,29 +212,8 @@ func DeleteUserCmd() *cobra.Command {
 func runDeleteUser(cobraCmd *cobra.Command, args []string) error {
 	return cmd.ExecuteCommand(cobraCmd, cmd.ExecutorOptions{
 		RequireAuth: true,
-		RequireAPI:  true,
 	}, cmd.ModeHandlers{
-		JSON: deleteUserJSONHandler,
-		TUI:  deleteUserTUIHandler,
+		JSON: handlers.DeleteUserJSON,
+		TUI:  handlers.DeleteUserTUI,
 	}, args)
-}
-
-// deleteUserJSONHandler handles user deletion in JSON mode
-func deleteUserJSONHandler(
-	ctx context.Context,
-	cobraCmd *cobra.Command,
-	executor *cmd.CommandExecutor,
-	args []string,
-) error {
-	return handlers.DeleteUserJSON(ctx, cobraCmd, executor, args)
-}
-
-// deleteUserTUIHandler handles user deletion in TUI mode
-func deleteUserTUIHandler(
-	ctx context.Context,
-	cobraCmd *cobra.Command,
-	executor *cmd.CommandExecutor,
-	args []string,
-) error {
-	return handlers.DeleteUserTUI(ctx, cobraCmd, executor, args)
 }

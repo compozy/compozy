@@ -22,6 +22,14 @@ const (
 	sortByLastUsed = "last_used"
 )
 
+// SortOrder represents the sort direction
+type SortOrder int
+
+const (
+	SortAscending SortOrder = iota
+	SortDescending
+)
+
 // ListModel represents a generic TUI model for listing items
 type ListModel[T ListableItem] struct {
 	BaseModel
@@ -37,6 +45,7 @@ type ListModel[T ListableItem] struct {
 	loading     bool
 	searching   bool
 	sortBy      string
+	sortOrder   SortOrder
 	currentPage int
 	pageSize    int
 	// Configuration
@@ -113,6 +122,7 @@ func NewListModel[T ListableItem](ctx context.Context, client DataClient[T], col
 		client:    client,
 		loading:   true,
 		sortBy:    sortByCreated,
+		sortOrder: SortDescending, // Default to descending for created date
 		pageSize:  50,
 		columns:   columns,
 		styles:    newListStyles(),
@@ -149,7 +159,9 @@ func (m *ListModel[T]) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.handleItemsLoaded(msg)
 	case errMsg:
 		m.handleError(msg)
-		return m, tea.Quit
+		// Allow user to see the error and potentially retry
+		m.loading = false
+		return m, nil
 	case spinner.TickMsg:
 		if cmd := m.handleSpinnerTick(msg); cmd != nil {
 			cmds = append(cmds, cmd)
@@ -244,6 +256,7 @@ func (m *ListModel[T]) handlePrevPage() {
 func (m *ListModel[T]) handleRefresh() tea.Cmd {
 	if !m.searching {
 		m.loading = true
+		m.SetError(nil) // Clear any previous error when retrying
 		return m.loadItems()
 	}
 	return nil
@@ -331,7 +344,11 @@ func (m *ListModel[T]) buildStatusBar() string {
 	if totalFiltered < totalItems {
 		status += fmt.Sprintf(" (filtered from %d)", totalItems)
 	}
-	status += fmt.Sprintf(" | Sort: %s", m.sortBy)
+	sortDirection := "↑"
+	if m.sortOrder == SortDescending {
+		sortDirection = "↓"
+	}
+	status += fmt.Sprintf(" | Sort: %s %s", m.sortBy, sortDirection)
 	if m.currentPage > 0 || m.hasNextPage() {
 		status += fmt.Sprintf(" | Page %d/%d", m.currentPage+1, m.totalPages())
 	}
@@ -342,6 +359,10 @@ func (m *ListModel[T]) buildStatusBar() string {
 func (m *ListModel[T]) buildHelp() string {
 	if m.searching {
 		return "esc: cancel • enter: apply filter"
+	}
+	// Show retry option when there's an error
+	if m.Error() != nil {
+		return "r: retry • q: quit"
 	}
 	help := []string{
 		"↑/↓: navigate",
@@ -380,7 +401,7 @@ func (m *ListModel[T]) applyFilter() {
 // updateTable updates the table with current data
 func (m *ListModel[T]) updateTable() {
 	// Sort the filtered items
-	m.sortItems(m.filtered, m.sortBy)
+	m.sortItems(m.filtered, m.sortBy, m.sortOrder)
 	// Get current page of items
 	startIdx := m.currentPage * m.pageSize
 	endIdx := startIdx + m.pageSize
@@ -400,36 +421,60 @@ func (m *ListModel[T]) updateTable() {
 	m.table.SetRows(rows)
 }
 
-// sortItems sorts items based on the specified field
-func (m *ListModel[T]) sortItems(items []T, sortBy string) {
+// sortItems sorts items based on the specified field and order
+func (m *ListModel[T]) sortItems(items []T, sortBy string, order SortOrder) {
 	sort.Slice(items, func(i, j int) bool {
 		keyI := items[i].GetSortKey(sortBy)
 		keyJ := items[j].GetSortKey(sortBy)
-		// Handle time.Time sorting
-		if timeI, okI := keyI.(time.Time); okI {
-			if timeJ, okJ := keyJ.(time.Time); okJ {
-				return timeI.After(timeJ)
+
+		// Compare based on type using type switch
+		var ascending bool
+
+		switch valI := keyI.(type) {
+		case time.Time:
+			if valJ, ok := keyJ.(time.Time); ok {
+				ascending = valI.Before(valJ)
 			}
-		}
-		// Handle string sorting
-		if strI, okI := keyI.(string); okI {
-			if strJ, okJ := keyJ.(string); okJ {
-				return strI < strJ
+		case string:
+			if valJ, ok := keyJ.(string); ok {
+				ascending = valI < valJ
 			}
+		case int:
+			if valJ, ok := keyJ.(int); ok {
+				ascending = valI < valJ
+			}
+		case int64:
+			if valJ, ok := keyJ.(int64); ok {
+				ascending = valI < valJ
+			}
+		case float64:
+			if valJ, ok := keyJ.(float64); ok {
+				ascending = valI < valJ
+			}
+		default:
+			return false
 		}
-		return false
+
+		// Apply sort order
+		if order == SortDescending {
+			return !ascending
+		}
+		return ascending
 	})
 }
 
-// cycleSortBy cycles through sort options
+// cycleSortBy cycles through sort options and toggles order
 func (m *ListModel[T]) cycleSortBy() {
 	switch m.sortBy {
 	case sortByCreated:
 		m.sortBy = sortByName
+		m.sortOrder = SortAscending // Names usually sorted ascending
 	case sortByName:
 		m.sortBy = sortByLastUsed
+		m.sortOrder = SortDescending // Recent usage first
 	case sortByLastUsed:
 		m.sortBy = sortByCreated
+		m.sortOrder = SortDescending // Recent creation first
 	}
 }
 
@@ -456,7 +501,7 @@ func (m *ListModel[T]) loadItems() tea.Cmd {
 	return func() tea.Msg {
 		log := logger.FromContext(m.Context())
 		log.Debug("loading items")
-		items, err := m.client.List(m.Context())
+		items, err := m.client.ListKeys(m.Context())
 		if err != nil {
 			return errMsg{err}
 		}

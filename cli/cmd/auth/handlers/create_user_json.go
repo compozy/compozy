@@ -59,8 +59,8 @@ func CreateUserJSON(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.
 
 	// Prepare response
 	response := map[string]any{
-		"user":    user,
-		"message": "User created successfully",
+		"data":    user,
+		"message": "Success",
 	}
 
 	// Output JSON

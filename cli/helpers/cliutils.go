@@ -160,7 +160,16 @@ func formatErrorJSON(err error) string {
 	jsonBytes, err := json.MarshalIndent(errorResponse, "", "  ")
 	if err != nil {
 		// Fallback to simple error message if JSON marshaling fails
-		return fmt.Sprintf(`{"error": {"message": %q}}`, err.Error())
+		fallbackResponse := map[string]any{
+			"error": map[string]any{
+				"message": err.Error(),
+			},
+		}
+		if fallbackBytes, fallbackErr := json.Marshal(fallbackResponse); fallbackErr == nil {
+			return string(fallbackBytes)
+		}
+		// Last resort - return minimal JSON with escaped message
+		return `{"error": {"message": "JSON marshaling failed"}}`
 	}
 	return string(jsonBytes)
 }
@@ -341,7 +350,8 @@ func LogOperation(ctx context.Context, operation string, fn func() error) error 
 	return err
 }
 
-// WithTimeout wraps a function with a timeout context
+// WithTimeout wraps fn with a timeout context that cancels after the given duration.
+// A timeout ≤ 0 disables the timeout and calls fn immediately.
 func WithTimeout(ctx context.Context, timeout time.Duration, fn func(context.Context) error) error {
 	if timeout <= 0 {
 		return fn(ctx)

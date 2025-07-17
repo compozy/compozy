@@ -48,11 +48,8 @@ func RevokeTUI(ctx context.Context, _ *cobra.Command, executor *cmd.CommandExecu
 
 // revokeModel represents the TUI model for key revocation
 type revokeModel struct {
-	ctx    context.Context
-	client interface {
-		ListKeys(ctx context.Context) ([]api.KeyInfo, error)
-		RevokeKey(ctx context.Context, keyID string) error
-	}
+	ctx      context.Context
+	client   api.KeyManager
 	keys     []api.KeyInfo
 	selected int
 	state    revokeState
@@ -79,10 +76,7 @@ type revokeKeysLoadedMsg struct{ keys []api.KeyInfo }
 type revokeKeyRevokedMsg struct{}
 
 // newRevokeModel creates a new TUI model for key revocation
-func newRevokeModel(ctx context.Context, client interface {
-	ListKeys(ctx context.Context) ([]api.KeyInfo, error)
-	RevokeKey(ctx context.Context, keyID string) error
-}) *revokeModel {
+func newRevokeModel(ctx context.Context, client api.KeyManager) *revokeModel {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("69"))

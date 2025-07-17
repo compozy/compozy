@@ -2,13 +2,12 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"os"
 	"sort"
 
 	"github.com/compozy/compozy/cli/api"
 	"github.com/compozy/compozy/cli/cmd"
+	"github.com/compozy/compozy/cli/helpers"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/spf13/cobra"
 )
@@ -57,20 +56,9 @@ func ListUsersJSON(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.C
 	// Apply filters and sorting
 	filteredUsers := filterAndSortUsers(users, filters)
 
-	// Prepare response
-	response := map[string]any{
-		"users": filteredUsers,
-		"total": len(filteredUsers),
-	}
-
-	// Output JSON
-	encoder := json.NewEncoder(os.Stdout)
-	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(response); err != nil {
-		return fmt.Errorf("failed to encode JSON response: %w", err)
-	}
-
-	return nil
+	// Prepare and output response
+	response := buildUsersResponse(filteredUsers)
+	return outputJSONResponse(response)
 }
 
 // parseListUsersFlags extracts and validates flags for user listing
@@ -98,16 +86,8 @@ func parseListUsersFlags(cmd *cobra.Command) (*userFilters, error) {
 	}
 
 	// Validate sort field
-	validSorts := []string{sortCreated, sortName, sortEmail, sortRole}
-	validSort := false
-	for _, valid := range validSorts {
-		if sortBy == valid {
-			validSort = true
-			break
-		}
-	}
-	if !validSort {
-		return nil, fmt.Errorf("invalid sort field: %s (must be one of: %v)", sortBy, validSorts)
+	if !isValidSortField(sortBy) {
+		return nil, fmt.Errorf("invalid sort field: %s (must be one of: %v)", sortBy, getValidSortFields())
 	}
 
 	return &userFilters{
@@ -129,10 +109,8 @@ func filterAndSortUsers(users []api.UserInfo, filters *userFilters) []api.UserIn
 		}
 
 		// Apply text filter (name or email)
-		if filters.filterStr != "" {
-			if !contains(user.Name, filters.filterStr) && !contains(user.Email, filters.filterStr) {
-				continue
-			}
+		if filters.filterStr != "" && !userMatchesTextFilter(&user, filters.filterStr) {
+			continue
 		}
 
 		// TODO: Apply active filter when KeyCount field is available
@@ -160,4 +138,33 @@ func filterAndSortUsers(users []api.UserInfo, filters *userFilters) []api.UserIn
 	})
 
 	return filtered
+}
+
+// isValidSortField checks if the sort field is valid
+func isValidSortField(sortBy string) bool {
+	validSorts := map[string]bool{
+		sortCreated: true,
+		sortName:    true,
+		sortEmail:   true,
+		sortRole:    true,
+	}
+	return validSorts[sortBy]
+}
+
+// getValidSortFields returns the list of valid sort fields
+func getValidSortFields() []string {
+	return []string{sortCreated, sortName, sortEmail, sortRole}
+}
+
+// userMatchesTextFilter checks if a user matches the text filter
+func userMatchesTextFilter(user *api.UserInfo, filter string) bool {
+	return helpers.Contains(user.Name, filter) || helpers.Contains(user.Email, filter)
+}
+
+// buildUsersResponse constructs the JSON response for user listing
+func buildUsersResponse(users []api.UserInfo) map[string]any {
+	return map[string]any{
+		"users": users,
+		"total": len(users),
+	}
 }

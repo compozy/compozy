@@ -222,8 +222,8 @@ compozy dev --debug --watch --log-json
 # Show current configuration
 compozy config show
 
-# Show with sources
-compozy config show --sources --format json
+# Show as JSON
+compozy config show --format json
 
 # Validate configuration
 compozy config validate --config compozy.yaml

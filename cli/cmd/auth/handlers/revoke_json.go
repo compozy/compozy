@@ -51,9 +51,11 @@ func RevokeJSON(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.Comm
 
 	// Prepare response
 	response := map[string]any{
-		"message": "API key revoked successfully",
-		"key_id":  keyID,
-		"revoked": time.Now().Format(time.RFC3339),
+		"data": map[string]any{
+			"key_id":  keyID,
+			"revoked": time.Now().Format(time.RFC3339),
+		},
+		"message": "Success",
 	}
 
 	// Output JSON

@@ -59,10 +59,8 @@ func UpdateUserTUI(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.C
 
 // updateUserModel represents the TUI model for user update
 type updateUserModel struct {
-	ctx    context.Context
-	client interface {
-		UpdateUser(ctx context.Context, userID string, req api.UpdateUserRequest) (*api.UserInfo, error)
-	}
+	ctx         context.Context
+	client      api.UserUpdater
 	state       updateUserState
 	userID      string
 	email       string
@@ -92,9 +90,11 @@ const (
 type userUpdatedMsg struct{ user *api.UserInfo }
 
 // newUpdateUserModel creates a new TUI model for user update
-func newUpdateUserModel(ctx context.Context, client interface {
-	UpdateUser(ctx context.Context, userID string, req api.UpdateUserRequest) (*api.UserInfo, error)
-}, userID, email, name, role string) *updateUserModel {
+func newUpdateUserModel(
+	ctx context.Context,
+	client api.UserUpdater,
+	userID, email, name, role string,
+) *updateUserModel {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("69"))

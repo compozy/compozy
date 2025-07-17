@@ -26,7 +26,9 @@ type client struct {
 func NewAuthClient(cfg *config.Config, apiKey string) (AuthClient, error) {
 	// Use HTTP for localhost development, HTTPS for production
 	scheme := "https"
-	if cfg.Server.Host == "localhost" || cfg.Server.Host == "127.0.0.1" || cfg.Server.Host == "0.0.0.0" {
+	if cfg.Server.Host == "localhost" || cfg.Server.Host == "127.0.0.1" || cfg.Server.Host == "0.0.0.0" ||
+		cfg.Server.Host == "[::1]" ||
+		cfg.Server.Host == "::1" {
 		scheme = "http"
 	}
 	baseURL := fmt.Sprintf("%s://%s:%d/api/v0", scheme, cfg.Server.Host, cfg.Server.Port)
@@ -215,11 +217,6 @@ func (c *client) ListKeys(ctx context.Context) ([]KeyInfo, error) {
 	}
 
 	return result.Data.Keys, nil
-}
-
-// List is an alias for ListKeys to satisfy DataClient interface
-func (c *client) List(ctx context.Context) ([]KeyInfo, error) {
-	return c.ListKeys(ctx)
 }
 
 // RevokeKey revokes an API key by ID

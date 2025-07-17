@@ -2,6 +2,7 @@ package helpers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -162,55 +163,14 @@ func (f *WorkflowFilterer) FilterWorkflows(
 // matchesJSONPath checks if a workflow matches the JSON path criteria
 func (f *WorkflowFilterer) matchesJSONPath(workflow *api.Workflow, jsonPath string) bool {
 	// Convert workflow to JSON for path matching
-	workflowJSON := fmt.Sprintf(`{
-		"id": "%s",
-		"name": "%s",
-		"description": "%s",
-		"version": "%s",
-		"status": "%s",
-		"created_at": "%s",
-		"updated_at": "%s",
-		"tags": [%s],
-		"metadata": %s
-	}`,
-		workflow.ID,
-		workflow.Name,
-		workflow.Description,
-		workflow.Version,
-		workflow.Status,
-		workflow.CreatedAt.Format(time.RFC3339),
-		workflow.UpdatedAt.Format(time.RFC3339),
-		formatTags(workflow.Tags),
-		formatMetadata(workflow.Metadata),
-	)
+	workflowData, err := json.Marshal(workflow)
+	if err != nil {
+		return false
+	}
+	workflowJSON := string(workflowData)
 
 	result := gjson.Get(workflowJSON, jsonPath)
 	return result.Exists() && result.Type != gjson.Null
-}
-
-// formatTags formats tags for JSON
-func formatTags(tags []string) string {
-	if len(tags) == 0 {
-		return ""
-	}
-	quoted := make([]string, len(tags))
-	for i, tag := range tags {
-		quoted[i] = fmt.Sprintf(`%q`, tag)
-	}
-	return strings.Join(quoted, ",")
-}
-
-// formatMetadata formats metadata for JSON
-func formatMetadata(metadata map[string]string) string {
-	if len(metadata) == 0 {
-		return "{}"
-	}
-
-	parts := make([]string, 0, len(metadata))
-	for k, v := range metadata {
-		parts = append(parts, fmt.Sprintf(`%q: %q`, k, v))
-	}
-	return "{" + strings.Join(parts, ",") + "}"
 }
 
 // sortWorkflows sorts workflows based on the provided options

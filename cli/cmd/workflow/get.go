@@ -13,6 +13,7 @@ import (
 	cliutils "github.com/compozy/compozy/cli/helpers"
 	"github.com/compozy/compozy/cli/tui/styles"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/pkg/logger"
 	"github.com/spf13/cobra"
 )
 
@@ -36,7 +37,6 @@ func GetCmd() *cobra.Command {
 func runWorkflowGet(cobraCmd *cobra.Command, args []string) error {
 	return cmd.ExecuteCommand(cobraCmd, cmd.ExecutorOptions{
 		RequireAuth: true,
-		RequireAPI:  true,
 	}, cmd.ModeHandlers{
 		JSON: getJSONHandler,
 		TUI:  getTUIHandler,
@@ -79,6 +79,8 @@ func workflowGetJSONHandler(ctx context.Context, cmd *cobra.Command, client api.
 	// Check if we should show tasks
 	showTasks, err := cmd.Flags().GetBool("show-tasks")
 	if err != nil {
+		// Log error and use default
+		logger.FromContext(ctx).Debug("failed to get show-tasks flag", "error", err)
 		showTasks = false
 	}
 
@@ -122,6 +124,8 @@ func workflowGetTUIHandler(ctx context.Context, cmd *cobra.Command, client api.A
 	// Check if we should show tasks
 	showTasks, err := cmd.Flags().GetBool("show-tasks")
 	if err != nil {
+		// Log error and use default
+		logger.FromContext(ctx).Debug("failed to get show-tasks flag", "error", err)
 		showTasks = false
 	}
 
@@ -168,27 +172,66 @@ func (m *workflowDetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.ready = true
 
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "q", "ctrl+c", "esc":
-			return m, tea.Quit
-		case "up", "k":
-			if m.scrollOffset > 0 {
-				m.scrollOffset--
-			}
-		case "down", "j":
-			// Simple scrolling without exact line count
-			m.scrollOffset++
-		case "pgup":
-			m.scrollOffset -= m.height / 2
-			if m.scrollOffset < 0 {
-				m.scrollOffset = 0
-			}
-		case "pgdn":
-			m.scrollOffset += m.height / 2
-		}
+		return m.handleKeyMsg(msg)
 	}
 
 	return m, nil
+}
+
+// handleKeyMsg handles keyboard input messages
+func (m *workflowDetailModel) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "q", "ctrl+c", "esc":
+		return m, tea.Quit
+	case "up", "k":
+		if m.scrollOffset > 0 {
+			m.scrollOffset--
+		}
+	case "down", "j":
+		m.handleScrollDown()
+	case "pgup":
+		m.handlePageUp()
+	case "pgdn":
+		m.handlePageDown()
+	}
+	return m, nil
+}
+
+// handleScrollDown handles scrolling down one line
+func (m *workflowDetailModel) handleScrollDown() {
+	if m.content != "" {
+		contentLines := strings.Split(m.content, "\n")
+		maxScroll := len(contentLines) - m.height
+		if maxScroll < 0 {
+			maxScroll = 0
+		}
+		if m.scrollOffset < maxScroll {
+			m.scrollOffset++
+		}
+	}
+}
+
+// handlePageUp handles page up scrolling
+func (m *workflowDetailModel) handlePageUp() {
+	m.scrollOffset -= m.height / 2
+	if m.scrollOffset < 0 {
+		m.scrollOffset = 0
+	}
+}
+
+// handlePageDown handles page down scrolling
+func (m *workflowDetailModel) handlePageDown() {
+	if m.content != "" {
+		contentLines := strings.Split(m.content, "\n")
+		maxScroll := len(contentLines) - m.height
+		if maxScroll < 0 {
+			maxScroll = 0
+		}
+		m.scrollOffset += m.height / 2
+		if m.scrollOffset > maxScroll {
+			m.scrollOffset = maxScroll
+		}
+	}
 }
 
 // View implements tea.Model

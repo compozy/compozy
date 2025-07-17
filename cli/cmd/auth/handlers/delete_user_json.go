@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/compozy/compozy/cli/cmd"
@@ -21,6 +22,11 @@ func DeleteUserJSON(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.
 		return outputJSONError("user ID required")
 	}
 	userID := args[0]
+
+	// Basic validation of user ID format
+	if strings.TrimSpace(userID) == "" {
+		return outputJSONError("user ID cannot be empty or whitespace")
+	}
 
 	// Parse flags
 	force, err := cobraCmd.Flags().GetBool("force")
@@ -55,10 +61,12 @@ func DeleteUserJSON(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.
 
 	// Prepare response
 	response := map[string]any{
-		"message": "User deleted successfully",
-		"user_id": userID,
-		"deleted": time.Now().Format(time.RFC3339),
-		"cascade": cascade,
+		"data": map[string]any{
+			"user_id": userID,
+			"deleted": time.Now().Format(time.RFC3339),
+			"cascade": cascade,
+		},
+		"message": "Success",
 	}
 
 	// Output JSON

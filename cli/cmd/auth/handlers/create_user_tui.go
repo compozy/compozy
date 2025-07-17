@@ -62,10 +62,8 @@ func CreateUserTUI(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.C
 
 // createUserModel represents the TUI model for user creation
 type createUserModel struct {
-	ctx    context.Context
-	client interface {
-		CreateUser(ctx context.Context, req api.CreateUserRequest) (*api.UserInfo, error)
-	}
+	ctx         context.Context
+	client      api.AuthClient
 	state       createUserState
 	email       string
 	name        string
@@ -94,9 +92,7 @@ const (
 type userCreatedMsg struct{ user *api.UserInfo }
 
 // newCreateUserModel creates a new TUI model for user creation
-func newCreateUserModel(ctx context.Context, client interface {
-	CreateUser(ctx context.Context, req api.CreateUserRequest) (*api.UserInfo, error)
-}, email, name, role string) *createUserModel {
+func newCreateUserModel(ctx context.Context, client api.AuthClient, email, name, role string) *createUserModel {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("69"))

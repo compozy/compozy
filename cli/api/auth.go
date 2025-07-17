@@ -5,12 +5,27 @@ import (
 	"strings"
 )
 
+// UserUpdater defines the interface for user update operations
+type UserUpdater interface {
+	UpdateUser(ctx context.Context, userID string, req UpdateUserRequest) (*UserInfo, error)
+}
+
+// UserDeleter defines the interface for user deletion operations
+type UserDeleter interface {
+	DeleteUser(ctx context.Context, userID string) error
+}
+
+// KeyManager defines the interface for key management operations
+type KeyManager interface {
+	ListKeys(ctx context.Context) ([]KeyInfo, error)
+	RevokeKey(ctx context.Context, keyID string) error
+}
+
 // AuthClient defines the interface for authentication operations
 type AuthClient interface {
 	// Key Management
 	GenerateKey(ctx context.Context, req *GenerateKeyRequest) (string, error)
 	ListKeys(ctx context.Context) ([]KeyInfo, error)
-	List(ctx context.Context) ([]KeyInfo, error) // Alias for ListKeys to satisfy DataClient interface
 	RevokeKey(ctx context.Context, keyID string) error
 
 	// User Management (Admin only)
@@ -124,6 +139,8 @@ func (k KeyInfo) MatchesSearch(term string) bool {
 }
 
 // contains checks if string s contains substr (case-insensitive)
+// Note: This duplicates helpers.Contains() but is necessary to avoid circular import
+// (helpers package imports api package)
 func contains(s, substr string) bool {
 	return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
 }

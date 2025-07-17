@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -65,7 +66,6 @@ func NewDevCommand() *cobra.Command {
 func executeDevCommand(cobraCmd *cobra.Command, args []string) error {
 	return cmd.ExecuteCommand(cobraCmd, cmd.ExecutorOptions{
 		RequireAuth: false,
-		RequireAPI:  false,
 	}, cmd.ModeHandlers{
 		JSON: handleDevJSON,
 		TUI:  handleDevTUI,
@@ -87,7 +87,9 @@ func runDevServer(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.Co
 	cfg := executor.GetConfig()
 
 	// Setup development environment
-	gin.SetMode(gin.ReleaseMode)
+	if os.Getenv("GIN_MODE") == "" {
+		gin.SetMode(gin.DebugMode)
+	}
 
 	// Environment file is loaded globally in SetupGlobalConfig
 	// No need to load it again here
@@ -203,7 +205,7 @@ func setupWatcher(ctx context.Context, cwd string) (*fsnotify.Watcher, error) {
 		}
 
 		// Count YAML files and track their parent directories
-		if !info.IsDir() && (filepath.Ext(path) == ".yaml" || filepath.Ext(path) == ".yml") {
+		if !info.IsDir() && isYAMLFile(path) {
 			fileCount++
 			dir := filepath.Dir(path)
 			dirsToWatch[dir] = true
@@ -266,8 +268,7 @@ func startWatcher(ctx context.Context, watcher *fsnotify.Watcher, restartChan ch
 			}
 			if event.Has(fsnotify.Write) {
 				// Only react to YAML file changes
-				ext := filepath.Ext(event.Name)
-				if ext == ".yaml" || ext == ".yml" {
+				if isYAMLFile(event.Name) {
 					log.Debug("Detected file change, debouncing...", "file", event.Name)
 
 					debounceMutex.Lock()
@@ -351,4 +352,10 @@ func runAndWatchServer(
 			return nil
 		}
 	}
+}
+
+// isYAMLFile checks if a file has a YAML extension (case-insensitive)
+func isYAMLFile(filename string) bool {
+	ext := strings.ToLower(filepath.Ext(filename))
+	return ext == ".yaml" || ext == ".yml"
 }

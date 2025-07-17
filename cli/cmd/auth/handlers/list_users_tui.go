@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/compozy/compozy/cli/api"
 	"github.com/compozy/compozy/cli/cmd"
+	"github.com/compozy/compozy/cli/helpers"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/spf13/cobra"
 )
@@ -90,9 +91,9 @@ func newListUsersModel(
 
 	columns := []table.Column{
 		{Title: "Name", Width: 20},
-		{Title: "Email", Width: 30},
+		{Title: "Email", Width: 40},
 		{Title: "Role", Width: 10},
-		{Title: "Created", Width: 20},
+		{Title: "Created", Width: 16},
 	}
 
 	t := table.New(
@@ -218,7 +219,7 @@ func (m *listUsersModel) applyFilters(users []api.UserInfo) []api.UserInfo {
 
 		// Apply text filter (name or email)
 		if m.filter != "" {
-			if !contains(user.Name, m.filter) && !contains(user.Email, m.filter) {
+			if !helpers.Contains(user.Name, m.filter) && !helpers.Contains(user.Email, m.filter) {
 				continue
 			}
 		}
