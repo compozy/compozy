@@ -115,6 +115,8 @@ func (r *runtimeAdapter) ExecuteTool(
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate tool execution ID: %w", err)
 	}
+	// Get config from tool configuration
+	config := toolConfig.GetConfig()
 	// Execute the tool using the runtime manager
-	return r.manager.ExecuteTool(ctx, toolConfig.ID, toolExecID, &coreInput, nil)
+	return r.manager.ExecuteTool(ctx, toolConfig.ID, toolExecID, &coreInput, config, core.EnvMap{})
 }

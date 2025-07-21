@@ -1,4 +1,5 @@
 import { MagicCard } from "@/components/magicui/magic-card";
+import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 import type { LucideIcon } from "lucide-react";
 import { ChevronRight } from "lucide-react";
@@ -60,7 +61,7 @@ const featureCard = tv({
 interface FeatureCardProps extends VariantProps<typeof featureCard> {
   title: string;
   description: string;
-  icon?: LucideIcon;
+  icon?: LucideIcon | string;
   href?: string;
   className?: string;
 }
@@ -68,7 +69,7 @@ interface FeatureCardProps extends VariantProps<typeof featureCard> {
 export function FeatureCard({
   title,
   description,
-  icon: Icon,
+  icon: IconComponent,
   href,
   size,
   className,
@@ -78,9 +79,13 @@ export function FeatureCard({
   const content = (
     <div className={styles.content()}>
       <div className={styles.header()}>
-        {Icon && (
+        {IconComponent && (
           <div className={styles.iconWrapper()}>
-            <Icon className={styles.icon()} />
+            {typeof IconComponent === "string" ? (
+              <Icon name={IconComponent} className={styles.icon()} />
+            ) : (
+              <IconComponent className={styles.icon()} />
+            )}
           </div>
         )}
         <h3 className={styles.title()}>{title}</h3>
@@ -123,7 +128,7 @@ export function FeatureCard({
 }
 
 const featureCardList = tv({
-  base: "not-prose grid gap-6",
+  base: "not-prose grid gap-6 mb-12",
   variants: {
     cols: {
       1: "grid-cols-1",

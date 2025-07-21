@@ -23,6 +23,9 @@ const (
 	ExecutionCollection ExecutionType = "collection"
 	ExecutionComposite  ExecutionType = "composite"
 	ExecutionWait       ExecutionType = "wait"
+	ExecutionSignal     ExecutionType = "signal"
+	ExecutionAggregate  ExecutionType = "aggregate"
+	ExecutionMemory     ExecutionType = "memory"
 )
 
 // -----------------------------------------------------------------------------
@@ -157,11 +160,13 @@ func (s *State) IsParallelExecution() bool {
 	return s.ExecutionType == ExecutionParallel
 }
 
-// CanHaveChildren returns true if this task can have child tasks (parallel, collection, or composite)
+// CanHaveChildren returns true if this task can have child tasks (parallel, collection, composite, aggregate, memory)
 func (s *State) CanHaveChildren() bool {
 	return s.ExecutionType == ExecutionParallel ||
 		s.ExecutionType == ExecutionCollection ||
-		s.ExecutionType == ExecutionComposite
+		s.ExecutionType == ExecutionComposite ||
+		s.ExecutionType == ExecutionAggregate ||
+		s.ExecutionType == ExecutionMemory
 }
 
 // IsChildTask returns true if this task is a child task (has a parent)

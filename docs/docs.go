@@ -5247,7 +5247,10 @@ const docTemplate = `{
                 "parallel",
                 "collection",
                 "composite",
-                "wait"
+                "wait",
+                "signal",
+                "aggregate",
+                "memory"
             ],
             "x-enum-varnames": [
                 "ExecutionBasic",
@@ -5255,7 +5258,10 @@ const docTemplate = `{
                 "ExecutionParallel",
                 "ExecutionCollection",
                 "ExecutionComposite",
-                "ExecutionWait"
+                "ExecutionWait",
+                "ExecutionSignal",
+                "ExecutionAggregate",
+                "ExecutionMemory"
             ]
         },
         "task.State": {

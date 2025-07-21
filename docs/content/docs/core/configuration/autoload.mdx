@@ -1,97 +1,20 @@
 ---
-title: AutoLoad Configuration
+title: AutoLoad
 description: Automatic discovery and hot-reloading of project resources during development. Reduce configuration boilerplate by 80% and enable seamless development workflows.
 ---
 
-import {
-  FolderOpen,
-  Zap,
-  Shield,
-  RefreshCw,
-  Eye,
-  Settings,
-  FileCode,
-  Code,
-  Lock,
-  AlertTriangle,
-  CheckCircle,
-  XCircle,
-  Search,
-  GitBranch,
-  Database,
-  Layers,
-  Package,
-  FileText,
-  Play,
-  Pause,
-  Terminal,
-  Folder,
-  FileJson,
-  Cpu,
-  TrendingUp,
-  Clock,
-  Target,
-  Workflow,
-  FileCheck,
-  AlertCircle,
-  Info,
-  BookOpen,
-  Lightbulb,
-  Users,
-  MessageSquare,
-  HelpCircle,
-  Rocket,
-  Star,
-  Gauge,
-  Filter,
-  Globe,
-  ArrowRight,
-  ArrowDown,
-  ChevronRight,
-  Activity,
-  Cloud,
-  Server,
-  Network,
-  Wrench,
-  Compass,
-  BarChart3,
-  Monitor,
-  PieChart,
-  Bot,
-  Sparkles,
-  Boxes,
-  Radio,
-  BrainCircuit,
-  Cog,
-  Home,
-  List,
-  Hash,
-  FileX,
-  Grid,
-  Maximize,
-  Minimize,
-} from "lucide-react";
-import { FeatureCard, FeatureCardList } from "@/components/ui/feature-card";
-
-AutoLoad is Compozy's **development workflow optimization engine** that automatically discovers and loads project resources without manual configuration. It reduces boilerplate by up to 80% and enables hot-reloading for seamless development experiences.
-
 ## Overview
 
-<FeatureCardList cols={3} size="sm">
+<FeatureCardList cols={2} size="sm">
   <FeatureCard
     title="Automatic Discovery"
     description="Scan project directories and automatically load agents, tools, workflows, and memory configurations"
-    icon={Search}
+    icon="Search"
   />
   <FeatureCard
     title="Hot-Reloading"
     description="Monitor file changes and reload resources instantly without restarting the server"
-    icon={RefreshCw}
-  />
-  <FeatureCard
-    title="Security-First"
-    description="Built-in path validation and security checks prevent directory traversal attacks"
-    icon={Shield}
+    icon="RefreshCw"
   />
 </FeatureCardList>
 
@@ -184,135 +107,9 @@ autoload:
 
 </Tabs>
 
-### Configuration Options
-
-<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-  <div className="space-y-4">
-    <div className="border border-border rounded-lg p-4">
-      <div className="flex items-center gap-2 mb-2">
-        <Zap className="w-4 h-4 text-green-500" />
-        <span className="font-medium">enabled</span>
-        <span className="text-sm text-muted-foreground">boolean</span>
-      </div>
-      <p className="text-sm text-muted-foreground">
-        Activates automatic resource discovery and loading
-      </p>
-      <div className="mt-2 text-xs text-muted-foreground">
-        Default: <code>false</code>
-      </div>
-    </div>
-
-    <div className="border border-border rounded-lg p-4">
-      <div className="flex items-center gap-2 mb-2">
-        <Shield className="w-4 h-4 text-blue-500" />
-        <span className="font-medium">strict</span>
-        <span className="text-sm text-muted-foreground">boolean</span>
-      </div>
-      <p className="text-sm text-muted-foreground">
-        Controls error handling. When true, fails immediately on load errors
-      </p>
-      <div className="mt-2 text-xs text-muted-foreground">
-        Default: <code>true</code>
-      </div>
-    </div>
-
-    <div className="border border-border rounded-lg p-4">
-      <div className="flex items-center gap-2 mb-2">
-        <RefreshCw className="w-4 h-4 text-purple-500" />
-        <span className="font-medium">watch_enabled</span>
-        <span className="text-sm text-muted-foreground">boolean</span>
-      </div>
-      <p className="text-sm text-muted-foreground">
-        Enables file system monitoring for hot-reloading
-      </p>
-      <div className="mt-2 text-xs text-muted-foreground">
-        Default: <code>false</code>
-      </div>
-    </div>
-  </div>
-
-  <div className="space-y-4">
-    <div className="border border-border rounded-lg p-4">
-      <div className="flex items-center gap-2 mb-2">
-        <Search className="w-4 h-4 text-orange-500" />
-        <span className="font-medium">include</span>
-        <span className="text-sm text-muted-foreground">[]string</span>
-      </div>
-      <p className="text-sm text-muted-foreground">
-        Glob patterns for discovering resources
-      </p>
-      <div className="mt-2 text-xs text-muted-foreground">
-        Required when enabled
-      </div>
-    </div>
-
-    <div className="border border-border rounded-lg p-4">
-      <div className="flex items-center gap-2 mb-2">
-        <XCircle className="w-4 h-4 text-red-500" />
-        <span className="font-medium">exclude</span>
-        <span className="text-sm text-muted-foreground">[]string</span>
-      </div>
-      <p className="text-sm text-muted-foreground">
-        Patterns for files to ignore during discovery
-      </p>
-      <div className="mt-2 text-xs text-muted-foreground">
-        Optional
-      </div>
-    </div>
-  </div>
-</div>
-
 ## Include/Exclude Patterns
 
-### Glob Pattern Syntax
-
 AutoLoad uses **doublestar glob patterns** for powerful file matching:
-
-<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-  <div className="border border-border rounded-lg p-4">
-    <h4 className="font-medium mb-2 flex items-center gap-2">
-      <FileCode className="w-4 h-4" />
-      Basic Patterns
-    </h4>
-    <div className="space-y-2 text-sm">
-      <div className="flex justify-between">
-        <code>*.yaml</code>
-        <span className="text-muted-foreground">All YAML files</span>
-      </div>
-      <div className="flex justify-between">
-        <code>agents/</code>
-        <span className="text-muted-foreground">Directory contents</span>
-      </div>
-      <div className="flex justify-between">
-        <code>tools/*</code>
-        <span className="text-muted-foreground">Direct children</span>
-      </div>
-    </div>
-  </div>
-
-  <div className="border border-border rounded-lg p-4">
-    <h4 className="font-medium mb-2 flex items-center gap-2">
-      <Layers className="w-4 h-4" />
-      Advanced Patterns
-    </h4>
-    <div className="space-y-2 text-sm">
-      <div className="flex justify-between">
-        <code>**/*.yaml</code>
-        <span className="text-muted-foreground">All nested files</span>
-      </div>
-      <div className="flex justify-between">
-        <code>agents/**/</code>
-        <span className="text-muted-foreground">All subdirectories</span>
-      </div>
-      <div className="flex justify-between">
-        <code>*-tool.yaml</code>
-        <span className="text-muted-foreground">Pattern matching</span>
-      </div>
-    </div>
-  </div>
-</div>
-
-### Common Include Patterns
 
 <Tabs items={["By Resource Type", "By Structure", "By Convention"]}>
 
@@ -357,72 +154,11 @@ include:
 
 </Tabs>
 
-### Default Exclusions
-
-AutoLoad automatically excludes common temporary and system files:
-
-<div className="bg-muted/50 rounded-lg p-4">
-  <h4 className="font-medium mb-2 flex items-center gap-2">
-    <FileX className="w-4 h-4" />
-    Automatically Excluded
-  </h4>
-  <div className="grid grid-cols-2 gap-2 text-sm font-mono">
-    <div>**/.#*</div>
-    <div>**/*~</div>
-    <div>**/*.bak</div>
-    <div>**/*.swp</div>
-    <div>**/*.tmp</div>
-    <div>**/._*</div>
-  </div>
-  <p className="text-xs text-muted-foreground mt-2">
-    These patterns are always excluded for security and performance
-  </p>
-</div>
-
-### Custom Exclusions
-
-<Tabs items={["Development", "Testing", "Production"]}>
-
-<Tab>
-```yaml
-exclude:
-  - "**/*-draft.yaml"        # Draft configurations
-  - "**/*-wip.yaml"          # Work in progress
-  - "**/scratch/**"          # Scratch directories
-  - "**/*.local.yaml"        # Local overrides
-```
-</Tab>
-
-<Tab>
-```yaml
-exclude:
-  - "**/*-test.yaml"         # Test configurations
-  - "**/test/**"             # Test directories
-  - "**/*.spec.yaml"         # Test specifications
-  - "**/fixtures/**"         # Test fixtures
-```
-</Tab>
-
-<Tab>
-```yaml
-exclude:
-  - "**/*-dev.yaml"          # Development configs
-  - "**/*-debug.yaml"        # Debug configurations
-  - "**/archive/**"          # Archived resources
-  - "**/*.backup"            # Backup files
-```
-</Tab>
-
-</Tabs>
-
 ## Development Workflow
 
 ### Hot-Reloading Setup
 
 Enable `watch_enabled` for automatic reloading during development:
-
-<Steps>
-<Step title="Enable File Watching" description="Configure AutoLoad to monitor file changes">
 
 ```yaml title="compozy.yaml"
 autoload:
@@ -434,61 +170,51 @@ autoload:
     - "tools/**/*.yaml"
     - "memory/**/*.yaml"
 ```
-
-</Step>
-
-<Step title="Start Development Server" description="Launch with hot-reloading enabled">
-
-```bash
-# Start with development mode
-compozy dev
-
-# Or start with explicit watch mode
-compozy serve --watch
-```
-
-</Step>
-
-<Step title="Test Live Reloading" description="Modify resources and see changes instantly">
-
-```bash
-# Create a new agent
-echo 'resource: agent
-id: test-agent
-description: Test agent for development
-config:
-  provider: openai
-  model: gpt-4.1-2025-04-14
-instructions: You are a helpful test agent.' > agents/test-agent.yaml
-
-# AutoLoad will automatically detect and load the new agent
-# Check the logs to see the loading process
-```
-
-</Step>
-</Steps>
-
 ### Directory Structure Recommendations
 
 <Tabs items={["Flat Structure", "Nested Structure", "Domain Structure"]}>
 
 <Tab>
-```
-project/
-├── compozy.yaml
-├── workflow.yaml
-├── agents/
-│   ├── researcher.yaml
-│   ├── writer.yaml
-│   └── reviewer.yaml
-├── tools/
-│   ├── web-search.yaml
-│   ├── file-parser.yaml
-│   └── email-sender.yaml
-└── memory/
-    ├── conversation.yaml
-    └── user-context.yaml
-```
+<ProjectStructure
+  structure={[
+    {
+      id: "project",
+      name: "project/",
+      children: [
+        { id: "compozy-yaml", name: "compozy.yaml" },
+        { id: "workflow-yaml", name: "workflow.yaml" },
+        {
+          id: "agents",
+          name: "agents/",
+          children: [
+            { id: "researcher", name: "researcher.yaml" },
+            { id: "writer", name: "writer.yaml" },
+            { id: "reviewer", name: "reviewer.yaml" },
+          ],
+        },
+        {
+          id: "tools",
+          name: "tools/",
+          children: [
+            { id: "web-search", name: "web-search.yaml" },
+            { id: "file-parser", name: "file-parser.yaml" },
+            { id: "email-sender", name: "email-sender.yaml" },
+          ],
+        },
+        {
+          id: "memory",
+          name: "memory/",
+          children: [
+            { id: "conversation", name: "conversation.yaml" },
+            { id: "user-context", name: "user-context.yaml" },
+          ],
+        },
+      ],
+    },
+  ]}
+  initialSelectedId="project"
+  initialExpandedItems={["project", "agents", "tools", "memory"]}
+/>
 
 **AutoLoad Configuration:**
 ```yaml
@@ -502,30 +228,84 @@ autoload:
 </Tab>
 
 <Tab>
-```
-project/
-├── compozy.yaml
-├── workflow.yaml
-├── agents/
-│   ├── content/
-│   │   ├── writer.yaml
-│   │   └── editor.yaml
-│   └── research/
-│       ├── web-researcher.yaml
-│       └── data-analyzer.yaml
-├── tools/
-│   ├── external/
-│   │   ├── api-client.yaml
-│   │   └── webhook.yaml
-│   └── internal/
-│       ├── validator.yaml
-│       └── formatter.yaml
-└── memory/
-    ├── short-term/
-    │   └── session.yaml
-    └── long-term/
-        └── knowledge.yaml
-```
+<ProjectStructure
+  structure={[
+    {
+      id: "project",
+      name: "project/",
+      children: [
+        { id: "compozy-yaml", name: "compozy.yaml" },
+        { id: "workflow-yaml", name: "workflow.yaml" },
+        {
+          id: "agents",
+          name: "agents/",
+          children: [
+            {
+              id: "content",
+              name: "content/",
+              children: [
+                { id: "writer", name: "writer.yaml" },
+                { id: "editor", name: "editor.yaml" },
+              ],
+            },
+            {
+              id: "research",
+              name: "research/",
+              children: [
+                { id: "web-researcher", name: "web-researcher.yaml" },
+                { id: "data-analyzer", name: "data-analyzer.yaml" },
+              ],
+            },
+          ],
+        },
+        {
+          id: "tools",
+          name: "tools/",
+          children: [
+            {
+              id: "external",
+              name: "external/",
+              children: [
+                { id: "api-client", name: "api-client.yaml" },
+                { id: "webhook", name: "webhook.yaml" },
+              ],
+            },
+            {
+              id: "internal",
+              name: "internal/",
+              children: [
+                { id: "validator", name: "validator.yaml" },
+                { id: "formatter", name: "formatter.yaml" },
+              ],
+            },
+          ],
+        },
+        {
+          id: "memory",
+          name: "memory/",
+          children: [
+            {
+              id: "short-term",
+              name: "short-term/",
+              children: [
+                { id: "session", name: "session.yaml" },
+              ],
+            },
+            {
+              id: "long-term",
+              name: "long-term/",
+              children: [
+                { id: "knowledge", name: "knowledge.yaml" },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  ]}
+  initialSelectedId="project"
+  initialExpandedItems={["project", "agents", "tools", "memory", "content", "research", "external", "internal", "short-term", "long-term"]}
+/>
 
 **AutoLoad Configuration:**
 ```yaml
@@ -539,27 +319,81 @@ autoload:
 </Tab>
 
 <Tab>
-```
-project/
-├── compozy.yaml
-├── domains/
-│   ├── content-creation/
-│   │   ├── agents/
-│   │   │   ├── writer.yaml
-│   │   │   └── editor.yaml
-│   │   ├── tools/
-│   │   │   └── grammar-check.yaml
-│   │   └── memory/
-│   │       └── style-guide.yaml
-│   └── data-processing/
-│       ├── agents/
-│       │   └── analyzer.yaml
-│       ├── tools/
-│       │   ├── parser.yaml
-│       │   └── validator.yaml
-│       └── workflows/
-│           └── etl-pipeline.yaml
-```
+<ProjectStructure
+  structure={[
+    {
+      id: "project",
+      name: "project/",
+      children: [
+        { id: "compozy-yaml", name: "compozy.yaml" },
+        {
+          id: "domains",
+          name: "domains/",
+          children: [
+            {
+              id: "content-creation",
+              name: "content-creation/",
+              children: [
+                {
+                  id: "agents-cc",
+                  name: "agents/",
+                  children: [
+                    { id: "writer", name: "writer.yaml" },
+                    { id: "editor", name: "editor.yaml" },
+                  ],
+                },
+                {
+                  id: "tools-cc",
+                  name: "tools/",
+                  children: [
+                    { id: "grammar-check", name: "grammar-check.yaml" },
+                  ],
+                },
+                {
+                  id: "memory-cc",
+                  name: "memory/",
+                  children: [
+                    { id: "style-guide", name: "style-guide.yaml" },
+                  ],
+                },
+              ],
+            },
+            {
+              id: "data-processing",
+              name: "data-processing/",
+              children: [
+                {
+                  id: "agents-dp",
+                  name: "agents/",
+                  children: [
+                    { id: "analyzer", name: "analyzer.yaml" },
+                  ],
+                },
+                {
+                  id: "tools-dp",
+                  name: "tools/",
+                  children: [
+                    { id: "parser", name: "parser.yaml" },
+                    { id: "validator", name: "validator.yaml" },
+                  ],
+                },
+                {
+                  id: "workflows-dp",
+                  name: "workflows/",
+                  children: [
+                    { id: "etl-pipeline", name: "etl-pipeline.yaml" },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  ]}
+  initialSelectedId="project"
+  initialExpandedItems={["project", "domains", "content-creation", "data-processing", "agents-cc", "tools-cc", "memory-cc", "agents-dp", "tools-dp", "workflows-dp"]}
+/>
 
 **AutoLoad Configuration:**
 ```yaml
@@ -575,55 +409,30 @@ autoload:
 
 </Tabs>
 
-## Resource Discovery
-
-### Supported Resource Types
+## Supported Resource Types
 
 AutoLoad automatically discovers and registers these resource types:
 
-<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-  <div className="border border-border rounded-lg p-4">
-    <h4 className="font-medium mb-2 flex items-center gap-2">
-      <BrainCircuit className="w-4 h-4 text-blue-500" />
-      AI Components
-    </h4>
-    <div className="space-y-2 text-sm">
-      <div className="flex items-center gap-2">
-        <Bot className="w-3 h-3" />
-        <span>Agents</span>
-      </div>
-      <div className="flex items-center gap-2">
-        <Wrench className="w-3 h-3" />
-        <span>Tools</span>
-      </div>
-      <div className="flex items-center gap-2">
-        <Database className="w-3 h-3" />
-        <span>Memory</span>
-      </div>
-    </div>
-  </div>
-
-  <div className="border border-border rounded-lg p-4">
-    <h4 className="font-medium mb-2 flex items-center gap-2">
-      <Cog className="w-4 h-4 text-green-500" />
-      System Components
-    </h4>
-    <div className="space-y-2 text-sm">
-      <div className="flex items-center gap-2">
-        <Workflow className="w-3 h-3" />
-        <span>Workflows</span>
-      </div>
-      <div className="flex items-center gap-2">
-        <Radio className="w-3 h-3" />
-        <span>MCP Servers</span>
-      </div>
-      <div className="flex items-center gap-2">
-        <Home className="w-3 h-3" />
-        <span>Projects</span>
-      </div>
-    </div>
-  </div>
-</div>
+<List>
+  <ListItem title="Agents" icon="Bot">
+    AI-powered components that understand natural language
+  </ListItem>
+  <ListItem title="Tools" icon="Wrench">
+    TypeScript functions for specific operations
+  </ListItem>
+  <ListItem title="Memory" icon="Database">
+    Persistent context and conversation history
+  </ListItem>
+  <ListItem title="Workflows" icon="Workflow">
+    Task orchestration and execution flows
+  </ListItem>
+  <ListItem title="MCP Servers" icon="Radio">
+    Model Context Protocol server configurations
+  </ListItem>
+  <ListItem title="Projects" icon="Home">
+    Project-level configurations and settings
+  </ListItem>
+</List>
 
 ### Resource Format Requirements
 
@@ -666,7 +475,6 @@ id: web-search
 description: Web search tool for finding information
 version: 1.0.0
 
-execute: ./tools/web-search.ts
 input:
   type: object
   properties:
@@ -878,7 +686,6 @@ dependencies:
   - $ref: resource::tool::#(id=='text-analyzer')
   - $ref: resource::tool::#(id=='format-converter')
 
-execute: ./tools/content-processor.ts
 input:
   type: object
   properties:
@@ -898,25 +705,6 @@ input:
 
 </Tabs>
 
-### Reference Field Access
-
-Access specific fields from auto-loaded resources:
-
-```yaml
-# Access specific configuration fields
-model_config: "{{ resource::agent::#(id=='researcher').config }}"
-api_key: "{{ resource::agent::#(id=='researcher').config.api_key }}"
-instructions: "{{ resource::agent::#(id=='researcher').instructions }}"
-
-# Access tool schemas
-tool_input_schema: "{{ resource::tool::#(id=='web-search').input }}"
-tool_output_schema: "{{ resource::tool::#(id=='web-search').output }}"
-
-# Access memory configuration
-memory_type: "{{ resource::memory::#(id=='conversation').config.type }}"
-retention_policy: "{{ resource::memory::#(id=='conversation').config.retention }}"
-```
-
 ## Strict vs Non-Strict Mode
 
 ### Strict Mode (Production)
@@ -929,171 +717,9 @@ autoload:
   strict: true  # Fail fast on errors
 ```
 
-<Alert type="error" className="mt-4">
-  <AlertTriangle className="w-4 h-4" />
-  <div>
-    <strong>Strict Mode Behavior</strong>
-    <p>Any invalid resource file will cause the entire application to fail startup. Use this in production to ensure all resources are valid.</p>
-  </div>
-</Alert>
-
-### Non-Strict Mode (Development)
-
-When `strict: false`, AutoLoad logs errors but continues loading valid resources:
-
-```yaml title="compozy.yaml"
-autoload:
-  enabled: true
-  strict: false  # Continue on errors
-```
-
-<Alert type="info" className="mt-4">
-  <Info className="w-4 h-4" />
-  <div>
-    <strong>Non-Strict Mode Benefits</strong>
-    <p>Perfect for development where you might have partial or experimental resources. Invalid files are logged but don't stop the application.</p>
-  </div>
-</Alert>
-
-### Error Handling Examples
-
-<Tabs items={["Strict Mode", "Non-Strict Mode"]}>
-
-<Tab>
-```bash
-# Strict mode with invalid resource
-ERROR: AutoLoad failed: invalid resource in agents/broken-agent.yaml
-ERROR: YAML syntax error at line 15: invalid character
-
-# Application exits with code 1
-Process terminated
-```
-
-**Use Cases:**
-- Production environments
-- CI/CD pipelines
-- When resource integrity is critical
-</Tab>
-
-<Tab>
-```bash
-# Non-strict mode with invalid resource
-WARN: Skipping invalid resource: agents/broken-agent.yaml
-WARN: YAML syntax error at line 15: invalid character
-INFO: Loaded 8 out of 9 resources successfully
-
-# Application continues running
-Server listening on :5001
-```
-
-**Use Cases:**
-- Development environments
-- Iterative resource development
-- When partial loading is acceptable
-</Tab>
-
-</Tabs>
-
-## Performance Optimization
-
-### File Watching Performance
-
-File watching can impact performance in large projects. Optimize with targeted patterns:
-
-<Tabs items={["Optimized Patterns", "Avoid These", "Performance Tips"]}>
-
-<Tab>
-```yaml
-# ✅ Efficient patterns
-autoload:
-  enabled: true
-  watch_enabled: true
-  include:
-    - "agents/*.yaml"           # Specific directory
-    - "tools/production/*.yaml" # Targeted subdirectory
-    - "memory/active/*.yaml"    # Limited scope
-  exclude:
-    - "**/node_modules/**"      # Exclude heavy directories
-    - "**/.git/**"              # Exclude version control
-    - "**/tmp/**"               # Exclude temporary files
-```
-</Tab>
-
-<Tab>
-```yaml
-# ❌ Inefficient patterns
-autoload:
-  enabled: true
-  watch_enabled: true
-  include:
-    - "**/*.yaml"               # Too broad
-    - "**/*"                    # Watches all files
-    - "src/**/*.yaml"           # Large source directories
-```
-</Tab>
-
-<Tab>
-<div className="space-y-4">
-  <div className="border border-border rounded-lg p-4">
-    <h4 className="font-medium mb-2 flex items-center gap-2">
-      <TrendingUp className="w-4 h-4 text-green-500" />
-      Performance Best Practices
-    </h4>
-    <ul className="space-y-2 text-sm">
-      <li className="flex items-start gap-2">
-        <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
-        <span>Use specific directory patterns instead of wildcards</span>
-      </li>
-      <li className="flex items-start gap-2">
-        <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
-        <span>Exclude large directories like node_modules, .git, tmp</span>
-      </li>
-      <li className="flex items-start gap-2">
-        <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
-        <span>Disable watch_enabled in production environments</span>
-      </li>
-      <li className="flex items-start gap-2">
-        <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
-        <span>Use targeted include patterns for active resources</span>
-      </li>
-    </ul>
-  </div>
-</div>
-</Tab>
-
-</Tabs>
-
-### Registry Performance
-
-The AutoLoad registry is optimized for concurrent access:
-
-<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-  <div className="border border-border rounded-lg p-4">
-    <h4 className="font-medium mb-2 flex items-center gap-2">
-      <Cpu className="w-4 h-4 text-blue-500" />
-      Concurrent Safety
-    </h4>
-    <ul className="space-y-2 text-sm">
-      <li>Thread-safe read/write operations</li>
-      <li>Efficient concurrent registry access</li>
-      <li>Defensive copying prevents data races</li>
-      <li>Optimized for read-heavy workloads</li>
-    </ul>
-  </div>
-
-  <div className="border border-border rounded-lg p-4">
-    <h4 className="font-medium mb-2 flex items-center gap-2">
-      <BarChart3 className="w-4 h-4 text-purple-500" />
-      Memory Efficiency
-    </h4>
-    <ul className="space-y-2 text-sm">
-      <li>Minimal memory overhead per resource</li>
-      <li>Efficient string interning for IDs</li>
-      <li>Smart caching of parsed configurations</li>
-      <li>Garbage collection friendly design</li>
-    </ul>
-  </div>
-</div>
+<Callout type="error" title="Strict Mode Behavior">
+  Any invalid resource file will cause the entire application to fail startup. Use this in production to ensure all resources are valid.
+</Callout>
 
 ## Security Features
 
@@ -1101,36 +727,42 @@ The AutoLoad registry is optimized for concurrent access:
 
 AutoLoad includes comprehensive security measures:
 
-<div className="space-y-4">
-  <div className="border border-border rounded-lg p-4">
-    <h4 className="font-medium mb-2 flex items-center gap-2">
-      <Shield className="w-4 h-4 text-red-500" />
-      Security Protections
-    </h4>
-    <ul className="space-y-2 text-sm">
-      <li className="flex items-start gap-2">
-        <Lock className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
-        <span><strong>Path Traversal Prevention:</strong> Blocks `../` and absolute paths</span>
-      </li>
-      <li className="flex items-start gap-2">
-        <Lock className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
-        <span><strong>Symlink Resolution:</strong> Validates symbolic links stay within project root</span>
-      </li>
-      <li className="flex items-start gap-2">
-        <Lock className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
-        <span><strong>Pattern Validation:</strong> Rejects malicious glob patterns</span>
-      </li>
-      <li className="flex items-start gap-2">
-        <Lock className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
-        <span><strong>Default Exclusions:</strong> Automatically excludes system and temporary files</span>
-      </li>
-    </ul>
-  </div>
-</div>
+<List>
+  <ListItem title="Path Traversal Prevention" icon="Lock">
+    Blocks `../` and absolute paths to prevent directory traversal attacks
+  </ListItem>
+  <ListItem title="Symlink Resolution" icon="Lock">
+    Validates symbolic links stay within project root directory
+  </ListItem>
+  <ListItem title="Pattern Validation" icon="Lock">
+    Rejects malicious glob patterns that could access sensitive files
+  </ListItem>
+  <ListItem title="Default Exclusions" icon="Lock">
+    Automatically excludes system and temporary files for security
+  </ListItem>
+</List>
 
 ### Security Best Practices
 
-<Tabs items={["Safe Patterns", "Dangerous Patterns", "Security Checklist"]}>
+<List className="mt-4 mb-6">
+  <ListItem title="Use only relative paths in include patterns" icon="CheckCircle">
+    Avoid absolute paths that could access system files
+  </ListItem>
+  <ListItem title="Exclude sensitive directories (.env, .ssh, secrets)" icon="CheckCircle">
+    Prevent accidental exposure of sensitive configuration files
+  </ListItem>
+  <ListItem title="Validate all auto-loaded resources in CI/CD" icon="CheckCircle">
+    Ensure resource validation in your deployment pipeline
+  </ListItem>
+  <ListItem title="Use strict mode in production environments" icon="CheckCircle">
+    Fail fast on any resource loading errors in production
+  </ListItem>
+  <ListItem title="Regularly audit include/exclude patterns" icon="CheckCircle">
+    Review patterns to ensure they still meet security requirements
+  </ListItem>
+</List>
+
+<Tabs items={["Safe Patterns", "Dangerous Patterns"]}>
 
 <Tab>
 ```yaml
@@ -1160,547 +792,55 @@ autoload:
 ```
 </Tab>
 
-<Tab>
-<div className="space-y-4">
-  <div className="border border-border rounded-lg p-4">
-    <h4 className="font-medium mb-2 flex items-center gap-2">
-      <CheckCircle className="w-4 h-4 text-green-500" />
-      Security Checklist
-    </h4>
-    <ul className="space-y-2 text-sm">
-      <li className="flex items-start gap-2">
-        <input type="checkbox" className="mt-1" />
-        <span>Use only relative paths in include patterns</span>
-      </li>
-      <li className="flex items-start gap-2">
-        <input type="checkbox" className="mt-1" />
-        <span>Exclude sensitive directories (.env, .ssh, secrets)</span>
-      </li>
-      <li className="flex items-start gap-2">
-        <input type="checkbox" className="mt-1" />
-        <span>Validate all auto-loaded resources in CI/CD</span>
-      </li>
-      <li className="flex items-start gap-2">
-        <input type="checkbox" className="mt-1" />
-        <span>Use strict mode in production environments</span>
-      </li>
-      <li className="flex items-start gap-2">
-        <input type="checkbox" className="mt-1" />
-        <span>Regularly audit include/exclude patterns</span>
-      </li>
-    </ul>
-  </div>
-</div>
-</Tab>
-
 </Tabs>
 
-## Troubleshooting
-
-### Common Issues
-
-<div className="space-y-4">
-  <div className="border border-border rounded-lg p-4">
-    <h4 className="font-medium mb-2 flex items-center gap-2">
-      <AlertTriangle className="w-4 h-4 text-orange-500" />
-      Resources Not Loading
-    </h4>
-    <div className="space-y-2 text-sm">
-      <p><strong>Symptoms:</strong> Expected resources not found in workflow</p>
-      <p><strong>Solutions:</strong></p>
-      <ul className="ml-4 space-y-1">
-        <li>• Check include patterns match file locations</li>
-        <li>• Verify resource files have `resource` and `id` fields</li>
-        <li>• Ensure files are not excluded by default patterns</li>
-        <li>• Check file permissions and accessibility</li>
-      </ul>
-    </div>
-  </div>
-
-  <div className="border border-border rounded-lg p-4">
-    <h4 className="font-medium mb-2 flex items-center gap-2">
-      <XCircle className="w-4 h-4 text-red-500" />
-      Parse Errors
-    </h4>
-    <div className="space-y-2 text-sm">
-      <p><strong>Symptoms:</strong> YAML syntax errors or invalid configurations</p>
-      <p><strong>Solutions:</strong></p>
-      <ul className="ml-4 space-y-1">
-        <li>• Validate YAML syntax with a linter</li>
-        <li>• Check for required fields (resource, id)</li>
-        <li>• Use non-strict mode during development</li>
-        <li>• Review error messages for specific issues</li>
-      </ul>
-    </div>
-  </div>
-
-  <div className="border border-border rounded-lg p-4">
-    <h4 className="font-medium mb-2 flex items-center gap-2">
-      <Clock className="w-4 h-4 text-blue-500" />
-      Performance Issues
-    </h4>
-    <div className="space-y-2 text-sm">
-      <p><strong>Symptoms:</strong> Slow startup or high CPU usage</p>
-      <p><strong>Solutions:</strong></p>
-      <ul className="ml-4 space-y-1">
-        <li>• Use more specific include patterns</li>
-        <li>• Exclude large directories (node_modules, .git)</li>
-        <li>• Disable watch_enabled in production</li>
-        <li>• Optimize directory structure</li>
-      </ul>
-    </div>
-  </div>
-</div>
-
-### Debug Commands
-
-<Tabs items={["Validate Configuration", "Test Discovery", "Monitor Performance"]}>
-
-<Tab>
-```bash
-# Validate AutoLoad configuration
-compozy validate --autoload
-
-# Check specific resource loading
-compozy validate --resource agents/researcher.yaml
-
-# Dry-run AutoLoad process
-compozy autoload --dry-run
-```
-</Tab>
-
-<Tab>
-```bash
-# List discovered files
-compozy autoload --list
-
-# Test specific patterns
-compozy autoload --test-pattern "agents/*.yaml"
-
-# Show excluded files
-compozy autoload --show-excluded
-```
-</Tab>
-
-<Tab>
-```bash
-# Monitor AutoLoad performance
-compozy dev --log-level debug
-
-# Profile resource loading
-compozy autoload --profile
-
-# Watch file system events
-compozy dev --watch-debug
-```
-</Tab>
-
-</Tabs>
-
-### Error Messages
-
-<div className="space-y-4">
-  <div className="border border-border rounded-lg p-4">
-    <h4 className="font-medium mb-2 text-red-600">AUTOLOAD_DISCOVERY_FAILED</h4>
-    <p className="text-sm text-muted-foreground mb-2">File discovery failed due to invalid patterns</p>
-    <p className="text-sm"><strong>Solution:</strong> Check include patterns are valid glob patterns</p>
-  </div>
-
-  <div className="border border-border rounded-lg p-4">
-    <h4 className="font-medium mb-2 text-red-600">DUPLICATE_CONFIG</h4>
-    <p className="text-sm text-muted-foreground mb-2">Multiple resources with the same ID found</p>
-    <p className="text-sm"><strong>Solution:</strong> Ensure unique IDs across all resources</p>
-  </div>
-
-  <div className="border border-border rounded-lg p-4">
-    <h4 className="font-medium mb-2 text-red-600">PATH_TRAVERSAL_ATTEMPT</h4>
-    <p className="text-sm text-muted-foreground mb-2">Pattern or file path tries to escape project root</p>
-    <p className="text-sm"><strong>Solution:</strong> Use only relative paths within project directory</p>
-  </div>
-
-  <div className="border border-border rounded-lg p-4">
-    <h4 className="font-medium mb-2 text-red-600">INVALID_RESOURCE_INFO</h4>
-    <p className="text-sm text-muted-foreground mb-2">Resource missing required fields</p>
-    <p className="text-sm"><strong>Solution:</strong> Ensure all resources have `resource` and `id` fields</p>
-  </div>
-</div>
-
-## Advanced Configuration
-
-### Environment-Specific Settings
-
-<Tabs items={["Development", "Testing", "Production"]}>
-
-<Tab>
-```yaml title="compozy.dev.yaml"
-autoload:
-  enabled: true
-  strict: false
-  watch_enabled: true
-  include:
-    - "agents/**/*.yaml"
-    - "tools/**/*.yaml"
-    - "memory/**/*.yaml"
-    - "workflows/dev/*.yaml"
-  exclude:
-    - "**/*-prod.yaml"
-    - "**/*-test.yaml"
-    - "**/archive/**"
-```
-</Tab>
-
-<Tab>
-```yaml title="compozy.test.yaml"
-autoload:
-  enabled: true
-  strict: true
-  watch_enabled: false
-  include:
-    - "agents/test/*.yaml"
-    - "tools/test/*.yaml"
-    - "memory/test/*.yaml"
-    - "workflows/test/*.yaml"
-  exclude:
-    - "**/*-prod.yaml"
-    - "**/*-dev.yaml"
-    - "**/mock/**"
-```
-</Tab>
-
-<Tab>
-```yaml title="compozy.prod.yaml"
-autoload:
-  enabled: true
-  strict: true
-  watch_enabled: false
-  include:
-    - "agents/production/*.yaml"
-    - "tools/production/*.yaml"
-    - "memory/production/*.yaml"
-    - "workflows/production/*.yaml"
-  exclude:
-    - "**/*-dev.yaml"
-    - "**/*-test.yaml"
-    - "**/*-debug.yaml"
-    - "**/draft/**"
-```
-</Tab>
-
-</Tabs>
-
-### Multi-Environment Management
-
-```bash
-# Use environment-specific configuration
-compozy dev --config compozy.dev.yaml
-compozy test --config compozy.test.yaml
-compozy deploy --config compozy.prod.yaml
-
-# Or use environment variables
-export COMPOZY_ENV=development
-export COMPOZY_AUTOLOAD_STRICT=false
-export COMPOZY_AUTOLOAD_WATCH=true
-compozy dev
-```
-
-## Integration Examples
-
-### With CI/CD Pipelines
-
-<Tabs items={["GitHub Actions", "GitLab CI", "Jenkins"]}>
-
-<Tab>
-```yaml title=".github/workflows/validate.yml"
-name: Validate AutoLoad Resources
-on: [push, pull_request]
-
-jobs:
-  validate:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Setup Compozy
-        uses: compozy/setup-action@v1
-
-      - name: Validate AutoLoad Configuration
-        run: |
-          compozy validate --autoload
-          compozy autoload --dry-run
-
-      - name: Test Resource Loading
-        run: |
-          compozy autoload --list
-          compozy validate --resources agents/
-          compozy validate --resources tools/
-```
-</Tab>
-
-<Tab>
-```yaml title=".gitlab-ci.yml"
-stages:
-  - validate
-
-validate-autoload:
-  stage: validate
-  image: compozy/cli:latest
-  script:
-    - compozy validate --autoload
-    - compozy autoload --dry-run
-    - compozy autoload --list
-  rules:
-    - changes:
-        - agents/**/*.yaml
-        - tools/**/*.yaml
-        - memory/**/*.yaml
-        - compozy.yaml
-```
-</Tab>
-
-<Tab>
-```groovy title="Jenkinsfile"
-pipeline {
-    agent any
-
-    stages {
-        stage('Validate AutoLoad') {
-            steps {
-                sh 'compozy validate --autoload'
-                sh 'compozy autoload --dry-run'
-            }
-        }
-
-        stage('Test Resource Loading') {
-            steps {
-                sh 'compozy autoload --list'
-                sh 'compozy validate --resources agents/'
-                sh 'compozy validate --resources tools/'
-            }
-        }
-    }
-
-    post {
-        always {
-            publishHTML([
-                allowMissing: false,
-                alwaysLinkToLastBuild: true,
-                keepAll: true,
-                reportDir: 'reports',
-                reportFiles: 'autoload-report.html',
-                reportName: 'AutoLoad Validation Report'
-            ])
-        }
-    }
-}
-```
-</Tab>
-
-</Tabs>
-
-## Best Practices
-
-### Development Workflow
-
-<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-  <div className="border border-border rounded-lg p-4">
-    <h4 className="font-medium mb-2 flex items-center gap-2">
-      <Lightbulb className="w-4 h-4 text-yellow-500" />
-      Development Best Practices
-    </h4>
-    <ul className="space-y-2 text-sm">
-      <li>• Use non-strict mode during development</li>
-      <li>• Enable watch_enabled for hot-reloading</li>
-      <li>• Organize resources by domain or feature</li>
-      <li>• Use descriptive IDs and documentation</li>
-      <li>• Validate resources in CI/CD pipelines</li>
-    </ul>
-  </div>
-
-  <div className="border border-border rounded-lg p-4">
-    <h4 className="font-medium mb-2 flex items-center gap-2">
-      <Target className="w-4 h-4 text-blue-500" />
-      Production Best Practices
-    </h4>
-    <ul className="space-y-2 text-sm">
-      <li>• Use strict mode for production</li>
-      <li>• Disable watch_enabled in production</li>
-      <li>• Use specific include patterns</li>
-      <li>• Exclude development/test resources</li>
-      <li>• Monitor resource loading performance</li>
-    </ul>
-  </div>
-</div>
-
-### Resource Organization
-
-<div className="space-y-4">
-  <div className="border border-border rounded-lg p-4">
-    <h4 className="font-medium mb-2 flex items-center gap-2">
-      <Folder className="w-4 h-4 text-green-500" />
-      Recommended Directory Structure
-    </h4>
-    <div className="text-sm space-y-2">
-      <p><strong>By Resource Type:</strong> Group similar resources together</p>
-      <p><strong>By Domain:</strong> Organize by business domain or feature</p>
-      <p><strong>By Environment:</strong> Separate development, test, and production</p>
-      <p><strong>By Version:</strong> Use versioning for resource evolution</p>
-    </div>
-  </div>
-
-  <div className="border border-border rounded-lg p-4">
-    <h4 className="font-medium mb-2 flex items-center gap-2">
-      <FileCheck className="w-4 h-4 text-purple-500" />
-      Resource Naming Conventions
-    </h4>
-    <div className="text-sm space-y-2">
-      <p><strong>Use kebab-case:</strong> `web-search-tool`, `content-writer-agent`</p>
-      <p><strong>Include purpose:</strong> `email-sender`, `data-validator`</p>
-      <p><strong>Add environment suffix:</strong> `config-prod`, `memory-dev`</p>
-      <p><strong>Version appropriately:</strong> `api-client-v2`, `processor-legacy`</p>
-    </div>
-  </div>
-</div>
-
-## Migration Guide
-
-### From Manual to AutoLoad
-
-<Steps>
-<Step title="Audit Existing Resources" description="Identify all manually configured resources">
-
-```bash
-# Find all resource references
-grep -r "\$ref:" . --include="*.yaml" --include="*.yml"
-
-# List current resource files
-find . -name "*.yaml" -o -name "*.yml" | grep -E "(agents|tools|memory|workflows)/"
-```
-
-</Step>
-
-<Step title="Standardize Resource Format" description="Ensure all resources have required fields">
-
-```yaml
-# Add to each resource file
-resource: agent  # or tool, memory, workflow, etc.
-id: unique-identifier
-description: Clear description
-version: 1.0.0
-```
-
-</Step>
-
-<Step title="Configure AutoLoad" description="Set up AutoLoad configuration">
-
-```yaml title="compozy.yaml"
-autoload:
-  enabled: true
-  strict: false  # Start with non-strict during migration
-  watch_enabled: true
-  include:
-    - "agents/**/*.yaml"
-    - "tools/**/*.yaml"
-    - "memory/**/*.yaml"
-  exclude:
-    - "**/*-old.yaml"
-    - "**/*.backup"
-```
-
-</Step>
-
-<Step title="Update References" description="Replace manual references with resource:: scope">
-
-```yaml
-# Before
-agents:
-  - $ref: ./agents/researcher.yaml
-
-# After
-agents:
-  - $ref: resource::agent::#(id=='researcher')
-```
-
-</Step>
-
-<Step title="Test and Validate" description="Ensure everything works correctly">
-
-```bash
-# Test AutoLoad discovery
-compozy autoload --list
-
-# Validate configuration
-compozy validate --autoload
-
-# Test workflow execution
-compozy dev
-```
-
-</Step>
-
-<Step title="Enable Strict Mode" description="Switch to strict mode for production">
-
-```yaml title="compozy.yaml"
-autoload:
-  enabled: true
-  strict: true  # Enable strict mode
-  watch_enabled: false  # Disable for production
-```
-
-</Step>
-</Steps>
-
-## Related Documentation
-
-<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-  <div className="border border-border rounded-lg p-4">
-    <h4 className="font-medium mb-2 flex items-center gap-2">
-      <BookOpen className="w-4 h-4 text-blue-500" />
-      Core Concepts
-    </h4>
-    <ul className="space-y-2 text-sm">
-      <li><a href="/docs/core/configuration/project-setup" className="text-blue-600 hover:text-blue-800">Project Setup</a></li>
-      <li><a href="/docs/core/configuration/workflows" className="text-blue-600 hover:text-blue-800">Workflow Configuration</a></li>
-      <li><a href="/docs/core/yaml-templates/overview" className="text-blue-600 hover:text-blue-800">YAML Templates</a></li>
-      <li><a href="/docs/core/reference/environment-variables" className="text-blue-600 hover:text-blue-800">Environment Variables</a></li>
-    </ul>
-  </div>
-
-  <div className="border border-border rounded-lg p-4">
-    <h4 className="font-medium mb-2 flex items-center gap-2">
-      <Cog className="w-4 h-4 text-green-500" />
-      Configuration
-    </h4>
-    <ul className="space-y-2 text-sm">
-      <li><a href="/docs/core/agents/overview" className="text-blue-600 hover:text-blue-800">Agent Configuration</a></li>
-      <li><a href="/docs/core/tools/tools-overview" className="text-blue-600 hover:text-blue-800">Tool Configuration</a></li>
-      <li><a href="/docs/core/memory/memory-concepts" className="text-blue-600 hover:text-blue-800">Memory Configuration</a></li>
-      <li><a href="/docs/core/mcp/mcp-overview" className="text-blue-600 hover:text-blue-800">MCP Configuration</a></li>
-    </ul>
-  </div>
-</div>
-
-<div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-  <div className="border border-border rounded-lg p-4">
-    <h4 className="font-medium mb-2 flex items-center gap-2">
-      <Users className="w-4 h-4 text-purple-500" />
-      Community
-    </h4>
-    <ul className="space-y-2 text-sm">
-      <li><a href="https://github.com/compozy/compozy/discussions" className="text-blue-600 hover:text-blue-800">GitHub Discussions</a></li>
-      <li><a href="https://discord.gg/compozy" className="text-blue-600 hover:text-blue-800">Discord Community</a></li>
-      <li><a href="https://github.com/compozy/examples" className="text-blue-600 hover:text-blue-800">Example Projects</a></li>
-    </ul>
-  </div>
-
-  <div className="border border-border rounded-lg p-4">
-    <h4 className="font-medium mb-2 flex items-center gap-2">
-      <HelpCircle className="w-4 h-4 text-orange-500" />
-      Support
-    </h4>
-    <ul className="space-y-2 text-sm">
-      <li><a href="/docs/core/troubleshooting/common-issues" className="text-blue-600 hover:text-blue-800">Troubleshooting Guide</a></li>
-      <li><a href="/docs/core/configuration/cli" className="text-blue-600 hover:text-blue-800">CLI Commands</a></li>
-      <li><a href="/docs/core/community/contributing-guide" className="text-blue-600 hover:text-blue-800">Contributing</a></li>
-    </ul>
-  </div>
-</div>
+<ReferenceCardList>
+  <ReferenceCard
+    title="Project Setup"
+    description="Configure projects, models, and runtime settings"
+    href="/docs/core/configuration/project-setup"
+    icon="BookOpen"
+  />
+  <ReferenceCard
+    title="Workflow Configuration"
+    description="Build and configure AI-powered workflows"
+    href="/docs/core/configuration/workflows"
+    icon="Workflow"
+  />
+  <ReferenceCard
+    title="YAML Templates"
+    description="Dynamic configuration with template expressions"
+    href="/docs/core/yaml-templates/overview"
+    icon="FileCode"
+  />
+  <ReferenceCard
+    title="Environment Variables"
+    description="Configure runtime environment and secrets"
+    href="/docs/core/reference/environment-variables"
+    icon="Shield"
+  />
+  <ReferenceCard
+    title="Agent Configuration"
+    description="Create and configure AI agents"
+    href="/docs/core/agents/overview"
+    icon="BrainCircuit"
+  />
+  <ReferenceCard
+    title="Tool Configuration"
+    description="Build custom TypeScript tools"
+    href="/docs/core/tools/tools-overview"
+    icon="Wrench"
+  />
+  <ReferenceCard
+    title="Memory Configuration"
+    description="Persistent context and conversation history"
+    href="/docs/core/memory/memory-concepts"
+    icon="Database"
+  />
+  <ReferenceCard
+    title="MCP Configuration"
+    description="Model Context Protocol integration"
+    href="/docs/core/mcp/mcp-overview"
+    icon="Radio"
+  />
+</ReferenceCardList>

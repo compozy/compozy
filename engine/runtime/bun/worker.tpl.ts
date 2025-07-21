@@ -10,6 +10,7 @@ interface Request {
   tool_id: string;
   tool_exec_id: string;
   input: any;
+  config?: any;
   env: Record<string, string>;
   timeout_ms?: number;
 }
@@ -65,8 +66,9 @@ function isValidToolId(toolId: string): boolean {
 
 // Utility function to execute tool with timeout
 async function executeWithTimeout(
-  fn: (input: any) => Promise<any>,
+  fn: (input: any, config?: any) => Promise<any>,
   input: any,
+  config: any,
   timeoutMs: number
 ): Promise<any> {
   return new Promise((resolve, reject) => {
@@ -75,7 +77,7 @@ async function executeWithTimeout(
       timeoutMs
     );
 
-    Promise.resolve(fn(input))
+    Promise.resolve(fn(input, config))
       .then(result => {
         clearTimeout(timeoutId);
         resolve(result);
@@ -118,7 +120,7 @@ async function main() {
     process.exit(1);
   }
 
-  const { tool_id, tool_exec_id, input, env, timeout_ms } = req;
+  const { tool_id, tool_exec_id, input, config, env, timeout_ms } = req;
 
   // Validate tool_id
   if (!tool_id || typeof tool_id !== "string" || !isValidToolId(tool_id)) {
@@ -199,7 +201,7 @@ async function main() {
 
     // Execute tool with configurable timeout (default to 60 seconds if not provided)
     const timeoutMs = timeout_ms || 60000;
-    const result = await executeWithTimeout(toolFn, input, timeoutMs);
+    const result = await executeWithTimeout(toolFn, input, config, timeoutMs);
 
     // Send success response
     const response: Response = {

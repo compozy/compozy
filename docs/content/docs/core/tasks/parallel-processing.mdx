@@ -5,6 +5,19 @@ description: Execute multiple tasks simultaneously with parallel task patterns i
 
 Parallel tasks enable concurrent execution of multiple operations, significantly improving workflow performance and enabling sophisticated processing patterns. They're essential for scalable workflows that need to process multiple items or perform independent operations simultaneously.
 
+## Related Documentation
+
+### 🔗 Cross-References
+- **[Core Concepts: Tasks](/docs/core/getting-started/core-concepts#2-tasks)** - Tasks in workflow context
+- **[Basic Tasks](/docs/core/tasks/basic-tasks)** - Foundation tasks executed in parallel
+- **[Collection Tasks](/docs/core/tasks/collection-tasks)** - Array processing with parallel modes
+- **[YAML Templates](/docs/core/yaml-templates/overview)** - Dynamic parallel configuration
+
+### ⚙️ Task-Related Topics
+- **Parallel Processing** ↔ **[Aggregate Tasks](/docs/core/tasks/aggregate-tasks)** ↔ **[Composite Tasks](/docs/core/tasks/composite-tasks)**
+- **Concurrent Execution** ↔ **[Flow Control](/docs/core/tasks/flow-control)** ↔ **[Error Handling](/docs/core/tasks/basic-tasks#error-handling)**
+- **Performance Optimization** ↔ **[Advanced Patterns](/docs/core/tasks/advanced-patterns)** ↔ **[Resource Management](/docs/core/configuration/performance)**
+
 ## Overview
 
 Parallel processing in Compozy provides:
@@ -410,416 +423,151 @@ on_success:
     failed_channels: "{{ .failed_tasks }}"
 ```
 
-## Advanced Patterns
+## Common Patterns
 
 ### Dynamic Task Generation
 
-Create parallel tasks dynamically based on input:
+Create parallel tasks from dynamic input:
 
 ```yaml
 id: dynamic-parallel
 type: parallel
 strategy: wait_all
-max_workers: 8
+max_workers: 4
 
-# Generate tasks from input array
 tasks: "{{ range .workflow.input.items }}"
   - id: "process-{{ .id }}"
     type: basic
     $use: agent(local::agents.#(id=="item-processor"))
     action: process_item
     with:
-      item_id: "{{ .id }}"
       item_data: "{{ .data }}"
-      processing_options: "{{ .options }}"
 "{{ end }}"
-
-on_success:
-  next: aggregate-results
-  with:
-    processing_results: "{{ .output }}"
-    total_processed: "{{ len .output }}"
 ```
 
-### Nested Parallel Processing
+### Resource Management
 
-Combine parallel tasks with other task types:
+Configure resource limits for optimal performance:
 
 ```yaml
-id: multi-level-processing
+id: resource-controlled
 type: parallel
 strategy: wait_all
+max_workers: "{{ .env.MAX_WORKERS | default 4 }}"
 
 tasks:
-  # Single task
-  - id: preprocess-data
+  - id: process-data
     type: basic
-    $use: tool(local::tools.#(id=="preprocessor"))
+    $use: tool(local::tools.#(id=="processor"))
     with:
-      data: "{{ .workflow.input.raw_data }}"
-
-  # Nested parallel processing
-  - id: parallel-analysis
-    type: parallel
-    strategy: wait_all
-    max_workers: 4
-    tasks:
-      - id: sentiment-analysis
-        type: basic
-        $use: agent(local::agents.#(id=="sentiment-analyzer"))
-        action: analyze_sentiment
-        with:
-          text: "{{ .workflow.input.text_data }}"
-
-      - id: keyword-extraction
-        type: basic
-        $use: tool(local::tools.#(id=="keyword-extractor"))
-        with:
-          text: "{{ .workflow.input.text_data }}"
-
-      - id: entity-recognition
-        type: basic
-        $use: agent(local::agents.#(id=="entity-recognizer"))
-        action: extract_entities
-        with:
-          text: "{{ .workflow.input.text_data }}"
-
-  # Collection processing
-  - id: batch-processing
-    type: collection
-    items: "{{ .workflow.input.batch_items }}"
-    mode: parallel
-    task:
-      id: "process-batch-item-{{ .index }}"
-      type: basic
-      $use: tool(local::tools.#(id=="batch-processor"))
-      with:
-        item: "{{ .item }}"
-        index: "{{ .index }}"
-
-on_success:
-  next: final-aggregation
+      data: "{{ .workflow.input.data }}"
 ```
 
-### Resource-Aware Parallel Processing
+## CLI Commands
 
-Adjust parallel execution based on available resources:
+The Compozy CLI provides these commands for managing parallel tasks:
 
-```yaml
-id: resource-aware-parallel
-type: parallel
-strategy: wait_all
+```bash
+# List all workflows
+compozy workflow list
 
-# Dynamic worker allocation
-max_workers: "{{ .env.MAX_WORKERS | default 4 | toNumber }}"
-worker_timeout: "{{ .env.WORKER_TIMEOUT | default '30s' }}"
+# Execute a parallel workflow
+compozy workflow execute my-parallel-workflow
 
-# Resource monitoring
-resource_limits:
-  cpu_limit: "{{ .env.CPU_LIMIT | default '80%' }}"
-  memory_limit: "{{ .env.MEMORY_LIMIT | default '1GB' }}"
-
-tasks:
-  - id: cpu-intensive-task
-    type: basic
-    resource_requirements:
-      cpu: high
-      memory: medium
-    $use: tool(local::tools.#(id=="cpu-processor"))
-    with:
-      data: "{{ .workflow.input.cpu_data }}"
-
-  - id: memory-intensive-task
-    type: basic
-    resource_requirements:
-      cpu: low
-      memory: high
-    $use: tool(local::tools.#(id=="memory-processor"))
-    with:
-      data: "{{ .workflow.input.memory_data }}"
-
-  - id: io-intensive-task
-    type: basic
-    resource_requirements:
-      cpu: low
-      memory: low
-      io: high
-    $use: tool(local::tools.#(id=="io-processor"))
-    with:
-      data: "{{ .workflow.input.io_data }}"
+# Get workflow details  
+compozy workflow get my-parallel-workflow
 ```
 
-## Real-World Examples
+<Callout type="info">
+**Task Management Commands**: Additional CLI commands for task monitoring and control are planned for future releases.
+</Callout>
 
-### Example 1: Multi-Service Integration
+## Quick Examples
 
-<Steps>
-<Step>
-
-**Setup**: Configure parallel integration with multiple services
+### Multi-Service Integration
 
 ```yaml
-id: multi-service-integration
+id: fetch-user-data
 type: parallel
 strategy: wait_all
-max_workers: 6
-timeout: 5m
+max_workers: 3
 
 tasks:
-  - id: fetch-user-profile
+  - id: get-profile
     type: basic
     $use: tool(local::tools.#(id=="user-service"))
     with:
       user_id: "{{ .workflow.input.user_id }}"
-      endpoint: "/users/{{ .workflow.input.user_id }}"
 
-  - id: fetch-user-preferences
+  - id: get-preferences  
     type: basic
     $use: tool(local::tools.#(id=="preferences-service"))
     with:
       user_id: "{{ .workflow.input.user_id }}"
-      endpoint: "/preferences/{{ .workflow.input.user_id }}"
 
-  - id: fetch-user-history
+  - id: get-history
     type: basic
-    $use: tool(local::tools.#(id=="history-service"))
+    $use: tool(local::tools.#(id=="history-service"))  
     with:
       user_id: "{{ .workflow.input.user_id }}"
-      limit: 100
-      endpoint: "/history/{{ .workflow.input.user_id }}"
 
-  - id: fetch-recommendations
-    type: basic
-    $use: agent(local::agents.#(id=="recommendation-engine"))
-    action: generate_recommendations
-    with:
-      user_id: "{{ .workflow.input.user_id }}"
-      context: "{{ .workflow.input.context }}"
-```
-
-</Step>
-<Step>
-
-**Process**: Aggregate results from all services
-
-```yaml
 on_success:
-  next: merge-user-data
-  with:
-    user_data:
-      profile: "{{ .tasks.fetch-user-profile.output }}"
-      preferences: "{{ .tasks.fetch-user-preferences.output }}"
-      history: "{{ .tasks.fetch-user-history.output }}"
-      recommendations: "{{ .tasks.fetch-recommendations.output }}"
-    metadata:
-      fetch_time: "{{ now }}"
-      user_id: "{{ .workflow.input.user_id }}"
+  next: merge-results
 ```
 
-</Step>
-</Steps>
-
-### Example 2: Content Processing Pipeline
+### Data Processing Pipeline
 
 ```yaml
-id: content-processing-pipeline
+id: process-content
 type: parallel
 strategy: wait_all
-max_workers: 8
-timeout: 10m
 
 tasks:
-  # Text processing
   - id: extract-text
     type: basic
     $use: tool(local::tools.#(id=="text-extractor"))
     with:
       content: "{{ .workflow.input.content }}"
-      format: "{{ .workflow.input.format }}"
 
-  # Image processing
   - id: process-images
     type: basic
     $use: tool(local::tools.#(id=="image-processor"))
     with:
       images: "{{ .workflow.input.images }}"
-      operations: ["resize", "optimize", "generate_alt_text"]
 
-  # Metadata extraction
-  - id: extract-metadata
-    type: basic
-    $use: agent(local::agents.#(id=="metadata-extractor"))
-    action: extract_metadata
-    with:
-      content: "{{ .workflow.input.content }}"
-      include_seo: true
-
-  # Content validation
   - id: validate-content
     type: basic
     $use: agent(local::agents.#(id=="content-validator"))
-    action: validate_content
+    action: validate
     with:
       content: "{{ .workflow.input.content }}"
-      rules: "{{ .workflow.input.validation_rules }}"
-
-  # SEO analysis
-  - id: analyze-seo
-    type: basic
-    $use: agent(local::agents.#(id=="seo-analyzer"))
-    action: analyze_seo
-    with:
-      content: "{{ .workflow.input.content }}"
-      target_keywords: "{{ .workflow.input.keywords }}"
-
-outputs:
-  processed_content:
-    text: "{{ .tasks.extract-text.output }}"
-    images: "{{ .tasks.process-images.output }}"
-    metadata: "{{ .tasks.extract-metadata.output }}"
-    validation: "{{ .tasks.validate-content.output }}"
-    seo: "{{ .tasks.analyze-seo.output }}"
-
-  processing_summary:
-    total_time: "{{ .task.duration }}"
-    tasks_completed: "{{ len .successful_tasks }}"
-    tasks_failed: "{{ len .failed_tasks }}"
-    success_rate: "{{ div (len .successful_tasks) (add (len .successful_tasks) (len .failed_tasks)) }}"
 ```
 
-### Example 3: Data Validation Pipeline
+## Performance Tips
+
+### Worker Configuration
 
 ```yaml
-id: data-validation-pipeline
-type: parallel
-strategy: best_effort
+# CPU-bound tasks: use CPU core count
 max_workers: 4
-timeout: 3m
 
-tasks:
-  # Schema validation
-  - id: validate-schema
-    type: basic
-    $use: tool(local::tools.#(id=="schema-validator"))
-    with:
-      data: "{{ .workflow.input.data }}"
-      schema: "{{ .workflow.input.schema }}"
-
-    on_error:
-      next: handle-schema-error
-      with:
-        validation_type: "schema"
-        error: "{{ .task.error }}"
-
-  # Business rules validation
-  - id: validate-business-rules
-    type: basic
-    $use: agent(local::agents.#(id=="business-validator"))
-    action: validate_business_rules
-    with:
-      data: "{{ .workflow.input.data }}"
-      rules: "{{ .workflow.input.business_rules }}"
-
-    on_error:
-      next: handle-business-error
-      with:
-        validation_type: "business"
-        error: "{{ .task.error }}"
-
-  # Data quality checks
-  - id: check-data-quality
-    type: basic
-    $use: tool(local::tools.#(id=="quality-checker"))
-    with:
-      data: "{{ .workflow.input.data }}"
-      quality_metrics: ["completeness", "consistency", "accuracy"]
-
-    on_error:
-      next: handle-quality-error
-      with:
-        validation_type: "quality"
-        error: "{{ .task.error }}"
-
-  # Security validation
-  - id: validate-security
-    type: basic
-    $use: agent(local::agents.#(id=="security-validator"))
-    action: validate_security
-    with:
-      data: "{{ .workflow.input.data }}"
-      security_rules: "{{ .workflow.input.security_rules }}"
-
-    on_error:
-      next: handle-security-error
-      with:
-        validation_type: "security"
-        error: "{{ .task.error }}"
-
-# Proceed with validation results
-on_success:
-  next: compile-validation-results
-  with:
-    validation_results:
-      schema: "{{ .tasks.validate-schema.output }}"
-      business: "{{ .tasks.validate-business-rules.output }}"
-      quality: "{{ .tasks.check-data-quality.output }}"
-      security: "{{ .tasks.validate-security.output }}"
-
-    validation_summary:
-      total_validations: 4
-      successful_validations: "{{ len .successful_tasks }}"
-      failed_validations: "{{ len .failed_tasks }}"
-      overall_status: "{{ if .failed_tasks }}partial_success{{ else }}success{{ end }}"
-```
-
-## Performance Considerations
-
-### Optimal Worker Configuration
-
-```yaml
-# CPU-bound tasks
-id: cpu-bound-parallel
-type: parallel
-strategy: wait_all
-max_workers: "{{ .env.CPU_CORES | default 4 }}"  # Match CPU cores
-timeout: 30m
-
-# I/O-bound tasks
-id: io-bound-parallel
-type: parallel
-strategy: wait_all
-max_workers: "{{ mul (.env.CPU_CORES | default 4) 2 }}"  # 2x CPU cores
-timeout: 5m
-
-# Mixed workload
-id: mixed-workload-parallel
-type: parallel
-strategy: wait_all
+# I/O-bound tasks: use 2x CPU cores  
 max_workers: 8
-timeout: 10m
+
+# Set appropriate timeouts
+timeout: 5m
 ```
 
-### Memory Management
+### Memory Optimization
 
 ```yaml
-id: memory-efficient-parallel
-type: parallel
-strategy: wait_all
-max_workers: 4
-
-# Configure memory limits
-resource_limits:
-  memory_per_worker: "256MB"
-  total_memory_limit: "1GB"
-
+# Process data efficiently
 tasks:
-  - id: memory-conscious-task
+  - id: efficient-task
     type: basic
-    $use: tool(local::tools.#(id=="efficient-processor"))
+    $use: tool(local::tools.#(id=="processor"))
     with:
-      # Process data in chunks
-      data: "{{ .workflow.input.data | chunk 1000 }}"
-      memory_limit: "128MB"
+      data: "{{ .workflow.input.data }}"
 ```
 
 ## Best Practices
@@ -829,5 +577,34 @@ tasks:
 3. **Monitor Resource Usage**: Configure workers based on available CPU/memory
 4. **Handle Failures Gracefully**: Design for partial failure scenarios
 5. **Optimize Task Granularity**: Balance parallel efficiency with overhead
+
+## References
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Basic Tasks"
+    description="Master the foundation tasks that compose parallel workflows"
+    href="/docs/core/tasks/basic-tasks"
+    icon="Cog"
+  />
+  <ReferenceCard
+    title="Collection Tasks"
+    description="Learn to process arrays with parallel execution patterns"
+    href="/docs/core/tasks/collection-tasks"
+    icon="Grid"
+  />
+  <ReferenceCard
+    title="Aggregate Tasks"
+    description="Combine results from parallel task execution"
+    href="/docs/core/tasks/aggregate-tasks"
+    icon="BarChart"
+  />
+  <ReferenceCard
+    title="Flow Control"
+    description="Implement conditional routing in parallel workflows"
+    href="/docs/core/tasks/flow-control"
+    icon="GitBranch"
+  />
+</ReferenceCardList>
 
 Parallel processing enables Compozy workflows to scale efficiently and handle complex, concurrent operations while maintaining reliability and performance control.

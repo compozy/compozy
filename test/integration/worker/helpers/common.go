@@ -21,6 +21,7 @@ import (
 	"github.com/compozy/compozy/engine/task/services"
 	"github.com/compozy/compozy/engine/worker"
 	"github.com/compozy/compozy/engine/workflow"
+	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/tplengine"
 	utils "github.com/compozy/compozy/test/helpers"
 )
@@ -498,7 +499,8 @@ func ExecuteWorkflowAndGetState(
 	}
 
 	// Execute workflow through Temporal
-	env.ExecuteWorkflow(worker.CompozyWorkflow, temporalInput)
+	appConfig := config.Default()
+	env.ExecuteWorkflow(worker.CompozyWorkflow, temporalInput, appConfig)
 
 	// Verify workflow completed successfully
 	require.True(t, env.IsWorkflowCompleted())

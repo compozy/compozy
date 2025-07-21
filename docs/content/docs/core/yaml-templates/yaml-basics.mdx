@@ -3,25 +3,57 @@ title: "YAML Basics"
 description: "Fundamental YAML syntax and patterns for Compozy configurations"
 ---
 
-# YAML Basics for Compozy
-
 This guide covers the fundamental YAML syntax and patterns used throughout Compozy configurations. Understanding these basics is essential for creating effective workflows, agents, and tools.
 
 ## YAML Fundamentals
 
+<FeatureCardList cols={3} size="sm">
+  <FeatureCard
+    title="Data Types"
+    description="Strings, numbers, booleans, and null values"
+    icon="Type"
+  />
+  <FeatureCard
+    title="Collections"
+    description="Lists (arrays) and maps (objects)"
+    icon="List"
+  />
+  <FeatureCard
+    title="Templates"
+    description="Go template syntax for dynamic values"
+    icon="Code"
+  />
+</FeatureCardList>
+
 ### Basic Data Types
 
+YAML supports several data types that are commonly used in Compozy configurations:
+
+<Tabs items={["Strings", "Numbers & Booleans", "Collections"]}>
+<Tab>
+
 ```yaml
-# Strings
+# Simple strings
 name: "Compozy"
 description: 'A workflow orchestration engine'
+
+# Multiline strings
 multiline: |
   This is a multiline string
   that preserves line breaks
+
+# Folded strings
 folded: >
   This is a folded string
   that converts line breaks to spaces
+```
 
+**String patterns** are used throughout Compozy for identifiers, descriptions, and template values. Use quotes when your string contains special characters or starts with numbers.
+
+</Tab>
+<Tab>
+
+```yaml
 # Numbers
 version: 1.0
 timeout: 30
@@ -37,38 +69,28 @@ result: null
 output: ~
 ```
 
-### Collections
+**Numeric and boolean types** are essential for configuration values, timeouts, and feature flags. YAML automatically detects data types, but you can be explicit when needed.
 
-#### Lists (Arrays)
+</Tab>
+<Tab>
+
 ```yaml
-# Simple list
+# Simple lists
 colors:
   - red
   - green
   - blue
 
-# Inline list
+# Inline lists
 numbers: [1, 2, 3, 4, 5]
 
-# List of objects
-tasks:
-  - id: task1
-    type: basic
-    action: process
-  - id: task2
-    type: parallel
-    strategy: wait_all
-```
-
-#### Maps (Objects)
-```yaml
-# Simple map
+# Maps (objects)
 config:
   timeout: 30
   retries: 3
   debug: true
 
-# Nested maps
+# Nested structures
 database:
   connection:
     host: localhost
@@ -76,586 +98,204 @@ database:
     credentials:
       username: admin
       password: secret
-
-# Inline map
-metadata: {author: "John", version: "1.0"}
 ```
 
-## Compozy-Specific Patterns
+**Collections** enable complex data structures. Lists are ordered sequences, while maps are key-value pairs that can be nested to any depth.
 
-### Resource Definitions
-
-All Compozy resources follow a consistent structure:
-
-```yaml
-# Basic resource structure
-resource: workflow  # or agent, tool, schema
-id: unique-identifier
-version: "1.0.0"
-description: "Human-readable description"
-
-# Resource-specific configuration
-config:
-  # Configuration properties
-
-# Resource content
-# ... specific to resource type
-```
-
-### Workflow Structure
-
-```yaml
-# Complete workflow example
-id: weather-workflow
-version: "1.0.0"
-description: "Get weather and suggest activities"
-
-# Input schema definition
-config:
-  input:
-    type: object
-    properties:
-      city:
-        type: string
-        description: "City name"
-    required:
-      - city
-
-# Schema definitions
-schemas:
-  - id: weather_response
-    type: object
-    properties:
-      temperature:
-        type: number
-      condition:
-        type: string
-
-# Tool definitions
-tools:
-  - id: weather_tool
-    description: "Get current weather"
-    input:
-      $ref: local::schemas.#(id=="city_input")
-
-# Task definitions
-tasks:
-  - id: get_weather
-    type: basic
-    $use: tool(local::tools.#(id=="weather_tool"))
-    with:
-      city: "{{ .workflow.input.city }}"
-```
-
-### Agent Structure
-
-```yaml
-resource: agent
-id: weather-assistant
-version: "1.0.0"
-description: "Weather advisory agent"
-
-# Model configuration
-config:
-  provider: openai
-  model: gpt-4
-  api_key: "{{ .env.OPENAI_API_KEY }}"
-
-# Agent instructions
-instructions: |
-  You are a weather assistant.
-  Provide helpful weather information and suggestions.
-
-# Available tools
-tools:
-  - $ref: local::tools.#(id=="weather_tool")
-
-# Agent actions
-actions:
-  - id: get_weather
-    prompt: "What's the weather in {{ .workflow.input.city }}?"
-
-  - id: suggest_activities
-    json_mode: true
-    prompt: |
-      Based on this weather: {{ .tasks.get_weather.output | toJson }}
-      Suggest 3 activities.
-    output:
-      type: object
-      properties:
-        activities:
-          type: array
-          items:
-            type: string
-```
-
-### Project Configuration
-
-```yaml
-# compozy.yaml - Project configuration
-name: my-project
-version: "0.1.0"
-description: "Project description"
-
-# Author information
-author:
-  name: "Developer Name"
-  email: "dev@example.com"
-
-# Workflow sources
-workflows:
-  - source: ./workflow.yaml
-  - source: ./workflows/*.yaml
-
-# Model configurations
-models:
-  - provider: openai
-    model: gpt-4
-    api_key: "{{ .env.OPENAI_API_KEY }}"
-  - provider: groq
-    model: llama-3.3-70b-versatile
-    api_key: "{{ .env.GROQ_API_KEY }}"
-
-# Runtime configuration
-runtime:
-  permissions:
-    - --allow-read
-    - --allow-net
-    - --allow-env
-
-# AutoLoad configuration
-autoload:
-  enabled: true
-  strict: false
-  include:
-    - "agents/*.yaml"
-    - "tools/*.yaml"
-  exclude:
-    - "**/*~"
-    - "**/*.tmp"
-```
+</Tab>
+</Tabs>
 
 ## Template Integration
 
-### Template Markers
+### Template Syntax
 
-Templates are embedded in YAML values using Go template syntax:
+Templates use Go template syntax to create dynamic values:
+
+<FeatureCardList cols={3} size="sm">
+  <FeatureCard
+    title="Value Substitution"
+    description="Simple variable replacement"
+    icon="ArrowRight"
+  />
+  <FeatureCard
+    title="Functions"
+    description="Built-in template functions"
+    icon="code"
+  />
+  <FeatureCard
+    title="Conditionals"
+    description="Dynamic logic and defaults"
+    icon="GitBranch"
+  />
+</FeatureCardList>
+
+<Tabs items={["Basic Templates", "Functions", "Conditionals"]}>
+<Tab>
+
+### Basic Template Substitution
 
 ```yaml
 # Simple value substitution
 message: "Hello {{ .user.name }}"
 
-# Complex expressions
-timeout: "{{ .config.base_timeout | mul 2 }}"
+# Nested object access
+city: "{{ .workflow.input.location.city }}"
 
-# Conditional values
-mode: "{{ .env.NODE_ENV | default 'development' }}"
+# Array indexing
+first_item: "{{ .items[0] }}"
 
-# Object references
+# Task output reference
 result: "{{ .tasks.previous.output }}"
 ```
 
-### Preserving YAML Types
+**Template expressions** are wrapped in `{{ }}` and can access any data from the workflow context, including inputs, environment variables, and task outputs.
 
-The template engine preserves YAML data types appropriately:
+</Tab>
+<Tab>
 
-```yaml
-# Numbers remain numbers
-count: 42
-ratio: 3.14
-
-# Booleans remain booleans
-enabled: true
-
-# Arrays remain arrays
-items:
-  - first
-  - second
-  - third
-
-# Objects remain objects
-config:
-  host: localhost
-  port: 5001
-```
-
-## Common Patterns
-
-### Environment Variables
+### Template Functions
 
 ```yaml
-# Simple environment reference
-api_key: "{{ .env.API_KEY }}"
+# String functions
+uppercase: "{{ .user.name | upper }}"
+lowercase: "{{ .user.name | lower }}"
 
-# With default value
-database_url: "{{ .env.DATABASE_URL | default 'sqlite://local.db' }}"
+# Numeric functions
+doubled: "{{ .config.timeout | mul 2 }}"
+rounded: "{{ .price | round 2 }}"
 
-# Complex environment configuration
-config:
-  database:
-    host: "{{ .env.DB_HOST | default 'localhost' }}"
-    port: "{{ .env.DB_PORT | default '5432' | int }}"
-    ssl: "{{ .env.DB_SSL | default 'false' | bool }}"
+# Data conversion
+as_json: "{{ .data | toJson }}"
+as_string: "{{ .number | toString }}"
+
+# Array functions
+length: "{{ .items | len }}"
+joined: "{{ .items | join ',' }}"
 ```
 
-### Input/Output References
+**Template functions** provide powerful data transformation capabilities. Functions are applied using the pipe operator `|` and can be chained together.
 
-```yaml
-# Workflow input
-city: "{{ .workflow.input.city }}"
-user_id: "{{ .workflow.input.user.id }}"
-
-# Task outputs
-weather: "{{ .tasks.weather_check.output.temperature }}"
-status: "{{ .tasks.validation.output.is_valid }}"
-
-# Collection context
-item_name: "{{ .item.name }}"
-batch_index: "{{ .index }}"
-```
+</Tab>
+<Tab>
 
 ### Conditional Logic
 
 ```yaml
-# Simple conditionals
-status: "{{ .error | empty | ternary 'success' 'failed' }}"
+# Default values
+mode: "{{ .env.NODE_ENV | default 'development' }}"
+timeout: "{{ .config.timeout | default 30 }}"
 
-# Complex routing conditions
-condition: |
-  {{- $temp := .tasks.weather.output.temperature -}}
-  {{- if gt $temp 25 -}}hot
-  {{- else if gt $temp 15 -}}warm
-  {{- else -}}cold
-  {{- end -}}
+# Conditional expressions
+status: "{{ if .success }}completed{{ else }}failed{{ end }}"
+
+# Ternary operator
+priority: "{{ .urgent | ternary 'high' 'normal' }}"
+
+# Null coalescing
+value: "{{ .primary | default .secondary | default 'fallback' }}"
 ```
+
+**Conditional logic** enables dynamic configuration based on runtime conditions. Use defaults for optional values and conditionals for complex logic.
+
+</Tab>
+</Tabs>
 
 ## Best Practices
 
-### 1. Use Quotes for Template Strings
-```yaml
-# Good - quoted template strings
-message: "{{ .user.name }} logged in"
+<List className="mb-8">
+  <ListItem title="Consistent Indentation" icon="Indent">
+    Use 2 spaces for indentation consistently throughout your files
+  </ListItem>
+  <ListItem title="Meaningful IDs" icon="Hash">
+    Use descriptive, kebab-case identifiers for resources and tasks
+  </ListItem>
+  <ListItem title="Proper Quoting" icon="Quote">
+    Quote strings that contain special characters or start with numbers
+  </ListItem>
+  <ListItem title="Clear Comments" icon="MessageCircle">
+    Add comments to explain complex configurations or business logic
+  </ListItem>
+</List>
 
-# Avoid - unquoted templates
-message: {{ .user.name }} logged in  # May cause parsing issues
-```
+<Callout type="warning" title="Keep templates simple and readable.">
+Complex logic should be handled in code, not in templates.
+</Callout>
 
-### 2. Validate Required Fields
-```yaml
-# Use required fields in schemas
-config:
-  input:
-    type: object
-    properties:
-      user_id:
-        type: string
-    required:
-      - user_id
-```
+### Template Best Practices
 
-### 3. Provide Default Values
 ```yaml
-# Provide sensible defaults
+# ✅ Good: Simple, clear templates
+api_url: "{{ .env.API_BASE_URL }}/v1"
 timeout: "{{ .config.timeout | default 30 }}"
-retries: "{{ .config.retries | default 3 }}"
+enabled: "{{ .env.FEATURE_ENABLED | default 'false' | bool }}"
+
+# ❌ Avoid: Complex template logic
+complex_value: "{{ if and (gt .count 0) (lt .count 100) (eq .type 'premium') }}high{{ else if and (gt .count 0) (eq .type 'basic') }}medium{{ else }}low{{ end }}"
 ```
 
-### 4. Structure Complex Objects
+## Common Patterns
+
+### Environment Configuration
+
+Environment variables are frequently used for configuration:
+
 ```yaml
-# Break complex configurations into logical sections
+# Database configuration
 database:
-  connection:
-    host: "{{ .env.DB_HOST }}"
-    port: "{{ .env.DB_PORT | int }}"
-  pool:
-    min: "{{ .env.DB_POOL_MIN | default 5 | int }}"
-    max: "{{ .env.DB_POOL_MAX | default 20 | int }}"
+  host: "{{ .env.DB_HOST | default 'localhost' }}"
+  port: "{{ .env.DB_PORT | default '5432' | int }}"
+  ssl: "{{ .env.DB_SSL | default 'false' | bool }}"
+
+# API configuration
+api:
+  base_url: "{{ .env.API_BASE_URL }}"
+  timeout: "{{ .env.API_TIMEOUT | default '30' | int }}"
+  retries: "{{ .env.API_RETRIES | default '3' | int }}"
 ```
 
-### 5. Use Descriptive IDs and Names
-```yaml
-# Good - descriptive identifiers
-- id: validate_user_input
-  type: basic
-  description: "Validate incoming user data"
+### Reference Patterns
 
-# Avoid - cryptic identifiers
-- id: task1
-  type: basic
-```
-
-## Common Gotchas
-
-### 1. YAML Indentation
-```yaml
-# Correct indentation
-tasks:
-  - id: first
-    type: basic
-    with:
-      param: value
-
-# Incorrect indentation will cause parsing errors
-tasks:
-- id: first
-  type: basic
-    with:
-      param: value  # Wrong indentation
-```
-
-### 2. String vs Number Types
-```yaml
-# String port
-port: "5001"  # This is a string
-
-# Numeric port
-port: 5001    # This is a number
-
-# Template to number conversion
-port: "{{ .env.PORT | int }}"  # Converts to number
-```
-
-### 3. List Item Structure
-```yaml
-# Correct list structure
-items:
-  - name: first
-    value: 1
-  - name: second
-    value: 2
-
-# Incorrect mixing of maps and scalars
-items:
-  - name: first
-    value: 1
-  - second  # Error: inconsistent list item types
-```
-
-## Precision Preservation
-
-### Numeric Precision Handling
-
-The template engine provides precision preservation for numeric values, essential for financial calculations and high-precision data processing. Enable precision preservation using the `WithPrecisionPreservation(true)` method:
+Use `$ref` and `$use` for reusable components:
 
 ```yaml
-# Template engine configuration with precision preservation
-engine := NewEngine(FormatYAML).WithPrecisionPreservation(true)
+# Reference to shared schema
+input:
+  $ref: "schemas/user-input.yaml"
 
-# Financial calculations with precision
-financial_data:
-  # Large integers beyond JavaScript's MAX_SAFE_INTEGER (2^53-1)
-  account_balance: "9007199254740992"  # Preserved as string
-  transaction_id: "12345678901234567890"  # Preserved as string
-  
-  # High-precision decimals
-  exchange_rate: "1.234567890123456789"  # Preserved as string
-  interest_rate: "0.0000123456789012345"  # Preserved as string
-  
-  # Safe numeric values
-  customer_count: 42          # Converted to int64
-  average_score: 3.14         # Converted to float64
+# Use shared tool
+tool:
+  $use: "tools/data-validator.yaml"
+
+# Reference with filters
+schema:
+  $ref: "local::schemas.#(id=='user_schema')"
 ```
 
-### JavaScript-Safe Integer Handling
+## References
 
-Numbers within JavaScript's safe integer range (±2^53-1) are automatically converted to appropriate numeric types. The `PrecisionConverter` from `precision_converter.go` handles this conversion:
-
-```yaml
-# Safe integer range: -9007199254740991 to 9007199254740991
-safe_numbers:
-  small_int: "123"                    # → int64(123)
-  large_safe_int: "9007199254740991"  # → int64(9007199254740991)
-  
-unsafe_numbers:
-  # Beyond safe integer range - preserved as strings
-  too_large: "9007199254740992"       # → "9007199254740992"
-  very_large: "123456789012345678901" # → "123456789012345678901"
-```
-
-### Float64 Precision Limits
-
-The engine respects float64's 15-digit precision limit, using the `countSignificantDigits` function:
-
-```yaml
-precision_examples:
-  # Within float64 precision (≤15 significant digits)
-  precise_decimal: "3.14159265358979"  # → float64(3.14159265358979)
-  
-  # Beyond float64 precision (>15 significant digits)
-  high_precision: "3.141592653589793238462643383279"  # → preserved as string
-  
-  # Scientific notation handling
-  scientific: "1.23456789012345e10"  # → float64 if precision allows
-```
-
-### Template Usage with Precision
-
-```yaml
-# In templates with precision preservation enabled
-financial_report:
-  # Direct value processing
-  balance: "{{ .account.balance }}"  # Precision preserved
-  
-  # Calculations maintain precision
-  total: |
-    {{- $sum := .transactions | sum -}}
-    {{ $sum }}  # Result respects precision limits
-  
-  # Complex financial calculations
-  compound_interest: |
-    {{- $principal := .loan.principal -}}
-    {{- $rate := .loan.rate -}}
-    {{- $periods := .loan.periods -}}
-    {{- $amount := mul $principal (pow (add 1 $rate) $periods) -}}
-    {{ $amount }}  # Precision preserved throughout calculation
-```
-
-## Hyphenated Field Handling
-
-### Kubernetes-Style Field Names
-
-The template engine automatically handles hyphenated field names common in Kubernetes configurations using the `preprocessTemplateForHyphens` function:
-
-```yaml
-# Kubernetes-style configuration with hyphens
-kubernetes_config:
-  api-version: "v1"
-  kind: "Deployment"
-  metadata:
-    name: "my-app"
-    namespace: "default"
-  spec:
-    replica-count: 3
-    container-port: 5001
-    image-pull-policy: "Always"
-
-# Template access to hyphenated fields
-deployment_template: |
-  apiVersion: {{ .kubernetes_config.api-version }}
-  kind: {{ .kubernetes_config.kind }}
-  metadata:
-    name: {{ .kubernetes_config.metadata.name }}
-  spec:
-    replicas: {{ .kubernetes_config.spec.replica-count }}
-    template:
-      spec:
-        containers:
-        - name: app
-          image: myapp:latest
-          ports:
-          - containerPort: {{ .kubernetes_config.spec.container-port }}
-          imagePullPolicy: {{ .kubernetes_config.spec.image-pull-policy }}
-```
-
-### Automatic Index Syntax Conversion
-
-The `preprocessTemplateForHyphens` function automatically converts dot notation to index syntax for hyphenated fields:
-
-```yaml
-# Original template with hyphens
-input_template: "{{ .tasks.data-processing.output.result }}"
-
-# Automatically converted to index syntax
-processed_template: "{{ (index . \"tasks\" \"data-processing\" \"output\" \"result\") }}"
-
-# Works with complex nested structures
-complex_example:
-  original: "{{ .workflow.task-groups.pre-processing.validate-input.output.status }}"
-  converted: "{{ (index . \"workflow\" \"task-groups\" \"pre-processing\" \"validate-input\" \"output\" \"status\") }}"
-```
-
-### Real-World Kubernetes Examples
-
-```yaml
-# Pod configuration with hyphenated fields
-pod_config:
-  api-version: "v1"
-  kind: "Pod"
-  metadata:
-    name: "web-server"
-    labels:
-      app-name: "web"
-      version-tag: "v1.0"
-  spec:
-    restart-policy: "Always"
-    dns-policy: "ClusterFirst"
-    containers:
-    - name: "web-container"
-      image: "nginx:latest"
-      ports:
-      - container-port: 80
-        protocol: "TCP"
-      env:
-      - name: "LOG_LEVEL"
-        value: "info"
-      resources:
-        requests:
-          memory: "64Mi"
-          cpu: "250m"
-        limits:
-          memory: "128Mi"
-          cpu: "500m"
-
-# Template using hyphenated fields
-pod_template: |
-  apiVersion: {{ .pod_config.api-version }}
-  kind: {{ .pod_config.kind }}
-  metadata:
-    name: {{ .pod_config.metadata.name }}
-    labels:
-      app: {{ .pod_config.metadata.labels.app-name }}
-      version: {{ .pod_config.metadata.labels.version-tag }}
-  spec:
-    restartPolicy: {{ .pod_config.spec.restart-policy }}
-    dnsPolicy: {{ .pod_config.spec.dns-policy }}
-    containers:
-    - name: {{ .pod_config.spec.containers.0.name }}
-      image: {{ .pod_config.spec.containers.0.image }}
-      ports:
-      - containerPort: {{ .pod_config.spec.containers.0.ports.0.container-port }}
-        protocol: {{ .pod_config.spec.containers.0.ports.0.protocol }}
-```
-
-### Mixed Hyphenated and Non-Hyphenated Fields
-
-```yaml
-# Configuration mixing different naming conventions
-mixed_config:
-  # Standard camelCase
-  apiVersion: "v1"
-  serviceAccount: "my-service-account"
-  
-  # Hyphenated fields
-  image-pull-secrets:
-    - name: "docker-registry"
-  
-  # Snake_case fields
-  security_context:
-    run_as_user: 1000
-    
-  # Kebab-case fields
-  container-security-context:
-    allow-privilege-escalation: false
-    read-only-root-filesystem: true
-
-# Template handling all conventions
-mixed_template: |
-  # Standard access
-  apiVersion: {{ .mixed_config.apiVersion }}
-  serviceAccount: {{ .mixed_config.serviceAccount }}
-  
-  # Hyphenated field access
-  imagePullSecrets:
-  - name: {{ .mixed_config.image-pull-secrets.0.name }}
-  
-  # Snake_case access
-  securityContext:
-    runAsUser: {{ .mixed_config.security_context.run_as_user }}
-    
-  # Kebab-case access
-  containerSecurityContext:
-    allowPrivilegeEscalation: {{ .mixed_config.container-security-context.allow-privilege-escalation }}
-    readOnlyRootFilesystem: {{ .mixed_config.container-security-context.read-only-root-filesystem }}
-```
-
-Understanding these YAML fundamentals will help you create clean, maintainable Compozy configurations. Next, explore [Template Directives](./directives) to learn about resource references and composition.
+<ReferenceCardList>
+  <ReferenceCard
+    title="Template Functions"
+    description="Learn about built-in template functions for data transformation"
+    href="/docs/core/yaml-templates/sprig-functions"
+    icon="code"
+  />
+  <ReferenceCard
+    title="Context Variables"
+    description="Understand available context variables in templates"
+    href="/docs/core/yaml-templates/context-variables"
+    icon="Database"
+  />
+  <ReferenceCard
+    title="Advanced Patterns"
+    description="Explore complex YAML patterns and best practices"
+    href="/docs/core/yaml-templates/advanced-patterns"
+    icon="Layers"
+  />
+  <ReferenceCard
+    title="Validation & Debugging"
+    description="Learn to validate and debug YAML configurations"
+    href="/docs/core/yaml-templates/validation-debugging"
+    icon="Bug"
+  />
+</ReferenceCardList>

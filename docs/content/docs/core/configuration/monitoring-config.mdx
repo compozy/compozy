@@ -1,1461 +1,165 @@
 ---
-title: Monitoring Configuration
-description: Configure comprehensive monitoring, metrics, and observability for your Compozy applications. Set up Prometheus endpoints, custom metrics, health checks, and performance monitoring.
+title: Monitoring
+description: Configure basic monitoring and metrics endpoint for your Compozy applications
 ---
 
-import {
-  BarChart3,
-  Activity,
-  Shield,
-  TrendingUp,
-  AlertTriangle,
-  Eye,
-  Gauge,
-  Clock,
-  Server,
-  RefreshCw,
-  CheckCircle,
-  XCircle,
-  Zap,
-  Database,
-  Users,
-  Settings,
-  Terminal,
-  Code,
-  FileJson,
-  PenTool,
-  Bug,
-  BookOpen,
-  MessageSquare,
-  GitBranch,
-  Package,
-  Cloud,
-  Lock,
-  Layers,
-} from "lucide-react";
-import { FeatureCard, FeatureCardList } from "@/components/ui/feature-card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Steps, Step } from "@/components/ui/steps";
-import { Callout } from "@/components/ui/callout";
-
-Compozy provides comprehensive monitoring and observability features to help you track the health, performance, and behavior of your AI-powered workflows. This guide covers setting up monitoring configuration, metrics collection, and observability dashboards.
-
-<FeatureCardList>
-  <FeatureCard
-    icon={<BarChart3 className="h-5 w-5" />}
-    title="Prometheus Integration"
-    description="Native Prometheus metrics endpoint with OpenTelemetry instrumentation for comprehensive metric collection."
-  />
-  <FeatureCard
-    icon={<Activity className="h-5 w-5" />}
-    title="System Health Monitoring"
-    description="Track application uptime, build information, memory usage, and dispatcher health automatically."
-  />
-  <FeatureCard
-    icon={<TrendingUp className="h-5 w-5" />}
-    title="HTTP Metrics"
-    description="Monitor HTTP request rates, response times, status codes, and in-flight requests with detailed path tracking."
-  />
-  <FeatureCard
-    icon={<Clock className="h-5 w-5" />}
-    title="Temporal Workflow Tracking"
-    description="Track workflow execution metrics, task durations, and Temporal activity performance."
-  />
-  <FeatureCard
-    icon={<Settings className="h-5 w-5" />}
-    title="Custom Metrics"
-    description="Register custom business metrics with OpenTelemetry for domain-specific monitoring."
-  />
-  <FeatureCard
-    icon={<RefreshCw className="h-5 w-5" />}
-    title="Graceful Degradation"
-    description="Continue operating normally when monitoring is unavailable with fallback mechanisms."
-  />
-</FeatureCardList>
+Compozy provides simple monitoring capabilities through a Prometheus-compatible metrics endpoint. When enabled, the system exposes basic metrics that can be scraped by monitoring systems.
 
 ## Basic Configuration
 
-<Tabs defaultValue="yaml" className="w-full">
-  <TabsList className="grid grid-cols-2 w-full">
-    <TabsTrigger value="yaml">YAML Configuration</TabsTrigger>
-    <TabsTrigger value="env">Environment Variables</TabsTrigger>
-  </TabsList>
-
-  <TabsContent value="yaml">
+<Tabs items={["YAML Configuration", "Environment Variables"]} defaultValue="YAML Configuration">
+  <Tab value="YAML Configuration">
     ```yaml
     # compozy.yaml
-    name: my-monitored-app
+    name: my-app
     version: 1.0.0
-    
+
     # Basic monitoring configuration
     monitoring:
       enabled: true
       path: /metrics
-    
+
     workflows:
       - source: ./workflow.yaml
-    
-    runtime:
-      permissions:
-        - --allow-read
-        - --allow-net
-        - --allow-env
     ```
-  </TabsContent>
+  </Tab>
 
-  <TabsContent value="env">
+  <Tab value="Environment Variables">
     ```bash
     # Environment variables take precedence over YAML
     export MONITORING_ENABLED=true
     export MONITORING_PATH=/metrics
-    
+
     # Start your application
-    compozy run
+    compozy start
     ```
-  </TabsContent>
+  </Tab>
 </Tabs>
+
+## Configuration Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `enabled` | boolean | `false` | Enable/disable monitoring endpoint |
+| `path` | string | `/metrics` | HTTP path for metrics endpoint |
+
+### Path Requirements
 
 <Callout type="info">
-  **Path Requirements**: The monitoring path must start with `/`, cannot conflict with API routes (`/api/*`), and should not contain query parameters.
+  The monitoring path must:
+  - Start with `/`
+  - Not conflict with API routes (`/api/*`)
+  - Not contain query parameters
 </Callout>
 
-## Metric Types and Categories
+## Usage Examples
 
-Compozy collects several categories of metrics automatically when monitoring is enabled:
-
-### System Health Metrics
-
-<Tabs defaultValue="build" className="w-full">
-  <TabsList className="grid grid-cols-4 w-full">
-    <TabsTrigger value="build">Build Info</TabsTrigger>
-    <TabsTrigger value="uptime">Uptime</TabsTrigger>
-    <TabsTrigger value="dispatcher">Dispatcher Health</TabsTrigger>
-    <TabsTrigger value="memory">Memory</TabsTrigger>
-  </TabsList>
-
-  <TabsContent value="build">
-    **`compozy_build_info`** - Build information with version, commit, and Go version
-    ```prometheus
-    # TYPE compozy_build_info gauge
-    compozy_build_info{version="v1.0.0",commit_hash="abc123",go_version="go1.21.0"} 1
-    ```
-  </TabsContent>
-
-  <TabsContent value="uptime">
-    **`compozy_uptime_seconds`** - Application uptime in seconds
-    ```prometheus
-    # TYPE compozy_uptime_seconds gauge
-    compozy_uptime_seconds 3600.5
-    ```
-  </TabsContent>
-
-  <TabsContent value="dispatcher">
-    **`compozy_dispatcher_health_status`** - Dispatcher health status with metadata
-    ```prometheus
-    # TYPE compozy_dispatcher_health_status gauge
-    compozy_dispatcher_health_status{dispatcher_id="main",is_stale="false",time_since_heartbeat="5.2",consecutive_failures="0"} 1
-    ```
-  </TabsContent>
-
-  <TabsContent value="memory">
-    **Memory and resource metrics** - System resource utilization
-    ```prometheus
-    # Memory allocation metrics
-    compozy_memory_alloc_bytes 1048576
-    compozy_memory_sys_bytes 2097152
-    compozy_goroutines_total 25
-    ```
-  </TabsContent>
-</Tabs>
-
-### HTTP Request Metrics
-
-<Tabs defaultValue="requests" className="w-full">
-  <TabsList className="grid grid-cols-3 w-full">
-    <TabsTrigger value="requests">Request Totals</TabsTrigger>
-    <TabsTrigger value="duration">Duration</TabsTrigger>
-    <TabsTrigger value="flight">In-Flight</TabsTrigger>
-  </TabsList>
-
-  <TabsContent value="requests">
-    **`compozy_http_requests_total`** - Total HTTP requests by method, route, and status
-    ```prometheus
-    # TYPE compozy_http_requests_total counter
-    compozy_http_requests_total{method="GET",route="/api/v1/workflows",status_code="200"} 1500
-    compozy_http_requests_total{method="POST",route="/api/v1/workflows",status_code="201"} 45
-    ```
-  </TabsContent>
-
-  <TabsContent value="duration">
-    **`compozy_http_request_duration_seconds`** - Request latency histogram
-    ```prometheus
-    # TYPE compozy_http_request_duration_seconds histogram
-    compozy_http_request_duration_seconds_bucket{method="GET",route="/api/v1/workflows",status_code="200",le="0.005"} 850
-    compozy_http_request_duration_seconds_bucket{method="GET",route="/api/v1/workflows",status_code="200",le="0.01"} 1200
-    compozy_http_request_duration_seconds_bucket{method="GET",route="/api/v1/workflows",status_code="200",le="0.025"} 1450
-    ```
-  </TabsContent>
-
-  <TabsContent value="flight">
-    **`compozy_http_requests_in_flight`** - Currently active HTTP requests
-    ```prometheus
-    # TYPE compozy_http_requests_in_flight gauge
-    compozy_http_requests_in_flight 3
-    ```
-  </TabsContent>
-</Tabs>
-
-### Temporal Workflow Metrics
-
-**`compozy_temporal_workflow_execution_total`** - Workflow execution counts
-```prometheus
-# TYPE compozy_temporal_workflow_execution_total counter
-compozy_temporal_workflow_execution_total{workflow_type="data_processing",status="completed"} 234
-compozy_temporal_workflow_execution_total{workflow_type="data_processing",status="failed"} 12
-```
-
-**`compozy_temporal_task_duration_seconds`** - Task execution duration
-```prometheus
-# TYPE compozy_temporal_task_duration_seconds histogram
-compozy_temporal_task_duration_seconds_bucket{task_type="data_transform",le="1.0"} 45
-compozy_temporal_task_duration_seconds_bucket{task_type="data_transform",le="5.0"} 89
-```
-
-## Prometheus Integration
-
-<Steps>
-<Step title="Configure Prometheus Server" description="Set up Prometheus to scrape your Compozy metrics">
+### Enable Monitoring
 
 ```yaml
-# prometheus.yml
-global:
-  scrape_interval: 15s
-  evaluation_interval: 15s
-
-scrape_configs:
-  - job_name: 'compozy'
-    static_configs:
-      - targets: ['localhost:5001']
-    metrics_path: '/metrics'
-    scrape_interval: 10s
-    scrape_timeout: 5s
-    
-  - job_name: 'compozy-kubernetes'
-    kubernetes_sd_configs:
-      - role: pod
-    relabel_configs:
-      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
-        action: keep
-        regex: true
-      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
-        action: replace
-        target_label: __metrics_path__
-        regex: (.+)
+monitoring:
+  enabled: true
 ```
 
-</Step>
-
-<Step title="Service Discovery for Kubernetes" description="Configure Kubernetes service discovery">
+### Custom Metrics Path
 
 ```yaml
-# deployment.yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: compozy-app
-spec:
-  template:
-    metadata:
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "5001"
-        prometheus.io/path: "/metrics"
-    spec:
-      containers:
-      - name: compozy
-        image: my-compozy-app:latest
-        ports:
-        - containerPort: 5001
-        env:
-        - name: MONITORING_ENABLED
-          value: "true"
-        - name: MONITORING_PATH
-          value: "/metrics"
+monitoring:
+  enabled: true
+  path: /internal/metrics
 ```
 
-</Step>
-
-<Step title="Metric Relabeling" description="Optimize metric collection with relabeling">
-
-```yaml
-# Advanced Prometheus configuration
-scrape_configs:
-  - job_name: 'compozy'
-    static_configs:
-      - targets: ['localhost:5001']
-    metric_relabel_configs:
-      # Drop high-cardinality labels
-      - source_labels: [__name__]
-        regex: 'compozy_http_request_duration_seconds'
-        target_label: __tmp_drop_high_cardinality
-        replacement: 'true'
-      # Rename metrics for consistency
-      - source_labels: [__name__]
-        regex: 'compozy_(.*)'
-        target_label: __name__
-        replacement: 'app_${1}'
-```
-
-</Step>
-</Steps>
-
-## Grafana Dashboard Setup
-
-<Steps>
-<Step title="Install Grafana" description="Set up Grafana for metrics visualization">
+### Environment Override
 
 ```bash
-# Using Docker Compose
-version: '3.8'
-services:
-  grafana:
-    image: grafana/grafana:latest
-    ports:
-      - "3000:3000"
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-    volumes:
-      - grafana-storage:/var/lib/grafana
-      - ./grafana/provisioning:/etc/grafana/provisioning
-      - ./grafana/dashboards:/var/lib/grafana/dashboards
-
-volumes:
-  grafana-storage:
+# Override YAML configuration
+export MONITORING_ENABLED=true
+export MONITORING_PATH=/custom/metrics
 ```
 
-</Step>
+## Accessing Metrics
 
-<Step title="Configure Data Source" description="Add Prometheus as a data source">
+Once enabled, metrics are available at the configured endpoint:
 
-```json
-// grafana/provisioning/datasources/prometheus.yaml
-apiVersion: 1
+```bash
+# Default endpoint
+curl http://localhost:8080/metrics
 
-datasources:
-  - name: Prometheus
-    type: prometheus
-    url: http://prometheus:9090
-    access: proxy
-    isDefault: true
-    editable: true
+# Custom endpoint
+curl http://localhost:8080/internal/metrics
 ```
 
-</Step>
+## Integration
 
-<Step title="Create Dashboard" description="Build comprehensive monitoring dashboard">
+The metrics endpoint is compatible with:
 
-```json
-// grafana/dashboards/compozy-dashboard.json
-{
-  "dashboard": {
-    "title": "Compozy Monitoring",
-    "panels": [
-      {
-        "title": "HTTP Request Rate",
-        "type": "graph",
-        "targets": [
-          {
-            "expr": "rate(compozy_http_requests_total[5m])",
-            "legendFormat": "{{method}} {{route}}"
-          }
-        ]
-      },
-      {
-        "title": "Response Time P95",
-        "type": "graph",
-        "targets": [
-          {
-            "expr": "histogram_quantile(0.95, rate(compozy_http_request_duration_seconds_bucket[5m]))",
-            "legendFormat": "P95 Response Time"
-          }
-        ]
-      },
-      {
-        "title": "Dispatcher Health",
-        "type": "stat",
-        "targets": [
-          {
-            "expr": "compozy_dispatcher_health_status",
-            "legendFormat": "{{dispatcher_id}}"
-          }
-        ]
-      },
-      {
-        "title": "System Uptime",
-        "type": "stat",
-        "targets": [
-          {
-            "expr": "compozy_uptime_seconds",
-            "legendFormat": "Uptime (seconds)"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
+- Prometheus
+- Grafana Agent
+- VictoriaMetrics
+- Other Prometheus-compatible systems
 
-</Step>
-
-<Step title="Configure Alerts" description="Set up alerting for critical metrics">
+Example Prometheus scrape configuration:
 
 ```yaml
-# Basic alert rules
-groups:
-  - name: compozy.rules
-    rules:
-      - alert: CompozyHighErrorRate
-        expr: rate(compozy_http_requests_total{status_code=~"5.."}[5m]) > 0.1
-        for: 2m
-        labels:
-          severity: warning
-        annotations:
-          summary: "High error rate detected"
-          description: "Error rate is {{ $value }} requests/sec"
-          
-      - alert: CompozyDispatcherDown
-        expr: compozy_dispatcher_health_status == 0
-        for: 1m
-        labels:
-          severity: critical
-        annotations:
-          summary: "Dispatcher {{ $labels.dispatcher_id }} is unhealthy"
+scrape_configs:
+  - job_name: 'compozy'
+    static_configs:
+      - targets: ['localhost:8080']
+    metrics_path: '/metrics'
 ```
 
-</Step>
-</Steps>
+## Implementation Details
 
-## Custom Metrics Implementation
+The monitoring system provides:
 
-### OpenTelemetry Integration
+- **Basic Configuration**: Simple enabled/disabled flag
+- **Custom Path**: Configurable metrics endpoint
+- **Environment Override**: Environment variables take precedence
+- **Validation**: Path validation to prevent conflicts
 
-<Tabs defaultValue="go" className="w-full">
-  <TabsList className="grid grid-cols-2 w-full">
-    <TabsTrigger value="go">Go Implementation</TabsTrigger>
-    <TabsTrigger value="middleware">Middleware Pattern</TabsTrigger>
-  </TabsList>
+### Configuration Validation
 
-  <TabsContent value="go">
-    ```go
-    package main
-    
-    import (
-        "context"
-        "log"
-        
-        "go.opentelemetry.io/otel"
-        "go.opentelemetry.io/otel/metric"
-    )
-    
-    func main() {
-        // Get the global meter
-        meter := otel.Meter("my-service")
-        
-        // Create custom counters
-        businessEventCounter, err := meter.Int64Counter(
-            "business_events_total",
-            metric.WithDescription("Total business events processed"),
-        )
-        if err != nil {
-            log.Fatal(err)
-        }
-        
-        // Create custom histograms
-        processingDuration, err := meter.Float64Histogram(
-            "processing_duration_seconds",
-            metric.WithDescription("Processing time for business operations"),
-        )
-        if err != nil {
-            log.Fatal(err)
-        }
-        
-        // Use metrics in your application
-        ctx := context.Background()
-        businessEventCounter.Add(ctx, 1, metric.WithAttributes(
-            attribute.String("event_type", "user_registration"),
-            attribute.String("source", "web_app"),
-        ))
-        
-        // Record processing time
-        start := time.Now()
-        // ... do business logic
-        duration := time.Since(start).Seconds()
-        processingDuration.Record(ctx, duration)
-    }
-    ```
-  </TabsContent>
+The system validates:
 
-  <TabsContent value="middleware">
-    ```go
-    package middleware
-    
-    import (
-        "context"
-        "time"
-        
-        "github.com/gin-gonic/gin"
-        "go.opentelemetry.io/otel"
-        "go.opentelemetry.io/otel/attribute"
-        "go.opentelemetry.io/otel/metric"
-    )
-    
-    func BusinessMetrics() gin.HandlerFunc {
-        meter := otel.Meter("business-metrics")
-        
-        // Create business-specific metrics
-        userActionCounter, _ := meter.Int64Counter(
-            "user_actions_total",
-            metric.WithDescription("Total user actions by type"),
-        )
-        
-        workflowDuration, _ := meter.Float64Histogram(
-            "workflow_execution_duration_seconds",
-            metric.WithDescription("Workflow execution time"),
-        )
-        
-        return func(c *gin.Context) {
-            start := time.Now()
-            
-            // Extract business context
-            userID := c.GetHeader("X-User-ID")
-            action := c.GetHeader("X-Action-Type")
-            
-            c.Next()
-            
-            // Record business metrics
-            if action != "" {
-                userActionCounter.Add(c.Request.Context(), 1,
-                    metric.WithAttributes(
-                        attribute.String("action", action),
-                        attribute.String("user_id", userID),
-                        attribute.Int("status_code", c.Writer.Status()),
-                    ),
-                )
-            }
-            
-            // Record workflow duration
-            if c.FullPath() == "/api/v1/workflows/:id/execute" {
-                duration := time.Since(start).Seconds()
-                workflowDuration.Record(c.Request.Context(), duration,
-                    metric.WithAttributes(
-                        attribute.String("workflow_type", c.Param("type")),
-                        attribute.Int("status_code", c.Writer.Status()),
-                    ),
-                )
-            }
-        }
-    }
-    ```
-  </TabsContent>
-</Tabs>
-
-### Metric Naming Conventions
-
-<Callout type="info">
-  **Best Practices**: Follow OpenTelemetry and Prometheus naming conventions for consistency and tooling compatibility.
-</Callout>
-
-```yaml
-# Recommended naming patterns
-counters:
-  - name: "compozy_operations_total"
-    labels: ["operation_type", "status"]
-    
-histograms:
-  - name: "compozy_operation_duration_seconds"
-    buckets: [0.1, 0.5, 1.0, 2.5, 5.0, 10.0]
-    labels: ["operation_type"]
-    
-gauges:
-  - name: "compozy_active_connections"
-    labels: ["connection_type"]
-```
-
-## Alerting and Notifications
-
-### Basic Alert Rules
-
-<Tabs defaultValue="prometheus" className="w-full">
-  <TabsList className="grid grid-cols-2 w-full">
-    <TabsTrigger value="prometheus">Prometheus Rules</TabsTrigger>
-    <TabsTrigger value="alertmanager">Alertmanager Config</TabsTrigger>
-  </TabsList>
-
-  <TabsContent value="prometheus">
-    ```yaml
-    # prometheus-rules.yml
-    groups:
-      - name: compozy.rules
-        rules:
-          # Basic availability alert
-          - alert: CompozyDown
-            expr: up{job="compozy"} == 0
-            for: 1m
-            labels:
-              severity: critical
-            annotations:
-              summary: "Compozy instance {{ $labels.instance }} is down"
-              description: "Compozy has been down for more than 1 minute"
-              
-          # High error rate alert
-          - alert: CompozyHighErrorRate
-            expr: |
-              (
-                rate(compozy_http_requests_total{status_code=~"5.."}[5m]) / 
-                rate(compozy_http_requests_total[5m])
-              ) > 0.05
-            for: 2m
-            labels:
-              severity: warning
-            annotations:
-              summary: "High error rate detected"
-              description: "Error rate is {{ $value | humanizePercentage }}"
-              
-          # Slow response time alert
-          - alert: CompozySlowResponse
-            expr: |
-              histogram_quantile(0.95,
-                rate(compozy_http_request_duration_seconds_bucket[5m])
-              ) > 2.0
-            for: 3m
-            labels:
-              severity: warning
-            annotations:
-              summary: "Slow response time detected"
-              description: "95th percentile response time is {{ $value }}s"
-              
-          # Dispatcher health alert
-          - alert: CompozyDispatcherUnhealthy
-            expr: compozy_dispatcher_health_status == 0
-            for: 1m
-            labels:
-              severity: critical
-            annotations:
-              summary: "Dispatcher {{ $labels.dispatcher_id }} is unhealthy"
-              description: "Dispatcher has been unhealthy for more than 1 minute"
-    ```
-  </TabsContent>
-
-  <TabsContent value="alertmanager">
-    ```yaml
-    # alertmanager.yml
-    global:
-      smtp_smarthost: 'localhost:587'
-      smtp_from: 'alerts@mycompany.com'
-      
-    route:
-      group_by: ['alertname']
-      group_wait: 10s
-      group_interval: 10s
-      repeat_interval: 1h
-      receiver: 'web.hook'
-      routes:
-        - match:
-            severity: critical
-          receiver: 'critical-alerts'
-        - match:
-            severity: warning
-          receiver: 'warning-alerts'
-          
-    receivers:
-      - name: 'web.hook'
-        webhook_configs:
-          - url: 'http://localhost:5001/'
-            
-      - name: 'critical-alerts'
-        email_configs:
-          - to: 'oncall@mycompany.com'
-            subject: 'CRITICAL: {{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
-            body: |
-              {{ range .Alerts }}
-              Alert: {{ .Annotations.summary }}
-              Description: {{ .Annotations.description }}
-              Labels: {{ range .Labels.SortedPairs }}{{ .Name }}={{ .Value }} {{ end }}
-              {{ end }}
-        slack_configs:
-          - api_url: 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
-            channel: '#alerts'
-            title: 'Critical Alert'
-            text: '{{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
-            
-      - name: 'warning-alerts'
-        email_configs:
-          - to: 'team@mycompany.com'
-            subject: 'WARNING: {{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
-    ```
-  </TabsContent>
-</Tabs>
-
-### Advanced Alert Configuration
-
-```yaml
-# Advanced alerting with routing and grouping
-route:
-  group_by: ['alertname', 'cluster', 'service']
-  group_wait: 30s
-  group_interval: 5m
-  repeat_interval: 12h
-  receiver: 'default-receiver'
-  routes:
-    # Route critical alerts immediately
-    - match:
-        severity: critical
-      receiver: 'critical-pager'
-      group_wait: 10s
-      repeat_interval: 5m
-      
-    # Route by service
-    - match:
-        service: 'compozy-workflows'
-      receiver: 'workflow-team'
-      
-    # Route by time (business hours)
-    - match:
-        severity: warning
-      receiver: 'business-hours'
-      active_time_intervals:
-        - business_hours
-
-time_intervals:
-  - name: business_hours
-    time_intervals:
-      - times:
-          - start_time: '09:00'
-            end_time: '17:00'
-        weekdays: ['monday:friday']
-```
-
-## Performance Optimization
-
-### Scraping Configuration
-
-<Tabs defaultValue="basic" className="w-full">
-  <TabsList className="grid grid-cols-3 w-full">
-    <TabsTrigger value="basic">Basic Optimization</TabsTrigger>
-    <TabsTrigger value="cardinality">Cardinality Management</TabsTrigger>
-    <TabsTrigger value="retention">Retention Policies</TabsTrigger>
-  </TabsList>
-
-  <TabsContent value="basic">
-    ```yaml
-    # Optimize scraping intervals
-    scrape_configs:
-      - job_name: 'compozy'
-        static_configs:
-          - targets: ['localhost:5001']
-        scrape_interval: 30s      # Reduce frequency for less critical metrics
-        scrape_timeout: 10s       # Increase timeout for slow responses
-        metrics_path: '/metrics'
-        
-        # Optimize metric collection
-        metric_relabel_configs:
-          # Drop unused metrics
-          - source_labels: [__name__]
-            regex: 'go_.*'
-            action: drop
-            
-          # Sample high-frequency metrics
-          - source_labels: [__name__]
-            regex: 'compozy_http_requests_total'
-            target_label: __tmp_sample_rate
-            replacement: '0.1'  # Sample 10% of requests
-    ```
-  </TabsContent>
-
-  <TabsContent value="cardinality">
-    ```yaml
-    # Manage high-cardinality metrics
-    metric_relabel_configs:
-      # Drop high-cardinality labels
-      - source_labels: [user_id]
-        regex: '.*'
-        action: drop
-        
-      # Hash sensitive labels
-      - source_labels: [user_id]
-        target_label: user_hash
-        replacement: '{{ .user_id | sha256 | substr 0 8 }}'
-        
-      # Aggregate by service instead of instance
-      - source_labels: [instance]
-        regex: '(.+):.*'
-        target_label: service
-        replacement: '${1}'
-        
-      # Limit label values
-      - source_labels: [path]
-        regex: '/api/v1/workflows/[^/]+/(.+)'
-        target_label: path
-        replacement: '/api/v1/workflows/:id/${1}'
-    ```
-  </TabsContent>
-
-  <TabsContent value="retention">
-    ```yaml
-    # Prometheus retention configuration
-    global:
-      # Reduce retention for high-frequency metrics
-      evaluation_interval: 30s
-      
-    # Storage configuration
-    storage:
-      tsdb:
-        retention_time: 30d
-        retention_size: 100GB
-        
-    # Recording rules for long-term storage
-    rule_files:
-      - "recording_rules.yml"
-      
-    # Recording rules example
-    groups:
-      - name: compozy.recording.rules
-        interval: 30s
-        rules:
-          - record: compozy:http_request_rate_5m
-            expr: rate(compozy_http_requests_total[5m])
-            
-          - record: compozy:http_error_rate_5m
-            expr: |
-              rate(compozy_http_requests_total{status_code=~"5.."}[5m]) /
-              rate(compozy_http_requests_total[5m])
-    ```
-  </TabsContent>
-</Tabs>
-
-## Health Checks
-
-### Kubernetes Health Checks
-
-<Tabs defaultValue="basic" className="w-full">
-  <TabsList className="grid grid-cols-2 w-full">
-    <TabsTrigger value="basic">Basic Health Checks</TabsTrigger>
-    <TabsTrigger value="advanced">Advanced Configuration</TabsTrigger>
-  </TabsList>
-
-  <TabsContent value="basic">
-    ```yaml
-    # kubernetes-deployment.yaml
-    apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-      name: compozy-app
-    spec:
-      template:
-        spec:
-          containers:
-          - name: compozy
-            image: my-compozy-app:latest
-            ports:
-            - containerPort: 5001
-            
-            # Readiness probe - when to start receiving traffic
-            readinessProbe:
-              httpGet:
-                path: /health
-                port: 5001
-              initialDelaySeconds: 10
-              periodSeconds: 5
-              timeoutSeconds: 3
-              failureThreshold: 3
-              
-            # Liveness probe - when to restart container
-            livenessProbe:
-              httpGet:
-                path: /health
-                port: 5001
-              initialDelaySeconds: 30
-              periodSeconds: 10
-              timeoutSeconds: 5
-              failureThreshold: 3
-    ```
-  </TabsContent>
-
-  <TabsContent value="advanced">
-    ```yaml
-    # Advanced health check configuration
-    apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-      name: compozy-app
-    spec:
-      template:
-        spec:
-          containers:
-          - name: compozy
-            image: my-compozy-app:latest
-            
-            # Startup probe - for slow-starting containers
-            startupProbe:
-              httpGet:
-                path: /health
-                port: 5001
-              initialDelaySeconds: 0
-              periodSeconds: 10
-              timeoutSeconds: 3
-              failureThreshold: 30  # 5 minutes to start
-              
-            # Readiness probe with custom endpoint
-            readinessProbe:
-              httpGet:
-                path: /health/ready
-                port: 5001
-                httpHeaders:
-                - name: X-Health-Check
-                  value: "readiness"
-              initialDelaySeconds: 5
-              periodSeconds: 5
-              
-            # Liveness probe with exec command
-            livenessProbe:
-              exec:
-                command:
-                - /bin/sh
-                - -c
-                - "curl -f http://localhost:5001/health/live || exit 1"
-              initialDelaySeconds: 30
-              periodSeconds: 10
-    ```
-  </TabsContent>
-</Tabs>
-
-### Load Balancer Health Checks
-
-```yaml
-# nginx-upstream.conf
-upstream compozy_backend {
-    server app1:5001 max_fails=3 fail_timeout=30s;
-    server app2:5001 max_fails=3 fail_timeout=30s;
-    server app3:5001 max_fails=3 fail_timeout=30s;
-}
-
-server {
-    listen 80;
-    
-    location /health {
-        access_log off;
-        proxy_pass http://compozy_backend;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_connect_timeout 5s;
-        proxy_read_timeout 5s;
-    }
-    
-    location / {
-        proxy_pass http://compozy_backend;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-```
-
-### Basic Health Check Endpoint
-
-```go
-// health_check.go
-package main
-
-import (
-    "context"
-    "net/http"
-    "time"
-    
-    "github.com/gin-gonic/gin"
-    "github.com/compozy/compozy/pkg/logger"
-)
-
-func healthCheckHandler(c *gin.Context) {
-    ctx := c.Request.Context()
-    log := logger.FromContext(ctx)
-    
-    // Basic health check
-    status := gin.H{
-        "status": "healthy",
-        "timestamp": time.Now().UTC(),
-        "version": "v1.0.0",
-    }
-    
-    // Add optional checks
-    if c.Query("detailed") == "true" {
-        status["checks"] = gin.H{
-            "database": checkDatabase(ctx),
-            "redis": checkRedis(ctx),
-            "temporal": checkTemporal(ctx),
-        }
-    }
-    
-    c.JSON(http.StatusOK, status)
-}
-
-func checkDatabase(ctx context.Context) string {
-    // Implement database connectivity check
-    return "healthy"
-}
-
-func checkRedis(ctx context.Context) string {
-    // Implement Redis connectivity check
-    return "healthy"
-}
-
-func checkTemporal(ctx context.Context) string {
-    // Implement Temporal connectivity check
-    return "healthy"
-}
-```
+- Path starts with `/`
+- Path doesn't conflict with `/api/*` routes
+- Path doesn't contain query parameters
+- Valid boolean values for enabled flag
 
 ## Troubleshooting
 
-### Common Issues and Solutions
+### Common Issues
 
-<Tabs defaultValue="metrics" className="w-full">
-  <TabsList className="grid grid-cols-4 w-full">
-    <TabsTrigger value="metrics">Metrics Not Appearing</TabsTrigger>
-    <TabsTrigger value="performance">Performance Issues</TabsTrigger>
-    <TabsTrigger value="cardinality">High Cardinality</TabsTrigger>
-    <TabsTrigger value="alerts">Alert Problems</TabsTrigger>
-  </TabsList>
+**Metrics endpoint not accessible:**
+- Verify `enabled: true` in configuration
+- Check port and path configuration
+- Ensure no firewall blocking access
 
-  <TabsContent value="metrics">
-    **Problem**: Metrics not appearing in Prometheus
+**Path conflicts:**
+- Avoid using `/api/*` paths
+- Choose unique path not used by application
 
-    **Solutions**:
-    ```bash
-    # Check if monitoring is enabled
-    curl http://localhost:5001/metrics
-    
-    # Verify configuration
-    export MONITORING_ENABLED=true
-    export MONITORING_PATH=/metrics
-    
-    # Check Prometheus targets
-    curl http://localhost:9090/api/v1/targets
-    
-    # Verify scraping configuration
-    curl http://localhost:9090/api/v1/label/__name__/values | grep compozy
-    ```
+**Environment variables not working:**
+- Restart application after setting environment variables
+- Verify variable names: `MONITORING_ENABLED`, `MONITORING_PATH`
 
-    **Common causes**:
-    - Monitoring disabled in configuration
-    - Incorrect metrics path
-    - Firewall blocking scraping
-    - Service discovery misconfiguration
-  </TabsContent>
-
-  <TabsContent value="performance">
-    **Problem**: High memory usage or slow scraping
-
-    **Solutions**:
-    ```yaml
-    # Optimize scraping interval
-    scrape_configs:
-      - job_name: 'compozy'
-        scrape_interval: 30s  # Increase interval
-        scrape_timeout: 10s   # Increase timeout
-        
-    # Drop unnecessary metrics
-    metric_relabel_configs:
-      - source_labels: [__name__]
-        regex: 'go_.*|promhttp_.*'
-        action: drop
-        
-    # Use recording rules for complex queries
-    rules:
-      - record: compozy:request_rate_5m
-        expr: rate(compozy_http_requests_total[5m])
-    ```
-
-    **Monitoring performance**:
-    ```bash
-    # Check scraping duration
-    curl -s http://localhost:9090/api/v1/query?query=prometheus_tsdb_symbol_table_size_bytes
-    
-    # Monitor memory usage
-    curl -s http://localhost:9090/api/v1/query?query=process_resident_memory_bytes
-    ```
-  </TabsContent>
-
-  <TabsContent value="cardinality">
-    **Problem**: High cardinality metrics causing storage issues
-
-    **Solutions**:
-    ```bash
-    # Identify high-cardinality metrics
-    curl -s http://localhost:9090/api/v1/label/__name__/values | \
-      xargs -I {} sh -c 'echo -n "{}: "; curl -s "http://localhost:9090/api/v1/query?query=count+by+(__name__)(%7B__name__=%22{}%22%7D)" | jq -r ".data.result[0].value[1]"'
-    
-    # Check series count
-    curl -s http://localhost:9090/api/v1/query?query=prometheus_tsdb_symbol_table_size_bytes
-    ```
-
-    **Mitigation strategies**:
-    ```yaml
-    # Limit label values
-    metric_relabel_configs:
-      - source_labels: [path]
-        regex: '/api/v1/workflows/[^/]+/(.+)'
-        target_label: path
-        replacement: '/api/v1/workflows/:id/${1}'
-        
-      # Drop high-cardinality labels
-      - source_labels: [user_id]
-        action: drop
-        
-      # Sample high-frequency metrics
-      - source_labels: [__name__]
-        regex: 'compozy_http_requests_total'
-        target_label: __tmp_sample_rate
-        replacement: '0.1'
-    ```
-  </TabsContent>
-
-  <TabsContent value="alerts">
-    **Problem**: Alerts not firing or too noisy
-
-    **Solutions**:
-    ```bash
-    # Check alert status
-    curl http://localhost:9090/api/v1/alerts
-    
-    # Verify alert rules
-    curl http://localhost:9090/api/v1/rules
-    
-    # Test alert expression
-    curl "http://localhost:9090/api/v1/query?query=rate(compozy_http_requests_total%7Bstatus_code%3D~%225..%22%7D%5B5m%5D)"
-    ```
-
-    **Debugging alerts**:
-    ```yaml
-    # Add debugging annotations
-    rules:
-      - alert: CompozyHighErrorRate
-        expr: rate(compozy_http_requests_total{status_code=~"5.."}[5m]) > 0.1
-        for: 2m
-        labels:
-          severity: warning
-        annotations:
-          summary: "High error rate detected"
-          description: "Error rate is {{ $value }} requests/sec"
-          debug_query: "rate(compozy_http_requests_total{status_code=~\"5..\"}[5m])"
-          debug_value: "{{ $value }}"
-    ```
-  </TabsContent>
-</Tabs>
-
-### Debugging Commands
-
-<Tabs defaultValue="prometheus" className="w-full">
-  <TabsList className="grid grid-cols-3 w-full">
-    <TabsTrigger value="prometheus">Prometheus Queries</TabsTrigger>
-    <TabsTrigger value="curl">cURL Commands</TabsTrigger>
-    <TabsTrigger value="logging">Log Analysis</TabsTrigger>
-  </TabsList>
-
-  <TabsContent value="prometheus">
-    ```promql
-    # Check if metrics are being scraped
-    up{job="compozy"}
-    
-    # View all available metrics
-    {__name__=~"compozy_.*"}
-    
-    # Check request rate
-    rate(compozy_http_requests_total[5m])
-    
-    # Check error rate
-    rate(compozy_http_requests_total{status_code=~"5.."}[5m]) / 
-    rate(compozy_http_requests_total[5m])
-    
-    # Check response time percentiles
-    histogram_quantile(0.95, rate(compozy_http_request_duration_seconds_bucket[5m]))
-    
-    # Check dispatcher health
-    compozy_dispatcher_health_status
-    
-    # Check system uptime
-    compozy_uptime_seconds
-    ```
-  </TabsContent>
-
-  <TabsContent value="curl">
-    ```bash
-    # Test metrics endpoint
-    curl -v http://localhost:5001/metrics
-    
-    # Check specific metrics
-    curl -s http://localhost:5001/metrics | grep compozy_
-    
-    # Test with authentication
-    curl -H "Authorization: Bearer token" http://localhost:5001/metrics
-    
-    # Check health endpoint
-    curl http://localhost:5001/health
-    
-    # Prometheus API queries
-    curl "http://localhost:9090/api/v1/query?query=up{job=\"compozy\"}"
-    
-    # Check scraping targets
-    curl http://localhost:9090/api/v1/targets
-    
-    # Check service discovery
-    curl http://localhost:9090/api/v1/targets?scrapePool=compozy
-    ```
-  </TabsContent>
-
-  <TabsContent value="logging">
-    ```bash
-    # Check monitoring service logs
-    grep -i "monitoring\|metrics" /var/log/compozy.log
-    
-    # Look for initialization errors
-    grep -i "failed to.*monitoring\|error.*metrics" /var/log/compozy.log
-    
-    # Check Prometheus scraping logs
-    grep -i "scrape\|target" /var/log/prometheus.log
-    
-    # Monitor real-time metrics
-    tail -f /var/log/compozy.log | grep -i metrics
-    
-    # Check for high cardinality warnings
-    grep -i "cardinality\|series" /var/log/prometheus.log
-    ```
-  </TabsContent>
-</Tabs>
-
-## Best Practices
-
-### Configuration Best Practices
-
-<Tabs defaultValue="production" className="w-full">
-  <TabsList className="grid grid-cols-3 w-full">
-    <TabsTrigger value="production">Production Setup</TabsTrigger>
-    <TabsTrigger value="development">Development</TabsTrigger>
-    <TabsTrigger value="security">Security</TabsTrigger>
-  </TabsList>
-
-  <TabsContent value="production">
-    ```yaml
-    # Production monitoring configuration
-    monitoring:
-      enabled: true
-      path: /internal/metrics  # Non-public endpoint
-      
-    # Environment-specific settings
-    production:
-      monitoring:
-        enabled: true
-        path: /internal/metrics
-        scrape_interval: 30s
-        
-    staging:
-      monitoring:
-        enabled: true
-        path: /metrics
-        scrape_interval: 15s
-        
-    development:
-      monitoring:
-        enabled: false  # Disable in development
-    ```
-
-    **Resource limits**:
-    ```yaml
-    # Kubernetes resource limits
-    resources:
-      limits:
-        memory: "512Mi"
-        cpu: "500m"
-      requests:
-        memory: "256Mi"
-        cpu: "100m"
-    ```
-  </TabsContent>
-
-  <TabsContent value="development">
-    ```yaml
-    # Development configuration
-    monitoring:
-      enabled: true
-      path: /debug/metrics  # Clear development endpoint
-      
-    # Local development with Docker
-    services:
-      prometheus:
-        image: prom/prometheus:latest
-        ports:
-          - "9090:9090"
-        volumes:
-          - ./prometheus-dev.yml:/etc/prometheus/prometheus.yml
-          
-      grafana:
-        image: grafana/grafana:latest
-        ports:
-          - "3000:3000"
-        environment:
-          GF_SECURITY_ADMIN_PASSWORD: dev123
-    ```
-
-    **Development scripts**:
-    ```bash
-    #!/bin/bash
-    # dev-monitoring.sh
-    echo "Starting development monitoring stack..."
-    
-    # Start Prometheus
-    docker run -d --name prometheus \
-      -p 9090:9090 \
-      -v $(pwd)/prometheus-dev.yml:/etc/prometheus/prometheus.yml \
-      prom/prometheus:latest
-      
-    # Start Grafana
-    docker run -d --name grafana \
-      -p 3000:3000 \
-      -e GF_SECURITY_ADMIN_PASSWORD=dev123 \
-      grafana/grafana:latest
-      
-    echo "Monitoring available at:"
-    echo "  Prometheus: http://localhost:9090"
-    echo "  Grafana: http://localhost:3000 (admin/dev123)"
-    ```
-  </TabsContent>
-
-  <TabsContent value="security">
-    ```yaml
-    # Security considerations
-    monitoring:
-      enabled: true
-      path: /internal/metrics  # Use internal path
-      
-    # Network security
-    server:
-      listen: "127.0.0.1:5001"  # Bind to localhost only
-      
-    # Authentication for metrics endpoint
-    middleware:
-      auth:
-        enabled: true
-        token_header: "X-Metrics-Token"
-        
-    # TLS configuration
-    tls:
-      enabled: true
-      cert_file: "/etc/ssl/certs/compozy.pem"
-      key_file: "/etc/ssl/private/compozy.key"
-    ```
-
-    **Firewall rules**:
-    ```bash
-    # Allow only Prometheus servers
-    iptables -A INPUT -p tcp --dport 5001 -s prometheus-server-ip -j ACCEPT
-    iptables -A INPUT -p tcp --dport 5001 -j DROP
-    
-    # Allow metrics endpoint only from internal network
-    iptables -A INPUT -p tcp --dport 5001 -s 10.0.0.0/8 -j ACCEPT
-    iptables -A INPUT -p tcp --dport 5001 -j DROP
-    ```
-  </TabsContent>
-</Tabs>
-
-### Metric Design Best Practices
-
-```yaml
-# Good metric design
-metrics:
-  counters:
-    # Use meaningful names
-    - name: "compozy_workflows_executed_total"
-      labels: ["workflow_type", "status"]
-      
-    # Avoid high cardinality
-    - name: "compozy_user_actions_total"
-      labels: ["action_type"]  # Good: limited values
-      # labels: ["user_id"]    # Bad: unlimited values
-      
-  histograms:
-    # Use appropriate buckets
-    - name: "compozy_request_duration_seconds"
-      buckets: [0.1, 0.5, 1.0, 2.5, 5.0, 10.0]
-      
-    # Don't use too many buckets
-    - name: "compozy_processing_time_seconds"
-      buckets: [0.01, 0.1, 1.0, 10.0]  # Good: reasonable buckets
-      
-  gauges:
-    # Use for current state
-    - name: "compozy_active_workflows"
-      description: "Number of currently active workflows"
-      
-    # Use for resource utilization
-    - name: "compozy_memory_usage_bytes"
-      description: "Current memory usage in bytes"
-```
-
-### Monitoring Strategy
-
-```yaml
-# Comprehensive monitoring strategy
-strategy:
-  golden_signals:
-    latency:
-      metric: "compozy_http_request_duration_seconds"
-      threshold: "P95 < 2s"
-      
-    traffic:
-      metric: "compozy_http_requests_total"
-      threshold: "Rate > 100 req/s"
-      
-    errors:
-      metric: "compozy_http_requests_total{status_code=~'5..'}"
-      threshold: "Error rate < 1%"
-      
-    saturation:
-      metric: "compozy_active_connections"
-      threshold: "< 80% of max"
-      
-  business_metrics:
-    workflow_success_rate:
-      metric: "compozy_workflows_executed_total{status='success'}"
-      threshold: "> 95%"
-      
-    processing_throughput:
-      metric: "rate(compozy_tasks_completed_total[5m])"
-      threshold: "> 1000 tasks/min"
-      
-  infrastructure_metrics:
-    system_health:
-      - "compozy_uptime_seconds"
-      - "compozy_build_info"
-      - "compozy_dispatcher_health_status"
-      
-    resource_utilization:
-      - "process_resident_memory_bytes"
-      - "go_goroutines"
-      - "go_gc_duration_seconds"
-```
-
-## Next Steps
-
-<Callout type="info">
-  **Related Documentation**: Explore additional configuration and operational guides for complete system setup.
-</Callout>
-
-- **[Performance Tuning](/docs/operations/performance)** - Optimize application performance
-- **[Security Configuration](/docs/operations/security)** - Secure your monitoring setup
-- **[Deployment Strategies](/docs/operations/deployment)** - Deploy with monitoring enabled
-- **[Troubleshooting Guide](/docs/operations/troubleshooting)** - Debug monitoring issues
-- **[API Reference](/docs/api/monitoring)** - Monitoring API endpoints
-
----
-
-*This documentation covers comprehensive monitoring setup for Compozy applications. For additional support, see the [troubleshooting section](#troubleshooting) or visit our [community forums](https://github.com/compozy/compozy/discussions).*
+<ReferenceCardList>
+  <ReferenceCard
+    title="Runtime Configuration"
+    description="Configure tool execution environment and settings"
+    href="/docs/core/configuration/runtime-config"
+    icon="Play"
+  />
+  <ReferenceCard
+    title="Global Configuration"
+    description="Main project configuration options and system settings"
+    href="/docs/core/configuration/global"
+    icon="Settings"
+  />
+  <ReferenceCard
+    title="CLI Configuration"
+    description="Command-line interface setup and development workflow"
+    href="/docs/core/configuration/cli"
+    icon="Terminal"
+  />
+</ReferenceCardList>

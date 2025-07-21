@@ -3,805 +3,616 @@ title: "Validation & Debugging"
 description: "Template validation techniques and debugging strategies for reliable workflows"
 ---
 
-# Validation and Debugging
+Template validation and debugging are essential for building reliable Compozy workflows. This guide covers validation techniques, debugging strategies, and troubleshooting approaches for template-related issues.
 
-Template validation and debugging are crucial for building reliable Compozy workflows. This guide covers validation techniques, debugging strategies, and common troubleshooting approaches for template-related issues.
+<Callout type="info">
+  Use `compozy config validate` to validate your YAML configurations before deployment. For development, use `compozy dev` to see detailed template processing information.
+</Callout>
+
+<Callout type="info">
+**Template Validation**: Compozy performs multi-level validation including syntax checking, reference validation, and type validation to ensure templates work correctly at runtime.
+</Callout>
 
 ## Template Validation
 
-### Syntax Validation
+**Template validation** ensures your templates are syntactically correct and reference valid resources. Compozy validates templates at configuration load time and provides clear error messages for common issues.
 
-Compozy validates template syntax at configuration load time:
+<Tabs items={["Syntax Validation", "Reference Validation", "Type Validation"]} defaultValue="Syntax Validation">
+  <Tab value="Syntax Validation">
+    **Syntax validation** catches template parsing errors before runtime:
 
-```yaml
-# Valid template syntax
-user_name: "{{ .workflow.input.name }}"
-formatted_date: "{{ now | date '2006-01-02' }}"
+    ```yaml
+    # Valid template syntax
+    user_name: "{{ .workflow.input.name }}"
+    formatted_date: "{{ now | date '2006-01-02' }}"
 
-# Invalid syntax (missing closing braces)
-invalid_template: "{{ .workflow.input.name"  # ❌ Parse error
+    # Invalid syntax (missing closing braces)
+    invalid_template: "{{ .workflow.input.name"  # ❌ Parse error
 
-# Invalid syntax (unknown function)
-bad_function: "{{ .data | unknownFunc }}"     # ❌ Function not found
-```
+    # Invalid syntax (unknown function)
+    bad_function: "{{ .data | unknownFunc }}"     # ❌ Function not found
+    ```
 
-### Reference Validation
+    **Common syntax errors**: Missing braces, unknown functions, malformed expressions.
+  </Tab>
 
-Resource references are validated during configuration parsing:
+  <Tab value="Reference Validation">
+    **Reference validation** ensures all resource references exist:
 
-```yaml
-# Valid reference
-tool_ref:
-  $ref: local::tools.#(id=="weather_tool")     # ✅ Reference exists
+    ```yaml
+    # Valid reference
+    tool_ref:
+      $ref: local::tools.#(id=="weather_tool")     # ✅ Reference exists
 
-# Invalid reference
-missing_ref:
-  $ref: local::tools.#(id=="nonexistent")     # ❌ Reference not found
+    # Invalid reference
+    missing_ref:
+      $ref: local::tools.#(id=="nonexistent")     # ❌ Reference not found
 
-# Invalid scope
-bad_scope:
-  $ref: invalid::tools.#(id=="weather_tool")  # ❌ Invalid scope
-```
+    # Invalid scope
+    bad_scope:
+      $ref: invalid::tools.#(id=="weather_tool")  # ❌ Invalid scope
+    ```
 
-### Type Validation
+    **Reference types**: Tool references, agent references, schema references.
+  </Tab>
 
-Template outputs are validated against expected types:
+  <Tab value="Type Validation">
+    **Type validation** ensures template outputs match expected types:
 
-```yaml
-# Schema with type constraints
-schemas:
-  - id: user_input
-    type: object
-    properties:
-      age:
-        type: integer
-        minimum: 0
-        maximum: 150
-      email:
-        type: string
-        format: email
+    ```yaml
+    # Schema with type constraints
+    schemas:
+      - id: user_input
+        type: object
+        properties:
+          age:
+            type: integer
+            minimum: 0
+            maximum: 150
+          email:
+            type: string
+            format: email
 
-# Template that validates against schema
-task_with_validation:
-  input:
-    $ref: local::schemas.#(id=="user_input")
-  with:
-    age: "{{ .workflow.input.age | int }}"      # Converts to integer
-    email: "{{ .workflow.input.email }}"       # Must be valid email format
-```
+    # Template that validates against schema
+    task_with_validation:
+      input:
+        $ref: local::schemas.#(id=="user_input")
+      with:
+        age: "{{ .workflow.input.age | int }}"      # Converts to integer
+        email: "{{ .workflow.input.email }}"       # Must be valid email format
+    ```
+
+    **Validation features**: Type checking, format validation, range constraints.
+  </Tab>
+</Tabs>
 
 ## Debugging Techniques
 
-### Context Inspection
+**Template debugging** helps identify issues with template logic, data access, and execution flow. Use these techniques to troubleshoot template problems effectively.
 
-Debug templates by inspecting the available context:
+<Tabs items={["Context Inspection", "Step-by-Step Debugging", "Conditional Debugging"]} defaultValue="Context Inspection">
+  <Tab value="Context Inspection">
+    **Context inspection** reveals available data and helps identify missing values:
 
-```yaml
-# Print entire context for debugging
-debug_all: "{{ . | toPrettyJson }}"
+    ```yaml
+    # Print entire context for debugging
+    debug_all: "{{ . | toPrettyJson }}"
 
-# Print specific context sections
-debug_workflow: "{{ .workflow | toPrettyJson }}"
-debug_tasks: "{{ .tasks | toPrettyJson }}"
-debug_env: "{{ .env | toPrettyJson }}"
+    # Print specific context sections
+    debug_workflow: "{{ .workflow | toPrettyJson }}"
+    debug_tasks: "{{ .tasks | toPrettyJson }}"
+    debug_env: "{{ .env | toPrettyJson }}"
 
-# List available keys
-workflow_keys: "{{ keys .workflow | join ', ' }}"
-task_keys: "{{ keys .tasks | join ', ' }}"
-env_keys: "{{ keys .env | join ', ' }}"
-```
+    # List available keys
+    workflow_keys: "{{ keys .workflow | join ', ' }}"
+    task_keys: "{{ keys .tasks | join ', ' }}"
+    env_keys: "{{ keys .env | join ', ' }}"
+    ```
 
-### Step-by-Step Debugging
+    **Debugging benefits**: Understand available context, identify missing data, verify task outputs.
+  </Tab>
 
-Break complex templates into smaller, debuggable parts:
+  <Tab value="Step-by-Step Debugging">
+    **Step-by-step debugging** breaks complex templates into manageable parts:
 
-```yaml
-# Complex template (hard to debug)
-complex: "{{ printf '%s_%s_%d' .workflow.id (.tasks.auth.output.user_id | upper) (now | unixEpoch) }}"
+    ```yaml
+    # Complex template (hard to debug)
+    complex: "{{ printf '%s_%s_%d' .workflow.id (.tasks.auth.output.user_id | upper) (now | unixEpoch) }}"
 
-# Broken down for debugging
-debug_workflow_id: "{{ .workflow.id }}"
-debug_user_id: "{{ .tasks.auth.output.user_id }}"
-debug_user_id_upper: "{{ .tasks.auth.output.user_id | upper }}"
-debug_timestamp: "{{ now | unixEpoch }}"
-debug_final: "{{ printf '%s_%s_%d' .workflow.id (.tasks.auth.output.user_id | upper) (now | unixEpoch) }}"
-```
+    # Broken down for debugging
+    debug_workflow_id: "{{ .workflow.id }}"
+    debug_user_id: "{{ .tasks.auth.output.user_id }}"
+    debug_user_id_upper: "{{ .tasks.auth.output.user_id | upper }}"
+    debug_timestamp: "{{ now | unixEpoch }}"
+    debug_final: "{{ printf '%s_%s_%d' .workflow.id (.tasks.auth.output.user_id | upper) (now | unixEpoch) }}"
+    ```
 
-### Conditional Debugging
+    **Debugging strategy**: Isolate each operation, verify intermediate results, identify failure points.
+  </Tab>
 
-Add debug information only when needed:
+  <Tab value="Conditional Debugging">
+    **Conditional debugging** adds debug information only when needed:
 
-```yaml
-# Environment-based debugging
-debug_info: |
-  {{- if eq .env.DEBUG "true" -}}
-  Debug Information:
-  - Workflow ID: {{ .workflow.id }}
-  - Current Task: {{ .current_task | default "none" }}
-  - Available Tasks: {{ keys .tasks | join ", " }}
-  - Environment: {{ .env.NODE_ENV | default "unknown" }}
-  {{- end -}}
+    ```yaml
+    # Environment-based debugging
+    debug_info: |
+      {{- if eq .env.DEBUG "true" -}}
+      Debug Information:
+      - Workflow ID: {{ .workflow.id }}
+      - Current Task: {{ .current_task | default "none" }}
+      - Available Tasks: {{ keys .tasks | join ", " }}
+      - Environment: {{ .env.NODE_ENV | default "unknown" }}
+      {{- end -}}
 
-# Error condition debugging
-error_debug: |
-  {{- if .tasks.api_call.error -}}
-  Error Details:
-  - Task: api_call
-  - Error: {{ .tasks.api_call.error }}
-  - Status: {{ .tasks.api_call.status }}
-  - Input: {{ .tasks.api_call.input | toPrettyJson }}
-  {{- end -}}
-```
+    # Error condition debugging
+    error_debug: |
+      {{- if .tasks.api_call.error -}}
+      Error Details:
+      - Task: api_call
+      - Error: {{ .tasks.api_call.error }}
+      - Status: {{ .tasks.api_call.status }}
+      - Input: {{ .tasks.api_call.input | toPrettyJson }}
+      {{- end -}}
+    ```
+
+    **Conditional patterns**: Environment-based debugging, error-specific information, performance profiling.
+  </Tab>
+</Tabs>
 
 ## Error Handling
 
-### Safe Template Access
+**Error handling** prevents template failures and provides graceful degradation when data is missing or operations fail.
 
-Use safe access patterns to handle missing data:
+<Tabs items={["Safe Access", "Error Recovery", "Type Safety"]} defaultValue="Safe Access">
+  <Tab value="Safe Access">
+    **Safe access patterns** handle missing data gracefully:
 
-```yaml
-# Safe nested access
-safe_email: "{{ .tasks.get_user.output.profile.email | default 'unknown@example.com' }}"
+    ```yaml
+    # Safe nested access
+    safe_email: "{{ .tasks.get_user.output.profile.email | default 'unknown@example.com' }}"
 
-# Check existence before access
-conditional_data: |
-  {{- if and .tasks.fetch_data .tasks.fetch_data.output -}}
-    {{ .tasks.fetch_data.output.result }}
-  {{- else -}}
-    No data available
-  {{- end -}}
+    # Check existence before access
+    conditional_data: |
+      {{- if and .tasks.fetch_data .tasks.fetch_data.output -}}
+        {{ .tasks.fetch_data.output.result }}
+      {{- else -}}
+        No data available
+      {{- end -}}
 
-# Multiple fallback options
-user_identifier: "{{ coalesce .tasks.get_user.output.id .workflow.input.user_id .env.DEFAULT_USER_ID 'anonymous' }}"
-```
+    # Multiple fallback options
+    user_identifier: "{{ coalesce .tasks.get_user.output.id .workflow.input.user_id .env.DEFAULT_USER_ID 'anonymous' }}"
+    ```
 
-### Template Error Recovery
+    **Safe access benefits**: Prevents template failures, provides fallback values, handles missing data.
+  </Tab>
 
-Handle template errors gracefully:
+  <Tab value="Error Recovery">
+    **Error recovery** handles template errors gracefully:
 
-```yaml
-# Try-catch pattern using conditionals
-robust_template: |
-  {{- $result := "" -}}
-  {{- if .tasks.risky_operation.output -}}
-    {{- $result = .tasks.risky_operation.output.value -}}
-  {{- else -}}
-    {{- $result = "default_value" -}}
-  {{- end -}}
-  {{ $result }}
+    ```yaml
+    # Try-catch pattern using conditionals
+    robust_template: |
+      {{- $result := "" -}}
+      {{- if .tasks.risky_operation.output -}}
+        {{- $result = .tasks.risky_operation.output.value -}}
+      {{- else -}}
+        {{- $result = "default_value" -}}
+      {{- end -}}
+      {{ $result }}
 
-# Validation before processing
-validated_input: |
-  {{- if and .workflow.input.data (gt (len .workflow.input.data) 0) -}}
-    {{ .workflow.input.data | toJson }}
-  {{- else -}}
-    {"error": "No input data provided"}
-  {{- end -}}
-```
+    # Validation before processing
+    validated_input: |
+      {{- if and .workflow.input.data (gt (len .workflow.input.data) 0) -}}
+        {{ .workflow.input.data | toJson }}
+      {{- else -}}
+        {"error": "No input data provided"}
+      {{- end -}}
+    ```
 
-### Type Conversion Safety
+    **Recovery patterns**: Conditional processing, default values, error messages.
+  </Tab>
 
-Safely convert between types:
+  <Tab value="Type Safety">
+    **Type conversion safety** prevents type-related errors:
 
-```yaml
-# Safe string to number conversion
-safe_port: |
-  {{- $port := .env.PORT | default "3000" -}}
-  {{- if kindIs "string" $port -}}
-    {{ $port | int }}
-  {{- else -}}
-    {{ $port }}
-  {{- end -}}
+    ```yaml
+    # Safe string to number conversion
+    safe_port: |
+      {{- $port := .env.PORT | default "3000" -}}
+      {{- if kindIs "string" $port -}}
+        {{ $port | int }}
+      {{- else -}}
+        {{ $port }}
+      {{- end -}}
 
-# Safe boolean conversion
-safe_flag: |
-  {{- $flag := .config.enabled | default false -}}
-  {{- if kindIs "string" $flag -}}
-    {{ eq $flag "true" }}
-  {{- else -}}
-    {{ $flag }}
-  {{- end -}}
-```
+    # Safe boolean conversion
+    safe_flag: |
+      {{- $flag := .config.enabled | default false -}}
+      {{- if kindIs "string" $flag -}}
+        {{ eq $flag "true" }}
+      {{- else -}}
+        {{ $flag }}
+      {{- end -}}
+    ```
+
+    **Type safety benefits**: Prevents conversion errors, handles mixed types, validates data types.
+  </Tab>
+</Tabs>
 
 ## Common Issues and Solutions
 
-### Issue 1: Missing Context Data
+**Common template issues** and their solutions help avoid frequent debugging scenarios.
 
-**Problem**: Template references unavailable context
+<Tabs items={["Missing Context", "Type Mismatches", "Nested Access", "Array Access"]} defaultValue="Missing Context">
+  <Tab value="Missing Context">
+    **Problem**: Template references unavailable context
 
-```yaml
-# This fails if task hasn't run yet
-user_data: "{{ .tasks.get_user.output.name }}"  # ❌ Task might not exist
-```
+    ```yaml
+    # This fails if task hasn't run yet
+    user_data: "{{ .tasks.get_user.output.name }}"  # ❌ Task might not exist
+    ```
 
-**Solution**: Add existence checks and defaults
+    **Solution**: Add existence checks and defaults
 
-```yaml
-# Safe access with fallback
-user_data: "{{ .tasks.get_user.output.name | default 'Unknown User' }}"
+    ```yaml
+    # Safe access with fallback
+    user_data: "{{ .tasks.get_user.output.name | default 'Unknown User' }}"
 
-# Or conditional access
-user_data: |
-  {{- if hasKey .tasks "get_user" -}}
-    {{ .tasks.get_user.output.name }}
-  {{- else -}}
-    Unknown User
-  {{- end -}}
-```
+    # Or conditional access
+    user_data: |
+      {{- if hasKey .tasks "get_user" -}}
+        {{ .tasks.get_user.output.name }}
+      {{- else -}}
+        Unknown User
+      {{- end -}}
+    ```
 
-### Issue 2: Type Mismatches
+    **Prevention**: Use defaults, check existence, validate task completion.
+  </Tab>
 
-**Problem**: Template produces wrong data type
+  <Tab value="Type Mismatches">
+    **Problem**: Template produces wrong data type
 
-```yaml
-# String when number expected
-port: "{{ .env.PORT | default '3000' }}"  # ❌ Returns string "3000"
-```
+    ```yaml
+    # String when number expected
+    port: "{{ .env.PORT | default '3000' }}"  # ❌ Returns string "3000"
+    ```
 
-**Solution**: Use appropriate type conversion
+    **Solution**: Use appropriate type conversion
 
-```yaml
-# Convert to number
-port: "{{ .env.PORT | default '3000' | int }}"  # ✅ Returns number 3000
+    ```yaml
+    # Convert to number
+    port: "{{ .env.PORT | default '3000' | int }}"  # ✅ Returns number 3000
 
-# Validate type before conversion
-port: |
-  {{- $port := .env.PORT | default "3000" -}}
-  {{- if kindIs "string" $port -}}
-    {{ $port | int }}
-  {{- else -}}
-    {{ $port }}
-  {{- end -}}
-```
+    # Validate type before conversion
+    port: |
+      {{- $port := .env.PORT | default "3000" -}}
+      {{- if kindIs "string" $port -}}
+        {{ $port | int }}
+      {{- else -}}
+        {{ $port }}
+      {{- end -}}
+    ```
 
-### Issue 3: Complex Nested Access
+    **Prevention**: Use type conversion functions, validate types, test with different inputs.
+  </Tab>
 
-**Problem**: Deep object access is fragile
+  <Tab value="Nested Access">
+    **Problem**: Deep object access is fragile
 
-```yaml
-# Fragile nested access
-email: "{{ .tasks.get_user.output.profile.contact.email }}"  # ❌ Fails if any level missing
-```
+    ```yaml
+    # Fragile nested access
+    email: "{{ .tasks.get_user.output.profile.contact.email }}"  # ❌ Fails if any level missing
+    ```
 
-**Solution**: Use safe access patterns
+    **Solution**: Use safe access patterns
 
-```yaml
-# Safe nested access with multiple checks
-email: |
-  {{- if and .tasks.get_user.output 
-           .tasks.get_user.output.profile 
-           .tasks.get_user.output.profile.contact -}}
-    {{ .tasks.get_user.output.profile.contact.email }}
-  {{- else -}}
-    No email available
-  {{- end -}}
+    ```yaml
+    # Safe nested access with multiple checks
+    email: |
+      {{- if and .tasks.get_user.output
+               .tasks.get_user.output.profile
+               .tasks.get_user.output.profile.contact -}}
+        {{ .tasks.get_user.output.profile.contact.email }}
+      {{- else -}}
+        No email available
+      {{- end -}}
 
-# Or use coalesce for multiple fallbacks
-email: "{{ coalesce 
-    .tasks.get_user.output.profile.contact.email 
-    .tasks.get_user.output.email 
-    .workflow.input.email 
-    'noreply@example.com' }}"
-```
+    # Or use coalesce for multiple fallbacks
+    email: "{{ coalesce
+        .tasks.get_user.output.profile.contact.email
+        .tasks.get_user.output.email
+        .workflow.input.email
+        'noreply@example.com' }}"
+    ```
 
-### Issue 4: Array Access Errors
+    **Prevention**: Use safe access patterns, provide multiple fallbacks, validate data structure.
+  </Tab>
 
-**Problem**: Array index out of bounds
+  <Tab value="Array Access">
+    **Problem**: Array index out of bounds
 
-```yaml
-# Dangerous array access
-first_item: "{{ index .tasks.fetch_items.output.items 0 }}"  # ❌ Fails if array empty
-```
+    ```yaml
+    # Dangerous array access
+    first_item: "{{ index .tasks.fetch_items.output.items 0 }}"  # ❌ Fails if array empty
+    ```
 
-**Solution**: Check array length first
+    **Solution**: Check array length first
 
-```yaml
-# Safe array access
-first_item: |
-  {{- $items := .tasks.fetch_items.output.items -}}
-  {{- if and $items (gt (len $items) 0) -}}
-    {{ index $items 0 }}
-  {{- else -}}
-    No items available
-  {{- end -}}
+    ```yaml
+    # Safe array access
+    first_item: |
+      {{- $items := .tasks.fetch_items.output.items -}}
+      {{- if and $items (gt (len $items) 0) -}}
+        {{ index $items 0 }}
+      {{- else -}}
+        No items available
+      {{- end -}}
 
-# Or use first function (returns nil for empty array)
-first_item: "{{ first .tasks.fetch_items.output.items | default 'No items' }}"
-```
+    # Or use first function (returns nil for empty array)
+    first_item: "{{ first .tasks.fetch_items.output.items | default 'No items' }}"
+    ```
+
+    **Prevention**: Check array length, use safe access functions, provide defaults.
+  </Tab>
+</Tabs>
 
 ## Testing Templates
 
-### Unit Testing Templates
+**Template testing** ensures your templates work correctly across different scenarios and data conditions.
 
-Create test scenarios for your templates:
+<Tabs items={["Unit Testing", "Integration Testing"]} defaultValue="Unit Testing">
+  <Tab value="Unit Testing">
+    **Unit testing** validates template behavior with controlled test data:
 
-```yaml
-# Test data setup
-test_context:
-  workflow:
-    id: "test-workflow-123"
-    input:
-      user_id: "user-456"
-      name: "Test User"
-  tasks:
-    get_user:
-      output:
-        id: "user-456"
-        name: "Test User"
-        email: "test@example.com"
-  env:
-    API_KEY: "test-key-789"
-    DEBUG: "true"
+    ```yaml
+    # Test data setup
+    test_context:
+      workflow:
+        id: "test-workflow-123"
+        input:
+          user_id: "user-456"
+          name: "Test User"
+      tasks:
+        get_user:
+          output:
+            id: "user-456"
+            name: "Test User"
+            email: "test@example.com"
+      env:
+        API_KEY: "test-key-789"
+        DEBUG: "true"
 
-# Template under test
-user_summary: "User {{ .workflow.input.name }} ({{ .tasks.get_user.output.email }}) in {{ .env.NODE_ENV | default 'test' }} mode"
+    # Template under test
+    user_summary: "User {{ .workflow.input.name }} ({{ .tasks.get_user.output.email }}) in {{ .env.NODE_ENV | default 'test' }} mode"
 
-# Expected result: "User Test User (test@example.com) in test mode"
-```
+    # Expected result: "User Test User (test@example.com) in test mode"
+    ```
 
-### Integration Testing
+    **Testing benefits**: Isolated testing, predictable data, rapid iteration.
+  </Tab>
 
-Test templates within actual workflow execution:
+  <Tab value="Integration Testing">
+    **Integration testing** validates templates within actual workflow execution:
 
-```yaml
-# Test workflow with template validation
-test_workflow:
-  id: template-test
-  tasks:
-    - id: setup_test_data
-      type: basic
-      with:
-        test_value: "{{ .workflow.input.test_param }}"
-        
-    - id: validate_template
-      type: basic
-      with:
-        processed_value: "{{ .tasks.setup_test_data.output.test_value | upper }}"
-        
-    - id: assert_result
-      type: basic
-      with:
-        expected: "{{ .workflow.input.expected_result }}"
-        actual: "{{ .tasks.validate_template.output.processed_value }}"
-        matches: "{{ eq .tasks.validate_template.output.processed_value .workflow.input.expected_result }}"
-```
+    ```yaml
+    # Test workflow with template validation
+    test_workflow:
+      id: template-test
+      tasks:
+        - id: setup_test_data
+          type: basic
+          with:
+            test_value: "{{ .workflow.input.test_param }}"
+
+        - id: validate_template
+          type: basic
+          with:
+            processed_value: "{{ .tasks.setup_test_data.output.test_value | upper }}"
+
+        - id: assert_result
+          type: basic
+          with:
+            expected: "{{ .workflow.input.expected_result }}"
+            actual: "{{ .tasks.validate_template.output.processed_value }}"
+            matches: "{{ eq .tasks.validate_template.output.processed_value .workflow.input.expected_result }}"
+    ```
+
+    **Integration benefits**: Real workflow context, end-to-end validation, actual data flow.
+  </Tab>
+</Tabs>
 
 ## Performance Debugging
 
-### Template Performance
+**Performance debugging** helps identify and resolve template performance bottlenecks.
 
-Monitor template processing performance:
+<Tabs items={["Performance Monitoring", "Optimization Strategies"]} defaultValue="Performance Monitoring">
+  <Tab value="Performance Monitoring">
+    **Performance monitoring** tracks template execution times:
 
-```yaml
-# Performance debugging
-perf_debug:
-  template_start: "{{ now }}"
-  complex_calculation: "{{ range .large_dataset }}{{ . | someExpensiveFunction }}{{ end }}"
-  template_end: "{{ now }}"
-  duration: "{{ sub (now | unixEpoch) (.template_start | unixEpoch) }}"
-```
+    ```yaml
+    # Performance debugging
+    perf_debug:
+      template_start: "{{ now }}"
+      complex_calculation: "{{ range .large_dataset }}{{ . | someExpensiveFunction }}{{ end }}"
+      template_end: "{{ now }}"
+      duration: "{{ sub (now | unixEpoch) (.template_start | unixEpoch) }}"
+    ```
 
-### Optimization Strategies
+    **Monitoring benefits**: Identify slow templates, measure optimization impact, track performance trends.
+  </Tab>
 
-Optimize slow templates:
+  <Tab value="Optimization Strategies">
+    **Optimization strategies** improve template performance:
 
-```yaml
-# Slow: Multiple expensive operations
-slow_template: "{{ .data | expensiveFunc | anotherExpensiveFunc | finalExpensiveFunc }}"
+    ```yaml
+    # Slow: Multiple expensive operations
+    slow_template: "{{ .data | expensiveFunc | anotherExpensiveFunc | finalExpensiveFunc }}"
 
-# Optimized: Cache intermediate results
-optimized_template: |
-  {{- $step1 := .data | expensiveFunc -}}
-  {{- $step2 := $step1 | anotherExpensiveFunc -}}
-  {{ $step2 | finalExpensiveFunc }}
+    # Optimized: Cache intermediate results
+    optimized_template: |
+      {{- $step1 := .data | expensiveFunc -}}
+      {{- $step2 := $step1 | anotherExpensiveFunc -}}
+      {{ $step2 | finalExpensiveFunc }}
 
-# Optimized: Conditional expensive operations
-conditional_expensive: |
-  {{- if .should_process -}}
-    {{ .data | expensiveFunc }}
-  {{- else -}}
-    {{ .data }}
-  {{- end -}}
-```
+    # Optimized: Conditional expensive operations
+    conditional_expensive: |
+      {{- if .should_process -}}
+        {{ .data | expensiveFunc }}
+      {{- else -}}
+        {{ .data }}
+      {{- end -}}
+    ```
+
+    **Optimization techniques**: Cache intermediate results, conditional processing, minimize function calls.
+  </Tab>
+</Tabs>
 
 ## Debugging Tools and Tips
 
-### 1. Use Pretty Printing
+**Debugging tools** help troubleshoot template issues efficiently.
 
-```yaml
-# Pretty print complex data structures
-debug_output: "{{ .complex_data | toPrettyJson }}"
-```
+<Steps>
+  <Step>
+    ### Use Pretty Printing
+    ```yaml
+    # Pretty print complex data structures
+    debug_output: "{{ .complex_data | toPrettyJson }}"
+    ```
+    Pretty printing makes complex data structures readable and helps identify structure issues.
+  </Step>
 
-### 2. Add Intermediate Variables
+  <Step>
+    ### Add Intermediate Variables
+    ```yaml
+    # Break complex templates into steps
+    debug_step1: "{{ .input | step1 }}"
+    debug_step2: "{{ .debug_step1 | step2 }}"
+    debug_final: "{{ .debug_step2 | step3 }}"
+    ```
+    Breaking templates into steps helps isolate issues and understand data flow.
+  </Step>
 
-```yaml
-# Break complex templates into steps
-debug_step1: "{{ .input | step1 }}"
-debug_step2: "{{ .debug_step1 | step2 }}"
-debug_final: "{{ .debug_step2 | step3 }}"
-```
+  <Step>
+    ### Use Conditional Debugging
+    ```yaml
+    # Only show debug info when needed
+    debug: |
+      {{- if .env.TEMPLATE_DEBUG -}}
+      Template Debug Info:
+      {{- range $key, $value := . }}
+      - {{ $key }}: {{ $value | toString | truncate 100 }}
+      {{- end }}
+      {{- end -}}
+    ```
+    Conditional debugging provides information only when needed without cluttering output.
+  </Step>
 
-### 3. Use Conditional Debugging
-
-```yaml
-# Only show debug info when needed
-debug: |
-  {{- if .env.TEMPLATE_DEBUG -}}
-  Template Debug Info:
-  {{- range $key, $value := . }}
-  - {{ $key }}: {{ $value | toString | truncate 100 }}
-  {{- end }}
-  {{- end -}}
-```
-
-### 4. Validate Assumptions
-
-```yaml
-# Validate your assumptions about data types and structure
-validation:
-  is_string: "{{ kindIs 'string' .data }}"
-  is_array: "{{ kindIs 'slice' .items }}"
-  has_key: "{{ hasKey .object 'expected_key' }}"
-  length: "{{ len .collection }}"
-```
+  <Step>
+    ### Validate Assumptions
+    ```yaml
+    # Validate your assumptions about data types and structure
+    validation:
+      is_string: "{{ kindIs 'string' .data }}"
+      is_array: "{{ kindIs 'slice' .items }}"
+      has_key: "{{ hasKey .object 'expected_key' }}"
+      length: "{{ len .collection }}"
+    ```
+    Validation helps verify assumptions about data types and structure before processing.
+  </Step>
+</Steps>
 
 ## Security Validation
 
-Validate templates for security vulnerabilities and implement secure processing patterns.
+**Security validation** protects against template injection attacks and XSS vulnerabilities.
 
-### XSS Vulnerability Detection
+<Callout type="info">
+  For comprehensive security guidance, see the [Security Functions](/docs/core/yaml-templates/sprig-functions#security-functions) section.
+</Callout>
 
-Identify potential XSS vulnerabilities in template processing:
+<Tabs items={["XSS Prevention", "Injection Prevention"]} defaultValue="XSS Prevention">
+  <Tab value="XSS Prevention">
+    **XSS prevention** validates and escapes user input:
 
-```yaml
-# Validate that user input is properly escaped
-security_validation:
-  raw_input_check: |
-    {{ $input := .user_input }}
-    {{ $escaped := .user_input | htmlEscape }}
-    {{ if ne $input $escaped }}
-      [SECURITY WARNING: Unescaped user input detected]
-    {{ else }}
-      [SAFE: Input properly escaped]
-    {{ end }}
+    ```yaml
+    # Validate that user input is properly escaped
+    security_validation:
+      raw_input_check: |
+        {{ $input := .user_input }}
+        {{ $escaped := .user_input | htmlEscape }}
+        {{ if ne $input $escaped }}
+          [SECURITY WARNING: Unescaped user input detected]
+        {{ else }}
+          [SAFE: Input properly escaped]
+        {{ end }}
 
-  # Check for dangerous patterns
-  dangerous_patterns: |
-    {{ $input := .user_input }}
-    {{ if or (contains $input "<script") (contains $input "javascript:") (contains $input "onload=") }}
-      [SECURITY ALERT: Dangerous pattern detected]
-    {{ else }}
-      [SAFE: No dangerous patterns found]
-    {{ end }}
-```
+      # Check for dangerous patterns
+      dangerous_patterns: |
+        {{ $input := .user_input }}
+        {{ if or (contains $input "<script") (contains $input "javascript:") (contains $input "onload=") }}
+          [SECURITY ALERT: Dangerous pattern detected]
+        {{ else }}
+          [SAFE: No dangerous patterns found]
+        {{ end }}
+    ```
 
-### Template Injection Prevention
+    **XSS protection**: Input validation, output escaping, dangerous pattern detection.
+  </Tab>
 
-Prevent template injection attacks by validating template syntax:
+  <Tab value="Injection Prevention">
+    **Template injection prevention** validates template syntax:
 
-```yaml
-# Validate template syntax in user input
-injection_protection:
-  template_syntax_check: |
-    {{ $input := .user_input }}
-    {{ if or (contains $input "{{") (contains $input "}}") }}
-      [SECURITY WARNING: Template injection attempt detected]
-      Safe value: {{ $input | htmlEscape }}
-    {{ else }}
-      {{ $input | htmlEscape }}
-    {{ end }}
+    ```yaml
+    # Validate template syntax in user input
+    injection_protection:
+      template_syntax_check: |
+        {{ $input := .user_input }}
+        {{ if or (contains $input "{{") (contains $input "}}") }}
+          [SECURITY WARNING: Template injection attempt detected]
+          Safe value: {{ $input | htmlEscape }}
+        {{ else }}
+          {{ $input | htmlEscape }}
+        {{ end }}
 
-  # Whitelist allowed functions
-  function_whitelist: |
-    {{ $allowedFunctions := list "htmlEscape" "jsEscape" "htmlAttrEscape" "toJson" "trim" "upper" "lower" }}
-    {{ range $allowedFunctions }}
-      Function {{ . }} is allowed
-    {{ end }}
-```
+      # Whitelist allowed functions
+      function_whitelist: |
+        {{ $allowedFunctions := list "htmlEscape" "jsEscape" "htmlAttrEscape" "toJson" "trim" "upper" "lower" }}
+        {{ range $allowedFunctions }}
+          Function {{ . }} is allowed
+        {{ end }}
+    ```
 
-### Security Testing Workflows
+    **Injection protection**: Syntax validation, function whitelisting, input sanitization.
+  </Tab>
+</Tabs>
 
-Create comprehensive security testing workflows:
+## References
 
-```yaml
-# Security testing template
-security_test_suite:
-  xss_prevention_test: |
-    {{ $testInputs := list 
-       "<script>alert('XSS')</script>"
-       "'; alert('XSS'); var x='"
-       "<img src=x onerror=alert('XSS')>"
-       "javascript:alert('XSS')"
-    }}
-    {{ range $testInputs }}
-      Input: {{ . }}
-      HTML Escaped: {{ . | htmlEscape }}
-      JS Escaped: {{ . | jsEscape }}
-      Attr Escaped: {{ . | htmlAttrEscape }}
-    {{ end }}
+<ReferenceCardList>
+  <ReferenceCard
+    title="Advanced Patterns"
+    description="Explore sophisticated template techniques and use cases"
+    href="/docs/core/yaml-templates/advanced-patterns"
+    icon="Zap"
+  />
+  <ReferenceCard
+    title="Sprig Functions"
+    description="Master built-in functions for data manipulation"
+    href="/docs/core/yaml-templates/sprig-functions"
+    icon="code"
+  />
+  <ReferenceCard
+    title="Context Variables"
+    description="Understand available context data and access patterns"
+    href="/docs/core/yaml-templates/context-variables"
+    icon="Database"
+  />
+  <ReferenceCard
+    title="Basic Tasks"
+    description="Apply validation techniques to task configurations"
+    href="/docs/core/tasks/basic-tasks"
+    icon="Play"
+  />
+</ReferenceCardList>
 
-  # Validation test with expected results
-  validation_test: |
-    {{ $testCases := dict 
-       "safe_email" "user@example.com"
-       "malicious_email" "user@example.com<script>alert('XSS')</script>"
-       "safe_number" "123"
-       "malicious_number" "123<script>alert('XSS')</script>"
-    }}
-    {{ range $key, $value := $testCases }}
-      Test: {{ $key }}
-      Input: {{ $value }}
-      Escaped: {{ $value | htmlEscape }}
-      Valid: {{ eq ($value | htmlEscape) $value }}
-    {{ end }}
-```
-
-### Security Configuration Validation
-
-Validate security configurations and policies:
-
-```yaml
-# Security policy validation
-security_policy_validation:
-  escaping_policy: |
-    {{ $policy := .security.escaping_policy | default "strict" }}
-    {{ if eq $policy "strict" }}
-      [SECURITY: Strict escaping enabled]
-      All user input will be escaped by default
-    {{ else if eq $policy "permissive" }}
-      [WARNING: Permissive escaping policy]
-      Manual escaping required for user input
-    {{ else }}
-      [ERROR: Invalid escaping policy]
-    {{ end }}
-
-  # Validate environment-specific security settings
-  environment_security: |
-    {{ if eq .env.NODE_ENV "production" }}
-      [PRODUCTION: Enhanced security enabled]
-      - Debug info disabled: {{ not (.env.DEBUG | default false) }}
-      - Error details hidden: {{ not (.env.SHOW_ERRORS | default false) }}
-      - Security headers enabled: {{ .env.SECURITY_HEADERS | default true }}
-    {{ else }}
-      [DEVELOPMENT: Relaxed security settings]
-      - Debug info enabled: {{ .env.DEBUG | default false }}
-      - Error details visible: {{ .env.SHOW_ERRORS | default false }}
-    {{ end }}
-```
-
-## Performance Debugging
-
-Optimize template performance and identify bottlenecks in template processing.
-
-### Template Performance Profiling
-
-Monitor and profile template execution performance:
-
-```yaml
-# Performance profiling template
-performance_profiling:
-  execution_timing: |
-    {{ $start := now }}
-    {{ .complex_template_operation }}
-    {{ $end := now }}
-    {{ $duration := sub ($end | unixEpoch) ($start | unixEpoch) }}
-    Execution time: {{ $duration }}ms
-    
-  # Cache performance monitoring
-  cache_performance: |
-    {{ $cacheStart := now }}
-    {{ .cached_operation }}
-    {{ $cacheEnd := now }}
-    {{ $cacheDuration := sub ($cacheEnd | unixEpoch) ($cacheStart | unixEpoch) }}
-    Cache access time: {{ $cacheDuration }}ms
-    
-  # Memory usage estimation
-  memory_usage: |
-    {{ $largeDataSet := .large_data_set }}
-    Data size: {{ len $largeDataSet }} items
-    Estimated memory: {{ mul (len $largeDataSet) 1024 }}KB
-```
-
-### Performance Bottleneck Detection
-
-Identify common performance bottlenecks:
-
-```yaml
-# Performance bottleneck detection
-bottleneck_detection:
-  expensive_operations: |
-    {{ $operations := dict 
-       "string_concatenation" (join .string_array "")
-       "complex_filtering" (filter .large_array "complexFilter")
-       "nested_loops" (range .outer_array)
-    }}
-    {{ range $name, $operation := $operations }}
-      {{ $start := now }}
-      {{ $operation }}
-      {{ $end := now }}
-      {{ $duration := sub ($end | unixEpoch) ($start | unixEpoch) }}
-      Operation {{ $name }}: {{ $duration }}ms
-    {{ end }}
-
-  # Template complexity analysis
-  complexity_analysis: |
-    {{ $template := .template_string }}
-    Template length: {{ len $template }}
-    Function count: {{ regexFindAll "\\|\\s*\\w+" $template | len }}
-    Conditional count: {{ regexFindAll "{{\\s*if" $template | len }}
-    Loop count: {{ regexFindAll "{{\\s*range" $template | len }}
-    Complexity score: {{ add (len $template) (mul 10 (regexFindAll "\\|\\s*\\w+" $template | len)) }}
-```
-
-### Template Caching Debugging
-
-Debug template caching behavior and optimize cache performance:
-
-```yaml
-# Cache debugging utilities
-cache_debugging:
-  cache_hit_analysis: |
-    {{ $templateName := .template_name }}
-    {{ $cacheKey := printf "template_%s" $templateName }}
-    Template: {{ $templateName }}
-    Cache key: {{ $cacheKey }}
-    Cached at: {{ .template_cache_time | date "2006-01-02 15:04:05" }}
-    
-  # Cache efficiency monitoring
-  cache_efficiency: |
-    {{ $cacheStats := .cache_statistics }}
-    Cache hit rate: {{ div (mul $cacheStats.hits 100) (add $cacheStats.hits $cacheStats.misses) }}%
-    Total requests: {{ add $cacheStats.hits $cacheStats.misses }}
-    Memory usage: {{ $cacheStats.memory_usage }}KB
-    
-  # Cache invalidation debugging
-  cache_invalidation: |
-    {{ $invalidated := .invalidated_templates }}
-    {{ range $invalidated }}
-      Invalidated template: {{ .name }}
-      Reason: {{ .reason }}
-      Timestamp: {{ .timestamp | date "2006-01-02 15:04:05" }}
-    {{ end }}
-```
-
-### Concurrent Processing Debugging
-
-Debug concurrent template processing and thread safety:
-
-```yaml
-# Concurrent processing debugging
-concurrent_debugging:
-  thread_safety_check: |
-    {{ $processId := .process_id }}
-    {{ $threadId := .thread_id }}
-    Process ID: {{ $processId }}
-    Thread ID: {{ $threadId }}
-    Timestamp: {{ now | date "2006-01-02 15:04:05.000" }}
-    
-  # Lock contention analysis
-  lock_contention: |
-    {{ $lockStats := .lock_statistics }}
-    Read lock acquisitions: {{ $lockStats.read_locks }}
-    Write lock acquisitions: {{ $lockStats.write_locks }}
-    Lock wait time: {{ $lockStats.wait_time }}ms
-    
-  # Concurrent execution monitoring
-  concurrent_execution: |
-    {{ $concurrent := .concurrent_templates }}
-    {{ range $concurrent }}
-      Template {{ .name }} - Goroutine {{ .goroutine_id }}
-      Status: {{ .status }}
-      Duration: {{ .duration }}ms
-    {{ end }}
-```
-
-### Performance Optimization Techniques
-
-Implement performance optimization strategies:
-
-```yaml
-# Performance optimization patterns
-performance_optimization:
-  template_precompilation: |
-    {{ $templates := .precompiled_templates }}
-    {{ range $templates }}
-      Template: {{ .name }}
-      Compilation time: {{ .compile_time }}ms
-      Size: {{ .size }}KB
-      Status: {{ .status }}
-    {{ end }}
-    
-  # Lazy loading optimization
-  lazy_loading: |
-    {{ if .should_load_expensive_data }}
-      {{ $expensiveData := .expensive_data_loader }}
-      Loaded {{ len $expensiveData }} items
-    {{ else }}
-      Skipped expensive data loading
-    {{ end }}
-    
-  # Memory pool optimization
-  memory_pool: |
-    {{ $pool := .memory_pool }}
-    Pool size: {{ $pool.size }}
-    Available: {{ $pool.available }}
-    In use: {{ $pool.in_use }}
-    Peak usage: {{ $pool.peak_usage }}
-```
-
-### Performance Testing Workflows
-
-Create comprehensive performance testing workflows:
-
-```yaml
-# Performance testing suite
-performance_testing:
-  load_testing: |
-    {{ $iterations := .test_iterations | default 1000 }}
-    {{ range $i := until $iterations }}
-      {{ $start := now }}
-      {{ .template_under_test }}
-      {{ $end := now }}
-      {{ $duration := sub ($end | unixEpoch) ($start | unixEpoch) }}
-      Iteration {{ $i }}: {{ $duration }}ms
-    {{ end }}
-    
-  # Memory leak detection
-  memory_leak_detection: |
-    {{ $baseline := .memory_baseline }}
-    {{ range $i := until 100 }}
-      {{ .template_operation }}
-      {{ $current := .current_memory_usage }}
-      {{ $diff := sub $current $baseline }}
-      Memory difference: {{ $diff }}KB
-    {{ end }}
-    
-  # Stress testing
-  stress_testing: |
-    {{ $stress_data := .stress_test_data }}
-    {{ range $stress_data }}
-      {{ $start := now }}
-      {{ .complex_template_operation }}
-      {{ $end := now }}
-      {{ $duration := sub ($end | unixEpoch) ($start | unixEpoch) }}
-      Stress test {{ .id }}: {{ $duration }}ms
-    {{ end }}
-```
-
-## Security Vulnerability Detection
-
-Automated security vulnerability detection for templates:
-
-```yaml
-# Vulnerability scanning
-vulnerability_scanning:
-  # Scan for common XSS patterns
-  xss_detection: |
-    {{ $template := .template_content }}
-    {{ $vulnerabilities := list }}
-    
-    {{ if contains $template "{{ .user" }}
-      {{ $vulnerabilities = append $vulnerabilities "Potential XSS: Direct user input without escaping" }}
-    {{ end }}
-    
-    {{ if and (contains $template "{{") (not (contains $template "htmlEscape")) }}
-      {{ $vulnerabilities = append $vulnerabilities "Warning: Template contains user data without HTML escaping" }}
-    {{ end }}
-    
-    {{ range $vulnerabilities }}
-      [VULNERABILITY] {{ . }}
-    {{ end }}
-    
-  # Template injection detection
-  injection_detection: |
-    {{ $input := .user_input }}
-    {{ $dangerous_patterns := list "{{" "}}" "| exec" "| system" "| shell" }}
-    {{ range $dangerous_patterns }}
-      {{ if contains $input . }}
-        [SECURITY ALERT] Dangerous pattern detected: {{ . }}
-      {{ end }}
-    {{ end }}
-```
-
-Effective validation and debugging practices help ensure your templates work reliably across different scenarios. Next, explore [Advanced Patterns](./advanced-patterns) for sophisticated template techniques and use cases.
+Effective validation and debugging practices help ensure your templates work reliably across different scenarios and provide graceful error handling for production workflows.

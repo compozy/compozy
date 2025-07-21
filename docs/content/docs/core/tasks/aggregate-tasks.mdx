@@ -5,6 +5,19 @@ description: Combine and transform results from multiple tasks into unified outp
 
 Aggregate tasks collect and combine results from multiple predecessor tasks, enabling sophisticated data transformation and result synthesis. They serve as collection points in workflows where outputs from different task branches need to be merged, calculated, or restructured.
 
+## Related Documentation
+
+### 🔗 Cross-References
+- **[Core Concepts: Tasks](/docs/core/getting-started/core-concepts#2-tasks)** - Tasks in workflow context
+- **[Basic Tasks](/docs/core/tasks/basic-tasks)** - Foundation tasks that feed into aggregates
+- **[Collection Tasks](/docs/core/tasks/collection-tasks)** - Processing arrays for aggregation
+- **[YAML Templates](/docs/core/yaml-templates/overview)** - Template expressions for data transformation
+
+### ⚙️ Task-Related Topics
+- **Aggregate Tasks** ↔ **[Parallel Processing](/docs/core/tasks/parallel-processing)** ↔ **[Composite Tasks](/docs/core/tasks/composite-tasks)**
+- **Data Merging** ↔ **[Template Functions](/docs/core/yaml-templates/sprig-functions)** ↔ **[Result Processing](/docs/core/tasks/flow-control)**
+- **Result Synthesis** ↔ **[Workflow Configuration](/docs/core/configuration/workflows)** ↔ **[Output Mapping](/docs/core/yaml-templates/context-variables)**
+
 ## Overview
 
 Aggregate tasks provide powerful result combination capabilities:
@@ -716,5 +729,34 @@ outputs:
 4. **Optimize Complex Operations**: Cache frequently accessed values
 5. **Structure Output Logically**: Organize outputs in a way that's easy for downstream tasks to consume
 6. **Document Complex Logic**: Use comments in template expressions for complex calculations
+
+## References
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Basic Tasks"
+    description="Master the fundamental building blocks that feed into aggregate tasks"
+    href="/docs/core/tasks/basic-tasks"
+    icon="Cog"
+  />
+  <ReferenceCard
+    title="Collection Tasks"
+    description="Learn to process arrays and collections that aggregate tasks can combine"
+    href="/docs/core/tasks/collection-tasks"
+    icon="Grid"
+  />
+  <ReferenceCard
+    title="Parallel Processing"
+    description="Execute multiple tasks simultaneously for aggregate processing"
+    href="/docs/core/tasks/parallel-processing"
+    icon="Zap"
+  />
+  <ReferenceCard
+    title="Template Expressions"
+    description="Master template expressions for complex data transformations"
+    href="/docs/core/yaml-templates/expressions"
+    icon="Code"
+  />
+</ReferenceCardList>
 
 Aggregate tasks provide powerful capabilities for combining and transforming results from multiple tasks, enabling sophisticated data processing patterns in your Compozy workflows.

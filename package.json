@@ -6,7 +6,8 @@
   "type": "module",
   "workspaces": [
     "examples/**",
-    "docs"
+    "docs",
+    "tools/*"
   ],
   "scripts": {
     "build": "turbo run build",
@@ -33,5 +34,8 @@
     "typescript": "5.8.3",
     "vite": "^7.0.4"
   },
-  "packageManager": "bun@1.2.18"
+  "packageManager": "bun@1.2.18",
+  "dependencies": {
+    "lucide-static": "^0.525.0"
+  }
 }

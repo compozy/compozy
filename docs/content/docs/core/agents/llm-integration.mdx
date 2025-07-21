@@ -1,41 +1,66 @@
 ---
 title: "LLM Integration"
 description: "How agents integrate with various LLM providers through a unified interface"
-icon: "microchip-ai"
 ---
 
 ## Overview
 
 Compozy agents integrate with multiple LLM providers through a unified interface, allowing seamless switching between models and providers. This abstraction enables you to choose the best model for each task while maintaining consistent configuration patterns.
 
+<Callout type="info">
+**Schema Reference**: For the most up-to-date configuration schema and properties, see the [Provider Schema Documentation](/docs/schema/provider).
+</Callout>
+
 ## Supported Providers
 
 <FeatureCardList cols={3}>
-  <FeatureCard title="OpenAI" icon="openai">
-    GPT-4, GPT-3.5, and other OpenAI models
-  </FeatureCard>
-  <FeatureCard title="Anthropic" icon="robot">
-    Claude 3 family (Opus, Sonnet, Haiku)
-  </FeatureCard>
-  <FeatureCard title="Google" icon="google">
-    Gemini Pro, Gemini Ultra, PaLM models
-  </FeatureCard>
-  <FeatureCard title="Groq" icon="microchip">
-    Fast inference with Llama, Mixtral models
-  </FeatureCard>
-  <FeatureCard title="Ollama" icon="server">
-    Local models like Llama 2, Mistral, CodeLlama
-  </FeatureCard>
-  <FeatureCard title="Custom" icon="plug">
-    Any OpenAI-compatible API endpoint
-  </FeatureCard>
+  <FeatureCard
+    title="OpenAI"
+    description="Access GPT-4, GPT-3.5, and other OpenAI models with full function calling support"
+    icon="Cpu"
+  />
+  <FeatureCard
+    title="Anthropic"
+    description="Claude 3 family (Opus, Sonnet, Haiku) with advanced reasoning capabilities"
+    icon="Bot"
+  />
+  <FeatureCard
+    title="Google"
+    description="Gemini Pro, Gemini Ultra, and PaLM models for multimodal applications"
+    icon="Globe"
+  />
+  <FeatureCard
+    title="Groq"
+    description="Fast inference with Llama, Mixtral, and other open models at low latency"
+    icon="Microchip"
+  />
+  <FeatureCard
+    title="Ollama"
+    description="Run any Ollama-supported model locally for privacy-first applications"
+    icon="Server"
+  />
+  <FeatureCard
+    title="DeepSeek"
+    description="DeepSeek AI models with OpenAI-compatible API for advanced reasoning"
+    icon="Zap"
+  />
+  <FeatureCard
+    title="xAI"
+    description="Grok models with OpenAI-compatible API for cutting-edge AI capabilities"
+    icon="Sparkles"
+  />
+  <FeatureCard
+    title="Custom"
+    description="Connect to any OpenAI-compatible API endpoint for specialized models"
+    icon="Plug"
+  />
 </FeatureCardList>
 
 ## Provider Configuration
 
 ### Basic Configuration
 
-Each agent requires a provider configuration that specifies the LLM to use:
+Each agent requires a provider configuration that specifies the LLM to use. The `model` property accepts any valid model string for the chosen provider - it's not limited to a predefined list:
 
 ```yaml
 config:
@@ -49,8 +74,8 @@ config:
 
 ### Provider-Specific Examples
 
-<Tabs>
-  <Tab title="OpenAI">
+<Tabs items={["OpenAI", "Anthropic", "Google", "Groq", "Ollama", "DeepSeek", "xAI"]} defaultValue="OpenAI">
+  <Tab value="OpenAI">
     ```yaml
     config:
       provider: openai
@@ -64,8 +89,8 @@ config:
         presence_penalty: 0.1
     ```
   </Tab>
-  
-  <Tab title="Anthropic">
+
+  <Tab value="Anthropic">
     ```yaml
     config:
       provider: anthropic
@@ -77,8 +102,8 @@ config:
         top_p: 0.9
     ```
   </Tab>
-  
-  <Tab title="Google">
+
+  <Tab value="Google">
     ```yaml
     config:
       provider: google
@@ -90,8 +115,8 @@ config:
         top_p: 0.95
     ```
   </Tab>
-  
-  <Tab title="Groq">
+
+  <Tab value="Groq">
     ```yaml
     config:
       provider: groq
@@ -102,8 +127,8 @@ config:
         max_tokens: 1000
     ```
   </Tab>
-  
-  <Tab title="Ollama">
+
+  <Tab value="Ollama">
     ```yaml
     config:
       provider: ollama
@@ -115,13 +140,39 @@ config:
         repeat_penalty: 1.1
     ```
   </Tab>
+
+  <Tab value="DeepSeek">
+    ```yaml
+    config:
+      provider: deepseek
+      model: deepseek-chat
+      api_key: "{{ .env.DEEPSEEK_API_KEY }}"
+      api_url: "https://api.deepseek.com/v1"  # Optional
+      params:
+        temperature: 0.7
+        max_tokens: 4000
+    ```
+  </Tab>
+
+  <Tab value="xAI">
+    ```yaml
+    config:
+      provider: xai
+      model: grok-beta
+      api_key: "{{ .env.XAI_API_KEY }}"
+      api_url: "https://api.x.ai/v1"  # Optional
+      params:
+        temperature: 0.7
+        max_tokens: 4000
+    ```
+  </Tab>
 </Tabs>
 
 ## Model Parameters
 
 ### Common Parameters
 
-Most providers support these standard parameters:
+Most providers support these standard parameters. For the complete and most up-to-date parameter schema, see the [Provider Schema Documentation](/docs/schema/provider).
 
 | Parameter | Type | Description | Range |
 |-----------|------|-------------|-------|
@@ -136,84 +187,159 @@ Most providers support these standard parameters:
 
 <AccordionGroup>
   <Accordion title="OpenAI Parameters">
-    - `logit_bias`: Modify likelihood of specific tokens
-    - `user`: Unique identifier for end-user
-    - `seed`: For reproducible outputs
-    - `response_format`: Force JSON output structure
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Parameter</TableHead>
+          <TableHead>Type</TableHead>
+          <TableHead>Description</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        <TableRow>
+          <TableCell>`logit_bias`</TableCell>
+          <TableCell>object</TableCell>
+          <TableCell>Modify likelihood of specific tokens</TableCell>
+        </TableRow>
+        <TableRow>
+          <TableCell>`user`</TableCell>
+          <TableCell>string</TableCell>
+          <TableCell>Unique identifier for end-user</TableCell>
+        </TableRow>
+        <TableRow>
+          <TableCell>`seed`</TableCell>
+          <TableCell>integer</TableCell>
+          <TableCell>For reproducible outputs</TableCell>
+        </TableRow>
+        <TableRow>
+          <TableCell>`response_format`</TableCell>
+          <TableCell>object</TableCell>
+          <TableCell>Force JSON output structure</TableCell>
+        </TableRow>
+      </TableBody>
+    </Table>
   </Accordion>
-  
+
   <Accordion title="Anthropic Parameters">
-    - `stop_sequences`: Custom stop sequences
-    - `metadata`: Request metadata
-    - `system`: System message (handled by instructions)
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Parameter</TableHead>
+          <TableHead>Type</TableHead>
+          <TableHead>Description</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        <TableRow>
+          <TableCell>`stop_sequences`</TableCell>
+          <TableCell>array</TableCell>
+          <TableCell>Custom stop sequences</TableCell>
+        </TableRow>
+        <TableRow>
+          <TableCell>`metadata`</TableCell>
+          <TableCell>object</TableCell>
+          <TableCell>Request metadata</TableCell>
+        </TableRow>
+        <TableRow>
+          <TableCell>`system`</TableCell>
+          <TableCell>string</TableCell>
+          <TableCell>System message (handled by instructions)</TableCell>
+        </TableRow>
+      </TableBody>
+    </Table>
   </Accordion>
-  
+
   <Accordion title="Ollama Parameters">
-    - `repeat_penalty`: Penalize repetitions
-    - `num_ctx`: Context window size
-    - `num_predict`: Prediction length
-    - `tfs_z`: Tail free sampling
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Parameter</TableHead>
+          <TableHead>Type</TableHead>
+          <TableHead>Description</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        <TableRow>
+          <TableCell>`repeat_penalty`</TableCell>
+          <TableCell>float</TableCell>
+          <TableCell>Penalize repetitions</TableCell>
+        </TableRow>
+        <TableRow>
+          <TableCell>`num_ctx`</TableCell>
+          <TableCell>integer</TableCell>
+          <TableCell>Context window size</TableCell>
+        </TableRow>
+        <TableRow>
+          <TableCell>`num_predict`</TableCell>
+          <TableCell>integer</TableCell>
+          <TableCell>Prediction length</TableCell>
+        </TableRow>
+        <TableRow>
+          <TableCell>`tfs_z`</TableCell>
+          <TableCell>float</TableCell>
+          <TableCell>Tail free sampling</TableCell>
+        </TableRow>
+      </TableBody>
+    </Table>
+  </Accordion>
+
+  <Accordion title="Groq Parameters">
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Parameter</TableHead>
+          <TableHead>Type</TableHead>
+          <TableHead>Description</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        <TableRow>
+          <TableCell>`stream`</TableCell>
+          <TableCell>boolean</TableCell>
+          <TableCell>Enable streaming responses</TableCell>
+        </TableRow>
+        <TableRow>
+          <TableCell>`stop`</TableCell>
+          <TableCell>array</TableCell>
+          <TableCell>Stop sequences for generation</TableCell>
+        </TableRow>
+      </TableBody>
+    </Table>
+  </Accordion>
+
+  <Accordion title="Google Parameters">
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Parameter</TableHead>
+          <TableHead>Type</TableHead>
+          <TableHead>Description</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        <TableRow>
+          <TableCell>`top_k`</TableCell>
+          <TableCell>integer</TableCell>
+          <TableCell>Top-k sampling parameter</TableCell>
+        </TableRow>
+        <TableRow>
+          <TableCell>`candidate_count`</TableCell>
+          <TableCell>integer</TableCell>
+          <TableCell>Number of candidates to generate</TableCell>
+        </TableRow>
+        <TableRow>
+          <TableCell>`stop_sequences`</TableCell>
+          <TableCell>array</TableCell>
+          <TableCell>Sequences to stop generation</TableCell>
+        </TableRow>
+      </TableBody>
+    </Table>
   </Accordion>
 </AccordionGroup>
 
-## Model Selection Guide
-
-### By Use Case
-
-<Tabs>
-  <Tab title="Code Generation">
-    **Recommended Models:**
-    - OpenAI: `gpt-4-turbo-preview`
-    - Anthropic: `claude-3-opus-20240229`
-    - Ollama: `codellama:34b`
-    
-    **Configuration:**
-    ```yaml
-    config:
-      provider: anthropic
-      model: claude-3-opus-20240229
-      params:
-        temperature: 0.2  # Lower for more deterministic code
-        max_tokens: 8000  # Higher for complete implementations
-    ```
-  </Tab>
-  
-  <Tab title="Creative Writing">
-    **Recommended Models:**
-    - OpenAI: `gpt-4`
-    - Anthropic: `claude-3-sonnet-20240229`
-    - Google: `gemini-pro`
-    
-    **Configuration:**
-    ```yaml
-    config:
-      provider: openai
-      model: gpt-4
-      params:
-        temperature: 0.9  # Higher for creativity
-        top_p: 0.95
-        presence_penalty: 0.3  # Encourage variety
-    ```
-  </Tab>
-  
-  <Tab title="Data Analysis">
-    **Recommended Models:**
-    - OpenAI: `gpt-4-turbo-preview`
-    - Groq: `mixtral-8x7b-32768`
-    - Ollama: `llama2:70b`
-    
-    **Configuration:**
-    ```yaml
-    config:
-      provider: groq
-      model: mixtral-8x7b-32768
-      params:
-        temperature: 0.3  # Lower for accuracy
-        max_tokens: 4000
-        json_mode: true  # For structured outputs
-    ```
-  </Tab>
-</Tabs>
+<Callout type="info">
+For provider-specific parameter validation and requirements, consult the [Provider Schema Documentation](/docs/schema/provider) which contains the authoritative schema definitions.
+</Callout>
 
 ## Global Model Configuration
 
@@ -226,11 +352,11 @@ models:
     api_key: "{{ .env.OPENAI_API_KEY }}"
     params:
       temperature: 0.7
-  
+
   - provider: anthropic
     model: claude-3-opus-20240229
     api_key: "{{ .env.ANTHROPIC_API_KEY }}"
-    
+
   - provider: ollama
     model: llama2:13b
     api_url: "http://localhost:11434"
@@ -246,92 +372,31 @@ agents:
     instructions: "Review code for quality..."
 ```
 
-## Advanced Features
-
-### Tool Usage
-
-When tools are configured, agents automatically use function calling capabilities:
-
-```yaml
-config:
-  provider: openai
-  model: gpt-4-turbo-preview
-  tool_choice: auto  # auto, none, or specific tool
-
-tools:
-  - id: calculate
-    description: "Perform calculations"
-```
-
-### Streaming Responses
-
-Enable streaming for real-time output (provider-dependent):
-
-```yaml
-config:
-  provider: anthropic
-  model: claude-3-opus-20240229
-  stream: true  # Enable streaming
-```
-
-### Custom Endpoints
-
-Use OpenAI-compatible endpoints:
-
-```yaml
-config:
-  provider: custom
-  model: custom-model
-  api_url: "https://api.custom-llm.com/v1"
-  api_key: "{{ .env.CUSTOM_API_KEY }}"
-```
-
-## Error Handling
-
-The LLM integration includes robust error handling:
-
-<Callout type="info">
-All LLM errors are wrapped with context including the provider, model, and error type for easier debugging.
-</Callout>
-
-Common error scenarios:
-- **Rate Limits**: Automatic retry with exponential backoff
-- **Token Limits**: Error with clear message about limits
-- **API Errors**: Detailed error messages with status codes
-- **Network Issues**: Timeout and connection error handling
-
-## Performance Optimization
-
-<FeatureCardList cols={2}>
-  <FeatureCard title="Model Caching">
-    Responses are cached when using the same inputs to reduce API calls
-  </FeatureCard>
-  <FeatureCard title="Token Management">
-    Automatic token counting and truncation to stay within limits
-  </FeatureCard>
-  <FeatureCard title="Parallel Processing">
-    Multiple agents can run concurrently with different models
-  </FeatureCard>
-  <FeatureCard title="Local Models">
-    Use Ollama for offline operation and data privacy
-  </FeatureCard>
-</FeatureCardList>
-
-## Best Practices
-
-1. **API Key Management**: Always use environment variables for API keys
-2. **Model Selection**: Choose models based on task requirements and cost
-3. **Temperature Tuning**: Lower for deterministic tasks, higher for creative ones
-4. **Token Limits**: Set appropriate limits to control costs
-5. **Error Recovery**: Implement fallback models for critical workflows
-
 ## Next Steps
 
-<FeatureCardList cols={2}>
-  <FeatureCard title="Instructions & Actions" href="/docs/core/agents/instructions-actions">
-    Learn how to craft effective agent instructions
-  </FeatureCard>
-  <FeatureCard title="Structured Outputs" href="/docs/core/agents/structured-outputs">
-    Master JSON mode and schema validation
-  </FeatureCard>
-</FeatureCardList>
+<ReferenceCardList>
+  <ReferenceCard
+    title="Instructions & Actions"
+    description="Learn how to craft effective agent instructions"
+    href="/docs/core/agents/instructions-actions"
+    icon="ListCheck"
+  />
+  <ReferenceCard
+    title="Structured Outputs"
+    description="Master JSON mode and schema validation"
+    href="/docs/core/agents/structured-outputs"
+    icon="Braces"
+  />
+  <ReferenceCard
+    title="Provider Configuration"
+    description="Detailed provider setup and configuration options"
+    href="/docs/core/configuration/providers"
+    icon="Settings"
+  />
+  <ReferenceCard
+    title="Provider Schema"
+    description="Complete schema definitions and validation rules"
+    href="/docs/schema/provider"
+    icon="FileJson"
+  />
+</ReferenceCardList>

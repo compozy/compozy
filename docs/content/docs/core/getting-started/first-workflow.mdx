@@ -3,29 +3,6 @@ title: First Workflow
 description: Interactive walkthrough to build your first complete workflow
 ---
 
-import {
-  BrainCircuit,
-  GitBranch,
-  FileCode,
-  Zap,
-  Search,
-  AlertTriangle,
-  CheckCircle,
-  Database,
-  Radio,
-  Link2,
-  Calendar,
-  Users,
-  Shield,
-  BarChart3,
-  HeadphonesIcon,
-  Cpu,
-  PenTool,
-  Github,
-  MessageSquare,
-  FileText
-} from "lucide-react";
-
 In this comprehensive tutorial, you'll build a complete AI-powered workflow that demonstrates Compozy's core features. We'll create a **Go Code Analyzer** that analyzes Go source files for performance issues and best practices using Claude Code SDK, showcasing parallel task execution and advanced AI-powered code analysis.
 
 ## Related Concepts
@@ -35,25 +12,25 @@ In this comprehensive tutorial, you'll build a complete AI-powered workflow that
     title="Agent Configuration"
     description="Setting up AI agents with specific instructions"
     href="/docs/core/agents/overview"
-    icon={BrainCircuit}
+    icon="BrainCircuit"
   />
   <ReferenceCard
     title="Task Orchestration"
     description="Coordinating multiple processing steps"
     href="/docs/core/tasks/basic-tasks"
-    icon={GitBranch}
+    icon="GitBranch"
   />
   <ReferenceCard
     title="YAML Templates"
     description="Dynamic configuration and data flow"
     href="/docs/core/yaml-templates/overview"
-    icon={FileCode}
+    icon="FileCode"
   />
   <ReferenceCard
     title="Provider Integration"
     description="Connecting to LLM services"
     href="/docs/core/configuration/providers"
-    icon={Zap}
+    icon="Zap"
   />
 </ReferenceCardList>
 
@@ -117,6 +94,7 @@ You'll be creating a project with the following structure:
       },
         { id: "compozy-yaml", name: "compozy.yaml" },
         { id: "workflow-yaml", name: "workflow.yaml" },
+        { id: "package-json", name: "package.json" },
         { id: "entrypoint-ts", name: "entrypoint.ts" },
         { id: "claude-analyzer-ts", name: "claude_analyzer.ts" },
         { id: "report-reader-ts", name: "report_reader.ts" },
@@ -159,6 +137,31 @@ runtime:
     - --allow-write
     - --allow-net
     - --allow-env
+```
+
+### Package Dependencies
+
+Since we're using external dependencies, create `package.json`:
+
+```json title="package.json"
+{
+  "name": "go-code-analyzer",
+  "version": "1.0.0",
+  "description": "AI-powered Go code analysis using Claude Code SDK",
+  "type": "module",
+  "dependencies": {
+    "@anthropic-ai/claude-code": "^0.1.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  }
+}
+```
+
+Install dependencies:
+
+```bash
+bun install
 ```
 
 ### Environment Setup
@@ -645,25 +648,25 @@ Congratulations! You've built a sophisticated AI-powered content analysis workfl
     title="Memory Systems"
     description="Add persistent memory for user preferences and conversation history"
     href="/docs/core/memory/memory-concepts"
-    icon={Database}
+    icon="Database"
   />
   <ReferenceCard
     title="Signal Tasks"
     description="Create event-driven workflows with cross-workflow communication"
     href="/docs/core/signals/signal-overview"
-    icon={Radio}
+    icon="Radio"
   />
   <ReferenceCard
     title="MCP Integration"
     description="Connect external services and APIs using Model Context Protocol"
     href="/docs/core/mcp/mcp-overview"
-    icon={Link2}
+    icon="Link2"
   />
   <ReferenceCard
     title="Scheduled Workflows"
     description="Automate content analysis with cron-based scheduling"
     href="/docs/core/scheduling/overview"
-    icon={Calendar}
+    icon="Calendar"
   />
 </ReferenceCardList>
 
@@ -674,19 +677,19 @@ Congratulations! You've built a sophisticated AI-powered content analysis workfl
     title="Multi-Agent Patterns"
     description="Coordinate multiple AI agents for complex orchestration"
     href="/docs/core/agents/multi-agent-patterns"
-    icon={Users}
+    icon="Users"
   />
   <ReferenceCard
     title="Error Handling"
     description="Implement robust error recovery and retry strategies"
     href="/docs/core/tasks/flow-control"
-    icon={Shield}
+    icon="Shield"
   />
   <ReferenceCard
     title="Performance Optimization"
     description="Scale your workflows with parallel processing and caching"
     href="/docs/core/tasks/parallel-processing"
-    icon={BarChart3}
+    icon="BarChart3"
   />
 </ReferenceCardList>
 
@@ -697,42 +700,19 @@ Congratulations! You've built a sophisticated AI-powered content analysis workfl
     title="Content Generation"
     description="Build automated content creation and optimization workflows"
     href="/docs/core/examples/content-generation"
-    icon={PenTool}
+    icon="PenTool"
   />
   <ReferenceCard
     title="Customer Support"
     description="Create AI-powered support systems with intelligent routing"
     href="/docs/core/examples/customer-support"
-    icon={HeadphonesIcon}
+    icon="HeadphonesIcon"
   />
   <ReferenceCard
     title="Data Processing"
     description="Design batch analysis pipelines for large-scale data"
     href="/docs/core/examples/data-processing"
-    icon={Cpu}
-  />
-</ReferenceCardList>
-
-### Community & Resources
-
-<ReferenceCardList>
-  <ReferenceCard
-    title="GitHub Repository"
-    description="Explore source code, examples, and contribute to the project"
-    href="https://github.com/compozy/compozy"
-    icon={Github}
-  />
-  <ReferenceCard
-    title="Discord Community"
-    description="Get help, share projects, and connect with other developers"
-    href="https://discord.gg/compozy"
-    icon={MessageSquare}
-  />
-  <ReferenceCard
-    title="Documentation"
-    description="Access complete reference guides and API documentation"
-    href="https://docs.compozy.dev"
-    icon={FileText}
+    icon="Cpu"
   />
 </ReferenceCardList>
 

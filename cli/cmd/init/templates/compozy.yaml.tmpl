@@ -1,16 +1,6 @@
 name: {{ .Name | quote }}
 version: {{ .Version | quote }}
-{{- if .Description }}
 description: {{ .Description | quote }}
-{{- end }}
-{{- if .Author }}
-
-author:
-  name: {{ .Author.Name | quote }}
-  {{- if .Author.URL }}
-  url: {{ .Author.URL | quote }}
-  {{- end }}
-{{- end }}
 
 workflows:
 {{- range .Workflows }}
@@ -21,12 +11,7 @@ models:
 {{- range .Models }}
   - provider: {{ .Provider }}
     model: {{ .Model }}
-    {{- if .APIKey }}
     api_key: "{{ .APIKey }}"
-    {{- end }}
-    {{- if .APIURL }}
-    api_url: "{{ .APIURL }}"
-    {{- end }}
 {{- end }}
 
 runtime:
@@ -37,7 +22,6 @@ runtime:
     - {{ . }}
 {{- end }}
 
-# AutoLoad configuration for discovering agents and tools
 autoload:
   enabled: {{ .Autoload.Enabled }}
   strict: {{ .Autoload.Strict }}

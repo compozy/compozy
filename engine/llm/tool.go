@@ -36,7 +36,9 @@ func (t *InternalTool) Call(ctx context.Context, input *core.Input) (*core.Outpu
 	if err != nil {
 		return nil, fmt.Errorf("input validation failed: %w", err)
 	}
-	output, err := t.executeTool(ctx, inputMap)
+	// Get config from tool configuration
+	config := t.config.GetConfig()
+	output, err := t.executeTool(ctx, inputMap, config)
 	if err != nil {
 		return nil, fmt.Errorf("tool execution failed: %w", err)
 	}
@@ -64,7 +66,7 @@ func (t *InternalTool) validateOutput(ctx context.Context, output *core.Output) 
 }
 
 // executeTool executes the tool with the runtime manager using tool-specific timeout
-func (t *InternalTool) executeTool(ctx context.Context, input *core.Input) (*core.Output, error) {
+func (t *InternalTool) executeTool(ctx context.Context, input *core.Input, config *core.Input) (*core.Output, error) {
 	toolExecID := core.MustNewID()
 	env := core.EnvMap{}
 	if t.env != nil {
@@ -75,5 +77,5 @@ func (t *InternalTool) executeTool(ctx context.Context, input *core.Input) (*cor
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tool timeout: %w", err)
 	}
-	return t.runtime.ExecuteToolWithTimeout(ctx, t.config.ID, toolExecID, input, env, toolTimeout)
+	return t.runtime.ExecuteToolWithTimeout(ctx, t.config.ID, toolExecID, input, config, env, toolTimeout)
 }

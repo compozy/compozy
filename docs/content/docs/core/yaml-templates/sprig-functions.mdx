@@ -3,21 +3,50 @@ title: "Sprig Functions"
 description: "Complete reference for Sprig functions available in Compozy templates"
 ---
 
-# Sprig Functions Reference
+Compozy's template engine includes the full [Sprig function library](https://masterminds.github.io/sprig/), providing powerful data transformation capabilities within your YAML templates. This reference covers the most commonly used functions organized by category.
 
-Compozy's template engine includes the full [Sprig function library](https://masterminds.github.io/sprig/), providing powerful data transformation capabilities within your YAML templates. This reference covers the most commonly used functions with practical examples.
+## Function Categories
+
+<FeatureCardList cols={3}>
+  <FeatureCard title="String Functions" icon="Type" href="#string-functions">
+    Text manipulation, formatting, and validation
+  </FeatureCard>
+  <FeatureCard title="Numeric Functions" icon="Calculator" href="#numeric-functions">
+    Mathematical operations and comparisons
+  </FeatureCard>
+  <FeatureCard title="Collection Functions" icon="List" href="#collection-functions">
+    Array and map operations
+  </FeatureCard>
+  <FeatureCard title="Date Functions" icon="Calendar" href="#date-functions">
+    Date formatting and arithmetic
+  </FeatureCard>
+  <FeatureCard title="Security Functions" icon="Shield" href="#security-functions">
+    XSS protection and safe escaping
+  </FeatureCard>
+  <FeatureCard title="Encoding Functions" icon="Code" href="#encoding-functions">
+    JSON, URL, and Base64 encoding
+  </FeatureCard>
+</FeatureCardList>
+
+<Callout type="info">
+  For security best practices, see the [Security Functions](#security-functions) section below.
+</Callout>
 
 ## String Functions
 
-### String Manipulation
+String functions handle text manipulation, formatting, and validation operations.
+
+<Tabs items={["Basic Operations", "Formatting", "Validation"]}>
+<Tab>
+**Basic string operations** cover case conversion, trimming, and replacement:
 
 ```yaml
-# Convert case
+# Case conversion
 title: "{{ .user.name | title }}"                    # "john doe" → "John Doe"
 upper: "{{ .status | upper }}"                       # "success" → "SUCCESS"  
 lower: "{{ .env.NODE_ENV | lower }}"                 # "PRODUCTION" → "production"
 
-# Trim whitespace
+# Trimming whitespace
 cleaned: "{{ .input | trim }}"                       # "  hello  " → "hello"
 trimPrefix: "{{ .filename | trimPrefix 'tmp_' }}"    # "tmp_file.txt" → "file.txt"
 trimSuffix: "{{ .filename | trimSuffix '.txt' }}"    # "file.txt" → "file"
@@ -25,43 +54,61 @@ trimSuffix: "{{ .filename | trimSuffix '.txt' }}"    # "file.txt" → "file"
 # String replacement
 slug: "{{ .title | lower | replace ' ' '-' }}"       # "My Title" → "my-title"
 sanitized: "{{ .input | replace '/' '_' }}"          # "path/to/file" → "path_to_file"
-
-# Substrings
-first_chars: "{{ .text | substr 0 5 }}"              # First 5 characters
-last_chars: "{{ .text | substr -3 }}"                # Last 3 characters
 ```
 
-### String Testing
+**Common patterns**: Chain functions for complex transformations, use consistent naming conventions.
+</Tab>
 
-```yaml
-# Check if string contains substring
-has_error: "{{ .message | contains 'error' }}"       # true/false
-is_email: "{{ .input | contains '@' }}"              # Basic email check
-
-# Check string properties
-is_empty: "{{ .value | empty }}"                     # true if empty/nil
-has_value: "{{ .value | empty | not }}"              # true if not empty
-
-# String comparison
-is_production: "{{ .env.NODE_ENV | eq 'production' }}"
-is_dev_or_test: "{{ .env.NODE_ENV | has 'dev test' }}"
-```
-
-### String Formatting
+<Tab>
+**String formatting** provides printf-style formatting and padding:
 
 ```yaml
 # Printf-style formatting
 formatted: "{{ printf '%s-%04d' .prefix .number }}"  # "user-0001"
 padded: "{{ printf '%10s' .name }}"                  # Right-padded to 10 chars
+decimal: "{{ printf '%.2f' .price }}"                # Two decimal places
 
 # Quotes and escaping
-quoted: "{{ .value | quote }}"                       # Wraps in quotes
-squote: "{{ .value | squote }}"                      # Single quotes
+quoted: "{{ .value | quote }}"                       # Wraps in double quotes
+squote: "{{ .value | squote }}"                      # Wraps in single quotes
+
+# Substring operations
+first_chars: "{{ .text | substr 0 5 }}"              # First 5 characters
+last_chars: "{{ .text | substr -3 }}"                # Last 3 characters
 ```
+
+**Use cases**: File naming, display formatting, database operations.
+</Tab>
+
+<Tab>
+**String validation** tests string properties and content:
+
+```yaml
+# Content checks
+has_error: "{{ .message | contains 'error' }}"       # Check for substring
+is_email: "{{ .input | contains '@' }}"              # Basic email validation
+starts_with: "{{ .path | hasPrefix '/api/' }}"       # Path validation
+
+# Empty checks
+is_empty: "{{ .value | empty }}"                     # true if empty/nil
+has_value: "{{ .value | empty | not }}"              # true if not empty
+
+# Comparison operations
+is_production: "{{ .env.NODE_ENV | eq 'production' }}"
+is_dev_mode: "{{ .env.NODE_ENV | has 'dev test' }}"
+```
+
+**Validation patterns**: Always validate input before processing, use consistent validation rules.
+</Tab>
+</Tabs>
 
 ## Numeric Functions
 
-### Arithmetic Operations
+Numeric functions handle mathematical operations, comparisons, and type conversions.
+
+<Tabs items={["Arithmetic", "Comparisons", "Utilities"]}>
+<Tab>
+**Arithmetic operations** perform basic mathematical calculations:
 
 ```yaml
 # Basic math
@@ -77,7 +124,11 @@ percentage: "{{ div (mul .part 100) .total }}"
 scaled: "{{ mul .value .scale_factor }}"
 ```
 
-### Numeric Comparisons
+**Use cases**: Price calculations, percentage computations, data scaling.
+</Tab>
+
+<Tab>
+**Comparison operations** test numeric relationships:
 
 ```yaml
 # Comparison operators
@@ -89,286 +140,215 @@ is_gte: "{{ ge .score 70 }}"                         # Greater than or equal
 is_lte: "{{ le .attempts 3 }}"                       # Less than or equal
 ```
 
-### Numeric Utilities
+**Conditional logic**: Use comparisons for routing, validation, and flow control.
+</Tab>
+
+<Tab>
+**Utility functions** provide min/max, rounding, and conversion:
 
 ```yaml
 # Min/max values
 minimum: "{{ min .value1 .value2 .value3 }}"
 maximum: "{{ max .attempts 1 5 }}"
 
-# Absolute value
-absolute: "{{ abs .difference }}"                     # Remove negative sign
-
-# Rounding
+# Rounding operations
 rounded: "{{ round .float_value }}"                   # Round to nearest integer
 ceiling: "{{ ceil .float_value }}"                    # Round up
 floor: "{{ floor .float_value }}"                     # Round down
+
+# Type conversions
+to_int: "{{ .string_number | int }}"                  # String to integer
+to_float: "{{ .string_float | float64 }}"             # String to float
+to_string: "{{ .number | toString }}"                 # Number to string
 ```
+
+**Precision**: Be aware of floating-point precision in financial calculations.
+</Tab>
+</Tabs>
 
 ## Collection Functions
 
-### Array Operations
+Collection functions operate on arrays and maps for data manipulation.
+
+<Tabs items={["Array Operations", "Map Operations", "Transformations"]}>
+<Tab>
+**Array operations** work with lists and sequences:
 
 ```yaml
-# Array length
+# Array properties
 count: "{{ len .items }}"                             # Number of items
 is_empty: "{{ empty .items }}"                        # true if empty array
 
-# Access elements
+# Element access
 first_item: "{{ first .items }}"                      # First element
 last_item: "{{ last .items }}"                        # Last element
 rest_items: "{{ rest .items }}"                       # All except first
-initial_items: "{{ initial .items }}"                 # All except last
+nth_item: "{{ index .items 2 }}"                      # Third element (0-indexed)
 
 # Array membership
 has_item: "{{ has .item .items }}"                    # Check if array contains item
 ```
 
-### Array Transformation
+**Array patterns**: Use consistent indexing, check bounds before access.
+</Tab>
+
+<Tab>
+**Map operations** handle key-value data structures:
 
 ```yaml
-# Join array elements
-csv: "{{ .tags | join ',' }}"                         # "tag1,tag2,tag3"
-list: "{{ .names | join ', ' }}"                      # "John, Jane, Bob"
-
-# Sort arrays
-sorted_asc: "{{ .numbers | sortAlpha }}"              # Alphabetical sort
-sorted_desc: "{{ .numbers | reverse | sortAlpha }}"   # Reverse alphabetical
-
-# Unique elements
-unique_items: "{{ .items | uniq }}"                   # Remove duplicates
-```
-
-### Map Operations
-
-```yaml
-# Get map keys
+# Map properties
 all_keys: "{{ keys .config }}"                        # Array of keys
-sorted_keys: "{{ keys .config | sortAlpha }}"         # Sorted keys
-
-# Get map values  
 all_values: "{{ values .config }}"                    # Array of values
+key_count: "{{ len .config }}"                        # Number of keys
 
-# Check for key existence
-has_key: "{{ hasKey .config 'database' }}"            # true/false
+# Key operations
+has_key: "{{ hasKey .config 'database' }}"            # Check for key existence
+get_value: "{{ .config.database | default 'sqlite' }}" # Get with default
 
-# Pick specific keys
+# Map manipulation
 subset: "{{ pick .config 'host' 'port' 'database' }}" # Create subset map
 without: "{{ omit .config 'password' 'secret' }}"     # Exclude keys
 ```
 
-## Date and Time Functions
+**Map patterns**: Use consistent key naming, provide defaults for missing keys.
+</Tab>
 
-### Current Time
+<Tab>
+**Transformation functions** modify and process collections:
+
+```yaml
+# Array transformations
+joined: "{{ .tags | join ',' }}"                      # "tag1,tag2,tag3"
+sorted: "{{ .names | sortAlpha }}"                    # Alphabetical sort
+unique: "{{ .items | uniq }}"                         # Remove duplicates
+reversed: "{{ .items | reverse }}"                    # Reverse order
+
+# Complex operations
+filtered: "{{ .items | compact }}"                    # Remove empty values
+chunked: "{{ .items | chunk 3 }}"                     # Group into chunks of 3
+```
+
+**Performance**: Large collections may impact template rendering speed.
+</Tab>
+</Tabs>
+
+## Date Functions
+
+Date functions handle time formatting, arithmetic, and manipulation.
+
+<Tabs items={["Current Time", "Formatting", "Arithmetic"]}>
+<Tab>
+**Current time functions** provide various timestamp formats:
 
 ```yaml
 # Current timestamp
 now_timestamp: "{{ now }}"                            # Current time object
 unix_timestamp: "{{ now | unixEpoch }}"               # Unix timestamp
+nano_timestamp: "{{ now | date_in_zone 'UTC' | date '2006-01-02T15:04:05.000000000Z' }}"
 
-# Formatted current time
+# Common formats
 current_date: "{{ now | date '2006-01-02' }}"         # "2023-10-15"
 current_time: "{{ now | date '15:04:05' }}"           # "14:30:25"
-current_iso: "{{ now | date '2006-01-02T15:04:05Z' }}" # ISO format
+iso_format: "{{ now | date '2006-01-02T15:04:05Z' }}" # ISO 8601 format
 ```
 
-### Date Formatting
+**Timezone handling**: Use `date_in_zone` for specific timezone formatting.
+</Tab>
+
+<Tab>
+**Date formatting** converts timestamps to readable strings:
 
 ```yaml
 # Common date formats
 us_date: "{{ .timestamp | date '01/02/2006' }}"       # "10/15/2023"
 eu_date: "{{ .timestamp | date '02/01/2006' }}"       # "15/10/2023"
 full_date: "{{ .timestamp | date 'January 2, 2006' }}" # "October 15, 2023"
-timestamp: "{{ .timestamp | date '2006-01-02 15:04:05' }}" # "2023-10-15 14:30:25"
+log_format: "{{ .timestamp | date '2006-01-02 15:04:05' }}"
 
 # Custom formats
-log_format: "{{ .timestamp | date '2006/01/02 15:04:05.000' }}"
-filename_date: "{{ .timestamp | date '20060102_150405' }}"
+filename_safe: "{{ .timestamp | date '20060102_150405' }}"
+human_readable: "{{ .timestamp | date 'Mon Jan 2 15:04:05 2006' }}"
 ```
 
-### Date Arithmetic
+**Format reference**: Go uses `2006-01-02 15:04:05` as the reference time for formatting.
+</Tab>
+
+<Tab>
+**Date arithmetic** performs time calculations:
 
 ```yaml
 # Add/subtract time
 expires_at: "{{ now | dateModify '+24h' }}"           # 24 hours from now
 yesterday: "{{ now | dateModify '-24h' }}"            # 24 hours ago
 next_week: "{{ now | dateModify '+168h' }}"           # 7 days from now
-next_month: "{{ now | dateModify '+720h' }}"          # ~30 days from now
 
-# Complex date math
-future_date: "{{ .start_date | dateModify '+2h30m' }}" # Add 2.5 hours
-past_date: "{{ .end_date | dateModify '-1h15m' }}"     # Subtract 1.25 hours
+# Complex calculations
+deadline: "{{ .start_date | dateModify '+2h30m' }}"   # Add 2.5 hours
+window_end: "{{ .event_time | dateModify '+1h' }}"    # One hour window
+
+# Duration calculations
+elapsed: "{{ sub (now | unixEpoch) (.start_time | unixEpoch) }}"
 ```
 
-## Logical Functions
+**Duration units**: Use `h` (hours), `m` (minutes), `s` (seconds) for time arithmetic.
+</Tab>
+</Tabs>
 
-### Boolean Logic
+## Security Functions
 
-```yaml
-# Boolean operations
-both_true: "{{ and .condition1 .condition2 }}"       # Logical AND
-either_true: "{{ or .condition1 .condition2 }}"      # Logical OR
-negated: "{{ not .condition }}"                       # Logical NOT
+Security functions provide XSS protection and safe escaping for different contexts.
 
-# Complex boolean expressions
-valid_user: "{{ and .user.verified (not (empty .user.email)) }}"
-should_process: "{{ or .force_process (and .auto_process (gt .priority 5)) }}"
-```
+<Callout type="info">
+  **Security Best Practice**: Always escape user input before rendering in HTML, JavaScript, or other contexts to prevent XSS attacks. Compozy provides built-in functions for safe escaping.
+</Callout>
 
-### Conditional Logic
-
-```yaml
-# Ternary operator (if-then-else)
-status: "{{ .error | empty | ternary 'success' 'failed' }}"
-message: "{{ .user.premium | ternary 'Welcome VIP!' 'Welcome!' }}"
-
-# Default values
-username: "{{ .user.name | default 'Anonymous' }}"
-timeout: "{{ .config.timeout | default 30 }}"
-retries: "{{ .config.retries | default 3 }}"
-
-# Coalesce (first non-empty value)
-name: "{{ coalesce .user.nickname .user.first_name .user.email 'Unknown' }}"
-```
-
-## Encoding Functions
-
-### JSON Operations
+<Tabs items={["HTML Escaping", "JavaScript Escaping", "Security Patterns"]}>
+<Tab>
+**HTML escaping** prevents XSS in HTML content and attributes:
 
 ```yaml
-# Convert to JSON
-json_string: "{{ .data | toJson }}"                   # Convert object to JSON
-pretty_json: "{{ .data | toPrettyJson }}"             # Pretty-printed JSON
-
-# Parse JSON (in combination with templates)
-parsed_data: "{{ .json_string | fromJson }}"          # Parse JSON string
-```
-
-### URL Encoding
-
-```yaml
-# URL encoding
-encoded_param: "{{ .search_query | urlquery }}"       # URL encode query params
-encoded_path: "{{ .file_path | urlpath }}"            # URL encode path segments
-
-# Build URLs
-api_url: "{{ .base_url }}/users/{{ .user_id | urlpath }}?q={{ .query | urlquery }}"
-```
-
-### Base64 Encoding
-
-```yaml
-# Base64 operations
-encoded: "{{ .data | b64enc }}"                       # Base64 encode
-decoded: "{{ .encoded_data | b64dec }}"               # Base64 decode
-
-# Common use case: encoding credentials
-auth_header: "Basic {{ printf '%s:%s' .username .password | b64enc }}"
-```
-
-## Type Conversion Functions
-
-### String Conversions
-
-```yaml
-# Convert to string
-string_value: "{{ .number | toString }}"              # Convert number to string
-string_bool: "{{ .flag | toString }}"                 # Convert boolean to string
-
-# Convert from string
-number_value: "{{ .string_number | int }}"            # String to integer
-float_value: "{{ .string_float | float64 }}"          # String to float
-bool_value: "{{ .string_bool | bool }}"               # String to boolean
-```
-
-### Type Checking
-
-```yaml
-# Check value types
-is_string: "{{ kindIs 'string' .value }}"             # Check if string
-is_number: "{{ kindIs 'float64' .value }}"            # Check if number
-is_bool: "{{ kindIs 'bool' .value }}"                 # Check if boolean
-is_array: "{{ kindIs 'slice' .value }}"               # Check if array
-is_map: "{{ kindIs 'map' .value }}"                   # Check if map/object
-
-# Type-safe operations
-safe_number: "{{ if kindIs 'string' .value }}{{ .value | int }}{{ else }}{{ .value }}{{ end }}"
-```
-
-## Compozy-Specific Security Functions
-
-In addition to Sprig functions, Compozy provides essential security functions from `getFuncMap()` to prevent XSS vulnerabilities and ensure safe template processing.
-
-### HTML Security Functions
-
-These functions provide comprehensive XSS protection for different HTML contexts:
-
-#### `htmlEscape` - HTML Content Escaping
-
-Use `htmlEscape` when rendering user input or untrusted data in HTML content:
-
-```yaml
-# Safe HTML content rendering
+# HTML content escaping
 user_message: "{{ .user_input | htmlEscape }}"
 blog_content: "{{ .tasks.get_content.output.text | htmlEscape }}"
-error_message: "{{ .tasks.validation.output.error | htmlEscape }}"
 
 # Example transformations:
 # Input: "<script>alert('XSS')</script>"
 # Output: "&lt;script&gt;alert('XSS')&lt;/script&gt;"
 
-# Input: "User & Company"
-# Output: "User &amp; Company"
-```
-
-#### `htmlAttrEscape` - HTML Attribute Escaping
-
-Use `htmlAttrEscape` when inserting user data into HTML attributes:
-
-```yaml
-# Safe HTML attribute values
+# HTML attribute escaping
 user_profile: |
   <div class="user-card" 
        data-name="{{ .user.name | htmlAttrEscape }}"
-       title="{{ .user.bio | htmlAttrEscape }}"
-       data-id="{{ .user.id | htmlAttrEscape }}">
+       title="{{ .user.bio | htmlAttrEscape }}">
     {{ .user.display_name | htmlEscape }}
   </div>
-
-# Input field with user data
-input_field: |
-  <input type="text" 
-         value="{{ .workflow.input.default_value | htmlAttrEscape }}"
-         placeholder="{{ .config.placeholder | htmlAttrEscape }}"
-         data-validation="{{ .validation_rules | toJson | htmlAttrEscape }}">
 
 # Example transformations:
 # Input: 'John" onclick="alert(\'XSS\')'
 # Output: 'John&quot; onclick=&quot;alert(&#39;XSS&#39;)'
 ```
 
-#### `jsEscape` - JavaScript String Escaping
+**Context awareness**: Use `htmlEscape` for content, `htmlAttrEscape` for attributes.
+</Tab>
 
-Use `jsEscape` when embedding data in JavaScript contexts:
+<Tab>
+**JavaScript escaping** protects against script injection:
 
 ```yaml
-# Safe JavaScript variable assignment
+# Safe JavaScript variables
 user_data_script: |
   <script>
     var userName = '{{ .user.name | jsEscape }}';
-    var userBio = '{{ .user.bio | jsEscape }}';
     var config = {
       userId: '{{ .user.id | jsEscape }}',
-      preferences: {{ .user.preferences | toJson | jsEscape }},
       sessionId: '{{ .workflow.id | jsEscape }}'
     };
   </script>
 
 # Safe event handlers
 onclick_handler: |
-  <button onclick="handleClick('{{ .item.id | jsEscape }}', 
-                              '{{ .item.name | jsEscape }}')">
-    {{ .item.display_name | htmlEscape }}
+  <button onclick="handleClick('{{ .item.id | jsEscape }}')">
+    {{ .item.name | htmlEscape }}
   </button>
 
 # Example transformations:
@@ -376,136 +356,168 @@ onclick_handler: |
 # Output: "\'; alert(\'XSS\'); var x\u003D\'"
 ```
 
-### Context-Aware Security Patterns
+**JavaScript contexts**: Always use `jsEscape` for JavaScript string literals.
+</Tab>
 
-Implement layered security by combining multiple escaping functions:
+<Tab>
+**Security patterns** combine multiple escaping functions:
 
 ```yaml
 # Multi-context security
 secure_notification: |
   <div class="notification" 
-       data-message="{{ .message | htmlAttrEscape }}"
-       data-level="{{ .level | htmlAttrEscape }}">
-    <span class="text">{{ .message | htmlEscape }}</span>
+       data-message="{{ .message | htmlAttrEscape }}">
+    <span>{{ .message | htmlEscape }}</span>
     <script>
-      logNotification('{{ .message | jsEscape }}', 
-                     '{{ .level | jsEscape }}', 
-                     '{{ .timestamp | jsEscape }}');
+      logNotification('{{ .message | jsEscape }}');
     </script>
   </div>
 
-# Form with comprehensive escaping
-secure_form: |
-  <form method="post" action="/submit">
-    <input type="text" 
-           name="username" 
-           value="{{ .form_data.username | htmlAttrEscape }}"
-           placeholder="Enter username">
-    <textarea name="description" 
-              placeholder="{{ .form_config.description_placeholder | htmlAttrEscape }}">{{- .form_data.description | htmlEscape -}}</textarea>
-    <script>
-      var formConfig = {
-        validation: {{ .form_config.validation | toJson | jsEscape }},
-        submitUrl: '{{ .form_config.submit_url | jsEscape }}'
-      };
-    </script>
-  </form>
-```
-
-### Security Best Practices
-
-#### 1. Always Escape User Input
-```yaml
-# ❌ DANGEROUS: Direct user input
-dangerous_output: "{{ .user_input }}"
-dangerous_html: |
-  <div>{{ .user_comment }}</div>
-
-# ✅ SAFE: Properly escaped user input
-safe_output: "{{ .user_input | htmlEscape }}"
-safe_html: |
-  <div>{{ .user_comment | htmlEscape }}</div>
-```
-
-#### 2. Use Context-Appropriate Escaping
-```yaml
-# HTML content context
-html_content: |
-  <div class="message">
-    {{ .user_message | htmlEscape }}
-  </div>
-
-# HTML attribute context
-html_attribute: |
-  <input type="text" 
-         value="{{ .user_input | htmlAttrEscape }}"
-         data-info="{{ .user_info | htmlAttrEscape }}">
-
-# JavaScript context
-javascript_context: |
-  <script>
-    var userMessage = '{{ .user_message | jsEscape }}';
-    var userData = {{ .user_data | toJson | jsEscape }};
-  </script>
-```
-
-#### 3. Validate and Sanitize Before Escaping
-```yaml
-# Validate email before escaping
-safe_email: |
-  {{ if and .user.email (contains .user.email "@") }}
-    {{ .user.email | htmlEscape }}
+# Input validation with escaping
+safe_form_input: |
+  {{ if and .user_input (le (len .user_input) 100) }}
+    {{ .user_input | htmlEscape }}
   {{ else }}
-    invalid-email@example.com
+    [Invalid input]
   {{ end }}
 
-# Validate numeric inputs
-safe_numeric: |
-  {{ $value := .input | int }}
-  {{ if and (gt $value 0) (lt $value 1000000) }}
-    {{ $value }}
-  {{ else }}
-    0
-  {{ end }}
-```
-
-#### 4. Prevent Template Injection
-```yaml
-# Safe template processing
+# Template injection prevention
 safe_template: |
   {{ $safeValue := .user_input | htmlEscape }}
   {{ if not (contains $safeValue "{{") }}
     {{ $safeValue }}
   {{ else }}
-    [FILTERED: Template syntax detected]
+    [Filtered: Template syntax detected]
   {{ end }}
 ```
 
-### Precision-Aware Numeric Functions
+**Defense in depth**: Validate input, escape output, use appropriate context-specific functions.
+</Tab>
+</Tabs>
 
-Compozy's template engine includes precision-aware numeric handling:
+## Encoding Functions
+
+Encoding functions handle data serialization and format conversion.
+
+<Tabs items={["JSON", "URL Encoding", "Base64"]}>
+<Tab>
+**JSON operations** convert between objects and JSON strings:
 
 ```yaml
-# Numeric precision preservation
-precise_calculation: |
-  {{ $price := .product.price }}        # Preserves decimal precision
-  {{ $tax := .product.tax }}            # Maintains float precision
-  {{ $total := add $price $tax }}       # Accurate arithmetic
-  Total: {{ $total }}                   # Displays with full precision
+# Convert to JSON
+json_string: "{{ .data | toJson }}"                   # Convert object to JSON
+pretty_json: "{{ .data | toPrettyJson }}"             # Pretty-printed JSON
 
-# Safe numeric conversions
-safe_numeric_conversion: |
-  {{ $input := .user_input | toString }}
-  {{ if regexMatch "^[0-9]+\\.?[0-9]*$" $input }}
-    {{ $input | float64 }}
-  {{ else }}
-    0.0
-  {{ end }}
+# Parse JSON (use with caution)
+parsed_data: "{{ .json_string | fromJson }}"          # Parse JSON string
+
+# Common use cases
+api_payload: "{{ .request_data | toJson }}"
+config_dump: "{{ .config | toPrettyJson }}"
 ```
 
-## Common Use Cases
+**JSON safety**: Validate JSON strings before parsing, handle parse errors gracefully.
+</Tab>
 
-### Configuration Management
+<Tab>
+**URL encoding** ensures safe URL construction:
+
+```yaml
+# URL component encoding
+encoded_param: "{{ .search_query | urlquery }}"       # URL encode query params
+encoded_path: "{{ .file_path | urlpath }}"            # URL encode path segments
+
+# Build safe URLs
+api_url: "{{ .base_url }}/users/{{ .user_id | urlpath }}?q={{ .query | urlquery }}"
+redirect_url: "{{ .app_url }}?return={{ .return_url | urlquery }}"
+```
+
+**URL construction**: Always encode user input in URLs to prevent injection.
+</Tab>
+
+<Tab>
+**Base64 encoding** handles binary data and authentication:
+
+```yaml
+# Base64 operations
+encoded: "{{ .data | b64enc }}"                       # Base64 encode
+decoded: "{{ .encoded_data | b64dec }}"               # Base64 decode
+
+# Authentication headers
+auth_header: "Basic {{ printf '%s:%s' .username .password | b64enc }}"
+api_key: "Bearer {{ .token | b64enc }}"
+
+# File content encoding
+file_content: "{{ .binary_data | b64enc }}"
+```
+
+**Base64 use cases**: Authentication, binary data transmission, file embedding.
+</Tab>
+</Tabs>
+
+## Logical Functions
+
+Logical functions provide conditional operations and flow control.
+
+<Tabs items={["Boolean Logic", "Conditionals", "Defaults"]}>
+<Tab>
+**Boolean operations** combine and test conditions:
+
+```yaml
+# Boolean logic
+both_true: "{{ and .condition1 .condition2 }}"       # Logical AND
+either_true: "{{ or .condition1 .condition2 }}"      # Logical OR
+negated: "{{ not .condition }}"                       # Logical NOT
+
+# Complex expressions
+valid_user: "{{ and .user.verified (not (empty .user.email)) }}"
+should_process: "{{ or .force_process (and .auto_process (gt .priority 5)) }}"
+```
+
+**Complex conditions**: Use parentheses to control evaluation order.
+</Tab>
+
+<Tab>
+**Conditional operations** provide if-then-else logic:
+
+```yaml
+# Ternary operator
+status: "{{ .error | empty | ternary 'success' 'failed' }}"
+message: "{{ .user.premium | ternary 'Welcome VIP!' 'Welcome!' }}"
+
+# Conditional assignment
+timeout: "{{ if .config.timeout }}{{ .config.timeout }}{{ else }}30{{ end }}"
+level: "{{ if eq .env.NODE_ENV 'production' }}info{{ else }}debug{{ end }}"
+```
+
+**Ternary syntax**: `condition | ternary 'true_value' 'false_value'`
+</Tab>
+
+<Tab>
+**Default values** handle missing or empty data:
+
+```yaml
+# Simple defaults
+username: "{{ .user.name | default 'Anonymous' }}"
+timeout: "{{ .config.timeout | default 30 }}"
+retries: "{{ .config.retries | default 3 }}"
+
+# Coalesce (first non-empty value)
+name: "{{ coalesce .user.nickname .user.first_name .user.email 'Unknown' }}"
+endpoint: "{{ coalesce .config.primary_url .config.backup_url .default_url }}"
+```
+
+**Fallback chains**: Use `coalesce` for multiple fallback options.
+</Tab>
+</Tabs>
+
+## Common Patterns
+
+Real-world examples of function usage in typical scenarios.
+
+<Tabs items={["Configuration", "Data Processing", "Workflow Logic"]}>
+<Tab>
+**Configuration management** with environment-based settings:
 
 ```yaml
 # Environment-based configuration
@@ -515,328 +527,139 @@ port: "{{ .env.PORT | default '3000' | int }}"
 
 # Feature flags
 feature_enabled: "{{ and .env.ENABLE_FEATURE (eq .env.ENVIRONMENT 'production') }}"
+log_level: "{{ .env.LOG_LEVEL | default 'info' | lower }}"
 ```
 
-### Data Processing
+**Best practices**: Provide sensible defaults, validate environment variables.
+</Tab>
+
+<Tab>
+**Data processing** with transformation and validation:
 
 ```yaml
-# File path operations
+# File operations
 output_file: "{{ .input_file | trimSuffix '.txt' }}_processed.json"
-backup_path: "{{ printf '%s/backup_%s_%s' .backup_dir (now | date '20060102') .filename }}"
+backup_name: "{{ printf '%s_%s' .filename (now | date '20060102_150405') }}"
 
 # Data validation
-is_valid_email: "{{ and (contains .email '@') (gt (len .email) 5) }}"
-is_valid_age: "{{ and (ge .age 0) (le .age 150) }}"
+valid_email: "{{ and (contains .email '@') (gt (len .email) 5) }}"
+valid_age: "{{ and (ge .age 0) (le .age 150) }}"
+
+# Data transformation
+normalized: "{{ .text | lower | trim | replace ' ' '_' }}"
 ```
 
-### Task Orchestration
+**Validation patterns**: Always validate before processing, provide clear error messages.
+</Tab>
+
+<Tab>
+**Workflow logic** with dynamic task management:
 
 ```yaml
-# Dynamic task naming
+# Task naming
 task_id: "{{ printf '%s_%s_%d' .workflow.id .task_type .index }}"
-batch_name: "{{ printf 'batch_%s_%s' (now | date '20060102_150405') .batch_id }}"
+batch_id: "{{ printf 'batch_%s' (now | date '20060102_150405') }}"
 
 # Conditional execution
 should_retry: "{{ and (gt .attempts 0) (lt .attempts .max_retries) }}"
-is_timeout: "{{ gt (now | unixEpoch) (.start_time | add .timeout) }}"
+is_urgent: "{{ or (eq .priority 'high') (lt .deadline (now | dateModify '+1h')) }}"
+
+# Error handling
+error_context: "{{ printf 'Task %s failed: %s' .task_id (.error | default 'unknown error') }}"
 ```
 
-### Error Handling
+**Workflow patterns**: Use consistent naming, implement proper error handling.
+</Tab>
+</Tabs>
+
+## Performance Considerations
+
+Understanding function performance helps optimize template rendering.
+
+<Tabs items={["Fast Functions", "Expensive Operations", "Optimization"]}>
+<Tab>
+**High-performance functions** execute quickly:
 
 ```yaml
-# Error message formatting
-error_msg: "{{ printf 'Task %s failed after %d attempts: %s' .task_id .attempts .error }}"
-status_code: "{{ .response.status | default 500 | int }}"
-
-# Fallback values
-primary_url: "{{ coalesce .config.primary_url .config.backup_url .default_url }}"
-timeout: "{{ min (.config.timeout | default 30) 300 }}"  # Max 5 minutes
-```
-
-## Performance Optimization
-
-Understanding function performance characteristics and optimization techniques ensures efficient template processing in production environments.
-
-### Function Performance Characteristics
-
-Different function types have varying performance implications:
-
-#### String Functions - High Performance
-```yaml
-# Fast string operations (< 1μs)
-fast_string_ops: |
+# Fast operations (< 1μs)
+fast_ops: |
   {{ .name | title }}                    # ~0.5μs
   {{ .text | trim }}                     # ~0.3μs
   {{ .status | upper }}                  # ~0.2μs
   {{ .value | default "none" }}          # ~0.4μs
-
-# Moderate string operations (1-5μs)
-moderate_string_ops: |
-  {{ .text | replace "old" "new" }}      # ~2μs
-  {{ .filename | trimSuffix ".txt" }}    # ~1.5μs
-  {{ .data | contains "search" }}        # ~1μs
+  {{ len .items }}                       # ~0.1μs
+  {{ add .a .b }}                        # ~0.1μs
 ```
 
-#### Array Functions - Variable Performance
-```yaml
-# Fast array operations
-fast_array_ops: |
-  {{ len .items }}                       # ~0.1μs
-  {{ first .items }}                     # ~0.1μs
-  {{ has .item .items }}                 # ~0.5μs per item (linear search)
+**Optimal usage**: Prefer simple functions for frequently rendered templates.
+</Tab>
 
-# Expensive array operations
-expensive_array_ops: |
+<Tab>
+**Expensive operations** may impact performance:
+
+```yaml
+# Slower operations (1-10μs)
+expensive_ops: |
   {{ .items | sortAlpha }}               # ~10μs for 100 items
   {{ .items | uniq }}                    # ~5μs for 100 items
-  {{ .items | reverse }}                 # ~2μs for 100 items
+  {{ .text | regexMatch "pattern" }}     # ~3μs
+  {{ .data | toJson }}                   # ~2μs for medium objects
 ```
 
-#### Numeric Functions - Consistent Performance
+**Performance tips**: Cache results, minimize expensive operations in loops.
+</Tab>
+
+<Tab>
+**Optimization strategies** improve template performance:
+
 ```yaml
-# Arithmetic operations (< 0.5μs)
-arithmetic_ops: |
-  {{ add .a .b }}                        # ~0.1μs
-  {{ div .total .count }}                # ~0.2μs
-  {{ max .value1 .value2 }}              # ~0.3μs
-```
-
-### Memory Usage Optimization
-
-#### Template Caching Strategy
-```yaml
-# Templates are cached by content hash
-# Cache hit rate: >95% in typical workflows
-# Memory usage: ~1KB per cached template
-cached_template_pattern: |
-  {{ range .items }}
-    {{ .name | title }}: {{ .value }}
-  {{ end }}
-```
-
-#### Object Reference Optimization
-```yaml
-# Efficient: Direct object references preserve type
-direct_reference: "{{ .tasks.api_call.output }}"
-
-# Less efficient: Forces string conversion
-string_conversion: "{{ .tasks.api_call.output | toString }}"
-
-# Optimal for JSON output
-json_output: "{{ .tasks.api_call.output | toJson }}"
-```
-
-### Efficient Function Chaining
-
-#### Optimal Chaining Patterns
-```yaml
-# ✅ EFFICIENT: Chain compatible functions
-efficient_chain: |
-  {{ .user.name | trim | title | replace " " "_" }}
-
-# ✅ EFFICIENT: Break complex chains with variables
-efficient_complex: |
+# Efficient chaining
+efficient: |
   {{ $cleaned := .input | trim | lower }}
-  {{ $processed := $cleaned | replace " " "-" | replace "/" "_" }}
+  {{ $processed := $cleaned | replace " " "-" }}
   {{ $final := $processed | trimSuffix ".tmp" }}
   Result: {{ $final }}
-```
 
-#### Inefficient Patterns to Avoid
-```yaml
-# ❌ INEFFICIENT: Redundant operations
-redundant_ops: |
-  {{ .text | trim | trim }}             # Double trim
-  {{ .value | toString | toString }}    # Double conversion
-
-# ❌ INEFFICIENT: Unnecessary type conversions
-unnecessary_conversions: |
-  {{ .number | toString | int }}        # Round-trip conversion
-  {{ .items | toJson | fromJson }}      # Serialization round-trip
-```
-
-### Performance-Optimized Function Usage
-
-#### String Performance Patterns
-```yaml
-# Optimize string operations
-string_optimization: |
-  {{ $base := .config.base_url | trim }}
-  {{ $path := .request.path | trimPrefix "/" }}
-  {{ $query := .request.query | urlquery }}
-  {{ printf "%s/%s?%s" $base $path $query }}
-```
-
-#### Array Performance Patterns
-```yaml
-# Optimize array processing
-array_optimization: |
-  {{ $items := .data.items }}
-  {{ $count := len $items }}
-  {{ if gt $count 0 }}
-    {{ $first := index $items 0 }}
-    {{ $last := index $items (sub $count 1) }}
-    Range: {{ $first.name }} to {{ $last.name }}
-  {{ end }}
-```
-
-#### Conditional Performance Patterns
-```yaml
-# Optimize conditionals with early returns
-conditional_optimization: |
-  {{ if empty .data }}
-    No data available
-  {{ else if eq (len .data) 1 }}
-    Single item: {{ (index .data 0).name }}
-  {{ else }}
-    {{ len .data }} items available
-  {{ end }}
-```
-
-### Advanced Performance Techniques
-
-#### Lazy Evaluation Patterns
-```yaml
-# Conditional processing to avoid expensive operations
-lazy_evaluation: |
+# Conditional processing
+optimized: |
   {{ if .config.enable_processing }}
-    {{ .data | complexTransformation }}
+    {{ .data | expensiveOperation }}
   {{ else }}
-    {{ .data.cached_result | default "No cache" }}
+    {{ .data.cached_result }}
   {{ end }}
 ```
 
-#### Batch Processing Optimization
-```yaml
-# Optimize batch operations
-batch_optimization: |
-  {{ $batch_size := 100 }}
-  {{ $total := len .items }}
-  {{ $batches := div $total $batch_size }}
-  Processing {{ $total }} items in {{ $batches }} batches
-```
+**Best practices**: Use variables for intermediate results, avoid redundant operations.
+</Tab>
+</Tabs>
 
-### Performance Monitoring and Debugging
+## References
 
-#### Performance Debugging Templates
-```yaml
-# Add performance timing to templates
-performance_debug: |
-  {{ $start := now }}
-  {{ .complex_operation }}
-  <!-- Processing time: {{ sub (now | unixEpoch) ($start | unixEpoch) }}ms -->
+<ReferenceCardList>
+  <ReferenceCard
+    title="Context Variables"
+    description="Learn about data sources and access patterns in templates"
+    href="/docs/core/yaml-templates/context-variables"
+    icon="Database"
+  />
+  <ReferenceCard
+    title="Advanced Patterns"
+    description="Master complex template techniques and conditional logic"
+    href="/docs/core/yaml-templates/advanced-patterns"
+    icon="Zap"
+  />
+  <ReferenceCard
+    title="Template Directives"
+    description="Use $ref and $use directives for resource composition"
+    href="/docs/core/yaml-templates/directives"
+    icon="Link"
+  />
+  <ReferenceCard
+    title="Validation & Debugging"
+    description="Debug template issues and validate template syntax"
+    href="/docs/core/yaml-templates/validation-debugging"
+    icon="Bug"
+  />
+</ReferenceCardList>
 
-# Monitor template complexity
-complexity_monitor: |
-  {{ $operations := 0 }}
-  {{ range .items }}
-    {{ $operations = add $operations 1 }}
-    {{ .name | title }}
-  {{ end }}
-  <!-- Processed {{ $operations }} operations -->
-```
-
-#### Memory Usage Tracking
-```yaml
-# Track memory-intensive operations
-memory_tracking: |
-  {{ $large_data := .tasks.fetch_data.output }}
-  {{ $size := len ($large_data | toJson) }}
-  {{ if gt $size 10000 }}
-    <!-- WARNING: Large data structure ({{ $size }} bytes) -->
-  {{ end }}
-  {{ $large_data | toJson }}
-```
-
-### Production Performance Best Practices
-
-#### 1. Minimize Template Complexity
-```yaml
-# Keep templates simple and readable
-simple_template: |
-  {{ $user := .workflow.input.user }}
-  {{ $config := .global.config }}
-  Welcome {{ $user.name }}!
-  Environment: {{ $config.environment }}
-```
-
-#### 2. Cache Expensive Operations
-```yaml
-# Cache results of expensive computations
-cached_computation: |
-  {{ $expensive_result := .global.cache.expensive_operation }}
-  {{ if $expensive_result }}
-    {{ $expensive_result }}
-  {{ else }}
-    {{ .data | expensiveTransformation }}
-  {{ end }}
-```
-
-#### 3. Use Type-Appropriate Functions
-```yaml
-# Use optimal functions for data types
-type_appropriate: |
-  {{ .numbers | sort }}                  # Numeric sort
-  {{ .strings | sortAlpha }}             # Alphabetical sort
-  {{ .dates | sort }}                    # Date sort
-```
-
-#### 4. Optimize for Common Cases
-```yaml
-# Fast path for common scenarios
-optimized_flow: |
-  {{ if .simple_case }}
-    {{ .simple_output }}
-  {{ else }}
-    {{ .complex_processing | complexTransformation }}
-  {{ end }}
-```
-
-### Performance Benchmarks
-
-Typical performance characteristics in production:
-
-```yaml
-# Template Engine Performance Metrics
-# - Template compilation: ~1ms for typical templates
-# - Template rendering: ~0.1ms for simple templates
-# - Cache hit rate: >95% in typical workflow scenarios
-# - Memory usage: ~1KB per cached template
-# - Concurrent throughput: 10,000+ renders/second
-# - Function call overhead: ~0.1μs per function
-# - String operations: 0.2-5μs depending on complexity
-# - Array operations: 0.1-10μs depending on size and operation
-```
-
-### Integration with Workflow Performance
-
-#### Task-Level Performance Optimization
-```yaml
-# Optimize template usage in tasks
-performance_optimized_task: |
-  {{ $context := .workflow.context }}
-  {{ $config := .global.performance_config }}
-  {{ if $config.enable_caching }}
-    {{ $cached := .global.cache[$context.cache_key] }}
-    {{ $cached | default (.data | heavyProcessing) }}
-  {{ else }}
-    {{ .data | heavyProcessing }}
-  {{ end }}
-```
-
-#### Agent Performance Patterns
-```yaml
-# Optimize template usage in agent instructions
-optimized_agent_instructions: |
-  {{ $user_context := .workflow.input.user_context }}
-  {{ $session_cache := .global.session_cache[$user_context.session_id] }}
-  
-  You are assisting {{ $user_context.name | default "user" }}.
-  {{ if $session_cache }}
-    Previous context: {{ $session_cache.summary }}
-  {{ end }}
-  
-  Current request: {{ .workflow.input.request }}
-```
-
-The Sprig function library provides extensive data manipulation capabilities with careful attention to performance. Next, explore [Context Variables](./context-variables) to understand data sources and access patterns, or check [Advanced Patterns](./advanced-patterns) for complex template scenarios.
+Sprig functions provide the foundation for powerful template-based configurations in Compozy. Remember to prioritize security by always escaping user input and using appropriate functions for each context.

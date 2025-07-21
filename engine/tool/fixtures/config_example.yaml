@@ -1,0 +1,43 @@
+id: api-client
+description: HTTP API client with configurable base URL and settings
+
+config:
+  base_url: "https://api.example.com"
+  timeout: 30
+  retry_count: 3
+  headers:
+    User-Agent: "Compozy/1.0"
+    Accept: "application/json"
+
+input:
+  type: object
+  properties:
+    endpoint:
+      type: string
+      description: The API endpoint path (e.g., "/users/123")
+    method:
+      type: string
+      description: HTTP method to use
+      enum: ["GET", "POST", "PUT", "DELETE"]
+    body:
+      type: object
+      description: Request body for POST/PUT requests
+  required:
+    - endpoint
+    - method
+
+output:
+  type: object
+  properties:
+    status:
+      type: integer
+      description: HTTP status code
+    data:
+      type: object
+      description: Response data from the API
+    headers:
+      type: object
+      description: Response headers
+
+env:
+  API_KEY: "{{ .env.API_SECRET }}"

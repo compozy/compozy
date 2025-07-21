@@ -116,17 +116,17 @@ func TestBunManager_ExecuteTool(t *testing.T) {
 		toolExecID, _ := core.NewID()
 
 		// Test empty tool ID
-		_, err = bm.ExecuteTool(ctx, "", toolExecID, &core.Input{}, core.EnvMap{})
+		_, err = bm.ExecuteTool(ctx, "", toolExecID, &core.Input{}, nil, core.EnvMap{})
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "tool_id cannot be empty")
 
 		// Test invalid tool ID with directory traversal
-		_, err = bm.ExecuteTool(ctx, "../malicious", toolExecID, &core.Input{}, core.EnvMap{})
+		_, err = bm.ExecuteTool(ctx, "../malicious", toolExecID, &core.Input{}, nil, core.EnvMap{})
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "directory traversal patterns")
 
 		// Test invalid tool ID with invalid characters
-		_, err = bm.ExecuteTool(ctx, "tool@invalid", toolExecID, &core.Input{}, core.EnvMap{})
+		_, err = bm.ExecuteTool(ctx, "tool@invalid", toolExecID, &core.Input{}, nil, core.EnvMap{})
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid characters")
 	})
@@ -161,6 +161,7 @@ export async function slow_tool(input: any) {
 			"slow_tool",
 			toolExecID,
 			&core.Input{},
+			nil,
 			core.EnvMap{},
 			100*time.Millisecond,
 		)
@@ -192,7 +193,7 @@ export async function test_tool(input: any) {
 		toolExecID, _ := core.NewID()
 		input := &core.Input{"test": "data"}
 
-		result, err := bm.ExecuteTool(ctx, "test_tool", toolExecID, input, core.EnvMap{})
+		result, err := bm.ExecuteTool(ctx, "test_tool", toolExecID, input, nil, core.EnvMap{})
 		require.NoError(t, err)
 		assert.NotNil(t, result)
 
@@ -223,7 +224,7 @@ export function dummy() {}
 
 		toolExecID, _ := core.NewID()
 
-		_, err = bm.ExecuteTool(ctx, "nonexistent_tool", toolExecID, &core.Input{}, core.EnvMap{})
+		_, err = bm.ExecuteTool(ctx, "nonexistent_tool", toolExecID, &core.Input{}, nil, core.EnvMap{})
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "tool execution failed")
 	})
@@ -255,7 +256,7 @@ export async function env_tool(input: any) {
 		toolExecID, _ := core.NewID()
 		env := core.EnvMap{"TEST_VAR": "test_value"}
 
-		result, err := bm.ExecuteTool(ctx, "env_tool", toolExecID, &core.Input{}, env)
+		result, err := bm.ExecuteTool(ctx, "env_tool", toolExecID, &core.Input{}, nil, env)
 		require.NoError(t, err)
 
 		assert.Equal(t, "test_value", (*result)["env_var"])

@@ -15,6 +15,7 @@ import (
 	"github.com/compozy/compozy/engine/worker"
 	wf "github.com/compozy/compozy/engine/workflow"
 	wfacts "github.com/compozy/compozy/engine/workflow/activities"
+	"github.com/compozy/compozy/pkg/config"
 )
 
 func TestEventSignal_Structure(t *testing.T) {
@@ -62,11 +63,6 @@ func TestDispatcherWorkflow_SuccessfulDispatch(t *testing.T) {
 		// Create a mock project config with default heartbeat settings
 		mockProjectConfig := &project.Config{
 			Name: "test-project",
-			Opts: project.Opts{
-				DispatcherHeartbeatInterval: 30,
-				DispatcherHeartbeatTTL:      300,
-				DispatcherStaleThreshold:    120,
-			},
 		}
 
 		// Create a GetData activity instance for testing
@@ -81,10 +77,11 @@ func TestDispatcherWorkflow_SuccessfulDispatch(t *testing.T) {
 			Return(&wfacts.GetData{
 				ProjectConfig: mockProjectConfig,
 				Workflows:     mockWorkflows,
+				AppConfig:     config.Default(),
 			}, nil)
 
 		// Expect exactly one child workflow to be started
-		env.OnWorkflow("CompozyWorkflow", mock.Anything, mock.Anything).Return(nil, nil).Once()
+		env.OnWorkflow("CompozyWorkflow", mock.Anything, mock.Anything, mock.Anything).Return(nil, nil).Once()
 		env.RegisterWorkflow(worker.DispatcherWorkflow)
 		env.RegisterWorkflow(worker.CompozyWorkflow)
 
@@ -139,11 +136,6 @@ func TestDispatcherWorkflow_UnknownSignal(t *testing.T) {
 		// Create a mock project config with default heartbeat settings
 		mockProjectConfig := &project.Config{
 			Name: "test-project",
-			Opts: project.Opts{
-				DispatcherHeartbeatInterval: 30,
-				DispatcherHeartbeatTTL:      300,
-				DispatcherStaleThreshold:    120,
-			},
 		}
 
 		// Create a GetData activity instance for testing
@@ -158,6 +150,7 @@ func TestDispatcherWorkflow_UnknownSignal(t *testing.T) {
 			Return(&wfacts.GetData{
 				ProjectConfig: mockProjectConfig,
 				Workflows:     mockWorkflows,
+				AppConfig:     config.Default(),
 			}, nil)
 
 		// No expectations for child workflows since unknown signals should not trigger any

@@ -618,13 +618,12 @@ func registerOutputFormatFields(registry *Registry) {
 
 func registerBehaviorFlags(registry *Registry) {
 	registry.Register(&FieldDef{
-		Path:      "cli.debug",
-		Default:   false,
-		CLIFlag:   "debug",
-		Shorthand: "d",
-		EnvVar:    "COMPOZY_DEBUG",
-		Type:      reflect.TypeOf(true),
-		Help:      "Enable debug output and verbose logging",
+		Path:    "cli.debug",
+		Default: false,
+		CLIFlag: "debug",
+		EnvVar:  "COMPOZY_DEBUG",
+		Type:    reflect.TypeOf(true),
+		Help:    "Enable debug output and verbose logging",
 	})
 	registry.Register(&FieldDef{
 		Path:      "cli.quiet",

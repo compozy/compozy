@@ -1,0 +1,419 @@
+---
+title: "Authentication Commands"
+description: "Manage API keys and user authentication for Compozy"
+---
+
+The `compozy auth` command group provides comprehensive authentication and API key management capabilities. These commands support both interactive TUI and automation-friendly JSON output modes.
+
+<Callout type="info">
+All auth commands require proper authentication unless you're creating your first user. Use the `--output json` flag for scripting and automation.
+</Callout>
+
+## Overview
+
+```bash
+compozy auth [command] [flags]
+```
+
+<FeatureCardList cols={2} size="default">
+  <FeatureCard
+    title="API Key Management"
+    description="Generate, list, and revoke API keys for secure authentication"
+    icon="Key"
+  />
+  <FeatureCard
+    title="User Administration"
+    description="Create and manage user accounts with role-based access control"
+    icon="Users"
+  />
+  <FeatureCard
+    title="Interactive TUI"
+    description="User-friendly text interface for simplified operations"
+    icon="Terminal"
+  />
+  <FeatureCard
+    title="Automation Ready"
+    description="JSON output format for seamless CI/CD and script integration"
+    icon="Bot"
+  />
+</FeatureCardList>
+
+## API Key Management
+
+### Generate API Key
+
+Create a new API key for authenticating with the Compozy API:
+
+```bash
+# Interactive mode (TUI)
+compozy auth generate
+
+# With parameters
+compozy auth generate --name "CI/CD Pipeline" --description "For automated deployments"
+
+# With expiration date
+compozy auth generate --name "Temporary Key" --expires "2024-12-31"
+
+# JSON output for automation
+compozy auth generate --name "API Integration" --output json
+```
+
+**Flags:**
+- `--name` - Name/description for the API key
+- `--description` - Detailed description of the API key usage
+- `--expires` - Expiration date in YYYY-MM-DD format
+- `--output` - Output format (json or table)
+
+### List API Keys
+
+View all API keys with their status and metadata:
+
+```bash
+# List all keys (TUI)
+compozy auth list
+
+# Sort by creation date
+compozy auth list --sort created
+
+# Filter by status
+compozy auth list --status active
+
+# JSON output
+compozy auth list --output json
+```
+
+**Flags:**
+- `--sort` - Sort by field (created, name, expires)
+- `--status` - Filter by status (active, expired, revoked)
+- `--output` - Output format (json or table)
+
+### Revoke API Key
+
+Revoke an existing API key:
+
+```bash
+# Interactive selection (TUI)
+compozy auth revoke
+
+# Revoke specific key
+compozy auth revoke --key "amp_1234567890"
+
+# JSON output
+compozy auth revoke --key "amp_1234567890" --output json
+```
+
+**Flags:**
+- `--key` - API key to revoke
+- `--output` - Output format (json or table)
+
+## User Management
+
+<Callout type="warning">
+User management commands require admin privileges. The first user can be created without authentication to bootstrap the system.
+</Callout>
+
+### Create User
+
+Create a new user account:
+
+```bash
+# Interactive mode (TUI)
+compozy auth create-user
+
+# With parameters
+compozy auth create-user --email "user@example.com" --name "John Doe"
+
+# With role assignment
+compozy auth create-user --email "admin@example.com" --name "Admin User" --role admin
+
+# JSON output
+compozy auth create-user --email "user@example.com" --name "John Doe" --output json
+```
+
+**Flags:**
+- `--email` - User's email address (required)
+- `--name` - User's full name
+- `--role` - User role (admin, user, viewer)
+- `--output` - Output format (json or table)
+
+### List Users
+
+View all users in the system:
+
+```bash
+# List all users (TUI)
+compozy auth list-users
+
+# Filter by role
+compozy auth list-users --role admin
+
+# Sort by creation date
+compozy auth list-users --sort created
+
+# JSON output
+compozy auth list-users --output json
+```
+
+**Flags:**
+- `--role` - Filter by role (admin, user, viewer)
+- `--sort` - Sort by field (created, email, name)
+- `--output` - Output format (json or table)
+
+### Update User
+
+Update user information:
+
+```bash
+# Interactive mode (TUI)
+compozy auth update-user
+
+# Update specific user
+compozy auth update-user --email "user@example.com" --name "Jane Doe"
+
+# Change user role
+compozy auth update-user --email "user@example.com" --role admin
+
+# JSON output
+compozy auth update-user --email "user@example.com" --role admin --output json
+```
+
+**Flags:**
+- `--email` - User's email address (required to identify user)
+- `--name` - New name for the user
+- `--role` - New role for the user
+- `--output` - Output format (json or table)
+
+### Delete User
+
+Remove a user from the system:
+
+```bash
+# Interactive selection (TUI)
+compozy auth delete-user
+
+# Delete specific user
+compozy auth delete-user --email "user@example.com"
+
+# Force deletion without confirmation
+compozy auth delete-user --email "user@example.com" --force
+
+# JSON output
+compozy auth delete-user --email "user@example.com" --output json
+```
+
+**Flags:**
+- `--email` - Email of user to delete
+- `--force` - Skip confirmation prompt
+- `--output` - Output format (json or table)
+
+## Authentication Flow
+
+### Initial Setup
+
+When setting up Compozy for the first time:
+
+<Steps numbered>
+  <Step
+    title="Create the first admin user"
+    description="Bootstrap the system with an initial administrator account"
+  >
+    ```bash
+    compozy auth create-user --email "admin@company.com" --name "Admin" --role admin
+    ```
+  </Step>
+  <Step
+    title="Generate an API key"
+    description="Create an authentication key for API access"
+  >
+    ```bash
+    compozy auth generate --name "Admin API Key"
+    ```
+  </Step>
+  <Step
+    title="Set the API key in your environment"
+    description="Configure the key for automatic authentication"
+  >
+    ```bash
+    export COMPOZY_API_KEY="amp_your_key_here"
+    ```
+  </Step>
+</Steps>
+
+### Authentication Sequence
+
+<Mermaid chart={`sequenceDiagram
+    participant User
+    participant CLI as Compozy CLI
+    participant Auth as Auth Service
+    participant DB as Database
+    participant API as Compozy API
+
+    Note over User,API: Initial Setup Flow
+    User->>CLI: compozy auth create-user
+    CLI->>Auth: CreateUser(email, name, role)
+    Auth->>DB: Store user credentials
+    DB-->>Auth: User created successfully
+    Auth-->>CLI: Return user details
+    CLI-->>User: User created confirmation
+
+    Note over User,API: API Key Generation
+    User->>CLI: compozy auth generate
+    CLI->>Auth: GenerateAPIKey(user_id, name)
+    Auth->>DB: Store API key metadata
+    DB-->>Auth: Key stored successfully
+    Auth-->>CLI: Return API key
+    CLI-->>User: Display API key
+
+    Note over User,API: API Usage
+    User->>API: HTTP Request with API key
+    API->>Auth: ValidateAPIKey(key)
+    Auth->>DB: Check key validity
+    DB-->>Auth: Key validation result
+    Auth-->>API: Authentication result
+    API-->>User: Response with data`} />
+
+### Using API Keys
+
+API keys can be provided in multiple ways:
+
+<Tabs items={["Environment Variable", "Command Flag", "Config File"]}>
+  <Tab value="Environment Variable">
+    ```bash
+    export COMPOZY_API_KEY="amp_1234567890"
+    compozy workflow list
+    ```
+  </Tab>
+  <Tab value="Command Flag">
+    ```bash
+    compozy workflow list --api-key "amp_1234567890"
+    ```
+  </Tab>
+  <Tab value="Config File">
+    ```yaml
+    # ~/.compozy/config.yaml
+    api_key: "amp_1234567890"
+    ```
+  </Tab>
+</Tabs>
+
+## Best Practices
+
+<List>
+  <ListItem title="Key Rotation" icon="RotateCcw">
+    Regularly rotate API keys for security. Set expiration dates and create new keys before old ones expire.
+  </ListItem>
+  <ListItem title="Descriptive Names" icon="Tag">
+    Use clear, descriptive names for API keys to identify their purpose and usage.
+  </ListItem>
+  <ListItem title="Role-Based Access" icon="Shield">
+    Assign appropriate roles to users based on their responsibilities. Use viewer role for read-only access.
+  </ListItem>
+  <ListItem title="Audit Trail" icon="FileSearch">
+    The auth system maintains an audit trail of all key usage. Use `compozy auth list` to review key activity.
+  </ListItem>
+  <ListItem title="Secure Storage" icon="Lock">
+    Never commit API keys to version control. Use environment variables or secure secret management systems.
+  </ListItem>
+</List>
+
+## Examples
+
+### CI/CD Integration
+
+```bash
+# Create a dedicated CI/CD user
+compozy auth create-user --email "ci@company.com" --name "CI/CD Bot" --role user
+
+# Generate API key for CI/CD
+compozy auth generate --name "GitHub Actions" --description "For automated deployments" --output json > ci-key.json
+
+# Extract the key
+export CI_API_KEY=$(jq -r '.api_key' ci-key.json)
+```
+
+### Key Rotation Script
+
+```bash
+#!/bin/bash
+# Rotate API keys monthly
+
+# Generate new key
+NEW_KEY=$(compozy auth generate --name "Monthly Rotation $(date +%Y-%m)" --expires "$(date -d '+31 days' +%Y-%m-%d)" --output json | jq -r '.api_key')
+
+# Update environment
+echo "COMPOZY_API_KEY=$NEW_KEY" > ~/.env
+
+# Revoke old key
+OLD_KEY=$(compozy auth list --output json | jq -r '.keys[] | select(.name | contains("Monthly Rotation")) | select(.created < "'$(date -d '-30 days' --iso-8601)'") | .key')
+if [ ! -z "$OLD_KEY" ]; then
+  compozy auth revoke --key "$OLD_KEY"
+fi
+```
+
+## Troubleshooting
+
+<Callout type="warning">
+Common issues and their solutions:
+</Callout>
+
+<Tabs items={["Authentication Failed", "Permission Denied", "Key Expired"]}>
+  <Tab value="Authentication Failed">
+    ```bash
+    # Check if API key is set
+    echo $COMPOZY_API_KEY
+    
+    # Verify key is active
+    compozy auth list --output json | jq '.keys[] | select(.key=="your_key")'
+    
+    # Check server connectivity
+    compozy config diagnostics
+    ```
+  </Tab>
+  <Tab value="Permission Denied">
+    ```bash
+    # Verify user role
+    compozy auth list-users --output json | jq '.users[] | select(.email=="your@email.com")'
+    
+    # Admin commands require admin role
+    # Switch to admin user or request role upgrade
+    ```
+  </Tab>
+  <Tab value="Key Expired">
+    ```bash
+    # List all keys with expiration status
+    compozy auth list --output json | jq '.keys[] | select(.expired==true)'
+    
+    # Generate new key
+    compozy auth generate --name "Replacement Key"
+    ```
+  </Tab>
+</Tabs>
+
+## Next Steps
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Configuration Commands"
+    description="Manage global settings and project configuration"
+    href="/docs/cli/config-commands"
+    icon="Settings"
+  />
+  <ReferenceCard
+    title="Workflow Commands"
+    description="Execute, deploy, and monitor AI workflows"
+    href="/docs/cli/workflow-commands"
+    icon="Workflow"
+  />
+  <ReferenceCard
+    title="Project Commands"
+    description="Initialize and manage Compozy projects"
+    href="/docs/cli/project-commands"
+    icon="FolderOpen"
+  />
+  <ReferenceCard
+    title="Security Guide"
+    description="Best practices for secure authentication and key management"
+    href="/docs/core/security/authentication"
+    icon="ShieldCheck"
+  />
+</ReferenceCardList>

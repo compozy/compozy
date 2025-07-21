@@ -1,30 +1,52 @@
 ---
 title: "Agent Memory"
 description: "Memory systems that enable agents to maintain context and state across interactions"
-icon: "brain"
 ---
 
 ## Overview
 
 Memory in Compozy allows agents to maintain context across workflow steps, sessions, and even between different workflow executions. This enables stateful interactions, personalization, and complex multi-turn conversations.
 
+## Key Features
+
+<FeatureCardList cols={2} size="default">
+  <FeatureCard
+    title="Persistent Context"
+    description="Maintain conversation history and state across multiple interactions and workflow executions"
+    icon="Database"
+  />
+  <FeatureCard
+    title="Multiple Backends"
+    description="Choose from Redis, PostgreSQL, or in-memory storage based on your performance and persistence needs"
+    icon="HardDrive"
+  />
+  <FeatureCard
+    title="Dynamic Keys"
+    description="Use template expressions to create user-specific, session-based, or context-aware memory instances"
+    icon="Key"
+  />
+  <FeatureCard
+    title="Access Control"
+    description="Configure read-write or read-only access modes to control how agents interact with memory"
+    icon="Shield"
+  />
+</FeatureCardList>
+
 ## Memory Architecture
 
-```mermaid
-graph TD
+<Mermaid chart={`graph TD
     A[Agent] -->|References| B[Memory Configuration]
     B -->|Resolves| C[Memory Instance]
     C -->|Read/Write| D[Memory Storage]
-    
+
     D --> E[Redis Backend]
     D --> F[PostgreSQL Backend]
     D --> G[In-Memory Backend]
-    
+
     C -->|Contains| H[Messages]
     H --> I[System Messages]
     H --> J[User Messages]
-    H --> K[Assistant Messages]
-```
+    H --> K[Assistant Messages]`} />
 
 ## Memory Configuration
 
@@ -49,6 +71,8 @@ agents:
 
 ### Memory Reference Structure
 
+Memory references in agent configurations connect agents to memory resources. Each reference specifies which memory resource to use, how to access it, and provides a template key for dynamic memory instances.
+
 Each memory reference requires:
 
 | Field | Type | Description | Required |
@@ -59,6 +83,8 @@ Each memory reference requires:
 
 ### Dynamic Key Templates
 
+Memory keys support template expressions that are evaluated at runtime to create unique memory instances. This enables context-aware memory management where different users, sessions, or workflows can have separate memory spaces.
+
 Memory keys support template expressions:
 
 ```yaml
@@ -66,21 +92,23 @@ memory:
   # User-specific memory
   - id: user_context
     key: "user:{{.workflow.input.user_id}}"
-  
+
   # Session-based memory
   - id: session_memory
     key: "session:{{.workflow.input.session_id}}"
-  
+
   # Conversation threads
   - id: conversation
     key: "thread:{{.workflow.input.thread_id}}:{{.workflow.input.user_id}}"
-  
+
   # Time-based memory
   - id: daily_context
     key: "daily:{{.workflow.input.date}}:{{.workflow.input.user_id}}"
 ```
 
 ## Memory Resources
+
+Memory resources define the storage configuration and schema for memory instances. These resources are referenced by agents through memory references and provide the actual storage backend and configuration.
 
 Define memory resources that agents can reference:
 
@@ -110,6 +138,8 @@ schema:
 
 ### Read-Write Memory
 
+Read-write memory access allows agents to both read existing memory content and add new messages or modify the conversation history. This is the default mode and is suitable for most conversational agents.
+
 Full access to read and modify memory:
 
 ```yaml
@@ -119,17 +149,19 @@ agents:
       - id: user_preferences
         key: "prefs:{{.workflow.input.user_id}}"
         mode: "read-write"
-    
+
     actions:
       - id: update-preferences
         prompt: |
           Based on the user's request: {{.input.request}}
-          
+
           Current preferences from memory will be available.
           Update preferences as needed based on the conversation.
 ```
 
 ### Read-Only Memory
+
+Read-only memory access restricts agents to only viewing existing memory content without the ability to modify or add new messages. This is useful for support agents or when you want to provide context without allowing changes.
 
 Access memory without modification rights:
 
@@ -140,13 +172,15 @@ agents:
       - id: user_history
         key: "history:{{.workflow.input.user_id}}"
         mode: "read-only"
-    
+
     instructions: |
       You can view user history but cannot modify it.
       Use historical context to provide better support.
 ```
 
 ### Multiple Memory Contexts
+
+Agents can access multiple memory instances simultaneously, allowing them to maintain different types of context (user profiles, team information, project state) within the same conversation.
 
 Agents can access multiple memory instances:
 
@@ -217,13 +251,13 @@ agents:
     memory:
       - id: conversation
         key: "chat:{{.workflow.input.session_id}}"
-    
+
     actions:
       - id: respond
         prompt: |
           Continue the conversation naturally.
           User message: {{.input.message}}
-          
+
           Use previous context to maintain conversation flow.
           Reference earlier topics when relevant.
 ```
@@ -238,12 +272,12 @@ agents:
     memory:
       - id: user_preferences
         key: "prefs:{{.workflow.input.user_id}}"
-    
+
     instructions: |
       You provide personalized recommendations.
       Learn from user feedback and choices.
       Adapt suggestions based on historical preferences.
-    
+
     actions:
       - id: recommend
         prompt: |
@@ -267,7 +301,7 @@ agents:
     actions:
       - id: research
         prompt: "Research the topic and store findings in memory"
-  
+
   - id: writer
     memory:
       - id: research_notes
@@ -282,19 +316,11 @@ agents:
 
 ### Memory Lifecycle
 
-<Steps>
-  <Step title="Initialization">
-    Memory instance created when first referenced with a specific key
-  </Step>
-  <Step title="Population">
-    Messages appended during agent interactions
-  </Step>
-  <Step title="Retrieval">
-    Full conversation history provided to agent as context
-  </Step>
-  <Step title="Expiration">
-    Memory expires based on TTL configuration
-  </Step>
+<Steps numbered size="sm">
+  <Step title="Initialization" description="Memory instance created when first referenced with a specific key" />
+  <Step title="Population" description="Messages appended during agent interactions" />
+  <Step title="Retrieval" description="Full conversation history provided to agent as context" />
+  <Step title="Expiration" description="Memory expires based on TTL configuration" />
 </Steps>
 
 ### Memory Size Considerations
@@ -305,10 +331,20 @@ Memory content counts toward the agent's context window. Large conversation hist
 
 Strategies for managing memory size:
 
-1. **Set appropriate TTLs** to expire old memories
-2. **Use separate memory instances** for different contexts
-3. **Implement memory summarization** for long conversations
-4. **Archive old memories** to secondary storage
+<List>
+  <ListItem title="Set appropriate TTLs">
+    Configure expiration times to automatically remove old memories and prevent unbounded growth
+  </ListItem>
+  <ListItem title="Use separate memory instances">
+    Isolate different contexts using distinct memory keys for better organization and performance
+  </ListItem>
+  <ListItem title="Implement memory summarization">
+    Compress long conversations into concise summaries while preserving key information
+  </ListItem>
+  <ListItem title="Archive old memories">
+    Move historical data to secondary storage for long-term retention without impacting performance
+  </ListItem>
+</List>
 
 ### Memory Operations via API
 
@@ -386,7 +422,7 @@ agents:
       - id: shared_data
         key: "project:{{.env.PROJECT_ID}}:data"
 
-# Workflow 2: Data Analysis  
+# Workflow 2: Data Analysis
 agents:
   - id: analyzer
     memory:
@@ -398,41 +434,87 @@ agents:
 
 <AccordionGroup>
   <Accordion title="Key Design">
-    - Use hierarchical keys for organization
-    - Include relevant IDs in key templates
-    - Consider key uniqueness and collisions
-    - Document key naming conventions
+    <List>
+      <ListItem title="Use hierarchical keys">
+        Organize memory with structured key patterns like "domain:entity:id" for better organization
+      </ListItem>
+      <ListItem title="Include relevant IDs">
+        Embed user, session, or workflow IDs in key templates for proper isolation
+      </ListItem>
+      <ListItem title="Consider key uniqueness">
+        Design keys to prevent collisions between different contexts or users
+      </ListItem>
+      <ListItem title="Document conventions">
+        Establish and document consistent key naming patterns across your project
+      </ListItem>
+    </List>
   </Accordion>
-  
+
   <Accordion title="Access Control">
-    - Use read-only mode when modification isn't needed
-    - Separate memory instances by security context
-    - Validate user access to memory keys
-    - Implement proper key sanitization
+    <List>
+      <ListItem title="Use read-only mode">
+        Apply read-only access when agents only need to view historical context
+      </ListItem>
+      <ListItem title="Separate by security context">
+        Isolate memory instances based on user permissions and security requirements
+      </ListItem>
+      <ListItem title="Validate user access">
+        Verify user authorization before granting access to memory keys
+      </ListItem>
+      <ListItem title="Implement key sanitization">
+        Sanitize dynamic key components to prevent injection attacks
+      </ListItem>
+    </List>
   </Accordion>
-  
+
   <Accordion title="Performance">
-    - Set appropriate TTLs to prevent unbounded growth
-    - Monitor memory size and token usage
-    - Implement pagination for large histories
-    - Use caching for frequently accessed memories
+    <List>
+      <ListItem title="Set appropriate TTLs">
+        Configure expiration times to prevent unbounded memory growth
+      </ListItem>
+      <ListItem title="Monitor memory usage">
+        Track memory size and token consumption to optimize performance
+      </ListItem>
+      <ListItem title="Implement pagination">
+        Handle large conversation histories with pagination strategies
+      </ListItem>
+      <ListItem title="Use caching">
+        Cache frequently accessed memories to reduce storage backend load
+      </ListItem>
+    </List>
   </Accordion>
-  
+
   <Accordion title="Privacy">
-    - Encrypt sensitive memory content
-    - Implement data retention policies
-    - Provide user controls for memory deletion
-    - Audit memory access patterns
+    <List>
+      <ListItem title="Encrypt sensitive content">
+        Apply encryption to memory containing personal or sensitive data
+      </ListItem>
+      <ListItem title="Implement retention policies">
+        Define and enforce data retention rules for compliance
+      </ListItem>
+      <ListItem title="Provide user controls">
+        Enable users to view, export, and delete their memory data
+      </ListItem>
+      <ListItem title="Audit access patterns">
+        Log and monitor memory access for security and compliance
+      </ListItem>
+    </List>
   </Accordion>
 </AccordionGroup>
 
 ## Next Steps
 
-<FeatureCardList cols={2}>
-  <FeatureCard title="Context Management" href="/docs/core/agents/context">
-    Learn about managing agent context effectively
-  </FeatureCard>
-  <FeatureCard title="Multi-Agent Patterns" href="/docs/core/agents/multi-agent-patterns">
-    Explore patterns for multi-agent collaboration
-  </FeatureCard>
-</FeatureCardList>
+<ReferenceCardList>
+  <ReferenceCard
+    title="Context Management"
+    description="Learn about managing agent context effectively"
+    href="/docs/core/agents/context"
+    icon="Layers"
+  />
+  <ReferenceCard
+    title="Multi-Agent Patterns"
+    description="Explore patterns for multi-agent collaboration"
+    href="/docs/core/agents/multi-agent-patterns"
+    icon="Users"
+  />
+</ReferenceCardList>

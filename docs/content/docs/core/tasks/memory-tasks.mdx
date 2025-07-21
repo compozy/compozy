@@ -955,3 +955,61 @@ on_success:
 7. **Security**: Validate and sanitize memory keys and payloads
 
 Memory tasks provide powerful persistent storage capabilities that enable stateful workflows, user session management, and efficient data caching in your Compozy applications.
+
+## Next Steps
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Basic Tasks"
+    description="Master the foundation tasks that work with memory storage"
+    href="/docs/core/tasks/basic-tasks"
+    icon="Cog"
+  />
+  <ReferenceCard
+    title="Wait Tasks"
+    description="Learn how memory state coordinates with wait task patterns"
+    href="/docs/core/tasks/wait-tasks"
+    icon="Clock"
+  />
+  <ReferenceCard
+    title="Signal Tasks"
+    description="Combine memory storage with signal-based coordination"
+    href="/docs/core/tasks/signal-tasks"
+    icon="Radio"
+  />
+  <ReferenceCard
+    title="Advanced Patterns"
+    description="Explore sophisticated memory management patterns"
+    href="/docs/core/tasks/advanced-patterns"
+    icon="Layers"
+  />
+</ReferenceCardList>
+
+## CLI Commands
+
+### Configuration Management
+```bash
+# View memory configuration and backend settings
+compozy config show
+
+# Validate memory task configurations and storage backends
+compozy config validate
+
+# Run diagnostics for memory system health and connectivity
+compozy config diagnostics
+```
+
+### User Management
+```bash
+# Create user for memory system administration
+compozy auth create-user
+
+# List users with memory management permissions
+compozy auth list-users
+
+# Update user access for memory operations
+compozy auth update-user
+
+# Remove user from memory administration
+compozy auth delete-user
+```

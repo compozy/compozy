@@ -4,48 +4,31 @@ description: Welcome to the Compozy documentation! This guide will help you get 
 icon: House
 ---
 
-import {
-  Puzzle,
-  SlidersHorizontal,
-  BookOpen,
-  GitBranch,
-  FileCode,
-  Store,
-  GitMerge,
-  Code,
-  Cloud,
-  Book,
-  Link,
-  GraduationCap,
-  Network,
-  Search,
-} from "lucide-react";
-
 ## Why Compozy?
 
 Building AI agents shouldn't require a PhD in machine learning or months of integration work. Yet today's AI development landscape presents significant challenges that slow down innovation and limit accessibility:
 
 <Steps size="lg" titleComponent="h3">
-  <Step title="Fragmented Development" icon={<Puzzle />}>
+  <Step title="Fragmented Development" icon="Puzzle">
     Developers spend 70% of their time wrestling with integrations instead of
     building features. Connecting AI agents with databases, APIs, and external
     tools requires navigating dozens of different protocols, authentication
     methods, and data formats—turning simple automations into complex
     engineering projects.
   </Step>
-  <Step title="Closed Ecosystems" icon={<SlidersHorizontal />}>
+  <Step title="Closed Ecosystems" icon="SlidersHorizontal">
     Most AI platforms lock you into proprietary systems with limited
     customization options. When you need to modify behavior, add custom
     integrations, or understand how decisions are made, you hit a wall. This
     vendor lock-in stifles innovation and increases long-term costs.
   </Step>
-  <Step title="Lack of Standards" icon={<BookOpen />}>
+  <Step title="Lack of Standards" icon="BookOpen">
     Every AI agent platform speaks a different language. Teams waste months
     rebuilding the same capabilities because there's no standardized way to
     share, reuse, or compose agent components. What works on one platform rarely
     translates to another.
   </Step>
-  <Step title="Integration Complexity" icon={<GitBranch />}>
+  <Step title="Integration Complexity" icon="GitBranch">
     Setting up webhooks, managing API keys, handling rate limits, and
     coordinating between multiple services requires extensive boilerplate code.
     Simple workflows become complex orchestration challenges that take weeks to
@@ -61,42 +44,42 @@ We solve these challenges by providing a comprehensive, open platform that simpl
   <FeatureCard
     title="Declarative Open Source Engine"
     description="Build powerful AI workflows using an intuitive, open-source YAML specification. Inspired by GitHub Actions, our format lets you define complex automation with simple, human-readable syntax - from triggers and actions to data flows and conditional logic."
-    icon={FileCode}
+    icon="FileCode"
     href="/docs/core/yaml-templates/overview"
   />
 
 <FeatureCard
   title="Community-Powered Registry"
   description="Access and contribute to a growing ecosystem of pre-built tools, agents, and MCP servers. Extend your workflow capabilities with community-driven components."
-  icon={Store}
+  icon="Store"
   href="/docs/core/getting-started/quick-start"
 />
 
 <FeatureCard
   title="Seamless Agent Orchestration"
   description="Create complex workflows, chaining actions and connecting multiple agents seamlessly, with built-in context management, memory systems, and MCP integration for consistent decision-making."
-  icon={Puzzle}
+  icon="Puzzle"
   href="/docs/core/agents/overview"
 />
 
 <FeatureCard
   title="Language & Tool Agnostic"
   description="Build AI agents and workflows using your preferred programming languages and tools. Compozy's platform-agnostic approach ensures seamless integration with any AI framework, model, or development stack."
-  icon={GitMerge}
+  icon="GitMerge"
   href="/docs/core/agents/tools"
 />
 
 <FeatureCard
   title="Developer-First Experience"
   description="Comprehensive CLI tooling for development, testing, and deployment. Access a marketplace of pre-built tools and agents, or create and publish your own."
-  icon={Code}
+  icon="Code"
   href="/docs/core/getting-started/installation"
 />
 
   <FeatureCard
     title="Flexible Deployment Options"
     description="Deploy to Compozy Cloud with a single command or self-host on your own infrastructure using Docker or Kubernetes. Full control over your deployment environment."
-    icon={Cloud}
+    icon="Cloud"
     href="/docs/core/getting-started/installation"
   />
 </FeatureCardList>
@@ -112,18 +95,18 @@ Ready to transform your AI workflow? Check out our [Quick Start Guide](/docs/cor
     title="Learning Paths"
     description="Structured guides for different skill levels and use cases"
     href="/docs/core/reference-index#learning-paths"
-    icon={GraduationCap}
+    icon="GraduationCap"
   />
   <ReferenceCard
     title="Cross-References"
     description="See how all concepts connect and relate to each other"
     href="/docs/core/reference-index#cross-reference-map"
-    icon={Network}
+    icon="Network"
   />
   <ReferenceCard
     title="Quick Reference"
     description="Topic-based quick access to related documentation"
     href="/docs/core/reference-index#topic-based-quick-reference"
-    icon={Search}
+    icon="Search"
   />
 </ReferenceCardList>

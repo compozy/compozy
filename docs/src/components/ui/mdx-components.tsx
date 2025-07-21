@@ -24,6 +24,7 @@ import { Code } from "@/components/ui/code";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { CopyButton } from "@/components/ui/copy-button";
 import { FeatureCard, FeatureCardList } from "@/components/ui/feature-card";
+import { Icon } from "@/components/ui/icon";
 import { List, ListItem } from "@/components/ui/list";
 import { Logo } from "@/components/ui/logo";
 import { Mermaid } from "@/components/ui/mermaid";
@@ -89,6 +90,7 @@ export function getMDXComponents(components?: MDXComponents): MDXComponents {
     CopyButton,
     FeatureCard,
     FeatureCardList,
+    Icon,
     ReferenceCard,
     ReferenceCardList,
     List,

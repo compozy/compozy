@@ -168,7 +168,6 @@ schemas:
 tools:
   - id: tool_name
     description: Tool description
-    execute: ./tool_file.ts
     input:
       $ref: local::schemas.#(id=="city_input")
 
@@ -217,7 +216,6 @@ triggers:
 tools:
   - id: weather_tool
     description: Get the current weather for a specific location
-    execute: ./weather_tool.ts
     input:
       type: object
       properties:
@@ -229,7 +227,6 @@ tools:
 
   - id: save_data
     description: Save data to a file
-    execute: ./save_tool.ts
     input:
       type: object
       properties:

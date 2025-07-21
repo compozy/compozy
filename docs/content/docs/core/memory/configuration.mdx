@@ -1,52 +1,106 @@
 ---
 title: "Memory Configuration"
-description: "Complete guide to configuring memory resources, strategies, and persistence in Compozy"
+description: "Guide to configuring memory resources for agent context management in Compozy"
 ---
 
-import {
-  Database,
-  Settings,
-  Layers,
-  Clock,
-  Shield,
-  FileText,
-  Zap,
-  AlertTriangle,
-  CheckCircle,
-  Code,
-  PlayCircle,
-  Copy,
-  RefreshCw,
-  Cpu,
-  Lock,
-  Users,
-  Server,
-  BarChart3,
-  Key,
-  Timer,
-  Filter,
-  Archive,
-  Eye,
-  CloudUpload,
-} from "lucide-react";
+## What Memory Does
 
-# Memory Configuration
+Memory in Compozy provides **persistent context management** for AI agents. When an agent has memory configured, it can:
 
-Memory resources are configured through YAML files that define how agents store and manage conversation context. This interactive guide provides hands-on learning experiences for mastering memory configuration through progressive tutorials and configuration builders.
+- **Remember conversation history** across multiple interactions
+- **Share context** between different agents in a workflow
+- **Maintain user preferences** and important information
+- **Preserve context** even when workflows restart
 
-## Related Documentation
+## Basic Memory Configuration
 
-### 🔗 Cross-References
-- **[Memory Concepts & Architecture](/docs/core/memory/memory-concepts)** - Understanding memory architecture and components
-- **[Memory Operations](/docs/core/memory/operations)** - Using configured memory resources
-- **[Integration Patterns](/docs/core/memory/integration-patterns)** - Advanced configuration patterns and multi-agent setups
-- **[Privacy & Security](/docs/core/memory/privacy-security)** - Security configuration and compliance settings
-- **[Troubleshooting](/docs/core/memory/troubleshooting)** - Configuration validation and production deployment
+Memory is configured through YAML files in your project. Here's how the system works:
 
-### 🧠 Memory-Related Topics
-- **Memory Configuration** ↔ **[Project Setup](/docs/core/configuration/project-setup)** ↔ **[Runtime Configuration](/docs/core/configuration/runtime-config)**
-- **Performance Configuration** ↔ **[Memory Optimization](/docs/core/memory/memory-concepts#performance-monitoring--optimization)** ↔ **[Production Monitoring](/docs/core/memory/troubleshooting#monitoring-setup--configuration)**
-- **Advanced Configuration** ↔ **[Multi-Agent Memory](/docs/core/memory/integration-patterns#advanced-integration-features)** ↔ **[Enterprise Compliance](/docs/core/memory/integration-patterns#enterprise-security--compliance)**
+### Simple Memory Resource
+
+Create a memory resource that stores conversation history:
+
+```yaml title="memory/conversation.yaml"
+resource: memory
+id: conversation_memory
+description: Stores conversation history for agents
+version: 1.0.0
+
+# Memory management strategy
+type: token_based
+max_tokens: 2000
+max_context_ratio: 0.8
+
+# Redis persistence
+persistence:
+  type: redis
+  ttl: 24h
+
+# Basic privacy protection
+privacy_policy:
+  redact_patterns:
+    - '\b\d{3}-\d{2}-\d{4}\b'  # SSN pattern
+  default_redaction_string: "[REDACTED]"
+```
+
+**How this works:**
+- `type: token_based` - Memory manages content based on token count
+- `max_tokens: 2000` - Keeps up to 2000 tokens in memory
+- `max_context_ratio: 0.8` - Uses up to 80% of the model's context window
+- `persistence: redis` - Stores data in Redis with 24-hour expiration
+- `privacy_policy` - Automatically redacts sensitive information like SSNs
+
+### Using Memory in Agents
+
+Once you've defined a memory resource, agents can use it:
+
+```yaml title="agents/chat_agent.yaml"
+resource: agent
+id: chat_agent
+
+# Agent configuration
+config:
+  model: gpt-4
+  temperature: 0.7
+
+# Memory reference
+memory:
+  - id: conversation_memory
+    key: "user:{{.workflow.input.user_id}}"
+    mode: read-write
+```
+
+**How this works:**
+- `id: conversation_memory` - References the memory resource we created
+- `key: "user:{{.workflow.input.user_id}}"` - Creates isolated memory per user
+- `mode: read-write` - Agent can both read from and write to memory
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Memory Operations"
+    description="How to use memory in workflows"
+    href="/docs/core/memory/operations"
+    icon="Play"
+  />
+  <ReferenceCard
+    title="Integration Patterns"
+    description="Multi-agent memory sharing"
+    href="/docs/core/memory/integration-patterns"
+    icon="Layers"
+  />
+  <ReferenceCard
+    title="Privacy & Security"
+    description="Data protection and redaction"
+    href="/docs/core/memory/privacy-security"
+    icon="Shield"
+  />
+  <ReferenceCard
+    title="Memory Concepts"
+    description="Performance monitoring and optimization"
+    href="/docs/core/memory/memory-concepts"
+    icon="Brain"
+  />
+</ReferenceCardList>
 
 ## Interactive Configuration Learning
 
@@ -266,7 +320,7 @@ Use these commands to validate your memory configuration:
 
 ```bash title="Validation Commands"
 # Validate configuration syntax
-compozy validate --config memory/my_memory.yaml
+compozy config validate --config memory/my_memory.yaml
 
 # Test memory configuration
 compozy test memory --dry-run --config memory/my_memory.yaml
@@ -301,21 +355,21 @@ Configure how your memory data is stored and managed over time:
 persistence:
   type: redis
   ttl: 168h  # 7 days default
-  
+
   # Advanced Redis settings
   circuit_breaker:
     enabled: true
     timeout: "100ms"
     max_failures: 5
     reset_timeout: "30s"
-  
+
   # Connection settings
   connection:
     host: "localhost"
     port: 6379
     password: "{{ .env.REDIS_PASSWORD }}"
     db: 0
-    
+
   # Performance settings
   pool:
     max_connections: 10
@@ -366,16 +420,16 @@ persistence:
   type: redis
   circuit_breaker:
     enabled: true
-    
+
     # Failure thresholds
     timeout: "100ms"      # Per-operation timeout
     max_failures: 5       # Failures before opening
     reset_timeout: "30s"  # Time before retry
-    
+
     # Monitoring settings
     success_threshold: 3  # Successes to close circuit
     failure_threshold: 0.5  # Failure rate threshold
-    
+
     # Fallback behavior
     fallback_to_memory: true
     log_failures: true
@@ -503,7 +557,7 @@ eviction_policy:
     - "user_preference"
     - "context"
     - "summary"
-  
+
   # Advanced priority settings
   priority_boost: 2.0    # Multiplier for priority messages
   decay_rate: 0.1        # Priority decay over time
@@ -571,26 +625,26 @@ flushing_strategy:
   summarize_threshold: 0.8      # Start at 80% capacity
   summary_tokens: 500           # Target summary length
   summarize_oldest_percent: 0.3 # Summarize oldest 30%
-  
+
   # Summary configuration
   summary_template: |
     CONVERSATION SUMMARY:
-    
+
     Key Topics Discussed:
     {{range .topics}}
     - {{.}}
     {{end}}
-    
+
     Important Context:
     {{range .context}}
     - {{.}}
     {{end}}
-    
+
     User Preferences:
     {{range .preferences}}
     - {{.}}
     {{end}}
-    
+
     Decisions Made:
     {{range .decisions}}
     - {{.}}
@@ -628,23 +682,23 @@ token_allocation:
   short_term: 0.6    # 60% for recent messages
   long_term: 0.3     # 30% for summaries/context
   system: 0.1        # 10% for system prompts
-  
+
 # Memory optimization
 optimization:
   compress_old_messages: true
   batch_operations: true
   background_cleanup: true
-  
+
   # Cleanup thresholds
   cleanup_threshold: 0.9    # Start cleanup at 90%
   cleanup_target: 0.7       # Clean down to 70%
-  
+
 # Performance monitoring
 monitoring:
   track_token_usage: true
   log_evictions: true
   alert_on_errors: true
-  
+
   # Metrics collection
   metrics:
     - token_utilization
@@ -683,33 +737,33 @@ privacy_policy:
     - '\b\d{3}-\d{2}-\d{4}\b'  # SSN
     - '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'  # Email
     - '\b(?:\+?1[-.\s]?)?\(?[2-9]\d{2}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b'  # Phone
-    
+
     # Financial information
     - '\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{3,6}\b'  # Credit cards
     - '\baccount\s*#?\s*\d{6,12}\b'  # Account numbers
     - '\brouting\s*#?\s*\d{9}\b'  # Routing numbers
-    
+
     # Technical identifiers
     - '\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b'  # IP addresses
     - '\b[A-Fa-f0-9]{8}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{12}\b'  # UUIDs
-    
+
     # Custom business patterns
     - '\bEMP\d{6}\b'  # Employee IDs
     - '\bCUST-\d{8}\b'  # Customer IDs
-  
+
   # Advanced redaction settings
   redaction_config:
     default_redaction_string: "[REDACTED]"
     preserve_format: true  # Keep original format
     case_sensitive: false
-    
+
     # Custom redaction by pattern
     custom_redactions:
       email: "[EMAIL_REDACTED]"
       ssn: "[SSN_REDACTED]"
       phone: "[PHONE_REDACTED]"
       credit_card: "[CARD_REDACTED]"
-  
+
   # Message type restrictions
   non_persistable_message_types:
     - system
@@ -730,13 +784,13 @@ Always test your redaction patterns with sample data before deploying to product
 privacy_policy:
   redact_patterns:
     - '\b\d{3}-\d{2}-\d{4}\b'
-  
+
   # Test mode settings
   test_mode:
     enabled: true
     log_matches: true
     dry_run: false
-    
+
   # Validation samples
   test_samples:
     - input: "My SSN is 123-45-6789"
@@ -754,7 +808,7 @@ privacy_policy:
 access_control:
   require_authentication: true
   role_based_access: true
-  
+
   # User permissions
   permissions:
     admin:
@@ -767,7 +821,7 @@ access_control:
       - write
     viewer:
       - read
-  
+
   # IP-based restrictions
   ip_restrictions:
     allow_list:
@@ -775,26 +829,26 @@ access_control:
       - "10.0.0.0/8"
     deny_list:
       - "0.0.0.0/0"  # Deny all by default
-  
+
 # Encryption settings
 encryption:
   at_rest:
     enabled: true
     algorithm: "AES-256-GCM"
     key_rotation: "30d"
-    
+
   in_transit:
     enabled: true
     tls_version: "1.3"
     cipher_suites:
       - "TLS_AES_256_GCM_SHA384"
       - "TLS_CHACHA20_POLY1305_SHA256"
-  
+
 # Audit logging
 audit_logging:
   enabled: true
   log_level: "INFO"
-  
+
   # Events to log
   events:
     - memory_access
@@ -802,7 +856,7 @@ audit_logging:
     - authentication_attempts
     - data_redaction
     - policy_violations
-  
+
   # Log retention
   retention:
     duration: "90d"
@@ -818,7 +872,7 @@ audit_logging:
 # GDPR compliance
 gdpr:
   enabled: true
-  
+
   # Data subject rights
   data_subject_rights:
     right_to_access: true
@@ -826,16 +880,16 @@ gdpr:
     right_to_erasure: true
     right_to_portability: true
     right_to_restrict_processing: true
-    
+
   # Data processing lawful basis
   lawful_basis: "consent"  # or "legitimate_interest"
-  
+
   # Data retention policies
   retention_policies:
     personal_data: "2y"
     conversation_logs: "1y"
     analytics_data: "6m"
-    
+
   # Consent management
   consent:
     explicit_consent_required: true
@@ -845,14 +899,14 @@ gdpr:
 # CCPA compliance
 ccpa:
   enabled: true
-  
+
   # Consumer rights
   consumer_rights:
     right_to_know: true
     right_to_delete: true
     right_to_opt_out: true
     right_to_non_discrimination: true
-    
+
   # Data categories
   data_categories:
     - "personal_identifiers"
@@ -863,19 +917,19 @@ ccpa:
 # HIPAA compliance (if applicable)
 hipaa:
   enabled: false  # Enable only if handling PHI
-  
+
   # Administrative safeguards
   administrative_safeguards:
     workforce_training: true
     access_management: true
     incident_response: true
-    
+
   # Physical safeguards
   physical_safeguards:
     facility_access: true
     workstation_security: true
     media_controls: true
-    
+
   # Technical safeguards
   technical_safeguards:
     access_control: true
@@ -957,7 +1011,7 @@ flushing_strategy:
 persistence:
   type: redis
   ttl: 72h  # 3 days
-  
+
   # High availability settings
   sentinel:
     enabled: true
@@ -966,7 +1020,7 @@ persistence:
       - "sentinel1:26379"
       - "sentinel2:26379"
       - "sentinel3:26379"
-  
+
   # Circuit breaker for resilience
   circuit_breaker:
     enabled: true
@@ -974,14 +1028,14 @@ persistence:
     max_failures: 3
     reset_timeout: "15s"
     success_threshold: 2
-    
+
   # Connection pool optimization
   pool:
     max_connections: 20
     min_idle: 5
     max_idle: 10
     idle_timeout: "5m"
-    
+
 # Optimized TTL for production
 append_ttl: "1h"
 clear_ttl: "2m"
@@ -1028,86 +1082,86 @@ metadata:
 # Production monitoring configuration
 monitoring:
   enabled: true
-  
+
   # Metrics collection
   metrics:
     # Performance metrics
     - name: "token_utilization"
       type: "gauge"
       labels: ["memory_id", "tenant_id"]
-      
+
     - name: "message_count"
       type: "gauge"
       labels: ["memory_id", "tenant_id"]
-      
+
     - name: "eviction_rate"
       type: "counter"
       labels: ["memory_id", "policy_type"]
-      
+
     - name: "flush_frequency"
       type: "counter"
       labels: ["memory_id", "strategy_type"]
-      
+
     # Latency metrics
     - name: "operation_duration"
       type: "histogram"
       labels: ["operation", "memory_id"]
       buckets: [0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0]
-      
+
     # Error metrics
     - name: "error_rate"
       type: "counter"
       labels: ["memory_id", "error_type"]
-      
+
     # Business metrics
     - name: "memory_usage_by_tenant"
       type: "gauge"
       labels: ["tenant_id", "memory_type"]
-  
+
   # Health checks
   health_checks:
     - name: "redis_connectivity"
       type: "dependency"
       interval: "30s"
       timeout: "5s"
-      
+
     - name: "token_provider_health"
       type: "external_api"
       interval: "60s"
       timeout: "10s"
-      
+
     - name: "memory_capacity"
       type: "resource"
       interval: "10s"
       threshold: 0.8
-  
+
   # Alerting rules
   alerts:
     - name: "high_token_utilization"
       condition: "token_utilization > 0.9"
       duration: "5m"
       severity: "warning"
-      
+
     - name: "memory_errors"
       condition: "error_rate > 0.01"
       duration: "2m"
       severity: "critical"
-      
+
     - name: "redis_connection_failure"
       condition: "redis_connectivity == 0"
       duration: "30s"
       severity: "critical"
-  
+
   # Logging configuration
   logging:
     level: "INFO"
     format: "json"
-    
+
     # Log sampling for high volume
     sampling:
       enabled: true
       rate: 0.1  # Sample 10% of logs
-      
+
     # Structured logging fields
     fields:
       - "timestamp"
@@ -1130,19 +1184,19 @@ base_config: &base
   resource: memory
   description: "Multi-environment memory configuration"
   version: "1.0.0"
-  
+
   # Common settings
   type: token_based
   max_context_ratio: 0.8
   model: gpt-4-turbo
-  
+
   eviction_policy:
     type: priority
     priority_keywords:
       - "error"
       - "critical"
       - "important"
-  
+
   flushing_strategy:
     type: hybrid_summary
     summarize_threshold: 0.8
@@ -1152,23 +1206,23 @@ base_config: &base
 development:
   <<: *base
   id: dev_memory
-  
+
   # Development-specific settings
   max_tokens: 1000
   persistence:
     type: in_memory
     ttl: 1h
-    
+
   append_ttl: "10m"
   clear_ttl: "1m"
   flush_ttl: "30m"
-  
+
   # Relaxed privacy for development
   privacy_policy:
     redact_patterns: []
     non_persistable_message_types:
       - debug
-      
+
   # Development metadata
   metadata:
     environment: "development"
@@ -1178,7 +1232,7 @@ development:
 staging:
   <<: *base
   id: staging_memory
-  
+
   # Staging-specific settings
   max_tokens: 3000
   persistence:
@@ -1188,11 +1242,11 @@ staging:
       enabled: true
       timeout: "100ms"
       max_failures: 5
-      
+
   append_ttl: "30m"
   clear_ttl: "2m"
   flush_ttl: "2h"
-  
+
   # Production-like privacy
   privacy_policy:
     redact_patterns:
@@ -1202,7 +1256,7 @@ staging:
       - system
       - tool_internal
       - debug
-      
+
   # Staging metadata
   metadata:
     environment: "staging"
@@ -1212,13 +1266,13 @@ staging:
 production:
   <<: *base
   id: prod_memory
-  
+
   # Production-specific settings
   max_tokens: 4000
   persistence:
     type: redis
     ttl: 72h
-    
+
     # High availability
     sentinel:
       enabled: true
@@ -1227,22 +1281,22 @@ production:
         - "sentinel1:26379"
         - "sentinel2:26379"
         - "sentinel3:26379"
-    
+
     circuit_breaker:
       enabled: true
       timeout: "50ms"
       max_failures: 3
       reset_timeout: "15s"
-      
+
     pool:
       max_connections: 20
       min_idle: 5
       max_idle: 10
-      
+
   append_ttl: "1h"
   clear_ttl: "2m"
   flush_ttl: "4h"
-  
+
   # Comprehensive privacy
   privacy_policy:
     redact_patterns:
@@ -1255,7 +1309,7 @@ production:
       - tool_internal
       - debug
       - diagnostic
-      
+
   # Production metadata
   metadata:
     environment: "production"
@@ -1277,7 +1331,7 @@ compozy deploy --env staging --config memory/multi_environment.yaml
 compozy deploy --env production --config memory/multi_environment.yaml --require-approval
 
 # Environment validation
-compozy validate --env production --config memory/multi_environment.yaml
+compozy config validate --env production --config memory/multi_environment.yaml
 ```
 
 </Tab>
@@ -1697,13 +1751,13 @@ privacy_policy:
     - '\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b'
     # Custom patterns
     - '\baccount\s*#?\s*\d{6,12}\b'  # Account numbers
-  
+
   # Message types that should not be persisted
   non_persistable_message_types:
     - system
     - tool_internal
     - debug
-  
+
   # Replacement text for redacted content
   default_redaction_string: "[REDACTED]"
 ```
@@ -1849,7 +1903,7 @@ model_context_size: 4096
 
 ```bash
 # Validate memory configuration
-compozy validate --config memory/user_memory.yaml
+compozy config validate --config memory/user_memory.yaml
 
 # Test memory configuration with dry run
 compozy test memory --dry-run --config memory/user_memory.yaml
@@ -1886,7 +1940,7 @@ max_context_ratio: "{{ .tenant_config.context_ratio | default 0.8 }}"
 persistence:
   type: redis
   ttl: "{{ .tenant_config.data_retention | default \"24h\" }}"
-  
+
 # Tenant-specific privacy policies
 privacy_policy:
   redact_patterns: "{{ .tenant_config.privacy_patterns }}"
@@ -1928,14 +1982,14 @@ max_context_ratio: 0.7
 persistence:
   type: redis
   ttl: 6h
-  
+
   # Service discovery integration
   service_discovery:
     enabled: true
     registry: "consul"
     service_name: "redis-memory"
     health_check: true
-    
+
   # Circuit breaker for service resilience
   circuit_breaker:
     enabled: true
@@ -1989,13 +2043,13 @@ max_context_ratio: 0.6
 persistence:
   type: redis
   ttl: 2h  # Shorter TTL for edge
-  
+
   # Edge-specific settings
   edge_config:
     local_cache: true
     cache_size: "100MB"
     sync_interval: "5m"
-    
+
   # Fallback to local storage
   fallback:
     type: local_storage
@@ -2036,23 +2090,23 @@ metadata:
 # Monitoring integration configuration
 monitoring:
   enabled: true
-  
+
   # Prometheus metrics
   prometheus:
     enabled: true
     port: 9090
     path: "/metrics"
-    
+
   # Custom metrics
   custom_metrics:
     - name: "conversation_length"
       type: "histogram"
       labels: ["user_type", "conversation_type"]
-      
+
     - name: "memory_utilization_by_context"
       type: "gauge"
       labels: ["context_type", "priority_level"]
-      
+
   # Alerting integration
   alerting:
     webhook_url: "{{ .env.ALERT_WEBHOOK_URL }}"
@@ -2061,7 +2115,7 @@ monitoring:
       - frequent_evictions
       - circuit_breaker_open
       - privacy_violations
-      
+
   # Distributed tracing
   tracing:
     enabled: true
@@ -2078,25 +2132,25 @@ monitoring:
 # Analytics integration configuration
 analytics:
   enabled: true
-  
+
   # Data collection
   data_collection:
     conversation_analytics: true
     user_behavior_tracking: true
     performance_metrics: true
-    
+
   # Privacy-preserving analytics
   privacy_preserving:
     differential_privacy: true
     noise_level: 0.1
     aggregation_threshold: 100
-    
+
   # Export configuration
   export:
     format: "parquet"
     schedule: "0 2 * * *"  # Daily at 2 AM
     retention: "90d"
-    
+
     # Data pipeline integration
     pipeline:
       enabled: true
@@ -2113,28 +2167,28 @@ analytics:
 # Compliance integration configuration
 compliance:
   enabled: true
-  
+
   # Regulatory frameworks
   frameworks:
     gdpr:
       enabled: true
       data_controller: "{{ .env.DATA_CONTROLLER }}"
       dpo_contact: "{{ .env.DPO_EMAIL }}"
-      
+
     ccpa:
       enabled: true
       business_name: "{{ .env.BUSINESS_NAME }}"
-      
+
     hipaa:
       enabled: false
       covered_entity: "{{ .env.COVERED_ENTITY }}"
-      
+
   # Audit logging
   audit_logging:
     enabled: true
     log_level: "INFO"
     retention: "7y"
-    
+
     # Compliance events
     events:
       - data_access
@@ -2142,13 +2196,13 @@ compliance:
       - data_deletion
       - consent_changes
       - privacy_violations
-      
+
   # Data subject rights
   data_subject_rights:
     automated_responses: true
     response_time: "30d"
     verification_required: true
-    
+
   # Regular compliance checks
   compliance_checks:
     schedule: "0 0 * * 0"  # Weekly
@@ -2176,34 +2230,34 @@ configuration:
     enabled: true
     repository: "{{ .env.CONFIG_REPO }}"
     branch: "{{ .env.CONFIG_BRANCH | default \"main\" }}"
-    
+
   # Configuration validation
   validation:
     enabled: true
     strict_mode: true
     schema_validation: true
-    
+
   # Environment-specific configs
   environments:
     development:
       config_path: "configs/dev/"
       validation_level: "basic"
-      
+
     staging:
       config_path: "configs/staging/"
       validation_level: "strict"
-      
+
     production:
       config_path: "configs/prod/"
       validation_level: "strict"
       approval_required: true
-      
+
   # Configuration drift detection
   drift_detection:
     enabled: true
     check_interval: "1h"
     alert_on_drift: true
-    
+
   # Backup and recovery
   backup:
     enabled: true

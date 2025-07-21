@@ -14,8 +14,8 @@ import (
 
 // MockRuntime is a mock implementation of the Runtime interface for testing
 type MockRuntime struct {
-	ExecuteToolFunc            func(ctx context.Context, toolID string, toolExecID core.ID, input *core.Input, env core.EnvMap) (*core.Output, error)
-	ExecuteToolWithTimeoutFunc func(ctx context.Context, toolID string, toolExecID core.ID, input *core.Input, env core.EnvMap, timeout time.Duration) (*core.Output, error)
+	ExecuteToolFunc            func(ctx context.Context, toolID string, toolExecID core.ID, input *core.Input, config *core.Input, env core.EnvMap) (*core.Output, error)
+	ExecuteToolWithTimeoutFunc func(ctx context.Context, toolID string, toolExecID core.ID, input *core.Input, config *core.Input, env core.EnvMap, timeout time.Duration) (*core.Output, error)
 	GetGlobalTimeoutFunc       func() time.Duration
 }
 
@@ -24,10 +24,11 @@ func (m *MockRuntime) ExecuteTool(
 	toolID string,
 	toolExecID core.ID,
 	input *core.Input,
+	config *core.Input,
 	env core.EnvMap,
 ) (*core.Output, error) {
 	if m.ExecuteToolFunc != nil {
-		return m.ExecuteToolFunc(ctx, toolID, toolExecID, input, env)
+		return m.ExecuteToolFunc(ctx, toolID, toolExecID, input, config, env)
 	}
 	return &core.Output{}, nil
 }
@@ -37,11 +38,12 @@ func (m *MockRuntime) ExecuteToolWithTimeout(
 	toolID string,
 	toolExecID core.ID,
 	input *core.Input,
+	config *core.Input,
 	env core.EnvMap,
 	timeout time.Duration,
 ) (*core.Output, error) {
 	if m.ExecuteToolWithTimeoutFunc != nil {
-		return m.ExecuteToolWithTimeoutFunc(ctx, toolID, toolExecID, input, env, timeout)
+		return m.ExecuteToolWithTimeoutFunc(ctx, toolID, toolExecID, input, config, env, timeout)
 	}
 	return &core.Output{}, nil
 }
@@ -80,11 +82,11 @@ func TestRuntimeInterface(t *testing.T) {
 		mockTimeout := 30 * time.Second
 
 		mock := &MockRuntime{
-			ExecuteToolFunc: func(_ context.Context, toolID string, _ core.ID, _ *core.Input, _ core.EnvMap) (*core.Output, error) {
+			ExecuteToolFunc: func(_ context.Context, toolID string, _ core.ID, _ *core.Input, _ *core.Input, _ core.EnvMap) (*core.Output, error) {
 				assert.Equal(t, "test-tool", toolID)
 				return mockOutput, nil
 			},
-			ExecuteToolWithTimeoutFunc: func(_ context.Context, toolID string, _ core.ID, _ *core.Input, _ core.EnvMap, timeout time.Duration) (*core.Output, error) {
+			ExecuteToolWithTimeoutFunc: func(_ context.Context, toolID string, _ core.ID, _ *core.Input, _ *core.Input, _ core.EnvMap, timeout time.Duration) (*core.Output, error) {
 				assert.Equal(t, "test-tool-timeout", toolID)
 				assert.Equal(t, mockTimeout, timeout)
 				return mockOutput, nil
@@ -102,12 +104,13 @@ func TestRuntimeInterface(t *testing.T) {
 		env := core.EnvMap{}
 
 		// Test ExecuteTool
-		output, err := rt.ExecuteTool(ctx, "test-tool", toolExecID, input, env)
+		config := &core.Input{}
+		output, err := rt.ExecuteTool(ctx, "test-tool", toolExecID, input, config, env)
 		require.NoError(t, err)
 		assert.Equal(t, mockOutput, output)
 
 		// Test ExecuteToolWithTimeout
-		output, err = rt.ExecuteToolWithTimeout(ctx, "test-tool-timeout", toolExecID, input, env, mockTimeout)
+		output, err = rt.ExecuteToolWithTimeout(ctx, "test-tool-timeout", toolExecID, input, config, env, mockTimeout)
 		require.NoError(t, err)
 		assert.Equal(t, mockOutput, output)
 

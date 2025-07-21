@@ -1,7 +1,6 @@
 ---
 title: "Instructions & Actions"
 description: "Master agent instructions and structured actions for precise AI behavior"
-icon: "list-check"
 ---
 
 ## Overview
@@ -16,44 +15,44 @@ Instructions are the system prompts that define how an agent should behave, thin
 
 ### Writing Effective Instructions
 
-<Tabs>
-  <Tab title="Basic Structure">
+<Tabs items={["Basic Structure", "Detailed Example"]} defaultValue="Basic Structure">
+  <Tab value="Basic Structure">
     ```yaml
     instructions: |
       You are a [role/identity].
-      
+
       Your primary responsibilities:
       - [Responsibility 1]
       - [Responsibility 2]
       - [Responsibility 3]
-      
+
       Guidelines:
       - [Behavioral guideline 1]
       - [Behavioral guideline 2]
-      
+
       Constraints:
       - [Limitation 1]
       - [Limitation 2]
     ```
   </Tab>
-  
-  <Tab title="Detailed Example">
+
+  <Tab value="Detailed Example">
     ```yaml
     instructions: |
       You are an expert software architect specializing in distributed systems.
-      
+
       Your primary responsibilities:
       - Analyze system designs for scalability and reliability
       - Identify potential bottlenecks and failure points
       - Suggest architectural improvements based on best practices
       - Consider security implications in all recommendations
-      
+
       Guidelines:
       - Always consider trade-offs between complexity and benefits
       - Prioritize solutions that align with cloud-native principles
       - Use concrete examples from real-world systems
       - Explain technical concepts clearly for various audience levels
-      
+
       Constraints:
       - Do not make assumptions about budget or team size
       - Focus on technical merit rather than specific vendor solutions
@@ -71,21 +70,21 @@ Instructions are the system prompts that define how an agent should behave, thin
     - Avoid vague or ambiguous language
     - Use bullet points for clarity
   </Accordion>
-  
+
   <Accordion title="Set Boundaries">
     - Explicitly state what the agent should NOT do
     - Define ethical guidelines
     - Specify output format preferences
     - Include safety constraints
   </Accordion>
-  
+
   <Accordion title="Provide Context">
     - Include relevant domain knowledge
     - Reference specific methodologies or frameworks
     - Mention tools or systems the agent should be familiar with
     - Add examples of expected behavior
   </Accordion>
-  
+
   <Accordion title="Optimize for Task">
     - Tailor instructions to the specific use case
     - Balance between general guidance and specific rules
@@ -99,6 +98,8 @@ Instructions are the system prompts that define how an agent should behave, thin
 Actions are structured tasks that agents can perform with defined inputs, outputs, and specific prompts. They provide type-safe interfaces for agent capabilities.
 
 ### Action Structure
+
+Actions provide structured interfaces for specific agent capabilities. Each action defines what the agent should do, what inputs it expects, and what outputs it will produce. This structure enables type-safe interactions and predictable behavior.
 
 ```yaml
 actions:
@@ -147,8 +148,8 @@ actions:
 
 ### Action Examples
 
-<Tabs>
-  <Tab title="Code Review">
+<Tabs items={["Code Review", "Data Analysis", "Content Generation"]} defaultValue="Code Review">
+  <Tab value="Code Review">
     ```yaml
     actions:
       - id: review-code
@@ -159,7 +160,7 @@ actions:
           3. Performance optimizations
           4. Security vulnerabilities
           5. Best practice violations
-          
+
           Provide specific, actionable feedback with examples.
         input:
           type: object
@@ -207,8 +208,8 @@ actions:
         json_mode: true
     ```
   </Tab>
-  
-  <Tab title="Data Analysis">
+
+  <Tab value="Data Analysis">
     ```yaml
     actions:
       - id: analyze-data
@@ -218,7 +219,7 @@ actions:
           - Calculate relevant statistics
           - Detect anomalies or outliers
           - Provide actionable recommendations
-          
+
           Focus on: {{.input.analysis_type}}
         input:
           type: object
@@ -260,8 +261,8 @@ actions:
         json_mode: true
     ```
   </Tab>
-  
-  <Tab title="Content Generation">
+
+  <Tab value="Content Generation">
     ```yaml
     actions:
       - id: generate-content
@@ -270,7 +271,7 @@ actions:
           Topic: {{.input.topic}}
           Tone: {{.input.tone}}
           Length: {{.input.word_count}} words
-          
+
           Additional requirements:
           {{range .input.requirements}}
           - {{.}}
@@ -323,7 +324,7 @@ actions:
 
 ### Template Variables in Actions
 
-Actions support template variables from various contexts:
+Actions support template variables that allow dynamic content based on workflow context:
 
 ```yaml
 prompt: |
@@ -333,18 +334,33 @@ prompt: |
   Current iteration: {{.index}}
 ```
 
-Available contexts:
-- `{{.input.*}}` - Action input parameters
-- `{{.workflow.input.*}}` - Workflow input data
-- `{{.tasks.*.output}}` - Previous task outputs
-- `{{.item}}` - Current item in collection tasks
-- `{{.index}}` - Current index in collection tasks
-- `{{.memory.*}}` - Memory values
-- `{{.env.*}}` - Environment variables
+<List>
+  <ListItem title="{{.input.*}}">
+    Action input parameters passed at runtime
+  </ListItem>
+  <ListItem title="{{.workflow.input.*}}">
+    Workflow input data available throughout execution
+  </ListItem>
+  <ListItem title="{{.tasks.*.output}}">
+    Previous task outputs for chaining results
+  </ListItem>
+  <ListItem title="{{.item}}">
+    Current item in collection tasks iteration
+  </ListItem>
+  <ListItem title="{{.index}}">
+    Current index in collection tasks iteration
+  </ListItem>
+  <ListItem title="{{.memory.*}}">
+    Memory values for stateful workflows
+  </ListItem>
+  <ListItem title="{{.env.*}}">
+    Environment variables for configuration
+  </ListItem>
+</List>
 
 ### Dynamic Action Selection
 
-Actions can be selected dynamically based on workflow state:
+Actions can be selected dynamically based on workflow state using router tasks:
 
 ```yaml
 tasks:
@@ -379,7 +395,7 @@ actions:
           type: array
           items:
             type: string
-  
+
   - id: outline
     prompt: |
       Based on research findings: {{.tasks.research.output.findings | toJson}}
@@ -389,7 +405,7 @@ actions:
       properties:
         sections:
           type: array
-  
+
   - id: write
     prompt: |
       Using the outline: {{.tasks.outline.output | toJson}}
@@ -403,12 +419,12 @@ Adapt agent behavior based on context:
 ```yaml
 instructions: |
   You are a customer service agent.
-  
+
   {{if eq .workflow.input.priority "high"}}
   IMPORTANT: This is a high-priority customer. Provide expedited service
   and escalate any issues immediately.
   {{end}}
-  
+
   {{if .workflow.input.customer_tier}}
   Customer tier: {{.workflow.input.customer_tier}}
   Apply appropriate service level protocols.
@@ -445,27 +461,41 @@ actions:
 ## Best Practices
 
 <FeatureCardList cols={2}>
-  <FeatureCard title="Instruction Clarity">
-    Write instructions that are clear, specific, and leave no room for ambiguity
-  </FeatureCard>
-  <FeatureCard title="Action Focus">
-    Each action should have a single, well-defined purpose
-  </FeatureCard>
-  <FeatureCard title="Schema Validation">
-    Always define input/output schemas for predictable behavior
-  </FeatureCard>
-  <FeatureCard title="Error Handling">
-    Include error scenarios in prompts and output schemas
-  </FeatureCard>
+  <FeatureCard 
+    title="Instruction Clarity"
+    description="Write instructions that are clear, specific, and leave no room for ambiguity. Define the agent's role precisely and set explicit boundaries."
+    icon="FileText"
+  />
+  <FeatureCard 
+    title="Action Focus"
+    description="Each action should have a single, well-defined purpose. Avoid combining multiple operations in one action for better modularity."
+    icon="Target"
+  />
+  <FeatureCard 
+    title="Schema Validation"
+    description="Always define input/output schemas for predictable behavior. Use JSON Schema to ensure type safety and validation."
+    icon="Shield"
+  />
+  <FeatureCard 
+    title="Error Handling"
+    description="Include error scenarios in prompts and output schemas. Design actions to gracefully handle edge cases and invalid inputs."
+    icon="AlertCircle"
+  />
 </FeatureCardList>
 
 ## Next Steps
 
-<FeatureCardList cols={2}>
-  <FeatureCard title="Tools" href="/docs/core/agents/tools">
-    Learn how agents use tools to extend their capabilities
-  </FeatureCard>
-  <FeatureCard title="Structured Outputs" href="/docs/core/agents/structured-outputs">
-    Master JSON mode and output validation
-  </FeatureCard>
-</FeatureCardList>
+<ReferenceCardList>
+  <ReferenceCard
+    title="Tools"
+    description="Learn how agents use tools to extend their capabilities"
+    href="/docs/core/agents/tools"
+    icon="Wrench"
+  />
+  <ReferenceCard
+    title="Structured Outputs"
+    description="Master JSON mode and output validation"
+    href="/docs/core/agents/structured-outputs"
+    icon="Braces"
+  />
+</ReferenceCardList>

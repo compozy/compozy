@@ -1,6 +1,6 @@
 ---
 title: Provider Schema
-description: JSON Schema for provider configuration
+description: JSON Schema for LLM provider configuration
 icon: Server
 ---
 
@@ -15,7 +15,148 @@ import providerSchema from "@/schemas/provider.json";
   paramType="path"
 />
 
+## Supported Providers
+
+The following LLM providers are supported:
+
+- **OpenAI** (`openai`) - GPT-4, GPT-3.5, and other OpenAI models
+- **Anthropic** (`anthropic`) - Claude models
+- **Google** (`google`) - Gemini models  
+- **Groq** (`groq`) - Fast inference platform
+- **Ollama** (`ollama`) - Local model hosting
+- **DeepSeek** (`deepseek`) - DeepSeek AI models
+- **xAI** (`xai`) - Grok models
+- **Mock** (`mock`) - Mock provider for testing
+
+## Provider Capabilities
+
+> **⚠️ Critical Warning**: Some providers will **fail to initialize** if you provide unsupported configuration options. Always check the compatibility table below before configuration.
+
+| Provider | Custom API URL | Organization | API Key Required | Implementation |
+|----------|---------------|--------------|------------------|----------------|
+| OpenAI | ✅ | ✅ | ✅ | Native OpenAI API |
+| Anthropic | ❌ | ⚠️ **Error** | ✅ | Native Claude API |
+| Google | ⚠️ **Error** | ⚠️ **Error** | ✅ | Native Gemini API |
+| Groq | ✅ | ✅ | ✅ | OpenAI-compatible API |
+| Ollama | ✅ | ❌ | ❌ | Local hosting |
+| DeepSeek | ✅ | ✅ | ✅ | OpenAI-compatible API |
+| xAI | ✅ | ✅ | ✅ | OpenAI-compatible API |
+| Mock | ❌ | ❌ | ❌ | Testing only |
+
+**Legend:**
+- ✅ Supported
+- ❌ Not supported (ignored)
+- ⚠️ **Error** - Will cause configuration error
+
+## Configuration Examples
+
+### OpenAI with Parameters
+```yaml
+provider: openai
+model: gpt-4-turbo
+api_key: "{{ .env.OPENAI_API_KEY }}"
+organization: "{{ .env.OPENAI_ORG_ID }}"
+params:
+  temperature: 0.7
+  max_tokens: 4000
+  top_p: 0.9
+  seed: 42
+```
+
+### Anthropic
+```yaml
+provider: anthropic
+model: claude-3-5-sonnet-20241022
+api_key: "{{ .env.ANTHROPIC_API_KEY }}"
+params:
+  temperature: 0.5
+  max_tokens: 2000
+# DO NOT use organization or api_url - will cause error
+```
+
+### Local Ollama
+```yaml
+provider: ollama
+model: llama2:13b
+api_url: http://localhost:11434
+params:
+  temperature: 0.8
+  repetition_penalty: 1.1
+# Note: organization ignored, api_key not required
+```
+
+### Google Gemini
+```yaml
+provider: google
+model: gemini-pro
+api_key: "{{ .env.GOOGLE_API_KEY }}"
+params:
+  temperature: 0.7
+  top_k: 40
+  top_p: 0.95
+# DO NOT use api_url or organization - will cause error
+```
+
+## Parameter Support by Provider
+
+Parameter support varies significantly by provider:
+
+### OpenAI-Compatible Providers (OpenAI, Groq, DeepSeek, xAI)
+- ✅ `temperature`, `max_tokens`, `top_p`, `seed`, `stop_words`
+- ❌ `top_k`, `repetition_penalty`, `min_length`, `max_length`
+
+### Anthropic
+- ✅ `temperature`, `max_tokens`
+- ❌ `top_p`, `top_k`, `seed`, `stop_words`, `repetition_penalty`
+
+### Google
+- ✅ `temperature`, `max_tokens`, `top_p`, `top_k`
+- ❌ `seed`, `stop_words`, `repetition_penalty`
+
+### Ollama
+- ✅ `temperature`, `repetition_penalty`
+- ✅ JSON format support when response format requested
+- ❌ Most other parameters (vary by model)
+
+### Mock
+- ❌ All parameters ignored (testing only)
+
+## Common Configuration Errors
+
+### Error: "anthropic does not support organization"
+```yaml
+# ❌ This will fail
+provider: anthropic
+organization: "my-org"  # Remove this line
+```
+
+### Error: "googleai does not support custom API URL"
+```yaml
+# ❌ This will fail
+provider: google
+api_url: "https://custom.url"  # Remove this line
+```
+
+### Error: "ollama does not support organization"
+```yaml
+# ❌ This will fail
+provider: ollama
+organization: "my-org"  # Remove this line
+```
+
 ## Resources
 
-- [JSON Schema Specification](https://json-schema.org/)
-- [JSON Schema Validator](https://www.jsonschemavalidator.net/)
+<ReferenceCardList>
+  <ReferenceCard
+    title="JSON Schema Specification"
+    description="Official JSON Schema documentation and specification"
+    href="https://json-schema.org/"
+    icon="FileText"
+  />
+  <ReferenceCard
+    title="JSON Schema Validator"
+    description="Online tool for validating JSON schemas"
+    href="https://www.jsonschemavalidator.net/"
+    icon="CheckCircle"
+  />
+</ReferenceCardList>

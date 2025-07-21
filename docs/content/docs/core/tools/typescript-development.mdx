@@ -3,10 +3,6 @@ title: "TypeScript Development"
 description: "Guide to developing custom tools using TypeScript with Compozy's runtime environment"
 ---
 
-import { Bug, Cpu, Settings, Shield, Code } from "lucide-react";
-
-# TypeScript Development
-
 This guide covers developing custom tools using TypeScript in Compozy's Bun runtime environment. Learn how to create powerful, type-safe tools that extend AI agent capabilities with secure execution and robust error handling.
 
 <Callout type="info">
@@ -32,11 +28,11 @@ TypeScript tools run in an isolated Bun environment with configurable permission
     └── compozy.yaml              # Project config
     ```
   </Step>
-  
+
   <Step>
     ### Configure TypeScript for Bun
     Create a `tsconfig.json` optimized for Bun runtime:
-    
+
     ```json
     {
       "compilerOptions": {
@@ -59,11 +55,11 @@ TypeScript tools run in an isolated Bun environment with configurable permission
     }
     ```
   </Step>
-  
+
   <Step>
     ### Install Dependencies
     Example `package.json` for tool development:
-    
+
     ```json
     {
       "name": "my-compozy-tools",
@@ -95,8 +91,8 @@ Tools in Compozy are regular TypeScript functions that receive input and return 
 
 Every TypeScript tool follows this standardized pattern:
 
-<Tabs>
-  <Tab title="Tool Function">
+<Tabs items={["Tool Function", "Tool Configuration"]}>
+  <Tab value="Tool Function">
     ```typescript
     // data-processor.ts
     interface ToolInput {
@@ -119,10 +115,10 @@ Every TypeScript tool follows this standardized pattern:
 
     export async function dataProcessor(input: ToolInput): Promise<ToolOutput> {
       const startTime = Date.now();
-      
+
       // Process data based on format
       const processedData = await processData(input.data, input.format, input.options);
-      
+
       return {
         success: true,
         data: processedData,
@@ -134,8 +130,8 @@ Every TypeScript tool follows this standardized pattern:
     }
     ```
   </Tab>
-  
-  <Tab title="Tool Configuration">
+
+  <Tab value="Tool Configuration">
     ```yaml
     # data-processor.yaml
     resource: "tool"
@@ -191,8 +187,8 @@ Input validation is crucial for tool reliability. While Compozy provides JSON Sc
 
 Implement robust input validation patterns:
 
-<Tabs>
-  <Tab title="Runtime Validation">
+<Tabs items={["Runtime Validation", "Zod Validation"]}>
+  <Tab value="Runtime Validation">
     ```typescript
     interface ProcessDataInput {
       data: unknown[];
@@ -226,14 +222,14 @@ Implement robust input validation patterns:
 
     export async function processData(input: ProcessDataInput): Promise<ProcessDataOutput> {
       validateInput(input);
-      
+
       // Process the data...
       return processDataInternal(input);
     }
     ```
   </Tab>
-  
-  <Tab title="Zod Validation">
+
+  <Tab value="Zod Validation">
     ```typescript
     import { z } from 'zod';
 
@@ -251,7 +247,7 @@ Implement robust input validation patterns:
     export async function processDataWithZod(input: unknown): Promise<ProcessDataOutput> {
       // Validate and parse input
       const validatedInput = InputSchema.parse(input);
-      
+
       // Process the validated data
       return processDataInternal(validatedInput);
     }
@@ -267,8 +263,8 @@ The Bun runtime automatically captures and formats errors from your tools. Howev
 
 Implement comprehensive error handling patterns:
 
-<Tabs>
-  <Tab title="Structured Errors">
+<Tabs items={["Structured Errors", "Error Result Pattern"]}>
+  <Tab value="Structured Errors">
     ```typescript
     interface ToolError {
       code: string;
@@ -333,8 +329,8 @@ Implement comprehensive error handling patterns:
     }
     ```
   </Tab>
-  
-  <Tab title="Error Result Pattern">
+
+  <Tab value="Error Result Pattern">
     ```typescript
     interface SuccessResult<T> {
       success: true;
@@ -399,8 +395,8 @@ The Bun runtime handles tool timeouts automatically. However, implementing prope
 
 Handle asynchronous operations with proper concurrency control:
 
-<Tabs>
-  <Tab title="Concurrency Control">
+<Tabs items={["Concurrency Control", "Timeout Handling"]}>
+  <Tab value="Concurrency Control">
     ```typescript
     interface FileProcessorInput {
       paths: string[];
@@ -458,8 +454,8 @@ Handle asynchronous operations with proper concurrency control:
     }
     ```
   </Tab>
-  
-  <Tab title="Timeout Handling">
+
+  <Tab value="Timeout Handling">
     ```typescript
     async function withTimeout<T>(
       promise: Promise<T>,
@@ -513,8 +509,8 @@ The Bun worker supports two export patterns for tools: **default export** (recom
 
 ### Export Pattern Examples
 
-<Tabs>
-  <Tab title="Default Export (Recommended)">
+<Tabs items={["Default Export (Recommended)", "Named Exports (Legacy)", "Mixed Pattern"]}>
+  <Tab value="Default Export (Recommended)">
     ```typescript
     // main.ts (entrypoint file)
     import { dataProcessor } from './tools/data-processor.ts';
@@ -529,8 +525,8 @@ The Bun worker supports two export patterns for tools: **default export** (recom
     };
     ```
   </Tab>
-  
-  <Tab title="Named Exports (Legacy)">
+
+  <Tab value="Named Exports (Legacy)">
     ```typescript
     // main.ts (entrypoint file)
     export { dataProcessor as data_processor } from './tools/data-processor.ts';
@@ -538,8 +534,8 @@ The Bun worker supports two export patterns for tools: **default export** (recom
     export { fileHandler as file_handler } from './tools/file-handler.ts';
     ```
   </Tab>
-  
-  <Tab title="Mixed Pattern">
+
+  <Tab value="Mixed Pattern">
     ```typescript
     // main.ts (entrypoint file)
     import { dataProcessor } from './tools/data-processor.ts';
@@ -570,7 +566,7 @@ The Bun worker automatically discovers tools using this priority order:
   title="Bun Worker Template"
   description="Understanding the tool discovery mechanism in the Bun runtime"
   href="/docs/core/tools/runtime-environment#bun-worker-template"
-  icon={Code}
+  icon="Code"
 />
 
 ## Advanced Patterns
@@ -589,26 +585,26 @@ Environment variables are automatically filtered and validated by the Bun runtim
 - Environment cleanup happens automatically after tool execution
 </Callout>
 
-<Tabs>
-  <Tab title="Environment Configuration">
+<Tabs items={["Environment Configuration", "Environment Usage"]}>
+  <Tab value="Environment Configuration">
     ```yaml
     # api-client.yaml
     resource: "tool"
     id: "api-client"
     description: "HTTP client with authentication"
-    
+
     env:
       API_BASE_URL: "{{ .env.API_BASE_URL }}"
       API_TOKEN: "{{ .env.API_TOKEN }}"
       DEBUG: "{{ .env.DEBUG | default(false) }}"
-    
+
     with:
       timeout: 30000
       retries: 3
     ```
   </Tab>
-  
-  <Tab title="Environment Usage">
+
+  <Tab value="Environment Usage">
     ```typescript
     interface ApiClientInput {
       endpoint: string;
@@ -628,7 +624,7 @@ Environment variables are automatically filtered and validated by the Bun runtim
       }
 
       const url = `${baseUrl}${input.endpoint}`;
-      
+
       if (debug) {
         console.log(`Making ${input.method || 'GET'} request to: ${url}`);
       }
@@ -660,8 +656,8 @@ Environment variables are automatically filtered and validated by the Bun runtim
 
 Create flexible tools that adapt to runtime configuration:
 
-<Tabs>
-  <Tab title="Plugin Architecture">
+<Tabs items={["Plugin Architecture", "Configuration Validation"]}>
+  <Tab value="Plugin Architecture">
     ```typescript
     interface PluginConfig {
       type: string;
@@ -725,8 +721,8 @@ Create flexible tools that adapt to runtime configuration:
     }
     ```
   </Tab>
-  
-  <Tab title="Configuration Validation">
+
+  <Tab value="Configuration Validation">
     ```typescript
     import { z } from 'zod';
 
@@ -757,9 +753,9 @@ Create flexible tools that adapt to runtime configuration:
     export async function validatedProcessor(input: ConfigurableToolInput): Promise<ProcessorOutput> {
       // Validate configuration
       const validatedProcessors = input.processors.map(p => ProcessorConfigSchema.parse(p));
-      
+
       let result = input.data;
-      
+
       // Apply processors in sequence
       for (const processor of validatedProcessors) {
         result = await applyProcessor(result, processor);
@@ -1154,24 +1150,24 @@ export async function monitoredProcessor(input: DataInput): Promise<DataOutput &
     title="Runtime Environment"
     description="Understand Bun execution environment and worker template"
     href="/docs/core/tools/runtime-environment"
-    icon={Cpu}
+    icon="Cpu"
   />
   <ReferenceCard
     title="Configuration Schemas"
     description="Define tool interfaces and input/output schemas"
     href="/docs/core/tools/configuration-schemas"
-    icon={Settings}
+    icon="Settings"
   />
   <ReferenceCard
     title="Testing & Debugging"
     description="Advanced testing techniques and debugging strategies"
     href="/docs/core/tools/testing-debugging"
-    icon={Bug}
+    icon="Bug"
   />
   <ReferenceCard
     title="Performance & Security"
     description="Optimization and security best practices"
     href="/docs/core/tools/performance-security"
-    icon={Shield}
+    icon="Shield"
   />
 </ReferenceCardList>

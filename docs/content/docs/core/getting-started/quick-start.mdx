@@ -3,42 +3,6 @@ title: Quick Start
 description: Get Compozy running in 5 minutes and create your first AI-powered workflow. This guide will walk you through setting up Compozy and building a simple greeting workflow.
 ---
 
-import {
-  BookOpen,
-  Code,
-  Rocket,
-  Settings,
-  Users,
-  Zap,
-  BrainCircuit,
-  GitBranch,
-  Package,
-  Database,
-  Link2,
-  Radio,
-  Cloud,
-  BarChart3,
-  CloudSun,
-  HeadphonesIcon,
-  Cpu,
-  PenTool,
-  FileJson,
-  Terminal,
-  FileCode,
-  Shield,
-  Github,
-  MessageSquare,
-  FolderOpen,
-  HandHeart,
-  ShieldCheck,
-  TrendingUp,
-  Eye,
-  Layers,
-  Lock,
-  RefreshCw,
-} from "lucide-react";
-import { FeatureCard, FeatureCardList } from "@/components/ui/feature-card";
-
 ## Prerequisites
 
 Ensure you have these installed:
@@ -64,7 +28,7 @@ version: "0.1.0"
 description: A simple greeting workflow
 
 workflows:
-  - source: ./workflow.yaml
+  - source: ./workflows/main.yaml
 
 models:
   - provider: openai
@@ -73,9 +37,22 @@ models:
 
 runtime:
   type: bun
-  entrypoint: "./main.ts"
+  entrypoint: "./entrypoint.ts"
   permissions:
-    - --allow-env
+    - --allow-read
+    - --allow-net
+    - --allow-write
+
+autoload:
+  enabled: true
+  strict: true
+  include:
+    - "agents/*.yaml"
+    - "tools/*.yaml"
+  exclude:
+    - "**/*~"
+    - "**/*.bak"
+    - "**/*.tmp"
 ```
 
 </Step>
@@ -103,7 +80,6 @@ interface GreetingOutput {
 
 export async function greetingTool({ input }: { input: GreetingInput }): Promise<GreetingOutput> {
   const { name, style = "friendly" } = input;
-
   const styles = {
     friendly: `Hello there, ${name}! Hope you're having a great day!`,
     formal: `Good day, ${name}. It's a pleasure to meet you.`,
@@ -112,7 +88,6 @@ export async function greetingTool({ input }: { input: GreetingInput }): Promise
   };
 
   const message = styles[style as keyof typeof styles] || styles.friendly;
-
   return {
     message,
     timestamp: new Date().toISOString()
@@ -122,7 +97,7 @@ export async function greetingTool({ input }: { input: GreetingInput }): Promise
 
 Create the runtime entrypoint:
 
-```typescript title="main.ts"
+```typescript title="entrypoint.ts"
 import { greetingTool } from "./greeting_tool.ts";
 
 export default {
@@ -134,13 +109,13 @@ export default {
 
 <Step title="Create your workflow" description="Define a simple workflow that generates personalized greetings">
 
-```yaml title="workflow.yaml"
+```yaml title="workflows/main.yaml"
 id: hello-world
 version: 0.1.0
 description: Generate personalized greetings
 
-config:
-  input:
+schemas:
+  - id: greeting_input
     type: object
     properties:
       name:
@@ -152,17 +127,17 @@ config:
         default: friendly
     required:
       - name
+      - style
+
+config:
+  input:
+    $ref: schemas.#(id=="greeting_input")
 
 tools:
   - id: greeting_tool
     description: Generate personalized greetings
     input:
-      type: object
-      properties:
-        name:
-          type: string
-        style:
-          type: string
+      $ref: schemas.#(id=="greeting_input")
 
 agents:
   - id: greeter
@@ -208,7 +183,7 @@ Your server will be running at `http://localhost:5001`.
 <Tab>
 ```http title="test.http"
 @baseUrl = http://localhost:5001/api/v0
-@workflowId = hello-world
+@workflowId = main-workflow
 
 ### Execute the workflow with friendly greeting
 POST {{baseUrl}}/workflows/{{workflowId}}/execute
@@ -240,8 +215,13 @@ GET {{baseUrl}}/executions/{{execId}}
 
 <Tab>
 ```bash
-# Execute the workflow
-curl -X POST http://localhost:5001/api/v0/workflows/hello-world/execute \
+# Execute the workflow via CLI
+compozy workflow execute main-workflow \
+  --input name="Alice" \
+  --input style="friendly"
+
+# Or via HTTP API
+curl -X POST http://localhost:5001/api/v0/workflows/main-workflow/execute \
   -H "Content-Type: application/json" \
   -d '{"input": {"name": "Alice", "style": "friendly"}}'
 ```
@@ -283,7 +263,7 @@ Here's what happens when you execute this simple workflow:
     participant LLM as GPT-4.1
     participant DB as PostgreSQL
 
-    Client->>API: POST /workflows/hello-world/execute
+    Client->>API: POST /workflows/main-workflow/execute
     API->>Worker: TriggerWorkflow(input: {name: "Alice", style: "friendly"})
     Worker->>Worker: Validate input & Generate exec ID
     Worker->>Temporal: StartWorkflow(CompozyWorkflow)
@@ -311,7 +291,7 @@ Here's what happens when you execute this simple workflow:
 
 <List className="mt-12">
   <ListItem title="HTTP API Layer">
-    The WorkflowController receives your request at `/api/v0/workflows/hello-world/execute`
+    The WorkflowController receives your request at `/api/v0/workflows/main-workflow/execute`
   </ListItem>
   <ListItem title="Input Validation">
     The system validates that the required `name` field is provided and the optional `style` field is valid
@@ -332,36 +312,36 @@ Here's what happens when you execute this simple workflow:
 
 ## Key Benefits
 
-<FeatureCardList cols={3} size="sm">
+<FeatureCardList cols={2} size="default">
   <FeatureCard
     title="Simple & Fast"
     description="Get started in minutes with minimal configuration"
-    icon={Rocket}
+    icon="Rocket"
   />
   <FeatureCard
     title="AI-Powered"
     description="Agents intelligently use tools to accomplish tasks"
-    icon={BrainCircuit}
+    icon="BrainCircuit"
   />
   <FeatureCard
     title="Fault Tolerant"
     description="Workflows automatically recover from failures"
-    icon={ShieldCheck}
+    icon="ShieldCheck"
   />
   <FeatureCard
     title="Type Safe"
     description="Full TypeScript support with schema validation"
-    icon={Code}
+    icon="Code"
   />
   <FeatureCard
     title="Extensible"
     description="Easy to add new tools, agents, and capabilities"
-    icon={Package}
+    icon="Package"
   />
   <FeatureCard
     title="Observable"
     description="Complete execution history and monitoring"
-    icon={Eye}
+    icon="Eye"
   />
 </FeatureCardList>
 
@@ -378,25 +358,25 @@ Congratulations! You've built your first Compozy workflow. This simple example d
     title="Core Concepts"
     description="Understand fundamental Compozy concepts: agents, tasks, and workflows"
     href="/docs/core/getting-started/core-concepts"
-    icon={BookOpen}
+    icon="BookOpen"
   />
   <ReferenceCard
     title="First Workflow Tutorial"
     description="Build a complete workflow step-by-step with guided examples"
     href="/docs/core/getting-started/first-workflow"
-    icon={Rocket}
+    icon="Rocket"
   />
   <ReferenceCard
     title="Project Configuration"
     description="Learn how to configure projects, models, and runtime settings"
     href="/docs/core/configuration/project-setup"
-    icon={Settings}
+    icon="Settings"
   />
   <ReferenceCard
     title="Basic Tasks"
     description="Master the fundamental building blocks of all workflows"
     href="/docs/core/tasks/basic-tasks"
-    icon={Package}
+    icon="Package"
   />
 </ReferenceCardList>
 </Tab>
@@ -407,25 +387,25 @@ Congratulations! You've built your first Compozy workflow. This simple example d
     title="Agent Patterns"
     description="Create intelligent AI agents with structured outputs and memory"
     href="/docs/core/agents/overview"
-    icon={BrainCircuit}
+    icon="BrainCircuit"
   />
   <ReferenceCard
     title="Advanced Tasks"
     description="Use parallel, collection, router, and composite task patterns"
     href="/docs/core/tasks/parallel-processing"
-    icon={GitBranch}
+    icon="GitBranch"
   />
   <ReferenceCard
     title="Tool Development"
     description="Build custom TypeScript tools for specialized operations"
     href="/docs/core/tools/tools-overview"
-    icon={Code}
+    icon="Code"
   />
   <ReferenceCard
     title="Memory Systems"
     description="Add persistent, stateful memory to your AI workflows"
     href="/docs/core/memory/memory-concepts"
-    icon={Database}
+    icon="Database"
   />
 </ReferenceCardList>
 </Tab>
@@ -436,25 +416,25 @@ Congratulations! You've built your first Compozy workflow. This simple example d
     title="MCP Integration"
     description="Connect external tools and services using Model Context Protocol"
     href="/docs/core/mcp/mcp-overview"
-    icon={Link2}
+    icon="Link2"
   />
   <ReferenceCard
     title="Signals & Coordination"
     description="Coordinate complex multi-workflow systems with signals"
     href="/docs/core/signals/signal-overview"
-    icon={Radio}
+    icon="Radio"
   />
   <ReferenceCard
     title="Production Deployment"
     description="Deploy and scale Compozy in production environments"
     href="/docs/core/deployment/deployment-options"
-    icon={Cloud}
+    icon="Cloud"
   />
   <ReferenceCard
     title="Monitoring & Observability"
     description="Monitor, debug, and optimize your workflows in production"
     href="/docs/core/metrics/observability"
-    icon={BarChart3}
+    icon="BarChart3"
   />
 </ReferenceCardList>
 </Tab>
@@ -466,25 +446,25 @@ Congratulations! You've built your first Compozy workflow. This simple example d
     title="Weather System"
     description="Complete weather advisory system with agents and tools"
     href="/docs/core/examples/weather"
-    icon={CloudSun}
+    icon="CloudSun"
   />
   <ReferenceCard
     title="Customer Support"
     description="Multi-agent support workflows with memory and routing"
     href="/docs/core/examples/customer-support"
-    icon={HeadphonesIcon}
+    icon="headphones"
   />
   <ReferenceCard
     title="Data Processing"
     description="Batch processing pipelines with parallel task execution"
     href="/docs/core/examples/data-processing"
-    icon={Cpu}
+    icon="Cpu"
   />
   <ReferenceCard
     title="Content Generation"
     description="AI-powered content creation and optimization workflows"
     href="/docs/core/examples/content-generation"
-    icon={PenTool}
+    icon="PenTool"
   />
 </ReferenceCardList>
 
@@ -494,52 +474,24 @@ Congratulations! You've built your first Compozy workflow. This simple example d
     title="Configuration Reference"
     description="Complete YAML configuration guide and schema reference"
     href="/docs/core/configuration/global"
-    icon={FileJson}
+    icon="FileJson"
   />
   <ReferenceCard
     title="CLI Commands"
     description="Command-line interface reference and usage patterns"
     href="/docs/core/configuration/cli"
-    icon={Terminal}
+    icon="Terminal"
   />
   <ReferenceCard
     title="YAML Templates"
     description="Dynamic configuration with template expressions and functions"
     href="/docs/core/yaml-templates/overview"
-    icon={FileCode}
+    icon="FileCode"
   />
   <ReferenceCard
     title="Environment Variables"
     description="Complete environment variable reference and best practices"
     href="/docs/core/reference/environment-variables"
-    icon={Shield}
-  />
-</ReferenceCardList>
-
-### Community & Support
-<ReferenceCardList>
-  <ReferenceCard
-    title="GitHub Discussions"
-    description="Ask questions, share projects, and get community support"
-    href="https://github.com/compozy/compozy/discussions"
-    icon={Github}
-  />
-  <ReferenceCard
-    title="Discord Community"
-    description="Real-time help, discussions, and community events"
-    href="https://discord.gg/compozy"
-    icon={MessageSquare}
-  />
-  <ReferenceCard
-    title="Examples Repository"
-    description="Production-ready workflow examples and templates"
-    href="https://github.com/compozy/examples"
-    icon={FolderOpen}
-  />
-  <ReferenceCard
-    title="Contributing Guide"
-    description="Contribute to Compozy development and documentation"
-    href="/docs/core/community/contributing-guide"
-    icon={HandHeart}
+    icon="Shield"
   />
 </ReferenceCardList>

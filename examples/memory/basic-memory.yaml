@@ -21,7 +21,6 @@ config:
 tools:
   - id: memory_tool
     description: Memory operations for conversation history
-    execute: ./memory_tool.ts
     input:
       type: object
       properties:

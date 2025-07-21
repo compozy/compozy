@@ -1,0 +1,100 @@
+# Compozy Infrastructure Services
+# This is a simplified version for local development
+
+services:
+  # Redis for caching and pub/sub
+  redis:
+    container_name: {{ .Name | lower | replace " " "-" | replace "_" "-" }}-redis
+    image: redis:7.2-alpine
+    command: redis-server --requirepass ${REDIS_PASSWORD:-redis_secret}
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redis_secret}", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # PostgreSQL for the application
+  postgres:
+    container_name: {{ .Name | lower | replace " " "-" | replace "_" "-" }}-postgres
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-compozy}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # PostgreSQL for Temporal
+  temporal-postgres:
+    container_name: {{ .Name | lower | replace " " "-" | replace "_" "-" }}-temporal-postgres
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: ${TEMPORAL_DB_USER:-temporal}
+      POSTGRES_PASSWORD: ${TEMPORAL_DB_PASSWORD:-temporal}
+      POSTGRES_DB: ${TEMPORAL_DB_NAME:-temporal}
+    ports:
+      - "${TEMPORAL_DB_PORT:-5433}:5432"
+    volumes:
+      - temporal_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${TEMPORAL_DB_USER:-temporal}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Temporal workflow engine
+  temporal:
+    container_name: {{ .Name | lower | replace " " "-" | replace "_" "-" }}-temporal
+    image: temporalio/auto-setup:latest
+    depends_on:
+      - temporal-postgres
+    environment:
+      - DB=postgres12
+      - DB_PORT=5432
+      - POSTGRES_USER=${TEMPORAL_DB_USER:-temporal}
+      - POSTGRES_PWD=${TEMPORAL_DB_PASSWORD:-temporal}
+      - POSTGRES_SEEDS=temporal-postgres
+      - TEMPORAL_HOST=temporal:7233
+      - TEMPORAL_NAMESPACE=${TEMPORAL_NAMESPACE:-default}
+    ports:
+      - "${TEMPORAL_PORT:-7233}:7233"
+    healthcheck:
+      test:
+        - "CMD"
+        - "temporal"
+        - "workflow"
+        - "list"
+        - "--namespace"
+        - "${TEMPORAL_NAMESPACE:-default}"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Temporal Web UI
+  temporal-ui:
+    container_name: {{ .Name | lower | replace " " "-" | replace "_" "-" }}-temporal-ui
+    image: temporalio/ui:latest
+    depends_on:
+      - temporal
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_CORS_ORIGINS=http://localhost:3000,http://localhost:5001
+      - TEMPORAL_NAMESPACE=${TEMPORAL_NAMESPACE:-default}
+    ports:
+      - "${TEMPORAL_UI_PORT:-8080}:8080"
+
+volumes:
+  redis_data:
+  postgres_data:
+  temporal_postgres_data:

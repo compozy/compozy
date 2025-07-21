@@ -3,10 +3,6 @@ title: "Configuration Schemas"
 description: "Comprehensive guide to defining tool interfaces using JSON Schema for input/output validation in Compozy workflows"
 ---
 
-import { AlertTriangle, BookOpen, BrainCircuit, MessageSquare, Shield, ShieldCheck, TrendingUp, Zap } from "lucide-react";
-
-# Configuration Schemas
-
 Tool configuration schemas define the interface between AI agents and your tools using JSON Schema Draft 7. This guide covers how to create robust, validated tool configurations that ensure type safety and seamless integration with AI workflows.
 
 Tool configurations use [YAML Templates](../yaml-templates/overview) for dynamic behavior. The `with` parameter in tool usage supports full [Context Variables](../yaml-templates/context-variables) and [Sprig Functions](../yaml-templates/sprig-functions) for data transformation. When tools handle user input, ensure proper escaping using [Security Functions](../yaml-templates/sprig-functions#compozy-specific-security-functions).
@@ -21,8 +17,8 @@ Compozy uses JSON Schema Draft 7 for validation and automatically generates LLM 
 
 Every tool configuration follows this schema:
 
-<Tabs>
-<Tab title="Basic Structure">
+<Tabs items={["Basic Structure", "Real Example"]} defaultValue="Basic Structure">
+<Tab value="Basic Structure">
 
 ```yaml
 # Required fields
@@ -32,6 +28,9 @@ description: "Tool purpose"   # Human-readable description
 
 # Optional execution configuration
 timeout: "30s"                # Execution timeout (Go duration)
+
+# Note: Permissions are configured globally in compozy.yaml runtime settings
+# NOT in individual tool configurations
 
 # Schema definitions
 input:                        # Input validation schema
@@ -52,7 +51,7 @@ env:                          # Environment variables
 ```
 
 </Tab>
-<Tab title="Real Example">
+<Tab value="Real Example">
 
 ```yaml
 resource: "tool"
@@ -136,8 +135,8 @@ env:
 
 ### JSON Schema Types
 
-<Tabs>
-<Tab title="Basic Types">
+<Tabs items={["Basic Types", "Advanced Types"]} defaultValue="Basic Types">
+<Tab value="Basic Types">
 
 ```yaml
 input:
@@ -162,7 +161,7 @@ input:
 ```
 
 </Tab>
-<Tab title="Advanced Types">
+<Tab value="Advanced Types">
 
 ```yaml
 input:
@@ -177,7 +176,7 @@ input:
       minItems: 1
       maxItems: 10
       uniqueItems: true
-    
+
     # Nested object
     metadata:
       type: "object"
@@ -189,7 +188,7 @@ input:
           type: "string"
           format: "date-time"
       required: ["version"]
-    
+
     # Union types
     value:
       anyOf:
@@ -203,7 +202,7 @@ input:
 
 ## Input Schema Design
 
-<Callout type="tip">
+<Callout type="info">
 Design your input schemas with AI agents in mind. Clear descriptions and appropriate constraints help LLMs understand how to use your tools effectively.
 </Callout>
 
@@ -236,7 +235,7 @@ input:
       maximum: 10485760  # 10MB
       default: 1048576   # 1MB
   required: ["path"]
-  
+
   # Security validation
   additionalProperties: false
 ```
@@ -811,8 +810,8 @@ input:
 
 ### Input Validation
 
-<Tabs>
-<Tab title="Comprehensive Example">
+<Tabs items={["Comprehensive Example", "Security Patterns"]} defaultValue="Comprehensive Example">
+<Tab value="Comprehensive Example">
 
 ```yaml
 # Production-ready input validation
@@ -898,7 +897,7 @@ input:
 ```
 
 </Tab>
-<Tab title="Security Patterns">
+<Tab value="Security Patterns">
 
 ```yaml
 # Security-focused validation patterns
@@ -1006,7 +1005,7 @@ output:
 
 ## Schema Testing & Validation
 
-<Callout type="tip">
+<Callout type="info">
 Compozy automatically validates schemas at runtime, but testing your schemas during development helps catch issues early and ensures robust tool behavior.
 </Callout>
 
@@ -1021,8 +1020,8 @@ Compozy automatically validates schemas at runtime, but testing your schemas dur
 
 ### Validation Testing
 
-<Tabs>
-<Tab title="Basic Testing">
+<Tabs items={["Basic Testing", "Security Testing"]} defaultValue="Basic Testing">
+<Tab value="Basic Testing">
 
 ```typescript title="schema-validator.test.ts"
 import { validateSchema } from './schema-validator';
@@ -1076,7 +1075,7 @@ describe('Tool Schema Validation', () => {
 ```
 
 </Tab>
-<Tab title="Security Testing">
+<Tab value="Security Testing">
 
 ```typescript title="schema-security.test.ts"
 import { validateSchema } from './schema-validator';
@@ -1198,6 +1197,48 @@ function extractConstraints(schema: any): string[] {
   return constraints;
 }
 ```
+
+## CLI Integration
+
+Compozy provides comprehensive CLI commands for tool development and testing:
+
+<Tabs items={["Development Commands", "Tool Management"]} defaultValue="Development Commands">
+<Tab value="Development Commands">
+
+```bash
+# Initialize new project with tool templates
+compozy init --template tools
+
+# Start development server with hot reload
+compozy dev --debug
+
+# Validate tool configurations and schemas
+compozy config validate --schema tools/
+
+# Run tools directly for testing
+compozy workflow execute tool-test
+```
+
+</Tab>
+<Tab value="Tool Management">
+
+```bash
+# List available tools
+compozy config show --type tools
+
+# Test tool execution with sample data
+compozy test tool weather-api --input '{"city": "London"}'
+
+# Generate tool documentation
+compozy docs generate --tools
+```
+
+</Tab>
+</Tabs>
+
+For complete CLI documentation, see:
+- [CLI Overview](/docs/cli/overview)
+- [Configuration Commands](/docs/cli/workflow-commands)
 
 ## Next Steps
 

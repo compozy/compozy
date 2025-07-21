@@ -22,6 +22,7 @@ func (m *mockRuntime) ExecuteTool(
 	_ string,
 	_ core.ID,
 	_ *core.Input,
+	_ *core.Input,
 	_ core.EnvMap,
 ) (*core.Output, error) {
 	return &core.Output{}, nil
@@ -31,6 +32,7 @@ func (m *mockRuntime) ExecuteToolWithTimeout(
 	_ context.Context,
 	_ string,
 	_ core.ID,
+	_ *core.Input,
 	_ *core.Input,
 	_ core.EnvMap,
 	_ time.Duration,

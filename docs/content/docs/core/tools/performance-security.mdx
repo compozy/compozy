@@ -3,8 +3,6 @@ title: "Performance & Security"
 description: "Optimization strategies and security best practices for Compozy tools"
 ---
 
-# Performance & Security
-
 This guide covers performance optimization and security best practices for Compozy tools, ensuring they run efficiently and securely in production environments.
 
 <Callout>
@@ -13,28 +11,27 @@ This documentation reflects the **actual security implementation** and performan
 
 ## Key Security Features
 
-<FeatureCard title="Tool ID Validation" icon="🛡️">
+<FeatureCard title="Tool ID Validation" icon="shield">
 Advanced Unicode normalization and path validation prevent sophisticated directory traversal attacks including homoglyph substitution and path traversal attempts.
 </FeatureCard>
 
-<FeatureCard title="Environment Variable Security" icon="🔒">
+<FeatureCard title="Environment Variable Security" icon="lock">
 Dangerous environment variables like LD_PRELOAD, NODE_OPTIONS, and DYLD_INSERT_LIBRARIES are blocked to prevent code injection and privilege escalation attacks.
 </FeatureCard>
 
-<FeatureCard title="Buffer Pool Management" icon="⚡">
+<FeatureCard title="Buffer Pool Management" icon="zap">
 Efficient memory management with 10MB output limits and 4KB initial buffers, optimized for ~80% of tool responses without reallocation.
 </FeatureCard>
 
-<FeatureCard title="Bun Runtime Sandboxing" icon="🗂️">
+<FeatureCard title="Bun Runtime Sandboxing" icon="folder-open">
 Permission-based execution model with process isolation, secure file permissions (0600), and configurable runtime permissions for maximum security.
 </FeatureCard>
 
 ## Performance Optimization
 
-<Tabs>
-<Tab title="Buffer Pool Management">
+### Buffer Pool Management
 
-Compozy uses an efficient buffer pool system to minimize memory allocations and improve performance:
+Compozy uses an efficient buffer pool system to minimize memory allocations. The implementation uses Go's `sync.Pool` to reuse buffers across tool executions:
 
 ```go
 // From engine/runtime/bun_manager.go
@@ -55,65 +52,54 @@ var bufferPool = sync.Pool{
 }
 ```
 
-</Tab>
-<Tab title="Memory Management">
+**Key performance features:**
+- **4KB initial buffer**: Handles most tool outputs without reallocation
+- **10MB output limit**: Prevents memory exhaustion from runaway tools
+- **Buffer reuse**: Reduces garbage collection pressure
+- **Sync.Pool**: Thread-safe buffer management
 
-Production-ready memory management patterns:
+### Memory-Efficient Tool Development
+
+When developing tools, follow these patterns for optimal memory usage:
 
 ```typescript
-// Example: Memory-efficient tool processing
-export async function processLargeDataset(input: { data: unknown[], batchSize: number }) {
-  const { data, batchSize } = input;
+// tools/batch-processor.ts
+export async function run(input: { items: any[]; batchSize?: number }) {
+  const batchSize = input.batchSize || 100;
   const results = [];
   
   // Process in batches to manage memory
-  for (let i = 0; i < data.length; i += batchSize) {
-    const batch = data.slice(i, i + batchSize);
-    const batchResults = await processBatch(batch);
+  for (let i = 0; i < input.items.length; i += batchSize) {
+    const batch = input.items.slice(i, i + batchSize);
+    
+    // Process batch
+    const batchResults = await Promise.all(
+      batch.map(item => processItem(item))
+    );
+    
     results.push(...batchResults);
     
     // Yield control to prevent blocking
     await new Promise(resolve => setImmediate(resolve));
   }
   
-  return { results, processed: data.length };
+  return {
+    processed: results.length,
+    results: results
+  };
+}
+
+async function processItem(item: any) {
+  // Process individual item
+  return { ...item, processed: true };
 }
 ```
 
-</Tab>
-</Tabs>
-
-### Performance Monitoring
-
-Real-time performance monitoring for tools:
-
-```typescript
-// Example: Performance monitoring wrapper
-export async function withPerformanceMonitoring<T>(
-  name: string,
-  fn: () => Promise<T>
-): Promise<T> {
-  const startTime = performance.now();
-  const startMemory = process.memoryUsage();
-  
-  try {
-    const result = await fn();
-    const endTime = performance.now();
-    const endMemory = process.memoryUsage();
-    
-    console.log(`Tool Performance: ${name}`, {
-      executionTime: `${(endTime - startTime).toFixed(2)}ms`,
-      memoryDelta: `${((endMemory.heapUsed - startMemory.heapUsed) / 1024 / 1024).toFixed(2)}MB`,
-      heapUsed: `${(endMemory.heapUsed / 1024 / 1024).toFixed(2)}MB`
-    });
-    
-    return result;
-  } catch (error) {
-    console.error(`Tool Error: ${name}`, error);
-    throw error;
-  }
-}
-```
+**Best practices for memory management:**
+- Process data in batches to avoid loading everything into memory
+- Use `setImmediate` to yield control and prevent blocking
+- Clear references to large objects when done
+- Return only necessary data to minimize output size
 
 ## Security Implementation
 
@@ -180,8 +166,8 @@ The tool ID validation is extensively tested against various attack vectors incl
 
 ### Environment Variable Security
 
-<Tabs>
-<Tab title="Dangerous Variables Blocked">
+<Tabs items={["Dangerous Variables Blocked", "Validation Implementation", "Security Test Cases"]}>
+<Tab value="Dangerous Variables Blocked">
 
 ```go
 // Security Policy: Dangerous environment variables that must be blocked
@@ -196,7 +182,7 @@ dangerousVars := map[string]bool{
 ```
 
 </Tab>
-<Tab title="Validation Implementation">
+<Tab value="Validation Implementation">
 
 ```go
 // Actual implementation from engine/runtime/bun_manager.go
@@ -233,7 +219,7 @@ func (bm *BunManager) validateAndAddEnvironmentVars(cmdEnv *[]string, env core.E
 ```
 
 </Tab>
-<Tab title="Security Test Cases">
+<Tab value="Security Test Cases">
 
 Based on the actual test suite in `engine/runtime/security_test.go`:
 
@@ -334,1831 +320,533 @@ func (bm *BunManager) readStdoutResponse(stdout io.ReadCloser) (string, error) {
 </Step>
 </Steps>
 
-### Streaming Data Processing
+### Simple Performance Patterns
 
-Handle large datasets efficiently with streaming:
+<Callout type="info">
+The Bun runtime provides good performance out of the box. Focus on simple optimizations that have real impact rather than premature optimization.
+</Callout>
+
+#### Batch Processing
+
+Process large datasets efficiently:
 
 ```typescript
-// tools/streaming-processor.ts
-import { Transform, pipeline } from 'stream';
-import { promisify } from 'util';
+export async function run(input: { items: any[]; batchSize?: number }) {
+  const batchSize = input.batchSize || 100;
+  const results = [];
+  
+  for (let i = 0; i < input.items.length; i += batchSize) {
+    const batch = input.items.slice(i, i + batchSize);
+    const batchResults = await Promise.all(
+      batch.map(item => processItem(item))
+    );
+    results.push(...batchResults);
+  }
+  
+  return { processed: results.length, results };
+}
+```
 
-const pipelineAsync = promisify(pipeline);
+**Why use batch processing:**
+- Prevents memory overflow with large datasets
+- Allows progress monitoring
+- Enables parallel processing within reasonable limits
+- Works well with Compozy's 10MB output limit
 
-interface StreamProcessorInput {
-  source: ReadableStream | string;
-  transformations: TransformConfig[];
-  output: WritableStream | string;
-  options?: {
-    highWaterMark?: number;
-    objectMode?: boolean;
+#### Simple Caching
+
+Cache expensive operations using a basic in-memory cache:
+
+```typescript
+// tools/cached-api.ts
+const cache = new Map<string, { data: any; timestamp: number }>();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+export async function run(input: { url: string; useCache?: boolean }) {
+  const useCache = input.useCache !== false;
+  const cacheKey = input.url;
+  
+  // Check cache first
+  if (useCache) {
+    const cached = cache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+      return {
+        data: cached.data,
+        cached: true,
+        cacheAge: Date.now() - cached.timestamp
+      };
+    }
+  }
+  
+  // Fetch fresh data
+  const response = await fetch(input.url);
+  const data = await response.json();
+  
+  // Update cache
+  if (useCache) {
+    cache.set(cacheKey, { data, timestamp: Date.now() });
+    
+    // Simple cache size limit
+    if (cache.size > 100) {
+      const firstKey = cache.keys().next().value;
+      cache.delete(firstKey);
+    }
+  }
+  
+  return {
+    data: data,
+    cached: false,
+    cacheAge: 0
   };
 }
+```
 
-class StreamProcessor {
-  static async processStream(input: StreamProcessorInput): Promise<void> {
-    const sourceStream = await this.createSourceStream(input.source);
-    const transformStreams = input.transformations.map(config =>
-      this.createTransformStream(config)
-    );
-    const outputStream = await this.createOutputStream(input.output);
+**What this provides:**
+- Reduces redundant API calls
+- Simple TTL-based expiration
+- Basic memory management
+- Clear cache status in responses
 
-    await pipelineAsync(
-      sourceStream,
-      ...transformStreams,
-      outputStream
-    );
-  }
+### Simple HTTP Client Patterns
 
-  private static async createSourceStream(source: ReadableStream | string): Promise<NodeJS.ReadableStream> {
-    if (typeof source === 'string') {
-      const fs = await import('fs');
-      return fs.createReadStream(source, { encoding: 'utf8' });
-    }
-    return source as NodeJS.ReadableStream;
-  }
+For basic HTTP client needs, use simple patterns that work well within Compozy's security model:
 
-  private static createTransformStream(config: TransformConfig): Transform {
-    return new Transform({
-      objectMode: true,
-      transform(chunk, encoding, callback) {
-        try {
-          const result = this.applyTransformation(chunk, config);
-          callback(null, result);
-        } catch (error) {
-          callback(error);
-        }
-      },
-    });
-  }
-
-  private static applyTransformation(data: unknown, config: TransformConfig): unknown {
-    switch (config.type) {
-      case 'filter':
-        return this.filterData(data, config.filter);
-      case 'map':
-        return this.mapData(data, config.mapper);
-      case 'validate':
-        return this.validateData(data, config.schema);
-      default:
-        return data;
-    }
-  }
-
-  private static async createOutputStream(output: WritableStream | string): Promise<NodeJS.WritableStream> {
-    if (typeof output === 'string') {
-      const fs = await import('fs');
-      return fs.createWriteStream(output, { encoding: 'utf8' });
-    }
-    return output as NodeJS.WritableStream;
-  }
+```typescript
+// tools/http-client.ts
+interface SimpleHttpInput {
+  url: string;
+  method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  headers?: Record<string, string>;
+  body?: unknown;
+  timeout?: number;
 }
 
-// Usage example
-export async function run(input: StreamProcessorInput): Promise<{ success: boolean; processed: number }> {
+export async function run(input: SimpleHttpInput) {
+  const timeout = input.timeout || 30000;
+  
   try {
-    let processedCount = 0;
-
-    const countingTransform = new Transform({
-      objectMode: true,
-      transform(chunk, encoding, callback) {
-        processedCount++;
-        callback(null, chunk);
+    const response = await fetch(input.url, {
+      method: input.method || 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        ...input.headers,
       },
+      body: input.body ? JSON.stringify(input.body) : undefined,
+      signal: AbortSignal.timeout(timeout),
     });
-
-    const transformations = [
-      ...input.transformations,
-      { type: 'count', stream: countingTransform },
-    ];
-
-    await StreamProcessor.processStream({
-      ...input,
-      transformations,
-    });
-
+    
+    if (!response.ok) {
+      return {
+        success: false,
+        status: response.status,
+        error: `HTTP ${response.status}: ${response.statusText}`,
+      };
+    }
+    
+    const data = await response.json();
     return {
       success: true,
-      processed: processedCount,
+      status: response.status,
+      data: data,
     };
   } catch (error) {
-    throw new Error(`Stream processing failed: ${error.message}`);
-  }
-}
-```
-
-### Caching Strategies
-
-Implement efficient caching for performance:
-
-```typescript
-// tools/cache-manager.ts
-interface CacheConfig {
-  ttl: number;
-  maxSize: number;
-  strategy: 'lru' | 'fifo' | 'lfu';
-  persistent?: boolean;
-  keyGenerator?: (input: unknown) => string;
-}
-
-class CacheManager {
-  private cache = new Map<string, CacheEntry>();
-  private accessOrder: string[] = [];
-  private config: CacheConfig;
-
-  constructor(config: CacheConfig) {
-    this.config = config;
-    this.startCleanupInterval();
-  }
-
-  async get<T>(key: string): Promise<T | null> {
-    const entry = this.cache.get(key);
-
-    if (!entry) {
-      return null;
-    }
-
-    if (this.isExpired(entry)) {
-      this.cache.delete(key);
-      this.removeFromAccessOrder(key);
-      return null;
-    }
-
-    this.updateAccessOrder(key);
-    return entry.value as T;
-  }
-
-  async set<T>(key: string, value: T, ttl?: number): Promise<void> {
-    const expiresAt = Date.now() + (ttl || this.config.ttl);
-
-    // Remove oldest entries if cache is full
-    if (this.cache.size >= this.config.maxSize) {
-      this.evictOldest();
-    }
-
-    const entry: CacheEntry = {
-      value,
-      expiresAt,
-      accessCount: 1,
-      createdAt: Date.now(),
-    };
-
-    this.cache.set(key, entry);
-    this.updateAccessOrder(key);
-  }
-
-  async has(key: string): Promise<boolean> {
-    return this.cache.has(key) && !this.isExpired(this.cache.get(key)!);
-  }
-
-  async delete(key: string): Promise<void> {
-    this.cache.delete(key);
-    this.removeFromAccessOrder(key);
-  }
-
-  async clear(): Promise<void> {
-    this.cache.clear();
-    this.accessOrder = [];
-  }
-
-  getStats(): CacheStats {
-    let expired = 0;
-    let active = 0;
-
-    for (const entry of this.cache.values()) {
-      if (this.isExpired(entry)) {
-        expired++;
-      } else {
-        active++;
-      }
-    }
-
     return {
-      totalEntries: this.cache.size,
-      activeEntries: active,
-      expiredEntries: expired,
-      memoryUsage: this.calculateMemoryUsage(),
+      success: false,
+      status: 0,
+      error: error.message,
     };
-  }
-
-  private isExpired(entry: CacheEntry): boolean {
-    return Date.now() > entry.expiresAt;
-  }
-
-  private updateAccessOrder(key: string): void {
-    this.removeFromAccessOrder(key);
-    this.accessOrder.push(key);
-
-    const entry = this.cache.get(key);
-    if (entry) {
-      entry.accessCount++;
-    }
-  }
-
-  private removeFromAccessOrder(key: string): void {
-    const index = this.accessOrder.indexOf(key);
-    if (index > -1) {
-      this.accessOrder.splice(index, 1);
-    }
-  }
-
-  private evictOldest(): void {
-    let keyToEvict: string;
-
-    switch (this.config.strategy) {
-      case 'lru':
-        keyToEvict = this.accessOrder[0];
-        break;
-      case 'fifo':
-        keyToEvict = this.cache.keys().next().value;
-        break;
-      case 'lfu':
-        keyToEvict = this.findLFUKey();
-        break;
-      default:
-        keyToEvict = this.accessOrder[0];
-    }
-
-    if (keyToEvict) {
-      this.cache.delete(keyToEvict);
-      this.removeFromAccessOrder(keyToEvict);
-    }
-  }
-
-  private findLFUKey(): string {
-    let minCount = Infinity;
-    let lfuKey = '';
-
-    for (const [key, entry] of this.cache.entries()) {
-      if (entry.accessCount < minCount) {
-        minCount = entry.accessCount;
-        lfuKey = key;
-      }
-    }
-
-    return lfuKey;
-  }
-
-  private startCleanupInterval(): void {
-    setInterval(() => {
-      this.cleanup();
-    }, this.config.ttl / 2);
-  }
-
-  private cleanup(): void {
-    for (const [key, entry] of this.cache.entries()) {
-      if (this.isExpired(entry)) {
-        this.cache.delete(key);
-        this.removeFromAccessOrder(key);
-      }
-    }
-  }
-
-  private calculateMemoryUsage(): number {
-    // Rough estimation of memory usage
-    let totalSize = 0;
-
-    for (const [key, entry] of this.cache.entries()) {
-      totalSize += key.length * 2; // UTF-16 encoding
-      totalSize += JSON.stringify(entry.value).length * 2;
-      totalSize += 64; // Overhead for entry metadata
-    }
-
-    return totalSize;
-  }
-}
-
-// Cached tool wrapper
-export function withCache<T extends (...args: any[]) => Promise<any>>(
-  fn: T,
-  config: CacheConfig
-): T {
-  const cache = new CacheManager(config);
-
-  return (async (...args: Parameters<T>) => {
-    const key = config.keyGenerator ?
-      config.keyGenerator(args) :
-      JSON.stringify(args);
-
-    // Try to get from cache
-    const cached = await cache.get(key);
-    if (cached !== null) {
-      return cached;
-    }
-
-    // Execute function and cache result
-    const result = await fn(...args);
-    await cache.set(key, result);
-
-    return result;
-  }) as T;
-}
-```
-
-### Connection Pooling
-
-Implement connection pooling for database and API clients:
-
-```typescript
-// tools/connection-pool.ts
-interface PoolConfig {
-  min: number;
-  max: number;
-  idleTimeoutMs: number;
-  acquireTimeoutMs: number;
-  createTimeoutMs: number;
-  destroyTimeoutMs: number;
-  reapIntervalMs: number;
-  createRetryIntervalMs: number;
-}
-
-class ConnectionPool<T> {
-  private available: T[] = [];
-  private pending: Array<{
-    resolve: (connection: T) => void;
-    reject: (error: Error) => void;
-    timeout: NodeJS.Timeout;
-  }> = [];
-  private all: Set<T> = new Set();
-  private config: PoolConfig;
-  private createConnection: () => Promise<T>;
-  private destroyConnection: (connection: T) => Promise<void>;
-  private validateConnection: (connection: T) => Promise<boolean>;
-
-  constructor(
-    config: PoolConfig,
-    createConnection: () => Promise<T>,
-    destroyConnection: (connection: T) => Promise<void>,
-    validateConnection: (connection: T) => Promise<boolean>
-  ) {
-    this.config = config;
-    this.createConnection = createConnection;
-    this.destroyConnection = destroyConnection;
-    this.validateConnection = validateConnection;
-
-    this.startReaper();
-    this.warmUp();
-  }
-
-  async acquire(): Promise<T> {
-    // Try to get available connection
-    const connection = await this.getAvailableConnection();
-    if (connection) {
-      return connection;
-    }
-
-    // Create new connection if under max limit
-    if (this.all.size < this.config.max) {
-      try {
-        const newConnection = await this.createNewConnection();
-        return newConnection;
-      } catch (error) {
-        // Fall through to wait for available connection
-      }
-    }
-
-    // Wait for connection to become available
-    return this.waitForConnection();
-  }
-
-  async release(connection: T): Promise<void> {
-    if (!this.all.has(connection)) {
-      return; // Connection not from this pool
-    }
-
-    // Check if connection is still valid
-    try {
-      const isValid = await this.validateConnection(connection);
-      if (!isValid) {
-        await this.destroyConnectionSafely(connection);
-        return;
-      }
-    } catch (error) {
-      await this.destroyConnectionSafely(connection);
-      return;
-    }
-
-    // Fulfill pending request or return to available pool
-    const pending = this.pending.shift();
-    if (pending) {
-      clearTimeout(pending.timeout);
-      pending.resolve(connection);
-    } else {
-      this.available.push(connection);
-    }
-  }
-
-  async destroy(): Promise<void> {
-    // Cancel all pending requests
-    this.pending.forEach(({ reject, timeout }) => {
-      clearTimeout(timeout);
-      reject(new Error('Connection pool destroyed'));
-    });
-    this.pending = [];
-
-    // Destroy all connections
-    const connections = Array.from(this.all);
-    await Promise.all(
-      connections.map(connection => this.destroyConnectionSafely(connection))
-    );
-
-    this.available = [];
-    this.all.clear();
-  }
-
-  getStats(): PoolStats {
-    return {
-      available: this.available.length,
-      pending: this.pending.length,
-      total: this.all.size,
-      min: this.config.min,
-      max: this.config.max,
-    };
-  }
-
-  private async getAvailableConnection(): Promise<T | null> {
-    while (this.available.length > 0) {
-      const connection = this.available.shift()!;
-
-      try {
-        const isValid = await this.validateConnection(connection);
-        if (isValid) {
-          return connection;
-        }
-      } catch (error) {
-        // Connection is invalid, destroy it
-      }
-
-      await this.destroyConnectionSafely(connection);
-    }
-
-    return null;
-  }
-
-  private async createNewConnection(): Promise<T> {
-    const connection = await Promise.race([
-      this.createConnection(),
-      new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('Connection creation timeout')),
-          this.config.createTimeoutMs);
-      }),
-    ]);
-
-    this.all.add(connection);
-    return connection;
-  }
-
-  private async waitForConnection(): Promise<T> {
-    return new Promise<T>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        const index = this.pending.findIndex(p => p.resolve === resolve);
-        if (index > -1) {
-          this.pending.splice(index, 1);
-        }
-        reject(new Error('Connection acquire timeout'));
-      }, this.config.acquireTimeoutMs);
-
-      this.pending.push({ resolve, reject, timeout });
-    });
-  }
-
-  private async destroyConnectionSafely(connection: T): Promise<void> {
-    this.all.delete(connection);
-
-    try {
-      await Promise.race([
-        this.destroyConnection(connection),
-        new Promise<void>((_, reject) => {
-          setTimeout(() => reject(new Error('Connection destroy timeout')),
-            this.config.destroyTimeoutMs);
-        }),
-      ]);
-    } catch (error) {
-      // Log error but don't throw
-      console.error('Error destroying connection:', error);
-    }
-  }
-
-  private async warmUp(): Promise<void> {
-    const connectionsToCreate = Math.min(this.config.min, this.config.max);
-
-    for (let i = 0; i < connectionsToCreate; i++) {
-      try {
-        const connection = await this.createNewConnection();
-        this.available.push(connection);
-      } catch (error) {
-        console.error('Error during pool warm-up:', error);
-      }
-    }
-  }
-
-  private startReaper(): void {
-    setInterval(() => {
-      this.reapIdleConnections();
-    }, this.config.reapIntervalMs);
-  }
-
-  private async reapIdleConnections(): Promise<void> {
-    const now = Date.now();
-    const connectionsToDestroy: T[] = [];
-
-    // Keep minimum connections
-    const excessConnections = this.available.length - this.config.min;
-    if (excessConnections > 0) {
-      connectionsToDestroy.push(...this.available.splice(0, excessConnections));
-    }
-
-    // Destroy excess connections
-    await Promise.all(
-      connectionsToDestroy.map(connection => this.destroyConnectionSafely(connection))
-    );
-  }
-}
-
-// Usage example with database connections
-export class DatabaseConnectionPool extends ConnectionPool<DatabaseConnection> {
-  constructor(config: PoolConfig & { connectionString: string }) {
-    super(
-      config,
-      () => createDatabaseConnection(config.connectionString),
-      (connection) => connection.close(),
-      (connection) => connection.ping()
-    );
   }
 }
 ```
 
-## Security Best Practices
+**What this provides:**
+- Simple HTTP client with timeout handling
+- Basic error handling and status codes
+- JSON request/response handling
+- Works within Compozy's security constraints
 
-### Input Validation and Sanitization
+## Simple Security Patterns
 
-Implement comprehensive input validation:
+### Basic Input Validation
+
+For tool security, focus on simple validation patterns:
 
 ```typescript
 // tools/input-validator.ts
-interface ValidationRule {
-  type: 'required' | 'type' | 'format' | 'range' | 'custom';
-  message: string;
-  validator: (value: unknown) => boolean;
+interface ValidationResult {
+  valid: boolean;
+  errors: string[];
 }
 
-class InputValidator {
-  private rules: Map<string, ValidationRule[]> = new Map();
+export function validateInput(input: any): ValidationResult {
+  const errors: string[] = [];
 
-  addRule(field: string, rule: ValidationRule): void {
-    if (!this.rules.has(field)) {
-      this.rules.set(field, []);
+  // Check for basic path traversal
+  if (input.path && typeof input.path === 'string') {
+    if (input.path.includes('..') || input.path.includes('//')) {
+      errors.push('Path contains invalid characters');
     }
-    this.rules.get(field)!.push(rule);
   }
 
-  validate(input: Record<string, unknown>): ValidationResult {
-    const errors: ValidationError[] = [];
-
-    for (const [field, rules] of this.rules.entries()) {
-      const value = input[field];
-
-      for (const rule of rules) {
-        if (!rule.validator(value)) {
-          errors.push({
-            field,
-            message: rule.message,
-            value,
-          });
-        }
-      }
+  // Check for basic script injection
+  if (input.content && typeof input.content === 'string') {
+    if (/<script|javascript:|on\w+=/i.test(input.content)) {
+      errors.push('Content contains potentially dangerous scripts');
     }
-
-    return {
-      valid: errors.length === 0,
-      errors,
-    };
-  }
-}
-
-// Security validators
-export class SecurityValidator {
-  private static readonly SQL_INJECTION_PATTERNS = [
-    /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|UNION|SCRIPT)\b)/i,
-    /(\b(OR|AND)\s+\w+\s*=\s*\w+)/i,
-    /([\'\"][\s]*;[\s]*--)/i,
-    /(\'\s*OR\s*\'\d+\'\s*=\s*\'\d+)/i,
-  ];
-
-  private static readonly XSS_PATTERNS = [
-    /<script[^>]*>.*?<\/script>/gi,
-    /<iframe[^>]*>.*?<\/iframe>/gi,
-    /javascript:/gi,
-    /on\w+\s*=/gi,
-  ];
-
-  private static readonly PATH_TRAVERSAL_PATTERNS = [
-    /\.\.[\/\\]/,
-    /[\/\\]\.\.[\/\\]/,
-    /\.\.[\/\\].*[\/\\]/,
-  ];
-
-  static validateSQL(value: string): boolean {
-    return !this.SQL_INJECTION_PATTERNS.some(pattern => pattern.test(value));
   }
 
-  static validateXSS(value: string): boolean {
-    return !this.XSS_PATTERNS.some(pattern => pattern.test(value));
+  // Validate file size
+  if (input.data && input.data.length > 10 * 1024 * 1024) {
+    errors.push('Data exceeds 10MB limit');
   }
 
-  static validatePathTraversal(value: string): boolean {
-    return !this.PATH_TRAVERSAL_PATTERNS.some(pattern => pattern.test(value));
-  }
-
-  static sanitizeHTML(value: string): string {
-    return value
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#x27;');
-  }
-
-  static sanitizeSQL(value: string): string {
-    return value
-      .replace(/'/g, "''")
-      .replace(/;/g, '\\;')
-      .replace(/--/g, '\\--');
-  }
-
-  static validateFileUpload(filename: string, content: Buffer): ValidationResult {
-    const errors: ValidationError[] = [];
-
-    // Check file extension
-    const allowedExtensions = ['.txt', '.json', '.csv', '.xml', '.yaml'];
-    const extension = filename.toLowerCase().substring(filename.lastIndexOf('.'));
-
-    if (!allowedExtensions.includes(extension)) {
-      errors.push({
-        field: 'filename',
-        message: 'File type not allowed',
-        value: filename,
-      });
-    }
-
-    // Check file size (10MB limit)
-    const maxSize = 10 * 1024 * 1024;
-    if (content.length > maxSize) {
-      errors.push({
-        field: 'content',
-        message: 'File size exceeds limit',
-        value: content.length,
-      });
-    }
-
-    // Check for malicious content
-    const contentStr = content.toString('utf8');
-    if (!this.validateXSS(contentStr)) {
-      errors.push({
-        field: 'content',
-        message: 'Malicious content detected',
-        value: 'XSS patterns found',
-      });
-    }
-
-    return {
-      valid: errors.length === 0,
-      errors,
-    };
-  }
+  return {
+    valid: errors.length === 0,
+    errors,
+  };
 }
 
 // Usage in tools
-export function createSecureValidator(): InputValidator {
-  const validator = new InputValidator();
+export async function secureProcessor(input: any) {
+  const validation = validateInput(input);
+  if (!validation.valid) {
+    return {
+      success: false,
+      errors: validation.errors,
+    };
+  }
 
-  // Add common security rules
-  validator.addRule('query', {
-    type: 'custom',
-    message: 'SQL injection attempt detected',
-    validator: (value) => typeof value === 'string' && SecurityValidator.validateSQL(value),
-  });
-
-  validator.addRule('content', {
-    type: 'custom',
-    message: 'XSS attempt detected',
-    validator: (value) => typeof value === 'string' && SecurityValidator.validateXSS(value),
-  });
-
-  validator.addRule('path', {
-    type: 'custom',
-    message: 'Path traversal attempt detected',
-    validator: (value) => typeof value === 'string' && SecurityValidator.validatePathTraversal(value),
-  });
-
-  return validator;
+  // Process validated input
+  return processData(input);
 }
 ```
 
-### Authentication and Authorization
+**What this provides:**
+- Basic path traversal protection
+- Simple script injection detection
+- File size validation
+- Clear error messages
 
-Implement secure authentication patterns:
+### Environment Variable Security
+
+Always validate environment variables in your tools:
 
 ```typescript
-// tools/auth-manager.ts
-interface AuthConfig {
-  tokenValidation: {
-    algorithm: 'HS256' | 'RS256';
-    secret?: string;
-    publicKey?: string;
-    issuer?: string;
-    audience?: string;
-  };
-  rateLimiting: {
-    windowMs: number;
-    maxRequests: number;
-  };
-  encryption: {
-    algorithm: 'aes-256-gcm';
-    keySize: number;
+// tools/env-validator.ts
+interface EnvConfig {
+  required: string[];
+  optional?: string[];
+}
+
+export function validateEnvironment(config: EnvConfig): ValidationResult {
+  const errors: string[] = [];
+
+  // Check required variables
+  for (const key of config.required) {
+    if (!process.env[key]) {
+      errors.push(`Missing required environment variable: ${key}`);
+    }
+  }
+
+  // Validate format for sensitive variables
+  const sensitiveVars = ['API_KEY', 'SECRET_KEY', 'TOKEN'];
+  for (const key of sensitiveVars) {
+    const value = process.env[key];
+    if (value) {
+      if (value.length < 16) {
+        errors.push(`${key} is too short (minimum 16 characters)`);
+      }
+      if (value.includes('\n') || value.includes('\0')) {
+        errors.push(`${key} contains invalid characters`);
+      }
+    }
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
   };
 }
 
-class AuthManager {
-  private config: AuthConfig;
-  private rateLimiter: Map<string, RateLimitEntry> = new Map();
+// Usage in tools
+export async function run(input: any) {
+  const envValidation = validateEnvironment({
+    required: ['API_BASE_URL', 'API_KEY'],
+    optional: ['DEBUG', 'TIMEOUT'],
+  });
 
-  constructor(config: AuthConfig) {
-    this.config = config;
-    this.startRateLimitCleanup();
+  if (!envValidation.valid) {
+    return {
+      success: false,
+      errors: envValidation.errors,
+    };
   }
 
-  async validateToken(token: string): Promise<TokenValidationResult> {
-    try {
-      // Basic token format validation
-      if (!token || typeof token !== 'string') {
-        return { valid: false, error: 'Invalid token format' };
-      }
+  // Use validated environment variables
+  const baseUrl = process.env.API_BASE_URL!;
+  const apiKey = process.env.API_KEY!;
 
-      // Check token structure (JWT)
-      const parts = token.split('.');
-      if (parts.length !== 3) {
-        return { valid: false, error: 'Invalid JWT structure' };
-      }
+  return makeApiCall(baseUrl, apiKey, input);
+}
+```
 
-      // Decode header and payload
-      const header = JSON.parse(Buffer.from(parts[0], 'base64').toString());
-      const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+**Security benefits:**
+- Prevents missing environment variables
+- Validates format of sensitive data
+- Detects potential injection attempts
+- Clear error messages for debugging
 
-      // Validate algorithm
-      if (header.alg !== this.config.tokenValidation.algorithm) {
-        return { valid: false, error: 'Invalid algorithm' };
-      }
+### Simple Rate Limiting
 
-      // Validate expiration
-      if (payload.exp && payload.exp < Date.now() / 1000) {
-        return { valid: false, error: 'Token expired' };
-      }
+Basic rate limiting for API-heavy tools:
 
-      // Validate issuer
-      if (this.config.tokenValidation.issuer && payload.iss !== this.config.tokenValidation.issuer) {
-        return { valid: false, error: 'Invalid issuer' };
-      }
+```typescript
+// tools/rate-limiter.ts
+class SimpleRateLimiter {
+  private requests = new Map<string, number[]>();
+  private windowMs: number;
+  private maxRequests: number;
 
-      // Validate audience
-      if (this.config.tokenValidation.audience && payload.aud !== this.config.tokenValidation.audience) {
-        return { valid: false, error: 'Invalid audience' };
-      }
-
-      // Validate signature (simplified - use proper JWT library in production)
-      const isSignatureValid = await this.validateSignature(token);
-      if (!isSignatureValid) {
-        return { valid: false, error: 'Invalid signature' };
-      }
-
-      return {
-        valid: true,
-        payload,
-        expiresAt: payload.exp ? new Date(payload.exp * 1000) : undefined,
-      };
-
-    } catch (error) {
-      return { valid: false, error: 'Token validation failed' };
-    }
+  constructor(windowMs: number = 60000, maxRequests: number = 100) {
+    this.windowMs = windowMs;
+    this.maxRequests = maxRequests;
   }
 
-  async checkRateLimit(identifier: string): Promise<RateLimitResult> {
+  isAllowed(identifier: string): boolean {
     const now = Date.now();
-    const windowStart = now - this.config.rateLimiting.windowMs;
+    const windowStart = now - this.windowMs;
 
-    let entry = this.rateLimiter.get(identifier);
-    if (!entry) {
-      entry = { requests: [], windowStart: now };
-      this.rateLimiter.set(identifier, entry);
-    }
-
+    // Get existing requests for this identifier
+    let requests = this.requests.get(identifier) || [];
+    
     // Remove old requests
-    entry.requests = entry.requests.filter(timestamp => timestamp > windowStart);
-
+    requests = requests.filter(time => time > windowStart);
+    
     // Check if limit exceeded
-    if (entry.requests.length >= this.config.rateLimiting.maxRequests) {
-      const oldestRequest = Math.min(...entry.requests);
-      const retryAfter = Math.ceil((oldestRequest + this.config.rateLimiting.windowMs - now) / 1000);
-
-      return {
-        allowed: false,
-        retryAfter,
-        remaining: 0,
-        resetTime: oldestRequest + this.config.rateLimiting.windowMs,
-      };
+    if (requests.length >= this.maxRequests) {
+      return false;
     }
 
     // Add current request
-    entry.requests.push(now);
+    requests.push(now);
+    this.requests.set(identifier, requests);
 
-    return {
-      allowed: true,
-      remaining: this.config.rateLimiting.maxRequests - entry.requests.length,
-      resetTime: windowStart + this.config.rateLimiting.windowMs,
-    };
+    return true;
   }
 
-  async encryptSensitiveData(data: string): Promise<EncryptedData> {
-    const crypto = await import('crypto');
-    const algorithm = this.config.encryption.algorithm;
-    const key = await this.getEncryptionKey();
-    const iv = crypto.randomBytes(16);
+  cleanup(): void {
+    const now = Date.now();
+    const cutoff = now - this.windowMs;
 
-    const cipher = crypto.createCipher(algorithm, key);
-    cipher.setAAD(Buffer.from('compozy-tool-auth'));
-
-    let encrypted = cipher.update(data, 'utf8', 'hex');
-    encrypted += cipher.final('hex');
-
-    const authTag = cipher.getAuthTag();
-
-    return {
-      encrypted,
-      iv: iv.toString('hex'),
-      authTag: authTag.toString('hex'),
-    };
-  }
-
-  async decryptSensitiveData(encryptedData: EncryptedData): Promise<string> {
-    const crypto = await import('crypto');
-    const algorithm = this.config.encryption.algorithm;
-    const key = await this.getEncryptionKey();
-    const iv = Buffer.from(encryptedData.iv, 'hex');
-    const authTag = Buffer.from(encryptedData.authTag, 'hex');
-
-    const decipher = crypto.createDecipher(algorithm, key);
-    decipher.setAAD(Buffer.from('compozy-tool-auth'));
-    decipher.setAuthTag(authTag);
-
-    let decrypted = decipher.update(encryptedData.encrypted, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-
-    return decrypted;
-  }
-
-  private async validateSignature(token: string): Promise<boolean> {
-    // Simplified signature validation
-    // In production, use a proper JWT library like jsonwebtoken
-    const parts = token.split('.');
-    const header = parts[0];
-    const payload = parts[1];
-    const signature = parts[2];
-
-    const crypto = await import('crypto');
-    const data = `${header}.${payload}`;
-
-    if (this.config.tokenValidation.algorithm === 'HS256') {
-      const expectedSignature = crypto
-        .createHmac('sha256', this.config.tokenValidation.secret!)
-        .update(data)
-        .digest('base64url');
-
-      // SECURITY: Use constant-time comparison to prevent timing attacks
-      return crypto.timingSafeEqual(
-        Buffer.from(signature, 'base64url'),
-        Buffer.from(expectedSignature, 'base64url')
-      );
-    }
-
-    // For RS256, verify with public key
-    // Implementation depends on crypto library
-    return true; // Placeholder
-  }
-
-  private async getEncryptionKey(): Promise<string> {
-    // SECURITY: Never use hardcoded fallback keys in production
-    const key = process.env.ENCRYPTION_KEY;
-    if (!key) {
-      throw new Error('ENCRYPTION_KEY environment variable is required. Never use hardcoded keys.');
-    }
-    if (key.length < 32) {
-      throw new Error('ENCRYPTION_KEY must be at least 32 characters for AES-256.');
-    }
-    return key;
-  }
-
-  private startRateLimitCleanup(): void {
-    setInterval(() => {
-      const now = Date.now();
-      const windowStart = now - this.config.rateLimiting.windowMs;
-
-      for (const [identifier, entry] of this.rateLimiter.entries()) {
-        entry.requests = entry.requests.filter(timestamp => timestamp > windowStart);
-
-        if (entry.requests.length === 0) {
-          this.rateLimiter.delete(identifier);
-        }
-      }
-    }, this.config.rateLimiting.windowMs);
-  }
-}
-
-// Secure tool wrapper
-export function withAuth<T extends (...args: any[]) => Promise<any>>(
-  fn: T,
-  config: AuthConfig
-): T {
-  const authManager = new AuthManager(config);
-
-  return (async (input: any, ...args: Parameters<T>) => {
-    // Extract auth token from input
-    const token = input.auth?.token || input.authorization;
-    if (!token) {
-      throw new Error('Authentication required');
-    }
-
-    // Validate token
-    const tokenValidation = await authManager.validateToken(token);
-    if (!tokenValidation.valid) {
-      throw new Error(`Authentication failed: ${tokenValidation.error}`);
-    }
-
-    // Check rate limit
-    const userId = tokenValidation.payload?.sub || 'anonymous';
-    const rateLimitResult = await authManager.checkRateLimit(userId);
-    if (!rateLimitResult.allowed) {
-      throw new Error(`Rate limit exceeded. Retry after ${rateLimitResult.retryAfter} seconds`);
-    }
-
-    // Execute function with validated context
-    return fn(input, ...args);
-  }) as T;
-}
-```
-
-<Callout type="danger" title="Critical Security Warning: JWT Timing Attacks">
-The example above demonstrates a critical security vulnerability. **Never use direct string comparison (`===`) for signature validation** as it creates a timing side-channel attack vector. Always use `crypto.timingSafeEqual()` for constant-time comparisons in authentication scenarios.
-
-**Production Recommendation:** Use established JWT libraries like `jsonwebtoken` instead of implementing your own validation logic.
-</Callout>
-
-### Template Injection Prevention
-
-Secure template processing is critical for workflow engines that process user-supplied YAML:
-
-```typescript
-// tools/secure-template-processor.ts
-interface TemplateSecurityConfig {
-  allowedFunctions: string[];
-  maxTemplateSize: number;
-  maxExecutionTime: number;
-  sandboxMode: boolean;
-}
-
-class SecureTemplateProcessor {
-  private config: TemplateSecurityConfig;
-  private allowedPatterns: RegExp[];
-  private blockedPatterns: RegExp[];
-
-  constructor(config: TemplateSecurityConfig) {
-    this.config = config;
-    this.initializeSecurityPatterns();
-  }
-
-  async processTemplate(template: string, context: Record<string, unknown>): Promise<string> {
-    // 1. Validate template size
-    if (template.length > this.config.maxTemplateSize) {
-      throw new Error(`Template exceeds maximum size: ${this.config.maxTemplateSize}`);
-    }
-
-    // 2. Scan for malicious patterns
-    await this.validateTemplateSecurity(template);
-
-    // 3. Sanitize context variables
-    const sanitizedContext = this.sanitizeContext(context);
-
-    // 4. Process with timeout
-    return this.processWithTimeout(template, sanitizedContext);
-  }
-
-  private async validateTemplateSecurity(template: string): Promise<void> {
-    // Check for blocked patterns
-    for (const pattern of this.blockedPatterns) {
-      if (pattern.test(template)) {
-        throw new Error(`Security violation: Template contains blocked pattern: ${pattern}`);
-      }
-    }
-
-    // Validate function calls
-    const functionCalls = this.extractFunctionCalls(template);
-    for (const func of functionCalls) {
-      if (!this.config.allowedFunctions.includes(func)) {
-        throw new Error(`Security violation: Unauthorized function call: ${func}`);
-      }
-    }
-  }
-
-  private initializeSecurityPatterns(): void {
-    // Block dangerous patterns
-    this.blockedPatterns = [
-      // Script injection
-      /<script[^>]*>/gi,
-      /javascript:/gi,
-      /on\w+\s*=/gi,
-
-      // Command injection
-      /\$\([^)]*\)/g,
-      /`[^`]*`/g,
-      /\|\s*\w+/g,
-
-      // File system access
-      /\.\.[\/\\]/g,
-      /\/etc\/passwd/gi,
-      /\/proc\//gi,
-
-      // Network access
-      /http[s]?:\/\//gi,
-      /ftp:\/\//gi,
-
-      // Code execution
-      /eval\s*\(/gi,
-      /Function\s*\(/gi,
-      /require\s*\(/gi,
-      /import\s*\(/gi,
-    ];
-
-    // Allow safe template functions
-    this.allowedPatterns = [
-      /\{\{\s*[\w.]+\s*\}\}/g, // Simple variable substitution
-      /\{\{\s*[\w.]+\s*\|\s*\w+\s*\}\}/g, // Filters
-    ];
-  }
-
-  private extractFunctionCalls(template: string): string[] {
-    const functionPattern = /\{\{\s*(\w+)\s*\(/g;
-    const functions: string[] = [];
-    let match;
-
-    while ((match = functionPattern.exec(template)) !== null) {
-      functions.push(match[1]);
-    }
-
-    return functions;
-  }
-
-  private sanitizeContext(context: Record<string, unknown>): Record<string, unknown> {
-    const sanitized: Record<string, unknown> = {};
-
-    for (const [key, value] of Object.entries(context)) {
-      // Only allow safe primitive types and arrays
-      if (this.isSafeValue(value)) {
-        sanitized[key] = this.sanitizeValue(value);
+    for (const [identifier, requests] of this.requests.entries()) {
+      const filtered = requests.filter(time => time > cutoff);
+      if (filtered.length === 0) {
+        this.requests.delete(identifier);
       } else {
-        console.warn(`Context variable '${key}' filtered for security`);
+        this.requests.set(identifier, filtered);
       }
     }
-
-    return sanitized;
-  }
-
-  private isSafeValue(value: unknown): boolean {
-    if (value === null || value === undefined) return true;
-    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return true;
-    if (Array.isArray(value)) return value.every(item => this.isSafeValue(item));
-    if (typeof value === 'object') {
-      return Object.values(value).every(val => this.isSafeValue(val));
-    }
-    return false;
-  }
-
-  private sanitizeValue(value: unknown): unknown {
-    if (typeof value === 'string') {
-      return this.sanitizeString(value);
-    }
-    if (Array.isArray(value)) {
-      return value.map(item => this.sanitizeValue(item));
-    }
-    if (typeof value === 'object' && value !== null) {
-      const sanitized: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(value)) {
-        sanitized[k] = this.sanitizeValue(v);
-      }
-      return sanitized;
-    }
-    return value;
-  }
-
-  private sanitizeString(value: string): string {
-    return value
-      .replace(/[<>&"']/g, (match) => {
-        const escapeMap: Record<string, string> = {
-          '<': '&lt;',
-          '>': '&gt;',
-          '&': '&amp;',
-          '"': '&quot;',
-          "'": '&#x27;',
-        };
-        return escapeMap[match] || match;
-      })
-      .replace(/\$\{[^}]*\}/g, '') // Remove variable substitutions
-      .replace(/\$\([^)]*\)/g, '') // Remove command substitutions
-      .replace(/`[^`]*`/g, ''); // Remove backticks
-  }
-
-  private async processWithTimeout(template: string, context: Record<string, unknown>): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error('Template processing timeout'));
-      }, this.config.maxExecutionTime);
-
-      try {
-        // Use a safe template engine (like Handlebars with restrictions)
-        const result = this.safeTemplateRender(template, context);
-        clearTimeout(timeout);
-        resolve(result);
-      } catch (error) {
-        clearTimeout(timeout);
-        reject(error);
-      }
-    });
-  }
-
-  private safeTemplateRender(template: string, context: Record<string, unknown>): string {
-    // This is a simplified example - use a proper template engine with sandboxing
-    let result = template;
-    for (const [key, value] of Object.entries(context)) {
-      const pattern = new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, 'g');
-      result = result.replace(pattern, String(value));
-    }
-    return result;
   }
 }
 
 // Usage in tools
-export function createSecureTemplateProcessor(): SecureTemplateProcessor {
-  return new SecureTemplateProcessor({
-    allowedFunctions: ['len', 'default', 'upper', 'lower', 'trim'], // Safe functions only
-    maxTemplateSize: 10000, // 10KB limit
-    maxExecutionTime: 5000, // 5 second timeout
-    sandboxMode: true,
-  });
-}
+const rateLimiter = new SimpleRateLimiter(60000, 10); // 10 requests per minute
 
-// Secure tool wrapper
-export function withTemplateSecurity<T extends (...args: any[]) => Promise<any>>(
-  fn: T,
-  processor: SecureTemplateProcessor
-): T {
-  return (async (input: any, ...args: Parameters<T>) => {
-    // Validate template inputs
-    if (input.template) {
-      await processor.processTemplate(input.template, input.context || {});
-    }
-
-    return fn(input, ...args);
-  }) as T;
-}
-```
-
-<Callout type="warning" title="Template Security Best Practices">
-**Essential Guidelines:**
-1. **Never trust user input** - Always validate and sanitize template content
-2. **Use allowlists** - Only permit known-safe functions and patterns
-3. **Implement timeouts** - Prevent resource exhaustion attacks
-4. **Sandbox execution** - Run templates in isolated environments when possible
-5. **Log security events** - Monitor for attempted attacks
-6. **Regular updates** - Keep template engines and security patterns current
-</Callout>
-
-### Secure Configuration Management
-
-Manage sensitive configuration securely:
-
-```typescript
-// tools/config-manager.ts
-interface SecureConfig {
-  secrets: Map<string, string>;
-  publicConfig: Record<string, unknown>;
-  encryptionKey: string;
-}
-
-class SecureConfigManager {
-  private config: SecureConfig;
-  private keyRotationInterval: NodeJS.Timer;
-
-  constructor() {
-    this.config = {
-      secrets: new Map(),
-      publicConfig: {},
-      encryptionKey: this.generateEncryptionKey(),
+export async function run(input: any) {
+  const identifier = input.user_id || 'anonymous';
+  
+  if (!rateLimiter.isAllowed(identifier)) {
+    return {
+      success: false,
+      error: 'Rate limit exceeded. Please try again later.',
     };
-
-    this.loadConfiguration();
-    this.startKeyRotation();
   }
 
-  async setSecret(key: string, value: string): Promise<void> {
-    const encryptedValue = await this.encryptValue(value);
-    this.config.secrets.set(key, encryptedValue);
-    await this.persistSecrets();
-  }
-
-  async getSecret(key: string): Promise<string | null> {
-    const encryptedValue = this.config.secrets.get(key);
-    if (!encryptedValue) {
-      return null;
-    }
-
-    try {
-      return await this.decryptValue(encryptedValue);
-    } catch (error) {
-      console.error(`Failed to decrypt secret ${key}:`, error);
-      return null;
-    }
-  }
-
-  setPublicConfig(key: string, value: unknown): void {
-    this.config.publicConfig[key] = value;
-  }
-
-  getPublicConfig(key: string): unknown {
-    return this.config.publicConfig[key];
-  }
-
-  async rotateEncryptionKey(): Promise<void> {
-    const oldKey = this.config.encryptionKey;
-    const newKey = this.generateEncryptionKey();
-
-    // Re-encrypt all secrets with new key
-    const reencryptedSecrets = new Map<string, string>();
-
-    for (const [key, encryptedValue] of this.config.secrets.entries()) {
-      const decryptedValue = await this.decryptValue(encryptedValue, oldKey);
-      const reencryptedValue = await this.encryptValue(decryptedValue, newKey);
-      reencryptedSecrets.set(key, reencryptedValue);
-    }
-
-    this.config.encryptionKey = newKey;
-    this.config.secrets = reencryptedSecrets;
-
-    await this.persistSecrets();
-  }
-
-  private async loadConfiguration(): Promise<void> {
-    try {
-      // Load from environment variables
-      for (const [key, value] of Object.entries(process.env)) {
-        if (key.startsWith('COMPOZY_SECRET_')) {
-          const secretKey = key.replace('COMPOZY_SECRET_', '').toLowerCase();
-          await this.setSecret(secretKey, value);
-        } else if (key.startsWith('COMPOZY_CONFIG_')) {
-          const configKey = key.replace('COMPOZY_CONFIG_', '').toLowerCase();
-          this.setPublicConfig(configKey, value);
-        }
-      }
-
-      // Load from secure storage if available
-      await this.loadFromSecureStorage();
-    } catch (error) {
-      console.error('Failed to load configuration:', error);
-    }
-  }
-
-  private async loadFromSecureStorage(): Promise<void> {
-    // Implementation depends on secure storage solution
-    // Could be AWS Secrets Manager, Azure Key Vault, etc.
-  }
-
-  private async persistSecrets(): Promise<void> {
-    // Implementation depends on secure storage solution
-    // Should never write secrets to disk in plain text
-  }
-
-  private async encryptValue(value: string, key?: string): Promise<string> {
-    const crypto = await import('crypto');
-    const encryptionKey = key || this.config.encryptionKey;
-    const algorithm = 'aes-256-gcm';
-    const iv = crypto.randomBytes(16);
-
-    const cipher = crypto.createCipher(algorithm, encryptionKey);
-    let encrypted = cipher.update(value, 'utf8', 'hex');
-    encrypted += cipher.final('hex');
-
-    const authTag = cipher.getAuthTag();
-
-    return JSON.stringify({
-      encrypted,
-      iv: iv.toString('hex'),
-      authTag: authTag.toString('hex'),
-    });
-  }
-
-  private async decryptValue(encryptedValue: string, key?: string): Promise<string> {
-    const crypto = await import('crypto');
-    const encryptionKey = key || this.config.encryptionKey;
-    const algorithm = 'aes-256-gcm';
-
-    const data = JSON.parse(encryptedValue);
-    const iv = Buffer.from(data.iv, 'hex');
-    const authTag = Buffer.from(data.authTag, 'hex');
-
-    const decipher = crypto.createDecipher(algorithm, encryptionKey);
-    decipher.setAuthTag(authTag);
-
-    let decrypted = decipher.update(data.encrypted, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-
-    return decrypted;
-  }
-
-  private generateEncryptionKey(): string {
-    const crypto = require('crypto');
-    return crypto.randomBytes(32).toString('hex');
-  }
-
-  private startKeyRotation(): void {
-    // Rotate encryption key every 24 hours
-    this.keyRotationInterval = setInterval(() => {
-      this.rotateEncryptionKey();
-    }, 24 * 60 * 60 * 1000);
-  }
-
-  destroy(): void {
-    if (this.keyRotationInterval) {
-      clearInterval(this.keyRotationInterval);
-    }
-    this.config.secrets.clear();
-  }
-}
-
-// Usage in tools
-const configManager = new SecureConfigManager();
-
-export async function getSecureConfig(key: string): Promise<string | null> {
-  return configManager.getSecret(key);
-}
-
-export function getPublicConfig(key: string): unknown {
-  return configManager.getPublicConfig(key);
+  // Process request
+  return processRequest(input);
 }
 ```
 
-## Monitoring and Observability
+**What this provides:**
+- Simple in-memory rate limiting
+- Configurable window and request limits
+- Automatic cleanup of old requests
+- Per-user or per-IP rate limiting
 
-### Performance Monitoring
+## Basic Performance Patterns
+
+### Simple Monitoring
+
+Basic performance monitoring for tools:
 
 ```typescript
-// tools/performance-monitor.ts
-interface PerformanceMetrics {
-  executionTime: number;
-  memoryUsage: NodeJS.MemoryUsage;
-  cpuUsage: NodeJS.CpuUsage;
-  eventLoopDelay: number;
-}
-
-class PerformanceMonitor {
-  private metrics: PerformanceMetrics[] = [];
-  private eventLoopMonitor: any;
-
-  constructor() {
-    this.startEventLoopMonitoring();
-  }
-
-  async measureExecution<T>(
-    name: string,
-    fn: () => Promise<T>
-  ): Promise<{ result: T; metrics: PerformanceMetrics }> {
-    const startTime = performance.now();
-    const startMemory = process.memoryUsage();
-    const startCpu = process.cpuUsage();
-
+// tools/simple-monitor.ts
+export class SimpleMonitor {
+  static time<T>(label: string, fn: () => T): T {
+    const start = performance.now();
     try {
-      const result = await fn();
-      const metrics = this.calculateMetrics(startTime, startMemory, startCpu);
-
-      this.recordMetrics(name, metrics);
-
-      return { result, metrics };
+      const result = fn();
+      const duration = performance.now() - start;
+      
+      if (duration > 1000) {
+        console.warn(`Slow operation: ${label} took ${duration.toFixed(2)}ms`);
+      }
+      
+      return result;
     } catch (error) {
-      const metrics = this.calculateMetrics(startTime, startMemory, startCpu);
-      this.recordMetrics(name, metrics);
+      const duration = performance.now() - start;
+      console.error(`Failed operation: ${label} failed after ${duration.toFixed(2)}ms`);
       throw error;
     }
   }
 
-  private calculateMetrics(
-    startTime: number,
-    startMemory: NodeJS.MemoryUsage,
-    startCpu: NodeJS.CpuUsage
-  ): PerformanceMetrics {
-    const endTime = performance.now();
-    const endMemory = process.memoryUsage();
-    const endCpu = process.cpuUsage(startCpu);
-
-    return {
-      executionTime: endTime - startTime,
-      memoryUsage: {
-        rss: endMemory.rss - startMemory.rss,
-        heapUsed: endMemory.heapUsed - startMemory.heapUsed,
-        heapTotal: endMemory.heapTotal - startMemory.heapTotal,
-        external: endMemory.external - startMemory.external,
-        arrayBuffers: endMemory.arrayBuffers - startMemory.arrayBuffers,
-      },
-      cpuUsage: endCpu,
-      eventLoopDelay: this.getEventLoopDelay(),
-    };
-  }
-
-  private recordMetrics(name: string, metrics: PerformanceMetrics): void {
-    this.metrics.push(metrics);
-
-    // Keep only last 100 metrics
-    if (this.metrics.length > 100) {
-      this.metrics.shift();
+  static async timeAsync<T>(label: string, fn: () => Promise<T>): Promise<T> {
+    const start = performance.now();
+    try {
+      const result = await fn();
+      const duration = performance.now() - start;
+      
+      if (duration > 1000) {
+        console.warn(`Slow async operation: ${label} took ${duration.toFixed(2)}ms`);
+      }
+      
+      return result;
+    } catch (error) {
+      const duration = performance.now() - start;
+      console.error(`Failed async operation: ${label} failed after ${duration.toFixed(2)}ms`);
+      throw error;
     }
-
-    // Log performance warnings
-    if (metrics.executionTime > 5000) {
-      console.warn(`Slow execution detected for ${name}: ${metrics.executionTime}ms`);
-    }
-
-    if (metrics.memoryUsage.heapUsed > 100 * 1024 * 1024) {
-      console.warn(`High memory usage detected for ${name}: ${metrics.memoryUsage.heapUsed} bytes`);
-    }
-  }
-
-  private startEventLoopMonitoring(): void {
-    // Event loop delay monitoring
-    const { monitorEventLoopDelay } = require('perf_hooks');
-    this.eventLoopMonitor = monitorEventLoopDelay({ resolution: 20 });
-    this.eventLoopMonitor.enable();
-  }
-
-  private getEventLoopDelay(): number {
-    return this.eventLoopMonitor ? this.eventLoopMonitor.mean / 1000000 : 0;
-  }
-
-  getAverageMetrics(): PerformanceMetrics {
-    if (this.metrics.length === 0) {
-      return {
-        executionTime: 0,
-        memoryUsage: process.memoryUsage(),
-        cpuUsage: process.cpuUsage(),
-        eventLoopDelay: 0,
-      };
-    }
-
-    const sum = this.metrics.reduce((acc, metrics) => ({
-      executionTime: acc.executionTime + metrics.executionTime,
-      memoryUsage: {
-        rss: acc.memoryUsage.rss + metrics.memoryUsage.rss,
-        heapUsed: acc.memoryUsage.heapUsed + metrics.memoryUsage.heapUsed,
-        heapTotal: acc.memoryUsage.heapTotal + metrics.memoryUsage.heapTotal,
-        external: acc.memoryUsage.external + metrics.memoryUsage.external,
-        arrayBuffers: acc.memoryUsage.arrayBuffers + metrics.memoryUsage.arrayBuffers,
-      },
-      cpuUsage: {
-        user: acc.cpuUsage.user + metrics.cpuUsage.user,
-        system: acc.cpuUsage.system + metrics.cpuUsage.system,
-      },
-      eventLoopDelay: acc.eventLoopDelay + metrics.eventLoopDelay,
-    }));
-
-    const count = this.metrics.length;
-    return {
-      executionTime: sum.executionTime / count,
-      memoryUsage: {
-        rss: sum.memoryUsage.rss / count,
-        heapUsed: sum.memoryUsage.heapUsed / count,
-        heapTotal: sum.memoryUsage.heapTotal / count,
-        external: sum.memoryUsage.external / count,
-        arrayBuffers: sum.memoryUsage.arrayBuffers / count,
-      },
-      cpuUsage: {
-        user: sum.cpuUsage.user / count,
-        system: sum.cpuUsage.system / count,
-      },
-      eventLoopDelay: sum.eventLoopDelay / count,
-    };
   }
 }
 
-// Performance monitoring wrapper
-export function withPerformanceMonitoring<T extends (...args: any[]) => Promise<any>>(
-  fn: T,
-  name: string
-): T {
-  const monitor = new PerformanceMonitor();
-
-  return (async (...args: Parameters<T>) => {
-    const { result } = await monitor.measureExecution(name, () => fn(...args));
-    return result;
-  }) as T;
-}
-```
-
-### Production Security Checklist
-
-Essential security measures for production deployment:
-
-<Callout type="danger" title="Production Security Requirements">
-**Critical Security Checklist - All items must be completed before production deployment:**
-
-**Environment & Configuration:**
-- [ ] All environment variables properly configured (no hardcoded secrets)
-- [ ] ENCRYPTION_KEY is cryptographically secure (32+ characters, randomly generated)
-- [ ] Default admin tokens replaced with secure credentials
-- [ ] Debug modes disabled in production
-- [ ] Error messages sanitized (no sensitive data exposure)
-
-**Authentication & Authorization:**
-- [ ] JWT signature validation uses constant-time comparison
-- [ ] Rate limiting configured for all API endpoints
-- [ ] Authentication tokens have appropriate expiration times
-- [ ] Multi-factor authentication enabled for admin access
-- [ ] Session management configured securely
-
-**Input Validation & Template Security:**
-- [ ] All user inputs validated and sanitized
-- [ ] Template injection protection implemented
-- [ ] File upload restrictions enforced
-- [ ] SQL injection prevention measures active
-- [ ] XSS protection enabled
-
-**Network Security:**
-- [ ] HTTPS enforced for all communications
-- [ ] Security headers configured (CSP, HSTS, X-Frame-Options)
-- [ ] CORS policies properly restricted
-- [ ] Network access controls implemented
-- [ ] Load balancer security configured
-
-**Monitoring & Logging:**
-- [ ] Security event logging enabled
-- [ ] Failed authentication attempts monitored
-- [ ] Audit trails configured
-- [ ] Security alerts configured
-- [ ] Performance monitoring active
-
-**Infrastructure:**
-- [ ] Operating system security updates applied
-- [ ] Container images scanned for vulnerabilities
-- [ ] Database access properly secured
-- [ ] Backup encryption enabled
-- [ ] Incident response plan documented
-</Callout>
-
-### Security Headers Implementation
-
-Essential HTTP security headers for API endpoints:
-
-```typescript
-// tools/security-headers.ts
-interface SecurityHeadersConfig {
-  contentSecurityPolicy: string;
-  enforceHttps: boolean;
-  frameOptions: 'DENY' | 'SAMEORIGIN';
-  contentTypeOptions: boolean;
-  referrerPolicy: string;
-}
-
-export function addSecurityHeaders(
-  response: Response,
-  config: SecurityHeadersConfig
-): Response {
-  const headers = new Headers(response.headers);
-
-  // Content Security Policy
-  headers.set('Content-Security-Policy', config.contentSecurityPolicy);
-
-  // HTTPS enforcement
-  if (config.enforceHttps) {
-    headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
-  }
-
-  // Clickjacking protection
-  headers.set('X-Frame-Options', config.frameOptions);
-
-  // MIME type sniffing protection
-  if (config.contentTypeOptions) {
-    headers.set('X-Content-Type-Options', 'nosniff');
-  }
-
-  // Referrer policy
-  headers.set('Referrer-Policy', config.referrerPolicy);
-
-  // XSS protection
-  headers.set('X-XSS-Protection', '1; mode=block');
-
-  // Permissions policy
-  headers.set('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
-
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers,
+// Usage in tools
+export async function run(input: any) {
+  return SimpleMonitor.timeAsync('data-processing', async () => {
+    const data = await fetchData(input.url);
+    return processData(data);
   });
 }
-
-// Default secure configuration
-export const SECURE_HEADERS_CONFIG: SecurityHeadersConfig = {
-  contentSecurityPolicy: "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'",
-  enforceHttps: true,
-  frameOptions: 'DENY',
-  contentTypeOptions: true,
-  referrerPolicy: 'strict-origin-when-cross-origin',
-};
 ```
 
-### CSRF Protection
+**What this provides:**
+- Simple timing for operations
+- Automatic logging of slow operations
+- Error tracking with timing
+- No external dependencies
 
-Implement CSRF protection for stateful operations:
+## CLI Performance & Security Commands
 
-```typescript
-// tools/csrf-protection.ts
-interface CSRFConfig {
-  tokenLength: number;
-  cookieName: string;
-  headerName: string;
-  sameSite: 'strict' | 'lax' | 'none';
-}
+### Development Debugging
 
-class CSRFProtection {
-  private config: CSRFConfig;
-  private tokens = new Map<string, { token: string; expires: number }>();
+Use Compozy CLI commands for performance monitoring and security validation:
 
-  constructor(config: CSRFConfig) {
-    this.config = config;
-    this.startCleanup();
-  }
+```bash
+# Start development server with performance monitoring
+compozy dev --watch
 
-  generateToken(sessionId: string): string {
-    const crypto = require('crypto');
-    const token = crypto.randomBytes(this.config.tokenLength).toString('hex');
-    const expires = Date.now() + (24 * 60 * 60 * 1000); // 24 hours
+# Run configuration diagnostics for security validation
+compozy config diagnostics --verbose
 
-    this.tokens.set(sessionId, { token, expires });
-    return token;
-  }
+# Validate configuration and environment setup
+compozy config validate
 
-  validateToken(sessionId: string, providedToken: string): boolean {
-    const stored = this.tokens.get(sessionId);
-    if (!stored) return false;
-
-    if (Date.now() > stored.expires) {
-      this.tokens.delete(sessionId);
-      return false;
-    }
-
-    // Use constant-time comparison
-    const crypto = require('crypto');
-    return crypto.timingSafeEqual(
-      Buffer.from(stored.token),
-      Buffer.from(providedToken)
-    );
-  }
-
-  private startCleanup(): void {
-    setInterval(() => {
-      const now = Date.now();
-      for (const [sessionId, data] of this.tokens.entries()) {
-        if (now > data.expires) {
-          this.tokens.delete(sessionId);
-        }
-      }
-    }, 60 * 60 * 1000); // Cleanup every hour
-  }
-}
+# Monitor authentication and authorization
+compozy auth list --sort created
+compozy auth generate --name "Performance Test"
 ```
 
-<Callout type="info" title="Security Framework Compliance">
-These security measures align with industry standards:
-- **OWASP Top 10** prevention strategies
-- **NIST Cybersecurity Framework** guidelines
-- **ISO 27001** security controls
-- **SOC 2 Type II** compliance requirements
-</Callout>
+### Production Monitoring
 
-## Production Security Checklist
+```bash
+# Start production server with optimized settings
+compozy start
 
-<Callout type="danger" title="Production Security Requirements">
-**Critical Security Checklist - All items must be completed before production deployment:**
+# Use MCP proxy for secure tool integration
+compozy mcp-proxy --port 8081
+```
+
+## Security Best Practices
+
+### Production Checklist
+
+<Callout type="info" title="Simple Security Checklist">
+**Essential security measures for production:**
 
 **Environment & Configuration:**
-- [ ] All environment variables properly configured (no hardcoded secrets)
-- [ ] ENCRYPTION_KEY is cryptographically secure (32+ characters, randomly generated)
-- [ ] Default admin tokens replaced with secure credentials
-- [ ] Debug modes disabled in production
-- [ ] Error messages sanitized (no sensitive data exposure)
+- [ ] Environment variables properly configured
+- [ ] No hardcoded secrets in code
+- [ ] Debug modes disabled
+- [ ] Error messages don't expose sensitive data
 
-**Authentication & Authorization:**
-- [ ] Rate limiting configured for all API endpoints
-- [ ] Authentication tokens have appropriate expiration times
-- [ ] Multi-factor authentication enabled for admin access
-- [ ] Session management configured securely
-
-**Input Validation & Template Security:**
-- [ ] All user inputs validated and sanitized
-- [ ] File upload restrictions enforced
-- [ ] SQL injection prevention measures active
-- [ ] XSS protection enabled
+**Input Validation:**
+- [ ] Basic path traversal protection
+- [ ] Simple script injection detection
+- [ ] File size limits enforced
+- [ ] Input sanitization implemented
 
 **Network Security:**
 - [ ] HTTPS enforced for all communications
-- [ ] Security headers configured (CSP, HSTS, X-Frame-Options)
-- [ ] CORS policies properly restricted
-- [ ] Network access controls implemented
+- [ ] Basic rate limiting implemented
+- [ ] Timeout handling for external calls
+- [ ] Connection limits configured
 
-**Monitoring & Logging:**
-- [ ] Security event logging enabled
-- [ ] Failed authentication attempts monitored
-- [ ] Performance monitoring active
-- [ ] Audit trails configured
+**Monitoring:**
+- [ ] Basic performance monitoring
+- [ ] Error logging configured
+- [ ] Simple alerting for failures
+- [ ] Resource usage tracking
 </Callout>
 
 ## Related Documentation
 
-### 🔗 Core References
-
 <ReferenceCardList>
+  <ReferenceCard 
+    title="CLI Configuration" 
+    href="/docs/core/configuration/cli"
+    description="CLI commands for debugging and performance monitoring"
+    icon="Terminal"
+  />
   <ReferenceCard 
     title="Tools Overview" 
     href="/docs/core/tools/tools-overview"
     description="Comprehensive introduction to the Compozy tools system and architecture"
+    icon="Package"
   />
   <ReferenceCard 
     title="Runtime Environment" 
     href="/docs/core/tools/runtime-environment"
     description="Detailed documentation of Bun runtime security model and isolation"
-  />
-  <ReferenceCard 
-    title="Configuration Schemas" 
-    href="/docs/core/tools/configuration-schemas"
-    description="Schema validation and tool configuration patterns"
+    icon="Shield"
   />
   <ReferenceCard 
     title="Testing & Debugging" 
     href="/docs/core/tools/testing-debugging"
     description="Security testing and performance debugging techniques"
+    icon="Bug"
   />
-</ReferenceCardList>
-
-### 🛡️ Security-Related Topics
-
-<ReferenceCardList>
+  <ReferenceCard 
+    title="Advanced Patterns" 
+    href="/docs/core/tools/advanced-patterns"
+    description="Advanced performance optimization techniques"
+    icon="Zap"
+  />
   <ReferenceCard 
     title="Agent Security" 
     href="/docs/core/agents/security"
     description="Security considerations for AI agent interactions"
+    icon="Lock"
   />
   <ReferenceCard 
     title="MCP Security" 
     href="/docs/core/mcp/security"
     description="Model Context Protocol security implementation"
-  />
-  <ReferenceCard 
-    title="Workflow Security" 
-    href="/docs/core/workflows/security"
-    description="Secure workflow execution and task isolation"
+    icon="Shield"
   />
   <ReferenceCard 
     title="API Security" 
     href="/docs/api/security"
     description="REST API security headers and authentication"
-  />
-</ReferenceCardList>
-
-### ⚡ Performance Topics
-
-<ReferenceCardList>
-  <ReferenceCard 
-    title="Advanced Patterns" 
-    href="/docs/core/tools/advanced-patterns"
-    description="Advanced performance optimization techniques"
-  />
-  <ReferenceCard 
-    title="Memory Management" 
-    href="/docs/core/tools/memory-management"
-    description="Buffer pooling and memory optimization strategies"
-  />
-  <ReferenceCard 
-    title="Scaling & Load Testing" 
-    href="/docs/core/tools/scaling"
-    description="Performance testing and scalability considerations"
-  />
-  <ReferenceCard 
-    title="Monitoring & Metrics" 
-    href="/docs/core/tools/monitoring"
-    description="Performance monitoring and observability"
+    icon="Key"
   />
 </ReferenceCardList>
 

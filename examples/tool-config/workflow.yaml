@@ -1,0 +1,93 @@
+meta:
+  id: tool-config-example
+  version: 1.0.0
+  description: Example workflow demonstrating tool config parameter
+
+agents:
+  - id: config-demo-agent
+    instructions: |
+      You are a demonstration agent that showcases the tool config parameter feature.
+      Use the configured tools to show how static configuration is passed separately from runtime input.
+    config:
+      provider: openai
+      model: gpt-4
+    tools:
+      - $ref: "#/tools/api-caller"
+      - $ref: "#/tools/formatter"
+
+tools:
+  - id: api-caller
+    description: Makes API calls with configurable endpoint and settings
+    config:
+      base_url: https://api.example.com
+      timeout: 30
+      retry_count: 3
+      headers:
+        X-API-Version: "v2"
+        X-Client-ID: "demo-client"
+    input_schema:
+      type: object
+      properties:
+        endpoint:
+          type: string
+          description: The API endpoint to call (relative to base_url)
+        method:
+          type: string
+          enum: ["GET", "POST", "PUT", "DELETE"]
+          default: "GET"
+        data:
+          type: object
+          description: Request body data for POST/PUT requests
+      required: ["endpoint"]
+    output_schema:
+      type: object
+      properties:
+        status:
+          type: integer
+        response:
+          type: object
+        headers:
+          type: object
+
+  - id: formatter
+    description: Formats data according to configured rules
+    config:
+      format: json
+      indent: 2
+      sort_keys: true
+      date_format: ISO8601
+      number_precision: 2
+    input_schema:
+      type: object
+      properties:
+        data:
+          type: any
+          description: Data to format
+        override_format:
+          type: string
+          enum: ["json", "yaml", "xml", "csv"]
+          description: Override the default format from config
+      required: ["data"]
+    output_schema:
+      type: object
+      properties:
+        formatted:
+          type: string
+        format_used:
+          type: string
+
+workflows:
+  - id: demonstrate-config
+    description: Demonstrates tool config parameter usage
+    config:
+      entrypoint: basic
+    tasks:
+      basic:
+        type: basic
+        agent: config-demo-agent
+        prompt: |
+          Please demonstrate the tool config feature by:
+          1. Call the api-caller tool to fetch user data from endpoint "/users/123"
+          2. Format the response using the formatter tool
+          
+          Show how the tools use their configured defaults (base URL, formatting options, etc.)

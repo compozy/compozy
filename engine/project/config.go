@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strconv"
 
 	"dario.cat/mergo"
 	"github.com/compozy/compozy/engine/autoload"
@@ -15,7 +14,6 @@ import (
 	"github.com/compozy/compozy/engine/infra/cache"
 	"github.com/compozy/compozy/engine/infra/monitoring"
 	"github.com/compozy/compozy/engine/schema"
-	"github.com/compozy/compozy/pkg/logger"
 )
 
 // WorkflowSourceConfig defines the source location for a workflow file.
@@ -241,7 +239,7 @@ type Config struct {
 
 	// Runtime specifies the JavaScript/TypeScript execution environment for custom tools.
 	//
-	// $ref: inline:#runtime
+	// $ref: schema://application#runtime
 	Runtime RuntimeConfig `json:"runtime" yaml:"runtime" mapstructure:"runtime"`
 
 	// CacheConfig enables and configures caching for improved performance and cost reduction.
@@ -505,29 +503,6 @@ func (p *Config) Clone() (*Config, error) {
 	return core.DeepCopy(p)
 }
 
-// setIntConfigFromEnv sets an integer configuration value from environment variable if valid
-func setIntConfigFromEnv(envKey string, currentValue *int, defaultValue int, log logger.Logger) {
-	if *currentValue <= 0 {
-		*currentValue = defaultValue
-	}
-	if envValue := os.Getenv(envKey); envValue != "" {
-		if envInt, err := strconv.Atoi(envValue); err == nil {
-			if envInt > 0 {
-				*currentValue = envInt
-			} else {
-				log.Warn("Invalid environment variable",
-					"key", envKey, "value", envValue,
-					"error", "must be positive integer",
-					"using", *currentValue)
-			}
-		} else {
-			log.Warn("Invalid environment variable",
-				"key", envKey, "value", envValue,
-				"error", err, "using", *currentValue)
-		}
-	}
-}
-
 // setRuntimeDefaults sets secure and sensible default values for runtime configuration.
 // These defaults follow the principle of least privilege and prioritize security over convenience.
 func setRuntimeDefaults(runtime *RuntimeConfig) {
@@ -563,19 +538,6 @@ func setRuntimeDefaults(runtime *RuntimeConfig) {
 			"--allow-read", // Minimal read-only access for maximum security
 		}
 	}
-}
-
-// configureDispatcherOptions sets dispatcher-related configuration options from environment
-func configureDispatcherOptions(config *Config, log logger.Logger) {
-	setIntConfigFromEnv("MAX_NESTING_DEPTH", &config.Opts.MaxNestingDepth, 20, log)
-	setIntConfigFromEnv("MAX_STRING_LENGTH", &config.Opts.MaxStringLength, 10485760, log)
-	setIntConfigFromEnv("DISPATCHER_HEARTBEAT_INTERVAL", &config.Opts.DispatcherHeartbeatInterval, 30, log)
-	setIntConfigFromEnv("DISPATCHER_HEARTBEAT_TTL", &config.Opts.DispatcherHeartbeatTTL, 300, log)
-	setIntConfigFromEnv("DISPATCHER_STALE_THRESHOLD", &config.Opts.DispatcherStaleThreshold, 120, log)
-	setIntConfigFromEnv("MAX_MESSAGE_CONTENT_LENGTH", &config.Opts.MaxMessageContentLength, 10240, log)
-	setIntConfigFromEnv("MAX_TOTAL_CONTENT_SIZE", &config.Opts.MaxTotalContentSize, 102400, log)
-	setIntConfigFromEnv("ASYNC_TOKEN_COUNTER_WORKERS", &config.Opts.AsyncTokenCounterWorkers, 10, log)
-	setIntConfigFromEnv("ASYNC_TOKEN_COUNTER_BUFFER_SIZE", &config.Opts.AsyncTokenCounterBufferSize, 1000, log)
 }
 
 // loadAndPrepareConfig loads and prepares the configuration file
@@ -623,7 +585,5 @@ func Load(ctx context.Context, cwd *core.PathCWD, path string, envFilePath strin
 		return nil, err
 	}
 	config.SetEnv(env)
-	log := logger.FromContext(ctx)
-	configureDispatcherOptions(config, log)
 	return config, nil
 }

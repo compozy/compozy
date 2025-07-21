@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils";
 import type { LucideIcon } from "lucide-react";
 import { ArrowRight } from "lucide-react";
 import React from "react";
+import { Icon } from "@/components/ui/icon";
 import { tv, type VariantProps } from "tailwind-variants";
 
 const referenceCard = tv({
@@ -42,7 +43,7 @@ const referenceCard = tv({
 interface ReferenceCardProps extends VariantProps<typeof referenceCard> {
   title: string;
   description: string;
-  icon?: LucideIcon;
+  icon?: LucideIcon | string;
   href?: string;
   className?: string;
   onClick?: () => void;
@@ -51,16 +52,26 @@ interface ReferenceCardProps extends VariantProps<typeof referenceCard> {
 export function ReferenceCard({
   title,
   description,
-  icon: Icon,
+  icon: IconComponent,
   href,
   className,
   onClick,
 }: ReferenceCardProps) {
-  const styles = referenceCard({ hasIcon: !!Icon });
+  const styles = referenceCard({ hasIcon: !!IconComponent });
 
   const content = (
     <div className={styles.content()}>
-      {Icon && <Icon className={cn(styles.icon(), "size-8")} strokeWidth={1} />}
+      {IconComponent && (
+        typeof IconComponent === "string" ? (
+          <Icon 
+            name={IconComponent} 
+            className={cn(styles.icon(), "size-8")} 
+            strokeWidth={1} 
+          />
+        ) : (
+          <IconComponent className={cn(styles.icon(), "size-8")} strokeWidth={1} />
+        )
+      )}
       <div className={styles.textContent()}>
         <div className={styles.title()}>{title}</div>
         <div className={styles.description()}>{description}</div>

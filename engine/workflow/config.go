@@ -254,7 +254,6 @@ type Opts struct {
 //	tools:
 //	  - id: ticket-creator
 //	    description: "Creates support tickets via API"
-//	    execute: "./scripts/create-ticket.js"
 //	    env:
 //	      API_KEY: "{{ .workflow.env.SUPPORT_API_KEY }}"
 //

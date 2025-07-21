@@ -28,8 +28,6 @@ import {
   Wrench
 } from "lucide-react";
 
-# Security & Authentication
-
 The MCP Proxy provides comprehensive security features including token-based authentication, IP filtering, rate limiting, and security headers. This guide covers configuring and managing security for your MCP deployments with multi-layered protection strategies.
 
 <Callout type="warning">
@@ -56,7 +54,7 @@ graph TB
     L --> M[Request Logging]
     M --> N[MCP Proxy]
     N --> O[Target MCP Server]
-    
+
     subgraph "Security Layers"
         P[Network Layer] --> Q[Authentication Layer]
         Q --> R[Authorization Layer]
@@ -65,7 +63,7 @@ graph TB
 ```
 
 <Callout type="info">
-  <Shield className="w-4 h-4" />
+  <Icon name="shield" className="w-4 h-4" />
   **Defense in Depth**: Each security layer provides independent protection, ensuring that if one layer is compromised, others continue to protect your MCP infrastructure.
 </Callout>
 
@@ -73,8 +71,8 @@ graph TB
 
 Configure different authentication mechanisms based on your security requirements:
 
-<Tabs>
-<Tab title="Token-Based Authentication">
+<Tabs items={["Token-Based Authentication", "API Key Authentication", "JWT Authentication", "OAuth 2.0 / OpenID Connect"]}>
+<Tab value="Token-Based Authentication">
 
 The most common authentication method using Bearer tokens:
 
@@ -139,7 +137,7 @@ curl -H "Authorization: Bearer invalid-token" \
 
 </Tab>
 
-<Tab title="API Key Authentication">
+<Tab value="API Key Authentication">
 
 For API-based integrations with key-based authentication:
 
@@ -163,13 +161,13 @@ mcps:
 ```
 
 <Callout type="warning">
-  <Key className="w-4 h-4" />
+  <Icon name="key" className="w-4 h-4" />
   **Key Rotation**: Implement regular API key rotation to minimize security risk if keys are compromised.
 </Callout>
 
 </Tab>
 
-<Tab title="JWT Authentication">
+<Tab value="JWT Authentication">
 
 For stateless authentication with JSON Web Tokens:
 
@@ -224,7 +222,7 @@ func GenerateJWTToken(userID string, permissions []string, secret string) (strin
             IssuedAt:  jwt.NewNumericDate(time.Now()),
         },
     }
-    
+
     token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
     return token.SignedString([]byte(secret))
 }
@@ -232,7 +230,7 @@ func GenerateJWTToken(userID string, permissions []string, secret string) (strin
 
 </Tab>
 
-<Tab title="OAuth 2.0 / OpenID Connect">
+<Tab value="OAuth 2.0 / OpenID Connect">
 
 For enterprise-grade authentication with OAuth 2.0:
 
@@ -315,16 +313,16 @@ mcps:
         # Local development
         - "127.0.0.1"
         - "::1"
-        
+
         # Private networks
         - "192.168.0.0/16"
         - "10.0.0.0/8"
         - "172.16.0.0/12"
-        
+
         # Specific production IPs
         - "203.0.113.0/24"
         - "198.51.100.0/24"
-      
+
       # Block specific IPs
       ip_blacklist:
         - "192.168.1.100"
@@ -360,7 +358,7 @@ func NewIPManager() *IPManager {
 func (m *IPManager) IsAllowed(ip string) bool {
     m.mu.RLock()
     defer m.mu.RUnlock()
-    
+
     // Check blacklist first
     if expiry, exists := m.blacklist[ip]; exists {
         if time.Now().Before(expiry) {
@@ -369,7 +367,7 @@ func (m *IPManager) IsAllowed(ip string) bool {
         // Remove expired blacklist entry
         delete(m.blacklist, ip)
     }
-    
+
     // Check whitelist
     if expiry, exists := m.whitelist[ip]; exists {
         if time.Now().Before(expiry) {
@@ -378,7 +376,7 @@ func (m *IPManager) IsAllowed(ip string) bool {
         // Remove expired whitelist entry
         delete(m.whitelist, ip)
     }
-    
+
     return false
 }
 
@@ -399,7 +397,7 @@ func (m *IPManager) IsInNetwork(ip string, networks []string) bool {
     if clientIP == nil {
         return false
     }
-    
+
     for _, network := range networks {
         _, ipNet, err := net.ParseCIDR(network)
         if err != nil {
@@ -411,12 +409,12 @@ func (m *IPManager) IsInNetwork(ip string, networks []string) bool {
             }
             continue
         }
-        
+
         if ipNet.Contains(clientIP) {
             return true
         }
     }
-    
+
     return false
 }
 ```
@@ -437,14 +435,14 @@ mcps:
         requests_per_minute: 100
         requests_per_hour: 1000
         requests_per_day: 10000
-        
+
         # Burst capacity
         burst_size: 20
-        
+
         # Per-IP limits
         per_ip_requests_per_minute: 10
         per_ip_burst_size: 5
-        
+
         # Per-token limits
         per_token_requests_per_minute: 50
         per_token_burst_size: 10
@@ -493,27 +491,27 @@ func (rl *RateLimiter) Allow(key string, maxTokens, refillRate int) bool {
         rl.limits[key] = bucket
     }
     rl.mu.Unlock()
-    
+
     return bucket.consume()
 }
 
 func (tb *TokenBucket) consume() bool {
     tb.mu.Lock()
     defer tb.mu.Unlock()
-    
+
     now := time.Now()
     elapsed := now.Sub(tb.lastRefill)
-    
+
     // Refill tokens based on elapsed time
     tokensToAdd := int(elapsed.Seconds()) * tb.refillRate / 60 // per minute
     tb.tokens = min(tb.tokens+tokensToAdd, tb.maxTokens)
     tb.lastRefill = now
-    
+
     if tb.tokens > 0 {
         tb.tokens--
         return true
     }
-    
+
     return false
 }
 
@@ -530,12 +528,12 @@ func (rl *RateLimiter) CheckRequest(ip, token string) error {
     if !rl.Allow(fmt.Sprintf("ip:%s", ip), 10, 10) {
         return fmt.Errorf("rate limit exceeded for IP: %s", ip)
     }
-    
+
     // Check per-token rate limit
     if token != "" && !rl.Allow(fmt.Sprintf("token:%s", token), 50, 50) {
         return fmt.Errorf("rate limit exceeded for token")
     }
-    
+
     return nil
 }
 ```
@@ -578,28 +576,28 @@ func (sh *SecurityHeaders) Apply(w http.ResponseWriter) {
     if sh.CSPPolicy != "" {
         w.Header().Set("Content-Security-Policy", sh.CSPPolicy)
     }
-    
+
     if sh.HSTSMaxAge > 0 {
-        w.Header().Set("Strict-Transport-Security", 
+        w.Header().Set("Strict-Transport-Security",
             fmt.Sprintf("max-age=%d; includeSubDomains", int(sh.HSTSMaxAge.Seconds())))
     }
-    
+
     if sh.XFrameOptions != "" {
         w.Header().Set("X-Frame-Options", sh.XFrameOptions)
     }
-    
+
     if sh.XContentTypeOptions != "" {
         w.Header().Set("X-Content-Type-Options", sh.XContentTypeOptions)
     }
-    
+
     if sh.ReferrerPolicy != "" {
         w.Header().Set("Referrer-Policy", sh.ReferrerPolicy)
     }
-    
+
     if sh.PermissionsPolicy != "" {
         w.Header().Set("Permissions-Policy", sh.PermissionsPolicy)
     }
-    
+
     // Additional security headers
     w.Header().Set("X-XSS-Protection", "1; mode=block")
     w.Header().Set("X-DNS-Prefetch-Control", "off")
@@ -663,39 +661,39 @@ type CORSConfig struct {
 func (c *CORSConfig) Handler(next http.Handler) http.Handler {
     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
         origin := r.Header.Get("Origin")
-        
+
         // Check if origin is allowed
         if c.isOriginAllowed(origin) {
             w.Header().Set("Access-Control-Allow-Origin", origin)
         }
-        
+
         // Set other CORS headers
         if len(c.AllowedMethods) > 0 {
             w.Header().Set("Access-Control-Allow-Methods", strings.Join(c.AllowedMethods, ", "))
         }
-        
+
         if len(c.AllowedHeaders) > 0 {
             w.Header().Set("Access-Control-Allow-Headers", strings.Join(c.AllowedHeaders, ", "))
         }
-        
+
         if len(c.ExposedHeaders) > 0 {
             w.Header().Set("Access-Control-Expose-Headers", strings.Join(c.ExposedHeaders, ", "))
         }
-        
+
         if c.AllowCredentials {
             w.Header().Set("Access-Control-Allow-Credentials", "true")
         }
-        
+
         if c.MaxAge > 0 {
             w.Header().Set("Access-Control-Max-Age", fmt.Sprintf("%d", c.MaxAge))
         }
-        
+
         // Handle preflight requests
         if r.Method == "OPTIONS" {
             w.WriteHeader(http.StatusOK)
             return
         }
-        
+
         next.ServeHTTP(w, r)
     })
 }
@@ -704,12 +702,12 @@ func (c *CORSConfig) isOriginAllowed(origin string) bool {
     if len(c.AllowedOrigins) == 0 {
         return false
     }
-    
+
     for _, allowed := range c.AllowedOrigins {
         if allowed == "*" || allowed == origin {
             return true
         }
-        
+
         // Support wildcards
         if strings.HasPrefix(allowed, "*.") {
             domain := strings.TrimPrefix(allowed, "*.")
@@ -718,7 +716,7 @@ func (c *CORSConfig) isOriginAllowed(origin string) bool {
             }
         }
     }
-    
+
     return false
 }
 ```
@@ -775,7 +773,7 @@ func (tc *TLSConfig) BuildTLSConfig() (*tls.Config, error) {
     config := &tls.Config{
         InsecureSkipVerify: tc.InsecureSkipVerify,
     }
-    
+
     // Load certificate and key
     if tc.CertFile != "" && tc.KeyFile != "" {
         cert, err := tls.LoadX509KeyPair(tc.CertFile, tc.KeyFile)
@@ -784,21 +782,21 @@ func (tc *TLSConfig) BuildTLSConfig() (*tls.Config, error) {
         }
         config.Certificates = []tls.Certificate{cert}
     }
-    
+
     // Load CA certificate
     if tc.CAFile != "" {
         caCert, err := ioutil.ReadFile(tc.CAFile)
         if err != nil {
             return nil, fmt.Errorf("failed to read CA certificate: %w", err)
         }
-        
+
         caCertPool := x509.NewCertPool()
         if !caCertPool.AppendCertsFromPEM(caCert) {
             return nil, fmt.Errorf("failed to parse CA certificate")
         }
         config.RootCAs = caCertPool
     }
-    
+
     // Set TLS versions
     if tc.MinVersion != "" {
         config.MinVersion = tc.tlsVersionFromString(tc.MinVersion)
@@ -806,12 +804,12 @@ func (tc *TLSConfig) BuildTLSConfig() (*tls.Config, error) {
     if tc.MaxVersion != "" {
         config.MaxVersion = tc.tlsVersionFromString(tc.MaxVersion)
     }
-    
+
     // Set cipher suites
     if len(tc.CipherSuites) > 0 {
         config.CipherSuites = tc.cipherSuitesFromStrings(tc.CipherSuites)
     }
-    
+
     return config, nil
 }
 
@@ -885,14 +883,14 @@ func NewAuditLogger() *AuditLogger {
     logger := &AuditLogger{
         events: make(chan AuditEvent, 1000),
     }
-    
+
     go logger.processEvents()
     return logger
 }
 
 func (al *AuditLogger) LogEvent(event AuditEvent) {
     event.Timestamp = time.Now()
-    
+
     select {
     case al.events <- event:
     default:
@@ -916,7 +914,7 @@ func (al *AuditLogger) logToJSON(event AuditEvent) {
         fmt.Printf("Failed to marshal audit event: %v\n", err)
         return
     }
-    
+
     fmt.Printf("AUDIT: %s\n", string(data))
 }
 
@@ -932,12 +930,12 @@ func (al *AuditLogger) logToDatabase(event AuditEvent) {
 func (al *AuditLogger) AuditMiddleware(next http.Handler) http.Handler {
     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
         startTime := time.Now()
-        
+
         // Capture response
         recorder := &responseRecorder{ResponseWriter: w, statusCode: 200}
-        
+
         next.ServeHTTP(recorder, r)
-        
+
         // Log the request
         al.LogEvent(AuditEvent{
             Type:       "http_request",
@@ -1021,7 +1019,7 @@ func (sm *SecurityMetrics) IncrementSecurityViolations() {
 func (sm *SecurityMetrics) GetMetrics() map[string]interface{} {
     sm.mu.RLock()
     defer sm.mu.RUnlock()
-    
+
     return map[string]interface{}{
         "authentication_attempts": sm.AuthenticationAttempts,
         "authentication_failures": sm.AuthenticationFailures,
@@ -1090,7 +1088,7 @@ import { MCPSecurityTester } from '../helpers/security-tester';
 
 describe('MCP Authentication', () => {
   let tester: MCPSecurityTester;
-  
+
   beforeEach(() => {
     tester = new MCPSecurityTester({
       baseUrl: 'http://localhost:8081',
@@ -1204,7 +1202,7 @@ import { MCPAuthorizationTester } from '../helpers/authorization-tester';
 
 describe('MCP Authorization', () => {
   let tester: MCPAuthorizationTester;
-  
+
   beforeEach(() => {
     tester = new MCPAuthorizationTester({
       baseUrl: 'http://localhost:8081'
@@ -1234,7 +1232,7 @@ describe('MCP Authorization', () => {
 
     it('should restrict user access to appropriate endpoints', async () => {
       const userToken = await tester.getUserToken();
-      
+
       // Allowed endpoints
       const allowedEndpoints = [
         '/api/v1/mcp/list',
@@ -1271,7 +1269,7 @@ describe('MCP Authorization', () => {
 
     it('should enforce read-only access', async () => {
       const readOnlyToken = await tester.getReadOnlyToken();
-      
+
       // GET requests should succeed
       const getResult = await tester.testEndpointAccess({
         endpoint: '/api/v1/mcp/list',
@@ -1295,7 +1293,7 @@ describe('MCP Authorization', () => {
   describe('Resource-Level Permissions', () => {
     it('should enforce server-specific permissions', async () => {
       const serverToken = await tester.getServerSpecificToken('filesystem');
-      
+
       // Should access allowed server
       const allowedResult = await tester.testToolCall({
         server: 'filesystem',
@@ -1317,7 +1315,7 @@ describe('MCP Authorization', () => {
 
     it('should enforce tool-specific permissions', async () => {
       const toolToken = await tester.getToolSpecificToken('filesystem', 'read_file');
-      
+
       // Should access allowed tool
       const allowedResult = await tester.testToolCall({
         server: 'filesystem',
@@ -1355,7 +1353,7 @@ import { MCPPenetrationTester } from '../helpers/penetration-tester';
 
 describe('MCP Penetration Testing', () => {
   let tester: MCPPenetrationTester;
-  
+
   beforeEach(() => {
     tester = new MCPPenetrationTester({
       baseUrl: 'http://localhost:8081',
@@ -1515,7 +1513,7 @@ import { MCPComplianceTester } from '../helpers/compliance-tester';
 
 describe('MCP Compliance Testing', () => {
   let tester: MCPComplianceTester;
-  
+
   beforeEach(() => {
     tester = new MCPComplianceTester({
       baseUrl: 'http://localhost:8081',
@@ -1526,7 +1524,7 @@ describe('MCP Compliance Testing', () => {
   describe('GDPR Compliance', () => {
     it('should support data subject rights', async () => {
       const dataSubjectId = 'test-user-123';
-      
+
       // Test right to access
       const accessResult = await tester.testDataAccess({
         subjectId: dataSubjectId,
@@ -1651,8 +1649,8 @@ describe('MCP Compliance Testing', () => {
 
 ## Security Testing
 
-<Tabs>
-<Tab title="Authentication Testing">
+<Tabs items={["Authentication Testing", "Rate Limiting Testing", "IP Filtering Testing", "Security Headers Testing", "Penetration Testing"]}>
+<Tab value="Authentication Testing">
 
 Test different authentication scenarios:
 
@@ -1679,7 +1677,7 @@ curl -H "Authorization: Bearer $EXPIRED_JWT_TOKEN" \
 
 </Tab>
 
-<Tab title="Rate Limiting Testing">
+<Tab value="Rate Limiting Testing">
 
 Test rate limiting mechanisms:
 
@@ -1708,7 +1706,7 @@ curl -H "X-Forwarded-For: 192.168.1.100" \
 
 </Tab>
 
-<Tab title="IP Filtering Testing">
+<Tab value="IP Filtering Testing">
 
 Test IP whitelist and blacklist functionality:
 
@@ -1736,7 +1734,7 @@ curl -H "X-Forwarded-For: ::1" \
 
 </Tab>
 
-<Tab title="Security Headers Testing">
+<Tab value="Security Headers Testing">
 
 Verify security headers are properly set:
 
@@ -1760,7 +1758,7 @@ curl -I -X OPTIONS \
 
 </Tab>
 
-<Tab title="Penetration Testing">
+<Tab value="Penetration Testing">
 
 Basic security validation tests:
 
@@ -1963,20 +1961,20 @@ mcps:
       token: "{{ .env.MCP_PRODUCTION_TOKEN }}"
       header: "Authorization"
       prefix: "Bearer"
-    
+
     security:
       # IP restrictions
       ip_whitelist:
         - "10.0.0.0/8"
         - "172.16.0.0/12"
         - "192.168.0.0/16"
-      
+
       # Rate limiting
       rate_limit:
         requests_per_minute: 60
         burst_size: 10
         per_ip_requests_per_minute: 10
-      
+
       # CORS configuration
       cors:
         enabled: true
@@ -1985,7 +1983,7 @@ mcps:
         allowed_methods: ["GET", "POST"]
         allow_credentials: true
         max_age: 86400
-      
+
       # TLS configuration
       tls:
         enabled: true
@@ -2019,7 +2017,7 @@ This comprehensive security configuration ensures your MCP deployments are prote
 
 **Response Procedures:**
 1. Immediate: Block suspicious IPs
-2. Short-term: Rotate compromised tokens  
+2. Short-term: Rotate compromised tokens
 3. Long-term: Security incident analysis
 
 </ReferenceCard>
@@ -2064,7 +2062,7 @@ security:
   ip_whitelist:
     - "127.0.0.1"      # Local
     - "10.0.0.0/8"     # Private
-    - "172.16.0.0/12"  # Private  
+    - "172.16.0.0/12"  # Private
     - "192.168.0.0/16" # Private
 ```
 
@@ -2131,7 +2129,7 @@ graph LR
     D --> E[+0.3ms Security Headers]
     E --> F[+0.2ms CORS]
     F --> G[MCP Processing]
-    
+
     subgraph "Security Overhead"
         H["Total: ~4ms additional latency"]
         I["Memory: ~1MB per 1000 concurrent connections"]
@@ -2139,8 +2137,8 @@ graph LR
     end
 ```
 
-<Callout type="tip">
-  <Activity className="w-4 h-4" />
+<Callout type="info">
+  <Icon name="activity" className="w-4 h-4" />
   **Performance Optimization**: Security features add minimal overhead (< 5ms) but provide significant protection. The performance cost is negligible compared to the security benefits.
 </Callout>
 

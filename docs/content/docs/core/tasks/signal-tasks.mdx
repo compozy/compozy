@@ -490,9 +490,9 @@ routes:
           message: "{{ .task.output.message }}"
 ```
 
-### Multi-Signal Broadcasting
+### Multiple Signals
 
-Send multiple related signals:
+Send several related signals:
 
 ```yaml
 id: multi-signal-broadcast
@@ -505,31 +505,14 @@ tasks:
       payload:
         task_id: "{{ .workflow.input.task_id }}"
         status: "completed"
-        result: "{{ .parent.previous_task.output }}"
-  
-  - id: notify-stakeholders
-    type: signal
-    signal:
-      id: "stakeholder-notification"
-      payload:
-        event_type: "task-completion"
-        task_id: "{{ .workflow.input.task_id }}"
-        stakeholders: "{{ .workflow.input.stakeholders }}"
-        notification_data: "{{ .parent.previous_task.output }}"
   
   - id: update-metrics
     type: signal
     signal:
       id: "metrics-update"
       payload:
-        metric_type: "task_completion"
         task_id: "{{ .workflow.input.task_id }}"
-        duration: "{{ .parent.previous_task.duration }}"
         success: true
-        
-outputs:
-  all_signals_sent: "{{ .tasks | map(attr='outputs.signal_dispatched') | all }}"
-  notification_count: "{{ .tasks | length }}"
 ```
 
 ### Signal Chaining
@@ -807,6 +790,25 @@ outputs:
   success_rate: "{{ .outputs.signals_sent / .outputs.total_items }}"
 ```
 
+## CLI Commands
+
+The Compozy CLI provides these commands for managing signal tasks:
+
+```bash
+# List all workflows
+compozy workflow list
+
+# Execute a signal workflow
+compozy workflow execute my-signal-workflow
+
+# Get workflow details  
+compozy workflow get my-signal-workflow
+```
+
+<Callout type="info">
+**Signal Management Commands**: Additional CLI commands for sending signals and monitoring signal tasks are planned for future releases, including `compozy signal send` and `compozy signal list`.
+</Callout>
+
 ## Best Practices
 
 ### Signal Design
@@ -919,36 +921,55 @@ signal:
 
 Signal tasks form the foundation of event-driven workflows in Compozy, enabling loose coupling, scalable coordination, and sophisticated inter-workflow communication patterns. Their immediate execution and flexible payload system make them ideal for creating responsive, event-driven applications.
 
-## Related Documentation
+## References
 
-<FeatureCardList cols={2}>
-  <FeatureCard title="Wait Tasks" href="/docs/core/signals/wait-tasks">
-    Learn how to receive and process signals from signal tasks
-  </FeatureCard>
-  <FeatureCard title="Signal Overview" href="/docs/core/signals/signal-overview">
-    Understand the complete signal system architecture and patterns
-  </FeatureCard>
-  <FeatureCard title="Signal Triggers" href="/docs/core/signals/signal-triggers">
-    Use signals to trigger workflow execution and orchestration
-  </FeatureCard>
-  <FeatureCard title="Event API" href="/docs/core/signals/event-api">
-    Programmatically send signals and manage event-driven workflows
-  </FeatureCard>
-</FeatureCardList>
-
-## Next Steps
-
-<FeatureCardList cols={2}>
-  <FeatureCard title="Advanced Patterns" href="/docs/core/signals/advanced-patterns">
-    Explore sophisticated signal patterns and coordination strategies
-  </FeatureCard>
-  <FeatureCard title="Workflow Orchestration" href="/docs/core/tasks/flow-control">
-    Master complex workflow coordination using signals and other tasks
-  </FeatureCard>
-  <FeatureCard title="Error Handling" href="/docs/core/tasks/error-handling">
-    Implement robust error handling in signal-driven workflows
-  </FeatureCard>
-  <FeatureCard title="Performance Optimization" href="/docs/core/tasks/performance">
-    Optimize signal performance for high-throughput scenarios
-  </FeatureCard>
-</FeatureCardList>
+<ReferenceCardList>
+  <ReferenceCard
+    title="Wait Tasks"
+    description="Learn how to receive and process signals from signal tasks"
+    href="/docs/core/signals/wait-tasks"
+    icon="Clock"
+  />
+  <ReferenceCard
+    title="Signal Overview"
+    description="Understand the complete signal system architecture and patterns"
+    href="/docs/core/signals/signal-overview"
+    icon="Radio"
+  />
+  <ReferenceCard
+    title="Signal Triggers"
+    description="Use signals to trigger workflow execution and orchestration"
+    href="/docs/core/signals/signal-triggers"
+    icon="Zap"
+  />
+  <ReferenceCard
+    title="Event API"
+    description="Programmatically send signals and manage event-driven workflows"
+    href="/docs/core/signals/event-api"
+    icon="Code"
+  />
+  <ReferenceCard
+    title="Advanced Patterns"
+    description="Explore sophisticated signal patterns and coordination strategies"
+    href="/docs/core/signals/advanced-patterns"
+    icon="Settings"
+  />
+  <ReferenceCard
+    title="Workflow Orchestration"
+    description="Master complex workflow coordination using signals and other tasks"
+    href="/docs/core/tasks/flow-control"
+    icon="GitBranch"
+  />
+  <ReferenceCard
+    title="Error Handling"
+    description="Implement robust error handling in signal-driven workflows"
+    href="/docs/core/tasks/error-handling"
+    icon="AlertCircle"
+  />
+  <ReferenceCard
+    title="Performance Optimization"
+    description="Optimize signal performance for high-throughput scenarios"
+    href="/docs/core/tasks/performance"
+    icon="Gauge"
+  />
+</ReferenceCardList>

@@ -1,20 +1,55 @@
-name: main-workflow
-description: Main workflow for {{ .Name }}
-version: "1.0"
+id: main-workflow
+version: 0.1.0
+description: Generate personalized greetings
+
+schemas:
+  - id: greeting_input
+    type: object
+    properties:
+      name:
+        type: string
+        description: The person's name to greet
+      style:
+        type: string
+        description: Greeting style (friendly, formal, casual, enthusiastic)
+        default: friendly
+    required:
+      - name
+      - style
+
+config:
+  input:
+    $ref: schemas.#(id=="greeting_input")
+
+tools:
+  - id: greeting_tool
+    description: Generate personalized greetings
+    input:
+      $ref: schemas.#(id=="greeting_input")
+
+agents:
+  - id: greeter
+    config:
+      $ref: global::models.#(provider=="openai")
+    instructions: |
+      You are a friendly assistant that creates personalized greetings.
+      Use the greeting tool to generate an appropriate greeting, then enhance it with a thoughtful message.
+    tools:
+      - $ref: local::tools.#(id=="greeting_tool")
+    actions:
+      - id: create_greeting
+        prompt: |
+          Please create a greeting for {{`{{ .workflow.input.name }}`}} using the {{`{{ .workflow.input.style }}`}} style.
+          After generating the greeting, add a brief, personalized message to make it more engaging.
 
 tasks:
-  - name: welcome
+  - id: greet
     type: basic
-    agent: 
-      provider: groq
-      model: llama-3.3-70b-versatile
-      instructions: |
-        You are a helpful assistant for the {{ .Name }} project.
-        Welcome the user and provide helpful information.
-      input: |
-        Welcome to {{ .Name }}!
-        
-        This is your main workflow. You can customize it to fit your needs.
-        
-        Project Description: {{ .Description }}
-        Version: {{ .Version }}
+    $use: agent(local::agents.#(id=="greeter"))
+    action: create_greeting
+    final: true
+
+outputs:
+  greeting: "{{`{{ .tasks.greet.output }}`}}"
+  user: "{{`{{ .workflow.input.name }}`}}"
+  style: "{{`{{ .workflow.input.style }}`}}"

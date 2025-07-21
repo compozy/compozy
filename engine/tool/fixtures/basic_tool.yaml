@@ -1,6 +1,10 @@
 id: code-formatter
 description: A tool for formatting code
-execute: ./format.ts
+
+# Optional: Configuration parameters for the tool
+# config:
+#   style_guide: "standard"
+#   max_line_length: 80
 
 input:
   type: object

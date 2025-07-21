@@ -5,6 +5,22 @@ description: Understanding basic task execution in Compozy workflows with agents
 
 Basic tasks are the fundamental building blocks of Compozy workflows. They represent single-step operations that execute agents or tools to perform specific work. Every workflow ultimately decomposes into basic tasks that handle the actual processing.
 
+## Task Execution Types
+
+Compozy supports 9 task types that determine how tasks are processed:
+
+| Task Type | Purpose | Example Use Case |
+|-----------|---------|------------------|
+| `basic` | Single agent/tool execution | Text analysis, API calls |
+| `router` | Conditional task routing | Decision points, branching logic |
+| `parallel` | Concurrent task execution | Independent operations |
+| `collection` | Array/list processing | Batch data processing |
+| `composite` | Sequential task groups | Multi-step workflows |
+| `aggregate` | Result combining | Data consolidation, report generation |
+| `wait` | Conditional delays | Resource availability, timing |
+| `signal` | Event communication | Cross-workflow coordination |
+| `memory` | State persistence | Long-running processes |
+
 ## Related Documentation
 
 ### 🔗 Cross-References
@@ -16,7 +32,7 @@ Basic tasks are the fundamental building blocks of Compozy workflows. They repre
 - **[Template Functions](/docs/core/yaml-templates/sprig-functions)** - Transform and manipulate task data
 
 ### ⚙️ Task-Related Topics
-- **Basic Tasks** ↔ **[Other Task Types](/docs/core/tasks/aggregate-tasks)** ↔ **[Advanced Patterns](/docs/core/tasks/advanced-patterns)**
+- **Basic Tasks** ↔ **[Collection Tasks](/docs/core/tasks/collection-tasks)** ↔ **[Advanced Patterns](/docs/core/tasks/advanced-patterns)**
 - **Task Execution** ↔ **[Agent Actions](/docs/core/agents/instructions-actions)** ↔ **[Tool Development](/docs/core/tools/typescript-development)**
 - **Flow Control** ↔ **[Workflow Configuration](/docs/core/configuration/workflows)** ↔ **[Signal Communication](/docs/core/signals/signal-overview)**
 
@@ -42,7 +58,6 @@ Every basic task shares this fundamental structure:
 
 ```yaml
 id: task-name
-type: basic
 $use: agent(local::agents.#(id=="agent-id")) # OR tool(local::tools.#(id=="tool-id"))
 action: action-name # For agents only
 with:
@@ -55,6 +70,10 @@ on_error:
   next: error-handler
 ```
 
+<Callout type="info">
+**Note**: The task type is determined by its structure. Basic tasks are the default when using a single agent or tool execution without complex orchestration patterns.
+</Callout>
+
 ### Key Components
 
 <Tabs items={["Agent Tasks", "Tool Tasks", "Configuration", "Flow Control"]}>
@@ -64,7 +83,6 @@ Agent tasks execute AI models with specific instructions:
 
 ```yaml
 id: analyze-text
-type: basic
 $use: agent(local::agents.#(id=="text-analyzer"))
 action: analyze_sentiment
 
@@ -95,7 +113,6 @@ Tool tasks execute TypeScript functions in secure Bun runtime:
 
 ```yaml
 id: format-code
-type: basic
 $use: tool(local::tools.#(id=="formatter"))
 
 # Tool configuration (can be inline or referenced)
@@ -122,7 +139,6 @@ Comprehensive task configuration options:
 
 ```yaml
 id: complete-task-example
-type: basic
 $use: agent(local::agents.#(id=="processor"))
 action: process_data
 
@@ -175,7 +191,6 @@ Advanced flow control and error handling:
 
 ```yaml
 id: resilient-task
-type: basic
 $use: agent(local::agents.#(id=="processor"))
 action: process
 
@@ -222,7 +237,6 @@ Choose agent tasks for:
 ```yaml
 # Example: Content analysis agent
 id: analyze-content
-type: basic
 $use: agent(local::agents.#(id=="content-analyst"))
 action: analyze_content
 
@@ -269,7 +283,6 @@ Choose tool tasks for:
 ```yaml
 # Example: Data processing tool
 id: process-csv
-type: basic
 $use: tool(local::tools.#(id=="csv-processor"))
 
 tool:
@@ -365,7 +378,6 @@ outputs:
 
 ```yaml
 id: extract-text
-type: basic
 $use: tool(local::tools.#(id=="text-extractor"))
 
 with:
@@ -388,7 +400,6 @@ on_success:
 
 ```yaml
 id: analyze-content
-type: basic
 $use: agent(local::agents.#(id=="document-analyzer"))
 action: analyze_document
 
@@ -412,7 +423,6 @@ on_success:
 
 ```yaml
 id: generate-summary
-type: basic
 $use: agent(local::agents.#(id=="summarizer"))
 action: create_summary
 
@@ -435,7 +445,6 @@ final: true
 
 ```yaml
 id: fetch-user-data
-type: basic
 $use: tool(local::tools.#(id=="api-client"))
 
 # Comprehensive input validation
@@ -490,7 +499,6 @@ on_error:
 
 ```yaml
 id: transform-data
-type: basic
 $use: tool(local::tools.#(id=="data-transformer"))
 
 with:
@@ -543,7 +551,6 @@ on_success:
 ```yaml
 # Efficient task configuration
 id: optimized-task
-type: basic
 $use: tool(local::tools.#(id=="processor"))
 
 # Set appropriate timeouts
@@ -572,7 +579,6 @@ outputs:
 
 ```yaml
 id: resilient-task
-type: basic
 $use: agent(local::agents.#(id=="processor"))
 action: process
 
@@ -608,7 +614,6 @@ start_to_close_timeout: 5m
 ```yaml
 # Execute task only if condition is met
 id: conditional-task
-type: basic
 $use: agent(local::agents.#(id=="processor"))
 action: process
 
@@ -624,7 +629,6 @@ condition: "{{ ne .workflow.input.data null }}"
 
 ```yaml
 id: validate-input
-type: basic
 $use: tool(local::tools.#(id=="validator"))
 
 input:
@@ -655,36 +659,116 @@ with:
 
 Basic tasks form the foundation of all Compozy workflows, providing flexible, reliable execution of both AI agents and tools. Their template system enables dynamic configuration, while their error handling ensures robust operation in production environments.
 
+## CLI Commands
+
+The Compozy CLI provides comprehensive commands for managing workflows, authentication, and configuration:
+
+### Core Commands
+```bash
+# Initialize a new project
+compozy init
+
+# Start development mode with hot reload
+compozy dev
+
+# Start production services
+compozy start
+
+# Start MCP proxy service
+compozy mcp-proxy
+```
+
+### Workflow Management
+```bash
+# List all workflows
+compozy workflow list
+
+# Get workflow details
+compozy workflow get <workflow-id>
+
+# Execute a workflow
+compozy workflow execute <workflow-id>
+```
+
+### Authentication & API Keys
+```bash
+# Generate a new API key
+compozy auth generate --name "my-key"
+
+# List all API keys
+compozy auth list
+
+# Revoke an API key
+compozy auth revoke <key-id>
+
+# User management
+compozy auth create-user --email "user@example.com" --name "User Name"
+compozy auth list-users
+compozy auth update-user <user-id> --role admin
+compozy auth delete-user <user-id>
+```
+
+### Configuration Management
+```bash
+# Show current configuration values
+compozy config show
+
+# Run configuration diagnostics
+compozy config diagnostics
+
+# Validate configuration file
+compozy config validate
+```
+
 ## Related Documentation
 
-<FeatureCardList cols={2}>
-  <FeatureCard title="Agent Integration" href="/docs/core/agents/overview">
-    Learn how to integrate AI agents with basic tasks for intelligent processing
-  </FeatureCard>
-  <FeatureCard title="Tool Development" href="/docs/core/tools/tools-overview">
-    Understand how to create and use TypeScript tools in basic tasks
-  </FeatureCard>
-  <FeatureCard title="Memory Systems" href="/docs/core/memory/memory-concepts">
-    Add persistent memory to your task workflows for stateful processing
-  </FeatureCard>
-  <FeatureCard title="MCP Integration" href="/docs/core/mcp/mcp-overview">
-    Extend task capabilities with external MCP servers and tools
-  </FeatureCard>
-</FeatureCardList>
-
-## Next Steps
-
-<FeatureCardList cols={2}>
-  <FeatureCard title="Parallel Processing" href="/docs/core/tasks/parallel-processing">
-    Scale your workflows with parallel task execution patterns
-  </FeatureCard>
-  <FeatureCard title="Flow Control" href="/docs/core/tasks/flow-control">
-    Master conditional routing and complex workflow orchestration
-  </FeatureCard>
-  <FeatureCard title="Workflow Patterns" href="/docs/core/examples/basic-examples">
-    Explore real-world examples and common task patterns
-  </FeatureCard>
-  <FeatureCard title="Signals & Coordination" href="/docs/core/signals/signal-overview">
-    Coordinate tasks across workflows with signal patterns
-  </FeatureCard>
-</FeatureCardList>
+<ReferenceCardList>
+  <ReferenceCard
+    title="Agent Integration"
+    description="Learn how to integrate AI agents with basic tasks for intelligent processing"
+    href="/docs/core/agents/overview"
+    icon="Bot"
+  />
+  <ReferenceCard
+    title="Tool Development"
+    description="Understand how to create and use TypeScript tools in basic tasks"
+    href="/docs/core/tools/tools-overview"
+    icon="Wrench"
+  />
+  <ReferenceCard
+    title="Memory Systems"
+    description="Add persistent memory to your task workflows for stateful processing"
+    href="/docs/core/memory/memory-concepts"
+    icon="Database"
+  />
+  <ReferenceCard
+    title="MCP Integration"
+    description="Extend task capabilities with external MCP servers and tools"
+    href="/docs/core/mcp/mcp-overview"
+    icon="Plug"
+  />
+  <ReferenceCard
+    title="Parallel Processing"
+    description="Scale your workflows with parallel task execution patterns"
+    href="/docs/core/tasks/parallel-processing"
+    icon="Zap"
+  />
+  <ReferenceCard
+    title="Flow Control"
+    description="Master conditional routing and complex workflow orchestration"
+    href="/docs/core/tasks/flow-control"
+    icon="GitBranch"
+  />
+  <ReferenceCard
+    title="Workflow Patterns"
+    description="Explore real-world examples and common task patterns"
+    href="/docs/core/examples/basic-examples"
+    icon="FileText"
+  />
+  <ReferenceCard
+    title="Signals & Coordination"
+    description="Coordinate tasks across workflows with signal patterns"
+    href="/docs/core/signals/signal-overview"
+    icon="Radio"
+  />
+</ReferenceCardList>

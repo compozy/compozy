@@ -3,20 +3,24 @@ title: "Advanced Patterns"
 description: "Sophisticated template techniques for complex workflows and dynamic configurations"
 ---
 
-# Advanced Template Patterns
+Advanced template patterns enable sophisticated workflows, dynamic configurations, and complex data transformations in Compozy. This guide covers techniques for building powerful, maintainable template-driven systems.
 
-Advanced template patterns enable sophisticated workflows, dynamic configurations, and complex data transformations in Compozy. This guide covers advanced techniques for building powerful, maintainable template-driven systems.
+## Prerequisites
 
-Before diving into advanced patterns, ensure you're familiar with [Sprig Functions](./sprig-functions) for data manipulation and [Context Variables](./context-variables) for understanding available data sources. For security best practices with these advanced patterns, refer to the [Security Functions](./sprig-functions#compozy-specific-security-functions) section.
+<Callout type="info">
+  Before exploring advanced patterns, ensure you understand [Sprig Functions](./sprig-functions) for data manipulation and [Context Variables](./context-variables) for data access patterns.
+</Callout>
 
 ## Dynamic Resource Selection
 
-### Runtime Tool Selection
+Dynamic resource selection allows runtime decision-making based on context, conditions, and environment variables.
 
-Select tools dynamically based on context and conditions:
+<Tabs items={["Tool Selection", "Agent Selection", "Environment Config"]}>
+<Tab>
+**Dynamic tool selection** adapts to input types and conditions:
 
 ```yaml
-# Dynamic tool selection based on input type
+# Runtime tool selection based on data type
 - id: process_data
   type: basic
   $use: |
@@ -25,8 +29,6 @@ Select tools dynamically based on context and conditions:
       tool(local::tools.#(id=="image_processor"))
     {{- else if eq $data_type "text" -}}
       tool(local::tools.#(id=="text_processor"))
-    {{- else if eq $data_type "video" -}}
-      tool(local::tools.#(id=="video_processor"))
     {{- else -}}
       tool(local::tools.#(id=="generic_processor"))
     {{- end -}}
@@ -35,12 +37,14 @@ Select tools dynamically based on context and conditions:
     processor_config: "{{ .workflow.input.config }}"
 ```
 
-### Conditional Agent Selection
+**Use cases**: Multi-format data processing, conditional tool chains, adaptive workflows.
+</Tab>
 
-Choose agents based on complexity or domain:
+<Tab>
+**Dynamic agent selection** chooses specialized agents based on complexity or domain:
 
 ```yaml
-# Select agent based on query complexity
+# Agent selection based on query complexity and domain
 - id: analyze_query
   type: basic
   $use: |
@@ -57,32 +61,39 @@ Choose agents based on complexity or domain:
     {{- end -}}
 ```
 
-### Environment-Based Configuration
+**Decision factors**: Domain expertise, complexity scores, user permissions, resource availability.
+</Tab>
 
-Adapt configurations based on environment:
+<Tab>
+**Environment-based configuration** adapts to deployment contexts:
 
 ```yaml
 # Environment-specific model selection
 model_config: |
   {{- $env := .env.DEPLOYMENT_ENV | default "development" -}}
   {{- if eq $env "production" -}}
-    {{- $ref := "global::models.#(tier=='premium' && provider=='openai')" -}}
+    global::models.#(tier=='premium' && provider=='openai')
   {{- else if eq $env "staging" -}}
-    {{- $ref := "global::models.#(tier=='standard' && provider=='groq')" -}}
+    global::models.#(tier=='standard' && provider=='groq')
   {{- else -}}
-    {{- $ref := "global::models.#(tier=='basic' && provider=='ollama')" -}}
+    global::models.#(tier=='basic' && provider=='ollama')
   {{- end -}}
-  {{ $ref }}
 ```
+
+**Environment patterns**: Production vs. development configs, region-specific resources, cost optimization.
+</Tab>
+</Tabs>
 
 ## Template Composition
 
-### Reusable Template Fragments
+Template composition enables reusable, maintainable configurations through fragments and inheritance.
 
-Create reusable template components:
+<Tabs items={["Reusable Fragments", "Template Inheritance", "Data Transformation"]}>
+<Tab>
+**Reusable fragments** create modular template components:
 
 ```yaml
-# Define reusable fragments
+# Define reusable template fragments
 fragments:
   - id: auth_headers
     template: |
@@ -94,7 +105,7 @@ fragments:
     template: |
       {
         "error": true,
-        "message": "{{ .error_message }}",
+        "message": "{{ .error_message | htmlEscape }}",
         "timestamp": "{{ now | date '2006-01-02T15:04:05Z' }}",
         "request_id": "{{ .workflow.id }}"
       }
@@ -110,16 +121,18 @@ fragments:
       $template: "{{ .fragments.error_response }}"
 ```
 
-### Template Inheritance
+**Benefits**: Reduced duplication, consistent patterns, easier maintenance.
+</Tab>
 
-Build complex templates from simpler ones:
+<Tab>
+**Template inheritance** builds complex templates from simpler ones:
 
 ```yaml
 # Base notification template
 base_notification: |
   Dear {{ .user.name | default "User" }},
   
-  {{ .message }}
+  {{ .message | htmlEscape }}
   
   Best regards,
   The {{ .env.APP_NAME | default "Compozy" }} Team
@@ -128,7 +141,7 @@ base_notification: |
 action_notification: |
   {{ template "base" . }}
   
-  To take action, click here: {{ .action_url }}
+  To take action, click: {{ .action_url | urlquery }}
   
   This link expires on {{ .expires_at | date "January 2, 2006" }}.
 
@@ -141,38 +154,34 @@ action_notification: |
       {{- template "action_notification" $data -}}
 ```
 
-## Advanced Data Transformation
+**Inheritance patterns**: Base templates, specialized extensions, data merging.
+</Tab>
 
-### Complex Object Manipulation
-
-Transform and reshape complex data structures:
+<Tab>
+**Complex data transformation** reshapes and processes data structures:
 
 ```yaml
-# Transform array of objects
+# Transform array of objects with validation
 transformed_data: |
   {{- $users := .tasks.get_users.output.users -}}
   {{- $result := list -}}
   {{- range $user := $users -}}
-    {{- $transformed := dict 
-        "id" $user.id
-        "full_name" (printf "%s %s" $user.first_name $user.last_name)
-        "contact" (dict 
-          "email" $user.email 
-          "phone" ($user.phone | default "N/A"))
-        "status" (ternary "active" "inactive" $user.is_active)
-        "join_date" ($user.created_at | date "2006-01-02")
-    -}}
-    {{- $result = append $result $transformed -}}
+    {{- if and $user.email $user.name -}}
+      {{- $transformed := dict 
+          "id" $user.id
+          "full_name" (printf "%s %s" $user.first_name $user.last_name)
+          "contact" (dict 
+            "email" ($user.email | lower | trim)
+            "phone" ($user.phone | default "N/A"))
+          "status" ($user.is_active | ternary "active" "inactive")
+          "join_date" ($user.created_at | date "2006-01-02")
+      -}}
+      {{- $result = append $result $transformed -}}
+    {{- end -}}
   {{- end -}}
   {{ $result | toJson }}
-```
 
-### Data Aggregation
-
-Aggregate data from multiple sources:
-
-```yaml
-# Aggregate metrics from multiple tasks
+# Aggregate metrics from multiple sources
 aggregated_metrics: |
   {{- $performance := .tasks.get_performance.output -}}
   {{- $usage := .tasks.get_usage.output -}}
@@ -180,354 +189,196 @@ aggregated_metrics: |
   
   {{- $summary := dict
       "total_requests" (add $performance.requests $usage.api_calls)
-      "average_response_time" (div (add $performance.response_time $usage.latency) 2)
+      "avg_response_time" (div (add $performance.response_time $usage.latency) 2)
       "error_rate" (div (mul $errors.count 100) $performance.requests)
       "uptime_percentage" (sub 100 $errors.downtime_percentage)
-      "peak_concurrent_users" (max $performance.peak_users $usage.peak_connections)
-      "data_processed_gb" (div $usage.bytes_processed 1073741824)
   -}}
   {{ $summary | toPrettyJson }}
 ```
 
-### Conditional Data Processing
-
-Process data conditionally based on complex rules:
-
-```yaml
-# Complex conditional processing
-processed_orders: |
-  {{- $orders := .tasks.get_orders.output.orders -}}
-  {{- $processed := list -}}
-  {{- range $order := $orders -}}
-    {{- $priority := "standard" -}}
-    {{- $shipping := "ground" -}}
-    
-    {{- if and (gt $order.total 1000) (eq $order.customer.tier "premium") -}}
-      {{- $priority = "high" -}}
-      {{- $shipping = "express" -}}
-    {{- else if gt $order.total 500 -}}
-      {{- $priority = "medium" -}}
-      {{- $shipping = "priority" -}}
-    {{- end -}}
-    
-    {{- $processing_time := 24 -}}
-    {{- if eq $priority "high" -}}
-      {{- $processing_time = 2 -}}
-    {{- else if eq $priority "medium" -}}
-      {{- $processing_time = 12 -}}
-    {{- end -}}
-    
-    {{- $enhanced_order := merge $order (dict
-        "priority" $priority
-        "shipping_method" $shipping
-        "estimated_processing_hours" $processing_time
-        "estimated_delivery" (now | dateModify (printf "+%dh" (add $processing_time 48)) | date "2006-01-02")
-    ) -}}
-    {{- $processed = append $processed $enhanced_order -}}
-  {{- end -}}
-  {{ $processed | toJson }}
-```
+**Transformation patterns**: Data validation, aggregation, restructuring, type conversion.
+</Tab>
+</Tabs>
 
 ## State Machine Patterns
 
-### Workflow State Management
+State machine patterns implement workflow state management and complex business logic with event-driven transitions.
 
-Implement state machine logic using templates:
+**Core State Machine Pattern**:
 
 ```yaml
-# State transition logic
-- id: state_manager
+# Unified state management with approval chains and conditional processing
+- id: business_state_manager
   type: router
   condition: |
-    {{- $current_state := .tasks.get_state.output.state -}}
+    {{- $state := .tasks.get_state.output.state -}}
     {{- $event := .workflow.input.event -}}
+    {{- $amount := .workflow.input.amount -}}
+    {{- $department := .workflow.input.department -}}
     
-    {{- if eq $current_state "pending" -}}
-      {{- if eq $event "approve" -}}approved
+    # State transition logic with business rules
+    {{- if eq $state "pending" -}}
+      {{- if eq $event "approve" -}}
+        {{- if gt $amount 10000 -}}requires_cfo_approval
+        {{- else -}}approved{{- end -}}
       {{- else if eq $event "reject" -}}rejected
-      {{- else -}}pending
-      {{- end -}}
-    {{- else if eq $current_state "approved" -}}
+      {{- else -}}pending{{- end -}}
+    {{- else if eq $state "requires_cfo_approval" -}}
+      {{- if eq $event "cfo_approve" -}}
+        {{- if gt $amount 50000 -}}requires_ceo_approval
+        {{- else -}}approved{{- end -}}
+      {{- else -}}{{ $state -}}{{- end -}}
+    {{- else if eq $state "approved" -}}
       {{- if eq $event "process" -}}processing
-      {{- else if eq $event "cancel" -}}cancelled
-      {{- else -}}approved
-      {{- end -}}
-    {{- else if eq $current_state "processing" -}}
-      {{- if eq $event "complete" -}}completed
-      {{- else if eq $event "fail" -}}failed
-      {{- else -}}processing
-      {{- end -}}
-    {{- else -}}
-      {{- $current_state -}}
-    {{- end -}}
+      {{- else -}}approved{{- end -}}
+    {{- else -}}{{ $state -}}{{- end -}}
   routes:
     approved:
-      - id: handle_approval
+      - id: process_approval
         with:
-          previous_state: "{{ .tasks.get_state.output.state }}"
-          timestamp: "{{ now }}"
-    processing:
-      - id: start_processing
-        with:
-          job_id: "{{ .workflow.id }}"
-          priority: "{{ .workflow.input.priority | default 'normal' }}"
-    completed:
-      - id: finalize_process
-        with:
-          result: "{{ .tasks.start_processing.output }}"
+          approval_chain: |
+            {{- $approvers := list "department_head" -}}
+            {{- if gt .workflow.input.amount 10000 -}}{{ $approvers = append $approvers "cfo" }}{{- end -}}
+            {{- if gt .workflow.input.amount 50000 -}}{{ $approvers = append $approvers "ceo" }}{{- end -}}
+            {{ $approvers | toJson }}
+          enhanced_data: |
+            {{- $order := .workflow.input -}}
+            {{- $priority := ternary "high" "standard" (gt $order.amount 1000) -}}
+            {{- $shipping := ternary "express" "ground" (eq $order.customer.tier "premium") -}}
+            {{ merge $order (dict "priority" $priority "shipping" $shipping) | toJson }}
 ```
 
-### Multi-Step Approval Workflow
-
-Implement complex approval chains:
-
-```yaml
-# Multi-level approval logic
-approval_chain: |
-  {{- $amount := .workflow.input.amount -}}
-  {{- $department := .workflow.input.department -}}
-  {{- $approvers := list -}}
-  
-  {{- if gt $amount 10000 -}}
-    {{- $approvers = append $approvers "cfo" -}}
-  {{- end -}}
-  
-  {{- if gt $amount 50000 -}}
-    {{- $approvers = append $approvers "ceo" -}}
-  {{- end -}}
-  
-  {{- if eq $department "engineering" -}}
-    {{- $approvers = append $approvers "cto" -}}
-  {{- else if eq $department "marketing" -}}
-    {{- $approvers = append $approvers "cmo" -}}
-  {{- end -}}
-  
-  {{- if gt $amount 1000 -}}
-    {{- $approvers = append $approvers "department_head" -}}
-  {{- end -}}
-  
-  {{ dict "approvers" $approvers "total_levels" (len $approvers) | toJson }}
-```
+**Key techniques**: Event-driven transitions, business rule integration, hierarchical approval flows.
 
 ## Dynamic Workflow Generation
 
-### Template-Based Task Generation
+Dynamic workflow generation creates adaptive workflows based on runtime conditions.
 
-Generate tasks dynamically based on input:
-
-```yaml
-# Dynamic task generation
-dynamic_tasks: |
-  {{- $data_sources := .workflow.input.data_sources -}}
-  {{- $tasks := list -}}
-  
-  {{- range $i, $source := $data_sources -}}
-    {{- $task := dict
-        "id" (printf "process_source_%d" $i)
-        "type" "basic"
-        "use" (printf "tool(local::tools.#(id==\"%s_processor\"))" $source.type)
-        "with" (dict
-          "source_url" $source.url
-          "credentials" $source.credentials
-          "options" $source.options
-        )
-    -}}
-    {{- $tasks = append $tasks $task -}}
-  {{- end -}}
-  
-  {{ $tasks | toJson }}
-```
-
-### Parallel Processing Patterns
-
-Create dynamic parallel processing workflows:
+**Core Pattern - Dynamic Task Creation**:
 
 ```yaml
-# Dynamic parallel processing
-- id: parallel_data_processing
-  type: parallel
-  strategy: wait_all
-  tasks: |
-    {{- $datasets := .workflow.input.datasets -}}
-    {{- $tasks := list -}}
-    
-    {{- range $i, $dataset := $datasets -}}
-      {{- $task := dict
-          "id" (printf "process_dataset_%d" $i)
-          "type" "collection"
-          "mode" "parallel"
-          "items" $dataset.chunks
-          "task" (dict
-            "id" (printf "chunk_%s" "{{ .index }}")
-            "type" "basic"
-            "use" (printf "tool(local::tools.#(id==\"%s_processor\"))" $dataset.processor_type)
-            "with" (dict
-              "chunk_data" "{{ .item }}"
-              "dataset_id" $dataset.id
-              "chunk_index" "{{ .index }}"
-            )
-          )
-      -}}
-      {{- $tasks = append $tasks $task -}}
-    {{- end -}}
-    
-    {{ $tasks | toJson }}
+# Unified pattern for dynamic task generation and processing
+- id: dynamic_processor
+  type: collection
+  items: "{{ .workflow.input.data_sources }}"
+  task:
+    id: "process-{{ .index }}"
+    type: basic
+    $use: |
+      {{- $type := .item.type | default "generic" -}}
+      tool(local::tools.#(id=="{{$type}}_processor"))
+    with:
+      source_url: "{{ .item.url }}"
+      credentials: "{{ .item.credentials }}"
+      # Resource-aware batch size
+      batch_size: |
+        {{- if gt (.system.cpu | default 4) 8 -}}50
+        {{- else if gt (.system.cpu | default 4) 4 -}}25
+        {{- else -}}10{{- end -}}
 ```
+
+**Key techniques**: Data-driven task creation, conditional resource allocation, parallel processing optimization.
 
 ## Advanced Error Handling
 
-### Comprehensive Error Recovery
+Comprehensive error handling with retry logic, validation, and circuit breaker patterns.
 
-Implement sophisticated error handling patterns:
+**Unified Error Handling Pattern**:
 
 ```yaml
-# Error recovery with retry logic
-- id: resilient_operation
+# Resilient operation with comprehensive error handling
+- id: resilient_processor
   type: basic
   $use: tool(local::tools.#(id=="api_client"))
   with:
-    # Primary configuration
-    url: "{{ .env.PRIMARY_API_URL }}"
-    timeout: "{{ .config.timeout | default 30 }}"
-    
-    # Fallback configuration
-    fallback_config: |
-      {{- if .tasks.resilient_operation.error -}}
-        {{- $attempt := .tasks.resilient_operation.attempt | default 1 -}}
-        {{- if lt $attempt 3 -}}
-          {
-            "retry": true,
-            "delay": {{ mul $attempt 5 }},
-            "url": "{{ .env.PRIMARY_API_URL }}",
-            "timeout": {{ mul (.config.timeout | default 30) 2 }}
-          }
-        {{- else -}}
-          {
-            "retry": true,
-            "delay": 10,
-            "url": "{{ .env.BACKUP_API_URL }}",
-            "timeout": {{ mul (.config.timeout | default 30) 3 }}
-          }
-        {{- end -}}
-      {{- else -}}
-        {"retry": false}
+    # Input validation
+    validated_input: |
+      {{- $input := .workflow.input -}}
+      {{- $errors := list -}}
+      {{- if not $input.email -}}{{ $errors = append $errors "Email required" }}{{- end -}}
+      {{- if and $input.age (or (lt ($input.age | int) 0) (gt ($input.age | int) 150)) -}}
+        {{- $errors = append $errors "Invalid age range" -}}
       {{- end -}}
-      
-    # Circuit breaker logic
-    circuit_breaker: |
-      {{- $failures := .metrics.api_failures | default 0 -}}
-      {{- $success_rate := .metrics.success_rate | default 100 -}}
-      {{- if or (gt $failures 10) (lt $success_rate 50) -}}
+      {{- dict "valid" (empty $errors) "errors" $errors "data" $input | toJson -}}
+    
+    # Circuit breaker with retry logic
+    execution_config: |
+      {{- $failures := .metrics.failures | default 0 -}}
+      {{- $attempt := .task.attempt | default 1 -}}
+      {{- if gt $failures 10 -}}
+        {"circuit": "open", "fallback": true}
+      {{- else if .task.error -}}
         {
-          "enabled": true,
-          "timeout": 300,
-          "fallback_response": "Service temporarily unavailable"
+          "circuit": "closed",
+          "retry": {{ lt $attempt 3 }},
+          "delay": {{ mul $attempt 5 }},
+          "url": "{{ ternary .env.BACKUP_API_URL .env.PRIMARY_API_URL (gt $attempt 2) }}",
+          "timeout": {{ mul (.config.timeout | default 30) $attempt }}
         }
       {{- else -}}
-        {"enabled": false}
+        {"circuit": "closed", "url": "{{ .env.PRIMARY_API_URL }}"}
       {{- end -}}
 ```
 
-### Validation and Sanitization
-
-Advanced input validation and sanitization:
-
-```yaml
-# Comprehensive input validation
-validated_input: |
-  {{- $input := .workflow.input -}}
-  {{- $errors := list -}}
-  {{- $sanitized := dict -}}
-  
-  {{- /* Email validation */ -}}
-  {{- if $input.email -}}
-    {{- if and (contains $input.email "@") (gt (len $input.email) 5) -}}
-      {{- $sanitized = set $sanitized "email" ($input.email | lower | trim) -}}
-    {{- else -}}
-      {{- $errors = append $errors "Invalid email format" -}}
-    {{- end -}}
-  {{- else -}}
-    {{- $errors = append $errors "Email is required" -}}
-  {{- end -}}
-  
-  {{- /* Age validation */ -}}
-  {{- if $input.age -}}
-    {{- $age := $input.age | int -}}
-    {{- if and (ge $age 0) (le $age 150) -}}
-      {{- $sanitized = set $sanitized "age" $age -}}
-    {{- else -}}
-      {{- $errors = append $errors "Age must be between 0 and 150" -}}
-    {{- end -}}
-  {{- end -}}
-  
-  {{- /* Phone validation */ -}}
-  {{- if $input.phone -}}
-    {{- $phone := $input.phone | regexReplaceAll "[^0-9+]" "" -}}
-    {{- if ge (len $phone) 10 -}}
-      {{- $sanitized = set $sanitized "phone" $phone -}}
-    {{- else -}}
-      {{- $errors = append $errors "Invalid phone number" -}}
-    {{- end -}}
-  {{- end -}}
-  
-  {{- dict "valid" (empty $errors) "errors" $errors "data" $sanitized | toJson -}}
-```
+**Key techniques**: Input validation, progressive backoff, circuit breaker states, fallback URLs, timeout scaling.
 
 ## Performance Optimization
 
-### Template Caching Patterns
+Essential techniques for efficient template rendering:
 
-Implement caching for expensive template operations:
+**Core Performance Pattern**:
 
 ```yaml
-# Cached expensive calculations
-cached_calculation: |
-  {{- $cache_key := printf "calc_%s_%s" .workflow.input.type .workflow.input.id -}}
-  {{- $cached_result := .cache.get $cache_key -}}
+# Optimized template with caching and conditional loading
+optimized_processing: |
+  {{- $timestamp := now | date "2006-01-02T15:04:05Z" -}}
+  {{- $batch_size := 50 -}}
   
-  {{- if $cached_result -}}
-    {{ $cached_result }}
+  # Only process if needed
+  {{- if .workflow.input.process_data -}}
+    {{- range $i, $item := .data.collection | batch $batch_size -}}
+    batch_{{ $i }}:
+      timestamp: {{ $timestamp }}  # Reuse computed value
+      items: {{ len $item }}
+      data: {{ $item | toJson }}
+    {{- end -}}
   {{- else -}}
-    {{- $result := .workflow.input.data | expensiveCalculation -}}
-    {{- .cache.set $cache_key $result 3600 -}}
-    {{ $result }}
+    {"status": "skipped", "timestamp": "{{ $timestamp }}"}
   {{- end -}}
 ```
 
-### Lazy Evaluation Patterns
+**Key techniques**: Variable reuse, conditional processing, batch optimization.
 
-Defer expensive operations until needed:
+## Best Practices
 
-```yaml
-# Lazy loading of user data
-user_data: |
-  {{- if .workflow.input.include_user_details -}}
-    {{ .tasks.get_detailed_user.output }}
-  {{- else -}}
-    {
-      "id": "{{ .workflow.input.user_id }}",
-      "name": "{{ .workflow.input.user_name }}",
-      "details": "not_loaded"
-    }
-  {{- end -}}
-```
+Key principles for maintainable advanced templates.
 
-## Best Practices Summary
-
-### 1. Modular Template Design
+<Tabs items={["Modular Design", "Error-First", "Documentation"]}>
+<Tab>
+**Modular template design** promotes reusability:
 
 ```yaml
-# Break complex templates into logical modules
+# Break complex templates into modules
 user_module:
   profile: "{{ template 'user_profile' . }}"
   permissions: "{{ template 'user_permissions' . }}"
   preferences: "{{ template 'user_preferences' . }}"
+
+# Reusable security patterns
+security_module:
+  headers: "{{ template 'security_headers' . }}"
+  validation: "{{ template 'input_validation' . }}"
+  escaping: "{{ template 'output_escaping' . }}"
 ```
 
-### 2. Error-First Design
+**Modular benefits**: Easier testing, better maintenance, improved reusability.
+</Tab>
+
+<Tab>
+**Error-first design** considers failure cases:
 
 ```yaml
-# Always consider error cases first
+# Always handle errors first
 safe_operation: |
   {{- if .errors -}}
     {{ template 'error_response' . }}
@@ -536,9 +387,24 @@ safe_operation: |
   {{- else -}}
     {{ template 'success_response' . }}
   {{- end -}}
+
+# Defensive programming patterns
+defensive_template: |
+  {{- $data := .workflow.input -}}
+  {{- if not $data -}}
+    {"error": "No input data provided"}
+  {{- else if not $data.required_field -}}
+    {"error": "Required field missing"}
+  {{- else -}}
+    {{- template 'process_data' $data -}}
+  {{- end -}}
 ```
 
-### 3. Documentation in Templates
+**Error-first patterns**: Validation first, graceful degradation, clear error messages.
+</Tab>
+
+<Tab>
+**Documentation in templates** explains complex logic:
 
 ```yaml
 # Document complex template logic
@@ -555,12 +421,8 @@ complex_logic: |
   {{- $support_penalty := .user.support_tickets | calculatePenalty -}}
   
   {{ add $base_score $activity_score | sub $support_penalty }}
-```
 
-### 4. Type Safety
-
-```yaml
-# Ensure type safety in templates
+# Type-safe configurations
 type_safe_config: |
   {{- $config := dict -}}
   {{- $config = set $config "port" (.env.PORT | default "3000" | int) -}}
@@ -569,693 +431,37 @@ type_safe_config: |
   {{ $config | toJson }}
 ```
 
-## Precision-Critical Financial Patterns
+**Documentation patterns**: Inline comments, type annotations, usage examples.
+</Tab>
+</Tabs>
 
-### High-Precision Financial Calculations
+## References
 
-Templates for financial systems requiring precise decimal handling with `WithPrecisionPreservation(true)`:
+<ReferenceCardList>
+  <ReferenceCard
+    title="Validation & Debugging"
+    description="Debug template issues and validate complex patterns"
+    href="/docs/core/yaml-templates/validation-debugging"
+    icon="Bug"
+  />
+  <ReferenceCard
+    title="Template Directives"
+    description="Use $ref and $use for resource composition"
+    href="/docs/core/yaml-templates/directives"
+    icon="Link"
+  />
+  <ReferenceCard
+    title="Basic Tasks"
+    description="Apply advanced patterns to basic task configurations"
+    href="/docs/core/tasks/basic-tasks"
+    icon="Play"
+  />
+  <ReferenceCard
+    title="Agent Instructions"
+    description="Use advanced templates in agent instructions and actions"
+    href="/docs/core/agents/instructions-actions"
+    icon="Bot"
+  />
+</ReferenceCardList>
 
-```yaml
-# Financial calculation templates with precision preservation
-financial_calculations:
-  # Compound interest calculation with precision
-  compound_interest: |
-    {{- $principal := .loan.principal -}}
-    {{- $rate := .loan.annual_rate -}}
-    {{- $periods := .loan.periods -}}
-    {{- $compounding_frequency := .loan.compounding_frequency | default 12 -}}
-    {{- $adjusted_rate := div $rate $compounding_frequency -}}
-    {{- $total_periods := mul $periods $compounding_frequency -}}
-    {{- $compound_factor := pow (add 1 $adjusted_rate) $total_periods -}}
-    {{- $final_amount := mul $principal $compound_factor -}}
-    {
-      "principal": "{{ $principal }}",
-      "rate": "{{ $rate }}",
-      "periods": {{ $periods }},
-      "final_amount": "{{ $final_amount }}",
-      "interest_earned": "{{ sub $final_amount $principal }}",
-      "effective_rate": "{{ sub (div $final_amount $principal) 1 }}"
-    }
-
-  # Portfolio value calculation with precision
-  portfolio_valuation: |
-    {{- $total_value := 0 -}}
-    {{- $positions := .portfolio.positions -}}
-    {{- range $position := $positions -}}
-      {{- $position_value := mul $position.quantity $position.current_price -}}
-      {{- $total_value = add $total_value $position_value -}}
-    {{- end -}}
-    {
-      "total_value": "{{ $total_value }}",
-      "currency": "{{ .portfolio.currency }}",
-      "positions": [
-        {{- range $i, $position := $positions -}}
-          {{- if $i -}},{{- end -}}
-        {
-          "symbol": "{{ $position.symbol }}",
-          "quantity": "{{ $position.quantity }}",
-          "current_price": "{{ $position.current_price }}",
-          "position_value": "{{ mul $position.quantity $position.current_price }}",
-          "cost_basis": "{{ $position.cost_basis }}",
-          "unrealized_gain": "{{ sub (mul $position.quantity $position.current_price) $position.cost_basis }}"
-        }
-        {{- end -}}
-      ]
-    }
-
-  # Risk-adjusted return calculation
-  risk_metrics: |
-    {{- $returns := .performance.returns -}}
-    {{- $risk_free_rate := .market.risk_free_rate -}}
-    {{- $benchmark_return := .market.benchmark_return -}}
-    {{- $portfolio_return := .performance.portfolio_return -}}
-    {{- $portfolio_volatility := .performance.volatility -}}
-    {{- $excess_return := sub $portfolio_return $risk_free_rate -}}
-    {{- $sharpe_ratio := div $excess_return $portfolio_volatility -}}
-    {{- $alpha := sub $portfolio_return $benchmark_return -}}
-    {
-      "portfolio_return": "{{ $portfolio_return }}",
-      "benchmark_return": "{{ $benchmark_return }}",
-      "excess_return": "{{ $excess_return }}",
-      "volatility": "{{ $portfolio_volatility }}",
-      "sharpe_ratio": "{{ $sharpe_ratio }}",
-      "alpha": "{{ $alpha }}",
-      "risk_free_rate": "{{ $risk_free_rate }}"
-    }
-
-  # Enterprise-grade financial system template
-  enterprise_financial: |
-    {{- $balances := .financial.account_balances -}}
-    {{- $transactions := .financial.daily_transactions -}}
-    {{- $total_assets := 0 -}}
-    {{- $total_liabilities := 0 -}}
-    {{- range $account := $balances -}}
-      {{- if eq $account.type "asset" -}}
-        {{- $total_assets = add $total_assets $account.balance -}}
-      {{- else -}}
-        {{- $total_liabilities = add $total_liabilities $account.balance -}}
-      {{- end -}}
-    {{- end -}}
-    {{- $net_worth := sub $total_assets $total_liabilities -}}
-    {
-      "report_date": "{{ now | date \"2006-01-02T15:04:05Z07:00\" }}",
-      "total_assets": "{{ $total_assets }}",
-      "total_liabilities": "{{ $total_liabilities }}",
-      "net_worth": "{{ $net_worth }}",
-      "account_details": [
-        {{- range $i, $account := $balances -}}
-          {{- if $i -}},{{- end -}}
-        {
-          "account_number": "{{ $account.account_number }}",
-          "account_type": "{{ $account.type }}",
-          "balance": "{{ $account.balance }}",
-          "currency": "{{ $account.currency }}",
-          "last_updated": "{{ $account.last_updated | date \"2006-01-02T15:04:05Z07:00\" }}"
-        }
-        {{- end -}}
-      ]
-    }
-```
-
-### Currency Exchange and Conversion
-
-Multi-currency financial templates with precision handling:
-
-```yaml
-# Multi-currency financial processing
-currency_operations:
-  # Cross-currency conversion with precision
-  currency_conversion: |
-    {{- $base_amount := .transaction.amount -}}
-    {{- $from_currency := .transaction.from_currency -}}
-    {{- $to_currency := .transaction.to_currency -}}
-    {{- $exchange_rate := .exchange_rates | index (printf "%s_%s" $from_currency $to_currency) -}}
-    {{- $converted_amount := mul $base_amount $exchange_rate -}}
-    {{- $conversion_fee := mul $converted_amount .settings.conversion_fee_rate -}}
-    {{- $net_amount := sub $converted_amount $conversion_fee -}}
-    {
-      "original_amount": "{{ $base_amount }}",
-      "from_currency": "{{ $from_currency }}",
-      "to_currency": "{{ $to_currency }}",
-      "exchange_rate": "{{ $exchange_rate }}",
-      "converted_amount": "{{ $converted_amount }}",
-      "conversion_fee": "{{ $conversion_fee }}",
-      "net_amount": "{{ $net_amount }}",
-      "fee_percentage": "{{ .settings.conversion_fee_rate }}",
-      "timestamp": "{{ now | date \"2006-01-02T15:04:05Z07:00\" }}"
-    }
-
-  # Multi-currency portfolio aggregation
-  portfolio_aggregation: |
-    {{- $base_currency := .portfolio.base_currency -}}
-    {{- $total_value := 0 -}}
-    {{- $currency_breakdown := dict -}}
-    {{- range $position := .portfolio.positions -}}
-      {{- $position_currency := $position.currency -}}
-      {{- $position_value := mul $position.quantity $position.current_price -}}
-      {{- if eq $position_currency $base_currency -}}
-        {{- $total_value = add $total_value $position_value -}}
-        {{- $currency_breakdown = set $currency_breakdown $position_currency (add (index $currency_breakdown $position_currency | default 0) $position_value) -}}
-      {{- else -}}
-        {{- $exchange_rate := .exchange_rates | index (printf "%s_%s" $position_currency $base_currency) -}}
-        {{- $converted_value := mul $position_value $exchange_rate -}}
-        {{- $total_value = add $total_value $converted_value -}}
-        {{- $currency_breakdown = set $currency_breakdown $position_currency (add (index $currency_breakdown $position_currency | default 0) $position_value) -}}
-      {{- end -}}
-    {{- end -}}
-    {
-      "total_value": "{{ $total_value }}",
-      "base_currency": "{{ $base_currency }}",
-      "currency_breakdown": {{ $currency_breakdown | toJson }},
-      "conversion_timestamp": "{{ now | date \"2006-01-02T15:04:05Z07:00\" }}"
-    }
-
-  # Real-time foreign exchange trading
-  forex_trading: |
-    {{- $trades := .forex.active_trades -}}
-    {{- $total_pnl := 0 -}}
-    {{- $winning_trades := 0 -}}
-    {{- $losing_trades := 0 -}}
-    {{- range $trade := $trades -}}
-      {{- $current_rate := .market_data.rates | index $trade.currency_pair -}}
-      {{- $pnl := mul (sub $current_rate $trade.entry_rate) $trade.position_size -}}
-      {{- $total_pnl = add $total_pnl $pnl -}}
-      {{- if gt $pnl 0 -}}
-        {{- $winning_trades = add $winning_trades 1 -}}
-      {{- else -}}
-        {{- $losing_trades = add $losing_trades 1 -}}
-      {{- end -}}
-    {{- end -}}
-    {{- $total_trades := add $winning_trades $losing_trades -}}
-    {{- $win_rate := div (mul $winning_trades 100) $total_trades -}}
-    {
-      "trading_session": "{{ .forex.session_id }}",
-      "total_pnl": "{{ $total_pnl }}",
-      "active_trades": {{ $total_trades }},
-      "winning_trades": {{ $winning_trades }},
-      "losing_trades": {{ $losing_trades }},
-      "win_rate_percentage": "{{ $win_rate }}",
-      "session_timestamp": "{{ now | date \"2006-01-02T15:04:05Z07:00\" }}"
-    }
-```
-
-## Complex Hyphenated Field Patterns
-
-### Enterprise Kubernetes Templates
-
-Advanced templates for complex Kubernetes configurations with extensive hyphenated fields:
-
-```yaml
-# Complex Kubernetes deployment with hyphenated fields
-kubernetes_deployment:
-  # Multi-environment configuration
-  deployment_config: |
-    {{- $env := .deployment.environment -}}
-    {{- $app_name := .deployment.app-name -}}
-    {{- $namespace := .deployment.target-namespace -}}
-    {{- $resource_limits := .deployment.resource-limits -}}
-    {{- $security_context := .deployment.security-context -}}
-    apiVersion: apps/v1
-    kind: Deployment
-    metadata:
-      name: {{ $app_name }}-{{ $env }}
-      namespace: {{ $namespace }}
-      labels:
-        app-name: {{ $app_name }}
-        environment: {{ $env }}
-        version-tag: {{ .deployment.version-tag }}
-        managed-by: compozy
-      annotations:
-        deployment-timestamp: {{ now | date "2006-01-02T15:04:05Z07:00" }}
-        config-hash: {{ .deployment | sha256sum }}
-    spec:
-      replicas: {{ .deployment.replica-count }}
-      strategy:
-        type: {{ .deployment.deployment-strategy }}
-        {{- if eq .deployment.deployment-strategy "RollingUpdate" }}
-        rollingUpdate:
-          maxUnavailable: {{ .deployment.max-unavailable }}
-          maxSurge: {{ .deployment.max-surge }}
-        {{- end }}
-      selector:
-        matchLabels:
-          app-name: {{ $app_name }}
-          environment: {{ $env }}
-      template:
-        metadata:
-          labels:
-            app-name: {{ $app_name }}
-            environment: {{ $env }}
-            version-tag: {{ .deployment.version-tag }}
-        spec:
-          serviceAccountName: {{ .deployment.service-account-name }}
-          securityContext:
-            runAsUser: {{ $security_context.run-as-user }}
-            runAsGroup: {{ $security_context.run-as-group }}
-            fsGroup: {{ $security_context.fs-group }}
-          containers:
-          - name: {{ $app_name }}
-            image: {{ .deployment.container-image }}:{{ .deployment.image-tag }}
-            imagePullPolicy: {{ .deployment.image-pull-policy }}
-            ports:
-            - containerPort: {{ .deployment.container-port }}
-              protocol: {{ .deployment.protocol | default "TCP" }}
-            env:
-            {{- range $key, $value := .deployment.environment-variables }}
-            - name: {{ $key }}
-              value: "{{ $value }}"
-            {{- end }}
-            resources:
-              requests:
-                memory: {{ $resource_limits.memory-request }}
-                cpu: {{ $resource_limits.cpu-request }}
-              limits:
-                memory: {{ $resource_limits.memory-limit }}
-                cpu: {{ $resource_limits.cpu-limit }}
-            livenessProbe:
-              httpGet:
-                path: {{ .deployment.health-check-path }}
-                port: {{ .deployment.container-port }}
-              initialDelaySeconds: {{ .deployment.liveness-initial-delay }}
-              periodSeconds: {{ .deployment.liveness-period }}
-            readinessProbe:
-              httpGet:
-                path: {{ .deployment.readiness-check-path }}
-                port: {{ .deployment.container-port }}
-              initialDelaySeconds: {{ .deployment.readiness-initial-delay }}
-              periodSeconds: {{ .deployment.readiness-period }}
-          {{- if .deployment.image-pull-secrets }}
-          imagePullSecrets:
-          {{- range .deployment.image-pull-secrets }}
-          - name: {{ . }}
-          {{- end }}
-          {{- end }}
-
-  # Service configuration with hyphenated fields
-  service_config: |
-    {{- $app_name := .service.app-name -}}
-    {{- $namespace := .service.target-namespace -}}
-    {{- $service_type := .service.service-type -}}
-    apiVersion: v1
-    kind: Service
-    metadata:
-      name: {{ $app_name }}-service
-      namespace: {{ $namespace }}
-      labels:
-        app-name: {{ $app_name }}
-        service-type: {{ $service_type }}
-      annotations:
-        service-description: {{ .service.description }}
-        {{- if eq $service_type "LoadBalancer" }}
-        service.beta.kubernetes.io/aws-load-balancer-type: {{ .service.load-balancer-type }}
-        service.beta.kubernetes.io/aws-load-balancer-ssl-cert: {{ .service.ssl-certificate-arn }}
-        {{- end }}
-    spec:
-      type: {{ $service_type }}
-      selector:
-        app-name: {{ $app_name }}
-      ports:
-      - port: {{ .service.service-port }}
-        targetPort: {{ .service.target-port }}
-        protocol: {{ .service.protocol | default "TCP" }}
-        {{- if and (eq $service_type "NodePort") .service.node-port }}
-        nodePort: {{ .service.node-port }}
-        {{- end }}
-      {{- if .service.session-affinity }}
-      sessionAffinity: {{ .service.session-affinity }}
-      {{- end }}
-```
-
-### CI/CD Pipeline Templates
-
-Complex CI/CD configurations with hyphenated field access:
-
-```yaml
-# CI/CD pipeline with hyphenated fields
-cicd_pipeline:
-  # GitHub Actions workflow
-  github_actions: |
-    {{- $workflow_name := .pipeline.workflow-name -}}
-    {{- $trigger_branches := .pipeline.trigger-branches -}}
-    {{- $build_matrix := .pipeline.build-matrix -}}
-    name: {{ $workflow_name }}
-    
-    on:
-      push:
-        branches: {{ $trigger_branches | toJson }}
-      pull_request:
-        branches: {{ $trigger_branches | toJson }}
-    
-    jobs:
-      {{- range $job := .pipeline.jobs }}
-      {{ $job.job-name }}:
-        runs-on: {{ $job.runner-os }}
-        {{- if $job.build-matrix }}
-        strategy:
-          matrix: {{ $job.build-matrix | toJson }}
-        {{- end }}
-        steps:
-        - name: {{ $job.checkout-step-name }}
-          uses: actions/checkout@v3
-        
-        {{- range $step := $job.build-steps }}
-        - name: {{ $step.step-name }}
-          {{- if $step.step-action }}
-          uses: {{ $step.step-action }}
-          {{- else }}
-          run: {{ $step.step-command }}
-          {{- end }}
-          {{- if $step.step-env }}
-          env: {{ $step.step-env | toJson }}
-          {{- end }}
-          {{- if $step.step-with }}
-          with: {{ $step.step-with | toJson }}
-          {{- end }}
-        {{- end }}
-        
-        {{- if $job.artifact-upload }}
-        - name: Upload artifacts
-          uses: actions/upload-artifact@v3
-          with:
-            name: {{ $job.artifact-name }}
-            path: {{ $job.artifact-path }}
-            retention-days: {{ $job.artifact-retention }}
-        {{- end }}
-      {{- end }}
-
-  # Jenkins pipeline with hyphenated fields
-  jenkins_pipeline: |
-    {{- $pipeline_name := .jenkins.pipeline-name -}}
-    {{- $build_triggers := .jenkins.build-triggers -}}
-    {{- $deployment_stages := .jenkins.deployment-stages -}}
-    pipeline {
-        agent {
-            label '{{ .jenkins.agent-label }}'
-        }
-        
-        options {
-            timeout(time: {{ .jenkins.build-timeout }}, unit: 'MINUTES')
-            retry({{ .jenkins.retry-count }})
-            skipDefaultCheckout({{ .jenkins.skip-checkout }})
-        }
-        
-        triggers {
-            {{- range $trigger := $build_triggers }}
-            {{- if eq $trigger.trigger-type "cron" }}
-            cron('{{ $trigger.cron-expression }}')
-            {{- else if eq $trigger.trigger-type "pollSCM" }}
-            pollSCM('{{ $trigger.poll-expression }}')
-            {{- end }}
-            {{- end }}
-        }
-        
-        environment {
-            {{- range $key, $value := .jenkins.environment-variables }}
-            {{ $key }} = '{{ $value }}'
-            {{- end }}
-        }
-        
-        stages {
-            {{- range $stage := $deployment_stages }}
-            stage('{{ $stage.stage-name }}') {
-                {{- if $stage.stage-when }}
-                when {
-                    {{ $stage.stage-when }}
-                }
-                {{- end }}
-                steps {
-                    {{- range $step := $stage.stage-steps }}
-                    {{- if $step.step-type }}
-                    {{ $step.step-type }} {
-                        {{- range $key, $value := $step.step-parameters }}
-                        {{ $key }}: '{{ $value }}'
-                        {{- end }}
-                    }
-                    {{- else }}
-                    sh '{{ $step.step-command }}'
-                    {{- end }}
-                    {{- end }}
-                }
-                {{- if $stage.post-actions }}
-                post {
-                    {{- range $action := $stage.post-actions }}
-                    {{ $action.action-condition }} {
-                        {{ $action.action-command }}
-                    }
-                    {{- end }}
-                }
-                {{- end }}
-            }
-            {{- end }}
-        }
-    }
-```
-
-## Global Value Sharing Patterns
-
-### Cross-Template Global State
-
-Templates that share global values across multiple template instances using `AddGlobalValue()`:
-
-```yaml
-# Global configuration shared across templates
-global_config_pattern: |
-  {{- /* Use AddGlobalValue() to set global values available across all templates */ -}}
-  global_metadata:
-    timestamp: {{ now | date "2006-01-02T15:04:05Z07:00" }}
-    version: {{ .build.version }}
-    environment: {{ .deployment.environment }}
-    region: {{ .deployment.region }}
-    
-  # Global values are now available in all subsequent templates
-  shared_metadata:
-    timestamp: {{ .deployment_timestamp }}
-    version: {{ .build_version }}
-    environment: {{ .environment }}
-    region: {{ .region }}
-
-# Template engine configuration with global values
-engine_setup: |
-  # Go code example for setting up global values
-  engine := NewEngine(FormatYAML).WithPrecisionPreservation(true)
-  
-  # Add global values using AddGlobalValue
-  engine.AddGlobalValue("deployment_timestamp", time.Now().Format("2006-01-02T15:04:05Z07:00"))
-  engine.AddGlobalValue("build_version", "1.2.3")
-  engine.AddGlobalValue("environment", "production")
-  engine.AddGlobalValue("region", "us-west-2")
-  
-  # Global values are accessible in all templates
-
-# Template using global values
-application_config: |
-  application:
-    name: {{ .app.name }}
-    version: {{ .build_version }}  # From global state
-    environment: {{ .environment }}  # From global state
-    deployed_at: {{ .deployment_timestamp }}  # From global state
-    region: {{ .region }}  # From global state
-    
-    # Local configuration
-    port: {{ .app.port }}
-    database_url: {{ .app.database.url }}
-    
-    # Global configuration references
-    monitoring:
-      enabled: {{ .monitoring_enabled | default true }}
-      endpoint: {{ .monitoring_endpoint }}
-    
-    logging:
-      level: {{ .log_level | default "info" }}
-      format: {{ .log_format | default "json" }}
-
-# Multi-service configuration sharing globals
-service_configs: |
-  {{- range $service := .services }}
-  ---
-  apiVersion: apps/v1
-  kind: Deployment
-  metadata:
-    name: {{ $service.name }}
-    labels:
-      version: {{ .build_version }}
-      environment: {{ .environment }}
-      region: {{ .region }}
-      deployed-at: {{ .deployment_timestamp }}
-  spec:
-    replicas: {{ $service.replicas }}
-    template:
-      metadata:
-        labels:
-          app: {{ $service.name }}
-          version: {{ .build_version }}
-      spec:
-        containers:
-        - name: {{ $service.name }}
-          image: {{ $service.image }}:{{ .build_version }}
-          env:
-          - name: ENVIRONMENT
-            value: {{ .environment }}
-          - name: REGION
-            value: {{ .region }}
-          - name: BUILD_VERSION
-            value: {{ .build_version }}
-  {{- end }}
-
-# Multi-Service Configuration with Global Values
-multi_service_template: |
-  {{- /* Global values persist across multiple template executions */ -}}
-  shared_config:
-    cluster_name: {{ .cluster_name }}
-    namespace: {{ .namespace }}
-    build_id: {{ .build_id }}
-    
-  services:
-  {{- range $service := .services }}
-  - name: {{ $service.name }}
-    image: {{ $service.image }}:{{ .build_id }}
-    environment: {{ .environment }}
-    region: {{ .region }}
-    metadata:
-      deployed_at: {{ .deployment_timestamp }}
-      cluster: {{ .cluster_name }}
-  {{- end }}
-```
-
-## Template Caching Optimization
-
-### Performance-Optimized Caching
-
-The template engine provides built-in caching for expensive operations through template compilation caching and reuse:
-
-```yaml
-# Template compilation caching
-template_compilation_caching: |
-  # The template engine automatically caches parsed templates
-  # AddTemplate() stores compiled templates in memory for reuse
-  
-  # Go code example for template caching
-  engine := NewEngine(FormatYAML).WithPrecisionPreservation(true)
-  
-  # Add template - compiled and cached automatically
-  engine.AddTemplate("user_profile", `
-    user:
-      name: {{ .user.name }}
-      email: {{ .user.email }}
-      created_at: {{ now | date "2006-01-02T15:04:05Z07:00" }}
-  `)
-  
-  # Subsequent renders use cached compiled template
-  result1, _ := engine.Render("user_profile", context1)
-  result2, _ := engine.Render("user_profile", context2)  # Uses cached template
-
-# Performance optimization patterns
-performance_patterns:
-  # Efficient template reuse
-  reusable_templates: |
-    {{- /* Use consistent template patterns for caching benefits */ -}}
-    metadata:
-      created_at: {{ now | date "2006-01-02T15:04:05Z07:00" }}
-      version: {{ .version }}
-      environment: {{ .environment }}
-      
-    # Use global values to avoid repeated calculations
-    shared_config:
-      cluster_name: {{ .cluster_name }}
-      region: {{ .region }}
-      namespace: {{ .namespace }}
-      
-  # Optimized data processing
-  batch_processing: |
-    {{- /* Process data in batches for better performance */ -}}
-    {{- $batch_size := 100 -}}
-    {{- $items := .data.items -}}
-    {{- $total_batches := div (len $items) $batch_size -}}
-    
-    processing_info:
-      total_items: {{ len $items }}
-      batch_size: {{ $batch_size }}
-      total_batches: {{ $total_batches }}
-      
-    batches:
-    {{- range $batch_num := until $total_batches }}
-      {{- $start_idx := mul $batch_num $batch_size -}}
-      {{- $end_idx := add $start_idx $batch_size -}}
-      {{- $batch_items := slice $items $start_idx $end_idx -}}
-    - batch_number: {{ $batch_num }}
-      items_count: {{ len $batch_items }}
-      start_index: {{ $start_idx }}
-      end_index: {{ $end_idx }}
-    {{- end }}
-
-  # Memory-efficient template patterns
-  memory_efficient: |
-    {{- /* Use variables to avoid repeated template evaluations */ -}}
-    {{- $current_time := now | date "2006-01-02T15:04:05Z07:00" -}}
-    {{- $environment := .deployment.environment -}}
-    {{- $version := .build.version -}}
-    
-    # Reuse variables instead of recalculating
-    services:
-    {{- range $service := .services }}
-    - name: {{ $service.name }}
-      timestamp: {{ $current_time }}
-      environment: {{ $environment }}
-      version: {{ $version }}
-      config:
-        port: {{ $service.port }}
-        replicas: {{ $service.replicas }}
-    {{- end }}
-
-# Best practices for template performance
-performance_best_practices:
-  # 1. Precompile templates when possible
-  precompile_example: |
-    # Use AddTemplate for frequently used templates
-    # The engine caches compiled templates automatically
-    
-  # 2. Use global values for shared data
-  global_values_example: |
-    {{- /* Global values are computed once and reused */ -}}
-    deployment_info:
-      timestamp: {{ .deployment_timestamp }}
-      version: {{ .build_version }}
-      environment: {{ .environment }}
-      
-  # 3. Minimize expensive operations in loops
-  optimized_loops: |
-    {{- /* Calculate expensive values outside loops */ -}}
-    {{- $base_config := .app.base_config -}}
-    {{- $environment := .deployment.environment -}}
-    {{- $timestamp := now | date "2006-01-02T15:04:05Z07:00" -}}
-    
-    services:
-    {{- range $service := .services }}
-    - name: {{ $service.name }}
-      environment: {{ $environment }}
-      timestamp: {{ $timestamp }}
-      config: {{ $base_config | merge $service.config | toJson }}
-    {{- end }}
-    
-  # 4. Use conditional processing
-  conditional_processing: |
-    {{- /* Only process data when needed */ -}}
-    {{- if .features.monitoring_enabled }}
-    monitoring:
-      enabled: true
-      endpoint: {{ .monitoring.endpoint }}
-      metrics:
-      {{- range $metric := .monitoring.metrics }}
-      - name: {{ $metric.name }}
-        value: {{ $metric.value }}
-      {{- end }}
-    {{- end }}
-    
-    {{- if .features.logging_enabled }}
-    logging:
-      level: {{ .logging.level }}
-      format: {{ .logging.format }}
-    {{- end }}
-```
-
-Advanced template patterns enable powerful, maintainable workflows that can adapt to complex requirements while maintaining readability and reliability. These patterns form the foundation for sophisticated Compozy applications with enterprise-grade precision handling, complex field access, global state management, and performance optimization.
+Advanced template patterns provide the foundation for sophisticated, maintainable Compozy workflows. Focus on modularity, error handling, and performance optimization for production-ready templates.

@@ -3,109 +3,50 @@ title: Event API
 description: Programmatic access to Compozy's signal system for external integrations and advanced signal management
 ---
 
-import {
-  Code,
-  Globe,
-  Zap,
-  Database,
-  Eye,
-  Settings,
-  Shield,
-  Clock,
-  CheckCircle,
-  Activity,
-  Bell,
-  Send,
-  Search,
-  List,
-  Radio,
-  Webhook,
-  FileJson,
-  Users,
-  ShoppingCart,
-  CreditCard,
-  Smartphone,
-  AlertCircle,
-  Repeat,
-  TrendingUp,
-  Package,
-  Network,
-  Link2,
-  Lock,
-  Key,
-  MessageSquare,
-  Terminal,
-  BookOpen,
-  ExternalLink,
-  Layers,
-  Play,
-  Timer,
-  BrainCircuit,
-  Target,
-  Filter,
-  Monitor,
-  RefreshCw,
-  Gauge,
-  BarChart3,
-  Server,
-  CloudLightning,
-  Workflow,
-  ArrowRightLeft,
-  Boxes,
-  HardDrive,
-  Cpu,
-  Mail,
-  TestTube,
-  Lightbulb,
-  Star,
-  Rocket,
-  FileText
-} from "lucide-react";
-import { FeatureCard, FeatureCardList } from "@/components/ui/feature-card";
-import { ReferenceCard, ReferenceCardList } from "@/components/ui/reference-card";
-
-# Event API
-
 The Event API provides **programmatic access** to Compozy's signal system, enabling external applications to send signals, monitor signal activity, and integrate with workflow execution patterns. This API is essential for building complex integrations and managing signals from external systems.
 
 ## Overview
 
+<Callout type="warning" title="Development Status">
+The Signal Event API is currently **under development**. Signal functionality is implemented at the engine level for workflow-to-workflow communication, but external HTTP API endpoints are planned for future releases.
+</Callout>
+
 <FeatureCardList cols={2} size="sm">
   <FeatureCard
-    title="RESTful Interface"
-    description="Standard HTTP endpoints for signal management and monitoring"
-    icon={Globe}
+    title="Engine-Level Signals"
+    description="Current implementation supports workflow signal dispatch and reception"
+    icon="Activity"
   />
   <FeatureCard
-    title="Real-time Integration"
-    description="Webhooks and subscriptions for real-time signal monitoring"
-    icon={Radio}
+    title="Workflow Integration"
+    description="Send and receive signals between workflows using signal and wait tasks"
+    icon="GitBranch"
   />
   <FeatureCard
-    title="Batch Operations"
-    description="Efficient batch signal sending for high-throughput scenarios"
-    icon={Package}
+    title="Planned API Features"
+    description="Future REST API for external signal management and monitoring"
+    icon="Globe"
   />
   <FeatureCard
-    title="Query & Analytics"
-    description="Comprehensive signal status and delivery tracking"
-    icon={BarChart3}
+    title="Template Support"
+    description="Dynamic signal IDs and payloads using YAML template expressions"
+    icon="Code"
   />
 </FeatureCardList>
 
-The Event API exposes RESTful endpoints for signal management, allowing external systems to:
+Currently, the signal system supports workflow-to-workflow communication through the engine. External API endpoints for signal management are planned for future releases. For now, signals work through:
 
 <List>
-  <ListItem title="Send Signals" icon={Send}>
+  <ListItem title="Send Signals" icon="Send">
     Trigger workflows or notify waiting tasks programmatically
   </ListItem>
-  <ListItem title="Query Signal Status" icon={Search}>
+  <ListItem title="Query Signal Status" icon="Search">
     Monitor signal delivery and processing information
   </ListItem>
-  <ListItem title="Monitor Activity" icon={Activity}>
+  <ListItem title="Monitor Activity" icon="Activity">
     Track signal activity across workflows and systems
   </ListItem>
-  <ListItem title="Manage Subscriptions" icon={Bell}>
+  <ListItem title="Manage Subscriptions" icon="Bell">
     Set up webhooks and real-time notifications
   </ListItem>
 </List>
@@ -117,13 +58,13 @@ All Event API requests require authentication using project-level API keys. Keep
 </Callout>
 
 <List>
-  <ListItem title="API Key Authentication" icon={Key}>
+  <ListItem title="API Key Authentication" icon="Key">
     Use Bearer token authentication with your project API key
   </ListItem>
-  <ListItem title="Content-Type Header" icon={FileJson}>
+  <ListItem title="Content-Type Header" icon="FileJson">
     Always include `Content-Type: application/json` for JSON requests
   </ListItem>
-  <ListItem title="HTTPS Required" icon={Shield}>
+  <ListItem title="HTTPS Required" icon="Shield">
     All API requests must use HTTPS for security
   </ListItem>
 </List>
@@ -135,21 +76,25 @@ curl -H "Authorization: Bearer YOUR_API_KEY" \
      https://api.compozy.io/v1/signals
 ```
 
-## Core API Endpoints
+## Planned API Endpoints
+
+<Callout type="warning" title="API Under Development">
+The following API endpoints are **planned features** that are not yet implemented. Current signal functionality works at the engine level through workflow tasks.
+</Callout>
 
 <Tabs items={["Send Signal", "Query Status", "List Signals", "Waiting Tasks"]}>
 <Tab>
 
-### Send Signal
+### Send Signal (Planned)
 
 <FeatureCard
   title="Signal Dispatch"
-  description="Send signals to trigger workflows or notify waiting tasks"
-  icon={Send}
+  description="Future API endpoint for sending signals to trigger workflows"
+  icon="Send"
   size="sm"
 />
 
-Send a signal to the Compozy system:
+Planned signal API endpoint:
 
 ```http
 POST /api/v1/signals
@@ -169,7 +114,7 @@ Authorization: Bearer YOUR_API_KEY
 }
 ```
 
-#### Response
+#### Expected Response
 
 ```json
 {
@@ -185,16 +130,16 @@ Authorization: Bearer YOUR_API_KEY
 </Tab>
 <Tab>
 
-### Query Signal Status
+### Query Signal Status (Planned)
 
 <FeatureCard
   title="Status Tracking"
-  description="Monitor signal delivery and processing status"
-  icon={Search}
+  description="Future API for monitoring signal delivery and processing status"
+  icon="Search"
   size="sm"
 />
 
-Check the delivery status of a sent signal:
+Planned status tracking endpoint:
 
 ```http
 GET /api/v1/signals/{message_id}
@@ -233,16 +178,16 @@ Authorization: Bearer YOUR_API_KEY
 </Tab>
 <Tab>
 
-### List Signals
+### List Signals (Planned)
 
 <FeatureCard
   title="Activity Monitoring"
-  description="Retrieve recent signal activity and history"
-  icon={List}
+  description="Future API for retrieving recent signal activity and history"
+  icon="List"
   size="sm"
 />
 
-Retrieve recent signal activity:
+Planned signal activity endpoint:
 
 ```http
 GET /api/v1/signals?limit=50&offset=0&signal_id=user-approved
@@ -275,16 +220,16 @@ Authorization: Bearer YOUR_API_KEY
 </Tab>
 <Tab>
 
-### Get Waiting Tasks
+### Get Waiting Tasks (Planned)
 
 <FeatureCard
   title="Task Monitoring"
-  description="List tasks currently waiting for specific signals"
-  icon={Timer}
+  description="Future API for listing tasks currently waiting for specific signals"
+  icon="Timer"
   size="sm"
 />
 
-List tasks currently waiting for signals:
+Planned waiting tasks endpoint:
 
 ```http
 GET /api/v1/signals/waiting?signal_id=user-approved
@@ -320,22 +265,22 @@ Authorization: Bearer YOUR_API_KEY
   <FeatureCard
     title="Batch Processing"
     description="Send multiple signals efficiently in a single request"
-    icon={Package}
+    icon="Package"
   />
   <FeatureCard
     title="Webhook Integration"
     description="Real-time signal monitoring with webhook subscriptions"
-    icon={Webhook}
+    icon="Webhook"
   />
 </FeatureCardList>
 
-### Batch Signal Sending
+### Batch Signal Sending (Planned)
 
-<Callout type="tip">
-Use batch operations for high-throughput scenarios to reduce API call overhead and improve performance.
+<Callout type="info">
+Planned batch operations for high-throughput scenarios to reduce API call overhead and improve performance.
 </Callout>
 
-Send multiple signals in a single request:
+Planned batch signals endpoint:
 
 ```http
 POST /api/v1/signals/batch
@@ -384,9 +329,9 @@ Authorization: Bearer YOUR_API_KEY
 }
 ```
 
-### Signal Subscriptions
+### Signal Subscriptions (Planned)
 
-Subscribe to signal events for real-time monitoring:
+Planned API for subscribing to signal events for real-time monitoring:
 
 ```http
 POST /api/v1/signals/subscriptions
@@ -429,7 +374,7 @@ Authorization: Bearer YOUR_API_KEY
 <FeatureCard
   title="JavaScript/Node.js"
   description="Complete client library for Node.js applications"
-  icon={Code}
+  icon="Code"
   size="sm"
 />
 
@@ -510,7 +455,7 @@ console.log(`${waitingTasks.total} tasks waiting for approval`);
 <FeatureCard
   title="Python Client"
   description="Full-featured Python client for signal management"
-  icon={Code}
+  icon="Code"
   size="sm"
 />
 
@@ -528,7 +473,7 @@ class CompozySignalClient:
             'Authorization': f'Bearer {api_key}',
             'Content-Type': 'application/json'
         })
-    
+
     def send_signal(self, signal_id, payload, correlation_id=None, ttl=300):
         """Send a signal to Compozy"""
         data = {
@@ -538,17 +483,17 @@ class CompozySignalClient:
         }
         if correlation_id:
             data['correlation_id'] = correlation_id
-        
+
         response = self.session.post(f'{self.base_url}/signals', json=data)
         response.raise_for_status()
         return response.json()
-    
+
     def get_signal_status(self, message_id):
         """Get the status of a sent signal"""
         response = self.session.get(f'{self.base_url}/signals/{message_id}')
         response.raise_for_status()
         return response.json()
-    
+
     def send_batch_signals(self, signals):
         """Send multiple signals in batch"""
         data = {'signals': signals}
@@ -578,7 +523,7 @@ print(f"Signal sent with message ID: {result['message_id']}")
 <FeatureCard
   title="Real-time Webhooks"
   description="Handle Compozy webhooks for real-time signal monitoring"
-  icon={Webhook}
+  icon="Webhook"
   size="sm"
 />
 
@@ -593,23 +538,23 @@ app.use(express.json());
 
 app.post('/webhooks/signals', (req, res) => {
   const { event, signal_id, message_id, payload } = req.body;
-  
+
   switch (event) {
     case 'signal_sent':
       console.log(`Signal ${signal_id} sent with ID ${message_id}`);
       break;
-    
+
     case 'signal_delivered':
       console.log(`Signal ${signal_id} delivered to workflow`);
       handleSignalDelivery(signal_id, payload);
       break;
-    
+
     case 'signal_timeout':
       console.log(`Signal ${signal_id} timed out`);
       handleSignalTimeout(signal_id, payload);
       break;
   }
-  
+
   res.status(200).json({ success: true });
 });
 
@@ -633,17 +578,17 @@ function handleSignalTimeout(signalId, payload) {
   <FeatureCard
     title="Approval Systems"
     description="Integrate external approval workflows"
-    icon={CheckCircle}
+    icon="CheckCircle"
   />
   <FeatureCard
     title="Payment Processing"
     description="Handle payment gateway webhooks"
-    icon={CreditCard}
+    icon="CreditCard"
   />
   <FeatureCard
     title="IoT Integration"
     description="Process device events and alerts"
-    icon={Smartphone}
+    icon="Smartphone"
   />
 </FeatureCardList>
 
@@ -661,7 +606,7 @@ class ApprovalSystemIntegration {
   constructor(compozyClient) {
     this.compozy = compozyClient;
   }
-  
+
   async handleApprovalDecision(approvalId, decision, approver) {
     // Send approval signal to Compozy
     await this.compozy.sendSignal('approval-decision', {
@@ -670,7 +615,7 @@ class ApprovalSystemIntegration {
       approver: approver,
       timestamp: new Date().toISOString()
     });
-    
+
     // Also send user notification signal
     await this.compozy.sendSignal('user-notification', {
       user_id: approver,
@@ -689,7 +634,7 @@ Handle payment webhooks and send signals:
 // Payment gateway webhook handler
 app.post('/webhooks/payment', async (req, res) => {
   const { transaction_id, status, amount, customer_id } = req.body;
-  
+
   // Send payment status signal
   await compozyClient.sendSignal('payment-status-update', {
     transaction_id,
@@ -698,7 +643,7 @@ app.post('/webhooks/payment', async (req, res) => {
     customer_id,
     processed_at: new Date().toISOString()
   });
-  
+
   // Send specific success/failure signals
   if (status === 'completed') {
     await compozyClient.sendSignal('payment-completed', {
@@ -714,7 +659,7 @@ app.post('/webhooks/payment', async (req, res) => {
       error_code: req.body.error_code
     });
   }
-  
+
   res.status(200).json({ success: true });
 });
 ```
@@ -728,7 +673,7 @@ Handle IoT device events:
 class IoTDeviceHandler:
     def __init__(self, compozy_client):
         self.compozy = compozy_client
-    
+
     def handle_device_event(self, device_id, event_type, data):
         """Handle IoT device events"""
         # Send device event signal
@@ -738,7 +683,7 @@ class IoTDeviceHandler:
             'data': data,
             'timestamp': datetime.now().isoformat()
         })
-        
+
         # Send specific signals for critical events
         if event_type == 'alarm':
             self.compozy.send_signal('device-alarm', {
@@ -779,7 +724,7 @@ async function sendSignalWithRetry(client, signalId, payload, maxRetries = 3) {
           continue;
         }
       }
-      
+
       // Non-retryable error or max retries reached
       throw error;
     }
@@ -804,18 +749,18 @@ async function sendSignalWithRetry(client, signalId, payload, maxRetries = 3) {
   <FeatureCard
     title="Batch Operations"
     description="Group multiple signals to reduce API overhead"
-    icon={Package}
+    icon="Package"
   />
   <FeatureCard
     title="Connection Pooling"
     description="Reuse HTTP connections for high-throughput scenarios"
-    icon={Network}
+    icon="Network"
   />
 </FeatureCardList>
 
 ### Batch Operations
 
-<Callout type="tip">
+<Callout type="info">
 Use batch operations when sending multiple signals to improve performance and reduce API call overhead.
 </Callout>
 
@@ -826,7 +771,7 @@ Use batch operations for multiple signals:
 async function sendMultipleSignals(client, signals) {
   const BATCH_SIZE = 100;
   const results = [];
-  
+
   for (let i = 0; i < signals.length; i += BATCH_SIZE) {
     const batch = signals.slice(i, i + BATCH_SIZE);
     try {
@@ -837,7 +782,7 @@ async function sendMultipleSignals(client, signals) {
       // Handle batch failure
     }
   }
-  
+
   return results;
 }
 ```
@@ -873,23 +818,23 @@ const client = axios.create({
   <FeatureCard
     title="Consistent Naming"
     description="Use clear, descriptive signal names"
-    icon={FileText}
+    icon="FileText"
   />
   <FeatureCard
     title="Structured Payloads"
     description="Maintain consistent payload formats"
-    icon={Database}
+    icon="Database"
   />
   <FeatureCard
     title="Error Handling"
     description="Implement comprehensive error handling"
-    icon={Shield}
+    icon="Shield"
   />
 </FeatureCardList>
 
 ### 1. Signal Naming
 
-<Callout type="tip">
+<Callout type="info">
 Use consistent naming conventions to make your signal system maintainable and understandable.
 </Callout>
 
@@ -946,10 +891,10 @@ Implement comprehensive error handling:
 async function robustSignalSend(client, signalId, payload) {
   try {
     const result = await client.sendSignal(signalId, payload);
-    
+
     // Log successful sends
     console.log(`Signal ${signalId} sent successfully:`, result.message_id);
-    
+
     return result;
   } catch (error) {
     // Log error details
@@ -958,7 +903,7 @@ async function robustSignalSend(client, signalId, payload) {
       payload: payload,
       timestamp: new Date().toISOString()
     });
-    
+
     // Handle specific error types
     if (error.response?.status === 429) {
       throw new Error('Rate limit exceeded - please retry later');
@@ -971,89 +916,119 @@ async function robustSignalSend(client, signalId, payload) {
 }
 ```
 
-## Next Steps
+## Current Implementation
+
+<Callout type="info" title="Engine-Level Implementation Available">
+While the external HTTP API is under development, signal functionality is fully implemented at the engine level for workflow-to-workflow communication.
+</Callout>
+
+### How Signals Work Today
+
+Signals currently operate through the engine's internal dispatcher:
+
+1. **Signal Tasks**: Use `type: signal` tasks to send signals within workflows
+2. **Wait Tasks**: Use `type: wait` tasks to receive signals within workflows
+3. **Signal Triggers**: Configure workflows to be triggered by specific signals
+4. **Internal Dispatcher**: The `SignalDispatcher` interface handles message routing
+
+### Example Current Usage
+
+```yaml
+# Send a signal from a workflow
+- id: send-approval-signal
+  type: signal
+  signal: user-approved
+  payload:
+    user_id: "{{ .inputs.user_id }}"
+    status: approved
+
+# Wait for a signal in another workflow
+- id: wait-for-approval
+  type: wait
+  wait_for: user-approved
+  condition: 'signal.payload.user_id == "123"'
+  timeout: 300
+```
+
+### Migration Path
+
+Once the HTTP API is implemented:
+- Existing engine-level signal functionality will continue to work unchanged
+- External systems will be able to send signals via HTTP endpoints
+- Internal workflows can continue using signal and wait tasks
+- Full backward compatibility will be maintained
 
 <ReferenceCardList>
   <ReferenceCard
     title="Signal Tasks"
     description="Learn how to send signals from within workflows using signal tasks"
     href="/docs/core/signals/signal-tasks"
-    icon={Send}
+    icon="Send"
   />
   <ReferenceCard
     title="Wait Tasks"
     description="Explore how tasks can wait for signals within workflow execution"
     href="/docs/core/signals/wait-tasks"
-    icon={Timer}
+    icon="Timer"
   />
   <ReferenceCard
     title="Signal Triggers"
     description="Understand how to trigger workflows automatically with signal events"
     href="/docs/core/signals/signal-triggers"
-    icon={Zap}
+    icon="Zap"
   />
   <ReferenceCard
     title="Advanced Patterns"
     description="Study complex signal orchestration patterns and integration strategies"
     href="/docs/core/signals/advanced-patterns"
-    icon={Layers}
+    icon="Layers"
   />
-</ReferenceCardList>
-
-### Related Documentation
-
-<ReferenceCardList>
   <ReferenceCard
     title="Signal Overview"
     description="Understand the fundamental concepts of Compozy's signal system"
     href="/docs/core/signals/signal-overview"
-    icon={BookOpen}
+    icon="BookOpen"
   />
   <ReferenceCard
     title="API Reference"
     description="Complete API documentation for all Compozy endpoints"
     href="/docs/api/overview"
-    icon={FileJson}
+    icon="FileJson"
   />
   <ReferenceCard
     title="Workflow API"
     description="Learn about workflow execution and management APIs"
     href="/docs/api/workflows"
-    icon={Play}
+    icon="Play"
   />
   <ReferenceCard
     title="Agent Integration"
     description="Discover how to integrate AI agents with external systems"
     href="/docs/core/agents/overview"
-    icon={BrainCircuit}
+    icon="BrainCircuit"
   />
-</ReferenceCardList>
-
-### Integration Resources
-
-<ReferenceCardList>
   <ReferenceCard
     title="External Integrations"
     description="Learn patterns for integrating with external systems and services"
     href="/docs/core/tools/external-integrations"
-    icon={ExternalLink}
+    icon="ExternalLink"
   />
   <ReferenceCard
     title="Webhook Development"
     description="Best practices for implementing webhook handlers"
     href="/docs/core/development/webhooks"
-    icon={Webhook}
+    icon="Webhook"
   />
   <ReferenceCard
     title="Authentication Guide"
     description="Comprehensive guide to API authentication and security"
     href="/docs/core/security/authentication"
-    icon={Lock}
+    icon="Lock"
   />
   <ReferenceCard
     title="Performance Tuning"
     description="Optimize your signal integrations for high throughput"
     href="/docs/core/performance/optimization"
-    icon={Gauge}
+    icon="Gauge"
   />
 </ReferenceCardList>

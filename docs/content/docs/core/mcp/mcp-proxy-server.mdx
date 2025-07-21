@@ -43,8 +43,6 @@ import {
   Check,
 } from "lucide-react";
 
-# MCP Proxy Server
-
 The MCP Proxy Server is the central gateway that manages all MCP server connections in Compozy. It acts as a reverse proxy, connection manager, and administration hub for MCP servers, providing a unified HTTP interface for multiple MCP servers.
 
 <Callout type="info">
@@ -61,7 +59,7 @@ graph TB
         A2[AI Agent 2]
         A3[AI Agent N]
     end
-    
+
     subgraph "MCP Proxy Server"
         B[HTTP Router]
         C[Admin API]
@@ -71,18 +69,18 @@ graph TB
         G[Auth Manager]
         H[Health Monitor]
     end
-    
+
     subgraph "MCP Servers"
         I[stdio Server]
         J[SSE Server]
         K[HTTP Server]
         L[Docker Server]
     end
-    
+
     A1 --> B
     A2 --> B
     A3 --> B
-    
+
     B --> D
     C --> D
     D --> E
@@ -90,12 +88,12 @@ graph TB
     E --> J
     E --> K
     E --> L
-    
+
     D --> F
     B --> G
     C --> G
     D --> H
-    
+
     style B fill:#e1f5fe
     style C fill:#f3e5f5
     style D fill:#e8f5e8
@@ -109,7 +107,7 @@ graph TB
 ## Core Components
 
 <AccordionGroup>
-<Accordion title="HTTP Router" icon={<Radio className="w-4 h-4" />}>
+<Accordion title="HTTP Router" icon="radio">
 The main entry point that handles all incoming requests and routes them to appropriate handlers.
 
 **Responsibilities:**
@@ -119,7 +117,7 @@ The main entry point that handles all incoming requests and routes them to appro
 - Error handling and status codes
 </Accordion>
 
-<Accordion title="Admin API" icon={<Settings className="w-4 h-4" />}>
+<Accordion title="Admin API" icon="settings">
 Management interface for dynamic server registration and configuration.
 
 **Capabilities:**
@@ -129,7 +127,7 @@ Management interface for dynamic server registration and configuration.
 - Access control and authentication
 </Accordion>
 
-<Accordion title="Connection Manager" icon={<Link2 className="w-4 h-4" />}>
+<Accordion title="Connection Manager" icon="link-2">
 Manages all MCP server connections with pooling and lifecycle management.
 
 **Features:**
@@ -139,7 +137,7 @@ Manages all MCP server connections with pooling and lifecycle management.
 - Resource cleanup and management
 </Accordion>
 
-<Accordion title="Transport Layer" icon={<Network className="w-4 h-4" />}>
+<Accordion title="Transport Layer" icon="network">
 Handles different transport protocols for MCP server communication.
 
 **Supported Transports:**
@@ -149,7 +147,7 @@ Handles different transport protocols for MCP server communication.
 - Custom transport implementations
 </Accordion>
 
-<Accordion title="Storage Backend" icon={<Database className="w-4 h-4" />}>
+<Accordion title="Storage Backend" icon="database">
 Persistent storage for MCP server configurations and state.
 
 **Options:**
@@ -159,7 +157,7 @@ Persistent storage for MCP server configurations and state.
 - Configuration persistence
 </Accordion>
 
-<Accordion title="Authentication Manager" icon={<Shield className="w-4 h-4" />}>
+<Accordion title="Authentication Manager" icon="shield">
 Handles security and access control for the proxy server.
 
 **Security Features:**
@@ -173,25 +171,25 @@ Handles security and access control for the proxy server.
 ## Key Features
 
 <FeatureCardList cols={2}>
-  <FeatureCard 
-    title="Multi-Transport Support" 
+  <FeatureCard
+    title="Multi-Transport Support"
     description="stdio, SSE, and streamable-http transports for different communication patterns"
-    icon={<Network className="w-5 h-5" />}
+    icon="network"
   />
-  <FeatureCard 
-    title="Dynamic Registration" 
+  <FeatureCard
+    title="Dynamic Registration"
     description="Hot-add, update, or remove servers via Admin API with zero downtime"
-    icon={<RefreshCw className="w-5 h-5" />}
+    icon="refresh-cw"
   />
-  <FeatureCard 
-    title="Security & Authentication" 
+  <FeatureCard
+    title="Security & Authentication"
     description="Token-based auth, IP restrictions, and trusted proxy support"
-    icon={<Shield className="w-5 h-5" />}
+    icon="shield"
   />
-  <FeatureCard 
-    title="Storage Flexibility" 
+  <FeatureCard
+    title="Storage Flexibility"
     description="In-memory for development, Redis for production persistence"
-    icon={<Database className="w-5 h-5" />}
+    icon="database"
   />
 </FeatureCardList>
 
@@ -208,7 +206,7 @@ For local process communication with high performance:
 - **Security**: Process-level isolation
 - **Management**: Automatic process lifecycle management
 
-<Callout type="tip">
+<Callout type="info">
 **Best For**: Development environments and local tool integration
 </Callout>
 </Tab>
@@ -223,7 +221,7 @@ For HTTP-based real-time streaming:
 - **Security**: HTTPS encryption, token authentication
 - **Management**: Automatic reconnection with backoff
 
-<Callout type="tip">
+<Callout type="info">
 **Best For**: Third-party APIs and real-time integrations
 </Callout>
 </Tab>
@@ -238,7 +236,7 @@ For large responses and file transfers:
 - **Security**: HTTPS encryption, authentication headers
 - **Management**: Chunked transfer encoding support
 
-<Callout type="tip">
+<Callout type="info">
 **Best For**: Large data processing and file operations
 </Callout>
 </Tab>
@@ -304,22 +302,22 @@ func (c *Config) Validate() error {
     if c.Port == "" {
         return errors.New("port is required")
     }
-    
+
     // Host validation
     if c.Host == "" {
         return errors.New("host is required")
     }
-    
+
     // BaseURL validation
     if c.BaseURL == "" {
         return errors.New("base URL is required")
     }
-    
+
     // Timeout validation
     if c.ShutdownTimeout < 0 {
         return errors.New("shutdown timeout cannot be negative")
     }
-    
+
     return nil
 }
 ```
@@ -463,7 +461,7 @@ services:
     depends_on:
       - redis
     command: ["compozy", "mcp-proxy"]
-    
+
   redis:
     image: redis:7-alpine
     command: redis-server --appendonly yes
@@ -544,7 +542,7 @@ spec:
           limits:
             memory: "512Mi"
             cpu: "500m"
-        
+
 ---
 apiVersion: v1
 kind: Service
@@ -561,7 +559,7 @@ spec:
     protocol: TCP
     name: http
   type: LoadBalancer
-  
+
 ---
 apiVersion: v1
 kind: Secret
@@ -584,7 +582,7 @@ package main
 import (
     "context"
     "time"
-    
+
     "github.com/compozy/compozy/pkg/mcp-proxy"
 )
 
@@ -599,18 +597,18 @@ func main() {
         AdminAllowIPs:    []string{"127.0.0.1", "::1"},
         GlobalAuthTokens: []string{"global-token"},
     }
-    
+
     // Create storage
     storage := mcpproxy.NewInMemoryStorage()
-    
+
     // Create and start proxy
     proxy := mcpproxy.NewProxy(config, storage)
     if err := proxy.Start(); err != nil {
         panic(err)
     }
-    
+
     defer proxy.Stop()
-    
+
     // Server is now running on http://localhost:8081
     select {}
 }
@@ -958,7 +956,7 @@ services:
       - REDIS_URL=redis://redis:6379
     depends_on:
       - redis
-      
+
   mcp-proxy-2:
     image: compozy/compozy:latest
     ports:
@@ -968,13 +966,13 @@ services:
       - REDIS_URL=redis://redis:6379
     depends_on:
       - redis
-      
+
   redis:
     image: redis:7-alpine
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
-      
+
 volumes:
   redis_data:
 ```
@@ -1000,7 +998,29 @@ server {
 
 ## Next Steps
 
-- [Client Manager](./client-manager) - Learn about MCP client management
-- [Transport Configuration](./transport-configuration) - Configure transport types
-- [Security & Authentication](./security-authentication) - Secure your deployment
-- [Monitoring & Metrics](./monitoring-metrics) - Monitor your proxy server
+<ReferenceCardList>
+  <ReferenceCard
+    title="Client Manager"
+    description="Learn about MCP client management"
+    href="/docs/core/mcp/client-manager"
+    icon="Network"
+  />
+  <ReferenceCard
+    title="Transport Configuration"
+    description="Configure transport types"
+    href="/docs/core/mcp/transport-configuration"
+    icon="Settings"
+  />
+  <ReferenceCard
+    title="Security & Authentication"
+    description="Secure your deployment"
+    href="/docs/core/mcp/security-authentication"
+    icon="Shield"
+  />
+  <ReferenceCard
+    title="Monitoring & Metrics"
+    description="Monitor your proxy server"
+    href="/docs/core/mcp/monitoring-metrics"
+    icon="Monitor"
+  />
+</ReferenceCardList>

@@ -1,7 +1,6 @@
 resource: tool
 id: quick-calc-tool
 description: "Simple calculations - should be fast"
-execute: "./format.ts"
 timeout: 30s
 
 input:

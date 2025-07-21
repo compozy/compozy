@@ -1,2451 +1,385 @@
 ---
 title: "Monitoring & Metrics"
-description: "Comprehensive monitoring, metrics collection, and observability for MCP integrations"
+description: "Advanced monitoring and observability with OpenTelemetry and Prometheus for Compozy systems"
 ---
 
-import {
-  BookOpen,
-  Code,
-  Settings,
-  Users,
-  Zap,
-  BrainCircuit,
-  GitBranch,
-  Database,
-  Cloud,
-  BarChart3,
-  Cpu,
-  Terminal,
-  Shield,
-  TrendingUp,
-  Eye,
-  Monitor,
-  AlertTriangle,
-  CheckCircle,
-  Globe,
-  HardDrive,
-  Network,
-  Gauge,
-  Activity,
-  Timer,
-  Workflow,
-  FileText,
-  Bell,
-  Key,
-  Search,
-  Target,
-  Navigation,
-  CheckCircle2,
-  Info,
-  MemoryStick,
-  LineChart,
-  PieChart,
-  Thermometer,
-  Compass,
-  Filter,
-  Tag,
-} from "lucide-react";
-import { FeatureCard, FeatureCardList } from "@/components/ui/feature-card";
-import { ReferenceCard, ReferenceCardList } from "@/components/ui/reference-card";
-import { Callout } from "@/components/ui/callout";
-import { Steps, Step } from "@/components/ui/step";
-import { Tabs, Tab } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Mermaid } from "@/components/ui/mermaid";
-import { Button } from "@/components/ui/button";
-import { List, ListItem } from "@/components/ui/list";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+Compozy provides comprehensive monitoring and observability capabilities using OpenTelemetry and Prometheus for tracking workflow execution, system performance, and operational health.
 
-# Monitoring & Metrics
+## Related Documentation
 
-Effective monitoring and metrics collection are essential for maintaining healthy MCP integrations in production. This guide covers comprehensive observability strategies, metrics collection, alerting, and performance monitoring for MCP systems.
+### 🔗 Cross-References
+- **[MCP Overview](/docs/core/mcp/mcp-overview)** - Understanding MCP architecture  
+- **[Production Deployment](/docs/core/mcp/production-deployment)** - Production setup and monitoring
+- **[Storage Backends](/docs/core/mcp/storage-backends)** - Storage performance monitoring
+- **[Development & Debugging](/docs/core/mcp/development-debugging)** - Development monitoring
+- **[Admin API](/docs/core/mcp/admin-api)** - Administrative monitoring endpoints
 
-<Callout type="info" icon={Monitor}>
-  **Observability First**: Comprehensive monitoring is crucial for maintaining reliable MCP systems in production environments.
+<Callout type="info">
+**What Compozy Monitoring Provides:**
+- **OpenTelemetry metrics** with Prometheus exporter
+- **System health metrics** (CPU, memory, goroutines)
+- **Workflow execution metrics** and performance tracking
+- **Custom business metrics** registration and collection
+- **HTTP middleware instrumentation** for request/response metrics
+- **Temporal workflow metrics** for distributed execution tracking
 </Callout>
 
-## Metrics Overview
+## Overview
 
-<Mermaid chart={`graph LR
-    subgraph "Data Collection"
-        A[MCP Proxy] --> B[Prometheus Metrics]
-        C[MCP Servers] --> B
-        D[Tools] --> B
-        E[System] --> B
-    end
-    
-    subgraph "Storage & Processing"
-        B --> F[Prometheus DB]
-        F --> G[AlertManager]
-        F --> H[Grafana]
-    end
-    
-    subgraph "Visualization"
-        H --> I[Dashboards]
-        H --> J[Reports]
-        G --> K[Notifications]
-    end
-    
-    subgraph "Actions"
-        K --> L[Email]
-        K --> M[Slack]
-        K --> N[PagerDuty]
-    end
-    
-    classDef collection fill:#e8f5e8,stroke:#1b5e20,stroke-width:2px
-    classDef storage fill:#e3f2fd,stroke:#0d47a1,stroke-width:2px
-    classDef visualization fill:#fff3e0,stroke:#e65100,stroke-width:2px
-    classDef actions fill:#fce4ec,stroke:#880e4f,stroke-width:2px
-    
-    class A,C,D,E collection
-    class B,F,G storage
-    class H,I,J visualization
-    class K,L,M,N actions
-`} />
+**What it does:** Compozy's monitoring system provides enterprise-grade observability using OpenTelemetry standards with Prometheus-compatible metrics export for comprehensive system monitoring.
 
-### Monitoring Architecture Benefits
+**How it works:** The monitoring system uses OpenTelemetry's metrics provider with Prometheus exporters to collect, process, and expose metrics at a configurable endpoint (/metrics by default).
 
-<FeatureCardList cols={4} size="sm">
-  <FeatureCard
-    title="Real-time Metrics"
-    description="Live system performance monitoring"
-    icon={Activity}
-  />
-  <FeatureCard
-    title="Proactive Alerting"
-    description="Early detection of issues"
-    icon={Bell}
-  />
-  <FeatureCard
-    title="Historical Analysis"
-    description="Trend analysis and capacity planning"
-    icon={TrendingUp}
-  />
-  <FeatureCard
-    title="Operational Insights"
-    description="Data-driven operational decisions"
-    icon={Eye}
-  />
-</FeatureCardList>
+## Monitoring Architecture
 
-### Core MCP Metrics
+The monitoring system is built on industry-standard observability tools:
 
-<Tabs items={["Request Metrics", "Performance Metrics", "System Metrics", "Business Metrics"]}>
+### OpenTelemetry Integration
 
-<Tab>
-**Request Metrics** track the flow of requests through your MCP system:
-
-<Table>
-  <TableHeader>
-    <TableRow>
-      <TableHead>Metric</TableHead>
-      <TableHead>Type</TableHead>
-      <TableHead>Description</TableHead>
-      <TableHead>Labels</TableHead>
-    </TableRow>
-  </TableHeader>
-  <TableBody>
-    <TableRow>
-      <TableCell>`mcp_requests_total`</TableCell>
-      <TableCell><Badge variant="outline">Counter</Badge></TableCell>
-      <TableCell>Total number of MCP requests</TableCell>
-      <TableCell>server_name, operation, status</TableCell>
-    </TableRow>
-    <TableRow>
-      <TableCell>`mcp_request_duration_seconds`</TableCell>
-      <TableCell><Badge variant="outline">Histogram</Badge></TableCell>
-      <TableCell>Request duration in seconds</TableCell>
-      <TableCell>server_name, operation</TableCell>
-    </TableRow>
-    <TableRow>
-      <TableCell>`mcp_requests_errors_total`</TableCell>
-      <TableCell><Badge variant="outline">Counter</Badge></TableCell>
-      <TableCell>Total number of request errors</TableCell>
-      <TableCell>server_name, operation, error_type</TableCell>
-    </TableRow>
-    <TableRow>
-      <TableCell>`mcp_tool_executions_total`</TableCell>
-      <TableCell><Badge variant="outline">Counter</Badge></TableCell>
-      <TableCell>Total tool executions</TableCell>
-      <TableCell>server_name, tool_name, status</TableCell>
-    </TableRow>
-  </TableBody>
-</Table>
-
-</Tab>
-
-<Tab>
-**Performance Metrics** monitor system performance and resource usage:
-
-<Table>
-  <TableHeader>
-    <TableRow>
-      <TableHead>Metric</TableHead>
-      <TableHead>Type</TableHead>
-      <TableHead>Description</TableHead>
-      <TableHead>Labels</TableHead>
-    </TableRow>
-  </TableHeader>
-  <TableBody>
-    <TableRow>
-      <TableCell>`mcp_tool_execution_duration_seconds`</TableCell>
-      <TableCell><Badge variant="outline">Histogram</Badge></TableCell>
-      <TableCell>Tool execution duration</TableCell>
-      <TableCell>server_name, tool_name</TableCell>
-    </TableRow>
-    <TableRow>
-      <TableCell>`mcp_memory_usage_bytes`</TableCell>
-      <TableCell><Badge variant="outline">Gauge</Badge></TableCell>
-      <TableCell>Memory usage in bytes</TableCell>
-      <TableCell>server_name, type</TableCell>
-    </TableRow>
-    <TableRow>
-      <TableCell>`mcp_cpu_usage_percent`</TableCell>
-      <TableCell><Badge variant="outline">Gauge</Badge></TableCell>
-      <TableCell>CPU usage percentage</TableCell>
-      <TableCell>server_name</TableCell>
-    </TableRow>
-    <TableRow>
-      <TableCell>`mcp_goroutines`</TableCell>
-      <TableCell><Badge variant="outline">Gauge</Badge></TableCell>
-      <TableCell>Number of goroutines</TableCell>
-      <TableCell>-</TableCell>
-    </TableRow>
-  </TableBody>
-</Table>
-
-</Tab>
-
-<Tab>
-**System Metrics** monitor overall system health:
-
-<Table>
-  <TableHeader>
-    <TableRow>
-      <TableHead>Metric</TableHead>
-      <TableHead>Type</TableHead>
-      <TableHead>Description</TableHead>
-      <TableHead>Labels</TableHead>
-    </TableRow>
-  </TableHeader>
-  <TableBody>
-    <TableRow>
-      <TableCell>`mcp_server_health_status`</TableCell>
-      <TableCell><Badge variant="outline">Gauge</Badge></TableCell>
-      <TableCell>Server health status (1=healthy, 0=unhealthy)</TableCell>
-      <TableCell>server_name, transport</TableCell>
-    </TableRow>
-    <TableRow>
-      <TableCell>`mcp_active_connections`</TableCell>
-      <TableCell><Badge variant="outline">Gauge</Badge></TableCell>
-      <TableCell>Number of active connections</TableCell>
-      <TableCell>server_name, transport</TableCell>
-    </TableRow>
-    <TableRow>
-      <TableCell>`mcp_circuit_breaker_state`</TableCell>
-      <TableCell><Badge variant="outline">Gauge</Badge></TableCell>
-      <TableCell>Circuit breaker state (0=closed, 1=open, 2=half-open)</TableCell>
-      <TableCell>server_name</TableCell>
-    </TableRow>
-    <TableRow>
-      <TableCell>`mcp_request_queue_size`</TableCell>
-      <TableCell><Badge variant="outline">Gauge</Badge></TableCell>
-      <TableCell>Number of requests in queue</TableCell>
-      <TableCell>server_name</TableCell>
-    </TableRow>
-  </TableBody>
-</Table>
-
-</Tab>
-
-<Tab>
-**Business Metrics** track key business indicators:
-
-<Table>
-  <TableHeader>
-    <TableRow>
-      <TableHead>Metric</TableHead>
-      <TableHead>Type</TableHead>
-      <TableHead>Description</TableHead>
-      <TableHead>Labels</TableHead>
-    </TableRow>
-  </TableHeader>
-  <TableBody>
-    <TableRow>
-      <TableCell>`mcp_successful_workflows`</TableCell>
-      <TableCell><Badge variant="outline">Counter</Badge></TableCell>
-      <TableCell>Number of successful workflow executions</TableCell>
-      <TableCell>workflow_type, server_name</TableCell>
-    </TableRow>
-    <TableRow>
-      <TableCell>`mcp_user_sessions_active`</TableCell>
-      <TableCell><Badge variant="outline">Gauge</Badge></TableCell>
-      <TableCell>Number of active user sessions</TableCell>
-      <TableCell>server_name</TableCell>
-    </TableRow>
-    <TableRow>
-      <TableCell>`mcp_data_processed_bytes`</TableCell>
-      <TableCell><Badge variant="outline">Counter</Badge></TableCell>
-      <TableCell>Amount of data processed</TableCell>
-      <TableCell>server_name, data_type</TableCell>
-    </TableRow>
-    <TableRow>
-      <TableCell>`mcp_sla_compliance_rate`</TableCell>
-      <TableCell><Badge variant="outline">Gauge</Badge></TableCell>
-      <TableCell>SLA compliance rate (0-1)</TableCell>
-      <TableCell>service_level, server_name</TableCell>
-    </TableRow>
-  </TableBody>
-</Table>
-
-</Tab>
-</Tabs>
-
-Essential metrics for MCP system health:
+Compozy uses OpenTelemetry for metrics collection and export:
 
 ```go
-// pkg/mcp-proxy/metrics.go
-package mcpproxy
+// Monitoring service initialization
+service, err := monitoring.NewMonitoringService(ctx, config)
 
-import (
-    "time"
-    
-    "github.com/prometheus/client_golang/prometheus"
-    "github.com/prometheus/client_golang/prometheus/promauto"
-)
+// Get OpenTelemetry meter for custom metrics
+meter := service.Meter()
 
-// MCP Proxy Metrics
-var (
-    // Request metrics
-    MCPRequestsTotal = promauto.NewCounterVec(
-        prometheus.CounterOpts{
-            Name: "mcp_requests_total",
-            Help: "Total number of MCP requests",
-        },
-        []string{"server_name", "operation", "status"},
-    )
-    
-    MCPRequestDuration = promauto.NewHistogramVec(
-        prometheus.HistogramOpts{
-            Name: "mcp_request_duration_seconds",
-            Help: "Duration of MCP requests",
-            Buckets: []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10},
-        },
-        []string{"server_name", "operation"},
-    )
-    
-    MCPRequestsErrors = promauto.NewCounterVec(
-        prometheus.CounterOpts{
-            Name: "mcp_requests_errors_total",
-            Help: "Total number of MCP request errors",
-        },
-        []string{"server_name", "operation", "error_type"},
-    )
-    
-    // Server health metrics
-    MCPServerHealthStatus = promauto.NewGaugeVec(
-        prometheus.GaugeOpts{
-            Name: "mcp_server_health_status",
-            Help: "Health status of MCP servers (1 = healthy, 0 = unhealthy)",
-        },
-        []string{"server_name", "transport"},
-    )
-    
-    MCPServerLastHealthCheck = promauto.NewGaugeVec(
-        prometheus.GaugeOpts{
-            Name: "mcp_server_last_health_check_timestamp",
-            Help: "Timestamp of last health check",
-        },
-        []string{"server_name"},
-    )
-    
-    // Connection metrics
-    MCPActiveConnections = promauto.NewGaugeVec(
-        prometheus.GaugeOpts{
-            Name: "mcp_active_connections",
-            Help: "Number of active MCP connections",
-        },
-        []string{"server_name", "transport"},
-    )
-    
-    MCPConnectionsTotal = promauto.NewCounterVec(
-        prometheus.CounterOpts{
-            Name: "mcp_connections_total",
-            Help: "Total number of MCP connections",
-        },
-        []string{"server_name", "transport", "status"},
-    )
-    
-    // Tool execution metrics
-    MCPToolExecutionsTotal = promauto.NewCounterVec(
-        prometheus.CounterOpts{
-            Name: "mcp_tool_executions_total",
-            Help: "Total number of tool executions",
-        },
-        []string{"server_name", "tool_name", "status"},
-    )
-    
-    MCPToolExecutionDuration = promauto.NewHistogramVec(
-        prometheus.HistogramOpts{
-            Name: "mcp_tool_execution_duration_seconds",
-            Help: "Duration of tool executions",
-            Buckets: []float64{.01, .05, .1, .25, .5, 1, 2.5, 5, 10, 30, 60},
-        },
-        []string{"server_name", "tool_name"},
-    )
-    
-    // Resource usage metrics
-    MCPMemoryUsage = promauto.NewGaugeVec(
-        prometheus.GaugeOpts{
-            Name: "mcp_memory_usage_bytes",
-            Help: "Memory usage in bytes",
-        },
-        []string{"server_name", "type"},
-    )
-    
-    MCPCPUUsage = promauto.NewGaugeVec(
-        prometheus.GaugeOpts{
-            Name: "mcp_cpu_usage_percent",
-            Help: "CPU usage percentage",
-        },
-        []string{"server_name"},
-    )
-    
-    // Circuit breaker metrics
-    MCPCircuitBreakerState = promauto.NewGaugeVec(
-        prometheus.GaugeOpts{
-            Name: "mcp_circuit_breaker_state",
-            Help: "Circuit breaker state (0 = closed, 1 = open, 2 = half-open)",
-        },
-        []string{"server_name"},
-    )
-    
-    MCPCircuitBreakerTrips = promauto.NewCounterVec(
-        prometheus.CounterOpts{
-            Name: "mcp_circuit_breaker_trips_total",
-            Help: "Total number of circuit breaker trips",
-        },
-        []string{"server_name"},
-    )
-)
-
-// MetricsCollector handles metrics collection
-type MetricsCollector struct {
-    servers map[string]*ServerMetrics
-    mutex   sync.RWMutex
-}
-
-type ServerMetrics struct {
-    Name              string
-    Transport         string
-    LastHealthCheck   time.Time
-    IsHealthy         bool
-    ActiveConnections int
-    ToolExecutions    map[string]int
-    ErrorCounts       map[string]int
-    ResourceUsage     ResourceUsage
-}
-
-type ResourceUsage struct {
-    MemoryBytes   int64
-    CPUPercent    float64
-    GoroutineCount int
-}
-
-func NewMetricsCollector() *MetricsCollector {
-    return &MetricsCollector{
-        servers: make(map[string]*ServerMetrics),
-    }
-}
-
-func (mc *MetricsCollector) RecordRequest(serverName, operation, status string, duration time.Duration) {
-    MCPRequestsTotal.WithLabelValues(serverName, operation, status).Inc()
-    MCPRequestDuration.WithLabelValues(serverName, operation).Observe(duration.Seconds())
-    
-    if status == "error" {
-        MCPRequestsErrors.WithLabelValues(serverName, operation, "unknown").Inc()
-    }
-}
-
-func (mc *MetricsCollector) RecordToolExecution(serverName, toolName, status string, duration time.Duration) {
-    MCPToolExecutionsTotal.WithLabelValues(serverName, toolName, status).Inc()
-    MCPToolExecutionDuration.WithLabelValues(serverName, toolName).Observe(duration.Seconds())
-}
-
-func (mc *MetricsCollector) UpdateServerHealth(serverName string, isHealthy bool) {
-    mc.mutex.Lock()
-    defer mc.mutex.Unlock()
-    
-    var healthValue float64
-    if isHealthy {
-        healthValue = 1
-    }
-    
-    MCPServerHealthStatus.WithLabelValues(serverName, "unknown").Set(healthValue)
-    MCPServerLastHealthCheck.WithLabelValues(serverName).SetToCurrentTime()
-}
-
-func (mc *MetricsCollector) UpdateResourceUsage(serverName string, usage ResourceUsage) {
-    MCPMemoryUsage.WithLabelValues(serverName, "heap").Set(float64(usage.MemoryBytes))
-    MCPCPUUsage.WithLabelValues(serverName).Set(usage.CPUPercent)
-}
-
-func (mc *MetricsCollector) RecordCircuitBreakerTrip(serverName string) {
-    MCPCircuitBreakerTrips.WithLabelValues(serverName).Inc()
-}
-
-func (mc *MetricsCollector) UpdateCircuitBreakerState(serverName string, state int) {
-    MCPCircuitBreakerState.WithLabelValues(serverName).Set(float64(state))
-}
+// Expose Prometheus-compatible metrics endpoint
+http.Handle("/metrics", service.ExporterHandler())
 ```
 
-## Metrics Collection
+### Core Components
 
-### Automatic Metrics Collection
+1. **Metrics Provider**: OpenTelemetry SDK with Prometheus exporter
+2. **Registry**: Prometheus registry for metric collection
+3. **Exporters**: HTTP endpoint exposing metrics in Prometheus format
+4. **Instrumentation**: Automatic and custom metric collection
 
-Implement automatic metrics collection in MCP operations:
+## Configuration
 
-```go
-// pkg/mcp-proxy/instrumentation.go
-package mcpproxy
+### Basic Configuration
 
-import (
-    "context"
-    "time"
-    
-    "github.com/compozy/compozy/pkg/logger"
-)
-
-// InstrumentedMCPClient wraps MCP client with metrics
-type InstrumentedMCPClient struct {
-    client    MCPClient
-    collector *MetricsCollector
-    logger    logger.Logger
-}
-
-func NewInstrumentedMCPClient(client MCPClient, collector *MetricsCollector, logger logger.Logger) *InstrumentedMCPClient {
-    return &InstrumentedMCPClient{
-        client:    client,
-        collector: collector,
-        logger:    logger,
-    }
-}
-
-func (ic *InstrumentedMCPClient) CallTool(ctx context.Context, serverName, toolName string, params interface{}) (interface{}, error) {
-    start := time.Now()
-    
-    // Execute the tool call
-    result, err := ic.client.CallTool(ctx, serverName, toolName, params)
-    
-    duration := time.Since(start)
-    status := "success"
-    if err != nil {
-        status = "error"
-        ic.collector.RecordError(serverName, "call_tool", err.Error())
-    }
-    
-    // Record metrics
-    ic.collector.RecordRequest(serverName, "call_tool", status, duration)
-    ic.collector.RecordToolExecution(serverName, toolName, status, duration)
-    
-    // Log operation
-    ic.logger.Info("MCP tool execution completed",
-        "server_name", serverName,
-        "tool_name", toolName,
-        "status", status,
-        "duration_ms", duration.Milliseconds(),
-        "error", err,
-    )
-    
-    return result, err
-}
-
-func (ic *InstrumentedMCPClient) ListTools(ctx context.Context, serverName string) ([]Tool, error) {
-    start := time.Now()
-    
-    tools, err := ic.client.ListTools(ctx, serverName)
-    
-    duration := time.Since(start)
-    status := "success"
-    if err != nil {
-        status = "error"
-    }
-    
-    ic.collector.RecordRequest(serverName, "list_tools", status, duration)
-    
-    return tools, err
-}
-
-func (ic *InstrumentedMCPClient) HealthCheck(ctx context.Context, serverName string) error {
-    start := time.Now()
-    
-    err := ic.client.HealthCheck(ctx, serverName)
-    
-    duration := time.Since(start)
-    isHealthy := err == nil
-    
-    ic.collector.UpdateServerHealth(serverName, isHealthy)
-    ic.collector.RecordRequest(serverName, "health_check", 
-        map[bool]string{true: "success", false: "error"}[isHealthy], duration)
-    
-    return err
-}
-```
-
-### Custom Metrics for Tools
-
-Add custom metrics to your tools:
-
-```typescript
-// tools/instrumented_weather_tool.ts
-interface WeatherMetrics {
-  api_calls_total: number;
-  cache_hits_total: number;
-  cache_misses_total: number;
-  response_time_ms: number;
-  error_count: number;
-}
-
-class WeatherToolMetrics {
-  private metrics: WeatherMetrics = {
-    api_calls_total: 0,
-    cache_hits_total: 0,
-    cache_misses_total: 0,
-    response_time_ms: 0,
-    error_count: 0,
-  };
-
-  recordAPICall(responseTime: number, fromCache: boolean, error?: Error) {
-    this.metrics.api_calls_total++;
-    this.metrics.response_time_ms = responseTime;
-    
-    if (fromCache) {
-      this.metrics.cache_hits_total++;
-    } else {
-      this.metrics.cache_misses_total++;
-    }
-    
-    if (error) {
-      this.metrics.error_count++;
-    }
-  }
-
-  getMetrics(): WeatherMetrics {
-    return { ...this.metrics };
-  }
-
-  exportPrometheusMetrics(): string {
-    return [
-      `# HELP weather_api_calls_total Total API calls made`,
-      `# TYPE weather_api_calls_total counter`,
-      `weather_api_calls_total ${this.metrics.api_calls_total}`,
-      
-      `# HELP weather_cache_hits_total Total cache hits`,
-      `# TYPE weather_cache_hits_total counter`,
-      `weather_cache_hits_total ${this.metrics.cache_hits_total}`,
-      
-      `# HELP weather_cache_misses_total Total cache misses`,
-      `# TYPE weather_cache_misses_total counter`,
-      `weather_cache_misses_total ${this.metrics.cache_misses_total}`,
-      
-      `# HELP weather_response_time_ms Response time in milliseconds`,
-      `# TYPE weather_response_time_ms gauge`,
-      `weather_response_time_ms ${this.metrics.response_time_ms}`,
-      
-      `# HELP weather_error_count Total errors`,
-      `# TYPE weather_error_count counter`,
-      `weather_error_count ${this.metrics.error_count}`,
-    ].join('\n');
-  }
-}
-
-const weatherMetrics = new WeatherToolMetrics();
-
-interface WeatherInput {
-  city: string;
-  units?: 'metric' | 'imperial';
-}
-
-interface WeatherOutput {
-  temperature: number;
-  description: string;
-  humidity: number;
-  metrics?: WeatherMetrics;
-}
-
-export default async function weatherTool(input: WeatherInput): Promise<WeatherOutput> {
-  const startTime = Date.now();
-  let fromCache = false;
-  let error: Error | undefined;
-
-  try {
-    console.log(`🌤️  Getting weather for ${input.city}`);
-    
-    // Check cache first
-    const cacheKey = `weather:${input.city}:${input.units || 'metric'}`;
-    const cachedResult = await getFromCache(cacheKey);
-    
-    if (cachedResult) {
-      fromCache = true;
-      const responseTime = Date.now() - startTime;
-      weatherMetrics.recordAPICall(responseTime, fromCache);
-      
-      return {
-        ...cachedResult,
-        metrics: weatherMetrics.getMetrics(),
-      };
-    }
-    
-    // Make API call
-    const apiKey = process.env.OPENWEATHER_API_KEY;
-    if (!apiKey) {
-      throw new Error('OpenWeather API key not configured');
-    }
-    
-    const units = input.units || 'metric';
-    const url = `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(input.city)}&appid=${apiKey}&units=${units}`;
-    
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Weather API error: ${response.status} ${response.statusText}`);
-    }
-    
-    const data = await response.json();
-    
-    const result: WeatherOutput = {
-      temperature: data.main.temp,
-      description: data.weather[0].description,
-      humidity: data.main.humidity,
-    };
-    
-    // Cache the result
-    await saveToCache(cacheKey, result, 600); // Cache for 10 minutes
-    
-    const responseTime = Date.now() - startTime;
-    weatherMetrics.recordAPICall(responseTime, fromCache);
-    
-    return {
-      ...result,
-      metrics: weatherMetrics.getMetrics(),
-    };
-    
-  } catch (err) {
-    error = err instanceof Error ? err : new Error(String(err));
-    const responseTime = Date.now() - startTime;
-    weatherMetrics.recordAPICall(responseTime, fromCache, error);
-    
-    console.error('Weather tool error:', error.message);
-    throw error;
-  }
-}
-
-// Cache implementation
-async function getFromCache(key: string): Promise<any | null> {
-  try {
-    const cached = await Bun.file(`/tmp/cache/${key}`).text();
-    const data = JSON.parse(cached);
-    
-    if (data.expiry > Date.now()) {
-      return data.value;
-    }
-    
-    // Remove expired cache
-    await Bun.$`rm -f /tmp/cache/${key}`.catch(() => {});
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-async function saveToCache(key: string, value: any, ttlSeconds: number): Promise<void> {
-  try {
-    await Bun.$`mkdir -p /tmp/cache`;
-    
-    const data = {
-      value,
-      expiry: Date.now() + (ttlSeconds * 1000),
-    };
-    
-    await Bun.write(`/tmp/cache/${key}`, JSON.stringify(data));
-  } catch (error) {
-    console.warn('Failed to save to cache:', error);
-  }
-}
-```
-
-## Monitoring Dashboard
-
-<Callout type="info" icon={BarChart3}>
-  **Dashboard Design**: Effective dashboards tell a story about your system's health and performance.
-</Callout>
-
-### Dashboard Architecture
-
-<Callout type="info" icon={LineChart}>
-  **Real-time Dashboards**: Live monitoring dashboards provide instant insights into system performance and health.
-</Callout>
-
-<Steps>
-<Step title="Executive Dashboard" description="High-level system overview for leadership">
-
-<Card>
-  <CardHeader>
-    <CardTitle className="flex items-center gap-2">
-      <PieChart className="h-5 w-5" />
-      Executive Dashboard Components
-    </CardTitle>
-    <CardDescription>Strategic overview for business stakeholders</CardDescription>
-  </CardHeader>
-  <CardContent>
-    <div className="grid grid-cols-2 gap-4">
-      <div className="p-4 border rounded-lg bg-green-50">
-        <h4 className="font-semibold mb-2 text-green-800">System Health</h4>
-        <div className="text-2xl font-bold text-green-600">99.95%</div>
-        <p className="text-sm text-green-700">Overall system availability</p>
-      </div>
-      <div className="p-4 border rounded-lg bg-blue-50">
-        <h4 className="font-semibold mb-2 text-blue-800">Performance KPIs</h4>
-        <div className="text-2xl font-bold text-blue-600">< 200ms</div>
-        <p className="text-sm text-blue-700">Average response time</p>
-      </div>
-      <div className="p-4 border rounded-lg bg-purple-50">
-        <h4 className="font-semibold mb-2 text-purple-800">Business Metrics</h4>
-        <div className="text-2xl font-bold text-purple-600">1,234</div>
-        <p className="text-sm text-purple-700">Workflows completed today</p>
-      </div>
-      <div className="p-4 border rounded-lg bg-orange-50">
-        <h4 className="font-semibold mb-2 text-orange-800">Cost Analysis</h4>
-        <div className="text-2xl font-bold text-orange-600">$2,450</div>
-        <p className="text-sm text-orange-700">Monthly operational cost</p>
-      </div>
-    </div>
-  </CardContent>
-</Card>
-
-</Step>
-
-<Step title="Operational Dashboard" description="Detailed metrics for operations teams">
-
-<Card>
-  <CardHeader>
-    <CardTitle>Operational Dashboard Components</CardTitle>
-    <CardDescription>Detailed metrics for day-to-day operations</CardDescription>
-  </CardHeader>
-  <CardContent>
-    <List>
-      <ListItem title="Server Health">Individual server status and performance</ListItem>
-      <ListItem title="Tool Metrics">Tool execution rates and performance</ListItem>
-      <ListItem title="Resource Usage">CPU, memory, and storage utilization</ListItem>
-      <ListItem title="Alert Status">Active alerts and incident tracking</ListItem>
-    </List>
-  </CardContent>
-</Card>
-
-</Step>
-
-<Step title="Developer Dashboard" description="Technical metrics for development teams">
-
-<Card>
-  <CardHeader>
-    <CardTitle>Developer Dashboard Components</CardTitle>
-    <CardDescription>Technical metrics for development and debugging</CardDescription>
-  </CardHeader>
-  <CardContent>
-    <List>
-      <ListItem title="Request Tracing">Detailed request flow and timing</ListItem>
-      <ListItem title="Error Analysis">Error patterns and root cause analysis</ListItem>
-      <ListItem title="Performance Profiling">Code performance and optimization opportunities</ListItem>
-      <ListItem title="Integration Health">External service dependencies and health</ListItem>
-    </List>
-  </CardContent>
-</Card>
-
-</Step>
-</Steps>
-
-### Grafana Dashboard Configuration
-
-<Tabs items={["Executive Dashboard", "Operational Dashboard", "Developer Dashboard"]}>
-
-<Tab>
-**Executive Dashboard** - High-level overview for leadership:
-
-<Card>
-  <CardHeader>
-    <CardTitle>Executive Dashboard Layout</CardTitle>
-    <CardDescription>Strategic overview of system performance</CardDescription>
-  </CardHeader>
-  <CardContent>
-    <div className="grid grid-cols-2 gap-4">
-      <div className="p-4 border rounded-lg">
-        <h4 className="font-semibold mb-2">System Health</h4>
-        <List>
-          <ListItem title="Uptime">99.95% this month</ListItem>
-          <ListItem title="Availability">All systems operational</ListItem>
-          <ListItem title="Response Time">< 200ms average</ListItem>
-        </List>
-      </div>
-      <div className="p-4 border rounded-lg">
-        <h4 className="font-semibold mb-2">Business Metrics</h4>
-        <List>
-          <ListItem title="Workflows">1,234 completed today</ListItem>
-          <ListItem title="Users">567 active sessions</ListItem>
-          <ListItem title="SLA">99.9% compliance</ListItem>
-        </List>
-      </div>
-    </div>
-  </CardContent>
-</Card>
-
-</Tab>
-
-<Tab>
-**Operational Dashboard** - Detailed metrics for operations:
-
-<Card>
-  <CardHeader>
-    <CardTitle>Operational Dashboard Layout</CardTitle>
-    <CardDescription>Detailed operational metrics and alerts</CardDescription>
-  </CardHeader>
-  <CardContent>
-    <div className="grid grid-cols-1 gap-4">
-      <div className="p-4 border rounded-lg">
-        <h4 className="font-semibold mb-2">Real-time Metrics</h4>
-        <List>
-          <ListItem title="Request Rate">Current throughput and trends</ListItem>
-          <ListItem title="Error Rate">Error percentage and patterns</ListItem>
-          <ListItem title="Latency">Response time percentiles</ListItem>
-          <ListItem title="Resource Usage">CPU, memory, and disk usage</ListItem>
-        </List>
-      </div>
-    </div>
-  </CardContent>
-</Card>
-
-</Tab>
-
-<Tab>
-**Developer Dashboard** - Technical metrics for development:
-
-<Card>
-  <CardHeader>
-    <CardTitle>Developer Dashboard Layout</CardTitle>
-    <CardDescription>Technical metrics for debugging and optimization</CardDescription>
-  </CardHeader>
-  <CardContent>
-    <div className="grid grid-cols-1 gap-4">
-      <div className="p-4 border rounded-lg">
-        <h4 className="font-semibold mb-2">Development Metrics</h4>
-        <List>
-          <ListItem title="Code Performance">Function execution times and bottlenecks</ListItem>
-          <ListItem title="Database Queries">Query performance and optimization</ListItem>
-          <ListItem title="API Endpoints">Endpoint usage and performance</ListItem>
-          <ListItem title="Error Tracking">Detailed error logs and stack traces</ListItem>
-        </List>
-      </div>
-    </div>
-  </CardContent>
-</Card>
-
-</Tab>
-</Tabs>
-
-Create comprehensive monitoring dashboards:
-
-```json
-{
-  "dashboard": {
-    "id": null,
-    "title": "MCP Monitoring Dashboard",
-    "description": "Comprehensive monitoring for MCP integrations",
-    "tags": ["mcp", "monitoring", "compozy"],
-    "timezone": "utc",
-    "panels": [
-      {
-        "id": 1,
-        "title": "MCP Request Rate",
-        "type": "graph",
-        "targets": [
-          {
-            "expr": "rate(mcp_requests_total[5m])",
-            "legendFormat": "{{server_name}} - {{operation}}",
-            "refId": "A"
-          }
-        ],
-        "yAxes": [
-          {
-            "label": "Requests/sec",
-            "min": 0
-          }
-        ],
-        "gridPos": {
-          "h": 8,
-          "w": 12,
-          "x": 0,
-          "y": 0
-        }
-      },
-      {
-        "id": 2,
-        "title": "MCP Error Rate",
-        "type": "graph",
-        "targets": [
-          {
-            "expr": "rate(mcp_requests_errors_total[5m])",
-            "legendFormat": "{{server_name}} - {{error_type}}",
-            "refId": "A"
-          }
-        ],
-        "yAxes": [
-          {
-            "label": "Errors/sec",
-            "min": 0
-          }
-        ],
-        "gridPos": {
-          "h": 8,
-          "w": 12,
-          "x": 12,
-          "y": 0
-        }
-      },
-      {
-        "id": 3,
-        "title": "MCP Response Time",
-        "type": "graph",
-        "targets": [
-          {
-            "expr": "histogram_quantile(0.50, rate(mcp_request_duration_seconds_bucket[5m]))",
-            "legendFormat": "50th percentile",
-            "refId": "A"
-          },
-          {
-            "expr": "histogram_quantile(0.95, rate(mcp_request_duration_seconds_bucket[5m]))",
-            "legendFormat": "95th percentile",
-            "refId": "B"
-          },
-          {
-            "expr": "histogram_quantile(0.99, rate(mcp_request_duration_seconds_bucket[5m]))",
-            "legendFormat": "99th percentile",
-            "refId": "C"
-          }
-        ],
-        "yAxes": [
-          {
-            "label": "Response Time (seconds)",
-            "min": 0
-          }
-        ],
-        "gridPos": {
-          "h": 8,
-          "w": 12,
-          "x": 0,
-          "y": 8
-        }
-      },
-      {
-        "id": 4,
-        "title": "MCP Server Health",
-        "type": "stat",
-        "targets": [
-          {
-            "expr": "mcp_server_health_status",
-            "legendFormat": "{{server_name}}",
-            "refId": "A"
-          }
-        ],
-        "fieldConfig": {
-          "defaults": {
-            "color": {
-              "mode": "thresholds"
-            },
-            "thresholds": {
-              "steps": [
-                {
-                  "color": "red",
-                  "value": 0
-                },
-                {
-                  "color": "green",
-                  "value": 1
-                }
-              ]
-            }
-          }
-        },
-        "gridPos": {
-          "h": 8,
-          "w": 12,
-          "x": 12,
-          "y": 8
-        }
-      },
-      {
-        "id": 5,
-        "title": "Active Connections",
-        "type": "graph",
-        "targets": [
-          {
-            "expr": "mcp_active_connections",
-            "legendFormat": "{{server_name}} - {{transport}}",
-            "refId": "A"
-          }
-        ],
-        "yAxes": [
-          {
-            "label": "Connections",
-            "min": 0
-          }
-        ],
-        "gridPos": {
-          "h": 8,
-          "w": 12,
-          "x": 0,
-          "y": 16
-        }
-      },
-      {
-        "id": 6,
-        "title": "Memory Usage",
-        "type": "graph",
-        "targets": [
-          {
-            "expr": "mcp_memory_usage_bytes",
-            "legendFormat": "{{server_name}} - {{type}}",
-            "refId": "A"
-          }
-        ],
-        "yAxes": [
-          {
-            "label": "Memory (bytes)",
-            "min": 0
-          }
-        ],
-        "gridPos": {
-          "h": 8,
-          "w": 12,
-          "x": 12,
-          "y": 16
-        }
-      },
-      {
-        "id": 7,
-        "title": "Tool Execution Rate",
-        "type": "graph",
-        "targets": [
-          {
-            "expr": "rate(mcp_tool_executions_total[5m])",
-            "legendFormat": "{{server_name}} - {{tool_name}}",
-            "refId": "A"
-          }
-        ],
-        "yAxes": [
-          {
-            "label": "Executions/sec",
-            "min": 0
-          }
-        ],
-        "gridPos": {
-          "h": 8,
-          "w": 12,
-          "x": 0,
-          "y": 24
-        }
-      },
-      {
-        "id": 8,
-        "title": "Circuit Breaker State",
-        "type": "stat",
-        "targets": [
-          {
-            "expr": "mcp_circuit_breaker_state",
-            "legendFormat": "{{server_name}}",
-            "refId": "A"
-          }
-        ],
-        "fieldConfig": {
-          "defaults": {
-            "color": {
-              "mode": "thresholds"
-            },
-            "thresholds": {
-              "steps": [
-                {
-                  "color": "green",
-                  "value": 0
-                },
-                {
-                  "color": "red",
-                  "value": 1
-                },
-                {
-                  "color": "yellow",
-                  "value": 2
-                }
-              ]
-            },
-            "mappings": [
-              {
-                "options": {
-                  "0": {
-                    "text": "Closed"
-                  },
-                  "1": {
-                    "text": "Open"
-                  },
-                  "2": {
-                    "text": "Half-Open"
-                  }
-                },
-                "type": "value"
-              }
-            ]
-          }
-        },
-        "gridPos": {
-          "h": 8,
-          "w": 12,
-          "x": 12,
-          "y": 24
-        }
-      }
-    ],
-    "time": {
-      "from": "now-1h",
-      "to": "now"
-    },
-    "refresh": "30s"
-  }
-}
-```
-
-## Alerting Configuration
-
-<Callout type="warning" icon={AlertTriangle}>
-  **Smart Alerting**: Configure alerts that provide actionable insights without overwhelming your team.
-</Callout>
-
-### Alerting Strategy
-
-<FeatureCardList cols={3} size="sm">
-  <FeatureCard
-    title="Severity Levels"
-    description="Critical, Warning, Info alert classification"
-    icon={AlertTriangle}
-  />
-  <FeatureCard
-    title="Smart Routing"
-    description="Route alerts to appropriate teams"
-    icon={Navigation}
-  />
-  <FeatureCard
-    title="Escalation"
-    description="Automatic escalation for unacknowledged alerts"
-    icon={TrendingUp}
-  />
-</FeatureCardList>
-
-### Alert Severity Matrix
-
-<Table>
-  <TableHeader>
-    <TableRow>
-      <TableHead>Severity</TableHead>
-      <TableHead>Response Time</TableHead>
-      <TableHead>Notification</TableHead>
-      <TableHead>Escalation</TableHead>
-    </TableRow>
-  </TableHeader>
-  <TableBody>
-    <TableRow>
-      <TableCell><Badge variant="destructive">Critical</Badge></TableCell>
-      <TableCell>Immediate</TableCell>
-      <TableCell>PagerDuty + Phone</TableCell>
-      <TableCell>5 minutes</TableCell>
-    </TableRow>
-    <TableRow>
-      <TableCell><Badge variant="default">Warning</Badge></TableCell>
-      <TableCell>15 minutes</TableCell>
-      <TableCell>Slack + Email</TableCell>
-      <TableCell>30 minutes</TableCell>
-    </TableRow>
-    <TableRow>
-      <TableCell><Badge variant="outline">Info</Badge></TableCell>
-      <TableCell>1 hour</TableCell>
-      <TableCell>Email only</TableCell>
-      <TableCell>4 hours</TableCell>
-    </TableRow>
-  </TableBody>
-</Table>
-
-### AlertManager Configuration
+Enable monitoring in your Compozy configuration:
 
 ```yaml
-# alertmanager.yml
-global:
-  smtp_smarthost: 'smtp.gmail.com:587'
-  smtp_from: 'alerts@example.com'
-  smtp_auth_username: 'alerts@example.com'
-  smtp_auth_password: 'your-app-password'
+# compozy.yaml
+monitoring:
+  enabled: true
+  path: "/metrics"
+```
 
-route:
-  group_by: ['alertname']
-  group_wait: 10s
-  group_interval: 10s
-  repeat_interval: 1h
-  receiver: 'web.hook'
-  routes:
-  - match:
-      severity: critical
-    receiver: 'critical-alerts'
-  - match:
-      severity: warning
-    receiver: 'warning-alerts'
+### Environment Variables
 
-receivers:
-- name: 'web.hook'
-  webhook_configs:
-  - url: 'http://localhost:5001/webhook'
+Override configuration with environment variables:
 
-- name: 'critical-alerts'
-  email_configs:
-  - to: 'oncall@example.com'
-    subject: 'CRITICAL: MCP Alert - {{ .GroupLabels.alertname }}'
-    body: |
-      Alert: {{ .GroupLabels.alertname }}
-      Severity: {{ .CommonLabels.severity }}
-      
-      {{ range .Alerts }}
-      Instance: {{ .Labels.instance }}
-      Description: {{ .Annotations.description }}
-      {{ end }}
+```bash
+export MONITORING_ENABLED=true
+export MONITORING_PATH=/metrics
+```
+
+### Configuration Options
+
+```yaml
+monitoring:
+  # Enable/disable metrics collection
+  enabled: true
   
-  slack_configs:
-  - api_url: 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
-    channel: '#critical-alerts'
-    title: 'MCP Critical Alert'
-    text: |
-      {{ range .Alerts }}
-      Alert: {{ .Labels.alertname }}
-      Instance: {{ .Labels.instance }}
-      Description: {{ .Annotations.description }}
-      {{ end }}
-
-- name: 'warning-alerts'
-  email_configs:
-  - to: 'team@example.com'
-    subject: 'WARNING: MCP Alert - {{ .GroupLabels.alertname }}'
-    body: |
-      Alert: {{ .GroupLabels.alertname }}
-      Severity: {{ .CommonLabels.severity }}
-      
-      {{ range .Alerts }}
-      Instance: {{ .Labels.instance }}
-      Description: {{ .Annotations.description }}
-      {{ end }}
+  # Metrics endpoint path
+  path: "/metrics"
 ```
 
-### Advanced Alerting Rules
+## Available Metrics
+
+### System Metrics
+
+Automatically collected system health metrics:
+
+- **CPU usage** - System and process CPU utilization
+- **Memory usage** - Heap, stack, and garbage collection metrics  
+- **Goroutines** - Active goroutine count and lifecycle
+- **Network connections** - Active connections and connection pool stats
+
+### Workflow Metrics
+
+Performance metrics for workflow execution:
+
+- **Execution duration** - Time to complete workflows and tasks
+- **Execution count** - Number of workflows executed
+- **Error rates** - Failed execution counts and error types
+- **Queue depth** - Pending workflow and task counts
+
+### HTTP Metrics
+
+Request/response metrics from HTTP middleware:
+
+- **Request count** - Total HTTP requests by method and status
+- **Request duration** - Response time percentiles
+- **Request size** - Request and response body sizes
+- **Active connections** - Concurrent HTTP connections
+
+### Temporal Metrics
+
+Distributed workflow metrics via Temporal integration:
+
+- **Activity execution** - Activity duration and success rates
+- **Workflow lifecycle** - Start, completion, and failure metrics
+- **Task queue metrics** - Queue depth and processing times
+- **Worker health** - Worker status and capacity metrics
+
+## Metrics Endpoint
+
+### Accessing Metrics
+
+The metrics endpoint exposes Prometheus-formatted metrics:
+
+```bash
+# Default endpoint
+curl http://localhost:5001/metrics
+
+# Custom endpoint (if configured)
+curl http://localhost:5001/internal/metrics
+```
+
+### Sample Output
+
+```text
+# HELP compozy_workflows_executed_total Total number of workflows executed
+# TYPE compozy_workflows_executed_total counter
+compozy_workflows_executed_total{status="success"} 1547
+compozy_workflows_executed_total{status="failed"} 23
+
+# HELP compozy_workflow_duration_seconds Workflow execution duration in seconds
+# TYPE compozy_workflow_duration_seconds histogram
+compozy_workflow_duration_seconds_bucket{le="0.1"} 145
+compozy_workflow_duration_seconds_bucket{le="0.5"} 892
+compozy_workflow_duration_seconds_bucket{le="1"} 1234
+compozy_workflow_duration_seconds_bucket{le="5"} 1456
+compozy_workflow_duration_seconds_bucket{le="10"} 1547
+compozy_workflow_duration_seconds_bucket{le="+Inf"} 1570
+
+# HELP compozy_http_requests_total Total number of HTTP requests
+# TYPE compozy_http_requests_total counter
+compozy_http_requests_total{method="GET",status="200"} 8934
+compozy_http_requests_total{method="POST",status="200"} 2156
+compozy_http_requests_total{method="POST",status="400"} 45
+```
+
+## Prometheus Integration
+
+### Prometheus Configuration
+
+Configure Prometheus to scrape Compozy metrics:
 
 ```yaml
-# advanced_mcp_rules.yml
+# prometheus.yml
+scrape_configs:
+  - job_name: 'compozy'
+    static_configs:
+      - targets: ['localhost:5001']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+```
+
+### Grafana Dashboards
+
+Key metrics to monitor in Grafana:
+
+#### System Health
+- CPU and memory usage over time
+- Goroutine count trends
+- Error rate by service
+
+#### Workflow Performance
+- Workflow execution rate (executions/minute)
+- Average execution duration
+- Success vs failure ratio
+- Queue depth and processing lag
+
+#### HTTP Performance
+- Request rate and latency percentiles
+- Status code distribution
+- Response time by endpoint
+
+## Custom Metrics
+
+### Creating Custom Metrics
+
+Add domain-specific metrics using the OpenTelemetry meter:
+
+```go
+// Get the meter from monitoring service
+meter := monitoringService.Meter()
+
+// Create a counter for custom events
+eventCounter, err := meter.Int64Counter(
+    "compozy.custom.events.total",
+    metric.WithDescription("Total number of custom events"),
+)
+
+// Record events
+eventCounter.Add(ctx, 1, metric.WithAttributes(
+    attribute.String("event_type", "user_action"),
+    attribute.String("action", "login"),
+))
+```
+
+### Metric Types
+
+Available OpenTelemetry metric types:
+
+- **Counter** - Monotonically increasing values (requests, errors)
+- **Gauge** - Values that can go up and down (memory, connections)
+- **Histogram** - Distribution of values (latency, sizes)
+
+## Production Setup
+
+### Security Considerations
+
+```yaml
+# Restrict metrics endpoint access
+monitoring:
+  enabled: true
+  path: "/internal/metrics"  # Non-standard path
+```
+
+Use reverse proxy to control access:
+
+```nginx
+# nginx.conf
+location /internal/metrics {
+    # Restrict to monitoring networks
+    allow 10.0.0.0/8;
+    deny all;
+    
+    proxy_pass http://compozy_backend;
+}
+```
+
+### High Availability
+
+For HA deployments, configure each instance:
+
+```yaml
+monitoring:
+  enabled: true
+  path: "/metrics"
+```
+
+Add instance labels to distinguish metrics:
+
+```go
+// Add instance-specific labels
+meter.Int64Counter(
+    "compozy.instance.requests",
+    metric.WithAttributes(
+        attribute.String("instance", os.Getenv("INSTANCE_ID")),
+        attribute.String("region", os.Getenv("AWS_REGION")),
+    ),
+)
+```
+
+### Alerting Rules
+
+Example Prometheus alerting rules:
+
+```yaml
+# alerts.yml
 groups:
-  - name: mcp-advanced
+  - name: compozy
     rules:
-      - alert: MCPHighErrorRateByTool
-        expr: |
-          (
-            rate(mcp_tool_executions_total{status="error"}[5m]) / 
-            rate(mcp_tool_executions_total[5m])
-          ) > 0.1
-        for: 3m
-        labels:
-          severity: warning
-        annotations:
-          summary: "High error rate for MCP tool {{ $labels.tool_name }}"
-          description: "Tool {{ $labels.tool_name }} on server {{ $labels.server_name }} has error rate of {{ $value | humanizePercentage }}."
-      
-      - alert: MCPSlowToolExecution
-        expr: |
-          histogram_quantile(0.95, 
-            rate(mcp_tool_execution_duration_seconds_bucket[5m])
-          ) > 10
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Slow tool execution detected"
-          description: "Tool {{ $labels.tool_name }} on server {{ $labels.server_name }} has 95th percentile execution time of {{ $value }}s."
-      
-      - alert: MCPCircuitBreakerOpen
-        expr: mcp_circuit_breaker_state == 1
-        for: 1m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Circuit breaker open for MCP server"
-          description: "Circuit breaker is open for server {{ $labels.server_name }}."
-      
-      - alert: MCPMemoryLeak
-        expr: |
-          increase(mcp_memory_usage_bytes[1h]) > 104857600 and
-          mcp_memory_usage_bytes > 536870912
-        for: 10m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Potential memory leak in MCP server"
-          description: "Memory usage for server {{ $labels.server_name }} has increased by {{ $value | humanizeBytes }} in the last hour and is currently at {{ $labels.mcp_memory_usage_bytes | humanizeBytes }}."
-      
-      - alert: MCPConnectionPoolExhaustion
-        expr: |
-          mcp_active_connections / on(server_name) group_left() 
-          (mcp_active_connections + mcp_available_connections) > 0.9
-        for: 5m
-        labels:
-          severity: critical
-        annotations:
-          summary: "Connection pool near exhaustion"
-          description: "Server {{ $labels.server_name }} is using {{ $value | humanizePercentage }} of available connections."
-      
-      - alert: MCPRequestQueueBacklog
-        expr: mcp_request_queue_size > 100
+      - alert: CompozyHighErrorRate
+        expr: rate(compozy_workflows_executed_total{status="failed"}[5m]) > 0.1
         for: 2m
         labels:
           severity: warning
         annotations:
-          summary: "Request queue backlog detected"
-          description: "Server {{ $labels.server_name }} has {{ $value }} requests in queue."
+          summary: High workflow failure rate detected
+          
+      - alert: CompozyHighLatency
+        expr: histogram_quantile(0.95, compozy_workflow_duration_seconds) > 30
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Workflow execution latency is high
 ```
 
-## Performance Monitoring
+## Troubleshooting
 
-<Callout type="info" icon={Gauge}>
-  **Performance Insights**: Monitor key performance indicators to optimize system efficiency.
-</Callout>
+### Common Issues
 
-### Performance Monitoring Strategy
+1. **Metrics endpoint not accessible**
+   ```bash
+   # Check if monitoring is enabled
+   curl http://localhost:5001/health
+   
+   # Verify configuration
+   compozy config show --section monitoring
+   ```
 
-<FeatureCardList cols={4} size="sm">
-  <FeatureCard
-    title="Golden Signals"
-    description="Latency, Traffic, Errors, Saturation"
-    icon={Target}
-  />
-  <FeatureCard
-    title="Resource Tracking"
-    description="CPU, Memory, Disk, Network"
-    icon={Cpu}
-  />
-  <FeatureCard
-    title="Capacity Planning"
-    description="Predict future resource needs"
-    icon={TrendingUp}
-  />
-  <FeatureCard
-    title="Optimization"
-    description="Identify performance bottlenecks"
-    icon={Zap}
-  />
-</FeatureCardList>
+2. **No metrics being collected**
+   ```bash
+   # Check monitoring service status
+   curl http://localhost:5001/metrics | grep compozy_
+   
+   # Enable debug logging
+   export LOG_LEVEL=debug
+   ```
 
-### Performance Metrics Dashboard
+3. **High memory usage**
+   - Monitor metrics cardinality
+   - Avoid high-cardinality labels
+   - Configure metric retention policies
 
-<Callout type="info" icon={Gauge}>
-  **Real-time Performance**: Monitor system performance across all layers with comprehensive metrics and alerting.
-</Callout>
+### Debug Mode
 
-<Tabs items={["System Performance", "Application Performance", "Network Performance", "Database Performance"]}>
+Enable debug logging for monitoring:
 
-<Tab>
-**System Performance** metrics monitor hardware and OS level performance:
-
-<Mermaid chart={`graph TD
-    A[System Metrics] --> B[CPU Usage]
-    A --> C[Memory Usage]
-    A --> D[Disk I/O]
-    A --> E[Network I/O]
-    
-    B --> F[Load Average]
-    B --> G[Process Count]
-    C --> H[Heap Usage]
-    C --> I[GC Metrics]
-    D --> J[Read/Write Ops]
-    E --> K[Bandwidth Usage]
-    
-    classDef cpu fill:#e1f5fe,stroke:#01579b,stroke-width:2px
-    classDef memory fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
-    classDef disk fill:#e8f5e8,stroke:#1b5e20,stroke-width:2px
-    classDef network fill:#fff3e0,stroke:#e65100,stroke-width:2px
-    
-    class B,F,G cpu
-    class C,H,I memory
-    class D,J disk
-    class E,K network
-`} />
-
-<Card>
-  <CardHeader>
-    <CardTitle>System Performance Indicators</CardTitle>
-    <CardDescription>Core system metrics for performance monitoring</CardDescription>
-  </CardHeader>
-  <CardContent>
-    <div className="grid grid-cols-2 gap-4">
-      <div className="p-4 border rounded-lg">
-        <h4 className="font-semibold mb-2 flex items-center gap-2">
-          <Cpu className="h-4 w-4" />
-          CPU Metrics
-        </h4>
-        <List>
-          <ListItem title="CPU Usage">Overall CPU utilization percentage</ListItem>
-          <ListItem title="Load Average">System load over 1, 5, 15 minutes</ListItem>
-          <ListItem title="Context Switches">Process context switching rate</ListItem>
-        </List>
-      </div>
-      <div className="p-4 border rounded-lg">
-        <h4 className="font-semibold mb-2 flex items-center gap-2">
-          <MemoryStick className="h-4 w-4" />
-          Memory Metrics
-        </h4>
-        <List>
-          <ListItem title="Memory Usage">RAM utilization and availability</ListItem>
-          <ListItem title="Swap Usage">Swap space utilization</ListItem>
-          <ListItem title="Cache Hit Rate">Memory cache effectiveness</ListItem>
-        </List>
-      </div>
-    </div>
-  </CardContent>
-</Card>
-
-</Tab>
-
-<Tab>
-**Application Performance** metrics monitor your MCP application:
-
-<Card>
-  <CardHeader>
-    <CardTitle>Application Performance Indicators</CardTitle>
-    <CardDescription>MCP-specific performance metrics</CardDescription>
-  </CardHeader>
-  <CardContent>
-    <div className="grid grid-cols-2 gap-4">
-      <div className="p-4 border rounded-lg">
-        <h4 className="font-semibold mb-2 flex items-center gap-2">
-          <Activity className="h-4 w-4" />
-          Request Metrics
-        </h4>
-        <List>
-          <ListItem title="Request Rate">Requests per second</ListItem>
-          <ListItem title="Response Time">Average and percentile response times</ListItem>
-          <ListItem title="Error Rate">Percentage of failed requests</ListItem>
-        </List>
-      </div>
-      <div className="p-4 border rounded-lg">
-        <h4 className="font-semibold mb-2 flex items-center gap-2">
-          <Zap className="h-4 w-4" />
-          Tool Performance
-        </h4>
-        <List>
-          <ListItem title="Execution Time">Tool execution duration</ListItem>
-          <ListItem title="Success Rate">Tool execution success rate</ListItem>
-          <ListItem title="Queue Length">Tool execution queue size</ListItem>
-        </List>
-      </div>
-    </div>
-  </CardContent>
-</Card>
-
-</Tab>
-
-<Tab>
-**Network Performance** metrics monitor network connectivity:
-
-<Card>
-  <CardHeader>
-    <CardTitle>Network Performance Indicators</CardTitle>
-    <CardDescription>Network connectivity and throughput metrics</CardDescription>
-  </CardHeader>
-  <CardContent>
-    <div className="grid grid-cols-2 gap-4">
-      <div className="p-4 border rounded-lg">
-        <h4 className="font-semibold mb-2 flex items-center gap-2">
-          <Network className="h-4 w-4" />
-          Connectivity
-        </h4>
-        <List>
-          <ListItem title="Bandwidth Usage">Network throughput utilization</ListItem>
-          <ListItem title="Latency">Network round-trip time</ListItem>
-          <ListItem title="Packet Loss">Network packet loss rate</ListItem>
-        </List>
-      </div>
-      <div className="p-4 border rounded-lg">
-        <h4 className="font-semibold mb-2 flex items-center gap-2">
-          <Globe className="h-4 w-4" />
-          External Services
-        </h4>
-        <List>
-          <ListItem title="API Response Time">External API performance</ListItem>
-          <ListItem title="Connection Pool">Database connection utilization</ListItem>
-          <ListItem title="Circuit Breaker">Circuit breaker state and trips</ListItem>
-        </List>
-      </div>
-    </div>
-  </CardContent>
-</Card>
-
-</Tab>
-
-<Tab>
-**Database Performance** metrics monitor data layer performance:
-
-<Card>
-  <CardHeader>
-    <CardTitle>Database Performance Indicators</CardTitle>
-    <CardDescription>Database performance and optimization metrics</CardDescription>
-  </CardHeader>
-  <CardContent>
-    <div className="grid grid-cols-2 gap-4">
-      <div className="p-4 border rounded-lg">
-        <h4 className="font-semibold mb-2 flex items-center gap-2">
-          <Database className="h-4 w-4" />
-          Query Performance
-        </h4>
-        <List>
-          <ListItem title="Query Time">Average query execution time</ListItem>
-          <ListItem title="Slow Queries">Number of slow queries</ListItem>
-          <ListItem title="Index Usage">Database index effectiveness</ListItem>
-        </List>
-      </div>
-      <div className="p-4 border rounded-lg">
-        <h4 className="font-semibold mb-2 flex items-center gap-2">
-          <HardDrive className="h-4 w-4" />
-          Storage
-        </h4>
-        <List>
-          <ListItem title="Storage Usage">Database storage utilization</ListItem>
-          <ListItem title="I/O Operations">Database I/O performance</ListItem>
-          <ListItem title="Cache Hit Rate">Database cache effectiveness</ListItem>
-        </List>
-      </div>
-    </div>
-  </CardContent>
-</Card>
-
-</Tab>
-</Tabs>
-
-### Custom Performance Metrics
-
-```go
-// pkg/mcp-proxy/performance.go
-package mcpproxy
-
-import (
-    "context"
-    "runtime"
-    "time"
-    
-    "github.com/prometheus/client_golang/prometheus"
-    "github.com/prometheus/client_golang/prometheus/promauto"
-)
-
-var (
-    // Performance metrics
-    MCPGoroutines = promauto.NewGauge(
-        prometheus.GaugeOpts{
-            Name: "mcp_goroutines",
-            Help: "Number of goroutines",
-        },
-    )
-    
-    MCPGCDuration = promauto.NewHistogram(
-        prometheus.HistogramOpts{
-            Name: "mcp_gc_duration_seconds",
-            Help: "Time spent in garbage collection",
-            Buckets: []float64{.001, .005, .01, .05, .1, .5, 1},
-        },
-    )
-    
-    MCPHeapSize = promauto.NewGauge(
-        prometheus.GaugeOpts{
-            Name: "mcp_heap_size_bytes",
-            Help: "Current heap size in bytes",
-        },
-    )
-    
-    MCPRequestQueueSize = promauto.NewGaugeVec(
-        prometheus.GaugeOpts{
-            Name: "mcp_request_queue_size",
-            Help: "Number of requests in queue",
-        },
-        []string{"server_name"},
-    )
-    
-    MCPAvailableConnections = promauto.NewGaugeVec(
-        prometheus.GaugeOpts{
-            Name: "mcp_available_connections",
-            Help: "Number of available connections",
-        },
-        []string{"server_name"},
-    )
-)
-
-type PerformanceMonitor struct {
-    ctx     context.Context
-    cancel  context.CancelFunc
-    servers map[string]*ServerMonitor
-}
-
-type ServerMonitor struct {
-    serverName  string
-    queueSize   int
-    connections int
-    available   int
-}
-
-func NewPerformanceMonitor() *PerformanceMonitor {
-    ctx, cancel := context.WithCancel(context.Background())
-    return &PerformanceMonitor{
-        ctx:     ctx,
-        cancel:  cancel,
-        servers: make(map[string]*ServerMonitor),
-    }
-}
-
-func (pm *PerformanceMonitor) Start() {
-    go pm.collectSystemMetrics()
-    go pm.collectServerMetrics()
-}
-
-func (pm *PerformanceMonitor) Stop() {
-    pm.cancel()
-}
-
-func (pm *PerformanceMonitor) collectSystemMetrics() {
-    ticker := time.NewTicker(15 * time.Second)
-    defer ticker.Stop()
-    
-    for {
-        select {
-        case <-pm.ctx.Done():
-            return
-        case <-ticker.C:
-            pm.updateSystemMetrics()
-        }
-    }
-}
-
-func (pm *PerformanceMonitor) updateSystemMetrics() {
-    // Collect goroutine count
-    MCPGoroutines.Set(float64(runtime.NumGoroutine()))
-    
-    // Collect memory statistics
-    var m runtime.MemStats
-    runtime.ReadMemStats(&m)
-    
-    MCPHeapSize.Set(float64(m.HeapSys))
-    MCPMemoryUsage.WithLabelValues("system", "heap").Set(float64(m.HeapInuse))
-    MCPMemoryUsage.WithLabelValues("system", "stack").Set(float64(m.StackInuse))
-    MCPMemoryUsage.WithLabelValues("system", "gc").Set(float64(m.GCSys))
-    
-    // Record GC duration
-    MCPGCDuration.Observe(float64(m.PauseNs[(m.NumGC+255)%256]) / 1e9)
-}
-
-func (pm *PerformanceMonitor) collectServerMetrics() {
-    ticker := time.NewTicker(10 * time.Second)
-    defer ticker.Stop()
-    
-    for {
-        select {
-        case <-pm.ctx.Done():
-            return
-        case <-ticker.C:
-            pm.updateServerMetrics()
-        }
-    }
-}
-
-func (pm *PerformanceMonitor) updateServerMetrics() {
-    for serverName, monitor := range pm.servers {
-        MCPRequestQueueSize.WithLabelValues(serverName).Set(float64(monitor.queueSize))
-        MCPActiveConnections.WithLabelValues(serverName, "unknown").Set(float64(monitor.connections))
-        MCPAvailableConnections.WithLabelValues(serverName).Set(float64(monitor.available))
-    }
-}
-
-func (pm *PerformanceMonitor) UpdateServerQueue(serverName string, queueSize int) {
-    if monitor, exists := pm.servers[serverName]; exists {
-        monitor.queueSize = queueSize
-    } else {
-        pm.servers[serverName] = &ServerMonitor{
-            serverName: serverName,
-            queueSize:  queueSize,
-        }
-    }
-}
-
-func (pm *PerformanceMonitor) UpdateServerConnections(serverName string, active, available int) {
-    if monitor, exists := pm.servers[serverName]; exists {
-        monitor.connections = active
-        monitor.available = available
-    } else {
-        pm.servers[serverName] = &ServerMonitor{
-            serverName:  serverName,
-            connections: active,
-            available:   available,
-        }
-    }
-}
+```bash
+export LOG_LEVEL=debug
+compozy start
 ```
 
-## Log Aggregation
-
-### Structured Logging for Monitoring
-
-```go
-// pkg/mcp-proxy/logging.go
-package mcpproxy
-
-import (
-    "context"
-    "encoding/json"
-    "time"
-    
-    "github.com/compozy/compozy/pkg/logger"
-)
-
-type MCPLogEntry struct {
-    Timestamp   time.Time              `json:"timestamp"`
-    Level       string                 `json:"level"`
-    Message     string                 `json:"message"`
-    ServerName  string                 `json:"server_name,omitempty"`
-    Operation   string                 `json:"operation,omitempty"`
-    ToolName    string                 `json:"tool_name,omitempty"`
-    Duration    int64                  `json:"duration_ms,omitempty"`
-    RequestID   string                 `json:"request_id,omitempty"`
-    UserID      string                 `json:"user_id,omitempty"`
-    Error       string                 `json:"error,omitempty"`
-    Metadata    map[string]interface{} `json:"metadata,omitempty"`
-}
-
-type StructuredMCPLogger struct {
-    logger logger.Logger
-}
-
-func NewStructuredMCPLogger(logger logger.Logger) *StructuredMCPLogger {
-    return &StructuredMCPLogger{logger: logger}
-}
-
-func (sl *StructuredMCPLogger) LogRequest(ctx context.Context, serverName, operation string, duration time.Duration, err error, metadata map[string]interface{}) {
-    entry := MCPLogEntry{
-        Timestamp:  time.Now(),
-        Level:      "info",
-        Message:    "MCP request completed",
-        ServerName: serverName,
-        Operation:  operation,
-        Duration:   duration.Milliseconds(),
-        RequestID:  getRequestID(ctx),
-        UserID:     getUserID(ctx),
-        Metadata:   metadata,
-    }
-    
-    if err != nil {
-        entry.Level = "error"
-        entry.Error = err.Error()
-        entry.Message = "MCP request failed"
-    }
-    
-    sl.logEntry(entry)
-}
-
-func (sl *StructuredMCPLogger) LogToolExecution(ctx context.Context, serverName, toolName string, params interface{}, result interface{}, duration time.Duration, err error) {
-    entry := MCPLogEntry{
-        Timestamp:  time.Now(),
-        Level:      "info",
-        Message:    "MCP tool execution completed",
-        ServerName: serverName,
-        Operation:  "call_tool",
-        ToolName:   toolName,
-        Duration:   duration.Milliseconds(),
-        RequestID:  getRequestID(ctx),
-        UserID:     getUserID(ctx),
-        Metadata: map[string]interface{}{
-            "parameters": params,
-            "result":     result,
-        },
-    }
-    
-    if err != nil {
-        entry.Level = "error"
-        entry.Error = err.Error()
-        entry.Message = "MCP tool execution failed"
-    }
-    
-    sl.logEntry(entry)
-}
-
-func (sl *StructuredMCPLogger) LogHealthCheck(ctx context.Context, serverName string, isHealthy bool, duration time.Duration, err error) {
-    entry := MCPLogEntry{
-        Timestamp:  time.Now(),
-        Level:      "info",
-        Message:    "MCP health check completed",
-        ServerName: serverName,
-        Operation:  "health_check",
-        Duration:   duration.Milliseconds(),
-        RequestID:  getRequestID(ctx),
-        Metadata: map[string]interface{}{
-            "healthy": isHealthy,
-        },
-    }
-    
-    if err != nil {
-        entry.Level = "error"
-        entry.Error = err.Error()
-        entry.Message = "MCP health check failed"
-    }
-    
-    sl.logEntry(entry)
-}
-
-func (sl *StructuredMCPLogger) logEntry(entry MCPLogEntry) {
-    jsonData, _ := json.Marshal(entry)
-    
-    switch entry.Level {
-    case "error":
-        sl.logger.Error(string(jsonData))
-    case "warn":
-        sl.logger.Warn(string(jsonData))
-    default:
-        sl.logger.Info(string(jsonData))
-    }
-}
-
-func getRequestID(ctx context.Context) string {
-    if reqID, ok := ctx.Value("request_id").(string); ok {
-        return reqID
-    }
-    return ""
-}
-
-func getUserID(ctx context.Context) string {
-    if userID, ok := ctx.Value("user_id").(string); ok {
-        return userID
-    }
-    return ""
-}
-```
-
-## Health Checks
-
-<Callout type="info" icon={CheckCircle}>
-  **Health Monitoring**: Comprehensive health checks ensure system reliability and early problem detection.
-</Callout>
-
-### Health Check Strategy
-
-<FeatureCardList cols={4} size="sm">
-  <FeatureCard
-    title="Liveness Probes"
-    description="Basic application health checks"
-    icon={CheckCircle}
-  />
-  <FeatureCard
-    title="Readiness Probes"
-    description="Service readiness for traffic"
-    icon={CheckCircle2}
-  />
-  <FeatureCard
-    title="Dependency Checks"
-    description="External dependency health"
-    icon={Link2}
-  />
-  <FeatureCard
-    title="Business Logic"
-    description="Application-specific health"
-    icon={BrainCircuit}
-  />
-</FeatureCardList>
-
-### Health Check Types
-
-<Table>
-  <TableHeader>
-    <TableRow>
-      <TableHead>Check Type</TableHead>
-      <TableHead>Purpose</TableHead>
-      <TableHead>Frequency</TableHead>
-      <TableHead>Timeout</TableHead>
-    </TableRow>
-  </TableHeader>
-  <TableBody>
-    <TableRow>
-      <TableCell><Badge variant="outline">Liveness</Badge></TableCell>
-      <TableCell>Application is running</TableCell>
-      <TableCell>30 seconds</TableCell>
-      <TableCell>5 seconds</TableCell>
-    </TableRow>
-    <TableRow>
-      <TableCell><Badge variant="outline">Readiness</Badge></TableCell>
-      <TableCell>Ready to serve traffic</TableCell>
-      <TableCell>10 seconds</TableCell>
-      <TableCell>3 seconds</TableCell>
-    </TableRow>
-    <TableRow>
-      <TableCell><Badge variant="outline">Startup</Badge></TableCell>
-      <TableCell>Application started successfully</TableCell>
-      <TableCell>5 seconds</TableCell>
-      <TableCell>10 seconds</TableCell>
-    </TableRow>
-    <TableRow>
-      <TableCell><Badge variant="outline">Deep Health</Badge></TableCell>
-      <TableCell>Comprehensive system check</TableCell>
-      <TableCell>5 minutes</TableCell>
-      <TableCell>30 seconds</TableCell>
-    </TableRow>
-  </TableBody>
-</Table>
-
-### Comprehensive Health Monitoring
-
-```go
-// pkg/mcp-proxy/health.go
-package mcpproxy
-
-import (
-    "context"
-    "encoding/json"
-    "fmt"
-    "net/http"
-    "time"
-)
-
-type HealthStatus struct {
-    Status    string                 `json:"status"`
-    Timestamp time.Time              `json:"timestamp"`
-    Version   string                 `json:"version"`
-    Uptime    time.Duration          `json:"uptime"`
-    Servers   map[string]ServerHealth `json:"servers"`
-    System    SystemHealth           `json:"system"`
-}
-
-type ServerHealth struct {
-    Status         string        `json:"status"`
-    LastCheck      time.Time     `json:"last_check"`
-    ResponseTime   time.Duration `json:"response_time"`
-    Consecutive    int           `json:"consecutive_failures"`
-    TotalRequests  int64         `json:"total_requests"`
-    FailedRequests int64         `json:"failed_requests"`
-    SuccessRate    float64       `json:"success_rate"`
-}
-
-type SystemHealth struct {
-    MemoryUsage    int64   `json:"memory_usage_bytes"`
-    CPUUsage       float64 `json:"cpu_usage_percent"`
-    GoroutineCount int     `json:"goroutine_count"`
-    GCPauseTime    float64 `json:"gc_pause_time_ms"`
-}
-
-type HealthChecker struct {
-    servers     map[string]*ServerHealthTracker
-    startTime   time.Time
-    version     string
-    collector   *MetricsCollector
-}
-
-type ServerHealthTracker struct {
-    client             MCPClient
-    name               string
-    status             string
-    lastCheck          time.Time
-    responseTime       time.Duration
-    consecutiveFailures int
-    totalRequests      int64
-    failedRequests     int64
-}
-
-func NewHealthChecker(version string, collector *MetricsCollector) *HealthChecker {
-    return &HealthChecker{
-        servers:   make(map[string]*ServerHealthTracker),
-        startTime: time.Now(),
-        version:   version,
-        collector: collector,
-    }
-}
-
-func (hc *HealthChecker) AddServer(name string, client MCPClient) {
-    hc.servers[name] = &ServerHealthTracker{
-        client: client,
-        name:   name,
-        status: "unknown",
-    }
-}
-
-func (hc *HealthChecker) StartMonitoring(ctx context.Context, interval time.Duration) {
-    ticker := time.NewTicker(interval)
-    defer ticker.Stop()
-    
-    for {
-        select {
-        case <-ctx.Done():
-            return
-        case <-ticker.C:
-            hc.checkAllServers(ctx)
-        }
-    }
-}
-
-func (hc *HealthChecker) checkAllServers(ctx context.Context) {
-    for _, tracker := range hc.servers {
-        go hc.checkServer(ctx, tracker)
-    }
-}
-
-func (hc *HealthChecker) checkServer(ctx context.Context, tracker *ServerHealthTracker) {
-    start := time.Now()
-    
-    err := tracker.client.HealthCheck(ctx, tracker.name)
-    
-    duration := time.Since(start)
-    tracker.lastCheck = time.Now()
-    tracker.responseTime = duration
-    tracker.totalRequests++
-    
-    if err != nil {
-        tracker.status = "unhealthy"
-        tracker.consecutiveFailures++
-        tracker.failedRequests++
-    } else {
-        tracker.status = "healthy"
-        tracker.consecutiveFailures = 0
-    }
-    
-    // Update metrics
-    hc.collector.UpdateServerHealth(tracker.name, err == nil)
-}
-
-func (hc *HealthChecker) GetHealthStatus() HealthStatus {
-    servers := make(map[string]ServerHealth)
-    
-    for name, tracker := range hc.servers {
-        successRate := float64(tracker.totalRequests-tracker.failedRequests) / float64(tracker.totalRequests)
-        if tracker.totalRequests == 0 {
-            successRate = 0
-        }
-        
-        servers[name] = ServerHealth{
-            Status:         tracker.status,
-            LastCheck:      tracker.lastCheck,
-            ResponseTime:   tracker.responseTime,
-            Consecutive:    tracker.consecutiveFailures,
-            TotalRequests:  tracker.totalRequests,
-            FailedRequests: tracker.failedRequests,
-            SuccessRate:    successRate,
-        }
-    }
-    
-    return HealthStatus{
-        Status:    hc.getOverallStatus(),
-        Timestamp: time.Now(),
-        Version:   hc.version,
-        Uptime:    time.Since(hc.startTime),
-        Servers:   servers,
-        System:    hc.getSystemHealth(),
-    }
-}
-
-func (hc *HealthChecker) getOverallStatus() string {
-    healthy := 0
-    total := len(hc.servers)
-    
-    for _, tracker := range hc.servers {
-        if tracker.status == "healthy" {
-            healthy++
-        }
-    }
-    
-    if total == 0 {
-        return "unknown"
-    }
-    
-    if healthy == total {
-        return "healthy"
-    }
-    
-    if healthy > total/2 {
-        return "degraded"
-    }
-    
-    return "unhealthy"
-}
-
-func (hc *HealthChecker) getSystemHealth() SystemHealth {
-    var m runtime.MemStats
-    runtime.ReadMemStats(&m)
-    
-    return SystemHealth{
-        MemoryUsage:    int64(m.Alloc),
-        CPUUsage:       getCurrentCPUUsage(),
-        GoroutineCount: runtime.NumGoroutine(),
-        GCPauseTime:    float64(m.PauseNs[(m.NumGC+255)%256]) / 1e6,
-    }
-}
-
-func (hc *HealthChecker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-    status := hc.GetHealthStatus()
-    
-    w.Header().Set("Content-Type", "application/json")
-    
-    if status.Status == "healthy" {
-        w.WriteHeader(http.StatusOK)
-    } else {
-        w.WriteHeader(http.StatusServiceUnavailable)
-    }
-    
-    json.NewEncoder(w).Encode(status)
-}
-
-func getCurrentCPUUsage() float64 {
-    // Implementation depends on your system monitoring approach
-    // This is a placeholder - you might use third-party libraries
-    // or system-specific methods to get CPU usage
-    return 0.0
-}
-```
+Debug output shows:
+- Metrics registration
+- Collection intervals
+- Export operations
+- Error details
 
 ## Best Practices
 
-<Tabs items={["Metric Design", "Alerting Strategy", "Performance Optimization", "Data Management", "Operational Excellence"]}>
-
-<Tab>
 ### Metric Design
+1. **Use consistent naming** - Follow Prometheus conventions
+2. **Avoid high cardinality** - Limit label combinations
+3. **Include relevant context** - Add meaningful labels
+4. **Monitor the monitoring** - Track metrics system health
 
-<FeatureCardList cols={2} size="sm">
-  <FeatureCard
-    title="Naming Convention"
-    description="Consistent metric naming across all services"
-    icon={Tag}
-  />
-  <FeatureCard
-    title="Label Strategy"
-    description="Meaningful labels for filtering and grouping"
-    icon={Filter}
-  />
-  <FeatureCard
-    title="Metric Types"
-    description="Use appropriate metric types for data"
-    icon={BarChart3}
-  />
-  <FeatureCard
-    title="Granularity"
-    description="Balance detail with performance"
-    icon={Gauge}
-  />
-</FeatureCardList>
+### Performance
+1. **Collection frequency** - Balance detail vs overhead
+2. **Retention policies** - Configure appropriate data retention
+3. **Aggregation rules** - Pre-aggregate frequently queried metrics
+4. **Resource limits** - Set memory limits for metrics collection
 
-**Naming Guidelines:**
-- Use consistent prefixes: `mcp_`, `system_`, `business_`
-- Include units in metric names: `_seconds`, `_bytes`, `_total`
-- Use descriptive but concise names
-- Follow Prometheus naming conventions
-
-**Label Best Practices:**
-- Include relevant dimensions: `server_name`, `operation`, `status`
-- Avoid high-cardinality labels
-- Use consistent label names across metrics
-- Include environment and version labels
-
-</Tab>
-
-<Tab>
-### Alerting Strategy
-
-<FeatureCardList cols={2} size="sm">
-  <FeatureCard
-    title="Severity Levels"
-    description="Clear severity classification system"
-    icon={AlertTriangle}
-  />
-  <FeatureCard
-    title="Context-Rich Alerts"
-    description="Include actionable information in alerts"
-    icon={Info}
-  />
-  <FeatureCard
-    title="Alert Fatigue"
-    description="Prevent alert overload with smart routing"
-    icon={Bell}
-  />
-  <FeatureCard
-    title="Escalation Paths"
-    description="Clear escalation procedures"
-    icon={TrendingUp}
-  />
-</FeatureCardList>
-
-**Alert Design Principles:**
-- Focus on user-impacting issues
-- Include context and suggested actions
-- Use appropriate thresholds and time windows
-- Implement alert suppression during maintenance
-
-**Response Guidelines:**
-- Define clear SLAs for each severity level
-- Provide runbooks for common alerts
-- Track alert response times and resolution
-- Regular review and optimization of alerts
-
-</Tab>
-
-<Tab>
-### Performance Optimization
-
-<FeatureCardList cols={2} size="sm">
-  <FeatureCard
-    title="Resource Monitoring"
-    description="Track resource usage trends"
-    icon={Activity}
-  />
-  <FeatureCard
-    title="Capacity Planning"
-    description="Predict future resource needs"
-    icon={TrendingUp}
-  />
-  <FeatureCard
-    title="Bottleneck Detection"
-    description="Identify performance bottlenecks"
-    icon={Target}
-  />
-  <FeatureCard
-    title="Optimization Tracking"
-    description="Measure optimization effectiveness"
-    icon={Zap}
-  />
-</FeatureCardList>
-
-**Optimization Strategies:**
-- Monitor the four golden signals consistently
-- Set up capacity planning alerts
-- Track circuit breaker effectiveness
-- Implement SLI/SLO monitoring
-
-**Performance Benchmarks:**
-- Establish baseline performance metrics
-- Set realistic performance targets
-- Monitor performance regression
-- Implement automated performance testing
-
-</Tab>
-
-<Tab>
-### Data Management
-
-<FeatureCardList cols={2} size="sm">
-  <FeatureCard
-    title="Retention Policies"
-    description="Optimize data storage and costs"
-    icon={Database}
-  />
-  <FeatureCard
-    title="Data Archival"
-    description="Archive historical data efficiently"
-    icon={History}
-  />
-  <FeatureCard
-    title="Storage Optimization"
-    description="Balance storage costs with data needs"
-    icon={HardDrive}
-  />
-  <FeatureCard
-    title="Data Quality"
-    description="Ensure data accuracy and consistency"
-    icon={CheckCircle}
-  />
-</FeatureCardList>
-
-**Data Lifecycle Management:**
-- High-resolution data: 7 days
-- Medium-resolution data: 30 days
-- Low-resolution data: 1 year
-- Archived historical data: 5 years
-
-**Cost Optimization:**
-- Use appropriate storage tiers
-- Implement data compression
-- Regular cleanup of unused metrics
-- Monitor storage costs and usage
-
-</Tab>
-
-<Tab>
-### Operational Excellence
-
-<FeatureCardList cols={2} size="sm">
-  <FeatureCard
-    title="Automation"
-    description="Automate monitoring setup and maintenance"
-    icon={Workflow}
-  />
-  <FeatureCard
-    title="Documentation"
-    description="Maintain comprehensive monitoring docs"
-    icon={FileText}
-  />
-  <FeatureCard
-    title="Training"
-    description="Train team on monitoring tools and practices"
-    icon={Users}
-  />
-  <FeatureCard
-    title="Continuous Improvement"
-    description="Regular review and optimization"
-    icon={RefreshCw}
-  />
-</FeatureCardList>
-
-**Operational Guidelines:**
-- Implement Infrastructure as Code for monitoring
-- Regular monitoring stack updates
-- Team training on monitoring tools
-- Incident post-mortems to improve monitoring
-
-**Monitoring Governance:**
-- Regular review of metrics and alerts
-- Standardized monitoring patterns
-- Change management for monitoring updates
-- Documentation of monitoring decisions
-
-</Tab>
-</Tabs>
-
-This comprehensive monitoring and metrics guide ensures visibility into MCP system health and performance, enabling proactive management and quick issue resolution.
+### Operations
+1. **Regular review** - Audit metrics for relevance
+2. **Alert fatigue** - Tune alerting thresholds
+3. **Dashboard maintenance** - Keep dashboards current
+4. **Documentation** - Document custom metrics and their meaning
 
 ## Next Steps
 
-<ReferenceCardList>
-  <ReferenceCard
-    title="Admin API"
-    description="Configure operational management interfaces"
-    href="/docs/core/mcp/admin-api"
-    icon={Settings}
-  />
-  <ReferenceCard
-    title="Production Deployment"
-    description="Deploy monitoring in production environments"
-    href="/docs/core/mcp/production-deployment"
-    icon={Cloud}
-  />
-  <ReferenceCard
-    title="Security & Authentication"
-    description="Implement security monitoring and authentication"
-    href="/docs/core/mcp/security-authentication"
-    icon={Shield}
-  />
-  <ReferenceCard
-    title="Integration Patterns"
-    description="Explore application-specific monitoring patterns"
-    href="/docs/core/mcp/integration-patterns"
-    icon={Workflow}
-  />
-</ReferenceCardList>
+<FeatureCardList cols={2}>
+  <FeatureCard title="Production Deployment" href="/docs/core/mcp/production-deployment">
+    Learn about production deployment strategies
+  </FeatureCard>
+  <FeatureCard title="Development & Debugging" href="/docs/core/mcp/development-debugging">
+    Debug and troubleshoot with monitoring data
+  </FeatureCard>
+  <FeatureCard title="Storage Backends" href="/docs/core/mcp/storage-backends">
+    Configure and monitor storage performance
+  </FeatureCard>
+  <FeatureCard title="Admin API" href="/docs/core/mcp/admin-api">
+    Administrative endpoints and operations
+  </FeatureCard>
+</FeatureCardList>

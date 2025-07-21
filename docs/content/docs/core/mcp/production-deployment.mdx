@@ -1,640 +1,122 @@
 ---
 title: "Production Deployment"
-description: "Best practices and considerations for deploying MCP integrations in production environments"
+description: "Simple and practical deployment strategies for MCP proxy in production environments"
 ---
 
-import {
-  BookOpen,
-  Code,
-  Rocket,
-  Settings,
-  Users,
-  Zap,
-  BrainCircuit,
-  GitBranch,
-  Package,
-  Database,
-  Link2,
-  Cloud,
-  BarChart3,
-  Cpu,
-  Terminal,
-  Shield,
-  ShieldCheck,
-  TrendingUp,
-  Eye,
-  Lock,
-  RefreshCw,
-  Server,
-  Container,
-  Monitor,
-  AlertTriangle,
-  CheckCircle,
-  Globe,
-  HardDrive,
-  Network,
-  Gauge,
-  Activity,
-  Timer,
-  Workflow,
-  FileText,
-  Bell,
-  Key,
-  Search,
-  Layers,
-  CheckCircle2,
-  Info,
-  MemoryStick,
-} from "lucide-react";
-import { FeatureCard, FeatureCardList } from "@/components/ui/feature-card";
-import { ReferenceCard, ReferenceCardList } from "@/components/ui/reference-card";
-import { Callout } from "@/components/ui/callout";
-import { Steps, Step } from "@/components/ui/step";
-import { Tabs, Tab } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Mermaid } from "@/components/ui/mermaid";
-import { Button } from "@/components/ui/button";
-import { List, ListItem } from "@/components/ui/list";
+Deploy the MCP proxy in production environments with practical, straightforward deployment patterns that match the actual implementation.
 
-# Production Deployment
+## Overview
 
-Deploying MCP integrations in production requires careful consideration of reliability, scalability, security, and operational concerns. This guide covers comprehensive deployment strategies and best practices for production MCP environments.
+The MCP proxy is a simple HTTP server that provides access to MCP servers. Production deployment focuses on:
+- **Basic reliability** with health checks
+- **Security** with authentication and IP restrictions
+- **Monitoring** through logs and health endpoints
+- **Scalability** through simple load balancing
 
-<Callout type="info" icon={Cloud}>
-  **Production Ready**: This guide covers enterprise-grade deployment patterns designed for high availability, security, and operational excellence.
+<Callout type="info">
+**Simple by Design**: The MCP proxy is intentionally lightweight and simple to deploy. Complex orchestration is generally not needed.
 </Callout>
 
-## Deployment Architecture
+## Basic Production Setup
 
-<Mermaid chart={`graph TB
-    subgraph "Load Balancer Tier"
-        LB[Load Balancer<br/>NGINX/HAProxy]
-    end
-    
-    subgraph "Application Tier"
-        MCP1[MCP Proxy 1<br/>:8081]
-        MCP2[MCP Proxy 2<br/>:8081]
-        MCP3[MCP Proxy 3<br/>:8081]
-    end
-    
-    subgraph "MCP Servers"
-        FS[Filesystem Server<br/>STDIO]
-        DB[Database Server<br/>STDIO]
-        API[External API<br/>SSE]
-    end
-    
-    subgraph "Infrastructure"
-        Redis[(Redis<br/>Cache & Sessions)]
-        PostgreSQL[(PostgreSQL<br/>Primary DB)]
-        Temporal[(Temporal<br/>Workflows)]
-    end
-    
-    subgraph "Monitoring"
-        Prometheus[Prometheus<br/>Metrics]
-        Grafana[Grafana<br/>Dashboards]
-        AlertManager[Alert Manager<br/>Notifications]
-    end
-    
-    Internet --> LB
-    LB --> MCP1
-    LB --> MCP2
-    LB --> MCP3
-    
-    MCP1 --> FS
-    MCP1 --> DB
-    MCP1 --> API
-    MCP2 --> FS
-    MCP2 --> DB
-    MCP2 --> API
-    MCP3 --> FS
-    MCP3 --> DB
-    MCP3 --> API
-    
-    MCP1 --> Redis
-    MCP1 --> PostgreSQL
-    MCP1 --> Temporal
-    MCP2 --> Redis
-    MCP2 --> PostgreSQL
-    MCP2 --> Temporal
-    MCP3 --> Redis
-    MCP3 --> PostgreSQL
-    MCP3 --> Temporal
-    
-    MCP1 --> Prometheus
-    MCP2 --> Prometheus
-    MCP3 --> Prometheus
-    
-    Prometheus --> Grafana
-    Prometheus --> AlertManager
-    
-    classDef loadBalancer fill:#e1f5fe,stroke:#01579b,stroke-width:2px
-    classDef application fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
-    classDef mcpServer fill:#e8f5e8,stroke:#1b5e20,stroke-width:2px
-    classDef infrastructure fill:#fff3e0,stroke:#e65100,stroke-width:2px
-    classDef monitoring fill:#fce4ec,stroke:#880e4f,stroke-width:2px
-    
-    class LB loadBalancer
-    class MCP1,MCP2,MCP3 application
-    class FS,DB,API mcpServer
-    class Redis,PostgreSQL,Temporal infrastructure
-    class Prometheus,Grafana,AlertManager monitoring
-`} />
+### Single Instance Deployment
 
-### Production Architecture Benefits
+The simplest production deployment runs a single MCP proxy instance:
 
-<FeatureCardList cols={3} size="sm">
-  <FeatureCard
-    title="High Availability"
-    description="Multi-instance deployment with automatic failover"
-    icon={ShieldCheck}
-  />
-  <FeatureCard
-    title="Horizontal Scaling"
-    description="Scale MCP proxies based on load and demand"
-    icon={TrendingUp}
-  />
-  <FeatureCard
-    title="Load Distribution"
-    description="Intelligent request routing and load balancing"
-    icon={Network}
-  />
-</FeatureCardList>
-
-### High-Availability Setup
-
-Configure MCP services for high availability and enterprise-grade reliability:
-
-<Callout type="warning" icon={ShieldCheck}>
-  **Enterprise Configuration**: This configuration is designed for production environments with high availability requirements.
-</Callout>
-
-```yaml
-# compozy.yaml - Production configuration
-name: production-mcp
-version: "1.0.0"
-description: "Production MCP deployment"
-
-# MCP Proxy configuration for production
-mcp_proxy:
-  enabled: true
-  port: 8081
-  host: "0.0.0.0"
-  
-  # High availability settings
-  cluster:
-    enabled: true
-    nodes:
-      - id: "mcp-proxy-1"
-        host: "mcp-proxy-1.internal"
-        port: 8081
-        weight: 100
-      - id: "mcp-proxy-2"
-        host: "mcp-proxy-2.internal"
-        port: 8081
-        weight: 100
-    
-    # Load balancing strategy
-    load_balancer:
-      strategy: "round_robin"  # round_robin, least_connections, ip_hash
-      health_check:
-        enabled: true
-        interval: 30s
-        timeout: 5s
-        retries: 3
-        path: "/health"
-  
-  # Resource limits
-  resources:
-    memory_limit: "1Gi"
-    cpu_limit: "1000m"
-    max_connections: 1000
-    connection_timeout: 30s
-    
-  # Security configuration
-  security:
-    tls:
-      enabled: true
-      cert_file: "/etc/ssl/certs/mcp-proxy.crt"
-      key_file: "/etc/ssl/private/mcp-proxy.key"
-      ca_file: "/etc/ssl/certs/ca.crt"
-    
-    auth:
-      enabled: true
-      method: "jwt"
-      secret: "{{ .env.MCP_JWT_SECRET }}"
-      
-  # Logging and monitoring
-  logging:
-    level: "info"
-    format: "json"
-    output: "stdout"
-    
-  monitoring:
-    metrics:
-      enabled: true
-      port: 9090
-      path: "/metrics"
-    
-    health_check:
-      enabled: true
-      port: 5001
-      path: "/health"
-
-# Production MCP servers
-mcps:
-  - id: filesystem_prod
-    transport: stdio
-    command: /usr/local/bin/mcp-filesystem-server
-    args:
-      - "--root-path"
-      - "/var/lib/compozy/workspace"
-      - "--max-file-size"
-      - "100MB"
-      - "--allowed-extensions"
-      - "txt,json,yaml,yml,md,csv"
-    proto: "2025-03-26"
-    
-    # Production environment settings
-    env:
-      LOG_LEVEL: "warn"
-      ENABLE_METRICS: "true"
-      MAX_CONCURRENT_OPERATIONS: "50"
-      OPERATION_TIMEOUT: "30s"
-      
-    # Resource limits
-    resources:
-      memory_limit: "512Mi"
-      cpu_limit: "500m"
-      max_processes: 10
-      
-    # Health check configuration
-    health_check:
-      enabled: true
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      command: ["/usr/local/bin/health-check", "--server", "filesystem"]
-      
-    # Restart policy
-    restart_policy:
-      max_retries: 3
-      backoff_factor: 2
-      max_backoff: 300s
-      
-  - id: database_prod
-    transport: stdio
-    command: /usr/local/bin/mcp-database-server
-    args:
-      - "--connection-string"
-      - "{{ .env.DATABASE_URL }}"
-      - "--pool-size"
-      - "20"
-      - "--max-query-timeout"
-      - "30s"
-    proto: "2025-03-26"
-    
-    env:
-      LOG_LEVEL: "warn"
-      ENABLE_QUERY_LOGGING: "false"
-      CONNECTION_POOL_SIZE: "20"
-      MAX_QUERY_TIMEOUT: "30s"
-      
-    resources:
-      memory_limit: "1Gi"
-      cpu_limit: "1000m"
-      max_connections: 50
-      
-    health_check:
-      enabled: true
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      command: ["/usr/local/bin/health-check", "--server", "database"]
-      
-  - id: external_api_prod
-    url: "https://api.external-service.com"
-    transport: sse
-    proto: "2025-03-26"
-    
-    env:
-      API_KEY: "{{ .env.EXTERNAL_API_KEY }}"
-      RATE_LIMIT: "1000"
-      TIMEOUT: "30s"
-      
-    # Circuit breaker configuration
-    circuit_breaker:
-      enabled: true
-      failure_threshold: 5
-      recovery_timeout: 60s
-      half_open_max_calls: 3
-      
-    # Retry configuration
-    retry:
-      enabled: true
-      max_attempts: 3
-      backoff_strategy: "exponential"
-      initial_interval: 1s
-      max_interval: 30s
-      multiplier: 2
-      
-    health_check:
-      enabled: true
-      interval: 60s
-      timeout: 10s
-      retries: 2
-      url: "https://api.external-service.com/health"
+```bash
+# Start MCP proxy for production
+compozy mcp-proxy \
+  --host 0.0.0.0 \
+  --port 8081 \
+  --global-auth-tokens "your-production-token" \
+  --admin-tokens "admin-secret" \
+  --admin-allow-ips "10.0.0.0/8,192.168.0.0/16"
 ```
 
-## Container Deployment
+### Environment Configuration
 
-<Tabs items={["Docker", "Docker Compose", "Kubernetes"]}>
+Configure using environment variables for production:
 
-<Tab>
-### Docker Configuration
+```bash
+# Production environment
+export MCP_PROXY_HOST=0.0.0.0
+export MCP_PROXY_PORT=8081
+export MCP_PROXY_BASE_URL=https://mcp.yourdomain.com
 
-Deploy MCP components using Docker:
+# Start with environment config
+compozy mcp-proxy
+```
+
+## Docker Deployment
+
+### Basic Docker Setup
 
 ```dockerfile
-# Dockerfile.mcp-proxy
-FROM golang:1.21-alpine AS builder
+# Dockerfile
+FROM compozy/compozy:latest
 
-WORKDIR /app
-COPY go.mod go.sum ./
-RUN go mod download
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:8081/health || exit 1
 
-COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -o mcp-proxy ./cmd/mcp-proxy
+# Expose port
+EXPOSE 8081
 
-FROM alpine:latest
-RUN apk --no-cache add ca-certificates tzdata
-WORKDIR /root/
-
-# Create non-root user
-RUN addgroup -g 1001 -S mcpuser && \
-    adduser -u 1001 -S mcpuser -G mcpuser
-
-# Copy binary and set permissions
-COPY --from=builder /app/mcp-proxy .
-RUN chmod +x mcp-proxy
-
-# Create directories
-RUN mkdir -p /var/lib/compozy/workspace /var/log/compozy
-RUN chown -R mcpuser:mcpuser /var/lib/compozy /var/log/compozy
-
-# Switch to non-root user
-USER mcpuser
-
-EXPOSE 8081 5001 9090
-
-HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-  CMD ["./mcp-proxy", "health-check"]
-
-CMD ["./mcp-proxy", "serve"]
+# Run MCP proxy
+CMD ["compozy", "mcp-proxy"]
 ```
 
-</Tab>
-
-<Tab>
-### Docker Compose Configuration
+### Docker Compose
 
 ```yaml
-# docker-compose.prod.yml
 version: '3.8'
-
 services:
-  mcp-proxy-1:
-    build:
-      context: .
-      dockerfile: Dockerfile.mcp-proxy
-    hostname: mcp-proxy-1
-    environment:
-      - MCP_NODE_ID=mcp-proxy-1
-      - MCP_CLUSTER_ENABLED=true
-      - MCP_JWT_SECRET_FILE=/run/secrets/jwt_secret
-      - DATABASE_URL_FILE=/run/secrets/database_url
-    volumes:
-      - mcp_workspace:/var/lib/compozy/workspace
-      - mcp_logs:/var/log/compozy
-      - /etc/ssl/certs:/etc/ssl/certs:ro
-      - /etc/ssl/private:/etc/ssl/private:ro
-    networks:
-      - mcp_network
-    secrets:
-      - jwt_secret
-      - database_url
-    deploy:
-      replicas: 2
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 1G
-        reservations:
-          cpus: '0.5'
-          memory: 512M
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 3
-        window: 120s
-    healthcheck:
-      test: ["CMD", "./mcp-proxy", "health-check"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-
-  mcp-proxy-2:
-    build:
-      context: .
-      dockerfile: Dockerfile.mcp-proxy
-    hostname: mcp-proxy-2
-    environment:
-      - MCP_NODE_ID=mcp-proxy-2
-      - MCP_CLUSTER_ENABLED=true
-      - MCP_JWT_SECRET_FILE=/run/secrets/jwt_secret
-      - DATABASE_URL_FILE=/run/secrets/database_url
-    volumes:
-      - mcp_workspace:/var/lib/compozy/workspace
-      - mcp_logs:/var/log/compozy
-      - /etc/ssl/certs:/etc/ssl/certs:ro
-      - /etc/ssl/private:/etc/ssl/private:ro
-    networks:
-      - mcp_network
-    secrets:
-      - jwt_secret
-      - database_url
-    deploy:
-      replicas: 2
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 1G
-        reservations:
-          cpus: '0.5'
-          memory: 512M
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 3
-        window: 120s
-    healthcheck:
-      test: ["CMD", "./mcp-proxy", "health-check"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-
-  load-balancer:
-    image: nginx:alpine
+  mcp-proxy:
+    image: compozy/compozy:latest
     ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - /etc/ssl/certs:/etc/ssl/certs:ro
-      - /etc/ssl/private:/etc/ssl/private:ro
-    depends_on:
-      - mcp-proxy-1
-      - mcp-proxy-2
-    networks:
-      - mcp_network
-    deploy:
-      replicas: 1
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 256M
-        reservations:
-          cpus: '0.25'
-          memory: 128M
-
+      - "8081:8081"
+    environment:
+      - MCP_PROXY_HOST=0.0.0.0
+      - MCP_PROXY_PORT=8081
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    
   redis:
     image: redis:7-alpine
-    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    command: redis-server --requirepass your-redis-password
     volumes:
-      - redis_data:/data
-    networks:
-      - mcp_network
-    deploy:
-      replicas: 1
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
-        reservations:
-          cpus: '0.25'
-          memory: 256M
-
-  postgres:
-    image: postgres:15-alpine
-    environment:
-      - POSTGRES_DB=compozy
-      - POSTGRES_USER=compozy
-      - POSTGRES_PASSWORD_FILE=/run/secrets/postgres_password
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - mcp_network
-    secrets:
-      - postgres_password
-    deploy:
-      replicas: 1
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 1G
-        reservations:
-          cpus: '0.5'
-          memory: 512M
-
-  prometheus:
-    image: prom/prometheus:latest
-    volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - prometheus_data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
-      - '--web.console.templates=/usr/share/prometheus/consoles'
-      - '--web.enable-lifecycle'
-    networks:
-      - mcp_network
-    deploy:
-      replicas: 1
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 1G
-        reservations:
-          cpus: '0.25'
-          memory: 512M
-
-  grafana:
-    image: grafana/grafana:latest
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD_FILE=/run/secrets/grafana_password
-    volumes:
-      - grafana_data:/var/lib/grafana
-    networks:
-      - mcp_network
-    secrets:
-      - grafana_password
-    deploy:
-      replicas: 1
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
-        reservations:
-          cpus: '0.25'
-          memory: 256M
-
-networks:
-  mcp_network:
-    driver: overlay
-    attachable: true
+      - redis-data:/data
+    restart: unless-stopped
 
 volumes:
-  mcp_workspace:
-  mcp_logs:
-  redis_data:
-  postgres_data:
-  prometheus_data:
-  grafana_data:
-
-secrets:
-  jwt_secret:
-    external: true
-  database_url:
-    external: true
-  postgres_password:
-    external: true
-  grafana_password:
-    external: true
+  redis-data:
 ```
 
-</Tab>
+Start the services:
 
-<Tab>
-### Kubernetes Deployment
+```bash
+docker-compose up -d
+```
 
-<Steps>
-<Step title="Deploy MCP Proxy" description="Configure the main MCP proxy deployment">
+## Kubernetes Deployment
+
+### Basic Kubernetes Deployment
 
 ```yaml
-# k8s/mcp-proxy-deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: mcp-proxy
-  namespace: compozy
   labels:
     app: mcp-proxy
-    version: v1.0.0
 spec:
-  replicas: 3
+  replicas: 2
   selector:
     matchLabels:
       app: mcp-proxy
@@ -642,849 +124,428 @@ spec:
     metadata:
       labels:
         app: mcp-proxy
-        version: v1.0.0
     spec:
-      securityContext:
-        runAsNonRoot: true
-        runAsUser: 1001
-        runAsGroup: 1001
-        fsGroup: 1001
-      
       containers:
       - name: mcp-proxy
-        image: compozy/mcp-proxy:v1.0.0
+        image: compozy/compozy:latest
         ports:
         - containerPort: 8081
-          name: http
-        - containerPort: 5001
-          name: health
-        - containerPort: 9090
-          name: metrics
-        
         env:
-        - name: MCP_NODE_ID
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.name
-        - name: MCP_CLUSTER_ENABLED
-          value: "true"
-        - name: MCP_JWT_SECRET
-          valueFrom:
-            secretKeyRef:
-              name: mcp-secrets
-              key: jwt-secret
-        - name: DATABASE_URL
-          valueFrom:
-            secretKeyRef:
-              name: mcp-secrets
-              key: database-url
-        
-        resources:
-          limits:
-            cpu: 1000m
-            memory: 1Gi
-          requests:
-            cpu: 500m
-            memory: 512Mi
-        
+        - name: MCP_PROXY_HOST
+          value: "0.0.0.0"
+        - name: MCP_PROXY_PORT
+          value: "8081"
         livenessProbe:
           httpGet:
             path: /health
-            port: health
+            port: 8081
           initialDelaySeconds: 30
           periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 3
-        
         readinessProbe:
           httpGet:
-            path: /ready
-            port: health
+            path: /health
+            port: 8081
           initialDelaySeconds: 5
           periodSeconds: 5
-          timeoutSeconds: 3
-          failureThreshold: 3
-        
-        volumeMounts:
-        - name: workspace
-          mountPath: /var/lib/compozy/workspace
-        - name: logs
-          mountPath: /var/log/compozy
-        - name: tls-certs
-          mountPath: /etc/ssl/certs
-          readOnly: true
-        - name: tls-private
-          mountPath: /etc/ssl/private
-          readOnly: true
-      
-      volumes:
-      - name: workspace
-        persistentVolumeClaim:
-          claimName: mcp-workspace
-      - name: logs
-        persistentVolumeClaim:
-          claimName: mcp-logs
-      - name: tls-certs
-        secret:
-          secretName: mcp-tls-certs
-      - name: tls-private
-        secret:
-          secretName: mcp-tls-private
-      
-      affinity:
-        podAntiAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
-          - weight: 100
-            podAffinityTerm:
-              labelSelector:
-                matchExpressions:
-                - key: app
-                  operator: In
-                  values:
-                  - mcp-proxy
-              topologyKey: kubernetes.io/hostname
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
 
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: mcp-proxy-service
-  namespace: compozy
-  labels:
-    app: mcp-proxy
 spec:
-  type: ClusterIP
-  ports:
-  - port: 8081
-    targetPort: 8081
-    name: http
-  - port: 5001
-    targetPort: 5001
-    name: health
-  - port: 9090
-    targetPort: 9090
-    name: metrics
   selector:
     app: mcp-proxy
-
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: mcp-proxy-ingress
-  namespace: compozy
-  annotations:
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
-    nginx.ingress.kubernetes.io/rate-limit: "100"
-    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
-spec:
-  tls:
-  - hosts:
-    - mcp.example.com
-    secretName: mcp-tls-secret
-  rules:
-  - host: mcp.example.com
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: mcp-proxy-service
-            port:
-              number: 8081
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 8081
+  type: LoadBalancer
 ```
 
-</Step>
+Deploy to Kubernetes:
 
-<Step title="Configure Secrets" description="Set up configuration and secrets management">
-
-```yaml
-# k8s/mcp-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: mcp-config
-  namespace: compozy
-data:
-  config.yaml: |
-    server:
-      port: 8081
-      host: "0.0.0.0"
-      read_timeout: 30s
-      write_timeout: 30s
-      max_header_bytes: 1048576
-    
-    cluster:
-      enabled: true
-      discovery:
-        method: "kubernetes"
-        namespace: "compozy"
-        label_selector: "app=mcp-proxy"
-    
-    logging:
-      level: "info"
-      format: "json"
-      output: "stdout"
-    
-    metrics:
-      enabled: true
-      port: 9090
-      path: "/metrics"
-    
-    health:
-      enabled: true
-      port: 5001
-      path: "/health"
-
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: mcp-secrets
-  namespace: compozy
-type: Opaque
-stringData:
-  jwt-secret: "your-jwt-secret-here"
-  database-url: "postgresql://user:password@postgres:5432/compozy"
-  external-api-key: "your-external-api-key-here"
+```bash
+kubectl apply -f mcp-proxy-k8s.yaml
 ```
 
-</Step>
-</Steps>
+## Load Balancing
 
-</Tab>
-</Tabs>
+### NGINX Configuration
 
-## Monitoring and Alerting
+Simple load balancing with NGINX:
 
-<Callout type="warning" icon={Monitor}>
-  **Monitoring is Critical**: Production MCP deployments require comprehensive monitoring for reliability and performance optimization.
-</Callout>
+```nginx
+upstream mcp_proxy {
+    server mcp-proxy-1:8081;
+    server mcp-proxy-2:8081;
+    server mcp-proxy-3:8081;
+}
 
-### Prometheus Configuration
-
-```yaml
-# prometheus.yml
-global:
-  scrape_interval: 15s
-  evaluation_interval: 15s
-
-alerting:
-  alertmanagers:
-    - static_configs:
-        - targets:
-          - alertmanager:9093
-
-rule_files:
-  - "mcp_rules.yml"
-
-scrape_configs:
-  - job_name: 'mcp-proxy'
-    static_configs:
-      - targets: ['mcp-proxy-1:9090', 'mcp-proxy-2:9090']
-    scrape_interval: 15s
-    metrics_path: /metrics
+server {
+    listen 80;
+    server_name mcp.yourdomain.com;
     
-  - job_name: 'mcp-servers'
-    static_configs:
-      - targets: ['mcp-proxy-1:8081', 'mcp-proxy-2:8081']
-    scrape_interval: 30s
-    metrics_path: /api/v1/metrics
+    location / {
+        proxy_pass http://mcp_proxy;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
     
-  - job_name: 'kubernetes-pods'
-    kubernetes_sd_configs:
-      - role: pod
-    relabel_configs:
-      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
-        action: keep
-        regex: true
-      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
-        action: replace
-        target_label: __metrics_path__
-        regex: (.+)
+    location /health {
+        proxy_pass http://mcp_proxy/health;
+        access_log off;
+    }
+}
 ```
 
-### Alerting Rules
+### HAProxy Configuration
 
-```yaml
-# mcp_rules.yml
-groups:
-  - name: mcp-proxy
-    rules:
-      - alert: MCPProxyDown
-        expr: up{job="mcp-proxy"} == 0
-        for: 1m
-        labels:
-          severity: critical
-        annotations:
-          summary: "MCP Proxy instance is down"
-          description: "MCP Proxy instance {{ $labels.instance }} has been down for more than 1 minute."
-      
-      - alert: MCPHighErrorRate
-        expr: rate(mcp_requests_errors_total[5m]) > 0.05
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "High error rate in MCP requests"
-          description: "Error rate for MCP requests is {{ $value }} per second on {{ $labels.instance }}."
-      
-      - alert: MCPHighLatency
-        expr: histogram_quantile(0.95, rate(mcp_request_duration_seconds_bucket[5m])) > 1
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "High latency in MCP requests"
-          description: "95th percentile latency is {{ $value }} seconds on {{ $labels.instance }}."
-      
-      - alert: MCPServerUnhealthy
-        expr: mcp_server_health_status != 1
-        for: 2m
-        labels:
-          severity: warning
-        annotations:
-          summary: "MCP Server is unhealthy"
-          description: "MCP Server {{ $labels.server_name }} on {{ $labels.instance }} is unhealthy."
-      
-      - alert: MCPHighMemoryUsage
-        expr: process_resident_memory_bytes{job="mcp-proxy"} > 1073741824
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "High memory usage in MCP Proxy"
-          description: "MCP Proxy instance {{ $labels.instance }} is using more than 1GB of memory."
+Alternative load balancing with HAProxy:
+
+```
+global
+    daemon
+
+defaults
+    mode http
+    timeout connect 5000ms
+    timeout client 50000ms
+    timeout server 50000ms
+
+frontend mcp_frontend
+    bind *:80
+    default_backend mcp_backend
+
+backend mcp_backend
+    balance roundrobin
+    option httpchk GET /health
+    server mcp1 mcp-proxy-1:8081 check
+    server mcp2 mcp-proxy-2:8081 check
+    server mcp3 mcp-proxy-3:8081 check
 ```
 
-## Security Hardening
+## Security Configuration
 
-<FeatureCardList cols={2} size="md">
-  <FeatureCard
-    title="Network Security"
-    description="Implement network policies and firewall rules"
-    icon={Shield}
-  />
-  <FeatureCard
-    title="Access Control"
-    description="Role-based authentication and authorization"
-    icon={Lock}
-  />
-  <FeatureCard
-    title="Data Encryption"
-    description="TLS/SSL encryption for all communications"
-    icon={Key}
-  />
-  <FeatureCard
-    title="Audit Logging"
-    description="Complete audit trail for security compliance"
-    icon={FileText}
-  />
-</FeatureCardList>
+### Authentication Setup
 
-### Network Security
+```bash
+# Generate secure tokens
+TOKEN1=$(openssl rand -hex 32)
+TOKEN2=$(openssl rand -hex 32)
+ADMIN_TOKEN=$(openssl rand -hex 32)
 
-```yaml
-# k8s/network-policy.yaml
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: mcp-proxy-network-policy
-  namespace: compozy
-spec:
-  podSelector:
-    matchLabels:
-      app: mcp-proxy
-  policyTypes:
-  - Ingress
-  - Egress
-  
-  ingress:
-  - from:
-    - namespaceSelector:
-        matchLabels:
-          name: ingress-nginx
-    - podSelector:
-        matchLabels:
-          app: compozy-app
-    ports:
-    - protocol: TCP
-      port: 8081
-  
-  - from:
-    - namespaceSelector:
-        matchLabels:
-          name: monitoring
-    ports:
-    - protocol: TCP
-      port: 9090
-    - protocol: TCP
-      port: 5001
-  
-  egress:
-  - to:
-    - namespaceSelector:
-        matchLabels:
-          name: database
-    ports:
-    - protocol: TCP
-      port: 5432
-  
-  - to:
-    - namespaceSelector:
-        matchLabels:
-          name: cache
-    ports:
-    - protocol: TCP
-      port: 6379
-  
-  - to: []
-    ports:
-    - protocol: TCP
-      port: 53
-    - protocol: UDP
-      port: 53
-  
-  - to: []
-    ports:
-    - protocol: TCP
-      port: 443
+# Start with authentication
+compozy mcp-proxy \
+  --global-auth-tokens "$TOKEN1,$TOKEN2" \
+  --admin-tokens "$ADMIN_TOKEN" \
+  --admin-allow-ips "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
 ```
 
-### Security Scanning
+### TLS Termination
+
+Use a reverse proxy for TLS termination:
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name mcp.yourdomain.com;
+    
+    ssl_certificate /path/to/certificate.crt;
+    ssl_certificate_key /path/to/private.key;
+    
+    location / {
+        proxy_pass http://localhost:8081;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+    }
+}
+```
+
+### Firewall Configuration
+
+Basic firewall rules:
+
+```bash
+# Allow only necessary ports
+sudo ufw allow 22/tcp    # SSH
+sudo ufw allow 80/tcp    # HTTP
+sudo ufw allow 443/tcp   # HTTPS
+sudo ufw deny 8081/tcp   # Block direct access to MCP proxy
+
+# Enable firewall
+sudo ufw --force enable
+```
+
+## Monitoring and Logging
+
+### Health Check Monitoring
+
+Set up basic health monitoring:
+
+```bash
+#!/bin/bash
+# health-check.sh
+
+HEALTH_URL="http://localhost:8081/health"
+MAX_FAILURES=3
+FAILURE_COUNT=0
+
+while true; do
+    if curl -f "$HEALTH_URL" > /dev/null 2>&1; then
+        FAILURE_COUNT=0
+        echo "$(date): Health check passed"
+    else
+        FAILURE_COUNT=$((FAILURE_COUNT + 1))
+        echo "$(date): Health check failed (attempt $FAILURE_COUNT/$MAX_FAILURES)"
+        
+        if [ $FAILURE_COUNT -ge $MAX_FAILURES ]; then
+            echo "$(date): Max failures reached, restarting service"
+            systemctl restart mcp-proxy
+            FAILURE_COUNT=0
+        fi
+    fi
+    
+    sleep 30
+done
+```
+
+### Log Configuration
+
+Configure logging for production:
 
 ```yaml
-# .github/workflows/security-scan.yml
-name: Security Scan
+# mcp-proxy.yaml
+logging:
+  level: "info"
+  format: "json"
+  output: "/var/log/compozy/mcp-proxy.log"
+```
 
-on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+### Log Rotation
 
-jobs:
-  security-scan:
-    runs-on: ubuntu-latest
-    
-    steps:
-    - uses: actions/checkout@v3
-    
-    - name: Run Trivy vulnerability scanner
-      uses: aquasecurity/trivy-action@master
-      with:
-        image-ref: 'compozy/mcp-proxy:latest'
-        format: 'sarif'
-        output: 'trivy-results.sarif'
-    
-    - name: Upload Trivy scan results
-      uses: github/codeql-action/upload-sarif@v2
-      with:
-        sarif_file: 'trivy-results.sarif'
-    
-    - name: Run Snyk to check for vulnerabilities
-      uses: snyk/actions/node@master
-      env:
-        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-      with:
-        args: --severity-threshold=high
+Set up log rotation:
+
+```
+# /etc/logrotate.d/mcp-proxy
+/var/log/compozy/mcp-proxy.log {
+    daily
+    missingok
+    rotate 7
+    compress
+    delaycompress
+    notifempty
+    copytruncate
+}
+```
+
+### Basic Monitoring Script
+
+```bash
+#!/bin/bash
+# monitor-mcp.sh
+
+LOG_FILE="/var/log/compozy/mcp-proxy.log"
+ALERT_EMAIL="admin@yourdomain.com"
+
+# Monitor error rate
+ERROR_COUNT=$(grep -c '"level":"error"' "$LOG_FILE" | tail -100)
+if [ "$ERROR_COUNT" -gt 10 ]; then
+    echo "High error rate detected: $ERROR_COUNT errors" | \
+        mail -s "MCP Proxy Alert" "$ALERT_EMAIL"
+fi
+
+# Monitor disk space
+DISK_USAGE=$(df /var/log | awk 'NR==2 {print $5}' | sed 's/%//')
+if [ "$DISK_USAGE" -gt 80 ]; then
+    echo "Low disk space: ${DISK_USAGE}% used" | \
+        mail -s "Disk Space Alert" "$ALERT_EMAIL"
+fi
 ```
 
 ## Backup and Recovery
 
-<Callout type="info" icon={HardDrive}>
-  **Backup Strategy**: Regular backups are essential for data protection and disaster recovery.
-</Callout>
-
-### Backup Strategy
+### Configuration Backup
 
 ```bash
 #!/bin/bash
-# backup-mcp-data.sh
+# backup-config.sh
 
-set -e
-
-BACKUP_DIR="/var/backups/mcp"
-TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-BACKUP_NAME="mcp_backup_${TIMESTAMP}"
+BACKUP_DIR="/backup/mcp-proxy"
+DATE=$(date +%Y%m%d_%H%M%S)
 
 # Create backup directory
-mkdir -p "${BACKUP_DIR}/${BACKUP_NAME}"
+mkdir -p "$BACKUP_DIR"
 
 # Backup configuration
-echo "Backing up MCP configuration..."
-kubectl get configmap mcp-config -n compozy -o yaml > "${BACKUP_DIR}/${BACKUP_NAME}/config.yaml"
-kubectl get secret mcp-secrets -n compozy -o yaml > "${BACKUP_DIR}/${BACKUP_NAME}/secrets.yaml"
+cp /etc/compozy/mcp-proxy.yaml "$BACKUP_DIR/config_$DATE.yaml"
 
-# Backup persistent volumes
-echo "Backing up persistent volumes..."
-kubectl get pvc -n compozy -o yaml > "${BACKUP_DIR}/${BACKUP_NAME}/pvc.yaml"
+# Backup logs
+tar -czf "$BACKUP_DIR/logs_$DATE.tar.gz" /var/log/compozy/
 
-# Backup database
-echo "Backing up database..."
-kubectl exec -n compozy postgres-0 -- pg_dump -U compozy compozy > "${BACKUP_DIR}/${BACKUP_NAME}/database.sql"
-
-# Backup Redis data
-echo "Backing up Redis data..."
-kubectl exec -n compozy redis-0 -- redis-cli --rdb > "${BACKUP_DIR}/${BACKUP_NAME}/redis.rdb"
-
-# Backup workspace data
-echo "Backing up workspace data..."
-kubectl cp compozy/mcp-proxy-0:/var/lib/compozy/workspace "${BACKUP_DIR}/${BACKUP_NAME}/workspace"
-
-# Create tar archive
-echo "Creating backup archive..."
-tar -czf "${BACKUP_DIR}/${BACKUP_NAME}.tar.gz" -C "${BACKUP_DIR}" "${BACKUP_NAME}"
-
-# Clean up temporary directory
-rm -rf "${BACKUP_DIR}/${BACKUP_NAME}"
-
-# Upload to remote storage (optional)
-if [ -n "${BACKUP_S3_BUCKET}" ]; then
-    echo "Uploading backup to S3..."
-    aws s3 cp "${BACKUP_DIR}/${BACKUP_NAME}.tar.gz" "s3://${BACKUP_S3_BUCKET}/mcp-backups/"
-fi
-
-echo "Backup completed: ${BACKUP_NAME}.tar.gz"
+# Clean old backups (keep 7 days)
+find "$BACKUP_DIR" -type f -mtime +7 -delete
 ```
 
-### Recovery Procedure
+### Recovery Procedures
+
+1. **Service Recovery**:
+   ```bash
+   # Restart service
+   systemctl restart mcp-proxy
+   
+   # Check status
+   systemctl status mcp-proxy
+   
+   # Check logs
+   journalctl -u mcp-proxy -f
+   ```
+
+2. **Configuration Recovery**:
+   ```bash
+   # Restore from backup
+   cp /backup/mcp-proxy/config_YYYYMMDD_HHMMSS.yaml /etc/compozy/mcp-proxy.yaml
+   
+   # Restart service
+   systemctl restart mcp-proxy
+   ```
+
+## Performance Tuning
+
+### Resource Limits
+
+Set appropriate resource limits:
+
+```
+# /etc/systemd/system/mcp-proxy.service
+[Unit]
+Description=MCP Proxy Server
+After=network.target
+
+[Service]
+Type=simple
+User=mcp-proxy
+Group=mcp-proxy
+ExecStart=/usr/local/bin/compozy mcp-proxy
+Restart=always
+RestartSec=5
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=32768
+MemoryLimit=512M
+
+[Install]
+WantedBy=multi-user.target
+```
+
+### Connection Tuning
+
+Tune for high concurrency:
+
+```yaml
+# mcp-proxy.yaml
+server:
+  read_timeout: 30s
+  write_timeout: 30s
+  idle_timeout: 120s
+  max_header_bytes: 1048576
+```
+
+## Troubleshooting
+
+### Common Issues
+
+1. **High Memory Usage**
+   ```bash
+   # Monitor memory
+   ps aux | grep mcp-proxy
+   
+   # Check for memory leaks
+   valgrind compozy mcp-proxy
+   ```
+
+2. **Connection Issues**
+   ```bash
+   # Check port availability
+   netstat -tlnp | grep 8081
+   
+   # Test connectivity
+   curl -v http://localhost:8081/health
+   ```
+
+3. **Performance Issues**
+   ```bash
+   # Monitor request rates
+   tail -f /var/log/compozy/mcp-proxy.log | grep -E '"method":|"status":'
+   
+   # Check resource usage
+   top -p $(pgrep mcp-proxy)
+   ```
+
+### Debug Mode
+
+Enable debug logging for troubleshooting:
 
 ```bash
-#!/bin/bash
-# restore-mcp-data.sh
+# Start with debug logging
+compozy mcp-proxy --debug --log-level debug
 
-set -e
-
-BACKUP_FILE="$1"
-RESTORE_DIR="/tmp/mcp_restore"
-
-if [ -z "$BACKUP_FILE" ]; then
-    echo "Usage: $0 <backup_file>"
-    exit 1
-fi
-
-# Extract backup
-echo "Extracting backup..."
-mkdir -p "$RESTORE_DIR"
-tar -xzf "$BACKUP_FILE" -C "$RESTORE_DIR"
-
-BACKUP_NAME=$(basename "$BACKUP_FILE" .tar.gz)
-BACKUP_PATH="${RESTORE_DIR}/${BACKUP_NAME}"
-
-# Restore configuration
-echo "Restoring configuration..."
-kubectl apply -f "${BACKUP_PATH}/config.yaml"
-kubectl apply -f "${BACKUP_PATH}/secrets.yaml"
-
-# Restore persistent volumes
-echo "Restoring persistent volumes..."
-kubectl apply -f "${BACKUP_PATH}/pvc.yaml"
-
-# Restore database
-echo "Restoring database..."
-kubectl exec -n compozy postgres-0 -- psql -U compozy -d compozy < "${BACKUP_PATH}/database.sql"
-
-# Restore Redis data
-echo "Restoring Redis data..."
-kubectl cp "${BACKUP_PATH}/redis.rdb" compozy/redis-0:/data/dump.rdb
-kubectl rollout restart deployment/redis -n compozy
-
-# Restore workspace data
-echo "Restoring workspace data..."
-kubectl cp "${BACKUP_PATH}/workspace" compozy/mcp-proxy-0:/var/lib/compozy/workspace
-
-# Clean up
-rm -rf "$RESTORE_DIR"
-
-echo "Recovery completed successfully"
+# Or via environment
+export LOG_LEVEL=debug
+compozy mcp-proxy
 ```
-
-## Production Deployment Checklist
-
-<Steps>
-<Step title="Infrastructure Preparation" description="Prepare your production infrastructure">
-
-<Card>
-  <CardHeader>
-    <CardTitle>Infrastructure Requirements</CardTitle>
-    <CardDescription>Ensure your infrastructure meets production requirements</CardDescription>
-  </CardHeader>
-  <CardContent>
-    <List>
-      <ListItem title="Compute Resources">Minimum 3 nodes with 4 CPU cores and 8GB RAM each</ListItem>
-      <ListItem title="Network Bandwidth">10Gbps network connectivity for high throughput</ListItem>
-      <ListItem title="Storage">SSD storage with backup capabilities</ListItem>
-      <ListItem title="Load Balancer">High-availability load balancer configuration</ListItem>
-    </List>
-  </CardContent>
-</Card>
-
-</Step>
-
-<Step title="Security Configuration" description="Implement comprehensive security measures">
-
-<Card>
-  <CardHeader>
-    <CardTitle>Security Checklist</CardTitle>
-    <CardDescription>Essential security configurations</CardDescription>
-  </CardHeader>
-  <CardContent>
-    <List>
-      <ListItem title="TLS/SSL Certificates">Configure valid SSL certificates for all endpoints</ListItem>
-      <ListItem title="Authentication">Implement JWT-based authentication</ListItem>
-      <ListItem title="Network Policies">Restrict network access between components</ListItem>
-      <ListItem title="Secrets Management">Use proper secrets management solutions</ListItem>
-    </List>
-  </CardContent>
-</Card>
-
-</Step>
-
-<Step title="Monitoring Setup" description="Configure comprehensive monitoring">
-
-<Card>
-  <CardHeader>
-    <CardTitle>Monitoring Components</CardTitle>
-    <CardDescription>Essential monitoring setup</CardDescription>
-  </CardHeader>
-  <CardContent>
-    <List>
-      <ListItem title="Prometheus">Metrics collection and storage</ListItem>
-      <ListItem title="Grafana">Visualization and dashboards</ListItem>
-      <ListItem title="AlertManager">Alert routing and notifications</ListItem>
-      <ListItem title="Log Aggregation">Centralized logging solution</ListItem>
-    </List>
-  </CardContent>
-</Card>
-
-</Step>
-
-<Step title="Backup Strategy" description="Implement comprehensive backup procedures">
-
-<Card>
-  <CardHeader>
-    <CardTitle>Backup Requirements</CardTitle>
-    <CardDescription>Essential backup configurations</CardDescription>
-  </CardHeader>
-  <CardContent>
-    <List>
-      <ListItem title="Database Backups">Daily automated database backups</ListItem>
-      <ListItem title="Configuration Backups">Version-controlled configuration management</ListItem>
-      <ListItem title="Recovery Testing">Regular recovery procedure testing</ListItem>
-      <ListItem title="Offsite Storage">Secure offsite backup storage</ListItem>
-    </List>
-  </CardContent>
-</Card>
-
-</Step>
-</Steps>
 
 ## Best Practices
 
-<Tabs items={["Resource Management", "Security", "Monitoring", "Reliability", "Operations"]}>
-
-<Tab>
-### Resource Management
-
-<FeatureCardList cols={2} size="sm">
-  <FeatureCard
-    title="Resource Limits"
-    description="Set appropriate CPU and memory limits for all containers"
-    icon={Gauge}
-  />
-  <FeatureCard
-    title="Auto-scaling"
-    description="Implement horizontal pod autoscaling for dynamic load"
-    icon={TrendingUp}
-  />
-  <FeatureCard
-    title="Resource Monitoring"
-    description="Monitor resource usage and set up alerts"
-    icon={Activity}
-  />
-  <FeatureCard
-    title="Capacity Planning"
-    description="Plan for future growth and scaling requirements"
-    icon={BarChart3}
-  />
-</FeatureCardList>
-
-**Key Considerations:**
-- Set resource requests and limits for predictable performance
-- Use namespace resource quotas to prevent resource exhaustion
-- Monitor resource usage trends for capacity planning
-- Implement quality of service (QoS) classes appropriately
-
-</Tab>
-
-<Tab>
 ### Security
+- Use strong authentication tokens
+- Implement IP allowlists for admin access
+- Run behind a reverse proxy with TLS
+- Regularly update dependencies
 
-<FeatureCardList cols={2} size="sm">
-  <FeatureCard
-    title="Least Privilege"
-    description="Apply principle of least privilege to all access"
-    icon={Lock}
-  />
-  <FeatureCard
-    title="Network Policies"
-    description="Implement strict network access controls"
-    icon={Shield}
-  />
-  <FeatureCard
-    title="Security Scanning"
-    description="Regular vulnerability scanning and updates"
-    icon={Search}
-  />
-  <FeatureCard
-    title="Secrets Management"
-    description="Secure storage and rotation of sensitive data"
-    icon={Key}
-  />
-</FeatureCardList>
-
-**Security Requirements:**
-- Use dedicated service accounts with minimal permissions
-- Implement pod security policies and security contexts
-- Regular security audits and penetration testing
-- Keep all components updated with latest security patches
-
-</Tab>
-
-<Tab>
-### Monitoring
-
-<FeatureCardList cols={2} size="sm">
-  <FeatureCard
-    title="Comprehensive Metrics"
-    description="Monitor all critical system and application metrics"
-    icon={Monitor}
-  />
-  <FeatureCard
-    title="Distributed Tracing"
-    description="Implement request tracing across all services"
-    icon={GitBranch}
-  />
-  <FeatureCard
-    title="Log Aggregation"
-    description="Centralized logging for all components"
-    icon={FileText}
-  />
-  <FeatureCard
-    title="Alert Management"
-    description="Intelligent alerting with proper escalation"
-    icon={Bell}
-  />
-</FeatureCardList>
-
-**Monitoring Strategy:**
-- Implement the four golden signals: latency, traffic, errors, saturation
-- Use structured logging with correlation IDs
-- Set up meaningful alerts with appropriate thresholds
-- Create runbooks for common operational scenarios
-
-</Tab>
-
-<Tab>
 ### Reliability
+- Use health checks for load balancers
+- Implement proper logging and monitoring
+- Set up automated restarts on failure
+- Regular backup of configurations
 
-<FeatureCardList cols={2} size="sm">
-  <FeatureCard
-    title="Circuit Breakers"
-    description="Implement circuit breakers for external dependencies"
-    icon={Zap}
-  />
-  <FeatureCard
-    title="Health Checks"
-    description="Comprehensive health and readiness probes"
-    icon={CheckCircle}
-  />
-  <FeatureCard
-    title="Graceful Degradation"
-    description="Design for partial failure scenarios"
-    icon={TrendingUp}
-  />
-  <FeatureCard
-    title="Retry Logic"
-    description="Implement proper retry with exponential backoff"
-    icon={RefreshCw}
-  />
-</FeatureCardList>
+### Performance
+- Monitor resource usage and scale horizontally
+- Use connection pooling where appropriate
+- Implement request rate limiting if needed
+- Regular performance testing
 
-**Reliability Patterns:**
-- Design for failure at every level
-- Implement timeout and retry mechanisms
-- Use bulkhead pattern to isolate failures
-- Regular chaos engineering exercises
-
-</Tab>
-
-<Tab>
 ### Operations
-
-<FeatureCardList cols={2} size="sm">
-  <FeatureCard
-    title="Infrastructure as Code"
-    description="Version-controlled infrastructure definitions"
-    icon={Code}
-  />
-  <FeatureCard
-    title="CI/CD Pipelines"
-    description="Automated deployment and testing pipelines"
-    icon={GitBranch}
-  />
-  <FeatureCard
-    title="Backup Testing"
-    description="Regular backup and recovery validation"
-    icon={HardDrive}
-  />
-  <FeatureCard
-    title="Documentation"
-    description="Comprehensive runbooks and procedures"
-    icon={BookOpen}
-  />
-</FeatureCardList>
-
-**Operational Excellence:**
-- Automate repetitive tasks and procedures
-- Implement proper change management processes
-- Regular disaster recovery testing
-- Maintain up-to-date documentation and runbooks
-
-</Tab>
-</Tabs>
-
-This comprehensive production deployment guide ensures that MCP integrations are deployed securely, reliably, and efficiently in production environments.
+- Automate deployments with CI/CD
+- Use infrastructure as code
+- Implement proper alerting
+- Document operational procedures
 
 ## Next Steps
 
-<ReferenceCardList>
-  <ReferenceCard
-    title="Monitoring & Metrics"
-    description="Configure comprehensive observability for your production deployment"
-    href="/docs/core/mcp/monitoring-metrics"
-    icon={BarChart3}
-  />
-  <ReferenceCard
-    title="Admin API"
-    description="Set up administrative interfaces for operational management"
-    href="/docs/core/mcp/admin-api"
-    icon={Settings}
-  />
-  <ReferenceCard
-    title="Security & Authentication"
-    description="Implement additional security measures and authentication"
-    href="/docs/core/mcp/security-authentication"
-    icon={Shield}
-  />
-  <ReferenceCard
-    title="Integration Patterns"
-    description="Explore advanced deployment scenarios and patterns"
-    href="/docs/core/mcp/integration-patterns"
-    icon={Workflow}
-  />
-</ReferenceCardList>
+<FeatureCardList cols={2}>
+  <FeatureCard title="Monitoring & Metrics" href="/docs/core/mcp/monitoring-metrics">
+    Set up monitoring and metrics collection
+  </FeatureCard>
+  <FeatureCard title="Development & Debugging" href="/docs/core/mcp/development-debugging">
+    Debug and troubleshoot MCP issues
+  </FeatureCard>
+  <FeatureCard title="Storage Backends" href="/docs/core/mcp/storage-backends">
+    Configure storage for production
+  </FeatureCard>
+  <FeatureCard title="Admin API" href="/docs/core/mcp/admin-api">
+    Administrative operations and management
+  </FeatureCard>
+</FeatureCardList>

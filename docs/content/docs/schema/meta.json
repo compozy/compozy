@@ -5,6 +5,7 @@
   "root": true,
   "pages": [
     "project",
+    "application",
     "provider",
     "tools",
     "agents",

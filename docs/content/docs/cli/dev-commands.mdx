@@ -1,0 +1,538 @@
+---
+title: "Development Commands"
+description: "Development server commands for Compozy with hot reload and debugging"
+---
+
+The `compozy dev` and `compozy start` commands provide development and production server capabilities for your Compozy workflows.
+
+<Callout type="info">
+The `dev` command is optimized for development with hot reload and verbose logging, while `start` is optimized for production deployment.
+</Callout>
+
+## Development Server
+
+### compozy dev
+
+Start the development server with hot reload and enhanced debugging:
+
+```bash
+# Start development server with defaults
+compozy dev
+
+# Start with custom port
+compozy dev --port 3000
+
+# Enable debug logging
+compozy dev --debug
+
+# Disable hot reload
+compozy dev --no-watch
+
+# Specify custom config
+compozy dev --config ./dev-config.yaml
+```
+
+### Development Features
+
+<FeatureCardList cols={2} size="default">
+  <FeatureCard
+    title="Hot Reload"
+    description="Automatically restarts when files change for faster development cycles"
+    icon="RefreshCw"
+  />
+  <FeatureCard
+    title="Debug Mode"
+    description="Enhanced logging and error messages for easier troubleshooting"
+    icon="Bug"
+  />
+  <FeatureCard
+    title="Development Optimized"
+    description="Faster startup and verbose error reporting for development efficiency"
+    icon="Zap"
+  />
+  <FeatureCard
+    title="File Watching"
+    description="Monitors workflows, tools, and config files for automatic updates"
+    icon="FileSearch"
+  />
+</FeatureCardList>
+
+**Flags:**
+- `--port` - Server port (default: 8080)
+- `--host` - Server host (default: localhost)
+- `--debug` - Enable debug logging
+- `--no-watch` - Disable file watching
+- `--watch-dir` - Additional directories to watch
+- `--config` - Path to config file
+- `--env` - Environment file to load
+
+### File Watching
+
+The dev server automatically watches these files:
+- `compozy.yaml` - Project configuration
+- `workflows/**/*.yaml` - Workflow definitions
+- `tools/**/*.ts` - TypeScript tools
+- `agents/**/*.yaml` - Agent configurations
+- `entrypoint.ts` - Tool entrypoint
+
+Add custom watch directories:
+
+```bash
+# Watch additional directories
+compozy dev --watch-dir ./custom-tools --watch-dir ./lib
+
+# Watch specific file patterns
+compozy dev --watch-pattern "**/*.json" --watch-pattern "**/*.md"
+```
+
+### Development Workflow
+
+<Steps>
+  <Step>
+    **Start the dev server**
+    ```bash
+    compozy dev --debug
+    ```
+  </Step>
+  <Step>
+    **Make changes to your files**
+    
+    The server will automatically restart when you save changes
+  </Step>
+  <Step>
+    **Test your workflows**
+    ```bash
+    # In another terminal
+    compozy workflow execute my-workflow --input '{"test": true}'
+    ```
+  </Step>
+  <Step>
+    **View logs in real-time**
+    
+    The dev server shows detailed logs including:
+    - Workflow execution traces
+    - Tool invocations
+    - Error stack traces
+    - Performance metrics
+  </Step>
+</Steps>
+
+### Development Cycle
+
+<Mermaid chart={`graph TD
+    A[Start Dev Server] --> B[File Changes Detected]
+    B --> C[Auto Restart Server]
+    C --> D[Execute Workflows]
+    D --> E[View Debug Logs]
+    E --> F[Make Code Changes]
+    F --> B
+    D --> G[Test Complete]
+    G --> H[Deploy to Production]`} />
+
+## Production Server
+
+### compozy start
+
+Start the production server with optimized settings:
+
+```bash
+# Start production server
+compozy start
+
+# Start with custom configuration
+compozy start --config /etc/compozy/prod.yaml
+
+# Start with specific worker count
+compozy start --workers 8
+
+# Enable JSON logging for log aggregation
+compozy start --log-json
+
+# Set log level
+compozy start --log-level warn
+```
+
+### Production Features
+
+<FeatureCardList cols={2} size="default">
+  <FeatureCard
+    title="Performance Optimized"
+    description="Production-ready configurations for high-performance deployment"
+    icon="Gauge"
+  />
+  <FeatureCard
+    title="Security Hardened"
+    description="Strict validation and security limits for production safety"
+    icon="Shield"
+  />
+  <FeatureCard
+    title="Production Logging"
+    description="Structured logs optimized for monitoring and log aggregation"
+    icon="FileText"
+  />
+  <FeatureCard
+    title="Resource Management"
+    description="Configurable worker pools for optimal resource utilization"
+    icon="Settings"
+  />
+</FeatureCardList>
+
+**Flags:**
+- `--port` - Server port (default: 8080)
+- `--host` - Server host (default: 0.0.0.0)
+- `--workers` - Number of worker processes
+- `--log-level` - Log level (debug, info, warn, error)
+- `--log-json` - Output logs in JSON format
+- `--config` - Path to config file
+- `--env` - Environment file to load
+
+### Production Configuration
+
+Recommended production settings:
+
+```yaml
+# prod-config.yaml
+server:
+  host: "0.0.0.0"
+  port: 8080
+  workers: 8
+  
+api:
+  rate_limit: 1000
+  timeout: 30s
+  
+log:
+  level: "info"
+  format: "json"
+  output: "stdout"
+  
+security:
+  cors:
+    enabled: true
+    origins: ["https://app.example.com"]
+  
+monitoring:
+  metrics: true
+  health_check: true
+```
+
+## Environment Configuration
+
+Both commands support environment configuration:
+
+<Tabs items={["Development", "Production"]}>
+  <Tab value="Development">
+    ```bash
+    # .env.development
+    COMPOZY_API_KEY=amp_dev_key
+    COMPOZY_LOG_LEVEL=debug
+    COMPOZY_DATABASE_HOST=localhost
+    OPENAI_API_KEY=sk-dev-key
+    
+    # Use development environment
+    compozy dev --env .env.development
+    ```
+  </Tab>
+  <Tab value="Production">
+    ```bash
+    # .env.production
+    COMPOZY_API_KEY=amp_prod_key
+    COMPOZY_LOG_LEVEL=info
+    COMPOZY_DATABASE_HOST=db.production.internal
+    OPENAI_API_KEY=sk-prod-key
+    
+    # Use production environment
+    compozy start --env .env.production
+    ```
+  </Tab>
+</Tabs>
+
+## Debugging Features
+
+### Debug Output
+
+When running with `--debug`, you'll see enhanced output:
+
+```
+[DEBUG] 2024-01-15 10:30:45 Server starting...
+[DEBUG] 2024-01-15 10:30:45 Loading configuration from: ./compozy.yaml
+[DEBUG] 2024-01-15 10:30:45 Initializing runtime: bun
+[DEBUG] 2024-01-15 10:30:45 Loading workflows: 3 found
+[DEBUG] 2024-01-15 10:30:45 Loading tools: 5 found
+[DEBUG] 2024-01-15 10:30:45 Starting file watcher...
+[INFO]  2024-01-15 10:30:46 Server started on http://localhost:8080
+[DEBUG] 2024-01-15 10:30:46 Watching: workflows/, tools/, agents/, compozy.yaml
+```
+
+### Performance Profiling
+
+Enable performance profiling in development:
+
+```bash
+# Enable CPU profiling
+compozy dev --debug --profile cpu
+
+# Enable memory profiling
+compozy dev --debug --profile memory
+
+# Enable trace profiling
+compozy dev --debug --profile trace
+```
+
+Profile data is saved to `.compozy/profiles/` for analysis.
+
+## Health Checks
+
+Both servers provide health check endpoints:
+
+<Tabs items={["Basic Health", "Detailed Health"]}>
+  <Tab value="Basic Health">
+    ```bash
+    # Check if server is running
+    curl http://localhost:8080/health
+    
+    # Response
+    {
+      "status": "healthy",
+      "timestamp": "2024-01-15T10:30:45Z"
+    }
+    ```
+  </Tab>
+  <Tab value="Detailed Health">
+    ```bash
+    # Get detailed health information
+    curl http://localhost:8080/health/detailed
+    
+    # Response
+    {
+      "status": "healthy",
+      "timestamp": "2024-01-15T10:30:45Z",
+      "components": {
+        "database": "healthy",
+        "redis": "healthy",
+        "temporal": "healthy",
+        "runtime": "healthy"
+      },
+      "metrics": {
+        "uptime": 3600,
+        "memory_used": 124567890,
+        "active_workflows": 5
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Process Management
+
+### Graceful Shutdown
+
+Both servers support graceful shutdown:
+
+```bash
+# Send SIGTERM for graceful shutdown
+kill -TERM <pid>
+
+# Or use SIGINT (Ctrl+C)
+# The server will:
+# 1. Stop accepting new requests
+# 2. Wait for active workflows to complete
+# 3. Close all connections
+# 4. Exit cleanly
+```
+
+### Running with Process Managers
+
+<Tabs items={["systemd", "Docker", "PM2"]}>
+  <Tab value="systemd">
+    ```ini
+    # /etc/systemd/system/compozy.service
+    [Unit]
+    Description=Compozy Workflow Server
+    After=network.target
+    
+    [Service]
+    Type=simple
+    User=compozy
+    WorkingDirectory=/opt/compozy
+    ExecStart=/usr/local/bin/compozy start --config /etc/compozy/config.yaml
+    Restart=always
+    RestartSec=10
+    
+    [Install]
+    WantedBy=multi-user.target
+    ```
+  </Tab>
+  <Tab value="Docker">
+    ```dockerfile
+    FROM oven/bun:1.0-alpine
+    
+    WORKDIR /app
+    COPY . .
+    
+    RUN bun install
+    
+    EXPOSE 8080
+    
+    CMD ["compozy", "start"]
+    ```
+  </Tab>
+  <Tab value="PM2">
+    ```javascript
+    // ecosystem.config.js
+    module.exports = {
+      apps: [{
+        name: 'compozy',
+        script: 'compozy',
+        args: 'start --workers 4',
+        instances: 1,
+        autorestart: true,
+        watch: false,
+        max_memory_restart: '1G',
+        env: {
+          NODE_ENV: 'production'
+        }
+      }]
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Common Patterns
+
+### Development with Multiple Services
+
+<Mermaid chart={`graph LR
+    T1[Terminal 1<br/>Dev Server] --> A[compozy dev --debug]
+    T2[Terminal 2<br/>MCP Proxy] --> B[compozy mcp-proxy]
+    T3[Terminal 3<br/>Log Monitoring] --> C[tail -f logs/dev.log]
+    T4[Terminal 4<br/>Testing] --> D[compozy workflow execute]
+    
+    A --> E[Port 8080]
+    B --> F[Port 8081]
+    C --> G[Real-time Logs]
+    D --> H[Workflow Results]`} />
+
+```bash
+# Terminal 1: Start Compozy dev server
+compozy dev --debug
+
+# Terminal 2: Start MCP proxy (if using MCP tools)
+compozy mcp-proxy
+
+# Terminal 3: Watch logs
+tail -f .compozy/logs/dev.log
+
+# Terminal 4: Execute workflows
+compozy workflow execute my-workflow
+```
+
+### Production Deployment
+
+```bash
+#!/bin/bash
+# deploy.sh
+
+# Validate configuration
+compozy config validate --strict || exit 1
+
+# Run diagnostics
+compozy config diagnostics || exit 1
+
+# Start server with monitoring
+exec compozy start \
+  --workers 8 \
+  --log-json \
+  --log-level info \
+  2>&1 | tee -a /var/log/compozy/server.log
+```
+
+## Troubleshooting
+
+<Callout type="warning">
+Common issues and their solutions:
+</Callout>
+
+<Tabs items={["Port Already in Use", "Hot Reload Not Working", "Memory Issues"]}>
+  <Tab value="Port Already in Use">
+    ```bash
+    # Check what's using the port
+    lsof -i :8080
+    
+    # Use a different port
+    compozy dev --port 3000
+    
+    # Or kill the process using the port
+    kill -9 $(lsof -t -i:8080)
+    ```
+  </Tab>
+  <Tab value="Hot Reload Not Working">
+    ```bash
+    # Check file watcher limits
+    cat /proc/sys/fs/inotify/max_user_watches
+    
+    # Increase if needed (Linux)
+    echo fs.inotify.max_user_watches=524288 | sudo tee -a /etc/sysctl.conf
+    sudo sysctl -p
+    
+    # Disable watching as workaround
+    compozy dev --no-watch
+    ```
+  </Tab>
+  <Tab value="Memory Issues">
+    ```bash
+    # Monitor memory usage
+    compozy dev --debug --profile memory
+    
+    # Limit worker memory
+    export NODE_OPTIONS="--max-old-space-size=2048"
+    compozy start --workers 4
+    
+    # Check for memory leaks
+    cat .compozy/profiles/memory-*.prof
+    ```
+  </Tab>
+</Tabs>
+
+## Best Practices
+
+<List>
+  <ListItem title="Use Dev for Development" icon="Code">
+    Always use `compozy dev` during development for better debugging and faster iteration.
+  </ListItem>
+  <ListItem title="Validate Before Production" icon="CheckCircle">
+    Run `compozy config validate` and test thoroughly before using `compozy start` in production.
+  </ListItem>
+  <ListItem title="Monitor Resource Usage" icon="BarChart3">
+    Use profiling tools and monitoring to ensure optimal performance in production.
+  </ListItem>
+  <ListItem title="Configure Logging Appropriately" icon="FileText">
+    Use debug logging in development but info/warn level in production to reduce noise.
+  </ListItem>
+  <ListItem title="Implement Health Checks" icon="Activity">
+    Use health endpoints for load balancer configuration and monitoring.
+  </ListItem>
+</List>
+
+## Next Steps
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Workflow Commands"
+    description="Execute and manage workflows with the CLI"
+    href="/docs/cli/workflow-commands"
+    icon="Play"
+  />
+  <ReferenceCard
+    title="Configuration"
+    description="Configure your Compozy instance and validate settings"
+    href="/docs/cli/config-commands"
+    icon="Settings"
+  />
+  <ReferenceCard
+    title="Monitoring"
+    description="Monitor and debug workflows in development and production"
+    href="/docs/cli/monitoring-commands"
+    icon="BarChart3"
+  />
+</ReferenceCardList>

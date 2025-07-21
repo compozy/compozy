@@ -1,11 +1,13 @@
 ---
 title: "External Integrations"
-description: "Comprehensive guide to integrating external services, APIs, databases, and systems with Compozy tools using MCP, HTTP clients, and robust patterns"
+description: "Connect your Compozy tools to external services through MCP servers and HTTP APIs"
 ---
 
-# External Integrations
+Connect your Compozy tools to external services through the Model Context Protocol (MCP) or simple HTTP integrations. This guide covers practical patterns for integrating with external systems.
 
-Connect your Compozy tools to external services, APIs, databases, and cloud platforms with robust integration patterns. This guide covers Model Context Protocol (MCP) integration, HTTP clients, authentication, rate limiting, and production-ready patterns.
+<Callout type="info">
+Compozy uses a simple HTTP-based MCP proxy (port 8081) to connect to external MCP servers. For direct API integrations, create TypeScript tools with HTTP client functionality.
+</Callout>
 
 ## Integration Overview
 
@@ -13,2251 +15,737 @@ Connect your Compozy tools to external services, APIs, databases, and cloud plat
   <FeatureCard
     icon="Plug"
     title="MCP Integration"
-    description="Use Model Context Protocol for seamless external tool integration"
+    description="Use Model Context Protocol servers for external tools"
   />
   <FeatureCard
-    icon="Database"
-    title="Database Clients"
-    description="Connect to PostgreSQL, MySQL, MongoDB, Redis, and more"
+    icon="Globe"
+    title="HTTP APIs"
+    description="Simple HTTP client integration for REST APIs"
   />
   <FeatureCard
-    icon="Cloud"
-    title="Cloud Services"
-    description="Integrate with AWS, Azure, Google Cloud, and other platforms"
+    icon="Key"
+    title="Authentication"
+    description="API keys via environment variables"
   />
   <FeatureCard
-    icon="Shield"
-    title="Security & Auth"
-    description="OAuth2, API keys, JWT tokens, and secure authentication"
-  />
-  <FeatureCard
-    icon="Zap"
-    title="Real-time"
-    description="WebSockets, webhooks, and message queues for real-time data"
-  />
-  <FeatureCard
-    icon="Activity"
-    title="Monitoring"
-    description="Rate limiting, error handling, and performance monitoring"
+    icon="AlertCircle"
+    title="Error Handling"
+    description="Basic error handling and timeouts"
   />
 </FeatureCardList>
 
-## MCP Integration Patterns
+## MCP Integration
 
-The Model Context Protocol (MCP) provides a standardized way to integrate external tools and services. MCP enables your tools to communicate with external systems through a unified interface.
+The Model Context Protocol (MCP) provides a standardized way to integrate external tools. Compozy's MCP proxy service (running on port 8081) manages connections to MCP servers.
 
-### MCP Server Configuration
+### Basic MCP Configuration
 
-<Tabs defaultValue="agent">
-<Tab value="agent" label="Agent MCP">
-Configure MCP servers directly in your agents:
+MCP servers can be configured in workflows or agents:
 
 ```yaml
-# agents/data-analyst.yaml
-resource: agent
-id: data-analyst
-description: Data analysis agent with external integrations
+# workflow.yaml
+resource: workflow
+id: external-integration-example
+description: Workflow using external MCP servers
 
-config:
-  provider: groq
-  model: llama-3.3-70b-versatile
-  api_key: "{{ .env.GROQ_API_KEY }}"
-
-instructions: |
-  You are a data analyst with access to external tools for database queries,
-  file operations, and API integrations. Use MCP tools to access external systems.
-
+# Register MCP servers
 mcps:
-  - id: database-server
-    transport: sse
-    url: "http://localhost:3000/mcp/database"
-    proto: "2025-03-26"
-    env:
-      DATABASE_URL: "{{ .env.DATABASE_URL }}"
-      
-  - id: file-server
+  - id: filesystem
     transport: stdio
-    command: "docker mcp gateway run"
-    proto: "2025-03-26"
-    start_timeout: 15s
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "/workspace"]
     env:
-      WORKSPACE_PATH: "/data/workspace"
+      LOG_LEVEL: "info"
       
-  - id: api-gateway
+  - id: api-server
     transport: sse
-    url: "http://mcp-proxy:8081/api-gateway"
-    proto: "2025-03-26"
+    url: "http://localhost:3001/mcp"
     env:
-      API_KEY: "{{ .env.EXTERNAL_API_KEY }}"
+      API_KEY: "{{ .env.API_KEY }}"
 
-actions:
-  - id: analyze_data
+agents:
+  - id: integration_agent
+    instructions: |
+      You have access to filesystem and API tools through MCP.
+      Use these tools to read files and make API calls as needed.
+
+tasks:
+  - id: use_external_tools
+    type: basic
+    agent: integration_agent
     prompt: |
-      Use the database MCP server to query the sales data and analyze trends.
-      Then use the file server to save the results as a CSV file.
+      Read the configuration file from /workspace/config.json
+      and use the API server to fetch data based on the configuration.
 ```
-</Tab>
-<Tab value="project" label="Project MCP">
-Configure MCP servers at the project level:
 
-```yaml
-# compozy.yaml
-name: data-pipeline
-version: "1.0.0"
-description: Data processing pipeline with external integrations
-
-workflows:
-  - source: ./workflow.yaml
-
-mcps:
-  - id: postgres-server
-    transport: sse
-    url: "http://localhost:3000/mcp/postgres"
-    proto: "2025-03-26"
-    env:
-      POSTGRES_URL: "{{ .env.POSTGRES_URL }}"
-      
-  - id: redis-server
-    transport: sse
-    url: "http://localhost:3000/mcp/redis"
-    proto: "2025-03-26"
-    env:
-      REDIS_URL: "{{ .env.REDIS_URL }}"
-      
-  - id: s3-server
-    transport: sse
-    url: "http://localhost:3000/mcp/s3"
-    proto: "2025-03-26"
-    env:
-      AWS_ACCESS_KEY_ID: "{{ .env.AWS_ACCESS_KEY_ID }}"
-      AWS_SECRET_ACCESS_KEY: "{{ .env.AWS_SECRET_ACCESS_KEY }}"
-      AWS_REGION: "{{ .env.AWS_REGION }}"
-
-runtime:
-  permissions:
-    - --allow-read
-    - --allow-write
-    - --allow-net
-    - --allow-env
-```
-</Tab>
-<Tab value="standalone" label="Standalone MCP">
-Use standalone MCP servers for specialized integrations:
-
-```yaml
-# mcp-servers/github-integration.yaml
-name: github-server
-transport: sse
-url: "https://api.github.com/mcp/v1"
-proto: "2025-03-26"
-env:
-  GITHUB_TOKEN: "{{ .env.GITHUB_TOKEN }}"
-  GITHUB_ORG: "{{ .env.GITHUB_ORG }}"
-options:
-  auto_reconnect: true
-  max_reconnects: 5
-  reconnect_delay: 5s
-  health_check_enabled: true
-  health_check_interval: 30s
-```
-</Tab>
-</Tabs>
-
-### MCP Transport Types
-
-<List>
-  <ListItem>
-    **SSE (Server-Sent Events)**: Real-time streaming for HTTP-based MCP servers
-    - Best for: Remote services, cloud APIs, web-based integrations
-    - Example: `transport: sse`, `url: "http://localhost:3000/mcp"`
-  </ListItem>
-  <ListItem>
-    **Stdio**: Standard input/output for local processes
-    - Best for: Local tools, Docker containers, command-line utilities
-    - Example: `transport: stdio`, `command: "docker mcp gateway run"`
-  </ListItem>
-  <ListItem>
-    **Streamable HTTP**: HTTP with streaming support for large responses
-    - Best for: File transfers, data streaming, large payloads
-    - Example: `transport: streamable-http`, `url: "http://api.example.com/stream"`
-  </ListItem>
-</List>
-
-<Callout type="info">
-The MCP proxy service manages all external connections and handles authentication, rate limiting, and error recovery automatically.
-</Callout>
+**Key points about MCP integration:**
+- MCP servers are registered when the workflow starts
+- The MCP proxy manages server lifecycle and communication
+- Agents can use tools from any registered MCP server
+- Supports both stdio (local processes) and SSE (HTTP) transports
 
 ## HTTP Client Integration
 
-For direct HTTP API integrations, create flexible REST clients with robust error handling and authentication.
+For direct HTTP API integrations, create TypeScript tools that handle authentication and error handling.
 
-### Generic REST Client
+### Basic HTTP Client
 
-<Steps>
-  <Step>
-    **Create REST Client Tool**
-    
-    ```yaml
-    # tools/rest-client.yaml
-    resource: "tool"
-    id: "rest-client"
-    description: "Generic REST API client with authentication and retry logic"
-    timeout: "30s"
-    
-    input:
-      type: "object"
-      properties:
-        url:
-          type: "string"
-          format: "uri"
-          description: "API endpoint URL"
-        method:
-          type: "string"
-          enum: ["GET", "POST", "PUT", "DELETE", "PATCH"]
-          default: "GET"
-        headers:
-          type: "object"
-          additionalProperties:
-            type: "string"
-        body:
-          description: "Request body"
-        auth:
-          type: "object"
-          properties:
-            type:
-              type: "string"
-              enum: ["bearer", "basic", "api_key", "oauth2"]
-            token:
-              type: "string"
-            username:
-              type: "string"
-            password:
-              type: "string"
-          required: ["type"]
-      required: ["url"]
-    
-    output:
-      type: "object"
-      properties:
-        status:
-          type: "integer"
-        headers:
-          type: "object"
-        data:
-          description: "Response data"
-        metadata:
-          type: "object"
-          properties:
-            response_time:
-              type: "number"
-            final_url:
-              type: "string"
-      required: ["status", "data"]
-    ```
-  </Step>
-  <Step>
-    **Implement REST Client Logic**
-    
-    ```typescript
-    // tools/rest-client.ts
-    interface RestClientInput {
-      url: string;
-      method?: string;
-      headers?: Record<string, string>;
-      body?: unknown;
-      auth?: {
-        type: 'bearer' | 'basic' | 'api_key' | 'oauth2';
-        token?: string;
-        username?: string;
-        password?: string;
-      };
-    }
-    
-    class RestClient {
-      private static buildHeaders(
-        baseHeaders: Record<string, string> = {},
-        auth?: RestClientInput['auth']
-      ): Record<string, string> {
-        const headers = { ...baseHeaders };
-        
-        if (!headers['User-Agent']) {
-          headers['User-Agent'] = 'Compozy/1.0 REST Client';
-        }
-        
-        if (auth) {
-          switch (auth.type) {
-            case 'bearer':
-              headers['Authorization'] = `Bearer ${auth.token}`;
-              break;
-            case 'basic':
-              const credentials = btoa(`${auth.username}:${auth.password}`);
-              headers['Authorization'] = `Basic ${credentials}`;
-              break;
-            case 'api_key':
-              headers['X-API-Key'] = auth.token || '';
-              break;
-          }
-        }
-        
-        return headers;
-      }
-      
-      static async execute(input: RestClientInput) {
-        const startTime = performance.now();
-        
-        try {
-          const headers = this.buildHeaders(input.headers, input.auth);
-          const options: RequestInit = {
-            method: input.method || 'GET',
-            headers,
-            signal: AbortSignal.timeout(30000),
-          };
-          
-          if (input.body && !['GET', 'HEAD'].includes(input.method || 'GET')) {
-            if (typeof input.body === 'string') {
-              options.body = input.body;
-            } else {
-              options.body = JSON.stringify(input.body);
-              headers['Content-Type'] = 'application/json';
-            }
-          }
-          
-          const response = await fetch(input.url, options);
-          const contentType = response.headers.get('Content-Type') || '';
-          
-          let data: unknown;
-          if (contentType.includes('application/json')) {
-            data = await response.json();
-          } else {
-            data = await response.text();
-          }
-          
-          const endTime = performance.now();
-          
-          return {
-            status: response.status,
-            headers: Object.fromEntries(response.headers.entries()),
-            data,
-            metadata: {
-              response_time: endTime - startTime,
-              final_url: response.url,
-            },
-          };
-        } catch (error) {
-          throw new Error(`HTTP request failed: ${error.message}`);
-        }
-      }
-    }
-    
-    export async function run(input: RestClientInput) {
-      return RestClient.execute(input);
-    }
-    ```
-  </Step>
-  <Step>
-    **Use in Workflow**
-    
-    ```yaml
-    # workflow.yaml
-    tasks:
-      - id: fetch-user-data
-        type: basic
-        $use: tool(local::tools.#(id=="rest-client"))
-        with:
-          url: "https://api.example.com/users/123"
-          method: "GET"
-          auth:
-            type: "bearer"
-            token: "{{ .env.API_TOKEN }}"
-        outputs:
-          user_data: "{{ .output.data }}"
-          response_time: "{{ .output.metadata.response_time }}"
-    ```
-  </Step>
-</Steps>
+Create a simple HTTP client tool for API integrations:
 
-## Database Integration
-
-Connect to multiple database types with connection pooling and robust error handling.
-
-### Multi-Database Client
-
-<Tabs defaultValue="config">
-<Tab value="config" label="Configuration">
 ```yaml
-# tools/database-client.yaml
+# tools/http-client.yaml
 resource: "tool"
-id: "database-client"
-description: "Multi-database client with connection pooling"
-timeout: "60s"
+id: "http-client"
+description: "HTTP client for external API calls"
+timeout: "30s"
 
 input:
   type: "object"
   properties:
-    connection:
-      type: "object"
-      properties:
-        type:
-          type: "string"
-          enum: ["postgresql", "mysql", "mongodb", "redis", "sqlite"]
-        host:
-          type: "string"
-        port:
-          type: "integer"
-        database:
-          type: "string"
-        username:
-          type: "string"
-        password:
-          type: "string"
-        ssl:
-          type: "boolean"
-          default: false
-        connection_string:
-          type: "string"
-      required: ["type"]
-    
-    operation:
+    url:
       type: "string"
-      enum: ["query", "execute", "transaction", "batch"]
-    
-    query:
+      format: "uri"
+      description: "API endpoint URL"
+    method:
       type: "string"
-      description: "SQL query or command"
-    
-    parameters:
-      type: "array"
-      description: "Query parameters"
-      
-  required: ["connection", "operation"]
-
-output:
-  type: "object"
-  properties:
-    success:
-      type: "boolean"
-    data:
-      description: "Query results"
-    metadata:
+      enum: ["GET", "POST", "PUT", "DELETE"]
+      default: "GET"
+    headers:
       type: "object"
-      properties:
-        rows_affected:
-          type: "integer"
-        execution_time:
-          type: "number"
-  required: ["success"]
-
-env:
-  DB_POOL_SIZE: "10"
-  DB_TIMEOUT: "30000"
-```
-</Tab>
-<Tab value="implementation" label="Implementation">
-```typescript
-// tools/database-client.ts
-interface DatabaseConnection {
-  type: 'postgresql' | 'mysql' | 'mongodb' | 'redis' | 'sqlite';
-  host?: string;
-  port?: number;
-  database?: string;
-  username?: string;
-  password?: string;
-  ssl?: boolean;
-  connection_string?: string;
-}
-
-class DatabaseClient {
-  private static connectionPools = new Map<string, unknown>();
-  
-  private static async createConnection(conn: DatabaseConnection): Promise<unknown> {
-    const key = `${conn.type}://${conn.host}:${conn.port}/${conn.database}`;
-    
-    if (this.connectionPools.has(key)) {
-      return this.connectionPools.get(key);
-    }
-    
-    let client: unknown;
-    
-    switch (conn.type) {
-      case 'postgresql':
-        const { Pool } = await import('pg');
-        client = new Pool({
-          host: conn.host,
-          port: conn.port,
-          database: conn.database,
-          user: conn.username,
-          password: conn.password,
-          ssl: conn.ssl,
-          max: parseInt(process.env.DB_POOL_SIZE || '10'),
-          idleTimeoutMillis: 30000,
-          connectionTimeoutMillis: parseInt(process.env.DB_TIMEOUT || '30000'),
-        });
-        break;
-        
-      case 'mysql':
-        const mysql = await import('mysql2/promise');
-        client = mysql.createPool({
-          host: conn.host,
-          port: conn.port,
-          database: conn.database,
-          user: conn.username,
-          password: conn.password,
-          ssl: conn.ssl,
-          connectionLimit: parseInt(process.env.DB_POOL_SIZE || '10'),
-        });
-        break;
-        
-      case 'mongodb':
-        const { MongoClient } = await import('mongodb');
-        const url = conn.connection_string || 
-          `mongodb://${conn.username}:${conn.password}@${conn.host}:${conn.port}/${conn.database}`;
-        client = new MongoClient(url, {
-          maxPoolSize: parseInt(process.env.DB_POOL_SIZE || '10'),
-        });
-        await (client as any).connect();
-        break;
-        
-      default:
-        throw new Error(`Unsupported database type: ${conn.type}`);
-    }
-    
-    this.connectionPools.set(key, client);
-    return client;
-  }
-  
-  static async execute(input: DatabaseInput) {
-    const startTime = performance.now();
-    
-    try {
-      const client = await this.createConnection(input.connection);
-      
-      // Execute query based on database type
-      let result: unknown;
-      switch (input.connection.type) {
-        case 'postgresql':
-          const pgResult = await (client as any).query(input.query, input.parameters);
-          result = pgResult.rows;
-          break;
-          
-        case 'mysql':
-          const [mysqlRows] = await (client as any).execute(input.query, input.parameters);
-          result = mysqlRows;
-          break;
-          
-        case 'mongodb':
-          const db = (client as any).db();
-          result = await db.collection('default').find(JSON.parse(input.query)).toArray();
-          break;
-      }
-      
-      const endTime = performance.now();
-      
-      return {
-        success: true,
-        data: result,
-        metadata: {
-          execution_time: endTime - startTime,
-        },
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: {
-          code: 'DATABASE_ERROR',
-          message: error.message,
-        },
-      };
-    }
-  }
-}
-
-export async function run(input: DatabaseInput) {
-  return DatabaseClient.execute(input);
-}
-```
-</Tab>
-<Tab value="usage" label="Usage">
-```yaml
-# workflow.yaml
-tasks:
-  - id: query-users
-    type: basic
-    $use: tool(local::tools.#(id=="database-client"))
-    with:
-      connection:
-        type: "postgresql"
-        host: "localhost"
-        port: 5432
-        database: "myapp"
-        username: "{{ .env.DB_USER }}"
-        password: "{{ .env.DB_PASSWORD }}"
-        ssl: true
-      operation: "query"
-      query: "SELECT * FROM users WHERE created_at > $1"
-      parameters: ["2024-01-01"]
-    outputs:
-      users: "{{ .output.data }}"
-      execution_time: "{{ .output.metadata.execution_time }}"
-```
-</Tab>
-</Tabs>
-
-## Cloud Platform Integration
-
-### AWS Services Integration
-
-<FeatureCardList>
-  <FeatureCard
-    icon="HardDrive"
-    title="S3 Storage"
-    description="File upload, download, and management with presigned URLs"
-  />
-  <FeatureCard
-    icon="Database"
-    title="RDS/DynamoDB"
-    description="Managed database services with connection pooling"
-  />
-  <FeatureCard
-    icon="MessageSquare"
-    title="SQS/SNS"
-    description="Message queuing and notification services"
-  />
-  <FeatureCard
-    icon="Cloud"
-    title="Lambda"
-    description="Serverless function execution and event processing"
-  />
-</FeatureCardList>
-
-### S3 Integration Example
-
-<Steps>
-  <Step>
-    **Configure S3 Client**
-    
-    ```yaml
-    # tools/s3-client.yaml
-    resource: "tool"
-    id: "s3-client"
-    description: "AWS S3 client for file operations"
-    timeout: "120s"
-    
-    input:
-      type: "object"
-      properties:
-        operation:
-          type: "string"
-          enum: ["upload", "download", "list", "delete", "metadata"]
-        bucket:
-          type: "string"
-        key:
-          type: "string"
-        content:
-          type: "string"
-        metadata:
-          type: "object"
-        options:
-          type: "object"
-          properties:
-            content_type:
-              type: "string"
-            public_read:
-              type: "boolean"
-              default: false
-            encryption:
-              type: "string"
-              enum: ["AES256", "aws:kms"]
-            storage_class:
-              type: "string"
-              enum: ["STANDARD", "STANDARD_IA", "GLACIER", "DEEP_ARCHIVE"]
-              default: "STANDARD"
-      required: ["operation", "bucket"]
-    
-    env:
-      AWS_ACCESS_KEY_ID: "{{ .env.AWS_ACCESS_KEY_ID }}"
-      AWS_SECRET_ACCESS_KEY: "{{ .env.AWS_SECRET_ACCESS_KEY }}"
-      AWS_REGION: "{{ .env.AWS_REGION | default \"us-east-1\" }}"
-    ```
-  </Step>
-  <Step>
-    **Use S3 in Workflow**
-    
-    ```yaml
-    # workflow.yaml
-    tasks:
-      - id: upload-report
-        type: basic
-        $use: tool(local::tools.#(id=="s3-client"))
-        with:
-          operation: "upload"
-          bucket: "my-reports-bucket"
-          key: "reports/{{ .workflow.input.report_id }}.pdf"
-          content: "{{ .tasks.generate_report.output.pdf_content }}"
-          options:
-            content_type: "application/pdf"
-            public_read: false
-            encryption: "AES256"
-        outputs:
-          s3_url: "{{ .output.url }}"
-          upload_time: "{{ .output.metadata.upload_time }}"
-    ```
-  </Step>
-</Steps>
-
-## Authentication & Security
-
-### OAuth2 Implementation
-
-<Tabs defaultValue="client">
-<Tab value="client" label="OAuth2 Client">
-```typescript
-// tools/oauth2-client.ts
-interface OAuth2Config {
-  client_id: string;
-  client_secret: string;
-  authorize_url: string;
-  token_url: string;
-  scope?: string;
-  redirect_uri?: string;
-}
-
-class OAuth2Client {
-  static async getToken(config: OAuth2Config, grant_type: string, code?: string) {
-    const tokenParams = new URLSearchParams({
-      grant_type,
-      client_id: config.client_id,
-      client_secret: config.client_secret,
-    });
-    
-    if (grant_type === 'authorization_code' && code) {
-      tokenParams.append('code', code);
-      tokenParams.append('redirect_uri', config.redirect_uri || '');
-    }
-    
-    if (config.scope) {
-      tokenParams.append('scope', config.scope);
-    }
-    
-    const response = await fetch(config.token_url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Accept': 'application/json',
-      },
-      body: tokenParams,
-    });
-    
-    if (!response.ok) {
-      throw new Error(`OAuth2 token request failed: ${response.statusText}`);
-    }
-    
-    return await response.json();
-  }
-  
-  static generateAuthUrl(config: OAuth2Config, state?: string): string {
-    const params = new URLSearchParams({
-      response_type: 'code',
-      client_id: config.client_id,
-      redirect_uri: config.redirect_uri || '',
-      scope: config.scope || '',
-    });
-    
-    if (state) {
-      params.append('state', state);
-    }
-    
-    return `${config.authorize_url}?${params}`;
-  }
-}
-```
-</Tab>
-<Tab value="jwt" label="JWT Validation">
-```typescript
-// tools/jwt-validator.ts
-import { SignJWT, jwtVerify } from 'jose';
-
-interface JWTPayload {
-  sub: string;
-  iat: number;
-  exp: number;
-  [key: string]: any;
-}
-
-class JWTValidator {
-  static async validateToken(token: string, secret: string): Promise<JWTPayload> {
-    try {
-      const { payload } = await jwtVerify(token, new TextEncoder().encode(secret));
-      return payload as JWTPayload;
-    } catch (error) {
-      throw new Error(`Invalid JWT token: ${error.message}`);
-    }
-  }
-  
-  static async createToken(payload: Record<string, any>, secret: string, expiresIn: string = '1h'): Promise<string> {
-    const token = await new SignJWT(payload)
-      .setProtectedHeader({ alg: 'HS256' })
-      .setIssuedAt()
-      .setExpirationTime(expiresIn)
-      .sign(new TextEncoder().encode(secret));
-    
-    return token;
-  }
-}
-```
-</Tab>
-</Tabs>
-
-### API Key Management
-
-<Callout type="warning">
-Never hardcode API keys in your configuration files. Always use environment variables or secure secret management systems.
-</Callout>
-
-<Steps>
-  <Step>
-    **Environment Variables**
-    
-    ```bash
-    # .env
-    API_KEY=your-secret-api-key
-    DATABASE_URL=postgresql://user:pass@localhost:5432/db
-    AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
-    AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
-    ```
-  </Step>
-  <Step>
-    **Configuration Template**
-    
-    ```yaml
-    # tools/api-client.yaml
-    env:
-      API_KEY: "{{ .env.API_KEY }}"
-      DATABASE_URL: "{{ .env.DATABASE_URL }}"
-      AWS_ACCESS_KEY_ID: "{{ .env.AWS_ACCESS_KEY_ID }}"
-      AWS_SECRET_ACCESS_KEY: "{{ .env.AWS_SECRET_ACCESS_KEY }}"
-    ```
-  </Step>
-  <Step>
-    **Runtime Access**
-    
-    ```typescript
-    // tools/secure-client.ts
-    const apiKey = process.env.API_KEY;
-    const databaseUrl = process.env.DATABASE_URL;
-    
-    if (!apiKey) {
-      throw new Error('API_KEY environment variable is required');
-    }
-    ```
-  </Step>
-</Steps>
-
-## Rate Limiting & Performance
-
-### Rate Limiter Implementation
-
-<Tabs defaultValue="sliding">
-<Tab value="sliding" label="Sliding Window">
-```typescript
-// tools/rate-limiter.ts
-class SlidingWindowRateLimiter {
-  private static instances = new Map<string, SlidingWindowRateLimiter>();
-  private requests: number[] = [];
-  private windowMs: number;
-  private maxRequests: number;
-  
-  constructor(maxRequests: number, windowMs: number) {
-    this.maxRequests = maxRequests;
-    this.windowMs = windowMs;
-  }
-  
-  static getInstance(key: string, maxRequests: number, windowMs: number): SlidingWindowRateLimiter {
-    if (!this.instances.has(key)) {
-      this.instances.set(key, new SlidingWindowRateLimiter(maxRequests, windowMs));
-    }
-    return this.instances.get(key)!;
-  }
-  
-  async checkLimit(): Promise<{ allowed: boolean; retryAfter?: number }> {
-    const now = Date.now();
-    this.requests = this.requests.filter(time => now - time < this.windowMs);
-    
-    if (this.requests.length >= this.maxRequests) {
-      const oldestRequest = Math.min(...this.requests);
-      const retryAfter = Math.ceil((oldestRequest + this.windowMs - now) / 1000);
-      return { allowed: false, retryAfter };
-    }
-    
-    this.requests.push(now);
-    return { allowed: true };
-  }
-}
-```
-</Tab>
-<Tab value="exponential" label="Exponential Backoff">
-```typescript
-// tools/exponential-backoff.ts
-class ExponentialBackoff {
-  private baseDelay: number;
-  private maxDelay: number;
-  private maxRetries: number;
-  
-  constructor(baseDelay: number = 1000, maxDelay: number = 30000, maxRetries: number = 5) {
-    this.baseDelay = baseDelay;
-    this.maxDelay = maxDelay;
-    this.maxRetries = maxRetries;
-  }
-  
-  async retry<T>(operation: () => Promise<T>): Promise<T> {
-    let lastError: Error;
-    
-    for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
-      try {
-        return await operation();
-      } catch (error) {
-        lastError = error;
-        
-        if (attempt === this.maxRetries) {
-          throw lastError;
-        }
-        
-        const delay = Math.min(
-          this.baseDelay * Math.pow(2, attempt),
-          this.maxDelay
-        );
-        
-        await new Promise(resolve => setTimeout(resolve, delay));
-      }
-    }
-    
-    throw lastError!;
-  }
-}
-```
-</Tab>
-</Tabs>
-
-### Connection Pooling
-
-<List>
-  <ListItem>
-    **Database Connections**: Use connection pools to manage database connections efficiently
-  </ListItem>
-  <ListItem>
-    **HTTP Clients**: Implement keep-alive connections for better performance
-  </ListItem>
-  <ListItem>
-    **Resource Management**: Monitor and cleanup unused connections
-  </ListItem>
-  <ListItem>
-    **Circuit Breakers**: Implement circuit breakers to prevent cascading failures
-  </ListItem>
-</List>
-
-## Best Practices
-
-### Error Handling
-
-<Tabs defaultValue="structured">
-<Tab value="structured" label="Structured Errors">
-```typescript
-// tools/error-handler.ts
-interface APIError {
-  code: string;
-  message: string;
-  details?: Record<string, any>;
-  timestamp: string;
-  request_id?: string;
-}
-
-class ErrorHandler {
-  static createError(
-    code: string,
-    message: string,
-    details?: Record<string, any>
-  ): APIError {
-    return {
-      code,
-      message,
-      details,
-      timestamp: new Date().toISOString(),
-      request_id: crypto.randomUUID(),
-    };
-  }
-  
-  static isRetryableError(error: APIError): boolean {
-    const retryableCodes = ['TIMEOUT', 'RATE_LIMIT', 'SERVER_ERROR'];
-    return retryableCodes.includes(error.code);
-  }
-  
-  static handleError(error: unknown): APIError {
-    if (error instanceof Error) {
-      return this.createError('INTERNAL_ERROR', error.message);
-    }
-    
-    return this.createError('UNKNOWN_ERROR', 'An unknown error occurred');
-  }
-}
-```
-</Tab>
-<Tab value="recovery" label="Error Recovery">
-```typescript
-// tools/error-recovery.ts
-class ErrorRecovery {
-  static async withRetry<T>(
-    operation: () => Promise<T>,
-    maxRetries: number = 3,
-    backoff: ExponentialBackoff = new ExponentialBackoff()
-  ): Promise<T> {
-    return backoff.retry(async () => {
-      try {
-        return await operation();
-      } catch (error) {
-        const apiError = ErrorHandler.handleError(error);
-        
-        if (!ErrorHandler.isRetryableError(apiError)) {
-          throw error;
-        }
-        
-        throw error;
-      }
-    });
-  }
-  
-  static async withCircuitBreaker<T>(
-    operation: () => Promise<T>,
-    circuitBreaker: CircuitBreaker
-  ): Promise<T> {
-    return circuitBreaker.execute(operation);
-  }
-}
-```
-</Tab>
-</Tabs>
-
-### Security Guidelines
-
-<List>
-  <ListItem>
-    **HTTPS Only**: Always use HTTPS for external API communications
-  </ListItem>
-  <ListItem>
-    **Certificate Validation**: Validate SSL certificates and use certificate pinning where appropriate
-  </ListItem>
-  <ListItem>
-    **Input Sanitization**: Sanitize all user inputs and validate data types
-  </ListItem>
-  <ListItem>
-    **Rate Limiting**: Implement client-side rate limiting to prevent abuse
-  </ListItem>
-  <ListItem>
-    **Request Signing**: Use HMAC or digital signatures for sensitive operations
-  </ListItem>
-  <ListItem>
-    **Audit Logging**: Log all security-relevant events and API calls
-  </ListItem>
-</List>
-
-### Performance Optimization
-
-<Tabs defaultValue="caching">
-<Tab value="caching" label="Caching Strategy">
-```typescript
-// tools/cache-manager.ts
-interface CacheEntry<T> {
-  value: T;
-  timestamp: number;
-  ttl: number;
-}
-
-class CacheManager {
-  private static cache = new Map<string, CacheEntry<any>>();
-  
-  static set<T>(key: string, value: T, ttlSeconds: number = 300): void {
-    this.cache.set(key, {
-      value,
-      timestamp: Date.now(),
-      ttl: ttlSeconds * 1000,
-    });
-  }
-  
-  static get<T>(key: string): T | null {
-    const entry = this.cache.get(key);
-    
-    if (!entry) {
-      return null;
-    }
-    
-    if (Date.now() - entry.timestamp > entry.ttl) {
-      this.cache.delete(key);
-      return null;
-    }
-    
-    return entry.value;
-  }
-  
-  static async getOrSet<T>(
-    key: string,
-    factory: () => Promise<T>,
-    ttlSeconds: number = 300
-  ): Promise<T> {
-    const cached = this.get<T>(key);
-    if (cached !== null) {
-      return cached;
-    }
-    
-    const value = await factory();
-    this.set(key, value, ttlSeconds);
-    return value;
-  }
-}
-```
-</Tab>
-<Tab value="streaming" label="Streaming">
-```typescript
-// tools/streaming-client.ts
-class StreamingClient {
-  static async processStream(
-    response: Response,
-    onChunk: (chunk: string) => void,
-    onComplete: () => void
-  ): Promise<void> {
-    const reader = response.body?.getReader();
-    
-    if (!reader) {
-      throw new Error('Response body is not readable');
-    }
-    
-    const decoder = new TextDecoder();
-    
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        
-        if (done) {
-          onComplete();
-          break;
-        }
-        
-        const chunk = decoder.decode(value, { stream: true });
-        onChunk(chunk);
-      }
-    } finally {
-      reader.releaseLock();
-    }
-  }
-}
-```
-</Tab>
-</Tabs>
-
-## WebSocket Integration
-
-Real-time communication through WebSocket connections for live data streaming and bidirectional communication.
-
-### WebSocket Client Implementation
-
-<Tabs defaultValue="client">
-<Tab value="client" label="WebSocket Client">
-```typescript
-// tools/websocket-client.ts
-interface WebSocketConfig {
-  url: string;
-  protocols?: string[];
-  reconnect?: boolean;
-  reconnectInterval?: number;
-  maxReconnectAttempts?: number;
-  heartbeatInterval?: number;
-}
-
-class WebSocketClient {
-  private ws: WebSocket | null = null;
-  private config: WebSocketConfig;
-  private reconnectAttempts = 0;
-  private heartbeatTimer: Timer | null = null;
-  private eventHandlers = new Map<string, Function[]>();
-
-  constructor(config: WebSocketConfig) {
-    this.config = {
-      reconnect: true,
-      reconnectInterval: 5000,
-      maxReconnectAttempts: 5,
-      heartbeatInterval: 30000,
-      ...config,
-    };
-  }
-
-  async connect(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      try {
-        this.ws = new WebSocket(this.config.url, this.config.protocols);
-        
-        this.ws.onopen = () => {
-          this.reconnectAttempts = 0;
-          this.startHeartbeat();
-          this.emit('connected', { url: this.config.url });
-          resolve();
-        };
-
-        this.ws.onmessage = (event) => {
-          try {
-            const data = JSON.parse(event.data);
-            this.emit('message', data);
-          } catch (error) {
-            this.emit('message', { raw: event.data });
-          }
-        };
-
-        this.ws.onclose = (event) => {
-          this.stopHeartbeat();
-          this.emit('disconnected', { code: event.code, reason: event.reason });
-          
-          if (this.config.reconnect && this.reconnectAttempts < this.config.maxReconnectAttempts!) {
-            this.scheduleReconnect();
-          }
-        };
-
-        this.ws.onerror = (error) => {
-          this.emit('error', { error: error.toString() });
-          reject(new Error(`WebSocket connection failed: ${error}`));
-        };
-      } catch (error) {
-        reject(error);
-      }
-    });
-  }
-
-  send(data: any): void {
-    if (this.ws?.readyState === WebSocket.OPEN) {
-      const message = typeof data === 'string' ? data : JSON.stringify(data);
-      this.ws.send(message);
-    } else {
-      throw new Error('WebSocket is not connected');
-    }
-  }
-
-  private startHeartbeat(): void {
-    if (this.config.heartbeatInterval) {
-      this.heartbeatTimer = setInterval(() => {
-        this.send({ type: 'ping', timestamp: Date.now() });
-      }, this.config.heartbeatInterval);
-    }
-  }
-
-  private stopHeartbeat(): void {
-    if (this.heartbeatTimer) {
-      clearInterval(this.heartbeatTimer);
-      this.heartbeatTimer = null;
-    }
-  }
-
-  private scheduleReconnect(): void {
-    this.reconnectAttempts++;
-    setTimeout(() => {
-      this.connect().catch(() => {
-        // Retry failed, will try again if within limits
-      });
-    }, this.config.reconnectInterval);
-  }
-
-  on(event: string, handler: Function): void {
-    if (!this.eventHandlers.has(event)) {
-      this.eventHandlers.set(event, []);
-    }
-    this.eventHandlers.get(event)!.push(handler);
-  }
-
-  private emit(event: string, data: any): void {
-    const handlers = this.eventHandlers.get(event) || [];
-    handlers.forEach(handler => handler(data));
-  }
-
-  disconnect(): void {
-    this.config.reconnect = false;
-    this.stopHeartbeat();
-    this.ws?.close();
-  }
-}
-
-export async function run(input: {
-  action: 'connect' | 'send' | 'disconnect';
-  config?: WebSocketConfig;
-  message?: any;
-}) {
-  const client = new WebSocketClient(input.config!);
-  
-  switch (input.action) {
-    case 'connect':
-      await client.connect();
-      return { status: 'connected', url: input.config!.url };
-      
-    case 'send':
-      client.send(input.message);
-      return { status: 'sent', message: input.message };
-      
-    case 'disconnect':
-      client.disconnect();
-      return { status: 'disconnected' };
-      
-    default:
-      throw new Error(`Unknown action: ${input.action}`);
-  }
-}
-```
-</Tab>
-<Tab value="config" label="Configuration">
-```yaml
-# tools/websocket-client.yaml
-resource: "tool"
-id: "websocket-client"
-description: "WebSocket client for real-time communication"
-timeout: "60s"
-
-input:
-  type: "object"
-  properties:
-    action:
-      type: "string"
-      enum: ["connect", "send", "disconnect"]
-    config:
-      type: "object"
-      properties:
-        url:
-          type: "string"
-          format: "uri"
-          description: "WebSocket URL (ws:// or wss://)"
-        protocols:
-          type: "array"
-          items:
-            type: "string"
-        reconnect:
-          type: "boolean"
-          default: true
-        reconnectInterval:
-          type: "number"
-          default: 5000
-        maxReconnectAttempts:
-          type: "number"
-          default: 5
-        heartbeatInterval:
-          type: "number"
-          default: 30000
-      required: ["url"]
-    message:
-      description: "Message to send (for send action)"
-  required: ["action"]
+      additionalProperties:
+        type: "string"
+    body:
+      description: "Request body for POST/PUT"
+  required: ["url"]
 
 output:
   type: "object"
   properties:
     status:
-      type: "string"
-    url:
-      type: "string"
-    message:
-      description: "Sent message"
+      type: "integer"
+    data:
+      description: "Response data"
     error:
       type: "string"
+  required: ["status"]
 ```
-</Tab>
-<Tab value="workflow" label="Workflow Usage">
+
+**Implementation with error handling:**
+```typescript
+// tools/http-client.ts
+interface HttpClientInput {
+  url: string;
+  method?: string;
+  headers?: Record<string, string>;
+  body?: unknown;
+}
+
+export async function run(input: HttpClientInput) {
+  try {
+    const response = await fetch(input.url, {
+      method: input.method || 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        ...input.headers,
+      },
+      body: input.body ? JSON.stringify(input.body) : undefined,
+      signal: AbortSignal.timeout(30000), // 30 second timeout
+    });
+
+    const data = await response.json();
+
+    return {
+      status: response.status,
+      data: data,
+      error: response.ok ? undefined : `HTTP ${response.status}`,
+    };
+  } catch (error) {
+    return {
+      status: 0,
+      data: null,
+      error: error.message,
+    };
+  }
+}
+```
+
+**Usage in workflow:**
+```yaml
+tasks:
+  - id: call-api
+    type: basic
+    $use: tool(local::tools.#(id=="http-client"))
+    with:
+      url: "https://api.example.com/data"
+      method: "GET"
+      headers:
+        Authorization: "Bearer {{ .env.API_TOKEN }}"
+    outputs:
+      api_data: "{{ .output.data }}"
+```
+
+## Authentication Patterns
+
+### API Key Authentication
+
+The simplest and most common authentication method uses API keys stored in environment variables:
+
+```yaml
+# tools/api-client.yaml
+resource: "tool"
+id: "api-client"
+description: "HTTP client with API key authentication"
+timeout: "30s"
+
+input:
+  type: "object"
+  properties:
+    endpoint:
+      type: "string"
+      description: "API endpoint path"
+    method:
+      type: "string"
+      enum: ["GET", "POST", "PUT", "DELETE"]
+      default: "GET"
+    data:
+      description: "Request body for POST/PUT"
+  required: ["endpoint"]
+
+output:
+  type: "object"
+  properties:
+    status:
+      type: "integer"
+    data:
+      description: "Response data"
+    error:
+      type: "string"
+  required: ["status"]
+
+env:
+  API_BASE_URL: "{{ .env.API_BASE_URL }}"
+  API_KEY: "{{ .env.API_KEY }}"
+```
+
+**Implementation with environment variables:**
+```typescript
+// tools/api-client.ts
+interface ApiClientInput {
+  endpoint: string;
+  method?: string;
+  data?: unknown;
+}
+
+export async function run(input: ApiClientInput) {
+  // Access environment variables set in the tool configuration
+  const baseUrl = process.env.API_BASE_URL;
+  const apiKey = process.env.API_KEY;
+  
+  if (!baseUrl || !apiKey) {
+    return {
+      status: 0,
+      error: 'Missing required environment variables: API_BASE_URL, API_KEY'
+    };
+  }
+  
+  try {
+    const response = await fetch(`${baseUrl}${input.endpoint}`, {
+      method: input.method || 'GET',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: input.data ? JSON.stringify(input.data) : undefined,
+      signal: AbortSignal.timeout(30000), // 30 second timeout
+    });
+    
+    const data = await response.json();
+    
+    return {
+      status: response.status,
+      data: data,
+      error: response.ok ? undefined : `HTTP ${response.status}`,
+    };
+  } catch (error) {
+    return {
+      status: 0,
+      data: null,
+      error: error.message,
+    };
+  }
+}
+```
+
+**Usage in workflow:**
 ```yaml
 # workflow.yaml
 tasks:
-  - id: connect-websocket
+  - id: fetch-user-data
     type: basic
-    $use: tool(local::tools.#(id=="websocket-client"))
+    $use: tool(local::tools.#(id=="api-client"))
     with:
-      action: "connect"
-      config:
-        url: "wss://api.example.com/websocket"
-        protocols: ["chat", "notifications"]
-        reconnect: true
-        heartbeatInterval: 30000
+      endpoint: "/users/{{ .workflow.input.user_id }}"
+      method: "GET"
     outputs:
-      connection_status: "{{ .output.status }}"
+      user_data: "{{ .output.data }}"
       
-  - id: send-message
+  - id: update-user
     type: basic
-    $use: tool(local::tools.#(id=="websocket-client"))
+    $use: tool(local::tools.#(id=="api-client"))
     with:
-      action: "send"
-      message:
-        type: "subscribe"
-        channel: "user-updates"
-        user_id: "{{ .workflow.input.user_id }}"
-    outputs:
-      send_status: "{{ .output.status }}"
+      endpoint: "/users/{{ .workflow.input.user_id }}"
+      method: "PUT"
+      data:
+        name: "{{ .workflow.input.new_name }}"
+        updated_at: "{{ now }}"
+    condition: "{{ .workflow.input.update_user }}"
 ```
-</Tab>
-</Tabs>
 
-<Callout type="info">
-WebSocket connections are persistent and maintain state across multiple tool executions. Implement proper connection pooling and cleanup for production use.
-</Callout>
+### Bearer Token Authentication
 
-## Message Queue Integration
+For services that use bearer tokens:
 
-Asynchronous message processing with support for multiple queue systems including RabbitMQ, Amazon SQS, Redis, and NATS.
-
-### Message Queue Client
-
-<Tabs defaultValue="rabbitmq">
-<Tab value="rabbitmq" label="RabbitMQ">
 ```typescript
-// tools/rabbitmq-client.ts
-import { Connection, Channel, connect } from 'amqplib';
-
-interface RabbitMQConfig {
+// tools/bearer-auth-client.ts
+interface BearerAuthInput {
   url: string;
-  queue: string;
-  exchange?: string;
-  routingKey?: string;
-  durable?: boolean;
-  persistent?: boolean;
+  method?: string;
+  token?: string; // Optional, can use env var
+  data?: unknown;
 }
 
-class RabbitMQClient {
-  private connection: Connection | null = null;
-  private channel: Channel | null = null;
+export async function run(input: BearerAuthInput) {
+  // Use provided token or fall back to environment variable
+  const token = input.token || process.env.BEARER_TOKEN;
+  
+  if (!token) {
+    return {
+      success: false,
+      error: 'No bearer token provided'
+    };
+  }
+  
+  try {
+    const response = await fetch(input.url, {
+      method: input.method || 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: input.data ? JSON.stringify(input.data) : undefined,
+    });
+    
+    return {
+      success: response.ok,
+      status: response.status,
+      data: await response.json(),
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+}
+```
 
-  async connect(config: RabbitMQConfig): Promise<void> {
+## Error Handling Patterns
+
+### Retry Logic
+
+Implement simple retry logic for transient failures:
+
+```typescript
+// tools/retry-client.ts
+interface RetryClientInput {
+  url: string;
+  method?: string;
+  data?: unknown;
+  maxRetries?: number;
+  retryDelay?: number;
+}
+
+export async function run(input: RetryClientInput) {
+  const maxRetries = input.maxRetries || 3;
+  const retryDelay = input.retryDelay || 1000;
+  
+  let lastError: Error;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      this.connection = await connect(config.url);
-      this.channel = await this.connection.createChannel();
-      
-      // Declare queue
-      await this.channel.assertQueue(config.queue, {
-        durable: config.durable || true,
+      const response = await fetch(input.url, {
+        method: input.method || 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.API_TOKEN}`,
+        },
+        body: input.data ? JSON.stringify(input.data) : undefined,
+        signal: AbortSignal.timeout(30000),
       });
       
-      // Declare exchange if specified
-      if (config.exchange) {
-        await this.channel.assertExchange(config.exchange, 'topic', {
-          durable: true,
-        });
-      }
-    } catch (error) {
-      throw new Error(`RabbitMQ connection failed: ${error.message}`);
-    }
-  }
-
-  async publish(config: RabbitMQConfig, message: any): Promise<void> {
-    if (!this.channel) {
-      throw new Error('Not connected to RabbitMQ');
-    }
-
-    const messageBuffer = Buffer.from(JSON.stringify(message));
-    const options = {
-      persistent: config.persistent || true,
-      timestamp: Date.now(),
-    };
-
-    if (config.exchange) {
-      await this.channel.publish(
-        config.exchange,
-        config.routingKey || '',
-        messageBuffer,
-        options
-      );
-    } else {
-      await this.channel.sendToQueue(config.queue, messageBuffer, options);
-    }
-  }
-
-  async consume(config: RabbitMQConfig, handler: (message: any) => Promise<void>): Promise<void> {
-    if (!this.channel) {
-      throw new Error('Not connected to RabbitMQ');
-    }
-
-    await this.channel.consume(config.queue, async (msg) => {
-      if (msg) {
-        try {
-          const content = JSON.parse(msg.content.toString());
-          await handler(content);
-          this.channel!.ack(msg);
-        } catch (error) {
-          console.error('Message processing failed:', error);
-          this.channel!.nack(msg, false, false);
+      if (!response.ok && attempt < maxRetries) {
+        // Retry on 5xx errors
+        if (response.status >= 500) {
+          await new Promise(resolve => setTimeout(resolve, retryDelay * attempt));
+          continue;
         }
       }
-    });
-  }
-
-  async close(): Promise<void> {
-    await this.channel?.close();
-    await this.connection?.close();
-  }
-}
-
-export async function run(input: {
-  action: 'publish' | 'consume' | 'connect';
-  config: RabbitMQConfig;
-  message?: any;
-}) {
-  const client = new RabbitMQClient();
-  
-  try {
-    await client.connect(input.config);
-    
-    switch (input.action) {
-      case 'publish':
-        await client.publish(input.config, input.message);
-        return { status: 'published', queue: input.config.queue };
-        
-      case 'consume':
-        // Note: For consume, you'd typically run this in a separate process
-        return { status: 'consuming', queue: input.config.queue };
-        
-      case 'connect':
-        return { status: 'connected', queue: input.config.queue };
-        
-      default:
-        throw new Error(`Unknown action: ${input.action}`);
-    }
-  } finally {
-    await client.close();
-  }
-}
-```
-</Tab>
-<Tab value="sqs" label="Amazon SQS">
-```typescript
-// tools/sqs-client.ts
-import { SQSClient, SendMessageCommand, ReceiveMessageCommand, DeleteMessageCommand } from '@aws-sdk/client-sqs';
-
-interface SQSConfig {
-  region: string;
-  queueUrl: string;
-  accessKeyId?: string;
-  secretAccessKey?: string;
-  maxMessages?: number;
-  visibilityTimeout?: number;
-  waitTimeSeconds?: number;
-}
-
-class SQSClientWrapper {
-  private client: SQSClient;
-
-  constructor(config: SQSConfig) {
-    this.client = new SQSClient({
-      region: config.region,
-      credentials: config.accessKeyId && config.secretAccessKey ? {
-        accessKeyId: config.accessKeyId,
-        secretAccessKey: config.secretAccessKey,
-      } : undefined,
-    });
-  }
-
-  async sendMessage(config: SQSConfig, message: any): Promise<string> {
-    const command = new SendMessageCommand({
-      QueueUrl: config.queueUrl,
-      MessageBody: JSON.stringify(message),
-      MessageAttributes: {
-        timestamp: {
-          DataType: 'Number',
-          StringValue: Date.now().toString(),
-        },
-      },
-    });
-
-    const response = await this.client.send(command);
-    return response.MessageId!;
-  }
-
-  async receiveMessages(config: SQSConfig): Promise<any[]> {
-    const command = new ReceiveMessageCommand({
-      QueueUrl: config.queueUrl,
-      MaxNumberOfMessages: config.maxMessages || 10,
-      VisibilityTimeout: config.visibilityTimeout || 30,
-      WaitTimeSeconds: config.waitTimeSeconds || 0,
-    });
-
-    const response = await this.client.send(command);
-    return response.Messages?.map(msg => ({
-      id: msg.MessageId,
-      body: JSON.parse(msg.Body || '{}'),
-      receiptHandle: msg.ReceiptHandle,
-    })) || [];
-  }
-
-  async deleteMessage(config: SQSConfig, receiptHandle: string): Promise<void> {
-    const command = new DeleteMessageCommand({
-      QueueUrl: config.queueUrl,
-      ReceiptHandle: receiptHandle,
-    });
-
-    await this.client.send(command);
-  }
-}
-
-export async function run(input: {
-  action: 'send' | 'receive' | 'delete';
-  config: SQSConfig;
-  message?: any;
-  receiptHandle?: string;
-}) {
-  const client = new SQSClientWrapper(input.config);
-  
-  switch (input.action) {
-    case 'send':
-      const messageId = await client.sendMessage(input.config, input.message);
-      return { status: 'sent', messageId, queue: input.config.queueUrl };
       
-    case 'receive':
-      const messages = await client.receiveMessages(input.config);
-      return { status: 'received', messages, count: messages.length };
-      
-    case 'delete':
-      await client.deleteMessage(input.config, input.receiptHandle!);
-      return { status: 'deleted', receiptHandle: input.receiptHandle };
-      
-    default:
-      throw new Error(`Unknown action: ${input.action}`);
-  }
-}
-```
-</Tab>
-<Tab value="redis" label="Redis Pub/Sub">
-```typescript
-// tools/redis-pubsub.ts
-import { createClient } from 'redis';
-
-interface RedisConfig {
-  url: string;
-  channel: string;
-  pattern?: string;
-  db?: number;
-}
-
-class RedisPubSubClient {
-  private client: any;
-  private subscriber: any;
-
-  async connect(config: RedisConfig): Promise<void> {
-    this.client = createClient({
-      url: config.url,
-      database: config.db || 0,
-    });
-
-    this.subscriber = this.client.duplicate();
-    
-    await this.client.connect();
-    await this.subscriber.connect();
-  }
-
-  async publish(config: RedisConfig, message: any): Promise<number> {
-    const messageString = JSON.stringify({
-      ...message,
-      timestamp: Date.now(),
-    });
-
-    return await this.client.publish(config.channel, messageString);
-  }
-
-  async subscribe(config: RedisConfig, handler: (message: any) => void): Promise<void> {
-    await this.subscriber.subscribe(config.channel, (message: string) => {
-      try {
-        const parsedMessage = JSON.parse(message);
-        handler(parsedMessage);
-      } catch (error) {
-        console.error('Failed to parse message:', error);
-      }
-    });
-  }
-
-  async disconnect(): Promise<void> {
-    await this.client?.disconnect();
-    await this.subscriber?.disconnect();
-  }
-}
-
-export async function run(input: {
-  action: 'publish' | 'subscribe' | 'connect';
-  config: RedisConfig;
-  message?: any;
-}) {
-  const client = new RedisPubSubClient();
-  
-  try {
-    await client.connect(input.config);
-    
-    switch (input.action) {
-      case 'publish':
-        const subscribers = await client.publish(input.config, input.message);
-        return { status: 'published', subscribers, channel: input.config.channel };
-        
-      case 'subscribe':
-        // Note: Subscribe would typically run in a separate process
-        return { status: 'subscribed', channel: input.config.channel };
-        
-      case 'connect':
-        return { status: 'connected', channel: input.config.channel };
-        
-      default:
-        throw new Error(`Unknown action: ${input.action}`);
-    }
-  } finally {
-    await client.disconnect();
-  }
-}
-```
-</Tab>
-</Tabs>
-
-### Message Queue Workflow Example
-
-```yaml
-# workflow.yaml
-tasks:
-  - id: publish-event
-    type: basic
-    $use: tool(local::tools.#(id=="rabbitmq-client"))
-    with:
-      action: "publish"
-      config:
-        url: "{{ .env.RABBITMQ_URL }}"
-        queue: "user-events"
-        exchange: "events"
-        routingKey: "user.created"
-        durable: true
-        persistent: true
-      message:
-        event_type: "user_created"
-        user_id: "{{ .workflow.input.user_id }}"
-        timestamp: "{{ now }}"
-        data: "{{ .tasks.create_user.output }}"
-    outputs:
-      publish_status: "{{ .output.status }}"
-      
-  - id: process-notifications
-    type: basic
-    $use: tool(local::tools.#(id=="sqs-client"))
-    with:
-      action: "send"
-      config:
-        region: "{{ .env.AWS_REGION }}"
-        queueUrl: "{{ .env.NOTIFICATION_QUEUE_URL }}"
-        accessKeyId: "{{ .env.AWS_ACCESS_KEY_ID }}"
-        secretAccessKey: "{{ .env.AWS_SECRET_ACCESS_KEY }}"
-      message:
-        type: "email"
-        recipient: "{{ .workflow.input.user_email }}"
-        template: "welcome_email"
-        data: "{{ .tasks.create_user.output }}"
-```
-
-## Monitoring & Observability
-
-Comprehensive monitoring and observability for external integrations with metrics collection, health checks, and alerting.
-
-### Health Monitoring
-
-<Tabs defaultValue="health">
-<Tab value="health" label="Health Checks">
-```typescript
-// tools/health-monitor.ts
-interface HealthCheckConfig {
-  name: string;
-  url?: string;
-  timeout?: number;
-  expectedStatus?: number;
-  expectedBody?: string;
-  headers?: Record<string, string>;
-  interval?: number;
-  retries?: number;
-}
-
-interface HealthResult {
-  name: string;
-  status: 'healthy' | 'unhealthy' | 'degraded';
-  responseTime: number;
-  error?: string;
-  details?: Record<string, any>;
-  timestamp: string;
-}
-
-class HealthMonitor {
-  private static results = new Map<string, HealthResult>();
-  private static monitors = new Map<string, NodeJS.Timeout>();
-
-  static async performHealthCheck(config: HealthCheckConfig): Promise<HealthResult> {
-    const startTime = performance.now();
-    const timestamp = new Date().toISOString();
-    
-    try {
-      if (config.url) {
-        const response = await fetch(config.url, {
-          method: 'GET',
-          headers: config.headers || {},
-          signal: AbortSignal.timeout(config.timeout || 30000),
-        });
-
-        const responseTime = performance.now() - startTime;
-        const expectedStatus = config.expectedStatus || 200;
-        
-        if (response.status !== expectedStatus) {
-          return {
-            name: config.name,
-            status: 'unhealthy',
-            responseTime,
-            error: `Expected status ${expectedStatus}, got ${response.status}`,
-            timestamp,
-          };
-        }
-
-        if (config.expectedBody) {
-          const body = await response.text();
-          if (!body.includes(config.expectedBody)) {
-            return {
-              name: config.name,
-              status: 'degraded',
-              responseTime,
-              error: 'Response body does not match expected content',
-              details: { body: body.substring(0, 200) },
-              timestamp,
-            };
-          }
-        }
-
-        return {
-          name: config.name,
-          status: 'healthy',
-          responseTime,
-          timestamp,
-        };
-      }
-
-      // Custom health check logic for non-HTTP services
       return {
-        name: config.name,
-        status: 'healthy',
-        responseTime: performance.now() - startTime,
-        timestamp,
+        success: response.ok,
+        status: response.status,
+        data: await response.json(),
+        attempts: attempt,
       };
     } catch (error) {
-      return {
-        name: config.name,
-        status: 'unhealthy',
-        responseTime: performance.now() - startTime,
-        error: error.message,
-        timestamp,
-      };
-    }
-  }
-
-  static startMonitoring(config: HealthCheckConfig): void {
-    const interval = config.interval || 30000;
-    
-    const monitor = setInterval(async () => {
-      const result = await this.performHealthCheck(config);
-      this.results.set(config.name, result);
-    }, interval);
-
-    this.monitors.set(config.name, monitor);
-  }
-
-  static stopMonitoring(name: string): void {
-    const monitor = this.monitors.get(name);
-    if (monitor) {
-      clearInterval(monitor);
-      this.monitors.delete(name);
-    }
-  }
-
-  static getHealthStatus(name?: string): HealthResult | HealthResult[] {
-    if (name) {
-      return this.results.get(name) || {
-        name,
-        status: 'unhealthy',
-        responseTime: 0,
-        error: 'No health check configured',
-        timestamp: new Date().toISOString(),
-      };
-    }
-
-    return Array.from(this.results.values());
-  }
-}
-
-export async function run(input: {
-  action: 'check' | 'start' | 'stop' | 'status';
-  config?: HealthCheckConfig;
-  name?: string;
-}) {
-  switch (input.action) {
-    case 'check':
-      return await HealthMonitor.performHealthCheck(input.config!);
-      
-    case 'start':
-      HealthMonitor.startMonitoring(input.config!);
-      return { status: 'monitoring_started', name: input.config!.name };
-      
-    case 'stop':
-      HealthMonitor.stopMonitoring(input.name!);
-      return { status: 'monitoring_stopped', name: input.name };
-      
-    case 'status':
-      return { status: 'success', health: HealthMonitor.getHealthStatus(input.name) };
-      
-    default:
-      throw new Error(`Unknown action: ${input.action}`);
-  }
-}
-```
-</Tab>
-<Tab value="metrics" label="Metrics Collection">
-```typescript
-// tools/metrics-collector.ts
-interface MetricPoint {
-  name: string;
-  value: number;
-  timestamp: number;
-  tags?: Record<string, string>;
-}
-
-interface MetricsConfig {
-  service: string;
-  environment: string;
-  interval?: number;
-  endpoint?: string;
-  apiKey?: string;
-}
-
-class MetricsCollector {
-  private static metrics: MetricPoint[] = [];
-  private static collectors = new Map<string, NodeJS.Timeout>();
-
-  static addMetric(name: string, value: number, tags?: Record<string, string>): void {
-    this.metrics.push({
-      name,
-      value,
-      timestamp: Date.now(),
-      tags,
-    });
-  }
-
-  static incrementCounter(name: string, tags?: Record<string, string>): void {
-    this.addMetric(name, 1, tags);
-  }
-
-  static recordTimer(name: string, duration: number, tags?: Record<string, string>): void {
-    this.addMetric(`${name}.duration`, duration, tags);
-  }
-
-  static recordGauge(name: string, value: number, tags?: Record<string, string>): void {
-    this.addMetric(`${name}.gauge`, value, tags);
-  }
-
-  static async sendMetrics(config: MetricsConfig): Promise<void> {
-    if (this.metrics.length === 0) {
-      return;
-    }
-
-    const payload = {
-      service: config.service,
-      environment: config.environment,
-      metrics: this.metrics,
-    };
-
-    if (config.endpoint) {
-      try {
-        await fetch(config.endpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(config.apiKey && { 'Authorization': `Bearer ${config.apiKey}` }),
-          },
-          body: JSON.stringify(payload),
-        });
-      } catch (error) {
-        console.error('Failed to send metrics:', error);
+      lastError = error;
+      if (attempt < maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, retryDelay * attempt));
+        continue;
       }
     }
-
-    // Clear sent metrics
-    this.metrics = [];
   }
-
-  static startAutoCollection(config: MetricsConfig): void {
-    const interval = config.interval || 60000;
-    
-    const collector = setInterval(async () => {
-      await this.sendMetrics(config);
-    }, interval);
-
-    this.collectors.set(config.service, collector);
-  }
-
-  static stopAutoCollection(service: string): void {
-    const collector = this.collectors.get(service);
-    if (collector) {
-      clearInterval(collector);
-      this.collectors.delete(service);
-    }
-  }
-
-  static getMetrics(name?: string): MetricPoint[] {
-    if (name) {
-      return this.metrics.filter(m => m.name === name);
-    }
-    return [...this.metrics];
-  }
-}
-
-export async function run(input: {
-  action: 'record' | 'send' | 'start' | 'stop' | 'get';
-  config?: MetricsConfig;
-  metric?: {
-    name: string;
-    value: number;
-    tags?: Record<string, string>;
+  
+  return {
+    success: false,
+    error: lastError.message,
+    attempts: maxRetries,
   };
-  name?: string;
-}) {
-  switch (input.action) {
-    case 'record':
-      MetricsCollector.addMetric(
-        input.metric!.name,
-        input.metric!.value,
-        input.metric!.tags
-      );
-      return { status: 'recorded', metric: input.metric!.name };
-      
-    case 'send':
-      await MetricsCollector.sendMetrics(input.config!);
-      return { status: 'sent', service: input.config!.service };
-      
-    case 'start':
-      MetricsCollector.startAutoCollection(input.config!);
-      return { status: 'collection_started', service: input.config!.service };
-      
-    case 'stop':
-      MetricsCollector.stopAutoCollection(input.config!.service);
-      return { status: 'collection_stopped', service: input.config!.service };
-      
-    case 'get':
-      return { status: 'success', metrics: MetricsCollector.getMetrics(input.name) };
-      
-    default:
-      throw new Error(`Unknown action: ${input.action}`);
-  }
 }
 ```
-</Tab>
-<Tab value="alerting" label="Alerting">
+
+### Timeout Handling
+
+Properly handle timeouts for long-running requests:
+
 ```typescript
-// tools/alerting.ts
-interface AlertRule {
-  name: string;
-  condition: string;
-  threshold: number;
-  duration?: number;
-  severity: 'low' | 'medium' | 'high' | 'critical';
-  channels: string[];
-  message?: string;
+// tools/timeout-client.ts
+interface TimeoutClientInput {
+  url: string;
+  timeout?: number; // milliseconds
+  method?: string;
+  data?: unknown;
 }
 
-interface Alert {
-  id: string;
-  rule: string;
-  severity: string;
-  message: string;
-  timestamp: string;
-  resolved?: boolean;
-  resolvedAt?: string;
-}
-
-class AlertManager {
-  private static alerts = new Map<string, Alert>();
-  private static rules = new Map<string, AlertRule>();
-  private static evaluators = new Map<string, NodeJS.Timeout>();
-
-  static addRule(rule: AlertRule): void {
-    this.rules.set(rule.name, rule);
-    this.startEvaluation(rule);
-  }
-
-  static removeRule(name: string): void {
-    this.rules.delete(name);
-    this.stopEvaluation(name);
-  }
-
-  static async evaluateRule(rule: AlertRule): Promise<boolean> {
-    // Implement rule evaluation logic based on condition
-    // This is a simplified example
-    const metrics = MetricsCollector.getMetrics(rule.condition);
+export async function run(input: TimeoutClientInput) {
+  const timeout = input.timeout || 30000; // Default 30 seconds
+  
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
     
-    if (metrics.length === 0) {
-      return false;
-    }
-
-    const latestMetric = metrics[metrics.length - 1];
-    return latestMetric.value > rule.threshold;
-  }
-
-  static async triggerAlert(rule: AlertRule): Promise<void> {
-    const alertId = `${rule.name}-${Date.now()}`;
-    const alert: Alert = {
-      id: alertId,
-      rule: rule.name,
-      severity: rule.severity,
-      message: rule.message || `Alert triggered for ${rule.name}`,
-      timestamp: new Date().toISOString(),
+    const response = await fetch(input.url, {
+      method: input.method || 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: input.data ? JSON.stringify(input.data) : undefined,
+      signal: controller.signal,
+    });
+    
+    clearTimeout(timeoutId);
+    
+    return {
+      success: response.ok,
+      status: response.status,
+      data: await response.json(),
     };
-
-    this.alerts.set(alertId, alert);
-
-    // Send notifications to configured channels
-    for (const channel of rule.channels) {
-      await this.sendNotification(channel, alert);
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      return {
+        success: false,
+        error: `Request timed out after ${timeout}ms`,
+      };
     }
-  }
-
-  static async sendNotification(channel: string, alert: Alert): Promise<void> {
-    // Implement notification sending logic
-    // This could integrate with Slack, email, SMS, etc.
-    console.log(`Sending alert to ${channel}:`, alert);
-  }
-
-  static startEvaluation(rule: AlertRule): void {
-    const interval = rule.duration || 60000;
-    
-    const evaluator = setInterval(async () => {
-      const triggered = await this.evaluateRule(rule);
-      if (triggered) {
-        await this.triggerAlert(rule);
-      }
-    }, interval);
-
-    this.evaluators.set(rule.name, evaluator);
-  }
-
-  static stopEvaluation(name: string): void {
-    const evaluator = this.evaluators.get(name);
-    if (evaluator) {
-      clearInterval(evaluator);
-      this.evaluators.delete(name);
-    }
-  }
-
-  static getAlerts(resolved?: boolean): Alert[] {
-    const alerts = Array.from(this.alerts.values());
-    
-    if (resolved !== undefined) {
-      return alerts.filter(alert => alert.resolved === resolved);
-    }
-    
-    return alerts;
-  }
-
-  static resolveAlert(alertId: string): void {
-    const alert = this.alerts.get(alertId);
-    if (alert) {
-      alert.resolved = true;
-      alert.resolvedAt = new Date().toISOString();
-    }
-  }
-}
-
-export async function run(input: {
-  action: 'add_rule' | 'remove_rule' | 'get_alerts' | 'resolve_alert' | 'evaluate';
-  rule?: AlertRule;
-  name?: string;
-  alertId?: string;
-  resolved?: boolean;
-}) {
-  switch (input.action) {
-    case 'add_rule':
-      AlertManager.addRule(input.rule!);
-      return { status: 'rule_added', rule: input.rule!.name };
-      
-    case 'remove_rule':
-      AlertManager.removeRule(input.name!);
-      return { status: 'rule_removed', rule: input.name };
-      
-    case 'get_alerts':
-      return { status: 'success', alerts: AlertManager.getAlerts(input.resolved) };
-      
-    case 'resolve_alert':
-      AlertManager.resolveAlert(input.alertId!);
-      return { status: 'alert_resolved', alertId: input.alertId };
-      
-    case 'evaluate':
-      const rule = AlertManager.rules.get(input.name!);
-      if (!rule) {
-        throw new Error(`Rule not found: ${input.name}`);
-      }
-      const triggered = await AlertManager.evaluateRule(rule);
-      return { status: 'evaluated', rule: input.name, triggered };
-      
-    default:
-      throw new Error(`Unknown action: ${input.action}`);
+    return {
+      success: false,
+      error: error.message,
+    };
   }
 }
 ```
+
+## Practical Integration Examples
+
+### GitHub API Integration
+
+A practical example of using the GitHub API through a simple HTTP client:
+
+```typescript
+// tools/github-client.ts
+interface GitHubInput {
+  endpoint: string;
+  method?: string;
+  data?: unknown;
+}
+
+export async function run(input: GitHubInput) {
+  const baseUrl = 'https://api.github.com';
+  const token = process.env.GITHUB_TOKEN;
+  
+  if (!token) {
+    return {
+      status: 0,
+      error: 'Missing required environment variable: GITHUB_TOKEN'
+    };
+  }
+  
+  try {
+    const response = await fetch(`${baseUrl}${input.endpoint}`, {
+      method: input.method || 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json',
+      },
+      body: input.data ? JSON.stringify(input.data) : undefined,
+      signal: AbortSignal.timeout(30000),
+    });
+    
+    const data = await response.json();
+    
+    return {
+      status: response.status,
+      data: data,
+      error: response.ok ? undefined : data.message,
+    };
+  } catch (error) {
+    return {
+      status: 0,
+      data: null,
+      error: error.message,
+    };
+  }
+}
+```
+
+**What this integration provides:**
+- Simple GitHub API access using personal access tokens
+- Standard REST API operations (GET, POST, PUT, DELETE)
+- Proper error handling and timeout management
+- Response includes status code and data
+
+### Slack Integration Example
+
+Here's a practical example of integrating with Slack's Web API:
+
+```typescript
+// tools/slack-client.ts
+interface SlackInput {
+  method: string; // e.g., 'chat.postMessage', 'users.list'
+  params?: Record<string, any>;
+}
+
+export async function run(input: SlackInput) {
+  const token = process.env.SLACK_BOT_TOKEN;
+  
+  if (!token) {
+    return {
+      ok: false,
+      error: 'Missing required environment variable: SLACK_BOT_TOKEN'
+    };
+  }
+  
+  try {
+    const response = await fetch(`https://slack.com/api/${input.method}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(input.params || {}),
+      signal: AbortSignal.timeout(30000),
+    });
+    
+    const data = await response.json();
+    
+    if (!data.ok) {
+      return {
+        ok: false,
+        error: data.error || 'Unknown Slack API error',
+      };
+    }
+    
+    return data;
+  } catch (error) {
+    return {
+      ok: false,
+      error: error.message,
+    };
+  }
+}
+```
+
+**Usage in workflow:**
+```yaml
+tasks:
+  - id: send-notification
+    type: basic
+    $use: tool(local::tools.#(id=="slack-client"))
+    with:
+      method: "chat.postMessage"
+      params:
+        channel: "{{ .workflow.input.channel }}"
+        text: "Task completed: {{ .workflow.input.task_name }}"
+```
+
+**What this provides:**
+- Simple Slack API integration using bot tokens
+- Support for any Slack Web API method
+- Proper error handling with Slack's response format
+- Easy to extend for specific Slack operations
+
+
+
+## Best Practices
+
+### Error Handling
+
+Always implement proper error handling in your integrations:
+
+```typescript
+// tools/resilient-api-client.ts
+export async function run(input: ApiInput) {
+  try {
+    const response = await fetch(input.url, {
+      method: input.method || 'GET',
+      headers: input.headers,
+      body: input.body ? JSON.stringify(input.body) : undefined,
+      signal: AbortSignal.timeout(input.timeout || 30000),
+    });
+    
+    if (!response.ok) {
+      return {
+        status: response.status,
+        error: `HTTP ${response.status}: ${response.statusText}`,
+        retryable: response.status >= 500 || response.status === 429
+      };
+    }
+    
+    const data = await response.json();
+    return { status: response.status, data };
+    
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      return { status: 0, error: 'Request timeout', retryable: true };
+    }
+    return { status: 0, error: error.message, retryable: false };
+  }
+}
+```
+
+### Rate Limiting
+
+Implement rate limiting to avoid overwhelming external services:
+
+```typescript
+// Simple rate limiter
+class RateLimiter {
+  private requests: number[] = [];
+  
+  constructor(
+    private maxRequests: number,
+    private windowMs: number
+  ) {}
+  
+  canMakeRequest(): boolean {
+    const now = Date.now();
+    this.requests = this.requests.filter(time => now - time < this.windowMs);
+    
+    if (this.requests.length < this.maxRequests) {
+      this.requests.push(now);
+      return true;
+    }
+    
+    return false;
+  }
+}
+
+const limiter = new RateLimiter(10, 60000); // 10 requests per minute
+
+export async function run(input: ApiInput) {
+  if (!limiter.canMakeRequest()) {
+    return { status: 429, error: 'Rate limit exceeded' };
+  }
+  
+  // Make the API call...
+}
+```
+
+### Environment Configuration
+
+Keep your integration configurations flexible:
+
+```yaml
+# tools/configurable-api.yaml
+resource: "tool"
+id: "configurable-api"
+description: "Flexible API client with environment-based configuration"
+
+env:
+  API_BASE_URL: "{{ .env.API_BASE_URL }}"
+  API_KEY: "{{ .env.API_KEY }}"
+  TIMEOUT: "{{ .env.API_TIMEOUT | default '30000' }}"
+  RETRY_ATTEMPTS: "{{ .env.API_RETRY_ATTEMPTS | default '3' }}"
+
+input:
+  type: "object"
+  properties:
+    endpoint:
+      type: "string"
+      description: "API endpoint path"
+    method:
+      type: "string"
+      enum: ["GET", "POST", "PUT", "DELETE"]
+      default: "GET"
+    data:
+      description: "Request body data"
+```
+
+## CLI Integration
+
+Compozy provides CLI commands for managing external integrations:
+
+<Tabs items={["MCP Commands", "Integration Development"]}>
+<Tab value="MCP Commands">
+
+```bash
+# Start MCP proxy service
+compozy mcp-proxy start
+
+# Test MCP server connections
+compozy mcp test-connection filesystem
+
+# Validate external tool configurations
+compozy config validate --external
+
+# Debug MCP communication
+compozy dev --mcp-debug
+```
+
+</Tab>
+<Tab value="Integration Development">
+
+```bash
+# Initialize project with integration templates
+compozy init --template integrations
+
+# Start development server with MCP debugging
+compozy dev --watch
+
+# Show current configuration including MCP settings
+compozy config show
+
+# Run authentication setup for external services
+compozy auth create-user --name "Integration Test"
+```
+
 </Tab>
 </Tabs>
 
-### Monitoring Workflow Example
-
-```yaml
-# workflow.yaml
-tasks:
-  - id: setup-monitoring
-    type: parallel
-    tasks:
-      - id: start-health-checks
-        type: basic
-        $use: tool(local::tools.#(id=="health-monitor"))
-        with:
-          action: "start"
-          config:
-            name: "database-health"
-            url: "{{ .env.DATABASE_HEALTH_URL }}"
-            timeout: 5000
-            expectedStatus: 200
-            interval: 30000
-      
-      - id: start-metrics-collection
-        type: basic
-        $use: tool(local::tools.#(id=="metrics-collector"))
-        with:
-          action: "start"
-          config:
-            service: "{{ .workflow.input.service_name }}"
-            environment: "{{ .env.ENVIRONMENT }}"
-            endpoint: "{{ .env.METRICS_ENDPOINT }}"
-            apiKey: "{{ .env.METRICS_API_KEY }}"
-            interval: 60000
-      
-      - id: setup-alerts
-        type: basic
-        $use: tool(local::tools.#(id=="alerting"))
-        with:
-          action: "add_rule"
-          rule:
-            name: "high-error-rate"
-            condition: "error_rate"
-            threshold: 5
-            duration: 300000
-            severity: "high"
-            channels: ["slack", "email"]
-            message: "Error rate exceeded 5% for 5 minutes"
-    
-  - id: monitor-integration
-    type: basic
-    $use: tool(local::tools.#(id=="metrics-collector"))
-    with:
-      action: "record"
-      metric:
-        name: "integration_request"
-        value: 1
-        tags:
-          service: "{{ .workflow.input.service_name }}"
-          endpoint: "{{ .workflow.input.endpoint }}"
-          status: "success"
-```
+For complete CLI documentation, see:
+- [CLI Overview](/docs/cli/overview)
+- [MCP Commands](/docs/cli/mcp-commands)
 
 ## Related Documentation
 
@@ -2265,12 +753,12 @@ tasks:
   <ReferenceCard
     title="Advanced Patterns"
     href="/docs/core/tools/advanced-patterns"
-    description="Complex integration patterns including state management, circuit breakers, and multi-phase processing"
+    description="Essential patterns for resilient tools with state management and error handling"
   />
   <ReferenceCard
     title="Testing & Debugging"
     href="/docs/core/tools/testing-debugging"
-    description="Test your integrations with mocking, debugging tools, and test automation"
+    description="Test your integrations with comprehensive debugging strategies"
   />
   <ReferenceCard
     title="Performance & Security"
@@ -2278,23 +766,18 @@ tasks:
     description="Optimize performance and secure your tool integrations"
   />
   <ReferenceCard
-    title="MCP Protocol"
-    href="/docs/core/mcp"
-    description="Deep dive into Model Context Protocol for advanced integrations"
+    title="MCP Integration Patterns"
+    href="/docs/core/mcp/integration-patterns"
+    description="Learn how to integrate MCP servers with agents and workflows"
   />
   <ReferenceCard
-    title="WebSocket Integration"
-    href="/docs/core/tools/websocket-integration"
-    description="Real-time communication patterns and WebSocket implementations"
+    title="TypeScript Development"
+    href="/docs/core/tools/typescript-development"
+    description="Build custom tools using TypeScript in Compozy's runtime"
   />
   <ReferenceCard
-    title="Message Queues"
-    href="/docs/core/tools/message-queues"
-    description="Asynchronous processing with RabbitMQ, SQS, Redis, and NATS"
-  />
-  <ReferenceCard
-    title="Monitoring & Observability"
-    href="/docs/core/tools/monitoring-observability"
-    description="Health checks, metrics collection, and alerting for tool integrations"
+    title="Runtime Environment"
+    href="/docs/core/tools/runtime-environment"
+    description="Understand the Bun runtime environment and security features"
   />
 </ReferenceCardList>

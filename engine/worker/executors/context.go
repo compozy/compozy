@@ -8,6 +8,7 @@ import (
 	"github.com/compozy/compozy/engine/task"
 	wf "github.com/compozy/compozy/engine/workflow"
 	wfacts "github.com/compozy/compozy/engine/workflow/activities"
+	"github.com/compozy/compozy/pkg/config"
 )
 
 type WorkflowInput = wfacts.TriggerInput
@@ -20,6 +21,7 @@ type ContextBuilder struct {
 	Workflows      []*wf.Config
 	ProjectConfig  *project.Config
 	WorkflowConfig *wf.Config
+	AppConfig      *config.Config
 	*WorkflowInput
 }
 
@@ -28,12 +30,14 @@ func NewContextBuilder(
 	projectConfig *project.Config,
 	workflowConfig *wf.Config,
 	workflowInput *WorkflowInput,
+	appConfig *config.Config,
 ) *ContextBuilder {
 	return &ContextBuilder{
 		Workflows:      workflows,
 		ProjectConfig:  projectConfig,
 		WorkflowConfig: workflowConfig,
 		WorkflowInput:  workflowInput,
+		AppConfig:      appConfig,
 	}
 }
 

@@ -107,7 +107,6 @@ agents:
 tools:
   - id: ticket-creator
     description: "Creates support tickets via API"
-    execute: "./scripts/create-ticket.js"
     input:
       type: object
       properties:
@@ -325,7 +324,6 @@ agents:
 tools:
   - id: "tool-id"
     description: "Tool description"
-    execute: "./script.js"
     input:
       type: object
       properties:
@@ -472,7 +470,6 @@ agents:
 tools:
   - id: plagiarism-checker
     description: "Check content for plagiarism"
-    execute: "./tools/plagiarism-check.js"
     input:
       type: object
       properties:
@@ -588,7 +585,6 @@ schemas:
 tools:
   - id: data-extractor
     description: "Extract data from various sources"
-    execute: "./tools/extract-data.js"
     timeout: "5m"
     input:
       type: object
@@ -603,7 +599,6 @@ tools:
 
   - id: data-validator
     description: "Validate data against schema"
-    execute: "./tools/validate-data.js"
     input:
       type: object
       properties:
@@ -612,7 +607,6 @@ tools:
 
   - id: data-transformer
     description: "Transform data using rules"
-    execute: "./tools/transform-data.js"
     input:
       type: object
       properties:
@@ -621,7 +615,6 @@ tools:
 
   - id: data-loader
     description: "Load data to destination"
-    execute: "./tools/load-data.js"
     input:
       type: object
       properties:
@@ -716,7 +709,6 @@ agents:
 tools:
   - id: email-sender
     description: "Send personalized emails"
-    execute: "./tools/send-email.js"
     input:
       type: object
       properties:
@@ -727,7 +719,6 @@ tools:
 
   - id: user-profiler
     description: "Create user profile and preferences"
-    execute: "./tools/create-profile.js"
     input:
       type: object
       properties:

@@ -3,8 +3,6 @@ title: Advanced Signal Patterns
 description: Sophisticated signal patterns and architectural solutions for complex workflow coordination in Compozy
 ---
 
-# Advanced Signal Patterns
-
 Advanced signal patterns enable sophisticated workflow coordination, complex event processing, and distributed system architectures. These patterns solve real-world challenges in enterprise workflow orchestration and event-driven systems.
 
 ## Saga Pattern
@@ -938,9 +936,35 @@ tasks:
       scenario: "shipping_timeout"
 ```
 
-## Next Steps
-
-- Review [Signal Overview](/docs/core/signals/signal-overview) for foundational concepts
-- Study [Signal Tasks](/docs/core/signals/signal-tasks) and [Wait Tasks](/docs/core/signals/wait-tasks) for basic patterns
-- Explore [Signal Triggers](/docs/core/signals/signal-triggers) for event-driven workflows
-- Check [Event API](/docs/core/signals/event-api) for external integrations
+<ReferenceCardList>
+  <ReferenceCard
+    title="Signal Overview"
+    description="Review foundational concepts of Compozy's signal system"
+    href="/docs/core/signals/signal-overview"
+    icon="BookOpen"
+  />
+  <ReferenceCard
+    title="Signal Tasks"
+    description="Study how to send signals from within workflows"
+    href="/docs/core/signals/signal-tasks"
+    icon="Send"
+  />
+  <ReferenceCard
+    title="Wait Tasks"
+    description="Learn to receive signals with conditions and processors"
+    href="/docs/core/signals/wait-tasks"
+    icon="Timer"
+  />
+  <ReferenceCard
+    title="Signal Triggers"
+    description="Explore event-driven workflow initiation patterns"
+    href="/docs/core/signals/signal-triggers"
+    icon="Play"
+  />
+  <ReferenceCard
+    title="Event API"
+    description="Check programmatic access for external integrations"
+    href="/docs/core/signals/event-api"
+    icon="Code"
+  />
+</ReferenceCardList>

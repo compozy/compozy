@@ -317,7 +317,7 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 		Namespace: s.AppConfig.Temporal.Namespace,
 		TaskQueue: s.AppConfig.Temporal.TaskQueue,
 	}
-	deps := appstate.NewBaseDeps(projectConfig, workflows, storeInstance, clientConfig)
+	deps := appstate.NewBaseDeps(projectConfig, workflows, storeInstance, clientConfig, s.AppConfig)
 	workerStart := time.Now()
 	worker, err := setupWorker(s.ctx, deps, s.monitoring, configRegistry, s.AppConfig)
 	if err != nil {
@@ -364,6 +364,7 @@ func setupWorker(
 		deps.ClientConfig,
 		deps.ProjectConfig,
 		deps.Workflows,
+		deps.AppConfig,
 	)
 	if err != nil {
 		log.Error("Failed to create worker", "error", err)

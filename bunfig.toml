@@ -18,7 +18,6 @@ env = "development"
 
 [test]
 # Test configuration
-preload = []
 coverage = false
 
 [build]

@@ -3,16 +3,50 @@ title: "Context Variables"
 description: "Accessing workflow data, task outputs, and environment variables in templates"
 ---
 
-# Context Variables
-
 Context variables provide access to data from various sources throughout your Compozy workflows. Understanding the context structure and data access patterns is essential for building dynamic, data-driven configurations.
 
-## Default Context Fields
+## Overview
 
-Compozy's template engine automatically initializes default context fields through the `preprocessContext()` function. These fields are always available in your templates, even if not explicitly provided:
+Compozy's template engine automatically provides a hierarchical context structure that gives you access to:
 
-```yaml
-# Default context structure (automatically added)
+<FeatureCardList cols={3} size="sm">
+  <FeatureCard
+    title="Workflow Data"
+    description="Access input parameters, metadata, and execution state"
+    icon="Workflow"
+  />
+  <FeatureCard
+    title="Task Outputs"
+    description="Use results from previously executed tasks"
+    icon="CheckCircle"
+  />
+  <FeatureCard
+    title="Environment Variables"
+    description="System configuration and runtime settings"
+    icon="Settings"
+  />
+  <FeatureCard
+    title="Collection Context"
+    description="Iteration variables for collection tasks"
+    icon="List"
+  />
+  <FeatureCard
+    title="Tool & Agent Data"
+    description="Available resources and their execution state"
+    icon="Package"
+  />
+  <FeatureCard
+    title="Global Values"
+    description="Shared data across workflows and tasks"
+    icon="Globe"
+  />
+</FeatureCardList>
+
+## Default Context Structure
+
+Compozy automatically initializes these context fields, ensuring they're always available in your templates:
+
+```yaml title="Default Context Structure"
 context:
   env: {}        # Environment variables map
   input: {}      # Workflow input data
@@ -23,47 +57,17 @@ context:
   agents: {}     # Agent execution state
 ```
 
-### Default Field Behavior
-
-- **env**: Empty map if no environment variables are provided
-- **input**: Empty map if no workflow input is specified
-- **output**: `null` by default, populated during task execution
-- **trigger**: Empty map for signal-based workflows
-- **tools**: Registry of available tools and their state
-- **tasks**: Task execution results, populated as tasks complete
-- **agents**: Agent state and execution context
-
-### Context Preprocessing
-
-The template engine processes context through several stages:
-
-1. **Default Field Initialization**: Missing fields are added with default values
-2. **Global Value Merging**: Global values from `AddGlobalValue()` are merged in
-3. **Template Rendering**: Final context is passed to Go templates
-
-```go
-// Example of context preprocessing
-processedContext := templateEngine.preprocessContext(originalContext)
-// processedContext now has all default fields + global values
-```
-
-## Context Structure
-
-The template context is a hierarchical data structure that provides access to:
-
-- **Workflow data**: Input, state, and metadata
-- **Task outputs**: Results from executed tasks
-- **Environment variables**: System and runtime configuration
-- **Collection context**: Iteration variables for collection tasks
-- **Tool and agent data**: Available resources and their state
+<Callout type="info">
+  **Context Preprocessing**: The template engine processes context through default field initialization, global value merging, and template rendering stages.
+</Callout>
 
 ## Core Context Variables
 
-### Workflow Context
+<Tabs items={["Workflow", "Tasks", "Environment", "Collections", "Tools & Agents"]}>
+<Tab>
+**Workflow Context** provides access to workflow-level data and metadata:
 
-Access workflow-level data and metadata:
-
-```yaml
+```yaml title="Workflow Context"
 # Workflow input data
 user_id: "{{ .workflow.input.user_id }}"
 search_query: "{{ .workflow.input.query }}"
@@ -79,11 +83,16 @@ timeout: "{{ .workflow.config.timeout }}"
 retry_policy: "{{ .workflow.config.retry_policy }}"
 ```
 
-### Task Context
+**Common workflow patterns:**
+- Use `.workflow.input` for user-provided data
+- Use `.workflow.id` for unique workflow identification
+- Use `.workflow.config` for execution parameters
+</Tab>
 
-Access outputs and state from other tasks:
+<Tab>
+**Task Context** provides access to outputs and state from other tasks:
 
-```yaml
+```yaml title="Task Context"
 # Task outputs
 weather_data: "{{ .tasks.weather_check.output.temperature }}"
 user_profile: "{{ .tasks.get_user.output }}"
@@ -99,11 +108,16 @@ nested_data: "{{ .tasks.api_call.output.data.results.0.name }}"
 array_length: "{{ len .tasks.fetch_items.output.items }}"
 ```
 
-### Environment Variables
+**Task context patterns:**
+- Use `.tasks.{task_id}.output` for task results
+- Use `.tasks.{task_id}.status` for execution state
+- Chain tasks by referencing previous outputs
+</Tab>
 
-Access system and runtime environment data:
+<Tab>
+**Environment Variables** provide access to system and runtime configuration:
 
-```yaml
+```yaml title="Environment Variables"
 # Environment variables
 api_key: "{{ .env.OPENAI_API_KEY }}"
 database_url: "{{ .env.DATABASE_URL }}"
@@ -119,11 +133,16 @@ is_production: "{{ eq .env.NODE_ENV 'production' }}"
 base_url: "{{ .env.API_BASE_URL | default 'http://localhost:3000' }}"
 ```
 
-### Collection Context
+**Environment best practices:**
+- Always provide defaults for optional environment variables
+- Use type conversion functions (`int`, `bool`, `float64`)
+- Use environment variables for secrets and configuration
+</Tab>
 
-Special variables available within collection tasks:
+<Tab>
+**Collection Context** provides special variables for iteration tasks:
 
-```yaml
+```yaml title="Collection Context"
 # Collection iteration
 - id: process_items
   type: collection
@@ -147,11 +166,16 @@ Special variables available within collection tasks:
       batch_id: "{{ printf '%s_batch_%d' .workflow.id .index }}"
 ```
 
-### Tool and Agent Context
+**Collection variables:**
+- `.item` - Current item being processed
+- `.index` - Zero-based index of current item
+- `.items` - Full collection being processed
+</Tab>
 
-Access available tools and agents:
+<Tab>
+**Tool and Agent Context** provides access to available resources:
 
-```yaml
+```yaml title="Tools & Agents"
 # Tool availability
 has_weather_tool: "{{ hasKey .tools 'weather_tool' }}"
 available_tools: "{{ keys .tools | join ', ' }}"
@@ -165,13 +189,20 @@ tool_result: "{{ .tool.output }}"
 tool_error: "{{ .tool.error }}"
 ```
 
+**Tool and agent patterns:**
+- Use `hasKey` to check tool availability
+- Use `keys` to list available resources
+- Access tool outputs through `.tool.output`
+</Tab>
+</Tabs>
+
 ## Advanced Context Patterns
 
-### Nested Data Access
+<Tabs items={["Nested Data", "Conditional Access", "Dynamic Context", "Context Debugging"]}>
+<Tab>
+**Nested Data Access** enables navigation of complex data structures:
 
-Navigate complex nested data structures:
-
-```yaml
+```yaml title="Nested Data Access"
 # Deep object access
 user_email: "{{ .tasks.get_user.output.profile.contact.email }}"
 first_tag: "{{ .tasks.get_metadata.output.tags.0 }}"
@@ -185,11 +216,17 @@ first_result: "{{ index .tasks.search.output.results 0 }}"
 last_item: "{{ index .tasks.fetch.output.items (sub (len .tasks.fetch.output.items) 1) }}"
 ```
 
-### Conditional Context Access
+**Navigation techniques:**
+- Use dot notation for nested objects
+- Use `.0` or `index` for array access
+- Use `default` for safe fallbacks
+- Use `coalesce` for multiple fallback options
+</Tab>
 
-Handle optional or conditional data:
+<Tab>
+**Conditional Context Access** handles optional or conditional data:
 
-```yaml
+```yaml title="Conditional Access"
 # Check if data exists before using
 user_name: |
   {{- if .tasks.get_user.output -}}
@@ -210,11 +247,17 @@ notification_email: |
       'noreply@example.com' -}}
 ```
 
-### Dynamic Context Building
+**Conditional patterns:**
+- Use `if` statements for existence checks
+- Use `default` for single fallbacks
+- Use `coalesce` for multiple fallback options
+- Use `hasKey` to check for map keys
+</Tab>
 
-Build dynamic context data:
+<Tab>
+**Dynamic Context Building** creates custom context objects:
 
-```yaml
+```yaml title="Dynamic Context"
 # Create custom context objects
 user_context:
   id: "{{ .workflow.input.user_id }}"
@@ -230,11 +273,45 @@ combined_data: |
   {{- merge $base $extra | toJson -}}
 ```
 
-## Context in Different Task Types
+**Context building techniques:**
+- Create structured context objects
+- Use variables with `$` prefix
+- Use `merge` to combine contexts
+- Use `toJson` for serialization
+</Tab>
 
-### Basic Tasks
+<Tab>
+**Context Debugging** helps troubleshoot context issues:
 
-```yaml
+```yaml title="Context Debugging"
+# Debug: Print entire context
+debug_context: "{{ . | toPrettyJson }}"
+
+# Debug: Print specific sections
+debug_workflow: "{{ .workflow | toPrettyJson }}"
+debug_tasks: "{{ .tasks | toPrettyJson }}"
+debug_env: "{{ .env | toPrettyJson }}"
+
+# Debug: List available keys
+available_tasks: "{{ keys .tasks | join ', ' }}"
+available_env: "{{ keys .env | join ', ' }}"
+```
+
+**Debugging techniques:**
+- Use `toPrettyJson` to inspect context
+- Use `keys` to list available fields
+- Use `join` to format lists
+- Use validation checks for required data
+</Tab>
+</Tabs>
+
+## Context in Task Types
+
+<Tabs items={["Basic Tasks", "Composite Tasks", "Parallel Tasks", "Router Tasks"]}>
+<Tab>
+**Basic Tasks** use context for simple operations:
+
+```yaml title="Basic Task Context"
 - id: api_request
   type: basic
   $use: tool(local::tools.#(id=="http_client"))
@@ -254,10 +331,12 @@ combined_data: |
       Content-Type: "application/json"
       X-Request-ID: "{{ .workflow.id }}"
 ```
+</Tab>
 
-### Composite Tasks
+<Tab>
+**Composite Tasks** chain context across multiple sub-tasks:
 
-```yaml
+```yaml title="Composite Task Context"
 - id: user_onboarding
   type: composite
   tasks:
@@ -280,10 +359,12 @@ combined_data: |
         user_name: "{{ .tasks.create_account.output.name }}"
         profile_url: "{{ printf '%s/profile/%s' .env.BASE_URL .tasks.create_account.output.user_id }}"
 ```
+</Tab>
 
-### Parallel Tasks
+<Tab>
+**Parallel Tasks** distribute context across concurrent operations:
 
-```yaml
+```yaml title="Parallel Task Context"
 - id: parallel_processing
   type: parallel
   strategy: wait_all
@@ -306,10 +387,12 @@ combined_data: |
         documents: "{{ .workflow.input.documents }}"
         format: "{{ .workflow.input.output_format | default 'pdf' }}"
 ```
+</Tab>
 
-### Router Tasks
+<Tab>
+**Router Tasks** use context for conditional logic:
 
-```yaml
+```yaml title="Router Task Context"
 - id: routing_logic
   type: router
   condition: |
@@ -339,119 +422,95 @@ combined_data: |
           user_data: "{{ .tasks.classify_user.output }}"
           priority: 1
 ```
-
-## Context Debugging
-
-### Inspect Available Context
-
-```yaml
-# Debug: Print entire context
-debug_context: "{{ . | toPrettyJson }}"
-
-# Debug: Print specific sections
-debug_workflow: "{{ .workflow | toPrettyJson }}"
-debug_tasks: "{{ .tasks | toPrettyJson }}"
-debug_env: "{{ .env | toPrettyJson }}"
-
-# Debug: List available keys
-available_tasks: "{{ keys .tasks | join ', ' }}"
-available_env: "{{ keys .env | join ', ' }}"
-```
-
-### Context Validation
-
-```yaml
-# Validate required context
-validation:
-  has_user_id: "{{ hasKey .workflow.input 'user_id' }}"
-  has_auth_token: "{{ hasKey .tasks.authenticate.output 'token' }}"
-  has_api_key: "{{ hasKey .env 'API_KEY' }}"
-  
-# Conditional execution based on context
-process_data: |
-  {{- if and 
-      (hasKey .workflow.input "data") 
-      (not (empty .workflow.input.data)) -}}
-    {{ .workflow.input.data | toJson }}
-  {{- else -}}
-    {}
-  {{- end -}}
-```
+</Tab>
+</Tabs>
 
 ## Best Practices
 
-### 1. Use Meaningful Variable Names
-
-```yaml
-# Good - descriptive access
-user_email: "{{ .tasks.get_user_profile.output.email }}"
-auth_token: "{{ .tasks.authenticate_user.output.access_token }}"
-
-# Avoid - unclear references
-data: "{{ .tasks.task1.output.data }}"
-result: "{{ .tasks.step2.output }}"
-```
-
-### 2. Provide Fallback Values
-
-```yaml
-# Always provide sensible defaults
-timeout: "{{ .workflow.config.timeout | default 30 }}"
-retries: "{{ .env.MAX_RETRIES | default 3 | int }}"
-user_name: "{{ .tasks.get_user.output.name | default 'Guest' }}"
-```
-
-### 3. Validate Context Before Use
-
-```yaml
-# Check existence before accessing nested data
-safe_access: |
-  {{- if and .tasks.api_call.output (hasKey .tasks.api_call.output "data") -}}
-    {{ .tasks.api_call.output.data.result }}
-  {{- else -}}
-    null
-  {{- end -}}
-```
-
-### 4. Use Type-Appropriate Conversions
-
-```yaml
-# Convert types as needed
-port_number: "{{ .env.PORT | default '3000' | int }}"
-debug_flag: "{{ .env.DEBUG | default 'false' | bool }}"
-timeout_float: "{{ .config.timeout | default '30.5' | float64 }}"
-```
-
-### 5. Document Complex Context Usage
-
-```yaml
-# Document complex context access patterns
-user_notification_config:
-  # User's preferred notification method from profile
-  method: "{{ .tasks.get_user_profile.output.notifications.method | default 'email' }}"
+<Steps>
+  <Step title="Use Meaningful Variable Names">
+    Always use descriptive names that clearly indicate what data you're accessing:
+    
+    ```yaml
+    # ✅ Good - descriptive access
+    user_email: "{{ .tasks.get_user_profile.output.email }}"
+    auth_token: "{{ .tasks.authenticate_user.output.access_token }}"
+    
+    # ❌ Avoid - unclear references
+    data: "{{ .tasks.task1.output.data }}"
+    result: "{{ .tasks.step2.output }}"
+    ```
+  </Step>
   
-  # Fallback to workflow input if profile incomplete
-  email: "{{ coalesce .tasks.get_user_profile.output.email .workflow.input.email }}"
+  <Step title="Provide Fallback Values">
+    Always provide sensible defaults to prevent template errors:
+    
+    ```yaml
+    # Always provide sensible defaults
+    timeout: "{{ .workflow.config.timeout | default 30 }}"
+    retries: "{{ .env.MAX_RETRIES | default 3 | int }}"
+    user_name: "{{ .tasks.get_user.output.name | default 'Guest' }}"
+    ```
+  </Step>
   
-  # Environment-based configuration
-  service_url: "{{ .env.NOTIFICATION_SERVICE_URL }}"
+  <Step title="Validate Context Before Use">
+    Check data existence before accessing nested structures:
+    
+    ```yaml
+    # Check existence before accessing nested data
+    safe_access: |
+      {{- if and .tasks.api_call.output (hasKey .tasks.api_call.output "data") -}}
+        {{ .tasks.api_call.output.data.result }}
+      {{- else -}}
+        null
+      {{- end -}}
+    ```
+  </Step>
   
-  # Dynamic content based on user type
-  template: |
-    {{- if eq .tasks.get_user_profile.output.type "premium" -}}
-      premium_notification
-    {{- else -}}
-      standard_notification
-    {{- end -}}
-```
+  <Step title="Use Type-Appropriate Conversions">
+    Convert data types as needed for proper processing:
+    
+    ```yaml
+    # Convert types as needed
+    port_number: "{{ .env.PORT | default '3000' | int }}"
+    debug_flag: "{{ .env.DEBUG | default 'false' | bool }}"
+    timeout_float: "{{ .config.timeout | default '30.5' | float64 }}"
+    ```
+  </Step>
+  
+  <Step title="Document Complex Context Usage">
+    Add comments to explain complex context access patterns:
+    
+    ```yaml
+    # Document complex context access patterns
+    user_notification_config:
+      # User's preferred notification method from profile
+      method: "{{ .tasks.get_user_profile.output.notifications.method | default 'email' }}"
+      
+      # Fallback to workflow input if profile incomplete
+      email: "{{ coalesce .tasks.get_user_profile.output.email .workflow.input.email }}"
+      
+      # Environment-based configuration
+      service_url: "{{ .env.NOTIFICATION_SERVICE_URL }}"
+      
+      # Dynamic content based on user type
+      template: |
+        {{- if eq .tasks.get_user_profile.output.type "premium" -}}
+          premium_notification
+        {{- else -}}
+          standard_notification
+        {{- end -}}
+    ```
+  </Step>
+</Steps>
 
 ## Integration Patterns
 
-### MCP Context Integration
+<Tabs items={["MCP Integration", "Memory Integration", "Multi-Agent Context", "Enterprise Patterns"]}>
+<Tab>
+**MCP (Model Context Protocol)** servers provide external context integration:
 
-MCP (Model Context Protocol) servers provide external context that can be integrated into workflows:
-
-```yaml
+```yaml title="MCP Context Integration"
 # MCP context variables
 agents:
   - id: file_agent
@@ -471,11 +530,16 @@ agents:
           Available tools: {{ keys .tools | join ", " }}
 ```
 
-### Memory Context Integration
+**MCP context patterns:**
+- Use MCP servers for external tool integration
+- Access MCP context through `.workflow` and `.tools`
+- Configure MCP transports and protocols
+</Tab>
 
-Memory references provide persistent context across workflow executions:
+<Tab>
+**Memory Integration** provides persistent context across workflow executions:
 
-```yaml
+```yaml title="Memory Context Integration"
 # Memory-backed context
 agents:
   - id: personalized_agent
@@ -492,11 +556,16 @@ agents:
       User preferences: {{.workflow.input.preferences | default "none"}}
 ```
 
-### Multi-Agent Context Sharing
+**Memory context patterns:**
+- Use memory for persistent user context
+- Key memory with user or session identifiers
+- Configure read-write or read-only memory access
+</Tab>
 
-Share context between multiple agents in complex workflows:
+<Tab>
+**Multi-Agent Context** enables sharing context between multiple agents:
 
-```yaml
+```yaml title="Multi-Agent Context Sharing"
 # Shared context across agents
 tasks:
   - id: analyze_data
@@ -521,40 +590,16 @@ tasks:
       user_preferences: "{{ .workflow.input.preferences }}"
 ```
 
-### Cross-Workflow Context Management
+**Multi-agent patterns:**
+- Pass context between agents via task outputs
+- Use global context for shared configuration
+- Structure context for different agent specializations
+</Tab>
 
-Manage context across different workflows using global values:
+<Tab>
+**Enterprise Patterns** handle complex organizational context:
 
-```yaml
-# Global context sharing
-tasks:
-  - id: set_global_context
-    type: basic
-    $use: tool(local::tools.#(id="context_manager"))
-    with:
-      # Set global values for other workflows
-      global_key: "session_{{ .workflow.id }}"
-      context_data:
-        user_id: "{{ .workflow.input.user_id }}"
-        session_start: "{{ now }}"
-        preferences: "{{ .workflow.input.preferences }}"
-        
-  - id: use_global_context
-    type: basic
-    $use: agent(local::agents.#(id="context_aware_agent"))
-    with:
-      # Access global context from other workflows
-      session_context: "{{ .global.session_context }}"
-      shared_data: "{{ .global.shared_data }}"
-      # Combine with local context
-      local_data: "{{ .workflow.input.data }}"
-```
-
-### Enterprise Context Patterns
-
-#### Tenant-Aware Context
-
-```yaml
+```yaml title="Enterprise Context Patterns"
 # Multi-tenant context management
 context_patterns:
   tenant_context:
@@ -573,163 +618,41 @@ tasks:
       data_isolation: "{{ .global.data_isolation[.workflow.input.tenant_id] }}"
 ```
 
-#### Audit Context Tracking
+**Enterprise context features:**
+- Multi-tenant context isolation
+- Hierarchical configuration management
+- Audit and compliance context tracking
+- Role-based context access control
+</Tab>
+</Tabs>
 
-```yaml
-# Audit and compliance context
-audit_context:
-  request_id: "{{ .workflow.id }}"
-  user_id: "{{ .workflow.input.user_id }}"
-  timestamp: "{{ now }}"
-  source_ip: "{{ .workflow.input.source_ip }}"
-  user_agent: "{{ .workflow.input.user_agent }}"
-  
-tasks:
-  - id: audited_operation
-    type: basic
-    $use: agent(local::agents.#(id="secure_agent"))
-    with:
-      # Include audit context in all operations
-      audit_trail:
-        request_id: "{{ .workflow.id }}"
-        user_id: "{{ .workflow.input.user_id }}"
-        timestamp: "{{ now }}"
-        operation: "data_processing"
-        compliance_level: "{{ .global.compliance_config.level }}"
-```
+## References
 
-#### Configuration Context Hierarchies
+<ReferenceCardList>
+  <ReferenceCard
+    title="Sprig Functions"
+    description="Transform and manipulate context data with powerful template functions"
+    href="/docs/core/yaml-templates/sprig-functions"
+    icon="Zap"
+  />
+  <ReferenceCard
+    title="Advanced Patterns"
+    description="Complex template techniques using context variables and advanced logic"
+    href="/docs/core/yaml-templates/advanced-patterns"
+    icon="Code"
+  />
+  <ReferenceCard
+    title="Validation & Debugging"
+    description="Troubleshoot template issues and ensure data quality"
+    href="/docs/core/yaml-templates/validation-debugging"
+    icon="Bug"
+  />
+  <ReferenceCard
+    title="Basic Tasks"
+    description="Learn how context variables work in basic task execution"
+    href="/docs/core/tasks/basic-tasks"
+    icon="Play"
+  />
+</ReferenceCardList>
 
-```yaml
-# Hierarchical configuration context
-config_hierarchy:
-  # System-level defaults
-  system_config: "{{ .global.system_config }}"
-  
-  # Environment-specific overrides
-  env_config: "{{ .global.env_configs[.env.ENVIRONMENT] }}"
-  
-  # Tenant-specific settings
-  tenant_config: "{{ .global.tenant_configs[.workflow.input.tenant_id] }}"
-  
-  # User-specific preferences
-  user_config: "{{ .workflow.input.user_preferences }}"
-  
-  # Final merged configuration
-  effective_config: |
-    {{- $base := .global.system_config -}}
-    {{- $env := .global.env_configs[.env.ENVIRONMENT] -}}
-    {{- $tenant := .global.tenant_configs[.workflow.input.tenant_id] -}}
-    {{- $user := .workflow.input.user_preferences -}}
-    {{- merge $base $env $tenant $user | toJson -}}
-```
-
-### Context Performance Optimization
-
-#### Context Caching Patterns
-
-```yaml
-# Cache frequently accessed context
-tasks:
-  - id: cache_context
-    type: basic
-    $use: tool(local::tools.#(id="context_cache"))
-    with:
-      cache_key: "user_context_{{ .workflow.input.user_id }}"
-      cache_ttl: 300  # 5 minutes
-      context_data:
-        user_profile: "{{ .tasks.get_user_profile.output }}"
-        preferences: "{{ .tasks.get_preferences.output }}"
-        permissions: "{{ .tasks.get_permissions.output }}"
-        
-  - id: use_cached_context
-    type: basic
-    $use: agent(local::agents.#(id="fast_agent"))
-    with:
-      # Use cached context for better performance
-      cached_context: "{{ .global.context_cache[printf "user_context_%s" .workflow.input.user_id] }}"
-      fresh_data: "{{ .workflow.input.data }}"
-```
-
-#### Lazy Context Loading
-
-```yaml
-# Load context only when needed
-tasks:
-  - id: conditional_context
-    type: router
-    condition: "{{ .workflow.input.requires_profile }}"
-    routes:
-      "true":
-        - id: load_full_context
-          type: basic
-          $use: tool(local::tools.#(id="profile_loader"))
-          with:
-            user_id: "{{ .workflow.input.user_id }}"
-            include_history: true
-            include_preferences: true
-      "false":
-        - id: minimal_context
-          type: basic
-          $use: tool(local::tools.#(id="minimal_loader"))
-          with:
-            user_id: "{{ .workflow.input.user_id }}"
-            minimal: true
-```
-
-### Context Security Patterns
-
-#### Sensitive Data Masking
-
-```yaml
-# Mask sensitive data in context
-tasks:
-  - id: secure_context
-    type: basic
-    $use: agent(local::agents.#(id="secure_agent"))
-    with:
-      # Mask sensitive fields
-      user_data:
-        id: "{{ .workflow.input.user_id }}"
-        email: "{{ .workflow.input.email | mask }}"
-        phone: "{{ .workflow.input.phone | mask }}"
-        # Keep non-sensitive data
-        name: "{{ .workflow.input.name }}"
-        timezone: "{{ .workflow.input.timezone }}"
-      # Sanitize for logging
-      log_context: |
-        {{- $sanitized := dict "user_id" .workflow.input.user_id "action" "processing" -}}
-        {{- $sanitized | toJson -}}
-```
-
-#### Context Access Control
-
-```yaml
-# Role-based context access
-tasks:
-  - id: role_based_context
-    type: basic
-    $use: agent(local::agents.#(id="rbac_agent"))
-    with:
-      # Context varies by user role
-      user_role: "{{ .workflow.input.user_role }}"
-      accessible_data: |
-        {{- if eq .workflow.input.user_role "admin" -}}
-          {{- .global.admin_context | toJson -}}
-        {{- else if eq .workflow.input.user_role "manager" -}}
-          {{- .global.manager_context | toJson -}}
-        {{- else -}}
-          {{- .global.user_context | toJson -}}
-        {{- end -}}
-      permissions: "{{ .global.role_permissions[.workflow.input.user_role] }}"
-```
-
-Context variables are the foundation of dynamic Compozy workflows. Understanding how to access and manipulate this data is essential for building dynamic templates.
-
-## Related Documentation
-
-- **[Sprig Functions](./sprig-functions)**: Transform and manipulate context data with powerful functions
-- **[Advanced Patterns](./advanced-patterns)**: Complex template techniques using context variables  
-- **[Security Functions](./sprig-functions#compozy-specific-security-functions)**: Safely handle user input and untrusted data
-- **[Performance Optimization](./sprig-functions#performance-optimization)**: Optimize template performance when working with large contexts
-- **[Validation and Debugging](./validation-debugging)**: Troubleshoot template issues and ensure data quality
+Context variables are the foundation of dynamic Compozy workflows. Understanding how to access and manipulate this data is essential for building powerful, data-driven templates.

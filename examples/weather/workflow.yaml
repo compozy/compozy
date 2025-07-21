@@ -19,12 +19,10 @@ config:
 tools:
   - id: weather_tool
     description: Get the current weather for a specific location
-    execute: ./weather_tool.ts
     input:
       $ref: local::schemas.#(id=="city_input")
   - id: save_data
     description: Save the weather data to a file
-    execute: ./save_tool.ts
 
 agents:
   - id: tourist_guide
@@ -157,7 +155,7 @@ tasks:
   - id: clothing_validation
     type: collection
     items: "{{ .tasks.clothing.output.save_data.clothing }}"
-    mode: parallel  # can be sequencial
+    mode: parallel # can be sequencial
     task:
       id: "validate-clothing-{{ .index }}"
       type: basic
@@ -238,10 +236,12 @@ outputs:
   analysis:
     activity_children: "{{ .tasks.activity_analysis.children }}"
     clothing_children: "{{ .tasks.clothing_validation.children }}"
-    first_activity_analysis: '{{ if .tasks.activity_analysis.children }}{{ if index .tasks.activity_analysis.children
+    first_activity_analysis:
+      '{{ if .tasks.activity_analysis.children }}{{ if index .tasks.activity_analysis.children
       "analyze-activity-0" }}{{ (index .tasks.activity_analysis.children "analyze-activity-0").output
       | toJson }}{{ else }}null{{ end }}{{ else }}null{{ end }}'
-    first_clothing_validation: '{{ if .tasks.clothing_validation.children }}{{ if index .tasks.clothing_validation.children
+    first_clothing_validation:
+      '{{ if .tasks.clothing_validation.children }}{{ if index .tasks.clothing_validation.children
       "validate-clothing-0" }}{{ (index .tasks.clothing_validation.children "validate-clothing-0").output
       | toJson }}{{ else }}null{{ end }}{{ else }}null{{ end }}'
   data_persistence:
@@ -252,9 +252,12 @@ outputs:
     total_tasks_completed: "{{ len .tasks }}"
     workflow_status: '{{ .status | default "completed" }}'
     collections_with_children:
-      activity_analysis_child_count: "{{ if .tasks.activity_analysis.children }}{{ len .tasks.activity_analysis.children\
+      activity_analysis_child_count:
+        "{{ if .tasks.activity_analysis.children }}{{ len .tasks.activity_analysis.children\
         \ }}{{ else }}0{{ end }}"
-      clothing_validation_child_count: "{{ if .tasks.clothing_validation.children }}{{ len .tasks.clothing_validation.children\
+      clothing_validation_child_count:
+        "{{ if .tasks.clothing_validation.children }}{{ len .tasks.clothing_validation.children\
         \ }}{{ else }}0{{ end }}"
-      composite_child_count: "{{ if .tasks.save_results.children }}{{ len .tasks.save_results.children\
+      composite_child_count:
+        "{{ if .tasks.save_results.children }}{{ len .tasks.save_results.children\
         \ }}{{ else }}0{{ end }}"

@@ -266,7 +266,7 @@ func TestMemoryRESTAPIWithRealWorkflow(t *testing.T) {
 	}
 
 	// Create base dependencies
-	baseDeps := appstate.NewBaseDeps(projectConfig, workflows, appStore, temporalConfig)
+	baseDeps := appstate.NewBaseDeps(projectConfig, workflows, appStore, temporalConfig, nil)
 
 	// Setup monitoring (disabled for testing)
 	monitoringService, _ := monitoring.NewMonitoringService(ctx, projectConfig.MonitoringConfig)
@@ -559,6 +559,7 @@ func setupWorker(
 		deps.ClientConfig,
 		deps.ProjectConfig,
 		deps.Workflows,
+		deps.AppConfig,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create worker: %w", err)

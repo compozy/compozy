@@ -1,68 +1,31 @@
 ---
-title: "Global Configuration"
+title: Global Configuration
 description: "Configure project-wide defaults and system-level settings that apply across all workflows, agents, and tools in your Compozy project."
 ---
 
-import {
-  Settings,
-  Server,
-  Database,
-  Clock,
-  Layers,
-  Zap,
-  Shield,
-  Memory,
-  Link2,
-  AlertCircle,
-  CheckCircle,
-  Info,
-  Terminal,
-  FileText,
-  Globe,
-  Lock,
-  Activity,
-  HardDrive,
-  Cpu,
-  Timer,
-  Users,
-  RefreshCw,
-  Eye,
-  Gauge,
-  Cloud,
-  Key,
-  Network,
-  BarChart3,
-  Wrench,
-  BookOpen,
-  ArrowRight,
-  Play,
-  Pause,
-} from "lucide-react";
-import { FeatureCard, FeatureCardList } from "@/components/ui/feature-card";
-
 Global configuration in Compozy defines system-wide settings that apply across all workflows, agents, and tools. This configuration layer provides the foundation for your entire Compozy installation, handling everything from server settings to database connections, runtime behavior, and system limits.
 
-## Configuration Architecture
+## Architecture
 
 <FeatureCardList cols={3} size="sm">
   <FeatureCard
     title="Hierarchical Sources"
     description="CLI flags override YAML files, which override environment variables, which override defaults"
-    icon={Layers}
+    icon="Layers"
   />
   <FeatureCard
     title="Environment First"
     description="Seamlessly deploy with environment variables for production settings"
-    icon={Globe}
+    icon="Globe"
   />
   <FeatureCard
     title="Type Safety"
     description="Full validation with helpful error messages and automatic type conversion"
-    icon={Shield}
+    icon="Shield"
   />
 </FeatureCardList>
 
-## Configuration Sources
+## Sources
 
 Compozy loads configuration from multiple sources in this precedence order:
 
@@ -121,7 +84,7 @@ Built-in defaults ensure Compozy works out-of-the-box for development.
 </Step>
 </Steps>
 
-## Configuration Categories
+## Categories
 
 ### Server Configuration
 
@@ -158,14 +121,7 @@ SERVER_TIMEOUT=30s
 </Tab>
 </Tabs>
 
-#### Server Configuration Reference
-
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `host` | string | `"0.0.0.0"` | IP address to bind the server to |
-| `port` | int | `5001` | Port number for the HTTP server |
-| `cors_enabled` | bool | `true` | Enable Cross-Origin Resource Sharing |
-| `timeout` | duration | `30s` | Request timeout for HTTP operations |
+For the complete server configuration schema and all available options, see the [Server Configuration Schema](/docs/schema/application#server).
 
 ### Database Configuration
 
@@ -207,17 +163,7 @@ DB_SSL_MODE=require
 </Tab>
 </Tabs>
 
-#### Database Configuration Reference
-
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `conn_string` | string | `""` | Complete PostgreSQL connection string |
-| `host` | string | `"localhost"` | Database server hostname |
-| `port` | string | `"5432"` | Database server port |
-| `user` | string | `"postgres"` | Database username |
-| `password` | string | `""` | Database password (use env vars) |
-| `name` | string | `"compozy"` | Database name |
-| `ssl_mode` | string | `"disable"` | SSL mode (disable, require, verify-full) |
+For the complete database configuration schema and all available options, see the [Database Configuration Schema](/docs/schema/application#database).
 
 ### Temporal Configuration
 
@@ -230,13 +176,7 @@ temporal:
   task_queue: "compozy-tasks"  # Task queue name
 ```
 
-#### Temporal Configuration Reference
-
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `host_port` | string | `"localhost:7233"` | Temporal server host and port |
-| `namespace` | string | `"default"` | Temporal namespace for isolation |
-| `task_queue` | string | `"compozy-tasks"` | Task queue for workflow execution |
+For the complete Temporal configuration schema and all available options, see the [Temporal Configuration Schema](/docs/schema/application#temporal).
 
 ### Runtime Configuration
 
@@ -253,17 +193,7 @@ runtime:
   async_token_counter_buffer_size: 100        # Token counter buffer
 ```
 
-#### Runtime Configuration Reference
-
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `environment` | string | `"development"` | Runtime environment (development, staging, production) |
-| `log_level` | string | `"info"` | Log level (debug, info, warn, error) |
-| `dispatcher_heartbeat_interval` | duration | `30s` | How often dispatchers send heartbeats |
-| `dispatcher_heartbeat_ttl` | duration | `90s` | How long heartbeats are valid |
-| `dispatcher_stale_threshold` | duration | `120s` | When to consider a dispatcher stale |
-| `async_token_counter_workers` | int | `4` | Number of async token counting workers |
-| `async_token_counter_buffer_size` | int | `100` | Buffer size for token counting queue |
+For the complete runtime configuration schema and all available options, see the [Runtime Configuration Schema](/docs/schema/application#runtime).
 
 ### System Limits
 
@@ -279,16 +209,7 @@ limits:
   parent_update_batch_size: 100   # Parent update batch size
 ```
 
-#### Limits Configuration Reference
-
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `max_nesting_depth` | int | `20` | Maximum depth for nested tasks |
-| `max_string_length` | int | `10485760` | Maximum string length in bytes (10MB) |
-| `max_message_content` | int | `10240` | Maximum message content in bytes (10KB) |
-| `max_total_content_size` | int | `102400` | Maximum total content size in bytes (100KB) |
-| `max_task_context_depth` | int | `5` | Maximum depth for task context |
-| `parent_update_batch_size` | int | `100` | Batch size for parent updates |
+For the complete limits configuration schema and all available options, see the [Limits Configuration Schema](/docs/schema/application#limits).
 
 ### OpenAI Configuration
 
@@ -302,14 +223,7 @@ openai:
   default_model: "gpt-4o-mini"              # Default model
 ```
 
-#### OpenAI Configuration Reference
-
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `api_key` | string | `""` | OpenAI API key (use environment variables) |
-| `base_url` | string | `""` | Custom OpenAI API endpoint |
-| `org_id` | string | `""` | OpenAI organization ID |
-| `default_model` | string | `""` | Default OpenAI model to use |
+For the complete OpenAI configuration schema and all available options, see the [OpenAI Configuration Schema](/docs/schema/application#openai).
 
 ### Memory Configuration
 
@@ -323,14 +237,7 @@ memory:
   max_entries: 10000                        # Maximum memory entries
 ```
 
-#### Memory Configuration Reference
-
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `redis_url` | string | `""` | Redis connection URL |
-| `redis_prefix` | string | `"compozy:"` | Prefix for Redis keys |
-| `ttl` | duration | `24h` | Time-to-live for memory entries |
-| `max_entries` | int | `10000` | Maximum number of memory entries |
+For the complete memory configuration schema and all available options, see the [Memory Configuration Schema](/docs/schema/application#memory).
 
 ### LLM Configuration
 
@@ -342,56 +249,95 @@ llm:
   admin_token: "{{ .env.MCP_ADMIN_TOKEN }}" # Admin token for MCP
 ```
 
-#### LLM Configuration Reference
+For the complete LLM configuration schema and all available options, see the [LLM Configuration Schema](/docs/schema/application#llm).
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `proxy_url` | string | `""` | URL for MCP proxy service |
-| `admin_token` | string | `""` | Admin token for MCP authentication |
+### CLI Configuration
 
-## Environment Variables
+Settings for command-line interface behavior and output formatting.
 
-### Complete Environment Variable Reference
+```yaml title="compozy.yaml"
+cli:
+  # Authentication
+  api_key: "{{ .env.COMPOZY_API_KEY }}"      # API key for authentication
+  base_url: "https://api.compozy.dev"        # API endpoint
+  server_url: "http://localhost:5001"        # Override for local development
+  timeout: 30s                               # Request timeout
 
-| Environment Variable | Config Path | Description |
-|---------------------|-------------|-------------|
-| `SERVER_HOST` | `server.host` | Server host address |
-| `SERVER_PORT` | `server.port` | Server port number |
-| `SERVER_CORS_ENABLED` | `server.cors_enabled` | Enable CORS |
-| `SERVER_TIMEOUT` | `server.timeout` | Request timeout |
-| `DB_HOST` | `database.host` | Database host |
-| `DB_PORT` | `database.port` | Database port |
-| `DB_USER` | `database.user` | Database username |
-| `DB_PASSWORD` | `database.password` | Database password |
-| `DB_NAME` | `database.name` | Database name |
-| `DB_SSL_MODE` | `database.ssl_mode` | Database SSL mode |
-| `DB_CONN_STRING` | `database.conn_string` | Complete connection string |
-| `TEMPORAL_HOST_PORT` | `temporal.host_port` | Temporal server address |
-| `TEMPORAL_NAMESPACE` | `temporal.namespace` | Temporal namespace |
-| `TEMPORAL_TASK_QUEUE` | `temporal.task_queue` | Temporal task queue |
-| `RUNTIME_ENVIRONMENT` | `runtime.environment` | Runtime environment |
-| `RUNTIME_LOG_LEVEL` | `runtime.log_level` | Log level |
-| `RUNTIME_DISPATCHER_HEARTBEAT_INTERVAL` | `runtime.dispatcher_heartbeat_interval` | Heartbeat interval |
-| `RUNTIME_DISPATCHER_HEARTBEAT_TTL` | `runtime.dispatcher_heartbeat_ttl` | Heartbeat TTL |
-| `RUNTIME_DISPATCHER_STALE_THRESHOLD` | `runtime.dispatcher_stale_threshold` | Stale threshold |
-| `RUNTIME_ASYNC_TOKEN_COUNTER_WORKERS` | `runtime.async_token_counter_workers` | Token counter workers |
-| `RUNTIME_ASYNC_TOKEN_COUNTER_BUFFER_SIZE` | `runtime.async_token_counter_buffer_size` | Token counter buffer size |
-| `LIMITS_MAX_NESTING_DEPTH` | `limits.max_nesting_depth` | Maximum nesting depth |
-| `LIMITS_MAX_STRING_LENGTH` | `limits.max_string_length` | Maximum string length |
-| `LIMITS_MAX_MESSAGE_CONTENT_LENGTH` | `limits.max_message_content` | Maximum message content |
-| `LIMITS_MAX_TOTAL_CONTENT_SIZE` | `limits.max_total_content_size` | Maximum total content size |
-| `LIMITS_MAX_TASK_CONTEXT_DEPTH` | `limits.max_task_context_depth` | Maximum task context depth |
-| `LIMITS_PARENT_UPDATE_BATCH_SIZE` | `limits.parent_update_batch_size` | Parent update batch size |
-| `OPENAI_API_KEY` | `openai.api_key` | OpenAI API key |
-| `OPENAI_BASE_URL` | `openai.base_url` | OpenAI base URL |
-| `OPENAI_ORG_ID` | `openai.org_id` | OpenAI organization ID |
-| `OPENAI_DEFAULT_MODEL` | `openai.default_model` | Default OpenAI model |
-| `MEMORY_REDIS_URL` | `memory.redis_url` | Redis connection URL |
-| `MEMORY_REDIS_PREFIX` | `memory.redis_prefix` | Redis key prefix |
-| `MEMORY_TTL` | `memory.ttl` | Memory entry TTL |
-| `MEMORY_MAX_ENTRIES` | `memory.max_entries` | Maximum memory entries |
-| `MCP_PROXY_URL` | `llm.proxy_url` | MCP proxy URL |
-| `MCP_ADMIN_TOKEN` | `llm.admin_token` | MCP admin token |
+  # Output and Display
+  default_format: "tui"                      # Output format (json, tui, auto)
+  color_mode: "auto"                         # Terminal color handling (auto, on, off)
+  page_size: 50                              # Results per page (1-1000)
+  no_color: false                            # Disable color output
+  
+  # Behavior
+  mode: "normal"                             # Execution mode (normal, batch, script)
+  debug: false                               # Debug logging
+  quiet: false                               # Suppress non-error output
+  interactive: true                          # Enable interactive prompts
+
+  # File and Directory Settings
+  config_file: "./compozy.yaml"              # Custom config file path
+  cwd: "."                                   # Override working directory
+  env_file: ".env"                           # Specify .env file
+```
+
+#### CLI Configuration Options
+
+**Authentication & Connection:**
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `api_key` | string | `""` | API key for authentication (use env vars) |
+| `base_url` | string | `"https://api.compozy.dev"` | API endpoint URL |
+| `server_url` | string | `""` | Override for local development server |
+| `timeout` | duration | `30s` | Maximum request timeout |
+
+**Output & Display:**
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `default_format` | string | `"tui"` | Default output format (json, tui, auto) |
+| `color_mode` | string | `"auto"` | Terminal color handling (auto, on, off) |
+| `page_size` | int | `50` | Results per page (range: 1-1000) |
+| `no_color` | bool | `false` | Disable all color output |
+
+**Behavior & Interaction:**
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `mode` | string | `"normal"` | Execution mode (normal, batch, script) |
+| `debug` | bool | `false` | Enable verbose debug logging |
+| `quiet` | bool | `false` | Suppress all non-error output |
+| `interactive` | bool | `true` | Enable interactive prompts |
+
+**File & Directory:**
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `config_file` | string | `"./compozy.yaml"` | Custom configuration file path |
+| `cwd` | string | `"."` | Override current working directory |
+| `env_file` | string | `".env"` | Environment variables file to load |
+
+For the complete CLI configuration schema and all available options, see the [CLI Configuration Schema](/docs/schema/application#cli).
+
+### Rate Limit Configuration
+
+Settings for API rate limiting and request throttling.
+
+```yaml title="compozy.yaml"
+ratelimit:
+  redis_addr: "localhost:6379"              # Redis server address
+  redis_password: "{{ .env.REDIS_PASSWORD }}" # Redis authentication
+  prefix: "ratelimit:"                      # Key prefix in Redis
+  global_rate:                              # System-wide rate limit
+    limit: 1000                             # Requests per period
+    period: 60s                             # Time period
+  api_key_rate:                             # Per API key rate limit
+    limit: 100                              # Requests per period
+    period: 60s                             # Time period
+```
+
+For the complete rate limit configuration schema and all available options, see the [Rate Limit Configuration Schema](/docs/schema/application#rate-limit).
 
 ## Configuration Validation
 
@@ -403,65 +349,44 @@ compozy config validate
 
 ### Common Validation Errors
 
-<Alert type="error">
+<Callout type="error">
 **Invalid port number**: Port must be between 1 and 65535
-</Alert>
+</Callout>
 
-<Alert type="error">
+<Callout type="error">
 **Invalid environment**: Environment must be one of: development, staging, production
-</Alert>
+</Callout>
 
-<Alert type="error">
+<Callout type="error">
 **Invalid log level**: Log level must be one of: debug, info, warn, error
-</Alert>
+</Callout>
 
-<Alert type="error">
+<Callout type="error">
 **Invalid SSL mode**: SSL mode must be one of: disable, require, verify-full
-</Alert>
+</Callout>
 
 ## Security Considerations
 
-### Sensitive Configuration
+Follow these best practices to help keep your application and sensitive data secure when configuring Compozy. Proper security measures reduce the risk of accidental exposure or unauthorized access to secrets and configuration files.
 
-Mark sensitive values using environment variables:
-
-```yaml title="compozy.yaml"
-database:
-  password: "{{ .env.DB_PASSWORD }}"
-
-openai:
-  api_key: "{{ .env.OPENAI_API_KEY }}"
-
-llm:
-  admin_token: "{{ .env.MCP_ADMIN_TOKEN }}"
-```
-
-### Configuration Security Best Practices
-
-<FeatureCardList cols={2} size="sm">
-  <FeatureCard
-    title="Use Environment Variables"
-    description="Store all secrets in environment variables, never in YAML files"
-    icon={Key}
-  />
-  <FeatureCard
-    title="File Permissions"
-    description="Restrict access to configuration files with proper file permissions"
-    icon={Lock}
-  />
-  <FeatureCard
-    title="Connection Security"
-    description="Use SSL/TLS for all database and external service connections"
-    icon={Shield}
-  />
-  <FeatureCard
-    title="Secrets Management"
-    description="Use external secrets management for production deployments"
-    icon={Eye}
-  />
-</FeatureCardList>
+<List size="sm">
+  <ListItem title="Use Environment Variables" icon="Key" >
+    Store all secrets in environment variables, never in YAML files
+  </ListItem>
+  <ListItem title="File Permissions" icon="Lock">
+    Restrict access to configuration files with proper file permissions
+  </ListItem>
+  <ListItem title="Connection Security" icon="Shield">
+    Use SSL/TLS for all database and external service connections
+  </ListItem>
+  <ListItem title="Secrets Management" icon="Eye">
+    Use external secrets management for production deployments
+  </ListItem>
+</List>
 
 ## Performance Tuning
+
+Fine-tuning your Compozy configuration can help you achieve optimal performance and simplify troubleshooting. The following sections provide guidance on adjusting key parameters and inspecting your configuration.
 
 ### Resource Optimization
 
@@ -476,17 +401,9 @@ limits:
   parent_update_batch_size: 200           # Larger batches for efficiency
 ```
 
-### Database Performance
+## Debugging
 
-```yaml title="compozy.yaml"
-database:
-  ssl_mode: "require"                     # Use SSL but not verify-full
-  # Connection pooling is handled automatically
-```
-
-## Configuration Debugging
-
-### View Current Configuration
+Compozy provides a comprehensive set of tools for inspecting and debugging your configuration. The following sections provide guidance on using these tools to troubleshoot issues and optimize your configuration.
 
 ```bash
 # Show all configuration values
@@ -499,127 +416,29 @@ compozy config show --format json
 compozy config show --format yaml
 ```
 
-### Configuration Diagnostics
-
-```bash
-# Run comprehensive diagnostics
-compozy config diagnostics
-
-# Verbose diagnostics with source details
-compozy config diagnostics --verbose
-
-# Validate configuration only
-compozy config validate
-```
-
-## Troubleshooting
-
-### Common Issues
-
-<Alert type="warning">
-**Configuration not loading**: Check file permissions and YAML syntax
-</Alert>
-
-<Alert type="warning">
-**Environment variables ignored**: Ensure exact variable names match the reference table
-</Alert>
-
-<Alert type="warning">
-**Database connection failed**: Verify database is running and credentials are correct
-</Alert>
-
-<Alert type="warning">
-**Temporal connection failed**: Ensure Temporal server is running on the specified port
-</Alert>
-
-### Debug Configuration Loading
-
-```bash
-# Run with debug logging
-compozy dev --debug
-
-# Validate configuration
-compozy config validate
-```
-
-## Examples
-
-### Development Environment
-
-```yaml title="compozy.yaml"
-server:
-  host: "0.0.0.0"
-  port: 5001
-  cors_enabled: true
-
-database:
-  host: "localhost"
-  port: "5432"
-  user: "compozy"
-  name: "compozy_dev"
-  ssl_mode: "disable"
-
-runtime:
-  environment: "development"
-  log_level: "debug"
-
-limits:
-  max_nesting_depth: 20
-  max_string_length: 10485760
-```
-
-### Production Environment
-
-```yaml title="compozy.yaml"
-server:
-  host: "0.0.0.0"
-  port: 5001
-  cors_enabled: false
-  timeout: 60s
-
-database:
-  conn_string: "{{ .env.DATABASE_URL }}"
-
-temporal:
-  host_port: "{{ .env.TEMPORAL_HOST_PORT }}"
-  namespace: "{{ .env.TEMPORAL_NAMESPACE }}"
-
-runtime:
-  environment: "production"
-  log_level: "info"
-  dispatcher_heartbeat_interval: 30s
-  dispatcher_heartbeat_ttl: 90s
-
-limits:
-  max_nesting_depth: 15
-  max_string_length: 5242880  # 5MB
-```
-
-## Related Documentation
-
 <ReferenceCardList>
   <ReferenceCard
     title="CLI Configuration"
     description="Command-line interface configuration and usage patterns"
     href="/docs/core/configuration/cli"
-    icon={Terminal}
+    icon="Terminal"
   />
   <ReferenceCard
     title="Project Setup"
     description="Initialize and configure your Compozy project"
     href="/docs/core/configuration/project-setup"
-    icon={Settings}
+    icon="Settings"
   />
   <ReferenceCard
     title="Environment Variables"
     description="Complete reference for environment variable configuration"
     href="/docs/core/reference/environment-variables"
-    icon={Globe}
+    icon="Globe"
   />
   <ReferenceCard
     title="Runtime Configuration"
     description="Runtime behavior and execution environment settings"
     href="/docs/core/configuration/runtime-config"
-    icon={Play}
+    icon="Play"
   />
 </ReferenceCardList>

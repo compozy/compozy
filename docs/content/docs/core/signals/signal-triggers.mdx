@@ -3,70 +3,6 @@ title: Signal Triggers
 description: Complete guide to signal-based workflow triggers and event-driven workflow initiation in Compozy
 ---
 
-import {
-  Zap,
-  Radio,
-  GitBranch,
-  Target,
-  Clock,
-  Filter,
-  Settings,
-  Play,
-  RefreshCw,
-  AlertCircle,
-  CheckCircle,
-  Users,
-  Globe,
-  ShieldCheck,
-  Database,
-  Activity,
-  Eye,
-  Link2,
-  BookOpen,
-  Code,
-  FileText,
-  Layers,
-  ArrowRightLeft,
-  Bell,
-  CloudLightning,
-  Timer,
-  Workflow,
-  MessageSquare,
-  Lock,
-  TrendingUp,
-  Boxes,
-  Network,
-  Route,
-  Cpu,
-  BarChart3,
-  Shield,
-  Rocket,
-  Package,
-  FileCode,
-  Terminal,
-  BrainCircuit,
-  Repeat,
-  Power,
-  Gauge,
-  CloudSun,
-  ShoppingCart,
-  CreditCard,
-  Truck,
-  AlertTriangle,
-  Server,
-  HardDrive,
-  Mail,
-  FileJson,
-  TestTube,
-  Wrench,
-  Lightbulb,
-  Star
-} from "lucide-react";
-import { FeatureCard, FeatureCardList } from "@/components/ui/feature-card";
-import { ReferenceCard, ReferenceCardList } from "@/components/ui/reference-card";
-
-# Signal Triggers
-
 Signal triggers enable **event-driven workflow initiation** in Compozy, allowing workflows to start automatically when specific signals are received. This enables reactive architectures, event-driven automation, and sophisticated workflow orchestration patterns.
 
 ## Overview
@@ -75,17 +11,17 @@ Signal triggers enable **event-driven workflow initiation** in Compozy, allowing
   <FeatureCard
     title="Event-Driven"
     description="Workflows start automatically when signals are received"
-    icon={Radio}
+    icon="Radio"
   />
   <FeatureCard
     title="Reactive Architecture"
     description="Build responsive systems that react to real-time events"
-    icon={Zap}
+    icon="Zap"
   />
   <FeatureCard
     title="Publish-Subscribe"
     description="Decouple signal publishers from workflow consumers"
-    icon={ArrowRightLeft}
+    icon="ArrowRightLeft"
   />
 </FeatureCardList>
 
@@ -97,7 +33,7 @@ graph TD
     B --> C[Signal Trigger]
     C --> D[Workflow Started]
     D --> E[Workflow Execution]
-    
+
     B -.-> F[Signal Payload]
     F -.-> C
     C -.-> G[Workflow Input]
@@ -155,16 +91,16 @@ tasks:
 ### Trigger Configuration Options
 
 <List>
-  <ListItem title="type" icon={Target}>
+  <ListItem title="type" icon="Target">
     **Required**: Must be `signal` for signal-based triggers
   </ListItem>
-  <ListItem title="name" icon={Bell}>
+  <ListItem title="name" icon="Bell">
     **Required**: Signal name to listen for (e.g., `"user-registered"`)
   </ListItem>
-  <ListItem title="condition" icon={Filter}>
+  <ListItem title="condition" icon="Filter">
     **Optional**: Filter condition to selectively trigger workflows
   </ListItem>
-  <ListItem title="timeout" icon={Clock}>
+  <ListItem title="timeout" icon="Clock">
     **Optional**: Timeout duration for trigger activation
   </ListItem>
 </List>
@@ -179,7 +115,7 @@ tasks:
 <FeatureCard
   title="Registration Workflow"
   description="Automatically process new user registrations with validation, profile creation, and notifications"
-  icon={Users}
+  icon="Users"
   size="sm"
 />
 
@@ -208,7 +144,7 @@ tasks:
       id: user-validator
     with:
       user_data: "{{ .workflow.input.registration_data }}"
-  
+
   - id: create-user-profile
     type: basic
     agent:
@@ -219,7 +155,7 @@ tasks:
       email: "{{ .workflow.input.email }}"
       validated_data: "{{ .tasks.validate-registration.output }}"
     depends_on: [validate-registration]
-  
+
   - id: send-welcome-email
     type: basic
     tool:
@@ -229,7 +165,7 @@ tasks:
       template: "welcome"
       user_name: "{{ .workflow.input.registration_data.name }}"
     depends_on: [create-user-profile]
-  
+
   - id: notify-admin
     type: signal
     signal:
@@ -249,7 +185,7 @@ tasks:
 <FeatureCard
   title="Order Processing"
   description="Automated order validation, payment processing, and fulfillment coordination"
-  icon={ShoppingCart}
+  icon="ShoppingCart"
   size="sm"
 />
 
@@ -284,7 +220,7 @@ tasks:
           id: inventory-checker
         with:
           items: "{{ .workflow.input.items }}"
-      
+
       - id: validate-payment
         type: basic
         tool:
@@ -292,7 +228,7 @@ tasks:
         with:
           customer_id: "{{ .workflow.input.customer_id }}"
           amount: "{{ .workflow.input.total_amount }}"
-      
+
       - id: validate-shipping
         type: basic
         tool:
@@ -300,7 +236,7 @@ tasks:
         with:
           order_id: "{{ .workflow.input.order_id }}"
           items: "{{ .workflow.input.items }}"
-  
+
   - id: process-payment
     type: basic
     tool:
@@ -310,7 +246,7 @@ tasks:
       amount: "{{ .workflow.input.total_amount }}"
       customer_id: "{{ .workflow.input.customer_id }}"
     depends_on: [validate-order]
-  
+
   - id: update-inventory
     type: basic
     tool:
@@ -319,7 +255,7 @@ tasks:
       items: "{{ .workflow.input.items }}"
       operation: "reserve"
     depends_on: [process-payment]
-  
+
   - id: trigger-fulfillment
     type: signal
     signal:
@@ -340,7 +276,7 @@ tasks:
 <FeatureCard
   title="Incident Response"
   description="Automated incident detection, assessment, and response coordination"
-  icon={AlertTriangle}
+  icon="AlertTriangle"
   size="sm"
 />
 
@@ -380,7 +316,7 @@ tasks:
     with:
       alert_data: "{{ .workflow.input }}"
       historical_context: "{{ .env.INCIDENT_HISTORY }}"
-  
+
   - id: immediate-response
     type: parallel
     strategy: best_effort
@@ -393,7 +329,7 @@ tasks:
           service: "{{ .workflow.input.service }}"
           scale_factor: "{{ .tasks.assess-incident.output.scaling_recommendation }}"
         condition: 'tasks.assess-incident.output.requires_scaling'
-      
+
       - id: restart-services
         type: basic
         tool:
@@ -401,7 +337,7 @@ tasks:
         with:
           services: "{{ .tasks.assess-incident.output.restart_targets }}"
         condition: 'tasks.assess-incident.output.requires_restart'
-      
+
       - id: notify-on-call
         type: basic
         tool:
@@ -412,7 +348,7 @@ tasks:
           message: "{{ .tasks.assess-incident.output.escalation_message }}"
         condition: 'tasks.assess-incident.output.requires_escalation'
     depends_on: [assess-incident]
-  
+
   - id: create-incident-record
     type: basic
     tool:
@@ -423,19 +359,19 @@ tasks:
       response_actions: "{{ .tasks.immediate-response.output }}"
       timestamp: "{{ now }}"
     depends_on: [immediate-response]
-  
+
   - id: monitor-resolution
     type: wait
     wait_for: "incident-resolved"
     timeout: 3600s  # 1 hour
     condition: 'signal.payload.incident_id == workflow.input.alert_id'
-    
+
     processor:
       type: basic
       with:
         resolution_data: "{{ .signal.payload }}"
     depends_on: [create-incident-record]
-  
+
   - id: post-incident-analysis
     type: basic
     agent:
@@ -458,12 +394,12 @@ tasks:
   <FeatureCard
     title="Signal Filtering"
     description="Use conditions to selectively trigger workflows based on signal content"
-    icon={Filter}
+    icon="Filter"
   />
   <FeatureCard
     title="Complex Logic"
     description="Combine multiple conditions with logical operators"
-    icon={GitBranch}
+    icon="GitBranch"
   />
 </FeatureCardList>
 
@@ -562,7 +498,7 @@ tasks:
             instructions: "Process user login activity"
           with:
             login_data: "{{ .workflow.input.activity_data }}"
-      
+
       user-purchase:
         - id: process-purchase
           type: basic
@@ -571,7 +507,7 @@ tasks:
             instructions: "Process user purchase activity"
           with:
             purchase_data: "{{ .workflow.input.activity_data }}"
-      
+
       user-logout:
         - id: process-logout
           type: basic
@@ -609,7 +545,7 @@ tasks:
           with:
             service: "{{ .workflow.input.service }}"
             config: "{{ .workflow.input.dev_config }}"
-      
+
       staging:
         - id: staging-deployment
           type: composite
@@ -620,7 +556,7 @@ tasks:
                 id: staging-deployer
               with:
                 service: "{{ .workflow.input.service }}"
-            
+
             - id: run-integration-tests
               type: basic
               tool:
@@ -629,7 +565,7 @@ tasks:
                 test_suite: "integration"
                 environment: "staging"
               depends_on: [deploy-to-staging]
-      
+
       production:
         - id: production-deployment
           type: composite
@@ -641,7 +577,7 @@ tasks:
               with:
                 service: "{{ .workflow.input.service }}"
                 environment: "production"
-            
+
             - id: blue-green-deployment
               type: basic
               tool:
@@ -650,7 +586,7 @@ tasks:
                 service: "{{ .workflow.input.service }}"
                 strategy: "blue-green"
               depends_on: [pre-deployment-checks]
-            
+
             - id: post-deployment-monitoring
               type: basic
               tool:
@@ -684,7 +620,7 @@ tasks:
     with:
       order_id: "{{ .workflow.input.order_id }}"
       items: "{{ .workflow.input.items }}"
-  
+
   - id: trigger-shipping
     type: signal
     signal:
@@ -693,7 +629,7 @@ tasks:
         order_id: "{{ .workflow.input.order_id }}"
         shipping_data: "{{ .tasks.prepare-shipping.output }}"
     depends_on: [prepare-shipping]
-  
+
   - id: trigger-invoice
     type: signal
     signal:
@@ -727,7 +663,7 @@ tasks:
     with:
       event_data: "{{ .workflow.input }}"
       aggregation_key: "{{ .workflow.input.date }}"
-  
+
   - id: check-daily-completion
     type: basic
     tool:
@@ -737,7 +673,7 @@ tasks:
       current_count: "{{ .tasks.collect-events.output.count }}"
       expected_count: "{{ .env.DAILY_EVENT_TARGET }}"
     depends_on: [collect-events]
-  
+
   - id: trigger-report
     type: signal
     signal:
@@ -771,7 +707,7 @@ tasks:
     with:
       trigger_data: "{{ .workflow.input }}"
       triggered_at: "{{ now }}"
-  
+
   outputs:
     trigger_successful: true
     input_received: "{{ .workflow.input }}"
@@ -795,7 +731,7 @@ tasks:
     type: basic
     with:
       test_data: "{{ .workflow.input }}"
-  
+
   - id: send-response-signal
     type: signal
     signal:
@@ -813,30 +749,30 @@ tasks:
   <FeatureCard
     title="Condition Filtering"
     description="Use specific conditions to reduce unnecessary workflow starts"
-    icon={Filter}
+    icon="Filter"
   />
   <FeatureCard
     title="Payload Optimization"
     description="Include only necessary data in signal payloads"
-    icon={Package}
+    icon="Package"
   />
   <FeatureCard
     title="Frequency Monitoring"
     description="Monitor trigger frequency to prevent system overload"
-    icon={BarChart3}
+    icon="BarChart3"
   />
 </FeatureCardList>
 
 ### Trigger Optimization
 
 <List>
-  <ListItem title="Use Specific Conditions" icon={Target}>
+  <ListItem title="Use Specific Conditions" icon="Target">
     Filter signals to reduce unnecessary workflow starts and improve performance
   </ListItem>
-  <ListItem title="Optimize Signal Payload" icon={Package}>
+  <ListItem title="Optimize Signal Payload" icon="Package">
     Include only necessary data to minimize memory usage and processing time
   </ListItem>
-  <ListItem title="Monitor Trigger Frequency" icon={Activity}>
+  <ListItem title="Monitor Trigger Frequency" icon="Activity">
     Avoid high-frequency triggers that could overwhelm the system
   </ListItem>
 </List>
@@ -890,23 +826,23 @@ tasks:
   <FeatureCard
     title="Clear Naming"
     description="Use consistent, descriptive signal names that indicate purpose"
-    icon={FileText}
+    icon="FileText"
   />
   <FeatureCard
     title="Condition Design"
     description="Write maintainable conditions with clear logic"
-    icon={Code}
+    icon="Code"
   />
   <FeatureCard
     title="Error Handling"
     description="Plan for signal processing failures with proper recovery"
-    icon={Shield}
+    icon="Shield"
   />
 </FeatureCardList>
 
 ### 1. Signal Naming
 
-<Callout type="tip">
+<Callout type="info">
 Use consistent, descriptive signal names that clearly indicate the event type and context.
 </Callout>
 
@@ -971,12 +907,12 @@ tasks:
     type: basic
     with:
       event_data: "{{ .workflow.input }}"
-    
+
     on_error: handle-processing-error
     retry:
       max_attempts: 3
       backoff: exponential
-  
+
   - id: handle-processing-error
     type: basic
     agent:
@@ -987,60 +923,53 @@ tasks:
       original_input: "{{ .workflow.input }}"
 ```
 
-## Next Steps
-
 <ReferenceCardList>
   <ReferenceCard
     title="Signal Tasks"
     description="Learn how to send signals from within workflows to trigger other workflows"
     href="/docs/core/signals/signal-tasks"
-    icon={Zap}
+    icon="Zap"
   />
   <ReferenceCard
     title="Wait Tasks"
     description="Explore how tasks can wait for specific signals before continuing execution"
     href="/docs/core/signals/wait-tasks"
-    icon={Timer}
+    icon="Timer"
   />
   <ReferenceCard
     title="Event API"
     description="Discover programmatic access to signals for external integrations"
     href="/docs/core/signals/event-api"
-    icon={Code}
+    icon="Code"
   />
   <ReferenceCard
     title="Advanced Patterns"
     description="Study complex signal orchestration patterns and best practices"
     href="/docs/core/signals/advanced-patterns"
-    icon={Layers}
+    icon="Layers"
   />
-</ReferenceCardList>
-
-### Related Documentation
-
-<ReferenceCardList>
   <ReferenceCard
     title="Signal Overview"
     description="Understand the fundamental concepts of Compozy's signal system"
     href="/docs/core/signals/signal-overview"
-    icon={BookOpen}
+    icon="BookOpen"
   />
   <ReferenceCard
     title="Workflow Configuration"
     description="Learn more about workflow configuration and trigger setup"
     href="/docs/core/configuration/workflows"
-    icon={Settings}
+    icon="Settings"
   />
   <ReferenceCard
     title="Basic Tasks"
     description="Master the fundamental building blocks of workflow execution"
     href="/docs/core/tasks/basic-tasks"
-    icon={Play}
+    icon="Play"
   />
   <ReferenceCard
     title="Agent Integration"
     description="Discover how to integrate AI agents with signal-triggered workflows"
     href="/docs/core/agents/overview"
-    icon={BrainCircuit}
+    icon="BrainCircuit"
   />
 </ReferenceCardList>

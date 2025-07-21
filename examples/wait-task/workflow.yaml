@@ -19,7 +19,6 @@ config:
 tools:
   - id: echo_tool
     description: Simple echo tool for testing
-    execute: ./echo_tool.ts
     input:
       type: object
       properties:

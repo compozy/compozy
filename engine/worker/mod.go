@@ -75,6 +75,7 @@ type Worker struct {
 	mcpRegister   *mcp.RegisterService
 	dispatcherID  string // Track dispatcher ID for cleanup
 	serverID      string // Server ID for this worker instance
+	appConfig     *config.Config
 
 	// Memory management
 	memoryManager  *memory.Manager
@@ -150,6 +151,7 @@ func NewWorker(
 	clientConfig *TemporalConfig,
 	projectConfig *project.Config,
 	workflows []*wf.Config,
+	appConfig *config.Config,
 ) (*Worker, error) {
 	log := logger.FromContext(ctx)
 	workerStart := time.Now()
@@ -215,6 +217,7 @@ func NewWorker(
 		templateEngine:  templateEngine,
 		lifecycleCtx:    lifecycleCtx,
 		lifecycleCancel: lifecycleCancel,
+		appConfig:       appConfig,
 	}, nil
 }
 
@@ -436,7 +439,7 @@ func (o *Worker) Setup(_ context.Context) error {
 	monitoring.RegisterDispatcher(
 		context.Background(),
 		o.dispatcherID,
-		time.Duration(o.projectConfig.Opts.DispatcherStaleThreshold)*time.Second,
+		o.config.AppConfig.Runtime.DispatcherStaleThreshold,
 	)
 	// Ensure dispatcher is running with independent lifecycle context
 	go o.ensureDispatcherRunning(o.lifecycleCtx)
@@ -596,7 +599,7 @@ func (o *Worker) HealthCheck(ctx context.Context) error {
 	// Check dispatcher health by verifying recent heartbeat
 	if o.dispatcherID != "" && o.activities != nil {
 		input := &wkacts.ListActiveDispatchersInput{
-			StaleThreshold: time.Duration(o.projectConfig.Opts.DispatcherStaleThreshold) * time.Second,
+			StaleThreshold: o.config.AppConfig.Runtime.DispatcherStaleThreshold,
 		}
 		output, err := o.activities.ListActiveDispatchers(ctx, input)
 		if err != nil {
@@ -690,6 +693,7 @@ func (o *Worker) TriggerWorkflow(
 		options,
 		CompozyWorkflow,
 		workflowInput,
+		o.appConfig,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start workflow: %w", err)

@@ -1,82 +1,37 @@
 ---
-title: "Provider Configuration"
-description: "Configure LLM providers for unified AI agent interactions"
+title: Providers
+description: Configure LLM providers to enable AI agents to interact with various language models. Compozy supports 8 providers with distinct capabilities and configuration requirements.
 ---
 
-import {
-  Bot,
-  Key,
-  Cloud,
-  Shield,
-  Globe,
-  Zap,
-  Settings,
-  Database,
-  Lock,
-  Activity,
-  CheckCircle,
-  AlertCircle,
-  Code,
-  Users,
-  BrainCircuit,
-  Package,
-  Eye,
-  Terminal,
-  RefreshCw,
-  ArrowRightLeft,
-  Layers,
-  FileText,
-  Workflow,
-  HardDrive,
-  Info,
-  X,
-  Check,
-  ChevronRight,
-  Gauge,
-  Clock,
-  Wrench,
-  Cpu,
-  Rocket,
-} from "lucide-react"
-
-# Provider Configuration
-
-Configure LLM providers to enable AI agents to interact with various language models through a unified interface. Compozy supports multiple providers with automatic failover and load balancing.
+<Callout type="info">
+**Schema Reference**: For the most up-to-date and complete provider configuration schema, see the [Provider Schema Documentation](/docs/schema/provider). The schema contains all available properties, validation rules, and provider-specific requirements.
+</Callout>
 
 ## Supported Providers
 
-<FeatureCardList cols={3} size="sm">
-  <FeatureCard
-    title="OpenAI"
-    description="GPT-4, GPT-3.5, and other OpenAI models"
-    icon={Bot}
-  />
-  <FeatureCard
-    title="Anthropic"
-    description="Claude 3 family models for advanced reasoning"
-    icon={BrainCircuit}
-  />
-  <FeatureCard
-    title="Google"
-    description="Gemini Pro and other Google AI models"
-    icon={Globe}
-  />
-  <FeatureCard
-    title="Azure OpenAI"
-    description="Enterprise OpenAI models through Azure"
-    icon={Cloud}
-  />
-  <FeatureCard
-    title="Custom Providers"
-    description="OpenAI-compatible API endpoints"
-    icon={Code}
-  />
-  <FeatureCard
-    title="Local Models"
-    description="Self-hosted models via Ollama or vLLM"
-    icon={HardDrive}
-  />
-</FeatureCardList>
+<List>
+  <ListItem title="OpenAI">
+    GPT-4, GPT-3.5, and other OpenAI models
+  </ListItem>
+  <ListItem title="Anthropic">
+    Claude 3 family models for advanced reasoning
+  </ListItem>
+  <ListItem title="Google">
+    Gemini Pro and other Google AI models
+  </ListItem>
+  <ListItem title="Groq">
+    Fast inference platform with OpenAI-compatible API
+  </ListItem>
+  <ListItem title="Ollama">
+    Local model hosting for self-hosted models
+  </ListItem>
+  <ListItem title="DeepSeek">
+    DeepSeek AI models with OpenAI-compatible API
+  </ListItem>
+  <ListItem title="xAI">
+    Grok models with OpenAI-compatible API
+  </ListItem>
+</List>
 
 ## Basic Configuration
 
@@ -97,9 +52,44 @@ models:
     api_key: "{{ .env.GOOGLE_API_KEY }}"
 ```
 
+## Configuration Reference
+
+### Core Properties
+
+All providers support these core configuration properties. For the complete schema definition with all available fields and validation rules, see the [Provider Schema Documentation](/docs/schema/provider).
+
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+| `provider` | string | ✅ | Provider name (see supported providers above) |
+| `model` | string | ✅ | Model identifier - any valid model string for the provider |
+| `api_key` | string | ⚠️ | API key for authentication (required for cloud providers) |
+| `api_url` | string | ❌ | Custom API endpoint URL |
+| `organization` | string | ❌ | Organization ID (OpenAI only) |
+| `params` | object | ❌ | Generation parameters (temperature, max_tokens, etc.) |
+
+### Parameter Support
+
+Parameters are specified in the `params` object. The available parameters vary by provider - consult the [Provider Schema Documentation](/docs/schema/provider) for provider-specific parameter schemas:
+
+```yaml
+models:
+  - provider: openai
+    model: gpt-4
+    api_key: "{{ .env.OPENAI_API_KEY }}"
+    params:
+      temperature: 0.7
+      max_tokens: 4000
+      top_p: 0.9
+      seed: 42
+```
+
+<Callout type="warning">
+**Parameter Compatibility**: Not all parameters are supported by all providers. Unsupported parameters are either ignored or cause configuration errors depending on the provider. Check the [Provider Schema Documentation](/docs/schema/provider) for detailed parameter compatibility.
+</Callout>
+
 ## Provider-Specific Configuration
 
-<Tabs items={["OpenAI", "Anthropic", "Google", "Azure", "Custom"]}>
+<Tabs items={["OpenAI", "Anthropic", "Google", "Groq", "Ollama", "DeepSeek", "xAI"]}>
   <Tab>
     **OpenAI Configuration**
 
@@ -108,19 +98,26 @@ models:
       - provider: openai
         model: gpt-4
         api_key: "{{ .env.OPENAI_API_KEY }}"
-        base_url: "https://api.openai.com/v1"  # Optional
         organization: "org-123"                # Optional
-        temperature: 0.7                       # Optional
-        max_tokens: 4000                      # Optional
-        timeout: 30                           # Optional (seconds)
-        retries: 3                            # Optional
+        params:
+          temperature: 0.7
+          max_tokens: 4000
+          top_p: 0.9
+          seed: 42
     ```
 
-    **Supported Models:**
+    **Model Support:**
+    Any valid OpenAI model string is supported. Popular models include:
     - `gpt-4` - Most capable model
     - `gpt-4-turbo` - Faster GPT-4 variant
     - `gpt-3.5-turbo` - Faster, cheaper option
     - `gpt-4o` - Multimodal capabilities
+    - And any other model available in your OpenAI account
+
+    **Error Conditions:**
+    - ✅ All configuration options supported
+    - ✅ Organization parameter supported
+    - ✅ Custom API URL supported
   </Tab>
 
   <Tab>
@@ -131,17 +128,21 @@ models:
       - provider: anthropic
         model: claude-3-5-sonnet-20241022
         api_key: "{{ .env.ANTHROPIC_API_KEY }}"
-        base_url: "https://api.anthropic.com"  # Optional
-        max_tokens: 4000                      # Optional
-        temperature: 0.7                       # Optional
-        timeout: 30                           # Optional (seconds)
-        retries: 3                            # Optional
+        params:
+          temperature: 0.7
+          max_tokens: 4000
     ```
 
-    **Supported Models:**
+    **Model Support:**
+    Any valid Anthropic model string is supported. Popular models include:
     - `claude-3-5-sonnet-20241022` - Latest Claude 3.5 Sonnet
     - `claude-3-opus-20240229` - Most capable Claude 3
     - `claude-3-haiku-20240307` - Fastest Claude 3
+    - And any other model available in your Anthropic account
+
+    **Error Conditions:**
+    - ⚠️ **`organization` parameter causes error** - Do not use
+    - ⚠️ **Custom `api_url` not supported** - Uses fixed endpoint
   </Tab>
 
   <Tab>
@@ -152,126 +153,120 @@ models:
       - provider: google
         model: gemini-pro
         api_key: "{{ .env.GOOGLE_API_KEY }}"
-        base_url: "https://generativelanguage.googleapis.com"  # Optional
-        temperature: 0.7                       # Optional
-        max_tokens: 4000                      # Optional
-        timeout: 30                           # Optional (seconds)
-        retries: 3                            # Optional
+        params:
+          temperature: 0.7
+          max_tokens: 4000
+          top_k: 40
+          top_p: 0.95
     ```
 
-    **Supported Models:**
+    **Model Support:**
+    Any valid Google AI model string is supported. Popular models include:
     - `gemini-pro` - Most capable Gemini model
     - `gemini-pro-vision` - Multimodal capabilities
     - `gemini-1.5-pro` - Latest Gemini version
+    - And any other model available in your Google AI account
+
+    **Error Conditions:**
+    - ⚠️ **`organization` parameter causes error** - Do not use
+    - ⚠️ **Custom `api_url` causes error** - Uses fixed endpoint
   </Tab>
 
   <Tab>
-    **Azure OpenAI Configuration**
+    **Groq Configuration**
 
     ```yaml
     models:
-      - provider: azure
-        model: gpt-4
-        api_key: "{{ .env.AZURE_OPENAI_API_KEY }}"
-        base_url: "https://your-resource.openai.azure.com"
-        deployment_name: "gpt-4-deployment"   # Required
-        api_version: "2023-12-01-preview"     # Optional
-        temperature: 0.7                       # Optional
-        max_tokens: 4000                      # Optional
-        timeout: 30                           # Optional (seconds)
-        retries: 3                            # Optional
+      - provider: groq
+        model: llama3-8b-8192
+        api_key: "{{ .env.GROQ_API_KEY }}"
+        api_url: "https://api.groq.com/openai/v1"  # Optional
+        organization: "org-123"                    # Optional
+        params:
+          temperature: 0.7
+          max_tokens: 4000
     ```
+
+    **Implementation:** OpenAI-compatible API
+    **Default API URL:** `https://api.groq.com/openai/v1`
+    **Error Conditions:**
+    - ✅ All configuration options supported
+    - ✅ Organization parameter supported
+    - ✅ Custom API URL supported
   </Tab>
 
   <Tab>
-    **Custom Provider Configuration**
+    **Ollama Configuration**
 
     ```yaml
     models:
-      - provider: custom
-        model: custom-model
-        api_key: "{{ .env.CUSTOM_API_KEY }}"
-        base_url: "https://api.custom-provider.com/v1"
-        headers:                              # Optional
-          "Custom-Header": "value"
-        temperature: 0.7                       # Optional
-        max_tokens: 4000                      # Optional
-        timeout: 30                           # Optional (seconds)
-        retries: 3                            # Optional
+      - provider: ollama
+        model: llama2:13b
+        api_url: "http://localhost:11434"      # Required for custom host
+        params:
+          temperature: 0.8
+          repetition_penalty: 1.1
     ```
+
+    **Local Setup Required:** Ollama must be running locally or on specified host
+    **Default API URL:** `http://localhost:11434`
+    **Error Conditions:**
+    - ❌ API key not required
+    - ⚠️ **`organization` parameter causes error** - Do not use
+    - ✅ Custom API URL supported
+  </Tab>
+
+  <Tab>
+    **DeepSeek Configuration**
+
+    ```yaml
+    models:
+      - provider: deepseek
+        model: deepseek-chat
+        api_key: "{{ .env.DEEPSEEK_API_KEY }}"
+        api_url: "https://api.deepseek.com/v1"  # Optional
+        organization: "org-123"                 # Optional
+        params:
+          temperature: 0.7
+          max_tokens: 4000
+    ```
+
+    **Implementation:** OpenAI-compatible API
+    **Default API URL:** `https://api.deepseek.com/v1`
+    **Error Conditions:**
+    - ✅ All configuration options supported
+    - ✅ Organization parameter supported
+    - ✅ Custom API URL supported
+  </Tab>
+
+  <Tab>
+    **xAI Configuration**
+
+    ```yaml
+    models:
+      - provider: xai
+        model: grok-beta
+        api_key: "{{ .env.XAI_API_KEY }}"
+        api_url: "https://api.x.ai/v1"          # Optional
+        organization: "org-123"                 # Optional
+        params:
+          temperature: 0.7
+          max_tokens: 4000
+    ```
+
+    **Implementation:** OpenAI-compatible API
+    **Default API URL:** `https://api.x.ai/v1`
+    **Error Conditions:**
+    - ✅ All configuration options supported
+    - ✅ Organization parameter supported
+    - ✅ Custom API URL supported
   </Tab>
 </Tabs>
-
-## Advanced Features
-
-### Load Balancing
-
-Distribute requests across multiple providers for better performance:
-
-```yaml
-models:
-  - provider: openai
-    model: gpt-4
-    api_key: "{{ .env.OPENAI_API_KEY }}"
-    weight: 70    # 70% of requests
-
-  - provider: anthropic
-    model: claude-3-5-sonnet-20241022
-    api_key: "{{ .env.ANTHROPIC_API_KEY }}"
-    weight: 30    # 30% of requests
-```
-
-### Failover Configuration
-
-Automatic failover to backup providers when primary fails:
-
-```yaml
-models:
-  - provider: openai
-    model: gpt-4
-    api_key: "{{ .env.OPENAI_API_KEY }}"
-    priority: 1   # Primary provider
-
-  - provider: anthropic
-    model: claude-3-5-sonnet-20241022
-    api_key: "{{ .env.ANTHROPIC_API_KEY }}"
-    priority: 2   # Backup provider
-```
-
-### Rate Limiting
-
-Configure rate limits to avoid API quota exhaustion:
-
-```yaml
-models:
-  - provider: openai
-    model: gpt-4
-    api_key: "{{ .env.OPENAI_API_KEY }}"
-    rate_limit:
-      requests_per_minute: 100
-      tokens_per_minute: 150000
-      concurrent_requests: 10
-```
-
-### Provider-Specific Agent Assignment
-
-Assign specific providers to agents:
-
-```yaml
-agents:
-  - name: researcher
-    provider: anthropic      # Use Claude for research
-    model: claude-3-5-sonnet-20241022
-
-  - name: writer
-    provider: openai         # Use GPT-4 for writing
-    model: gpt-4
-```
 
 ## Environment Variables
 
 <Callout type="info">
-Store API keys and sensitive configuration in environment variables, never in configuration files.
+Store API keys in environment variables, never in configuration files.
 </Callout>
 
 ```bash
@@ -279,239 +274,82 @@ Store API keys and sensitive configuration in environment variables, never in co
 OPENAI_API_KEY=sk-...
 ANTHROPIC_API_KEY=sk-ant-...
 GOOGLE_API_KEY=AIza...
-AZURE_OPENAI_API_KEY=...
-CUSTOM_API_KEY=...
+GROQ_API_KEY=gsk_...
+DEEPSEEK_API_KEY=sk-...
+XAI_API_KEY=xai-...
 ```
 
 ## Security Best Practices
 
 <List>
-  <ListItem title="API Key Management" icon={Key}>
+  <ListItem title="API Key Management" icon="Key">
     Use environment variables for API keys and rotate them regularly
   </ListItem>
-  <ListItem title="Network Security" icon={Shield}>
+  <ListItem title="Network Security" icon="Shield">
     Use HTTPS endpoints and verify SSL certificates
   </ListItem>
-  <ListItem title="Access Control" icon={Lock}>
+  <ListItem title="Access Control" icon="Lock">
     Implement proper authentication and authorization
   </ListItem>
-  <ListItem title="Request Validation" icon={CheckCircle}>
+  <ListItem title="Input Validation" icon="CheckCircle">
     Validate and sanitize all inputs before sending to providers
   </ListItem>
-  <ListItem title="Monitoring" icon={Activity}>
-    Monitor API usage and set up alerts for unusual patterns
+  <ListItem title="Error Handling" icon="AlertTriangle">
+    Handle provider errors gracefully and avoid exposing sensitive information
   </ListItem>
 </List>
 
-## Monitoring and Debugging
+## Multiple Provider Configuration
 
-### Enable Request Logging
-
-```yaml
-config:
-  logging:
-    level: info
-    providers:
-      log_requests: true
-      log_responses: false    # Avoid logging sensitive data
-      log_errors: true
-```
-
-### Health Checks
-
-Monitor provider availability:
+You can configure multiple providers and models:
 
 ```yaml
 models:
+  # Primary provider
   - provider: openai
     model: gpt-4
     api_key: "{{ .env.OPENAI_API_KEY }}"
-    health_check:
-      enabled: true
-      interval: 60          # Check every 60 seconds
-      timeout: 10           # Timeout after 10 seconds
-      retries: 3
+    params:
+      temperature: 0.7
+
+  # Alternative provider
+  - provider: anthropic
+    model: claude-3-5-sonnet-20241022
+    api_key: "{{ .env.ANTHROPIC_API_KEY }}"
+    params:
+      temperature: 0.5
+
+  # Local provider for development
+  - provider: ollama
+    model: llama2:7b
+    api_url: "http://localhost:11434"
+    params:
+      temperature: 0.8
 ```
 
-### Metrics Collection
-
-Track provider performance:
-
-```yaml
-config:
-  metrics:
-    providers:
-      collect_latency: true
-      collect_tokens: true
-      collect_errors: true
-      collect_costs: true   # Estimate costs based on usage
-```
-
-## Cost Optimization
-
-<FeatureCardList cols={2}>
-  <FeatureCard
-    title="Model Selection"
-    description="Choose appropriate models for different tasks"
-    icon={Gauge}
+<ReferenceCardList>
+  <ReferenceCard
+    title="Global Configuration"
+    description="Configure system-wide settings and application defaults"
+    href="/docs/core/configuration/global"
+    icon="Settings"
   />
-  <FeatureCard
-    title="Caching"
-    description="Cache responses to reduce API calls"
-    icon={Database}
+  <ReferenceCard
+    title="Runtime Configuration"
+    description="Set up execution environments and tool runtime settings"
+    href="/docs/core/configuration/runtime-config"
+    icon="Play"
   />
-  <FeatureCard
-    title="Request Optimization"
-    description="Optimize prompts and context length"
-    icon={Zap}
+  <ReferenceCard
+    title="Agent Configuration"
+    description="Configure AI agents and their behavior"
+    href="/docs/core/agents/overview"
+    icon="Bot"
   />
-  <FeatureCard
-    title="Usage Monitoring"
-    description="Track and analyze API usage patterns"
-    icon={Activity}
+  <ReferenceCard
+    title="Workflow Configuration"
+    description="Define workflow orchestration and task management"
+    href="/docs/core/configuration/workflows"
+    icon="Workflow"
   />
-</FeatureCardList>
-
-### Cost-Aware Configuration
-
-```yaml
-models:
-  - provider: openai
-    model: gpt-3.5-turbo    # Cheaper for simple tasks
-    api_key: "{{ .env.OPENAI_API_KEY }}"
-    use_cases: ["simple_qa", "formatting"]
-
-  - provider: openai
-    model: gpt-4            # Premium for complex tasks
-    api_key: "{{ .env.OPENAI_API_KEY }}"
-    use_cases: ["analysis", "reasoning"]
-```
-
-## Testing Configuration
-
-Validate your provider setup:
-
-```bash
-# Test provider connectivity
-compozy test providers
-
-# Test specific provider
-compozy test providers --provider openai
-
-# Test with sample request
-compozy test providers --sample-request "Hello, world!"
-```
-
-## Common Issues and Solutions
-
-<Tabs items={["Authentication", "Network", "Rate Limits", "Timeouts"]}>
-  <Tab>
-    **Authentication Errors**
-
-    ```bash
-    # Check API key format
-    echo $OPENAI_API_KEY
-
-    # Test authentication
-    curl -H "Authorization: Bearer $OPENAI_API_KEY" \
-         https://api.openai.com/v1/models
-    ```
-
-    Common solutions:
-    - Verify API key format and permissions
-    - Check for expired or revoked keys
-    - Ensure proper environment variable loading
-  </Tab>
-
-  <Tab>
-    **Network Issues**
-
-    ```yaml
-    models:
-      - provider: openai
-        model: gpt-4
-        api_key: "{{ .env.OPENAI_API_KEY }}"
-        timeout: 60           # Increase timeout
-        retries: 5            # More retries
-        base_url: "https://api.openai.com/v1"  # Verify URL
-    ```
-  </Tab>
-
-  <Tab>
-    **Rate Limit Handling**
-
-    ```yaml
-    models:
-      - provider: openai
-        model: gpt-4
-        api_key: "{{ .env.OPENAI_API_KEY }}"
-        rate_limit:
-          requests_per_minute: 50    # Conservative limit
-          backoff_strategy: exponential
-          max_backoff: 60            # Max wait time
-    ```
-  </Tab>
-
-  <Tab>
-    **Timeout Configuration**
-
-    ```yaml
-    models:
-      - provider: openai
-        model: gpt-4
-        api_key: "{{ .env.OPENAI_API_KEY }}"
-        timeout: 120          # 2 minutes for complex requests
-        read_timeout: 60      # Separate read timeout
-        connect_timeout: 30   # Connection timeout
-    ```
-  </Tab>
-</Tabs>
-
-## Migration Guide
-
-Moving from single provider to multi-provider setup:
-
-<Steps numbered>
-  <Step title="Add New Provider" description="Configure additional provider">
-    ```yaml
-    models:
-      # Existing provider
-      - provider: openai
-        model: gpt-4
-        api_key: "{{ .env.OPENAI_API_KEY }}"
-
-      # New provider
-      - provider: anthropic
-        model: claude-3-5-sonnet-20241022
-        api_key: "{{ .env.ANTHROPIC_API_KEY }}"
-    ```
-  </Step>
-
-  <Step title="Configure Load Balancing" description="Set up request distribution">
-    ```yaml
-    models:
-      - provider: openai
-        model: gpt-4
-        api_key: "{{ .env.OPENAI_API_KEY }}"
-        weight: 50
-
-      - provider: anthropic
-        model: claude-3-5-sonnet-20241022
-        api_key: "{{ .env.ANTHROPIC_API_KEY }}"
-        weight: 50
-    ```
-  </Step>
-
-  <Step title="Test Configuration" description="Verify multi-provider setup">
-    ```bash
-    compozy test providers --all
-    ```
-  </Step>
-</Steps>
-
-## Next Steps
-
-- [Global Configuration](/docs/core/configuration/global) - Configure system-wide settings
-- [Runtime Configuration](/docs/core/configuration/runtime-config) - Set up execution environments
-- [Agent Configuration](/docs/core/agents/overview) - Configure AI agents
-- [Workflow Configuration](/docs/core/configuration/workflows) - Define workflow orchestration
+</ReferenceCardList>

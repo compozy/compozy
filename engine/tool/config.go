@@ -145,6 +145,23 @@ type Config struct {
 	// - **Use cases:** Default API URLs, fallback configurations, preset options
 	// - **Security note:** Avoid storing secrets here; use environment variables instead
 	With *core.Input `json:"with,omitempty"        yaml:"with,omitempty"        mapstructure:"with,omitempty"`
+	// Configuration parameters passed to the tool separately from input data.
+	// Provides static configuration that tools can use for initialization and behavior control.
+	// Unlike input parameters, config is not meant to change between tool invocations.
+	//
+	// - **Use cases:** API base URLs, retry policies, timeout settings, feature flags
+	// - **Separation:** Keeps configuration separate from runtime input data
+	// - **Override:** Can be overridden at workflow or agent level
+	// - **Example:**
+	//   ```yaml
+	//   config:
+	//     base_url: "https://api.example.com"
+	//     timeout: 30
+	//     retry_count: 3
+	//     headers:
+	//       User-Agent: "Compozy/1.0"
+	//   ```
+	Config *core.Input `json:"config,omitempty"      yaml:"config,omitempty"      mapstructure:"config,omitempty"`
 	// Environment variables available during tool execution.
 	// Variables are isolated to the tool's execution context for security.
 	// Used for configuration, API keys, and runtime settings.
@@ -248,6 +265,16 @@ func (t *Config) GetInput() *core.Input {
 		return &core.Input{}
 	}
 	return t.With
+}
+
+// GetConfig returns the configuration parameters for this tool.
+// These parameters provide static configuration that tools can use for initialization.
+// Returns an empty Input if no configuration is defined.
+func (t *Config) GetConfig() *core.Input {
+	if t.Config == nil {
+		return &core.Input{}
+	}
+	return t.Config
 }
 
 // HasSchema checks if input or output validation is configured for this tool.

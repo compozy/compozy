@@ -5,18 +5,7 @@ description: Complete guide to wait tasks for synchronization, delays, and signa
 
 Wait tasks enable synchronization and coordination patterns in Compozy workflows. They pause execution until specific conditions are met, signals are received, or timeouts occur. This makes them essential for event-driven architectures, workflow coordination, and external system integration.
 
-## Related Documentation
 
-### 🔗 Cross-References
-- **[Core Concepts: Tasks](/docs/core/getting-started/core-concepts#2-tasks)** - Tasks in workflow context
-- **[Signal System Overview](/docs/core/signals/signal-overview)** - Understanding signal-based communication
-- **[Signal Tasks](/docs/core/signals/signal-tasks)** - Sending signals for coordination
-- **[Signal Triggers](/docs/core/signals/signal-triggers)** - Starting workflows with signals
-
-### ⚙️ Task-Related Topics
-- **Wait Tasks** ↔ **[Basic Tasks](/docs/core/tasks/basic-tasks)** ↔ **[Parallel Processing](/docs/core/tasks/parallel-processing)**
-- **Synchronization** ↔ **[Workflow Configuration](/docs/core/configuration/workflows)** ↔ **[Event API](/docs/core/signals/event-api)**
-- **Coordination** ↔ **[Advanced Patterns](/docs/core/signals/advanced-patterns)** ↔ **[Flow Control](/docs/core/tasks/flow-control)**
 
 ## Overview
 
@@ -505,14 +494,13 @@ Wait for the first of multiple signals:
     response_time: "{{ .task.completed_tasks[0].duration }}"
 ```
 
-### Cascading Wait Sequences
+### Sequential Waits
 
-Chain multiple wait tasks for staged processing:
+Chain wait tasks for staged processing:
 
 ```yaml
-- id: cascading-waits
+- id: sequential-waits
   type: composite
-  strategy: fail_fast
   tasks:
     - id: wait-initialization
       type: wait
@@ -524,38 +512,17 @@ Chain multiple wait tasks for staged processing:
         $use: tool(local::tools.#(id=="init-processor"))
         with:
           process_id: "{{ .signal.payload.process_id }}"
-          config: "{{ .signal.payload.config }}"
     
-    - id: wait-progress-update
-      type: wait
-      wait_for: "progress-update"
-      timeout: 5m
-      condition: 'signal.payload.process_id == tasks.wait-initialization.processor.output.process_id'
-      
-      processor:
-        type: basic
-        $use: tool(local::tools.#(id=="progress-processor"))
-        with:
-          progress_data: "{{ .signal.payload.progress }}"
-          estimated_completion: "{{ .signal.payload.eta }}"
-    
-    - id: wait-final-result
+    - id: wait-completion
       type: wait
       wait_for: "process-completed"
       timeout: 15m
-      condition: 'signal.payload.process_id == tasks.wait-initialization.processor.output.process_id'
       
       processor:
         type: basic
         $use: tool(local::tools.#(id=="result-processor"))
         with:
-          final_result: "{{ .signal.payload.result }}"
-          completion_metadata: "{{ .signal.payload.metadata }}"
-  
-  outputs:
-    process_id: "{{ .tasks.wait-initialization.processor.output.process_id }}"
-    final_result: "{{ .tasks.wait-final-result.processor.output.result }}"
-    total_duration: "{{ .task.duration }}"
+          result: "{{ .signal.payload.result }}"
 ```
 
 ### Conditional Wait Behavior
@@ -754,6 +721,25 @@ tasks:
       signal_received: "{{ not .task.timed_out }}"
 ```
 
+## CLI Commands
+
+The Compozy CLI provides these commands for managing wait tasks:
+
+```bash
+# List all workflows
+compozy workflow list
+
+# Execute a wait workflow
+compozy workflow execute my-wait-workflow
+
+# Get workflow details  
+compozy workflow get my-wait-workflow
+```
+
+<Callout type="info">
+**Wait Task Management Commands**: Additional CLI commands for monitoring wait tasks and managing signals are planned for future releases, including `compozy wait list` and `compozy signal send`.
+</Callout>
+
 ## Best Practices
 
 ### 1. Timeout Management
@@ -920,34 +906,58 @@ Wait tasks are fundamental to building robust, coordinated workflows in Compozy.
 
 ## Related Documentation
 
-<FeatureCardList cols={2}>
-  <FeatureCard title="Signal Tasks" href="/docs/core/signals/signal-tasks">
-    Learn how to send signals that wait tasks can receive
-  </FeatureCard>
-  <FeatureCard title="Signal System" href="/docs/core/signals/signal-overview">
-    Understand the complete signal communication system
-  </FeatureCard>
-  <FeatureCard title="Basic Tasks" href="/docs/core/tasks/basic-tasks">
-    Master the foundation of all task types in Compozy
-  </FeatureCard>
-  <FeatureCard title="Parallel Processing" href="/docs/core/tasks/parallel-processing">
-    Coordinate multiple wait tasks for complex synchronization
-  </FeatureCard>
-</FeatureCardList>
+<ReferenceCardList>
+  <ReferenceCard
+    title="Signal Tasks"
+    description="Learn how to send signals that wait tasks can receive"
+    href="/docs/core/signals/signal-tasks"
+    icon="Radio"
+  />
+  <ReferenceCard
+    title="Signal System"
+    description="Understand the complete signal communication system"
+    href="/docs/core/signals/signal-overview"
+    icon="Zap"
+  />
+  <ReferenceCard
+    title="Basic Tasks"
+    description="Master the foundation of all task types in Compozy"
+    href="/docs/core/tasks/basic-tasks"
+    icon="Cog"
+  />
+  <ReferenceCard
+    title="Parallel Processing"
+    description="Coordinate multiple wait tasks for complex synchronization"
+    href="/docs/core/tasks/parallel-processing"
+    icon="Layers"
+  />
+</ReferenceCardList>
 
 ## Next Steps
 
-<FeatureCardList cols={2}>
-  <FeatureCard title="Advanced Patterns" href="/docs/core/signals/advanced-patterns">
-    Explore sophisticated signal coordination patterns
-  </FeatureCard>
-  <FeatureCard title="Event API" href="/docs/core/signals/event-api">
-    Programmatically send signals from external systems
-  </FeatureCard>
-  <FeatureCard title="Flow Control" href="/docs/core/tasks/flow-control">
-    Master conditional routing and workflow orchestration
-  </FeatureCard>
-  <FeatureCard title="Error Handling" href="/docs/core/workflow/error-handling">
-    Build resilient workflows with proper error handling
-  </FeatureCard>
-</FeatureCardList>
+<ReferenceCardList>
+  <ReferenceCard
+    title="Advanced Patterns"
+    description="Explore sophisticated signal coordination patterns"
+    href="/docs/core/signals/advanced-patterns"
+    icon="Network"
+  />
+  <ReferenceCard
+    title="Event API"
+    description="Programmatically send signals from external systems"
+    href="/docs/core/signals/event-api"
+    icon="Code"
+  />
+  <ReferenceCard
+    title="Flow Control"
+    description="Master conditional routing and workflow orchestration"
+    href="/docs/core/tasks/flow-control"
+    icon="GitBranch"
+  />
+  <ReferenceCard
+    title="Error Handling"
+    description="Build resilient workflows with proper error handling"
+    href="/docs/core/workflow/error-handling"
+    icon="AlertTriangle"
+  />
+</ReferenceCardList>

@@ -10,9 +10,11 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"strings"
 	"syscall"
 	"time"
 
+	"dario.cat/mergo"
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/autoload"
 	"github.com/compozy/compozy/engine/core"
@@ -24,6 +26,7 @@ import (
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/engine/workflow"
+	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/invopop/jsonschema"
 	"github.com/radovskyb/watcher"
@@ -126,10 +129,92 @@ func GenerateParserSchemas(ctx context.Context, outDir string) error {
 		{"cache", &cache.Config{}, "engine/infra/cache"},
 		{"autoload", &autoload.Config{}, "engine/autoload"},
 		{"monitoring", &monitoring.Config{}, "engine/infra/monitoring"},
+		{"config", &config.Config{}, "pkg/config"},
+		// Individual config substructs for documentation
+		{"config-server", &config.ServerConfig{}, "pkg/config"},
+		{"config-database", &config.DatabaseConfig{}, "pkg/config"},
+		{"config-temporal", &config.TemporalConfig{}, "pkg/config"},
+		{"config-runtime", &config.RuntimeConfig{}, "pkg/config"},
+		{"config-limits", &config.LimitsConfig{}, "pkg/config"},
+		{"config-openai", &config.OpenAIConfig{}, "pkg/config"},
+		{"config-memory", &config.MemoryConfig{}, "pkg/config"},
+		{"config-llm", &config.LLMConfig{}, "pkg/config"},
+		{"config-ratelimit", &config.RateLimitConfig{}, "pkg/config"},
+		{"config-cli", &config.CLIConfig{}, "pkg/config"},
 	}
+
+	// Track runtime schemas for merging
+	var projectRuntimeSchema []byte
+	var configRuntimeSchema []byte
 
 	// Generate and write each schema
 	for _, s := range schemas {
+		// Skip the separate runtime schemas - we'll merge them later
+		if s.name == "runtime" || s.name == "config-runtime" {
+			// Create a separate reflector for each schema to avoid self-reference issues
+			schemaReflector := &jsonschema.Reflector{
+				RequiredFromJSONSchemaTags: true,  // Respect `validate:"required"` tags
+				AllowAdditionalProperties:  false, // Disallow additional properties
+				DoNotReference:             false, // Use $ref for nested types
+				BaseSchemaID: jsonschema.ID(
+					baseSchemaURI,
+				), // Use custom base URI for cross-references
+				ExpandedStruct: true,                   // Expand struct definitions to include full comments
+				FieldNameTag:   "json",                 // Use json tags for field names
+				IgnoredTypes:   []any{&core.PathCWD{}}, // Ignore time.Time type
+			}
+
+			// Apply basic pointer handling for all schemas
+			schemaReflector.Mapper = func(t reflect.Type) *jsonschema.Schema {
+				// Handle pointer types
+				if t.Kind() == reflect.Ptr {
+					t = t.Elem()
+					schema := jsonschema.ReflectFromType(t)
+					if schema != nil {
+						typeStr := schema.Type
+						if typeStr == "" {
+							typeStr = "string"
+						}
+						schema.Type = typeStr
+					}
+					return schema
+				}
+				return nil
+			}
+
+			if err := schemaReflector.AddGoComments("github.com/compozy/compozy", "./"); err != nil {
+				return fmt.Errorf("failed to add go comments: %w", err)
+			}
+
+			// Generate JSON schema
+			schema := schemaReflector.Reflect(s.data)
+
+			// Set proper schema ID for cross-references
+			schema.ID = jsonschema.ID(baseSchemaURI + s.name + ".json")
+
+			// Add YAML-specific metadata
+			schema.Extras = map[string]any{
+				"yamlCompatible": true,
+			}
+
+			// Ensure Draft 7 compatibility
+			schema.Version = "http://json-schema.org/draft-07/schema#"
+
+			// Serialize to JSON
+			schemaJSON, err := json.MarshalIndent(schema, "", "  ")
+			if err != nil {
+				return fmt.Errorf("failed to marshal schema for %s: %w", s.name, err)
+			}
+
+			// Store for merging
+			if s.name == "runtime" {
+				projectRuntimeSchema = schemaJSON
+			} else if s.name == "config-runtime" {
+				configRuntimeSchema = schemaJSON
+			}
+			continue
+		}
+
 		// Create a separate reflector for each schema to avoid self-reference issues
 		schemaReflector := &jsonschema.Reflector{
 			RequiredFromJSONSchemaTags: true,  // Respect `validate:"required"` tags
@@ -142,6 +227,9 @@ func GenerateParserSchemas(ctx context.Context, outDir string) error {
 			FieldNameTag:   "json",                 // Use json tags for field names
 			IgnoredTypes:   []any{&core.PathCWD{}}, // Ignore time.Time type
 		}
+
+		// Now config package also uses json tags
+		// (removed the koanf override)
 
 		// Apply basic pointer handling for all schemas
 		schemaReflector.Mapper = func(t reflect.Type) *jsonschema.Schema {
@@ -296,6 +384,194 @@ func GenerateParserSchemas(ctx context.Context, outDir string) error {
 		log.Info("Generated schema", "file", filePath)
 	}
 
+	// Generate the merged runtime schema
+	if err := generateMergedRuntimeSchema(ctx, outDir, baseSchemaURI, projectRuntimeSchema, configRuntimeSchema); err != nil {
+		return fmt.Errorf("failed to generate merged runtime schema: %w", err)
+	}
+
+	// Generate unified compozy.yaml schema
+	if err := generateUnifiedSchema(ctx, outDir, baseSchemaURI); err != nil {
+		return fmt.Errorf("failed to generate unified schema: %w", err)
+	}
+
+	return nil
+}
+
+// generateUnifiedSchema creates a unified schema combining project.Config and config.Config
+// This provides a complete view of all settings available in compozy.yaml
+func generateUnifiedSchema(ctx context.Context, outDir string, baseSchemaURI string) error {
+	log := logger.FromContext(ctx)
+	log.Info("Generating unified compozy.yaml schema")
+
+	// Create reflector for project schema
+	projectReflector := &jsonschema.Reflector{
+		RequiredFromJSONSchemaTags: true,
+		AllowAdditionalProperties:  false,
+		DoNotReference:             false,
+		BaseSchemaID:               jsonschema.ID(baseSchemaURI),
+		ExpandedStruct:             true,
+		FieldNameTag:               "json",
+		IgnoredTypes:               []any{&core.PathCWD{}},
+	}
+
+	// Create reflector for config schema (using json tags now)
+	configReflector := &jsonschema.Reflector{
+		RequiredFromJSONSchemaTags: true,
+		AllowAdditionalProperties:  false,
+		DoNotReference:             false,
+		BaseSchemaID:               jsonschema.ID(baseSchemaURI),
+		ExpandedStruct:             true,
+		FieldNameTag:               "json",
+		IgnoredTypes:               []any{&core.PathCWD{}},
+	}
+
+	// Add Go comments
+	if err := projectReflector.AddGoComments("github.com/compozy/compozy", "./"); err != nil {
+		return fmt.Errorf("failed to add go comments: %w", err)
+	}
+	if err := configReflector.AddGoComments("github.com/compozy/compozy", "./"); err != nil {
+		return fmt.Errorf("failed to add go comments: %w", err)
+	}
+
+	// Generate schemas for both configs
+	projectSchema := projectReflector.Reflect(&project.Config{})
+	configSchema := configReflector.Reflect(&config.Config{})
+
+	// Serialize schemas to JSON for manipulation
+	projectJSON, err := json.Marshal(projectSchema)
+	if err != nil {
+		return fmt.Errorf("failed to marshal project schema: %w", err)
+	}
+	configJSON, err := json.Marshal(configSchema)
+	if err != nil {
+		return fmt.Errorf("failed to marshal config schema: %w", err)
+	}
+
+	// Unmarshal into maps for manipulation
+	var projectMap map[string]any
+	var configMap map[string]any
+	if err := json.Unmarshal(projectJSON, &projectMap); err != nil {
+		return fmt.Errorf("failed to unmarshal project schema: %w", err)
+	}
+	if err := json.Unmarshal(configJSON, &configMap); err != nil {
+		return fmt.Errorf("failed to unmarshal config schema: %w", err)
+	}
+
+	// Handle runtime conflict by renaming config's runtime to system_runtime
+	if props, ok := configMap["properties"].(map[string]any); ok {
+		if runtime, exists := props["runtime"]; exists {
+			props["system_runtime"] = runtime
+			delete(props, "runtime")
+		}
+	}
+
+	// Prefix all config definitions to avoid conflicts
+	if defs, ok := configMap["$defs"].(map[string]any); ok {
+		prefixedDefs := make(map[string]any)
+		for key, def := range defs {
+			prefixedDefs["config_"+key] = def
+		}
+		configMap["$defs"] = prefixedDefs
+
+		// Update references in properties
+		if props, ok := configMap["properties"].(map[string]any); ok {
+			updateReferences(props, "#/$defs/", "#/$defs/config_")
+		}
+		// Update references within definitions
+		updateReferences(prefixedDefs, "#/$defs/", "#/$defs/config_")
+	}
+
+	// Deep merge config into project
+	if err := mergo.Merge(&projectMap, configMap, mergo.WithOverride, mergo.WithAppendSlice); err != nil {
+		return fmt.Errorf("failed to merge schemas: %w", err)
+	}
+
+	// Update schema metadata
+	projectMap["$id"] = baseSchemaURI + "compozy.json"
+	projectMap["title"] = "Compozy Unified Configuration"
+	projectMap["description"] = "Complete configuration schema for compozy.yaml including both project and application settings"
+
+	// Remove CWD properties
+	removeCWDProperties(projectMap)
+
+	// Serialize to JSON with proper formatting
+	schemaJSON, err := json.MarshalIndent(projectMap, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal unified schema: %w", err)
+	}
+
+	// Write unified schema
+	filePath := filepath.Join(outDir, "compozy.json")
+	if err := os.WriteFile(filePath, schemaJSON, 0o600); err != nil {
+		return fmt.Errorf("failed to write unified schema to %s: %w", filePath, err)
+	}
+
+	log.Info("Generated unified schema", "file", filePath)
+	return nil
+}
+
+// updateReferences recursively updates JSON references in a map
+func updateReferences(data any, oldPrefix, newPrefix string) {
+	switch v := data.(type) {
+	case map[string]any:
+		for key, value := range v {
+			if key == "$ref" {
+				if ref, ok := value.(string); ok && strings.HasPrefix(ref, oldPrefix) {
+					v[key] = strings.Replace(ref, oldPrefix, newPrefix, 1)
+				}
+			} else {
+				updateReferences(value, oldPrefix, newPrefix)
+			}
+		}
+	case []any:
+		for _, item := range v {
+			updateReferences(item, oldPrefix, newPrefix)
+		}
+	}
+}
+
+// generateMergedRuntimeSchema creates a merged runtime schema combining both runtime configs
+// This writes to runtime.json directly without prefixes since there are no conflicts
+func generateMergedRuntimeSchema(ctx context.Context, outDir string, baseSchemaURI string, projectRuntimeJSON, configRuntimeJSON []byte) error {
+	log := logger.FromContext(ctx)
+	log.Info("Generating merged runtime schema")
+
+	// Parse schemas into maps
+	var projectRuntimeMap map[string]any
+	var configRuntimeMap map[string]any
+	if err := json.Unmarshal(projectRuntimeJSON, &projectRuntimeMap); err != nil {
+		return fmt.Errorf("failed to unmarshal project runtime schema: %w", err)
+	}
+	if err := json.Unmarshal(configRuntimeJSON, &configRuntimeMap); err != nil {
+		return fmt.Errorf("failed to unmarshal config runtime schema: %w", err)
+	}
+
+	// Deep merge config runtime into project runtime using mergo
+	if err := mergo.Merge(&projectRuntimeMap, configRuntimeMap, mergo.WithOverride, mergo.WithAppendSlice); err != nil {
+		return fmt.Errorf("failed to merge runtime schemas: %w", err)
+	}
+
+	// Update schema metadata
+	projectRuntimeMap["$id"] = baseSchemaURI + "runtime.json"
+	projectRuntimeMap["title"] = "Compozy Runtime Configuration"
+	projectRuntimeMap["description"] = "Complete runtime configuration for both tool execution and system behavior"
+
+	// Remove CWD properties
+	removeCWDProperties(projectRuntimeMap)
+
+	// Serialize to JSON with proper formatting
+	schemaJSON, err := json.MarshalIndent(projectRuntimeMap, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal merged runtime schema: %w", err)
+	}
+
+	// Write merged runtime schema
+	filePath := filepath.Join(outDir, "runtime.json")
+	if err := os.WriteFile(filePath, schemaJSON, 0o600); err != nil {
+		return fmt.Errorf("failed to write merged runtime schema to %s: %w", filePath, err)
+	}
+
+	log.Info("Generated merged runtime schema", "file", filePath)
 	return nil
 }
 

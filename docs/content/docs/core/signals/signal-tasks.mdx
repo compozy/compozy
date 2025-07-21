@@ -3,62 +3,10 @@ title: Signal Tasks
 description: Complete guide to signal tasks for sending events and coordinating workflows in Compozy
 ---
 
-import {
-  Radio,
-  Zap,
-  MessageSquare,
-  Clock,
-  Share,
-  Database,
-  Activity,
-  Bell,
-  CheckCircle,
-  AlertCircle,
-  Code,
-  GitBranch,
-  Route,
-  Timer,
-  Network,
-  Users,
-  Shield,
-  Target,
-  FileText,
-  Settings,
-  Play,
-  Pause,
-  RefreshCw,
-  TrendingUp,
-  BookOpen,
-  ExternalLink,
-  ArrowRight,
-  Box,
-  Workflow,
-  Info,
-  AlertTriangle,
-  CheckCircle2,
-  Gauge,
-  Layers,
-  Link,
-  Eye,
-  Repeat,
-  CloudSun,
-  HeadphonesIcon,
-  Cpu,
-  PenTool,
-} from "lucide-react";
-import { FeatureCard, FeatureCardList } from "@/components/ui/feature-card";
-import { ReferenceCard, ReferenceCardList } from "@/components/ui/reference-card";
-import { Callout } from "@/components/ui/callout";
-import { Tabs, Tab } from "@/components/ui/tabs";
-import { Steps, Step } from "@/components/ui/step";
-import { Mermaid } from "@/components/ui/mermaid";
-
-# Signal Tasks
-
 Signal tasks are **event emitters** in Compozy workflows that send messages to other workflows or tasks. They enable decoupled communication patterns, event-driven architectures, and sophisticated workflow coordination.
 
 <Callout type="info" title="Signal Dispatch">
-Signal tasks use **Redis** for high-performance message dispatch, ensuring reliable delivery and scalability across distributed workflow systems.
+Signal tasks use **message dispatch** for high-performance event coordination, ensuring reliable delivery and scalability across distributed workflow systems.
 </Callout>
 
 ## Core Signal Task Features
@@ -67,17 +15,17 @@ Signal tasks use **Redis** for high-performance message dispatch, ensuring relia
   <FeatureCard
     title="Event Emission"
     description="Send structured messages to coordinate workflows"
-    icon={Radio}
+    icon="Radio"
   />
   <FeatureCard
     title="Payload Support"
     description="Include rich data in signal messages"
-    icon={Database}
+    icon="Database"
   />
   <FeatureCard
     title="Template Integration"
     description="Use dynamic templates for signal IDs and payloads"
-    icon={Code}
+    icon="Code"
   />
 </FeatureCardList>
 
@@ -101,17 +49,17 @@ Signal tasks use **Redis** for high-performance message dispatch, ensuring relia
   <FeatureCard
     title="type: signal"
     description="Identifies the task as a signal emitter"
-    icon={Settings}
+    icon="Settings"
   />
   <FeatureCard
     title="signal.id"
     description="Unique identifier for signal routing"
-    icon={Target}
+    icon="Target"
   />
   <FeatureCard
     title="signal.payload"
     description="Optional structured data to send"
-    icon={FileText}
+    icon="FileText"
   />
 </FeatureCardList>
 
@@ -184,12 +132,12 @@ signal:
   <FeatureCard
     title="Lightweight"
     description="Simple key-value data structures"
-    icon={Bell}
+    icon="Bell"
   />
   <FeatureCard
     title="Fast Processing"
     description="Quick serialization and transmission"
-    icon={Zap}
+    icon="Zap"
   />
 </FeatureCardList>
 
@@ -213,12 +161,12 @@ signal:
   <FeatureCard
     title="Rich Context"
     description="Nested structures with comprehensive data"
-    icon={Database}
+    icon="Database"
   />
   <FeatureCard
     title="System Integration"
     description="Full workflow and task context"
-    icon={Network}
+    icon="Network"
   />
 </FeatureCardList>
 
@@ -238,12 +186,12 @@ signal:
   <FeatureCard
     title="Dynamic Content"
     description="Fully customizable signal structure"
-    icon={Code}
+    icon="Code"
   />
   <FeatureCard
     title="Advanced Logic"
     description="Complex template expressions and functions"
-    icon={GitBranch}
+    icon="GitBranch"
   />
 </FeatureCardList>
 
@@ -258,22 +206,22 @@ signal:
   <FeatureCard
     title="Notifications"
     description="Simple event notifications"
-    icon={Bell}
+    icon="Bell"
   />
   <FeatureCard
     title="Data Transfer"
     description="Share processed data"
-    icon={Share}
+    icon="Share"
   />
   <FeatureCard
     title="Status Changes"
     description="Workflow state updates"
-    icon={Activity}
+    icon="Activity"
   />
   <FeatureCard
     title="Error Handling"
     description="Error notifications"
-    icon={AlertCircle}
+    icon="AlertCircle"
   />
 </FeatureCardList>
 
@@ -293,7 +241,7 @@ Send a basic completion notification:
       task_id: "{{ .task.id }}"
       status: "completed"
       timestamp: "{{ now }}"
-  
+
   description: "Notify other workflows that task is complete"
 ```
 
@@ -391,17 +339,17 @@ Critical for **error monitoring** and implementing robust error handling pattern
   <FeatureCard
     title="Conditional Signals"
     description="Send signals based on runtime conditions"
-    icon={Route}
+    icon="Route"
   />
   <FeatureCard
     title="Multiple Dispatch"
     description="Send multiple signals from one task"
-    icon={GitBranch}
+    icon="GitBranch"
   />
   <FeatureCard
     title="Dynamic Routing"
     description="Route signals based on runtime data"
-    icon={Repeat}
+    icon="Repeat"
   />
 </FeatureCardList>
 
@@ -458,7 +406,7 @@ Send multiple signals from one task:
         id: "task-completed"
         payload:
           task_id: "{{ .parent.id }}"
-    
+
     - id: notify-stakeholders
       type: signal
       signal:
@@ -466,7 +414,7 @@ Send multiple signals from one task:
         payload:
           event: "task-completed"
           stakeholders: "{{ .workflow.input.stakeholders }}"
-    
+
     - id: update-metrics
       type: signal
       signal:
@@ -521,12 +469,12 @@ Use **collection tasks** for dynamic signal routing when recipients are determin
   <FeatureCard
     title="Error Handling"
     description="Handle signal dispatch failures gracefully"
-    icon={Shield}
+    icon="Shield"
   />
   <FeatureCard
     title="Workflow Integration"
     description="Signal tasks within complex workflows"
-    icon={Workflow}
+    icon="Workflow"
   />
 </FeatureCardList>
 
@@ -544,12 +492,12 @@ Handle signal dispatch failures gracefully:
     id: "important-notification"
     payload:
       data: "{{ .task.output }}"
-  
+
   on_error: handle-signal-failure
   retry:
     max_attempts: 3
     backoff: exponential
-  
+
   outputs:
     signal_sent: "{{ .task.success }}"
     signal_id: "important-notification"
@@ -575,7 +523,7 @@ tasks:
       id: order-processor
     with:
       order_id: "{{ .workflow.input.order_id }}"
-  
+
   - id: notify-fulfillment
     type: signal
     signal:
@@ -585,7 +533,7 @@ tasks:
         processed_items: "{{ .tasks.process-order.output.items }}"
         shipping_address: "{{ .workflow.input.shipping_address }}"
         priority: "{{ .workflow.input.priority }}"
-    
+
     depends_on: [process-order]
 ```
 
@@ -604,17 +552,17 @@ Use **depends_on** to ensure signals are sent after prerequisite tasks complete 
   <FeatureCard
     title="Essential Context"
     description="Provide all necessary information for receivers"
-    icon={Info}
+    icon="Info"
   />
   <FeatureCard
     title="Consistent Structure"
     description="Maintain standardized payload formats"
-    icon={Layers}
+    icon="Layers"
   />
   <FeatureCard
     title="Data Validation"
     description="Ensure signal payloads are valid and complete"
-    icon={Shield}
+    icon="Shield"
   />
 </FeatureCardList>
 
@@ -664,19 +612,19 @@ signal:
     # Core data
     entity_id: "{{ .entity.id }}"
     entity_type: "{{ .entity.type }}"
-    
+
     # Event data
     event:
       type: "{{ .event.type }}"
       timestamp: "{{ now }}"
       source: "{{ .workflow.id }}"
-    
+
     # Metadata
     metadata:
       workflow_id: "{{ .workflow.id }}"
       task_id: "{{ .task.id }}"
       user_id: "{{ .workflow.input.user_id }}"
-    
+
     # Actual data
     data: "{{ .task.output }}"
 ```
@@ -695,7 +643,7 @@ Ensure signal payloads are valid:
 ```yaml
 - id: validated-signal
   type: signal
-  
+
   # Validate before sending
   input:
     type: object
@@ -704,7 +652,7 @@ Ensure signal payloads are valid:
         type: string
         minLength: 1
     required: [required_field]
-  
+
   signal:
     id: "validated-event"
     payload:
@@ -727,17 +675,17 @@ Always **validate payload data** before sending signals to prevent downstream pr
   <FeatureCard
     title="Minimize Payload Size"
     description="Include only necessary data for efficient transmission"
-    icon={Gauge}
+    icon="Gauge"
   />
   <FeatureCard
     title="Use References"
     description="Pass IDs instead of large objects when possible"
-    icon={Link}
+    icon="Link"
   />
   <FeatureCard
     title="Batch Signals"
     description="Group related signals for optimized processing"
-    icon={Layers}
+    icon="Layers"
   />
 </FeatureCardList>
 
@@ -763,7 +711,7 @@ signal:
 ```
 
 <Callout type="success" title="Payload Optimization">
-Keep payloads **small and focused** to reduce Redis memory usage and improve dispatch performance.
+Keep payloads **small and focused** to reduce memory usage and improve dispatch performance.
 </Callout>
 
 </Tab>
@@ -825,12 +773,12 @@ signal:
   <FeatureCard
     title="Unit Testing"
     description="Test individual signal task configurations"
-    icon={Code}
+    icon="Code"
   />
   <FeatureCard
     title="Integration Testing"
     description="Test signal flow between workflows"
-    icon={Network}
+    icon="Network"
   />
 </FeatureCardList>
 
@@ -848,7 +796,7 @@ signal:
     payload:
       test_data: "hello world"
       timestamp: "{{ now }}"
-  
+
   # Verify signal is sent correctly
   outputs:
     signal_dispatched: true
@@ -902,12 +850,12 @@ Handle cases where signals cannot be sent:
     payload:
       event: "critical-event"
       data: "{{ .task.output }}"
-  
-  on_error: 
+
+  on_error:
     next: fallback-notification
     with:
       error_details: "{{ .task.error }}"
-  
+
   outputs:
     signal_status: "{{ .task.success ? 'sent' : 'failed' }}"
 ```
@@ -916,89 +864,77 @@ Handle cases where signals cannot be sent:
 Always implement **error handling** for signal dispatch failures to maintain workflow reliability.
 </Callout>
 
-## Next Steps
-
 <ReferenceCardList>
   <ReferenceCard
     title="Wait Tasks"
     description="Learn to receive signals with conditions, timeouts, and processors"
     href="/docs/core/signals/wait-tasks"
-    icon={Timer}
+    icon="Timer"
   />
   <ReferenceCard
     title="Signal Triggers"
     description="Explore workflow initiation and signal-based automation"
     href="/docs/core/signals/signal-triggers"
-    icon={Play}
+    icon="Play"
   />
   <ReferenceCard
     title="Event API"
     description="REST API for programmatic signal management and monitoring"
     href="/docs/core/signals/event-api"
-    icon={Code}
+    icon="Code"
   />
   <ReferenceCard
     title="Advanced Patterns"
     description="Study complex scenarios and signal coordination strategies"
     href="/docs/core/signals/advanced-patterns"
-    icon={GitBranch}
+    icon="GitBranch"
   />
-</ReferenceCardList>
-
-### Related Documentation
-
-<ReferenceCardList>
   <ReferenceCard
     title="Signal System Overview"
     description="Complete guide to Compozy's signal system and architecture"
     href="/docs/core/signals/signal-overview"
-    icon={Radio}
+    icon="Radio"
   />
   <ReferenceCard
     title="Task Types"
     description="Understand all task types including signal and wait tasks"
     href="/docs/core/tasks/basic-tasks"
-    icon={Box}
+    icon="Box"
   />
   <ReferenceCard
     title="Workflow Orchestration"
     description="Learn workflow coordination patterns and best practices"
     href="/docs/core/workflows/orchestration"
-    icon={Workflow}
+    icon="Workflow"
   />
   <ReferenceCard
-    title="Redis Configuration"
-    description="Configure Redis backend for signal dispatch and persistence"
-    href="/docs/core/configuration/redis"
-    icon={Database}
+    title="Configuration Guide"
+    description="Configure signal dispatch and message handling settings"
+    href="/docs/core/configuration/monitoring-config"
+    icon="Database"
   />
-</ReferenceCardList>
-
-### Use Cases & Examples
-
-<ReferenceCardList>
   <ReferenceCard
     title="Weather System"
     description="Complete weather advisory system with signal coordination"
     href="/docs/core/examples/weather"
-    icon={CloudSun}
+    icon="CloudSun"
   />
   <ReferenceCard
     title="Customer Support"
     description="Multi-agent support workflows with signal-based routing"
     href="/docs/core/examples/customer-support"
-    icon={HeadphonesIcon}
+    icon="headphones"
   />
   <ReferenceCard
     title="Data Processing"
     description="Batch processing pipelines with signal orchestration"
     href="/docs/core/examples/data-processing"
-    icon={Cpu}
+    icon="Cpu"
   />
   <ReferenceCard
     title="Content Generation"
     description="AI-powered content workflows with signal coordination"
     href="/docs/core/examples/content-generation"
-    icon={PenTool}
+    icon="PenTool"
   />
 </ReferenceCardList>

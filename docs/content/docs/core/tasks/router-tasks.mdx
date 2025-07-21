@@ -325,9 +325,9 @@ routes:
   moderate: moderate-weather-activities
 ```
 
-### Multi-Factor Decision Logic
+### Multi-Factor Routing
 
-Complex routing based on multiple input factors:
+Route based on multiple conditions:
 
 ```yaml
 id: user-onboarding-router
@@ -335,16 +335,10 @@ type: router
 condition: |
   {{
     $user := .tasks.get_user.output
-    $profile := .tasks.get_profile.output
-    
-    if (and (eq $user.account_type "premium") (gt $user.tenure_days 30))
+    if (eq $user.account_type "premium")
       "premium_user"
-    else if (and (eq $user.account_type "basic") (lt $profile.completion_score 0.5))
-      "incomplete_profile"
     else if (eq $user.verification_status "pending")
       "pending_verification"
-    else if (gt $user.risk_score 0.8)
-      "high_risk_user"
     else
       "standard_user"
   }}
@@ -355,18 +349,8 @@ routes:
     $use: agent(local::agents.#(id=="premium-onboarding"))
     with:
       user_data: "{{ .tasks.get_user.output }}"
-      features: ["advanced_analytics", "priority_support", "custom_integrations"]
-  
-  incomplete_profile:
-    type: basic
-    $use: agent(local::agents.#(id=="profile-completion"))
-    with:
-      user_data: "{{ .tasks.get_user.output }}"
-      completion_score: "{{ .tasks.get_profile.output.completion_score }}"
-      missing_fields: "{{ .tasks.get_profile.output.missing_fields }}"
   
   pending_verification: verification-workflow
-  high_risk_user: risk-assessment-workflow
   standard_user: standard-onboarding-workflow
 
 default: error-handling-flow
@@ -672,6 +656,25 @@ routes:
 default: content-error-handler
 ```
 
+## CLI Commands
+
+The Compozy CLI provides these commands for managing router tasks:
+
+```bash
+# List all workflows
+compozy workflow list
+
+# Execute a router workflow
+compozy workflow execute my-router-workflow
+
+# Get workflow details  
+compozy workflow get my-router-workflow
+```
+
+<Callout type="info">
+**Task Management Commands**: Additional CLI commands for task monitoring and control are planned for future releases.
+</Callout>
+
 ## Best Practices
 
 ### Route Design
@@ -830,36 +833,55 @@ default: unknown-error-handler
 
 Router tasks provide the foundation for intelligent, adaptive workflows that can handle complex business logic and routing scenarios. Their template-based condition evaluation and flexible route definitions make them essential for creating responsive, decision-driven automation systems.
 
-## Related Documentation
+## References
 
-<FeatureCardList cols={2}>
-  <FeatureCard title="Flow Control" href="/docs/core/tasks/flow-control">
-    Master complete flow control patterns including conditional execution and dynamic routing
-  </FeatureCard>
-  <FeatureCard title="Template Expressions" href="/docs/core/yaml-templates/expressions">
-    Learn advanced template expressions for complex routing conditions
-  </FeatureCard>
-  <FeatureCard title="Signal Tasks" href="/docs/core/signals/signal-overview">
-    Coordinate router decisions with signal-based communication patterns
-  </FeatureCard>
-  <FeatureCard title="Error Handling" href="/docs/core/tasks/basic-tasks#error-handling">
-    Implement robust error handling in routing scenarios
-  </FeatureCard>
-</FeatureCardList>
-
-## Next Steps
-
-<FeatureCardList cols={2}>
-  <FeatureCard title="Business Workflows" href="/docs/core/examples/business-workflows">
-    Explore real-world business logic implementations using router tasks
-  </FeatureCard>
-  <FeatureCard title="Approval Systems" href="/docs/core/examples/approval-workflows">
-    Build sophisticated approval workflows with conditional routing
-  </FeatureCard>
-  <FeatureCard title="Advanced Patterns" href="/docs/core/tasks/advanced-patterns">
-    Discover advanced task orchestration patterns and techniques
-  </FeatureCard>
-  <FeatureCard title="Workflow Design" href="/docs/core/configuration/workflows">
-    Design complete workflows with intelligent routing and decision points
-  </FeatureCard>
-</FeatureCardList>
+<ReferenceCardList>
+  <ReferenceCard
+    title="Flow Control"
+    description="Master complete flow control patterns including conditional execution and dynamic routing"
+    href="/docs/core/tasks/flow-control"
+    icon="GitBranch"
+  />
+  <ReferenceCard
+    title="Template Expressions"
+    description="Learn advanced template expressions for complex routing conditions"
+    href="/docs/core/yaml-templates/expressions"
+    icon="Code"
+  />
+  <ReferenceCard
+    title="Signal Tasks"
+    description="Coordinate router decisions with signal-based communication patterns"
+    href="/docs/core/signals/signal-overview"
+    icon="Radio"
+  />
+  <ReferenceCard
+    title="Error Handling"
+    description="Implement robust error handling in routing scenarios"
+    href="/docs/core/tasks/basic-tasks#error-handling"
+    icon="AlertCircle"
+  />
+  <ReferenceCard
+    title="Business Workflows"
+    description="Explore real-world business logic implementations using router tasks"
+    href="/docs/core/examples/business-workflows"
+    icon="Briefcase"
+  />
+  <ReferenceCard
+    title="Approval Systems"
+    description="Build sophisticated approval workflows with conditional routing"
+    href="/docs/core/examples/approval-workflows"
+    icon="CheckCircle"
+  />
+  <ReferenceCard
+    title="Advanced Patterns"
+    description="Discover advanced task orchestration patterns and techniques"
+    href="/docs/core/tasks/advanced-patterns"
+    icon="Settings"
+  />
+  <ReferenceCard
+    title="Workflow Design"
+    description="Design complete workflows with intelligent routing and decision points"
+    href="/docs/core/configuration/workflows"
+    icon="Workflow"
+  />
+</ReferenceCardList>

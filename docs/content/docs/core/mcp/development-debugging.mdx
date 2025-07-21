@@ -3,2262 +3,342 @@ title: "Development & Debugging"
 description: "Tools, techniques, and best practices for developing and debugging MCP integrations in Compozy"
 ---
 
-import {
-  Bug,
-  Code,
-  Terminal,
-  Settings,
-  Monitor,
-  AlertTriangle,
-  CheckCircle,
-  Activity,
-  Database,
-  Server,
-  Timer,
-  Zap,
-  Eye,
-  Wrench,
-  Play,
-  Pause,
-  RefreshCw,
-  FileText,
-  Shield,
-  Network,
-  Cpu,
-  HardDrive,
-  Search,
-  Tool,
-  GitBranch,
-  Clock,
-  BarChart3,
-  TrendingUp,
-  XCircle,
-  AlertCircle,
-  Info
-} from "lucide-react";
+This guide provides comprehensive tools and techniques for developing and debugging MCP (Model Context Protocol) integrations in Compozy. Whether you're building custom MCP servers or troubleshooting existing integrations, this guide will help you identify and resolve issues quickly.
 
-# Development & Debugging
-
-Developing and debugging MCP integrations requires specialized tools and techniques. This guide provides comprehensive approaches for efficient MCP development, testing, and troubleshooting with step-by-step workflows and visual debugging aids.
-
-<Callout type="info">
-  <Bug className="w-4 h-4" />
-  **Development First**: Set up comprehensive debugging workflows before building complex MCP integrations to save time and ensure reliability.
+<Callout type="info" icon="Code">
+  **MCP Development**: Understanding the MCP protocol and Compozy's implementation is key to successful debugging and development.
 </Callout>
 
-## Development Environment Setup
+## Understanding MCP Architecture
 
-### Quick Development Setup
+MCP (Model Context Protocol) in Compozy follows a simple but effective architecture:
 
-<Steps numbered size="sm">
-<Step title="Initialize development environment" description="Set up MCP development with debugging enabled">
+### Core Components
 
-Set up a complete local development environment with comprehensive debugging:
+<FeatureCardList cols={2} size="sm">
+  <FeatureCard
+    title="MCP Client"
+    description="HTTP client that communicates with the MCP proxy service"
+    icon="Network"
+  />
+  <FeatureCard
+    title="MCP Proxy"
+    description="HTTP proxy service that manages MCP server connections"
+    icon="Router"
+  />
+  <FeatureCard
+    title="MCP Server"
+    description="External servers that provide tools and capabilities"
+    icon="Server"
+  />
+  <FeatureCard
+    title="Registration Service"
+    description="Service that manages MCP server lifecycle"
+    icon="Settings"
+  />
+</FeatureCardList>
 
-```yaml
-# compozy.yaml - Development configuration
-name: mcp-development
-version: "1.0.0"
-description: "MCP development environment"
+## Development Setup
 
-# Development-specific MCP servers
+### Prerequisites
+
+Before developing MCP integrations, ensure you have:
+
+- **Compozy CLI**: Installed and available in your PATH
+- **MCP Proxy Service**: Running on the configured port (default: 8081)
+- **Environment Variables**: `MCP_PROXY_URL` and optionally `MCP_PROXY_ADMIN_TOKEN`
+- **Logging**: Enable debug logging for detailed information
+
+### Quick Start with CLI
+
+Compozy provides a comprehensive CLI for managing your development workflow:
+
+```bash
+# Initialize a new Compozy project
+compozy init my-project
+
+# Start the development server with hot reload
+compozy dev --watch
+
+# Start the MCP proxy service
+compozy mcp-proxy --port 8081
+
+# List available workflows
+compozy workflow list
+
+# Execute a workflow
+compozy workflow execute my-workflow
+```
+
+### Environment Configuration
+
+Configure your development environment with proper logging and debugging settings:
+
+```bash title=".env.development"
+# MCP Proxy Configuration
+MCP_PROXY_URL=http://localhost:8081
+MCP_PROXY_ADMIN_TOKEN=your-admin-token
+
+# Logging Configuration
+LOG_LEVEL=debug
+COMPOZY_LOG_LEVEL=debug
+```
+
+**Why these settings matter:**
+- `MCP_PROXY_URL`: Points to your local MCP proxy service
+- `MCP_PROXY_ADMIN_TOKEN`: Enables admin API access for debugging
+- `LOG_LEVEL=debug`: Provides detailed logging for troubleshooting
+
+## Common Development Patterns
+
+### 1. MCP Server Registration
+
+The most common task is registering MCP servers with your workflows:
+
+```yaml title="workflow.yaml"
+resource: workflow
+id: mcp-example
+description: Example workflow with MCP integration
+
 mcps:
-  - id: filesystem_dev
+  - id: filesystem
     transport: stdio
-    command: npx
-    args:
-      - -y
-      - "@modelcontextprotocol/server-filesystem"
-      - "./dev-workspace"
-    proto: "2025-03-26"
+    command: "mcp-server-filesystem"
+    args: ["--root", "/workspace"]
     env:
-      LOG_LEVEL: "DEBUG"
-      ENABLE_TRACING: "true"
-    start_timeout: 30s
+      LOG_LEVEL: debug
 
-  - id: database_dev
-    transport: stdio
-    command: python
-    args:
-      - "./dev-tools/mcp_db_server.py"
-      - "--connection-string"
-      - "sqlite:///./dev.db"
-      - "--debug"
-    proto: "2025-03-26"
-    env:
-      SQL_LOG_LEVEL: "DEBUG"
-      ENABLE_QUERY_TRACING: "true"
+agents:
+  - id: file-agent
+    instructions: "You can access the filesystem using available tools"
 
-  - id: web_dev
-    url: "http://localhost:3000"
-    transport: sse
-    env:
-      NODE_ENV: "development"
-      DEBUG: "mcp:*"
-    proto: "2025-03-26"
-    health_check:
-      enabled: true
-      interval: 30s
-      timeout: 5s
-      retries: 3
-
-# Development tools
-tools:
-  - id: mcp_debug_tool
-    description: Debug MCP server interactions
-
-  - id: mcp_test_tool
-    description: Test MCP server functionality
+tasks:
+  - id: list-files
+    agent: file-agent
+    prompt: "List all files in the current directory"
 ```
 
-</Step>
+**Key Points:**
+- Use `transport: stdio` for local MCP servers
+- Use `transport: sse` for HTTP-based MCP servers
+- Always include debugging environment variables during development
 
-<Step title="Create development scripts" description="Set up automated development and testing scripts">
+### 2. Tool Discovery and Testing
 
-Create helper scripts for streamlined development:
+Test MCP tool discovery to ensure your servers are properly registered:
 
+```go title="debug_tools.go"
+package main
 
+import (
+    "context"
+    "fmt"
+    "log"
+    "time"
+
+    "github.com/compozy/compozy/engine/mcp"
+)
+
+func main() {
+    client := mcp.NewProxyClient("http://localhost:8081", "admin-token", 30*time.Second)
+
+    // Test health check
+    if err := client.Health(context.Background()); err != nil {
+        log.Fatalf("MCP proxy health check failed: %v", err)
+    }
+
+    // List available tools
+    tools, err := client.ListTools(context.Background())
+    if err != nil {
+        log.Fatalf("Failed to list tools: %v", err)
+    }
+
+    fmt.Printf("Available tools: %d\n", len(tools))
+    for _, tool := range tools {
+        fmt.Printf("- %s (%s): %s\n", tool.Name, tool.MCPName, tool.Description)
+    }
+}
+```
+
+**This pattern helps you:**
+- Verify MCP proxy connectivity
+- Discover available tools from registered servers
+- Test tool registration and discovery flow
+
+**Note**: The error handling shown uses the actual `ProxyRequestError` struct from the implementation, which provides structured error information including status codes and detailed messages.
+
+## Debugging Common Issues
+
+### 1. MCP Server Registration Failures
+
+**Problem**: MCP servers fail to register with the proxy.
+
+**Debugging Steps:**
+
+1. **Check Proxy Health**:
 ```bash
-#!/bin/bash
-# dev-setup.sh - Set up development environment
+# Using CLI (recommended)
+compozy mcp-proxy health
 
-set -e
-
-echo "Setting up MCP development environment..."
-
-# Create development workspace
-mkdir -p dev-workspace
-mkdir -p dev-tools
-mkdir -p logs
-
-# Install MCP server dependencies
-echo "Installing MCP server dependencies..."
-npm install -g @modelcontextprotocol/server-filesystem
-pip install -r dev-requirements.txt
-
-# Start development services
-echo "Starting development services..."
-docker-compose -f docker-compose.dev.yml up -d
-
-# Wait for services to be ready
-echo "Waiting for services to be ready..."
-sleep 10
-
-# Test MCP connections
-echo "Testing MCP connections..."
-./dev-tools/test-mcp-connections.sh
-
-echo "Development environment ready!"
+# Or using curl directly
+curl -X GET http://localhost:8081/healthz
 ```
 
+2. **Verify Registration**:
 ```bash
-#!/bin/bash
-# dev-tools/test-mcp-connections.sh - Test MCP server connections
+# Using CLI (recommended)
+compozy mcp-proxy list
 
-test_mcp_server() {
-    local server_name=$1
-    local test_command=$2
-
-    echo "Testing MCP server: $server_name"
-
-    if compozy mcp test "$server_name" --command "$test_command"; then
-        echo "✅ $server_name connection successful"
-    else
-        echo "❌ $server_name connection failed"
-        return 1
-    fi
-}
-
-# Test all MCP servers
-test_mcp_server "filesystem_dev" "list_tools"
-test_mcp_server "database_dev" "list_tools"
-test_mcp_server "web_dev" "list_tools"
-
-echo "All MCP server tests completed."
+# Or using curl directly
+curl -X GET http://localhost:8081/admin/mcps \
+  -H "Authorization: Bearer your-admin-token"
 ```
 
-</Step>
-
-<Step title="Set up debugging tools" description="Install and configure debugging utilities">
-
-Install debugging tools for comprehensive MCP development:
-
-<Tabs items={["CLI Tools", "Development Dependencies", "Debug Scripts"]}>
-
-<Tab>
+3. **Check Logs**:
 ```bash
-# Install MCP CLI debugging tools
-npm install -g @modelcontextprotocol/cli
-npm install -g @modelcontextprotocol/server-filesystem
-npm install -g @modelcontextprotocol/server-sqlite
-
-# Verify installation
-mcp --version
-compozy mcp --help
+# In your application logs, look for:
+# - "Successfully registered MCP with proxy"
+# - "Failed to register MCP with proxy"
+# - Connection timeout errors
 ```
-</Tab>
 
-<Tab>
-```json
-{
-  "devDependencies": {
-    "@types/node": "^20.0.0",
-    "typescript": "^5.0.0",
-    "tsx": "^4.0.0",
-    "@modelcontextprotocol/sdk": "^0.5.0",
-    "jest": "^29.0.0",
-    "@types/jest": "^29.0.0"
-  },
-  "scripts": {
-    "dev": "tsx watch src/main.ts",
-    "debug": "tsx --inspect src/main.ts",
-    "test:mcp": "tsx test/mcp-integration.test.ts"
-  }
-}
-```
-</Tab>
+**Common Causes:**
+- MCP proxy service not running
+- Incorrect proxy URL configuration
+- Missing or invalid admin token
+- Network connectivity issues
 
-<Tab>
+### 2. Tool Execution Errors
+
+**Problem**: Tools fail to execute or return errors.
+
+**Debugging Steps:**
+
+1. **Test Tool Directly**:
 ```bash
-#!/bin/bash
-# debug-mcp.sh - Quick MCP debugging script
+# Using CLI (recommended)
+compozy workflow execute test-tool --input '{"mcpName": "filesystem", "toolName": "list_files", "arguments": {"path": "/workspace"}}'
 
-DEBUG_MODE=true
-VERBOSE=true
-LOG_LEVEL=DEBUG
-
-# Enable debug logging
-export DEBUG="mcp:*"
-export LOG_LEVEL="DEBUG"
-
-# Start with debugging
-compozy dev --debug --mcp-trace
+# Or using curl directly
+curl -X POST http://localhost:8081/admin/tools/call \
+  -H "Authorization: Bearer your-admin-token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "mcpName": "filesystem",
+    "toolName": "list_files",
+    "arguments": {"path": "/workspace"}
+  }'
 ```
-</Tab>
 
-</Tabs>
-
-</Step>
-</Steps>
-
-## Debugging Workflow
-
-### Debug Process Overview
-
-Follow this systematic debugging workflow to identify and resolve MCP integration issues:
-
-<Mermaid chart={`flowchart TD
-    A[Start Debugging] --> B[Check MCP Server Status]
-    B --> C{Server Running?}
-    C -->|No| D[Start MCP Server]
-    C -->|Yes| E[Verify Connection]
-    D --> E
-    E --> F{Connection OK?}
-    F -->|No| G[Check Transport Config]
-    F -->|Yes| H[Test Tool Discovery]
-    G --> I[Fix Transport Issues]
-    I --> E
-    H --> J{Tools Found?}
-    J -->|No| K[Debug Tool Registration]
-    J -->|Yes| L[Test Tool Execution]
-    K --> M[Fix Tool Definition]
-    M --> H
-    L --> N{Tool Works?}
-    N -->|No| O[Debug Tool Parameters]
-    N -->|Yes| P[Integration Complete]
-    O --> Q[Fix Parameter Issues]
-    Q --> L
-    P --> R[Monitor Performance]
-    R --> S[Optimize if Needed]
-    S --> T[Deploy to Production]
-    
-    style A fill:#e1f5fe
-    style P fill:#e8f5e8
-    style T fill:#f3e5f5
-    style D fill:#fff3e0
-    style I fill:#fff3e0
-    style M fill:#fff3e0
-    style Q fill:#fff3e0
-    style S fill:#fff3e0`} />
-
-### Debug Checklist
-
-<Accordion>
-<AccordionItem value="server-status">
-<AccordionTrigger>
-  <Server className="w-4 h-4" />
-  1. Server Status Verification
-</AccordionTrigger>
-<AccordionContent>
-
-**Check server process:**
+2. **Check MCP Server Logs**:
 ```bash
-# Check if MCP server is running
-ps aux | grep mcp
-
-# Check server logs
-tail -f logs/mcp-server.log
-
-# Test server health
-curl -X GET http://localhost:8081/health
+# Look for tool execution logs in your MCP server
+# Common patterns:
+# - "Tool executed successfully"
+# - "Tool execution failed"
+# - Argument validation errors
 ```
 
-**Verify server configuration:**
-```bash
-# Validate configuration
-compozy mcp validate --config compozy.yaml
-
-# Check server registration
-compozy mcp list --verbose
-```
-
-</AccordionContent>
-</AccordionItem>
-
-<AccordionItem value="connection-testing">
-<AccordionTrigger>
-  <Network className="w-4 h-4" />
-  2. Connection Testing
-</AccordionTrigger>
-<AccordionContent>
-
-**Test transport protocols:**
-```bash
-# Test STDIO transport
-compozy mcp test filesystem_dev --transport stdio
-
-# Test SSE transport
-compozy mcp test web_dev --transport sse
-
-# Test HTTP transport
-compozy mcp test api_dev --transport http
-```
-
-**Connection diagnostics:**
-```bash
-# Network connectivity
-telnet localhost 8081
-
-# SSL/TLS verification
-openssl s_client -connect localhost:8081
-```
-
-</AccordionContent>
-</AccordionItem>
-
-<AccordionItem value="tool-discovery">
-<AccordionTrigger>
-  <Tool className="w-4 h-4" />
-  3. Tool Discovery
-</AccordionTrigger>
-<AccordionContent>
-
-**List available tools:**
-```bash
-# List all tools from server
-compozy mcp tools filesystem_dev
-
-# Get tool details
-compozy mcp describe filesystem_dev read_file
-```
-
-**Tool registration debugging:**
-```bash
-# Check tool registration
-compozy mcp debug --server filesystem_dev --operation list_tools
-
-# Verify tool definitions
-compozy mcp inspect --server filesystem_dev --tool read_file
-```
-
-</AccordionContent>
-</AccordionItem>
-
-<AccordionItem value="execution-testing">
-<AccordionTrigger>
-  <Play className="w-4 h-4" />
-  4. Execution Testing
-</AccordionTrigger>
-<AccordionContent>
-
-**Test tool execution:**
-```bash
-# Execute tool with parameters
-compozy mcp call filesystem_dev read_file '{"path": "test.txt"}'
-
-# Test with debug output
-compozy mcp call filesystem_dev read_file '{"path": "test.txt"}' --debug
-```
-
-**Parameter validation:**
-```bash
-# Validate parameters
-compozy mcp validate-params filesystem_dev read_file '{"path": "test.txt"}'
-
-# Test edge cases
-compozy mcp call filesystem_dev read_file '{"path": "nonexistent.txt"}'
-```
-
-</AccordionContent>
-</AccordionItem>
-</Accordion>
-
-## Debugging Tools
-
-### MCP Debug Tool
-
-Comprehensive debugging tool for MCP interactions:
-
-```typescript
-// dev-tools/mcp_debug_tool.ts
-interface DebugInput {
-  server_name: string;
-  operation: 'list_tools' | 'call_tool' | 'health_check' | 'inspect';
-  tool_name?: string;
-  parameters?: Record<string, any>;
-  verbose?: boolean;
-}
-
-interface DebugOutput {
-  success: boolean;
-  server_info?: any;
-  tools?: any[];
-  result?: any;
-  error?: string;
-  debug_info?: any;
-  timing?: {
-    start: string;
-    end: string;
-    duration_ms: number;
-  };
-  performance_metrics?: {
-    operation_count: number;
-    avg_response_time: number;
-    error_rate: number;
-    throughput: number;
-  };
-}
-
-export default async function mcpDebugTool(input: DebugInput): Promise<DebugOutput> {
-  const { server_name, operation, tool_name, parameters = {}, verbose = false } = input;
-
-  const startTime = Date.now();
-  const start = new Date().toISOString();
-
-  try {
-    console.log(`🔍 DEBUG: Starting ${operation} for server ${server_name}`);
-
-    const proxyUrl = process.env.MCP_PROXY_URL || 'http://localhost:8081';
-    const authToken = process.env.MCP_PROXY_TOKEN;
-
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'X-Debug': 'true',
-    };
-
-    if (authToken) {
-      headers['Authorization'] = `Bearer ${authToken}`;
+3. **Verify Tool Schema**:
+```go
+// Check tool input schema matches your arguments
+tools, err := client.ListTools(context.Background())
+for _, tool := range tools {
+    if tool.Name == "your-tool-name" {
+        fmt.Printf("Input schema: %+v\n", tool.InputSchema)
     }
-
-    let url: string;
-    let method: string = 'GET';
-    let body: string | undefined;
-
-    switch (operation) {
-      case 'list_tools':
-        url = `${proxyUrl}/api/v1/mcp/${server_name}/tools`;
-        break;
-      case 'call_tool':
-        if (!tool_name) {
-          throw new Error('tool_name is required for call_tool operation');
-        }
-        url = `${proxyUrl}/api/v1/mcp/${server_name}/tool/${tool_name}`;
-        method = 'POST';
-        body = JSON.stringify(parameters);
-        break;
-      case 'health_check':
-        url = `${proxyUrl}/api/v1/mcp/${server_name}/health`;
-        break;
-      case 'inspect':
-        url = `${proxyUrl}/api/v1/mcp/${server_name}/inspect`;
-        break;
-      default:
-        throw new Error(`Unknown operation: ${operation}`);
-    }
-
-    if (verbose) {
-      console.log(`📝 DEBUG: Request URL: ${url}`);
-      console.log(`📝 DEBUG: Request method: ${method}`);
-      console.log(`📝 DEBUG: Request headers:`, headers);
-      if (body) {
-        console.log(`📝 DEBUG: Request body:`, body);
-      }
-    }
-
-    const response = await fetch(url, {
-      method,
-      headers,
-      body,
-    });
-
-    const responseText = await response.text();
-    let responseData: any;
-
-    try {
-      responseData = JSON.parse(responseText);
-    } catch (e) {
-      responseData = responseText;
-    }
-
-    if (verbose) {
-      console.log(`📝 DEBUG: Response status: ${response.status}`);
-      console.log(`📝 DEBUG: Response headers:`, Object.fromEntries(response.headers));
-      console.log(`📝 DEBUG: Response body:`, responseData);
-    }
-
-    const endTime = Date.now();
-    const end = new Date().toISOString();
-    const duration = endTime - startTime;
-
-    if (!response.ok) {
-      return {
-        success: false,
-        error: `HTTP ${response.status}: ${response.statusText}`,
-        debug_info: {
-          url,
-          method,
-          headers,
-          body,
-          response_status: response.status,
-          response_headers: Object.fromEntries(response.headers),
-          response_body: responseData,
-        },
-        timing: {
-          start,
-          end,
-          duration_ms: duration,
-        },
-      };
-    }
-
-    console.log(`✅ DEBUG: ${operation} completed successfully in ${duration}ms`);
-
-    return {
-      success: true,
-      result: responseData,
-      timing: {
-        start,
-        end,
-        duration_ms: duration,
-      },
-    };
-
-  } catch (error) {
-    const endTime = Date.now();
-    const end = new Date().toISOString();
-    const duration = endTime - startTime;
-
-    console.error(`❌ DEBUG: ${operation} failed:`, error.message);
-
-    return {
-      success: false,
-      error: error.message,
-      timing: {
-        start,
-        end,
-        duration_ms: duration,
-      },
-    };
-  }
 }
 ```
 
-### MCP Test Tool
-
-<Callout type=\"info\">\n  **Test Coverage**: The test tool supports basic, comprehensive, and custom test suites to match different development needs.\n</Callout>
-
-Automated testing tool for MCP servers with comprehensive test suites:
-
-<Tabs items={[\"Test Tool\", \"Test Suites\", \"Custom Tests\"]}>\n<Tab>
-
-```typescript
-// dev-tools/mcp_test_tool.ts
-interface TestInput {
-  server_name: string;
-  test_suite?: 'basic' | 'comprehensive' | 'custom';
-  custom_tests?: TestCase[];
-  timeout?: number;
-}
-
-interface TestCase {
-  name: string;
-  operation: string;
-  tool_name?: string;
-  parameters?: Record<string, any>;
-  expected_result?: any;
-  should_fail?: boolean;
-}
-
-interface TestOutput {
-  success: boolean;
-  total_tests: number;
-  passed_tests: number;
-  failed_tests: number;
-  test_results: TestResult[];
-  summary: string;
-}
-
-interface TestResult {
-  test_name: string;
-  passed: boolean;
-  duration_ms: number;
-  error?: string;
-  result?: any;
-}
-
-export default async function mcpTestTool(input: TestInput): Promise<TestOutput> {
-  const { server_name, test_suite = 'basic', custom_tests = [], timeout = 30000 } = input;
-
-  let testCases: TestCase[] = [];
-
-  // Define test suites
-  switch (test_suite) {
-    case 'basic':
-      testCases = [
-        {
-          name: 'List Tools',
-          operation: 'list_tools',
-        },
-        {
-          name: 'Health Check',
-          operation: 'health_check',
-        },
-        {
-          name: 'Server Inspect',
-          operation: 'inspect',
-        },
-      ];
-      break;
-
-    case 'comprehensive':
-      testCases = [
-        {
-          name: 'List Tools',
-          operation: 'list_tools',
-        },
-        {
-          name: 'Health Check',
-          operation: 'health_check',
-        },
-        {
-          name: 'Server Inspect',
-          operation: 'inspect',
-        },
-        {
-          name: 'Invalid Tool Call',
-          operation: 'call_tool',
-          tool_name: 'non_existent_tool',
-          parameters: {},
-          should_fail: true,
-        },
-        {
-          name: 'Tool Call with Invalid Parameters',
-          operation: 'call_tool',
-          tool_name: 'test_tool',
-          parameters: { invalid_param: 'value' },
-          should_fail: true,
-        },
-      ];
-      break;
-
-    case 'custom':
-      testCases = custom_tests;
-      break;
-  }
-
-  const results: TestResult[] = [];
-  let passedTests = 0;
-  let failedTests = 0;
-
-  console.log(`🧪 Starting test suite: ${test_suite} for server: ${server_name}`);
-  console.log(`📋 Running ${testCases.length} tests...`);
-
-  for (const testCase of testCases) {
-    const testStart = Date.now();
-
-    try {
-      console.log(`\n🔍 Running test: ${testCase.name}`);
-
-      const debugResult = await mcpDebugTool({
-        server_name,
-        operation: testCase.operation as any,
-        tool_name: testCase.tool_name,
-        parameters: testCase.parameters,
-        verbose: false,
-      });
-
-      const testEnd = Date.now();
-      const duration = testEnd - testStart;
-
-      let passed = false;
-      let error: string | undefined;
-
-      if (testCase.should_fail) {
-        // Test should fail
-        passed = !debugResult.success;
-        if (debugResult.success) {
-          error = 'Test expected to fail but succeeded';
-        }
-      } else {
-        // Test should succeed
-        passed = debugResult.success;
-        if (!debugResult.success) {
-          error = debugResult.error;
-        }
-      }
-
-      // Check expected result if provided
-      if (passed && testCase.expected_result && debugResult.result) {
-        const resultMatches = JSON.stringify(debugResult.result) === JSON.stringify(testCase.expected_result);
-        if (!resultMatches) {
-          passed = false;
-          error = 'Result does not match expected value';
-        }
-      }
-
-      if (passed) {
-        console.log(`✅ ${testCase.name}: PASSED (${duration}ms)`);
-        passedTests++;
-      } else {
-        console.log(`❌ ${testCase.name}: FAILED (${duration}ms) - ${error}`);
-        failedTests++;
-      }
-
-      results.push({
-        test_name: testCase.name,
-        passed,
-        duration_ms: duration,
-        error,
-        result: debugResult.result,
-      });
-
-    } catch (error) {
-      const testEnd = Date.now();
-      const duration = testEnd - testStart;
-
-      console.log(`❌ ${testCase.name}: ERROR (${duration}ms) - ${error.message}`);
-
-      results.push({
-        test_name: testCase.name,
-        passed: false,
-        duration_ms: duration,
-        error: error.message,
-      });
-
-      failedTests++;
-    }
-  }
-
-  const totalTests = testCases.length;
-  const successRate = (passedTests / totalTests) * 100;
-
-  console.log(`\n📊 Test Results Summary:`);
-  console.log(`   Total Tests: ${totalTests}`);
-  console.log(`   Passed: ${passedTests}`);
-  console.log(`   Failed: ${failedTests}`);
-  console.log(`   Success Rate: ${successRate.toFixed(1)}%`);
-
-  const summary = `${passedTests}/${totalTests} tests passed (${successRate.toFixed(1)}%)`;
-
-  return {
-    success: passedTests === totalTests,
-    total_tests: totalTests,
-    passed_tests: passedTests,
-    failed_tests: failedTests,
-    test_results: results,
-    summary,
-  };
-}
-```
-
-## Logging and Monitoring
-
-### Structured Logging
-
-Implement comprehensive logging for MCP operations:
-
-```typescript
-// dev-tools/mcp_logger.ts
-interface LogEntry {
-  timestamp: string;
-  level: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
-  component: string;
-  server_name?: string;
-  tool_name?: string;
-  operation?: string;
-  message: string;
-  metadata?: Record<string, any>;
-  error?: string;
-  stack_trace?: string;
-}
-
-class MCPLogger {
-  private static instance: MCPLogger;
-  private logLevel: string;
-  private enableConsole: boolean;
-  private enableFile: boolean;
-  private logFile: string;
-
-  private constructor() {
-    this.logLevel = process.env.MCP_LOG_LEVEL || 'INFO';
-    this.enableConsole = process.env.MCP_LOG_CONSOLE !== 'false';
-    this.enableFile = process.env.MCP_LOG_FILE === 'true';
-    this.logFile = process.env.MCP_LOG_FILE_PATH || './logs/mcp.log';
-  }
-
-  static getInstance(): MCPLogger {
-    if (!MCPLogger.instance) {
-      MCPLogger.instance = new MCPLogger();
-    }
-    return MCPLogger.instance;
-  }
-
-  private shouldLog(level: string): boolean {
-    const levels = ['DEBUG', 'INFO', 'WARN', 'ERROR'];
-    const currentLevelIndex = levels.indexOf(this.logLevel);
-    const msgLevelIndex = levels.indexOf(level);
-    return msgLevelIndex >= currentLevelIndex;
-  }
-
-  private formatLogEntry(entry: LogEntry): string {
-    const metadata = entry.metadata ? JSON.stringify(entry.metadata) : '';
-    const errorInfo = entry.error ? ` ERROR: ${entry.error}` : '';
-
-    return `[${entry.timestamp}] ${entry.level} ${entry.component}${entry.server_name ? `(${entry.server_name})` : ''}: ${entry.message}${metadata ? ` ${metadata}` : ''}${errorInfo}`;
-  }
-
-  private async writeToFile(entry: LogEntry): Promise<void> {
-    if (!this.enableFile) return;
-
-    try {
-      const logLine = this.formatLogEntry(entry) + '\n';
-      await Bun.write(this.logFile, logLine, { append: true });
-    } catch (error) {
-      console.error('Failed to write to log file:', error);
-    }
-  }
-
-  private log(level: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR', component: string, message: string, metadata?: Record<string, any>, error?: Error): void {
-    if (!this.shouldLog(level)) return;
-
-    const entry: LogEntry = {
-      timestamp: new Date().toISOString(),
-      level,
-      component,
-      message,
-      metadata,
-      error: error?.message,
-      stack_trace: error?.stack,
-    };
-
-    if (this.enableConsole) {
-      const formattedMessage = this.formatLogEntry(entry);
-      switch (level) {
-        case 'DEBUG':
-          console.debug(formattedMessage);
-          break;
-        case 'INFO':
-          console.info(formattedMessage);
-          break;
-        case 'WARN':
-          console.warn(formattedMessage);
-          break;
-        case 'ERROR':
-          console.error(formattedMessage);
-          break;
-      }
-    }
-
-    this.writeToFile(entry);
-  }
-
-  debug(component: string, message: string, metadata?: Record<string, any>): void {
-    this.log('DEBUG', component, message, metadata);
-  }
-
-  info(component: string, message: string, metadata?: Record<string, any>): void {
-    this.log('INFO', component, message, metadata);
-  }
-
-  warn(component: string, message: string, metadata?: Record<string, any>): void {
-    this.log('WARN', component, message, metadata);
-  }
-
-  error(component: string, message: string, error?: Error, metadata?: Record<string, any>): void {
-    this.log('ERROR', component, message, metadata, error);
-  }
-
-  mcpOperation(serverName: string, operation: string, toolName?: string, parameters?: any, result?: any, error?: Error): void {
-    const metadata = {
-      server_name: serverName,
-      tool_name: toolName,
-      operation,
-      parameters: parameters ? JSON.stringify(parameters) : undefined,
-      result: result ? JSON.stringify(result) : undefined,
-    };
-
-    if (error) {
-      this.error('MCP_OPERATION', `${operation} failed`, error, metadata);
-    } else {
-      this.info('MCP_OPERATION', `${operation} completed`, metadata);
-    }
-  }
-}
-
-export default MCPLogger.getInstance();
-```
-
-### Performance Monitoring
-
-Track MCP performance metrics:
-
-```typescript
-// dev-tools/mcp_monitor.ts
-interface PerformanceMetrics {
-  server_name: string;
-  operation: string;
-  tool_name?: string;
-  start_time: number;
-  end_time: number;
-  duration_ms: number;
-  success: boolean;
-  error?: string;
-  payload_size?: number;
-  response_size?: number;
-}
-
-class MCPMonitor {
-  private static instance: MCPMonitor;
-  private metrics: PerformanceMetrics[] = [];
-  private maxMetrics: number = 10000;
-
-  private constructor() {}
-
-  static getInstance(): MCPMonitor {
-    if (!MCPMonitor.instance) {
-      MCPMonitor.instance = new MCPMonitor();
-    }
-    return MCPMonitor.instance;
-  }
-
-  startOperation(serverName: string, operation: string, toolName?: string): string {
-    const operationId = `${serverName}-${operation}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-
-    // Store start time for this operation
-    (globalThis as any).mcpOperationStarts = (globalThis as any).mcpOperationStarts || new Map();
-    (globalThis as any).mcpOperationStarts.set(operationId, {
-      server_name: serverName,
-      operation,
-      tool_name: toolName,
-      start_time: Date.now(),
-    });
-
-    return operationId;
-  }
-
-  endOperation(operationId: string, success: boolean, error?: string, payloadSize?: number, responseSize?: number): void {
-    const operationStarts = (globalThis as any).mcpOperationStarts || new Map();
-    const startData = operationStarts.get(operationId);
-
-    if (!startData) {
-      console.warn(`No start data found for operation: ${operationId}`);
-      return;
-    }
-
-    const endTime = Date.now();
-    const duration = endTime - startData.start_time;
-
-    const metric: PerformanceMetrics = {
-      server_name: startData.server_name,
-      operation: startData.operation,
-      tool_name: startData.tool_name,
-      start_time: startData.start_time,
-      end_time: endTime,
-      duration_ms: duration,
-      success,
-      error,
-      payload_size: payloadSize,
-      response_size: responseSize,
-    };
-
-    this.metrics.push(metric);
-
-    // Clean up old metrics
-    if (this.metrics.length > this.maxMetrics) {
-      this.metrics = this.metrics.slice(-this.maxMetrics);
-    }
-
-    // Clean up start data
-    operationStarts.delete(operationId);
-
-    // Log slow operations
-    if (duration > 5000) {
-      console.warn(`Slow MCP operation detected: ${startData.server_name}.${startData.operation} took ${duration}ms`);
-    }
-  }
-
-  getMetrics(serverName?: string, operation?: string, timeRange?: { start: number; end: number }): PerformanceMetrics[] {
-    let filtered = this.metrics;
-
-    if (serverName) {
-      filtered = filtered.filter(m => m.server_name === serverName);
-    }
-
-    if (operation) {
-      filtered = filtered.filter(m => m.operation === operation);
-    }
-
-    if (timeRange) {
-      filtered = filtered.filter(m => m.start_time >= timeRange.start && m.end_time <= timeRange.end);
-    }
-
-    return filtered;
-  }
-
-  getStatistics(serverName?: string, operation?: string): {
-    total_operations: number;
-    successful_operations: number;
-    failed_operations: number;
-    success_rate: number;
-    average_duration_ms: number;
-    min_duration_ms: number;
-    max_duration_ms: number;
-    p95_duration_ms: number;
-    p99_duration_ms: number;
-  } {
-    const metrics = this.getMetrics(serverName, operation);
-
-    if (metrics.length === 0) {
-      return {
-        total_operations: 0,
-        successful_operations: 0,
-        failed_operations: 0,
-        success_rate: 0,
-        average_duration_ms: 0,
-        min_duration_ms: 0,
-        max_duration_ms: 0,
-        p95_duration_ms: 0,
-        p99_duration_ms: 0,
-      };
-    }
-
-    const successful = metrics.filter(m => m.success).length;
-    const failed = metrics.length - successful;
-    const durations = metrics.map(m => m.duration_ms).sort((a, b) => a - b);
-
-    const p95Index = Math.floor(durations.length * 0.95);
-    const p99Index = Math.floor(durations.length * 0.99);
-
-    return {
-      total_operations: metrics.length,
-      successful_operations: successful,
-      failed_operations: failed,
-      success_rate: (successful / metrics.length) * 100,
-      average_duration_ms: durations.reduce((sum, d) => sum + d, 0) / durations.length,
-      min_duration_ms: durations[0],
-      max_duration_ms: durations[durations.length - 1],
-      p95_duration_ms: durations[p95Index],
-      p99_duration_ms: durations[p99Index],
-    };
-  }
-
-  clearMetrics(): void {
-    this.metrics = [];
-  }
-}
-
-export default MCPMonitor.getInstance();
-```
-
-## Debugging Workflows
-
-<Mermaid chart={`flowchart TD
-    A[Start Debug Session] --> B{MCP Proxy Running?}
-    B -->|No| C[Start MCP Proxy]
-    B -->|Yes| D[Check Server Registration]
-    C --> D
-    D --> E{Server Registered?}
-    E -->|No| F[Register Server]
-    E -->|Yes| G[Test Connection]
-    F --> G
-    G --> H{Connection OK?}
-    H -->|No| I[Debug Connection Issues]
-    H -->|Yes| J[List Available Tools]
-    I --> K[Check Logs]
-    I --> L[Validate Configuration]
-    I --> M[Test Network Connectivity]
-    J --> N[Test Tool Execution]
-    N --> O{Tool Works?}
-    O -->|No| P[Debug Tool Issues]
-    O -->|Yes| Q[Performance Testing]
-    P --> R[Validate Parameters]
-    P --> S[Check Tool Schema]
-    Q --> T[Monitor Metrics]
-    T --> U[Debug Complete]
-    
-    style A fill:#e1f5fe
-    style U fill:#e8f5e8
-    style I fill:#fff3e0
-    style P fill:#fff3e0
-    style K fill:#fce4ec
-    style L fill:#fce4ec
-    style M fill:#fce4ec
-    style R fill:#fce4ec
-    style S fill:#fce4ec`} />
-
-### Step-by-Step Debugging Process
-
-<Steps>
-<Step title=\"Environment Validation\" description=\"Verify all services are running and configured correctly\">
-
-<Tabs items={[\"Quick Check\", \"Detailed Validation\", \"Troubleshooting\"]}>\n<Tab>
-```bash title=\"Quick Environment Check\"\n# Check if MCP proxy is running\ncurl -f http://localhost:8081/health || echo \"❌ MCP proxy not running\"\n\n# Check if admin token is set\necho \"Admin token: ${MCP_ADMIN_TOKEN:-'❌ Not set'}\"\n\n# Check Docker containers\ndocker ps --format \"table {{.Names}}\\t{{.Status}}\" | grep -E '(mcp|postgres|redis)'\n```\n</Tab>\n\n<Tab>\n```bash title=\"Comprehensive Environment Validation\"\n#!/bin/bash\n# Comprehensive environment validation script\n\necho \"🔍 Comprehensive Environment Validation\"\necho \"==========================================\"\n\n# Check services\necho \"📊 Service Status:\"\nservices=(\"mcp-proxy:8081\" \"postgres:5432\" \"redis:6379\")\nfor service in \"${services[@]}\"; do\n    name=$(echo $service | cut -d: -f1)\n    port=$(echo $service | cut -d: -f2)\n    if nc -z localhost $port 2>/dev/null; then\n        echo \"  ✅ $name (port $port) - Running\"\n    else\n        echo \"  ❌ $name (port $port) - Not running\"\n    fi\ndone\n\n# Check environment variables\necho \"🔑 Environment Variables:\"\nrequired_vars=(\"MCP_ADMIN_TOKEN\" \"MCP_PROXY_URL\")\nfor var in \"${required_vars[@]}\"; do\n    if [ -n \"${!var}\" ]; then\n        echo \"  ✅ $var - Set\"\n    else\n        echo \"  ❌ $var - Not set\"\n    fi\ndone\n\n# Check file system\necho \"📁 File System:\"\ndirectories=(\"dev-workspace\" \"dev-tools\" \"logs\")\nfor dir in \"${directories[@]}\"; do\n    if [ -d \"$dir\" ]; then\n        echo \"  ✅ $dir - Exists\"\n    else\n        echo \"  ❌ $dir - Missing\"\n    fi\ndone\n\n# Check network connectivity\necho \"🌐 Network Connectivity:\"\nif curl -s -f \"http://localhost:8081/health\" >/dev/null; then\n    echo \"  ✅ MCP proxy health check - OK\"\nelse\n    echo \"  ❌ MCP proxy health check - Failed\"\nfi\n```\n</Tab>\n\n<Tab>\n```bash title=\"Common Issues and Solutions\"\n# Issue 1: MCP proxy not starting\necho \"🔧 Troubleshooting MCP Proxy Issues:\"\necho \"1. Check if port 8081 is available:\"\nnetstat -tulpn | grep :8081\n\necho \"2. Check Docker logs:\"\ndocker logs mcp-proxy\n\necho \"3. Restart with fresh configuration:\"\ndocker-compose down && docker-compose up -d\n\n# Issue 2: Connection refused\necho \"🔧 Troubleshooting Connection Issues:\"\necho \"1. Verify firewall settings:\"\nsudo ufw status\n\necho \"2. Check network configuration:\"\ndocker network ls\ndocker network inspect mcp-dev\n\necho \"3. Test with different endpoints:\"\ncurl -v http://localhost:8081/health\ncurl -v http://127.0.0.1:8081/health\n```\n</Tab>\n</Tabs>\n\n</Step>\n\n<Step title=\"Server Registration\" description=\"Verify MCP servers are properly registered and accessible\">\n\n<Tabs items={[\"Registration Check\", \"Manual Registration\", \"Debug Registration\"]}>\n<Tab>\n```bash title=\"Check Server Registration Status\"\n# List all registered servers\ncurl -H \"Authorization: Bearer $MCP_ADMIN_TOKEN\" \\\n    http://localhost:8081/admin/mcps | jq .\n\n# Check specific server\ncurl -H \"Authorization: Bearer $MCP_ADMIN_TOKEN\" \\\n    http://localhost:8081/admin/mcps/filesystem_dev | jq .\n\n# Verify server health\ncurl -H \"Authorization: Bearer $MCP_ADMIN_TOKEN\" \\\n    http://localhost:8081/api/v1/mcp/filesystem_dev/health | jq .\n```\n</Tab>\n\n<Tab>\n```bash title=\"Manual Server Registration\"\n# Register filesystem server\ncurl -X POST -H \"Content-Type: application/json\" \\\n    -H \"Authorization: Bearer $MCP_ADMIN_TOKEN\" \\\n    -d '{\n        \"name\": \"filesystem_dev\",\n        \"transport\": \"stdio\",\n        \"command\": \"npx\",\n        \"args\": [\"-y\", \"@modelcontextprotocol/server-filesystem\", \"./dev-workspace\"]\n    }' \\\n    http://localhost:8081/admin/mcps\n\n# Register database server\ncurl -X POST -H \"Content-Type: application/json\" \\\n    -H \"Authorization: Bearer $MCP_ADMIN_TOKEN\" \\\n    -d '{\n        \"name\": \"database_dev\",\n        \"transport\": \"stdio\",\n        \"command\": \"python\",\n        \"args\": [\"./dev-tools/mcp_db_server.py\", \"--debug\"]\n    }' \\\n    http://localhost:8081/admin/mcps\n```\n</Tab>\n\n<Tab>\n```bash title=\"Debug Registration Issues\"\n# Check registration logs\ndocker logs mcp-proxy | grep -i \"registration\"\n\n# Verify command accessibility\nwhich npx || echo \"❌ npx not found\"\nwhich python || echo \"❌ python not found\"\n\n# Test commands manually\nnpx -y @modelcontextprotocol/server-filesystem --help\npython ./dev-tools/mcp_db_server.py --help\n\n# Check permissions\nls -la ./dev-tools/\nls -la ./dev-workspace/\n```\n</Tab>\n</Tabs>\n\n</Step>\n\n<Step title=\"Tool Discovery\" description=\"Test tool listing and availability\">\n\n<Tabs items={[\"List Tools\", \"Test Tools\", \"Validate Schemas\"]}>\n<Tab>\n```bash title=\"List Available Tools\"\n# List all tools from all servers\ncurl -H \"Authorization: Bearer $MCP_ADMIN_TOKEN\" \\\n    http://localhost:8081/admin/tools | jq .\n\n# List tools from specific server\ncurl -H \"Authorization: Bearer $MCP_ADMIN_TOKEN\" \\\n    http://localhost:8081/api/v1/mcp/filesystem_dev/tools | jq .\n\n# Get tool details\ncurl -H \"Authorization: Bearer $MCP_ADMIN_TOKEN\" \\\n    http://localhost:8081/admin/tools/filesystem_dev.read_file | jq .\n```\n</Tab>\n\n<Tab>\n```bash title=\"Test Tool Execution\"\n# Test simple tool call\ncurl -X POST -H \"Content-Type: application/json\" \\\n    -H \"Authorization: Bearer $MCP_ADMIN_TOKEN\" \\\n    -d '{\"path\": \"./dev-workspace/sample.txt\"}' \\\n    http://localhost:8081/api/v1/mcp/filesystem_dev/tool/read_file\n\n# Test tool with complex parameters\ncurl -X POST -H \"Content-Type: application/json\" \\\n    -H \"Authorization: Bearer $MCP_ADMIN_TOKEN\" \\\n    -d '{\n        \"path\": \"./dev-workspace\",\n        \"recursive\": true,\n        \"include_hidden\": false\n    }' \\\n    http://localhost:8081/api/v1/mcp/filesystem_dev/tool/list_directory\n```\n</Tab>\n\n<Tab>\n```bash title=\"Validate Tool Schemas\"\n# Get tool schema\ncurl -H \"Authorization: Bearer $MCP_ADMIN_TOKEN\" \\\n    http://localhost:8081/api/v1/mcp/filesystem_dev/tools | \\\n    jq '.tools[] | select(.name == \"read_file\") | .inputSchema'\n\n# Validate schema against JSON Schema specification\necho '{\n    \"type\": \"object\",\n    \"properties\": {\n        \"path\": {\"type\": \"string\"},\n        \"encoding\": {\"type\": \"string\", \"default\": \"utf-8\"}\n    },\n    \"required\": [\"path\"]\n}' | jq . > /tmp/schema.json\n\n# Test parameter validation\necho '{\"path\": \"./test.txt\", \"encoding\": \"utf-8\"}' | \\\n    ajv validate -s /tmp/schema.json -d /dev/stdin\n```\n</Tab>\n</Tabs>\n\n</Step>\n\n<Step title=\"Performance Testing\" description=\"Monitor and optimize MCP performance\">\n\n<Tabs items={[\"Load Testing\", \"Latency Testing\", \"Resource Monitoring\"]}>\n<Tab>\n```bash title=\"Load Testing Script\"\n#!/bin/bash\n# Load testing for MCP servers\n\nSERVER_NAME=\"filesystem_dev\"\nCONCURRENT_REQUESTS=10\nTOTAL_REQUESTS=100\nTEST_DURATION=60\n\necho \"🚀 Starting load test for $SERVER_NAME\"\necho \"Concurrent requests: $CONCURRENT_REQUESTS\"\necho \"Total requests: $TOTAL_REQUESTS\"\necho \"Test duration: $TEST_DURATION seconds\"\n\n# Use Apache Bench for load testing\nab -n $TOTAL_REQUESTS -c $CONCURRENT_REQUESTS -t $TEST_DURATION \\\n    -H \"Authorization: Bearer $MCP_ADMIN_TOKEN\" \\\n    -H \"Content-Type: application/json\" \\\n    http://localhost:8081/api/v1/mcp/$SERVER_NAME/tools\n\n# Use curl for more detailed testing\nfor i in $(seq 1 $TOTAL_REQUESTS); do\n    (\n        start_time=$(date +%s%3N)\n        curl -s -H \"Authorization: Bearer $MCP_ADMIN_TOKEN\" \\\n            http://localhost:8081/api/v1/mcp/$SERVER_NAME/tools >/dev/null\n        end_time=$(date +%s%3N)\n        duration=$((end_time - start_time))\n        echo \"Request $i: ${duration}ms\"\n    ) &\n    \n    # Limit concurrent requests\n    if (( i % CONCURRENT_REQUESTS == 0 )); then\n        wait\n    fi\ndone\nwait\n```\n</Tab>\n\n<Tab>\n```bash title=\"Latency Monitoring\"\n#!/bin/bash\n# Continuous latency monitoring\n\nSERVER_NAME=\"filesystem_dev\"\nMONITOR_INTERVAL=5\nLATENCY_THRESHOLD=1000  # milliseconds\n\necho \"📊 Starting latency monitoring for $SERVER_NAME\"\necho \"Monitor interval: $MONITOR_INTERVAL seconds\"\necho \"Latency threshold: $LATENCY_THRESHOLD ms\"\n\nwhile true; do\n    start_time=$(date +%s%3N)\n    \n    response=$(curl -s -H \"Authorization: Bearer $MCP_ADMIN_TOKEN\" \\\n        -w \"%{http_code},%{time_total}\" \\\n        http://localhost:8081/api/v1/mcp/$SERVER_NAME/health)\n    \n    end_time=$(date +%s%3N)\n    duration=$((end_time - start_time))\n    \n    http_code=$(echo $response | cut -d',' -f1)\n    curl_time=$(echo $response | cut -d',' -f2)\n    \n    timestamp=$(date '+%Y-%m-%d %H:%M:%S')\n    \n    if [ $duration -gt $LATENCY_THRESHOLD ]; then\n        echo \"⚠️  [$timestamp] HIGH LATENCY: ${duration}ms (HTTP: $http_code)\"\n    else\n        echo \"✅ [$timestamp] OK: ${duration}ms (HTTP: $http_code)\"\n    fi\n    \n    sleep $MONITOR_INTERVAL\ndone\n```\n</Tab>\n\n<Tab>\n```bash title=\"Resource Monitoring\"\n#!/bin/bash\n# System resource monitoring during MCP operations\n\necho \"💻 System Resource Monitoring\"\necho \"=============================\"\n\n# Monitor CPU, memory, and disk usage\nwhile true; do\n    timestamp=$(date '+%Y-%m-%d %H:%M:%S')\n    \n    # CPU usage\n    cpu_usage=$(top -bn1 | grep \"Cpu(s)\" | sed \"s/.*, *\\([0-9.]*\\)%* id.*/\\1/\" | awk '{print 100 - $1}')\n    \n    # Memory usage\n    memory_info=$(free -m | awk 'NR==2{printf \"%.1f%%\", $3*100/$2 }')\n    \n    # Disk usage\n    disk_usage=$(df -h / | awk 'NR==2{print $5}')\n    \n    # Docker container stats\n    docker_stats=$(docker stats --no-stream --format \"table {{.Name}}\\t{{.CPUPerc}}\\t{{.MemUsage}}\" | tail -n +2)\n    \n    echo \"[$timestamp] CPU: ${cpu_usage}% | Memory: ${memory_info} | Disk: ${disk_usage}\"\n    echo \"Docker Stats:\"\n    echo \"$docker_stats\"\n    echo \"----------------------------------------\"\n    \n    # Check for high resource usage\n    if (( $(echo \"$cpu_usage > 80\" | bc -l) )); then\n        echo \"⚠️  HIGH CPU USAGE: ${cpu_usage}%\"\n    fi\n    \n    sleep 10\ndone\n```\n</Tab>\n</Tabs>\n\n</Step>\n</Steps>\n\n## Common Debugging Scenarios\n\n### Connection Issues\n\n<Accordion>\n<AccordionItem value=\"connection-refused\">\n<AccordionTrigger>Connection Refused Errors</AccordionTrigger>\n<AccordionContent>\n\n**Symptoms:**\n- `curl: (7) Failed to connect to localhost port 8081: Connection refused`\n- MCP proxy not responding to health checks\n- Tools not accessible via proxy\n\n**Diagnosis Steps:**\n1. Check if MCP proxy is running: `docker ps | grep mcp-proxy`\n2. Verify port availability: `netstat -tulpn | grep :8081`\n3. Check Docker logs: `docker logs mcp-proxy`\n4. Test network connectivity: `curl -v http://localhost:8081/health`\n\n**Solutions:**\n- Restart MCP proxy: `docker-compose restart mcp-proxy`\n- Check firewall settings: `sudo ufw status`\n- Verify Docker network: `docker network inspect mcp-dev`\n- Use different IP: Try `127.0.0.1` instead of `localhost`\n\n</AccordionContent>\n</AccordionItem>\n\n<AccordionItem value=\"auth-failures\">\n<AccordionTrigger>Authentication Failures</AccordionTrigger>\n<AccordionContent>\n\n**Symptoms:**\n- `HTTP 401 Unauthorized` responses\n- Invalid admin token errors\n- Access denied to admin endpoints\n\n**Diagnosis Steps:**\n1. Verify admin token: `echo $MCP_ADMIN_TOKEN`\n2. Check token in requests: `curl -H \"Authorization: Bearer $MCP_ADMIN_TOKEN\" ...`\n3. Test with different tokens\n\n**Solutions:**\n- Set admin token: `export MCP_ADMIN_TOKEN=dev-admin-token`\n- Update Docker environment: Edit `docker-compose.yml`\n- Generate new token: Use secure random generator\n- Check token format: Should be `Bearer <token>`\n\n</AccordionContent>\n</AccordionItem>\n\n<AccordionItem value=\"server-registration\">\n<AccordionTrigger>Server Registration Issues</AccordionTrigger>\n<AccordionContent>\n\n**Symptoms:**\n- Servers not appearing in `/admin/mcps`\n- Registration API returning errors\n- Tools not available after registration\n\n**Diagnosis Steps:**\n1. List registered servers: `curl -H \"Authorization: Bearer $MCP_ADMIN_TOKEN\" http://localhost:8081/admin/mcps`\n2. Check server command: `which npx`, `which python`\n3. Test command manually: `npx -y @modelcontextprotocol/server-filesystem --help`\n4. Verify file permissions: `ls -la ./dev-workspace/`\n\n**Solutions:**\n- Install missing dependencies: `npm install -g @modelcontextprotocol/server-filesystem`\n- Fix file permissions: `chmod +x ./dev-tools/mcp_db_server.py`\n- Update server configuration in `compozy.yaml`\n- Re-register server manually via API\n\n</AccordionContent>\n</AccordionItem>\n</Accordion>\n\nDebug MCP server connection problems:"}, {"old_string": "```typescript\n// dev-tools/connection_debugger.ts\ninterface ConnectionDebugResult {\n  server_name: string;\n  transport_type: string;\n  connection_status: 'connected' | 'failed' | 'timeout';\n  error?: string;\n  latency_ms?: number;\n  server_info?: any;\n  recommendations?: string[];\n}", "new_string": "```typescript title=\"dev-tools/connection_debugger.ts - Enhanced Connection Debugging\"\n// Comprehensive connection debugging with detailed diagnostics\n\ninterface ConnectionDebugResult {\n  server_name: string;\n  transport_type: string;\n  connection_status: 'connected' | 'failed' | 'timeout' | 'degraded';\n  error?: string;\n  latency_ms?: number;\n  server_info?: any;\n  recommendations?: string[];\n  health_metrics?: {\n    uptime: number;\n    memory_usage: number;\n    cpu_usage: number;\n    active_connections: number;\n  };\n  network_info?: {\n    ip_address: string;\n    port: number;\n    protocol: string;\n    ssl_enabled: boolean;\n  };\n}"}, {"old_string": "### Tool Execution Issues\n\nDebug tool execution problems:", "new_string": "### Tool Execution Issues\n\n<Callout type=\"warning\">\n  **Tool Validation**: Always validate tool parameters against the schema before execution to avoid runtime errors.\n</Callout>\n\nDebug tool execution problems with comprehensive diagnostics:"}, {"old_string": "```typescript\n// dev-tools/tool_debugger.ts\ninterface ToolDebugResult {\n  server_name: string;\n  tool_name: string;\n  available: boolean;\n  parameters_valid: boolean;\n  execution_status: 'success' | 'failed' | 'timeout';\n  error?: string;\n  result?: any;\n  recommendations?: string[];\n}", "new_string": "```typescript title=\"dev-tools/tool_debugger.ts - Enhanced Tool Debugging\"\n// Comprehensive tool debugging with schema validation and performance metrics\n\ninterface ToolDebugResult {\n  server_name: string;\n  tool_name: string;\n  available: boolean;\n  parameters_valid: boolean;\n  execution_status: 'success' | 'failed' | 'timeout' | 'partial';\n  error?: string;\n  result?: any;\n  recommendations?: string[];\n  performance_metrics?: {\n    execution_time: number;\n    memory_usage: number;\n    cpu_usage: number;\n  };\n  schema_validation?: {\n    valid: boolean;\n    errors: string[];\n    warnings: string[];\n  };\n  execution_context?: {\n    retry_count: number;\n    timeout_ms: number;\n    concurrent_executions: number;\n  };\n}"}, {"old_string": "## Testing Strategies\n\n### Unit Testing\n\nTest individual MCP operations:", "new_string": "## Testing Strategies\n\n<Mermaid chart={`graph TD\n    A[Test Strategy] --> B[Unit Tests]\n    A --> C[Integration Tests]\n    A --> D[End-to-End Tests]\n    A --> E[Performance Tests]\n    \n    B --> B1[Individual Tools]\n    B --> B2[Schema Validation]\n    B --> B3[Error Handling]\n    \n    C --> C1[Server Integration]\n    C --> C2[Tool Workflows]\n    C --> C3[Multi-Server Tests]\n    \n    D --> D1[Complete Workflows]\n    D --> D2[User Scenarios]\n    D --> D3[Production Simulation]\n    \n    E --> E1[Load Testing]\n    E --> E2[Stress Testing]\n    E --> E3[Performance Benchmarks]\n    \n    style A fill:#e1f5fe\n    style B fill:#e8f5e8\n    style C fill:#fff3e0\n    style D fill:#fce4ec\n    style E fill:#f3e5f5`} />\n\n### Unit Testing\n\n<Tabs items={[\"Basic Tests\", \"Advanced Tests\", \"Test Utilities\"]}>\n<Tab>\n\nTest individual MCP operations with comprehensive validation:"}, {"old_string": "```typescript\n// tests/mcp_unit_tests.ts\nimport { assertEquals, assertRejects } from \"https://deno.land/std@0.208.0/testing/asserts.ts\";\n\ntest(\"MCP Filesystem - List Directory\", async () => {\n  const result = await mcpDebugTool({\n    server_name: \"filesystem_dev\",\n    operation: \"call_tool\",\n    tool_name: \"list_directory\",\n    parameters: { path: \"./dev-workspace\" },\n  });\n\n  assertEquals(result.success, true);\n  assertEquals(typeof result.result, \"object\");\n  assertEquals(Array.isArray(result.result?.files), true);\n});", "new_string": "```typescript title=\"tests/mcp_unit_tests.ts - Comprehensive Unit Tests\"\nimport { assertEquals, assertRejects, assertExists } from \"https://deno.land/std@0.208.0/testing/asserts.ts\";\n\n// Test suite for MCP filesystem operations\nDeno.test(\"MCP Filesystem - List Directory\", async () => {\n  const result = await mcpDebugTool({\n    server_name: \"filesystem_dev\",\n    operation: \"call_tool\",\n    tool_name: \"list_directory\",\n    parameters: { path: \"./dev-workspace\" },\n    verbose: true,\n  });\n\n  assertEquals(result.success, true);\n  assertEquals(typeof result.result, \"object\");\n  assertEquals(Array.isArray(result.result?.files), true);\n  assertExists(result.performance_metrics);\n  \n  // Verify performance metrics\n  const metrics = result.performance_metrics!;\n  assertEquals(metrics.operation_count, 1);\n  assertEquals(typeof metrics.avg_response_time, \"number\");\n  assertEquals(typeof metrics.error_rate, \"number\");\n});"}, {"old_string": "test(\"MCP Database - Query\", async () => {\n  const result = await mcpDebugTool({\n    server_name: \"database_dev\",\n    operation: \"call_tool\",\n    tool_name: \"query\",\n    parameters: {\n      sql: \"SELECT 1 as test_value\",\n      parameters: {}\n    },\n  });\n\n  assertEquals(result.success, true);\n  assertEquals(result.result?.rows?.[0]?.test_value, 1);\n});", "new_string": "Deno.test(\"MCP Database - Query with Performance Tracking\", async () => {\n  const result = await mcpDebugTool({\n    server_name: \"database_dev\",\n    operation: \"call_tool\",\n    tool_name: \"query\",\n    parameters: {\n      sql: \"SELECT 1 as test_value, datetime('now') as timestamp\",\n      parameters: {}\n    },\n    verbose: true,\n  });\n\n  assertEquals(result.success, true);\n  assertEquals(result.result?.rows?.[0]?.test_value, 1);\n  assertExists(result.result?.rows?.[0]?.timestamp);\n  \n  // Verify query performance\n  assertExists(result.timing);\n  assertEquals(result.timing.duration_ms < 5000, true); // Should complete within 5 seconds\n});"}, {"old_string": "test(\"MCP Tool - Invalid Parameters\", async () => {\n  const result = await mcpDebugTool({\n    server_name: \"filesystem_dev\",\n    operation: \"call_tool\",\n    tool_name: \"read_file\",\n    parameters: {}, // Missing required 'path' parameter\n  });\n\n  assertEquals(result.success, false);\n  assertEquals(typeof result.error, \"string\");\n});", "new_string": "Deno.test(\"MCP Tool - Parameter Validation\", async () => {\n  // Test missing required parameters\n  const invalidResult = await mcpDebugTool({\n    server_name: \"filesystem_dev\",\n    operation: \"call_tool\",\n    tool_name: \"read_file\",\n    parameters: {}, // Missing required 'path' parameter\n  });\n\n  assertEquals(invalidResult.success, false);\n  assertEquals(typeof invalidResult.error, \"string\");\n  \n  // Test invalid parameter types\n  const typeErrorResult = await mcpDebugTool({\n    server_name: \"filesystem_dev\",\n    operation: \"call_tool\",\n    tool_name: \"read_file\",\n    parameters: { path: 123 }, // Should be string\n  });\n\n  assertEquals(typeErrorResult.success, false);\n  \n  // Test valid parameters\n  const validResult = await mcpDebugTool({\n    server_name: \"filesystem_dev\",\n    operation: \"call_tool\",\n    tool_name: \"read_file\",\n    parameters: { path: \"./dev-workspace/sample.txt\" },\n  });\n\n  assertEquals(validResult.success, true);\n  assertExists(validResult.result);\n});"}, {"old_string": "```", "new_string": "```\n</Tab>\n\n<Tab>\n```typescript title=\"tests/mcp_advanced_tests.ts - Advanced Test Scenarios\"\nimport { assertEquals, assertRejects, assertExists } from \"https://deno.land/std@0.208.0/testing/asserts.ts\";\n\n// Test concurrent operations\nDeno.test(\"MCP Concurrent Operations\", async () => {\n  const promises = [];\n  const concurrentRequests = 5;\n  \n  for (let i = 0; i < concurrentRequests; i++) {\n    const promise = mcpDebugTool({\n      server_name: \"filesystem_dev\",\n      operation: \"call_tool\",\n      tool_name: \"list_directory\",\n      parameters: { path: \"./dev-workspace\" },\n    });\n    promises.push(promise);\n  }\n  \n  const results = await Promise.all(promises);\n  \n  // All requests should succeed\n  results.forEach(result => {\n    assertEquals(result.success, true);\n    assertExists(result.result);\n  });\n  \n  // Check for reasonable response times\n  const avgResponseTime = results.reduce((sum, r) => sum + r.timing!.duration_ms, 0) / results.length;\n  assertEquals(avgResponseTime < 2000, true); // Should be under 2 seconds\n});\n\n// Test error recovery\nDeno.test(\"MCP Error Recovery\", async () => {\n  // Test with invalid server\n  const invalidServerResult = await mcpDebugTool({\n    server_name: \"nonexistent_server\",\n    operation: \"list_tools\",\n  });\n  \n  assertEquals(invalidServerResult.success, false);\n  assertExists(invalidServerResult.error);\n  \n  // Test with valid server after error\n  const validResult = await mcpDebugTool({\n    server_name: \"filesystem_dev\",\n    operation: \"list_tools\",\n  });\n  \n  assertEquals(validResult.success, true);\n});\n\n// Test timeout handling\nDeno.test(\"MCP Timeout Handling\", async () => {\n  const shortTimeoutResult = await mcpDebugTool({\n    server_name: \"filesystem_dev\",\n    operation: \"call_tool\",\n    tool_name: \"read_file\",\n    parameters: { path: \"./dev-workspace/large-file.txt\" },\n    timeout: 100, // Very short timeout\n  });\n  \n  // Should either succeed quickly or timeout gracefully\n  if (!shortTimeoutResult.success) {\n    assertEquals(shortTimeoutResult.error?.includes(\"timeout\"), true);\n  }\n});\n\n// Test schema validation\nDeno.test(\"MCP Schema Validation\", async () => {\n  // Get tool schema\n  const toolsResult = await mcpDebugTool({\n    server_name: \"filesystem_dev\",\n    operation: \"list_tools\",\n  });\n  \n  assertEquals(toolsResult.success, true);\n  assertExists(toolsResult.result?.tools);\n  \n  const readFileTool = toolsResult.result.tools.find((t: any) => t.name === \"read_file\");\n  assertExists(readFileTool);\n  assertExists(readFileTool.inputSchema);\n  \n  // Validate schema structure\n  assertEquals(readFileTool.inputSchema.type, \"object\");\n  assertExists(readFileTool.inputSchema.properties);\n  assertExists(readFileTool.inputSchema.required);\n});\n```\n</Tab>\n\n<Tab>\n```typescript title=\"tests/test_utilities.ts - Test Helper Functions\"\n// Utility functions for MCP testing\n\nexport class MCPTestUtil {\n  static async waitForServer(serverName: string, timeout: number = 30000): Promise<boolean> {\n    const start = Date.now();\n    \n    while (Date.now() - start < timeout) {\n      try {\n        const result = await mcpDebugTool({\n          server_name: serverName,\n          operation: \"health_check\",\n        });\n        \n        if (result.success) {\n          return true;\n        }\n      } catch (error) {\n        // Continue trying\n      }\n      \n      await new Promise(resolve => setTimeout(resolve, 1000));\n    }\n    \n    return false;\n  }\n  \n  static async setupTestEnvironment(): Promise<void> {\n    // Create test files\n    await Deno.writeTextFile(\"./dev-workspace/test-input.txt\", \"Hello, MCP testing!\");\n    await Deno.writeTextFile(\"./dev-workspace/test-config.json\", JSON.stringify({\n      test: true,\n      timestamp: new Date().toISOString()\n    }));\n    \n    // Ensure servers are ready\n    const servers = [\"filesystem_dev\", \"database_dev\", \"web_dev\"];\n    for (const server of servers) {\n      const isReady = await this.waitForServer(server);\n      if (!isReady) {\n        throw new Error(`Server ${server} not ready for testing`);\n      }\n    }\n  }\n  \n  static async cleanupTestEnvironment(): Promise<void> {\n    // Clean up test files\n    try {\n      await Deno.remove(\"./dev-workspace/test-input.txt\");\n      await Deno.remove(\"./dev-workspace/test-config.json\");\n    } catch (error) {\n      // Files might not exist\n    }\n  }\n  \n  static async measurePerformance<T>(operation: () => Promise<T>): Promise<{ result: T; duration: number }> {\n    const start = Date.now();\n    const result = await operation();\n    const duration = Date.now() - start;\n    \n    return { result, duration };\n  }\n  \n  static generateTestData(type: 'small' | 'medium' | 'large'): any {\n    const sizes = {\n      small: 100,\n      medium: 10000,\n      large: 1000000\n    };\n    \n    const size = sizes[type];\n    const data = {\n      id: Math.random().toString(36).substr(2, 9),\n      timestamp: new Date().toISOString(),\n      data: 'x'.repeat(size),\n      metadata: {\n        type,\n        size,\n        generated: true\n      }\n    };\n    \n    return data;\n  }\n}\n\n// Test suite setup and teardown\nexport async function setupTestSuite(): Promise<void> {\n  await MCPTestUtil.setupTestEnvironment();\n  console.log(\"✅ Test environment ready\");\n}\n\nexport async function teardownTestSuite(): Promise<void> {\n  await MCPTestUtil.cleanupTestEnvironment();\n  console.log(\"✅ Test environment cleaned up\");\n}\n```\n</Tab>\n</Tabs>"}, {"old_string": "### Integration Testing\n\nTest complete MCP workflows:", "new_string": "### Integration Testing\n\n<Callout type=\"info\">\n  **Integration Focus**: These tests verify that multiple MCP servers work together correctly in realistic scenarios.\n</Callout>\n\nTest complete MCP workflows with multi-server coordination:"}, {"old_string": "```typescript\n// tests/mcp_integration_tests.ts\ntest(\"MCP Workflow - File Processing\", async () => {\n  // Create test file\n  const createResult = await mcpDebugTool({\n    server_name: \"filesystem_dev\",\n    operation: \"call_tool\",\n    tool_name: \"write_file\",\n    parameters: {\n      path: \"./dev-workspace/test.txt\",\n      content: \"Hello, MCP!\"\n    },\n  });\n\n  assertEquals(createResult.success, true);\n\n  // Read file\n  const readResult = await mcpDebugTool({\n    server_name: \"filesystem_dev\",\n    operation: \"call_tool\",\n    tool_name: \"read_file\",\n    parameters: {\n      path: \"./dev-workspace/test.txt\"\n    },\n  });\n\n  assertEquals(readResult.success, true);\n  assertEquals(readResult.result?.content, \"Hello, MCP!\");\n\n  // Clean up\n  await mcpDebugTool({\n    server_name: \"filesystem_dev\",\n    operation: \"call_tool\",\n    tool_name: \"delete_file\",\n    parameters: {\n      path: \"./dev-workspace/test.txt\"\n    },\n  });\n});", "new_string": "```typescript title=\"tests/mcp_integration_tests.ts - Complete Workflow Tests\"\nimport { assertEquals, assertExists } from \"https://deno.land/std@0.208.0/testing/asserts.ts\";\nimport { setupTestSuite, teardownTestSuite, MCPTestUtil } from \"./test_utilities.ts\";\n\n// Setup and teardown for integration tests\nDeno.test({\n  name: \"Integration Test Suite Setup\",\n  fn: setupTestSuite,\n});\n\nDeno.test(\"MCP Workflow - Advanced File Processing\", async () => {\n  const testData = MCPTestUtil.generateTestData('medium');\n  const testFile = \"./dev-workspace/integration-test.json\";\n  \n  // Step 1: Create test file\n  const createResult = await mcpDebugTool({\n    server_name: \"filesystem_dev\",\n    operation: \"call_tool\",\n    tool_name: \"write_file\",\n    parameters: {\n      path: testFile,\n      content: JSON.stringify(testData, null, 2)\n    },\n  });\n\n  assertEquals(createResult.success, true);\n  assertExists(createResult.performance_metrics);\n\n  // Step 2: Verify file exists\n  const listResult = await mcpDebugTool({\n    server_name: \"filesystem_dev\",\n    operation: \"call_tool\",\n    tool_name: \"list_directory\",\n    parameters: {\n      path: \"./dev-workspace\"\n    },\n  });\n\n  assertEquals(listResult.success, true);\n  const files = listResult.result?.files || [];\n  const testFileExists = files.some((f: any) => f.name === \"integration-test.json\");\n  assertEquals(testFileExists, true);\n\n  // Step 3: Read and validate file content\n  const readResult = await mcpDebugTool({\n    server_name: \"filesystem_dev\",\n    operation: \"call_tool\",\n    tool_name: \"read_file\",\n    parameters: {\n      path: testFile\n    },\n  });\n\n  assertEquals(readResult.success, true);\n  const parsedContent = JSON.parse(readResult.result?.content || \"{}\");\n  assertEquals(parsedContent.id, testData.id);\n  assertEquals(parsedContent.metadata.type, 'medium');\n\n  // Step 4: Store metadata in database (if available)\n  try {\n    const dbResult = await mcpDebugTool({\n      server_name: \"database_dev\",\n      operation: \"call_tool\",\n      tool_name: \"execute\",\n      parameters: {\n        sql: \"INSERT INTO file_metadata (filename, size, created_at) VALUES (?, ?, ?)\",\n        parameters: [\"integration-test.json\", testData.metadata.size, new Date().toISOString()]\n      },\n    });\n    \n    if (dbResult.success) {\n      console.log(\"✅ Database integration successful\");\n    }\n  } catch (error) {\n    console.warn(\"⚠️ Database integration skipped (server not available)\");\n  }\n\n  // Step 5: Clean up\n  const deleteResult = await mcpDebugTool({\n    server_name: \"filesystem_dev\",\n    operation: \"call_tool\",\n    tool_name: \"delete_file\",\n    parameters: {\n      path: testFile\n    },\n  });\n\n  assertEquals(deleteResult.success, true);\n});\n\n// Test multi-server coordination\nDeno.test(\"MCP Multi-Server Coordination\", async () => {\n  const servers = [\"filesystem_dev\", \"database_dev\", \"web_dev\"];\n  const results = new Map<string, any>();\n  \n  // Test all servers concurrently\n  const promises = servers.map(async (server) => {\n    const result = await mcpDebugTool({\n      server_name: server,\n      operation: \"list_tools\",\n    });\n    results.set(server, result);\n    return result;\n  });\n  \n  const allResults = await Promise.all(promises);\n  \n  // Verify all servers responded\n  allResults.forEach((result, index) => {\n    const serverName = servers[index];\n    assertEquals(result.success, true, `Server ${serverName} failed`);\n    assertExists(result.result?.tools, `Server ${serverName} has no tools`);\n  });\n  \n  // Check for common tools across servers\n  const allTools = new Set<string>();\n  results.forEach((result, serverName) => {\n    if (result.success && result.result?.tools) {\n      result.result.tools.forEach((tool: any) => {\n        allTools.add(`${serverName}.${tool.name}`);\n      });\n    }\n  });\n  \n  console.log(`📊 Total tools discovered: ${allTools.size}`);\n  assertEquals(allTools.size > 0, true);\n});\n\n// Test error propagation across servers\nDeno.test(\"MCP Error Propagation\", async () => {\n  // Test with invalid server\n  const invalidResult = await mcpDebugTool({\n    server_name: \"nonexistent_server\",\n    operation: \"list_tools\",\n  });\n  \n  assertEquals(invalidResult.success, false);\n  assertExists(invalidResult.error);\n  \n  // Verify other servers still work\n  const validResult = await mcpDebugTool({\n    server_name: \"filesystem_dev\",\n    operation: \"list_tools\",\n  });\n  \n  assertEquals(validResult.success, true);\n});\n\nDeno.test({\n  name: \"Integration Test Suite Teardown\",\n  fn: teardownTestSuite,\n});"}, {"old_string": "```", "new_string": "```\n\n### End-to-End Testing\n\n<Tabs items={[\"User Scenarios\", \"Production Simulation\", \"Performance Benchmarks\"]}>\n<Tab>\n```typescript title=\"tests/e2e_user_scenarios.ts - Real User Scenarios\"\nimport { assertEquals, assertExists } from \"https://deno.land/std@0.208.0/testing/asserts.ts\";\n\n// Simulate real user workflows\nDeno.test(\"E2E - Developer Workflow\", async () => {\n  // Scenario: Developer setting up a new project\n  \n  // 1. Create project directory\n  const createDirResult = await mcpDebugTool({\n    server_name: \"filesystem_dev\",\n    operation: \"call_tool\",\n    tool_name: \"create_directory\",\n    parameters: {\n      path: \"./dev-workspace/new-project\"\n    },\n  });\n  \n  assertEquals(createDirResult.success, true);\n  \n  // 2. Initialize with config files\n  const configFiles = [\n    { name: \"package.json\", content: JSON.stringify({ name: \"test-project\", version: \"1.0.0\" }) },\n    { name: \"README.md\", content: \"# Test Project\\n\\nThis is a test project.\" },\n    { name: \".gitignore\", content: \"node_modules/\\n*.log\\n.env\" }\n  ];\n  \n  for (const file of configFiles) {\n    const writeResult = await mcpDebugTool({\n      server_name: \"filesystem_dev\",\n      operation: \"call_tool\",\n      tool_name: \"write_file\",\n      parameters: {\n        path: `./dev-workspace/new-project/${file.name}`,\n        content: file.content\n      },\n    });\n    \n    assertEquals(writeResult.success, true);\n  }\n  \n  // 3. Verify project structure\n  const listResult = await mcpDebugTool({\n    server_name: \"filesystem_dev\",\n    operation: \"call_tool\",\n    tool_name: \"list_directory\",\n    parameters: {\n      path: \"./dev-workspace/new-project\",\n      recursive: true\n    },\n  });\n  \n  assertEquals(listResult.success, true);\n  const files = listResult.result?.files || [];\n  const expectedFiles = [\"package.json\", \"README.md\", \".gitignore\"];\n  \n  expectedFiles.forEach(expectedFile => {\n    const fileExists = files.some((f: any) => f.name === expectedFile);\n    assertEquals(fileExists, true, `File ${expectedFile} should exist`);\n  });\n  \n  // 4. Clean up\n  await mcpDebugTool({\n    server_name: \"filesystem_dev\",\n    operation: \"call_tool\",\n    tool_name: \"delete_directory\",\n    parameters: {\n      path: \"./dev-workspace/new-project\",\n      recursive: true\n    },\n  });\n});\n\n// Scenario: Data processing workflow\nDeno.test(\"E2E - Data Processing Workflow\", async () => {\n  const testData = {\n    users: [\n      { id: 1, name: \"Alice\", email: \"alice@example.com\" },\n      { id: 2, name: \"Bob\", email: \"bob@example.com\" },\n      { id: 3, name: \"Charlie\", email: \"charlie@example.com\" }\n    ],\n    metadata: {\n      created: new Date().toISOString(),\n      version: \"1.0\"\n    }\n  };\n  \n  // 1. Save input data\n  const saveResult = await mcpDebugTool({\n    server_name: \"filesystem_dev\",\n    operation: \"call_tool\",\n    tool_name: \"write_file\",\n    parameters: {\n      path: \"./dev-workspace/users.json\",\n      content: JSON.stringify(testData, null, 2)\n    },\n  });\n  \n  assertEquals(saveResult.success, true);\n  \n  // 2. Process data (simulate transformation)\n  const readResult = await mcpDebugTool({\n    server_name: \"filesystem_dev\",\n    operation: \"call_tool\",\n    tool_name: \"read_file\",\n    parameters: {\n      path: \"./dev-workspace/users.json\"\n    },\n  });\n  \n  assertEquals(readResult.success, true);\n  const inputData = JSON.parse(readResult.result?.content || \"{}\");\n  \n  // Transform data (add processed timestamp)\n  const processedData = {\n    ...inputData,\n    processed: new Date().toISOString(),\n    user_count: inputData.users.length\n  };\n  \n  // 3. Save processed data\n  const processedResult = await mcpDebugTool({\n    server_name: \"filesystem_dev\",\n    operation: \"call_tool\",\n    tool_name: \"write_file\",\n    parameters: {\n      path: \"./dev-workspace/users-processed.json\",\n      content: JSON.stringify(processedData, null, 2)\n    },\n  });\n  \n  assertEquals(processedResult.success, true);\n  \n  // 4. Verify processing\n  const verifyResult = await mcpDebugTool({\n    server_name: \"filesystem_dev\",\n    operation: \"call_tool\",\n    tool_name: \"read_file\",\n    parameters: {\n      path: \"./dev-workspace/users-processed.json\"\n    },\n  });\n  \n  assertEquals(verifyResult.success, true);\n  const finalData = JSON.parse(verifyResult.result?.content || \"{}\");\n  \n  assertEquals(finalData.user_count, 3);\n  assertExists(finalData.processed);\n  assertExists(finalData.users);\n  \n  // 5. Clean up\n  await mcpDebugTool({\n    server_name: \"filesystem_dev\",\n    operation: \"call_tool\",\n    tool_name: \"delete_file\",\n    parameters: { path: \"./dev-workspace/users.json\" },\n  });\n  \n  await mcpDebugTool({\n    server_name: \"filesystem_dev\",\n    operation: \"call_tool\",\n    tool_name: \"delete_file\",\n    parameters: { path: \"./dev-workspace/users-processed.json\" },\n  });\n});\n```\n</Tab>\n\n<Tab>\n```typescript title=\"tests/production_simulation.ts - Production Environment Simulation\"\nimport { assertEquals, assertExists } from \"https://deno.land/std@0.208.0/testing/asserts.ts\";\n\n// Simulate production load and conditions\nDeno.test(\"Production Simulation - High Load\", async () => {\n  const concurrentUsers = 20;\n  const operationsPerUser = 10;\n  const totalOperations = concurrentUsers * operationsPerUser;\n  \n  console.log(`🚀 Starting production simulation: ${totalOperations} operations`);\n  \n  const startTime = Date.now();\n  const promises: Promise<any>[] = [];\n  \n  // Simulate concurrent users\n  for (let user = 0; user < concurrentUsers; user++) {\n    for (let op = 0; op < operationsPerUser; op++) {\n      const promise = mcpDebugTool({\n        server_name: \"filesystem_dev\",\n        operation: \"call_tool\",\n        tool_name: \"list_directory\",\n        parameters: { path: \"./dev-workspace\" },\n      });\n      promises.push(promise);\n    }\n  }\n  \n  const results = await Promise.all(promises);\n  const endTime = Date.now();\n  \n  // Analyze results\n  const successCount = results.filter(r => r.success).length;\n  const failureCount = results.length - successCount;\n  const totalTime = endTime - startTime;\n  const throughput = (results.length / totalTime) * 1000; // operations per second\n  \n  console.log(`📊 Production Simulation Results:`);\n  console.log(`  - Total operations: ${results.length}`);\n  console.log(`  - Successful: ${successCount}`);\n  console.log(`  - Failed: ${failureCount}`);\n  console.log(`  - Total time: ${totalTime}ms`);\n  console.log(`  - Throughput: ${throughput.toFixed(2)} ops/sec`);\n  \n  // Assertions for production quality\n  assertEquals(successCount / results.length >= 0.95, true, \"Success rate should be >= 95%\");\n  assertEquals(throughput >= 10, true, \"Throughput should be >= 10 ops/sec\");\n  \n  // Check response time distribution\n  const responseTimes = results\n    .filter(r => r.success && r.timing)\n    .map(r => r.timing!.duration_ms)\n    .sort((a, b) => a - b);\n  \n  const p95 = responseTimes[Math.floor(responseTimes.length * 0.95)];\n  const p99 = responseTimes[Math.floor(responseTimes.length * 0.99)];\n  \n  console.log(`  - P95 response time: ${p95}ms`);\n  console.log(`  - P99 response time: ${p99}ms`);\n  \n  assertEquals(p95 < 2000, true, \"P95 response time should be < 2 seconds\");\n  assertEquals(p99 < 5000, true, \"P99 response time should be < 5 seconds\");\n});\n\n// Test system recovery after failures\nDeno.test(\"Production Simulation - Error Recovery\", async () => {\n  // Simulate system under stress with some failures\n  const operations = 50;\n  const results = [];\n  \n  for (let i = 0; i < operations; i++) {\n    // Occasionally use invalid parameters to simulate errors\n    const useInvalidParams = i % 10 === 0;\n    \n    const result = await mcpDebugTool({\n      server_name: \"filesystem_dev\",\n      operation: \"call_tool\",\n      tool_name: \"read_file\",\n      parameters: useInvalidParams ? {} : { path: \"./dev-workspace/sample.txt\" },\n    });\n    \n    results.push(result);\n    \n    // Small delay to simulate real usage\n    await new Promise(resolve => setTimeout(resolve, 100));\n  }\n  \n  // Analyze error recovery\n  const errors = results.filter(r => !r.success);\n  const successes = results.filter(r => r.success);\n  \n  console.log(`📊 Error Recovery Results:`);\n  console.log(`  - Total operations: ${results.length}`);\n  console.log(`  - Successful: ${successes.length}`);\n  console.log(`  - Errors: ${errors.length}`);\n  \n  // Verify system continues to work after errors\n  assertEquals(successes.length > 0, true, \"System should recover and process valid requests\");\n  assertEquals(errors.length === 5, true, \"Should have exactly 5 expected errors\");\n  \n  // Test final operation to ensure system is still responsive\n  const finalTest = await mcpDebugTool({\n    server_name: \"filesystem_dev\",\n    operation: \"health_check\",\n  });\n  \n  assertEquals(finalTest.success, true, \"System should be healthy after error recovery\");\n});\n```\n</Tab>\n\n<Tab>\n```typescript title=\"tests/performance_benchmarks.ts - Performance Benchmarking\"\nimport { assertEquals, assertExists } from \"https://deno.land/std@0.208.0/testing/asserts.ts\";\n\n// Performance benchmark tests\nDeno.test(\"Performance Benchmark - Tool Discovery\", async () => {\n  const iterations = 100;\n  const results = [];\n  \n  console.log(`🏃 Running tool discovery benchmark (${iterations} iterations)`);\n  \n  for (let i = 0; i < iterations; i++) {\n    const startTime = Date.now();\n    \n    const result = await mcpDebugTool({\n      server_name: \"filesystem_dev\",\n      operation: \"list_tools\",\n    });\n    \n    const endTime = Date.now();\n    const duration = endTime - startTime;\n    \n    results.push({\n      iteration: i,\n      duration,\n      success: result.success,\n      toolCount: result.result?.tools?.length || 0\n    });\n  }\n  \n  // Calculate statistics\n  const successfulResults = results.filter(r => r.success);\n  const durations = successfulResults.map(r => r.duration);\n  \n  const avgDuration = durations.reduce((sum, d) => sum + d, 0) / durations.length;\n  const minDuration = Math.min(...durations);\n  const maxDuration = Math.max(...durations);\n  \n  durations.sort((a, b) => a - b);\n  const p50 = durations[Math.floor(durations.length * 0.5)];\n  const p95 = durations[Math.floor(durations.length * 0.95)];\n  const p99 = durations[Math.floor(durations.length * 0.99)];\n  \n  console.log(`📊 Tool Discovery Benchmark Results:`);\n  console.log(`  - Successful operations: ${successfulResults.length}/${iterations}`);\n  console.log(`  - Average duration: ${avgDuration.toFixed(2)}ms`);\n  console.log(`  - Min duration: ${minDuration}ms`);\n  console.log(`  - Max duration: ${maxDuration}ms`);\n  console.log(`  - P50 duration: ${p50}ms`);\n  console.log(`  - P95 duration: ${p95}ms`);\n  console.log(`  - P99 duration: ${p99}ms`);\n  \n  // Performance assertions\n  assertEquals(successfulResults.length / iterations >= 0.98, true, \"Success rate should be >= 98%\");\n  assertEquals(avgDuration < 500, true, \"Average response time should be < 500ms\");\n  assertEquals(p95 < 1000, true, \"P95 response time should be < 1 second\");\n});\n\n// Memory usage benchmark\nDeno.test(\"Performance Benchmark - Memory Usage\", async () => {\n  const iterations = 1000;\n  const memorySnapshots = [];\n  \n  console.log(`🧠 Running memory usage benchmark (${iterations} iterations)`);\n  \n  // Capture initial memory\n  const initialMemory = Deno.systemMemoryInfo?.();\n  \n  for (let i = 0; i < iterations; i++) {\n    await mcpDebugTool({\n      server_name: \"filesystem_dev\",\n      operation: \"call_tool\",\n      tool_name: \"list_directory\",\n      parameters: { path: \"./dev-workspace\" },\n    });\n    \n    // Capture memory snapshot every 100 iterations\n    if (i % 100 === 0) {\n      const memoryInfo = Deno.systemMemoryInfo?.();\n      if (memoryInfo) {\n        memorySnapshots.push({\n          iteration: i,\n          total: memoryInfo.total,\n          free: memoryInfo.free,\n          used: memoryInfo.total - memoryInfo.free\n        });\n      }\n    }\n  }\n  \n  // Analyze memory usage\n  if (memorySnapshots.length > 1) {\n    const memoryGrowth = memorySnapshots[memorySnapshots.length - 1].used - memorySnapshots[0].used;\n    const memoryGrowthMB = memoryGrowth / (1024 * 1024);\n    \n    console.log(`📊 Memory Usage Results:`);\n    console.log(`  - Memory growth: ${memoryGrowthMB.toFixed(2)}MB`);\n    console.log(`  - Growth per operation: ${(memoryGrowthMB / iterations * 1000).toFixed(2)}KB`);\n    \n    // Memory usage should be reasonable\n    assertEquals(memoryGrowthMB < 100, true, \"Memory growth should be < 100MB\");\n  }\n});\n```\n</Tab>\n</Tabs>"}, {"old_string": "## Best Practices\n\n### Development Workflow\n\n1. **Start with Local Testing**: Use local MCP servers for development\n2. **Use Debug Mode**: Enable verbose logging and debug output\n3. **Test Incrementally**: Test each MCP operation individually\n4. **Monitor Performance**: Track operation timing and resource usage\n5. **Handle Errors Gracefully**: Implement proper error handling and recovery\n\n### Debugging Checklist\n\n```bash\n# MCP Debugging Checklist\necho \"🔍 MCP Debugging Checklist\"\necho \"1. Check server configuration\"\necho \"2. Verify server is running\"\necho \"3. Test basic connectivity\"\necho \"4. List available tools\"\necho \"5. Validate tool parameters\"\necho \"6. Test tool execution\"\necho \"7. Check logs for errors\"\necho \"8. Monitor performance metrics\"\necho \"9. Test error handling\"\necho \"10. Verify cleanup processes\"\n```\n\n### Common Pitfalls\n\n1. **Timeout Configuration**: Set appropriate timeouts for long-running operations\n2. **Parameter Validation**: Always validate parameters before tool execution\n3. **Resource Cleanup**: Ensure proper cleanup of resources and connections\n4. **Error Handling**: Implement comprehensive error handling\n5. **Security**: Validate all inputs and sanitize outputs\n\nThis comprehensive development and debugging guide provides the tools and techniques needed for efficient MCP development and troubleshooting.", "new_string": "## Best Practices\n\n### Development Workflow\n\n<Steps>\n<Step title=\"Local Development Setup\">\n  - Use local MCP servers for development\n  - Enable verbose logging and debug output\n  - Create isolated test environments\n  - Use version control for configuration\n</Step>\n\n<Step title=\"Incremental Testing\">\n  - Test each MCP operation individually\n  - Start with simple operations before complex workflows\n  - Validate schemas before implementing logic\n  - Use automated testing from the beginning\n</Step>\n\n<Step title=\"Performance Monitoring\">\n  - Track operation timing and resource usage\n  - Set up alerts for performance degradation\n  - Monitor memory usage and connection pools\n  - Profile bottlenecks regularly\n</Step>\n\n<Step title=\"Error Handling\">\n  - Implement comprehensive error handling\n  - Use structured error responses\n  - Log errors with context\n  - Test failure scenarios\n</Step>\n</Steps>\n\n### Debugging Checklist\n\n<Accordion>\n<AccordionItem value=\"basic-checks\">\n<AccordionTrigger>Basic Environment Checks</AccordionTrigger>\n<AccordionContent>\n\n<List>\n  <ListItem icon={CheckCircle}>Check server configuration files</ListItem>\n  <ListItem icon={CheckCircle}>Verify server processes are running</ListItem>\n  <ListItem icon={CheckCircle}>Test basic connectivity to proxy</ListItem>\n  <ListItem icon={CheckCircle}>Validate environment variables</ListItem>\n  <ListItem icon={CheckCircle}>Check file permissions</ListItem>\n</List>\n\n```bash title=\"Quick Environment Check\"\n# Run this script to verify basic setup\n./dev-tools/test-mcp-connections.sh\n```\n\n</AccordionContent>\n</AccordionItem>\n\n<AccordionItem value=\"tool-validation\">\n<AccordionTrigger>Tool Discovery & Validation</AccordionTrigger>\n<AccordionContent>\n\n<List>\n  <ListItem icon={Search}>List available tools from all servers</ListItem>\n  <ListItem icon={Shield}>Validate tool parameters against schemas</ListItem>\n  <ListItem icon={Play}>Test tool execution with sample data</ListItem>\n  <ListItem icon={Activity}>Monitor tool performance metrics</ListItem>\n  <ListItem icon={AlertCircle}>Check for tool conflicts or errors</ListItem>\n</List>\n\n```bash title=\"Tool Validation Commands\"\n# List all available tools\ncurl -H \"Authorization: Bearer $MCP_ADMIN_TOKEN\" \\\n  http://localhost:8081/admin/tools\n\n# Test specific tool\ncurl -X POST -H \"Content-Type: application/json\" \\\n  -H \"Authorization: Bearer $MCP_ADMIN_TOKEN\" \\\n  -d '{\"path\": \"./dev-workspace/sample.txt\"}' \\\n  http://localhost:8081/api/v1/mcp/filesystem_dev/tool/read_file\n```\n\n</AccordionContent>\n</AccordionItem>\n\n<AccordionItem value=\"performance-monitoring\">\n<AccordionTrigger>Performance & Resource Monitoring</AccordionTrigger>\n<AccordionContent>\n\n<List>\n  <ListItem icon={Clock}>Check response times and latency</ListItem>\n  <ListItem icon={Monitor}>Monitor system resources (CPU, memory)</ListItem>\n  <ListItem icon={Database}>Verify connection pool health</ListItem>\n  <ListItem icon={Zap}>Test under concurrent load</ListItem>\n  <ListItem icon={Activity}>Analyze performance trends</ListItem>\n</List>\n\n```bash title=\"Performance Check\"\n# Monitor continuous performance\n./dev-tools/health-check.sh\n\n# Run load test\nab -n 100 -c 10 http://localhost:8081/api/v1/mcp/filesystem_dev/tools\n```\n\n</AccordionContent>\n</AccordionItem>\n\n<AccordionItem value=\"error-handling\">\n<AccordionTrigger>Error Handling & Recovery</AccordionTrigger>\n<AccordionContent>\n\n<List>\n  <ListItem icon={Bug}>Test error scenarios and edge cases</ListItem>\n  <ListItem icon={FileText}>Check logs for error patterns</ListItem>\n  <ListItem icon={RefreshCw}>Verify recovery mechanisms</ListItem>\n  <ListItem icon={AlertCircle}>Test timeout handling</ListItem>\n  <ListItem icon={Shield}>Validate security error responses</ListItem>\n</List>\n\n```bash title=\"Error Testing\"\n# Test with invalid parameters\ncurl -X POST -H \"Content-Type: application/json\" \\\n  -H \"Authorization: Bearer $MCP_ADMIN_TOKEN\" \\\n  -d '{}' \\\n  http://localhost:8081/api/v1/mcp/filesystem_dev/tool/read_file\n\n# Check error logs\ndocker logs mcp-proxy | grep ERROR\n```\n\n</AccordionContent>\n</AccordionItem>\n</Accordion>\n\n### Common Pitfalls\n\n<Callout type=\"warning\">\n  **Security Warning**: Always validate inputs and sanitize outputs when working with external MCP servers.\n</Callout>\n\n<FeatureCardList cols={2} size=\"sm\">\n  <FeatureCard\n    title=\"Timeout Configuration\"\n    description=\"Set appropriate timeouts for long-running operations to prevent hanging requests\"\n    icon={Clock}\n  />\n  <FeatureCard\n    title=\"Parameter Validation\"\n    description=\"Always validate parameters before tool execution to prevent runtime errors\"\n    icon={Shield}\n  />\n  <FeatureCard\n    title=\"Resource Cleanup\"\n    description=\"Ensure proper cleanup of resources and connections to prevent memory leaks\"\n    icon={Wrench}\n  />\n  <FeatureCard\n    title=\"Error Handling\"\n    description=\"Implement comprehensive error handling with structured error responses\"\n    icon={AlertCircle}\n  />\n  <FeatureCard\n    title=\"Security Validation\"\n    description=\"Validate all inputs and sanitize outputs to prevent security vulnerabilities\"\n    icon={Shield}\n  />\n  <FeatureCard\n    title=\"Performance Monitoring\"\n    description=\"Monitor performance metrics and set up alerts for degradation\"\n    icon={Activity}\n  />\n</FeatureCardList>\n\n<Callout type=\"success\">\n  **Pro Tip**: Use the comprehensive debugging tools and test suites provided in this guide to maintain high-quality MCP integrations.\n</Callout>\n\nThis comprehensive development and debugging guide provides the tools, techniques, and best practices needed for efficient MCP development and troubleshooting."}, {"old_string": "## Next Steps\n\n- Set up [Monitoring & Metrics](/docs/core/mcp/monitoring-metrics) for production debugging\n- Configure [Production Deployment](/docs/core/mcp/production-deployment) with proper logging\n- Review [Security & Authentication](/docs/core/mcp/security-authentication) for secure debugging\n- Explore [Integration Patterns](/docs/core/mcp/integration-patterns) for advanced debugging scenarios", "new_string": "## Next Steps\n\n<ReferenceCardList>\n  <ReferenceCard\n    title=\"Monitoring & Metrics\"\n    description=\"Set up comprehensive monitoring and metrics collection for production debugging\"\n    href=\"/docs/core/mcp/monitoring-metrics\"\n    icon={Activity}\n  />\n  <ReferenceCard\n    title=\"Production Deployment\"\n    description=\"Configure production deployment with proper logging and error handling\"\n    href=\"/docs/core/mcp/production-deployment\"\n    icon={Server}\n  />\n  <ReferenceCard\n    title=\"Security & Authentication\"\n    description=\"Implement secure debugging practices and authentication mechanisms\"\n    href=\"/docs/core/mcp/security-authentication\"\n    icon={Shield}\n  />\n  <ReferenceCard\n    title=\"Integration Patterns\"\n    description=\"Explore advanced integration patterns and debugging scenarios\"\n    href=\"/docs/core/mcp/integration-patterns\"\n    icon={GitBranch}\n  />\n</ReferenceCardList>"}]
-
-```typescript
-// dev-tools/connection_debugger.ts
-interface ConnectionDebugResult {
-  server_name: string;
-  transport_type: string;
-  connection_status: 'connected' | 'failed' | 'timeout';
-  error?: string;
-  latency_ms?: number;
-  server_info?: any;
-  recommendations?: string[];
-}
-
-async function debugConnection(serverName: string): Promise<ConnectionDebugResult> {
-  const result: ConnectionDebugResult = {
-    server_name: serverName,
-    transport_type: 'unknown',
-    connection_status: 'failed',
-    recommendations: [],
-  };
-
-  try {
-    // Get server configuration
-    const config = await getServerConfig(serverName);
-    result.transport_type = config.transport;
-
-    // Test basic connectivity
-    const startTime = Date.now();
-    const healthCheck = await mcpDebugTool({
-      server_name: serverName,
-      operation: 'health_check',
-      verbose: true,
-    });
-
-    if (healthCheck.success) {
-      result.connection_status = 'connected';
-      result.latency_ms = Date.now() - startTime;
-      result.server_info = healthCheck.result;
-    } else {
-      result.connection_status = 'failed';
-      result.error = healthCheck.error;
-
-      // Provide recommendations based on error
-      if (healthCheck.error?.includes('timeout')) {
-        result.recommendations.push('Increase timeout configuration');
-        result.recommendations.push('Check if server is running');
-      } else if (healthCheck.error?.includes('connection refused')) {
-        result.recommendations.push('Verify server is running on correct port');
-        result.recommendations.push('Check firewall settings');
-      } else if (healthCheck.error?.includes('authentication')) {
-        result.recommendations.push('Verify authentication credentials');
-        result.recommendations.push('Check token/API key configuration');
-      }
-    }
-
-  } catch (error) {
-    result.error = error.message;
-    result.recommendations.push('Check server configuration');
-    result.recommendations.push('Verify MCP proxy is running');
-  }
-
-  return result;
-}
-```
-
-### Tool Execution Issues
-
-Debug tool execution problems:
-
-```typescript
-// dev-tools/tool_debugger.ts
-interface ToolDebugResult {
-  server_name: string;
-  tool_name: string;
-  available: boolean;
-  parameters_valid: boolean;
-  execution_status: 'success' | 'failed' | 'timeout';
-  error?: string;
-  result?: any;
-  recommendations?: string[];
-}
-
-async function debugTool(serverName: string, toolName: string, parameters: any): Promise<ToolDebugResult> {
-  const result: ToolDebugResult = {
-    server_name: serverName,
-    tool_name: toolName,
-    available: false,
-    parameters_valid: false,
-    execution_status: 'failed',
-    recommendations: [],
-  };
-
-  try {
-    // Check if tool is available
-    const toolsList = await mcpDebugTool({
-      server_name: serverName,
-      operation: 'list_tools',
-    });
-
-    if (toolsList.success) {
-      const tools = toolsList.result?.tools || [];
-      const tool = tools.find((t: any) => t.name === toolName);
-
-      if (tool) {
-        result.available = true;
-
-        // Validate parameters against tool schema
-        if (tool.inputSchema) {
-          const validationResult = validateParameters(parameters, tool.inputSchema);
-          result.parameters_valid = validationResult.valid;
-
-          if (!validationResult.valid) {
-            result.error = validationResult.error;
-            result.recommendations.push('Check parameter types and required fields');
-            result.recommendations.push('Refer to tool schema documentation');
-            return result;
-          }
-        } else {
-          result.parameters_valid = true;
-        }
-
-        // Execute tool
-        const execution = await mcpDebugTool({
-          server_name: serverName,
-          operation: 'call_tool',
-          tool_name: toolName,
-          parameters,
-          verbose: true,
-        });
-
-        if (execution.success) {
-          result.execution_status = 'success';
-          result.result = execution.result;
-        } else {
-          result.execution_status = 'failed';
-          result.error = execution.error;
-
-          // Provide specific recommendations
-          if (execution.error?.includes('timeout')) {
-            result.recommendations.push('Increase tool timeout');
-            result.recommendations.push('Check if tool operation is computationally expensive');
-          } else if (execution.error?.includes('permission')) {
-            result.recommendations.push('Check tool permissions');
-            result.recommendations.push('Verify file/directory access rights');
-          }
-        }
-      } else {
-        result.recommendations.push('Check tool name spelling');
-        result.recommendations.push('Verify tool is installed on server');
-      }
-    } else {
-      result.error = 'Failed to list tools';
-      result.recommendations.push('Check server connection');
-    }
-
-  } catch (error) {
-    result.error = error.message;
-    result.recommendations.push('Check server and tool configuration');
-  }
-
-  return result;
-}
-
-function validateParameters(parameters: any, schema: any): { valid: boolean; error?: string } {
-  // Implement JSON schema validation
-  try {
-    // This would use a JSON schema validator
-    return { valid: true };
-  } catch (error) {
-    return { valid: false, error: error.message };
-  }
-}
-```
-
-## Comprehensive Testing Suites
-
-### Test Suite Overview
-
-Implement multiple layers of testing for robust MCP development:
-
-<Tabs items={["Unit Tests", "Integration Tests", "E2E Tests", "Performance Tests"]}>
-
-<Tab>
-
-**Unit Testing Framework**
-
-Test individual MCP operations in isolation:
-
-```typescript
-// tests/unit/mcp-operations.test.ts
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { MCPDebugTool } from '../src/debug-tool';
-
-describe('MCP Operations', () => {
-  let debugTool: MCPDebugTool;
-  
-  beforeEach(() => {
-    debugTool = new MCPDebugTool({
-      serverName: 'test_server',
-      proxyUrl: 'http://localhost:8081',
-      timeout: 5000
-    });
-  });
-
-  afterEach(async () => {
-    await debugTool.cleanup();
-  });
-
-  it('should list tools successfully', async () => {
-    const result = await debugTool.listTools();
-    expect(result.success).toBe(true);
-    expect(result.tools).toBeDefined();
-    expect(Array.isArray(result.tools)).toBe(true);
-  });
-
-  it('should handle server connection errors', async () => {
-    const disconnectedTool = new MCPDebugTool({
-      serverName: 'nonexistent_server',
-      proxyUrl: 'http://localhost:9999',
-      timeout: 1000
-    });
-
-    const result = await disconnectedTool.listTools();
-    expect(result.success).toBe(false);
-    expect(result.error).toContain('connection');
-  });
-
-  it('should validate tool parameters', async () => {
-    const result = await debugTool.callTool('read_file', {
-      path: '/nonexistent/path'
-    });
-    expect(result.success).toBe(false);
-    expect(result.error).toBeDefined();
-  });
-});
-```
-
-</Tab>
-
-<Tab>
-
-**Integration Testing**
-
-Test complete MCP workflows across multiple components:
-
-```typescript
-// tests/integration/mcp-workflow.test.ts
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { MCPTestEnvironment } from '../helpers/test-environment';
-
-describe('MCP Workflow Integration', () => {
-  let testEnv: MCPTestEnvironment;
-  
-  beforeAll(async () => {
-    testEnv = new MCPTestEnvironment();
-    await testEnv.setup();
-  });
-
-  afterAll(async () => {
-    await testEnv.teardown();
-  });
-
-  it('should execute complete file processing workflow', async () => {
-    // Step 1: Create test file
-    const createResult = await testEnv.executeOperation('filesystem', 'write_file', {
-      path: '/tmp/test-workflow.txt',
-      content: 'Test content for workflow'
-    });
-    expect(createResult.success).toBe(true);
-
-    // Step 2: Process file content
-    const readResult = await testEnv.executeOperation('filesystem', 'read_file', {
-      path: '/tmp/test-workflow.txt'
-    });
-    expect(readResult.success).toBe(true);
-    expect(readResult.result.content).toBe('Test content for workflow');
-
-    // Step 3: Update database with file info
-    const dbResult = await testEnv.executeOperation('database', 'insert', {
-      table: 'files',
-      data: {
-        path: '/tmp/test-workflow.txt',
-        size: readResult.result.size,
-        modified: readResult.result.modified
-      }
-    });
-    expect(dbResult.success).toBe(true);
-
-    // Step 4: Verify database entry
-    const queryResult = await testEnv.executeOperation('database', 'query', {
-      sql: 'SELECT * FROM files WHERE path = ?',
-      parameters: ['/tmp/test-workflow.txt']
-    });
-    expect(queryResult.success).toBe(true);
-    expect(queryResult.result.rows).toHaveLength(1);
-
-    // Step 5: Cleanup
-    await testEnv.executeOperation('filesystem', 'delete_file', {
-      path: '/tmp/test-workflow.txt'
-    });
-  });
-});
-```
-
-</Tab>
-
-<Tab>
-
-**End-to-End Testing**
-
-Test complete user scenarios with real MCP servers:
-
-```typescript
-// tests/e2e/mcp-scenarios.test.ts
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { MCPTestFramework } from '../helpers/mcp-framework';
-
-describe('MCP E2E Scenarios', () => {
-  let framework: MCPTestFramework;
-  
-  beforeAll(async () => {
-    framework = new MCPTestFramework();
-    await framework.startServers();
-    await framework.waitForReady();
-  });
-
-  afterAll(async () => {
-    await framework.stopServers();
-  });
-
-  it('should handle complex multi-server workflow', async () => {
-    // Test scenario: Process data from web API, store in database, generate report
-    const webData = await framework.callTool('web_api', 'fetch_data', {
-      url: 'https://api.example.com/data',
-      timeout: 10000
-    });
-    expect(webData.success).toBe(true);
-
-    const dbInsert = await framework.callTool('database', 'bulk_insert', {
-      table: 'api_data',
-      data: webData.result.items
-    });
-    expect(dbInsert.success).toBe(true);
-
-    const report = await framework.callTool('report_generator', 'create_report', {
-      template: 'api_summary',
-      data_source: 'api_data',
-      format: 'json'
-    });
-    expect(report.success).toBe(true);
-    expect(report.result.report_id).toBeDefined();
-  });
-
-  it('should handle server failures gracefully', async () => {
-    // Simulate server failure
-    await framework.stopServer('filesystem');
-    
-    const result = await framework.callTool('filesystem', 'read_file', {
-      path: '/test.txt'
-    });
-    expect(result.success).toBe(false);
-    expect(result.error).toContain('server unavailable');
-    
-    // Restart server and verify recovery
-    await framework.startServer('filesystem');
-    await framework.waitForServerReady('filesystem');
-    
-    const retryResult = await framework.callTool('filesystem', 'read_file', {
-      path: '/test.txt'
-    });
-    expect(retryResult.success).toBe(true);
-  });
-});
-```
-
-</Tab>
-
-<Tab>
-
-**Performance Testing**
-
-Test MCP performance under load:
-
-```typescript
-// tests/performance/mcp-load.test.ts
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { MCPLoadTester } from '../helpers/load-tester';
-
-describe('MCP Performance Tests', () => {
-  let loadTester: MCPLoadTester;
-  
-  beforeAll(async () => {
-    loadTester = new MCPLoadTester({
-      serverUrl: 'http://localhost:8081',
-      concurrency: 10,
-      duration: 60000 // 1 minute
-    });
-  });
-
-  it('should handle concurrent tool calls', async () => {
-    const results = await loadTester.runConcurrentTest({
-      operation: 'call_tool',
-      serverName: 'filesystem',
-      toolName: 'list_directory',
-      parameters: { path: '/tmp' },
-      concurrency: 50,
-      iterations: 100
-    });
-
-    expect(results.totalRequests).toBe(100);
-    expect(results.successRate).toBeGreaterThan(0.95); // 95% success rate
-    expect(results.avgResponseTime).toBeLessThan(1000); // < 1 second
-    expect(results.maxResponseTime).toBeLessThan(5000); // < 5 seconds
-  });
-
-  it('should maintain performance under sustained load', async () => {
-    const results = await loadTester.runSustainedTest({
-      operation: 'list_tools',
-      serverName: 'filesystem',
-      rps: 10, // requests per second
-      duration: 30000 // 30 seconds
-    });
-
-    expect(results.totalRequests).toBeGreaterThan(250);
-    expect(results.errorRate).toBeLessThan(0.05); // < 5% error rate
-    expect(results.p95ResponseTime).toBeLessThan(2000); // 95th percentile < 2s
-  });
-
-  it('should handle resource exhaustion gracefully', async () => {
-    const results = await loadTester.runResourceExhaustionTest({
-      operation: 'call_tool',
-      serverName: 'database',
-      toolName: 'heavy_query',
-      parameters: { complexity: 'high' },
-      concurrency: 100,
-      rampUp: 10000 // 10 seconds
-    });
-
-    expect(results.peakThroughput).toBeGreaterThan(0);
-    expect(results.recoveryTime).toBeLessThan(30000); // < 30 seconds
-  });
-});
-```
-
-</Tab>
-
-</Tabs>
-
-## Advanced Troubleshooting
-
-### Common Issues & Solutions
-
-<ReferenceCardList>
-  <ReferenceCard
-    title="Connection Timeouts"
-    description="Server connection issues and timeout handling"
-    icon={Timer}
-  >
-    
-**Symptoms:**
-- Connection timeout errors
-- Slow response times
-- Intermittent failures
-
-**Solutions:**
-```yaml
-# Increase timeout values
-start_timeout: 60s
-health_check:
-  timeout: 10s
-  interval: 30s
-  retries: 5
-```
-
-  </ReferenceCard>
-  
-  <ReferenceCard
-    title="Tool Registration Failures"
-    description="Issues with tool discovery and registration"
-    icon={Tool}
-  >
-    
-**Symptoms:**
-- Tools not appearing in discovery
-- Tool schema validation errors
-- Registration timeouts
-
-**Solutions:**
-```bash
-# Validate tool definitions
-compozy mcp validate-tools server_name
-
-# Force re-registration
-compozy mcp register server_name --force
-```
-
-  </ReferenceCard>
-  
-  <ReferenceCard
-    title="Parameter Validation Errors"
-    description="Tool parameter validation and schema issues"
-    icon={AlertTriangle}
-  >
-    
-**Symptoms:**
-- Invalid parameter errors
-- Schema validation failures
-- Type conversion issues
-
-**Solutions:**
-```typescript
-// Validate parameters before calling
-const isValid = await validateToolParameters(
-  serverName, 
-  toolName, 
-  parameters
-);
-```
-
-  </ReferenceCard>
-  
-  <ReferenceCard
-    title="Performance Degradation"
-    description="Slow response times and resource issues"
-    icon={Activity}
-  >
-    
-**Symptoms:**
-- Increasing response times
-- High CPU/memory usage
-- Request queuing
-
-**Solutions:**
-```yaml
-# Enable connection pooling
-pool_size: 10
-max_idle_connections: 5
-
-# Configure resource limits
-max_concurrent_requests: 100
-request_timeout: 30s
-```
-
-  </ReferenceCard>
-  
-  <ReferenceCard
-    title="Authentication Issues"
-    description="Token validation and authentication problems"
-    icon={Shield}
-  >
-    
-**Symptoms:**
-- 401 unauthorized errors
-- Token validation failures
-- Permission denied errors
-
-**Solutions:**
-```bash
-# Test authentication
-compozy mcp auth test --token $TOKEN
-
-# Refresh tokens
-compozy mcp auth refresh
-```
-
-  </ReferenceCard>
-  
-  <ReferenceCard
-    title="Memory Leaks"
-    description="Resource cleanup and memory management"
-    icon={HardDrive}
-  >
-    
-**Symptoms:**
-- Gradually increasing memory usage
-- Connection pool exhaustion
-- System resource warnings
-
-**Solutions:**
-```typescript
-// Proper resource cleanup
-finally {
-  await client.disconnect();
-  await pool.drain();
-}
-```
-
-  </ReferenceCard>
-</ReferenceCardList>
-
-### Debug Commands Reference
-
-<Tabs items={["Server Status", "Tool Operations", "Performance", "Logs"]}>
-
-<Tab>
-
-**Server Status Commands**
-
-```bash
-# Check server health
-compozy mcp health [server_name]
-
-# List registered servers
-compozy mcp list --verbose
-
-# Show server configuration
-compozy mcp config [server_name]
-
-# Test server connectivity
-compozy mcp ping [server_name]
-
-# Restart server
-compozy mcp restart [server_name]
-```
-
-</Tab>
-
-<Tab>
-
-**Tool Operations**
-
-```bash
-# List available tools
-compozy mcp tools [server_name]
-
-# Get tool details
-compozy mcp describe [server_name] [tool_name]
-
-# Validate tool parameters
-compozy mcp validate [server_name] [tool_name] [params]
-
-# Call tool with debugging
-compozy mcp call [server_name] [tool_name] [params] --debug
-
-# Test tool with sample data
-compozy mcp test-tool [server_name] [tool_name]
-```
-
-</Tab>
-
-<Tab>
-
-**Performance Commands**
-
-```bash
-# Show performance metrics
-compozy mcp metrics [server_name]
-
-# Monitor real-time performance
-compozy mcp monitor [server_name] --live
-
-# Run performance test
-compozy mcp bench [server_name] --duration 60s
-
-# Profile memory usage
-compozy mcp profile [server_name] --memory
-
-# Show connection pool status
-compozy mcp pools [server_name]
-```
-
-</Tab>
-
-<Tab>
-
-**Log Commands**
-
-```bash
-# View server logs
-compozy mcp logs [server_name] --follow
-
-# Filter logs by level
-compozy mcp logs [server_name] --level error
-
-# Show debug traces
-compozy mcp logs [server_name] --trace
-
-# Export logs
-compozy mcp logs [server_name] --export logs.json
-
-# Clear logs
-compozy mcp logs [server_name] --clear
-```
-
-</Tab>
-
-</Tabs>
-
-## Testing Strategies
-
-### Unit Testing
-
-Test individual MCP operations:
-
-```typescript
-// tests/mcp_unit_tests.ts
-import { assertEquals, assertRejects } from "https://deno.land/std@0.208.0/testing/asserts.ts";
-
-test("MCP Filesystem - List Directory", async () => {
-  const result = await mcpDebugTool({
-    server_name: "filesystem_dev",
-    operation: "call_tool",
-    tool_name: "list_directory",
-    parameters: { path: "./dev-workspace" },
-  });
-
-  assertEquals(result.success, true);
-  assertEquals(typeof result.result, "object");
-  assertEquals(Array.isArray(result.result?.files), true);
-});
-
-test("MCP Database - Query", async () => {
-  const result = await mcpDebugTool({
-    server_name: "database_dev",
-    operation: "call_tool",
-    tool_name: "query",
-    parameters: {
-      sql: "SELECT 1 as test_value",
-      parameters: {}
-    },
-  });
-
-  assertEquals(result.success, true);
-  assertEquals(result.result?.rows?.[0]?.test_value, 1);
-});
-
-test("MCP Tool - Invalid Parameters", async () => {
-  const result = await mcpDebugTool({
-    server_name: "filesystem_dev",
-    operation: "call_tool",
-    tool_name: "read_file",
-    parameters: {}, // Missing required 'path' parameter
-  });
-
-  assertEquals(result.success, false);
-  assertEquals(typeof result.error, "string");
-});
-```
-
-### Integration Testing
-
-Test complete MCP workflows:
-
-```typescript
-// tests/mcp_integration_tests.ts
-test("MCP Workflow - File Processing", async () => {
-  // Create test file
-  const createResult = await mcpDebugTool({
-    server_name: "filesystem_dev",
-    operation: "call_tool",
-    tool_name: "write_file",
-    parameters: {
-      path: "./dev-workspace/test.txt",
-      content: "Hello, MCP!"
-    },
-  });
-
-  assertEquals(createResult.success, true);
-
-  // Read file
-  const readResult = await mcpDebugTool({
-    server_name: "filesystem_dev",
-    operation: "call_tool",
-    tool_name: "read_file",
-    parameters: {
-      path: "./dev-workspace/test.txt"
-    },
-  });
-
-  assertEquals(readResult.success, true);
-  assertEquals(readResult.result?.content, "Hello, MCP!");
-
-  // Clean up
-  await mcpDebugTool({
-    server_name: "filesystem_dev",
-    operation: "call_tool",
-    tool_name: "delete_file",
-    parameters: {
-      path: "./dev-workspace/test.txt"
-    },
-  });
-});
-```
-
-## Performance Monitoring & Optimization
-
-### Real-Time Performance Tracking
-
-Implement comprehensive performance monitoring for MCP operations:
-
-```typescript
-// Performance monitoring dashboard
-interface PerformanceDashboard {
-  serverMetrics: Map<string, ServerMetrics>;
-  toolMetrics: Map<string, ToolMetrics>;
-  systemMetrics: SystemMetrics;
-  alerts: Alert[];
-}
-
-interface ServerMetrics {
-  serverId: string;
-  uptime: number;
-  requestCount: number;
-  avgResponseTime: number;
-  errorRate: number;
-  throughput: number;
-  memoryUsage: number;
-  cpuUsage: number;
-  connectionPoolStatus: {
-    active: number;
-    idle: number;
-    total: number;
-  };
-}
-
-interface ToolMetrics {
-  toolId: string;
-  serverId: string;
-  callCount: number;
-  successRate: number;
-  avgDuration: number;
-  p95Duration: number;
-  p99Duration: number;
-  errorTypes: Map<string, number>;
-  parameterValidationErrors: number;
-}
-
-class MCPPerformanceMonitor {
-  private dashboard: PerformanceDashboard;
-  private alertThresholds: AlertThresholds;
-
-  constructor(config: MonitorConfig) {
-    this.dashboard = {
-      serverMetrics: new Map(),
-      toolMetrics: new Map(),
-      systemMetrics: new SystemMetrics(),
-      alerts: []
-    };
-    this.alertThresholds = config.alertThresholds;
-  }
-
-  async collectMetrics(): Promise<void> {
-    // Collect server metrics
-    for (const serverId of this.getActiveServers()) {
-      const metrics = await this.collectServerMetrics(serverId);
-      this.dashboard.serverMetrics.set(serverId, metrics);
-      
-      // Check for performance alerts
-      this.checkPerformanceAlerts(serverId, metrics);
-    }
-
-    // Collect tool metrics
-    for (const toolId of this.getActiveTools()) {
-      const metrics = await this.collectToolMetrics(toolId);
-      this.dashboard.toolMetrics.set(toolId, metrics);
-    }
-
-    // Collect system metrics
-    this.dashboard.systemMetrics = await this.collectSystemMetrics();
-  }
-
-  private checkPerformanceAlerts(serverId: string, metrics: ServerMetrics): void {
-    if (metrics.avgResponseTime > this.alertThresholds.maxResponseTime) {
-      this.createAlert({
-        type: 'PERFORMANCE_DEGRADATION',
-        serverId,
-        message: `Average response time ${metrics.avgResponseTime}ms exceeds threshold`,
-        severity: 'warning'
-      });
-    }
-
-    if (metrics.errorRate > this.alertThresholds.maxErrorRate) {
-      this.createAlert({
-        type: 'HIGH_ERROR_RATE',
-        serverId,
-        message: `Error rate ${metrics.errorRate}% exceeds threshold`,
-        severity: 'error'
-      });
-    }
-  }
-}
-```
-
-### Performance Optimization Strategies
-
-<ReferenceCardList>
-  <ReferenceCard
-    title="Connection Pooling"
-    description="Optimize connection management for better performance"
-    icon={Network}
-  >
-    
-```yaml
-# Optimize connection pooling
-connection_pool:
-  min_size: 5
-  max_size: 20
-  idle_timeout: 300s
-  max_lifetime: 3600s
-  validation_query: "SELECT 1"
-```
-
-  </ReferenceCard>
-  
-  <ReferenceCard
-    title="Caching Strategy"
-    description="Implement intelligent caching for frequently accessed data"
-    icon={Database}
-  >
-    
-```typescript
-// Tool result caching
-interface CacheConfig {
-  ttl: number;
-  maxSize: number;
-  strategy: 'LRU' | 'LFU' | 'FIFO';
-}
-
-class ToolResultCache {
-  private cache: Map<string, CacheEntry>;
-  private config: CacheConfig;
-
-  async get(key: string): Promise<any> {
-    const entry = this.cache.get(key);
-    if (entry && !this.isExpired(entry)) {
-      return entry.value;
-    }
-    return null;
-  }
-}
-```
-
-  </ReferenceCard>
-  
-  <ReferenceCard
-    title="Request Batching"
-    description="Batch similar requests for improved throughput"
-    icon={RefreshCw}
-  >
-    
-```typescript
-// Request batching for tool calls
-class RequestBatcher {
-  private batches: Map<string, BatchRequest[]>;
-  private batchTimeout: number = 100; // ms
-
-  async batchToolCall(request: ToolRequest): Promise<ToolResponse> {
-    const batchKey = this.getBatchKey(request);
-    const batch = this.batches.get(batchKey) || [];
-    
-    batch.push(request);
-    this.batches.set(batchKey, batch);
-
-    // Process batch after timeout or max size
-    if (batch.length >= this.maxBatchSize) {
-      return this.processBatch(batchKey);
-    }
-
-    return this.scheduleBatchProcess(batchKey);
-  }
-}
-```
-
-  </ReferenceCard>
-  
-  <ReferenceCard
-    title="Resource Optimization"
-    description="Optimize memory and CPU usage patterns"
-    icon={Cpu}
-  >
-    
-```typescript
-// Resource optimization
-class ResourceOptimizer {
-  private memoryThreshold: number = 0.8; // 80%
-  private cpuThreshold: number = 0.7; // 70%
-
-  async optimizeResources(): Promise<void> {
-    const metrics = await this.getSystemMetrics();
-    
-    if (metrics.memoryUsage > this.memoryThreshold) {
-      await this.optimizeMemoryUsage();
-    }
-
-    if (metrics.cpuUsage > this.cpuThreshold) {
-      await this.optimizeCpuUsage();
-    }
-  }
-}
-```
-
-  </ReferenceCard>
-</ReferenceCardList>
+## Troubleshooting Guide
+
+### Quick Diagnostic Checklist
+
+1. **✅ MCP Proxy Health**: `curl http://localhost:8081/healthz`
+2. **✅ MCP Registration**: Check admin API for registered servers
+3. **✅ Tool Discovery**: Verify tools are discoverable
+4. **✅ Network Connectivity**: Test port accessibility
+5. **✅ Logging**: Enable debug logging for detailed information
+6. **✅ Environment**: Verify all required environment variables
+
+### Common Error Messages
+
+| Error Message | Cause | Solution |
+|---------------|-------|----------|
+| `connection refused` | MCP proxy not running | Start MCP proxy service |
+| `unauthorized: invalid admin token` | Wrong admin token | Check `MCP_PROXY_ADMIN_TOKEN` |
+| `MCP not found` | Server not registered | Register MCP server first |
+| `tool execution error` | Invalid arguments | Check tool schema |
+| `context deadline exceeded` | Timeout | Increase timeout configuration |
 
 ## Best Practices
 
-### Development Workflow
+### 1. Development Environment
 
-<Steps numbered size="sm">
-<Step title="Local Environment Setup" description="Establish comprehensive local development environment">
+- Always use debug logging during development
+- Set appropriate timeouts for your MCP servers
+- Use environment-specific configuration
+- Implement proper error handling
 
-- Use local MCP servers for development
-- Enable comprehensive logging and debugging
-- Set up automated testing pipelines
-- Configure performance monitoring
+### 2. Testing
 
-</Step>
+- Write unit tests for MCP integrations
+- Test both success and failure scenarios
+- Use integration tests for end-to-end validation
+- Mock external dependencies when appropriate
 
-<Step title="Incremental Testing" description="Test each component systematically">
+### 3. Production Considerations
 
-- Test each MCP operation individually
-- Validate parameter schemas before tool calls
-- Implement comprehensive error handling
-- Monitor performance metrics continuously
+- Use appropriate log levels (info/warn/error)
+- Monitor MCP server health and performance
+- Implement circuit breakers for resilience
+- Use proper authentication tokens
 
-</Step>
+## CLI Command Reference
 
-<Step title="Integration Validation" description="Validate complete workflows">
+### Core Development Commands
 
-- Test multi-server workflows
-- Validate error recovery mechanisms
-- Test performance under load
-- Verify security configurations
+```bash
+# Project Management
+compozy init [project-name]          # Initialize new project
+compozy dev [--watch]                # Development server with hot reload
+compozy start                        # Production server
+compozy config [subcommand]          # Configuration management
 
-</Step>
+# MCP Proxy Management
+compozy mcp-proxy [subcommand]       # MCP proxy service management
 
-<Step title="Production Readiness" description="Prepare for production deployment">
+# Workflow Management
+compozy workflow list                # List available workflows
+compozy workflow get [workflow-id]   # Get workflow details
+compozy workflow execute [workflow]  # Execute workflow
 
-- Implement monitoring and alerting
-- Configure proper resource limits
-- Set up automated recovery mechanisms
-- Document troubleshooting procedures
+# Authentication
+compozy auth generate                # Generate API keys
+compozy auth list                    # List API keys
+compozy auth revoke [key-id]         # Revoke API key
+compozy auth create-user             # Create user
+compozy auth list-users              # List users
+```
 
-</Step>
-</Steps>
+### Global Flags
 
-### Debugging Checklist
+All commands support these global flags:
+- `--json`: Output in JSON format
+- `--quiet`: Suppress non-essential output
+- `--debug`: Enable debug logging
+- `--config`: Specify config file path
+- `--env-file`: Specify environment file path
 
-<Accordion>
-<AccordionItem value="basic-checks">
-<AccordionTrigger>
-  <CheckCircle className="w-4 h-4" />
-  Basic Health Checks
-</AccordionTrigger>
-<AccordionContent>
+## Additional Resources
 
-- [ ] Server configuration is valid
-- [ ] All required services are running
-- [ ] Network connectivity is working
-- [ ] Authentication tokens are valid
-- [ ] Resource limits are appropriate
+For more information about MCP development:
 
-</AccordionContent>
-</AccordionItem>
+- [MCP Overview](/docs/core/mcp/mcp-overview) - Understanding MCP fundamentals
+- [Integration Patterns](/docs/core/mcp/integration-patterns) - Common integration approaches
+- [Client Manager](/docs/core/mcp/client-manager) - Client lifecycle management
+- [Production Deployment](/docs/core/mcp/production-deployment) - Production best practices
 
-<AccordionItem value="tool-validation">
-<AccordionTrigger>
-  <Tool className="w-4 h-4" />
-  Tool Validation
-</AccordionTrigger>
-<AccordionContent>
-
-- [ ] Tools are properly discovered
-- [ ] Tool schemas are valid
-- [ ] Parameters are correctly validated
-- [ ] Tool execution is successful
-- [ ] Results are properly formatted
-
-</AccordionContent>
-</AccordionItem>
-
-<AccordionItem value="performance-monitoring">
-<AccordionTrigger>
-  <Activity className="w-4 h-4" />
-  Performance Monitoring
-</AccordionTrigger>
-<AccordionContent>
-
-- [ ] Response times are acceptable
-- [ ] Error rates are within limits
-- [ ] Memory usage is stable
-- [ ] Connection pools are healthy
-- [ ] Throughput meets requirements
-
-</AccordionContent>
-</AccordionItem>
-
-<AccordionItem value="error-handling">
-<AccordionTrigger>
-  <AlertTriangle className="w-4 h-4" />
-  Error Handling
-</AccordionTrigger>
-<AccordionContent>
-
-- [ ] All error paths are tested
-- [ ] Recovery mechanisms work
-- [ ] Logs provide sufficient detail
-- [ ] Alerts are properly configured
-- [ ] Cleanup processes are working
-
-</AccordionContent>
-</AccordionItem>
-</Accordion>
-
-### Common Pitfalls & Solutions
-
-<Callout type="warning">
-  <AlertTriangle className="w-4 h-4" />
-  **Avoid These Common Mistakes**: Following these guidelines prevents the most frequent MCP integration issues.
+<Callout type="info" icon="Lightbulb">
+  **Pro Tip**: Start with simple MCP integrations and gradually add complexity. Use debug logging extensively during development to understand the flow of operations.
 </Callout>
-
-1. **Inadequate Timeout Configuration**
-   - **Problem**: Default timeouts too short for complex operations
-   - **Solution**: Configure operation-specific timeouts based on expected duration
-
-2. **Missing Parameter Validation**
-   - **Problem**: Tools fail with cryptic errors on invalid parameters
-   - **Solution**: Implement client-side validation before tool calls
-
-3. **Poor Resource Management**
-   - **Problem**: Memory leaks and connection exhaustion
-   - **Solution**: Implement proper cleanup and connection pooling
-
-4. **Insufficient Error Handling**
-   - **Problem**: Cascading failures and poor user experience
-   - **Solution**: Implement comprehensive error handling and recovery
-
-5. **Security Oversights**
-   - **Problem**: Exposed credentials and unvalidated inputs
-   - **Solution**: Validate all inputs and sanitize outputs
-
-This comprehensive development and debugging guide provides the tools and techniques needed for efficient MCP development and troubleshooting with production-ready best practices.
-
-## Next Steps
-
-- Set up [Monitoring & Metrics](/docs/core/mcp/monitoring-metrics) for production debugging
-- Configure [Production Deployment](/docs/core/mcp/production-deployment) with proper logging
-- Review [Security & Authentication](/docs/core/mcp/security-authentication) for secure debugging
-- Explore [Integration Patterns](/docs/core/mcp/integration-patterns) for advanced debugging scenarios

@@ -1,0 +1,617 @@
+---
+title: "Advanced Admin API Features"
+description: "Advanced administrative features, monitoring, and operational capabilities for MCP deployments"
+---
+
+This document covers advanced administrative features that build on the [basic Admin API](/docs/core/mcp/admin-api) functionality. These features provide enhanced monitoring, automation, and operational capabilities for production MCP deployments.
+
+<Callout type="info" icon="Settings">
+  **Enhanced Operations**: Advanced features for production-ready MCP deployments with monitoring and automation capabilities.
+</Callout>
+
+## Advanced Monitoring
+
+### Real-Time Health Monitoring
+
+The enhanced admin API provides comprehensive health monitoring capabilities:
+
+```go
+// Enhanced health check implementation
+func (h *AdminHandler) GetServerHealth(c *gin.Context) {
+    ctx := c.Request.Context()
+    serverID := c.Param("id")
+    log := logger.FromContext(ctx)
+    
+    // Get health metrics from multiple sources
+    health := &ServerHealth{
+        ServerID: serverID,
+        Status:   "unknown",
+        CheckedAt: time.Now(),
+    }
+    
+    // Check server connectivity
+    if err := h.mcpClient.Ping(ctx, serverID); err != nil {
+        health.Status = "unhealthy"
+        health.Issues = append(health.Issues, "Connection failed")
+        log.Warn("server ping failed", "server", serverID, "error", err)
+    } else {
+        health.Status = "healthy"
+        health.ResponseTime = time.Since(health.CheckedAt)
+    }
+    
+    c.JSON(200, health)
+}
+```
+
+**Enhanced health monitoring features:**
+- **Multi-point checks**: Connectivity, response time, and error rate monitoring
+- **Historical tracking**: Health status history and trend analysis
+- **Alerting integration**: Automatic alerts for health degradation
+- **Recovery monitoring**: Track server recovery and stability
+
+### Metrics Collection and Analysis
+
+Advanced metrics collection provides operational insights:
+
+```go
+// Metrics collection for MCP servers
+func (h *AdminHandler) GetServerMetrics(c *gin.Context) {
+    ctx := c.Request.Context()
+    serverID := c.Param("id")
+    timeRange := c.DefaultQuery("range", "1h")
+    
+    // Collect metrics from various sources
+    metrics := &ServerMetrics{
+        ServerID:  serverID,
+        TimeRange: timeRange,
+        Metrics: map[string]interface{}{
+            "request_count":    h.getRequestCount(ctx, serverID, timeRange),
+            "error_rate":       h.getErrorRate(ctx, serverID, timeRange),
+            "response_time":    h.getResponseTime(ctx, serverID, timeRange),
+            "connection_count": h.getConnectionCount(ctx, serverID),
+        },
+    }
+    
+    c.JSON(200, metrics)
+}
+```
+
+**Metrics capabilities:**
+- **Performance tracking**: Request rates, response times, error rates
+- **Resource monitoring**: Connection counts, memory usage, processing time
+- **Trend analysis**: Historical performance trends and patterns
+- **Alerting thresholds**: Configurable thresholds for performance alerts
+
+## Automation and Orchestration
+
+### Automated Server Management
+
+The enhanced API supports automated server lifecycle management:
+
+```go
+// Automated server restart based on health
+func (h *AdminHandler) AutoRestartUnhealthy(c *gin.Context) {
+    ctx := c.Request.Context()
+    log := logger.FromContext(ctx)
+    
+    // Get all servers with health issues
+    unhealthyServers, err := h.getUnhealthyServers(ctx)
+    if err != nil {
+        log.Error("failed to get unhealthy servers", "error", err)
+        c.JSON(500, gin.H{"error": "Failed to check server health"})
+        return
+    }
+    
+    results := make([]RestartResult, 0, len(unhealthyServers))
+    for _, server := range unhealthyServers {
+        result := RestartResult{
+            ServerID: server.ID,
+            Status:   "attempting",
+        }
+        
+        // Attempt restart with backoff
+        if err := h.restartServerWithBackoff(ctx, server.ID); err != nil {
+            result.Status = "failed"
+            result.Error = err.Error()
+            log.Error("server restart failed", "server", server.ID, "error", err)
+        } else {
+            result.Status = "success"
+            log.Info("server restarted successfully", "server", server.ID)
+        }
+        
+        results = append(results, result)
+    }
+    
+    c.JSON(200, gin.H{
+        "restarted_servers": results,
+        "total_attempts":    len(results),
+    })
+}
+```
+
+**Automation features:**
+- **Health-based automation**: Automatic server restarts for unhealthy instances
+- **Scheduled operations**: Periodic maintenance and health checks
+- **Batch operations**: Bulk server management operations
+- **Recovery procedures**: Automated recovery from common failure scenarios
+
+### Workflow Integration
+
+Enhanced integration with Compozy workflows for operational automation:
+
+```yaml
+# Advanced monitoring workflow
+resource: workflow
+id: advanced-mcp-monitoring
+description: Advanced MCP server monitoring and management
+
+tasks:
+  - id: collect_comprehensive_metrics
+    type: parallel
+    tasks:
+      - id: health_check
+        type: basic
+        $use: tool(local::tools.#(id=="http_client"))
+        with:
+          url: "http://localhost:8081/admin/servers/health"
+          method: GET
+          headers:
+            Authorization: "Bearer {{ .env.ADMIN_TOKEN }}"
+      
+      - id: performance_metrics
+        type: basic
+        $use: tool(local::tools.#(id=="http_client"))
+        with:
+          url: "http://localhost:8081/admin/metrics/servers?range=1h"
+          method: GET
+          headers:
+            Authorization: "Bearer {{ .env.ADMIN_TOKEN }}"
+  
+  - id: analyze_and_respond
+    type: basic
+    $use: agent(local::agents.#(id=="ops_agent"))
+    with:
+      health_data: "{{ .tasks.collect_comprehensive_metrics.output.health_check }}"
+      metrics_data: "{{ .tasks.collect_comprehensive_metrics.output.performance_metrics }}"
+      action_rules: |
+        - If error_rate > 5%: restart server
+        - If response_time > 1000ms: investigate performance
+        - If connection_count = 0: check server connectivity
+  
+  - id: execute_remediation
+    type: router
+    condition: '{{ .tasks.analyze_and_respond.output.action_required }}'
+    routes:
+      "true":
+        - id: remediate_issues
+          type: basic
+          $use: tool(local::tools.#(id=="http_client"))
+          with:
+            url: "http://localhost:8081/admin/servers/auto-restart"
+            method: POST
+            headers:
+              Authorization: "Bearer {{ .env.ADMIN_TOKEN }}"
+```
+
+**Workflow integration benefits:**
+- **Intelligent monitoring**: AI-powered analysis of server metrics and health
+- **Automated responses**: Workflow-driven remediation of common issues
+- **Escalation procedures**: Automated escalation for complex problems
+- **Audit trails**: Complete audit trails for all automated actions
+
+## Configuration Management
+
+### Dynamic Configuration Updates
+
+Enhanced configuration management with live updates:
+
+```go
+// Dynamic configuration update
+func (h *AdminHandler) UpdateServerConfig(c *gin.Context) {
+    ctx := c.Request.Context()
+    serverID := c.Param("id")
+    log := logger.FromContext(ctx)
+    
+    var updateReq ConfigUpdateRequest
+    if err := c.ShouldBindJSON(&updateReq); err != nil {
+        c.JSON(400, gin.H{"error": err.Error()})
+        return
+    }
+    
+    // Apply configuration updates
+    if err := h.applyConfigUpdates(ctx, serverID, updateReq); err != nil {
+        log.Error("config update failed", "server", serverID, "error", err)
+        c.JSON(500, gin.H{"error": "Failed to update configuration"})
+        return
+    }
+    
+    // Trigger server reload if needed
+    if updateReq.RequiresReload {
+        if err := h.reloadServer(ctx, serverID); err != nil {
+            log.Warn("server reload failed", "server", serverID, "error", err)
+            c.JSON(200, gin.H{
+                "message": "Configuration updated, but reload failed",
+                "manual_reload_required": true,
+            })
+            return
+        }
+    }
+    
+    log.Info("configuration updated successfully", "server", serverID)
+    c.JSON(200, gin.H{
+        "message": "Configuration updated successfully",
+        "server_id": serverID,
+        "updated_at": time.Now(),
+    })
+}
+```
+
+**Configuration management features:**
+- **Hot reloading**: Configuration updates without server downtime
+- **Validation**: Configuration validation before application
+- **Rollback**: Automatic rollback on configuration errors
+- **Audit trail**: Complete history of configuration changes
+
+### Environment-Specific Configurations
+
+Support for different deployment environments:
+
+```go
+// Environment-specific configuration
+type EnvironmentConfig struct {
+    Environment string                 `json:"environment"`
+    BaseConfig  map[string]interface{} `json:"base_config"`
+    Overrides   map[string]interface{} `json:"overrides"`
+}
+
+func (h *AdminHandler) GetEnvironmentConfig(c *gin.Context) {
+    ctx := c.Request.Context()
+    env := c.DefaultQuery("env", "production")
+    
+    config := &EnvironmentConfig{
+        Environment: env,
+        BaseConfig:  h.getBaseConfig(ctx),
+        Overrides:   h.getEnvironmentOverrides(ctx, env),
+    }
+    
+    c.JSON(200, config)
+}
+```
+
+**Environment management:**
+- **Multi-environment support**: Development, staging, production configurations
+- **Configuration inheritance**: Base configurations with environment-specific overrides
+- **Environment validation**: Ensure configurations are appropriate for each environment
+- **Deployment coordination**: Coordinate configuration changes across environments
+
+## Security Enhancements
+
+### Advanced Authentication
+
+Enhanced authentication with additional security features:
+
+```go
+// Multi-factor authentication support
+func (h *AdminHandler) AuthenticateWithMFA(c *gin.Context) {
+    ctx := c.Request.Context()
+    log := logger.FromContext(ctx)
+    
+    var authReq MFAAuthRequest
+    if err := c.ShouldBindJSON(&authReq); err != nil {
+        c.JSON(400, gin.H{"error": err.Error()})
+        return
+    }
+    
+    // Validate primary credentials
+    user, err := h.authService.ValidateCredentials(ctx, authReq.Username, authReq.Password)
+    if err != nil {
+        log.Warn("credential validation failed", "username", authReq.Username)
+        c.JSON(401, gin.H{"error": "Invalid credentials"})
+        return
+    }
+    
+    // Validate MFA token
+    if !h.authService.ValidateMFAToken(ctx, user.ID, authReq.MFAToken) {
+        log.Warn("MFA validation failed", "user", user.ID)
+        c.JSON(401, gin.H{"error": "Invalid MFA token"})
+        return
+    }
+    
+    // Generate session token
+    token, err := h.authService.GenerateSessionToken(ctx, user)
+    if err != nil {
+        log.Error("token generation failed", "error", err)
+        c.JSON(500, gin.H{"error": "Failed to generate token"})
+        return
+    }
+    
+    c.JSON(200, gin.H{
+        "token": token,
+        "expires_at": time.Now().Add(24 * time.Hour),
+        "user_id": user.ID,
+    })
+}
+```
+
+**Enhanced security features:**
+- **Multi-factor authentication**: TOTP, SMS, and hardware token support
+- **Session management**: Secure session handling with automatic expiration
+- **Audit logging**: Complete audit trail of authentication events
+- **Rate limiting**: Protection against brute force attacks
+
+### Authorization and Access Control
+
+Fine-grained access control for admin operations:
+
+```go
+// Role-based access control
+func (h *AdminHandler) CheckPermission(permission string) gin.HandlerFunc {
+    return func(c *gin.Context) {
+        ctx := c.Request.Context()
+        user := h.getUserFromContext(ctx)
+        
+        if !h.authService.HasPermission(ctx, user.ID, permission) {
+            c.JSON(403, gin.H{"error": "Insufficient permissions"})
+            c.Abort()
+            return
+        }
+        
+        c.Next()
+    }
+}
+
+// Usage in route definitions
+func (h *AdminHandler) SetupRoutes(r *gin.Engine) {
+    admin := r.Group("/admin")
+    admin.Use(h.AuthMiddleware())
+    
+    // Server management routes
+    admin.GET("/servers", h.CheckPermission("servers:read"), h.ListServers)
+    admin.POST("/servers", h.CheckPermission("servers:write"), h.CreateServer)
+    admin.DELETE("/servers/:id", h.CheckPermission("servers:delete"), h.DeleteServer)
+    
+    // System management routes
+    admin.GET("/system/config", h.CheckPermission("system:read"), h.GetSystemConfig)
+    admin.PUT("/system/config", h.CheckPermission("system:admin"), h.UpdateSystemConfig)
+}
+```
+
+**Access control features:**
+- **Permission-based authorization**: Fine-grained permissions for different operations
+- **Role management**: Role-based access control with inheritance
+- **Resource-level security**: Per-resource access control
+- **Audit integration**: Complete audit trail of authorization decisions
+
+## Performance Optimization
+
+### Caching and Performance
+
+Enhanced performance through strategic caching:
+
+```go
+// Cached server status
+func (h *AdminHandler) GetCachedServerStatus(c *gin.Context) {
+    ctx := c.Request.Context()
+    serverID := c.Param("id")
+    
+    // Check cache first
+    if cached, found := h.cache.Get(ctx, "server_status:"+serverID); found {
+        c.JSON(200, cached)
+        return
+    }
+    
+    // Get fresh data
+    status, err := h.getServerStatus(ctx, serverID)
+    if err != nil {
+        c.JSON(500, gin.H{"error": "Failed to get server status"})
+        return
+    }
+    
+    // Cache for 30 seconds
+    h.cache.Set(ctx, "server_status:"+serverID, status, 30*time.Second)
+    
+    c.JSON(200, status)
+}
+```
+
+**Performance optimization features:**
+- **Intelligent caching**: Cache frequently accessed data with appropriate TTL
+- **Connection pooling**: Efficient connection management for external services
+- **Batch operations**: Bulk operations for improved efficiency
+- **Async processing**: Background processing for long-running operations
+
+### Resource Management
+
+Efficient resource utilization and management:
+
+```go
+// Resource usage monitoring
+func (h *AdminHandler) GetResourceUsage(c *gin.Context) {
+    ctx := c.Request.Context()
+    
+    usage := &ResourceUsage{
+        CPU:    h.getCPUUsage(ctx),
+        Memory: h.getMemoryUsage(ctx),
+        Disk:   h.getDiskUsage(ctx),
+        Network: h.getNetworkUsage(ctx),
+    }
+    
+    c.JSON(200, usage)
+}
+```
+
+**Resource management features:**
+- **Resource monitoring**: Real-time resource usage tracking
+- **Capacity planning**: Historical resource usage analysis
+- **Optimization recommendations**: Automated optimization suggestions
+- **Resource limits**: Configurable resource limits and alerts
+
+## Best Practices
+
+<Tabs items={["Advanced Monitoring", "Automation", "Security", "Performance"]}>
+
+<Tab>
+### Advanced Monitoring Best Practices
+
+<FeatureCardList cols={2} size="sm">
+  <FeatureCard
+    title="Comprehensive Metrics"
+    description="Monitor all critical system and application metrics"
+    icon="BarChart3"
+  />
+  <FeatureCard
+    title="Proactive Alerting"
+    description="Set up alerts for potential issues before they impact users"
+    icon="Bell"
+  />
+  <FeatureCard
+    title="Historical Analysis"
+    description="Analyze trends and patterns in system behavior"
+    icon="TrendingUp"
+  />
+  <FeatureCard
+    title="Dashboard Design"
+    description="Create intuitive dashboards for operational visibility"
+    icon="Monitor"
+  />
+</FeatureCardList>
+
+**Monitoring recommendations:**
+- Monitor business metrics alongside technical metrics
+- Set up cascading alerts to avoid alert fatigue
+- Use anomaly detection for early problem identification
+- Maintain historical data for trend analysis and capacity planning
+
+</Tab>
+
+<Tab>
+### Automation Best Practices
+
+<FeatureCardList cols={2} size="sm">
+  <FeatureCard
+    title="Gradual Automation"
+    description="Start with simple automation and gradually increase complexity"
+    icon="Workflow"
+  />
+  <FeatureCard
+    title="Safety Mechanisms"
+    description="Implement circuit breakers and safety checks"
+    icon="Shield"
+  />
+  <FeatureCard
+    title="Audit Trails"
+    description="Log all automated actions for accountability"
+    icon="FileText"
+  />
+  <FeatureCard
+    title="Human Oversight"
+    description="Maintain human oversight for critical operations"
+    icon="Eye"
+  />
+</FeatureCardList>
+
+**Automation guidelines:**
+- Start with read-only operations before implementing write operations
+- Implement proper error handling and rollback mechanisms
+- Use feature flags to control automation rollout
+- Maintain manual override capabilities for emergency situations
+
+</Tab>
+
+<Tab>
+### Security Best Practices
+
+<FeatureCardList cols={2} size="sm">
+  <FeatureCard
+    title="Defense in Depth"
+    description="Implement multiple layers of security controls"
+    icon="Shield"
+  />
+  <FeatureCard
+    title="Least Privilege"
+    description="Grant minimum necessary permissions"
+    icon="Lock"
+  />
+  <FeatureCard
+    title="Regular Audits"
+    description="Conduct regular security audits and reviews"
+    icon="Search"
+  />
+  <FeatureCard
+    title="Incident Response"
+    description="Prepare for and practice incident response procedures"
+    icon="AlertTriangle"
+  />
+</FeatureCardList>
+
+**Security recommendations:**
+- Implement comprehensive audit logging for all administrative actions
+- Use strong authentication mechanisms including MFA
+- Regularly review and update access permissions
+- Conduct security testing and vulnerability assessments
+
+</Tab>
+
+<Tab>
+### Performance Best Practices
+
+<FeatureCardList cols={2} size="sm">
+  <FeatureCard
+    title="Efficient Caching"
+    description="Implement strategic caching for frequently accessed data"
+    icon="Database"
+  />
+  <FeatureCard
+    title="Resource Optimization"
+    description="Monitor and optimize resource utilization"
+    icon="Gauge"
+  />
+  <FeatureCard
+    title="Scalability Planning"
+    description="Design for horizontal scalability"
+    icon="TrendingUp"
+  />
+  <FeatureCard
+    title="Load Testing"
+    description="Regular load testing to identify bottlenecks"
+    icon="Zap"
+  />
+</FeatureCardList>
+
+**Performance guidelines:**
+- Use connection pooling for database and external service connections
+- Implement caching strategies appropriate for your data access patterns
+- Monitor response times and set performance budgets
+- Design APIs to be stateless for better scalability
+
+</Tab>
+</Tabs>
+
+## Next Steps
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Basic Admin API"
+    description="Start with basic admin API functionality"
+    href="/docs/core/mcp/admin-api"
+    icon="Settings"
+  />
+  <ReferenceCard
+    title="Production Deployment"
+    description="Deploy enhanced admin features in production"
+    href="/docs/core/mcp/production-deployment"
+    icon="Rocket"
+  />
+  <ReferenceCard
+    title="Monitoring & Metrics"
+    description="Comprehensive monitoring and metrics setup"
+    href="/docs/core/mcp/monitoring-metrics"
+    icon="Monitor"
+  />
+  <ReferenceCard
+    title="Integration Patterns"
+    description="Advanced integration patterns and workflows"
+    href="/docs/core/mcp/integration-patterns"
+    icon="Workflow"
+  />
+</ReferenceCardList>

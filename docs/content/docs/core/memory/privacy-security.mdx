@@ -1,282 +1,37 @@
 ---
 title: "Privacy & Security"
-description: "Comprehensive guide to privacy controls, data protection, and security best practices for memory systems"
+description: "Data protection and privacy controls for memory systems using regex redaction patterns"
 ---
-
-import { ReferenceCard, ReferenceCardList } from "@/components/ui/reference-card";
-import { FeatureCard, FeatureCardList } from "@/components/ui/feature-card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { 
-  Shield, 
-  Eye, 
-  Lock, 
-  CheckCircle, 
-  AlertTriangle,
-  Settings,
-  BookOpen,
-  Zap,
-  Users,
-  Wrench
-} from "lucide-react";
-
-# Privacy & Security
-
-Compozy's memory system includes comprehensive privacy and security features to protect sensitive data while maintaining functionality. This guide provides progressive learning paths for different user roles and expertise levels.
 
 ## Related Documentation
 
 ### 🔗 Cross-References
-- **[Memory Concepts & Architecture](/docs/core/memory/memory-concepts)** - Understanding memory security architecture
-- **[Memory Configuration](/docs/core/memory/configuration)** - Security and privacy configuration options
-- **[Memory Operations](/docs/core/memory/operations)** - Secure memory operations and access patterns
-- **[Integration Patterns](/docs/core/memory/integration-patterns)** - Enterprise security and compliance frameworks
-- **[Troubleshooting](/docs/core/memory/troubleshooting)** - Security monitoring and compliance auditing
+- **[Memory Concepts](/docs/core/memory/memory-concepts)** - Understanding memory architecture
+- **[Memory Configuration](/docs/core/memory/configuration)** - Basic memory setup
+- **[Memory Operations](/docs/core/memory/operations)** - Memory management operations
+- **[Integration Patterns](/docs/core/memory/integration-patterns)** - Agent-memory integration
+- **[Troubleshooting](/docs/core/memory/troubleshooting)** - Debugging memory issues
 
-### 🧠 Memory-Related Topics
-- **Privacy & Security** ↔ **[Data Protection](/docs/core/memory/integration-patterns#enterprise-security--compliance)** ↔ **[Compliance Auditing](/docs/core/memory/troubleshooting#security-hardening--compliance)**
-- **Access Control** ↔ **[Multi-Agent Security](/docs/core/memory/integration-patterns#advanced-integration-features)** ↔ **[Production Security](/docs/core/memory/troubleshooting#production-deployment-checklist)**
-- **Data Governance** ↔ **[Privacy Monitoring](/docs/core/memory/memory-concepts#performance-monitoring--optimization)** ↔ **[Security Alerting](/docs/core/memory/troubleshooting#alerting-rules-configuration)**
-
-## Choose Your Learning Path
-
-<Tabs defaultValue="developer" className="w-full">
-<TabsList className="grid w-full grid-cols-4">
-  <TabsTrigger value="developer">Developer</TabsTrigger>
-  <TabsTrigger value="security">Security</TabsTrigger>
-  <TabsTrigger value="operations">Operations</TabsTrigger>
-  <TabsTrigger value="management">Management</TabsTrigger>
-</TabsList>
-
-<TabsContent value="developer">
-### Developer Learning Path
-
-**Prerequisites:** Basic understanding of Compozy workflows and memory concepts
-
-**Learning Checkpoints:**
-- [ ] Understand privacy controls and redaction patterns
-- [ ] Implement basic access control in your applications
-- [ ] Configure data masking for development environments
-- [ ] Set up proper error handling for security scenarios
-
-**Next Steps after completion:**
-- Advanced security patterns
-- Integration with compliance frameworks
-- Performance optimization for secure operations
-
-<ReferenceCardList>
-  <ReferenceCard 
-    title="Start Here: Privacy Controls" 
-    href="#privacy-controls"
-    description="Learn redaction patterns and basic privacy features"
-    icon={Eye}
-  />
-  <ReferenceCard 
-    title="Then: Access Control" 
-    href="#access-control"
-    description="Implement role-based access control"
-    icon={Lock}
-  />
-  <ReferenceCard 
-    title="Practice: Data Masking" 
-    href="#data-masking"
-    description="Apply data masking techniques"
-    icon={Shield}
-  />
-  <ReferenceCard 
-    title="Validate: Best Practices" 
-    href="#security-best-practices"
-    description="Follow security implementation guidelines"
-    icon={CheckCircle}
-  />
-</ReferenceCardList>
-</TabsContent>
-
-<TabsContent value="security">
-### Security Professional Learning Path
-
-**Prerequisites:** Security architecture knowledge and compliance requirements
-
-**Learning Checkpoints:**
-- [ ] Evaluate security architecture and threat models
-- [ ] Implement comprehensive audit logging
-- [ ] Configure compliance frameworks (GDPR, SOC2)
-- [ ] Set up monitoring and alerting systems
-- [ ] Design incident response procedures
-
-**Next Steps after completion:**
-- Advanced threat detection
-- Integration with security tools (SIEM, DLP)
-- Compliance automation
-
-<ReferenceCardList>
-  <ReferenceCard 
-    title="Start Here: Security Architecture" 
-    href="#security-architecture"
-    description="Understand the security model and components"
-    icon={Shield}
-  />
-  <ReferenceCard 
-    title="Then: Compliance Features" 
-    href="#compliance-features"
-    description="Implement GDPR, SOC2, and other frameworks"
-    icon={CheckCircle}
-  />
-  <ReferenceCard 
-    title="Practice: Audit Logging" 
-    href="#audit-logging"
-    description="Set up comprehensive audit trails"
-    icon={BookOpen}
-  />
-  <ReferenceCard 
-    title="Validate: Monitoring" 
-    href="#monitoring-and-alerting"
-    description="Configure security monitoring systems"
-    icon={Eye}
-  />
-</ReferenceCardList>
-</TabsContent>
-
-<TabsContent value="operations">
-### Operations/DevOps Learning Path
-
-**Prerequisites:** System administration and deployment experience
-
-**Learning Checkpoints:**
-- [ ] Configure secure deployment environments
-- [ ] Implement backup and recovery procedures
-- [ ] Set up performance monitoring for security features
-- [ ] Create operational runbooks for security incidents
-- [ ] Automate security compliance checks
-
-**Next Steps after completion:**
-- Advanced monitoring and alerting
-- Automated security testing
-- Infrastructure as code for security
-
-<ReferenceCardList>
-  <ReferenceCard 
-    title="Start Here: Data Protection" 
-    href="#data-protection"
-    description="Learn backup, encryption, and retention policies"
-    icon={Shield}
-  />
-  <ReferenceCard 
-    title="Then: Monitoring Setup" 
-    href="#monitoring-and-alerting"
-    description="Configure security monitoring and alerting"
-    icon={Eye}
-  />
-  <ReferenceCard 
-    title="Practice: Emergency Procedures" 
-    href="#emergency-procedures"
-    description="Implement recovery and incident response"
-    icon={AlertTriangle}
-  />
-  <ReferenceCard 
-    title="Validate: Performance" 
-    href="#performance-considerations"
-    description="Optimize security features for production"
-    icon={Zap}
-  />
-</ReferenceCardList>
-</TabsContent>
-
-<TabsContent value="management">
-### Management/Decision Maker Learning Path
-
-**Prerequisites:** Business and risk management understanding
-
-**Learning Checkpoints:**
-- [ ] Understand security capabilities and limitations
-- [ ] Evaluate compliance requirements and gaps
-- [ ] Assess cost-benefit of security features
-- [ ] Plan security training and adoption
-- [ ] Define security governance policies
-
-**Next Steps after completion:**
-- Security strategy development
-- Risk assessment frameworks
-- Vendor security evaluation
-
-<ReferenceCardList>
-  <ReferenceCard 
-    title="Start Here: Security Overview" 
-    href="#security-architecture"
-    description="High-level security capabilities and benefits"
-    icon={Shield}
-  />
-  <ReferenceCard 
-    title="Then: Compliance Impact" 
-    href="#compliance-features"
-    description="Regulatory compliance and risk mitigation"
-    icon={CheckCircle}
-  />
-  <ReferenceCard 
-    title="Evaluate: Cost-Benefit" 
-    href="#performance-considerations"
-    description="Performance impact and resource requirements"
-    icon={Settings}
-  />
-  <ReferenceCard 
-    title="Plan: Implementation" 
-    href="#implementation-roadmap"
-    description="Phased approach to security implementation"
-    icon={Users}
-  />
-</ReferenceCardList>
-</TabsContent>
-</Tabs>
-
-## Cross-Document References
-
-<Alert>
-  <AlertTriangle className="h-4 w-4" />
-  <AlertDescription>
-    This document focuses on privacy and security implementation. For related concepts, see:
-  </AlertDescription>
-</Alert>
-
-<ReferenceCardList>
-  <ReferenceCard 
-    title="Memory Concepts" 
-    href="/docs/core/memory/memory-concepts"
-    description="Fundamental architecture and design principles"
-    icon={BookOpen}
-  />
-  <ReferenceCard 
-    title="Configuration" 
-    href="/docs/core/memory/configuration"
-    description="Basic memory setup and configuration"
-    icon={Settings}
-  />
-  <ReferenceCard 
-    title="Operations" 
-    href="/docs/core/memory/operations"
-    description="Memory operations and management"
-    icon={Wrench}
-  />
-  <ReferenceCard 
-    title="Troubleshooting" 
-    href="/docs/core/memory/troubleshooting"
-    description="Debugging security-related issues"
-    icon={AlertTriangle}
-  />
-</ReferenceCardList>
+<Callout type="info">
+**What Memory Privacy Provides:**
+- **Regex-based redaction** with ReDoS attack protection
+- **Message type filtering** for non-persistable content
+- **Circuit breaker protection** with automatic failure recovery
+- **Resilient privacy manager** with degraded mode fallback
+- **Pattern validation** to prevent catastrophic backtracking
+- **Timeout protection** for regex processing
+- **Configurable redaction strings** and custom patterns
+</Callout>
 
 ## Privacy Controls
 
-<Alert>
-  <Shield className="h-4 w-4" />
-  <AlertDescription>
-    <strong>Skill Level:</strong> <Badge variant="outline">Beginner</Badge> - Basic privacy controls and data redaction
-  </AlertDescription>
-</Alert>
+**What it does:** Compozy's privacy system automatically detects and redacts sensitive information using regex patterns before storing messages in memory. This helps prevent accidental exposure of personal data, credentials, or proprietary information.
 
-### Redaction Patterns
-Automatically redact sensitive information using regex patterns:
+**How it works:** The privacy manager applies regex patterns to message content and replaces matches with redaction strings. It includes timeout protection and circuit breaker functionality to prevent regex-based attacks.
+
+### Basic Redaction Setup
+
+Here's how to configure basic redaction for sensitive data:
 
 ```yaml
 resource: memory
@@ -287,39 +42,39 @@ privacy_policy:
   redact_patterns:
     # Social Security Numbers (XXX-XX-XXXX)
     - '\b\d{3}-\d{2}-\d{4}\b'
-    
+
     # Credit card numbers (various formats)
     - '\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{3,6}\b'
-    
+
     # Email addresses
     - '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
-    
+
     # Phone numbers (US formats)
     - '\b(?:\+?1[-.\s]?)?\(?[2-9]\d{2}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b'
-    
+
     # IP addresses
     - '\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b'
-    
+
     # Account numbers
     - '\baccount\s*#?\s*\d{6,12}\b'
-    
+
     # API keys and tokens
     - '\b[A-Za-z0-9+/]{20,}\b'
-    
+
     # Custom business-specific patterns
     - '\b[A-Z]{2,3}-\d{4,6}\b'  # Internal reference numbers
-  
+
   # Replacement text for redacted content
   default_redaction_string: "[REDACTED]"
 ```
 
+**Example:** When a user sends a message containing "My SSN is 123-45-6789", the memory system stores it as "My SSN is [REDACTED]" instead.
+
 ### Common Redaction Patterns
 
-<Accordion type="single" collapsible>
-<AccordionItem value="financial">
-<AccordionTrigger>Financial Information Patterns</AccordionTrigger>
-<AccordionContent>
-Pre-built patterns for financial data protection:
+**Financial Information**
+
+Protect financial data with these patterns:
 
 ```yaml
 privacy_policy:
@@ -333,13 +88,10 @@ privacy_policy:
     # Account numbers
     - '\baccount\s*#?\s*\d{6,12}\b'
 ```
-</AccordionContent>
-</AccordionItem>
 
-<AccordionItem value="personal">
-<AccordionTrigger>Personal Information Patterns</AccordionTrigger>
-<AccordionContent>
-Patterns for personal identifiable information:
+**Personal Information**
+
+Redact personal identifiers:
 
 ```yaml
 privacy_policy:
@@ -347,17 +99,14 @@ privacy_policy:
     # Email addresses
     - '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
     # Phone numbers (US formats)
-    - '\b(?:\+?1[-.\ s]?)?\(?[2-9]\d{2}\)?[-.\ s]?\d{3}[-.\ s]?\d{4}\b'
+    - '\b(?:\+?1[-.\s]?)?\(?[2-9]\d{2}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b'
     # IP addresses
     - '\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b'
 ```
-</AccordionContent>
-</AccordionItem>
 
-<AccordionItem value="technical">
-<AccordionTrigger>Technical Information Patterns</AccordionTrigger>
-<AccordionContent>
-Patterns for technical identifiers and security tokens:
+**Technical Information**
+
+Protect technical identifiers and security tokens:
 
 ```yaml
 privacy_policy:
@@ -371,1006 +120,177 @@ privacy_policy:
     # Custom business patterns
     - '\b[A-Z]{2,3}-\d{4,6}\b'  # Internal reference numbers
 ```
-</AccordionContent>
-</AccordionItem>
-</Accordion>
-
-**Learning Checkpoint:** Can you identify which patterns are most relevant to your application's data types?
-
-```yaml
-privacy_policy:
-  redact_patterns:
-    # Financial information
-    - '\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{3,6}\b'  # Credit cards
-    - '\b\d{3}-\d{2}-\d{4}\b'                         # SSN
-    - '\b\d{2}-\d{7}\b'                               # Bank routing
-    
-    # Personal identifiers
-    - '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'  # Email
-    - '\b\d{3}[-.]?\d{3}[-.]?\d{4}\b'                         # Phone
-    
-    # Technical identifiers
-    - '\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b'  # UUID
-    - '\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b'  # IP
-    
-    # Authentication tokens
-    - '\b[A-Za-z0-9+/]{40,}\b'                        # Long tokens
-    - '\bBearer\s+[A-Za-z0-9+/=]{20,}\b'             # Bearer tokens
-    - '\b[A-Za-z0-9]{32,}\b'                          # API keys
-```
 
 ### Non-Persistable Message Types
-Prevent certain message types from being stored:
+
+**What it does:** Prevents certain types of messages from being stored in memory at all, regardless of content.
+
+**How it works:** The privacy manager checks the message type (role) against a list of non-persistable types and skips storage entirely.
 
 ```yaml
 privacy_policy:
   non_persistable_message_types:
     - system          # System messages
     - tool_internal   # Internal tool communications
-    - debug          # Debug information
-    - error          # Error messages
-    - authentication # Authentication-related messages
-    - admin          # Administrative messages
-    - temporary      # Temporary messages
+    - debug           # Debug information
+    - error           # Error messages
+    - authentication  # Authentication-related messages
+    - admin           # Administrative messages
+    - temporary       # Temporary messages
 ```
 
-### Privacy-Aware Message Storage
-Store messages with privacy metadata:
+**Example:** If you send a message with role "system", it won't be stored in memory even if it contains no sensitive data.
 
-```typescript
-interface PrivacyMetadata {
-  do_not_persist: boolean;
-  sensitive_fields: string[];
-  redaction_applied: boolean;
-  privacy_level: 'public' | 'private' | 'confidential';
-  retention_period?: string;
-}
+## Pattern Safety
 
-export async function privacyAwareMemoryTool(input: PrivacyMemoryInput): Promise<PrivacyMemoryOutput> {
-  const { memory_key, message, privacy_metadata } = input;
-  
-  // Apply privacy controls
-  const processedMessage = await applyPrivacyControls(message, privacy_metadata);
-  
-  // Check if message should be persisted
-  if (privacy_metadata.do_not_persist) {
-    return {
-      success: true,
-      message: 'Message processed but not persisted due to privacy controls',
-      persisted: false
-    };
-  }
-  
-  // Store with privacy metadata
-  await appendWithPrivacy(memory_key, processedMessage, privacy_metadata);
-  
-  return {
-    success: true,
-    message: 'Message stored with privacy controls applied',
-    persisted: true,
-    redaction_applied: privacy_metadata.redaction_applied
-  };
-}
+**What it does:** Compozy validates regex patterns to prevent ReDoS (Regular Expression Denial of Service) attacks that could cause performance issues or crashes.
 
-async function applyPrivacyControls(message: any, metadata: PrivacyMetadata): Promise<any> {
-  let processedMessage = { ...message };
-  
-  // Apply redaction to sensitive fields
-  if (metadata.sensitive_fields.length > 0) {
-    for (const field of metadata.sensitive_fields) {
-      if (processedMessage[field]) {
-        processedMessage[field] = '[REDACTED]';
-      }
-    }
-    metadata.redaction_applied = true;
-  }
-  
-  // Apply privacy level restrictions
-  if (metadata.privacy_level === 'confidential') {
-    processedMessage.content = await encryptContent(processedMessage.content);
-  }
-  
-  return processedMessage;
-}
+**How it works:** The privacy manager includes built-in validation that rejects patterns known to cause catastrophic backtracking or excessive memory usage.
+
+### Safe Pattern Examples
+
+```yaml
+privacy_policy:
+  redact_patterns:
+    # ✅ Safe patterns - specific and bounded
+    - '\b\d{3}-\d{2}-\d{4}\b'              # SSN with specific format
+    - '\b[A-Za-z0-9+/]{40}\b'              # Fixed-length token
+    - '\b(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b'  # IP address
 ```
 
-## Security Architecture
+### Unsafe Pattern Examples
 
-<Alert>
-  <Shield className="h-4 w-4" />
-  <AlertDescription>
-    <strong>Skill Level:</strong> <Badge variant="outline">Intermediate</Badge> - Security architecture and access control
-  </AlertDescription>
-</Alert>
-
-### Access Control
-Implement role-based access control for memory operations:
-
-```typescript
-interface AccessControlConfig {
-  roles: {
-    [role: string]: {
-      permissions: string[];
-      memory_patterns: string[];
-      max_retention: string;
-    };
-  };
-}
-
-const accessConfig: AccessControlConfig = {
-  roles: {
-    admin: {
-      permissions: ['read', 'write', 'delete', 'flush', 'export'],
-      memory_patterns: ['*'],
-      max_retention: '365d'
-    },
-    agent: {
-      permissions: ['read', 'write', 'flush'],
-      memory_patterns: ['agent:*', 'conversation:*'],
-      max_retention: '30d'
-    },
-    user: {
-      permissions: ['read'],
-      memory_patterns: ['user:{{.user_id}}', 'conversation:{{.conversation_id}}'],
-      max_retention: '7d'
-    },
-    analytics: {
-      permissions: ['read'],
-      memory_patterns: ['analytics:*'],
-      max_retention: '90d'
-    }
-  }
-};
-
-export async function secureMemoryTool(input: SecureMemoryInput): Promise<SecureMemoryOutput> {
-  const { memory_key, operation, user_role, user_id, message } = input;
-  
-  // Validate access permissions
-  const hasAccess = await validateAccess(user_role, operation, memory_key, user_id);
-  if (!hasAccess) {
-    throw new Error('Access denied: insufficient permissions');
-  }
-  
-  // Validate memory key pattern
-  const isValidPattern = await validateMemoryKeyPattern(memory_key, user_role, user_id);
-  if (!isValidPattern) {
-    throw new Error('Access denied: invalid memory key pattern');
-  }
-  
-  // Apply operation-specific security controls
-  const secureInput = await applySecurityControls(input, user_role);
-  
-  // Perform operation
-  const result = await performSecureOperation(secureInput);
-  
-  // Audit log the operation
-  await auditLog({
-    user_id,
-    user_role,
-    operation,
-    memory_key,
-    timestamp: new Date().toISOString(),
-    success: result.success
-  });
-  
-  return result;
-}
+```yaml
+privacy_policy:
+  redact_patterns:
+    # ❌ Unsafe patterns - will be rejected
+    - '(\w+)+'                             # Nested quantifiers
+    - '(a+)+'                              # Nested quantifiers
+    - '(a*)*'                              # Nested star quantifiers
+    - '(.+)+'                              # Nested quantifiers with any character
+    - '(.{0,50000})*'                      # Memory exhaustion
 ```
 
-### Encryption at Rest
+## Circuit Breaker Protection
 
-<Alert>
-  <Lock className="h-4 w-4" />
-  <AlertDescription>
-    <strong>Advanced Feature:</strong> Encryption impacts performance. Monitor and optimize accordingly.
-  </AlertDescription>
-</Alert>
+**What it does:** Protects against regex pattern failures by temporarily disabling redaction when too many consecutive errors occur.
 
-Encrypt sensitive memory data:
+**How it works:** The privacy manager tracks consecutive failures and stops processing patterns after 10 consecutive errors. This prevents cascading failures from affecting memory operations.
 
-```typescript
-interface EncryptionConfig {
-  enabled: boolean;
-  algorithm: 'AES-256-GCM';
-  key_rotation_interval: string;
-  encrypt_fields: string[];
-}
+### Circuit Breaker Configuration
 
-export async function encryptedMemoryTool(input: EncryptedMemoryInput): Promise<EncryptedMemoryOutput> {
-  const { memory_key, message, encryption_config } = input;
-  
-  if (!encryption_config.enabled) {
-    return await standardMemoryOperation(memory_key, message);
-  }
-  
-  // Encrypt specified fields
-  const encryptedMessage = await encryptMessage(message, encryption_config);
-  
-  // Store encrypted message
-  const result = await appendToMemory(memory_key, encryptedMessage);
-  
-  return {
-    ...result,
-    encryption_applied: true,
-    encrypted_fields: encryption_config.encrypt_fields
-  };
-}
+The circuit breaker is built-in and cannot be disabled, but you can monitor its status:
 
-async function encryptMessage(message: any, config: EncryptionConfig): Promise<any> {
-  const encrypted = { ...message };
-  
-  for (const field of config.encrypt_fields) {
-    if (encrypted[field]) {
-      encrypted[field] = await encrypt(encrypted[field], config.algorithm);
-    }
-  }
-  
-  return encrypted;
-}
+```yaml
+# Circuit breaker automatically activates after 10 consecutive errors
+# No configuration needed - built-in protection
 ```
 
-### Data Masking
-Mask sensitive data in memory operations:
+**Error Recovery:** The circuit breaker resets automatically when a pattern succeeds, allowing normal operation to resume.
 
-```typescript
-interface MaskingConfig {
-  enabled: boolean;
-  mask_fields: string[];
-  mask_patterns: RegExp[];
-  mask_character: string;
-  preserve_length: boolean;
-}
+## Real-World Example
 
-export async function maskedMemoryTool(input: MaskedMemoryInput): Promise<MaskedMemoryOutput> {
-  const { memory_key, operation, masking_config } = input;
-  
-  if (operation === 'read') {
-    const messages = await readAllMessages(memory_key);
-    const maskedMessages = messages.map(msg => applyMasking(msg, masking_config));
-    
-    return {
-      success: true,
-      messages: maskedMessages,
-      masking_applied: true
-    };
-  }
-  
-  // For write operations, apply masking before storage
-  if (operation === 'append' && input.message) {
-    const maskedMessage = applyMasking(input.message, masking_config);
-    await appendToMemory(memory_key, maskedMessage);
-    
-    return {
-      success: true,
-      masking_applied: true
-    };
-  }
-  
-  return await standardMemoryOperation(memory_key, input);
-}
-
-function applyMasking(message: any, config: MaskingConfig): any {
-  if (!config.enabled) return message;
-  
-  const masked = { ...message };
-  
-  // Mask specific fields
-  for (const field of config.mask_fields) {
-    if (masked[field]) {
-      masked[field] = maskField(masked[field], config);
-    }
-  }
-  
-  // Apply pattern-based masking
-  if (typeof masked.content === 'string') {
-    for (const pattern of config.mask_patterns) {
-      masked.content = masked.content.replace(pattern, (match) => 
-        config.preserve_length 
-          ? config.mask_character.repeat(match.length)
-          : '[MASKED]'
-      );
-    }
-  }
-  
-  return masked;
-}
-```
-
-## Data Protection
-
-<Alert>
-  <Shield className="h-4 w-4" />
-  <AlertDescription>
-    <strong>Skill Level:</strong> <Badge variant="outline">Intermediate</Badge> - Data lifecycle management
-  </AlertDescription>
-</Alert>
-
-### Data Retention Policies
-Implement automated data retention and deletion:
+Here's a complete example of privacy configuration for a customer service application:
 
 ```yaml
 resource: memory
-id: retention_managed_memory
-description: Memory with automated retention policies
+id: customer_service_memory
+description: Memory for customer service interactions with privacy protection
 
 privacy_policy:
-  retention_policy:
-    default_retention: "30d"
-    max_retention: "365d"
-    rules:
-      - message_type: "user"
-        retention: "90d"
-      - message_type: "system"
-        retention: "7d"
-      - privacy_level: "confidential"
-        retention: "1d"
-      - contains_patterns:
-          - "sensitive"
-          - "private"
-        retention: "7d"
-  
-  auto_deletion:
-    enabled: true
-    check_interval: "24h"
-    batch_size: 100
+  redact_patterns:
+    # Customer personal information
+    - '\b\d{3}-\d{2}-\d{4}\b'                                    # SSN
+    - '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'      # Email
+    - '\b(?:\+?1[-.\s]?)?\(?[2-9]\d{2}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b'  # Phone
+    
+    # Financial information
+    - '\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{3,6}\b'             # Credit cards
+    - '\baccount\s*#?\s*\d{6,12}\b'                              # Account numbers
+    
+    # Internal identifiers
+    - '\bCS-\d{6}\b'                                             # Customer service ticket IDs
+    - '\bEMP-\d{4}\b'                                            # Employee IDs
+
+  non_persistable_message_types:
+    - system
+    - debug
+    - error
+    - authentication
+
+  default_redaction_string: "[REDACTED]"
+
+# Basic memory configuration
+type: token_based
+max_tokens: 4000
+persistence:
+  type: redis
+  config:
+    host: localhost
+    port: 6379
+    db: 0
 ```
-
-### Audit Logging
-
-<Alert>
-  <Eye className="h-4 w-4" />
-  <AlertDescription>
-    <strong>Essential for Compliance:</strong> Audit logging is required for most regulatory frameworks
-  </AlertDescription>
-</Alert>
-
-Track all memory operations for compliance:
-
-```typescript
-interface AuditLog {
-  timestamp: string;
-  user_id: string;
-  user_role: string;
-  operation: string;
-  memory_key: string;
-  success: boolean;
-  error?: string;
-  ip_address?: string;
-  user_agent?: string;
-  privacy_controls_applied?: boolean;
-}
-
-export async function auditedMemoryTool(input: AuditedMemoryInput): Promise<AuditedMemoryOutput> {
-  const { memory_key, operation, user_id, user_role, audit_metadata } = input;
-  
-  const auditEntry: AuditLog = {
-    timestamp: new Date().toISOString(),
-    user_id,
-    user_role,
-    operation,
-    memory_key,
-    success: false,
-    ...audit_metadata
-  };
-  
-  try {
-    // Perform memory operation
-    const result = await performMemoryOperation(memory_key, operation, input);
-    
-    auditEntry.success = true;
-    auditEntry.privacy_controls_applied = result.privacy_controls_applied;
-    
-    // Log successful operation
-    await logAuditEntry(auditEntry);
-    
-    return result;
-  } catch (error) {
-    auditEntry.success = false;
-    auditEntry.error = error.message;
-    
-    // Log failed operation
-    await logAuditEntry(auditEntry);
-    
-    throw error;
-  }
-}
-
-async function logAuditEntry(entry: AuditLog): Promise<void> {
-  // Store audit log in secure, tamper-proof storage
-  await storeAuditLog(entry);
-  
-  // Send to external audit system if configured
-  if (process.env.EXTERNAL_AUDIT_ENDPOINT) {
-    await sendToExternalAudit(entry);
-  }
-}
-```
-
-### Data Anonymization
-Anonymize data while preserving utility:
-
-```typescript
-interface AnonymizationConfig {
-  enabled: boolean;
-  anonymize_user_ids: boolean;
-  anonymize_content: boolean;
-  preserve_patterns: string[];
-  hash_salt: string;
-}
-
-export async function anonymizedMemoryTool(input: AnonymizedMemoryInput): Promise<AnonymizedMemoryOutput> {
-  const { memory_key, operation, anonymization_config } = input;
-  
-  if (!anonymization_config.enabled) {
-    return await standardMemoryOperation(memory_key, input);
-  }
-  
-  if (operation === 'read') {
-    const messages = await readAllMessages(memory_key);
-    const anonymizedMessages = messages.map(msg => anonymizeMessage(msg, anonymization_config));
-    
-    return {
-      success: true,
-      messages: anonymizedMessages,
-      anonymization_applied: true
-    };
-  }
-  
-  if (operation === 'append' && input.message) {
-    const anonymizedMessage = anonymizeMessage(input.message, anonymization_config);
-    await appendToMemory(memory_key, anonymizedMessage);
-    
-    return {
-      success: true,
-      anonymization_applied: true
-    };
-  }
-  
-  return await standardMemoryOperation(memory_key, input);
-}
-
-function anonymizeMessage(message: any, config: AnonymizationConfig): any {
-  const anonymized = { ...message };
-  
-  // Anonymize user IDs
-  if (config.anonymize_user_ids && anonymized.user_id) {
-    anonymized.user_id = hashValue(anonymized.user_id, config.hash_salt);
-  }
-  
-  // Anonymize content while preserving patterns
-  if (config.anonymize_content && anonymized.content) {
-    anonymized.content = anonymizeContent(anonymized.content, config);
-  }
-  
-  return anonymized;
-}
-```
-
-## Compliance Features
-
-<Alert>
-  <CheckCircle className="h-4 w-4" />
-  <AlertDescription>
-    <strong>Skill Level:</strong> <Badge variant="outline">Advanced</Badge> - Regulatory compliance implementation
-  </AlertDescription>
-</Alert>
-
-### GDPR Compliance
-Implement GDPR-compliant memory operations:
-
-```typescript
-interface GDPRConfig {
-  enabled: boolean;
-  data_controller: string;
-  retention_period: string;
-  anonymization_delay: string;
-  deletion_method: 'immediate' | 'scheduled' | 'anonymize';
-}
-
-export async function gdprCompliantMemoryTool(input: GDPRMemoryInput): Promise<GDPRMemoryOutput> {
-  const { memory_key, operation, user_id, gdpr_config } = input;
-  
-  if (!gdpr_config.enabled) {
-    return await standardMemoryOperation(memory_key, input);
-  }
-  
-  switch (operation) {
-    case 'right_to_access':
-      return await handleRightToAccess(user_id, memory_key);
-    
-    case 'right_to_rectification':
-      return await handleRightToRectification(user_id, memory_key, input.corrections);
-    
-    case 'right_to_erasure':
-      return await handleRightToErasure(user_id, memory_key, gdpr_config);
-    
-    case 'right_to_portability':
-      return await handleRightToPortability(user_id, memory_key);
-    
-    case 'right_to_restriction':
-      return await handleRightToRestriction(user_id, memory_key);
-    
-    default:
-      // Apply standard privacy controls
-      const result = await standardMemoryOperation(memory_key, input);
-      
-      // Track data processing for compliance
-      await trackDataProcessing({
-        user_id,
-        operation,
-        memory_key,
-        timestamp: new Date().toISOString(),
-        legal_basis: 'legitimate_interest',
-        data_controller: gdpr_config.data_controller
-      });
-      
-      return result;
-  }
-}
-
-async function handleRightToErasure(userId: string, memoryKey: string, config: GDPRConfig): Promise<GDPRMemoryOutput> {
-  switch (config.deletion_method) {
-    case 'immediate':
-      await deleteUserData(userId, memoryKey);
-      break;
-    
-    case 'scheduled':
-      await scheduleDataDeletion(userId, memoryKey, config.retention_period);
-      break;
-    
-    case 'anonymize':
-      await anonymizeUserData(userId, memoryKey, config.anonymization_delay);
-      break;
-  }
-  
-  return {
-    success: true,
-    gdpr_request: 'right_to_erasure',
-    processing_method: config.deletion_method,
-    completion_time: new Date().toISOString()
-  };
-}
-```
-
-### SOC 2 Compliance
-Implement SOC 2 compliance features:
-
-```typescript
-interface SOC2Config {
-  enabled: boolean;
-  control_objectives: string[];
-  monitoring_interval: string;
-  incident_response: {
-    enabled: boolean;
-    notification_threshold: number;
-    escalation_rules: any[];
-  };
-}
-
-export async function soc2CompliantMemoryTool(input: SOC2MemoryInput): Promise<SOC2MemoryOutput> {
-  const { memory_key, operation, soc2_config } = input;
-  
-  if (!soc2_config.enabled) {
-    return await standardMemoryOperation(memory_key, input);
-  }
-  
-  // Apply security controls
-  const securityResult = await applySecurityControls(input);
-  if (!securityResult.success) {
-    await handleSecurityIncident(securityResult.violation, soc2_config);
-    throw new Error('Security control violation');
-  }
-  
-  // Monitor availability
-  const availabilityResult = await monitorAvailability(memory_key);
-  if (!availabilityResult.available) {
-    await handleAvailabilityIncident(availabilityResult, soc2_config);
-  }
-  
-  // Ensure processing integrity
-  const integrityResult = await ensureProcessingIntegrity(input);
-  if (!integrityResult.valid) {
-    await handleIntegrityIncident(integrityResult, soc2_config);
-    throw new Error('Processing integrity violation');
-  }
-  
-  // Apply confidentiality controls
-  const confidentialityResult = await applyConfidentialityControls(input);
-  
-  // Ensure privacy controls
-  const privacyResult = await ensurePrivacyControls(input);
-  
-  // Perform operation with all controls applied
-  const result = await performControlledOperation(memory_key, operation, {
-    ...input,
-    security_applied: securityResult.success,
-    integrity_verified: integrityResult.valid,
-    confidentiality_applied: confidentialityResult.success,
-    privacy_applied: privacyResult.success
-  });
-  
-  return {
-    ...result,
-    soc2_compliance: {
-      security: securityResult.success,
-      availability: availabilityResult.available,
-      processing_integrity: integrityResult.valid,
-      confidentiality: confidentialityResult.success,
-      privacy: privacyResult.success
-    }
-  };
-}
-```
-
-## Security Best Practices
-
-<Alert>
-  <Shield className="h-4 w-4" />
-  <AlertDescription>
-    <strong>Skill Level:</strong> <Badge variant="outline">Intermediate</Badge> - Security implementation patterns
-  </AlertDescription>
-</Alert>
-
-### Input Validation
-Validate all memory inputs for security:
-
-```typescript
-interface ValidationRules {
-  max_message_length: number;
-  allowed_roles: string[];
-  blocked_patterns: RegExp[];
-  required_fields: string[];
-}
-
-export async function validatedMemoryTool(input: ValidatedMemoryInput): Promise<ValidatedMemoryOutput> {
-  const { memory_key, message, validation_rules } = input;
-  
-  // Validate memory key format
-  if (!isValidMemoryKey(memory_key)) {
-    throw new Error('Invalid memory key format');
-  }
-  
-  // Validate message content
-  if (message) {
-    const validationResult = validateMessage(message, validation_rules);
-    if (!validationResult.valid) {
-      throw new Error(`Message validation failed: ${validationResult.error}`);
-    }
-  }
-  
-  // Sanitize inputs
-  const sanitizedInput = sanitizeInput(input);
-  
-  return await performMemoryOperation(memory_key, sanitizedInput);
-}
-
-function validateMessage(message: any, rules: ValidationRules): { valid: boolean; error?: string } {
-  // Check message length
-  if (message.content && message.content.length > rules.max_message_length) {
-    return { valid: false, error: 'Message too long' };
-  }
-  
-  // Check for blocked patterns
-  for (const pattern of rules.blocked_patterns) {
-    if (pattern.test(message.content)) {
-      return { valid: false, error: 'Message contains blocked content' };
-    }
-  }
-  
-  // Check required fields
-  for (const field of rules.required_fields) {
-    if (!message[field]) {
-      return { valid: false, error: `Missing required field: ${field}` };
-    }
-  }
-  
-  return { valid: true };
-}
-```
-
-### Rate Limiting
-
-<Alert>
-  <Zap className="h-4 w-4" />
-  <AlertDescription>
-    <strong>Performance Impact:</strong> Rate limiting affects throughput. Balance security with performance needs.
-  </AlertDescription>
-</Alert>
-
-Implement rate limiting for memory operations:
-
-```typescript
-interface RateLimitConfig {
-  enabled: boolean;
-  max_requests_per_minute: number;
-  max_requests_per_hour: number;
-  burst_limit: number;
-  penalty_duration: string;
-}
-
-const rateLimitStore = new Map<string, { count: number; timestamp: number; penalty_until?: number }>();
-
-export async function rateLimitedMemoryTool(input: RateLimitedMemoryInput): Promise<RateLimitedMemoryOutput> {
-  const { memory_key, user_id, operation, rate_limit_config } = input;
-  
-  if (!rate_limit_config.enabled) {
-    return await standardMemoryOperation(memory_key, input);
-  }
-  
-  const rateLimitKey = `${user_id}:${operation}`;
-  const now = Date.now();
-  
-  // Check penalty period
-  const limitData = rateLimitStore.get(rateLimitKey);
-  if (limitData?.penalty_until && now < limitData.penalty_until) {
-    throw new Error('Rate limit exceeded, request blocked');
-  }
-  
-  // Check rate limits
-  const isAllowed = await checkRateLimit(rateLimitKey, rate_limit_config);
-  if (!isAllowed) {
-    // Apply penalty
-    const penaltyUntil = now + parseDuration(rate_limit_config.penalty_duration);
-    rateLimitStore.set(rateLimitKey, {
-      count: 0,
-      timestamp: now,
-      penalty_until: penaltyUntil
-    });
-    
-    throw new Error('Rate limit exceeded');
-  }
-  
-  return await standardMemoryOperation(memory_key, input);
-}
-```
-
-### Monitoring and Alerting
-Monitor memory operations for security events:
-
-```typescript
-interface SecurityMonitoringConfig {
-  enabled: boolean;
-  alert_thresholds: {
-    failed_operations_per_minute: number;
-    unusual_access_patterns: number;
-    large_data_operations: number;
-  };
-  notification_channels: string[];
-}
-
-export async function monitoredMemoryTool(input: MonitoredMemoryInput): Promise<MonitoredMemoryOutput> {
-  const { memory_key, operation, user_id, monitoring_config } = input;
-  
-  if (!monitoring_config.enabled) {
-    return await standardMemoryOperation(memory_key, input);
-  }
-  
-  const operationStart = Date.now();
-  
-  try {
-    // Perform operation
-    const result = await performMemoryOperation(memory_key, operation, input);
-    
-    // Log successful operation
-    await logSecurityEvent({
-      type: 'memory_operation',
-      user_id,
-      operation,
-      memory_key,
-      success: true,
-      duration: Date.now() - operationStart,
-      timestamp: new Date().toISOString()
-    });
-    
-    return result;
-  } catch (error) {
-    // Log failed operation
-    await logSecurityEvent({
-      type: 'memory_operation_failure',
-      user_id,
-      operation,
-      memory_key,
-      success: false,
-      error: error.message,
-      duration: Date.now() - operationStart,
-      timestamp: new Date().toISOString()
-    });
-    
-    // Check for security anomalies
-    await checkSecurityAnomalies(user_id, operation, error, monitoring_config);
-    
-    throw error;
-  }
-}
-
-async function checkSecurityAnomalies(userId: string, operation: string, error: Error, config: SecurityMonitoringConfig): Promise<void> {
-  // Check for unusual failure patterns
-  const recentFailures = await getRecentFailures(userId, operation, '1m');
-  if (recentFailures.length > config.alert_thresholds.failed_operations_per_minute) {
-    await sendSecurityAlert({
-      type: 'excessive_failures',
-      user_id: userId,
-      operation,
-      failure_count: recentFailures.length,
-      time_window: '1m'
-    });
-  }
-  
-  // Check for unusual access patterns
-  const accessPattern = await analyzeAccessPattern(userId);
-  if (accessPattern.anomaly_score > config.alert_thresholds.unusual_access_patterns) {
-    await sendSecurityAlert({
-      type: 'unusual_access_pattern',
-      user_id: userId,
-      anomaly_score: accessPattern.anomaly_score,
-      details: accessPattern.details
-    });
-  }
-}
-```
-
-## Implementation Roadmap
-
-<Tabs defaultValue="phase1" className="w-full">
-<TabsList className="grid w-full grid-cols-3">
-  <TabsTrigger value="phase1">Phase 1: Foundation</TabsTrigger>
-  <TabsTrigger value="phase2">Phase 2: Advanced</TabsTrigger>
-  <TabsTrigger value="phase3">Phase 3: Enterprise</TabsTrigger>
-</TabsList>
-
-<TabsContent value="phase1">
-### Phase 1: Security Foundation (Weeks 1-2)
-
-**Priority:** Essential security controls
-
-**Deliverables:**
-- Basic redaction patterns implemented
-- Simple access control configured
-- Input validation in place
-- Basic audit logging enabled
-
-**Success Criteria:**
-- All sensitive data types are redacted
-- Role-based access control is functional
-- Security incidents are logged
-- Basic monitoring is operational
-
-**Next Steps:** Validate implementation before moving to Phase 2
-</TabsContent>
-
-<TabsContent value="phase2">
-### Phase 2: Advanced Security (Weeks 3-6)
-
-**Priority:** Enhanced protection and compliance
-
-**Deliverables:**
-- Encryption at rest implemented
-- Data masking configured
-- Retention policies automated
-- Rate limiting enabled
-- Performance monitoring added
-
-**Success Criteria:**
-- Sensitive data is encrypted
-- Data lifecycle is automated
-- Performance impact is acceptable
-- Security metrics are tracked
-
-**Next Steps:** Compliance assessment and optimization
-</TabsContent>
-
-<TabsContent value="phase3">
-### Phase 3: Enterprise Security (Weeks 7-12)
-
-**Priority:** Compliance and enterprise features
-
-**Deliverables:**
-- GDPR compliance implemented
-- SOC2 controls configured
-- Advanced monitoring deployed
-- Incident response procedures
-- Security automation enabled
-
-**Success Criteria:**
-- Regulatory compliance achieved
-- Security operations are automated
-- Incident response is tested
-- Continuous monitoring is active
-
-**Next Steps:** Regular security assessments and updates
-</TabsContent>
-</Tabs>
 
 ## Performance Considerations
 
-<Alert>
-  <Zap className="h-4 w-4" />
-  <AlertDescription>
-    <strong>Important:</strong> Security features impact performance. Monitor and optimize accordingly.
-  </AlertDescription>
-</Alert>
+**Impact:** Regex redaction adds 5-10ms processing time per message, depending on the number and complexity of patterns.
 
-<Accordion type="single" collapsible>
-<AccordionItem value="performance">
-<AccordionTrigger>Performance Impact Analysis</AccordionTrigger>
-<AccordionContent>
-**Security Feature Performance Impact:**
+**Optimization Tips:**
+- Use specific, bounded patterns rather than broad ones
+- Limit the number of patterns to essential ones only
+- Test patterns with representative data to ensure good performance
+- Monitor circuit breaker status to detect pattern issues
 
-- **Redaction Patterns:** ~5-10ms per message
-- **Encryption:** ~10-20ms per operation
-- **Audit Logging:** ~2-5ms per operation
-- **Rate Limiting:** ~1-3ms per request
-- **Access Control:** ~3-8ms per operation
+## Best Practices
 
-**Optimization Strategies:**
-- Cache frequently used patterns
-- Batch audit log writes
-- Use async processing for heavy operations
-- Implement intelligent rate limiting
-- Monitor and tune performance thresholds
-</AccordionContent>
-</AccordionItem>
-</Accordion>
+1. **Start Simple:** Begin with a few essential patterns and add more as needed
+2. **Test Thoroughly:** Validate patterns with real data before production deployment
+3. **Monitor Performance:** Track redaction processing time and circuit breaker status
+4. **Document Patterns:** Comment your regex patterns to explain their purpose
+5. **Regular Review:** Periodically review and update patterns as requirements change
 
-## Emergency Procedures
+## Troubleshooting
 
-<Alert>
-  <AlertTriangle className="h-4 w-4" />
-  <AlertDescription>
-    <strong>Critical:</strong> Emergency procedures for security incidents and system recovery
-  </AlertDescription>
-</Alert>
+**Common Issues:**
+
+- **Pattern Rejected:** Check for unsafe regex patterns that could cause ReDoS
+- **Circuit Breaker Open:** Too many pattern failures - check pattern syntax and test data
+- **Performance Issues:** Reduce pattern complexity or count
+- **False Positives:** Refine patterns to be more specific
+
+**Debugging Steps:**
+
+1. Check system logs for privacy manager errors
+2. Verify pattern syntax using regex testing tools
+3. Test patterns with sample data
+4. Monitor circuit breaker status
+5. Review memory operation logs
 
 <ReferenceCardList>
-  <ReferenceCard 
-    title="Emergency Recovery" 
-    href="/docs/core/memory/troubleshooting#emergency-procedures"
-    description="Complete system recovery procedures"
-    icon={AlertTriangle}
-  />
-  <ReferenceCard 
-    title="Incident Response" 
-    href="/docs/core/memory/troubleshooting#monitoring-and-debugging"
-    description="Security incident response procedures"
-    icon={Shield}
-  />
-  <ReferenceCard 
-    title="Data Recovery" 
-    href="/docs/core/memory/troubleshooting#data-recovery"
-    description="Backup and recovery procedures"
-    icon={Settings}
-  />
-</ReferenceCardList>
-
-## Next Steps
-
-**After completing this guide, you should:**
-- Have a working understanding of privacy and security features
-- Be able to implement appropriate security controls for your use case
-- Understand compliance requirements and implementation strategies
-- Know how to monitor and maintain security systems
-
-**Continue Learning:**
-
-<ReferenceCardList>
-  <ReferenceCard 
-    title="Advanced Integration" 
-    href="/docs/core/memory/integration-patterns"
-    description="Learn advanced security integration patterns"
-    icon={Settings}
-  />
-  <ReferenceCard 
-    title="Troubleshooting" 
-    href="/docs/core/memory/troubleshooting"
-    description="Debug and resolve security-related issues"
-    icon={Wrench}
-  />
-  <ReferenceCard 
-    title="Performance Optimization" 
+  <ReferenceCard
+    title="Memory Operations"
+    description="Learn how to use memory operations with privacy controls"
     href="/docs/core/memory/operations"
-    description="Optimize security features for production"
-    icon={Zap}
+    icon="Play"
+  />
+  <ReferenceCard
+    title="Integration Patterns"
+    description="Integrate privacy-aware memory with agents and workflows"
+    href="/docs/core/memory/integration-patterns"
+    icon="Layers"
+  />
+  <ReferenceCard
+    title="Troubleshooting"
+    description="Debug and resolve privacy-related issues"
+    href="/docs/core/memory/troubleshooting"
+    icon="Bug"
+  />
+  <ReferenceCard
+    title="Configuration"
+    description="Advanced memory configuration options"
+    href="/docs/core/memory/configuration"
+    icon="Settings"
   />
 </ReferenceCardList>
 
-This comprehensive privacy and security guide ensures that your memory system meets enterprise-level security requirements while maintaining usability and performance through progressive implementation and clear learning paths.
+This privacy system provides essential data protection for memory operations while maintaining simplicity and performance. Focus on implementing the patterns most relevant to your specific use case.

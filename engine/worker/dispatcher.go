@@ -16,6 +16,7 @@ import (
 	wkacts "github.com/compozy/compozy/engine/worker/activities"
 	wf "github.com/compozy/compozy/engine/workflow"
 	wfacts "github.com/compozy/compozy/engine/workflow/activities"
+	"github.com/compozy/compozy/pkg/config"
 )
 
 // Constants for dispatcher workflow
@@ -191,6 +192,7 @@ func executeChildWorkflow(
 	signal EventSignal,
 	target *CompiledTrigger,
 	correlationID string,
+	appConfig *config.Config,
 ) bool {
 	log := workflow.GetLogger(ctx)
 	workflowExecID := generateWorkflowExecID(ctx)
@@ -212,7 +214,7 @@ func executeChildWorkflow(
 		"signalName", signal.Name,
 		"correlationId", correlationID)
 
-	childFuture := workflow.ExecuteChildWorkflow(childCtx, CompozyWorkflow, childInput)
+	childFuture := workflow.ExecuteChildWorkflow(childCtx, CompozyWorkflow, childInput, appConfig)
 
 	// Get the execution to ensure deterministic behavior during replay
 	var childExecution workflow.Execution
@@ -238,7 +240,12 @@ func executeChildWorkflow(
 }
 
 // ProcessEventSignal handles a single event signal with validation and child workflow execution
-func ProcessEventSignal(ctx workflow.Context, signal EventSignal, signalMap map[string]*CompiledTrigger) bool {
+func ProcessEventSignal(
+	ctx workflow.Context,
+	signal EventSignal,
+	signalMap map[string]*CompiledTrigger,
+	appConfig *config.Config,
+) bool {
 	log := workflow.GetLogger(ctx)
 
 	// Use provided correlation ID or generate one for tracking this event
@@ -261,7 +268,7 @@ func ProcessEventSignal(ctx workflow.Context, signal EventSignal, signalMap map[
 	}
 
 	// Start child workflow with enhanced error handling and retry options
-	return executeChildWorkflow(ctx, signal, target, correlationID)
+	return executeChildWorkflow(ctx, signal, target, correlationID, appConfig)
 }
 
 // startDispatcherHeartbeat starts the heartbeat goroutine for the dispatcher
@@ -271,7 +278,7 @@ func startDispatcherHeartbeat(
 	dispatcherID, projectName, serverID string,
 ) (workflow.CancelFunc, time.Duration) {
 	log := workflow.GetLogger(ctx)
-	heartbeatInterval := time.Duration(data.ProjectConfig.Opts.DispatcherHeartbeatInterval) * time.Second
+	heartbeatInterval := data.AppConfig.Runtime.DispatcherHeartbeatInterval
 	heartbeatCtx, heartbeatCancel := workflow.WithCancel(ctx)
 	workflow.Go(heartbeatCtx, func(ctx workflow.Context) {
 		log.Debug("Starting dispatcher heartbeat", "interval", heartbeatInterval)
@@ -280,7 +287,7 @@ func startDispatcherHeartbeat(
 				DispatcherID: dispatcherID,
 				ProjectName:  projectName,
 				ServerID:     serverID,
-				TTL:          time.Duration(data.ProjectConfig.Opts.DispatcherHeartbeatTTL) * time.Second,
+				TTL:          data.AppConfig.Runtime.DispatcherHeartbeatTTL,
 			}
 			disconnectedCtx, cancel := workflow.NewDisconnectedContext(ctx)
 			ao := workflow.ActivityOptions{StartToCloseTimeout: heartbeatActivityTimeout}
@@ -308,6 +315,7 @@ func handleSignalProcessing(
 	signalMap map[string]*CompiledTrigger,
 	heartbeatCancel workflow.CancelFunc,
 	projectName, serverID string,
+	appConfig *config.Config,
 ) error {
 	log := workflow.GetLogger(ctx)
 	// Using constants defined at package level
@@ -349,7 +357,7 @@ func handleSignalProcessing(
 			processed++
 			continue
 		}
-		success := ProcessEventSignal(ctx, signal, signalMap)
+		success := ProcessEventSignal(ctx, signal, signalMap, appConfig)
 		if success {
 			consecutiveErrors = 0
 		} else {
@@ -379,7 +387,7 @@ func DispatcherWorkflow(ctx workflow.Context, projectName string, serverID strin
 	}
 	heartbeatCancel, _ := startDispatcherHeartbeat(ctx, data, dispatcherID, projectName, serverID)
 	defer heartbeatCancel()
-	return handleSignalProcessing(ctx, signalMap, heartbeatCancel, projectName, serverID)
+	return handleSignalProcessing(ctx, signalMap, heartbeatCancel, projectName, serverID, data.AppConfig)
 }
 
 // -----------------------------------------------------------------------------

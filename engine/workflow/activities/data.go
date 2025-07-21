@@ -6,6 +6,7 @@ import (
 
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/workflow"
+	"github.com/compozy/compozy/pkg/config"
 )
 
 const GetDataLabel = "GetWorkflowData"
@@ -18,10 +19,11 @@ type GetData struct {
 	ProjectConfig  *project.Config
 	Workflows      []*workflow.Config
 	WorkflowConfig *workflow.Config
+	AppConfig      *config.Config
 }
 
-func NewGetData(projectConfig *project.Config, workflows []*workflow.Config) *GetData {
-	return &GetData{ProjectConfig: projectConfig, Workflows: workflows}
+func NewGetData(projectConfig *project.Config, workflows []*workflow.Config, appConfig *config.Config) *GetData {
+	return &GetData{ProjectConfig: projectConfig, Workflows: workflows, AppConfig: appConfig}
 }
 
 func (a *GetData) Run(_ context.Context, input *GetDataInput) (*GetData, error) {
@@ -35,6 +37,7 @@ func (a *GetData) Run(_ context.Context, input *GetDataInput) (*GetData, error) 
 				ProjectConfig:  a.ProjectConfig,
 				Workflows:      a.Workflows,
 				WorkflowConfig: nil, // No specific workflow
+				AppConfig:      a.AppConfig,
 			}, nil
 		}
 		return nil, fmt.Errorf("failed to find workflow config: %w", err)
@@ -44,5 +47,6 @@ func (a *GetData) Run(_ context.Context, input *GetDataInput) (*GetData, error) 
 		ProjectConfig:  a.ProjectConfig,
 		Workflows:      a.Workflows,
 		WorkflowConfig: workflowConfig,
+		AppConfig:      a.AppConfig,
 	}, nil
 }

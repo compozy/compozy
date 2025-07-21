@@ -103,9 +103,10 @@ func (bm *BunManager) ExecuteTool(
 	toolID string,
 	toolExecID core.ID,
 	input *core.Input,
+	config *core.Input,
 	env core.EnvMap,
 ) (*core.Output, error) {
-	return bm.ExecuteToolWithTimeout(ctx, toolID, toolExecID, input, env, bm.config.ToolExecutionTimeout)
+	return bm.ExecuteToolWithTimeout(ctx, toolID, toolExecID, input, config, env, bm.config.ToolExecutionTimeout)
 }
 
 // ExecuteToolWithTimeout runs a tool with a custom timeout
@@ -114,6 +115,7 @@ func (bm *BunManager) ExecuteToolWithTimeout(
 	toolID string,
 	toolExecID core.ID,
 	input *core.Input,
+	config *core.Input,
 	env core.EnvMap,
 	timeout time.Duration,
 ) (*core.Output, error) {
@@ -138,6 +140,7 @@ func (bm *BunManager) ExecuteToolWithTimeout(
 		ToolID:     toolID,
 		ToolExecID: toolExecID.String(),
 		Input:      input,
+		Config:     config,
 		Env:        env,
 	}
 

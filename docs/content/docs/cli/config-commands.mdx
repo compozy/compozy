@@ -1,0 +1,529 @@
+---
+title: "Configuration Commands"
+description: "Manage and diagnose Compozy configuration settings with validation, diagnostics, and troubleshooting tools"
+---
+
+The `compozy config` command group provides comprehensive tools for managing, validating, and diagnosing your Compozy configuration. These commands ensure your setup is correct, optimized, and ready for production deployment.
+
+<Callout type="info">
+Configuration commands work with multiple sources: defaults, environment variables, config files, and CLI flags, applied in that precedence order.
+</Callout>
+
+## Command Overview
+
+<FeatureCardList cols={3} size="default">
+  <FeatureCard
+    title="Show Configuration"
+    description="Display current configuration values from all sources with detailed source tracking"
+    icon="Eye"
+  />
+  <FeatureCard
+    title="Validate Configuration"
+    description="Check configuration files for syntax errors, missing fields, and invalid values"
+    icon="CheckCircle"
+  />
+  <FeatureCard
+    title="Configuration Diagnostics"
+    description="Run comprehensive diagnostics to identify configuration and connectivity issues"
+    icon="Search"
+  />
+</FeatureCardList>
+
+```bash
+compozy config [command] [flags]
+```
+
+## Commands
+
+### Show Configuration
+
+Display the current configuration values from all sources:
+
+```bash
+# Show configuration in table format (default)
+compozy config show
+
+# Show as YAML
+compozy config show --format yaml
+
+# Show as JSON
+compozy config show --format json
+```
+
+**Flags:**
+- `--format` - Output format: table, json, yaml (default: table)
+- `--config` - Path to config file (overrides default locations)
+
+**Example Output:**
+
+<Tabs items={["Table Format", "YAML Format"]}>
+  <Tab value="Table Format">
+    ```
+    CONFIGURATION VALUES
+    ┌─────────────────────┬─────────────────────┬──────────┐
+    │ KEY                 │ VALUE               │ SOURCE   │
+    ├─────────────────────┼─────────────────────┼──────────┤
+    │ api.host           │ localhost           │ default  │
+    │ api.port           │ 8080                │ config   │
+    │ api.key            │ amp_***            │ env      │
+    │ server.workers     │ 4                   │ cli      │
+    │ log.level          │ info                │ config   │
+    └─────────────────────┴─────────────────────┴──────────┘
+    ```
+  </Tab>
+  <Tab value="YAML Format">
+    ```yaml
+    api:
+      host: localhost
+      port: 8080
+      key: amp_***
+    server:
+      workers: 4
+    log:
+      level: info
+    ```
+  </Tab>
+</Tabs>
+
+### Validate Configuration
+
+Check configuration files for syntax errors and invalid values:
+
+```bash
+# Validate default config file
+compozy config validate
+
+# Validate specific config file
+compozy config validate --config ./custom-config.yaml
+```
+
+**Flags:**
+- `--config` - Path to config file (overrides default locations)
+
+**Validation Checks:**
+- YAML syntax validity
+- Required fields presence
+- Type validation for all fields
+- Value range validation
+- Reference validation (`$ref` and `$use`)
+- Environment variable resolution
+
+### Configuration Diagnostics
+
+Run comprehensive diagnostics to identify configuration and connectivity issues:
+
+```bash
+# Run all diagnostics
+compozy config diagnostics
+
+# Run with verbose output
+compozy config diagnostics --verbose
+```
+
+**Flags:**
+- `--verbose` - Show detailed diagnostic information
+
+**Diagnostic Categories:**
+
+<FeatureCardList cols={2} size="default">
+  <FeatureCard
+    title="Configuration"
+    description="Validates all configuration sources and checks for conflicts"
+    icon="Settings"
+  />
+  <FeatureCard
+    title="Connectivity"
+    description="Tests connections to API server, database, and external services"
+    icon="Wifi"
+  />
+  <FeatureCard
+    title="Environment"
+    description="Checks runtime environment, dependencies, and system resources"
+    icon="Server"
+  />
+  <FeatureCard
+    title="Permissions"
+    description="Verifies file system permissions and access rights"
+    icon="Lock"
+  />
+</FeatureCardList>
+
+## Configuration Sources
+
+Compozy loads configuration from multiple sources in this order (later sources override earlier ones):
+
+<Steps>
+  <Step>
+    **Built-in Defaults**
+    
+    Hardcoded default values for all configuration options
+  </Step>
+  <Step>
+    **Global Config File**
+    
+    - `~/.compozy/config.yaml` (user home directory)
+    - `/etc/compozy/config.yaml` (system-wide)
+  </Step>
+  <Step>
+    **Project Config File**
+    
+    - `compozy.yaml` in current directory
+    - Specified via `--config` flag
+  </Step>
+  <Step>
+    **Environment Variables**
+    
+    - Prefix: `COMPOZY_`
+    - Example: `COMPOZY_API_KEY`, `COMPOZY_LOG_LEVEL`
+  </Step>
+  <Step>
+    **CLI Flags**
+    
+    - Highest precedence
+    - Example: `--api-key`, `--log-level`
+  </Step>
+</Steps>
+
+## Configuration File Format
+
+### Global Configuration
+
+```yaml
+# ~/.compozy/config.yaml
+api:
+  key: "amp_your_api_key_here"
+  host: "api.compozy.dev"
+  port: 443
+  secure: true
+
+server:
+  host: "0.0.0.0"
+  port: 8080
+  workers: 4
+
+database:
+  host: "localhost"
+  port: 5432
+  name: "compozy"
+  user: "compozy"
+  password: "{{ .env.DB_PASSWORD }}"
+
+redis:
+  host: "localhost"
+  port: 6379
+  db: 0
+
+temporal:
+  host: "localhost"
+  port: 7233
+  namespace: "default"
+
+log:
+  level: "info"          # debug, info, warn, error
+  format: "text"         # text, json
+  output: "stdout"       # stdout, stderr, file
+
+cli:
+  output: "auto"         # auto, json, text
+  color: true
+  interactive: true
+```
+
+### Project Configuration
+
+```yaml
+# compozy.yaml
+name: "my-workflow-project"
+version: "1.0.0"
+description: "AI-powered workflow automation"
+
+runtime:
+  type: "bun"
+  entrypoint: "./entrypoint.ts"
+  permissions:
+    - --allow-read
+    - --allow-net
+    - --allow-env
+
+workflows:
+  - source: "./workflows/main.yaml"
+  - source: "./workflows/data-processing.yaml"
+
+models:
+  - provider: "openai"
+    model: "gpt-4"
+    api_key: "{{ .env.OPENAI_API_KEY }}"
+
+autoload:
+  enabled: true
+  include:
+    - "agents/*.yaml"
+    - "tools/*.yaml"
+  exclude:
+    - "**/*.test.yaml"
+    - "**/*.bak"
+```
+
+## Environment Variables
+
+All configuration options can be set via environment variables:
+
+<Tabs items={["API Configuration", "Server Configuration", "Database Configuration", "Logging Configuration"]}>
+  <Tab value="API Configuration">
+    ```bash
+    export COMPOZY_API_KEY="amp_your_key"
+    export COMPOZY_API_HOST="api.compozy.dev"
+    export COMPOZY_API_PORT="443"
+    export COMPOZY_API_SECURE="true"
+    ```
+  </Tab>
+  <Tab value="Server Configuration">
+    ```bash
+    export COMPOZY_SERVER_HOST="0.0.0.0"
+    export COMPOZY_SERVER_PORT="8080"
+    export COMPOZY_SERVER_WORKERS="4"
+    ```
+  </Tab>
+  <Tab value="Database Configuration">
+    ```bash
+    export COMPOZY_DATABASE_HOST="localhost"
+    export COMPOZY_DATABASE_PORT="5432"
+    export COMPOZY_DATABASE_NAME="compozy"
+    export COMPOZY_DATABASE_USER="compozy"
+    export COMPOZY_DATABASE_PASSWORD="secret"
+    ```
+  </Tab>
+  <Tab value="Logging Configuration">
+    ```bash
+    export COMPOZY_LOG_LEVEL="debug"
+    export COMPOZY_LOG_FORMAT="json"
+    export COMPOZY_LOG_OUTPUT="stdout"
+    ```
+  </Tab>
+</Tabs>
+
+## Common Use Cases
+
+### Development Setup
+
+```bash
+# Create development config
+cat > ~/.compozy/config.dev.yaml << EOF
+api:
+  host: localhost
+  port: 8080
+  secure: false
+
+log:
+  level: debug
+  format: text
+
+cli:
+  color: true
+  interactive: true
+EOF
+
+# Use development config
+compozy --config ~/.compozy/config.dev.yaml config show
+```
+
+### Production Setup
+
+```bash
+# Validate production config
+compozy config validate --config /etc/compozy/config.yaml --strict
+
+# Run diagnostics before deployment
+compozy config diagnostics --verbose
+
+# Show resolved configuration
+compozy config show --format yaml > resolved-config.yaml
+```
+
+### CI/CD Integration
+
+```bash
+# Set minimal environment for CI
+export COMPOZY_API_KEY="${CI_API_KEY}"
+export COMPOZY_CLI_OUTPUT="json"
+export COMPOZY_CLI_COLOR="false"
+export COMPOZY_CLI_INTERACTIVE="false"
+
+# Validate configuration
+if ! compozy config validate; then
+  echo "Configuration validation failed"
+  exit 1
+fi
+
+# Check connectivity
+if ! compozy config diagnostics --category connectivity --output json | jq -e '.connectivity.api.status == "ok"'; then
+  echo "API connectivity check failed"
+  exit 1
+fi
+```
+
+## Troubleshooting
+
+### Common Issues
+
+<Tabs items={["Config Not Found", "Invalid YAML", "Environment Variables Not Working"]}>
+  <Tab value="Config Not Found">
+    ```bash
+    # Check config file locations
+    compozy config show --show-sources
+    
+    # Explicitly specify config file
+    compozy --config ./my-config.yaml config validate
+    
+    # Create default config
+    mkdir -p ~/.compozy
+    compozy config show --format yaml > ~/.compozy/config.yaml
+    ```
+  </Tab>
+  <Tab value="Invalid YAML">
+    ```bash
+    # Validate YAML syntax
+    yamllint ~/.compozy/config.yaml
+    
+    # Use verbose validation
+    compozy config validate --verbose
+    
+    # Common issues:
+    # - Incorrect indentation (use 2 spaces)
+    # - Missing quotes around special characters
+    # - Invalid references ($ref paths)
+    ```
+  </Tab>
+  <Tab value="Environment Variables Not Working">
+    ```bash
+    # Check environment variable naming
+    env | grep COMPOZY_
+    
+    # Verify precedence
+    compozy config show --show-sources
+    
+    # Debug environment loading
+    COMPOZY_LOG_LEVEL=debug compozy config show
+    ```
+  </Tab>
+</Tabs>
+
+### Diagnostic Process Flow
+
+<Mermaid chart={`flowchart TD
+    A[Start Diagnostics] --> B{Configuration Check}
+    B -->|Valid| C[Connectivity Tests]
+    B -->|Invalid| X[Report Config Errors]
+    
+    C --> D[API Server Test]
+    C --> E[Database Test]
+    C --> F[Redis Test]
+    C --> G[Temporal Test]
+    
+    D --> H{All Services<br/>Connected?}
+    E --> H
+    F --> H
+    G --> H
+    
+    H -->|Yes| I[Environment Checks]
+    H -->|No| Y[Report Connection Errors]
+    
+    I --> J[Runtime Version]
+    I --> K[System Resources]
+    I --> L[Permissions]
+    
+    J --> M[Generate Report]
+    K --> M
+    L --> M
+    Y --> M
+    X --> M
+    
+    M --> N[Display Results]`} />
+
+### Diagnostic Output
+
+When running diagnostics, you'll see output like:
+
+```bash
+COMPOZY DIAGNOSTICS REPORT
+==========================
+
+[✓] Configuration
+    - Config file loaded: ~/.compozy/config.yaml
+    - Environment variables: 3 loaded
+    - Validation: PASSED
+
+[✓] Connectivity
+    - API Server: Connected (latency: 45ms)
+    - Database: Connected (version: PostgreSQL 15.3)
+    - Redis: Connected (memory: 124MB used)
+    - Temporal: Connected (namespace: default)
+
+[✓] Environment
+    - Bun Runtime: v1.0.0
+    - Go Version: 1.21.0
+    - OS: darwin/amd64
+    - Available Memory: 8.2GB
+    - Available Disk: 124.5GB
+
+[!] Warnings
+    - API key expires in 7 days
+    - Redis memory usage above 80%
+
+Summary: 12 checks passed, 0 failed, 2 warnings
+```
+
+## Best Practices
+
+<FeatureCardList cols={2} size="default">
+  <FeatureCard
+    title="Use Environment Variables for Secrets"
+    description="Never store sensitive data like API keys or passwords directly in config files. Use environment variables or secret management systems."
+    icon="Shield"
+  />
+  <FeatureCard
+    title="Validate Before Deployment"
+    description="Always run config validate and config diagnostics before deploying changes to production."
+    icon="CheckCircle"
+  />
+  <FeatureCard
+    title="Version Control Config Files"
+    description="Keep configuration files in version control, but use .gitignore for files containing secrets."
+    icon="GitBranch"
+  />
+  <FeatureCard
+    title="Use Config Profiles"
+    description="Maintain separate config files for different environments (dev, staging, production)."
+    icon="Layers"
+  />
+  <FeatureCard
+    title="Regular Diagnostics"
+    description="Run diagnostics regularly to catch configuration drift and connectivity issues early."
+    icon="Activity"
+  />
+  <FeatureCard
+    title="Documentation and Comments"
+    description="Document complex configurations and use inline comments to explain non-obvious settings."
+    icon="FileText"
+  />
+</FeatureCardList>
+
+## Next Steps
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Project Commands"
+    description="Initialize and manage Compozy projects"
+    href="/docs/cli/project-commands"
+  />
+  <ReferenceCard
+    title="Development Commands"
+    description="Development server and hot reload"
+    href="/docs/cli/dev-commands"
+  />
+  <ReferenceCard
+    title="Global Configuration"
+    description="Detailed configuration reference"
+    href="/docs/core/configuration/global"
+  />
+</ReferenceCardList>

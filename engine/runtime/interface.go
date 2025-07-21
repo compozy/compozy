@@ -18,6 +18,7 @@ type Runtime interface {
 		toolID string,
 		toolExecID core.ID,
 		input *core.Input,
+		config *core.Input,
 		env core.EnvMap,
 	) (*core.Output, error)
 
@@ -29,6 +30,7 @@ type Runtime interface {
 		toolID string,
 		toolExecID core.ID,
 		input *core.Input,
+		config *core.Input,
 		env core.EnvMap,
 		timeout time.Duration,
 	) (*core.Output, error)

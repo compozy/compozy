@@ -1,6 +1,184 @@
 ---
 title: Installation & Setup
-description: Complete installation guide for Compozy
+description: Install Compozy CLI and set up your development environment for building AI-powered workflows
 ---
 
-> TODO
+## Install Compozy CLI
+
+Choose your preferred installation method:
+
+<Tabs items={["Homebrew", "Go Install", "npm/yarn/pnpm", "Pre-built Binary"]}>
+
+<Tab>
+```bash
+# Install via Homebrew (macOS/Linux)
+brew install compozy/tap/compozy
+```
+</Tab>
+
+<Tab>
+```bash
+# Install via Go
+go install github.com/compozy/compozy@latest
+```
+</Tab>
+
+<Tab>
+```bash
+# Install via npm
+npm install -g @compozy/cli
+
+# Install via yarn
+yarn global add @compozy/cli
+
+# Install via pnpm
+pnpm add -g @compozy/cli
+```
+</Tab>
+
+<Tab>
+```bash
+# Download and install pre-built binary
+curl -fsSL https://install.compozy.dev | sh
+
+# Or download manually from GitHub releases
+# https://github.com/compozy/compozy/releases
+```
+</Tab>
+
+</Tabs>
+
+Verify the installation:
+
+```bash
+compozy --version
+```
+
+## Initialize Your First Project
+
+Create a new Compozy project:
+
+```bash
+# Initialize a new project
+compozy init my-ai-project
+cd my-ai-project
+```
+
+This creates a complete project structure with:
+- `compozy.yaml` - Project configuration
+- `workflows/` - Workflow definitions
+- `agents/` - AI agent configurations  
+- `tools/` - TypeScript tools
+- `entrypoint.ts` - Runtime entry point
+- `.env.example` - Environment template
+
+## Prerequisites
+
+Your project needs these dependencies:
+
+<List>
+  <ListItem title="Bun Runtime" icon="Zap">
+    For executing TypeScript tools: `curl -fsSL https://bun.sh/install | bash`
+  </ListItem>
+  <ListItem title="AI Provider API Key" icon="Key">
+    OpenAI, Groq, Anthropic, or local Ollama setup
+  </ListItem>
+  <ListItem title="Infrastructure Services" icon="Database">
+    PostgreSQL, Redis, and Temporal (cloud services or local Docker)
+  </ListItem>
+</List>
+
+## Infrastructure Setup
+
+### Option 1: Cloud Services (Recommended)
+
+Use managed cloud services for production:
+
+- **PostgreSQL**: AWS RDS, Neon, Supabase, etc.
+- **Redis**: AWS ElastiCache, Upstash, Redis Cloud, etc.  
+- **Temporal**: Temporal Cloud, self-hosted, or local
+
+### Option 2: Local Development
+
+Use our Docker Compose setup for local development:
+
+```bash
+# Download our docker-compose.yml
+curl -O https://raw.githubusercontent.com/compozy/compozy/main/cluster/docker-compose.yml
+
+# Start services
+docker-compose up -d
+```
+
+See our [Docker Compose reference](https://github.com/compozy/compozy/blob/main/cluster/docker-compose.yml) for service configuration.
+
+## Configuration
+
+### Environment Variables
+
+Create a `.env` file in your project:
+
+```bash title=".env"
+# AI Provider (choose one)
+OPENAI_API_KEY=sk-your-openai-key
+GROQ_API_KEY=gsk_your-groq-key
+ANTHROPIC_API_KEY=sk-ant-your-anthropic-key
+
+# Infrastructure (adjust for your setup)
+DATABASE_URL=postgresql://user:pass@localhost:5432/compozy
+REDIS_URL=redis://localhost:6379
+TEMPORAL_ENDPOINT=localhost:7233
+```
+
+### Start Development
+
+```bash
+# Start your development server
+compozy dev
+
+# Your API will be available at http://localhost:5001
+# Web UI at http://localhost:3000 (if enabled)
+```
+
+## Quick Verification
+
+Test your setup with a simple workflow:
+
+```bash
+# List available workflows
+compozy workflow list
+
+# Execute the default hello-world workflow
+compozy workflow execute hello-world --input name="World"
+```
+
+## Next Steps
+
+Ready to build your first AI workflow? Choose your learning path:
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Quick Start Guide"
+    description="Build and test your first workflow in 5 minutes"
+    href="/docs/core/getting-started/quick-start"
+    icon="Rocket"
+  />
+  <ReferenceCard
+    title="Core Concepts"
+    description="Understand agents, tasks, workflows, and tools fundamentals"
+    href="/docs/core/getting-started/core-concepts"
+    icon="BookOpen"
+  />
+  <ReferenceCard
+    title="First Workflow Tutorial"
+    description="Complete walkthrough building a real-world workflow"
+    href="/docs/core/getting-started/first-workflow"
+    icon="GraduationCap"
+  />
+  <ReferenceCard
+    title="Project Configuration"
+    description="Configure models, runtime, and advanced project settings"
+    href="/docs/core/configuration/project-setup"
+    icon="Settings"
+  />
+</ReferenceCardList>

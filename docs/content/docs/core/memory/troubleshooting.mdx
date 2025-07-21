@@ -1,255 +1,26 @@
 ---
 title: "Troubleshooting Memory Issues"
-description: "Complete guide to diagnosing and resolving memory system issues, performance problems, and common configuration errors"
+description: "Practical guide to diagnosing and resolving memory system issues in Compozy"
 ---
 
-import { ReferenceCard, ReferenceCardList } from "@/components/ui/reference-card";
-import { FeatureCard, FeatureCardList } from "@/components/ui/feature-card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { 
-  AlertTriangle, 
-  Wrench, 
-  Activity, 
-  CheckCircle, 
-  Settings,
-  BookOpen,
-  Zap,
-  Users,
-  Eye,
-  Shield,
-  Database,
-  Terminal
-} from "lucide-react";
+- **Multiple memory strategies**: `token_based`, `message_count_based`, and `buffer` types
+- **Advanced flushing strategies**: `hybrid_summary`, `simple_fifo`, `lru`, and `token_aware_lru`
+- **Comprehensive privacy controls**: Regex-based redaction with ReDoS protection and circuit breaker
+- **Flexible eviction policies**: `fifo`, `lru`, and `priority` based eviction
+- **Template-based key resolution**: Dynamic key generation using Go templates
+- **Token counting integration**: Support for multiple providers (OpenAI, tiktoken)
 
-# Troubleshooting Memory Issues
+## 🔗 Related Documentation
 
-This guide provides comprehensive troubleshooting procedures organized by user role and skill level. Choose your path based on your experience and responsibilities.
-
-## Choose Your Troubleshooting Path
-
-<Tabs defaultValue="developer" className="w-full">
-<TabsList className="grid w-full grid-cols-4">
-  <TabsTrigger value="developer">Developer</TabsTrigger>
-  <TabsTrigger value="operations">Operations</TabsTrigger>
-  <TabsTrigger value="support">Support</TabsTrigger>
-  <TabsTrigger value="emergency">Emergency</TabsTrigger>
-</TabsList>
-
-<TabsContent value="developer">
-### Developer Troubleshooting Path
-
-**When to use:** Development environment issues, integration problems, configuration errors
-
-**Skills Required:** Code debugging, configuration management, log analysis
-
-**Common Scenarios:**
-- Memory operations not working in development
-- Configuration validation errors
-- Integration issues with workflows
-- Performance problems during development
-
-<ReferenceCardList>
-  <ReferenceCard 
-    title="Start Here: Common Issues" 
-    href="#common-issues-and-solutions"
-    description="Quick fixes for frequent development problems"
-    icon={Wrench}
-  />
-  <ReferenceCard 
-    title="Configuration Problems" 
-    href="#configuration-troubleshooting"
-    description="Validate and fix configuration errors"
-    icon={Settings}
-  />
-  <ReferenceCard 
-    title="Debug Tools" 
-    href="#monitoring-and-debugging"
-    description="Use debugging tools and health checks"
-    icon={Eye}
-  />
-  <ReferenceCard 
-    title="Performance Issues" 
-    href="#performance-troubleshooting"
-    description="Optimize memory operations performance"
-    icon={Zap}
-  />
-</ReferenceCardList>
-</TabsContent>
-
-<TabsContent value="operations">
-### Operations Troubleshooting Path
-
-**When to use:** Production issues, system monitoring, infrastructure problems
-
-**Skills Required:** System administration, monitoring, incident response
-
-**Common Scenarios:**
-- Production system failures
-- Performance degradation
-- Resource exhaustion
-- Infrastructure issues
-
-<ReferenceCardList>
-  <ReferenceCard 
-    title="Performance Issues" 
-    href="#performance-troubleshooting"
-    description="Diagnose and fix performance problems"
-    icon={Activity}
-  />
-  <ReferenceCard 
-    title="Resource Management" 
-    href="#memory-leaks-and-resource-issues"
-    description="Handle memory leaks and resource problems"
-    icon={Database}
-  />
-  <ReferenceCard 
-    title="Monitoring Setup" 
-    href="#monitoring-and-debugging"
-    description="Configure monitoring and alerting"
-    icon={Eye}
-  />
-  <ReferenceCard 
-    title="Emergency Response" 
-    href="#emergency-procedures"
-    description="Emergency recovery procedures"
-    icon={AlertTriangle}
-  />
-</ReferenceCardList>
-</TabsContent>
-
-<TabsContent value="support">
-### Support Team Troubleshooting Path
-
-**When to use:** User-reported issues, first-line support, escalation decisions
-
-**Skills Required:** Issue analysis, customer communication, escalation protocols
-
-**Common Scenarios:**
-- User-reported memory issues
-- Application integration problems
-- Data consistency issues
-- Performance complaints
-
-<ReferenceCardList>
-  <ReferenceCard 
-    title="Issue Classification" 
-    href="#common-issues-and-solutions"
-    description="Classify and prioritize reported issues"
-    icon={CheckCircle}
-  />
-  <ReferenceCard 
-    title="Health Checks" 
-    href="#health-check-endpoints"
-    description="Run system health diagnostics"
-    icon={Activity}
-  />
-  <ReferenceCard 
-    title="Log Analysis" 
-    href="#log-analysis"
-    description="Analyze logs for issue patterns"
-    icon={BookOpen}
-  />
-  <ReferenceCard 
-    title="Escalation Guide" 
-    href="#escalation-procedures"
-    description="When and how to escalate issues"
-    icon={Users}
-  />
-</ReferenceCardList>
-</TabsContent>
-
-<TabsContent value="emergency">
-### Emergency Response Path
-
-**When to use:** Critical system failures, data loss, security incidents
-
-**Skills Required:** System recovery, incident management, emergency procedures
-
-**Common Scenarios:**
-- Complete system failures
-- Data corruption or loss
-- Security breaches
-- Service outages
-
-<Alert>
-  <AlertTriangle className="h-4 w-4" />
-  <AlertDescription>
-    <strong>Critical Path:</strong> Follow these procedures for emergency situations
-  </AlertDescription>
-</Alert>
-
-<ReferenceCardList>
-  <ReferenceCard 
-    title="System Recovery" 
-    href="#memory-system-recovery"
-    description="Complete system recovery procedures"
-    icon={AlertTriangle}
-  />
-  <ReferenceCard 
-    title="Data Recovery" 
-    href="#data-recovery"
-    description="Backup and data recovery procedures"
-    icon={Database}
-  />
-  <ReferenceCard 
-    title="Emergency Contacts" 
-    href="#emergency-contacts"
-    description="Contact information for emergency support"
-    icon={Users}
-  />
-</ReferenceCardList>
-</TabsContent>
-</Tabs>
-
-## Cross-Document References
-
-<Alert>
-  <BookOpen className="h-4 w-4" />
-  <AlertDescription>
-    This troubleshooting guide references concepts from other memory documentation:
-  </AlertDescription>
-</Alert>
-
-<ReferenceCardList>
-  <ReferenceCard 
-    title="Memory Concepts" 
-    href="/docs/core/memory/memory-concepts"
-    description="Understanding memory architecture for better troubleshooting"
-    icon={BookOpen}
-  />
-  <ReferenceCard 
-    title="Configuration" 
-    href="/docs/core/memory/configuration"
-    description="Proper configuration to prevent issues"
-    icon={Settings}
-  />
-  <ReferenceCard 
-    title="Privacy & Security" 
-    href="/docs/core/memory/privacy-security"
-    description="Security-related troubleshooting"
-    icon={Shield}
-  />
-  <ReferenceCard 
-    title="Operations" 
-    href="/docs/core/memory/operations"
-    description="Memory operations and best practices"
-    icon={Wrench}
-  />
-</ReferenceCardList>
+- **[Memory Configuration](./configuration)** - Understanding memory configuration
+- **[Memory Concepts](./memory-concepts)** - Core memory system concepts
+- **[Privacy & Security](./privacy-security)** - Privacy and redaction troubleshooting
 
 ## Common Issues and Solutions
 
-<Alert>
-  <Wrench className="h-4 w-4" />
-  <AlertDescription>
-    <strong>Skill Level:</strong> <Badge variant="outline">Beginner</Badge> - Start here for most common issues
-  </AlertDescription>
-</Alert>
-
 ### Memory Instance Not Found
+
+**What this means:** The memory system cannot find the specified memory instance, usually due to key resolution issues.
 
 **Symptoms:**
 - "Memory instance not found" errors
@@ -257,33 +28,50 @@ This guide provides comprehensive troubleshooting procedures organized by user r
 - Empty memory responses
 
 **Common Causes:**
-1. **Invalid key template evaluation**
-2. **TTL expiration**
-3. **Configuration mismatch**
-4. **Redis connectivity issues**
+1. **Template evaluation errors** - The key template doesn't resolve correctly
+2. **Redis connection issues** - Cannot connect to Redis
+3. **TTL expiration** - Memory data has expired
+4. **Incorrect configuration** - Memory not properly configured
 
-**Diagnostic Steps:**
+**Debugging Steps:**
 
-```bash
-# Check memory instance existence
-curl -X GET "http://localhost:5001/api/v0/memory/health" \
-  -H "Authorization: Bearer $TOKEN"
+First, check your memory configuration:
 
-# Verify key template evaluation
-curl -X POST "http://localhost:5001/api/v0/memory/debug/key-resolution" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "memory_resource_id": "user_memory",
-    "workflow_context": {
-      "user_id": "test_user",
-      "session_id": "test_session"
-    }
-  }'
+```yaml
+# compozy.yaml
+memory:
+  - resource: memory
+    id: user_memory
+    type: token_based
+    max_tokens: 4000
+    key: "user:{{.workflow.input.user_id}}"
+    persistence:
+      type: redis
+      ttl: 24h
 ```
 
-**Solution Steps:**
+**Template evaluation issues** are the most common cause. Ensure your workflow provides the required context variables:
 
-1. **Verify key template syntax:**
+```yaml
+# Example workflow input
+input:
+  user_id: "user123"  # Required for template "user:{{.workflow.input.user_id}}"
+  session_id: "session456"  # If used in template
+```
+
+**Check Redis connectivity:**
+
+```bash
+# Test Redis connection
+redis-cli ping
+
+# Check if key exists
+redis-cli get "user:your_user_id"
+```
+
+**Solutions:**
+
+1. **Fix template syntax:**
 ```yaml
 # ❌ Incorrect
 key: "user:{{.workflow.input.user_id"  # Missing closing brace
@@ -292,32 +80,24 @@ key: "user:{{.workflow.input.user_id"  # Missing closing brace
 key: "user:{{.workflow.input.user_id}}"
 ```
 
-2. **Check TTL configuration:**
+2. **Verify context variables:**
 ```yaml
-# Ensure TTL is appropriate for your use case
-persistence:
-  ttl: 24h        # Not too short
-append_ttl: "30m" # Reasonable extension
+# Ensure workflow input contains required fields
+input:
+  user_id: "user123"        # For {{.workflow.input.user_id}}
+  session_id: "session456"  # For {{.workflow.input.session_id}}
 ```
 
-3. **Validate workflow context:**
-```typescript
-// Ensure required context variables are provided
-const workflowContext = {
-  user_id: "user123",        // Required for template
-  session_id: "session456",  // If used in template
-  project_id: "proj789"      // If used in template
-};
+3. **Check TTL configuration:**
+```yaml
+persistence:
+  type: redis
+  ttl: 24h  # Reasonable TTL for your use case
 ```
 
 ### Memory Operations Timeout
 
-<Alert>
-  <Activity className="h-4 w-4" />
-  <AlertDescription>
-    <strong>Impact:</strong> High - Can cause workflow failures and user experience issues
-  </AlertDescription>
-</Alert>
+**What this means:** Memory operations are taking too long to complete, often due to Redis performance issues or large data processing.
 
 **Symptoms:**
 - Operations hang or timeout
@@ -325,463 +105,377 @@ const workflowContext = {
 - Slow response times
 
 **Common Causes:**
-1. **Lock contention**
-2. **Large message processing**
-3. **Redis performance issues**
-4. **Network latency**
+1. **Redis performance issues** - High latency or overload
+2. **Large message processing** - Processing very large conversation histories
+3. **Network latency** - Slow connection to Redis
+4. **Privacy processing overhead** - Complex regex redaction patterns
 
-**Diagnostic Commands:**
+**Debugging Steps:**
 
+Check Redis performance:
 ```bash
-# Check Redis performance
+# Monitor Redis latency
 redis-cli --latency-history -h localhost -p 6379
 
-# Monitor lock usage
-curl -X GET "http://localhost:5001/api/v0/memory/debug/locks" \
-  -H "Authorization: Bearer $TOKEN"
-
-# Check memory instance health
-curl -X GET "http://localhost:5001/api/v0/memory/health/user:test_user" \
-  -H "Authorization: Bearer $TOKEN"
+# Check Redis info
+redis-cli info stats
 ```
 
-**Solution Steps:**
+Monitor memory usage:
+```bash
+# Check memory usage
+redis-cli info memory
 
-1. **Optimize lock configuration:**
+# List memory keys
+redis-cli keys "user:*"
+```
+
+**Solutions:**
+
+1. **Optimize Redis configuration:**
 ```yaml
-# Adjust lock timeouts
-lock_config:
-  append_ttl: "30s"   # Shorter for high concurrency
-  clear_ttl: "10s"    # Quick cleanup
-  flush_ttl: "2m"     # Longer for complex operations
+# If using Docker
+redis:
+  image: redis:7-alpine
+  command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
 ```
 
-2. **Implement pagination for large datasets:**
-```typescript
-export async function paginatedMemoryRead(input: PaginatedInput) {
-  const { memory_key, page = 1, page_size = 20 } = input;
-  
-  const offset = (page - 1) * page_size;
-  const result = await readMessagesPaginated(memory_key, offset, page_size);
-  
-  return {
-    messages: result.messages,
-    pagination: {
-      page,
-      page_size,
-      total_count: result.total_count,
-      has_more: offset + page_size < result.total_count
-    }
-  };
-}
-```
-
-3. **Configure appropriate timeouts:**
+2. **Reduce message size:**
 ```yaml
-# Circuit breaker configuration
-persistence:
-  circuit_breaker:
-    enabled: true
-    timeout: "200ms"    # Reasonable timeout
-    max_failures: 3     # Conservative failure threshold
-    reset_timeout: "30s"
+# Use smaller token limits
+memory:
+  - resource: memory
+    id: user_memory
+    type: token_based
+    max_tokens: 2000  # Smaller limit for better performance
 ```
 
-### Token Count Inconsistencies
-
-<Alert>
-  <Database className="h-4 w-4" />
-  <AlertDescription>
-    <strong>Skill Level:</strong> <Badge variant="outline">Intermediate</Badge> - Requires understanding of token management
-  </AlertDescription>
-</Alert>
-
-**Symptoms:**
-- Incorrect token count reporting
-- Memory flushing at wrong thresholds
-- Token budget miscalculations
-
-**Common Causes:**
-1. **Token counting provider issues**
-2. **Metadata synchronization problems**
-3. **Configuration mismatches**
-
-**Diagnostic Steps:**
-
-```typescript
-// Debug token counting
-export async function debugTokenCounting(input: DebugTokenInput) {
-  const { memory_key, message } = input;
-  
-  // Get current token count
-  const health = await getMemoryHealth(memory_key);
-  
-  // Count tokens with different providers
-  const tiktokenCount = await countTokens(message, 'tiktoken');
-  const openaiCount = await countTokens(message, 'openai');
-  
-  // Compare with stored metadata
-  const storedCount = await getTokenCountMetadata(memory_key);
-  
-  return {
-    health_token_count: health.token_count,
-    tiktoken_count: tiktokenCount,
-    openai_count: openaiCount,
-    stored_metadata: storedCount,
-    discrepancy: Math.abs(health.token_count - storedCount)
-  };
-}
-```
-
-**Solution Steps:**
-
-1. **Verify token provider configuration:**
+3. **Simplify privacy patterns:**
 ```yaml
-token_provider:
-  provider: openai
-  model: gpt-4
-  api_key_env: OPENAI_API_KEY
-  fallback: tiktoken      # Important fallback
-  settings:
-    timeout: "30s"
-    max_retries: 3
+# Optimize regex patterns
+privacy_policy:
+  redact_patterns:
+    - '\b\d{3}-\d{2}-\d{4}\b'  # Simple, specific patterns
 ```
 
-2. **Force metadata resync:**
-```typescript
-export async function resyncTokenMetadata(input: ResyncInput) {
-  const { memory_key } = input;
-  
-  // Read all messages
-  const messages = await readAllMessages(memory_key);
-  
-  // Recalculate token count
-  let totalTokens = 0;
-  for (const message of messages) {
-    totalTokens += await countTokens(message.content, 'openai');
-  }
-  
-  // Update metadata
-  await setTokenCountMetadata(memory_key, totalTokens);
-  
-  return {
-    success: true,
-    messages_processed: messages.length,
-    total_tokens: totalTokens
-  };
-}
-```
+### Token Count Issues
 
-### Memory Flushing Issues
-
-<Alert>
-  <Zap className="h-4 w-4" />
-  <AlertDescription>
-    <strong>Common Cause:</strong> Temporal workflow issues or summarization service problems
-  </AlertDescription>
-</Alert>
+**What this means:** Problems with token counting, leading to incorrect memory management.
 
 **Symptoms:**
 - Memory not flushing when expected
-- Summaries not being generated
-- Flush operations failing
+- Incorrect token count reporting
+- Memory exceeding configured limits
 
 **Common Causes:**
-1. **Incorrect flush strategy configuration**
-2. **Summarization service issues**
-3. **Temporal workflow problems**
+1. **Token counting provider issues** - Problems with OpenAI API or tiktoken
+2. **Configuration mismatch** - Incorrect token limits or ratios
+3. **Template evaluation errors** - Token count metadata not updating
 
-**Diagnostic Steps:**
+**Debugging Steps:**
 
+Check your token-based memory configuration:
+```yaml
+memory:
+  - resource: memory
+    id: user_memory
+    type: token_based
+    max_tokens: 4000  # Clear limit
+    # OR
+    max_context_ratio: 0.8  # 80% of context window
+```
+
+**Solutions:**
+
+1. **Set explicit token limits:**
+```yaml
+# Use explicit token limits instead of ratios
+memory:
+  - resource: memory
+    id: user_memory
+    type: token_based
+    max_tokens: 4000  # Clear, explicit limit
+```
+
+2. **Verify token provider configuration:**
+```yaml
+# Ensure token provider is configured
+agent:
+  llm:
+    provider: openai
+    model: gpt-4
+    api_key: ${OPENAI_API_KEY}
+```
+
+### Memory Not Persisting
+
+**What this means:** Memory data is not being saved to Redis properly.
+
+**Symptoms:**
+- Memory resets between workflow runs
+- No conversation history preserved
+- Fresh memory on each interaction
+
+**Common Causes:**
+1. **Redis not configured** - No persistence layer
+2. **Incorrect key templates** - Keys changing between runs
+3. **TTL too short** - Data expiring too quickly
+4. **Redis connection issues** - Cannot write to Redis
+
+**Debugging Steps:**
+
+Check Redis configuration:
+```yaml
+# Ensure Redis persistence is configured
+memory:
+  - resource: memory
+    id: user_memory
+    type: token_based
+    max_tokens: 4000
+    persistence:
+      type: redis  # Must be specified
+      ttl: 24h     # Reasonable TTL
+```
+
+Verify key consistency:
 ```bash
-# Check flush pending status
-curl -X GET "http://localhost:5001/api/v0/memory/debug/flush-status/user:test_user" \
-  -H "Authorization: Bearer $TOKEN"
+# Check if keys are being created
+redis-cli keys "*"
 
-# Manually trigger flush
-curl -X POST "http://localhost:5001/api/v0/memory/flush" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "memory_key": "user:test_user",
-    "force": true
-  }'
-
-# Check Temporal workflow status
-curl -X GET "http://localhost:5001/api/v0/temporal/workflows/memory-flush" \
-  -H "Authorization: Bearer $TOKEN"
+# Monitor Redis operations
+redis-cli monitor
 ```
 
-**Solution Steps:**
+**Solutions:**
 
-1. **Validate flush strategy configuration:**
+1. **Configure Redis persistence:**
 ```yaml
-flushing_strategy:
-  type: hybrid_summary
-  summarize_threshold: 0.8      # Trigger at 80% capacity
-  summary_tokens: 500           # Reasonable summary size
-  summarize_oldest_percent: 0.3 # Summarize oldest 30%
-```
-
-2. **Implement manual flush capability:**
-```typescript
-export async function manualFlushTool(input: ManualFlushInput) {
-  const { memory_key, force = false, strategy_override } = input;
-  
-  try {
-    // Check if flush is already pending
-    const flushPending = await isFlushPending(memory_key);
-    if (flushPending && !force) {
-      return {
-        success: false,
-        message: 'Flush already pending, use force=true to override'
-      };
-    }
-    
-    // Perform flush with optional strategy override
-    const result = await performFlushWithStrategy(
-      memory_key, 
-      strategy_override || 'default'
-    );
-    
-    return {
-      success: result.success,
-      messages_processed: result.message_count,
-      tokens_processed: result.token_count,
-      summary_generated: result.summary_generated
-    };
-  } catch (error) {
-    return {
-      success: false,
-      error: error.message
-    };
-  }
-}
-```
-
-## Performance Troubleshooting
-
-<Alert>
-  <Activity className="h-4 w-4" />
-  <AlertDescription>
-    <strong>Skill Level:</strong> <Badge variant="outline">Intermediate</Badge> - Performance analysis and optimization
-  </AlertDescription>
-</Alert>
-
-### Slow Memory Operations
-
-**Diagnostic Tools:**
-
-```typescript
-// Performance monitoring tool
-export async function performanceMonitor(input: PerformanceMonitorInput) {
-  const { memory_key, operation, duration_threshold = 1000 } = input;
-  
-  const startTime = Date.now();
-  
-  try {
-    const result = await performMemoryOperation(memory_key, operation, input);
-    const duration = Date.now() - startTime;
-    
-    // Log slow operations
-    if (duration > duration_threshold) {
-      await logSlowOperation({
-        memory_key,
-        operation,
-        duration,
-        timestamp: new Date().toISOString(),
-        threshold: duration_threshold
-      });
-    }
-    
-    return {
-      ...result,
-      performance: {
-        duration,
-        slow_operation: duration > duration_threshold
-      }
-    };
-  } catch (error) {
-    const duration = Date.now() - startTime;
-    
-    await logFailedOperation({
-      memory_key,
-      operation,
-      duration,
-      error: error.message,
-      timestamp: new Date().toISOString()
-    });
-    
-    throw error;
-  }
-}
-```
-
-**Optimization Strategies:**
-
-1. **Implement connection pooling:**
-```typescript
-// Redis connection pool configuration
-const redisConfig = {
-  host: 'localhost',
-  port: 6379,
-  maxRetriesPerRequest: 3,
-  retryDelayOnFailover: 100,
-  lazyConnect: true,
-  maxRetriesPerRequest: 3,
-  // Connection pooling
-  family: 4,
-  keepAlive: true,
-  db: 0
-};
-```
-
-2. **Use batch operations:**
-```typescript
-export async function batchMemoryOperations(input: BatchOperationsInput) {
-  const { operations, max_concurrent = 5 } = input;
-  
-  // Process operations in batches to avoid overwhelming Redis
-  const results = [];
-  for (let i = 0; i < operations.length; i += max_concurrent) {
-    const batch = operations.slice(i, i + max_concurrent);
-    const batchResults = await Promise.all(
-      batch.map(op => performMemoryOperation(op.memory_key, op.operation, op))
-    );
-    results.push(...batchResults);
-  }
-  
-  return {
-    success: true,
-    results,
-    total_operations: operations.length
-  };
-}
-```
-
-### Memory Leaks and Resource Issues
-
-<Alert>
-  <AlertTriangle className="h-4 w-4" />
-  <AlertDescription>
-    <strong>Critical:</strong> Can lead to system instability and service outages
-  </AlertDescription>
-</Alert>
-
-**Diagnostic Commands:**
-
-```bash
-# Check memory usage
-curl -X GET "http://localhost:5001/api/v0/memory/debug/resource-usage" \
-  -H "Authorization: Bearer $TOKEN"
-
-# Monitor active connections
-curl -X GET "http://localhost:5001/api/v0/memory/debug/connections" \
-  -H "Authorization: Bearer $TOKEN"
-
-# Check for memory leaks
-curl -X GET "http://localhost:5001/api/v0/memory/debug/gc-stats" \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-**Solution Steps:**
-
-1. **Implement proper resource cleanup:**
-```typescript
-export async function resourceManagedMemoryTool(input: ResourceManagedInput) {
-  const { memory_key, operation } = input;
-  
-  // Create resource manager
-  const resourceManager = new ResourceManager();
-  
-  try {
-    // Acquire resources
-    const connection = await resourceManager.acquireConnection();
-    const lock = await resourceManager.acquireLock(memory_key);
-    
-    // Perform operation
-    const result = await performMemoryOperation(memory_key, operation, input);
-    
-    return result;
-  } finally {
-    // Always cleanup resources
-    await resourceManager.releaseAll();
-  }
-}
-
-class ResourceManager {
-  private resources: Array<{ type: string; resource: any }> = [];
-  
-  async acquireConnection(): Promise<any> {
-    const connection = await createRedisConnection();
-    this.resources.push({ type: 'connection', resource: connection });
-    return connection;
-  }
-  
-  async acquireLock(key: string): Promise<any> {
-    const lock = await createDistributedLock(key);
-    this.resources.push({ type: 'lock', resource: lock });
-    return lock;
-  }
-  
-  async releaseAll(): Promise<void> {
-    for (const { type, resource } of this.resources) {
-      try {
-        switch (type) {
-          case 'connection':
-            await resource.disconnect();
-            break;
-          case 'lock':
-            await resource.release();
-            break;
-        }
-      } catch (error) {
-        console.error(`Failed to release ${type}:`, error);
-      }
-    }
-    this.resources = [];
-  }
-}
-```
-
-## Configuration Troubleshooting
-
-<Alert>
-  <Settings className="h-4 w-4" />
-  <AlertDescription>
-    <strong>Skill Level:</strong> <Badge variant="outline">Beginner</Badge> - Configuration validation and fixes
-  </AlertDescription>
-</Alert>
-
-### Invalid Configuration Errors
-
-**Common Configuration Issues:**
-
-1. **Invalid TTL formats:**
-```yaml
-# ❌ Incorrect
-append_ttl: "30 minutes"
-clear_ttl: "5 mins"
-
-# ✅ Correct
-append_ttl: "30m"
-clear_ttl: "5m"
-```
-
-2. **Missing required fields:**
-```yaml
-# ❌ Incomplete
-resource: memory
-id: test_memory
-type: token_based
-# Missing max_tokens or max_context_ratio
-
-# ✅ Complete
-resource: memory
-id: test_memory
-type: token_based
-max_tokens: 4000
 persistence:
   type: redis
+  ttl: 24h
+```
+
+2. **Use consistent key templates:**
+```yaml
+# Ensure key template produces consistent results
+key: "user:{{.workflow.input.user_id}}"
+# NOT: "user:{{.workflow.exec_id}}" (changes every run)
+```
+
+3. **Verify Redis connection:**
+```bash
+# Test Redis connection
+redis-cli ping
+# Should return: PONG
+```
+
+### Flushing Strategy Issues
+
+**What this means:** Problems with memory flushing behavior, where memory isn't being cleared or summarized correctly when limits are reached.
+
+**Symptoms:**
+- Memory growing beyond configured limits
+- Flushing not triggered when expected
+- Loss of important conversation context
+- Inconsistent memory behavior
+
+**Common Causes:**
+1. **Incorrect flushing strategy configuration** - Wrong strategy for your use case
+2. **Token counting issues** - Problems with token counting affecting flush triggers
+3. **Strategy configuration errors** - Missing or invalid parameters
+
+**Available Flushing Strategies:**
+
+```yaml
+# Simple FIFO - removes oldest messages
+flushing_strategy:
+  type: simple_fifo
+  flush_percentage: 0.3  # Remove 30% of oldest messages
+
+# LRU - removes least recently used messages  
+flushing_strategy:
+  type: lru
+  flush_percentage: 0.25
+
+# Token-aware LRU - considers both recency and token count
+flushing_strategy:
+  type: token_aware_lru
+  flush_percentage: 0.3
+  token_weight: 0.7      # Weight given to token count vs recency
+
+# Hybrid summary - creates summary of old content
+flushing_strategy:
+  type: hybrid_summary
+  summary_ratio: 0.4     # 40% of memory becomes summary
+  preserve_recent: 10    # Keep 10 most recent messages untouched
+```
+
+**Debugging Steps:**
+
+Check your flushing configuration:
+```yaml
+memory:
+  - resource: memory
+    id: user_memory
+    type: token_based
+    max_tokens: 4000
+    flushing_strategy:
+      type: hybrid_summary
+      summary_ratio: 0.3
+      preserve_recent: 8
+```
+
+**Solutions:**
+
+1. **Choose appropriate strategy for your use case:**
+```yaml
+# For maintaining conversation context
+flushing_strategy:
+  type: hybrid_summary
+  summary_ratio: 0.3
+  preserve_recent: 10
+
+# For simple memory management
+flushing_strategy:
+  type: simple_fifo
+  flush_percentage: 0.25
+```
+
+### Eviction Policy Issues
+
+**What this means:** Problems with how messages are selected for removal during memory operations.
+
+**Available Eviction Policies:**
+
+```yaml
+# FIFO - First In, First Out
+eviction_policy:
+  type: fifo
+
+# LRU - Least Recently Used  
+eviction_policy:
+  type: lru
+
+# Priority-based - Based on message importance
+eviction_policy:
+  type: priority
+  priority_weights:
+    user: 1.0
+    assistant: 0.8
+    system: 0.6
+```
+
+### Privacy/Redaction Issues
+
+**What this means:** Problems with data redaction or privacy policy enforcement, including ReDoS attacks and circuit breaker failures.
+
+**Symptoms:**
+- Sensitive data not being redacted
+- Over-redaction of normal content
+- Redaction patterns not working
+- ReDoS protection warnings in logs
+- Circuit breaker activation messages
+
+**Common Causes:**
+1. **Invalid regex patterns** - Malformed or dangerous regular expressions
+2. **ReDoS vulnerability** - Regex patterns susceptible to catastrophic backtracking
+3. **Circuit breaker activation** - Too many consecutive regex failures
+4. **Configuration errors** - Privacy policy not applied correctly
+
+**Debugging Steps:**
+
+Check your privacy configuration:
+```yaml
+memory:
+  - resource: memory
+    id: user_memory
+    type: token_based
+    max_tokens: 4000
+    privacy_policy:
+      redact_patterns:
+        - '\b\d{3}-\d{2}-\d{4}\b'  # SSN pattern
+        - '\b\d{16}\b'             # Credit card pattern
+      default_redaction_string: "[REDACTED]"
+      circuit_breaker:
+        failure_threshold: 10      # Built-in protection
+        recovery_timeout: 300s     # Auto-recovery time
+```
+
+**Solutions:**
+
+1. **Test regex patterns for ReDoS:**
+```bash
+# Test your regex patterns for safety
+echo "My SSN is 123-45-6789" | timeout 1s grep -E '\b\d{3}-\d{2}-\d{4}\b'
+# Should complete quickly - if timeout triggers, pattern may be unsafe
+```
+
+2. **Use ReDoS-safe patterns:**
+```yaml
+# ✅ ReDoS-safe patterns
+privacy_policy:
+  redact_patterns:
+    - '\b\d{3}-\d{2}-\d{4}\b'      # SSN - linear complexity
+    - '\b\d{16}\b'                 # Credit card - linear complexity
+    - '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'  # Email
+
+# ❌ Avoid ReDoS-prone patterns  
+privacy_policy:
+  redact_patterns:
+    - '(a+)+'                      # Nested quantifiers - dangerous
+    - '(.*a){10,}'                 # Complex backtracking
+    - '\d+'                        # Too broad - matches all numbers
+```
+
+3. **Monitor circuit breaker status:**
+```yaml
+# Circuit breaker automatically protects against:
+# - 10+ consecutive regex failures
+# - Automatically recovers after successful pattern match
+# - No manual configuration needed
+```
+
+4. **Configure non-persistable message types:**
+```yaml
+privacy_policy:
+  non_persistable_message_types:
+    - "system_internal"
+    - "debug"
+    - "temporary"
+```
+
+## Configuration Issues
+
+### Invalid Configuration Format
+
+**What this means:** The memory configuration has syntax errors or missing required fields.
+
+**Common Errors:**
+
+1. **Missing required fields:**
+```yaml
+# ❌ Missing required fields
+memory:
+  - resource: memory
+    id: user_memory
+    # Missing type and max_tokens
+
+# ✅ Complete configuration
+memory:
+  - resource: memory
+    id: user_memory
+    type: token_based
+    max_tokens: 4000
+```
+
+2. **Invalid TTL format:**
+```yaml
+# ❌ Invalid TTL format
+persistence:
+  ttl: "24 hours"  # Should be "24h"
+
+# ✅ Valid TTL format
+persistence:
   ttl: 24h
 ```
 
@@ -795,1411 +489,355 @@ privacy_policy:
 # ✅ Valid regex
 privacy_policy:
   redact_patterns:
-    - '\b\d{3}-\d{2}-\d{4}\b'  # SSN pattern
+    - '\b\d{3}-\d{2}-\d{4}\b'
 ```
 
-**Configuration Validation Tool:**
+### Template Evaluation Problems
 
-```typescript
-export async function validateMemoryConfig(input: ValidateConfigInput) {
-  const { config } = input;
-  const errors: string[] = [];
-  const warnings: string[] = [];
-  
-  // Validate required fields
-  if (!config.id) {
-    errors.push('Missing required field: id');
-  }
-  
-  if (!config.type) {
-    errors.push('Missing required field: type');
-  }
-  
-  // Validate type-specific requirements
-  if (config.type === 'token_based') {
-    if (!config.max_tokens && !config.max_context_ratio) {
-      errors.push('Token-based memory requires max_tokens or max_context_ratio');
-    }
-  }
-  
-  // Validate TTL formats
-  if (config.append_ttl && !isValidDuration(config.append_ttl)) {
-    errors.push(`Invalid append_ttl format: ${config.append_ttl}`);
-  }
-  
-  // Validate regex patterns
-  if (config.privacy_policy?.redact_patterns) {
-    for (const pattern of config.privacy_policy.redact_patterns) {
-      try {
-        new RegExp(pattern);
-      } catch (error) {
-        errors.push(`Invalid regex pattern: ${pattern}`);
-      }
-    }
-  }
-  
-  // Performance warnings
-  if (config.max_tokens && config.max_tokens > 100000) {
-    warnings.push('Very large max_tokens may impact performance');
-  }
-  
-  return {
-    valid: errors.length === 0,
-    errors,
-    warnings
-  };
-}
+**What this means:** The key template cannot be evaluated with the provided context.
+
+**Common Issues:**
+
+1. **Missing context variables:**
+```yaml
+# Template requires user_id
+key: "user:{{.workflow.input.user_id}}"
+
+# But workflow input doesn't provide it
+input:
+  session_id: "session123"  # Missing user_id
 ```
 
-### Template Evaluation Issues
+2. **Incorrect template syntax:**
+```yaml
+# ❌ Wrong syntax
+key: "user:${workflow.input.user_id}"  # Shell syntax, not Go template
 
-<Alert>
-  <Terminal className="h-4 w-4" />
-  <AlertDescription>
-    <strong>Developer Tool:</strong> Use the template debugging tool for systematic troubleshooting
-  </AlertDescription>
-</Alert>
-
-**Diagnostic Tool:**
-
-```typescript
-export async function debugTemplateEvaluation(input: DebugTemplateInput) {
-  const { key_template, workflow_context } = input;
-  
-  try {
-    // Evaluate template
-    const resolvedKey = await evaluateTemplate(key_template, workflow_context);
-    
-    // Validate resolved key
-    const isValid = await validateMemoryKey(resolvedKey);
-    
-    return {
-      success: true,
-      key_template,
-      workflow_context,
-      resolved_key: resolvedKey,
-      is_valid: isValid,
-      evaluation_steps: getEvaluationSteps(key_template, workflow_context)
-    };
-  } catch (error) {
-    return {
-      success: false,
-      error: error.message,
-      key_template,
-      workflow_context
-    };
-  }
-}
-
-function getEvaluationSteps(template: string, context: any): Array<{step: string; value: any}> {
-  const steps = [];
-  
-  // Extract template variables
-  const variables = template.match(/\{\{[^}]+\}\}/g) || [];
-  
-  for (const variable of variables) {
-    const path = variable.slice(2, -2).trim();
-    const value = getValueFromPath(context, path);
-    
-    steps.push({
-      step: `Evaluate ${variable}`,
-      value: value || 'undefined'
-    });
-  }
-  
-  return steps;
-}
+# ✅ Correct syntax
+key: "user:{{.workflow.input.user_id}}"
 ```
 
-## Monitoring and Debugging
+3. **Complex template logic:**
+```yaml
+# ❌ Too complex
+key: "{{if .workflow.input.user_id}}user:{{.workflow.input.user_id}}{{else}}guest:{{.workflow.input.session_id}}{{end}}"
 
-<Alert>
-  <Eye className="h-4 w-4" />
-  <AlertDescription>
-    <strong>Skill Level:</strong> <Badge variant="outline">Intermediate</Badge> - System monitoring and observability
-  </AlertDescription>
-</Alert>
+# ✅ Keep it simple
+key: "user:{{.workflow.input.user_id}}"
+```
 
-### Health Check Endpoints
+## Performance Issues
+
+### Slow Memory Operations
+
+**What this means:** Memory operations are taking longer than expected.
+
+**Common Causes:**
+1. **Large conversation histories** - Too many messages stored
+2. **Complex redaction patterns** - Regex processing overhead
+3. **Redis performance** - Database performance issues
+4. **Network latency** - Slow connection to Redis
+
+**Solutions:**
+
+1. **Reduce token limits:**
+```yaml
+# Use smaller token limits for better performance
+memory:
+  - resource: memory
+    id: user_memory
+    type: token_based
+    max_tokens: 2000  # Smaller limit
+```
+
+2. **Optimize redaction patterns:**
+```yaml
+# Use specific, efficient patterns
+privacy_policy:
+  redact_patterns:
+    - '\b\d{3}-\d{2}-\d{4}\b'  # Specific SSN pattern
+    # Avoid: '.*sensitive.*' (too broad)
+```
+
+3. **Configure Redis for performance:**
+```yaml
+# Redis configuration for better performance
+redis:
+  image: redis:7-alpine
+  command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+```
+
+### Memory Growing Too Large
+
+**What this means:** Memory instances are using too much storage.
+
+**Solutions:**
+
+1. **Set appropriate token limits:**
+```yaml
+memory:
+  - resource: memory
+    id: user_memory
+    type: token_based
+    max_tokens: 4000  # Reasonable limit
+```
+
+2. **Configure shorter TTL:**
+```yaml
+persistence:
+  type: redis
+  ttl: 1h  # Shorter TTL for temporary data
+```
+
+3. **Use message count limits:**
+```yaml
+memory:
+  - resource: memory
+    id: user_memory
+    type: message_count_based
+    max_messages: 50  # Limit message count
+```
+
+## CLI Commands for Memory Management
+
+The Compozy CLI provides several commands to help with memory troubleshooting:
+
+### Available Commands
 
 ```bash
-# Overall memory system health
-curl -X GET "http://localhost:5001/api/v0/memory/health"
+# Authentication (required for API access)
+compozy auth generate --name "dev-key" --description "Development API key"
+compozy auth list --sort created --filter memory
+compozy auth revoke <key-id> --force
 
-# Specific memory instance health
-curl -X GET "http://localhost:5001/api/v0/memory/health/user:test_user"
+# Configuration management
+compozy config show --format yaml          # Show current configuration
+compozy config show --format json          # Show as JSON
+compozy config validate                     # Validate configuration
 
-# System resource usage
-curl -X GET "http://localhost:5001/api/v0/memory/debug/resources"
+# Development and server management
+compozy dev                                 # Start development server
+compozy start                               # Start production server
+compozy init                                # Initialize new Compozy project
+compozy mcp-proxy                           # Start MCP proxy server
 
-# Active memory instances
-curl -X GET "http://localhost:5001/api/v0/memory/debug/active-instances"
+# Workflow management (for testing memory in workflows)
+compozy workflow list --format json
+compozy workflow get <workflow-id>
+compozy workflow execute <workflow-id> --input "user_id=test123"
 ```
 
-### Debug Information Tool
+### Memory-Specific Troubleshooting
 
-```typescript
-export async function memoryDebugTool(input: DebugInput) {
-  const { memory_key, include_messages = false } = input;
-  
-  const debugInfo = {
-    memory_key,
-    timestamp: new Date().toISOString(),
-    instance_info: await getInstanceInfo(memory_key),
-    health_info: await getMemoryHealth(memory_key),
-    lock_info: await getLockInfo(memory_key),
-    flush_info: await getFlushInfo(memory_key),
-    performance_metrics: await getPerformanceMetrics(memory_key),
-    configuration: await getMemoryConfiguration(memory_key)
-  };
-  
-  if (include_messages) {
-    debugInfo.recent_messages = await getRecentMessages(memory_key, 5);
-  }
-  
-  return debugInfo;
-}
-```
+**Note**: There are no dedicated memory CLI commands - memory operations are performed through the REST API during workflow execution.
 
-### Log Analysis
-
-<Accordion type="single" collapsible>
-<AccordionItem value="log-patterns">
-<AccordionTrigger>Common Log Patterns to Watch</AccordionTrigger>
-<AccordionContent>
-**Critical Log Patterns:**
+**Using workflows to test memory:**
 
 ```bash
-# Memory operation failures
-grep "memory.*error" /var/log/compozy/memory.log
+# Execute a workflow that uses memory
+compozy workflow execute my-workflow --input "user_id=test123" --input "message=Hello"
 
-# Lock contention issues
-grep "lock.*timeout" /var/log/compozy/memory.log
-
-# Flush operation problems
-grep "flush.*failed" /var/log/compozy/memory.log
-
-# Performance warnings
-grep "slow.*operation" /var/log/compozy/memory.log
+# Check workflow execution
+compozy workflow get my-workflow
 ```
 
-**Log Severity Levels:**
-- `ERROR`: Critical issues requiring immediate attention
-- `WARN`: Performance issues or potential problems
-- `INFO`: Normal operations and status updates
-- `DEBUG`: Detailed troubleshooting information
-</AccordionContent>
-</AccordionItem>
-
-<AccordionItem value="structured-logging">
-<AccordionTrigger>Structured Logging for Debugging</AccordionTrigger>
-<AccordionContent>
-**Implement structured logging for better troubleshooting:**
-
-```typescript
-export async function loggedMemoryTool(input: LoggedMemoryInput) {
-  const { memory_key, operation, user_id } = input;
-  
-  const logger = createLogger({
-    service: 'memory',
-    operation,
-    memory_key,
-    user_id,
-    trace_id: generateTraceId()
-  });
-  
-  logger.info('Memory operation started', {
-    operation,
-    memory_key,
-    user_id
-  });
-  
-  try {
-    const result = await performMemoryOperation(memory_key, operation, input);
-    
-    logger.info('Memory operation completed', {
-      success: true,
-      duration: result.duration,
-      token_count: result.token_count
-    });
-    
-    return result;
-  } catch (error) {
-    logger.error('Memory operation failed', {
-      error: error.message,
-      stack: error.stack
-    });
-    
-    throw error;
-  }
-}
-```
-</AccordionContent>
-</AccordionItem>
-</Accordion>
-
-## Escalation Procedures
-
-<Alert>
-  <Users className="h-4 w-4" />
-  <AlertDescription>
-    <strong>Support Teams:</strong> Clear escalation paths for different issue types
-  </AlertDescription>
-</Alert>
-
-<Tabs defaultValue="level1" className="w-full">
-<TabsList className="grid w-full grid-cols-3">
-  <TabsTrigger value="level1">Level 1 Support</TabsTrigger>
-  <TabsTrigger value="level2">Level 2 Support</TabsTrigger>
-  <TabsTrigger value="emergency">Emergency</TabsTrigger>
-</TabsList>
-
-<TabsContent value="level1">
-### Level 1 Support (First Response)
-
-**Handle These Issues:**
-- Basic configuration problems
-- Common error messages
-- Performance complaints
-- User education
-
-**Escalate When:**
-- System-wide failures
-- Security incidents
-- Data corruption
-- Unknown error patterns
-
-**Required Information for Escalation:**
-- Error messages and timestamps
-- User impact assessment
-- Basic diagnostic results
-- Attempted solutions
-</TabsContent>
-
-<TabsContent value="level2">
-### Level 2 Support (Technical Specialists)
-
-**Handle These Issues:**
-- Complex configuration problems
-- Performance optimization
-- Integration issues
-- Advanced troubleshooting
-
-**Escalate When:**
-- Critical system failures
-- Security breaches
-- Data loss incidents
-- Architecture changes needed
-
-**Required Information for Escalation:**
-- Complete diagnostic reports
-- System logs and traces
-- Impact analysis
-- Recovery recommendations
-</TabsContent>
-
-<TabsContent value="emergency">
-### Emergency Escalation
-
-**Immediate Escalation Required:**
-- Complete system outages
-- Data loss or corruption
-- Security breaches
-- Service unavailability
-
-**Emergency Contacts:**
-- On-call engineer: [Contact Information]
-- Security team: [Contact Information]
-- Management: [Contact Information]
-
-**Emergency Response Protocol:**
-1. Assess immediate impact
-2. Implement containment measures
-3. Notify stakeholders
-4. Begin recovery procedures
-5. Document incident details
-</TabsContent>
-</Tabs>
-
-## Emergency Procedures
-
-<Alert>
-  <AlertTriangle className="h-4 w-4" />
-  <AlertDescription>
-    <strong>Critical:</strong> Use these procedures only for emergency situations
-  </AlertDescription>
-</Alert>
-
-### Memory System Recovery
-
-**Complete System Recovery:**
+**Using the REST API directly:**
 
 ```bash
-#!/bin/bash
-# Emergency memory system recovery script
+# Read from memory (replace {memory_ref} with your memory instance ID)
+curl -X GET "http://localhost:5001/api/v0/memory/{memory_ref}/read" \
+  -H "Authorization: Bearer your-api-key"
 
-echo "Starting memory system recovery..."
+# Write to memory  
+curl -X POST "http://localhost:5001/api/v0/memory/{memory_ref}/write" \
+  -H "Authorization: Bearer your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{"message": {"role": "user", "content": "Hello world"}}'
 
-# 1. Stop all memory operations
-curl -X POST "http://localhost:5001/api/v0/memory/admin/stop-operations"
+# Check memory stats
+curl -X GET "http://localhost:5001/api/v0/memory/{memory_ref}/stats" \
+  -H "Authorization: Bearer your-api-key"
 
-# 2. Check Redis connectivity
+# Health check
+curl -X GET "http://localhost:5001/api/v0/memory/{memory_ref}/health" \
+  -H "Authorization: Bearer your-api-key"
+```
+
+## Debugging Tools
+
+### Redis Debugging
+
+Basic Redis commands for debugging:
+
+```bash
+# Check Redis connectivity
 redis-cli ping
 
-# 3. Clear any stuck locks
-curl -X POST "http://localhost:5001/api/v0/memory/admin/clear-locks"
+# List all keys (use pattern for memory keys)
+redis-cli keys "compozy:*"
+redis-cli keys "user:*"
 
-# 4. Restart memory services
-systemctl restart compozy-memory
+# Get specific key
+redis-cli get "user:123"
 
-# 5. Verify system health
-curl -X GET "http://localhost:5001/api/v0/memory/health"
+# Check key expiration
+redis-cli ttl "user:123"
 
-echo "Memory system recovery completed"
+# Monitor Redis operations
+redis-cli monitor
+
+# Check Redis info
+redis-cli info stats
+redis-cli info memory
 ```
 
-### Data Recovery
+### Memory Health Check
 
-<Alert>
-  <Database className="h-4 w-4" />
-  <AlertDescription>
-    <strong>Before Recovery:</strong> Assess data integrity and backup validity
-  </AlertDescription>
-</Alert>
+Create a simple health check to verify memory system:
 
-**Backup and Recovery Tool:**
-
-```typescript
-export async function emergencyBackupTool(input: BackupInput) {
-  const { memory_keys, backup_location } = input;
-  
-  const backupResults = [];
-  
-  for (const memoryKey of memory_keys) {
-    try {
-      // Read all messages
-      const messages = await readAllMessages(memoryKey);
-      
-      // Create backup
-      const backup = {
-        memory_key: memoryKey,
-        timestamp: new Date().toISOString(),
-        messages,
-        metadata: await getMemoryHealth(memoryKey)
-      };
-      
-      // Save backup
-      await saveBackup(backup, backup_location);
-      
-      backupResults.push({
-        memory_key: memoryKey,
-        success: true,
-        message_count: messages.length
-      });
-    } catch (error) {
-      backupResults.push({
-        memory_key: memoryKey,
-        success: false,
-        error: error.message
-      });
-    }
-  }
-  
-  return {
-    success: true,
-    backup_results: backupResults,
-    backup_location
-  };
-}
-
-export async function emergencyRestoreTool(input: RestoreInput) {
-  const { backup_location, memory_keys } = input;
-  
-  const restoreResults = [];
-  
-  for (const memoryKey of memory_keys) {
-    try {
-      // Load backup
-      const backup = await loadBackup(memoryKey, backup_location);
-      
-      // Clear existing data
-      await clearMemory(memoryKey);
-      
-      // Restore messages
-      await replaceMessages(memoryKey, backup.messages);
-      
-      restoreResults.push({
-        memory_key: memoryKey,
-        success: true,
-        restored_messages: backup.messages.length
-      });
-    } catch (error) {
-      restoreResults.push({
-        memory_key: memoryKey,
-        success: false,
-        error: error.message
-      });
-    }
-  }
-  
-  return {
-    success: true,
-    restore_results: restoreResults
-  };
-}
+```yaml
+# Basic health check workflow
+workflow:
+  name: memory-health-check
+  tasks:
+    - id: test-memory
+      type: basic
+      agent:
+        id: test-agent
+        llm:
+          provider: openai
+          model: gpt-4
+        memory:
+          - resource: memory
+            id: health_check_memory
+            type: token_based
+            max_tokens: 1000
+            key: "health:check:{{.workflow.input.test_id}}"
+      with:
+        test_id: "health-check-123"
+        message: "This is a health check message"
 ```
 
-## Emergency Contacts
+### Logging Configuration
 
-<Alert>
-  <Users className="h-4 w-4" />
-  <AlertDescription>
-    <strong>Emergency Support:</strong> Keep these contacts readily available
-  </AlertDescription>
-</Alert>
+Enable logging to help with debugging:
 
-<Accordion type="single" collapsible>
-<AccordionItem value="contacts">
-<AccordionTrigger>Emergency Contact Information</AccordionTrigger>
-<AccordionContent>
-**Internal Contacts:**
-- Engineering On-Call: [Phone] / [Email]
-- Security Team: [Phone] / [Email]
-- Operations Team: [Phone] / [Email]
-- Management: [Phone] / [Email]
+```yaml
+# Configure logging in your environment
+logging:
+  level: debug  # Set to debug for detailed logs
+  format: json
+  fields:
+    service: compozy
+    component: memory
+```
 
-**External Contacts:**
-- Cloud Provider Support: [Phone] / [Account ID]
-- Database Support: [Phone] / [Account ID]
-- Security Incident Response: [Phone] / [Email]
+## Best Practices
 
-**Escalation Matrix:**
-- P1 (Critical): Immediate response required
-- P2 (High): Response within 2 hours
-- P3 (Medium): Response within 8 hours
-- P4 (Low): Response within 24 hours
-</AccordionContent>
-</AccordionItem>
-</Accordion>
+### Configuration Best Practices
 
-## Troubleshooting Success Metrics
+1. **Use explicit token limits:**
+```yaml
+# ✅ Explicit limits
+max_tokens: 4000
 
-<Alert>
-  <CheckCircle className="h-4 w-4" />
-  <AlertDescription>
-    <strong>Measure Success:</strong> Track these metrics to improve troubleshooting effectiveness
-  </AlertDescription>
-</Alert>
+# ❌ Avoid ratios if possible
+max_context_ratio: 0.8
+```
 
-**Key Metrics to Track:**
-- Mean Time to Detection (MTTD)
-- Mean Time to Resolution (MTTR)
-- Issue recurrence rate
-- User satisfaction scores
-- False positive rates
+2. **Keep key templates simple:**
+```yaml
+# ✅ Simple templates
+key: "user:{{.workflow.input.user_id}}"
 
-**Improvement Strategies:**
-- Regular training on new issues
-- Documentation updates
-- Tool optimization
-- Process refinement
-- Knowledge sharing sessions
+# ❌ Complex templates
+key: "{{.workflow.input.namespace}}:{{.workflow.input.type}}:{{.workflow.input.user_id}}"
+```
 
-## Next Steps
+3. **Use reasonable TTL values:**
+```yaml
+# ✅ Reasonable TTL
+persistence:
+  ttl: 24h  # 1 day
 
-**After resolving issues:**
+# ❌ Too short
+persistence:
+  ttl: 5m   # Too short for most use cases
+```
 
-<ReferenceCardList>
-  <ReferenceCard 
-    title="Post-Incident Review" 
-    href="#incident-documentation"
-    description="Document lessons learned and improvements"
-    icon={BookOpen}
-  />
-  <ReferenceCard 
-    title="Preventive Measures" 
-    href="/docs/core/memory/operations"
-    description="Implement monitoring and alerting"
-    icon={Eye}
-  />
-  <ReferenceCard 
-    title="Performance Optimization" 
-    href="/docs/core/memory/memory-concepts#performance-characteristics"
-    description="Optimize for better performance"
-    icon={Zap}
-  />
-  <ReferenceCard 
-    title="Team Training" 
-    href="#troubleshooting-training"
-    description="Improve team troubleshooting skills"
-    icon={Users}
-  />
-</ReferenceCardList>
+### Privacy Best Practices
 
-## Incident Documentation
+1. **Use specific redaction patterns:**
+```yaml
+# ✅ Specific patterns
+privacy_policy:
+  redact_patterns:
+    - '\b\d{3}-\d{2}-\d{4}\b'  # SSN
+    - '\b\d{16}\b'             # Credit card
 
-<Alert>
-  <BookOpen className="h-4 w-4" />
-  <AlertDescription>
-    <strong>Important:</strong> Document all incidents for future reference and improvement
-  </AlertDescription>
-</Alert>
+# ❌ Overly broad patterns
+privacy_policy:
+  redact_patterns:
+    - '\d+'  # Too broad
+```
 
-**Required Documentation:**
-- Issue description and timeline
-- Root cause analysis
-- Resolution steps taken
-- Lessons learned
-- Preventive measures
-- Team feedback
+2. **Configure non-persistable types:**
+```yaml
+privacy_policy:
+  non_persistable_message_types:
+    - "system_internal"
+    - "debug"
+    - "temporary"
+```
 
-**Documentation Template:**
-```markdown
-# Incident Report: [Date] - [Issue Title]
+### Performance Best Practices
+
+1. **Monitor Redis performance:**
+```bash
+# Regular Redis health checks
+redis-cli info stats
+redis-cli info memory
+```
+
+2. **Use appropriate memory types:**
+```yaml
+# For token-limited scenarios
+type: token_based
+max_tokens: 4000
+
+# For message-count scenarios
+type: message_count_based
+max_messages: 50
+```
+
+3. **Optimize for your use case:**
+```yaml
+# For short-lived interactions
+persistence:
+  ttl: 1h
+
+# For long-lived conversations
+persistence:
+  ttl: 7d
+```
+
+## When to Seek Help
+
+Escalate issues when:
+
+1. **Redis is down** - Cannot connect to Redis
+2. **Data corruption** - Memory data appears corrupted
+3. **Performance degradation** - Operations consistently slow
+4. **Configuration errors** - Cannot resolve configuration issues
+5. **Privacy violations** - Redaction not working properly
 
 ## Summary
-- **Impact**: [User/system impact]
-- **Duration**: [Start time - End time]
-- **Severity**: [P1/P2/P3/P4]
 
-## Timeline
-- **Detection**: [Time and method]
-- **Response**: [Initial response actions]
-- **Resolution**: [Final resolution]
+The memory system in Compozy is straightforward: it uses Redis for storage and simple template-based key resolution. Most issues stem from:
 
-## Root Cause
-[Detailed analysis of underlying cause]
+1. **Template evaluation problems** - Ensure your workflow provides required context variables
+2. **Redis connectivity issues** - Verify Redis is running and accessible
+3. **Configuration errors** - Check syntax and required fields
+4. **Performance issues** - Monitor Redis and optimize configuration
 
-## Resolution
-[Steps taken to resolve the issue]
-
-## Lessons Learned
-[Key takeaways and improvements]
-
-## Action Items
-- [ ] [Preventive measure 1]
-- [ ] [Process improvement 1]
-- [ ] [Documentation update 1]
-```
-
-## Troubleshooting Training
-
-<Alert>
-  <Users className="h-4 w-4" />
-  <AlertDescription>
-    <strong>Continuous Improvement:</strong> Regular training improves troubleshooting effectiveness
-  </AlertDescription>
-</Alert>
-
-**Training Topics:**
-- Memory system architecture
-- Common issue patterns
-- Diagnostic tools usage
-- Emergency procedures
-- Communication protocols
-
-**Training Schedule:**
-- Monthly team sessions
-- Quarterly deep-dive training
-- Annual emergency drills
-- On-demand specialized training
-
-## Production Deployment & Monitoring
-
-<Alert>
-  <Shield className="h-4 w-4" />
-  <AlertDescription>
-    <strong>Production-Ready:</strong> Comprehensive monitoring and deployment guidance for production environments
-  </AlertDescription>
-</Alert>
-
-### Monitoring Setup & Configuration
-
-**Prometheus Configuration:**
-
-```yaml
-# prometheus.yml - Memory monitoring configuration
-global:
-  scrape_interval: 15s
-  evaluation_interval: 15s
-
-rule_files:
-  - "memory-alerts.yaml"
-
-scrape_configs:
-  - job_name: 'compozy-memory'
-    static_configs:
-      - targets: ['localhost:9090']
-    metrics_path: '/metrics'
-    scrape_interval: 15s
-    scrape_timeout: 10s
-    honor_labels: true
-    
-  - job_name: 'redis-memory'
-    static_configs:
-      - targets: ['redis:6379']
-    metrics_path: '/metrics'
-    scrape_interval: 30s
-
-alerting:
-  alertmanagers:
-    - static_configs:
-        - targets:
-          - alertmanager:9093
-```
-
-**Grafana Dashboard Setup:**
-
-```json
-{
-  "dashboard": {
-    "title": "Compozy Memory System",
-    "panels": [
-      {
-        "title": "Memory Health Status",
-        "type": "stat",
-        "targets": [
-          {
-            "expr": "compozy_memory_health_status",
-            "legendFormat": "{{memory_id}}"
-          }
-        ],
-        "fieldConfig": {
-          "defaults": {
-            "color": {
-              "mode": "thresholds"
-            },
-            "thresholds": {
-              "steps": [
-                {"color": "red", "value": 0},
-                {"color": "green", "value": 1}
-              ]
-            }
-          }
-        }
-      },
-      {
-        "title": "Memory Operation Latency",
-        "type": "graph",
-        "targets": [
-          {
-            "expr": "histogram_quantile(0.95, rate(compozy_memory_operation_duration_seconds_bucket[5m]))",
-            "legendFormat": "95th percentile"
-          },
-          {
-            "expr": "histogram_quantile(0.50, rate(compozy_memory_operation_duration_seconds_bucket[5m]))",
-            "legendFormat": "50th percentile"
-          }
-        ]
-      },
-      {
-        "title": "Token Usage",
-        "type": "graph",
-        "targets": [
-          {
-            "expr": "compozy_memory_tokens_used_gauge",
-            "legendFormat": "Used - {{memory_id}}"
-          },
-          {
-            "expr": "compozy_memory_max_tokens_gauge",
-            "legendFormat": "Max - {{memory_id}}"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-### Alerting Rules Configuration
-
-<Tabs defaultValue="critical" className="w-full">
-<TabsList className="grid w-full grid-cols-3">
-  <TabsTrigger value="critical">Critical Alerts</TabsTrigger>
-  <TabsTrigger value="warning">Warning Alerts</TabsTrigger>
-  <TabsTrigger value="info">Info Alerts</TabsTrigger>
-</TabsList>
-
-<TabsContent value="critical">
-**Critical Production Alerts:**
-
-```yaml
-# Critical alerts requiring immediate attention
-groups:
-  - name: memory_critical
-    rules:
-      - alert: MemorySystemDown
-        expr: compozy_memory_health_status == 0
-        for: 1m
-        labels:
-          severity: critical
-          runbook_url: https://docs.compozy.com/troubleshooting/memory-system-down
-        annotations:
-          summary: "Memory system is completely down"
-          description: "Critical memory system failure requiring immediate intervention"
-          
-      - alert: MemoryTokenLimitReached
-        expr: compozy_memory_tokens_used_gauge / compozy_memory_max_tokens_gauge >= 1.0
-        for: 30s
-        labels:
-          severity: critical
-        annotations:
-          summary: "Memory token limit reached"
-          description: "Memory {{$labels.memory_id}} has reached token limit"
-          
-      - alert: MemoryCircuitBreakerTripped
-        expr: increase(compozy_memory_circuit_breaker_trips_total[5m]) > 0
-        for: 30s
-        labels:
-          severity: critical
-        annotations:
-          summary: "Memory circuit breaker protection activated"
-          description: "Circuit breaker tripped {{$value}} times in 5 minutes"
-```
-</TabsContent>
-
-<TabsContent value="warning">
-**Warning Alerts:**
-
-```yaml
-# Warning alerts for proactive monitoring
-groups:
-  - name: memory_warning
-    rules:
-      - alert: MemoryHighTokenUsage
-        expr: compozy_memory_tokens_used_gauge / compozy_memory_max_tokens_gauge > 0.85
-        for: 3m
-        labels:
-          severity: warning
-        annotations:
-          summary: "High memory token usage"
-          description: "Token usage at {{$value | humanizePercentage}}"
-          
-      - alert: MemoryOpLatencyHigh
-        expr: histogram_quantile(0.95, rate(compozy_memory_operation_duration_seconds_bucket[5m])) > 2.0
-        for: 2m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Memory operation latency high"
-          description: "95th percentile latency is {{$value}}s"
-          
-      - alert: MemoryLockContentionHigh
-        expr: rate(compozy_memory_lock_contention_total[5m]) > 0.5
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "High memory lock contention"
-          description: "Lock contention at {{$value}} events/sec"
-```
-</TabsContent>
-
-<TabsContent value="info">
-**Informational Alerts:**
-
-```yaml
-# Informational alerts for optimization
-groups:
-  - name: memory_info
-    rules:
-      - alert: MemoryOptimizationLow
-        expr: rate(compozy_memory_tokens_saved_total[10m]) < 100
-        for: 10m
-        labels:
-          severity: info
-        annotations:
-          summary: "Low memory optimization efficiency"
-          description: "Consider reviewing flush strategies"
-          
-      - alert: MemoryRedactionHigh
-        expr: rate(compozy_memory_redaction_operations_total[5m]) > 10.0
-        for: 3m
-        labels:
-          severity: info
-        annotations:
-          summary: "High redaction activity"
-          description: "{{$value}} redactions/sec - review privacy policies"
-```
-</TabsContent>
-</Tabs>
-
-### Performance Optimization Troubleshooting
-
-**Memory Bottleneck Analysis:**
-
-<Accordion type="single" collapsible>
-<AccordionItem value="token-pressure">
-<AccordionTrigger>Token Pressure Analysis</AccordionTrigger>
-<AccordionContent>
-**Symptoms:**
-- High token usage alerts
-- Frequent flush operations
-- Trim operations occurring often
-- Degraded response quality
-
-**Analysis Tools:**
-
-```typescript
-export async function analyzeTokenPressure(input: TokenAnalysisInput) {
-  const { memory_id, time_range } = input;
-  
-  const metrics = await fetchMetrics({
-    query: `
-      rate(compozy_memory_tokens_used_gauge[${time_range}]) by (memory_id),
-      rate(compozy_memory_flush_total[${time_range}]) by (memory_id),
-      rate(compozy_memory_trim_total[${time_range}]) by (memory_id)
-    `,
-    memory_id
-  });
-  
-  const analysis = {
-    token_usage_trend: calculateTrend(metrics.token_usage),
-    flush_frequency: metrics.flush_rate,
-    trim_frequency: metrics.trim_rate,
-    pressure_score: calculatePressureScore(metrics),
-    recommendations: []
-  };
-  
-  if (analysis.pressure_score > 0.8) {
-    analysis.recommendations.push({
-      priority: 'high',
-      action: 'increase_max_tokens',
-      reason: 'Token pressure exceeds 80% threshold'
-    });
-  }
-  
-  if (analysis.flush_frequency > 2.0) {
-    analysis.recommendations.push({
-      priority: 'medium',
-      action: 'optimize_flush_strategy',
-      reason: 'High flush frequency indicates inefficient memory usage'
-    });
-  }
-  
-  return analysis;
-}
-```
-
-**Optimization Strategies:**
-- Increase `max_tokens` for high-traffic memories
-- Implement smarter flush strategies
-- Use token-based memory types appropriately
-- Configure proper `max_context_ratio`
-</AccordionContent>
-</AccordionItem>
-
-<AccordionItem value="lock-contention">
-<AccordionTrigger>Lock Contention Analysis</AccordionTrigger>
-<AccordionContent>
-**Symptoms:**
-- High latency on memory operations
-- Lock contention alerts
-- Goroutine pool exhaustion
-- Timeout errors
-
-**Analysis Tools:**
-
-```typescript
-export async function analyzeLockContention(input: ContentionAnalysisInput) {
-  const { memory_id, time_range } = input;
-  
-  const contentionMetrics = await fetchMetrics({
-    query: `
-      rate(compozy_memory_lock_contention_total[${time_range}]) by (memory_id, operation),
-      histogram_quantile(0.95, rate(compozy_memory_operation_duration_seconds_bucket[${time_range}])) by (memory_id, operation)
-    `,
-    memory_id
-  });
-  
-  const analysis = {
-    contention_rate: contentionMetrics.contention_rate,
-    affected_operations: identifyAffectedOps(contentionMetrics),
-    latency_impact: calculateLatencyImpact(contentionMetrics),
-    concurrent_operations: estimateConcurrency(contentionMetrics),
-    recommendations: []
-  };
-  
-  if (analysis.contention_rate > 1.0) {
-    analysis.recommendations.push({
-      priority: 'high',
-      action: 'implement_read_replicas',
-      reason: 'High contention suggests need for read scaling'
-    });
-  }
-  
-  return analysis;
-}
-```
-
-**Optimization Strategies:**
-- Implement read replicas for high-read workloads
-- Use memory sharding for high-concurrency scenarios
-- Optimize operation batching
-- Consider async operation patterns
-</AccordionContent>
-</AccordionItem>
-
-<AccordionItem value="memory-leaks">
-<AccordionTrigger>Memory Leak Detection</AccordionTrigger>
-<AccordionContent>
-**Symptoms:**
-- Steadily increasing memory usage
-- Goroutine pool growth
-- Redis memory growth
-- Performance degradation over time
-
-**Detection Tools:**
-
-```typescript
-export async function detectMemoryLeaks(input: LeakDetectionInput) {
-  const { time_range } = input;
-  
-  const metrics = await fetchMetrics({
-    query: `
-      increase(compozy_memory_goroutine_pool_active[${time_range}]),
-      increase(redis_memory_used_bytes[${time_range}]),
-      rate(compozy_memory_cleanup_operations_total[${time_range}])
-    `
-  });
-  
-  const analysis = {
-    goroutine_growth: metrics.goroutine_growth,
-    redis_memory_growth: metrics.redis_memory_growth,
-    cleanup_efficiency: metrics.cleanup_rate,
-    leak_indicators: [],
-    recommendations: []
-  };
-  
-  if (analysis.goroutine_growth > 10) {
-    analysis.leak_indicators.push({
-      type: 'goroutine_leak',
-      severity: 'high',
-      evidence: `${analysis.goroutine_growth} goroutines created without cleanup`
-    });
-  }
-  
-  if (analysis.cleanup_efficiency < 0.5) {
-    analysis.recommendations.push({
-      priority: 'high',
-      action: 'review_cleanup_policies',
-      reason: 'Low cleanup efficiency indicates potential resource leaks'
-    });
-  }
-  
-  return analysis;
-}
-```
-
-**Mitigation Strategies:**
-- Implement proper resource cleanup
-- Use context cancellation correctly
-- Monitor goroutine lifecycle
-- Configure appropriate TTL values
-</AccordionContent>
-</AccordionItem>
-</Accordion>
-
-### Security Hardening & Compliance
-
-**Security Monitoring:**
-
-```typescript
-export async function securityHealthCheck(input: SecurityCheckInput) {
-  const { project_id } = input;
-  
-  const checks = await Promise.all([
-    checkPrivacyCompliance(project_id),
-    validateRedactionPolicies(project_id),
-    auditDataAccess(project_id),
-    checkEncryptionStatus(project_id)
-  ]);
-  
-  const securityReport = {
-    privacy_compliance: checks[0],
-    redaction_policies: checks[1],
-    data_access_audit: checks[2],
-    encryption_status: checks[3],
-    overall_score: calculateSecurityScore(checks),
-    recommendations: []
-  };
-  
-  if (securityReport.overall_score < 0.8) {
-    securityReport.recommendations.push({
-      priority: 'critical',
-      action: 'immediate_security_review',
-      reason: 'Security score below acceptable threshold'
-    });
-  }
-  
-  return securityReport;
-}
-```
-
-**Compliance Audit Tools:**
-
-<Tabs defaultValue="gdpr" className="w-full">
-<TabsList className="grid w-full grid-cols-4">
-  <TabsTrigger value="gdpr">GDPR</TabsTrigger>
-  <TabsTrigger value="ccpa">CCPA</TabsTrigger>
-  <TabsTrigger value="hipaa">HIPAA</TabsTrigger>
-  <TabsTrigger value="soc2">SOC2</TabsTrigger>
-</TabsList>
-
-<TabsContent value="gdpr">
-**GDPR Compliance Audit:**
-
-```typescript
-export async function gdprComplianceAudit(input: GDPRauditInput) {
-  const { project_id } = input;
-  
-  const auditResults = {
-    data_processing_lawfulness: await checkLawfulBasis(project_id),
-    data_minimization: await checkDataMinimization(project_id),
-    purpose_limitation: await checkPurposeLimitation(project_id),
-    storage_limitation: await checkStorageLimitation(project_id),
-    data_subject_rights: await checkDataSubjectRights(project_id),
-    security_measures: await checkSecurityMeasures(project_id),
-    breach_procedures: await checkBreachProcedures(project_id),
-    compliance_score: 0
-  };
-  
-  auditResults.compliance_score = calculateGDPRScore(auditResults);
-  
-  return auditResults;
-}
-```
-</TabsContent>
-
-<TabsContent value="ccpa">
-**CCPA Compliance Audit:**
-
-```typescript
-export async function ccpaComplianceAudit(input: CCPAauditInput) {
-  const { project_id } = input;
-  
-  const auditResults = {
-    consumer_rights: await checkConsumerRights(project_id),
-    data_categories: await checkDataCategories(project_id),
-    business_purposes: await checkBusinessPurposes(project_id),
-    third_party_sharing: await checkThirdPartySharing(project_id),
-    opt_out_mechanisms: await checkOptOutMechanisms(project_id),
-    compliance_score: 0
-  };
-  
-  auditResults.compliance_score = calculateCCPAScore(auditResults);
-  
-  return auditResults;
-}
-```
-</TabsContent>
-
-<TabsContent value="hipaa">
-**HIPAA Compliance Audit:**
-
-```typescript
-export async function hipaaComplianceAudit(input: HIPAAauditInput) {
-  const { project_id } = input;
-  
-  const auditResults = {
-    administrative_safeguards: await checkAdministrativeSafeguards(project_id),
-    physical_safeguards: await checkPhysicalSafeguards(project_id),
-    technical_safeguards: await checkTechnicalSafeguards(project_id),
-    access_controls: await checkAccessControls(project_id),
-    audit_controls: await checkAuditControls(project_id),
-    integrity_controls: await checkIntegrityControls(project_id),
-    transmission_security: await checkTransmissionSecurity(project_id),
-    compliance_score: 0
-  };
-  
-  auditResults.compliance_score = calculateHIPAAScore(auditResults);
-  
-  return auditResults;
-}
-```
-</TabsContent>
-
-<TabsContent value="soc2">
-**SOC2 Compliance Audit:**
-
-```typescript
-export async function soc2ComplianceAudit(input: SOC2auditInput) {
-  const { project_id } = input;
-  
-  const auditResults = {
-    security_criteria: await checkSecurityCriteria(project_id),
-    availability_criteria: await checkAvailabilityCriteria(project_id),
-    processing_integrity: await checkProcessingIntegrity(project_id),
-    confidentiality_criteria: await checkConfidentialityCriteria(project_id),
-    privacy_criteria: await checkPrivacyCriteria(project_id),
-    control_environment: await checkControlEnvironment(project_id),
-    risk_assessment: await checkRiskAssessment(project_id),
-    compliance_score: 0
-  };
-  
-  auditResults.compliance_score = calculateSOC2Score(auditResults);
-  
-  return auditResults;
-}
-```
-</TabsContent>
-</Tabs>
-
-### Disaster Recovery & Backup
-
-**Backup Strategy:**
-
-```typescript
-export async function executeBackupStrategy(input: BackupStrategyInput) {
-  const { project_id, backup_type } = input;
-  
-  const backupPlan = {
-    memory_data: await backupMemoryData(project_id),
-    configuration: await backupConfiguration(project_id),
-    metadata: await backupMetadata(project_id),
-    encryption_keys: await backupEncryptionKeys(project_id),
-    status: 'pending'
-  };
-  
-  try {
-    await Promise.all([
-      backupPlan.memory_data,
-      backupPlan.configuration,
-      backupPlan.metadata,
-      backupPlan.encryption_keys
-    ]);
-    
-    backupPlan.status = 'completed';
-    await validateBackupIntegrity(backupPlan);
-    
-  } catch (error) {
-    backupPlan.status = 'failed';
-    await notifyBackupFailure(project_id, error);
-  }
-  
-  return backupPlan;
-}
-```
-
-**Recovery Procedures:**
-
-<Accordion type="single" collapsible>
-<AccordionItem value="full-recovery">
-<AccordionTrigger>Full System Recovery</AccordionTrigger>
-<AccordionContent>
-**Recovery Steps:**
-
-1. **Assess damage and scope**
-2. **Activate disaster recovery team**
-3. **Restore from backup**
-4. **Validate data integrity**
-5. **Test system functionality**
-6. **Gradual traffic restoration**
-
-**Recovery Tool:**
-
-```typescript
-export async function executeDisasterRecovery(input: DisasterRecoveryInput) {
-  const { project_id, recovery_point, recovery_type } = input;
-  
-  const recoveryPlan = {
-    phase: 'assessment',
-    steps: [
-      'damage_assessment',
-      'backup_validation',
-      'system_restoration',
-      'data_validation',
-      'functionality_testing',
-      'traffic_restoration'
-    ],
-    current_step: 0,
-    estimated_time: calculateRecoveryTime(recovery_type),
-    status: 'in_progress'
-  };
-  
-  for (const step of recoveryPlan.steps) {
-    try {
-      await executeRecoveryStep(step, project_id, recovery_point);
-      recoveryPlan.current_step++;
-      await notifyRecoveryProgress(recoveryPlan);
-    } catch (error) {
-      recoveryPlan.status = 'failed';
-      await escalateRecoveryFailure(project_id, step, error);
-      break;
-    }
-  }
-  
-  if (recoveryPlan.current_step === recoveryPlan.steps.length) {
-    recoveryPlan.status = 'completed';
-    await validateFullRecovery(project_id);
-  }
-  
-  return recoveryPlan;
-}
-```
-</AccordionContent>
-</AccordionItem>
-
-<AccordionItem value="partial-recovery">
-<AccordionTrigger>Partial System Recovery</AccordionTrigger>
-<AccordionContent>
-**Selective Recovery:**
-
-```typescript
-export async function executePartialRecovery(input: PartialRecoveryInput) {
-  const { project_id, memory_ids, recovery_point } = input;
-  
-  const recoveryResults = await Promise.allSettled(
-    memory_ids.map(async (memoryId) => {
-      return await recoverSpecificMemory(project_id, memoryId, recovery_point);
-    })
-  );
-  
-  const summary = {
-    total_memories: memory_ids.length,
-    successful_recoveries: recoveryResults.filter(r => r.status === 'fulfilled').length,
-    failed_recoveries: recoveryResults.filter(r => r.status === 'rejected').length,
-    recovery_details: recoveryResults.map((result, index) => ({
-      memory_id: memory_ids[index],
-      status: result.status,
-      result: result.status === 'fulfilled' ? result.value : result.reason
-    }))
-  };
-  
-  await generateRecoveryReport(project_id, summary);
-  
-  return summary;
-}
-```
-</AccordionContent>
-</AccordionItem>
-</Accordion>
-
-### Production Deployment Checklist
-
-**Pre-Deployment Validation:**
-
-<Tabs defaultValue="infrastructure" className="w-full">
-<TabsList className="grid w-full grid-cols-4">
-  <TabsTrigger value="infrastructure">Infrastructure</TabsTrigger>
-  <TabsTrigger value="security">Security</TabsTrigger>
-  <TabsTrigger value="monitoring">Monitoring</TabsTrigger>
-  <TabsTrigger value="performance">Performance</TabsTrigger>
-</TabsList>
-
-<TabsContent value="infrastructure">
-**Infrastructure Checklist:**
-
-- [ ] **Redis Configuration**
-  - [ ] Memory limits properly configured
-  - [ ] Persistence settings validated
-  - [ ] Connection pooling configured
-  - [ ] Cluster mode configured if needed
-  - [ ] Backup strategy implemented
-
-- [ ] **Network Security**
-  - [ ] Redis access restricted to authorized hosts
-  - [ ] TLS encryption enabled for Redis connections
-  - [ ] Firewall rules configured
-  - [ ] VPC/subnet isolation implemented
-
-- [ ] **Resource Limits**
-  - [ ] Memory limits set for containers
-  - [ ] CPU limits configured
-  - [ ] Disk space monitoring enabled
-  - [ ] Network bandwidth limits set
-
-- [ ] **High Availability**
-  - [ ] Redis clustering configured
-  - [ ] Load balancer setup
-  - [ ] Health check endpoints configured
-  - [ ] Failover procedures tested
-</TabsContent>
-
-<TabsContent value="security">
-**Security Checklist:**
-
-- [ ] **Authentication & Authorization**
-  - [ ] Redis authentication enabled
-  - [ ] Role-based access control implemented
-  - [ ] API key management configured
-  - [ ] Service account permissions validated
-
-- [ ] **Encryption**
-  - [ ] Data at rest encryption enabled
-  - [ ] Data in transit encryption configured
-  - [ ] Key management system integrated
-  - [ ] Encryption key rotation scheduled
-
-- [ ] **Privacy & Compliance**
-  - [ ] Privacy policies configured
-  - [ ] Data redaction rules implemented
-  - [ ] Retention policies set
-  - [ ] Audit logging enabled
-  - [ ] Compliance requirements validated
-
-- [ ] **Incident Response**
-  - [ ] Security incident procedures documented
-  - [ ] Alerting rules configured
-  - [ ] Response team contacts updated
-  - [ ] Breach notification procedures tested
-</TabsContent>
-
-<TabsContent value="monitoring">
-**Monitoring Checklist:**
-
-- [ ] **Metrics Collection**
-  - [ ] Prometheus configuration deployed
-  - [ ] Memory-specific metrics enabled
-  - [ ] Custom metrics implemented
-  - [ ] Metrics retention configured
-
-- [ ] **Alerting**
-  - [ ] Critical alert rules configured
-  - [ ] Warning alert thresholds set
-  - [ ] Alert notification channels setup
-  - [ ] Escalation procedures implemented
-
-- [ ] **Dashboards**
-  - [ ] Grafana dashboards deployed
-  - [ ] Real-time monitoring enabled
-  - [ ] Historical trend analysis available
-  - [ ] Custom views for different roles
-
-- [ ] **Logging**
-  - [ ] Centralized logging configured
-  - [ ] Log levels properly set
-  - [ ] Log retention policies implemented
-  - [ ] Log analysis tools integrated
-</TabsContent>
-
-<TabsContent value="performance">
-**Performance Checklist:**
-
-- [ ] **Load Testing**
-  - [ ] Memory operation load tests completed
-  - [ ] Concurrency limits validated
-  - [ ] Performance benchmarks established
-  - [ ] Stress testing performed
-
-- [ ] **Optimization**
-  - [ ] Token limits optimized for workload
-  - [ ] Flush strategies tuned
-  - [ ] Connection pooling configured
-  - [ ] Caching strategies implemented
-
-- [ ] **Scalability**
-  - [ ] Horizontal scaling tested
-  - [ ] Auto-scaling policies configured
-  - [ ] Performance degradation thresholds set
-  - [ ] Capacity planning completed
-
-- [ ] **Monitoring**
-  - [ ] Performance metrics baseline established
-  - [ ] SLA monitoring configured
-  - [ ] Performance alerts set
-  - [ ] Optimization recommendations automated
-</TabsContent>
-</Tabs>
-
-This comprehensive troubleshooting guide provides progressive learning paths, clear escalation procedures, systematic approaches to diagnose and resolve memory system issues, and complete production deployment guidance to ensure reliable operation of your memory-enabled applications in enterprise environments.
+For most troubleshooting scenarios, checking Redis connectivity, verifying key templates, and reviewing your configuration will resolve the issue.

@@ -1,7 +1,6 @@
 ---
 title: "Structured Outputs"
 description: "JSON mode and schema validation for predictable agent responses"
-icon: "brackets-curly"
 ---
 
 ## Overview
@@ -16,8 +15,8 @@ JSON mode forces agents to respond with valid JSON, enabling reliable parsing an
 
 JSON mode can be enabled at multiple levels:
 
-<Tabs>
-  <Tab title="Agent Level">
+<Tabs items={["Agent Level", "Action Level", "Automatic"]} defaultValue="Agent Level">
+  <Tab value="Agent Level">
     ```yaml
     agents:
       - id: data-processor
@@ -30,7 +29,7 @@ JSON mode can be enabled at multiple levels:
     ```
   </Tab>
 
-  <Tab title="Action Level">
+  <Tab value="Action Level">
     ```yaml
     actions:
       - id: analyze-data
@@ -44,7 +43,7 @@ JSON mode can be enabled at multiple levels:
     ```
   </Tab>
 
-  <Tab title="Automatic">
+  <Tab value="Automatic">
     ```yaml
     actions:
       - id: get-metrics
@@ -114,26 +113,16 @@ actions:
           properties:
             id:
               type: string
-              pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
             name:
               type: string
               minLength: 1
-              maxLength: 100
             email:
               type: string
               format: email
-            age:
-              type: integer
-              minimum: 0
-              maximum: 150
-            roles:
-              type: array
-              items:
-                type: string
-                enum: ["admin", "user", "moderator"]
-              minItems: 1
+            role:
+              type: string
+              enum: ["admin", "user", "moderator"]
           required: ["id", "name", "email"]
-          additionalProperties: false
       required: ["user"]
     ```
   </Accordion>
@@ -152,16 +141,11 @@ actions:
                 type: integer
               score:
                 type: number
-              tags:
-                type: array
-                items:
-                  type: string
-                uniqueItems: true
+              category:
+                type: string
           minItems: 1
-          maxItems: 100
         total:
           type: integer
-          minimum: 0
     ```
   </Accordion>
 
@@ -213,22 +197,11 @@ actions:
             version:
               type: string
               pattern: "^\\d+\\.\\d+\\.\\d+$"
-            checksum:
-              type: string
-              pattern: "^[a-f0-9]{64}$"
-        nested:
-          type: object
-          properties:
-            level1:
-              type: object
-              properties:
-                level2:
-                  type: array
-                  items:
-                    type: object
-                    properties:
-                      value:
-                        type: ["string", "number", "boolean", "null"]
+        tags:
+          type: array
+          items:
+            type: string
+          uniqueItems: true
     ```
   </Accordion>
 </AccordionGroup>
@@ -291,9 +264,9 @@ actions:
       required: ["invoice_number", "date", "vendor", "line_items", "total"]
 ```
 
-### Multi-Step Analysis
+### Analysis with Structured Results
 
-Complex analysis with structured intermediate results:
+Analysis task with clear, focused output schema:
 
 ```yaml
 actions:
@@ -304,42 +277,19 @@ actions:
     output:
       type: object
       properties:
-        customer_profile:
-          type: object
-          properties:
-            segment:
-              type: string
-              enum: ["high-value", "regular", "at-risk", "churned"]
-            lifetime_value:
-              type: number
-            average_order_value:
-              type: number
-            purchase_frequency:
-              type: string
-              enum: ["daily", "weekly", "monthly", "sporadic"]
-        patterns:
+        segment:
+          type: string
+          enum: ["high-value", "regular", "at-risk", "churned"]
+        lifetime_value:
+          type: number
+        key_insights:
           type: array
           items:
-            type: object
-            properties:
-              pattern_type:
-                type: string
-              description:
-                type: string
-              confidence:
-                type: number
-        recommendations:
-          type: array
-          items:
-            type: object
-            properties:
-              action:
-                type: string
-              priority:
-                type: string
-                enum: ["high", "medium", "low"]
-              expected_impact:
-                type: string
+            type: string
+          maxItems: 3
+        recommended_action:
+          type: string
+      required: ["segment", "lifetime_value", "key_insights"]
 ```
 
 ### Error Handling
@@ -391,18 +341,10 @@ actions:
 ### Schema Validation Process
 
 <Steps>
-  <Step title="Pre-execution">
-    Input schema validates incoming parameters
-  </Step>
-  <Step title="Agent Processing">
-    Agent generates response following the schema
-  </Step>
-  <Step title="Post-execution">
-    Output schema validates agent response
-  </Step>
-  <Step title="Error Handling">
-    Validation errors are returned with details
-  </Step>
+  <Step title="Pre-execution" description="Input schema validates incoming parameters. The input schema is applied to validate all incoming workflow parameters before execution begins, ensuring data integrity from the start." />
+  <Step title="Agent Processing" description="Agent generates response following the schema. The agent processes the request with awareness of the output schema requirements, structuring its response accordingly." />
+  <Step title="Post-execution" description="Output schema validates agent response. The generated response is validated against the defined output schema to ensure compliance with expected structure." />
+  <Step title="Error Handling" description="Validation errors are returned with details. Any validation failures produce detailed error messages with specific paths and expected values for debugging." />
 </Steps>
 
 ### Validation Error Example
@@ -440,26 +382,99 @@ tasks:
 
 ## Advanced Patterns
 
-### Dynamic Schemas
+### Dynamic Document Type Handling
 
-Build schemas based on runtime conditions:
+Handle different document types dynamically by first classifying the document, then routing to type-specific extraction:
+
+<Steps>
+<Step title="Document Classification" description="Create an agent that can identify document types. The agent analyzes document content and structure to determine the type, returning both the classification and confidence level.">
 
 ```yaml
-actions:
-  - id: dynamic-extraction
-    prompt: |
-      Extract fields based on document type: {{.input.doc_type}}
-    output:
-      $if: .input.doc_type == "invoice"
-      $then:
-        $ref: "#/definitions/InvoiceSchema"
-      $else:
-        $if: .input.doc_type == "purchase_order"
-        $then:
-          $ref: "#/definitions/PurchaseOrderSchema"
-        $else:
-          $ref: "#/definitions/GenericDocSchema"
+agents:
+  - id: document-classifier
+    instructions: |
+      You classify documents by type based on their content and structure.
+      Return the document type and confidence level.
+    actions:
+      - id: classify-document
+        prompt: |
+          Analyze this document and determine its type:
+          {{.input.document}}
+
+          Common types: invoice, purchase_order, contract, receipt, report
+        output:
+          type: object
+          properties:
+            type:
+              type: string
+              enum: ["invoice", "purchase_order", "contract", "receipt", "report", "unknown"]
+            confidence:
+              type: number
+              minimum: 0
+              maximum: 1
 ```
+
+</Step>
+
+<Step title="Dynamic Document Type Routing" description="Use router tasks to dynamically handle different document types. Based on the classification result, the workflow routes to the appropriate specialized extractor, ensuring optimal extraction for each document type.">
+
+```yaml
+tasks:
+  - id: classify-document
+    type: basic
+    $use: agent(local::agents.#(id="document-classifier"))
+    action: classify-document
+    with:
+      document: "{{.workflow.input.document}}"
+
+  - id: extract-by-type
+    type: router
+    condition: "{{.tasks.classify-document.output.type}}"
+    routes:
+      invoice:
+        type: basic
+        $use: agent(local::agents.#(id="invoice-extractor"))
+        action: extract-invoice
+        with:
+          document: "{{.workflow.input.document}}"
+        output:
+          type: object
+          properties:
+            invoice_number: { type: string }
+            vendor: { type: object }
+            total: { type: number }
+
+      purchase_order:
+        type: basic
+        $use: agent(local::agents.#(id="po-extractor"))
+        action: extract-purchase-order
+        with:
+          document: "{{.workflow.input.document}}"
+        output:
+          type: object
+          properties:
+            po_number: { type: string }
+            buyer: { type: object }
+            items: { type: array }
+
+      default:
+        type: basic
+        $use: agent(local::agents.#(id="generic-extractor"))
+        action: extract-generic
+        with:
+          document: "{{.workflow.input.document}}"
+          document_type: "{{.tasks.classify-document.output.type}}"
+```
+
+</Step>
+</Steps>
+
+<List>
+  <ListItem title="Dynamic routing" description="Route documents based on actual content classification rather than predetermined types. This enables flexible handling of various document formats without hardcoding paths." />
+  <ListItem title="Type-specific schemas" description="Apply appropriate validation schemas for each document type. Each extractor uses a schema tailored to its document type's specific fields and structure." />
+  <ListItem title="Fallback handling" description="Gracefully handle unknown document types with generic extraction. The default route ensures no document is left unprocessed, even if its type is unrecognized." />
+  <ListItem title="Single workflow" description="One workflow handles multiple document types without modification. This reduces maintenance overhead and provides a unified interface for document processing." />
+</List>
 
 ### Schema Composition
 
@@ -635,11 +650,17 @@ actions:
 
 ## Next Steps
 
-<FeatureCardList cols={2}>
-  <FeatureCard title="Multi-Agent Patterns" href="/docs/core/agents/multi-agent-patterns">
-    Learn how structured outputs enable multi-agent workflows
-  </FeatureCard>
-  <FeatureCard title="Workflow Integration" href="/docs/core/workflows/overview">
-    See how structured outputs integrate with workflow tasks
-  </FeatureCard>
-</FeatureCardList>
+<ReferenceCardList>
+  <ReferenceCard
+    title="Multi-Agent Patterns"
+    description="Learn how structured outputs enable multi-agent workflows"
+    href="/docs/core/agents/multi-agent-patterns"
+    icon="Users"
+  />
+  <ReferenceCard
+    title="Workflow Integration"
+    description="See how structured outputs integrate with workflow tasks"
+    href="/docs/core/workflows/overview"
+    icon="GitBranch"
+  />
+</ReferenceCardList>

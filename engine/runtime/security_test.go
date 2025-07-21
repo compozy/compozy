@@ -106,7 +106,7 @@ func TestToolIDValidation(t *testing.T) {
 			input := &core.Input{}
 			env := core.EnvMap{}
 
-			_, err = bm.ExecuteTool(ctx, tt.toolID, toolExecID, input, env)
+			_, err = bm.ExecuteTool(ctx, tt.toolID, toolExecID, input, nil, env)
 
 			if tt.shouldSucceed {
 				// Tool execution may fail for other reasons, but validation should pass
@@ -223,7 +223,7 @@ func TestEnvironmentVariableValidation(t *testing.T) {
 			toolExecID := core.MustNewID()
 			input := &core.Input{}
 
-			_, err = bm.ExecuteTool(ctx, "valid-tool", toolExecID, input, tt.env)
+			_, err = bm.ExecuteTool(ctx, "valid-tool", toolExecID, input, nil, tt.env)
 
 			if tt.shouldSucceed {
 				// Tool execution may fail for other reasons, but env validation should pass

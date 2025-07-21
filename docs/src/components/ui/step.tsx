@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { Check, Circle } from "lucide-react";
 import { motion, useScroll } from "motion/react";
 import React, { createContext, useContext, useEffect, useRef, useState } from "react";
+import { Icon } from "@/components/ui/icon";
 import { tv, type VariantProps } from "tailwind-variants";
 
 // Step component using tailwind-variants
@@ -74,7 +75,7 @@ const stepVariants = tv({
 
 // Steps container using tailwind-variants
 const stepsVariants = tv({
-  base: "my-14 flex flex-col w-full",
+  base: "mt-14 mb-14 flex flex-col w-full",
 });
 
 // Types for the step variants
@@ -162,7 +163,7 @@ interface StepIndicatorProps {
   size: "sm" | "md" | "lg";
   isInView: boolean;
   connectorProgress: number;
-  icon?: React.ReactNode;
+  icon?: React.ReactNode | string;
   stepNumber?: number;
   className?: string;
   numbered?: boolean;
@@ -202,6 +203,9 @@ function StepIndicator({
     }
 
     if (icon) {
+      if (typeof icon === "string") {
+        return <Icon name={icon} className={iconSizeClasses[size]} />;
+      }
       return React.isValidElement(icon)
         ? React.cloneElement(icon as React.ReactElement<any>, {
             className: cn(iconSizeClasses[size], (icon as React.ReactElement<any>).props.className),
@@ -299,7 +303,7 @@ export interface StepProps extends StepVariants {
   title?: string;
   titleComponent?: TitleComponent;
   description?: string;
-  icon?: React.ReactNode;
+  icon?: React.ReactNode | string;
   isLast?: boolean;
   stepNumber?: number;
   children?: React.ReactNode;

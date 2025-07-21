@@ -3,581 +3,6 @@ title: "MCP Overview"
 description: "Understanding Model Context Protocol (MCP) integration in Compozy"
 ---
 
-import {
-  FileCode,
-  Database,
-  Globe,
-  Cpu,
-  Zap,
-  Shield,
-  GitBranch,
-  Radio,
-  Cloud,
-  Package,
-  RefreshCw,
-  Users,
-  Lock,
-  BarChart3,
-  Terminal,
-  Code,
-  Settings,
-  Link2,
-  Eye,
-  Layers,
-  TrendingUp,
-  HandHeart,
-  ShieldCheck,
-  MessageSquare,
-  FolderOpen,
-  Github,
-  HeadphonesIcon,
-  CloudSun,
-  PenTool,
-  BookOpen,
-  Rocket,
-  BrainCircuit,
-  PlayCircle,
-  Server,
-  Network,
-  Activity,
-  CheckCircle,
-  ArrowRight,
-  HelpCircle,
-  Workflow,
-  GitCommit,
-  Timer,
-  Gauge,
-  Key,
-  Monitor,
-  AlertCircle,
-  CheckCircle2,
-  XCircle,
-  Info,
-  Building,
-  Wrench,
-  Lightbulb,
-  Cog,
-  FileText,
-  Search,
-  Download,
-  Upload,
-  Video,
-  Music,
-  Image,
-  Hash,
-  Sparkles,
-  Compass,
-  MapPin,
-  Calendar,
-  Clock,
-  Target,
-  Smartphone,
-  Tablet,
-  Laptop,
-  Desktop,
-  Wifi,
-  Bluetooth,
-  Usb,
-  HardDrive,
-  SdCard,
-  Folder,
-  Archive,
-  Trash,
-  Star,
-  Heart,
-  Bookmark,
-  Share,
-  ExternalLink,
-  Copy,
-  Clipboard,
-  Edit,
-  Save,
-  Undo,
-  Redo,
-  RotateCcw,
-  Plus,
-  Minus,
-  X as CloseIcon,
-  Check,
-  ChevronRight,
-  ChevronDown,
-  ChevronLeft,
-  ChevronUp,
-  Menu,
-  MoreVertical,
-  MoreHorizontal,
-  Filter,
-  SortAsc,
-  SortDesc,
-  Grid,
-  List,
-  Table as TableIcon,
-  Sidebar,
-  Maximize,
-  Minimize,
-  FullScreen,
-  Zoom,
-  ZoomIn,
-  ZoomOut,
-  Printer,
-  Download as DownloadIcon,
-  Upload as UploadIcon,
-  Import,
-  Export,
-  Send,
-  Inbox,
-  Outbox,
-  Mail,
-  Bell,
-  BellOff,
-  Volume,
-  VolumeOff,
-  Mic,
-  MicOff,
-  Camera,
-  CameraOff,
-  Phone,
-  PhoneCall,
-  PhoneOff,
-  MessageCircle,
-  MessageSquare as MessageSquareIcon,
-  Mail as MailIcon,
-  At,
-  Hash as HashIcon,
-  DollarSign,
-  Percent,
-  Calculator,
-  Calendar as CalendarIcon,
-  Clock as ClockIcon,
-  Timer as TimerIcon,
-  Stopwatch,
-  Hourglass,
-  Sunrise,
-  Sunset,
-  Sun,
-  Moon,
-  CloudRain,
-  CloudSnow,
-  CloudLightning,
-  Wind,
-  Thermometer,
-  Droplet,
-  Flame,
-  Snowflake,
-  Umbrella,
-  Glasses,
-  Sunglasses,
-  Watch,
-  Shirt,
-  Crown,
-  Award,
-  Medal,
-  Trophy,
-  Gift,
-  Cake,
-  Coffee,
-  Wine,
-  Utensils,
-  Pizza,
-  Apple,
-  Banana,
-  Cherry,
-  Grape,
-  Strawberry,
-  Lemon,
-  Carrot,
-  Corn,
-  Tomato,
-  Pepper,
-  Onion,
-  Garlic,
-  Potato,
-  Lettuce,
-  Broccoli,
-  Mushroom,
-  Avocado,
-  Coconut,
-  Pineapple,
-  Watermelon,
-  Melon,
-  Peach,
-  Pear,
-  Plum,
-  Kiwi,
-  Mango,
-  Papaya,
-  Dragonfruit,
-  Passionfruit,
-  Guava,
-  Lychee,
-  Durian,
-  Jackfruit,
-  Breadfruit,
-  Starfruit,
-  Rambutan,
-  Mangosteen,
-  Longan,
-  Tamarind,
-  Jujube,
-  Persimmon,
-  Pomegranate,
-  Fig,
-  Date,
-  Olive,
-  Walnut,
-  Almond,
-  Peanut,
-  Pistachio,
-  Cashew,
-  Hazelnut,
-  Pecan,
-  Macadamia,
-  Chestnut,
-  Pinecone,
-  Acorn,
-  Bean,
-  Pea,
-  Soybean,
-  Chickpea,
-  Lentil,
-  Quinoa,
-  Rice,
-  Wheat,
-  Barley,
-  Oats,
-  Rye,
-  Millet,
-  Buckwheat,
-  Amaranth,
-  Teff,
-  Sorghum,
-  Spelt,
-  Kamut,
-  Farro,
-  Bulgur,
-  Freekeh,
-  Couscous,
-  Pasta,
-  Noodle,
-  Bread,
-  Bagel,
-  Croissant,
-  Donut,
-  Pretzel,
-  Waffle,
-  Pancake,
-  Muffin,
-  Cupcake,
-  Cookie,
-  Cracker,
-  Biscuit,
-  Scone,
-  Tart,
-  Pie,
-  Cheesecake,
-  Pudding,
-  Custard,
-  Jelly,
-  Jam,
-  Honey,
-  Syrup,
-  Sugar,
-  Salt,
-  Pepper as PepperIcon,
-  Spice,
-  Herb,
-  Vanilla,
-  Cinnamon,
-  Ginger,
-  Turmeric,
-  Paprika,
-  Cumin,
-  Coriander,
-  Cardamom,
-  Clove,
-  Nutmeg,
-  Allspice,
-  Fennel,
-  Anise,
-  Basil,
-  Oregano,
-  Thyme,
-  Rosemary,
-  Sage,
-  Mint,
-  Parsley,
-  Cilantro,
-  Dill,
-  Chives,
-  Scallion,
-  Leek,
-  Shallot,
-  Celery,
-  Spinach,
-  Kale,
-  Arugula,
-  Cabbage,
-  Cauliflower,
-  Brussels,
-  Artichoke,
-  Asparagus,
-  Zucchini,
-  Cucumber,
-  Radish,
-  Turnip,
-  Beet,
-  Parsnip,
-  Rutabaga,
-  Kohlrabi,
-  Fennel as FennelIcon,
-  Bok,
-  Collard,
-  Mustard,
-  Watercress,
-  Endive,
-  Chicory,
-  Radicchio,
-  Frisee,
-  Mesclun,
-  Microgreens,
-  Sprouts,
-  Alfalfa,
-  Clover,
-  Wheatgrass,
-  Barleygrass,
-  Spirulina,
-  Chlorella,
-  Kelp,
-  Seaweed,
-  Nori,
-  Wakame,
-  Kombu,
-  Dulse,
-  Arame,
-  Hijiki,
-  Sea as SeaIcon,
-  Ocean,
-  Wave,
-  Surf,
-  Beach,
-  Sand,
-  Shell,
-  Starfish,
-  Coral,
-  Fish,
-  Shark,
-  Whale,
-  Dolphin,
-  Octopus,
-  Squid,
-  Crab,
-  Lobster,
-  Shrimp,
-  Clam,
-  Oyster,
-  Mussel,
-  Scallop,
-  Abalone,
-  Conch,
-  Snail,
-  Slug,
-  Worm,
-  Jellyfish,
-  Anemone,
-  Urchin,
-  Cucumber as CucumberIcon,
-  Sponge,
-  Plankton,
-  Algae,
-  Moss,
-  Lichen,
-  Fungus,
-  Truffle,
-  Morel,
-  Chanterelle,
-  Shiitake,
-  Portobello,
-  Enoki,
-  Oyster as OysterIcon,
-  Maitake,
-  Reishi,
-  Cordyceps,
-  Chaga,
-  Turkey,
-  Lion,
-  Porcini,
-  Cremini,
-  Button,
-  King,
-  Shimeji,
-  Beech,
-  Velvet,
-  Pioppino,
-  Nameko,
-  Woodear,
-  Cloudear,
-  Straw,
-  Paddy,
-  Wine as WineIcon,
-  Elm,
-  Bluefoot,
-  Hedgehog,
-  Chicken,
-  Hen,
-  Brick,
-  Sulfur,
-  Shelf,
-  Bracket,
-  Conk,
-  Polypore,
-  Bolete,
-  Agaricus,
-  Lepiota,
-  Amanita,
-  Russula,
-  Lactarius,
-  Cantharellus,
-  Craterellus,
-  Hydnum,
-  Sarcodon,
-  Phellodon,
-  Bankera,
-  Clavaria,
-  Ramaria,
-  Clavulina,
-  Calocera,
-  Tremella,
-  Auricularia,
-  Exidia,
-  Dacrymyces,
-  Calocybe,
-  Lyophyllum,
-  Hypsizygus,
-  Bunashimeji,
-  Honshimeji,
-  Hatakeshimeji,
-  Mukitake,
-  Yamabushitake,
-  Eringi,
-  Bunapi,
-  Maitake as MaitakeIcon,
-  Shiitake as ShiitakeIcon,
-  Enoki as EnokiIcon,
-  Shimeji as ShimejiIcon,
-  Kinoko,
-  Matsutake,
-  Hiratake,
-  Shimofuri,
-  Kurokawa,
-  Aoshime,
-  Kokubunji,
-  Marunaga,
-  Shimonita,
-  Takoyama,
-  Fujimino,
-  Nametake,
-  Tamamushi,
-  Yamanashi,
-  Saitama,
-  Chiba,
-  Ibaraki,
-  Tochigi,
-  Gunma,
-  Nagano,
-  Yamanashi as YamanashiIcon,
-  Shizuoka,
-  Aichi,
-  Gifu,
-  Mie,
-  Shiga,
-  Kyoto,
-  Osaka,
-  Hyogo,
-  Nara,
-  Wakayama,
-  Tottori,
-  Shimane,
-  Okayama,
-  Hiroshima,
-  Yamaguchi,
-  Tokushima,
-  Kagawa,
-  Ehime,
-  Kochi,
-  Fukuoka,
-  Saga,
-  Nagasaki,
-  Kumamoto,
-  Oita,
-  Miyazaki,
-  Kagoshima,
-  Okinawa,
-  Hokkaido,
-  Aomori,
-  Iwate,
-  Miyagi,
-  Akita,
-  Yamagata,
-  Fukushima,
-  Tokyo,
-  Kanagawa,
-  Chiba as ChibaIcon,
-  Saitama as SaitamaIcon,
-  Ibaraki as IbarakiIcon,
-  Tochigi as TochigiIcon,
-  Gunma as GunmaIcon,
-  Nagano as NaganoIcon,
-  Niigata,
-  Toyama,
-  Ishikawa,
-  Fukui,
-  Shizuoka as ShizuokaIcon,
-  Aichi as AichiIcon,
-  Gifu as GifuIcon,
-  Mie as MieIcon,
-  Shiga as ShigaIcon,
-  Kyoto as KyotoIcon,
-  Osaka as OsakaIcon,
-  Hyogo as HyogoIcon,
-  Nara as NaraIcon,
-  Wakayama as WakayamaIcon,
-  Tottori as TottoriIcon,
-  Shimane as ShimaneIcon,
-  Okayama as OkayamaIcon,
-  Hiroshima as HiroshimaIcon,
-  Yamaguchi as YamaguchiIcon,
-  Tokushima as TokushimaIcon,
-  Kagawa as KagawaIcon,
-  Ehime as EhimeIcon,
-  Kochi as KochiIcon,
-  Fukuoka as FukuokaIcon,
-  Saga as SagaIcon,
-  Nagasaki as NagasakiIcon,
-  Kumamoto as KumamotoIcon,
-  Oita as OitaIcon,
-  Miyazaki as MiyazakiIcon,
-  Kagoshima as KagoshimaIcon,
-  Okinawa as OkinawaIcon,
-  Hokkaido as HokkaidoIcon,
-  Aomori as AomoriIcon,
-  Iwate as IwateIcon,
-  Miyagi as MiyagiIcon,
-  Akita as AkitaIcon,
-  Yamagata as YamagataIcon,
-  Fukushima as FukushimaIcon,
-  Tokyo as TokyoIcon,
-  Kanagawa as KanagawaIcon,
-  Niigata as NiigataIcon,
-  Toyama as ToyamaIcon,
-  Ishikawa as IshikawaIcon,
-  Fukui as FukuiIcon,
-  Bug,
-} from "lucide-react";
-import { FeatureCard, FeatureCardList } from "@/components/ui/feature-card";
-import { ReferenceCard, ReferenceCardList } from "@/components/ui/reference-card";
-
-# MCP Overview
-
 Model Context Protocol (MCP) is a standardized protocol that enables AI agents to interact with external tools, services, and data sources through a unified interface. It bridges the gap between language models and the external world, providing a consistent way for agents to extend their capabilities beyond their core language model functionality.
 
 <Callout type="info">
@@ -587,23 +12,23 @@ Model Context Protocol (MCP) is a standardized protocol that enables AI agents t
 ## Quick Navigation
 
 <ReferenceCardList cols={3}>
-  <ReferenceCard 
-    title="MCP Proxy Server" 
+  <ReferenceCard
+    title="MCP Proxy Server"
     href="/docs/core/mcp/mcp-proxy-server"
     description="Central gateway architecture"
-    icon={<Radio className="w-4 h-4" />}
+    icon="Radio"
   />
-  <ReferenceCard 
-    title="Transport Configuration" 
+  <ReferenceCard
+    title="Transport Configuration"
     href="/docs/core/mcp/transport-configuration"
     description="Communication protocols"
-    icon={<Link2 className="w-4 h-4" />}
+    icon="Link2"
   />
-  <ReferenceCard 
-    title="Security & Authentication" 
+  <ReferenceCard
+    title="Security & Authentication"
     href="/docs/core/mcp/security-authentication"
     description="Secure your MCP setup"
-    icon={<Shield className="w-4 h-4" />}
+    icon="Shield"
   />
 </ReferenceCardList>
 
@@ -612,25 +37,25 @@ Model Context Protocol (MCP) is a standardized protocol that enables AI agents t
 MCP is a protocol that allows AI agents to:
 
 <FeatureCardList cols={2}>
-  <FeatureCard 
-    title="File System Access" 
+  <FeatureCard
+    title="File System Access"
     description="Read, write, and manipulate files and directories"
-    icon={<FileCode className="w-5 h-5" />}
+    icon="FileCode"
   />
-  <FeatureCard 
-    title="Database Operations" 
+  <FeatureCard
+    title="Database Operations"
     description="Query and modify databases with SQL and NoSQL support"
-    icon={<Database className="w-5 h-5" />}
+    icon="Database"
   />
-  <FeatureCard 
-    title="API Integration" 
+  <FeatureCard
+    title="API Integration"
     description="Interact with external REST APIs and web services"
-    icon={<Globe className="w-5 h-5" />}
+    icon="Globe"
   />
-  <FeatureCard 
-    title="Code Execution" 
+  <FeatureCard
+    title="Code Execution"
     description="Run Python, JavaScript, and other code runtimes"
-    icon={<Cpu className="w-5 h-5" />}
+    icon="Cpu"
   />
 </FeatureCardList>
 
@@ -644,7 +69,7 @@ graph TB
         A1[Workflow Engine]
         A2[Task Executor]
     end
-    
+
     subgraph "MCP Proxy Service - Port 8081"
         B[HTTP Router]
         B1[Admin API]
@@ -653,41 +78,41 @@ graph TB
         B4[Auth Manager]
         B5[Storage Backend]
     end
-    
+
     subgraph "MCP Servers"
         C[stdio Server]
         D[SSE Server]
         E[HTTP Server]
         F[Docker Server]
     end
-    
+
     subgraph "External Services"
         G[Database]
         H[File System]
         I[APIs]
         J[Code Runtime]
     end
-    
+
     A --> B
     A1 --> B
     A2 --> B
-    
+
     B --> B1
     B --> B2
     B --> B3
     B --> B4
     B --> B5
-    
+
     B2 --> C
     B2 --> D
     B2 --> E
     B2 --> F
-    
+
     C --> G
     D --> H
     E --> I
     F --> J
-    
+
     style A fill:#e1f5fe
     style B fill:#f3e5f5
     style C fill:#e8f5e8
@@ -701,14 +126,14 @@ graph TB
 `}
 </Mermaid>
 
-<Callout type="tip">
+<Callout type="info">
 **Proxy Architecture**: The MCP proxy runs on port 8081 and manages all server connections, providing a unified HTTP interface for multiple transport types.
 </Callout>
 
 ### Key Components
 
 <AccordionGroup>
-<Accordion title="MCP Proxy" icon={<Radio className="w-4 h-4" />}>
+<Accordion title="MCP Proxy" icon="Radio">
 Central gateway that manages all MCP server connections, handles routing, authentication, and provides a unified HTTP interface for multiple MCP servers.
 
 **Features:**
@@ -718,7 +143,7 @@ Central gateway that manages all MCP server connections, handles routing, authen
 - Token-based authentication
 </Accordion>
 
-<Accordion title="MCP Servers" icon={<Package className="w-4 h-4" />}>
+<Accordion title="MCP Servers" icon="Package">
 External services that provide tools and capabilities to AI agents. These can be local processes, Docker containers, or remote HTTP services.
 
 **Types:**
@@ -728,7 +153,7 @@ External services that provide tools and capabilities to AI agents. These can be
 - Docker-based servers
 </Accordion>
 
-<Accordion title="AI Agents" icon={<BrainCircuit className="w-4 h-4" />}>
+<Accordion title="AI Agents" icon="BrainCircuit">
 Your AI applications that use MCP tools to extend their capabilities. Agents configure MCP servers and use them through the proxy.
 
 **Capabilities:**
@@ -738,7 +163,7 @@ Your AI applications that use MCP tools to extend their capabilities. Agents con
 - Resource management
 </Accordion>
 
-<Accordion title="Transport Layer" icon={<Link2 className="w-4 h-4" />}>
+<Accordion title="Transport Layer" icon="Link2">
 Communication protocols that enable different types of MCP server connections based on your needs.
 
 **Protocols:**
@@ -767,7 +192,7 @@ mcps:
     auto_reconnect: true
 ```
 
-<Callout type="tip">
+<Callout type="info">
 **Best For**: Third-party APIs, cloud services, real-time data feeds
 </Callout>
 </Tab>
@@ -788,7 +213,7 @@ mcps:
       MAX_FILE_SIZE: "10MB"
 ```
 
-<Callout type="tip">
+<Callout type="info">
 **Best For**: Local file operations, command-line tools, high-performance local communication
 </Callout>
 </Tab>
@@ -809,7 +234,7 @@ mcps:
     start_timeout: 30s
 ```
 
-<Callout type="tip">
+<Callout type="info">
 **Best For**: Isolated environments, complex dependencies, microservices architecture
 </Callout>
 </Tab>
@@ -851,25 +276,25 @@ mcps:
 ## Key Features
 
 <FeatureCardList cols={2}>
-  <FeatureCard 
-    title="Dynamic Registration" 
+  <FeatureCard
+    title="Dynamic Registration"
     description="Hot-add, update, or remove servers via Admin API with zero downtime"
-    icon={<RefreshCw className="w-5 h-5" />}
+    icon="RefreshCw"
   />
-  <FeatureCard 
-    title="Security & Authentication" 
+  <FeatureCard
+    title="Security & Authentication"
     description="Token-based auth, IP allow-lists, and environment variable management"
-    icon={<Shield className="w-5 h-5" />}
+    icon="Shield"
   />
-  <FeatureCard 
-    title="Observability & Monitoring" 
+  <FeatureCard
+    title="Observability & Monitoring"
     description="Health checks, metrics tracking, and comprehensive logging"
-    icon={<BarChart3 className="w-5 h-5" />}
+    icon="BarChart3"
   />
-  <FeatureCard 
-    title="Tool Discovery" 
+  <FeatureCard
+    title="Tool Discovery"
     description="Automatic discovery and aggregation across multiple servers"
-    icon={<Eye className="w-5 h-5" />}
+    icon="Eye"
   />
 </FeatureCardList>
 
@@ -890,48 +315,62 @@ MCP_PROXY_ADMIN_TOKEN=your-admin-token
 MCP_PROXY_GLOBAL_AUTH_TOKEN=global-token
 ```
 
-## Quick Start Example
+## Quick Start with CLI
 
-Here's a complete example of configuring an AI agent with MCP servers:
+Get started with MCP in Compozy using the CLI:
 
-```yaml title="agent-config.yaml"
-agent:
-  id: data-analyst
-  instructions: "Analyze data using available tools"
-  
-  mcps:
-    - id: sql-server
-      url: "http://mcp-proxy:3000/sql"
-      transport: sse
-      headers:
-        Authorization: "Bearer {{ .env.SQL_TOKEN }}"
-      timeout: 30s
-      
-    - id: python-runtime
-      command: "mcp-python-server"
-      transport: stdio
-      env:
-        PYTHONPATH: "/app/libs"
-        LOG_LEVEL: "info"
-      start_timeout: 30s
-  
-  actions:
-    - prompt: "Query the sales database and create a visualization"
-      tools: ["sql-query", "python-plot"]
+```bash
+# 1. Initialize a new project
+compozy init my-mcp-project
+cd my-mcp-project
+
+# 2. Start the development environment
+compozy dev --watch
+
+# 3. In another terminal, start the MCP proxy
+compozy mcp-proxy --port 8081 --debug
+
+# 4. Create a simple workflow
+cat > workflow.yaml << 'EOF'
+resource: workflow
+id: data-analyst
+description: "Analyze data using available tools"
+
+mcps:
+  - id: filesystem
+    transport: stdio
+    command: "mcp-server-filesystem"
+    args: ["--root", "/workspace"]
+    env:
+      LOG_LEVEL: "info"
+
+agents:
+  - id: analyst
+    instructions: "You can analyze data using filesystem tools"
+
+tasks:
+  - id: analyze
+    type: basic
+    agent: analyst
+    prompt: "List and analyze the files in the workspace"
+EOF
+
+# 5. Execute the workflow
+compozy workflow execute data-analyst
 ```
 
 <Steps>
-<Step title="Configure MCP Servers">
-Define your MCP servers in the agent configuration with appropriate transport types and authentication.
+<Step title="Initialize Project">
+Use `compozy init` to create a new project with MCP support and default configurations.
 </Step>
-<Step title="Set Environment Variables">
-Configure the required environment variables for MCP proxy access and authentication.
+<Step title="Start Development Server">
+Run `compozy dev --watch` to start the development server with hot reload capabilities.
 </Step>
 <Step title="Start MCP Proxy">
-Launch the MCP proxy server to handle all MCP server connections and routing.
+Launch `compozy mcp-proxy` to handle all MCP server connections and routing.
 </Step>
-<Step title="Test Agent Integration">
-Verify that your AI agent can discover and use tools from the registered MCP servers.
+<Step title="Test Integration">
+Use `compozy workflow execute` to verify that your workflows can use MCP tools.
 </Step>
 </Steps>
 
@@ -947,7 +386,7 @@ sequenceDiagram
     participant Proxy as MCP Proxy (8081)
     participant Server as MCP Server
     participant Service as External Service
-    
+
     Agent->>Client: Request Tool Use
     Client->>Proxy: HTTP Request
     Proxy->>Server: Transport Call
@@ -956,7 +395,7 @@ sequenceDiagram
     Server-->>Proxy: MCP Response
     Proxy-->>Client: HTTP Response
     Client-->>Agent: Tool Result
-    
+
     Note over Agent,Service: Fault-tolerant with automatic retries
     Note over Proxy: Handles authentication & connection pooling
     Note over Server: Supports stdio, SSE, and HTTP transports
@@ -966,31 +405,41 @@ sequenceDiagram
 ### Integration Points
 
 <AccordionGroup>
-<Accordion title="Agent Configuration" icon={<Users className="w-4 h-4" />}>
+<Accordion title="Agent Configuration" icon="Users">
 **YAML Configuration Integration**
 
 MCP servers are defined directly in agent configuration files:
 
 ```yaml
-agent:
-  id: data-analyst
-  instructions: "Analyze data using available tools"
-  
-  mcps:
-    - id: sql-server
-      url: "http://mcp-proxy:8081/sql"
-      transport: sse
-      headers:
-        Authorization: "Bearer {{ .env.SQL_TOKEN }}"
-      timeout: 30s
-      
-    - id: python-runtime
-      command: "mcp-python-server"
-      transport: stdio
-      env:
-        PYTHONPATH: "/app/libs"
-        LOG_LEVEL: "info"
-      start_timeout: 30s
+resource: workflow
+id: data-analyst
+description: "Analyze data using available tools"
+
+mcps:
+  - id: sql-server
+    url: "http://mcp-proxy:8081/sql"
+    transport: sse
+    headers:
+      Authorization: "Bearer {{ .env.SQL_TOKEN }}"
+    timeout: 30s
+
+  - id: python-runtime
+    command: "mcp-python-server"
+    transport: stdio
+    env:
+      PYTHONPATH: "/app/libs"
+      LOG_LEVEL: "info"
+    start_timeout: 30s
+
+agents:
+  - id: analyst
+    instructions: "Analyze data using available tools"
+
+tasks:
+  - id: analysis
+    type: basic
+    agent: analyst
+    prompt: "Query the sales database and create a visualization"
 ```
 
 **Key Features:**
@@ -1000,7 +449,7 @@ agent:
 - Health monitoring and failover
 </Accordion>
 
-<Accordion title="Tool Discovery" icon={<Search className="w-4 h-4" />}>
+<Accordion title="Tool Discovery" icon="Search">
 **Automatic Tool Registration**
 
 MCP servers automatically expose their available tools through the proxy:
@@ -1023,7 +472,7 @@ actions:
 5. Tool schemas are validated automatically
 </Accordion>
 
-<Accordion title="Workflow Integration" icon={<Workflow className="w-4 h-4" />}>
+<Accordion title="Workflow Integration" icon="Workflow">
 **Task-Level Integration**
 
 MCP tools integrate seamlessly with Compozy's task system:
@@ -1047,7 +496,7 @@ tasks:
 - Comprehensive logging and monitoring
 </Accordion>
 
-<Accordion title="Error Handling" icon={<AlertCircle className="w-4 h-4" />}>
+<Accordion title="Error Handling" icon="CalloutCircle">
 **Robust Error Recovery**
 
 MCP integration includes comprehensive error handling:
@@ -1072,7 +521,7 @@ mcps:
 - Health check monitoring
 </Accordion>
 
-<Accordion title="Resource Management" icon={<Gauge className="w-4 h-4" />}>
+<Accordion title="Resource Management" icon="Gauge">
 **Efficient Resource Utilization**
 
 MCP system manages resources efficiently:
@@ -1101,31 +550,31 @@ mcps:
 ## Integration with Compozy Components
 
 <FeatureCardList cols={2}>
-  <FeatureCard 
-    title="Agent Configuration" 
+  <FeatureCard
+    title="Agent Configuration"
     href="/docs/core/agents/overview"
-    icon={<Users className="w-5 h-5" />}
+    icon="Users"
   >
     Configure MCP servers in your AI agents for extended capabilities
   </FeatureCard>
-  <FeatureCard 
-    title="Task Integration" 
+  <FeatureCard
+    title="Task Integration"
     href="/docs/core/tasks/basic-tasks"
-    icon={<GitBranch className="w-5 h-5" />}
+    icon="GitBranch"
   >
     Use MCP tools within workflow tasks for external service integration
   </FeatureCard>
-  <FeatureCard 
-    title="Tool Development" 
+  <FeatureCard
+    title="Tool Development"
     href="/docs/core/tools/tools-overview"
-    icon={<Code className="w-5 h-5" />}
+    icon="Code"
   >
     Learn how MCP complements TypeScript tool development
   </FeatureCard>
-  <FeatureCard 
-    title="Configuration Setup" 
+  <FeatureCard
+    title="Configuration Setup"
     href="/docs/core/configuration/providers"
-    icon={<Settings className="w-5 h-5" />}
+    icon="Settings"
   >
     Set up MCP providers in your project configuration
   </FeatureCard>
@@ -1134,31 +583,31 @@ mcps:
 ## Technical Deep Dive
 
 <FeatureCardList cols={2}>
-  <FeatureCard 
-    title="MCP Proxy Server" 
+  <FeatureCard
+    title="MCP Proxy Server"
     href="/docs/core/mcp/mcp-proxy-server"
-    icon={<Radio className="w-5 h-5" />}
+    icon="Radio"
   >
     Learn about the proxy architecture and management
   </FeatureCard>
-  <FeatureCard 
-    title="Transport Configuration" 
+  <FeatureCard
+    title="Transport Configuration"
     href="/docs/core/mcp/transport-configuration"
-    icon={<Link2 className="w-5 h-5" />}
+    icon="Link2"
   >
     Configure different transport types and protocols
   </FeatureCard>
-  <FeatureCard 
-    title="Security & Authentication" 
+  <FeatureCard
+    title="Security & Authentication"
     href="/docs/core/mcp/security-authentication"
-    icon={<Shield className="w-5 h-5" />}
+    icon="Shield"
   >
     Secure your MCP setup with proper authentication
   </FeatureCard>
-  <FeatureCard 
-    title="Tool Discovery" 
+  <FeatureCard
+    title="Tool Discovery"
     href="/docs/core/mcp/tool-discovery"
-    icon={<Eye className="w-5 h-5" />}
+    icon="Eye"
   >
     Understand automatic tool discovery mechanisms
   </FeatureCard>
@@ -1172,36 +621,37 @@ mcps:
 
 <ReferenceCardList>
   <ReferenceCard
-    title="Quick Start Guide"
-    description="Build your first MCP-enabled workflow in 5 minutes"
+    title="CLI Quick Start"
+    description="Use `compozy init` and `compozy dev` to get started in minutes"
     href="/docs/core/getting-started/quick-start"
-    icon={<Rocket className="w-4 h-4" />}
+    icon="Terminal"
   />
   <ReferenceCard
-    title="Core Concepts"
-    description="Understand agents, tasks, and MCP integration fundamentals"
-    href="/docs/core/getting-started/core-concepts"
-    icon={<BookOpen className="w-4 h-4" />}
+    title="Development Commands"
+    description="Learn essential CLI commands for MCP development"
+    href="/docs/core/mcp/development-debugging"
+    icon="Code"
   />
   <ReferenceCard
     title="First Workflow Tutorial"
     description="Step-by-step guide to creating MCP-powered workflows"
     href="/docs/core/getting-started/first-workflow"
-    icon={<PlayCircle className="w-4 h-4" />}
+    icon="PlayCircle"
   />
   <ReferenceCard
     title="Agent Basics"
     description="Learn agent configuration before MCP integration"
     href="/docs/core/agents/overview"
-    icon={<BrainCircuit className="w-4 h-4" />}
+    icon="BrainCircuit"
   />
 </ReferenceCardList>
 
-<Callout type="tip">
-**Recommended Path**: Start with stdio MCP servers for local development, then progress to remote HTTP servers for production deployments.
+<Callout type="info">
+**Recommended Path**: Start with `compozy init` to create a project, use `compozy dev --watch` for development, and `compozy mcp-proxy` for testing. Progress from stdio MCP servers for local development to remote HTTP servers for production.
 </Callout>
 
 **Learning Goals:**
+- ✅ Master Compozy CLI commands for MCP development
 - ✅ Understand MCP architecture and benefits
 - ✅ Configure your first MCP server
 - ✅ Create agents that use MCP tools
@@ -1216,29 +666,29 @@ mcps:
     title="Transport Configuration"
     description="Master stdio, SSE, and HTTP transport protocols"
     href="/docs/core/mcp/transport-configuration"
-    icon={<Network className="w-4 h-4" />}
+    icon="Network"
   />
   <ReferenceCard
     title="Security & Authentication"
     description="Secure your MCP deployments with proper authentication"
     href="/docs/core/mcp/security-authentication"
-    icon={<Shield className="w-4 h-4" />}
+    icon="Shield"
   />
   <ReferenceCard
     title="Production Deployment"
     description="Scale MCP systems with Docker and Kubernetes"
     href="/docs/core/mcp/production-deployment"
-    icon={<Server className="w-4 h-4" />}
+    icon="Server"
   />
   <ReferenceCard
     title="Monitoring & Metrics"
     description="Implement comprehensive MCP observability"
     href="/docs/core/mcp/monitoring-metrics"
-    icon={<BarChart3 className="w-4 h-4" />}
+    icon="BarChart3"
   />
 </ReferenceCardList>
 
-<Callout type="tip">
+<Callout type="info">
 **Production Focus**: Implement proper error handling, retry logic, and health monitoring for reliable MCP operations.
 </Callout>
 
@@ -1257,29 +707,29 @@ mcps:
     title="Custom MCP Servers"
     description="Build specialized MCP servers for domain-specific needs"
     href="/docs/core/examples/advanced-examples"
-    icon={<Code className="w-4 h-4" />}
+    icon="Code"
   />
   <ReferenceCard
     title="Development & Debugging"
     description="Advanced debugging techniques and development workflows"
     href="/docs/core/mcp/development-debugging"
-    icon={<Bug className="w-4 h-4" />}
+    icon="Bug"
   />
   <ReferenceCard
     title="Storage Backends"
     description="Extend MCP with custom storage solutions"
     href="/docs/core/mcp/storage-backends"
-    icon={<Database className="w-4 h-4" />}
+    icon="Database"
   />
   <ReferenceCard
     title="Performance Optimization"
     description="Optimize MCP performance for high-throughput scenarios"
     href="/docs/core/mcp/performance-optimization"
-    icon={<Zap className="w-4 h-4" />}
+    icon="Zap"
   />
 </ReferenceCardList>
 
-<Callout type="tip">
+<Callout type="info">
 **Advanced Patterns**: Create custom MCP servers for specialized tooling, implement custom storage backends, and optimize for specific use cases.
 </Callout>
 
@@ -1291,37 +741,67 @@ mcps:
 </Tab>
 </Tabs>
 
+## CLI Command Reference
+
+### Essential MCP Commands
+
+```bash
+# Project initialization
+compozy init [project-name]              # Create new MCP-enabled project
+
+# Development server
+compozy dev [--watch]                    # Start dev server with hot reload
+compozy start                            # Start production server
+
+# MCP proxy management
+compozy mcp-proxy [--port 8081]          # Start MCP proxy service
+compozy mcp-proxy health                 # Check proxy health
+compozy mcp-proxy list                   # List registered MCP servers
+
+# Workflow management
+compozy workflow list                    # List all workflows
+compozy workflow get [id]                # Get workflow details
+compozy workflow execute [id]            # Execute workflow
+
+# Configuration
+compozy config [subcommand]              # Manage configuration
+
+# Authentication
+compozy auth generate                    # Generate API keys
+compozy auth list                        # List API keys
+```
+
 ## Benefits
 
 <FeatureCardList cols={3}>
-  <FeatureCard 
-    title="Standardization" 
+  <FeatureCard
+    title="CLI-First Development"
+    description="Complete CLI toolkit for MCP development and deployment"
+    icon="Terminal"
+  />
+  <FeatureCard
+    title="Standardization"
     description="Unified interface for tool integration across all services"
-    icon={<Layers className="w-5 h-5" />}
+    icon="Layers"
   />
-  <FeatureCard 
-    title="Extensibility" 
+  <FeatureCard
+    title="Extensibility"
     description="Easy to add new tools and services without code changes"
-    icon={<Package className="w-5 h-5" />}
+    icon="Package"
   />
-  <FeatureCard 
-    title="Reliability" 
+  <FeatureCard
+    title="Reliability"
     description="Built-in retry logic and error handling for robust operation"
-    icon={<ShieldCheck className="w-5 h-5" />}
+    icon="ShieldCheck"
   />
-  <FeatureCard 
-    title="Performance" 
+  <FeatureCard
+    title="Performance"
     description="Efficient connection pooling and caching for optimal speed"
-    icon={<Zap className="w-5 h-5" />}
+    icon="Zap"
   />
-  <FeatureCard 
-    title="Security" 
+  <FeatureCard
+    title="Security"
     description="Comprehensive authentication and authorization mechanisms"
-    icon={<Lock className="w-5 h-5" />}
-  />
-  <FeatureCard 
-    title="Monitoring" 
-    description="Built-in observability for production deployment confidence"
-    icon={<TrendingUp className="w-5 h-5" />}
+    icon="Lock"
   />
 </FeatureCardList>

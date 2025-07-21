@@ -1,7 +1,385 @@
 ---
-title: Overview
-description: Command-line interface overview
+title: CLI Overview
+description: Complete command-line interface for Compozy workflow orchestration
 icon: Terminal
 ---
 
-# CLI Overview
+Compozy provides a comprehensive command-line interface (CLI) for managing AI workflow orchestration. The CLI offers complete control over projects, workflows, executions, and MCP servers with both interactive TUI and automation-friendly JSON output.
+
+## Available Commands
+
+<FeatureCardList cols={2}>
+  <FeatureCard 
+    title="Project Commands" 
+    href="/docs/cli/project-commands"
+    icon="FolderPlus"
+    description="Initialize new Compozy projects, manage configuration, and set up development environments with automated scaffolding and validation"
+  />
+  <FeatureCard 
+    title="Workflow Commands" 
+    href="/docs/cli/workflow-commands"
+    icon="Workflow"
+    description="List, inspect, and execute workflows with full lifecycle management including validation, monitoring, and debugging capabilities"
+  />
+  <FeatureCard 
+    title="Execution Commands" 
+    href="/docs/cli/execution-commands"
+    icon="Play"
+    description="Start development servers with hot reload, run production instances, and manage server lifecycle with comprehensive logging"
+  />
+  <FeatureCard 
+    title="MCP Commands" 
+    href="/docs/cli/mcp-commands"
+    icon="Network"
+    description="Run and manage Model Context Protocol proxy servers for external tool integration and service orchestration"
+  />
+</FeatureCardList>
+
+## CLI Architecture
+
+The Compozy CLI follows a modular command structure that maps directly to the system's core components:
+
+<Mermaid chart={`graph TD
+    A[compozy CLI] --> B[Project Commands]
+    A --> C[Server Commands]
+    A --> D[Workflow Commands]
+    A --> E[MCP Commands]
+    
+    B --> B1[init - Initialize projects]
+    B --> B2[config - Manage configuration]
+    
+    C --> C1[dev - Development server]
+    C --> C2[start - Production server]
+    C --> C3[auth - Authentication]
+    
+    D --> D1[list - List workflows]
+    D --> D2[get - Inspect workflows]
+    D --> D3[execute - Run workflows]
+    
+    E --> E1[proxy - MCP proxy server]
+    E --> E2[list - Available MCPs]
+    
+    style A fill:#e1f5fe
+    style B fill:#f3e5f5
+    style C fill:#e8f5e8
+    style D fill:#fff3e0
+    style E fill:#fce4ec`} />
+
+## Command Categories
+
+<List>
+  <ListItem title="Project Management">
+    <code>compozy init</code> - Initialize new Compozy projects with scaffolding<br/>
+    <code>compozy config</code> - Configuration management and diagnostics
+  </ListItem>
+  <ListItem title="Server Operations">
+    <code>compozy dev</code> - Run development server with hot reload<br/>
+    <code>compozy start</code> - Start production server<br/>
+    <code>compozy auth</code> - Authentication and API key management
+  </ListItem>
+  <ListItem title="Workflow Management">
+    <code>compozy workflow list</code> - List available workflows<br/>
+    <code>compozy workflow get</code> - Get workflow details<br/>
+    <code>compozy workflow execute</code> - Execute workflows
+  </ListItem>
+  <ListItem title="MCP Integration">
+    <code>compozy mcp-proxy</code> - Run MCP proxy server for external tools
+  </ListItem>
+</List>
+
+## Global Options
+
+The CLI provides consistent global options across all commands:
+
+### Output and Formatting
+```bash
+# Output format control
+--format json|tui|auto    # Output format (default: auto)
+-o, --output              # Alias for --format
+--mode auto|json|tui      # CLI mode (default: auto)
+--color-mode auto|on|off  # Color mode (default: auto)
+--no-color                # Disable color output
+-q, --quiet               # Suppress non-essential output
+```
+
+### Configuration and Environment
+```bash
+# Configuration options
+-c, --config path         # Path to configuration file
+--cwd path                # Working directory for the project
+--env-file path           # Path to environment variables file
+
+# API connection
+--server-url url          # Server URL for Compozy API (default: http://localhost:5001)
+--base-url url            # Base URL for Compozy API (default: http://localhost:5001)
+--api-key key             # Compozy API key for authentication
+--timeout duration        # Timeout for API requests (default: 30s)
+```
+
+### Server Configuration
+```bash
+# Server settings
+--host string             # Host to bind server to (default: 0.0.0.0)
+--port int                # Port to run server on (default: 5001)
+
+# Database configuration
+--db-host string          # Database host (default: localhost)
+--db-port string          # Database port (default: 5432)
+--db-name string          # Database name (default: compozy)
+--db-user string          # Database user (default: postgres)
+--db-password string      # Database password
+--db-conn-string string   # Database connection string
+--db-ssl-mode string      # Database SSL mode (default: disable)
+```
+
+### Authentication and Security
+```bash
+# Authentication
+--auth-enabled            # Enable authentication for API endpoints
+--auth-workflow-exceptions strings  # Workflow IDs exempt from auth
+
+# CORS configuration
+--cors                    # Enable CORS (default: true)
+--cors-allow-credentials  # Allow credentials in CORS (default: true)
+--cors-allowed-origins strings  # Allowed CORS origins
+--cors-max-age int        # CORS preflight max age (default: 86400)
+```
+
+### Logging and Debugging
+```bash
+# Logging
+--log-level level         # Log level: debug, info, warn, error (default: info)
+-d, --debug               # Enable debug output and verbose logging
+
+# Advanced options
+--interactive             # Force interactive mode
+--page-size int           # Default page size (default: 50)
+```
+
+## Usage Patterns
+
+### Basic Usage
+```bash
+# Initialize a new project
+compozy init my-project
+
+# Start development server
+compozy dev
+
+# List workflows
+compozy workflow list
+
+# Execute a workflow
+compozy workflow execute my-workflow
+```
+
+### JSON Output for Automation
+```bash
+# Get machine-readable output
+compozy workflow list --format json
+compozy workflow get my-workflow -o json
+
+# Quiet mode for scripting
+compozy workflow execute my-workflow --quiet --format json
+```
+
+### Configuration Management
+```bash
+# Use custom configuration
+compozy dev --config /path/to/config.yaml
+
+# Set working directory
+compozy workflow list --cwd /path/to/project
+
+# Use environment file
+compozy start --env-file .env.production
+```
+
+### Server Management
+```bash
+# Start on custom port
+compozy start --port 8080
+
+# Enable debug logging
+compozy dev --debug --log-level debug
+
+# Custom database connection
+compozy start --db-host localhost --db-port 5433
+```
+
+## Interactive vs Automation Modes
+
+The Compozy CLI intelligently adapts its behavior based on the execution environment, providing optimal user experience for both human operators and automated systems.
+
+<Mermaid chart={`flowchart TD
+    A[CLI Command] --> B{Detect Environment}
+    B -->|TTY Detected| C[Interactive Mode]
+    B -->|Non-TTY/Script| D[Automation Mode]
+    B -->|--mode flag| E[Forced Mode]
+    
+    C --> C1[Rich TUI Interface]
+    C --> C2[Color Output]
+    C --> C3[Interactive Prompts]
+    C --> C4[Progress Indicators]
+    
+    D --> D1[JSON Output]
+    D --> D2[No Prompts]
+    D --> D3[Machine Readable]
+    D --> D4[Exit Codes]
+    
+    E --> E1[Override Detection]
+    E --> E2[Explicit Format]
+    
+    style A fill:#e1f5fe
+    style C fill:#e8f5e8
+    style D fill:#fff3e0
+    style E fill:#fce4ec`} />
+
+<List>
+  <ListItem title="Interactive Mode (TUI)">
+    Automatically activated when running in a terminal with TTY support:
+    <ul className="mt-2 space-y-1">
+      <li>Rich text user interface with colors and formatting</li>
+      <li>Interactive prompts and confirmations for safety</li>
+      <li>Real-time progress indicators for long operations</li>
+      <li>Human-friendly error messages with suggestions</li>
+    </ul>
+  </ListItem>
+  <ListItem title="Automation Mode (JSON)">
+    Optimized for CI/CD pipelines and scripting environments:
+    <ul className="mt-2 space-y-1">
+      <li>Structured JSON output for easy parsing</li>
+      <li>No interactive prompts that could block execution</li>
+      <li>Machine-readable error messages with error codes</li>
+      <li>Standardized exit codes for success/failure detection</li>
+    </ul>
+  </ListItem>
+</List>
+
+```bash
+# Force JSON mode explicitly
+compozy workflow list --mode json
+
+# Automation-friendly workflow execution
+compozy workflow execute my-workflow --quiet --format json --timeout 300s
+
+# Silent operation for CI/CD
+compozy workflow execute my-workflow --quiet --no-color --format json
+```
+
+## Error Handling
+
+The CLI provides consistent error handling:
+
+### Exit Codes
+- `0` - Success
+- `1` - General error  
+- `2` - Configuration error
+- `3` - Authentication error
+- `4` - Network/connection error
+- `5` - Validation error
+
+### Error Formats
+```bash
+# Human-readable errors (TUI mode)
+Error: Failed to connect to server at http://localhost:5001
+Suggestion: Check if the server is running or verify the --server-url flag
+
+# JSON errors (automation mode)
+{
+  "error": "connection_failed",
+  "message": "Failed to connect to server",
+  "details": {
+    "url": "http://localhost:5001",
+    "timeout": "30s"
+  }
+}
+```
+
+## Environment Variables
+
+The CLI respects environment variables for common configuration:
+
+```bash
+# Core configuration
+COMPOZY_CONFIG_PATH      # Configuration file path
+COMPOZY_API_KEY          # API key for authentication
+COMPOZY_SERVER_URL       # Server URL
+COMPOZY_LOG_LEVEL        # Logging level
+
+# Database configuration
+COMPOZY_DB_HOST          # Database host
+COMPOZY_DB_PORT          # Database port
+COMPOZY_DB_NAME          # Database name
+COMPOZY_DB_USER          # Database user
+COMPOZY_DB_PASSWORD      # Database password
+COMPOZY_DB_CONN_STRING   # Full connection string
+
+# MCP proxy configuration  
+MCP_PROXY_HOST           # MCP proxy host
+MCP_PROXY_PORT           # MCP proxy port
+MCP_PROXY_BASE_URL       # MCP proxy base URL
+
+# LLM provider keys
+OPENAI_API_KEY           # OpenAI API key
+```
+
+## Next Steps
+
+Explore specific command categories to master the Compozy CLI:
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Project Commands"
+    description="Master project initialization, configuration management, and development environment setup with comprehensive scaffolding and validation tools"
+    href="/docs/cli/project-commands"
+    icon="FolderPlus"
+  />
+  <ReferenceCard
+    title="Workflow Commands"
+    description="Learn complete workflow lifecycle management including listing, inspection, execution, monitoring, and debugging of AI-powered workflows"
+    href="/docs/cli/workflow-commands"
+    icon="Workflow"
+  />
+  <ReferenceCard
+    title="Execution Commands"
+    description="Understand server management from development with hot reload to production deployment, including configuration and lifecycle management"
+    href="/docs/cli/execution-commands"
+    icon="Play"
+  />
+  <ReferenceCard
+    title="MCP Commands"
+    description="Configure and manage Model Context Protocol proxy servers for seamless integration with external tools and services"
+    href="/docs/cli/mcp-commands"
+    icon="Network"
+  />
+</ReferenceCardList>
+
+### Additional Resources
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="CLI Reference"
+    description="Complete command-line reference with all flags, options, and configuration parameters"
+    href="/docs/reference/cli"
+    icon="BookOpen"
+  />
+  <ReferenceCard
+    title="Configuration Guide"
+    description="Comprehensive guide to CLI configuration, environment variables, and advanced setup patterns"
+    href="/docs/core/configuration/cli"
+    icon="Settings"
+  />
+  <ReferenceCard
+    title="Troubleshooting"
+    description="Common CLI issues, debugging techniques, and solutions for development and production environments"
+    href="/docs/troubleshooting/cli"
+    icon="AlertCircle"
+  />
+  <ReferenceCard
+    title="Quick Start"
+    description="Get up and running with Compozy CLI in minutes - from installation to your first workflow execution"
+    href="/docs/core/getting-started/quick-start"
+    icon="Rocket"
+  />
+</ReferenceCardList>

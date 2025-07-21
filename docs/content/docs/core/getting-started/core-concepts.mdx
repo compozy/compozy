@@ -3,43 +3,6 @@ title: Core Concepts
 description: Understanding Compozy's fundamental concepts and architecture
 ---
 
-import {
-  FileText,
-  Database,
-  Package,
-  GitBranch,
-  Eye,
-  Atom,
-  Activity,
-  Shield,
-  ArrowRightLeft,
-  Layers,
-  Cpu,
-  BrainCircuit,
-  Zap,
-  Target,
-  Globe,
-  CheckCircle,
-  Code,
-  Lock,
-  HardDrive,
-  Settings,
-  RotateCcw,
-  Key,
-  Workflow,
-  FileCheck,
-  Calendar,
-  Play,
-  RefreshCw,
-  Rocket,
-  Users,
-  Link2,
-  BookOpen,
-  FileJson,
-  FileCode,
-  Terminal,
-} from "lucide-react";
-
 ## Overview
 
 At its core, Compozy operates on a simple principle: **define what you want to happen, not how it happens**. You describe your workflows, agents, and tools in YAML configuration files, and Compozy handles the execution, coordination, and state management.
@@ -91,16 +54,16 @@ outputs:
 **Key characteristics:**
 
 <List>
-  <ListItem title="Declarative" icon={FileText}>
+  <ListItem title="Declarative" icon="FileText">
     Describe the desired outcome, not implementation details
   </ListItem>
-  <ListItem title="Stateful" icon={Database}>
+  <ListItem title="Stateful" icon="Database">
     Compozy tracks execution state and handles failures
   </ListItem>
-  <ListItem title="Composable" icon={Package}>
+  <ListItem title="Composable" icon="Package">
     Workflows can call other workflows or be called by external systems
   </ListItem>
-  <ListItem title="Observable" icon={Eye}>
+  <ListItem title="Observable" icon="Eye">
     Built-in monitoring, logging, and debugging capabilities
   </ListItem>
 </List>
@@ -224,19 +187,19 @@ Send or wait for cross-workflow communication
 **Key characteristics:**
 
 <List>
-  <ListItem title="Atomic operations" icon={Atom}>
+  <ListItem title="Atomic operations" icon="Atom">
     Each task represents a single, indivisible unit of work
   </ListItem>
-  <ListItem title="State management" icon={Activity}>
+  <ListItem title="State management" icon="Activity">
     Automatic tracking of task execution state and outputs
   </ListItem>
-  <ListItem title="Error handling" icon={Shield}>
+  <ListItem title="Error handling" icon="Shield">
     Built-in retry policies and failure recovery mechanisms
   </ListItem>
-  <ListItem title="Data flow" icon={ArrowRightLeft}>
+  <ListItem title="Data flow" icon="ArrowRightLeft">
     Seamless output passing between tasks using template expressions
   </ListItem>
-  <ListItem title="Flexible execution" icon={Layers}>
+  <ListItem title="Flexible execution" icon="Layers">
     Support for sequential, parallel, conditional, and collection-based patterns
   </ListItem>
 </List>
@@ -295,19 +258,19 @@ actions:
 **Key features:**
 
 <List>
-  <ListItem title="Multi-model support" icon={Cpu}>
+  <ListItem title="Multi-model support" icon="Cpu">
     OpenAI, Groq, Ollama, and more. [See all providers →](/docs/core/configuration/providers)
   </ListItem>
-  <ListItem title="Tool integration" icon={Zap}>
+  <ListItem title="Tool integration" icon="Zap">
     Agents can call external tools and APIs
   </ListItem>
-  <ListItem title="Structured outputs" icon={Target}>
+  <ListItem title="Structured outputs" icon="Target">
     Define JSON schemas for reliable data extraction. [Learn more →](/docs/core/agents/structured-outputs)
   </ListItem>
-  <ListItem title="Context awareness" icon={BrainCircuit}>
+  <ListItem title="Context awareness" icon="BrainCircuit">
     Access workflow data and previous task outputs
   </ListItem>
-  <ListItem title="Memory integration" icon={Database}>
+  <ListItem title="Memory integration" icon="Database">
     Persistent conversation and context memory
   </ListItem>
 </List>
@@ -316,83 +279,91 @@ actions:
 
 **Tools** are TypeScript/JavaScript functions that perform specific operations like API calls, data processing, or file operations. [Learn more about tool development →](/docs/core/tools/tools-overview)
 
-```typescript title="claude_analyzer.ts"
-import { query } from "@anthropic-ai/claude-code";
-
-interface ClaudeAnalyzerInput {
-  prompt: string;
+```typescript title="weather_tool.ts"
+interface WeatherInput {
+  location: string;
+  units?: "metric" | "imperial";
 }
 
-interface ClaudeAnalyzerOutput {
-  analysis_result: string;
+interface WeatherOutput {
+  temperature: number;
+  description: string;
+  humidity: number;
+  location: string;
   success: boolean;
 }
 
-export async function claudeCodeAnalyzer(
-  input: ClaudeAnalyzerInput
-): Promise<ClaudeAnalyzerOutput> {
+export async function weatherTool({ input }: { input: WeatherInput }): Promise<WeatherOutput> {
+  const { location, units = "metric" } = input;
+
   try {
-    let analysisResult = "";
-
-    // Use Claude Code SDK for analysis
-    for await (const message of query({
-      prompt: input.prompt,
-      options: {
-        outputFormat: "text",
-        maxTurns: 1,
-      },
-    })) {
-      if (message.type === "assistant" && message.content) {
-        analysisResult = message.content;
-        break;
-      }
+    // Use OpenWeatherMap API (requires API key in environment)
+    const apiKey = process.env.OPENWEATHER_API_KEY;
+    if (!apiKey) {
+      throw new Error("OpenWeatherMap API key not found in environment");
     }
 
-    if (!analysisResult) {
-      throw new Error("No analysis result generated from Claude Code");
+    const response = await fetch(
+      `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(location)}&appid=${apiKey}&units=${units}`
+    );
+
+    if (!response.ok) {
+      throw new Error(`Weather API request failed: ${response.status}`);
     }
+
+    const data = await response.json();
 
     return {
-      analysis_result: analysisResult,
+      temperature: Math.round(data.main.temp),
+      description: data.weather[0].description,
+      humidity: data.main.humidity,
+      location: data.name,
       success: true,
     };
   } catch (error: any) {
-    throw new Error(`Claude Code analysis failed: ${error.message}`);
+    throw new Error(`Weather lookup failed: ${error.message}`);
   }
 }
 ```
 
+**What this tool does:** The weather tool demonstrates how to create a TypeScript tool that makes external API calls. It fetches current weather data for a given location using the OpenWeatherMap API, handles errors gracefully, and returns structured data that agents can use.
+
 **Tool configuration:**
 ```yaml title="Tool Configuration"
 tools:
-  - id: claude_code_analyzer
-    description: Analyzes Go code using Claude Code SDK
+  - id: weather_tool
+    description: Fetches current weather data for a given location
     input:
       type: object
       properties:
-        prompt:
+        location:
           type: string
-          description: Analysis prompt for Claude Code SDK
+          description: City name or location to get weather for
+        units:
+          type: string
+          enum: ["metric", "imperial"]
+          description: Temperature units (metric or imperial)
+          default: metric
       required:
-        - prompt
+        - location
 ```
 
 **Key characteristics:**
 
 <List>
-  <ListItem title="TypeScript/JavaScript execution" icon={Code}>
+  <ListItem title="TypeScript/JavaScript execution" icon="Code">
     Run in secure Bun runtime with configurable permissions. [Learn more →](/docs/core/tools/runtime-environment)
   </ListItem>
-  <ListItem title="JSON I/O communication" icon={ArrowRightLeft}>
+  <ListItem title="JSON I/O communication" icon="ArrowRightLeft">
     Standardized input/output protocol for reliable data exchange
   </ListItem>
-  <ListItem title="External API integration" icon={Globe}>
+  <ListItem title="External API integration" icon="Globe">
     Connect to databases, web services, and third-party systems
   </ListItem>
-  <ListItem title="Schema validation" icon={CheckCircle}>
+  <ListItem title="Schema validation" icon="CheckCircle">
     Define input/output schemas for type safety and validation
   </ListItem>
-  <ListItem title="Sandboxed execution" icon={Lock}>
+  <ListItem title="Sandboxed execution" icon="Lock">
     Isolated runtime environment with controlled access to system resources
   </ListItem>
 </List>
@@ -460,7 +431,7 @@ Agents with built-in memory integration for automatic context management
 agents:
   - id: memory_agent
     config:
-      $ref: global::models.#(id=="gpt-4o-mini")
+      $ref: global::models.#(provider=="groq")
     instructions: |
       You are a helpful assistant with persistent memory.
       Use conversation history to provide contextual responses.
@@ -556,16 +527,16 @@ Accept: application/json
 **Key characteristics:**
 
 <List>
-  <ListItem title="Persistent storage" icon={HardDrive}>
+  <ListItem title="Persistent storage" icon="HardDrive">
     Context and conversation history survives across workflow executions with Redis
   </ListItem>
-  <ListItem title="Flexible strategies" icon={Settings}>
+  <ListItem title="Flexible strategies" icon="Settings">
     Token-based LRU, FIFO, and custom eviction policies
   </ListItem>
-  <ListItem title="Hierarchical keys" icon={Key}>
+  <ListItem title="Hierarchical keys" icon="Key">
     Organize memory with user-specific, session-based, or global scopes
   </ListItem>
-  <ListItem title="Seamless integration" icon={Workflow}>
+  <ListItem title="Seamless integration" icon="Workflow">
     Access memory through simple read, write, append, and delete operations
   </ListItem>
 </List>
@@ -603,7 +574,7 @@ Project-level references that span across the entire project
 $ref: global::models.#(provider=="groq")
 
 # Reference global configuration
-$ref: global::models.#(model=="gpt-4o-mini")
+$ref: global::models.#(provider=="groq")
 
 # Access project-wide settings
 $ref: global::runtime.#(type=="bun")
@@ -680,36 +651,36 @@ item_index: "{{ .index }}"
 
 ### Execution Flow
 
-<FeatureCardList cols={3} size="sm">
+<FeatureCardList cols={2} size="default">
   <FeatureCard
     title="Workflow Initialization"
     description="Parse configuration and validate schema"
-    icon={FileCheck}
+    icon="FileCheck"
   />
   <FeatureCard
     title="Task Scheduling"
     description="Temporal orchestrates task execution based on dependencies"
-    icon={Calendar}
+    icon="Calendar"
   />
   <FeatureCard
     title="Tool/Agent Execution"
     description="Run in secure Bun runtime with defined permissions"
-    icon={Play}
+    icon="Play"
   />
   <FeatureCard
     title="State Management"
     description="Track execution state in PostgreSQL with Redis caching"
-    icon={Database}
+    icon="Database"
   />
   <FeatureCard
     title="Output Processing"
     description="Transform and route outputs to next tasks"
-    icon={ArrowRightLeft}
+    icon="ArrowRightLeft"
   />
   <FeatureCard
     title="Error Handling"
     description="Automatic retries and fallback strategies"
-    icon={RefreshCw}
+    icon="RefreshCw"
   />
 </FeatureCardList>
 
@@ -834,25 +805,25 @@ Choose your learning path based on your needs:
     title="First Workflow Tutorial"
     description="Build your first complete workflow step-by-step with guided examples"
     href="/docs/core/getting-started/first-workflow"
-    icon={Rocket}
+    icon="Rocket"
   />
   <ReferenceCard
     title="Quick Start Guide"
     description="Get up and running in 15 minutes with a working weather advisory system"
     href="/docs/core/getting-started/quick-start"
-    icon={Zap}
+    icon="Zap"
   />
   <ReferenceCard
     title="Project Configuration"
     description="Learn how to configure projects, models, and runtime settings"
     href="/docs/core/configuration/project-setup"
-    icon={Settings}
+    icon="Settings"
   />
   <ReferenceCard
     title="Basic Tasks"
     description="Master the fundamental building blocks of all workflows"
     href="/docs/core/tasks/basic-tasks"
-    icon={Package}
+    icon="Package"
   />
 </ReferenceCardList>
 
@@ -863,25 +834,25 @@ Choose your learning path based on your needs:
     title="Agent Overview"
     description="Master AI agents with structured outputs, tools, and memory integration"
     href="/docs/core/agents/overview"
-    icon={BrainCircuit}
+    icon="BrainCircuit"
   />
   <ReferenceCard
     title="Agent Configuration"
     description="Define agent behavior with instructions, actions, and tool integration"
     href="/docs/core/agents/instructions-actions"
-    icon={Users}
+    icon="Users"
   />
   <ReferenceCard
     title="Multi-Agent Patterns"
     description="Advanced coordination between multiple AI agents in complex workflows"
     href="/docs/core/agents/multi-agent-patterns"
-    icon={GitBranch}
+    icon="GitBranch"
   />
   <ReferenceCard
     title="Agent Memory"
     description="Persistent conversation and context memory for intelligent agents"
     href="/docs/core/agents/memory"
-    icon={Database}
+    icon="Database"
   />
 </ReferenceCardList>
 
@@ -892,25 +863,25 @@ Choose your learning path based on your needs:
     title="Task Types Reference"
     description="Deep dive into parallel, collection, router, and composite task patterns"
     href="/docs/core/tasks/basic-tasks"
-    icon={Layers}
+    icon="Layers"
   />
   <ReferenceCard
     title="Tool Development"
     description="Create custom TypeScript tools for specialized operations and integrations"
     href="/docs/core/tools/tools-overview"
-    icon={Code}
+    icon="Code"
   />
   <ReferenceCard
     title="MCP Integration"
     description="Connect external tools and services using Model Context Protocol"
     href="/docs/core/mcp/mcp-overview"
-    icon={Link2}
+    icon="Link2"
   />
   <ReferenceCard
     title="Memory Systems"
     description="Implement persistent, stateful memory across workflow executions"
     href="/docs/core/memory/memory-concepts"
-    icon={HardDrive}
+    icon="HardDrive"
   />
 </ReferenceCardList>
 
@@ -921,25 +892,25 @@ Choose your learning path based on your needs:
     title="Documentation Index"
     description="Complete cross-reference system for all Compozy documentation"
     href="/docs/core/reference-index"
-    icon={BookOpen}
+    icon="BookOpen"
   />
   <ReferenceCard
     title="Configuration Reference"
     description="Complete YAML configuration guide and schema reference"
     href="/docs/core/configuration"
-    icon={FileJson}
+    icon="FileJson"
   />
   <ReferenceCard
     title="YAML Templates"
     description="Dynamic configuration with template expressions and functions"
     href="/docs/core/yaml-templates/overview"
-    icon={FileCode}
+    icon="FileCode"
   />
   <ReferenceCard
     title="CLI Commands"
     description="Command-line interface reference and usage patterns"
     href="/docs/core/configuration/cli"
-    icon={Terminal}
+    icon="Terminal"
   />
 </ReferenceCardList>
 

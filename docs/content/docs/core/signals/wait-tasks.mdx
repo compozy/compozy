@@ -3,112 +3,42 @@ title: Wait Tasks
 description: Complete guide to wait tasks for receiving signals and coordinating workflow execution in Compozy
 ---
 
-import {
-  Clock,
-  Timer,
-  Hourglass,
-  AlertCircle,
-  CheckCircle,
-  Radio,
-  Database,
-  Code,
-  Shield,
-  Settings,
-  Target,
-  FileText,
-  Zap,
-  Bell,
-  Activity,
-  MessageSquare,
-  Share,
-  Route,
-  GitBranch,
-  Layers,
-  Network,
-  Users,
-  Play,
-  Pause,
-  RefreshCw,
-  TrendingUp,
-  BookOpen,
-  ExternalLink,
-  ArrowRight,
-  Box,
-  Workflow,
-  Info,
-  AlertTriangle,
-  CheckCircle2,
-  Gauge,
-  Link,
-  Eye,
-  Repeat,
-  CloudSun,
-  HeadphonesIcon,
-  Cpu,
-  PenTool,
-  Lock,
-  ProcessorIcon,
-  Filter,
-  Webhook,
-  Calendar,
-  Search,
-  Lightbulb,
-  Wrench,
-  BrainCircuit,
-  Package,
-  ShieldCheck,
-  Terminal,
-  FileCode,
-  Github,
-  MessageCircle,
-  FolderOpen,
-  HandHeart,
-} from "lucide-react";
-import { FeatureCard, FeatureCardList } from "@/components/ui/feature-card";
-import { ReferenceCard, ReferenceCardList } from "@/components/ui/reference-card";
-import { Callout } from "@/components/ui/callout";
-import { Tabs, Tab } from "@/components/ui/tabs";
-import { Steps, Step } from "@/components/ui/step";
-import { Mermaid } from "@/components/ui/mermaid";
-
-# Wait Tasks
-
 Wait tasks are **signal receivers** that pause workflow execution until specific signals arrive. They enable sophisticated coordination patterns, event-driven architectures, and synchronization between workflows.
 
 <Callout type="info" title="Signal Coordination">
-Wait tasks use **Redis** for high-performance signal matching and provide **timeout handling**, **conditional filtering**, and **payload processing** capabilities.
+Wait tasks use **message dispatch** for high-performance signal matching and provide **timeout handling**, **conditional filtering**, and **payload processing** capabilities.
 </Callout>
 
 ## How Wait Tasks Work
 
 <Mermaid chart={`sequenceDiagram
     participant W1 as Workflow A
-    participant Redis as Redis Signal Store
+    participant MSG as Message Dispatcher
     participant W2 as Workflow B
     participant Temporal as Temporal Engine
-    
+
     Note over W1, W2: Wait Task Lifecycle
-    
+
     W1->>Temporal: Execute wait task
     Temporal->>W1: Set task to StatusWaiting
-    W1->>Redis: Subscribe to signal ID
-    
-    Note over W1, Redis: Wait task is now listening
-    
-    W2->>Redis: Send signal with payload
-    Redis->>W1: Signal received
+    W1->>MSG: Subscribe to signal ID
+
+    Note over W1, MSG: Wait task is now listening
+
+    W2->>MSG: Send signal with payload
+    MSG->>W1: Signal received
     W1->>W1: Evaluate condition (if present)
-    
+
     alt Condition matches
         W1->>W1: Execute processor
         W1->>Temporal: Complete task with results
         Temporal->>W1: Continue workflow
     else Condition fails
-        W1->>Redis: Continue waiting
+        W1->>MSG: Continue waiting
     end
-    
+
     Note over W1, Temporal: Timeout handling
-    
+
     alt Timeout reached
         Temporal->>W1: Trigger timeout handler
         W1->>W1: Execute on_timeout task
@@ -137,7 +67,7 @@ This diagram shows the complete lifecycle of a wait task from initial setup to s
   type: wait
   wait_for: "approval-signal"
   timeout: 300s
-  
+
   processor:
     type: basic
     with:
@@ -154,7 +84,7 @@ This diagram shows the complete lifecycle of a wait task from initial setup to s
   wait_for: "approval-signal"
   timeout: 300s
   on_timeout: handle-timeout-case
-  
+
   processor:
     type: basic
     with:
@@ -176,22 +106,22 @@ Use the [Signal Tasks](/docs/core/signals/signal-tasks) to send test signals and
   <FeatureCard
     title="Signal Listening"
     description="Receive signals from other workflows and tasks"
-    icon={Radio}
+    icon="Radio"
   />
   <FeatureCard
     title="Timeout Handling"
     description="Configurable timeouts with fallback actions"
-    icon={Timer}
+    icon="Timer"
   />
   <FeatureCard
     title="Conditional Filtering"
     description="Filter signals based on payload conditions"
-    icon={Filter}
+    icon="Filter"
   />
   <FeatureCard
     title="Payload Processing"
     description="Transform and process received signal data"
-    icon={Code}
+    icon="Code"
   />
 </FeatureCardList>
 
@@ -215,17 +145,17 @@ Use the [Signal Tasks](/docs/core/signals/signal-tasks) to send test signals and
   <FeatureCard
     title="type: wait"
     description="Identifies the task as a signal receiver"
-    icon={Settings}
+    icon="Settings"
   />
   <FeatureCard
     title="wait_for"
     description="Signal ID to listen for (supports templates)"
-    icon={Target}
+    icon="Target"
   />
   <FeatureCard
     title="timeout"
     description="Maximum wait duration (5s, 5m, 1h, etc.)"
-    icon={Timer}
+    icon="Timer"
   />
 </FeatureCardList>
 
@@ -238,22 +168,22 @@ Use the [Signal Tasks](/docs/core/signals/signal-tasks) to send test signals and
   <FeatureCard
     title="condition"
     description="Filter signals based on payload content"
-    icon={Filter}
+    icon="Filter"
   />
   <FeatureCard
     title="processor"
     description="Process received signals with agents or tools"
-    icon={BrainCircuit}
+    icon="BrainCircuit"
   />
   <FeatureCard
     title="on_timeout"
     description="Task to execute when timeout is reached"
-    icon={AlertTriangle}
+    icon="AlertTriangle"
   />
   <FeatureCard
     title="on_error"
     description="Error handling for processor failures"
-    icon={Shield}
+    icon="Shield"
   />
 </FeatureCardList>
 
@@ -266,22 +196,22 @@ Use the [Signal Tasks](/docs/core/signals/signal-tasks) to send test signals and
   <FeatureCard
     title="{{ .signal.payload }}"
     description="Access the received signal's payload data"
-    icon={Package}
+    icon="Package"
   />
   <FeatureCard
     title="{{ .task.timed_out }}"
     description="Boolean indicating if the task timed out"
-    icon={Timer}
+    icon="Timer"
   />
   <FeatureCard
     title="{{ .task.duration }}"
     description="How long the task waited before completion"
-    icon={Clock}
+    icon="Clock"
   />
   <FeatureCard
     title="{{ .workflow.id }}"
     description="Current workflow instance identifier"
-    icon={Workflow}
+    icon="Workflow"
   />
 </FeatureCardList>
 
@@ -381,7 +311,7 @@ Use **on_timeout** to specify the next task to execute when the timeout is reach
   wait_for: "external-response"
   timeout: 60s
   on_timeout: handle-timeout-case
-  
+
   # Track timeout details
   outputs:
     timed_out: "{{ .task.timed_out }}"
@@ -403,7 +333,7 @@ Access timeout status through **task variables** like `{{ .task.timed_out }}` an
   wait_for: "premium-service"
   timeout: 30s
   on_timeout: use-standard-service
-  
+
   outputs:
     service_used: "{{ .task.timed_out ? 'standard' : 'premium' }}"
     response_time: "{{ .task.duration }}"
@@ -424,17 +354,17 @@ Processors allow custom handling of received signal data using agents or tools:
   <FeatureCard
     title="Agent Processing"
     description="Use AI agents to analyze and process signal data"
-    icon={BrainCircuit}
+    icon="BrainCircuit"
   />
   <FeatureCard
     title="Tool Processing"
     description="Transform data using custom TypeScript tools"
-    icon={Wrench}
+    icon="Wrench"
   />
   <FeatureCard
     title="Composite Processing"
     description="Chain multiple processors for complex workflows"
-    icon={Layers}
+    icon="Layers"
   />
 </FeatureCardList>
 
@@ -448,7 +378,7 @@ Processors allow custom handling of received signal data using agents or tools:
   type: wait
   wait_for: "data-available"
   timeout: 120s
-  
+
   processor:
     type: basic
     agent:
@@ -473,7 +403,7 @@ Use **agents** for intelligent signal processing that requires reasoning, analys
   type: wait
   wait_for: "raw-data"
   timeout: 60s
-  
+
   processor:
     type: basic
     tool:
@@ -498,7 +428,7 @@ Use **tools** for deterministic signal processing like data transformation, vali
   type: wait
   wait_for: "submission-received"
   timeout: 300s
-  
+
   processor:
     type: composite
     tasks:
@@ -509,7 +439,7 @@ Use **tools** for deterministic signal processing like data transformation, vali
         with:
           data: "{{ .signal.payload }}"
           schema: "{{ .workflow.input.schema }}"
-      
+
       - id: security-check
         type: basic
         agent:
@@ -518,7 +448,7 @@ Use **tools** for deterministic signal processing like data transformation, vali
         with:
           submission: "{{ .signal.payload }}"
         depends_on: [validate-schema]
-      
+
       - id: business-validation
         type: basic
         agent:
@@ -547,17 +477,17 @@ Wait for signals that meet specific conditions using powerful filtering expressi
   <FeatureCard
     title="Simple Conditions"
     description="Basic equality and comparison checks"
-    icon={Filter}
+    icon="Filter"
   />
   <FeatureCard
     title="Complex Logic"
     description="Multi-field conditions with AND/OR operators"
-    icon={GitBranch}
+    icon="GitBranch"
   />
   <FeatureCard
     title="Template Conditions"
     description="Dynamic conditions based on workflow context"
-    icon={Code}
+    icon="Code"
   />
 </FeatureCardList>
 
@@ -572,7 +502,7 @@ Wait for signals that meet specific conditions using powerful filtering expressi
   wait_for: "order-created"
   condition: 'signal.payload.priority == "high"'
   timeout: 60s
-  
+
   processor:
     type: basic
     with:
@@ -593,11 +523,11 @@ Use **simple conditions** for basic filtering based on single payload fields.
   type: wait
   wait_for: "lead-submitted"
   condition: |
-    signal.payload.score > 80 && 
+    signal.payload.score > 80 &&
     signal.payload.budget >= 10000 &&
     signal.payload.timeline == "immediate"
   timeout: 600s
-  
+
   processor:
     type: basic
     agent:
@@ -623,7 +553,7 @@ Combine multiple criteria using **logical operators** (&&, ||, !) for sophistica
   wait_for: "user-action"
   condition: 'signal.payload.user_id == "{{ .workflow.input.target_user }}" && signal.payload.action == "{{ .workflow.input.expected_action }}"'
   timeout: 300s
-  
+
   processor:
     type: basic
     with:
@@ -650,22 +580,22 @@ These examples demonstrate real-world wait task patterns for different use cases
   <FeatureCard
     title="Approval Workflows"
     description="Wait for human approval decisions"
-    icon={CheckCircle}
+    icon="CheckCircle"
   />
   <FeatureCard
     title="Data Pipelines"
     description="Coordinate data processing stages"
-    icon={Database}
+    icon="Database"
   />
   <FeatureCard
     title="Service Integration"
     description="Wait for external service responses"
-    icon={Network}
+    icon="Network"
   />
   <FeatureCard
     title="Multi-Signal Coordination"
     description="Wait for multiple related signals"
-    icon={Layers}
+    icon="Layers"
   />
 </FeatureCardList>
 
@@ -694,7 +624,7 @@ Wait for human approval decisions with escalation:
   wait_for: "approval-decision"
   timeout: 86400s  # 24 hours
   condition: 'signal.payload.request_id == workflow.input.request_id'
-  
+
   processor:
     type: basic
     with:
@@ -702,7 +632,7 @@ Wait for human approval decisions with escalation:
       approver: "{{ .signal.payload.approver_id }}"
       comments: "{{ .signal.payload.comments }}"
       decision_time: "{{ .signal.payload.timestamp }}"
-  
+
   on_timeout: escalate-approval
 ```
 
@@ -723,7 +653,7 @@ Wait for data processing completion with metadata tracking:
   wait_for: "data-processed"
   timeout: 1800s  # 30 minutes
   condition: 'signal.payload.dataset_id == workflow.input.dataset_id'
-  
+
   processor:
     type: basic
     tool:
@@ -732,7 +662,7 @@ Wait for data processing completion with metadata tracking:
       dataset_location: "{{ .signal.payload.output_path }}"
       record_count: "{{ .signal.payload.records_processed }}"
       processing_metadata: "{{ .signal.payload.metadata }}"
-  
+
   outputs:
     analysis_ready: true
     dataset_path: "{{ .processor.output.dataset_path }}"
@@ -758,7 +688,7 @@ Wait for external service responses with verification:
   condition: |
     signal.payload.transaction_id == workflow.input.transaction_id &&
     signal.payload.status == "completed"
-  
+
   processor:
     type: composite
     tasks:
@@ -768,7 +698,7 @@ Wait for external service responses with verification:
           id: payment-verifier
         with:
           transaction_data: "{{ .signal.payload }}"
-      
+
       - id: update-order-status
         type: basic
         tool:
@@ -777,7 +707,7 @@ Wait for external service responses with verification:
           order_id: "{{ .workflow.input.order_id }}"
           payment_confirmed: "{{ .tasks.verify-payment.output.verified }}"
         depends_on: [verify-payment]
-  
+
   outputs:
     payment_verified: "{{ .processor.output.verified }}"
     order_updated: "{{ .processor.output.order_status }}"
@@ -804,31 +734,31 @@ Wait for multiple related signals using composite tasks:
       wait_for: "manager-approval"
       timeout: 86400s
       condition: 'signal.payload.request_id == workflow.input.request_id'
-      
+
       processor:
         type: basic
         with:
           manager_decision: "{{ .signal.payload.approved }}"
           manager_comments: "{{ .signal.payload.comments }}"
-    
+
     - id: wait-legal-approval
       type: wait
       wait_for: "legal-approval"
       timeout: 172800s  # 48 hours
       condition: 'signal.payload.request_id == workflow.input.request_id'
-      
+
       processor:
         type: basic
         with:
           legal_decision: "{{ .signal.payload.approved }}"
           legal_requirements: "{{ .signal.payload.requirements }}"
-    
+
     - id: wait-budget-approval
       type: wait
       wait_for: "budget-approval"
       timeout: 86400s
       condition: 'signal.payload.request_id == workflow.input.request_id'
-      
+
       processor:
         type: basic
         with:
@@ -862,17 +792,17 @@ Use **composite tasks** with `wait_all` strategy to coordinate multiple approval
   <FeatureCard
     title="Race Conditions"
     description="Wait for the first of multiple signals to arrive"
-    icon={Timer}
+    icon="Timer"
   />
   <FeatureCard
     title="Cascading Waits"
     description="Chain multiple wait tasks in sequence"
-    icon={GitBranch}
+    icon="GitBranch"
   />
   <FeatureCard
     title="Dynamic Conditions"
     description="Adjust wait behavior based on runtime data"
-    icon={Code}
+    icon="Code"
   />
 </FeatureCardList>
 
@@ -888,17 +818,17 @@ For complex coordination scenarios like **race conditions**, **cascading waits**
   <FeatureCard
     title="Timeout Optimization"
     description="Balance responsiveness with reliability"
-    icon={Timer}
+    icon="Timer"
   />
   <FeatureCard
     title="Signal Filtering"
     description="Use conditions to reduce processing overhead"
-    icon={Filter}
+    icon="Filter"
   />
   <FeatureCard
     title="Lightweight Processing"
     description="Keep signal processors simple and fast"
-    icon={Zap}
+    icon="Zap"
   />
 </FeatureCardList>
 
@@ -914,7 +844,7 @@ For complex coordination scenarios like **race conditions**, **cascading waits**
   wait_for: "data-event"
   timeout: 60s  # Reasonable timeout
   condition: 'signal.payload.size < 1000000'  # Filter large payloads
-  
+
   processor:
     type: basic
     tool:
@@ -939,7 +869,7 @@ Use **reasonable timeouts**, **signal filtering**, and **lightweight processors*
   wait_for: "data-event"
   timeout: 3600s  # Too long
   # No condition - processes everything
-  
+
   processor:
     type: composite  # Complex processing
     tasks:
@@ -965,13 +895,13 @@ Avoid **excessive timeouts**, **missing conditions**, and **complex processors**
   wait_for: "user-action"
   timeout: 300s  # 5 minutes for user actions
   condition: 'signal.payload.user_id == workflow.input.user_id'
-  
+
   processor:
     type: basic
     with:
       action_type: "{{ .signal.payload.action }}"
       timestamp: "{{ .signal.payload.timestamp }}"
-  
+
   outputs:
     processed_quickly: true
     processing_time: "{{ .processor.duration }}"
@@ -998,17 +928,17 @@ Wait tasks can receive data from external sources. Always validate signal payloa
   <FeatureCard
     title="Signal Validation"
     description="Validate signal content before processing"
-    icon={Shield}
+    icon="Shield"
   />
   <FeatureCard
     title="Timeout Protection"
     description="Prevent indefinite waiting with timeouts"
-    icon={Timer}
+    icon="Timer"
   />
   <FeatureCard
     title="Payload Sanitization"
     description="Clean and validate signal payloads"
-    icon={ShieldCheck}
+    icon="ShieldCheck"
   />
 </FeatureCardList>
 
@@ -1026,7 +956,7 @@ Wait tasks can receive data from external sources. Always validate signal payloa
     signal.payload.user_id matches "^[a-zA-Z0-9-]+$" &&
     signal.payload.action in ["approve", "reject"] &&
     len(signal.payload.message) <= 1000
-  
+
   processor:
     type: basic
     with:
@@ -1050,7 +980,7 @@ Use **regular expressions** and **length limits** to validate incoming signal da
     signal.payload.user_role == "admin" &&
     signal.payload.authenticated == true &&
     signal.payload.session_valid == true
-  
+
   processor:
     type: basic
     with:
@@ -1071,7 +1001,7 @@ Always verify **user roles** and **authentication status** in signal conditions.
   type: wait
   wait_for: "sensitive-operation"
   timeout: 300s
-  
+
   processor:
     type: basic
     with:
@@ -1098,12 +1028,12 @@ Create **audit logs** for sensitive operations and monitor for suspicious patter
   <FeatureCard
     title="Unit Testing"
     description="Test individual wait task configurations"
-    icon={Code}
+    icon="Code"
   />
   <FeatureCard
     title="Integration Testing"
     description="Test signal flow between workflows"
-    icon={Network}
+    icon="Network"
   />
 </FeatureCardList>
 
@@ -1118,12 +1048,12 @@ Create **audit logs** for sensitive operations and monitor for suspicious patter
   type: wait
   wait_for: "test-signal"
   timeout: 5s
-  
+
   processor:
     type: basic
     with:
       test_data: "{{ .signal.payload }}"
-  
+
   # Verify wait behavior
   outputs:
     wait_configured: true
@@ -1149,13 +1079,13 @@ tasks:
       payload:
         test_id: "{{ .workflow.input.test_id }}"
         timestamp: "{{ now }}"
-  
+
   - id: receive-test-signal
     type: wait
     wait_for: "integration-test"
     timeout: 10s
     condition: 'signal.payload.test_id == workflow.input.test_id'
-    
+
     processor:
       type: basic
       with:
@@ -1182,17 +1112,17 @@ This section covers common wait task problems and their solutions.
   <FeatureCard
     title="Signal Not Received"
     description="Check signal ID matching and network connectivity"
-    icon={AlertTriangle}
+    icon="AlertTriangle"
   />
   <FeatureCard
     title="Timeout Too Short"
     description="Adjust timeout values based on expected response time"
-    icon={Timer}
+    icon="Timer"
   />
   <FeatureCard
     title="Condition Failures"
     description="Verify payload structure and condition logic"
-    icon={Code}
+    icon="Code"
   />
 </FeatureCardList>
 
@@ -1207,7 +1137,7 @@ This section covers common wait task problems and their solutions.
   type: wait
   wait_for: "debug-signal"
   timeout: 30s
-  
+
   # Log all signal metadata
   processor:
     type: basic
@@ -1216,14 +1146,14 @@ This section covers common wait task problems and their solutions.
       payload: "{{ .signal.payload }}"
       metadata: "{{ .signal.metadata }}"
       received_at: "{{ now }}"
-  
+
   outputs:
     debug_info: "{{ .processor.output }}"
 ```
 
 <Callout type="info" title="Debugging Tips">
 - Verify signal ID matches exactly (case-sensitive)
-- Check Redis connectivity and signal dispatch
+- Check message dispatcher connectivity and signal dispatch
 - Use debug outputs to inspect received signals
 </Callout>
 
@@ -1238,13 +1168,13 @@ This section covers common wait task problems and their solutions.
   type: wait
   wait_for: "external-service"
   timeout: "{{ .workflow.input.timeout | default '60s' }}"
-  
+
   processor:
     type: basic
     with:
       response_time: "{{ .task.duration }}"
       timed_out: "{{ .task.timed_out }}"
-  
+
   outputs:
     performance_metrics:
       duration: "{{ .processor.output.response_time }}"
@@ -1268,15 +1198,15 @@ This section covers common wait task problems and their solutions.
   type: wait
   wait_for: "data-signal"
   timeout: 120s
-  
+
   processor:
     type: basic
     with:
       safe_payload: "{{ .signal.payload | default '{}' }}"
       validation_passed: "{{ .signal.payload.data != null }}"
-  
+
   on_error: handle-processor-error
-  
+
   outputs:
     processing_result: "{{ .processor.output }}"
     error_occurred: "{{ .processor.error != null }}"
@@ -1299,17 +1229,17 @@ This section covers common wait task problems and their solutions.
   <FeatureCard
     title="Timeout Management"
     description="Set realistic timeouts based on expected signal arrival"
-    icon={Timer}
+    icon="Timer"
   />
   <FeatureCard
     title="Signal Validation"
     description="Validate signal content before processing"
-    icon={Shield}
+    icon="Shield"
   />
   <FeatureCard
     title="Error Handling"
     description="Always plan for timeout and error scenarios"
-    icon={AlertTriangle}
+    icon="AlertTriangle"
   />
 </FeatureCardList>
 
@@ -1357,7 +1287,7 @@ Validate signal content before processing:
     signal.payload.user_id != null &&
     signal.payload.action in ["approve", "reject"] &&
     signal.payload.timestamp != null
-  
+
   processor:
     type: basic
     with:
@@ -1380,15 +1310,15 @@ Always plan for timeout and error scenarios:
   type: wait
   wait_for: "critical-signal"
   timeout: 300s
-  
+
   on_timeout: handle-timeout
   on_error: handle-error
-  
+
   processor:
     type: basic
     with:
       signal_data: "{{ .signal.payload }}"
-  
+
   outputs:
     success: "{{ not .task.timed_out and not .task.error }}"
     signal_received: "{{ not .task.timed_out }}"
@@ -1401,89 +1331,77 @@ Always implement **timeout handlers** and **error recovery** for critical wait t
 </Tab>
 </Tabs>
 
-## Next Steps
-
 <ReferenceCardList>
   <ReferenceCard
     title="Signal Tasks"
     description="Learn to send signals and coordinate workflows with event emission"
     href="/docs/core/signals/signal-tasks"
-    icon={Radio}
+    icon="Radio"
   />
   <ReferenceCard
     title="Signal Triggers"
     description="Explore workflow initiation and signal-based automation patterns"
     href="/docs/core/signals/signal-triggers"
-    icon={Play}
+    icon="Play"
   />
   <ReferenceCard
     title="Event API"
     description="REST API for programmatic signal management and monitoring"
     href="/docs/core/signals/event-api"
-    icon={Code}
+    icon="Code"
   />
   <ReferenceCard
     title="Advanced Patterns"
     description="Study complex scenarios and signal coordination strategies"
     href="/docs/core/signals/advanced-patterns"
-    icon={GitBranch}
+    icon="GitBranch"
   />
-</ReferenceCardList>
-
-### Related Documentation
-
-<ReferenceCardList>
   <ReferenceCard
     title="Signal System Overview"
     description="Complete guide to Compozy's signal system and architecture"
     href="/docs/core/signals/signal-overview"
-    icon={Radio}
+    icon="Radio"
   />
   <ReferenceCard
     title="Task Types"
     description="Understand all task types including signal and wait tasks"
     href="/docs/core/tasks/basic-tasks"
-    icon={Box}
+    icon="Box"
   />
   <ReferenceCard
     title="Workflow Orchestration"
     description="Learn workflow coordination patterns and best practices"
     href="/docs/core/workflows/orchestration"
-    icon={Workflow}
+    icon="Workflow"
   />
   <ReferenceCard
-    title="Redis Configuration"
-    description="Configure Redis backend for signal dispatch and persistence"
-    href="/docs/core/configuration/redis"
-    icon={Database}
+    title="Configuration Guide"
+    description="Configure signal dispatch and message handling settings"
+    href="/docs/core/configuration/monitoring-config"
+    icon="Database"
   />
-</ReferenceCardList>
-
-### Use Cases & Examples
-
-<ReferenceCardList>
   <ReferenceCard
     title="Weather System"
     description="Complete weather advisory system with signal coordination"
     href="/docs/core/examples/weather"
-    icon={CloudSun}
+    icon="CloudSun"
   />
   <ReferenceCard
     title="Customer Support"
     description="Multi-agent support workflows with signal-based routing"
     href="/docs/core/examples/customer-support"
-    icon={HeadphonesIcon}
+    icon="headphones"
   />
   <ReferenceCard
     title="Data Processing"
     description="Batch processing pipelines with signal orchestration"
     href="/docs/core/examples/data-processing"
-    icon={Cpu}
+    icon="Cpu"
   />
   <ReferenceCard
     title="Content Generation"
     description="AI-powered content workflows with signal coordination"
     href="/docs/core/examples/content-generation"
-    icon={PenTool}
+    icon="PenTool"
   />
 </ReferenceCardList>

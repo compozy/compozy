@@ -32,6 +32,7 @@ type Options struct {
 	Author      string
 	AuthorURL   string
 	Interactive bool
+	DockerSetup bool
 }
 
 // ProjectConfig represents the structure of compozy.yaml
@@ -95,6 +96,15 @@ var workflowTemplate string
 //go:embed templates/readme.md.tmpl
 var readmeTemplate string
 
+//go:embed templates/greeting_tool.ts.tmpl
+var greetingToolTemplate string
+
+//go:embed templates/docker-compose.yaml.tmpl
+var dockerComposeTemplate string
+
+//go:embed templates/env.example.tmpl
+var envExampleTemplate string
+
 // Form field indices for maintainability
 const (
 	formFieldName = iota
@@ -157,6 +167,64 @@ type initFormModel struct {
 	focused   int
 	submitted bool
 	opts      *Options
+}
+
+// dockerConfirmModel represents the Docker setup confirmation
+type dockerConfirmModel struct {
+	models.BaseModel
+	confirmed bool
+	choice    bool
+}
+
+// newDockerConfirm creates a new Docker confirmation model
+func newDockerConfirm() *dockerConfirmModel {
+	return &dockerConfirmModel{
+		BaseModel: models.NewBaseModel(context.Background(), models.ModeTUI),
+		confirmed: false,
+		choice:    false,
+	}
+}
+
+// Init initializes the Docker confirmation model
+func (m *dockerConfirmModel) Init() tea.Cmd {
+	return nil
+}
+
+// Update handles Docker confirmation updates
+func (m *dockerConfirmModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if keyMsg, ok := msg.(tea.KeyMsg); ok {
+		switch keyMsg.String() {
+		case "y", "Y":
+			m.choice = true
+			m.confirmed = true
+			return m, tea.Quit
+		case "n", "N":
+			m.choice = false
+			m.confirmed = true
+			return m, tea.Quit
+		case "ctrl+c", "q":
+			return m, tea.Quit
+		}
+	}
+	return m, nil
+}
+
+// View renders the Docker confirmation prompt
+func (m *dockerConfirmModel) View() string {
+	if m.confirmed {
+		if m.choice {
+			return "✅ Docker Compose setup will be included\n"
+		}
+		return "⏭️  Skipping Docker Compose setup\n"
+	}
+	return `
+🐳 Would you like to include Docker Compose setup?
+
+This will create:
+  • docker-compose.yaml with Redis, PostgreSQL, and Temporal
+  • env.example with configuration variables
+
+Include Docker setup? (y/N): `
 }
 
 // newInitForm creates a new interactive form
@@ -355,6 +423,7 @@ Examples:
 	cmd.Flags().StringVar(&opts.Author, "author", "", "Author name")
 	cmd.Flags().StringVar(&opts.AuthorURL, "author-url", "", "Author URL")
 	cmd.Flags().BoolVarP(&opts.Interactive, "interactive", "i", false, "Force interactive mode")
+	cmd.Flags().BoolVar(&opts.DockerSetup, "docker", false, "Include Docker Compose setup")
 
 	return cmd
 }
@@ -450,12 +519,25 @@ func runInitTUI(ctx context.Context, _ *cobra.Command, executor *cmd.CommandExec
 	// Display success message
 	fmt.Printf("🎉 Project '%s' initialized successfully!\n", opts.Name)
 	fmt.Printf("📁 Location: %s\n", opts.Path)
+
+	if opts.DockerSetup {
+		fmt.Printf("\n🐳 Docker setup included:\n")
+		fmt.Printf("  • docker-compose.yaml - Infrastructure services\n")
+		fmt.Printf("  • env.example - Environment variables template\n")
+	}
+
 	fmt.Printf("\n📋 Next steps:\n")
 	fmt.Printf("  1. cd %s\n", opts.Path)
-	fmt.Printf("  2. Edit compozy.yaml to configure your project\n")
-	fmt.Printf("  3. Add your workflows to the workflows/ directory\n")
-	fmt.Printf("  4. Add your tools to the tools/ directory\n")
-	fmt.Printf("  5. Run 'compozy dev' to start the development server\n")
+	if opts.DockerSetup {
+		fmt.Printf("  2. Copy env.example to .env and add your API keys\n")
+		fmt.Printf("  3. Run 'docker-compose up -d' to start services\n")
+		fmt.Printf("  4. Run 'compozy dev' to start the development server\n")
+	} else {
+		fmt.Printf("  2. Edit compozy.yaml to configure your project\n")
+		fmt.Printf("  3. Add your workflows to the workflows/ directory\n")
+		fmt.Printf("  4. Add your tools to the tools/ directory\n")
+		fmt.Printf("  5. Run 'compozy dev' to start the development server\n")
+	}
 
 	return nil
 }
@@ -481,6 +563,18 @@ func runInteractiveForm(_ context.Context, opts *Options) error {
 		opts.Template = formModel.getTemplate()
 	}
 
+	// Ask about Docker setup
+	dockerConfirm := newDockerConfirm()
+	dockerProgram := tea.NewProgram(dockerConfirm)
+	dockerFinalModel, err := dockerProgram.Run()
+	if err != nil {
+		return fmt.Errorf("failed to run Docker confirmation: %w", err)
+	}
+
+	if dockerModel, ok := dockerFinalModel.(*dockerConfirmModel); ok {
+		opts.DockerSetup = dockerModel.choice
+	}
+
 	return nil
 }
 
@@ -495,9 +589,9 @@ func createProjectConfig(opts *Options) *ProjectConfig {
 		},
 		Models: []ModelConfig{
 			{
-				Provider: "groq",
-				Model:    "llama-3.3-70b-versatile",
-				APIKey:   "{{ .env.GROQ_API_KEY }}",
+				Provider: "openai",
+				Model:    "gpt-4.1-2025-04-14",
+				APIKey:   "{{ .env.OPENAI_API_KEY }}",
 			},
 		},
 		Runtime: &RuntimeConfig{
@@ -591,8 +685,22 @@ func createTemplateFiles(ctx context.Context, opts *Options, config *ProjectConf
 		return fmt.Errorf("failed to create workflow: %w", err)
 	}
 
+	if err := createGreetingTool(opts, config); err != nil {
+		return fmt.Errorf("failed to create greeting tool: %w", err)
+	}
+
 	if err := createReadme(opts, config); err != nil {
 		return fmt.Errorf("failed to create README: %w", err)
+	}
+
+	// Create Docker setup files if requested
+	if opts.DockerSetup {
+		if err := createDockerCompose(opts, config); err != nil {
+			return fmt.Errorf("failed to create docker-compose.yaml: %w", err)
+		}
+		if err := createEnvExample(opts, config); err != nil {
+			return fmt.Errorf("failed to create .env.example: %w", err)
+		}
 	}
 
 	return nil
@@ -617,9 +725,24 @@ func createWorkflow(opts *Options, config *ProjectConfig) error {
 	return createFromTemplate(opts, workflowPath, workflowTemplate, config)
 }
 
+// createGreetingTool creates the greeting_tool.ts file
+func createGreetingTool(opts *Options, config *ProjectConfig) error {
+	return createFromTemplate(opts, "greeting_tool.ts", greetingToolTemplate, config)
+}
+
 // createReadme creates the README.md file
 func createReadme(opts *Options, config *ProjectConfig) error {
 	return createFromTemplate(opts, "README.md", readmeTemplate, config)
+}
+
+// createDockerCompose creates the docker-compose.yaml file
+func createDockerCompose(opts *Options, config *ProjectConfig) error {
+	return createFromTemplate(opts, "docker-compose.yaml", dockerComposeTemplate, config)
+}
+
+// createEnvExample creates the env.example file
+func createEnvExample(opts *Options, config *ProjectConfig) error {
+	return createFromTemplate(opts, "env.example", envExampleTemplate, config)
 }
 
 // createFromTemplate creates a file from a template with enhanced escaping

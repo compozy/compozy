@@ -5,6 +5,19 @@ description: Process arrays and collections with parallel or sequential iteratio
 
 Collection tasks provide powerful iteration patterns for processing arrays and collections in Compozy workflows. They enable efficient processing of multiple items with support for filtering, batching, and both sequential and parallel execution modes.
 
+## Related Documentation
+
+### 🔗 Cross-References
+- **[Core Concepts: Tasks](/docs/core/getting-started/core-concepts#2-tasks)** - Tasks in workflow context
+- **[Basic Tasks](/docs/core/tasks/basic-tasks)** - Foundation task patterns used in collections
+- **[Parallel Processing](/docs/core/tasks/parallel-processing)** - Concurrent execution strategies
+- **[YAML Templates](/docs/core/yaml-templates/overview)** - Dynamic collection configuration
+
+### ⚙️ Task-Related Topics
+- **Collection Tasks** ↔ **[Aggregate Tasks](/docs/core/tasks/aggregate-tasks)** ↔ **[Flow Control](/docs/core/tasks/flow-control)**
+- **Array Processing** ↔ **[Template Expressions](/docs/core/yaml-templates/expressions)** ↔ **[Agent Actions](/docs/core/agents/instructions-actions)**
+- **Batch Processing** ↔ **[Performance Optimization](/docs/core/tasks/advanced-patterns)** ↔ **[Error Handling](/docs/core/tasks/basic-tasks#error-handling)**
+
 ## Overview
 
 Collection tasks offer comprehensive collection processing capabilities:
@@ -26,7 +39,6 @@ Collection tasks are ideal for batch processing, data transformation pipelines, 
 
 ```yaml
 id: process-users
-type: collection
 mode: parallel
 strategy: best_effort
 
@@ -39,7 +51,6 @@ filter: "{{ ne .item.status 'inactive' }}"
 # Task template applied to each item
 task:
   id: "process-user-{{ .index }}"
-  type: basic
   $use: agent(local::agents.#(id=="user-processor"))
   action: process_user
   with:
@@ -62,13 +73,11 @@ Control how collection items are processed:
 ```yaml
 # Sequential processing - items processed one by one
 id: sequential-collection
-type: collection
 mode: sequential
 items: "{{ .workflow.input.documents }}"
 
 task:
   id: "process-doc-{{ .index }}"
-  type: basic
   $use: tool(local::tools.#(id=="document-processor"))
   with:
     document: "{{ .item }}"
@@ -78,7 +87,6 @@ task:
 
 # Parallel processing - items processed concurrently
 id: parallel-collection
-type: collection
 mode: parallel
 strategy: wait_all
 max_workers: 8
@@ -86,7 +94,6 @@ items: "{{ .workflow.input.images }}"
 
 task:
   id: "process-image-{{ .index }}"
-  type: basic
   $use: tool(local::tools.#(id=="image-processor"))
   with:
     image: "{{ .item }}"
@@ -96,14 +103,12 @@ task:
 
 # Batched processing - process items in batches
 id: batched-collection
-type: collection
 mode: parallel
 batch_size: 5
 items: "{{ .workflow.input.records }}"
 
 task:
   id: "process-batch-{{ .batch_index }}"
-  type: basic
   $use: tool(local::tools.#(id=="batch-processor"))
   with:
     records: "{{ .batch }}"
@@ -118,13 +123,11 @@ Filter items before processing:
 ```yaml
 # Simple property filtering
 id: filter-by-status
-type: collection
 items: "{{ .workflow.input.orders }}"
 filter: "{{ eq .item.status 'pending' }}"
 
 task:
   id: "process-order-{{ .index }}"
-  type: basic
   $use: agent(local::agents.#(id=="order-processor"))
   action: process_order
   with:
@@ -134,13 +137,11 @@ task:
 
 # Complex filtering with multiple conditions
 id: complex-filter
-type: collection
 items: "{{ .workflow.input.users }}"
 filter: "{{ and (ne .item.status 'inactive') (gt .item.age 18) (ne .item.email '') }}"
 
 task:
   id: "process-user-{{ .index }}"
-  type: basic
   $use: agent(local::agents.#(id=="user-processor"))
   action: process_adult_user
   with:
@@ -150,13 +151,11 @@ task:
 
 # Date-based filtering
 id: date-filter
-type: collection
 items: "{{ .workflow.input.events }}"
 filter: "{{ and (gt .item.date '2024-01-01') (lt .item.date '2024-12-31') }}"
 
 task:
   id: "process-event-{{ .index }}"
-  type: basic
   $use: tool(local::tools.#(id=="event-processor"))
   with:
     event: "{{ .item }}"
@@ -171,14 +170,12 @@ Process items in batches for efficiency:
 ```yaml
 # Fixed batch size
 id: fixed-batch
-type: collection
 mode: parallel
 batch_size: 10
 items: "{{ .workflow.input.large_dataset }}"
 
 task:
   id: "process-batch-{{ .batch_index }}"
-  type: basic
   $use: tool(local::tools.#(id=="batch-processor"))
   with:
     batch: "{{ .batch }}"
@@ -189,14 +186,12 @@ task:
 
 # Dynamic batch sizing
 id: dynamic-batch
-type: collection
 mode: parallel
 batch_size: "{{ .env.BATCH_SIZE | default 5 | toNumber }}"
 items: "{{ .workflow.input.items }}"
 
 task:
   id: "process-batch-{{ .batch_index }}"
-  type: basic
   $use: agent(local::agents.#(id=="batch-processor"))
   action: process_batch
   with:
@@ -210,7 +205,6 @@ task:
 
 # Batch with overlap
 id: overlapping-batch
-type: collection
 mode: sequential
 batch_size: 8
 batch_overlap: 2
@@ -218,7 +212,6 @@ items: "{{ .workflow.input.time_series }}"
 
 task:
   id: "analyze-window-{{ .batch_index }}"
-  type: basic
   $use: agent(local::agents.#(id=="time-series-analyzer"))
   action: analyze_window
   with:
@@ -234,14 +227,12 @@ Use collection-specific variables in tasks:
 
 ```yaml
 id: collection-variables
-type: collection
 items: "{{ .workflow.input.products }}"
 item_var: product     # Custom variable name for current item
 index_var: idx        # Custom variable name for current index
 
 task:
   id: "process-product-{{ .idx }}"
-  type: basic
   $use: agent(local::agents.#(id=="product-processor"))
   action: process_product
   with:
@@ -267,12 +258,10 @@ task:
 
 # Default variable names (.item and .index)
 id: default-variables
-type: collection
 items: "{{ .workflow.input.tasks }}"
 
 task:
   id: "execute-task-{{ .index }}"
-  type: basic
   $use: tool(local::tools.#(id=="task-executor"))
   with:
     task_definition: "{{ .item }}"
@@ -291,7 +280,6 @@ Process items one after another, maintaining order:
 
 ```yaml
 id: sequential-document-processing
-type: collection
 mode: sequential
 items: "{{ .workflow.input.documents }}"
 
@@ -300,7 +288,6 @@ filter: "{{ eq .item.type 'pdf' }}"
 
 task:
   id: "process-pdf-{{ .index }}"
-  type: basic
   $use: agent(local::agents.#(id=="pdf-processor"))
   action: extract_and_analyze
   with:
@@ -328,7 +315,6 @@ Process items concurrently for better performance:
 
 ```yaml
 id: parallel-image-processing
-type: collection
 mode: parallel
 strategy: wait_all
 max_workers: 6
@@ -336,7 +322,6 @@ items: "{{ .workflow.input.images }}"
 
 task:
   id: "process-image-{{ .index }}"
-  type: basic
   $use: tool(local::tools.#(id=="image-processor"))
   with:
     image_data: "{{ .item.data }}"
@@ -369,14 +354,12 @@ Process items in batches for efficiency:
 
 ```yaml
 id: batch-user-processing
-type: collection
 mode: parallel
 batch_size: 50
 items: "{{ .workflow.input.users }}"
 
 task:
   id: "process-user-batch-{{ .batch_index }}"
-  type: basic
   $use: agent(local::agents.#(id=="user-batch-processor"))
   action: process_user_batch
   with:
@@ -415,7 +398,6 @@ Use dynamic conditions for sophisticated filtering:
 
 ```yaml
 id: conditional-processing
-type: collection
 items: "{{ .workflow.input.transactions }}"
 
 # Complex filtering with multiple conditions
@@ -432,7 +414,6 @@ filter: |
 
 task:
   id: "process-transaction-{{ .index }}"
-  type: basic
   $use: agent(local::agents.#(id=="transaction-processor"))
   action: process_transaction
   with:
@@ -452,14 +433,12 @@ Handle failures gracefully while preserving successful results:
 
 ```yaml
 id: resilient-collection
-type: collection
 mode: parallel
 strategy: best_effort  # Continue despite failures
 items: "{{ .workflow.input.data_sources }}"
 
 task:
   id: "fetch-data-{{ .index }}"
-  type: basic
   $use: tool(local::tools.#(id=="data-fetcher"))
   with:
     source: "{{ .item }}"
@@ -500,12 +479,10 @@ Process collections within collections:
 
 ```yaml
 id: nested-collection-processing
-type: collection
 items: "{{ .workflow.input.departments }}"
 
 task:
   id: "process-department-{{ .index }}"
-  type: collection
   mode: parallel
   items: "{{ .item.employees }}"
 
@@ -542,7 +519,6 @@ outputs:
 
 ```yaml
 id: product-catalog-processing
-type: collection
 mode: parallel
 strategy: wait_all
 max_workers: 8
@@ -553,7 +529,6 @@ filter: "{{ eq .item.status 'active' }}"
 
 task:
   id: "process-product-{{ .index }}"
-  type: basic
   $use: agent(local::agents.#(id=="product-processor"))
   action: enhance_product_data
   with:
@@ -620,7 +595,6 @@ outputs:
 
 ```yaml
 id: document-analysis-pipeline
-type: collection
 mode: sequential  # Sequential to maintain document order
 items: "{{ .workflow.input.documents }}"
 
@@ -629,7 +603,6 @@ filter: "{{ in .item.type ['pdf', 'docx', 'txt', 'md'] }}"
 
 task:
   id: "analyze-document-{{ .index }}"
-  type: basic
   $use: agent(local::agents.#(id=="document-analyzer"))
   action: comprehensive_analysis
   with:
@@ -684,7 +657,6 @@ outputs:
 
 ```yaml
 id: multi-language-content
-type: collection
 mode: parallel
 strategy: best_effort
 max_workers: 6
@@ -692,7 +664,6 @@ items: "{{ .workflow.input.content_pieces }}"
 
 task:
   id: "process-content-{{ .index }}"
-  type: collection
   mode: sequential
   items: "{{ .item.languages }}"
 
@@ -744,7 +715,6 @@ outputs:
 
 ```yaml
 id: memory-efficient-collection
-type: collection
 mode: parallel
 batch_size: 20  # Process in smaller batches
 max_workers: 4
@@ -752,7 +722,6 @@ items: "{{ .workflow.input.large_dataset }}"
 
 task:
   id: "process-batch-{{ .batch_index }}"
-  type: basic
   $use: tool(local::tools.#(id=="memory-efficient-processor"))
   with:
     batch: "{{ .batch }}"
@@ -768,7 +737,6 @@ task:
 
 ```yaml
 id: adaptive-collection
-type: collection
 mode: parallel
 # Adjust workers based on system resources
 max_workers: "{{ min (.env.MAX_WORKERS | default 8 | toNumber) (div (len .collection) 10) }}"
@@ -776,7 +744,6 @@ items: "{{ .workflow.input.items }}"
 
 task:
   id: "adaptive-process-{{ .index }}"
-  type: basic
   $use: tool(local::tools.#(id=="adaptive-processor"))
   with:
     item: "{{ .item }}"
@@ -792,5 +759,34 @@ task:
 4. **Optimize Batch Sizes**: Balance memory usage with processing efficiency
 5. **Monitor Performance**: Track processing times and adjust configuration accordingly
 6. **Use Appropriate Timeouts**: Set realistic timeouts for individual items and overall collection
+
+## References
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Basic Tasks"
+    description="Master the foundation tasks used within collection task templates"
+    href="/docs/core/tasks/basic-tasks"
+    icon="Cog"
+  />
+  <ReferenceCard
+    title="Parallel Processing"
+    description="Learn parallel execution strategies for collection processing"
+    href="/docs/core/tasks/parallel-processing"
+    icon="Zap"
+  />
+  <ReferenceCard
+    title="Aggregate Tasks"
+    description="Combine and transform collection results into unified outputs"
+    href="/docs/core/tasks/aggregate-tasks"
+    icon="BarChart"
+  />
+  <ReferenceCard
+    title="Flow Control"
+    description="Implement conditional logic and routing in collection workflows"
+    href="/docs/core/tasks/flow-control"
+    icon="GitBranch"
+  />
+</ReferenceCardList>
 
 Collection tasks provide powerful patterns for processing arrays and collections efficiently while maintaining flexibility and reliability in your Compozy workflows.

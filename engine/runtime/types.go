@@ -70,6 +70,7 @@ type ToolExecuteParams struct {
 	ToolID     string      `json:"tool_id"`
 	ToolExecID string      `json:"tool_exec_id"`
 	Input      *core.Input `json:"input"`
+	Config     *core.Input `json:"config"`
 	Env        core.EnvMap `json:"env"`
 }
 

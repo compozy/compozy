@@ -23,16 +23,18 @@ export function ParameterDescription({ description }: ParameterDescriptionProps)
   const hasExternalRef = description.includes("$ref: schema://");
   const hasInlineRef = description.includes("$ref: inline:#");
 
-  const externalRefMatch = hasExternalRef ? description.match(/\$ref: schema:\/\/(\w+)/) : null;
+  // Updated regex to capture both schema name and optional anchor
+  const externalRefMatch = hasExternalRef ? description.match(/\$ref: schema:\/\/(\w+)(?:#([\w-]+))?/) : null;
   const inlineRefMatch = hasInlineRef ? description.match(/\$ref: inline:#([\w-]+)/) : null;
 
   const referencedSchema = externalRefMatch ? externalRefMatch[1] : null;
+  const externalAnchor = externalRefMatch ? externalRefMatch[2] : null;
   const inlineReference = inlineRefMatch ? inlineRefMatch[1] : null;
 
   // Get main description without $ref references
   let mainDescription = description;
   if (hasExternalRef) {
-    mainDescription = mainDescription.replace(/\$ref: schema:\/\/\w+/g, "").trim();
+    mainDescription = mainDescription.replace(/\$ref: schema:\/\/\w+(?:#[\w-]+)?/g, "").trim();
   }
   if (hasInlineRef) {
     mainDescription = mainDescription.replace(/\$ref: inline:#[\w-]+/g, "").trim();
@@ -46,14 +48,18 @@ export function ParameterDescription({ description }: ParameterDescriptionProps)
 
   // Add external schema reference link if present
   if (referencedSchema) {
+    const href = externalAnchor 
+      ? `/docs/schema/${referencedSchema}#${externalAnchor}`
+      : `/docs/schema/${referencedSchema}`;
+    
     parts.push(
       <div key="external-ref" className="flex items-center gap-1 mt-3">
         <Link className="size-3" /> <strong>Schema Reference:</strong>{" "}
         <FumaLink
-          href={`/docs/schema/${referencedSchema}`}
+          href={href}
           className="underline hover:no-underline"
         >
-          {referencedSchema}.json
+          {referencedSchema}.json{externalAnchor ? `#${externalAnchor}` : ''}
         </FumaLink>
       </div>
     );

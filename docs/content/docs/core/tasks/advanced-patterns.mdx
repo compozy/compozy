@@ -3,9 +3,9 @@ title: Advanced Patterns
 description: Sophisticated task orchestration patterns for complex workflows and enterprise-scale applications
 ---
 
-# Advanced Patterns
+Master sophisticated task orchestration patterns that enable complex workflows, enterprise-scale applications, and advanced automation scenarios. This guide covers architectural patterns, optimization strategies, and real-world implementations using Compozy's 9 built-in task types.
 
-Master sophisticated task orchestration patterns that enable complex workflows, enterprise-scale applications, and advanced automation scenarios. This guide covers architectural patterns, optimization strategies, and real-world implementations.
+
 
 ## Overview
 
@@ -19,1305 +19,429 @@ Advanced patterns provide:
 - **State management** for long-running, stateful processes
 
 <Callout type="info">
-These patterns build on the foundational task types and demonstrate how to combine them into sophisticated workflows that can handle complex business requirements.
+These patterns build on the foundational execution types and demonstrate how to combine them into sophisticated workflows that can handle complex business requirements using Compozy's activity-based execution model.
 </Callout>
 
-## Architectural Patterns
+## Key Architectural Patterns
 
-### 1. Saga Pattern
+### 1. Multi-Stage Processing Pipeline
 
-Implement distributed transactions with compensation:
+Build sophisticated processing pipelines with error handling and state management:
 
-<Tabs items={['Saga Definition', 'Compensation Logic', 'Usage Example']}>
-  <Tab value="Saga Definition">
 ```yaml
-# Order Processing Saga
-id: order_processing_saga
-version: 1.0.0
-description: Distributed transaction for order processing
-
-config:
-  input:
-    type: object
-    properties:
-      order_id: { type: string }
-      customer_id: { type: string }
-      items: { type: array }
-      payment_method: { type: string }
-
-tasks:
-  # Main saga orchestration
-  - id: order_saga
-    type: composite
-    strategy: fail_fast
-    compensation: true
-    tasks:
-      # Step 1: Reserve inventory
-      - id: reserve_inventory
-        type: basic
-        $use: tool(local::tools.#(id=="inventory_service"))
-        with:
-          operation: "reserve"
-          items: "{{ .workflow.input.items }}"
-        compensation:
-          operation: "release"
-          items: "{{ .workflow.input.items }}"
-
-      # Step 2: Process payment
-      - id: process_payment
-        type: basic
-        $use: tool(local::tools.#(id=="payment_service"))
-        with:
-          operation: "charge"
-          amount: "{{ .tasks.reserve_inventory.output.total_amount }}"
-          payment_method: "{{ .workflow.input.payment_method }}"
-        compensation:
-          operation: "refund"
-          transaction_id: "{{ .tasks.process_payment.output.transaction_id }}"
-
-      # Step 3: Create order
-      - id: create_order
-        type: basic
-        $use: tool(local::tools.#(id=="order_service"))
-        with:
-          operation: "create"
-          order_data:
-            customer_id: "{{ .workflow.input.customer_id }}"
-            items: "{{ .workflow.input.items }}"
-            payment_ref: "{{ .tasks.process_payment.output.transaction_id }}"
-        compensation:
-          operation: "cancel"
-          order_id: "{{ .tasks.create_order.output.order_id }}"
-
-      # Step 4: Ship order
-      - id: ship_order
-        type: basic
-        $use: tool(local::tools.#(id=="shipping_service"))
-        with:
-          operation: "ship"
-          order_id: "{{ .tasks.create_order.output.order_id }}"
-        compensation:
-          operation: "cancel_shipment"
-          tracking_id: "{{ .tasks.ship_order.output.tracking_id }}"
-
-    # Saga completion
-    outputs:
-      order_id: "{{ .tasks.create_order.output.order_id }}"
-      tracking_id: "{{ .tasks.ship_order.output.tracking_id }}"
-      total_amount: "{{ .tasks.process_payment.output.amount }}"
+- id: data_processing_pipeline
+  description: "Enterprise data processing with validation and transformation"
+  
+  tasks:
+    # Stage 1: Validation
+    - id: validation_stage
+      strategy: wait_all
+      tasks:
+        - id: validate_format
+          $use: tool(local::tools.#(id=="format_validator"))
+          with:
+            data: "{{ .workflow.input.raw_data }}"
+            schema: "{{ .workflow.input.validation_schema }}"
+        
+        - id: validate_business_rules
+          $use: agent(local::agents.#(id=="rule_validator"))
+          action: validate_rules
+          with:
+            rules: "{{ .workflow.input.business_rules }}"
+            data: "{{ .workflow.input.raw_data }}"
+    
+    # Stage 2: Transformation
+    - id: transformation_stage
+      condition: "{{ .tasks.validation_stage.output.all_valid }}"
+      routes:
+        true:
+          mode: parallel
+          items: "{{ .workflow.input.raw_data }}"
+          task:
+            id: "transform_item_{{ .index }}"
+            $use: agent(local::agents.#(id=="data_transformer"))
+            action: transform
+            with:
+              item: "{{ .item }}"
+              rules: "{{ .workflow.input.transform_rules }}"
+        
+        false:
+          signal_name: "validation_failed"
+          with:
+            errors: "{{ .tasks.validation_stage.output.errors }}"
+    
+    # Stage 3: Storage
+    - id: storage_stage
+      tasks:
+        - id: store_primary
+          $use: tool(local::tools.#(id=="storage"))
+          with:
+            data: "{{ .tasks.transformation_stage.output }}"
+            location: "primary"
+        
+        - id: store_backup
+          $use: tool(local::tools.#(id=="storage"))
+          with:
+            data: "{{ .tasks.transformation_stage.output }}"
+            location: "backup"
 ```
-  </Tab>
-  <Tab value="Compensation Logic">
+
+### 2. Event-Driven Architecture
+
+Implement responsive, event-driven workflows using signals and wait tasks:
+
 ```yaml
-# Compensation workflow for saga failures
-id: order_saga_compensation
-version: 1.0.0
-description: Handles saga compensation on failures
-
-config:
-  input:
-    type: object
-    properties:
-      failed_step: { type: string }
-      saga_state: { type: object }
-      error_details: { type: object }
-
-tasks:
-  # Compensation orchestration
-  - id: compensation_orchestrator
-    type: router
-    condition: "{{ .workflow.input.failed_step }}"
-    routes:
-      ship_order:
-        - id: compensate_shipping
-          type: basic
-          $use: tool(local::tools.#(id=="shipping_service"))
-          with:
-            operation: "cancel_shipment"
-            tracking_id: "{{ .workflow.input.saga_state.ship_order.output.tracking_id }}"
-
-        - id: compensate_order
-          type: basic
-          $use: tool(local::tools.#(id=="order_service"))
-          with:
-            operation: "cancel"
-            order_id: "{{ .workflow.input.saga_state.create_order.output.order_id }}"
-
-        - id: compensate_payment
-          type: basic
-          $use: tool(local::tools.#(id=="payment_service"))
-          with:
-            operation: "refund"
-            transaction_id: "{{ .workflow.input.saga_state.process_payment.output.transaction_id }}"
-
-        - id: compensate_inventory
-          type: basic
-          $use: tool(local::tools.#(id=="inventory_service"))
-          with:
-            operation: "release"
-            items: "{{ .workflow.input.saga_state.reserve_inventory.input.items }}"
-
-      create_order:
-        - id: compensate_payment
-          type: basic
-          $use: tool(local::tools.#(id=="payment_service"))
-          with:
-            operation: "refund"
-            transaction_id: "{{ .workflow.input.saga_state.process_payment.output.transaction_id }}"
-
-        - id: compensate_inventory
-          type: basic
-          $use: tool(local::tools.#(id=="inventory_service"))
-          with:
-            operation: "release"
-            items: "{{ .workflow.input.saga_state.reserve_inventory.input.items }}"
-
-      process_payment:
-        - id: compensate_inventory
-          type: basic
-          $use: tool(local::tools.#(id=="inventory_service"))
-          with:
-            operation: "release"
-            items: "{{ .workflow.input.saga_state.reserve_inventory.input.items }}"
-```
-  </Tab>
-  <Tab value="Usage Example">
-```yaml
-# Client workflow using the saga
-id: customer_order_workflow
-version: 1.0.0
-description: Customer order processing with saga pattern
-
-tasks:
-  - id: validate_order
-    type: basic
-    $use: tool(local::tools.#(id=="order_validator"))
-    with:
-      order_data: "{{ .workflow.input }}"
-
-  - id: execute_order_saga
-    type: basic
-    $use: workflow(order_processing_saga)
-    with:
-      order_id: "{{ .workflow.input.order_id }}"
-      customer_id: "{{ .workflow.input.customer_id }}"
-      items: "{{ .workflow.input.items }}"
-      payment_method: "{{ .workflow.input.payment_method }}"
-
-    # Handle saga failure
-    on_error:
-      next: handle_saga_failure
+# Event Publisher Workflow
+- id: event_publisher
+  tasks:
+    - id: prepare_event
+      $use: tool(local::tools.#(id=="event_serializer"))
       with:
-        saga_result: "{{ .tasks.execute_order_saga.output }}"
-        error: "{{ .tasks.execute_order_saga.error }}"
+        event_type: "{{ .workflow.input.event_type }}"
+        payload: "{{ .workflow.input.payload }}"
+        metadata:
+          source: "{{ .workflow.id }}"
+          timestamp: "{{ now }}"
+    
+    - id: publish_events
+      mode: parallel
+      items: "{{ .workflow.input.subscribers }}"
+      task:
+        id: "publish_to_{{ .item.id }}"
+        signal_name: "{{ .item.event_channel }}"
+        with:
+          event: "{{ .tasks.prepare_event.output }}"
+          subscriber: "{{ .item }}"
 
-  - id: handle_saga_failure
-    type: basic
-    $use: workflow(order_saga_compensation)
-    with:
-      failed_step: "{{ .tasks.execute_order_saga.error.failed_step }}"
-      saga_state: "{{ .tasks.execute_order_saga.error.saga_state }}"
-      error_details: "{{ .tasks.execute_order_saga.error }}"
-
-  - id: notify_customer
-    type: basic
-    $use: tool(local::tools.#(id=="notification_service"))
-    with:
-      customer_id: "{{ .workflow.input.customer_id }}"
-      message: |-
-        {{- if .tasks.execute_order_saga.success -}}
-          Your order {{ .tasks.execute_order_saga.output.order_id }} has been processed successfully.
-        {{- else -}}
-          We encountered an issue processing your order. Please try again.
-        {{- end -}}
-```
-  </Tab>
-</Tabs>
-
-### 2. Circuit Breaker Pattern
-
-Implement resilient external service calls:
-
-```yaml
-# Circuit Breaker Implementation
-id: resilient_api_workflow
-version: 1.0.0
-description: Workflow with circuit breaker pattern for external services
-
-config:
-  input:
-    type: object
-    properties:
-      service_endpoint: { type: string }
-      payload: { type: object }
-      circuit_breaker_config: { type: object }
-
-tasks:
-  # Circuit breaker state check
-  - id: check_circuit_state
-    type: basic
-    $use: tool(local::tools.#(id=="circuit_breaker"))
-    with:
-      service: "{{ .workflow.input.service_endpoint }}"
-      operation: "check_state"
-      config: "{{ .workflow.input.circuit_breaker_config }}"
-    outputs:
-      state: "{{ .output.state }}"
-      failure_count: "{{ .output.failure_count }}"
-      last_failure: "{{ .output.last_failure }}"
-
-  # Route based on circuit state
-  - id: circuit_router
-    type: router
-    condition: "{{ .tasks.check_circuit_state.output.state }}"
-    routes:
-      closed:
-        # Circuit closed - proceed with normal operation
-        - id: execute_primary_service
-          type: basic
-          $use: tool(local::tools.#(id=="http_client"))
-          with:
-            url: "{{ .workflow.input.service_endpoint }}"
-            method: "POST"
-            body: "{{ .workflow.input.payload }}"
-            timeout: "30s"
-
-          # Handle service failure
-          on_error:
-            next: record_failure
+# Event Subscriber Workflow
+- id: event_subscriber
+  tasks:
+    - id: wait_for_events
+      condition: "event_received"
+      timeout: 30m
+      processor:
+        condition: "{{ .signal.event_data.type }}"
+        routes:
+          "user_created":
+            $use: agent(local::agents.#(id=="user_handler"))
+            action: handle_user_created
             with:
-              service: "{{ .workflow.input.service_endpoint }}"
-              error: "{{ .tasks.execute_primary_service.error }}"
-
-      open:
-        # Circuit open - use fallback
-        - id: execute_fallback_service
-          type: basic
-          $use: tool(local::tools.#(id=="fallback_service"))
-          with:
-            original_payload: "{{ .workflow.input.payload }}"
-            fallback_reason: "circuit_breaker_open"
-
-      half_open:
-        # Circuit half-open - try limited requests
-        - id: execute_test_request
-          type: basic
-          $use: tool(local::tools.#(id=="http_client"))
-          with:
-            url: "{{ .workflow.input.service_endpoint }}"
-            method: "POST"
-            body: "{{ .workflow.input.payload }}"
-            timeout: "10s"
-
-          # Success - close circuit
-          on_success:
-            next: close_circuit
+              event: "{{ .signal.event_data }}"
+          
+          "order_placed":
+            $use: agent(local::agents.#(id=="order_handler"))
+            action: handle_order_placed
             with:
-              service: "{{ .workflow.input.service_endpoint }}"
-
-          # Failure - open circuit
-          on_error:
-            next: open_circuit
-            with:
-              service: "{{ .workflow.input.service_endpoint }}"
-              error: "{{ .tasks.execute_test_request.error }}"
-
-  # Circuit breaker state management
-  - id: record_failure
-    type: basic
-    $use: tool(local::tools.#(id=="circuit_breaker"))
-    with:
-      service: "{{ .workflow.input.service_endpoint }}"
-      operation: "record_failure"
-      error: "{{ .workflow.input.error }}"
-
-  - id: close_circuit
-    type: basic
-    $use: tool(local::tools.#(id=="circuit_breaker"))
-    with:
-      service: "{{ .workflow.input.service_endpoint }}"
-      operation: "close"
-
-  - id: open_circuit
-    type: basic
-    $use: tool(local::tools.#(id=="circuit_breaker"))
-    with:
-      service: "{{ .workflow.input.service_endpoint }}"
-      operation: "open"
-      error: "{{ .workflow.input.error }}"
+              event: "{{ .signal.event_data }}"
 ```
 
-### 3. Event-Driven Architecture
+### 3. State Management Pattern
 
-Implement event-driven workflow patterns:
+Manage long-running workflows with persistent state:
 
 ```yaml
-# Event-Driven Workflow
-id: event_driven_processing
-version: 1.0.0
-description: Event-driven workflow with multiple event sources
+- id: stateful_workflow
+  tasks:
+    # Initialize state
+    - id: init_state
+      operation: store
+      key: "workflow_state_{{ .workflow.id }}"
+      value:
+        phase: "initialization"
+        progress: 0
+        checkpoints: []
+        started_at: "{{ now }}"
+    
+    # Process with checkpoints
+    - id: process_items
+      mode: sequential
+      items: "{{ .workflow.input.items }}"
+      task:
+        id: "process_{{ .index }}"
+        tasks:
+          - id: process_item
+            $use: tool(local::tools.#(id=="processor"))
+            with:
+              item: "{{ .item }}"
+          
+          - id: update_progress
+            operation: update
+            key: "workflow_state_{{ .workflow.id }}"
+            update:
+              progress: "{{ add .index 1 }}"
+              last_processed: "{{ .item.id }}"
+          
+          - id: checkpoint
+            condition: "{{ mod .index 10 }}"
+            routes:
+              "0":
+                operation: update
+                key: "workflow_state_{{ .workflow.id }}"
+                update:
+                  checkpoints: "{{ append .checkpoints .index }}"
+    
+    # Cleanup
+    - id: cleanup_state
+      operation: delete
+      key: "workflow_state_{{ .workflow.id }}"
+      delay: 7d
+```
 
-config:
-  input:
-    type: object
-    properties:
-      event_type: { type: string }
-      event_data: { type: object }
-      source_system: { type: string }
+### 4. Resilient Service Integration
 
-tasks:
-  # Event classification and routing
-  - id: classify_event
-    type: basic
-    $use: agent(local::agents.#(id=="event_classifier"))
-    with:
-      event_type: "{{ .workflow.input.event_type }}"
-      event_data: "{{ .workflow.input.event_data }}"
-      source_system: "{{ .workflow.input.source_system }}"
-    outputs:
-      classification: "{{ .output.classification }}"
-      priority: "{{ .output.priority }}"
-      processing_strategy: "{{ .output.processing_strategy }}"
+Implement basic error handling and fallback strategies:
 
-  # Route events based on classification
-  - id: event_router
-    type: router
-    condition: "{{ .tasks.classify_event.output.classification }}"
-    routes:
-      user_registration:
-        - id: process_user_registration
-          type: composite
-          tasks:
-            - id: validate_registration
-              type: basic
-              $use: tool(local::tools.#(id=="user_validator"))
-              with:
-                user_data: "{{ .workflow.input.event_data }}"
-
-            - id: create_user_account
-              type: basic
-              $use: tool(local::tools.#(id=="user_service"))
-              with:
-                operation: "create"
-                user_data: "{{ .workflow.input.event_data }}"
-
-            - id: send_welcome_email
-              type: basic
-              $use: tool(local::tools.#(id=="email_service"))
-              with:
-                template: "welcome"
-                recipient: "{{ .workflow.input.event_data.email }}"
-                data: "{{ .tasks.create_user_account.output }}"
-
-            - id: publish_user_created_event
-              type: basic
-              $use: tool(local::tools.#(id=="event_publisher"))
-              with:
-                event_type: "user_created"
-                event_data: "{{ .tasks.create_user_account.output }}"
-
-      order_placed:
-        - id: process_order
-          type: basic
-          $use: workflow(order_processing_saga)
-          with:
-            order_id: "{{ .workflow.input.event_data.order_id }}"
-            customer_id: "{{ .workflow.input.event_data.customer_id }}"
-            items: "{{ .workflow.input.event_data.items }}"
-            payment_method: "{{ .workflow.input.event_data.payment_method }}"
-
-      inventory_low:
-        - id: handle_low_inventory
-          type: parallel
-          strategy: wait_all
-          tasks:
-            - id: notify_procurement
-              type: basic
-              $use: tool(local::tools.#(id=="notification_service"))
-              with:
-                channel: "slack"
-                message: "Low inventory alert for {{ .workflow.input.event_data.product_id }}"
-
-            - id: adjust_pricing
-              type: basic
-              $use: tool(local::tools.#(id=="pricing_service"))
-              with:
-                operation: "adjust_for_scarcity"
-                product_id: "{{ .workflow.input.event_data.product_id }}"
-                current_stock: "{{ .workflow.input.event_data.current_stock }}"
-
-            - id: update_recommendations
-              type: basic
-              $use: tool(local::tools.#(id=="recommendation_service"))
-              with:
-                operation: "reduce_prominence"
-                product_id: "{{ .workflow.input.event_data.product_id }}"
-
-      payment_failed:
-        - id: handle_payment_failure
-          type: composite
-          tasks:
-            - id: retry_payment
-              type: basic
-              $use: tool(local::tools.#(id=="payment_service"))
-              with:
-                operation: "retry"
-                transaction_id: "{{ .workflow.input.event_data.transaction_id }}"
-                retry_count: "{{ .workflow.input.event_data.retry_count | default 0 }}"
-
-              # Max retries exceeded
-              on_error:
-                condition: "{{ .tasks.retry_payment.error.retry_count >= 3 }}"
-                next: escalate_payment_failure
-
-            - id: escalate_payment_failure
-              type: basic
-              $use: tool(local::tools.#(id=="escalation_service"))
-              with:
-                issue_type: "payment_failure"
-                transaction_id: "{{ .workflow.input.event_data.transaction_id }}"
-                customer_id: "{{ .workflow.input.event_data.customer_id }}"
-
-  # Event processing completion
-  - id: complete_event_processing
-    type: basic
-    $use: tool(local::tools.#(id=="event_tracker"))
-    with:
-      operation: "complete"
-      event_id: "{{ .workflow.input.event_data.event_id }}"
-      processing_result: "{{ .tasks.event_router.output }}"
-      processing_time: "{{ sub now .workflow.started_at }}"
+```yaml
+- id: resilient_service_call
+  tasks:
+    - id: primary_call
+      $use: tool(local::tools.#(id=="http_client"))
+      with:
+        url: "{{ .workflow.input.service_url }}"
+        method: "{{ .workflow.input.method }}"
+        body: "{{ .workflow.input.payload }}"
+      on_error:
+        next: fallback_call
+    
+    - id: fallback_call
+      $use: tool(local::tools.#(id=="http_client"))
+      with:
+        url: "{{ .workflow.input.backup_service_url }}"
+        method: "{{ .workflow.input.method }}"
+        body: "{{ .workflow.input.payload }}"
+      on_error:
+        next: error_handler
+    
+    - id: error_handler
+      signal_name: "service_failure"
+      with:
+        primary_error: "{{ .tasks.primary_call.error }}"
+        fallback_error: "{{ .tasks.fallback_call.error }}"
 ```
 
 ## Performance Optimization Patterns
 
-### 1. Batch Processing with Partitioning
+### Resource-Aware Processing
 
-Optimize large-scale data processing:
-
-```yaml
-# High-Performance Batch Processing
-id: optimized_batch_processing
-version: 1.0.0
-description: Optimized batch processing with intelligent partitioning
-
-config:
-  input:
-    type: object
-    properties:
-      data_source: { type: string }
-      batch_size: { type: integer, default: 1000 }
-      partition_strategy: { type: string, default: "size_based" }
-      max_parallel_workers: { type: integer, default: 10 }
-
-tasks:
-  # Analyze data for optimal partitioning
-  - id: analyze_data_characteristics
-    type: basic
-    $use: tool(local::tools.#(id=="data_analyzer"))
-    with:
-      data_source: "{{ .workflow.input.data_source }}"
-      analysis_type: "batch_optimization"
-    outputs:
-      total_records: "{{ .output.total_records }}"
-      data_distribution: "{{ .output.data_distribution }}"
-      optimal_partition_size: "{{ .output.optimal_partition_size }}"
-      estimated_processing_time: "{{ .output.estimated_processing_time }}"
-
-  # Create optimal partitions
-  - id: create_partitions
-    type: basic
-    $use: tool(local::tools.#(id=="partition_creator"))
-    with:
-      data_source: "{{ .workflow.input.data_source }}"
-      partition_strategy: "{{ .workflow.input.partition_strategy }}"
-      target_partition_size: "{{ .tasks.analyze_data_characteristics.output.optimal_partition_size }}"
-      max_partitions: "{{ .workflow.input.max_parallel_workers }}"
-    outputs:
-      partitions: "{{ .output.partitions }}"
-      partition_count: "{{ .output.partition_count }}"
-
-  # Process partitions in parallel with resource management
-  - id: process_partitions
-    type: parallel
-    strategy: wait_all
-    resource_limits:
-      max_concurrent: "{{ .workflow.input.max_parallel_workers }}"
-      memory_limit: "2GB"
-      cpu_limit: "1.0"
-    tasks: |-
-      {{- range .tasks.create_partitions.output.partitions -}}
-      - id: "process_partition_{{ .id }}"
-        type: basic
-        $use: tool(local::tools.#(id=="batch_processor"))
-        with:
-          partition_id: "{{ .id }}"
-          partition_data: "{{ .data }}"
-          processing_config:
-            batch_size: "{{ $.workflow.input.batch_size }}"
-            memory_optimization: true
-            progress_reporting: true
-
-        # Handle partition failure with retry
-        retry:
-          max_attempts: 3
-          backoff: exponential
-          backoff_factor: 2
-
-        # Checkpoint progress for large partitions
-        checkpoint:
-          enabled: true
-          interval: "100"
-          storage: "redis"
-      {{- end -}}
-
-  # Aggregate results with validation
-  - id: aggregate_results
-    type: basic
-    $use: tool(local::tools.#(id=="result_aggregator"))
-    with:
-      partition_results: "{{ .tasks.process_partitions.output }}"
-      validation_enabled: true
-      checksum_verification: true
-    outputs:
-      total_processed: "{{ .output.total_processed }}"
-      total_errors: "{{ .output.total_errors }}"
-      processing_summary: "{{ .output.processing_summary }}"
-      data_quality_metrics: "{{ .output.data_quality_metrics }}"
-
-  # Generate processing report
-  - id: generate_processing_report
-    type: basic
-    $use: tool(local::tools.#(id=="report_generator"))
-    with:
-      report_type: "batch_processing"
-      data:
-        input_characteristics: "{{ .tasks.analyze_data_characteristics.output }}"
-        partition_info: "{{ .tasks.create_partitions.output }}"
-        processing_results: "{{ .tasks.aggregate_results.output }}"
-        total_duration: "{{ sub now .workflow.started_at }}"
-```
-
-### 2. Adaptive Concurrency Control
-
-Implement dynamic resource allocation:
+Optimize resource usage based on system capacity:
 
 ```yaml
-# Adaptive Concurrency Control
-id: adaptive_processing_workflow
-version: 1.0.0
-description: Workflow with adaptive concurrency based on system load
-
-config:
-  input:
-    type: object
-    properties:
-      tasks_to_process: { type: array }
-      initial_concurrency: { type: integer, default: 5 }
-      max_concurrency: { type: integer, default: 20 }
-      target_cpu_utilization: { type: number, default: 0.7 }
-
-tasks:
-  # Monitor system resources
-  - id: monitor_system_resources
-    type: basic
-    $use: tool(local::tools.#(id=="system_monitor"))
-    with:
-      metrics: ["cpu_usage", "memory_usage", "disk_io", "network_io"]
-    outputs:
-      current_load: "{{ .output.current_load }}"
-      available_capacity: "{{ .output.available_capacity }}"
-      recommended_concurrency: "{{ .output.recommended_concurrency }}"
-
-  # Calculate optimal concurrency
-  - id: calculate_concurrency
-    type: basic
-    $use: tool(local::tools.#(id=="concurrency_calculator"))
-    with:
-      current_load: "{{ .tasks.monitor_system_resources.output.current_load }}"
-      target_utilization: "{{ .workflow.input.target_cpu_utilization }}"
-      initial_concurrency: "{{ .workflow.input.initial_concurrency }}"
-      max_concurrency: "{{ .workflow.input.max_concurrency }}"
-    outputs:
-      optimal_concurrency: "{{ .output.optimal_concurrency }}"
-      adjustment_reason: "{{ .output.adjustment_reason }}"
-
-  # Adaptive parallel processing
-  - id: adaptive_parallel_processing
-    type: collection
-    mode: parallel
-    strategy: best_effort
-    items: "{{ .workflow.input.tasks_to_process }}"
-
-    # Dynamic concurrency control
-    concurrency_control:
-      initial: "{{ .tasks.calculate_concurrency.output.optimal_concurrency }}"
-      adaptive: true
-      monitoring_interval: "30s"
-      adjustment_threshold: 0.1
-
-    task:
-      id: "adaptive_task_{{ .index }}"
-      type: basic
-      $use: tool(local::tools.#(id=="adaptive_processor"))
+- id: resource_optimized_workflow
+  tasks:
+    - id: assess_resources
+      $use: tool(local::tools.#(id=="resource_monitor"))
       with:
-        item_data: "{{ .item }}"
-        processing_config:
-          cpu_bound: true
-          memory_intensive: false
-          io_intensive: false
-
-        # Dynamic resource allocation
-        resource_request:
-          cpu: "{{ div 1.0 .parent.concurrency_control.current }}"
-          memory: "256MB"
-          priority: "normal"
-
-      # Monitor task performance
-      monitoring:
-        enabled: true
-        metrics: ["execution_time", "cpu_usage", "memory_usage"]
-        reporting_interval: "10s"
-
-      # Adaptive timeout based on system load
-      timeout: |-
-        {{- $baseTimeout := 60 -}}
-        {{- $loadFactor := .parent.system_load.cpu_usage -}}
-        {{- $adaptiveTimeout := mul $baseTimeout (add 1 $loadFactor) -}}
-        {{ $adaptiveTimeout }}s
-
-  # Performance analysis and adjustment
-  - id: analyze_performance
-    type: basic
-    $use: tool(local::tools.#(id=="performance_analyzer"))
-    with:
-      processing_results: "{{ .tasks.adaptive_parallel_processing.output }}"
-      system_metrics: "{{ .tasks.monitor_system_resources.output }}"
-      concurrency_used: "{{ .tasks.calculate_concurrency.output.optimal_concurrency }}"
-    outputs:
-      performance_metrics: "{{ .output.performance_metrics }}"
-      optimization_suggestions: "{{ .output.optimization_suggestions }}"
-      next_run_recommendations: "{{ .output.next_run_recommendations }}"
-
-  # Store performance data for future optimization
-  - id: store_performance_data
-    type: basic
-    $use: tool(local::tools.#(id=="performance_store"))
-    with:
-      workflow_id: "{{ .workflow.id }}"
-      performance_data: "{{ .tasks.analyze_performance.output }}"
-      execution_context:
-        input_size: "{{ len .workflow.input.tasks_to_process }}"
-        system_load: "{{ .tasks.monitor_system_resources.output.current_load }}"
-        concurrency_used: "{{ .tasks.calculate_concurrency.output.optimal_concurrency }}"
-        execution_time: "{{ sub now .workflow.started_at }}"
+        metrics: ["cpu", "memory", "disk"]
+    
+    - id: adaptive_processing
+      condition: "{{ .tasks.assess_resources.output.resource_score }}"
+      routes:
+        "gt 0.8":
+          # High resources - maximum parallelism
+          mode: parallel
+          max_workers: 16
+          items: "{{ .workflow.input.items }}"
+          task:
+            id: "process_{{ .index }}"
+            $use: tool(local::tools.#(id=="processor"))
+            with:
+              item: "{{ .item }}"
+              optimization: "aggressive"
+        
+        "gt 0.5":
+          # Medium resources - balanced approach
+          mode: parallel
+          max_workers: 8
+          batch_size: 10
+          items: "{{ .workflow.input.items }}"
+          task:
+            id: "process_batch_{{ .batch_index }}"
+            $use: tool(local::tools.#(id=="batch_processor"))
+            with:
+              batch: "{{ .batch }}"
+              optimization: "balanced"
+        
+        "default":
+          # Low resources - sequential processing
+          mode: sequential
+          items: "{{ .workflow.input.items }}"
+          task:
+            id: "process_{{ .index }}"
+            $use: tool(local::tools.#(id=="processor"))
+            with:
+              item: "{{ .item }}"
+              optimization: "conservative"
 ```
 
-## Integration Patterns
+### Batching and Windowing
 
-### 1. Multi-System Integration
-
-Coordinate across multiple external systems:
+Process large datasets efficiently with intelligent batching:
 
 ```yaml
-# Multi-System Integration Pattern
-id: multi_system_integration
-version: 1.0.0
-description: Coordinate operations across multiple external systems
-
-config:
-  input:
-    type: object
-    properties:
-      customer_id: { type: string }
-      operation_type: { type: string }
-      data_payload: { type: object }
-
-tasks:
-  # System health check
-  - id: health_check_systems
-    type: parallel
-    strategy: wait_all
-    tasks:
-      - id: check_crm_system
-        type: basic
-        $use: tool(local::tools.#(id=="health_checker"))
-        with:
-          system: "crm"
-          endpoint: "{{ .env.CRM_HEALTH_ENDPOINT }}"
-
-      - id: check_erp_system
-        type: basic
-        $use: tool(local::tools.#(id=="health_checker"))
-        with:
-          system: "erp"
-          endpoint: "{{ .env.ERP_HEALTH_ENDPOINT }}"
-
-      - id: check_billing_system
-        type: basic
-        $use: tool(local::tools.#(id=="health_checker"))
-        with:
-          system: "billing"
-          endpoint: "{{ .env.BILLING_HEALTH_ENDPOINT }}"
-
-    outputs:
-      systems_healthy: "{{ and .tasks.check_crm_system.output.healthy .tasks.check_erp_system.output.healthy .tasks.check_billing_system.output.healthy }}"
-      unhealthy_systems: "{{ .output.unhealthy_systems }}"
-
-  # Proceed only if all systems are healthy
-  - id: validate_systems_ready
-    type: basic
-    $use: tool(local::tools.#(id=="validator"))
-    with:
-      condition: "{{ .tasks.health_check_systems.output.systems_healthy }}"
-      error_message: "Systems not ready: {{ .tasks.health_check_systems.output.unhealthy_systems }}"
-
-  # Coordinated data synchronization
-  - id: coordinate_data_sync
-    type: composite
-    strategy: fail_fast
-    tasks:
-      # Phase 1: Prepare all systems
-      - id: prepare_systems
-        type: parallel
-        strategy: wait_all
+- id: windowed_processing
+  type: composite
+  tasks:
+    - id: prepare_windows
+      type: basic
+      $use: tool(local::tools.#(id=="window_generator"))
+      with:
+        total_items: "{{ len .workflow.input.items }}"
+        window_size: 100
+        overlap: 10
+    
+    - id: process_windows
+      type: collection
+      mode: parallel
+      max_workers: 4
+      items: "{{ .tasks.prepare_windows.output.windows }}"
+      task:
+        id: "window_{{ .index }}"
+        type: composite
         tasks:
-          - id: prepare_crm
+          - id: load_window_data
             type: basic
-            $use: tool(local::tools.#(id=="crm_connector"))
+            $use: tool(local::tools.#(id=="data_loader"))
             with:
-              operation: "prepare_sync"
-              customer_id: "{{ .workflow.input.customer_id }}"
-
-          - id: prepare_erp
+              items: "{{ slice .workflow.input.items .item.start .item.end }}"
+          
+          - id: process_window
             type: basic
-            $use: tool(local::tools.#(id=="erp_connector"))
+            $use: agent(local::agents.#(id=="window_processor"))
+            action: process_window
             with:
-              operation: "prepare_sync"
-              customer_id: "{{ .workflow.input.customer_id }}"
-
-          - id: prepare_billing
+              data: "{{ .tasks.load_window_data.output }}"
+              window_metadata: "{{ .item }}"
+          
+          - id: aggregate_results
             type: basic
-            $use: tool(local::tools.#(id=="billing_connector"))
+            $use: tool(local::tools.#(id=="aggregator"))
             with:
-              operation: "prepare_sync"
-              customer_id: "{{ .workflow.input.customer_id }}"
-
-      # Phase 2: Execute coordinated updates
-      - id: execute_coordinated_updates
-        type: basic
-        $use: tool(local::tools.#(id=="transaction_coordinator"))
-        with:
-          transaction_type: "multi_system_update"
-          systems:
-            - name: "crm"
-              operation: "{{ .workflow.input.operation_type }}"
-              data: "{{ .workflow.input.data_payload }}"
-              preparation_result: "{{ .tasks.prepare_systems.output.prepare_crm }}"
-
-            - name: "erp"
-              operation: "{{ .workflow.input.operation_type }}"
-              data: "{{ .workflow.input.data_payload }}"
-              preparation_result: "{{ .tasks.prepare_systems.output.prepare_erp }}"
-
-            - name: "billing"
-              operation: "{{ .workflow.input.operation_type }}"
-              data: "{{ .workflow.input.data_payload }}"
-              preparation_result: "{{ .tasks.prepare_systems.output.prepare_billing }}"
-
-          # Coordination settings
-          coordination:
-            timeout: "300s"
-            rollback_on_failure: true
-            consistency_check: true
-
-      # Phase 3: Verify consistency
-      - id: verify_consistency
-        type: basic
-        $use: tool(local::tools.#(id=="consistency_checker"))
-        with:
-          customer_id: "{{ .workflow.input.customer_id }}"
-          transaction_id: "{{ .tasks.execute_coordinated_updates.output.transaction_id }}"
-          expected_state: "{{ .tasks.execute_coordinated_updates.output.expected_state }}"
-          systems: ["crm", "erp", "billing"]
-
-    # Handle coordination failure
-    on_error:
-      next: handle_coordination_failure
-      with:
-        failed_phase: "{{ .tasks.coordinate_data_sync.error.failed_task }}"
-        error_details: "{{ .tasks.coordinate_data_sync.error }}"
-        partial_results: "{{ .tasks.coordinate_data_sync.output }}"
-
-  # Coordination failure handler
-  - id: handle_coordination_failure
-    type: basic
-    $use: tool(local::tools.#(id=="failure_handler"))
-    with:
-      failure_type: "multi_system_coordination"
-      failed_phase: "{{ .workflow.input.failed_phase }}"
-      error_details: "{{ .workflow.input.error_details }}"
-      rollback_required: true
-
-      # Rollback configuration
-      rollback:
-        systems: ["crm", "erp", "billing"]
-        transaction_id: "{{ .workflow.input.partial_results.transaction_id }}"
-        rollback_timeout: "180s"
-
-  # Success notification
-  - id: notify_success
-    type: basic
-    $use: tool(local::tools.#(id=="notification_service"))
-    with:
-      notification_type: "multi_system_sync_success"
-      customer_id: "{{ .workflow.input.customer_id }}"
-      operation_type: "{{ .workflow.input.operation_type }}"
-      transaction_id: "{{ .tasks.coordinate_data_sync.output.execute_coordinated_updates.transaction_id }}"
-      consistency_verified: "{{ .tasks.coordinate_data_sync.output.verify_consistency.consistent }}"
+              window_results: "{{ .tasks.process_window.output }}"
+              previous_aggregate: "{{ if gt .index 0 }}{{ .workflow.state.aggregate }}{{ end }}"
 ```
 
-### 2. Event Sourcing Pattern
+## Error Handling Patterns
 
-Implement event sourcing for audit and replay:
+### Basic Error Recovery
+
+Implement error handling with fallback strategies:
 
 ```yaml
-# Event Sourcing Pattern
-id: event_sourced_workflow
-version: 1.0.0
-description: Workflow with complete event sourcing for audit and replay
-
-config:
-  input:
-    type: object
-    properties:
-      aggregate_id: { type: string }
-      command_type: { type: string }
-      command_data: { type: object }
-      expected_version: { type: integer }
-
-tasks:
-  # Load aggregate from event store
-  - id: load_aggregate
-    type: basic
-    $use: tool(local::tools.#(id=="event_store"))
-    with:
-      operation: "load_aggregate"
-      aggregate_id: "{{ .workflow.input.aggregate_id }}"
-      expected_version: "{{ .workflow.input.expected_version }}"
-    outputs:
-      current_state: "{{ .output.current_state }}"
-      current_version: "{{ .output.current_version }}"
-      event_history: "{{ .output.event_history }}"
-
-  # Execute command and generate events
-  - id: execute_command
-    type: basic
-    $use: tool(local::tools.#(id=="command_processor"))
-    with:
-      aggregate_id: "{{ .workflow.input.aggregate_id }}"
-      command_type: "{{ .workflow.input.command_type }}"
-      command_data: "{{ .workflow.input.command_data }}"
-      current_state: "{{ .tasks.load_aggregate.output.current_state }}"
-      current_version: "{{ .tasks.load_aggregate.output.current_version }}"
-    outputs:
-      generated_events: "{{ .output.generated_events }}"
-      new_state: "{{ .output.new_state }}"
-      new_version: "{{ .output.new_version }}"
-
-  # Persist events atomically
-  - id: persist_events
-    type: basic
-    $use: tool(local::tools.#(id=="event_store"))
-    with:
-      operation: "append_events"
-      aggregate_id: "{{ .workflow.input.aggregate_id }}"
-      events: "{{ .tasks.execute_command.output.generated_events }}"
-      expected_version: "{{ .tasks.load_aggregate.output.current_version }}"
-    outputs:
-      persisted_events: "{{ .output.persisted_events }}"
-      final_version: "{{ .output.final_version }}"
-
-  # Publish events for downstream processing
-  - id: publish_events
-    type: collection
-    mode: parallel
-    strategy: best_effort
-    items: "{{ .tasks.persist_events.output.persisted_events }}"
-    task:
-      id: "publish_event_{{ .index }}"
-      type: basic
-      $use: tool(local::tools.#(id=="event_publisher"))
+- id: resilient_workflow
+  on_error:
+    next: global_error_handler
+  
+  tasks:
+    - id: primary_processing
+      $use: tool(local::tools.#(id=="primary_processor"))
       with:
-        event_id: "{{ .item.event_id }}"
-        event_type: "{{ .item.event_type }}"
-        event_data: "{{ .item.event_data }}"
-        aggregate_id: "{{ .item.aggregate_id }}"
-        event_version: "{{ .item.event_version }}"
-        correlation_id: "{{ .workflow.id }}"
-
-        # Publishing configuration
-        publishing:
-          durable: true
-          partition_key: "{{ .item.aggregate_id }}"
-          timeout: "30s"
-          retry_policy:
-            max_attempts: 3
-            backoff: exponential
-
-  # Update read models
-  - id: update_read_models
-    type: parallel
-    strategy: best_effort  # Read model updates can be eventually consistent
-    tasks:
-      - id: update_customer_view
-        type: basic
-        $use: tool(local::tools.#(id=="read_model_updater"))
-        with:
-          model_type: "customer_view"
-          events: "{{ .tasks.persist_events.output.persisted_events }}"
-          aggregate_id: "{{ .workflow.input.aggregate_id }}"
-
-      - id: update_analytics_view
-        type: basic
-        $use: tool(local::tools.#(id=="read_model_updater"))
-        with:
-          model_type: "analytics_view"
-          events: "{{ .tasks.persist_events.output.persisted_events }}"
-          aggregate_id: "{{ .workflow.input.aggregate_id }}"
-
-      - id: update_search_index
-        type: basic
-        $use: tool(local::tools.#(id=="search_indexer"))
-        with:
-          index_type: "customer_search"
-          events: "{{ .tasks.persist_events.output.persisted_events }}"
-          aggregate_id: "{{ .workflow.input.aggregate_id }}"
-
-  # Generate workflow result
-  - id: generate_result
-    type: basic
-    $use: tool(local::tools.#(id=="result_generator"))
-    with:
-      command_type: "{{ .workflow.input.command_type }}"
-      aggregate_id: "{{ .workflow.input.aggregate_id }}"
-      events_generated: "{{ .tasks.execute_command.output.generated_events }}"
-      final_state: "{{ .tasks.execute_command.output.new_state }}"
-      final_version: "{{ .tasks.persist_events.output.final_version }}"
-    outputs:
-      success: true
-      aggregate_id: "{{ .workflow.input.aggregate_id }}"
-      final_version: "{{ .tasks.persist_events.output.final_version }}"
-      events_count: "{{ len .tasks.execute_command.output.generated_events }}"
-      command_result: "{{ .output.command_result }}"
-```
-
-## State Management Patterns
-
-### 1. Distributed State Machine
-
-Implement complex state machines across multiple services:
-
-```yaml
-# Distributed State Machine
-id: distributed_state_machine
-version: 1.0.0
-description: Complex state machine spanning multiple services
-
-config:
-  input:
-    type: object
-    properties:
-      state_machine_id: { type: string }
-      current_state: { type: string }
-      trigger_event: { type: string }
-      event_data: { type: object }
-
-tasks:
-  # Load state machine configuration
-  - id: load_state_machine
-    type: basic
-    $use: tool(local::tools.#(id=="state_machine_loader"))
-    with:
-      state_machine_id: "{{ .workflow.input.state_machine_id }}"
-      current_state: "{{ .workflow.input.current_state }}"
-    outputs:
-      state_config: "{{ .output.state_config }}"
-      valid_transitions: "{{ .output.valid_transitions }}"
-      guards: "{{ .output.guards }}"
-      actions: "{{ .output.actions }}"
-
-  # Validate transition is allowed
-  - id: validate_transition
-    type: basic
-    $use: tool(local::tools.#(id=="transition_validator"))
-    with:
-      current_state: "{{ .workflow.input.current_state }}"
-      trigger_event: "{{ .workflow.input.trigger_event }}"
-      valid_transitions: "{{ .tasks.load_state_machine.output.valid_transitions }}"
-      guards: "{{ .tasks.load_state_machine.output.guards }}"
-      event_data: "{{ .workflow.input.event_data }}"
-    outputs:
-      transition_valid: "{{ .output.transition_valid }}"
-      target_state: "{{ .output.target_state }}"
-      required_actions: "{{ .output.required_actions }}"
-      guard_results: "{{ .output.guard_results }}"
-
-  # Execute transition if valid
-  - id: execute_transition
-    type: router
-    condition: "{{ .tasks.validate_transition.output.transition_valid }}"
-    routes:
-      true:
-        # Execute state transition
-        - id: perform_state_transition
-          type: composite
-          strategy: fail_fast
-          tasks:
-            # Execute exit actions for current state
-            - id: execute_exit_actions
-              type: collection
-              mode: parallel
-              strategy: best_effort
-              items: "{{ .tasks.load_state_machine.output.state_config.exit_actions }}"
-              task:
-                id: "exit_action_{{ .index }}"
-                type: basic
-                $use: tool(local::tools.#(id=="action_executor"))
-                with:
-                  action_type: "{{ .item.type }}"
-                  action_config: "{{ .item.config }}"
-                  context:
-                    state_machine_id: "{{ .workflow.input.state_machine_id }}"
-                    current_state: "{{ .workflow.input.current_state }}"
-                    trigger_event: "{{ .workflow.input.trigger_event }}"
-                    event_data: "{{ .workflow.input.event_data }}"
-
-            # Execute transition actions
-            - id: execute_transition_actions
-              type: collection
-              mode: sequential
-              strategy: fail_fast
-              items: "{{ .tasks.validate_transition.output.required_actions }}"
-              task:
-                id: "transition_action_{{ .index }}"
-                type: basic
-                $use: tool(local::tools.#(id=="action_executor"))
-                with:
-                  action_type: "{{ .item.type }}"
-                  action_config: "{{ .item.config }}"
-                  context:
-                    state_machine_id: "{{ .workflow.input.state_machine_id }}"
-                    current_state: "{{ .workflow.input.current_state }}"
-                    target_state: "{{ .tasks.validate_transition.output.target_state }}"
-                    trigger_event: "{{ .workflow.input.trigger_event }}"
-                    event_data: "{{ .workflow.input.event_data }}"
-
-            # Update state machine state
-            - id: update_state
-              type: basic
-              $use: tool(local::tools.#(id=="state_machine_store"))
-              with:
-                operation: "update_state"
-                state_machine_id: "{{ .workflow.input.state_machine_id }}"
-                new_state: "{{ .tasks.validate_transition.output.target_state }}"
-                transition_data:
-                  from_state: "{{ .workflow.input.current_state }}"
-                  trigger_event: "{{ .workflow.input.trigger_event }}"
-                  event_data: "{{ .workflow.input.event_data }}"
-                  timestamp: "{{ now }}"
-                  workflow_id: "{{ .workflow.id }}"
-
-            # Execute entry actions for new state
-            - id: execute_entry_actions
-              type: collection
-              mode: parallel
-              strategy: best_effort
-              items: "{{ .tasks.load_state_machine.output.state_config.entry_actions }}"
-              task:
-                id: "entry_action_{{ .index }}"
-                type: basic
-                $use: tool(local::tools.#(id=="action_executor"))
-                with:
-                  action_type: "{{ .item.type }}"
-                  action_config: "{{ .item.config }}"
-                  context:
-                    state_machine_id: "{{ .workflow.input.state_machine_id }}"
-                    current_state: "{{ .tasks.validate_transition.output.target_state }}"
-                    previous_state: "{{ .workflow.input.current_state }}"
-                    trigger_event: "{{ .workflow.input.trigger_event }}"
-                    event_data: "{{ .workflow.input.event_data }}"
-
-      false:
-        # Handle invalid transition
-        - id: handle_invalid_transition
-          type: basic
-          $use: tool(local::tools.#(id=="error_handler"))
+        data: "{{ .workflow.input.data }}"
+      on_error:
+        next: fallback_processing
+    
+    - id: fallback_processing
+      condition: "{{ .error.type }}"
+      routes:
+        "timeout":
+          $use: tool(local::tools.#(id=="timeout_recovery"))
           with:
-            error_type: "invalid_state_transition"
-            state_machine_id: "{{ .workflow.input.state_machine_id }}"
-            current_state: "{{ .workflow.input.current_state }}"
-            trigger_event: "{{ .workflow.input.trigger_event }}"
-            validation_result: "{{ .tasks.validate_transition.output }}"
-
-  # Publish state change event
-  - id: publish_state_change
-    type: basic
-    $use: tool(local::tools.#(id=="event_publisher"))
-    with:
-      event_type: "state_machine_state_changed"
-      event_data:
-        state_machine_id: "{{ .workflow.input.state_machine_id }}"
-        previous_state: "{{ .workflow.input.current_state }}"
-        new_state: "{{ .tasks.validate_transition.output.target_state }}"
-        trigger_event: "{{ .workflow.input.trigger_event }}"
-        transition_successful: "{{ .tasks.validate_transition.output.transition_valid }}"
-        timestamp: "{{ now }}"
-    condition: "{{ .tasks.validate_transition.output.transition_valid }}"
+            original_data: "{{ .workflow.input.data }}"
+            strategy: "retry_smaller_batch"
+        
+        "service_unavailable":
+          $use: tool(local::tools.#(id=="alternative_processor"))
+          with:
+            data: "{{ .workflow.input.data }}"
+            service: "backup"
+        
+        "default":
+          signal_name: "manual_intervention_required"
+          with:
+            error: "{{ .error }}"
+            context: "{{ .workflow }}"
+    
+    - id: global_error_handler
+      tasks:
+        - id: log_error
+          $use: tool(local::tools.#(id=="error_logger"))
+          with:
+            error: "{{ .error }}"
+            workflow_state: "{{ .workflow }}"
+        
+        - id: notify_operators
+          $use: tool(local::tools.#(id=="notification"))
+          with:
+            alert_type: "workflow_failure"
+            severity: "{{ .error.severity }}"
 ```
 
 ## Best Practices
 
-### 1. Error Handling and Recovery
+### 1. Design Principles
 
-```yaml
-# Comprehensive Error Handling
-- id: resilient_operation
-  type: basic
-  $use: tool(local::tools.#(id=="external_service"))
-  with:
-    operation: "critical_operation"
-    data: "{{ .workflow.input.data }}"
+- **Idempotency**: Ensure tasks can be safely retried without side effects
+- **Composability**: Build complex workflows from simple, reusable components
+- **Observability**: Include comprehensive logging and monitoring
+- **Resilience**: Plan for failures at every level
+- **Performance**: Optimize for your specific use case and scale
 
-  # Multiple retry strategies
-  retry:
-    max_attempts: 5
-    strategies:
-      - type: "immediate"
-        max_attempts: 1
-      - type: "linear"
-        max_attempts: 2
-        delay: "1s"
-      - type: "exponential"
-        max_attempts: 2
-        initial_delay: "2s"
-        multiplier: 2
+### 2. State Management
 
-  # Conditional error handling
-  on_error:
-    - condition: "{{ contains .error.message 'timeout' }}"
-      next: handle_timeout_error
-      with:
-        original_error: "{{ .error }}"
-        retry_count: "{{ .task.retry_count }}"
+- Use memory tasks for workflow-scoped state
+- Implement checkpointing for long-running workflows
+- Clean up state after workflow completion
+- Consider state recovery for crash resilience
 
-    - condition: "{{ contains .error.message 'rate_limit' }}"
-      next: handle_rate_limit_error
-      with:
-        original_error: "{{ .error }}"
-        backoff_duration: "{{ .error.retry_after }}"
+### 3. Error Handling
 
-    - condition: "{{ .error.status_code >= 500 }}"
-      next: handle_server_error
-      with:
-        original_error: "{{ .error }}"
-        fallback_required: true
+- Define error handling at multiple levels (task, stage, workflow)
+- Use circuit breakers for external service calls
+- Implement retry strategies with exponential backoff
+- Provide meaningful error context for debugging
 
-    - default: true
-      next: handle_general_error
-      with:
-        original_error: "{{ .error }}"
-```
+### 4. Performance Optimization
 
-### 2. Performance Monitoring
+- Monitor resource usage and adapt processing strategies
+- Use batching for large dataset processing
+- Implement proper concurrency limits
+- Consider caching for expensive operations
 
-```yaml
-# Performance Monitoring Integration
-- id: monitored_operation
-  type: basic
-  $use: tool(local::tools.#(id=="data_processor"))
-  with:
-    data: "{{ .workflow.input.data }}"
+### 5. Testing and Validation
 
-  # Performance monitoring
-  monitoring:
-    enabled: true
-    metrics:
-      - name: "execution_time"
-        type: "histogram"
-        buckets: [0.1, 0.5, 1.0, 2.5, 5.0, 10.0]
+- Test each pattern component in isolation
+- Validate error handling paths
+- Perform load testing for performance-critical workflows
+- Monitor production workflows for optimization opportunities
 
-      - name: "memory_usage"
-        type: "gauge"
-        unit: "bytes"
+## Conclusion
 
-      - name: "throughput"
-        type: "counter"
-        unit: "items_per_second"
-
-    # Custom metrics
-    custom_metrics:
-      - name: "business_metric"
-        value: "{{ .output.items_processed }}"
-        labels:
-          operation_type: "{{ .workflow.input.operation_type }}"
-          customer_tier: "{{ .workflow.input.customer_tier }}"
-
-    # Alerting thresholds
-    alerts:
-      - condition: "{{ .metrics.execution_time.p95 > 10 }}"
-        severity: "warning"
-        message: "High execution time detected"
-
-      - condition: "{{ .metrics.memory_usage.current > 1000000000 }}"
-        severity: "critical"
-        message: "Memory usage exceeded 1GB"
-```
-
-### 3. Resource Management
-
-```yaml
-# Resource Management
-- id: resource_managed_operation
-  type: basic
-  $use: tool(local::tools.#(id=="resource_intensive_processor"))
-  with:
-    data: "{{ .workflow.input.data }}"
-
-  # Resource allocation
-  resources:
-    cpu: "2.0"
-    memory: "4GB"
-    disk: "10GB"
-    network_bandwidth: "100Mbps"
-
-  # Resource limits
-  limits:
-    cpu: "4.0"
-    memory: "8GB"
-    execution_time: "300s"
-
-  # Resource cleanup
-  cleanup:
-    enabled: true
-    timeout: "30s"
-    force_cleanup: true
-
-    # Custom cleanup actions
-    actions:
-      - type: "close_connections"
-        timeout: "10s"
-      - type: "flush_buffers"
-        timeout: "5s"
-      - type: "release_locks"
-        timeout: "5s"
-```
-
-This comprehensive guide provides the foundation for building sophisticated, enterprise-grade workflows using Compozy's advanced task orchestration patterns. These patterns enable robust, scalable, and maintainable automation systems that can handle complex business requirements.
+These advanced patterns provide the foundation for building sophisticated, enterprise-scale workflows with Compozy. By combining the basic execution types with these patterns, you can create robust, scalable, and maintainable automation solutions that handle complex business requirements while maintaining reliability and performance.
 
 ## Next Steps
 
-- Review [Performance Optimization](/docs/core/development/performance) for additional optimization techniques
-- Explore [Custom Task Types](./custom-task-types) for extending functionality
-- Check [Monitoring & Observability](/docs/core/metrics/observability) for production monitoring
-- Study [Production Deployment](/docs/core/deployment/deployment-options) for scaling considerations
+<ReferenceCardList>
+  <ReferenceCard
+    title="Business Workflow Examples"
+    description="Explore real-world implementations and patterns for enterprise applications"
+    href="/docs/core/examples/business-workflows"
+    icon="Building"
+  />
+  <ReferenceCard
+    title="Basic Tasks"
+    description="Master the fundamental building blocks for advanced patterns"
+    href="/docs/core/tasks/basic-tasks"
+    icon="Cog"
+  />
+  <ReferenceCard
+    title="Composite Tasks"
+    description="Learn sequential task grouping and reusability patterns"
+    href="/docs/core/tasks/composite-tasks"
+    icon="Layers"
+  />
+  <ReferenceCard
+    title="Flow Control"
+    description="Implement sophisticated conditional routing and orchestration"
+    href="/docs/core/tasks/flow-control"
+    icon="GitBranch"
+  />
+</ReferenceCardList>

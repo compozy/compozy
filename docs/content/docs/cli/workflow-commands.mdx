@@ -1,7 +1,806 @@
 ---
 title: Workflow Commands
-description: Workflow management commands
+description: Complete workflow management and execution commands for the Compozy CLI
 icon: Workflow
 ---
 
-# Workflow Commands
+Manage workflows, get detailed information, and execute AI workflow orchestrations through the Compozy CLI.
+
+## Overview
+
+The workflow command group provides comprehensive workflow management capabilities including listing, inspecting, and executing workflows. These commands form the core of workflow orchestration in Compozy.
+
+<FeatureCardList cols={3} size="default">
+  <FeatureCard
+    title="List Workflows"
+    description="Browse available workflows with pagination and filtering options"
+    icon="List"
+  />
+  <FeatureCard
+    title="Inspect Details"
+    description="Get comprehensive workflow configurations, task definitions, and execution history"
+    icon="Search"
+  />
+  <FeatureCard
+    title="Execute Workflows"
+    description="Run AI workflow orchestrations with real-time progress monitoring"
+    icon="Play"
+  />
+</FeatureCardList>
+
+## workflow
+
+Parent command for all workflow operations.
+
+### Usage
+
+```bash
+compozy workflow [command]
+```
+
+### Available Subcommands
+
+- `list` - List workflows
+- `get` - Get detailed information about a workflow  
+- `execute` - Execute a workflow
+
+## workflow list
+
+List available workflows in the current project or server.
+
+### Usage
+
+```bash
+compozy workflow list [flags]
+```
+
+### Description
+
+Lists all workflows with their basic information including ID, name, status, and last execution details. Supports multiple output formats for both interactive use and automation scenarios.
+
+### Examples
+
+<Tabs items={["Basic Usage", "Automation", "Pagination"]}>
+
+<Tab>
+```bash
+# List all workflows
+compozy workflow list
+
+# List with custom format
+compozy workflow list --format table
+```
+</Tab>
+
+<Tab>
+```bash
+# Get machine-readable output
+compozy workflow list --format json
+
+# Quiet output for scripting
+compozy workflow list --quiet --format json
+
+# Extract workflow IDs for automation
+compozy workflow list --format json | jq '.workflows[].id'
+```
+</Tab>
+
+<Tab>
+```bash
+# Custom page size
+compozy workflow list --page-size 10
+
+# Navigate through results
+compozy workflow list --page 2 --page-size 5
+```
+</Tab>
+
+</Tabs>
+
+### Output Examples
+
+#### TUI Output (Default)
+```
+╭─────────────────────────────────────────────────────────────╮
+│                      Available Workflows                    │
+├─────────────────────────────────────────────────────────────┤
+│ ID: data-analysis                                           │
+│ Name: Customer Data Analysis                                │
+│ Status: active                                              │
+│ Last Run: 2024-01-15 14:30:00                              │
+│ ────────────────────────────────────────────────────────── │
+│ ID: email-campaign                                          │
+│ Name: Automated Email Campaign                              │
+│ Status: active                                              │
+│ Last Run: 2024-01-15 09:15:00                              │
+╰─────────────────────────────────────────────────────────────╯
+```
+
+#### JSON Output
+```json
+{
+  "workflows": [
+    {
+      "id": "data-analysis",
+      "name": "Customer Data Analysis",
+      "status": "active",
+      "last_execution": {
+        "timestamp": "2024-01-15T14:30:00Z",
+        "status": "completed",
+        "duration": "45s"
+      },
+      "description": "Analyzes customer behavior patterns"
+    },
+    {
+      "id": "email-campaign", 
+      "name": "Automated Email Campaign",
+      "status": "active",
+      "last_execution": {
+        "timestamp": "2024-01-15T09:15:00Z",
+        "status": "completed",
+        "duration": "23s"
+      },
+      "description": "Generates and sends personalized emails"
+    }
+  ],
+  "total": 2,
+  "page": 1,
+  "page_size": 50
+}
+```
+
+## workflow get
+
+Get detailed information about a specific workflow.
+
+### Usage
+
+```bash
+compozy workflow get <workflow-id> [flags]
+```
+
+### Description
+
+Retrieves comprehensive information about a workflow including configuration details, task definitions, agent assignments, execution history, and current status.
+
+<List>
+  <ListItem title="Configuration Details">
+    Complete workflow configuration including version, timeout, and retry policies
+  </ListItem>
+  <ListItem title="Task Definitions">
+    Detailed breakdown of all tasks, their types, and execution order
+  </ListItem>
+  <ListItem title="Agent Assignments">
+    AI agents configured for the workflow with their models and capabilities
+  </ListItem>
+  <ListItem title="Execution History">
+    Recent execution records with status, duration, and outcome details
+  </ListItem>
+</List>
+
+### Arguments
+
+- `<workflow-id>` - **Required**. The unique identifier of the workflow
+
+### Examples
+
+<Tabs items={["Basic Usage", "JSON Output", "Scripting"]}>
+
+<Tab>
+```bash
+# Get workflow details in TUI format
+compozy workflow get data-analysis
+
+# Get workflow with verbose output
+compozy workflow get data-analysis --verbose
+```
+</Tab>
+
+<Tab>
+```bash
+# Get detailed information in JSON
+compozy workflow get data-analysis --format json
+
+# Pretty-printed JSON output
+compozy workflow get data-analysis --format json --pretty
+```
+</Tab>
+
+<Tab>
+```bash
+# For automation/scripting
+compozy workflow get data-analysis -o json --quiet
+
+# Extract specific information
+compozy workflow get data-analysis --format json | jq '.tasks[] | select(.type == "parallel")'
+```
+</Tab>
+
+</Tabs>
+
+### Output Examples
+
+#### TUI Output (Default)
+```
+╭─────────────────────────────────────────────────────────────╮
+│                    Workflow: data-analysis                  │
+├─────────────────────────────────────────────────────────────┤
+│ Name: Customer Data Analysis                                │
+│ Status: active                                              │
+│ Created: 2024-01-10 10:00:00                               │
+│ Modified: 2024-01-15 12:00:00                              │
+│                                                             │
+│ Description:                                                │
+│ Analyzes customer behavior patterns using AI agents        │
+│                                                             │
+│ Tasks:                                                      │
+│ ├─ data-ingestion (basic)                                  │
+│ ├─ data-processing (parallel)                              │
+│ └─ report-generation (basic)                               │
+│                                                             │
+│ Agents:                                                     │
+│ ├─ data-analyst (gpt-4-turbo-preview)                     │
+│ └─ report-writer (gpt-4-turbo-preview)                    │
+│                                                             │
+│ Recent Executions:                                          │
+│ ├─ 2024-01-15 14:30:00 - Completed (45s)                  │
+│ ├─ 2024-01-15 08:00:00 - Completed (52s)                  │
+│ └─ 2024-01-14 14:30:00 - Failed (Connection timeout)      │
+╰─────────────────────────────────────────────────────────────╯
+```
+
+#### JSON Output
+```json
+{
+  "id": "data-analysis",
+  "name": "Customer Data Analysis", 
+  "status": "active",
+  "created_at": "2024-01-10T10:00:00Z",
+  "updated_at": "2024-01-15T12:00:00Z",
+  "description": "Analyzes customer behavior patterns using AI agents",
+  "configuration": {
+    "version": "1.0",
+    "timeout": "300s",
+    "max_retries": 3
+  },
+  "tasks": [
+    {
+      "id": "data-ingestion",
+      "type": "basic",
+      "agent": "data-analyst",
+      "action": "ingest"
+    },
+    {
+      "id": "data-processing", 
+      "type": "parallel",
+      "agent": "data-analyst",
+      "action": "analyze"
+    },
+    {
+      "id": "report-generation",
+      "type": "basic", 
+      "agent": "report-writer",
+      "action": "generate"
+    }
+  ],
+  "agents": [
+    {
+      "id": "data-analyst",
+      "model": "gpt-4-turbo-preview",
+      "provider": "openai"
+    },
+    {
+      "id": "report-writer",
+      "model": "gpt-4-turbo-preview", 
+      "provider": "openai"
+    }
+  ],
+  "executions": [
+    {
+      "id": "exec-123",
+      "timestamp": "2024-01-15T14:30:00Z",
+      "status": "completed",
+      "duration": "45s"
+    }
+  ]
+}
+```
+
+## workflow execute
+
+Execute a workflow with optional input parameters and real-time monitoring.
+
+### Usage
+
+```bash
+compozy workflow execute <workflow-id> [flags]
+```
+
+### Description
+
+Starts workflow execution and provides real-time status updates. Supports both synchronous (wait for completion) and asynchronous (return execution ID immediately) execution modes with comprehensive monitoring capabilities.
+
+<FeatureCardList cols={2} size="default">
+  <FeatureCard
+    title="Real-time Monitoring"
+    description="Track execution progress with live status updates and task completion tracking"
+    icon="Activity"
+  />
+  <FeatureCard
+    title="Flexible Input"
+    description="Support for JSON strings, file inputs, and structured parameter passing"
+    icon="FileJson"
+  />
+  <FeatureCard
+    title="Multiple Output Formats"
+    description="Choose between interactive TUI and machine-readable JSON output formats"
+    icon="Monitor"
+  />
+  <FeatureCard
+    title="Execution Modes"
+    description="Run synchronously with progress tracking or asynchronously for background processing"
+    icon="GitBranch"
+  />
+</FeatureCardList>
+
+### Arguments
+
+- `<workflow-id>` - **Required**. The unique identifier of the workflow to execute
+
+### Flags
+
+<Tabs items={["Execution Control", "Input Parameters", "Output Options"]}>
+
+<Tab>
+```bash
+--async                    # Run asynchronously, return execution ID immediately
+--wait                     # Wait for completion (default behavior)
+--timeout duration         # Maximum time to wait for completion (default: 30s)
+```
+</Tab>
+
+<Tab>
+```bash
+--input string             # Input parameters as JSON string
+--input-file string        # Read input parameters from JSON file
+```
+</Tab>
+
+<Tab>
+```bash
+--format string            # Output format: auto, json, tui (default: auto)
+--quiet                    # Suppress progress indicators
+--follow                   # Follow execution progress in real-time
+```
+</Tab>
+
+</Tabs>
+
+### Examples
+
+<Tabs items={["Basic Execution", "Input Parameters", "Asynchronous", "Automation"]}>
+
+<Tab>
+```bash
+# Execute workflow and wait for completion
+compozy workflow execute data-analysis
+
+# Execute with timeout
+compozy workflow execute data-analysis --timeout 300s
+
+# Execute with progress following
+compozy workflow execute data-analysis --follow
+```
+</Tab>
+
+<Tab>
+```bash
+# Pass input as JSON string
+compozy workflow execute data-analysis \
+  --input '{"data_source": "customers.csv", "date_range": "30d"}'
+
+# Read input from file
+compozy workflow execute data-analysis \
+  --input-file input.json
+
+# Complex input parameters
+compozy workflow execute data-analysis \
+  --input '{"filters": {"region": "US", "type": "premium"}, "format": "pdf"}'
+```
+</Tab>
+
+<Tab>
+```bash
+# Start execution and return immediately
+compozy workflow execute data-analysis --async
+
+# Get execution ID for tracking
+EXEC_ID=$(compozy workflow execute data-analysis --async --format json | jq -r '.execution_id')
+
+# Async with input file
+compozy workflow execute data-analysis --async --input-file config.json
+```
+</Tab>
+
+<Tab>
+```bash
+# Silent execution for automation
+compozy workflow execute data-analysis \
+  --quiet --format json --timeout 300s
+
+# Follow progress with structured output
+compozy workflow execute data-analysis \
+  --follow --format json
+
+# Integration with CI/CD
+compozy workflow execute deployment \
+  --input-file config/production.json \
+  --quiet --format json
+```
+</Tab>
+
+</Tabs>
+
+### Input File Examples
+
+#### input.json
+```json
+{
+  "data_source": "customers.csv",
+  "date_range": "30d",
+  "filters": {
+    "region": "US",
+    "customer_type": "premium"
+  },
+  "output_format": "pdf"
+}
+```
+
+### Execution Flow
+
+The following diagram illustrates how workflow execution progresses through different task states:
+
+<Mermaid chart={`graph TD
+    A[Execute Command] --> B[Initialize Workflow]
+    B --> C[Parse Input Parameters]
+    C --> D[Validate Schema]
+    D --> E[Create Execution ID]
+    E --> F[Start Task Queue]
+    
+    F --> G[Task: data-ingestion]
+    G --> H{Task Status}
+    H -->|Success| I[Task: data-processing]
+    H -->|Error| J[Error Handling]
+    
+    I --> K{Task Status}
+    K -->|Success| L[Task: report-generation]
+    K -->|Error| J
+    
+    L --> M{Final Status}
+    M -->|Success| N[Complete with Results]
+    M -->|Error| J
+    
+    J --> O[Retry Logic]
+    O -->|Max Retries| P[Fail Execution]
+    O -->|Retry Available| G
+    
+    N --> Q[Return Output]
+    P --> R[Return Error]
+    
+    style G fill:#e1f5fe
+    style I fill:#fff3e0
+    style L fill:#f3e5f5
+    style N fill:#e8f5e8
+    style P fill:#ffebee`} />
+
+### Output Examples
+
+#### TUI Output (Default)
+```
+╭─────────────────────────────────────────────────────────────╮
+│              Executing: data-analysis                       │
+├─────────────────────────────────────────────────────────────┤
+│ Execution ID: exec-abc123                                   │
+│ Started: 2024-01-15 14:30:00                               │
+│                                                             │
+│ Progress:                                                   │
+│ ✓ data-ingestion     Completed (12s)                       │
+│ ⧖ data-processing    Running... (23s)                      │
+│ ○ report-generation  Pending                               │
+│                                                             │
+│ Status: Running                                             │
+│ Elapsed: 35s                                                │
+╰─────────────────────────────────────────────────────────────╯
+```
+
+#### JSON Output
+```json
+{
+  "execution_id": "exec-abc123",
+  "workflow_id": "data-analysis",
+  "status": "running",
+  "started_at": "2024-01-15T14:30:00Z",
+  "elapsed_time": "35s",
+  "tasks": [
+    {
+      "id": "data-ingestion",
+      "status": "completed",
+      "started_at": "2024-01-15T14:30:00Z",
+      "completed_at": "2024-01-15T14:30:12Z",
+      "duration": "12s"
+    },
+    {
+      "id": "data-processing", 
+      "status": "running",
+      "started_at": "2024-01-15T14:30:12Z",
+      "elapsed_time": "23s"
+    },
+    {
+      "id": "report-generation",
+      "status": "pending"
+    }
+  ]
+}
+```
+
+#### Completion Output
+```json
+{
+  "execution_id": "exec-abc123",
+  "workflow_id": "data-analysis", 
+  "status": "completed",
+  "started_at": "2024-01-15T14:30:00Z",
+  "completed_at": "2024-01-15T14:30:45Z",
+  "duration": "45s",
+  "result": {
+    "summary": "Analysis completed successfully",
+    "customers_analyzed": 15420,
+    "insights_generated": 23,
+    "report_url": "/reports/data-analysis-20240115.pdf"
+  },
+  "tasks": [
+    {
+      "id": "data-ingestion",
+      "status": "completed",
+      "duration": "12s",
+      "output": {
+        "records_processed": 15420
+      }
+    },
+    {
+      "id": "data-processing",
+      "status": "completed", 
+      "duration": "28s",
+      "output": {
+        "insights": 23,
+        "patterns_detected": 8
+      }
+    },
+    {
+      "id": "report-generation",
+      "status": "completed",
+      "duration": "5s", 
+      "output": {
+        "report_path": "/reports/data-analysis-20240115.pdf",
+        "pages": 12
+      }
+    }
+  ]
+}
+```
+
+### Error Handling
+
+#### Execution Errors
+```json
+{
+  "execution_id": "exec-abc123",
+  "workflow_id": "data-analysis",
+  "status": "failed",
+  "error": {
+    "code": "TASK_EXECUTION_FAILED",
+    "message": "Data processing task failed",
+    "details": {
+      "task_id": "data-processing",
+      "error": "Database connection timeout"
+    }
+  },
+  "started_at": "2024-01-15T14:30:00Z",
+  "failed_at": "2024-01-15T14:30:35Z",
+  "duration": "35s"
+}
+```
+
+#### Common Exit Codes
+- `0` - Success (workflow completed)
+- `1` - General error
+- `2` - Configuration error  
+- `3` - Authentication error
+- `4` - Network/connection error
+- `5` - Validation error (invalid input)
+- `6` - Execution timeout
+- `7` - Workflow not found
+
+### Advanced Usage
+
+<Tabs items={["Long-Running Workflows", "Monitoring & Debugging", "Production Integration"]}>
+
+<Tab>
+```bash
+# Extended timeout for long workflows
+compozy workflow execute batch-processing \
+  --timeout 1800s \
+  --follow \
+  --format json
+
+# Async execution with periodic status checks
+EXEC_ID=$(compozy workflow execute batch-processing --async --format json | jq -r '.execution_id')
+echo "Execution ID: $EXEC_ID"
+
+# Background processing with file logging
+nohup compozy workflow execute data-migration \
+  --async --input-file migration-config.json \
+  --format json > migration.log 2>&1 &
+```
+</Tab>
+
+<Tab>
+```bash
+# Debug execution with verbose output
+compozy workflow execute data-analysis \
+  --debug \
+  --format json \
+  --follow
+
+# Capture full execution log
+compozy workflow execute data-analysis \
+  --format json 2>&1 | tee execution.log
+
+# Monitor specific workflow patterns
+compozy workflow execute complex-analysis \
+  --follow --format json | jq '.tasks[] | select(.status == "failed")'
+```
+</Tab>
+
+<Tab>
+```bash
+# Production deployment with comprehensive monitoring
+compozy workflow execute production-deploy \
+  --input-file config/prod.json \
+  --timeout 3600s \
+  --follow \
+  --format json | tee deployment.log
+
+# Health check workflow execution
+compozy workflow execute health-check \
+  --quiet --format json \
+  --timeout 60s
+```
+</Tab>
+
+</Tabs>
+
+### Best Practices
+
+<List>
+  <ListItem title="Input Validation">
+    Always validate input JSON before execution and use input files for complex parameters with validation schemas
+  </ListItem>
+  <ListItem title="Error Recovery">
+    Implement proper error handling in workflows with appropriate timeouts and comprehensive execution log monitoring
+  </ListItem>
+  <ListItem title="Automation Integration">
+    Use `--quiet --format json` for scripting, check exit codes for success/failure detection, and parse JSON output for programmatic access
+  </ListItem>
+  <ListItem title="Security Considerations">
+    Avoid passing sensitive data in command line arguments; use input files with proper file permissions instead
+  </ListItem>
+  <ListItem title="Performance Optimization">
+    Use async execution for long-running workflows and implement proper resource cleanup and timeout handling
+  </ListItem>
+</List>
+
+### Integration Examples
+
+#### CI/CD Pipeline
+
+```bash
+#!/bin/bash
+# ci-deploy.sh
+
+set -e
+
+echo "Executing deployment workflow..."
+RESULT=$(compozy workflow execute deployment \
+  --input-file deployment-config.json \
+  --quiet \
+  --format json \
+  --timeout 600s)
+
+if echo "$RESULT" | jq -e '.status == "completed"' > /dev/null; then
+  echo "Deployment successful"
+  exit 0
+else
+  echo "Deployment failed: $(echo "$RESULT" | jq -r '.error.message')"
+  exit 1
+fi
+```
+
+#### Monitoring Script
+
+```bash
+#!/bin/bash
+# monitor-workflows.sh
+
+# Execute monitoring workflow every hour
+while true; do
+  compozy workflow execute system-monitoring \
+    --async \
+    --format json \
+    --quiet
+  
+  sleep 3600
+done
+```
+
+## Next Steps
+
+Now that you understand workflow command operations, explore these related concepts to build more sophisticated AI-powered workflows:
+
+### Workflow Development
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Workflow Configuration"
+    description="Learn how to define workflows with YAML configuration, schemas, and template expressions"
+    href="/docs/core/workflows/configuration"
+    icon="Settings"
+  />
+  <ReferenceCard
+    title="Task Types & Patterns"
+    description="Master basic, parallel, collection, router, and composite task execution patterns"
+    href="/docs/core/tasks/basic-tasks"
+    icon="Layers"
+  />
+  <ReferenceCard
+    title="Agent Integration"
+    description="Create intelligent AI agents with structured outputs, tools, and memory integration"
+    href="/docs/core/agents/overview"
+    icon="BrainCircuit"
+  />
+  <ReferenceCard
+    title="Tool Development"
+    description="Build custom TypeScript tools for specialized operations and external integrations"
+    href="/docs/core/tools/tools-overview"
+    icon="Code"
+  />
+</ReferenceCardList>
+
+### Operations & Management
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Server Management"
+    description="Start development servers, manage production deployments, and configure runtime environments"
+    href="/docs/cli/execution-commands"
+    icon="Server"
+  />
+  <ReferenceCard
+    title="Project Configuration"
+    description="Set up projects with models, runtime permissions, and autoload configurations"
+    href="/docs/core/configuration/project-setup"
+    icon="FileJson"
+  />
+  <ReferenceCard
+    title="Memory Systems"
+    description="Implement persistent conversation and context memory across workflow executions"
+    href="/docs/core/memory/memory-concepts"
+    icon="Database"
+  />
+  <ReferenceCard
+    title="Monitoring & Observability"
+    description="Monitor workflow execution, debug issues, and optimize performance in production"
+    href="/docs/core/metrics/observability"
+    icon="BarChart3"
+  />
+</ReferenceCardList>

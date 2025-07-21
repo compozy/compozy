@@ -1,1987 +1,561 @@
 ---
 title: "Advanced Patterns"
-description: "Sophisticated tool development patterns including state management, multi-phase processing, circuit breakers, and complex orchestration for building resilient, scalable tools in Compozy"
+description: "Essential advanced patterns for building resilient, production-ready tools with state management, error handling, and performance optimization"
 ---
 
-# Advanced Patterns
+Once you've mastered the basics of tool development, these advanced patterns will help you build more sophisticated, resilient tools that can handle complex real-world scenarios.
 
-Build sophisticated, production-ready tools with advanced patterns for state management, error recovery, performance optimization, and complex orchestration. These patterns enable you to create highly resilient tools that can handle complex real-world scenarios.
+<Callout type="note">
+Start with [TypeScript Development](/docs/core/tools/typescript-development) if you're new to tool development. These patterns build on fundamental concepts and assume familiarity with basic tool creation.
+</Callout>
 
-## Pattern Overview
+## When to Use Advanced Patterns
+
+Advanced patterns add complexity to your tools. Use them when you need:
+
+- **State persistence** across multiple tool executions
+- **Error recovery** in unreliable environments
+- **Performance optimization** for high-throughput scenarios
+- **Complex data processing** with multiple steps
+
+## Core Patterns
 
 <FeatureCardList>
   <FeatureCard
     icon="Database"
     title="State Management"
-    description="Persistent state across executions with memory, file, or database storage"
-  />
-  <FeatureCard
-    icon="GitBranch"
-    title="Multi-Phase Processing"
-    description="Complex workflows with validation, transformation, and aggregation phases"
+    description="Maintain data across tool executions using simple file or memory storage"
   />
   <FeatureCard
     icon="Shield"
-    title="Circuit Breakers"
-    description="Fault tolerance with automatic failure detection and recovery"
+    title="Error Recovery"
+    description="Graceful handling of failures with retry logic and circuit breakers"
   />
   <FeatureCard
-    icon="Workflow"
-    title="Dynamic Orchestration"
-    description="Runtime tool composition and conditional workflow execution"
+    icon="GitBranch"
+    title="Multi-Step Processing"
+    description="Break complex operations into manageable, testable steps"
   />
   <FeatureCard
-    icon="Activity"
-    title="Real-time Processing"
-    description="Streaming data processing with backpressure and buffering"
-  />
-  <FeatureCard
-    icon="RefreshCw"
-    title="Compensating Actions"
-    description="Transactional workflows with automatic rollback capabilities"
+    icon="Zap"
+    title="Performance Optimization"
+    description="Efficient memory usage, caching, and batch processing"
   />
 </FeatureCardList>
 
-## State Management Patterns
+## State Management
 
-State management is crucial for tools that need to maintain context across multiple executions, track processing history, or coordinate complex workflows. These patterns provide robust state persistence with flexible storage backends.
+Simple state management for tools that need to remember data between executions. This is useful for batch processing, counters, or maintaining workflow context.
 
-### Stateful Tools with Persistence
+### Basic File-Based State
 
-<Callout type="info">
-State management enables tools to maintain context across executions, essential for incremental processing, progress tracking, and complex workflows.
-</Callout>
-
-<Steps>
-  <Step>
-    **Configure State Storage**
-    
-    Choose from memory, file, or database storage based on your persistence needs:
-  </Step>
-  <Step>
-    **Implement State Operations**
-    
-    Create load, update, and save operations for your state data:
-  </Step>
-  <Step>
-    **Handle State Lifecycle**
-    
-    Manage state initialization, updates, and cleanup:
-  </Step>
-</Steps>
-
-<Tabs defaultValue="implementation">
-<Tab value="implementation" label="Implementation">
-Create a stateful processor that persists data across executions:
+The simplest approach uses JSON files to store state between tool executions:
 
 ```typescript
-// tools/stateful-processor.ts
-interface StateConfig {
-  stateKey: string;
-  persistenceStrategy: 'memory' | 'file' | 'database';
-  ttl?: number;
-}
-
-class StatefulProcessor {
-  private state: Map<string, any> = new Map();
-  private config: StateConfig;
-
-  constructor(config: StateConfig) {
-    this.config = config;
+// tools/simple-state.ts
+export async function run(input: { data: any; state_key: string }) {
+  // Load existing state from file (if it exists)
+  const stateFile = `./state/${input.state_key}.json`;
+  let state = { count: 0, items: [] };
+  
+  try {
+    const data = await Bun.file(stateFile).text();
+    state = JSON.parse(data);
+  } catch {
+    // File doesn't exist yet, use default state
   }
 
-  async process(input: ProcessorInput): Promise<ProcessorOutput> {
-    const currentState = await this.loadState();
-    const updatedState = await this.updateState(currentState, input);
-    await this.saveState(updatedState);
+  // Update state with new data
+  state.count++;
+  state.items.push({
+    data: input.data,
+    timestamp: new Date().toISOString()
+  });
 
-    return this.generateOutput(updatedState);
-  }
+  // Save updated state back to file
+  await Bun.$`mkdir -p ./state`;
+  await Bun.write(stateFile, JSON.stringify(state, null, 2));
 
-  private async loadState(): Promise<ProcessorState> {
-    switch (this.config.persistenceStrategy) {
-      case 'memory':
-        return this.loadFromMemory();
-      case 'file':
-        return this.loadFromFile();
-      case 'database':
-        return this.loadFromDatabase();
-      default:
-        throw new Error(`Unsupported persistence strategy: ${this.config.persistenceStrategy}`);
+  return {
+    processed: input.data,
+    state_summary: {
+      total_processed: state.count,
+      last_item: state.items[state.items.length - 1]
     }
-  }
-
-  private async loadFromMemory(): Promise<ProcessorState> {
-    return this.state.get(this.config.stateKey) || { initialized: false };
-  }
-
-  private async loadFromFile(): Promise<ProcessorState> {
-    const stateFile = `./state/${this.config.stateKey}.json`;
-    try {
-      const data = await Bun.file(stateFile).text();
-      return JSON.parse(data);
-    } catch {
-      return { initialized: false };
-    }
-  }
-
-  private async loadFromDatabase(): Promise<ProcessorState> {
-    // Implementation depends on database choice
-    // This is a placeholder for database integration
-    return { initialized: false };
-  }
-
-  private async updateState(
-    currentState: ProcessorState,
-    input: ProcessorInput
-  ): Promise<ProcessorState> {
-    return {
-      ...currentState,
-      lastProcessed: new Date().toISOString(),
-      processCount: (currentState.processCount || 0) + 1,
-      lastInput: input,
-      initialized: true,
-    };
-  }
-
-  private async saveState(state: ProcessorState): Promise<void> {
-    switch (this.config.persistenceStrategy) {
-      case 'memory':
-        this.state.set(this.config.stateKey, state);
-        break;
-      case 'file':
-        await this.saveToFile(state);
-        break;
-      case 'database':
-        await this.saveToDatabase(state);
-        break;
-    }
-  }
-
-  private async saveToFile(state: ProcessorState): Promise<void> {
-    const stateFile = `./state/${this.config.stateKey}.json`;
-    await Bun.$`mkdir -p ./state`;
-    await Bun.write(stateFile, JSON.stringify(state, null, 2));
-  }
-
-  private async saveToDatabase(state: ProcessorState): Promise<void> {
-    // Database save implementation
-  }
-}
-
-interface ProcessorState {
-  initialized: boolean;
-  lastProcessed?: string;
-  processCount?: number;
-  lastInput?: any;
-  [key: string]: any;
-}
-
-interface ProcessorInput {
-  data: any;
-  operation: string;
-  metadata?: Record<string, any>;
-}
-
-interface ProcessorOutput {
-  result: any;
-  state: ProcessorState;
-  metadata: {
-    processedAt: string;
-    stateKey: string;
-    processCount: number;
   };
 }
 ```
 
-```
-</Tab>
-<Tab value="configuration" label="Configuration">
-Configure the stateful processor in your workflow:
+**What this code does:**
+- Loads existing state from a JSON file (or creates default state if file doesn't exist)
+- Increments a counter and adds the new item to the state
+- Saves the updated state back to the file for the next execution
+- Returns both the processed data and a summary of the current state
 
-```yaml
-# tools/stateful-processor.yaml
-resource: "tool"
-id: "stateful-processor"
-description: "Processor with persistent state management"
-timeout: "60s"
-
-input:
-  type: "object"
-  properties:
-    data:
-      type: "object"
-      description: "Input data to process"
-    operation:
-      type: "string"
-      enum: ["process", "reset", "status"]
-      default: "process"
-    state_config:
-      type: "object"
-      properties:
-        persistence_strategy:
-          type: "string"
-          enum: ["memory", "file", "database"]
-          default: "file"
-        state_key:
-          type: "string"
-          description: "Unique key for state storage"
-      required: ["state_key"]
-  required: ["data", "state_config"]
-
-output:
-  type: "object"
-  properties:
-    result:
-      description: "Processing result"
-    state:
-      type: "object"
-      description: "Current state information"
-    metadata:
-      type: "object"
-      properties:
-        process_count:
-          type: "integer"
-        last_processed:
-          type: "string"
-          format: "date-time"
-  required: ["result", "state", "metadata"]
-```
-</Tab>
-<Tab value="usage" label="Usage">
-Use the stateful processor in your workflow:
+### Usage in Workflows
 
 ```yaml
 # workflow.yaml
 tasks:
   - id: process-with-state
     type: basic
-    $use: tool(local::tools.#(id=="stateful-processor"))
+    $use: tool(local::tools.#(id=="simple-state"))
     with:
-      data: "{{ .workflow.input.batch_data }}"
-      operation: "process"
-      state_config:
-        persistence_strategy: "file"
-        state_key: "batch_processor_{{ .workflow.input.batch_id }}"
+      data: "{{ .workflow.input.item }}"
+      state_key: "my_processor_{{ .workflow.input.batch_id }}"
     outputs:
-      processed_data: "{{ .output.result }}"
-      process_count: "{{ .output.metadata.process_count }}"
-      
-  - id: check-processing-status
-    type: basic
-    $use: tool(local::tools.#(id=="stateful-processor"))
-    with:
-      data: {}
-      operation: "status"
-      state_config:
-        state_key: "batch_processor_{{ .workflow.input.batch_id }}"
-    outputs:
-      status: "{{ .output.state }}"
+      result: "{{ .output.processed }}"
+      count: "{{ .output.state_summary.total_processed }}"
 ```
-</Tab>
-</Tabs>
 
-### Multi-Phase Processing
+**How to use this:**
+- The `state_key` parameter makes each batch maintain separate state
+- State persists across workflow executions
+- Use template variables to create unique state keys for different contexts
 
-Multi-phase processing enables complex workflows with validation, transformation, and aggregation phases. Each phase can have its own retry logic, validation rules, and error handling.
+## Error Handling
 
-<Callout type="warning">
-Design phases to be idempotent when possible. This ensures that retrying a phase produces the same result and doesn't cause side effects.
-</Callout>
+Simple error handling patterns for resilient tool execution.
 
-<Steps>
-  <Step>
-    **Define Processing Phases**
-    
-    Break down complex operations into discrete, manageable phases:
-  </Step>
-  <Step>
-    **Configure Phase Validation**
-    
-    Set up validation rules and retry policies for each phase:
-  </Step>
-  <Step>
-    **Implement Phase Orchestration**
-    
-    Create the orchestration logic that manages phase execution:
-  </Step>
-</Steps>
+### Basic Retry Logic
 
-<Tabs defaultValue="phases">
-<Tab value="phases" label="Phase Definition">
-Define processing phases with validation and retry configuration:
+Handle temporary failures with simple retry logic:
 
 ```typescript
-// tools/multi-phase-processor.ts
-interface Phase {
-  name: string;
-  processor: (input: any, context: PhaseContext) => Promise<any>;
-  validator?: (output: any) => boolean;
-  retryConfig?: RetryConfig;
-}
-
-interface PhaseContext {
-  phaseIndex: number;
-  totalPhases: number;
-  previousResults: any[];
-  globalContext: Record<string, any>;
-}
-
-interface RetryConfig {
-  maxAttempts: number;
-  backoffMs: number;
-  backoffMultiplier: number;
-}
-
-class MultiPhaseProcessor {
-  private phases: Phase[] = [];
-  private globalContext: Record<string, any> = {};
-
-  addPhase(phase: Phase): void {
-    this.phases.push(phase);
-  }
-
-  async process(input: any): Promise<MultiPhaseResult> {
-    const results: any[] = [];
-    let currentInput = input;
-
-    for (let i = 0; i < this.phases.length; i++) {
-      const phase = this.phases[i];
-      const context: PhaseContext = {
-        phaseIndex: i,
-        totalPhases: this.phases.length,
-        previousResults: [...results],
-        globalContext: this.globalContext,
-      };
-
-      try {
-        const result = await this.executePhase(phase, currentInput, context);
-        results.push(result);
-        currentInput = result; // Pass result to next phase
-      } catch (error) {
-        return {
-          success: false,
-          error: `Phase ${phase.name} failed: ${error.message}`,
-          completedPhases: i,
-          results,
-        };
-      }
-    }
-
-    return {
-      success: true,
-      results,
-      completedPhases: this.phases.length,
-      finalResult: results[results.length - 1],
-    };
-  }
-
-  private async executePhase(
-    phase: Phase,
-    input: any,
-    context: PhaseContext
-  ): Promise<any> {
-    const retryConfig = phase.retryConfig || { maxAttempts: 1, backoffMs: 1000, backoffMultiplier: 2 };
-
-    for (let attempt = 1; attempt <= retryConfig.maxAttempts; attempt++) {
-      try {
-        const result = await phase.processor(input, context);
-
-        if (phase.validator && !phase.validator(result)) {
-          throw new Error(`Phase ${phase.name} validation failed`);
-        }
-
-        return result;
-      } catch (error) {
-        if (attempt === retryConfig.maxAttempts) {
-          throw error;
-        }
-
-        const delay = retryConfig.backoffMs * Math.pow(retryConfig.backoffMultiplier, attempt - 1);
-        await new Promise(resolve => setTimeout(resolve, delay));
-      }
-    }
-  }
-}
-
-interface MultiPhaseResult {
-  success: boolean;
-  results: any[];
-  completedPhases: number;
-  finalResult?: any;
-  error?: string;
-}
-
-// Usage example: Create a complete data processing pipeline
-async function createDataProcessor(): Promise<MultiPhaseProcessor> {
-  const processor = new MultiPhaseProcessor();
-
-  // Phase 1: Input validation
-  processor.addPhase({
-    name: 'validation',
-    processor: async (input, context) => {
-      if (!input.data) {
-        throw new Error('No data provided');
-      }
-      if (!Array.isArray(input.data)) {
-        throw new Error('Data must be an array');
-      }
-      return { ...input, validated: true };
-    },
-    validator: (output) => output.validated === true,
-  });
-
-  // Phase 2: Data transformation with retry logic
-  processor.addPhase({
-    name: 'transformation',
-    processor: async (input, context) => {
-      return {
-        ...input,
-        transformedData: input.data.map((item: any) => ({
-          ...item,
-          processed: true,
-          timestamp: new Date().toISOString(),
-          phaseIndex: context.phaseIndex,
-        })),
-      };
-    },
-    retryConfig: { maxAttempts: 3, backoffMs: 1000, backoffMultiplier: 2 },
-  });
-
-  // Phase 3: Result aggregation
-  processor.addPhase({
-    name: 'aggregation',
-    processor: async (input, context) => {
-      const summary = {
-        totalItems: input.transformedData.length,
-        processedAt: new Date().toISOString(),
-        phaseContext: context,
-        processingHistory: context.previousResults.map(r => r.summary || {}),
-      };
-      return { ...input, summary };
-    },
-  });
-
-  return processor;
-}
-
-export async function run(input: ProcessorInput) {
-  const processor = await createDataProcessor();
-  return processor.process(input);
-}
-```
-</Tab>
-<Tab value="configuration" label="Configuration">
-Configure multi-phase processing in your workflow:
-
-```yaml
-# tools/multi-phase-processor.yaml
-resource: "tool"
-id: "multi-phase-processor"
-description: "Multi-phase data processor with validation and retry"
-timeout: "120s"
-
-input:
-  type: "object"
-  properties:
-    data:
-      type: "array"
-      description: "Input data array to process"
-    phase_config:
-      type: "object"
-      properties:
-        skip_validation:
-          type: "boolean"
-          default: false
-        retry_failed_phases:
-          type: "boolean"
-          default: true
-        max_phase_retries:
-          type: "integer"
-          default: 3
-          minimum: 1
-          maximum: 10
-      additionalProperties: false
-  required: ["data"]
-
-output:
-  type: "object"
-  properties:
-    success:
-      type: "boolean"
-    results:
-      type: "array"
-      description: "Results from each phase"
-    final_result:
-      description: "Final processed result"
-    completed_phases:
-      type: "integer"
-    error:
-      type: "string"
-      description: "Error message if processing failed"
-  required: ["success", "results", "completed_phases"]
-```
-</Tab>
-<Tab value="workflow" label="Workflow Usage">
-Use multi-phase processing in complex workflows:
-
-```yaml
-# workflow.yaml
-tasks:
-  - id: data-processing-pipeline
-    type: basic
-    $use: tool(local::tools.#(id=="multi-phase-processor"))
-    with:
-      data: "{{ .workflow.input.raw_data }}"
-      phase_config:
-        skip_validation: false
-        retry_failed_phases: true
-        max_phase_retries: 5
-    outputs:
-      processed_data: "{{ .output.final_result }}"
-      phase_results: "{{ .output.results }}"
-      
-  # Handle processing errors with conditional routing
-  - id: error-handler
-    type: router
-    condition: '{{ .tasks.data-processing-pipeline.output.success | ternary "success" "error" }}'
-    routes:
-      success:
-        $ref: local::tasks.#(id="save-results")
-      error:
-        $ref: local::tasks.#(id="handle-processing-error")
-```
-</Tab>
-</Tabs>
-
-## Advanced Orchestration Patterns
-
-Dynamic orchestration enables tools to compose and coordinate other tools at runtime, creating flexible, adaptive workflows that respond to changing conditions and requirements.
-
-### Dynamic Tool Composition
-
-Dynamic tool composition allows tools to discover, register, and orchestrate other tools based on runtime conditions. This creates flexible architectures that can adapt to changing requirements without code modifications.
-
-<Callout type="info">
-Dynamic orchestration is powerful for building adaptive systems that can respond to different scenarios, but be careful to maintain clear execution boundaries and error handling.
-</Callout>
-
-<Steps>
-  <Step>
-    **Tool Registration**
-    
-    Register available tools with their capabilities and requirements:
-  </Step>
-  <Step>
-    **Orchestration Planning**
-    
-    Create execution plans based on available tools and requirements:
-  </Step>
-  <Step>
-    **Dynamic Execution**
-    
-    Execute orchestration plans with proper error handling and monitoring:
-  </Step>
-</Steps>
-
-<Tabs defaultValue="orchestrator">
-<Tab value="orchestrator" label="Orchestrator">
-Build a dynamic orchestrator that can compose and execute tool chains:
-
-```typescript
-// tools/dynamic-orchestrator.ts
-interface ToolDefinition {
-  id: string;
-  name: string;
-  description: string;
-  inputSchema: any;
-  outputSchema: any;
-  executor: (input: any) => Promise<any>;
-}
-
-interface OrchestrationPlan {
-  tools: ToolDefinition[];
-  connections: Connection[];
-  strategy: 'sequential' | 'parallel' | 'conditional';
-  errorHandling: 'stop' | 'continue' | 'retry';
-}
-
-interface Connection {
-  from: string;
-  to: string;
-  inputMapping: Record<string, string>;
-  condition?: string;
-}
-
-class DynamicOrchestrator {
-  private registeredTools: Map<string, ToolDefinition> = new Map();
-  private executionHistory: ExecutionRecord[] = [];
-
-  registerTool(tool: ToolDefinition): void {
-    this.registeredTools.set(tool.id, tool);
-  }
-
-  async execute(plan: OrchestrationPlan, input: any): Promise<OrchestrationResult> {
-    const executionContext = new ExecutionContext(plan, input);
-
-    switch (plan.strategy) {
-      case 'sequential':
-        return this.executeSequential(executionContext);
-      case 'parallel':
-        return this.executeParallel(executionContext);
-      case 'conditional':
-        return this.executeConditional(executionContext);
-      default:
-        throw new Error(`Unknown strategy: ${plan.strategy}`);
-    }
-  }
-
-  private async executeSequential(context: ExecutionContext): Promise<OrchestrationResult> {
-    const results: Record<string, any> = {};
-    let currentInput = context.initialInput;
-
-    for (const tool of context.plan.tools) {
-      try {
-        const toolInput = this.mapInput(currentInput, tool.inputSchema);
-        const result = await tool.executor(toolInput);
-        results[tool.id] = result;
-        currentInput = result; // Chain results
-
-        this.recordExecution(tool.id, toolInput, result, 'success');
-      } catch (error) {
-        this.recordExecution(tool.id, currentInput, null, 'error', error.message);
-
-        if (context.plan.errorHandling === 'stop') {
-          return { success: false, error: error.message, results };
-        }
-      }
-    }
-
-    return { success: true, results };
-  }
-
-  private async executeParallel(context: ExecutionContext): Promise<OrchestrationResult> {
-    const promises = context.plan.tools.map(async (tool) => {
-      try {
-        const toolInput = this.mapInput(context.initialInput, tool.inputSchema);
-        const result = await tool.executor(toolInput);
-        this.recordExecution(tool.id, toolInput, result, 'success');
-        return { toolId: tool.id, result, success: true };
-      } catch (error) {
-        this.recordExecution(tool.id, context.initialInput, null, 'error', error.message);
-        return { toolId: tool.id, error: error.message, success: false };
-      }
-    });
-
-    const results = await Promise.all(promises);
-    const successfulResults = results.filter(r => r.success);
-    const failedResults = results.filter(r => !r.success);
-
-    if (failedResults.length > 0 && context.plan.errorHandling === 'stop') {
-      return {
-        success: false,
-        error: `${failedResults.length} tools failed`,
-        results: Object.fromEntries(successfulResults.map(r => [r.toolId, r.result]))
-      };
-    }
-
-    return {
-      success: true,
-      results: Object.fromEntries(successfulResults.map(r => [r.toolId, r.result]))
-    };
-  }
-
-  private async executeConditional(context: ExecutionContext): Promise<OrchestrationResult> {
-    const results: Record<string, any> = {};
-    const executionGraph = this.buildExecutionGraph(context.plan);
-
-    for (const node of executionGraph) {
-      const shouldExecute = await this.evaluateCondition(node.condition, results);
-
-      if (shouldExecute) {
-        try {
-          const tool = this.registeredTools.get(node.toolId);
-          if (!tool) {
-            throw new Error(`Tool ${node.toolId} not found`);
-          }
-
-          const toolInput = this.mapInputFromResults(results, node.inputMapping);
-          const result = await tool.executor(toolInput);
-          results[node.toolId] = result;
-
-          this.recordExecution(tool.id, toolInput, result, 'success');
-        } catch (error) {
-          this.recordExecution(node.toolId, {}, null, 'error', error.message);
-
-          if (context.plan.errorHandling === 'stop') {
-            return { success: false, error: error.message, results };
-          }
-        }
-      }
-    }
-
-    return { success: true, results };
-  }
-
-  private mapInput(input: any, schema: any): any {
-    // Implement input mapping based on schema
-    return input;
-  }
-
-  private mapInputFromResults(results: Record<string, any>, mapping: Record<string, string>): any {
-    const mapped: any = {};
-
-    for (const [key, path] of Object.entries(mapping)) {
-      mapped[key] = this.getValueFromPath(results, path);
-    }
-
-    return mapped;
-  }
-
-  private getValueFromPath(obj: any, path: string): any {
-    return path.split('.').reduce((current, key) => current?.[key], obj);
-  }
-
-  private buildExecutionGraph(plan: OrchestrationPlan): ExecutionNode[] {
-    // Build execution graph from connections
-    return plan.tools.map(tool => ({
-      toolId: tool.id,
-      condition: null,
-      inputMapping: {},
-    }));
-  }
-
-  private async evaluateCondition(condition: string | null, context: Record<string, any>): Promise<boolean> {
-    if (!condition) return true;
-
-    // Implement condition evaluation logic
-    // This could use a simple expression evaluator or a more sophisticated rule engine
-    return true;
-  }
-
-  private recordExecution(
-    toolId: string,
-    input: any,
-    output: any,
-    status: 'success' | 'error',
-    error?: string
-  ): void {
-    this.executionHistory.push({
-      toolId,
-      input,
-      output,
-      status,
-      error,
-      timestamp: new Date().toISOString(),
-    });
-  }
-}
-
-class ExecutionContext {
-  constructor(
-    public plan: OrchestrationPlan,
-    public initialInput: any
-  ) {}
-}
-
-interface ExecutionNode {
-  toolId: string;
-  condition: string | null;
-  inputMapping: Record<string, string>;
-}
-
-interface ExecutionRecord {
-  toolId: string;
-  input: any;
-  output: any;
-  status: 'success' | 'error';
-  error?: string;
-  timestamp: string;
-}
-
-interface OrchestrationResult {
-  success: boolean;
-  results: Record<string, any>;
-  error?: string;
-  executionTrace: ExecutionTrace[];
-}
-
-interface ExecutionTrace {
-  toolId: string;
-  startTime: string;
-  endTime: string;
-  duration: number;
-  success: boolean;
-  error?: string;
-}
-
-export async function run(input: OrchestrationInput) {
-  const orchestrator = new DynamicOrchestrator();
+// tools/retry-tool.ts
+export async function run(input: { url: string; retries?: number }) {
+  const maxRetries = input.retries || 3;
   
-  // Register available tools
-  orchestrator.registerTool({
-    id: 'validator',
-    name: 'Data Validator',
-    description: 'Validates input data structure',
-    inputSchema: { type: 'object', properties: { data: { type: 'array' } } },
-    outputSchema: { type: 'object', properties: { valid: { type: 'boolean' } } },
-    executor: async (input) => ({ valid: Array.isArray(input.data) }),
-  });
-  
-  orchestrator.registerTool({
-    id: 'processor',
-    name: 'Data Processor',
-    description: 'Processes validated data',
-    inputSchema: { type: 'object', properties: { data: { type: 'array' } } },
-    outputSchema: { type: 'object', properties: { processed: { type: 'array' } } },
-    executor: async (input) => ({ processed: input.data.map(item => ({ ...item, timestamp: new Date() })) }),
-  });
-  
-  return orchestrator.execute(input.plan, input.input);
-}
-```
-</Tab>
-<Tab value="planning" label="Planning">
-Create sophisticated orchestration plans with conditional logic:
-
-```typescript
-// tools/orchestration-planner.ts
-interface OrchestrationPlan {
-  id: string;
-  name: string;
-  description: string;
-  tools: ToolDefinition[];
-  connections: Connection[];
-  strategy: 'sequential' | 'parallel' | 'conditional';
-  errorHandling: 'stop' | 'continue' | 'retry';
-  conditions?: Record<string, string>;
-  metadata?: Record<string, any>;
-}
-
-class OrchestrationPlanner {
-  static createDataProcessingPlan(): OrchestrationPlan {
-    return {
-      id: 'data-processing',
-      name: 'Data Processing Pipeline',
-      description: 'Validates, processes, and aggregates data',
-      tools: [
-        {
-          id: 'validator',
-          name: 'Input Validator',
-          description: 'Validates input data structure and format',
-          inputSchema: { type: 'object', properties: { data: { type: 'array' } } },
-          outputSchema: { type: 'object', properties: { valid: { type: 'boolean' } } },
-          executor: async (input) => ({ valid: Array.isArray(input.data) && input.data.length > 0 }),
-        },
-        {
-          id: 'processor',
-          name: 'Data Processor',
-          description: 'Transforms and enriches data',
-          inputSchema: { type: 'object', properties: { data: { type: 'array' } } },
-          outputSchema: { type: 'object', properties: { processed: { type: 'array' } } },
-          executor: async (input) => ({
-            processed: input.data.map(item => ({
-              ...item,
-              processed: true,
-              timestamp: new Date().toISOString(),
-            })),
-          }),
-        },
-        {
-          id: 'aggregator',
-          name: 'Data Aggregator',
-          description: 'Aggregates processed data',
-          inputSchema: { type: 'object', properties: { processed: { type: 'array' } } },
-          outputSchema: { type: 'object', properties: { summary: { type: 'object' } } },
-          executor: async (input) => ({
-            summary: {
-              totalItems: input.processed.length,
-              processedAt: new Date().toISOString(),
-              categories: input.processed.reduce((acc, item) => {
-                acc[item.category] = (acc[item.category] || 0) + 1;
-                return acc;
-              }, {}),
-            },
-          }),
-        },
-      ],
-      connections: [
-        {
-          from: 'validator',
-          to: 'processor',
-          inputMapping: { data: 'data' },
-          condition: 'valid === true',
-        },
-        {
-          from: 'processor',
-          to: 'aggregator',
-          inputMapping: { processed: 'processed' },
-        },
-      ],
-      strategy: 'conditional',
-      errorHandling: 'stop',
-      conditions: {
-        'valid === true': 'output.valid === true',
-      },
-    };
-  }
-  
-  static createParallelProcessingPlan(): OrchestrationPlan {
-    return {
-      id: 'parallel-processing',
-      name: 'Parallel Processing Pipeline',
-      description: 'Processes data in parallel with multiple processors',
-      tools: [
-        {
-          id: 'text-processor',
-          name: 'Text Processor',
-          description: 'Processes text data',
-          inputSchema: { type: 'object', properties: { text: { type: 'string' } } },
-          outputSchema: { type: 'object', properties: { processed: { type: 'string' } } },
-          executor: async (input) => ({ processed: input.text.toUpperCase() }),
-        },
-        {
-          id: 'number-processor',
-          name: 'Number Processor',
-          description: 'Processes numeric data',
-          inputSchema: { type: 'object', properties: { numbers: { type: 'array' } } },
-          outputSchema: { type: 'object', properties: { sum: { type: 'number' } } },
-          executor: async (input) => ({ sum: input.numbers.reduce((a, b) => a + b, 0) }),
-        },
-      ],
-      connections: [],
-      strategy: 'parallel',
-      errorHandling: 'continue',
-    };
-  }
-}
-
-export { OrchestrationPlanner };
-```
-</Tab>
-<Tab value="usage" label="Usage">
-Use dynamic orchestration in workflows:
-
-```yaml
-# tools/dynamic-orchestrator.yaml
-resource: "tool"
-id: "dynamic-orchestrator"
-description: "Dynamic tool orchestration with runtime composition"
-timeout: "180s"
-
-input:
-  type: "object"
-  properties:
-    plan:
-      type: "object"
-      description: "Orchestration plan definition"
-      properties:
-        id:
-          type: "string"
-        strategy:
-          type: "string"
-          enum: ["sequential", "parallel", "conditional"]
-        error_handling:
-          type: "string"
-          enum: ["stop", "continue", "retry"]
-        tools:
-          type: "array"
-          items:
-            type: "object"
-        connections:
-          type: "array"
-          items:
-            type: "object"
-      required: ["id", "strategy", "tools"]
-    input:
-      type: "object"
-      description: "Input data for orchestration"
-  required: ["plan", "input"]
-
-output:
-  type: "object"
-  properties:
-    success:
-      type: "boolean"
-    results:
-      type: "object"
-      description: "Results from orchestrated tools"
-    execution_trace:
-      type: "array"
-      description: "Execution trace for debugging"
-    error:
-      type: "string"
-      description: "Error message if orchestration failed"
-  required: ["success", "results"]
-
-# workflow.yaml
-tasks:
-  - id: orchestrate-data-pipeline
-    type: basic
-    $use: tool(local::tools.#(id=="dynamic-orchestrator"))
-    with:
-      plan:
-        id: "data-processing"
-        strategy: "conditional"
-        error_handling: "stop"
-        tools:
-          - id: "validator"
-            name: "Data Validator"
-            description: "Validates input data"
-          - id: "processor"
-            name: "Data Processor"
-            description: "Processes validated data"
-        connections:
-          - from: "validator"
-            to: "processor"
-            condition: "valid === true"
-      input:
-        data: "{{ .workflow.input.raw_data }}"
-    outputs:
-      orchestration_results: "{{ .output.results }}"
-      execution_trace: "{{ .output.execution_trace }}"
-```
-</Tab>
-</Tabs>
-
-### Streaming and Real-time Processing
-
-Streaming processing handles continuous data flows with buffering, backpressure management, and real-time event handling. Essential for high-throughput scenarios and real-time data processing.
-
-<List>
-  <ListItem>
-    **Buffering Strategy**: Configurable buffer sizes with automatic flushing
-  </ListItem>
-  <ListItem>
-    **Backpressure Management**: Prevents memory overflow with configurable thresholds
-  </ListItem>
-  <ListItem>
-    **Subscriber Pattern**: Event-driven processing with multiple subscribers
-  </ListItem>
-  <ListItem>
-    **Batch Processing**: Efficient processing of data in configurable batches
-  </ListItem>
-</List>
-
-<Steps>
-  <Step>
-    **Configure Stream Processing**
-    
-    Set up buffer sizes, flush intervals, and backpressure thresholds:
-  </Step>
-  <Step>
-    **Implement Subscribers**
-    
-    Create subscribers to handle processed batches:
-  </Step>
-  <Step>
-    **Handle Stream Lifecycle**
-    
-    Manage stream start, processing, and completion:
-  </Step>
-</Steps>
-
-<Tabs defaultValue="streaming">
-<Tab value="streaming" label="Streaming Implementation">
-Build a streaming processor with buffering and backpressure management:
-
-```typescript
-// tools/streaming-processor.ts
-interface StreamConfig {
-  bufferSize: number;
-  flushInterval: number;
-  backpressureThreshold: number;
-}
-
-class StreamingProcessor {
-  private config: StreamConfig;
-  private buffer: any[] = [];
-  private flushTimer: number | null = null;
-  private subscribers: StreamSubscriber[] = [];
-
-  constructor(config: StreamConfig) {
-    this.config = config;
-    this.startFlushTimer();
-  }
-
-  async processStream(input: StreamInput): Promise<StreamOutput> {
-    const { data, isComplete } = input;
-
-    // Add data to buffer
-    this.buffer.push(...data);
-
-    // Check for backpressure
-    if (this.buffer.length >= this.config.backpressureThreshold) {
-      await this.flush();
-    }
-
-    // If stream is complete, flush remaining data
-    if (isComplete) {
-      await this.flush();
-      this.stopFlushTimer();
-    }
-
-    return {
-      processed: data.length,
-      bufferSize: this.buffer.length,
-      isComplete,
-    };
-  }
-
-  subscribe(subscriber: StreamSubscriber): void {
-    this.subscribers.push(subscriber);
-  }
-
-  private async flush(): Promise<void> {
-    if (this.buffer.length === 0) return;
-
-    const batch = this.buffer.splice(0, this.config.bufferSize);
-    const processedBatch = await this.processBatch(batch);
-
-    // Notify subscribers
-    for (const subscriber of this.subscribers) {
-      await subscriber.onBatch(processedBatch);
-    }
-  }
-
-  private async processBatch(batch: any[]): Promise<ProcessedBatch> {
-    const processed = batch.map(item => this.processItem(item));
-
-    return {
-      items: processed,
-      processedAt: new Date().toISOString(),
-      batchSize: batch.length,
-    };
-  }
-
-  private processItem(item: any): any {
-    // Implement item processing logic
-    return {
-      ...item,
-      processed: true,
-      timestamp: Date.now(),
-    };
-  }
-
-  private startFlushTimer(): void {
-    this.flushTimer = setInterval(() => {
-      this.flush();
-    }, this.config.flushInterval);
-  }
-
-  private stopFlushTimer(): void {
-    if (this.flushTimer) {
-      clearInterval(this.flushTimer);
-      this.flushTimer = null;
-    }
-  }
-}
-
-interface StreamInput {
-  data: any[];
-  isComplete: boolean;
-  metadata?: Record<string, any>;
-}
-
-interface StreamOutput {
-  processed: number;
-  bufferSize: number;
-  isComplete: boolean;
-}
-
-interface StreamSubscriber {
-  onBatch(batch: ProcessedBatch): Promise<void>;
-}
-
-interface ProcessedBatch {
-  items: any[];
-  processedAt: string;
-  batchSize: number;
-  batchId: string;
-  metadata: {
-    totalProcessed: number;
-    averageProcessingTime: number;
-    errorCount: number;
-  };
-}
-
-export async function run(input: StreamProcessorInput) {
-  const config: StreamConfig = {
-    bufferSize: input.config?.bufferSize || 1000,
-    flushInterval: input.config?.flushInterval || 5000,
-    backpressureThreshold: input.config?.backpressureThreshold || 5000,
-  };
-  
-  const processor = new StreamingProcessor(config);
-  
-  // Subscribe to process batches
-  processor.subscribe({
-    async onBatch(batch: ProcessedBatch) {
-      console.log(`Processed batch ${batch.batchId} with ${batch.batchSize} items`);
-    },
-  });
-  
-  return processor.processStream(input);
-}
-```
-</Tab>
-<Tab value="subscribers" label="Subscriber Pattern">
-Implement subscribers for handling processed data:
-
-```typescript
-// tools/stream-subscribers.ts
-interface StreamSubscriber {
-  onBatch(batch: ProcessedBatch): Promise<void>;
-  onError?(error: Error): Promise<void>;
-  onComplete?(): Promise<void>;
-}
-
-class DatabaseSubscriber implements StreamSubscriber {
-  private db: any; // Database connection
-  
-  constructor(db: any) {
-    this.db = db;
-  }
-  
-  async onBatch(batch: ProcessedBatch): Promise<void> {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      await this.db.transaction(async (trx) => {
-        for (const item of batch.items) {
-          await trx('processed_items').insert({
-            id: item.id,
-            data: JSON.stringify(item),
-            batch_id: batch.batchId,
-            processed_at: batch.processedAt,
-          });
-        }
-      });
-    } catch (error) {
-      console.error('Database save error:', error);
-      throw error;
-    }
-  }
-  
-  async onError(error: Error): Promise<void> {
-    console.error('Stream processing error:', error);
-    // Log error or send to monitoring system
-  }
-  
-  async onComplete(): Promise<void> {
-    console.log('Stream processing completed');
-    // Cleanup resources
-  }
-}
-
-class FileSubscriber implements StreamSubscriber {
-  private outputPath: string;
-  private fileHandle: any;
-  
-  constructor(outputPath: string) {
-    this.outputPath = outputPath;
-  }
-  
-  async onBatch(batch: ProcessedBatch): Promise<void> {
-    const data = batch.items.map(item => JSON.stringify(item)).join('\n') + '\n';
-    
-    if (!this.fileHandle) {
-      this.fileHandle = await Bun.file(this.outputPath).writer();
-    }
-    
-    await this.fileHandle.write(data);
-  }
-  
-  async onComplete(): Promise<void> {
-    if (this.fileHandle) {
-      await this.fileHandle.end();
-    }
-  }
-}
-
-class NotificationSubscriber implements StreamSubscriber {
-  private threshold: number;
-  
-  constructor(threshold: number = 1000) {
-    this.threshold = threshold;
-  }
-  
-  async onBatch(batch: ProcessedBatch): Promise<void> {
-    if (batch.metadata.totalProcessed % this.threshold === 0) {
-      // Send notification every threshold items
-      console.log(`Milestone: ${batch.metadata.totalProcessed} items processed`);
-      // Send to notification service
-    }
-  }
-}
-
-export { DatabaseSubscriber, FileSubscriber, NotificationSubscriber };
-```
-</Tab>
-<Tab value="configuration" label="Configuration">
-Configure streaming processing in your workflow:
-
-```yaml
-# tools/streaming-processor.yaml
-resource: "tool"
-id: "streaming-processor"
-description: "High-throughput streaming data processor"
-timeout: "300s"
-
-input:
-  type: "object"
-  properties:
-    data:
-      type: "array"
-      description: "Input data stream"
-    is_complete:
-      type: "boolean"
-      default: false
-      description: "Whether this is the final batch"
-    config:
-      type: "object"
-      properties:
-        buffer_size:
-          type: "integer"
-          default: 1000
-          minimum: 100
-          maximum: 10000
-        flush_interval:
-          type: "integer"
-          default: 5000
-          description: "Flush interval in milliseconds"
-        backpressure_threshold:
-          type: "integer"
-          default: 5000
-          description: "Backpressure threshold"
-        subscribers:
-          type: "array"
-          items:
-            type: "object"
-            properties:
-              type:
-                type: "string"
-                enum: ["database", "file", "notification"]
-              config:
-                type: "object"
-          description: "Subscriber configurations"
-      additionalProperties: false
-  required: ["data"]
-
-output:
-  type: "object"
-  properties:
-    processed:
-      type: "integer"
-      description: "Number of items processed"
-    buffer_size:
-      type: "integer"
-      description: "Current buffer size"
-    is_complete:
-      type: "boolean"
-      description: "Whether processing is complete"
-    metadata:
-      type: "object"
-      properties:
-        total_processed:
-          type: "integer"
-        average_processing_time:
-          type: "number"
-        error_count:
-          type: "integer"
-  required: ["processed", "buffer_size", "is_complete"]
-
-# workflow.yaml
-tasks:
-  - id: stream-data-processing
-    type: basic
-    $use: tool(local::tools.#(id=="streaming-processor"))
-    with:
-      data: "{{ .workflow.input.stream_data }}"
-      is_complete: "{{ .workflow.input.is_final_batch }}"
-      config:
-        buffer_size: 2000
-        flush_interval: 3000
-        backpressure_threshold: 8000
-        subscribers:
-          - type: "database"
-            config:
-              connection_string: "{{ .env.DATABASE_URL }}"
-          - type: "file"
-            config:
-              output_path: "/data/processed/output.jsonl"
-          - type: "notification"
-            config:
-              threshold: 5000
-    outputs:
-      processed_count: "{{ .output.processed }}"
-      stream_complete: "{{ .output.is_complete }}"
-      processing_metadata: "{{ .output.metadata }}"
-```
-</Tab>
-</Tabs>
-
-## Advanced Error Handling and Recovery
-
-### Circuit Breaker Pattern
-
-Implement circuit breaker pattern for resilient tool execution:
-
-```typescript
-// tools/circuit-breaker.ts
-enum CircuitState {
-  CLOSED = 'CLOSED',
-  OPEN = 'OPEN',
-  HALF_OPEN = 'HALF_OPEN',
-}
-
-interface CircuitBreakerConfig {
-  failureThreshold: number;
-  recoveryTimeout: number;
-  monitoringWindow: number;
-  halfOpenMaxCalls: number;
-}
-
-class CircuitBreaker {
-  private state: CircuitState = CircuitState.CLOSED;
-  private failureCount = 0;
-  private lastFailureTime = 0;
-  private halfOpenCalls = 0;
-  private config: CircuitBreakerConfig;
-
-  constructor(config: CircuitBreakerConfig) {
-    this.config = config;
-  }
-
-  async execute<T>(operation: () => Promise<T>): Promise<T> {
-    if (this.state === CircuitState.OPEN) {
-      if (this.shouldAttemptRecovery()) {
-        this.state = CircuitState.HALF_OPEN;
-        this.halfOpenCalls = 0;
-      } else {
-        throw new Error('Circuit breaker is OPEN');
-      }
-    }
-
-    if (this.state === CircuitState.HALF_OPEN) {
-      if (this.halfOpenCalls >= this.config.halfOpenMaxCalls) {
-        throw new Error('Circuit breaker HALF_OPEN limit exceeded');
-      }
-      this.halfOpenCalls++;
-    }
-
-    try {
-      const result = await operation();
-      this.onSuccess();
-      return result;
-    } catch (error) {
-      this.onFailure();
-      throw error;
-    }
-  }
-
-  private shouldAttemptRecovery(): boolean {
-    return Date.now() - this.lastFailureTime >= this.config.recoveryTimeout;
-  }
-
-  private onSuccess(): void {
-    this.failureCount = 0;
-
-    if (this.state === CircuitState.HALF_OPEN) {
-      this.state = CircuitState.CLOSED;
-    }
-  }
-
-  private onFailure(): void {
-    this.failureCount++;
-    this.lastFailureTime = Date.now();
-
-    if (this.state === CircuitState.HALF_OPEN) {
-      this.state = CircuitState.OPEN;
-    } else if (this.failureCount >= this.config.failureThreshold) {
-      this.state = CircuitState.OPEN;
-    }
-  }
-
-  getState(): CircuitState {
-    return this.state;
-  }
-
-  getMetrics(): CircuitBreakerMetrics {
-    return {
-      state: this.state,
-      failureCount: this.failureCount,
-      lastFailureTime: this.lastFailureTime,
-      halfOpenCalls: this.halfOpenCalls,
-    };
-  }
-}
-
-interface CircuitBreakerMetrics {
-  state: CircuitState;
-  failureCount: number;
-  lastFailureTime: number;
-  halfOpenCalls: number;
-}
-
-// Usage in a tool
-class ResilientApiTool {
-  private circuitBreaker: CircuitBreaker;
-
-  constructor() {
-    this.circuitBreaker = new CircuitBreaker({
-      failureThreshold: 5,
-      recoveryTimeout: 30000, // 30 seconds
-      monitoringWindow: 60000, // 1 minute
-      halfOpenMaxCalls: 3,
-    });
-  }
-
-  async execute(input: ApiInput): Promise<ApiOutput> {
-    return this.circuitBreaker.execute(async () => {
-      const response = await fetch(input.url, {
-        method: input.method,
-        headers: input.headers,
-        body: input.body,
-      });
-
+      const response = await fetch(input.url);
+      
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
-
-      return await response.json();
-    });
-  }
-}
-```
-
-### Compensating Actions
-
-Implement compensating actions for complex workflows:
-
-```typescript
-// tools/compensating-actions.ts
-interface CompensatingAction {
-  id: string;
-  execute: () => Promise<void>;
-  description: string;
-}
-
-class CompensatingActionManager {
-  private actions: CompensatingAction[] = [];
-  private executed: Set<string> = new Set();
-
-  addAction(action: CompensatingAction): void {
-    this.actions.push(action);
-  }
-
-  async executeAll(): Promise<CompensationResult> {
-    const results: CompensationResult = {
-      successful: [],
-      failed: [],
-      totalActions: this.actions.length,
-    };
-
-    // Execute actions in reverse order (LIFO)
-    for (let i = this.actions.length - 1; i >= 0; i--) {
-      const action = this.actions[i];
-
-      if (this.executed.has(action.id)) {
-        continue; // Skip already executed actions
-      }
-
-      try {
-        await action.execute();
-        this.executed.add(action.id);
-        results.successful.push(action.id);
-      } catch (error) {
-        results.failed.push({
-          actionId: action.id,
-          error: error.message,
-          description: action.description,
-        });
-      }
-    }
-
-    return results;
-  }
-
-  clear(): void {
-    this.actions = [];
-    this.executed.clear();
-  }
-}
-
-interface CompensationResult {
-  successful: string[];
-  failed: Array<{
-    actionId: string;
-    error: string;
-    description: string;
-  }>;
-  totalActions: number;
-}
-
-// Usage in a complex workflow tool
-class TransactionalWorkflowTool {
-  private compensatingActions: CompensatingActionManager;
-
-  constructor() {
-    this.compensatingActions = new CompensatingActionManager();
-  }
-
-  async execute(input: WorkflowInput): Promise<WorkflowOutput> {
-    try {
-      // Step 1: Create user
-      const user = await this.createUser(input.userData);
-      this.compensatingActions.addAction({
-        id: 'delete-user',
-        execute: () => this.deleteUser(user.id),
-        description: `Delete user ${user.id}`,
-      });
-
-      // Step 2: Send welcome email
-      await this.sendWelcomeEmail(user.email);
-      this.compensatingActions.addAction({
-        id: 'send-cancellation-email',
-        execute: () => this.sendCancellationEmail(user.email),
-        description: `Send cancellation email to ${user.email}`,
-      });
-
-      // Step 3: Create subscription
-      const subscription = await this.createSubscription(user.id, input.plan);
-      this.compensatingActions.addAction({
-        id: 'cancel-subscription',
-        execute: () => this.cancelSubscription(subscription.id),
-        description: `Cancel subscription ${subscription.id}`,
-      });
-
-      // If we get here, everything succeeded
-      this.compensatingActions.clear();
-
+      
       return {
         success: true,
-        user,
-        subscription,
+        data: await response.json(),
+        attempts: attempt
       };
     } catch (error) {
-      // Execute compensating actions
-      const compensation = await this.compensatingActions.executeAll();
+      if (attempt === maxRetries) {
+        return {
+          success: false,
+          error: error.message,
+          attempts: attempt
+        };
+      }
+      
+      // Wait before retrying (exponential backoff)
+      await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+    }
+  }
+}
+```
 
+**What this code does:**
+- Tries to fetch data from a URL, retrying on failure
+- Uses exponential backoff (wait 1s, then 2s, then 3s)
+- Returns success/failure status with attempt count
+- Prevents infinite loops by limiting retry attempts
+
+### Validation with Fallbacks
+
+Validate input and provide fallback values:
+
+```typescript
+// tools/validated-processor.ts
+export async function run(input: { data: any; strict?: boolean }) {
+  // Validate input data
+  if (!input.data) {
+    if (input.strict) {
+      throw new Error('No data provided');
+    }
+    return { result: null, warning: 'No data provided, using default' };
+  }
+
+  // Process with validation
+  try {
+    const processed = processData(input.data);
+    return { result: processed, status: 'success' };
+  } catch (error) {
+    if (input.strict) {
+      throw error;
+    }
+    return { 
+      result: null, 
+      error: error.message, 
+      status: 'failed_with_fallback' 
+    };
+  }
+}
+
+function processData(data: any) {
+  // Your processing logic here
+  return { processed: data, timestamp: new Date().toISOString() };
+}
+```
+
+**How this works:**
+- Validates input before processing
+- Provides fallback behavior when `strict` mode is disabled
+- Returns detailed status information for debugging
+- Allows workflows to continue even when some steps fail
+
+## Performance Optimization
+
+Optimize your tools for production workloads with caching, batch processing, and memory management techniques.
+
+### Batch Processing
+
+Process data in batches to reduce overhead and improve throughput:
+
+```typescript
+// tools/batch-processor.ts
+export async function run(input: { items: any[]; batch_size?: number }) {
+  const batchSize = input.batch_size || 100;
+  const results = [];
+  
+  // Process items in batches
+  for (let i = 0; i < input.items.length; i += batchSize) {
+    const batch = input.items.slice(i, i + batchSize);
+    
+    // Process batch in parallel
+    const batchResults = await Promise.all(
+      batch.map(item => processItem(item))
+    );
+    
+    results.push(...batchResults);
+    
+    // Log progress for long-running operations
+    console.log(`Processed ${i + batch.length} of ${input.items.length} items`);
+  }
+  
+  return {
+    processed: results.length,
+    results: results,
+    batches: Math.ceil(input.items.length / batchSize)
+  };
+}
+
+async function processItem(item: any) {
+  // Your processing logic here
+  return { ...item, processed: true };
+}
+```
+
+**What this code does:**
+- Splits large datasets into manageable batches
+- Processes items within each batch in parallel
+- Provides progress updates for monitoring
+- Prevents memory overflow with large datasets
+
+### Memory-Efficient Processing
+
+Handle large files without loading everything into memory:
+
+```typescript
+// tools/stream-processor.ts
+export async function run(input: { file_path: string; chunk_size?: number }) {
+  const chunkSize = input.chunk_size || 1024 * 1024; // 1MB chunks
+  const file = Bun.file(input.file_path);
+  const stream = file.stream();
+  
+  let processedBytes = 0;
+  let lineBuffer = '';
+  
+  for await (const chunk of stream) {
+    const text = new TextDecoder().decode(chunk);
+    const lines = (lineBuffer + text).split('\n');
+    
+    // Keep last incomplete line for next chunk
+    lineBuffer = lines.pop() || '';
+    
+    // Process complete lines
+    for (const line of lines) {
+      await processLine(line);
+    }
+    
+    processedBytes += chunk.length;
+  }
+  
+  // Process any remaining data
+  if (lineBuffer) {
+    await processLine(lineBuffer);
+  }
+  
+  return {
+    file: input.file_path,
+    processed_bytes: processedBytes,
+    status: 'complete'
+  };
+}
+
+async function processLine(line: string) {
+  // Process individual line
+  console.log(`Processing: ${line.substring(0, 50)}...`);
+}
+```
+
+**How this works:**
+- Reads files in chunks instead of loading entire file
+- Processes data as it streams, reducing memory usage
+- Handles text files line by line
+- Suitable for processing large log files or datasets
+
+### Simple Caching
+
+Cache expensive operations to improve performance:
+
+```typescript
+// tools/cached-api.ts
+const cache = new Map<string, { data: any; timestamp: number }>();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+export async function run(input: { url: string; cache?: boolean }) {
+  const useCache = input.cache !== false;
+  const cacheKey = input.url;
+  
+  // Check cache first
+  if (useCache) {
+    const cached = cache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
       return {
-        success: false,
-        error: error.message,
-        compensation,
+        data: cached.data,
+        cached: true,
+        cache_age: Date.now() - cached.timestamp
       };
     }
   }
-
-  private async createUser(userData: any): Promise<User> {
-    // Implementation
-    return { id: 'user-123', email: userData.email };
+  
+  // Fetch fresh data
+  const response = await fetch(input.url);
+  const data = await response.json();
+  
+  // Update cache
+  if (useCache) {
+    cache.set(cacheKey, { data, timestamp: Date.now() });
   }
-
-  private async deleteUser(userId: string): Promise<void> {
-    // Implementation
-  }
-
-  private async sendWelcomeEmail(email: string): Promise<void> {
-    // Implementation
-  }
-
-  private async sendCancellationEmail(email: string): Promise<void> {
-    // Implementation
-  }
-
-  private async createSubscription(userId: string, plan: string): Promise<Subscription> {
-    // Implementation
-    return { id: 'sub-456', userId, plan };
-  }
-
-  private async cancelSubscription(subscriptionId: string): Promise<void> {
-    // Implementation
-  }
+  
+  return {
+    data: data,
+    cached: false,
+    cache_age: 0
+  };
 }
 ```
 
-## Performance Optimization Patterns
+**What this does:**
+- Caches API responses for 5 minutes
+- Reduces API calls and improves response time
+- Provides cache status in response
+- Simple TTL-based cache invalidation
 
-### Lazy Loading and Caching
+## Multi-Step Processing
 
-Implement sophisticated caching strategies:
+Break complex operations into manageable steps for better testing and debugging.
+
+### Pipeline Pattern
+
+Create a processing pipeline with distinct stages:
 
 ```typescript
-// tools/advanced-caching.ts
-interface CacheConfig {
-  ttl: number;
-  maxSize: number;
-  strategy: 'lru' | 'lfu' | 'fifo';
-  persistToDisk: boolean;
+// tools/data-pipeline.ts
+interface PipelineStage {
+  name: string;
+  process: (data: any) => Promise<any>;
+  skipOn?: (data: any) => boolean;
 }
 
-class AdvancedCache<T> {
-  private cache = new Map<string, CacheEntry<T>>();
-  private accessCount = new Map<string, number>();
-  private accessOrder: string[] = [];
-  private config: CacheConfig;
-
-  constructor(config: CacheConfig) {
-    this.config = config;
-  }
-
-  async get(key: string): Promise<T | null> {
-    const entry = this.cache.get(key);
-
-    if (!entry) {
-      return null;
-    }
-
-    // Check TTL
-    if (Date.now() - entry.timestamp > this.config.ttl) {
-      this.cache.delete(key);
-      return null;
-    }
-
-    // Update access patterns
-    this.updateAccessPatterns(key);
-
-    return entry.value;
-  }
-
-  async set(key: string, value: T): Promise<void> {
-    // Check if we need to evict
-    if (this.cache.size >= this.config.maxSize) {
-      this.evict();
-    }
-
-    const entry: CacheEntry<T> = {
-      value,
-      timestamp: Date.now(),
-    };
-
-    this.cache.set(key, entry);
-    this.updateAccessPatterns(key);
-
-    if (this.config.persistToDisk) {
-      await this.persistEntry(key, entry);
-    }
-  }
-
-  private updateAccessPatterns(key: string): void {
-    // Update access count for LFU
-    this.accessCount.set(key, (this.accessCount.get(key) || 0) + 1);
-
-    // Update access order for LRU
-    const index = this.accessOrder.indexOf(key);
-    if (index > -1) {
-      this.accessOrder.splice(index, 1);
-    }
-    this.accessOrder.push(key);
-  }
-
-  private evict(): void {
-    let keyToEvict: string;
-
-    switch (this.config.strategy) {
-      case 'lru':
-        keyToEvict = this.accessOrder[0];
-        break;
-      case 'lfu':
-        keyToEvict = this.findLeastFrequentlyUsed();
-        break;
-      case 'fifo':
-        keyToEvict = this.cache.keys().next().value;
-        break;
-      default:
-        throw new Error(`Unknown eviction strategy: ${this.config.strategy}`);
-    }
-
-    this.cache.delete(keyToEvict);
-    this.accessCount.delete(keyToEvict);
-    const orderIndex = this.accessOrder.indexOf(keyToEvict);
-    if (orderIndex > -1) {
-      this.accessOrder.splice(orderIndex, 1);
-    }
-  }
-
-  private findLeastFrequentlyUsed(): string {
-    let minCount = Infinity;
-    let leastUsedKey = '';
-
-    for (const [key, count] of this.accessCount) {
-      if (count < minCount) {
-        minCount = count;
-        leastUsedKey = key;
+export async function run(input: { data: any; stages?: string[] }) {
+  const allStages: PipelineStage[] = [
+    {
+      name: 'validate',
+      process: async (data) => {
+        if (!data || typeof data !== 'object') {
+          throw new Error('Invalid data format');
+        }
+        return data;
       }
+    },
+    {
+      name: 'enrich',
+      process: async (data) => ({
+        ...data,
+        enriched_at: new Date().toISOString(),
+        metadata: { source: 'pipeline' }
+      })
+    },
+    {
+      name: 'transform',
+      process: async (data) => {
+        // Transform data structure
+        return {
+          id: data.id || generateId(),
+          content: data,
+          version: '2.0'
+        };
+      }
+    },
+    {
+      name: 'store',
+      process: async (data) => {
+        // Save to storage (mocked here)
+        console.log('Storing data:', data.id);
+        return { ...data, stored: true };
+      },
+      skipOn: (data) => data.skipStorage === true
     }
-
-    return leastUsedKey;
+  ];
+  
+  // Filter stages if specific ones requested
+  const stages = input.stages 
+    ? allStages.filter(s => input.stages.includes(s.name))
+    : allStages;
+  
+  let result = input.data;
+  const stageResults = [];
+  
+  for (const stage of stages) {
+    try {
+      if (stage.skipOn && stage.skipOn(result)) {
+        stageResults.push({ 
+          stage: stage.name, 
+          status: 'skipped' 
+        });
+        continue;
+      }
+      
+      result = await stage.process(result);
+      stageResults.push({ 
+        stage: stage.name, 
+        status: 'completed' 
+      });
+    } catch (error) {
+      stageResults.push({ 
+        stage: stage.name, 
+        status: 'failed', 
+        error: error.message 
+      });
+      throw error;
+    }
   }
-
-  private async persistEntry(key: string, entry: CacheEntry<T>): Promise<void> {
-    const cacheDir = './cache';
-    await Bun.$`mkdir -p ${cacheDir}`;
-
-    const filePath = `${cacheDir}/${key}.json`;
-    await Bun.write(filePath, JSON.stringify(entry));
-  }
+  
+  return {
+    result: result,
+    stages_executed: stageResults,
+    pipeline_status: 'completed'
+  };
 }
 
-interface CacheEntry<T> {
-  value: T;
-  timestamp: number;
+function generateId() {
+  return `id_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 ```
 
-<Callout type="info">
-These advanced patterns demonstrate sophisticated approaches to tool development in Compozy. They provide foundations for building highly resilient, performant, and maintainable tools that can handle complex real-world scenarios.
-</Callout>
+**What this pattern provides:**
+- Clear separation of processing stages
+- Easy to test individual stages
+- Skip stages based on conditions
+- Detailed execution tracking
+- Flexible stage selection
 
-## Integration with Workflow Patterns
+### Resilient Service Integration
 
-### Complex Task Orchestration
+Simple resilience patterns for reliable external service integration:
 
-Tools that integrate with complex workflow patterns:
-
-```yaml
-# Example: Multi-phase processing workflow
-id: advanced-data-processing
-version: 1.0.0
-description: Advanced data processing with multiple phases and error recovery
-
-tasks:
-  - id: data-validation
-    type: basic
-    $use: tool(local::tools.#(id=="multi-phase-processor"))
-    with:
-      phase: validation
-      data: "{{ .workflow.input.raw_data }}"
-      config:
-        strict: true
-        schema: "{{ .workflow.input.validation_schema }}"
-
-  - id: data-transformation
-    type: basic
-    $use: tool(local::tools.#(id=="multi-phase-processor"))
-    with:
-      phase: transformation
-      data: "{{ .tasks.data-validation.output.validated_data }}"
-      config:
-        batch_size: 1000
-        parallel_processing: true
-
-  - id: data-aggregation
-    type: basic
-    $use: tool(local::tools.#(id=="multi-phase-processor"))
-    with:
-      phase: aggregation
-      data: "{{ .tasks.data-transformation.output.transformed_data }}"
-      config:
-        aggregation_rules: "{{ .workflow.input.aggregation_config }}"
-
-  - id: error-recovery
-    type: basic
-    $use: tool(local::tools.#(id=="compensating-actions"))
-    with:
-      failed_task: "{{ .workflow.failed_task }}"
-      compensation_strategy: rollback
-    condition: "{{ .workflow.has_errors }}"
+```typescript
+// tools/resilient-service.ts
+export async function run(input: { url: string; fallback_data?: any }) {
+  try {
+    // Try primary service
+    const response = await fetch(input.url, {
+      signal: AbortSignal.timeout(10000), // 10 second timeout
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    
+    return {
+      data: await response.json(),
+      source: 'primary',
+      status: 'success'
+    };
+  } catch (error) {
+    // Log error for monitoring
+    console.error('Primary service failed:', error.message);
+    
+    // Return fallback data if available
+    if (input.fallback_data) {
+      return {
+        data: input.fallback_data,
+        source: 'fallback',
+        status: 'degraded',
+        error: error.message
+      };
+    }
+    
+    // Signal workflow to handle failure
+    return {
+      data: null,
+      source: 'none',
+      status: 'failed',
+      error: error.message
+    };
+  }
+}
 ```
 
-### Dynamic Tool Selection
+**How this pattern works:**
+- Simple primary/fallback pattern with timeouts
+- Clear error signaling for workflow handling
+- Graceful degradation when possible
+- Easy to understand and maintain
 
-Workflows that dynamically select tools based on conditions:
+## Best Practices
 
-```yaml
-# Example: Dynamic tool selection based on input type
-id: dynamic-processing
-version: 1.0.0
-description: Dynamic tool selection and orchestration
-
-tasks:
-  - id: input-analyzer
-    type: basic
-    $use: tool(local::tools.#(id=="input-analyzer"))
-    with:
-      data: "{{ .workflow.input.data }}"
-      analyze_type: true
-      analyze_complexity: true
-
-  - id: tool-selector
-    type: router
-    condition: "{{ .tasks.input-analyzer.output.data_type }}"
-    routes:
-      text:
-        $ref: local::tasks.#(id=="text-processor")
-      image:
-        $ref: local::tasks.#(id=="image-processor")
-      json:
-        $ref: local::tasks.#(id=="json-processor")
-      default:
-        $ref: local::tasks.#(id=="generic-processor")
-
-  - id: text-processor
-    type: basic
-    $use: tool(local::tools.#(id=="text-processing-tool"))
-    with:
-      text: "{{ .workflow.input.data }}"
-      operations: "{{ .tasks.input-analyzer.output.recommended_operations }}"
-
-  - id: image-processor
-    type: basic
-    $use: tool(local::tools.#(id=="image-processing-tool"))
-    with:
-      image: "{{ .workflow.input.data }}"
-      operations: "{{ .tasks.input-analyzer.output.recommended_operations }}"
-
-  - id: json-processor
-    type: basic
-    $use: tool(local::tools.#(id=="json-processing-tool"))
-    with:
-      json: "{{ .workflow.input.data }}"
-      operations: "{{ .tasks.input-analyzer.output.recommended_operations }}"
-
-  - id: generic-processor
-    type: basic
-    $use: tool(local::tools.#(id=="generic-processing-tool"))
-    with:
-      data: "{{ .workflow.input.data }}"
-      operations: "{{ .tasks.input-analyzer.output.recommended_operations }}"
-```
-
-These advanced patterns provide the foundation for building sophisticated, resilient, and highly performant tools in Compozy. They demonstrate how to handle complex scenarios, implement robust error handling, and create tools that can adapt to changing requirements and conditions.
-
-The patterns shown here can be combined and extended to create even more sophisticated tool architectures that meet the demands of complex real-world applications.
+<List>
+  <ListItem>
+    **Keep It Simple**: Start with basic patterns and add complexity only when needed
+  </ListItem>
+  <ListItem>
+    **Test Thoroughly**: Advanced patterns need comprehensive testing, especially error paths
+  </ListItem>
+  <ListItem>
+    **Monitor Performance**: Track execution times and resource usage in production
+  </ListItem>
+  <ListItem>
+    **Document Behavior**: Complex patterns need clear documentation for other developers
+  </ListItem>
+  <ListItem>
+    **Handle Cleanup**: Always clean up resources (files, connections) even on errors
+  </ListItem>
+</List>
 
 ## Related Documentation
 
 <ReferenceCardList>
   <ReferenceCard
-    title="External Integrations"
-    href="/docs/core/tools/external-integrations"
-    description="Connect to external APIs, databases, and services with robust integration patterns"
-  />
-  <ReferenceCard
-    title="Quick Start"
-    href="/docs/core/tools/quick-start"
-    description="Get started with basic tool development and workflow integration"
+    title="TypeScript Development"
+    href="/docs/core/tools/typescript-development"
+    description="Foundation concepts for building tools with TypeScript"
   />
   <ReferenceCard
     title="Testing & Debugging"
     href="/docs/core/tools/testing-debugging"
-    description="Test your advanced patterns with comprehensive debugging and validation tools"
+    description="Test your advanced patterns with comprehensive debugging tools"
   />
   <ReferenceCard
     title="Performance & Security"
     href="/docs/core/tools/performance-security"
-    description="Optimize performance and secure your advanced tool implementations"
+    description="Optimize performance and secure your tool implementations"
   />
   <ReferenceCard
-    title="MCP Protocol"
-    href="/docs/core/mcp"
-    description="Deep dive into Model Context Protocol for advanced tool integrations"
-  />
-  <ReferenceCard
-    title="Workflow Orchestration"
-    href="/docs/core/workflows"
-    description="Advanced workflow patterns for complex task orchestration"
+    title="External Integrations"
+    href="/docs/core/tools/external-integrations"
+    description="Connect to external APIs and services with MCP protocol"
   />
 </ReferenceCardList>

@@ -100,7 +100,7 @@ func (a *Activities) GetWorkflowData(ctx context.Context, input *wfacts.GetDataI
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	act := wfacts.NewGetData(a.projectConfig, a.workflows)
+	act := wfacts.NewGetData(a.projectConfig, a.workflows, a.appConfig)
 	return act.Run(ctx, input)
 }
 

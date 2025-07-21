@@ -28,7 +28,8 @@
   },
   "include": [
     "examples/**/*",
-    "docs/**/*"
+    "docs/**/*",
+    "tools/**/*"
   ],
   "exclude": [
     "node_modules",

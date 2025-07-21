@@ -1,19 +1,5 @@
-#!/usr/bin/env bun
+import { greetingTool } from "./greeting_tool.ts";
 
-/**
- * Compozy Project: {{ .Name }}
- * Description: {{ .Description }}
- * Version: {{ .Version }}
- */
-
-console.log("🚀 Starting {{ .Name }} project...");
-
-// Your project initialization code goes here
-export default function main() {
-  console.log("✅ {{ .Name }} is ready!");
-}
-
-// Run main function if this is the entry point
-if (import.meta.main) {
-  main();
+export default {
+  "greeting_tool": greetingTool,
 }

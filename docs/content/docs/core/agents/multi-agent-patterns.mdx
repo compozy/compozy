@@ -1,12 +1,26 @@
 ---
 title: "Multi-Agent Patterns"
 description: "Patterns and strategies for building collaborative multi-agent workflows"
-icon: "users"
 ---
 
 ## Overview
 
 Multi-agent patterns enable complex workflows where multiple specialized agents collaborate to solve problems, process data, or complete tasks. These patterns leverage agent specialization, parallel processing, and intelligent coordination.
+
+<Mermaid chart={`graph LR
+    subgraph "Multi-Agent Patterns"
+        A[Sequential Processing] --> B[Agents work in order]
+        C[Parallel Processing] --> D[Agents work simultaneously]
+        E[Hierarchical Delegation] --> F[Master delegates to specialists]
+        G[Consensus Building] --> H[Multiple perspectives combined]
+        I[Feedback Loop] --> J[Iterative refinement]
+    end
+    
+    B --> K[Output feeds next agent]
+    D --> L[Results aggregated]
+    F --> M[Task breakdown & routing]
+    H --> N[Synthesized decision]
+    J --> O[Continuous improvement]`} />
 
 ## Core Multi-Agent Patterns
 
@@ -20,12 +34,12 @@ agents:
     instructions: |
       You are a research specialist who gathers and analyzes information.
       Focus on finding relevant data and identifying key insights.
-    
+
   - id: writer
     instructions: |
       You are a technical writer who creates clear, engaging content.
       Transform research into well-structured documents.
-    
+
   - id: editor
     instructions: |
       You are an editor who ensures quality and consistency.
@@ -38,14 +52,14 @@ tasks:
     action: gather-info
     outputs:
       findings: "{{.output}}"
-  
+
   - id: write
     type: basic
     $use: agent(local::agents.#(id="writer"))
     action: create-content
     with:
       research: "{{.tasks.research.output}}"
-  
+
   - id: edit
     type: basic
     $use: agent(local::agents.#(id="editor"))
@@ -69,21 +83,21 @@ tasks:
         action: analyze
         with:
           text: "{{.workflow.input.text}}"
-      
+
       - id: entity-extraction
         type: basic
         $use: agent(local::agents.#(id="entity-extractor"))
         action: extract
         with:
           text: "{{.workflow.input.text}}"
-      
+
       - id: summary-generation
         type: basic
         $use: agent(local::agents.#(id="summarizer"))
         action: summarize
         with:
           text: "{{.workflow.input.text}}"
-  
+
   - id: combine-results
     type: basic
     $use: agent(local::agents.#(id="aggregator"))
@@ -132,7 +146,7 @@ tasks:
     action: plan
     with:
       project: "{{.workflow.input.project_description}}"
-  
+
   - id: execution
     type: collection
     items: "{{.tasks.planning.output.tasks}}"
@@ -170,17 +184,17 @@ agents:
     instructions: |
       You analyze proposals from a positive perspective.
       Focus on opportunities and potential benefits.
-    
+
   - id: pessimist
     instructions: |
       You analyze proposals from a critical perspective.
       Identify risks, challenges, and potential issues.
-    
+
   - id: realist
     instructions: |
       You provide balanced, practical analysis.
       Consider feasibility and real-world constraints.
-    
+
   - id: synthesizer
     instructions: |
       You synthesize multiple perspectives into actionable recommendations.
@@ -196,21 +210,21 @@ tasks:
         action: analyze
         with:
           proposal: "{{.workflow.input.proposal}}"
-      
+
       - id: pessimist-view
         type: basic
         $use: agent(local::agents.#(id="pessimist"))
         action: analyze
         with:
           proposal: "{{.workflow.input.proposal}}"
-      
+
       - id: realist-view
         type: basic
         $use: agent(local::agents.#(id="realist"))
         action: analyze
         with:
           proposal: "{{.workflow.input.proposal}}"
-  
+
   - id: synthesize
     type: basic
     $use: agent(local::agents.#(id="synthesizer"))
@@ -230,7 +244,7 @@ Agents iterate based on validation feedback:
 agents:
   - id: generator
     instructions: "You generate solutions based on requirements."
-    
+
   - id: validator
     instructions: "You validate solutions against criteria and provide feedback."
 
@@ -242,7 +256,7 @@ tasks:
     outputs:
       solution: "{{.output}}"
       iteration: 1
-  
+
   - id: validation-loop
     type: composite
     strategy: best_effort
@@ -257,7 +271,7 @@ tasks:
         outputs:
           valid: "{{.output.is_valid}}"
           feedback: "{{.output.feedback}}"
-      
+
       - id: refine
         type: router
         condition: '{{.tasks.validate.output.valid | ternary "complete" "iterate"}}'
@@ -278,9 +292,12 @@ tasks:
 
 ## Communication Patterns
 
+<Tabs items={["Shared Memory", "Message Passing", "Event-Driven"]}>
+
+<Tab>
 ### Shared Memory
 
-Agents communicate through shared memory:
+Agents communicate through shared memory for persistent state:
 
 ```yaml
 memory:
@@ -301,7 +318,7 @@ agents:
         prompt: |
           Analyze the data and store findings in memory.
           Previous findings are available from memory.
-  
+
   - id: reporter
     memory:
       - id: project_context
@@ -312,7 +329,9 @@ agents:
         prompt: |
           Generate report based on analysis findings in memory.
 ```
+</Tab>
 
+<Tab>
 ### Message Passing
 
 Direct message passing between agents:
@@ -327,14 +346,16 @@ tasks:
         subject: "Data processed"
         data: "{{.output}}"
         timestamp: "{{now}}"
-  
+
   - id: agent-b
     type: basic
     with:
       received_message: "{{.tasks.agent-a.output.message}}"
     action: process-message
 ```
+</Tab>
 
+<Tab>
 ### Event-Driven Coordination
 
 Agents respond to events:
@@ -348,7 +369,7 @@ tasks:
     outputs:
       event_type: "{{.output.event_type}}"
       severity: "{{.output.severity}}"
-  
+
   - id: response-router
     type: router
     condition: "{{.tasks.monitor.output.severity}}"
@@ -367,6 +388,8 @@ tasks:
         $use: agent(local::agents.#(id="logger"))
         action: log
 ```
+</Tab>
+</Tabs>
 
 ## Specialization Strategies
 
@@ -381,7 +404,7 @@ agents:
     instructions: |
       You are a legal expert specializing in contract law.
       Analyze documents for legal compliance and risks.
-    
+
   - id: financial-analyst
     config:
       provider: openai
@@ -389,7 +412,7 @@ agents:
     instructions: |
       You are a financial analyst specializing in risk assessment.
       Evaluate financial implications and ROI.
-    
+
   - id: technical-architect
     config:
       provider: anthropic
@@ -410,7 +433,7 @@ agents:
     tools:
       - resource: tool
         id: medical-code-lookup
-    
+
   - id: insurance-processor
     instructions: |
       You process insurance claims based on medical codes and policy rules.
@@ -429,7 +452,7 @@ agents:
       provider: openai
       model: gpt-4-vision-preview
     instructions: "You analyze images and extract visual information."
-    
+
   - id: code-generator
     config:
       provider: anthropic
@@ -438,7 +461,7 @@ agents:
     tools:
       - resource: tool
         id: code-executor
-  
+
   - id: data-processor
     instructions: "You process and transform large datasets."
     tools:
@@ -463,7 +486,7 @@ agents:
         prompt: |
           Task: {{.input.task}}
           Available agents: researcher, analyst, writer
-          
+
           Create an execution plan and coordinate the agents.
         output:
           type: object
@@ -500,7 +523,7 @@ tasks:
           vote: "{{.output.decision}}"
           confidence: "{{.output.confidence}}"
       # ... more voting agents
-  
+
   - id: tally-votes
     type: basic
     $use: agent(local::agents.#(id="vote-counter"))
@@ -512,166 +535,278 @@ tasks:
       consensus_level: "{{.output.consensus_percentage}}"
 ```
 
-### Negotiation Pattern
+### Iterative Refinement
+
+Agents can work in loops to iteratively improve results through multiple rounds of feedback and refinement.
+
+<Steps numbered size="sm">
+<Step title="Initial Creation" description="First agent creates initial content based on requirements">
 
 ```yaml
 agents:
-  - id: buyer
-    instructions: "You negotiate to minimize cost while meeting requirements."
-    
-  - id: seller
-    instructions: "You negotiate to maximize value while maintaining fairness."
-    
-  - id: mediator
-    instructions: "You facilitate negotiations to reach mutually beneficial agreements."
+  - id: writer
+    instructions: "You create content based on requirements and feedback."
 
 tasks:
-  - id: negotiation-rounds
-    type: composite
-    max_iterations: 5
-    tasks:
-      - id: buyer-offer
-        type: basic
-        $use: agent(local::agents.#(id="buyer"))
-        action: make-offer
-        
-      - id: seller-response
-        type: basic
-        $use: agent(local::agents.#(id="seller"))
-        action: respond-to-offer
-        
-      - id: mediate
-        type: basic
-        $use: agent(local::agents.#(id="mediator"))
-        action: evaluate-progress
-        outputs:
-          agreement_reached: "{{.output.deal_closed}}"
-          next_action: "{{.output.recommendation}}"
+  - id: initial-draft
+    type: basic
+    $use: agent(local::agents.#(id="writer"))
+    action: create-content
+    with:
+      requirements: "{{.workflow.input.requirements}}"
 ```
+
+</Step>
+
+<Step title="Review and Feedback" description="Second agent reviews and provides structured feedback">
+
+```yaml
+agents:
+  - id: reviewer
+    instructions: "You review content for quality and provide specific feedback."
+
+tasks:
+  - id: review-cycle
+    type: basic
+    $use: agent(local::agents.#(id="reviewer"))
+    action: review-content
+    with:
+      content: "{{.tasks.initial-draft.output}}"
+      criteria: "{{.workflow.input.quality_criteria}}"
+```
+
+</Step>
+
+<Step title="Refinement" description="Original agent refines based on feedback">
+
+```yaml
+tasks:
+  - id: final-revision
+    type: basic
+    $use: agent(local::agents.#(id="writer"))
+    action: revise-content
+    with:
+      original: "{{.tasks.initial-draft.output}}"
+      feedback: "{{.tasks.review-cycle.output}}"
+```
+
+</Step>
+</Steps>
+
+**Implementation Details:**
+
+To implement proper iterative refinement, you'll need:
+
+```yaml
+# Practical iterative refinement pattern
+tasks:
+  - id: create-initial-content
+    type: basic
+    $use: agent(local::agents.#(id="writer"))
+    action: create-content
+    with:
+      requirements: "{{.workflow.input.requirements}}"
+
+  - id: review-content
+    type: basic
+    $use: agent(local::agents.#(id="reviewer"))
+    action: review-content
+    with:
+      content: "{{.tasks.create-initial-content.output}}"
+      criteria: "{{.workflow.input.quality_criteria}}"
+
+  - id: refine-content
+    type: basic
+    $use: agent(local::agents.#(id="writer"))
+    action: revise-content
+    with:
+      original: "{{.tasks.create-initial-content.output}}"
+      feedback: "{{.tasks.review-content.output.feedback}}"
+
+  # Optional: Additional refinement cycle
+  - id: final-review
+    type: basic
+    $use: agent(local::agents.#(id="reviewer"))
+    action: final-review
+    with:
+      content: "{{.tasks.refine-content.output}}"
+
+outputs:
+  final_content: "{{.tasks.refine-content.output}}"
+  review_feedback: "{{.tasks.final-review.output}}"
+  quality_approved: "{{.tasks.final-review.output.approved}}"
+```
+
+**Key Implementation Considerations:**
+
+<List>
+  <ListItem title="Clear Agent Roles">
+    Separate creation, review, and revision responsibilities to maintain focus
+  </ListItem>
+  <ListItem title="Structured Feedback">
+    Ensure reviewers provide actionable feedback with specific improvement suggestions
+  </ListItem>
+  <ListItem title="Quality Criteria">
+    Define clear evaluation standards upfront to guide the review process
+  </ListItem>
+  <ListItem title="Flexible Cycles">
+    Add additional review/refinement cycles as needed for complex content
+  </ListItem>
+  <ListItem title="Error Handling">
+    Gracefully handle cases where refinement fails or reaches maximum iterations
+  </ListItem>
+</List>
 
 ## Best Practices
 
-<AccordionGroup>
-  <Accordion title="Agent Design">
-    - **Single Responsibility**: Each agent should have one clear purpose
-    - **Clear Instructions**: Provide specific, unambiguous instructions
-    - **Appropriate Models**: Match model capabilities to agent tasks
-    - **Tool Selection**: Only provide relevant tools to each agent
-  </Accordion>
-  
-  <Accordion title="Communication">
-    - **Structured Data**: Use schemas for inter-agent communication
-    - **Context Preservation**: Pass relevant context between agents
-    - **Error Propagation**: Handle and communicate errors clearly
-    - **Feedback Loops**: Build in validation and refinement cycles
-  </Accordion>
-  
-  <Accordion title="Performance">
-    - **Parallelize When Possible**: Use parallel tasks for independent operations
-    - **Minimize Handoffs**: Reduce unnecessary agent transitions
-    - **Cache Results**: Store and reuse expensive computations
-    - **Token Optimization**: Share context efficiently between agents
-  </Accordion>
-  
-  <Accordion title="Reliability">
-    - **Graceful Degradation**: Handle individual agent failures
-    - **Timeout Management**: Set appropriate timeouts for each agent
-    - **Retry Logic**: Implement smart retry for transient failures
-    - **Result Validation**: Verify outputs between agent handoffs
-  </Accordion>
-</AccordionGroup>
+### Agent Design
 
-## Advanced Multi-Agent Patterns
+<List>
+  <ListItem title="Single Responsibility">
+    Each agent should have one clear purpose to ensure focused and predictable behavior
+  </ListItem>
+  <ListItem title="Clear Instructions">
+    Provide specific, unambiguous instructions that guide the agent's decision-making
+  </ListItem>
+  <ListItem title="Appropriate Models">
+    Match model capabilities to agent tasks - use powerful models for complex reasoning, efficient models for simple tasks
+  </ListItem>
+  <ListItem title="Tool Selection">
+    Only provide relevant tools to each agent to avoid confusion and reduce token usage
+  </ListItem>
+</List>
 
-### Self-Organizing Teams
+### Communication
 
-```yaml
-agents:
-  - id: team-builder
-    instructions: |
-      You dynamically assemble teams based on task requirements.
-      Select appropriate agents and define their collaboration structure.
-    actions:
-      - id: build-team
-        prompt: |
-          Task requirements: {{.input.requirements}}
-          Available agents: {{.input.agent_pool | toJson}}
-          
-          Select team members and define their roles.
-        output:
-          type: object
-          properties:
-            team:
-              type: array
-              items:
-                type: object
-                properties:
-                  agent_id:
-                    type: string
-                  role:
-                    type: string
-                  responsibilities:
-                    type: array
-                    items:
-                      type: string
-```
+<List>
+  <ListItem title="Structured Data">
+    Use schemas for inter-agent communication to ensure data consistency and type safety
+  </ListItem>
+  <ListItem title="Context Preservation">
+    Pass relevant context between agents to maintain workflow continuity
+  </ListItem>
+  <ListItem title="Error Propagation">
+    Handle and communicate errors clearly so downstream agents can respond appropriately
+  </ListItem>
+  <ListItem title="Feedback Loops">
+    Build in validation and refinement cycles for iterative improvement
+  </ListItem>
+</List>
 
-### Competitive Agents
+### Performance
 
-```yaml
-tasks:
-  - id: solution-competition
-    type: parallel
-    tasks:
-      - id: solution-a
-        type: basic
-        $use: agent(local::agents.#(id="solver-aggressive"))
-        action: solve
-      
-      - id: solution-b
-        type: basic
-        $use: agent(local::agents.#(id="solver-conservative"))
-        action: solve
-  
-  - id: evaluate-solutions
-    type: basic
-    $use: agent(local::agents.#(id="evaluator"))
-    action: compare
-    with:
-      solutions:
-        aggressive: "{{.tasks.solution-competition.children.solution-a.output}}"
-        conservative: "{{.tasks.solution-competition.children.solution-b.output}}"
-      criteria: "{{.workflow.input.evaluation_criteria}}"
-```
+<List>
+  <ListItem title="Parallelize When Possible">
+    Use parallel tasks for independent operations to reduce total execution time
+  </ListItem>
+  <ListItem title="Minimize Handoffs">
+    Reduce unnecessary agent transitions to lower latency and token consumption
+  </ListItem>
+  <ListItem title="Cache Results">
+    Store and reuse expensive computations across agent interactions
+  </ListItem>
+  <ListItem title="Token Optimization">
+    Share context efficiently between agents to manage costs and stay within limits
+  </ListItem>
+</List>
 
-### Learning Ensemble
+### Reliability
 
-```yaml
-agents:
-  - id: learner
-    memory:
-      - id: learning_history
-        key: "learn:{{.workflow.input.domain}}"
-    instructions: |
-      You learn from past experiences and improve over time.
-      Use memory to recall previous attempts and their outcomes.
-    actions:
-      - id: learn-and-adapt
-        prompt: |
-          Task: {{.input.task}}
-          
-          Review past attempts from memory.
-          Apply lessons learned to improve performance.
-          Store new insights for future use.
-```
+<List>
+  <ListItem title="Graceful Degradation">
+    Handle individual agent failures without crashing the entire workflow
+  </ListItem>
+  <ListItem title="Timeout Management">
+    Set appropriate timeouts for each agent to prevent hanging workflows
+  </ListItem>
+  <ListItem title="Retry Logic">
+    Implement smart retry for transient failures with exponential backoff
+  </ListItem>
+  <ListItem title="Result Validation">
+    Verify outputs between agent handoffs to catch errors early
+  </ListItem>
+</List>
+
+## Implementation Guidelines
+
+### Pattern Selection
+
+Choose the appropriate multi-agent pattern based on your specific use case:
+
+<FeatureCardList cols={2}>
+  <FeatureCard 
+    title="Sequential Processing"
+    description="Use when tasks must be completed in order and each step depends on the previous one"
+    icon="GitCommit"
+  />
+  <FeatureCard 
+    title="Parallel Processing"
+    description="Use when tasks can be performed independently and you want to reduce total execution time"
+    icon="GitBranch"
+  />
+  <FeatureCard 
+    title="Hierarchical Delegation"
+    description="Use when you need a coordinator to break down complex tasks and assign them to specialists"
+    icon="Network"
+  />
+  <FeatureCard 
+    title="Consensus Building"
+    description="Use when you need multiple perspectives to make better decisions or validate results"
+    icon="Users"
+  />
+</FeatureCardList>
+
+### Performance Considerations
+
+When implementing multi-agent patterns, consider these performance factors:
+
+<List>
+  <ListItem title="Token Usage">
+    Multiple agents consume more tokens - optimize by sharing context efficiently and avoiding redundant information
+  </ListItem>
+  <ListItem title="Latency">
+    Sequential patterns have higher latency than parallel ones - parallelize independent tasks when possible
+  </ListItem>
+  <ListItem title="Error Handling">
+    Plan for individual agent failures and implement graceful degradation to maintain workflow resilience
+  </ListItem>
+  <ListItem title="Resource Limits">
+    Monitor concurrent agent execution to avoid rate limiting and manage API quotas effectively
+  </ListItem>
+</List>
+
+### Monitoring and Debugging
+
+Multi-agent workflows can be complex to debug. Use these strategies:
+
+<List>
+  <ListItem title="Clear Naming">
+    Use descriptive IDs for all agents and tasks to make debugging easier
+  </ListItem>
+  <ListItem title="Structured Logging">
+    Log inputs and outputs at each agent handoff to trace data flow
+  </ListItem>
+  <ListItem title="Progress Tracking">
+    Monitor task completion status across all agents for visibility
+  </ListItem>
+  <ListItem title="Error Propagation">
+    Ensure errors are properly captured and reported through the workflow
+  </ListItem>
+</List>
 
 ## Next Steps
 
-<FeatureCardList cols={2}>
-  <FeatureCard title="Workflow Patterns" href="/docs/core/workflows/patterns">
-    Explore how multi-agent patterns fit into larger workflows
-  </FeatureCard>
-  <FeatureCard title="Performance Optimization" href="/docs/core/performance/agent-optimization">
-    Learn to optimize multi-agent system performance
-  </FeatureCard>
-</FeatureCardList>
+<ReferenceCardList>
+  <ReferenceCard
+    title="Workflow Patterns"
+    description="Explore how multi-agent patterns fit into larger workflows"
+    href="/docs/core/workflows/patterns"
+    icon="GitBranch"
+  />
+  <ReferenceCard
+    title="Performance Optimization"
+    description="Learn to optimize multi-agent system performance"
+    href="/docs/core/performance/agent-optimization"
+    icon="Zap"
+  />
+</ReferenceCardList>

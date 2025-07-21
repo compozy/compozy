@@ -1,8 +1,8 @@
 import { docs } from "@/.source";
-import { create } from "@/components/ui/icon";
+import { Icon } from "@/components/ui/icon";
 import { loader } from "fumadocs-core/source";
 import { attachFile, createOpenAPI } from "fumadocs-openapi/server";
-import { icons } from "lucide-react";
+import { createElement } from "react";
 
 // See https://fumadocs.vercel.app/docs/headless/source-api for more info
 export const source = loader({
@@ -12,10 +12,9 @@ export const source = loader({
     attachFile,
   },
   icon(icon) {
-    if (!icon) return;
-    if (icon in icons) {
-      return create({ icon: icons[icon as keyof typeof icons] });
-    }
+    if (!icon) return undefined;
+    // Use our Icon component for rendering icons
+    return createElement(Icon, { name: icon });
   },
 });
 

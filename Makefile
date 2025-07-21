@@ -119,13 +119,13 @@ schemagen-watch:
 # Testing
 # -----------------------------------------------------------------------------
 
-E2E_TESTS=./test/e2e/...
-
 test:
-	gotestsum --format pkgname -- -race -parallel=4 ./...
+	@bun test
+	@gotestsum --format pkgname -- -race -parallel=4 ./...
 
 test-nocache:
-	gotestsum --format pkgname -- -race -count=1 -parallel=4 ./...
+	@bun test
+	@gotestsum --format pkgname -- -race -count=1 -parallel=4 ./...
 
 # -----------------------------------------------------------------------------
 # Docker & Database Management

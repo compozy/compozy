@@ -1,2608 +1,637 @@
 ---
 title: "Memory Operations"
-description: "Complete guide to memory operations: store, retrieve, search, and manage conversation context"
+description: "Basic memory operations for storing, retrieving, and managing conversation data"
 ---
 
-import {
-  Database,
-  Search,
-  FileText,
-  Zap,
-  Settings,
-  Users,
-  Lock,
-  Clock,
-  AlertTriangle,
-  CheckCircle,
-  Code,
-  PlayCircle,
-  Copy,
-  RefreshCw,
-} from "lucide-react";
+## Overview
 
-# Memory Operations
+Compozy provides several memory operations via REST API:
 
-Memory operations are the core interactions with Compozy's memory system. This guide provides hands-on learning experiences for mastering memory operations through interactive examples and progressive tutorials.
+- **Read** - Retrieve messages with pagination (`GET /memory/{memory_ref}/read`)
+- **Write** - Replace all memory content (`POST /memory/{memory_ref}/write`)
+- **Append** - Add messages to memory (`POST /memory/{memory_ref}/append`)
+- **Clear** - Remove all messages with confirmation (`POST /memory/{memory_ref}/clear`)
+- **Delete** - Delete entire memory instance (`POST /memory/{memory_ref}/delete`)
+- **Flush** - Optimize memory using different strategies (`POST /memory/{memory_ref}/flush`)
+- **Health** - Check memory status and statistics (`GET /memory/{memory_ref}/health`)
+- **Stats** - Get detailed memory statistics (`GET /memory/{memory_ref}/stats`)
 
-## Related Documentation
+**Important**: Memory operations are REST API only. There are no CLI commands for memory management.
 
-### 🔗 Cross-References
-- **[Memory Concepts & Architecture](/docs/core/memory/memory-concepts)** - Understanding the underlying memory system
-- **[Memory Configuration](/docs/core/memory/configuration)** - Setting up memory resources
-- **[Integration Patterns](/docs/core/memory/integration-patterns)** - Multi-agent memory sharing and advanced integrations
-- **[Privacy & Security](/docs/core/memory/privacy-security)** - Securing memory operations and data protection
-- **[Troubleshooting](/docs/core/memory/troubleshooting)** - Production deployment and monitoring guidance
+## CLI Commands
 
-### 🧠 Memory-Related Topics
-- **Memory Operations** ↔ **[Agent Memory](/docs/core/agents/memory)** ↔ **[Memory Tasks](/docs/core/tasks/memory-tasks)**
-- **Performance Optimization** ↔ **[Memory Monitoring](/docs/core/memory/troubleshooting#production-deployment--monitoring)** ↔ **[Performance Troubleshooting](/docs/core/memory/troubleshooting#performance-optimization-troubleshooting)**
-- **Advanced Operations** ↔ **[Multi-Agent Memory](/docs/core/memory/integration-patterns#advanced-integration-features)** ↔ **[Enterprise Features](/docs/core/memory/integration-patterns#enterprise-security--compliance)**
+Currently, Compozy CLI provides the following commands:
+- `compozy auth` - User and API key management
+- `compozy config` - Configuration management
+- `compozy dev` - Development server
+- `compozy init` - Project initialization
+- `compozy mcp-proxy` - MCP proxy server
+- `compozy start` - Production server
+- `compozy workflow` - Workflow operations
 
-## Learning Path Overview
+**No memory-specific CLI commands are available.** All memory operations must be performed through:
+1. **REST API** - Direct HTTP calls to memory endpoints
+2. **TypeScript Tools** - Custom tools that call the memory API
+3. **Agent Memory Configuration** - Automatic memory integration in agents
 
-Choose your learning approach based on your experience level:
+## Basic Operations
 
-<Tabs items={["Beginner", "Intermediate", "Advanced"]} className="mt-6">
+### Append Messages
 
-<Tab value="Beginner">
+The append operation adds new messages to memory. Messages are stored as JSON data in Redis.
 
-**Perfect for:** First-time memory users, understanding basic concepts
+```bash
+# Append messages to memory via REST API
+curl -X POST "http://localhost:5001/api/v0/memory/user_memory/append" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your-api-key" \
+  -d '{
+    "key": "user:123:conversation",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Hello, how are you?",
+        "timestamp": "2024-01-15T10:30:00Z"
+      }
+    ]
+  }'
+```
 
-**You'll learn:**
-- Basic memory operations (store, retrieve, clear)
-- Simple TypeScript tools
-- YAML workflow integration
-- Error handling fundamentals
+```typescript
+// TypeScript tool example for memory operations
+export default async function memoryTool(input: {
+  operation: 'append' | 'read' | 'clear' | 'health';
+  memory_ref: string;
+  key: string;
+  messages?: any[];
+}) {
+  const baseUrl = 'http://localhost:5001/api/v0';
+  const url = `${baseUrl}/memory/${input.memory_ref}/${input.operation}`;
+  
+  const response = await fetch(url, {
+    method: input.operation === 'read' || input.operation === 'health' ? 'GET' : 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${process.env.COMPOZY_API_KEY}`
+    },
+    body: input.operation !== 'read' && input.operation !== 'health' 
+      ? JSON.stringify({ key: input.key, messages: input.messages })
+      : undefined
+  });
+  
+  return await response.json();
+}
+```
 
-**Prerequisites:** Basic TypeScript knowledge
+**What this does:**
+- Stores messages in Redis under the resolved memory key
+- Applies privacy redaction if configured
+- Updates token count metadata atomically
+- Triggers auto-flush if memory limits are approached
+- Returns success confirmation with message count and token usage
 
-</Tab>
+### Read Messages
 
-<Tab value="Intermediate">
+The read operation retrieves messages from memory with pagination support.
 
-**Perfect for:** Developers with basic memory experience
+```bash
+# Read messages with pagination
+curl "http://localhost:5001/api/v0/memory/user_memory/read?key=user:123:conversation&limit=10&offset=0" \
+  -H "Authorization: Bearer your-api-key"
 
-**You'll learn:**
-- Advanced search operations
-- Batch processing techniques
-- Performance optimization
-- Integration patterns
+# Response:
+# {
+#   "data": {
+#     "key": "user:123:conversation",
+#     "messages": [...],
+#     "total_count": 25,
+#     "has_more": true,
+#     "limit": 10,
+#     "offset": 0
+#   }
+# }
+```
 
-**Prerequisites:** Completed beginner path or equivalent experience
+**What this does:**
+- Retrieves messages from Redis in paginated chunks
+- Prevents memory exhaustion with large conversations
+- Returns messages with metadata about pagination
+- Includes total count and "has more" indicator
 
-</Tab>
+### Clear Memory
 
-<Tab value="Advanced">
+The clear operation removes all messages from a memory key.
 
-**Perfect for:** Experienced developers building production systems
+```bash
+# Clear memory with confirmation
+curl -X POST "http://localhost:5001/api/v0/memory/user_memory/clear" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your-api-key" \
+  -d '{
+    "key": "user:123:conversation",
+    "confirm": true,
+    "backup": true
+  }'
+```
 
-**You'll learn:**
-- Privacy-aware operations
-- Token management strategies
-- High-performance patterns
-- Custom implementation techniques
+**What this does:**
+- Requires explicit confirmation to prevent accidental data loss
+- Optionally creates a backup before clearing
+- Removes all messages from the specified key
+- Returns confirmation with count of cleared messages
 
-**Prerequisites:** Strong memory operations background
+### Delete Memory
 
-</Tab>
+The delete operation removes the entire memory instance.
 
-</Tabs>
+```bash
+# Delete entire memory instance
+curl -X POST "http://localhost:5001/api/v0/memory/user_memory/delete" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your-api-key" \
+  -d '{
+    "key": "user:123:conversation"
+  }'
+```
 
-## Interactive Learning: Core Operations
+**What this does:**
+- Removes the entire Redis key and all associated data
+- Cannot be undone (use clear with backup for reversible operations)
+- More aggressive than clear operation
 
-Master memory operations through hands-on practice with progressive difficulty levels.
+### Flush Memory
 
-<Steps numbered className="mt-8">
+The flush operation optimizes memory by applying different strategies when approaching token limits.
 
-<Step title="Getting Started with Store Operations" description="Learn the fundamentals of storing data in memory">
+```bash
+# Flush memory with strategy
+curl -X POST "http://localhost:5001/api/v0/memory/user_memory/flush" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your-api-key" \
+  -d '{
+    "key": "user:123:conversation",
+    "force": false,
+    "dry_run": false,
+    "strategy": "hybrid_summary"
+  }'
+```
 
-### Basic Message Storage
+**Available flushing strategies:**
+- `hybrid_summary` - Summarize oldest messages using AI
+- `simple_fifo` - Remove oldest messages (FIFO)
+- `lru` - Remove least recently used messages
+- `token_aware_lru` - LRU with token cost awareness
+- `token_count` - Remove based on token thresholds
+- `message_count` - Remove based on message count thresholds
 
-The `append` operation is the foundation of memory management. Let's build your first memory tool:
+**What this does:**
+- Optimizes memory usage when approaching capacity
+- Applies different retention strategies based on configuration
+- Can generate summaries of removed content
+- Prevents memory overflow
 
-<Tabs items={["TypeScript Tool", "YAML Workflow", "Live Example"]} className="mt-6">
+### Health Check
 
-<Tab value="TypeScript Tool">
+The health operation provides status information about memory usage.
 
-```typescript title="memory_tool.ts"
-interface MemoryInput {
-  operation: 'append' | 'read' | 'clear';
-  memory_key: string;
-  message?: {
+```bash
+# Check memory health
+curl "http://localhost:5001/api/v0/memory/user_memory/health?key=user:123:conversation&include_stats=true" \
+  -H "Authorization: Bearer your-api-key"
+
+# Response includes:
+# {
+#   "data": {
+#     "token_count": 1250,
+#     "message_count": 15,
+#     "last_flush": "2024-01-15T10:30:00Z",
+#     "actual_strategy": "hybrid_summary",
+#     "memory_key": "user:123:conversation"
+#   }
+# }
+```
+
+**What this does:**
+- Returns current message count and token usage
+- Indicates if memory is approaching capacity
+- Shows last flush time and strategy used
+- Provides recommendations for optimization
+
+### Statistics
+
+The stats operation provides detailed memory usage statistics.
+
+```bash
+# Get detailed memory statistics
+curl "http://localhost:5001/api/v0/memory/user_memory/stats?key=user:123:conversation&limit=100" \
+  -H "Authorization: Bearer your-api-key"
+
+# Response includes:
+# {
+#   "data": {
+#     "basic_stats": { "token_count": 1250, "message_count": 15 },
+#     "role_distribution": { "user": 8, "assistant": 7 },
+#     "token_distribution": { "user": 650, "assistant": 600 },
+#     "memory_key": "user:123:conversation"
+#   }
+# }
+```
+
+**What this does:**
+- Returns detailed usage metrics
+- Shows token counts and distribution
+- Provides historical usage patterns
+- Includes performance metrics
+
+## Workflow Integration
+
+### Memory Tool Implementation
+
+Create a TypeScript tool that interfaces with the memory REST API:
+
+```typescript
+// memory_tool.ts
+interface MemoryToolInput {
+  operation: 'append' | 'read' | 'clear' | 'health' | 'stats';
+  memory_ref: string;
+  key: string;
+  messages?: Array<{
     role: 'user' | 'assistant' | 'system';
     content: string;
     timestamp?: string;
-  };
+  }>;
+  limit?: number;
+  offset?: number;
+  confirm?: boolean;
+  include_stats?: boolean;
 }
 
-export default async function memoryTool(input: MemoryInput) {
-  const { operation, memory_key, message } = input;
+export default async function memoryTool(input: MemoryToolInput) {
+  const baseUrl = process.env.COMPOZY_API_URL || 'http://localhost:5001/api/v0';
+  const apiKey = process.env.COMPOZY_API_KEY;
   
-  if (operation === 'append') {
-    if (!message) {
-      throw new Error('Message is required for append operation');
+  if (!apiKey) {
+    throw new Error('COMPOZY_API_KEY environment variable is required');
+  }
+
+  const { operation, memory_ref, key } = input;
+
+  switch (operation) {
+    case 'append': {
+      if (!input.messages) {
+        throw new Error('Messages required for append operation');
+      }
+      const response = await fetch(`${baseUrl}/memory/${memory_ref}/append`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          key,
+          messages: input.messages
+        })
+      });
+      return await response.json();
     }
-    
-    return await appendToMemory(memory_key, {
-      role: message.role,
-      content: message.content,
-      timestamp: message.timestamp || new Date().toISOString()
-    });
+
+    case 'read': {
+      const params = new URLSearchParams({
+        key,
+        limit: (input.limit || 50).toString(),
+        offset: (input.offset || 0).toString()
+      });
+      const response = await fetch(`${baseUrl}/memory/${memory_ref}/read?${params}`, {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`
+        }
+      });
+      return await response.json();
+    }
+
+    case 'clear': {
+      if (!input.confirm) {
+        throw new Error('Confirmation required for clear operation');
+      }
+      const response = await fetch(`${baseUrl}/memory/${memory_ref}/clear`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          key,
+          confirm: input.confirm
+        })
+      });
+      return await response.json();
+    }
+
+    case 'health': {
+      const params = new URLSearchParams({ key });
+      if (input.include_stats) {
+        params.append('include_stats', 'true');
+      }
+      const response = await fetch(`${baseUrl}/memory/${memory_ref}/health?${params}`, {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`
+        }
+      });
+      return await response.json();
+    }
+
+    case 'stats': {
+      const params = new URLSearchParams({
+        key,
+        limit: (input.limit || 100).toString(),
+        offset: (input.offset || 0).toString()
+      });
+      const response = await fetch(`${baseUrl}/memory/${memory_ref}/stats?${params}`, {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`
+        }
+      });
+      return await response.json();
+    }
+
+    default:
+      throw new Error(`Unknown operation: ${operation}`);
   }
 }
 ```
 
-<Callout type="info" title="Tool Structure">
-Always validate input parameters and provide clear error messages. The tool should handle edge cases gracefully.
-</Callout>
+### Workflow Example
 
-</Tab>
-
-<Tab value="YAML Workflow">
-
-```yaml title="workflow.yaml"
+```yaml
+# workflow.yaml - Chat workflow with memory
 tasks:
-  - id: save_message
+  # Store user message
+  - id: store_user_message
     type: basic
-    description: "Store user message in memory"
     $use: tool(local::tools.#(id="memory_tool"))
     with:
       operation: "append"
-      memory_key: "user:{{.workflow.input.user_id}}"
-      message:
-        role: "user"
-        content: "{{.workflow.input.message}}"
-        timestamp: "{{now}}"
-    outputs:
-      success: "{{.output.success}}"
-      message_id: "{{.output.message_id}}"
-```
-
-<Callout type="warning" title="Key Design">
-Design memory keys hierarchically (e.g., `user:123:conversation:456`) to avoid collisions and enable efficient querying.
-</Callout>
-
-</Tab>
-
-<Tab value="Live Example">
-
-**Test this operation:**
-
-```http
-POST /api/v0/workflows/memory-demo/execute
-Content-Type: application/json
-
-{
-  "input": {
-    "user_id": "user_123",
-    "message": "Hello, I need help with my account"
-  }
-}
-```
-
-**Expected Response:**
-```json
-{
-  "execution_id": "exec_abc123",
-  "status": "completed",
-  "outputs": {
-    "success": true,
-    "message_id": "msg_xyz789",
-    "memory_key": "user:user_123"
-  }
-}
-```
-
-<Callout type="success" title="Success Checkpoint">
-You've successfully stored your first message! The memory system automatically handles timestamping and ID generation.
-</Callout>
-
-</Tab>
-
-</Tabs>
-
-### Practice Exercise: Build Your Own Store Tool
-
-<Callout type="info" title="Exercise Goal">
-Create a memory tool that stores conversation messages with metadata validation.
-</Callout>
-
-**Requirements:**
-1. Validate message content (non-empty, max 10,000 characters)
-2. Support batch message storage
-3. Include error handling for invalid inputs
-4. Return detailed operation results
-
-**Template to start with:**
-
-```typescript
-interface BatchMemoryInput {
-  operation: 'batch_append';
-  memory_key: string;
-  messages: Array<{
-    role: 'user' | 'assistant' | 'system';
-    content: string;
-    metadata?: Record<string, any>;
-  }>;
-}
-
-export default async function advancedMemoryTool(input: BatchMemoryInput) {
-  // Your implementation here
-  // Remember to validate each message
-  // Handle batch operations atomically
-}
-```
-
-</Step>
-
-<Step title="Mastering Retrieve Operations" description="Learn to efficiently read and search memory content">
-
-### Reading Memory Content
-
-Retrieve operations are essential for providing context to AI agents. Let's explore different reading patterns:
-
-<Tabs items={["Read All", "Paginated Read", "Recent Messages", "Interactive Demo"]} className="mt-6">
-
-<Tab value="Read All">
-
-```typescript title="read_memory_tool.ts"
-interface ReadMemoryInput {
-  memory_key: string;
-  include_metadata?: boolean;
-  filter_by_role?: 'user' | 'assistant' | 'system';
-}
-
-export default async function readMemoryTool(input: ReadMemoryInput) {
-  const { memory_key, include_metadata = true, filter_by_role } = input;
-  
-  try {
-    const messages = await readAllMessages(memory_key);
-    
-    // Apply role filtering if specified
-    const filteredMessages = filter_by_role
-      ? messages.filter(msg => msg.role === filter_by_role)
-      : messages;
-    
-    return {
-      messages: filteredMessages,
-      count: filteredMessages.length,
-      total_tokens: calculateTokens(filteredMessages),
-      memory_key,
-      timestamp: new Date().toISOString()
-    };
-  } catch (error) {
-    return {
-      error: `Failed to read memory: ${error.message}`,
-      memory_key,
-      messages: [],
-      count: 0
-    };
-  }
-}
-```
-
-<Callout type="warning" title="Performance Consideration">
-Reading all messages can be expensive for large conversations. Consider pagination for production use.
-</Callout>
-
-</Tab>
-
-<Tab value="Paginated Read">
-
-```typescript title="paginated_read_tool.ts"
-interface PaginatedReadInput {
-  memory_key: string;
-  offset?: number;
-  limit?: number;
-  sort_order?: 'asc' | 'desc';
-}
-
-export default async function paginatedReadTool(input: PaginatedReadInput) {
-  const { 
-    memory_key, 
-    offset = 0, 
-    limit = 20, 
-    sort_order = 'asc' 
-  } = input;
-  
-  const result = await readMessagesPaginated(memory_key, offset, limit, sort_order);
-  
-  return {
-    messages: result.messages,
-    pagination: {
-      offset,
-      limit,
-      total_count: result.total_count,
-      has_more: (offset + limit) < result.total_count,
-      next_offset: (offset + limit) < result.total_count ? offset + limit : null
-    },
-    metadata: {
-      memory_key,
-      sort_order,
-      request_timestamp: new Date().toISOString()
-    }
-  };
-}
-```
-
-<Callout type="info" title="Best Practice">
-Use pagination for conversations with >50 messages to maintain good performance and user experience.
-</Callout>
-
-</Tab>
-
-<Tab value="Recent Messages">
-
-```typescript title="recent_messages_tool.ts"
-interface RecentMessagesInput {
-  memory_key: string;
-  count?: number;
-  include_system?: boolean;
-  time_window?: string; // e.g., "1h", "24h", "7d"
-}
-
-export default async function recentMessagesTool(input: RecentMessagesInput) {
-  const { 
-    memory_key, 
-    count = 10, 
-    include_system = false,
-    time_window 
-  } = input;
-  
-  const allMessages = await readAllMessages(memory_key);
-  
-  let filteredMessages = allMessages;
-  
-  // Filter by time window if specified
-  if (time_window) {
-    const cutoffTime = calculateCutoffTime(time_window);
-    filteredMessages = allMessages.filter(msg => 
-      new Date(msg.timestamp) >= cutoffTime
-    );
-  }
-  
-  // Filter out system messages if requested
-  if (!include_system) {
-    filteredMessages = filteredMessages.filter(msg => msg.role !== 'system');
-  }
-  
-  // Get most recent messages
-  const recentMessages = filteredMessages.slice(-count);
-  
-  return {
-    messages: recentMessages,
-    count: recentMessages.length,
-    total_available: allMessages.length,
-    time_window,
-    memory_key
-  };
-}
-```
-
-</Tab>
-
-<Tab value="Interactive Demo">
-
-**Try different read operations:**
-
-<Tabs items={["Read All", "Paginated", "Recent Only"]} className="mt-4">
-
-<Tab value="Read All">
-
-```http
-POST /api/v0/workflows/memory-read/execute
-Content-Type: application/json
-
-{
-  "input": {
-    "memory_key": "user:123:conversation:456",
-    "operation": "read_all",
-    "include_metadata": true
-  }
-}
-```
-
-</Tab>
-
-<Tab value="Paginated">
-
-```http
-POST /api/v0/workflows/memory-read/execute
-Content-Type: application/json
-
-{
-  "input": {
-    "memory_key": "user:123:conversation:456",
-    "operation": "paginated_read",
-    "offset": 0,
-    "limit": 10
-  }
-}
-```
-
-</Tab>
-
-<Tab value="Recent Only">
-
-```http
-POST /api/v0/workflows/memory-read/execute
-Content-Type: application/json
-
-{
-  "input": {
-    "memory_key": "user:123:conversation:456",
-    "operation": "recent_messages",
-    "count": 5,
-    "time_window": "1h"
-  }
-}
-```
-
-</Tab>
-
-</Tabs>
-
-<Callout type="success" title="Practice Result">
-You can now retrieve memory content efficiently! Try different parameters to understand how they affect performance.
-</Callout>
-
-</Tab>
-
-</Tabs>
-
-</Step>
-
-<Step title="Advanced Search Operations" description="Implement powerful search capabilities for memory content">
-
-### Search Implementation Patterns
-
-Search operations enable intelligent context retrieval. Let's build sophisticated search tools:
-
-<Tabs items={["Keyword Search", "Semantic Search", "Time-based Search", "Combined Search"]} className="mt-6">
-
-<Tab value="Keyword Search">
-
-```typescript title="keyword_search_tool.ts"
-interface KeywordSearchInput {
-  memory_key: string;
-  query: string;
-  case_sensitive?: boolean;
-  whole_words_only?: boolean;
-  limit?: number;
-  highlight_matches?: boolean;
-}
-
-export default async function keywordSearchTool(input: KeywordSearchInput) {
-  const { 
-    memory_key, 
-    query, 
-    case_sensitive = false, 
-    whole_words_only = false,
-    limit = 10,
-    highlight_matches = false 
-  } = input;
-  
-  const messages = await readAllMessages(memory_key);
-  
-  // Build search pattern
-  const searchPattern = whole_words_only 
-    ? new RegExp(`\\b${escapeRegex(query)}\\b`, case_sensitive ? 'g' : 'gi')
-    : new RegExp(escapeRegex(query), case_sensitive ? 'g' : 'gi');
-  
-  const results = messages
-    .filter(msg => searchPattern.test(msg.content))
-    .slice(0, limit)
-    .map(msg => ({
-      ...msg,
-      content: highlight_matches 
-        ? highlightMatches(msg.content, searchPattern)
-        : msg.content,
-      relevance_score: calculateRelevanceScore(msg.content, query)
-    }))
-    .sort((a, b) => b.relevance_score - a.relevance_score);
-  
-  return {
-    results,
-    query,
-    total_matches: results.length,
-    search_options: {
-      case_sensitive,
-      whole_words_only,
-      highlight_matches
-    },
-    execution_time: Date.now() - startTime
-  };
-}
-
-function escapeRegex(string: string): string {
-  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-function highlightMatches(content: string, pattern: RegExp): string {
-  return content.replace(pattern, '<mark>$&</mark>');
-}
-```
-
-<Callout type="info" title="Search Optimization">
-For better performance with large datasets, consider implementing text indexing or using specialized search libraries.
-</Callout>
-
-</Tab>
-
-<Tab value="Semantic Search">
-
-```typescript title="semantic_search_tool.ts"
-interface SemanticSearchInput {
-  memory_key: string;
-  query: string;
-  similarity_threshold?: number;
-  max_results?: number;
-  include_embeddings?: boolean;
-}
-
-export default async function semanticSearchTool(input: SemanticSearchInput) {
-  const { 
-    memory_key, 
-    query, 
-    similarity_threshold = 0.7,
-    max_results = 5,
-    include_embeddings = false 
-  } = input;
-  
-  try {
-    // Generate embedding for the query
-    const queryEmbedding = await generateEmbedding(query);
-    
-    // Search for similar messages
-    const results = await searchSimilarMessages(
-      memory_key, 
-      queryEmbedding, 
-      similarity_threshold,
-      max_results
-    );
-    
-    return {
-      results: results.map(result => ({
-        message: result.message,
-        similarity_score: result.similarity_score,
-        embedding: include_embeddings ? result.embedding : undefined
-      })),
-      query,
-      similarity_threshold,
-      total_results: results.length,
-      query_embedding: include_embeddings ? queryEmbedding : undefined
-    };
-    
-  } catch (error) {
-    return {
-      error: `Semantic search failed: ${error.message}`,
-      query,
-      results: []
-    };
-  }
-}
-
-async function generateEmbedding(text: string): Promise<number[]> {
-  // Implementation depends on your embedding service
-  // This is a placeholder for the actual embedding generation
-  const response = await fetch('/api/embeddings', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text })
-  });
-  
-  const { embedding } = await response.json();
-  return embedding;
-}
-```
-
-<Callout type="warning" title="Embedding Requirements">
-Semantic search requires an embedding service (OpenAI, Anthropic, or local models). Configure your provider before using this feature.
-</Callout>
-
-</Tab>
-
-<Tab value="Time-based Search">
-
-```typescript title="time_search_tool.ts"
-interface TimeSearchInput {
-  memory_key: string;
-  start_time?: string;
-  end_time?: string;
-  relative_time?: string; // "1h", "24h", "7d"
-  timezone?: string;
-  include_boundary_messages?: boolean;
-}
-
-export default async function timeSearchTool(input: TimeSearchInput) {
-  const { 
-    memory_key, 
-    start_time, 
-    end_time, 
-    relative_time,
-    timezone = 'UTC',
-    include_boundary_messages = true 
-  } = input;
-  
-  const messages = await readAllMessages(memory_key);
-  
-  // Calculate time boundaries
-  let startDate: Date;
-  let endDate: Date;
-  
-  if (relative_time) {
-    endDate = new Date();
-    startDate = calculateRelativeTime(relative_time, endDate);
-  } else {
-    startDate = start_time ? new Date(start_time) : new Date(0);
-    endDate = end_time ? new Date(end_time) : new Date();
-  }
-  
-  // Filter messages by time range
-  const filteredMessages = messages.filter(msg => {
-    const msgTime = new Date(msg.timestamp);
-    
-    if (include_boundary_messages) {
-      return msgTime >= startDate && msgTime <= endDate;
-    } else {
-      return msgTime > startDate && msgTime < endDate;
-    }
-  });
-  
-  return {
-    messages: filteredMessages,
-    time_range: {
-      start_time: startDate.toISOString(),
-      end_time: endDate.toISOString(),
-      timezone
-    },
-    count: filteredMessages.length,
-    relative_time,
-    total_available: messages.length
-  };
-}
-
-function calculateRelativeTime(relative: string, from: Date): Date {
-  const units = {
-    's': 1000,
-    'm': 60 * 1000,
-    'h': 60 * 60 * 1000,
-    'd': 24 * 60 * 60 * 1000
-  };
-  
-  const match = relative.match(/^(\d+)([smhd])$/);
-  if (!match) throw new Error('Invalid relative time format');
-  
-  const [, amount, unit] = match;
-  const milliseconds = parseInt(amount) * units[unit as keyof typeof units];
-  
-  return new Date(from.getTime() - milliseconds);
-}
-```
-
-</Tab>
-
-<Tab value="Combined Search">
-
-```typescript title="advanced_search_tool.ts"
-interface AdvancedSearchInput {
-  memory_key: string;
-  query?: string;
-  filters: {
-    role?: 'user' | 'assistant' | 'system';
-    time_range?: {
-      start?: string;
-      end?: string;
-      relative?: string;
-    };
-    keywords?: string[];
-    sentiment?: 'positive' | 'negative' | 'neutral';
-    min_length?: number;
-    max_length?: number;
-  };
-  search_options: {
-    semantic_search?: boolean;
-    similarity_threshold?: number;
-    case_sensitive?: boolean;
-    highlight_matches?: boolean;
-  };
-  limit?: number;
-  sort_by?: 'relevance' | 'timestamp' | 'similarity';
-}
-
-export default async function advancedSearchTool(input: AdvancedSearchInput) {
-  const { 
-    memory_key, 
-    query, 
-    filters = {}, 
-    search_options = {},
-    limit = 20,
-    sort_by = 'relevance' 
-  } = input;
-  
-  let messages = await readAllMessages(memory_key);
-  
-  // Apply filters
-  if (filters.role) {
-    messages = messages.filter(msg => msg.role === filters.role);
-  }
-  
-  if (filters.time_range) {
-    messages = await applyTimeFilter(messages, filters.time_range);
-  }
-  
-  if (filters.keywords && filters.keywords.length > 0) {
-    messages = await applyKeywordFilter(messages, filters.keywords);
-  }
-  
-  if (filters.min_length || filters.max_length) {
-    messages = messages.filter(msg => {
-      const length = msg.content.length;
-      return (!filters.min_length || length >= filters.min_length) &&
-             (!filters.max_length || length <= filters.max_length);
-    });
-  }
-  
-  // Apply search query
-  let results = messages;
-  if (query) {
-    if (search_options.semantic_search) {
-      results = await performSemanticSearch(messages, query, search_options);
-    } else {
-      results = await performKeywordSearch(messages, query, search_options);
-    }
-  }
-  
-  // Sort results
-  results = sortResults(results, sort_by);
-  
-  // Apply limit
-  results = results.slice(0, limit);
-  
-  return {
-    results,
-    query,
-    filters,
-    search_options,
-    total_matches: results.length,
-    sort_by,
-    execution_metadata: {
-      memory_key,
-      search_time: Date.now(),
-      total_messages_searched: messages.length
-    }
-  };
-}
-```
-
-<Callout type="success" title="Advanced Search Mastery">
-You now have the tools to build sophisticated search capabilities! Combine different search types for powerful memory querying.
-</Callout>
-
-</Tab>
-
-</Tabs>
-
-### Search Practice Exercise
-
-<Callout type="info" title="Challenge: Build a Smart Search Tool">
-Create a search tool that automatically chooses the best search strategy based on the query type.
-</Callout>
-
-**Requirements:**
-- Detect query type (keyword, semantic, time-based)
-- Apply appropriate search strategy
-- Combine results intelligently
-- Include relevance scoring
-
-</Step>
-
-<Step title="Memory Management Operations" description="Master cleanup, health monitoring, and maintenance tasks">
-
-### Management Operations
-
-Keep your memory system healthy with proper management operations:
-
-<Tabs items={["Clear Memory", "Health Check", "Flush Operations", "Monitoring"]} className="mt-6">
-
-<Tab value="Clear Memory">
-
-```typescript title="clear_memory_tool.ts"
-interface ClearMemoryInput {
-  memory_key: string;
-  confirm?: boolean;
-  backup_before_clear?: boolean;
-  clear_options?: {
-    keep_system_messages?: boolean;
-    keep_recent_count?: number;
-    keep_before_date?: string;
-  };
-}
-
-export default async function clearMemoryTool(input: ClearMemoryInput) {
-  const { 
-    memory_key, 
-    confirm = false,
-    backup_before_clear = false,
-    clear_options = {} 
-  } = input;
-  
-  if (!confirm) {
-    return {
-      error: "Clear operation requires confirmation",
-      memory_key,
-      action_required: "Set confirm: true to proceed"
-    };
-  }
-  
-  try {
-    let backup_info = null;
-    
-    // Create backup if requested
-    if (backup_before_clear) {
-      const messages = await readAllMessages(memory_key);
-      backup_info = await createBackup(memory_key, messages);
-    }
-    
-    // Apply selective clearing if options provided
-    if (Object.keys(clear_options).length > 0) {
-      await selectiveClear(memory_key, clear_options);
-    } else {
-      await clearMemory(memory_key);
-    }
-    
-    return {
-      success: true,
-      memory_key,
-      cleared_at: new Date().toISOString(),
-      backup_info,
-      clear_options: clear_options
-    };
-    
-  } catch (error) {
-    return {
-      error: `Failed to clear memory: ${error.message}`,
-      memory_key,
-      success: false
-    };
-  }
-}
-
-async function selectiveClear(
-  memory_key: string, 
-  options: ClearMemoryInput['clear_options']
-) {
-  const messages = await readAllMessages(memory_key);
-  let messagesToKeep = [...messages];
-  
-  // Keep system messages if requested
-  if (!options.keep_system_messages) {
-    messagesToKeep = messagesToKeep.filter(msg => msg.role !== 'system');
-  }
-  
-  // Keep recent messages if count specified
-  if (options.keep_recent_count) {
-    const recentMessages = messages.slice(-options.keep_recent_count);
-    messagesToKeep = messagesToKeep.filter(msg => 
-      recentMessages.some(recent => recent.id === msg.id)
-    );
-  }
-  
-  // Keep messages before specific date
-  if (options.keep_before_date) {
-    const cutoffDate = new Date(options.keep_before_date);
-    messagesToKeep = messagesToKeep.filter(msg => 
-      new Date(msg.timestamp) < cutoffDate
-    );
-  }
-  
-  // Replace memory with filtered messages
-  await replaceMemoryContent(memory_key, messagesToKeep);
-}
-```
-
-</Tab>
-
-<Tab value="Health Check">
-
-```typescript title="health_check_tool.ts"
-interface HealthCheckInput {
-  memory_key: string;
-  include_detailed_stats?: boolean;
-  check_performance?: boolean;
-  validate_integrity?: boolean;
-}
-
-export default async function healthCheckTool(input: HealthCheckInput) {
-  const { 
-    memory_key, 
-    include_detailed_stats = false,
-    check_performance = false,
-    validate_integrity = false 
-  } = input;
-  
-  try {
-    const health = await getMemoryHealth(memory_key);
-    
-    const result = {
-      memory_key,
-      health_status: determineHealthStatus(health),
-      basic_stats: {
-        message_count: health.message_count,
-        token_count: health.token_count,
-        last_activity: health.last_activity,
-        strategy: health.actual_strategy
-      },
-      recommendations: generateRecommendations(health),
-      check_timestamp: new Date().toISOString()
-    };
-    
-    // Add detailed statistics if requested
-    if (include_detailed_stats) {
-      result.detailed_stats = {
-        average_message_length: health.average_message_length,
-        role_distribution: health.role_distribution,
-        time_span: health.time_span,
-        flush_history: health.flush_history
-      };
-    }
-    
-    // Add performance metrics if requested
-    if (check_performance) {
-      result.performance = await checkPerformance(memory_key);
-    }
-    
-    // Validate data integrity if requested
-    if (validate_integrity) {
-      result.integrity_check = await validateIntegrity(memory_key);
-    }
-    
-    return result;
-    
-  } catch (error) {
-    return {
-      error: `Health check failed: ${error.message}`,
-      memory_key,
-      health_status: 'error'
-    };
-  }
-}
-
-function determineHealthStatus(health: any): string {
-  if (health.token_count > health.max_tokens * 0.9) return 'critical';
-  if (health.token_count > health.max_tokens * 0.8) return 'warning';
-  if (health.message_count === 0) return 'empty';
-  return 'healthy';
-}
-
-function generateRecommendations(health: any): string[] {
-  const recommendations = [];
-  
-  if (health.token_count > health.max_tokens * 0.8) {
-    recommendations.push('Consider flushing memory to prevent token overflow');
-  }
-  
-  if (health.message_count > 100) {
-    recommendations.push('Large message count detected - consider pagination for reads');
-  }
-  
-  if (health.last_activity && Date.now() - new Date(health.last_activity).getTime() > 86400000) {
-    recommendations.push('Memory has been inactive for >24 hours - consider archiving');
-  }
-  
-  return recommendations;
-}
-```
-
-</Tab>
-
-<Tab value="Flush Operations">
-
-```typescript title="flush_memory_tool.ts"
-interface FlushMemoryInput {
-  memory_key: string;
-  force?: boolean;
-  flush_strategy?: 'fifo' | 'lru' | 'token_aware' | 'hybrid_summary';
-  preserve_count?: number;
-  custom_summary_prompt?: string;
-}
-
-export default async function flushMemoryTool(input: FlushMemoryInput) {
-  const { 
-    memory_key, 
-    force = false,
-    flush_strategy,
-    preserve_count,
-    custom_summary_prompt 
-  } = input;
-  
-  try {
-    // Check if flush is needed (unless forced)
-    if (!force) {
-      const health = await getMemoryHealth(memory_key);
-      if (health.token_count < health.max_tokens * 0.8) {
-        return {
-          skipped: true,
-          reason: 'Flush not needed - memory usage below threshold',
-          memory_key,
-          current_usage: `${health.token_count}/${health.max_tokens} tokens`
-        };
-      }
-    }
-    
-    const flushOptions = {
-      strategy: flush_strategy,
-      preserve_count,
-      custom_summary_prompt
-    };
-    
-    const result = await flushMemory(memory_key, flushOptions);
-    
-    return {
-      success: true,
-      memory_key,
-      flush_strategy: result.strategy_used,
-      messages_processed: result.messages_processed,
-      tokens_freed: result.tokens_freed,
-      summary_generated: result.summary_generated,
-      flush_timestamp: new Date().toISOString(),
-      performance_metrics: {
-        execution_time: result.execution_time,
-        compression_ratio: result.compression_ratio
-      }
-    };
-    
-  } catch (error) {
-    return {
-      error: `Flush operation failed: ${error.message}`,
-      memory_key,
-      success: false
-    };
-  }
-}
-```
-
-</Tab>
-
-<Tab value="Monitoring">
-
-```typescript title="monitoring_tool.ts"
-interface MonitoringInput {
-  memory_keys?: string[];
-  metrics?: string[];
-  time_range?: {
-    start: string;
-    end: string;
-  };
-  alert_thresholds?: {
-    token_usage?: number;
-    message_count?: number;
-    error_rate?: number;
-  };
-}
-
-export default async function monitoringTool(input: MonitoringInput) {
-  const { 
-    memory_keys = [],
-    metrics = ['token_usage', 'message_count', 'activity'],
-    time_range,
-    alert_thresholds = {} 
-  } = input;
-  
-  const monitoringResults = [];
-  const alerts = [];
-  
-  // Monitor each memory key
-  for (const memory_key of memory_keys) {
-    try {
-      const health = await getMemoryHealth(memory_key);
-      const memoryMetrics = await collectMetrics(memory_key, metrics, time_range);
-      
-      // Check alert thresholds
-      const memoryAlerts = checkAlerts(memory_key, health, alert_thresholds);
-      alerts.push(...memoryAlerts);
-      
-      monitoringResults.push({
-        memory_key,
-        health_status: determineHealthStatus(health),
-        metrics: memoryMetrics,
-        last_check: new Date().toISOString()
-      });
-      
-    } catch (error) {
-      alerts.push({
-        memory_key,
-        level: 'error',
-        message: `Monitoring failed: ${error.message}`,
-        timestamp: new Date().toISOString()
-      });
-    }
-  }
-  
-  return {
-    monitoring_results: monitoringResults,
-    alerts,
-    summary: {
-      total_memories: memory_keys.length,
-      healthy_count: monitoringResults.filter(r => r.health_status === 'healthy').length,
-      alert_count: alerts.length,
-      monitoring_timestamp: new Date().toISOString()
-    }
-  };
-}
-
-function checkAlerts(memory_key: string, health: any, thresholds: any): any[] {
-  const alerts = [];
-  
-  if (thresholds.token_usage && health.token_count > thresholds.token_usage) {
-    alerts.push({
-      memory_key,
-      level: 'warning',
-      message: `Token usage (${health.token_count}) exceeds threshold (${thresholds.token_usage})`,
-      timestamp: new Date().toISOString()
-    });
-  }
-  
-  if (thresholds.message_count && health.message_count > thresholds.message_count) {
-    alerts.push({
-      memory_key,
-      level: 'info',
-      message: `Message count (${health.message_count}) exceeds threshold (${thresholds.message_count})`,
-      timestamp: new Date().toISOString()
-    });
-  }
-  
-  return alerts;
-}
-```
-
-</Tab>
-
-</Tabs>
-
-### Management Practice Exercise
-
-<Callout type="info" title="Exercise: Build a Memory Maintenance Dashboard">
-Create a comprehensive memory management tool that combines all management operations.
-</Callout>
-
-**Features to implement:**
-- Health monitoring for multiple memory keys
-- Automated cleanup recommendations
-- Performance optimization suggestions
-- Alert system for threshold violations
-
-</Step>
-
-</Steps>
-
-## Advanced Operations for Production
-
-Take your memory operations to the next level with advanced patterns and production-ready techniques.
-
-<Steps numbered className="mt-8">
-
-<Step title="Privacy-Aware Memory Operations" description="Implement privacy controls and data protection in memory operations">
-
-### Privacy-First Memory Management
-
-Handle sensitive data with robust privacy controls:
-
-<Tabs items={["Redaction Patterns", "Privacy Metadata", "Compliance Tools", "Data Retention"]} className="mt-6">
-
-<Tab value="Redaction Patterns">
-
-```typescript title="privacy_memory_tool.ts"
-interface PrivacyMemoryInput {
-  memory_key: string;
-  message: {
-    role: 'user' | 'assistant' | 'system';
-    content: string;
-    metadata?: Record<string, any>;
-  };
-  privacy_options: {
-    redact_patterns?: string[];
-    redaction_string?: string;
-    do_not_persist?: boolean;
-    retention_period?: string;
-    privacy_level?: 'public' | 'internal' | 'confidential' | 'restricted';
-  };
-}
-
-export default async function privacyMemoryTool(input: PrivacyMemoryInput) {
-  const { 
-    memory_key, 
-    message, 
-    privacy_options 
-  } = input;
-  
-  let processedContent = message.content;
-  
-  // Apply redaction patterns if specified
-  if (privacy_options.redact_patterns) {
-    for (const pattern of privacy_options.redact_patterns) {
-      const regex = new RegExp(pattern, 'gi');
-      processedContent = processedContent.replace(
-        regex, 
-        privacy_options.redaction_string || '[REDACTED]'
-      );
-    }
-  }
-  
-  // Apply built-in privacy patterns
-  processedContent = await applyBuiltInRedaction(processedContent, privacy_options.privacy_level);
-  
-  const processedMessage = {
-    ...message,
-    content: processedContent,
-    metadata: {
-      ...message.metadata,
-      privacy_level: privacy_options.privacy_level,
-      redacted: processedContent !== message.content,
-      do_not_persist: privacy_options.do_not_persist || false,
-      retention_period: privacy_options.retention_period || '30d'
-    }
-  };
-  
-  // Store with privacy metadata
-  if (!privacy_options.do_not_persist) {
-    return await appendWithPrivacyMetadata(memory_key, processedMessage);
-  } else {
-    return {
-      success: true,
-      message: 'Message processed but not persisted due to privacy settings',
-      processed_content: processedContent,
-      privacy_applied: true
-    };
-  }
-}
-
-async function applyBuiltInRedaction(content: string, privacyLevel: string): Promise<string> {
-  const patterns = {
-    'public': [],
-    'internal': [
-      /\b\d{3}-\d{2}-\d{4}\b/g, // SSN
-      /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g // Email
-    ],
-    'confidential': [
-      /\b\d{3}-\d{2}-\d{4}\b/g, // SSN
-      /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g, // Email
-      /\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/g, // Credit cards
-      /\b(?:\+?1[-.\s]?)?\(?[2-9]\d{2}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/g // Phone
-    ],
-    'restricted': [
-      /\b\d{3}-\d{2}-\d{4}\b/g, // SSN
-      /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g, // Email
-      /\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/g, // Credit cards
-      /\b(?:\+?1[-.\s]?)?\(?[2-9]\d{2}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/g, // Phone
-      /\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b/g // IP
-    ]
-  };
-  
-  const levelPatterns = patterns[privacyLevel as keyof typeof patterns] || [];
-  let redactedContent = content;
-  
-  for (const pattern of levelPatterns) {
-    redactedContent = redactedContent.replace(pattern, '[REDACTED]');
-  }
-  
-  return redactedContent;
-}
-```
-
-<Callout type="warning" title="Privacy Compliance">
-Always implement privacy controls at the application level, not just in memory operations. This ensures comprehensive data protection.
-</Callout>
-
-</Tab>
-
-<Tab value="Privacy Metadata">
-
-```typescript title="privacy_metadata_tool.ts"
-interface PrivacyMetadataInput {
-  memory_key: string;
-  operation: 'classify' | 'audit' | 'purge';
-  classification_rules?: {
-    patterns: string[];
-    categories: string[];
-    confidence_threshold?: number;
-  };
-  audit_options?: {
-    include_content?: boolean;
-    time_range?: {
-      start: string;
-      end: string;
-    };
-  };
-}
-
-export default async function privacyMetadataTool(input: PrivacyMetadataInput) {
-  const { memory_key, operation, classification_rules, audit_options } = input;
-  
-  switch (operation) {
-    case 'classify':
-      return await classifyMemoryContent(memory_key, classification_rules);
-    case 'audit':
-      return await auditPrivacyCompliance(memory_key, audit_options);
-    case 'purge':
-      return await purgeExpiredData(memory_key);
-    default:
-      throw new Error(`Unknown privacy operation: ${operation}`);
-  }
-}
-
-async function classifyMemoryContent(
-  memory_key: string, 
-  rules: PrivacyMetadataInput['classification_rules']
-): Promise<any> {
-  const messages = await readAllMessages(memory_key);
-  const classifications = [];
-  
-  for (const message of messages) {
-    const classification = await classifyMessage(message, rules);
-    classifications.push({
-      message_id: message.id,
-      timestamp: message.timestamp,
-      privacy_level: classification.privacy_level,
-      sensitive_categories: classification.categories,
-      confidence_score: classification.confidence,
-      requires_redaction: classification.requires_redaction
-    });
-  }
-  
-  return {
-    memory_key,
-    total_messages: messages.length,
-    classifications,
-    privacy_summary: {
-      public: classifications.filter(c => c.privacy_level === 'public').length,
-      internal: classifications.filter(c => c.privacy_level === 'internal').length,
-      confidential: classifications.filter(c => c.privacy_level === 'confidential').length,
-      restricted: classifications.filter(c => c.privacy_level === 'restricted').length
-    }
-  };
-}
-
-async function auditPrivacyCompliance(
-  memory_key: string, 
-  options: PrivacyMetadataInput['audit_options']
-): Promise<any> {
-  const messages = await readAllMessages(memory_key);
-  const auditResults = [];
-  
-  for (const message of messages) {
-    const audit = await auditMessage(message, options);
-    auditResults.push(audit);
-  }
-  
-  return {
-    memory_key,
-    audit_timestamp: new Date().toISOString(),
-    compliance_status: calculateComplianceStatus(auditResults),
-    violations: auditResults.filter(r => r.violations.length > 0),
-    recommendations: generatePrivacyRecommendations(auditResults)
-  };
-}
-```
-
-</Tab>
-
-<Tab value="Compliance Tools">
-
-```typescript title="compliance_memory_tool.ts"
-interface ComplianceInput {
-  memory_key: string;
-  compliance_framework: 'gdpr' | 'ccpa' | 'hipaa' | 'pci' | 'sox';
-  operation: 'assess' | 'enforce' | 'report';
-  assessment_criteria?: {
-    data_types: string[];
-    retention_periods: Record<string, string>;
-    access_controls: string[];
-  };
-}
-
-export default async function complianceMemoryTool(input: ComplianceInput) {
-  const { 
-    memory_key, 
-    compliance_framework, 
-    operation, 
-    assessment_criteria 
-  } = input;
-  
-  const complianceHandler = createComplianceHandler(compliance_framework);
-  
-  switch (operation) {
-    case 'assess':
-      return await complianceHandler.assessCompliance(memory_key, assessment_criteria);
-    case 'enforce':
-      return await complianceHandler.enforceCompliance(memory_key);
-    case 'report':
-      return await complianceHandler.generateComplianceReport(memory_key);
-    default:
-      throw new Error(`Unknown compliance operation: ${operation}`);
-  }
-}
-
-function createComplianceHandler(framework: string) {
-  const handlers = {
-    gdpr: {
-      assessCompliance: async (memory_key: string, criteria: any) => {
-        const messages = await readAllMessages(memory_key);
-        const assessment = {
-          data_subjects: identifyDataSubjects(messages),
-          lawful_basis: assessLawfulBasis(messages),
-          retention_compliance: checkRetentionCompliance(messages, criteria),
-          consent_tracking: verifyConsentTracking(messages),
-          data_minimization: assessDataMinimization(messages)
-        };
-        return assessment;
-      },
-      enforceCompliance: async (memory_key: string) => {
-        // Implement GDPR enforcement logic
-        return await enforceGDPRCompliance(memory_key);
-      },
-      generateComplianceReport: async (memory_key: string) => {
-        // Generate GDPR compliance report
-        return await generateGDPRReport(memory_key);
-      }
-    },
-    // Add other frameworks (CCPA, HIPAA, etc.)
-  };
-  
-  return handlers[framework as keyof typeof handlers];
-}
-```
-
-<Callout type="info" title="Compliance Frameworks">
-This example shows GDPR compliance patterns. Implement similar structures for other frameworks like CCPA, HIPAA, PCI-DSS based on your specific requirements.
-</Callout>
-
-</Tab>
-
-<Tab value="Data Retention">
-
-```typescript title="retention_memory_tool.ts"
-interface RetentionInput {
-  memory_key: string;
-  retention_policy: {
-    default_period: string;
-    category_specific?: Record<string, string>;
-    legal_hold?: boolean;
-    auto_purge?: boolean;
-  };
-  operation: 'apply' | 'check' | 'purge';
-}
-
-export default async function retentionMemoryTool(input: RetentionInput) {
-  const { memory_key, retention_policy, operation } = input;
-  
-  switch (operation) {
-    case 'apply':
-      return await applyRetentionPolicy(memory_key, retention_policy);
-    case 'check':
-      return await checkRetentionCompliance(memory_key, retention_policy);
-    case 'purge':
-      return await purgeExpiredMessages(memory_key, retention_policy);
-    default:
-      throw new Error(`Unknown retention operation: ${operation}`);
-  }
-}
-
-async function applyRetentionPolicy(
-  memory_key: string, 
-  policy: RetentionInput['retention_policy']
-): Promise<any> {
-  const messages = await readAllMessages(memory_key);
-  const updatedMessages = [];
-  
-  for (const message of messages) {
-    const category = classifyMessageCategory(message);
-    const retentionPeriod = policy.category_specific?.[category] || policy.default_period;
-    const expirationDate = calculateExpirationDate(message.timestamp, retentionPeriod);
-    
-    const updatedMessage = {
-      ...message,
-      metadata: {
-        ...message.metadata,
-        retention_period: retentionPeriod,
-        expiration_date: expirationDate.toISOString(),
-        legal_hold: policy.legal_hold || false,
-        auto_purge: policy.auto_purge || false
-      }
-    };
-    
-    updatedMessages.push(updatedMessage);
-  }
-  
-  // Update memory with retention metadata
-  await replaceMemoryContent(memory_key, updatedMessages);
-  
-  return {
-    success: true,
-    memory_key,
-    messages_processed: updatedMessages.length,
-    retention_policy_applied: policy,
-    next_purge_check: calculateNextPurgeDate(policy.default_period)
-  };
-}
-
-async function purgeExpiredMessages(
-  memory_key: string, 
-  policy: RetentionInput['retention_policy']
-): Promise<any> {
-  const messages = await readAllMessages(memory_key);
-  const now = new Date();
-  
-  const { active, expired } = messages.reduce((acc, message) => {
-    const expirationDate = message.metadata?.expiration_date 
-      ? new Date(message.metadata.expiration_date)
-      : null;
-    
-    const isExpired = expirationDate && expirationDate < now;
-    const hasLegalHold = message.metadata?.legal_hold === true;
-    
-    if (isExpired && !hasLegalHold) {
-      acc.expired.push(message);
-    } else {
-      acc.active.push(message);
-    }
-    
-    return acc;
-  }, { active: [], expired: [] });
-  
-  // Update memory with only active messages
-  await replaceMemoryContent(memory_key, active);
-  
-  return {
-    success: true,
-    memory_key,
-    messages_purged: expired.length,
-    messages_retained: active.length,
-    purge_timestamp: now.toISOString(),
-    expired_messages: expired.map(msg => ({
-      id: msg.id,
-      timestamp: msg.timestamp,
-      expiration_date: msg.metadata?.expiration_date,
-      category: classifyMessageCategory(msg)
-    }))
-  };
-}
-
-function calculateExpirationDate(messageTimestamp: string, retentionPeriod: string): Date {
-  const messageDate = new Date(messageTimestamp);
-  const units = retentionPeriod.match(/(\d+)([hdwmy])/);
-  
-  if (!units) throw new Error('Invalid retention period format');
-  
-  const amount = parseInt(units[1]);
-  const unit = units[2];
-  
-  const multipliers = {
-    h: 60 * 60 * 1000,
-    d: 24 * 60 * 60 * 1000,
-    w: 7 * 24 * 60 * 60 * 1000,
-    m: 30 * 24 * 60 * 60 * 1000,
-    y: 365 * 24 * 60 * 60 * 1000
-  };
-  
-  const multiplier = multipliers[unit as keyof typeof multipliers];
-  return new Date(messageDate.getTime() + (amount * multiplier));
-}
-```
-
-</Tab>
-
-</Tabs>
-
-</Step>
-
-<Step title="Token Management & Optimization" description="Master token counting, budgeting, and optimization strategies">
-
-### Advanced Token Management
-
-Implement sophisticated token management for optimal performance:
-
-<Tabs items={["Token Counting", "Budget Management", "Optimization Strategies", "Provider Integration"]} className="mt-6">
-
-<Tab value="Token Counting">
-
-```typescript title="token_management_tool.ts"
-interface TokenManagementInput {
-  memory_key: string;
-  operation: 'count' | 'budget' | 'optimize' | 'analyze';
-  provider?: 'openai' | 'anthropic' | 'google' | 'tiktoken';
-  model?: string;
-  options?: {
-    include_system_messages?: boolean;
-    count_metadata?: boolean;
-    use_cache?: boolean;
-    batch_size?: number;
-  };
-}
-
-export default async function tokenManagementTool(input: TokenManagementInput) {
-  const { 
-    memory_key, 
-    operation, 
-    provider = 'tiktoken', 
-    model = 'gpt-4',
-    options = {} 
-  } = input;
-  
-  const tokenCounter = createTokenCounter(provider, model);
-  
-  switch (operation) {
-    case 'count':
-      return await performTokenCount(memory_key, tokenCounter, options);
-    case 'budget':
-      return await manageBudget(memory_key, tokenCounter, options);
-    case 'optimize':
-      return await optimizeTokenUsage(memory_key, tokenCounter, options);
-    case 'analyze':
-      return await analyzeTokenDistribution(memory_key, tokenCounter, options);
-    default:
-      throw new Error(`Unknown token operation: ${operation}`);
-  }
-}
-
-async function performTokenCount(
-  memory_key: string, 
-  counter: TokenCounter, 
-  options: any
-): Promise<any> {
-  const messages = await readAllMessages(memory_key);
-  
-  let messagesToCount = messages;
-  
-  if (!options.include_system_messages) {
-    messagesToCount = messages.filter(msg => msg.role !== 'system');
-  }
-  
-  const tokenCounts = await Promise.all(
-    messagesToCount.map(async (message) => {
-      const contentTokens = await counter.count(message.content);
-      const metadataTokens = options.count_metadata 
-        ? await counter.count(JSON.stringify(message.metadata || {}))
-        : 0;
-      
-      return {
-        message_id: message.id,
-        role: message.role,
-        timestamp: message.timestamp,
-        content_tokens: contentTokens,
-        metadata_tokens: metadataTokens,
-        total_tokens: contentTokens + metadataTokens,
-        content_length: message.content.length
-      };
-    })
-  );
-  
-  const totalTokens = tokenCounts.reduce((sum, count) => sum + count.total_tokens, 0);
-  const averageTokens = totalTokens / tokenCounts.length;
-  
-  return {
-    memory_key,
-    provider: counter.provider,
-    model: counter.model,
-    total_tokens: totalTokens,
-    message_count: tokenCounts.length,
-    average_tokens_per_message: Math.round(averageTokens * 100) / 100,
-    token_distribution: {
-      content_tokens: tokenCounts.reduce((sum, c) => sum + c.content_tokens, 0),
-      metadata_tokens: tokenCounts.reduce((sum, c) => sum + c.metadata_tokens, 0)
-    },
-    role_distribution: calculateRoleDistribution(tokenCounts),
-    detailed_counts: tokenCounts,
-    count_timestamp: new Date().toISOString()
-  };
-}
-
-async function manageBudget(
-  memory_key: string, 
-  counter: TokenCounter, 
-  options: any
-): Promise<any> {
-  const health = await getMemoryHealth(memory_key);
-  const currentTokens = health.token_count;
-  const maxTokens = health.max_tokens;
-  const utilizationPercent = (currentTokens / maxTokens) * 100;
-  
-  const budgetAnalysis = {
-    current_usage: currentTokens,
-    max_capacity: maxTokens,
-    utilization_percent: Math.round(utilizationPercent * 100) / 100,
-    available_tokens: maxTokens - currentTokens,
-    budget_status: getBudgetStatus(utilizationPercent),
-    recommendations: generateBudgetRecommendations(utilizationPercent, currentTokens, maxTokens)
-  };
-  
-  // Calculate projected usage
-  const recentMessages = await getRecentMessages(memory_key, 10);
-  const averageMessageTokens = recentMessages.length > 0 
-    ? await calculateAverageTokensPerMessage(recentMessages, counter)
-    : 0;
-  
-  budgetAnalysis.projections = {
-    messages_until_full: Math.floor(budgetAnalysis.available_tokens / averageMessageTokens),
-    estimated_time_to_full: estimateTimeToFull(averageMessageTokens, budgetAnalysis.available_tokens),
-    recommended_flush_point: maxTokens * 0.8
-  };
-  
-  return {
-    memory_key,
-    budget_analysis,
-    timestamp: new Date().toISOString()
-  };
-}
-
-function getBudgetStatus(utilization: number): string {
-  if (utilization >= 90) return 'critical';
-  if (utilization >= 80) return 'warning';
-  if (utilization >= 60) return 'moderate';
-  return 'healthy';
-}
-
-function generateBudgetRecommendations(
-  utilization: number, 
-  current: number, 
-  max: number
-): string[] {
-  const recommendations = [];
-  
-  if (utilization >= 90) {
-    recommendations.push('Immediate flush required - memory near capacity');
-    recommendations.push('Consider increasing max_tokens limit');
-  } else if (utilization >= 80) {
-    recommendations.push('Schedule flush within next few operations');
-    recommendations.push('Monitor token usage closely');
-  } else if (utilization >= 60) {
-    recommendations.push('Consider implementing proactive flushing');
-  }
-  
-  if (current > max * 0.5) {
-    recommendations.push('Implement token-aware message summarization');
-  }
-  
-  return recommendations;
-}
-```
-
-</Tab>
-
-<Tab value="Budget Management">
-
-```typescript title="budget_management_tool.ts"
-interface BudgetManagementInput {
-  memory_key: string;
-  budget_limits: {
-    daily_tokens?: number;
-    weekly_tokens?: number;
-    monthly_tokens?: number;
-    per_operation_tokens?: number;
-  };
-  operation: 'set' | 'check' | 'enforce' | 'report';
-  enforcement_actions?: {
-    warning_threshold?: number;
-    block_threshold?: number;
-    auto_optimize?: boolean;
-  };
-}
-
-export default async function budgetManagementTool(input: BudgetManagementInput) {
-  const { 
-    memory_key, 
-    budget_limits, 
-    operation, 
-    enforcement_actions = {} 
-  } = input;
-  
-  switch (operation) {
-    case 'set':
-      return await setBudgetLimits(memory_key, budget_limits);
-    case 'check':
-      return await checkBudgetUsage(memory_key, budget_limits);
-    case 'enforce':
-      return await enforceBudgetLimits(memory_key, budget_limits, enforcement_actions);
-    case 'report':
-      return await generateBudgetReport(memory_key, budget_limits);
-    default:
-      throw new Error(`Unknown budget operation: ${operation}`);
-  }
-}
-
-async function checkBudgetUsage(
-  memory_key: string, 
-  limits: BudgetManagementInput['budget_limits']
-): Promise<any> {
-  const usage = await calculateTokenUsage(memory_key);
-  const budgetStatus = {};
-  
-  if (limits.daily_tokens) {
-    const dailyUsage = await getDailyTokenUsage(memory_key);
-    budgetStatus.daily = {
-      used: dailyUsage,
-      limit: limits.daily_tokens,
-      remaining: limits.daily_tokens - dailyUsage,
-      utilization: (dailyUsage / limits.daily_tokens) * 100
-    };
-  }
-  
-  if (limits.weekly_tokens) {
-    const weeklyUsage = await getWeeklyTokenUsage(memory_key);
-    budgetStatus.weekly = {
-      used: weeklyUsage,
-      limit: limits.weekly_tokens,
-      remaining: limits.weekly_tokens - weeklyUsage,
-      utilization: (weeklyUsage / limits.weekly_tokens) * 100
-    };
-  }
-  
-  if (limits.monthly_tokens) {
-    const monthlyUsage = await getMonthlyTokenUsage(memory_key);
-    budgetStatus.monthly = {
-      used: monthlyUsage,
-      limit: limits.monthly_tokens,
-      remaining: limits.monthly_tokens - monthlyUsage,
-      utilization: (monthlyUsage / limits.monthly_tokens) * 100
-    };
-  }
-  
-  return {
-    memory_key,
-    budget_status: budgetStatus,
-    overall_health: calculateBudgetHealth(budgetStatus),
-    recommendations: generateBudgetRecommendations(budgetStatus),
-    check_timestamp: new Date().toISOString()
-  };
-}
-
-async function enforceBudgetLimits(
-  memory_key: string, 
-  limits: BudgetManagementInput['budget_limits'],
-  actions: BudgetManagementInput['enforcement_actions']
-): Promise<any> {
-  const usage = await checkBudgetUsage(memory_key, limits);
-  const violations = [];
-  const enforcements = [];
-  
-  for (const [period, status] of Object.entries(usage.budget_status)) {
-    if (status.utilization >= (actions.block_threshold || 100)) {
-      violations.push({
-        period,
-        severity: 'critical',
-        utilization: status.utilization,
-        action: 'block'
-      });
-      
-      await blockMemoryOperations(memory_key, period);
-      enforcements.push(`Blocked ${period} operations - budget exceeded`);
-      
-    } else if (status.utilization >= (actions.warning_threshold || 80)) {
-      violations.push({
-        period,
-        severity: 'warning',
-        utilization: status.utilization,
-        action: 'warn'
-      });
-      
-      if (actions.auto_optimize) {
-        await optimizeTokenUsage(memory_key);
-        enforcements.push(`Auto-optimized ${period} token usage`);
-      }
-    }
-  }
-  
-  return {
-    memory_key,
-    violations,
-    enforcements,
-    current_status: usage.budget_status,
-    enforcement_timestamp: new Date().toISOString()
-  };
-}
-```
-
-</Tab>
-
-<Tab value="Optimization Strategies">
-
-```typescript title="optimization_strategies_tool.ts"
-interface OptimizationInput {
-  memory_key: string;
-  strategy: 'compress' | 'summarize' | 'deduplicate' | 'smart_trim' | 'hybrid';
-  options?: {
-    target_reduction?: number;
-    preserve_recent?: number;
-    maintain_context?: boolean;
-    quality_threshold?: number;
-  };
-}
-
-export default async function optimizationStrategies(input: OptimizationInput) {
-  const { memory_key, strategy, options = {} } = input;
-  
-  const optimizer = createOptimizer(strategy);
-  return await optimizer.optimize(memory_key, options);
-}
-
-function createOptimizer(strategy: string) {
-  const optimizers = {
-    compress: {
-      optimize: async (memory_key: string, options: any) => {
-        const messages = await readAllMessages(memory_key);
-        const compressed = await compressMessages(messages, options);
-        await replaceMemoryContent(memory_key, compressed);
-        
-        return {
-          strategy: 'compress',
-          original_count: messages.length,
-          optimized_count: compressed.length,
-          reduction_percent: ((messages.length - compressed.length) / messages.length) * 100,
-          token_savings: await calculateTokenSavings(messages, compressed)
-        };
-      }
-    },
-    
-    summarize: {
-      optimize: async (memory_key: string, options: any) => {
-        const messages = await readAllMessages(memory_key);
-        const { summarized, preserved } = await summarizeMessages(messages, options);
-        
-        const optimizedMessages = [...preserved, ...summarized];
-        await replaceMemoryContent(memory_key, optimizedMessages);
-        
-        return {
-          strategy: 'summarize',
-          original_count: messages.length,
-          summarized_count: summarized.length,
-          preserved_count: preserved.length,
-          compression_ratio: summarized.length / messages.length,
-          context_preservation: await assessContextPreservation(messages, optimizedMessages)
-        };
-      }
-    },
-    
-    deduplicate: {
-      optimize: async (memory_key: string, options: any) => {
-        const messages = await readAllMessages(memory_key);
-        const deduplicated = await deduplicateMessages(messages, options);
-        await replaceMemoryContent(memory_key, deduplicated);
-        
-        return {
-          strategy: 'deduplicate',
-          original_count: messages.length,
-          deduplicated_count: deduplicated.length,
-          duplicates_removed: messages.length - deduplicated.length,
-          similarity_threshold: options.quality_threshold || 0.9
-        };
-      }
-    },
-    
-    smart_trim: {
-      optimize: async (memory_key: string, options: any) => {
-        const messages = await readAllMessages(memory_key);
-        const trimmed = await smartTrimMessages(messages, options);
-        await replaceMemoryContent(memory_key, trimmed);
-        
-        return {
-          strategy: 'smart_trim',
-          original_count: messages.length,
-          trimmed_count: trimmed.length,
-          importance_scores: await calculateImportanceScores(messages),
-          context_integrity: await verifyContextIntegrity(trimmed)
-        };
-      }
-    },
-    
-    hybrid: {
-      optimize: async (memory_key: string, options: any) => {
-        const messages = await readAllMessages(memory_key);
-        
-        // Apply multiple strategies in sequence
-        let optimized = messages;
-        const results = [];
-        
-        // 1. Deduplicate
-        optimized = await deduplicateMessages(optimized, options);
-        results.push({ step: 'deduplicate', count: optimized.length });
-        
-        // 2. Smart trim
-        optimized = await smartTrimMessages(optimized, options);
-        results.push({ step: 'smart_trim', count: optimized.length });
-        
-        // 3. Summarize if still too large
-        if (optimized.length > (options.target_reduction || 50)) {
-          const { summarized, preserved } = await summarizeMessages(optimized, options);
-          optimized = [...preserved, ...summarized];
-          results.push({ step: 'summarize', count: optimized.length });
-        }
-        
-        await replaceMemoryContent(memory_key, optimized);
-        
-        return {
-          strategy: 'hybrid',
-          original_count: messages.length,
-          final_count: optimized.length,
-          total_reduction: ((messages.length - optimized.length) / messages.length) * 100,
-          optimization_steps: results,
-          final_token_count: await calculateTotalTokens(optimized)
-        };
-      }
-    }
-  };
-  
-  return optimizers[strategy as keyof typeof optimizers];
-}
-
-async function compressMessages(messages: any[], options: any): Promise<any[]> {
-  // Implement message compression logic
-  return messages.map(msg => ({
-    ...msg,
-    content: await compressText(msg.content, options.quality_threshold || 0.8)
-  }));
-}
-
-async function summarizeMessages(messages: any[], options: any): Promise<{summarized: any[], preserved: any[]}> {
-  const recentCount = options.preserve_recent || 10;
-  const preserved = messages.slice(-recentCount);
-  const toSummarize = messages.slice(0, -recentCount);
-  
-  if (toSummarize.length === 0) {
-    return { summarized: [], preserved };
-  }
-  
-  const summary = await generateSummary(toSummarize, options);
-  const summarized = [{
-    id: `summary_${Date.now()}`,
-    role: 'system',
-    content: summary,
-    timestamp: new Date().toISOString(),
-    metadata: {
-      type: 'summary',
-      original_count: toSummarize.length,
-      summarized_at: new Date().toISOString()
-    }
-  }];
-  
-  return { summarized, preserved };
-}
-```
-
-</Tab>
-
-<Tab value="Provider Integration">
-
-```typescript title="provider_integration_tool.ts"
-interface ProviderIntegrationInput {
-  memory_key: string;
-  provider: 'openai' | 'anthropic' | 'google' | 'azure' | 'bedrock';
-  model: string;
-  operation: 'configure' | 'count' | 'optimize' | 'benchmark';
-  provider_config?: {
-    api_key?: string;
-    endpoint?: string;
-    timeout?: number;
-    rate_limit?: number;
-  };
-}
-
-export default async function providerIntegrationTool(input: ProviderIntegrationInput) {
-  const { 
-    memory_key, 
-    provider, 
-    model, 
-    operation, 
-    provider_config = {} 
-  } = input;
-  
-  const providerClient = createProviderClient(provider, provider_config);
-  
-  switch (operation) {
-    case 'configure':
-      return await configureProvider(memory_key, providerClient, model);
-    case 'count':
-      return await countWithProvider(memory_key, providerClient, model);
-    case 'optimize':
-      return await optimizeWithProvider(memory_key, providerClient, model);
-    case 'benchmark':
-      return await benchmarkProvider(memory_key, providerClient, model);
-    default:
-      throw new Error(`Unknown provider operation: ${operation}`);
-  }
-}
-
-function createProviderClient(provider: string, config: any) {
-  const clients = {
-    openai: {
-      countTokens: async (text: string, model: string) => {
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${config.api_key}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            model,
-            messages: [{ role: 'user', content: text }],
-            max_tokens: 1
-          })
-        });
-        
-        const data = await response.json();
-        return data.usage?.prompt_tokens || 0;
-      },
-      
-      generateSummary: async (messages: any[], model: string) => {
-        const content = messages.map(m => `${m.role}: ${m.content}`).join('\n');
-        
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${config.api_key}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            model,
-            messages: [
-              {
-                role: 'system',
-                content: 'Summarize the following conversation, preserving key context and decisions:'
-              },
-              { role: 'user', content }
-            ],
-            max_tokens: 500
-          })
-        });
-        
-        const data = await response.json();
-        return data.choices[0]?.message?.content || '';
-      }
-    },
-    
-    anthropic: {
-      countTokens: async (text: string, model: string) => {
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'x-api-key': config.api_key,
-            'Content-Type': 'application/json',
-            'anthropic-version': '2023-06-01'
-          },
-          body: JSON.stringify({
-            model,
-            max_tokens: 1,
-            messages: [{ role: 'user', content: text }]
-          })
-        });
-        
-        const data = await response.json();
-        return data.usage?.input_tokens || 0;
-      },
-      
-      generateSummary: async (messages: any[], model: string) => {
-        const content = messages.map(m => `${m.role}: ${m.content}`).join('\n');
-        
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'x-api-key': config.api_key,
-            'Content-Type': 'application/json',
-            'anthropic-version': '2023-06-01'
-          },
-          body: JSON.stringify({
-            model,
-            max_tokens: 500,
-            messages: [
-              {
-                role: 'user',
-                content: `Summarize the following conversation, preserving key context and decisions:\n\n${content}`
-              }
-            ]
-          })
-        });
-        
-        const data = await response.json();
-        return data.content[0]?.text || '';
-      }
-    }
-  };
-  
-  return clients[provider as keyof typeof clients];
-}
-
-async function benchmarkProvider(
-  memory_key: string, 
-  client: any, 
-  model: string
-): Promise<any> {
-  const messages = await readAllMessages(memory_key);
-  const sampleMessages = messages.slice(0, 10); // Sample for benchmarking
-  
-  const benchmarkResults = {
-    provider: client.provider,
-    model,
-    sample_size: sampleMessages.length,
-    benchmarks: {
-      token_counting: await benchmarkTokenCounting(sampleMessages, client, model),
-      summary_generation: await benchmarkSummaryGeneration(sampleMessages, client, model),
-      optimization: await benchmarkOptimization(sampleMessages, client, model)
-    }
-  };
-  
-  return benchmarkResults;
-}
-
-async function benchmarkTokenCounting(messages: any[], client: any, model: string) {
-  const startTime = Date.now();
-  const tokenCounts = [];
-  
-  for (const message of messages) {
-    const start = Date.now();
-    const tokens = await client.countTokens(message.content, model);
-    const end = Date.now();
-    
-    tokenCounts.push({
-      message_length: message.content.length,
-      token_count: tokens,
-      processing_time: end - start
-    });
-  }
-  
-  const totalTime = Date.now() - startTime;
-  
-  return {
-    total_time: totalTime,
-    average_time_per_message: totalTime / messages.length,
-    token_accuracy: calculateTokenAccuracy(tokenCounts),
-    performance_score: calculatePerformanceScore(tokenCounts, totalTime)
-  };
-}
-```
-
-</Tab>
-
-</Tabs>
-
-<Callout type="success" title="Advanced Operations Mastery">
-You now have comprehensive tools for privacy-aware memory operations and advanced token management. These patterns form the foundation for production-ready memory systems.
-</Callout>
-
-</Step>
-
-</Steps>
-
-## Advanced Operations
-
-### Privacy-Aware Operations
-
-#### Append with Privacy Controls
-Store messages with privacy metadata:
-
-```typescript
-export default async function privacyAppendTool(input: PrivacyAppendInput) {
-  const { memory_key, message, privacy_metadata } = input;
-  
-  return await appendWithPrivacy(memory_key, message, {
-    do_not_persist: privacy_metadata.do_not_persist || false,
-    sensitive_fields: privacy_metadata.sensitive_fields || [],
-    privacy_level: privacy_metadata.privacy_level || 'public'
-  });
-}
-```
-
-#### Redact and Store
-Apply redaction before storing:
-
-```typescript
-export default async function redactAndStoreTool(input: RedactStoreInput) {
-  const { memory_key, message, redaction_patterns } = input;
-  
-  // Apply redaction patterns
-  let redactedContent = message.content;
-  for (const pattern of redaction_patterns) {
-    redactedContent = redactedContent.replace(new RegExp(pattern, 'gi'), '[REDACTED]');
-  }
-  
-  const redactedMessage = {
-    ...message,
-    content: redactedContent,
-    metadata: { ...message.metadata, redacted: true }
-  };
-  
-  return await appendToMemory(memory_key, redactedMessage);
-}
-```
-
-### Token-Aware Operations
-
-#### Append with Token Counting
-Store messages with accurate token counts:
-
-```typescript
-export default async function tokenAppendTool(input: TokenAppendInput) {
-  const { memory_key, message, provider = 'openai', model = 'gpt-4' } = input;
-  
-  // Count tokens using specified provider
-  const tokenCount = await countTokens(message.content, provider, model);
-  
-  return await appendWithTokenCount(memory_key, message, tokenCount);
-}
-```
-
-#### Token Budget Management
-Check token usage before operations:
-
-```typescript
-export default async function tokenBudgetTool(input: TokenBudgetInput) {
-  const { memory_key, max_tokens } = input;
-  
-  const health = await getMemoryHealth(memory_key);
-  const currentTokens = health.token_count;
-  const remainingTokens = max_tokens - currentTokens;
-  
-  return {
-    current_tokens: currentTokens,
-    max_tokens,
-    remaining_tokens: remainingTokens,
-    utilization: (currentTokens / max_tokens) * 100,
-    needs_flush: remainingTokens < (max_tokens * 0.2) // Flush when 80% full
-  };
-}
-```
-
-### Batch Operations
-
-#### Bulk Message Processing
-Process multiple messages efficiently:
-
-```typescript
-export default async function bulkProcessTool(input: BulkProcessInput) {
-  const { operations } = input;
-  const results = [];
-  
-  for (const op of operations) {
-    try {
-      let result;
-      switch (op.type) {
-        case 'append':
-          result = await appendToMemory(op.memory_key, op.message);
-          break;
-        case 'read':
-          result = await readAllMessages(op.memory_key);
-          break;
-        case 'clear':
-          result = await clearMemory(op.memory_key);
-          break;
-        default:
-          result = { error: `Unknown operation: ${op.type}` };
-      }
-      
-      results.push({
-        operation: op,
-        result,
-        success: !result.error
-      });
-    } catch (error) {
-      results.push({
-        operation: op,
-        error: error.message,
-        success: false
-      });
-    }
-  }
-  
-  return {
-    results,
-    total_operations: operations.length,
-    successful: results.filter(r => r.success).length,
-    failed: results.filter(r => !r.success).length
-  };
-}
-```
-
-## Operation Patterns
-
-### Workflow Integration Patterns
-
-#### Load-Process-Store Pattern
-```yaml
-tasks:
-  # 1. Load existing context
-  - id: load_context
+      memory_ref: "user_conversation"
+      key: "user:{{.workflow.input.user_id}}:chat"
+      messages:
+        - role: "user"
+          content: "{{.workflow.input.message}}"
+          timestamp: "{{.workflow.exec_time}}"
+
+  # Read conversation history
+  - id: load_conversation
     type: basic
     $use: tool(local::tools.#(id="memory_tool"))
     with:
       operation: "read"
-      memory_key: "user:{{.workflow.input.user_id}}"
-  
-  # 2. Process with context
-  - id: process_with_context
+      memory_ref: "user_conversation"
+      key: "user:{{.workflow.input.user_id}}:chat"
+      limit: 10
+      offset: 0
+
+  # Process with AI agent (memory automatically loaded)
+  - id: process_message
     type: basic
     $use: agent(local::agents.#(id="chat_agent"))
+    memory:
+      - resource: memory
+        id: user_conversation
+        key: "user:{{.workflow.input.user_id}}:chat"
     with:
       message: "{{.workflow.input.message}}"
-      context: "{{.tasks.load_context.output.messages}}"
-  
-  # 3. Store interaction
-  - id: store_interaction
-    type: basic
-    $use: tool(local::tools.#(id="memory_tool"))
-    with:
-      operation: "append"
-      memory_key: "user:{{.workflow.input.user_id}}"
-      message: |
-        User: {{.workflow.input.message}}
-        Assistant: {{.tasks.process_with_context.output.response}}
-```
 
-#### Conditional Memory Operations
-```yaml
-tasks:
-  # Check if memory exists
-  - id: check_memory
+  # Check memory health after conversation
+  - id: check_memory_usage
     type: basic
     $use: tool(local::tools.#(id="memory_tool"))
     with:
       operation: "health"
-      memory_key: "user:{{.workflow.input.user_id}}"
-  
-  # Route based on memory state
-  - id: route_based_on_memory
-    type: router
-    condition: '{{.tasks.check_memory.output.message_count > 0}}'
-    routes:
-      has_memory:
-        $ref: local::tasks.#(id="load_and_process")
-      no_memory:
-        $ref: local::tasks.#(id="initialize_memory")
+      memory_ref: "user_conversation"
+      key: "user:{{.workflow.input.user_id}}:chat"
+      include_stats: true
 ```
 
-### Error Handling Patterns
+## Memory Configuration
 
-#### Retry on Failure
-```typescript
-export default async function resilientMemoryTool(input: MemoryInput) {
-  const { operation, memory_key, message } = input;
-  const maxRetries = 3;
-  let lastError;
-  
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      switch (operation) {
-        case 'append':
-          return await appendToMemory(memory_key, message);
-        case 'read':
-          return await readAllMessages(memory_key);
-        default:
-          throw new Error(`Unknown operation: ${operation}`);
-      }
-    } catch (error) {
-      lastError = error;
-      if (attempt === maxRetries) {
-        throw error;
-      }
-      
-      // Wait before retry with exponential backoff
-      await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 100));
+Memory operations use sophisticated configuration supporting multiple strategies and advanced features:
+
+```yaml
+# memory.yaml
+resources:
+  - resource: memory
+    id: user_conversation
+    description: "User conversation memory with privacy controls"
+    type: token_based
+    max_tokens: 8000
+    max_context_ratio: 0.8  # Alternative to max_tokens
+    model: "gpt-4"
+    model_context_size: 128000
+
+    # Eviction policy configuration
+    eviction_policy:
+      type: lru  # fifo, lru, priority
+      priority_keywords: ["important", "critical", "error"]
+
+    # Flushing strategy configuration
+    flushing_strategy:
+      type: hybrid_summary  # hybrid_summary, simple_fifo, lru, token_aware_lru
+      summarize_threshold: 0.8
+      summary_tokens: 500
+      summarize_oldest_percent: 0.3
+
+    # Token allocation for different content types
+    token_allocation:
+      short_term: 0.6
+      long_term: 0.3
+      system: 0.1
+
+    # Persistence configuration
+    persistence:
+      type: redis
+      ttl: 24h
+      circuit_breaker:
+        enabled: true
+        timeout: 100ms
+        max_failures: 5
+        reset_timeout: 30s
+
+    # Privacy policy configuration
+    privacy_policy:
+      redact_patterns:
+        - '\b\d{3}-\d{2}-\d{4}\b'  # SSN
+        - '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'  # Email
+      non_persistable_message_types:
+        - "system_internal"
+        - "debug"
+      default_redaction_string: "[REDACTED]"
+
+    # TTL configuration
+    append_ttl: 30m  # Extend TTL on append
+    clear_ttl: 5m    # TTL after clear
+    flush_ttl: 1h    # TTL after flush
+
+    # Token provider configuration
+    token_provider:
+      provider: openai
+      model: gpt-4
+      api_key_env: OPENAI_API_KEY
+      fallback: tiktoken
+```
+
+**Key Configuration Features:**
+- **Memory Types**: `token_based`, `message_count_based`, `buffer`
+- **Eviction Policies**: `fifo`, `lru`, `priority` with configurable keywords
+- **Flushing Strategies**: `hybrid_summary`, `simple_fifo`, `lru`, `token_aware_lru`
+- **Privacy Controls**: Regex redaction patterns and non-persistable message types
+- **Token Management**: Multi-provider support with API-based counting
+- **Circuit Breaker**: Resilience protection for Redis operations
+
+## Error Handling
+
+Memory API operations return structured error responses:
+
+```bash
+# Example error response
+{
+  "success": false,
+  "error": {
+    "code": "MEMORY_NOT_FOUND",
+    "message": "Memory instance not found for key: user:123:conversation",
+    "details": {
+      "memory_ref": "user_conversation",
+      "key": "user:123:conversation",
+      "resolved_key": "project:default:memory:user_conversation:user:123:conversation"
     }
   }
 }
 ```
 
-#### Graceful Degradation
 ```typescript
-export default async function gracefulMemoryTool(input: MemoryInput) {
-  const { operation, memory_key, message, fallback_enabled = true } = input;
-  
+// Error handling in TypeScript tools
+export default async function memoryTool(input: any) {
   try {
-    // Attempt primary operation
-    switch (operation) {
-      case 'read':
-        return await readAllMessages(memory_key);
-      case 'append':
-        return await appendToMemory(memory_key, message);
-    }
-  } catch (error) {
-    if (!fallback_enabled) {
-      throw error;
+    const response = await fetch(`${baseUrl}/memory/${input.memory_ref}/${input.operation}`, {
+      // ... request configuration
+    });
+    
+    const result = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(`Memory API error: ${result.error.message}`);
     }
     
-    // Fallback strategies
-    switch (operation) {
-      case 'read':
-        return {
-          messages: [],
-          error: 'Memory unavailable, using empty context',
-          fallback_used: true
-        };
-      case 'append':
-        return {
-          success: false,
-          error: 'Memory unavailable, message not stored',
-          fallback_used: true
-        };
-    }
+    return result.data;
+  } catch (error) {
+    console.error('Memory operation failed:', error.message);
+    throw error;
   }
 }
 ```
 
-## Performance Optimization
-
-### Efficient Pagination
-```typescript
-export default async function efficientPaginationTool(input: PaginationInput) {
-  const { memory_key, page = 1, page_size = 20, cache_enabled = true } = input;
-  
-  const offset = (page - 1) * page_size;
-  
-  // Use pagination to avoid loading all messages
-  const result = await readMessagesPaginated(memory_key, offset, page_size);
-  
-  return {
-    messages: result.messages,
-    pagination: {
-      page,
-      page_size,
-      total_count: result.total_count,
-      total_pages: Math.ceil(result.total_count / page_size),
-      has_next: offset + page_size < result.total_count,
-      has_previous: page > 1
-    }
-  };
-}
-```
-
-### Lazy Loading
-```typescript
-export default async function lazyLoadMemoryTool(input: LazyLoadInput) {
-  const { memory_key, include_content = false, include_metadata = true } = input;
-  
-  if (include_content) {
-    // Load full messages
-    return await readAllMessages(memory_key);
-  } else {
-    // Load only metadata for preview
-    const health = await getMemoryHealth(memory_key);
-    return {
-      message_count: health.message_count,
-      token_count: health.token_count,
-      last_flush: health.last_flush,
-      strategy: health.actual_strategy,
-      // Content can be loaded separately when needed
-      content_available: true
-    };
-  }
-}
-```
+**Common error codes:**
+- `MEMORY_NOT_FOUND` - Memory instance doesn't exist
+- `INVALID_MEMORY_REF` - Invalid memory reference format
+- `REDIS_CONNECTION_ERROR` - Cannot connect to Redis
+- `TOKEN_LIMIT_EXCEEDED` - Memory approaching token limits
+- `PRIVACY_VIOLATION` - Message contains sensitive data that cannot be stored
+- `FLUSH_IN_PROGRESS` - Memory flush operation in progress
+- `INVALID_MESSAGE_FORMAT` - Message structure validation failed
 
 ## Best Practices
 
-### Operation Design
-- Use atomic operations when possible
-- Implement proper error handling with retries
-- Consider token limits when storing large messages
-- Use pagination for large message histories
-- Implement graceful degradation for memory unavailability
+### Memory Key Design
 
-### Performance Considerations
-- Cache frequently accessed memory keys
-- Use batch operations for multiple messages
-- Implement lazy loading for large datasets
-- Monitor token usage and implement budgeting
-- Use appropriate TTL settings for your use case
+Use hierarchical keys for better organization:
 
-### Security Practices
-- Always validate input before storage
-- Apply privacy controls consistently
-- Use redaction patterns for sensitive data
-- Implement proper access controls
-- Monitor for unusual access patterns
+```typescript
+// Good: Hierarchical structure
+const keys = [
+  'user:123:conversation:main',
+  'user:123:conversation:support',
+  'user:123:preferences'
+];
 
-### Error Handling
-- Implement retry logic for transient failures
-- Provide meaningful error messages
-- Log operations for debugging
-- Implement fallback mechanisms
-- Monitor error rates and patterns
+// Avoid: Flat structure
+const keys = [
+  'user123conv',
+  'user123support',
+  'user123prefs'
+];
+```
 
-This comprehensive guide to memory operations provides the foundation for building robust, efficient memory-enabled applications with Compozy.
+### Pagination
+
+Always use pagination for large conversations:
+
+```typescript
+// Read in chunks to avoid memory issues
+const limit = 50;
+let offset = 0;
+let hasMore = true;
+
+while (hasMore) {
+  const result = await readFromMemory({
+    memory_ref: 'local::memory.user_conversation',
+    key: 'user_123',
+    limit,
+    offset
+  });
+  
+  // Process messages
+  processMessages(result.messages);
+  
+  // Check if more data exists
+  hasMore = result.has_more;
+  offset += limit;
+}
+```
+
+### Memory Cleanup
+
+Implement regular cleanup to prevent memory bloat:
+
+```typescript
+// Check memory health before operations
+const health = await checkMemoryHealth({
+  memory_ref: 'local::memory.user_conversation',
+  key: 'user_123'
+});
+
+// Flush if approaching capacity
+if (health.token_count > health.max_tokens * 0.8) {
+  await flushMemory({
+    memory_ref: 'local::memory.user_conversation',
+    key: 'user_123',
+    strategy: 'token_based'
+  });
+}
+```
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Memory Configuration"
+    description="Set up memory resources and configure strategies"
+    href="/docs/core/memory/configuration"
+    icon="Settings"
+  />
+  <ReferenceCard
+    title="Integration Patterns"
+    description="Integrate memory with agents and workflows"
+    href="/docs/core/memory/integration-patterns"
+    icon="Layers"
+  />
+  <ReferenceCard
+    title="Privacy & Security"
+    description="Implement privacy controls and data protection"
+    href="/docs/core/memory/privacy-security"
+    icon="Shield"
+  />
+  <ReferenceCard
+    title="Troubleshooting"
+    description="Debug memory issues and optimize performance"
+    href="/docs/core/memory/troubleshooting"
+    icon="Bug"
+  />
+</ReferenceCardList>
+
+Memory operations provide the foundation for building conversational AI applications with persistent context. Focus on simple, reliable operations that match your actual use cases.

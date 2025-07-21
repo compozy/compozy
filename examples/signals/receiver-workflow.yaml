@@ -7,7 +7,6 @@ triggers:
 tools:
   - id: log_tool
     description: Log a message
-    execute: ./log_tool.ts
 
 tasks:
   - id: process-signal

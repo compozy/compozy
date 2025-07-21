@@ -143,18 +143,20 @@ After generation, configure your IDE to use the schemas:
 
 The tool generates schemas for these configuration types:
 
-| Schema               | Go Type              | Description                |
-| -------------------- | -------------------- | -------------------------- |
-| `agent.json`         | `agent.Config`       | Agent configuration        |
-| `action-config.json` | `agent.ActionConfig` | Agent action configuration |
-| `project.json`       | `project.Config`     | Project configuration      |
-| `workflow.json`      | `workflow.Config`    | Workflow configuration     |
-| `task.json`          | `task.Config`        | Task configuration         |
-| `tool.json`          | `tool.Config`        | Tool configuration         |
-| `mcp.json`           | `mcp.Config`         | MCP configuration          |
-| `memory.json`        | `memory.Config`      | Memory configuration       |
-| `cache.json`         | `cache.Config`       | Cache configuration        |
-| `monitoring.json`    | `monitoring.Config`  | Monitoring configuration   |
+| Schema               | Go Type              | Description                 |
+| -------------------- | -------------------- | --------------------------- |
+| `agent.json`         | `agent.Config`       | Agent configuration         |
+| `action-config.json` | `agent.ActionConfig` | Agent action configuration  |
+| `project.json`       | `project.Config`     | Project configuration       |
+| `workflow.json`      | `workflow.Config`    | Workflow configuration      |
+| `task.json`          | `task.Config`        | Task configuration          |
+| `tool.json`          | `tool.Config`        | Tool configuration          |
+| `mcp.json`           | `mcp.Config`         | MCP configuration           |
+| `memory.json`        | `memory.Config`      | Memory configuration        |
+| `cache.json`         | `cache.Config`       | Cache configuration         |
+| `monitoring.json`    | `monitoring.Config`  | Monitoring configuration    |
+| `config.json`        | `config.Config`      | Application configuration   |
+| `compozy.json`       | Combined             | Unified compozy.yaml schema |
 
 ### Schema Features
 

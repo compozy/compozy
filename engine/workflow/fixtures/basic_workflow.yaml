@@ -33,7 +33,6 @@ schemas:
 tools:
   - id: code-formatter
     description: "A tool for formatting code"
-    execute: "./format.ts"
     input:
       $ref: local::schemas.#(id=="code_input")
     output:
