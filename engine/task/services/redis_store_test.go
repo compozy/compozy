@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/cache"
 	"github.com/compozy/compozy/engine/task"
+	"github.com/compozy/compozy/pkg/config"
 )
 
 // createTestRedisStore creates a Redis store for testing using miniredis
@@ -21,10 +22,13 @@ func createTestRedisStore(t *testing.T) ConfigStore {
 
 	// Create Redis configuration for testing
 	config := &cache.Config{
-		Host:     mr.Host(),
-		Port:     mr.Port(),
-		Password: "", // miniredis doesn't use password
-		DB:       0,  // Use default DB for tests
+		RedisConfig: &config.RedisConfig{
+			Host:        mr.Host(),
+			Port:        mr.Port(),
+			Password:    "", // miniredis doesn't use password
+			DB:          0,  // Use default DB for tests
+			PingTimeout: 1 * time.Second,
+		},
 	}
 
 	ctx := context.Background()
@@ -176,10 +180,13 @@ func TestRedisConfigStore_TTL(t *testing.T) {
 
 		// Create store with very short TTL for testing
 		config := &cache.Config{
-			Host:     mr.Host(),
-			Port:     mr.Port(),
-			Password: "", // miniredis doesn't use password
-			DB:       0,  // Use default DB for tests
+			RedisConfig: &config.RedisConfig{
+				Host:        mr.Host(),
+				Port:        mr.Port(),
+				Password:    "", // miniredis doesn't use password
+				DB:          0,  // Use default DB for tests
+				PingTimeout: 1 * time.Second,
+			},
 		}
 
 		ctx := context.Background()
@@ -433,10 +440,13 @@ func TestRedisConfigStore_GetExtendsTTL(t *testing.T) {
 
 		// Create Redis configuration for testing
 		config := &cache.Config{
-			Host:     mr.Host(),
-			Port:     mr.Port(),
-			Password: "",
-			DB:       0,
+			RedisConfig: &config.RedisConfig{
+				Host:        mr.Host(),
+				Port:        mr.Port(),
+				Password:    "",
+				DB:          0,
+				PingTimeout: 1 * time.Second,
+			},
 		}
 
 		ctx := context.Background()
@@ -480,10 +490,13 @@ func TestRedisConfigStore_GetExtendsTTL(t *testing.T) {
 
 		// Create Redis configuration for testing
 		config := &cache.Config{
-			Host:     mr.Host(),
-			Port:     mr.Port(),
-			Password: "",
-			DB:       0,
+			RedisConfig: &config.RedisConfig{
+				Host:        mr.Host(),
+				Port:        mr.Port(),
+				Password:    "",
+				DB:          0,
+				PingTimeout: 1 * time.Second,
+			},
 		}
 
 		ctx := context.Background()

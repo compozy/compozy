@@ -25,7 +25,7 @@ func TestNewBunManager(t *testing.T) {
 		defer os.RemoveAll(tmpDir)
 
 		ctx := context.Background()
-		bm, err := runtime.NewBunManager(ctx, tmpDir)
+		bm, err := runtime.NewBunManager(ctx, tmpDir, nil)
 
 		require.NoError(t, err)
 		assert.NotNil(t, bm)
@@ -44,7 +44,7 @@ func TestNewBunManager(t *testing.T) {
 		defer os.RemoveAll(tmpDir)
 
 		ctx := context.Background()
-		bm, err := runtime.NewBunManager(ctx, tmpDir)
+		bm, err := runtime.NewBunManager(ctx, tmpDir, nil)
 
 		assert.Nil(t, bm)
 		assert.Error(t, err)
@@ -61,7 +61,7 @@ func TestNewBunManager(t *testing.T) {
 		defer os.RemoveAll(tmpDir)
 
 		ctx := context.Background()
-		_, err = runtime.NewBunManager(ctx, tmpDir)
+		_, err = runtime.NewBunManager(ctx, tmpDir, nil)
 		require.NoError(t, err)
 
 		// Check that worker file was created
@@ -91,7 +91,7 @@ func TestNewBunManager(t *testing.T) {
 			},
 		}
 
-		bm, err := runtime.NewBunManager(ctx, tmpDir, runtime.WithConfig(config))
+		bm, err := runtime.NewBunManager(ctx, tmpDir, config)
 		require.NoError(t, err)
 
 		// Verify timeout configuration
@@ -110,7 +110,7 @@ func TestBunManager_ExecuteTool(t *testing.T) {
 		defer os.RemoveAll(tmpDir)
 
 		ctx := context.Background()
-		bm, err := runtime.NewBunManager(ctx, tmpDir)
+		bm, err := runtime.NewBunManager(ctx, tmpDir, nil)
 		require.NoError(t, err)
 
 		toolExecID, _ := core.NewID()
@@ -150,7 +150,7 @@ export async function slow_tool(input: any) {
 		config := &runtime.Config{
 			EntrypointPath: "./tools.ts",
 		}
-		bm, err := runtime.NewBunManager(ctx, tmpDir, runtime.WithConfig(config))
+		bm, err := runtime.NewBunManager(ctx, tmpDir, config)
 		require.NoError(t, err)
 
 		toolExecID, _ := core.NewID()
@@ -187,7 +187,7 @@ export async function test_tool(input: any) {
 		config := &runtime.Config{
 			EntrypointPath: "./tools.ts",
 		}
-		bm, err := runtime.NewBunManager(ctx, tmpDir, runtime.WithConfig(config))
+		bm, err := runtime.NewBunManager(ctx, tmpDir, config)
 		require.NoError(t, err)
 
 		toolExecID, _ := core.NewID()
@@ -219,7 +219,7 @@ export function dummy() {}
 		config := &runtime.Config{
 			EntrypointPath: "./tools.ts",
 		}
-		bm, err := runtime.NewBunManager(ctx, tmpDir, runtime.WithConfig(config))
+		bm, err := runtime.NewBunManager(ctx, tmpDir, config)
 		require.NoError(t, err)
 
 		toolExecID, _ := core.NewID()
@@ -250,7 +250,7 @@ export async function env_tool(input: any) {
 		config := &runtime.Config{
 			EntrypointPath: "./tools.ts",
 		}
-		bm, err := runtime.NewBunManager(ctx, tmpDir, runtime.WithConfig(config))
+		bm, err := runtime.NewBunManager(ctx, tmpDir, config)
 		require.NoError(t, err)
 
 		toolExecID, _ := core.NewID()
@@ -279,7 +279,7 @@ func TestBunManager_GetGlobalTimeout(t *testing.T) {
 			ToolExecutionTimeout: timeout,
 		}
 
-		bm, err := runtime.NewBunManager(ctx, tmpDir, runtime.WithConfig(config))
+		bm, err := runtime.NewBunManager(ctx, tmpDir, config)
 		require.NoError(t, err)
 
 		assert.Equal(t, timeout, bm.GetGlobalTimeout())
@@ -301,7 +301,7 @@ func TestBunManager_WorkerFileGeneration(t *testing.T) {
 			EntrypointPath: "./custom-entrypoint.ts",
 		}
 
-		_, err = runtime.NewBunManager(ctx, tmpDir, runtime.WithConfig(config))
+		_, err = runtime.NewBunManager(ctx, tmpDir, config)
 		require.NoError(t, err)
 
 		// Read the generated worker file
@@ -325,7 +325,7 @@ func TestBunManager_WorkerFileGeneration(t *testing.T) {
 		defer os.RemoveAll(tmpDir)
 
 		ctx := context.Background()
-		_, err = runtime.NewBunManager(ctx, tmpDir)
+		_, err = runtime.NewBunManager(ctx, tmpDir, nil)
 		require.NoError(t, err)
 
 		// Read the generated worker file

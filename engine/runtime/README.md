@@ -232,28 +232,35 @@ fmt.Printf("Global timeout: %v", timeout)
 ### Runtime Options
 
 ```go
-// Configuration with builder pattern
-config := runtime.DefaultConfig()
-
-// Apply configuration options
-runtime.NewBunManager(
-    ctx,
-    projectRoot,
-    runtime.WithConfig(config),
-    runtime.WithRuntimeType("bun"),
-    runtime.WithEntrypointPath("./tools.ts"),
-    runtime.WithToolExecutionTimeout(30 * time.Second),
-    runtime.WithBunPermissions([]string{
+// Direct configuration approach
+config := &runtime.Config{
+    RuntimeType:            runtime.RuntimeTypeBun,
+    EntrypointPath:         "./tools.ts",
+    ToolExecutionTimeout:   30 * time.Second,
+    BunPermissions: []string{
         "--allow-read",
         "--allow-net=api.example.com",
-    }),
-    runtime.WithNodeOptions([]string{
+    },
+    NodeOptions: []string{
         "--max-old-space-size=2048",
-    }),
-    runtime.WithBackoffInitialInterval(100 * time.Millisecond),
-    runtime.WithBackoffMaxInterval(5 * time.Second),
-    runtime.WithBackoffMaxElapsedTime(30 * time.Second),
-)
+    },
+    BackoffInitialInterval: 100 * time.Millisecond,
+    BackoffMaxInterval:     5 * time.Second,
+    BackoffMaxElapsedTime:  30 * time.Second,
+}
+
+runtime.NewBunManager(ctx, projectRoot, config)
+
+// Or use defaults
+runtime.NewBunManager(ctx, projectRoot, nil) // Uses DefaultConfig()
+
+// Or from app config
+appConfig := &appconfig.RuntimeConfig{
+    Environment:          "production",
+    ToolExecutionTimeout: 30 * time.Second,
+}
+runtimeConfig := runtime.FromAppConfig(appConfig)
+runtime.NewBunManager(ctx, projectRoot, runtimeConfig)
 ```
 
 ### Security Configuration
@@ -620,19 +627,24 @@ func TestConfig() *Config
 ### Configuration Options
 
 ```go
-type Option func(*Config)
+// Configuration struct for direct field assignment
+type Config struct {
+    BackoffInitialInterval time.Duration
+    BackoffMaxInterval     time.Duration
+    BackoffMaxElapsedTime  time.Duration
+    WorkerFilePerm         os.FileMode
+    ToolExecutionTimeout   time.Duration
+    RuntimeType            string   // "bun" or "node"
+    EntrypointPath         string   // Path to entrypoint file
+    BunPermissions         []string // Bun-specific permissions
+    NodeOptions           []string // Node.js-specific options
+    Environment           string   // Deployment environment
+}
 
-func WithConfig(config *Config) Option
-func WithRuntimeType(runtimeType string) Option
-func WithEntrypointPath(path string) Option
-func WithToolExecutionTimeout(timeout time.Duration) Option
-func WithBunPermissions(permissions []string) Option
-func WithNodeOptions(options []string) Option
-func WithBackoffInitialInterval(interval time.Duration) Option
-func WithBackoffMaxInterval(interval time.Duration) Option
-func WithBackoffMaxElapsedTime(elapsed time.Duration) Option
-func WithWorkerFilePerm(perm os.FileMode) Option
-func WithTestConfig() Option
+// Configuration factory functions
+func DefaultConfig() *Config
+func TestConfig() *Config
+func FromAppConfig(appConfig *appconfig.RuntimeConfig) *Config
 ```
 
 ### BunManager
@@ -642,7 +654,7 @@ func WithTestConfig() Option
 func NewBunManager(
     ctx context.Context,
     projectRoot string,
-    options ...Option,
+    config *Config,
 ) (*BunManager, error)
 
 // BunManager implements the Runtime interface

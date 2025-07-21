@@ -86,7 +86,9 @@ func (rs *reconciliationStatus) setError(err error, nextRetry time.Time) {
 }
 
 type Server struct {
-	Config              *Config
+	serverConfig        *config.ServerConfig
+	cwd                 string
+	configFile          string
 	envFilePath         string
 	router              *gin.Engine
 	monitoring          *monitoring.Service
@@ -101,43 +103,10 @@ func NewServer(ctx context.Context, cwd, configFile, envFilePath string) *Server
 	serverCtx, cancel := context.WithCancel(ctx)
 	cfg := config.Get()
 
-	// Create server config from unified config
-	serverConfig := &Config{
-		CWD:         cwd,
-		Host:        cfg.Server.Host,
-		Port:        cfg.Server.Port,
-		CORSEnabled: cfg.Server.CORSEnabled,
-		ConfigFile:  configFile,
-	}
-
-	// Convert rate limit config from unified config if configured
-	if cfg.RateLimit.GlobalRate.Limit > 0 {
-		serverConfig.RateLimit = &ratelimit.Config{
-			GlobalRate: ratelimit.RateConfig{
-				Limit:  cfg.RateLimit.GlobalRate.Limit,
-				Period: cfg.RateLimit.GlobalRate.Period,
-			},
-			APIKeyRate: ratelimit.RateConfig{
-				Limit:  cfg.RateLimit.APIKeyRate.Limit,
-				Period: cfg.RateLimit.APIKeyRate.Period,
-			},
-			RedisAddr:     fmt.Sprintf("%s:%d", cfg.Redis.Host, cfg.Redis.Port),
-			RedisPassword: cfg.Redis.Password,
-			RedisDB:       cfg.Redis.DB,
-			Prefix:        cfg.RateLimit.Prefix,
-			MaxRetry:      cfg.RateLimit.MaxRetry,
-			// Use default excluded paths
-			ExcludedPaths: []string{
-				"/health",
-				"/metrics",
-				"/swagger",
-				"/api/v0/health",
-			},
-		}
-	}
-
 	return &Server{
-		Config:              serverConfig,
+		serverConfig:        &cfg.Server,
+		cwd:                 cwd,
+		configFile:          configFile,
 		envFilePath:         envFilePath,
 		ctx:                 serverCtx,
 		cancel:              cancel,
@@ -157,18 +126,41 @@ func (s *Server) buildRouter(state *appstate.State) error {
 	r.Use(authManager.Middleware())
 
 	// Setup rate limiting
-	if s.Config.RateLimit != nil {
+	cfg := config.Get()
+	if cfg.RateLimit.GlobalRate.Limit > 0 {
 		log := logger.FromContext(s.ctx)
-		// Create rate limit manager without Redis for now
-		// TODO: Add Redis support when available in store
+		// Convert from unified config to rate limiting config
+		rateLimitConfig := &ratelimit.Config{
+			GlobalRate: ratelimit.RateConfig{
+				Limit:  cfg.RateLimit.GlobalRate.Limit,
+				Period: cfg.RateLimit.GlobalRate.Period,
+			},
+			APIKeyRate: ratelimit.RateConfig{
+				Limit:  cfg.RateLimit.APIKeyRate.Limit,
+				Period: cfg.RateLimit.APIKeyRate.Period,
+			},
+			RedisAddr:     fmt.Sprintf("%s:%s", cfg.Redis.Host, cfg.Redis.Port),
+			RedisPassword: cfg.Redis.Password,
+			RedisDB:       cfg.Redis.DB,
+			Prefix:        cfg.RateLimit.Prefix,
+			MaxRetry:      cfg.RateLimit.MaxRetry,
+			// Use default excluded paths
+			ExcludedPaths: []string{
+				"/health",
+				"/metrics",
+				"/swagger",
+				"/api/v0/health",
+			},
+		}
+
 		var manager *ratelimit.Manager
 		var err error
 
 		// Use NewManagerWithMetrics if monitoring is initialized
 		if s.monitoring != nil && s.monitoring.IsInitialized() {
-			manager, err = ratelimit.NewManagerWithMetrics(s.Config.RateLimit, nil, s.monitoring.Meter())
+			manager, err = ratelimit.NewManagerWithMetrics(rateLimitConfig, nil, s.monitoring.Meter())
 		} else {
-			manager, err = ratelimit.NewManager(s.Config.RateLimit, nil)
+			manager, err = ratelimit.NewManager(rateLimitConfig, nil)
 		}
 
 		if err != nil {
@@ -178,14 +170,13 @@ func (s *Server) buildRouter(state *appstate.State) error {
 			// Apply global rate limit middleware
 			r.Use(manager.Middleware())
 			log.Info("Rate limiting enabled",
-				"global_limit", s.Config.RateLimit.GlobalRate.Limit,
-				"global_period", s.Config.RateLimit.GlobalRate.Period)
+				"global_limit", cfg.RateLimit.GlobalRate.Limit,
+				"global_period", cfg.RateLimit.GlobalRate.Period)
 		}
 	}
 
 	// Add monitoring middleware BEFORE other middleware if monitoring is initialized
 	log := logger.FromContext(s.ctx)
-	cfg := config.Get()
 	if s.monitoring != nil && s.monitoring.IsInitialized() {
 		r.Use(s.monitoring.GinMiddleware(s.ctx))
 	}
@@ -228,7 +219,7 @@ func (s *Server) setupProjectConfig() (*project.Config, []*workflow.Config, *aut
 	log := logger.FromContext(s.ctx)
 	setupStart := time.Now()
 	configService := csvc.NewService(s.envFilePath)
-	projectConfig, workflows, configRegistry, err := configService.LoadProject(s.ctx, s.Config.CWD, s.Config.ConfigFile)
+	projectConfig, workflows, configRegistry, err := configService.LoadProject(s.ctx, s.cwd, s.configFile)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to load project: %w", err)
 	}
@@ -394,7 +385,7 @@ func (s *Server) startAndRunServer(cleanupFuncs []func()) error {
 }
 
 func (s *Server) createHTTPServer() *http.Server {
-	addr := s.Config.FullAddress()
+	addr := fmt.Sprintf("%s:%d", s.serverConfig.Host, s.serverConfig.Port)
 	log := logger.FromContext(s.ctx)
 	log.Info("Starting HTTP server",
 		"address", fmt.Sprintf("http://%s", addr),

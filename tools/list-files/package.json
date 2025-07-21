@@ -8,8 +8,8 @@
     "test": "bun test",
     "test:watch": "bun test --watch",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint . --ext .ts",
-    "clean": "rm -rf dist node_modules"
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix"
   },
   "keywords": [
     "compozy",

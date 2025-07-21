@@ -59,7 +59,7 @@ export async function grep(input: GrepInput): Promise<GrepOutput | GrepError> {
     let regex: RegExp;
     try {
       regex = new RegExp(pattern, ignoreCase ? "gi" : "g");
-    } catch (e) {
+    } catch {
       return {
         error: `Invalid regular expression: ${pattern}`,
         code: "INVALID_REGEX",
@@ -123,7 +123,7 @@ async function searchDirectory(
         await searchFile(fullPath, regex, matches, maxResults);
       }
     }
-  } catch (error) {
+  } catch {
     // Silently skip directories we can't read
   }
 }
@@ -166,7 +166,7 @@ async function searchFile(
         }
       }
     }
-  } catch (error) {
+  } catch {
     // Silently skip files we can't read (e.g., binary files)
   }
 }

@@ -98,11 +98,11 @@ async function listDirRecursive(
           );
           entries.push(...subEntries);
         }
-      } catch (error) {
+      } catch {
         // Skip entries we can't stat (e.g., broken symlinks)
       }
     }
-  } catch (error) {
+  } catch {
     // Skip directories we can't read
   }
 
@@ -178,7 +178,7 @@ export default async function tool(input: ToolInput): Promise<ToolOutput> {
             size: isDirectory ? 0 : stats.size,
             modified: stats.mtime.toISOString(),
           });
-        } catch (error) {
+        } catch {
           // Skip entries we can't stat
         }
       }

@@ -20,6 +20,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/compozy/compozy/engine/core"
+	appconfig "github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	"golang.org/x/text/unicode/norm"
 )
@@ -60,13 +61,39 @@ type BunManager struct {
 	projectRoot string
 }
 
-// NewBunManager initializes a BunManager with Bun runtime
-func NewBunManager(ctx context.Context, projectRoot string, options ...Option) (*BunManager, error) {
-	config := DefaultConfig()
-	log := logger.FromContext(ctx)
-	for _, option := range options {
-		option(config)
+// NewBunManager initializes a BunManager with direct configuration
+func NewBunManager(ctx context.Context, projectRoot string, config *Config) (*BunManager, error) {
+	if config == nil {
+		config = DefaultConfig()
+	} else {
+		// Merge partial config with defaults to ensure all required fields are set
+		defaultConfig := DefaultConfig()
+		if config.BackoffInitialInterval == 0 {
+			config.BackoffInitialInterval = defaultConfig.BackoffInitialInterval
+		}
+		if config.BackoffMaxInterval == 0 {
+			config.BackoffMaxInterval = defaultConfig.BackoffMaxInterval
+		}
+		if config.BackoffMaxElapsedTime == 0 {
+			config.BackoffMaxElapsedTime = defaultConfig.BackoffMaxElapsedTime
+		}
+		if config.WorkerFilePerm == 0 {
+			config.WorkerFilePerm = defaultConfig.WorkerFilePerm
+		}
+		if config.ToolExecutionTimeout == 0 {
+			config.ToolExecutionTimeout = defaultConfig.ToolExecutionTimeout
+		}
+		if config.RuntimeType == "" {
+			config.RuntimeType = defaultConfig.RuntimeType
+		}
+		if config.BunPermissions == nil {
+			config.BunPermissions = defaultConfig.BunPermissions
+		}
+		if config.Environment == "" {
+			config.Environment = defaultConfig.Environment
+		}
 	}
+	log := logger.FromContext(ctx)
 
 	// Pre-check Bun availability
 	if !IsBunAvailable() {
@@ -95,6 +122,16 @@ func NewBunManager(ctx context.Context, projectRoot string, options ...Option) (
 
 	log.Info("Bun runtime manager initialized", "project_root", projectRoot)
 	return bm, nil
+}
+
+// NewBunManagerFromConfig initializes a BunManager with unified configuration
+func NewBunManagerFromConfig(
+	ctx context.Context,
+	projectRoot string,
+	appConfig *appconfig.RuntimeConfig,
+) (*BunManager, error) {
+	config := FromAppConfig(appConfig)
+	return NewBunManager(ctx, projectRoot, config)
 }
 
 // ExecuteTool runs a tool by executing the compiled binary using global timeout

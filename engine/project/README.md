@@ -658,7 +658,7 @@ func TestProjectConfiguration(t *testing.T) {
         config := &project.Config{
             Name:    "test-project",
             Version: "1.0.0",
-            Runtime: project.RuntimeConfig{
+            Runtime: project.ProjectRuntimeConfig{
                 Type:       "bun",
                 Entrypoint: "./tools.ts",
             },

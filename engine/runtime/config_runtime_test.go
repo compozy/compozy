@@ -2,72 +2,80 @@ package runtime_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/engine/runtime"
+	appconfig "github.com/compozy/compozy/pkg/config"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestRuntimeConfigOptions(t *testing.T) {
-	t.Run("Should apply WithConfig option", func(t *testing.T) {
-		baseConfig := &runtime.Config{
-			RuntimeType:    runtime.RuntimeTypeBun,
-			EntrypointPath: "/test/entrypoint.ts",
-			BunPermissions: []string{"--allow-read"},
+func TestFromAppConfig(t *testing.T) {
+	t.Run("Should create runtime config from app config", func(t *testing.T) {
+		appCfg := &appconfig.RuntimeConfig{
+			Environment:          "production",
+			ToolExecutionTimeout: 30 * time.Second,
 		}
 
-		config := runtime.DefaultConfig()
-		option := runtime.WithConfig(baseConfig)
-		option(config)
+		config := runtime.FromAppConfig(appCfg)
 
+		assert.Equal(t, "production", config.Environment)
+		assert.Equal(t, 30*time.Second, config.ToolExecutionTimeout)
+		// Should preserve defaults for other fields
 		assert.Equal(t, runtime.RuntimeTypeBun, config.RuntimeType)
-		assert.Equal(t, "/test/entrypoint.ts", config.EntrypointPath)
-		assert.Equal(t, []string{"--allow-read"}, config.BunPermissions)
+		assert.NotEmpty(t, config.BunPermissions)
 	})
 
-	t.Run("Should handle nil WithConfig", func(t *testing.T) {
-		config := runtime.DefaultConfig()
-		originalType := config.RuntimeType
+	t.Run("Should return default config when app config is nil", func(t *testing.T) {
+		config := runtime.FromAppConfig(nil)
+		defaultConfig := runtime.DefaultConfig()
 
-		option := runtime.WithConfig(nil)
-		option(config)
-
-		// Config should remain unchanged
-		assert.Equal(t, originalType, config.RuntimeType)
+		assert.Equal(t, defaultConfig.Environment, config.Environment)
+		assert.Equal(t, defaultConfig.ToolExecutionTimeout, config.ToolExecutionTimeout)
+		assert.Equal(t, defaultConfig.RuntimeType, config.RuntimeType)
 	})
 
-	t.Run("Should apply WithRuntimeType option", func(t *testing.T) {
-		config := runtime.DefaultConfig()
-		option := runtime.WithRuntimeType(runtime.RuntimeTypeNode)
-		option(config)
+	t.Run("Should use defaults for missing fields in app config", func(t *testing.T) {
+		appCfg := &appconfig.RuntimeConfig{
+			Environment: "staging",
+			// ToolExecutionTimeout not set - should use default
+		}
+
+		config := runtime.FromAppConfig(appCfg)
+
+		assert.Equal(t, "staging", config.Environment)
+		assert.Equal(t, runtime.DefaultConfig().ToolExecutionTimeout, config.ToolExecutionTimeout)
+	})
+
+	t.Run("Should ignore zero timeout in app config", func(t *testing.T) {
+		appCfg := &appconfig.RuntimeConfig{
+			Environment:          "test",
+			ToolExecutionTimeout: 0, // Should be ignored
+		}
+
+		config := runtime.FromAppConfig(appCfg)
+
+		assert.Equal(t, "test", config.Environment)
+		assert.Equal(t, runtime.DefaultConfig().ToolExecutionTimeout, config.ToolExecutionTimeout)
+	})
+}
+
+func TestDirectConfigUsage(t *testing.T) {
+	t.Run("Should create config with direct field assignment", func(t *testing.T) {
+		config := &runtime.Config{
+			RuntimeType:          runtime.RuntimeTypeNode,
+			EntrypointPath:       "/custom/path.js",
+			BunPermissions:       []string{"--allow-all"},
+			NodeOptions:          []string{"--experimental-modules"},
+			Environment:          "production",
+			ToolExecutionTimeout: 45 * time.Second,
+		}
 
 		assert.Equal(t, runtime.RuntimeTypeNode, config.RuntimeType)
-	})
-
-	t.Run("Should apply WithEntrypointPath option", func(t *testing.T) {
-		config := runtime.DefaultConfig()
-		path := "/custom/entrypoint.ts"
-		option := runtime.WithEntrypointPath(path)
-		option(config)
-
-		assert.Equal(t, path, config.EntrypointPath)
-	})
-
-	t.Run("Should apply WithBunPermissions option", func(t *testing.T) {
-		config := runtime.DefaultConfig()
-		perms := []string{"--allow-net", "--allow-read", "--allow-write"}
-		option := runtime.WithBunPermissions(perms)
-		option(config)
-
-		assert.Equal(t, perms, config.BunPermissions)
-	})
-
-	t.Run("Should apply WithNodeOptions option", func(t *testing.T) {
-		config := runtime.DefaultConfig()
-		opts := []string{"--experimental-modules", "--no-warnings"}
-		option := runtime.WithNodeOptions(opts)
-		option(config)
-
-		assert.Equal(t, opts, config.NodeOptions)
+		assert.Equal(t, "/custom/path.js", config.EntrypointPath)
+		assert.Equal(t, []string{"--allow-all"}, config.BunPermissions)
+		assert.Equal(t, []string{"--experimental-modules"}, config.NodeOptions)
+		assert.Equal(t, "production", config.Environment)
+		assert.Equal(t, 45*time.Second, config.ToolExecutionTimeout)
 	})
 }
 
@@ -78,6 +86,7 @@ func TestDefaultConfigRuntimeFields(t *testing.T) {
 		assert.Equal(t, runtime.RuntimeTypeBun, config.RuntimeType)
 		assert.NotEmpty(t, config.BunPermissions)
 		assert.Contains(t, config.BunPermissions, "--allow-read")
+		assert.Equal(t, "development", config.Environment)
 	})
 }
 
@@ -88,5 +97,6 @@ func TestTestConfigRuntimeFields(t *testing.T) {
 		assert.Equal(t, runtime.RuntimeTypeBun, config.RuntimeType)
 		assert.NotEmpty(t, config.BunPermissions)
 		assert.Contains(t, config.BunPermissions, "--allow-read")
+		assert.Equal(t, "testing", config.Environment)
 	})
 }

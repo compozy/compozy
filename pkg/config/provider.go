@@ -291,56 +291,214 @@ func (d *defaultProvider) Close() error {
 
 // createDefaultMap creates a map representation of default values from the registry.
 func createDefaultMap() map[string]any {
-	// Use the single source of truth - the registry
 	defaultConfig := Default()
+	result := make(map[string]any)
+	addCoreDefaults(result, defaultConfig)
+	addServiceDefaults(result, defaultConfig)
+	addInfraDefaults(result, defaultConfig)
+	return result
+}
 
-	// Convert Config struct to map[string]any format for koanf
+// addCoreDefaults adds core system configuration defaults
+func addCoreDefaults(result map[string]any, defaultConfig *Config) {
+	result["server"] = createServerDefaults(defaultConfig)
+	result["database"] = createDatabaseDefaults(defaultConfig)
+	result["temporal"] = createTemporalDefaults(defaultConfig)
+	result["runtime"] = createRuntimeDefaults(defaultConfig)
+	result["limits"] = createLimitsDefaults(defaultConfig)
+}
+
+// addServiceDefaults adds service configuration defaults
+func addServiceDefaults(result map[string]any, defaultConfig *Config) {
+	result["memory"] = createMemoryDefaults(defaultConfig)
+	result["llm"] = createLLMDefaults(defaultConfig)
+	result["ratelimit"] = createRateLimitDefaults(defaultConfig)
+	result["cli"] = createCLIDefaults(defaultConfig)
+}
+
+// addInfraDefaults adds infrastructure configuration defaults
+func addInfraDefaults(result map[string]any, defaultConfig *Config) {
+	result["redis"] = createRedisDefaults(defaultConfig)
+	result["cache"] = createCacheDefaults(defaultConfig)
+	result["worker"] = createWorkerDefaults(defaultConfig)
+	result["mcpproxy"] = createMCPProxyDefaults(defaultConfig)
+}
+
+// createServerDefaults creates server configuration defaults
+func createServerDefaults(defaultConfig *Config) map[string]any {
 	return map[string]any{
-		"server": map[string]any{
-			"host":         defaultConfig.Server.Host,
-			"port":         defaultConfig.Server.Port,
-			"cors_enabled": defaultConfig.Server.CORSEnabled,
-			"timeout":      defaultConfig.Server.Timeout.String(),
+		"host":         defaultConfig.Server.Host,
+		"port":         defaultConfig.Server.Port,
+		"cors_enabled": defaultConfig.Server.CORSEnabled,
+		"timeout":      defaultConfig.Server.Timeout.String(),
+		"cors": map[string]any{
+			"allowed_origins":   defaultConfig.Server.CORS.AllowedOrigins,
+			"allow_credentials": defaultConfig.Server.CORS.AllowCredentials,
+			"max_age":           defaultConfig.Server.CORS.MaxAge,
 		},
-		"database": map[string]any{
-			"host":        defaultConfig.Database.Host,
-			"port":        defaultConfig.Database.Port,
-			"user":        defaultConfig.Database.User,
-			"password":    defaultConfig.Database.Password,
-			"name":        defaultConfig.Database.DBName,
-			"ssl_mode":    defaultConfig.Database.SSLMode,
-			"conn_string": defaultConfig.Database.ConnString,
+		"auth": map[string]any{
+			"enabled":             defaultConfig.Server.Auth.Enabled,
+			"workflow_exceptions": defaultConfig.Server.Auth.WorkflowExceptions,
 		},
-		"temporal": map[string]any{
-			"host_port":  defaultConfig.Temporal.HostPort,
-			"namespace":  defaultConfig.Temporal.Namespace,
-			"task_queue": defaultConfig.Temporal.TaskQueue,
+	}
+}
+
+// createDatabaseDefaults creates database configuration defaults
+func createDatabaseDefaults(defaultConfig *Config) map[string]any {
+	return map[string]any{
+		"host":        defaultConfig.Database.Host,
+		"port":        defaultConfig.Database.Port,
+		"user":        defaultConfig.Database.User,
+		"password":    defaultConfig.Database.Password,
+		"name":        defaultConfig.Database.DBName,
+		"ssl_mode":    defaultConfig.Database.SSLMode,
+		"conn_string": defaultConfig.Database.ConnString,
+	}
+}
+
+// createTemporalDefaults creates temporal configuration defaults
+func createTemporalDefaults(defaultConfig *Config) map[string]any {
+	return map[string]any{
+		"host_port":  defaultConfig.Temporal.HostPort,
+		"namespace":  defaultConfig.Temporal.Namespace,
+		"task_queue": defaultConfig.Temporal.TaskQueue,
+	}
+}
+
+// createRuntimeDefaults creates runtime configuration defaults
+func createRuntimeDefaults(defaultConfig *Config) map[string]any {
+	return map[string]any{
+		"environment":                     defaultConfig.Runtime.Environment,
+		"log_level":                       defaultConfig.Runtime.LogLevel,
+		"dispatcher_heartbeat_interval":   defaultConfig.Runtime.DispatcherHeartbeatInterval.String(),
+		"dispatcher_heartbeat_ttl":        defaultConfig.Runtime.DispatcherHeartbeatTTL.String(),
+		"dispatcher_stale_threshold":      defaultConfig.Runtime.DispatcherStaleThreshold.String(),
+		"async_token_counter_workers":     defaultConfig.Runtime.AsyncTokenCounterWorkers,
+		"async_token_counter_buffer_size": defaultConfig.Runtime.AsyncTokenCounterBufferSize,
+		"tool_execution_timeout":          defaultConfig.Runtime.ToolExecutionTimeout.String(),
+		"runtime_type":                    defaultConfig.Runtime.RuntimeType,
+		"entrypoint_path":                 defaultConfig.Runtime.EntrypointPath,
+		"bun_permissions":                 defaultConfig.Runtime.BunPermissions,
+	}
+}
+
+// createLimitsDefaults creates limits configuration defaults
+func createLimitsDefaults(defaultConfig *Config) map[string]any {
+	return map[string]any{
+		"max_nesting_depth":        defaultConfig.Limits.MaxNestingDepth,
+		"max_string_length":        defaultConfig.Limits.MaxStringLength,
+		"max_message_content":      defaultConfig.Limits.MaxMessageContent,
+		"max_total_content_size":   defaultConfig.Limits.MaxTotalContentSize,
+		"max_task_context_depth":   defaultConfig.Limits.MaxTaskContextDepth,
+		"parent_update_batch_size": defaultConfig.Limits.ParentUpdateBatchSize,
+	}
+}
+
+// createMemoryDefaults creates memory configuration defaults
+func createMemoryDefaults(defaultConfig *Config) map[string]any {
+	return map[string]any{
+		"prefix":      defaultConfig.Memory.Prefix,
+		"ttl":         defaultConfig.Memory.TTL.String(),
+		"max_entries": defaultConfig.Memory.MaxEntries,
+	}
+}
+
+// createLLMDefaults creates LLM configuration defaults
+func createLLMDefaults(defaultConfig *Config) map[string]any {
+	return map[string]any{
+		"proxy_url":   defaultConfig.LLM.ProxyURL,
+		"admin_token": string(defaultConfig.LLM.AdminToken),
+	}
+}
+
+// createRateLimitDefaults creates rate limit configuration defaults
+func createRateLimitDefaults(defaultConfig *Config) map[string]any {
+	return map[string]any{
+		"global_rate": map[string]any{
+			"limit":  defaultConfig.RateLimit.GlobalRate.Limit,
+			"period": defaultConfig.RateLimit.GlobalRate.Period.String(),
 		},
-		"runtime": map[string]any{
-			"environment":                     defaultConfig.Runtime.Environment,
-			"log_level":                       defaultConfig.Runtime.LogLevel,
-			"dispatcher_heartbeat_interval":   defaultConfig.Runtime.DispatcherHeartbeatInterval.String(),
-			"dispatcher_heartbeat_ttl":        defaultConfig.Runtime.DispatcherHeartbeatTTL.String(),
-			"dispatcher_stale_threshold":      defaultConfig.Runtime.DispatcherStaleThreshold.String(),
-			"async_token_counter_workers":     defaultConfig.Runtime.AsyncTokenCounterWorkers,
-			"async_token_counter_buffer_size": defaultConfig.Runtime.AsyncTokenCounterBufferSize,
+		"api_key_rate": map[string]any{
+			"limit":  defaultConfig.RateLimit.APIKeyRate.Limit,
+			"period": defaultConfig.RateLimit.APIKeyRate.Period.String(),
 		},
-		"limits": map[string]any{
-			"max_nesting_depth":        defaultConfig.Limits.MaxNestingDepth,
-			"max_string_length":        defaultConfig.Limits.MaxStringLength,
-			"max_message_content":      defaultConfig.Limits.MaxMessageContent,
-			"max_total_content_size":   defaultConfig.Limits.MaxTotalContentSize,
-			"max_task_context_depth":   defaultConfig.Limits.MaxTaskContextDepth,
-			"parent_update_batch_size": defaultConfig.Limits.ParentUpdateBatchSize,
-		},
-		"memory": map[string]any{
-			"prefix":      defaultConfig.Memory.Prefix,
-			"ttl":         defaultConfig.Memory.TTL.String(),
-			"max_entries": defaultConfig.Memory.MaxEntries,
-		},
-		"llm": map[string]any{
-			"proxy_url":   defaultConfig.LLM.ProxyURL,
-			"admin_token": string(defaultConfig.LLM.AdminToken),
-		},
+		"prefix":    defaultConfig.RateLimit.Prefix,
+		"max_retry": defaultConfig.RateLimit.MaxRetry,
+	}
+}
+
+// createCLIDefaults creates CLI configuration defaults
+func createCLIDefaults(defaultConfig *Config) map[string]any {
+	return map[string]any{
+		"api_key":             string(defaultConfig.CLI.APIKey),
+		"base_url":            defaultConfig.CLI.BaseURL,
+		"server_url":          defaultConfig.CLI.ServerURL,
+		"timeout":             defaultConfig.CLI.Timeout.String(),
+		"mode":                defaultConfig.CLI.Mode,
+		"default_format":      defaultConfig.CLI.DefaultFormat,
+		"color_mode":          defaultConfig.CLI.ColorMode,
+		"page_size":           defaultConfig.CLI.PageSize,
+		"output_format_alias": defaultConfig.CLI.OutputFormatAlias,
+		"no_color":            defaultConfig.CLI.NoColor,
+		"debug":               defaultConfig.CLI.Debug,
+		"quiet":               defaultConfig.CLI.Quiet,
+		"interactive":         defaultConfig.CLI.Interactive,
+		"config_file":         defaultConfig.CLI.ConfigFile,
+		"cwd":                 defaultConfig.CLI.CWD,
+		"env_file":            defaultConfig.CLI.EnvFile,
+	}
+}
+
+// createRedisDefaults creates Redis configuration defaults
+func createRedisDefaults(defaultConfig *Config) map[string]any {
+	return map[string]any{
+		"url":            defaultConfig.Redis.URL,
+		"host":           defaultConfig.Redis.Host,
+		"port":           defaultConfig.Redis.Port,
+		"password":       defaultConfig.Redis.Password,
+		"db":             defaultConfig.Redis.DB,
+		"max_retries":    defaultConfig.Redis.MaxRetries,
+		"pool_size":      defaultConfig.Redis.PoolSize,
+		"min_idle_conns": defaultConfig.Redis.MinIdleConns,
+	}
+}
+
+// createCacheDefaults creates cache configuration defaults
+func createCacheDefaults(defaultConfig *Config) map[string]any {
+	return map[string]any{
+		"enabled":               defaultConfig.Cache.Enabled,
+		"ttl":                   defaultConfig.Cache.TTL.String(),
+		"prefix":                defaultConfig.Cache.Prefix,
+		"max_item_size":         defaultConfig.Cache.MaxItemSize,
+		"compression_enabled":   defaultConfig.Cache.CompressionEnabled,
+		"compression_threshold": defaultConfig.Cache.CompressionThreshold,
+		"eviction_policy":       defaultConfig.Cache.EvictionPolicy,
+		"stats_interval":        defaultConfig.Cache.StatsInterval.String(),
+	}
+}
+
+// createWorkerDefaults creates worker configuration defaults
+func createWorkerDefaults(defaultConfig *Config) map[string]any {
+	return map[string]any{
+		"config_store_ttl":               defaultConfig.Worker.ConfigStoreTTL.String(),
+		"heartbeat_cleanup_timeout":      defaultConfig.Worker.HeartbeatCleanupTimeout.String(),
+		"mcp_shutdown_timeout":           defaultConfig.Worker.MCPShutdownTimeout.String(),
+		"dispatcher_retry_delay":         defaultConfig.Worker.DispatcherRetryDelay.String(),
+		"dispatcher_max_retries":         defaultConfig.Worker.DispatcherMaxRetries,
+		"mcp_proxy_health_check_timeout": defaultConfig.Worker.MCPProxyHealthCheckTimeout.String(),
+	}
+}
+
+// createMCPProxyDefaults creates MCP proxy configuration defaults
+func createMCPProxyDefaults(defaultConfig *Config) map[string]any {
+	return map[string]any{
+		"host":               defaultConfig.MCPProxy.Host,
+		"port":               defaultConfig.MCPProxy.Port,
+		"base_url":           defaultConfig.MCPProxy.BaseURL,
+		"shutdown_timeout":   defaultConfig.MCPProxy.ShutdownTimeout.String(),
+		"admin_tokens":       defaultConfig.MCPProxy.AdminTokens,
+		"admin_allow_ips":    defaultConfig.MCPProxy.AdminAllowIPs,
+		"trusted_proxies":    defaultConfig.MCPProxy.TrustedProxies,
+		"global_auth_tokens": defaultConfig.MCPProxy.GlobalAuthTokens,
 	}
 }

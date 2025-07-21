@@ -25,6 +25,9 @@ func CreateRegistry() *Registry {
 	registerRateLimitFields(registry)
 	registerCLIFields(registry)
 	registerRedisFields(registry)
+	registerCacheFields(registry)
+	registerWorkerFields(registry)
+	registerMCPProxyFields(registry)
 	return registry
 }
 
@@ -208,6 +211,12 @@ func registerTemporalFields(registry *Registry) {
 }
 
 func registerRuntimeFields(registry *Registry) {
+	registerRuntimeCoreFields(registry)
+	registerRuntimeDispatcherFields(registry)
+	registerRuntimeToolFields(registry)
+}
+
+func registerRuntimeCoreFields(registry *Registry) {
 	registry.Register(&FieldDef{
 		Path:    "runtime.environment",
 		Default: "development",
@@ -216,7 +225,6 @@ func registerRuntimeFields(registry *Registry) {
 		Type:    reflect.TypeOf(""),
 		Help:    "Runtime environment",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "runtime.log_level",
 		Default: "info",
@@ -225,7 +233,9 @@ func registerRuntimeFields(registry *Registry) {
 		Type:    reflect.TypeOf(""),
 		Help:    "Log level (debug, info, warn, error)",
 	})
+}
 
+func registerRuntimeDispatcherFields(registry *Registry) {
 	registry.Register(&FieldDef{
 		Path:    "runtime.dispatcher_heartbeat_interval",
 		Default: 30 * time.Second,
@@ -234,7 +244,6 @@ func registerRuntimeFields(registry *Registry) {
 		Type:    durationType,
 		Help:    "Dispatcher heartbeat interval",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "runtime.dispatcher_heartbeat_ttl",
 		Default: 90 * time.Second,
@@ -243,7 +252,6 @@ func registerRuntimeFields(registry *Registry) {
 		Type:    durationType,
 		Help:    "Dispatcher heartbeat TTL",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "runtime.dispatcher_stale_threshold",
 		Default: 120 * time.Second,
@@ -252,7 +260,6 @@ func registerRuntimeFields(registry *Registry) {
 		Type:    durationType,
 		Help:    "Dispatcher stale threshold",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "runtime.async_token_counter_workers",
 		Default: 4,
@@ -261,7 +268,6 @@ func registerRuntimeFields(registry *Registry) {
 		Type:    reflect.TypeOf(0),
 		Help:    "Number of async token counter workers",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "runtime.async_token_counter_buffer_size",
 		Default: 100,
@@ -270,7 +276,9 @@ func registerRuntimeFields(registry *Registry) {
 		Type:    reflect.TypeOf(0),
 		Help:    "Async token counter buffer size",
 	})
+}
 
+func registerRuntimeToolFields(registry *Registry) {
 	registry.Register(&FieldDef{
 		Path:    "runtime.tool_execution_timeout",
 		Default: 60 * time.Second,
@@ -278,6 +286,30 @@ func registerRuntimeFields(registry *Registry) {
 		EnvVar:  "TOOL_EXECUTION_TIMEOUT",
 		Type:    durationType,
 		Help:    "Tool execution timeout",
+	})
+	registry.Register(&FieldDef{
+		Path:    "runtime.runtime_type",
+		Default: "bun",
+		CLIFlag: "runtime-type",
+		EnvVar:  "RUNTIME_TYPE",
+		Type:    reflect.TypeOf(""),
+		Help:    "JavaScript runtime to use for tool execution (bun, node)",
+	})
+	registry.Register(&FieldDef{
+		Path:    "runtime.entrypoint_path",
+		Default: "./tools.ts",
+		CLIFlag: "entrypoint-path",
+		EnvVar:  "RUNTIME_ENTRYPOINT_PATH",
+		Type:    reflect.TypeOf(""),
+		Help:    "Path to the JavaScript/TypeScript entrypoint file",
+	})
+	registry.Register(&FieldDef{
+		Path:    "runtime.bun_permissions",
+		Default: []string{"--allow-read"},
+		CLIFlag: "bun-permissions",
+		EnvVar:  "RUNTIME_BUN_PERMISSIONS",
+		Type:    reflect.TypeOf([]string{}),
+		Help:    "Bun runtime security permissions",
 	})
 }
 
@@ -452,6 +484,14 @@ func registerCLIFields(registry *Registry) {
 }
 
 func registerRedisFields(registry *Registry) {
+	registerRedisConnectionFields(registry)
+	registerRedisPoolFields(registry)
+	registerRedisTimeoutFields(registry)
+	registerRedisRetryFields(registry)
+	registerRedisTLSFields(registry)
+}
+
+func registerRedisConnectionFields(registry *Registry) {
 	registry.Register(&FieldDef{
 		Path:    "redis.url",
 		Default: "",
@@ -460,7 +500,6 @@ func registerRedisFields(registry *Registry) {
 		Type:    reflect.TypeOf(""),
 		Help:    "Redis connection URL (takes precedence over individual parameters)",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "redis.host",
 		Default: "localhost",
@@ -469,16 +508,14 @@ func registerRedisFields(registry *Registry) {
 		Type:    reflect.TypeOf(""),
 		Help:    "Redis server hostname",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "redis.port",
-		Default: 6379,
+		Default: "6379",
 		CLIFlag: "",
 		EnvVar:  "REDIS_PORT",
-		Type:    reflect.TypeOf(0),
+		Type:    reflect.TypeOf(""),
 		Help:    "Redis server port",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "redis.password",
 		Default: "",
@@ -487,7 +524,6 @@ func registerRedisFields(registry *Registry) {
 		Type:    reflect.TypeOf(""),
 		Help:    "Redis password",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "redis.db",
 		Default: 0,
@@ -496,16 +532,9 @@ func registerRedisFields(registry *Registry) {
 		Type:    reflect.TypeOf(0),
 		Help:    "Redis database number",
 	})
+}
 
-	registry.Register(&FieldDef{
-		Path:    "redis.max_retries",
-		Default: 3,
-		CLIFlag: "",
-		EnvVar:  "REDIS_MAX_RETRIES",
-		Type:    reflect.TypeOf(0),
-		Help:    "Maximum number of retries",
-	})
-
+func registerRedisPoolFields(registry *Registry) {
 	registry.Register(&FieldDef{
 		Path:    "redis.pool_size",
 		Default: 10,
@@ -514,7 +543,6 @@ func registerRedisFields(registry *Registry) {
 		Type:    reflect.TypeOf(0),
 		Help:    "Connection pool size",
 	})
-
 	registry.Register(&FieldDef{
 		Path:    "redis.min_idle_conns",
 		Default: 0,
@@ -522,6 +550,103 @@ func registerRedisFields(registry *Registry) {
 		EnvVar:  "REDIS_MIN_IDLE_CONNS",
 		Type:    reflect.TypeOf(0),
 		Help:    "Minimum number of idle connections",
+	})
+	registry.Register(&FieldDef{
+		Path:    "redis.max_idle_conns",
+		Default: 0,
+		CLIFlag: "",
+		EnvVar:  "REDIS_MAX_IDLE_CONNS",
+		Type:    reflect.TypeOf(0),
+		Help:    "Maximum number of idle connections",
+	})
+	registry.Register(&FieldDef{
+		Path:    "redis.notification_buffer_size",
+		Default: 100,
+		CLIFlag: "",
+		EnvVar:  "REDIS_NOTIFICATION_BUFFER_SIZE",
+		Type:    reflect.TypeOf(0),
+		Help:    "Buffer size for pub/sub notifications",
+	})
+}
+
+func registerRedisTimeoutFields(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path:    "redis.dial_timeout",
+		Default: 5 * time.Second,
+		CLIFlag: "",
+		EnvVar:  "REDIS_DIAL_TIMEOUT",
+		Type:    durationType,
+		Help:    "Timeout for establishing new connections",
+	})
+	registry.Register(&FieldDef{
+		Path:    "redis.read_timeout",
+		Default: 3 * time.Second,
+		CLIFlag: "",
+		EnvVar:  "REDIS_READ_TIMEOUT",
+		Type:    durationType,
+		Help:    "Timeout for socket reads",
+	})
+	registry.Register(&FieldDef{
+		Path:    "redis.write_timeout",
+		Default: 3 * time.Second,
+		CLIFlag: "",
+		EnvVar:  "REDIS_WRITE_TIMEOUT",
+		Type:    durationType,
+		Help:    "Timeout for socket writes",
+	})
+	registry.Register(&FieldDef{
+		Path:    "redis.pool_timeout",
+		Default: 4 * time.Second,
+		CLIFlag: "",
+		EnvVar:  "REDIS_POOL_TIMEOUT",
+		Type:    durationType,
+		Help:    "Timeout for getting connection from pool",
+	})
+	registry.Register(&FieldDef{
+		Path:    "redis.ping_timeout",
+		Default: 1 * time.Second,
+		CLIFlag: "",
+		EnvVar:  "REDIS_PING_TIMEOUT",
+		Type:    durationType,
+		Help:    "Timeout for ping command",
+	})
+}
+
+func registerRedisRetryFields(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path:    "redis.max_retries",
+		Default: 3,
+		CLIFlag: "",
+		EnvVar:  "REDIS_MAX_RETRIES",
+		Type:    reflect.TypeOf(0),
+		Help:    "Maximum number of retries",
+	})
+	registry.Register(&FieldDef{
+		Path:    "redis.min_retry_backoff",
+		Default: 8 * time.Millisecond,
+		CLIFlag: "",
+		EnvVar:  "REDIS_MIN_RETRY_BACKOFF",
+		Type:    durationType,
+		Help:    "Minimum backoff between retries",
+	})
+	registry.Register(&FieldDef{
+		Path:    "redis.max_retry_backoff",
+		Default: 512 * time.Millisecond,
+		CLIFlag: "",
+		EnvVar:  "REDIS_MAX_RETRY_BACKOFF",
+		Type:    durationType,
+		Help:    "Maximum backoff between retries",
+	})
+}
+
+func registerRedisTLSFields(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path:    "redis.tls_enabled",
+		Default: false,
+		CLIFlag: "",
+		EnvVar:  "REDIS_TLS_ENABLED",
+		Type:    reflect.TypeOf(true),
+		Help:    "Enable TLS encryption",
 	})
 }
 
@@ -665,5 +790,215 @@ func registerBehaviorFlags(registry *Registry) {
 		EnvVar:  "COMPOZY_ENV_FILE",
 		Type:    reflect.TypeOf(""),
 		Help:    "Path to the environment variables file",
+	})
+}
+
+func registerCacheFields(registry *Registry) {
+	// Only register cache-specific fields, not Redis connection fields
+	registerCacheOperationFields(registry)
+}
+
+func registerCacheOperationFields(registry *Registry) {
+	registerCacheDataFields(registry)
+	registerCacheCompressionFields(registry)
+}
+
+func registerCacheDataFields(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path:    "cache.enabled",
+		Default: true,
+		CLIFlag: "",
+		EnvVar:  "CACHE_ENABLED",
+		Type:    reflect.TypeOf(false),
+		Help:    "Enable or disable caching functionality",
+	})
+	registry.Register(&FieldDef{
+		Path:    "cache.ttl",
+		Default: 24 * time.Hour,
+		CLIFlag: "",
+		EnvVar:  "CACHE_TTL",
+		Type:    durationType,
+		Help:    "Default TTL for cached data",
+	})
+	registry.Register(&FieldDef{
+		Path:    "cache.prefix",
+		Default: "compozy:cache:",
+		CLIFlag: "",
+		EnvVar:  "CACHE_PREFIX",
+		Type:    reflect.TypeOf(""),
+		Help:    "Key prefix for all cache entries",
+	})
+	registry.Register(&FieldDef{
+		Path:    "cache.max_item_size",
+		Default: int64(1048576), // 1MB
+		CLIFlag: "",
+		EnvVar:  "CACHE_MAX_ITEM_SIZE",
+		Type:    reflect.TypeOf(int64(0)),
+		Help:    "Maximum size for cached items in bytes",
+	})
+	registry.Register(&FieldDef{
+		Path:    "cache.eviction_policy",
+		Default: "lru",
+		CLIFlag: "",
+		EnvVar:  "CACHE_EVICTION_POLICY",
+		Type:    reflect.TypeOf(""),
+		Help:    "Cache eviction policy (lru, lfu, ttl)",
+	})
+	registry.Register(&FieldDef{
+		Path:    "cache.stats_interval",
+		Default: 5 * time.Minute,
+		CLIFlag: "",
+		EnvVar:  "CACHE_STATS_INTERVAL",
+		Type:    durationType,
+		Help:    "Interval for logging cache statistics (0 to disable)",
+	})
+}
+
+func registerCacheCompressionFields(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path:    "cache.compression_enabled",
+		Default: true,
+		CLIFlag: "",
+		EnvVar:  "CACHE_COMPRESSION_ENABLED",
+		Type:    reflect.TypeOf(false),
+		Help:    "Enable compression for large cache values",
+	})
+	registry.Register(&FieldDef{
+		Path:    "cache.compression_threshold",
+		Default: int64(1024), // 1KB
+		CLIFlag: "",
+		EnvVar:  "CACHE_COMPRESSION_THRESHOLD",
+		Type:    reflect.TypeOf(int64(0)),
+		Help:    "Minimum size in bytes to trigger compression",
+	})
+}
+
+func registerWorkerFields(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path:    "worker.config_store_ttl",
+		Default: 24 * time.Hour,
+		CLIFlag: "",
+		EnvVar:  "WORKER_CONFIG_STORE_TTL",
+		Type:    durationType,
+		Help:    "TTL for configuration data in cache",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "worker.heartbeat_cleanup_timeout",
+		Default: 5 * time.Second,
+		CLIFlag: "",
+		EnvVar:  "WORKER_HEARTBEAT_CLEANUP_TIMEOUT",
+		Type:    durationType,
+		Help:    "Timeout for cleaning up dispatcher heartbeats",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "worker.mcp_shutdown_timeout",
+		Default: 30 * time.Second,
+		CLIFlag: "",
+		EnvVar:  "WORKER_MCP_SHUTDOWN_TIMEOUT",
+		Type:    durationType,
+		Help:    "Timeout for MCP server shutdown",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "worker.dispatcher_retry_delay",
+		Default: 50 * time.Millisecond,
+		CLIFlag: "",
+		EnvVar:  "WORKER_DISPATCHER_RETRY_DELAY",
+		Type:    durationType,
+		Help:    "Delay between dispatcher retry attempts",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "worker.dispatcher_max_retries",
+		Default: 2,
+		CLIFlag: "",
+		EnvVar:  "WORKER_DISPATCHER_MAX_RETRIES",
+		Type:    reflect.TypeOf(0),
+		Help:    "Maximum number of dispatcher startup retries",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "worker.mcp_proxy_health_check_timeout",
+		Default: 10 * time.Second,
+		CLIFlag: "",
+		EnvVar:  "WORKER_MCP_PROXY_HEALTH_CHECK_TIMEOUT",
+		Type:    durationType,
+		Help:    "Timeout for MCP proxy health checks",
+	})
+}
+
+func registerMCPProxyFields(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path:    "mcpproxy.host",
+		Default: "127.0.0.1",
+		CLIFlag: "mcp-host",
+		EnvVar:  "MCP_PROXY_HOST",
+		Type:    reflect.TypeOf(""),
+		Help:    "Host interface for MCP proxy server to bind to",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "mcpproxy.port",
+		Default: 8081,
+		CLIFlag: "mcp-port",
+		EnvVar:  "MCP_PROXY_PORT",
+		Type:    reflect.TypeOf(0),
+		Help:    "Port for MCP proxy server to listen on",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "mcpproxy.base_url",
+		Default: "",
+		CLIFlag: "mcp-base-url",
+		EnvVar:  "MCP_PROXY_BASE_URL",
+		Type:    reflect.TypeOf(""),
+		Help:    "Base URL for MCP proxy server (auto-generated if empty)",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "mcpproxy.shutdown_timeout",
+		Default: 10 * time.Second,
+		CLIFlag: "",
+		EnvVar:  "MCP_PROXY_SHUTDOWN_TIMEOUT",
+		Type:    durationType,
+		Help:    "Maximum time to wait for graceful shutdown",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "mcpproxy.admin_tokens",
+		Default: []string{},
+		CLIFlag: "mcp-admin-tokens",
+		EnvVar:  "MCP_PROXY_ADMIN_TOKENS",
+		Type:    reflect.TypeOf([]string{}),
+		Help:    "Admin authentication tokens for MCP proxy (comma-separated)",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "mcpproxy.admin_allow_ips",
+		Default: []string{"127.0.0.1/32", "::1/128"},
+		CLIFlag: "mcp-admin-allow-ips",
+		EnvVar:  "MCP_PROXY_ADMIN_ALLOW_IPS",
+		Type:    reflect.TypeOf([]string{}),
+		Help:    "IP addresses/CIDR blocks allowed for admin access (comma-separated)",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "mcpproxy.trusted_proxies",
+		Default: []string{},
+		CLIFlag: "mcp-trusted-proxies",
+		EnvVar:  "MCP_PROXY_TRUSTED_PROXIES",
+		Type:    reflect.TypeOf([]string{}),
+		Help:    "Trusted proxy IP addresses/CIDR blocks (comma-separated)",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "mcpproxy.global_auth_tokens",
+		Default: []string{},
+		CLIFlag: "mcp-global-auth-tokens",
+		EnvVar:  "MCP_PROXY_GLOBAL_AUTH_TOKENS",
+		Type:    reflect.TypeOf([]string{}),
+		Help:    "Global authentication tokens for all MCP clients (comma-separated)",
 	})
 }

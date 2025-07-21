@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 
 	"github.com/spf13/cobra"
@@ -24,17 +25,6 @@ func NewMCPProxyCommand() *cobra.Command {
 		Long:  "Start the MCP proxy server to provide HTTP access to MCP servers",
 		RunE:  executeMCPProxyCommand,
 	}
-
-	// Command-specific flags (MCP proxy specific configuration)
-	cmd.Flags().String("host", "0.0.0.0", "Host to bind the server to (env: MCP_PROXY_HOST)")
-	cmd.Flags().String("port", "8081", "Port to run the MCP proxy server on (env: MCP_PROXY_PORT)")
-	cmd.Flags().String("base-url", "", "Base URL for the MCP proxy server (env: MCP_PROXY_BASE_URL)")
-
-	// Security configuration flags (MCP proxy specific)
-	cmd.Flags().StringSlice("admin-tokens", []string{}, "Admin API tokens")
-	cmd.Flags().StringSlice("admin-allow-ips", []string{}, "Admin API allowed IP addresses/CIDR blocks")
-	cmd.Flags().StringSlice("trusted-proxies", []string{}, "Trusted proxy IP addresses/CIDR blocks")
-	cmd.Flags().StringSlice("global-auth-tokens", []string{}, "Global auth tokens for all MCP clients")
 
 	// MCP proxy specific debugging flag
 	cmd.Flags().Bool("debug", false, "Enable debug mode (sets log level to debug)")
@@ -135,57 +125,31 @@ func runMCPProxy(
 	return mcpproxy.Run(ctx, proxyConfig)
 }
 
-// buildMCPProxyConfig builds MCP proxy configuration from command flags and environment variables
-func buildMCPProxyConfig(cobraCmd *cobra.Command) *mcpproxy.Config {
-	// Get flag values with environment fallbacks
-	host := getStringFlagOrEnv(cobraCmd, "host", "MCP_PROXY_HOST", "0.0.0.0")
-	port := getStringFlagOrEnv(cobraCmd, "port", "MCP_PROXY_PORT", "8081")
-	baseURL := getStringFlagOrEnv(cobraCmd, "base-url", "MCP_PROXY_BASE_URL", "")
+// buildMCPProxyConfig builds MCP proxy configuration from unified config system
+func buildMCPProxyConfig(_ *cobra.Command) *mcpproxy.Config {
+	// Get unified configuration
+	cfg := config.Get()
+	mcpConfig := cfg.MCPProxy
 
-	// Get slice flags (these flags are defined in the command, so errors are unlikely)
-	adminTokens := getStringSliceFlag(cobraCmd, "admin-tokens")
-	adminAllowIPs := getStringSliceFlag(cobraCmd, "admin-allow-ips")
-	trustedProxies := getStringSliceFlag(cobraCmd, "trusted-proxies")
-	globalAuthTokens := getStringSliceFlag(cobraCmd, "global-auth-tokens")
+	// Convert port from int to string as required by MCP proxy
+	port := strconv.Itoa(mcpConfig.Port)
 
 	// Set default base URL if not provided
+	baseURL := mcpConfig.BaseURL
 	if baseURL == "" {
 		baseURL = fmt.Sprintf("http://localhost:%s", port)
 	}
 
 	return &mcpproxy.Config{
-		Host:             host,
+		Host:             mcpConfig.Host,
 		Port:             port,
 		BaseURL:          baseURL,
-		AdminTokens:      adminTokens,
-		AdminAllowIPs:    adminAllowIPs,
-		TrustedProxies:   trustedProxies,
-		GlobalAuthTokens: globalAuthTokens,
+		ShutdownTimeout:  mcpConfig.ShutdownTimeout,
+		AdminTokens:      mcpConfig.AdminTokens,
+		AdminAllowIPs:    mcpConfig.AdminAllowIPs,
+		TrustedProxies:   mcpConfig.TrustedProxies,
+		GlobalAuthTokens: mcpConfig.GlobalAuthTokens,
 	}
-}
-
-// getStringFlagOrEnv gets a string flag value with environment variable fallback
-func getStringFlagOrEnv(cobraCmd *cobra.Command, flagName, envVar, defaultValue string) string {
-	// First check if flag was explicitly set
-	if value, err := cobraCmd.Flags().GetString(flagName); err == nil && cobraCmd.Flags().Changed(flagName) {
-		return value
-	}
-
-	// Then check environment variable
-	if value := os.Getenv(envVar); value != "" {
-		return value
-	}
-
-	// Return default value
-	return defaultValue
-}
-
-// getStringSliceFlag gets a string slice flag value, returning empty slice on error
-func getStringSliceFlag(cobraCmd *cobra.Command, flagName string) []string {
-	if value, err := cobraCmd.Flags().GetStringSlice(flagName); err == nil {
-		return value
-	}
-	return []string{}
 }
 
 // Note: Environment file loading is handled through the global --env-file flag and executor

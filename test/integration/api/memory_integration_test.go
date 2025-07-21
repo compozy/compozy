@@ -9,7 +9,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -21,7 +20,6 @@ import (
 	authuc "github.com/compozy/compozy/engine/auth/uc"
 	"github.com/compozy/compozy/engine/autoload"
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/engine/infra/cache"
 	"github.com/compozy/compozy/engine/infra/monitoring"
 	"github.com/compozy/compozy/engine/infra/server/appstate"
 	"github.com/compozy/compozy/engine/infra/server/config"
@@ -232,14 +230,7 @@ func TestMemoryRESTAPIWithRealWorkflow(t *testing.T) {
 	projectConfig, workflows, configRegistry, err := configService.LoadProject(ctx, projectRoot, "compozy.yaml")
 	require.NoError(t, err)
 
-	// Override cache config to use Mini Redis from memory test environment
-	memoryRedis := memoryEnv.GetRedis()
-	projectConfig.CacheConfig = &cache.Config{
-		Host:     "localhost",
-		Port:     strings.Split(memoryRedis.Options().Addr, ":")[1], // Extract port from Mini Redis
-		Password: "",
-		DB:       0,
-	}
+	// Cache config is now handled by centralized app config through Redis configuration
 
 	// Create store (using test database config)
 	storeConfig := &store.Config{

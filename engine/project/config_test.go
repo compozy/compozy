@@ -367,10 +367,11 @@ func TestRuntimeConfig_Defaults(t *testing.T) {
 			CWD:     cwd,
 			// Runtime field will be zero value
 		}
-		setRuntimeDefaults(&cfg.Runtime)
-		assert.Equal(t, "bun", cfg.Runtime.Type)
-		assert.Equal(t, "./tools.ts", cfg.Runtime.Entrypoint)
-		assert.Equal(t, []string{"--allow-read"}, cfg.Runtime.Permissions)
+		// Runtime defaults are now handled globally in pkg/config
+		// Project-specific runtime config only holds overrides
+		assert.Equal(t, "", cfg.Runtime.Type)                   // Empty means use global default
+		assert.Equal(t, "", cfg.Runtime.Entrypoint)             // Empty means use global default
+		assert.Equal(t, []string(nil), cfg.Runtime.Permissions) // Empty means use global default
 	})
 
 	t.Run("Should preserve existing runtime config", func(t *testing.T) {
@@ -387,7 +388,7 @@ func TestRuntimeConfig_Defaults(t *testing.T) {
 				Permissions: []string{"read", "write"},
 			},
 		}
-		setRuntimeDefaults(&cfg.Runtime)
+		// Runtime defaults are now handled globally in pkg/config
 		assert.Equal(t, "node", cfg.Runtime.Type)
 		assert.Equal(t, "custom.js", cfg.Runtime.Entrypoint)
 		assert.Equal(t, []string{"read", "write"}, cfg.Runtime.Permissions)
@@ -407,8 +408,9 @@ func TestRuntimeConfig_Defaults(t *testing.T) {
 				Permissions: []string{"read"},
 			},
 		}
-		setRuntimeDefaults(&cfg.Runtime)
-		assert.Equal(t, "bun", cfg.Runtime.Type)
+		// Runtime defaults are now handled globally in pkg/config
+		// Project-specific config only holds overrides, so empty type means use global default
+		assert.Equal(t, "", cfg.Runtime.Type) // Empty means use global default
 	})
 
 	t.Run("Should set default entrypoint when empty", func(t *testing.T) {
@@ -425,8 +427,9 @@ func TestRuntimeConfig_Defaults(t *testing.T) {
 				Permissions: []string{"read"},
 			},
 		}
-		setRuntimeDefaults(&cfg.Runtime)
-		assert.Equal(t, "./tools.ts", cfg.Runtime.Entrypoint)
+		// Runtime defaults are now handled globally in pkg/config
+		// Project-specific config only holds overrides, so empty entrypoint means use global default
+		assert.Equal(t, "", cfg.Runtime.Entrypoint) // Empty means use global default
 	})
 
 	t.Run("Should set default permissions when nil", func(t *testing.T) {
@@ -443,8 +446,9 @@ func TestRuntimeConfig_Defaults(t *testing.T) {
 				Permissions: nil,
 			},
 		}
-		setRuntimeDefaults(&cfg.Runtime)
-		assert.Equal(t, []string{"--allow-read"}, cfg.Runtime.Permissions)
+		// Runtime defaults are now handled globally in pkg/config
+		// Project-specific config only holds overrides, so nil permissions means use global default
+		assert.Equal(t, []string(nil), cfg.Runtime.Permissions) // Empty means use global default
 	})
 }
 

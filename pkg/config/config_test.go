@@ -384,3 +384,37 @@ func TestMetadata_SourceTracking(t *testing.T) {
 		assert.Equal(t, SourceDefault, meta.Sources["runtime"])
 	})
 }
+
+func TestCacheConfig_Defaults(t *testing.T) {
+	t.Run("Should have correct default values", func(t *testing.T) {
+		cacheConfig := GetCacheConfig()
+
+		// Test cache-specific defaults
+		assert.True(t, cacheConfig.Enabled, "cache should be enabled by default")
+		assert.Equal(t, 24*time.Hour, cacheConfig.TTL, "cache TTL should default to 24h")
+		assert.Equal(t, "compozy:cache:", cacheConfig.Prefix, "cache prefix should have correct default")
+		assert.Equal(t, int64(1048576), cacheConfig.MaxItemSize, "max item size should be 1MB")
+		assert.True(t, cacheConfig.CompressionEnabled, "compression should be enabled by default")
+		assert.Equal(t, int64(1024), cacheConfig.CompressionThreshold, "compression threshold should be 1KB")
+		assert.Equal(t, "lru", cacheConfig.EvictionPolicy, "eviction policy should default to lru")
+		assert.Equal(t, 5*time.Minute, cacheConfig.StatsInterval, "stats interval should default to 5m")
+	})
+}
+
+func TestCacheConfig_Separation(t *testing.T) {
+	t.Run("Should be separate from Redis configuration", func(t *testing.T) {
+		cfg := Default()
+		cacheConfig := GetCacheConfig()
+
+		// Verify that CacheConfig doesn't have Redis connection properties
+		// This is implicitly tested by the struct definition having only cache-specific fields
+
+		// Verify Redis config exists separately
+		assert.Equal(t, "localhost", cfg.Redis.Host, "Redis should have separate host config")
+		assert.Equal(t, "6379", cfg.Redis.Port, "Redis should have separate port config")
+
+		// Verify cache config has its own properties accessed through GetCacheConfig()
+		assert.NotEmpty(t, cacheConfig.Prefix, "Cache should have its own prefix")
+		assert.NotZero(t, cacheConfig.TTL, "Cache should have its own TTL")
+	})
+}

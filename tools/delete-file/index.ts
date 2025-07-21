@@ -26,6 +26,7 @@ export default async function deleteFile(input: DeleteFileInput): Promise<Delete
   }
 
   // Additional security: prevent null bytes and control characters
+  // eslint-disable-next-line no-control-regex
   if (filePath.includes("\0") || /[\x00-\x1f\x7f]/.test(filePath)) {
     throw new Error("Invalid path: path contains invalid characters");
   }

@@ -3,7 +3,6 @@ package worker
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 
 	"errors"
@@ -24,7 +23,7 @@ import (
 	"github.com/compozy/compozy/engine/task/services"
 	wkacts "github.com/compozy/compozy/engine/worker/activities"
 	wf "github.com/compozy/compozy/engine/workflow"
-	"github.com/compozy/compozy/pkg/config"
+	appconfig "github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/tplengine"
 	"github.com/sethvargo/go-retry"
@@ -41,13 +40,6 @@ import (
 
 const (
 	DispatcherEventChannel = "event_channel"
-	// Timeout constants
-	configStoreTTL             = 24 * time.Hour
-	heartbeatCleanupTimeout    = 5 * time.Second
-	mcpShutdownTimeout         = 30 * time.Second
-	dispatcherRetryDelay       = 50 * time.Millisecond
-	dispatcherMaxRetries       = 2
-	mcpProxyHealthCheckTimeout = 10 * time.Second
 )
 
 // -----------------------------------------------------------------------------
@@ -103,44 +95,37 @@ func buildRuntimeManager(
 	projectConfig *project.Config,
 ) (runtime.Runtime, error) {
 	log := logger.FromContext(ctx)
+	cfg := appconfig.Get()
 
-	// Build configuration options using functional pattern
-	var options []runtime.Option
-
-	// Default to Bun runtime (could be made configurable in future)
-	options = append(options, runtime.WithRuntimeType(runtime.RuntimeTypeBun))
-
-	// Update to use Bun permissions instead of Deno
-	if len(projectConfig.Runtime.Permissions) > 0 {
-		options = append(options, runtime.WithBunPermissions(projectConfig.Runtime.Permissions))
-	}
-
-	// Set entrypoint path from project config
-	if projectConfig.Runtime.Entrypoint != "" {
-		options = append(options, runtime.WithEntrypointPath(projectConfig.Runtime.Entrypoint))
-	}
-
-	// Check for tool execution timeout from environment
-	if timeoutStr := os.Getenv("TOOL_EXECUTION_TIMEOUT"); timeoutStr != "" {
-		timeout, err := time.ParseDuration(timeoutStr)
-		switch {
-		case err != nil:
-			log.Warn("Invalid TOOL_EXECUTION_TIMEOUT value, using default", "value", timeoutStr, "error", err)
-		case timeout <= 0:
-			log.Warn("Ignoring non-positive TOOL_EXECUTION_TIMEOUT", "value", timeout)
-		default:
-			options = append(options, runtime.WithToolExecutionTimeout(timeout))
-			log.Debug("Using custom tool execution timeout", "timeout", timeout)
-		}
-	}
-
-	// Use factory to create runtime with functional options
+	// Use factory to create runtime with direct unified config mapping
 	factory := runtime.NewDefaultFactory(projectRoot)
-	config := runtime.DefaultConfig()
-	for _, option := range options {
-		option(config)
+
+	// Create a merged runtime config by applying project-specific overrides
+	mergedRuntimeConfig := cfg.Runtime
+
+	// Apply project-specific overrides if specified
+	if projectConfig.Runtime.Type != "" {
+		mergedRuntimeConfig.RuntimeType = projectConfig.Runtime.Type
+		log.Debug("Using project-specific runtime type", "type", projectConfig.Runtime.Type)
 	}
-	return factory.CreateRuntime(ctx, config)
+	if projectConfig.Runtime.Entrypoint != "" {
+		mergedRuntimeConfig.EntrypointPath = projectConfig.Runtime.Entrypoint
+		log.Debug("Using project-specific entrypoint", "entrypoint", projectConfig.Runtime.Entrypoint)
+	}
+	if len(projectConfig.Runtime.Permissions) > 0 {
+		mergedRuntimeConfig.BunPermissions = projectConfig.Runtime.Permissions
+		log.Debug("Using project-specific permissions", "permissions", projectConfig.Runtime.Permissions)
+	}
+
+	// Log final configuration being used for debugging
+	log.Debug("Using unified runtime configuration",
+		"environment", mergedRuntimeConfig.Environment,
+		"runtime_type", mergedRuntimeConfig.RuntimeType,
+		"entrypoint_path", mergedRuntimeConfig.EntrypointPath,
+		"bun_permissions", mergedRuntimeConfig.BunPermissions,
+		"tool_execution_timeout", mergedRuntimeConfig.ToolExecutionTimeout)
+
+	return factory.CreateRuntimeFromAppConfig(ctx, &mergedRuntimeConfig)
 }
 
 func NewWorker(
@@ -278,47 +263,20 @@ func setupWorkerCore(
 // setupRedisAndConfig sets up Redis cache and configuration management
 func setupRedisAndConfig(
 	ctx context.Context,
-	projectConfig *project.Config,
+	_ *project.Config,
 ) (*cache.Cache, services.ConfigStore, error) {
 	log := logger.FromContext(ctx)
 	cacheStart := time.Now()
-	cfg := config.Get()
-	// Build cache config from centralized Redis config
-	cacheConfig := &cache.Config{
-		URL:      cfg.Redis.URL,
-		Host:     cfg.Redis.Host,
-		Port:     fmt.Sprintf("%d", cfg.Redis.Port),
-		Password: cfg.Redis.Password,
-		DB:       cfg.Redis.DB,
-		PoolSize: cfg.Redis.PoolSize,
-	}
-
-	// Override with project-specific cache config if provided
-	if projectConfig.CacheConfig != nil {
-		// Allow project to override specific cache settings if needed
-		if projectConfig.CacheConfig.PoolSize > 0 {
-			cacheConfig.PoolSize = projectConfig.CacheConfig.PoolSize
-		}
-		// Copy any other cache-specific settings
-		cacheConfig.TLSEnabled = projectConfig.CacheConfig.TLSEnabled
-		cacheConfig.TLSConfig = projectConfig.CacheConfig.TLSConfig
-		cacheConfig.DialTimeout = projectConfig.CacheConfig.DialTimeout
-		cacheConfig.ReadTimeout = projectConfig.CacheConfig.ReadTimeout
-		cacheConfig.WriteTimeout = projectConfig.CacheConfig.WriteTimeout
-		cacheConfig.PoolTimeout = projectConfig.CacheConfig.PoolTimeout
-		cacheConfig.PingTimeout = projectConfig.CacheConfig.PingTimeout
-		cacheConfig.MaxRetries = projectConfig.CacheConfig.MaxRetries
-		cacheConfig.MinRetryBackoff = projectConfig.CacheConfig.MinRetryBackoff
-		cacheConfig.MaxRetryBackoff = projectConfig.CacheConfig.MaxRetryBackoff
-		cacheConfig.MinIdleConns = projectConfig.CacheConfig.MinIdleConns
-	}
+	cfg := appconfig.Get()
+	// Build cache config from centralized Redis and cache config
+	cacheConfig := cache.FromAppConfig(cfg)
 
 	redisCache, err := cache.SetupCache(ctx, cacheConfig)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to setup Redis cache: %w", err)
 	}
 	log.Debug("Redis cache connected", "duration", time.Since(cacheStart))
-	configStore := services.NewRedisConfigStore(redisCache.Redis, configStoreTTL)
+	configStore := services.NewRedisConfigStore(redisCache.Redis, cfg.Worker.ConfigStoreTTL)
 	return redisCache, configStore, nil
 }
 
@@ -461,7 +419,7 @@ func (o *Worker) Setup(_ context.Context) error {
 	// Track running worker for monitoring
 	interceptor.IncrementRunningWorkers(context.Background())
 	// Register dispatcher for health monitoring
-	cfg := config.Get()
+	cfg := appconfig.Get()
 	monitoring.RegisterDispatcher(
 		context.Background(),
 		o.dispatcherID,
@@ -493,7 +451,8 @@ func (o *Worker) Stop(ctx context.Context) {
 		}
 		// Clean up heartbeat entry with background context to ensure completion
 		if o.activities != nil && o.redisCache != nil {
-			cleanupCtx, cancel := context.WithTimeout(context.Background(), heartbeatCleanupTimeout)
+			cfg := appconfig.Get()
+			cleanupCtx, cancel := context.WithTimeout(context.Background(), cfg.Worker.HeartbeatCleanupTimeout)
 			defer cancel()
 			if err := o.activities.RemoveDispatcherHeartbeat(cleanupCtx, o.dispatcherID); err != nil {
 				log.Error("Failed to remove dispatcher heartbeat", "error", err, "dispatcher_id", o.dispatcherID)
@@ -504,7 +463,8 @@ func (o *Worker) Stop(ctx context.Context) {
 	o.client.Close()
 	// Deregister all MCPs from proxy on shutdown
 	if o.mcpRegister != nil {
-		ctx, cancel := context.WithTimeout(ctx, mcpShutdownTimeout)
+		cfg := appconfig.Get()
+		ctx, cancel := context.WithTimeout(ctx, cfg.Worker.MCPShutdownTimeout)
 		defer cancel()
 		if err := o.mcpRegister.Shutdown(ctx); err != nil {
 			log.Error("Failed to shutdown MCP register", "error", err)
@@ -568,9 +528,20 @@ func (o *Worker) TerminateDispatcher(ctx context.Context, reason string) error {
 
 func (o *Worker) ensureDispatcherRunning(ctx context.Context) {
 	log := logger.FromContext(ctx)
+	cfg := appconfig.Get()
+	maxRetries := cfg.Worker.DispatcherMaxRetries
+	var safeMaxRetries uint64
+	if maxRetries <= 0 {
+		safeMaxRetries = 0
+	} else {
+		safeMaxRetries = uint64(maxRetries)
+	}
 	err := retry.Do(
 		ctx,
-		retry.WithMaxRetries(dispatcherMaxRetries, retry.NewExponential(dispatcherRetryDelay)),
+		retry.WithMaxRetries(
+			safeMaxRetries,
+			retry.NewExponential(cfg.Worker.DispatcherRetryDelay),
+		),
 		func(ctx context.Context) error {
 			_, err := o.client.SignalWithStartWorkflow(
 				ctx,
@@ -616,7 +587,7 @@ func (o *Worker) ensureDispatcherRunning(ctx context.Context) {
 // HealthCheck performs a comprehensive health check including cache connectivity
 func (o *Worker) HealthCheck(ctx context.Context) error {
 	log := logger.FromContext(ctx)
-	cfg := config.Get()
+	cfg := appconfig.Get()
 	// Check Redis cache health
 	if o.redisCache != nil {
 		if err := o.redisCache.HealthCheck(ctx); err != nil {
@@ -660,12 +631,11 @@ func (o *Worker) HealthCheck(ctx context.Context) error {
 
 // checkMCPProxyHealth checks if MCP proxy is healthy when configured
 func (o *Worker) checkMCPProxyHealth(ctx context.Context) error {
-	proxyURL := os.Getenv("MCP_PROXY_URL")
-	if proxyURL == "" {
+	cfg := appconfig.Get()
+	if cfg.LLM.ProxyURL == "" {
 		return nil // No proxy configured
 	}
-	adminToken := os.Getenv("MCP_PROXY_ADMIN_TOKEN")
-	client := mcp.NewProxyClient(proxyURL, adminToken, mcpProxyHealthCheckTimeout)
+	client := mcp.NewProxyClient(cfg.LLM.ProxyURL, string(cfg.LLM.AdminToken), cfg.Worker.MCPProxyHealthCheckTimeout)
 	defer client.Close()
 	return client.Health(ctx)
 }
@@ -701,8 +671,8 @@ func (o *Worker) TriggerWorkflow(
 		return nil, fmt.Errorf("failed to apply input defaults: %w", err)
 	}
 	// Validate the merged input (with defaults applied)
-	if err := workflowConfig.ValidateInput(ctx, mergedInput); err != nil {
-		return nil, fmt.Errorf("failed to validate workflow params: %w", err)
+	if validationErr := workflowConfig.ValidateInput(ctx, mergedInput); validationErr != nil {
+		return nil, fmt.Errorf("failed to validate workflow params: %w", validationErr)
 	}
 	workflowInput := WorkflowInput{
 		WorkflowID:     workflowID,
