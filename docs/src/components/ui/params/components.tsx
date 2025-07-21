@@ -24,7 +24,9 @@ export function ParameterDescription({ description }: ParameterDescriptionProps)
   const hasInlineRef = description.includes("$ref: inline:#");
 
   // Updated regex to capture both schema name and optional anchor
-  const externalRefMatch = hasExternalRef ? description.match(/\$ref: schema:\/\/(\w+)(?:#([\w-]+))?/) : null;
+  const externalRefMatch = hasExternalRef
+    ? description.match(/\$ref: schema:\/\/(\w+)(?:#([\w-]+))?/)
+    : null;
   const inlineRefMatch = hasInlineRef ? description.match(/\$ref: inline:#([\w-]+)/) : null;
 
   const referencedSchema = externalRefMatch ? externalRefMatch[1] : null;
@@ -48,18 +50,15 @@ export function ParameterDescription({ description }: ParameterDescriptionProps)
 
   // Add external schema reference link if present
   if (referencedSchema) {
-    const href = externalAnchor 
+    const href = externalAnchor
       ? `/docs/schema/${referencedSchema}#${externalAnchor}`
       : `/docs/schema/${referencedSchema}`;
-    
+
     parts.push(
       <div key="external-ref" className="flex items-center gap-1 mt-3">
         <Link className="size-3" /> <strong>Schema Reference:</strong>{" "}
-        <FumaLink
-          href={href}
-          className="underline hover:no-underline"
-        >
-          {referencedSchema}.json{externalAnchor ? `#${externalAnchor}` : ''}
+        <FumaLink href={href} className="underline hover:no-underline">
+          {referencedSchema}.json{externalAnchor ? `#${externalAnchor}` : ""}
         </FumaLink>
       </div>
     );

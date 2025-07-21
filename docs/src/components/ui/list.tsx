@@ -1,7 +1,7 @@
+import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 import type { LucideIcon } from "lucide-react";
 import React from "react";
-import { Icon } from "@/components/ui/icon";
 import { tv, type VariantProps } from "tailwind-variants";
 
 const list = tv({
@@ -68,11 +68,7 @@ export function ListItem({ title, children, className, index, icon }: ListItemPr
       <div className={styles.indicator()}>
         {icon ? (
           typeof icon === "string" ? (
-            <Icon 
-              name={icon} 
-              className={cn(styles.icon(), "size-8")}
-              strokeWidth={1}
-            />
+            <Icon name={icon} className={cn(styles.icon(), "size-8")} strokeWidth={1} />
           ) : (
             React.createElement(icon, {
               className: cn(styles.icon(), "size-8"),

@@ -26,7 +26,7 @@ import { readFile } from "@compozy/tool-read-file";
 
 // Read a file
 const result = await readFile({
-  path: "./example.txt"
+  path: "./example.txt",
 });
 
 if ("error" in result) {
@@ -64,8 +64,8 @@ interface ReadFileOutput {
 
 ```typescript
 interface ReadFileError {
-  error: string;   // Error message
-  code?: string;   // Error code (e.g., ENOENT, EACCES, EISDIR)
+  error: string; // Error message
+  code?: string; // Error code (e.g., ENOENT, EACCES, EISDIR)
 }
 ```
 
@@ -84,7 +84,7 @@ The tool handles various error scenarios:
 
 ```typescript
 const result = await readFile({
-  path: "./data.txt"
+  path: "./data.txt",
 });
 
 if ("content" in result) {
@@ -96,7 +96,7 @@ if ("content" in result) {
 
 ```typescript
 const result = await readFile({
-  path: "/path/to/nonexistent.txt"
+  path: "/path/to/nonexistent.txt",
 });
 
 if ("error" in result) {

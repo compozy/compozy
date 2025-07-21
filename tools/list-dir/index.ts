@@ -1,6 +1,6 @@
-import { readdir, stat } from 'fs/promises';
-import { join, resolve } from 'path';
-import { minimatch } from 'minimatch';
+import { readdir, stat } from "fs/promises";
+import { minimatch } from "minimatch";
+import { join, resolve } from "path";
 
 export interface ToolInput {
   path: string;
@@ -13,7 +13,7 @@ export interface ToolInput {
 export interface DirEntry {
   name: string;
   path: string;
-  type: 'file' | 'dir';
+  type: "file" | "dir";
   size: number;
   modified: string;
 }
@@ -45,13 +45,19 @@ async function listDirRecursive(
       try {
         const stats = await stat(fullPath);
         const isDirectory = stats.isDirectory();
-        const type: 'file' | 'dir' = isDirectory ? 'dir' : 'file';
+        const type: "file" | "dir" = isDirectory ? "dir" : "file";
 
         // Check if we should include this type
-        if ((type === 'file' && !includeFiles) || (type === 'dir' && !includeDirs)) {
+        if ((type === "file" && !includeFiles) || (type === "dir" && !includeDirs)) {
           // Still recurse into directories even if we don't include them
           if (isDirectory) {
-            const subEntries = await listDirRecursive(fullPath, basePath, pattern, includeFiles, includeDirs);
+            const subEntries = await listDirRecursive(
+              fullPath,
+              basePath,
+              pattern,
+              includeFiles,
+              includeDirs
+            );
             entries.push(...subEntries);
           }
           continue;
@@ -60,8 +66,14 @@ async function listDirRecursive(
         // Check pattern match
         if (pattern && !minimatch(relativePath, pattern)) {
           // Still recurse into directories for globstar patterns
-          if (isDirectory && pattern.includes('**')) {
-            const subEntries = await listDirRecursive(fullPath, basePath, pattern, includeFiles, includeDirs);
+          if (isDirectory && pattern.includes("**")) {
+            const subEntries = await listDirRecursive(
+              fullPath,
+              basePath,
+              pattern,
+              includeFiles,
+              includeDirs
+            );
             entries.push(...subEntries);
           }
           continue;
@@ -72,12 +84,18 @@ async function listDirRecursive(
           path: fullPath,
           type,
           size: isDirectory ? 0 : stats.size,
-          modified: stats.mtime.toISOString()
+          modified: stats.mtime.toISOString(),
         });
 
         // Recurse into directories
         if (isDirectory) {
-          const subEntries = await listDirRecursive(fullPath, basePath, pattern, includeFiles, includeDirs);
+          const subEntries = await listDirRecursive(
+            fullPath,
+            basePath,
+            pattern,
+            includeFiles,
+            includeDirs
+          );
           entries.push(...subEntries);
         }
       } catch (error) {
@@ -92,22 +110,16 @@ async function listDirRecursive(
 }
 
 export default async function tool(input: ToolInput): Promise<ToolOutput> {
-  const {
-    path,
-    pattern,
-    recursive = false,
-    includeFiles = true,
-    includeDirs = true
-  } = input;
+  const { path, pattern, recursive = false, includeFiles = true, includeDirs = true } = input;
 
   // Validate input
-  if (!path || typeof path !== 'string') {
-    return { 
+  if (!path || typeof path !== "string") {
+    return {
       entries: [],
       error: {
         message: "Invalid input: path must be a non-empty string",
-        code: "INVALID_PATH"
-      }
+        code: "INVALID_PATH",
+      },
     };
   }
 
@@ -118,18 +130,24 @@ export default async function tool(input: ToolInput): Promise<ToolOutput> {
     // Check if the path exists and is a directory
     const pathStats = await stat(absolutePath);
     if (!pathStats.isDirectory()) {
-      return { 
+      return {
         entries: [],
         error: {
           message: `Path is not a directory: ${absolutePath}`,
-          code: "NOT_DIRECTORY"
-        }
+          code: "NOT_DIRECTORY",
+        },
       };
     }
 
     if (recursive) {
       // Recursive listing
-      const recursiveEntries = await listDirRecursive(absolutePath, absolutePath, pattern, includeFiles, includeDirs);
+      const recursiveEntries = await listDirRecursive(
+        absolutePath,
+        absolutePath,
+        pattern,
+        includeFiles,
+        includeDirs
+      );
       entries.push(...recursiveEntries);
     } else {
       // Non-recursive listing
@@ -141,10 +159,10 @@ export default async function tool(input: ToolInput): Promise<ToolOutput> {
         try {
           const stats = await stat(fullPath);
           const isDirectory = stats.isDirectory();
-          const type: 'file' | 'dir' = isDirectory ? 'dir' : 'file';
+          const type: "file" | "dir" = isDirectory ? "dir" : "file";
 
           // Check if we should include this type
-          if ((type === 'file' && !includeFiles) || (type === 'dir' && !includeDirs)) {
+          if ((type === "file" && !includeFiles) || (type === "dir" && !includeDirs)) {
             continue;
           }
 
@@ -158,7 +176,7 @@ export default async function tool(input: ToolInput): Promise<ToolOutput> {
             path: fullPath,
             type,
             size: isDirectory ? 0 : stats.size,
-            modified: stats.mtime.toISOString()
+            modified: stats.mtime.toISOString(),
           });
         } catch (error) {
           // Skip entries we can't stat
@@ -170,29 +188,29 @@ export default async function tool(input: ToolInput): Promise<ToolOutput> {
     entries.sort((a, b) => a.path.localeCompare(b.path));
   } catch (error: any) {
     // Handle specific error types
-    if (error.code === 'ENOENT') {
+    if (error.code === "ENOENT") {
       return {
         entries: [],
         error: {
           message: `Path does not exist: ${absolutePath}`,
-          code: "PATH_NOT_FOUND"
-        }
+          code: "PATH_NOT_FOUND",
+        },
       };
-    } else if (error.code === 'EACCES') {
+    } else if (error.code === "EACCES") {
       return {
         entries: [],
         error: {
           message: `Permission denied: ${absolutePath}`,
-          code: "ACCESS_DENIED"
-        }
+          code: "ACCESS_DENIED",
+        },
       };
     } else {
       return {
         entries: [],
         error: {
-          message: `Failed to list directory: ${error.message || 'Unknown error'}`,
-          code: error.code || "LIST_ERROR"
-        }
+          message: `Failed to list directory: ${error.message || "Unknown error"}`,
+          code: error.code || "LIST_ERROR",
+        },
       };
     }
   }

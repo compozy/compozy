@@ -27,17 +27,18 @@ tasks:
 
 ### Input Parameters
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `url` | string | Yes | - | The URL to fetch |
-| `method` | string | No | GET | HTTP method (GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS) |
-| `headers` | object | No | {} | Custom HTTP headers |
-| `body` | string \| object | No | - | Request body (automatically JSON-serialized for objects) |
-| `timeout` | number | No | 30000 | Request timeout in milliseconds |
+| Parameter | Type             | Required | Default | Description                                                |
+| --------- | ---------------- | -------- | ------- | ---------------------------------------------------------- |
+| `url`     | string           | Yes      | -       | The URL to fetch                                           |
+| `method`  | string           | No       | GET     | HTTP method (GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS) |
+| `headers` | object           | No       | {}      | Custom HTTP headers                                        |
+| `body`    | string \| object | No       | -       | Request body (automatically JSON-serialized for objects)   |
+| `timeout` | number           | No       | 30000   | Request timeout in milliseconds                            |
 
 ### Output Format
 
 #### Success Response
+
 ```json
 {
   "status": 200,
@@ -52,6 +53,7 @@ tasks:
 ```
 
 #### Error Response
+
 ```json
 {
   "error": "Error description",
@@ -61,18 +63,18 @@ tasks:
 
 ### Error Codes
 
-| Code | Description |
-|------|-------------|
-| `INVALID_URL` | The provided URL is not valid |
-| `INVALID_METHOD` | The HTTP method is not supported |
+| Code              | Description                                            |
+| ----------------- | ------------------------------------------------------ |
+| `INVALID_URL`     | The provided URL is not valid                          |
+| `INVALID_METHOD`  | The HTTP method is not supported                       |
 | `INVALID_REQUEST` | Request configuration is invalid (e.g., body with GET) |
-| `INVALID_BODY` | Body parameter has invalid type |
-| `TIMEOUT` | Request exceeded the timeout limit |
-| `ECONNREFUSED` | Connection was refused by the server |
-| `ENOTFOUND` | DNS lookup failed |
-| `CERT_ERROR` | SSL certificate validation failed |
-| `NETWORK_ERROR` | General network error |
-| `REQUEST_FAILED` | Other request failures |
+| `INVALID_BODY`    | Body parameter has invalid type                        |
+| `TIMEOUT`         | Request exceeded the timeout limit                     |
+| `ECONNREFUSED`    | Connection was refused by the server                   |
+| `ENOTFOUND`       | DNS lookup failed                                      |
+| `CERT_ERROR`      | SSL certificate validation failed                      |
+| `NETWORK_ERROR`   | General network error                                  |
+| `REQUEST_FAILED`  | Other request failures                                 |
 
 ## Examples
 
@@ -156,7 +158,7 @@ tasks:
         name: "John Doe"
         email: "john@example.com"
         role: "admin"
-  
+
   # Read
   - id: get-user
     type: basic
@@ -165,7 +167,7 @@ tasks:
       url: "https://api.example.com/users/123"
       headers:
         Authorization: "Bearer ${API_TOKEN}"
-  
+
   # Update
   - id: update-user
     type: basic
@@ -178,7 +180,7 @@ tasks:
       body:
         name: "John Smith"
         email: "john.smith@example.com"
-  
+
   # Delete
   - id: delete-user
     type: basic
@@ -247,14 +249,14 @@ tasks:
     tool: fetch
     input:
       url: "https://api.example.com/quick"
-      timeout: 5000  # 5 seconds
-  
+      timeout: 5000 # 5 seconds
+
   - id: slow-request
     type: basic
     tool: fetch
     input:
       url: "https://api.example.com/slow-endpoint"
-      timeout: 60000  # 60 seconds for slow operations
+      timeout: 60000 # 60 seconds for slow operations
 ```
 
 ### Error Handling
@@ -271,7 +273,7 @@ tasks:
       - type: retry
         maxAttempts: 3
         backoff: exponential
-  
+
   - id: check-response
     type: router
     routes:
@@ -282,7 +284,7 @@ tasks:
             tool: your-tool
             input:
               data: "{{ tasks['fetch-with-retry'].body }}"
-      
+
       - when: "tasks['fetch-with-retry'].status >= 400"
         tasks:
           - id: handle-error
@@ -305,7 +307,7 @@ tasks:
       url: "https://api.example.com/data.json"
     output:
       parsedData: "{{ fromJson(output.body) }}"
-  
+
   # Plain text
   - id: get-text
     type: basic
@@ -314,7 +316,7 @@ tasks:
       url: "https://api.example.com/readme.txt"
     output:
       textContent: "{{ output.body }}"
-  
+
   # HTML
   - id: get-html
     type: basic
@@ -338,7 +340,7 @@ tasks:
       url: "https://api.example.com/protected"
       headers:
         Authorization: "Bearer ${API_TOKEN}"
-  
+
   # Basic Auth
   - id: basic-auth
     type: basic
@@ -347,7 +349,7 @@ tasks:
       url: "https://api.example.com/secure"
       headers:
         Authorization: "Basic {{ base64('username:password') }}"
-  
+
   # API Key in Header
   - id: api-key-header
     type: basic
@@ -356,7 +358,7 @@ tasks:
       url: "https://api.example.com/data"
       headers:
         X-API-Key: "${API_KEY}"
-  
+
   # API Key in Query
   - id: api-key-query
     type: basic
@@ -372,7 +374,7 @@ name: pagination-example
 tasks:
   - id: fetch-page
     type: collection
-    items: "{{ range(1, 5) }}"  # Fetch 5 pages
+    items: "{{ range(1, 5) }}" # Fetch 5 pages
     tasks:
       - id: get-page
         type: basic
@@ -381,7 +383,7 @@ tasks:
           url: "https://api.example.com/items?page={{ item }}&limit=100"
           headers:
             Authorization: "Bearer ${API_TOKEN}"
-  
+
   - id: combine-results
     type: aggregate
     input:
@@ -402,7 +404,7 @@ tasks:
     input:
       payload: "{{ toJson(webhookData) }}"
       secret: "${WEBHOOK_SECRET}"
-  
+
   - id: send-webhook
     type: basic
     tool: fetch

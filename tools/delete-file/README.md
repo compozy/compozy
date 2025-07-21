@@ -29,30 +29,30 @@ tasks:
 ### In TypeScript
 
 ```typescript
-import deleteFile from '@compozy/tool-delete-file';
+import deleteFile from "@compozy/tool-delete-file";
 
 const result = await deleteFile({
-  path: '/path/to/file.txt'
+  path: "/path/to/file.txt",
 });
 
 if (result.success) {
-  console.log('File deleted successfully');
+  console.log("File deleted successfully");
 } else {
-  console.log('File could not be deleted');
+  console.log("File could not be deleted");
 }
 ```
 
 ## Input
 
 | Field | Type   | Required | Description                    |
-|-------|--------|----------|--------------------------------|
+| ----- | ------ | -------- | ------------------------------ |
 | path  | string | Yes      | The path to the file to delete |
 
 ## Output
 
-| Field   | Type    | Description                                       |
-|---------|---------|---------------------------------------------------|
-| success | boolean | `true` if file was deleted, `false` otherwise    |
+| Field   | Type    | Description                                   |
+| ------- | ------- | --------------------------------------------- |
+| success | boolean | `true` if file was deleted, `false` otherwise |
 
 ## Error Handling
 
@@ -85,7 +85,7 @@ tasks:
     tool: delete-file
     input:
       path: "./logs/old.log"
-  
+
   - id: check-deletion
     type: conditional
     condition: "{{ .delete-old-log.success }}"

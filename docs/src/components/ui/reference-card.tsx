@@ -1,9 +1,9 @@
 import { MagicCard } from "@/components/magicui/magic-card";
+import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 import type { LucideIcon } from "lucide-react";
 import { ArrowRight } from "lucide-react";
 import React from "react";
-import { Icon } from "@/components/ui/icon";
 import { tv, type VariantProps } from "tailwind-variants";
 
 const referenceCard = tv({
@@ -61,17 +61,12 @@ export function ReferenceCard({
 
   const content = (
     <div className={styles.content()}>
-      {IconComponent && (
-        typeof IconComponent === "string" ? (
-          <Icon 
-            name={IconComponent} 
-            className={cn(styles.icon(), "size-8")} 
-            strokeWidth={1} 
-          />
+      {IconComponent &&
+        (typeof IconComponent === "string" ? (
+          <Icon name={IconComponent} className={cn(styles.icon(), "size-8")} strokeWidth={1} />
         ) : (
           <IconComponent className={cn(styles.icon(), "size-8")} strokeWidth={1} />
-        )
-      )}
+        ))}
       <div className={styles.textContent()}>
         <div className={styles.title()}>{title}</div>
         <div className={styles.description()}>{description}</div>

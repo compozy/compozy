@@ -36,11 +36,11 @@ export async function fetchTool(input: FetchInput): Promise<FetchOutput | FetchE
       error: "Invalid input: url must be a non-empty string",
     };
   }
-  
+
   const url = input.url.trim();
   const method = (input.method || "GET").toUpperCase();
   const timeout = input.timeout || 30000; // Default 30 seconds
-  
+
   // Validate URL format
   try {
     new URL(url);
@@ -50,7 +50,7 @@ export async function fetchTool(input: FetchInput): Promise<FetchOutput | FetchE
       code: "INVALID_URL",
     };
   }
-  
+
   // Validate HTTP method
   const validMethods = ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"];
   if (!validMethods.includes(method)) {
@@ -59,12 +59,12 @@ export async function fetchTool(input: FetchInput): Promise<FetchOutput | FetchE
       code: "INVALID_METHOD",
     };
   }
-  
+
   // Prepare headers
   const headers: Record<string, string> = {
     ...input.headers,
   };
-  
+
   // Handle body and content-type
   let body: string | undefined;
   if (input.body !== undefined && input.body !== null) {
@@ -74,7 +74,7 @@ export async function fetchTool(input: FetchInput): Promise<FetchOutput | FetchE
         code: "INVALID_REQUEST",
       };
     }
-    
+
     if (typeof input.body === "object") {
       // Automatically handle JSON
       body = JSON.stringify(input.body);
@@ -90,11 +90,11 @@ export async function fetchTool(input: FetchInput): Promise<FetchOutput | FetchE
       };
     }
   }
-  
+
   // Create AbortController for timeout
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
-  
+
   try {
     const response = await fetch(url, {
       method,
@@ -102,18 +102,18 @@ export async function fetchTool(input: FetchInput): Promise<FetchOutput | FetchE
       body,
       signal: controller.signal,
     });
-    
+
     clearTimeout(timeoutId);
-    
+
     // Get response headers
     const responseHeaders: Record<string, string> = {};
     response.headers.forEach((value, key) => {
       responseHeaders[key] = value;
     });
-    
+
     // Get response body
     const responseBody = await response.text();
-    
+
     return {
       status: response.status,
       statusText: response.statusText,
@@ -123,7 +123,7 @@ export async function fetchTool(input: FetchInput): Promise<FetchOutput | FetchE
     };
   } catch (error: any) {
     clearTimeout(timeoutId);
-    
+
     // Handle specific error types
     if (error.name === "AbortError") {
       return {

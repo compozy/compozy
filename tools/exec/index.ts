@@ -1,5 +1,4 @@
 import { spawn } from "child_process";
-import { promisify } from "util";
 
 interface ExecInput {
   command: string;
@@ -24,19 +23,46 @@ interface ExecError {
 
 // Security: Command validation patterns
 const DANGEROUS_PATTERNS = [
-  /[;&|<>]/,         // Command chaining, pipes, redirects
-  /\$\(/,            // Command substitution
-  /`/,               // Backticks
-  /\\\n/,            // Line continuation
-  /\$\{.*\}/,        // Variable expansion
+  /[;&|<>]/, // Command chaining, pipes, redirects
+  /\$\(/, // Command substitution
+  /`/, // Backticks
+  /\\\n/, // Line continuation
+  /\$\{.*\}/, // Variable expansion
 ];
 
 const ALLOWED_COMMANDS = new Set([
-  "ls", "pwd", "echo", "cat", "grep", "find", "wc", "sort", "uniq", 
-  "head", "tail", "cut", "awk", "sed", "date", "whoami", "hostname",
-  "df", "du", "ps", "top", "free", "uptime", "which", "whereis",
-  "file", "stat", "basename", "dirname", "realpath", "readlink",
-  "sleep" // Added for testing timeout functionality
+  "ls",
+  "pwd",
+  "echo",
+  "cat",
+  "grep",
+  "find",
+  "wc",
+  "sort",
+  "uniq",
+  "head",
+  "tail",
+  "cut",
+  "awk",
+  "sed",
+  "date",
+  "whoami",
+  "hostname",
+  "df",
+  "du",
+  "ps",
+  "top",
+  "free",
+  "uptime",
+  "which",
+  "whereis",
+  "file",
+  "stat",
+  "basename",
+  "dirname",
+  "realpath",
+  "readlink",
+  "sleep", // Added for testing timeout functionality
 ]);
 
 /**
@@ -103,7 +129,8 @@ export async function exec(input: ExecInput): Promise<ExecOutput | ExecError> {
         error: "Invalid input: timeout must be a positive number",
       };
     }
-    if (input.timeout > 300000) { // 5 minutes max
+    if (input.timeout > 300000) {
+      // 5 minutes max
       return {
         error: "Invalid input: timeout cannot exceed 5 minutes (300000ms)",
       };
@@ -112,22 +139,22 @@ export async function exec(input: ExecInput): Promise<ExecOutput | ExecError> {
   const command = input.command.trim();
   const cwd = input.cwd || process.cwd();
   const timeout = input.timeout || 30000; // Default 30 seconds
-  
+
   // Prepare environment
   const env = input.env ? { ...process.env, ...input.env } : process.env;
-  
-  return new Promise<ExecOutput | ExecError>((resolve) => {
+
+  return new Promise<ExecOutput | ExecError>(resolve => {
     let stdout = "";
     let stderr = "";
     let timedOut = false;
-    
+
     // Spawn the process
     const proc = spawn("bash", ["-c", command], {
       cwd,
       env,
       shell: false, // Don't use shell to spawn bash itself
     });
-    
+
     // Set up timeout
     const timer = setTimeout(() => {
       timedOut = true;
@@ -139,21 +166,21 @@ export async function exec(input: ExecInput): Promise<ExecOutput | ExecError> {
         }
       }, 5000);
     }, timeout);
-    
+
     // Collect stdout
-    proc.stdout.on("data", (data) => {
+    proc.stdout.on("data", data => {
       stdout += data.toString();
     });
-    
+
     // Collect stderr
-    proc.stderr.on("data", (data) => {
+    proc.stderr.on("data", data => {
       stderr += data.toString();
     });
-    
+
     // Handle process exit
     proc.on("exit", (code, signal) => {
       clearTimeout(timer);
-      
+
       if (timedOut) {
         resolve({
           error: `Command timed out after ${timeout}ms`,
@@ -163,7 +190,7 @@ export async function exec(input: ExecInput): Promise<ExecOutput | ExecError> {
         });
         return;
       }
-      
+
       if (signal) {
         resolve({
           error: `Command terminated by signal: ${signal}`,
@@ -173,7 +200,7 @@ export async function exec(input: ExecInput): Promise<ExecOutput | ExecError> {
         });
         return;
       }
-      
+
       const exitCode = code ?? 0;
       resolve({
         stdout,
@@ -182,9 +209,9 @@ export async function exec(input: ExecInput): Promise<ExecOutput | ExecError> {
         success: exitCode === 0,
       });
     });
-    
+
     // Handle process errors
-    proc.on("error", (error) => {
+    proc.on("error", error => {
       clearTimeout(timer);
       resolve({
         error: `Failed to execute command: ${error.message}`,

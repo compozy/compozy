@@ -4,7 +4,10 @@
     "composite": true,
     "rootDir": ".",
     "outDir": "./dist",
-    "types": ["bun-types", "node"]
+    "types": [
+      "bun-types",
+      "node"
+    ]
   },
   "include": [
     "index.ts",

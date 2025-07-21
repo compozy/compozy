@@ -1,6 +1,6 @@
 /**
  * Example tools demonstrating the config parameter feature.
- * 
+ *
  * The config parameter is passed as the second argument to tool functions,
  * separate from the runtime input. This allows tools to have static
  * configuration that doesn't change between invocations.
@@ -33,12 +33,12 @@ export async function api_caller(
     baseUrl,
     timeout,
     retryCount,
-    headers
+    headers,
   });
 
   // Simulate API call (in real implementation, you'd use fetch with the config)
   const fullUrl = `${baseUrl}${input.endpoint}`;
-  
+
   // Mock response for demonstration
   return {
     status: 200,
@@ -51,13 +51,13 @@ export async function api_caller(
         url: fullUrl,
         timeout_seconds: timeout,
         retry_attempts: retryCount,
-        custom_headers: headers
-      }
+        custom_headers: headers,
+      },
     },
     headers: {
       "content-type": "application/json",
-      "x-request-id": "demo-" + Math.random().toString(36).substr(2, 9)
-    }
+      "x-request-id": "demo-" + Math.random().toString(36).substr(2, 9),
+    },
   };
 }
 
@@ -90,38 +90,40 @@ export async function formatter(
     indent,
     sortKeys,
     dateFormat,
-    numberPrecision
+    numberPrecision,
   });
 
   let formatted: string;
-  
+
   switch (format) {
     case "json":
       // Apply formatting based on config
       if (sortKeys && typeof input.data === "object") {
-        const sorted = Object.keys(input.data).sort().reduce((obj, key) => {
-          obj[key] = input.data[key];
-          return obj;
-        }, {} as any);
+        const sorted = Object.keys(input.data)
+          .sort()
+          .reduce((obj, key) => {
+            obj[key] = input.data[key];
+            return obj;
+          }, {} as any);
         formatted = JSON.stringify(sorted, null, indent);
       } else {
         formatted = JSON.stringify(input.data, null, indent);
       }
       break;
-      
+
     case "yaml":
       // Simplified YAML formatting
       formatted = "# YAML format (simplified)\n";
       formatted += objectToYaml(input.data, 0, indent);
       break;
-      
+
     default:
       formatted = String(input.data);
   }
 
   return {
     formatted,
-    format_used: format
+    format_used: format,
   };
 }
 
@@ -129,10 +131,10 @@ export async function formatter(
 function objectToYaml(obj: any, depth: number, indent: number): string {
   if (obj === null || obj === undefined) return "null\n";
   if (typeof obj !== "object") return String(obj) + "\n";
-  
+
   let result = "";
   const prefix = " ".repeat(depth * indent);
-  
+
   for (const [key, value] of Object.entries(obj)) {
     result += `${prefix}${key}: `;
     if (typeof value === "object" && value !== null) {
@@ -141,6 +143,6 @@ function objectToYaml(obj: any, depth: number, indent: number): string {
       result += String(value) + "\n";
     }
   }
-  
+
   return result;
 }

@@ -1,10 +1,10 @@
 "use client";
 
+import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 import { Check, Circle } from "lucide-react";
 import { motion, useScroll } from "motion/react";
 import React, { createContext, useContext, useEffect, useRef, useState } from "react";
-import { Icon } from "@/components/ui/icon";
 import { tv, type VariantProps } from "tailwind-variants";
 
 // Step component using tailwind-variants

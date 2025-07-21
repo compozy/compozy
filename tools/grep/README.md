@@ -17,12 +17,12 @@ npm install @compozy/tool-grep
 ### Basic Usage
 
 ```typescript
-import grep from '@compozy/tool-grep';
+import grep from "@compozy/tool-grep";
 
 // Search for a simple pattern in a file
 const result = await grep({
-  pattern: 'TODO',
-  path: './src/index.ts'
+  pattern: "TODO",
+  path: "./src/index.ts",
 });
 
 // Result structure:
@@ -41,36 +41,38 @@ const result = await grep({
 
 ### Input Parameters
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `pattern` | string | Yes | - | The search pattern (supports regex) |
-| `path` | string | Yes | - | File or directory path to search |
-| `recursive` | boolean | No | false | Search recursively in subdirectories |
-| `ignoreCase` | boolean | No | false | Case-insensitive search |
-| `maxResults` | number | No | undefined | Limit the number of results returned |
+| Parameter    | Type    | Required | Default   | Description                          |
+| ------------ | ------- | -------- | --------- | ------------------------------------ |
+| `pattern`    | string  | Yes      | -         | The search pattern (supports regex)  |
+| `path`       | string  | Yes      | -         | File or directory path to search     |
+| `recursive`  | boolean | No       | false     | Search recursively in subdirectories |
+| `ignoreCase` | boolean | No       | false     | Case-insensitive search              |
+| `maxResults` | number  | No       | undefined | Limit the number of results returned |
 
 ### Output Format
 
 The tool returns either a success response with matches or an error response:
 
 #### Success Response
+
 ```typescript
 interface GrepOutput {
   matches: Array<{
-    file: string;      // Absolute path to the file
-    line: number;      // Line number (1-based)
-    column: number;    // Column number (1-based)
-    text: string;      // The line content (trimmed)
+    file: string; // Absolute path to the file
+    line: number; // Line number (1-based)
+    column: number; // Column number (1-based)
+    text: string; // The line content (trimmed)
     lineNumber: number; // Same as line (for compatibility)
   }>;
 }
 ```
 
 #### Error Response
+
 ```typescript
 interface GrepError {
-  error: string;  // Error message
-  code?: string;  // Error code (e.g., 'ENOENT', 'EACCES')
+  error: string; // Error message
+  code?: string; // Error code (e.g., 'ENOENT', 'EACCES')
 }
 ```
 
@@ -80,10 +82,10 @@ interface GrepError {
 
 ```typescript
 const result = await grep({
-  pattern: 'error',
-  path: './logs',
+  pattern: "error",
+  path: "./logs",
   ignoreCase: true,
-  recursive: true
+  recursive: true,
 });
 ```
 
@@ -92,28 +94,29 @@ const result = await grep({
 ```typescript
 // Find all function declarations
 const result = await grep({
-  pattern: 'function\\s+\\w+\\s*\\(',
-  path: './src',
-  recursive: true
+  pattern: "function\\s+\\w+\\s*\\(",
+  path: "./src",
+  recursive: true,
 });
 
 // Find email addresses
 const result = await grep({
-  pattern: '[\\w._%+-]+@[\\w.-]+\\.[A-Za-z]{2,}',
-  path: './data/contacts.txt'
+  pattern: "[\\w._%+-]+@[\\w.-]+\\.[A-Za-z]{2,}",
+  path: "./data/contacts.txt",
 });
 
 // Find TODO or FIXME comments
 const result = await grep({
-  pattern: '(TODO|FIXME):\\s*.+',
-  path: './src',
-  recursive: true
+  pattern: "(TODO|FIXME):\\s*.+",
+  path: "./src",
+  recursive: true,
 });
 ```
 
 ### Common Regex Patterns
 
 #### Words and Text
+
 - `\\bword\\b` - Match whole word only
 - `\\w+` - Match one or more word characters
 - `\\s+` - Match one or more whitespace characters
@@ -121,11 +124,13 @@ const result = await grep({
 - `[0-9]+` or `\\d+` - Match digits
 
 #### Lines and Anchors
+
 - `^pattern` - Match at start of line
 - `pattern$` - Match at end of line
 - `^$` - Match empty lines
 
 #### Special Characters
+
 - `.` - Match any character (except newline)
 - `\\.` - Match literal dot
 - `\\?` - Match literal question mark
@@ -133,6 +138,7 @@ const result = await grep({
 - `\\[` - Match literal bracket
 
 #### Quantifiers
+
 - `*` - Zero or more occurrences
 - `+` - One or more occurrences
 - `?` - Zero or one occurrence
@@ -141,6 +147,7 @@ const result = await grep({
 - `{n,m}` - Between n and m occurrences
 
 #### Groups and Alternatives
+
 - `(pattern)` - Capture group
 - `(?:pattern)` - Non-capturing group
 - `pattern1|pattern2` - Match either pattern
@@ -150,10 +157,10 @@ const result = await grep({
 ```typescript
 // Get only the first 10 matches
 const result = await grep({
-  pattern: 'console\\.log',
-  path: './src',
+  pattern: "console\\.log",
+  path: "./src",
   recursive: true,
-  maxResults: 10
+  maxResults: 10,
 });
 ```
 
@@ -162,21 +169,21 @@ const result = await grep({
 ```typescript
 // Search in a single file
 const fileResult = await grep({
-  pattern: 'import',
-  path: './src/index.ts'
+  pattern: "import",
+  path: "./src/index.ts",
 });
 
 // Search in a directory (non-recursive)
 const dirResult = await grep({
-  pattern: 'import',
-  path: './src'
+  pattern: "import",
+  path: "./src",
 });
 
 // Search in a directory (recursive)
 const recursiveResult = await grep({
-  pattern: 'import',
-  path: './src',
-  recursive: true
+  pattern: "import",
+  path: "./src",
+  recursive: true,
 });
 ```
 
@@ -192,11 +199,11 @@ The tool handles various error conditions gracefully:
 
 ```typescript
 const result = await grep({
-  pattern: '[invalid(regex',
-  path: './file.txt'
+  pattern: "[invalid(regex",
+  path: "./file.txt",
 });
 
-if ('error' in result) {
+if ("error" in result) {
   console.error(`Error: ${result.error}`);
   if (result.code) {
     console.error(`Code: ${result.code}`);
