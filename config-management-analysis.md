@@ -17,6 +17,7 @@ The Compozy project has a **mixed configuration landscape** with three distinct 
 ### 2. Architecture Overview
 
 The `pkg/config` system provides:
+
 - **Centralized Configuration**: Single source of truth for application configuration
 - **Environment Variable Mapping**: Automatic mapping with `env:` tags
 - **Validation Framework**: Built-in struct validation using the `validate` library
@@ -29,10 +30,12 @@ The `pkg/config` system provides:
 ### ✅ Components Already Integrated with pkg/config
 
 #### 1. LLM Service
+
 **File**: `engine/llm/config.go`
+
 - **Status**: ✅ **Well Integrated**
 - **Pattern**: Uses `WithAppConfig()` option for seamless integration
-- **Implementation**: 
+- **Implementation**:
   ```go
   func WithAppConfig(appConfig *config.Config) Option {
       return func(c *Config) {
@@ -48,17 +51,21 @@ The `pkg/config` system provides:
 - **Benefits**: Automatic mapping from global config with fallback to component defaults
 
 #### 2. CLI Commands
+
 **File**: `cli/cmd/config/config.go`
+
 - **Status**: ✅ **Fully Integrated**
 - **Pattern**: Direct usage of `config.Get()` global accessor
-- **Features**: 
+- **Features**:
   - Configuration display in multiple formats (JSON, YAML, table)
   - Validation commands
   - Diagnostics with source tracking
   - Sensitive data redaction
 
 #### 3. Memory System
+
 **File**: `engine/memory/config.go`
+
 - **Status**: ✅ **Partially Integrated**
 - **Pattern**: Custom resource configuration that can be integrated with global config
 - **Implementation**: Rich configuration system with TTL management and validation
@@ -66,7 +73,9 @@ The `pkg/config` system provides:
 ### ⚠️ Components Needing Integration
 
 #### 1. Cache Infrastructure - **HIGH PRIORITY**
+
 **File**: `engine/infra/cache/config.go`
+
 - **Current State**: Standalone configuration with extensive options
 - **Missing Integration**: No connection to `pkg/config.RedisConfig`
 - **Impact**: **HIGH** - Cache is critical infrastructure used by multiple components
@@ -86,7 +95,9 @@ The `pkg/config` system provides:
   ```
 
 #### 2. HTTP Server Configuration - **HIGH PRIORITY**
+
 **File**: `engine/infra/server/config.go`
+
 - **Current State**: Simple config struct with minimal fields
 - **Missing Integration**: No connection to `pkg/config.ServerConfig`
 - **Impact**: **HIGH** - Server configuration affects API availability and performance
@@ -104,26 +115,34 @@ The `pkg/config` system provides:
   ```
 
 #### 3. Runtime Configuration - **MEDIUM PRIORITY**
+
 **File**: `engine/runtime/config.go`
+
 - **Current State**: Domain-specific runtime configuration
 - **Missing Integration**: Limited connection to application runtime config
 - **Impact**: **MEDIUM** - Affects performance and execution behavior
 - **Complexity**: Medium - requires mapping runtime-specific settings
 
 #### 4. Monitoring Configuration - **MEDIUM PRIORITY**
+
 **File**: `engine/infra/monitoring/config.go`
+
 - **Current State**: Standalone monitoring configuration
 - **Missing Integration**: No connection to application monitoring settings
 - **Impact**: **MEDIUM** - Affects observability and debugging capabilities
 
 #### 5. Task System Configuration - **MEDIUM PRIORITY**
+
 **File**: `engine/task/config.go`
+
 - **Current State**: Task-specific configuration with validation
 - **Missing Integration**: Partial integration with application limits config
 - **Impact**: **MEDIUM** - Affects workflow execution behavior
 
 #### 6. Worker Configuration - **LOW PRIORITY**
+
 **Files**: `engine/worker/mod.go`, `engine/worker/dispatcher.go`
+
 - **Current State**: Scattered worker configuration
 - **Missing Integration**: No centralized worker configuration
 - **Impact**: **LOW** - Currently functional but could be more centralized
@@ -131,13 +150,17 @@ The `pkg/config` system provides:
 ### 🔄 Components with Partial Integration
 
 #### 1. MCP Service
+
 **File**: `engine/mcp/service.go`
+
 - **Current State**: Uses application config for proxy configuration
 - **Integration Level**: **Partial** - Uses some app config values but has own defaults
 - **Recommended**: Expand integration to use more centralized configuration
 
 #### 2. Project Configuration
+
 **File**: `engine/project/config.go`
+
 - **Current State**: Project-level configuration separate from application config
 - **Integration Level**: **Partial** - Some overlap with application configuration
 - **Recommended**: Better separation of concerns between project and application config
@@ -145,6 +168,7 @@ The `pkg/config` system provides:
 ## Migration Strategy
 
 ### Phase 1: Critical Infrastructure (Weeks 1-2)
+
 **Priority: HIGH**
 
 1. **Cache Configuration Integration**
@@ -158,6 +182,7 @@ The `pkg/config` system provides:
    - Consolidate CORS and authentication configuration
 
 ### Phase 2: Runtime & Performance (Weeks 3-4)
+
 **Priority: MEDIUM**
 
 1. **Runtime Configuration Consolidation**
@@ -171,6 +196,7 @@ The `pkg/config` system provides:
    - Integrate with global configuration validation
 
 ### Phase 3: Domain-Specific Components (Weeks 5-6)
+
 **Priority: LOW**
 
 1. **Task System Integration**
@@ -184,6 +210,7 @@ The `pkg/config` system provides:
    - Standardize worker lifecycle management
 
 ### Phase 4: Validation & Documentation (Week 7)
+
 **Priority: MAINTENANCE**
 
 1. **Configuration Validation Enhancement**
@@ -201,6 +228,7 @@ The `pkg/config` system provides:
 ### 1. Standardization Patterns
 
 #### Integration Method Pattern
+
 ```go
 // Standard pattern for integrating with pkg/config
 func FromAppConfig(appConfig *config.Config) *Config {
@@ -208,12 +236,12 @@ func FromAppConfig(appConfig *config.Config) *Config {
     if appConfig == nil {
         return cfg
     }
-    
+
     // Map specific fields from application config
     if appConfig.ComponentSection.Field != "" {
         cfg.Field = appConfig.ComponentSection.Field
     }
-    
+
     return cfg
 }
 
@@ -227,18 +255,19 @@ func WithAppConfig(appConfig *config.Config) Option {
 ```
 
 #### Validation Enhancement Pattern
+
 ```go
 func (c *Config) Validate() error {
     // Component-specific validation
     if err := c.validateComponentSpecific(); err != nil {
         return fmt.Errorf("component validation failed: %w", err)
     }
-    
+
     // Cross-component validation if needed
     if err := c.validateConsistency(); err != nil {
         return fmt.Errorf("configuration consistency check failed: %w", err)
     }
-    
+
     return nil
 }
 ```
@@ -246,6 +275,7 @@ func (c *Config) Validate() error {
 ### 2. Environment Variable Conventions
 
 Follow consistent naming patterns:
+
 - **Server**: `SERVER_*` (HOST, PORT, CORS_ENABLED)
 - **Database**: `DB_*` (HOST, PORT, USER, PASSWORD)
 - **Redis**: `REDIS_*` (URL, HOST, PORT, PASSWORD)
@@ -255,6 +285,7 @@ Follow consistent naming patterns:
 ### 3. Configuration Precedence
 
 Maintain consistent precedence order:
+
 1. **CLI Flags** (highest precedence)
 2. **YAML Configuration File**
 3. **Environment Variables**
@@ -271,42 +302,48 @@ Maintain consistent precedence order:
 
 ### Development Effort by Phase
 
-| Phase | Components | Estimated Hours | Complexity |
-|-------|------------|-----------------|------------|
-| Phase 1 | Cache, Server | 40-60 hours | High |
-| Phase 2 | Runtime, Monitoring | 30-40 hours | Medium |
-| Phase 3 | Task, Worker | 20-30 hours | Medium |
-| Phase 4 | Validation, Docs | 15-20 hours | Low |
-| **Total** | **All Components** | **105-150 hours** | **Mixed** |
+| Phase     | Components          | Estimated Hours   | Complexity |
+| --------- | ------------------- | ----------------- | ---------- |
+| Phase 1   | Cache, Server       | 40-60 hours       | High       |
+| Phase 2   | Runtime, Monitoring | 30-40 hours       | Medium     |
+| Phase 3   | Task, Worker        | 20-30 hours       | Medium     |
+| Phase 4   | Validation, Docs    | 15-20 hours       | Low        |
+| **Total** | **All Components**  | **105-150 hours** | **Mixed**  |
 
 ### Risk Assessment
 
 #### High Risk Areas
+
 1. **Cache Configuration**: Critical system component, used by multiple services
 2. **Server Configuration**: Changes affect API availability
 3. **Runtime Configuration**: Affects performance and execution behavior
 
 #### Medium Risk Areas
+
 1. **Monitoring Configuration**: Important for observability but not critical path
 2. **Task Configuration**: Complex validation logic needs careful migration
 
 #### Low Risk Areas
+
 1. **Worker Configuration**: Currently functional, changes are improvements
 2. **Documentation**: No functional impact
 
 ## Success Metrics
 
 ### Configuration Consistency
+
 - [ ] All components use consistent environment variable naming
 - [ ] All components integrate with `pkg/config` system
 - [ ] All components use standard validation patterns
 
 ### Maintainability Improvements
+
 - [ ] Reduced configuration code duplication
 - [ ] Centralized configuration documentation
 - [ ] Consistent error messages and validation
 
 ### Operational Benefits
+
 - [ ] Single configuration file for all components
 - [ ] Improved configuration diagnostics and troubleshooting
 - [ ] Better environment variable management
@@ -316,12 +353,14 @@ Maintain consistent precedence order:
 The Compozy project would significantly benefit from completing the migration to the unified `pkg/config` system. The current mixed approach creates maintenance overhead and inconsistent user experience. The recommended phased migration approach balances risk management with development efficiency.
 
 **Key Benefits of Migration:**
+
 1. **Reduced Complexity**: Single configuration approach across all components
 2. **Improved User Experience**: Consistent configuration patterns and environment variables
 3. **Better Maintainability**: Centralized validation and documentation
 4. **Enhanced Debugging**: Unified configuration diagnostics and troubleshooting
 
 **Next Steps:**
+
 1. Prioritize Phase 1 (Cache & Server configuration) for immediate impact
 2. Create detailed implementation plans for each component
 3. Establish testing strategy to ensure no regression during migration

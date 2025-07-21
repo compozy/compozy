@@ -15,13 +15,13 @@ A directory listing tool for Compozy workflows that provides flexible file and d
 
 ### Input Parameters
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `path` | string | Yes | - | The directory path to list |
-| `pattern` | string | No | - | Glob pattern for filtering entries |
-| `recursive` | boolean | No | false | Enable recursive directory traversal |
-| `includeFiles` | boolean | No | true | Include files in the output |
-| `includeDirs` | boolean | No | true | Include directories in the output |
+| Parameter      | Type    | Required | Default | Description                          |
+| -------------- | ------- | -------- | ------- | ------------------------------------ |
+| `path`         | string  | Yes      | -       | The directory path to list           |
+| `pattern`      | string  | No       | -       | Glob pattern for filtering entries   |
+| `recursive`    | boolean | No       | false   | Enable recursive directory traversal |
+| `includeFiles` | boolean | No       | true    | Include files in the output          |
+| `includeDirs`  | boolean | No       | true    | Include directories in the output    |
 
 ### Output Format
 
@@ -29,11 +29,11 @@ Returns an object with an `entries` array containing directory entry objects:
 
 ```typescript
 interface DirEntry {
-  name: string;      // File or directory name
-  path: string;      // Full absolute path
-  type: 'file' | 'dir';  // Entry type
-  size: number;      // Size in bytes (0 for directories)
-  modified: string;  // ISO 8601 timestamp
+  name: string; // File or directory name
+  path: string; // Full absolute path
+  type: "file" | "dir"; // Entry type
+  size: number; // Size in bytes (0 for directories)
+  modified: string; // ISO 8601 timestamp
 }
 ```
 
@@ -42,32 +42,32 @@ interface DirEntry {
 ### TypeScript
 
 ```typescript
-import tool from '@compozy/tool-list-dir';
+import tool from "@compozy/tool-list-dir";
 
 // Basic directory listing
 const result = await tool({
-  path: './src'
+  path: "./src",
 });
 console.log(result.entries);
 
 // List only JavaScript files
 const jsFiles = await tool({
-  path: './src',
-  pattern: '*.js'
+  path: "./src",
+  pattern: "*.js",
 });
 
 // Recursive listing with glob pattern
 const allTests = await tool({
-  path: './src',
-  pattern: '**/*.test.ts',
-  recursive: true
+  path: "./src",
+  pattern: "**/*.test.ts",
+  recursive: true,
 });
 
 // List only directories
 const dirs = await tool({
-  path: '.',
+  path: ".",
   includeFiles: false,
-  includeDirs: true
+  includeDirs: true,
 });
 ```
 
@@ -83,7 +83,7 @@ tasks:
       path: ./src
       pattern: "**/*.{js,ts}"
       recursive: true
-    
+
   - id: process-files
     type: basic
     run: |

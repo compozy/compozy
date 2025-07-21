@@ -16,7 +16,7 @@ import { writeFile } from "@compozy/tool-write-file";
 // Write content to a file
 const result = await writeFile({
   path: "output/data.txt",
-  content: "Hello, World!"
+  content: "Hello, World!",
 });
 
 if (result.success) {
@@ -33,7 +33,7 @@ if (result.success) {
 const result = await writeFile({
   path: "logs/app.log",
   content: "New log entry\n",
-  append: true
+  append: true,
 });
 ```
 
@@ -41,29 +41,32 @@ const result = await writeFile({
 
 ```typescript
 // Write with custom encoding and permissions
-const result = await writeFile({
-  path: "config/settings.json",
-  content: JSON.stringify({ key: "value" }, null, 2)
-}, {
-  encoding: "utf-8",
-  mode: 0o600  // Read/write for owner only
-});
+const result = await writeFile(
+  {
+    path: "config/settings.json",
+    content: JSON.stringify({ key: "value" }, null, 2),
+  },
+  {
+    encoding: "utf-8",
+    mode: 0o600, // Read/write for owner only
+  }
+);
 ```
 
 ## Input Parameters
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| path | string | Yes | The file path to write to (relative paths only) |
-| content | string | Yes | The content to write |
-| append | boolean | No | Whether to append to existing file (default: false) |
+| Parameter | Type    | Required | Description                                         |
+| --------- | ------- | -------- | --------------------------------------------------- |
+| path      | string  | Yes      | The file path to write to (relative paths only)     |
+| content   | string  | Yes      | The content to write                                |
+| append    | boolean | No       | Whether to append to existing file (default: false) |
 
 ## Configuration Options
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| encoding | BufferEncoding | "utf-8" | File encoding |
-| mode | number | 0o644 | File permissions mode |
+| Option   | Type           | Default | Description           |
+| -------- | -------------- | ------- | --------------------- |
+| encoding | BufferEncoding | "utf-8" | File encoding         |
+| mode     | number         | 0o644   | File permissions mode |
 
 ## Output
 
@@ -106,7 +109,7 @@ tasks:
     input:
       path: "output/report.txt"
       content: "{{ .data }}"
-    
+
   - id: append-log
     type: basic
     tool: write_file
@@ -125,6 +128,7 @@ bun test
 ```
 
 The test suite covers:
+
 - Successfully writing files
 - Appending to existing files
 - Creating nested directories

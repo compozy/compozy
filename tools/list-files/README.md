@@ -41,15 +41,15 @@ interface ListFilesOutput {
 ### TypeScript
 
 ```typescript
-import { listFiles } from '@compozy/tool-list-files';
+import { listFiles } from "@compozy/tool-list-files";
 
 // List files in a directory
-const result = await listFiles({ dir: './src' });
+const result = await listFiles({ dir: "./src" });
 console.log(result.files);
 // Output: ['index.ts', 'utils.ts', 'config.ts', ...]
 
 // Handle non-existent directory
-const emptyResult = await listFiles({ dir: './does-not-exist' });
+const emptyResult = await listFiles({ dir: "./does-not-exist" });
 console.log(emptyResult.files);
 // Output: []
 ```
@@ -121,6 +121,7 @@ bun run lint
 ### Testing
 
 The tool includes comprehensive tests for:
+
 - Successfully listing files
 - Handling empty directories
 - Handling non-existent directories
