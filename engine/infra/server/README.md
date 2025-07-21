@@ -257,11 +257,8 @@ rateLimitConfig := &ratelimit.Config{
     },
 }
 
-serverConfig := &server.Config{
-    Host:      "0.0.0.0",
-    Port:      5001,
-    RateLimit: rateLimitConfig,
-}
+// Server configuration is now handled through the unified config system
+// See pkg/config.ServerConfig for the centralized server configuration
 ```
 
 ---

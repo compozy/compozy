@@ -5,7 +5,9 @@
   "main": "index.ts",
   "scripts": {
     "test": "bun test",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix"
   },
   "devDependencies": {
     "@types/bun": "^1.1.17",

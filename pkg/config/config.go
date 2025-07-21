@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"crypto/tls"
 	"time"
 
 	"github.com/compozy/compozy/pkg/config/definition"
@@ -85,6 +86,21 @@ type Config struct {
 	//
 	// $ref: schema://application#redis
 	Redis RedisConfig `koanf:"redis" json:"redis" yaml:"redis" mapstructure:"redis" validate:"required"`
+
+	// Cache configures caching behavior and performance settings.
+	//
+	// $ref: schema://application#cache
+	Cache CacheConfig `koanf:"cache" json:"cache" yaml:"cache" mapstructure:"cache"`
+
+	// Worker configures Temporal worker settings.
+	//
+	// $ref: schema://application#worker
+	Worker WorkerConfig `koanf:"worker" json:"worker" yaml:"worker" mapstructure:"worker" validate:"required"`
+
+	// MCPProxy configures the MCP proxy server.
+	//
+	// $ref: schema://application#mcpproxy
+	MCPProxy MCPProxyConfig `koanf:"mcp_proxy" json:"mcp_proxy" yaml:"mcp_proxy" mapstructure:"mcp_proxy" validate:"required"`
 }
 
 // ServerConfig contains HTTP server configuration.
@@ -331,6 +347,22 @@ type RuntimeConfig struct {
 	// Prevents runaway tools from blocking workflows.
 	// Default: 30s
 	ToolExecutionTimeout time.Duration `koanf:"tool_execution_timeout" env:"TOOL_EXECUTION_TIMEOUT" json:"tool_execution_timeout" yaml:"tool_execution_timeout" mapstructure:"tool_execution_timeout"`
+
+	// RuntimeType specifies the JavaScript runtime to use for tool execution.
+	//
+	// Values: "bun", "node"
+	// Default: "bun"
+	RuntimeType string `koanf:"runtime_type" env:"RUNTIME_TYPE" json:"runtime_type" yaml:"runtime_type" mapstructure:"runtime_type" validate:"oneof=bun node"`
+
+	// EntrypointPath specifies the path to the JavaScript/TypeScript entrypoint file.
+	//
+	// Default: "./tools.ts"
+	EntrypointPath string `koanf:"entrypoint_path" env:"RUNTIME_ENTRYPOINT_PATH" json:"entrypoint_path" yaml:"entrypoint_path" mapstructure:"entrypoint_path"`
+
+	// BunPermissions defines runtime security permissions for Bun.
+	//
+	// Default: ["--allow-read", "--allow-env", "--allow-net"]
+	BunPermissions []string `koanf:"bun_permissions" env:"RUNTIME_BUN_PERMISSIONS" json:"bun_permissions" yaml:"bun_permissions" mapstructure:"bun_permissions"`
 }
 
 // LimitsConfig contains system limits and constraints.
@@ -532,10 +564,13 @@ type RateConfig struct {
 //     ```yaml
 //     redis:
 //     host: localhost
-//     port: 6379
+//     port: "6379"    # String format (required as of v2.0.0)
 //     password: secret
 //     db: 0
 //     ```
+//
+//     **Note**: Port is now a string field. Both quoted strings ("6379") and
+//     numeric literals (6379) are supported due to weakly-typed input parsing.
 type RedisConfig struct {
 	// URL provides a complete Redis connection string.
 	//
@@ -548,10 +583,14 @@ type RedisConfig struct {
 	// Default: "localhost"
 	Host string `koanf:"host" json:"host" yaml:"host" mapstructure:"host" env:"REDIS_HOST"`
 
-	// Port specifies the Redis server port.
+	// Port specifies the Redis server port as a string.
 	//
-	// Default: 6379
-	Port int `koanf:"port" json:"port" yaml:"port" mapstructure:"port" env:"REDIS_PORT"`
+	// **Format**: String representation of port number (1-65535)
+	// **YAML**: Both "6379" (quoted) and 6379 (numeric) are accepted
+	// **Breaking Change**: Changed from int to string in v2.0.0
+	//
+	// Default: "6379"
+	Port string `koanf:"port" json:"port" yaml:"port" mapstructure:"port" env:"REDIS_PORT"`
 
 	// Password authenticates with Redis.
 	//
@@ -577,6 +616,247 @@ type RedisConfig struct {
 	//
 	// Default: 0
 	MinIdleConns int `koanf:"min_idle_conns" json:"min_idle_conns" yaml:"min_idle_conns" mapstructure:"min_idle_conns" env:"REDIS_MIN_IDLE_CONNS"`
+
+	// MaxIdleConns sets the maximum number of idle connections.
+	//
+	// Default: 0
+	MaxIdleConns int `koanf:"max_idle_conns" json:"max_idle_conns" yaml:"max_idle_conns" mapstructure:"max_idle_conns" env:"REDIS_MAX_IDLE_CONNS"`
+
+	// DialTimeout sets timeout for establishing new connections.
+	//
+	// Default: 5s
+	DialTimeout time.Duration `koanf:"dial_timeout" json:"dial_timeout" yaml:"dial_timeout" mapstructure:"dial_timeout" env:"REDIS_DIAL_TIMEOUT"`
+
+	// ReadTimeout sets timeout for socket reads.
+	//
+	// Default: 3s
+	ReadTimeout time.Duration `koanf:"read_timeout" json:"read_timeout" yaml:"read_timeout" mapstructure:"read_timeout" env:"REDIS_READ_TIMEOUT"`
+
+	// WriteTimeout sets timeout for socket writes.
+	//
+	// Default: ReadTimeout
+	WriteTimeout time.Duration `koanf:"write_timeout" json:"write_timeout" yaml:"write_timeout" mapstructure:"write_timeout" env:"REDIS_WRITE_TIMEOUT"`
+
+	// PoolTimeout sets timeout for getting connection from pool.
+	//
+	// Default: ReadTimeout + 1s
+	PoolTimeout time.Duration `koanf:"pool_timeout" json:"pool_timeout" yaml:"pool_timeout" mapstructure:"pool_timeout" env:"REDIS_POOL_TIMEOUT"`
+
+	// PingTimeout sets timeout for ping command.
+	//
+	// Default: 1s
+	PingTimeout time.Duration `koanf:"ping_timeout" json:"ping_timeout" yaml:"ping_timeout" mapstructure:"ping_timeout" env:"REDIS_PING_TIMEOUT"`
+
+	// MinRetryBackoff sets minimum backoff between retries.
+	//
+	// Default: 8ms
+	MinRetryBackoff time.Duration `koanf:"min_retry_backoff" json:"min_retry_backoff" yaml:"min_retry_backoff" mapstructure:"min_retry_backoff" env:"REDIS_MIN_RETRY_BACKOFF"`
+
+	// MaxRetryBackoff sets maximum backoff between retries.
+	//
+	// Default: 512ms
+	MaxRetryBackoff time.Duration `koanf:"max_retry_backoff" json:"max_retry_backoff" yaml:"max_retry_backoff" mapstructure:"max_retry_backoff" env:"REDIS_MAX_RETRY_BACKOFF"`
+
+	// NotificationBufferSize sets buffer size for pub/sub notifications.
+	//
+	// Default: 100
+	NotificationBufferSize int `koanf:"notification_buffer_size" json:"notification_buffer_size" yaml:"notification_buffer_size" mapstructure:"notification_buffer_size" env:"REDIS_NOTIFICATION_BUFFER_SIZE"`
+
+	// TLSEnabled enables TLS encryption.
+	//
+	// Default: false
+	TLSEnabled bool `koanf:"tls_enabled" json:"tls_enabled" yaml:"tls_enabled" mapstructure:"tls_enabled" env:"REDIS_TLS_ENABLED"`
+
+	// TLSConfig provides custom TLS configuration.
+	//
+	// When TLSEnabled is true, this can be used to provide custom TLS settings.
+	// If nil, default TLS configuration will be used.
+	TLSConfig *tls.Config `koanf:"-" json:"-" yaml:"-" mapstructure:"-"`
+}
+
+// CacheConfig contains cache-specific configuration settings.
+//
+// **Distributed Caching** accelerates workflow execution by storing frequently accessed data.
+// This configuration controls cache behavior and performance characteristics,
+// while Redis connection settings are managed separately in RedisConfig.
+//
+// The cache layer supports:
+//   - LLM response caching to reduce API costs
+//   - Tool result caching for expensive computations
+//   - Workflow state caching for distributed coordination
+//   - Session data persistence across requests
+//
+// ## Example Configuration
+//
+//	cache:
+//	  enabled: true
+//	  ttl: 24h
+//	  prefix: "compozy:cache:"
+//	  max_item_size: 1048576  # 1MB
+//	  compression_enabled: true
+//	  compression_threshold: 1024  # 1KB
+type CacheConfig struct {
+	// Enabled determines if caching is active.
+	//
+	// When disabled, all cache operations become no-ops.
+	// Useful for debugging or when Redis is unavailable.
+	//
+	// **Default**: `true`
+	Enabled bool `koanf:"enabled" json:"enabled" yaml:"enabled" mapstructure:"enabled" env:"CACHE_ENABLED"`
+
+	// TTL sets the default time-to-live for cached items.
+	//
+	// Balances data freshness with cache efficiency.
+	// Can be overridden per operation.
+	//
+	// **Default**: `24h`
+	TTL time.Duration `koanf:"ttl" json:"ttl" yaml:"ttl" mapstructure:"ttl" env:"CACHE_TTL"`
+
+	// Prefix namespaces cache keys in Redis.
+	//
+	// Prevents key collisions when sharing Redis with other applications.
+	// Format: `"<app>:<environment>:cache:"`
+	//
+	// **Default**: `"compozy:cache:"`
+	Prefix string `koanf:"prefix" json:"prefix" yaml:"prefix" mapstructure:"prefix" env:"CACHE_PREFIX"`
+
+	// MaxItemSize limits the maximum size of a single cached item.
+	//
+	// Prevents large objects from consuming excessive memory.
+	// Items larger than this are not cached.
+	//
+	// **Default**: `1048576` (1MB)
+	MaxItemSize int64 `koanf:"max_item_size" json:"max_item_size" yaml:"max_item_size" mapstructure:"max_item_size" env:"CACHE_MAX_ITEM_SIZE"`
+
+	// CompressionEnabled activates data compression for cached items.
+	//
+	// Reduces memory usage and network bandwidth at the cost of CPU.
+	// Uses gzip compression for items above CompressionThreshold.
+	//
+	// **Default**: `true`
+	CompressionEnabled bool `koanf:"compression_enabled" json:"compression_enabled" yaml:"compression_enabled" mapstructure:"compression_enabled" env:"CACHE_COMPRESSION_ENABLED"`
+
+	// CompressionThreshold sets the minimum size for compression.
+	//
+	// Items smaller than this are stored uncompressed to avoid
+	// CPU overhead for minimal space savings.
+	//
+	// **Default**: `1024` (1KB)
+	CompressionThreshold int64 `koanf:"compression_threshold" json:"compression_threshold" yaml:"compression_threshold" mapstructure:"compression_threshold" env:"CACHE_COMPRESSION_THRESHOLD"`
+
+	// EvictionPolicy controls how items are removed when cache is full.
+	//
+	// Options:
+	//   - `"lru"`: Least Recently Used (default)
+	//   - `"lfu"`: Least Frequently Used
+	//   - `"ttl"`: Time-based expiration only
+	//
+	// **Default**: `"lru"`
+	EvictionPolicy string `koanf:"eviction_policy" json:"eviction_policy" yaml:"eviction_policy" mapstructure:"eviction_policy" env:"CACHE_EVICTION_POLICY"`
+
+	// StatsInterval controls how often cache statistics are logged.
+	//
+	// Set to 0 to disable statistics logging.
+	// Useful for monitoring cache hit rates and performance.
+	//
+	// **Default**: `5m`
+	StatsInterval time.Duration `koanf:"stats_interval" json:"stats_interval" yaml:"stats_interval" mapstructure:"stats_interval" env:"CACHE_STATS_INTERVAL"`
+}
+
+// WorkerConfig contains Temporal worker configuration.
+//
+// **Temporal Worker Configuration** controls the behavior and performance characteristics
+// of Temporal workers that execute workflows and activities. These settings affect
+// timeouts, retry behavior, and operational thresholds for worker health monitoring.
+//
+// ## Example Configuration
+//
+//	worker:
+//	  config_store_ttl: 24h
+//	  heartbeat_cleanup_timeout: 5s
+type WorkerConfig struct {
+	// ConfigStoreTTL sets how long worker configurations are cached.
+	//
+	// **Default**: `24h`
+	ConfigStoreTTL time.Duration `koanf:"config_store_ttl" json:"config_store_ttl" yaml:"config_store_ttl" mapstructure:"config_store_ttl" env:"WORKER_CONFIG_STORE_TTL"`
+
+	// HeartbeatCleanupTimeout sets timeout for heartbeat cleanup operations.
+	//
+	// **Default**: `5s`
+	HeartbeatCleanupTimeout time.Duration `koanf:"heartbeat_cleanup_timeout" json:"heartbeat_cleanup_timeout" yaml:"heartbeat_cleanup_timeout" mapstructure:"heartbeat_cleanup_timeout" env:"WORKER_HEARTBEAT_CLEANUP_TIMEOUT"`
+
+	// MCPShutdownTimeout sets timeout for MCP server shutdown.
+	//
+	// **Default**: `10s`
+	MCPShutdownTimeout time.Duration `koanf:"mcp_shutdown_timeout" json:"mcp_shutdown_timeout" yaml:"mcp_shutdown_timeout" mapstructure:"mcp_shutdown_timeout" env:"WORKER_MCP_SHUTDOWN_TIMEOUT"`
+
+	// DispatcherRetryDelay sets delay between dispatcher retry attempts.
+	//
+	// **Default**: `1s`
+	DispatcherRetryDelay time.Duration `koanf:"dispatcher_retry_delay" json:"dispatcher_retry_delay" yaml:"dispatcher_retry_delay" mapstructure:"dispatcher_retry_delay" env:"WORKER_DISPATCHER_RETRY_DELAY"`
+
+	// DispatcherMaxRetries sets maximum dispatcher retry attempts.
+	//
+	// **Default**: `3`
+	DispatcherMaxRetries int `koanf:"dispatcher_max_retries" json:"dispatcher_max_retries" yaml:"dispatcher_max_retries" mapstructure:"dispatcher_max_retries" env:"WORKER_DISPATCHER_MAX_RETRIES"`
+
+	// MCPProxyHealthCheckTimeout sets timeout for MCP proxy health checks.
+	//
+	// **Default**: `5s`
+	MCPProxyHealthCheckTimeout time.Duration `koanf:"mcp_proxy_health_check_timeout" json:"mcp_proxy_health_check_timeout" yaml:"mcp_proxy_health_check_timeout" mapstructure:"mcp_proxy_health_check_timeout" env:"WORKER_MCP_PROXY_HEALTH_CHECK_TIMEOUT"`
+}
+
+// MCPProxyConfig contains MCP proxy server configuration.
+//
+// **MCP Proxy Configuration** defines settings for the Model Context Protocol proxy server
+// that manages connections between Compozy and external MCP servers.
+//
+// ## Example Configuration
+//
+//	mcp_proxy:
+//	  host: 0.0.0.0
+//	  port: 8081
+//	  base_url: http://localhost:8081
+type MCPProxyConfig struct {
+	// Host specifies the network interface to bind the MCP proxy server to.
+	//
+	// **Default**: `"0.0.0.0"`
+	Host string `koanf:"host" json:"host" yaml:"host" mapstructure:"host" env:"MCP_PROXY_HOST"`
+
+	// Port specifies the TCP port for the MCP proxy server.
+	//
+	// **Default**: `8081`
+	Port int `koanf:"port" json:"port" yaml:"port" mapstructure:"port" env:"MCP_PROXY_PORT"`
+
+	// BaseURL specifies the base URL for MCP proxy API endpoints.
+	//
+	// **Default**: `"http://localhost:8081"`
+	BaseURL string `koanf:"base_url" json:"base_url" yaml:"base_url" mapstructure:"base_url" env:"MCP_PROXY_BASE_URL"`
+
+	// ShutdownTimeout sets timeout for graceful shutdown.
+	//
+	// **Default**: `30s`
+	ShutdownTimeout time.Duration `koanf:"shutdown_timeout" json:"shutdown_timeout" yaml:"shutdown_timeout" mapstructure:"shutdown_timeout" env:"MCP_PROXY_SHUTDOWN_TIMEOUT"`
+
+	// AdminTokens contains admin tokens for proxy management.
+	//
+	// **Security**: Use environment variables for tokens.
+	AdminTokens []string `koanf:"admin_tokens" json:"admin_tokens" yaml:"admin_tokens" mapstructure:"admin_tokens" env:"MCP_PROXY_ADMIN_TOKENS"`
+
+	// AdminAllowIPs contains IP addresses allowed to access admin endpoints.
+	//
+	// **Default**: `["127.0.0.1", "::1"]`
+	AdminAllowIPs []string `koanf:"admin_allow_ips" json:"admin_allow_ips" yaml:"admin_allow_ips" mapstructure:"admin_allow_ips" env:"MCP_PROXY_ADMIN_ALLOW_IPS"`
+
+	// TrustedProxies contains trusted proxy IP addresses.
+	//
+	// **Default**: `["127.0.0.1", "::1"]`
+	TrustedProxies []string `koanf:"trusted_proxies" json:"trusted_proxies" yaml:"trusted_proxies" mapstructure:"trusted_proxies" env:"MCP_PROXY_TRUSTED_PROXIES"`
+
+	// GlobalAuthTokens contains global authentication tokens.
+	//
+	// **Security**: Use environment variables for tokens.
+	GlobalAuthTokens []string `koanf:"global_auth_tokens" json:"global_auth_tokens" yaml:"global_auth_tokens" mapstructure:"global_auth_tokens" env:"MCP_PROXY_GLOBAL_AUTH_TOKENS"`
 }
 
 // CLIConfig contains CLI-specific configuration.
@@ -756,6 +1036,9 @@ func defaultFromRegistry() *Config {
 		RateLimit: buildRateLimitConfig(registry),
 		CLI:       buildCLIConfig(registry),
 		Redis:     buildRedisConfig(registry),
+		Cache:     buildCacheConfig(registry),
+		Worker:    buildWorkerConfig(registry),
+		MCPProxy:  buildMCPProxyConfig(registry),
 	}
 }
 
@@ -871,6 +1154,9 @@ func buildRuntimeConfig(registry *definition.Registry) RuntimeConfig {
 		AsyncTokenCounterWorkers:    getInt(registry, "runtime.async_token_counter_workers"),
 		AsyncTokenCounterBufferSize: getInt(registry, "runtime.async_token_counter_buffer_size"),
 		ToolExecutionTimeout:        getDuration(registry, "runtime.tool_execution_timeout"),
+		RuntimeType:                 getString(registry, "runtime.runtime_type"),
+		EntrypointPath:              getString(registry, "runtime.entrypoint_path"),
+		BunPermissions:              getStringSlice(registry, "runtime.bun_permissions"),
 	}
 }
 
@@ -938,13 +1224,60 @@ func buildCLIConfig(registry *definition.Registry) CLIConfig {
 
 func buildRedisConfig(registry *definition.Registry) RedisConfig {
 	return RedisConfig{
-		URL:          getString(registry, "redis.url"),
-		Host:         getString(registry, "redis.host"),
-		Port:         getInt(registry, "redis.port"),
-		Password:     getString(registry, "redis.password"),
-		DB:           getInt(registry, "redis.db"),
-		MaxRetries:   getInt(registry, "redis.max_retries"),
-		PoolSize:     getInt(registry, "redis.pool_size"),
-		MinIdleConns: getInt(registry, "redis.min_idle_conns"),
+		URL:                    getString(registry, "redis.url"),
+		Host:                   getString(registry, "redis.host"),
+		Port:                   getString(registry, "redis.port"),
+		Password:               getString(registry, "redis.password"),
+		DB:                     getInt(registry, "redis.db"),
+		MaxRetries:             getInt(registry, "redis.max_retries"),
+		PoolSize:               getInt(registry, "redis.pool_size"),
+		MinIdleConns:           getInt(registry, "redis.min_idle_conns"),
+		MaxIdleConns:           getInt(registry, "redis.max_idle_conns"),
+		DialTimeout:            getDuration(registry, "redis.dial_timeout"),
+		ReadTimeout:            getDuration(registry, "redis.read_timeout"),
+		WriteTimeout:           getDuration(registry, "redis.write_timeout"),
+		PoolTimeout:            getDuration(registry, "redis.pool_timeout"),
+		PingTimeout:            getDuration(registry, "redis.ping_timeout"),
+		MinRetryBackoff:        getDuration(registry, "redis.min_retry_backoff"),
+		MaxRetryBackoff:        getDuration(registry, "redis.max_retry_backoff"),
+		NotificationBufferSize: getInt(registry, "redis.notification_buffer_size"),
+		TLSEnabled:             getBool(registry, "redis.tls_enabled"),
+	}
+}
+
+func buildCacheConfig(registry *definition.Registry) CacheConfig {
+	return CacheConfig{
+		Enabled:              getBool(registry, "cache.enabled"),
+		TTL:                  getDuration(registry, "cache.ttl"),
+		Prefix:               getString(registry, "cache.prefix"),
+		MaxItemSize:          getInt64(registry, "cache.max_item_size"),
+		CompressionEnabled:   getBool(registry, "cache.compression_enabled"),
+		CompressionThreshold: getInt64(registry, "cache.compression_threshold"),
+		EvictionPolicy:       getString(registry, "cache.eviction_policy"),
+		StatsInterval:        getDuration(registry, "cache.stats_interval"),
+	}
+}
+
+func buildWorkerConfig(registry *definition.Registry) WorkerConfig {
+	return WorkerConfig{
+		ConfigStoreTTL:             getDuration(registry, "worker.config_store_ttl"),
+		HeartbeatCleanupTimeout:    getDuration(registry, "worker.heartbeat_cleanup_timeout"),
+		MCPShutdownTimeout:         getDuration(registry, "worker.mcp_shutdown_timeout"),
+		DispatcherRetryDelay:       getDuration(registry, "worker.dispatcher_retry_delay"),
+		DispatcherMaxRetries:       getInt(registry, "worker.dispatcher_max_retries"),
+		MCPProxyHealthCheckTimeout: getDuration(registry, "worker.mcp_proxy_health_check_timeout"),
+	}
+}
+
+func buildMCPProxyConfig(registry *definition.Registry) MCPProxyConfig {
+	return MCPProxyConfig{
+		Host:             getString(registry, "mcp_proxy.host"),
+		Port:             getInt(registry, "mcp_proxy.port"),
+		BaseURL:          getString(registry, "mcp_proxy.base_url"),
+		ShutdownTimeout:  getDuration(registry, "mcp_proxy.shutdown_timeout"),
+		AdminTokens:      getStringSlice(registry, "mcp_proxy.admin_tokens"),
+		AdminAllowIPs:    getStringSlice(registry, "mcp_proxy.admin_allow_ips"),
+		TrustedProxies:   getStringSlice(registry, "mcp_proxy.trusted_proxies"),
+		GlobalAuthTokens: getStringSlice(registry, "mcp_proxy.global_auth_tokens"),
 	}
 }

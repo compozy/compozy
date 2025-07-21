@@ -150,7 +150,6 @@ func (a *Activities) ExecuteBasicTask(
 		a.taskRepo,
 		a.runtime,
 		a.configStore,
-		a.projectConfig.CWD,
 		memcore.ManagerInterface(a.memoryManager),
 		a.templateEngine,
 		a.projectConfig,

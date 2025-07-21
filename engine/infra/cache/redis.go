@@ -4,8 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"os"
-	"strconv"
 	"sync"
 	"time"
 
@@ -62,11 +60,7 @@ func NewRedis(ctx context.Context, cfg *Config) (*Redis, error) {
 		return nil, fmt.Errorf("redis config is required")
 	}
 
-	// Set defaults
-	cfg = setConfigDefaults(cfg)
-
 	var client redis.UniversalClient
-
 	// Parse URL if provided, otherwise use individual parameters
 	if cfg.URL != "" {
 		opt, err := redis.ParseURL(cfg.URL)
@@ -79,7 +73,7 @@ func NewRedis(ctx context.Context, cfg *Config) (*Redis, error) {
 	} else {
 		// Use individual parameters
 		opt := &redis.Options{
-			Addr:     fmt.Sprintf("%s:%s", cfg.Host, cfg.Port),
+			Addr:     fmt.Sprintf(`%s:%s`, cfg.Host, cfg.Port),
 			Password: cfg.Password,
 			DB:       cfg.DB,
 		}
@@ -294,118 +288,6 @@ func (r *Redis) HealthCheck(ctx context.Context) error {
 	return nil
 }
 
-// setConfigDefaults applies default values to configuration
-func setConfigDefaults(cfg *Config) *Config {
-	setHostAndPortDefaults(cfg)
-	setPoolConfigDefaults(cfg)
-	setTimeoutDefaults(cfg)
-	setRetryDefaults(cfg)
-	return cfg
-}
-
-// setHostAndPortDefaults sets default host and port values
-func setHostAndPortDefaults(cfg *Config) {
-	if cfg.Host == "" {
-		cfg.Host = "localhost"
-	}
-	if cfg.Port == "" {
-		cfg.Port = "6379"
-	}
-}
-
-// setPoolConfigDefaults sets pool configuration from environment variables
-func setPoolConfigDefaults(cfg *Config) {
-	// Configure pool size from environment with production default
-	if cfg.PoolSize == 0 {
-		cfg.PoolSize = getIntEnvOrDefault("REDIS_POOL_SIZE", 100)
-	}
-	// Configure pool timeout from environment
-	if cfg.PoolTimeout == 0 {
-		cfg.PoolTimeout = getDurationEnvOrDefault("REDIS_POOL_TIMEOUT", 30*time.Second)
-	}
-	// Configure max idle connections from environment
-	if cfg.MaxIdleConns == 0 {
-		cfg.MaxIdleConns = getIntEnvOrDefault("REDIS_MAX_IDLE_CONNS", 50)
-	}
-}
-
-// setTimeoutDefaults sets default timeout values
-func setTimeoutDefaults(cfg *Config) {
-	if cfg.DialTimeout == 0 {
-		cfg.DialTimeout = 2 * time.Second // Reduced from 5s for faster startup
-	}
-	if cfg.ReadTimeout == 0 {
-		cfg.ReadTimeout = 3 * time.Second
-	}
-	if cfg.WriteTimeout == 0 {
-		cfg.WriteTimeout = 3 * time.Second
-	}
-	if cfg.PingTimeout == 0 {
-		cfg.PingTimeout = 500 * time.Millisecond
-	}
-}
-
-// setRetryDefaults sets default retry configuration
-func setRetryDefaults(cfg *Config) {
-	if cfg.MaxRetries == 0 {
-		cfg.MaxRetries = 3
-	}
-	if cfg.MinRetryBackoff == 0 {
-		cfg.MinRetryBackoff = 8 * time.Millisecond
-	}
-	if cfg.MaxRetryBackoff == 0 {
-		cfg.MaxRetryBackoff = 512 * time.Millisecond
-	}
-}
-
-// getIntEnvOrDefault returns the integer value from environment or default
-func getIntEnvOrDefault(envKey string, defaultValue int) int {
-	if envStr := os.Getenv(envKey); envStr != "" {
-		val, err := strconv.Atoi(envStr)
-		if err != nil {
-			log := logger.FromContext(context.Background())
-			log.Debug(
-				"Failed to parse environment variable as integer",
-				"key",
-				envKey,
-				"value",
-				envStr,
-				"error",
-				err.Error(),
-			)
-			return defaultValue
-		}
-		if val > 0 {
-			return val
-		}
-		log := logger.FromContext(context.Background())
-		log.Debug("Environment variable value is not positive", "key", envKey, "value", val)
-	}
-	return defaultValue
-}
-
-// getDurationEnvOrDefault returns the duration value from environment or default
-func getDurationEnvOrDefault(envKey string, defaultValue time.Duration) time.Duration {
-	if envStr := os.Getenv(envKey); envStr != "" {
-		val, err := time.ParseDuration(envStr)
-		if err != nil {
-			log := logger.FromContext(context.Background())
-			log.Debug(
-				"Failed to parse environment variable as duration",
-				"key",
-				envKey,
-				"value",
-				envStr,
-				"error",
-				err.Error(),
-			)
-			return defaultValue
-		}
-		return val
-	}
-	return defaultValue
-}
-
 // applyConfigToOptions applies configuration to Redis options
 func applyConfigToOptions(opt *redis.Options, cfg *Config) {
 	opt.PoolSize = cfg.PoolSize
@@ -434,12 +316,4 @@ func applyConfigToOptions(opt *redis.Options, cfg *Config) {
 			}
 		}
 	}
-}
-
-// getEnvOrDefault returns the environment variable value or the default value
-func getEnvOrDefault(val, def string) string {
-	if val == "" {
-		return def
-	}
-	return val
 }

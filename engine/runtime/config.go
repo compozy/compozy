@@ -3,6 +3,8 @@ package runtime
 import (
 	"os"
 	"time"
+
+	appconfig "github.com/compozy/compozy/pkg/config"
 )
 
 // Config holds configuration for the RuntimeManager
@@ -17,116 +19,8 @@ type Config struct {
 	EntrypointPath string   // Path to entrypoint file
 	BunPermissions []string // Bun-specific permissions
 	NodeOptions    []string // Node.js-specific options
-}
-
-// Option is a function that configures the RuntimeManager
-type Option func(*Config)
-
-// WithBackoffInitialInterval sets the initial backoff interval
-func WithBackoffInitialInterval(interval time.Duration) Option {
-	return func(c *Config) {
-		c.BackoffInitialInterval = interval
-	}
-}
-
-// WithBackoffMaxInterval sets the maximum backoff interval
-func WithBackoffMaxInterval(interval time.Duration) Option {
-	return func(c *Config) {
-		c.BackoffMaxInterval = interval
-	}
-}
-
-// WithBackoffMaxElapsedTime sets the maximum elapsed time for backoff
-func WithBackoffMaxElapsedTime(elapsed time.Duration) Option {
-	return func(c *Config) {
-		c.BackoffMaxElapsedTime = elapsed
-	}
-}
-
-// WithWorkerFilePerm sets the file permissions for worker files
-func WithWorkerFilePerm(perm os.FileMode) Option {
-	return func(c *Config) {
-		c.WorkerFilePerm = perm
-	}
-}
-
-// WithToolExecutionTimeout sets the tool execution timeout
-func WithToolExecutionTimeout(timeout time.Duration) Option {
-	return func(c *Config) {
-		c.ToolExecutionTimeout = timeout
-	}
-}
-
-// WithTestConfig applies test-specific configuration
-func WithTestConfig() Option {
-	return func(c *Config) {
-		testConfig := TestConfig()
-		*c = *testConfig
-	}
-}
-
-// WithConfig applies a complete configuration
-func WithConfig(config *Config) Option {
-	return func(c *Config) {
-		if config != nil {
-			// Merge configurations instead of replacing completely
-			if config.BackoffInitialInterval != 0 {
-				c.BackoffInitialInterval = config.BackoffInitialInterval
-			}
-			if config.BackoffMaxInterval != 0 {
-				c.BackoffMaxInterval = config.BackoffMaxInterval
-			}
-			if config.BackoffMaxElapsedTime != 0 {
-				c.BackoffMaxElapsedTime = config.BackoffMaxElapsedTime
-			}
-			if config.WorkerFilePerm != 0 {
-				c.WorkerFilePerm = config.WorkerFilePerm
-			}
-			if config.ToolExecutionTimeout != 0 {
-				c.ToolExecutionTimeout = config.ToolExecutionTimeout
-			}
-			if config.RuntimeType != "" {
-				c.RuntimeType = config.RuntimeType
-			}
-			if config.EntrypointPath != "" {
-				c.EntrypointPath = config.EntrypointPath
-			}
-			if len(config.BunPermissions) > 0 {
-				c.BunPermissions = config.BunPermissions
-			}
-			if len(config.NodeOptions) > 0 {
-				c.NodeOptions = config.NodeOptions
-			}
-		}
-	}
-}
-
-// WithRuntimeType sets the runtime type (bun or node)
-func WithRuntimeType(runtimeType string) Option {
-	return func(c *Config) {
-		c.RuntimeType = runtimeType
-	}
-}
-
-// WithEntrypointPath sets the entrypoint file path
-func WithEntrypointPath(path string) Option {
-	return func(c *Config) {
-		c.EntrypointPath = path
-	}
-}
-
-// WithBunPermissions sets Bun-specific permissions
-func WithBunPermissions(permissions []string) Option {
-	return func(c *Config) {
-		c.BunPermissions = permissions
-	}
-}
-
-// WithNodeOptions sets Node.js-specific options
-func WithNodeOptions(options []string) Option {
-	return func(c *Config) {
-		c.NodeOptions = options
-	}
+	// Application config integration fields
+	Environment string // Deployment environment (development, staging, production)
 }
 
 // DefaultConfig returns a sensible default configuration
@@ -141,6 +35,7 @@ func DefaultConfig() *Config {
 		BunPermissions: []string{
 			"--allow-read", // Minimal permissions - allow read only by default
 		},
+		Environment: "development", // Default environment
 	}
 }
 
@@ -155,5 +50,47 @@ func TestConfig() *Config {
 		BunPermissions: []string{
 			"--allow-read",
 		},
+		Environment: "testing", // Test environment
 	}
+}
+
+// FromAppConfig creates a runtime Config from the application's RuntimeConfig.
+//
+// This method consolidates configuration by converting from the centralized
+// pkg/config.RuntimeConfig to the runtime-specific Config structure, applying
+// appropriate defaults and mappings.
+//
+// **Mapping Strategy:**
+//   - Direct field mappings where names/types match
+//   - Default values applied for runtime-specific settings
+//   - Advanced runtime features use sensible production defaults
+//
+// **Example Usage:**
+//
+//	appConfig := &config.RuntimeConfig{
+//	  Environment: "production",
+//	  ToolExecutionTimeout: 30*time.Second,
+//	}
+//	runtimeConfig := FromAppConfig(appConfig)
+func FromAppConfig(appConfig *appconfig.RuntimeConfig) *Config {
+	if appConfig == nil {
+		return DefaultConfig()
+	}
+	config := DefaultConfig()
+	if appConfig.Environment != "" {
+		config.Environment = appConfig.Environment
+	}
+	if appConfig.ToolExecutionTimeout > 0 {
+		config.ToolExecutionTimeout = appConfig.ToolExecutionTimeout
+	}
+	if appConfig.RuntimeType != "" {
+		config.RuntimeType = appConfig.RuntimeType
+	}
+	if appConfig.EntrypointPath != "" {
+		config.EntrypointPath = appConfig.EntrypointPath
+	}
+	if len(appConfig.BunPermissions) > 0 {
+		config.BunPermissions = appConfig.BunPermissions
+	}
+	return config
 }

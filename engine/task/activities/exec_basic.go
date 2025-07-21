@@ -47,7 +47,6 @@ func NewExecuteBasic(
 	taskRepo task.Repository,
 	runtime runtime.Runtime,
 	configStore services.ConfigStore,
-	_ *core.PathCWD,
 	memoryManager memcore.ManagerInterface,
 	templateEngine *tplengine.TemplateEngine,
 	projectConfig *project.Config,

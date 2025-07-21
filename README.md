@@ -755,7 +755,7 @@ models:
 # JavaScript/TypeScript runtime configuration
 runtime:
   type: bun # or 'node'
-  entrypoint: "./tools/index.ts"
+  entrypoint: "./tools.ts"
   permissions:
     - "--allow-read=/safe/directory"
     - "--allow-net=api.trusted.com"

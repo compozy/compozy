@@ -15,7 +15,7 @@ describe("list-dir tool", () => {
   afterEach(async () => {
     try {
       await rm(testDir, { recursive: true, force: true });
-    } catch (error) {
+    } catch {
       // Ignore cleanup errors
     }
   });

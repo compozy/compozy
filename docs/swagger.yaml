@@ -1293,6 +1293,26 @@ definitions:
     type: object
   tool.Config:
     properties:
+      config:
+        allOf:
+        - $ref: '#/definitions/core.Input'
+        description: |-
+          Configuration parameters passed to the tool separately from input data.
+          Provides static configuration that tools can use for initialization and behavior control.
+          Unlike input parameters, config is not meant to change between tool invocations.
+
+          - **Use cases:** API base URLs, retry policies, timeout settings, feature flags
+          - **Separation:** Keeps configuration separate from runtime input data
+          - **Override:** Can be overridden at workflow or agent level
+          - **Example:**
+            ```yaml
+            config:
+              base_url: "https://api.example.com"
+              timeout: 30
+              retry_count: 3
+              headers:
+                User-Agent: "Compozy/1.0"
+            ```
       cwd:
         allOf:
         - $ref: '#/definitions/core.PathCWD'

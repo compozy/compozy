@@ -17,7 +17,7 @@ describe("listFiles", () => {
     // Clean up test directory
     try {
       await rmdir(testDir, { recursive: true });
-    } catch (error) {
+    } catch {
       // Ignore cleanup errors
     }
   });

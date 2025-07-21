@@ -5,7 +5,10 @@
   "type": "module",
   "main": "index.ts",
   "scripts": {
-    "test": "bun test"
+    "test": "bun test",
+    "type-check": "tsc --noEmit",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix"
   },
   "keywords": [
     "compozy",

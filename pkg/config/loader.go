@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -385,6 +386,25 @@ func (l *loader) validateCustom(config *Config) error {
 		return fmt.Errorf("dispatcher stale threshold must be greater than heartbeat TTL")
 	}
 
+	// Validate Redis port if specified
+	if config.Redis.Port != "" {
+		if err := validateTCPPort(config.Redis.Port, "Redis port"); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// validateTCPPort validates that a string represents a valid TCP port number (1-65535)
+func validateTCPPort(portStr, fieldName string) error {
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		return fmt.Errorf("%s must be a valid integer, got: %s", fieldName, portStr)
+	}
+	if port < 1 || port > 65535 {
+		return fmt.Errorf("%s must be between 1 and 65535, got: %d", fieldName, port)
+	}
 	return nil
 }
 

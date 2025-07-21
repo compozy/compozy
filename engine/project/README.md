@@ -275,7 +275,7 @@ models:
 # Runtime configuration
 runtime:
   type: bun
-  entrypoint: ./tools/index.ts
+  entrypoint: ./tools.ts
   permissions:
     - --allow-read=/data
     - --allow-net=api.company.com
@@ -658,7 +658,7 @@ func TestProjectConfiguration(t *testing.T) {
         config := &project.Config{
             Name:    "test-project",
             Version: "1.0.0",
-            Runtime: project.RuntimeConfig{
+            Runtime: project.ProjectRuntimeConfig{
                 Type:       "bun",
                 Entrypoint: "./tools.ts",
             },

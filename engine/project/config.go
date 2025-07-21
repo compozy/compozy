@@ -11,10 +11,26 @@ import (
 	"dario.cat/mergo"
 	"github.com/compozy/compozy/engine/autoload"
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/engine/infra/cache"
 	"github.com/compozy/compozy/engine/infra/monitoring"
 	"github.com/compozy/compozy/engine/schema"
 )
+
+// RuntimeConfig defines project-specific runtime overrides.
+// The main runtime configuration is now in pkg/config.RuntimeConfig.
+// This struct allows projects to override specific runtime settings.
+type RuntimeConfig struct {
+	// Type specifies the JavaScript runtime to use for tool execution.
+	// Overrides global runtime.runtime_type setting if specified.
+	Type string `json:"type,omitempty" yaml:"type,omitempty" mapstructure:"type"`
+
+	// Entrypoint specifies the path to the JavaScript/TypeScript entrypoint file.
+	// Overrides global runtime.entrypoint_path setting if specified.
+	Entrypoint string `json:"entrypoint,omitempty" yaml:"entrypoint,omitempty" mapstructure:"entrypoint"`
+
+	// Permissions defines runtime security permissions.
+	// Overrides global runtime.bun_permissions setting if specified.
+	Permissions []string `json:"permissions,omitempty" yaml:"permissions,omitempty" mapstructure:"permissions"`
+}
 
 // WorkflowSourceConfig defines the source location for a workflow file.
 //
@@ -101,7 +117,7 @@ type WorkflowSourceConfig struct {
 //
 //	runtime:
 //	  type: bun
-//	  entrypoint: ./tools/index.ts
+//	  entrypoint: ./tools.ts
 //	  permissions:
 //	    - --allow-read=/data
 //	    - --allow-net=api.company.com
@@ -238,14 +254,11 @@ type Config struct {
 	Opts Opts `json:"config" yaml:"config" mapstructure:"config"`
 
 	// Runtime specifies the JavaScript/TypeScript execution environment for custom tools.
+	// NOTE: Runtime configuration has been moved to global config (pkg/config.RuntimeConfig)
+	// This field is kept for backwards compatibility and project-specific overrides.
 	//
 	// $ref: schema://application#runtime
 	Runtime RuntimeConfig `json:"runtime" yaml:"runtime" mapstructure:"runtime"`
-
-	// CacheConfig enables and configures caching for improved performance and cost reduction.
-	//
-	// $ref: inline:#cache
-	CacheConfig *cache.Config `json:"cache,omitempty" yaml:"cache,omitempty" mapstructure:"cache"`
 
 	// AutoLoad configures automatic loading and reloading of project resources during development.
 	//
@@ -334,12 +347,6 @@ func (p *Config) Validate() error {
 	// Validate runtime configuration
 	if err := p.validateRuntimeConfig(); err != nil {
 		return fmt.Errorf("runtime configuration validation failed: %w", err)
-	}
-	// Validate cache configuration if present
-	if p.CacheConfig != nil {
-		if err := p.CacheConfig.Validate(); err != nil {
-			return fmt.Errorf("cache configuration validation failed: %w", err)
-		}
 	}
 	// Validate monitoring configuration if present
 	if p.MonitoringConfig != nil {
@@ -503,43 +510,6 @@ func (p *Config) Clone() (*Config, error) {
 	return core.DeepCopy(p)
 }
 
-// setRuntimeDefaults sets secure and sensible default values for runtime configuration.
-// These defaults follow the principle of least privilege and prioritize security over convenience.
-func setRuntimeDefaults(runtime *RuntimeConfig) {
-	// Default to Bun runtime if not specified
-	// Rationale: Bun is chosen as the default because:
-	// - Superior performance compared to Node.js for most tool execution scenarios
-	// - Built-in TypeScript support without additional compilation steps
-	// - More comprehensive permission system for security isolation
-	// - Faster startup times which improves tool execution latency
-	if runtime.Type == "" {
-		runtime.Type = "bun"
-	}
-
-	// Set default entrypoint if not specified
-	// Rationale: "./tools.ts" is chosen because:
-	// - TypeScript provides better type safety and development experience
-	// - Relative path ensures entrypoint is within project directory (security)
-	// - Conventional name that's intuitive for developers
-	// - Single entrypoint simplifies tool discovery and management
-	if runtime.Entrypoint == "" {
-		runtime.Entrypoint = "./tools.ts"
-	}
-
-	// Set default permissions for Bun if not specified
-	// Rationale: Only read permissions are granted by default because:
-	// - Principle of least privilege - tools should only get minimum required access
-	// - Read-only access prevents accidental or malicious file modifications
-	// - Network and write permissions can be explicitly granted when needed
-	// - Reduces attack surface for potentially vulnerable or malicious tools
-	// - Forces developers to consciously evaluate permission requirements
-	if len(runtime.Permissions) == 0 && runtime.Type == "bun" {
-		runtime.Permissions = []string{
-			"--allow-read", // Minimal read-only access for maximum security
-		}
-	}
-}
-
 // loadAndPrepareConfig loads and prepares the configuration file
 func loadAndPrepareConfig(ctx context.Context, cwd *core.PathCWD, path string) (*Config, error) {
 	filePath, err := core.ResolvePath(cwd, path)
@@ -561,13 +531,30 @@ func loadAndPrepareConfig(ctx context.Context, cwd *core.PathCWD, path string) (
 	if config.AutoLoad != nil {
 		config.AutoLoad.SetDefaults()
 	}
-	// Set default runtime configuration if not specified
-	setRuntimeDefaults(&config.Runtime)
+	// Apply minimal runtime defaults for project-level compatibility
+	config.setRuntimeDefaults()
 	config.MonitoringConfig, err = monitoring.LoadWithEnv(ctx, config.MonitoringConfig)
 	if err != nil {
 		return nil, err
 	}
 	return config, nil
+}
+
+// setRuntimeDefaults applies minimal runtime defaults for project-level compatibility
+// These defaults ensure backward compatibility with existing tests and expected behavior
+func (p *Config) setRuntimeDefaults() {
+	// When runtime config is not specified in YAML, provide standard defaults
+	if p.Runtime.Type == "" {
+		p.Runtime.Type = "bun"
+	}
+	if p.Runtime.Entrypoint == "" {
+		p.Runtime.Entrypoint = "./tools.ts"
+	}
+	// Set default permissions for project runtime if not specified
+	// Use nil check to distinguish between unspecified (nil) and explicitly empty ([]string{})
+	if p.Runtime.Permissions == nil {
+		p.Runtime.Permissions = []string{"--allow-read"}
+	}
 }
 
 func Load(ctx context.Context, cwd *core.PathCWD, path string, envFilePath string) (*Config, error) {

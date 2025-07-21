@@ -191,7 +191,7 @@ func handleConfigValidateJSON(
 	log.Debug("executing config validate command in JSON mode")
 
 	cfg := config.Get()
-	service := config.NewService()
+	service := config.GlobalManager.Service
 	if err := service.Validate(cfg); err != nil {
 		return outputValidationJSON(false, err.Error())
 	}
@@ -245,62 +245,82 @@ func runDiagnostics(
 	_ *cmd.CommandExecutor,
 	isJSON bool,
 ) error {
-	log := logger.FromContext(ctx)
-	verbose := false
-	if cobraCmd != nil {
-		var err error
-		verbose, err = cobraCmd.Flags().GetBool("verbose")
-		if err != nil {
-			return fmt.Errorf("failed to get verbose flag: %w", err)
-		}
+	verbose, err := getVerboseFlag(cobraCmd)
+	if err != nil {
+		return err
 	}
 
-	if !isJSON {
-		fmt.Println("=== Configuration Diagnostics ===")
-	}
-
-	// Get working directory
 	cwd, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("failed to get working directory: %w", err)
 	}
 
-	if !isJSON {
-		fmt.Printf("Working Directory: %s\n\n", cwd)
-	}
-
-	// Load configuration
 	cfg := config.Get()
 	service := config.GlobalManager.Service
-
-	// Run validation
 	validationErr := service.Validate(cfg)
 
 	if isJSON {
-		// JSON output for diagnostics
-		diagnostics := map[string]any{
-			"working_directory": cwd,
-			"configuration":     cfg,
-			"validation": map[string]any{
-				"valid": validationErr == nil,
-				"error": func() any {
-					if validationErr != nil {
-						return validationErr.Error()
-					}
-					return nil
-				}(),
-			},
-		}
-
-		if verbose {
-			// Note: Source tracking is not currently implemented
-			diagnostics["sources"] = map[string]any{"note": "Source tracking not implemented"}
-		}
-
-		return outputDiagnosticsJSON(diagnostics)
+		return outputDiagnosticsResults(cwd, cfg, validationErr, verbose)
 	}
 
-	// TUI output for diagnostics
+	return outputDiagnosticsTUI(ctx, cwd, validationErr, verbose)
+}
+
+// getVerboseFlag safely extracts the verbose flag from cobra command
+func getVerboseFlag(cobraCmd *cobra.Command) (bool, error) {
+	if cobraCmd == nil {
+		return false, nil
+	}
+	verbose, err := cobraCmd.Flags().GetBool("verbose")
+	if err != nil {
+		return false, fmt.Errorf("failed to get verbose flag: %w", err)
+	}
+	return verbose, nil
+}
+
+// outputDiagnosticsResults outputs diagnostics in JSON format
+func outputDiagnosticsResults(cwd string, cfg *config.Config, validationErr error, verbose bool) error {
+	diagnostics := map[string]any{
+		"working_directory": cwd,
+		"configuration":     cfg,
+		"validation": map[string]any{
+			"valid": validationErr == nil,
+			"error": func() any {
+				if validationErr != nil {
+					return validationErr.Error()
+				}
+				return nil
+			}(),
+		},
+	}
+
+	if verbose {
+		sources := make(map[string]string)
+		if service, ok := config.GlobalManager.Service.(interface {
+			GetSources() map[string]config.SourceType
+		}); ok {
+			serviceSources := service.GetSources()
+			for key, sourceType := range serviceSources {
+				sources[key] = string(sourceType)
+			}
+		}
+		if len(sources) > 0 {
+			diagnostics["sources"] = sources
+		} else {
+			diagnostics["sources"] = map[string]any{"note": "Source tracking not available"}
+		}
+	}
+
+	return outputDiagnosticsJSON(diagnostics)
+}
+
+// outputDiagnosticsTUI outputs diagnostics in TUI format
+func outputDiagnosticsTUI(ctx context.Context, cwd string, validationErr error, verbose bool) error {
+	log := logger.FromContext(ctx)
+
+	fmt.Println("=== Configuration Diagnostics ===")
+	fmt.Printf("Working Directory: %s\n\n", cwd)
+
 	fmt.Println("\n--- Configuration Validation ---")
 	if validationErr != nil {
 		fmt.Printf("❌ Validation errors:\n%v\n", validationErr)
@@ -403,7 +423,10 @@ func flattenConfig(cfg *config.Config) map[string]string {
 	flattenLLMConfig(cfg, result)
 	flattenCLIConfig(cfg, result)
 	flattenRedisConfig(cfg, result)
+	flattenCacheConfig(cfg, result)
 	flattenRateLimitConfig(cfg, result)
+	flattenWorkerConfig(cfg, result)
+	flattenMCPProxyConfig(cfg, result)
 	return result
 }
 
@@ -504,7 +527,7 @@ func flattenRedisConfig(cfg *config.Config, result map[string]string) {
 		result["redis.url"] = redactURL(cfg.Redis.URL)
 	}
 	result["redis.host"] = cfg.Redis.Host
-	result["redis.port"] = fmt.Sprintf("%d", cfg.Redis.Port)
+	result["redis.port"] = cfg.Redis.Port
 	if cfg.Redis.Password != "" {
 		result["redis.password"] = redactSensitive(cfg.Redis.Password)
 	}
@@ -512,6 +535,28 @@ func flattenRedisConfig(cfg *config.Config, result map[string]string) {
 	result["redis.max_retries"] = fmt.Sprintf("%d", cfg.Redis.MaxRetries)
 	result["redis.pool_size"] = fmt.Sprintf("%d", cfg.Redis.PoolSize)
 	result["redis.min_idle_conns"] = fmt.Sprintf("%d", cfg.Redis.MinIdleConns)
+	result["redis.max_idle_conns"] = fmt.Sprintf("%d", cfg.Redis.MaxIdleConns)
+	result["redis.dial_timeout"] = cfg.Redis.DialTimeout.String()
+	result["redis.read_timeout"] = cfg.Redis.ReadTimeout.String()
+	result["redis.write_timeout"] = cfg.Redis.WriteTimeout.String()
+	result["redis.pool_timeout"] = cfg.Redis.PoolTimeout.String()
+	result["redis.ping_timeout"] = cfg.Redis.PingTimeout.String()
+	result["redis.min_retry_backoff"] = cfg.Redis.MinRetryBackoff.String()
+	result["redis.max_retry_backoff"] = cfg.Redis.MaxRetryBackoff.String()
+	result["redis.notification_buffer_size"] = fmt.Sprintf("%d", cfg.Redis.NotificationBufferSize)
+	result["redis.tls_enabled"] = fmt.Sprintf("%v", cfg.Redis.TLSEnabled)
+}
+
+// flattenCacheConfig flattens cache configuration
+func flattenCacheConfig(cfg *config.Config, result map[string]string) {
+	result["cache.enabled"] = fmt.Sprintf("%v", cfg.Cache.Enabled)
+	result["cache.ttl"] = cfg.Cache.TTL.String()
+	result["cache.prefix"] = cfg.Cache.Prefix
+	result["cache.max_item_size"] = fmt.Sprintf("%d", cfg.Cache.MaxItemSize)
+	result["cache.compression_enabled"] = fmt.Sprintf("%v", cfg.Cache.CompressionEnabled)
+	result["cache.compression_threshold"] = fmt.Sprintf("%d", cfg.Cache.CompressionThreshold)
+	result["cache.eviction_policy"] = cfg.Cache.EvictionPolicy
+	result["cache.stats_interval"] = cfg.Cache.StatsInterval.String()
 }
 
 // flattenRateLimitConfig flattens rate limit configuration
@@ -576,4 +621,37 @@ func outputDiagnosticsJSON(diagnostics map[string]any) error {
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")
 	return encoder.Encode(diagnostics)
+}
+
+// flattenWorkerConfig flattens worker configuration
+func flattenWorkerConfig(cfg *config.Config, result map[string]string) {
+	result["worker.config_store_ttl"] = cfg.Worker.ConfigStoreTTL.String()
+	result["worker.heartbeat_cleanup_timeout"] = cfg.Worker.HeartbeatCleanupTimeout.String()
+	result["worker.mcp_shutdown_timeout"] = cfg.Worker.MCPShutdownTimeout.String()
+	result["worker.dispatcher_retry_delay"] = cfg.Worker.DispatcherRetryDelay.String()
+	result["worker.dispatcher_max_retries"] = fmt.Sprintf("%d", cfg.Worker.DispatcherMaxRetries)
+	result["worker.mcp_proxy_health_check_timeout"] = cfg.Worker.MCPProxyHealthCheckTimeout.String()
+}
+
+// flattenMCPProxyConfig flattens MCP proxy configuration
+func flattenMCPProxyConfig(cfg *config.Config, result map[string]string) {
+	result["mcpproxy.host"] = cfg.MCPProxy.Host
+	result["mcpproxy.port"] = fmt.Sprintf("%d", cfg.MCPProxy.Port)
+	result["mcpproxy.base_url"] = cfg.MCPProxy.BaseURL
+	result["mcpproxy.shutdown_timeout"] = cfg.MCPProxy.ShutdownTimeout.String()
+	if len(cfg.MCPProxy.AdminTokens) > 0 {
+		result["mcpproxy.admin_tokens"] = fmt.Sprintf("[%d tokens configured]", len(cfg.MCPProxy.AdminTokens))
+	}
+	if len(cfg.MCPProxy.AdminAllowIPs) > 0 {
+		result["mcpproxy.admin_allow_ips"] = strings.Join(cfg.MCPProxy.AdminAllowIPs, ",")
+	}
+	if len(cfg.MCPProxy.TrustedProxies) > 0 {
+		result["mcpproxy.trusted_proxies"] = strings.Join(cfg.MCPProxy.TrustedProxies, ",")
+	}
+	if len(cfg.MCPProxy.GlobalAuthTokens) > 0 {
+		result["mcpproxy.global_auth_tokens"] = fmt.Sprintf(
+			"[%d tokens configured]",
+			len(cfg.MCPProxy.GlobalAuthTokens),
+		)
+	}
 }

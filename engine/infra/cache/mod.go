@@ -3,10 +3,27 @@ package cache
 import (
 	"context"
 	"fmt"
-	"os"
-	"strconv"
-	"time"
+
+	"github.com/compozy/compozy/pkg/config"
 )
+
+// Config represents the cache-specific configuration
+// This combines Redis connection settings with cache behavior settings
+type Config struct {
+	*config.CacheConfig
+	*config.RedisConfig
+}
+
+// FromAppConfig creates a cache Config from the centralized app configuration
+func FromAppConfig(appConfig *config.Config) *Config {
+	redisConfig := &appConfig.Redis
+	cacheConfig := &appConfig.Cache
+
+	return &Config{
+		RedisConfig: redisConfig,
+		CacheConfig: cacheConfig,
+	}
+}
 
 type Cache struct {
 	Redis        *Redis
@@ -17,7 +34,7 @@ type Cache struct {
 // SetupCache creates a new Cache instance with Redis backend
 func SetupCache(ctx context.Context, config *Config) (*Cache, error) {
 	if config == nil {
-		config = buildConfigFromEnv()
+		return nil, fmt.Errorf("cache config cannot be nil")
 	}
 
 	redis, err := NewRedis(ctx, config)
@@ -42,57 +59,6 @@ func SetupCache(ctx context.Context, config *Config) (*Cache, error) {
 		LockManager:  lockManager,
 		Notification: notification,
 	}, nil
-}
-
-// buildConfigFromEnv creates a Redis config from environment variables
-func buildConfigFromEnv() *Config {
-	config := &Config{
-		URL:      os.Getenv("REDIS_URL"),
-		Host:     getEnvOrDefault(os.Getenv("REDIS_HOST"), "localhost"),
-		Port:     getEnvOrDefault(os.Getenv("REDIS_PORT"), "6379"),
-		Password: os.Getenv("REDIS_PASSWORD"),
-	}
-
-	// Parse integer values with defaults
-	if dbStr := os.Getenv("REDIS_DB"); dbStr != "" {
-		if db, err := strconv.Atoi(dbStr); err == nil {
-			config.DB = db
-		}
-	}
-
-	if poolSizeStr := os.Getenv("REDIS_POOL_SIZE"); poolSizeStr != "" {
-		if poolSize, err := strconv.Atoi(poolSizeStr); err == nil {
-			config.PoolSize = poolSize
-		}
-	}
-
-	// Parse duration values with defaults
-	if timeoutStr := os.Getenv("REDIS_DIAL_TIMEOUT"); timeoutStr != "" {
-		if timeout, err := time.ParseDuration(timeoutStr); err == nil {
-			config.DialTimeout = timeout
-		}
-	}
-
-	if timeoutStr := os.Getenv("REDIS_READ_TIMEOUT"); timeoutStr != "" {
-		if timeout, err := time.ParseDuration(timeoutStr); err == nil {
-			config.ReadTimeout = timeout
-		}
-	}
-
-	if timeoutStr := os.Getenv("REDIS_WRITE_TIMEOUT"); timeoutStr != "" {
-		if timeout, err := time.ParseDuration(timeoutStr); err == nil {
-			config.WriteTimeout = timeout
-		}
-	}
-
-	// Parse TLS configuration
-	if tlsStr := os.Getenv("REDIS_TLS"); tlsStr != "" {
-		if tls, err := strconv.ParseBool(tlsStr); err == nil {
-			config.TLSEnabled = tls
-		}
-	}
-
-	return config
 }
 
 // Close gracefully shuts down the cache

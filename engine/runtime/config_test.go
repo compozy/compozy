@@ -38,7 +38,7 @@ export async function config_tool(input: any, config?: any) {
 		config := &runtime.Config{
 			EntrypointPath: "./tools.ts",
 		}
-		bm, err := runtime.NewBunManager(ctx, tmpDir, runtime.WithConfig(config))
+		bm, err := runtime.NewBunManager(ctx, tmpDir, config)
 		require.NoError(t, err)
 
 		toolExecID, _ := core.NewID()
@@ -80,7 +80,7 @@ export async function optional_config_tool(input: any, config?: any) {
 		config := &runtime.Config{
 			EntrypointPath: "./tools.ts",
 		}
-		bm, err := runtime.NewBunManager(ctx, tmpDir, runtime.WithConfig(config))
+		bm, err := runtime.NewBunManager(ctx, tmpDir, config)
 		require.NoError(t, err)
 
 		toolExecID, _ := core.NewID()
@@ -119,7 +119,7 @@ export async function optional_config_tool(input: any, config?: any) {
 		config := &runtime.Config{
 			EntrypointPath: "./tools.ts",
 		}
-		bm, err := runtime.NewBunManager(ctx, tmpDir, runtime.WithConfig(config))
+		bm, err := runtime.NewBunManager(ctx, tmpDir, config)
 		require.NoError(t, err)
 
 		toolExecID, _ := core.NewID()

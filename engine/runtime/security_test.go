@@ -99,7 +99,7 @@ func TestToolIDValidation(t *testing.T) {
 				t.Skip("Bun not available")
 			}
 
-			bm, err := runtime.NewBunManager(ctx, tmpDir)
+			bm, err := runtime.NewBunManager(ctx, tmpDir, nil)
 			require.NoError(t, err)
 
 			toolExecID := core.MustNewID()
@@ -217,7 +217,7 @@ func TestEnvironmentVariableValidation(t *testing.T) {
 				t.Skip("Bun not available")
 			}
 
-			bm, err := runtime.NewBunManager(ctx, tmpDir)
+			bm, err := runtime.NewBunManager(ctx, tmpDir, nil)
 			require.NoError(t, err)
 
 			toolExecID := core.MustNewID()
