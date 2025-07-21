@@ -1,5 +1,5 @@
-import { forwardRef } from "react";
 import { cn } from "@/lib/utils";
+import { forwardRef } from "react";
 
 export interface IconProps extends React.SVGAttributes<SVGElement> {
   name: string;
@@ -14,13 +14,13 @@ const Icon = forwardRef<SVGSVGElement, IconProps>(
       // Handle kebab-case to PascalCase
       .replace(/-([a-z])/g, (_, letter) => letter.toUpperCase())
       // Ensure first letter is uppercase
-      .replace(/^[a-z]/, (letter) => letter.toUpperCase());
+      .replace(/^[a-z]/, letter => letter.toUpperCase());
 
     try {
       // Import the icon from lucide-static using Node.js approach
-      const lucideStatic = require('lucide-static');
+      const lucideStatic = require("lucide-static");
       const svgString = lucideStatic[transformedName];
-      
+
       if (!svgString) {
         throw new Error(`Icon "${name}" (${transformedName}) not found`);
       }
@@ -31,7 +31,7 @@ const Icon = forwardRef<SVGSVGElement, IconProps>(
       if (!svgMatch) {
         throw new Error(`Invalid SVG format for icon "${name}"`);
       }
-      
+
       const svgContent = svgMatch[1];
 
       return (
@@ -52,7 +52,7 @@ const Icon = forwardRef<SVGSVGElement, IconProps>(
       );
     } catch (error) {
       console.warn(`Icon "${name}" (${transformedName}) not found in lucide-static:`, error);
-      
+
       // Fallback to a basic question mark icon
       return (
         <svg
