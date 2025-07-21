@@ -5,6 +5,7 @@ This example demonstrates the new config parameter feature for tools in Compozy.
 ## Overview
 
 Tools can now receive two separate parameters:
+
 1. **Input**: Runtime data that changes with each invocation
 2. **Config**: Static configuration that remains constant
 
@@ -15,6 +16,7 @@ This separation allows tools to have default settings, API endpoints, formatting
 ### API Caller Tool
 
 Demonstrates how to use config for:
+
 - Base URL configuration
 - Default timeout settings
 - Retry count
@@ -23,6 +25,7 @@ Demonstrates how to use config for:
 ### Formatter Tool
 
 Shows config usage for:
+
 - Default output format
 - Indentation settings
 - Sorting preferences
