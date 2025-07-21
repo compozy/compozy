@@ -356,7 +356,7 @@ type RuntimeConfig struct {
 
 	// EntrypointPath specifies the path to the JavaScript/TypeScript entrypoint file.
 	//
-	// Default: "./tools/index.ts"
+	// Default: "./tools.ts"
 	EntrypointPath string `koanf:"entrypoint_path" env:"RUNTIME_ENTRYPOINT_PATH" json:"entrypoint_path" yaml:"entrypoint_path" mapstructure:"entrypoint_path"`
 
 	// BunPermissions defines runtime security permissions for Bun.
@@ -564,10 +564,13 @@ type RateConfig struct {
 //     ```yaml
 //     redis:
 //     host: localhost
-//     port: 6379
+//     port: "6379"    # String format (required as of v2.0.0)
 //     password: secret
 //     db: 0
 //     ```
+//
+//     **Note**: Port is now a string field. Both quoted strings ("6379") and
+//     numeric literals (6379) are supported due to weakly-typed input parsing.
 type RedisConfig struct {
 	// URL provides a complete Redis connection string.
 	//
@@ -580,9 +583,13 @@ type RedisConfig struct {
 	// Default: "localhost"
 	Host string `koanf:"host" json:"host" yaml:"host" mapstructure:"host" env:"REDIS_HOST"`
 
-	// Port specifies the Redis server port.
+	// Port specifies the Redis server port as a string.
 	//
-	// Default: 6379
+	// **Format**: String representation of port number (1-65535)
+	// **YAML**: Both "6379" (quoted) and 6379 (numeric) are accepted
+	// **Breaking Change**: Changed from int to string in v2.0.0
+	//
+	// Default: "6379"
 	Port string `koanf:"port" json:"port" yaml:"port" mapstructure:"port" env:"REDIS_PORT"`
 
 	// Password authenticates with Redis.
@@ -1033,14 +1040,6 @@ func defaultFromRegistry() *Config {
 		Worker:    buildWorkerConfig(registry),
 		MCPProxy:  buildMCPProxyConfig(registry),
 	}
-}
-
-// GetCacheConfig returns the cache configuration from the global config system.
-// This allows cache services to access cache configuration without it being
-// part of the main Config struct.
-func GetCacheConfig() CacheConfig {
-	registry := definition.CreateRegistry()
-	return buildCacheConfig(registry)
 }
 
 // Helper functions for type-safe registry access

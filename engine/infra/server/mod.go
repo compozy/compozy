@@ -115,6 +115,31 @@ func NewServer(ctx context.Context, cwd, configFile, envFilePath string) *Server
 	}
 }
 
+// convertRateLimitConfig creates a rate limit config from the application config
+func convertRateLimitConfig(cfg *config.Config) *ratelimit.Config {
+	return &ratelimit.Config{
+		GlobalRate: ratelimit.RateConfig{
+			Limit:  cfg.RateLimit.GlobalRate.Limit,
+			Period: cfg.RateLimit.GlobalRate.Period,
+		},
+		APIKeyRate: ratelimit.RateConfig{
+			Limit:  cfg.RateLimit.APIKeyRate.Limit,
+			Period: cfg.RateLimit.APIKeyRate.Period,
+		},
+		RedisAddr:     fmt.Sprintf("%s:%s", cfg.Redis.Host, cfg.Redis.Port),
+		RedisPassword: cfg.Redis.Password,
+		RedisDB:       cfg.Redis.DB,
+		Prefix:        cfg.RateLimit.Prefix,
+		MaxRetry:      cfg.RateLimit.MaxRetry,
+		ExcludedPaths: []string{
+			"/health",
+			"/metrics",
+			"/swagger",
+			"/api/v0/health",
+		},
+	}
+}
+
 func (s *Server) buildRouter(state *appstate.State) error {
 	r := gin.New()
 	r.Use(gin.Recovery())
@@ -129,29 +154,7 @@ func (s *Server) buildRouter(state *appstate.State) error {
 	cfg := config.Get()
 	if cfg.RateLimit.GlobalRate.Limit > 0 {
 		log := logger.FromContext(s.ctx)
-		// Convert from unified config to rate limiting config
-		rateLimitConfig := &ratelimit.Config{
-			GlobalRate: ratelimit.RateConfig{
-				Limit:  cfg.RateLimit.GlobalRate.Limit,
-				Period: cfg.RateLimit.GlobalRate.Period,
-			},
-			APIKeyRate: ratelimit.RateConfig{
-				Limit:  cfg.RateLimit.APIKeyRate.Limit,
-				Period: cfg.RateLimit.APIKeyRate.Period,
-			},
-			RedisAddr:     fmt.Sprintf("%s:%s", cfg.Redis.Host, cfg.Redis.Port),
-			RedisPassword: cfg.Redis.Password,
-			RedisDB:       cfg.Redis.DB,
-			Prefix:        cfg.RateLimit.Prefix,
-			MaxRetry:      cfg.RateLimit.MaxRetry,
-			// Use default excluded paths
-			ExcludedPaths: []string{
-				"/health",
-				"/metrics",
-				"/swagger",
-				"/api/v0/health",
-			},
-		}
+		rateLimitConfig := convertRateLimitConfig(cfg)
 
 		var manager *ratelimit.Manager
 		var err error

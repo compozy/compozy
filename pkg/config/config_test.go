@@ -387,7 +387,7 @@ func TestMetadata_SourceTracking(t *testing.T) {
 
 func TestCacheConfig_Defaults(t *testing.T) {
 	t.Run("Should have correct default values", func(t *testing.T) {
-		cacheConfig := GetCacheConfig()
+		cacheConfig := Default().Cache
 
 		// Test cache-specific defaults
 		assert.True(t, cacheConfig.Enabled, "cache should be enabled by default")
@@ -404,7 +404,7 @@ func TestCacheConfig_Defaults(t *testing.T) {
 func TestCacheConfig_Separation(t *testing.T) {
 	t.Run("Should be separate from Redis configuration", func(t *testing.T) {
 		cfg := Default()
-		cacheConfig := GetCacheConfig()
+		cacheConfig := Default().Cache
 
 		// Verify that CacheConfig doesn't have Redis connection properties
 		// This is implicitly tested by the struct definition having only cache-specific fields
@@ -413,8 +413,87 @@ func TestCacheConfig_Separation(t *testing.T) {
 		assert.Equal(t, "localhost", cfg.Redis.Host, "Redis should have separate host config")
 		assert.Equal(t, "6379", cfg.Redis.Port, "Redis should have separate port config")
 
-		// Verify cache config has its own properties accessed through GetCacheConfig()
+		// Verify cache config has its own properties accessed through Default().Cache
 		assert.NotEmpty(t, cacheConfig.Prefix, "Cache should have its own prefix")
 		assert.NotZero(t, cacheConfig.TTL, "Cache should have its own TTL")
+	})
+}
+
+func TestRedisPortValidation(t *testing.T) {
+	t.Run("Should validate Redis port configuration", func(t *testing.T) {
+		tests := []struct {
+			name     string
+			port     string
+			wantErr  bool
+			errorMsg string
+		}{
+			{
+				"valid port string",
+				"6379",
+				false,
+				"",
+			},
+			{
+				"valid min port",
+				"1",
+				false,
+				"",
+			},
+			{
+				"valid max port",
+				"65535",
+				false,
+				"",
+			},
+			{
+				"empty port (uses default)",
+				"",
+				false,
+				"",
+			},
+			{
+				"invalid port - zero",
+				"0",
+				true,
+				"Redis port must be between 1 and 65535",
+			},
+			{
+				"invalid port - too high",
+				"65536",
+				true,
+				"Redis port must be between 1 and 65535",
+			},
+			{
+				"invalid port - non-numeric",
+				"abc",
+				true,
+				"Redis port must be a valid integer",
+			},
+			{
+				"invalid port - negative",
+				"-1",
+				true,
+				"Redis port must be between 1 and 65535",
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				cfg := Default()
+				cfg.Redis.Port = tt.port
+
+				svc := NewService()
+				err := svc.Validate(cfg)
+
+				if tt.wantErr {
+					assert.Error(t, err)
+					if tt.errorMsg != "" {
+						assert.Contains(t, err.Error(), tt.errorMsg)
+					}
+				} else {
+					assert.NoError(t, err)
+				}
+			})
+		}
 	})
 }

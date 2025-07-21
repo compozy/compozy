@@ -61,38 +61,46 @@ type BunManager struct {
 	projectRoot string
 }
 
+// MergeWithDefaults merges the provided config with default values for zero fields
+func MergeWithDefaults(config *Config) *Config {
+	if config == nil {
+		return DefaultConfig()
+	}
+	defaultConfig := DefaultConfig()
+	if config.BackoffInitialInterval == 0 {
+		config.BackoffInitialInterval = defaultConfig.BackoffInitialInterval
+	}
+	if config.BackoffMaxInterval == 0 {
+		config.BackoffMaxInterval = defaultConfig.BackoffMaxInterval
+	}
+	if config.BackoffMaxElapsedTime == 0 {
+		config.BackoffMaxElapsedTime = defaultConfig.BackoffMaxElapsedTime
+	}
+	if config.WorkerFilePerm == 0 {
+		config.WorkerFilePerm = defaultConfig.WorkerFilePerm
+	}
+	if config.ToolExecutionTimeout == 0 {
+		config.ToolExecutionTimeout = defaultConfig.ToolExecutionTimeout
+	}
+	if config.RuntimeType == "" {
+		config.RuntimeType = defaultConfig.RuntimeType
+	}
+	if config.BunPermissions == nil {
+		config.BunPermissions = defaultConfig.BunPermissions
+	}
+	if config.Environment == "" {
+		config.Environment = defaultConfig.Environment
+	}
+	if config.EntrypointPath == "" {
+		config.EntrypointPath = defaultConfig.EntrypointPath
+	}
+	return config
+}
+
 // NewBunManager initializes a BunManager with direct configuration
 func NewBunManager(ctx context.Context, projectRoot string, config *Config) (*BunManager, error) {
-	if config == nil {
-		config = DefaultConfig()
-	} else {
-		// Merge partial config with defaults to ensure all required fields are set
-		defaultConfig := DefaultConfig()
-		if config.BackoffInitialInterval == 0 {
-			config.BackoffInitialInterval = defaultConfig.BackoffInitialInterval
-		}
-		if config.BackoffMaxInterval == 0 {
-			config.BackoffMaxInterval = defaultConfig.BackoffMaxInterval
-		}
-		if config.BackoffMaxElapsedTime == 0 {
-			config.BackoffMaxElapsedTime = defaultConfig.BackoffMaxElapsedTime
-		}
-		if config.WorkerFilePerm == 0 {
-			config.WorkerFilePerm = defaultConfig.WorkerFilePerm
-		}
-		if config.ToolExecutionTimeout == 0 {
-			config.ToolExecutionTimeout = defaultConfig.ToolExecutionTimeout
-		}
-		if config.RuntimeType == "" {
-			config.RuntimeType = defaultConfig.RuntimeType
-		}
-		if config.BunPermissions == nil {
-			config.BunPermissions = defaultConfig.BunPermissions
-		}
-		if config.Environment == "" {
-			config.Environment = defaultConfig.Environment
-		}
-	}
+	// Merge partial config with defaults to ensure all required fields are set
+	config = MergeWithDefaults(config)
 	log := logger.FromContext(ctx)
 
 	// Pre-check Bun availability

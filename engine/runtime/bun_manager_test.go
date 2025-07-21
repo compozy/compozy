@@ -13,6 +13,80 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestMergeWithDefaults(t *testing.T) {
+	t.Run("Should return default config when nil", func(t *testing.T) {
+		result := runtime.MergeWithDefaults(nil)
+		defaultConfig := runtime.DefaultConfig()
+
+		assert.Equal(t, defaultConfig.BackoffInitialInterval, result.BackoffInitialInterval)
+		assert.Equal(t, defaultConfig.BackoffMaxInterval, result.BackoffMaxInterval)
+		assert.Equal(t, defaultConfig.BackoffMaxElapsedTime, result.BackoffMaxElapsedTime)
+		assert.Equal(t, defaultConfig.WorkerFilePerm, result.WorkerFilePerm)
+		assert.Equal(t, defaultConfig.ToolExecutionTimeout, result.ToolExecutionTimeout)
+		assert.Equal(t, defaultConfig.RuntimeType, result.RuntimeType)
+		assert.Equal(t, defaultConfig.BunPermissions, result.BunPermissions)
+		assert.Equal(t, defaultConfig.Environment, result.Environment)
+		assert.Equal(t, defaultConfig.EntrypointPath, result.EntrypointPath)
+	})
+
+	t.Run("Should preserve non-zero values and fill zero values with defaults", func(t *testing.T) {
+		config := &runtime.Config{
+			BackoffInitialInterval: 50 * time.Millisecond, // Non-zero, should be preserved
+			BackoffMaxInterval:     0,                     // Zero, should get default
+			BackoffMaxElapsedTime:  10 * time.Second,      // Non-zero, should be preserved
+			WorkerFilePerm:         0,                     // Zero, should get default
+			ToolExecutionTimeout:   30 * time.Second,      // Non-zero, should be preserved
+			RuntimeType:            "custom",              // Non-empty, should be preserved
+			BunPermissions:         nil,                   // Nil, should get default
+			Environment:            "",                    // Empty, should get default
+			EntrypointPath:         "./custom.ts",         // Non-empty, should be preserved
+		}
+
+		result := runtime.MergeWithDefaults(config)
+		defaultConfig := runtime.DefaultConfig()
+
+		// Non-zero values should be preserved
+		assert.Equal(t, 50*time.Millisecond, result.BackoffInitialInterval)
+		assert.Equal(t, 10*time.Second, result.BackoffMaxElapsedTime)
+		assert.Equal(t, 30*time.Second, result.ToolExecutionTimeout)
+		assert.Equal(t, "custom", result.RuntimeType)
+		assert.Equal(t, "./custom.ts", result.EntrypointPath)
+
+		// Zero values should get defaults
+		assert.Equal(t, defaultConfig.BackoffMaxInterval, result.BackoffMaxInterval)
+		assert.Equal(t, defaultConfig.WorkerFilePerm, result.WorkerFilePerm)
+		assert.Equal(t, defaultConfig.BunPermissions, result.BunPermissions)
+		assert.Equal(t, defaultConfig.Environment, result.Environment)
+	})
+
+	t.Run("Should preserve all non-zero values", func(t *testing.T) {
+		config := &runtime.Config{
+			BackoffInitialInterval: 200 * time.Millisecond,
+			BackoffMaxInterval:     10 * time.Second,
+			BackoffMaxElapsedTime:  60 * time.Second,
+			WorkerFilePerm:         0644,
+			ToolExecutionTimeout:   120 * time.Second,
+			RuntimeType:            "node",
+			BunPermissions:         []string{"--allow-write"},
+			Environment:            "production",
+			EntrypointPath:         "./prod.ts",
+		}
+
+		result := runtime.MergeWithDefaults(config)
+
+		// All values should be preserved since none are zero
+		assert.Equal(t, 200*time.Millisecond, result.BackoffInitialInterval)
+		assert.Equal(t, 10*time.Second, result.BackoffMaxInterval)
+		assert.Equal(t, 60*time.Second, result.BackoffMaxElapsedTime)
+		assert.Equal(t, os.FileMode(0644), result.WorkerFilePerm)
+		assert.Equal(t, 120*time.Second, result.ToolExecutionTimeout)
+		assert.Equal(t, "node", result.RuntimeType)
+		assert.Equal(t, []string{"--allow-write"}, result.BunPermissions)
+		assert.Equal(t, "production", result.Environment)
+		assert.Equal(t, "./prod.ts", result.EntrypointPath)
+	})
+}
+
 func TestNewBunManager(t *testing.T) {
 	t.Run("Should create BunManager when Bun is available", func(t *testing.T) {
 		// Skip if Bun is not available

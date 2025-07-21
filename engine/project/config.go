@@ -117,7 +117,7 @@ type WorkflowSourceConfig struct {
 //
 //	runtime:
 //	  type: bun
-//	  entrypoint: ./tools/index.ts
+//	  entrypoint: ./tools.ts
 //	  permissions:
 //	    - --allow-read=/data
 //	    - --allow-net=api.company.com
@@ -551,7 +551,8 @@ func (p *Config) setRuntimeDefaults() {
 		p.Runtime.Entrypoint = "./tools.ts"
 	}
 	// Set default permissions for project runtime if not specified
-	if len(p.Runtime.Permissions) == 0 {
+	// Use nil check to distinguish between unspecified (nil) and explicitly empty ([]string{})
+	if p.Runtime.Permissions == nil {
 		p.Runtime.Permissions = []string{"--allow-read"}
 	}
 }

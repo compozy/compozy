@@ -168,7 +168,7 @@ Comprehensive configuration options:
 // Create custom configuration
 config := &runtime.Config{
     RuntimeType:           "bun",
-    EntrypointPath:        "./tools/index.ts",
+    EntrypointPath:        "./tools.ts",
     ToolExecutionTimeout:  45 * time.Second,
     WorkerFilePerm:        0644,
 

@@ -12,6 +12,64 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestSetRuntimeDefaults(t *testing.T) {
+	cwd, _ := core.CWDFromPath(".")
+
+	t.Run("Should set default permissions when nil", func(t *testing.T) {
+		config := &Config{
+			Name: "test-project",
+			CWD:  cwd,
+			Runtime: RuntimeConfig{
+				Type:        "",  // Will be set to default
+				Entrypoint:  "",  // Will be set to default
+				Permissions: nil, // Should get default permissions
+			},
+		}
+
+		config.setRuntimeDefaults()
+
+		assert.Equal(t, "bun", config.Runtime.Type)
+		assert.Equal(t, "./tools.ts", config.Runtime.Entrypoint)
+		assert.Equal(t, []string{"--allow-read"}, config.Runtime.Permissions)
+	})
+
+	t.Run("Should preserve explicitly empty permissions", func(t *testing.T) {
+		config := &Config{
+			Name: "test-project",
+			CWD:  cwd,
+			Runtime: RuntimeConfig{
+				Type:        "bun",
+				Entrypoint:  "./tools.ts",
+				Permissions: []string{}, // Explicitly empty - should be preserved
+			},
+		}
+
+		config.setRuntimeDefaults()
+
+		assert.Equal(t, "bun", config.Runtime.Type)
+		assert.Equal(t, "./tools.ts", config.Runtime.Entrypoint)
+		assert.Equal(t, []string{}, config.Runtime.Permissions) // Should remain empty
+	})
+
+	t.Run("Should preserve existing non-empty permissions", func(t *testing.T) {
+		config := &Config{
+			Name: "test-project",
+			CWD:  cwd,
+			Runtime: RuntimeConfig{
+				Type:        "bun",
+				Entrypoint:  "./tools.ts",
+				Permissions: []string{"--allow-read", "--allow-write"},
+			},
+		}
+
+		config.setRuntimeDefaults()
+
+		assert.Equal(t, "bun", config.Runtime.Type)
+		assert.Equal(t, "./tools.ts", config.Runtime.Entrypoint)
+		assert.Equal(t, []string{"--allow-read", "--allow-write"}, config.Runtime.Permissions)
+	})
+}
+
 func TestConfig_AutoloadValidationCaching(t *testing.T) {
 	cwd, _ := core.CWDFromPath(".")
 	t.Run("Should cache autoload validation results", func(t *testing.T) {

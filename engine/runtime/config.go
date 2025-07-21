@@ -83,5 +83,14 @@ func FromAppConfig(appConfig *appconfig.RuntimeConfig) *Config {
 	if appConfig.ToolExecutionTimeout > 0 {
 		config.ToolExecutionTimeout = appConfig.ToolExecutionTimeout
 	}
+	if appConfig.RuntimeType != "" {
+		config.RuntimeType = appConfig.RuntimeType
+	}
+	if appConfig.EntrypointPath != "" {
+		config.EntrypointPath = appConfig.EntrypointPath
+	}
+	if len(appConfig.BunPermissions) > 0 {
+		config.BunPermissions = appConfig.BunPermissions
+	}
 	return config
 }

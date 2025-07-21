@@ -247,7 +247,7 @@ func setupWorkerCore(
 	if err != nil {
 		return nil, fmt.Errorf("failed to created execution manager: %w", err)
 	}
-	redisCache, configStore, err := setupRedisAndConfig(ctx, projectConfig)
+	redisCache, configStore, err := setupRedisAndConfig(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -263,7 +263,6 @@ func setupWorkerCore(
 // setupRedisAndConfig sets up Redis cache and configuration management
 func setupRedisAndConfig(
 	ctx context.Context,
-	_ *project.Config,
 ) (*cache.Cache, services.ConfigStore, error) {
 	log := logger.FromContext(ctx)
 	cacheStart := time.Now()

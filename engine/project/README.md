@@ -275,7 +275,7 @@ models:
 # Runtime configuration
 runtime:
   type: bun
-  entrypoint: ./tools/index.ts
+  entrypoint: ./tools.ts
   permissions:
     - --allow-read=/data
     - --allow-net=api.company.com
