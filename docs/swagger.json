@@ -5429,6 +5429,14 @@
         "tool.Config": {
             "type": "object",
             "properties": {
+                "config": {
+                    "description": "Configuration parameters passed to the tool separately from input data.\nProvides static configuration that tools can use for initialization and behavior control.\nUnlike input parameters, config is not meant to change between tool invocations.\n\n- **Use cases:** API base URLs, retry policies, timeout settings, feature flags\n- **Separation:** Keeps configuration separate from runtime input data\n- **Override:** Can be overridden at workflow or agent level\n- **Example:**\n  ```yaml\n  config:\n    base_url: \"https://api.example.com\"\n    timeout: 30\n    retry_count: 3\n    headers:\n      User-Agent: \"Compozy/1.0\"\n  ```",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.Input"
+                        }
+                    ]
+                },
                 "cwd": {
                     "description": "CWD defines the working directory for tool execution.\nUsed for resolving relative file paths and setting process working directory.",
                     "allOf": [
