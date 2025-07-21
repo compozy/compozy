@@ -21,7 +21,6 @@ type UnifiedTokenCounter struct {
 	realCounter     *tokens.RealTokenCounter
 	fallbackCounter memcore.TokenCounter // tiktoken fallback
 	providerConfig  *ProviderConfig
-	log             logger.Logger
 	mu              sync.RWMutex
 }
 
@@ -38,7 +37,6 @@ type ProviderConfig struct {
 func NewUnifiedTokenCounter(
 	providerConfig *ProviderConfig,
 	fallbackCounter memcore.TokenCounter,
-	log logger.Logger,
 ) (*UnifiedTokenCounter, error) {
 	if fallbackCounter == nil {
 		return nil, fmt.Errorf("fallback counter cannot be nil")
@@ -48,12 +46,12 @@ func NewUnifiedTokenCounter(
 		realCounter:     realCounter,
 		fallbackCounter: fallbackCounter,
 		providerConfig:  providerConfig,
-		log:             log,
 	}, nil
 }
 
 // CountTokens counts tokens using the configured provider or falls back to tiktoken
 func (u *UnifiedTokenCounter) CountTokens(ctx context.Context, text string) (int, error) {
+	log := logger.FromContext(ctx)
 	u.mu.RLock()
 	config := u.providerConfig
 	u.mu.RUnlock()
@@ -92,21 +90,17 @@ func (u *UnifiedTokenCounter) CountTokens(ctx context.Context, text string) (int
 	select {
 	case <-apiCtx.Done():
 		// Timeout occurred
-		if u.log != nil {
-			u.log.Warn("Token counting API call timed out, using fallback",
-				"provider", config.Provider,
-				"model", config.Model,
-				"timeout", DefaultAPITimeout)
-		}
+		log.Warn("Token counting API call timed out, using fallback",
+			"provider", config.Provider,
+			"model", config.Model,
+			"timeout", DefaultAPITimeout)
 		return u.fallbackCounter.CountTokens(ctx, text)
 	case res := <-resultChan:
 		if res.count == 0 {
 			// Alembica returns 0 for errors or unsupported providers
-			if u.log != nil {
-				u.log.Warn("Real-time token counting failed or returned zero, using fallback",
-					"provider", config.Provider,
-					"model", config.Model)
-			}
+			log.Warn("Real-time token counting failed or returned zero, using fallback",
+				"provider", config.Provider,
+				"model", config.Model)
 			// Fallback to tiktoken
 			return u.fallbackCounter.CountTokens(ctx, text)
 		}

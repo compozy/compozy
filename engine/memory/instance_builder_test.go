@@ -14,12 +14,10 @@ import (
 
 	"github.com/compozy/compozy/engine/infra/cache"
 	memcore "github.com/compozy/compozy/engine/memory/core"
-	"github.com/compozy/compozy/pkg/logger"
 )
 
 func TestLockManagerAdapter_Lock(t *testing.T) {
 	ctx := context.Background()
-	log := logger.FromContext(ctx)
 
 	t.Run("Should successfully acquire and release distributed lock", func(t *testing.T) {
 		mockCacheLockManager := &MockCacheLockManager{}
@@ -31,7 +29,7 @@ func TestLockManagerAdapter_Lock(t *testing.T) {
 		mockCacheLockManager.On("Acquire", mock.Anything, lockKey, ttl).Return(mockCacheLock, nil)
 		mockCacheLock.On("Release", mock.Anything).Return(nil)
 
-		adapter := newLockManagerAdapter(mockCacheLockManager, log, "test-project")
+		adapter := newLockManagerAdapter(mockCacheLockManager, "test-project")
 
 		// Acquire lock
 		lock, err := adapter.Lock(ctx, "test-key", ttl)
@@ -59,7 +57,7 @@ func TestLockManagerAdapter_Lock(t *testing.T) {
 			Twice()
 		mockCacheLockManager.On("Acquire", mock.Anything, lockKey, ttl).Return(mockCacheLock, nil).Once()
 
-		adapter := newLockManagerAdapter(mockCacheLockManager, log, "test-project")
+		adapter := newLockManagerAdapter(mockCacheLockManager, "test-project")
 
 		// Should succeed after retries
 		lock, err := adapter.Lock(ctx, "test-key", ttl)
@@ -79,7 +77,7 @@ func TestLockManagerAdapter_Lock(t *testing.T) {
 		// All attempts fail (4 attempts: initial + 3 retries)
 		mockCacheLockManager.On("Acquire", mock.Anything, lockKey, ttl).Return(nil, lockError).Times(4)
 
-		adapter := newLockManagerAdapter(mockCacheLockManager, log, "test-project")
+		adapter := newLockManagerAdapter(mockCacheLockManager, "test-project")
 
 		// Should fail after max retries
 		lock, err := adapter.Lock(ctx, "test-key", ttl)
@@ -101,7 +99,7 @@ func TestLockManagerAdapter_Lock(t *testing.T) {
 			Return(nil, errors.New("lock contention")).
 			Maybe()
 
-		adapter := newLockManagerAdapter(mockCacheLockManager, log, "test-project")
+		adapter := newLockManagerAdapter(mockCacheLockManager, "test-project")
 
 		// Create context that cancels after first attempt
 		cancelCtx, cancel := context.WithTimeout(ctx, 10*time.Millisecond)
@@ -127,7 +125,7 @@ func TestLockManagerAdapter_Lock(t *testing.T) {
 		mockCacheLockManager.On("Acquire", mock.Anything, lockKey, ttl).Return(mockCacheLock, nil)
 		mockCacheLock.On("Release", mock.Anything).Return(nil).Once()
 
-		adapter := newLockManagerAdapter(mockCacheLockManager, log, "test-project")
+		adapter := newLockManagerAdapter(mockCacheLockManager, "test-project")
 
 		// Acquire lock
 		lock, err := adapter.Lock(ctx, "test-key", ttl)
@@ -149,7 +147,6 @@ func TestLockManagerAdapter_Lock(t *testing.T) {
 
 func TestLockManagerAdapter_Concurrency(t *testing.T) {
 	ctx := context.Background()
-	log := logger.FromContext(ctx)
 
 	t.Run("Should handle concurrent lock acquisition safely", func(t *testing.T) {
 		mockCacheLockManager := &MockCacheLockManager{}
@@ -175,7 +172,7 @@ func TestLockManagerAdapter_Concurrency(t *testing.T) {
 			// Initial + 3 retries
 		}
 
-		adapter := newLockManagerAdapter(mockCacheLockManager, log, "test-project")
+		adapter := newLockManagerAdapter(mockCacheLockManager, "test-project")
 
 		var wg sync.WaitGroup
 		var successCount int32
@@ -204,15 +201,11 @@ func TestLockManagerAdapter_Concurrency(t *testing.T) {
 }
 
 func TestCreateLockManager_TTLConfiguration(t *testing.T) {
-	ctx := context.Background()
-	log := logger.FromContext(ctx)
-
 	t.Run("Should configure TTLs from resource configuration", func(t *testing.T) {
 		mockCacheLockManager := &MockCacheLockManager{}
 
 		manager := &Manager{
 			baseLockManager: mockCacheLockManager,
-			log:             log,
 		}
 
 		resourceCfg := &memcore.Resource{
@@ -232,7 +225,6 @@ func TestCreateLockManager_TTLConfiguration(t *testing.T) {
 
 		manager := &Manager{
 			baseLockManager: mockCacheLockManager,
-			log:             log,
 		}
 
 		resourceCfg := &memcore.Resource{
@@ -273,7 +265,6 @@ func TestCreateLockManager_TTLConfiguration(t *testing.T) {
 
 		manager := &Manager{
 			baseLockManager: mockCacheLockManager,
-			log:             log,
 		}
 
 		lockManager, err := manager.createLockManager("test-project", nil)

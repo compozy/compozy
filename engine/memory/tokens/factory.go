@@ -1,10 +1,10 @@
 package tokens
 
 import (
+	"context"
 	"fmt"
 
 	memcore "github.com/compozy/compozy/engine/memory/core"
-	"github.com/compozy/compozy/pkg/logger"
 )
 
 // CounterFactory creates token counters based on configuration
@@ -12,23 +12,22 @@ type CounterFactory struct {
 	registry        *ProviderRegistry
 	fallbackFactory func() (memcore.TokenCounter, error)
 	keyResolver     *APIKeyResolver
-	log             logger.Logger
 }
 
 // NewCounterFactory creates a new token counter factory
-func NewCounterFactory(fallbackFactory func() (memcore.TokenCounter, error), log logger.Logger) *CounterFactory {
+func NewCounterFactory(fallbackFactory func() (memcore.TokenCounter, error)) *CounterFactory {
 	registry := NewProviderRegistry()
 	registry.RegisterDefaults()
 	return &CounterFactory{
 		registry:        registry,
 		fallbackFactory: fallbackFactory,
-		keyResolver:     NewAPIKeyResolver(log),
-		log:             log,
+		keyResolver:     NewAPIKeyResolver(),
 	}
 }
 
 // CreateCounter creates a token counter based on the provided configuration
 func (f *CounterFactory) CreateCounter(
+	ctx context.Context,
 	config *memcore.TokenProviderConfig,
 ) (memcore.TokenCounter, error) {
 	// Create fallback counter
@@ -48,9 +47,9 @@ func (f *CounterFactory) CreateCounter(
 		return nil, fmt.Errorf("model cannot be empty")
 	}
 	// Create provider config with resolved API key
-	providerConfig := f.keyResolver.ResolveProviderConfig(config)
+	providerConfig := f.keyResolver.ResolveProviderConfig(ctx, config)
 	// Create unified counter
-	counter, err := NewUnifiedTokenCounter(providerConfig, fallback, f.log)
+	counter, err := NewUnifiedTokenCounter(providerConfig, fallback)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create unified counter: %w", err)
 	}
@@ -64,6 +63,7 @@ func (f *CounterFactory) GetRegistry() *ProviderRegistry {
 
 // CreateCounterFromRegistryKey creates a counter using a predefined provider configuration
 func (f *CounterFactory) CreateCounterFromRegistryKey(
+	ctx context.Context,
 	registryKey string,
 	apiKeyOrEnvVar string,
 ) (memcore.TokenCounter, error) {
@@ -86,9 +86,9 @@ func (f *CounterFactory) CreateCounterFromRegistryKey(
 		Settings: config.Settings,
 	}
 	// Resolve the API key (handles env vars)
-	resolvedConfig := f.keyResolver.ResolveProviderConfig(tempConfig)
+	resolvedConfig := f.keyResolver.ResolveProviderConfig(ctx, tempConfig)
 	// Create unified counter
-	counter, err := NewUnifiedTokenCounter(resolvedConfig, fallback, f.log)
+	counter, err := NewUnifiedTokenCounter(resolvedConfig, fallback)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create unified counter: %w", err)
 	}

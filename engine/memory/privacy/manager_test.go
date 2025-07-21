@@ -12,6 +12,7 @@ import (
 )
 
 func TestPrivacyManager(t *testing.T) {
+	ctx := context.Background()
 	t.Run("Should register and retrieve privacy policy", func(t *testing.T) {
 		pm := privacy.NewManager()
 		require.NotNil(t, pm)
@@ -21,10 +22,10 @@ func TestPrivacyManager(t *testing.T) {
 			DefaultRedactionString: "[SSN]",
 		}
 
-		err := pm.RegisterPolicy("test-resource", policy)
+		err := pm.RegisterPolicy(ctx, "test-resource", policy)
 		assert.NoError(t, err)
 
-		retrievedPolicy, exists := pm.GetPolicy("test-resource")
+		retrievedPolicy, exists := pm.GetPolicy(ctx, "test-resource")
 		assert.True(t, exists)
 		assert.Equal(t, policy, retrievedPolicy)
 	})
@@ -43,7 +44,7 @@ func TestPrivacyManager(t *testing.T) {
 			policy := &core.PrivacyPolicyConfig{
 				RedactPatterns: []string{pattern},
 			}
-			err := pm.RegisterPolicy("test-resource", policy)
+			err := pm.RegisterPolicy(ctx, "test-resource", policy)
 			assert.Error(t, err, "Pattern %s should be rejected", pattern)
 			assert.Contains(t, err.Error(), "unsafe regex pattern")
 		}
@@ -57,7 +58,7 @@ func TestPrivacyManager(t *testing.T) {
 			DefaultRedactionString: "[SSN]",
 		}
 
-		err := pm.RegisterPolicy("test-resource", policy)
+		err := pm.RegisterPolicy(ctx, "test-resource", policy)
 		require.NoError(t, err)
 
 		msg := llm.Message{
@@ -86,7 +87,7 @@ func TestPrivacyManager(t *testing.T) {
 			NonPersistableMessageTypes: []string{"system", "debug"},
 		}
 
-		err := pm.RegisterPolicy("test-resource", policy)
+		err := pm.RegisterPolicy(ctx, "test-resource", policy)
 		require.NoError(t, err)
 
 		// Test persistable message
@@ -124,7 +125,7 @@ func TestPrivacyManager(t *testing.T) {
 			`\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b`, // Email pattern
 		}
 
-		redacted, err := pm.RedactContent(content, patterns, "[REDACTED]")
+		redacted, err := pm.RedactContent(ctx, content, patterns, "[REDACTED]")
 		assert.NoError(t, err)
 		assert.Equal(t, "My phone is [REDACTED] and email is [REDACTED]", redacted)
 	})

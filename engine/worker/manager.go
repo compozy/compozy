@@ -9,7 +9,6 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/worker/executors"
 	wfacts "github.com/compozy/compozy/engine/workflow/activities"
-	"github.com/compozy/compozy/pkg/config"
 )
 
 // -----------------------------------------------------------------------------
@@ -29,12 +28,9 @@ func NewManager(contextBuilder *ContextBuilder) *Manager {
 		contextBuilder.ProjectConfig,
 		contextBuilder.WorkflowConfig,
 		contextBuilder.WorkflowInput,
-		contextBuilder.AppConfig,
 	)
-
 	workflowExecutor := executors.NewWorkflowExecutor(executorContextBuilder)
 	taskExecutor := executors.NewTaskExecutor(executorContextBuilder)
-
 	return &Manager{
 		ContextBuilder:   contextBuilder,
 		WorkflowExecutor: workflowExecutor,
@@ -114,7 +110,7 @@ func (m *Manager) CancelCleanup(ctx workflow.Context) {
 // Manager Factory
 // -----------------------------------------------------------------------------
 
-func InitManager(ctx workflow.Context, input WorkflowInput, appConfig *config.Config) (*Manager, error) {
+func InitManager(ctx workflow.Context, input WorkflowInput) (*Manager, error) {
 	log := workflow.GetLogger(ctx)
 	log.Info("Starting workflow", "workflow_id", input.WorkflowID, "exec_id", input.WorkflowExecID)
 	ctx = workflow.WithLocalActivityOptions(ctx, workflow.LocalActivityOptions{
@@ -134,7 +130,6 @@ func InitManager(ctx workflow.Context, input WorkflowInput, appConfig *config.Co
 		data.ProjectConfig,
 		data.WorkflowConfig,
 		&input,
-		appConfig,
 	)
 	return NewManager(contextBuilder), nil
 }

@@ -16,7 +16,6 @@ import (
 	"github.com/compozy/compozy/engine/memory/core"
 	"github.com/compozy/compozy/engine/memory/privacy"
 	"github.com/compozy/compozy/engine/memory/store"
-	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/tplengine"
 )
 
@@ -69,9 +68,6 @@ func SetupTestRedis(t *testing.T) *TestRedisSetup {
 	lockManager, err := cache.NewRedisLockManager(testClient)
 	require.NoError(t, err)
 
-	// Create logger for tests
-	log := logger.NewForTests()
-
 	// Create template engine
 	tplEngine := tplengine.NewEngine(tplengine.FormatText)
 
@@ -93,7 +89,6 @@ func SetupTestRedis(t *testing.T) *TestRedisSetup {
 		TemporalClient:    mockClient,
 		TemporalTaskQueue: "test-memory-queue",
 		PrivacyManager:    privacyManager,
-		Logger:            log,
 	}
 
 	// Create memory manager

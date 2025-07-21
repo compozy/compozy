@@ -14,7 +14,6 @@ import (
 	memcore "github.com/compozy/compozy/engine/memory/core"
 	"github.com/compozy/compozy/engine/memory/instance"
 	"github.com/compozy/compozy/engine/memory/store"
-	"github.com/compozy/compozy/pkg/logger"
 )
 
 func TestBuilder_Integration(t *testing.T) {
@@ -59,7 +58,6 @@ func TestBuilder_Integration(t *testing.T) {
 		ctx := context.Background()
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		log := logger.NewForTests()
 		// Create a simple memory resource configuration
 		resource := &memcore.Resource{
 			ID:          "test-memory-direct",
@@ -91,7 +89,6 @@ func TestBuilder_Integration(t *testing.T) {
 			WithEvictionPolicy(evictionPolicy).
 			WithTemporalClient(env.temporalClient).
 			WithTemporalTaskQueue("test-queue").
-			WithLogger(log).
 			Build(ctx)
 		// Verify successful creation
 		require.NoError(t, err)

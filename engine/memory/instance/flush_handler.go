@@ -33,13 +33,13 @@ type FlushHandler struct {
 	strategyFactory   *strategies.StrategyFactory // NEW: for dynamic strategy creation
 	requestedStrategy string                      // NEW: requested strategy type
 	tokenCounter      core.TokenCounter           // NEW: for strategy creation
-	logger            logger.Logger
 	metrics           Metrics
 	resourceConfig    *core.Resource
 }
 
 // PerformFlush executes the complete memory flush operation with retry logic
 func (f *FlushHandler) PerformFlush(ctx context.Context) (*core.FlushMemoryActivityOutput, error) {
+	log := logger.FromContext(ctx)
 	start := time.Now()
 	var result *core.FlushMemoryActivityOutput
 	var finalErr error
@@ -53,12 +53,12 @@ func (f *FlushHandler) PerformFlush(ctx context.Context) (*core.FlushMemoryActiv
 		if err != nil {
 			// Check if it's a lock contention error
 			if errors.Is(err, core.ErrFlushLockFailed) || errors.Is(err, core.ErrLockAcquisitionFailed) {
-				f.logger.Debug("Flush already in progress for instance",
+				log.Debug("Flush already in progress for instance",
 					"instance_id", f.instanceID)
 				return core.ErrFlushAlreadyPending
 			}
 			if isTransientError(err) {
-				f.logger.Warn("Transient error acquiring flush lock, will retry",
+				log.Warn("Transient error acquiring flush lock, will retry",
 					"error", err,
 					"instance_id", f.instanceID)
 				return retry.RetryableError(err)
@@ -67,7 +67,7 @@ func (f *FlushHandler) PerformFlush(ctx context.Context) (*core.FlushMemoryActiv
 		}
 		defer func() {
 			if err := unlock(); err != nil {
-				f.logger.Error("Failed to release flush lock",
+				log.Error("Failed to release flush lock",
 					"error", err,
 					"instance_id", f.instanceID)
 			}
@@ -77,7 +77,7 @@ func (f *FlushHandler) PerformFlush(ctx context.Context) (*core.FlushMemoryActiv
 		result, err = f.executeFlush(ctx)
 		if err != nil {
 			if isTransientError(err) {
-				f.logger.Warn("Transient error during flush, will retry",
+				log.Warn("Transient error during flush, will retry",
 					"error", err,
 					"instance_id", f.instanceID)
 				return retry.RetryableError(err)
@@ -175,6 +175,7 @@ func (f *FlushHandler) applyFlushResults(
 	result *core.FlushMemoryActivityOutput,
 	originalMessageCount int,
 ) error {
+	log := logger.FromContext(ctx)
 	// If no messages were flushed, nothing to do
 	if !result.Success || result.MessageCount == 0 {
 		return nil
@@ -188,7 +189,7 @@ func (f *FlushHandler) applyFlushResults(
 	// Check if store supports atomic operations
 	atomicStore, ok := f.store.(store.AtomicStore)
 	if !ok {
-		f.logger.Warn("Store doesn't support atomic trim operations",
+		log.Warn("Store doesn't support atomic trim operations",
 			"instance_id", f.instanceID,
 			"store_type", fmt.Sprintf("%T", f.store))
 		return nil

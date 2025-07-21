@@ -44,8 +44,8 @@ func executeStartCommand(cobraCmd *cobra.Command, args []string) error {
 }
 
 // handleStartTUI handles start command in TUI mode
-func handleStartTUI(ctx context.Context, _ *cobra.Command, executor *cmd.CommandExecutor, _ []string) error {
-	cfg := executor.GetConfig()
+func handleStartTUI(ctx context.Context, _ *cobra.Command, _ *cmd.CommandExecutor, _ []string) error {
+	cfg := config.Get()
 	cfg.Runtime.Environment = productionEnvironment
 	gin.SetMode(gin.ReleaseMode)
 	logProductionSecurityWarnings(ctx, cfg)
@@ -58,7 +58,7 @@ func handleStartTUI(ctx context.Context, _ *cobra.Command, executor *cmd.Command
 	}
 	configFile := cfg.CLI.ConfigFile
 	envFilePath := cfg.CLI.EnvFile
-	srv := server.NewServer(ctx, cfg, cwd, configFile, envFilePath)
+	srv := server.NewServer(ctx, cwd, configFile, envFilePath)
 	return srv.Run()
 }
 

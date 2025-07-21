@@ -333,17 +333,10 @@ func createDefaultMap() map[string]any {
 			"max_task_context_depth":   defaultConfig.Limits.MaxTaskContextDepth,
 			"parent_update_batch_size": defaultConfig.Limits.ParentUpdateBatchSize,
 		},
-		"openai": map[string]any{
-			"api_key":       string(defaultConfig.OpenAI.APIKey),
-			"base_url":      defaultConfig.OpenAI.BaseURL,
-			"org_id":        defaultConfig.OpenAI.OrgID,
-			"default_model": defaultConfig.OpenAI.DefaultModel,
-		},
 		"memory": map[string]any{
-			"redis_url":    defaultConfig.Memory.RedisURL,
-			"redis_prefix": defaultConfig.Memory.RedisPrefix,
-			"ttl":          defaultConfig.Memory.TTL.String(),
-			"max_entries":  defaultConfig.Memory.MaxEntries,
+			"prefix":      defaultConfig.Memory.Prefix,
+			"ttl":         defaultConfig.Memory.TTL.String(),
+			"max_entries": defaultConfig.Memory.MaxEntries,
 		},
 		"llm": map[string]any{
 			"proxy_url":   defaultConfig.LLM.ProxyURL,

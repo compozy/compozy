@@ -59,7 +59,6 @@ type Config struct {
 	TaskRepo          func() task.Repository
 	MonitoringService *monitoring.Service
 	ResourceRegistry  *autoload.ConfigRegistry // For memory resource configs
-	AppConfig         *config.Config           // Application configuration
 }
 
 type Worker struct {
@@ -75,7 +74,6 @@ type Worker struct {
 	mcpRegister   *mcp.RegisterService
 	dispatcherID  string // Track dispatcher ID for cleanup
 	serverID      string // Server ID for this worker instance
-	appConfig     *config.Config
 
 	// Memory management
 	memoryManager  *memory.Manager
@@ -151,7 +149,6 @@ func NewWorker(
 	clientConfig *TemporalConfig,
 	projectConfig *project.Config,
 	workflows []*wf.Config,
-	appConfig *config.Config,
 ) (*Worker, error) {
 	log := logger.FromContext(ctx)
 	workerStart := time.Now()
@@ -195,7 +192,6 @@ func NewWorker(
 		workerCore.redisCache,
 		memoryManager,
 		templateEngine,
-		config.AppConfig,
 	)
 	interceptor.SetConfiguredWorkerCount(1)
 	lifecycleCtx, lifecycleCancel := context.WithCancel(context.Background())
@@ -217,7 +213,6 @@ func NewWorker(
 		templateEngine:  templateEngine,
 		lifecycleCtx:    lifecycleCtx,
 		lifecycleCancel: lifecycleCancel,
-		appConfig:       appConfig,
 	}, nil
 }
 
@@ -287,7 +282,38 @@ func setupRedisAndConfig(
 ) (*cache.Cache, services.ConfigStore, error) {
 	log := logger.FromContext(ctx)
 	cacheStart := time.Now()
-	redisCache, err := cache.SetupCache(ctx, projectConfig.CacheConfig)
+	cfg := config.Get()
+	// Build cache config from centralized Redis config
+	cacheConfig := &cache.Config{
+		URL:      cfg.Redis.URL,
+		Host:     cfg.Redis.Host,
+		Port:     fmt.Sprintf("%d", cfg.Redis.Port),
+		Password: cfg.Redis.Password,
+		DB:       cfg.Redis.DB,
+		PoolSize: cfg.Redis.PoolSize,
+	}
+
+	// Override with project-specific cache config if provided
+	if projectConfig.CacheConfig != nil {
+		// Allow project to override specific cache settings if needed
+		if projectConfig.CacheConfig.PoolSize > 0 {
+			cacheConfig.PoolSize = projectConfig.CacheConfig.PoolSize
+		}
+		// Copy any other cache-specific settings
+		cacheConfig.TLSEnabled = projectConfig.CacheConfig.TLSEnabled
+		cacheConfig.TLSConfig = projectConfig.CacheConfig.TLSConfig
+		cacheConfig.DialTimeout = projectConfig.CacheConfig.DialTimeout
+		cacheConfig.ReadTimeout = projectConfig.CacheConfig.ReadTimeout
+		cacheConfig.WriteTimeout = projectConfig.CacheConfig.WriteTimeout
+		cacheConfig.PoolTimeout = projectConfig.CacheConfig.PoolTimeout
+		cacheConfig.PingTimeout = projectConfig.CacheConfig.PingTimeout
+		cacheConfig.MaxRetries = projectConfig.CacheConfig.MaxRetries
+		cacheConfig.MinRetryBackoff = projectConfig.CacheConfig.MinRetryBackoff
+		cacheConfig.MaxRetryBackoff = projectConfig.CacheConfig.MaxRetryBackoff
+		cacheConfig.MinIdleConns = projectConfig.CacheConfig.MinIdleConns
+	}
+
+	redisCache, err := cache.SetupCache(ctx, cacheConfig)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to setup Redis cache: %w", err)
 	}
@@ -343,7 +369,6 @@ func setupMemoryManager(
 		TemporalTaskQueue: taskQueue,
 		PrivacyManager:    privacyManager,
 		FallbackProjectID: fallbackProjectID,
-		Logger:            log,
 	}
 	memoryManager, err := memory.NewManager(memoryManagerOpts)
 	if err != nil {
@@ -436,10 +461,11 @@ func (o *Worker) Setup(_ context.Context) error {
 	// Track running worker for monitoring
 	interceptor.IncrementRunningWorkers(context.Background())
 	// Register dispatcher for health monitoring
+	cfg := config.Get()
 	monitoring.RegisterDispatcher(
 		context.Background(),
 		o.dispatcherID,
-		o.config.AppConfig.Runtime.DispatcherStaleThreshold,
+		cfg.Runtime.DispatcherStaleThreshold,
 	)
 	// Ensure dispatcher is running with independent lifecycle context
 	go o.ensureDispatcherRunning(o.lifecycleCtx)
@@ -590,6 +616,7 @@ func (o *Worker) ensureDispatcherRunning(ctx context.Context) {
 // HealthCheck performs a comprehensive health check including cache connectivity
 func (o *Worker) HealthCheck(ctx context.Context) error {
 	log := logger.FromContext(ctx)
+	cfg := config.Get()
 	// Check Redis cache health
 	if o.redisCache != nil {
 		if err := o.redisCache.HealthCheck(ctx); err != nil {
@@ -599,7 +626,7 @@ func (o *Worker) HealthCheck(ctx context.Context) error {
 	// Check dispatcher health by verifying recent heartbeat
 	if o.dispatcherID != "" && o.activities != nil {
 		input := &wkacts.ListActiveDispatchersInput{
-			StaleThreshold: o.config.AppConfig.Runtime.DispatcherStaleThreshold,
+			StaleThreshold: cfg.Runtime.DispatcherStaleThreshold,
 		}
 		output, err := o.activities.ListActiveDispatchers(ctx, input)
 		if err != nil {
@@ -693,7 +720,6 @@ func (o *Worker) TriggerWorkflow(
 		options,
 		CompozyWorkflow,
 		workflowInput,
-		o.appConfig,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start workflow: %w", err)

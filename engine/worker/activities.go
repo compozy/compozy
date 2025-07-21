@@ -36,7 +36,6 @@ type Activities struct {
 	memoryActivities *memacts.MemoryActivities
 	templateEngine   *tplengine.TemplateEngine
 	task2Factory     task2.Factory
-	appConfig        *config.Config
 }
 
 func NewActivities(
@@ -50,7 +49,6 @@ func NewActivities(
 	redisCache *cache.Cache,
 	memoryManager *memory.Manager,
 	templateEngine *tplengine.TemplateEngine,
-	appConfig *config.Config,
 ) *Activities {
 	// Create CEL evaluator once for reuse across all activity executions
 	celEvaluator, err := task.NewCELEvaluator()
@@ -88,7 +86,6 @@ func NewActivities(
 		memoryActivities: memoryActivities,
 		templateEngine:   templateEngine,
 		task2Factory:     task2Factory,
-		appConfig:        appConfig,
 	}
 }
 
@@ -100,7 +97,8 @@ func (a *Activities) GetWorkflowData(ctx context.Context, input *wfacts.GetDataI
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	act := wfacts.NewGetData(a.projectConfig, a.workflows, a.appConfig)
+	cfg := config.Get()
+	act := wfacts.NewGetData(a.projectConfig, a.workflows, cfg)
 	return act.Run(ctx, input)
 }
 
@@ -145,6 +143,7 @@ func (a *Activities) ExecuteBasicTask(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	cfg := config.Get()
 	act, err := tkfacts.NewExecuteBasic(
 		a.workflows,
 		a.workflowRepo,
@@ -156,7 +155,7 @@ func (a *Activities) ExecuteBasicTask(
 		a.templateEngine,
 		a.projectConfig,
 		a.task2Factory,
-		a.appConfig,
+		cfg,
 	)
 	if err != nil {
 		return nil, err
@@ -214,6 +213,7 @@ func (a *Activities) ExecuteSubtask(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	cfg := config.Get()
 	act := tkfacts.NewExecuteSubtask(
 		a.workflows,
 		a.workflowRepo,
@@ -222,7 +222,7 @@ func (a *Activities) ExecuteSubtask(
 		a.configStore,
 		a.task2Factory,
 		a.templateEngine,
-		a.appConfig,
+		cfg,
 	)
 	return act.Run(ctx, input)
 }

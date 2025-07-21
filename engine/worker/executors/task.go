@@ -98,8 +98,6 @@ func (e *TaskExecutor) ExecuteTasks(response task.Response) func(ctx workflow.Co
 }
 
 // HandleExecution dispatches task execution to the appropriate executor based on task type
-//
-//nolint:gocyclo // This is a dispatcher function with necessary complexity
 func (e *TaskExecutor) HandleExecution(
 	ctx workflow.Context,
 	taskConfig *task.Config,
@@ -111,14 +109,6 @@ func (e *TaskExecutor) HandleExecution(
 	currentDepth := 0
 	if len(depth) > 0 {
 		currentDepth = depth[0]
-	}
-	// MaxNestingDepth is configured server-side
-	maxDepth := 20 // default fallback
-	if e.AppConfig != nil && e.AppConfig.Limits.MaxNestingDepth > 0 {
-		maxDepth = e.AppConfig.Limits.MaxNestingDepth
-	}
-	if currentDepth >= maxDepth {
-		return nil, fmt.Errorf("maximum nesting depth reached: %d (limit: %d)", currentDepth, maxDepth)
 	}
 	var response task.Response
 	var err error

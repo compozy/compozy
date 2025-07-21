@@ -35,7 +35,7 @@ func NewManager() *Manager {
 }
 
 // RegisterPolicy registers a privacy policy for a memory resource
-func (pm *Manager) RegisterPolicy(resourceID string, policy *memcore.PrivacyPolicyConfig) error {
+func (pm *Manager) RegisterPolicy(_ context.Context, resourceID string, policy *memcore.PrivacyPolicyConfig) error {
 	if resourceID == "" {
 		return memcore.NewMemoryError(
 			memcore.ErrCodePrivacyPolicy,
@@ -76,7 +76,7 @@ func (pm *Manager) RegisterPolicy(resourceID string, policy *memcore.PrivacyPoli
 }
 
 // GetPolicy retrieves the privacy policy for a resource
-func (pm *Manager) GetPolicy(resourceID string) (*memcore.PrivacyPolicyConfig, bool) {
+func (pm *Manager) GetPolicy(_ context.Context, resourceID string) (*memcore.PrivacyPolicyConfig, bool) {
 	pm.mu.RLock()
 	defer pm.mu.RUnlock()
 	policy, exists := pm.policies[resourceID]
@@ -108,7 +108,12 @@ func (pm *Manager) ApplyPrivacyControls(
 }
 
 // RedactContent applies redaction patterns to content
-func (pm *Manager) RedactContent(content string, patterns []string, defaultRedaction string) (string, error) {
+func (pm *Manager) RedactContent(
+	_ context.Context,
+	content string,
+	patterns []string,
+	defaultRedaction string,
+) (string, error) {
 	if defaultRedaction == "" {
 		defaultRedaction = DefaultRedactionString
 	}

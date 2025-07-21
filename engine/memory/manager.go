@@ -24,11 +24,6 @@ const (
 	DefaultTokenCounterModel = "gpt-4"
 )
 
-// ConfigManagerInterface defines the interface for accessing configuration
-type ConfigManagerInterface interface {
-	Get() *config.Config
-}
-
 // Manager is responsible for creating, retrieving, and managing Instances.
 // It handles memory key template evaluation and ensures that Instances are
 // properly configured based on Resource definitions.
@@ -41,8 +36,7 @@ type Manager struct {
 	temporalTaskQueue      string                    // Default task queue for memory activities
 	privacyManager         privacy.ManagerInterface  // Privacy controls and data protection
 	projectContextResolver *ProjectContextResolver   // For consistent project ID resolution
-	configManager          ConfigManagerInterface    // Configuration manager for accessing app config
-	log                    logger.Logger             // Logger following the project standard with log.FromContext(ctx)
+	appConfig              *config.Config            // Configuration manager for accessing app config
 }
 
 // ManagerOptions holds options for creating a Manager.
@@ -56,8 +50,7 @@ type ManagerOptions struct {
 	PrivacyManager          privacy.ManagerInterface  // Optional: if nil, a new one will be created
 	PrivacyResilienceConfig *privacy.ResilienceConfig // Optional: if provided, creates resilient privacy manager
 	FallbackProjectID       string                    // Project ID to use when not found in context
-	Logger                  logger.Logger             // Optional: if nil, a new one will be created
-	ConfigManager           ConfigManagerInterface    // Optional: for accessing application configuration
+	AppConfig               *config.Config            // Optional: for accessing application configuration
 }
 
 // NewManager creates a new Manager.
@@ -66,8 +59,8 @@ func NewManager(opts *ManagerOptions) (*Manager, error) {
 		return nil, err
 	}
 	setDefaultManagerOptions(opts)
-	privacyManager := getOrCreatePrivacyManager(opts.PrivacyManager, opts.PrivacyResilienceConfig, opts.Logger)
-	projectContextResolver := NewProjectContextResolver(opts.FallbackProjectID, opts.Logger)
+	privacyManager := getOrCreatePrivacyManager(opts.PrivacyManager, opts.PrivacyResilienceConfig)
+	projectContextResolver := NewProjectContextResolver(opts.FallbackProjectID)
 	return &Manager{
 		resourceRegistry:       opts.ResourceRegistry,
 		tplEngine:              opts.TplEngine,
@@ -77,8 +70,7 @@ func NewManager(opts *ManagerOptions) (*Manager, error) {
 		temporalTaskQueue:      opts.TemporalTaskQueue,
 		privacyManager:         privacyManager,
 		projectContextResolver: projectContextResolver,
-		configManager:          opts.ConfigManager,
-		log:                    opts.Logger,
+		appConfig:              opts.AppConfig,
 	}, nil
 }
 
@@ -89,12 +81,13 @@ func (mm *Manager) GetInstance(
 	agentMemoryRef core.MemoryReference,
 	workflowContextData map[string]any,
 ) (memcore.Memory, error) {
+	log := logger.FromContext(ctx)
 	// Retry logic for transient key resolution failures using go-retry
 	var instance memcore.Memory
 	retryConfig := retry.WithMaxRetries(3, retry.NewExponential(100*time.Millisecond))
 
 	err := retry.Do(ctx, retryConfig, func(ctx context.Context) error {
-		mm.log.Info("GetInstance called: Starting memory instance retrieval",
+		log.Info("GetInstance called: Starting memory instance retrieval",
 			"resource_id", agentMemoryRef.ID,
 			"key_template", agentMemoryRef.Key,
 			"resolved_key", agentMemoryRef.ResolvedKey)
@@ -104,7 +97,7 @@ func (mm *Manager) GetInstance(
 			workflowExecID := ExtractWorkflowExecID(workflowContextData)
 			err := fmt.Errorf("memory key template is empty for resource_id=%s, workflow_exec_id=%s",
 				agentMemoryRef.ID, workflowExecID)
-			mm.log.Warn("Empty key template detected, will retry",
+			log.Warn("Empty key template detected, will retry",
 				"resource_id", agentMemoryRef.ID,
 				"workflow_exec_id", workflowExecID)
 			return retry.RetryableError(err)
@@ -120,7 +113,7 @@ func (mm *Manager) GetInstance(
 	})
 
 	if err != nil {
-		mm.log.Error("All retry attempts failed for memory instance retrieval",
+		log.Error("All retry attempts failed for memory instance retrieval",
 			"resource_id", agentMemoryRef.ID,
 			"error", err)
 		return nil, err
@@ -150,18 +143,19 @@ func (mm *Manager) prepareInstanceData(
 	agentMemoryRef core.MemoryReference,
 	workflowContextData map[string]any,
 ) (*memcore.Resource, string, string, error) {
-	resourceCfg, err := mm.loadMemoryConfig(agentMemoryRef.ID)
+	log := logger.FromContext(ctx)
+	resourceCfg, err := mm.loadMemoryConfig(ctx, agentMemoryRef.ID)
 	if err != nil {
-		mm.log.Error("GetInstance: Failed to load memory config", "resource_id", agentMemoryRef.ID, "error", err)
+		log.Error("GetInstance: Failed to load memory config", "resource_id", agentMemoryRef.ID, "error", err)
 		return nil, "", "", err
 	}
 	validatedKey, err := mm.resolveMemoryKey(ctx, agentMemoryRef, workflowContextData)
 	if err != nil {
-		mm.log.Error("GetInstance: Memory key resolution failed", "error", err)
+		log.Error("GetInstance: Memory key resolution failed", "error", err)
 		return nil, "", "", err
 	}
-	projectIDVal := mm.getProjectID(workflowContextData)
-	mm.log.Debug("GetInstance: Data preparation complete", "validated_key", validatedKey, "project_id", projectIDVal)
+	projectIDVal := mm.getProjectID(ctx, workflowContextData)
+	log.Debug("GetInstance: Data preparation complete", "validated_key", validatedKey, "project_id", projectIDVal)
 	return resourceCfg, validatedKey, projectIDVal, nil
 }
 
@@ -171,22 +165,23 @@ func (mm *Manager) createMemoryInstanceWithComponents(
 	validatedKey, projectIDVal string,
 	resourceCfg *memcore.Resource,
 ) (memcore.Memory, error) {
-	components, err := mm.buildMemoryComponents(resourceCfg, projectIDVal)
+	log := logger.FromContext(ctx)
+	components, err := mm.buildMemoryComponents(ctx, resourceCfg, projectIDVal)
 	if err != nil {
-		mm.log.Error("GetInstance: Failed to build memory components", "error", err)
+		log.Error("GetInstance: Failed to build memory components", "error", err)
 		return nil, err
 	}
-	err = mm.registerPrivacyPolicy(resourceCfg)
+	err = mm.registerPrivacyPolicy(ctx, resourceCfg)
 	if err != nil {
-		mm.log.Error("GetInstance: Failed to register privacy policy", "error", err)
+		log.Error("GetInstance: Failed to register privacy policy", "error", err)
 		return nil, err
 	}
 	instance, err := mm.createMemoryInstance(ctx, validatedKey, projectIDVal, resourceCfg, components)
 	if err != nil {
-		mm.log.Error("GetInstance: Failed to create memory instance", "error", err)
+		log.Error("GetInstance: Failed to create memory instance", "error", err)
 		return nil, err
 	}
-	mm.log.Info(
+	log.Info(
 		"GetInstance: Memory instance successfully created",
 		"instance_id",
 		validatedKey,
@@ -203,6 +198,6 @@ func (mm *Manager) GetTokenCounter(_ context.Context) (memcore.TokenCounter, err
 
 // GetMemoryConfig retrieves the memory configuration for a given memory ID.
 // This method is useful for retrieving configuration details like MaxTokens.
-func (mm *Manager) GetMemoryConfig(memoryID string) (*memcore.Resource, error) {
-	return mm.loadMemoryConfig(memoryID)
+func (mm *Manager) GetMemoryConfig(ctx context.Context, memoryID string) (*memcore.Resource, error) {
+	return mm.loadMemoryConfig(ctx, memoryID)
 }

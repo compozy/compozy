@@ -208,7 +208,6 @@ func TestBuilder_Validation(t *testing.T) {
 			WithFlushingStrategy(&mockFlushStrategy{})
 		// Can't set temporal client due to complex interface
 		// But we can verify other defaults
-		assert.Nil(t, builder.opts.Logger)
 		assert.Equal(t, "", builder.opts.TemporalTaskQueue)
 		// NOTE: Full builder testing with temporal client is in test/integration/memory/builder_test.go
 		// The temporal.Client interface is too complex to mock in unit tests

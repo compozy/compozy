@@ -16,7 +16,6 @@ import (
 	"github.com/compozy/compozy/engine/llm"
 	"github.com/compozy/compozy/engine/memory/core"
 	"github.com/compozy/compozy/engine/memory/store"
-	"github.com/compozy/compozy/pkg/logger"
 )
 
 // redisTestClient wraps a redis.Client to implement cache.RedisInterface
@@ -81,7 +80,6 @@ func setupMiniredisMemoryInstance(t *testing.T, instanceID string) (core.Memory,
 		WithTokenCounter(mockTokenCounter).
 		WithFlushingStrategy(mockFlushStrategy).
 		WithTemporalClient(mockClient).
-		WithLogger(logger.NewForTests()).
 		Build(context.Background())
 	require.NoError(t, err)
 

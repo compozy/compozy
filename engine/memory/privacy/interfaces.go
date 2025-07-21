@@ -11,9 +11,9 @@ import (
 // ManagerInterface defines the interface for privacy management operations
 type ManagerInterface interface {
 	// RegisterPolicy registers a privacy policy for a specific resource
-	RegisterPolicy(resourceID string, policy *core.PrivacyPolicyConfig) error
+	RegisterPolicy(ctx context.Context, resourceID string, policy *core.PrivacyPolicyConfig) error
 	// GetPolicy retrieves the privacy policy for a resource
-	GetPolicy(resourceID string) (*core.PrivacyPolicyConfig, bool)
+	GetPolicy(ctx context.Context, resourceID string) (*core.PrivacyPolicyConfig, bool)
 	// ApplyPrivacyControls applies privacy controls to a message
 	ApplyPrivacyControls(
 		ctx context.Context,
@@ -22,7 +22,7 @@ type ManagerInterface interface {
 		metadata core.PrivacyMetadata,
 	) (llm.Message, core.PrivacyMetadata, error)
 	// RedactContent applies redaction patterns to content
-	RedactContent(content string, patterns []string, defaultRedaction string) (string, error)
+	RedactContent(ctx context.Context, content string, patterns []string, defaultRedaction string) (string, error)
 	// ShouldPersistMessage determines if a message should be persisted based on privacy rules
 	ShouldPersistMessage(msgType string, nonPersistableTypes []string) bool
 }

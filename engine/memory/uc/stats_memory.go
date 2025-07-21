@@ -147,13 +147,13 @@ func (uc *StatsMemory) getManager() (*memory.Manager, error) {
 }
 
 // getTokenLimit retrieves the token limit from memory configuration
-func (uc *StatsMemory) getTokenLimit(_ context.Context, memoryRef string) (int, error) {
+func (uc *StatsMemory) getTokenLimit(ctx context.Context, memoryRef string) (int, error) {
 	manager, err := uc.getManager()
 	if err != nil {
 		return 0, err
 	}
 	// Get memory resource configuration from manager
-	resource, err := manager.GetMemoryConfig(memoryRef)
+	resource, err := manager.GetMemoryConfig(ctx, memoryRef)
 	if err != nil {
 		return 0, NewErrorContext(err, "get_memory_config", memoryRef, "")
 	}

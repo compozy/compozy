@@ -8,18 +8,16 @@ import (
 	"github.com/compozy/compozy/engine/autoload"
 	"github.com/compozy/compozy/engine/core"
 	memcore "github.com/compozy/compozy/engine/memory/core"
-	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/tplengine"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // createTestManager creates a Manager with minimal required fields for testing
-func createTestManager(tplEngine *tplengine.TemplateEngine, log logger.Logger, fallbackProjectID string) *Manager {
+func createTestManager(tplEngine *tplengine.TemplateEngine, fallbackProjectID string) *Manager {
 	return &Manager{
 		tplEngine:              tplEngine,
-		log:                    log,
-		projectContextResolver: NewProjectContextResolver(fallbackProjectID, log),
+		projectContextResolver: NewProjectContextResolver(fallbackProjectID),
 	}
 }
 
@@ -46,11 +44,10 @@ func TestManager_loadMemoryConfig(t *testing.T) {
 		// Create manager with registry
 		manager := &Manager{
 			resourceRegistry: registry,
-			log:              logger.NewForTests(),
 		}
 
 		// Call loadMemoryConfig
-		result, err := manager.loadMemoryConfig("test-memory")
+		result, err := manager.loadMemoryConfig(context.Background(), "test-memory")
 
 		// Verify results
 		require.NoError(t, err)
@@ -71,7 +68,7 @@ func TestManager_loadMemoryConfig(t *testing.T) {
 		}
 
 		// Call loadMemoryConfig with non-existent resource
-		result, err := manager.loadMemoryConfig("nonexistent-memory")
+		result, err := manager.loadMemoryConfig(context.Background(), "nonexistent-memory")
 
 		// Verify error
 		require.Error(t, err)
@@ -106,11 +103,10 @@ func TestManager_loadMemoryConfig(t *testing.T) {
 		// Create manager with registry
 		manager := &Manager{
 			resourceRegistry: registry,
-			log:              logger.NewForTests(),
 		}
 
 		// Call loadMemoryConfig
-		result, err := manager.loadMemoryConfig("wrong-type")
+		result, err := manager.loadMemoryConfig(context.Background(), "wrong-type")
 
 		// Verify error
 		require.Error(t, err)
@@ -181,11 +177,10 @@ func TestManager_loadMemoryConfig(t *testing.T) {
 				// Create manager
 				manager := &Manager{
 					resourceRegistry: registry,
-					log:              logger.NewForTests(),
 				}
 
 				// Load config
-				result, err := manager.loadMemoryConfig(tc.config.ID)
+				result, err := manager.loadMemoryConfig(context.Background(), tc.config.ID)
 
 				// Verify success
 				require.NoError(t, err)
@@ -219,7 +214,6 @@ func TestManager_loadMemoryConfig(t *testing.T) {
 		// Create manager
 		manager := &Manager{
 			resourceRegistry: registry,
-			log:              logger.NewForTests(),
 		}
 
 		// Test different case variations
@@ -231,7 +225,7 @@ func TestManager_loadMemoryConfig(t *testing.T) {
 		}
 
 		for _, testID := range testCases {
-			result, err := manager.loadMemoryConfig(testID)
+			result, err := manager.loadMemoryConfig(context.Background(), testID)
 			require.NoError(t, err, "Failed for ID: %s", testID)
 			assert.Equal(t, testConfig.ID, result.ID)
 			assert.Equal(t, testConfig.Type, result.Type)
@@ -279,11 +273,10 @@ func TestManager_loadMemoryConfig(t *testing.T) {
 		// Create manager
 		manager := &Manager{
 			resourceRegistry: registry,
-			log:              logger.NewForTests(),
 		}
 
 		// Load and verify complex config
-		result, err := manager.loadMemoryConfig("complex-memory")
+		result, err := manager.loadMemoryConfig(context.Background(), "complex-memory")
 		require.NoError(t, err)
 
 		// Verify all fields are properly converted
@@ -318,10 +311,9 @@ func TestManager_resolveMemoryKey(t *testing.T) {
 	t.Run("Should resolve simple template with variable substitution", func(t *testing.T) {
 		// Create template engine
 		engine := tplengine.NewEngine(tplengine.FormatText)
-		log := logger.FromContext(context.Background())
 
 		// Create manager with template engine using helper
-		manager := createTestManager(engine, log, "")
+		manager := createTestManager(engine, "")
 
 		// Test context data
 		workflowContext := map[string]any{
@@ -341,7 +333,7 @@ func TestManager_resolveMemoryKey(t *testing.T) {
 		// Verify results
 		assert.NoError(t, err)
 		assert.NotEmpty(t, validatedKey)
-		projectID := manager.getProjectID(workflowContext)
+		projectID := manager.getProjectID(context.Background(), workflowContext)
 		assert.Equal(t, "test-project-123", projectID)
 
 		// Verify the resolved template was processed (should contain the resolved key)
@@ -356,10 +348,9 @@ func TestManager_resolveMemoryKey(t *testing.T) {
 	t.Run("Should resolve complex template with nested variables", func(t *testing.T) {
 		// Create template engine
 		engine := tplengine.NewEngine(tplengine.FormatText)
-		log := logger.FromContext(context.Background())
 
 		// Create manager using helper
-		manager := createTestManager(engine, log, "")
+		manager := createTestManager(engine, "")
 
 		// Complex context data
 		workflowContext := map[string]any{
@@ -387,17 +378,16 @@ func TestManager_resolveMemoryKey(t *testing.T) {
 		// Verify results
 		assert.NoError(t, err)
 		assert.NotEmpty(t, validatedKey)
-		projectID := manager.getProjectID(workflowContext)
+		projectID := manager.getProjectID(context.Background(), workflowContext)
 		assert.Equal(t, "complex-project", projectID)
 	})
 
 	t.Run("Should handle template without project.id gracefully", func(t *testing.T) {
 		// Create template engine
 		engine := tplengine.NewEngine(tplengine.FormatText)
-		log := logger.FromContext(context.Background())
 
 		// Create manager with project context resolver
-		manager := createTestManager(engine, log, "")
+		manager := createTestManager(engine, "")
 
 		// Context without project.id
 		workflowContext := map[string]any{
@@ -417,17 +407,16 @@ func TestManager_resolveMemoryKey(t *testing.T) {
 		// Verify results
 		assert.NoError(t, err)
 		assert.NotEmpty(t, validatedKey)
-		projectID := manager.getProjectID(workflowContext)
+		projectID := manager.getProjectID(context.Background(), workflowContext)
 		assert.Empty(t, projectID, "Project ID should be empty when not in context")
 	})
 
 	t.Run("Should fail validation when template evaluation fails", func(t *testing.T) {
 		// Create template engine
 		engine := tplengine.NewEngine(tplengine.FormatText)
-		log := logger.NewForTests()
 
 		// Create manager with project context resolver
-		manager := createTestManager(engine, log, "fallback-project")
+		manager := createTestManager(engine, "fallback-project")
 
 		// Context with project.id
 		workflowContext := map[string]any{
@@ -451,10 +440,9 @@ func TestManager_resolveMemoryKey(t *testing.T) {
 	t.Run("Should handle empty template gracefully", func(t *testing.T) {
 		// Create template engine
 		engine := tplengine.NewEngine(tplengine.FormatText)
-		log := logger.FromContext(context.Background())
 
 		// Create manager using helper
-		manager := createTestManager(engine, log, "")
+		manager := createTestManager(engine, "")
 
 		// Context with project.id
 		workflowContext := map[string]any{
@@ -477,10 +465,9 @@ func TestManager_resolveMemoryKey(t *testing.T) {
 	t.Run("Should handle template with missing project.id context", func(t *testing.T) {
 		// Create template engine
 		engine := tplengine.NewEngine(tplengine.FormatText)
-		log := logger.FromContext(context.Background())
 
 		// Create manager with project context resolver
-		manager := createTestManager(engine, log, "")
+		manager := createTestManager(engine, "")
 
 		// Context missing project.id
 		workflowContext := map[string]any{
@@ -499,17 +486,16 @@ func TestManager_resolveMemoryKey(t *testing.T) {
 		// Verify results
 		assert.NoError(t, err)
 		assert.NotEmpty(t, validatedKey)
-		projectID := manager.getProjectID(workflowContext)
+		projectID := manager.getProjectID(context.Background(), workflowContext)
 		assert.Empty(t, projectID)
 	})
 
 	t.Run("Should handle literal string without template markers", func(t *testing.T) {
 		// Create template engine
 		engine := tplengine.NewEngine(tplengine.FormatText)
-		log := logger.FromContext(context.Background())
 
 		// Create manager using helper
-		manager := createTestManager(engine, log, "")
+		manager := createTestManager(engine, "")
 
 		// Context with project.id
 		workflowContext := map[string]any{
@@ -526,7 +512,7 @@ func TestManager_resolveMemoryKey(t *testing.T) {
 		// Verify results
 		assert.NoError(t, err)
 		assert.NotEmpty(t, validatedKey)
-		projectID := manager.getProjectID(workflowContext)
+		projectID := manager.getProjectID(context.Background(), workflowContext)
 		assert.Equal(t, "literal-project", projectID)
 
 		// Should be the literal string itself (now that we don't hash)
@@ -535,83 +521,77 @@ func TestManager_resolveMemoryKey(t *testing.T) {
 }
 
 func TestProjectContextResolver(t *testing.T) {
-	log := logger.NewForTests()
-
 	t.Run("Should extract project ID from flat format", func(t *testing.T) {
-		resolver := NewProjectContextResolver("fallback-id", log)
+		resolver := NewProjectContextResolver("fallback-id")
 		workflowContext := map[string]any{
 			"project.id": "test-project-id",
 		}
 
-		projectID := resolver.ResolveProjectID(workflowContext)
+		projectID := resolver.ResolveProjectID(context.Background(), workflowContext)
 		assert.Equal(t, "test-project-id", projectID)
 	})
 
 	t.Run("Should extract project ID from nested format", func(t *testing.T) {
-		resolver := NewProjectContextResolver("fallback-id", log)
+		resolver := NewProjectContextResolver("fallback-id")
 		workflowContext := map[string]any{
 			"project": map[string]any{
 				"id": "nested-project-id",
 			},
 		}
 
-		projectID := resolver.ResolveProjectID(workflowContext)
+		projectID := resolver.ResolveProjectID(context.Background(), workflowContext)
 		assert.Equal(t, "nested-project-id", projectID)
 	})
 
 	t.Run("Should use fallback when project.id is missing", func(t *testing.T) {
-		resolver := NewProjectContextResolver("fallback-id", log)
+		resolver := NewProjectContextResolver("fallback-id")
 		workflowContext := map[string]any{
 			"project.name": "Test Project",
 		}
 
-		projectID := resolver.ResolveProjectID(workflowContext)
+		projectID := resolver.ResolveProjectID(context.Background(), workflowContext)
 		assert.Equal(t, "fallback-id", projectID)
 	})
 
 	t.Run("Should use fallback when project key is missing", func(t *testing.T) {
-		resolver := NewProjectContextResolver("fallback-id", log)
+		resolver := NewProjectContextResolver("fallback-id")
 		workflowContext := map[string]any{
 			"agent": map[string]any{
 				"name": "test-agent",
 			},
 		}
 
-		projectID := resolver.ResolveProjectID(workflowContext)
+		projectID := resolver.ResolveProjectID(context.Background(), workflowContext)
 		assert.Equal(t, "fallback-id", projectID)
 	})
 
 	t.Run("Should use fallback when project.id is not a string", func(t *testing.T) {
-		resolver := NewProjectContextResolver("fallback-id", log)
+		resolver := NewProjectContextResolver("fallback-id")
 		workflowContext := map[string]any{
 			"project.id": 123, // not a string
 		}
 
-		projectID := resolver.ResolveProjectID(workflowContext)
+		projectID := resolver.ResolveProjectID(context.Background(), workflowContext)
 		assert.Equal(t, "fallback-id", projectID)
 	})
 
 	t.Run("Should handle empty context", func(t *testing.T) {
-		resolver := NewProjectContextResolver("fallback-id", log)
+		resolver := NewProjectContextResolver("fallback-id")
 		workflowContext := map[string]any{}
 
-		projectID := resolver.ResolveProjectID(workflowContext)
+		projectID := resolver.ResolveProjectID(context.Background(), workflowContext)
 		assert.Equal(t, "fallback-id", projectID)
 	})
 
 	t.Run("Should handle nil context", func(t *testing.T) {
-		resolver := NewProjectContextResolver("fallback-id", log)
-		projectID := resolver.ResolveProjectID(nil)
+		resolver := NewProjectContextResolver("fallback-id")
+		projectID := resolver.ResolveProjectID(context.Background(), nil)
 		assert.Equal(t, "fallback-id", projectID)
 	})
 }
 
 func TestManager_configToResource(t *testing.T) {
 	t.Run("Should properly map config to resource with TTL fields", func(t *testing.T) {
-		manager := &Manager{
-			log: logger.NewForTests(),
-		}
-
 		// Create config with locking TTL fields
 		config := &Config{
 			ID:              "test-memory",
@@ -631,8 +611,8 @@ func TestManager_configToResource(t *testing.T) {
 			},
 		}
 
-		builder := &ResourceBuilder{config: config, logger: manager.log}
-		result, err := builder.Build()
+		builder := &ResourceBuilder{config: config}
+		result, err := builder.Build(context.Background())
 		require.NoError(t, err)
 
 		// Verify basic fields are mapped correctly
@@ -663,10 +643,6 @@ func TestManager_configToResource(t *testing.T) {
 	})
 
 	t.Run("Should handle nil locking config gracefully", func(t *testing.T) {
-		manager := &Manager{
-			log: logger.NewForTests(),
-		}
-
 		config := &Config{
 			ID:        "test-memory",
 			Type:      memcore.TokenBasedMemory,
@@ -678,8 +654,8 @@ func TestManager_configToResource(t *testing.T) {
 			},
 		}
 
-		builder := &ResourceBuilder{config: config, logger: manager.log}
-		result, err := builder.Build()
+		builder := &ResourceBuilder{config: config}
+		result, err := builder.Build(context.Background())
 		require.NoError(t, err)
 
 		// Verify TTL fields are empty when locking config is nil
@@ -694,11 +670,7 @@ func TestManager_configToResource(t *testing.T) {
 }
 
 func TestConfigResolverPatternIntegration(t *testing.T) {
-	log := logger.NewForTests()
 	t.Run("Should validate and use regex patterns directly", func(t *testing.T) {
-		mm := &Manager{
-			log: log,
-		}
 		config := &Config{
 			ID:          "test-memory",
 			Description: "Test memory with privacy patterns",
@@ -712,8 +684,8 @@ func TestConfigResolverPatternIntegration(t *testing.T) {
 				},
 			},
 		}
-		builder := &ResourceBuilder{config: config, logger: mm.log}
-		resource, err := builder.Build()
+		builder := &ResourceBuilder{config: config}
+		resource, err := builder.Build(context.Background())
 		require.NoError(t, err)
 		require.NotNil(t, resource)
 		require.NotNil(t, resource.PrivacyPolicy)
@@ -725,9 +697,6 @@ func TestConfigResolverPatternIntegration(t *testing.T) {
 		assert.Regexp(t, resource.PrivacyPolicy.RedactPatterns[2], "4111 1111 1111 1111") // Credit card
 	})
 	t.Run("Should reject invalid regex patterns", func(t *testing.T) {
-		mm := &Manager{
-			log: log,
-		}
 		config := &Config{
 			ID:          "test-memory",
 			Description: "Test memory with invalid pattern",
@@ -740,15 +709,12 @@ func TestConfigResolverPatternIntegration(t *testing.T) {
 				},
 			},
 		}
-		builder := &ResourceBuilder{config: config, logger: mm.log}
-		resource, err := builder.Build()
+		builder := &ResourceBuilder{config: config}
+		resource, err := builder.Build(context.Background())
 		assert.Error(t, err, "Should return error for invalid patterns")
 		assert.Nil(t, resource)
 	})
 	t.Run("Should reject ReDoS vulnerable patterns", func(t *testing.T) {
-		mm := &Manager{
-			log: log,
-		}
 		config := &Config{
 			ID:          "test-memory",
 			Description: "Test memory with dangerous pattern",
@@ -761,15 +727,12 @@ func TestConfigResolverPatternIntegration(t *testing.T) {
 				},
 			},
 		}
-		builder := &ResourceBuilder{config: config, logger: mm.log}
-		resource, err := builder.Build()
+		builder := &ResourceBuilder{config: config}
+		resource, err := builder.Build(context.Background())
 		assert.Error(t, err, "Should return error for dangerous patterns")
 		assert.Nil(t, resource)
 	})
 	t.Run("Should preserve other privacy policy settings", func(t *testing.T) {
-		mm := &Manager{
-			log: log,
-		}
 		config := &Config{
 			ID:          "test-memory",
 			Description: "Test memory with full privacy policy",
@@ -784,8 +747,8 @@ func TestConfigResolverPatternIntegration(t *testing.T) {
 				DefaultRedactionString:     "[HIDDEN]",
 			},
 		}
-		builder := &ResourceBuilder{config: config, logger: mm.log}
-		resource, err := builder.Build()
+		builder := &ResourceBuilder{config: config}
+		resource, err := builder.Build(context.Background())
 		require.NoError(t, err)
 		require.NotNil(t, resource)
 		require.NotNil(t, resource.PrivacyPolicy)
@@ -795,9 +758,6 @@ func TestConfigResolverPatternIntegration(t *testing.T) {
 		assert.Len(t, resource.PrivacyPolicy.RedactPatterns, 2)
 	})
 	t.Run("Should handle empty patterns list", func(t *testing.T) {
-		mm := &Manager{
-			log: log,
-		}
 		config := &Config{
 			ID:          "test-memory",
 			Description: "Test memory without patterns",
@@ -808,8 +768,8 @@ func TestConfigResolverPatternIntegration(t *testing.T) {
 				NonPersistableMessageTypes: []string{"system"},
 			},
 		}
-		builder := &ResourceBuilder{config: config, logger: mm.log}
-		resource, err := builder.Build()
+		builder := &ResourceBuilder{config: config}
+		resource, err := builder.Build(context.Background())
 		require.NoError(t, err)
 		require.NotNil(t, resource)
 		require.NotNil(t, resource.PrivacyPolicy)
@@ -820,9 +780,7 @@ func TestConfigResolverPatternIntegration(t *testing.T) {
 
 // TestManager_validateKey tests the validateKey function
 func TestManager_validateKey(t *testing.T) {
-	manager := &Manager{
-		log: logger.NewForTests(),
-	}
+	manager := &Manager{}
 
 	t.Run("Should accept valid keys", func(t *testing.T) {
 		validKeys := []string{

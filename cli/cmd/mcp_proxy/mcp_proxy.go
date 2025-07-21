@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/compozy/compozy/cli/cmd"
+	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	mcpproxy "github.com/compozy/compozy/pkg/mcp-proxy"
 )
@@ -190,8 +191,8 @@ func getStringSliceFlag(cobraCmd *cobra.Command, flagName string) []string {
 // Note: Environment file loading is handled through the global --env-file flag and executor
 
 // setupMCPProxyLogging configures logging for the MCP proxy using global configuration
-func setupMCPProxyLogging(cobraCmd *cobra.Command, executor *cmd.CommandExecutor) logger.Logger {
-	cfg := executor.GetConfig()
+func setupMCPProxyLogging(cobraCmd *cobra.Command, _ *cmd.CommandExecutor) logger.Logger {
+	cfg := config.Get()
 	logLevel := cfg.Runtime.LogLevel
 
 	// Override log level if debug flag is set

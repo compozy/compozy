@@ -52,7 +52,7 @@ func TestConfig_Default(t *testing.T) {
 		assert.Equal(t, 100, cfg.Limits.ParentUpdateBatchSize)
 
 		// Memory defaults
-		assert.Equal(t, "compozy:", cfg.Memory.RedisPrefix)
+		assert.Equal(t, "compozy:memory:", cfg.Memory.Prefix)
 		assert.Equal(t, 24*time.Hour, cfg.Memory.TTL)
 		assert.Equal(t, 10000, cfg.Memory.MaxEntries)
 	})

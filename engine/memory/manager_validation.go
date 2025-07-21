@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/engine/memory/privacy"
-	"github.com/compozy/compozy/pkg/logger"
 )
 
 // validateManagerOptions validates the required manager options
@@ -32,9 +31,6 @@ func setDefaultManagerOptions(opts *ManagerOptions) {
 	if opts.TemporalTaskQueue == "" {
 		opts.TemporalTaskQueue = "memory-operations"
 	}
-	if opts.Logger == nil {
-		opts.Logger = logger.NewForTests()
-	}
 }
 
 // getOrCreatePrivacyManager gets existing privacy manager or creates a new one
@@ -42,7 +38,6 @@ func setDefaultManagerOptions(opts *ManagerOptions) {
 func getOrCreatePrivacyManager(
 	existing privacy.ManagerInterface,
 	resilienceConfig *privacy.ResilienceConfig,
-	log logger.Logger,
 ) privacy.ManagerInterface {
 	if existing != nil {
 		return existing
@@ -51,7 +46,7 @@ func getOrCreatePrivacyManager(
 	baseManager := privacy.NewManager()
 	// If resilience config provided, wrap with resilient manager
 	if resilienceConfig != nil {
-		return privacy.NewResilientManager(baseManager, resilienceConfig, log)
+		return privacy.NewResilientManager(baseManager, resilienceConfig)
 	}
 	return baseManager
 }

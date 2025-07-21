@@ -17,6 +17,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/compozy/compozy/cli/cmd"
 	"github.com/compozy/compozy/cli/tui/models"
+	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/go-playground/validator/v10"
 	"github.com/spf13/cobra"
@@ -242,7 +243,7 @@ func newInitForm(opts *Options) *initFormModel {
 	}
 
 	// Configure all form fields using the consolidated configuration
-	for i := 0; i < formFieldCount; i++ {
+	for i := range formFieldCount {
 		config := formFieldConfigs[i]
 		inputs[i] = textinput.New()
 		inputs[i].Placeholder = config.Placeholder
@@ -443,12 +444,12 @@ func executeInitCommand(cobraCmd *cobra.Command, opts *Options, args []string) e
 }
 
 // runInitJSON handles non-interactive JSON mode
-func runInitJSON(ctx context.Context, _ *cobra.Command, executor *cmd.CommandExecutor, opts *Options) error {
+func runInitJSON(ctx context.Context, _ *cobra.Command, _ *cmd.CommandExecutor, opts *Options) error {
 	log := logger.FromContext(ctx)
 	log.Debug("executing init command in JSON mode")
 
 	// Access global configuration from executor
-	cfg := executor.GetConfig()
+	cfg := config.Get()
 	if cfg.CLI.Debug {
 		log.Debug("debug mode enabled from global config")
 	}
@@ -485,12 +486,12 @@ func runInitJSON(ctx context.Context, _ *cobra.Command, executor *cmd.CommandExe
 }
 
 // runInitTUI handles interactive TUI mode
-func runInitTUI(ctx context.Context, _ *cobra.Command, executor *cmd.CommandExecutor, opts *Options) error {
+func runInitTUI(ctx context.Context, _ *cobra.Command, _ *cmd.CommandExecutor, opts *Options) error {
 	log := logger.FromContext(ctx)
 	log.Debug("executing init command in TUI mode")
 
 	// Access global configuration from executor
-	cfg := executor.GetConfig()
+	cfg := config.Get()
 	if cfg.CLI.Debug {
 		log.Debug("debug mode enabled from global config")
 	}

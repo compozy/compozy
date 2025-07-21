@@ -120,11 +120,11 @@ schemagen-watch:
 # -----------------------------------------------------------------------------
 
 test:
-	@bun test
+	@bun run test
 	@gotestsum --format pkgname -- -race -parallel=4 ./...
 
 test-nocache:
-	@bun test
+	@bun run test
 	@gotestsum --format pkgname -- -race -count=1 -parallel=4 ./...
 
 # -----------------------------------------------------------------------------

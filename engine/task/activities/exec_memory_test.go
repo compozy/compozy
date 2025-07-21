@@ -24,7 +24,6 @@ import (
 	"github.com/compozy/compozy/engine/task2"
 	task2core "github.com/compozy/compozy/engine/task2/core"
 	"github.com/compozy/compozy/engine/workflow"
-	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/tplengine"
 	utils "github.com/compozy/compozy/test/helpers"
 )
@@ -782,8 +781,6 @@ func setupMemoryManager(
 	configRegistry *autoload.ConfigRegistry,
 ) *memory.Manager {
 	t.Helper()
-
-	log := logger.NewForTests()
 	templateEngine := tplengine.NewEngine(tplengine.FormatText)
 	mockClient := &mocks.Client{}
 	privacyManager := privacy.NewManager()
@@ -796,7 +793,6 @@ func setupMemoryManager(
 		TemporalClient:    mockClient,
 		TemporalTaskQueue: "test-memory-queue",
 		PrivacyManager:    privacyManager,
-		Logger:            log,
 	})
 	require.NoError(t, err)
 

@@ -21,7 +21,6 @@ import (
 	"github.com/compozy/compozy/engine/task/services"
 	"github.com/compozy/compozy/engine/worker"
 	"github.com/compozy/compozy/engine/workflow"
-	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/tplengine"
 	utils "github.com/compozy/compozy/test/helpers"
 )
@@ -389,7 +388,6 @@ func CreateTestActivities(
 		nil, // redisCache - not needed for test
 		memoryManager,
 		templateEngine,
-		nil, // appConfig - not needed for test
 	)
 }
 
@@ -499,8 +497,7 @@ func ExecuteWorkflowAndGetState(
 	}
 
 	// Execute workflow through Temporal
-	appConfig := config.Default()
-	env.ExecuteWorkflow(worker.CompozyWorkflow, temporalInput, appConfig)
+	env.ExecuteWorkflow(worker.CompozyWorkflow, temporalInput)
 
 	// Verify workflow completed successfully
 	require.True(t, env.IsWorkflowCompleted())

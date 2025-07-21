@@ -28,13 +28,15 @@ type memoryComponents struct {
 
 // buildMemoryComponents creates all the necessary components for a memory instance
 func (mm *Manager) buildMemoryComponents(
+	ctx context.Context,
 	resourceCfg *memcore.Resource,
 	projectIDVal string,
 ) (*memoryComponents, error) {
 	// Build the key prefix with namespace: compozy:{project_id}:memory
 	keyPrefix := fmt.Sprintf("compozy:%s:memory", projectIDVal)
 
-	mm.log.Debug("🔧 buildMemoryComponents: Redis namespace generation",
+	log := logger.FromContext(ctx)
+	log.Debug("🔧 buildMemoryComponents: Redis namespace generation",
 		"resource_id", resourceCfg.ID,
 		"project_id_input", projectIDVal,
 		"generated_key_prefix", keyPrefix)
@@ -44,11 +46,11 @@ func (mm *Manager) buildMemoryComponents(
 	if err != nil {
 		return nil, err
 	}
-	tokenManager, err := mm.createTokenManager(resourceCfg)
+	tokenManager, err := mm.createTokenManager(ctx, resourceCfg)
 	if err != nil {
 		return nil, err
 	}
-	flushingStrategy, err := mm.createFlushingStrategy(resourceCfg, tokenManager)
+	flushingStrategy, err := mm.createFlushingStrategy(ctx, resourceCfg, tokenManager)
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +72,7 @@ func (mm *Manager) createLockManager(
 	resourceCfg *memcore.Resource,
 ) (*instance.LockManagerImpl, error) {
 	// Create distributed lock adapter using existing Redis LockManager
-	locker := newLockManagerAdapter(mm.baseLockManager, mm.log, projectIDVal)
+	locker := newLockManagerAdapter(mm.baseLockManager, projectIDVal)
 	lockManager := instance.NewLockManager(locker)
 
 	// Configure TTLs from resource configuration if available
@@ -110,15 +112,13 @@ func (mm *Manager) createLockManager(
 // lockManagerAdapter adapts cache.LockManager to instance.Locker with proper distributed locking
 type lockManagerAdapter struct {
 	manager   cache.LockManager
-	log       logger.Logger
 	projectID string
 }
 
 // newLockManagerAdapter creates a new lock manager adapter with proper configuration
-func newLockManagerAdapter(manager cache.LockManager, log logger.Logger, projectID string) instance.Locker {
+func newLockManagerAdapter(manager cache.LockManager, projectID string) instance.Locker {
 	return &lockManagerAdapter{
 		manager:   manager,
-		log:       log,
 		projectID: projectID,
 	}
 }
@@ -141,13 +141,14 @@ func (lma *lockManagerAdapter) acquireWithRetry(
 ) (cache.Lock, error) {
 	// Check if this is a flush lock - flush locks should fail fast without retry
 	isFlushLock := strings.Contains(lockKey, ":flush_lock")
+	log := logger.FromContext(ctx)
 
 	const maxRetries = 3
 	var lastErr error
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		cacheLock, err := lma.tryAcquire(ctx, lockKey, ttl)
 		if err == nil {
-			lma.log.Debug("Successfully acquired distributed lock",
+			log.Debug("Successfully acquired distributed lock",
 				"key", lockKey, "ttl", ttl, "attempt", attempt+1, "is_flush", isFlushLock)
 			return cacheLock, nil
 		}
@@ -155,7 +156,7 @@ func (lma *lockManagerAdapter) acquireWithRetry(
 
 		// For flush locks, don't retry on lock contention
 		if isFlushLock && errors.Is(err, cache.ErrLockNotAcquired) {
-			lma.log.Debug("Flush lock acquisition failed, not retrying",
+			log.Debug("Flush lock acquisition failed, not retrying",
 				"key", lockKey, "error", err)
 			// Return immediately for flush locks on contention
 			return nil, fmt.Errorf("%w: lock already held for key %s", memcore.ErrLockAcquisitionFailed, lockKey)
@@ -173,7 +174,7 @@ func (lma *lockManagerAdapter) acquireWithRetry(
 	if isFlushLock && errors.Is(lastErr, cache.ErrLockNotAcquired) {
 		actualRetries = 0
 	}
-	return nil, lma.formatAcquisitionError(lockKey, actualRetries, lastErr)
+	return nil, lma.formatAcquisitionError(ctx, lockKey, actualRetries, lastErr)
 }
 
 // tryAcquire attempts a single lock acquisition with timeout
@@ -196,6 +197,7 @@ func (lma *lockManagerAdapter) waitForRetry(
 	maxRetries int,
 	err error,
 ) error {
+	log := logger.FromContext(ctx)
 	const baseDelay = 50 * time.Millisecond
 	// Safe exponential backoff with bounds checking to prevent overflow
 	if attempt < 0 {
@@ -209,7 +211,7 @@ func (lma *lockManagerAdapter) waitForRetry(
 		shiftAmount = 30
 	}
 	delay := time.Duration(1<<shiftAmount) * baseDelay
-	lma.log.Debug("Lock acquisition failed, retrying",
+	log.Debug("Lock acquisition failed, retrying",
 		"key", lockKey, "attempt", attempt+1, "max_retries", maxRetries, "delay", delay, "error", err)
 	select {
 	case <-ctx.Done():
@@ -220,8 +222,14 @@ func (lma *lockManagerAdapter) waitForRetry(
 }
 
 // formatAcquisitionError creates a formatted error for failed lock acquisition
-func (lma *lockManagerAdapter) formatAcquisitionError(lockKey string, maxRetries int, lastErr error) error {
-	lma.log.Error("Failed to acquire distributed lock after retries",
+func (lma *lockManagerAdapter) formatAcquisitionError(
+	ctx context.Context,
+	lockKey string,
+	maxRetries int,
+	lastErr error,
+) error {
+	log := logger.FromContext(ctx)
+	log.Error("Failed to acquire distributed lock after retries",
 		"key", lockKey, "max_retries", maxRetries, "error", lastErr)
 
 	// Wrap with appropriate core error type
@@ -255,19 +263,20 @@ type distributedLock struct {
 
 // Unlock implements instance.Lock by releasing the Redis distributed lock
 func (dl *distributedLock) Unlock(ctx context.Context) error {
+	log := logger.FromContext(ctx)
 	if dl.cacheLock == nil {
 		return fmt.Errorf("lock already released or never acquired")
 	}
 
 	err := dl.cacheLock.Release(ctx)
 	if err != nil {
-		dl.adapter.log.Error("Failed to release distributed lock",
+		log.Error("Failed to release distributed lock",
 			"key", dl.key,
 			"error", err)
 		return fmt.Errorf("failed to release distributed lock for key %s: %w", dl.key, err)
 	}
 
-	dl.adapter.log.Debug("Successfully released distributed lock",
+	log.Debug("Successfully released distributed lock",
 		"key", dl.key)
 
 	// Clear the lock reference to prevent double release
@@ -276,13 +285,13 @@ func (dl *distributedLock) Unlock(ctx context.Context) error {
 }
 
 // createTokenManager creates a token manager for the given resource configuration
-func (mm *Manager) createTokenManager(resourceCfg *memcore.Resource) (*TokenMemoryManager, error) {
+func (mm *Manager) createTokenManager(ctx context.Context, resourceCfg *memcore.Resource) (*TokenMemoryManager, error) {
 	model := DefaultTokenCounterModel
 	if resourceCfg.Model != "" {
 		model = resourceCfg.Model
 	}
 	// Use provider configuration if available
-	tokenCounter, err := mm.getOrCreateTokenCounterWithConfig(model, resourceCfg.TokenProvider)
+	tokenCounter, err := mm.getOrCreateTokenCounterWithConfig(ctx, model, resourceCfg.TokenProvider)
 	if err != nil {
 		return nil, fmt.Errorf(
 			"failed to create token counter for resource '%s' with model '%s': %w",
@@ -291,7 +300,7 @@ func (mm *Manager) createTokenManager(resourceCfg *memcore.Resource) (*TokenMemo
 			err,
 		)
 	}
-	tokenManager, err := NewTokenMemoryManager(resourceCfg, tokenCounter, mm.log)
+	tokenManager, err := NewTokenMemoryManager(ctx, resourceCfg, tokenCounter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create token manager for resource '%s': %w", resourceCfg.ID, err)
 	}
@@ -300,6 +309,7 @@ func (mm *Manager) createTokenManager(resourceCfg *memcore.Resource) (*TokenMemo
 
 // createFlushingStrategy creates a flushing strategy for the given resource configuration
 func (mm *Manager) createFlushingStrategy(
+	ctx context.Context,
 	resourceCfg *memcore.Resource,
 	tokenManager *TokenMemoryManager,
 ) (memcore.FlushStrategy, error) {
@@ -311,7 +321,7 @@ func (mm *Manager) createFlushingStrategy(
 	}
 
 	if strategyConfig.Type == memcore.HybridSummaryFlushing {
-		return mm.createLegacyHybridStrategy(resourceCfg, tokenManager, strategyConfig)
+		return mm.createLegacyHybridStrategy(ctx, resourceCfg, tokenManager, strategyConfig)
 	}
 
 	return mm.createStrategyWithFactory(factory, resourceCfg, strategyConfig)
@@ -354,12 +364,13 @@ func (mm *Manager) createStrategyWithFactory(
 
 // createLegacyHybridStrategy creates the legacy HybridFlushingStrategy for backward compatibility
 func (mm *Manager) createLegacyHybridStrategy(
+	ctx context.Context,
 	resourceCfg *memcore.Resource,
 	tokenManager *TokenMemoryManager,
 	strategyConfig *memcore.FlushingStrategyConfig,
 ) (memcore.FlushStrategy, error) {
 	var summarizer MessageSummarizer
-	tokenCounter, err := mm.getOrCreateTokenCounter(DefaultTokenCounterModel)
+	tokenCounter, err := mm.getOrCreateTokenCounter(ctx, DefaultTokenCounterModel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create token counter for summarizer: %w", err)
 	}
@@ -375,21 +386,17 @@ func (mm *Manager) createLegacyHybridStrategy(
 // createStrategyOptions creates strategy options based on resource configuration
 func (mm *Manager) createStrategyOptions(resourceCfg *memcore.Resource) *strategies.StrategyOptions {
 	opts := strategies.GetDefaultStrategyOptions()
-
 	// Configure based on resource type and limits
 	if resourceCfg.MaxTokens > 0 {
 		opts.MaxTokens = resourceCfg.MaxTokens
 	}
-
 	if resourceCfg.MaxMessages > 0 {
 		opts.CacheSize = resourceCfg.MaxMessages
 	}
-
 	// Set threshold from flushing strategy config if available
 	if resourceCfg.FlushingStrategy != nil && resourceCfg.FlushingStrategy.SummarizeThreshold > 0 {
 		opts.DefaultThreshold = resourceCfg.FlushingStrategy.SummarizeThreshold
 	}
-
 	return opts
 }
 
@@ -412,26 +419,23 @@ func (mm *Manager) createMemoryInstance(
 	if model == "" {
 		model = DefaultTokenCounterModel
 	}
-	tokenCounter, err := mm.getOrCreateTokenCounterWithConfig(model, resourceCfg.TokenProvider)
+	tokenCounter, err := mm.getOrCreateTokenCounterWithConfig(ctx, model, resourceCfg.TokenProvider)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create token counter: %w", err)
 	}
 	// Create async token counter wrapper with configurable workers and buffer size
 	workers := 10      // default workers
 	bufferSize := 1000 // default buffer size
-	// Use injected config manager if available
-	if mm.configManager != nil {
-		appConfig := mm.configManager.Get()
-		if appConfig != nil {
-			if appConfig.Runtime.AsyncTokenCounterWorkers > 0 {
-				workers = appConfig.Runtime.AsyncTokenCounterWorkers
-			}
-			if appConfig.Runtime.AsyncTokenCounterBufferSize > 0 {
-				bufferSize = appConfig.Runtime.AsyncTokenCounterBufferSize
-			}
+	// Use injected app config if available
+	if mm.appConfig != nil {
+		if mm.appConfig.Runtime.AsyncTokenCounterWorkers > 0 {
+			workers = mm.appConfig.Runtime.AsyncTokenCounterWorkers
+		}
+		if mm.appConfig.Runtime.AsyncTokenCounterBufferSize > 0 {
+			bufferSize = mm.appConfig.Runtime.AsyncTokenCounterBufferSize
 		}
 	}
-	asyncTokenCounter := tokens.NewAsyncTokenCounter(tokenCounter, workers, bufferSize, mm.log)
+	asyncTokenCounter := tokens.NewAsyncTokenCounter(tokenCounter, workers, bufferSize)
 	// Use the instance builder
 	instanceBuilder := instance.NewBuilder().
 		WithInstanceID(validatedKey).
@@ -446,8 +450,7 @@ func (mm *Manager) createMemoryInstance(
 		WithEvictionPolicy(components.evictionPolicy).
 		WithTemporalClient(mm.temporalClient).
 		WithTemporalTaskQueue(mm.temporalTaskQueue).
-		WithPrivacyManager(mm.privacyManager).
-		WithLogger(mm.log)
+		WithPrivacyManager(mm.privacyManager)
 	if err := instanceBuilder.Validate(ctx); err != nil {
 		return nil, fmt.Errorf("instance builder validation failed: %w", err)
 	}

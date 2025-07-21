@@ -1,6 +1,7 @@
 package tokens
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -11,12 +12,11 @@ import (
 
 // APIKeyResolver handles secure API key resolution from environment variables
 type APIKeyResolver struct {
-	log logger.Logger
 }
 
 // NewAPIKeyResolver creates a new API key resolver
-func NewAPIKeyResolver(log logger.Logger) *APIKeyResolver {
-	return &APIKeyResolver{log: log}
+func NewAPIKeyResolver() *APIKeyResolver {
+	return &APIKeyResolver{}
 }
 
 // ResolveAPIKey resolves the API key from the configuration
@@ -24,12 +24,13 @@ func NewAPIKeyResolver(log logger.Logger) *APIKeyResolver {
 // 1. If APIKeyEnv is set, use the environment variable it references
 // 2. If APIKey starts with ${} pattern, treat it as an env var reference
 // 3. Otherwise use APIKey directly (for development/testing only)
-func (r *APIKeyResolver) ResolveAPIKey(config *memcore.TokenProviderConfig) string {
+func (r *APIKeyResolver) ResolveAPIKey(ctx context.Context, config *memcore.TokenProviderConfig) string {
+	log := logger.FromContext(ctx)
 	// First priority: explicit environment variable reference
 	if config.APIKeyEnv != "" {
 		value := os.Getenv(config.APIKeyEnv)
-		if value == "" && r.log != nil {
-			r.log.Warn("API key environment variable is not set",
+		if value == "" {
+			log.Warn("API key environment variable is not set",
 				"env_var", config.APIKeyEnv,
 				"provider", config.Provider)
 		}
@@ -39,28 +40,31 @@ func (r *APIKeyResolver) ResolveAPIKey(config *memcore.TokenProviderConfig) stri
 	if strings.HasPrefix(config.APIKey, "${") && strings.HasSuffix(config.APIKey, "}") {
 		envVar := strings.TrimSuffix(strings.TrimPrefix(config.APIKey, "${"), "}")
 		value := os.Getenv(envVar)
-		if value == "" && r.log != nil {
-			r.log.Warn("API key environment variable is not set",
+		if value == "" {
+			log.Warn("API key environment variable is not set",
 				"env_var", envVar,
 				"provider", config.Provider)
 		}
 		return value
 	}
 	// Third priority: direct value (log warning in production)
-	if config.APIKey != "" && r.log != nil &&
+	if config.APIKey != "" &&
 		(os.Getenv("GO_ENV") == "production" || os.Getenv("APP_ENV") == "production") {
-		r.log.Warn("API key is stored in plain text configuration - consider using environment variables",
+		log.Warn("API key is stored in plain text configuration - consider using environment variables",
 			"provider", config.Provider)
 	}
 	return config.APIKey
 }
 
 // ResolveProviderConfig creates a new ProviderConfig with resolved API key
-func (r *APIKeyResolver) ResolveProviderConfig(config *memcore.TokenProviderConfig) *ProviderConfig {
+func (r *APIKeyResolver) ResolveProviderConfig(
+	ctx context.Context,
+	config *memcore.TokenProviderConfig,
+) *ProviderConfig {
 	return &ProviderConfig{
 		Provider: config.Provider,
 		Model:    config.Model,
-		APIKey:   r.ResolveAPIKey(config),
+		APIKey:   r.ResolveAPIKey(ctx, config),
 		Endpoint: config.Endpoint,
 		Settings: config.Settings,
 	}

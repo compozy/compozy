@@ -136,7 +136,6 @@ func GenerateParserSchemas(ctx context.Context, outDir string) error {
 		{"config-temporal", &config.TemporalConfig{}, "pkg/config"},
 		{"config-runtime", &config.RuntimeConfig{}, "pkg/config"},
 		{"config-limits", &config.LimitsConfig{}, "pkg/config"},
-		{"config-openai", &config.OpenAIConfig{}, "pkg/config"},
 		{"config-memory", &config.MemoryConfig{}, "pkg/config"},
 		{"config-llm", &config.LLMConfig{}, "pkg/config"},
 		{"config-ratelimit", &config.RateLimitConfig{}, "pkg/config"},
@@ -532,7 +531,12 @@ func updateReferences(data any, oldPrefix, newPrefix string) {
 
 // generateMergedRuntimeSchema creates a merged runtime schema combining both runtime configs
 // This writes to runtime.json directly without prefixes since there are no conflicts
-func generateMergedRuntimeSchema(ctx context.Context, outDir string, baseSchemaURI string, projectRuntimeJSON, configRuntimeJSON []byte) error {
+func generateMergedRuntimeSchema(
+	ctx context.Context,
+	outDir string,
+	baseSchemaURI string,
+	projectRuntimeJSON, configRuntimeJSON []byte,
+) error {
 	log := logger.FromContext(ctx)
 	log.Info("Generating merged runtime schema")
 

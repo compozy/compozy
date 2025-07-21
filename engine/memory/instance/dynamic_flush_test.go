@@ -7,7 +7,6 @@ import (
 	"github.com/compozy/compozy/engine/llm"
 	"github.com/compozy/compozy/engine/memory/core"
 	"github.com/compozy/compozy/engine/memory/instance/strategies"
-	"github.com/compozy/compozy/pkg/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -92,8 +91,7 @@ func TestDynamicFlushableMemory(t *testing.T) {
 			lockManager:      mockLockManager,
 			flushingStrategy: mockFlushStrategy,
 			strategyFactory:  factory,
-			logger:           logger.NewForTests(),
-			metrics:          NewDefaultMetrics(logger.NewForTests()),
+			metrics:          NewDefaultMetrics(),
 		}
 		// Execute
 		result, err := instance.PerformFlushWithStrategy(ctx, core.FlushingStrategyType(""))
@@ -108,7 +106,6 @@ func TestDynamicFlushableMemory(t *testing.T) {
 		factory := strategies.NewStrategyFactory()
 		instance := &memoryInstance{
 			strategyFactory: factory,
-			logger:          logger.NewForTests(),
 		}
 		ctx := context.Background()
 		// Test invalid strategy type
@@ -154,8 +151,7 @@ func TestDynamicFlushableMemory(t *testing.T) {
 			lockManager:      mockLockManager,
 			flushingStrategy: mockFlushStrategy,
 			strategyFactory:  factory,
-			logger:           logger.NewForTests(),
-			metrics:          NewDefaultMetrics(logger.NewForTests()),
+			metrics:          NewDefaultMetrics(),
 		}
 		// Execute using the regular PerformFlush method
 		result, err := instance.PerformFlush(ctx)
@@ -204,8 +200,7 @@ func TestFlushHandlerDynamicStrategy(t *testing.T) {
 			strategyFactory:   factory,
 			requestedStrategy: "lru", // Request LRU strategy
 			tokenCounter:      mockTokenCounter,
-			logger:            logger.NewForTests(),
-			metrics:           NewDefaultMetrics(logger.NewForTests()),
+			metrics:           NewDefaultMetrics(),
 			resourceConfig:    resourceConfig,
 		}
 		// Execute
@@ -244,8 +239,7 @@ func TestFlushHandlerDynamicStrategy(t *testing.T) {
 			flushingStrategy:  mockFlushStrategy, // Default strategy
 			strategyFactory:   factory,
 			requestedStrategy: "", // No requested strategy
-			logger:            logger.NewForTests(),
-			metrics:           NewDefaultMetrics(logger.NewForTests()),
+			metrics:           NewDefaultMetrics(),
 		}
 		// Execute
 		result, err := handler.PerformFlush(ctx)

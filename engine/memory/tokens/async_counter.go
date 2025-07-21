@@ -16,7 +16,6 @@ type AsyncTokenCounter struct {
 	queue       chan *tokenCountRequest
 	workers     int
 	wg          sync.WaitGroup
-	log         logger.Logger
 	metrics     *TokenMetrics
 }
 
@@ -37,7 +36,6 @@ func NewAsyncTokenCounter(
 	counter memcore.TokenCounter,
 	workers int,
 	bufferSize int,
-	log logger.Logger,
 ) *AsyncTokenCounter {
 	if workers <= 0 {
 		workers = 10 // Default worker pool size
@@ -49,7 +47,6 @@ func NewAsyncTokenCounter(
 		realCounter: counter,
 		queue:       make(chan *tokenCountRequest, bufferSize),
 		workers:     workers,
-		log:         log,
 		metrics:     NewTokenMetrics(),
 	}
 	atc.start()
@@ -60,12 +57,13 @@ func NewAsyncTokenCounter(
 func (atc *AsyncTokenCounter) start() {
 	for i := 0; i < atc.workers; i++ {
 		atc.wg.Add(1)
-		go atc.worker(i)
+		go atc.worker(context.Background(), i)
 	}
 }
 
 // worker processes token count requests
-func (atc *AsyncTokenCounter) worker(id int) {
+func (atc *AsyncTokenCounter) worker(ctx context.Context, id int) {
+	log := logger.FromContext(ctx)
 	defer atc.wg.Done()
 	for req := range atc.queue {
 		start := time.Now()
@@ -78,7 +76,7 @@ func (atc *AsyncTokenCounter) worker(id int) {
 			}
 		}
 		if err != nil {
-			atc.log.Error("Failed to count tokens",
+			log.Error("Failed to count tokens",
 				"error", err,
 				"memory_ref", req.memoryRef,
 				"worker_id", id,
@@ -92,10 +90,11 @@ func (atc *AsyncTokenCounter) worker(id int) {
 
 // ProcessAsync queues a message for token counting without blocking
 func (atc *AsyncTokenCounter) ProcessAsync(ctx context.Context, memoryRef string, text string) {
+	log := logger.FromContext(ctx)
 	defer func() {
 		if r := recover(); r != nil {
 			// Handle panic from sending on closed channel
-			atc.log.Warn("Cannot process token count, counter is shut down",
+			log.Warn("Cannot process token count, counter is shut down",
 				"memory_ref", memoryRef,
 				"panic", r,
 			)
@@ -111,7 +110,7 @@ func (atc *AsyncTokenCounter) ProcessAsync(ctx context.Context, memoryRef string
 		// Successfully queued
 	default:
 		// Queue full, log and continue
-		atc.log.Warn("Token counter queue full, skipping message",
+		log.Warn("Token counter queue full, skipping message",
 			"memory_ref", memoryRef,
 		)
 		atc.metrics.IncrementDropped()

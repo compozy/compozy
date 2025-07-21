@@ -48,11 +48,11 @@ func (e *Error) Unwrap() error {
 // ResourceBuilder provides a clean way to construct memcore.Resource from Config
 type ResourceBuilder struct {
 	config *Config
-	logger logger.Logger
 }
 
 // Build constructs a memcore.Resource with all necessary mappings
-func (rb *ResourceBuilder) Build() (*memcore.Resource, error) {
+func (rb *ResourceBuilder) Build(ctx context.Context) (*memcore.Resource, error) {
+	log := logger.FromContext(ctx)
 	resource := &memcore.Resource{
 		ID:                   rb.config.ID,
 		Description:          rb.config.Description,
@@ -72,7 +72,7 @@ func (rb *ResourceBuilder) Build() (*memcore.Resource, error) {
 		DisableFlush:         false, // Flush enabled by default
 	}
 	// Apply privacy policy if configured
-	if err := rb.applyPrivacyPolicy(resource); err != nil {
+	if err := rb.applyPrivacyPolicy(ctx, resource); err != nil {
 		return nil, err
 	}
 	// Apply locking configuration
@@ -80,14 +80,15 @@ func (rb *ResourceBuilder) Build() (*memcore.Resource, error) {
 	// Apply persistence configuration
 	rb.applyPersistenceConfig(resource)
 	// Log the conversion
-	rb.logger.Debug("Config to resource conversion",
+	log.Debug("Config to resource conversion",
 		"config_ttl", rb.config.Persistence.TTL,
 		"parsed_ttl", rb.config.Persistence.ParsedTTL,
 		"resource_id", resource.ID)
 	return resource, nil
 }
 
-func (rb *ResourceBuilder) applyPrivacyPolicy(resource *memcore.Resource) error {
+func (rb *ResourceBuilder) applyPrivacyPolicy(ctx context.Context, resource *memcore.Resource) error {
+	log := logger.FromContext(ctx)
 	if rb.config.PrivacyPolicy == nil {
 		return nil
 	}
@@ -95,8 +96,8 @@ func (rb *ResourceBuilder) applyPrivacyPolicy(resource *memcore.Resource) error 
 		NonPersistableMessageTypes: rb.config.PrivacyPolicy.NonPersistableMessageTypes,
 		DefaultRedactionString:     rb.config.PrivacyPolicy.DefaultRedactionString,
 	}
-	// Validate and use regex patterns directly
 	if len(rb.config.PrivacyPolicy.RedactPatterns) > 0 {
+		// Validate and use regex patterns directly
 		if err := privacy.ValidateRedactionPatterns(rb.config.PrivacyPolicy.RedactPatterns); err != nil {
 			return &Error{
 				Type:       ErrorTypeConfig,
@@ -106,7 +107,7 @@ func (rb *ResourceBuilder) applyPrivacyPolicy(resource *memcore.Resource) error 
 			}
 		}
 		resource.PrivacyPolicy.RedactPatterns = rb.config.PrivacyPolicy.RedactPatterns
-		rb.logger.Debug("Using redaction patterns",
+		log.Debug("Using redaction patterns",
 			"patterns", rb.config.PrivacyPolicy.RedactPatterns)
 	}
 	return nil
@@ -126,7 +127,7 @@ func (rb *ResourceBuilder) applyPersistenceConfig(resource *memcore.Resource) {
 }
 
 // loadMemoryConfig loads and validates a memory configuration by ID
-func (mm *Manager) loadMemoryConfig(resourceID string) (*memcore.Resource, error) {
+func (mm *Manager) loadMemoryConfig(ctx context.Context, resourceID string) (*memcore.Resource, error) {
 	// Since this is greenfield, we expect properly typed configs only
 	configMap, err := mm.resourceRegistry.Get("memory", resourceID)
 	if err != nil {
@@ -143,21 +144,22 @@ func (mm *Manager) loadMemoryConfig(resourceID string) (*memcore.Resource, error
 		return nil, err
 	}
 	// Build resource using the new builder pattern
-	builder := &ResourceBuilder{config: config, logger: mm.log}
-	return builder.Build()
+	builder := &ResourceBuilder{config: config}
+	return builder.Build(ctx)
 }
 
 // resolveMemoryKey evaluates the memory key template and returns the resolved key
 func (mm *Manager) resolveMemoryKey(
-	_ context.Context,
+	ctx context.Context,
 	agentMemoryRef core.MemoryReference,
 	workflowContextData map[string]any,
 ) (string, error) {
+	log := logger.FromContext(ctx)
 	// Extract project ID early
-	projectID := mm.projectContextResolver.ResolveProjectID(workflowContextData)
+	projectID := mm.projectContextResolver.ResolveProjectID(ctx, workflowContextData)
 
 	// Get the key to validate
-	keyToValidate := mm.getKeyToValidate(agentMemoryRef, workflowContextData)
+	keyToValidate := mm.getKeyToValidate(ctx, agentMemoryRef, workflowContextData)
 
 	// Validate the key
 	validatedKey, err := mm.validateKey(keyToValidate)
@@ -168,7 +170,7 @@ func (mm *Manager) resolveMemoryKey(
 			keyToValidate, projectID, workflowExecID, err)
 	}
 
-	mm.log.Debug("Memory key resolution complete",
+	log.Debug("Memory key resolution complete",
 		"original_template", agentMemoryRef.Key,
 		"resolved_key", agentMemoryRef.ResolvedKey,
 		"validated_key", validatedKey,
@@ -178,50 +180,54 @@ func (mm *Manager) resolveMemoryKey(
 }
 
 // getProjectID extracts project ID from workflow context data using the centralized resolver
-func (mm *Manager) getProjectID(workflowContextData map[string]any) string {
-	return mm.projectContextResolver.ResolveProjectID(workflowContextData)
+func (mm *Manager) getProjectID(ctx context.Context, workflowContextData map[string]any) string {
+	return mm.projectContextResolver.ResolveProjectID(ctx, workflowContextData)
 }
 
 // getKeyToValidate determines which key to use based on the reference type
 func (mm *Manager) getKeyToValidate(
+	ctx context.Context,
 	agentMemoryRef core.MemoryReference,
 	workflowContextData map[string]any,
 ) string {
 	// Use pre-resolved key if available (e.g., from REST API)
 	if agentMemoryRef.ResolvedKey != "" {
-		mm.log.Debug("Using pre-resolved key", "key", agentMemoryRef.ResolvedKey)
+		log := logger.FromContext(ctx)
+		log.Debug("Using pre-resolved key", "key", agentMemoryRef.ResolvedKey)
 		return agentMemoryRef.ResolvedKey
 	}
 
 	// Otherwise, resolve from template
-	return mm.resolveKeyFromTemplate(agentMemoryRef.Key, agentMemoryRef.ID, workflowContextData)
+	return mm.resolveKeyFromTemplate(ctx, agentMemoryRef.Key, agentMemoryRef.ID, workflowContextData)
 }
 
 // resolveKeyFromTemplate handles template resolution for memory keys
 func (mm *Manager) resolveKeyFromTemplate(
+	ctx context.Context,
 	keyTemplate string,
 	_ string,
 	workflowContextData map[string]any,
 ) string {
+	log := logger.FromContext(ctx)
 	// Check if it contains template syntax
 	if !strings.Contains(keyTemplate, "{{") {
-		mm.log.Debug("Using literal key (no template syntax detected)", "key", keyTemplate)
+		log.Debug("Using literal key (no template syntax detected)", "key", keyTemplate)
 		return keyTemplate
 	}
 
 	// Attempt template resolution
-	mm.log.Debug("Attempting template resolution",
+	log.Debug("Attempting template resolution",
 		"template", keyTemplate,
 		"has_template_engine", mm.tplEngine != nil)
 
 	if mm.tplEngine == nil {
-		mm.log.Error("Template engine not available for key resolution", "template", keyTemplate)
+		log.Error("Template engine not available for key resolution", "template", keyTemplate)
 		return keyTemplate // Return original for validation error
 	}
 
 	rendered, err := mm.tplEngine.RenderString(keyTemplate, workflowContextData)
 	if err != nil {
-		mm.log.Error("Failed to evaluate key template",
+		log.Error("Failed to evaluate key template",
 			"template", keyTemplate,
 			"error", err)
 		// Return template as-is to trigger validation error
@@ -229,7 +235,7 @@ func (mm *Manager) resolveKeyFromTemplate(
 		return keyTemplate
 	}
 
-	mm.log.Debug("Template resolved successfully",
+	log.Debug("Template resolved successfully",
 		"template", keyTemplate,
 		"rendered", rendered)
 	return rendered
@@ -238,25 +244,24 @@ func (mm *Manager) resolveKeyFromTemplate(
 // ProjectContextResolver provides centralized project ID resolution
 type ProjectContextResolver struct {
 	fallbackProjectID string
-	log               logger.Logger
 }
 
 // NewProjectContextResolver creates a resolver with a fallback project ID
-func NewProjectContextResolver(fallbackProjectID string, log logger.Logger) *ProjectContextResolver {
+func NewProjectContextResolver(fallbackProjectID string) *ProjectContextResolver {
 	return &ProjectContextResolver{
 		fallbackProjectID: fallbackProjectID,
-		log:               log,
 	}
 }
 
 // ResolveProjectID extracts project ID from workflow context with fallback
-func (r *ProjectContextResolver) ResolveProjectID(workflowContextData map[string]any) string {
+func (r *ProjectContextResolver) ResolveProjectID(ctx context.Context, workflowContextData map[string]any) string {
+	log := logger.FromContext(ctx)
 	// Try nested format first (standard workflow format)
 	if project, ok := workflowContextData["project"]; ok {
 		if projectMap, ok := project.(map[string]any); ok {
 			if id, ok := projectMap["id"]; ok {
 				if idStr, ok := id.(string); ok && idStr != "" {
-					r.log.Info("Project ID resolved from nested format", "project_id", idStr)
+					log.Info("Project ID resolved from nested format", "project_id", idStr)
 					return idStr
 				}
 			}
@@ -266,13 +271,13 @@ func (r *ProjectContextResolver) ResolveProjectID(workflowContextData map[string
 	// Try flat format (legacy support)
 	if projectID, ok := workflowContextData["project.id"]; ok {
 		if projectIDStr, ok := projectID.(string); ok && projectIDStr != "" {
-			r.log.Info("Project ID resolved from flat format", "project_id", projectIDStr)
+			log.Info("Project ID resolved from flat format", "project_id", projectIDStr)
 			return projectIDStr
 		}
 	}
 
 	// Use fallback project ID (from appState.ProjectConfig.Name)
-	r.log.Info("Using fallback project ID", "fallback_project_id", r.fallbackProjectID)
+	log.Info("Using fallback project ID", "fallback_project_id", r.fallbackProjectID)
 	return r.fallbackProjectID
 }
 
@@ -312,10 +317,11 @@ func (mm *Manager) validateKey(key string) (string, error) {
 }
 
 // registerPrivacyPolicy registers the privacy policy if one is configured
-func (mm *Manager) registerPrivacyPolicy(resourceCfg *memcore.Resource) error {
+func (mm *Manager) registerPrivacyPolicy(ctx context.Context, resourceCfg *memcore.Resource) error {
+	log := logger.FromContext(ctx)
 	if resourceCfg.PrivacyPolicy != nil {
-		if err := mm.privacyManager.RegisterPolicy(resourceCfg.ID, resourceCfg.PrivacyPolicy); err != nil {
-			mm.log.Error("Failed to register privacy policy", "resource_id", resourceCfg.ID, "error", err)
+		if err := mm.privacyManager.RegisterPolicy(ctx, resourceCfg.ID, resourceCfg.PrivacyPolicy); err != nil {
+			log.Error("Failed to register privacy policy", "resource_id", resourceCfg.ID, "error", err)
 			return fmt.Errorf("failed to register privacy policy for resource '%s': %w", resourceCfg.ID, err)
 		}
 	}
@@ -323,30 +329,32 @@ func (mm *Manager) registerPrivacyPolicy(resourceCfg *memcore.Resource) error {
 }
 
 // getOrCreateTokenCounter retrieves or creates a token counter for the given model
-func (mm *Manager) getOrCreateTokenCounter(model string) (memcore.TokenCounter, error) {
-	return mm.getOrCreateTokenCounterWithConfig(model, nil)
+func (mm *Manager) getOrCreateTokenCounter(ctx context.Context, model string) (memcore.TokenCounter, error) {
+	return mm.getOrCreateTokenCounterWithConfig(ctx, model, nil)
 }
 
 // getOrCreateTokenCounterWithConfig retrieves or creates a token counter for
 // the given model and optional provider config
 func (mm *Manager) getOrCreateTokenCounterWithConfig(
+	ctx context.Context,
 	model string,
 	providerConfig *memcore.TokenProviderConfig,
 ) (memcore.TokenCounter, error) {
 	// Create new counter directly without caching
 	if providerConfig != nil {
-		return mm.createUnifiedCounter(model, providerConfig)
+		return mm.createUnifiedCounter(ctx, model, providerConfig)
 	}
 	return mm.createTiktokenCounter(model)
 }
 
 // createUnifiedCounter creates a new unified token counter
 func (mm *Manager) createUnifiedCounter(
+	ctx context.Context,
 	model string,
 	providerConfig *memcore.TokenProviderConfig,
 ) (memcore.TokenCounter, error) {
-	keyResolver := tokens.NewAPIKeyResolver(mm.log)
-	tokensProviderConfig := keyResolver.ResolveProviderConfig(providerConfig)
+	keyResolver := tokens.NewAPIKeyResolver()
+	tokensProviderConfig := keyResolver.ResolveProviderConfig(ctx, providerConfig)
 	// Create fallback counter
 	fallback, err := tokens.NewTiktokenCounter(model)
 	if err != nil {
@@ -358,7 +366,7 @@ func (mm *Manager) createUnifiedCounter(
 		}
 	}
 	// Create unified counter
-	counter, err := tokens.NewUnifiedTokenCounter(tokensProviderConfig, fallback, mm.log)
+	counter, err := tokens.NewUnifiedTokenCounter(tokensProviderConfig, fallback)
 	if err != nil {
 		return nil, &Error{
 			Type:       ErrorTypeCache,

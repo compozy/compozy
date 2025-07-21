@@ -87,7 +87,6 @@ func (rs *reconciliationStatus) setError(err error, nextRetry time.Time) {
 
 type Server struct {
 	Config              *Config
-	AppConfig           *config.Config // Unified configuration
 	envFilePath         string
 	router              *gin.Engine
 	monitoring          *monitoring.Service
@@ -98,34 +97,35 @@ type Server struct {
 	reconciliationState *reconciliationStatus
 }
 
-func NewServer(ctx context.Context, appConfig *config.Config, cwd, configFile, envFilePath string) *Server {
+func NewServer(ctx context.Context, cwd, configFile, envFilePath string) *Server {
 	serverCtx, cancel := context.WithCancel(ctx)
+	cfg := config.Get()
 
 	// Create server config from unified config
 	serverConfig := &Config{
 		CWD:         cwd,
-		Host:        appConfig.Server.Host,
-		Port:        appConfig.Server.Port,
-		CORSEnabled: appConfig.Server.CORSEnabled,
+		Host:        cfg.Server.Host,
+		Port:        cfg.Server.Port,
+		CORSEnabled: cfg.Server.CORSEnabled,
 		ConfigFile:  configFile,
 	}
 
 	// Convert rate limit config from unified config if configured
-	if appConfig.RateLimit.GlobalRate.Limit > 0 {
+	if cfg.RateLimit.GlobalRate.Limit > 0 {
 		serverConfig.RateLimit = &ratelimit.Config{
 			GlobalRate: ratelimit.RateConfig{
-				Limit:  appConfig.RateLimit.GlobalRate.Limit,
-				Period: appConfig.RateLimit.GlobalRate.Period,
+				Limit:  cfg.RateLimit.GlobalRate.Limit,
+				Period: cfg.RateLimit.GlobalRate.Period,
 			},
 			APIKeyRate: ratelimit.RateConfig{
-				Limit:  appConfig.RateLimit.APIKeyRate.Limit,
-				Period: appConfig.RateLimit.APIKeyRate.Period,
+				Limit:  cfg.RateLimit.APIKeyRate.Limit,
+				Period: cfg.RateLimit.APIKeyRate.Period,
 			},
-			RedisAddr:     appConfig.RateLimit.RedisAddr,
-			RedisPassword: appConfig.RateLimit.RedisPassword,
-			RedisDB:       appConfig.RateLimit.RedisDB,
-			Prefix:        appConfig.RateLimit.Prefix,
-			MaxRetry:      appConfig.RateLimit.MaxRetry,
+			RedisAddr:     fmt.Sprintf("%s:%d", cfg.Redis.Host, cfg.Redis.Port),
+			RedisPassword: cfg.Redis.Password,
+			RedisDB:       cfg.Redis.DB,
+			Prefix:        cfg.RateLimit.Prefix,
+			MaxRetry:      cfg.RateLimit.MaxRetry,
 			// Use default excluded paths
 			ExcludedPaths: []string{
 				"/health",
@@ -138,7 +138,6 @@ func NewServer(ctx context.Context, appConfig *config.Config, cwd, configFile, e
 
 	return &Server{
 		Config:              serverConfig,
-		AppConfig:           appConfig,
 		envFilePath:         envFilePath,
 		ctx:                 serverCtx,
 		cancel:              cancel,
@@ -186,12 +185,13 @@ func (s *Server) buildRouter(state *appstate.State) error {
 
 	// Add monitoring middleware BEFORE other middleware if monitoring is initialized
 	log := logger.FromContext(s.ctx)
+	cfg := config.Get()
 	if s.monitoring != nil && s.monitoring.IsInitialized() {
 		r.Use(s.monitoring.GinMiddleware(s.ctx))
 	}
 	r.Use(LoggerMiddleware(log))
-	if s.AppConfig.Server.CORSEnabled {
-		r.Use(CORSMiddleware(s.AppConfig.Server.CORS))
+	if cfg.Server.CORSEnabled {
+		r.Use(CORSMiddleware(cfg.Server.CORS))
 	}
 	r.Use(appstate.StateMiddleware(state))
 	r.Use(router.ErrorHandler())
@@ -279,7 +279,7 @@ func (s *Server) setupMonitoring(projectConfig *project.Config) func() {
 func (s *Server) setupStore() (*store.Store, func(), error) {
 	log := logger.FromContext(s.ctx)
 	storeStart := time.Now()
-	storeInstance, err := store.SetupStoreWithConfig(s.ctx, s.AppConfig)
+	storeInstance, err := store.SetupStoreWithConfig(s.ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to setup store with unified config: %w", err)
 	}
@@ -295,6 +295,7 @@ func (s *Server) setupStore() (*store.Store, func(), error) {
 func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	var cleanupFuncs []func()
 	log := logger.FromContext(s.ctx)
+	cfg := config.Get()
 	setupStart := time.Now()
 
 	projectConfig, workflows, configRegistry, err := s.setupProjectConfig()
@@ -313,13 +314,13 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 
 	// Create Temporal config from unified config
 	clientConfig := &worker.TemporalConfig{
-		HostPort:  s.AppConfig.Temporal.HostPort,
-		Namespace: s.AppConfig.Temporal.Namespace,
-		TaskQueue: s.AppConfig.Temporal.TaskQueue,
+		HostPort:  cfg.Temporal.HostPort,
+		Namespace: cfg.Temporal.Namespace,
+		TaskQueue: cfg.Temporal.TaskQueue,
 	}
-	deps := appstate.NewBaseDeps(projectConfig, workflows, storeInstance, clientConfig, s.AppConfig)
+	deps := appstate.NewBaseDeps(projectConfig, workflows, storeInstance, clientConfig)
 	workerStart := time.Now()
-	worker, err := setupWorker(s.ctx, deps, s.monitoring, configRegistry, s.AppConfig)
+	worker, err := setupWorker(s.ctx, deps, s.monitoring, configRegistry)
 	if err != nil {
 		return nil, cleanupFuncs, err
 	}
@@ -343,7 +344,6 @@ func setupWorker(
 	deps appstate.BaseDeps,
 	monitoringService *monitoring.Service,
 	configRegistry *autoload.ConfigRegistry,
-	appConfig *config.Config,
 ) (*worker.Worker, error) {
 	log := logger.FromContext(ctx)
 	workerCreateStart := time.Now()
@@ -356,7 +356,6 @@ func setupWorker(
 		},
 		MonitoringService: monitoringService,
 		ResourceRegistry:  configRegistry,
-		AppConfig:         appConfig,
 	}
 	worker, err := worker.NewWorker(
 		ctx,
@@ -364,7 +363,6 @@ func setupWorker(
 		deps.ClientConfig,
 		deps.ProjectConfig,
 		deps.Workflows,
-		deps.AppConfig,
 	)
 	if err != nil {
 		log.Error("Failed to create worker", "error", err)

@@ -12,13 +12,11 @@ import (
 	"github.com/compozy/compozy/engine/memory"
 	memcore "github.com/compozy/compozy/engine/memory/core"
 	"github.com/compozy/compozy/engine/memory/tokens"
-	"github.com/compozy/compozy/pkg/logger"
 )
 
 func TestUnifiedTokenCounter_Integration(t *testing.T) {
 	t.Run("Should create UnifiedTokenCounter with provider config", func(t *testing.T) {
 		// Test the UnifiedTokenCounter directly
-		log := logger.NewForTests()
 
 		// Create provider config
 		providerConfig := &tokens.ProviderConfig{
@@ -32,7 +30,7 @@ func TestUnifiedTokenCounter_Integration(t *testing.T) {
 		require.NoError(t, err)
 
 		// Create unified counter
-		unifiedCounter, err := tokens.NewUnifiedTokenCounter(providerConfig, fallbackCounter, log)
+		unifiedCounter, err := tokens.NewUnifiedTokenCounter(providerConfig, fallbackCounter)
 		require.NoError(t, err)
 		require.NotNil(t, unifiedCounter)
 
@@ -154,7 +152,6 @@ func TestUnifiedTokenCounter_Integration(t *testing.T) {
 	})
 
 	t.Run("Should handle different providers in UnifiedTokenCounter", func(t *testing.T) {
-		log := logger.NewForTests()
 		ctx := context.Background()
 
 		providers := []struct {
@@ -182,7 +179,7 @@ func TestUnifiedTokenCounter_Integration(t *testing.T) {
 				require.NoError(t, err)
 
 				// Create unified counter
-				unifiedCounter, err := tokens.NewUnifiedTokenCounter(providerConfig, fallbackCounter, log)
+				unifiedCounter, err := tokens.NewUnifiedTokenCounter(providerConfig, fallbackCounter)
 				require.NoError(t, err)
 				require.NotNil(t, unifiedCounter)
 
@@ -201,7 +198,6 @@ func TestUnifiedTokenCounter_Integration(t *testing.T) {
 	})
 
 	t.Run("Should use API key from environment when configured", func(t *testing.T) {
-		log := logger.NewForTests()
 		ctx := context.Background()
 
 		// Set test API key in environment
@@ -215,10 +211,10 @@ func TestUnifiedTokenCounter_Integration(t *testing.T) {
 		}
 
 		// Create API key resolver
-		keyResolver := tokens.NewAPIKeyResolver(log)
+		keyResolver := tokens.NewAPIKeyResolver()
 
 		// Resolve provider configuration
-		resolvedConfig := keyResolver.ResolveProviderConfig(providerConfig)
+		resolvedConfig := keyResolver.ResolveProviderConfig(ctx, providerConfig)
 		require.NotNil(t, resolvedConfig)
 		assert.Equal(t, "test-key-12345", resolvedConfig.APIKey)
 		assert.Equal(t, "openai", resolvedConfig.Provider)
@@ -229,7 +225,7 @@ func TestUnifiedTokenCounter_Integration(t *testing.T) {
 		require.NoError(t, err)
 
 		// Create unified counter with resolved config
-		unifiedCounter, err := tokens.NewUnifiedTokenCounter(resolvedConfig, fallbackCounter, log)
+		unifiedCounter, err := tokens.NewUnifiedTokenCounter(resolvedConfig, fallbackCounter)
 		require.NoError(t, err)
 		require.NotNil(t, unifiedCounter)
 

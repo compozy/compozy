@@ -22,7 +22,6 @@ type ResilientManager struct {
 	ManagerInterface // Embed interface for flexibility
 	runner           goresilience.Runner
 	config           *ResilienceConfig
-	logger           logger.Logger
 }
 
 // ResilienceConfig holds configuration for resilience patterns
@@ -48,12 +47,9 @@ func DefaultResilienceConfig() *ResilienceConfig {
 }
 
 // NewResilientManager creates a new resilient privacy manager
-func NewResilientManager(baseManager ManagerInterface, config *ResilienceConfig, log logger.Logger) *ResilientManager {
+func NewResilientManager(baseManager ManagerInterface, config *ResilienceConfig) *ResilientManager {
 	if config == nil {
 		config = DefaultResilienceConfig()
-	}
-	if log == nil {
-		log = logger.NewForTests() // Use test logger for no-op behavior
 	}
 	if baseManager == nil {
 		baseManager = NewManager()
@@ -87,7 +83,6 @@ func NewResilientManager(baseManager ManagerInterface, config *ResilienceConfig,
 		ManagerInterface: baseManager,
 		runner:           runner,
 		config:           config,
-		logger:           log,
 	}
 }
 
@@ -141,7 +136,13 @@ func (rm *ResilientManager) ApplyPrivacyControls(
 }
 
 // RedactContent applies redaction with resilience patterns
-func (rm *ResilientManager) RedactContent(content string, patterns []string, defaultRedaction string) (string, error) {
+func (rm *ResilientManager) RedactContent(
+	ctx context.Context,
+	content string,
+	patterns []string,
+	defaultRedaction string,
+) (string, error) {
+	log := logger.FromContext(ctx)
 	start := time.Now()
 	var result string
 	var resultErr error
@@ -156,7 +157,7 @@ func (rm *ResilientManager) RedactContent(content string, patterns []string, def
 			}
 		}()
 		var err error
-		result, err = rm.ManagerInterface.RedactContent(content, patterns, defaultRedaction)
+		result, err = rm.ManagerInterface.RedactContent(ctx, content, patterns, defaultRedaction)
 		resultErr = err
 		return err
 	})
@@ -168,7 +169,7 @@ func (rm *ResilientManager) RedactContent(content string, patterns []string, def
 			metrics.RecordCircuitBreakerTrip(ctx, "", "")
 		}
 		// If resilience patterns fail, return original content
-		rm.logger.Error("Redaction failed with resilience patterns",
+		log.Error("Redaction failed with resilience patterns",
 			"error", err,
 			"fallback", "no_redaction")
 		return content, nil
@@ -183,13 +184,14 @@ func (rm *ResilientManager) RedactContent(content string, patterns []string, def
 
 // handleResilienceFailure handles failures when resilience patterns fail
 func (rm *ResilientManager) handleResilienceFailure(
-	_ context.Context,
+	ctx context.Context,
 	msg llm.Message,
 	resourceID string,
 	metadata memcore.PrivacyMetadata,
 	resilienceErr error,
 ) (llm.Message, memcore.PrivacyMetadata, error) {
-	rm.logger.Error("Privacy controls failed with resilience patterns",
+	log := logger.FromContext(ctx)
+	log.Error("Privacy controls failed with resilience patterns",
 		"resource_id", resourceID,
 		"resilience_error", resilienceErr,
 		"fallback", "no_redaction")
@@ -218,10 +220,11 @@ func (rm *ResilientManager) GetCircuitBreakerStatus() (isOpen bool, consecutiveE
 }
 
 // ResetCircuitBreaker is a no-op for goresilience as it manages state internally
-func (rm *ResilientManager) ResetCircuitBreaker() {
+func (rm *ResilientManager) ResetCircuitBreaker(ctx context.Context) {
 	// goresilience manages circuit breaker state internally
 	// and doesn't provide a direct reset mechanism
-	rm.logger.Info("Circuit breaker reset requested - goresilience manages state internally")
+	log := logger.FromContext(ctx)
+	log.Info("Circuit breaker reset requested - goresilience manages state internally")
 }
 
 // UpdateConfig updates the resilience configuration

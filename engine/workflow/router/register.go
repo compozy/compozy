@@ -6,7 +6,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func Register(apiBase *gin.RouterGroup, authManager *authmw.Manager, cfg *config.Config) {
+func Register(apiBase *gin.RouterGroup, authManager *authmw.Manager) {
+	cfg := config.Get()
 	// Event routes (v1)
 	apiBase.POST("/events", handleEvent)
 
@@ -16,7 +17,7 @@ func Register(apiBase *gin.RouterGroup, authManager *authmw.Manager, cfg *config
 	// Apply authentication middleware based on configuration
 	if cfg.Server.Auth.Enabled {
 		workflowsGroup.Use(authManager.Middleware())
-		workflowsGroup.Use(authmw.WorkflowAuthMiddleware(authManager, cfg))
+		workflowsGroup.Use(authmw.WorkflowAuthMiddleware(authManager))
 	}
 
 	{

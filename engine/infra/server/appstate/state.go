@@ -9,7 +9,6 @@ import (
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/worker"
 	"github.com/compozy/compozy/engine/workflow"
-	"github.com/compozy/compozy/pkg/config"
 	"github.com/gin-gonic/gin"
 )
 
@@ -25,7 +24,6 @@ type BaseDeps struct {
 	ProjectConfig *project.Config
 	Workflows     []*workflow.Config
 	ClientConfig  *worker.TemporalConfig
-	AppConfig     *config.Config
 }
 
 func NewBaseDeps(
@@ -33,14 +31,12 @@ func NewBaseDeps(
 	workflows []*workflow.Config,
 	store *store.Store,
 	clientConfig *worker.TemporalConfig,
-	appConfig *config.Config,
 ) BaseDeps {
 	return BaseDeps{
 		ProjectConfig: projectConfig,
 		Workflows:     workflows,
 		Store:         store,
 		ClientConfig:  clientConfig,
-		AppConfig:     appConfig,
 	}
 }
 

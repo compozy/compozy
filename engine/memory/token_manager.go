@@ -15,23 +15,20 @@ import (
 type TokenMemoryManager struct {
 	config       *memcore.Resource    // The configuration for the memory resource this manager serves
 	tokenCounter memcore.TokenCounter // The utility to count tokens
-	log          logger.Logger        // Logger for warnings and debug info
 }
 
 // NewTokenMemoryManager creates a new token manager.
 func NewTokenMemoryManager(
+	ctx context.Context,
 	config *memcore.Resource,
 	counter memcore.TokenCounter,
-	log logger.Logger,
 ) (*TokenMemoryManager, error) {
+	log := logger.FromContext(ctx)
 	if config == nil {
 		return nil, fmt.Errorf("memory resource config cannot be nil")
 	}
 	if counter == nil {
 		return nil, fmt.Errorf("token counter cannot be nil")
-	}
-	if log == nil {
-		log = logger.NewForTests()
 	}
 	// Validate token limits configuration
 	if config.MaxTokens == 0 && config.MaxContextRatio == 0 {
@@ -46,7 +43,6 @@ func NewTokenMemoryManager(
 	return &TokenMemoryManager{
 		config:       config,
 		tokenCounter: counter,
-		log:          log,
 	}, nil
 }
 

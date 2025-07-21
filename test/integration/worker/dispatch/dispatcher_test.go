@@ -1,6 +1,7 @@
-package worker
+package dispatch
 
 import (
+	"os"
 	"testing"
 	"time"
 
@@ -16,7 +17,16 @@ import (
 	wf "github.com/compozy/compozy/engine/workflow"
 	wfacts "github.com/compozy/compozy/engine/workflow/activities"
 	"github.com/compozy/compozy/pkg/config"
+	testhelpers "github.com/compozy/compozy/test/helpers"
 )
+
+func TestMain(m *testing.M) {
+	// Initialize config for all tests in this package
+	if err := testhelpers.InitializeTestConfig(); err != nil {
+		panic("failed to initialize test config: " + err.Error())
+	}
+	os.Exit(m.Run())
+}
 
 func TestEventSignal_Structure(t *testing.T) {
 	t.Run("Should create EventSignal correctly", func(t *testing.T) {
@@ -71,17 +81,29 @@ func TestDispatcherWorkflow_SuccessfulDispatch(t *testing.T) {
 			Workflows:     mockWorkflows,
 		}
 
+		// Create a mock app config for the test
+		mockAppConfig := &config.Config{
+			Server: config.ServerConfig{
+				Host: "localhost",
+				Port: 8080,
+			},
+			Runtime: config.RuntimeConfig{
+				DispatcherHeartbeatInterval: 30000000000, // 30 seconds in nanoseconds
+				DispatcherHeartbeatTTL:      90000000000, // 90 seconds in nanoseconds
+			},
+		}
+
 		// Register the activity with the test environment using the correct activity label
 		env.RegisterActivityWithOptions(getData.Run, activity.RegisterOptions{Name: wfacts.GetDataLabel})
 		env.OnActivity(wfacts.GetDataLabel, mock.Anything, mock.Anything).
 			Return(&wfacts.GetData{
 				ProjectConfig: mockProjectConfig,
 				Workflows:     mockWorkflows,
-				AppConfig:     config.Default(),
+				AppConfig:     mockAppConfig,
 			}, nil)
 
 		// Expect exactly one child workflow to be started
-		env.OnWorkflow("CompozyWorkflow", mock.Anything, mock.Anything, mock.Anything).Return(nil, nil).Once()
+		env.OnWorkflow("CompozyWorkflow", mock.Anything, mock.Anything).Return(nil, nil).Once()
 		env.RegisterWorkflow(worker.DispatcherWorkflow)
 		env.RegisterWorkflow(worker.CompozyWorkflow)
 

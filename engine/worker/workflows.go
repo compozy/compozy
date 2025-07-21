@@ -5,7 +5,6 @@ import (
 
 	wf "github.com/compozy/compozy/engine/workflow"
 	wfacts "github.com/compozy/compozy/engine/workflow/activities"
-	"github.com/compozy/compozy/pkg/config"
 )
 
 // CompozyWorkflowName is the Temporal workflow type name for all Compozy workflows
@@ -13,9 +12,9 @@ const CompozyWorkflowName = "CompozyWorkflow"
 
 type WorkflowInput = wfacts.TriggerInput
 
-func CompozyWorkflow(ctx workflow.Context, input WorkflowInput, appConfig *config.Config) (*wf.State, error) {
+func CompozyWorkflow(ctx workflow.Context, input WorkflowInput) (*wf.State, error) {
 	// Initialize manager and get workflow data
-	manager, err := InitManager(ctx, input, appConfig)
+	manager, err := InitManager(ctx, input)
 	defer manager.CancelCleanup(ctx)
 	if err != nil {
 		return nil, err

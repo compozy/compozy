@@ -68,13 +68,13 @@ func executeConfigShowCommand(cobraCmd *cobra.Command, args []string) error {
 func handleConfigShowJSON(
 	ctx context.Context,
 	cobraCmd *cobra.Command,
-	executor *cmd.CommandExecutor,
+	_ *cmd.CommandExecutor,
 	_ []string,
 ) error {
 	log := logger.FromContext(ctx)
 	log.Debug("executing config show command in JSON mode")
 
-	cfg := executor.GetConfig()
+	cfg := config.Get()
 	format, err := cobraCmd.Flags().GetString("format")
 	if err != nil {
 		return fmt.Errorf("failed to get format flag: %w", err)
@@ -87,13 +87,13 @@ func handleConfigShowJSON(
 func handleConfigShowTUI(
 	ctx context.Context,
 	cobraCmd *cobra.Command,
-	executor *cmd.CommandExecutor,
+	_ *cmd.CommandExecutor,
 	_ []string,
 ) error {
 	log := logger.FromContext(ctx)
 	log.Debug("executing config show command in TUI mode")
 
-	cfg := executor.GetConfig()
+	cfg := config.Get()
 	format, err := cobraCmd.Flags().GetString("format")
 	if err != nil {
 		return fmt.Errorf("failed to get format flag: %w", err)
@@ -184,13 +184,13 @@ func executeConfigValidateCommand(cobraCmd *cobra.Command, args []string) error 
 func handleConfigValidateJSON(
 	ctx context.Context,
 	_ *cobra.Command,
-	executor *cmd.CommandExecutor,
+	_ *cmd.CommandExecutor,
 	_ []string,
 ) error {
 	log := logger.FromContext(ctx)
 	log.Debug("executing config validate command in JSON mode")
 
-	cfg := executor.GetConfig()
+	cfg := config.Get()
 	service := config.NewService()
 	if err := service.Validate(cfg); err != nil {
 		return outputValidationJSON(false, err.Error())
@@ -203,14 +203,14 @@ func handleConfigValidateJSON(
 func handleConfigValidateTUI(
 	ctx context.Context,
 	_ *cobra.Command,
-	executor *cmd.CommandExecutor,
+	_ *cmd.CommandExecutor,
 	_ []string,
 ) error {
 	log := logger.FromContext(ctx)
 	log.Debug("executing config validate command in TUI mode")
 
-	cfg := executor.GetConfig()
-	service := config.NewService()
+	cfg := config.Get()
+	service := config.GlobalManager.Service
 	if err := service.Validate(cfg); err != nil {
 		return fmt.Errorf("configuration validation failed: %w", err)
 	}
@@ -242,7 +242,7 @@ func formatConfigOutput(
 func runDiagnostics(
 	ctx context.Context,
 	cobraCmd *cobra.Command,
-	executor *cmd.CommandExecutor,
+	_ *cmd.CommandExecutor,
 	isJSON bool,
 ) error {
 	log := logger.FromContext(ctx)
@@ -270,8 +270,8 @@ func runDiagnostics(
 	}
 
 	// Load configuration
-	cfg := executor.GetConfig()
-	service := config.NewService()
+	cfg := config.Get()
+	service := config.GlobalManager.Service
 
 	// Run validation
 	validationErr := service.Validate(cfg)
@@ -399,10 +399,11 @@ func flattenConfig(cfg *config.Config) map[string]string {
 	flattenTemporalConfig(cfg, result)
 	flattenRuntimeConfig(cfg, result)
 	flattenLimitsConfig(cfg, result)
-	flattenOpenAIConfig(cfg, result)
 	flattenMemoryConfig(cfg, result)
 	flattenLLMConfig(cfg, result)
 	flattenCLIConfig(cfg, result)
+	flattenRedisConfig(cfg, result)
+	flattenRateLimitConfig(cfg, result)
 	return result
 }
 
@@ -456,29 +457,10 @@ func flattenLimitsConfig(cfg *config.Config, result map[string]string) {
 	result["limits.parent_update_batch_size"] = fmt.Sprintf("%d", cfg.Limits.ParentUpdateBatchSize)
 }
 
-// flattenOpenAIConfig flattens OpenAI configuration (optional)
-func flattenOpenAIConfig(cfg *config.Config, result map[string]string) {
-	if cfg.OpenAI.APIKey != "" {
-		result["openai.api_key"] = redactSensitive(cfg.OpenAI.APIKey.String())
-	}
-	if cfg.OpenAI.BaseURL != "" {
-		result["openai.base_url"] = cfg.OpenAI.BaseURL
-	}
-	if cfg.OpenAI.OrgID != "" {
-		result["openai.org_id"] = cfg.OpenAI.OrgID
-	}
-	if cfg.OpenAI.DefaultModel != "" {
-		result["openai.default_model"] = cfg.OpenAI.DefaultModel
-	}
-}
-
 // flattenMemoryConfig flattens memory configuration (optional)
 func flattenMemoryConfig(cfg *config.Config, result map[string]string) {
-	if cfg.Memory.RedisURL != "" {
-		result["memory.redis_url"] = redactURL(cfg.Memory.RedisURL)
-	}
-	if cfg.Memory.RedisPrefix != "" {
-		result["memory.redis_prefix"] = cfg.Memory.RedisPrefix
+	if cfg.Memory.Prefix != "" {
+		result["memory.prefix"] = cfg.Memory.Prefix
 	}
 	if cfg.Memory.TTL > 0 {
 		result["memory.ttl"] = cfg.Memory.TTL.String()
@@ -514,6 +496,32 @@ func flattenCLIConfig(cfg *config.Config, result map[string]string) {
 	result["cli.config_file"] = cfg.CLI.ConfigFile
 	result["cli.cwd"] = cfg.CLI.CWD
 	result["cli.env_file"] = cfg.CLI.EnvFile
+}
+
+// flattenRedisConfig flattens Redis configuration
+func flattenRedisConfig(cfg *config.Config, result map[string]string) {
+	if cfg.Redis.URL != "" {
+		result["redis.url"] = redactURL(cfg.Redis.URL)
+	}
+	result["redis.host"] = cfg.Redis.Host
+	result["redis.port"] = fmt.Sprintf("%d", cfg.Redis.Port)
+	if cfg.Redis.Password != "" {
+		result["redis.password"] = redactSensitive(cfg.Redis.Password)
+	}
+	result["redis.db"] = fmt.Sprintf("%d", cfg.Redis.DB)
+	result["redis.max_retries"] = fmt.Sprintf("%d", cfg.Redis.MaxRetries)
+	result["redis.pool_size"] = fmt.Sprintf("%d", cfg.Redis.PoolSize)
+	result["redis.min_idle_conns"] = fmt.Sprintf("%d", cfg.Redis.MinIdleConns)
+}
+
+// flattenRateLimitConfig flattens rate limit configuration
+func flattenRateLimitConfig(cfg *config.Config, result map[string]string) {
+	result["ratelimit.global_rate.limit"] = fmt.Sprintf("%d", cfg.RateLimit.GlobalRate.Limit)
+	result["ratelimit.global_rate.period"] = cfg.RateLimit.GlobalRate.Period.String()
+	result["ratelimit.api_key_rate.limit"] = fmt.Sprintf("%d", cfg.RateLimit.APIKeyRate.Limit)
+	result["ratelimit.api_key_rate.period"] = cfg.RateLimit.APIKeyRate.Period.String()
+	result["ratelimit.prefix"] = cfg.RateLimit.Prefix
+	result["ratelimit.max_retry"] = fmt.Sprintf("%d", cfg.RateLimit.MaxRetry)
 }
 
 // redactURL redacts sensitive information from URLs (passwords, tokens, etc.)

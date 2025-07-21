@@ -8,7 +8,6 @@ import (
 
 	"github.com/compozy/compozy/engine/llm"
 	"github.com/compozy/compozy/engine/memory/core"
-	"github.com/compozy/compozy/pkg/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -30,8 +29,7 @@ func TestMemoryInstance_BusinessLogic(t *testing.T) {
 			tokenCounter:     mockTokenCounter,
 			lockManager:      mockLockManager,
 			flushingStrategy: mockFlushStrategy,
-			logger:           logger.NewForTests(),
-			metrics:          NewDefaultMetrics(logger.NewForTests()),
+			metrics:          NewDefaultMetrics(),
 			debouncedFlush:   func() {}, // Mock debounced flush for tests
 		}
 
@@ -68,8 +66,7 @@ func TestMemoryInstance_BusinessLogic(t *testing.T) {
 		instance := &memoryInstance{
 			id:      "test-id",
 			store:   mockStore,
-			logger:  logger.NewForTests(),
-			metrics: NewDefaultMetrics(logger.NewForTests()),
+			metrics: NewDefaultMetrics(),
 		}
 
 		ctx := context.Background()
@@ -92,8 +89,7 @@ func TestMemoryInstance_BusinessLogic(t *testing.T) {
 		instance := &memoryInstance{
 			id:      "test-id",
 			store:   mockStore,
-			logger:  logger.NewForTests(),
-			metrics: NewDefaultMetrics(logger.NewForTests()),
+			metrics: NewDefaultMetrics(),
 		}
 
 		ctx := context.Background()
@@ -113,8 +109,7 @@ func TestMemoryInstance_BusinessLogic(t *testing.T) {
 		instance := &memoryInstance{
 			id:      "test-id",
 			store:   mockStore,
-			logger:  logger.NewForTests(),
-			metrics: NewDefaultMetrics(logger.NewForTests()),
+			metrics: NewDefaultMetrics(),
 		}
 
 		ctx := context.Background()
@@ -138,8 +133,7 @@ func TestMemoryInstance_BusinessLogic(t *testing.T) {
 			id:          "test-id",
 			store:       mockStore,
 			lockManager: mockLockManager,
-			logger:      logger.NewForTests(),
-			metrics:     NewDefaultMetrics(logger.NewForTests()),
+			metrics:     NewDefaultMetrics(),
 		}
 
 		ctx := context.Background()
@@ -162,8 +156,7 @@ func TestMemoryInstance_BusinessLogic(t *testing.T) {
 			id:               "test-id",
 			store:            mockStore,
 			flushingStrategy: mockFlushStrategy,
-			logger:           logger.NewForTests(),
-			metrics:          NewDefaultMetrics(logger.NewForTests()),
+			metrics:          NewDefaultMetrics(),
 		}
 
 		ctx := context.Background()
@@ -191,8 +184,7 @@ func TestMemoryInstance_ErrorHandling(t *testing.T) {
 		instance := &memoryInstance{
 			id:          "test-id",
 			lockManager: mockLockManager,
-			logger:      logger.NewForTests(),
-			metrics:     NewDefaultMetrics(logger.NewForTests()),
+			metrics:     NewDefaultMetrics(),
 		}
 
 		ctx := context.Background()
@@ -218,8 +210,7 @@ func TestMemoryInstance_ErrorHandling(t *testing.T) {
 			store:        mockStore,
 			tokenCounter: mockTokenCounter,
 			lockManager:  mockLockManager,
-			logger:       logger.NewForTests(),
-			metrics:      NewDefaultMetrics(logger.NewForTests()),
+			metrics:      NewDefaultMetrics(),
 		}
 
 		ctx := context.Background()
@@ -245,8 +236,6 @@ func TestMemoryInstance_ErrorHandling(t *testing.T) {
 		mockLockManager := &mockLockManager{}
 		failingUnlockFunc := func() error { return assert.AnError }
 
-		testLogger := logger.NewForTests()
-
 		mockFlushStrategy := &mockFlushStrategy{}
 
 		// Create synchronization channel for async operations
@@ -258,8 +247,7 @@ func TestMemoryInstance_ErrorHandling(t *testing.T) {
 			tokenCounter:     mockTokenCounter,
 			lockManager:      mockLockManager,
 			flushingStrategy: mockFlushStrategy,
-			logger:           testLogger,
-			metrics:          NewDefaultMetrics(testLogger),
+			metrics:          NewDefaultMetrics(),
 		}
 
 		// Create a mock debounced flush that executes synchronously for testing
@@ -342,8 +330,7 @@ func TestMemoryInstance_Close(t *testing.T) {
 			store:            mockStore,
 			lockManager:      mockLockManager,
 			flushingStrategy: mockFlushStrategy,
-			logger:           logger.NewForTests(),
-			metrics:          NewDefaultMetrics(logger.NewForTests()),
+			metrics:          NewDefaultMetrics(),
 			flushMutex:       sync.Mutex{},
 			flushWG:          sync.WaitGroup{},
 			debouncedFlush:   func() {}, // No-op for this test
@@ -372,8 +359,7 @@ func TestMemoryInstance_Close(t *testing.T) {
 			store:            mockStore,
 			lockManager:      mockLockManager,
 			flushingStrategy: mockFlushStrategy,
-			logger:           logger.NewForTests(),
-			metrics:          NewDefaultMetrics(logger.NewForTests()),
+			metrics:          NewDefaultMetrics(),
 			flushMutex:       sync.Mutex{},
 			flushWG:          sync.WaitGroup{},
 			debouncedFlush:   func() {}, // No-op for this test
@@ -426,8 +412,7 @@ func TestMemoryInstance_Close(t *testing.T) {
 			store:            mockStore,
 			lockManager:      mockLockManager,
 			flushingStrategy: mockFlushStrategy,
-			logger:           logger.NewForTests(),
-			metrics:          NewDefaultMetrics(logger.NewForTests()),
+			metrics:          NewDefaultMetrics(),
 			flushMutex:       sync.Mutex{},
 			flushWG:          sync.WaitGroup{},
 			debouncedFlush:   func() {}, // No-op for this test
@@ -465,8 +450,7 @@ func TestMemoryInstance_Close(t *testing.T) {
 			store:            mockStore,
 			lockManager:      mockLockManager,
 			flushingStrategy: mockFlushStrategy,
-			logger:           logger.NewForTests(),
-			metrics:          NewDefaultMetrics(logger.NewForTests()),
+			metrics:          NewDefaultMetrics(),
 			flushMutex:       sync.Mutex{},
 			flushWG:          sync.WaitGroup{},
 			debouncedFlush:   func() {}, // No-op for this test
@@ -514,8 +498,7 @@ func TestMemoryInstance_Close_RaceCondition(t *testing.T) {
 			store:            mockStore,
 			lockManager:      mockLockManager,
 			flushingStrategy: mockFlushStrategy,
-			logger:           logger.NewForTests(),
-			metrics:          NewDefaultMetrics(logger.NewForTests()),
+			metrics:          NewDefaultMetrics(),
 			flushMutex:       sync.Mutex{},
 			flushWG:          sync.WaitGroup{},
 			debouncedFlush:   func() {}, // No-op for this test

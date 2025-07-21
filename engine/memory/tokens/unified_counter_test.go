@@ -7,8 +7,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/compozy/compozy/pkg/logger"
 )
 
 // mockTokenCounter implements TokenCounter interface for testing
@@ -39,7 +37,7 @@ func TestNewUnifiedTokenCounter(t *testing.T) {
 			Model:    "gpt-4",
 			APIKey:   "test-key",
 		}
-		counter, err := NewUnifiedTokenCounter(config, fallback, logger.NewForTests())
+		counter, err := NewUnifiedTokenCounter(config, fallback)
 		require.NoError(t, err)
 		assert.NotNil(t, counter)
 		assert.Equal(t, config, counter.GetProviderConfig())
@@ -50,14 +48,14 @@ func TestNewUnifiedTokenCounter(t *testing.T) {
 			Model:    "gpt-4",
 			APIKey:   "test-key",
 		}
-		counter, err := NewUnifiedTokenCounter(config, nil, logger.NewForTests())
+		counter, err := NewUnifiedTokenCounter(config, nil)
 		assert.Error(t, err)
 		assert.Nil(t, counter)
 		assert.Contains(t, err.Error(), "fallback counter cannot be nil")
 	})
 	t.Run("Should create with nil provider config", func(t *testing.T) {
 		fallback := &mockTokenCounter{}
-		counter, err := NewUnifiedTokenCounter(nil, fallback, logger.NewForTests())
+		counter, err := NewUnifiedTokenCounter(nil, fallback)
 		require.NoError(t, err)
 		assert.NotNil(t, counter)
 		assert.Nil(t, counter.GetProviderConfig())
@@ -71,7 +69,7 @@ func TestUnifiedTokenCounter_CountTokens(t *testing.T) {
 				return 42, nil
 			},
 		}
-		counter, err := NewUnifiedTokenCounter(nil, fallback, logger.NewForTests())
+		counter, err := NewUnifiedTokenCounter(nil, fallback)
 		require.NoError(t, err)
 		ctx := context.Background()
 		count, err := counter.CountTokens(ctx, "test text")
@@ -89,7 +87,7 @@ func TestUnifiedTokenCounter_CountTokens(t *testing.T) {
 			Model:    "gpt-4",
 			APIKey:   "", // No API key
 		}
-		counter, err := NewUnifiedTokenCounter(config, fallback, logger.NewForTests())
+		counter, err := NewUnifiedTokenCounter(config, fallback)
 		require.NoError(t, err)
 		ctx := context.Background()
 		count, err := counter.CountTokens(ctx, "test text")
@@ -107,7 +105,7 @@ func TestUnifiedTokenCounter_CountTokens(t *testing.T) {
 			Model:    "test-model",
 			APIKey:   "test-key",
 		}
-		counter, err := NewUnifiedTokenCounter(config, fallback, logger.NewForTests())
+		counter, err := NewUnifiedTokenCounter(config, fallback)
 		require.NoError(t, err)
 		ctx := context.Background()
 		count, err := counter.CountTokens(ctx, "test text")
@@ -125,7 +123,7 @@ func TestUnifiedTokenCounter_CountTokens(t *testing.T) {
 			Model:    "slow-model",
 			APIKey:   "test-key",
 		}
-		counter, err := NewUnifiedTokenCounter(config, fallback, logger.NewForTests())
+		counter, err := NewUnifiedTokenCounter(config, fallback)
 		require.NoError(t, err)
 		// Create a context that's already canceled to simulate timeout
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
@@ -149,7 +147,7 @@ func TestUnifiedTokenCounter_GetEncoding(t *testing.T) {
 			Model:    "gpt-4",
 			APIKey:   "test-key",
 		}
-		counter, err := NewUnifiedTokenCounter(config, fallback, logger.NewForTests())
+		counter, err := NewUnifiedTokenCounter(config, fallback)
 		require.NoError(t, err)
 		encoding := counter.GetEncoding()
 		assert.Equal(t, "OpenAI-gpt-4", encoding)
@@ -160,7 +158,7 @@ func TestUnifiedTokenCounter_GetEncoding(t *testing.T) {
 				return "fallback-encoding"
 			},
 		}
-		counter, err := NewUnifiedTokenCounter(nil, fallback, logger.NewForTests())
+		counter, err := NewUnifiedTokenCounter(nil, fallback)
 		require.NoError(t, err)
 		encoding := counter.GetEncoding()
 		assert.Equal(t, "fallback-encoding", encoding)
@@ -175,7 +173,7 @@ func TestUnifiedTokenCounter_UpdateProvider(t *testing.T) {
 			Model:    "gpt-4",
 			APIKey:   "test-key",
 		}
-		counter, err := NewUnifiedTokenCounter(initialConfig, fallback, logger.NewForTests())
+		counter, err := NewUnifiedTokenCounter(initialConfig, fallback)
 		require.NoError(t, err)
 		// Update configuration
 		newConfig := &ProviderConfig{
@@ -194,7 +192,7 @@ func TestUnifiedTokenCounter_UpdateProvider(t *testing.T) {
 func TestUnifiedTokenCounter_IsFallbackActive(t *testing.T) {
 	t.Run("Should return true when no provider config", func(t *testing.T) {
 		fallback := &mockTokenCounter{}
-		counter, err := NewUnifiedTokenCounter(nil, fallback, logger.NewForTests())
+		counter, err := NewUnifiedTokenCounter(nil, fallback)
 		require.NoError(t, err)
 		assert.True(t, counter.IsFallbackActive())
 	})
@@ -205,7 +203,7 @@ func TestUnifiedTokenCounter_IsFallbackActive(t *testing.T) {
 			Model:    "gpt-4",
 			APIKey:   "", // No API key
 		}
-		counter, err := NewUnifiedTokenCounter(config, fallback, logger.NewForTests())
+		counter, err := NewUnifiedTokenCounter(config, fallback)
 		require.NoError(t, err)
 		assert.True(t, counter.IsFallbackActive())
 	})
@@ -216,7 +214,7 @@ func TestUnifiedTokenCounter_IsFallbackActive(t *testing.T) {
 			Model:    "gpt-4",
 			APIKey:   "test-key",
 		}
-		counter, err := NewUnifiedTokenCounter(config, fallback, logger.NewForTests())
+		counter, err := NewUnifiedTokenCounter(config, fallback)
 		require.NoError(t, err)
 		assert.False(t, counter.IsFallbackActive())
 	})
@@ -229,7 +227,7 @@ func TestUnifiedTokenCounter_ThreadSafety(t *testing.T) {
 				return len(text), nil
 			},
 		}
-		counter, err := NewUnifiedTokenCounter(nil, fallback, logger.NewForTests())
+		counter, err := NewUnifiedTokenCounter(nil, fallback)
 		require.NoError(t, err)
 		// Run multiple goroutines concurrently
 		ctx := context.Background()

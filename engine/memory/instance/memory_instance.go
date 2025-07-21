@@ -28,7 +28,6 @@ type memoryInstance struct {
 	temporalClient    client.Client
 	temporalTaskQueue string
 	privacyManager    any
-	logger            logger.Logger
 	metrics           Metrics
 	strategyFactory   *strategies.StrategyFactory // NEW: for dynamic strategy creation
 	flushMutex        sync.Mutex                  // Ensures only one flush check runs at a time
@@ -37,15 +36,10 @@ type memoryInstance struct {
 	flushCancelFunc   func()                      // Cancel function for the debouncer
 }
 
-func NewMemoryInstance(opts *BuilderOptions) (Instance, error) {
-	instanceLogger := opts.Logger.With(
-		"memory_instance_id", opts.InstanceID,
-		"memory_resource_id", opts.ResourceID,
-	)
-
+func NewMemoryInstance(ctx context.Context, opts *BuilderOptions) (Instance, error) {
 	// Create strategy factory with token counter
 	strategyFactory := strategies.NewStrategyFactoryWithTokenCounter(opts.TokenCounter)
-
+	log := logger.FromContext(ctx)
 	instance := &memoryInstance{
 		id:                opts.InstanceID,
 		resourceID:        opts.ResourceID,
@@ -60,8 +54,7 @@ func NewMemoryInstance(opts *BuilderOptions) (Instance, error) {
 		temporalClient:    opts.TemporalClient,
 		temporalTaskQueue: opts.TemporalTaskQueue,
 		privacyManager:    opts.PrivacyManager,
-		logger:            instanceLogger,
-		metrics:           NewDefaultMetrics(instanceLogger),
+		metrics:           NewDefaultMetrics(),
 		strategyFactory:   strategyFactory,
 	}
 
@@ -93,7 +86,7 @@ func NewMemoryInstance(opts *BuilderOptions) (Instance, error) {
 
 			// Use background context since this is independent of any single Append request
 			if err := instance.performAsyncFlushCheck(context.Background()); err != nil {
-				instance.logger.Error("Failed to perform async flush check", "error", err, "memory_id", instance.id)
+				log.Error("Failed to perform async flush check", "error", err, "memory_id", instance.id)
 			}
 		},
 	)
@@ -117,12 +110,13 @@ func (mi *memoryInstance) estimateTokenCount(text string) int {
 
 // calculateTokenCountWithFallback safely counts tokens with consistent fallback logic
 func (mi *memoryInstance) calculateTokenCountWithFallback(ctx context.Context, text string, description string) int {
+	log := logger.FromContext(ctx)
 	if mi.tokenCounter == nil {
 		return mi.estimateTokenCount(text)
 	}
 	count, err := mi.tokenCounter.CountTokens(ctx, text)
 	if err != nil {
-		mi.logger.Warn("Failed to count tokens, using fallback estimation",
+		log.Warn("Failed to count tokens, using fallback estimation",
 			"error", err, "text_type", description)
 		return mi.estimateTokenCount(text)
 	}
@@ -172,7 +166,8 @@ func (mi *memoryInstance) GetEvictionPolicy() EvictionPolicy {
 
 func (mi *memoryInstance) Append(ctx context.Context, msg llm.Message) error {
 	start := time.Now()
-	mi.logger.Debug("Append called",
+	log := logger.FromContext(ctx)
+	log.Debug("Append called",
 		"message_role", msg.Role,
 		"memory_id", mi.id,
 		"operation", "append")
@@ -185,7 +180,7 @@ func (mi *memoryInstance) Append(ctx context.Context, msg llm.Message) error {
 	defer func() {
 		if releaseErr := lock(); releaseErr != nil {
 			lockReleaseErr = releaseErr
-			mi.logger.Error("Failed to release lock",
+			log.Error("Failed to release lock",
 				"error", releaseErr,
 				"operation", "append",
 				"memory_id", mi.id,
@@ -221,16 +216,16 @@ func (mi *memoryInstance) Append(ctx context.Context, msg llm.Message) error {
 		// Check if we need to set/extend TTL
 		currentTTL, err := mi.store.GetKeyTTL(ctx, mi.id)
 		if err != nil {
-			mi.logger.Warn("Failed to get current TTL", "error", err, "memory_id", mi.id)
+			log.Warn("Failed to get current TTL", "error", err, "memory_id", mi.id)
 			// Continue with setting TTL anyway
 			currentTTL = 0
 		}
 		// Set TTL if not set or extend if needed
 		if currentTTL <= 0 || currentTTL < mi.resourceConfig.Persistence.ParsedTTL/2 {
 			if err := mi.store.SetExpiration(ctx, mi.id, mi.resourceConfig.Persistence.ParsedTTL); err != nil {
-				mi.logger.Error("Failed to set TTL on memory", "error", err, "memory_id", mi.id)
+				log.Error("Failed to set TTL on memory", "error", err, "memory_id", mi.id)
 			} else {
-				mi.logger.Debug("Set TTL on memory", "memory_id", mi.id, "ttl", mi.resourceConfig.Persistence.ParsedTTL)
+				log.Debug("Set TTL on memory", "memory_id", mi.id, "ttl", mi.resourceConfig.Persistence.ParsedTTL)
 			}
 		}
 	}
@@ -292,13 +287,14 @@ func (mi *memoryInstance) GetMemoryHealth(ctx context.Context) (*core.Health, er
 }
 
 func (mi *memoryInstance) Clear(ctx context.Context) error {
+	log := logger.FromContext(ctx)
 	lock, err := mi.lockManager.AcquireClearLock(ctx, mi.id)
 	if err != nil {
 		return fmt.Errorf("failed to acquire lock for clear on memory %s: %w", mi.id, err)
 	}
 	defer func() {
 		if unlockErr := lock(); unlockErr != nil {
-			mi.logger.Error("Failed to release clear lock", "error", unlockErr, "memory_id", mi.id)
+			log.Error("Failed to release clear lock", "error", unlockErr, "memory_id", mi.id)
 		}
 	}()
 	if err := mi.store.DeleteMessages(ctx, mi.id); err != nil {
@@ -308,9 +304,10 @@ func (mi *memoryInstance) Clear(ctx context.Context) error {
 }
 
 func (mi *memoryInstance) AppendWithPrivacy(ctx context.Context, msg llm.Message, metadata core.PrivacyMetadata) error {
+	log := logger.FromContext(ctx)
 	// Check explicit DoNotPersist flag
 	if metadata.DoNotPersist {
-		mi.logger.Debug("Message marked as DoNotPersist, skipping storage",
+		log.Debug("Message marked as DoNotPersist, skipping storage",
 			"message_role", msg.Role,
 			"memory_id", mi.id)
 		return nil
@@ -319,7 +316,7 @@ func (mi *memoryInstance) AppendWithPrivacy(ctx context.Context, msg llm.Message
 	if mi.privacyManager != nil {
 		// For now, we'll handle the privacy manager interface properly when we implement full privacy support
 		// The basic DoNotPersist check above handles the test requirement
-		mi.logger.Debug("Privacy manager available but not fully integrated yet",
+		log.Debug("Privacy manager available but not fully integrated yet",
 			"memory_id", mi.id)
 	}
 	// Proceed with regular append
@@ -353,7 +350,6 @@ func (mi *memoryInstance) PerformFlushWithStrategy(
 		strategyFactory:   mi.strategyFactory,   // for dynamic creation
 		requestedStrategy: string(strategyType), // requested strategy
 		tokenCounter:      mi.tokenCounter,
-		logger:            mi.logger,
 		metrics:           mi.metrics,
 		resourceConfig:    mi.resourceConfig,
 	}
@@ -388,6 +384,7 @@ func (mi *memoryInstance) checkFlushTrigger(_ context.Context) {
 // It creates a timeout context to prevent goroutine leaks and checks
 // if flushing should be triggered based on token and message counts.
 func (mi *memoryInstance) performAsyncFlushCheck(ctx context.Context) error {
+	log := logger.FromContext(ctx)
 	// Create a timeout context to prevent goroutine leaks
 	timeoutCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
@@ -415,7 +412,7 @@ func (mi *memoryInstance) performAsyncFlushCheck(ctx context.Context) error {
 	}
 	// Check if flush should be triggered
 	if mi.flushingStrategy.ShouldFlush(tokenCount, messageCount, mi.resourceConfig) {
-		mi.logger.Info(
+		log.Info(
 			"Flush triggered",
 			"token_count",
 			tokenCount,
@@ -427,7 +424,7 @@ func (mi *memoryInstance) performAsyncFlushCheck(ctx context.Context) error {
 		// Perform the actual flush
 		_, err := mi.PerformFlush(timeoutCtx)
 		if err != nil {
-			mi.logger.Error("Failed to perform flush", "error", err, "memory_id", mi.id)
+			log.Error("Failed to perform flush", "error", err, "memory_id", mi.id)
 			return fmt.Errorf("failed to perform flush for memory %s: %w", mi.id, err)
 		}
 	}
@@ -437,9 +434,10 @@ func (mi *memoryInstance) performAsyncFlushCheck(ctx context.Context) error {
 // isContextCanceled checks if the context is canceled and logs if so.
 // Returns true if the context is done, false otherwise.
 func (mi *memoryInstance) isContextCanceled(ctx context.Context, message string) bool {
+	log := logger.FromContext(ctx)
 	select {
 	case <-ctx.Done():
-		mi.logger.Debug(message, "memory_id", mi.id, "reason", ctx.Err())
+		log.Debug(message, "memory_id", mi.id, "reason", ctx.Err())
 		return true
 	default:
 		return false
@@ -450,14 +448,15 @@ func (mi *memoryInstance) isContextCanceled(ctx context.Context, message string)
 // It distinguishes between context cancellation errors and actual failures,
 // logging appropriately for each case.
 func (mi *memoryInstance) getTokenCountWithCheck(ctx context.Context) (int, error) {
+	log := logger.FromContext(ctx)
 	tokenCount, err := mi.GetTokenCount(ctx)
 	if err != nil {
 		// Check if error is due to context cancellation
 		if ctx.Err() != nil {
-			mi.logger.Debug("Token count check canceled", "memory_id", mi.id, "reason", ctx.Err())
+			log.Debug("Token count check canceled", "memory_id", mi.id, "reason", ctx.Err())
 			return 0, err
 		}
-		mi.logger.Error("Failed to get token count for flush check", "error", err, "memory_id", mi.id)
+		log.Error("Failed to get token count for flush check", "error", err, "memory_id", mi.id)
 		return 0, err
 	}
 	return tokenCount, nil
@@ -467,14 +466,15 @@ func (mi *memoryInstance) getTokenCountWithCheck(ctx context.Context) (int, erro
 // It distinguishes between context cancellation errors and actual failures,
 // logging appropriately for each case.
 func (mi *memoryInstance) getMessageCountWithCheck(ctx context.Context) (int, error) {
+	log := logger.FromContext(ctx)
 	messageCount, err := mi.Len(ctx)
 	if err != nil {
 		// Check if error is due to context cancellation
 		if ctx.Err() != nil {
-			mi.logger.Debug("Message count check canceled", "memory_id", mi.id, "reason", ctx.Err())
+			log.Debug("Message count check canceled", "memory_id", mi.id, "reason", ctx.Err())
 			return 0, err
 		}
-		mi.logger.Error("Failed to get message count for flush check", "error", err, "memory_id", mi.id)
+		log.Error("Failed to get message count for flush check", "error", err, "memory_id", mi.id)
 		return 0, err
 	}
 	return messageCount, nil
@@ -482,6 +482,7 @@ func (mi *memoryInstance) getMessageCountWithCheck(ctx context.Context) (int, er
 
 // Close gracefully shuts down the memory instance
 func (mi *memoryInstance) Close(ctx context.Context) error {
+	log := logger.FromContext(ctx)
 	// 1. Acquire flush mutex to prevent new flush operations from starting
 	mi.flushMutex.Lock()
 
@@ -503,10 +504,10 @@ func (mi *memoryInstance) Close(ctx context.Context) error {
 
 	// Perform final flush check with provided context
 	if err := mi.performAsyncFlushCheck(ctx); err != nil {
-		mi.logger.Error("Failed to perform final flush during close", "error", err, "memory_id", mi.id)
+		log.Error("Failed to perform final flush during close", "error", err, "memory_id", mi.id)
 		return fmt.Errorf("failed to perform final flush during close: %w", err)
 	}
 
-	mi.logger.Info("Memory instance flushed and closed successfully", "memory_id", mi.id)
+	log.Info("Memory instance flushed and closed successfully", "memory_id", mi.id)
 	return nil
 }

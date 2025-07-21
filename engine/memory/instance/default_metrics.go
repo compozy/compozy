@@ -3,18 +3,13 @@ package instance
 import (
 	"context"
 	"time"
-
-	"github.com/compozy/compozy/pkg/logger"
 )
 
 type defaultMetrics struct {
-	logger logger.Logger
 }
 
-func NewDefaultMetrics(log logger.Logger) Metrics {
-	return &defaultMetrics{
-		logger: log,
-	}
+func NewDefaultMetrics() Metrics {
+	return &defaultMetrics{}
 }
 
 // RecordAppend is a no-op implementation for default metrics

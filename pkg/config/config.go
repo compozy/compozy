@@ -66,11 +66,6 @@ type Config struct {
 	// $ref: schema://application#ratelimit
 	RateLimit RateLimitConfig `koanf:"ratelimit" json:"ratelimit" yaml:"ratelimit" mapstructure:"ratelimit"`
 
-	// OpenAI configures OpenAI API integration.
-	//
-	// $ref: schema://application#openai
-	OpenAI OpenAIConfig `koanf:"openai" json:"openai" yaml:"openai" mapstructure:"openai"`
-
 	// Memory configures the memory service for agent conversations.
 	//
 	// $ref: schema://application#memory
@@ -85,6 +80,11 @@ type Config struct {
 	//
 	// $ref: schema://application#cli
 	CLI CLIConfig `koanf:"cli" json:"cli" yaml:"cli" mapstructure:"cli"`
+
+	// Redis configures the Redis connection for all services.
+	//
+	// $ref: schema://application#redis
+	Redis RedisConfig `koanf:"redis" json:"redis" yaml:"redis" mapstructure:"redis" validate:"required"`
 }
 
 // ServerConfig contains HTTP server configuration.
@@ -385,51 +385,6 @@ type LimitsConfig struct {
 	ParentUpdateBatchSize int `koanf:"parent_update_batch_size" validate:"min=1" env:"LIMITS_PARENT_UPDATE_BATCH_SIZE" json:"parent_update_batch_size" yaml:"parent_update_batch_size" mapstructure:"parent_update_batch_size"`
 }
 
-// OpenAIConfig contains OpenAI API configuration.
-//
-// **OpenAI Integration** enables GPT models for agent conversations and task execution.
-// Configure API credentials and model preferences for your OpenAI usage.
-//
-// ## Example Configuration
-//
-//	openai:
-//	  api_key: "{{ .env.OPENAI_API_KEY }}"
-//	  default_model: gpt-4
-//	  base_url: https://api.openai.com/v1  # Optional: for proxies
-//	  org_id: org-xxxxx                    # Optional: for org billing
-type OpenAIConfig struct {
-	// APIKey authenticates with the OpenAI API.
-	//
-	// **Security**: Always use environment variables, never hardcode.
-	// Get from: https://platform.openai.com/api-keys
-	APIKey SensitiveString `koanf:"api_key" env:"OPENAI_API_KEY" sensitive:"true" json:"api_key" yaml:"api_key" mapstructure:"api_key"`
-
-	// BaseURL overrides the OpenAI API endpoint.
-	//
-	// Use cases:
-	//   - API proxies for corporate networks
-	//   - Azure OpenAI endpoints
-	//   - Local API gateways
-	// Default: "https://api.openai.com/v1"
-	BaseURL string `koanf:"base_url" env:"OPENAI_BASE_URL" json:"base_url" yaml:"base_url" mapstructure:"base_url"`
-
-	// OrgID specifies the OpenAI organization for billing.
-	//
-	// Required for:
-	//   - Multiple organization accounts
-	//   - Usage tracking per organization
-	OrgID string `koanf:"org_id" env:"OPENAI_ORG_ID" json:"org_id" yaml:"org_id" mapstructure:"org_id"`
-
-	// DefaultModel sets the default GPT model for agents.
-	//
-	// Common models:
-	//   - `"gpt-4"`: Most capable, higher cost
-	//   - `"gpt-4-turbo"`: Faster GPT-4 variant
-	//   - `"gpt-3.5-turbo"`: Fast and cost-effective
-	// Default: "gpt-4"
-	DefaultModel string `koanf:"default_model" env:"OPENAI_DEFAULT_MODEL" json:"default_model" yaml:"default_model" mapstructure:"default_model"`
-}
-
 // MemoryConfig contains memory service configuration.
 //
 // **Agent Memory Service** provides conversational context and state management
@@ -439,22 +394,15 @@ type OpenAIConfig struct {
 // ## Example Configuration
 //
 //	memory:
-//	  redis_url: redis://localhost:6379/1
-//	  redis_prefix: compozy:memory:
+//	  prefix: compozy:memory:
 //	  ttl: 24h
 //	  max_entries: 1000
 type MemoryConfig struct {
-	// RedisURL specifies the Redis connection for memory storage.
-	//
-	// Format: `redis://[user:password@]host:port/db`
-	// Default: "redis://localhost:6379/0"
-	RedisURL string `koanf:"redis_url" env:"MEMORY_REDIS_URL" json:"redis_url" yaml:"redis_url" mapstructure:"redis_url"`
-
-	// RedisPrefix namespaces memory keys in Redis.
+	// Prefix namespaces memory keys in Redis.
 	//
 	// Prevents key collisions when sharing Redis.
 	// Default: "compozy:memory:"
-	RedisPrefix string `koanf:"redis_prefix" env:"MEMORY_REDIS_PREFIX" json:"redis_prefix" yaml:"redis_prefix" mapstructure:"redis_prefix"`
+	Prefix string `koanf:"prefix" env:"MEMORY_PREFIX" json:"prefix" yaml:"prefix" mapstructure:"prefix"`
 
 	// TTL sets memory entry expiration time.
 	//
@@ -515,8 +463,8 @@ type LLMConfig struct {
 //	  api_key_rate:
 //	    limit: 100
 //	    period: 1m
-//	  redis_addr: localhost:6379
-//	  redis_db: 2
+//	  prefix: ratelimit:
+//	  max_retry: 3
 type RateLimitConfig struct {
 	// GlobalRate applies to all requests system-wide.
 	//
@@ -527,23 +475,6 @@ type RateLimitConfig struct {
 	//
 	// Ensures fair usage across different clients.
 	APIKeyRate RateConfig `koanf:"api_key_rate" env:"RATELIMIT_API_KEY" json:"api_key_rate" yaml:"api_key_rate" mapstructure:"api_key_rate"`
-
-	// RedisAddr specifies the Redis server for rate limit storage.
-	//
-	// Format: "host:port"
-	// Default: "localhost:6379"
-	RedisAddr string `koanf:"redis_addr" env:"RATELIMIT_REDIS_ADDR" json:"redis_addr" yaml:"redis_addr" mapstructure:"redis_addr"`
-
-	// RedisPassword authenticates with Redis.
-	//
-	// **Security**: Use environment variables
-	RedisPassword string `koanf:"redis_password" env:"RATELIMIT_REDIS_PASSWORD" json:"redis_password" yaml:"redis_password" mapstructure:"redis_password"`
-
-	// RedisDB selects the Redis database number.
-	//
-	// Use different DBs for different environments.
-	// Default: 0
-	RedisDB int `koanf:"redis_db" env:"RATELIMIT_REDIS_DB" json:"redis_db" yaml:"redis_db" mapstructure:"redis_db"`
 
 	// Prefix namespaces rate limit keys in Redis.
 	//
@@ -581,6 +512,71 @@ type RateConfig struct {
 	//   - `"1h"`: Per hour
 	//   - `"24h"`: Per day
 	Period time.Duration `koanf:"period" env:"PERIOD" json:"period" yaml:"period" mapstructure:"period" validate:"required"`
+}
+
+// RedisConfig contains Redis connection configuration.
+//
+// **Redis Configuration** defines how Compozy connects to Redis for caching,
+// session management, rate limiting, and pub/sub messaging. Redis provides
+// high-performance data storage and distributed coordination.
+//
+// ## Connection Methods
+//
+//  1. **Connection URL** (preferred for production):
+//     ```yaml
+//     redis:
+//     url: "redis://user:pass@host:6379/0?sslmode=require"
+//     ```
+//
+//  2. **Individual Parameters** (development/testing):
+//     ```yaml
+//     redis:
+//     host: localhost
+//     port: 6379
+//     password: secret
+//     db: 0
+//     ```
+type RedisConfig struct {
+	// URL provides a complete Redis connection string.
+	//
+	// Format: `redis://[user:password@]host:port/db`
+	// Takes precedence over individual connection parameters.
+	URL string `koanf:"url" json:"url" yaml:"url" mapstructure:"url" env:"REDIS_URL"`
+
+	// Host specifies the Redis server hostname or IP address.
+	//
+	// Default: "localhost"
+	Host string `koanf:"host" json:"host" yaml:"host" mapstructure:"host" env:"REDIS_HOST"`
+
+	// Port specifies the Redis server port.
+	//
+	// Default: 6379
+	Port int `koanf:"port" json:"port" yaml:"port" mapstructure:"port" env:"REDIS_PORT"`
+
+	// Password authenticates with Redis.
+	//
+	// **Security**: Use environment variables in production.
+	Password string `koanf:"password" json:"password" yaml:"password" mapstructure:"password" env:"REDIS_PASSWORD"`
+
+	// DB selects the Redis database number.
+	//
+	// Default: 0
+	DB int `koanf:"db" json:"db" yaml:"db" mapstructure:"db" env:"REDIS_DB"`
+
+	// MaxRetries sets the maximum number of retries before giving up.
+	//
+	// Default: 3
+	MaxRetries int `koanf:"max_retries" json:"max_retries" yaml:"max_retries" mapstructure:"max_retries" env:"REDIS_MAX_RETRIES"`
+
+	// PoolSize sets the maximum number of socket connections.
+	//
+	// Default: 10 per CPU
+	PoolSize int `koanf:"pool_size" json:"pool_size" yaml:"pool_size" mapstructure:"pool_size" env:"REDIS_POOL_SIZE"`
+
+	// MinIdleConns sets the minimum number of idle connections.
+	//
+	// Default: 0
+	MinIdleConns int `koanf:"min_idle_conns" json:"min_idle_conns" yaml:"min_idle_conns" mapstructure:"min_idle_conns" env:"REDIS_MIN_IDLE_CONNS"`
 }
 
 // CLIConfig contains CLI-specific configuration.
@@ -741,13 +737,6 @@ type Metadata struct {
 	LoadedAt time.Time             `json:"loaded_at"`
 }
 
-// Load loads configuration using the default service.
-// This is a convenience function for simple configuration loading.
-func Load() (*Config, error) {
-	service := NewService()
-	return service.Load(context.Background())
-}
-
 // Default returns a Config with default values for development.
 func Default() *Config {
 	return defaultFromRegistry()
@@ -762,11 +751,11 @@ func defaultFromRegistry() *Config {
 		Temporal:  buildTemporalConfig(registry),
 		Runtime:   buildRuntimeConfig(registry),
 		Limits:    buildLimitsConfig(registry),
-		OpenAI:    buildOpenAIConfig(registry),
 		Memory:    buildMemoryConfig(registry),
 		LLM:       buildLLMConfig(registry),
 		RateLimit: buildRateLimitConfig(registry),
 		CLI:       buildCLIConfig(registry),
+		Redis:     buildRedisConfig(registry),
 	}
 }
 
@@ -896,21 +885,11 @@ func buildLimitsConfig(registry *definition.Registry) LimitsConfig {
 	}
 }
 
-func buildOpenAIConfig(registry *definition.Registry) OpenAIConfig {
-	return OpenAIConfig{
-		APIKey:       SensitiveString(getString(registry, "openai.api_key")),
-		BaseURL:      getString(registry, "openai.base_url"),
-		OrgID:        getString(registry, "openai.org_id"),
-		DefaultModel: getString(registry, "openai.default_model"),
-	}
-}
-
 func buildMemoryConfig(registry *definition.Registry) MemoryConfig {
 	return MemoryConfig{
-		RedisURL:    getString(registry, "memory.redis_url"),
-		RedisPrefix: getString(registry, "memory.redis_prefix"),
-		TTL:         getDuration(registry, "memory.ttl"),
-		MaxEntries:  getInt(registry, "memory.max_entries"),
+		Prefix:     getString(registry, "memory.prefix"),
+		TTL:        getDuration(registry, "memory.ttl"),
+		MaxEntries: getInt(registry, "memory.max_entries"),
 	}
 }
 
@@ -931,11 +910,8 @@ func buildRateLimitConfig(registry *definition.Registry) RateLimitConfig {
 			Limit:  getInt64(registry, "ratelimit.api_key_rate.limit"),
 			Period: getDuration(registry, "ratelimit.api_key_rate.period"),
 		},
-		RedisAddr:     getString(registry, "ratelimit.redis_addr"),
-		RedisPassword: getString(registry, "ratelimit.redis_password"),
-		RedisDB:       getInt(registry, "ratelimit.redis_db"),
-		Prefix:        getString(registry, "ratelimit.prefix"),
-		MaxRetry:      getInt(registry, "ratelimit.max_retry"),
+		Prefix:   getString(registry, "ratelimit.prefix"),
+		MaxRetry: getInt(registry, "ratelimit.max_retry"),
 	}
 }
 
@@ -957,5 +933,18 @@ func buildCLIConfig(registry *definition.Registry) CLIConfig {
 		ConfigFile:        getString(registry, "cli.config_file"),
 		CWD:               getString(registry, "cli.cwd"),
 		EnvFile:           getString(registry, "cli.env_file"),
+	}
+}
+
+func buildRedisConfig(registry *definition.Registry) RedisConfig {
+	return RedisConfig{
+		URL:          getString(registry, "redis.url"),
+		Host:         getString(registry, "redis.host"),
+		Port:         getInt(registry, "redis.port"),
+		Password:     getString(registry, "redis.password"),
+		DB:           getInt(registry, "redis.db"),
+		MaxRetries:   getInt(registry, "redis.max_retries"),
+		PoolSize:     getInt(registry, "redis.pool_size"),
+		MinIdleConns: getInt(registry, "redis.min_idle_conns"),
 	}
 }

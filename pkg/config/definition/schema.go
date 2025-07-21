@@ -20,12 +20,11 @@ func CreateRegistry() *Registry {
 	registerTemporalFields(registry)
 	registerRuntimeFields(registry)
 	registerLimitsFields(registry)
-	registerOpenAIFields(registry)
 	registerMemoryFields(registry)
 	registerLLMFields(registry)
 	registerRateLimitFields(registry)
 	registerCLIFields(registry)
-
+	registerRedisFields(registry)
 	return registry
 }
 
@@ -338,61 +337,14 @@ func registerLimitsFields(registry *Registry) {
 	})
 }
 
-func registerOpenAIFields(registry *Registry) {
-	registry.Register(&FieldDef{
-		Path:    "openai.api_key",
-		Default: "",
-		CLIFlag: "openai-api-key",
-		EnvVar:  "OPENAI_API_KEY",
-		Type:    reflect.TypeOf(""),
-		Help:    "OpenAI API key",
-	})
-
-	registry.Register(&FieldDef{
-		Path:    "openai.base_url",
-		Default: "",
-		CLIFlag: "",
-		EnvVar:  "OPENAI_BASE_URL",
-		Type:    reflect.TypeOf(""),
-		Help:    "OpenAI base URL",
-	})
-
-	registry.Register(&FieldDef{
-		Path:    "openai.org_id",
-		Default: "",
-		CLIFlag: "",
-		EnvVar:  "OPENAI_ORG_ID",
-		Type:    reflect.TypeOf(""),
-		Help:    "OpenAI organization ID",
-	})
-
-	registry.Register(&FieldDef{
-		Path:    "openai.default_model",
-		Default: "",
-		CLIFlag: "",
-		EnvVar:  "OPENAI_DEFAULT_MODEL",
-		Type:    reflect.TypeOf(""),
-		Help:    "OpenAI default model",
-	})
-}
-
 func registerMemoryFields(registry *Registry) {
 	registry.Register(&FieldDef{
-		Path:    "memory.redis_url",
-		Default: "",
+		Path:    "memory.prefix",
+		Default: "compozy:memory:",
 		CLIFlag: "",
-		EnvVar:  "MEMORY_REDIS_URL",
+		EnvVar:  "MEMORY_PREFIX",
 		Type:    reflect.TypeOf(""),
-		Help:    "Redis URL for memory storage",
-	})
-
-	registry.Register(&FieldDef{
-		Path:    "memory.redis_prefix",
-		Default: "compozy:",
-		CLIFlag: "",
-		EnvVar:  "MEMORY_REDIS_PREFIX",
-		Type:    reflect.TypeOf(""),
-		Help:    "Redis key prefix",
+		Help:    "Redis key prefix for memory storage",
 	})
 
 	registry.Register(&FieldDef{
@@ -473,34 +425,7 @@ func registerRateLimitFields(registry *Registry) {
 		Help:    "API key rate limit period",
 	})
 
-	// Redis configuration for rate limiting
-	registry.Register(&FieldDef{
-		Path:    "ratelimit.redis_addr",
-		Default: "",
-		CLIFlag: "",
-		EnvVar:  "RATELIMIT_REDIS_ADDR",
-		Type:    reflect.TypeOf(""),
-		Help:    "Redis address for rate limit storage (optional)",
-	})
-
-	registry.Register(&FieldDef{
-		Path:    "ratelimit.redis_password",
-		Default: "",
-		CLIFlag: "",
-		EnvVar:  "RATELIMIT_REDIS_PASSWORD",
-		Type:    reflect.TypeOf(""),
-		Help:    "Redis password for rate limit storage",
-	})
-
-	registry.Register(&FieldDef{
-		Path:    "ratelimit.redis_db",
-		Default: 0,
-		CLIFlag: "",
-		EnvVar:  "RATELIMIT_REDIS_DB",
-		Type:    reflect.TypeOf(0),
-		Help:    "Redis database for rate limit storage",
-	})
-
+	// Rate limit key prefix
 	registry.Register(&FieldDef{
 		Path:    "ratelimit.prefix",
 		Default: "compozy:ratelimit:",
@@ -524,6 +449,80 @@ func registerCLIFields(registry *Registry) {
 	registerBasicCLIFields(registry)
 	registerOutputFormatFields(registry)
 	registerBehaviorFlags(registry)
+}
+
+func registerRedisFields(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path:    "redis.url",
+		Default: "",
+		CLIFlag: "",
+		EnvVar:  "REDIS_URL",
+		Type:    reflect.TypeOf(""),
+		Help:    "Redis connection URL (takes precedence over individual parameters)",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "redis.host",
+		Default: "localhost",
+		CLIFlag: "",
+		EnvVar:  "REDIS_HOST",
+		Type:    reflect.TypeOf(""),
+		Help:    "Redis server hostname",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "redis.port",
+		Default: 6379,
+		CLIFlag: "",
+		EnvVar:  "REDIS_PORT",
+		Type:    reflect.TypeOf(0),
+		Help:    "Redis server port",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "redis.password",
+		Default: "",
+		CLIFlag: "",
+		EnvVar:  "REDIS_PASSWORD",
+		Type:    reflect.TypeOf(""),
+		Help:    "Redis password",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "redis.db",
+		Default: 0,
+		CLIFlag: "",
+		EnvVar:  "REDIS_DB",
+		Type:    reflect.TypeOf(0),
+		Help:    "Redis database number",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "redis.max_retries",
+		Default: 3,
+		CLIFlag: "",
+		EnvVar:  "REDIS_MAX_RETRIES",
+		Type:    reflect.TypeOf(0),
+		Help:    "Maximum number of retries",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "redis.pool_size",
+		Default: 10,
+		CLIFlag: "",
+		EnvVar:  "REDIS_POOL_SIZE",
+		Type:    reflect.TypeOf(0),
+		Help:    "Connection pool size",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "redis.min_idle_conns",
+		Default: 0,
+		CLIFlag: "",
+		EnvVar:  "REDIS_MIN_IDLE_CONNS",
+		Type:    reflect.TypeOf(0),
+		Help:    "Minimum number of idle connections",
+	})
 }
 
 func registerBasicCLIFields(registry *Registry) {

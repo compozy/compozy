@@ -24,21 +24,22 @@ func SetupStore(ctx context.Context, storeConfig *Config) (*Store, error) {
 }
 
 // SetupStoreWithConfig creates a store using the provided app configuration
-func SetupStoreWithConfig(ctx context.Context, appConfig *config.Config) (*Store, error) {
+func SetupStoreWithConfig(ctx context.Context) (*Store, error) {
+	cfg := config.Get()
 	// Debug logging
 	log := logger.FromContext(ctx)
 	log.Debug("Database configuration loaded",
-		"has_password", appConfig.Database.Password != "",
-		"host", appConfig.Database.Host)
+		"has_password", cfg.Database.Password != "",
+		"host", cfg.Database.Host)
 
 	storeConfig := &Config{
-		ConnString: appConfig.Database.ConnString,
-		Host:       appConfig.Database.Host,
-		Port:       appConfig.Database.Port,
-		User:       appConfig.Database.User,
-		Password:   appConfig.Database.Password,
-		DBName:     appConfig.Database.DBName,
-		SSLMode:    appConfig.Database.SSLMode,
+		ConnString: cfg.Database.ConnString,
+		Host:       cfg.Database.Host,
+		Port:       cfg.Database.Port,
+		User:       cfg.Database.User,
+		Password:   cfg.Database.Password,
+		DBName:     cfg.Database.DBName,
+		SSLMode:    cfg.Database.SSLMode,
 	}
 	log.Debug("Database connection configured",
 		"host", storeConfig.Host,

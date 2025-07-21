@@ -129,7 +129,6 @@ func (env *TestEnvironment) setupMemoryManager(t *testing.T) {
 		TemporalTaskQueue: "test-memory-queue",
 		PrivacyManager:    privacyManager,
 		FallbackProjectID: "basic-memory", // Use the same project ID as the examples
-		Logger:            env.logger,
 	}
 	// Create memory manager
 	var err error

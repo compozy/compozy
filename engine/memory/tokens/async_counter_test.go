@@ -8,7 +8,6 @@ import (
 	"time"
 
 	memcore "github.com/compozy/compozy/engine/memory/core"
-	"github.com/compozy/compozy/pkg/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -31,8 +30,7 @@ func TestAsyncTokenCounter_ProcessAsync(t *testing.T) {
 	t.Run("Should process token counting asynchronously", func(t *testing.T) {
 		// Arrange
 		mockCounter := new(mockTokenCounterAsync)
-		log := logger.NewForTests()
-		asyncCounter := NewAsyncTokenCounter(mockCounter, 2, 100, log)
+		asyncCounter := NewAsyncTokenCounter(mockCounter, 2, 100)
 		defer asyncCounter.Shutdown()
 		text := "Test message content"
 		ref := "test_memory"
@@ -53,13 +51,11 @@ func TestAsyncTokenCounter_ProcessAsync(t *testing.T) {
 	t.Run("Should handle queue full gracefully", func(t *testing.T) {
 		// Arrange
 		mockCounter := new(mockTokenCounterAsync)
-		log := logger.NewForTests()
 		// Create with worker count 0 to prevent processing
 		asyncCounter := &AsyncTokenCounter{
 			realCounter: mockCounter,
 			queue:       make(chan *tokenCountRequest, 1), // Small queue
 			workers:     0,
-			log:         log,
 			metrics:     NewTokenMetrics(),
 		}
 		text := "Test"
@@ -77,8 +73,7 @@ func TestAsyncTokenCounter_ProcessAsync(t *testing.T) {
 	t.Run("Should handle counter errors gracefully", func(t *testing.T) {
 		// Arrange
 		mockCounter := new(mockTokenCounterAsync)
-		log := logger.NewForTests()
-		asyncCounter := NewAsyncTokenCounter(mockCounter, 1, 100, log)
+		asyncCounter := NewAsyncTokenCounter(mockCounter, 1, 100)
 		defer asyncCounter.Shutdown()
 		text := "Test message"
 		ref := "test_memory"
@@ -99,8 +94,7 @@ func TestAsyncTokenCounter_ProcessWithResult(t *testing.T) {
 	t.Run("Should return token count result", func(t *testing.T) {
 		// Arrange
 		mockCounter := new(mockTokenCounterAsync)
-		log := logger.NewForTests()
-		asyncCounter := NewAsyncTokenCounter(mockCounter, 2, 100, log)
+		asyncCounter := NewAsyncTokenCounter(mockCounter, 2, 100)
 		defer asyncCounter.Shutdown()
 		text := "Test message"
 		ref := "test"
@@ -116,13 +110,11 @@ func TestAsyncTokenCounter_ProcessWithResult(t *testing.T) {
 	t.Run("Should handle queue full", func(t *testing.T) {
 		// Arrange
 		mockCounter := new(mockTokenCounterAsync)
-		log := logger.NewForTests()
 		// Create with worker count 0 to prevent processing
 		asyncCounter := &AsyncTokenCounter{
 			realCounter: mockCounter,
 			queue:       make(chan *tokenCountRequest, 1), // Small queue
 			workers:     0,
-			log:         log,
 			metrics:     NewTokenMetrics(),
 		}
 		text := "Test message"
@@ -145,8 +137,7 @@ func TestAsyncTokenCounter_ProcessWithResult(t *testing.T) {
 	t.Run("Should handle context cancellation", func(t *testing.T) {
 		// Arrange
 		mockCounter := new(mockTokenCounterAsync)
-		log := logger.NewForTests()
-		asyncCounter := NewAsyncTokenCounter(mockCounter, 1, 100, log)
+		asyncCounter := NewAsyncTokenCounter(mockCounter, 1, 100)
 		defer asyncCounter.Shutdown()
 		text := "Test message"
 		ref := "test"
@@ -170,8 +161,7 @@ func TestAsyncTokenCounter_Metrics(t *testing.T) {
 	t.Run("Should track metrics correctly", func(t *testing.T) {
 		// Arrange
 		mockCounter := new(mockTokenCounterAsync)
-		log := logger.NewForTests()
-		asyncCounter := NewAsyncTokenCounter(mockCounter, 2, 100, log)
+		asyncCounter := NewAsyncTokenCounter(mockCounter, 2, 100)
 		defer asyncCounter.Shutdown()
 		// Set up mock expectations
 		mockCounter.On("CountTokens", mock.Anything, "success1").Return(10, nil)
@@ -196,8 +186,7 @@ func TestAsyncTokenCounter_WorkerPool(t *testing.T) {
 	t.Run("Should process requests concurrently", func(t *testing.T) {
 		// Arrange
 		mockCounter := new(mockTokenCounterAsync)
-		log := logger.NewForTests()
-		asyncCounter := NewAsyncTokenCounter(mockCounter, 3, 100, log) // 3 workers
+		asyncCounter := NewAsyncTokenCounter(mockCounter, 3, 100) // 3 workers
 		defer asyncCounter.Shutdown()
 		// Track concurrent executions with atomic operations
 		var concurrentCount atomic.Int32
@@ -235,8 +224,7 @@ func TestAsyncTokenCounter_Shutdown(t *testing.T) {
 	t.Run("Should shutdown gracefully", func(t *testing.T) {
 		// Arrange
 		mockCounter := new(mockTokenCounterAsync)
-		log := logger.NewForTests()
-		asyncCounter := NewAsyncTokenCounter(mockCounter, 2, 100, log)
+		asyncCounter := NewAsyncTokenCounter(mockCounter, 2, 100)
 		// Queue some requests
 		mockCounter.On("CountTokens", mock.Anything, mock.Anything).
 			Return(10, nil).Maybe()
@@ -257,9 +245,8 @@ func TestNewAsyncTokenCounter(t *testing.T) {
 	t.Run("Should use default workers if zero provided", func(t *testing.T) {
 		// Arrange
 		mockCounter := new(mockTokenCounterAsync)
-		log := logger.NewForTests()
 		// Act
-		asyncCounter := NewAsyncTokenCounter(mockCounter, 0, 100, log)
+		asyncCounter := NewAsyncTokenCounter(mockCounter, 0, 100)
 		defer asyncCounter.Shutdown()
 		// Assert
 		assert.Equal(t, 10, asyncCounter.workers) // Default is 10
@@ -267,9 +254,8 @@ func TestNewAsyncTokenCounter(t *testing.T) {
 	t.Run("Should use default workers if negative provided", func(t *testing.T) {
 		// Arrange
 		mockCounter := new(mockTokenCounterAsync)
-		log := logger.NewForTests()
 		// Act
-		asyncCounter := NewAsyncTokenCounter(mockCounter, -5, 100, log)
+		asyncCounter := NewAsyncTokenCounter(mockCounter, -5, 100)
 		defer asyncCounter.Shutdown()
 		// Assert
 		assert.Equal(t, 10, asyncCounter.workers) // Default is 10
@@ -277,9 +263,8 @@ func TestNewAsyncTokenCounter(t *testing.T) {
 	t.Run("Should use default buffer size if zero provided", func(t *testing.T) {
 		// Arrange
 		mockCounter := new(mockTokenCounterAsync)
-		log := logger.NewForTests()
 		// Act
-		asyncCounter := NewAsyncTokenCounter(mockCounter, 2, 0, log)
+		asyncCounter := NewAsyncTokenCounter(mockCounter, 2, 0)
 		defer asyncCounter.Shutdown()
 		// Assert
 		assert.Equal(t, 1000, cap(asyncCounter.queue)) // Default is 1000
@@ -287,9 +272,8 @@ func TestNewAsyncTokenCounter(t *testing.T) {
 	t.Run("Should use default buffer size if negative provided", func(t *testing.T) {
 		// Arrange
 		mockCounter := new(mockTokenCounterAsync)
-		log := logger.NewForTests()
 		// Act
-		asyncCounter := NewAsyncTokenCounter(mockCounter, 2, -10, log)
+		asyncCounter := NewAsyncTokenCounter(mockCounter, 2, -10)
 		defer asyncCounter.Shutdown()
 		// Assert
 		assert.Equal(t, 1000, cap(asyncCounter.queue)) // Default is 1000
@@ -297,10 +281,9 @@ func TestNewAsyncTokenCounter(t *testing.T) {
 	t.Run("Should use custom buffer size when valid", func(t *testing.T) {
 		// Arrange
 		mockCounter := new(mockTokenCounterAsync)
-		log := logger.NewForTests()
 		customBufferSize := 500
 		// Act
-		asyncCounter := NewAsyncTokenCounter(mockCounter, 2, customBufferSize, log)
+		asyncCounter := NewAsyncTokenCounter(mockCounter, 2, customBufferSize)
 		defer asyncCounter.Shutdown()
 		// Assert
 		assert.Equal(t, customBufferSize, cap(asyncCounter.queue))

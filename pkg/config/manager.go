@@ -13,7 +13,7 @@ import (
 
 // Manager handles configuration with atomic updates and hot-reload support.
 type Manager struct {
-	service     Service
+	Service     Service
 	current     atomic.Value // stores *Config
 	sources     []Source
 	callbacks   []func(*Config)
@@ -35,7 +35,7 @@ func NewManager(service Service) *Manager {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &Manager{
-		service:     service,
+		Service:     service,
 		callbacks:   make([]func(*Config), 0),
 		watchCtx:    ctx,
 		watchCancel: cancel,
@@ -49,7 +49,7 @@ func (m *Manager) Load(ctx context.Context, sources ...Source) (*Config, error) 
 	m.sources = sources
 
 	// Initial load
-	config, err := m.service.Load(ctx, sources...)
+	config, err := m.Service.Load(ctx, sources...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load configuration: %w", err)
 	}
@@ -82,13 +82,13 @@ func (m *Manager) Reload(ctx context.Context) error {
 	defer m.reloadMu.Unlock()
 
 	// Load configuration from sources
-	newConfig, err := m.service.Load(ctx, m.sources...)
+	newConfig, err := m.Service.Load(ctx, m.sources...)
 	if err != nil {
 		return fmt.Errorf("failed to reload configuration: %w", err)
 	}
 
 	// Validate the new configuration before applying
-	if err := m.service.Validate(newConfig); err != nil {
+	if err := m.Service.Validate(newConfig); err != nil {
 		return fmt.Errorf("configuration validation failed: %w", err)
 	}
 

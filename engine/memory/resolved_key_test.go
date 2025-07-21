@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/tplengine"
 	"github.com/stretchr/testify/assert"
 )
@@ -16,13 +15,11 @@ func TestResolvedKeyForRESTAPI(t *testing.T) {
 	t.Run("Should use ResolvedKey when provided (REST API case)", func(t *testing.T) {
 		// Create template engine
 		engine := tplengine.NewEngine(tplengine.FormatText)
-		log := logger.FromContext(context.Background())
 
 		// Create manager
 		manager := &Manager{
 			tplEngine:              engine,
-			log:                    log,
-			projectContextResolver: NewProjectContextResolver("fallback-project", log),
+			projectContextResolver: NewProjectContextResolver("fallback-project"),
 		}
 
 		// REST API provides explicit keys in ResolvedKey field
@@ -47,13 +44,11 @@ func TestResolvedKeyForRESTAPI(t *testing.T) {
 	t.Run("Should resolve template when ResolvedKey is empty (workflow case)", func(t *testing.T) {
 		// Create template engine
 		engine := tplengine.NewEngine(tplengine.FormatText)
-		log := logger.FromContext(context.Background())
 
 		// Create manager
 		manager := &Manager{
 			tplEngine:              engine,
-			log:                    log,
-			projectContextResolver: NewProjectContextResolver("fallback-project", log),
+			projectContextResolver: NewProjectContextResolver("fallback-project"),
 		}
 
 		// Workflow provides template in Key field
@@ -80,13 +75,11 @@ func TestResolvedKeyForRESTAPI(t *testing.T) {
 	t.Run("Should support any key format for REST API", func(t *testing.T) {
 		// Create template engine
 		engine := tplengine.NewEngine(tplengine.FormatText)
-		log := logger.FromContext(context.Background())
 
 		// Create manager
 		manager := &Manager{
 			tplEngine:              engine,
-			log:                    log,
-			projectContextResolver: NewProjectContextResolver("fallback-project", log),
+			projectContextResolver: NewProjectContextResolver("fallback-project"),
 		}
 
 		// Test various key formats that users might want (now with validation)
@@ -116,11 +109,9 @@ func TestResolvedKeyForRESTAPI(t *testing.T) {
 // TestKeyValidationEdgeCases tests edge cases and validation failures
 func TestKeyValidationEdgeCases(t *testing.T) {
 	engine := tplengine.NewEngine(tplengine.FormatText)
-	log := logger.FromContext(context.Background())
 	manager := &Manager{
 		tplEngine:              engine,
-		log:                    log,
-		projectContextResolver: NewProjectContextResolver("fallback-project", log),
+		projectContextResolver: NewProjectContextResolver("fallback-project"),
 	}
 
 	t.Run("Should reject keys exceeding 256 characters", func(t *testing.T) {
@@ -224,11 +215,9 @@ func TestKeyValidationEdgeCases(t *testing.T) {
 // TestConcurrentKeyResolution tests concurrent access patterns
 func TestConcurrentKeyResolution(t *testing.T) {
 	engine := tplengine.NewEngine(tplengine.FormatText)
-	log := logger.FromContext(context.Background())
 	manager := &Manager{
 		tplEngine:              engine,
-		log:                    log,
-		projectContextResolver: NewProjectContextResolver("fallback-project", log),
+		projectContextResolver: NewProjectContextResolver("fallback-project"),
 	}
 
 	t.Run("Should handle concurrent key resolution safely", func(t *testing.T) {

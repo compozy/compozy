@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/engine/memory/core"
-	"github.com/compozy/compozy/pkg/logger"
 	"go.temporal.io/sdk/client"
 )
 
@@ -24,7 +23,6 @@ type BuilderOptions struct {
 	TemporalClient    client.Client
 	TemporalTaskQueue string
 	PrivacyManager    any // Will be properly typed when privacy is migrated
-	Logger            logger.Logger
 }
 
 // Builder provides a fluent interface for creating memory instances
@@ -117,14 +115,8 @@ func (b *Builder) WithPrivacyManager(pm any) *Builder {
 	return b
 }
 
-// WithLogger sets the logger
-func (b *Builder) WithLogger(log logger.Logger) *Builder {
-	b.opts.Logger = log
-	return b
-}
-
 // Validate validates the builder options
-func (b *Builder) Validate(ctx context.Context) error {
+func (b *Builder) Validate(_ context.Context) error {
 	if b.opts.InstanceID == "" {
 		return fmt.Errorf("instance ID cannot be empty")
 	}
@@ -149,9 +141,6 @@ func (b *Builder) Validate(ctx context.Context) error {
 	if b.opts.TemporalTaskQueue == "" {
 		b.opts.TemporalTaskQueue = "memory-operations" // Default task queue
 	}
-	if b.opts.Logger == nil {
-		b.opts.Logger = logger.FromContext(ctx) // Default to test logger if none provided
-	}
 	return nil
 }
 
@@ -160,5 +149,5 @@ func (b *Builder) Build(ctx context.Context) (Instance, error) {
 	if err := b.Validate(ctx); err != nil {
 		return nil, err
 	}
-	return NewMemoryInstance(b.opts)
+	return NewMemoryInstance(ctx, b.opts)
 }

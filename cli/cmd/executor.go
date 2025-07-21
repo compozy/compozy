@@ -12,38 +12,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// getConfigFromContext retrieves the configuration from the command context
-func getConfigFromContext(cmd *cobra.Command) (*config.Config, error) {
-	ctx := cmd.Context()
-	if ctx == nil {
-		return nil, fmt.Errorf("failed to get context from command")
-	}
-
-	// Debug the context to see what's available
-	if ctx.Value(helpers.ConfigKey) == nil {
-		return nil, fmt.Errorf("configuration not found in context - context keys may not be properly set")
-	}
-
-	cfg, ok := ctx.Value(helpers.ConfigKey).(*config.Config)
-	if !ok {
-		return nil, fmt.Errorf("configuration found in context but has wrong type: %T", ctx.Value(helpers.ConfigKey))
-	}
-	if cfg == nil {
-		return nil, fmt.Errorf("configuration found in context but is nil")
-	}
-	return cfg, nil
-}
-
 // CommandExecutor handles common setup and execution patterns for CLI commands.
 // It eliminates boilerplate code by providing a single place for:
-// - Configuration loading
 // - Client creation (auth)
 // - Mode detection
 // - Context cancellation
 // - Error handling
 type CommandExecutor struct {
-	config *config.Config
-	mode   models.Mode
+	mode models.Mode
 
 	// Clients - only populated as needed
 	authClient api.AuthClient
@@ -68,23 +44,19 @@ func NewCommandExecutor(cmd *cobra.Command, opts ExecutorOptions) (*CommandExecu
 	ctx := cmd.Context()
 	log := logger.FromContext(ctx)
 
-	// Get configuration from context (processed by root command with all sources including CLI flags)
-	cfg, err := getConfigFromContext(cmd)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get configuration from context: %w", err)
-	}
-
 	// Detect execution mode
 	mode := helpers.DetectMode(cmd)
 	log.Debug("detected execution mode", "mode", mode)
 
 	executor := &CommandExecutor{
-		config: cfg,
-		mode:   mode,
+		mode: mode,
 	}
 
 	// Initialize auth client if required
 	if opts.RequireAuth {
+		// Use global config
+		cfg := config.Get()
+
 		apiKey := getAPIKeyFromConfigOrFlag(cmd, cfg)
 
 		// Only require API key if authentication is enabled
@@ -140,11 +112,6 @@ func (e *CommandExecutor) Execute(ctx context.Context, cmd *cobra.Command, handl
 // GetAuthClient returns the configured auth client.
 func (e *CommandExecutor) GetAuthClient() api.AuthClient {
 	return e.authClient
-}
-
-// GetConfig returns the loaded configuration.
-func (e *CommandExecutor) GetConfig() *config.Config {
-	return e.config
 }
 
 // GetMode returns the detected execution mode.

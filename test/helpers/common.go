@@ -2,6 +2,7 @@ package helpers
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/pkg/config"
 )
 
 // -----
@@ -147,3 +149,23 @@ const (
 	// DefaultPollInterval is the default polling interval for eventually assertions
 	DefaultPollInterval = 100 * time.Millisecond
 )
+
+// -----
+// Config Initialization for Tests
+// -----
+
+var (
+	configInitOnce sync.Once
+	configInitErr  error
+)
+
+// InitializeTestConfig initializes the global config for tests
+// This should be called in TestMain or at the beginning of tests that use config
+func InitializeTestConfig() error {
+	configInitOnce.Do(func() {
+		ctx := context.Background()
+		// Initialize with default config for tests
+		configInitErr = config.Initialize(ctx, nil, config.NewDefaultProvider())
+	})
+	return configInitErr
+}

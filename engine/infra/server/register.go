@@ -155,10 +155,10 @@ func RegisterRoutes(ctx context.Context, router *gin.Engine, state *appstate.Sta
 	authManager := authmw.NewManager(authFactory)
 
 	// Register all component routers with authentication support
-	wfrouter.Register(apiBase, authManager, server.AppConfig)
-	tkrouter.Register(apiBase, authManager, server.AppConfig)
-	agentrouter.Register(apiBase, authManager, server.AppConfig)
-	toolrouter.Register(apiBase, authManager, server.AppConfig)
+	wfrouter.Register(apiBase, authManager)
+	tkrouter.Register(apiBase, authManager)
+	agentrouter.Register(apiBase, authManager)
+	toolrouter.Register(apiBase, authManager)
 	schedulerouter.Register(apiBase)
 	memrouter.Register(apiBase, authFactory)
 

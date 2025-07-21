@@ -1,6 +1,9 @@
 package definition
 
-import "reflect"
+import (
+	"maps"
+	"reflect"
+)
 
 // FieldDef defines a configuration field with its metadata
 // Keep it simple - just what we need to solve the duplication problem
@@ -48,9 +51,7 @@ func (r *Registry) GetDefault(path string) any {
 // GetAllFields returns all registered fields
 func (r *Registry) GetAllFields() map[string]FieldDef {
 	result := make(map[string]FieldDef)
-	for k, v := range r.fields {
-		result[k] = v
-	}
+	maps.Copy(result, r.fields)
 	return result
 }
 
