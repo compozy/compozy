@@ -1,0 +1,25 @@
+{
+  "name": "@compozy/tool-read-file",
+  "version": "0.1.0",
+  "description": "Compozy tool for reading file content",
+  "type": "module",
+  "main": "index.ts",
+  "files": [
+    "index.ts"
+  ],
+  "scripts": {
+    "test": "bun test",
+    "type-check": "tsc --noEmit"
+  },
+  "keywords": [
+    "compozy",
+    "tool",
+    "file",
+    "read"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/bun": "^1.2.18",
+    "typescript": "^5.8.3"
+  }
+}

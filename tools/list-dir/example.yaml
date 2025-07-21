@@ -1,0 +1,66 @@
+name: list-dir-example
+description: Example workflow using the list-dir tool
+
+tasks:
+  # Basic directory listing
+  - id: list_current
+    type: tool
+    tool: list-dir
+    input:
+      path: "."
+
+  # List only TypeScript files
+  - id: list_ts_files
+    type: tool
+    tool: list-dir
+    input:
+      path: "./src"
+      pattern: "*.ts"
+      includeFiles: true
+      includeDirs: false
+
+  # Recursive listing with glob pattern
+  - id: find_all_tests
+    type: tool
+    tool: list-dir
+    input:
+      path: "."
+      pattern: "**/*.test.{js,ts}"
+      recursive: true
+
+  # List only directories
+  - id: list_folders
+    type: tool
+    tool: list-dir
+    input:
+      path: "."
+      includeFiles: false
+      includeDirs: true
+      recursive: true
+
+  # Process the results
+  - id: summarize
+    type: basic
+    dependencies: [list_current, list_ts_files, find_all_tests, list_folders]
+    run: |
+      echo "=== Directory Summary ==="
+      echo "Current directory has {{ .tasks.list_current.result.entries | len }} items"
+      echo ""
+      
+      echo "=== TypeScript Files in src/ ==="
+      {{ range .tasks.list_ts_files.result.entries }}
+      echo "  - {{ .name }} ({{ .size }} bytes)"
+      {{ end }}
+      echo ""
+      
+      echo "=== Test Files Found ==="
+      echo "Total: {{ .tasks.find_all_tests.result.entries | len }} test files"
+      {{ range .tasks.find_all_tests.result.entries }}
+      echo "  - {{ .path }}"
+      {{ end }}
+      echo ""
+      
+      echo "=== Directory Structure ==="
+      {{ range .tasks.list_folders.result.entries }}
+      echo "  📁 {{ .path }}"
+      {{ end }}

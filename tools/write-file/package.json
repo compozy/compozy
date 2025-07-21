@@ -1,0 +1,25 @@
+{
+  "name": "@compozy/tool-write-file",
+  "version": "1.0.0",
+  "description": "A Compozy tool for writing content to files",
+  "type": "module",
+  "main": "index.ts",
+  "scripts": {
+    "test": "bun test"
+  },
+  "keywords": [
+    "compozy",
+    "tool",
+    "file",
+    "write"
+  ],
+  "author": "Compozy",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/node": "^20.0.0"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  }
+}

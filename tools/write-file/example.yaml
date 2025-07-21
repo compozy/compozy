@@ -1,0 +1,51 @@
+# Example Compozy workflow using the write-file tool
+id: write-file-example
+description: Example workflow demonstrating the write-file tool
+
+tasks:
+  - id: write-report
+    type: basic
+    description: Write a report to a file
+    tool: write_file
+    input:
+      path: "reports/daily-report.txt"
+      content: |
+        Daily Report - {{ .date }}
+        ========================
+        
+        Status: {{ .status }}
+        Items processed: {{ .count }}
+        
+        Summary:
+        {{ .summary }}
+
+  - id: append-log
+    type: basic
+    description: Append an entry to a log file
+    tool: write_file
+    input:
+      path: "logs/activity.log"
+      content: "[{{ .timestamp }}] {{ .event }} - User: {{ .user }}\n"
+      append: true
+
+  - id: save-json-data
+    type: basic
+    description: Save structured data as JSON
+    tool: write_file
+    input:
+      path: "data/results.json"
+      content: '{{ .results | toJson }}'
+    
+  - id: create-config
+    type: basic
+    description: Create a configuration file with custom permissions
+    tool: write_file
+    input:
+      path: "config/app.conf"
+      content: |
+        # Application Configuration
+        host={{ .host }}
+        port={{ .port }}
+        debug={{ .debug }}
+    config:
+      mode: 0o600  # Read/write for owner only
