@@ -1,0 +1,27 @@
+{
+  "name": "@compozy/tool-grep",
+  "version": "0.1.0",
+  "description": "Compozy tool for searching content in files using pattern matching",
+  "type": "module",
+  "main": "index.ts",
+  "files": [
+    "index.ts"
+  ],
+  "scripts": {
+    "test": "bun test",
+    "type-check": "tsc --noEmit"
+  },
+  "keywords": [
+    "compozy",
+    "tool",
+    "grep",
+    "search",
+    "pattern",
+    "regex"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/bun": "^1.2.18",
+    "typescript": "^5.8.3"
+  }
+}

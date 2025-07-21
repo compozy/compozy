@@ -1,0 +1,30 @@
+{
+  "name": "@compozy/tool-list-files",
+  "version": "0.0.1",
+  "description": "Compozy tool for listing files in a directory",
+  "type": "module",
+  "main": "index.ts",
+  "scripts": {
+    "test": "bun test",
+    "test:watch": "bun test --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --ext .ts",
+    "clean": "rm -rf dist node_modules"
+  },
+  "keywords": [
+    "compozy",
+    "tool",
+    "list-files",
+    "directory"
+  ],
+  "author": "Compozy Team",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

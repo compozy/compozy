@@ -1,0 +1,27 @@
+{
+  "name": "@compozy/tool-fetch",
+  "version": "0.1.0",
+  "description": "Compozy tool for making HTTP/HTTPS requests",
+  "type": "module",
+  "main": "index.ts",
+  "files": [
+    "index.ts"
+  ],
+  "scripts": {
+    "test": "bun test",
+    "type-check": "tsc --noEmit"
+  },
+  "keywords": [
+    "compozy",
+    "tool",
+    "fetch",
+    "http",
+    "https",
+    "request"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/bun": "^1.2.18",
+    "typescript": "^5.8.3"
+  }
+}

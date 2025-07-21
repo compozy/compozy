@@ -1,0 +1,25 @@
+{
+  "name": "@compozy/tool-list-dir",
+  "version": "0.1.0",
+  "description": "Directory listing tool for Compozy workflows",
+  "main": "index.ts",
+  "scripts": {
+    "test": "bun test"
+  },
+  "keywords": [
+    "compozy",
+    "tool",
+    "directory",
+    "listing",
+    "glob"
+  ],
+  "author": "Compozy",
+  "license": "MIT",
+  "dependencies": {
+    "minimatch": "^9.0.3"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.0.0",
+    "@types/minimatch": "^5.1.2"
+  }
+}
