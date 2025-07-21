@@ -15,13 +15,15 @@ interface ListFilesInput {
 interface ListFilesOutput {
   /** Array of file names found in the directory */
   files: string[];
+  /** Error message if the operation failed */
+  error?: string;
 }
 
 /**
  * Lists all files in a directory (non-recursive)
  * 
  * @param input - The input parameters containing the directory path
- * @returns An object containing an array of file names, or empty array on error
+ * @returns An object containing an array of file names, or error information on failure
  * 
  * @example
  * ```typescript
@@ -32,8 +34,18 @@ interface ListFilesOutput {
 export async function listFiles(input: ListFilesInput): Promise<ListFilesOutput> {
   try {
     // Validate input
-    if (!input || typeof input.dir !== 'string') {
-      return { files: [] };
+    if (!input || typeof input !== 'object') {
+      return { 
+        files: [], 
+        error: "Invalid input: input must be an object" 
+      };
+    }
+    
+    if (typeof input.dir !== 'string' || input.dir.trim() === '') {
+      return { 
+        files: [], 
+        error: "Invalid input: dir must be a non-empty string" 
+      };
     }
 
     // Read directory entries with file type information
@@ -46,9 +58,29 @@ export async function listFiles(input: ListFilesInput): Promise<ListFilesOutput>
       .sort();
     
     return { files };
-  } catch (error) {
-    // Return empty array on any error (non-existent directory, permission issues, etc.)
-    return { files: [] };
+  } catch (error: any) {
+    // Handle specific error types for better error reporting
+    if (error.code === 'ENOENT') {
+      return { 
+        files: [], 
+        error: `Directory not found: ${input.dir}` 
+      };
+    } else if (error.code === 'EACCES') {
+      return { 
+        files: [], 
+        error: `Permission denied: ${input.dir}` 
+      };
+    } else if (error.code === 'ENOTDIR') {
+      return { 
+        files: [], 
+        error: `Path is not a directory: ${input.dir}` 
+      };
+    } else {
+      return { 
+        files: [], 
+        error: `Failed to read directory: ${error.message || 'Unknown error'}` 
+      };
+    }
   }
 }
 

@@ -14,7 +14,6 @@ interface GrepMatch {
   line: number;
   column: number;
   text: string;
-  lineNumber: number;
 }
 
 interface GrepOutput {
@@ -55,7 +54,6 @@ export async function grep(input: GrepInput): Promise<GrepOutput | GrepError> {
   const maxResults = input.maxResults;
   const resolvedPath = resolve(searchPath);
   const matches: GrepMatch[] = [];
-  let resultsFound = 0;
   try {
     // Create regex from pattern
     let regex: RegExp;
@@ -71,7 +69,7 @@ export async function grep(input: GrepInput): Promise<GrepOutput | GrepError> {
     const stats = await fs.stat(resolvedPath);
     if (stats.isDirectory()) {
       // Search in directory
-      await searchDirectory(resolvedPath, regex, matches, recursive, maxResults, resultsFound);
+      await searchDirectory(resolvedPath, regex, matches, recursive, maxResults);
     } else if (stats.isFile()) {
       // Search in single file
       await searchFile(resolvedPath, regex, matches, maxResults);
@@ -110,8 +108,7 @@ async function searchDirectory(
   regex: RegExp,
   matches: GrepMatch[],
   recursive: boolean,
-  maxResults?: number,
-  resultsFound = 0
+  maxResults?: number
 ): Promise<void> {
   try {
     const entries = await fs.readdir(dir, { withFileTypes: true });
@@ -121,7 +118,7 @@ async function searchDirectory(
       }
       const fullPath = join(dir, entry.name);
       if (entry.isDirectory() && recursive) {
-        await searchDirectory(fullPath, regex, matches, recursive, maxResults, resultsFound);
+        await searchDirectory(fullPath, regex, matches, recursive, maxResults);
       } else if (entry.isFile()) {
         await searchFile(fullPath, regex, matches, maxResults);
       }
@@ -162,7 +159,6 @@ async function searchFile(
           line: lineIndex + 1,
           column: match.index + 1,
           text: line.trim(),
-          lineNumber: lineIndex + 1,
         });
         // Prevent infinite loop on zero-width matches
         if (match.index === regex.lastIndex) {

@@ -20,6 +20,16 @@ export default async function deleteFile(input: DeleteFileInput): Promise<Delete
     throw new Error('Invalid input: path cannot be empty');
   }
   
+  // Security check: prevent directory traversal
+  if (filePath.includes("..")) {
+    throw new Error('Invalid path: parent directory references are not allowed');
+  }
+  
+  // Additional security: prevent null bytes and control characters
+  if (filePath.includes('\0') || /[\x00-\x1f\x7f]/.test(filePath)) {
+    throw new Error('Invalid path: path contains invalid characters');
+  }
+  
   try {
     await unlink(filePath);
     return { success: true };

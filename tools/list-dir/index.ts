@@ -20,6 +20,10 @@ export interface DirEntry {
 
 export interface ToolOutput {
   entries: DirEntry[];
+  error?: {
+    message: string;
+    code?: string;
+  };
 }
 
 async function listDirRecursive(
@@ -78,7 +82,6 @@ async function listDirRecursive(
         }
       } catch (error) {
         // Skip entries we can't stat (e.g., broken symlinks)
-        continue;
       }
     }
   } catch (error) {
@@ -99,7 +102,13 @@ export default async function tool(input: ToolInput): Promise<ToolOutput> {
 
   // Validate input
   if (!path || typeof path !== 'string') {
-    return { entries: [] };
+    return { 
+      entries: [],
+      error: {
+        message: "Invalid input: path must be a non-empty string",
+        code: "INVALID_PATH"
+      }
+    };
   }
 
   const absolutePath = resolve(path);
@@ -109,7 +118,13 @@ export default async function tool(input: ToolInput): Promise<ToolOutput> {
     // Check if the path exists and is a directory
     const pathStats = await stat(absolutePath);
     if (!pathStats.isDirectory()) {
-      return { entries: [] };
+      return { 
+        entries: [],
+        error: {
+          message: `Path is not a directory: ${absolutePath}`,
+          code: "NOT_DIRECTORY"
+        }
+      };
     }
 
     if (recursive) {
@@ -147,16 +162,39 @@ export default async function tool(input: ToolInput): Promise<ToolOutput> {
           });
         } catch (error) {
           // Skip entries we can't stat
-          continue;
         }
       }
     }
 
     // Sort entries by path for consistent output
     entries.sort((a, b) => a.path.localeCompare(b.path));
-  } catch (error) {
-    // Return empty array on any error
-    return { entries: [] };
+  } catch (error: any) {
+    // Handle specific error types
+    if (error.code === 'ENOENT') {
+      return {
+        entries: [],
+        error: {
+          message: `Path does not exist: ${absolutePath}`,
+          code: "PATH_NOT_FOUND"
+        }
+      };
+    } else if (error.code === 'EACCES') {
+      return {
+        entries: [],
+        error: {
+          message: `Permission denied: ${absolutePath}`,
+          code: "ACCESS_DENIED"
+        }
+      };
+    } else {
+      return {
+        entries: [],
+        error: {
+          message: `Failed to list directory: ${error.message || 'Unknown error'}`,
+          code: error.code || "LIST_ERROR"
+        }
+      };
+    }
   }
 
   return { entries };

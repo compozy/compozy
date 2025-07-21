@@ -35,8 +35,6 @@ export async function readFile(input: ReadFileInput): Promise<ReadFileOutput | R
   const filePath = input.path.trim();
   const resolvedPath = resolve(filePath);
   try {
-    // Check if file exists
-    await fs.access(resolvedPath);
     // Read file content
     const content = await fs.readFile(resolvedPath, "utf-8");
     return {

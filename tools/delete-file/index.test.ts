@@ -29,12 +29,8 @@ describe('deleteFile', () => {
     expect(result.success).toBe(true);
     
     // Verify file was actually deleted
-    try {
-      await Bun.file(testFile).exists();
-      expect(false).toBe(true); // Should not reach here
-    } catch {
-      // Expected - file should not exist
-    }
+    const fileExists = await Bun.file(testFile).exists();
+    expect(fileExists).toBe(false);
   });
   
   it('Should return false for non-existent file', async () => {

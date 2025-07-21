@@ -68,7 +68,6 @@ describe("grep tool", () => {
         line: 1,
         column: 8,
         text: "Hello, Compozy!",
-        lineNumber: 1,
       });
     }
   });
@@ -81,7 +80,7 @@ describe("grep tool", () => {
     expect(result).toHaveProperty("matches");
     if ("matches" in result) {
       expect(result.matches).toHaveLength(1);
-      expect(result.matches[0].lineNumber).toBe(2);
+      expect(result.matches[0].line).toBe(2);
       expect(result.matches[0].text).toBe("This is a test file.");
     }
   });
@@ -270,7 +269,6 @@ describe("grep tool", () => {
         line: 3,
         column: 9,
         text: "Pattern matching is fun!",
-        lineNumber: 3,
       });
     }
   });

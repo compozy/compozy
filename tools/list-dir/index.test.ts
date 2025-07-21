@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
-import { mkdir, writeFile, rmdir, chmod, symlink, unlink } from 'fs/promises';
+import { mkdir, writeFile, rm, chmod, symlink, unlink } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import tool from './index';
@@ -14,7 +14,7 @@ describe('list-dir tool', () => {
 
   afterEach(async () => {
     try {
-      await rmdir(testDir, { recursive: true });
+      await rm(testDir, { recursive: true, force: true });
     } catch (error) {
       // Ignore cleanup errors
     }

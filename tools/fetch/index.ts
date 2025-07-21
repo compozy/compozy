@@ -130,12 +130,12 @@ export async function fetchTool(input: FetchInput): Promise<FetchOutput | FetchE
         error: `Request timeout after ${timeout}ms`,
         code: "TIMEOUT",
       };
-    } else if (error.cause?.code === "ECONNREFUSED") {
+    } else if (error.cause?.code === "ECONNREFUSED" || error.code === "ECONNREFUSED") {
       return {
         error: `Connection refused: ${url}`,
         code: "ECONNREFUSED",
       };
-    } else if (error.cause?.code === "ENOTFOUND") {
+    } else if (error.cause?.code === "ENOTFOUND" || error.code === "ENOTFOUND") {
       return {
         error: `Host not found: ${url}`,
         code: "ENOTFOUND",
@@ -149,16 +149,6 @@ export async function fetchTool(input: FetchInput): Promise<FetchOutput | FetchE
       return {
         error: `SSL certificate verification failed: ${url}`,
         code: "CERT_ERROR",
-      };
-    } else if (error.code === "ECONNREFUSED") {
-      return {
-        error: `Connection refused: ${url}`,
-        code: "ConnectionRefused",
-      };
-    } else if (error.code === "ENOTFOUND") {
-      return {
-        error: `DNS lookup failed: ${url}`,
-        code: "DNSLookupFailed",
       };
     } else if (error.message?.includes("Failed to fetch")) {
       return {
