@@ -1,6 +1,6 @@
-name: {{ .Name | quote }}
-version: {{ .Version | quote }}
-description: {{ .Description | quote }}
+name: {{ .Name | yamlEscape }}
+version: {{ .Version | yamlEscape }}
+description: {{ .Description | yamlEscape }}
 
 workflows:
 {{- range .Workflows }}

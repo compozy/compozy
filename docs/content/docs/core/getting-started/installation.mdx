@@ -62,11 +62,14 @@ Create a new Compozy project:
 # Initialize a new project
 compozy init my-ai-project
 cd my-ai-project
+
+# Or with Docker infrastructure setup
+compozy init my-ai-project --docker
 ```
 
 This creates a complete project structure:
 
-<ProjectStructure 
+<ProjectStructure
   structure={[
     {
       id: "my-ai-project",
@@ -77,31 +80,18 @@ This creates a complete project structure:
           id: "workflows",
           name: "workflows/",
           children: [
-            { id: "hello-world", name: "hello-world.yaml" },
-          ],
-        },
-        {
-          id: "agents",
-          name: "agents/",
-          children: [
-            { id: "default-agent", name: "default.yaml" },
-          ],
-        },
-        {
-          id: "tools",
-          name: "tools/",
-          children: [
-            { id: "index-ts", name: "index.ts" },
+            { id: "main-workflow", name: "main.yaml" },
           ],
         },
         { id: "entrypoint", name: "entrypoint.ts" },
+        { id: "greeting-tool", name: "greeting_tool.ts" },
+        { id: "compozy-http", name: "compozy.http" },
         { id: "env-example", name: ".env.example" },
-        { id: "package-json", name: "package.json" },
-        { id: "tsconfig", name: "tsconfig.json" },
+        { id: "docker-compose", name: "docker-compose.yaml" },
       ],
     },
   ]}
-  initialExpandedItems={["my-ai-project", "workflows", "agents", "tools"]}
+  initialExpandedItems={["my-ai-project", "workflows"]}
 />
 
 ## Prerequisites
@@ -155,7 +145,7 @@ Choose your infrastructure setup approach:
     # Start services
     docker-compose up -d
     ```
-    
+
     See our [Docker Compose reference](https://github.com/compozy/compozy/blob/main/cluster/docker-compose.yml) for service configuration.
   </Step>
 </Steps>
@@ -183,10 +173,9 @@ TEMPORAL_ENDPOINT=localhost:7233
 ```bash
 # Start your development server
 compozy dev
-
-# Your API will be available at http://localhost:5001
-# Web UI at http://localhost:3000 (if enabled)
 ```
+
+After this you will have your server running at `http://localhost:5001`.
 
 ## Quick Verification
 
@@ -196,8 +185,8 @@ Test your setup with a simple workflow:
 # List available workflows
 compozy workflow list
 
-# Execute the default hello-world workflow
-compozy workflow execute hello-world --input name="World"
+# Execute the default greeter workflow
+compozy workflow execute greeter --input '{"name": "World", "style": "friendly"}'
 ```
 
 ## Next Steps
