@@ -186,7 +186,7 @@ Your server will be running at `http://localhost:5001`.
 @workflowId = main-workflow
 
 ### Execute the workflow with friendly greeting
-POST {{baseUrl}}/workflows/{{workflowId}}/execute
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
 Content-Type: application/json
 
 {
@@ -197,7 +197,7 @@ Content-Type: application/json
 }
 
 ### Execute with formal greeting
-POST {{baseUrl}}/workflows/{{workflowId}}/execute
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
 Content-Type: application/json
 
 {
@@ -221,7 +221,7 @@ compozy workflow execute main-workflow \
   --input style="friendly"
 
 # Or via HTTP API
-curl -X POST http://localhost:5001/api/v0/workflows/main-workflow/execute \
+curl -X POST http://localhost:5001/api/v0/workflows/main-workflow/executions \
   -H "Content-Type: application/json" \
   -d '{"input": {"name": "Alice", "style": "friendly"}}'
 ```
@@ -263,7 +263,7 @@ Here's what happens when you execute this simple workflow:
     participant LLM as GPT-4.1
     participant DB as PostgreSQL
 
-    Client->>API: POST /workflows/main-workflow/execute
+    Client->>API: POST /workflows/main-workflow/executions
     API->>Worker: TriggerWorkflow(input: {name: "Alice", style: "friendly"})
     Worker->>Worker: Validate input & Generate exec ID
     Worker->>Temporal: StartWorkflow(CompozyWorkflow)
@@ -291,7 +291,7 @@ Here's what happens when you execute this simple workflow:
 
 <List className="mt-12">
   <ListItem title="HTTP API Layer">
-    The WorkflowController receives your request at `/api/v0/workflows/main-workflow/execute`
+    The WorkflowController receives your request at `/api/v0/workflows/main-workflow/executions`
   </ListItem>
   <ListItem title="Input Validation">
     The system validates that the required `name` field is provided and the optional `style` field is valid
