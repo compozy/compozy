@@ -64,13 +64,45 @@ compozy init my-ai-project
 cd my-ai-project
 ```
 
-This creates a complete project structure with:
-- `compozy.yaml` - Project configuration
-- `workflows/` - Workflow definitions
-- `agents/` - AI agent configurations  
-- `tools/` - TypeScript tools
-- `entrypoint.ts` - Runtime entry point
-- `.env.example` - Environment template
+This creates a complete project structure:
+
+<ProjectStructure 
+  structure={[
+    {
+      id: "my-ai-project",
+      name: "my-ai-project/",
+      children: [
+        { id: "compozy-yaml", name: "compozy.yaml" },
+        {
+          id: "workflows",
+          name: "workflows/",
+          children: [
+            { id: "hello-world", name: "hello-world.yaml" },
+          ],
+        },
+        {
+          id: "agents",
+          name: "agents/",
+          children: [
+            { id: "default-agent", name: "default.yaml" },
+          ],
+        },
+        {
+          id: "tools",
+          name: "tools/",
+          children: [
+            { id: "index-ts", name: "index.ts" },
+          ],
+        },
+        { id: "entrypoint", name: "entrypoint.ts" },
+        { id: "env-example", name: ".env.example" },
+        { id: "package-json", name: "package.json" },
+        { id: "tsconfig", name: "tsconfig.json" },
+      ],
+    },
+  ]}
+  initialExpandedItems={["my-ai-project", "workflows", "agents", "tools"]}
+/>
 
 ## Prerequisites
 
@@ -90,27 +122,43 @@ Your project needs these dependencies:
 
 ## Infrastructure Setup
 
-### Option 1: Cloud Services (Recommended)
+Choose your infrastructure setup approach:
 
-Use managed cloud services for production:
+<Steps>
+  <Step
+    title="Option 1: Cloud Services (Recommended)"
+    description="Use managed cloud services for production deployments"
+    icon="Cloud"
+  >
+    <List>
+      <ListItem title="PostgreSQL" icon="Database">
+        AWS RDS, Neon, Supabase, or any PostgreSQL-compatible service
+      </ListItem>
+      <ListItem title="Redis" icon="Zap">
+        AWS ElastiCache, Upstash, Redis Cloud, or any Redis-compatible service
+      </ListItem>
+      <ListItem title="Temporal" icon="Clock">
+        Temporal Cloud for managed service, or self-hosted deployment
+      </ListItem>
+    </List>
+  </Step>
 
-- **PostgreSQL**: AWS RDS, Neon, Supabase, etc.
-- **Redis**: AWS ElastiCache, Upstash, Redis Cloud, etc.  
-- **Temporal**: Temporal Cloud, self-hosted, or local
+  <Step
+    title="Option 2: Local Development"
+    description="Use Docker Compose for a complete local development environment"
+    icon="Container"
+  >
+    ```bash
+    # Download our docker-compose.yml
+    curl -O https://raw.githubusercontent.com/compozy/compozy/main/cluster/docker-compose.yml
 
-### Option 2: Local Development
-
-Use our Docker Compose setup for local development:
-
-```bash
-# Download our docker-compose.yml
-curl -O https://raw.githubusercontent.com/compozy/compozy/main/cluster/docker-compose.yml
-
-# Start services
-docker-compose up -d
-```
-
-See our [Docker Compose reference](https://github.com/compozy/compozy/blob/main/cluster/docker-compose.yml) for service configuration.
+    # Start services
+    docker-compose up -d
+    ```
+    
+    See our [Docker Compose reference](https://github.com/compozy/compozy/blob/main/cluster/docker-compose.yml) for service configuration.
+  </Step>
+</Steps>
 
 ## Configuration
 

@@ -1,0 +1,90 @@
+### {{ .Name }} API Tests
+### This file contains HTTP requests to test your Compozy workflows
+### Make sure Compozy is running on localhost:5001 before executing these requests
+
+@baseUrl = http://localhost:5001/api/v0
+@workflowId = greeter
+
+### -----------------------------------------------------------------------------
+### Execute greet workflow with friendly style
+### -----------------------------------------------------------------------------
+# @name friendlyGreeting
+POST {{`{{baseUrl}}`}}/workflows/{{`{{workflowId}}`}}/executions
+Content-Type: application/json
+
+{
+  "input": {
+    "name": "World",
+    "style": "friendly"
+  }
+}
+
+### Get execution ID from response
+@execId1 = {{`{{friendlyGreeting.response.body.data.exec_id}}`}}
+
+### Check execution status
+GET {{`{{baseUrl}}`}}/executions/workflows/{{`{{execId1}}`}}
+Accept: application/json
+
+### -----------------------------------------------------------------------------
+### Execute greet workflow with formal style
+### -----------------------------------------------------------------------------
+# @name formalGreeting
+POST {{`{{baseUrl}}`}}/workflows/{{`{{workflowId}}`}}/executions
+Content-Type: application/json
+
+{
+  "input": {
+    "name": "Dr. Smith",
+    "style": "formal"
+  }
+}
+
+### Get execution ID from response
+@execId2 = {{`{{formalGreeting.response.body.data.exec_id}}`}}
+
+### Check execution status
+GET {{`{{baseUrl}}`}}/executions/workflows/{{`{{execId2}}`}}
+Accept: application/json
+
+### -----------------------------------------------------------------------------
+### Execute greet workflow with casual style
+### -----------------------------------------------------------------------------
+# @name casualGreeting
+POST {{`{{baseUrl}}`}}/workflows/{{`{{workflowId}}`}}/executions
+Content-Type: application/json
+
+{
+  "input": {
+    "name": "Buddy",
+    "style": "casual"
+  }
+}
+
+### Get execution ID from response
+@execId3 = {{`{{casualGreeting.response.body.data.exec_id}}`}}
+
+### Check execution status
+GET {{`{{baseUrl}}`}}/executions/workflows/{{`{{execId3}}`}}
+Accept: application/json
+
+### -----------------------------------------------------------------------------
+### Execute greet workflow with enthusiastic style
+### -----------------------------------------------------------------------------
+# @name enthusiasticGreeting
+POST {{`{{baseUrl}}`}}/workflows/{{`{{workflowId}}`}}/executions
+Content-Type: application/json
+
+{
+  "input": {
+    "name": "Team",
+    "style": "enthusiastic"
+  }
+}
+
+### Get execution ID from response
+@execId4 = {{`{{enthusiasticGreeting.response.body.data.exec_id}}`}}
+
+### Check execution status
+GET {{`{{baseUrl}}`}}/executions/workflows/{{`{{execId4}}`}}
+Accept: application/json

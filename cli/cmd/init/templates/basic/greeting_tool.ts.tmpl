@@ -8,7 +8,7 @@ interface GreetingOutput {
   timestamp: string;
 }
 
-export async function greetingTool({ input }: { input: GreetingInput }): Promise<GreetingOutput> {
+export async function greetingTool(input: GreetingInput): Promise<GreetingOutput> {
   const { name, style = "friendly" } = input;
   const styles = {
     friendly: `Hello there, ${name}! Hope you're having a great day!`,

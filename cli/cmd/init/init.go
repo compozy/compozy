@@ -13,9 +13,10 @@ import (
 	"text/template"
 
 	"github.com/Masterminds/sprig/v3"
-	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/compozy/compozy/cli/cmd"
+	"github.com/compozy/compozy/cli/cmd/init/components"
+	"github.com/compozy/compozy/cli/helpers"
 	"github.com/compozy/compozy/cli/tui/models"
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
@@ -85,299 +86,74 @@ type AutoloadConfig struct {
 
 // Embedded template files
 //
-//go:embed templates/compozy.yaml.tmpl
-var compozyTemplate string
+//go:embed templates/basic/compozy.yaml.tmpl
+var basicCompozyTemplate string
 
-//go:embed templates/entrypoint.ts.tmpl
-var entrypointTemplate string
+//go:embed templates/basic/entrypoint.ts.tmpl
+var basicEntrypointTemplate string
 
-//go:embed templates/workflow.yaml.tmpl
-var workflowTemplate string
+//go:embed templates/basic/workflow.yaml.tmpl
+var basicWorkflowTemplate string
 
-//go:embed templates/readme.md.tmpl
-var readmeTemplate string
+//go:embed templates/basic/greeting_tool.ts.tmpl
+var basicGreetingToolTemplate string
 
-//go:embed templates/greeting_tool.ts.tmpl
-var greetingToolTemplate string
+//go:embed templates/basic/docker-compose.yaml.tmpl
+var basicDockerComposeTemplate string
 
-//go:embed templates/docker-compose.yaml.tmpl
-var dockerComposeTemplate string
+//go:embed templates/basic/env.example.tmpl
+var basicEnvExampleTemplate string
 
-//go:embed templates/env.example.tmpl
-var envExampleTemplate string
+//go:embed templates/basic/compozy.http.tmpl
+var basicCompozyHTTPTemplate string
 
-// Form field indices for maintainability
-const (
-	formFieldName = iota
-	formFieldDescription
-	formFieldVersion
-	formFieldAuthor
-	formFieldAuthorURL
-	formFieldTemplate
-	formFieldCount
-)
-
-// Form field configuration for consolidation
-type formFieldConfig struct {
-	Placeholder  string
-	CharLimit    int
-	Width        int
-	DefaultValue string
+// templateSet holds all templates for a specific template type
+type templateSet struct {
+	compozy       string
+	entrypoint    string
+	workflow      string
+	greetingTool  string
+	dockerCompose string
+	envExample    string
+	compozyHTTP   string
 }
 
-// Form field configurations
-var formFieldConfigs = map[int]formFieldConfig{
-	formFieldName: {
-		Placeholder: "Enter project name",
-		CharLimit:   50,
-		Width:       30,
-	},
-	formFieldDescription: {
-		Placeholder: "Enter project description",
-		CharLimit:   200,
-		Width:       50,
-	},
-	formFieldVersion: {
-		Placeholder:  "Enter project version",
-		CharLimit:    20,
-		Width:        20,
-		DefaultValue: "0.1.0",
-	},
-	formFieldAuthor: {
-		Placeholder: "Enter author name",
-		CharLimit:   50,
-		Width:       30,
-	},
-	formFieldAuthorURL: {
-		Placeholder: "Enter author URL",
-		CharLimit:   100,
-		Width:       40,
-	},
-	formFieldTemplate: {
-		Placeholder:  "Enter template name",
-		CharLimit:    30,
-		Width:        20,
-		DefaultValue: "basic",
-	},
-}
-
-// initFormModel represents the interactive form model
-type initFormModel struct {
-	models.BaseModel
-	inputs    []textinput.Model
-	focused   int
-	submitted bool
-	opts      *Options
-}
-
-// dockerConfirmModel represents the Docker setup confirmation
-type dockerConfirmModel struct {
-	models.BaseModel
-	confirmed bool
-	choice    bool
-}
-
-// newDockerConfirm creates a new Docker confirmation model
-func newDockerConfirm() *dockerConfirmModel {
-	return &dockerConfirmModel{
-		BaseModel: models.NewBaseModel(context.Background(), models.ModeTUI),
-		confirmed: false,
-		choice:    false,
+// getTemplateSet returns the appropriate template set based on the template name
+// To add a new template:
+// 1. Create a new directory under templates/ (e.g., templates/advanced/)
+// 2. Add all template files to that directory
+// 3. Add go:embed directives for each template file
+// 4. Add a new case in this switch statement
+// 5. Update the form in components/project_form.go to include the new option
+func getTemplateSet(templateName string) (*templateSet, error) {
+	switch templateName {
+	case "basic":
+		return &templateSet{
+			compozy:       basicCompozyTemplate,
+			entrypoint:    basicEntrypointTemplate,
+			workflow:      basicWorkflowTemplate,
+			greetingTool:  basicGreetingToolTemplate,
+			dockerCompose: basicDockerComposeTemplate,
+			envExample:    basicEnvExampleTemplate,
+			compozyHTTP:   basicCompozyHTTPTemplate,
+		}, nil
+	default:
+		return nil, fmt.Errorf("unknown template: %s", templateName)
 	}
 }
 
-// Init initializes the Docker confirmation model
-func (m *dockerConfirmModel) Init() tea.Cmd {
-	return nil
-}
-
-// Update handles Docker confirmation updates
-func (m *dockerConfirmModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if keyMsg, ok := msg.(tea.KeyMsg); ok {
-		switch keyMsg.String() {
-		case "y", "Y":
-			m.choice = true
-			m.confirmed = true
-			return m, tea.Quit
-		case "n", "N":
-			m.choice = false
-			m.confirmed = true
-			return m, tea.Quit
-		case "ctrl+c", "q":
-			return m, tea.Quit
-		}
+// getRequiredDirectories returns the directories that should be created for a given template
+func getRequiredDirectories(templateName string) []string {
+	switch templateName {
+	case "basic":
+		// Basic template only needs workflows directory
+		// The autoload configuration in compozy.yaml handles agents and tools
+		// but we don't create empty directories
+		return []string{"workflows"}
+	default:
+		// Default to creating all directories for unknown templates
+		return []string{"workflows", "tools", "agents"}
 	}
-	return m, nil
-}
-
-// View renders the Docker confirmation prompt
-func (m *dockerConfirmModel) View() string {
-	if m.confirmed {
-		if m.choice {
-			return "✅ Docker Compose setup will be included\n"
-		}
-		return "⏭️  Skipping Docker Compose setup\n"
-	}
-	return `
-🐳 Would you like to include Docker Compose setup?
-
-This will create:
-  • docker-compose.yaml with Redis, PostgreSQL, and Temporal
-  • env.example with configuration variables
-
-Include Docker setup? (y/N): `
-}
-
-// newInitForm creates a new interactive form
-func newInitForm(opts *Options) *initFormModel {
-	inputs := make([]textinput.Model, formFieldCount)
-
-	// Get option values map for easier access
-	optionValues := map[int]string{
-		formFieldName:        opts.Name,
-		formFieldDescription: opts.Description,
-		formFieldVersion:     opts.Version,
-		formFieldAuthor:      opts.Author,
-		formFieldAuthorURL:   opts.AuthorURL,
-		formFieldTemplate:    opts.Template,
-	}
-
-	// Configure all form fields using the consolidated configuration
-	for i := range formFieldCount {
-		config := formFieldConfigs[i]
-		inputs[i] = textinput.New()
-		inputs[i].Placeholder = config.Placeholder
-		inputs[i].CharLimit = config.CharLimit
-		inputs[i].Width = config.Width
-
-		// Set value from options or default
-		if value := optionValues[i]; value != "" {
-			inputs[i].SetValue(value)
-		} else if config.DefaultValue != "" {
-			inputs[i].SetValue(config.DefaultValue)
-		}
-	}
-
-	// Focus the first input
-	inputs[formFieldName].Focus()
-
-	return &initFormModel{
-		BaseModel: models.NewBaseModel(context.Background(), models.ModeTUI),
-		inputs:    inputs,
-		focused:   0,
-		opts:      opts,
-	}
-}
-
-// Init initializes the form
-func (m *initFormModel) Init() tea.Cmd {
-	return textinput.Blink
-}
-
-// Update handles form updates
-func (m *initFormModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
-	var cmds []tea.Cmd
-
-	if keyMsg, ok := msg.(tea.KeyMsg); ok {
-		switch keyMsg.String() {
-		case "ctrl+c", "q":
-			return m, tea.Quit
-		case "enter":
-			if m.focused == len(m.inputs)-1 {
-				m.submitted = true
-				return m, tea.Quit
-			}
-			m.nextInput()
-		case "tab", "shift+tab", "up", "down":
-			if keyMsg.String() == "up" || keyMsg.String() == "shift+tab" {
-				m.prevInput()
-			} else {
-				m.nextInput()
-			}
-		}
-	}
-
-	// Update the focused input
-	m.inputs[m.focused], cmd = m.inputs[m.focused].Update(msg)
-	cmds = append(cmds, cmd)
-
-	return m, tea.Batch(cmds...)
-}
-
-// View renders the form
-func (m *initFormModel) View() string {
-	if m.submitted {
-		return "✅ Form submitted successfully!\n"
-	}
-
-	var b strings.Builder
-	b.WriteString("🚀 Initialize New Compozy Project\n\n")
-
-	fields := []string{
-		"Project Name:",
-		"Description:",
-		"Version:",
-		"Author:",
-		"Author URL:",
-		"Template:",
-	}
-
-	for i, field := range fields {
-		focused := i == m.focused
-		if focused {
-			b.WriteString("❯ ")
-		} else {
-			b.WriteString("  ")
-		}
-
-		b.WriteString(field)
-		b.WriteString("\n  ")
-		b.WriteString(m.inputs[i].View())
-		b.WriteString("\n\n")
-	}
-
-	b.WriteString("Press Enter to continue, Tab to navigate, Ctrl+C to quit\n")
-	return b.String()
-}
-
-// nextInput focuses the next input
-func (m *initFormModel) nextInput() {
-	m.inputs[m.focused].Blur()
-	m.focused = (m.focused + 1) % len(m.inputs)
-	m.inputs[m.focused].Focus()
-}
-
-// prevInput focuses the previous input
-func (m *initFormModel) prevInput() {
-	m.inputs[m.focused].Blur()
-	m.focused = (m.focused - 1 + len(m.inputs)) % len(m.inputs)
-	m.inputs[m.focused].Focus()
-}
-
-// Getter methods for form data
-func (m *initFormModel) getName() string {
-	return strings.TrimSpace(m.inputs[formFieldName].Value())
-}
-
-func (m *initFormModel) getDescription() string {
-	return strings.TrimSpace(m.inputs[formFieldDescription].Value())
-}
-
-func (m *initFormModel) getVersion() string {
-	return strings.TrimSpace(m.inputs[formFieldVersion].Value())
-}
-
-func (m *initFormModel) getAuthor() string {
-	return strings.TrimSpace(m.inputs[formFieldAuthor].Value())
-}
-
-func (m *initFormModel) getAuthorURL() string {
-	return strings.TrimSpace(m.inputs[formFieldAuthorURL].Value())
-}
-
-func (m *initFormModel) getTemplate() string {
-	return strings.TrimSpace(m.inputs[formFieldTemplate].Value())
 }
 
 // NewInitCommand creates the init command using the unified command pattern
@@ -390,7 +166,7 @@ func NewInitCommand() *cobra.Command {
 		Use:   "init [path]",
 		Short: "Initialize a new Compozy project",
 		Long: `Initialize a new Compozy project with the specified structure.
-Creates a new project directory with compozy.yaml, workflows/, tools/, and agents/ directories.
+Creates a new project directory with compozy.yaml and workflows directory.
 
 Examples:
   compozy init my-project
@@ -412,6 +188,10 @@ Examples:
 			}
 			opts.Path = absPath
 
+			// Force interactive mode if no name is provided and not explicitly non-interactive
+			if opts.Name == "" && !cobraCmd.Flags().Changed("format") {
+				opts.Interactive = true
+			}
 			return executeInitCommand(cobraCmd, opts, args)
 		},
 	}
@@ -431,16 +211,33 @@ Examples:
 
 // executeInitCommand handles the init command execution using the unified executor pattern
 func executeInitCommand(cobraCmd *cobra.Command, opts *Options, args []string) error {
-	return cmd.ExecuteCommand(cobraCmd, cmd.ExecutorOptions{
+	// For init command, we want to use interactive mode by default when name is not provided
+	// unless the user explicitly sets format to json
+	shouldBeInteractive := opts.Interactive || (opts.Name == "" && !cobraCmd.Flags().Changed("format"))
+
+	// Create executor manually to control mode detection
+	executor, err := cmd.NewCommandExecutor(cobraCmd, cmd.ExecutorOptions{
 		RequireAuth: false,
-	}, cmd.ModeHandlers{
+	})
+	if err != nil {
+		return cmd.HandleCommonErrors(err, helpers.DetectMode(cobraCmd))
+	}
+
+	// If we should be interactive but mode was detected as JSON, switch to TUI
+	if shouldBeInteractive && executor.GetMode() == models.ModeJSON {
+		// Use TUI handler directly
+		return runInitTUI(cobraCmd.Context(), cobraCmd, executor, opts)
+	}
+
+	// Otherwise use normal mode-based execution
+	return cmd.HandleCommonErrors(executor.Execute(cobraCmd.Context(), cobraCmd, cmd.ModeHandlers{
 		JSON: func(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.CommandExecutor, _ []string) error {
 			return runInitJSON(ctx, cobraCmd, executor, opts)
 		},
 		TUI: func(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.CommandExecutor, _ []string) error {
 			return runInitTUI(ctx, cobraCmd, executor, opts)
 		},
-	}, args)
+	}, args), executor.GetMode())
 }
 
 // runInitJSON handles non-interactive JSON mode
@@ -473,6 +270,13 @@ func runInitJSON(ctx context.Context, _ *cobra.Command, _ *cmd.CommandExecutor, 
 		return fmt.Errorf("failed to create project structure: %w", err)
 	}
 
+	// Check which env example file was created
+	envFileName := "env.example"
+	envCompozyPath := filepath.Join(opts.Path, "env-compozy.example")
+	if _, err := os.Stat(envCompozyPath); err == nil {
+		envFileName = "env-compozy.example"
+	}
+
 	// Output JSON response
 	response := map[string]any{
 		"success": true,
@@ -480,6 +284,14 @@ func runInitJSON(ctx context.Context, _ *cobra.Command, _ *cmd.CommandExecutor, 
 		"path":    opts.Path,
 		"name":    opts.Name,
 		"version": opts.Version,
+		"envFile": envFileName,
+		"docker":  opts.DockerSetup,
+		"files": map[string]string{
+			"config":   "compozy.yaml",
+			"env":      envFileName,
+			"http":     "compozy.http",
+			"workflow": "workflows/main.yaml",
+		},
 	}
 
 	return outputInitJSON(response)
@@ -496,11 +308,9 @@ func runInitTUI(ctx context.Context, _ *cobra.Command, _ *cmd.CommandExecutor, o
 		log.Debug("debug mode enabled from global config")
 	}
 
-	// If name is not provided OR interactive flag is set, start interactive form
-	if opts.Interactive || opts.Name == "" {
-		if err := runInteractiveForm(ctx, opts); err != nil {
-			return fmt.Errorf("interactive form failed: %w", err)
-		}
+	// Always run interactive form in TUI mode since we're in runInitTUI
+	if err := runInteractiveForm(ctx, opts); err != nil {
+		return fmt.Errorf("interactive form failed: %w", err)
 	}
 
 	// Validate options
@@ -521,22 +331,34 @@ func runInitTUI(ctx context.Context, _ *cobra.Command, _ *cmd.CommandExecutor, o
 	fmt.Printf("🎉 Project '%s' initialized successfully!\n", opts.Name)
 	fmt.Printf("📁 Location: %s\n", opts.Path)
 
+	// Check which env example file was created
+	envFileName := "env.example"
+	envCompozyPath := filepath.Join(opts.Path, "env-compozy.example")
+	if _, err := os.Stat(envCompozyPath); err == nil {
+		// env-compozy.example was created
+		envFileName = "env-compozy.example"
+	}
+
 	if opts.DockerSetup {
 		fmt.Printf("\n🐳 Docker setup included:\n")
 		fmt.Printf("  • docker-compose.yaml - Infrastructure services\n")
-		fmt.Printf("  • env.example - Environment variables template\n")
+		fmt.Printf("  • %s - Environment variables template\n", envFileName)
+	} else {
+		fmt.Printf("\n📄 Configuration files created:\n")
+		fmt.Printf("  • %s - Environment variables template\n", envFileName)
 	}
+
+	fmt.Printf("  • compozy.http - API test requests\n")
 
 	fmt.Printf("\n📋 Next steps:\n")
 	fmt.Printf("  1. cd %s\n", opts.Path)
+	fmt.Printf("  2. Copy %s to .env and add your API keys\n", envFileName)
 	if opts.DockerSetup {
-		fmt.Printf("  2. Copy env.example to .env and add your API keys\n")
 		fmt.Printf("  3. Run 'docker-compose up -d' to start services\n")
 		fmt.Printf("  4. Run 'compozy dev' to start the development server\n")
 	} else {
-		fmt.Printf("  2. Edit compozy.yaml to configure your project\n")
-		fmt.Printf("  3. Add your workflows to the workflows/ directory\n")
-		fmt.Printf("  4. Add your tools to the tools/ directory\n")
+		fmt.Printf("  3. Edit compozy.yaml to configure your project\n")
+		fmt.Printf("  4. Modify the example workflow in workflows/main.yaml\n")
 		fmt.Printf("  5. Run 'compozy dev' to start the development server\n")
 	}
 
@@ -545,36 +367,41 @@ func runInitTUI(ctx context.Context, _ *cobra.Command, _ *cmd.CommandExecutor, o
 
 // runInteractiveForm runs the interactive form to collect project information
 func runInteractiveForm(_ context.Context, opts *Options) error {
-	// Create and run the interactive form
-	form := newInitForm(opts)
+	// Create project form data from existing options
+	projectData := &components.ProjectFormData{
+		Name:          opts.Name,
+		Description:   opts.Description,
+		Version:       opts.Version,
+		Author:        opts.Author,
+		AuthorURL:     opts.AuthorURL,
+		Template:      opts.Template,
+		IncludeDocker: opts.DockerSetup,
+	}
 
-	program := tea.NewProgram(form, tea.WithAltScreen())
-	finalModel, err := program.Run()
+	// Create and run the init model with header and form
+	initModel := components.NewInitModel(projectData)
+
+	p := tea.NewProgram(initModel, tea.WithAltScreen(), tea.WithMouseAllMotion())
+	finalModel, err := p.Run()
 	if err != nil {
-		return fmt.Errorf("failed to run interactive form: %w", err)
+		return fmt.Errorf("failed to run project form: %w", err)
 	}
 
-	// Get the final form data
-	if formModel, ok := finalModel.(*initFormModel); ok {
-		opts.Name = formModel.getName()
-		opts.Description = formModel.getDescription()
-		opts.Version = formModel.getVersion()
-		opts.Author = formModel.getAuthor()
-		opts.AuthorURL = formModel.getAuthorURL()
-		opts.Template = formModel.getTemplate()
+	// Check if form was canceled
+	if m, ok := finalModel.(*components.InitModel); ok {
+		if m.IsCanceled() {
+			return fmt.Errorf("initialization canceled by user")
+		}
 	}
 
-	// Ask about Docker setup
-	dockerConfirm := newDockerConfirm()
-	dockerProgram := tea.NewProgram(dockerConfirm)
-	dockerFinalModel, err := dockerProgram.Run()
-	if err != nil {
-		return fmt.Errorf("failed to run Docker confirmation: %w", err)
-	}
-
-	if dockerModel, ok := dockerFinalModel.(*dockerConfirmModel); ok {
-		opts.DockerSetup = dockerModel.choice
-	}
+	// Copy data back to options
+	opts.Name = projectData.Name
+	opts.Description = projectData.Description
+	opts.Version = projectData.Version
+	opts.Author = projectData.Author
+	opts.AuthorURL = projectData.AuthorURL
+	opts.Template = projectData.Template
+	opts.DockerSetup = projectData.IncludeDocker
 
 	return nil
 }
@@ -646,8 +473,8 @@ func createProjectStructure(ctx context.Context, opts *Options, config *ProjectC
 		return fmt.Errorf("failed to create project directory: %w", err)
 	}
 
-	// Create subdirectories
-	subdirs := []string{"workflows", "tools", "agents"}
+	// Create subdirectories based on template
+	subdirs := getRequiredDirectories(opts.Template)
 	for _, subdir := range subdirs {
 		dirPath := filepath.Join(opts.Path, subdir)
 		if err := os.MkdirAll(dirPath, 0755); err != nil {
@@ -670,7 +497,12 @@ func createProjectStructure(ctx context.Context, opts *Options, config *ProjectC
 
 // createCompozyYAML creates the compozy.yaml file
 func createCompozyYAML(opts *Options, config *ProjectConfig) error {
-	return createFromTemplate(opts, "compozy.yaml", compozyTemplate, config)
+	// Get the appropriate template set
+	templates, err := getTemplateSet(opts.Template)
+	if err != nil {
+		return fmt.Errorf("failed to get template set: %w", err)
+	}
+	return createFromTemplate(opts, "compozy.yaml", templates.compozy, config)
 }
 
 // createTemplateFiles creates template-specific files
@@ -678,29 +510,37 @@ func createTemplateFiles(ctx context.Context, opts *Options, config *ProjectConf
 	log := logger.FromContext(ctx)
 	log.Debug("creating template files", "template", opts.Template)
 
-	if err := createEntrypoint(opts, config); err != nil {
+	// Get the appropriate template set
+	templates, err := getTemplateSet(opts.Template)
+	if err != nil {
+		return fmt.Errorf("failed to get template set: %w", err)
+	}
+
+	if err := createEntrypoint(opts, config, templates); err != nil {
 		return fmt.Errorf("failed to create entrypoint: %w", err)
 	}
 
-	if err := createWorkflow(opts, config); err != nil {
+	if err := createWorkflow(opts, config, templates); err != nil {
 		return fmt.Errorf("failed to create workflow: %w", err)
 	}
 
-	if err := createGreetingTool(opts, config); err != nil {
+	if err := createGreetingTool(opts, config, templates); err != nil {
 		return fmt.Errorf("failed to create greeting tool: %w", err)
 	}
 
-	if err := createReadme(opts, config); err != nil {
-		return fmt.Errorf("failed to create README: %w", err)
+	if err := createCompozyHTTP(opts, config, templates); err != nil {
+		return fmt.Errorf("failed to create compozy.http: %w", err)
+	}
+
+	// Always create env.example file
+	if err := createEnvExample(opts, config, templates); err != nil {
+		return fmt.Errorf("failed to create env example: %w", err)
 	}
 
 	// Create Docker setup files if requested
 	if opts.DockerSetup {
-		if err := createDockerCompose(opts, config); err != nil {
+		if err := createDockerCompose(opts, config, templates); err != nil {
 			return fmt.Errorf("failed to create docker-compose.yaml: %w", err)
-		}
-		if err := createEnvExample(opts, config); err != nil {
-			return fmt.Errorf("failed to create .env.example: %w", err)
 		}
 	}
 
@@ -708,8 +548,8 @@ func createTemplateFiles(ctx context.Context, opts *Options, config *ProjectConf
 }
 
 // createEntrypoint creates the entrypoint.ts file
-func createEntrypoint(opts *Options, config *ProjectConfig) error {
-	if err := createFromTemplate(opts, "entrypoint.ts", entrypointTemplate, config); err != nil {
+func createEntrypoint(opts *Options, config *ProjectConfig, templates *templateSet) error {
+	if err := createFromTemplate(opts, "entrypoint.ts", templates.entrypoint, config); err != nil {
 		return err
 	}
 	// Set executable permissions for the entrypoint file
@@ -721,29 +561,37 @@ func createEntrypoint(opts *Options, config *ProjectConfig) error {
 }
 
 // createWorkflow creates the main workflow file
-func createWorkflow(opts *Options, config *ProjectConfig) error {
+func createWorkflow(opts *Options, config *ProjectConfig, templates *templateSet) error {
 	workflowPath := filepath.Join("workflows", "main.yaml")
-	return createFromTemplate(opts, workflowPath, workflowTemplate, config)
+	return createFromTemplate(opts, workflowPath, templates.workflow, config)
 }
 
 // createGreetingTool creates the greeting_tool.ts file
-func createGreetingTool(opts *Options, config *ProjectConfig) error {
-	return createFromTemplate(opts, "greeting_tool.ts", greetingToolTemplate, config)
+func createGreetingTool(opts *Options, config *ProjectConfig, templates *templateSet) error {
+	return createFromTemplate(opts, "greeting_tool.ts", templates.greetingTool, config)
 }
 
-// createReadme creates the README.md file
-func createReadme(opts *Options, config *ProjectConfig) error {
-	return createFromTemplate(opts, "README.md", readmeTemplate, config)
+// createCompozyHTTP creates the compozy.http file
+func createCompozyHTTP(opts *Options, config *ProjectConfig, templates *templateSet) error {
+	return createFromTemplate(opts, "compozy.http", templates.compozyHTTP, config)
 }
 
 // createDockerCompose creates the docker-compose.yaml file
-func createDockerCompose(opts *Options, config *ProjectConfig) error {
-	return createFromTemplate(opts, "docker-compose.yaml", dockerComposeTemplate, config)
+func createDockerCompose(opts *Options, config *ProjectConfig, templates *templateSet) error {
+	return createFromTemplate(opts, "docker-compose.yaml", templates.dockerCompose, config)
 }
 
 // createEnvExample creates the env.example file
-func createEnvExample(opts *Options, config *ProjectConfig) error {
-	return createFromTemplate(opts, "env.example", envExampleTemplate, config)
+func createEnvExample(opts *Options, config *ProjectConfig, templates *templateSet) error {
+	// Check if env.example already exists
+	envExamplePath := filepath.Join(opts.Path, "env.example")
+	if _, err := os.Stat(envExamplePath); err == nil {
+		// File exists, create env-compozy.example instead
+		fmt.Printf("⚠️  env.example already exists, creating env-compozy.example instead\n")
+		return createFromTemplate(opts, "env-compozy.example", templates.envExample, config)
+	}
+	// File doesn't exist, create env.example
+	return createFromTemplate(opts, "env.example", templates.envExample, config)
 }
 
 // createFromTemplate creates a file from a template with enhanced escaping

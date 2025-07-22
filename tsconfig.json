@@ -27,6 +27,7 @@
     ]
   },
   "include": [
+    "schemas/**/*",
     "examples/**/*",
     "docs/**/*",
     "tools/**/*"

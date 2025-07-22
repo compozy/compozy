@@ -1,4 +1,4 @@
-id: main-workflow
+id: greeter
 version: 0.1.0
 description: Generate personalized greetings
 
@@ -19,13 +19,13 @@ schemas:
 
 config:
   input:
-    $ref: schemas.#(id=="greeting_input")
+    $ref: local::schemas.#(id=="greeting_input")
 
 tools:
   - id: greeting_tool
     description: Generate personalized greetings
     input:
-      $ref: schemas.#(id=="greeting_input")
+      $ref: local::schemas.#(id=="greeting_input")
 
 agents:
   - id: greeter
