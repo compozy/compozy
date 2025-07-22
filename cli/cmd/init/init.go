@@ -11,7 +11,6 @@ import (
 	"github.com/compozy/compozy/cli/cmd"
 	"github.com/compozy/compozy/cli/cmd/init/components"
 	"github.com/compozy/compozy/cli/helpers"
-	"github.com/compozy/compozy/cli/tui/models"
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/template"
@@ -101,11 +100,9 @@ Examples:
 
 // executeInitCommand handles the init command execution using the unified executor pattern
 func executeInitCommand(cobraCmd *cobra.Command, opts *Options, args []string) error {
-	// For init command, we want to use interactive mode by default when name is not provided
-	// unless the user explicitly sets format to json
-	shouldBeInteractive := opts.Interactive || (opts.Name == "" && !cobraCmd.Flags().Changed("format"))
+	// Use standard mode detection without custom overrides
 
-	// Create executor manually to control mode detection
+	// Create executor using standard mode detection
 	executor, err := cmd.NewCommandExecutor(cobraCmd, cmd.ExecutorOptions{
 		RequireAuth: false,
 	})
@@ -113,13 +110,7 @@ func executeInitCommand(cobraCmd *cobra.Command, opts *Options, args []string) e
 		return cmd.HandleCommonErrors(err, helpers.DetectMode(cobraCmd))
 	}
 
-	// If we should be interactive but mode was detected as JSON, switch to TUI
-	if shouldBeInteractive && executor.GetMode() == models.ModeJSON {
-		// Use TUI handler directly
-		return runInitTUI(cobraCmd.Context(), cobraCmd, executor, opts)
-	}
-
-	// Otherwise use normal mode-based execution
+	// Use normal mode-based execution
 	return cmd.HandleCommonErrors(executor.Execute(cobraCmd.Context(), cobraCmd, cmd.ModeHandlers{
 		JSON: func(ctx context.Context, cobraCmd *cobra.Command, executor *cmd.CommandExecutor, _ []string) error {
 			return runInitJSON(ctx, cobraCmd, executor, opts)
