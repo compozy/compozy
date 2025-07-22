@@ -261,7 +261,7 @@ func (s *workflowMutateAPIService) Execute(
 		SetContext(ctx).
 		SetBody(input).
 		SetResult(&result).
-		Post(fmt.Sprintf("/workflows/%s/execute", id))
+		Post(fmt.Sprintf("/workflows/%s/executions", id))
 
 	if err != nil {
 		// Handle network errors

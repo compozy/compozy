@@ -420,7 +420,7 @@ curl http://localhost:5001/metrics
 # Prometheus-compatible format
 # HELP compozy_requests_total Total number of requests
 # TYPE compozy_requests_total counter
-compozy_requests_total{method="POST",endpoint="/workflows/execute"} 1234
+compozy_requests_total{method="POST",endpoint="/workflows/executions"} 1234
 compozy_requests_total{method="GET",endpoint="/health"} 5678
 
 # HELP compozy_request_duration_seconds Request duration
