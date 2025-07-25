@@ -1,0 +1,43 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://schemas.compozy.dev/config-ratelimit.json",
+  "$defs": {
+    "RateConfig": {
+      "properties": {
+        "limit": {
+          "type": "integer",
+          "description": "Limit specifies the maximum number of requests allowed.\n\nMust be greater than 0.\nExample: 100 for 100 requests per period"
+        },
+        "period": {
+          "type": "integer",
+          "description": "Period defines the time window for the rate limit.\n\nCommon values:\n  - `\"1s\"`: Per second\n  - `\"1m\"`: Per minute\n  - `\"1h\"`: Per hour\n  - `\"24h\"`: Per day"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "RateConfig represents a single rate limit configuration."
+    }
+  },
+  "properties": {
+    "global_rate": {
+      "$ref": "#/$defs/RateConfig",
+      "description": "GlobalRate applies to all requests system-wide.\n\nProtects against total system overload."
+    },
+    "api_key_rate": {
+      "$ref": "#/$defs/RateConfig",
+      "description": "APIKeyRate applies per API key.\n\nEnsures fair usage across different clients."
+    },
+    "prefix": {
+      "type": "string",
+      "description": "Prefix namespaces rate limit keys in Redis.\n\nDefault: \"ratelimit:\""
+    },
+    "max_retry": {
+      "type": "integer",
+      "description": "MaxRetry sets retry attempts for rate-limited requests.\n\nDefault: 3"
+    }
+  },
+  "additionalProperties": false,
+  "type": "object",
+  "description": "RateLimitConfig contains rate limiting configuration.",
+  "yamlCompatible": true
+}

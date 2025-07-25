@@ -6,7 +6,6 @@ file_contents.txt
 **/file_contents.txt
 examples/**/results.*
 .compozy
-schemas/
 sessions/
 compozy
 diff.txt
@@ -67,6 +66,8 @@ dev-debug.log
 **/.source
 storybook-static
 **/storybook-static
+docs/src/schemas
+**/docs/src/schemas
 
 # === GO-SPECIFIC ===
 # Binaries for programs and plugins

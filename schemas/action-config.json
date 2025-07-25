@@ -1,0 +1,52 @@
+{
+  "$defs": {
+    "Input": {
+      "type": "object"
+    },
+    "PathCWD": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "description": "Path holds the absolute working directory.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "Schema": {
+      "type": "object"
+    }
+  },
+  "$id": "https://schemas.compozy.dev/action-config.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "description": "ActionConfig defines a structured action that an agent can perform.",
+  "properties": {
+    "id": {
+      "description": "Unique identifier for the action within the agent's scope.\nUsed to invoke specific actions programmatically.\n\n- **Examples:** `\"analyze-code\"`, `\"generate-summary\"`, `\"validate-data\"`",
+      "type": "string"
+    },
+    "input": {
+      "$ref": "#/$defs/Schema",
+      "description": "JSON Schema defining the expected input parameters for this action.\nEnables validation and type checking of inputs before execution.\n\nIf `nil`, the action accepts any input format without validation.\n\n**Schema format:** JSON Schema Draft 7"
+    },
+    "json_mode": {
+      "description": "Forces JSON-formatted output for this specific action.\nWhen `true`, the agent must return valid JSON that conforms to the output schema.\n\n**Note:** If an `OutputSchema` is defined, JSON mode is automatically enabled.\n\n⚠️ **Trade-off:** Enabling JSON mode may limit the agent's ability to provide\nexplanatory text or reasoning alongside the structured output.",
+      "type": "boolean"
+    },
+    "output": {
+      "$ref": "#/$defs/Schema",
+      "description": "JSON Schema defining the expected output format from this action.\nUsed for validating agent responses and ensuring consistent output structure.\n\nIf `nil`, no output validation is performed.\n\n**Schema format:** JSON Schema Draft 7"
+    },
+    "prompt": {
+      "description": "Detailed instructions for the agent when executing this action.\nShould clearly define the expected behavior, output format, and any constraints.\n\n**Best practices:**\n- Be specific about the desired outcome\n- Include examples if complex formatting is required\n- Define clear success criteria\n- Specify any limitations or boundaries",
+      "type": "string"
+    },
+    "with": {
+      "$ref": "#/$defs/Input",
+      "description": "Default parameters to provide to the action.\nThese are merged with runtime parameters, with runtime values taking precedence.\n\n**Use cases:**\n- Setting default configuration options\n- Providing constant context values\n- Pre-filling common parameters"
+    }
+  },
+  "type": "object",
+  "yamlCompatible": true
+}

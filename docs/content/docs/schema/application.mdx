@@ -9,7 +9,6 @@ import databaseSchema from "@/schemas/config-database.json";
 import temporalSchema from "@/schemas/config-temporal.json";
 import runtimeSchema from "@/schemas/runtime.json";
 import limitsSchema from "@/schemas/config-limits.json";
-import openaiSchema from "@/schemas/config-openai.json";
 import memorySchema from "@/schemas/config-memory.json";
 import llmSchema from "@/schemas/config-llm.json";
 import ratelimitSchema from "@/schemas/config-ratelimit.json";
@@ -69,16 +68,6 @@ import cliSchema from "@/schemas/config-cli.json";
 
 <SchemaParams
   schema={limitsSchema}
-  title="Schema Definition"
-  collapsible={true}
-  defaultExpanded={true}
-  paramType="path"
-/>
-
-## OpenAI
-
-<SchemaParams
-  schema={openaiSchema}
   title="Schema Definition"
   collapsible={true}
   defaultExpanded={true}

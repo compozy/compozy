@@ -1,0 +1,71 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://schemas.compozy.dev/config-server.json",
+  "$defs": {
+    "AuthConfig": {
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "workflow_exceptions": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "AuthConfig contains authentication configuration."
+    },
+    "CORSConfig": {
+      "properties": {
+        "allowed_origins": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "allow_credentials": {
+          "type": "boolean"
+        },
+        "max_age": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "CORSConfig contains CORS configuration."
+    }
+  },
+  "properties": {
+    "host": {
+      "type": "string",
+      "description": "Host specifies the network interface to bind the server to.\n\nCommon values:\n  - `\"0.0.0.0\"`: Listen on all interfaces (default)\n  - `\"127.0.0.1\"` or `\"localhost\"`: Local access only\n  - Specific IP: Bind to a specific network interface"
+    },
+    "port": {
+      "type": "integer",
+      "description": "Port specifies the TCP port for the HTTP server.\n\nValid range: 1-65535. Common ports:\n  - `8080`: Default development port\n  - `80`: Standard HTTP (requires privileges)\n  - `443`: Standard HTTPS (requires privileges)"
+    },
+    "cors_enabled": {
+      "type": "boolean",
+      "description": "CORSEnabled enables Cross-Origin Resource Sharing headers.\n\nSet to `true` when the API is accessed from web browsers on different origins."
+    },
+    "cors": {
+      "$ref": "#/$defs/CORSConfig",
+      "description": "CORS configures Cross-Origin Resource Sharing policies.\n\nOnly applies when CORSEnabled is true."
+    },
+    "timeout": {
+      "type": "integer",
+      "description": "Timeout sets the maximum duration for processing requests.\n\nApplies to all HTTP operations including request reading, processing, and response writing.\nDefault: 30s. Increase for long-running operations."
+    },
+    "auth": {
+      "$ref": "#/$defs/AuthConfig",
+      "description": "Auth configures API authentication settings."
+    }
+  },
+  "additionalProperties": false,
+  "type": "object",
+  "description": "ServerConfig contains HTTP server configuration.",
+  "yamlCompatible": true
+}

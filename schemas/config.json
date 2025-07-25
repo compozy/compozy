@@ -1,0 +1,608 @@
+{
+  "$defs": {
+    "AuthConfig": {
+      "additionalProperties": false,
+      "description": "AuthConfig contains authentication configuration.",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "workflow_exceptions": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "CLIConfig": {
+      "additionalProperties": false,
+      "description": "CLIConfig contains CLI-specific configuration.",
+      "properties": {
+        "APIKey": {
+          "description": "APIKey authenticates CLI requests to the Compozy API.\n\n**Security**: Always use environment variables for API keys.\nNever commit API keys to version control.",
+          "type": "string"
+        },
+        "BaseURL": {
+          "description": "BaseURL specifies the Compozy API endpoint.\n\nDefault: \"https://api.compozy.dev\"\nUse custom endpoints for self-hosted or development environments.",
+          "type": "string"
+        },
+        "ColorMode": {
+          "description": "ColorMode controls terminal color output.\n\nOptions:\n  - `\"auto\"`: Detect terminal color support (default)\n  - `\"on\"`: Force color output\n  - `\"off\"`: Disable all color output",
+          "type": "string"
+        },
+        "ConfigFile": {
+          "description": "ConfigFile specifies a custom configuration file path.\n\nDefault: \"./compozy.yaml\" or \"~/.compozy/config.yaml\"",
+          "type": "string"
+        },
+        "Debug": {
+          "description": "Debug enables verbose debug logging.\n\nShows detailed API requests, responses, and internal operations.",
+          "type": "boolean"
+        },
+        "DefaultFormat": {
+          "description": "DefaultFormat sets the default output format.\n\nOptions:\n  - `\"json\"`: JSON format for programmatic consumption\n  - `\"tui\"`: Terminal UI with tables and formatting (default)\n  - `\"auto\"`: Automatically detect based on terminal capabilities",
+          "type": "string"
+        },
+        "EnvFile": {
+          "description": "EnvFile specifies a .env file to load environment variables from.\n\nVariables in this file are loaded before processing configuration.",
+          "type": "string"
+        },
+        "Interactive": {
+          "description": "Interactive enables interactive prompts and confirmations.\n\nDefault: true\nSet to false for non-interactive environments.",
+          "type": "boolean"
+        },
+        "Mode": {
+          "description": "Mode controls the CLI execution behavior.\n\nAvailable modes:\n  - `\"normal\"`: Standard interactive mode (default)\n  - `\"batch\"`: Non-interactive batch processing\n  - `\"script\"`: Optimized for scripting (minimal output)",
+          "type": "string"
+        },
+        "NoColor": {
+          "description": "NoColor disables all color output regardless of terminal support.\n\nOverrides ColorMode when set to true.",
+          "type": "boolean"
+        },
+        "OutputFormatAlias": {
+          "description": "OutputFormatAlias allows custom output format aliases.\n\nUsed internally for format customization.",
+          "type": "string"
+        },
+        "PageSize": {
+          "description": "PageSize sets the number of results per page in list operations.\n\nDefault: 50\nRange: 1-1000",
+          "type": "integer"
+        },
+        "Quiet": {
+          "description": "Quiet suppresses all non-error output.\n\nUseful for scripting and automation.",
+          "type": "boolean"
+        },
+        "ServerURL": {
+          "description": "ServerURL overrides the server URL for local development.\n\nThis takes precedence over BaseURL when set.\nExample: \"http://localhost:8080\" for local server",
+          "type": "string"
+        },
+        "Timeout": {
+          "description": "Timeout sets the maximum duration for API requests.\n\nDefault: 30s\nIncrease for long-running operations like workflow execution.",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "CORSConfig": {
+      "additionalProperties": false,
+      "description": "CORSConfig contains CORS configuration.",
+      "properties": {
+        "allow_credentials": {
+          "type": "boolean"
+        },
+        "allowed_origins": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "max_age": {
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "CacheConfig": {
+      "additionalProperties": false,
+      "description": "CacheConfig contains cache-specific configuration settings.",
+      "properties": {
+        "compression_enabled": {
+          "description": "CompressionEnabled activates data compression for cached items.\n\nReduces memory usage and network bandwidth at the cost of CPU.\nUses gzip compression for items above CompressionThreshold.\n\n**Default**: `true`",
+          "type": "boolean"
+        },
+        "compression_threshold": {
+          "description": "CompressionThreshold sets the minimum size for compression.\n\nItems smaller than this are stored uncompressed to avoid\nCPU overhead for minimal space savings.\n\n**Default**: `1024` (1KB)",
+          "type": "integer"
+        },
+        "enabled": {
+          "description": "Enabled determines if caching is active.\n\nWhen disabled, all cache operations become no-ops.\nUseful for debugging or when Redis is unavailable.\n\n**Default**: `true`",
+          "type": "boolean"
+        },
+        "eviction_policy": {
+          "description": "EvictionPolicy controls how items are removed when cache is full.\n\nOptions:\n  - `\"lru\"`: Least Recently Used (default)\n  - `\"lfu\"`: Least Frequently Used\n  - `\"ttl\"`: Time-based expiration only\n\n**Default**: `\"lru\"`",
+          "type": "string"
+        },
+        "max_item_size": {
+          "description": "MaxItemSize limits the maximum size of a single cached item.\n\nPrevents large objects from consuming excessive memory.\nItems larger than this are not cached.\n\n**Default**: `1048576` (1MB)",
+          "type": "integer"
+        },
+        "prefix": {
+          "description": "Prefix namespaces cache keys in Redis.\n\nPrevents key collisions when sharing Redis with other applications.\nFormat: `\"\u003capp\u003e:\u003cenvironment\u003e:cache:\"`\n\n**Default**: `\"compozy:cache:\"`",
+          "type": "string"
+        },
+        "stats_interval": {
+          "description": "StatsInterval controls how often cache statistics are logged.\n\nSet to 0 to disable statistics logging.\nUseful for monitoring cache hit rates and performance.\n\n**Default**: `5m`",
+          "type": "integer"
+        },
+        "ttl": {
+          "description": "TTL sets the default time-to-live for cached items.\n\nBalances data freshness with cache efficiency.\nCan be overridden per operation.\n\n**Default**: `24h`",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "DatabaseConfig": {
+      "additionalProperties": false,
+      "description": "DatabaseConfig contains database connection configuration.",
+      "properties": {
+        "conn_string": {
+          "description": "ConnString provides a complete PostgreSQL connection URL.\n\nFormat: `postgres://user:password@host:port/database?sslmode=mode`\nTakes precedence over individual connection parameters.",
+          "type": "string"
+        },
+        "host": {
+          "description": "Host specifies the database server hostname or IP address.\n\nDefault: \"localhost\"",
+          "type": "string"
+        },
+        "name": {
+          "description": "DBName specifies the database name to connect to.\n\nDefault: \"compozy\"",
+          "type": "string"
+        },
+        "password": {
+          "description": "Password specifies the database password for authentication.\n\n**Security**: Use environment variables in production.",
+          "type": "string"
+        },
+        "port": {
+          "description": "Port specifies the database server port.\n\nDefault: \"5432\" (PostgreSQL default)",
+          "type": "string"
+        },
+        "ssl_mode": {
+          "description": "SSLMode configures SSL/TLS connection security.\n\nOptions:\n  - `\"disable\"`: No SSL (development only)\n  - `\"prefer\"`: Try SSL, fallback to non-SSL\n  - `\"require\"`: SSL required (recommended)\n  - `\"verify-ca\"`: SSL with CA verification\n  - `\"verify-full\"`: SSL with full verification",
+          "type": "string"
+        },
+        "user": {
+          "description": "User specifies the database username for authentication.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "LLMConfig": {
+      "additionalProperties": false,
+      "description": "LLMConfig contains LLM service configuration.",
+      "properties": {
+        "admin_token": {
+          "description": "AdminToken authenticates administrative operations.\n\nRequired for:\n  - MCP server registration\n  - Proxy configuration changes\n  - Debug endpoints\n**Security**: Use environment variables",
+          "type": "string"
+        },
+        "proxy_url": {
+          "description": "ProxyURL specifies the MCP proxy server endpoint.\n\nThe proxy handles:\n  - MCP server connections\n  - Tool discovery and routing\n  - Protocol translation\nDefault: \"http://localhost:8081\"",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "LimitsConfig": {
+      "additionalProperties": false,
+      "description": "LimitsConfig contains system limits and constraints.",
+      "properties": {
+        "max_message_content": {
+          "description": "MaxMessageContent limits LLM message content size.\n\nPrevents excessive API costs and timeouts.\nDefault: 50MB (52428800 bytes)",
+          "type": "integer"
+        },
+        "max_nesting_depth": {
+          "description": "MaxNestingDepth limits JSON/YAML structure nesting.\n\nPrevents stack overflow from deeply nested data.\nDefault: 20",
+          "type": "integer"
+        },
+        "max_string_length": {
+          "description": "MaxStringLength limits individual string values.\n\nApplies to all string fields in requests and responses.\nDefault: 10MB (10485760 bytes)",
+          "type": "integer"
+        },
+        "max_task_context_depth": {
+          "description": "MaxTaskContextDepth limits task execution stack depth.\n\nPrevents infinite recursion in workflow execution.\nDefault: 10",
+          "type": "integer"
+        },
+        "max_total_content_size": {
+          "description": "MaxTotalContentSize limits total request/response size.\n\nPrevents memory exhaustion from large payloads.\nDefault: 100MB (104857600 bytes)",
+          "type": "integer"
+        },
+        "parent_update_batch_size": {
+          "description": "ParentUpdateBatchSize controls database update batching.\n\nLarger batches improve throughput but increase memory usage.\nDefault: 100",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "MCPProxyConfig": {
+      "additionalProperties": false,
+      "description": "MCPProxyConfig contains MCP proxy server configuration.",
+      "properties": {
+        "admin_allow_ips": {
+          "description": "AdminAllowIPs contains IP addresses allowed to access admin endpoints.\n\n**Default**: `[\"127.0.0.1\", \"::1\"]`",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "admin_tokens": {
+          "description": "AdminTokens contains admin tokens for proxy management.\n\n**Security**: Use environment variables for tokens.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "base_url": {
+          "description": "BaseURL specifies the base URL for MCP proxy API endpoints.\n\n**Default**: `\"http://localhost:8081\"`",
+          "type": "string"
+        },
+        "global_auth_tokens": {
+          "description": "GlobalAuthTokens contains global authentication tokens.\n\n**Security**: Use environment variables for tokens.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "host": {
+          "description": "Host specifies the network interface to bind the MCP proxy server to.\n\n**Default**: `\"0.0.0.0\"`",
+          "type": "string"
+        },
+        "port": {
+          "description": "Port specifies the TCP port for the MCP proxy server.\n\n**Default**: `8081`",
+          "type": "integer"
+        },
+        "shutdown_timeout": {
+          "description": "ShutdownTimeout sets timeout for graceful shutdown.\n\n**Default**: `30s`",
+          "type": "integer"
+        },
+        "trusted_proxies": {
+          "description": "TrustedProxies contains trusted proxy IP addresses.\n\n**Default**: `[\"127.0.0.1\", \"::1\"]`",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "MemoryConfig": {
+      "additionalProperties": false,
+      "description": "MemoryConfig contains memory service configuration.",
+      "properties": {
+        "max_entries": {
+          "description": "MaxEntries limits memory entries per conversation.\n\nPrevents unbounded memory growth.\nDefault: 100",
+          "type": "integer"
+        },
+        "prefix": {
+          "description": "Prefix namespaces memory keys in Redis.\n\nPrevents key collisions when sharing Redis.\nDefault: \"compozy:memory:\"",
+          "type": "string"
+        },
+        "ttl": {
+          "description": "TTL sets memory entry expiration time.\n\nBalances context retention with storage costs.\nDefault: 24h",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "RateConfig": {
+      "additionalProperties": false,
+      "description": "RateConfig represents a single rate limit configuration.",
+      "properties": {
+        "limit": {
+          "description": "Limit specifies the maximum number of requests allowed.\n\nMust be greater than 0.\nExample: 100 for 100 requests per period",
+          "type": "integer"
+        },
+        "period": {
+          "description": "Period defines the time window for the rate limit.\n\nCommon values:\n  - `\"1s\"`: Per second\n  - `\"1m\"`: Per minute\n  - `\"1h\"`: Per hour\n  - `\"24h\"`: Per day",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "RateLimitConfig": {
+      "additionalProperties": false,
+      "description": "RateLimitConfig contains rate limiting configuration.",
+      "properties": {
+        "api_key_rate": {
+          "$ref": "#/$defs/RateConfig",
+          "description": "APIKeyRate applies per API key.\n\nEnsures fair usage across different clients."
+        },
+        "global_rate": {
+          "$ref": "#/$defs/RateConfig",
+          "description": "GlobalRate applies to all requests system-wide.\n\nProtects against total system overload."
+        },
+        "max_retry": {
+          "description": "MaxRetry sets retry attempts for rate-limited requests.\n\nDefault: 3",
+          "type": "integer"
+        },
+        "prefix": {
+          "description": "Prefix namespaces rate limit keys in Redis.\n\nDefault: \"ratelimit:\"",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "RedisConfig": {
+      "additionalProperties": false,
+      "description": "RedisConfig contains Redis connection configuration.",
+      "properties": {
+        "db": {
+          "description": "DB selects the Redis database number.\n\nDefault: 0",
+          "type": "integer"
+        },
+        "dial_timeout": {
+          "description": "DialTimeout sets timeout for establishing new connections.\n\nDefault: 5s",
+          "type": "integer"
+        },
+        "host": {
+          "description": "Host specifies the Redis server hostname or IP address.\n\nDefault: \"localhost\"",
+          "type": "string"
+        },
+        "max_idle_conns": {
+          "description": "MaxIdleConns sets the maximum number of idle connections.\n\nDefault: 0",
+          "type": "integer"
+        },
+        "max_retries": {
+          "description": "MaxRetries sets the maximum number of retries before giving up.\n\nDefault: 3",
+          "type": "integer"
+        },
+        "max_retry_backoff": {
+          "description": "MaxRetryBackoff sets maximum backoff between retries.\n\nDefault: 512ms",
+          "type": "integer"
+        },
+        "min_idle_conns": {
+          "description": "MinIdleConns sets the minimum number of idle connections.\n\nDefault: 0",
+          "type": "integer"
+        },
+        "min_retry_backoff": {
+          "description": "MinRetryBackoff sets minimum backoff between retries.\n\nDefault: 8ms",
+          "type": "integer"
+        },
+        "notification_buffer_size": {
+          "description": "NotificationBufferSize sets buffer size for pub/sub notifications.\n\nDefault: 100",
+          "type": "integer"
+        },
+        "password": {
+          "description": "Password authenticates with Redis.\n\n**Security**: Use environment variables in production.",
+          "type": "string"
+        },
+        "ping_timeout": {
+          "description": "PingTimeout sets timeout for ping command.\n\nDefault: 1s",
+          "type": "integer"
+        },
+        "pool_size": {
+          "description": "PoolSize sets the maximum number of socket connections.\n\nDefault: 10 per CPU",
+          "type": "integer"
+        },
+        "pool_timeout": {
+          "description": "PoolTimeout sets timeout for getting connection from pool.\n\nDefault: ReadTimeout + 1s",
+          "type": "integer"
+        },
+        "port": {
+          "description": "Port specifies the Redis server port as a string.\n\n**Format**: String representation of port number (1-65535)\n**YAML**: Both \"6379\" (quoted) and 6379 (numeric) are accepted\n**Breaking Change**: Changed from int to string in v2.0.0\n\nDefault: \"6379\"",
+          "type": "string"
+        },
+        "read_timeout": {
+          "description": "ReadTimeout sets timeout for socket reads.\n\nDefault: 3s",
+          "type": "integer"
+        },
+        "tls_enabled": {
+          "description": "TLSEnabled enables TLS encryption.\n\nDefault: false",
+          "type": "boolean"
+        },
+        "url": {
+          "description": "URL provides a complete Redis connection string.\n\nFormat: `redis://[user:password@]host:port/db`\nTakes precedence over individual connection parameters.",
+          "type": "string"
+        },
+        "write_timeout": {
+          "description": "WriteTimeout sets timeout for socket writes.\n\nDefault: ReadTimeout",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "RuntimeConfig": {
+      "additionalProperties": false,
+      "description": "RuntimeConfig contains runtime behavior configuration.",
+      "properties": {
+        "async_token_counter_buffer_size": {
+          "description": "AsyncTokenCounterBufferSize sets the token counter queue size.\n\nLarger buffers handle traffic spikes better but use more memory.\nDefault: 1000",
+          "type": "integer"
+        },
+        "async_token_counter_workers": {
+          "description": "AsyncTokenCounterWorkers sets the number of token counting workers.\n\nMore workers improve throughput for high-volume token counting.\nDefault: 5",
+          "type": "integer"
+        },
+        "bun_permissions": {
+          "description": "BunPermissions defines runtime security permissions for Bun.\n\nDefault: [\"--allow-read\", \"--allow-env\", \"--allow-net\"]",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "dispatcher_heartbeat_interval": {
+          "description": "DispatcherHeartbeatInterval sets how often dispatchers report health.\n\nLower values provide faster failure detection but increase load.\nDefault: 5s",
+          "type": "integer"
+        },
+        "dispatcher_heartbeat_ttl": {
+          "description": "DispatcherHeartbeatTTL sets heartbeat expiration time.\n\nMust be greater than heartbeat interval to handle network delays.\nDefault: 15s (3x interval)",
+          "type": "integer"
+        },
+        "dispatcher_stale_threshold": {
+          "description": "DispatcherStaleThreshold defines when a dispatcher is considered failed.\n\nTriggers reassignment of dispatcher's workflows.\nDefault: 30s",
+          "type": "integer"
+        },
+        "entrypoint_path": {
+          "description": "EntrypointPath specifies the path to the JavaScript/TypeScript entrypoint file.\n\nDefault: \"./tools.ts\"",
+          "type": "string"
+        },
+        "environment": {
+          "description": "Environment specifies the deployment environment.\n\nAffects:\n  - Error verbosity and stack traces\n  - Performance optimizations\n  - Debug endpoints availability\n  - Default timeouts and limits\n\nValues: \"development\", \"staging\", \"production\"",
+          "type": "string"
+        },
+        "log_level": {
+          "description": "LogLevel controls logging verbosity.\n\nLevels (least to most verbose):\n  - `\"error\"`: Critical errors only\n  - `\"warn\"`: Warnings and errors\n  - `\"info\"`: General operational info (default)\n  - `\"debug\"`: Detailed debugging information",
+          "type": "string"
+        },
+        "runtime_type": {
+          "description": "RuntimeType specifies the JavaScript runtime to use for tool execution.\n\nValues: \"bun\", \"node\"\nDefault: \"bun\"",
+          "type": "string"
+        },
+        "tool_execution_timeout": {
+          "description": "ToolExecutionTimeout sets the maximum time for tool execution.\n\nPrevents runaway tools from blocking workflows.\nDefault: 30s",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "ServerConfig": {
+      "additionalProperties": false,
+      "description": "ServerConfig contains HTTP server configuration.",
+      "properties": {
+        "auth": {
+          "$ref": "#/$defs/AuthConfig",
+          "description": "Auth configures API authentication settings."
+        },
+        "cors": {
+          "$ref": "#/$defs/CORSConfig",
+          "description": "CORS configures Cross-Origin Resource Sharing policies.\n\nOnly applies when CORSEnabled is true."
+        },
+        "cors_enabled": {
+          "description": "CORSEnabled enables Cross-Origin Resource Sharing headers.\n\nSet to `true` when the API is accessed from web browsers on different origins.",
+          "type": "boolean"
+        },
+        "host": {
+          "description": "Host specifies the network interface to bind the server to.\n\nCommon values:\n  - `\"0.0.0.0\"`: Listen on all interfaces (default)\n  - `\"127.0.0.1\"` or `\"localhost\"`: Local access only\n  - Specific IP: Bind to a specific network interface",
+          "type": "string"
+        },
+        "port": {
+          "description": "Port specifies the TCP port for the HTTP server.\n\nValid range: 1-65535. Common ports:\n  - `8080`: Default development port\n  - `80`: Standard HTTP (requires privileges)\n  - `443`: Standard HTTPS (requires privileges)",
+          "type": "integer"
+        },
+        "timeout": {
+          "description": "Timeout sets the maximum duration for processing requests.\n\nApplies to all HTTP operations including request reading, processing, and response writing.\nDefault: 30s. Increase for long-running operations.",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "TemporalConfig": {
+      "additionalProperties": false,
+      "description": "TemporalConfig contains Temporal workflow engine configuration.",
+      "properties": {
+        "host_port": {
+          "description": "HostPort specifies the Temporal server endpoint.\n\nFormat: `host:port`\nDefault: \"localhost:7233\"",
+          "type": "string"
+        },
+        "namespace": {
+          "description": "Namespace isolates workflows within Temporal.\n\nUse different namespaces for:\n  - Environment separation (dev, staging, prod)\n  - Multi-tenant deployments\n  - Workflow versioning\nDefault: \"default\"",
+          "type": "string"
+        },
+        "task_queue": {
+          "description": "TaskQueue identifies the queue for workflow tasks.\n\nWorkers poll this queue for tasks to execute.\nUse different queues for:\n  - Workflow type separation\n  - Priority-based routing\n  - Resource isolation\nDefault: \"compozy-queue\"",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "WorkerConfig": {
+      "additionalProperties": false,
+      "description": "WorkerConfig contains Temporal worker configuration.",
+      "properties": {
+        "config_store_ttl": {
+          "description": "ConfigStoreTTL sets how long worker configurations are cached.\n\n**Default**: `24h`",
+          "type": "integer"
+        },
+        "dispatcher_max_retries": {
+          "description": "DispatcherMaxRetries sets maximum dispatcher retry attempts.\n\n**Default**: `3`",
+          "type": "integer"
+        },
+        "dispatcher_retry_delay": {
+          "description": "DispatcherRetryDelay sets delay between dispatcher retry attempts.\n\n**Default**: `1s`",
+          "type": "integer"
+        },
+        "heartbeat_cleanup_timeout": {
+          "description": "HeartbeatCleanupTimeout sets timeout for heartbeat cleanup operations.\n\n**Default**: `5s`",
+          "type": "integer"
+        },
+        "mcp_proxy_health_check_timeout": {
+          "description": "MCPProxyHealthCheckTimeout sets timeout for MCP proxy health checks.\n\n**Default**: `5s`",
+          "type": "integer"
+        },
+        "mcp_shutdown_timeout": {
+          "description": "MCPShutdownTimeout sets timeout for MCP server shutdown.\n\n**Default**: `10s`",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "$id": "https://schemas.compozy.dev/config.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "description": "Config represents the complete configuration for the Compozy system.",
+  "properties": {
+    "cache": {
+      "$ref": "#/$defs/CacheConfig",
+      "description": "Cache configures caching behavior and performance settings.\n\n$ref: schema://application#cache"
+    },
+    "cli": {
+      "$ref": "#/$defs/CLIConfig",
+      "description": "CLI configures command-line interface behavior.\n\n$ref: schema://application#cli"
+    },
+    "database": {
+      "$ref": "#/$defs/DatabaseConfig",
+      "description": "Database configures the PostgreSQL database connection.\n\n$ref: schema://application#database"
+    },
+    "limits": {
+      "$ref": "#/$defs/LimitsConfig",
+      "description": "Limits defines system resource limits and constraints.\n\n$ref: schema://application#limits"
+    },
+    "llm": {
+      "$ref": "#/$defs/LLMConfig",
+      "description": "LLM configures the LLM proxy service.\n\n$ref: schema://application#llm"
+    },
+    "mcp_proxy": {
+      "$ref": "#/$defs/MCPProxyConfig",
+      "description": "MCPProxy configures the MCP proxy server.\n\n$ref: schema://application#mcpproxy"
+    },
+    "memory": {
+      "$ref": "#/$defs/MemoryConfig",
+      "description": "Memory configures the memory service for agent conversations.\n\n$ref: schema://application#memory"
+    },
+    "ratelimit": {
+      "$ref": "#/$defs/RateLimitConfig",
+      "description": "RateLimit configures API rate limiting.\n\n$ref: schema://application#ratelimit"
+    },
+    "redis": {
+      "$ref": "#/$defs/RedisConfig",
+      "description": "Redis configures the Redis connection for all services.\n\n$ref: schema://application#redis"
+    },
+    "runtime": {
+      "$ref": "#/$defs/RuntimeConfig",
+      "description": "Runtime configures system runtime behavior and performance.\n\n$ref: schema://application#runtime"
+    },
+    "server": {
+      "$ref": "#/$defs/ServerConfig",
+      "description": "Server configures the HTTP API server settings.\n\n$ref: schema://application#server"
+    },
+    "temporal": {
+      "$ref": "#/$defs/TemporalConfig",
+      "description": "Temporal configures the workflow engine connection.\n\n$ref: schema://application#temporal"
+    },
+    "worker": {
+      "$ref": "#/$defs/WorkerConfig",
+      "description": "Worker configures Temporal worker settings.\n\n$ref: schema://application#worker"
+    }
+  },
+  "type": "object",
+  "yamlCompatible": true
+}

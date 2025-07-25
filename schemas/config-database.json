@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://schemas.compozy.dev/config-database.json",
+  "properties": {
+    "conn_string": {
+      "type": "string",
+      "description": "ConnString provides a complete PostgreSQL connection URL.\n\nFormat: `postgres://user:password@host:port/database?sslmode=mode`\nTakes precedence over individual connection parameters."
+    },
+    "host": {
+      "type": "string",
+      "description": "Host specifies the database server hostname or IP address.\n\nDefault: \"localhost\""
+    },
+    "port": {
+      "type": "string",
+      "description": "Port specifies the database server port.\n\nDefault: \"5432\" (PostgreSQL default)"
+    },
+    "user": {
+      "type": "string",
+      "description": "User specifies the database username for authentication."
+    },
+    "password": {
+      "type": "string",
+      "description": "Password specifies the database password for authentication.\n\n**Security**: Use environment variables in production."
+    },
+    "name": {
+      "type": "string",
+      "description": "DBName specifies the database name to connect to.\n\nDefault: \"compozy\""
+    },
+    "ssl_mode": {
+      "type": "string",
+      "description": "SSLMode configures SSL/TLS connection security.\n\nOptions:\n  - `\"disable\"`: No SSL (development only)\n  - `\"prefer\"`: Try SSL, fallback to non-SSL\n  - `\"require\"`: SSL required (recommended)\n  - `\"verify-ca\"`: SSL with CA verification\n  - `\"verify-full\"`: SSL with full verification"
+    }
+  },
+  "additionalProperties": false,
+  "type": "object",
+  "description": "DatabaseConfig contains database connection configuration.",
+  "yamlCompatible": true
+}

@@ -8,14 +8,17 @@
     "node": ">=18.17.0"
   },
   "scripts": {
+    "copy-schemas": "mkdir -p src/schemas && cp -r ../schemas/*.json src/schemas/ 2>/dev/null || true",
+    "prebuild": "bun run copy-schemas",
     "build": "next build",
+    "predev": "bun run copy-schemas",
     "dev": "next dev --turbo -p 5006",
     "start": "next start",
     "postinstall": "fumadocs-mdx",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
     "type-check": "tsc --noEmit",
-    "clean": "rm -rf .next out dist",
+    "clean": "rm -rf .next out dist src/schemas",
     "clean:deps": "rm -rf node_modules bun.lockb",
     "reinstall": "bun run clean:deps && bun install",
     "storybook": "storybook dev -p 6006",

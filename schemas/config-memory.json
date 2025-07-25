@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://schemas.compozy.dev/config-memory.json",
+  "properties": {
+    "prefix": {
+      "type": "string",
+      "description": "Prefix namespaces memory keys in Redis.\n\nPrevents key collisions when sharing Redis.\nDefault: \"compozy:memory:\""
+    },
+    "ttl": {
+      "type": "integer",
+      "description": "TTL sets memory entry expiration time.\n\nBalances context retention with storage costs.\nDefault: 24h"
+    },
+    "max_entries": {
+      "type": "integer",
+      "description": "MaxEntries limits memory entries per conversation.\n\nPrevents unbounded memory growth.\nDefault: 100"
+    }
+  },
+  "additionalProperties": false,
+  "type": "object",
+  "description": "MemoryConfig contains memory service configuration.",
+  "yamlCompatible": true
+}

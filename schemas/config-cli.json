@@ -1,0 +1,70 @@
+{
+  "$id": "https://schemas.compozy.dev/config-cli.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "description": "CLIConfig contains CLI-specific configuration.",
+  "properties": {
+    "APIKey": {
+      "description": "APIKey authenticates CLI requests to the Compozy API.\n\n**Security**: Always use environment variables for API keys.\nNever commit API keys to version control.",
+      "type": "string"
+    },
+    "BaseURL": {
+      "description": "BaseURL specifies the Compozy API endpoint.\n\nDefault: \"https://api.compozy.dev\"\nUse custom endpoints for self-hosted or development environments.",
+      "type": "string"
+    },
+    "ColorMode": {
+      "description": "ColorMode controls terminal color output.\n\nOptions:\n  - `\"auto\"`: Detect terminal color support (default)\n  - `\"on\"`: Force color output\n  - `\"off\"`: Disable all color output",
+      "type": "string"
+    },
+    "ConfigFile": {
+      "description": "ConfigFile specifies a custom configuration file path.\n\nDefault: \"./compozy.yaml\" or \"~/.compozy/config.yaml\"",
+      "type": "string"
+    },
+    "Debug": {
+      "description": "Debug enables verbose debug logging.\n\nShows detailed API requests, responses, and internal operations.",
+      "type": "boolean"
+    },
+    "DefaultFormat": {
+      "description": "DefaultFormat sets the default output format.\n\nOptions:\n  - `\"json\"`: JSON format for programmatic consumption\n  - `\"tui\"`: Terminal UI with tables and formatting (default)\n  - `\"auto\"`: Automatically detect based on terminal capabilities",
+      "type": "string"
+    },
+    "EnvFile": {
+      "description": "EnvFile specifies a .env file to load environment variables from.\n\nVariables in this file are loaded before processing configuration.",
+      "type": "string"
+    },
+    "Interactive": {
+      "description": "Interactive enables interactive prompts and confirmations.\n\nDefault: true\nSet to false for non-interactive environments.",
+      "type": "boolean"
+    },
+    "Mode": {
+      "description": "Mode controls the CLI execution behavior.\n\nAvailable modes:\n  - `\"normal\"`: Standard interactive mode (default)\n  - `\"batch\"`: Non-interactive batch processing\n  - `\"script\"`: Optimized for scripting (minimal output)",
+      "type": "string"
+    },
+    "NoColor": {
+      "description": "NoColor disables all color output regardless of terminal support.\n\nOverrides ColorMode when set to true.",
+      "type": "boolean"
+    },
+    "OutputFormatAlias": {
+      "description": "OutputFormatAlias allows custom output format aliases.\n\nUsed internally for format customization.",
+      "type": "string"
+    },
+    "PageSize": {
+      "description": "PageSize sets the number of results per page in list operations.\n\nDefault: 50\nRange: 1-1000",
+      "type": "integer"
+    },
+    "Quiet": {
+      "description": "Quiet suppresses all non-error output.\n\nUseful for scripting and automation.",
+      "type": "boolean"
+    },
+    "ServerURL": {
+      "description": "ServerURL overrides the server URL for local development.\n\nThis takes precedence over BaseURL when set.\nExample: \"http://localhost:8080\" for local server",
+      "type": "string"
+    },
+    "Timeout": {
+      "description": "Timeout sets the maximum duration for API requests.\n\nDefault: 30s\nIncrease for long-running operations like workflow execution.",
+      "type": "integer"
+    }
+  },
+  "type": "object",
+  "yamlCompatible": true
+}

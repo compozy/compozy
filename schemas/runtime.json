@@ -1,0 +1,73 @@
+{
+  "$id": "https://schemas.compozy.dev/runtime.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "description": "Complete runtime configuration for both tool execution and system behavior",
+  "properties": {
+    "async_token_counter_buffer_size": {
+      "description": "AsyncTokenCounterBufferSize sets the token counter queue size.\n\nLarger buffers handle traffic spikes better but use more memory.\nDefault: 1000",
+      "type": "integer"
+    },
+    "async_token_counter_workers": {
+      "description": "AsyncTokenCounterWorkers sets the number of token counting workers.\n\nMore workers improve throughput for high-volume token counting.\nDefault: 5",
+      "type": "integer"
+    },
+    "bun_permissions": {
+      "description": "BunPermissions defines runtime security permissions for Bun.\n\nDefault: [\"--allow-read\", \"--allow-env\", \"--allow-net\"]",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "dispatcher_heartbeat_interval": {
+      "description": "DispatcherHeartbeatInterval sets how often dispatchers report health.\n\nLower values provide faster failure detection but increase load.\nDefault: 5s",
+      "type": "integer"
+    },
+    "dispatcher_heartbeat_ttl": {
+      "description": "DispatcherHeartbeatTTL sets heartbeat expiration time.\n\nMust be greater than heartbeat interval to handle network delays.\nDefault: 15s (3x interval)",
+      "type": "integer"
+    },
+    "dispatcher_stale_threshold": {
+      "description": "DispatcherStaleThreshold defines when a dispatcher is considered failed.\n\nTriggers reassignment of dispatcher's workflows.\nDefault: 30s",
+      "type": "integer"
+    },
+    "entrypoint": {
+      "description": "Entrypoint specifies the path to the JavaScript/TypeScript entrypoint file.\nOverrides global runtime.entrypoint_path setting if specified.",
+      "type": "string"
+    },
+    "entrypoint_path": {
+      "description": "EntrypointPath specifies the path to the JavaScript/TypeScript entrypoint file.\n\nDefault: \"./tools.ts\"",
+      "type": "string"
+    },
+    "environment": {
+      "description": "Environment specifies the deployment environment.\n\nAffects:\n  - Error verbosity and stack traces\n  - Performance optimizations\n  - Debug endpoints availability\n  - Default timeouts and limits\n\nValues: \"development\", \"staging\", \"production\"",
+      "type": "string"
+    },
+    "log_level": {
+      "description": "LogLevel controls logging verbosity.\n\nLevels (least to most verbose):\n  - `\"error\"`: Critical errors only\n  - `\"warn\"`: Warnings and errors\n  - `\"info\"`: General operational info (default)\n  - `\"debug\"`: Detailed debugging information",
+      "type": "string"
+    },
+    "permissions": {
+      "description": "Permissions defines runtime security permissions.\nOverrides global runtime.bun_permissions setting if specified.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "runtime_type": {
+      "description": "RuntimeType specifies the JavaScript runtime to use for tool execution.\n\nValues: \"bun\", \"node\"\nDefault: \"bun\"",
+      "type": "string"
+    },
+    "tool_execution_timeout": {
+      "description": "ToolExecutionTimeout sets the maximum time for tool execution.\n\nPrevents runaway tools from blocking workflows.\nDefault: 30s",
+      "type": "integer"
+    },
+    "type": {
+      "description": "Type specifies the JavaScript runtime to use for tool execution.\nOverrides global runtime.runtime_type setting if specified.",
+      "type": "string"
+    }
+  },
+  "title": "Compozy Runtime Configuration",
+  "type": "object",
+  "yamlCompatible": true
+}

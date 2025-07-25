@@ -1,0 +1,70 @@
+{
+  "$defs": {
+    "EnvMap": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "type": "object"
+    },
+    "Input": {
+      "type": "object"
+    },
+    "PathCWD": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "description": "Path holds the absolute working directory.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "Schema": {
+      "type": "object"
+    }
+  },
+  "$id": "https://schemas.compozy.dev/tool.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "description": "Config represents a tool configuration in Compozy.",
+  "properties": {
+    "config": {
+      "$ref": "#/$defs/Input",
+      "description": "Configuration parameters passed to the tool separately from input data.\nProvides static configuration that tools can use for initialization and behavior control.\nUnlike input parameters, config is not meant to change between tool invocations.\n\n- **Use cases:** API base URLs, retry policies, timeout settings, feature flags\n- **Separation:** Keeps configuration separate from runtime input data\n- **Override:** Can be overridden at workflow or agent level\n- **Example:**\n  ```yaml\n  config:\n    base_url: \"https://api.example.com\"\n    timeout: 30\n    retry_count: 3\n    headers:\n      User-Agent: \"Compozy/1.0\"\n  ```"
+    },
+    "description": {
+      "description": "Human-readable description of the tool's functionality and purpose.\nThis description is used by AI agents to understand when and how to use the tool.\nShould clearly explain capabilities, limitations, and expected use cases.\n\n- **Best practices:** Be specific about what the tool does and its constraints\n- **Example:** `\"Read and parse various file formats including JSON, YAML, and CSV with size limits\"`",
+      "type": "string"
+    },
+    "env": {
+      "$ref": "#/$defs/EnvMap",
+      "description": "Environment variables available during tool execution.\nVariables are isolated to the tool's execution context for security.\nUsed for configuration, API keys, and runtime settings.\n\n- **Security:** Variables are only accessible within the tool's execution\n- **Template support:** Values can use template expressions for dynamic configuration\n- **Example:**\n  ```yaml\n  env:\n    API_KEY: \"{{ .env.SECRET_API_KEY }}\"\n    BASE_URL: \"https://api.example.com\"\n    DEBUG: \"{{ .project.debug | default(false) }}\"\n  ```"
+    },
+    "id": {
+      "description": "Unique identifier for the tool within the project scope.\nUsed for referencing the tool in agent configurations, workflows, and function calls.\nMust be unique across all tools in the project.\n\n- **Examples:** `\"file-reader\"`, `\"api-client\"`, `\"data-processor\"`\n- **Naming:** Use kebab-case for consistency with other Compozy identifiers",
+      "type": "string"
+    },
+    "input": {
+      "$ref": "#/$defs/Schema",
+      "description": "JSON schema defining the expected input parameters for the tool.\nUsed for validation before execution and to generate LLM function call definitions.\nMust follow JSON Schema Draft 7 specification for compatibility.\n\n- **When nil:** Tool accepts any input format (no validation performed)\n- **Use cases:** Parameter validation, type safety, auto-generated documentation\n- **Integration:** Automatically converts to LLM function parameters"
+    },
+    "output": {
+      "$ref": "#/$defs/Schema",
+      "description": "JSON schema defining the expected output format from the tool.\nUsed for validation after execution and documentation purposes.\nMust follow JSON Schema Draft 7 specification for compatibility.\n\n- **When nil:** No output validation is performed\n- **Use cases:** Response validation, type safety, workflow data flow verification\n- **Best practice:** Define output schema for tools used in critical workflows"
+    },
+    "resource": {
+      "description": "Resource identifier for the autoloader system (must be `\"tool\"`).\nThis field enables automatic discovery and registration of tool configurations.",
+      "type": "string"
+    },
+    "timeout": {
+      "description": "Maximum execution time for the tool in Go duration format.\nIf not specified, uses the global tool timeout from project configuration.\nThis timeout applies to the entire tool execution lifecycle.\n\n- **Examples:** `\"30s\"`, `\"5m\"`, `\"1h\"`, `\"500ms\"`\n- **Constraints:** Must be positive; zero or negative values cause validation errors\n- **Default fallback:** Uses project-level tool timeout when empty",
+      "type": "string"
+    },
+    "with": {
+      "$ref": "#/$defs/Input",
+      "description": "Default input parameters merged with runtime parameters provided by agents.\nProvides a way to set tool defaults while allowing runtime customization.\n\n- **Merge strategy:** Runtime parameters override defaults (shallow merge)\n- **Use cases:** Default API URLs, fallback configurations, preset options\n- **Security note:** Avoid storing secrets here; use environment variables instead"
+    }
+  },
+  "type": "object",
+  "yamlCompatible": true
+}

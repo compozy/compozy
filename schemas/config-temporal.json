@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://schemas.compozy.dev/config-temporal.json",
+  "properties": {
+    "host_port": {
+      "type": "string",
+      "description": "HostPort specifies the Temporal server endpoint.\n\nFormat: `host:port`\nDefault: \"localhost:7233\""
+    },
+    "namespace": {
+      "type": "string",
+      "description": "Namespace isolates workflows within Temporal.\n\nUse different namespaces for:\n  - Environment separation (dev, staging, prod)\n  - Multi-tenant deployments\n  - Workflow versioning\nDefault: \"default\""
+    },
+    "task_queue": {
+      "type": "string",
+      "description": "TaskQueue identifies the queue for workflow tasks.\n\nWorkers poll this queue for tasks to execute.\nUse different queues for:\n  - Workflow type separation\n  - Priority-based routing\n  - Resource isolation\nDefault: \"compozy-queue\""
+    }
+  },
+  "additionalProperties": false,
+  "type": "object",
+  "description": "TemporalConfig contains Temporal workflow engine configuration.",
+  "yamlCompatible": true
+}

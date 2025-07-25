@@ -1,0 +1,34 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://schemas.compozy.dev/config-limits.json",
+  "properties": {
+    "max_nesting_depth": {
+      "type": "integer",
+      "description": "MaxNestingDepth limits JSON/YAML structure nesting.\n\nPrevents stack overflow from deeply nested data.\nDefault: 20"
+    },
+    "max_string_length": {
+      "type": "integer",
+      "description": "MaxStringLength limits individual string values.\n\nApplies to all string fields in requests and responses.\nDefault: 10MB (10485760 bytes)"
+    },
+    "max_message_content": {
+      "type": "integer",
+      "description": "MaxMessageContent limits LLM message content size.\n\nPrevents excessive API costs and timeouts.\nDefault: 50MB (52428800 bytes)"
+    },
+    "max_total_content_size": {
+      "type": "integer",
+      "description": "MaxTotalContentSize limits total request/response size.\n\nPrevents memory exhaustion from large payloads.\nDefault: 100MB (104857600 bytes)"
+    },
+    "max_task_context_depth": {
+      "type": "integer",
+      "description": "MaxTaskContextDepth limits task execution stack depth.\n\nPrevents infinite recursion in workflow execution.\nDefault: 10"
+    },
+    "parent_update_batch_size": {
+      "type": "integer",
+      "description": "ParentUpdateBatchSize controls database update batching.\n\nLarger batches improve throughput but increase memory usage.\nDefault: 100"
+    }
+  },
+  "additionalProperties": false,
+  "type": "object",
+  "description": "LimitsConfig contains system limits and constraints.",
+  "yamlCompatible": true
+}
