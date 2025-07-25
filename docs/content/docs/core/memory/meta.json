@@ -3,11 +3,10 @@
   "description": "Memory system and context management",
   "icon": "Brain",
   "pages": [
-    "memory-concepts",
+    "overview",
     "configuration",
     "operations",
     "integration-patterns",
-    "privacy-security",
-    "troubleshooting"
+    "privacy-security"
   ]
 }

@@ -7,8 +7,6 @@
     "yaml-basics",
     "directives",
     "sprig-functions",
-    "context-variables",
-    "validation-debugging",
-    "advanced-patterns"
+    "context-variables"
   ]
 }

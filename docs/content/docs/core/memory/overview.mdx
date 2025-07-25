@@ -1,0 +1,565 @@
+---
+title: "Overview"
+description: "Understanding Compozy's memory system architecture, concepts, and design principles"
+---
+
+## What is Memory in Compozy?
+
+Compozy's **memory system** provides persistent context storage for AI agents and workflows, enabling stateful conversations, data caching, and intelligent decision-making. The system supports multiple memory types and automatic lifecycle management to optimize both performance and cost.
+
+Memory integrates seamlessly with [agents](/docs/core/agents/overview) to maintain conversation history, stores context between [workflow](/docs/core/workflows/overview) executions, and supports dynamic memory allocation through [YAML templates](/docs/core/yaml-templates/overview).
+
+## Core Features
+
+<FeatureCardList cols={2}>
+  <FeatureCard
+    title="Multiple Memory Types"
+    description="Token-based, message-count, and buffer memory strategies optimized for different use cases and cost models"
+    icon="Database"
+  />
+  <FeatureCard
+    title="Dynamic Key Templates"
+    description="Use template expressions to create user-specific, session-based, or context-aware memory instances"
+    icon="Key"
+  />
+  <FeatureCard
+    title="Automatic Lifecycle Management"
+    description="TTL-based cleanup, eviction policies, and resource optimization without manual intervention"
+    icon="RefreshCw"
+  />
+  <FeatureCard
+    title="Privacy & Security"
+    description="Built-in PII redaction, configurable privacy controls, and secure data handling practices"
+    icon="Shield"
+  />
+</FeatureCardList>
+
+## Memory System Architecture
+
+<Mermaid chart={`graph TB
+    subgraph "Workflow Context"
+        WF[Workflow] --> TMP[Template Engine]
+        TMP --> |Resolved Keys| MEM[Memory Manager]
+    end
+
+    subgraph "Memory Layer"
+        MEM --> |Creates/Retrieves| MI[Memory Instances]
+        MI --> |Token-based| TB[Token Memory]
+        MI --> |Message-count| MC[Count Memory]
+        MI --> |Buffer| BF[Buffer Memory]
+    end
+
+    subgraph "Storage & Privacy"
+        TB --> REDIS[Redis Storage]
+        MC --> REDIS
+        BF --> REDIS
+        MI --> |Privacy Controls| PII[PII Redaction]
+    end
+
+    subgraph "Lifecycle Management"
+        REDIS --> |TTL| AUTO[Auto Cleanup]
+        AUTO --> |Eviction| GC[Garbage Collection]
+    end
+
+    WF --> |Agent Calls| AGT[Agents]
+    AGT --> |Context Access| MI`} />
+
+## Memory System Components
+
+<Steps>
+  <Step title="Memory Manager">
+    The central orchestrator that creates and retrieves memory instances based on resource configurations. Evaluates [template expressions](/docs/core/yaml-templates/context-variables) and manages the complete lifecycle of memory instances.
+  </Step>
+  <Step title="Template Engine">
+    Enables dynamic memory keys through [Go template syntax](/docs/core/yaml-templates/overview), supporting variables like `{{.workflow.input.user_id}}` for user-specific and context-aware memory allocation.
+  </Step>
+  <Step title="Memory Instances">
+    Individual memory containers that store conversation messages and context data. Each instance implements specific memory types with automatic cleanup and thread-safe operations.
+  </Step>
+  <Step title="Redis Storage">
+    High-performance persistent storage layer providing fast key-value operations, atomic updates, TTL-based cleanup, and scalable multi-instance support.
+  </Step>
+</Steps>
+
+## Memory Types
+
+Choose the right memory strategy based on your application needs and cost optimization requirements:
+
+<Tabs items={["Token-Based", "Message Count", "Buffer"]} defaultValue="Token-Based">
+  <Tab value="Token-Based">
+    **Optimized for LLM integration and cost management**
+
+    ```yaml
+    resource: memory
+    id: conversation_memory
+    type: token_based
+    max_tokens: 4000
+    max_context_ratio: 0.8
+    ```
+
+    <List>
+      <ListItem title="Smart Token Tracking">
+        Automatically counts tokens in stored messages using the same tokenization as your LLM provider
+      </ListItem>
+      <ListItem title="Context Window Optimization">
+        Removes oldest messages when approaching model context limits, ensuring optimal performance
+      </ListItem>
+      <ListItem title="Cost Management">
+        Helps control API costs by maintaining token budgets and preventing expensive large context calls
+      </ListItem>
+      <ListItem title="Configurable Strategies">
+        Supports different flush strategies for memory management based on usage patterns
+      </ListItem>
+    </List>
+
+    **Ideal for:** [Chat applications](/docs/core/agents/memory), [LLM integration](/docs/core/agents/llm-integration), conversation history management, token budget optimization
+  </Tab>
+
+  <Tab value="Message Count">
+    **Simple quantity-based memory management**
+
+    ```yaml
+    resource: memory
+    id: simple_chat
+    type: message_count_based
+    max_messages: 100
+    ```
+
+    <List>
+      <ListItem title="Message Counting">
+        Tracks the total number of messages stored, regardless of content length
+      </ListItem>
+      <ListItem title="FIFO Eviction">
+        Removes oldest messages when the limit is reached using First In, First Out policy
+      </ListItem>
+      <ListItem title="Predictable Usage">
+        Provides consistent memory usage patterns that are easy to understand and debug
+      </ListItem>
+      <ListItem title="Simple Configuration">
+        Minimal setup required with straightforward message limit configuration
+      </ListItem>
+    </List>
+
+    **Ideal for:** Simple chat applications, fixed-size conversation windows, development and testing environments
+  </Tab>
+
+  <Tab value="Buffer">
+    **Basic storage for development and debugging**
+
+    ```yaml
+    resource: memory
+    id: debug_memory
+    type: buffer
+    max_messages: 50
+    ```
+
+    <Callout type="warning">
+      Buffer memory requires manual cleanup and should not be used in production environments without proper monitoring.
+    </Callout>
+
+    <List>
+      <ListItem title="Manual Management">
+        Stores messages until manually cleared - no automatic eviction or cleanup
+      </ListItem>
+      <ListItem title="Debug-Friendly">
+        Useful for debugging workflows and development environments where persistence is needed
+      </ListItem>
+      <ListItem title="Simple Storage">
+        Basic storage without complex logic, ideal for temporary data storage needs
+      </ListItem>
+      <ListItem title="Full Control">
+        Gives developers complete control over when and how memory is managed
+      </ListItem>
+    </List>
+
+    **Ideal for:** Development and debugging, temporary data storage, simple applications without complex requirements
+  </Tab>
+</Tabs>
+
+## Dynamic Key Templates
+
+Create flexible memory organization using [template expressions](/docs/core/yaml-templates/overview) that adapt to workflow context and user data.
+
+<Callout type="info" className="my-8">
+Template keys enable memory isolation and multi-tenancy by creating unique memory instances per user, session, or context. Learn more about [template variables](/docs/core/yaml-templates/context-variables).
+</Callout>
+
+```yaml
+# User-specific memory for multi-tenant applications
+key: "user:{{.workflow.input.user_id}}"
+
+# Session-based memory for temporary contexts
+key: "session:{{.session_id}}:conversation"
+
+# Multi-level hierarchy for complex applications
+key: "project:{{.project_id}}:agent:{{.agent_id}}"
+
+# Context-aware memory with multiple dimensions
+key: "tenant:{{.tenant_id}}:user:{{.user_id}}:chat:{{.chat_id}}"
+```
+
+<List>
+  <ListItem title="User Isolation">
+    Separate memory instances per user for multi-tenant applications and data privacy
+  </ListItem>
+  <ListItem title="Session Management">
+    Temporary memory contexts that expire with user sessions
+  </ListItem>
+  <ListItem title="Hierarchical Organization">
+    Multi-level memory organization for complex application structures
+  </ListItem>
+  <ListItem title="Context Awareness">
+    Memory keys that adapt based on workflow context and runtime data
+  </ListItem>
+</List>
+
+## Lifecycle Management
+
+Automatic memory management ensures optimal resource usage and data retention policies without manual intervention.
+
+<AccordionGroup>
+  <Accordion title="TTL (Time To Live) Management">
+    **Flexible expiration policies for different memory scenarios:**
+
+    ```yaml
+    persistence:
+      type: redis
+      ttl: 24h           # Base TTL for memory instances
+    append_ttl: "30m"    # Extend TTL on message append
+    clear_ttl: "5m"      # Short TTL after clearing
+    flush_ttl: "1h"      # TTL after flush operations
+    ```
+
+    <List>
+      <ListItem title="Base TTL (24h)">
+        Default expiration time for new memory instances, balancing data retention with storage costs
+      </ListItem>
+      <ListItem title="Append TTL (30m)">
+        Extends memory lifetime when actively used, keeping frequently accessed data available
+      </ListItem>
+      <ListItem title="Clear TTL (5m)">
+        Short grace period after clearing, allowing recovery from accidental operations
+      </ListItem>
+      <ListItem title="Flush TTL (1h)">
+        Recovery time after flush operations, enabling debugging and rollback scenarios
+      </ListItem>
+    </List>
+
+    Learn how to configure TTL settings in the [memory configuration documentation](/docs/core/memory/configuration).
+  </Accordion>
+
+  <Accordion title="Automatic Cleanup">
+    **Background processes that maintain system health:**
+
+    <List>
+      <ListItem title="Redis Key Expiration">
+        Native Redis TTL-based expiration automatically removes expired memory instances
+      </ListItem>
+      <ListItem title="Metadata Cleanup">
+        Periodic cleanup of orphaned metadata and dangling references
+      </ListItem>
+      <ListItem title="Health Monitoring">
+        Continuous monitoring of memory instance status and resource usage
+      </ListItem>
+      <ListItem title="Garbage Collection">
+        Background collection of unused instances and optimization of storage usage
+      </ListItem>
+    </List>
+
+    These processes run automatically and require no manual intervention, ensuring optimal system performance.
+  </Accordion>
+</AccordionGroup>
+
+## Privacy & Security
+
+Built-in privacy controls and security measures protect sensitive data in memory instances.
+
+<Callout type="info" className="my-8">
+Always enable privacy controls in production deployments and configure appropriate redaction patterns for your data types. Learn more in the [privacy and security documentation](/docs/core/memory/privacy-security).
+</Callout>
+
+### Privacy Controls
+
+**Automatic PII redaction and privacy protection:**
+
+```yaml
+privacy:
+  enabled: true
+  redaction_patterns:
+    - name: "email"
+      pattern: "\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Z|a-z]{2,}\\b"
+      replacement: "[REDACTED:EMAIL]"
+    - name: "phone"
+      pattern: "\\b\\d{3}-\\d{3}-\\d{4}\\b"
+      replacement: "[REDACTED:PHONE]"
+```
+
+<List>
+  <ListItem title="Regex-based Redaction">
+    Configurable patterns that automatically identify and redact sensitive information
+  </ListItem>
+  <ListItem title="Custom Redaction Rules">
+    Define application-specific patterns for industry-specific data protection needs
+  </ListItem>
+  <ListItem title="Automatic PII Removal">
+    Built-in patterns for common personally identifiable information types
+  </ListItem>
+  <ListItem title="Secure Storage">
+    Redacted data is stored securely with no way to reverse the redaction process
+  </ListItem>
+</List>
+
+### Security Best Practices
+
+**Essential security considerations for production deployments:**
+
+<List>
+  <ListItem title="Key Security">
+    Avoid including sensitive information in memory keys - they may appear in logs and monitoring systems
+  </ListItem>
+  <ListItem title="Appropriate TTL Settings">
+    Set TTL values based on data sensitivity and compliance requirements for your industry
+  </ListItem>
+  <ListItem title="Privacy Controls">
+    Always enable privacy controls in production environments to prevent accidental PII exposure
+  </ListItem>
+  <ListItem title="Access Controls">
+    Implement proper access controls and authentication for memory instance access
+  </ListItem>
+  <ListItem title="Monitoring & Auditing">
+    Monitor memory access patterns and maintain audit logs for compliance requirements
+  </ListItem>
+</List>
+
+Review the complete [security guide](/docs/core/memory/privacy-security) for comprehensive protection strategies.
+
+## Agent Integration
+
+Memory seamlessly integrates with [agents](/docs/core/agents/overview) to provide persistent context and conversation history.
+
+```yaml
+agents:
+  - id: customer_support
+    memory:
+      - id: conversation_history
+        key: "support:{{.workflow.input.conversation_id}}"
+      - id: customer_profile
+        key: "customer:{{.workflow.input.customer_id}}"
+```
+
+<List>
+  <ListItem title="Context Persistence">
+    Agents automatically access memory for conversation history and context continuity
+  </ListItem>
+  <ListItem title="Multi-Memory Support">
+    Agents can use multiple memory instances for different data types and contexts
+  </ListItem>
+  <ListItem title="Dynamic Keys">
+    Memory keys adapt to workflow context, enabling user-specific and session-based isolation
+  </ListItem>
+  <ListItem title="Seamless Operations">
+    Memory operations (read, append, clear, flush) are handled automatically by agents
+  </ListItem>
+</List>
+
+Learn more about agent memory integration in the [agent memory documentation](/docs/core/agents/memory).
+
+## Common Use Cases
+
+<AccordionGroup>
+  <Accordion title="Customer Support Chat">
+    **Persistent conversation history for support tickets:**
+
+    ```yaml
+    resource: memory
+    id: support_conversation
+    type: token_based
+    max_tokens: 2000
+    key: "support:{{.workflow.input.ticket_id}}"
+    ```
+
+    Ideal for maintaining context across support interactions, enabling agents to reference previous conversations and provide consistent service.
+  </Accordion>
+
+  <Accordion title="User Profile Memory">
+    **User preferences and personal context:**
+
+    ```yaml
+    resource: memory
+    id: user_profile
+    type: message_count_based
+    max_messages: 50
+    key: "user:{{.workflow.input.user_id}}:profile"
+    ```
+
+    Perfect for storing user preferences, settings, and personal context that should persist across multiple sessions and interactions.
+  </Accordion>
+
+  <Accordion title="Session-based Memory">
+    **Temporary conversation context:**
+
+    ```yaml
+    resource: memory
+    id: session_memory
+    type: buffer
+    max_messages: 20
+    key: "session:{{.session_id}}"
+    ```
+
+    Useful for temporary conversation context that should not persist beyond the current session, ideal for guest users or temporary interactions.
+  </Accordion>
+</AccordionGroup>
+
+## Best Practices
+
+<Tabs items={["Key Design", "Type Selection", "Performance", "Error Handling"]} defaultValue="Key Design">
+  <Tab value="Key Design">
+    <List>
+      <ListItem title="Hierarchical Naming">
+        Use consistent patterns like `domain:entity:context` for clear organization and easy debugging
+      </ListItem>
+      <ListItem title="Unique Identifiers">
+        Include necessary identifiers to ensure uniqueness across users, sessions, and contexts
+      </ListItem>
+      <ListItem title="Avoid Sensitive Data">
+        Never include sensitive information in keys - they may appear in logs and monitoring systems
+      </ListItem>
+      <ListItem title="Keep Keys Short">
+        Use reasonably short keys for better performance and reduced storage overhead
+      </ListItem>
+    </List>
+  </Tab>
+
+  <Tab value="Type Selection">
+    <List>
+      <ListItem title="Token-based Memory">
+        Choose for [LLM integration](/docs/core/agents/llm-integration) and cost optimization where token limits matter
+      </ListItem>
+      <ListItem title="Message Count Memory">
+        Select for simple chat applications with predictable message patterns
+      </ListItem>
+      <ListItem title="Buffer Memory">
+        Use only for development and debugging - not recommended for production
+      </ListItem>
+      <ListItem title="Consider Usage Patterns">
+        Match memory type to your application's specific data access and retention patterns
+      </ListItem>
+    </List>
+  </Tab>
+
+  <Tab value="Performance">
+    <List>
+      <ListItem title="Appropriate TTL Settings">
+        Configure TTL values based on usage patterns and data retention requirements
+      </ListItem>
+      <ListItem title="Selective Privacy Controls">
+        Enable privacy controls only when handling sensitive data to avoid unnecessary processing overhead
+      </ListItem>
+      <ListItem title="Monitor Resource Usage">
+        Track memory usage, cleanup effectiveness, and storage costs regularly
+      </ListItem>
+      <ListItem title="Memory Limits">
+        Set appropriate memory limits to balance functionality with cost management
+      </ListItem>
+    </List>
+  </Tab>
+
+  <Tab value="Error Handling">
+    <List>
+      <ListItem title="Fallback Behavior">
+        Implement graceful degradation when memory is temporarily unavailable
+      </ListItem>
+      <ListItem title="Cleanup Error Handling">
+        Handle cleanup errors gracefully without disrupting workflow execution
+      </ListItem>
+      <ListItem title="Health Monitoring">
+        Monitor memory instance health and implement alerting for critical issues
+      </ListItem>
+      <ListItem title="User-Friendly Messages">
+        Provide clear, actionable error messages that help users understand and resolve issues
+      </ListItem>
+    </List>
+  </Tab>
+</Tabs>
+
+## Related Documentation
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Memory Configuration"
+    description="Configure memory resources, TTL settings, and persistence options"
+    href="/docs/core/memory/configuration"
+    icon="Settings"
+  />
+  <ReferenceCard
+    title="Memory Operations"
+    description="Work with memory operations: read, append, clear, and flush"
+    href="/docs/core/memory/operations"
+    icon="Play"
+  />
+  <ReferenceCard
+    title="Privacy & Security"
+    description="Implement PII redaction, privacy controls, and secure memory practices"
+    href="/docs/core/memory/privacy-security"
+    icon="Shield"
+  />
+  <ReferenceCard
+    title="Integration Patterns"
+    description="Advanced memory integration patterns and multi-memory strategies"
+    href="/docs/core/memory/integration-patterns"
+    icon="Layers"
+  />
+  <ReferenceCard
+    title="Agent Memory Integration"
+    description="How agents use memory for persistent context and conversations"
+    href="/docs/core/agents/memory"
+    icon="Brain"
+  />
+  <ReferenceCard
+    title="YAML Templates"
+    description="Use template expressions for dynamic memory keys and context variables"
+    href="/docs/core/yaml-templates/overview"
+    icon="FileCode"
+  />
+  <ReferenceCard
+    title="Context Variables"
+    description="Available template variables for memory key resolution"
+    href="/docs/core/yaml-templates/context-variables"
+    icon="Variable"
+  />
+  <ReferenceCard
+    title="Workflow Context"
+    description="Understand how memory integrates with workflow execution context"
+    href="/docs/core/workflows/overview"
+    icon="GitBranch"
+  />
+</ReferenceCardList>
+
+## Next Steps
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Quick Start: Memory"
+    description="Get started with memory in your first workflow"
+    href="/docs/core/getting-started/core-concepts#memory"
+    icon="Play"
+  />
+  <ReferenceCard
+    title="Memory Tasks"
+    description="Use memory operations directly in workflow tasks"
+    href="/docs/core/tasks/memory-tasks"
+    icon="Database"
+  />
+  <ReferenceCard
+    title="Agent Setup"
+    description="Configure agents with memory for stateful conversations"
+    href="/docs/core/agents/instructions-actions"
+    icon="Bot"
+  />
+  <ReferenceCard
+    title="Production Deployment"
+    description="Best practices for memory in production environments"
+    href="/docs/core/configuration/providers"
+    icon="Server"
+  />
+</ReferenceCardList>

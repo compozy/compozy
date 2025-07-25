@@ -1,429 +1,724 @@
 ---
 title: "Integration Patterns"
-description: "Best practices for integrating memory with agents, workflows, and tools in Compozy"
+description: "Master practical memory integration patterns using agents, memory tasks, and API integration in Compozy"
 ---
+
+<Callout type="info" title="Start with the Basics">
+  Memory integration enables stateful AI interactions across your workflows. If you're new to Compozy memory, start with [memory overview](/docs/core/memory/overview) to understand core concepts, or jump to [memory tasks](/docs/core/tasks/memory-tasks) for direct task-based integration.
+</Callout>
+
+## Overview
+
+Memory integration in Compozy provides three primary patterns for building stateful applications: **agent memory integration** (the easiest and most common approach), **memory tasks** (direct workflow integration), and **API integration** (for external systems). These patterns enable persistent conversations, context management, and intelligent caching using Compozy's **declarative YAML configuration** - no complex TypeScript implementations required.
+
+<FeatureCardList cols={3} size="sm">
+  <FeatureCard
+    title="Agent Memory Integration"
+    description="Declarative YAML configuration with automatic context loading - the simplest and most powerful approach"
+    icon="brain"
+  />
+  <FeatureCard
+    title="Direct Memory Tasks"
+    description="Built-in memory task types for explicit memory operations within workflows"
+    icon="database"
+  />
+  <FeatureCard
+    title="API Integration"
+    description="HTTP API endpoints for external system integration and custom applications"
+    icon="globe"
+  />
+</FeatureCardList>
 
 ## Agent Memory Integration
 
-Memory integration in Compozy allows agents to maintain conversation context and user-specific information through simple key-value storage.
+**This is the easiest and most common way to integrate memory** - using declarative YAML configuration with automatic context loading and injection. Perfect for conversational AI and most memory-enabled applications.
 
-### Basic Agent Memory
+<Tabs items={["Basic Setup", "Multi-Memory Context", "Advanced Patterns"]}>
+<Tab value="Basic Setup">
 
-The simplest integration pattern uses a single memory resource with a user-specific key:
+The fundamental pattern uses a single memory resource with dynamic key templates:
 
 ```yaml
+# Define your agent with memory
 agents:
   - id: chat_agent
     config:
       $ref: global::models.#(provider=="openai")
       temperature: 0.7
-    
+
+    # Memory configuration - automatic loading and saving
     memory:
       - id: conversation_memory
         key: "user:{{.workflow.input.user_id}}"
         mode: read-write
-    
+
     instructions: |
       You are a helpful assistant with access to conversation history.
-      Use the context from previous messages to provide relevant responses.
-    
+      Use context from previous messages to provide relevant responses.
+
     actions:
       - id: chat
         prompt: |
-          Current message: {{.workflow.input.message}}
-          
-          Respond helpfully using any relevant context from our conversation history.
+          User message: {{.workflow.input.message}}
+
+          Respond naturally using our conversation history for context.
+
+# Use the agent in workflows
+tasks:
+  - id: handle_chat
+    type: basic
+    $use: agent(local::agents.#(id="chat_agent"))
+    action: chat
+    with:
+      message: "{{.workflow.input.message}}"
 ```
 
-**How this works:**
-- The agent gets access to memory through the `memory` configuration
-- Memory is automatically loaded when the agent starts
-- The `key` template resolves to a unique identifier like `user:123`
-- Previous conversation context is available to the agent during execution
+<Callout type="success" title="Why This Works">
+  Compozy **automatically loads** memory context before agent execution and **automatically saves** new interactions afterward. No manual memory operations needed!
+</Callout>
 
-### Multi-Memory Agent
+</Tab>
 
-For more complex scenarios, agents can access multiple memory resources:
+<Tab value="Multi-Memory Context">
+
+Complex applications can access multiple memory contexts simultaneously:
 
 ```yaml
 agents:
   - id: support_agent
     config:
       $ref: global::models.#(provider=="openai")
-    
+
     memory:
-      - id: conversation_memory
-        key: "conversation:{{.workflow.input.conversation_id}}"
+      # Conversation history for this ticket
+      - id: ticket_memory
+        key: "ticket:{{.workflow.input.ticket_id}}"
         mode: read-write
+
+      # User profile information
       - id: user_profile
         key: "user:{{.workflow.input.user_id}}"
         mode: read-only
-    
+
+      # Knowledge base for this category
+      - id: knowledge_base
+        key: "kb:{{.workflow.input.category}}"
+        mode: read-only
+
     instructions: |
       You are a customer support agent with access to:
-      1. Current conversation history
-      2. User profile information
-      
+      1. Current ticket conversation history
+      2. Customer profile and history
+      3. Knowledge base for this category
+
       Use all available context to provide comprehensive support.
-    
+
     actions:
       - id: provide_support
         prompt: |
           Support Request: {{.workflow.input.request}}
-          
-          Use your conversation history and user profile to provide detailed support.
+          Priority: {{.workflow.input.priority}}
+
+          Provide detailed assistance using all available context.
 ```
 
-**Use cases:**
-- Customer support systems with conversation and user context
-- Personal assistants with user preferences and session data
-- Multi-tenant applications with tenant-specific memory
+<Callout type="info" title="Access Modes">
+  - `read-write`: Agent can read existing memory and automatically save new interactions
+  - `read-only`: Agent can access context but won't modify the memory
+</Callout>
 
-## Workflow Memory Patterns
+</Tab>
 
-Workflow tasks can interact with memory through simple tool operations. These patterns show how to load, process, and store memory data within workflows.
+<Tab value="Advanced Patterns">
 
-### Load-Process-Store Pattern
+Use dynamic keys and conditional memory loading for sophisticated applications:
 
-This is the most common workflow pattern for memory-enabled tasks:
+```yaml
+agents:
+  - id: adaptive_agent
+    config:
+      $ref: global::models.#(provider=="openai")
+
+    memory:
+      # Session memory with timestamp
+      - id: session_memory
+        key: "session:{{.workflow.input.session_id}}:{{.workflow.input.date}}"
+        mode: read-write
+
+      # Conditional user profile (only if user_id provided)
+      - id: user_context
+        key: "user:{{.workflow.input.user_id}}"
+        mode: read-only
+        condition: "{{.workflow.input.user_id}}"
+
+      # Project-specific memory for team collaboration
+      - id: project_context
+        key: "project:{{.workflow.input.project_id}}:shared"
+        mode: read-write
+
+    instructions: |
+      You are an adaptive assistant that uses different types of context:
+      - Session memory for current conversation
+      - User profile when available
+      - Project context for team collaboration
+
+      Adapt your responses based on available context.
+```
+
+</Tab>
+</Tabs>
+
+## Direct Memory Tasks
+
+For explicit memory control in workflows, use the built-in memory task types. This approach gives you fine-grained control over memory operations and is perfect for complex memory management scenarios.
+
+Memory tasks provide direct access to all memory operations:
 
 ```yaml
 tasks:
-  # 1. Load existing context
-  - id: load_context
-    type: basic
-    $use: tool(local::tools.#(id="memory_tool"))
-    with:
-      operation: "read"
-      memory_key: "user:{{.workflow.input.user_id}}"
+  # Read existing memory
+  - id: load_conversation
+    type: memory
+    operation: read
+    memory_ref: conversation_memory
+    key_template: "user:{{.workflow.input.user_id}}"
     outputs:
-      context: "{{.output.messages}}"
-  
-  # 2. Process with agent
-  - id: process_message
+      history: "{{.output.messages}}"
+      message_count: "{{.output.message_count}}"
+
+  # Process with the loaded context
+  - id: generate_response
     type: basic
     $use: agent(local::agents.#(id="chat_agent"))
     with:
       message: "{{.workflow.input.message}}"
-      context: "{{.tasks.load_context.output.context}}"
+      context: "{{.tasks.load_conversation.output.history}}"
     outputs:
       response: "{{.output.response}}"
-  
-  # 3. Store interaction
-  - id: store_interaction
-    type: basic
-    $use: tool(local::tools.#(id="memory_tool"))
-    with:
-      operation: "append"
-      memory_key: "user:{{.workflow.input.user_id}}"
-      message: |
-        User: {{.workflow.input.message}}
-        Assistant: {{.tasks.process_message.output.response}}
+
+  # Save the new interaction
+  - id: save_interaction
+    type: memory
+    operation: append
+    memory_ref: conversation_memory
+    key_template: "user:{{.workflow.input.user_id}}"
+    payload:
+      role: "assistant"
+      content: "{{.tasks.generate_response.output.response}}"
+      timestamp: "{{now}}"
 ```
 
-**How this works:**
-- Step 1: Load existing memory using the `read` operation
-- Step 2: Process the user message with the loaded context
-- Step 3: Store the new interaction using the `append` operation
+<Callout type="info" title="When to Use Memory Tasks">
+  Use memory tasks when you need explicit control over memory operations, custom memory management logic, or integration with non-agent tasks.
+</Callout>
 
-### Memory Health Checking
+## API Integration
 
-For production workflows, you can check memory health and manage token usage:
+For external systems and custom applications, use Compozy's HTTP API endpoints to integrate memory functionality. This pattern is perfect for mobile apps, web frontends, and third-party integrations.
 
-```yaml
-tasks:
-  # Check memory health
-  - id: check_memory_health
-    type: basic
-    $use: tool(local::tools.#(id="memory_tool"))
-    with:
-      operation: "health"
-      memory_key: "user:{{.workflow.input.user_id}}"
-    outputs:
-      token_count: "{{.output.token_count}}"
-      message_count: "{{.output.message_count}}"
-  
-  # Conditionally flush if memory is getting full
-  - id: flush_if_needed
-    type: router
-    condition: "{{gt .tasks.check_memory_health.output.token_count 3000}}"
-    routes:
-      "true":
-        - id: flush_memory
-          type: basic
-          $use: tool(local::tools.#(id="memory_tool"))
-          with:
-            operation: "flush"
-            memory_key: "user:{{.workflow.input.user_id}}"
-      "false":
-        - id: continue_processing
-          type: basic
-          $use: agent(local::agents.#(id="chat_agent"))
-          with:
-            message: "{{.workflow.input.message}}"
-```
+Compozy provides REST API endpoints for all memory operations:
 
-**How this works:**
-- Check current memory usage with the `health` operation
-- Use a router task to conditionally flush memory when approaching limits
-- Continue with normal processing if memory usage is acceptable
+```javascript
+// Read memory
+const response = await fetch('/api/v1/memory/read', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    memory_ref: 'conversation_memory',
+    key: 'user:12345',
+    limit: 50
+  })
+});
+const { messages, message_count } = await response.json();
 
-## Tool Integration Patterns
-
-Memory tools provide the interface between workflows and the memory system. Here are the basic tool patterns you'll use.
-
-### Basic Memory Tool
-
-A simple memory tool supports all basic operations:
-
-```typescript
-interface MemoryToolInput {
-  operation: 'read' | 'append' | 'clear' | 'health' | 'flush';
-  memory_key: string;
-  message?: string;
-  force?: boolean;
-}
-
-interface MemoryToolOutput {
-  success: boolean;
-  messages?: Array<{
-    role: string;
-    content: string;
-    timestamp: string;
-  }>;
-  message_count?: number;
-  token_count?: number;
-  error?: string;
-}
-
-export default async function memoryTool(input: MemoryToolInput): Promise<MemoryToolOutput> {
-  const { operation, memory_key, message, force = false } = input;
-  
-  try {
-    switch (operation) {
-      case 'read':
-        return await readMemory(memory_key);
-      
-      case 'append':
-        if (!message) {
-          throw new Error('Message is required for append operation');
-        }
-        return await appendMemory(memory_key, message);
-      
-      case 'clear':
-        return await clearMemory(memory_key);
-      
-      case 'health':
-        return await checkMemoryHealth(memory_key);
-      
-      case 'flush':
-        return await flushMemory(memory_key, force);
-      
-      default:
-        throw new Error(`Unknown operation: ${operation}`);
+// Append to memory
+await fetch('/api/v1/memory/append', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    memory_ref: 'conversation_memory',
+    key: 'user:12345',
+    payload: {
+      role: 'user',
+      content: 'Hello, how are you?',
+      timestamp: new Date().toISOString()
     }
-  } catch (error) {
-    return {
-      success: false,
-      error: error.message || 'Unknown error occurred'
-    };
-  }
-}
+  })
+});
+
+// Check memory health
+const healthResponse = await fetch('/api/v1/memory/health', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    memory_ref: 'conversation_memory',
+    key: 'user:12345'
+  })
+});
+const { token_count, status } = await healthResponse.json();
 ```
 
-**How this works:**
-- The tool accepts an operation type and memory key
-- Each operation calls the appropriate memory manager function
-- Results are returned with success/error status
-- Tools run in the secure Bun runtime environment
+<Callout type="info" title="API Authentication">
+  Configure API authentication and rate limiting in your Compozy deployment settings. See [API configuration](/docs/core/configuration/api) for details.
+</Callout>
+## Memory Key Design Patterns
 
-### Memory Usage Examples
+Effective memory key patterns are crucial for organizing data and ensuring proper isolation in multi-tenant applications.
 
-Here are practical examples of how to use memory in different scenarios:
+<Tabs items={["User-Based", "Session-Based", "Context-Based", "Hierarchical"]}>
+<Tab value="User-Based">
 
-#### Simple Chatbot
+User-based patterns provide isolated memory spaces:
+
 ```yaml
-# Basic conversational agent
-agents:
-  - id: chatbot
-    memory:
-      - id: conversation
-        key: "chat:{{.workflow.input.user_id}}"
-    
-    instructions: |
-      You are a friendly chatbot. Use conversation history to provide contextual responses.
-    
-    actions:
-      - id: chat
-        prompt: |
-          User message: {{.workflow.input.message}}
-          
-          Respond naturally using our conversation history.
-```
-
-#### Multi-User Support System
-```yaml
-# Support agent with user and ticket context
-agents:
-  - id: support_agent
-    memory:
-      - id: ticket_memory
-        key: "ticket:{{.workflow.input.ticket_id}}"
-        mode: read-write
-      - id: user_profile
-        key: "user:{{.workflow.input.user_id}}"
-        mode: read-only
-    
-    instructions: |
-      You are a support agent. Use ticket history and user profile to provide helpful assistance.
-    
-    actions:
-      - id: handle_ticket
-        prompt: |
-          Support request: {{.workflow.input.request}}
-          
-          Use ticket history and user profile to provide comprehensive support.
-```
-
-#### Session-Based Assistant
-```yaml
-# Personal assistant with session memory
-agents:
-  - id: personal_assistant
-    memory:
-      - id: session_memory
-        key: "session:{{.workflow.input.session_id}}"
-        mode: read-write
-    
-    instructions: |
-      You are a personal assistant. Remember context from this session to provide better help.
-    
-    actions:
-      - id: assist
-        prompt: |
-          User request: {{.workflow.input.request}}
-          
-          Use session context to provide personalized assistance.
-```
-
-## Memory Key Patterns
-
-Memory keys are templates that resolve to unique identifiers. Here are common patterns:
-
-### User-Based Keys
-```yaml
-# User-specific memory
+# Basic user memory
 key: "user:{{.workflow.input.user_id}}"
-# Examples: user:123, user:456
+# Example: user:12345
 
-# User conversation memory
-key: "user:{{.workflow.input.user_id}}:conversation"
-# Examples: user:123:conversation, user:456:conversation
+# User conversation history
+key: "user:{{.workflow.input.user_id}}:conversations"
+# Example: user:12345:conversations
+
+# User preferences and settings
+key: "user:{{.workflow.input.user_id}}:profile"
+# Example: user:12345:profile
+
+# Time-based user sessions
+key: "user:{{.workflow.input.user_id}}:session:{{.workflow.input.date}}"
+# Example: user:12345:session:2024-01-15
 ```
 
-### Session-Based Keys
+**Perfect for:** Personal assistants, user dashboards, individual account management
+
+</Tab>
+
+<Tab value="Session-Based">
+
+Session patterns for temporary, time-limited contexts:
+
 ```yaml
-# Session-specific memory
+# Basic session memory
 key: "session:{{.workflow.input.session_id}}"
-# Examples: session:abc123, session:def456
+# Example: session:abc123
 
 # Session with user context
 key: "session:{{.workflow.input.session_id}}:user:{{.workflow.input.user_id}}"
-# Examples: session:abc123:user:789
+# Example: session:abc123:user:456
+
+# Workspace sessions
+key: "workspace:{{.workflow.input.workspace_id}}:session:{{.workflow.input.session_id}}"
+# Example: workspace:proj-123:session:abc456
 ```
 
-### Context-Based Keys
+**Perfect for:** Shopping carts, form wizards, temporary workspaces, guest interactions
+
+</Tab>
+
+<Tab value="Context-Based">
+
+Context patterns organized around business entities:
+
 ```yaml
-# Support ticket memory
+# Support ticket conversations
 key: "ticket:{{.workflow.input.ticket_id}}"
-# Examples: ticket:T-123, ticket:T-456
+# Example: ticket:T-12345
 
-# Project-specific memory
-key: "project:{{.workflow.input.project_id}}:{{.workflow.input.user_id}}"
-# Examples: project:proj-123:user-456
+# Project collaboration
+key: "project:{{.workflow.input.project_id}}:team:{{.workflow.input.team_id}}"
+# Example: project:webapp:team:frontend
+
+# Document editing sessions
+key: "document:{{.workflow.input.doc_id}}:user:{{.workflow.input.user_id}}"
+# Example: document:doc-789:user:123
+
+# Chat channels
+key: "channel:{{.workflow.input.channel_id}}:{{.workflow.input.date}}"
+# Example: channel:general:2024-01-15
 ```
+
+**Perfect for:** Customer support, project management, document collaboration, team communication
+
+</Tab>
+
+<Tab value="Hierarchical">
+
+Multi-level organization for complex applications:
+
+```yaml
+# Organization hierarchy
+key: "org:{{.workflow.input.org_id}}:team:{{.workflow.input.team_id}}:user:{{.workflow.input.user_id}}"
+# Example: org:acme:team:engineering:user:john
+
+# Environment-specific memory
+key: "env:{{.workflow.env}}:app:{{.workflow.input.app_id}}:user:{{.workflow.input.user_id}}"
+# Example: env:production:app:webapp:user:123
+
+# Multi-tenant with features
+key: "tenant:{{.workflow.input.tenant_id}}:feature:{{.workflow.input.feature}}:user:{{.workflow.input.user_id}}"
+# Example: tenant:customer-a:feature:chat:user:456
+```
+
+**Perfect for:** Enterprise applications, multi-tenant SaaS, complex organizational structures
+
+</Tab>
+</Tabs>
+
+## Real-World Application Examples
+
+Complete examples showing how to combine different integration patterns for common use cases:
+
+<AccordionGroup>
+  <Accordion title="Customer Support System">
+
+    **Combines agent memory integration with memory tasks for comprehensive support:**
+
+    ```yaml
+    # Agent with multiple memory contexts
+    agents:
+      - id: support_agent
+        config:
+          $ref: global::models.#(provider=="openai")
+          model: gpt-4
+
+        memory:
+          - id: ticket_memory
+            key: "ticket:{{.workflow.input.ticket_id}}"
+            mode: read-write
+          - id: customer_profile
+            key: "customer:{{.workflow.input.customer_id}}"
+            mode: read-only
+
+        instructions: |
+          You are a customer support agent with access to:
+          - Complete ticket conversation history
+          - Customer profile and previous interactions
+
+          Provide helpful, contextual support using all available information.
+
+    # Workflow with memory health management
+    tasks:
+      - id: check_ticket_memory
+        type: memory
+        operation: health
+        memory_ref: ticket_memory
+        key_template: "ticket:{{.workflow.input.ticket_id}}"
+
+      - id: manage_ticket_memory
+        type: router
+        condition: "{{gt .tasks.check_ticket_memory.output.message_count 100}}"
+        routes:
+          "true":
+            - id: summarize_ticket
+              type: memory
+              operation: flush
+              memory_ref: ticket_memory
+              key_template: "ticket:{{.workflow.input.ticket_id}}"
+              flush_config:
+                strategy: "summarize"
+                preserve_recent: 20
+          "false":
+            - id: continue_support
+              type: basic
+              outputs:
+                action: "continue"
+
+      - id: handle_support_request
+        type: basic
+        $use: agent(local::agents.#(id="support_agent"))
+        with:
+          request: "{{.workflow.input.request}}"
+          priority: "{{.workflow.input.priority}}"
+    ```
+
+    **Key Features:**
+    - Automatic context loading from ticket history and customer profile
+    - Memory health monitoring to prevent context overflow
+    - Intelligent memory management with summarization
+    - Read-only access to customer data for privacy
+
+  </Accordion>
+
+  <Accordion title="Multi-User Chat Application">
+
+    **Simple chat system using pure agent memory integration:**
+
+    ```yaml
+    # Chat agent with user-specific memory
+    agents:
+      - id: chat_agent
+        config:
+          $ref: global::models.#(provider=="openai")
+          temperature: 0.8
+
+        memory:
+          - id: user_conversation
+            key: "chat:{{.workflow.input.user_id}}:{{.workflow.input.chat_id}}"
+            mode: read-write
+
+        instructions: |
+          You are a friendly chat assistant. Use our conversation history to:
+          - Maintain context across messages
+          - Reference previous topics naturally
+          - Provide personalized responses
+
+        actions:
+          - id: chat
+            prompt: |
+              User: {{.workflow.input.message}}
+
+              Respond naturally using our conversation history.
+
+    # Simple workflow - memory is handled automatically
+    tasks:
+      - id: handle_message
+        type: basic
+        $use: agent(local::agents.#(id="chat_agent"))
+        action: chat
+        with:
+          message: "{{.workflow.input.message}}"
+    ```
+
+    **Key Features:**
+    - Zero manual memory operations - everything is automatic
+    - User and chat-specific memory isolation
+    - Natural conversation flow with context preservation
+    - Simple, maintainable configuration
+
+  </Accordion>
+
+  <Accordion title="Personal Assistant with Session Management">
+
+    **Combines session-based memory with API integration:**
+
+    ```yaml
+    # Assistant agent with session and user memory
+    agents:
+      - id: personal_assistant
+        config:
+          $ref: global::models.#(provider=="openai")
+          model: gpt-4
+
+        memory:
+          - id: session_memory
+            key: "session:{{.workflow.input.session_id}}"
+            mode: read-write
+          - id: user_preferences
+            key: "user:{{.workflow.input.user_id}}:prefs"
+            mode: read-only
+
+        tools:
+          - $ref: local::tools.#(id=="calendar_tool")
+          - $ref: local::tools.#(id=="email_tool")
+
+        instructions: |
+          You are a personal assistant with access to:
+          - Current session context for task continuity
+          - User preferences and settings
+          - Calendar and email management tools
+
+          Maintain context and provide proactive assistance.
+
+    # API integration for mobile/web clients
+    api_endpoints:
+      - path: /chat
+        method: POST
+        workflow: personal_assistant_workflow
+        parameters:
+          - name: user_id
+            required: true
+          - name: session_id
+            required: true
+          - name: message
+            required: true
+    ```
+
+    **Key Features:**
+    - Session-based memory for temporary context
+    - Persistent user preferences
+    - Tool integration for extended capabilities
+    - API endpoints for external client integration
+
+  </Accordion>
+</AccordionGroup>
 
 ## Best Practices
 
-### Memory Key Design
-- Use descriptive prefixes (`user:`, `session:`, `ticket:`)
-- Include unique identifiers to avoid conflicts
-- Keep keys reasonably short but descriptive
-- Use consistent naming patterns across your application
+<AccordionGroup>
+  <Accordion title="Choose the Right Integration Pattern">
 
-### Memory Management
-- Check memory health periodically to avoid hitting token limits
-- Use the `flush` operation to manage memory size
-- Consider your memory strategy (token-based vs message-based)
-- Monitor memory usage in production environments
+    <List>
+      <ListItem title="Use Agent Memory Integration First">
+        Start with agent memory integration - it's the simplest and handles 90% of use cases automatically
+      </ListItem>
+      <ListItem title="Use Memory Tasks for Complex Logic">
+        Choose memory tasks when you need explicit control, conditional operations, or non-agent memory access
+      </ListItem>
+      <ListItem title="Use API Integration for External Systems">
+        Select API integration for mobile apps, web frontends, or third-party system integration
+      </ListItem>
+      <ListItem title="Combine Patterns When Needed">
+        Mix different patterns in the same application - use agents for AI interactions and APIs for user interfaces
+      </ListItem>
+    </List>
 
-### Error Handling
-- Always check for memory operation success
-- Provide fallback behavior when memory is unavailable
-- Log memory errors for debugging
-- Consider graceful degradation when memory operations fail
+  </Accordion>
 
-### Performance Considerations
-- Memory operations are fast but not instantaneous
-- Use parallel tasks when loading multiple memory resources
-- Consider caching frequently accessed memory data
-- Monitor memory operation latency in production
+  <Accordion title="Memory Key Design">
+
+    <List>
+      <ListItem title="Use Consistent Prefixes">
+        Choose meaningful prefixes (`user:`, `session:`, `ticket:`) and use them consistently across your application
+      </ListItem>
+      <ListItem title="Ensure Uniqueness">
+        Include unique identifiers to prevent conflicts and data leaks in multi-tenant environments
+      </ListItem>
+      <ListItem title="Keep Keys Readable">
+        Balance brevity with clarity - keys should be reasonably short but self-explanatory
+      </ListItem>
+      <ListItem title="Avoid Sensitive Data in Keys">
+        Never include sensitive information in keys - they may appear in logs and monitoring systems
+      </ListItem>
+    </List>
+
+  </Accordion>
+
+  <Accordion title="Performance & Scalability">
+
+    <List>
+      <ListItem title="Monitor Memory Health">
+        Regularly check memory health to avoid hitting token limits and context overflow in production
+      </ListItem>
+      <ListItem title="Implement Cleanup Strategies">
+        Use appropriate flush strategies (LRU, FIFO, summarization) based on your application needs
+      </ListItem>
+      <ListItem title="Choose Appropriate Memory Types">
+        Select token-based memory for LLM integration, message-count for simple applications, buffer for development
+      </ListItem>
+      <ListItem title="Use Parallel Operations When Possible">
+        Load multiple memory resources in parallel for better performance in complex workflows
+      </ListItem>
+    </List>
+
+  </Accordion>
+
+  <Accordion title="Error Handling & Resilience">
+
+    <List>
+      <ListItem title="Design for Memory Failures">
+        Implement graceful degradation when memory operations fail - applications should continue functioning
+      </ListItem>
+      <ListItem title="Validate Operation Success">
+        Always check memory operation results and handle errors appropriately
+      </ListItem>
+      <ListItem title="Implement Retry Logic">
+        Add retry mechanisms for transient memory failures, especially in production environments
+      </ListItem>
+      <ListItem title="Log Memory Operations">
+        Maintain comprehensive logs for debugging and monitoring memory system health
+      </ListItem>
+    </List>
+
+  </Accordion>
+</AccordionGroup>
 
 ## Integration Architecture
 
-Compozy's memory integration follows a simple but effective architecture:
+Compozy's memory integration follows a **layered architecture** that provides multiple integration paths while maintaining consistency and security:
 
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   AI Agent      │    │ Workflow Task   │    │   Memory Tool   │
-│                 │    │                 │    │                 │
-│ • Memory Config │    │ • Tool Calls    │    │ • Operations    │
-│ • Auto-loading  │    │ • Memory Ops    │    │ • Bun Runtime   │
-│ • Context       │    │ • Data Flow     │    │ • JSON I/O      │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                       │                       │
-         └───────────────────────┼───────────────────────┘
-                                 │
-                     ┌─────────────────┐
-                     │ Memory Manager  │
-                     │                 │
-                     │ • Key Resolution│
-                     │ • Template Eng. │
-                     │ • Redis Store   │
-                     └─────────────────┘
-```
+<Mermaid chart={`graph LR
+    subgraph "Application Layer"
+        APP[Mobile/Web App] --> API[HTTP API]
+        WF[Workflow] --> MT[Memory Tasks]
+        AG[AI Agent] --> AM[Agent Memory]
+    end
 
-**Key components:**
-- **AI Agents**: Declarative memory configuration with automatic loading
-- **Workflow Tasks**: Memory operations through tool calls
-- **Memory Tools**: Secure TypeScript execution in Bun runtime
-- **Memory Manager**: Core memory operations with Redis storage
+    subgraph "Memory Layer"
+        API --> MM[Memory Manager]
+        MT --> MM
+        AM --> MM
+        MM --> TE[Template Engine]
+        TE --> MI[Memory Instances]
+    end
 
-This simple architecture provides powerful memory capabilities while maintaining ease of use and configuration.
+    subgraph "Storage Layer"
+        MI --> REDIS[Redis Storage]
+    end
+
+    class APP,WF,AG app
+    class API,MT,AM,MM,TE,MI memory
+    class REDIS,PG,MEM storage`} />
+
+**Architecture Benefits:**
+- **Multiple Integration Paths**: Choose the approach that best fits your application needs
+- **Consistent API**: All patterns use the same underlying memory system and operations
+- **Security Isolation**: Template engine and access controls ensure proper data isolation
+
+## Related Documentation
 
 <ReferenceCardList>
   <ReferenceCard
-    title="Memory Configuration"
-    description="Setting up memory resources"
+    title="Memory Overview"
+    description="Understand memory concepts, types, and core principles"
+    href="/docs/core/memory/overview"
+    icon="BookOpen"
+  />
+  <ReferenceCard
+    title="Memory Tasks"
+    description="Use built-in memory task types for direct workflow integration"
+    href="/docs/core/tasks/memory-tasks"
+    icon="Database"
+  />
+  <ReferenceCard
+    title="Agent Memory"
+    description="Configure agents with declarative memory for automatic context management"
+    href="/docs/core/agents/memory"
+    icon="Brain"
+  />
+  <ReferenceCard
+    title="Memory Operations"
+    description="Core memory operations: read, write, append, clear, flush, and health"
+    href="/docs/core/memory/operations"
+    icon="Terminal"
+  />
+  <ReferenceCard
+    title="Configuration"
+    description="Memory resource configuration, TTL settings, and backend options"
     href="/docs/core/memory/configuration"
     icon="Settings"
   />
   <ReferenceCard
-    title="Memory Operations"
-    description="Core memory operations and APIs"
-    href="/docs/core/memory/operations"
-    icon="Play"
-  />
-  <ReferenceCard
     title="Privacy & Security"
-    description="Securing memory with redaction patterns"
+    description="Implement secure memory with PII redaction and access controls"
     href="/docs/core/memory/privacy-security"
     icon="Shield"
   />
+</ReferenceCardList>
+
+## Next Steps
+
+<ReferenceCardList>
   <ReferenceCard
-    title="Troubleshooting"
-    description="Common memory issues and solutions"
-    href="/docs/core/memory/troubleshooting"
-    icon="Bug"
+    title="Quick Start: Memory"
+    description="Build your first memory-enabled application"
+    href="/docs/core/getting-started/core-concepts#memory"
+    icon="Rocket"
+  />
+  <ReferenceCard
+    title="Template Variables"
+    description="Master dynamic memory keys with template expressions"
+    href="/docs/core/yaml-templates/context-variables"
+    icon="Variable"
+  />
+  <ReferenceCard
+    title="Production Deployment"
+    description="Deploy memory-enabled applications to production"
+    href="/docs/core/deployment/production"
+    icon="Server"
+  />
+  <ReferenceCard
+    title="API Reference"
+    description="Complete HTTP API reference for memory operations"
+    href="/docs/api/memory"
+    icon="Code"
   />
 </ReferenceCardList>

@@ -3,46 +3,6 @@ title: "MCP Proxy Server"
 description: "Understanding the MCP proxy server architecture and deployment"
 ---
 
-import {
-  Radio,
-  Database,
-  Shield,
-  Settings,
-  Users,
-  BarChart3,
-  RefreshCw,
-  Terminal,
-  Globe,
-  Lock,
-  Eye,
-  Zap,
-  Package,
-  Code,
-  Cloud,
-  Link2,
-  FileCode,
-  TrendingUp,
-  AlertTriangle,
-  CheckCircle,
-  XCircle,
-  Clock,
-  Server,
-  Cpu,
-  Memory,
-  HardDrive,
-  Network,
-  GitBranch,
-  Layers,
-  MessageSquare,
-  Key,
-  Monitor,
-  Activity,
-  AlertCircle,
-  Info,
-  Warning,
-  Check,
-} from "lucide-react";
-
 The MCP Proxy Server is the central gateway that manages all MCP server connections in Compozy. It acts as a reverse proxy, connection manager, and administration hub for MCP servers, providing a unified HTTP interface for multiple MCP servers.
 
 <Callout type="info">
@@ -51,16 +11,14 @@ The MCP Proxy Server is the central gateway that manages all MCP server connecti
 
 ## Architecture Overview
 
-<Mermaid>
-{`
-graph TB
-    subgraph "Client Layer"
+<Mermaid chart={`graph TB
+    subgraph Clients["Client Layer"]
         A1[AI Agent 1]
         A2[AI Agent 2]
         A3[AI Agent N]
     end
 
-    subgraph "MCP Proxy Server"
+    subgraph Proxy["MCP Proxy Server"]
         B[HTTP Router]
         C[Admin API]
         D[Connection Manager]
@@ -70,7 +28,7 @@ graph TB
         H[Health Monitor]
     end
 
-    subgraph "MCP Servers"
+    subgraph Servers["MCP Servers"]
         I[stdio Server]
         J[SSE Server]
         K[HTTP Server]
@@ -94,15 +52,22 @@ graph TB
     C --> G
     D --> H
 
-    style B fill:#e1f5fe
-    style C fill:#f3e5f5
-    style D fill:#e8f5e8
-    style E fill:#fff3e0
-    style F fill:#fce4ec
-    style G fill:#f1f8e9
-    style H fill:#e0f2f1
-`}
-</Mermaid>
+    style A1 fill:#9ae600,stroke:#7bc200,color:#032e03
+    style A2 fill:#9ae600,stroke:#7bc200,color:#032e03
+    style A3 fill:#9ae600,stroke:#7bc200,color:#032e03
+
+    style B fill:#1f1f1f,stroke:#52514a,color:#dce4e5
+    style C fill:#242424,stroke:#363736,color:#c0c4c0
+    style D fill:#313131,stroke:#52514a,color:#dce4e5
+    style E fill:#242424,stroke:#363736,color:#c0c4c0
+    style F fill:#363736,stroke:#52514a,color:#828178
+    style G fill:#242424,stroke:#363736,color:#c0c4c0
+    style H fill:#363736,stroke:#52514a,color:#828178
+
+    style I fill:#313131,stroke:#52514a,color:#dce4e5
+    style J fill:#313131,stroke:#52514a,color:#dce4e5
+    style K fill:#313131,stroke:#52514a,color:#dce4e5
+    style L fill:#313131,stroke:#52514a,color:#dce4e5`} />
 
 ## Core Components
 
@@ -195,8 +160,8 @@ Handles security and access control for the proxy server.
 
 ### Transport Support Details
 
-<Tabs defaultValue="stdio" items={["stdio", "sse", "streamable-http"]}>
-<Tab value="stdio">
+<Tabs items={["Stdio", "SSE", "Streamable HTTP"]}>
+<Tab>
 **Standard I/O Transport**
 
 For local process communication with high performance:
@@ -211,7 +176,7 @@ For local process communication with high performance:
 </Callout>
 </Tab>
 
-<Tab value="sse">
+<Tab>
 **Server-Sent Events Transport**
 
 For HTTP-based real-time streaming:
@@ -226,7 +191,7 @@ For HTTP-based real-time streaming:
 </Callout>
 </Tab>
 
-<Tab value="streamable-http">
+<Tab>
 **Streamable HTTP Transport**
 
 For large responses and file transfers:
@@ -246,12 +211,8 @@ For large responses and file transfers:
 
 ### Server Configuration
 
-<Callout type="info">
-**Configuration Structure**: The proxy server uses a Go configuration struct with environment variable support for production deployments.
-</Callout>
-
-<Tabs defaultValue="structure" items={["structure", "defaults", "validation"]}>
-<Tab value="structure">
+<Tabs items={["Structure", "Defaults"]}>
+<Tab>
 **Configuration Structure**
 
 ```go title="Configuration Structure"
@@ -273,7 +234,7 @@ type Config struct {
 ```
 </Tab>
 
-<Tab value="defaults">
+<Tab>
 **Default Configuration**
 
 ```go title="Default Values"
@@ -292,42 +253,12 @@ func DefaultConfig() *Config {
 }
 ```
 </Tab>
-
-<Tab value="validation">
-**Configuration Validation**
-
-```go title="Validation Rules"
-func (c *Config) Validate() error {
-    // Port validation
-    if c.Port == "" {
-        return errors.New("port is required")
-    }
-
-    // Host validation
-    if c.Host == "" {
-        return errors.New("host is required")
-    }
-
-    // BaseURL validation
-    if c.BaseURL == "" {
-        return errors.New("base URL is required")
-    }
-
-    // Timeout validation
-    if c.ShutdownTimeout < 0 {
-        return errors.New("shutdown timeout cannot be negative")
-    }
-
-    return nil
-}
-```
-</Tab>
 </Tabs>
 
 ### Environment Variables
 
-<Tabs defaultValue="basic" items={["basic", "security", "advanced"]}>
-<Tab value="basic">
+<Tabs items={["Basic", "Security", "Advanced"]}>
+<Tab>
 **Basic Server Configuration**
 
 ```bash title="Basic Environment Variables"
@@ -341,7 +272,7 @@ MCP_PROXY_SHUTDOWN_TIMEOUT=30s
 ```
 </Tab>
 
-<Tab value="security">
+<Tab>
 **Security Configuration**
 
 ```bash title="Security Environment Variables"
@@ -361,7 +292,7 @@ MCP_PROXY_TRUSTED_PROXIES=127.0.0.1,::1
 </Callout>
 </Tab>
 
-<Tab value="advanced">
+<Tab>
 **Advanced Configuration**
 
 ```bash title="Advanced Environment Variables"
@@ -420,8 +351,8 @@ compozy mcp-proxy --host 0.0.0.0 --port 8081
 
 ### Docker Deployment
 
-<Tabs defaultValue="simple" items={["simple", "compose", "kubernetes"]}>
-<Tab value="simple">
+<Tabs items={["Simple", "Compose", "Kubernetes"]}>
+<Tab>
 **Simple Docker Container**
 
 ```dockerfile title="Dockerfile"
@@ -441,7 +372,7 @@ docker run -p 8081:8081 \
 ```
 </Tab>
 
-<Tab value="compose">
+<Tab>
 **Docker Compose Setup**
 
 ```yaml title="docker-compose.yml"
@@ -473,7 +404,7 @@ volumes:
 ```
 </Tab>
 
-<Tab value="kubernetes">
+<Tab>
 **Kubernetes Deployment**
 
 ```yaml title="k8s-deployment.yaml"
@@ -574,121 +505,49 @@ data:
 </Tab>
 </Tabs>
 
-### Programmatic Usage
+## API Reference
 
-```go
-package main
+For detailed API endpoint documentation, see our comprehensive API reference:
 
-import (
-    "context"
-    "time"
+<ReferenceCardList cols={2}>
+  <ReferenceCard
+    title="Operations API"
+    description="Health checks, metrics, and system management endpoints"
+    href="/docs/api/operations"
+    icon="Settings"
+  />
+  <ReferenceCard
+    title="Admin API"
+    description="MCP server registration, configuration, and management"
+    href="/docs/api/operations#admin-api"
+    icon="Shield"
+  />
+  <ReferenceCard
+    title="Proxy Endpoints"
+    description="SSE and HTTP streaming proxy endpoints"
+    href="/docs/api/operations#proxy-endpoints"
+    icon="Network"
+  />
+  <ReferenceCard
+    title="Authentication"
+    description="Token-based authentication and security"
+    href="/docs/api/operations#authentication"
+    icon="Key"
+  />
+</ReferenceCardList>
 
-    "github.com/compozy/compozy/pkg/mcp-proxy"
-)
+### Quick Reference
 
-func main() {
-    // Create configuration
-    config := &mcpproxy.Config{
-        Host:             "0.0.0.0",
-        Port:             "8081",
-        BaseURL:          "http://localhost:8081",
-        ShutdownTimeout:  30 * time.Second,
-        AdminTokens:      []string{"secure-admin-token"},
-        AdminAllowIPs:    []string{"127.0.0.1", "::1"},
-        GlobalAuthTokens: []string{"global-token"},
-    }
-
-    // Create storage
-    storage := mcpproxy.NewInMemoryStorage()
-
-    // Create and start proxy
-    proxy := mcpproxy.NewProxy(config, storage)
-    if err := proxy.Start(); err != nil {
-        panic(err)
-    }
-
-    defer proxy.Stop()
-
-    // Server is now running on http://localhost:8081
-    select {}
-}
-```
-
-## API Endpoints
-
-### System Endpoints
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/healthz` | GET | Health check |
-| `/metrics` | GET | Prometheus metrics |
-
-### Admin API Endpoints
-
-All admin endpoints require authentication via `Authorization: Bearer <token>`.
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/admin/mcps` | POST | Register MCP server |
-| `/admin/mcps` | GET | List all MCP servers |
-| `/admin/mcps/{name}` | GET | Get specific MCP server |
-| `/admin/mcps/{name}` | PUT | Update MCP server |
-| `/admin/mcps/{name}` | DELETE | Remove MCP server |
-| `/admin/tools` | GET | List all tools |
-
-### Proxy Endpoints
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/{name}/sse` | GET | SSE proxy endpoint |
-| `/{name}/stream` | POST | Streamable HTTP proxy |
-
-## Storage Backends
-
-### In-Memory Storage (Default)
-
-```go
-// For development and testing
-storage := mcpproxy.NewInMemoryStorage()
-```
-
-**Pros:**
-- Fast and simple
-- No external dependencies
-- Good for development
-
-**Cons:**
-- Data lost on restart
-- Not suitable for production
-
-### Redis Storage
-
-```go
-// For production environments
-redisConfig := &mcpproxy.RedisConfig{
-    Addr:     "localhost:6379",
-    Password: "secret",
-    DB:       0,
-}
-
-storage, err := mcpproxy.NewRedisStorage(redisConfig)
-```
-
-**Pros:**
-- Persistent storage
-- High availability
-- Scalable
-
-**Cons:**
-- Requires Redis instance
-- Additional complexity
+- **Health Check**: `GET /healthz` - Monitor server health
+- **Metrics**: `GET /metrics` - Prometheus-compatible metrics
+- **Admin API**: Requires `Authorization: Bearer <token>` header
+- **Server Management**: Register, update, and remove MCP servers
+- **Tool Discovery**: List all available tools across servers
 
 ## Health Checks & Monitoring
 
-### Health Check Endpoints
-
-<Tabs defaultValue="health" items={["health", "metrics", "admin"]}>
-<Tab value="health">
+<Tabs items={["Health", "Metrics", "Admin"]}>
+<Tab>
 **Health Check Endpoint**
 
 ```bash
@@ -719,7 +578,7 @@ curl http://localhost:8081/healthz
 - Resource utilization
 </Tab>
 
-<Tab value="metrics">
+<Tab>
 **Metrics Endpoint**
 
 ```bash
@@ -751,7 +610,7 @@ mcp_proxy_errors_total{type="timeout"} 2
 - Transport-specific metrics
 </Tab>
 
-<Tab value="admin">
+<Tab>
 **Admin API Status**
 
 ```bash
@@ -783,42 +642,10 @@ curl -H "Authorization: Bearer $MCP_PROXY_ADMIN_TOKEN" \
 </Tab>
 </Tabs>
 
-## Security Considerations
-
-### Authentication
-- Use strong, unique admin tokens
-- Rotate tokens regularly
-- Store tokens securely (environment variables)
-
-### Network Security
-- Configure IP allow-lists for admin API
-- Use HTTPS in production
-- Set up proper firewall rules
-
-### Access Control
-- Limit admin API access to specific IP ranges
-- Use global auth tokens for client access
-- Configure trusted proxies correctly
-
-## Monitoring
-
-### Metrics
-- Connection counts per MCP server
-- Request latency and error rates
-- Health check status
-- Resource utilization
-
-### Logging
-- Structured logging with configurable levels
-- Request/response logging
-- Error tracking and alerting
-
 ## Troubleshooting
 
-### Common Issues & Solutions
-
-<Tabs defaultValue="connection" items={["connection", "auth", "performance", "servers"]}>
-<Tab value="connection">
+<Tabs items={["Connection", "Authentication", "Performance", "Servers"]}>
+<Tab>
 **Connection Issues**
 
 | Issue | Symptoms | Solution |
@@ -841,7 +668,7 @@ telnet localhost 8081
 ```
 </Tab>
 
-<Tab value="auth">
+<Tab>
 **Authentication Issues**
 
 | Issue | Symptoms | Solution |
@@ -864,7 +691,7 @@ curl -H "Authorization: Bearer $TOKEN" \
 ```
 </Tab>
 
-<Tab value="performance">
+<Tab>
 **Performance Issues**
 
 | Issue | Symptoms | Solution |
@@ -887,7 +714,7 @@ curl http://localhost:8081/metrics | grep mcp_proxy_requests_duration
 ```
 </Tab>
 
-<Tab value="servers">
+<Tab>
 **MCP Server Issues**
 
 | Issue | Symptoms | Solution |
@@ -913,7 +740,7 @@ journalctl -f -u mcp-proxy
 </Tab>
 </Tabs>
 
-### Debug Mode
+## Debug Mode
 
 <Callout type="warning">
 **Debug Mode**: Enable debug logging for troubleshooting, but avoid in production due to performance impact.
@@ -938,63 +765,6 @@ compozy mcp-proxy
 - Authentication decision logging
 - Transport protocol debugging
 - Error stack traces
-
-## Production Deployment
-
-### High Availability
-
-```yaml
-# docker-compose.yml
-version: '3.8'
-services:
-  mcp-proxy-1:
-    image: compozy/compozy:latest
-    ports:
-      - "8081:8081"
-    environment:
-      - MCP_PROXY_ADMIN_TOKEN=secure-token
-      - REDIS_URL=redis://redis:6379
-    depends_on:
-      - redis
-
-  mcp-proxy-2:
-    image: compozy/compozy:latest
-    ports:
-      - "8082:8081"
-    environment:
-      - MCP_PROXY_ADMIN_TOKEN=secure-token
-      - REDIS_URL=redis://redis:6379
-    depends_on:
-      - redis
-
-  redis:
-    image: redis:7-alpine
-    command: redis-server --appendonly yes
-    volumes:
-      - redis_data:/data
-
-volumes:
-  redis_data:
-```
-
-### Load Balancing
-
-```nginx
-upstream mcp_proxy {
-    server mcp-proxy-1:8081;
-    server mcp-proxy-2:8081;
-}
-
-server {
-    listen 80;
-    location / {
-        proxy_pass http://mcp_proxy;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    }
-}
-```
 
 ## Next Steps
 

@@ -5,18 +5,26 @@ description: "JSON mode and schema validation for predictable agent responses"
 
 ## Overview
 
-Structured outputs ensure agents return data in predictable, machine-readable formats. This is essential for workflow automation, API integrations, and reliable data processing. Compozy provides JSON mode and schema validation to guarantee consistent output structures.
+Structured outputs ensure agents return data in predictable, machine-readable formats. This is essential for [workflow automation](/docs/core/workflows/overview), [API integrations](/docs/api/overview), and reliable data processing. Compozy provides JSON mode and [JSON Schema validation](https://json-schema.org/) to guarantee consistent output structures.
+
+If you're new to structured outputs, start with our [Quick Start Guide](/docs/core/getting-started/quick-start) to understand basic workflow concepts, then explore [Agent Configuration](/docs/core/agents/overview) for foundational agent setup patterns.
+
+<Callout type="tip">
+  For complex validation scenarios, leverage [reusable schemas](#reusable-schemas) and Compozy's [YAML template system](/docs/core/yaml-templates/overview) to build maintainable, modular configurations.
+</Callout>
 
 ## JSON Mode
 
-JSON mode forces agents to respond with valid JSON, enabling reliable parsing and processing of agent outputs.
+JSON mode forces agents to respond with valid JSON, enabling reliable parsing and processing of agent outputs. This is particularly valuable for [multi-agent workflows](/docs/core/agents/multi-agent-patterns) where agent outputs become inputs for subsequent [workflow tasks](/docs/core/tasks/basic-tasks).
 
 ### Enabling JSON Mode
 
-JSON mode can be enabled at multiple levels:
+JSON mode can be enabled at multiple levels, providing flexibility for different [agent configurations](/docs/core/agents/overview#agent-configuration) and [action patterns](/docs/core/agents/actions):
 
 <Tabs items={["Agent Level", "Action Level", "Automatic"]} defaultValue="Agent Level">
   <Tab value="Agent Level">
+    Enable JSON mode for all actions of an agent:
+    
     ```yaml
     agents:
       - id: data-processor
@@ -27,9 +35,13 @@ JSON mode can be enabled at multiple levels:
         instructions: |
           Always respond with valid JSON objects.
     ```
+    
+    This approach works well when building [specialized agents](/docs/core/agents/multi-agent-patterns#specialized-agents) focused on data processing tasks.
   </Tab>
 
   <Tab value="Action Level">
+    Enable JSON mode for specific actions within an agent:
+    
     ```yaml
     actions:
       - id: analyze-data
@@ -41,9 +53,13 @@ JSON mode can be enabled at multiple levels:
             findings:
               type: array
     ```
+    
+    Use this pattern when mixing structured and conversational outputs within the same agent.
   </Tab>
 
   <Tab value="Automatic">
+    JSON mode is automatically enabled when output schemas are defined:
+    
     ```yaml
     actions:
       - id: get-metrics
@@ -55,26 +71,31 @@ JSON mode can be enabled at multiple levels:
             metrics:
               type: object
     ```
+    
+    This automatic behavior ensures consistency between schema definitions and JSON output requirements.
   </Tab>
 </Tabs>
 
 ### JSON Mode Behavior
 
-When JSON mode is enabled:
-- Agent must respond with valid JSON
-- No markdown formatting or explanatory text
-- Response is directly parseable
-- Errors occur if response isn't valid JSON
+When JSON mode is enabled, agent behavior changes to ensure structured output compatibility:
 
-<Callout>
-JSON mode may limit the agent's ability to provide explanations or reasoning. Consider if you need pure data or contextual responses.
+- **Pure JSON Response**: Agent must respond with valid JSON only
+- **No Markdown**: No markdown formatting or explanatory text outside JSON
+- **Direct Parsing**: Response is directly parseable by downstream [workflow tasks](/docs/core/tasks/basic-tasks)
+- **Validation Errors**: Runtime errors occur if response isn't valid JSON
+
+<Callout type="warning">
+  **Trade-off Consideration**: JSON mode may limit the agent's ability to provide explanations or reasoning. For debugging complex logic, consider enabling [verbose logging](/docs/core/configuration/global#logging).
 </Callout>
 
 ## Output Schemas
 
-Output schemas define the expected structure of agent responses using JSON Schema (Draft 7).
+Output schemas define the expected structure of agent responses using [JSON Schema (Draft 7)](https://json-schema.org/). Schemas provide validation, type safety, and clear contracts for [agent interactions](/docs/core/agents/multi-agent-patterns) within [workflow orchestration](/docs/core/workflows/overview).
 
 ### Basic Schema Definition
+
+Define schemas directly within action definitions for simple validation:
 
 ```yaml
 actions:
@@ -100,567 +121,441 @@ actions:
       required: ["sentiment", "confidence"]
 ```
 
-### Schema Types and Validation
+This basic approach works well for simple schemas. For complex validation patterns, consider using [reusable schemas](#reusable-schemas) to promote consistency across your [workflow definitions](/docs/core/configuration/workflows).
 
-<AccordionGroup>
-  <Accordion title="Object Schemas">
-    ```yaml
-    output:
-      type: object
-      properties:
-        user:
-          type: object
-          properties:
-            id:
-              type: string
-            name:
-              type: string
-              minLength: 1
-            email:
-              type: string
-              format: email
-            role:
-              type: string
-              enum: ["admin", "user", "moderator"]
-          required: ["id", "name", "email"]
-      required: ["user"]
-    ```
-  </Accordion>
+## Reusable Schemas
 
-  <Accordion title="Array Schemas">
-    ```yaml
-    output:
-      type: object
-      properties:
-        results:
-          type: array
-          items:
-            type: object
-            properties:
-              id:
-                type: integer
-              score:
-                type: number
-              category:
-                type: string
-          minItems: 1
-        total:
-          type: integer
-    ```
-  </Accordion>
+Define reusable schemas within your workflow to promote consistency and reduce duplication across multiple agents and actions. This approach leverages Compozy's [`$ref` directive](/docs/core/yaml-templates/directives#ref-directive) to reference schema definitions.
 
-  <Accordion title="Conditional Schemas">
-    ```yaml
-    output:
-      type: object
-      properties:
-        status:
-          type: string
-          enum: ["success", "error", "partial"]
-        data:
-          type: object
-        error:
-          type: object
-          properties:
-            code:
-              type: string
-            message:
-              type: string
-      # Conditional validation
-      oneOf:
-        - properties:
-            status:
-              const: "success"
-          required: ["status", "data"]
-        - properties:
-            status:
-              const: "error"
-          required: ["status", "error"]
-    ```
-  </Accordion>
+### Defining Schemas
 
-  <Accordion title="Complex Types">
-    ```yaml
-    output:
-      type: object
-      properties:
-        timestamp:
-          type: string
-          format: date-time
-        metrics:
-          type: object
-          additionalProperties:
-            type: number
-        metadata:
-          type: object
-          properties:
-            version:
-              type: string
-              pattern: "^\\d+\\.\\d+\\.\\d+$"
-        tags:
-          type: array
-          items:
-            type: string
-          uniqueItems: true
-    ```
-  </Accordion>
-</AccordionGroup>
-
-## Practical Examples
-
-### Data Extraction
-
-Extract structured data from unstructured text:
+Add schema definitions to your workflow configuration under the `schemas` property:
 
 ```yaml
-actions:
-  - id: extract-invoice
-    prompt: |
-      Extract invoice information from the text:
-      {{.input.text}}
-
-      Return all monetary values as numbers without currency symbols.
-      Return dates in ISO 8601 format.
-    json_mode: true
-    output:
-      type: object
-      properties:
-        invoice_number:
-          type: string
-        date:
-          type: string
-          format: date
-        due_date:
-          type: string
-          format: date
-        vendor:
-          type: object
-          properties:
-            name:
-              type: string
-            address:
-              type: string
-            tax_id:
-              type: string
-        line_items:
-          type: array
-          items:
-            type: object
-            properties:
-              description:
-                type: string
-              quantity:
-                type: number
-              unit_price:
-                type: number
-              total:
-                type: number
-        subtotal:
-          type: number
-        tax:
-          type: number
-        total:
-          type: number
-      required: ["invoice_number", "date", "vendor", "line_items", "total"]
-```
-
-### Analysis with Structured Results
-
-Analysis task with clear, focused output schema:
-
-```yaml
-actions:
-  - id: analyze-customer
-    prompt: |
-      Analyze customer behavior from transaction data:
-      {{.input.transactions | toJson}}
-    output:
-      type: object
-      properties:
-        segment:
-          type: string
-          enum: ["high-value", "regular", "at-risk", "churned"]
-        lifetime_value:
-          type: number
-        key_insights:
-          type: array
-          items:
-            type: string
-          maxItems: 3
-        recommended_action:
-          type: string
-      required: ["segment", "lifetime_value", "key_insights"]
-```
-
-### Error Handling
-
-Structure error responses consistently:
-
-```yaml
-actions:
-  - id: process-request
-    prompt: |
-      Process the request and handle any errors gracefully.
-      If an error occurs, provide detailed information.
-    output:
-      type: object
-      properties:
-        success:
-          type: boolean
-        result:
-          type: object
-          description: "Present when success is true"
-        error:
-          type: object
-          description: "Present when success is false"
-          properties:
-            code:
-              type: string
-              pattern: "^ERR_[A-Z_]+$"
-            message:
-              type: string
-            details:
-              type: object
-            suggestions:
-              type: array
-              items:
-                type: string
-      # Ensure either result or error is present
-      if:
-        properties:
-          success:
-            const: true
-      then:
-        required: ["success", "result"]
-      else:
-        required: ["success", "error"]
-```
-
-## Validation and Error Handling
-
-### Schema Validation Process
-
-<Steps>
-  <Step title="Pre-execution" description="Input schema validates incoming parameters. The input schema is applied to validate all incoming workflow parameters before execution begins, ensuring data integrity from the start." />
-  <Step title="Agent Processing" description="Agent generates response following the schema. The agent processes the request with awareness of the output schema requirements, structuring its response accordingly." />
-  <Step title="Post-execution" description="Output schema validates agent response. The generated response is validated against the defined output schema to ensure compliance with expected structure." />
-  <Step title="Error Handling" description="Validation errors are returned with details. Any validation failures produce detailed error messages with specific paths and expected values for debugging." />
-</Steps>
-
-### Validation Error Example
-
-When validation fails, you receive detailed error information:
-
-```json
-{
-  "error": "output validation failed",
-  "details": {
-    "path": ".customer_profile.segment",
-    "expected": ["high-value", "regular", "at-risk", "churned"],
-    "actual": "premium",
-    "message": "value must be one of the allowed values"
-  }
-}
-```
-
-### Handling Validation Gracefully
-
-```yaml
-tasks:
-  - id: safe-processing
-    type: basic
-    $use: agent(local::agents.#(id="processor"))
-    action: process
-    on_error:
-      - type: basic
-        $use: agent(local::agents.#(id="error-handler"))
-        action: handle-validation-error
-        with:
-          error: "{{.error}}"
-          original_input: "{{.input}}"
-```
-
-## Advanced Patterns
-
-### Dynamic Document Type Handling
-
-Handle different document types dynamically by first classifying the document, then routing to type-specific extraction:
-
-<Steps>
-<Step title="Document Classification" description="Create an agent that can identify document types. The agent analyzes document content and structure to determine the type, returning both the classification and confidence level.">
-
-```yaml
-agents:
-  - id: document-classifier
-    instructions: |
-      You classify documents by type based on their content and structure.
-      Return the document type and confidence level.
-    actions:
-      - id: classify-document
-        prompt: |
-          Analyze this document and determine its type:
-          {{.input.document}}
-
-          Common types: invoice, purchase_order, contract, receipt, report
-        output:
-          type: object
-          properties:
-            type:
-              type: string
-              enum: ["invoice", "purchase_order", "contract", "receipt", "report", "unknown"]
-            confidence:
-              type: number
-              minimum: 0
-              maximum: 1
-```
-
-</Step>
-
-<Step title="Dynamic Document Type Routing" description="Use router tasks to dynamically handle different document types. Based on the classification result, the workflow routes to the appropriate specialized extractor, ensuring optimal extraction for each document type.">
-
-```yaml
-tasks:
-  - id: classify-document
-    type: basic
-    $use: agent(local::agents.#(id="document-classifier"))
-    action: classify-document
-    with:
-      document: "{{.workflow.input.document}}"
-
-  - id: extract-by-type
-    type: router
-    condition: "{{.tasks.classify-document.output.type}}"
-    routes:
-      invoice:
-        type: basic
-        $use: agent(local::agents.#(id="invoice-extractor"))
-        action: extract-invoice
-        with:
-          document: "{{.workflow.input.document}}"
-        output:
-          type: object
-          properties:
-            invoice_number: { type: string }
-            vendor: { type: object }
-            total: { type: number }
-
-      purchase_order:
-        type: basic
-        $use: agent(local::agents.#(id="po-extractor"))
-        action: extract-purchase-order
-        with:
-          document: "{{.workflow.input.document}}"
-        output:
-          type: object
-          properties:
-            po_number: { type: string }
-            buyer: { type: object }
-            items: { type: array }
-
-      default:
-        type: basic
-        $use: agent(local::agents.#(id="generic-extractor"))
-        action: extract-generic
-        with:
-          document: "{{.workflow.input.document}}"
-          document_type: "{{.tasks.classify-document.output.type}}"
-```
-
-</Step>
-</Steps>
-
-<List>
-  <ListItem title="Dynamic routing" description="Route documents based on actual content classification rather than predetermined types. This enables flexible handling of various document formats without hardcoding paths." />
-  <ListItem title="Type-specific schemas" description="Apply appropriate validation schemas for each document type. Each extractor uses a schema tailored to its document type's specific fields and structure." />
-  <ListItem title="Fallback handling" description="Gracefully handle unknown document types with generic extraction. The default route ensures no document is left unprocessed, even if its type is unrecognized." />
-  <ListItem title="Single workflow" description="One workflow handles multiple document types without modification. This reduces maintenance overhead and provides a unified interface for document processing." />
-</List>
-
-### Schema Composition
-
-Reuse schema definitions:
-
-```yaml
-definitions:
-  Address:
+# workflow.yaml
+schemas:
+  - id: user_profile
     type: object
     properties:
-      street:
-        type: string
-      city:
-        type: string
-      state:
-        type: string
-      zip:
-        type: string
-      country:
-        type: string
-    required: ["street", "city", "country"]
-
-  Contact:
-    type: object
-    properties:
-      name:
-        type: string
       email:
         type: string
         format: email
-      phone:
+      name:
         type: string
-      address:
-        $ref: "#/definitions/Address"
+        minLength: 2
+      age:
+        type: integer
+        minimum: 0
+        maximum: 150
+    required: [email, name]
 
-actions:
-  - id: extract-contacts
-    output:
-      type: object
-      properties:
-        contacts:
-          type: array
-          items:
-            $ref: "#/definitions/Contact"
+  - id: api_response
+    type: object
+    properties:
+      status:
+        type: string
+        enum: [success, error, pending]
+      data:
+        type: object
+      message:
+        type: string
+    required: [status]
+
+  - id: classification_result
+    type: object
+    properties:
+      category:
+        type: string
+      confidence:
+        type: number
+        minimum: 0
+        maximum: 1
+      metadata:
+        type: object
+    required: [category, confidence]
 ```
 
-### Polymorphic Outputs
+### Referencing Schemas
 
-Handle different output types:
+Use the [`$ref` directive](/docs/core/yaml-templates/directives#ref-directive) to reference defined schemas in your agent actions:
+
+<Tabs items={["Basic Reference", "Input Validation", "Complex Composition"]}>
+  <Tab value="Basic Reference">
+    Reference a schema by ID using local scope:
+    
+    ```yaml
+    agents:
+      - id: user-processor
+        actions:
+          - id: validate-user
+            prompt: "Validate the user data structure"
+            output:
+              $ref: "local::schemas.#(id==\"user_profile\")"
+          
+          - id: classify-content
+            prompt: "Classify the content type"
+            output:
+              $ref: "local::schemas.#(id==\"classification_result\")"
+    ```
+  </Tab>
+
+  <Tab value="Input Validation">
+    Use schemas for both input and output validation:
+    
+    ```yaml
+    config:
+      input:
+        $ref: "local::schemas.#(id==\"user_profile\")"
+
+    agents:
+      - id: profile-analyzer
+        actions:
+          - id: analyze-profile
+            prompt: "Analyze the user profile: {{.input | toJson}}"
+            output:
+              $ref: "local::schemas.#(id==\"api_response\")"
+    ```
+    
+    This pattern ensures consistent validation throughout your [workflow execution](/docs/core/workflows/overview#execution-model).
+  </Tab>
+
+  <Tab value="Complex Composition">
+    Combine schemas using JSON Schema composition keywords:
+    
+    ```yaml
+    schemas:
+      - id: enhanced_response
+        allOf:
+          - $ref: "local::schemas.#(id==\"api_response\")"
+          - type: object
+            properties:
+              timestamp:
+                type: string
+                format: date-time
+              request_id:
+                type: string
+            required: [timestamp, request_id]
+
+    agents:
+      - id: api-handler
+        actions:
+          - id: process-request
+            prompt: "Process the API request"
+            output:
+              $ref: "local::schemas.#(id==\"enhanced_response\")"
+    ```
+    
+    Learn more about schema composition in the [YAML Template Advanced Patterns](/docs/core/yaml-templates/advanced-patterns) documentation.
+  </Tab>
+</Tabs>
+
+### Schema Benefits
+
+Reusable schemas provide several advantages for [workflow development](/docs/core/getting-started/first-workflow):
+
+- **Consistency**: Ensure uniform data structures across agents and actions
+- **Maintainability**: Update schema definitions in one place for project-wide changes
+- **Validation**: Leverage JSON Schema's powerful validation capabilities
+- **Documentation**: Schema descriptions serve as inline documentation for data structures
+- **Integration**: Seamless integration with [YAML template system](/docs/core/yaml-templates/overview) and [workflow configuration](/docs/core/configuration/workflows)
+
+<Callout type="tip">
+  For schemas shared across multiple workflows, consider defining them in your [global configuration](/docs/core/configuration/global) and using `global::` references, or organize them in external files with `resource::` references as described in the [Template Directives](/docs/core/yaml-templates/directives) documentation.
+</Callout>
+
+## Practical Examples
+
+Real-world examples demonstrating structured outputs in common scenarios. These patterns work well with [parallel task execution](/docs/core/tasks/parallel-tasks) and [collection tasks](/docs/core/tasks/collection-tasks) for processing multiple data items efficiently.
+
+<Tabs items={["Data Extraction", "Analysis Results", "API Integration"]} defaultValue="Data Extraction">
+  <Tab value="Data Extraction">
+    Extract structured data from unstructured text using precise schemas:
+
+    ```yaml
+    schemas:
+      - id: invoice_data
+        type: object
+        properties:
+          invoice_number:
+            type: string
+            description: "Unique invoice identifier"
+          date:
+            type: string
+            format: date
+            description: "Invoice issue date in YYYY-MM-DD format"
+          due_date:
+            type: string
+            format: date
+          vendor:
+            type: object
+            properties:
+              name:
+                type: string
+              address:
+                type: string
+              tax_id:
+                type: string
+          line_items:
+            type: array
+            items:
+              type: object
+              properties:
+                description:
+                  type: string
+                quantity:
+                  type: number
+                unit_price:
+                  type: number
+                total:
+                  type: number
+          subtotal:
+            type: number
+          tax:
+            type: number
+          total:
+            type: number
+        required: ["invoice_number", "date", "vendor", "line_items", "total"]
+
+    agents:
+      - id: invoice-processor
+        actions:
+          - id: extract-invoice
+            prompt: |
+              Extract invoice information from the text:
+              {{.input.text}}
+
+              Return all monetary values as numbers without currency symbols.
+              Return dates in ISO 8601 format.
+            json_mode: true
+            output:
+              $ref: "local::schemas.#(id==\"invoice_data\")"
+    ```
+    
+    This pattern works well for [document processing workflows](/docs/core/workflows/overview) that need to extract and validate financial data.
+  </Tab>
+
+  <Tab value="Analysis Results">
+    Analysis task with focused output schema for business intelligence:
+
+    ```yaml
+    schemas:
+      - id: customer_analysis
+        type: object
+        properties:
+          segment:
+            type: string
+            enum: ["high-value", "regular", "at-risk", "churned"]
+            description: "Customer segment classification"
+          lifetime_value:
+            type: number
+            minimum: 0
+            description: "Estimated customer lifetime value in USD"
+          key_insights:
+            type: array
+            items:
+              type: string
+            maxItems: 3
+            description: "Top 3 behavioral insights"
+          recommended_action:
+            type: string
+            description: "Recommended business action"
+        required: ["segment", "lifetime_value", "key_insights"]
+
+    agents:
+      - id: customer-analyzer
+        actions:
+          - id: analyze-customer
+            prompt: |
+              Analyze customer behavior from transaction data:
+              {{.input.transactions | toJson}}
+              
+              Focus on purchase patterns, frequency, and value trends.
+            output:
+              $ref: "local::schemas.#(id==\"customer_analysis\")"
+    ```
+    
+    Ideal for [multi-agent workflows](/docs/core/agents/multi-agent-patterns) where customer analysis feeds into recommendation engines or marketing automation.
+  </Tab>
+
+  <Tab value="API Integration">
+    Structured outputs for seamless API integrations:
+
+    ```yaml
+    schemas:
+      - id: api_request
+        type: object
+        properties:
+          endpoint:
+            type: string
+            format: uri
+          method:
+            type: string
+            enum: ["GET", "POST", "PUT", "DELETE"]
+          headers:
+            type: object
+          body:
+            type: object
+        required: ["endpoint", "method"]
+
+      - id: api_response
+        type: object
+        properties:
+          status_code:
+            type: integer
+            minimum: 100
+            maximum: 599
+          response_body:
+            type: object
+          error_message:
+            type: string
+        required: ["status_code"]
+
+    agents:
+      - id: api-orchestrator
+        actions:
+          - id: prepare-request
+            prompt: |
+              Generate an API request for: {{.input.operation}}
+              Target system: {{.input.target_system}}
+            output:
+              $ref: "local::schemas.#(id==\"api_request\")"
+              
+          - id: process-response
+            prompt: |
+              Process the API response and extract key information:
+              {{.input.api_response | toJson}}
+            output:
+              $ref: "local::schemas.#(id==\"api_response\")"
+    ```
+    
+    This pattern enables robust [tool integration](/docs/core/tools/overview) and seamless connectivity with external services.
+  </Tab>
+</Tabs>
+
+## Schema Validation Process
+
+Understanding the validation lifecycle helps with debugging and building robust [AI-powered workflows](/docs/core/workflows/overview). Compozy validates schemas at multiple stages to ensure data integrity throughout the execution pipeline.
+
+<Steps>
+  <Step title="Pre-execution" description="Input schema validates incoming parameters. The input schema is applied to validate all incoming workflow parameters before execution begins, ensuring data integrity from the start. Failed validation prevents workflow execution and returns detailed error messages." />
+  <Step title="Agent Processing" description="Agent generates response following the schema. The agent processes the request with awareness of the output schema requirements, structuring its response accordingly. JSON mode is automatically enabled when output schemas are defined." />
+  <Step title="Post-execution" description="Output schema validates agent response. The generated response is validated against the defined output schema to ensure compliance with expected structure. This prevents malformed data from propagating to downstream tasks." />
+  <Step title="Error Handling" description="Validation errors are returned with details. Any validation failures produce detailed error messages with specific paths and expected values for debugging. Use these error messages to refine prompts or adjust schema definitions." />
+</Steps>
+
+<Callout type="info">
+  **Debugging Validation Issues**: When validation fails, examine the error path to identify which schema property caused the issue. Common problems include missing required fields, incorrect data types, or values outside defined ranges. See [Validation & Debugging](/docs/core/yaml-templates/validation-debugging) for troubleshooting techniques.
+</Callout>
+
+### Validation Error Examples
+
+Common validation scenarios and their error messages:
 
 ```yaml
+# Schema definition
 output:
   type: object
   properties:
-    result_type:
-      type: string
-      enum: ["user", "organization", "group"]
-    data:
-      oneOf:
-        - type: object
-          properties:
-            user_id:
-              type: string
-            username:
-              type: string
-          required: ["user_id", "username"]
-        - type: object
-          properties:
-            org_id:
-              type: string
-            org_name:
-              type: string
-          required: ["org_id", "org_name"]
-        - type: object
-          properties:
-            group_id:
-              type: string
-            members:
-              type: array
-          required: ["group_id", "members"]
+    score:
+      type: number
+      minimum: 0
+      maximum: 100
+  required: [score]
+
+# Valid response ✅
+{"score": 85}
+
+# Invalid responses ❌
+{"score": "high"}       # Error: expected number, got string
+{"rating": 85}          # Error: missing required property 'score'
+{"score": 150}          # Error: value exceeds maximum of 100
 ```
 
-## Best Practices
+For advanced validation patterns and custom error handling, explore [YAML Template Advanced Patterns](/docs/core/yaml-templates/advanced-patterns) and [Error Handling in Workflows](/docs/core/workflows/overview#error-handling).
 
-<AccordionGroup>
-  <Accordion title="Schema Design">
-    - Start simple and iterate
-    - Use descriptive property names
-    - Include descriptions for complex fields
-    - Set reasonable constraints (min/max values)
-    - Use enums for known value sets
-  </Accordion>
+## Advanced Topics
 
-  <Accordion title="Performance">
-    - Avoid overly complex nested structures
-    - Use references for repeated patterns
-    - Consider schema size impact on tokens
-    - Balance validation strictness with flexibility
-  </Accordion>
-
-  <Accordion title="Error Recovery">
-    - Design schemas that allow partial success
-    - Include error information in output schema
-    - Provide fallback values where appropriate
-    - Log validation failures for debugging
-  </Accordion>
-
-  <Accordion title="Maintainability">
-    - Version your schemas
-    - Document breaking changes
-    - Use consistent naming conventions
-    - Test schemas with edge cases
-  </Accordion>
-</AccordionGroup>
+<ReferenceCardList>
+  <ReferenceCard
+    title="YAML Template System"
+    description="Master template expressions, variables, and advanced composition patterns for dynamic schemas"
+    href="/docs/core/yaml-templates/overview"
+    icon="Code"
+  />
+  <ReferenceCard
+    title="Template Directives"
+    description="Deep dive into $ref and $use directives for reusable schema patterns and resource composition"
+    href="/docs/core/yaml-templates/directives"
+    icon="Link"
+  />
+  <ReferenceCard
+    title="Workflow Configuration"
+    description="Learn about schemas property and input validation patterns in workflow definitions"
+    href="/docs/core/configuration/workflows#schema-definitions"
+    icon="Settings"
+  />
+  <ReferenceCard
+    title="Validation & Debugging"
+    description="Troubleshooting techniques for schema validation errors and complex debugging scenarios"
+    href="/docs/core/yaml-templates/validation-debugging"
+    icon="Bug"
+  />
+</ReferenceCardList>
 
 ## Integration Patterns
-
-### API Integration
-
-```yaml
-actions:
-  - id: api-compatible
-    prompt: "Generate API-compatible response"
-    output:
-      type: object
-      properties:
-        status:
-          type: integer
-          enum: [200, 201, 400, 404, 500]
-        headers:
-          type: object
-          additionalProperties:
-            type: string
-        body:
-          type: object
-        _links:
-          type: object
-          properties:
-            self:
-              type: string
-              format: uri
-            next:
-              type: string
-              format: uri
-```
-
-### Database Integration
-
-```yaml
-actions:
-  - id: db-record
-    prompt: "Extract data for database insertion"
-    output:
-      type: object
-      properties:
-        table:
-          type: string
-        record:
-          type: object
-          additionalProperties: true
-        relationships:
-          type: array
-          items:
-            type: object
-            properties:
-              table:
-                type: string
-              foreign_key:
-                type: string
-              value:
-                type: string
-```
-
-## Next Steps
 
 <ReferenceCardList>
   <ReferenceCard
     title="Multi-Agent Patterns"
-    description="Learn how structured outputs enable multi-agent workflows"
+    description="Design structured data flows between agents in complex orchestration scenarios"
     href="/docs/core/agents/multi-agent-patterns"
     icon="Users"
   />
   <ReferenceCard
-    title="Workflow Integration"
-    description="See how structured outputs integrate with workflow tasks"
-    href="/docs/core/workflows/overview"
-    icon="GitBranch"
+    title="Parallel Tasks"
+    description="Process structured data efficiently using parallel task execution patterns"
+    href="/docs/core/tasks/parallel-tasks"
+    icon="Zap"
+  />
+  <ReferenceCard
+    title="Collection Tasks"
+    description="Apply structured outputs to batch processing and data collection workflows"
+    href="/docs/core/tasks/collection-tasks"
+    icon="Database"
+  />
+  <ReferenceCard
+    title="Tool Integration"
+    description="Connect structured agent outputs to external tools and API integrations"
+    href="/docs/core/tools/overview"
+    icon="Wrench"
+  />
+</ReferenceCardList>
+
+## Learning Path
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Quick Start Guide"
+    description="Begin with basic workflow concepts and simple structured output examples"
+    href="/docs/core/getting-started/quick-start"
+    icon="Rocket"
+  />
+  <ReferenceCard
+    title="First Workflow Tutorial"
+    description="Build a complete AI application with structured outputs and validation patterns"
+    href="/docs/core/getting-started/first-workflow"
+    icon="GraduationCap"
+  />
+  <ReferenceCard
+    title="Agent Configuration"
+    description="Master agent setup patterns and configuration best practices"
+    href="/docs/core/agents/overview"
+    icon="Cpu"
+  />
+  <ReferenceCard
+    title="API Documentation"
+    description="Execute workflows with structured outputs via CLI commands and REST APIs"
+    href="/docs/api/workflows"
+    icon="Terminal"
   />
 </ReferenceCardList>

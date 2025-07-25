@@ -1,9 +1,7 @@
 ---
 title: "Context Variables"
-description: "Accessing workflow data, task outputs, and environment variables in templates"
+description: Context variables provide access to data from various sources throughout your Compozy workflows. Understanding the context structure and data access patterns is essential for building dynamic, data-driven configurations.
 ---
-
-Context variables provide access to data from various sources throughout your Compozy workflows. Understanding the context structure and data access patterns is essential for building dynamic, data-driven configurations.
 
 ## Overview
 
@@ -155,12 +153,12 @@ base_url: "{{ .env.API_BASE_URL | default 'http://localhost:3000' }}"
       item_id: "{{ .item.id }}"
       item_name: "{{ .item.name }}"
       item_data: "{{ .item }}"
-      
+
       # Iteration context
       current_index: "{{ .index }}"
       is_first: "{{ eq .index 0 }}"
       is_last: "{{ eq .index (sub (len .items) 1) }}"
-      
+
       # Collection metadata
       total_items: "{{ len .items }}"
       batch_id: "{{ printf '%s_batch_%d' .workflow.id .index }}"
@@ -240,10 +238,10 @@ safe_value: "{{ .tasks.risky_operation.output.value | default 'fallback' }}"
 
 # Multiple fallback options
 notification_email: |
-  {{- coalesce 
-      .tasks.get_user.output.notification_email 
-      .tasks.get_user.output.primary_email 
-      .workflow.input.default_email 
+  {{- coalesce
+      .tasks.get_user.output.notification_email
+      .tasks.get_user.output.primary_email
+      .workflow.input.default_email
       'noreply@example.com' -}}
 ```
 
@@ -318,13 +316,13 @@ available_env: "{{ keys .env | join ', ' }}"
   with:
     # Workflow input
     url: "{{ .workflow.input.api_endpoint }}"
-    
+
     # Environment configuration
     api_key: "{{ .env.API_KEY }}"
-    
+
     # Previous task output
     user_id: "{{ .tasks.authenticate.output.user_id }}"
-    
+
     # Dynamic headers
     headers:
       Authorization: "Bearer {{ .tasks.authenticate.output.token }}"
@@ -345,13 +343,13 @@ available_env: "{{ keys .env | join ', ' }}"
       with:
         email: "{{ .workflow.input.email }}"
         name: "{{ .workflow.input.name }}"
-        
+
     - id: setup_profile
       type: basic
       with:
         user_id: "{{ .tasks.create_account.output.user_id }}"
         preferences: "{{ .workflow.input.preferences }}"
-        
+
     - id: send_welcome
       type: basic
       with:
@@ -374,13 +372,13 @@ available_env: "{{ keys .env | join ', ' }}"
       with:
         images: "{{ .workflow.input.images }}"
         quality: "{{ .workflow.input.quality | default 'medium' }}"
-        
+
     - id: process_videos
       type: basic
       with:
         videos: "{{ .workflow.input.videos }}"
         resolution: "{{ .workflow.input.resolution | default '720p' }}"
-        
+
     - id: process_documents
       type: basic
       with:
@@ -430,21 +428,21 @@ available_env: "{{ keys .env | join ', ' }}"
 <Steps>
   <Step title="Use Meaningful Variable Names">
     Always use descriptive names that clearly indicate what data you're accessing:
-    
+
     ```yaml
     # ✅ Good - descriptive access
     user_email: "{{ .tasks.get_user_profile.output.email }}"
     auth_token: "{{ .tasks.authenticate_user.output.access_token }}"
-    
+
     # ❌ Avoid - unclear references
     data: "{{ .tasks.task1.output.data }}"
     result: "{{ .tasks.step2.output }}"
     ```
   </Step>
-  
+
   <Step title="Provide Fallback Values">
     Always provide sensible defaults to prevent template errors:
-    
+
     ```yaml
     # Always provide sensible defaults
     timeout: "{{ .workflow.config.timeout | default 30 }}"
@@ -452,10 +450,10 @@ available_env: "{{ keys .env | join ', ' }}"
     user_name: "{{ .tasks.get_user.output.name | default 'Guest' }}"
     ```
   </Step>
-  
+
   <Step title="Validate Context Before Use">
     Check data existence before accessing nested structures:
-    
+
     ```yaml
     # Check existence before accessing nested data
     safe_access: |
@@ -466,10 +464,10 @@ available_env: "{{ keys .env | join ', ' }}"
       {{- end -}}
     ```
   </Step>
-  
+
   <Step title="Use Type-Appropriate Conversions">
     Convert data types as needed for proper processing:
-    
+
     ```yaml
     # Convert types as needed
     port_number: "{{ .env.PORT | default '3000' | int }}"
@@ -477,22 +475,22 @@ available_env: "{{ keys .env | join ', ' }}"
     timeout_float: "{{ .config.timeout | default '30.5' | float64 }}"
     ```
   </Step>
-  
+
   <Step title="Document Complex Context Usage">
     Add comments to explain complex context access patterns:
-    
+
     ```yaml
     # Document complex context access patterns
     user_notification_config:
       # User's preferred notification method from profile
       method: "{{ .tasks.get_user_profile.output.notifications.method | default 'email' }}"
-      
+
       # Fallback to workflow input if profile incomplete
       email: "{{ coalesce .tasks.get_user_profile.output.email .workflow.input.email }}"
-      
+
       # Environment-based configuration
       service_url: "{{ .env.NOTIFICATION_SERVICE_URL }}"
-      
+
       # Dynamic content based on user type
       template: |
         {{- if eq .tasks.get_user_profile.output.type "premium" -}}
@@ -503,128 +501,6 @@ available_env: "{{ keys .env | join ', ' }}"
     ```
   </Step>
 </Steps>
-
-## Integration Patterns
-
-<Tabs items={["MCP Integration", "Memory Integration", "Multi-Agent Context", "Enterprise Patterns"]}>
-<Tab>
-**MCP (Model Context Protocol)** servers provide external context integration:
-
-```yaml title="MCP Context Integration"
-# MCP context variables
-agents:
-  - id: file_agent
-    config:
-      $ref: global::models.#(provider=="groq")
-    mcps:
-      - id: file_server
-        transport: stdio
-        command: docker mcp gateway run
-        proto: "2025-03-26"
-        start_timeout: 15s
-    actions:
-      - id: list_files
-        prompt: |
-          Use MCP tools to list files in {{ .workflow.input.directory }}.
-          Current context: {{ .workflow | toJson }}
-          Available tools: {{ keys .tools | join ", " }}
-```
-
-**MCP context patterns:**
-- Use MCP servers for external tool integration
-- Access MCP context through `.workflow` and `.tools`
-- Configure MCP transports and protocols
-</Tab>
-
-<Tab>
-**Memory Integration** provides persistent context across workflow executions:
-
-```yaml title="Memory Context Integration"
-# Memory-backed context
-agents:
-  - id: personalized_agent
-    config:
-      $ref: global::models.#(provider=="groq")
-    memory:
-      - id: user_memory
-        key: "user:{{.workflow.input.user_id}}"
-        mode: read-write
-    instructions: |
-      You are a personalized assistant for user {{.workflow.input.user_id}}.
-      Use your memory to provide contextual responses.
-      Current session: {{.workflow.id}}
-      User preferences: {{.workflow.input.preferences | default "none"}}
-```
-
-**Memory context patterns:**
-- Use memory for persistent user context
-- Key memory with user or session identifiers
-- Configure read-write or read-only memory access
-</Tab>
-
-<Tab>
-**Multi-Agent Context** enables sharing context between multiple agents:
-
-```yaml title="Multi-Agent Context Sharing"
-# Shared context across agents
-tasks:
-  - id: analyze_data
-    type: basic
-    $use: agent(local::agents.#(id="analyzer"))
-    with:
-      data: "{{ .workflow.input.data }}"
-      context: "{{ .workflow.input.context }}"
-    outputs:
-      analysis: "{{ .output.analysis }}"
-      confidence: "{{ .output.confidence }}"
-      
-  - id: generate_report
-    type: basic
-    $use: agent(local::agents.#(id="reporter"))
-    with:
-      # Share context from previous task
-      analysis: "{{ .tasks.analyze_data.output.analysis }}"
-      confidence: "{{ .tasks.analyze_data.output.confidence }}"
-      # Add global context
-      report_template: "{{ .global.report_template }}"
-      user_preferences: "{{ .workflow.input.preferences }}"
-```
-
-**Multi-agent patterns:**
-- Pass context between agents via task outputs
-- Use global context for shared configuration
-- Structure context for different agent specializations
-</Tab>
-
-<Tab>
-**Enterprise Patterns** handle complex organizational context:
-
-```yaml title="Enterprise Context Patterns"
-# Multi-tenant context management
-context_patterns:
-  tenant_context:
-    tenant_id: "{{ .workflow.input.tenant_id }}"
-    tenant_config: "{{ .global.tenant_configs[.workflow.input.tenant_id] }}"
-    user_context: "{{ .workflow.input.user_context }}"
-    
-tasks:
-  - id: tenant_aware_processing
-    type: basic
-    $use: agent(local::agents.#(id="tenant_agent"))
-    with:
-      tenant_id: "{{ .workflow.input.tenant_id }}"
-      tenant_config: "{{ .global.tenant_configs[.workflow.input.tenant_id] }}"
-      user_permissions: "{{ .global.user_permissions[.workflow.input.user_id] }}"
-      data_isolation: "{{ .global.data_isolation[.workflow.input.tenant_id] }}"
-```
-
-**Enterprise context features:**
-- Multi-tenant context isolation
-- Hierarchical configuration management
-- Audit and compliance context tracking
-- Role-based context access control
-</Tab>
-</Tabs>
 
 ## References
 

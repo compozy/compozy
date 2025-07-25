@@ -1,36 +1,68 @@
 ---
 title: Collection Tasks
-description: Process arrays and collections with parallel or sequential iteration patterns
+description: Collection tasks provide powerful iteration patterns for processing arrays and collections in Compozy workflows. They transform array data into parallel or sequential task executions, enabling efficient batch processing with sophisticated filtering, error handling, and result aggregation capabilities.
 ---
-
-Collection tasks provide powerful iteration patterns for processing arrays and collections in Compozy workflows. They enable efficient processing of multiple items with support for filtering, batching, and both sequential and parallel execution modes.
-
-## Related Documentation
-
-### 🔗 Cross-References
-- **[Core Concepts: Tasks](/docs/core/getting-started/core-concepts#2-tasks)** - Tasks in workflow context
-- **[Basic Tasks](/docs/core/tasks/basic-tasks)** - Foundation task patterns used in collections
-- **[Parallel Processing](/docs/core/tasks/parallel-processing)** - Concurrent execution strategies
-- **[YAML Templates](/docs/core/yaml-templates/overview)** - Dynamic collection configuration
-
-### ⚙️ Task-Related Topics
-- **Collection Tasks** ↔ **[Aggregate Tasks](/docs/core/tasks/aggregate-tasks)** ↔ **[Flow Control](/docs/core/tasks/flow-control)**
-- **Array Processing** ↔ **[Template Expressions](/docs/core/yaml-templates/expressions)** ↔ **[Agent Actions](/docs/core/agents/instructions-actions)**
-- **Batch Processing** ↔ **[Performance Optimization](/docs/core/tasks/advanced-patterns)** ↔ **[Error Handling](/docs/core/tasks/basic-tasks#error-handling)**
 
 ## Overview
 
-Collection tasks offer comprehensive collection processing capabilities:
+Collection tasks enable sophisticated array processing with enterprise-grade capabilities. They automatically transform input arrays into individual task executions, providing powerful orchestration patterns for batch operations.
 
-- **Array Processing**: Iterate over arrays of data with dynamic task generation
-- **Flexible Modes**: Sequential or parallel execution with configurable batching
-- **Filtering**: Process only items that match specific conditions
-- **Context Variables**: Access current item, index, and collection metadata
-- **Result Aggregation**: Collect and organize results from all iterations
-- **Error Handling**: Sophisticated failure handling with partial results
+<Mermaid chart={`graph LR
+    A[Input Array] --> B{Collection Task}
+    B --> C[Filter Items]
+    C --> D{Processing Mode}
+    D -->|Sequential| E[Process One by One]
+    D -->|Parallel| F[Process Concurrently]
+    E --> G[Collect Results]
+    F --> G[Collect Results]
+    G --> H[Aggregated Output]
+
+    style A fill:#101010,color:#fff
+    style B fill:#101010,color:#fff
+    style C fill:#101010,color:#fff
+    style D fill:#101010,color:#fff
+    style E fill:#101010,color:#fff
+    style F fill:#101010,color:#fff
+    style G fill:#101010,color:#fff
+    style H fill:#101010,color:#fff`} />
+
+### Key Capabilities
+
+<FeatureCardList cols={2} size="sm">
+  <FeatureCard
+    title="Intelligent Processing Modes"
+    description="Choose between sequential ordering and parallel performance based on your workflow requirements"
+    icon="GitBranch"
+  />
+  <FeatureCard
+    title="Advanced Filtering"
+    description="Use CEL expressions to process only items that meet specific conditions, reducing unnecessary processing"
+    icon="Filter"
+  />
+  <FeatureCard
+    title="Batch Optimization"
+    description="Process large datasets efficiently with configurable batch sizes and memory management"
+    icon="Package"
+  />
+  <FeatureCard
+    title="Rich Context Access"
+    description="Access current item, processing index, collection metadata, and parent workflow context"
+    icon="Database"
+  />
+  <FeatureCard
+    title="Failure Resilience"
+    description="Sophisticated error handling with partial results, best-effort strategies, and graceful degradation"
+    icon="Shield"
+  />
+  <FeatureCard
+    title="Result Aggregation"
+    description="Automatically collect and organize results from all iterations with template-based transformations"
+    icon="BarChart"
+  />
+</FeatureCardList>
 
 <Callout type="info">
-Collection tasks are ideal for batch processing, data transformation pipelines, and scenarios where you need to apply the same operation to multiple items.
+Collection tasks are essential for data processing pipelines, user batch operations, file transformations, and any scenario requiring the same operation across multiple items. They bridge the gap between single-item processing and large-scale batch operations.
 </Callout>
 
 ## Task Structure
@@ -70,8 +102,7 @@ outputs:
 
 Control how collection items are processed:
 
-```yaml
-# Sequential processing - items processed one by one
+```yaml title="Sequential Processing"
 id: sequential-collection
 mode: sequential
 items: "{{ .workflow.input.documents }}"
@@ -82,10 +113,9 @@ task:
   with:
     document: "{{ .item }}"
     sequence_number: "{{ .index }}"
+```
 
----
-
-# Parallel processing - items processed concurrently
+```yaml title="Parallel Processing"
 id: parallel-collection
 mode: parallel
 strategy: wait_all
@@ -98,10 +128,9 @@ task:
   with:
     image: "{{ .item }}"
     parallel_index: "{{ .index }}"
+```
 
----
-
-# Batched processing - process items in batches
+```yaml title="Batched Processing"
 id: batched-collection
 mode: parallel
 batch_size: 5
@@ -120,8 +149,7 @@ task:
 
 Filter items before processing:
 
-```yaml
-# Simple property filtering
+```yaml title="Filter by Status"
 id: filter-by-status
 items: "{{ .workflow.input.orders }}"
 filter: "{{ eq .item.status 'pending' }}"
@@ -132,10 +160,9 @@ task:
   action: process_order
   with:
     order: "{{ .item }}"
+```
 
----
-
-# Complex filtering with multiple conditions
+```yaml title="Complex Filtering"
 id: complex-filter
 items: "{{ .workflow.input.users }}"
 filter: "{{ and (ne .item.status 'inactive') (gt .item.age 18) (ne .item.email '') }}"
@@ -146,10 +173,9 @@ task:
   action: process_adult_user
   with:
     user: "{{ .item }}"
+```
 
----
-
-# Date-based filtering
+```yaml title="Date-based Filtering"
 id: date-filter
 items: "{{ .workflow.input.events }}"
 filter: "{{ and (gt .item.date '2024-01-01') (lt .item.date '2024-12-31') }}"
@@ -167,8 +193,7 @@ task:
 
 Process items in batches for efficiency:
 
-```yaml
-# Fixed batch size
+```yaml title="Fixed Batch Size"
 id: fixed-batch
 mode: parallel
 batch_size: 10
@@ -181,10 +206,9 @@ task:
     batch: "{{ .batch }}"
     batch_size: "{{ len .batch }}"
     batch_number: "{{ .batch_index }}"
+```
 
----
-
-# Dynamic batch sizing
+```yaml title="Dynamic Batch Sizing"
 id: dynamic-batch
 mode: parallel
 batch_size: "{{ .env.BATCH_SIZE | default 5 | toNumber }}"
@@ -200,10 +224,9 @@ task:
       size: "{{ len .batch }}"
       index: "{{ .batch_index }}"
       total_batches: "{{ .total_batches }}"
+```
 
----
-
-# Batch with overlap
+```yaml title="Batch with Overlap"
 id: overlapping-batch
 mode: sequential
 batch_size: 8
@@ -225,7 +248,7 @@ task:
 
 Use collection-specific variables in tasks:
 
-```yaml
+```yaml title="Collection Variables"
 id: collection-variables
 items: "{{ .workflow.input.products }}"
 item_var: product     # Custom variable name for current item
@@ -253,10 +276,9 @@ task:
     # Access parent context
     workflow_id: "{{ .workflow.id }}"
     processing_mode: "{{ .workflow.input.mode }}"
+```
 
----
-
-# Default variable names (.item and .index)
+```yaml title="Default Variables"
 id: default-variables
 items: "{{ .workflow.input.tasks }}"
 
@@ -274,127 +296,64 @@ task:
 
 ## Processing Patterns
 
+<Callout type="tip">
+Understanding when to use each processing pattern is crucial for optimal performance. Learn more about [performance optimization strategies](/docs/core/tasks/advanced-patterns#performance-optimization) and [template expression patterns](/docs/core/yaml-templates/expressions) to make the best choice for your use case.
+</Callout>
+
 ### Sequential Processing
 
-Process items one after another, maintaining order:
+Process items one after another when order matters or when each task depends on previous results:
 
-```yaml
-id: sequential-document-processing
-mode: sequential
-items: "{{ .workflow.input.documents }}"
-
-# Filter for PDF documents only
-filter: "{{ eq .item.type 'pdf' }}"
-
-task:
-  id: "process-pdf-{{ .index }}"
-  $use: agent(local::agents.#(id=="pdf-processor"))
-  action: extract_and_analyze
-  with:
-    document_path: "{{ .item.path }}"
-    document_name: "{{ .item.name }}"
-    previous_results: "{{ if gt .index 0 }}{{ index .collection_results (sub .index 1) }}{{ else }}null{{ end }}"
-
-  # Each task can access results from previous tasks
-  outputs:
-    extracted_text: "{{ .output.text }}"
-    analysis: "{{ .output.analysis }}"
-    sequence_number: "{{ .index }}"
-    references_previous: "{{ ne .with.previous_results null }}"
-
-# Sequential processing enables building on previous results
-outputs:
-  processed_documents: "{{ .output }}"
-  processing_sequence: "{{ range .output }}{{ .sequence_number }}{{ end }}"
-  total_processed: "{{ len .output }}"
-```
+**When to Use Sequential Processing:**
+- Order-dependent operations (document processing, data transformations)
+- Resource-constrained environments with limited parallel capacity
+- Operations that build on previous results
+- Rate-limited external APIs that require sequential calls
 
 ### Parallel Processing
 
-Process items concurrently for better performance:
+Process items concurrently when order doesn't matter and you need maximum throughput:
 
-```yaml
-id: parallel-image-processing
-mode: parallel
-strategy: wait_all
-max_workers: 6
-items: "{{ .workflow.input.images }}"
+**When to Use Parallel Processing:**
+- Independent operations that don't depend on each other
+- CPU or I/O intensive tasks that benefit from concurrency
+- Large datasets where processing time is a constraint
+- Multiple API calls that can be made simultaneously
 
-task:
-  id: "process-image-{{ .index }}"
-  $use: tool(local::tools.#(id=="image-processor"))
-  with:
-    image_data: "{{ .item.data }}"
-    image_format: "{{ .item.format }}"
-    transformations:
-      - resize: "{{ .workflow.input.target_size }}"
-      - optimize: true
-      - watermark: "{{ .workflow.input.watermark }}"
-
-  # Parallel processing with individual timeouts
-  timeout: 2m
-
-  outputs:
-    processed_image: "{{ .output.image }}"
-    original_size: "{{ .output.original_size }}"
-    new_size: "{{ .output.new_size }}"
-    processing_time: "{{ .output.duration }}"
-
-# Aggregate results from parallel processing
-outputs:
-  processed_images: "{{ .output }}"
-  total_processed: "{{ len .output }}"
-  total_processing_time: "{{ sum (map .output 'processing_time') }}"
-  average_processing_time: "{{ div (sum (map .output 'processing_time')) (len .output) }}"
-```
+**Performance Considerations:**
+- Use `max_workers` to control resource usage and prevent overwhelming external services
+- Consider memory usage when processing large items in parallel
+- Monitor external API rate limits and adjust concurrency accordingly
 
 ### Batch Processing
 
-Process items in batches for efficiency:
+Process large datasets in manageable chunks to optimize memory usage and provide better control over resource consumption:
 
-```yaml
-id: batch-user-processing
-mode: parallel
-batch_size: 50
-items: "{{ .workflow.input.users }}"
+**When to Use Batch Processing:**
+- Processing thousands or millions of items
+- Memory-constrained environments
+- External APIs with bulk operation support
+- Database operations that benefit from batch inserts/updates
 
-task:
-  id: "process-user-batch-{{ .batch_index }}"
-  $use: agent(local::agents.#(id=="user-batch-processor"))
-  action: process_user_batch
-  with:
-    users: "{{ .batch }}"
-    batch_metadata:
-      batch_number: "{{ .batch_index }}"
-      batch_size: "{{ len .batch }}"
-      total_batches: "{{ .total_batches }}"
-      is_final_batch: "{{ eq .batch_index (sub .total_batches 1) }}"
+**Batch Size Guidelines:**
+- **Small batches (1-10)**: Real-time processing, low latency requirements
+- **Medium batches (10-100)**: Balanced performance and resource usage
+- **Large batches (100-1000+)**: Maximum throughput for bulk operations
 
-    processing_options:
-      include_analytics: true
-      generate_reports: "{{ eq .batch_index (sub .total_batches 1) }}"
-
-  outputs:
-    processed_users: "{{ .output.users }}"
-    batch_statistics: "{{ .output.stats }}"
-    batch_number: "{{ .batch_index }}"
-
-# Aggregate batch results
-outputs:
-  all_processed_users: "{{ flatten (map .output 'processed_users') }}"
-  batch_statistics: "{{ map .output 'batch_statistics' }}"
-  total_batches: "{{ len .output }}"
-  processing_summary:
-    total_users: "{{ len (flatten (map .output 'processed_users')) }}"
-    successful_batches: "{{ len (filter .output 'batch_statistics.success') }}"
-    failed_batches: "{{ len (filter .output 'batch_statistics.failed') }}"
-```
+Learn more about [memory management strategies](/docs/core/deployment/scaling#memory-optimization) and [batch optimization patterns](/docs/core/tasks/advanced-patterns#batch-optimization).
 
 ## Advanced Features
 
+<Callout type="warning">
+Advanced collection features require a solid understanding of [CEL expressions](/docs/core/yaml-templates/cel-expressions) and [template context variables](/docs/core/yaml-templates/context-variables). Review these concepts before implementing complex filtering and error handling patterns.
+</Callout>
+
 ### Conditional Processing
 
-Use dynamic conditions for sophisticated filtering:
+<AccordionGroup>
+<Accordion title="Advanced Filtering with CEL Expressions">
+
+Implement sophisticated filtering logic using CEL expressions for complex business rules:
 
 ```yaml
 id: conditional-processing
@@ -427,53 +386,29 @@ task:
       }}
 ```
 
-### Error Handling and Partial Results
+**Common Filtering Patterns:**
 
-Handle failures gracefully while preserving successful results:
+<List>
+  <ListItem title="Numeric Ranges" icon="Hash">
+    `{{ and (gt .item.price 10) (lt .item.price 100) }}` - Filter by price range
+  </ListItem>
+  <ListItem title="String Matching" icon="Type">
+    `{{ contains .item.email "@company.com" }}` - Domain-specific filtering
+  </ListItem>
+  <ListItem title="Date Filtering" icon="Calendar">
+    `{{ gt .item.created_at "2024-01-01T00:00:00Z" }}` - Recent items only
+  </ListItem>
+  <ListItem title="Status Checking" icon="CheckCircle">
+    `{{ in .item.status ["active", "pending"] }}` - Multiple valid statuses
+  </ListItem>
+  <ListItem title="Complex Logic" icon="GitBranch">
+    `{{ and (eq .item.type "premium") (gt .item.score 85) }}` - Multi-criteria filtering
+  </ListItem>
+</List>
 
-```yaml
-id: resilient-collection
-mode: parallel
-strategy: best_effort  # Continue despite failures
-items: "{{ .workflow.input.data_sources }}"
+</Accordion>
 
-task:
-  id: "fetch-data-{{ .index }}"
-  $use: tool(local::tools.#(id=="data-fetcher"))
-  with:
-    source: "{{ .item }}"
-    timeout: 30s
-
-  # Individual task error handling
-  retry_policy:
-    maximum_attempts: 3
-    initial_interval: 1s
-    maximum_interval: 30s
-
-  on_error:
-    next: log-fetch-error
-    with:
-      source: "{{ .item }}"
-      error: "{{ .task.error }}"
-      index: "{{ .index }}"
-
-# Handle collection-level errors
-on_error:
-  next: handle-collection-errors
-  with:
-    successful_items: "{{ .successful_tasks }}"
-    failed_items: "{{ .failed_tasks }}"
-    partial_results: "{{ .output }}"
-
-outputs:
-  successful_results: "{{ .output }}"
-  success_count: "{{ len .output }}"
-  failure_count: "{{ len .failed_tasks }}"
-  success_rate: "{{ div (len .output) (len .collection) }}"
-  partial_success: "{{ and (gt (len .output) 0) (gt (len .failed_tasks) 0) }}"
-```
-
-### Nested Collections
+<Accordion title="Nested Collections">
 
 Process collections within collections:
 
@@ -508,270 +443,131 @@ outputs:
   department_summaries: "{{ map .output (dict 'name' .department_name 'count' .employee_count) }}"
 ```
 
-## Real-World Examples
-
-### Example 1: E-commerce Product Processing
-
-<Steps>
-<Step>
-
-**Setup**: Process a catalog of products with multiple operations
-
-```yaml
-id: product-catalog-processing
-mode: parallel
-strategy: wait_all
-max_workers: 8
-items: "{{ .workflow.input.products }}"
-
-# Filter for active products only
-filter: "{{ eq .item.status 'active' }}"
-
-task:
-  id: "process-product-{{ .index }}"
-  $use: agent(local::agents.#(id=="product-processor"))
-  action: enhance_product_data
-  with:
-    product: "{{ .item }}"
-    enhancement_options:
-      generate_seo_description: true
-      optimize_images: true
-      suggest_categories: true
-      calculate_pricing: true
-
-    market_context:
-      competitor_data: "{{ .workflow.input.market_data }}"
-      seasonal_factors: "{{ .workflow.input.seasonal_data }}"
-      target_demographics: "{{ .workflow.input.demographics }}"
-```
-
-</Step>
-<Step>
-
-**Process**: Each product gets comprehensive enhancement
-
-```yaml
-  outputs:
-    enhanced_product:
-      id: "{{ .item.id }}"
-      name: "{{ .item.name }}"
-      original_description: "{{ .item.description }}"
-      seo_description: "{{ .output.seo_description }}"
-      optimized_images: "{{ .output.images }}"
-      suggested_categories: "{{ .output.categories }}"
-      pricing_analysis: "{{ .output.pricing }}"
-      market_position: "{{ .output.market_analysis }}"
-
-    processing_metadata:
-      processing_time: "{{ .task.duration }}"
-      enhancements_applied: "{{ .output.enhancements }}"
-      confidence_score: "{{ .output.confidence }}"
-```
-
-</Step>
-<Step>
-
-**Aggregate**: Combine results with analytics
-
-```yaml
-outputs:
-  processed_products: "{{ .output }}"
-  processing_summary:
-    total_products: "{{ len .output }}"
-    average_processing_time: "{{ div (sum (map .output 'processing_metadata.processing_time')) (len .output) }}"
-    categories_suggested: "{{ len (unique (flatten (map .output 'enhanced_product.suggested_categories'))) }}"
-    high_confidence_products: "{{ len (filter .output 'processing_metadata.confidence_score' 'gt' 0.8) }}"
-
-  business_insights:
-    top_categories: "{{ take 10 (sort (group (flatten (map .output 'enhanced_product.suggested_categories'))) 'count' 'desc') }}"
-    pricing_ranges: "{{ group (map .output 'enhanced_product.pricing_analysis.recommended_price') 'range' }}"
-    optimization_opportunities: "{{ filter .output 'processing_metadata.confidence_score' 'lt' 0.6 }}"
-```
-
-</Step>
-</Steps>
-
-### Example 2: Document Analysis Pipeline
-
-```yaml
-id: document-analysis-pipeline
-mode: sequential  # Sequential to maintain document order
-items: "{{ .workflow.input.documents }}"
-
-# Filter for supported document types
-filter: "{{ in .item.type ['pdf', 'docx', 'txt', 'md'] }}"
-
-task:
-  id: "analyze-document-{{ .index }}"
-  $use: agent(local::agents.#(id=="document-analyzer"))
-  action: comprehensive_analysis
-  with:
-    document: "{{ .item }}"
-    analysis_options:
-      extract_entities: true
-      sentiment_analysis: true
-      topic_modeling: true
-      summary_generation: true
-      key_phrases: true
-
-    context:
-      previous_documents: "{{ if gt .index 0 }}{{ slice .collection_results 0 .index }}{{ else }}[]{{ end }}"
-      collection_size: "{{ len .collection }}"
-      document_position: "{{ .index }}"
-
-  outputs:
-    document_analysis:
-      id: "{{ .item.id }}"
-      title: "{{ .item.title }}"
-      type: "{{ .item.type }}"
-      content_summary: "{{ .output.summary }}"
-      entities: "{{ .output.entities }}"
-      sentiment: "{{ .output.sentiment }}"
-      topics: "{{ .output.topics }}"
-      key_phrases: "{{ .output.key_phrases }}"
-      word_count: "{{ .output.word_count }}"
-      readability_score: "{{ .output.readability }}"
-
-    relationships:
-      references_previous: "{{ .output.references }}"
-      similar_documents: "{{ .output.similar_docs }}"
-      topic_overlap: "{{ .output.topic_overlap }}"
-
-outputs:
-  analyzed_documents: "{{ .output }}"
-  collection_analytics:
-    total_documents: "{{ len .output }}"
-    total_words: "{{ sum (map .output 'document_analysis.word_count') }}"
-    document_types: "{{ group (map .output 'document_analysis.type') 'count' }}"
-    average_readability: "{{ div (sum (map .output 'document_analysis.readability_score')) (len .output) }}"
-    common_topics: "{{ take 10 (sort (group (flatten (map .output 'document_analysis.topics'))) 'count' 'desc') }}"
-    sentiment_distribution: "{{ group (map .output 'document_analysis.sentiment') 'count' }}"
-
-  document_relationships:
-    reference_network: "{{ map .output 'relationships.references_previous' }}"
-    similarity_matrix: "{{ map .output 'relationships.similar_documents' }}"
-    topic_clusters: "{{ cluster (map .output 'document_analysis.topics') 'similarity' }}"
-```
-
-### Example 3: Multi-Language Content Processing
-
-```yaml
-id: multi-language-content
-mode: parallel
-strategy: best_effort
-max_workers: 6
-items: "{{ .workflow.input.content_pieces }}"
-
-task:
-  id: "process-content-{{ .index }}"
-  mode: sequential
-  items: "{{ .item.languages }}"
-
-  task:
-    id: "translate-{{ .parent_index }}-{{ .index }}"
-    type: basic
-    $use: agent(local::agents.#(id=="translator"))
-    action: translate_and_localize
-    with:
-      content: "{{ .parent_item.content }}"
-      source_language: "{{ .parent_item.source_language }}"
-      target_language: "{{ .item }}"
-      localization_options:
-        adapt_cultural_references: true
-        adjust_formatting: true
-        preserve_technical_terms: true
-
-      context:
-        content_type: "{{ .parent_item.type }}"
-        target_audience: "{{ .parent_item.audience }}"
-        brand_guidelines: "{{ .workflow.input.brand_guidelines }}"
-
-    outputs:
-      translated_content: "{{ .output.content }}"
-      language: "{{ .item }}"
-      quality_score: "{{ .output.quality_score }}"
-      cultural_adaptations: "{{ .output.adaptations }}"
-      word_count: "{{ .output.word_count }}"
-
-  outputs:
-    content_id: "{{ .item.id }}"
-    source_language: "{{ .item.source_language }}"
-    translations: "{{ .output }}"
-    total_languages: "{{ len .output }}"
-
-outputs:
-  localized_content: "{{ .output }}"
-  localization_summary:
-    total_content_pieces: "{{ len .output }}"
-    total_translations: "{{ sum (map .output 'total_languages') }}"
-    languages_covered: "{{ unique (flatten (map .output 'translations' 'language')) }}"
-    average_quality: "{{ div (sum (flatten (map .output 'translations' 'quality_score'))) (sum (map .output 'total_languages')) }}"
-    high_quality_translations: "{{ len (filter (flatten (map .output 'translations')) 'quality_score' 'gt' 0.85) }}"
-```
-
-## Performance Optimization
-
-### Memory-Efficient Processing
-
-```yaml
-id: memory-efficient-collection
-mode: parallel
-batch_size: 20  # Process in smaller batches
-max_workers: 4
-items: "{{ .workflow.input.large_dataset }}"
-
-task:
-  id: "process-batch-{{ .batch_index }}"
-  $use: tool(local::tools.#(id=="memory-efficient-processor"))
-  with:
-    batch: "{{ .batch }}"
-    batch_size: "{{ len .batch }}"
-    memory_limit: "256MB"
-    processing_options:
-      stream_processing: true
-      garbage_collection: true
-      memory_monitoring: true
-```
-
-### Adaptive Processing
-
-```yaml
-id: adaptive-collection
-mode: parallel
-# Adjust workers based on system resources
-max_workers: "{{ min (.env.MAX_WORKERS | default 8 | toNumber) (div (len .collection) 10) }}"
-items: "{{ .workflow.input.items }}"
-
-task:
-  id: "adaptive-process-{{ .index }}"
-  $use: tool(local::tools.#(id=="adaptive-processor"))
-  with:
-    item: "{{ .item }}"
-    processing_intensity: "{{ if gt (len .collection) 1000 }}light{{ else }}full{{ end }}"
-    timeout: "{{ if gt (len .collection) 500 }}30s{{ else }}60s{{ end }}"
-```
+</Accordion>
+</AccordionGroup>
 
 ## Best Practices
 
-1. **Choose the Right Mode**: Use sequential for order-dependent processing, parallel for independent operations
-2. **Implement Filtering**: Filter early to reduce processing load
-3. **Handle Partial Failures**: Use `best_effort` strategy for non-critical operations
-4. **Optimize Batch Sizes**: Balance memory usage with processing efficiency
-5. **Monitor Performance**: Track processing times and adjust configuration accordingly
-6. **Use Appropriate Timeouts**: Set realistic timeouts for individual items and overall collection
+<FeatureCardList cols={2} size="sm">
+  <FeatureCard
+    title="Choose the Right Processing Mode"
+    description="Use sequential for order-dependent processing, parallel for independent operations, and batch for large datasets"
+    icon="GitBranch"
+  />
+  <FeatureCard
+    title="Implement Early Filtering"
+    description="Filter items before processing to reduce load and improve performance using CEL expressions"
+    icon="Filter"
+  />
+  <FeatureCard
+    title="Handle Partial Failures Gracefully"
+    description="Use best_effort strategy for non-critical operations and implement proper error handling"
+    icon="Shield"
+  />
+  <FeatureCard
+    title="Optimize Batch Configurations"
+    description="Balance memory usage with processing efficiency by choosing appropriate batch sizes"
+    icon="Gauge"
+  />
+  <FeatureCard
+    title="Monitor Performance Metrics"
+    description="Track processing times, success rates, and resource usage to optimize collection performance"
+    icon="BarChart3"
+  />
+  <FeatureCard
+    title="Set Realistic Timeouts"
+    description="Configure appropriate timeouts for individual items and overall collection operations"
+    icon="Clock"
+  />
+</FeatureCardList>
 
-## References
+## Performance Guidelines
+
+<Callout type="warning" className="mt-4 mb-8" title="Performance Optimization">
+For production deployments, consider implementing [monitoring and observability](/docs/core/metrics/observability) to track collection task performance and identify optimization opportunities.
+</Callout>
+
+### Memory Management
+
+<List icon="Check" size="md" className="mt-4">
+  <ListItem>
+    Use batch processing for datasets larger than 1000 items
+  </ListItem>
+  <ListItem>
+    Monitor memory usage in production environments
+  </ListItem>
+  <ListItem>
+    Consider streaming patterns for extremely large datasets
+  </ListItem>
+</List>
+
+### Concurrency Control
+
+<List icon="Check" size="md" className="mt-4">
+  <ListItem>
+    Set `max_workers` based on external service limits
+  </ListItem>
+  <ListItem>
+    Use sequential mode for rate-limited APIs
+  </ListItem>
+  <ListItem>
+    Implement backoff strategies for failed requests
+  </ListItem>
+</List>
+
+### Error Recovery
+
+<List icon="Check" size="md" className="mt-4">
+  <ListItem>
+    Always use `best_effort` for non-critical operations
+  </ListItem>
+  <ListItem>
+    Implement proper logging for failed items
+  </ListItem>
+  <ListItem>
+    Consider retry mechanisms for transient failures
+  </ListItem>
+</List>
+
+## Next Steps
+
+<Tabs items={["Beginner", "Intermediate", "Advanced", "Production"]}>
+<Tab>
 
 <ReferenceCardList>
   <ReferenceCard
-    title="Basic Tasks"
+    title="Basic Tasks Foundation"
     description="Master the foundation tasks used within collection task templates"
     href="/docs/core/tasks/basic-tasks"
-    icon="Cog"
+    icon="Package"
   />
   <ReferenceCard
-    title="Parallel Processing"
-    description="Learn parallel execution strategies for collection processing"
+    title="First Workflow Tutorial"
+    description="Build your first workflow with collection processing examples"
+    href="/docs/core/getting-started/first-workflow"
+    icon="Rocket"
+  />
+  <ReferenceCard
+    title="Template Basics"
+    description="Learn template expressions for dynamic collection configuration"
+    href="/docs/core/yaml-templates/overview"
+    icon="FileCode"
+  />
+  <ReferenceCard
+    title="Agent Integration"
+    description="Connect AI agents to process collection items intelligently"
+    href="/docs/core/agents/overview"
+    icon="BrainCircuit"
+  />
+</ReferenceCardList>
+
+</Tab>
+<Tab>
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Parallel Processing Strategies"
+    description="Learn parallel execution strategies and performance optimization"
     href="/docs/core/tasks/parallel-processing"
     icon="Zap"
   />
@@ -782,11 +578,82 @@ task:
     icon="BarChart"
   />
   <ReferenceCard
-    title="Flow Control"
+    title="Advanced Template Functions"
+    description="Master complex template expressions and data manipulation"
+    href="/docs/core/yaml-templates/sprig-functions"
+    icon="Code"
+  />
+  <ReferenceCard
+    title="Error Handling Patterns"
+    description="Implement robust error handling and recovery strategies"
+    href="/docs/core/tasks/basic-tasks#error-handling"
+    icon="Shield"
+  />
+</ReferenceCardList>
+
+</Tab>
+<Tab>
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Flow Control & Routing"
     description="Implement conditional logic and routing in collection workflows"
     href="/docs/core/tasks/flow-control"
     icon="GitBranch"
   />
+  <ReferenceCard
+    title="Memory & State Management"
+    description="Add persistent state and memory to collection workflows"
+    href="/docs/core/memory/overview"
+    icon="Database"
+  />
+  <ReferenceCard
+    title="Signal Coordination"
+    description="Coordinate complex multi-collection workflows with signals"
+    href="/docs/core/signals/overview"
+    icon="Radio"
+  />
+  <ReferenceCard
+    title="Custom Tool Development"
+    description="Build specialized tools for collection item processing"
+    href="/docs/core/tools/overview"
+    icon="Wrench"
+  />
 </ReferenceCardList>
 
-Collection tasks provide powerful patterns for processing arrays and collections efficiently while maintaining flexibility and reliability in your Compozy workflows.
+</Tab>
+<Tab>
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Performance Optimization"
+    description="Optimize collection tasks for high-volume production workloads"
+    href="/docs/core/tasks/advanced-patterns#performance-optimization"
+    icon="Gauge"
+  />
+  <ReferenceCard
+    title="Monitoring & Observability"
+    description="Monitor collection task performance and debug issues"
+    href="/docs/core/metrics/observability"
+    icon="BarChart3"
+  />
+  <ReferenceCard
+    title="Scaling Strategies"
+    description="Scale collection processing for enterprise-grade deployments"
+    href="/docs/core/deployment/scaling"
+    icon="TrendingUp"
+  />
+  <ReferenceCard
+    title="Security Best Practices"
+    description="Secure collection workflows and handle sensitive data"
+    href="/docs/core/security/best-practices"
+    icon="Lock"
+  />
+</ReferenceCardList>
+
+</Tab>
+</Tabs>
+
+---
+
+Collection tasks are the backbone of batch processing in Compozy, transforming arrays into sophisticated workflows with enterprise-grade reliability, performance, and flexibility. Master these patterns to build scalable data processing solutions that grow with your needs.

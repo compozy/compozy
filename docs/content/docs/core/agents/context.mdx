@@ -3,6 +3,8 @@ title: "Agent Context"
 description: "Managing agent context for effective task execution and decision making"
 ---
 
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+
 ## Overview
 
 Context in Compozy agents refers to all the information available to an agent during execution - from workflow inputs and previous task outputs to memory and environment variables. Effective context management is crucial for agent performance and accuracy.
@@ -47,20 +49,37 @@ actions:
       - Workflow ID: {{.workflow.id}}
 ```
 
-<List>
-  <ListItem title="Workflow Input">
-    `{{.workflow.input.*}}` - All workflow input parameters passed at execution time
-  </ListItem>
-  <ListItem title="Workflow Metadata">
-    `{{.workflow.id}}` - Unique workflow execution ID for tracking
-  </ListItem>
-  <ListItem title="Timing Information">
-    `{{.workflow.started_at}}` - Workflow start timestamp for duration calculations
-  </ListItem>
-  <ListItem title="Configuration">
-    `{{.workflow.config.*}}` - Workflow configuration values from YAML definition
-  </ListItem>
-</List>
+<Table>
+  <TableHeader>
+    <TableRow>
+      <TableHead>Property</TableHead>
+      <TableHead>Template Variable</TableHead>
+      <TableHead>Description</TableHead>
+    </TableRow>
+  </TableHeader>
+  <TableBody>
+    <TableRow>
+      <TableCell>Workflow Input</TableCell>
+      <TableCell>`{{.workflow.input.*}}`</TableCell>
+      <TableCell>All workflow input parameters passed at execution time</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>Workflow Metadata</TableCell>
+      <TableCell>`{{.workflow.id}}`</TableCell>
+      <TableCell>Unique workflow execution ID for tracking</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>Timing Information</TableCell>
+      <TableCell>`{{.workflow.started_at}}`</TableCell>
+      <TableCell>Workflow start timestamp for duration calculations</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>Configuration</TableCell>
+      <TableCell>`{{.workflow.config.*}}`</TableCell>
+      <TableCell>Workflow configuration values from YAML definition</TableCell>
+    </TableRow>
+  </TableBody>
+</Table>
 
 ### Task Context
 
@@ -85,20 +104,37 @@ actions:
       {{end}}
 ```
 
-<List>
-  <ListItem title="Complete Output">
-    `{{.tasks.TASK_ID.output}}` - Access the complete output object from a task
-  </ListItem>
-  <ListItem title="Specific Fields">
-    `{{.tasks.TASK_ID.output.field}}` - Access specific fields within task output
-  </ListItem>
-  <ListItem title="Task Status">
-    `{{.tasks.TASK_ID.status}}` - Check task execution status (completed, failed, etc.)
-  </ListItem>
-  <ListItem title="Error Handling">
-    `{{.tasks.TASK_ID.error}}` - Access task error information if execution failed
-  </ListItem>
-</List>
+<Table>
+  <TableHeader>
+    <TableRow>
+      <TableHead>Property</TableHead>
+      <TableHead>Template Variable</TableHead>
+      <TableHead>Description</TableHead>
+    </TableRow>
+  </TableHeader>
+  <TableBody>
+    <TableRow>
+      <TableCell>Complete Output</TableCell>
+      <TableCell>`{{.tasks.TASK_ID.output}}`</TableCell>
+      <TableCell>Access the complete output object from a task</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>Specific Fields</TableCell>
+      <TableCell>`{{.tasks.TASK_ID.output.field}}`</TableCell>
+      <TableCell>Access specific fields within task output</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>Task Status</TableCell>
+      <TableCell>`{{.tasks.TASK_ID.status}}`</TableCell>
+      <TableCell>Check task execution status (completed, failed, etc.)</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>Error Handling</TableCell>
+      <TableCell>`{{.tasks.TASK_ID.error}}`</TableCell>
+      <TableCell>Access task error information if execution failed</TableCell>
+    </TableRow>
+  </TableBody>
+</Table>
 
 ### Collection Context
 
@@ -271,242 +307,6 @@ prompt: |
   # Convert to JSON
   Items as JSON: {{.input.items | toJson}}
 ```
-
-## Context Optimization
-
-### Token Management
-
-Strategies to optimize context size:
-
-<Tabs items={["Summarization", "Filtering", "Compression"]} defaultValue="Summarization">
-  <Tab value="Summarization">
-    ```yaml
-    actions:
-      - id: process-with-summary
-        prompt: |
-          {{/* Instead of full history */}}
-          Summary of previous interactions:
-          {{.tasks.summarize.output.key_points}}
-
-          {{/* Instead of all details */}}
-          Relevant findings: {{.tasks.analyze.output.relevant_only}}
-    ```
-  </Tab>
-
-  <Tab value="Filtering">
-    ```yaml
-    actions:
-      - id: filtered-context
-        prompt: |
-          {{/* Filter to recent items only */}}
-          Recent activities (last 5):
-          {{range $i, $activity := .tasks.fetch.output.activities}}
-            {{if lt $i 5}}
-            - {{$activity.description}}
-            {{end}}
-          {{end}}
-    ```
-  </Tab>
-
-  <Tab value="Compression">
-    ```yaml
-    actions:
-      - id: compressed-context
-        prompt: |
-          {{/* Use IDs instead of full objects */}}
-          Process orders: {{.tasks.orders.output.order_ids}}
-
-          {{/* Extract only needed fields */}}
-          Users: {{range .tasks.users.output}}
-          - {{.id}}: {{.status}}
-          {{end}}
-    ```
-  </Tab>
-</Tabs>
-
-### Context Caching
-
-Reuse computed context across actions:
-
-```yaml
-agents:
-  - id: efficient-agent
-    with:
-      # Compute once, use many times
-      base_context: |
-        Project: {{.workflow.input.project}}
-        Phase: {{.workflow.input.phase}}
-        Team: {{.workflow.input.team}}
-
-    actions:
-      - id: analyze
-        prompt: |
-          {{.agent.with.base_context}}
-
-          Analyze the requirements...
-
-      - id: validate
-        prompt: |
-          {{.agent.with.base_context}}
-
-          Validate the implementation...
-```
-
-## Context Debugging
-
-### Debugging Templates
-
-Test template rendering:
-
-```yaml
-actions:
-  - id: debug-context
-    prompt: |
-      DEBUG: Context inspection
-
-      Workflow inputs:
-      {{.workflow.input | toPrettyJson}}
-
-      Available tasks:
-      {{range $key, $task := .tasks}}
-      - {{$key}}: {{$task.status}}
-      {{end}}
-
-      Environment:
-      {{range $key, $val := .env}}
-      - {{$key}}: {{$val}}
-      {{end}}
-```
-
-### Context Validation
-
-Validate required context:
-
-```yaml
-actions:
-  - id: validated-action
-    prompt: |
-      {{if not .workflow.input.user_id}}
-      ERROR: user_id is required in workflow input
-      {{end}}
-
-      {{if not .tasks.auth.output.token}}
-      ERROR: Authentication must complete before this action
-      {{end}}
-
-      {{/* Proceed only with valid context */}}
-      Process authenticated request for user {{.workflow.input.user_id}}
-```
-
-## Advanced Context Patterns
-
-Advanced context patterns enable sophisticated data flow and transformation capabilities in your workflows.
-
-<Tabs items={["Context Inheritance", "Cross-Workflow Context", "Context Transformation"]}>
-  <Tab value="Context Inheritance">
-    Pass enriched context through workflow stages:
-
-    ```yaml
-    tasks:
-      - id: enrich-context
-        type: basic
-        outputs:
-          enriched:
-            original: "{{.workflow.input}}"
-            metadata:
-              timestamp: "{{now}}"
-              source: "enrichment"
-            user_data: "{{.tasks.fetch_user.output}}"
-
-      - id: process-enriched
-        type: basic
-        with:
-          context: "{{.tasks.enrich-context.output.enriched}}"
-    ```
-
-    This pattern allows you to build up context incrementally as your workflow progresses, maintaining a complete audit trail of data transformations.
-  </Tab>
-
-  <Tab value="Cross-Workflow Context">
-    Share context between workflows using signals:
-
-    ```yaml
-    # Workflow 1: Send context
-    tasks:
-      - id: send-context
-        type: signal
-        signal:
-          id: context-ready
-          payload:
-            workflow_id: "{{.workflow.id}}"
-            context: "{{.tasks.prepare.output}}"
-
-    # Workflow 2: Receive context
-    triggers:
-      - type: signal
-        name: context-ready
-
-    tasks:
-      - id: use-context
-        with:
-          received_context: "{{.trigger.payload.context}}"
-    ```
-
-    This enables decoupled workflows to coordinate and share data, perfect for event-driven architectures and microservice patterns.
-  </Tab>
-
-  <Tab value="Context Transformation">
-    Transform and aggregate context data dynamically:
-
-    ```yaml
-    actions:
-      - id: transform-context
-        prompt: |
-          {{/* Transform list to map */}}
-          {{$userMap := dict}}
-          {{range .tasks.users.output}}
-            {{$_ := set $userMap .id .}}
-          {{end}}
-
-          {{/* Access transformed data */}}
-          User details: {{index $userMap .input.user_id}}
-
-          {{/* Aggregate context */}}
-          {{$total := 0}}
-          {{range .tasks.items.output}}
-            {{$total = add $total .value}}
-          {{end}}
-          Total value: {{$total}}
-    ```
-
-    Use template functions to reshape data on-the-fly, reducing the need for intermediate transformation tasks.
-  </Tab>
-</Tabs>
-
-## Best Practices
-
-<FeatureCardList cols={2}>
-  <FeatureCard 
-    title="Minimize Context"
-    description="Include only necessary information to optimize token usage and response time"
-    icon="Minimize2"
-  />
-  <FeatureCard 
-    title="Structure Clearly"
-    description="Organize context hierarchically for better agent comprehension"
-    icon="GitBranch"
-  />
-  <FeatureCard 
-    title="Validate Early"
-    description="Check for required context before processing to fail fast"
-    icon="ShieldCheck"
-  />
-  <FeatureCard 
-    title="Cache Computed Values"
-    description="Avoid recomputing expensive context transformations"
-    icon="Database"
-  />
-</FeatureCardList>
 
 ## Next Steps
 

@@ -1,14 +1,16 @@
 ---
 title: MCP Commands
-description: Model Context Protocol server management and proxy operations through the Compozy CLI
+description: Manage Model Context Protocol (MCP) servers and proxy operations through the Compozy CLI. The MCP proxy server enables HTTP-based access to MCP servers, providing seamless integration between AI agents and external tools.
 icon: network
 ---
 
-Manage Model Context Protocol (MCP) servers and proxy operations through the Compozy CLI. The MCP proxy server enables HTTP-based access to MCP servers, providing seamless integration between AI agents and external tools.
-
 ## Overview
 
-<FeatureCardList cols={2} size="default">
+```bash
+compozy mcp-proxy [flags]
+```
+
+<FeatureCardList cols={2} size="sm">
   <FeatureCard
     title="HTTP Proxy Server"
     description="Provides HTTP endpoints for MCP server communication with authentication and security controls"
@@ -52,24 +54,86 @@ The MCP proxy server enables HTTP-based access to MCP servers, providing:
 ### Flags
 
 #### Server Configuration
-```bash
---host string              # Host to bind the server to (default: "0.0.0.0")
---port string              # Port to run the MCP proxy server on (default: "8081")
---base-url string          # Base URL for the MCP proxy server
-```
+
+<Table>
+  <TableHeader>
+    <TableRow>
+      <TableHead>Flag</TableHead>
+      <TableHead>Description</TableHead>
+      <TableHead>Default</TableHead>
+    </TableRow>
+  </TableHeader>
+  <TableBody>
+    <TableRow>
+      <TableCell>`--host`</TableCell>
+      <TableCell>Host to bind the server to</TableCell>
+      <TableCell>0.0.0.0</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`--port`</TableCell>
+      <TableCell>Port to run the MCP proxy server on</TableCell>
+      <TableCell>8081</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`--base-url`</TableCell>
+      <TableCell>Base URL for the MCP proxy server</TableCell>
+      <TableCell>-</TableCell>
+    </TableRow>
+  </TableBody>
+</Table>
 
 #### Security and Authentication
-```bash
---global-auth-tokens strings    # Global auth tokens for all MCP clients
---admin-tokens strings          # Admin API tokens
---admin-allow-ips strings       # Admin API allowed IP addresses/CIDR blocks
---trusted-proxies strings       # Trusted proxy IP addresses/CIDR blocks
-```
+
+<Table>
+  <TableHeader>
+    <TableRow>
+      <TableHead>Flag</TableHead>
+      <TableHead>Description</TableHead>
+      <TableHead>Type</TableHead>
+    </TableRow>
+  </TableHeader>
+  <TableBody>
+    <TableRow>
+      <TableCell>`--global-auth-tokens`</TableCell>
+      <TableCell>Global auth tokens for all MCP clients</TableCell>
+      <TableCell>strings (comma-separated)</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`--admin-tokens`</TableCell>
+      <TableCell>Admin API tokens</TableCell>
+      <TableCell>strings (comma-separated)</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`--admin-allow-ips`</TableCell>
+      <TableCell>Admin API allowed IP addresses/CIDR blocks</TableCell>
+      <TableCell>strings (comma-separated)</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`--trusted-proxies`</TableCell>
+      <TableCell>Trusted proxy IP addresses/CIDR blocks</TableCell>
+      <TableCell>strings (comma-separated)</TableCell>
+    </TableRow>
+  </TableBody>
+</Table>
 
 #### Debugging
-```bash
---debug                    # Enable debug mode (sets log level to debug)
-```
+
+<Table>
+  <TableHeader>
+    <TableRow>
+      <TableHead>Flag</TableHead>
+      <TableHead>Description</TableHead>
+      <TableHead>Default</TableHead>
+    </TableRow>
+  </TableHeader>
+  <TableBody>
+    <TableRow>
+      <TableCell>`--debug`</TableCell>
+      <TableCell>Enable debug mode (sets log level to debug)</TableCell>
+      <TableCell>false</TableCell>
+    </TableRow>
+  </TableBody>
+</Table>
 
 ### Environment Variables
 
@@ -81,9 +145,9 @@ MCP_PROXY_PORT             # Port to run the MCP proxy server on
 MCP_PROXY_BASE_URL         # Base URL for the MCP proxy server
 ```
 
-### Examples
+## Examples
 
-#### Basic Usage
+### Basic Usage
 
 Start the MCP proxy with default settings:
 
@@ -93,13 +157,13 @@ compozy mcp-proxy
 
 This starts the proxy on `0.0.0.0:8081`.
 
-#### Custom Port and Host
+### Custom Port and Host
 
 ```bash
 compozy mcp-proxy --host localhost --port 9000
 ```
 
-#### With Authentication
+### With Authentication
 
 ```bash
 compozy mcp-proxy \
@@ -108,13 +172,13 @@ compozy mcp-proxy \
   --admin-allow-ips "192.168.1.0/24,10.0.0.0/8"
 ```
 
-#### Debug Mode
+### Debug Mode
 
 ```bash
 compozy mcp-proxy --debug
 ```
 
-#### Using Environment Variables
+### Using Environment Variables
 
 ```bash
 export MCP_PROXY_HOST=localhost
@@ -124,7 +188,7 @@ export MCP_PROXY_BASE_URL=http://localhost:9000
 compozy mcp-proxy
 ```
 
-### API Endpoints
+## API Endpoints
 
 Once started, the MCP proxy provides these endpoints:
 
@@ -198,40 +262,7 @@ curl -X POST http://localhost:8081/admin/servers \
 
 </Tabs>
 
-### Architecture Flow
-
-<Mermaid chart={`sequenceDiagram
-    participant Client as AI Agent/Client
-    participant Proxy as MCP Proxy
-    participant Admin as Admin API
-    participant MCP as MCP Server
-    participant DB as Config Store
-
-    Note over Client,DB: MCP Proxy Architecture Flow
-
-    Client->>Proxy: POST /mcp/server-id
-    Proxy->>Proxy: Validate auth token
-    Proxy->>DB: Get server config
-    DB-->>Proxy: Server URL & credentials
-    Proxy->>MCP: Forward MCP request
-    MCP-->>Proxy: MCP response
-    Proxy-->>Client: HTTP response
-
-    Note over Admin,DB: Admin Operations
-    Admin->>Proxy: POST /admin/servers
-    Proxy->>Proxy: Validate admin token
-    Proxy->>DB: Store server config
-    DB-->>Proxy: Config saved
-    Proxy-->>Admin: Success response
-
-    Note over Proxy: Health & Monitoring
-    loop Health Checks
-        Proxy->>MCP: Ping MCP servers
-        MCP-->>Proxy: Health status
-        Proxy->>Proxy: Update metrics
-    end`} />
-
-### Configuration
+## Configuration
 
 The MCP proxy can be configured through:
 
@@ -239,7 +270,7 @@ The MCP proxy can be configured through:
 2. **Environment variables**
 3. **Configuration file** (specified with `--config`)
 
-#### Configuration File Example
+### Configuration File Example
 
 ```yaml
 # mcp-proxy.yaml
@@ -247,7 +278,7 @@ mcp_proxy:
   host: "0.0.0.0"
   port: "8081"
   base_url: "http://localhost:8081"
-  
+
   auth:
     global_tokens:
       - "your-auth-token"
@@ -256,7 +287,7 @@ mcp_proxy:
     admin_allow_ips:
       - "192.168.1.0/24"
       - "127.0.0.1"
-  
+
   security:
     trusted_proxies:
       - "10.0.0.0/8"
@@ -268,27 +299,27 @@ mcp_proxy:
     format: "json"
 ```
 
-### Security Considerations
+## Security Considerations
 
-#### Authentication Tokens
+### Authentication Tokens
 - **Global auth tokens**: Required for all MCP client requests
 - **Admin tokens**: Required for admin API access
 - Use strong, randomly generated tokens
 - Rotate tokens regularly
 
-#### IP Restrictions
+### IP Restrictions
 - **Admin IP allowlist**: Restrict admin API access by IP
 - **Trusted proxies**: Configure known proxy IPs for proper client IP detection
 - Use CIDR notation for IP ranges
 
-#### Network Security
+### Network Security
 - Run behind a reverse proxy in production
 - Use HTTPS termination at the proxy level
 - Implement rate limiting and request size limits
 
-### Monitoring and Logging
+## Monitoring and Logging
 
-#### Health Monitoring
+### Health Monitoring
 
 ```bash
 # Check basic health
@@ -298,7 +329,7 @@ curl http://localhost:8081/health
 curl http://localhost:8081/health/detailed
 ```
 
-#### Log Analysis
+### Log Analysis
 
 ```bash
 # Follow proxy logs (JSON format)
@@ -312,9 +343,9 @@ grep '"path":' /var/log/compozy/mcp-proxy.log | \
   jq -r '.path' | sort | uniq -c | sort -nr
 ```
 
-### Production Deployment
+## Production Deployment
 
-#### Docker
+### Docker
 
 ```dockerfile
 FROM compozy/compozy:latest
@@ -324,7 +355,7 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 CMD ["compozy", "mcp-proxy"]
 ```
 
-#### Docker Compose
+### Docker Compose
 
 ```yaml
 version: '3.8'
@@ -345,7 +376,7 @@ services:
     restart: unless-stopped
 ```
 
-#### Kubernetes
+### Kubernetes
 
 ```yaml
 apiVersion: apps/v1
@@ -394,100 +425,6 @@ spec:
             cpu: "200m"
 ```
 
-### Troubleshooting
-
-<Tabs items={["Common Issues", "Debug Commands", "Network Issues"]}>
-
-<Tab>
-**Port already in use**
-```bash
-# Check what's using the port
-lsof -i :8081
-
-# Use different port
-compozy mcp-proxy --port 9000
-```
-
-**Permission denied**
-```bash
-# Don't run as root, use non-privileged port
-compozy mcp-proxy --port 8081  # Good
-compozy mcp-proxy --port 80    # Bad (requires root)
-```
-
-**Authentication failures**
-```bash
-# Check token configuration
-compozy mcp-proxy --debug
-
-# Verify token in requests
-curl -H "Authorization: Bearer your-token" \
-     http://localhost:8081/health
-```
-</Tab>
-
-<Tab>
-**Enable debug logging**
-```bash
-# Start with debug logging
-compozy mcp-proxy --debug --log-level debug
-```
-
-**Test connectivity**
-```bash
-# Basic health check
-curl -v http://localhost:8081/health
-
-# Detailed health information
-curl -v http://localhost:8081/health/detailed
-```
-
-**Check admin API**
-```bash
-# List configured servers (requires admin token)
-curl -H "Authorization: Bearer admin-token" \
-     http://localhost:8081/admin/servers
-
-# Test MCP server connection
-curl -X POST http://localhost:8081/mcp/server-id \
-     -H "Content-Type: application/json" \
-     -d '{"method": "ping"}'
-```
-</Tab>
-
-<Tab>
-**Cannot connect to MCP servers**
-
-<List>
-  <ListItem title="Server Accessibility">
-    Verify MCP server URLs are accessible from the proxy host
-  </ListItem>
-  <ListItem title="Network Connectivity">
-    Check firewall rules and network connectivity between proxy and MCP servers
-  </ListItem>
-  <ListItem title="Configuration Review">
-    Ensure server configurations are correct in the admin API or config file
-  </ListItem>
-  <ListItem title="Authentication">
-    Verify MCP server-specific authentication tokens are valid
-  </ListItem>
-</List>
-
-**Network diagnostic commands:**
-```bash
-# Test MCP server directly
-curl -v http://mcp-server-host:port/health
-
-# Check DNS resolution
-nslookup mcp-server-host
-
-# Test network connectivity
-telnet mcp-server-host port
-```
-</Tab>
-
-</Tabs>
-
 ## Next Steps
 
 Explore these related topics to get the most out of MCP proxy operations:
@@ -498,7 +435,7 @@ Explore these related topics to get the most out of MCP proxy operations:
   <ReferenceCard
     title="MCP Overview"
     description="Understand Model Context Protocol architecture and integration patterns"
-    href="/docs/core/mcp/mcp-overview"
+    href="/docs/core/mcp/overview"
     icon="BookOpen"
   />
   <ReferenceCard
@@ -516,7 +453,7 @@ Explore these related topics to get the most out of MCP proxy operations:
   <ReferenceCard
     title="Tool Development"
     description="Build custom MCP servers and tools for specialized operations"
-    href="/docs/core/tools/tools-overview"
+    href="/docs/core/tools/overview"
     icon="Code"
   />
 </ReferenceCardList>

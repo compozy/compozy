@@ -59,9 +59,9 @@ func checkExplicitFormat(cfg *config.Config) (models.Mode, bool) {
 	case string(OutputFormatTUI):
 		return models.ModeTUI, true
 	case "auto":
-		return models.ModeJSON, false // fall through to auto-detection
+		return models.ModeTUI, false // fall through to auto-detection with TUI preference
 	default:
-		return models.ModeJSON, false // fall through to auto-detection
+		return models.ModeTUI, false // fall through to auto-detection with TUI preference
 	}
 }
 
@@ -103,12 +103,18 @@ func DetectMode(cmd *cobra.Command) models.Mode {
 	// Get configuration from context
 	configValue := cmd.Context().Value(ConfigKey)
 	if configValue == nil {
-		// Fallback to JSON mode if no config available
+		// Fallback to TUI mode if no config available and interactive environment
+		if !isRunningInCI() {
+			return models.ModeTUI
+		}
 		return models.ModeJSON
 	}
 	cfg, ok := configValue.(*config.Config)
 	if !ok {
-		// Fallback to JSON mode if config type assertion fails
+		// Fallback to TUI mode if config type assertion fails and interactive environment
+		if !isRunningInCI() {
+			return models.ModeTUI
+		}
 		return models.ModeJSON
 	}
 

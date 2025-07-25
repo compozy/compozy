@@ -1,5 +1,6 @@
 "use client";
 
+import { cn } from "@/lib/utils";
 import mermaid from "mermaid";
 import { useTheme } from "next-themes";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -9,9 +10,10 @@ import "react-medium-image-zoom/dist/styles.css";
 interface MermaidProps {
   chart: string;
   config?: any;
+  className?: string;
 }
 
-export function Mermaid({ chart, config = {} }: MermaidProps) {
+export function Mermaid({ chart, config = {}, className }: MermaidProps) {
   const { resolvedTheme } = useTheme();
   const [imageSrc, setImageSrc] = useState<string>("");
   const [error, setError] = useState<string>("");
@@ -29,7 +31,46 @@ export function Mermaid({ chart, config = {} }: MermaidProps) {
       startOnLoad: false,
       theme: resolvedTheme === "dark" ? "dark" : "default",
       securityLevel: "loose",
-      fontFamily: "var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif",
+      fontFamily: "Geist, ui-sans-serif, system-ui, sans-serif",
+      themeVariables: {
+        fontFamily: "Geist, ui-sans-serif, system-ui, sans-serif",
+        // primaryTextColor: resolvedTheme === "dark" ? "#C1E623" : "#3d3929",
+        // primaryColor: resolvedTheme === "dark" ? "#1f1f1f" : "#e9e6dc",
+        // primaryBorderColor: resolvedTheme === "dark" ? "#363736" : "#dad9d4",
+        // lineColor: resolvedTheme === "dark" ? "#52514a" : "#b4b2a7",
+        // secondaryColor: resolvedTheme === "dark" ? "#242424" : "#e9e6dc",
+        // tertiaryColor: resolvedTheme === "dark" ? "#313131" : "#ede9de",
+        // background: resolvedTheme === "dark" ? "#161716" : "#faf9f5",
+        // mainBkg: resolvedTheme === "dark" ? "#1f1f1f" : "#e9e6dc",
+        // secondBkg: resolvedTheme === "dark" ? "#242424" : "#ede9de",
+        // tertiaryBkg: resolvedTheme === "dark" ? "#313131" : "#e9e6dc",
+        // textColor: resolvedTheme === "dark" ? "#dce4e5" : "#3d3929",
+        ...(config.themeVariables || {}),
+      },
+      flowchart: {
+        nodeSpacing: 50,
+        rankSpacing: 50,
+        curve: "basis",
+        padding: 15,
+        htmlLabels: true,
+        defaultRenderer: "dagre-d3",
+        useMaxWidth: true,
+      },
+      sequence: {
+        fontFamily: "Geist, ui-sans-serif, system-ui, sans-serif",
+        fontSize: 14,
+        messageFontSize: 14,
+        noteFontSize: 13,
+        actorFontSize: 14,
+        actorFontFamily: "Geist, ui-sans-serif, system-ui, sans-serif",
+        noteFontFamily: "Geist, ui-sans-serif, system-ui, sans-serif",
+        messageFontFamily: "Geist, ui-sans-serif, system-ui, sans-serif",
+      },
+      gantt: {
+        fontFamily: "Geist, ui-sans-serif, system-ui, sans-serif",
+        fontSize: 14,
+        sectionFontSize: 14,
+      },
       ...config,
     });
   }, [resolvedTheme, config]);
@@ -81,7 +122,7 @@ export function Mermaid({ chart, config = {} }: MermaidProps) {
   }
 
   return (
-    <div className="mermaid-container w-full">
+    <div className={cn("mermaid-container w-full", className)}>
       <ControlledZoom
         isZoomed={isZoomed}
         onZoomChange={handleZoomChange}

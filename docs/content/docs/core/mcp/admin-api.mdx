@@ -122,13 +122,13 @@ Execute tools on registered MCP servers:
 func (h *AdminHandler) ExecuteTool(c *gin.Context) {
     ctx := c.Request.Context()
     log := logger.FromContext(ctx)
-    
+
     var request ToolCallRequest
     if err := c.ShouldBindJSON(&request); err != nil {
         c.JSON(400, gin.H{"error": err.Error()})
         return
     }
-    
+
     // Execute tool via proxy
     response, err := h.mcpClient.CallTool(ctx, request.MCPName, request.ToolName, request.Arguments)
     if err != nil {
@@ -136,7 +136,7 @@ func (h *AdminHandler) ExecuteTool(c *gin.Context) {
         c.JSON(500, gin.H{"error": "Tool execution failed"})
         return
     }
-    
+
     c.JSON(200, gin.H{"result": response})
 }
 ```
@@ -248,7 +248,7 @@ compozy workflow list --format table
 compozy workflow get [workflow-id] --format yaml
 
 # Execute a workflow
-compozy workflow execute [workflow-id] --input '{"key": "value"}'
+compozy workflow execute [workflow-id] --json='{"key": "value"}'
 ```
 
 ### Development Commands
@@ -273,29 +273,29 @@ compozy start --config production.yaml
 type Config struct {
     // Resource reference for the MCP server (optional)
     Resource string `yaml:"resource,omitempty" json:"resource,omitempty"`
-    
+
     // ID is the unique identifier for this MCP server configuration
     ID string `yaml:"id" json:"id"`
-    
+
     // URL is the endpoint for remote MCP servers
     URL string `yaml:"url" json:"url"`
-    
+
     // Command is the executable command to spawn a local MCP server process
     Command string `yaml:"command,omitempty" json:"command,omitempty"`
-    
+
     // Env contains environment variables to pass to the MCP server process
     Env map[string]string `yaml:"env,omitempty" json:"env,omitempty"`
-    
+
     // Proto specifies the MCP protocol version to use (YYYY-MM-DD format)
     Proto string `yaml:"proto,omitempty" json:"proto,omitempty"`
-    
+
     // Transport defines the communication transport mechanism
     // Supported: "sse", "streamable-http", "stdio"
     Transport mcpproxy.TransportType `yaml:"transport,omitempty" json:"transport,omitempty"`
-    
+
     // StartTimeout is the maximum time to wait for the MCP server to start
     StartTimeout time.Duration `yaml:"start_timeout,omitempty" json:"start_timeout,omitempty"`
-    
+
     // MaxSessions defines the maximum number of concurrent sessions allowed
     MaxSessions int `yaml:"max_sessions,omitempty" json:"max_sessions,omitempty"`
 }
@@ -315,7 +315,7 @@ mcps:
     start_timeout: 30s
     max_sessions: 10
 
-# Remote MCP server configuration  
+# Remote MCP server configuration
   - id: github-api
     url: "https://api.github.com/mcp/v1"
     transport: sse
@@ -375,7 +375,7 @@ mcps:
   <ReferenceCard
     title="MCP Overview"
     description="Learn about MCP architecture and concepts"
-    href="/docs/core/mcp/mcp-overview"
+    href="/docs/core/mcp/overview"
     icon="Network"
   />
   <ReferenceCard

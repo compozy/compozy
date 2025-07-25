@@ -7,9 +7,9 @@
     "global",
     "autoload",
     "providers",
-    "runtime-config",
+    "runtime",
     "workflows",
     "cli",
-    "monitoring-config"
+    "monitoring"
   ]
 }

@@ -696,7 +696,7 @@ func registerBasicCLIFields(registry *Registry) {
 func registerOutputFormatFields(registry *Registry) {
 	registry.Register(&FieldDef{
 		Path:      "cli.default_format",
-		Default:   "auto",
+		Default:   "tui",
 		CLIFlag:   "format",
 		Shorthand: "f",
 		EnvVar:    "COMPOZY_DEFAULT_FORMAT",

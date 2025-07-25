@@ -1,0 +1,431 @@
+---
+title: Overview
+description: Master Compozy's event-driven communication system for building reactive, scalable workflows with signal-based coordination patterns
+---
+
+<Callout type="info" title="Key Insight">
+Signals provide lightweight message dispatch between workflows, enabling sophisticated coordination patterns without tight coupling.
+</Callout>
+
+## Overview
+
+Signals are **lightweight messages** that enable workflows to communicate asynchronously. Unlike direct task dependencies, signals provide a decoupled coordination mechanism where publishers and subscribers operate independently.
+
+<FeatureCardList cols={2}>
+  <FeatureCard
+    title="Event-Driven Architecture"
+    description="Build reactive systems that respond to business events as they occur"
+    icon="Zap"
+  />
+  <FeatureCard
+    title="Loose Coupling"
+    description="Workflows coordinate without direct dependencies or knowledge of each other"
+    icon="Link2Off"
+  />
+  <FeatureCard
+    title="Asynchronous Communication"
+    description="Non-blocking message passing enables parallel workflow execution"
+    icon="Activity"
+  />
+  <FeatureCard
+    title="Data Propagation"
+    description="Share structured payloads between workflows with type safety"
+    icon="Share"
+  />
+</FeatureCardList>
+
+## Signal Components
+
+<FeatureCardList cols={3}>
+  <FeatureCard
+    title="Signal Tasks"
+    description="Publish signals with structured payloads"
+    icon="Radio"
+    href="/docs/core/signals/signal-tasks"
+  />
+  <FeatureCard
+    title="Wait Tasks"
+    description="Subscribe to signals with timeout handling"
+    icon="Timer"
+    href="/docs/core/signals/signal-tasks"
+  />
+  <FeatureCard
+    title="Event API"
+    description="REST endpoints for programmatic signal management"
+    icon="Code"
+    href="/docs/core/signals/event-api"
+  />
+</FeatureCardList>
+
+## How Signals Work
+
+<Mermaid
+  chart={`graph TD
+    A[Publisher Workflow] --> B[Signal Task]
+    B --> C[Temporal Signal Dispatcher]
+    C --> D[Dispatcher Workflow]
+    D --> F[Wait Task 1]
+    D --> G[Wait Task 2]
+    F --> H[Subscriber Workflow B]
+    G --> I[Subscriber Workflow C]
+
+    B -.-> J[Signal Payload<br/>JSON Data]
+    J -.-> D
+    J -.-> F
+    J -.-> G
+
+    K[External API] --> C
+    L[Signal Trigger] --> M[Auto-started Workflow]
+    D --> L
+
+    style B fill:#263238,color:#fff
+    style F fill:#4527a0,color:#fff
+    style G fill:#4527a0,color:#fff
+    style C fill:#37474f,color:#fff
+    style D fill:#673ab7,color:#fff
+    style K fill:#1565c0,color:#fff
+    style L fill:#0277bd,color:#fff
+  `}
+  theme="dark"
+/>
+
+### Signal Flow Architecture
+
+<Steps numbered>
+  <Step title="Signal Publication" icon="Send">
+    Signals are published via [signal tasks](/docs/core/signals/signal-tasks), [Event API](/docs/core/signals/event-api), or external systems with structured payloads
+  </Step>
+
+  <Step title="Temporal Routing" icon="Route">
+    Temporal signal dispatcher routes signals through a dedicated Dispatcher Workflow that manages signal distribution to matching wait tasks and [signal triggers](/docs/core/signals/signal-triggers) based on signal IDs
+  </Step>
+
+
+  <Step title="Signal Processing" icon="Code">
+    [Processors](/docs/core/tasks/basic-tasks#processors) transform and validate signal data using [agents](/docs/core/agents/overview) or [tools](/docs/core/tools/overview)
+  </Step>
+
+  <Step title="Workflow Orchestration" icon="Workflow">
+    Target workflows continue execution or start automatically with signal data accessible via [template variables](/docs/core/yaml-templates/context-variables)
+  </Step>
+
+  <Step title="Response & Cascading" icon="GitBranch">
+    Processing results can trigger additional signals, creating sophisticated event chains and coordination patterns
+  </Step>
+</Steps>
+
+## Basic Usage
+
+<Tabs items={["Sending Signals", "Receiving Signals", "Workflow Triggers"]}>
+<Tab>
+
+```yaml
+# Send a signal when task completes
+- id: notify-completion
+  type: signal
+  signal:
+    id: "order-processed"
+    payload:
+      order_id: "{{ .workflow.input.order_id }}"
+      status: "{{ .task.output.status }}"
+      total: "{{ .task.output.total }}"
+```
+
+Learn more in [Signal Tasks](/docs/core/signals/signal-tasks).
+
+</Tab>
+
+<Tab>
+
+```yaml
+# Wait for signal with timeout handling
+- id: wait-for-order
+  type: wait
+  wait_for: "order-processed"
+  on_timeout: handle-timeout
+
+  # Optional: Process signal data
+  processor:
+    type: basic
+    agent:
+      id: order-handler
+    with:
+      order_data: "{{ .signal.payload }}"
+```
+
+Learn more about wait tasks in the signal system.
+
+</Tab>
+
+<Tab>
+
+```yaml
+# Workflow B: Order Fulfillment
+name: fulfill-order
+triggers:
+  - type: signal
+    name: order-ready
+
+tasks:
+  - id: prepare-shipment
+    type: basic
+    agent: { id: shipping-agent }
+    with:
+      order: "{{ .trigger.payload }}"
+```
+
+See [Workflow Triggers](/docs/core/workflows/triggers) for signal-based workflow initiation.
+
+</Tab>
+</Tabs>
+
+## Signal Architecture Patterns
+
+### Core Usage Scenarios
+
+<FeatureCardList cols={2}>
+  <FeatureCard
+    title="Human-in-the-Loop"
+    description="Approval workflows with escalation and timeout handling"
+    icon="UserCheck"
+  />
+  <FeatureCard
+    title="Service Orchestration"
+    description="Coordinate microservices and distributed systems"
+    icon="Network"
+  />
+  <FeatureCard
+    title="Event-Driven Pipelines"
+    description="Reactive data processing and ETL workflows"
+    icon="Database"
+  />
+  <FeatureCard
+    title="External Integrations"
+    description="Webhook handling and API response coordination"
+    icon="Globe"
+  />
+</FeatureCardList>
+
+<Tabs items={["Approval Workflows", "Service Orchestration", "Data Pipelines"]}>
+<Tab>
+
+```yaml title="Request approval"
+- id: request-approval
+  type: signal
+  signal:
+    id: "approval-request"
+    payload:
+      request_id: "{{ .workflow.id }}"
+      type: "budget-increase"
+      amount: "{{ .workflow.input.amount }}"
+      requestor: "{{ .workflow.input.user }}"
+```
+
+```yaml title="Wait for manager approval"
+- id: await-approval
+  type: wait
+  wait_for: "manager-approval"
+  on_timeout: escalate-request
+```
+
+</Tab>
+
+<Tab>
+
+```yaml title="Service A notifies completion"
+- id: data-processing-complete
+  type: signal
+  signal:
+    id: "etl-stage-complete"
+    payload:
+      stage: "transform"
+      records_processed: "{{ .task.output.count }}"
+      output_location: "{{ .task.output.path }}"
+```
+
+```yaml title="Service B waits for data"
+- id: wait-for-transform
+  type: wait
+  wait_for: "etl-stage-complete"
+  processor:
+    type: basic
+    tool:
+      id: data-loader
+    with:
+      input_path: "{{ .signal.payload.output_location }}"
+```
+
+</Tab>
+
+<Tab>
+
+```yaml title="Trigger on new data"
+- id: new-data-signal
+  type: signal
+  signal:
+    id: "dataset-available"
+    payload:
+      dataset_id: "{{ .workflow.input.dataset }}"
+      record_count: "{{ .task.output.count }}"
+      schema_version: "{{ .task.output.schema }}"
+```
+
+```yaml title="Process when threshold met"
+- id: batch-processor
+  type: wait
+  wait_for: "dataset-available"
+  processor:
+    type: basic
+    tool:
+      id: batch-processor
+    with:
+      dataset_id: "{{ .signal.payload.dataset_id }}"
+```
+
+</Tab>
+</Tabs>
+
+## Advanced Features
+
+### Signal Processing
+
+Wait tasks can process signals using optional processors:
+
+```yaml
+- id: priority-handler
+  type: wait
+  wait_for: "task-update"
+  processor:
+    type: basic
+    tool:
+      id: task-processor
+    with:
+      task_data: "{{ .signal.payload }}"
+```
+
+### Signal Timeouts
+
+Handle scenarios where signals might not arrive:
+
+```yaml
+- id: wait-with-fallback
+  type: wait
+  wait_for: "external-webhook"
+  on_timeout: use-default-values
+```
+
+### Multi-Signal Coordination
+
+Use [composite tasks](/docs/core/tasks/composite-tasks) to coordinate multiple signals:
+
+```yaml
+- id: wait-all-approvals
+  type: composite
+  mode: parallel
+  wait_all: true
+  tasks:
+    - type: wait
+      wait_for: "manager-approval"
+      on_timeout: handle-manager-timeout
+    - type: wait
+      wait_for: "compliance-approval"
+      on_timeout: handle-compliance-timeout
+    - type: wait
+      wait_for: "finance-approval"
+      on_timeout: handle-finance-timeout
+```
+
+## Best Practices & Guidelines
+
+<FeatureCardList cols={3}>
+  <FeatureCard
+    title="Semantic Naming"
+    description="Use clear, hierarchical names: domain-entity-action pattern"
+    icon="Tag"
+  />
+  <FeatureCard
+    title="Timeout Strategy"
+    description="Always implement timeouts with meaningful fallback actions"
+    icon="Timer"
+  />
+  <FeatureCard
+    title="Payload Optimization"
+    description="Balance completeness with performance - include essential context"
+    icon="Package"
+  />
+</FeatureCardList>
+
+<AccordionGroup>
+  <Accordion title="Signal Design Principles" description="Essential guidelines for effective signal architecture">
+
+  <List>
+    <ListItem title="Descriptive Naming" icon="FileText">
+      Use domain-entity-action pattern: `order-payment-completed`, `user-profile-updated`, `system-maintenance-started`
+    </ListItem>
+    <ListItem title="Structured Payloads" icon="Code">
+      Include entity ID, timestamp, action context, and metadata. Use consistent field names across similar signals.
+    </ListItem>
+    <ListItem title="Versioning Strategy" icon="GitBranch">
+      Plan for payload evolution with version fields or semantic signal names for backward compatibility
+    </ListItem>
+    <ListItem title="Error Boundaries" icon="Shield">
+      Design signals to be idempotent and include error context for robust failure handling
+    </ListItem>
+  </List>
+
+  </Accordion>
+
+  <Accordion title="Performance Optimization" description="Guidelines for scalable signal systems">
+
+  <List>
+    <ListItem title="Payload Size" icon="Gauge">
+      Keep payloads under 256KB. Use references to external storage for larger data sets.
+    </ListItem>
+    <ListItem title="Signal Frequency" icon="BarChart">
+      For high-frequency signals, consider batching or aggregation patterns to reduce system load
+    </ListItem>
+    <ListItem title="Signal Processing" icon="Filter">
+      Use optional processors in wait tasks to transform and validate signal data before continuing workflow execution
+    </ListItem>
+    <ListItem title="Timeout Tuning" icon="Clock">
+      Set realistic timeouts based on expected response times and system SLAs
+    </ListItem>
+  </List>
+
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Signal Tasks"
+    description="Deep dive into sending signals with payloads and patterns"
+    href="/docs/core/signals/signal-tasks"
+    icon="Radio"
+  />
+  <ReferenceCard
+    title="Signal Triggers"
+    description="Start workflows automatically with signal-based triggers"
+    href="/docs/core/signals/signal-triggers"
+    icon="Play"
+  />
+  <ReferenceCard
+    title="Event API"
+    description="REST endpoints for programmatic signal management"
+    href="/docs/core/signals/event-api"
+    icon="Code"
+  />
+  <ReferenceCard
+    title="Workflow Execution"
+    description="Access signal data in workflow execution context"
+    href="/docs/core/workflows/execution"
+    icon="Database"
+  />
+  <ReferenceCard
+    title="Composite Tasks"
+    description="Coordinate multiple signals and complex patterns"
+    href="/docs/core/tasks/composite-tasks"
+    icon="Layers"
+  />
+</ReferenceCardList>

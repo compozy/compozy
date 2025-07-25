@@ -1,4 +1,3 @@
-import ProjectStructure from "@/components/project-structure";
 import {
   AccordionContent,
   AccordionItem,
@@ -29,6 +28,7 @@ import { List, ListItem } from "@/components/ui/list";
 import { Logo } from "@/components/ui/logo";
 import { Mermaid } from "@/components/ui/mermaid";
 import { Param, Params, SchemaParams } from "@/components/ui/params";
+import ProjectStructure from "@/components/ui/project-structure";
 import { ReferenceCard, ReferenceCardList } from "@/components/ui/reference-card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";

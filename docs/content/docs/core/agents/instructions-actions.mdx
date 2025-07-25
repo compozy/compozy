@@ -125,26 +125,40 @@ actions:
 
 ### Action Components
 
-<Steps>
-  <Step title="ID">
-    Unique identifier used to invoke the action from workflow tasks
-  </Step>
-  <Step title="Prompt">
-    Specific instructions for this action, can include template variables
-  </Step>
-  <Step title="Input Schema">
-    JSON Schema defining expected input parameters and validation rules
-  </Step>
-  <Step title="Output Schema">
-    JSON Schema defining the structure of the action's response
-  </Step>
-  <Step title="JSON Mode">
-    Forces structured JSON output when enabled
-  </Step>
-  <Step title="Default Parameters">
-    Pre-configured values merged with runtime inputs
-  </Step>
-</Steps>
+<Table>
+  <TableHeader>
+    <TableRow>
+      <TableHead>Component</TableHead>
+      <TableHead>Description</TableHead>
+    </TableRow>
+  </TableHeader>
+  <TableBody>
+    <TableRow>
+      <TableCell>ID</TableCell>
+      <TableCell>Unique identifier used to invoke the action from workflow tasks</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>Prompt</TableCell>
+      <TableCell>Specific instructions for this action, can include template variables</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>Input Schema</TableCell>
+      <TableCell>JSON Schema defining expected input parameters and validation rules</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>Output Schema</TableCell>
+      <TableCell>JSON Schema defining the structure of the action's response</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>JSON Mode</TableCell>
+      <TableCell>Forces structured JSON output when enabled</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>Default Parameters</TableCell>
+      <TableCell>Pre-configured values merged with runtime inputs</TableCell>
+    </TableRow>
+  </TableBody>
+</Table>
 
 ### Action Examples
 
@@ -334,29 +348,44 @@ prompt: |
   Current iteration: {{.index}}
 ```
 
-<List>
-  <ListItem title="{{.input.*}}">
-    Action input parameters passed at runtime
-  </ListItem>
-  <ListItem title="{{.workflow.input.*}}">
-    Workflow input data available throughout execution
-  </ListItem>
-  <ListItem title="{{.tasks.*.output}}">
-    Previous task outputs for chaining results
-  </ListItem>
-  <ListItem title="{{.item}}">
-    Current item in collection tasks iteration
-  </ListItem>
-  <ListItem title="{{.index}}">
-    Current index in collection tasks iteration
-  </ListItem>
-  <ListItem title="{{.memory.*}}">
-    Memory values for stateful workflows
-  </ListItem>
-  <ListItem title="{{.env.*}}">
-    Environment variables for configuration
-  </ListItem>
-</List>
+<Table>
+  <TableHeader>
+    <TableRow>
+      <TableHead>Variable</TableHead>
+      <TableHead>Description</TableHead>
+    </TableRow>
+  </TableHeader>
+  <TableBody>
+    <TableRow>
+      <TableCell>`{{.input.*}}`</TableCell>
+      <TableCell>Action input parameters passed at runtime</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`{{.workflow.input.*}}`</TableCell>
+      <TableCell>Workflow input data available throughout execution</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`{{.tasks.*.output}}`</TableCell>
+      <TableCell>Previous task outputs for chaining results</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`{{.item}}`</TableCell>
+      <TableCell>Current item in collection tasks iteration</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`{{.index}}`</TableCell>
+      <TableCell>Current index in collection tasks iteration</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`{{.memory.*}}`</TableCell>
+      <TableCell>Memory values for stateful workflows</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`{{.env.*}}`</TableCell>
+      <TableCell>Environment variables for configuration</TableCell>
+    </TableRow>
+  </TableBody>
+</Table>
 
 ### Dynamic Action Selection
 
@@ -431,52 +460,25 @@ instructions: |
   {{end}}
 ```
 
-### Action Composition
-
-Combine multiple actions for complex behaviors:
-
-```yaml
-actions:
-  - id: analyze-and-fix
-    prompt: |
-      1. First, analyze the code for issues
-      2. Then, generate fixed versions for any problems found
-      3. Finally, explain the changes made
-    input:
-      type: object
-      properties:
-        code:
-          type: string
-    output:
-      type: object
-      properties:
-        analysis:
-          $ref: "#/definitions/CodeAnalysis"
-        fixed_code:
-          type: string
-        explanation:
-          type: string
-```
-
 ## Best Practices
 
 <FeatureCardList cols={2}>
-  <FeatureCard 
+  <FeatureCard
     title="Instruction Clarity"
     description="Write instructions that are clear, specific, and leave no room for ambiguity. Define the agent's role precisely and set explicit boundaries."
     icon="FileText"
   />
-  <FeatureCard 
+  <FeatureCard
     title="Action Focus"
     description="Each action should have a single, well-defined purpose. Avoid combining multiple operations in one action for better modularity."
     icon="Target"
   />
-  <FeatureCard 
+  <FeatureCard
     title="Schema Validation"
     description="Always define input/output schemas for predictable behavior. Use JSON Schema to ensure type safety and validation."
     icon="Shield"
   />
-  <FeatureCard 
+  <FeatureCard
     title="Error Handling"
     description="Include error scenarios in prompts and output schemas. Design actions to gracefully handle edge cases and invalid inputs."
     icon="AlertCircle"

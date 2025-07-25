@@ -1,0 +1,142 @@
+---
+title: Runtime
+description: The runtime is the component responsible for executing your custom JavaScript/TypeScript tools within Compozy workflows. It provides a secure, sandboxed environment using Bun to run your tool functions.
+---
+
+## How It Works
+
+<List>
+  <ListItem title="Define tools">
+    Create your tool functions in an entrypoint file (e.g., `tools.ts`)
+  </ListItem>
+  <ListItem title="Export functions">
+    Export as a default object with keys matching your workflow tool IDs
+  </ListItem>
+  <ListItem title="Configure runtime">
+    Set the entrypoint and permissions in your `compozy.yaml`
+  </ListItem>
+  <ListItem title="Execute tools">
+    Use the configured runtime to run tools within workflows
+  </ListItem>
+</List>
+
+## Quick Example
+
+```yaml title="compozy.yaml"
+name: my-project
+version: "1.0.0"
+
+runtime:
+  type: bun
+  entrypoint: "./tools.ts"
+  permissions:
+    - --allow-read
+    - --allow-net
+```
+
+## Configuration Properties
+
+<Table>
+  <TableHeader>
+    <TableRow>
+      <TableHead>Property</TableHead>
+      <TableHead>Description</TableHead>
+      <TableHead>Default</TableHead>
+    </TableRow>
+  </TableHeader>
+  <TableBody>
+    <TableRow>
+      <TableCell><code>type</code></TableCell>
+      <TableCell>JavaScript runtime (currently only <code>"bun"</code> is supported)</TableCell>
+      <TableCell><code>bun</code></TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell><code>entrypoint</code></TableCell>
+      <TableCell>Path to your tools file</TableCell>
+      <TableCell><code>./tools.ts</code></TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell><code>permissions</code></TableCell>
+      <TableCell>Security permissions for Bun runtime</TableCell>
+      <TableCell><code>["--allow-read"]</code></TableCell>
+    </TableRow>
+  </TableBody>
+</Table>
+
+For detailed schema information and all available options, see the [Runtime Schema](/docs/schema/application#runtime).
+
+## The Entrypoint File
+
+The entrypoint file (typically `tools.ts`) is where you define your custom tool functions. Each function receives parameters and returns data that can be used in your workflows.
+
+```typescript title="tools.ts"
+// Define your tool functions
+async function fetchData(params: { url: string }) {
+  const response = await fetch(params.url);
+  return await response.json();
+}
+
+// Export functions with keys matching workflow tool IDs
+export default {
+  fetch_data: fetchData,  // Key "fetch_data" must match tool ID in workflow
+};
+```
+
+<Callout type="info">
+The exported object keys must exactly match the tool IDs defined in your workflow files. This is how Compozy maps workflow tool references to actual functions.
+</Callout>
+
+Learn more about tool development:
+- [TypeScript Tool Development](/docs/core/tools/typescript-development) - Complete guide to building tools
+
+## Permissions
+
+When using the Bun runtime, you can control security permissions:
+
+<Table>
+  <TableHeader>
+    <TableRow>
+      <TableHead>Permission</TableHead>
+      <TableHead>Description</TableHead>
+    </TableRow>
+  </TableHeader>
+  <TableBody>
+    <TableRow>
+      <TableCell><code>--allow-read</code></TableCell>
+      <TableCell>File system read access</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell><code>--allow-write</code></TableCell>
+      <TableCell>File system write access</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell><code>--allow-net</code></TableCell>
+      <TableCell>Network access</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell><code>--allow-env</code></TableCell>
+      <TableCell>Environment variable access</TableCell>
+    </TableRow>
+  </TableBody>
+</Table>
+
+<Callout type="tip">
+Use scoped permissions for better security: `--allow-read=/data` or `--allow-net=api.example.com`
+</Callout>
+
+## References
+
+<ReferenceCardList>
+<ReferenceCard
+  title="Tool Development"
+  description="Learn how to build and test tools for the runtime"
+  href="/docs/core/tools/typescript-development"
+  icon="Code"
+/>
+<ReferenceCard
+  title="Project Configuration"
+  description="Complete project setup and configuration guide"
+  href="/docs/core/configuration/project-setup"
+  icon="Settings"
+/>
+</ReferenceCardList>

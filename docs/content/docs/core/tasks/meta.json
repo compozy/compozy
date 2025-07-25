@@ -3,14 +3,15 @@
   "description": "All task types and patterns",
   "icon": "ListCheck",
   "pages": [
+    "overview",
     "basic-tasks",
     "router-tasks",
     "aggregate-tasks",
     "collection-tasks",
+    "composite-tasks",
     "parallel-processing",
     "memory-tasks",
-    "custom-task-types",
-    "flow-control",
-    "advanced-patterns"
+    "signal-tasks",
+    "wait-tasks"
   ]
 }

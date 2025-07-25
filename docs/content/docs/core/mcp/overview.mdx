@@ -1,5 +1,5 @@
 ---
-title: "MCP Overview"
+title: Overview
 description: "Understanding Model Context Protocol (MCP) integration in Compozy"
 ---
 
@@ -61,72 +61,20 @@ MCP is a protocol that allows AI agents to:
 
 ## Architecture Overview
 
-<Mermaid>
-{`
-graph TB
-    subgraph "AI Agent Layer"
-        A[AI Agent]
-        A1[Workflow Engine]
-        A2[Task Executor]
-    end
+<Mermaid chart={`graph LR
+    A[Workflow Task] -->|Invokes| B[AI Agent]
+    B -->|HTTP| C[MCP Proxy]
+    C -->|Routes| D[MCP Servers]
+    D -->|Execute| E[External Tools]
 
-    subgraph "MCP Proxy Service - Port 8081"
-        B[HTTP Router]
-        B1[Admin API]
-        B2[Connection Manager]
-        B3[Transport Layer]
-        B4[Auth Manager]
-        B5[Storage Backend]
-    end
+    B -->|Uses| F[LLM Provider]
+    B -->|Accesses| G[Memory]
 
-    subgraph "MCP Servers"
-        C[stdio Server]
-        D[SSE Server]
-        E[HTTP Server]
-        F[Docker Server]
-    end
+    D --> H[Local Tools]
+    D --> I[Remote APIs]
+    D --> J[Databases]`} />
 
-    subgraph "External Services"
-        G[Database]
-        H[File System]
-        I[APIs]
-        J[Code Runtime]
-    end
-
-    A --> B
-    A1 --> B
-    A2 --> B
-
-    B --> B1
-    B --> B2
-    B --> B3
-    B --> B4
-    B --> B5
-
-    B2 --> C
-    B2 --> D
-    B2 --> E
-    B2 --> F
-
-    C --> G
-    D --> H
-    E --> I
-    F --> J
-
-    style A fill:#e1f5fe
-    style B fill:#f3e5f5
-    style C fill:#e8f5e8
-    style D fill:#e8f5e8
-    style E fill:#e8f5e8
-    style F fill:#e8f5e8
-    style G fill:#fff3e0
-    style H fill:#fff3e0
-    style I fill:#fff3e0
-    style J fill:#fff3e0
-`}
-</Mermaid>
-
-<Callout type="info">
+<Callout type="info" className="my-8">
 **Proxy Architecture**: The MCP proxy runs on port 8081 and manages all server connections, providing a unified HTTP interface for multiple transport types.
 </Callout>
 
@@ -329,34 +277,6 @@ compozy dev --watch
 
 # 3. In another terminal, start the MCP proxy
 compozy mcp-proxy --port 8081 --debug
-
-# 4. Create a simple workflow
-cat > workflow.yaml << 'EOF'
-resource: workflow
-id: data-analyst
-description: "Analyze data using available tools"
-
-mcps:
-  - id: filesystem
-    transport: stdio
-    command: "mcp-server-filesystem"
-    args: ["--root", "/workspace"]
-    env:
-      LOG_LEVEL: "info"
-
-agents:
-  - id: analyst
-    instructions: "You can analyze data using filesystem tools"
-
-tasks:
-  - id: analyze
-    type: basic
-    agent: analyst
-    prompt: "List and analyze the files in the workspace"
-EOF
-
-# 5. Execute the workflow
-compozy workflow execute data-analyst
 ```
 
 <Steps>
@@ -378,8 +298,7 @@ Use `compozy workflow execute` to verify that your workflows can use MCP tools.
 
 MCP seamlessly integrates with Compozy's workflow orchestration through a unified architecture:
 
-<Mermaid>
-{`
+<Mermaid chart={`
 sequenceDiagram
     participant Agent as AI Agent
     participant Client as MCP Client
@@ -399,155 +318,9 @@ sequenceDiagram
     Note over Agent,Service: Fault-tolerant with automatic retries
     Note over Proxy: Handles authentication & connection pooling
     Note over Server: Supports stdio, SSE, and HTTP transports
-`}
-</Mermaid>
+`} />
 
-### Integration Points
-
-<AccordionGroup>
-<Accordion title="Agent Configuration" icon="Users">
-**YAML Configuration Integration**
-
-MCP servers are defined directly in agent configuration files:
-
-```yaml
-resource: workflow
-id: data-analyst
-description: "Analyze data using available tools"
-
-mcps:
-  - id: sql-server
-    url: "http://mcp-proxy:8081/sql"
-    transport: sse
-    headers:
-      Authorization: "Bearer {{ .env.SQL_TOKEN }}"
-    timeout: 30s
-
-  - id: python-runtime
-    command: "mcp-python-server"
-    transport: stdio
-    env:
-      PYTHONPATH: "/app/libs"
-      LOG_LEVEL: "info"
-    start_timeout: 30s
-
-agents:
-  - id: analyst
-    instructions: "Analyze data using available tools"
-
-tasks:
-  - id: analysis
-    type: basic
-    agent: analyst
-    prompt: "Query the sales database and create a visualization"
-```
-
-**Key Features:**
-- Template engine support for environment variables
-- Transport-specific configuration options
-- Automatic service discovery and registration
-- Health monitoring and failover
-</Accordion>
-
-<Accordion title="Tool Discovery" icon="Search">
-**Automatic Tool Registration**
-
-MCP servers automatically expose their available tools through the proxy:
-
-```yaml
-# Available tools are discovered automatically
-# No manual tool registration required
-
-actions:
-  - id: analyze_data
-    prompt: "Query the sales database and create a visualization"
-    tools: ["sql-query", "python-plot"]  # Auto-discovered
-```
-
-**Discovery Process:**
-1. Agent connects to MCP proxy
-2. Proxy queries all registered servers
-3. Tools are aggregated and made available
-4. Agent can use any discovered tool
-5. Tool schemas are validated automatically
-</Accordion>
-
-<Accordion title="Workflow Integration" icon="Workflow">
-**Task-Level Integration**
-
-MCP tools integrate seamlessly with Compozy's task system:
-
-```yaml
-tasks:
-  - id: data_analysis
-    type: basic
-    $use: agent(local::agents.#(id=="data-analyst"))
-    action: analyze_data
-    inputs:
-      query: "SELECT * FROM sales WHERE date > '2024-01-01'"
-      chart_type: "bar"
-    final: true
-```
-
-**Integration Benefits:**
-- Unified error handling across all tools
-- Automatic retry logic for failed operations
-- Resource cleanup and connection management
-- Comprehensive logging and monitoring
-</Accordion>
-
-<Accordion title="Error Handling" icon="CalloutCircle">
-**Robust Error Recovery**
-
-MCP integration includes comprehensive error handling:
-
-```yaml
-mcps:
-  - id: reliable-service
-    transport: sse
-    url: "https://api.example.com/mcp"
-    auto_reconnect: true
-    max_reconnects: 10
-    reconnect_delay: 5s
-    health_check_enabled: true
-    health_check_interval: 30s
-```
-
-**Error Recovery Features:**
-- Automatic connection recovery
-- Exponential backoff for retries
-- Circuit breaker pattern for failing services
-- Graceful degradation on repeated failures
-- Health check monitoring
-</Accordion>
-
-<Accordion title="Resource Management" icon="Gauge">
-**Efficient Resource Utilization**
-
-MCP system manages resources efficiently:
-
-```yaml
-mcps:
-  - id: resource-managed
-    transport: stdio
-    command: "mcp-server"
-    max_sessions: 10
-    start_timeout: 30s
-    env:
-      MAX_MEMORY: "512M"
-      MAX_CPU: "1.0"
-```
-
-**Resource Features:**
-- Connection pooling and reuse
-- Session limits to prevent overload
-- Automatic process lifecycle management
-- Memory and CPU limits for processes
-- Cleanup on agent shutdown
-</Accordion>
-</AccordionGroup>
-
-## Integration with Compozy Components
+## Integration with Components
 
 <FeatureCardList cols={2}>
   <FeatureCard
@@ -566,7 +339,7 @@ mcps:
   </FeatureCard>
   <FeatureCard
     title="Tool Development"
-    href="/docs/core/tools/tools-overview"
+    href="/docs/core/tools/overview"
     icon="Code"
   >
     Learn how MCP complements TypeScript tool development
@@ -580,45 +353,10 @@ mcps:
   </FeatureCard>
 </FeatureCardList>
 
-## Technical Deep Dive
+## Learning Paths
 
-<FeatureCardList cols={2}>
-  <FeatureCard
-    title="MCP Proxy Server"
-    href="/docs/core/mcp/mcp-proxy-server"
-    icon="Radio"
-  >
-    Learn about the proxy architecture and management
-  </FeatureCard>
-  <FeatureCard
-    title="Transport Configuration"
-    href="/docs/core/mcp/transport-configuration"
-    icon="Link2"
-  >
-    Configure different transport types and protocols
-  </FeatureCard>
-  <FeatureCard
-    title="Security & Authentication"
-    href="/docs/core/mcp/security-authentication"
-    icon="Shield"
-  >
-    Secure your MCP setup with proper authentication
-  </FeatureCard>
-  <FeatureCard
-    title="Tool Discovery"
-    href="/docs/core/mcp/tool-discovery"
-    icon="Eye"
-  >
-    Understand automatic tool discovery mechanisms
-  </FeatureCard>
-</FeatureCardList>
-
-## User Journey Navigation
-
-<Tabs defaultValue="beginner" items={["beginner", "intermediate", "advanced"]}>
-<Tab value="beginner">
-**For Beginners - Getting Started with MCP**
-
+<Tabs defaultValue="Beginner" items={["Beginner", "Intermediate", "Advanced"]}>
+<Tab>
 <ReferenceCardList>
   <ReferenceCard
     title="CLI Quick Start"
@@ -645,22 +383,9 @@ mcps:
     icon="BrainCircuit"
   />
 </ReferenceCardList>
-
-<Callout type="info">
-**Recommended Path**: Start with `compozy init` to create a project, use `compozy dev --watch` for development, and `compozy mcp-proxy` for testing. Progress from stdio MCP servers for local development to remote HTTP servers for production.
-</Callout>
-
-**Learning Goals:**
-- ✅ Master Compozy CLI commands for MCP development
-- ✅ Understand MCP architecture and benefits
-- ✅ Configure your first MCP server
-- ✅ Create agents that use MCP tools
-- ✅ Test MCP integration locally
 </Tab>
 
-<Tab value="intermediate">
-**For Intermediate Users - Production Patterns**
-
+<Tab>
 <ReferenceCardList>
   <ReferenceCard
     title="Transport Configuration"
@@ -687,21 +412,9 @@ mcps:
     icon="BarChart3"
   />
 </ReferenceCardList>
-
-<Callout type="info">
-**Production Focus**: Implement proper error handling, retry logic, and health monitoring for reliable MCP operations.
-</Callout>
-
-**Learning Goals:**
-- ✅ Configure production-ready MCP servers
-- ✅ Implement security best practices
-- ✅ Monitor MCP system health
-- ✅ Scale MCP deployments effectively
 </Tab>
 
-<Tab value="advanced">
-**For Advanced Users - Custom MCP Development**
-
+<Tab>
 <ReferenceCardList>
   <ReferenceCard
     title="Custom MCP Servers"
@@ -728,80 +441,5 @@ mcps:
     icon="Zap"
   />
 </ReferenceCardList>
-
-<Callout type="info">
-**Advanced Patterns**: Create custom MCP servers for specialized tooling, implement custom storage backends, and optimize for specific use cases.
-</Callout>
-
-**Learning Goals:**
-- ✅ Develop custom MCP server implementations
-- ✅ Optimize MCP performance for specific workloads
-- ✅ Extend MCP with custom storage solutions
-- ✅ Contribute to the MCP ecosystem
 </Tab>
 </Tabs>
-
-## CLI Command Reference
-
-### Essential MCP Commands
-
-```bash
-# Project initialization
-compozy init [project-name]              # Create new MCP-enabled project
-
-# Development server
-compozy dev [--watch]                    # Start dev server with hot reload
-compozy start                            # Start production server
-
-# MCP proxy management
-compozy mcp-proxy [--port 8081]          # Start MCP proxy service
-compozy mcp-proxy health                 # Check proxy health
-compozy mcp-proxy list                   # List registered MCP servers
-
-# Workflow management
-compozy workflow list                    # List all workflows
-compozy workflow get [id]                # Get workflow details
-compozy workflow execute [id]            # Execute workflow
-
-# Configuration
-compozy config [subcommand]              # Manage configuration
-
-# Authentication
-compozy auth generate                    # Generate API keys
-compozy auth list                        # List API keys
-```
-
-## Benefits
-
-<FeatureCardList cols={3}>
-  <FeatureCard
-    title="CLI-First Development"
-    description="Complete CLI toolkit for MCP development and deployment"
-    icon="Terminal"
-  />
-  <FeatureCard
-    title="Standardization"
-    description="Unified interface for tool integration across all services"
-    icon="Layers"
-  />
-  <FeatureCard
-    title="Extensibility"
-    description="Easy to add new tools and services without code changes"
-    icon="Package"
-  />
-  <FeatureCard
-    title="Reliability"
-    description="Built-in retry logic and error handling for robust operation"
-    icon="ShieldCheck"
-  />
-  <FeatureCard
-    title="Performance"
-    description="Efficient connection pooling and caching for optimal speed"
-    icon="Zap"
-  />
-  <FeatureCard
-    title="Security"
-    description="Comprehensive authentication and authorization mechanisms"
-    icon="Lock"
-  />
-</FeatureCardList>

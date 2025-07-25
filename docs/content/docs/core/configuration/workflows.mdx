@@ -1,1258 +1,258 @@
 ---
 title: Workflow
-description: Workflows are the orchestration engine of Compozy, transforming individual tasks into sophisticated automation pipelines. They define the execution flow, data transformations, and coordination patterns that enable complex AI-powered applications.
+description: Configure workflow-level settings including inputs, outputs, triggers, scheduling, and environment variables in Compozy
 ---
 
-## Core Concepts
+## Overview
 
-<FeatureCardList>
-  <FeatureCard
-    icon="BrainCircuit"
-    title="Declarative Configuration"
-    description="Define complex workflows using intuitive YAML configuration with template expressions and references"
-  />
-  <FeatureCard
-    icon="GitBranch"
-    title="Task Orchestration"
-    description="Compose tasks into sophisticated execution patterns with parallel, sequential, and conditional logic"
-  />
-  <FeatureCard
-    icon="Zap"
-    title="Event-Driven Architecture"
-    description="Build reactive workflows with signals, triggers, and event-driven coordination patterns"
-  />
-  <FeatureCard
-    icon="Database"
-    title="State Management"
-    description="Maintain persistent state across executions with integrated memory operations and data flow"
-  />
-</FeatureCardList>
+Workflows are the core building blocks of Compozy that orchestrate the execution of AI agents, tools, and tasks. They provide a declarative way to define complex AI-powered applications through YAML configuration. Each workflow can include input validation, environment configuration, event triggers, automated scheduling, and output transformation.
 
-## Task Types Overview
+If you're new to Compozy workflows, start with the [Quick Start Guide](/docs/core/getting-started/quick-start) for a 5-minute introduction, or dive deeper with the [First Workflow Tutorial](/docs/core/getting-started/first-workflow) to build a complete AI-powered application.
 
-Compozy supports 9 specialized task types, each optimized for specific orchestration patterns:
+This page covers workflow configuration in detail. For workflow execution, see the [Workflow Commands](/docs/cli/workflow-commands) or [Workflow API](/docs/api/workflows).
 
-| Task Type | Pattern | Concurrency | Primary Use Cases |
-|-----------|---------|-------------|-------------------|
-| **`basic`** | Single execution | None | Individual AI operations, API calls, data processing |
-| **`router`** | Conditional branching | None | Decision logic, approval routing, content classification |
-| **`parallel`** | Concurrent execution | Multi-task | Independent operations, data enrichment, batch validation |
-| **`collection`** | Array iteration | Configurable | User processing, file transformation, batch operations |
-| **`composite`** | Sequential grouping | None | Multi-step processes, reusable workflow components |
-| **`aggregate`** | Result combining | None | Report generation, data consolidation, output merging |
-| **`signal`** | Event emission | None | Notifications, workflow triggers, coordination events |
-| **`wait`** | Event listening | None | Approvals, external events, synchronization points |
-| **`memory`** | State management | None | Caching, session management, counters, persistent data |
+<Callout type="info">
+  For the complete workflow schema reference with all available properties, see the [Workflow Schema documentation](/docs/schema/workflows).
+</Callout>
 
-## Basic Task Configuration
+## Basic Structure
 
-The **basic task** is the fundamental building block of all workflows, executing single operations using agents or tools.
+Every workflow starts with essential metadata that identifies and describes its purpose. Workflows are typically stored in your [project directory](/docs/core/configuration/project-setup) as `workflow.yaml` files or in a `workflows/` folder for multiple workflows.
 
-<Tabs items={["Agent Execution", "Tool Execution"]} defaultValue="Agent Execution">
-  <Tab value="Agent Execution" className="space-y-4">
-    <Callout type="info">
-      Use agent execution for AI-powered operations requiring reasoning, content generation, or complex decision making.
-    </Callout>
-
-```yaml title="Agent-Based Basic Task"
-- id: analyze_sentiment
-  type: basic
-  agent:
-    id: sentiment_analyzer
-    model: claude-3-haiku-20240307
-    instructions: |
-      Analyze the sentiment of the provided text and return:
-      1. Overall sentiment (positive/negative/neutral)
-      2. Confidence score (0-1)
-      3. Key emotional indicators
-      4. Suggested response tone
-  action: analyze_customer_feedback
-  with:
-    text: "{{ .workflow.input.customer_message }}"
-    context: "{{ .workflow.input.conversation_history }}"
-  outputs:
-    sentiment: "{{ .output.sentiment }}"
-    confidence: "{{ .output.confidence }}"
-    recommendations: "{{ .output.suggestions }}"
-  on_success:
-    next: generate_response
-```
-  </Tab>
-
-  <Tab value="Tool Execution" className="space-y-4">
-    <Callout type="info">
-      Use tool execution for deterministic operations like API calls, file processing, or data transformations.
-    </Callout>
-
-```yaml title="Tool-Based Basic Task"
-- id: fetch_weather
-  type: basic
-  tool:
-    id: weather_api
-    timeout: 30s
-  with:
-    city: "{{ .workflow.input.location }}"
-    units: "metric"
-    include_forecast: true
-  outputs:
-    temperature: "{{ .output.current.temperature }}"
-    conditions: "{{ .output.current.conditions }}"
-    forecast: "{{ .output.forecast }}"
-  on_success:
-    next: process_weather_data
-  on_failure:
-    next: handle_weather_error
-```
-  </Tab>
-</Tabs>
-
-### Template Expressions
-
-Basic tasks support powerful template expressions for dynamic data binding:
-
-```yaml title="Template Expression Examples"
-- id: process_user_data
-  type: basic
-  agent: { id: data_processor }
-  with:
-    # Direct input access
-    user_id: "{{ .workflow.input.user_id }}"
-
-    # Task output references
-    previous_result: "{{ .tasks.validate_input.output.cleaned_data }}"
-
-    # Conditional expressions
-    priority: "{{ .workflow.input.amount > 10000 | ternary 'high' 'normal' }}"
-
-    # Array operations
-    user_count: "{{ len .workflow.input.users }}"
-
-    # Current timestamp
-    processed_at: "{{ now }}"
-
-    # Complex transformations
-    formatted_data: "{{ .tasks.fetch_data.output | toJson }}"
+```yaml
+id: my-workflow
+version: "1.0.0"
+description: "Workflow purpose and description"
+author:
+  name: "Your Name"
+  email: "your.email@example.com"
 ```
 
-## Router Task Configuration
+The workflow ID must be unique within your project and is used when [executing workflows](/docs/cli/workflow-commands#execute) via CLI or [API](/docs/api/workflows). Version tracking helps manage workflow evolution over time.
 
-Router tasks implement **conditional branching** using CEL (Common Expression Language) expressions for dynamic workflow routing.
+## Configuration Options
 
-<Tabs items={["Basic Routing", "Complex Conditions", "Inline Tasks"]} defaultValue="Basic Routing">
-  <Tab value="Basic Routing" className="space-y-4">
-```yaml title="Basic Router Configuration"
-- id: route_approval
-  type: router
-  condition: "{{ .tasks.calculate_amount.output.total }}"
-  routes:
-    # Simple value routing
-    "low": process_automatic_approval
-    "medium": route_to_manager
-    "high": route_to_senior_manager
-    "critical": route_to_executive_team
-```
-  </Tab>
+Workflow configuration controls how your workflow behaves at runtime. These settings define input validation rules, environment variables, and other execution parameters. All configuration options are defined under the `config` key in your workflow YAML.
 
-  <Tab value="Complex Conditions" className="space-y-4">
-```yaml title="Complex Conditional Routing"
-- id: content_classifier
-  type: router
-  condition: |
-    {{
-      .tasks.analyze_content.output.category == "sensitive" ? "restricted" :
-      .tasks.analyze_content.output.confidence < 0.8 ? "manual_review" :
-      .tasks.analyze_content.output.language != "en" ? "translation_required" :
-      "auto_publish"
-    }}
-  routes:
-    restricted: security_review_workflow
-    manual_review: human_moderator_queue
-    translation_required: language_processing_flow
-    auto_publish: publish_content_task
-```
-  </Tab>
+### Input Validation
 
-  <Tab value="Inline Tasks" className="space-y-4">
-```yaml title="Inline Task Configuration"
-- id: dynamic_processor
-  type: router
-  condition: "{{ .workflow.input.processing_type }}"
-  routes:
-    # Reference existing tasks
-    "standard": standard_processing_task
+Compozy uses [JSON Schema](https://json-schema.org/) to validate workflow inputs, ensuring data integrity before execution begins. This prevents errors and provides clear feedback when inputs don't match expected formats.
 
-    # Define inline task configurations
-    "priority":
-      type: basic
-      agent:
-        id: priority_processor
-        model: gpt-4.1-2025-04-14
-      with:
-        data: "{{ .workflow.input.data }}"
-        priority_level: "high"
-
-    "batch":
-      type: collection
-      items: "{{ .workflow.input.batch_items }}"
-      task:
-        type: basic
-        agent: { id: batch_processor }
-```
-  </Tab>
-</Tabs>
-
-## Parallel Task Configuration
-
-Parallel tasks enable **concurrent execution** of independent operations, dramatically improving workflow performance.
-
-<Tabs items={["Execution Strategies", "Performance Tuning", "Common Patterns"]} defaultValue="Execution Strategies">
-  <Tab value="Execution Strategies" className="space-y-4">
-```yaml title="Parallel Execution Strategies"
-- id: data_enrichment
-  type: parallel
-  strategy: wait_all  # Wait for all tasks to complete
-  max_workers: 5      # Limit concurrent executions
-  tasks:
-    - id: fetch_user_profile
-      type: basic
-      tool: { id: user_api }
-      with:
-        user_id: "{{ .workflow.input.user_id }}"
-
-    - id: fetch_preferences
-      type: basic
-      tool: { id: preferences_api }
-      with:
-        user_id: "{{ .workflow.input.user_id }}"
-
-    - id: fetch_activity_history
-      type: basic
-      tool: { id: activity_api }
-      with:
-        user_id: "{{ .workflow.input.user_id }}"
-        days: 30
-
-# Alternative strategies
-- id: competitive_analysis
-  type: parallel
-  strategy: race  # First successful task wins
-  tasks:
-    - id: api_source_1
-      type: basic
-      tool: { id: primary_api }
-    - id: api_source_2
-      type: basic
-      tool: { id: backup_api }
-
-- id: best_effort_notifications
-  type: parallel
-  strategy: best_effort  # Continue despite failures
-  tasks:
-    - id: email_notification
-      type: basic
-      tool: { id: email_service }
-    - id: sms_notification
-      type: basic
-      tool: { id: sms_service }
-    - id: push_notification
-      type: basic
-      tool: { id: push_service }
-```
-  </Tab>
-
-  <Tab value="Performance Tuning" className="space-y-4">
-```yaml title="Performance Optimization"
-- id: high_throughput_processing
-  type: parallel
-  strategy: wait_all
-  max_workers: 10     # Adjust based on system capacity
-  timeout: 300s       # 5-minute timeout for all tasks
-  tasks:
-    - id: cpu_intensive_task
-      type: basic
-      tool: { id: data_processor }
-      timeout: 120s     # Individual task timeout
-
-    - id: io_bound_task
-      type: basic
-      tool: { id: api_client }
-      timeout: 60s
-      retry:
-        max_attempts: 3
-        backoff: exponential
-
-    - id: memory_intensive_task
-      type: basic
-      tool: { id: ml_processor }
-      timeout: 180s
-      env:
-        MEMORY_LIMIT: "2GB"
-```
-  </Tab>
-
-  <Tab value="Common Patterns" className="space-y-4">
-```yaml title="Common Parallel Patterns"
-# Fan-out/Fan-in Pattern
-- id: fan_out_processing
-  type: parallel
-  strategy: wait_all
-  tasks:
-    - id: process_region_us
-      type: basic
-      agent: { id: regional_processor }
-      with:
-        region: "us"
-        data: "{{ .workflow.input.us_data }}"
-
-    - id: process_region_eu
-      type: basic
-      agent: { id: regional_processor }
-      with:
-        region: "eu"
-        data: "{{ .workflow.input.eu_data }}"
-
-    - id: process_region_asia
-      type: basic
-      agent: { id: regional_processor }
-      with:
-        region: "asia"
-        data: "{{ .workflow.input.asia_data }}"
-
-# Followed by aggregation
-- id: combine_results
-  type: aggregate
-  outputs:
-    us_results: "{{ .tasks.process_region_us.output }}"
-    eu_results: "{{ .tasks.process_region_eu.output }}"
-    asia_results: "{{ .tasks.process_region_asia.output }}"
-    total_processed: "{{
-      (.tasks.process_region_us.output.count // 0) +
-      (.tasks.process_region_eu.output.count // 0) +
-      (.tasks.process_region_asia.output.count // 0)
-    }}"
-```
-  </Tab>
-</Tabs>
-
-## Collection Task Configuration
-
-Collection tasks provide **powerful iteration** over arrays with filtering, batching, and flexible execution modes.
-
-<Tabs items={["Basic Collections", "Advanced Features", "Real-world Examples"]} defaultValue="Basic Collections">
-  <Tab value="Basic Collections" className="space-y-4">
-```yaml title="Basic Collection Processing"
-- id: process_users
-  type: collection
-  items: "{{ .workflow.input.users }}"
-  mode: parallel          # or sequential
-  batch: 10              # Process 10 items at a time
-  max_workers: 5         # Limit concurrent processing
-  item_var: user         # Custom variable name (default: "item")
-  index_var: position    # Custom index name (default: "index")
-
-  task:
-    id: "process-user-{{ .position }}"
-    type: basic
-    agent:
-      id: user_processor
-      model: claude-3-haiku-20240307
-    with:
-      user_data: "{{ .user }}"
-      batch_id: "{{ .position }}"
-      total_count: "{{ len .workflow.input.users }}"
-```
-  </Tab>
-
-  <Tab value="Advanced Features" className="space-y-4">
-```yaml title="Advanced Collection Features"
-- id: filtered_document_processing
-  type: collection
-  items: "{{ .workflow.input.documents }}"
-
-  # Filter items before processing
-  filter: |
-    {{
-      .item.status == "pending" &&
-      .item.size < 10000000 &&
-      (.item.type == "pdf" || .item.type == "docx")
-    }}
-
-  mode: parallel
-  batch: 5
-  strategy: best_effort  # Continue despite individual failures
-
-  task:
-    id: "process-doc-{{ .index }}"
-    type: composite
-    tasks:
-      - id: extract_text
-        type: basic
-        tool: { id: text_extractor }
-        with:
-          document: "{{ .item }}"
-
-      - id: analyze_content
-        type: basic
-        agent: { id: content_analyzer }
-        with:
-          text: "{{ .tasks.extract_text.output.content }}"
-          metadata: "{{ .item.metadata }}"
-
-      - id: generate_summary
-        type: basic
-        agent: { id: summarizer }
-        with:
-          content: "{{ .tasks.analyze_content.output.structured_data }}"
-```
-  </Tab>
-
-  <Tab value="Real-world Examples" className="space-y-4">
-```yaml title="Real-world Collection Examples"
-# Example 1: User Account Migration
-- id: migrate_user_accounts
-  type: collection
-  items: "{{ .workflow.input.legacy_users }}"
-  filter: "{{ .item.migration_status != 'completed' }}"
-  mode: sequential  # Ensure order for data integrity
-  batch: 50
-
-  task:
-    id: "migrate-user-{{ .index }}"
-    type: composite
-    tasks:
-      - id: validate_user_data
-        type: basic
-        agent: { id: data_validator }
-
-      - id: transform_schema
-        type: basic
-        tool: { id: schema_transformer }
-
-      - id: create_new_account
-        type: basic
-        tool: { id: account_creator }
-
-      - id: migrate_preferences
-        type: basic
-        tool: { id: preference_migrator }
-
-# Example 2: Image Processing Pipeline
-- id: process_image_batch
-  type: collection
-  items: "{{ .workflow.input.image_urls }}"
-  filter: "{{ .item | match('^https://.*\\.(jpg|png|jpeg)$') }}"
-  mode: parallel
-  batch: 20
-  max_workers: 8
-
-  task:
-    id: "process-image-{{ .index }}"
-    type: parallel
-    strategy: wait_all
-    tasks:
-      - id: resize_image
-        type: basic
-        tool: { id: image_resizer }
-        with:
-          url: "{{ .item }}"
-          sizes: [thumbnail, medium, large]
-
-      - id: extract_metadata
-        type: basic
-        tool: { id: metadata_extractor }
-        with:
-          image_url: "{{ .item }}"
-
-      - id: generate_alt_text
-        type: basic
-        agent: { id: alt_text_generator }
-        with:
-          image_url: "{{ .item }}"
-```
-  </Tab>
-</Tabs>
-
-## Composite Task Configuration
-
-Composite tasks group related operations into **reusable workflow components** that execute sequentially.
-
-```yaml title="Composite Task Example"
-- id: complete_user_onboarding
-  type: composite
-  strategy: fail_fast  # Stop on first failure
-  tasks:
-    - id: create_user_account
-      type: basic
-      tool: { id: account_service }
-      with:
-        user_data: "{{ .workflow.input.user_info }}"
-
-    - id: send_welcome_email
-      type: basic
-      tool: { id: email_service }
-      with:
-        recipient: "{{ .tasks.create_user_account.output.email }}"
-        template: "welcome"
-        variables:
-          name: "{{ .tasks.create_user_account.output.name }}"
-          account_id: "{{ .tasks.create_user_account.output.id }}"
-
-    - id: setup_default_preferences
-      type: basic
-      tool: { id: preferences_service }
-      with:
-        user_id: "{{ .tasks.create_user_account.output.id }}"
-        defaults: "{{ .workflow.input.default_preferences }}"
-
-    - id: assign_to_welcome_campaign
-      type: basic
-      tool: { id: campaign_service }
-      with:
-        user_id: "{{ .tasks.create_user_account.output.id }}"
-        campaign: "new_user_welcome"
-
-  outputs:
-    user_id: "{{ .tasks.create_user_account.output.id }}"
-    onboarding_status: "complete"
-    welcome_email_sent: "{{ .tasks.send_welcome_email.output.success }}"
-```
-
-## Aggregate Task Configuration
-
-Aggregate tasks **combine outputs** from multiple tasks into consolidated results.
-
-```yaml title="Aggregate Task Example"
-- id: generate_dashboard_data
-  type: aggregate
-  outputs:
-    # Direct value assignments
-    timestamp: "{{ now }}"
-    workflow_id: "{{ .workflow.id }}"
-
-    # Task output references
-    user_metrics: "{{ .tasks.analyze_user_behavior.output }}"
-    system_health: "{{ .tasks.check_system_status.output }}"
-
-    # Computed values
-    total_users: "{{ .tasks.count_active_users.output.count }}"
-    success_rate: "{{
-      (.tasks.analyze_user_behavior.output.successful_actions /
-       .tasks.analyze_user_behavior.output.total_actions) * 100
-    }}"
-
-    # Conditional outputs
-    alert_level: "{{
-      .tasks.check_system_status.output.cpu_usage > 80 ? 'high' :
-      .tasks.check_system_status.output.cpu_usage > 60 ? 'medium' : 'low'
-    }}"
-
-    # Array combinations
-    all_errors: "{{
-      .tasks.analyze_logs.output.errors +
-      .tasks.check_system_status.output.errors
-    }}"
-
-    # Complex transformations
-    summary_report: |
-      {{
-        {
-          "period": .workflow.input.report_period,
-          "metrics": .tasks.analyze_user_behavior.output,
-          "health": .tasks.check_system_status.output,
-          "recommendations": .tasks.generate_recommendations.output.suggestions
-        }
-      }}
-```
-
-## Signal & Wait Task Configuration
-
-Signal and wait tasks enable **event-driven coordination** between workflows and external systems.
-
-<Tabs items={["Signal Tasks", "Wait Tasks"]} defaultValue="Signal Tasks">
-  <Tab value="Signal Tasks" className="space-y-4">
-```yaml title="Signal Task Configuration"
-# Basic signal emission
-- id: notify_completion
-  type: signal
-  signal:
-    id: "order-processed"
-    payload:
-      order_id: "{{ .workflow.input.order_id }}"
-      status: "completed"
-      total_amount: "{{ .tasks.calculate_total.output.amount }}"
-      processed_at: "{{ now }}"
-      processor_id: "{{ .workflow.execution_id }}"
-
-# Conditional signal emission
-- id: conditional_alert
-  type: signal
-  condition: "{{ .tasks.validate_data.output.error_count > 0 }}"
-  signal:
-    id: "data-validation-failed"
-    payload:
-      errors: "{{ .tasks.validate_data.output.errors }}"
-      severity: "{{ .tasks.validate_data.output.error_count > 10 ? 'high' : 'medium' }}"
-
-# Multiple signal emission
-- id: broadcast_status
-  type: parallel
-  tasks:
-    - id: notify_admin
-      type: signal
-      signal:
-        id: "admin-notification"
-        payload:
-          event: "workflow_completed"
-          details: "{{ .workflow.summary }}"
-
-    - id: notify_user
-      type: signal
-      signal:
-        id: "user-notification"
-        payload:
-          message: "Your request has been processed"
-          user_id: "{{ .workflow.input.user_id }}"
-```
-  </Tab>
-
-  <Tab value="Wait Tasks" className="space-y-4">
-```yaml title="Wait Task Configuration"
-# Basic wait task
-- id: wait_for_approval
-  type: wait
-  wait_for: "approval-decision"
-  condition: "{{ .signal.payload.request_id == .workflow.input.request_id }}"
-  timeout: 1h
-  on_timeout: timeout_handler
-
-  # Optional signal processing
-  processor:
-    type: basic
-    agent: { id: approval_processor }
-    with:
-      decision: "{{ .signal.payload.decision }}"
-      approver: "{{ .signal.payload.approver_id }}"
-      comments: "{{ .signal.payload.comments }}"
-
-# Advanced wait with complex conditions
-- id: wait_for_multi_approval
-  type: wait
-  wait_for: "approval-decision"
-  condition: |
-    {{
-      .signal.payload.request_id == .workflow.input.request_id &&
-      .signal.payload.decision == "approved" &&
-      .signal.payload.approver_level >= .workflow.input.required_level
-    }}
-  timeout: 24h
-  on_timeout: escalate_to_higher_authority
-
-  processor:
-    type: composite
-    tasks:
-      - id: log_approval
-        type: basic
-        tool: { id: audit_logger }
-
-      - id: update_request_status
-        type: basic
-        tool: { id: request_service }
-
-      - id: notify_requestor
-        type: basic
-        tool: { id: notification_service }
-
-# Wait with multiple signal types
-- id: wait_for_any_response
-  type: wait
-  wait_for: "*"  # Listen for any signal
-  condition: |
-    {{
-      (.signal.id == "approval-decision" ||
-       .signal.id == "timeout-warning" ||
-       .signal.id == "cancellation-request") &&
-      .signal.payload.request_id == .workflow.input.request_id
-    }}
-  timeout: 2h
-  processor:
-    type: router
-    condition: "{{ .signal.id }}"
-    routes:
-      "approval-decision": handle_approval
-      "timeout-warning": send_reminder
-      "cancellation-request": cancel_process
-```
-  </Tab>
-</Tabs>
-
-## Memory Task Configuration
-
-Memory tasks provide **persistent state management** for caching, session data, and cross-workflow communication.
-
-<Tabs items={["Memory Operations", "Common Patterns", "Advanced Features"]} defaultValue="Memory Operations">
-  <Tab value="Memory Operations" className="space-y-4">
-```yaml title="Memory Operations"
-# Write operation
-- id: store_user_session
-  type: memory
-  operation: write
-  memory_ref: "user_sessions"
-  key_template: "session:{{ .workflow.input.user_id }}"
-  payload:
-    user_id: "{{ .workflow.input.user_id }}"
-    login_time: "{{ now }}"
-    preferences: "{{ .tasks.load_preferences.output }}"
-    last_activity: "{{ now }}"
-
-# Read operation
-- id: load_user_session
-  type: memory
-  operation: read
-  memory_ref: "user_sessions"
-  key_template: "session:{{ .workflow.input.user_id }}"
-
-# Append operation (for lists/arrays)
-- id: log_user_activity
-  type: memory
-  operation: append
-  memory_ref: "activity_logs"
-  key_template: "activity:{{ .workflow.input.user_id }}"
-  payload:
-    action: "{{ .workflow.input.action }}"
-    timestamp: "{{ now }}"
-    metadata: "{{ .workflow.input.metadata }}"
-
-# Delete operation
-- id: clear_user_session
-  type: memory
-  operation: delete
-  memory_ref: "user_sessions"
-  key_template: "session:{{ .workflow.input.user_id }}"
-
-# Health check
-- id: check_cache_health
-  type: memory
-  operation: health
-  memory_ref: "main_cache"
-```
-  </Tab>
-
-  <Tab value="Common Patterns" className="space-y-4">
-```yaml title="Common Memory Patterns"
-# Caching expensive operations
-- id: cache_api_response
-  type: memory
-  operation: write
-  memory_ref: "api_cache"
-  key_template: "api:{{ .workflow.input.endpoint }}:{{ .workflow.input.params | hash }}"
-  payload: "{{ .tasks.call_external_api.output }}"
-  ttl: 300s  # 5-minute cache
-
-# Session management
-- id: update_user_session
-  type: memory
-  operation: write
-  memory_ref: "user_sessions"
-  key_template: "session:{{ .workflow.input.session_id }}"
-  payload:
-    user_id: "{{ .workflow.input.user_id }}"
-    last_activity: "{{ now }}"
-    page_views: "{{ (.memory.page_views // 0) + 1 }}"
-    shopping_cart: "{{ .tasks.update_cart.output }}"
-
-# Counter operations
-- id: increment_api_calls
-  type: memory
-  operation: append
-  memory_ref: "counters"
-  key_template: "api_calls:{{ .workflow.input.api_endpoint }}"
-  payload:
-    timestamp: "{{ now }}"
-    user_id: "{{ .workflow.input.user_id }}"
-    response_time: "{{ .tasks.api_call.output.response_time }}"
-
-# Workflow state persistence
-- id: save_workflow_checkpoint
-  type: memory
-  operation: write
-  memory_ref: "workflow_state"
-  key_template: "checkpoint:{{ .workflow.execution_id }}"
-  payload:
-    step: "{{ .workflow.current_step }}"
-    completed_tasks: "{{ .workflow.completed_tasks }}"
-    intermediate_results: "{{ .workflow.intermediate_data }}"
-    created_at: "{{ now }}"
-```
-  </Tab>
-
-  <Tab value="Advanced Features" className="space-y-4">
-```yaml title="Advanced Memory Features"
-# Batch operations
-- id: batch_write_user_data
-  type: memory
-  operation: write
-  memory_ref: "user_cache"
-  batch_size: 100
-  max_keys: 1000
-  payload:
-    users: "{{ .tasks.process_users.output.users }}"
-    metadata:
-      batch_id: "{{ .workflow.execution_id }}"
-      processed_at: "{{ now }}"
-
-# Conditional memory operations
-- id: cache_if_successful
-  type: memory
-  operation: write
-  memory_ref: "results_cache"
-  key_template: "result:{{ .workflow.input.query_id }}"
-  condition: "{{ .tasks.process_query.output.success }}"
-  payload: "{{ .tasks.process_query.output.data }}"
-  ttl: 600s
-
-# Memory cleanup
-- id: cleanup_old_sessions
-  type: memory
-  operation: flush
-  memory_ref: "user_sessions"
-  filter: "{{ .item.last_activity < (now - duration('24h')) }}"
-  batch_size: 50
-
-# Memory statistics
-- id: get_cache_stats
-  type: memory
-  operation: stats
-  memory_ref: "main_cache"
-
-  # Use stats in subsequent tasks
-- id: log_memory_usage
-  type: basic
-  tool: { id: metrics_logger }
-  with:
-    cache_size: "{{ .tasks.get_cache_stats.output.total_keys }}"
-    memory_used: "{{ .tasks.get_cache_stats.output.memory_bytes }}"
-    hit_rate: "{{ .tasks.get_cache_stats.output.hit_rate }}"
-```
-  </Tab>
-</Tabs>
-
-## Complete Workflow Structure
-
-### Workflow Execution Flow
-
-The following diagram illustrates how different task types coordinate in a typical workflow execution:
-
-<Mermaid chart={`
-graph TD
-    A[Workflow Start] --> B{Input Validation}
-    B -->|Valid| C[Parallel Data Loading]
-    B -->|Invalid| X[Error Handler]
-
-    C --> D[Load Customer Profile]
-    C --> E[Load Ticket History]
-    C --> F[Check Account Status]
-
-    D --> G[AI Analysis Task]
-    E --> G
-    F --> G
-
-    G --> H{Router Task}
-    H -->|Technical| I[Parallel Technical Processing]
-    H -->|Billing| J[Collection Billing Processing]
-    H -->|Feature Request| K[Composite Feature Processing]
-
-    I --> L[Create Technical Ticket]
-    I --> M[Assign Engineer]
-
-    J --> N[Process Billing Items]
-
-    K --> O[Log Feature Request]
-    K --> P[Notify Product Team]
-    K --> Q[Send Acknowledgment]
-
-    L --> R[Memory Update]
-    M --> R
-    N --> R
-    Q --> R
-
-    R --> S[Signal Confirmation]
-    S --> T[Wait for Resolution]
-    T --> U[Aggregate Final Results]
-    U --> V[Workflow Complete]
-
-    X --> V
-`} />
-
-Here's a complete workflow example demonstrating multiple task types working together:
-
-```yaml title="Complete Workflow Example"
-id: customer_support_workflow
-version: 1.0.0
-description: Automated customer support ticket processing with AI analysis and routing
-
-# Input schema definition
+```yaml
 config:
   input:
     type: object
     properties:
-      ticket_id:
-        type: string
-        description: Unique ticket identifier
-      customer_email:
-        type: string
-        format: email
-      subject:
-        type: string
       message:
         type: string
+        minLength: 10
       priority:
         type: string
-        enum: [low, medium, high, urgent]
-    required: [ticket_id, customer_email, subject, message]
+        enum: [low, medium, high]
+    required: [message]
+```
 
-# Workflow trigger configuration
+For reusable validation, reference [schemas](#schema-definitions) using Compozy's `$ref` [directive](/docs/core/yaml-templates/directives):
+
+```yaml
+config:
+  input:
+    $ref: "local::schemas.#(id==\"user_input\")"
+```
+
+Input validation errors are returned when [executing workflows](/docs/api/workflows#execute-workflow), helping developers quickly identify and fix issues. For debugging validation problems, see [Validation & Debugging](/docs/core/yaml-templates/validation-debugging).
+
+### Environment Variables
+
+Configure runtime environment variables for your workflows, tools, and agents. Variables can be set at multiple levels following Compozy's [configuration precedence](/docs/core/configuration/global#configuration-precedence).
+
+```yaml
+config:
+  env:
+    API_URL: "https://api.example.com"
+    API_KEY: "{{ .env.EXTERNAL_API_KEY }}"
+    SECRET: "{{ .secrets.API_SECRET }}"
+```
+
+Environment variables are injected into:
+- [Tool runtime environments](/docs/core/tools/runtime-environment) with controlled [permissions](/docs/core/tools/runtime-environment#permissions)
+- [Agent configurations](/docs/core/agents/overview) for API keys and settings
+- Task execution contexts via [template variables](/docs/core/yaml-templates/context-variables)
+
+For sensitive data, follow [security best practices](/docs/core/memory/privacy-security) and use the secrets system. Configure environment variables in your [project setup](/docs/core/configuration/project-setup#environment-variables) or [global configuration](/docs/core/configuration/global).
+
+## Triggers
+
+Triggers enable workflows to automatically start when specific events occur in your system. The most common trigger type is `signal`, which creates a publish-subscribe pattern where workflows react to named events.
+
+```yaml
 triggers:
   - type: signal
-    name: new_support_ticket
+    name: user-registration
     schema:
-      $ref: local::config.input
+      type: object
+      properties:
+        userId:
+          type: string
+        email:
+          type: string
+          format: email
+      required: [userId, email]
+```
 
-# Task definitions
-tasks:
-  # Step 1: Load customer context
-  - id: load_customer_context
-    type: parallel
-    strategy: wait_all
-    tasks:
-      - id: get_customer_profile
-        type: memory
-        operation: read
-        memory_ref: customer_profiles
-        key_template: "profile:{{ .workflow.input.customer_email }}"
+When a signal is sent (either through the [Event API](/docs/core/signals/event-api) or from a [Signal Task](/docs/core/signals/signal-tasks)), any workflow listening for that signal name will automatically start with the signal payload as input.
 
-      - id: get_ticket_history
-        type: basic
-        tool: { id: ticket_service }
-        with:
-          customer_email: "{{ .workflow.input.customer_email }}"
-          limit: 10
+<Callout type="tip">
+  To learn more about Compozy's signal system and event-driven patterns, see the [Signal System Overview](/docs/core/signals/overview) and [Signal Triggers](/docs/core/signals/signal-triggers) documentation.
+</Callout>
 
-      - id: check_account_status
-        type: basic
-        tool: { id: account_service }
-        with:
-          email: "{{ .workflow.input.customer_email }}"
+## Scheduling
 
-  # Step 2: AI-powered ticket analysis
-  - id: analyze_ticket
-    type: basic
-    agent:
-      id: support_analyzer
-      model: claude-3-haiku-20240307
-      instructions: |
-        Analyze the support ticket and provide:
-        1. Ticket category (technical, billing, feature_request, complaint)
-        2. Urgency level (low, medium, high, critical)
-        3. Sentiment analysis (positive, neutral, negative)
-        4. Required expertise level (tier1, tier2, tier3, specialist)
-        5. Suggested resolution steps
-        6. Estimated resolution time
-    with:
-      ticket_content: "{{ .workflow.input.message }}"
-      subject: "{{ .workflow.input.subject }}"
-      customer_history: "{{ .tasks.get_ticket_history.output }}"
-      account_status: "{{ .tasks.check_account_status.output.status }}"
+Schedule workflows to run automatically at specific times using cron expressions. Compozy leverages Temporal's scheduling engine to provide reliable, distributed scheduling with timezone support and overlap handling.
 
-  # Step 3: Route based on analysis
-  - id: route_ticket
-    type: router
-    condition: "{{ .tasks.analyze_ticket.output.category }}"
-    routes:
-      # Technical issues go to parallel processing
-      "technical":
-        type: parallel
-        strategy: wait_all
-        tasks:
-          - id: create_technical_ticket
-            type: basic
-            tool: { id: jira_service }
-            with:
-              category: "technical"
-              priority: "{{ .tasks.analyze_ticket.output.urgency }}"
+```yaml
+schedule:
+  cron: "0 9 * * *"  # Daily at 9 AM
+  timezone: "America/New_York"
+  overlap_policy: skip  # skip, allow, buffer_one, cancel_other
+  input:
+    mode: "scheduled"
+```
 
-          - id: assign_to_engineer
-            type: basic
-            tool: { id: assignment_service }
-            with:
-              tier: "{{ .tasks.analyze_ticket.output.expertise_level }}"
+The `overlap_policy` controls behavior when a scheduled run starts before the previous one completes:
+- `skip` - Skip the overlapping run
+- `allow` - Run in parallel
+- `buffer_one` - Queue one run
+- `cancel_other` - Cancel the previous run
 
-      # Billing issues go to collection processing
-      "billing":
-        type: collection
-        items: "{{ .tasks.analyze_ticket.output.billing_items }}"
-        task:
-          type: basic
-          tool: { id: billing_processor }
+<Callout type="info">
+  Manage schedules at runtime using the [Schedules API](/docs/api/schedules). You can enable/disable schedules, update cron expressions, and monitor execution status without modifying YAML files.
+</Callout>
 
-      # Feature requests go to sequential processing
-      "feature_request":
-        type: composite
-        tasks:
-          - id: log_feature_request
-            type: basic
-            tool: { id: feature_tracker }
+## Schema Definitions
 
-          - id: notify_product_team
-            type: basic
-            tool: { id: notification_service }
+Define reusable JSON Schema validators within your workflow to ensure consistent data validation across inputs, outputs, and intermediate data structures.
 
-          - id: send_acknowledgment
-            type: basic
-            tool: { id: email_service }
+```yaml
+schemas:
+  - id: customer_data
+    type: object
+    properties:
+      email:
+        type: string
+        format: email
+      name:
+        type: string
+    required: [email, name]
+```
 
-  # Step 4: Update customer profile
-  - id: update_customer_profile
-    type: memory
-    operation: write
-    memory_ref: customer_profiles
-    key_template: "profile:{{ .workflow.input.customer_email }}"
-    payload:
-      last_contact: "{{ now }}"
-      ticket_count: "{{ (.tasks.get_customer_profile.output.ticket_count // 0) + 1 }}"
-      latest_category: "{{ .tasks.analyze_ticket.output.category }}"
-      satisfaction_trend: "{{ .tasks.analyze_ticket.output.sentiment }}"
+Reference schemas using Compozy's `$ref` syntax:
 
-  # Step 5: Send confirmation and wait for resolution
-  - id: send_confirmation
-    type: basic
-    tool: { id: email_service }
-    with:
-      to: "{{ .workflow.input.customer_email }}"
-      template: "ticket_received"
-      variables:
-        ticket_id: "{{ .workflow.input.ticket_id }}"
-        estimated_resolution: "{{ .tasks.analyze_ticket.output.estimated_time }}"
+```yaml
+config:
+  input:
+    $ref: "local::schemas.#(id==\"customer_data\")"
+```
 
-  - id: wait_for_resolution
-    type: wait
-    wait_for: "ticket_resolved"
-    condition: "{{ .signal.payload.ticket_id == .workflow.input.ticket_id }}"
-    timeout: 48h
-    on_timeout: escalate_unresolved_ticket
+Schemas integrate with the broader [YAML Template System](/docs/core/yaml-templates/overview) and support all JSON Schema features. Learn more about [reference patterns](/docs/core/yaml-templates/directives) and [validation](/docs/core/yaml-templates/validation-debugging).
 
-    processor:
-      type: composite
-      tasks:
-        - id: log_resolution
-          type: basic
-          tool: { id: audit_logger }
+## MCP Servers
 
-        - id: update_metrics
-          type: memory
-          operation: append
-          memory_ref: support_metrics
-          key_template: "resolutions:{{ now | date '2006-01-02' }}"
-          payload:
-            ticket_id: "{{ .workflow.input.ticket_id }}"
-            resolution_time: "{{ .signal.payload.resolution_time }}"
-            category: "{{ .tasks.analyze_ticket.output.category }}"
+Configure Model Context Protocol (MCP) servers to extend your AI agents with external tools and integrations. MCP provides a standardized way for agents to interact with databases, APIs, file systems, and custom tools.
 
-  # Step 6: Final notification
-  - id: send_resolution_notification
-    type: basic
-    tool: { id: email_service }
-    with:
-      to: "{{ .workflow.input.customer_email }}"
-      template: "ticket_resolved"
-      variables:
-        ticket_id: "{{ .workflow.input.ticket_id }}"
-        resolution: "{{ .tasks.wait_for_resolution.output.resolution }}"
+```yaml
+mcps:
+  - id: knowledge-base
+    url: "http://localhost:8080/mcp"
+    proto: "2025-03-26"
+    env:
+      API_KEY: "{{ .secrets.MCP_KEY }}"
+```
 
-  # Step 7: Signal completion
-  - id: signal_completion
-    type: signal
-    signal:
-      id: "support_workflow_completed"
-      payload:
-        ticket_id: "{{ .workflow.input.ticket_id }}"
-        customer_email: "{{ .workflow.input.customer_email }}"
-        category: "{{ .tasks.analyze_ticket.output.category }}"
-        resolution_time: "{{ .tasks.wait_for_resolution.output.resolution_time }}"
-        customer_satisfaction: "{{ .tasks.wait_for_resolution.output.satisfaction_score }}"
+MCP servers connect through Compozy's [MCP Proxy Server](/docs/core/mcp/mcp-proxy-server) (port 8081) which handles authentication, connection management, and protocol translation. Learn about [MCP integration patterns](/docs/core/mcp/integration-patterns) and [transport configuration](/docs/core/mcp/transport-configuration).
 
-# Workflow outputs
+<Callout type="tip">
+  Discover available MCP tools at runtime using the [Admin API](/docs/core/mcp/admin-api) or configure [tool discovery](/docs/core/mcp/tool-discovery) for dynamic tool loading.
+</Callout>
+
+## Outputs
+
+Define the structure and content of data returned when a workflow completes. Outputs use template expressions to aggregate and transform results from tasks, making it easy to create API-friendly response structures.
+
+```yaml
 outputs:
-  ticket_id: "{{ .workflow.input.ticket_id }}"
-  processing_time: "{{ .workflow.duration }}"
-  resolution_category: "{{ .tasks.analyze_ticket.output.category }}"
-  final_status: "resolved"
+  workflow_id: "{{ .workflow.id }}"
+  result: "{{ .tasks.process.output }}"
+  status: "{{ .tasks.validate.output.valid ? 'success' : 'failed' }}"
 ```
 
-## 🎛️ Advanced Configuration Options
+Access data through [template variables](/docs/core/yaml-templates/context-variables):
+- Task outputs: `{{ .tasks.TASK_ID.output }}`
+- Workflow metadata: `{{ .workflow.id }}`, `{{ .workflow.runId }}`
+- Conditional logic: Ternary operators and [Sprig functions](/docs/core/yaml-templates/sprig-functions)
 
-### Error Handling and Retry Logic
+For advanced output patterns, see [Template Advanced Patterns](/docs/core/yaml-templates/advanced-patterns).
 
-```yaml title="Error Handling Configuration"
-- id: resilient_api_call
-  type: basic
-  tool: { id: external_api }
-  retry:
-    max_attempts: 3
-    backoff: exponential
-    backoff_factor: 2
-    max_delay: 60s
-    retryable_errors:
-      - "timeout"
-      - "connection_refused"
-      - "rate_limited"
-  timeout: 30s
-  on_failure:
-    next: fallback_processing
-```
-
-### Conditional Execution
-
-```yaml title="Conditional Task Execution"
-- id: conditional_processing
-  type: basic
-  agent: { id: processor }
-  condition: "{{ .workflow.input.enable_advanced_processing }}"
-  skip_if_false: true
-  with:
-    data: "{{ .workflow.input.data }}"
-```
-
-### Environment Variables and Secrets
-
-```yaml title="Environment Configuration"
-- id: secure_api_call
-  type: basic
-  tool: { id: secure_service }
-  env:
-    API_KEY: "{{ .env.SECURE_API_KEY }}"
-    ENDPOINT: "{{ .env.API_ENDPOINT }}"
-    DEBUG_MODE: "{{ .env.DEBUG | default 'false' }}"
-  with:
-    secure_data: "{{ .workflow.input.sensitive_data }}"
-```
-
-### Performance Monitoring
-
-```yaml title="Performance Monitoring"
-- id: monitored_task
-  type: basic
-  agent: { id: ml_processor }
-  metrics:
-    track_duration: true
-    track_memory: true
-    custom_metrics:
-      - name: "tokens_processed"
-        value: "{{ .output.token_count }}"
-      - name: "accuracy_score"
-        value: "{{ .output.accuracy }}"
-  with:
-    input_data: "{{ .workflow.input.data }}"
-```
+## Complete Workflow Examples
 
 <ReferenceCardList>
   <ReferenceCard
-    title="Agent Configuration"
-    description="Learn how to configure AI agents for your workflow tasks"
-    href="/docs/core/configuration/agents"
-    icon="Bot"
+    title="Quick Start Guide"
+    description="Build a simple greeting workflow in 5 minutes to understand basic workflow structure"
+    href="/docs/core/getting-started/quick-start"
+    icon="Rocket"
   />
   <ReferenceCard
-    title="Tool Development"
-    description="Build custom tools for workflow execution"
-    href="/docs/core/development/tools"
-    icon="Wrench"
+    title="First Workflow Tutorial"
+    description="Create an advanced Go code analyzer with parallel tasks, AI agents, and file operations"
+    href="/docs/core/getting-started/first-workflow"
+    icon="GraduationCap"
   />
   <ReferenceCard
-    title="Workflow Patterns"
-    description="Master complex workflow orchestration patterns"
-    href="/docs/core/patterns/workflows"
-    icon="GitBranch"
-  />
-  <ReferenceCard
-    title="Performance Guide"
-    description="Optimize workflow performance and resource usage"
-    href="/docs/core/optimization/performance"
-    icon="Zap"
+    title="Task Configuration Examples"
+    description="Explore various task patterns including basic, parallel, collection, and router tasks"
+    href="/docs/core/tasks/basic-tasks#complete-examples"
+    icon="Layers"
   />
 </ReferenceCardList>
-
-## 🎨 Workflow Management Commands
-
-Manage your workflows using the available CLI commands:
-
-```bash
-# List all available workflows
-compozy workflow list
-
-# Get workflow details
-compozy workflow get <workflow-id>
-
-# Execute a workflow with input data
-compozy workflow execute <workflow-id> --input key=value
-
-# Start development server with hot reload
-compozy dev
-
-# View all available commands
-compozy --help
-```
 
 ## Related Documentation
 
 <ReferenceCardList>
   <ReferenceCard
-    title="Task Types Reference"
-    description="Deep dive into all available task types with examples and configuration options"
+    title="Signal System"
+    description="Build event-driven workflows with signals and triggers"
+    href="/docs/core/signals/overview"
+    icon="Radio"
+  />
+  <ReferenceCard
+    title="Basic Tasks"
+    description="Configure the tasks that execute within your workflows"
     href="/docs/core/tasks/basic-tasks"
     icon="Package"
   />
   <ReferenceCard
-    title="Agent Configuration"
-    description="Learn how to configure AI agents for workflow tasks"
-    href="/docs/core/agents/overview"
-    icon="BrainCircuit"
-  />
-  <ReferenceCard
-    title="Tool Development"
-    description="Create custom TypeScript tools for workflow execution"
-    href="/docs/core/tools/tools-overview"
-    icon="Code"
+    title="MCP Overview"
+    description="Extend agents with external tools through MCP servers"
+    href="/docs/core/mcp/overview"
+    icon="Cpu"
   />
   <ReferenceCard
     title="YAML Templates"
-    description="Master template expressions and dynamic configuration"
+    description="Master template expressions, variables, and functions"
     href="/docs/core/yaml-templates/overview"
+    icon="Code"
+  />
+  <ReferenceCard
+    title="Schedules API"
+    description="Manage workflow schedules programmatically"
+    href="/docs/api/schedules"
+    icon="Clock"
+  />
+  <ReferenceCard
+    title="Workflow Schema"
+    description="Complete property reference for workflow configuration"
+    href="/docs/schema/workflows"
     icon="FileCode"
   />
-  <ReferenceCard
-    title="Memory Systems"
-    description="Implement persistent state and context management"
-    href="/docs/core/memory/memory-concepts"
-    icon="Database"
-  />
-  <ReferenceCard
-    title="Project Configuration"
-    description="Set up models, providers, and runtime configuration"
-    href="/docs/core/configuration/project-setup"
-    icon="Settings"
-  />
-  <ReferenceCard
-    title="CLI Commands"
-    description="Command-line interface for workflow management"
-    href="/docs/core/configuration/cli"
-    icon="Terminal"
-  />
-  <ReferenceCard
-    title="MCP Integration"
-    description="Connect external tools using Model Context Protocol"
-    href="/docs/core/mcp/mcp-overview"
-    icon="Link2"
-  />
 </ReferenceCardList>
-
-This comprehensive guide covers all aspects of workflow configuration in Compozy. Each task type is designed to excel in specific scenarios, and combining them creates powerful automation pipelines that can handle complex, real-world requirements.

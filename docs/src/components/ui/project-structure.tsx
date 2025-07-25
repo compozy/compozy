@@ -1,6 +1,6 @@
 "use client";
 
-import { File, Folder, Tree, TreeViewElement } from "./magicui/file-tree";
+import { File, Folder, Tree, TreeViewElement } from "../magicui/file-tree";
 
 const defaultProjectStructure: TreeViewElement[] = [
   {

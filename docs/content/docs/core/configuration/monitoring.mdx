@@ -1,0 +1,400 @@
+---
+title: Monitoring
+description: Configure Prometheus-compatible monitoring and metrics collection for your Compozy applications
+---
+
+<Callout type="info" icon="ChartBar">
+  **Quick Start:** Enable monitoring in your Compozy app with just two lines of configuration. The system exposes Prometheus-compatible metrics for seamless integration with your existing observability stack.
+</Callout>
+
+## Overview
+
+<Steps>
+  <Step title="Enable Monitoring">
+    Add monitoring configuration to your `compozy.yaml`
+  </Step>
+  <Step title="Configure Path">
+    Set a custom metrics endpoint path (optional)
+  </Step>
+  <Step title="Access Metrics">
+    Query the metrics endpoint or integrate with Prometheus
+  </Step>
+</Steps>
+
+## Configuration Methods
+
+<Tabs items={["YAML Configuration", "Environment Variables", "Quick Enable"]} defaultValue="YAML Configuration">
+  <Tab value="YAML Configuration">
+    <Card>
+      <CardHeader>
+        <CardTitle>Project Configuration</CardTitle>
+        <CardDescription>Configure monitoring in your `compozy.yaml` file</CardDescription>
+      </CardHeader>
+      <CardContent>
+        ```yaml
+        # compozy.yaml
+        name: my-app
+        version: 1.0.0
+
+        # Enable monitoring with custom path
+        monitoring:
+          enabled: true
+          path: /metrics  # Optional: defaults to /metrics
+
+        workflows:
+          - source: ./workflow.yaml
+        ```
+      </CardContent>
+    </Card>
+  </Tab>
+
+  <Tab value="Environment Variables">
+    <Card>
+      <CardHeader>
+        <CardTitle>Environment Override</CardTitle>
+        <CardDescription>Override configuration using environment variables</CardDescription>
+      </CardHeader>
+      <CardContent>
+        ```bash
+        # Environment variables take precedence over YAML
+        export MONITORING_ENABLED=true
+        export MONITORING_PATH=/internal/metrics
+
+        # Start your application
+        compozy start
+        ```
+      </CardContent>
+    </Card>
+  </Tab>
+
+  <Tab value="Quick Enable">
+    <Card>
+      <CardHeader>
+        <CardTitle>Minimal Configuration</CardTitle>
+        <CardDescription>Enable with default settings</CardDescription>
+      </CardHeader>
+      <CardContent>
+        ```yaml
+        # compozy.yaml
+        monitoring:
+          enabled: true
+        ```
+
+        <Callout type="success" icon="CheckCircle">
+          That's it! Metrics are now available at `/metrics`
+        </Callout>
+      </CardContent>
+    </Card>
+  </Tab>
+</Tabs>
+
+## Configuration Reference
+
+<AccordionGroup>
+  <Accordion title="Configuration Options">
+    <TypeTable
+      type={{
+        enabled: {
+          description: "Enable or disable the monitoring endpoint",
+          type: "boolean",
+          default: "false",
+        },
+        path: {
+          description: "HTTP path where metrics will be exposed",
+          type: "string",
+          default: '"/metrics"',
+        },
+      }}
+    />
+  </Accordion>
+
+  <Accordion title="Path Requirements & Validation">
+    <Card>
+      <CardHeader>
+        <CardTitle>Path Validation Rules</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <List>
+          <ListItem>
+            <Icon name="Check" className="text-green-500" />
+            Must start with forward slash (`/`)
+          </ListItem>
+          <ListItem>
+            <Icon name="Check" className="text-green-500" />
+            Cannot conflict with API routes (`/api/*`)
+          </ListItem>
+          <ListItem>
+            <Icon name="Check" className="text-green-500" />
+            Cannot contain query parameters (`?`, `&`)
+          </ListItem>
+          <ListItem>
+            <Icon name="Check" className="text-green-500" />
+            Valid examples: `/metrics`, `/internal/metrics`, `/monitoring`
+          </ListItem>
+        </List>
+      </CardContent>
+    </Card>
+  </Accordion>
+</AccordionGroup>
+
+## Usage Patterns
+
+<FeatureCardList cols={3}>
+  <FeatureCard
+    title="Basic Setup"
+    icon="Play"
+    description="Enable with defaults"
+  >
+    ```yaml
+    monitoring:
+      enabled: true
+    ```
+  </FeatureCard>
+
+  <FeatureCard
+    title="Custom Path"
+    icon="Settings"
+    description="Use internal path"
+  >
+    ```yaml
+    monitoring:
+      enabled: true
+      path: /internal/metrics
+    ```
+  </FeatureCard>
+
+  <FeatureCard
+    title="Environment Override"
+    icon="Terminal"
+    description="Configure via env vars"
+  >
+    ```bash
+    export MONITORING_ENABLED=true
+    export MONITORING_PATH=/metrics
+    ```
+  </FeatureCard>
+</FeatureCardList>
+
+## Accessing Metrics
+
+<Tabs items={["Command Line", "Browser", "Prometheus"]} defaultValue="Command Line">
+  <Tab value="Command Line">
+    <Card>
+      <CardHeader>
+        <CardTitle>Using cURL</CardTitle>
+        <CardDescription>Query metrics from the command line</CardDescription>
+      </CardHeader>
+      <CardContent>
+        ```bash
+        # Default endpoint
+        curl http://localhost:8080/metrics
+
+        # Custom endpoint
+        curl http://localhost:8080/internal/metrics
+
+        # Pretty print with jq
+        curl -s http://localhost:8080/metrics | grep compozy_
+        ```
+      </CardContent>
+    </Card>
+  </Tab>
+
+  <Tab value="Browser">
+    <Card>
+      <CardHeader>
+        <CardTitle>Web Browser</CardTitle>
+        <CardDescription>View metrics in your browser</CardDescription>
+      </CardHeader>
+      <CardContent>
+        Navigate to:
+        - Default: `http://localhost:8080/metrics`
+        - Custom: `http://localhost:8080/internal/metrics`
+
+        <Callout type="tip" icon="Lightbulb">
+          Install a browser extension like "Prometheus Formatter" for better readability
+        </Callout>
+      </CardContent>
+    </Card>
+  </Tab>
+
+  <Tab value="Prometheus">
+    <Card>
+      <CardHeader>
+        <CardTitle>Prometheus Integration</CardTitle>
+        <CardDescription>Configure Prometheus to scrape Compozy metrics</CardDescription>
+      </CardHeader>
+      <CardContent>
+        ```yaml
+        # prometheus.yml
+        scrape_configs:
+          - job_name: 'compozy'
+            static_configs:
+              - targets: ['localhost:8080']
+            metrics_path: '/metrics'
+            scrape_interval: 15s
+        ```
+      </CardContent>
+    </Card>
+  </Tab>
+</Tabs>
+
+## Integration Guide
+
+<AccordionGroup>
+  <Accordion title="Supported Monitoring Systems">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            <Icon name="Database" className="inline mr-2" />
+            Prometheus
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          Native support with pull-based scraping
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            <Icon name="ChartLine" className="inline mr-2" />
+            Grafana Agent
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          Remote write and cloud integration
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            <Icon name="Server" className="inline mr-2" />
+            VictoriaMetrics
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          High-performance time series database
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            <Icon name="Cloud" className="inline mr-2" />
+            Cloud Providers
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          AWS CloudWatch, GCP Monitoring, Azure Monitor
+        </CardContent>
+      </Card>
+    </div>
+  </Accordion>
+
+  <Accordion title="Implementation Details">
+    <FeatureCardList cols={2}>
+      <FeatureCard
+        title="Configuration System"
+        icon="Cog"
+        description="YAML-first with environment override capability"
+      />
+      <FeatureCard
+        title="Path Validation"
+        icon="Shield"
+        description="Prevents conflicts with API routes"
+      />
+      <FeatureCard
+        title="OpenTelemetry"
+        icon="Activity"
+        description="Standards-based metrics collection"
+      />
+      <FeatureCard
+        title="Prometheus Export"
+        icon="Upload"
+        description="Native Prometheus exposition format"
+      />
+    </FeatureCardList>
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+<Collapsible>
+  <CollapsibleTrigger className="flex items-center gap-2 font-semibold">
+    <Icon name="AlertCircle" className="text-yellow-500" />
+    Common Issues & Solutions
+  </CollapsibleTrigger>
+  <CollapsibleContent>
+    <div className="space-y-4 mt-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>Metrics Endpoint Not Accessible</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Steps>
+            <Step>Verify `enabled: true` in configuration</Step>
+            <Step>Check application is running on expected port</Step>
+            <Step>Ensure no firewall rules blocking access</Step>
+            <Step>Validate path doesn't conflict with API routes</Step>
+          </Steps>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Environment Variables Not Working</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <List>
+            <ListItem>Restart application after setting variables</ListItem>
+            <ListItem>Use exact names: `MONITORING_ENABLED`, `MONITORING_PATH`</ListItem>
+            <ListItem>Check for typos in variable names</ListItem>
+            <ListItem>Verify shell exports with `env | grep MONITORING`</ListItem>
+          </List>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Path Conflicts</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Callout type="warning" icon="AlertTriangle">
+            Avoid paths starting with `/api/` as they're reserved for API routes
+          </Callout>
+
+          **Recommended paths:**
+          - `/metrics` (default)
+          - `/internal/metrics`
+          - `/monitoring/metrics`
+          - `/health/metrics`
+        </CardContent>
+      </Card>
+    </div>
+  </CollapsibleContent>
+</Collapsible>
+
+## Related Documentation
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Monitoring & Metrics"
+    description="Advanced monitoring with OpenTelemetry and custom metrics"
+    href="/docs/core/mcp/monitoring-metrics"
+    icon="Activity"
+  />
+  <ReferenceCard
+    title="Global Configuration"
+    description="Main project configuration options and system settings"
+    href="/docs/core/configuration/global"
+    icon="Settings"
+  />
+  <ReferenceCard
+    title="Runtime Configuration"
+    description="Configure tool execution environment and settings"
+    href="/docs/core/configuration/runtime-config"
+    icon="Play"
+  />
+</ReferenceCardList>

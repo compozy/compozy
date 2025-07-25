@@ -1,70 +1,10 @@
 ---
 title: "Security & Authentication"
-description: "Comprehensive security configuration and authentication mechanisms for MCP servers with multi-layered protection and best practices"
+description: The MCP Proxy provides comprehensive security features including token-based authentication, IP filtering, rate limiting, and security headers. This guide covers configuring and managing security for your MCP deployments with multi-layered protection strategies.
 ---
-
-import {
-  Key,
-  Shield,
-  Lock,
-  Users,
-  Server,
-  Globe,
-  AlertTriangle,
-  CheckCircle,
-  Settings,
-  Monitor,
-  Database,
-  FileText,
-  Activity,
-  Timer,
-  Zap,
-  Eye,
-  UserCheck,
-  ShieldCheck,
-  AlertCircle,
-  Network,
-  Fingerprint,
-  Wrench
-} from "lucide-react";
-
-The MCP Proxy provides comprehensive security features including token-based authentication, IP filtering, rate limiting, and security headers. This guide covers configuring and managing security for your MCP deployments with multi-layered protection strategies.
 
 <Callout type="warning">
   **Security First**: Always implement security measures before deploying MCP servers to production environments. Default configurations are not secure for production use.
-</Callout>
-
-## Security Architecture
-
-The MCP security system implements a multi-layered defense strategy with comprehensive protection at each level:
-
-```mermaid
-graph TB
-    A[Client Request] --> B[Security Middleware]
-    B --> C{IP Whitelist Check}
-    C -->|Denied| D[403 Forbidden]
-    C -->|Allowed| E{Token Validation}
-    E -->|Invalid| F[401 Unauthorized]
-    E -->|Valid| G{Rate Limiting}
-    G -->|Exceeded| H[429 Too Many Requests]
-    G -->|Allowed| I{Role-Based Access}
-    I -->|Denied| J[403 Forbidden]
-    I -->|Allowed| K[Security Headers]
-    K --> L[CORS Handling]
-    L --> M[Request Logging]
-    M --> N[MCP Proxy]
-    N --> O[Target MCP Server]
-
-    subgraph "Security Layers"
-        P[Network Layer] --> Q[Authentication Layer]
-        Q --> R[Authorization Layer]
-        R --> S[Application Layer]
-    end
-```
-
-<Callout type="info">
-  <Icon name="shield" className="w-4 h-4" />
-  **Defense in Depth**: Each security layer provides independent protection, ensuring that if one layer is compromised, others continue to protect your MCP infrastructure.
 </Callout>
 
 ## Authentication Methods
@@ -2121,8 +2061,7 @@ security:
 
 Understanding the performance implications of security features:
 
-```mermaid
-graph LR
+<Mermaid chart={`graph LR
     A[Raw Request] --> B[+2ms IP Check]
     B --> C[+1ms Token Validation]
     C --> D[+0.5ms Rate Limiting]
@@ -2134,8 +2073,7 @@ graph LR
         H["Total: ~4ms additional latency"]
         I["Memory: ~1MB per 1000 concurrent connections"]
         J["CPU: <5% overhead under normal load"]
-    end
-```
+    end`} />
 
 <Callout type="info">
   <Icon name="activity" className="w-4 h-4" />

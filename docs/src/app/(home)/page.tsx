@@ -1,15 +1,11 @@
-import Link from "next/link";
+import HeroSection from "@/components/lp/hero-section";
+import FeaturesSection from "@/components/lp/features-section";
 
 export default function HomePage() {
   return (
-    <main className="flex flex-1 flex-col justify-center text-center">
-      <p className="text-fd-muted-foreground">
-        You can open{" "}
-        <Link href="/docs" className="text-fd-foreground font-semibold underline">
-          /docs
-        </Link>{" "}
-        and see the documentation.
-      </p>
-    </main>
+    <>
+      <HeroSection />
+      <FeaturesSection />
+    </>
   );
 }

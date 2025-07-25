@@ -1,35 +1,36 @@
 ---
 title: Aggregate Tasks
-description: Combine and transform results from multiple tasks into unified outputs
+description: Aggregate tasks collect and combine results from multiple predecessor tasks, enabling sophisticated data transformation and result synthesis. They serve as collection points in workflows where outputs from different task branches need to be merged, calculated, or restructured.
 ---
 
-Aggregate tasks collect and combine results from multiple predecessor tasks, enabling sophisticated data transformation and result synthesis. They serve as collection points in workflows where outputs from different task branches need to be merged, calculated, or restructured.
-
-## Related Documentation
-
-### 🔗 Cross-References
-- **[Core Concepts: Tasks](/docs/core/getting-started/core-concepts#2-tasks)** - Tasks in workflow context
-- **[Basic Tasks](/docs/core/tasks/basic-tasks)** - Foundation tasks that feed into aggregates
-- **[Collection Tasks](/docs/core/tasks/collection-tasks)** - Processing arrays for aggregation
-- **[YAML Templates](/docs/core/yaml-templates/overview)** - Template expressions for data transformation
-
-### ⚙️ Task-Related Topics
-- **Aggregate Tasks** ↔ **[Parallel Processing](/docs/core/tasks/parallel-processing)** ↔ **[Composite Tasks](/docs/core/tasks/composite-tasks)**
-- **Data Merging** ↔ **[Template Functions](/docs/core/yaml-templates/sprig-functions)** ↔ **[Result Processing](/docs/core/tasks/flow-control)**
-- **Result Synthesis** ↔ **[Workflow Configuration](/docs/core/configuration/workflows)** ↔ **[Output Mapping](/docs/core/yaml-templates/context-variables)**
+import { List, ListItem } from "@/components/ui/list"
 
 ## Overview
 
 Aggregate tasks provide powerful result combination capabilities:
 
-- **Result Consolidation**: Merge outputs from multiple tasks into unified structures
-- **Data Transformation**: Apply complex transformations and calculations
-- **Conditional Logic**: Use dynamic conditions to shape output based on task results
-- **Template Expressions**: Leverage full template power for result manipulation
-- **Hierarchical Results**: Access outputs from nested task structures
-- **Performance Optimization**: Efficient result processing without additional execution overhead
+<List>
+  <ListItem title="Result Consolidation" icon="Layers">
+    Merge outputs from multiple tasks into unified structures
+  </ListItem>
+  <ListItem title="Data Transformation" icon="Shuffle">
+    Apply complex transformations and calculations
+  </ListItem>
+  <ListItem title="Conditional Logic" icon="GitBranch">
+    Use dynamic conditions to shape output based on task results
+  </ListItem>
+  <ListItem title="Template Expressions" icon="Code">
+    Leverage full template power for result manipulation
+  </ListItem>
+  <ListItem title="Hierarchical Results" icon="FolderTree">
+    Access outputs from nested task structures
+  </ListItem>
+  <ListItem title="Performance Optimization" icon="Zap">
+    Efficient result processing without additional execution overhead
+  </ListItem>
+</List>
 
-<Callout type="info">
+<Callout type="info" className="mt-8">
 Aggregate tasks are execution-free - they only transform and combine existing results without calling agents or tools, making them extremely efficient for result processing.
 </Callout>
 
@@ -347,388 +348,28 @@ outputs:
     }}
 ```
 
-## Real-World Examples
-
-### Example 1: Analytics Dashboard Data
-
-<Steps>
-<Step>
-
-**Data Collection**: Multiple tasks gather different analytics data
-
-```yaml
-# Previous tasks collect data
-# - fetch_user_metrics
-# - fetch_traffic_data
-# - fetch_conversion_data
-# - fetch_revenue_data
-# - fetch_performance_data
-
-id: analytics_dashboard
-type: aggregate
-
-outputs:
-  # Key Performance Indicators
-  kpis:
-    total_users: "{{ .tasks.fetch_user_metrics.output.total_users }}"
-    active_users: "{{ .tasks.fetch_user_metrics.output.active_users }}"
-    new_users: "{{ .tasks.fetch_user_metrics.output.new_users }}"
-    user_retention: "{{ .tasks.fetch_user_metrics.output.retention_rate }}"
-
-    total_revenue: "{{ .tasks.fetch_revenue_data.output.total }}"
-    revenue_growth: "{{ .tasks.fetch_revenue_data.output.growth_rate }}"
-    average_order_value: "{{ .tasks.fetch_revenue_data.output.avg_order_value }}"
-
-    conversion_rate: "{{ .tasks.fetch_conversion_data.output.rate }}"
-    traffic_volume: "{{ .tasks.fetch_traffic_data.output.total_visits }}"
-    bounce_rate: "{{ .tasks.fetch_traffic_data.output.bounce_rate }}"
-```
-
-</Step>
-<Step>
-
-**Calculated Metrics**: Derive new insights from collected data
-
-```yaml
-  # Calculated metrics
-  calculated_metrics:
-    revenue_per_user: "{{ div .tasks.fetch_revenue_data.output.total .tasks.fetch_user_metrics.output.active_users }}"
-
-    traffic_conversion_efficiency: "{{ div .tasks.fetch_conversion_data.output.conversions .tasks.fetch_traffic_data.output.total_visits }}"
-
-    user_engagement_score: |
-      {{
-        $active_ratio := div .tasks.fetch_user_metrics.output.active_users .tasks.fetch_user_metrics.output.total_users
-        $retention := .tasks.fetch_user_metrics.output.retention_rate
-        $bounce_inverse := sub 1 .tasks.fetch_traffic_data.output.bounce_rate
-        div (add (add $active_ratio $retention) $bounce_inverse) 3
-      }}
-
-    performance_score: |
-      {{
-        $load_time := .tasks.fetch_performance_data.output.avg_load_time
-        $uptime := .tasks.fetch_performance_data.output.uptime_percentage
-        $error_rate := .tasks.fetch_performance_data.output.error_rate
-        div (add $uptime (sub 1 $error_rate) (div 10 $load_time)) 3
-      }}
-```
-
-</Step>
-<Step>
-
-**Dashboard Structure**: Organize data for frontend consumption
-
-```yaml
-  # Dashboard widgets
-  dashboard_widgets:
-    - type: "metric_card"
-      title: "Total Users"
-      value: "{{ .tasks.fetch_user_metrics.output.total_users }}"
-      change: "{{ .tasks.fetch_user_metrics.output.user_growth }}"
-      trend: "{{ if gt .tasks.fetch_user_metrics.output.user_growth 0 }}up{{ else }}down{{ end }}"
-
-    - type: "chart"
-      title: "Revenue Trend"
-      data: "{{ .tasks.fetch_revenue_data.output.trend_data }}"
-      chart_type: "line"
-
-    - type: "table"
-      title: "Top Pages"
-      data: "{{ .tasks.fetch_traffic_data.output.top_pages }}"
-      columns: ["page", "visits", "bounce_rate"]
-
-  # Alert conditions
-  alerts:
-    - condition: "{{ lt .tasks.fetch_performance_data.output.uptime_percentage 0.99 }}"
-      severity: "critical"
-      message: "System uptime below 99%"
-
-    - condition: "{{ lt .tasks.fetch_conversion_data.output.rate 0.02 }}"
-      severity: "warning"
-      message: "Conversion rate below 2%"
-
-    - condition: "{{ gt .tasks.fetch_performance_data.output.avg_load_time 3 }}"
-      severity: "warning"
-      message: "Average load time above 3 seconds"
-```
-
-</Step>
-</Steps>
-
-### Example 2: E-commerce Order Processing
-
-```yaml
-id: order_processing_summary
-type: aggregate
-
-outputs:
-  # Order summary
-  order_summary:
-    order_id: "{{ .tasks.create_order.output.order_id }}"
-    customer_id: "{{ .tasks.validate_customer.output.customer_id }}"
-    order_total: "{{ .tasks.calculate_totals.output.total }}"
-
-    # Product details
-    items: "{{ .tasks.validate_inventory.output.validated_items }}"
-    item_count: "{{ len .tasks.validate_inventory.output.validated_items }}"
-
-    # Financial details
-    subtotal: "{{ .tasks.calculate_totals.output.subtotal }}"
-    tax: "{{ .tasks.calculate_totals.output.tax }}"
-    shipping: "{{ .tasks.calculate_shipping.output.cost }}"
-    discounts: "{{ .tasks.apply_discounts.output.total_discount }}"
-
-    # Payment information
-    payment_method: "{{ .tasks.process_payment.output.method }}"
-    payment_status: "{{ .tasks.process_payment.output.status }}"
-    transaction_id: "{{ .tasks.process_payment.output.transaction_id }}"
-
-  # Processing status
-  processing_status:
-    inventory_check: "{{ .tasks.validate_inventory.output.status }}"
-    payment_processed: "{{ eq .tasks.process_payment.output.status 'completed' }}"
-    shipping_calculated: "{{ .tasks.calculate_shipping.output.success }}"
-
-    # Overall status
-    order_ready: |
-      {{
-        and
-        (eq .tasks.validate_inventory.output.status 'available')
-        (eq .tasks.process_payment.output.status 'completed')
-        (.tasks.calculate_shipping.output.success)
-      }}
-
-    # Error summary
-    errors: |
-      {{
-        $errors := list
-        if (ne .tasks.validate_inventory.output.status 'available')
-          $errors = append $errors "Inventory validation failed"
-        end
-        if (ne .tasks.process_payment.output.status 'completed')
-          $errors = append $errors "Payment processing failed"
-        end
-        if (not .tasks.calculate_shipping.output.success)
-          $errors = append $errors "Shipping calculation failed"
-        end
-        $errors
-      }}
-
-  # Customer communication
-  customer_notification:
-    should_send: "{{ .processing_status.order_ready }}"
-    template: "{{ if .processing_status.order_ready }}order_confirmation{{ else }}order_failed{{ end }}"
-
-    data:
-      customer_email: "{{ .tasks.validate_customer.output.email }}"
-      order_number: "{{ .tasks.create_order.output.order_id }}"
-      estimated_delivery: "{{ .tasks.calculate_shipping.output.estimated_delivery }}"
-      tracking_url: "{{ .tasks.calculate_shipping.output.tracking_url }}"
-
-      # Conditional data
-      failure_reason: "{{ if not .processing_status.order_ready }}{{ join .processing_status.errors '; ' }}{{ end }}"
-
-  # Business metrics
-  business_metrics:
-    order_value: "{{ .tasks.calculate_totals.output.total }}"
-    profit_margin: "{{ .tasks.calculate_totals.output.profit_margin }}"
-    customer_lifetime_value: "{{ .tasks.validate_customer.output.lifetime_value }}"
-
-    # Categorization
-    order_category: |
-      {{
-        if (gt .tasks.calculate_totals.output.total 500)
-          "high_value"
-        else if (gt .tasks.calculate_totals.output.total 100)
-          "medium_value"
-        else
-          "low_value"
-      }}
-
-    customer_segment: "{{ .tasks.validate_customer.output.segment }}"
-```
-
-### Example 3: Multi-Model AI Analysis
-
-```yaml
-id: ai_analysis_synthesis
-type: aggregate
-
-outputs:
-  # Model predictions
-  predictions:
-    sentiment_model: "{{ .tasks.sentiment_analysis.output.prediction }}"
-    topic_model: "{{ .tasks.topic_classification.output.prediction }}"
-    intent_model: "{{ .tasks.intent_detection.output.prediction }}"
-
-    # Confidence scores
-    confidence_scores:
-      sentiment: "{{ .tasks.sentiment_analysis.output.confidence }}"
-      topic: "{{ .tasks.topic_classification.output.confidence }}"
-      intent: "{{ .tasks.intent_detection.output.confidence }}"
-
-    # Average confidence
-    average_confidence: "{{ div (add .tasks.sentiment_analysis.output.confidence .tasks.topic_classification.output.confidence .tasks.intent_detection.output.confidence) 3 }}"
-
-  # Ensemble results
-  ensemble_results:
-    # Weighted prediction based on confidence
-    primary_sentiment: |
-      {{
-        $sentiment_conf := .tasks.sentiment_analysis.output.confidence
-        $topic_conf := .tasks.topic_classification.output.confidence
-        if (gt $sentiment_conf $topic_conf)
-          .tasks.sentiment_analysis.output.prediction
-        else
-          .tasks.topic_classification.output.prediction
-      }}
-
-    # Consensus analysis
-    consensus_strength: |
-      {{
-        $predictions := list
-          .tasks.sentiment_analysis.output.prediction
-          .tasks.topic_classification.output.prediction
-          .tasks.intent_detection.output.prediction
-        $unique_predictions := unique $predictions
-        div (len $predictions) (len $unique_predictions)
-      }}
-
-    # High-confidence predictions only
-    high_confidence_predictions: |
-      {{
-        $results := list
-        if (gt .tasks.sentiment_analysis.output.confidence 0.8)
-          $results = append $results (dict "model" "sentiment" "prediction" .tasks.sentiment_analysis.output.prediction "confidence" .tasks.sentiment_analysis.output.confidence)
-        end
-        if (gt .tasks.topic_classification.output.confidence 0.8)
-          $results = append $results (dict "model" "topic" "prediction" .tasks.topic_classification.output.prediction "confidence" .tasks.topic_classification.output.confidence)
-        end
-        if (gt .tasks.intent_detection.output.confidence 0.8)
-          $results = append $results (dict "model" "intent" "prediction" .tasks.intent_detection.output.prediction "confidence" .tasks.intent_detection.output.confidence)
-        end
-        $results
-      }}
-
-  # Analysis metadata
-  analysis_metadata:
-    models_used: ["sentiment_analysis", "topic_classification", "intent_detection"]
-    processing_time: "{{ add .tasks.sentiment_analysis.output.processing_time .tasks.topic_classification.output.processing_time .tasks.intent_detection.output.processing_time }}"
-    input_text_length: "{{ len .workflow.input.text }}"
-
-    # Quality indicators
-    quality_indicators:
-      all_models_ran: "{{ and .tasks.sentiment_analysis.output .tasks.topic_classification.output .tasks.intent_detection.output }}"
-      high_confidence_available: "{{ gt (len .ensemble_results.high_confidence_predictions) 0 }}"
-      consensus_reached: "{{ gt .ensemble_results.consensus_strength 0.66 }}"
-
-  # Actionable insights
-  actionable_insights:
-    recommended_action: |
-      {{
-        if (and (gt .predictions.average_confidence 0.8) (gt .ensemble_results.consensus_strength 0.8))
-          "high_confidence_action"
-        else if (gt .predictions.average_confidence 0.6)
-          "moderate_confidence_action"
-        else
-          "low_confidence_review_needed"
-      }}
-
-    confidence_level: |
-      {{
-        if (gt .predictions.average_confidence 0.8)
-          "high"
-        else if (gt .predictions.average_confidence 0.6)
-          "medium"
-        else
-          "low"
-      }}
-
-    review_required: "{{ lt .predictions.average_confidence 0.7 }}"
-
-    next_steps: |
-      {{
-        $steps := list
-        if (lt .predictions.average_confidence 0.7)
-          $steps = append $steps "Human review required"
-        end
-        if (lt .ensemble_results.consensus_strength 0.5)
-          $steps = append $steps "Model disagreement - investigate further"
-        end
-        if (eq (len .ensemble_results.high_confidence_predictions) 0)
-          $steps = append $steps "No high-confidence predictions available"
-        end
-        if (eq (len $steps) 0)
-          $steps = append $steps "Proceed with automated processing"
-        end
-        $steps
-      }}
-```
-
-## Performance Optimization
-
-### Efficient Data Access
-
-```yaml
-id: optimized-aggregation
-type: aggregate
-
-outputs:
-  # Cache commonly accessed values
-  _cached_user_count: "{{ len .tasks.get_users.output.users }}"
-  _cached_total_revenue: "{{ .tasks.revenue_analysis.output.total }}"
-
-  # Use cached values
-  summary:
-    users: "{{ ._cached_user_count }}"
-    revenue: "{{ ._cached_total_revenue }}"
-    revenue_per_user: "{{ div ._cached_total_revenue ._cached_user_count }}"
-
-  # Conditional expensive operations
-  detailed_analysis: |
-    {{
-      if (gt ._cached_user_count 1000)
-        .tasks.detailed_analysis.output
-      else
-        dict "message" "Detailed analysis skipped for small datasets"
-      end
-    }}
-```
-
-### Memory-Efficient Processing
-
-```yaml
-id: memory-efficient-aggregation
-type: aggregate
-
-outputs:
-  # Process large arrays in chunks
-  processed_data: |
-    {{
-      $chunk_size := 100
-      $total_items := len .tasks.get_large_dataset.output.items
-      $result := list
-
-      $i := 0
-      while (lt $i $total_items)
-        $chunk := slice .tasks.get_large_dataset.output.items $i (min (add $i $chunk_size) $total_items)
-        $processed_chunk := map $chunk "process_item"
-        $result = concat $result $processed_chunk
-        $i = add $i $chunk_size
-      end
-
-      $result
-    }}
-```
-
 ## Best Practices
 
-1. **Access Task Results Efficiently**: Use dot notation for simple access, complex expressions for transformations
-2. **Handle Missing Data**: Always check for null/undefined values before processing
-3. **Use Conditional Logic**: Implement fallbacks and default values for robust operation
-4. **Optimize Complex Operations**: Cache frequently accessed values
-5. **Structure Output Logically**: Organize outputs in a way that's easy for downstream tasks to consume
-6. **Document Complex Logic**: Use comments in template expressions for complex calculations
+<List>
+  <ListItem title="Access Task Results Efficiently" icon="Target">
+    Use dot notation for simple access, complex expressions for transformations
+  </ListItem>
+  <ListItem title="Handle Missing Data" icon="ShieldCheck">
+    Always check for null/undefined values before processing
+  </ListItem>
+  <ListItem title="Use Conditional Logic" icon="Split">
+    Implement fallbacks and default values for robust operation
+  </ListItem>
+  <ListItem title="Optimize Complex Operations" icon="Gauge">
+    Cache frequently accessed values
+  </ListItem>
+  <ListItem title="Structure Output Logically" icon="Layout">
+    Organize outputs in a way that's easy for downstream tasks to consume
+  </ListItem>
+  <ListItem title="Document Complex Logic" icon="FileText">
+    Use comments in template expressions for complex calculations
+  </ListItem>
+</List>
 
 ## References
 

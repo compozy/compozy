@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
-import { TreeViewElement } from "./magicui/file-tree";
+import { TreeViewElement } from "../magicui/file-tree";
 import ProjectStructure from "./project-structure";
 
 const meta = {

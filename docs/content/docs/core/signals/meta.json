@@ -1,13 +1,11 @@
 {
-  "title": "Signals",
-  "description": "Signal system and event-driven patterns",
-  "icon": "Zap",
+  "title": "Signal System",
+  "description": "Complete guide to Compozy's event-driven architecture: signal publishing, reception, workflow coordination, and enterprise patterns for building resilient distributed systems",
+  "icon": "Radio",
   "pages": [
-    "signal-overview",
+    "overview",
     "signal-tasks",
     "signal-triggers",
-    "wait-tasks",
-    "event-api",
-    "advanced-patterns"
+    "event-api"
   ]
 }

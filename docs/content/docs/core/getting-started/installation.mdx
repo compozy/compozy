@@ -7,7 +7,7 @@ description: Install Compozy CLI and set up your development environment for bui
 
 Choose your preferred installation method:
 
-<Tabs items={["Homebrew", "Go Install", "npm/yarn/pnpm", "Pre-built Binary"]}>
+<Tabs items={["Homebrew", "Go Install", "Pre-built Binary"]}>
 
 <Tab>
 ```bash
@@ -20,19 +20,6 @@ brew install compozy/tap/compozy
 ```bash
 # Install via Go
 go install github.com/compozy/compozy@latest
-```
-</Tab>
-
-<Tab>
-```bash
-# Install via npm
-npm install -g @compozy/cli
-
-# Install via yarn
-yarn global add @compozy/cli
-
-# Install via pnpm
-pnpm add -g @compozy/cli
 ```
 </Tab>
 
@@ -186,7 +173,7 @@ Test your setup with a simple workflow:
 compozy workflow list
 
 # Execute the default greeter workflow
-compozy workflow execute greeter --input '{"name": "World", "style": "friendly"}'
+compozy workflow execute greeter --json='{"name": "World", "style": "friendly"}'
 ```
 
 ## Next Steps

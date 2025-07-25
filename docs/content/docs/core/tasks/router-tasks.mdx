@@ -3,36 +3,61 @@ title: Router Tasks
 description: Implement conditional branching and intelligent workflow routing with router tasks in Compozy workflows
 ---
 
-Router tasks are the **decision engine** of Compozy workflows, enabling dynamic routing based on runtime conditions. They evaluate template expressions and direct workflow execution down different paths, making workflows intelligent and adaptive to varying data conditions.
+Router tasks are the **decision engine** of Compozy workflows, enabling dynamic routing based on runtime conditions. They evaluate [template expressions](/docs/core/yaml-templates/expressions) and direct workflow execution down different paths, making workflows intelligent and adaptive to varying data conditions. When combined with [basic tasks](/docs/core/tasks/basic-tasks) and [parallel processing](/docs/core/tasks/parallel-processing), router tasks create sophisticated automation that can handle complex business logic automatically.
 
-## Related Documentation
+## Key Benefits
 
-### 🔗 Cross-References
-- **[Core Concepts: Tasks](/docs/core/getting-started/core-concepts#2-tasks)** - Tasks in workflow context
-- **[Flow Control](/docs/core/tasks/flow-control)** - Complete flow control patterns
-- **[Basic Tasks](/docs/core/tasks/basic-tasks)** - Basic task fundamentals
-- **[YAML Templates](/docs/core/yaml-templates/overview)** - Template expressions and functions
+<FeatureCardList cols={2} size="default">
+  <FeatureCard
+    title="Intelligent Decision Making"
+    description="Evaluate complex conditions using template expressions to automatically route workflows based on data, user context, or business rules"
+    icon="GitBranch"
+  />
+  <FeatureCard
+    title="Flexible Route Definitions"
+    description="Define routes as simple task references or complex inline configurations with full task orchestration capabilities"
+    icon="Network"
+  />
+  <FeatureCard
+    title="Robust Fallback Handling"
+    description="Built-in default routes and comprehensive error handling ensure workflows gracefully handle unexpected conditions"
+    icon="Shield"
+  />
+  <FeatureCard
+    title="Business Logic Integration"
+    description="Implement approval workflows, feature flags, content moderation, and complex business rules declaratively"
+    icon="Settings"
+  />
+</FeatureCardList>
 
-### ⚙️ Task-Related Topics
-- **Router Tasks** ↔ **[Conditional Logic](/docs/core/tasks/flow-control#conditional-logic)** ↔ **[Signal Tasks](/docs/core/signals/signal-overview)**
-- **Decision Points** ↔ **[Workflow Configuration](/docs/core/configuration/workflows)** ↔ **[Error Handling](/docs/core/tasks/basic-tasks#error-handling)**
-- **Dynamic Routing** ↔ **[Template Expressions](/docs/core/yaml-templates/expressions)** ↔ **[Business Logic](/docs/core/examples/business-workflows)**
+## How Router Tasks Work
 
-## Overview
+<List className="mt-6">
+  <ListItem title="Condition Evaluation" icon="Calculator">
+    Router tasks evaluate template expressions against workflow context, task outputs, and input data to determine the routing path
+  </ListItem>
+  <ListItem title="Route Resolution" icon="Map">
+    The condition result becomes a key to look up the target route, which can reference existing tasks or define inline configurations
+  </ListItem>
+  <ListItem title="Dynamic Execution" icon="Zap">
+    Based on the route selection, the workflow executes different task paths, enabling completely different business logic flows
+  </ListItem>
+  <ListItem title="State Management" icon="Database">
+    Router execution state and route decisions are tracked by [Temporal workflows](/docs/core/deployment/deployment-options) for durability and debugging
+  </ListItem>
+</List>
 
-Router tasks provide powerful conditional branching capabilities for workflows:
-
-- **Conditional Evaluation**: Dynamic condition assessment using template expressions
-- **Multiple Routes**: Support for complex branching scenarios with multiple paths
-- **Fallback Handling**: Default routes and error handling for unmatched conditions
-- **Inline Task Definitions**: Define tasks directly in routes or reference existing tasks
-- **Business Logic Integration**: Implement complex business rules and approval workflows
-
-<Callout type="info">
-Router tasks are essential for creating adaptive workflows that can handle different scenarios and business rules automatically.
+<Callout type="info" className="mt-8">
+  Router tasks leverage the same [template engine](/docs/core/yaml-templates/overview) used throughout Compozy, providing access to workflow input, task outputs, environment variables, and utility functions for comprehensive decision-making capabilities.
 </Callout>
 
 ## Task Structure
+
+Understanding router task configuration is essential for building effective conditional workflows. Router tasks must define a condition expression and route mappings, with optional default and error handling strategies.
+
+<Callout type="warning">
+Before implementing router tasks, ensure you understand [basic task configuration](/docs/core/tasks/basic-tasks) and [template expression syntax](/docs/core/yaml-templates/expressions). Router tasks build on these foundational concepts.
+</Callout>
 
 ### Core Configuration
 
@@ -60,12 +85,29 @@ on_error:
   next: error-handler
 ```
 
+<List className="mt-4">
+  <ListItem title="condition" icon="Code">
+    Template expression that evaluates to determine routing. Can access workflow input, task outputs, and environment variables
+  </ListItem>
+  <ListItem title="routes" icon="GitBranch">
+    Map of condition results to target tasks. Values can be task IDs (string) or inline task configurations (object)
+  </ListItem>
+  <ListItem title="default" icon="ArrowDown">
+    Fallback route when condition result doesn't match any route key. Essential for robust error handling
+  </ListItem>
+  <ListItem title="on_error" icon="AlertTriangle">
+    Error handling configuration when condition evaluation fails. Links to [error handling patterns](/docs/core/tasks/basic-tasks#error-handling)
+  </ListItem>
+</List>
+
 ### Key Components
 
-<Tabs items={["Basic Routing", "Complex Conditions", "Inline Tasks", "Error Handling"]}>
-<Tab value="Basic Routing">
+Router tasks support multiple configuration patterns, from simple routing to complex business logic. Understanding these patterns helps you choose the right approach for your use case.
 
-Simple condition-based routing with task references:
+<AccordionGroup>
+<Accordion title="Basic Routing" description="Simple condition-based routing with task references for straightforward decision making">
+
+The simplest router pattern uses string conditions and task ID references. This approach works well for straightforward routing decisions and integrates seamlessly with [workflow task definitions](/docs/core/configuration/workflows#task-definitions):
 
 ```yaml
 id: document-classifier
@@ -78,26 +120,6 @@ routes:
   receipt: process-receipt
   unknown: manual-review
 
-input:
-  type: object
-  properties:
-    document:
-      type: string
-    confidence_threshold:
-      type: number
-  required:
-    - document
-
-output:
-  type: object
-  properties:
-    classification:
-      type: string
-    route_taken:
-      type: string
-    confidence:
-      type: number
-
 with:
   document: "{{ .workflow.input.document }}"
   confidence_threshold: 0.8
@@ -106,10 +128,23 @@ on_error:
   next: retry-classification
 ```
 
-</Tab>
-<Tab value="Complex Conditions">
+<List className="mt-4">
+  <ListItem title="Simple Conditions" icon="Hash">
+    Use direct template expressions that evaluate to string values matching route keys
+  </ListItem>
+  <ListItem title="Task References" icon="Link">
+    Route values are task IDs that reference other tasks defined in the same workflow or [shared task libraries](/docs/core/configuration/global#shared-tasks)
+  </ListItem>
+  <ListItem title="Minimal Configuration" icon="Minimize2">
+    Clean, readable configuration ideal for simple business logic and getting started with router tasks
+  </ListItem>
+</List>
 
-Advanced conditional logic with multiple factors:
+</Accordion>
+
+<Accordion title="Complex Conditions" description="Advanced conditional logic with multi-factor decision making and business rules">
+
+For sophisticated routing logic, use multi-line template expressions with variables and conditional operators. This pattern excels at implementing complex [business rules and approval workflows](/docs/core/examples/business-workflows):
 
 ```yaml
 id: approval-router
@@ -119,7 +154,7 @@ condition: |
     $amount := .tasks.calculate_total.output.amount
     $user := .workflow.input.user
     $category := .workflow.input.category
-    
+
     if (and (gt $amount 10000) (eq $category "restricted"))
       "executive"
     else if (gt $amount 5000)
@@ -141,14 +176,14 @@ routes:
         amount: "{{ .tasks.calculate_total.output.amount }}"
         user: "{{ .workflow.input.user }}"
         urgency: high
-  
+
   manager:
     type: basic
     $use: agent(local::agents.#(id=="manager-approver"))
     with:
       request: "{{ .workflow.input }}"
       amount: "{{ .tasks.calculate_total.output.amount }}"
-  
+
   compliance_review: compliance-workflow
   auto_approve: auto-approve-task
   standard_review: standard-approval-task
@@ -156,10 +191,23 @@ routes:
 default: escalation-handler
 ```
 
-</Tab>
-<Tab value="Inline Tasks">
+<List className="mt-4">
+  <ListItem title="Multi-Line Expressions" icon="FileText">
+    Use YAML literal block syntax (`|`) for complex conditional logic with variables and functions
+  </ListItem>
+  <ListItem title="Variable Assignment" icon="Variable">
+    Assign intermediate values for cleaner logic using template [variable syntax](/docs/core/yaml-templates/expressions#variables)
+  </ListItem>
+  <ListItem title="Business Rules" icon="Shield">
+    Implement approval thresholds, compliance checks, and multi-factor decision making declaratively
+  </ListItem>
+</List>
 
-Define tasks directly within routes for specialized handling:
+</Accordion>
+
+<Accordion title="Inline Tasks" description="Define complete task configurations directly within routes for specialized processing">
+
+Inline task definitions provide maximum flexibility by embedding complete task configurations within routes. This pattern works excellently with [collection tasks](/docs/core/tasks/collection-processing) and [parallel processing](/docs/core/tasks/parallel-processing):
 
 ```yaml
 id: content-router
@@ -174,10 +222,7 @@ routes:
     with:
       content: "{{ .workflow.input.content }}"
       format: "{{ .workflow.input.format }}"
-    outputs:
-      processed_text: "{{ .output.result }}"
-      word_count: "{{ .output.stats.words }}"
-  
+
   image:
     type: basic
     $use: tool(local::tools.#(id=="image-processor"))
@@ -186,10 +231,7 @@ routes:
       operations:
         - resize: "800x600"
         - format: "webp"
-    outputs:
-      processed_image: "{{ .output.image_url }}"
-      metadata: "{{ .output.metadata }}"
-  
+
   video:
     type: collection
     items: "{{ .workflow.input.video_segments }}"
@@ -209,10 +251,23 @@ default:
       type: "{{ .tasks.analyze_content.output.content_type }}"
 ```
 
-</Tab>
-<Tab value="Error Handling">
+<List className="mt-4">
+  <ListItem title="Full Task Configurations" icon="Settings">
+    Embed complete task definitions including agents, tools, and specialized configurations
+  </ListItem>
+  <ListItem title="Context-Specific Logic" icon="Target">
+    Tailor task behavior precisely to the routing condition without creating separate task definitions
+  </ListItem>
+  <ListItem title="Nested Task Types" icon="Layers">
+    Use any task type including [collection](/docs/core/tasks/collection-processing) and [parallel](/docs/core/tasks/parallel-processing) within routes
+  </ListItem>
+</List>
 
-Comprehensive error handling and fallback strategies:
+</Accordion>
+
+<Accordion title="Error Handling" description="Comprehensive error handling and fallback strategies for production-ready workflows">
+
+Robust error handling is essential for production workflows. Router tasks support multiple error handling strategies at both the router and individual route levels:
 
 ```yaml
 id: resilient-router
@@ -226,20 +281,19 @@ routes:
     with:
       request: "{{ .workflow.input.request }}"
       priority: high
-    
+
     # Task-level error handling
     on_error:
       next: urgent-escalation
       with:
         original_request: "{{ .workflow.input.request }}"
         error_details: "{{ .task.error }}"
-  
+
   standard: standard-processor
-  
+
   bulk:
     type: collection
     items: "{{ .workflow.input.batch_items }}"
-    mode: parallel
     strategy: best_effort
     task:
       type: basic
@@ -272,14 +326,90 @@ retry_policy:
   maximum_interval: 10s
 ```
 
-</Tab>
-</Tabs>
+<List className="mt-4">
+  <ListItem title="Multi-Level Error Handling" icon="AlertTriangle">
+    Configure error handling at router, route, and task levels using [standard error handling patterns](/docs/core/tasks/basic-tasks#error-handling)
+  </ListItem>
+  <ListItem title="Default Routes" icon="ArrowDown">
+    Always provide default routes to handle unexpected condition results gracefully
+  </ListItem>
+  <ListItem title="Timeout & Retries" icon="RotateCcw">
+    Use timeout and retry policies compatible with [Temporal workflow durability](/docs/core/deployment/deployment-options#temporal-integration)
+  </ListItem>
+</List>
+
+</Accordion>
+</AccordionGroup>
+
+## Behind the Scenes
+
+Understanding how router tasks execute helps optimize performance and debug issues. When a router task runs, it follows a sophisticated evaluation and execution pipeline that integrates with Compozy's template engine and task orchestration system.
+
+<Mermaid chart={`sequenceDiagram
+    participant WE as Workflow Engine
+    participant RT as Router Task
+    participant TE as Template Engine
+    participant TM as Task Manager
+    participant Agent as AI Agent/Tool
+    participant DB as State Store
+
+    WE->>RT: Execute Router Task
+    Note over RT: Gather execution context
+    RT->>RT: Collect workflow input, task outputs, env vars
+
+    RT->>TE: Evaluate condition expression
+    TE->>TE: Process template with context
+    TE-->>RT: Return condition result (e.g., "approved")
+
+    RT->>RT: Look up route for "approved"
+    alt Route is Task ID
+        RT->>TM: Execute referenced task
+        TM->>Agent: Run task
+        Agent-->>TM: Return result
+        TM-->>RT: Task completed
+    else Route is Inline Config
+        RT->>RT: Build task configuration
+        RT->>TM: Execute inline task
+        TM->>Agent: Run inline task
+        Agent-->>TM: Return result
+        TM-->>RT: Task completed
+    else No Route Match
+        RT->>TM: Execute default route
+        TM->>Agent: Run default task
+        Agent-->>TM: Return result
+        TM-->>RT: Task completed
+    end
+
+    RT->>DB: Store routing decision & result
+    RT-->>WE: Return router result
+
+    Note over DB: Routing decisions logged for debugging`} />
+
+<List className="mt-6">
+  <ListItem title="Context Collection" icon="Database">
+    Router tasks gather workflow input, previous task outputs, and environment variables to provide complete context for condition evaluation
+  </ListItem>
+  <ListItem title="Template Processing" icon="Code">
+    The [template engine](/docs/core/yaml-templates/overview) evaluates conditions with access to all workflow state and utility functions
+  </ListItem>
+  <ListItem title="Route Resolution" icon="Map">
+    Route lookup supports both task ID references and inline task configurations, enabling flexible workflow design patterns
+  </ListItem>
+  <ListItem title="Task Execution" icon="Play">
+    Selected routes execute using the same [task execution pipeline](/docs/core/tasks/basic-tasks) as regular workflow tasks
+  </ListItem>
+  <ListItem title="State Persistence" icon="Save">
+    Routing decisions and execution results are persisted by [Temporal workflows](/docs/core/deployment/deployment-options) for durability and observability
+  </ListItem>
+</List>
 
 ## Conditional Routing Patterns
 
+Router tasks excel at implementing complex business logic through template expressions. These patterns demonstrate common approaches for different types of conditional logic.
+
 ### Template Expression Routing
 
-Router tasks evaluate template expressions to determine routing paths:
+The most common pattern uses template expressions to evaluate data and determine routing paths. This approach leverages Compozy's [template engine capabilities](/docs/core/yaml-templates/expressions) for powerful data processing:
 
 ```yaml
 id: weather-activity-router
@@ -289,7 +419,7 @@ condition: |
     $weather := .tasks.get_weather.output
     $temperature := $weather.temperature
     $conditions := $weather.conditions
-    
+
     if (lt $temperature 32)
       "cold"
     else if (and (gt $temperature 75) (eq $conditions "sunny"))
@@ -307,23 +437,25 @@ routes:
     with:
       weather_type: "cold"
       suggestions: ["indoor activities", "warm clothing", "hot drinks"]
-  
+
   hot_sunny:
     type: basic
     $use: agent(local::agents.#(id=="activity-suggester"))
     with:
       weather_type: "hot"
       suggestions: ["swimming", "beach", "air conditioning"]
-  
+
   rainy:
     type: basic
     $use: agent(local::agents.#(id=="activity-suggester"))
     with:
       weather_type: "rainy"
       suggestions: ["indoor activities", "umbrella", "movies"]
-  
+
   moderate: moderate-weather-activities
 ```
+
+This pattern demonstrates how router tasks can implement intelligent decision-making by analyzing task outputs and applying business rules to determine appropriate actions.
 
 ### Multi-Factor Routing
 
@@ -349,7 +481,7 @@ routes:
     $use: agent(local::agents.#(id=="premium-onboarding"))
     with:
       user_data: "{{ .tasks.get_user.output }}"
-  
+
   pending_verification: verification-workflow
   standard_user: standard-onboarding-workflow
 
@@ -368,7 +500,7 @@ condition: |
     $result := .tasks.process_data.output
     $status := $result.status
     $errors := $result.errors
-    
+
     if (eq $status "success")
       "success"
     else if (and (eq $status "partial") (lt (len $errors) 5))
@@ -386,7 +518,7 @@ routes:
       result: "{{ .tasks.process_data.output.data }}"
       status: "completed"
       processed_at: "{{ now }}"
-  
+
   partial_success:
     type: basic
     $use: agent(local::agents.#(id=="error-analyzer"))
@@ -394,7 +526,7 @@ routes:
       data: "{{ .tasks.process_data.output.data }}"
       errors: "{{ .tasks.process_data.output.errors }}"
       action: "analyze_and_fix"
-  
+
   failed:
     type: basic
     $use: tool(local::tools.#(id=="error-handler"))
@@ -405,433 +537,6 @@ routes:
 
 default: escalation-handler
 ```
-
-## Practical Examples
-
-### Example 1: Document Processing Pipeline
-
-<Steps>
-<Step>
-
-**Document Analysis**: First, analyze the document type and content
-
-```yaml
-id: analyze-document
-type: basic
-$use: agent(local::agents.#(id=="document-analyzer"))
-action: analyze_document
-
-with:
-  document_content: "{{ .workflow.input.document }}"
-  analyze_type: true
-  analyze_complexity: true
-
-outputs:
-  document_type: "{{ .output.type }}"
-  complexity_score: "{{ .output.complexity }}"
-  confidence: "{{ .output.confidence }}"
-```
-
-</Step>
-<Step>
-
-**Intelligent Routing**: Route based on document type and complexity
-
-```yaml
-id: document-router
-type: router
-condition: |
-  {{
-    $type := .tasks.analyze-document.output.document_type
-    $complexity := .tasks.analyze-document.output.complexity_score
-    $confidence := .tasks.analyze-document.output.confidence
-    
-    if (lt $confidence 0.7)
-      "manual_review"
-    else if (and (eq $type "invoice") (lt $complexity 0.5))
-      "simple_invoice"
-    else if (eq $type "invoice")
-      "complex_invoice"
-    else if (eq $type "contract")
-      "contract_processing"
-    else if (eq $type "receipt")
-      "receipt_processing"
-    else
-      "unknown_document"
-  }}
-
-routes:
-  simple_invoice:
-    type: basic
-    $use: tool(local::tools.#(id=="ocr-processor"))
-    with:
-      document: "{{ .workflow.input.document }}"
-      template: "simple_invoice"
-      fields: ["vendor", "amount", "date", "invoice_number"]
-  
-  complex_invoice:
-    type: basic
-    $use: agent(local::agents.#(id=="invoice-specialist"))
-    action: process_complex_invoice
-    with:
-      document: "{{ .workflow.input.document }}"
-      complexity_score: "{{ .tasks.analyze-document.output.complexity_score }}"
-  
-  contract_processing:
-    type: basic
-    $use: agent(local::agents.#(id=="contract-analyzer"))
-    action: extract_contract_terms
-    with:
-      document: "{{ .workflow.input.document }}"
-      extract_clauses: true
-  
-  receipt_processing:
-    type: basic
-    $use: tool(local::tools.#(id=="receipt-processor"))
-    with:
-      document: "{{ .workflow.input.document }}"
-      extract_items: true
-  
-  manual_review:
-    type: signal
-    signal:
-      id: manual-review-required
-      payload:
-        document_id: "{{ .workflow.input.document_id }}"
-        reason: "low_confidence"
-        confidence: "{{ .tasks.analyze-document.output.confidence }}"
-  
-  unknown_document:
-    type: basic
-    $use: agent(local::agents.#(id=="general-document-processor"))
-    action: process_unknown
-    with:
-      document: "{{ .workflow.input.document }}"
-      fallback_mode: true
-
-default: error-escalation
-```
-
-</Step>
-</Steps>
-
-### Example 2: E-commerce Order Processing
-
-```yaml
-id: order-processing-router
-type: router
-condition: |
-  {{
-    $order := .workflow.input.order
-    $customer := .tasks.get_customer.output
-    $inventory := .tasks.check_inventory.output
-    
-    if (not $inventory.available)
-      "out_of_stock"
-    else if (and (eq $customer.tier "premium") (gt $order.total 1000))
-      "premium_express"
-    else if (gt $order.total 500)
-      "standard_priority"
-    else if (eq $order.type "gift")
-      "gift_processing"
-    else
-      "standard_processing"
-  }}
-
-routes:
-  out_of_stock:
-    type: basic
-    $use: agent(local::agents.#(id=="inventory-manager"))
-    action: handle_out_of_stock
-    with:
-      order: "{{ .workflow.input.order }}"
-      customer: "{{ .tasks.get_customer.output }}"
-      estimated_restock: "{{ .tasks.check_inventory.output.restock_date }}"
-  
-  premium_express:
-    type: parallel
-    strategy: wait_all
-    tasks:
-      - id: priority-fulfillment
-        type: basic
-        $use: tool(local::tools.#(id=="fulfillment-api"))
-        with:
-          order: "{{ .workflow.input.order }}"
-          priority: "express"
-          shipping_method: "overnight"
-      
-      - id: premium-notification
-        type: basic
-        $use: agent(local::agents.#(id=="notification-service"))
-        with:
-          customer: "{{ .tasks.get_customer.output }}"
-          message_type: "premium_order_confirmed"
-          order_details: "{{ .workflow.input.order }}"
-  
-  gift_processing:
-    type: basic
-    $use: agent(local::agents.#(id=="gift-processor"))
-    action: process_gift_order
-    with:
-      order: "{{ .workflow.input.order }}"
-      gift_options: "{{ .workflow.input.gift_options }}"
-      recipient: "{{ .workflow.input.recipient }}"
-  
-  standard_processing: standard-order-workflow
-  standard_priority: priority-order-workflow
-
-default: order-error-handler
-
-on_error:
-  next: order-processing-failure
-  with:
-    order_id: "{{ .workflow.input.order.id }}"
-    error_context: "{{ .task.error }}"
-```
-
-### Example 3: Content Moderation System
-
-```yaml
-id: content-moderation-router
-type: router
-condition: |
-  {{
-    $content := .tasks.analyze_content.output
-    $user := .tasks.get_user_context.output
-    $sentiment := .tasks.sentiment_analysis.output
-    
-    $risk_score := 0
-    if (gt $content.toxicity_score 0.8) (set $risk_score (add $risk_score 40))
-    if (lt $sentiment.score -0.7) (set $risk_score (add $risk_score 20))
-    if (contains $content.flags "spam") (set $risk_score (add $risk_score 30))
-    if (eq $user.trust_level "new") (set $risk_score (add $risk_score 10))
-    
-    if (gt $risk_score 70)
-      "block_content"
-    else if (gt $risk_score 40)
-      "human_review"
-    else if (gt $risk_score 20)
-      "flag_for_monitoring"
-    else
-      "approve_content"
-  }}
-
-routes:
-  block_content:
-    type: basic
-    $use: tool(local::tools.#(id=="content-moderator"))
-    with:
-      action: "block"
-      content_id: "{{ .workflow.input.content_id }}"
-      reason: "automated_policy_violation"
-      details: "{{ .tasks.analyze_content.output }}"
-  
-  human_review:
-    type: signal
-    signal:
-      id: human-review-required
-      payload:
-        content_id: "{{ .workflow.input.content_id }}"
-        content_preview: "{{ .workflow.input.content | truncate 200 }}"
-        risk_factors: "{{ .tasks.analyze_content.output.flags }}"
-        user_context: "{{ .tasks.get_user_context.output }}"
-        priority: "high"
-  
-  flag_for_monitoring:
-    type: basic
-    $use: tool(local::tools.#(id=="monitoring-service"))
-    with:
-      content_id: "{{ .workflow.input.content_id }}"
-      monitoring_level: "elevated"
-      flags: "{{ .tasks.analyze_content.output.flags }}"
-  
-  approve_content:
-    type: basic
-    $use: tool(local::tools.#(id=="content-publisher"))
-    with:
-      content_id: "{{ .workflow.input.content_id }}"
-      status: "approved"
-      auto_approved: true
-
-default: content-error-handler
-```
-
-## CLI Commands
-
-The Compozy CLI provides these commands for managing router tasks:
-
-```bash
-# List all workflows
-compozy workflow list
-
-# Execute a router workflow
-compozy workflow execute my-router-workflow
-
-# Get workflow details  
-compozy workflow get my-router-workflow
-```
-
-<Callout type="info">
-**Task Management Commands**: Additional CLI commands for task monitoring and control are planned for future releases.
-</Callout>
-
-## Best Practices
-
-### Route Design
-
-1. **Use Descriptive Route Keys**: Choose meaningful names that clearly indicate the path
-2. **Implement Default Routes**: Always provide fallback handling for unexpected conditions
-3. **Keep Conditions Simple**: Break complex logic into multiple router tasks when needed
-4. **Document Business Logic**: Add comments to explain complex routing decisions
-
-### Performance Optimization
-
-```yaml
-id: optimized-router
-type: router
-
-# Use efficient condition evaluation
-condition: "{{ .tasks.classify.output.category }}"
-
-# Optimize route definitions
-routes:
-  # Use task references for existing tasks
-  high_priority: existing-priority-task
-  
-  # Minimize inline task complexity
-  low_priority:
-    type: basic
-    $use: tool(local::tools.#(id=="simple-processor"))
-    with:
-      data: "{{ .workflow.input.data }}"
-
-# Set appropriate timeouts
-timeout: 30s
-```
-
-### Error Resilience
-
-```yaml
-id: resilient-router
-type: router
-condition: "{{ .tasks.evaluate.output.result }}"
-
-routes:
-  success: success-handler
-  failure: failure-handler
-
-# Comprehensive error handling
-on_error:
-  next: router-error-recovery
-  with:
-    condition_attempted: "{{ .task.condition }}"
-    evaluation_error: "{{ .task.error }}"
-    input_data: "{{ .workflow.input }}"
-
-# Default route for unmatched conditions
-default:
-  type: basic
-  $use: agent(local::agents.#(id=="fallback-handler"))
-  action: handle_unknown_condition
-  with:
-    condition_result: "{{ .task.condition_result }}"
-    available_routes: "{{ keys .task.routes }}"
-
-# Retry configuration
-retry_policy:
-  maximum_attempts: 2
-  initial_interval: 1s
-  maximum_interval: 5s
-```
-
-## Common Patterns
-
-### Approval Workflows
-
-```yaml
-id: approval-router
-type: router
-condition: |
-  {{
-    $amount := .workflow.input.amount
-    $category := .workflow.input.category
-    $user := .workflow.input.user
-    
-    if (and (gt $amount 10000) (eq $category "capital"))
-      "ceo_approval"
-    else if (gt $amount 5000)
-      "director_approval"
-    else if (contains ["legal", "compliance"] $category)
-      "compliance_approval"
-    else
-      "auto_approve"
-  }}
-
-routes:
-  ceo_approval: executive-approval-workflow
-  director_approval: director-approval-workflow
-  compliance_approval: compliance-review-workflow
-  auto_approve: auto-approval-task
-
-default: manual-review-workflow
-```
-
-### Feature Flag Routing
-
-```yaml
-id: feature-flag-router
-type: router
-condition: |
-  {{
-    $user := .workflow.input.user
-    $feature_flags := .tasks.get_feature_flags.output
-    
-    if (and $feature_flags.new_ui_enabled (contains $user.groups "beta"))
-      "new_ui"
-    else if (and $feature_flags.experimental_api (eq $user.tier "premium"))
-      "experimental"
-    else
-      "standard"
-  }}
-
-routes:
-  new_ui: new-ui-workflow
-  experimental: experimental-workflow
-  standard: standard-workflow
-
-default: standard-workflow
-```
-
-### Error Classification
-
-```yaml
-id: error-classifier-router
-type: router
-condition: |
-  {{
-    $error := .tasks.analyze_error.output
-    $context := .workflow.input.context
-    
-    if (eq $error.type "timeout")
-      "retry"
-    else if (eq $error.type "authentication")
-      "reauth"
-    else if (eq $error.severity "critical")
-      "escalate"
-    else
-      "log_and_continue"
-  }}
-
-routes:
-  retry: retry-handler
-  reauth: authentication-handler
-  escalate: escalation-handler
-  log_and_continue: logging-handler
-
-default: unknown-error-handler
-```
-
-Router tasks provide the foundation for intelligent, adaptive workflows that can handle complex business logic and routing scenarios. Their template-based condition evaluation and flexible route definitions make them essential for creating responsive, decision-driven automation systems.
 
 ## References
 
@@ -851,7 +556,7 @@ Router tasks provide the foundation for intelligent, adaptive workflows that can
   <ReferenceCard
     title="Signal Tasks"
     description="Coordinate router decisions with signal-based communication patterns"
-    href="/docs/core/signals/signal-overview"
+    href="/docs/core/signals/overview"
     icon="Radio"
   />
   <ReferenceCard

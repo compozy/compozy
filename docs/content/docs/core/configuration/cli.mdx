@@ -1,900 +1,171 @@
 ---
-title: CLI Configuration
-description: Command-line interface configuration and usage patterns for Compozy development and operations
+title: CLI Overview
+description: The Compozy CLI is your primary interface for managing AI workflow orchestration, providing intuitive commands for project management, workflow execution, and system control
 ---
 
-The Compozy CLI provides powerful commands for development, configuration management, and operational tasks. This comprehensive guide covers all CLI functionality, from basic development workflows to advanced configuration diagnostics.
-
-## Overview
-
-<FeatureCardList cols={3} size="sm">
-  <FeatureCard
-    title="Development Server"
-    description="Hot-reloading development server with file watching and automatic restarts for seamless development workflow"
-    icon="Play"
-  />
-  <FeatureCard
-    title="Configuration Management"
-    description="Comprehensive configuration inspection, validation, and diagnostics with multiple output formats"
-    icon="Settings"
-  />
-  <FeatureCard
-    title="MCP Proxy"
-    description="Built-in MCP proxy server for external tool integration with Model Context Protocol"
-    icon="Network"
-  />
-</FeatureCardList>
-
-## Core Commands
-
-### Project Initialization
-
-Initialize a new Compozy project with the `compozy init` command.
-
-<Steps numbered>
-<Step title="Basic Project Creation" description="Create a new project with default settings">
-
-```bash
-# Create project in current directory
-compozy init
-
-# Create project in specific directory
-compozy init my-project
-
-# Create with project name
-compozy init --name "My Workflow Project"
-```
-
-</Step>
-
-<Step title="Interactive Mode" description="Use interactive prompts for project setup">
-
-```bash
-# Force interactive mode (even if name provided)
-compozy init --interactive
-
-# Interactive with custom path
-compozy init ./my-project --interactive
-```
-
-</Step>
-
-<Step title="Custom Configuration" description="Specify project details via flags">
-
-```bash
-# Complete project setup
-compozy init my-project \
-  --name "Content Pipeline" \
-  --description "AI-powered content creation workflow" \
-  --version "1.0.0" \
-  --template basic \
-  --author "Your Name" \
-  --author-url "https://yoursite.com"
-```
-
-</Step>
-</Steps>
-
-#### Project Initialization Options
-
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `--name, -n` | string | `""` | Project name |
-| `--description, -d` | string | `""` | Project description |
-| `--version, -v` | string | `"0.1.0"` | Project version |
-| `--template, -t` | string | `"basic"` | Project template |
-| `--author` | string | `""` | Author name |
-| `--author-url` | string | `""` | Author URL |
-| `--interactive, -i` | bool | `false` | Force interactive mode |
-
-### Authentication Management
-
-Manage API keys and user accounts with the `compozy auth` command group.
-
-<Steps numbered>
-<Step title="API Key Management" description="Generate and manage API keys">
-
-```bash
-# Generate new API key
-compozy auth generate --name "Development Key"
-
-# List all API keys
-compozy auth list
-
-# Revoke API key
-compozy auth revoke [key-id] --force
-```
-
-</Step>
-
-<Step title="User Management" description="Create and manage user accounts">
-
-```bash
-# Create new user
-compozy auth create-user \
-  --email user@example.com \
-  --name "John Doe" \
-  --role admin
-
-# List all users
-compozy auth list-users --role admin
-
-# Update user
-compozy auth update-user [user-id] \
-  --name "Jane Doe" \
-  --role user
-
-# Delete user
-compozy auth delete-user [user-id] --force
-```
-
-</Step>
-</Steps>
-
-#### Authentication Commands
-
-**API Key Management:**
-
-| Command | Description | Key Flags |
-|---------|-------------|-----------|
-| `auth generate` | Generate new API key | `--name`, `--description`, `--expires` |
-| `auth list` | List API keys | `--sort`, `--filter`, `--page`, `--limit` |
-| `auth revoke [key-id]` | Revoke API key | `--force` |
-
-**User Management:**
-
-| Command | Description | Key Flags |
-|---------|-------------|-----------|
-| `auth create-user` | Create new user | `--email`, `--name`, `--role` |
-| `auth list-users` | List all users | `--sort`, `--filter`, `--role`, `--active` |
-| `auth update-user [user-id]` | Update user | `--email`, `--name`, `--role` |
-| `auth delete-user [user-id]` | Delete user | `--force`, `--cascade` |
-
-### Workflow Management
-
-Manage workflows with the `compozy workflow` command group.
-
-```bash
-# List all workflows
-compozy workflow list
-
-# Get workflow details
-compozy workflow get [workflow-id]
-
-# Execute workflow
-compozy workflow execute [workflow-id] --input '{"key": "value"}'
-```
-
-#### Workflow Commands
-
-| Command | Description | Key Flags |
-|---------|-------------|-----------|
-| `workflow list` | List all workflows | Standard pagination and filtering |
-| `workflow get [id]` | Get workflow details | Output format options |
-| `workflow execute [id]` | Execute workflow | `--input`, `--async` |
-
-### Production Server
-
-Start the production-optimized server with the `compozy start` command.
-
-```bash
-# Start production server
-compozy start
-
-# Uses production environment settings:
-# - gin.ReleaseMode
-# - Optimized logging
-# - Production-ready defaults
-```
-
-### Development Server
-
-The `compozy dev` command provides a full-featured development server with hot reloading, file watching, and comprehensive configuration options.
-
-<Steps numbered>
-<Step title="Basic Development Server" description="Start with default settings">
-
-```bash
-# Start development server on default port (5001)
-compozy dev
-
-# Start with custom port
-compozy dev --port 9000
-
-# Start with debug logging
-compozy dev --debug
-```
-
-</Step>
-
-<Step title="File Watching" description="Auto-restart on configuration changes">
-
-```bash
-# Enable file watching for auto-restart
-compozy dev --watch
-
-# Watch with custom configuration
-compozy dev --watch --config custom.yaml
-```
-
-</Step>
-
-<Step title="Custom Configuration" description="Use specific configuration files">
-
-```bash
-# Use custom config file
-compozy dev --config production.yaml
-
-# Use custom environment file
-compozy dev --env-file .env.staging
-
-# Set working directory
-compozy dev --cwd /path/to/project
-```
-
-</Step>
-</Steps>
-
-#### Development Server Options
-
-<Tabs items={["Basic Options", "Server Configuration", "Database Options", "Runtime Options"]}>
-<Tab>
-```bash
-# Server and basic options
-compozy dev \
-  --port 5001 \
-  --host 0.0.0.0 \
-  --cors \
-  --debug \
-  --watch \
-  --config compozy.yaml \
-  --env-file .env \
-  --cwd /path/to/project
-```
-</Tab>
-
-<Tab>
-```bash
-# Server-specific configuration
-compozy dev \
-  --port 9000 \
-  --host 127.0.0.1 \
-  --cors=false \
-  --log-level info \
-  --log-json \
-  --log-source
-```
-</Tab>
-
-<Tab>
-```bash
-# Database configuration
-compozy dev \
-  --db-host localhost \
-  --db-port 5432 \
-  --db-user compozy \
-  --db-password secret \
-  --db-name compozy_dev \
-  --db-ssl-mode disable \
-  --db-conn-string "postgres://..."
-```
-</Tab>
-
-<Tab>
-```bash
-# Runtime and performance options
-compozy dev \
-  --max-nesting-depth 20 \
-  --max-string-length 10485760 \
-  --max-message-content-length 10240 \
-  --async-token-counter-workers 4 \
-  --dispatcher-heartbeat-interval 30
-```
-</Tab>
-</Tabs>
-
-### Configuration Management
-
-The `compozy config` command provides comprehensive configuration inspection, validation, and diagnostics.
-
-#### Configuration Commands
-
-```bash
-# Show current configuration
-compozy config show
-compozy config show --format json    # JSON output
-compozy config show --format yaml    # YAML output
-
-# Validate configuration
-compozy config validate
-compozy config validate --config staging.yaml
-
-# Run comprehensive diagnostics
-compozy config diagnostics --verbose
-
-# Use custom files for any command
-compozy config [command] --config production.yaml --env-file .env.production
-```
-
-### MCP Proxy Server
-
-The `compozy mcp-proxy` command starts a standalone MCP proxy server for external tool integration.
-
-```bash
-# Start MCP proxy server
-compozy mcp-proxy
-
-# Start with custom port
-compozy mcp-proxy --port 8081
-
-# Start with custom config
-compozy mcp-proxy --config mcp-config.yaml
-```
-
-## Command Reference
-
-### Development Command (`compozy dev`)
-
-Complete reference for all `compozy dev` options:
-
-#### Server Configuration
-
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `--port` | int | `5001` | Port to run the development server on |
-| `--host` | string | `"0.0.0.0"` | Host to bind the server to |
-| `--cors` | bool | `true` | Enable CORS |
-| `--cwd` | string | `""` | Working directory for the project |
-| `--config` | string | `"compozy.yaml"` | Path to the project configuration file |
-| `--env-file` | string | `".env"` | Path to the environment variables file |
-
-#### Database Configuration
-
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `--db-host` | string | `""` | Database host (env: DB_HOST) |
-| `--db-port` | string | `""` | Database port (env: DB_PORT) |
-| `--db-user` | string | `""` | Database user (env: DB_USER) |
-| `--db-password` | string | `""` | Database password (env: DB_PASSWORD) |
-| `--db-name` | string | `""` | Database name (env: DB_NAME) |
-| `--db-ssl-mode` | string | `""` | Database SSL mode (env: DB_SSL_MODE) |
-| `--db-conn-string` | string | `""` | Database connection string (env: DB_CONN_STRING) |
-
-#### Temporal Configuration
-
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `--temporal-host` | string | `""` | Temporal host:port (env: TEMPORAL_HOST:TEMPORAL_PORT) |
-| `--temporal-namespace` | string | `""` | Temporal namespace (env: TEMPORAL_NAMESPACE) |
-| `--temporal-task-queue` | string | `""` | Temporal task queue name (env: TEMPORAL_TASK_QUEUE) |
-
-#### Logging Configuration
-
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `--log-level` | string | `"info"` | Log level (debug, info, warn, error) |
-| `--log-json` | bool | `false` | Output logs in JSON format |
-| `--log-source` | bool | `false` | Include source file and line in logs |
-| `--debug` | bool | `false` | Enable debug mode (sets log level to debug) |
-
-#### Development Options
-
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `--watch` | bool | `false` | Enable file watcher to restart server on change |
-
-#### Tool Execution Configuration
-
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `--tool-execution-timeout` | duration | `60s` | Tool execution timeout (env: TOOL_EXECUTION_TIMEOUT) |
-
-#### System Limits
-
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `--max-nesting-depth` | int | `20` | Maximum task nesting depth allowed |
-| `--max-string-length` | int | `10485760` | Maximum string length in bytes |
-| `--max-message-content-length` | int | `10240` | Maximum message content length |
-| `--max-total-content-size` | int | `102400` | Maximum total content size |
-
-#### Memory Configuration
-
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `--async-token-counter-workers` | int | `4` | Number of workers for async token counting |
-| `--async-token-counter-buffer-size` | int | `100` | Buffer size for async token counting queue |
-
-#### Dispatcher Configuration
-
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `--dispatcher-heartbeat-interval` | int | `30` | Dispatcher heartbeat interval in seconds |
-| `--dispatcher-heartbeat-ttl` | int | `90` | Dispatcher heartbeat TTL in seconds |
-| `--dispatcher-stale-threshold` | int | `120` | Dispatcher stale threshold in seconds |
-
-#### OpenAI Configuration
-
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `--openai-api-key` | string | `""` | OpenAI API key (env: OPENAI_API_KEY) |
-
-### Configuration Commands (`compozy config`)
-
-#### Show Configuration (`compozy config show`)
-
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `--format, -f` | string | `"table"` | Output format (json, yaml, table) |
-| `--config` | string | `"compozy.yaml"` | Path to configuration file |
-| `--env-file` | string | `".env"` | Path to environment file |
-
-#### Validate Configuration (`compozy config validate`)
-
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `--config` | string | `"compozy.yaml"` | Path to configuration file |
-| `--env-file` | string | `".env"` | Path to environment file |
-
-#### Configuration Diagnostics (`compozy config diagnostics`)
-
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `--config` | string | `"compozy.yaml"` | Path to configuration file |
-| `--env-file` | string | `".env"` | Path to environment file |
-| `--verbose, -v` | bool | `false` | Show detailed source information |
-
-## Development Workflows
-
-The Compozy CLI provides streamlined workflows for different development stages:
-
-<Mermaid chart={`flowchart TD
-    A[Start Development] --> B[compozy dev]
-    B --> C{File Watching?}
-    C -->|Yes| D[compozy dev --watch]
-    C -->|No| E[Manual Restart]
-    D --> F[Auto-restart on Changes]
-    E --> G[Manual Testing]
-    F --> H[Test Workflows]
-    G --> H
-    H --> I[API Testing]
-    I --> J[Ready for Production]
-    
-    style A fill:#059669,stroke:#047857,color:#fff
-    style J fill:#dc2626,stroke:#b91c1c,color:#fff
-    style D fill:#2563eb,stroke:#1d4ed8,color:#fff`} />
-
-### Basic Development
-
-<Steps numbered>
-<Step title="Start Development Server" description="Basic development workflow">
-
-```bash
-# Start with default settings
-compozy dev
-
-# Or with custom configuration
-compozy dev --config dev.yaml --env-file .env.local
-```
-
-</Step>
-
-<Step title="Enable File Watching" description="Auto-restart on changes">
-
-```bash
-# Enable file watching for automatic restarts
-compozy dev --watch --debug
-```
-
-</Step>
-
-<Step title="Test Your Workflows" description="Access your running server">
-
-```bash
-# Server runs on http://localhost:5001
-# API available at http://localhost:5001/api/v0
-curl http://localhost:5001/api/v0/workflows
-```
-
-</Step>
-</Steps>
-
-### Configuration Management Workflow
-
-<Steps numbered>
-<Step title="Validate Configuration" description="Check configuration before deployment">
-
-```bash
-# Validate current configuration
-compozy config validate
-
-# Validate production configuration
-compozy config validate --config production.yaml
-```
-
-</Step>
-
-<Step title="Inspect Configuration" description="View effective configuration">
-
-```bash
-# Show current configuration
-compozy config show
-
-# Export configuration for review
-compozy config show --format yaml > current-config.yaml
-```
-
-</Step>
-
-<Step title="Run Diagnostics" description="Comprehensive configuration health check">
-
-```bash
-# Run full diagnostics
-compozy config diagnostics --verbose
-
-# Check specific environment
-compozy config diagnostics \
-  --config production.yaml \
-  --env-file .env.production
-```
-
-</Step>
-</Steps>
-
-### Production Deployment Workflow
-
-<Steps numbered>
-<Step title="Validate Production Configuration" description="Ensure configuration is correct">
-
-```bash
-# Validate production settings
-compozy config validate \
-  --config production.yaml \
-  --env-file .env.production
-```
-
-</Step>
-
-<Step title="Run Configuration Diagnostics" description="Check deployment readiness">
-
-```bash
-# Run comprehensive diagnostics
-compozy config diagnostics \
-  --config production.yaml \
-  --env-file .env.production \
-  --verbose
-```
-
-</Step>
-
-<Step title="Start Production Server" description="Launch with production settings">
-
-```bash
-# Start with production configuration
-compozy dev \
-  --config production.yaml \
-  --env-file .env.production \
-  --log-level info \
-  --log-json
-```
-
-</Step>
-</Steps>
-
-## Environment Variable Integration
-
-### CLI and Environment Variable Precedence
-
-CLI flags have the highest precedence and override environment variables:
-
-```bash
-# Environment variable
-export SERVER_PORT=9000
-
-# CLI flag overrides environment variable
-compozy dev --port 5001  # Uses port 5001, not 9000
-```
-
-### Environment Variable Patterns
-
-```bash
-# Server configuration
-export SERVER_HOST=0.0.0.0
-export SERVER_PORT=5001
-export SERVER_CORS_ENABLED=true
-
-# Database configuration
-export DB_HOST=localhost
-export DB_PORT=5432
-export DB_USER=compozy
-export DB_PASSWORD=secure_password
-
-# Runtime configuration  
-export RUNTIME_LOG_LEVEL=info
-export RUNTIME_ENVIRONMENT=production
-
-# Start server (uses all environment variables)
-compozy dev
-```
-
-## Advanced Usage
-
-### File Watching Configuration
-
-The `--watch` flag enables intelligent file watching with optimized performance:
-
-```bash
-# Enable file watching
-compozy dev --watch
-
-# File watcher features:
-# - Watches only YAML files (*.yaml, *.yml)
-# - Ignores common directories (.git, node_modules, etc.)
-# - Debounces changes to prevent excessive restarts
-# - Provides detailed logging in debug mode
-```
-
-#### Ignored Directories
-
-The file watcher automatically ignores these directories:
-- `.git`
-- `node_modules`
-- `.idea`
-- `.vscode`
-- `vendor`
-- `dist`
-- `build`
-- `tmp`
-- `temp`
-- `.cache`
-- `__pycache__`
-- `.pytest_cache`
-- `.next`
-- `.nuxt`
-- `coverage`
-
-### Port Management
-
-Compozy automatically finds available ports if the requested port is in use:
-
-```bash
-# Request port 5001
-compozy dev --port 5001
-
-# If 5001 is busy, tries common alternatives:
-# 5001, 3002, 3003, 4000, 4001, 5000, 5001, 8000, 8001, 8081, 9000, 9001
-
-# Then scans incrementally from requested port
-```
-
-### Configuration Precedence
-
-Understanding configuration precedence helps debug configuration issues:
-
-<Mermaid chart={`flowchart TD
-    A[CLI Flags] --> |Highest Priority| E[Final Configuration]
-    B[YAML Configuration File] --> |Medium-High Priority| E
-    C[Environment Variables] --> |Medium Priority| E
-    D[System Defaults] --> |Lowest Priority| E
-    
-    style A fill:#10b981,stroke:#059669,color:#fff
-    style E fill:#6366f1,stroke:#4f46e5,color:#fff`} />
-
-1. **CLI Flags** (highest precedence)
-2. **YAML Configuration File**
-3. **Environment Variables**
-4. **System Defaults** (lowest precedence)
-
-```bash
-# Example showing precedence
-export SERVER_PORT=9000           # Environment variable
-# compozy.yaml contains: server.port: 5001
-compozy dev --port 7000           # CLI flag wins: uses 7000
-```
-
-## Troubleshooting
-
-### Common CLI Issues
-
-<Callout type="error">
-**Port already in use**: Compozy automatically finds the next available port
-</Callout>
-
-<Callout type="error">
-**Configuration file not found**: Use `--config` flag to specify the correct path
-</Callout>
-
-<Callout type="error">
-**Environment file not found**: Use `--env-file` flag or create the default `.env` file
-</Callout>
-
-<Callout type="error">
-**Permission denied**: Check file permissions for configuration and environment files
-</Callout>
-
-### Debug Mode
-
-Enable debug mode for detailed logging:
-
-```bash
-# Enable debug mode
-compozy dev --debug
-
-# Debug mode provides:
-# - Detailed startup information
-# - Configuration loading details
-# - File watcher events
-# - Request/response logging
-# - Error stack traces
-```
-
-### Configuration Diagnostics
-
-Use diagnostics to troubleshoot configuration issues:
-
-```bash
-# Run comprehensive diagnostics
-compozy config diagnostics --verbose
-
-# Diagnostics check:
-# - Configuration file existence and syntax
-# - Environment file loading
-# - Configuration validation
-# - Source precedence
-# - Environment variable mapping
-```
-
-### Common Configuration Patterns
-
-<Tabs items={["Local Development", "Docker Development", "CI/CD", "Production"]}>
-<Tab>
-```bash
-# Local development
-compozy dev \
-  --debug \
-  --watch \
-  --cors \
-  --env-file .env.local
-```
-</Tab>
-
-<Tab>
-```bash
-# Docker development
-compozy dev \
-  --host 0.0.0.0 \
-  --port 5001 \
-  --db-host db \
-  --temporal-host temporal:7233
-```
-</Tab>
-
-<Tab>
-```bash
-# CI/CD environment
-compozy dev \
-  --config ci.yaml \
-  --env-file .env.ci \
-  --log-level info \
-  --log-json
-```
-</Tab>
-
-<Tab>
-```bash
-# Production
-compozy dev \
-  --config production.yaml \
-  --env-file .env.production \
-  --log-level info \
-  --log-json \
-  --cors=false
-```
-</Tab>
-</Tabs>
-
-## Best Practices
-
-### Development Best Practices
-
-<FeatureCardList cols={2} size="sm">
-  <FeatureCard
-    title="Use File Watching"
-    description="Enable --watch for automatic restarts during development"
-    icon="RefreshCw"
-  />
-  <FeatureCard
-    title="Debug Mode"
-    description="Use --debug for detailed logging and troubleshooting"
-    icon="Search"
-  />
-  <FeatureCard
-    title="Environment Files"
-    description="Use separate .env files for different environments"
-    icon="FileText"
-  />
-  <FeatureCard
-    title="Configuration Validation"
-    description="Always validate configuration before deployment"
-    icon="CheckCircle"
-  />
-</FeatureCardList>
-
-### Security Best Practices
-
-<FeatureCardList cols={2} size="sm">
-  <FeatureCard
-    title="Environment Variables"
-    description="Use environment variables for all sensitive configuration"
-    icon="Shield"
-  />
-  <FeatureCard
-    title="File Permissions"
-    description="Restrict access to configuration and environment files"
-    icon="Lock"
-  />
-  <FeatureCard
-    title="CORS Configuration"
-    description="Disable CORS in production environments"
-    icon="Globe"
-  />
-  <FeatureCard
-    title="SSL/TLS"
-    description="Use secure connections for all external services"
-    icon="Key"
-  />
-</FeatureCardList>
-
-### Performance Best Practices
-
-<FeatureCardList cols={2} size="sm">
-  <FeatureCard
-    title="Resource Limits"
-    description="Configure appropriate system limits for your workload"
-    icon="Gauge"
-  />
-  <FeatureCard
-    title="Worker Configuration"
-    description="Adjust async workers based on system capacity"
-    icon="Cpu"
-  />
-  <FeatureCard
-    title="Logging Level"
-    description="Use appropriate logging levels for performance"
-    icon="Activity"
-  />
-  <FeatureCard
-    title="Database Tuning"
-    description="Optimize database connection settings"
-    icon="Database"
-  />
-</FeatureCardList>
-
-## Related Documentation
+## What is the Compozy CLI?
+
+The Compozy Command Line Interface (CLI) is a comprehensive tool that serves as your primary interface for interacting with the [Compozy workflow orchestration engine](/docs/core/architecture/overview). It provides everything you need to create, develop, deploy, and manage AI-powered applications through simple, intuitive commands.
+
+If you're new to Compozy, start with our [Quick Start guide](/docs/core/getting-started/quick-start) to get up and running in 5 minutes, or follow the [First Workflow tutorial](/docs/core/getting-started/first-workflow) for a hands-on introduction to building AI workflows.
+
+## Why Use the Compozy CLI?
+
+<List>
+  <ListItem title="Rapid Project Setup">
+    Initialize new projects with intelligent scaffolding that creates the optimal [project structure](/docs/core/configuration/project-setup) for your AI workflows, complete with example configurations and [best practices](/docs/best-practices/project-organization)
+  </ListItem>
+  <ListItem title="Seamless Development">
+    Run development servers with [hot-reload capabilities](/docs/cli/dev-commands#hot-reload), allowing you to iterate quickly on your [workflows](/docs/core/workflows/overview) and see changes in real-time without restarting
+  </ListItem>
+  <ListItem title="Workflow Management">
+    Execute, monitor, and debug AI workflows with rich interactive interfaces or [automation-friendly JSON output](/docs/cli/overview#interactive-vs-automation-modes) for [CI/CD integration](/docs/deployment/ci-cd)
+  </ListItem>
+  <ListItem title="Tool Integration">
+    Manage [Model Context Protocol (MCP) servers](/docs/core/mcp/overview) to extend your AI capabilities with [external tools](/docs/core/tools/mcp-integration) and services
+  </ListItem>
+</List>
+
+## Command Overview
+
+The CLI is organized into logical command groups that map to different aspects of the Compozy system. Each command category serves a specific purpose in your workflow development lifecycle:
 
 <ReferenceCardList>
   <ReferenceCard
-    title="Global Configuration"
-    description="System-wide configuration settings and environment variables"
-    href="/docs/core/configuration/global"
+    title="Project Commands"
+    description="Learn how to initialize projects, manage configurations, and set up your development environment with best practices"
+    href="/docs/cli/project-commands"
+    icon="FolderPlus"
+  />
+  <ReferenceCard
+    title="Development Commands"
+    description="Master the development server, hot-reload features, and debugging capabilities for rapid workflow iteration"
+    href="/docs/cli/dev-commands"
+    icon="Code"
+  />
+  <ReferenceCard
+    title="Workflow Commands"
+    description="Execute and manage AI workflows, from simple tasks to complex orchestrations with monitoring and debugging"
+    href="/docs/cli/workflow-commands"
+    icon="Workflow"
+  />
+  <ReferenceCard
+    title="Authentication Commands"
+    description="Secure your Compozy instance with API keys, user management, and access control configuration"
+    href="/docs/cli/auth-commands"
+    icon="Key"
+  />
+  <ReferenceCard
+    title="Configuration Commands"
+    description="Validate, inspect, and troubleshoot your Compozy configuration files with diagnostic tools"
+    href="/docs/cli/config-commands"
     icon="Settings"
   />
   <ReferenceCard
-    title="Project Setup"
-    description="Initialize and configure your Compozy project"
-    href="/docs/core/configuration/project-setup"
-    icon="Folder"
+    title="MCP Commands"
+    description="Integrate external tools and services through Model Context Protocol servers for extended AI capabilities"
+    href="/docs/cli/mcp-commands"
+    icon="Network"
+  />
+</ReferenceCardList>
+
+## Interactive vs Automation Modes
+
+The CLI intelligently adapts its output based on your environment, providing optimal experiences for both human operators and automated systems. Learn more about [CLI output modes](/docs/cli/overview#interactive-vs-automation-modes) and [automation patterns](/docs/deployment/automation):
+
+- **Interactive Mode**: Rich terminal UI with colors, progress bars, and interactive prompts when running in a terminal - ideal for [development workflows](/docs/cli/dev-commands)
+- **Automation Mode**: Clean JSON output with proper exit codes when running in scripts or [CI/CD pipelines](/docs/deployment/ci-cd) - perfect for [automated testing](/docs/testing/automation)
+
+```bash
+# Interactive mode (automatic in terminal)
+compozy workflow list
+
+# Force JSON output for scripts
+compozy workflow list --format json
+
+# Quiet mode for automation
+compozy workflow execute my-flow --quiet --format json
+```
+
+<Callout type="tip">
+See our [CLI automation guide](/docs/deployment/cli-automation) for best practices on using the CLI in automated environments, including error handling and output parsing.
+</Callout>
+
+## Configuration and Environment
+
+The CLI respects a [configuration hierarchy](/docs/core/configuration/global#configuration-precedence) with multiple sources:
+
+1. **Command-line flags** override all other settings
+2. **Environment variables** like `COMPOZY_API_KEY` for [API authentication](/docs/security/api-keys)
+3. **Configuration files** using the [application schema](/docs/schema/application)
+4. **Default values** optimized for development
+
+Learn about [environment-specific configuration](/docs/deployment/environments) and [security considerations](/docs/security/configuration) for production deployments.
+
+## Additional Resources
+
+### Getting Started Resources
+<ReferenceCardList>
+  <ReferenceCard
+    title="Installation Guide"
+    description="System requirements, installation methods, and initial setup for all platforms"
+    href="/docs/core/getting-started/installation"
+    icon="Download"
+  />
+  <ReferenceCard
+    title="Quick Start Tutorial"
+    description="Build your first AI workflow in 5 minutes with our hands-on tutorial"
+    href="/docs/core/getting-started/quick-start"
+    icon="Rocket"
+  />
+  <ReferenceCard
+    title="First Workflow Tutorial"
+    description="Comprehensive walkthrough building a complete AI-powered code analyzer"
+    href="/docs/core/getting-started/first-workflow"
+    icon="GraduationCap"
+  />
+</ReferenceCardList>
+
+### Advanced Topics
+<ReferenceCardList>
+  <ReferenceCard
+    title="CLI Architecture"
+    description="Deep dive into CLI internals, command structure, and extension patterns"
+    href="/docs/cli/overview#cli-architecture"
+    icon="Terminal"
+  />
+  <ReferenceCard
+    title="Automation Patterns"
+    description="Best practices for CI/CD integration, scripting, and automated workflows"
+    href="/docs/deployment/cli-automation"
+    icon="Bot"
+  />
+  <ReferenceCard
+    title="Troubleshooting CLI"
+    description="Common issues, debugging techniques, and solutions for CLI problems"
+    href="/docs/troubleshooting/cli"
+    icon="Wrench"
+  />
+</ReferenceCardList>
+
+### Configuration & Security
+<ReferenceCardList>
+  <ReferenceCard
+    title="Global Configuration"
+    description="System-wide settings, configuration precedence, and environment setup"
+    href="/docs/core/configuration/global"
+    icon="Sliders"
+  />
+  <ReferenceCard
+    title="Security Best Practices"
+    description="Authentication, API keys, permissions, and secure configuration patterns"
+    href="/docs/security/best-practices"
+    icon="Shield"
   />
   <ReferenceCard
     title="Environment Variables"
-    description="Complete reference for environment variable configuration"
-    href="/docs/core/reference/environment-variables"
-    icon="Globe"
-  />
-  <ReferenceCard
-    title="Development Workflow"
-    description="Complete development workflow and best practices"
-    href="/docs/core/getting-started/development-workflow"
-    icon="Code"
+    description="Complete reference of all environment variables and their usage"
+    href="/docs/reference/environment-variables"
+    icon="FileKey"
   />
 </ReferenceCardList>

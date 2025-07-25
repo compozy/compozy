@@ -186,7 +186,7 @@ Your server will be running at `http://localhost:5001`.
 @workflowId = main-workflow
 
 ### Execute the workflow with friendly greeting
-POST {{baseUrl}}/workflows/{{workflowId}}/execute
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
 Content-Type: application/json
 
 {
@@ -197,7 +197,7 @@ Content-Type: application/json
 }
 
 ### Execute with formal greeting
-POST {{baseUrl}}/workflows/{{workflowId}}/execute
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
 Content-Type: application/json
 
 {
@@ -217,11 +217,11 @@ GET {{baseUrl}}/executions/{{execId}}
 ```bash
 # Execute the workflow via CLI
 compozy workflow execute main-workflow \
-  --input name="Alice" \
-  --input style="friendly"
+  --param name="Alice" \
+  --param style="friendly"
 
 # Or via HTTP API
-curl -X POST http://localhost:5001/api/v0/workflows/main-workflow/execute \
+curl -X POST http://localhost:5001/api/v0/workflows/main-workflow/executions \
   -H "Content-Type: application/json" \
   -d '{"input": {"name": "Alice", "style": "friendly"}}'
 ```
@@ -263,7 +263,7 @@ Here's what happens when you execute this simple workflow:
     participant LLM as GPT-4.1
     participant DB as PostgreSQL
 
-    Client->>API: POST /workflows/main-workflow/execute
+    Client->>API: POST /workflows/main-workflow/executions
     API->>Worker: TriggerWorkflow(input: {name: "Alice", style: "friendly"})
     Worker->>Worker: Validate input & Generate exec ID
     Worker->>Temporal: StartWorkflow(CompozyWorkflow)
@@ -291,7 +291,7 @@ Here's what happens when you execute this simple workflow:
 
 <List className="mt-12">
   <ListItem title="HTTP API Layer">
-    The WorkflowController receives your request at `/api/v0/workflows/main-workflow/execute`
+    The WorkflowController receives your request at `/api/v0/workflows/main-workflow/executions`
   </ListItem>
   <ListItem title="Input Validation">
     The system validates that the required `name` field is provided and the optional `style` field is valid
@@ -314,34 +314,34 @@ Here's what happens when you execute this simple workflow:
 
 <FeatureCardList cols={2} size="default">
   <FeatureCard
-    title="Simple & Fast"
-    description="Get started in minutes with minimal configuration"
-    icon="Rocket"
+    title="Infrastructure as Code for AI"
+    description="Replace months of custom development with declarative YAML workflows that handle orchestration, state, and scaling automatically"
+    icon="FileCode"
   />
   <FeatureCard
-    title="AI-Powered"
-    description="Agents intelligently use tools to accomplish tasks"
-    icon="BrainCircuit"
+    title="Multi-Model Orchestration"
+    description="Seamlessly coordinate OpenAI, Anthropic, Google, Groq, and Ollama models in unified workflows with automatic failover"
+    icon="GitBranch"
   />
   <FeatureCard
-    title="Fault Tolerant"
-    description="Workflows automatically recover from failures"
-    icon="ShieldCheck"
+    title="8 Powerful Task Types"
+    description="Build complex workflows with Basic, Parallel, Collection, Router, Composite, Wait, Signal, and Aggregate task patterns"
+    icon="Layers"
   />
   <FeatureCard
-    title="Type Safe"
-    description="Full TypeScript support with schema validation"
-    icon="Code"
+    title="Token-Aware Memory"
+    description="Intelligent conversation memory with automatic summarization, PII filtering, and token optimization for cost control"
+    icon="Brain"
   />
   <FeatureCard
-    title="Extensible"
-    description="Easy to add new tools, agents, and capabilities"
-    icon="Package"
+    title="Secure Tool Execution"
+    description="Run TypeScript tools in sandboxed Bun runtime, integrate HTTP APIs, or connect external MCP servers safely"
+    icon="Shield"
   />
   <FeatureCard
-    title="Observable"
-    description="Complete execution history and monitoring"
-    icon="Eye"
+    title="Built for Production"
+    description="Temporal-powered durability, automatic retries, comprehensive monitoring, and enterprise-grade reliability out of the box"
+    icon="Building2"
   />
 </FeatureCardList>
 
@@ -398,13 +398,13 @@ Congratulations! You've built your first Compozy workflow. This simple example d
   <ReferenceCard
     title="Tool Development"
     description="Build custom TypeScript tools for specialized operations"
-    href="/docs/core/tools/tools-overview"
+    href="/docs/core/tools/overview"
     icon="Code"
   />
   <ReferenceCard
     title="Memory Systems"
     description="Add persistent, stateful memory to your AI workflows"
-    href="/docs/core/memory/memory-concepts"
+    href="/docs/core/memory/overview"
     icon="Database"
   />
 </ReferenceCardList>
@@ -415,13 +415,13 @@ Congratulations! You've built your first Compozy workflow. This simple example d
   <ReferenceCard
     title="MCP Integration"
     description="Connect external tools and services using Model Context Protocol"
-    href="/docs/core/mcp/mcp-overview"
+    href="/docs/core/mcp/overview"
     icon="Link2"
   />
   <ReferenceCard
     title="Signals & Coordination"
     description="Coordinate complex multi-workflow systems with signals"
-    href="/docs/core/signals/signal-overview"
+    href="/docs/core/signals/overview"
     icon="Radio"
   />
   <ReferenceCard

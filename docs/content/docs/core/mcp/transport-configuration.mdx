@@ -1,25 +1,19 @@
 ---
 title: "Transport Configuration"
-description: "Configuring different transport mechanisms for MCP communication"
+description: MCP supports three transport mechanisms for communication between clients and servers. Each transport has different characteristics and use cases optimized for specific scenarios.
 ---
-
-MCP supports three transport mechanisms for communication between clients and servers. Each transport has different characteristics and use cases optimized for specific scenarios.
-
-<Callout type="info">
-**Transport Selection**: Choose the right transport based on your deployment architecture, performance requirements, and security considerations.
-</Callout>
 
 ## Supported Transport Types
 
 Compozy supports the following transport types:
 
-1. **stdio** - Standard I/O for local processes
-2. **sse** - Server-Sent Events for HTTP streaming
-3. **streamable-http** - HTTP with streaming capabilities
+1. **Stdio** - Standard I/O for local processes
+2. **SSE** - Server-Sent Events for HTTP streaming
+3. **Streamable HTTP** - HTTP with streaming capabilities
 
 ## Transport Configuration
 
-### stdio Transport
+### Stdio Transport
 
 Standard I/O transport for local processes and command execution:
 
@@ -35,10 +29,11 @@ mcps:
       DEBUG: "mcp:*"
 ```
 
-**Configuration Options:**
-- `command`: Executable command (required)
-- `args`: Command arguments (optional)
-- `env`: Environment variables (optional)
+| Option    | Description                      | Required | Default |
+|-----------|----------------------------------|----------|---------|
+| `command` | Executable command               | Yes      | —       |
+| `args`    | Command arguments                | No       | —       |
+| `env`     | Environment variables            | No       | —       |
 
 **Use Cases:**
 - Local MCP server processes
@@ -46,7 +41,7 @@ mcps:
 - Command-line MCP tools
 - Development and testing
 
-### sse Transport
+### SSE Transport
 
 Server-Sent Events for real-time HTTP streaming:
 
@@ -62,10 +57,11 @@ mcps:
     timeout: 30s
 ```
 
-**Configuration Options:**
-- `url`: SSE endpoint URL (required)
-- `headers`: HTTP headers (optional)
-- `timeout`: Request timeout (optional, defaults to 30s)
+| Option    | Description                              | Required | Default   |
+|-----------|------------------------------------------|----------|-----------|
+| `url`     | SSE endpoint URL                         | Yes      | —         |
+| `headers` | HTTP headers                             | No       | —         |
+| `timeout` | Request timeout                          | No       | 30s       |
 
 **Use Cases:**
 - Remote MCP servers
@@ -73,7 +69,7 @@ mcps:
 - Web-based MCP services
 - Cloud deployments
 
-### streamable-http Transport
+### Streamable HTTP Transport
 
 HTTP with streaming for large responses and file transfers:
 
@@ -88,41 +84,17 @@ mcps:
     timeout: 60s
 ```
 
-**Configuration Options:**
-- `url`: HTTP endpoint URL (required)
-- `headers`: HTTP headers (optional)
-- `timeout`: Request timeout (optional, defaults to 30s)
+| Option    | Description                      | Required | Default |
+|-----------|----------------------------------|----------|---------|
+| `url`     | HTTP endpoint URL                | Yes      | —       |
+| `headers` | HTTP headers                     | No       | —       |
+| `timeout` | Request timeout                  | No       | 30s     |
 
 **Use Cases:**
 - Large file transfers
 - Streaming responses
 - High-throughput scenarios
 - API-based MCP servers
-
-## Transport Validation
-
-Transport configuration is validated in the `MCPDefinition.Validate()` method:
-
-```go
-func (m *MCPDefinition) Validate() error {
-    if !m.Transport.IsValid() {
-        return fmt.Errorf("invalid transport type: %s", m.Transport)
-    }
-
-    switch m.Transport {
-    case TransportStdio:
-        if m.Command == "" {
-            return errors.New("command is required for stdio transport")
-        }
-    case TransportSSE, TransportStreamableHTTP:
-        if m.URL == "" {
-            return errors.New("url is required for HTTP-based transports")
-        }
-    }
-    
-    return nil
-}
-```
 
 ## Transport Selection Guidelines
 
@@ -144,219 +116,13 @@ func (m *MCPDefinition) Validate() error {
 - HTTP-based communication is preferred
 - API integration is required
 
-## Security Considerations
-
-<Callout type="warning">
-**Implementation Status**: Advanced security features like `authTokens`, `requireAuth`, and `allowedIPs` are defined in the configuration schema but are **experimental and should not be used in production**. These fields may be ignored at runtime. Use standard HTTP authentication mechanisms instead (e.g., Bearer tokens in headers).
-</Callout>
-
-### Basic Security Setup
-
-For production deployments, use standard HTTP security practices:
-
-```yaml
-mcps:
-  - name: secure_server
-    transport: sse
-    url: "https://secure.example.com/mcp"
-    headers:
-      Authorization: "Bearer your-token-here"
-    timeout: 30s
-```
-
-### Network Security
-
-Control access through network-level security:
-
-```yaml
-# Use proper network security instead of application-level IP filtering
-mcps:
-  - name: internal_server
-    transport: sse
-    url: "https://internal.example.com/mcp"
-    headers:
-      Authorization: "Bearer internal-token"
-```
-
-## Advanced Configuration
-
-### Connection Management
-
-Configure reconnection behavior:
-
-```yaml
-mcps:
-  - name: resilient_server
-    transport: sse
-    url: "https://api.example.com/mcp"
-    autoReconnect: true
-    maxReconnects: 5
-    reconnectDelay: 5s
-```
-
-### Health Monitoring
-
-Enable health checking:
-
-```yaml
-mcps:
-  - name: monitored_server
-    transport: sse
-    url: "https://api.example.com/mcp"
-    healthCheckEnabled: true
-    healthCheckInterval: 30s
-```
-
-### Tool Filtering
-
-Filter available tools:
-
-```yaml
-mcps:
-  - name: filtered_server
-    transport: stdio
-    command: my-mcp-server
-    toolFilter:
-      mode: allow
-      list: ["read_file", "write_file"]
-```
-
-## Configuration Examples
-
-### Development Setup
-
-```yaml
-# Local development with stdio
-mcps:
-  - name: dev_filesystem
-    transport: stdio
-    command: npx
-    args: ["-y", "@modelcontextprotocol/server-filesystem", "./workspace"]
-    env:
-      NODE_ENV: development
-      DEBUG: "mcp:*"
-    logEnabled: true
-```
-
-### Production Setup
-
-```yaml
-# Production with SSE and standard HTTP security
-mcps:
-  - name: prod_api
-    transport: sse
-    url: "https://api.production.com/mcp"
-    headers:
-      Authorization: "Bearer ${MCP_API_TOKEN}"
-      User-Agent: "Compozy/1.0"
-    timeout: 30s
-    autoReconnect: true
-    maxReconnects: 3
-    reconnectDelay: 10s
-    healthCheckEnabled: true
-    healthCheckInterval: 60s
-```
-
-### File Transfer Setup
-
-```yaml
-# File server with streaming
-mcps:
-  - name: file_server
-    transport: streamable-http
-    url: "https://files.example.com/mcp-stream"
-    headers:
-      Content-Type: "application/json"
-    timeout: 120s
-    toolFilter:
-      mode: allow
-      list: ["upload_file", "download_file"]
-```
-
-## Implementation Details
-
-### Transport Type Definition
-
-```go
-type TransportType string
-
-const (
-    TransportStdio          TransportType = "stdio"
-    TransportSSE            TransportType = "sse"
-    TransportStreamableHTTP TransportType = "streamable-http"
-)
-
-func (t TransportType) IsValid() bool {
-    switch t {
-    case TransportStdio, TransportSSE, TransportStreamableHTTP:
-        return true
-    default:
-        return false
-    }
-}
-```
-
-### Default Values
-
-The system automatically applies default values for optional fields:
-
-```go
-func (m *MCPDefinition) SetDefaults() {
-    // Set default timeout for HTTP-based transports
-    if m.Timeout == 0 && (m.Transport == TransportSSE || m.Transport == TransportStreamableHTTP) {
-        m.Timeout = 30 * time.Second
-    }
-    
-    // Set default reconnection values
-    if m.MaxReconnects == 0 && m.AutoReconnect {
-        m.MaxReconnects = 5
-    }
-    
-    if m.ReconnectDelay == 0 && m.AutoReconnect {
-        m.ReconnectDelay = 5 * time.Second
-    }
-}
-```
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Invalid Transport Type**: Ensure you're using one of the supported transport types
-2. **Missing Required Fields**: Check that required fields (command for stdio, URL for HTTP) are provided
-3. **Connection Failures**: Verify network connectivity and authentication for HTTP-based transports
-4. **Timeout Issues**: Adjust timeout values for slow-responding services
-
-### Debug Configuration
-
-Enable logging for transport debugging:
-
-```yaml
-mcps:
-  - name: debug_server
-    transport: stdio
-    command: my-mcp-server
-    logEnabled: true
-    env:
-      DEBUG: "mcp:*"
-```
-
-## CLI Commands
-
-For complete MCP proxy command documentation, including all flags, environment variables, examples, and deployment guides, see the [MCP Commands documentation](/docs/cli/mcp-commands).
-
-<Callout type="info">
-  <Icon name="terminal" className="w-4 h-4" />
-  **Quick Start**: Run `compozy mcp-proxy --help` to see all available options, or use `compozy mcp-proxy` to start with default settings.
-</Callout>
-
 ## Related Documentation
 
 <ReferenceCardList>
   <ReferenceCard
     title="MCP Overview"
     description="Understanding the MCP protocol"
-    href="/docs/core/mcp/mcp-overview"
+    href="/docs/core/mcp/overview"
     icon="BookOpen"
   />
   <ReferenceCard

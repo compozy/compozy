@@ -1,637 +1,309 @@
 ---
 title: "Memory Operations"
-description: "Basic memory operations for storing, retrieving, and managing conversation data"
+description: "Overview of memory operations available through API endpoints and workflow tasks for persistent data management"
 ---
 
 ## Overview
 
-Compozy provides several memory operations via REST API:
-
-- **Read** - Retrieve messages with pagination (`GET /memory/{memory_ref}/read`)
-- **Write** - Replace all memory content (`POST /memory/{memory_ref}/write`)
-- **Append** - Add messages to memory (`POST /memory/{memory_ref}/append`)
-- **Clear** - Remove all messages with confirmation (`POST /memory/{memory_ref}/clear`)
-- **Delete** - Delete entire memory instance (`POST /memory/{memory_ref}/delete`)
-- **Flush** - Optimize memory using different strategies (`POST /memory/{memory_ref}/flush`)
-- **Health** - Check memory status and statistics (`GET /memory/{memory_ref}/health`)
-- **Stats** - Get detailed memory statistics (`GET /memory/{memory_ref}/stats`)
-
-**Important**: Memory operations are REST API only. There are no CLI commands for memory management.
-
-## CLI Commands
-
-Currently, Compozy CLI provides the following commands:
-- `compozy auth` - User and API key management
-- `compozy config` - Configuration management
-- `compozy dev` - Development server
-- `compozy init` - Project initialization
-- `compozy mcp-proxy` - MCP proxy server
-- `compozy start` - Production server
-- `compozy workflow` - Workflow operations
-
-**No memory-specific CLI commands are available.** All memory operations must be performed through:
-1. **REST API** - Direct HTTP calls to memory endpoints
-2. **TypeScript Tools** - Custom tools that call the memory API
-3. **Agent Memory Configuration** - Automatic memory integration in agents
-
-## Basic Operations
-
-### Append Messages
-
-The append operation adds new messages to memory. Messages are stored as JSON data in Redis.
-
-```bash
-# Append messages to memory via REST API
-curl -X POST "http://localhost:5001/api/v0/memory/user_memory/append" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer your-api-key" \
-  -d '{
-    "key": "user:123:conversation",
-    "messages": [
-      {
-        "role": "user",
-        "content": "Hello, how are you?",
-        "timestamp": "2024-01-15T10:30:00Z"
-      }
-    ]
-  }'
-```
-
-```typescript
-// TypeScript tool example for memory operations
-export default async function memoryTool(input: {
-  operation: 'append' | 'read' | 'clear' | 'health';
-  memory_ref: string;
-  key: string;
-  messages?: any[];
-}) {
-  const baseUrl = 'http://localhost:5001/api/v0';
-  const url = `${baseUrl}/memory/${input.memory_ref}/${input.operation}`;
-  
-  const response = await fetch(url, {
-    method: input.operation === 'read' || input.operation === 'health' ? 'GET' : 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${process.env.COMPOZY_API_KEY}`
-    },
-    body: input.operation !== 'read' && input.operation !== 'health' 
-      ? JSON.stringify({ key: input.key, messages: input.messages })
-      : undefined
-  });
-  
-  return await response.json();
-}
-```
-
-**What this does:**
-- Stores messages in Redis under the resolved memory key
-- Applies privacy redaction if configured
-- Updates token count metadata atomically
-- Triggers auto-flush if memory limits are approached
-- Returns success confirmation with message count and token usage
-
-### Read Messages
-
-The read operation retrieves messages from memory with pagination support.
-
-```bash
-# Read messages with pagination
-curl "http://localhost:5001/api/v0/memory/user_memory/read?key=user:123:conversation&limit=10&offset=0" \
-  -H "Authorization: Bearer your-api-key"
-
-# Response:
-# {
-#   "data": {
-#     "key": "user:123:conversation",
-#     "messages": [...],
-#     "total_count": 25,
-#     "has_more": true,
-#     "limit": 10,
-#     "offset": 0
-#   }
-# }
-```
-
-**What this does:**
-- Retrieves messages from Redis in paginated chunks
-- Prevents memory exhaustion with large conversations
-- Returns messages with metadata about pagination
-- Includes total count and "has more" indicator
-
-### Clear Memory
-
-The clear operation removes all messages from a memory key.
-
-```bash
-# Clear memory with confirmation
-curl -X POST "http://localhost:5001/api/v0/memory/user_memory/clear" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer your-api-key" \
-  -d '{
-    "key": "user:123:conversation",
-    "confirm": true,
-    "backup": true
-  }'
-```
-
-**What this does:**
-- Requires explicit confirmation to prevent accidental data loss
-- Optionally creates a backup before clearing
-- Removes all messages from the specified key
-- Returns confirmation with count of cleared messages
-
-### Delete Memory
-
-The delete operation removes the entire memory instance.
-
-```bash
-# Delete entire memory instance
-curl -X POST "http://localhost:5001/api/v0/memory/user_memory/delete" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer your-api-key" \
-  -d '{
-    "key": "user:123:conversation"
-  }'
-```
-
-**What this does:**
-- Removes the entire Redis key and all associated data
-- Cannot be undone (use clear with backup for reversible operations)
-- More aggressive than clear operation
-
-### Flush Memory
-
-The flush operation optimizes memory by applying different strategies when approaching token limits.
-
-```bash
-# Flush memory with strategy
-curl -X POST "http://localhost:5001/api/v0/memory/user_memory/flush" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer your-api-key" \
-  -d '{
-    "key": "user:123:conversation",
-    "force": false,
-    "dry_run": false,
-    "strategy": "hybrid_summary"
-  }'
-```
-
-**Available flushing strategies:**
-- `hybrid_summary` - Summarize oldest messages using AI
-- `simple_fifo` - Remove oldest messages (FIFO)
-- `lru` - Remove least recently used messages
-- `token_aware_lru` - LRU with token cost awareness
-- `token_count` - Remove based on token thresholds
-- `message_count` - Remove based on message count thresholds
-
-**What this does:**
-- Optimizes memory usage when approaching capacity
-- Applies different retention strategies based on configuration
-- Can generate summaries of removed content
-- Prevents memory overflow
-
-### Health Check
-
-The health operation provides status information about memory usage.
-
-```bash
-# Check memory health
-curl "http://localhost:5001/api/v0/memory/user_memory/health?key=user:123:conversation&include_stats=true" \
-  -H "Authorization: Bearer your-api-key"
-
-# Response includes:
-# {
-#   "data": {
-#     "token_count": 1250,
-#     "message_count": 15,
-#     "last_flush": "2024-01-15T10:30:00Z",
-#     "actual_strategy": "hybrid_summary",
-#     "memory_key": "user:123:conversation"
-#   }
-# }
-```
-
-**What this does:**
-- Returns current message count and token usage
-- Indicates if memory is approaching capacity
-- Shows last flush time and strategy used
-- Provides recommendations for optimization
-
-### Statistics
-
-The stats operation provides detailed memory usage statistics.
-
-```bash
-# Get detailed memory statistics
-curl "http://localhost:5001/api/v0/memory/user_memory/stats?key=user:123:conversation&limit=100" \
-  -H "Authorization: Bearer your-api-key"
-
-# Response includes:
-# {
-#   "data": {
-#     "basic_stats": { "token_count": 1250, "message_count": 15 },
-#     "role_distribution": { "user": 8, "assistant": 7 },
-#     "token_distribution": { "user": 650, "assistant": 600 },
-#     "memory_key": "user:123:conversation"
-#   }
-# }
-```
-
-**What this does:**
-- Returns detailed usage metrics
-- Shows token counts and distribution
-- Provides historical usage patterns
-- Includes performance metrics
-
-## Workflow Integration
-
-### Memory Tool Implementation
-
-Create a TypeScript tool that interfaces with the memory REST API:
-
-```typescript
-// memory_tool.ts
-interface MemoryToolInput {
-  operation: 'append' | 'read' | 'clear' | 'health' | 'stats';
-  memory_ref: string;
-  key: string;
-  messages?: Array<{
-    role: 'user' | 'assistant' | 'system';
-    content: string;
-    timestamp?: string;
-  }>;
-  limit?: number;
-  offset?: number;
-  confirm?: boolean;
-  include_stats?: boolean;
-}
-
-export default async function memoryTool(input: MemoryToolInput) {
-  const baseUrl = process.env.COMPOZY_API_URL || 'http://localhost:5001/api/v0';
-  const apiKey = process.env.COMPOZY_API_KEY;
-  
-  if (!apiKey) {
-    throw new Error('COMPOZY_API_KEY environment variable is required');
-  }
-
-  const { operation, memory_ref, key } = input;
-
-  switch (operation) {
-    case 'append': {
-      if (!input.messages) {
-        throw new Error('Messages required for append operation');
-      }
-      const response = await fetch(`${baseUrl}/memory/${memory_ref}/append`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
-          key,
-          messages: input.messages
-        })
-      });
-      return await response.json();
-    }
-
-    case 'read': {
-      const params = new URLSearchParams({
-        key,
-        limit: (input.limit || 50).toString(),
-        offset: (input.offset || 0).toString()
-      });
-      const response = await fetch(`${baseUrl}/memory/${memory_ref}/read?${params}`, {
-        headers: {
-          'Authorization': `Bearer ${apiKey}`
-        }
-      });
-      return await response.json();
-    }
-
-    case 'clear': {
-      if (!input.confirm) {
-        throw new Error('Confirmation required for clear operation');
-      }
-      const response = await fetch(`${baseUrl}/memory/${memory_ref}/clear`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
-          key,
-          confirm: input.confirm
-        })
-      });
-      return await response.json();
-    }
-
-    case 'health': {
-      const params = new URLSearchParams({ key });
-      if (input.include_stats) {
-        params.append('include_stats', 'true');
-      }
-      const response = await fetch(`${baseUrl}/memory/${memory_ref}/health?${params}`, {
-        headers: {
-          'Authorization': `Bearer ${apiKey}`
-        }
-      });
-      return await response.json();
-    }
-
-    case 'stats': {
-      const params = new URLSearchParams({
-        key,
-        limit: (input.limit || 100).toString(),
-        offset: (input.offset || 0).toString()
-      });
-      const response = await fetch(`${baseUrl}/memory/${memory_ref}/stats?${params}`, {
-        headers: {
-          'Authorization': `Bearer ${apiKey}`
-        }
-      });
-      return await response.json();
-    }
-
-    default:
-      throw new Error(`Unknown operation: ${operation}`);
-  }
-}
-```
-
-### Workflow Example
-
-```yaml
-# workflow.yaml - Chat workflow with memory
-tasks:
-  # Store user message
-  - id: store_user_message
-    type: basic
-    $use: tool(local::tools.#(id="memory_tool"))
-    with:
-      operation: "append"
-      memory_ref: "user_conversation"
-      key: "user:{{.workflow.input.user_id}}:chat"
-      messages:
-        - role: "user"
-          content: "{{.workflow.input.message}}"
-          timestamp: "{{.workflow.exec_time}}"
-
-  # Read conversation history
-  - id: load_conversation
-    type: basic
-    $use: tool(local::tools.#(id="memory_tool"))
-    with:
-      operation: "read"
-      memory_ref: "user_conversation"
-      key: "user:{{.workflow.input.user_id}}:chat"
-      limit: 10
-      offset: 0
-
-  # Process with AI agent (memory automatically loaded)
-  - id: process_message
-    type: basic
-    $use: agent(local::agents.#(id="chat_agent"))
-    memory:
-      - resource: memory
-        id: user_conversation
-        key: "user:{{.workflow.input.user_id}}:chat"
-    with:
-      message: "{{.workflow.input.message}}"
-
-  # Check memory health after conversation
-  - id: check_memory_usage
-    type: basic
-    $use: tool(local::tools.#(id="memory_tool"))
-    with:
-      operation: "health"
-      memory_ref: "user_conversation"
-      key: "user:{{.workflow.input.user_id}}:chat"
-      include_stats: true
-```
-
-## Memory Configuration
-
-Memory operations use sophisticated configuration supporting multiple strategies and advanced features:
-
-```yaml
-# memory.yaml
-resources:
-  - resource: memory
-    id: user_conversation
-    description: "User conversation memory with privacy controls"
-    type: token_based
-    max_tokens: 8000
-    max_context_ratio: 0.8  # Alternative to max_tokens
-    model: "gpt-4"
-    model_context_size: 128000
-
-    # Eviction policy configuration
-    eviction_policy:
-      type: lru  # fifo, lru, priority
-      priority_keywords: ["important", "critical", "error"]
-
-    # Flushing strategy configuration
-    flushing_strategy:
-      type: hybrid_summary  # hybrid_summary, simple_fifo, lru, token_aware_lru
-      summarize_threshold: 0.8
-      summary_tokens: 500
-      summarize_oldest_percent: 0.3
-
-    # Token allocation for different content types
-    token_allocation:
-      short_term: 0.6
-      long_term: 0.3
-      system: 0.1
-
-    # Persistence configuration
-    persistence:
-      type: redis
-      ttl: 24h
-      circuit_breaker:
-        enabled: true
-        timeout: 100ms
-        max_failures: 5
-        reset_timeout: 30s
-
-    # Privacy policy configuration
-    privacy_policy:
-      redact_patterns:
-        - '\b\d{3}-\d{2}-\d{4}\b'  # SSN
-        - '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'  # Email
-      non_persistable_message_types:
-        - "system_internal"
-        - "debug"
-      default_redaction_string: "[REDACTED]"
-
-    # TTL configuration
-    append_ttl: 30m  # Extend TTL on append
-    clear_ttl: 5m    # TTL after clear
-    flush_ttl: 1h    # TTL after flush
-
-    # Token provider configuration
-    token_provider:
-      provider: openai
-      model: gpt-4
-      api_key_env: OPENAI_API_KEY
-      fallback: tiktoken
-```
-
-**Key Configuration Features:**
-- **Memory Types**: `token_based`, `message_count_based`, `buffer`
-- **Eviction Policies**: `fifo`, `lru`, `priority` with configurable keywords
-- **Flushing Strategies**: `hybrid_summary`, `simple_fifo`, `lru`, `token_aware_lru`
-- **Privacy Controls**: Regex redaction patterns and non-persistable message types
-- **Token Management**: Multi-provider support with API-based counting
-- **Circuit Breaker**: Resilience protection for Redis operations
-
-## Error Handling
-
-Memory API operations return structured error responses:
-
-```bash
-# Example error response
-{
-  "success": false,
-  "error": {
-    "code": "MEMORY_NOT_FOUND",
-    "message": "Memory instance not found for key: user:123:conversation",
-    "details": {
-      "memory_ref": "user_conversation",
-      "key": "user:123:conversation",
-      "resolved_key": "project:default:memory:user_conversation:user:123:conversation"
-    }
-  }
-}
-```
-
-```typescript
-// Error handling in TypeScript tools
-export default async function memoryTool(input: any) {
-  try {
-    const response = await fetch(`${baseUrl}/memory/${input.memory_ref}/${input.operation}`, {
-      // ... request configuration
-    });
+Memory operations in Compozy provide **persistent context management** for AI agents and workflows. These operations enable your applications to maintain conversation history, share context between agents, and optimize memory usage through intelligent strategies.
+
+Memory operations are available through **two primary interfaces**:
+
+<FeatureCardList cols={2}>
+  <FeatureCard
+    title="REST API Operations"
+    description="Direct HTTP endpoints for external integrations, custom tools, and programmatic access"
+    icon="Globe"
+    href="/docs/api/memory"
+  />
+  <FeatureCard
+    title="Workflow Memory Tasks"
+    description="YAML-configured tasks for workflow-native memory operations with template support"
+    icon="FileCode"
+    href="/docs/core/tasks/memory-tasks"
+  />
+</FeatureCardList>
+
+## Operation Categories
+
+Compozy provides 8 core memory operations organized into logical groups:
+
+<Tabs items={["Data Operations", "Management Operations", "Monitoring Operations"]}>
+  <Tab value="data-operations" title="Data Operations">
+    ### Core CRUD Operations
+
+    <List>
+      <ListItem title="Read" icon="Eye">
+        Retrieve messages with pagination and filtering for efficient data access
+      </ListItem>
+      <ListItem title="Write" icon="Edit">
+        Replace entire memory content with atomic operations for data consistency
+      </ListItem>
+      <ListItem title="Append" icon="Plus">
+        Add new messages to existing memory with automatic optimization triggers
+      </ListItem>
+    </List>
+
+    **API Example:**
+    ```bash
+    # Read with pagination
+    curl "http://localhost:5001/api/v0/memory/user_memory/read?key=user:123&limit=10"
+    ```
+
+    **Task Example:**
+    ```yaml
+    type: memory
+    operation: read
+    memory_ref: user_sessions
+    key_template: "user:{{ .workflow.input.user_id }}:conversation"
+    ```
+  </Tab>
+
+  <Tab value="management-operations" title="Management Operations">
+    ### Memory Lifecycle Management
+
+    <List>
+      <ListItem title="Clear" icon="X">
+        Safely remove content with confirmation and optional backup capabilities
+      </ListItem>
+      <ListItem title="Delete" icon="Trash2">
+        Permanently remove memory instances when no longer needed
+      </ListItem>
+      <ListItem title="Flush" icon="Zap">
+        Optimize memory using intelligent strategies (LRU, FIFO, token-aware, hybrid summary)
+      </ListItem>
+    </List>
+
+    **API Example:**
+    ```bash
+    # Flush with strategy
+    curl -X POST "http://localhost:5001/api/v0/memory/user_memory/flush" \
+      -d '{"key": "user:123", "strategy": "hybrid_summary"}'
+    ```
+
+    **Task Example:**
+    ```yaml
+    type: memory
+    operation: flush
+    memory_ref: conversation_memory
+    flush_config:
+      strategy: "lru"
+      threshold: 0.8
+    ```
+  </Tab>
+
+  <Tab value="monitoring-operations" title="Monitoring Operations">
+    ### Health & Analytics
+
+    <List>
+      <ListItem title="Health" icon="Activity">
+        Monitor memory status, usage patterns, and optimization recommendations
+      </ListItem>
+      <ListItem title="Stats" icon="BarChart3">
+        Access comprehensive analytics including token usage, message distribution, and trends
+      </ListItem>
+    </List>
+
+    **API Example:**
+    ```bash
+    # Get health metrics
+    curl "http://localhost:5001/api/v0/memory/user_memory/health?include_stats=true"
+    ```
+
+    **Task Example:**
+    ```yaml
+    type: memory
+    operation: health
+    memory_ref: user_sessions
+    outputs:
+      usage_percent: "{{ .output.usage_percent }}"
+      recommendations: "{{ .output.recommendations }}"
+    ```
+  </Tab>
+</Tabs>
+
+## Implementation Approaches
+
+Choose the approach that best fits your integration needs:
+
+<Tabs items={["REST API", "Memory Tasks", "Integration Comparison"]}>
+  <Tab value="rest-api" title="REST API">
+    **Best for:** External integrations, custom applications, real-time operations
+
+    **Key Features:**
+    - Direct HTTP access to all memory operations
+    - Complete OpenAPI/Swagger documentation
+    - Authentication and authorization support
+    - Real-time response for immediate operations
+
+    **Use Cases:**
+    - TypeScript tools and custom integrations
+    - External application memory management
+    - Real-time conversation systems
+    - Direct programmatic access
+
+    **Learn More:** [Complete API Reference →](/docs/api/memory)
+  </Tab>
+
+  <Tab value="memory-tasks" title="Memory Tasks">
+    **Best for:** Workflow-native operations, template-driven keys, complex orchestration
+
+    **Key Features:**
+    - YAML configuration with template expressions
+    - Workflow context integration
+    - Dynamic key generation with templates
+    - Seamless task chaining and orchestration
+
+    **Use Cases:**
+    - Persistent workflow state management
+    - AI agent conversation history
+    - Multi-step memory operations
+    - Context sharing between workflow tasks
+
+    **Learn More:** [Memory Tasks Guide →](/docs/core/tasks/memory-tasks)
+  </Tab>
+
+  <Tab value="integration-comparison" title="Integration Comparison">
+    | Feature | REST API | Memory Tasks |
+    |---------|----------|--------------|
+    | **Access Method** | HTTP endpoints | YAML workflow tasks |
+    | **Key Generation** | Static strings | Template expressions |
+    | **Context Integration** | Manual | Automatic workflow context |
+    | **Authentication** | API keys/tokens | Workflow-level security |
+    | **Error Handling** | HTTP status codes | Task flow control |
+    | **Orchestration** | External coordination | Native workflow chaining |
+    | **Best For** | External tools, real-time | Workflows, AI agents |
+
+    **Decision Guide:**
+    - **Choose REST API** for external integrations, custom tools, or real-time operations
+    - **Choose Memory Tasks** for workflow-native operations, AI agents, or complex orchestration
+    - **Use Both** for hybrid approaches with external triggers and workflow processing
+  </Tab>
+</Tabs>
+
+## Quick Start Examples
+
+Get started with common memory operation patterns:
+
+<Tabs items={["Conversation Storage", "Session Management", "Context Sharing"]}>
+  <Tab value="conversation-storage" title="Conversation Storage">
+    **Store and retrieve conversation history:**
+
+    ```yaml
+    # Store user message
+    - id: store-user-message
+      type: memory
+      operation: append
+      memory_ref: conversations
+      key_template: "conv:{{ .workflow.input.session_id }}"
+      payload:
+        role: "user"
+        content: "{{ .workflow.input.message }}"
+        timestamp: "{{ now }}"
     
-    const result = await response.json();
-    
-    if (!response.ok) {
-      throw new Error(`Memory API error: ${result.error.message}`);
-    }
-    
-    return result.data;
-  } catch (error) {
-    console.error('Memory operation failed:', error.message);
-    throw error;
-  }
-}
-```
+    # Retrieve conversation history
+    - id: get-conversation-history
+      type: memory
+      operation: read
+      memory_ref: conversations
+      key_template: "conv:{{ .workflow.input.session_id }}"
+      read_config:
+        limit: 50
+        include_metadata: true
+    ```
+  </Tab>
 
-**Common error codes:**
-- `MEMORY_NOT_FOUND` - Memory instance doesn't exist
-- `INVALID_MEMORY_REF` - Invalid memory reference format
-- `REDIS_CONNECTION_ERROR` - Cannot connect to Redis
-- `TOKEN_LIMIT_EXCEEDED` - Memory approaching token limits
-- `PRIVACY_VIOLATION` - Message contains sensitive data that cannot be stored
-- `FLUSH_IN_PROGRESS` - Memory flush operation in progress
-- `INVALID_MESSAGE_FORMAT` - Message structure validation failed
+  <Tab value="session-management" title="Session Management">
+    **Manage user sessions with automatic cleanup:**
 
-## Best Practices
+    ```yaml
+    # Create session
+    - id: create-session
+      type: memory
+      operation: write
+      memory_ref: user_sessions
+      key_template: "session:{{ .workflow.input.user_id }}:{{ now | date '2006-01-02' }}"
+      payload:
+        user_id: "{{ .workflow.input.user_id }}"
+        created_at: "{{ now }}"
+        preferences: "{{ .workflow.input.preferences }}"
 
-### Memory Key Design
+    # Cleanup old sessions
+    - id: cleanup-sessions
+      type: memory
+      operation: flush
+      memory_ref: user_sessions
+      key_template: "session:{{ .workflow.input.user_id }}:*"
+      flush_config:
+        strategy: "token_count"
+        threshold: 0.8
+    ```
+  </Tab>
 
-Use hierarchical keys for better organization:
+  <Tab value="context-sharing" title="Context Sharing">
+    **Share context between workflow tasks:**
 
-```typescript
-// Good: Hierarchical structure
-const keys = [
-  'user:123:conversation:main',
-  'user:123:conversation:support',
-  'user:123:preferences'
-];
+    ```yaml
+    # Store processing results
+    - id: store-analysis-results
+      type: memory
+      operation: write
+      memory_ref: workflow_context
+      key_template: "analysis:{{ .workflow.id }}:results"
+      payload:
+        analysis_type: "{{ .tasks.analyze_data.output.type }}"
+        confidence: "{{ .tasks.analyze_data.output.confidence }}"
+        recommendations: "{{ .tasks.analyze_data.output.recommendations }}"
 
-// Avoid: Flat structure
-const keys = [
-  'user123conv',
-  'user123support',
-  'user123prefs'
-];
-```
+    # Retrieve for next stage
+    - id: get-analysis-context
+      type: memory
+      operation: read
+      memory_ref: workflow_context
+      key_template: "analysis:{{ .workflow.id }}:results"
+      outputs:
+        previous_analysis: "{{ .output.payload }}"
+    ```
+  </Tab>
+</Tabs>
 
-### Pagination
-
-Always use pagination for large conversations:
-
-```typescript
-// Read in chunks to avoid memory issues
-const limit = 50;
-let offset = 0;
-let hasMore = true;
-
-while (hasMore) {
-  const result = await readFromMemory({
-    memory_ref: 'local::memory.user_conversation',
-    key: 'user_123',
-    limit,
-    offset
-  });
-  
-  // Process messages
-  processMessages(result.messages);
-  
-  // Check if more data exists
-  hasMore = result.has_more;
-  offset += limit;
-}
-```
-
-### Memory Cleanup
-
-Implement regular cleanup to prevent memory bloat:
-
-```typescript
-// Check memory health before operations
-const health = await checkMemoryHealth({
-  memory_ref: 'local::memory.user_conversation',
-  key: 'user_123'
-});
-
-// Flush if approaching capacity
-if (health.token_count > health.max_tokens * 0.8) {
-  await flushMemory({
-    memory_ref: 'local::memory.user_conversation',
-    key: 'user_123',
-    strategy: 'token_based'
-  });
-}
-```
+## Related Documentation
 
 <ReferenceCardList>
   <ReferenceCard
+    title="Memory Tasks"
+    description="Comprehensive guide to workflow memory tasks with YAML configuration and template expressions"
+    href="/docs/core/tasks/memory-tasks"
+    icon="FileCode"
+  />
+  <ReferenceCard
+    title="Memory API Reference"
+    description="Complete REST API documentation with endpoints, schemas, and authentication"
+    href="/docs/api/memory"
+    icon="Globe"
+  />
+  <ReferenceCard
     title="Memory Configuration"
-    description="Set up memory resources and configure strategies"
+    description="Configure memory backends, flushing strategies, and performance settings"
     href="/docs/core/memory/configuration"
     icon="Settings"
   />
   <ReferenceCard
-    title="Integration Patterns"
-    description="Integrate memory with agents and workflows"
-    href="/docs/core/memory/integration-patterns"
-    icon="Layers"
-  />
-  <ReferenceCard
     title="Privacy & Security"
-    description="Implement privacy controls and data protection"
+    description="Implement data redaction, secure storage, and privacy controls"
     href="/docs/core/memory/privacy-security"
     icon="Shield"
   />
   <ReferenceCard
-    title="Troubleshooting"
-    description="Debug memory issues and optimize performance"
-    href="/docs/core/memory/troubleshooting"
-    icon="Bug"
+    title="Integration Patterns"
+    description="Advanced patterns for memory integration across workflows and external systems"
+    href="/docs/core/memory/integration-patterns"
+    icon="Layers"
+  />
+  <ReferenceCard
+    title="Agent Memory Integration"
+    description="Automatic memory integration with AI agents for conversational applications"
+    href="/docs/core/agents/memory"
+    icon="Brain"
   />
 </ReferenceCardList>
-
-Memory operations provide the foundation for building conversational AI applications with persistent context. Focus on simple, reliable operations that match your actual use cases.

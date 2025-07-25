@@ -3,13 +3,8 @@
   "description": "TypeScript tools and integrations",
   "icon": "Wrench",
   "pages": [
-    "tools-overview",
-    "configuration-schemas",
+    "overview",
     "runtime-environment",
-    "typescript-development",
-    "external-integrations",
-    "testing-debugging",
-    "performance-security",
-    "advanced-patterns"
+    "typescript-development"
   ]
 }

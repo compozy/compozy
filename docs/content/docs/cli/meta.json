@@ -4,10 +4,11 @@
   "icon": "Terminal",
   "root": true,
   "pages": [
-    "overview",
     "project-commands",
+    "dev-commands",
+    "auth-commands",
+    "config-commands",
     "workflow-commands",
-    "execution-commands",
-    "monitoring-commands"
+    "mcp-commands"
   ]
 }

@@ -6,6 +6,7 @@ import {
   AlertTitle,
 } from "@/components/ui/alert";
 import { Icon } from "@/components/ui/icon";
+import { cn } from "@/lib/utils";
 import { AlertTriangle, CheckCircle, Info, XCircle } from "lucide-react";
 
 type CalloutType = "info" | "warning" | "success" | "error" | "neutral";
@@ -37,20 +38,22 @@ export function Callout({
   children,
   icon,
   type = "neutral",
-  className: _className,
+  className,
   ...props
 }: CalloutProps) {
   const variant = typeToVariantMap[type];
   const defaultIcon = typeToIconMap[type];
 
   return (
-    <Alert appearance="outline" variant={variant} {...props} className="not-prose">
+    <Alert appearance="outline" variant={variant} {...props} className={cn("not-prose", className)}>
       <AlertIcon>
         {typeof icon === "string" ? <Icon name={icon} className="size-3" /> : icon || defaultIcon}
       </AlertIcon>
       <AlertContent>
         {title && <AlertTitle>{title}</AlertTitle>}
-        <AlertDescription className="text-muted-foreground [&>p]:mb-0">{children}</AlertDescription>
+        <AlertDescription className="text-muted-foreground [&>p]:mb-0 [&_a]:underline-offset-2 [&_a]:underline [&_a]:decoration-1 [&_a]:decoration-primary [&_a]:text-foreground [&_a:hover]:text-primary">
+          {children}
+        </AlertDescription>
       </AlertContent>
     </Alert>
   );

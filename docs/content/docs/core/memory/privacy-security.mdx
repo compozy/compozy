@@ -3,35 +3,53 @@ title: "Privacy & Security"
 description: "Data protection and privacy controls for memory systems using regex redaction patterns"
 ---
 
-## Related Documentation
+## What is Memory Privacy?
 
-### 🔗 Cross-References
-- **[Memory Concepts](/docs/core/memory/memory-concepts)** - Understanding memory architecture
-- **[Memory Configuration](/docs/core/memory/configuration)** - Basic memory setup
-- **[Memory Operations](/docs/core/memory/operations)** - Memory management operations
-- **[Integration Patterns](/docs/core/memory/integration-patterns)** - Agent-memory integration
-- **[Troubleshooting](/docs/core/memory/troubleshooting)** - Debugging memory issues
+Compozy's privacy system provides **intelligent data protection** for memory operations, automatically detecting and redacting sensitive information before storage. The system uses regex-based pattern matching with built-in security protections to prevent accidental exposure of personal data, credentials, or proprietary information while maintaining memory performance and reliability.
 
-<Callout type="info">
-**What Memory Privacy Provides:**
-- **Regex-based redaction** with ReDoS attack protection
-- **Message type filtering** for non-persistable content
-- **Circuit breaker protection** with automatic failure recovery
-- **Resilient privacy manager** with degraded mode fallback
-- **Pattern validation** to prevent catastrophic backtracking
-- **Timeout protection** for regex processing
-- **Configurable redaction strings** and custom patterns
-</Callout>
+## Core Privacy Features
 
-## Privacy Controls
+<FeatureCardList cols={2}>
+  <FeatureCard
+    title="Pattern-Based Redaction"
+    description="Intelligent regex patterns that identify and redact sensitive data like SSNs, credit cards, and emails automatically"
+    icon="Shield"
+  />
+  <FeatureCard
+    title="ReDoS Protection"
+    description="Built-in validation prevents Regular Expression Denial of Service attacks with timeout and complexity checks"
+    icon="AlertTriangle"
+  />
+  <FeatureCard
+    title="Message Type Filtering"
+    description="Configurable filtering prevents certain message types from being stored in memory entirely"
+    icon="Filter"
+  />
+  <FeatureCard
+    title="Circuit Breaker Safety"
+    description="Automatic failure recovery system that prevents cascading errors from affecting memory operations"
+    icon="Zap"
+  />
+</FeatureCardList>
 
-**What it does:** Compozy's privacy system automatically detects and redacts sensitive information using regex patterns before storing messages in memory. This helps prevent accidental exposure of personal data, credentials, or proprietary information.
+## Setting Up Privacy Protection
 
-**How it works:** The privacy manager applies regex patterns to message content and replaces matches with redaction strings. It includes timeout protection and circuit breaker functionality to prevent regex-based attacks.
+<Steps>
+  <Step title="Configure Privacy Policy">
+    Add a `privacy_policy` section to your memory resource configuration with redaction patterns and settings.
+  </Step>
+  <Step title="Define Redaction Patterns">
+    Specify regex patterns that match sensitive data you want to protect, such as SSNs, credit cards, and emails.
+  </Step>
+  <Step title="Set Redaction Replacement">
+    Choose how redacted content appears in storage using the `default_redaction_string` property.
+  </Step>
+  <Step title="Test Pattern Safety">
+    Validate that your patterns are safe and won't cause performance issues or ReDoS attacks.
+  </Step>
+</Steps>
 
-### Basic Redaction Setup
-
-Here's how to configure basic redaction for sensitive data:
+### Basic Configuration Example
 
 ```yaml
 resource: memory
@@ -42,175 +60,209 @@ privacy_policy:
   redact_patterns:
     # Social Security Numbers (XXX-XX-XXXX)
     - '\b\d{3}-\d{2}-\d{4}\b'
-
     # Credit card numbers (various formats)
     - '\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{3,6}\b'
-
     # Email addresses
     - '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
-
     # Phone numbers (US formats)
     - '\b(?:\+?1[-.\s]?)?\(?[2-9]\d{2}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b'
-
-    # IP addresses
-    - '\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b'
-
     # Account numbers
     - '\baccount\s*#?\s*\d{6,12}\b'
-
-    # API keys and tokens
-    - '\b[A-Za-z0-9+/]{20,}\b'
-
-    # Custom business-specific patterns
-    - '\b[A-Z]{2,3}-\d{4,6}\b'  # Internal reference numbers
 
   # Replacement text for redacted content
   default_redaction_string: "[REDACTED]"
 ```
 
-**Example:** When a user sends a message containing "My SSN is 123-45-6789", the memory system stores it as "My SSN is [REDACTED]" instead.
+<Callout type="info">
+**Example:** When a user sends "My SSN is 123-45-6789", the memory system stores it as "My SSN is [REDACTED]" to protect sensitive information.
+</Callout>
 
-### Common Redaction Patterns
+## Common Redaction Patterns
 
-**Financial Information**
+<Tabs items={["Financial Data", "Personal Info", "Technical Data"]}>
+  <Tab value="Financial Data">
+    Protect financial information including credit cards, SSNs, and account numbers:
 
-Protect financial data with these patterns:
+    ```yaml
+    privacy_policy:
+      redact_patterns:
+        # Credit card numbers (various formats)
+        - '\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{3,6}\b'
+        # Social Security Numbers (XXX-XX-XXXX)
+        - '\b\d{3}-\d{2}-\d{4}\b'
+        # Bank routing numbers
+        - '\b\d{2}-\d{7}\b'
+        # Account numbers
+        - '\baccount\s*#?\s*\d{6,12}\b'
+    ```
 
-```yaml
-privacy_policy:
-  redact_patterns:
-    # Credit card numbers (various formats)
-    - '\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{3,6}\b'
-    # Social Security Numbers (XXX-XX-XXXX)
-    - '\b\d{3}-\d{2}-\d{4}\b'
-    # Bank routing numbers
-    - '\b\d{2}-\d{7}\b'
-    # Account numbers
-    - '\baccount\s*#?\s*\d{6,12}\b'
-```
+    These patterns handle common financial data formats while avoiding false positives with other number sequences.
+  </Tab>
 
-**Personal Information**
+  <Tab value="Personal Info">
+    Redact personal identifiers and contact information:
 
-Redact personal identifiers:
+    ```yaml
+    privacy_policy:
+      redact_patterns:
+        # Email addresses
+        - '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+        # Phone numbers (US formats)
+        - '\b(?:\+?1[-.\s]?)?\(?[2-9]\d{2}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b'
+        # IP addresses
+        - '\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b'
+    ```
 
-```yaml
-privacy_policy:
-  redact_patterns:
-    # Email addresses
-    - '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
-    # Phone numbers (US formats)
-    - '\b(?:\+?1[-.\s]?)?\(?[2-9]\d{2}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b'
-    # IP addresses
-    - '\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b'
-```
+    Learn more about [configuring memory operations](/docs/core/memory/operations) for handling personal data securely.
+  </Tab>
 
-**Technical Information**
+  <Tab value="Technical Data">
+    Protect technical identifiers and security tokens:
 
-Protect technical identifiers and security tokens:
+    ```yaml
+    privacy_policy:
+      redact_patterns:
+        # UUIDs
+        - '\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b'
+        # API keys and tokens (40+ characters)
+        - '\b[A-Za-z0-9+/]{40,}\b'
+        # Bearer tokens
+        - '\bBearer\s+[A-Za-z0-9+/=]{20,}\b'
+        # Custom business patterns
+        - '\b[A-Z]{2,3}-\d{4,6}\b'  # Internal reference numbers
+    ```
 
-```yaml
-privacy_policy:
-  redact_patterns:
-    # UUIDs
-    - '\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b'
-    # API keys and tokens
-    - '\b[A-Za-z0-9+/]{40,}\b'
-    # Bearer tokens
-    - '\bBearer\s+[A-Za-z0-9+/=]{20,}\b'
-    # Custom business patterns
-    - '\b[A-Z]{2,3}-\d{4,6}\b'  # Internal reference numbers
-```
+    For integration with external systems, see [integration patterns](/docs/core/memory/integration-patterns) for secure API handling.
+  </Tab>
+</Tabs>
 
-### Non-Persistable Message Types
+## Message Type Filtering
 
-**What it does:** Prevents certain types of messages from being stored in memory at all, regardless of content.
+Beyond pattern-based redaction, you can prevent entire categories of messages from being stored in memory. This provides an additional layer of privacy protection by filtering messages based on their type or role.
 
-**How it works:** The privacy manager checks the message type (role) against a list of non-persistable types and skips storage entirely.
+<Callout type="warning">
+**How it works:** The privacy manager checks each message's type before storage and completely skips non-persistable message types, regardless of content.
+</Callout>
+
+### Configuration
 
 ```yaml
 privacy_policy:
   non_persistable_message_types:
-    - system          # System messages
-    - tool_internal   # Internal tool communications
-    - debug           # Debug information
-    - error           # Error messages
+    - system          # System messages and internal communications
+    - tool_internal   # Internal tool-to-tool communications
+    - debug           # Debug information and diagnostic data
+    - error           # Error messages and stack traces
     - authentication  # Authentication-related messages
     - admin           # Administrative messages
-    - temporary       # Temporary messages
+    - temporary       # Temporary or transient messages
 ```
 
-**Example:** If you send a message with role "system", it won't be stored in memory even if it contains no sensitive data.
+**Filtering Examples:**
+- Message with role `"system"` → Not stored in memory
+- Message with role `"user"` → Stored normally (with redaction applied)
+- Message with role `"debug"` → Not stored in memory
 
-## Pattern Safety
+This filtering happens before redaction processing, providing efficient protection for sensitive message categories. Learn more about message handling in the [memory operations guide](/docs/core/memory/operations).
 
-**What it does:** Compozy validates regex patterns to prevent ReDoS (Regular Expression Denial of Service) attacks that could cause performance issues or crashes.
+## Pattern Safety & ReDoS Protection
 
-**How it works:** The privacy manager includes built-in validation that rejects patterns known to cause catastrophic backtracking or excessive memory usage.
+Compozy includes built-in validation to prevent **Regular Expression Denial of Service (ReDoS)** attacks. The privacy manager automatically rejects unsafe patterns that could cause performance issues, memory exhaustion, or system crashes through catastrophic backtracking.
 
-### Safe Pattern Examples
+<Callout type="error" className="my-8">
+**Security Alert:** Malicious or poorly constructed regex patterns can consume excessive CPU and memory, potentially bringing down your system. Compozy's pattern validation provides essential protection against these attacks.
+</Callout>
 
-```yaml
-privacy_policy:
-  redact_patterns:
-    # ✅ Safe patterns - specific and bounded
-    - '\b\d{3}-\d{2}-\d{4}\b'              # SSN with specific format
-    - '\b[A-Za-z0-9+/]{40}\b'              # Fixed-length token
-    - '\b(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b'  # IP address
-```
+<Tabs items={["Safe Patterns", "Unsafe Patterns"]} defaultValue="Safe Patterns">
+  <Tab value="Safe Patterns">
+    These patterns are optimized for performance and security:
 
-### Unsafe Pattern Examples
+    ```yaml
+    privacy_policy:
+      redact_patterns:
+        # Safe patterns - specific and bounded
+        - '\b\d{3}-\d{2}-\d{4}\b'              # SSN with specific format
+        - '\b[A-Za-z0-9+/]{40}\b'              # Fixed-length token
+        - '\b(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b'  # IP address
+        - '\b[A-Z]{2}-\d{6}\b'                 # Bounded business code format
+    ```
 
-```yaml
-privacy_policy:
-  redact_patterns:
-    # ❌ Unsafe patterns - will be rejected
-    - '(\w+)+'                             # Nested quantifiers
-    - '(a+)+'                              # Nested quantifiers
-    - '(a*)*'                              # Nested star quantifiers
-    - '(.+)+'                              # Nested quantifiers with any character
-    - '(.{0,50000})*'                      # Memory exhaustion
-```
+    **Why these are safe:**
+    - Use specific quantifiers (`{3}`, `{40}`) instead of unbounded ones
+    - Avoid nested quantifiers that cause exponential backtracking
+    - Include word boundaries (`\b`) to limit matching scope
+    - Use character classes with specific ranges
+  </Tab>
+
+  <Tab value="Unsafe Patterns">
+    These patterns **will be rejected** by the system:
+
+    ```yaml
+    privacy_policy:
+      redact_patterns:
+        # Unsafe patterns - automatically rejected
+        - '(\w+)+'                             # Nested quantifiers
+        - '(a+)+'                              # Nested quantifiers
+        - '(a*)*'                              # Nested star quantifiers
+        - '(.+)+'                              # Nested quantifiers with any character
+        - '(.{0,50000})*'                      # Memory exhaustion pattern
+        - '(x+x+)+y'                          # Exponential backtracking
+    ```
+
+    **Why these are dangerous:**
+    - Nested quantifiers create exponential time complexity
+    - Unbounded patterns can consume excessive memory
+    - Complex alternations can cause catastrophic backtracking
+    - Patterns without anchors can match unexpectedly large text sections
+  </Tab>
+</Tabs>
 
 ## Circuit Breaker Protection
 
-**What it does:** Protects against regex pattern failures by temporarily disabling redaction when too many consecutive errors occur.
+The privacy system includes an **automatic failsafe mechanism** that prevents cascading failures when regex patterns consistently fail. This circuit breaker monitors pattern execution and temporarily disables redaction to maintain memory system stability.
 
-**How it works:** The privacy manager tracks consecutive failures and stops processing patterns after 10 consecutive errors. This prevents cascading failures from affecting memory operations.
+<List>
+  <ListItem title="Automatic Activation">
+    Triggers after 10 consecutive pattern failures to prevent system overload
+  </ListItem>
+  <ListItem title="Self-Healing Recovery">
+    Automatically resets when a pattern succeeds, restoring normal operation
+  </ListItem>
+  <ListItem title="No Configuration Required">
+    Built-in protection that works transparently without manual setup
+  </ListItem>
+  <ListItem title="Graceful Degradation">
+    Memory operations continue normally while patterns are temporarily disabled
+  </ListItem>
+</List>
 
-### Circuit Breaker Configuration
+<Callout type="info">
+**Monitoring:** While the circuit breaker requires no configuration, you should monitor system logs for circuit breaker activations to identify problematic patterns that need fixing.
+</Callout>
 
-The circuit breaker is built-in and cannot be disabled, but you can monitor its status:
+## Complete Configuration Example
 
-```yaml
-# Circuit breaker automatically activates after 10 consecutive errors
-# No configuration needed - built-in protection
-```
-
-**Error Recovery:** The circuit breaker resets automatically when a pattern succeeds, allowing normal operation to resume.
-
-## Real-World Example
-
-Here's a complete example of privacy configuration for a customer service application:
+Here's a production-ready privacy configuration for a customer service application:
 
 ```yaml
 resource: memory
 id: customer_service_memory
-description: Memory for customer service interactions with privacy protection
+description: Customer service memory with comprehensive privacy protection
 
 privacy_policy:
   redact_patterns:
     # Customer personal information
-    - '\b\d{3}-\d{2}-\d{4}\b'                                    # SSN
-    - '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'      # Email
+    - '\b\d{3}-\d{2}-\d{4}\b'                     # SSN
+    - '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'  # Email
     - '\b(?:\+?1[-.\s]?)?\(?[2-9]\d{2}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b'  # Phone
-    
+
     # Financial information
-    - '\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{3,6}\b'             # Credit cards
-    - '\baccount\s*#?\s*\d{6,12}\b'                              # Account numbers
-    
+    - '\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{3,6}\b'  # Credit cards
+    - '\baccount\s*#?\s*\d{6,12}\b'               # Account numbers
+
     # Internal identifiers
-    - '\bCS-\d{6}\b'                                             # Customer service ticket IDs
-    - '\bEMP-\d{4}\b'                                            # Employee IDs
+    - '\bCS-\d{6}\b'                              # Support ticket IDs
+    - '\bEMP-\d{4}\b'                             # Employee IDs
 
   non_persistable_message_types:
     - system
@@ -220,7 +272,7 @@ privacy_policy:
 
   default_redaction_string: "[REDACTED]"
 
-# Basic memory configuration
+# Memory configuration
 type: token_based
 max_tokens: 4000
 persistence:
@@ -231,40 +283,13 @@ persistence:
     db: 0
 ```
 
-## Performance Considerations
+## Summary
 
-**Impact:** Regex redaction adds 5-10ms processing time per message, depending on the number and complexity of patterns.
+With Compozy's privacy system, you can confidently handle sensitive data while maintaining optimal memory performance. Start with the basic patterns that match your data types, enable message filtering for sensitive categories, and monitor system performance as you scale.
 
-**Optimization Tips:**
-- Use specific, bounded patterns rather than broad ones
-- Limit the number of patterns to essential ones only
-- Test patterns with representative data to ensure good performance
-- Monitor circuit breaker status to detect pattern issues
+**Ready to implement privacy controls?** Begin with the [memory configuration guide](/docs/core/memory/configuration) to set up your secure memory resources, then explore [integration patterns](/docs/core/memory/integration-patterns) for advanced privacy-aware architectures.
 
-## Best Practices
-
-1. **Start Simple:** Begin with a few essential patterns and add more as needed
-2. **Test Thoroughly:** Validate patterns with real data before production deployment
-3. **Monitor Performance:** Track redaction processing time and circuit breaker status
-4. **Document Patterns:** Comment your regex patterns to explain their purpose
-5. **Regular Review:** Periodically review and update patterns as requirements change
-
-## Troubleshooting
-
-**Common Issues:**
-
-- **Pattern Rejected:** Check for unsafe regex patterns that could cause ReDoS
-- **Circuit Breaker Open:** Too many pattern failures - check pattern syntax and test data
-- **Performance Issues:** Reduce pattern complexity or count
-- **False Positives:** Refine patterns to be more specific
-
-**Debugging Steps:**
-
-1. Check system logs for privacy manager errors
-2. Verify pattern syntax using regex testing tools
-3. Test patterns with sample data
-4. Monitor circuit breaker status
-5. Review memory operation logs
+## Next Steps
 
 <ReferenceCardList>
   <ReferenceCard
@@ -280,17 +305,9 @@ persistence:
     icon="Layers"
   />
   <ReferenceCard
-    title="Troubleshooting"
-    description="Debug and resolve privacy-related issues"
-    href="/docs/core/memory/troubleshooting"
-    icon="Bug"
-  />
-  <ReferenceCard
     title="Configuration"
     description="Advanced memory configuration options"
     href="/docs/core/memory/configuration"
     icon="Settings"
   />
 </ReferenceCardList>
-
-This privacy system provides essential data protection for memory operations while maintaining simplicity and performance. Focus on implementing the patterns most relevant to your specific use case.

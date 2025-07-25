@@ -1,14 +1,8 @@
 ---
 title: Project Commands
-description: Initialize and manage Compozy projects
+description: Project commands help you create, configure, and manage Compozy projects. The primary command is `init` for initializing new projects.
 icon: Settings
 ---
-
-Project commands help you create, configure, and manage Compozy projects. The primary command is `init` for initializing new projects.
-
-<Callout type="info">
-The `init` command creates a complete project structure with sensible defaults, making it easy to get started with Compozy.
-</Callout>
 
 ## Initialize Project
 
@@ -30,7 +24,7 @@ compozy init my-project --name "My AI Workflow" --description "Automated data pr
 compozy init my-project --name "My Project" --template basic
 ```
 
-**Features:**
+### Features
 
 <FeatureCardList cols={2} size="sm">
   <FeatureCard
@@ -55,14 +49,54 @@ compozy init my-project --name "My Project" --template basic
   />
 </FeatureCardList>
 
-**Flags:**
-- `--name` - Project name (required in non-interactive mode)
-- `--description` - Project description
-- `--version` - Initial version (default: 0.1.0)
-- `--template` - Project template (default: basic)
-- `--author` - Author name
-- `--author-url` - Author website/URL
-- `--interactive` - Force interactive mode even with flags
+### Flags
+
+<Table>
+  <TableHeader>
+    <TableRow>
+      <TableHead>Flag</TableHead>
+      <TableHead>Description</TableHead>
+      <TableHead>Default</TableHead>
+    </TableRow>
+  </TableHeader>
+  <TableBody>
+    <TableRow>
+      <TableCell>`--name`</TableCell>
+      <TableCell>Project name (required in non-interactive mode)</TableCell>
+      <TableCell>-</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`--description`</TableCell>
+      <TableCell>Project description</TableCell>
+      <TableCell>-</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`--version`</TableCell>
+      <TableCell>Initial version</TableCell>
+      <TableCell>0.1.0</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`--template`</TableCell>
+      <TableCell>Project template</TableCell>
+      <TableCell>basic</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`--author`</TableCell>
+      <TableCell>Author name</TableCell>
+      <TableCell>-</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`--author-url`</TableCell>
+      <TableCell>Author website/URL</TableCell>
+      <TableCell>-</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`--interactive`</TableCell>
+      <TableCell>Force interactive mode even with flags</TableCell>
+      <TableCell>false</TableCell>
+    </TableRow>
+  </TableBody>
+</Table>
 
 ### Interactive Mode
 
@@ -92,252 +126,34 @@ Project Name:
 Press Enter to continue, Tab to navigate, Ctrl+C to quit
 ```
 
-### Project Structure
-
-The init command creates this structure:
-
-<Mermaid chart={`graph TD
-    A[my-project/] --> B[compozy.yaml]
-    A --> C[entrypoint.ts]
-    A --> D[README.md]
-    A --> E[workflows/]
-    A --> F[tools/]
-    A --> G[agents/]
-    
-    E --> E1[main.yaml]
-    F --> F1[.gitkeep]
-    G --> G1[.gitkeep]
-    
-    B --> B1["Project configuration"]
-    C --> C1["Tool entrypoint"]
-    D --> D1["Project documentation"]
-    E1 --> E2["Example workflow"]
-    
-    style A fill:#e1f5fe
-    style E fill:#f3e5f5
-    style F fill:#e8f5e8
-    style G fill:#fff3e0`} />
-
 ### Generated Files
 
 The `init` command creates these essential files:
 
-**compozy.yaml** - Project configuration
-```yaml
-name: "my-project"
-version: "0.1.0"
-description: "AI-powered workflow automation"
-
-author:
-  name: "Jane Developer"
-  url: "https://github.com/janedev"
-
-workflows:
-  - source: "./workflows/main.yaml"
-
-models:
-  groq:
-    api_key: "{{ .env.GROQ_API_KEY }}"
-    base_url: "https://api.groq.com"
-    models:
-      - "llama-3.3-70b-versatile"
-
-runtime:
-  type: "bun"
-  entrypoint: "./entrypoint.ts"
-  permissions:
-    - --allow-read
-    - --allow-net
-    - --allow-write
-
-autoload:
-  enabled: true
-  strict: true
-  include:
-    - "agents/*.yaml"
-    - "tools/*.yaml"
-  exclude:
-    - "**/*~"
-    - "**/*.bak"
-    - "**/*.tmp"
-```
-
-**entrypoint.ts** - Tool entrypoint
-```typescript
-#!/usr/bin/env bun
-
-/**
- * Tool Entrypoint for my-project
- * 
- * This file is the main entry point for all tools in your project.
- * Export your tool functions as either:
- * 1. Default export: export default { "tool-name": toolFunction }
- * 2. Named exports: export { toolFunction as tool_name }
- */
-
-// Example tool function
-async function exampleTool(input: { message: string }) {
-  console.log(`Processing: ${input.message}`);
-  
-  return {
-    success: true,
-    result: `Processed: ${input.message}`,
-    timestamp: new Date().toISOString()
-  };
-}
-
-// Export tools using the default export pattern (recommended)
-export default {
-  "example-tool": exampleTool,
-};
-```
-
-**workflows/main.yaml** - Example workflow
-```yaml
-resource: "workflow"
-id: "main"
-name: "Main Workflow"
-description: "Example workflow for my-project"
-
-inputs:
-  message:
-    type: string
-    description: "Input message to process"
-    default: "Hello, Compozy!"
-
-tasks:
-  - id: process-message
-    type: tool
-    tool: example-tool
-    input:
-      message: "{{ .inputs.message }}"
-  
-  - id: show-result
-    type: basic
-    input:
-      result: "{{ .tasks.process-message.result }}"
-
-outputs:
-  result: "{{ .tasks.show-result.result }}"
-  processed_at: "{{ .tasks.process-message.timestamp }}"
-```
-
-**README.md** - Project documentation
-```markdown
-# my-project
-
-AI-powered workflow automation
-
-## Getting Started
-
-1. Install dependencies:
-   ```bash
-   bun install
-   ```
-
-2. Set up your environment:
-   ```bash
-   cp .env.example .env
-   # Edit .env with your API keys
-   ```
-
-3. Start the development server:
-   ```bash
-   compozy dev
-   ```
-
-4. Execute the example workflow:
-   ```bash
-   compozy workflow execute main --input '{"message": "Hello!"}'
-   ```
-
-## Project Structure
-
-- `workflows/` - Workflow definitions
-- `tools/` - TypeScript tool implementations
-- `agents/` - AI agent configurations
-- `compozy.yaml` - Project configuration
-- `entrypoint.ts` - Tool entrypoint file
-
-## Development
-
-The development server (`compozy dev`) provides hot reload functionality.
-Any changes to workflows, tools, or configuration files will automatically
-restart the server.
-
-## Author
-
-Jane Developer - https://github.com/janedev
-```
-
-## Templates
-
-Different templates provide starting points for various use cases:
-
-### Basic Template (Default)
-
-<FeatureCard
-  title="Basic Template"
-  description="The minimal template with example workflow and tool: simple project structure, one example workflow, one example tool, and basic configuration"
-  icon="Package"
+<ProjectStructure
+  structure={[
+    {
+      id: "my-ai-project",
+      name: "my-ai-project/",
+      children: [
+        { id: "compozy-yaml", name: "compozy.yaml" },
+        {
+          id: "workflows",
+          name: "workflows/",
+          children: [
+            { id: "main-workflow", name: "main.yaml" },
+          ],
+        },
+        { id: "entrypoint", name: "entrypoint.ts" },
+        { id: "greeting-tool", name: "greeting_tool.ts" },
+        { id: "compozy-http", name: "compozy.http" },
+        { id: "env-example", name: ".env.example" },
+        { id: "docker-compose", name: "docker-compose.yaml" },
+      ],
+    },
+  ]}
+  initialExpandedItems={["my-ai-project", "workflows"]}
 />
-
-### Advanced Templates (Coming Soon)
-
-<FeatureCardList cols={2} size="sm">
-  <FeatureCard
-    title="Data Processing"
-    description="Template for ETL and data transformation workflows with batch processing capabilities"
-    icon="Database"
-  />
-  <FeatureCard
-    title="API Integration"
-    description="Template with API client tools and authentication patterns for external service integration"
-    icon="Plug"
-  />
-  <FeatureCard
-    title="Multi-Agent"
-    description="Template demonstrating agent collaboration patterns and coordinated task execution"
-    icon="Users"
-  />
-  <FeatureCard
-    title="MCP Integration"
-    description="Template with MCP server configuration and tools for Model Context Protocol workflows"
-    icon="Link2"
-  />
-</FeatureCardList>
-
-## Common Patterns
-
-### Starting a New Project
-
-### Step-by-Step Guide
-
-1. **Initialize the project**
-   ```bash
-   compozy init my-ai-assistant --name "AI Assistant" --description "Intelligent automation assistant"
-   ```
-
-2. **Navigate to project directory**
-   ```bash
-   cd my-ai-assistant
-   ```
-
-3. **Install dependencies (if any)**
-   ```bash
-   bun install
-   ```
-
-4. **Configure environment**
-   ```bash
-   # Create .env file
-   echo "GROQ_API_KEY=your-api-key" > .env
-   ```
-
-5. **Start development server**
-   ```bash
-   compozy dev
-   ```
 
 ### Converting Existing Project
 
@@ -353,152 +169,6 @@ mv *.ts tools/
 
 # Update compozy.yaml with your workflows
 # Edit workflow sources in compozy.yaml
-```
-
-### CI/CD Setup
-
-Initialize project for automated deployment:
-
-```bash
-# Create project with CI-friendly settings
-compozy init deployment-project --name "Automated Workflows" --version "1.0.0" --author "CI Bot" --template basic
-
-# Add to git
-cd deployment-project
-git init
-git add .
-git commit -m "Initial project setup"
-```
-
-## Configuration Options
-
-### Project Metadata
-
-Configure project information in `compozy.yaml`:
-
-```yaml
-name: "project-name"        # Required, used for identification
-version: "1.0.0"           # Semantic versioning recommended
-description: "Purpose"      # Clear project description
-
-author:
-  name: "Your Name"        # Optional author information
-  url: "https://..."       # Optional website/profile
-```
-
-### Runtime Configuration
-
-Control how tools execute:
-
-```yaml
-runtime:
-  type: "bun"              # Runtime engine (currently only bun)
-  entrypoint: "./main.ts"  # Tool entrypoint file
-  permissions:             # Bun permissions
-    - --allow-read        # File system read access
-    - --allow-write       # File system write access
-    - --allow-net         # Network access
-    - --allow-env         # Environment variable access
-```
-
-### Model Configuration
-
-Configure AI models:
-
-```yaml
-models:
-  - provider: "openai"
-    model: "gpt-4"
-    api_key: "{{ .env.OPENAI_API_KEY }}"
-    
-  - provider: "anthropic"
-    model: "claude-3-opus"
-    api_key: "{{ .env.ANTHROPIC_API_KEY }}"
-    
-  - provider: "groq"
-    model: "llama-3.3-70b-versatile"
-    api_key: "{{ .env.GROQ_API_KEY }}"
-```
-
-### Autoload Configuration
-
-Control automatic file discovery:
-
-```yaml
-autoload:
-  enabled: true            # Enable/disable autoloading
-  strict: true            # Fail on invalid files
-  include:                # Glob patterns to include
-    - "agents/*.yaml"
-    - "tools/*.yaml"
-    - "workflows/**/*.yaml"
-  exclude:                # Glob patterns to exclude
-    - "**/*.test.yaml"
-    - "**/*.bak"
-    - "**/drafts/*"
-```
-
-## Best Practices
-
-<FeatureCardList cols={3} size="sm">
-  <FeatureCard
-    title="Use Semantic Versioning"
-    description="Start with 0.1.0 and increment following semver principles for clear version management"
-    icon="Tag"
-  />
-  <FeatureCard
-    title="Clear Naming"
-    description="Use descriptive names for projects that clearly indicate their purpose and scope"
-    icon="Type"
-  />
-  <FeatureCard
-    title="Environment Variables"
-    description="Always use environment variables for sensitive data like API keys and credentials"
-    icon="Shield"
-  />
-  <FeatureCard
-    title="Documentation"
-    description="Keep README.md updated with setup instructions, examples, and usage patterns"
-    icon="FileText"
-  />
-  <FeatureCard
-    title="Version Control"
-    description="Initialize git immediately after project creation for proper change tracking"
-    icon="GitBranch"
-  />
-</FeatureCardList>
-
-## Troubleshooting
-
-### Common Issues
-
-**Permission Denied**
-```bash
-# Check directory permissions
-ls -la
-
-# Create with sudo if needed
-sudo compozy init my-project
-sudo chown -R $USER:$USER my-project
-```
-
-**Template Not Found**
-```bash
-# List available templates
-compozy init --list-templates
-
-# Use default template
-compozy init my-project --template basic
-```
-
-**Directory Exists**
-```bash
-# Initialize in existing directory
-compozy init . --force
-
-# Or remove and recreate
-rm -rf my-project
-compozy init my-project
 ```
 
 ## Next Steps

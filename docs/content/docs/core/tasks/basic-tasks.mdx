@@ -1,77 +1,240 @@
 ---
 title: Basic Tasks
-description: Understanding basic task execution in Compozy workflows with agents and tools
+description: Master the fundamental building blocks of Compozy workflows. Basic tasks execute single operations using AI agents or TypeScript tools, forming the foundation for all complex workflow patterns.
 ---
-
-Basic tasks are the fundamental building blocks of Compozy workflows. They represent single-step operations that execute agents or tools to perform specific work. Every workflow ultimately decomposes into basic tasks that handle the actual processing.
-
-## Task Execution Types
-
-Compozy supports 9 task types that determine how tasks are processed:
-
-| Task Type | Purpose | Example Use Case |
-|-----------|---------|------------------|
-| `basic` | Single agent/tool execution | Text analysis, API calls |
-| `router` | Conditional task routing | Decision points, branching logic |
-| `parallel` | Concurrent task execution | Independent operations |
-| `collection` | Array/list processing | Batch data processing |
-| `composite` | Sequential task groups | Multi-step workflows |
-| `aggregate` | Result combining | Data consolidation, report generation |
-| `wait` | Conditional delays | Resource availability, timing |
-| `signal` | Event communication | Cross-workflow coordination |
-| `memory` | State persistence | Long-running processes |
-
-## Related Documentation
-
-### 🔗 Cross-References
-- **[Core Concepts: Tasks](/docs/core/getting-started/core-concepts#2-tasks)** - Tasks in workflow context
-- **[Agent Overview](/docs/core/agents/overview)** - How agents work with tasks
-- **[Tools Overview](/docs/core/tools/tools-overview)** - How tools work with tasks
-- **[YAML Templates](/docs/core/yaml-templates/overview)** - Dynamic task configuration
-- **[Template Context Variables](/docs/core/yaml-templates/context-variables)** - Access task data and workflow context
-- **[Template Functions](/docs/core/yaml-templates/sprig-functions)** - Transform and manipulate task data
-
-### ⚙️ Task-Related Topics
-- **Basic Tasks** ↔ **[Collection Tasks](/docs/core/tasks/collection-tasks)** ↔ **[Advanced Patterns](/docs/core/tasks/advanced-patterns)**
-- **Task Execution** ↔ **[Agent Actions](/docs/core/agents/instructions-actions)** ↔ **[Tool Development](/docs/core/tools/typescript-development)**
-- **Flow Control** ↔ **[Workflow Configuration](/docs/core/configuration/workflows)** ↔ **[Signal Communication](/docs/core/signals/signal-overview)**
 
 ## Overview
 
-Basic tasks provide the core execution model for Compozy workflows:
+Basic tasks serve as the **atomic units of execution** in Compozy workflows. Whether you're building a simple AI chat bot or a complex multi-agent system, understanding basic tasks is essential since they form the foundation for all other task types. [New to Compozy? Start with our Quick Start guide →](/docs/core/getting-started/quick-start)
 
-- **Single Responsibility**: Each basic task performs one specific operation
-- **Agent or Tool Execution**: Uses either AI agents or TypeScript tools for processing
-- **Template Integration**: Full support for dynamic parameters and outputs
-- **Flow Control**: Conditional routing and error handling
-- **Schema Validation**: Input/output validation with JSON Schema
+Each basic task performs a single, well-defined operation using either:
+- **[AI Agents](/docs/core/agents/overview)** for natural language processing, reasoning, and creative tasks that require understanding and context
+- **[TypeScript Tools](/docs/core/tools/overview)** for deterministic operations, API calls, and data processing with predictable results
+
+**Why Basic Tasks Matter:**
+- **Foundation Layer**: All complex task types ([parallel](/docs/core/tasks/parallel-processing), [collection](/docs/core/tasks/collection-tasks), [router](/docs/core/tasks/router-tasks)) ultimately decompose into basic tasks
+- **Execution Flexibility**: Choose the optimal execution strategy for each operation based on complexity and requirements
+- **Production Ready**: Built-in [error handling](/docs/core/tasks/error-handling), [retry policies](/docs/core/tasks/error-handling#retry-strategies), and [monitoring integration](/docs/core/monitoring/task-metrics)
 
 <Callout type="info">
-Basic tasks are the most common task type and serve as the foundation for all other task patterns in Compozy.
+**Architecture Context**: Basic tasks integrate seamlessly with Compozy's [declarative YAML configuration](/docs/core/yaml-templates/overview), [distributed execution engine](/docs/core/getting-started/core-concepts#execution-engine), and [comprehensive monitoring system](/docs/core/monitoring/observability). New to workflow orchestration? Start with [Core Concepts](/docs/core/getting-started/core-concepts) to understand the full picture.
+</Callout>
+
+## Task Execution Types
+
+Compozy provides **9 specialized task types** that handle different execution patterns. Basic tasks are the foundation, while other types orchestrate multiple operations:
+
+<FeatureCardList>
+  <FeatureCard
+    title="Basic"
+    description="Single agent or tool execution for atomic operations"
+    icon="Zap"
+  >
+    **Primary use**: Text analysis, API calls, data transformation
+
+    **Best for**: Simple, single-purpose operations that need reliable execution
+  </FeatureCard>
+
+  <FeatureCard
+    title="Router"
+    description="Conditional task routing based on data or business logic"
+    icon="GitBranch"
+  >
+    **Primary use**: Decision points, workflow branching, conditional logic
+
+    **Best for**: Dynamic workflow paths based on runtime conditions
+  </FeatureCard>
+
+  <FeatureCard
+    title="Parallel"
+    description="Concurrent execution of independent tasks"
+    icon="Layers"
+  >
+    **Primary use**: Independent operations that can run simultaneously
+
+    **Best for**: Performance optimization and parallel data processing
+  </FeatureCard>
+
+  <FeatureCard
+    title="Collection"
+    description="Process arrays and lists with configurable strategies"
+    icon="List"
+  >
+    **Primary use**: Batch data processing, bulk operations
+
+    **Best for**: Processing multiple items with consistent logic
+  </FeatureCard>
+
+  <FeatureCard
+    title="Composite"
+    description="Sequential task groups with shared error handling"
+    icon="Package"
+  >
+    **Primary use**: Multi-step workflows with coordinated execution
+
+    **Best for**: Complex processes requiring step-by-step coordination
+  </FeatureCard>
+
+  <FeatureCard
+    title="Aggregate"
+    description="Combine and merge results from multiple sources"
+    icon="Merge"
+  >
+    **Primary use**: Data consolidation, report generation, result merging
+
+    **Best for**: Synthesizing outputs from parallel or collection tasks
+  </FeatureCard>
+
+  <FeatureCard
+    title="Wait"
+    description="Conditional delays and external signal waiting"
+    icon="Clock"
+  >
+    **Primary use**: Resource availability, timing coordination, external triggers
+
+    **Best for**: Synchronizing with external systems or time-based events
+  </FeatureCard>
+
+  <FeatureCard
+    title="Signal"
+    description="Event communication and workflow coordination"
+    icon="Radio"
+  >
+    **Primary use**: Cross-workflow communication, event publishing
+
+    **Best for**: Decoupled architectures and event-driven patterns
+  </FeatureCard>
+
+  <FeatureCard
+    title="Memory"
+    description="Persistent state management and context storage"
+    icon="Database"
+  >
+    **Primary use**: Long-running processes, conversation history, state persistence
+
+    **Best for**: Stateful workflows requiring persistent context
+  </FeatureCard>
+</FeatureCardList>
+
+## Core Principles
+
+Basic tasks in Compozy follow several key principles that make them reliable and maintainable building blocks for complex workflows:
+
+<List>
+  <ListItem title="Single Responsibility" icon="Target">
+    Each basic task performs exactly one specific operation, making workflows easier to debug and maintain
+  </ListItem>
+  <ListItem title="Execution Flexibility" icon="Settings">
+    Choose between AI agents for intelligent processing or TypeScript tools for deterministic operations
+  </ListItem>
+  <ListItem title="Template Integration" icon="Code">
+    Full support for [dynamic parameters and outputs](/docs/core/yaml-templates/context-variables) using Sprig template expressions
+  </ListItem>
+  <ListItem title="Flow Control" icon="GitBranch">
+    Built-in conditional routing and sophisticated [error handling patterns](/docs/core/tasks/error-handling)
+  </ListItem>
+  <ListItem title="Schema Validation" icon="CheckCircle">
+    Input/output validation with JSON Schema ensures type safety and reliable data flow
+  </ListItem>
+  <ListItem title="State Management" icon="Database">
+    Automatic output capture and seamless data passing between tasks using [context variables](/docs/core/yaml-templates/context-variables)
+  </ListItem>
+</List>
+
+<Callout type="info">
+**Foundation Layer**: Basic tasks serve as the foundation for all other task patterns in Compozy. Understanding them is essential before exploring [parallel processing](/docs/core/tasks/parallel-processing), [collection tasks](/docs/core/tasks/collection-tasks), or [advanced flow control](/docs/core/tasks/flow-control).
 </Callout>
 
 ## Task Structure
 
-### Core Configuration
+Basic tasks use a **declarative YAML structure** that makes them easy to read, write, and maintain. The structure is designed to be self-documenting while providing powerful capabilities for dynamic configuration.
 
-Every basic task shares this fundamental structure:
+### Anatomy of a Basic Task
 
-```yaml
-id: task-name
-$use: agent(local::agents.#(id=="agent-id")) # OR tool(local::tools.#(id=="tool-id"))
-action: action-name # For agents only
-with:
-  parameter: "{{ .workflow.input.value }}"
-outputs:
-  result: "{{ .output.data }}"
-on_success:
-  next: next-task
-on_error:
-  next: error-handler
-```
+<Steps>
+  <Step
+    title="Task Identification"
+    description="Every task needs a unique identifier and execution target"
+  >
+    ```yaml title="Task Identity"
+    id: analyze-sentiment
+    $use: agent(local::agents.#(id=="sentiment-analyzer"))
+    action: analyze_text  # Required for agents
+    ```
+
+    **Key components:**
+    - `id`: Unique identifier for referencing in templates and flow control
+    - `$use`: [Reference to agent or tool](/docs/core/yaml-templates/overview#reference-types) using query syntax
+    - `action`: Specific action for agents (not needed for tools)
+  </Step>
+
+  <Step
+    title="Input Configuration"
+    description="Define dynamic parameters using template expressions"
+  >
+    ```yaml title="Input Parameters"
+    with:
+      text: "{{ .workflow.input.message }}"
+      context: "{{ .tasks.previous_step.output.metadata }}"
+      options:
+        language: "{{ .workflow.input.language | default 'en' }}"
+        confidence_threshold: 0.8
+    ```
+
+    **Template capabilities:**
+    - Access workflow inputs with `.workflow.input.*`
+    - Reference previous task outputs with `.tasks.taskname.output.*`
+    - Use [Sprig functions](/docs/core/yaml-templates/sprig-functions) for data transformation
+    - Set default values and conditional logic
+  </Step>
+
+  <Step
+    title="Output Management"
+    description="Capture and transform task results for downstream use"
+  >
+    ```yaml title="Output Configuration"
+    outputs:
+      sentiment: "{{ .output.classification }}"
+      confidence: "{{ .output.score }}"
+      summary: "Analysis completed for {{ len .with.text }} characters"
+      metadata:
+        task_duration: "{{ .task.duration }}"
+        processed_at: "{{ now }}"
+    ```
+
+    **Output features:**
+    - Transform raw outputs into structured data
+    - Combine multiple output fields into complex objects
+    - Add computed metadata like timestamps and durations
+    - Create summary information for downstream tasks
+  </Step>
+
+  <Step
+    title="Flow Control"
+    description="Handle success and error scenarios with conditional routing"
+  >
+    ```yaml title="Flow Control"
+    on_success:
+      next: validate-results
+      with:
+        analysis: "{{ .task.outputs }}"
+
+    on_error:
+      next: handle-error
+      with:
+        error_context: "{{ .task.error }}"
+        retry_count: "{{ .task.retry_count }}"
+    ```
+
+    **Flow options:**
+    - Route to different tasks based on execution outcome
+    - Pass contextual data to next tasks
+    - Implement sophisticated [error handling strategies](/docs/core/tasks/error-handling)
+  </Step>
+</Steps>
 
 <Callout type="info">
-**Note**: The task type is determined by its structure. Basic tasks are the default when using a single agent or tool execution without complex orchestration patterns.
+**Type Inference**: Task types are automatically determined by their structure. Basic tasks are identified when using a single agent or tool execution without complex orchestration patterns like parallel or collection processing.
 </Callout>
 
 ### Key Components
@@ -223,16 +386,37 @@ start_to_close_timeout: 3m
 </Tab>
 </Tabs>
 
-## Agent vs Tool Tasks
+## Agent vs Tool Decision Guide
 
-### When to Use Agents
+Choosing between agents and tools is crucial for optimal performance and reliability. This decision impacts execution speed, cost, and the type of processing your task can perform.
 
-Choose agent tasks for:
+### When to Use AI Agents
 
-- **Natural Language Processing**: Text analysis, generation, translation
-- **Complex Reasoning**: Decision making, problem solving, planning
-- **Unstructured Data**: Processing varied inputs that require interpretation
-- **Creative Tasks**: Content generation, ideation, creative writing
+Agents excel at **cognitive tasks** that require understanding, reasoning, and interpretation. They're powered by large language models and can handle complex, unstructured inputs.
+
+<List>
+  <ListItem title="Natural Language Processing" icon="MessageSquare">
+    Text analysis, sentiment detection, content generation, and language translation
+  </ListItem>
+  <ListItem title="Complex Reasoning" icon="Brain">
+    Decision making, problem solving, strategic planning, and logical inference
+  </ListItem>
+  <ListItem title="Unstructured Data Analysis" icon="FileSearch">
+    Processing varied inputs like emails, documents, images, or free-form text that require interpretation
+  </ListItem>
+  <ListItem title="Creative & Generative Tasks" icon="Sparkles">
+    Content creation, ideation, creative writing, and artistic tasks requiring imagination
+  </ListItem>
+  <ListItem title="Context-Aware Processing" icon="BrainCircuit">
+    Tasks requiring understanding of context, nuance, and implicit meaning
+  </ListItem>
+</List>
+
+**Agent advantages:**
+- Handle ambiguous or varied inputs gracefully
+- Provide reasoning and explanations for their outputs
+- Can adapt to new scenarios without code changes
+- Support [structured outputs](/docs/core/agents/structured-outputs) for reliable data extraction
 
 ```yaml
 # Example: Content analysis agent
@@ -271,14 +455,67 @@ with:
   metadata: "{{ .workflow.input.context }}"
 ```
 
-### When to Use Tools
+### When to Use TypeScript Tools
 
-Choose tool tasks for:
+Tools are perfect for **deterministic operations** that require precise, predictable results. They execute in a secure Bun runtime with configurable permissions and offer superior performance for computational tasks.
 
-- **Deterministic Operations**: File I/O, data transformation, calculations
-- **External API Integration**: HTTP requests, database operations
-- **System Operations**: File system access, process management
-- **Performance-Critical Tasks**: High-speed data processing
+<List>
+  <ListItem title="Deterministic Operations" icon="Calculator">
+    File I/O, data transformation, mathematical calculations, and formatting operations
+  </ListItem>
+  <ListItem title="External API Integration" icon="Globe">
+    HTTP requests, database operations, third-party service integration, and webhooks
+  </ListItem>
+  <ListItem title="System Operations" icon="Server">
+    File system access, process management, environment interactions, and system utilities
+  </ListItem>
+  <ListItem title="Performance-Critical Tasks" icon="Zap">
+    High-speed data processing, bulk operations, and computationally intensive tasks
+  </ListItem>
+  <ListItem title="Structured Data Processing" icon="Database">
+    JSON/XML parsing, data validation, format conversion, and structured transformations
+  </ListItem>
+</List>
+
+**Tool advantages:**
+- Faster execution and lower latency than agents
+- Deterministic, repeatable results every time
+- Cost-effective for computational tasks
+- Fine-grained control over [runtime permissions](/docs/core/tools/runtime-environment)
+
+### Comparison at a Glance
+
+<Tabs items={["Use Cases", "Performance", "Development"]}>
+<Tab value="Use Cases">
+| Aspect | AI Agents | TypeScript Tools |
+|--------|-----------|------------------|
+| **Best for** | Cognitive tasks, NLP, reasoning | Computational tasks, APIs, I/O |
+| **Input handling** | Unstructured, ambiguous data | Structured, well-defined data |
+| **Output predictability** | Variable, context-dependent | Deterministic, repeatable |
+| **Adaptation** | Learns from context | Explicit programming required |
+| **Error handling** | Graceful degradation | Precise error codes |
+</Tab>
+
+<Tab value="Performance">
+| Metric | AI Agents | TypeScript Tools |
+|--------|-----------|------------------|
+| **Execution speed** | 2-10 seconds typical | 10-500ms typical |
+| **Cost** | LLM API costs apply | Compute costs only |
+| **Scalability** | Rate limited by providers | Limited by system resources |
+| **Memory usage** | Handled by provider | Controlled by runtime config |
+| **Concurrency** | Provider-dependent | High with proper resource management |
+</Tab>
+
+<Tab value="Development">
+| Aspect | AI Agents | TypeScript Tools |
+|--------|-----------|------------------|
+| **Development complexity** | [YAML configuration](/docs/core/agents/instructions-actions) | TypeScript programming |
+| **Testing approach** | Output validation, prompting | Unit tests, integration tests |
+| **Debugging** | [LLM observability tools](/docs/core/agents/debugging) | Standard debugging tools |
+| **Maintenance** | Prompt engineering | Code maintenance |
+| **Version control** | Configuration changes | Source code changes |
+</Tab>
+</Tabs>
 
 ```yaml
 # Example: Data processing tool
@@ -311,11 +548,19 @@ outputs:
   processing_time: "{{ .output.duration }}"
 ```
 
-## Template Expressions
+## Template Expressions & Dynamic Configuration
 
-Basic tasks support powerful template expressions for dynamic configuration:
+Basic tasks leverage Compozy's [powerful template engine](/docs/core/yaml-templates/overview) to create dynamic, data-driven workflows. Template expressions use the **[Sprig template engine](https://github.com/Masterminds/sprig)** with custom functions for accessing workflow context.
 
-### Input Templates
+<Callout type="info">
+**Template Mastery Path**: New to templates? Follow this progression:
+1. **Start**: [Template Overview](/docs/core/yaml-templates/overview) for basic syntax
+2. **Learn**: [Context Variables](/docs/core/yaml-templates/context-variables) for data access patterns
+3. **Master**: [Sprig Functions](/docs/core/yaml-templates/sprig-functions) for data transformation
+4. **Apply**: [Conditional Logic](/docs/core/yaml-templates/conditionals) for advanced workflows
+</Callout>
+
+### Input Template Patterns
 
 ```yaml
 with:
@@ -366,177 +611,6 @@ outputs:
   count_string: "{{ .output.count | toString }}"
   score_number: "{{ .output.score | toNumber }}"
 ```
-
-## Practical Examples
-
-### Example 1: Document Processing Pipeline
-
-<Steps>
-<Step>
-
-**Extract Text**: Use a tool to extract text from documents
-
-```yaml
-id: extract-text
-$use: tool(local::tools.#(id=="text-extractor"))
-
-with:
-  document_path: "{{ .workflow.input.file_path }}"
-  format: "{{ .workflow.input.format }}"
-
-outputs:
-  raw_text: "{{ .output.text }}"
-  page_count: "{{ .output.pages }}"
-  metadata: "{{ .output.doc_metadata }}"
-
-on_success:
-  next: analyze-content
-```
-
-</Step>
-<Step>
-
-**Analyze Content**: Use an agent to analyze the extracted text
-
-```yaml
-id: analyze-content
-$use: agent(local::agents.#(id=="document-analyzer"))
-action: analyze_document
-
-with:
-  text: "{{ .tasks.extract-text.outputs.raw_text }}"
-  document_type: "{{ .workflow.input.doc_type }}"
-
-outputs:
-  analysis: "{{ .output.analysis }}"
-  confidence: "{{ .output.confidence }}"
-  key_points: "{{ .output.key_points }}"
-
-on_success:
-  next: generate-summary
-```
-
-</Step>
-<Step>
-
-**Generate Summary**: Create a final summary
-
-```yaml
-id: generate-summary
-$use: agent(local::agents.#(id=="summarizer"))
-action: create_summary
-
-with:
-  original_text: "{{ .tasks.extract-text.outputs.raw_text }}"
-  analysis: "{{ .tasks.analyze-content.outputs.analysis }}"
-  target_length: "{{ .workflow.input.summary_length | default 'medium' }}"
-
-outputs:
-  summary: "{{ .output.summary }}"
-  word_count: "{{ .output.word_count }}"
-
-final: true
-```
-
-</Step>
-</Steps>
-
-### Example 2: API Integration with Error Handling
-
-```yaml
-id: fetch-user-data
-$use: tool(local::tools.#(id=="api-client"))
-
-# Comprehensive input validation
-input:
-  type: object
-  properties:
-    user_id:
-      type: string
-      pattern: "^[a-zA-Z0-9_-]+$"
-    include_profile:
-      type: boolean
-      default: true
-    api_version:
-      type: string
-      enum: ["v1", "v2"]
-      default: "v2"
-  required: [user_id]
-
-with:
-  endpoint: "/users/{{ .workflow.input.user_id }}"
-  headers:
-    Authorization: "Bearer {{ .env.API_TOKEN }}"
-    Accept: "application/json"
-    User-Agent: "Compozy/1.0"
-  query_params:
-    include_profile: "{{ .workflow.input.include_profile }}"
-    version: "{{ .workflow.input.api_version }}"
-  timeout: 30s
-
-# Robust error handling
-retry_policy:
-  maximum_attempts: 3
-  initial_interval: 2s
-  maximum_interval: 30s
-  non_retryable_error_types: ["AuthenticationError", "NotFoundError"]
-
-on_success:
-  next: process-user-data
-  with:
-    user_data: "{{ .output.data }}"
-    api_metadata: "{{ .output.metadata }}"
-
-on_error:
-  next: handle-api-error
-  with:
-    error_type: "{{ .task.error.type }}"
-    user_id: "{{ .workflow.input.user_id }}"
-    retry_count: "{{ .task.retry_count }}"
-```
-
-### Example 3: Multi-Step Data Transformation
-
-```yaml
-id: transform-data
-$use: tool(local::tools.#(id=="data-transformer"))
-
-with:
-  input_data: "{{ .workflow.input.raw_data }}"
-  transformations:
-    # Data cleaning
-    - type: "remove_nulls"
-      fields: ["email", "phone", "address"]
-
-    # Format standardization
-    - type: "normalize_phone"
-      format: "international"
-
-    # Data enrichment
-    - type: "add_metadata"
-      metadata:
-        processed_at: "{{ now }}"
-        processor_version: "2.1.0"
-        source: "{{ .workflow.input.source }}"
-
-    # Validation
-    - type: "validate_schema"
-      schema_ref: "user_profile_v2"
-
-outputs:
-  cleaned_data: "{{ .output.transformed_data }}"
-  validation_errors: "{{ .output.errors }}"
-  statistics:
-    records_processed: "{{ .output.record_count }}"
-    errors_found: "{{ len .output.errors }}"
-    success_rate: "{{ div (sub .output.record_count (len .output.errors)) .output.record_count }}"
-
-# Conditional routing based on validation results
-on_success:
-  next: "{{ if .outputs.validation_errors }}handle-validation-errors{{ else }}save-results{{ end }}"
-```
-
-## Best Practices
 
 ### Task Design
 
@@ -607,168 +681,382 @@ schedule_to_close_timeout: 10m
 start_to_close_timeout: 5m
 ```
 
-## Common Patterns
+## Common Patterns & Best Practices
 
-### Conditional Execution
+Master these essential patterns to build robust, maintainable workflows with basic tasks.
 
-```yaml
-# Execute task only if condition is met
-id: conditional-task
-$use: agent(local::agents.#(id=="processor"))
-action: process
+### Task Design Principles
 
-# Use template conditions
-with:
-  data: "{{ if .workflow.input.process_data }}{{ .workflow.input.data }}{{ else }}null{{ end }}"
+<Steps numbered>
+  <Step title="Single Responsibility" description="Design each task with one clear purpose">
 
-# Skip task if no data
-condition: "{{ ne .workflow.input.data null }}"
-```
+    ```yaml title="Good: Focused Task"
+    id: validate-email
+    $use: tool(local::tools.#(id=="email-validator"))
+    with:
+      email: "{{ .workflow.input.email }}"
+    ```
 
-### Data Validation
+    **Why**: Single-responsibility tasks are easier to debug, test, and reuse across workflows.
+  </Step>
 
-```yaml
-id: validate-input
-$use: tool(local::tools.#(id=="validator"))
+  <Step title="Idempotent Execution" description="Tasks should produce consistent results when re-run">
 
-input:
-  type: object
-  properties:
-    email:
-      type: string
-      format: email
-    age:
-      type: integer
-      minimum: 0
-      maximum: 150
-    preferences:
+    ```yaml title="Idempotent Design"
+    id: generate-report
+    $use: agent(local::agents.#(id=="reporter"))
+    action: create_report
+    with:
+      data: "{{ .workflow.input.data }}"
+      timestamp: "{{ .workflow.input.report_date }}" # Fixed timestamp, not 'now'
+    ```
+
+    **Why**: Enables safe retries and workflow replay without side effects.
+  </Step>
+
+  <Step title="Comprehensive Error Handling" description="Define clear error scenarios and recovery paths">
+
+    ```yaml title="Robust Error Handling"
+    id: api-call
+    $use: tool(local::tools.#(id=="http-client"))
+
+    retry_policy:
+      maximum_attempts: 3
+      initial_interval: 1s
+      maximum_interval: 30s
+      backoff_coefficient: 2.0
+      non_retryable_error_types:
+        - "AuthenticationError"
+        - "ValidationError"
+
+    on_error:
+      next: handle-failure
+      with:
+        error_context: "{{ .task.error }}"
+    ```
+
+    **Learn more**: [Error Handling Strategies →](/docs/core/tasks/error-handling)
+  </Step>
+
+  <Step title="Input Validation" description="Use JSON Schema to validate inputs early">
+
+    ```yaml title="Schema Validation"
+    id: process-user-data
+
+    input:
       type: object
       properties:
-        notifications:
-          type: boolean
-        theme:
-          type: string
-          enum: ["light", "dark"]
-  required: [email, age]
+        email: { type: string, format: email }
+        age: { type: integer, minimum: 0, maximum: 150 }
+        preferences:
+          type: object
+          properties:
+            notifications: { type: boolean }
+            theme: { type: string, enum: ["light", "dark"] }
+      required: [email, age]
+    ```
+
+    **Why**: Early validation prevents downstream errors and improves debugging.
+  </Step>
+</Steps>
+
+### Essential Patterns
+
+<Tabs items={["Conditional Logic", "Data Transformation", "Error Recovery", "State Management"]}>
+<Tab value="Conditional Logic">
+
+**Pattern**: Execute tasks based on runtime conditions
+
+```yaml title="Conditional Execution"
+id: conditional-processing
+$use: agent(local::agents.#(id=="processor"))
+action: process_data
+
+# Conditional input preparation
+with:
+  data: >-
+    {{ if .workflow.input.process_required }}
+      {{ .workflow.input.data }}
+    {{ else }}
+      null
+    {{ end }}
+
+# Skip execution if no data to process
+condition: "{{ ne .with.data null }}"
+
+on_success:
+  next: "{{ if .workflow.input.save_results }}save-results{{ else }}notify-completion{{ end }}"
+```
+
+**Use cases**: Feature flags, A/B testing, environment-specific logic
+</Tab>
+
+<Tab value="Data Transformation">
+
+**Pattern**: Transform and validate data between tasks
+
+```yaml title="Data Pipeline"
+id: transform-data
+$use: tool(local::tools.#(id=="transformer"))
 
 with:
-  email: "{{ .workflow.input.email }}"
-  age: "{{ .workflow.input.age }}"
-  preferences: "{{ .workflow.input.preferences | default dict }}"
+  raw_data: "{{ .tasks.fetch_data.output.results }}"
+  transformation_rules:
+    - type: "normalize_dates"
+      format: "ISO8601"
+    - type: "validate_emails"
+    - type: "deduplicate"
+      key: "user_id"
+
+outputs:
+  processed_data: "{{ .output.data }}"
+  transformation_log: "{{ .output.log }}"
+  errors: "{{ .output.errors }}"
+
+on_success:
+  condition: "{{ eq (len .task.outputs.errors) 0 }}"
+  next: save-clean-data
+on_error:
+  next: handle-transformation-errors
 ```
 
-Basic tasks form the foundation of all Compozy workflows, providing flexible, reliable execution of both AI agents and tools. Their template system enables dynamic configuration, while their error handling ensures robust operation in production environments.
+**Use cases**: Data pipelines, ETL workflows, format conversion
+</Tab>
 
-## CLI Commands
+<Tab value="Error Recovery">
 
-The Compozy CLI provides comprehensive commands for managing workflows, authentication, and configuration:
+**Pattern**: Graceful degradation and recovery strategies
 
-### Core Commands
-```bash
-# Initialize a new project
-compozy init
+```yaml title="Fallback Strategy"
+id: primary-service-call
+$use: tool(local::tools.#(id=="primary-api"))
 
-# Start development mode with hot reload
-compozy dev
+retry_policy:
+  maximum_attempts: 2
+  initial_interval: 500ms
 
-# Start production services
-compozy start
+on_error:
+  next: fallback-service
+  with:
+    original_request: "{{ .task.with }}"
+    primary_error: "{{ .task.error }}"
 
-# Start MCP proxy service
-compozy mcp-proxy
+---
+id: fallback-service
+$use: tool(local::tools.#(id=="backup-api"))
+
+with:
+  request: "{{ .workflow.tasks.primary-service-call.with.original_request }}"
+  fallback_mode: true
+
+outputs:
+  result: "{{ .output.data }}"
+  source: "fallback"
 ```
 
-### Workflow Management
-```bash
-# List all workflows
-compozy workflow list
+**Learn more**: [Resilient Workflow Patterns →](/docs/core/tasks/error-handling#resilient-patterns)
+</Tab>
 
-# Get workflow details
-compozy workflow get <workflow-id>
+<Tab value="State Management">
 
-# Execute a workflow
-compozy workflow execute <workflow-id>
+**Pattern**: Accumulate and pass state between tasks
+
+```yaml title="State Accumulation"
+id: process-batch
+$use: agent(local::agents.#(id=="batch-processor"))
+action: process_items
+
+with:
+  items: "{{ .workflow.input.batch }}"
+  previous_results: "{{ .tasks.previous_batch.output.results | default list }}"
+  batch_number: "{{ add (.workflow.context.current_batch | default 0) 1 }}"
+
+outputs:
+  # Accumulate results across batches
+  all_results: >-
+    {{ concat
+        (.with.previous_results | default list)
+        (.output.processed_items | default list)
+    }}
+
+  # Update workflow context
+  batch_metadata:
+    current_batch: "{{ .with.batch_number }}"
+    total_processed: "{{ len .task.outputs.all_results }}"
+    last_processed_at: "{{ now }}"
+
+on_success:
+  next: "{{ if .workflow.input.has_more_batches }}process-next-batch{{ else }}finalize-results{{ end }}"
 ```
 
-### Authentication & API Keys
-```bash
-# Generate a new API key
-compozy auth generate --name "my-key"
+**Use cases**: Batch processing, accumulating results, maintaining workflow state
+</Tab>
+</Tabs>
 
-# List all API keys
-compozy auth list
+### Production Considerations
 
-# Revoke an API key
-compozy auth revoke <key-id>
+<List>
+  <ListItem title="Performance Optimization" icon="Zap">
+    **Timeouts**: 2-30s for most tasks | **Retries**: Efficient [backoff strategies](/docs/core/tasks/error-handling#retry-strategies) | **Data**: Minimize I/O payload size | **Resources**: Monitor [execution metrics](/docs/core/monitoring/task-metrics)
+  </ListItem>
+  <ListItem title="Security Best Practices" icon="Shield">
+    **Input Validation**: JSON Schema enforcement | **Secrets**: [Environment variables](/docs/core/configuration/project-setup#environment-variables) only | **Permissions**: [Minimal runtime access](/docs/core/tools/runtime-environment#permissions) | **Audit**: [Security logging](/docs/core/monitoring/security-logs)
+  </ListItem>
+  <ListItem title="Monitoring & Observability" icon="Eye">
+    **Task IDs**: Meaningful, traceable identifiers | **Metadata**: Execution context in outputs | **Health**: [Dependency monitoring](/docs/core/monitoring/health-checks) | **Alerts**: [Error rate thresholds](/docs/core/monitoring/alerting)
+  </ListItem>
+  <ListItem title="Testing & Validation" icon="TestTube">
+    **Isolation**: Unit test individual tasks | **Templates**: Validate expression syntax | **Fixtures**: [Consistent test data](/docs/core/testing/test-fixtures) | **Integration**: [End-to-end workflows](/docs/core/testing/e2e-testing)
+  </ListItem>
+</List>
 
-# User management
-compozy auth create-user --email "user@example.com" --name "User Name"
-compozy auth list-users
-compozy auth update-user <user-id> --role admin
-compozy auth delete-user <user-id>
-```
+Basic tasks form the **foundation of all Compozy workflows**, providing flexible, reliable execution of both AI agents and tools. Master these patterns to build scalable, maintainable automation that grows with your needs.
 
-### Configuration Management
-```bash
-# Show current configuration values
-compozy config show
+## Next Steps & Learning Paths
 
-# Run configuration diagnostics
-compozy config diagnostics
+Choose your learning path based on your goals and experience level:
 
-# Validate configuration file
-compozy config validate
-```
-
-## Related Documentation
+### 🚀 Getting Started
 
 <ReferenceCardList>
   <ReferenceCard
-    title="Agent Integration"
-    description="Learn how to integrate AI agents with basic tasks for intelligent processing"
-    href="/docs/core/agents/overview"
-    icon="Bot"
+    title="Quick Start Guide"
+    description="Build your first basic task in 10 minutes with step-by-step tutorial and working examples"
+    href="/docs/core/getting-started/quick-start"
+    icon="Rocket"
   />
   <ReferenceCard
-    title="Tool Development"
-    description="Understand how to create and use TypeScript tools in basic tasks"
-    href="/docs/core/tools/tools-overview"
+    title="First Workflow Tutorial"
+    description="Create an end-to-end workflow combining multiple basic tasks with error handling"
+    href="/docs/core/getting-started/first-workflow"
+    icon="PlayCircle"
+  />
+  <ReferenceCard
+    title="Core Concepts Deep Dive"
+    description="Master the foundational architecture and understand task relationships in complex systems"
+    href="/docs/core/getting-started/core-concepts"
+    icon="BookOpen"
+  />
+  <ReferenceCard
+    title="Template Expression Mastery"
+    description="Advanced dynamic configuration with context variables, conditionals, and Sprig functions"
+    href="/docs/core/yaml-templates/context-variables"
+    icon="Code"
+  />
+</ReferenceCardList>
+
+### 🤖 AI Agent Development
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Agent Architecture & Integration"
+    description="Design AI agents with structured outputs, tool integration, and persistent memory for complex reasoning"
+    href="/docs/core/agents/overview"
+    icon="BrainCircuit"
+  />
+  <ReferenceCard
+    title="Instructions & Action Design"
+    description="Craft effective prompts, define reusable actions, and implement reliable structured response patterns"
+    href="/docs/core/agents/instructions-actions"
+    icon="MessageSquare"
+  />
+  <ReferenceCard
+    title="Structured Output Mastery"
+    description="Guarantee reliable data extraction with JSON schemas, type validation, and error handling strategies"
+    href="/docs/core/agents/structured-outputs"
+    icon="Target"
+  />
+  <ReferenceCard
+    title="Multi-Agent Orchestration"
+    description="Build collaborative AI systems with agent coordination, specialized roles, and conflict resolution"
+    href="/docs/core/agents/multi-agent-patterns"
+    icon="Users"
+  />
+</ReferenceCardList>
+
+### 🛠️ Tool Development
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Tool Development Guide"
+    description="Create custom TypeScript tools for specialized operations and integrations"
+    href="/docs/core/tools/overview"
     icon="Wrench"
   />
   <ReferenceCard
-    title="Memory Systems"
-    description="Add persistent memory to your task workflows for stateful processing"
-    href="/docs/core/memory/memory-concepts"
-    icon="Database"
+    title="Runtime Environment"
+    description="Configure secure Bun runtime with permissions and environment variables"
+    href="/docs/core/tools/runtime-environment"
+    icon="Server"
   />
   <ReferenceCard
-    title="MCP Integration"
-    description="Extend task capabilities with external MCP servers and tools"
-    href="/docs/core/mcp/mcp-overview"
+    title="Testing & Debugging"
+    description="Test tools in isolation and debug execution issues effectively"
+    href="/docs/core/tools/typescript-development#testing-strategies"
+    icon="Bug"
+  />
+  <ReferenceCard
+    title="External MCP Tools"
+    description="Integrate external tools and services using Model Context Protocol"
+    href="/docs/core/mcp/overview"
     icon="Plug"
   />
+</ReferenceCardList>
+
+### 📊 Advanced Task Patterns
+
+<ReferenceCardList>
   <ReferenceCard
     title="Parallel Processing"
-    description="Scale your workflows with parallel task execution patterns"
+    description="Execute multiple tasks concurrently for performance and scalability"
     href="/docs/core/tasks/parallel-processing"
-    icon="Zap"
+    icon="Layers"
   />
   <ReferenceCard
-    title="Flow Control"
-    description="Master conditional routing and complex workflow orchestration"
-    href="/docs/core/tasks/flow-control"
+    title="Collection Tasks"
+    description="Process arrays and lists with parallel, sequential, or custom strategies"
+    href="/docs/core/tasks/collection-tasks"
+    icon="List"
+  />
+  <ReferenceCard
+    title="Router Tasks"
+    description="Implement conditional logic and dynamic workflow routing"
+    href="/docs/core/tasks/router-tasks"
     icon="GitBranch"
   />
   <ReferenceCard
-    title="Workflow Patterns"
-    description="Explore real-world examples and common task patterns"
-    href="/docs/core/examples/basic-examples"
-    icon="FileText"
+    title="Flow Control Patterns"
+    description="Master error handling, retries, and complex orchestration"
+    href="/docs/core/tasks/flow-control"
+    icon="Workflow"
+  />
+</ReferenceCardList>
+
+### 🎯 Production & Operations
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Error Handling Strategies"
+    description="Build resilient workflows with comprehensive error handling and recovery"
+    href="/docs/core/tasks/error-handling"
+    icon="Shield"
   />
   <ReferenceCard
-    title="Signals & Coordination"
-    description="Coordinate tasks across workflows with signal patterns"
-    href="/docs/core/signals/signal-overview"
-    icon="Radio"
+    title="Memory & State"
+    description="Add persistent memory and state management to your workflows"
+    href="/docs/core/memory/overview"
+    icon="Database"
+  />
+  <ReferenceCard
+    title="Monitoring & Observability"
+    description="Monitor task execution, performance, and health in production"
+    href="/docs/core/monitoring/observability"
+    icon="Eye"
+  />
+  <ReferenceCard
+    title="CLI Commands"
+    description="Execute, monitor, and debug basic tasks using the Compozy CLI"
+    href="/docs/cli/workflow-commands"
+    icon="Terminal"
   />
 </ReferenceCardList>

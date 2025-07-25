@@ -1,30 +1,40 @@
 ---
 title: Composite Tasks
-description: Understanding composite task execution for grouping related tasks into logical units with sequential orchestration
+description: Master sequential workflow orchestration with composite tasks that group related operations into logical, reusable units with sophisticated strategy control and error handling
 ---
 
-Composite tasks are the **organizational building blocks** of Compozy workflows, enabling you to group related tasks into logical units that execute sequentially. They transform complex multi-step processes into reusable, maintainable components while providing sophisticated control over execution strategies and error handling.
-
-
+<Callout type="info" title="When to Use Composite Tasks" className="mt-8">
+  Perfect for multi-step processes like user onboarding, document processing pipelines, or any workflow where tasks must execute in a specific order. For independent operations that can run simultaneously, consider [parallel processing](/docs/core/tasks/parallel-processing) instead.
+</Callout>
 
 ## Overview
 
-Composite tasks provide sophisticated sequential orchestration for multi-step processes:
+Composite tasks are the **sequential orchestration engine** of Compozy workflows, enabling you to group related tasks into logical units that execute one after another. They transform complex multi-step processes into reusable, maintainable components while providing sophisticated control over execution strategies and comprehensive error handling.
 
-- **🔄 Sequential Execution**: Tasks run in order, with each task waiting for the previous to complete
-- **📦 Logical Grouping**: Related tasks are organized into cohesive units
-- **🔄 Dependency Management**: Task outputs automatically flow to subsequent tasks
-- **🚫 Strategy Control**: Configurable error handling with `fail_fast` and `best_effort` strategies
-- **🔄 Template Integration**: Full support for dynamic parameters and cross-task data flow
-- **📊 Hierarchical Organization**: Composite tasks can contain other composite tasks
-
-<Callout type="info">
-Composite tasks are always executed sequentially (one after another), making them ideal for multi-step processes where each step depends on the previous one's completion.
-</Callout>
+<FeatureCardList cols={2} size="default">
+  <FeatureCard
+    title="Sequential Execution"
+    description="Tasks execute one after another, with each task waiting for the previous to complete, ensuring proper dependency management"
+    icon="ArrowRight"
+  />
+  <FeatureCard
+    title="Strategy Control"
+    description="Choose between fail_fast for critical processes or best_effort for resilient operations with configurable error handling"
+    icon="GitBranch"
+  />
+  <FeatureCard
+    title="Data Flow Integration"
+    description="Outputs from each task automatically become available to subsequent tasks through template expressions"
+    icon="Workflow"
+  />
+  <FeatureCard
+    title="Hierarchical Composition"
+    description="Composite tasks can contain other composite tasks, enabling complex nested workflows with different strategies"
+    icon="Layers"
+  />
+</FeatureCardList>
 
 ## Task Structure
-
-### Core Configuration
 
 Every composite task shares this fundamental structure:
 
@@ -35,12 +45,14 @@ strategy: fail_fast # or best_effort
 tasks:
   - id: first-task
     type: basic
-    $use: agent(local::agents.#(id=="processor"))
-    # ... task configuration
+    action: process_message
+    with:
+      data: "{{ .workflow.input.data }}"
   - id: second-task
     type: basic
-    $use: tool(local::tools.#(id=="formatter"))
-    # ... task configuration
+    action: format_output
+    with:
+      processed_data: "{{ .tasks.first-task.output.result }}"
 outputs:
   result: "{{ .tasks.second-task.output.result }}"
 on_success:
@@ -49,227 +61,14 @@ on_error:
   next: error-handler
 ```
 
-### Key Components
-
-<Tabs items={["Strategy Control", "Task Dependencies", "Output Aggregation", "Error Handling"]}>
-<Tab value="Strategy Control">
-
-Composite tasks support two execution strategies:
-
-```yaml
-# Fail Fast Strategy (default)
-id: critical-pipeline
-type: composite
-strategy: fail_fast  # Stop immediately on first failure
-
-tasks:
-  - id: validate-input
-    type: basic
-    $use: agent(local::agents.#(id=="validator"))
-    with:
-      data: "{{ .workflow.input.data }}"
-
-  - id: process-data
-    type: basic
-    $use: tool(local::tools.#(id=="processor"))
-    with:
-      validated_data: "{{ .tasks.validate-input.output.result }}"
-
-  - id: save-results
-    type: basic
-    $use: tool(local::tools.#(id=="database"))
-    with:
-      processed_data: "{{ .tasks.process-data.output.result }}"
-```
-
-```yaml
-# Best Effort Strategy
-id: data-enrichment
-type: composite
-strategy: best_effort  # Continue even if some tasks fail
-
-tasks:
-  - id: extract-metadata
-    type: basic
-    $use: tool(local::tools.#(id=="metadata-extractor"))
-    
-  - id: enhance-data
-    type: basic
-    $use: agent(local::agents.#(id=="enhancer"))
-    # This task will run even if extract-metadata fails
-    
-  - id: final-processing
-    type: basic
-    $use: tool(local::tools.#(id=="finalizer"))
-    # This task will run regardless of previous failures
-```
-
-</Tab>
-<Tab value="Task Dependencies">
-
-Tasks within a composite automatically have access to outputs from previous tasks:
-
-```yaml
-id: document-processing
-type: composite
-strategy: fail_fast
-
-tasks:
-  - id: extract-text
-    type: basic
-    $use: tool(local::tools.#(id=="text-extractor"))
-    with:
-      document: "{{ .workflow.input.document }}"
-
-  - id: analyze-content
-    type: basic
-    $use: agent(local::agents.#(id=="analyzer"))
-    with:
-      # Access output from previous task
-      text: "{{ .tasks.extract-text.output.content }}"
-      metadata: "{{ .tasks.extract-text.output.metadata }}"
-
-  - id: generate-summary
-    type: basic
-    $use: agent(local::agents.#(id=="summarizer"))
-    with:
-      # Access outputs from multiple previous tasks
-      original_text: "{{ .tasks.extract-text.output.content }}"
-      analysis: "{{ .tasks.analyze-content.output.analysis }}"
-      confidence: "{{ .tasks.analyze-content.output.confidence }}"
-
-outputs:
-  # Aggregate outputs from all tasks
-  extracted_text: "{{ .tasks.extract-text.output.content }}"
-  analysis_result: "{{ .tasks.analyze-content.output.analysis }}"
-  summary: "{{ .tasks.generate-summary.output.summary }}"
-  processing_metadata:
-    total_tasks: 3
-    completed_tasks: "{{ len .tasks }}"
-    success_rate: "{{ .composite_metadata.success_rate }}"
-```
-
-</Tab>
-<Tab value="Output Aggregation">
-
-Composite tasks can aggregate outputs from all subtasks:
-
-```yaml
-id: user-onboarding
-type: composite
-strategy: fail_fast
-
-tasks:
-  - id: validate-user
-    type: basic
-    $use: agent(local::agents.#(id=="validator"))
-    with:
-      user_data: "{{ .workflow.input.user_data }}"
-
-  - id: create-account
-    type: basic
-    $use: tool(local::tools.#(id=="account-creator"))
-    with:
-      validated_data: "{{ .tasks.validate-user.output.validated_data }}"
-
-  - id: send-welcome
-    type: basic
-    $use: tool(local::tools.#(id=="email-sender"))
-    with:
-      user_id: "{{ .tasks.create-account.output.user_id }}"
-      email: "{{ .tasks.create-account.output.email }}"
-
-  - id: setup-preferences
-    type: basic
-    $use: agent(local::agents.#(id=="preference-manager"))
-    with:
-      user_id: "{{ .tasks.create-account.output.user_id }}"
-      preferences: "{{ .workflow.input.preferences }}"
-
-# Comprehensive output aggregation
-outputs:
-  user_id: "{{ .tasks.create-account.output.user_id }}"
-  account_status: "{{ .tasks.create-account.output.status }}"
-  welcome_sent: "{{ .tasks.send-welcome.output.success }}"
-  preferences_configured: "{{ .tasks.setup-preferences.output.success }}"
-  
-  # Metadata about the composite execution
-  onboarding_summary:
-    total_steps: 4
-    completed_steps: "{{ .composite_metadata.child_count }}"
-    execution_time: "{{ .task.duration }}"
-    success: "{{ not .task.error }}"
-    failed_step: "{{ .task.error.task_id | default 'none' }}"
-```
-
-</Tab>
-<Tab value="Error Handling">
-
-Comprehensive error handling and recovery strategies:
-
-```yaml
-id: resilient-pipeline
-type: composite
-strategy: fail_fast
-
-tasks:
-  - id: critical-validation
-    type: basic
-    $use: agent(local::agents.#(id=="validator"))
-    with:
-      data: "{{ .workflow.input.data }}"
-    
-    # Individual task error handling
-    retry_policy:
-      maximum_attempts: 3
-      initial_interval: 1s
-      maximum_interval: 10s
-    
-    on_error:
-      next: validation-fallback
-      with:
-        original_data: "{{ .workflow.input.data }}"
-        error_details: "{{ .task.error }}"
-
-  - id: primary-processing
-    type: basic
-    $use: tool(local::tools.#(id=="processor"))
-    with:
-      validated_data: "{{ .tasks.critical-validation.output.result }}"
-    
-    timeout: 30s
-    heartbeat_timeout: 10s
-
-  - id: backup-processing
-    type: basic
-    $use: tool(local::tools.#(id=="backup-processor"))
-    with:
-      data: "{{ .tasks.critical-validation.output.result }}"
-    
-    # Conditional execution based on primary processing
-    condition: "{{ .tasks.primary-processing.error }}"
-
-# Composite-level error handling
-on_error:
-  next: composite-error-handler
-  with:
-    failed_task: "{{ .task.error.task_id }}"
-    error_message: "{{ .task.error.message }}"
-    completed_tasks: "{{ keys .tasks }}"
-    partial_results: "{{ .tasks }}"
-
-# Timeout for entire composite
-timeout: 5m
-```
-
-</Tab>
-</Tabs>
-
 ## Execution Strategies
 
-### Fail Fast Strategy
+Composite tasks support two distinct execution strategies that determine how failures are handled during sequential execution. Understanding these strategies is crucial for building robust workflows that match your business requirements.
 
-The `fail_fast` strategy (default) stops execution immediately when any task fails:
+<Tabs items={["Fail Fast Strategy", "Best Effort Strategy"]}>
+<Tab value="Fail Fast Strategy">
+
+The `fail_fast` strategy (default) provides **strict error handling** by stopping execution immediately when any task fails. This strategy is essential for workflows where the integrity of the entire process depends on every step succeeding.
 
 ```yaml
 id: financial-transaction
@@ -279,21 +78,21 @@ strategy: fail_fast  # Critical for financial operations
 tasks:
   - id: validate-account
     type: basic
-    $use: agent(local::agents.#(id=="account-validator"))
+    action: validate_account
     with:
       account_id: "{{ .workflow.input.account_id }}"
       amount: "{{ .workflow.input.amount }}"
 
   - id: check-balance
     type: basic
-    $use: tool(local::tools.#(id=="balance-checker"))
+    action: check_account_balance
     with:
       account_id: "{{ .workflow.input.account_id }}"
       required_amount: "{{ .workflow.input.amount }}"
 
   - id: process-transaction
     type: basic
-    $use: tool(local::tools.#(id=="transaction-processor"))
+    action: process_financial_transaction
     with:
       account_id: "{{ .workflow.input.account_id }}"
       amount: "{{ .workflow.input.amount }}"
@@ -303,15 +102,29 @@ tasks:
 # No subsequent tasks will execute
 ```
 
-**✅ Use fail_fast when:**
-- All tasks must succeed for the process to be valid
-- Failure of any step makes subsequent steps meaningless
-- System integrity or data consistency is critical
-- Financial, legal, or security-sensitive operations
+<List className="mt-8">
+  <ListItem title="Critical Process Integrity" icon="Shield">
+    Use when all tasks must succeed for the process to be valid - perfect for financial transactions, legal workflows, or security-sensitive operations
+  </ListItem>
+  <ListItem title="Dependency Chain Requirements" icon="Link">
+    Ideal when failure of any step makes subsequent steps meaningless or dangerous to execute
+  </ListItem>
+  <ListItem title="System Consistency" icon="Database">
+    Essential for maintaining data consistency and system integrity where partial completion could cause corruption
+  </ListItem>
+  <ListItem title="Compliance and Audit" icon="FileCheck">
+    Required for workflows that need complete audit trails and cannot have partial execution states
+  </ListItem>
+</List>
 
-### Best Effort Strategy
+<Callout type="warning" className="mt-8">
+**Fail Fast Best Practices**: Always implement proper error handling and consider rollback strategies when using fail_fast for critical operations. Learn more about [advanced patterns](/docs/core/tasks/advanced-patterns) and [workflow configuration](/docs/core/configuration/workflows) for transient failures.
+</Callout>
 
-The `best_effort` strategy continues execution even when some tasks fail:
+</Tab>
+<Tab value="Best Effort Strategy">
+
+The `best_effort` strategy provides **resilient execution** by continuing the workflow even when some tasks fail. This approach maximizes the value extracted from successful operations while gracefully handling partial failures.
 
 ```yaml
 id: data-enrichment-pipeline
@@ -321,20 +134,20 @@ strategy: best_effort  # Continue despite failures
 tasks:
   - id: extract-basic-info
     type: basic
-    $use: tool(local::tools.#(id=="info-extractor"))
+    action: extract_basic_info
     with:
       data: "{{ .workflow.input.raw_data }}"
 
   - id: enrich-with-external-api
     type: basic
-    $use: tool(local::tools.#(id=="external-enricher"))
+    action: enrich_data_external
     with:
       basic_info: "{{ .tasks.extract-basic-info.output.info }}"
     # This might fail due to API issues, but we continue
 
   - id: apply-ml-analysis
     type: basic
-    $use: agent(local::agents.#(id=="ml-analyzer"))
+    action: analyze_with_ml
     with:
       data: "{{ .tasks.extract-basic-info.output.info }}"
       enriched_data: "{{ .tasks.enrich-with-external-api.output.data | default dict }}"
@@ -342,7 +155,7 @@ tasks:
 
   - id: generate-report
     type: basic
-    $use: tool(local::tools.#(id=="report-generator"))
+    action: generate_data_report
     with:
       basic_info: "{{ .tasks.extract-basic-info.output.info }}"
       enriched_data: "{{ .tasks.enrich-with-external-api.output.data | default dict }}"
@@ -354,22 +167,82 @@ outputs:
   enriched_data: "{{ .tasks.enrich-with-external-api.output.data | default null }}"
   analysis: "{{ .tasks.apply-ml-analysis.output.analysis | default null }}"
   report: "{{ .tasks.generate-report.output.report }}"
-  
+
   # Track which tasks succeeded/failed
   enrichment_success: "{{ not .tasks.enrich-with-external-api.error }}"
   analysis_success: "{{ not .tasks.apply-ml-analysis.error }}"
   overall_success: "{{ not .task.error }}"
 ```
 
-**✅ Use best_effort when:**
-- Some tasks are optional or provide enhancement
-- Partial results are still valuable
-- System should be resilient to external service failures
-- Data collection or enrichment scenarios
+<List className="mt-8">
+  <ListItem title="Optional Enhancement Tasks" icon="Plus">
+    Perfect when some tasks provide additional value but aren't critical - like data enrichment, analytics, or notification tasks
+  </ListItem>
+  <ListItem title="Valuable Partial Results" icon="Target">
+    Use when partial completion still delivers meaningful value to users or downstream processes
+  </ListItem>
+  <ListItem title="External Service Resilience" icon="Cloud">
+    Essential for workflows dependent on third-party APIs or services that may experience intermittent failures
+  </ListItem>
+  <ListItem title="Data Collection Scenarios" icon="Download">
+    Ideal for gathering data from multiple sources where some sources might be temporarily unavailable
+  </ListItem>
+</List>
+
+<Callout type="warning" className="mt-8">
+**Best Effort Optimization**: Use [conditional execution](/docs/core/yaml-templates/context-variables) with template expressions to skip dependent tasks when prerequisites fail. Combine with [aggregate tasks](/docs/core/tasks/aggregate-tasks) to collect and process partial results.
+</Callout>
+
+</Tab>
+</Tabs>
 
 ## Hierarchical Organization
 
-Composite tasks can contain other composite tasks for complex workflows:
+One of the most powerful features of composite tasks is their ability to contain other composite tasks, creating **hierarchical workflow structures**. This enables you to build complex, multi-layered processes while maintaining clear organization and different error handling strategies at each level.
+
+<Mermaid className="mt-8" chart={`graph LR
+    subgraph "Parent Composite (fail_fast)"
+        A["Processing Composite (best_effort)"]
+        B["Analysis Composite (fail_fast)"]
+        C["Output Composite (best_effort)"]
+    end
+
+    subgraph "Processing Composite"
+        A1[Extract Text]
+        A2[Extract Images]
+        A3[Extract Metadata]
+    end
+
+    subgraph "Analysis Composite"
+        B1[Analyze Text]
+        B2[Analyze Structure]
+    end
+
+    subgraph "Output Composite"
+        C1[Create Summary]
+        C2[Create Report]
+    end
+
+    A --> B
+    B --> C
+
+    A -.-> A1
+    A -.-> A2
+    A -.-> A3
+
+    B -.-> B1
+    B -.-> B2
+
+    C -.-> C1
+    C -.-> C2
+
+    style A fill:#101010,color:#fff
+    style B fill:#101010,color:#fff
+    style C fill:#101010,color:#fff`} />
+
+### Strategy Inheritance and Override
+
+Hierarchical composite tasks allow you to apply **different strategies at different levels**:
 
 ```yaml
 id: complete-document-pipeline
@@ -383,19 +256,19 @@ tasks:
     tasks:
       - id: extract-text
         type: basic
-        $use: tool(local::tools.#(id=="text-extractor"))
+        action: extract_document_text
         with:
           document: "{{ .workflow.input.document }}"
 
       - id: extract-images
         type: basic
-        $use: tool(local::tools.#(id=="image-extractor"))
+        action: extract_document_images
         with:
           document: "{{ .workflow.input.document }}"
 
       - id: extract-metadata
         type: basic
-        $use: tool(local::tools.#(id=="metadata-extractor"))
+        action: extract_document_metadata
         with:
           document: "{{ .workflow.input.document }}"
 
@@ -405,13 +278,13 @@ tasks:
     tasks:
       - id: analyze-text
         type: basic
-        $use: agent(local::agents.#(id=="text-analyzer"))
+        action: analyze_text_content
         with:
           text: "{{ .tasks.document-processing.tasks.extract-text.output.content }}"
 
       - id: analyze-structure
         type: basic
-        $use: agent(local::agents.#(id=="structure-analyzer"))
+        action: analyze_document_structure
         with:
           text: "{{ .tasks.document-processing.tasks.extract-text.output.content }}"
           metadata: "{{ .tasks.document-processing.tasks.extract-metadata.output.metadata }}"
@@ -422,20 +295,20 @@ tasks:
     tasks:
       - id: create-summary
         type: basic
-        $use: agent(local::agents.#(id=="summarizer"))
+        action: create_document_summary
         with:
           text_analysis: "{{ .tasks.content-analysis.tasks.analyze-text.output.analysis }}"
           structure_analysis: "{{ .tasks.content-analysis.tasks.analyze-structure.output.structure }}"
 
       - id: create-keywords
         type: basic
-        $use: agent(local::agents.#(id=="keyword-extractor"))
+        action: extract_keywords
         with:
           text_analysis: "{{ .tasks.content-analysis.tasks.analyze-text.output.analysis }}"
 
       - id: create-report
         type: basic
-        $use: tool(local::tools.#(id=="report-generator"))
+        action: generate_final_report
         with:
           summary: "{{ .tasks.create-summary.output.summary }}"
           keywords: "{{ .tasks.create-keywords.output.keywords }}"
@@ -445,348 +318,208 @@ outputs:
   processing_results: "{{ .tasks.document-processing.outputs }}"
   analysis_results: "{{ .tasks.content-analysis.outputs }}"
   final_outputs: "{{ .tasks.generate-outputs.outputs }}"
-  
+
   # High-level summary
   document_summary: "{{ .tasks.generate-outputs.tasks.create-summary.output.summary }}"
   keywords: "{{ .tasks.generate-outputs.tasks.create-keywords.output.keywords }}"
   full_report: "{{ .tasks.generate-outputs.tasks.create-report.output.report }}"
 ```
 
-## Template Expressions
-
-Composite tasks support powerful template expressions for dynamic configuration and data flow:
-
-### Cross-Task Data Flow
-
-```yaml
-id: user-workflow
-type: composite
-strategy: fail_fast
-
-tasks:
-  - id: load-user
-    type: basic
-    $use: tool(local::tools.#(id=="user-loader"))
-    with:
-      user_id: "{{ .workflow.input.user_id }}"
-
-  - id: process-preferences
-    type: basic
-    $use: agent(local::agents.#(id=="preference-processor"))
-    with:
-      user_data: "{{ .tasks.load-user.output.user }}"
-      preferences: "{{ .workflow.input.preferences }}"
-      # Complex data transformation
-      enhanced_profile:
-        id: "{{ .tasks.load-user.output.user.id }}"
-        name: "{{ .tasks.load-user.output.user.name }}"
-        email: "{{ .tasks.load-user.output.user.email }}"
-        settings: "{{ .workflow.input.preferences }}"
-        last_seen: "{{ .tasks.load-user.output.user.last_activity }}"
-        account_type: "{{ .tasks.load-user.output.user.subscription.type }}"
-
-  - id: update-database
-    type: basic
-    $use: tool(local::tools.#(id=="database-updater"))
-    with:
-      # Conditional data based on previous results
-      update_data: |
-        {{- if .tasks.process-preferences.output.changes -}}
-        {
-          "user_id": "{{ .tasks.load-user.output.user.id }}",
-          "preferences": {{ .tasks.process-preferences.output.updated_preferences | toJson }},
-          "updated_at": "{{ now }}",
-          "updated_by": "{{ .workflow.input.requester_id }}"
-        }
-        {{- else -}}
-        null
-        {{- end -}}
-
-outputs:
-  # Computed results from multiple tasks
-  user_profile: "{{ .tasks.load-user.output.user }}"
-  preferences_updated: "{{ .tasks.process-preferences.output.changes }}"
-  database_updated: "{{ .tasks.update-database.output.success }}"
-  
-  # Conditional outputs
-  update_summary: |
-    {{- if .tasks.process-preferences.output.changes -}}
-    User {{ .tasks.load-user.output.user.name }} preferences updated successfully
-    {{- else -}}
-    No changes were made to user preferences
-    {{- end -}}
-  
-  # Mathematical computations
-  processing_time: "{{ add .tasks.load-user.duration .tasks.process-preferences.duration .tasks.update-database.duration }}"
-  success_rate: "{{ div (sub 3 (len .task.errors)) 3 }}"
-```
-
-### Conditional Task Execution
-
-```yaml
-id: conditional-processing
-type: composite
-strategy: best_effort
-
-tasks:
-  - id: check-eligibility
-    type: basic
-    $use: agent(local::agents.#(id=="eligibility-checker"))
-    with:
-      user_data: "{{ .workflow.input.user_data }}"
-
-  - id: standard-processing
-    type: basic
-    $use: tool(local::tools.#(id=="standard-processor"))
-    with:
-      data: "{{ .workflow.input.data }}"
-    # Only run if user is eligible
-    condition: "{{ .tasks.check-eligibility.output.eligible }}"
-
-  - id: premium-processing
-    type: basic
-    $use: tool(local::tools.#(id=="premium-processor"))
-    with:
-      data: "{{ .workflow.input.data }}"
-    # Only run if user is premium and eligible
-    condition: "{{ and .tasks.check-eligibility.output.eligible .tasks.check-eligibility.output.premium }}"
-
-  - id: generate-report
-    type: basic
-    $use: tool(local::tools.#(id=="report-generator"))
-    with:
-      # Use results from whichever processing task ran
-      standard_results: "{{ .tasks.standard-processing.output.results | default null }}"
-      premium_results: "{{ .tasks.premium-processing.output.results | default null }}"
-      eligibility: "{{ .tasks.check-eligibility.output }}"
-    # Always run the report generation
-    condition: "{{ .tasks.check-eligibility.output.eligible }}"
-```
-
-## Practical Examples
-
-### Example 1: Customer Onboarding Pipeline
-
-<Steps>
-<Step>
-
-**Complete User Onboarding Process**
-
-```yaml
-id: customer-onboarding
-type: composite
-strategy: fail_fast  # Critical business process
-
-tasks:
-  - id: validate-user-data
-    type: basic
-    $use: agent(local::agents.#(id=="validation-service"))
-    with:
-      email: "{{ .workflow.input.email }}"
-      name: "{{ .workflow.input.name }}"
-      phone: "{{ .workflow.input.phone }}"
-    
-    input:
-      type: object
-      properties:
-        email:
-          type: string
-          format: email
-        name:
-          type: string
-          minLength: 2
-        phone:
-          type: string
-      required: [email, name]
-
-  - id: create-user-account
-    type: basic
-    $use: tool(local::tools.#(id=="account-creator"))
-    with:
-      validated_data: "{{ .tasks.validate-user-data.output }}"
-      account_type: "{{ .workflow.input.account_type | default 'standard' }}"
-    
-    timeout: 30s
-    retry_policy:
-      maximum_attempts: 2
-      initial_interval: 1s
-
-  - id: send-welcome-email
-    type: basic
-    $use: tool(local::tools.#(id=="email-sender"))
-    with:
-      user_id: "{{ .tasks.create-user-account.output.user_id }}"
-      email: "{{ .tasks.create-user-account.output.email }}"
-      name: "{{ .tasks.create-user-account.output.name }}"
-      template: "welcome_new_user"
-    
-    env:
-      SMTP_HOST: "{{ .env.SMTP_HOST }}"
-      SMTP_PORT: "{{ .env.SMTP_PORT }}"
-
-  - id: initialize-user-preferences
-    type: basic
-    $use: agent(local::agents.#(id=="settings-service"))
-    with:
-      user_id: "{{ .tasks.create-user-account.output.user_id }}"
-      preferences: "{{ .workflow.input.preferences }}"
-      email_sent: "{{ .tasks.send-welcome-email.output.success }}"
-
-outputs:
-  user_id: "{{ .tasks.create-user-account.output.user_id }}"
-  account_status: "{{ .tasks.create-user-account.output.status }}"
-  welcome_email_sent: "{{ .tasks.send-welcome-email.output.success }}"
-  preferences_initialized: "{{ .tasks.initialize-user-preferences.output.success }}"
-  
-  onboarding_summary:
-    completed_at: "{{ now }}"
-    total_steps: 4
-    user_email: "{{ .workflow.input.email }}"
-    success: true
-
-on_success:
-  next: user-onboarding-complete
-  with:
-    user_id: "{{ .output.user_id }}"
-    completed_at: "{{ now }}"
-
-on_error:
-  next: onboarding-failed
-  with:
-    user_email: "{{ .workflow.input.email }}"
-    failed_step: "{{ .task.error.task_id }}"
-    error_message: "{{ .task.error.message }}"
-```
-
-</Step>
-</Steps>
-
-### Example 2: Document Processing Pipeline
-
-```yaml
-id: document-processing
-type: composite
-strategy: best_effort
-
-tasks:
-  - id: extract-content
-    type: basic
-    $use: tool(local::tools.#(id=="document-extractor"))
-    with:
-      document: "{{ .workflow.input.document }}"
-
-  - id: analyze-content
-    type: basic
-    $use: agent(local::agents.#(id=="text-analyzer"))
-    with:
-      text: "{{ .tasks.extract-content.output.text }}"
-
-  - id: generate-summary
-    type: basic
-    $use: agent(local::agents.#(id=="summarizer"))
-    with:
-      text: "{{ .tasks.extract-content.output.text }}"
-      analysis: "{{ .tasks.analyze-content.output.analysis }}"
-
-outputs:
-  summary: "{{ .tasks.generate-summary.output.summary }}"
-  analysis: "{{ .tasks.analyze-content.output.analysis }}"
-```
-
 ## Best Practices
 
-1. **Logical Grouping**: Group related tasks that naturally belong together
-2. **Appropriate Strategy**: Choose `fail_fast` for critical processes, `best_effort` for enhancement
-3. **Clear Dependencies**: Ensure task order reflects logical dependencies
-4. **Error Handling**: Plan for partial failures and recovery scenarios
-5. **Performance**: Set appropriate timeouts and minimize data passing
-6. **Output Design**: Create meaningful aggregated outputs
+Successful composite task implementation requires careful consideration of strategy selection, data flow design, and error handling patterns. These practices ensure your workflows are maintainable, reliable, and performant.
 
-Composite tasks provide powerful sequential orchestration capabilities that enable complex multi-step processes while maintaining clear organization and robust error handling. They serve as the foundation for building sophisticated workflows that can handle both simple linear processes and complex branching logic.
+<AccordionGroup>
+  <Accordion title="Strategy Selection Guidelines" defaultOpen>
 
-## CLI Commands
+<List>
+  <ListItem title="Fail Fast for Critical Paths" icon="AlertTriangle">
+    Use fail_fast for workflows where partial completion could cause data inconsistency or business rule violations
+  </ListItem>
+  <ListItem title="Best Effort for Enhancement" icon="TrendingUp">
+    Choose best_effort when tasks provide additional value but system functionality doesn't depend on their success
+  </ListItem>
+  <ListItem title="Mixed Strategies for Complex Flows" icon="GitBranch">
+    Use hierarchical composition to apply different strategies at different levels - strict for core operations, resilient for enhancements
+  </ListItem>
+</List>
 
-### Configuration Management
-```bash
-# View current configuration including composite task settings
-compozy config show
+  </Accordion>
 
-# Validate composite task configurations  
-compozy config validate
+  <Accordion title="Performance Optimization">
 
-# Run diagnostics to check composite task setup
-compozy config diagnostics
-```
+<List>
+  <ListItem title="Minimize Data Passing" icon="Zap">
+    Pass only necessary data between tasks - avoid copying large objects when task IDs or references suffice
+  </ListItem>
+  <ListItem title="Set Appropriate Timeouts" icon="Clock">
+    Configure realistic timeouts for each task based on expected execution time and external dependencies
+  </ListItem>
+  <ListItem title="Consider Parallel Alternatives" icon="Zap">
+    Evaluate if independent tasks could use [parallel processing](/docs/core/tasks/parallel-processing) instead of sequential execution
+  </ListItem>
+  <ListItem title="Use Memory Tasks for State" icon="Database">
+    For long-running processes, implement [memory tasks](/docs/core/tasks/memory-tasks) to maintain state across workflow executions
+  </ListItem>
+</List>
 
-### User Management
-```bash
-# Create new user for collaborative composite task development
-compozy auth create-user
+  </Accordion>
 
-# List all users with access to composite tasks
-compozy auth list-users
+  <Accordion title="Error Handling and Recovery">
 
-# Update user permissions for composite task management
-compozy auth update-user
+<List>
+  <ListItem title="Plan Recovery Scenarios" icon="Shield">
+    Design fallback tasks and recovery procedures for critical workflow steps
+  </ListItem>
+  <ListItem title="Implement Retry Policies" icon="RotateCcw">
+    Configure appropriate retry strategies for transient failures, especially for external service calls
+  </ListItem>
+  <ListItem title="Design Meaningful Outputs" icon="FileOutput">
+    Create outputs that provide sufficient context for debugging and downstream processing
+  </ListItem>
+  <ListItem title="Use Signal Coordination" icon="Radio">
+    Leverage [signal tasks](/docs/core/tasks/signal-tasks) for cross-workflow coordination and external event handling
+  </ListItem>
+</List>
 
-# Remove user access to composite task systems
-compozy auth delete-user
-```
+  </Accordion>
+</AccordionGroup>
 
-## Related Documentation
+<Callout type="success" className="mt-8">
+**Composite Task Mastery**: Once you've mastered basic composite patterns, explore [collection tasks](/docs/core/tasks/collection-tasks) for array processing and [router tasks](/docs/core/tasks/router-tasks) for dynamic branching. These task types complement composite tasks to create sophisticated workflow architectures.
+</Callout>
+
+## Next Steps
+
+Composite tasks are central to Compozy's workflow orchestration capabilities. Understanding how they integrate with other task types and system components will help you build sophisticated, production-ready workflows.
+
+<Tabs items={["Prerequisites", "Related Patterns", "Advanced Integration", "Production Examples"]}>
+<Tab>
+
+**Essential Foundation Knowledge**:
 
 <ReferenceCardList>
   <ReferenceCard
     title="Basic Tasks"
-    description="Learn about the fundamental building blocks that compose composite tasks"
+    description="Master the fundamental building blocks that form the foundation of all composite task workflows"
     href="/docs/core/tasks/basic-tasks"
-    icon="Cog"
+    icon="Package"
   />
   <ReferenceCard
-    title="Parallel Tasks"
-    description="Understand concurrent execution patterns that complement sequential composite tasks"
-    href="/docs/core/tasks/parallel-tasks"
-    icon="Layers"
+    title="Agent Integration"
+    description="Learn how AI agents work within composite workflows for intelligent task execution"
+    href="/docs/core/agents/overview"
+    icon="Bot"
   />
   <ReferenceCard
-    title="Collection Tasks"
-    description="Explore array processing patterns that can contain composite task templates"
-    href="/docs/core/tasks/collection-tasks"
-    icon="List"
+    title="Tool Development"
+    description="Understand how to build and integrate custom tools for specialized composite task operations"
+    href="/docs/core/tools/overview"
+    icon="Wrench"
   />
   <ReferenceCard
-    title="Error Handling"
-    description="Master error handling strategies for robust composite task workflows"
-    href="/docs/core/tasks/error-handling"
-    icon="AlertTriangle"
+    title="YAML Templates"
+    description="Master the template system that powers dynamic data flow between composite task steps"
+    href="/docs/core/yaml-templates/overview"
+    icon="FileCode"
   />
 </ReferenceCardList>
 
-## Next Steps
+</Tab>
+<Tab>
+
+**Complementary Task Patterns**:
 
 <ReferenceCardList>
   <ReferenceCard
+    title="Parallel Processing"
+    description="Execute independent operations simultaneously - the perfect complement to sequential composite tasks"
+    href="/docs/core/tasks/parallel-processing"
+    icon="Zap"
+  />
+  <ReferenceCard
     title="Router Tasks"
-    description="Add conditional branching to your composite task workflows"
+    description="Add intelligent conditional branching and decision-making to your composite workflows"
     href="/docs/core/tasks/router-tasks"
     icon="GitBranch"
   />
   <ReferenceCard
-    title="Signal Tasks"
-    description="Coordinate composite tasks across different workflows"
+    title="Collection Tasks"
+    description="Process arrays and datasets with composite task templates for sophisticated batch operations"
+    href="/docs/core/tasks/collection-tasks"
+    icon="List"
+  />
+  <ReferenceCard
+    title="Aggregate Tasks"
+    description="Combine and process results from multiple composite task executions"
+    href="/docs/core/tasks/aggregate-tasks"
+    icon="BarChart3"
+  />
+</ReferenceCardList>
+
+</Tab>
+<Tab>
+
+**Advanced System Integration**:
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Signal Coordination"
+    description="Coordinate composite tasks across different workflows and external systems"
     href="/docs/core/tasks/signal-tasks"
     icon="Radio"
   />
   <ReferenceCard
-    title="Workflow Examples"
-    description="Explore real-world composite task patterns and use cases"
-    href="/docs/core/examples/composite-examples"
+    title="Memory Systems"
+    description="Add persistent state management to long-running composite workflows"
+    href="/docs/core/tasks/memory-tasks"
+    icon="Database"
+  />
+  <ReferenceCard
+    title="Advanced Patterns"
+    description="Implement comprehensive error handling and recovery strategies for production workflows"
+    href="/docs/core/tasks/advanced-patterns"
+    icon="Shield"
+  />
+  <ReferenceCard
+    title="MCP Integration"
+    description="Connect external tools and services to enhance composite task capabilities"
+    href="/docs/core/mcp/overview"
+    icon="Link"
+  />
+</ReferenceCardList>
+
+</Tab>
+<Tab>
+
+**Real-World Implementation Examples**:
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Quick Start Guide"
+    description="Build your first composite workflow with step-by-step instructions and practical examples"
+    href="/docs/core/getting-started/quick-start"
+    icon="UserPlus"
+  />
+  <ReferenceCard
+    title="First Workflow Tutorial"
+    description="Complete tutorial showing sequential task execution patterns and data flow management"
+    href="/docs/core/getting-started/first-workflow"
     icon="FileText"
   />
   <ReferenceCard
-    title="Agent Integration"
-    description="Learn how to integrate AI agents within composite task workflows"
-    href="/docs/core/agents/overview"
-    icon="Bot"
+    title="Advanced Task Patterns"
+    description="Sophisticated workflow orchestration techniques including error handling and resilience"
+    href="/docs/core/tasks/advanced-patterns"
+    icon="ShoppingCart"
+  />
+  <ReferenceCard
+    title="Flow Control Patterns"
+    description="Complex workflow coordination with conditional logic and dynamic routing"
+    href="/docs/core/tasks/flow-control"
+    icon="GitBranch"
   />
 </ReferenceCardList>
+
+</Tab>
+</Tabs>

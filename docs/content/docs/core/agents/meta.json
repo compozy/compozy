@@ -9,7 +9,6 @@
     "tools",
     "memory",
     "context",
-    "structured-outputs",
-    "multi-agent-patterns"
+    "structured-outputs"
   ]
 }

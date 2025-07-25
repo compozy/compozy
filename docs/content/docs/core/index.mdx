@@ -43,43 +43,43 @@ We solve these challenges by providing a comprehensive, open platform that simpl
 <FeatureCardList cols={2} size="lg">
   <FeatureCard
     title="Declarative Open Source Engine"
-    description="Build powerful AI workflows using an intuitive, open-source YAML specification. Inspired by GitHub Actions, our format lets you define complex automation with simple, human-readable syntax - from triggers and actions to data flows and conditional logic."
+    description="Build powerful AI workflows using intuitive YAML specification. Define complex automation with simple, human-readable syntax including agent actions, task orchestration, and conditional logic."
     icon="FileCode"
     href="/docs/core/yaml-templates/overview"
   />
 
-<FeatureCard
-  title="Community-Powered Registry"
-  description="Access and contribute to a growing ecosystem of pre-built tools, agents, and MCP servers. Extend your workflow capabilities with community-driven components."
-  icon="Store"
-  href="/docs/core/getting-started/quick-start"
-/>
-
-<FeatureCard
-  title="Seamless Agent Orchestration"
-  description="Create complex workflows, chaining actions and connecting multiple agents seamlessly, with built-in context management, memory systems, and MCP integration for consistent decision-making."
-  icon="Puzzle"
-  href="/docs/core/agents/overview"
-/>
-
-<FeatureCard
-  title="Language & Tool Agnostic"
-  description="Build AI agents and workflows using your preferred programming languages and tools. Compozy's platform-agnostic approach ensures seamless integration with any AI framework, model, or development stack."
-  icon="GitMerge"
-  href="/docs/core/agents/tools"
-/>
-
-<FeatureCard
-  title="Developer-First Experience"
-  description="Comprehensive CLI tooling for development, testing, and deployment. Access a marketplace of pre-built tools and agents, or create and publish your own."
-  icon="Code"
-  href="/docs/core/getting-started/installation"
-/>
+  <FeatureCard
+    title="Developer Focused & Flexible"
+    description="Comprehensive CLI tools with hot-reload development and support for 7 major LLM providers. Switch between OpenAI, Anthropic, Google, and local models without changing workflow logic."
+    icon="Bot"
+    href="/docs/core/agents/overview"
+  />
 
   <FeatureCard
-    title="Flexible Deployment Options"
-    description="Deploy to Compozy Cloud with a single command or self-host on your own infrastructure using Docker or Kubernetes. Full control over your deployment environment."
-    icon="Cloud"
+    title="Advanced Task Orchestration"
+    description="Execute complex workflows with 8 task types including parallel execution, conditional routing, and collection processing. Powered by Temporal for reliable distributed execution and fault tolerance."
+    icon="Workflow"
+    href="/docs/core/workflows/task-types"
+  />
+
+  <FeatureCard
+    title="JavaScript & TypeScript"
+    description="Write tools in JavaScript and TypeScript with full modern language support. Secure Bun runtime with configurable permissions and process isolation for maximum flexibility and safety."
+    icon="Shield"
+    href="/docs/core/agents/tools"
+  />
+
+  <FeatureCard
+    title="MCP Protocol Support"
+    description="Integrate with external tool servers using the Model Context Protocol. Connect to MCP-compatible services through our built-in proxy server with HTTP and SSE transport support."
+    icon="Plug"
+    href="/docs/core/mcp/overview"
+  />
+
+  <FeatureCard
+    title="Enterprise Grade"
+    description="Production-ready infrastructure with PostgreSQL persistence, Redis memory management, and Temporal orchestration. Built-in authentication, role-based access control, and comprehensive monitoring."
+    icon="Server"
     href="/docs/core/getting-started/installation"
   />
 </FeatureCardList>

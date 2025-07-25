@@ -1,24 +1,42 @@
 ---
 title: "Memory Configuration"
-description: "Guide to configuring memory resources for agent context management in Compozy"
+description: "Complete guide to configuring memory resources for persistent agent context management, conversation continuity, and intelligent data retention"
 ---
 
-## What Memory Does
+<Callout type="info" title="Memory Configuration Overview">
+Configure **persistent context management** for AI agents with conversation continuity, multi-agent context sharing, and intelligent data retention across workflow executions.
+</Callout>
 
-Memory in Compozy provides **persistent context management** for AI agents. When an agent has memory configured, it can:
+## Core Memory Capabilities
 
-- **Remember conversation history** across multiple interactions
-- **Share context** between different agents in a workflow
-- **Maintain user preferences** and important information
-- **Preserve context** even when workflows restart
+<FeatureCardList>
+  <FeatureCard
+    title="Conversation Continuity"
+    description="Maintain conversation history across sessions with automatic token management and context preservation"
+    icon="MessageSquare"
+  />
+  <FeatureCard
+    title="Multi-Agent Context Sharing"
+    description="Enable seamless context sharing between agents with hierarchical keys and access controls"
+    icon="Users"
+  />
+  <FeatureCard
+    title="Intelligent Data Management"
+    description="Automated summarization, priority-based eviction, and token-aware capacity management"
+    icon="Brain"
+  />
+  <FeatureCard
+    title="Privacy & Security"
+    description="Built-in data redaction, compliance controls, encryption, and audit logging"
+    icon="Shield"
+  />
+</FeatureCardList>
 
-## Basic Memory Configuration
+## Quick Start Configuration
 
-Memory is configured through YAML files in your project. Here's how the system works:
+<Steps numbered>
 
-### Simple Memory Resource
-
-Create a memory resource that stores conversation history:
+<Step title="Create Memory Resource" description="Define your memory configuration">
 
 ```yaml title="memory/conversation.yaml"
 resource: memory
@@ -26,155 +44,79 @@ id: conversation_memory
 description: Stores conversation history for agents
 version: 1.0.0
 
-# Memory management strategy
 type: token_based
 max_tokens: 2000
 max_context_ratio: 0.8
 
-# Redis persistence
 persistence:
   type: redis
   ttl: 24h
 
-# Basic privacy protection
 privacy_policy:
   redact_patterns:
     - '\b\d{3}-\d{2}-\d{4}\b'  # SSN pattern
   default_redaction_string: "[REDACTED]"
 ```
 
-**How this works:**
-- `type: token_based` - Memory manages content based on token count
-- `max_tokens: 2000` - Keeps up to 2000 tokens in memory
-- `max_context_ratio: 0.8` - Uses up to 80% of the model's context window
-- `persistence: redis` - Stores data in Redis with 24-hour expiration
-- `privacy_policy` - Automatically redacts sensitive information like SSNs
+</Step>
 
-### Using Memory in Agents
-
-Once you've defined a memory resource, agents can use it:
+<Step title="Configure Agent Memory" description="Connect agents to memory resources">
 
 ```yaml title="agents/chat_agent.yaml"
 resource: agent
 id: chat_agent
 
-# Agent configuration
 config:
   model: gpt-4
   temperature: 0.7
 
-# Memory reference
 memory:
   - id: conversation_memory
     key: "user:{{.workflow.input.user_id}}"
     mode: read-write
 ```
 
-**How this works:**
-- `id: conversation_memory` - References the memory resource we created
-- `key: "user:{{.workflow.input.user_id}}"` - Creates isolated memory per user
-- `mode: read-write` - Agent can both read from and write to memory
+</Step>
+
+</Steps>
+
+## Related Documentation
 
 <ReferenceCardList>
   <ReferenceCard
     title="Memory Operations"
-    description="How to use memory in workflows"
+    description="Use configured memory in workflows and agents with append, flush, and clear operations"
     href="/docs/core/memory/operations"
     icon="Play"
   />
   <ReferenceCard
     title="Integration Patterns"
-    description="Multi-agent memory sharing"
+    description="Multi-agent memory sharing, context isolation, and collaborative workflows"
     href="/docs/core/memory/integration-patterns"
     icon="Layers"
   />
   <ReferenceCard
+    title="Performance Optimization"
+    description="Monitor memory usage, optimize token utilization, and tune production systems"
+    href="/docs/core/memory/performance"
+    icon="Zap"
+  />
+  <ReferenceCard
     title="Privacy & Security"
-    description="Data protection and redaction"
+    description="Data redaction, compliance, encryption, and audit logging"
     href="/docs/core/memory/privacy-security"
     icon="Shield"
   />
-  <ReferenceCard
-    title="Memory Concepts"
-    description="Performance monitoring and optimization"
-    href="/docs/core/memory/memory-concepts"
-    icon="Brain"
-  />
 </ReferenceCardList>
 
-## Interactive Configuration Learning
-
-Choose your learning path based on your configuration experience:
-
-<Tabs items={["Beginner", "Intermediate", "Advanced"]} className="mt-6">
-
-<Tab value="Beginner">
-
-**Perfect for:** First-time memory configuration, basic setups
-
-**You'll learn:**
-- Basic memory resource configuration
-- Simple persistence settings
-- Key template creation
-- TTL configuration fundamentals
-
-**Prerequisites:** Basic YAML knowledge
-
-</Tab>
-
-<Tab value="Intermediate">
-
-**Perfect for:** Developers with basic memory configuration experience
-
-**You'll learn:**
-- Advanced eviction policies
-- Flushing strategies
-- Token provider integration
-- Privacy policy configuration
-
-**Prerequisites:** Completed beginner path or equivalent experience
-
-</Tab>
-
-<Tab value="Advanced">
-
-**Perfect for:** Production system architects and advanced users
-
-**You'll learn:**
-- Complex hierarchical configurations
-- Multi-environment deployments
-- Performance optimization
-- Security and compliance patterns
-
-**Prerequisites:** Strong memory configuration background
-
-</Tab>
-
-</Tabs>
-
-## Step-by-Step Configuration Builder
-
-Master memory configuration through interactive, progressive learning:
-
-<Steps numbered className="mt-8">
-
-<Step title="Basic Memory Resource Setup" description="Learn to create your first memory configuration">
+## Basic Memory Resource Setup
 
 ### Foundation Configuration
 
-Every memory resource starts with these core elements. Let's build your first configuration:
+<AccordionGroup>
+<Accordion title="Memory Types" icon="Brain">
 
-<Tabs items={["Interactive Builder", "Configuration Template", "Validation"]} className="mt-6">
-
-<Tab value="Interactive Builder">
-
-Follow this interactive builder to create your first memory configuration:
-
-<Callout type="info" title="Configuration Builder">
-Build your memory configuration step by step by making choices below. Each selection will update the final configuration.
-</Callout>
-
-**Step 1: Choose Your Memory Type**
+**Choose the right memory type for your use case:**
 
 <Tabs items={["Token-Based", "Message Count", "Buffer"]} className="mt-4">
 
@@ -234,320 +176,168 @@ max_messages: 50
 
 </Tabs>
 
-**Step 2: Configure Your Memory Key**
+</Accordion>
+
+<Accordion title="Memory Keys" icon="Key">
+
+**Configure data isolation with key templates:**
 
 <Tabs items={["User-Based", "Session-Based", "Hierarchical"]} className="mt-4">
 
 <Tab value="User-Based">
 
-```yaml title="Key Configuration"
-# Simple user-based key
+```yaml
 key: "user:{{.workflow.input.user_id}}"
 ```
 
-**Template Variables Available:**
-- `{{.workflow.input.user_id}}` - User identifier
-- `{{.workflow.input.session_id}}` - Session identifier
-- `{{.project_id}}` - Project context
+**Best for:** Simple user isolation
 
 </Tab>
 
 <Tab value="Session-Based">
 
-```yaml title="Key Configuration"
-# Session-focused key
+```yaml
 key: "session:{{.session_id}}:{{.agent_id}}"
 ```
 
-**Best for:** Multi-agent conversations with session isolation
+**Best for:** Multi-agent conversations
 
 </Tab>
 
 <Tab value="Hierarchical">
 
-```yaml title="Key Configuration"
-# Complex hierarchical key
+```yaml
 key: "project:{{.project_id}}:user:{{.user_id}}:conversation:{{.conversation_id}}"
 ```
 
-**Best for:** Complex multi-tenant applications with strict data isolation
+**Best for:** Multi-tenant applications
 
 </Tab>
 
 </Tabs>
 
-</Tab>
+</Accordion>
 
-<Tab value="Configuration Template">
+<Accordion title="Complete Configuration Template" icon="FileText">
 
 ```yaml title="complete_basic_memory.yaml"
 resource: memory
 id: complete_basic_memory
-description: Complete basic memory configuration with common settings
+description: Complete basic memory configuration
 version: 1.0.0
 
-# Memory key template
 key: "user:{{.workflow.input.user_id}}"
-
-# Memory type and limits
 type: token_based
 max_tokens: 2000
 max_context_ratio: 0.8
 model: gpt-4
 
-# Basic persistence
 persistence:
   type: redis
   ttl: 24h
 
-# Simple TTL settings
 append_ttl: "30m"
 clear_ttl: "5m"
 flush_ttl: "2h"
 
-# Basic eviction policy
 eviction_policy:
   type: fifo
 ```
 
-</Tab>
+</Accordion>
 
-<Tab value="Validation">
+</AccordionGroup>
 
-<Callout type="success" title="Configuration Validation">
-Use these commands to validate your memory configuration:
-</Callout>
+### Persistence Configuration
 
-```bash title="Validation Commands"
-# Validate configuration syntax
-compozy config validate --config memory/my_memory.yaml
+<AccordionGroup>
 
-# Test memory configuration
-compozy test memory --dry-run --config memory/my_memory.yaml
+<Accordion title="Redis Persistence (Recommended)" icon="Database">
 
-# Check memory resource discovery
-compozy resources list --type memory
-```
-
-**Common Validation Errors:**
-- Invalid key template syntax
-- Token limits exceeding model context
-- Malformed TTL duration formats
-- Missing required fields
-
-</Tab>
-
-</Tabs>
-
-</Step>
-
-<Step title="Persistence and TTL Configuration" description="Master data persistence and lifetime management">
-
-### Advanced Persistence Settings
-
-Configure how your memory data is stored and managed over time:
-
-<Tabs items={["Redis Configuration", "TTL Management", "Circuit Breaker"]} className="mt-6">
-
-<Tab value="Redis Configuration">
-
-```yaml title="redis_persistence.yaml"
+```yaml
 persistence:
   type: redis
-  ttl: 168h  # 7 days default
+  ttl: 168h  # 7 days
 
-  # Advanced Redis settings
   circuit_breaker:
     enabled: true
     timeout: "100ms"
     max_failures: 5
     reset_timeout: "30s"
 
-  # Connection settings
-  connection:
-    host: "localhost"
-    port: 6379
-    password: "{{ .env.REDIS_PASSWORD }}"
-    db: 0
-
-  # Performance settings
   pool:
     max_connections: 10
     min_idle: 2
     max_idle: 5
 ```
 
-**Production Considerations:**
-- Use environment variables for sensitive data
-- Enable circuit breaker for resilience
-- Configure connection pooling for performance
-- Set appropriate timeouts for your use case
+</Accordion>
 
-</Tab>
+<Accordion title="TTL Management" icon="Clock">
 
-<Tab value="TTL Management">
-
-```yaml title="ttl_configuration.yaml"
+```yaml
 # Base TTL for memory instances
 persistence:
-  ttl: 24h  # Default expiration
+  ttl: 24h
 
 # Operation-specific TTL extensions
-append_ttl: "30m"    # Extend TTL by 30 minutes on append
-clear_ttl: "5m"      # Set TTL to 5 minutes after clear
-flush_ttl: "2h"      # Set TTL to 2 hours after flush
+append_ttl: "30m"    # Extend on append
+clear_ttl: "5m"      # Short cleanup
+flush_ttl: "2h"      # Preserve summaries
 
-# Dynamic TTL based on usage
+# Dynamic TTL
 dynamic_ttl:
   enabled: true
-  min_ttl: "1h"      # Minimum TTL
-  max_ttl: "7d"      # Maximum TTL
-  activity_threshold: 10  # Messages to trigger extension
+  min_ttl: "1h"
+  max_ttl: "7d"
+  activity_threshold: 10
 ```
 
-**TTL Best Practices:**
-- `append_ttl` should be shorter than base TTL
-- `clear_ttl` should be very short for cleanup
-- `flush_ttl` should preserve important summarized data
-- Use dynamic TTL for adaptive behavior
-
-</Tab>
-
-<Tab value="Circuit Breaker">
-
-```yaml title="circuit_breaker.yaml"
-persistence:
-  type: redis
-  circuit_breaker:
-    enabled: true
-
-    # Failure thresholds
-    timeout: "100ms"      # Per-operation timeout
-    max_failures: 5       # Failures before opening
-    reset_timeout: "30s"  # Time before retry
-
-    # Monitoring settings
-    success_threshold: 3  # Successes to close circuit
-    failure_threshold: 0.5  # Failure rate threshold
-
-    # Fallback behavior
-    fallback_to_memory: true
-    log_failures: true
-```
-
-**Circuit Breaker States:**
-- **Closed**: Normal operation
-- **Open**: Failing fast, using fallback
-- **Half-Open**: Testing if service recovered
-
-</Tab>
-
-</Tabs>
-
-### Interactive TTL Calculator
-
-<Callout type="info" title="TTL Planning Tool">
-Use this interactive tool to plan your TTL strategy based on your use case requirements.
+<Callout type="tip" title="TTL Best Practices">
+- Keep `append_ttl` shorter than base TTL
+- Use short `clear_ttl` for cleanup
+- Set longer `flush_ttl` to preserve summaries
 </Callout>
 
-**Use Case Scenarios:**
+</Accordion>
 
-<Tabs items={["Customer Support", "Code Assistant", "Analytics"]} className="mt-4">
+</AccordionGroup>
 
-<Tab value="Customer Support">
+### Memory Management Configuration
 
-```yaml title="customer_support_ttl.yaml"
-# Customer support conversation memory
-persistence:
-  ttl: 72h  # 3 days for follow-up
+<AccordionGroup>
 
-append_ttl: "2h"   # Extend for active conversations
-clear_ttl: "10m"   # Quick cleanup after resolution
-flush_ttl: "4h"    # Preserve context for escalation
+<Accordion title="Eviction Policies" icon="ArrowDownUp">
 
-# Longer retention for important conversations
-priority_ttl:
-  escalated: "7d"
-  vip_customer: "14d"
-  bug_report: "30d"
-```
+**Choose the right eviction strategy:**
 
-**Optimized for:** Multi-day support conversations with escalation needs
+<Tabs items={["FIFO", "LRU", "Priority"]} className="mt-4">
 
-</Tab>
+<Tab value="FIFO">
 
-<Tab value="Code Assistant">
-
-```yaml title="code_assistant_ttl.yaml"
-# Code assistant memory
-persistence:
-  ttl: 8h  # One working day
-
-append_ttl: "1h"   # Extend during active coding
-clear_ttl: "5m"    # Quick cleanup after completion
-flush_ttl: "2h"    # Preserve context between sessions
-
-# Session-based retention
-session_ttl:
-  active_session: "4h"
-  paused_session: "1h"
-  completed_session: "30m"
-```
-
-**Optimized for:** Development sessions with natural breakpoints
-
-</Tab>
-
-<Tab value="Analytics">
-
-```yaml title="analytics_ttl.yaml"
-# Analytics conversation memory
-persistence:
-  ttl: 24h  # Daily analytics cycle
-
-append_ttl: "4h"   # Extend for deep analysis
-clear_ttl: "1h"    # Gradual cleanup
-flush_ttl: "12h"   # Preserve insights
-
-# Report-based retention
-report_ttl:
-  daily_report: "24h"
-  weekly_report: "7d"
-  monthly_report: "30d"
-```
-
-**Optimized for:** Analytics workflows with reporting cycles
-
-</Tab>
-
-</Tabs>
-
-</Step>
-
-<Step title="Eviction Policies and Flushing Strategies" description="Configure intelligent memory management">
-
-### Smart Memory Management
-
-Configure how memory handles capacity limits and maintains performance:
-
-<Tabs items={["Eviction Policies", "Flushing Strategies", "Performance Tuning"]} className="mt-6">
-
-<Tab value="Eviction Policies">
-
-Choose the right eviction policy for your use case:
-
-```yaml title="eviction_policies.yaml"
-# FIFO (First In, First Out)
+```yaml
 eviction_policy:
   type: fifo
-  # Simple, predictable, good for logs
+```
 
-# LRU (Least Recently Used)
+**Best for:** Simple, predictable behavior
+
+</Tab>
+
+<Tab value="LRU">
+
+```yaml
 eviction_policy:
   type: lru
-  # Preserves recently accessed messages
+```
 
-# Priority-based eviction
+**Best for:** Interactive conversations
+
+</Tab>
+
+<Tab value="Priority">
+
+```yaml
 eviction_policy:
   type: priority
   priority_keywords:
@@ -555,183 +345,57 @@ eviction_policy:
     - "critical"
     - "important"
     - "user_preference"
-    - "context"
-    - "summary"
-
-  # Advanced priority settings
-  priority_boost: 2.0    # Multiplier for priority messages
-  decay_rate: 0.1        # Priority decay over time
-  min_priority: 0.1      # Minimum priority threshold
+  priority_boost: 2.0
+  decay_rate: 0.1
 ```
 
-**Policy Comparison:**
-
-<Tabs items={["FIFO", "LRU", "Priority"]} className="mt-4">
-
-<Tab value="FIFO">
-
-**Best for:**
-- Log-like conversations
-- Predictable behavior
-- Simple debugging
-
-**Trade-offs:**
-- May lose important recent context
-- No intelligence about message importance
-- Consistent, predictable behavior
-
-</Tab>
-
-<Tab value="LRU">
-
-**Best for:**
-- Interactive conversations
-- Context-dependent workflows
-- User-driven interactions
-
-**Trade-offs:**
-- More complex than FIFO
-- Preserves working context
-- May lose chronological order
-
-</Tab>
-
-<Tab value="Priority">
-
-**Best for:**
-- Production systems
-- Critical information preservation
-- Complex workflows
-
-**Trade-offs:**
-- Most complex implementation
-- Intelligent content preservation
-- Requires careful keyword selection
+**Best for:** Production systems with critical information
 
 </Tab>
 
 </Tabs>
 
-</Tab>
+</Accordion>
 
-<Tab value="Flushing Strategies">
+<Accordion title="Flushing Strategies" icon="Trash2">
 
-Configure how memory handles capacity management:
+**Configure capacity management:**
 
-```yaml title="flushing_strategies.yaml"
-# Hybrid Summary Flushing (Recommended)
+```yaml
+# Hybrid Summary (Recommended)
 flushing_strategy:
   type: hybrid_summary
-  summarize_threshold: 0.8      # Start at 80% capacity
-  summary_tokens: 500           # Target summary length
-  summarize_oldest_percent: 0.3 # Summarize oldest 30%
-
-  # Summary configuration
-  summary_template: |
-    CONVERSATION SUMMARY:
-
-    Key Topics Discussed:
-    {{range .topics}}
-    - {{.}}
-    {{end}}
-
-    Important Context:
-    {{range .context}}
-    - {{.}}
-    {{end}}
-
-    User Preferences:
-    {{range .preferences}}
-    - {{.}}
-    {{end}}
-
-    Decisions Made:
-    {{range .decisions}}
-    - {{.}}
-    {{end}}
+  summarize_threshold: 0.8
+  summary_tokens: 500
+  summarize_oldest_percent: 0.3
 
 # Token-Aware LRU
 flushing_strategy:
   type: token_aware_lru
-  target_utilization: 0.7  # Target 70% utilization
-  min_messages: 5          # Always keep minimum messages
-
-# Simple LRU
-flushing_strategy:
-  type: lru
-  preserve_system_messages: true
-  preserve_recent_count: 10
+  target_utilization: 0.7
+  min_messages: 5
 ```
 
 **Strategy Comparison:**
 
-| Strategy | Intelligence | Performance | Use Case |
-|----------|-------------|-------------|----------|
-| `simple_fifo` | Low | High | Development, logging |
-| `lru` | Medium | Medium | Interactive apps |
-| `token_aware_lru` | Medium | Medium | Token-conscious workflows |
-| `hybrid_summary` | High | Low | Production systems |
+| Strategy | Intelligence | Use Case |
+|----------|-------------|----------|
+| `hybrid_summary` | High | Production systems |
+| `token_aware_lru` | Medium | Token-conscious workflows |
+| `lru` | Medium | Interactive applications |
 
-</Tab>
+</Accordion>
 
-<Tab value="Performance Tuning">
+</AccordionGroup>
 
-```yaml title="performance_tuning.yaml"
-# Token allocation strategy
-token_allocation:
-  short_term: 0.6    # 60% for recent messages
-  long_term: 0.3     # 30% for summaries/context
-  system: 0.1        # 10% for system prompts
+## Privacy and Security Configuration
 
-# Memory optimization
-optimization:
-  compress_old_messages: true
-  batch_operations: true
-  background_cleanup: true
+### Data Redaction
 
-  # Cleanup thresholds
-  cleanup_threshold: 0.9    # Start cleanup at 90%
-  cleanup_target: 0.7       # Clean down to 70%
+Configure sensitive data protection:
 
-# Performance monitoring
-monitoring:
-  track_token_usage: true
-  log_evictions: true
-  alert_on_errors: true
-
-  # Metrics collection
-  metrics:
-    - token_utilization
-    - message_count
-    - eviction_rate
-    - flush_frequency
-```
-
-**Performance Optimization Tips:**
-- Use `short_term` allocation for active conversations
-- Enable `batch_operations` for high-throughput scenarios
-- Set `cleanup_threshold` based on your latency requirements
-- Monitor `token_utilization` to optimize limits
-
-</Tab>
-
-</Tabs>
-
-</Step>
-
-<Step title="Privacy and Security Configuration" description="Implement data protection and security measures">
-
-### Privacy-Aware Memory Configuration
-
-Protect sensitive information while maintaining functionality:
-
-<Tabs items={["Data Redaction", "Security Policies", "Compliance"]} className="mt-6">
-
-<Tab value="Data Redaction">
-
-```yaml title="privacy_policy.yaml"
+```yaml
 privacy_policy:
-  # Sensitive data patterns
   redact_patterns:
     # Personal identifiers
     - '\b\d{3}-\d{2}-\d{4}\b'  # SSN
@@ -740,628 +404,32 @@ privacy_policy:
 
     # Financial information
     - '\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{3,6}\b'  # Credit cards
-    - '\baccount\s*#?\s*\d{6,12}\b'  # Account numbers
-    - '\brouting\s*#?\s*\d{9}\b'  # Routing numbers
 
-    # Technical identifiers
-    - '\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b'  # IP addresses
-    - '\b[A-Fa-f0-9]{8}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{12}\b'  # UUIDs
-
-    # Custom business patterns
-    - '\bEMP\d{6}\b'  # Employee IDs
-    - '\bCUST-\d{8}\b'  # Customer IDs
-
-  # Advanced redaction settings
   redaction_config:
     default_redaction_string: "[REDACTED]"
-    preserve_format: true  # Keep original format
+    preserve_format: true
     case_sensitive: false
 
-    # Custom redaction by pattern
-    custom_redactions:
-      email: "[EMAIL_REDACTED]"
-      ssn: "[SSN_REDACTED]"
-      phone: "[PHONE_REDACTED]"
-      credit_card: "[CARD_REDACTED]"
-
-  # Message type restrictions
   non_persistable_message_types:
     - system
     - tool_internal
     - debug
-    - error_details
-    - diagnostic
 ```
 
-**Redaction Pattern Testing:**
+## Configuration Templates
 
-<Callout type="warning" title="Pattern Testing">
-Always test your redaction patterns with sample data before deploying to production.
+<Callout type="info" title="Ready-to-Use Templates">
+Production-tested configuration templates for different deployment scenarios.
 </Callout>
 
-```yaml title="redaction_testing.yaml"
-# Test configuration for redaction patterns
-privacy_policy:
-  redact_patterns:
-    - '\b\d{3}-\d{2}-\d{4}\b'
+<Tabs items={["Development", "Production", "Enterprise"]} className="mt-6">
 
-  # Test mode settings
-  test_mode:
-    enabled: true
-    log_matches: true
-    dry_run: false
+<Tab value="Development">
 
-  # Validation samples
-  test_samples:
-    - input: "My SSN is 123-45-6789"
-      expected: "My SSN is [REDACTED]"
-    - input: "Contact me at john@example.com"
-      expected: "Contact me at [REDACTED]"
-```
-
-</Tab>
-
-<Tab value="Security Policies">
-
-```yaml title="security_policies.yaml"
-# Access control
-access_control:
-  require_authentication: true
-  role_based_access: true
-
-  # User permissions
-  permissions:
-    admin:
-      - read
-      - write
-      - delete
-      - configure
-    user:
-      - read
-      - write
-    viewer:
-      - read
-
-  # IP-based restrictions
-  ip_restrictions:
-    allow_list:
-      - "192.168.1.0/24"
-      - "10.0.0.0/8"
-    deny_list:
-      - "0.0.0.0/0"  # Deny all by default
-
-# Encryption settings
-encryption:
-  at_rest:
-    enabled: true
-    algorithm: "AES-256-GCM"
-    key_rotation: "30d"
-
-  in_transit:
-    enabled: true
-    tls_version: "1.3"
-    cipher_suites:
-      - "TLS_AES_256_GCM_SHA384"
-      - "TLS_CHACHA20_POLY1305_SHA256"
-
-# Audit logging
-audit_logging:
-  enabled: true
-  log_level: "INFO"
-
-  # Events to log
-  events:
-    - memory_access
-    - configuration_changes
-    - authentication_attempts
-    - data_redaction
-    - policy_violations
-
-  # Log retention
-  retention:
-    duration: "90d"
-    compression: true
-    encryption: true
-```
-
-</Tab>
-
-<Tab value="Compliance">
-
-```yaml title="compliance_configuration.yaml"
-# GDPR compliance
-gdpr:
-  enabled: true
-
-  # Data subject rights
-  data_subject_rights:
-    right_to_access: true
-    right_to_rectification: true
-    right_to_erasure: true
-    right_to_portability: true
-    right_to_restrict_processing: true
-
-  # Data processing lawful basis
-  lawful_basis: "consent"  # or "legitimate_interest"
-
-  # Data retention policies
-  retention_policies:
-    personal_data: "2y"
-    conversation_logs: "1y"
-    analytics_data: "6m"
-
-  # Consent management
-  consent:
-    explicit_consent_required: true
-    consent_withdrawal_mechanism: true
-    consent_record_retention: "7y"
-
-# CCPA compliance
-ccpa:
-  enabled: true
-
-  # Consumer rights
-  consumer_rights:
-    right_to_know: true
-    right_to_delete: true
-    right_to_opt_out: true
-    right_to_non_discrimination: true
-
-  # Data categories
-  data_categories:
-    - "personal_identifiers"
-    - "conversation_content"
-    - "usage_analytics"
-    - "preferences"
-
-# HIPAA compliance (if applicable)
-hipaa:
-  enabled: false  # Enable only if handling PHI
-
-  # Administrative safeguards
-  administrative_safeguards:
-    workforce_training: true
-    access_management: true
-    incident_response: true
-
-  # Physical safeguards
-  physical_safeguards:
-    facility_access: true
-    workstation_security: true
-    media_controls: true
-
-  # Technical safeguards
-  technical_safeguards:
-    access_control: true
-    audit_controls: true
-    integrity_controls: true
-    transmission_security: true
-```
-
-**Compliance Checklist:**
-
-<Callout type="info" title="Compliance Verification">
-Use this checklist to verify your compliance configuration:
-</Callout>
-
-- [ ] **Data Redaction**: Sensitive patterns properly configured
-- [ ] **Access Control**: Role-based permissions implemented
-- [ ] **Encryption**: Both at-rest and in-transit encryption enabled
-- [ ] **Audit Logging**: Comprehensive logging for compliance events
-- [ ] **Retention Policies**: Appropriate data retention periods set
-- [ ] **User Rights**: Data subject rights mechanisms implemented
-- [ ] **Consent Management**: Explicit consent collection and management
-- [ ] **Regular Reviews**: Scheduled compliance audits configured
-
-</Tab>
-
-</Tabs>
-
-</Step>
-
-<Step title="Production Deployment Configuration" description="Configure memory for production environments">
-
-### Production-Ready Configuration
-
-Deploy memory configurations that scale and perform in production:
-
-<Tabs items={["High Availability", "Monitoring", "Multi-Environment"]} className="mt-6">
-
-<Tab value="High Availability">
-
-```yaml title="production_ha.yaml"
-# High availability memory configuration
+```yaml title="dev_memory.yaml"
 resource: memory
-id: production_user_memory
-description: Production-ready user memory with HA
-version: 2.0.0
-
-# Hierarchical key for multi-tenant isolation
-key: "tenant:{{.tenant_id}}:user:{{.user_id}}:session:{{.session_id}}"
-
-# Optimized for production scale
-type: token_based
-max_tokens: 4000
-max_context_ratio: 0.75  # Conservative ratio
-model: gpt-4-turbo
-model_context_size: 8192
-
-# Intelligent eviction with priority
-eviction_policy:
-  type: priority
-  priority_keywords:
-    - "error"
-    - "critical"
-    - "important"
-    - "user_preference"
-    - "context"
-    - "summary"
-    - "decision"
-  priority_boost: 2.5
-  decay_rate: 0.05
-
-# Hybrid summary flushing for efficiency
-flushing_strategy:
-  type: hybrid_summary
-  summarize_threshold: 0.75
-  summary_tokens: 600
-  summarize_oldest_percent: 0.25
-
-# Production persistence with resilience
-persistence:
-  type: redis
-  ttl: 72h  # 3 days
-
-  # High availability settings
-  sentinel:
-    enabled: true
-    service_name: "redis-memory"
-    sentinels:
-      - "sentinel1:26379"
-      - "sentinel2:26379"
-      - "sentinel3:26379"
-
-  # Circuit breaker for resilience
-  circuit_breaker:
-    enabled: true
-    timeout: "50ms"
-    max_failures: 3
-    reset_timeout: "15s"
-    success_threshold: 2
-
-  # Connection pool optimization
-  pool:
-    max_connections: 20
-    min_idle: 5
-    max_idle: 10
-    idle_timeout: "5m"
-
-# Optimized TTL for production
-append_ttl: "1h"
-clear_ttl: "2m"
-flush_ttl: "4h"
-
-# Production token provider
-token_provider:
-  provider: openai
-  model: gpt-4-turbo
-  api_key_env: OPENAI_API_KEY
-  fallback: tiktoken
-  settings:
-    timeout: "10s"
-    max_retries: 3
-    retry_delay: "1s"
-
-# Comprehensive privacy policy
-privacy_policy:
-  redact_patterns:
-    - '\b\d{3}-\d{2}-\d{4}\b'
-    - '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
-    - '\b(?:\+?1[-.\s]?)?\(?[2-9]\d{2}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b'
-    - '\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{3,6}\b'
-  non_persistable_message_types:
-    - system
-    - tool_internal
-    - debug
-  default_redaction_string: "[REDACTED]"
-
-# Production metadata
-metadata:
-  environment: "production"
-  team: "ai-engineering"
-  version: "v2.1.0"
-  deployment_date: "2024-01-15"
-  compliance: ["gdpr", "ccpa"]
-```
-
-</Tab>
-
-<Tab value="Monitoring">
-
-```yaml title="monitoring_configuration.yaml"
-# Production monitoring configuration
-monitoring:
-  enabled: true
-
-  # Metrics collection
-  metrics:
-    # Performance metrics
-    - name: "token_utilization"
-      type: "gauge"
-      labels: ["memory_id", "tenant_id"]
-
-    - name: "message_count"
-      type: "gauge"
-      labels: ["memory_id", "tenant_id"]
-
-    - name: "eviction_rate"
-      type: "counter"
-      labels: ["memory_id", "policy_type"]
-
-    - name: "flush_frequency"
-      type: "counter"
-      labels: ["memory_id", "strategy_type"]
-
-    # Latency metrics
-    - name: "operation_duration"
-      type: "histogram"
-      labels: ["operation", "memory_id"]
-      buckets: [0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0]
-
-    # Error metrics
-    - name: "error_rate"
-      type: "counter"
-      labels: ["memory_id", "error_type"]
-
-    # Business metrics
-    - name: "memory_usage_by_tenant"
-      type: "gauge"
-      labels: ["tenant_id", "memory_type"]
-
-  # Health checks
-  health_checks:
-    - name: "redis_connectivity"
-      type: "dependency"
-      interval: "30s"
-      timeout: "5s"
-
-    - name: "token_provider_health"
-      type: "external_api"
-      interval: "60s"
-      timeout: "10s"
-
-    - name: "memory_capacity"
-      type: "resource"
-      interval: "10s"
-      threshold: 0.8
-
-  # Alerting rules
-  alerts:
-    - name: "high_token_utilization"
-      condition: "token_utilization > 0.9"
-      duration: "5m"
-      severity: "warning"
-
-    - name: "memory_errors"
-      condition: "error_rate > 0.01"
-      duration: "2m"
-      severity: "critical"
-
-    - name: "redis_connection_failure"
-      condition: "redis_connectivity == 0"
-      duration: "30s"
-      severity: "critical"
-
-  # Logging configuration
-  logging:
-    level: "INFO"
-    format: "json"
-
-    # Log sampling for high volume
-    sampling:
-      enabled: true
-      rate: 0.1  # Sample 10% of logs
-
-    # Structured logging fields
-    fields:
-      - "timestamp"
-      - "level"
-      - "memory_id"
-      - "tenant_id"
-      - "operation"
-      - "duration"
-      - "error"
-      - "trace_id"
-```
-
-</Tab>
-
-<Tab value="Multi-Environment">
-
-```yaml title="multi_environment.yaml"
-# Base configuration template
-base_config: &base
-  resource: memory
-  description: "Multi-environment memory configuration"
-  version: "1.0.0"
-
-  # Common settings
-  type: token_based
-  max_context_ratio: 0.8
-  model: gpt-4-turbo
-
-  eviction_policy:
-    type: priority
-    priority_keywords:
-      - "error"
-      - "critical"
-      - "important"
-
-  flushing_strategy:
-    type: hybrid_summary
-    summarize_threshold: 0.8
-    summary_tokens: 500
-
-# Development environment
-development:
-  <<: *base
-  id: dev_memory
-
-  # Development-specific settings
-  max_tokens: 1000
-  persistence:
-    type: in_memory
-    ttl: 1h
-
-  append_ttl: "10m"
-  clear_ttl: "1m"
-  flush_ttl: "30m"
-
-  # Relaxed privacy for development
-  privacy_policy:
-    redact_patterns: []
-    non_persistable_message_types:
-      - debug
-
-  # Development metadata
-  metadata:
-    environment: "development"
-    debug_mode: true
-
-# Staging environment
-staging:
-  <<: *base
-  id: staging_memory
-
-  # Staging-specific settings
-  max_tokens: 3000
-  persistence:
-    type: redis
-    ttl: 24h
-    circuit_breaker:
-      enabled: true
-      timeout: "100ms"
-      max_failures: 5
-
-  append_ttl: "30m"
-  clear_ttl: "2m"
-  flush_ttl: "2h"
-
-  # Production-like privacy
-  privacy_policy:
-    redact_patterns:
-      - '\b\d{3}-\d{2}-\d{4}\b'
-      - '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
-    non_persistable_message_types:
-      - system
-      - tool_internal
-      - debug
-
-  # Staging metadata
-  metadata:
-    environment: "staging"
-    test_mode: true
-
-# Production environment
-production:
-  <<: *base
-  id: prod_memory
-
-  # Production-specific settings
-  max_tokens: 4000
-  persistence:
-    type: redis
-    ttl: 72h
-
-    # High availability
-    sentinel:
-      enabled: true
-      service_name: "redis-memory"
-      sentinels:
-        - "sentinel1:26379"
-        - "sentinel2:26379"
-        - "sentinel3:26379"
-
-    circuit_breaker:
-      enabled: true
-      timeout: "50ms"
-      max_failures: 3
-      reset_timeout: "15s"
-
-    pool:
-      max_connections: 20
-      min_idle: 5
-      max_idle: 10
-
-  append_ttl: "1h"
-  clear_ttl: "2m"
-  flush_ttl: "4h"
-
-  # Comprehensive privacy
-  privacy_policy:
-    redact_patterns:
-      - '\b\d{3}-\d{2}-\d{4}\b'
-      - '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
-      - '\b(?:\+?1[-.\s]?)?\(?[2-9]\d{2}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b'
-      - '\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{3,6}\b'
-    non_persistable_message_types:
-      - system
-      - tool_internal
-      - debug
-      - diagnostic
-
-  # Production metadata
-  metadata:
-    environment: "production"
-    team: "ai-engineering"
-    compliance: ["gdpr", "ccpa"]
-    sla: "99.9%"
-```
-
-**Environment-Specific Deployment:**
-
-```bash title="Deployment Commands"
-# Development deployment
-compozy deploy --env development --config memory/multi_environment.yaml
-
-# Staging deployment
-compozy deploy --env staging --config memory/multi_environment.yaml
-
-# Production deployment
-compozy deploy --env production --config memory/multi_environment.yaml --require-approval
-
-# Environment validation
-compozy config validate --env production --config memory/multi_environment.yaml
-```
-
-</Tab>
-
-</Tabs>
-
-</Step>
-
-</Steps>
-
-## Configuration Reference Quick Links
-
-<Callout type="info" title="Complete Configuration Guide">
-This interactive guide covered the essential configuration patterns. For detailed reference information, see the configuration sections below.
-</Callout>
-
-## Configuration Reference
-
-### Quick Reference Examples
-
-For comprehensive interactive learning, see the [Step-by-Step Configuration Builder](#step-by-step-configuration-builder) above.
-
-<Tabs items={["Minimal", "Complete", "Production"]} className="mt-6">
-
-<Tab value="Minimal">
-
-```yaml title="minimal_memory.yaml"
-resource: memory
-id: simple_memory
-description: Basic conversation memory
+id: dev_memory
+description: Development memory configuration
 version: 1.0.0
 
 key: "user:{{.workflow.input.user_id}}"
@@ -1370,917 +438,227 @@ max_tokens: 2000
 
 persistence:
   type: redis
-  ttl: 24h
+  ttl: 8h
 ```
 
-**Perfect for:** Development, testing, and simple use cases
-
-</Tab>
-
-<Tab value="Complete">
-
-```yaml title="complete_memory.yaml"
-resource: memory
-id: advanced_memory
-description: Advanced conversation memory with all features
-version: 1.0.0
-
-# Dynamic key template with workflow context
-key: "conversation:{{.session_id}}:{{.agent_id}}"
-
-# Memory management strategy
-type: token_based
-max_tokens: 8000
-max_messages: 200
-max_context_ratio: 0.8
-model: gpt-4
-model_context_size: 8192
-
-# Eviction policy configuration
-eviction_policy:
-  type: priority
-  priority_keywords:
-    - "error"
-    - "critical"
-    - "important"
-    - "warning"
-    - "user_preference"
-
-# Token allocation strategy
-token_allocation:
-  short_term: 0.6    # 60% for recent messages
-  long_term: 0.3     # 30% for summaries/context
-  system: 0.1        # 10% for system prompts
-
-# Flushing strategy configuration
-flushing_strategy:
-  type: hybrid_summary
-  summarize_threshold: 0.8
-  summary_tokens: 500
-  summarize_oldest_percent: 0.4
-
-# Persistence configuration
-persistence:
-  type: redis
-  ttl: 168h  # 7 days
-  circuit_breaker:
-    enabled: true
-    timeout: "100ms"
-    max_failures: 5
-    reset_timeout: "30s"
-
-# TTL configuration
-append_ttl: "30m"
-clear_ttl: "5m"
-flush_ttl: "2h"
-
-# Privacy and security
-privacy_policy:
-  redact_patterns:
-    - '\b\d{3}-\d{2}-\d{4}\b'  # SSN
-    - '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'  # Email
-  non_persistable_message_types:
-    - system
-    - tool_internal
-  default_redaction_string: "[REDACTED]"
-
-# Token counting configuration
-token_provider:
-  provider: openai
-  model: gpt-4
-  api_key_env: OPENAI_API_KEY
-  fallback: tiktoken
-  settings:
-    timeout: "30s"
-
-# Custom metadata
-metadata:
-  team: "ai-engineering"
-  environment: "production"
-  version: "v2.1"
-```
-
-**Perfect for:** Comprehensive features with all configuration options
+<List>
+  <ListItem icon="CheckCircle">**Use Case:** Local development and testing</ListItem>
+  <ListItem icon="Clock">**TTL:** Short-term (8 hours)</ListItem>
+  <ListItem icon="Shield">**Security:** Basic (no sensitive data handling)</ListItem>
+</List>
 
 </Tab>
 
 <Tab value="Production">
 
-```yaml title="production_memory.yaml"
+```yaml title="prod_memory.yaml"
 resource: memory
-id: production_memory
-description: Production-ready memory configuration
+id: prod_memory
+description: Production memory with security and monitoring
 version: 2.0.0
 
-# Multi-tenant key
-key: "tenant:{{.tenant_id}}:user:{{.user_id}}:session:{{.session_id}}"
-
-# Production-optimized settings
+key: "user:{{.user_id}}:session:{{.session_id}}"
 type: token_based
 max_tokens: 4000
 max_context_ratio: 0.75
-model: gpt-4-turbo
-model_context_size: 8192
 
-# High availability persistence
+eviction_policy:
+  type: priority
+  priority_keywords: ["error", "critical", "important"]
+
 persistence:
   type: redis
   ttl: 72h
+  circuit_breaker:
+    enabled: true
+    timeout: "50ms"
+
+privacy_policy:
+  redact_patterns:
+    - '\b\d{3}-\d{2}-\d{4}\b'  # SSN
+    - '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'  # Email
+  non_persistable_message_types: [system, tool_internal]
+```
+
+<List>
+  <ListItem icon="CheckCircle">**Use Case:** Production applications with user data</ListItem>
+  <ListItem icon="Clock">**TTL:** Extended (72 hours)</ListItem>
+  <ListItem icon="Shield">**Security:** Data redaction and circuit breakers</ListItem>
+</List>
+
+</Tab>
+
+<Tab value="Enterprise">
+
+```yaml title="enterprise_memory.yaml"
+resource: memory
+id: enterprise_memory
+description: Enterprise-grade memory with compliance
+version: 2.0.0
+
+key: "tenant:{{.tenant_id}}:user:{{.user_id}}:session:{{.session_id}}"
+type: token_based
+max_tokens: 4000
+max_context_ratio: 0.75
+
+persistence:
+  type: redis
+  ttl: 168h  # 7 days
   sentinel:
     enabled: true
     service_name: "redis-memory"
-    sentinels:
-      - "sentinel1:26379"
-      - "sentinel2:26379"
-      - "sentinel3:26379"
   circuit_breaker:
     enabled: true
     timeout: "50ms"
     max_failures: 3
-    reset_timeout: "15s"
 
-# Production privacy policy
 privacy_policy:
   redact_patterns:
     - '\b\d{3}-\d{2}-\d{4}\b'
     - '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
     - '\b(?:\+?1[-.\s]?)?\(?[2-9]\d{2}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b'
     - '\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{3,6}\b'
-  non_persistable_message_types:
-    - system
-    - tool_internal
-    - debug
+  non_persistable_message_types: [system, tool_internal, debug]
 
-# Production metadata
 metadata:
   environment: "production"
-  team: "ai-engineering"
-  compliance: ["gdpr", "ccpa"]
-  sla: "99.9%"
+  compliance: ["gdpr", "ccpa", "hipaa"]
 ```
 
-**Perfect for:** Production deployments with high availability and compliance requirements
+<List>
+  <ListItem icon="CheckCircle">**Use Case:** Multi-tenant enterprise applications</ListItem>
+  <ListItem icon="Clock">**TTL:** Extended with HA (7 days)</ListItem>
+  <ListItem icon="Shield">**Security:** Full compliance and multi-tenant isolation</ListItem>
+</List>
 
 </Tab>
 
 </Tabs>
 
-## Configuration Sections
+## Configuration Reference
 
-### Core Settings
+### Core Configuration
 
-#### Resource Identification
+Resource identification and basic settings:
+
 ```yaml
 resource: memory        # Resource type (always "memory")
 id: unique_memory_id   # Unique identifier
 description: "Purpose and context"
 version: "1.0.0"       # Configuration version
-```
 
-#### Memory Key Template
-```yaml
-# Simple user-based key
+# Memory key template
 key: "user:{{.workflow.input.user_id}}"
+# or hierarchical: "project:{{.project_id}}:user:{{.user_id}}"
 
-# Complex hierarchical key
-key: "project:{{.project_id}}:agent:{{.agent_id}}:session:{{.session_id}}"
-
-# Conditional key template
-key: "{{if .workflow.input.org_id}}org:{{.workflow.input.org_id}}{{else}}user{{end}}:{{.user_id}}"
+# Memory type
+type: token_based       # or message_count_based, buffer
+max_tokens: 4000
+max_context_ratio: 0.8
+model: gpt-4
 ```
 
 **Available Template Variables:**
-- `{{.workflow.input.*}}` - Any workflow input parameter
-- `{{.session_id}}` - Current session identifier
-- `{{.project_id}}` - Project context
-- `{{.agent_id}}` - Agent identifier
-- `{{.user_id}}` - User identifier
-- Custom variables from workflow execution context
+- `{{.workflow.input.*}}` - Workflow input parameters
+- `{{.session_id}}`, `{{.project_id}}`, `{{.agent_id}}`, `{{.user_id}}`
 
-### Memory Type Configuration
+### Eviction and Flushing
 
-#### Token-Based Memory
-Best for LLM-optimized context management:
+Control memory management strategies:
 
 ```yaml
-type: token_based
-max_tokens: 4000                # Hard token limit
-max_context_ratio: 0.8          # Use 80% of model context
-model: gpt-4                    # Model for token counting
-model_context_size: 8192        # Override model context size
-```
-
-#### Message Count-Based Memory
-Best for predictable message limits:
-
-```yaml
-type: message_count_based
-max_messages: 100               # Maximum number of messages
-max_tokens: 8000               # Optional token fallback limit
-```
-
-#### Buffer Memory
-Simple storage for development:
-
-```yaml
-type: buffer
-max_messages: 50               # Simple message limit
-```
-
-### Eviction Policies
-
-Control which messages are removed when limits are reached:
-
-#### FIFO (First In, First Out)
-```yaml
+# Eviction policies
 eviction_policy:
-  type: fifo  # Remove oldest messages first
-```
+  type: fifo            # or lru, priority
 
-#### LRU (Least Recently Used)
-```yaml
-eviction_policy:
-  type: lru   # Remove least recently accessed messages
-```
-
-#### Priority-Based Eviction
-```yaml
+# For priority eviction
 eviction_policy:
   type: priority
-  priority_keywords:
-    - "error"
-    - "critical"
-    - "important"
-    - "user_preference"
-    - "decision"
-    - "context"
-```
+  priority_keywords: ["error", "critical", "important"]
 
-Messages containing priority keywords are preserved longer.
-
-### Flushing Strategies
-
-Control how memory is managed when approaching limits:
-
-#### Simple FIFO Flushing
-```yaml
+# Flushing strategies
 flushing_strategy:
-  type: simple_fifo
+  type: hybrid_summary  # or simple_fifo, lru, token_aware_lru
+  summarize_threshold: 0.8
+  summary_tokens: 500
 ```
 
-#### LRU Flushing
-```yaml
-flushing_strategy:
-  type: lru
-```
+### Persistence and TTL
 
-#### Token-Aware LRU
-```yaml
-flushing_strategy:
-  type: token_aware_lru
-```
-
-#### Hybrid Summary Flushing
-Intelligent summarization of older messages:
+Configure data storage and expiration:
 
 ```yaml
-flushing_strategy:
-  type: hybrid_summary
-  summarize_threshold: 0.8      # Start summarizing at 80% capacity
-  summary_tokens: 500           # Target tokens for summary
-  summarize_oldest_percent: 0.3 # Summarize oldest 30% of messages
-```
-
-### Persistence Configuration
-
-#### Redis Persistence (Recommended)
-```yaml
+# Redis persistence (recommended)
 persistence:
   type: redis
-  ttl: 24h                     # Time-to-live for memory instances
+  ttl: 24h
   circuit_breaker:
     enabled: true
-    timeout: "100ms"           # Operation timeout
-    max_failures: 5           # Failures before opening circuit
-    reset_timeout: "30s"      # Time before retry attempt
+    timeout: "100ms"
+    max_failures: 5
+
+# TTL fine-tuning
+append_ttl: "30m"    # Extend on append
+clear_ttl: "5m"      # Short cleanup
+flush_ttl: "1h"      # Preserve after flush
 ```
 
-#### In-Memory Persistence (Testing Only)
-```yaml
-persistence:
-  type: in_memory
-  ttl: 1h                     # Shorter TTL for testing
-```
+**TTL Formats:** `30s`, `5m`, `2h`, `24h`, `168h`
 
-### TTL Configuration
+### Token Providers
 
-Fine-tune time-to-live behavior for different operations:
+Configure accurate token counting:
 
 ```yaml
-append_ttl: "30m"    # Extend TTL by 30 minutes on each append
-clear_ttl: "5m"      # Set TTL to 5 minutes after clear
-flush_ttl: "1h"      # Set TTL to 1 hour after flush
-```
-
-**TTL Duration Formats:**
-- `30s` - 30 seconds
-- `5m` - 5 minutes
-- `2h` - 2 hours
-- `24h` - 24 hours
-- `168h` - 7 days
-
-### Token Provider Configuration
-
-Configure accurate token counting with provider APIs:
-
-#### OpenAI Provider
-```yaml
+# OpenAI provider
 token_provider:
   provider: openai
   model: gpt-4
-  api_key_env: OPENAI_API_KEY   # Environment variable name
-  endpoint: "https://api.openai.com/v1"  # Optional custom endpoint
+  api_key_env: OPENAI_API_KEY
   fallback: tiktoken
-  settings:
-    timeout: "30s"
-    max_retries: 3
-```
 
-#### Anthropic Provider
-```yaml
+# Anthropic provider
 token_provider:
   provider: anthropic
   model: claude-3-sonnet
   api_key_env: ANTHROPIC_API_KEY
-  fallback: tiktoken
-```
 
-#### Google Provider
-```yaml
+# Local fallback
 token_provider:
-  provider: google
-  model: gemini-pro
-  api_key_env: GOOGLE_API_KEY
-  fallback: tiktoken
+  provider: tiktoken
+  model: gpt-4
 ```
 
-#### Fallback Configuration
-```yaml
-token_provider:
-  provider: tiktoken    # Local token counting only
-  model: gpt-4         # Model for tiktoken encoding
-```
+### Privacy and Security Reference
 
-### Privacy Policy Configuration
-
-Protect sensitive information in memory:
+Protect sensitive information:
 
 ```yaml
 privacy_policy:
-  # Regex patterns for redaction
   redact_patterns:
-    # Social Security Numbers
-    - '\b\d{3}-\d{2}-\d{4}\b'
-    # Credit card numbers (basic pattern)
-    - '\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{3,6}\b'
-    # Email addresses
-    - '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
-    # Phone numbers
-    - '\b(?:\+?1[-.\s]?)?\(?[2-9]\d{2}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b'
-    # IP addresses
-    - '\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b'
-    # Custom patterns
-    - '\baccount\s*#?\s*\d{6,12}\b'  # Account numbers
+    - '\b\d{3}-\d{2}-\d{4}\b'  # SSN
+    - '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'  # Email
+    - '\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{3,6}\b'  # Credit cards
 
-  # Message types that should not be persisted
   non_persistable_message_types:
     - system
     - tool_internal
     - debug
 
-  # Replacement text for redacted content
   default_redaction_string: "[REDACTED]"
 ```
 
-## Environment Variable Integration
+### Environment Variables
 
-Use environment variables for sensitive configuration:
+Use environment variables for sensitive data:
 
 ```yaml
-# Direct environment variable reference
+# Direct reference
 api_key: "{{ .env.OPENAI_API_KEY }}"
 
-# Environment variable with fallback
+# With fallback
 api_key: "{{ .env.OPENAI_API_KEY | default \"fallback-key\" }}"
 
-# Conditional environment variables
+# Conditional
 api_key: "{{ if .env.USE_OPENAI }}{{ .env.OPENAI_API_KEY }}{{ else }}{{ .env.FALLBACK_KEY }}{{ end }}"
 ```
-
-## AutoLoad Configuration
-
-Configure automatic discovery of memory resources:
-
-### Project-Level AutoLoad
-```yaml
-# In compozy.yaml
-autoload:
-  enabled: true
-  strict: true
-  include:
-    - "memory/*.yaml"
-    - "config/memory/*.yaml"
-  exclude:
-    - "**/*~"
-    - "**/*.bak"
-    - "**/*.tmp"
-```
-
-### Directory Structure
-```
-project/
-├── compozy.yaml
-├── memory/
-│   ├── user_memory.yaml
-│   ├── conversation_memory.yaml
-│   └── analytics_memory.yaml
-└── workflows/
-    └── chat.yaml
-```
-
-## Validation and Best Practices
-
-### Configuration Validation
-Memory configurations are validated at startup:
-
-- Required fields are present
-- TTL durations are valid
-- Token limits are positive
-- Eviction policies are correctly configured
-- Privacy patterns compile correctly
-
-### Best Practices
-
-#### Key Design
-```yaml
-# ✅ Good: Hierarchical and descriptive
-key: "user:{{.user_id}}:conversation:{{.conversation_id}}"
-
-# ❌ Bad: Too simple, potential collisions
-key: "{{.user_id}}"
-
-# ✅ Good: Include necessary context
-key: "project:{{.project_id}}:agent:{{.agent_id}}:session:{{.session_id}}"
-```
-
-#### Memory Limits
-```yaml
-# ✅ Good: Reasonable limits for use case
-type: token_based
-max_tokens: 4000        # Fits within model context
-max_messages: 100       # Reasonable conversation length
-
-# ❌ Bad: Limits too high
-max_tokens: 100000      # Exceeds most model contexts
-```
-
-#### TTL Configuration
-```yaml
-# ✅ Good: Balanced TTL settings
-persistence:
-  ttl: 24h             # Main TTL
-append_ttl: "30m"      # Reasonable extension
-clear_ttl: "5m"        # Quick cleanup
-flush_ttl: "2h"        # Longer preservation after flush
-```
-
-#### Privacy Patterns
-```yaml
-# ✅ Good: Specific, tested patterns
-redact_patterns:
-  - '\b\d{3}-\d{2}-\d{4}\b'  # Specific SSN format
-
-# ❌ Bad: Overly broad patterns
-redact_patterns:
-  - '\d+'  # Too broad, redacts all numbers
-```
-
-## Troubleshooting Configuration
-
-### Common Issues
-
-#### Invalid Key Templates
-```yaml
-# ❌ Error: Invalid template syntax
-key: "user:{{.workflow.input.user_id"  # Missing closing braces
-
-# ✅ Fix: Correct template syntax
-key: "user:{{.workflow.input.user_id}}"
-```
-
-#### TTL Format Errors
-```yaml
-# ❌ Error: Invalid duration format
-append_ttl: "30 minutes"
-
-# ✅ Fix: Use Go duration format
-append_ttl: "30m"
-```
-
-#### Token Limit Conflicts
-```yaml
-# ❌ Error: Token limit exceeds model context
-type: token_based
-max_tokens: 10000
-model_context_size: 4096
-
-# ✅ Fix: Align limits with model capacity
-max_tokens: 3000
-model_context_size: 4096
-```
-
-### Validation Commands
-
-```bash
-# Validate memory configuration
-compozy config validate --config memory/user_memory.yaml
-
-# Test memory configuration with dry run
-compozy test memory --dry-run --config memory/user_memory.yaml
-```
-
-## Next Steps and Advanced Topics
-
-<Callout type="success" title="Configuration Mastery Complete">
-You've now mastered memory configuration from basic setup to production deployment with interactive learning and hands-on examples.
-</Callout>
-
-### Advanced Configuration Patterns
-
-<Tabs items={["Multi-Tenant", "Microservices", "Edge Computing"]} className="mt-6">
-
-<Tab value="Multi-Tenant">
-
-```yaml title="multi_tenant_memory.yaml"
-# Multi-tenant memory configuration
-resource: memory
-id: multi_tenant_memory
-description: Isolated memory per tenant with shared infrastructure
-version: 1.0.0
-
-# Tenant isolation through key hierarchy
-key: "tenant:{{.tenant_id}}:user:{{.user_id}}:conversation:{{.conversation_id}}"
-
-# Tenant-specific limits
-type: token_based
-max_tokens: "{{ .tenant_config.max_tokens | default 2000 }}"
-max_context_ratio: "{{ .tenant_config.context_ratio | default 0.8 }}"
-
-# Tenant-specific TTL
-persistence:
-  type: redis
-  ttl: "{{ .tenant_config.data_retention | default \"24h\" }}"
-
-# Tenant-specific privacy policies
-privacy_policy:
-  redact_patterns: "{{ .tenant_config.privacy_patterns }}"
-  default_redaction_string: "{{ .tenant_config.redaction_string | default \"[REDACTED]\" }}"
-
-# Tenant metadata
-metadata:
-  tenant_id: "{{ .tenant_id }}"
-  billing_tier: "{{ .tenant_config.billing_tier }}"
-  compliance_level: "{{ .tenant_config.compliance_level }}"
-```
-
-**Key Features:**
-- Tenant isolation through hierarchical keys
-- Per-tenant configuration and limits
-- Flexible privacy policies per tenant
-- Billing and compliance integration
-
-</Tab>
-
-<Tab value="Microservices">
-
-```yaml title="microservices_memory.yaml"
-# Microservices memory configuration
-resource: memory
-id: microservices_memory
-description: Distributed memory across service boundaries
-version: 1.0.0
-
-# Service-specific key namespace
-key: "service:{{.service_name}}:instance:{{.instance_id}}:session:{{.session_id}}"
-
-# Service-optimized settings
-type: token_based
-max_tokens: 3000
-max_context_ratio: 0.7
-
-# Service mesh integration
-persistence:
-  type: redis
-  ttl: 6h
-
-  # Service discovery integration
-  service_discovery:
-    enabled: true
-    registry: "consul"
-    service_name: "redis-memory"
-    health_check: true
-
-  # Circuit breaker for service resilience
-  circuit_breaker:
-    enabled: true
-    timeout: "100ms"
-    max_failures: 5
-    reset_timeout: "30s"
-
-# Service-specific eviction
-eviction_policy:
-  type: priority
-  priority_keywords:
-    - "service_context"
-    - "transaction_id"
-    - "correlation_id"
-    - "critical"
-
-# Service metadata
-metadata:
-  service_name: "{{ .service_name }}"
-  service_version: "{{ .service_version }}"
-  deployment_environment: "{{ .environment }}"
-  trace_sampling: true
-```
-
-**Key Features:**
-- Service namespace isolation
-- Service discovery integration
-- Distributed tracing support
-- Circuit breaker patterns
-
-</Tab>
-
-<Tab value="Edge Computing">
-
-```yaml title="edge_memory.yaml"
-# Edge computing memory configuration
-resource: memory
-id: edge_memory
-description: Optimized memory for edge deployments
-version: 1.0.0
-
-# Edge-specific key with region
-key: "edge:{{.region}}:device:{{.device_id}}:session:{{.session_id}}"
-
-# Edge-optimized settings
-type: token_based
-max_tokens: 1000  # Reduced for edge constraints
-max_context_ratio: 0.6
-
-# Edge persistence with fallback
-persistence:
-  type: redis
-  ttl: 2h  # Shorter TTL for edge
-
-  # Edge-specific settings
-  edge_config:
-    local_cache: true
-    cache_size: "100MB"
-    sync_interval: "5m"
-
-  # Fallback to local storage
-  fallback:
-    type: local_storage
-    path: "/tmp/memory"
-    max_size: "50MB"
-
-# Aggressive flushing for resource constraints
-flushing_strategy:
-  type: token_aware_lru
-  target_utilization: 0.6
-  min_messages: 3
-
-# Edge metadata
-metadata:
-  region: "{{ .region }}"
-  device_type: "{{ .device_type }}"
-  resource_tier: "edge"
-  bandwidth_profile: "low"
-```
-
-**Key Features:**
-- Resource-constrained optimization
-- Local caching with sync
-- Fallback to local storage
-- Region-aware configuration
-
-</Tab>
-
-</Tabs>
-
-### Integration with Other Systems
-
-<Tabs items={["Monitoring", "Analytics", "Compliance"]} className="mt-6">
-
-<Tab value="Monitoring">
-
-```yaml title="monitoring_integration.yaml"
-# Monitoring integration configuration
-monitoring:
-  enabled: true
-
-  # Prometheus metrics
-  prometheus:
-    enabled: true
-    port: 9090
-    path: "/metrics"
-
-  # Custom metrics
-  custom_metrics:
-    - name: "conversation_length"
-      type: "histogram"
-      labels: ["user_type", "conversation_type"]
-
-    - name: "memory_utilization_by_context"
-      type: "gauge"
-      labels: ["context_type", "priority_level"]
-
-  # Alerting integration
-  alerting:
-    webhook_url: "{{ .env.ALERT_WEBHOOK_URL }}"
-    alert_on:
-      - high_token_utilization
-      - frequent_evictions
-      - circuit_breaker_open
-      - privacy_violations
-
-  # Distributed tracing
-  tracing:
-    enabled: true
-    service_name: "memory-service"
-    jaeger_endpoint: "{{ .env.JAEGER_ENDPOINT }}"
-    sample_rate: 0.1
-```
-
-</Tab>
-
-<Tab value="Analytics">
-
-```yaml title="analytics_integration.yaml"
-# Analytics integration configuration
-analytics:
-  enabled: true
-
-  # Data collection
-  data_collection:
-    conversation_analytics: true
-    user_behavior_tracking: true
-    performance_metrics: true
-
-  # Privacy-preserving analytics
-  privacy_preserving:
-    differential_privacy: true
-    noise_level: 0.1
-    aggregation_threshold: 100
-
-  # Export configuration
-  export:
-    format: "parquet"
-    schedule: "0 2 * * *"  # Daily at 2 AM
-    retention: "90d"
-
-    # Data pipeline integration
-    pipeline:
-      enabled: true
-      endpoint: "{{ .env.ANALYTICS_ENDPOINT }}"
-      batch_size: 1000
-      compression: true
-```
-
-</Tab>
-
-<Tab value="Compliance">
-
-```yaml title="compliance_integration.yaml"
-# Compliance integration configuration
-compliance:
-  enabled: true
-
-  # Regulatory frameworks
-  frameworks:
-    gdpr:
-      enabled: true
-      data_controller: "{{ .env.DATA_CONTROLLER }}"
-      dpo_contact: "{{ .env.DPO_EMAIL }}"
-
-    ccpa:
-      enabled: true
-      business_name: "{{ .env.BUSINESS_NAME }}"
-
-    hipaa:
-      enabled: false
-      covered_entity: "{{ .env.COVERED_ENTITY }}"
-
-  # Audit logging
-  audit_logging:
-    enabled: true
-    log_level: "INFO"
-    retention: "7y"
-
-    # Compliance events
-    events:
-      - data_access
-      - data_modification
-      - data_deletion
-      - consent_changes
-      - privacy_violations
-
-  # Data subject rights
-  data_subject_rights:
-    automated_responses: true
-    response_time: "30d"
-    verification_required: true
-
-  # Regular compliance checks
-  compliance_checks:
-    schedule: "0 0 * * 0"  # Weekly
-    automated_reporting: true
-    report_recipients:
-      - "{{ .env.COMPLIANCE_EMAIL }}"
-      - "{{ .env.LEGAL_EMAIL }}"
-```
-
-</Tab>
-
-</Tabs>
-
-### Configuration Management
-
-<Callout type="warning" title="Production Configuration Management">
-Use proper configuration management tools and practices for production deployments.
-</Callout>
-
-```yaml title="configuration_management.yaml"
-# Configuration management best practices
-configuration:
-  # Version control
-  version_control:
-    enabled: true
-    repository: "{{ .env.CONFIG_REPO }}"
-    branch: "{{ .env.CONFIG_BRANCH | default \"main\" }}"
-
-  # Configuration validation
-  validation:
-    enabled: true
-    strict_mode: true
-    schema_validation: true
-
-  # Environment-specific configs
-  environments:
-    development:
-      config_path: "configs/dev/"
-      validation_level: "basic"
-
-    staging:
-      config_path: "configs/staging/"
-      validation_level: "strict"
-
-    production:
-      config_path: "configs/prod/"
-      validation_level: "strict"
-      approval_required: true
-
-  # Configuration drift detection
-  drift_detection:
-    enabled: true
-    check_interval: "1h"
-    alert_on_drift: true
-
-  # Backup and recovery
-  backup:
-    enabled: true
-    schedule: "0 3 * * *"  # Daily at 3 AM
-    retention: "30d"
-    encryption: true
-```
-
-## Summary
-
-This comprehensive configuration guide has taken you through:
-
-1. **Interactive Learning Paths** - Progressive tutorials from beginner to advanced
-2. **Step-by-Step Configuration Builder** - Hands-on configuration creation
-3. **Production-Ready Examples** - Real-world deployment patterns
-4. **Security and Privacy** - Comprehensive data protection measures
-5. **Advanced Integration** - Multi-tenant, microservices, and edge computing
-6. **Monitoring and Compliance** - Production operational requirements
-
-You now have the knowledge and tools to configure memory resources that match your specific use case requirements while following best practices for performance, security, and reliability.
-
-### Ready to Get Started?
-
-<Callout type="success" title="Next Steps">
-Ready to implement memory configuration in your project? Start with the [Step-by-Step Configuration Builder](#step-by-step-configuration-builder) above, then explore the [Memory Operations guide](/docs/core/memory/operations) to learn how to use your configured memory resources effectively.
-</Callout>

@@ -1,940 +1,324 @@
 ---
 title: Signal Tasks
-description: Complete guide to signal tasks for sending events and coordinating workflows in Compozy
+description: Master event emission and workflow coordination with signal tasks. Learn how to send structured messages between workflows, implement event-driven architectures, and build decoupled communication patterns.
 ---
 
-Signal tasks are **event emitters** in Compozy workflows that send messages to other workflows or tasks. They enable decoupled communication patterns, event-driven architectures, and sophisticated workflow coordination.
+## Overview
 
-<Callout type="info" title="Signal Dispatch">
-Signal tasks use **message dispatch** for high-performance event coordination, ensuring reliable delivery and scalability across distributed workflow systems.
-</Callout>
+Signal tasks are the **event publishers** in Compozy's workflow orchestration system, enabling sophisticated publish-subscribe communication patterns. They dispatch structured messages that can trigger wait tasks, start workflows via [signal triggers](/docs/core/signals/signal-triggers), and coordinate complex multi-system operations.
 
-## Core Signal Task Features
-
-<FeatureCardList cols={3} size="sm">
+<FeatureCardList cols={2}>
   <FeatureCard
-    title="Event Emission"
-    description="Send structured messages to coordinate workflows"
+    title="Event Broadcasting"
+    description="Publish to multiple subscribers with guaranteed delivery"
     icon="Radio"
   />
   <FeatureCard
-    title="Payload Support"
-    description="Include rich data in signal messages"
-    icon="Database"
+    title="Dynamic Routing"
+    description="Context-aware signal IDs using template expressions"
+    icon="Route"
   />
   <FeatureCard
-    title="Template Integration"
-    description="Use dynamic templates for signal IDs and payloads"
-    icon="Code"
+    title="Structured Payloads"
+    description="Rich data structures with schema validation"
+    icon="Package"
+  />
+  <FeatureCard
+    title="Error Handling"
+    description="Retry strategies and failure recovery patterns"
+    icon="Shield"
   />
 </FeatureCardList>
 
-## Basic Signal Task
+## Quick Start
 
-### Configuration Structure
+<Steps numbered>
+<Step title="Define a signal task" description="Create your first signal emitter">
 
 ```yaml
 - id: send-notification
   type: signal
   signal:
-    id: "notification-signal"
+    id: "user-approved"
     payload:
-      message: "Task completed successfully"
+      user_id: "{{ .workflow.input.user_id }}"
+      approved_by: "{{ .workflow.input.approver }}"
       timestamp: "{{ now }}"
 ```
 
-### Required Configuration
+Learn more about [template expressions](/docs/core/yaml-templates/context-variables) and [Sprig functions](/docs/core/yaml-templates/sprig-functions).
 
-<FeatureCardList cols={3} size="sm">
-  <FeatureCard
-    title="type: signal"
-    description="Identifies the task as a signal emitter"
-    icon="Settings"
-  />
-  <FeatureCard
-    title="signal.id"
-    description="Unique identifier for signal routing"
-    icon="Target"
-  />
-  <FeatureCard
-    title="signal.payload"
-    description="Optional structured data to send"
-    icon="FileText"
-  />
-</FeatureCardList>
+</Step>
+<Step title="Create a receiver" description="Set up a workflow to receive signals">
+
+Configure a workflow with a wait task or [signal trigger](/docs/core/signals/signal-triggers):
+
+```yaml
+# Option 1: Wait task
+- id: wait-for-approval
+  type: wait
+  wait_for: "user-approved"
+  on_timeout: handle-timeout
+
+# Option 2: Signal trigger
+triggers:
+  - type: signal
+    name: user-approved
+```
+
+</Step>
+<Step title="Test the flow" description="Execute and monitor signal delivery">
+
+Use the [CLI workflow commands](/docs/cli/workflow-commands) to test your signal flow and monitor execution with [task metrics](/docs/core/monitoring/task-metrics).
+
+</Step>
+</Steps>
 
 ## Signal Configuration
 
-### Signal ID Patterns
+| Field            | Description                                 | Example / Icon   |
+|------------------|---------------------------------------------|------------------|
+| `type: signal`   | Identifies this as a signal emission task   | ⚙️ (Settings)    |
+| `signal.id`      | Unique identifier for signal routing        | 🆔 (Fingerprint) |
+| `signal.payload` | Optional data to send with the signal       | 📦 (Package)     |
 
-The signal ID determines which wait tasks will receive the signal:
+### Signal ID Strategies
 
-<Tabs items={["Static IDs", "Dynamic IDs", "Template-based IDs"]}>
-<Tab>
+<Tabs items={["Static IDs", "Dynamic IDs", "Context-Aware IDs", "Hierarchical Patterns"]}>
+<Tab value="Static IDs">
+
+Use static IDs for consistent system-wide events:
 
 ```yaml
 signal:
-  id: "order-processed"
-  id: "user-approved"
-  id: "task-completed"
+  id: "system-maintenance"
+  id: "daily-batch-complete"
+  id: "deployment-finished"
 ```
 
-<Callout type="info" title="Static IDs">
-Use static IDs for **consistent system events** that don't vary between workflow instances.
-</Callout>
+**Best for**: System notifications, [scheduled workflows](/docs/core/workflows/scheduled-workflows), infrastructure events
 
 </Tab>
-<Tab>
+<Tab value="Dynamic IDs">
+
+Create targeted signals using [workflow input](/docs/core/yaml-templates/context-variables#workflow-context):
 
 ```yaml
 signal:
-  id: "user-{{ .workflow.input.user_id }}-approved"
-  id: "order-{{ .workflow.input.order_id }}-processed"
-  id: "workflow-{{ .workflow.id }}-status"
+  id: "user-{{ .workflow.input.user_id }}-action"
+  id: "order-{{ .workflow.input.order_id }}-status"
+  id: "tenant-{{ .env.TENANT_ID }}-event"
 ```
 
-<Callout type="success" title="Dynamic IDs">
-Dynamic IDs enable **targeted messaging** to specific workflow instances or entities.
-</Callout>
+**Best for**: User-specific events, entity updates, [multi-tenant patterns](/docs/core/workflows/patterns#multi-tenant)
 
 </Tab>
-<Tab>
+<Tab value="Context-Aware IDs">
+
+Build fully dynamic routing with [template expressions](/docs/core/yaml-templates/overview):
 
 ```yaml
 signal:
-  id: "{{ .workflow.input.signal_name }}"
   id: "{{ .workflow.input.event_type }}-{{ .workflow.input.entity_id }}"
-  id: "{{ .task.output.signal_type }}"
+  id: "{{ .task.output.signal_name }}"
+  id: "{{ .env.ENVIRONMENT }}-{{ .workflow.input.signal_type }}"
 ```
 
-<Callout type="warning" title="Template-based IDs">
-Fully template-based IDs provide **maximum flexibility** but require careful validation.
-</Callout>
+**Best for**: [Router task integration](/docs/core/tasks/router-tasks), runtime-determined events
+
+</Tab>
+<Tab value="Hierarchical Patterns">
+
+Build scalable namespacing with hierarchical signal organization:
+
+```yaml
+signal:
+  id: "{{ .env.TENANT }}.{{ .workflow.input.domain }}.{{ .workflow.input.entity }}.{{ .workflow.input.action }}"
+  # Examples:
+  # "acme.orders.payment.completed"
+  # "beta.users.profile.updated"
+  # "prod.inventory.stock.depleted"
+```
+
+**Best for**: Multi-tenant architectures, microservice coordination, enterprise-scale event routing
 
 </Tab>
 </Tabs>
 
-### Signal Payload Structure
+## Common Patterns
 
-<Tabs items={["Simple Payload", "Complex Payload", "Template Payload"]}>
-<Tab>
+### Event Notification
 
-```yaml
-signal:
-  id: "task-done"
-  payload:
-    success: true
-    task_id: "{{ .task.id }}"
-    timestamp: "{{ now }}"
-```
-
-<FeatureCardList cols={2} size="sm">
-  <FeatureCard
-    title="Lightweight"
-    description="Simple key-value data structures"
-    icon="Bell"
-  />
-  <FeatureCard
-    title="Fast Processing"
-    description="Quick serialization and transmission"
-    icon="Zap"
-  />
-</FeatureCardList>
-
-</Tab>
-<Tab>
-
-```yaml
-signal:
-  id: "data-processed"
-  payload:
-    workflow_id: "{{ .workflow.id }}"
-    execution_id: "{{ .workflow.exec_id }}"
-    results: "{{ .task.output.results }}"
-    metadata:
-      processed_at: "{{ now }}"
-      processor: "{{ .agent.id }}"
-      duration: "{{ .task.duration }}"
-```
-
-<FeatureCardList cols={2} size="sm">
-  <FeatureCard
-    title="Rich Context"
-    description="Nested structures with comprehensive data"
-    icon="Database"
-  />
-  <FeatureCard
-    title="System Integration"
-    description="Full workflow and task context"
-    icon="Network"
-  />
-</FeatureCardList>
-
-</Tab>
-<Tab>
-
-```yaml
-signal:
-  id: "{{ .workflow.input.signal_type }}"
-  payload:
-    dynamic_field: "{{ .workflow.input.field_name }}"
-    computed_value: "{{ .task.output | jsonPath '$.result.value' }}"
-    conditional_data: "{{ .task.success | ternary 'success' 'failure' }}"
-```
-
-<FeatureCardList cols={2} size="sm">
-  <FeatureCard
-    title="Dynamic Content"
-    description="Fully customizable signal structure"
-    icon="Code"
-  />
-  <FeatureCard
-    title="Advanced Logic"
-    description="Complex template expressions and functions"
-    icon="GitBranch"
-  />
-</FeatureCardList>
-
-</Tab>
-</Tabs>
-
-## Signal Task Examples
-
-### Common Signal Patterns
-
-<FeatureCardList cols={4} size="sm">
-  <FeatureCard
-    title="Notifications"
-    description="Simple event notifications"
-    icon="Bell"
-  />
-  <FeatureCard
-    title="Data Transfer"
-    description="Share processed data"
-    icon="Share"
-  />
-  <FeatureCard
-    title="Status Changes"
-    description="Workflow state updates"
-    icon="Activity"
-  />
-  <FeatureCard
-    title="Error Handling"
-    description="Error notifications"
-    icon="AlertCircle"
-  />
-</FeatureCardList>
-
-<Tabs items={["Notifications", "Data Transfer", "Status Changes", "Error Handling"]}>
-<Tab>
-
-### Simple Notification
-
-Send a basic completion notification:
+Send workflow completion notifications:
 
 ```yaml
 - id: notify-completion
   type: signal
   signal:
-    id: "task-completed"
-    payload:
-      task_id: "{{ .task.id }}"
-      status: "completed"
-      timestamp: "{{ now }}"
-
-  description: "Notify other workflows that task is complete"
-```
-
-<Callout type="info" title="Notification Patterns">
-Perfect for **simple events** that don't require complex data but need to trigger downstream actions.
-</Callout>
-
-</Tab>
-<Tab>
-
-### Data Transfer Signal
-
-Send processed data to waiting workflows:
-
-```yaml
-- id: share-processed-data
-  type: signal
-  signal:
-    id: "data-ready"
-    payload:
-      dataset_id: "{{ .workflow.input.dataset_id }}"
-      records_processed: "{{ .task.output.count }}"
-      data_location: "{{ .task.output.file_path }}"
-      schema_version: "{{ .workflow.input.schema_version }}"
-      processing_metadata:
-        started_at: "{{ .workflow.started_at }}"
-        completed_at: "{{ now }}"
-        processor_version: "v2.1.0"
-```
-
-<Callout type="success" title="Data Sharing">
-Enable **rich data transfer** between workflows while maintaining loose coupling.
-</Callout>
-
-</Tab>
-<Tab>
-
-### Status Change Signal
-
-Notify about workflow state changes:
-
-```yaml
-- id: workflow-status-change
-  type: signal
-  signal:
-    id: "workflow-status-{{ .workflow.input.workflow_type }}"
+    id: "workflow-completed"
     payload:
       workflow_id: "{{ .workflow.id }}"
-      previous_status: "{{ .workflow.previous_status }}"
-      current_status: "running"
-      changed_by: "{{ .workflow.input.user_id }}"
-      reason: "{{ .task.output.reason }}"
-      context:
-        environment: "{{ .env.ENVIRONMENT }}"
-        region: "{{ .env.AWS_REGION }}"
+      completed_at: "{{ now }}"
+      status: "success"
 ```
 
-<Callout type="info" title="State Tracking">
-Ideal for **system monitoring** and maintaining audit trails of workflow state changes.
-</Callout>
+Perfect for [monitoring integration](/docs/core/monitoring/task-metrics) and triggering [downstream workflows](/docs/core/workflows/patterns#event-driven).
 
-</Tab>
-<Tab>
+### Approval Workflows
 
-### Error Signal
-
-Send error notifications:
+Implement human-in-the-loop patterns with the [Event API](/docs/core/signals/event-api):
 
 ```yaml
+- id: request-approval
+  type: signal
+  signal:
+    id: "approval-requested"
+    payload:
+      request_id: "{{ .workflow.input.request_id }}"
+      requester: "{{ .workflow.input.user_id }}"
+      amount: "{{ .workflow.input.amount }}"
+      approval_link: "{{ .env.APP_URL }}/approve/{{ .workflow.input.request_id }}"
+```
+
+See complete [approval workflow patterns →](/docs/core/workflows/patterns#approval-workflows)
+
+### Data Pipeline Coordination
+
+Coordinate multi-stage processing with [collection tasks](/docs/core/tasks/collection-tasks):
+
+```yaml
+- id: data-stage-complete
+  type: signal
+  signal:
+    id: "pipeline-{{ .workflow.input.pipeline_id }}-stage-{{ .workflow.input.stage }}"
+    payload:
+      pipeline_id: "{{ .workflow.input.pipeline_id }}"
+      stage: "{{ .workflow.input.stage }}"
+      next_stage: "{{ .task.output.next_stage }}"
+      output_location: "{{ .task.output.data_path }}"
+```
+
+## Advanced Patterns
+
+### Conditional Signal Dispatch
+
+Combine with [router tasks](/docs/core/tasks/router-tasks) for dynamic routing:
+
+```yaml
+- id: route-by-priority
+  type: router
+  routes:
+    - condition: '.task.output.priority == "urgent"'
+      next: send-urgent-signal
+    - condition: '.task.output.priority == "normal"'
+      next: send-normal-signal
+    - default: send-low-priority-signal
+
+- id: send-urgent-signal
+  type: signal
+  signal:
+    id: "urgent-task-created"
+    payload:
+      task_data: "{{ .task.output }}"
+      escalation_required: true
+```
+
+### Error Recovery Signals
+
+Implement [error handling patterns](/docs/core/tasks/basic-tasks#error-handling) with notifications:
+
+```yaml
+- id: process-data
+  type: basic
+  tool:
+    id: data-processor
+  with:
+    data: "{{ .workflow.input.data }}"
+
+  on_error:
+    next: send-error-signal
+
 - id: send-error-signal
   type: signal
   signal:
-    id: "workflow-error"
+    id: "processing-error"
     payload:
       workflow_id: "{{ .workflow.id }}"
-      error_type: "{{ .task.error.type }}"
-      error_message: "{{ .task.error.message }}"
-      failed_task: "{{ .task.id }}"
-      context: "{{ .task.input }}"
-      occurred_at: "{{ now }}"
+      error: "{{ .tasks.process-data.error }}"
+      timestamp: "{{ now }}"
+      severity: "high"
+      retry_recommended: true
 ```
 
-<Callout type="warning" title="Error Handling">
-Critical for **error monitoring** and implementing robust error handling patterns.
-</Callout>
+## Best Practices
 
-</Tab>
-</Tabs>
-
-## Advanced Signal Patterns
-
-### Advanced Coordination Strategies
-
-<FeatureCardList cols={3} size="sm">
+<FeatureCardList cols={3}>
   <FeatureCard
-    title="Conditional Signals"
-    description="Send signals based on runtime conditions"
-    icon="Route"
+    title="Consistent Naming"
+    description="Use clear, hierarchical signal IDs like 'domain-entity-action'"
+    icon="Tag"
   />
   <FeatureCard
-    title="Multiple Dispatch"
-    description="Send multiple signals from one task"
+    title="Minimal Payloads"
+    description="Include essential data only; use references for large objects"
+    icon="Minimize"
+  />
+  <FeatureCard
+    title="Version Compatibility"
+    description="Include version info in payloads for backward compatibility"
     icon="GitBranch"
   />
-  <FeatureCard
-    title="Dynamic Routing"
-    description="Route signals based on runtime data"
-    icon="Repeat"
-  />
 </FeatureCardList>
 
-<Tabs items={["Conditional Signals", "Multiple Dispatch", "Dynamic Routing"]}>
-<Tab>
-
-### Conditional Signals
-
-Send signals based on conditions:
-
-```yaml
-- id: conditional-approval
-  type: router
-  condition: '{{ .task.output.amount > 1000 }}'
-  routes:
-    true:
-      # High-value approval signal
-      - id: high-value-approval
-        type: signal
-        signal:
-          id: "high-value-approval-needed"
-          payload:
-            amount: "{{ .task.output.amount }}"
-            priority: "high"
-    false:
-      # Auto-approval signal
-      - id: auto-approval
-        type: signal
-        signal:
-          id: "auto-approved"
-          payload:
-            amount: "{{ .task.output.amount }}"
-            priority: "low"
-```
-
-<Callout type="info" title="Conditional Logic">
-Use **router tasks** to implement complex business logic and conditional signal dispatch.
-</Callout>
-
-</Tab>
-<Tab>
-
-### Multiple Signal Dispatch
-
-Send multiple signals from one task:
-
-```yaml
-- id: multi-signal-dispatch
-  type: composite
-  tasks:
-    - id: notify-completion
-      type: signal
-      signal:
-        id: "task-completed"
-        payload:
-          task_id: "{{ .parent.id }}"
-
-    - id: notify-stakeholders
-      type: signal
-      signal:
-        id: "stakeholder-notification"
-        payload:
-          event: "task-completed"
-          stakeholders: "{{ .workflow.input.stakeholders }}"
-
-    - id: update-metrics
-      type: signal
-      signal:
-        id: "metrics-update"
-        payload:
-          metric_type: "task_completion"
-          value: 1
-          tags:
-            workflow: "{{ .workflow.id }}"
-            task_type: "{{ .parent.type }}"
-```
-
-<Callout type="success" title="Composite Tasks">
-Use **composite tasks** to coordinate multiple signal dispatches with shared context.
-</Callout>
-
-</Tab>
-<Tab>
-
-### Dynamic Signal Routing
-
-Route signals based on runtime data:
-
-```yaml
-- id: dynamic-signal-routing
-  type: collection
-  items: "{{ .task.output.recipients }}"
-  task:
-    id: "notify-recipient-{{ .index }}"
-    type: signal
-    signal:
-      id: "{{ .item.signal_type }}"
-      payload:
-        recipient_id: "{{ .item.id }}"
-        message: "{{ .item.message }}"
-        priority: "{{ .item.priority }}"
-        data: "{{ .parent.output.data }}"
-```
-
-<Callout type="warning" title="Collection Tasks">
-Use **collection tasks** for dynamic signal routing when recipients are determined at runtime.
-</Callout>
-
-</Tab>
-</Tabs>
-
-## Signal Task Integration
-
-### Integration Patterns
-
-<FeatureCardList cols={2} size="sm">
-  <FeatureCard
-    title="Error Handling"
-    description="Handle signal dispatch failures gracefully"
-    icon="Shield"
-  />
-  <FeatureCard
-    title="Workflow Integration"
-    description="Signal tasks within complex workflows"
-    icon="Workflow"
-  />
-</FeatureCardList>
-
-<Tabs items={["Error Handling", "Workflow Integration"]}>
-<Tab>
-
-### With Error Handling
-
-Handle signal dispatch failures gracefully:
-
-```yaml
-- id: robust-signal
-  type: signal
-  signal:
-    id: "important-notification"
-    payload:
-      data: "{{ .task.output }}"
-
-  on_error: handle-signal-failure
-  retry:
-    max_attempts: 3
-    backoff: exponential
-
-  outputs:
-    signal_sent: "{{ .task.success }}"
-    signal_id: "important-notification"
-```
-
-<Callout type="warning" title="Resilience">
-Always implement **error handling and retry logic** for critical signal dispatch operations.
-</Callout>
-
-</Tab>
-<Tab>
-
-### With Workflows
-
-Signal tasks in workflow context:
-
-```yaml
-id: order-processing-workflow
-tasks:
-  - id: process-order
-    type: basic
-    tool:
-      id: order-processor
-    with:
-      order_id: "{{ .workflow.input.order_id }}"
-
-  - id: notify-fulfillment
-    type: signal
-    signal:
-      id: "order-ready-for-fulfillment"
-      payload:
-        order_id: "{{ .workflow.input.order_id }}"
-        processed_items: "{{ .tasks.process-order.output.items }}"
-        shipping_address: "{{ .workflow.input.shipping_address }}"
-        priority: "{{ .workflow.input.priority }}"
-
-    depends_on: [process-order]
-```
-
-<Callout type="success" title="Dependencies">
-Use **depends_on** to ensure signals are sent after prerequisite tasks complete successfully.
-</Callout>
-
-</Tab>
-</Tabs>
-
-## Signal Payload Best Practices
-
-### Design Principles
-
-<FeatureCardList cols={3} size="sm">
-  <FeatureCard
-    title="Essential Context"
-    description="Provide all necessary information for receivers"
-    icon="Info"
-  />
-  <FeatureCard
-    title="Consistent Structure"
-    description="Maintain standardized payload formats"
-    icon="Layers"
-  />
-  <FeatureCard
-    title="Data Validation"
-    description="Ensure signal payloads are valid and complete"
-    icon="Shield"
-  />
-</FeatureCardList>
-
-<Tabs items={["Essential Context", "Consistent Structure", "Data Validation"]}>
-<Tab>
-
-### Include Essential Context
-
-Provide all necessary information for receivers:
-
-```yaml
-# ✅ Comprehensive payload
-signal:
-  id: "payment-processed"
-  payload:
-    transaction_id: "{{ .task.output.transaction_id }}"
-    amount: "{{ .workflow.input.amount }}"
-    currency: "{{ .workflow.input.currency }}"
-    customer_id: "{{ .workflow.input.customer_id }}"
-    payment_method: "{{ .workflow.input.payment_method }}"
-    processed_at: "{{ now }}"
-    processing_time_ms: "{{ .task.duration_ms }}"
-
-# ❌ Insufficient context
-signal:
-  id: "payment-done"
-  payload:
-    success: true
-```
-
-<Callout type="success" title="Context Guidelines">
-Include **complete context** so receivers can process signals without additional lookups.
-</Callout>
-
-</Tab>
-<Tab>
-
-### Use Consistent Structure
-
-Maintain consistent payload structures across signals:
-
-```yaml
-# Standard payload structure
-signal:
-  id: "{{ .signal_type }}"
-  payload:
-    # Core data
-    entity_id: "{{ .entity.id }}"
-    entity_type: "{{ .entity.type }}"
-
-    # Event data
-    event:
-      type: "{{ .event.type }}"
-      timestamp: "{{ now }}"
-      source: "{{ .workflow.id }}"
-
-    # Metadata
-    metadata:
-      workflow_id: "{{ .workflow.id }}"
-      task_id: "{{ .task.id }}"
-      user_id: "{{ .workflow.input.user_id }}"
-
-    # Actual data
-    data: "{{ .task.output }}"
-```
-
-<Callout type="info" title="Standardization">
-Use **standard payload structures** to simplify signal processing and reduce integration complexity.
-</Callout>
-
-</Tab>
-<Tab>
-
-### Validate Signal Data
-
-Ensure signal payloads are valid:
-
-```yaml
-- id: validated-signal
-  type: signal
-
-  # Validate before sending
-  input:
-    type: object
-    properties:
-      required_field:
-        type: string
-        minLength: 1
-    required: [required_field]
-
-  signal:
-    id: "validated-event"
-    payload:
-      validated_data: "{{ .task.input.required_field }}"
-      validation_passed: true
-```
-
-<Callout type="warning" title="Validation">
-Always **validate payload data** before sending signals to prevent downstream processing errors.
-</Callout>
-
-</Tab>
-</Tabs>
-
-## Performance Considerations
-
-### Signal Optimization Strategies
-
-<FeatureCardList cols={3} size="sm">
-  <FeatureCard
-    title="Minimize Payload Size"
-    description="Include only necessary data for efficient transmission"
-    icon="Gauge"
-  />
-  <FeatureCard
-    title="Use References"
-    description="Pass IDs instead of large objects when possible"
-    icon="Link"
-  />
-  <FeatureCard
-    title="Batch Signals"
-    description="Group related signals for optimized processing"
-    icon="Layers"
-  />
-</FeatureCardList>
-
-<Tabs items={["Payload Optimization", "Reference Patterns", "Batching Strategies"]}>
-<Tab>
-
-### Minimize Payload Size
-
-```yaml
-# ✅ Optimized signal
-signal:
-  id: "data-processed"
-  payload:
-    dataset_id: "{{ .dataset.id }}"  # Reference instead of full data
-    record_count: "{{ .task.output.count }}"
-    location: "{{ .task.output.path }}"
-
-# ❌ Unoptimized signal
-signal:
-  id: "data-processed"
-  payload:
-    full_dataset: "{{ .task.output.all_records }}"  # Large payload
-```
-
-<Callout type="success" title="Payload Optimization">
-Keep payloads **small and focused** to reduce memory usage and improve dispatch performance.
-</Callout>
-
-</Tab>
-<Tab>
-
-### Use References
-
-```yaml
-# ✅ Reference-based approach
-signal:
-  id: "user-profile-updated"
-  payload:
-    user_id: "{{ .workflow.input.user_id }}"
-    profile_version: "{{ .task.output.version }}"
-    updated_fields: ["name", "email", "preferences"]
-    cache_key: "user:{{ .workflow.input.user_id }}:profile"
-
-# ❌ Data-heavy approach
-signal:
-  id: "user-profile-updated"
-  payload:
-    user_data: "{{ .task.output.complete_user_object }}"  # Large object
-```
-
-<Callout type="info" title="Reference Strategy">
-Use **references and keys** to enable receivers to fetch full data when needed.
-</Callout>
-
-</Tab>
-<Tab>
-
-### Batching Strategies
-
-```yaml
-# ✅ Batch processing signal
-signal:
-  id: "batch-processed"
-  payload:
-    batch_id: "{{ .workflow.input.batch_id }}"
-    processed_items: "{{ .task.output.item_ids }}"
-    batch_size: "{{ .task.output.item_ids | length }}"
-    processing_summary:
-      success_count: "{{ .task.output.success_count }}"
-      error_count: "{{ .task.output.error_count }}"
-```
-
-<Callout type="warning" title="Batching Benefits">
-**Batch related signals** to reduce the number of dispatches and improve system throughput.
-</Callout>
-
-</Tab>
-</Tabs>
-
-## Testing Signal Tasks
-
-### Testing Strategies
-
-<FeatureCardList cols={2} size="sm">
-  <FeatureCard
-    title="Unit Testing"
-    description="Test individual signal task configurations"
-    icon="Code"
-  />
-  <FeatureCard
-    title="Integration Testing"
-    description="Test signal flow between workflows"
-    icon="Network"
-  />
-</FeatureCardList>
-
-<Tabs items={["Unit Testing", "Integration Testing"]}>
-<Tab>
-
-### Unit Testing
-
-```yaml
-# Test signal task configuration
-- id: test-signal
-  type: signal
-  signal:
-    id: "test-event"
-    payload:
-      test_data: "hello world"
-      timestamp: "{{ now }}"
-
-  # Verify signal is sent correctly
-  outputs:
-    signal_dispatched: true
-    signal_id: "test-event"
-```
-
-<Callout type="info" title="Unit Testing">
-Focus on **signal configuration** and payload structure validation in unit tests.
-</Callout>
-
-</Tab>
-<Tab>
-
-### Integration Testing
-
-```yaml
-# Sender workflow
-- id: send-test-signal
-  type: signal
-  signal:
-    id: "integration-test"
-    payload:
-      test_id: "{{ .workflow.input.test_id }}"
-      data: "test payload"
-
-# Receiver workflow (separate file)
-- id: receive-test-signal
-  type: wait
-  wait_for: "integration-test"
-  timeout: 10s
-```
-
-<Callout type="success" title="Integration Testing">
-Test **end-to-end signal flow** between workflows to ensure proper coordination.
-</Callout>
-
-</Tab>
-</Tabs>
-
-## Error Handling
-
-### Signal Dispatch Failures
-
-Handle cases where signals cannot be sent:
-
-```yaml
-- id: monitored-signal
-  type: signal
-  signal:
-    id: "critical-notification"
-    payload:
-      event: "critical-event"
-      data: "{{ .task.output }}"
-
-  on_error:
-    next: fallback-notification
-    with:
-      error_details: "{{ .task.error }}"
-
-  outputs:
-    signal_status: "{{ .task.success ? 'sent' : 'failed' }}"
-```
-
-<Callout type="warning" title="Error Handling">
-Always implement **error handling** for signal dispatch failures to maintain workflow reliability.
-</Callout>
+## Next Steps
 
 <ReferenceCardList>
   <ReferenceCard
-    title="Wait Tasks"
-    description="Learn to receive signals with conditions, timeouts, and processors"
-    href="/docs/core/signals/wait-tasks"
+    title="Signal Overview"
+    description="Understand the fundamental concepts of signals and wait tasks"
+    href="/docs/core/signals/overview"
     icon="Timer"
   />
   <ReferenceCard
     title="Signal Triggers"
-    description="Explore workflow initiation and signal-based automation"
+    description="Start workflows automatically when signals are received"
     href="/docs/core/signals/signal-triggers"
     icon="Play"
   />
   <ReferenceCard
     title="Event API"
-    description="REST API for programmatic signal management and monitoring"
+    description="Send signals programmatically via REST API"
     href="/docs/core/signals/event-api"
     icon="Code"
   />
   <ReferenceCard
-    title="Advanced Patterns"
-    description="Study complex scenarios and signal coordination strategies"
-    href="/docs/core/signals/advanced-patterns"
-    icon="GitBranch"
-  />
-  <ReferenceCard
-    title="Signal System Overview"
-    description="Complete guide to Compozy's signal system and architecture"
-    href="/docs/core/signals/signal-overview"
-    icon="Radio"
-  />
-  <ReferenceCard
-    title="Task Types"
-    description="Understand all task types including signal and wait tasks"
-    href="/docs/core/tasks/basic-tasks"
-    icon="Box"
-  />
-  <ReferenceCard
-    title="Workflow Orchestration"
-    description="Learn workflow coordination patterns and best practices"
-    href="/docs/core/workflows/orchestration"
+    title="Workflow Patterns"
+    description="Explore event-driven and approval workflow patterns"
+    href="/docs/core/workflows/patterns"
     icon="Workflow"
   />
   <ReferenceCard
-    title="Configuration Guide"
-    description="Configure signal dispatch and message handling settings"
-    href="/docs/core/configuration/monitoring-config"
-    icon="Database"
+    title="Task Execution"
+    description="Understand how signals fit into task orchestration"
+    href="/docs/core/tasks/overview"
+    icon="Zap"
   />
   <ReferenceCard
-    title="Weather System"
-    description="Complete weather advisory system with signal coordination"
-    href="/docs/core/examples/weather"
-    icon="CloudSun"
+    title="Error Handling"
+    description="Build resilient signal-based workflows"
+    href="/docs/core/tasks/error-handling"
+    icon="Shield"
   />
   <ReferenceCard
-    title="Customer Support"
-    description="Multi-agent support workflows with signal-based routing"
-    href="/docs/core/examples/customer-support"
-    icon="headphones"
+    title="Monitoring"
+    description="Track signal performance and reliability"
+    href="/docs/core/monitoring/task-metrics"
+    icon="Eye"
   />
   <ReferenceCard
-    title="Data Processing"
-    description="Batch processing pipelines with signal orchestration"
-    href="/docs/core/examples/data-processing"
-    icon="Cpu"
-  />
-  <ReferenceCard
-    title="Content Generation"
-    description="AI-powered content workflows with signal coordination"
-    href="/docs/core/examples/content-generation"
-    icon="PenTool"
+    title="CLI Commands"
+    description="Execute and debug signal workflows"
+    href="/docs/cli/workflow-commands"
+    icon="Terminal"
   />
 </ReferenceCardList>

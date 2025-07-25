@@ -1,610 +1,435 @@
 ---
 title: Parallel Processing
-description: Execute multiple tasks simultaneously with parallel task patterns in Compozy
+description: Parallel tasks enable concurrent execution of multiple operations, dramatically improving workflow performance while providing sophisticated control over execution strategies. They're essential for scalable workflows that need to process independent operations simultaneously.
 ---
-
-Parallel tasks enable concurrent execution of multiple operations, significantly improving workflow performance and enabling sophisticated processing patterns. They're essential for scalable workflows that need to process multiple items or perform independent operations simultaneously.
-
-## Related Documentation
-
-### 🔗 Cross-References
-- **[Core Concepts: Tasks](/docs/core/getting-started/core-concepts#2-tasks)** - Tasks in workflow context
-- **[Basic Tasks](/docs/core/tasks/basic-tasks)** - Foundation tasks executed in parallel
-- **[Collection Tasks](/docs/core/tasks/collection-tasks)** - Array processing with parallel modes
-- **[YAML Templates](/docs/core/yaml-templates/overview)** - Dynamic parallel configuration
-
-### ⚙️ Task-Related Topics
-- **Parallel Processing** ↔ **[Aggregate Tasks](/docs/core/tasks/aggregate-tasks)** ↔ **[Composite Tasks](/docs/core/tasks/composite-tasks)**
-- **Concurrent Execution** ↔ **[Flow Control](/docs/core/tasks/flow-control)** ↔ **[Error Handling](/docs/core/tasks/basic-tasks#error-handling)**
-- **Performance Optimization** ↔ **[Advanced Patterns](/docs/core/tasks/advanced-patterns)** ↔ **[Resource Management](/docs/core/configuration/performance)**
-
-## Overview
-
-Parallel processing in Compozy provides:
-
-- **Concurrent Execution**: Run multiple tasks simultaneously
-- **Flexible Strategies**: Choose between wait-all, race, and best-effort modes
-- **Resource Control**: Configure worker limits and timeouts
-- **Error Handling**: Sophisticated failure handling across parallel branches
-- **Result Aggregation**: Collect and combine results from all parallel tasks
-
-<Callout type="info">
-Parallel tasks are ideal for I/O-bound operations, independent data processing, and scenarios where operations can safely run concurrently.
-</Callout>
 
 ## Task Structure
 
-### Basic Parallel Task
-
 ```yaml
-id: parallel-processing
+id: parallel-task-example
 type: parallel
-strategy: wait_all
-max_workers: 4
-timeout: 5m
+
+# Strategy (Required): Determines how task execution and failures are handled
+strategy: wait_all  # wait_all | fail_fast | best_effort | race
+
+# Worker Pool (Optional): Control concurrent execution
+max_workers: 4      # Maximum concurrent tasks (0 = unlimited)
+timeout: 5m         # Overall timeout for all tasks
+
+# Task Definitions (Required): Array of tasks to execute in parallel
+tasks:
+  - id: task-1
+    type: basic
+    # ... task configuration
+
+  - id: task-2
+    type: basic
+    # ... task configuration
+
+# Success Handler (Optional): Execute when parallel task completes
+on_success:
+  next: downstream-task
+  with:
+    results: "{{ .output }}"
+    execution_time: "{{ .execution.duration }}"
+
+# Error Handler (Optional): Handle failures based on strategy
+on_error:
+  next: error-handler
+  with:
+    failed_tasks: "{{ .failed_tasks }}"
+    error: "{{ .error }}"
+```
+
+## Key Benefits
+
+<FeatureCardList cols={3} size="sm">
+  <FeatureCard
+    title="Performance Multiplier"
+    description="Transform sequential 30s workflows into 10s parallel execution with smart concurrency control"
+    icon="Zap"
+  />
+  <FeatureCard
+    title="Strategic Execution"
+    description="Four execution strategies optimized for different reliability and performance requirements"
+    icon="Settings"
+  />
+  <FeatureCard
+    title="Resource Intelligence"
+    description="Adaptive worker management with automatic queuing and timeout handling"
+    icon="Gauge"
+  />
+</FeatureCardList>
+
+## Execution Strategies
+
+Strategic control over parallel execution behavior and failure handling:
+
+<Tabs items={["Wait All", "Fail Fast", "Best Effort", "Race"]}>
+<Tab value="Wait All">
+
+**Default Strategy** - Waits for all tasks to complete before proceeding.
+
+<Mermaid className="my-14" chart={`flowchart LR
+    A[Start Parallel Tasks] --> B[Task 1]
+    A --> C[Task 2]
+    A --> D[Task 3]
+    B --> E{All Tasks Complete?}
+    C --> E
+    D --> E
+    E -->|Yes| F[Success]
+    E -->|Any Failed| G[Error]
+
+    style F fill:#1B6F2F
+    style G fill:#6B1920`} />
+
+```yaml title="Comprehensive Data Gathering"
+id: comprehensive-data-gathering
+type: parallel
+strategy: wait_all  # [!code highlight]
+max_workers: 3
+timeout: 10m
 
 tasks:
   - id: task-1
     type: basic
-    $use: agent(local::agents.#(id=="processor"))
-    action: process_item
-    with:
-      item: "{{ .workflow.input.item1 }}"
+    # ... task configuration
 
   - id: task-2
     type: basic
-    $use: tool(local::tools.#(id=="analyzer"))
-    with:
-      data: "{{ .workflow.input.item2 }}"
-
-  - id: task-3
-    type: basic
-    $use: agent(local::agents.#(id=="validator"))
-    action: validate
-    with:
-      content: "{{ .workflow.input.item3 }}"
-
-on_success:
-  next: merge-results
-  with:
-    results:
-      task1: "{{ .tasks.task-1.output }}"
-      task2: "{{ .tasks.task-2.output }}"
-      task3: "{{ .tasks.task-3.output }}"
+    # ... task configuration
 ```
 
-### Configuration Options
-
-<Tabs items={["Strategies", "Worker Control", "Timeouts", "Error Handling"]}>
-<Tab value="Strategies">
-
-Control how parallel tasks coordinate:
-
-```yaml
-# Wait for all tasks to complete
-id: wait-all-example
-type: parallel
-strategy: wait_all  # Default strategy
-timeout: 10m
-
-tasks:
-  - id: process-emails
-    type: basic
-    $use: agent(local::agents.#(id=="email-processor"))
-    action: process_batch
-    with:
-      emails: "{{ .workflow.input.emails }}"
-
-  - id: process-documents
-    type: basic
-    $use: tool(local::tools.#(id=="doc-processor"))
-    with:
-      documents: "{{ .workflow.input.documents }}"
-
----
-
-# Race mode - first to complete wins
-id: race-example
-type: parallel
-strategy: race
-timeout: 30s
-
-tasks:
-  - id: primary-service
-    type: basic
-    $use: tool(local::tools.#(id=="primary-api"))
-    with:
-      query: "{{ .workflow.input.query }}"
-
-  - id: fallback-service
-    type: basic
-    $use: tool(local::tools.#(id=="fallback-api"))
-    with:
-      query: "{{ .workflow.input.query }}"
-
----
-
-# Best effort - continue despite failures
-id: best-effort-example
-type: parallel
-strategy: best_effort
-timeout: 5m
-
-tasks:
-  - id: optional-task-1
-    type: basic
-    $use: tool(local::tools.#(id=="optional-processor"))
-    with:
-      data: "{{ .workflow.input.data }}"
-
-  - id: optional-task-2
-    type: basic
-    $use: tool(local::tools.#(id=="backup-processor"))
-    with:
-      data: "{{ .workflow.input.data }}"
-```
+<Callout type="info">
+**Best for:** Data aggregation, comprehensive processing where all results are required for downstream tasks.
+</Callout>
 
 </Tab>
-<Tab value="Worker Control">
 
-Manage parallel execution resources:
+<Tab value="Fail Fast">
 
-```yaml
-id: controlled-parallel
+**Fail Fast Strategy** - Stops execution immediately when any task fails.
+
+<Mermaid className="my-14" chart={`flowchart LR
+    A[Start Parallel Tasks] --> B[Task 1]
+    A --> C[Task 2]
+    A --> D[Task 3]
+    B --> E{Any Task Failed?}
+    C --> E
+    D --> E
+    E -->|Yes| F[Cancel Running Tasks]
+    F --> G[Immediate Failure]
+    E -->|No| H{All Tasks Complete?}
+    H -->|Yes| I[Success]
+
+    style G fill:#6B1920
+    style I fill:#1B6F2F`} />
+
+```yaml title="Payment Security Validation"
+id: payment-security-validation
 type: parallel
-strategy: wait_all
-
-# Resource limits
-max_workers: 8        # Maximum concurrent tasks
-min_workers: 2        # Minimum workers to maintain
-worker_timeout: 30s   # Individual worker timeout
-
-# Queue configuration
-queue_size: 100       # Maximum queued tasks
-priority_mode: fifo   # Queue processing order
+strategy: fail_fast  # [!code highlight]
+max_workers: 0       # Unlimited - all validations run immediately
+timeout: 30s         # Quick timeout for security checks
 
 tasks:
-  # High-priority tasks
-  - id: critical-task
+  - id: task-1
     type: basic
-    priority: high
-    $use: agent(local::agents.#(id=="critical-processor"))
-    action: process_critical
-    with:
-      data: "{{ .workflow.input.critical_data }}"
+    # ... task configuration
 
-  # Normal priority tasks
-  - id: normal-task-1
+  - id: task-2
     type: basic
-    priority: normal
-    $use: tool(local::tools.#(id=="standard-processor"))
-    with:
-      data: "{{ .workflow.input.data1 }}"
-
-  - id: normal-task-2
-    type: basic
-    priority: normal
-    $use: tool(local::tools.#(id=="standard-processor"))
-    with:
-      data: "{{ .workflow.input.data2 }}"
+    # ... task configuration
 ```
+
+<Callout type="warning">
+**Best for:** Critical validations, security checks, payment processing where any failure invalidates the entire operation.
+</Callout>
 
 </Tab>
-<Tab value="Timeouts">
 
-Configure timeout behavior:
+<Tab value="Best Effort">
 
-```yaml
-id: timeout-controlled
+**Best Effort Strategy** - Continues execution despite individual task failures.
+
+<Mermaid className="my-14" chart={`flowchart LR
+    A[Start Parallel Tasks] --> B[Task 1]
+    A --> C[Task 2]
+    A --> D[Task 3]
+    B --> E{All Tasks Attempted?}
+    C --> E
+    D --> E
+    E -->|Yes| F[Success]
+    F --> G[Include Both Successes and Failures]
+
+    style F fill:#1B6F2F
+    style G fill:#FFC107,color:#000`} />
+
+```yaml title="Multi-Channel Notification"
+id: multi-channel-notification
 type: parallel
-strategy: wait_all
-
-# Global parallel timeout
-timeout: 10m
-
-# Individual task timeouts
-task_timeout: 2m
-
-# Heartbeat configuration
-heartbeat_interval: 30s
+strategy: best_effort  # [!code highlight]
+timeout: 60s
 
 tasks:
-  - id: fast-task
+  - id: task-1
     type: basic
-    # Override global timeout
-    timeout: 30s
-    $use: tool(local::tools.#(id=="fast-processor"))
-    with:
-      data: "{{ .workflow.input.fast_data }}"
+    # ... task configuration
 
-  - id: slow-task
+  - id: task-2
     type: basic
-    # Longer timeout for slow operations
-    timeout: 5m
-    $use: tool(local::tools.#(id=="slow-processor"))
-    with:
-      data: "{{ .workflow.input.slow_data }}"
-
-  - id: standard-task
-    type: basic
-    # Uses global task_timeout (2m)
-    $use: agent(local::agents.#(id=="standard-processor"))
-    action: process
-    with:
-      data: "{{ .workflow.input.standard_data }}"
+    # ... task configuration
 ```
+
+<Callout type="success">
+**Best for:** Notification systems, optional operations, monitoring tasks where partial success is acceptable.
+</Callout>
 
 </Tab>
-<Tab value="Error Handling">
 
-Handle failures in parallel execution:
+<Tab value="Race">
 
-```yaml
-id: resilient-parallel
+**Race Strategy** - Returns as soon as the first task completes successfully.
+
+<Mermaid className="my-14" chart={`flowchart LR
+    A[Start Parallel Tasks] --> B[Task 1]
+    A --> C[Task 2]
+    A --> D[Task 3]
+    B --> E{First Task Success?}
+    C --> E
+    D --> E
+    E -->|Yes| F[Cancel Remaining Tasks]
+    F --> G[Success]
+    E -->|All Failed| H[Error]
+
+    style G fill:#1B6F2F
+    style H fill:#6B1920`} />
+
+```yaml title="Fastest Data Source Selection"
+id: fastest-data-source
 type: parallel
-strategy: wait_all
-
-# Global error handling
-on_error:
-  next: handle-parallel-errors
-  with:
-    failed_tasks: "{{ .task.failed_tasks }}"
-    successful_tasks: "{{ .task.successful_tasks }}"
-
-# Retry configuration
-retry_policy:
-  maximum_attempts: 3
-  initial_interval: 1s
-  maximum_interval: 30s
+strategy: race      # [!code highlight]
+timeout: 10s
 
 tasks:
-  - id: resilient-task-1
+  - id: task-1
     type: basic
-    $use: tool(local::tools.#(id=="resilient-processor"))
-    with:
-      data: "{{ .workflow.input.data1 }}"
+    # ... task configuration
 
-    # Individual error handling
-    on_error:
-      next: handle-individual-error
-      with:
-        task_id: "resilient-task-1"
-        error: "{{ .task.error }}"
-
-  - id: resilient-task-2
+  - id: task-2
     type: basic
-    $use: agent(local::agents.#(id=="resilient-agent"))
-    action: process_safely
-    with:
-      data: "{{ .workflow.input.data2 }}"
-
-    # Custom retry for this task
-    retry_policy:
-      maximum_attempts: 5
-      initial_interval: 2s
+    # ... task configuration
 ```
+
+<Callout type="info">
+**Best for:** Redundant services, speed optimization, fallback scenarios, competitive data sources.
+</Callout>
 
 </Tab>
 </Tabs>
 
-## Execution Strategies
+## Architecture & Execution Flow
 
-### Wait All Strategy
+Understanding how parallel processing works under the hood:
 
-The default strategy that waits for all tasks to complete:
+<Mermaid chart={`sequenceDiagram
+    participant Workflow
+    participant ParallelTask as Parallel Task Engine
+    participant Temporal as Temporal Orchestrator
+    participant Worker1 as Worker Pool 1
+    participant Worker2 as Worker Pool 2
+    participant Worker3 as Worker Pool 3
+    participant StateStore as State Store
 
-```yaml
-id: data-pipeline
-type: parallel
-strategy: wait_all
-max_workers: 6
-timeout: 15m
+    Workflow->>ParallelTask: Execute parallel task
+    ParallelTask->>StateStore: Create parent state
+    ParallelTask->>Temporal: Start parallel workflow
 
-tasks:
-  # Data extraction
-  - id: extract-users
-    type: basic
-    $use: tool(local::tools.#(id=="database-client"))
-    with:
-      query: "SELECT * FROM users WHERE active = true"
-      connection: "{{ .env.DB_CONNECTION }}"
+    Note over ParallelTask,Worker3: Strategy: wait_all, max_workers: 3
 
-  # Data processing
-  - id: process-transactions
-    type: basic
-    $use: agent(local::agents.#(id=="transaction-processor"))
-    action: analyze_transactions
-    with:
-      date_range: "{{ .workflow.input.date_range }}"
+    Temporal->>Worker1: Allocate task 1
+    Temporal->>Worker2: Allocate task 2
+    Temporal->>Worker3: Allocate task 3
 
-  # Report generation
-  - id: generate-metrics
-    type: basic
-    $use: tool(local::tools.#(id=="metrics-generator"))
-    with:
-      metric_types: ["revenue", "users", "transactions"]
-      period: "{{ .workflow.input.period }}"
+    Note over Worker1,Worker3: Concurrent execution with isolation
 
-# All tasks must complete before proceeding
-on_success:
-  next: combine-results
-  with:
-    users: "{{ .tasks.extract-users.output }}"
-    transactions: "{{ .tasks.process-transactions.output }}"
-    metrics: "{{ .tasks.generate-metrics.output }}"
-```
+    Worker2->>StateStore: Update task 2 state (success)
+    Worker1->>StateStore: Update task 1 state (success)
+    Worker3->>StateStore: Update task 3 state (success)
 
-### Race Strategy
+    StateStore->>ParallelTask: All child states complete
+    ParallelTask->>ParallelTask: Apply strategy logic
+    ParallelTask->>StateStore: Update parent state
+    ParallelTask->>Workflow: Return aggregated results`} />
 
-First task to complete successfully wins:
+### Execution Components
 
-```yaml
-id: multi-provider-search
-type: parallel
-strategy: race
-timeout: 10s
-
-tasks:
-  - id: search-provider-a
-    type: basic
-    $use: tool(local::tools.#(id=="search-api-a"))
-    with:
-      query: "{{ .workflow.input.search_query }}"
-      api_key: "{{ .env.SEARCH_API_A_KEY }}"
-
-  - id: search-provider-b
-    type: basic
-    $use: tool(local::tools.#(id=="search-api-b"))
-    with:
-      query: "{{ .workflow.input.search_query }}"
-      api_key: "{{ .env.SEARCH_API_B_KEY }}"
-
-  - id: search-provider-c
-    type: basic
-    $use: tool(local::tools.#(id=="search-api-c"))
-    with:
-      query: "{{ .workflow.input.search_query }}"
-      api_key: "{{ .env.SEARCH_API_C_KEY }}"
-
-# Uses result from first completing task
-on_success:
-  next: process-search-results
-  with:
-    results: "{{ .output }}"
-    provider: "{{ .winner_task_id }}"
-```
-
-### Best Effort Strategy
-
-Continue despite individual task failures:
-
-```yaml
-id: notification-broadcast
-type: parallel
-strategy: best_effort
-timeout: 2m
-
-tasks:
-  - id: email-notification
-    type: basic
-    $use: tool(local::tools.#(id=="email-sender"))
-    with:
-      recipients: "{{ .workflow.input.email_recipients }}"
-      subject: "{{ .workflow.input.subject }}"
-      body: "{{ .workflow.input.message }}"
-
-  - id: sms-notification
-    type: basic
-    $use: tool(local::tools.#(id=="sms-sender"))
-    with:
-      recipients: "{{ .workflow.input.phone_recipients }}"
-      message: "{{ .workflow.input.short_message }}"
-
-  - id: push-notification
-    type: basic
-    $use: tool(local::tools.#(id=="push-sender"))
-    with:
-      users: "{{ .workflow.input.app_users }}"
-      title: "{{ .workflow.input.title }}"
-      body: "{{ .workflow.input.message }}"
-
-  - id: slack-notification
-    type: basic
-    $use: tool(local::tools.#(id=="slack-sender"))
-    with:
-      channel: "{{ .workflow.input.slack_channel }}"
-      message: "{{ .workflow.input.message }}"
-
-# Proceeds even if some notifications fail
-on_success:
-  next: log-notification-results
-  with:
-    successful_channels: "{{ .successful_tasks }}"
-    failed_channels: "{{ .failed_tasks }}"
-```
-
-## Common Patterns
-
-### Dynamic Task Generation
-
-Create parallel tasks from dynamic input:
-
-```yaml
-id: dynamic-parallel
-type: parallel
-strategy: wait_all
-max_workers: 4
-
-tasks: "{{ range .workflow.input.items }}"
-  - id: "process-{{ .id }}"
-    type: basic
-    $use: agent(local::agents.#(id=="item-processor"))
-    action: process_item
-    with:
-      item_data: "{{ .data }}"
-"{{ end }}"
-```
-
-### Resource Management
-
-Configure resource limits for optimal performance:
-
-```yaml
-id: resource-controlled
-type: parallel
-strategy: wait_all
-max_workers: "{{ .env.MAX_WORKERS | default 4 }}"
-
-tasks:
-  - id: process-data
-    type: basic
-    $use: tool(local::tools.#(id=="processor"))
-    with:
-      data: "{{ .workflow.input.data }}"
-```
-
-## CLI Commands
-
-The Compozy CLI provides these commands for managing parallel tasks:
-
-```bash
-# List all workflows
-compozy workflow list
-
-# Execute a parallel workflow
-compozy workflow execute my-parallel-workflow
-
-# Get workflow details  
-compozy workflow get my-parallel-workflow
-```
-
-<Callout type="info">
-**Task Management Commands**: Additional CLI commands for task monitoring and control are planned for future releases.
-</Callout>
-
-## Quick Examples
-
-### Multi-Service Integration
-
-```yaml
-id: fetch-user-data
-type: parallel
-strategy: wait_all
-max_workers: 3
-
-tasks:
-  - id: get-profile
-    type: basic
-    $use: tool(local::tools.#(id=="user-service"))
-    with:
-      user_id: "{{ .workflow.input.user_id }}"
-
-  - id: get-preferences  
-    type: basic
-    $use: tool(local::tools.#(id=="preferences-service"))
-    with:
-      user_id: "{{ .workflow.input.user_id }}"
-
-  - id: get-history
-    type: basic
-    $use: tool(local::tools.#(id=="history-service"))  
-    with:
-      user_id: "{{ .workflow.input.user_id }}"
-
-on_success:
-  next: merge-results
-```
-
-### Data Processing Pipeline
-
-```yaml
-id: process-content
-type: parallel
-strategy: wait_all
-
-tasks:
-  - id: extract-text
-    type: basic
-    $use: tool(local::tools.#(id=="text-extractor"))
-    with:
-      content: "{{ .workflow.input.content }}"
-
-  - id: process-images
-    type: basic
-    $use: tool(local::tools.#(id=="image-processor"))
-    with:
-      images: "{{ .workflow.input.images }}"
-
-  - id: validate-content
-    type: basic
-    $use: agent(local::agents.#(id=="content-validator"))
-    action: validate
-    with:
-      content: "{{ .workflow.input.content }}"
-```
-
-## Performance Tips
-
-### Worker Configuration
-
-```yaml
-# CPU-bound tasks: use CPU core count
-max_workers: 4
-
-# I/O-bound tasks: use 2x CPU cores  
-max_workers: 8
-
-# Set appropriate timeouts
-timeout: 5m
-```
-
-### Memory Optimization
-
-```yaml
-# Process data efficiently
-tasks:
-  - id: efficient-task
-    type: basic
-    $use: tool(local::tools.#(id=="processor"))
-    with:
-      data: "{{ .workflow.input.data }}"
-```
+<List className="mt-8">
+  <ListItem title="Temporal Orchestration" icon="GitBranch">
+    Distributed workflow engine ensures fault tolerance, automatic retries, and state persistence across system failures
+  </ListItem>
+  <ListItem title="Dynamic Worker Allocation" icon="Users">
+    Intelligent worker pool management with automatic scaling based on max_workers configuration and system resources
+  </ListItem>
+  <ListItem title="State Management" icon="Database">
+    Persistent state tracking for each parallel task with real-time progress monitoring and result aggregation
+  </ListItem>
+  <ListItem title="Strategy Engine" icon="Settings">
+    Configurable execution strategies (wait_all, fail_fast, best_effort, race) with intelligent error handling
+  </ListItem>
+  <ListItem title="Result Aggregation" icon="BarChart">
+    Automatic collection and structuring of outputs accessible via `.tasks.<task-id>.output` template expressions
+  </ListItem>
+</List>
 
 ## Best Practices
 
-1. **Choose the Right Strategy**: Use `wait_all` for dependent results, `race` for redundancy, `best_effort` for optional operations
-2. **Set Appropriate Timeouts**: Balance responsiveness with operation requirements
-3. **Monitor Resource Usage**: Configure workers based on available CPU/memory
-4. **Handle Failures Gracefully**: Design for partial failure scenarios
-5. **Optimize Task Granularity**: Balance parallel efficiency with overhead
+<AccordionGroup>
+<Accordion title="Strategy Selection Guide" defaultOpen>
+<List>
+  <ListItem title="Data Aggregation → wait_all" icon="Database">
+    When you need all results for downstream processing (user profiles, comprehensive reports, data consolidation)
+  </ListItem>
+  <ListItem title="Speed Optimization → race" icon="Zap">
+    When multiple data sources can provide the same information (cache vs API, primary vs backup services)
+  </ListItem>
+  <ListItem title="Critical Validation → fail_fast" icon="Shield">
+    When any failure invalidates the entire operation (security checks, payment validation, compliance verification)
+  </ListItem>
+  <ListItem title="Optional Operations → best_effort" icon="CheckCircle">
+    When partial success is acceptable (notifications, monitoring, logging, analytics)
+  </ListItem>
+</List>
+</Accordion>
 
-## References
+<Accordion title="Performance Optimization" defaultOpen>
+<List>
+  <ListItem title="Resource-Aware Worker Limits" icon="Cpu">
+    CPU-bound: max_workers = CPU cores | I/O-bound: max_workers = 0 (unlimited) | Mixed: max_workers = 6-12
+  </ListItem>
+  <ListItem title="Intelligent Timeout Configuration" icon="Clock">
+    User-facing: 5-30s | Background processing: 5-30m | Critical operations: Match SLA requirements
+  </ListItem>
+  <ListItem title="Task Independence Design" icon="GitBranch">
+    Ensure tasks don't depend on each other's outputs within parallel blocks - use shared workflow inputs instead
+  </ListItem>
+  <ListItem title="Optimal Task Granularity" icon="Puzzle">
+    Balance parallel benefits with coordination overhead - aim for 2-10 meaningful tasks per parallel block
+  </ListItem>
+</List>
+</Accordion>
+
+<Accordion title="Error Handling & Resilience" defaultOpen>
+<List>
+  <ListItem title="Graceful Degradation" icon="TrendingDown">
+    Design workflows to handle partial failures with fallback mechanisms and default values
+  </ListItem>
+  <ListItem title="Retry Strategy" icon="RotateCcw">
+    Configure individual task retries for transient failures before relying on parallel strategy behavior
+  </ListItem>
+  <ListItem title="Monitoring & Alerting" icon="Bell">
+    Implement monitoring for success rates, performance metrics, and resource utilization in production
+  </ListItem>
+  <ListItem title="Circuit Breaker Pattern" icon="Zap">
+    Use race strategy with fallback services to prevent cascading failures from external dependencies
+  </ListItem>
+</List>
+</Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<Tabs items={["Beginners", "Intermediate", "Advanced"]}>
+<Tab value="Beginners">
 
 <ReferenceCardList>
+  <ReferenceCard
+    title="Core Concepts"
+    description="Understand fundamental Compozy concepts: agents, tasks, and workflows"
+    href="/docs/core/getting-started/core-concepts"
+    icon="BookOpen"
+  />
   <ReferenceCard
     title="Basic Tasks"
     description="Master the foundation tasks that compose parallel workflows"
     href="/docs/core/tasks/basic-tasks"
-    icon="Cog"
+    icon="Package"
   />
   <ReferenceCard
+    title="First Workflow Tutorial"
+    description="Build your first workflow with step-by-step guidance"
+    href="/docs/core/getting-started/first-workflow"
+    icon="Rocket"
+  />
+  <ReferenceCard
+    title="YAML Templates"
+    description="Learn dynamic configuration with template expressions"
+    href="/docs/core/yaml-templates/overview"
+    icon="FileCode"
+  />
+</ReferenceCardList>
+
+</Tab>
+
+<Tab value="Intermediate">
+
+<ReferenceCardList>
+  <ReferenceCard
     title="Collection Tasks"
-    description="Learn to process arrays with parallel execution patterns"
+    description="Process arrays and lists with parallel execution patterns"
     href="/docs/core/tasks/collection-tasks"
     icon="Grid"
   />
   <ReferenceCard
     title="Aggregate Tasks"
-    description="Combine results from parallel task execution"
+    description="Combine and consolidate results from parallel execution"
     href="/docs/core/tasks/aggregate-tasks"
     icon="BarChart"
   />
   <ReferenceCard
     title="Flow Control"
-    description="Implement conditional routing in parallel workflows"
+    description="Implement conditional routing and error handling"
     href="/docs/core/tasks/flow-control"
     icon="GitBranch"
   />
+  <ReferenceCard
+    title="Agent Configuration"
+    description="Configure AI agents for optimal parallel performance"
+    href="/docs/core/agents/overview"
+    icon="BrainCircuit"
+  />
 </ReferenceCardList>
 
-Parallel processing enables Compozy workflows to scale efficiently and handle complex, concurrent operations while maintaining reliability and performance control.
+</Tab>
+
+<Tab value="Advanced">
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Advanced Patterns"
+    description="Complex workflow orchestration patterns and techniques"
+    href="/docs/core/tasks/advanced-patterns"
+    icon="Layers"
+  />
+  <ReferenceCard
+    title="Signal Coordination"
+    description="Coordinate parallel workflows with signals and events"
+    href="/docs/core/signals/overview"
+    icon="Radio"
+  />
+  <ReferenceCard
+    title="Performance Optimization"
+    description="Monitor and optimize parallel workflow performance"
+    href="/docs/core/metrics/observability"
+    icon="BarChart3"
+  />
+  <ReferenceCard
+    title="Production Deployment"
+    description="Scale parallel workflows in production environments"
+    href="/docs/core/deployment/deployment-options"
+    icon="Cloud"
+  />
+</ReferenceCardList>
+
+</Tab>
+</Tabs>

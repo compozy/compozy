@@ -5,26 +5,6 @@ description: "Configure project-wide defaults and system-level settings that app
 
 Global configuration in Compozy defines system-wide settings that apply across all workflows, agents, and tools. This configuration layer provides the foundation for your entire Compozy installation, handling everything from server settings to database connections, runtime behavior, and system limits.
 
-## Architecture
-
-<FeatureCardList cols={3} size="sm">
-  <FeatureCard
-    title="Hierarchical Sources"
-    description="CLI flags override YAML files, which override environment variables, which override defaults"
-    icon="Layers"
-  />
-  <FeatureCard
-    title="Environment First"
-    description="Seamlessly deploy with environment variables for production settings"
-    icon="Globe"
-  />
-  <FeatureCard
-    title="Type Safety"
-    description="Full validation with helpful error messages and automatic type conversion"
-    icon="Shield"
-  />
-</FeatureCardList>
-
 ## Sources
 
 Compozy loads configuration from multiple sources in this precedence order:
@@ -86,258 +66,70 @@ Built-in defaults ensure Compozy works out-of-the-box for development.
 
 ## Categories
 
-### Server Configuration
+Global configuration in Compozy is organized into logical categories, each handling specific aspects of system behavior. Click on any category below to explore detailed configuration options and schemas.
 
-Controls the HTTP server that hosts your workflows and provides the API endpoints.
-
-<Tabs items={["Basic Setup", "Production", "Environment Variables"]}>
-<Tab>
-```yaml title="compozy.yaml"
-server:
-  host: "0.0.0.0"        # Bind to all interfaces
-  port: 5001             # HTTP port
-  cors_enabled: true     # Enable CORS for development
-  timeout: 30s           # Request timeout
-```
-</Tab>
-
-<Tab>
-```yaml title="compozy.yaml"
-server:
-  host: "127.0.0.1"      # Bind to localhost only
-  port: 5001
-  cors_enabled: false    # Disable CORS in production
-  timeout: 60s           # Longer timeout for production
-```
-</Tab>
-
-<Tab>
-```bash title=".env"
-SERVER_HOST=0.0.0.0
-SERVER_PORT=5001
-SERVER_CORS_ENABLED=true
-SERVER_TIMEOUT=30s
-```
-</Tab>
-</Tabs>
-
-For the complete server configuration schema and all available options, see the [Server Configuration Schema](/docs/schema/application#server).
-
-### Database Configuration
-
-PostgreSQL database settings for workflow execution state and metadata.
-
-<Tabs items={["Connection String", "Individual Fields", "Environment Variables"]}>
-<Tab>
-```yaml title="compozy.yaml"
-database:
-  conn_string: "postgres://user:password@localhost:5432/compozy?sslmode=require"
-```
-</Tab>
-
-<Tab>
-```yaml title="compozy.yaml"
-database:
-  host: "localhost"
-  port: "5432"
-  user: "compozy"
-  password: "secure_password"  # Use environment variables for passwords
-  name: "compozy"
-  ssl_mode: "require"
-```
-</Tab>
-
-<Tab>
-```bash title=".env"
-# Option 1: Connection string
-DB_CONN_STRING=postgres://user:password@localhost:5432/compozy?sslmode=require
-
-# Option 2: Individual fields
-DB_HOST=localhost
-DB_PORT=5432
-DB_USER=compozy
-DB_PASSWORD=secure_password
-DB_NAME=compozy
-DB_SSL_MODE=require
-```
-</Tab>
-</Tabs>
-
-For the complete database configuration schema and all available options, see the [Database Configuration Schema](/docs/schema/application#database).
-
-### Temporal Configuration
-
-Settings for the Temporal workflow engine that orchestrates your workflows.
-
-```yaml title="compozy.yaml"
-temporal:
-  host_port: "localhost:7233"  # Temporal server address
-  namespace: "default"         # Temporal namespace
-  task_queue: "compozy-tasks"  # Task queue name
-```
-
-For the complete Temporal configuration schema and all available options, see the [Temporal Configuration Schema](/docs/schema/application#temporal).
-
-### Runtime Configuration
-
-Controls runtime behavior, logging, and system operations.
-
-```yaml title="compozy.yaml"
-runtime:
-  environment: "development"                   # Environment mode
-  log_level: "info"                           # Logging level
-  dispatcher_heartbeat_interval: 30s          # Heartbeat frequency
-  dispatcher_heartbeat_ttl: 90s               # Heartbeat expiration
-  dispatcher_stale_threshold: 120s            # Stale detection threshold
-  async_token_counter_workers: 4              # Token counting workers
-  async_token_counter_buffer_size: 100        # Token counter buffer
-```
-
-For the complete runtime configuration schema and all available options, see the [Runtime Configuration Schema](/docs/schema/application#runtime).
-
-### System Limits
-
-Configures resource limits and constraints to prevent system overload.
-
-```yaml title="compozy.yaml"
-limits:
-  max_nesting_depth: 20           # Maximum task nesting depth
-  max_string_length: 10485760     # Maximum string length (10MB)
-  max_message_content: 10240      # Maximum message content (10KB)
-  max_total_content_size: 102400  # Maximum total content (100KB)
-  max_task_context_depth: 5       # Maximum task context depth
-  parent_update_batch_size: 100   # Parent update batch size
-```
-
-For the complete limits configuration schema and all available options, see the [Limits Configuration Schema](/docs/schema/application#limits).
-
-### OpenAI Configuration
-
-Settings for OpenAI API integration (optional).
-
-```yaml title="compozy.yaml"
-openai:
-  api_key: "{{ .env.OPENAI_API_KEY }}"      # API key from environment
-  base_url: "https://api.openai.com/v1"    # Custom API endpoint
-  org_id: "org-123456"                      # Organization ID
-  default_model: "gpt-4o-mini"              # Default model
-```
-
-For the complete OpenAI configuration schema and all available options, see the [OpenAI Configuration Schema](/docs/schema/application#openai).
-
-### Memory Configuration
-
-Settings for persistent memory storage using Redis (optional).
-
-```yaml title="compozy.yaml"
-memory:
-  redis_url: "{{ .env.REDIS_URL }}"         # Redis connection URL
-  redis_prefix: "compozy:"                  # Key prefix for Redis
-  ttl: 24h                                  # Memory entry TTL
-  max_entries: 10000                        # Maximum memory entries
-```
-
-For the complete memory configuration schema and all available options, see the [Memory Configuration Schema](/docs/schema/application#memory).
-
-### LLM Configuration
-
-Settings for LLM proxy and MCP integration.
-
-```yaml title="compozy.yaml"
-llm:
-  proxy_url: "{{ .env.MCP_PROXY_URL }}"     # MCP proxy URL
-  admin_token: "{{ .env.MCP_ADMIN_TOKEN }}" # Admin token for MCP
-```
-
-For the complete LLM configuration schema and all available options, see the [LLM Configuration Schema](/docs/schema/application#llm).
-
-### CLI Configuration
-
-Settings for command-line interface behavior and output formatting.
-
-```yaml title="compozy.yaml"
-cli:
-  # Authentication
-  api_key: "{{ .env.COMPOZY_API_KEY }}"      # API key for authentication
-  base_url: "https://api.compozy.dev"        # API endpoint
-  server_url: "http://localhost:5001"        # Override for local development
-  timeout: 30s                               # Request timeout
-
-  # Output and Display
-  default_format: "tui"                      # Output format (json, tui, auto)
-  color_mode: "auto"                         # Terminal color handling (auto, on, off)
-  page_size: 50                              # Results per page (1-1000)
-  no_color: false                            # Disable color output
-  
-  # Behavior
-  mode: "normal"                             # Execution mode (normal, batch, script)
-  debug: false                               # Debug logging
-  quiet: false                               # Suppress non-error output
-  interactive: true                          # Enable interactive prompts
-
-  # File and Directory Settings
-  config_file: "./compozy.yaml"              # Custom config file path
-  cwd: "."                                   # Override working directory
-  env_file: ".env"                           # Specify .env file
-```
-
-#### CLI Configuration Options
-
-**Authentication & Connection:**
-
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `api_key` | string | `""` | API key for authentication (use env vars) |
-| `base_url` | string | `"https://api.compozy.dev"` | API endpoint URL |
-| `server_url` | string | `""` | Override for local development server |
-| `timeout` | duration | `30s` | Maximum request timeout |
-
-**Output & Display:**
-
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `default_format` | string | `"tui"` | Default output format (json, tui, auto) |
-| `color_mode` | string | `"auto"` | Terminal color handling (auto, on, off) |
-| `page_size` | int | `50` | Results per page (range: 1-1000) |
-| `no_color` | bool | `false` | Disable all color output |
-
-**Behavior & Interaction:**
-
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `mode` | string | `"normal"` | Execution mode (normal, batch, script) |
-| `debug` | bool | `false` | Enable verbose debug logging |
-| `quiet` | bool | `false` | Suppress all non-error output |
-| `interactive` | bool | `true` | Enable interactive prompts |
-
-**File & Directory:**
-
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `config_file` | string | `"./compozy.yaml"` | Custom configuration file path |
-| `cwd` | string | `"."` | Override current working directory |
-| `env_file` | string | `".env"` | Environment variables file to load |
-
-For the complete CLI configuration schema and all available options, see the [CLI Configuration Schema](/docs/schema/application#cli).
-
-### Rate Limit Configuration
-
-Settings for API rate limiting and request throttling.
-
-```yaml title="compozy.yaml"
-ratelimit:
-  redis_addr: "localhost:6379"              # Redis server address
-  redis_password: "{{ .env.REDIS_PASSWORD }}" # Redis authentication
-  prefix: "ratelimit:"                      # Key prefix in Redis
-  global_rate:                              # System-wide rate limit
-    limit: 1000                             # Requests per period
-    period: 60s                             # Time period
-  api_key_rate:                             # Per API key rate limit
-    limit: 100                              # Requests per period
-    period: 60s                             # Time period
-```
-
-For the complete rate limit configuration schema and all available options, see the [Rate Limit Configuration Schema](/docs/schema/application#rate-limit).
+<ReferenceCardList>
+  <ReferenceCard
+    title="Server Configuration"
+    description="HTTP server settings, CORS, timeouts, and API endpoints"
+    href="/docs/schema/application#server"
+    icon="Server"
+  />
+  <ReferenceCard
+    title="Database Configuration"
+    description="PostgreSQL connection settings for workflow execution state"
+    href="/docs/schema/application#database"
+    icon="Database"
+  />
+  <ReferenceCard
+    title="Temporal Configuration"
+    description="Workflow orchestration engine settings and task queues"
+    href="/docs/schema/application#temporal"
+    icon="Activity"
+  />
+  <ReferenceCard
+    title="Runtime Configuration"
+    description="Runtime behavior, logging levels, and system operations"
+    href="/docs/schema/application#runtime"
+    icon="Play"
+  />
+  <ReferenceCard
+    title="System Limits"
+    description="Resource constraints and limits to prevent system overload"
+    href="/docs/schema/application#limits"
+    icon="Shield"
+  />
+  <ReferenceCard
+    title="OpenAI Configuration"
+    description="OpenAI API integration settings and model defaults"
+    href="/docs/schema/application#openai"
+    icon="BrainCircuit"
+  />
+  <ReferenceCard
+    title="Memory Configuration"
+    description="Redis-based persistent memory storage settings"
+    href="/docs/schema/application#memory"
+    icon="HardDrive"
+  />
+  <ReferenceCard
+    title="LLM Configuration"
+    description="LLM proxy and Model Context Protocol integration"
+    href="/docs/schema/application#llm"
+    icon="Cpu"
+  />
+  <ReferenceCard
+    title="CLI Configuration"
+    description="Command-line interface behavior and output formatting"
+    href="/docs/schema/application#cli"
+    icon="Terminal"
+  />
+  <ReferenceCard
+    title="Rate Limit Configuration"
+    description="API rate limiting and request throttling settings"
+    href="/docs/schema/application#rate-limit"
+    icon="Timer"
+  />
+</ReferenceCardList>
 
 ## Configuration Validation
 

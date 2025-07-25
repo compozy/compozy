@@ -1,0 +1,312 @@
+---
+title: "Overview"
+description: "Build powerful agent capabilities with TypeScript-based tools that integrate seamlessly with Compozy's workflow engine"
+---
+
+## What Are Tools?
+
+Tools are the building blocks that extend your AI agents' capabilities beyond text generation. They're [TypeScript functions](/docs/core/tools/typescript-development) that agents can call during [workflow execution](/docs/core/workflows/execution), running in a secure, sandboxed [Bun runtime environment](/docs/core/tools/runtime-environment).
+
+<Callout type="info">
+Tools enable agents to interact with external systems, process data, and perform complex operations that require deterministic logic and type safety.
+</Callout>
+
+## Why Use Tools?
+
+When building AI-powered applications, you often need agents to perform specific actions like fetching data from APIs, processing files, or interacting with databases. Tools provide a structured, type-safe interface for these operations while maintaining [security](/docs/core/tools/runtime-environment#security-features) and performance.
+
+<FeatureCardList>
+  <FeatureCard
+    title="Extend Agent Capabilities"
+    description="Enable agents to perform any operation you can code in TypeScript"
+    icon="Code"
+    size="sm"
+  />
+  <FeatureCard
+    title="Type-Safe Execution"
+    description="JSON Schema validation ensures predictable inputs and outputs"
+    icon="Shield"
+    size="sm"
+  />
+  <FeatureCard
+    title="Secure Runtime"
+    description="Isolated Bun processes with configurable permissions protect your system"
+    icon="Lock"
+    size="sm"
+  />
+  <FeatureCard
+    title="Performance Optimized"
+    description="Pre-compiled workers and efficient resource management for speed"
+    icon="Zap"
+    size="sm"
+  />
+</FeatureCardList>
+
+## How Tools Work
+
+<Steps>
+  <Step title="Agent Request" icon="User">
+    During workflow execution, an agent decides to use a tool based on the task requirements
+  </Step>
+  <Step title="Input Validation" icon="CheckCircle">
+    The tool's input is validated against its JSON Schema definition
+  </Step>
+  <Step title="Isolated Execution" icon="Shield">
+    The tool runs in a sandboxed Bun process with configured permissions
+  </Step>
+  <Step title="Output Processing" icon="ArrowUpCircle">
+    Results are validated and returned to the agent for further processing
+  </Step>
+</Steps>
+
+## Core Features
+
+### Schema-First Design
+
+Every tool defines its interface using JSON Schema, providing:
+
+<List>
+  <ListItem title="Type Safety" icon="ShieldCheck">Catch errors before runtime with validated inputs/outputs</ListItem>
+  <ListItem title="Self-Documentation" icon="BookOpen">Clear parameter descriptions for agents and developers</ListItem>
+  <ListItem title="LLM Integration" icon="FunctionSquare">Seamless function calling with structured data</ListItem>
+</List>
+
+```yaml
+input:
+  type: object
+  properties:
+    query:
+      type: string
+      description: "Search query to execute"
+    limit:
+      type: integer
+      default: 10
+      minimum: 1
+      maximum: 100
+  required: [query]
+```
+
+### Secure Execution Environment
+
+Tools run in isolated [Bun processes](/docs/core/tools/runtime-environment) with granular security controls:
+
+<List>
+  <ListItem title="Permission System" icon="Lock">Control file, network, and environment access</ListItem>
+  <ListItem title="Resource Limits" icon="Gauge">Set memory, CPU, and timeout constraints</ListItem>
+  <ListItem title="Environment Isolation" icon="Shield">Secure credential management with filtered variables</ListItem>
+  <ListItem title="Output Validation" icon="CheckCircle">Prevent memory exhaustion with size limits</ListItem>
+</List>
+
+```yaml
+runtime:
+  permissions:
+    - --allow-read=./data
+    - --allow-net=api.example.com
+  limits:
+    memory: "256MB"
+    timeout: "30s"
+```
+
+### Performance Optimization
+
+Built-in optimizations ensure tools run efficiently:
+
+<List>
+  <ListItem title="Worker Caching" icon="Rocket">Pre-compiled templates for faster startup</ListItem>
+  <ListItem title="Buffer Pooling" icon="Database">Efficient memory management for I/O operations</ListItem>
+  <ListItem title="Parallel Execution" icon="Split">Run multiple tools concurrently when needed</ListItem>
+  <ListItem title="Connection Pooling" icon="Link2">Reuse HTTP connections across requests</ListItem>
+</List>
+
+## Basic Tool Example
+
+<Tabs items={["TypeScript Implementation", "YAML Configuration", "Workflow Usage"]}>
+  <Tab value="TypeScript Implementation">
+    ```typescript
+    // tools/data-processor.ts
+    interface Input {
+      data: unknown[];
+      operation: 'filter' | 'map' | 'reduce';
+      expression: string;
+    }
+
+    interface Output {
+      result: unknown;
+      processed: number;
+      duration: number;
+    }
+
+    export async function dataProcessor(input: Input): Promise<Output> {
+      const start = Date.now();
+
+      // Validate and process data
+      if (!Array.isArray(input.data)) {
+        throw new Error('Input data must be an array');
+      }
+
+      let result: unknown;
+      switch (input.operation) {
+        case 'filter':
+          result = input.data.filter(item =>
+            evaluate(item, input.expression)
+          );
+          break;
+        case 'map':
+          result = input.data.map(item =>
+            transform(item, input.expression)
+          );
+          break;
+        case 'reduce':
+          result = input.data.reduce((acc, item) =>
+            aggregate(acc, item, input.expression),
+            {}
+          );
+          break;
+      }
+
+      return {
+        result,
+        processed: input.data.length,
+        duration: Date.now() - start
+      };
+    }
+    ```
+  </Tab>
+
+  <Tab value="YAML Configuration">
+    ```yaml
+    resource: tool
+    id: data-processor
+    description: Process arrays with filter, map, or reduce operations
+
+    input:
+      type: object
+      properties:
+        data:
+          type: array
+          description: Array of items to process
+        operation:
+          type: string
+          enum: [filter, map, reduce]
+          description: Operation to perform
+        expression:
+          type: string
+          description: Expression or function to apply
+      required: [data, operation, expression]
+
+    output:
+      type: object
+      properties:
+        result:
+          description: Processed data result
+        processed:
+          type: integer
+          description: Number of items processed
+        duration:
+          type: integer
+          description: Processing time in milliseconds
+
+    runtime:
+      timeout: "60s"
+      permissions:
+        - --allow-read
+    ```
+  </Tab>
+
+  <Tab value="Workflow Usage">
+    ```yaml
+    tasks:
+      - id: process_customer_data
+        type: basic
+        agent: data-analyst
+        action: analyze
+        $use: tool(local::tools.data-processor)
+        with:
+          data: "{{ .inputs.customers }}"
+          operation: filter
+          expression: "age > 18 AND country = 'US'"
+        outputs:
+          filtered_customers: "{{ .output.result }}"
+          count: "{{ .output.processed }}"
+    ```
+  </Tab>
+</Tabs>
+
+## Best Practices
+
+<FeatureCardList cols={3} size="sm">
+  <FeatureCard
+    title="Single Responsibility"
+    description="Each tool should do one thing well. Create multiple focused tools rather than one complex tool."
+    icon="Target"
+  />
+  <FeatureCard
+    title="Input Validation"
+    description="Always validate inputs using JSON Schema and runtime checks for predictable behavior."
+    icon="ShieldCheck"
+  />
+  <FeatureCard
+    title="Error Handling"
+    description="Provide clear error messages that help agents understand what went wrong and how to fix it."
+    icon="AlertTriangle"
+  />
+  <FeatureCard
+    title="Performance"
+    description="Set appropriate timeouts and resource limits based on expected workload and usage patterns."
+    icon="Zap"
+  />
+  <FeatureCard
+    title="Security"
+    description="Follow the principle of least privilege when configuring permissions and access controls."
+    icon="Lock"
+  />
+  <FeatureCard
+    title="Testing"
+    description="Write comprehensive unit tests before integrating tools into workflows for reliability."
+    icon="CheckCircle"
+  />
+</FeatureCardList>
+
+<Callout type="tip">
+Start with the [TypeScript Development](/docs/core/tools/typescript-development) guide to build your first tool, then explore the [Runtime Environment](/docs/core/tools/runtime-environment) documentation to understand security and performance considerations.
+</Callout>
+
+## Related Documentation
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Core Concepts"
+    description="Understand how tools fit into the Compozy architecture"
+    href="/docs/core/getting-started/core-concepts#tools"
+  />
+  <ReferenceCard
+    title="Agent Integration"
+    description="Learn how agents discover and use tools during execution"
+    href="/docs/core/agents/tools"
+  />
+  <ReferenceCard
+    title="Task Execution"
+    description="See how tools are invoked within workflow tasks"
+    href="/docs/core/tasks/basic-tasks"
+  />
+  <ReferenceCard
+    title="MCP Protocol"
+    description="Extend tools with external Model Context Protocol servers"
+    href="/docs/core/mcp/overview"
+  />
+</ReferenceCardList>
+
+## Next Steps
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="TypeScript Development"
+    description="Build your first tool with our step-by-step guide"
+    href="/docs/core/tools/typescript-development"
+  />
+  <ReferenceCard
+    title="Runtime Environment"
+    description="Configure security, permissions, and resource limits"
+    href="/docs/core/tools/runtime-environment"
+  />
+</ReferenceCardList>

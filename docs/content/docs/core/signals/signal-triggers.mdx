@@ -3,123 +3,82 @@ title: Signal Triggers
 description: Complete guide to signal-based workflow triggers and event-driven workflow initiation in Compozy
 ---
 
-Signal triggers enable **event-driven workflow initiation** in Compozy, allowing workflows to start automatically when specific signals are received. This enables reactive architectures, event-driven automation, and sophisticated workflow orchestration patterns.
+Signal triggers enable **automatic workflow initiation** through event-driven patterns in Compozy, transforming reactive system design from manual orchestration to intelligent automation. Workflows start automatically when specific signals are received, creating sophisticated publish-subscribe architectures that respond to system events, external webhooks, user actions, or [signal tasks](/docs/core/signals/signal-tasks) from distributed workflows. This integration with [workflow configuration](/docs/core/configuration/workflows) and the [Event API](/docs/core/signals/event-api) creates the foundation for enterprise-scale reactive architectures.
 
-## Overview
+<Callout type="info">
+New to Compozy? Start with the [Quick Start guide](/docs/core/getting-started/quick-start) to understand basic concepts, then explore [your first workflow](/docs/core/getting-started/first-workflow) before diving into advanced signal-driven patterns.
+</Callout>
 
-<FeatureCardList cols={3} size="sm">
-  <FeatureCard
-    title="Event-Driven"
-    description="Workflows start automatically when signals are received"
-    icon="Radio"
-  />
+## Enterprise Benefits
+
+<FeatureCardList cols={2} size="default">
   <FeatureCard
     title="Reactive Architecture"
-    description="Build responsive systems that react to real-time events"
+    description="Build systems that automatically respond to business events, system alerts, and user actions with zero manual intervention"
     icon="Zap"
   />
   <FeatureCard
-    title="Publish-Subscribe"
-    description="Decouple signal publishers from workflow consumers"
-    icon="ArrowRightLeft"
+    title="Loose Coupling"
+    description="Decouple event producers from consumers using publish-subscribe patterns, enabling independent service evolution"
+    icon="Network"
+  />
+  <FeatureCard
+    title="Real-Time Processing"
+    description="Process events as they occur with sub-second latency using Temporal's distributed execution engine"
+    icon="Timer"
+  />
+  <FeatureCard
+    title="Schema Validation"
+    description="Use JSON Schema to validate signal payloads and ensure data integrity"
+    icon="Filter"
   />
 </FeatureCardList>
 
-Signal triggers work by listening for specific signals in the system and automatically starting workflows when those signals are received. This creates a publish-subscribe pattern where workflows can react to events from other workflows, external systems, or user actions.
+## Trigger Architecture
 
-```mermaid
-graph TD
-    A[External Event] --> B[Signal Sent]
-    B --> C[Signal Trigger]
-    C --> D[Workflow Started]
-    D --> E[Workflow Execution]
+<Mermaid chart={`graph LR
+    A[Signal Source] --> B[Temporal Signal Dispatcher]
+    B --> C[Dispatcher Workflow]
+    C --> D{Signal Match?}
+    D -->|Yes| E[Start Child Workflow]
+    D -->|No| F[Ignore Signal]
+    E --> G[Merge Payload]
+    G --> H[Execute Tasks]
 
-    B -.-> F[Signal Payload]
-    F -.-> C
-    C -.-> G[Workflow Input]
-    G -.-> D
-```
+    style A fill:#e1f5fe
+    style B fill:#37474f,color:#fff
+    style C fill:#673ab7,color:#fff
+    style E fill:#e8f5e8`} />
 
-## Basic Signal Trigger
-
-<Steps>
-<Step title="Define Trigger Configuration" description="Set up the trigger section with signal type and name">
-
-```yaml
-triggers:
-  - type: signal
-    name: "user-registered"
-```
-
-</Step>
-
-<Step title="Configure Input Schema" description="Define the expected input structure">
-
-```yaml
-input:
-  type: object
-  properties:
-    user_id:
-      type: string
-    signal_data:
-      type: object
-```
-
-</Step>
-
-<Step title="Create Processing Tasks" description="Define tasks that execute when the signal is received">
-
-```yaml
-tasks:
-  - id: process-registration
-    type: basic
-    agent:
-      id: registration-processor
-      instructions: "Process new user registration"
-    with:
-      user_id: "{{ .workflow.input.user_id }}"
-      registration_data: "{{ .workflow.input.signal_data }}"
-```
-
-</Step>
-</Steps>
-
-<Callout type="info">
-**Signal triggers automatically start workflows** when the specified signal is received. The signal payload becomes the workflow input.
-</Callout>
-
-### Trigger Configuration Options
-
-<List>
-  <ListItem title="type" icon="Target">
-    **Required**: Must be `signal` for signal-based triggers
+<List className="mt-6">
+  <ListItem title="Signal Publication" icon="Send">
+    Events are published via [Event API](/docs/core/signals/event-api), [signal tasks](/docs/core/signals/signal-tasks), or external integrations
   </ListItem>
-  <ListItem title="name" icon="Bell">
-    **Required**: Signal name to listen for (e.g., `"user-registered"`)
+  <ListItem title="Signal Routing" icon="Target">
+    Dispatcher Workflow routes signals to target workflows using signal name matching and schema validation
   </ListItem>
-  <ListItem title="condition" icon="Filter">
-    **Optional**: Filter condition to selectively trigger workflows
+  <ListItem title="Child Workflow Execution" icon="Play">
+    Target workflows start as child workflows with signal payload merged into input context and proper execution tracking
   </ListItem>
-  <ListItem title="timeout" icon="Clock">
-    **Optional**: Timeout duration for trigger activation
+  <ListItem title="Temporal Orchestration" icon="Activity">
+    Child workflows are managed by Temporal with built-in retry, timeout, and state persistence capabilities
   </ListItem>
 </List>
 
-## Signal Trigger Examples
+<Callout type="info" className="mt-8">
+  Signal triggers integrate seamlessly with [Temporal workflows](/docs/core/deployment/deployment-options), providing durability, retry logic, and distributed execution. This ensures reliable event processing even during system failures.
+</Callout>
 
-<Tabs items={["User Registration", "Order Processing", "System Alerts"]}>
-<Tab>
+## Configuration
 
-### User Registration Handler
+Understanding signal trigger configuration is essential for building event-driven workflows. Signal triggers are defined in the `triggers` section of your [workflow configuration](/docs/core/configuration/workflows) and support sophisticated filtering and validation using [template expressions](/docs/core/yaml-templates/expressions) for precise control over workflow activation.
 
-<FeatureCard
-  title="Registration Workflow"
-  description="Automatically process new user registrations with validation, profile creation, and notifications"
-  icon="Users"
-  size="sm"
-/>
+<Callout type="warning">
+Before implementing signal triggers, ensure you understand [workflow basics](/docs/core/getting-started/first-workflow) and [signal system concepts](/docs/core/signals/overview). Signal triggers build on these foundational concepts and integrate with the broader [Compozy ecosystem](/docs/core/getting-started/core-concepts).
+</Callout>
 
-React to new user registrations:
+<Steps>
+<Step title="Define Trigger Type" description="Specify signal trigger in workflow configuration">
 
 ```yaml
 id: user-registration-handler
@@ -129,131 +88,298 @@ description: "Handle new user registrations"
 triggers:
   - type: signal
     name: "user-registered"
+```
+
+</Step>
+
+<Step title="Configure Input Schema" description="Define expected signal payload structure using JSON Schema">
+
+```yaml
+input:
+  type: object
+  properties:
+    user_id:
+      type: string
+      description: "Unique user identifier"
+    email:
+      type: string
+      format: email
+    registration_data:
+      type: object
+      properties:
+        source: { type: string }
+        plan: { type: string }
+  required: [user_id, email]
+```
+
+</Step>
+
+<Step title="Implement Processing Logic" description="Define tasks that execute when signal is received">
+
+```yaml
+tasks:
+  - id: validate-registration
+    type: basic
+    $use: tool(local::tools.#(id=="user-validator"))
+    with:
+      user_data: "{{ .workflow.input.registration_data }}"
+
+  - id: create-profile
+    type: basic
+    $use: agent(local::agents.#(id=="profile-creator"))
+    instructions: "Create comprehensive user profile"
+    with:
+      user_id: "{{ .workflow.input.user_id }}"
+      email: "{{ .workflow.input.email }}"
+    depends_on: [validate-registration]
+```
+
+</Step>
+</Steps>
+
+## Properties
+
+| Property   | Required | Description |
+|------------|----------|-------------|
+| **type**   | Yes      | Must be `signal` for signal-based triggers. Part of Compozy's [workflow trigger system](/docs/core/configuration/workflows#triggers). |
+| **name**   | Yes      | Unique signal identifier matching events sent via [Event API](/docs/core/signals/event-api) or [signal tasks](/docs/core/signals/signal-tasks). Supports kebab-case naming convention. |
+| **schema** | No       | JSON Schema validation for signal payload. Ensures data integrity and provides clear contracts for signal publishers. |
+
+## Practical Examples
+
+Explore real-world implementations of signal triggers across different use cases. These examples demonstrate best practices for event-driven workflow design.
+
+<Tabs items={["User Registration", "Order Processing", "System Alerts"]}>
+<Tab>
+
+This example demonstrates a complete user onboarding workflow triggered by registration events. It showcases validation, parallel processing, and notification patterns commonly used in production systems.
+
+```yaml
+id: user-registration-handler
+version: "1.0"
+description: "Complete user onboarding triggered by registration events"
+
+triggers:
+  - type: signal
+    name: "user-registered"
 
 input:
   type: object
   properties:
-    user_id: { type: string }
-    email: { type: string }
-    registration_data: { type: object }
+    user_id:
+      type: string
+      description: "Unique user identifier"
+    email:
+      type: string
+      format: email
+    registration_data:
+      type: object
+      properties:
+        name: { type: string }
+        source: { type: string }
+        plan: { type: string, enum: ["free", "pro", "enterprise"] }
+  required: [user_id, email, registration_data]
 
 tasks:
-  - id: validate-registration
-    type: basic
-    tool:
-      id: user-validator
-    with:
-      user_data: "{{ .workflow.input.registration_data }}"
+  - id: parallel-onboarding
+    type: parallel
+    strategy: best_effort
+    tasks:
+      - id: validate-registration
+        type: basic
+        $use: tool(local::tools.#(id=="user-validator"))
+        with:
+          user_data: "{{ .workflow.input.registration_data }}"
+          compliance_check: true
 
-  - id: create-user-profile
-    type: basic
-    agent:
-      id: profile-creator
-      instructions: "Create comprehensive user profile"
-    with:
-      user_id: "{{ .workflow.input.user_id }}"
-      email: "{{ .workflow.input.email }}"
-      validated_data: "{{ .tasks.validate-registration.output }}"
-    depends_on: [validate-registration]
+      - id: create-user-profile
+        type: basic
+        $use: agent(local::agents.#(id=="profile-creator"))
+        instructions: |
+          Create a comprehensive user profile with:
+          - Account preferences based on registration source
+          - Default settings for their plan type
+          - Personalization recommendations
+        with:
+          user_id: "{{ .workflow.input.user_id }}"
+          email: "{{ .workflow.input.email }}"
+          plan: "{{ .workflow.input.registration_data.plan }}"
 
-  - id: send-welcome-email
-    type: basic
-    tool:
-      id: email-sender
-    with:
-      to: "{{ .workflow.input.email }}"
-      template: "welcome"
-      user_name: "{{ .workflow.input.registration_data.name }}"
-    depends_on: [create-user-profile]
+  - id: route-by-plan
+    type: router
+    condition: "{{ .workflow.input.registration_data.plan }}"
+    routes:
+      free:
+        type: basic
+        $use: tool(local::tools.#(id=="email-sender"))
+        with:
+          template: "welcome-free"
+          to: "{{ .workflow.input.email }}"
 
-  - id: notify-admin
+      pro:
+        type: composite
+        tasks:
+          - id: send-pro-welcome
+            type: basic
+            $use: tool(local::tools.#(id=="email-sender"))
+            with:
+              template: "welcome-pro"
+              to: "{{ .workflow.input.email }}"
+
+          - id: schedule-onboarding
+            type: signal
+            signal:
+              id: "schedule-onboarding-call"
+              payload:
+                user_id: "{{ .workflow.input.user_id }}"
+                plan: "pro"
+            depends_on: [send-pro-welcome]
+
+      enterprise:
+        type: signal
+        signal:
+          id: "enterprise-onboarding-required"
+          payload:
+            user_id: "{{ .workflow.input.user_id }}"
+            email: "{{ .workflow.input.email }}"
+            priority: "high"
+
+    depends_on: [parallel-onboarding]
+
+  - id: notify-completion
     type: signal
     signal:
-      id: "admin-notification"
+      id: "onboarding-completed"
       payload:
-        event: "user-registered"
         user_id: "{{ .workflow.input.user_id }}"
+        plan: "{{ .workflow.input.registration_data.plan }}"
         timestamp: "{{ now }}"
-    depends_on: [send-welcome-email]
+    depends_on: [route-by-plan]
 ```
+
+<Callout type="info">
+This example demonstrates several key patterns: [parallel task execution](/docs/core/tasks/parallel-processing) for concurrent operations, [router tasks](/docs/core/tasks/router-tasks) for conditional logic, and [signal tasks](/docs/core/signals/signal-tasks) for event propagation. The workflow structure follows [Compozy's composable task approach](/docs/core/getting-started/core-concepts#task-composition).
+</Callout>
 
 </Tab>
 <Tab>
 
-### Order Processing Pipeline
-
-<FeatureCard
-  title="Order Processing"
-  description="Automated order validation, payment processing, and fulfillment coordination"
-  icon="ShoppingCart"
-  size="sm"
-/>
-
-Trigger order processing when orders are created:
+Implement a robust order processing system that validates inventory, processes payments, and coordinates fulfillment - all triggered by order creation events.
 
 ```yaml
 id: order-processing-pipeline
 version: "1.0"
-description: "Process new orders automatically"
+description: "Automated order processing with validation and fulfillment"
 
 triggers:
   - type: signal
     name: "order-created"
-    condition: 'payload.status == "pending"'
 
 input:
   type: object
   properties:
-    order_id: { type: string }
-    customer_id: { type: string }
-    items: { type: array }
-    total_amount: { type: number }
+    order_id:
+      type: string
+      pattern: "^ORD-[0-9]+$"
+    customer_id:
+      type: string
+    items:
+      type: array
+      items:
+        type: object
+        properties:
+          sku: { type: string }
+          quantity: { type: integer, minimum: 1 }
+          price: { type: number }
+        required: [sku, quantity, price]
+    total_amount:
+      type: number
+      minimum: 0
+  required: [order_id, customer_id, items, total_amount]
 
 tasks:
   - id: validate-order
     type: composite
     strategy: fail_fast
+    timeout: 30s
     tasks:
-      - id: validate-inventory
+      - id: check-inventory
         type: basic
-        tool:
-          id: inventory-checker
+        $use: tool(local::tools.#(id=="inventory-checker"))
         with:
           items: "{{ .workflow.input.items }}"
+          reserve_stock: false
 
-      - id: validate-payment
+      - id: validate-customer
         type: basic
-        tool:
-          id: payment-validator
+        $use: agent(local::agents.#(id=="customer-validator"))
+        instructions: "Validate customer creditworthiness and shipping address"
         with:
           customer_id: "{{ .workflow.input.customer_id }}"
-          amount: "{{ .workflow.input.total_amount }}"
+          order_amount: "{{ .workflow.input.total_amount }}"
 
-      - id: validate-shipping
+      - id: calculate-shipping
         type: basic
-        tool:
-          id: shipping-validator
+        $use: tool(local::tools.#(id=="shipping-calculator"))
         with:
-          order_id: "{{ .workflow.input.order_id }}"
           items: "{{ .workflow.input.items }}"
+          customer_id: "{{ .workflow.input.customer_id }}"
 
   - id: process-payment
     type: basic
-    tool:
-      id: payment-processor
+    $use: tool(local::tools.#(id=="payment-processor"))
     with:
       order_id: "{{ .workflow.input.order_id }}"
       amount: "{{ .workflow.input.total_amount }}"
       customer_id: "{{ .workflow.input.customer_id }}"
+      shipping_cost: "{{ .tasks.validate-order.outputs.calculate-shipping.cost }}"
+
+    retry:
+      max_attempts: 3
+      backoff: exponential
+      initial_interval: 1s
+
+    on_error:
+      type: signal
+      signal:
+        id: "payment-failed"
+        payload:
+          order_id: "{{ .workflow.input.order_id }}"
+          error: "{{ .task.error }}"
+
     depends_on: [validate-order]
 
-  - id: update-inventory
-    type: basic
-    tool:
-      id: inventory-updater
-    with:
-      items: "{{ .workflow.input.items }}"
-      operation: "reserve"
+  - id: finalize-order
+    type: parallel
+    strategy: best_effort
+    tasks:
+      - id: reserve-inventory
+        type: basic
+        $use: tool(local::tools.#(id=="inventory-manager"))
+        with:
+          operation: "reserve"
+          items: "{{ .workflow.input.items }}"
+          order_id: "{{ .workflow.input.order_id }}"
+
+      - id: create-shipment
+        type: basic
+        $use: tool(local::tools.#(id=="shipment-creator"))
+        with:
+          order_id: "{{ .workflow.input.order_id }}"
+          items: "{{ .workflow.input.items }}"
+          shipping_method: "{{ .tasks.validate-order.outputs.calculate-shipping.method }}"
+
+      - id: send-confirmation
+        type: basic
+        $use: tool(local::tools.#(id=="notification-service"))
+        with:
+          type: "order-confirmation"
+          customer_id: "{{ .workflow.input.customer_id }}"
+          order_details:
+            order_id: "{{ .workflow.input.order_id }}"
+            total: "{{ .workflow.input.total_amount }}"
+            items: "{{ .workflow.input.items }}"
+
     depends_on: [process-payment]
 
   - id: trigger-fulfillment
@@ -262,714 +388,306 @@ tasks:
       id: "order-ready-for-fulfillment"
       payload:
         order_id: "{{ .workflow.input.order_id }}"
-        items: "{{ .workflow.input.items }}"
-        customer_id: "{{ .workflow.input.customer_id }}"
-        payment_confirmed: "{{ .tasks.process-payment.output.confirmed }}"
-    depends_on: [update-inventory]
+        shipment_id: "{{ .tasks.finalize-order.outputs.create-shipment.shipment_id }}"
+        warehouse: "{{ .tasks.finalize-order.outputs.reserve-inventory.warehouse }}"
+        priority: |
+          {{ if gt .workflow.input.total_amount 1000 }}
+            high
+          {{ else }}
+            normal
+          {{ end }}
+    depends_on: [finalize-order]
 ```
+
+<Callout type="tip">
+Notice the use of composite tasks with `fail_fast` strategy for validation, ensuring all checks pass before payment processing. The [retry configuration](/docs/core/tasks/basic-tasks#retry-configuration) on payment processing handles transient failures gracefully, while [error handling patterns](/docs/core/tasks/basic-tasks#error-handling) provide robust failure recovery.
+</Callout>
 
 </Tab>
 <Tab>
 
-### System Alert Handler
-
-<FeatureCard
-  title="Incident Response"
-  description="Automated incident detection, assessment, and response coordination"
-  icon="AlertTriangle"
-  size="sm"
-/>
-
-Respond to system alerts and incidents:
+Build an intelligent incident response system that automatically triages alerts, performs initial remediation, and escalates when necessary.
 
 ```yaml
 id: incident-response-handler
 version: "1.0"
-description: "Automatic incident response system"
+description: "Intelligent incident response with automated remediation"
 
 triggers:
   - type: signal
     name: "system-alert"
-    condition: 'payload.severity in ["critical", "high"]'
 
 input:
   type: object
   properties:
-    alert_id: { type: string }
-    severity: { type: string }
-    service: { type: string }
-    message: { type: string }
-    metrics: { type: object }
+    alert_id:
+      type: string
+      pattern: "^ALERT-[0-9]+$"
+    severity:
+      type: string
+      enum: ["low", "medium", "high", "critical"]
+    service:
+      type: string
+    message:
+      type: string
+    metrics:
+      type: object
+      properties:
+        error_rate: { type: number }
+        response_time: { type: number }
+        cpu_usage: { type: number }
+        memory_usage: { type: number }
+  required: [alert_id, severity, service, message]
 
 tasks:
-  - id: assess-incident
-    type: basic
-    agent:
-      id: incident-analyzer
-      model: claude-3-opus-20240307
-      instructions: |
-        Analyze the incident and determine:
-        1. Root cause analysis
-        2. Impact assessment
-        3. Immediate actions needed
-        4. Escalation requirements
-    with:
-      alert_data: "{{ .workflow.input }}"
-      historical_context: "{{ .env.INCIDENT_HISTORY }}"
-
-  - id: immediate-response
+  - id: enrich-context
     type: parallel
-    strategy: best_effort
     tasks:
-      - id: auto-scaling
+      - id: fetch-service-state
         type: basic
-        tool:
-          id: infrastructure-scaler
+        $use: tool(local::tools.#(id=="service-monitor"))
         with:
           service: "{{ .workflow.input.service }}"
-          scale_factor: "{{ .tasks.assess-incident.output.scaling_recommendation }}"
-        condition: 'tasks.assess-incident.output.requires_scaling'
+          metrics: ["health", "dependencies", "recent_errors"]
 
-      - id: restart-services
+      - id: check-recent-changes
         type: basic
-        tool:
-          id: service-restarter
+        $use: tool(local::tools.#(id=="deployment-tracker"))
         with:
-          services: "{{ .tasks.assess-incident.output.restart_targets }}"
-        condition: 'tasks.assess-incident.output.requires_restart'
+          service: "{{ .workflow.input.service }}"
+          time_window: "1h"
 
-      - id: notify-on-call
+      - id: analyze-patterns
         type: basic
-        tool:
-          id: pager-duty
+        $use: agent(local::agents.#(id=="anomaly-detector"))
+        instructions: "Identify patterns and anomalies in metrics"
         with:
-          incident_id: "{{ .workflow.input.alert_id }}"
-          severity: "{{ .workflow.input.severity }}"
-          message: "{{ .tasks.assess-incident.output.escalation_message }}"
-        condition: 'tasks.assess-incident.output.requires_escalation'
+          current_metrics: "{{ .workflow.input.metrics }}"
+          service: "{{ .workflow.input.service }}"
+
+  - id: assess-incident
+    type: basic
+    $use: agent(local::agents.#(id=="incident-analyzer"))
+    model: claude-3-opus-20240229
+    instructions: |
+      Analyze the incident with the enriched context and determine:
+      1. Root cause analysis based on metrics and recent changes
+      2. Blast radius and affected components
+      3. Immediate remediation actions (safe to automate)
+      4. Whether human intervention is required
+      5. Priority score (0-100) for escalation
+    with:
+      alert: "{{ .workflow.input }}"
+      service_state: "{{ .tasks.enrich-context.outputs.fetch-service-state }}"
+      recent_changes: "{{ .tasks.enrich-context.outputs.check-recent-changes }}"
+      patterns: "{{ .tasks.enrich-context.outputs.analyze-patterns }}"
+    depends_on: [enrich-context]
+
+  - id: automated-response
+    type: router
+    condition: |
+      {{
+        $priority := .tasks.assess-incident.output.priority_score
+        $auto_safe := .tasks.assess-incident.output.auto_remediation_safe
+
+        if and (lt $priority 50) $auto_safe
+          "auto_remediate"
+        else if and (ge $priority 50) (lt $priority 80)
+          "assisted_remediate"
+        else
+          "escalate_only"
+      }}
+
+    routes:
+      auto_remediate:
+        type: composite
+        strategy: best_effort
+        tasks:
+          - id: apply-fixes
+            type: basic
+            $use: tool(local::tools.#(id=="auto-remediation"))
+            with:
+              actions: "{{ .tasks.assess-incident.output.remediation_actions }}"
+              service: "{{ .workflow.input.service }}"
+              dry_run: false
+
+          - id: verify-fix
+            type: wait
+            wait_for: "service-healthy"
+            timeout: "5m"
+            on_timeout: "handle-timeout"
+            depends_on: [apply-fixes]
+
+      assisted_remediate:
+        type: composite
+        tasks:
+          - id: prepare-runbook
+            type: basic
+            $use: agent(local::agents.#(id=="runbook-generator"))
+            instructions: "Generate step-by-step remediation runbook"
+            with:
+              incident: "{{ .tasks.assess-incident.output }}"
+
+          - id: notify-oncall
+            type: basic
+            $use: tool(local::tools.#(id=="pagerduty"))
+            with:
+              priority: "P2"
+              incident_details:
+                alert_id: "{{ .workflow.input.alert_id }}"
+                service: "{{ .workflow.input.service }}"
+                runbook: "{{ .tasks.prepare-runbook.output }}"
+
+      escalate_only:
+        type: signal
+        signal:
+          id: "critical-incident"
+          payload:
+            alert_id: "{{ .workflow.input.alert_id }}"
+            service: "{{ .workflow.input.service }}"
+            severity: "{{ .workflow.input.severity }}"
+            assessment: "{{ .tasks.assess-incident.output }}"
+            requires_immediate_attention: true
+
     depends_on: [assess-incident]
 
-  - id: create-incident-record
+  - id: track-incident
     type: basic
-    tool:
-      id: incident-tracker
+    $use: tool(local::tools.#(id=="incident-tracker"))
     with:
       alert_id: "{{ .workflow.input.alert_id }}"
+      service: "{{ .workflow.input.service }}"
+      severity: "{{ .workflow.input.severity }}"
       assessment: "{{ .tasks.assess-incident.output }}"
-      response_actions: "{{ .tasks.immediate-response.output }}"
+      response_type: "{{ .tasks.automated-response.selected_route }}"
+      response_result: "{{ .tasks.automated-response.output }}"
       timestamp: "{{ now }}"
-    depends_on: [immediate-response]
+    depends_on: [automated-response]
 
-  - id: monitor-resolution
+  - id: monitor-stability
     type: wait
-    wait_for: "incident-resolved"
-    timeout: 3600s  # 1 hour
-    condition: 'signal.payload.incident_id == workflow.input.alert_id'
+    wait_for: "service-stable"
+    timeout: "10m"
+    on_timeout: "handle-stability-timeout"
 
     processor:
       type: basic
+      $use: agent(local::agents.#(id=="stability-analyzer"))
+      instructions: "Analyze service stability and confirm incident resolution"
       with:
-        resolution_data: "{{ .signal.payload }}"
-    depends_on: [create-incident-record]
+        stability_data: "{{ .signal.payload }}"
+        incident_id: "{{ .workflow.input.alert_id }}"
 
-  - id: post-incident-analysis
-    type: basic
-    agent:
-      id: incident-analyst
-      instructions: "Conduct post-incident analysis and create improvement recommendations"
-    with:
-      incident_data: "{{ .workflow.input }}"
-      response_data: "{{ .tasks.immediate-response.output }}"
-      resolution_data: "{{ .tasks.monitor-resolution.output }}"
-      timeline: "{{ .workflow.execution_time }}"
-    depends_on: [monitor-resolution]
+    depends_on: [track-incident]
+
+  - id: handle-stability-timeout
+    type: signal
+    signal:
+      id: "incident-not-resolved"
+      payload:
+        alert_id: "{{ .workflow.input.alert_id }}"
+        service: "{{ .workflow.input.service }}"
+        escalate: true
 ```
+
+<Callout type="warning">
+This example showcases advanced patterns including wait tasks for monitoring resolution, conditional [router tasks](/docs/core/tasks/router-tasks) for response strategies, and comprehensive error handling with escalation paths. The incident response pattern demonstrates event-driven architecture principles at scale.
+</Callout>
 
 </Tab>
 </Tabs>
 
-## Conditional Signal Triggers
+## Best Practices
 
-<FeatureCardList cols={2} size="sm">
+<FeatureCardList cols={2} size="default">
   <FeatureCard
-    title="Signal Filtering"
-    description="Use conditions to selectively trigger workflows based on signal content"
+    title="Schema Validation"
+    description="Use JSON Schema validation to ensure signal quality and prevent invalid workflows"
     icon="Filter"
   />
   <FeatureCard
-    title="Complex Logic"
-    description="Combine multiple conditions with logical operators"
-    icon="GitBranch"
-  />
-</FeatureCardList>
-
-### Filtering Signals
-
-Use conditions to filter which signals trigger workflows:
-
-```yaml
-id: priority-order-processor
-version: "1.0"
-description: "Process high-priority orders only"
-
-triggers:
-  - type: signal
-    name: "order-created"
-    condition: |
-      payload.priority == "high" &&
-      payload.total_amount > 1000 &&
-      payload.customer_tier == "premium"
-
-tasks:
-  - id: priority-processing
-    type: basic
-    agent:
-      id: priority-processor
-      instructions: "Handle high-priority premium orders"
-    with:
-      order_data: "{{ .workflow.input }}"
-      priority_level: "high"
-```
-
-### Complex Filtering
-
-```yaml
-id: fraud-detection-trigger
-version: "1.0"
-description: "Trigger fraud detection for suspicious transactions"
-
-triggers:
-  - type: signal
-    name: "transaction-created"
-    condition: |
-      (payload.amount > 10000) ||
-      (payload.country != payload.user_country) ||
-      (payload.payment_method == "new_card") ||
-      (payload.velocity_score > 0.8)
-
-tasks:
-  - id: fraud-analysis
-    type: basic
-    agent:
-      id: fraud-analyzer
-      model: claude-3-opus-20240307
-      instructions: "Analyze transaction for fraud indicators"
-    with:
-      transaction: "{{ .workflow.input }}"
-      risk_factors: "{{ .workflow.trigger.condition_results }}"
-```
-
-## Multiple Signal Triggers
-
-### Multi-Trigger Workflows
-
-Workflows can listen to multiple signal types:
-
-```yaml
-id: user-activity-processor
-version: "1.0"
-description: "Process various user activities"
-
-triggers:
-  - type: signal
-    name: "user-login"
-  - type: signal
-    name: "user-purchase"
-  - type: signal
-    name: "user-logout"
-
-input:
-  type: object
-  properties:
-    user_id: { type: string }
-    activity_type: { type: string }
-    activity_data: { type: object }
-
-tasks:
-  - id: route-activity
-    type: router
-    condition: '{{ .workflow.input.activity_type }}'
-    routes:
-      user-login:
-        - id: process-login
-          type: basic
-          agent:
-            id: login-processor
-            instructions: "Process user login activity"
-          with:
-            login_data: "{{ .workflow.input.activity_data }}"
-
-      user-purchase:
-        - id: process-purchase
-          type: basic
-          agent:
-            id: purchase-processor
-            instructions: "Process user purchase activity"
-          with:
-            purchase_data: "{{ .workflow.input.activity_data }}"
-
-      user-logout:
-        - id: process-logout
-          type: basic
-          agent:
-            id: logout-processor
-            instructions: "Process user logout activity"
-          with:
-            logout_data: "{{ .workflow.input.activity_data }}"
-```
-
-### Environment-Based Triggers
-
-Different triggers for different environments:
-
-```yaml
-id: deployment-handler
-version: "1.0"
-description: "Handle deployments based on environment"
-
-triggers:
-  - type: signal
-    name: "deployment-{{ .env.ENVIRONMENT }}"
-    condition: 'payload.service in env.MONITORED_SERVICES'
-
-tasks:
-  - id: environment-specific-deployment
-    type: router
-    condition: '{{ .env.ENVIRONMENT }}'
-    routes:
-      development:
-        - id: dev-deployment
-          type: basic
-          tool:
-            id: dev-deployer
-          with:
-            service: "{{ .workflow.input.service }}"
-            config: "{{ .workflow.input.dev_config }}"
-
-      staging:
-        - id: staging-deployment
-          type: composite
-          tasks:
-            - id: deploy-to-staging
-              type: basic
-              tool:
-                id: staging-deployer
-              with:
-                service: "{{ .workflow.input.service }}"
-
-            - id: run-integration-tests
-              type: basic
-              tool:
-                id: test-runner
-              with:
-                test_suite: "integration"
-                environment: "staging"
-              depends_on: [deploy-to-staging]
-
-      production:
-        - id: production-deployment
-          type: composite
-          tasks:
-            - id: pre-deployment-checks
-              type: basic
-              tool:
-                id: deployment-validator
-              with:
-                service: "{{ .workflow.input.service }}"
-                environment: "production"
-
-            - id: blue-green-deployment
-              type: basic
-              tool:
-                id: blue-green-deployer
-              with:
-                service: "{{ .workflow.input.service }}"
-                strategy: "blue-green"
-              depends_on: [pre-deployment-checks]
-
-            - id: post-deployment-monitoring
-              type: basic
-              tool:
-                id: deployment-monitor
-              with:
-                service: "{{ .workflow.input.service }}"
-                duration: "300s"
-              depends_on: [blue-green-deployment]
-```
-
-## Signal Trigger Patterns
-
-### Chain Reactions
-
-Workflows that trigger other workflows:
-
-```yaml
-id: order-fulfillment-chain
-version: "1.0"
-description: "Fulfillment chain triggered by order completion"
-
-triggers:
-  - type: signal
-    name: "order-completed"
-
-tasks:
-  - id: prepare-shipping
-    type: basic
-    tool:
-      id: shipping-preparer
-    with:
-      order_id: "{{ .workflow.input.order_id }}"
-      items: "{{ .workflow.input.items }}"
-
-  - id: trigger-shipping
-    type: signal
-    signal:
-      id: "shipping-requested"
-      payload:
-        order_id: "{{ .workflow.input.order_id }}"
-        shipping_data: "{{ .tasks.prepare-shipping.output }}"
-    depends_on: [prepare-shipping]
-
-  - id: trigger-invoice
-    type: signal
-    signal:
-      id: "invoice-requested"
-      payload:
-        order_id: "{{ .workflow.input.order_id }}"
-        customer_id: "{{ .workflow.input.customer_id }}"
-        amount: "{{ .workflow.input.total_amount }}"
-    depends_on: [prepare-shipping]
-```
-
-### Event Aggregation
-
-Aggregate multiple events before triggering:
-
-```yaml
-id: daily-report-aggregator
-version: "1.0"
-description: "Aggregate daily events for reporting"
-
-triggers:
-  - type: signal
-    name: "daily-event"
-    condition: 'payload.date == today()'
-
-tasks:
-  - id: collect-events
-    type: basic
-    tool:
-      id: event-aggregator
-    with:
-      event_data: "{{ .workflow.input }}"
-      aggregation_key: "{{ .workflow.input.date }}"
-
-  - id: check-daily-completion
-    type: basic
-    tool:
-      id: completion-checker
-    with:
-      date: "{{ .workflow.input.date }}"
-      current_count: "{{ .tasks.collect-events.output.count }}"
-      expected_count: "{{ .env.DAILY_EVENT_TARGET }}"
-    depends_on: [collect-events]
-
-  - id: trigger-report
-    type: signal
-    signal:
-      id: "daily-report-ready"
-      payload:
-        date: "{{ .workflow.input.date }}"
-        event_count: "{{ .tasks.collect-events.output.count }}"
-        aggregated_data: "{{ .tasks.collect-events.output.summary }}"
-    condition: 'tasks.check-daily-completion.output.is_complete'
-    depends_on: [check-daily-completion]
-```
-
-## Signal Trigger Testing
-
-### Unit Testing
-
-Test individual trigger configurations:
-
-```yaml
-id: test-signal-trigger
-version: "1.0"
-description: "Test signal trigger functionality"
-
-triggers:
-  - type: signal
-    name: "test-trigger"
-
-tasks:
-  - id: verify-trigger
-    type: basic
-    with:
-      trigger_data: "{{ .workflow.input }}"
-      triggered_at: "{{ now }}"
-
-  outputs:
-    trigger_successful: true
-    input_received: "{{ .workflow.input }}"
-```
-
-### Integration Testing
-
-Test end-to-end signal flow:
-
-```yaml
-id: signal-flow-test
-version: "1.0"
-description: "Test complete signal flow"
-
-triggers:
-  - type: signal
-    name: "integration-test-trigger"
-
-tasks:
-  - id: process-test-signal
-    type: basic
-    with:
-      test_data: "{{ .workflow.input }}"
-
-  - id: send-response-signal
-    type: signal
-    signal:
-      id: "integration-test-response"
-      payload:
-        original_data: "{{ .workflow.input }}"
-        processed_data: "{{ .tasks.process-test-signal.output }}"
-        test_completed: true
-    depends_on: [process-test-signal]
-```
-
-## Performance Considerations
-
-<FeatureCardList cols={3} size="sm">
-  <FeatureCard
-    title="Condition Filtering"
-    description="Use specific conditions to reduce unnecessary workflow starts"
-    icon="Filter"
+    title="Resource Management"
+    description="Configure concurrency limits and timeouts to maintain system stability under high load"
+    icon="Gauge"
   />
   <FeatureCard
-    title="Payload Optimization"
-    description="Include only necessary data in signal payloads"
+    title="Payload Efficiency"
+    description="Minimize signal payload size while maintaining necessary context for processing"
     icon="Package"
   />
   <FeatureCard
-    title="Frequency Monitoring"
-    description="Monitor trigger frequency to prevent system overload"
+    title="Monitoring & Metrics"
+    description="Track trigger rates, execution times, and resource usage for optimization insights"
     icon="BarChart3"
   />
 </FeatureCardList>
 
-### Trigger Optimization
+### Signal Design Guidelines
 
 <List>
-  <ListItem title="Use Specific Conditions" icon="Target">
-    Filter signals to reduce unnecessary workflow starts and improve performance
+  <ListItem title="Naming Conventions" icon="Tag">
+    **Use kebab-case with clear hierarchy**: `domain-entity-action` (e.g., `order-payment-completed`, `user-profile-updated`). See [naming best practices](/docs/core/configuration/best-practices#naming-conventions)
   </ListItem>
-  <ListItem title="Optimize Signal Payload" icon="Package">
-    Include only necessary data to minimize memory usage and processing time
+  <ListItem title="Payload Structure" icon="Package">
+    **Define consistent schemas**: Use JSON Schema validation to ensure payload consistency across publishers and consumers
   </ListItem>
-  <ListItem title="Monitor Trigger Frequency" icon="Activity">
-    Avoid high-frequency triggers that could overwhelm the system
+  <ListItem title="Version Management" icon="GitBranch">
+    **Plan for evolution**: Include version info in signal names or payloads for backward compatibility during [deployment cycles](/docs/core/deployment/deployment-options)
+  </ListItem>
+  <ListItem title="Error Recovery" icon="Shield">
+    **Design for failure**: Implement retry logic, dead letter queues, and compensation workflows using [error handling patterns](/docs/core/tasks/basic-tasks#error-handling)
   </ListItem>
 </List>
 
-```yaml
-# ✅ Optimized trigger
-triggers:
-  - type: signal
-    name: "user-action"
-    condition: |
-      payload.action == "purchase" &&
-      payload.amount > 100 &&
-      payload.user_tier == "premium"
-
-# ❌ Inefficient trigger
-triggers:
-  - type: signal
-    name: "user-action"
-    # No condition - triggers on every user action
-```
-
-### Resource Management
-
-Monitor and limit concurrent workflow executions:
-
-```yaml
-id: resource-aware-processor
-version: "1.0"
-description: "Process with resource awareness"
-
-triggers:
-  - type: signal
-    name: "processing-request"
-    condition: 'payload.priority == "high"'
-
-config:
-  max_concurrent_executions: 5
-  execution_timeout: 300s
-
-tasks:
-  - id: resource-intensive-task
-    type: basic
-    with:
-      request_data: "{{ .workflow.input }}"
-      resource_allocation: "high"
-```
-
-## Best Practices
-
-<FeatureCardList cols={3} size="sm">
-  <FeatureCard
-    title="Clear Naming"
-    description="Use consistent, descriptive signal names that indicate purpose"
-    icon="FileText"
-  />
-  <FeatureCard
-    title="Condition Design"
-    description="Write maintainable conditions with clear logic"
-    icon="Code"
-  />
-  <FeatureCard
-    title="Error Handling"
-    description="Plan for signal processing failures with proper recovery"
-    icon="Shield"
-  />
-</FeatureCardList>
-
-### 1. Signal Naming
-
-<Callout type="info">
-Use consistent, descriptive signal names that clearly indicate the event type and context.
-</Callout>
-
-Use consistent, descriptive signal names:
-
-```yaml
-# ✅ Good signal names
-triggers:
-  - type: signal
-    name: "order-payment-completed"
-  - type: signal
-    name: "user-profile-updated"
-  - type: signal
-    name: "system-health-critical"
-
-# ❌ Poor signal names
-triggers:
-  - type: signal
-    name: "event1"
-  - type: signal
-    name: "done"
-  - type: signal
-    name: "trigger"
-```
-
-### 2. Condition Design
-
-Write clear, maintainable conditions:
-
-```yaml
-# ✅ Clear condition
-triggers:
-  - type: signal
-    name: "transaction-created"
-    condition: |
-      payload.amount > 1000 &&
-      payload.risk_score < 0.5 &&
-      payload.customer_verified == true
-
-# ❌ Complex, unclear condition
-triggers:
-  - type: signal
-    name: "transaction-created"
-    condition: 'payload.a > 1000 && payload.b < 0.5 && payload.c'
-```
-
-### 3. Error Handling
-
-Plan for signal processing failures:
-
-```yaml
-id: robust-signal-processor
-version: "1.0"
-description: "Robust signal processing with error handling"
-
-triggers:
-  - type: signal
-    name: "critical-event"
-
-tasks:
-  - id: process-event
-    type: basic
-    with:
-      event_data: "{{ .workflow.input }}"
-
-    on_error: handle-processing-error
-    retry:
-      max_attempts: 3
-      backoff: exponential
-
-  - id: handle-processing-error
-    type: basic
-    agent:
-      id: error-handler
-      instructions: "Handle processing errors gracefully"
-    with:
-      error_data: "{{ .task.error }}"
-      original_input: "{{ .workflow.input }}"
-```
+## Next Steps
 
 <ReferenceCardList>
   <ReferenceCard
+    title="Signal System Overview"
+    description="Master the fundamentals of Compozy's event-driven signal system and pub-sub architecture"
+    href="/docs/core/signals/overview"
+    icon="Radio"
+  />
+  <ReferenceCard
     title="Signal Tasks"
-    description="Learn how to send signals from within workflows to trigger other workflows"
+    description="Learn to send signals from workflows to trigger cascading event-driven processes"
     href="/docs/core/signals/signal-tasks"
-    icon="Zap"
+    icon="Send"
   />
   <ReferenceCard
     title="Wait Tasks"
-    description="Explore how tasks can wait for specific signals before continuing execution"
-    href="/docs/core/signals/wait-tasks"
+    description="Implement synchronization points where workflows pause for specific signals"
+    href="/docs/core/tasks/wait-tasks"
     icon="Timer"
   />
   <ReferenceCard
     title="Event API"
-    description="Discover programmatic access to signals for external integrations"
+    description="Integrate external systems with Compozy using the programmatic signal API"
     href="/docs/core/signals/event-api"
     icon="Code"
   />
   <ReferenceCard
-    title="Advanced Patterns"
-    description="Study complex signal orchestration patterns and best practices"
-    href="/docs/core/signals/advanced-patterns"
-    icon="Layers"
+    title="Router Tasks"
+    description="Build conditional logic and dynamic routing within triggered workflows"
+    href="/docs/core/tasks/router-tasks"
+    icon="GitBranch"
   />
   <ReferenceCard
-    title="Signal Overview"
-    description="Understand the fundamental concepts of Compozy's signal system"
-    href="/docs/core/signals/signal-overview"
-    icon="BookOpen"
+    title="Template Expressions"
+    description="Master powerful expressions for dynamic conditions and data transformation"
+    href="/docs/core/yaml-templates/expressions"
+    icon="Code"
   />
   <ReferenceCard
     title="Workflow Configuration"
-    description="Learn more about workflow configuration and trigger setup"
+    description="Configure complete workflows with triggers, tasks, and advanced orchestration"
     href="/docs/core/configuration/workflows"
     icon="Settings"
   />
   <ReferenceCard
-    title="Basic Tasks"
-    description="Master the fundamental building blocks of workflow execution"
-    href="/docs/core/tasks/basic-tasks"
-    icon="Play"
-  />
-  <ReferenceCard
-    title="Agent Integration"
-    description="Discover how to integrate AI agents with signal-triggered workflows"
-    href="/docs/core/agents/overview"
-    icon="BrainCircuit"
+    title="Getting Started Guide"
+    description="New to Compozy? Start with core concepts and build your first event-driven workflow"
+    href="/docs/core/getting-started/first-workflow"
+    icon="Rocket"
   />
 </ReferenceCardList>

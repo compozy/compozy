@@ -5,19 +5,33 @@ description: Understanding Compozy's fundamental concepts and architecture
 
 ## Overview
 
-At its core, Compozy operates on a simple principle: **define what you want to happen, not how it happens**. You describe your workflows, agents, and tools in YAML configuration files, and Compozy handles the execution, coordination, and state management.
+Compozy is built on a straightforward philosophy: **focus on describing your goals, not the implementation details**. By defining your workflows, agents, and tools in easy-to-read YAML configuration files, you let Compozy take care of execution, coordination, and state management behind the scenes.
 
-```yaml title="hello-world.yaml"
-# A simple workflow that demonstrates core concepts
-id: hello-world
-tasks:
-  - id: greet
-    type: basic
-    $use: agent(local::agents.#(id="assistant"))
-    action: say_hello
-    with:
-      name: "{{ .workflow.input.name }}"
-```
+This is made possible by several core components:
+
+<List>
+  <ListItem title="Workflows" icon="Workflow">
+    Define a sequence of tasks to accomplish a goal
+  </ListItem>
+  <ListItem title="Tasks" icon="Task">
+    The building blocks of workflows
+  </ListItem>
+  <ListItem title="Agents" icon="Agent">
+    AI-powered components that can understand natural language instructions and execute actions
+  </ListItem>
+  <ListItem title="Tools" icon="Tool">
+    TypeScript/JavaScript functions that perform specific operations like API calls, data processing, or file operations
+  </ListItem>
+  <ListItem title= "Memory" icon="Database">
+    Persistent memory systems that can store and retrieve data across workflow executions
+  </ListItem>
+  <ListItem title="Signals" icon="Signal">
+    Communication channels between workflows and agents
+  </ListItem>
+  <ListItem title="MCP" icon="Link2">
+    Model Context Protocol integration for external tooling
+  </ListItem>
+</List>
 
 ## Workflows
 
@@ -45,10 +59,6 @@ tasks:
   - id: generate_response
     type: basic
     # ... task definition
-
-outputs:
-  response: "{{ .tasks.generate_response.output }}"
-  confidence: "{{ .tasks.classify_intent.output.confidence }}"
 ```
 
 **Key characteristics:**
@@ -277,7 +287,7 @@ actions:
 
 ## Tools
 
-**Tools** are TypeScript/JavaScript functions that perform specific operations like API calls, data processing, or file operations. [Learn more about tool development →](/docs/core/tools/tools-overview)
+**Tools** are TypeScript/JavaScript functions that perform specific operations like API calls, data processing, or file operations. [Learn more about tool development →](/docs/core/tools/overview)
 
 ```typescript title="weather_tool.ts"
 interface WeatherInput {
@@ -370,7 +380,7 @@ tools:
 
 ## Memory Systems
 
-**Memory** enables persistent context and conversation history across workflow executions. [Learn more about memory systems →](/docs/core/memory/memory-concepts)
+**Memory** enables persistent context and conversation history across workflow executions. [Learn more about memory systems →](/docs/core/memory/overview)
 
 ```yaml title="memory-config.yaml"
 # Configure memory in your project
@@ -541,6 +551,110 @@ Accept: application/json
   </ListItem>
 </List>
 
+## Signals
+
+**Signals** enable event-driven communication between workflows and agents through lightweight messages. They provide a publish-subscribe mechanism for asynchronous coordination and decoupled architectures. [Learn more about signals →](/docs/core/signals/overview)
+
+```yaml title="signal-workflow.yaml"
+# Emitting a signal in a workflow
+tasks:
+  - id: process_order
+    type: basic
+    $use: agent(local::agents.#(id=="order_processor"))
+    with:
+      order: "{{ .workflow.input.order }}"
+    on_success:
+      next: notify_completion
+
+  - id: notify_completion
+    type: signal
+    signal:
+      id: order-processed
+      payload:
+        order_id: "{{ .workflow.input.order.id }}"
+        status: "completed"
+        timestamp: "{{ now }}"
+
+# Receiving signals in another workflow
+  - id: wait_for_order
+    type: wait
+    wait_for: "order-processed"
+    timeout: 300s
+    condition: '{{ eq .signal.payload.status "completed" }}'
+    on_success:
+      next: send_notification
+```
+
+**Common use cases:**
+
+<List>
+  <ListItem title="Workflow Coordination" icon="GitBranch">
+    Synchronize execution between multiple workflows
+  </ListItem>
+  <ListItem title="Event-Driven Processing" icon="Activity">
+    Trigger actions based on business events or external signals
+  </ListItem>
+  <ListItem title="Human Approval Flows" icon="Users">
+    Pause workflows until manual approval or input is received
+  </ListItem>
+  <ListItem title="Service Integration" icon="Link">
+    Enable communication between different services and systems
+  </ListItem>
+</List>
+
+## MCP (Model Context Protocol)
+
+**MCP** enables AI agents to connect with external tools and services through a standardized protocol. It acts as a universal adapter between agents and external capabilities, providing dynamic tool discovery and seamless integration. [Learn more about MCP integration →](/docs/core/mcp/overview)
+
+```yaml title="mcp-integration.yaml"
+# Configure MCP servers in your project
+mcps:
+  - id: filesystem
+    transport: stdio
+    command: "mcp-server-filesystem"
+    args: ["--root", "/workspace"]
+
+  - id: github
+    transport: http
+    endpoint: "http://localhost:3000/mcp"
+    headers:
+      Authorization: "Bearer {{ .env.GITHUB_TOKEN }}"
+
+# Use MCP tools in agents
+agents:
+  - id: developer_agent
+    config:
+      provider: groq
+      model: llama-3.3-70b-versatile
+    instructions: |
+      You are a developer assistant with access to filesystem and GitHub tools.
+      Use the available MCP tools to read files, make changes, and interact with repositories.
+
+    # MCP tools are automatically discovered and available
+    actions:
+      - id: analyze_codebase
+        prompt: |
+          Analyze the project structure in /workspace and provide insights.
+          Use filesystem tools to explore the codebase.
+```
+
+**Integration with Compozy components:**
+
+<List>
+  <ListItem title="Automatic Tool Discovery" icon="Search">
+    MCP servers expose tools that agents can use immediately without manual registration
+  </ListItem>
+  <ListItem title="Multiple Transport Types" icon="Network">
+    Support for stdio (local processes), HTTP, and Server-Sent Events (SSE)
+  </ListItem>
+  <ListItem title="Central Proxy Architecture" icon="Server">
+    MCP Proxy (port 8081) manages all connections and provides unified access
+  </ListItem>
+  <ListItem title="Security & Isolation" icon="Shield">
+    Built-in token authentication and environment isolation for safe tool execution
+  </ListItem>
+</List>
+
 ## Template Engine
 
 Our powerful **template engine** enable modular, reusable configurations using a powerful query syntax. [Learn more about YAML templates →](/docs/core/yaml-templates/overview)
@@ -597,21 +711,6 @@ $ref: resource::workflow::#(id=="preprocessing")
 </Tab>
 </Tabs>
 
-### Use Directives
-
-**Use directives** enable execution of tools and agents:
-
-```yaml title="Use Directives"
-# Use a tool for execution
-$use: tool(local::tools.#(id=="api_client"))
-
-# Use an agent for intelligent processing
-$use: agent(local::agents.#(id=="assistant"))
-
-# Use external resources
-$use: agent(resource::agent::#(id=="specialist"))
-```
-
 ### Template Expressions
 
 **[Sprig template engine](https://github.com/Masterminds/sprig)** with custom functions for dynamic values. [See all template functions →](/docs/core/yaml-templates/sprig-functions)
@@ -647,44 +746,9 @@ item_value: "{{ .item }}"
 item_index: "{{ .index }}"
 ```
 
-## Data Flow and Execution Model
+## State Management
 
-### Execution Flow
-
-<FeatureCardList cols={2} size="default">
-  <FeatureCard
-    title="Workflow Initialization"
-    description="Parse configuration and validate schema"
-    icon="FileCheck"
-  />
-  <FeatureCard
-    title="Task Scheduling"
-    description="Temporal orchestrates task execution based on dependencies"
-    icon="Calendar"
-  />
-  <FeatureCard
-    title="Tool/Agent Execution"
-    description="Run in secure Bun runtime with defined permissions"
-    icon="Play"
-  />
-  <FeatureCard
-    title="State Management"
-    description="Track execution state in PostgreSQL with Redis caching"
-    icon="Database"
-  />
-  <FeatureCard
-    title="Output Processing"
-    description="Transform and route outputs to next tasks"
-    icon="ArrowRightLeft"
-  />
-  <FeatureCard
-    title="Error Handling"
-    description="Automatic retries and fallback strategies"
-    icon="RefreshCw"
-  />
-</FeatureCardList>
-
-### State Management
+State management in workflows allows you to pass data between tasks seamlessly. Each task's outputs are automatically made available to subsequent tasks, enabling dynamic and context-aware processing. You can reference previous task outputs using template expressions, making it easy to build complex, data-driven workflows without manual data passing. [Learn more about context variables →](/docs/core/yaml-templates/context-variables)
 
 ```yaml title="State Management"
 # Task outputs are automatically available to subsequent tasks
@@ -704,9 +768,9 @@ tasks:
       timestamp: "{{ .tasks.step1.output.metadata.processed_at }}" # [!code highlight]
 ```
 
-[Learn more about context variables →](/docs/core/yaml-templates/context-variables)
+## Error Handling
 
-### Error Handling
+Handle errors in workflows using `retry`, `on_error`, and `on_success` to control what happens when tasks fail or succeed. This makes your workflows more reliable. [Learn more about error handling →](/docs/core/tasks/error-handling)
 
 ```yaml title="Error Handling" {5-9}
 tasks:
@@ -727,8 +791,6 @@ tasks:
     with:
       error: "{{ .tasks.risky_operation.error }}" # [!code highlight]
 ```
-
-[Learn more about task flow control →](/docs/core/tasks/flow-control)
 
 ## Best Practices
 
@@ -868,19 +930,19 @@ Choose your learning path based on your needs:
   <ReferenceCard
     title="Tool Development"
     description="Create custom TypeScript tools for specialized operations and integrations"
-    href="/docs/core/tools/tools-overview"
+    href="/docs/core/tools/overview"
     icon="Code"
   />
   <ReferenceCard
     title="MCP Integration"
     description="Connect external tools and services using Model Context Protocol"
-    href="/docs/core/mcp/mcp-overview"
+    href="/docs/core/mcp/overview"
     icon="Link2"
   />
   <ReferenceCard
     title="Memory Systems"
     description="Implement persistent, stateful memory across workflow executions"
-    href="/docs/core/memory/memory-concepts"
+    href="/docs/core/memory/overview"
     icon="HardDrive"
   />
 </ReferenceCardList>

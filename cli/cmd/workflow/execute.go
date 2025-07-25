@@ -24,14 +24,32 @@ func ExecuteCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "execute <workflow-id>",
 		Short: "Execute a workflow",
-		Long:  "Execute a workflow with optional input parameters.",
-		Args:  cobra.ExactArgs(1),
-		RunE:  runWorkflowExecute,
+		Long: `Execute a workflow with input parameters.
+
+Input can be provided in two formats:
+  --json    : Complete JSON object for complex inputs
+  --param   : Individual key=value pairs for simple inputs
+
+Examples:
+  # Using JSON for complex input
+  compozy workflow execute greeter --json='{"name":"World","style":"friendly"}'
+  
+  # Using params for simple input
+  compozy workflow execute simple --param name=World --param count=5
+  
+  # Using input file
+  compozy workflow execute complex --input-file=input.json`,
+		Args: cobra.ExactArgs(1),
+		RunE: runWorkflowExecute,
 	}
 
-	// Add input parameter flags
-	cmd.Flags().StringSlice("input", []string{}, "Input parameters in key=value format (can be used multiple times)")
+	// Add redesigned input parameter flags
+	cmd.Flags().String("json", "", "Input parameters as a JSON object")
+	cmd.Flags().StringSlice("param", []string{}, "Input parameters in key=value format (can be used multiple times)")
 	cmd.Flags().String("input-file", "", "Path to JSON file containing input parameters")
+
+	// Mark flags as mutually exclusive
+	cmd.MarkFlagsMutuallyExclusive("json", "param")
 
 	return cmd
 }
@@ -147,67 +165,122 @@ func workflowExecuteTUIHandler(ctx context.Context, cmd *cobra.Command, client a
 func parseInputParameters(cmd *cobra.Command) (map[string]any, error) {
 	inputs := make(map[string]any)
 
-	// Parse --input flags
-	inputFlags, err := cmd.Flags().GetStringSlice("input")
-	if err != nil {
-		return nil, fmt.Errorf("failed to get input flags: %w", err)
+	// Parse --json flag
+	if err := parseJSONFlag(cmd, inputs); err != nil {
+		return nil, err
 	}
 
-	for _, input := range inputFlags {
-		parts := strings.SplitN(input, "=", 2)
-		if len(parts) != 2 {
-			return nil, fmt.Errorf("invalid input format: %s (expected key=value)", input)
-		}
-		key := strings.TrimSpace(parts[0])
-		value := strings.TrimSpace(parts[1])
-
-		// Try to parse value as JSON first
-		result := gjson.Parse(value)
-		if result.Type != gjson.Null {
-			// Only use JSON parsing for structured data (objects, arrays, booleans, numbers)
-			// String values wrapped in quotes should be treated as JSON strings
-			switch result.Type {
-			case gjson.String, gjson.Number, gjson.True, gjson.False:
-				inputs[key] = result.Value()
-			case gjson.JSON:
-				// For complex JSON (objects/arrays), use the parsed value
-				inputs[key] = result.Value()
-			default:
-				// For null or other types, treat as string
-				inputs[key] = value
-			}
-		} else {
-			// Otherwise treat as string
-			inputs[key] = value
-		}
+	// Parse --param flags
+	if err := parseParamFlags(cmd, inputs); err != nil {
+		return nil, err
 	}
 
 	// Parse --input-file flag
-	inputFile, err := cmd.Flags().GetString("input-file")
-	if err != nil {
-		return nil, fmt.Errorf("failed to get input-file flag: %w", err)
-	}
-
-	if inputFile != "" {
-		data, err := os.ReadFile(inputFile)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read input file: %w", err)
-		}
-
-		var fileInputs map[string]any
-		if err := json.Unmarshal(data, &fileInputs); err != nil {
-			return nil, fmt.Errorf("failed to parse input file as JSON: %w", err)
-		}
-
-		// Merge file inputs with flag inputs (flag inputs take precedence)
-		for k, v := range fileInputs {
-			if _, exists := inputs[k]; !exists {
-				inputs[k] = v
-			}
-		}
+	if err := parseInputFileFlag(cmd, inputs); err != nil {
+		return nil, err
 	}
 
 	return inputs, nil
+}
+
+// parseJSONFlag parses the --json flag and adds to inputs map
+func parseJSONFlag(cmd *cobra.Command, inputs map[string]any) error {
+	jsonInput, err := cmd.Flags().GetString("json")
+	if err != nil {
+		return fmt.Errorf("failed to get json flag: %w", err)
+	}
+
+	if jsonInput != "" {
+		// Parse the complete JSON object
+		if err := json.Unmarshal([]byte(jsonInput), &inputs); err != nil {
+			return fmt.Errorf("failed to parse --json input: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// parseParamFlags parses the --param flags and adds to inputs map
+func parseParamFlags(cmd *cobra.Command, inputs map[string]any) error {
+	paramFlags, err := cmd.Flags().GetStringSlice("param")
+	if err != nil {
+		return fmt.Errorf("failed to get param flags: %w", err)
+	}
+
+	for _, param := range paramFlags {
+		key, value, err := parseKeyValue(param)
+		if err != nil {
+			return err
+		}
+		inputs[key] = parseParamValue(value)
+	}
+
+	return nil
+}
+
+// parseKeyValue splits a key=value string
+func parseKeyValue(param string) (string, string, error) {
+	parts := strings.SplitN(param, "=", 2)
+	if len(parts) != 2 {
+		return "", "", fmt.Errorf("invalid param format: %s (expected key=value)", param)
+	}
+	return strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]), nil
+}
+
+// parseParamValue parses a parameter value with type detection
+func parseParamValue(value string) any {
+	// Try to parse value as JSON for type detection
+	result := gjson.Parse(value)
+	if result.Type == gjson.Null {
+		return value
+	}
+
+	switch result.Type {
+	case gjson.Number:
+		return result.Float()
+	case gjson.True, gjson.False:
+		return result.Bool()
+	case gjson.String:
+		// If it's a JSON string (quoted), use the unquoted value
+		return result.String()
+	case gjson.JSON:
+		// For complex JSON (objects/arrays), use the parsed value
+		return result.Value()
+	default:
+		// For null or other types, treat as string
+		return value
+	}
+}
+
+// parseInputFileFlag parses the --input-file flag and merges with inputs
+func parseInputFileFlag(cmd *cobra.Command, inputs map[string]any) error {
+	inputFile, err := cmd.Flags().GetString("input-file")
+	if err != nil {
+		return fmt.Errorf("failed to get input-file flag: %w", err)
+	}
+
+	if inputFile == "" {
+		return nil
+	}
+
+	data, err := os.ReadFile(inputFile)
+	if err != nil {
+		return fmt.Errorf("failed to read input file: %w", err)
+	}
+
+	var fileInputs map[string]any
+	if err := json.Unmarshal(data, &fileInputs); err != nil {
+		return fmt.Errorf("failed to parse input file as JSON: %w", err)
+	}
+
+	// Merge file inputs with other inputs (--json and --param take precedence)
+	for k, v := range fileInputs {
+		if _, exists := inputs[k]; !exists {
+			inputs[k] = v
+		}
+	}
+
+	return nil
 }
 
 // renderExecutionStatus renders the execution status with color
@@ -257,11 +330,16 @@ func (s *workflowMutateAPIService) Execute(
 		Data api.ExecutionResult `json:"data"`
 	}
 
+	// Send the request with "input" field as expected by the server
+	requestBody := map[string]any{
+		"input": input.Data,
+	}
+
 	resp, err := s.httpClient.R().
 		SetContext(ctx).
-		SetBody(input).
+		SetBody(requestBody).
 		SetResult(&result).
-		Post(fmt.Sprintf("/workflows/%s/execute", id))
+		Post(fmt.Sprintf("/workflows/%s/executions", id))
 
 	if err != nil {
 		// Handle network errors
