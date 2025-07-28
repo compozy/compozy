@@ -2,11 +2,11 @@ import { AnimatedShinyText } from "@/components/magicui/animated-shiny-text";
 import { DotPattern } from "@/components/magicui/dot-pattern";
 import { AnimatedGroup, type AnimatedGroupProps } from "@/components/ui/animated-group";
 import { Button } from "@/components/ui/button";
-import { TextEffect } from "@/components/ui/text-effect";
 import { GitHubLogoIcon } from "@radix-ui/react-icons";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 
+import HeroText from "./hero-text";
 const transitionVariants: AnimatedGroupProps["variants"] = {
   item: {
     hidden: {
@@ -73,34 +73,7 @@ export default function HeroSection() {
                     </div>
                   </Link>
                 </AnimatedGroup>
-
-                <TextEffect
-                  preset="fade-in-blur"
-                  speedSegment={0.3}
-                  as="h1"
-                  className="mt-8 text-balance text-6xl md:text-7xl lg:mt-16 xl:text-[5.25rem] font-medium tracking-tight"
-                >
-                  Next-level Agentic{" "}
-                  <span
-                    className="bg-linear-to-r from-[#E2F534] via-[#C1E623] to-[#96CD09] bg-clip-text text-transparent"
-                    style={{ fontStyle: "italic", paddingRight: "0.1em" }}
-                  >
-                    Orchestration
-                  </span>{" "}
-                  Platform
-                </TextEffect>
-                <TextEffect
-                  per="line"
-                  preset="fade-in-blur"
-                  speedSegment={0.3}
-                  delay={0.5}
-                  as="p"
-                  className="mx-auto mt-8 max-w-3xl text-balance text-xl text-foreground/60 leading-relaxed"
-                >
-                  Break free from code maintenance nightmares. Our enterprise-grade tool turns
-                  declarative code into resilient, distributed AI systems without the overhead.
-                </TextEffect>
-
+                <HeroText />
                 <AnimatedGroup
                   variants={{
                     container: {
@@ -136,7 +109,6 @@ export default function HeroSection() {
                 </AnimatedGroup>
               </div>
             </div>
-
           </div>
         </section>
       </main>

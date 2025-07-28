@@ -110,7 +110,11 @@ const AnimationComponent: React.FC<{
     // If segment is already a React element (like a span with styling), wrap it
     if (React.isValidElement(segment)) {
       return (
-        <motion.span variants={variants} className={per === "word" ? "inline-block" : "block"}>
+        <motion.span 
+          variants={variants} 
+          className={per === "word" ? "inline-block" : "block"}
+          style={{ display: per === "word" ? "inline-block" : "block" }}
+        >
           {segment}
         </motion.span>
       );
