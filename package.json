@@ -23,19 +23,19 @@
     "reinstall": "bun run clean:deps && bun install"
   },
   "devDependencies": {
-    "@storybook/nextjs": "9.0.15",
-    "@types/bun": "1.2.18",
-    "oxlint": "1.6.0",
+    "@storybook/nextjs": "9.1.0",
+    "@types/bun": "1.2.19",
+    "oxlint": "1.9.0",
     "prettier": "3.6.2",
     "prettier-plugin-multiline-arrays": "4.0.3",
-    "prettier-plugin-organize-imports": "4.1.0",
+    "prettier-plugin-organize-imports": "4.2.0",
     "prettier-plugin-sh": "0.18.0",
-    "turbo": "2.5.4",
-    "typescript": "5.8.3",
-    "vite": "^7.0.4"
+    "turbo": "2.5.5",
+    "typescript": "5.9.2",
+    "vite": "7.0.6"
   },
   "packageManager": "bun@1.2.18",
   "dependencies": {
-    "lucide-static": "^0.525.0"
+    "lucide-static": "0.536.0"
   }
 }

@@ -1,0 +1,116 @@
+.card1Bg {
+  /* Original image: 897x1342, Design size: 380.275x491.798 = 42.4% x 36.6% */
+  width: calc(100% * 0.95);
+  aspect-ratio: 380.275 / 491.798;
+  transform: rotate(4.824deg) translate(55%, 45%);
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  opacity: 0.3;
+  background: url("/home/card1-bg.png") 50% / cover no-repeat;
+  mix-blend-mode: color-dodge;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.card2Bg {
+  /* Original image: 918x948, Design size: 409.398x422.777 = 44.6% x 44.6% */
+  width: calc(100% * 1.21);
+  aspect-ratio: 409 / 422;
+  transform: rotate(89deg) translate(-37%, -50%);
+  position: absolute;
+  top: 0;
+  right: 0;
+  opacity: 0.3;
+  background: url("/home/card2-bg.png") 50% / cover no-repeat;
+  mix-blend-mode: color-dodge;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.card3Bg {
+  /* Original image: 926x987, Design size: 312x333 = 33.7% x 33.7% */
+  width: calc(100% * 0.92);
+  aspect-ratio: 312 / 333;
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  transform: translate(30%, 40%);
+  opacity: 0.3;
+  background: url("/home/card3-bg.png") 50% / contain no-repeat;
+  mix-blend-mode: color-dodge;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.card4Bg {
+  /* Original image: 842x1008, Design size: 391.948x470.046 = 46.5% x 46.6% */
+  width: 100%;
+  aspect-ratio: 391 / 470;
+  transform: rotate(167deg) translate(-52%, -50%);
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  opacity: 0.3;
+  background: url("/home/card4-bg.png") 50% / contain no-repeat;
+  mix-blend-mode: color-dodge;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.card5Bg {
+  /* Original image: 895x1159, Design size: 451.031x583.263 = 50.4% x 50.3% */
+  width: calc(100% * 0.81);
+  aspect-ratio: 451 / 583;
+  transform: rotate(-31deg) translate(10%, 60%);
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  opacity: 0.2;
+  background: url("/home/card5-bg.png") 50% / contain no-repeat;
+  mix-blend-mode: color-dodge;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Icon Styles */
+.card1Icon {
+  position: absolute;
+  z-index: 2;
+  opacity: 0.8;
+  bottom: 0;
+  left: 0;
+}
+
+.card2Icon {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 2;
+  translate: -25% -25%;
+}
+
+.card3Icon {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  z-index: 2;
+  translate: -30% 35%;
+}
+
+.card4Icon {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  z-index: 2;
+  translate: -20% 25%;
+}
+
+.card5Icon {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  z-index: 2;
+  opacity: 0.9;
+  translate: -30% 30%;
+}

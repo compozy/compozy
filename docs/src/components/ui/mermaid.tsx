@@ -45,7 +45,7 @@ export function Mermaid({ chart, config = {}, className }: MermaidProps) {
         // secondBkg: resolvedTheme === "dark" ? "#242424" : "#ede9de",
         // tertiaryBkg: resolvedTheme === "dark" ? "#313131" : "#e9e6dc",
         // textColor: resolvedTheme === "dark" ? "#dce4e5" : "#3d3929",
-        ...(config.themeVariables || {}),
+        ...config.themeVariables,
       },
       flowchart: {
         nodeSpacing: 50,

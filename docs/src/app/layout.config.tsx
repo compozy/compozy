@@ -16,6 +16,26 @@ export const baseOptions: BaseLayoutProps = {
       </div>
     ),
   },
+  githubUrl: "https://github.com/compozy/compozy",
   // see https://fumadocs.dev/docs/ui/navigation/links
-  links: [],
+  links: [
+    {
+      text: "Docs",
+      url: "/docs",
+      active: "nested-url",
+    },
+    {
+      text: "Getting Started",
+      url: "/docs/getting-started",
+      active: "nested-url",
+    },
+    {
+      text: "Features",
+      url: "/#features",
+    },
+    {
+      text: "Pricing",
+      url: "/#pricing",
+    },
+  ],
 };

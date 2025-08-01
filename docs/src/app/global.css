@@ -264,6 +264,15 @@
   .font-display {
     font-family: var(--font-display-family);
   }
+
+  /* Gradient text utilities */
+  .text-gradient-gray {
+    @apply bg-gradient-to-r from-[#9B9B9B] to-[#FFFFFF] bg-clip-text text-transparent;
+  }
+
+  .text-gradient-green {
+    @apply bg-gradient-to-r from-[#d7e23e] to-[#9AFF00] bg-clip-text text-transparent;
+  }
 }
 
 /* Proper Tailwind CSS v4 approach for typography customization */

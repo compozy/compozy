@@ -44,7 +44,7 @@ tasks:
   },
   {
     id: "agent",
-    title: "Agent Integration",
+    title: "Simple Agent Definition",
     description:
       "Create intelligent agents with LLM integration, tool support, memory management, and structured outputs for sophisticated AI behaviors, surpassing simpler frameworks like LangChain in enterprise readiness.",
     icon: Bot,
@@ -80,7 +80,7 @@ actions:
   },
   {
     id: "task",
-    title: "Task System",
+    title: "Powerful Task System",
     description:
       "Execute diverse tasks including basic operations, aggregates, collections, routers, signals, and waits with built-in error handling and parallel processing, enabled by Go's native concurrency.",
     icon: Zap,
@@ -117,7 +117,7 @@ actions:
   },
   {
     id: "tools",
-    title: "Custom Tools & Runtime",
+    title: "Agnostic Runtime for Tools",
     description:
       "Execute custom JavaScript/TypeScript code within tasks and agents using secure Bun runtime with granular permissions for safe, high-performance extensions—more flexible and efficient than rigid alternatives.",
     icon: Cpu,
@@ -316,9 +316,9 @@ const featureCard = tv({
     content: "flex w-full gap-3 md:gap-4",
     icon: "flex aspect-square shrink-0 items-center justify-center rounded-lg transition-colors",
     textContainer: "min-w-0 flex-1",
-    title: "transition-colors leading-tight tracking-wide",
+    title: "transition-colors tracking-wide",
     description: "overflow-hidden",
-    descriptionText: "text-muted-foreground leading-relaxed",
+    descriptionText: "text-muted-foreground",
   },
   variants: {
     state: {
@@ -327,16 +327,16 @@ const featureCard = tv({
         card: "border-border bg-accent shadow-sm px-4 py-4 md:px-5 md:py-5",
         content: "items-start",
         icon: "w-10 md:w-11 bg-primary text-primary-foreground",
-        title: "font-medium text-foreground text-base md:text-lg lg:text-xl mb-2",
-        descriptionText: "text-xs md:text-sm lg:text-base",
+        title: "font-medium text-foreground text-base md:text-lg lg:text-xl mb-2 leading-tight",
+        descriptionText: "text-xs md:text-sm lg:text-base leading-relaxed",
       },
       inactive: {
         container: "",
         card: "border-transparent hover:border-border hover:bg-accent/30 px-3 py-1 md:px-4 md:py-1",
         content: "items-center",
         icon: "w-8 md:w-9 bg-muted text-muted-foreground",
-        title: "text-muted-foreground text-sm md:text-base",
-        descriptionText: "text-xs md:text-sm lg:text-base",
+        title: "text-muted-foreground text-sm md:text-base leading-tight",
+        descriptionText: "text-xs md:text-sm lg:text-base leading-relaxed",
       },
     },
   },
@@ -439,6 +439,7 @@ function FeatureContent({ feature, isActive, styles }: FeatureContentProps) {
           duration: ANIMATIONS.duration,
           delay: isActive ? ANIMATIONS.delays.title : 0,
         }}
+        suppressHydrationWarning
       >
         {feature.title}
       </motion.h3>
@@ -483,6 +484,7 @@ function FeatureDescription({ description, isActive, styles, feature }: FeatureD
             animate={{ y: 0 }}
             exit={{ y: 5 }}
             transition={{ duration: ANIMATIONS.duration, delay: 0.08 }}
+            suppressHydrationWarning
           >
             {description}
           </motion.p>
@@ -496,20 +498,21 @@ export default function FeaturesSection() {
   const [activeFeature, setActiveFeature] = useState(0);
 
   return (
-    <section className="py-12 md:py-24 lg:py-32">
+    <section id="features" className="py-12 md:py-24 lg:py-32">
       <div className="container mx-auto px-4">
         <div className="mb-8 text-center md:mb-12">
           <Badge variant="secondary" className="mb-3">
             Powerful Features
           </Badge>
-          <h2 className="!text-foreground text-3xl leading-tight md:text-4xl lg:text-5xl">
-            Powerful Features for AI Orchestration
+          <h2 className="!text-foreground max-w-2xl mx-auto text-3xl leading-tight md:text-4xl lg:text-5xl">
+            Unlock Advanced Multi-agent Orchestration
           </h2>
           <p className="mx-auto mt-3 max-w-3xl text-sm text-muted-foreground md:mt-4 md:text-base">
-            Build, deploy, and manage powerful AI-powered applications effortlessly. Compozy is the
-            open-source orchestration engine that combines agents, tasks, tools, and signals for
-            seamless AI automation—powered by Go for unmatched speed and Temporal for
-            enterprise-grade reliability.
+            Create, deploy, and manage robust multi-agent systems effortlessly with Compozy’s
+            open-source engine, unifying agents, tasks, tools, and signals into scalable workflows
+            with YAML simplicity. Powered by Go’s high performance and Temporal’s fault-tolerant
+            reliability, it tackles real-world challenges like cost optimization, debugging, and
+            untrusted data, giving enterprises full infrastructure control.
           </p>
         </div>
 
@@ -517,7 +520,7 @@ export default function FeaturesSection() {
           <div className="mx-auto grid max-w-6xl gap-6 md:grid-cols-[320px_1fr] md:gap-8 lg:grid-cols-[384px_1fr] lg:gap-16 xl:grid-cols-[400px_1fr]">
             {/* Mobile Carousel */}
             <div className="md:hidden col-span-2 scrollbar-none flex snap-x snap-mandatory gap-3 overflow-x-auto [-ms-overflow-style:'none'] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {features.map((feature, index) => {
+              {features.map(feature => {
                 const Icon = feature.icon;
                 return (
                   <div

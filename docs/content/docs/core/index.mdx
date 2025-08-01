@@ -1,84 +1,71 @@
 ---
 title: Welcome
-description: Welcome to the Compozy documentation! This guide will help you get started with building intelligent workflows powered by AI agents and automation.
+description: Welcome to the Compozy documentation! This guide will help you get started with building and managing reliable infrastructure for multi-agent AI systems, enabling scalable distributed workflows and production-ready automation.
 icon: House
 ---
 
 ## Why Compozy?
 
-Building AI agents shouldn't require a PhD in machine learning or months of integration work. Yet today's AI development landscape presents significant challenges that slow down innovation and limit accessibility:
+Developing infrastructure for multi-agent AI systems presents unique distributed systems challenges that hinder scalability and reliability. As agents evolve from simple loops to complex workflows with fan-outs and sub-agent coordination, today's tools fall short in addressing production realities:
 
 <Steps size="lg" titleComponent="h3">
-  <Step title="Fragmented Development" icon="Puzzle">
-    Developers spend 70% of their time wrestling with integrations instead of
-    building features. Connecting AI agents with databases, APIs, and external
-    tools requires navigating dozens of different protocols, authentication
-    methods, and data formats—turning simple automations into complex
-    engineering projects.
+  <Step title="Distributed Complexity" icon="Puzzle">
+    Multi-agent systems require handling fan-outs across thousands of sub-agents, but developers spend 70% of their time managing throughput, fault tolerance, and cost control—turning scalable automations into fragile engineering nightmares.
   </Step>
-  <Step title="Closed Ecosystems" icon="SlidersHorizontal">
-    Most AI platforms lock you into proprietary systems with limited
-    customization options. When you need to modify behavior, add custom
-    integrations, or understand how decisions are made, you hit a wall. This
-    vendor lock-in stifles innovation and increases long-term costs.
+  <Step title="Proprietary Limitations" icon="SlidersHorizontal">
+    Closed platforms restrict customization for agent prompts, untrusted context handling, and debugging, creating vendor lock-in that blocks innovation and escalates costs in high-volume scenarios like agentic map-reduce.
   </Step>
-  <Step title="Lack of Standards" icon="BookOpen">
-    Every AI agent platform speaks a different language. Teams waste months
-    rebuilding the same capabilities because there's no standardized way to
-    share, reuse, or compose agent components. What works on one platform rarely
-    translates to another.
+  <Step title="No Unified Standards" icon="BookOpen">
+    The absence of standardized protocols for agent orchestration leads to reinventing wheels—teams rebuild capabilities for monitoring, error recovery, and integration, as components from one system rarely compose with others.
   </Step>
-  <Step title="Integration Complexity" icon="GitBranch">
-    Setting up webhooks, managing API keys, handling rate limits, and
-    coordinating between multiple services requires extensive boilerplate code.
-    Simple workflows become complex orchestration challenges that take weeks to
-    deploy and maintain.
+  <Step title="Orchestration Overhead" icon="GitBranch">
+    Coordinating webhooks, APIs, rate limits, and sub-agent interactions demands extensive boilerplate, complicating deployment and maintenance of reliable, cost-efficient workflows at scale.
   </Step>
 </Steps>
 
 ## Solving these problems
 
-We solve these challenges by providing a comprehensive, open platform that simplifies AI agent development, deployment, and orchestration - making powerful AI capabilities accessible to developers of all skill levels:
+Compozy provides open-source infrastructure that makes building and operating multi-agent systems routine and reliable, solving distributed challenges with high throughput, fault tolerance, and tools for effective management—empowering developers to focus on innovation:
 
 <FeatureCardList cols={2} size="lg">
   <FeatureCard
-    title="Declarative Open Source Engine"
-    description="Build powerful AI workflows using intuitive YAML specification. Define complex automation with simple, human-readable syntax including agent actions, task orchestration, and conditional logic."
+    title="Declarative Workflow Engine"
+    description="Orchestrate multi-agent fan-outs using YAML for precise, LLM-friendly definitions of agents, tasks, and conditional logic, ensuring scalable and debuggable distributed execution."
     icon="FileCode"
     href="/docs/core/yaml-templates/overview"
   />
 
   <FeatureCard
-    title="Developer Focused & Flexible"
-    description="Comprehensive CLI tools with hot-reload development and support for 7 major LLM providers. Switch between OpenAI, Anthropic, Google, and local models without changing workflow logic."
+    title="Multi-Provider Agent Support"
+    description="Integrate 7 LLM providers (OpenAI, Anthropic, Google, etc.) with customizable prompts and memory, enabling seamless switching while handling untrusted context and monitoring."
     icon="Bot"
     href="/docs/core/agents/overview"
   />
 
   <FeatureCard
-    title="Advanced Task Orchestration"
-    description="Execute complex workflows with 8 task types including parallel execution, conditional routing, and collection processing. Powered by Temporal for reliable distributed execution and fault tolerance."
+    title="Advanced Orchestration"
+    description="Support 8 task types for parallel fan-outs, routing, and collection processing, backed by Temporal for durable, cost-aware execution in high-volume multi-agent scenarios."
     icon="Workflow"
     href="/docs/core/workflows/task-types"
   />
 
   <FeatureCard
-    title="JavaScript & TypeScript"
-    description="Write tools in JavaScript and TypeScript with full modern language support. Secure Bun runtime with configurable permissions and process isolation for maximum flexibility and safety."
+    title="Language-Agnostic Runtime"
+    description="Build tools in TypeScript (via secure Bun runtime) with plans for more languages, providing isolated execution and permissions for reliable integration in agent workflows."
     icon="Shield"
     href="/docs/core/agents/tools"
   />
 
   <FeatureCard
-    title="MCP Protocol Support"
-    description="Integrate with external tool servers using the Model Context Protocol. Connect to MCP-compatible services through our built-in proxy server with HTTP and SSE transport support."
+    title="MCP Protocol Integration"
+    description="Connect to external services via Model Context Protocol with proxy support, enabling full manageability of workflows and sub-agents across AI ecosystems."
     icon="Plug"
     href="/docs/core/mcp/overview"
   />
 
   <FeatureCard
-    title="Enterprise Grade"
-    description="Production-ready infrastructure with PostgreSQL persistence, Redis memory management, and Temporal orchestration. Built-in authentication, role-based access control, and comprehensive monitoring."
+    title="Production Infrastructure"
+    description="Enterprise-ready with PostgreSQL persistence, Redis memory, Temporal orchestration, authentication, and monitoring for scalable, debuggable multi-agent deployments."
     icon="Server"
     href="/docs/core/getting-started/installation"
   />
@@ -86,26 +73,26 @@ We solve these challenges by providing a comprehensive, open platform that simpl
 
 ## Getting Started
 
-Ready to transform your AI workflow? Check out our [Quick Start Guide](/docs/core/getting-started/quick-start) to begin building your first workflow, or explore our [Core Concepts](/docs/core/getting-started/core-concepts) to understand the fundamentals of Compozy.
+Ready to build infrastructure for multi-agent AI? Dive into our [Quick Start Guide](/docs/core/getting-started/quick-start) for your first workflow, or review [Core Concepts](/docs/core/getting-started/core-concepts) to grasp Compozy's foundations for distributed agent systems.
 
 ### Quick Navigation
 
 <ReferenceCardList>
   <ReferenceCard
     title="Learning Paths"
-    description="Structured guides for different skill levels and use cases"
+    description="Guides tailored for multi-agent infrastructure and production workflows"
     href="/docs/core/reference-index#learning-paths"
     icon="GraduationCap"
   />
   <ReferenceCard
     title="Cross-References"
-    description="See how all concepts connect and relate to each other"
+    description="Explore connections between agents, tasks, and distributed components"
     href="/docs/core/reference-index#cross-reference-map"
     icon="Network"
   />
   <ReferenceCard
     title="Quick Reference"
-    description="Topic-based quick access to related documentation"
+    description="Fast access to topics on scalability, monitoring, and orchestration"
     href="/docs/core/reference-index#topic-based-quick-reference"
     icon="Search"
   />

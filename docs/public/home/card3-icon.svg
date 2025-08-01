@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="252" height="258" fill="none" viewBox="0 0 252 258">
+  <g class="card3-icon">
+    <g class="Group" filter="url(#a)">
+      <path fill="#838383" d="M126 160c18.225 0 33-14.998 33-33.5 0-18.502-14.775-33.5-33-33.5s-33 14.998-33 33.5c0 18.502 14.775 33.5 33 33.5Z" class="Vector"/>
+    </g>
+    <path fill="url(#b)" d="M156 86H96c-5.523 0-10 4.477-10 10v60c0 5.523 4.477 10 10 10h60c5.523 0 10-4.477 10-10V96c0-5.523-4.477-10-10-10Z" class="Vector"/>
+    <path fill="url(#c)" d="M126.444 98.443c-15.471 0-28.001 12.617-28.001 28.196a28.298 28.298 0 0 0 5.278 16.492 27.995 27.995 0 0 0 13.866 10.261c1.4.245 1.927-.601 1.927-1.343 0-.668-.037-2.887-.037-5.25-7.034 1.306-8.854-1.725-9.414-3.313-.316-.812-1.68-3.313-2.87-3.984-.98-.527-2.38-1.833-.036-1.867 2.206-.036 3.78 2.045 4.306 2.891 2.52 4.263 6.544 3.065 8.154 2.326.247-1.833.98-3.065 1.787-3.77-6.231-.705-12.741-3.138-12.741-13.923 0-3.068 1.084-5.603 2.87-7.577-.28-.705-1.26-3.595.28-7.472 0 0 2.344-.741 7.701 2.888a25.842 25.842 0 0 1 7-.951c2.38 0 4.76.316 7 .951 5.357-3.666 7.701-2.888 7.701-2.888 1.54 3.877.56 6.767.28 7.472 1.783 1.974 2.87 4.475 2.87 7.577 0 10.821-6.544 13.218-12.774 13.923 1.013.88 1.89 2.571 1.89 5.216 0 3.77-.037 6.801-.037 7.754 0 .739.527 1.619 1.927 1.337a28.076 28.076 0 0 0 13.806-10.288 28.385 28.385 0 0 0 5.266-16.462c0-15.579-12.531-28.196-28.002-28.196" class="Vector"/>
+  </g>
+  <defs>
+    <linearGradient id="b" x1="86" x2="5742.88" y1="86" y2="5742.88" class="b" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#EAFA35"/>
+      <stop offset=".53" stop-color="#BCE41B"/>
+      <stop offset="1" stop-color="#8ECD01"/>
+    </linearGradient>
+    <linearGradient id="c" x1="108.065" x2="139.474" y1="106.993" y2="157.226" class="c" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2B5A00"/>
+      <stop offset="1" stop-color="#203F04"/>
+    </linearGradient>
+    <filter id="a" width="250.6" height="251.6" x=".7" y=".7" class="a" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse">
+      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+      <feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+      <feGaussianBlur result="effect1_foregroundBlur_19_42" stdDeviation="46.15"/>
+    </filter>
+  </defs>
+</svg>

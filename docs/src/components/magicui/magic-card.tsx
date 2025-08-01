@@ -8,23 +8,23 @@ import { cn } from "@/lib/utils";
 interface MagicCardProps {
   children?: React.ReactNode;
   className?: string;
-  innerClassName?: string;
   gradientSize?: number;
   gradientColor?: string;
   gradientOpacity?: number;
   gradientFrom?: string;
   gradientTo?: string;
+  innerClassName?: string;
 }
 
 export function MagicCard({
   children,
   className,
-  innerClassName,
   gradientSize = 200,
   gradientColor = "#262626",
   gradientOpacity = 0.8,
   gradientFrom = "#9E7AFF",
   gradientTo = "#FE8BBB",
+  innerClassName,
 }: MagicCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const mouseX = useMotionValue(-gradientSize);
