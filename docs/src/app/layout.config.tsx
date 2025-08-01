@@ -26,7 +26,7 @@ export const baseOptions: BaseLayoutProps = {
     },
     {
       text: "Getting Started",
-      url: "/docs/getting-started",
+      url: "/docs/core/getting-started/quick-start",
       active: "nested-url",
     },
     {
