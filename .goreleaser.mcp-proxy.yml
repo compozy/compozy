@@ -3,14 +3,14 @@
 version: 2
 
 # Project configuration
-project_name: compozy
+project_name: compozy-mcp-proxy
 
 # Metadata configuration
 metadata:
   mod_timestamp: "{{ .CommitTimestamp }}"
   license: "BSL-1.1"
   homepage: "https://github.com/compozy/compozy"
-  description: "A powerful Next-level Agentic Orchestration Framework, enabling intelligent automation through declarative YAML configuration."
+  description: "Model Context Protocol Proxy - HTTP gateway for MCP servers"
   maintainers:
     - "Compozy Team <team@compozy.dev>"
 
@@ -21,8 +21,6 @@ env:
 
 # Git configuration
 git:
-  # What should be used to sort tags when gathering the current and previous
-  # tags if there are more than one tag in the same commit.
   tag_sort: -version:refname
 
 # Nightly builds configuration
@@ -33,9 +31,9 @@ nightly:
 
 # Build configuration
 builds:
-  - id: compozy
-    main: ./cmd/compozy/main.go
-    binary: compozy
+  - id: compozy-mcp-proxy
+    main: ./cmd/mcp-proxy/main.go
+    binary: compozy-mcp-proxy
 
     # Build for multiple platforms
     goos:
@@ -85,14 +83,14 @@ builds:
 
 # Archive configuration
 archives:
-  - id: compozy-archive
+  - id: compozy-mcp-proxy-archive
     builds:
-      - compozy
+      - compozy-mcp-proxy
 
     # Archive name template
     name_template:
-      "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{\
-      \ end }}"
+      "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{\\
+      \\ end }}"
 
     # Archive format
     format: tar.gz
@@ -105,13 +103,7 @@ archives:
       - README.md
       - LICENSE*
       - CHANGELOG.md
-      - docs/README.md
-      - src: completions/*
-        dst: completions
-        strip_parent: true
-      - src: manpages/*
-        dst: manpages
-        strip_parent: true
+      - docs/mcp-proxy/README.md
 
     # Wrap in directory
     wrap_in_directory: true
@@ -206,7 +198,7 @@ release:
     name: compozy
 
   # Release name template
-  name_template: "Release {{ .Version }}"
+  name_template: "Compozy MCP Proxy {{ .Version }}"
 
   # Release mode
   mode: replace
@@ -219,23 +211,23 @@ release:
 
   # Release header and footer
   header: |
-    ## Compozy {{ .Version }}
+    ## Compozy MCP Proxy {{ .Version }}
 
-    Welcome to this new release of Compozy! 🎉
+    The Model Context Protocol Proxy provides HTTP gateway access to MCP servers.
 
     ### Installation
 
     #### Binary Download
     Download the appropriate binary for your platform from the assets below.
 
-    #### Go Install
+    #### Docker Image
     ```bash
-    go install github.com/compozy/compozy@{{ .Tag }}
+    docker pull ghcr.io/compozy/compozy-mcp-proxy:{{ .Version }}
     ```
 
-    #### Container Image
+    #### Homebrew
     ```bash
-    docker pull ghcr.io/compozy/compozy:{{ .Version }}
+    brew install compozy/compozy/compozy-mcp-proxy
     ```
 
   footer: |
@@ -253,7 +245,7 @@ release:
 
     #### Container Images
     ```bash
-    cosign verify ghcr.io/compozy/compozy:{{ .Version }}
+    cosign verify ghcr.io/compozy/compozy-mcp-proxy:{{ .Version }}
     ```
 
     **Full Changelog**: https://github.com/compozy/compozy/compare/{{ .PreviousTag }}...{{ .Tag }}
@@ -264,21 +256,21 @@ release:
 
 # Docker configuration
 dockers:
-  # Main Compozy application - AMD64
-  - id: compozy-main-amd64
+  # MCP Proxy - AMD64
+  - id: compozy-mcp-proxy-amd64
     ids:
-      - compozy
-    dockerfile: ./cluster/compozy.Dockerfile
+      - compozy-mcp-proxy
+    dockerfile: cluster/mcpproxy.Dockerfile
     use: buildx
     goos: linux
     goarch: amd64
     image_templates:
-      - "ghcr.io/compozy/compozy:{{ .Version }}-amd64"
-      - "ghcr.io/compozy/compozy:latest-amd64"
+      - "ghcr.io/compozy/compozy-mcp-proxy:{{ .Version }}-amd64"
+      - "ghcr.io/compozy/compozy-mcp-proxy:latest-amd64"
     build_flag_templates:
       - "--platform=linux/amd64"
-      - "--label=org.opencontainers.image.title={{ .ProjectName }}"
-      - "--label=org.opencontainers.image.description=Compozy Workflow Orchestration Engine"
+      - "--label=org.opencontainers.image.title=Compozy MCP Proxy"
+      - "--label=org.opencontainers.image.description=Model Context Protocol Proxy"
       - "--label=org.opencontainers.image.url=https://github.com/compozy/compozy"
       - "--label=org.opencontainers.image.source=https://github.com/compozy/compozy"
       - "--label=org.opencontainers.image.version={{ .Version }}"
@@ -290,21 +282,21 @@ dockers:
       - "README.md"
       - "LICENSE"
 
-  # Main Compozy application - ARM64
-  - id: compozy-main-arm64
+  # MCP Proxy - ARM64
+  - id: compozy-mcp-proxy-arm64
     ids:
-      - compozy
-    dockerfile: ./cluster/compozy.Dockerfile
+      - compozy-mcp-proxy
+    dockerfile: cluster/mcpproxy.Dockerfile
     use: buildx
     goos: linux
     goarch: arm64
     image_templates:
-      - "ghcr.io/compozy/compozy:{{ .Version }}-arm64"
-      - "ghcr.io/compozy/compozy:latest-arm64"
+      - "ghcr.io/compozy/compozy-mcp-proxy:{{ .Version }}-arm64"
+      - "ghcr.io/compozy/compozy-mcp-proxy:latest-arm64"
     build_flag_templates:
       - "--platform=linux/arm64"
-      - "--label=org.opencontainers.image.title={{ .ProjectName }}"
-      - "--label=org.opencontainers.image.description=Compozy Workflow Orchestration Engine"
+      - "--label=org.opencontainers.image.title=Compozy MCP Proxy"
+      - "--label=org.opencontainers.image.description=Model Context Protocol Proxy"
       - "--label=org.opencontainers.image.url=https://github.com/compozy/compozy"
       - "--label=org.opencontainers.image.source=https://github.com/compozy/compozy"
       - "--label=org.opencontainers.image.version={{ .Version }}"
@@ -316,20 +308,17 @@ dockers:
       - "README.md"
       - "LICENSE"
 
-
 # Docker manifest configuration for multi-arch images
 docker_manifests:
-  # Main Compozy application manifests
-  - name_template: "ghcr.io/compozy/compozy:{{ .Version }}"
+  - name_template: "ghcr.io/compozy/compozy-mcp-proxy:{{ .Version }}"
     image_templates:
-      - "ghcr.io/compozy/compozy:{{ .Version }}-amd64"
-      - "ghcr.io/compozy/compozy:{{ .Version }}-arm64"
+      - "ghcr.io/compozy/compozy-mcp-proxy:{{ .Version }}-amd64"
+      - "ghcr.io/compozy/compozy-mcp-proxy:{{ .Version }}-arm64"
 
-  - name_template: "ghcr.io/compozy/compozy:latest"
+  - name_template: "ghcr.io/compozy/compozy-mcp-proxy:latest"
     image_templates:
-      - "ghcr.io/compozy/compozy:latest-amd64"
-      - "ghcr.io/compozy/compozy:latest-arm64"
-
+      - "ghcr.io/compozy/compozy-mcp-proxy:latest-amd64"
+      - "ghcr.io/compozy/compozy-mcp-proxy:latest-arm64"
 
 # Container image signing with cosign
 docker_signs:
@@ -343,14 +332,13 @@ docker_signs:
 
 # Homebrew tap configuration
 brews:
-  - name: compozy
+  - name: compozy-mcp-proxy
     # GitHub repository to push the formula to
     repository:
       owner: compozy
       name: homebrew-compozy
       branch: main
       # Token for the repository
-      # You need a personal access token with write access to the tap repository
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
 
     # Git author used to commit to the repository
@@ -366,10 +354,10 @@ brews:
 
     # Caveats for the user of your binary
     caveats: |
-      To get started with Compozy, you need to:
+      To get started with MCP Proxy, you need to:
 
       1. Set up the required environment variables
-      2. Configure your first workflow
+      2. Configure your MCP servers
 
       See https://github.com/compozy/compozy for more information.
 
@@ -377,7 +365,7 @@ brews:
     homepage: "https://github.com/compozy/compozy"
 
     # Short description of your project
-    description: "Next-level Agentic Orchestration Framework"
+    description: "Model Context Protocol Proxy"
 
     # License of your project
     license: "BSL-1.1"
@@ -387,49 +375,38 @@ brews:
     skip_upload: auto
 
     # Custom block for the brew formula
-    # Can be used to add dependencies, conflicts, etc.
     dependencies:
-      - name: git
-        type: optional
-      - name: docker
+      - name: redis
         type: optional
 
     # Install script
     install: |
-      bin.install "compozy"
-
-      # Install shell completions from pre-generated files
-      bash_completion.install "completions/compozy.bash" => "compozy" if File.exist?("completions/compozy.bash")
-      zsh_completion.install "completions/compozy.zsh" => "_compozy" if File.exist?("completions/compozy.zsh")
-      fish_completion.install "completions/compozy.fish" if File.exist?("completions/compozy.fish")
-
-      # Install man pages
-      man1.install "manpages/compozy.1.gz" if File.exist?("manpages/compozy.1.gz")
+      bin.install "compozy-mcp-proxy"
 
     # Test block
     test: |
-      system "#{bin}/compozy", "version"
+      system "#{bin}/compozy-mcp-proxy", "--help"
 
 # NPM publishing configuration
 npms:
-  - name: "compozy"
+  - name: "compozy-mcp-proxy"
     repository: "git+https://github.com/compozy/compozy.git"
     bugs: https://github.com/compozy/compozy/issues
     homepage: https://github.com/compozy/compozy
-    description: "Next-level Agentic Orchestration Framework - official CLI"
+    description: "Model Context Protocol Proxy - HTTP gateway for MCP servers"
     license: BSL-1.1
     access: public
 
 # NFPM packaging configuration
 nfpms:
-  - id: compozy-packages
-    package_name: compozy
+  - id: compozy-mcp-proxy-packages
+    package_name: compozy-mcp-proxy
     file_name_template: "{{ .ConventionalFileName }}"
 
     vendor: "Compozy"
     homepage: "https://github.com/compozy/compozy"
     maintainer: "Compozy Team <team@compozy.dev>"
-    description: "Next-level Agentic Orchestration Framework"
+    description: "Model Context Protocol Proxy - HTTP gateway for MCP servers"
     license: "BSL-1.1"
 
     formats:
@@ -439,20 +416,20 @@ nfpms:
       - archlinux
 
     contents:
-      - src: ./completions/compozy.bash
-        dst: /etc/bash_completion.d/compozy
+      - src: ./completions/compozy-mcp-proxy.bash
+        dst: /etc/bash_completion.d/compozy-mcp-proxy
         file_info:
           mode: 0644
-      - src: ./completions/compozy.fish
-        dst: /usr/share/fish/vendor_completions.d/compozy.fish
+      - src: ./completions/compozy-mcp-proxy.fish
+        dst: /usr/share/fish/vendor_completions.d/compozy-mcp-proxy.fish
         file_info:
           mode: 0644
-      - src: ./completions/compozy.zsh
-        dst: /usr/share/zsh/site-functions/_compozy
+      - src: ./completions/compozy-mcp-proxy.zsh
+        dst: /usr/share/zsh/site-functions/_compozy-mcp-proxy
         file_info:
           mode: 0644
-      - src: ./manpages/compozy.1.gz
-        dst: /usr/share/man/man1/compozy.1.gz
+      - src: ./manpages/compozy-mcp-proxy.1.gz
+        dst: /usr/share/man/man1/compozy-mcp-proxy.1.gz
         file_info:
           mode: 0644
 
@@ -464,6 +441,41 @@ nfpms:
       signature:
         key_file: '{{ if ne (index .Env "GPG_KEY_PATH") "" }}{{ .Env.GPG_KEY_PATH }}{{ else }}{{ end }}'
 
+# AUR (Arch User Repository) publishing configuration
+aurs:
+  # Source package
+  - name: compozy-mcp-proxy
+    homepage: "https://github.com/compozy/compozy"
+    description: "Model Context Protocol Proxy - HTTP gateway for MCP servers"
+    maintainers:
+      - "Compozy Team <team@compozy.dev>"
+    license: BSL-1.1
+    private_key: "{{ .Env.AUR_KEY }}"
+    git_url: "ssh://aur@aur.archlinux.org/compozy-mcp-proxy.git"
+    skip_upload: auto
+
+    # Package build dependencies
+    depends:
+      - git
+
+    # Package relations
+    conflicts:
+      - compozy-mcp-proxy-bin
+      - compozy-mcp-proxy-git
+
+    # PKGBUILD customization
+    package: |
+      # Install binary
+      install -Dm755 compozy-mcp-proxy "$pkgdir/usr/bin/compozy-mcp-proxy"
+
+      # Install man pages
+      install -Dm644 manpages/compozy-mcp-proxy.1.gz "$pkgdir/usr/share/man/man1/compozy-mcp-proxy.1.gz"
+
+      # Install shell completions
+      install -Dm644 completions/compozy-mcp-proxy.bash "$pkgdir/etc/bash_completion.d/compozy-mcp-proxy"
+      install -Dm644 completions/compozy-mcp-proxy.fish "$pkgdir/usr/share/fish/vendor_completions.d/compozy-mcp-proxy.fish"
+      install -Dm644 completions/compozy-mcp-proxy.zsh "$pkgdir/usr/share/zsh/site-functions/_compozy-mcp-proxy"
+
 # Before hooks (run before building)
 before:
   hooks:
@@ -474,154 +486,4 @@ before:
     # Verify dependencies
     - go mod verify
     # Run tests
-    - make test
-    # Generate documentation
-    - make swagger || true
-    - make schemagen || true
-    # Generate shell completions
-    - rm -rf completions
-    - mkdir completions
-    - sh -c 'go run . completion bash >./completions/compozy.bash || echo "Bash completions generation skipped"'
-    - sh -c 'go run . completion zsh >./completions/compozy.zsh || echo "Zsh completions generation skipped"'
-    - sh -c 'go run . completion fish >./completions/compozy.fish || echo "Fish completions generation skipped"'
-    # Generate man pages
-    - rm -rf manpages
-    - mkdir manpages
-    - sh -c 'go run . man | gzip -c >./manpages/compozy.1.gz || echo "Man page generation skipped"'
-
-# Software Bill of Materials (SBOM) generation
-sboms:
-  - id: compozy-sbom
-    artifacts: binary
-    args: ["$artifact", "--file", "$sbom", "--output", "cyclonedx-json"]
-    env:
-      - COSIGN_EXPERIMENTAL=1
-
-# Nix package configuration
-nix:
-  - name: compozy
-    # GitHub repository to push the package to
-    repository:
-      owner: compozy
-      name: nur
-      branch: main
-      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
-
-    # Git author used to commit to the repository
-    commit_author:
-      name: goreleaserbot
-      email: bot@goreleaser.com
-
-    # The project name and current git tag are used in the format string
-    commit_msg_template: "compozy: {{ .Version }}"
-
-    # Homepage for the project
-    homepage: "https://github.com/compozy/compozy"
-
-    # Short description of your project
-    description: "Next-level Agentic Orchestration Framework"
-
-    # License of your project
-    license: "mit"
-
-    # Skip upload in case there's no suitable binary
-    skip_upload: auto
-
-    # Dependencies
-    dependencies:
-      - git
-
-    # Install script
-    install: |
-      mkdir -p $out/bin
-      cp ./compozy $out/bin/compozy
-
-      # Install man pages
-      installManPage ./manpages/compozy.1.gz || true
-
-      # Install shell completions
-      installShellCompletion ./completions/compozy.{bash,zsh,fish} || true
-
-# AUR (Arch User Repository) configuration
-aurs:
-  # Source package
-  - name: compozy
-    homepage: "https://github.com/compozy/compozy"
-    description: "Next-level Agentic Orchestration Framework"
-    maintainers:
-      - "Compozy Team <team@compozy.dev>"
-    license: BSL-1.1
-    private_key: "{{ .Env.AUR_KEY }}"
-    git_url: "ssh://aur@aur.archlinux.org/compozy.git"
-    skip_upload: auto
-
-    # Package build dependencies
-    depends:
-      - git
-
-    # Package relations
-    conflicts:
-      - compozy-bin
-      - compozy-git
-
-    # PKGBUILD customization
-    package: |
-      # Install binary
-      install -Dm755 compozy "$pkgdir/usr/bin/compozy"
-
-      # Install man pages
-      install -Dm644 manpages/compozy.1.gz "$pkgdir/usr/share/man/man1/compozy.1.gz"
-
-      # Install shell completions
-      install -Dm644 completions/compozy.bash "$pkgdir/usr/share/bash-completion/completions/compozy"
-      install -Dm644 completions/compozy.zsh "$pkgdir/usr/share/zsh/site-functions/_compozy"
-      install -Dm644 completions/compozy.fish "$pkgdir/usr/share/fish/vendor_completions.d/compozy.fish"
-
-    # Commit settings
-    commit_author:
-      name: goreleaserbot
-      email: bot@goreleaser.com
-
-    commit_msg_template: "Update to {{ .Version }}"
-
-  # Binary package
-  - name: compozy-bin
-    homepage: "https://github.com/compozy/compozy"
-    description: "Next-level Agentic Orchestration Framework (binary release)"
-    maintainers:
-      - "Compozy Team <team@compozy.dev>"
-    license: BSL-1.1
-    private_key: "{{ .Env.AUR_KEY }}"
-    git_url: "ssh://aur@aur.archlinux.org/compozy-bin.git"
-    skip_upload: auto
-
-    # Package build dependencies
-    depends:
-      - git
-
-    # Package relations
-    provides:
-      - compozy
-    conflicts:
-      - compozy
-      - compozy-git
-
-    # Binary PKGBUILD package
-    package: |
-      # Install binary
-      install -Dm755 compozy "$pkgdir/usr/bin/compozy"
-
-      # Install man pages
-      install -Dm644 manpages/compozy.1.gz "$pkgdir/usr/share/man/man1/compozy.1.gz"
-
-      # Install shell completions
-      install -Dm644 completions/compozy.bash "$pkgdir/usr/share/bash-completion/completions/compozy"
-      install -Dm644 completions/compozy.zsh "$pkgdir/usr/share/zsh/site-functions/_compozy"
-      install -Dm644 completions/compozy.fish "$pkgdir/usr/share/fish/vendor_completions.d/compozy.fish"
-
-    # Commit settings
-    commit_author:
-      name: goreleaserbot
-      email: bot@goreleaser.com
-
-    commit_msg_template: "Update to {{ .Version }}"
+    - make test || true

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/pkg/logger"
+	"github.com/compozy/compozy/pkg/version"
 	mcpclient "github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/client/transport"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -312,7 +313,7 @@ func (c *MCPClient) initializeMCP(ctx context.Context) error {
 	initRequest.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
 	initRequest.Params.ClientInfo = mcp.Implementation{
 		Name:    "compozy-mcp-proxy",
-		Version: "1.0.0",
+		Version: version.Get().Version,
 	}
 	initRequest.Params.Capabilities = mcp.ClientCapabilities{
 		Experimental: make(map[string]any),

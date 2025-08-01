@@ -174,4 +174,4 @@ The test suite covers:
 
 ## License
 
-MIT
+BSL-1.1

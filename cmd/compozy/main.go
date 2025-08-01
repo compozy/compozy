@@ -1,13 +1,13 @@
 //	@title			Compozy API
 //	@version		1.0
-//	@description	Compozy is a workflow orchestration engine for AI agents, tasks, and tools
+//	@description	Compozy is a Next-level Agentic Orchestration Framework, tasks, and tools
 //	@termsOfService	https://github.com/compozy/compozy
 
 //	@contact.name	Compozy Support
 //	@contact.url	https://github.com/compozy/compozy
 //	@contact.email	support@compozy.dev
 
-//	@license.name	MIT
+//	@license.name	BSL-1.1
 //	@license.url	https://github.com/compozy/compozy/blob/main/LICENSE
 
 //	@BasePath	/api/v0

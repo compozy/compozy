@@ -17,7 +17,24 @@
     "glob"
   ],
   "author": "Compozy",
-  "license": "MIT",
+  "license": "BSL-1.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/compozy/compozy.git",
+    "directory": "tools/list-dir"
+  },
+  "homepage": "https://github.com/compozy/compozy/tree/main/tools/list-dir",
+  "bugs": {
+    "url": "https://github.com/compozy/compozy/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "files": [
+    "index.ts",
+    "README.md"
+  ],
   "dependencies": {
     "minimatch": "^9.0.3"
   },

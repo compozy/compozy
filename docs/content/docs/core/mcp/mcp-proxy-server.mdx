@@ -322,7 +322,7 @@ MCP_PROXY_LOG_FORMAT=json
 Start with default configuration:
 
 ```bash
-compozy mcp-proxy
+compozy-mcp-proxy
 ```
 </Step>
 
@@ -330,7 +330,7 @@ compozy mcp-proxy
 Start with custom settings:
 
 ```bash
-compozy mcp-proxy \
+compozy-mcp-proxy \
   --host 0.0.0.0 \
   --port 8081 \
   --admin-tokens "secure-admin-token" \
@@ -344,7 +344,7 @@ Use environment variables for production:
 ```bash
 export MCP_PROXY_ADMIN_TOKEN="$(openssl rand -hex 32)"
 export MCP_PROXY_GLOBAL_AUTH_TOKEN="$(openssl rand -hex 32)"
-compozy mcp-proxy --host 0.0.0.0 --port 8081
+compozy-mcp-proxy --host 0.0.0.0 --port 8081
 ```
 </Step>
 </Steps>
@@ -368,7 +368,7 @@ docker run -p 8081:8081 \
   -e MCP_PROXY_ADMIN_TOKEN=secure-token \
   -e MCP_PROXY_GLOBAL_AUTH_TOKEN=global-token \
   compozy/compozy:latest \
-  compozy mcp-proxy
+  compozy-mcp-proxy
 ```
 </Tab>
 
@@ -748,15 +748,15 @@ journalctl -f -u mcp-proxy
 
 ```bash
 # Enable debug logging
-compozy mcp-proxy --debug
+compozy-mcp-proxy --debug
 
 # Or with environment variable
-MCP_PROXY_LOG_LEVEL=debug compozy mcp-proxy
+MCP_PROXY_LOG_LEVEL=debug compozy-mcp-proxy
 
 # Debug with specific components
 MCP_PROXY_LOG_LEVEL=debug \
 MCP_PROXY_LOG_COMPONENTS=router,auth,transport \
-compozy mcp-proxy
+compozy-mcp-proxy
 ```
 
 **Debug Features:**

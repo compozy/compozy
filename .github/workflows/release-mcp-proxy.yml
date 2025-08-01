@@ -1,18 +1,18 @@
-name: Release
+name: Release Compozy MCP Proxy
 
 on:
   push:
     tags:
-      - "v*"
+      - "compozy-mcp-proxy-v*"
   workflow_dispatch:
     inputs:
       tag:
-        description: "Tag to release"
+        description: "Tag to release (e.g., compozy-mcp-proxy-v1.0.0)"
         required: true
         type: string
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-mcp-proxy-${{ github.ref }}
   cancel-in-progress: false
 
 permissions:
@@ -24,7 +24,7 @@ permissions:
 jobs:
   # Validate release prerequisites
   validate-release:
-    name: Validate Release
+    name: Validate Compozy MCP Proxy Release
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
@@ -49,8 +49,8 @@ jobs:
 
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-          # Extract version (remove 'v' prefix if present)
-          VERSION=${TAG#v}
+          # Extract version (remove 'compozy-mcp-proxy-v' prefix)
+          VERSION=${TAG#compozy-mcp-proxy-v}
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
           # Check if this is a prerelease
@@ -60,7 +60,7 @@ jobs:
             echo "is-prerelease=false" >> $GITHUB_OUTPUT
           fi
 
-          echo "Release Information:"
+          echo "Compozy MCP Proxy Release Information:"
           echo "- Tag: $TAG"
           echo "- Version: $VERSION"
           echo "- Prerelease: $(echo "$VERSION" | grep -qE '-(alpha|beta|rc|pre)' && echo "true" || echo "false")"
@@ -69,6 +69,11 @@ jobs:
         run: |
           TAG="${{ steps.version.outputs.tag }}"
           VERSION="${{ steps.version.outputs.version }}"
+
+          # Validate tag prefix
+          if ! echo "$TAG" | grep -qE '^compozy-mcp-proxy-v'; then            echo "❌ Invalid tag format: $TAG"            echo "Tag must start with 'compozy-mcp-proxy-v' (e.g., compozy-mcp-proxy-v1.0.0)"
+            exit 1
+          fi
 
           # Validate semantic versioning format
           if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?(\+[a-zA-Z0-9.-]+)?$'; then
@@ -92,7 +97,7 @@ jobs:
 
   # Run tests before release
   pre-release-tests:
-    name: Pre-Release Tests
+    name: Pre-Release Tests for Compozy MCP Proxy
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: validate-release
@@ -133,7 +138,7 @@ jobs:
 
       - name: Run tests
         run: |
-          echo "Running comprehensive tests before release..."
+          echo "Running comprehensive tests before Compozy MCP Proxy release..."
           make test
 
       - name: Run linting
@@ -141,15 +146,15 @@ jobs:
           echo "Running linting checks..."
           make lint || echo "Linting completed with warnings"
 
-      - name: Validate build
+      - name: Validate Compozy MCP Proxy build
         run: |
-          echo "Validating that the project builds successfully..."
-          go build -o compozy-test ./main.go
-          ./compozy-test --version || echo "Build validation completed"
+          echo "Validating that Compozy MCP Proxy builds successfully..."
+          go build -o compozy-mcp-proxy-test ./cmd/mcp-proxy/main.go
+          ./compozy-mcp-proxy-test --help || echo "Compozy MCP Proxy build validation completed"
 
   # Main release job using GoReleaser
   release:
-    name: Release with GoReleaser
+    name: Release Compozy MCP Proxy with GoReleaser
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs:
@@ -183,12 +188,12 @@ jobs:
         with:
           cosign-release: "v2.2.4"
 
-      - name: Run GoReleaser
+      - name: Run GoReleaser for MCP Proxy
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
           version: "~> v2"
-          args: release --clean
+          args: release --clean --config .goreleaser.mcp-proxy.yml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
@@ -197,9 +202,9 @@ jobs:
 
       - name: Generate release summary
         run: |
-          echo "## Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "## Compozy MCP Proxy Release Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "🎉 **Release ${{ needs.validate-release.outputs.version }} completed successfully!**" >> $GITHUB_STEP_SUMMARY
+          echo "🎉 **Compozy MCP Proxy ${{ needs.validate-release.outputs.version }} released successfully!**" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Release Details:**" >> $GITHUB_STEP_SUMMARY
           echo "- **Version:** ${{ needs.validate-release.outputs.version }}" >> $GITHUB_STEP_SUMMARY
@@ -211,14 +216,15 @@ jobs:
           echo "- 🐳 Container images (amd64, arm64)" >> $GITHUB_STEP_SUMMARY
           echo "- 📋 Checksums and signatures" >> $GITHUB_STEP_SUMMARY
           echo "- 📄 Release notes and changelog" >> $GITHUB_STEP_SUMMARY
+          echo "- 📦 NPM, NFPM (.deb/.rpm), and AUR packages" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Container Images:**" >> $GITHUB_STEP_SUMMARY
-          echo "- \`ghcr.io/compozy/compozy:${{ needs.validate-release.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- \`ghcr.io/compozy/compozy:latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "- `ghcr.io/compozy/compozy-mcp-proxy:${{ needs.validate-release.outputs.version }}`" >> $GITHUB_STEP_SUMMARY
+          echo "- `ghcr.io/compozy/compozy-mcp-proxy:latest`" >> $GITHUB_STEP_SUMMARY
 
   # Post-release validation
   post-release-validation:
-    name: Post-Release Validation
+    name: Post-Release Validation for Compozy MCP Proxy
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs:
@@ -229,27 +235,27 @@ jobs:
     steps:
       - name: Validate GitHub release
         run: |
-          echo "Validating GitHub release..."
+          echo "Validating Compozy MCP Proxy GitHub release..."
 
           # Check if release exists
           RELEASE_URL="https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ needs.validate-release.outputs.tag }}"
 
           if curl -s -f -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "$RELEASE_URL" > /dev/null; then
-            echo "✅ GitHub release exists"
+            echo "✅ Compozy MCP Proxy GitHub release exists"
           else
-            echo "❌ GitHub release not found"
+            echo "❌ Compozy MCP Proxy GitHub release not found"
             exit 1
           fi
 
       - name: Validate container images
         run: |
-          echo "Validating container images..."
+          echo "Validating Compozy MCP Proxy container images..."
 
           # Check if container images exist
           VERSION="${{ needs.validate-release.outputs.version }}"
 
           for arch in amd64 arm64; do
-            IMAGE="ghcr.io/compozy/compozy:${VERSION}-${arch}"
+            IMAGE="ghcr.io/compozy/compozy-mcp-proxy:${VERSION}-${arch}"
             if docker manifest inspect "$IMAGE" > /dev/null 2>&1; then
               echo "✅ Container image exists: $IMAGE"
             else
@@ -259,7 +265,7 @@ jobs:
           done
 
           # Check multi-arch manifest
-          MANIFEST_IMAGE="ghcr.io/compozy/compozy:${VERSION}"
+          MANIFEST_IMAGE="ghcr.io/compozy/compozy-mcp-proxy:${VERSION}"
           if docker manifest inspect "$MANIFEST_IMAGE" > /dev/null 2>&1; then
             echo "✅ Multi-arch manifest exists: $MANIFEST_IMAGE"
           else
@@ -269,13 +275,13 @@ jobs:
 
       - name: Create validation summary
         run: |-
-          echo "## Post-Release Validation" >> $GITHUB_STEP_SUMMARY
+          echo "## Post-Release Validation for Compozy MCP Proxy" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "✅ **All release artifacts validated successfully**" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **All Compozy MCP Proxy release artifacts validated successfully**" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Validated:**" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ GitHub release created" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Container images published" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Multi-architecture manifests created" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "🎉 **Release ${{ needs.validate-release.outputs.version }} is ready for use!**"
+          echo "🎉 **Compozy MCP Proxy ${{ needs.validate-release.outputs.version }} is ready for use!**"

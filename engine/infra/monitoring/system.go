@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/pkg/logger"
+	"github.com/compozy/compozy/pkg/version"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 )
@@ -18,13 +19,6 @@ const (
 	defaultVersion = "unknown"
 	// defaultCommit is the default commit hash when not set via ldflags
 	defaultCommit = "unknown"
-)
-
-// Build variables to be set via ldflags during compilation
-// - **Example**: go build -ldflags "-X 'github.com/compozy/compozy/engine/infra/monitoring.Version=v1.0.0'"
-var (
-	Version    = defaultVersion
-	CommitHash = defaultCommit
 )
 
 var (
@@ -119,16 +113,16 @@ func getBuildInfo() (version, commit, goVersion string) {
 
 // loadBuildInfo loads build information from various sources
 func loadBuildInfo() buildInfoData {
-	version := Version
-	commit := CommitHash
+	versionStr := version.GetVersion()
+	commit := version.GetCommitHash()
 	// If injected build variables are set to non-default values, use them
-	useLdflags := Version != defaultVersion && CommitHash != defaultCommit
+	useLdflags := versionStr != defaultVersion && commit != defaultCommit
 	// For tests, avoid slow I/O operations
 	if !useLdflags && !testing.Testing() {
 		// Try to get build info from runtime
 		if info, ok := debug.ReadBuildInfo(); ok {
-			if version == defaultVersion && info.Main.Version != "" && info.Main.Version != "(devel)" {
-				version = info.Main.Version
+			if versionStr == defaultVersion && info.Main.Version != "" && info.Main.Version != "(devel)" {
+				versionStr = info.Main.Version
 			}
 			if commit == defaultCommit {
 				for _, setting := range info.Settings {
@@ -141,7 +135,7 @@ func loadBuildInfo() buildInfoData {
 		}
 	}
 	return buildInfoData{
-		version:   version,
+		version:   versionStr,
 		commit:    commit,
 		goVersion: runtime.Version(),
 	}

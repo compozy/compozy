@@ -178,8 +178,8 @@ services:
       - "${TEMPORAL_UI_PORT:-8080}:8080" # Temporal Web UI
 
   # MCP Proxy for development
-  mcp-proxy:
-    container_name: mcp-proxy
+  compozy-mcp-proxy:
+    container_name: compozy-mcp-proxy
     build:
       context: ..
       dockerfile: cluster/mcpproxy.Dockerfile

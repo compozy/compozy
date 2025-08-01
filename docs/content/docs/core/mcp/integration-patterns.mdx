@@ -195,7 +195,7 @@ cd data-processing-project
 compozy dev --watch
 
 # 3. In another terminal, start MCP proxy
-compozy mcp-proxy --port 8081 --debug
+compozy-mcp-proxy --port 8081 --debug
 
 # 4. Test your workflow
 compozy workflow execute data-processing-workflow
@@ -220,7 +220,7 @@ For simple data processing workflows, refer to the **Single MCP Server Integrati
     Start development server with `compozy dev --watch` for hot reload
   </ListItem>
   <ListItem title="MCP Proxy Setup" icon="Settings">
-    Start MCP proxy with `compozy mcp-proxy --debug` for development
+    Start MCP proxy with `compozy-mcp-proxy --debug` for development
   </ListItem>
   <ListItem title="Configuration Phase" icon="Settings">
     Configure MCP servers with proper command arguments and environment variables

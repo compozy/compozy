@@ -556,4 +556,4 @@ See [CONTRIBUTING.md](../../../CONTRIBUTING.md) for development guidelines.
 
 ## 📄 License
 
-MIT License - see [LICENSE](../../../LICENSE) for details.
+BSL-1.1 License - see [LICENSE](../../../LICENSE) for details.

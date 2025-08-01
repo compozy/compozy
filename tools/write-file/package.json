@@ -4,6 +4,10 @@
   "description": "A Compozy tool for writing content to files",
   "type": "module",
   "main": "index.ts",
+  "files": [
+    "index.ts",
+    "README.md"
+  ],
   "scripts": {
     "test": "bun test",
     "type-check": "tsc --noEmit",
@@ -17,7 +21,20 @@
     "write"
   ],
   "author": "Compozy",
-  "license": "MIT",
+  "license": "BSL-1.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/compozy/compozy.git",
+    "directory": "tools/write-file"
+  },
+  "homepage": "https://github.com/compozy/compozy/tree/main/tools/write-file",
+  "bugs": {
+    "url": "https://github.com/compozy/compozy/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "devDependencies": {
     "@types/bun": "latest",
     "@types/node": "^20.0.0"

@@ -69,9 +69,9 @@ runs:
           type=raw,value=latest,enable={{is_default_branch}}
         labels: |
           org.opencontainers.image.title=Compozy
-          org.opencontainers.image.description=Workflow orchestration engine for AI agents
+          org.opencontainers.image.description=Next-level Agentic Orchestration Framework
           org.opencontainers.image.vendor=Compozy
-          org.opencontainers.image.licenses=MIT
+          org.opencontainers.image.licenses=BSL-1.1
           ${{ inputs.labels }}
 
     - name: Build and push Docker image

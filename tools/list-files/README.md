@@ -135,4 +135,4 @@ The tool includes comprehensive tests for:
 
 ## License
 
-MIT
+BSL-1.1

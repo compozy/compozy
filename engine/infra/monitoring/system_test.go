@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/pkg/version"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
@@ -108,38 +109,38 @@ func TestSystemMetrics(t *testing.T) {
 func TestBuildInfoExtraction(t *testing.T) {
 	t.Run("Should use ldflags values when set", func(t *testing.T) {
 		// Save original values
-		origVersion := Version
-		origCommit := CommitHash
+		origVersion := version.Version
+		origCommit := version.CommitHash
 		defer func() {
-			Version = origVersion
-			CommitHash = origCommit
+			version.Version = origVersion
+			version.CommitHash = origCommit
 		}()
 		// Reset cache and sync.Once for fresh test
 		resetSystemMetrics(t.Context())
 		// Set test values
-		Version = "v1.2.3"
-		CommitHash = "abc123"
-		version, commit, goVersion := getBuildInfo()
-		assert.Equal(t, "v1.2.3", version)
+		version.Version = "v1.2.3"
+		version.CommitHash = "abc123"
+		versionStr, commit, goVersion := getBuildInfo()
+		assert.Equal(t, "v1.2.3", versionStr)
 		assert.Equal(t, "abc123", commit)
 		assert.Equal(t, runtime.Version(), goVersion)
 	})
 	t.Run("Should fallback to unknown when ldflags not set", func(t *testing.T) {
 		// Save original values
-		origVersion := Version
-		origCommit := CommitHash
+		origVersion := version.Version
+		origCommit := version.CommitHash
 		defer func() {
-			Version = origVersion
-			CommitHash = origCommit
+			version.Version = origVersion
+			version.CommitHash = origCommit
 		}()
 		// Reset cache and sync.Once for fresh test
 		resetSystemMetrics(t.Context())
 		// Set to unknown
-		Version = "unknown"
-		CommitHash = "unknown"
-		version, commit, goVersion := getBuildInfo()
+		version.Version = "unknown"
+		version.CommitHash = "unknown"
+		versionStr, commit, goVersion := getBuildInfo()
 		// Version might get a value from debug.ReadBuildInfo
-		assert.NotEmpty(t, version)
+		assert.NotEmpty(t, versionStr)
 		assert.Equal(t, "unknown", commit)
 		assert.Equal(t, runtime.Version(), goVersion)
 	})
@@ -234,17 +235,17 @@ func TestLabelValidation(t *testing.T) {
 func TestSpecialCharactersInVersion(t *testing.T) {
 	t.Run("Should handle special characters in version strings", func(t *testing.T) {
 		// Save original values
-		origVersion := Version
-		origCommit := CommitHash
+		origVersion := version.Version
+		origCommit := version.CommitHash
 		defer func() {
-			Version = origVersion
-			CommitHash = origCommit
+			version.Version = origVersion
+			version.CommitHash = origCommit
 		}()
 		// Reset cache and sync.Once for fresh test
 		resetSystemMetrics(t.Context())
 		// Test with special characters
-		Version = "v1.2.3-beta+build.456"
-		CommitHash = "test123"
+		version.Version = "v1.2.3-beta+build.456"
+		version.CommitHash = "test123"
 		reader := sdkmetric.NewManualReader()
 		provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
 		meter := provider.Meter("test")

@@ -9,7 +9,6 @@ import (
 	configcmd "github.com/compozy/compozy/cli/cmd/config"
 	"github.com/compozy/compozy/cli/cmd/dev"
 	initcmd "github.com/compozy/compozy/cli/cmd/init"
-	mcpproxycmd "github.com/compozy/compozy/cli/cmd/mcp_proxy"
 	"github.com/compozy/compozy/cli/cmd/start"
 	workflowcmd "github.com/compozy/compozy/cli/cmd/workflow"
 	"github.com/compozy/compozy/cli/helpers"
@@ -22,7 +21,7 @@ func RootCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:   "compozy",
 		Short: "Compozy CLI tool for workflow orchestration",
-		Long: `Compozy is a powerful workflow orchestration engine for AI agents.
+		Long: `Compozy is a powerful Next-level Agentic Orchestration Framework.
 This CLI provides complete control over workflows, executions, schedules,
 and events with both interactive TUI and automation-friendly JSON output.`,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
@@ -36,7 +35,6 @@ and events with both interactive TUI and automation-friendly JSON output.`,
 		initcmd.NewInitCommand(),
 		dev.NewDevCommand(),
 		start.NewStartCommand(),
-		mcpproxycmd.NewMCPProxyCommand(),
 		configcmd.NewConfigCommand(),
 		authcmd.Cmd(),
 		workflowcmd.Cmd(),

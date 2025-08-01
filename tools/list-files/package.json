@@ -17,8 +17,25 @@
     "list-files",
     "directory"
   ],
-  "author": "Compozy Team",
-  "license": "MIT",
+  "author": "Compozy",
+  "license": "BSL-1.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/compozy/compozy.git",
+    "directory": "tools/list-files"
+  },
+  "homepage": "https://github.com/compozy/compozy/tree/main/tools/list-files",
+  "bugs": {
+    "url": "https://github.com/compozy/compozy/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "files": [
+    "index.ts",
+    "README.md"
+  ],
   "devDependencies": {
     "@types/bun": "latest",
     "@types/node": "^20.0.0",

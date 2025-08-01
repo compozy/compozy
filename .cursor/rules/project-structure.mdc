@@ -7,7 +7,7 @@ tags: ["architecture", "structure", "technology-stack", "infrastructure"]
 # Project Structure & Architecture
 
 <project_overview type="domain">
-Compozy is a **workflow orchestration engine for AI agents** that enables building AI-powered applications through declarative YAML configuration and a robust Go backend. It integrates with various LLM providers and supports the Model Context Protocol (MCP) for extending AI capabilities.
+Compozy is a **Next-level Agentic Orchestration Framework** that enables building AI-powered applications through declarative YAML configuration and a robust Go backend. It integrates with various LLM providers and supports the Model Context Protocol (MCP) for extending AI capabilities.
 </project_overview>
 
 ## Folder Structure

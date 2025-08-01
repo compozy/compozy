@@ -144,4 +144,4 @@ bun test
 
 ## License
 
-MIT
+BSL-1.1

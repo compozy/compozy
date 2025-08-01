@@ -523,4 +523,4 @@ See [CONTRIBUTING.md](../../CONTRIBUTING.md)
 
 ## 📄 License
 
-MIT License - see [LICENSE](../../LICENSE)
+BSL-1.1 License - see [LICENSE](../../LICENSE)

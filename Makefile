@@ -20,8 +20,9 @@ BUNCMD=bun
 GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 VERSION := $(shell git describe --tags --always 2>/dev/null || echo "unknown")
 
-# Build flags for injecting version info
-LDFLAGS := -X 'github.com/compozy/compozy/engine/infra/monitoring.Version=$(VERSION)' -X 'github.com/compozy/compozy/engine/infra/monitoring.CommitHash=$(GIT_COMMIT)'
+# Build flags for injecting version info (aligned with GoReleaser format)
+BUILD_DATE := $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
+LDFLAGS := -X github.com/compozy/compozy/pkg/version.Version=$(VERSION) -X github.com/compozy/compozy/pkg/version.CommitHash=$(GIT_COMMIT) -X github.com/compozy/compozy/pkg/version.BuildDate=$(BUILD_DATE)
 
 # -----------------------------------------------------------------------------
 # Swagger/OpenAPI
@@ -29,7 +30,7 @@ LDFLAGS := -X 'github.com/compozy/compozy/engine/infra/monitoring.Version=$(VERS
 SWAGGER_DIR=./docs
 SWAGGER_OUTPUT=$(SWAGGER_DIR)/swagger.json
 
-.PHONY: all test lint fmt clean build dev deps schemagen schemagen-watch help integration-test
+.PHONY: all test lint fmt clean build build-mcp-proxy build-all dev deps schemagen schemagen-watch help integration-test
 .PHONY: tidy test-go start-docker stop-docker clean-docker reset-docker mcp-proxy rebuild-mcp-proxy
 .PHONY: swagger swagger-deps swagger-gen swagger-serve
 
@@ -45,8 +46,16 @@ clean:
 
 build: swagger
 	mkdir -p $(BINARY_DIR)
-	$(GOBUILD) -ldflags "$(LDFLAGS)" -o $(BINARY_DIR)/$(BINARY_NAME) .
+	$(GOBUILD) -ldflags "$(LDFLAGS)" -o $(BINARY_DIR)/$(BINARY_NAME) ./cmd/compozy/main.go
 	chmod +x $(BINARY_DIR)/$(BINARY_NAME)
+
+build-mcp-proxy: swagger
+	@echo "Building mcp-proxy binary..."
+	mkdir -p $(BINARY_DIR)
+	$(GOBUILD) -ldflags "$(LDFLAGS)" -o $(BINARY_DIR)/mcp-proxy ./cmd/mcp-proxy/main.go
+	chmod +x $(BINARY_DIR)/mcp-proxy
+
+build-all: build build-mcp-proxy
 
 # -----------------------------------------------------------------------------
 # Code Quality & Formatting

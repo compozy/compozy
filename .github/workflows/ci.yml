@@ -26,6 +26,7 @@ jobs:
       backend: ${{ steps.filter.outputs.backend }}
       frontend: ${{ steps.filter.outputs.frontend }}
       docs: ${{ steps.filter.outputs.docs }}
+      mcp-proxy: ${{ steps.filter.outputs.compozy-mcp-proxy }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -45,7 +46,15 @@ jobs:
               - 'cli/**'
               - 'pkg/**'
               - 'schemas/**'
-              - 'main.go'
+              - 'cmd/compozy/**'
+            compozy-mcp-proxy:
+              - 'cmd/mcp-proxy/**'
+              - 'pkg/mcp-proxy/**'
+              - 'pkg/version/**'
+              - 'go.mod'
+              - 'go.sum'
+              - '.goreleaser.mcp-proxy.yml'
+              - '.github/workflows/release-mcp-proxy.yml'
             frontend:
               - 'docs/**'
               - 'examples/**'
@@ -163,6 +172,85 @@ jobs:
             test-results.xml
           retention-days: 7
 
+  # MCP Proxy specific testing when only MCP Proxy components change
+  test-compozy-mcp-proxy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: changes
+    if: needs.changes.outputs.compozy-mcp-proxy == 'true' && needs.changes.outputs.backend == 'false'
+
+    services:
+      redis:
+        image: redis:7.2-alpine
+        env:
+          REDIS_PASSWORD: redis_secret
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    env:
+      # Redis connection for tests
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: redis_secret
+
+      # Go environment
+      CGO_ENABLED: 0
+
+    strategy:
+      matrix:
+        go-version:
+          - "1.24.x"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go with caching
+        uses: ./.github/actions/setup-go
+        with:
+          go-version: ${{ matrix.go-version }}
+          install-tools: "true"
+
+      - name: Verify service readiness
+        run: |
+          echo "Waiting for Redis to be ready..."
+          timeout 30s bash -c 'until redis-cli -h localhost -p 6379 ping; do sleep 1; done'
+          echo "Redis is ready!"
+
+      - name: Run MCP Proxy linting
+        run: |
+          echo "Running Go code quality checks for Compozy MCP Proxy..."
+          golangci-lint run --fix --allow-parallel-runners ./cmd/mcp-proxy/... ./pkg/mcp-proxy/...
+        continue-on-error: false
+
+      - name: Build Compozy MCP Proxy
+        run: |
+          echo "Building Compozy MCP Proxy binary..."
+          go build -o compozy-mcp-proxy ./cmd/mcp-proxy/main.go
+          ./compozy-mcp-proxy --help
+        continue-on-error: false
+
+      - name: Run Compozy MCP Proxy specific tests
+        run: |
+          echo "Running Compozy MCP Proxy specific tests..."
+          go test -v ./cmd/mcp-proxy/... ./pkg/mcp-proxy/... ./pkg/version/...
+        continue-on-error: false
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-compozy-mcp-proxy-go-${{ matrix.go-version }}
+          path: |
+            coverage.out
+            test-results.xml
+          retention-days: 7
+
   # Summary job to check overall CI status
   ci-success:
     runs-on: ubuntu-latest
@@ -170,14 +258,15 @@ jobs:
     needs:
       - changes
       - test
+      - test-compozy-mcp-proxy
     if: always()
     steps:
       - name: Check CI status
         run: |-
-          if [[ "${{ needs.test.result }}" == "failure" ]]; then
+          if [[ "${{ needs.test.result }}" == "failure" || "${{ needs.test-compozy-mcp-proxy.result }}" == "failure" ]]; then
             echo "CI failed"
             exit 1
-          elif [[ "${{ needs.test.result }}" == "skipped" ]]; then
+          elif [[ "${{ needs.test.result }}" == "skipped" && "${{ needs.test-compozy-mcp-proxy.result }}" == "skipped" ]]; then
             echo "No changes detected, skipping tests"
           else
             echo "CI passed"

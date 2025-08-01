@@ -9,6 +9,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  packages: write
 
 jobs:
   release-please:
@@ -17,10 +18,12 @@ jobs:
     timeout-minutes: 10
     outputs:
       release-created: ${{ steps.release.outputs.release_created }}
+      releases-created: ${{ steps.release.outputs.releases_created }}
       tag-name: ${{ steps.release.outputs.tag_name }}
       version: ${{ steps.release.outputs.version }}
       pr-created: ${{ steps.release.outputs.pr_created }}
       pr-number: ${{ steps.release.outputs.pr_number }}
+      paths-released: ${{ steps.release.outputs.paths_released }}
 
     steps:
       - name: Run Release Please
@@ -30,6 +33,9 @@ jobs:
           # Release Please configuration
           config-file: .release-please-config.json
           manifest-file: .release-please-manifest.json
+          
+          # Enable manifest mode
+          release-type: manifest
 
           # Token with appropriate permissions
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -41,23 +47,33 @@ jobs:
         if: always()
         run: |
           echo "Release Please Results:"
-          echo "- Release created: ${{ steps.release.outputs.release_created }}"
+          echo "- Releases created: ${{ steps.release.outputs.releases_created }}"
+          echo "- Release created (main): ${{ steps.release.outputs.release_created }}"
           echo "- Tag name: ${{ steps.release.outputs.tag_name }}"
           echo "- Version: ${{ steps.release.outputs.version }}"
           echo "- PR created: ${{ steps.release.outputs.pr_created }}"
           echo "- PR number: ${{ steps.release.outputs.pr_number }}"
+          echo "- Paths released: ${{ steps.release.outputs.paths_released }}"
 
           # Add to job summary
           echo "## Release Please Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ steps.release.outputs.release_created }}" = "true" ]; then
-            echo "🎉 **Release Created!**" >> $GITHUB_STEP_SUMMARY
-            echo "- **Version:** ${{ steps.release.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-            echo "- **Tag:** ${{ steps.release.outputs.tag_name }}" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.release.outputs.releases_created }}" = "true" ]; then
+            echo "🎉 **Releases Created!**" >> $GITHUB_STEP_SUMMARY
+            if [ "${{ steps.release.outputs.release_created }}" = "true" ]; then
+              echo "### Main Package" >> $GITHUB_STEP_SUMMARY
+              echo "- **Version:** ${{ steps.release.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+              echo "- **Tag:** ${{ steps.release.outputs.tag_name }}" >> $GITHUB_STEP_SUMMARY
+            fi
+            if [ -n "${{ steps.release.outputs.paths_released }}" ]; then
+              echo "### Released Paths" >> $GITHUB_STEP_SUMMARY
+              echo "${{ steps.release.outputs.paths_released }}" | tr ',' '\n' | while read path; do
+                echo "- $path" >> $GITHUB_STEP_SUMMARY
+              done
+            fi
           elif [ "${{ steps.release.outputs.pr_created }}" = "true" ]; then
             echo "📝 **Release PR Created**" >> $GITHUB_STEP_SUMMARY
             echo "- **PR Number:**  #${{ steps.release.outputs.pr_number }}" >> $GITHUB_STEP_SUMMARY
-            echo "- **Next Version:** ${{ steps.release.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           else
             echo "ℹ️ **No Release Action Needed**" >> $GITHUB_STEP_SUMMARY
             echo "No conventional commits found that warrant a release." >> $GITHUB_STEP_SUMMARY
@@ -97,3 +113,78 @@ jobs:
           echo "The release workflow will be triggered by the tag push event"
           echo "Tag: ${{ steps.release.outputs.tag_name }}"
           echo "Version: ${{ steps.release.outputs.version }}"
+
+  # Publish npm packages if any TypeScript tools were released
+  publish-npm:
+    name: Publish NPM Packages
+    runs-on: ubuntu-latest
+    needs: release-please
+    if: needs.release-please.outputs.releases-created == 'true'
+    
+    strategy:
+      matrix:
+        tool:
+          - delete-file
+          - exec
+          - fetch
+          - grep
+          - list-dir
+          - list-files
+          - read-file
+          - write-file
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Check if tool was released
+        id: check-release
+        run: |
+          PATHS_RELEASED='${{ needs.release-please.outputs.paths-released }}'
+          echo "Paths released: $PATHS_RELEASED"
+          
+          if echo "$PATHS_RELEASED" | grep -q "tools/${{ matrix.tool }}"; then
+            echo "should-publish=true" >> $GITHUB_OUTPUT
+            echo "✅ Tool ${{ matrix.tool }} was released"
+          else
+            echo "should-publish=false" >> $GITHUB_OUTPUT
+            echo "ℹ️ Tool ${{ matrix.tool }} was not released"
+          fi
+      
+      - name: Setup Bun
+        if: steps.check-release.outputs.should-publish == 'true'
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      
+      - name: Install dependencies
+        if: steps.check-release.outputs.should-publish == 'true'
+        working-directory: tools/${{ matrix.tool }}
+        run: bun install
+      
+      - name: Build package
+        if: steps.check-release.outputs.should-publish == 'true'
+        working-directory: tools/${{ matrix.tool }}
+        run: |
+          if [ -f "tsconfig.json" ] && grep -q '"build"' package.json; then
+            bun run build
+          else
+            echo "No build script found, skipping build step"
+          fi
+      
+      - name: Configure npm
+        if: steps.check-release.outputs.should-publish == 'true'
+        run: |
+          echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
+          npm whoami
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      
+      - name: Publish to npm
+        if: steps.check-release.outputs.should-publish == 'true'
+        working-directory: tools/${{ matrix.tool }}
+        run: |
+          npm publish --access public
+          echo "✅ Published @compozy/tool-${{ matrix.tool }} to npm"
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -792,4 +792,4 @@ make lint
 
 ## 📄 License
 
-MIT License - see [LICENSE](../../LICENSE) for details.
+BSL-1.1 License - see [LICENSE](../../LICENSE) for details.

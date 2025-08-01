@@ -1,7 +1,7 @@
 {
     "swagger": "2.0",
     "info": {
-        "description": "Compozy is a workflow orchestration engine for AI agents, tasks, and tools",
+        "description": "Compozy is a Next-level Agentic Orchestration Framework, tasks, and tools",
         "title": "Compozy API",
         "termsOfService": "https://github.com/compozy/compozy",
         "contact": {
@@ -10,7 +10,7 @@
             "email": "support@compozy.dev"
         },
         "license": {
-            "name": "MIT",
+            "name": "BSL-1.1",
             "url": "https://github.com/compozy/compozy/blob/main/LICENSE"
         },
         "version": "1.0"

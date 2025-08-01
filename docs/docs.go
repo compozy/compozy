@@ -16,7 +16,7 @@ const docTemplate = `{
             "email": "support@compozy.dev"
         },
         "license": {
-            "name": "MIT",
+            "name": "BSL-1.1",
             "url": "https://github.com/compozy/compozy/blob/main/LICENSE"
         },
         "version": "{{.Version}}"
@@ -5977,7 +5977,7 @@ var SwaggerInfo = &swag.Spec{
 	BasePath:         "/api/v0",
 	Schemes:          []string{},
 	Title:            "Compozy API",
-	Description:      "Compozy is a workflow orchestration engine for AI agents, tasks, and tools",
+	Description:      "Compozy is a Next-level Agentic Orchestration Framework, tasks, and tools",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

@@ -22,7 +22,7 @@
 
 ## 🎯 Overview
 
-The `cli` package provides the command-line interface for Compozy, a workflow orchestration engine for AI agents. It includes commands for:
+The `cli` package provides the command-line interface for Compozy, a Next-level Agentic Orchestration Framework. It includes commands for:
 
 - **Development server** (`dev`) - Hot-reloading development environment
 - **Configuration management** (`config`) - Inspect, validate, and diagnose configuration
@@ -378,4 +378,4 @@ go build -o compozy .
 
 ## 📄 License
 
-MIT License - see [LICENSE](../LICENSE) for details.
+BSL-1.1 License - see [LICENSE](../LICENSE) for details.

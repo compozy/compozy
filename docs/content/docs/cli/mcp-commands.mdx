@@ -1,13 +1,13 @@
 ---
-title: MCP Commands
-description: Manage Model Context Protocol (MCP) servers and proxy operations through the Compozy CLI. The MCP proxy server enables HTTP-based access to MCP servers, providing seamless integration between AI agents and external tools.
+title: MCP Proxy Commands
+description: Manage Model Context Protocol (MCP) servers and proxy operations with the `compozy-mcp-proxy` binary. The MCP proxy server enables HTTP-based access to MCP servers, providing seamless integration between AI agents and external tools.
 icon: network
 ---
 
 ## Overview
 
 ```bash
-compozy mcp-proxy [flags]
+compozy-mcp-proxy [flags]
 ```
 
 <FeatureCardList cols={2} size="sm">
@@ -40,7 +40,7 @@ Start the MCP proxy server to provide HTTP access to MCP servers.
 ### Usage
 
 ```bash
-compozy mcp-proxy [flags]
+compozy-mcp-proxy [flags]
 ```
 
 ### Description
@@ -152,7 +152,7 @@ MCP_PROXY_BASE_URL         # Base URL for the MCP proxy server
 Start the MCP proxy with default settings:
 
 ```bash
-compozy mcp-proxy
+compozy-mcp-proxy
 ```
 
 This starts the proxy on `0.0.0.0:8081`.
@@ -160,13 +160,13 @@ This starts the proxy on `0.0.0.0:8081`.
 ### Custom Port and Host
 
 ```bash
-compozy mcp-proxy --host localhost --port 9000
+compozy-mcp-proxy --host localhost --port 9000
 ```
 
 ### With Authentication
 
 ```bash
-compozy mcp-proxy \
+compozy-mcp-proxy \
   --global-auth-tokens "token1,token2" \
   --admin-tokens "admin-secret" \
   --admin-allow-ips "192.168.1.0/24,10.0.0.0/8"
@@ -175,7 +175,7 @@ compozy mcp-proxy \
 ### Debug Mode
 
 ```bash
-compozy mcp-proxy --debug
+compozy-mcp-proxy --debug
 ```
 
 ### Using Environment Variables
@@ -185,7 +185,7 @@ export MCP_PROXY_HOST=localhost
 export MCP_PROXY_PORT=9000
 export MCP_PROXY_BASE_URL=http://localhost:9000
 
-compozy mcp-proxy
+compozy-mcp-proxy
 ```
 
 ## API Endpoints
@@ -273,7 +273,7 @@ The MCP proxy can be configured through:
 ### Configuration File Example
 
 ```yaml
-# mcp-proxy.yaml
+# compozy-mcp-proxy.yaml
 mcp_proxy:
   host: "0.0.0.0"
   port: "8081"
@@ -348,11 +348,11 @@ grep '"path":' /var/log/compozy/mcp-proxy.log | \
 ### Docker
 
 ```dockerfile
-FROM compozy/compozy:latest
+FROM compozy/compozy-mcp-proxy:latest
 EXPOSE 8081
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD curl -f http://localhost:8081/health || exit 1
-CMD ["compozy", "mcp-proxy"]
+CMD ["compozy-mcp-proxy"]
 ```
 
 ### Docker Compose
@@ -361,8 +361,8 @@ CMD ["compozy", "mcp-proxy"]
 version: '3.8'
 services:
   mcp-proxy:
-    image: compozy/compozy:latest
-    command: ["compozy", "mcp-proxy"]
+    image: compozy/compozy-mcp-proxy:latest
+    command: ["compozy-mcp-proxy"]
     ports:
       - "8081:8081"
     environment:
@@ -395,8 +395,8 @@ spec:
     spec:
       containers:
       - name: mcp-proxy
-        image: compozy/compozy:latest
-        command: ["compozy", "mcp-proxy"]
+        image: compozy/compozy-mcp-proxy:latest
+        command: ["compozy-mcp-proxy"]
         ports:
         - containerPort: 8081
         env:

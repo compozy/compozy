@@ -225,4 +225,4 @@ if ("error" in result) {
 
 ## License
 
-MIT
+BSL-1.1

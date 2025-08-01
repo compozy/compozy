@@ -5,7 +5,8 @@
   "type": "module",
   "main": "index.ts",
   "files": [
-    "index.ts"
+    "index.ts",
+    "README.md"
   ],
   "scripts": {
     "test": "bun test",
@@ -19,7 +20,21 @@
     "file",
     "read"
   ],
-  "license": "MIT",
+  "author": "Compozy",
+  "license": "BSL-1.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/compozy/compozy.git",
+    "directory": "tools/read-file"
+  },
+  "homepage": "https://github.com/compozy/compozy/tree/main/tools/read-file",
+  "bugs": {
+    "url": "https://github.com/compozy/compozy/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "devDependencies": {
     "@types/bun": "^1.2.18",
     "typescript": "^5.8.3"
