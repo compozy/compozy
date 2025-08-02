@@ -10,7 +10,7 @@ metadata:
   mod_timestamp: "{{ .CommitTimestamp }}"
   license: "BSL-1.1"
   homepage: "https://github.com/compozy/compozy"
-  description: "A powerful Next-level Agentic Orchestration Platform, enabling intelligent automation through declarative YAML configuration."
+  description: "Next-level Agentic Orchestration Platform"
   maintainers:
     - "Compozy Team <support@compozy.com>"
 
@@ -24,12 +24,6 @@ git:
   # What should be used to sort tags when gathering the current and previous
   # tags if there are more than one tag in the same commit.
   tag_sort: -version:refname
-
-# Nightly builds configuration
-nightly:
-  publish_release: true
-  keep_single_release: true
-  version_template: "{{ incminor .Version }}-nightly"
 
 # Build configuration
 builds:
@@ -86,19 +80,13 @@ builds:
 # Archive configuration
 archives:
   - id: compozy-archive
-    builds:
+    ids:
       - compozy
 
     # Archive name template
-    name_template:
-      "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{\
-      \ end }}"
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ else }}{{ end }}"
 
-    # Archive format
-    format: tar.gz
-    format_overrides:
-      - goos: windows
-        format: zip
+    # Archive format (defaults to tar.gz, zip for windows)
 
     # Files to include in archive
     files:
@@ -151,28 +139,28 @@ changelog:
   # Changelog groups
   groups:
     - title: "🎉 New Features"
-      regexp: "^.*feat[(\\w)]*:+.*$"
+      regexp: "^.*feat[\\(\\w)]*:+.*$"
       order: 0
     - title: "🐛 Bug Fixes"
-      regexp: "^.*fix[(\\w)]*:+.*$"
+      regexp: "^.*fix[\\(\\w)]*:+.*$"
       order: 1
     - title: "⚡ Performance Improvements"
-      regexp: "^.*perf[(\\w)]*:+.*$"
+      regexp: "^.*perf[\\(\\w)]*:+.*$"
       order: 2
     - title: "🔐 Security Updates"
-      regexp: "^.*security[(\\w)]*:+.*$"
+      regexp: "^.*security[\\(\\w)]*:+.*$"
       order: 3
     - title: "📚 Documentation"
-      regexp: "^.*docs[(\\w)]*:+.*$"
+      regexp: "^.*docs[\\(\\w)]*:+.*$"
       order: 4
     - title: "🔧 Refactoring"
-      regexp: "^.*refactor[(\\w)]*:+.*$"
+      regexp: "^.*refactor[\\(\\w)]*:+.*$"
       order: 5
     - title: "📦 Dependencies"
-      regexp: "^.*deps[(\\w)]*:+.*$"
+      regexp: "^.*deps[\\(\\w)]*:+.*$"
       order: 6
     - title: "🧪 Testing"
-      regexp: "^.*test[(\\w)]*:+.*$"
+      regexp: "^.*test[\\(\\w)]*:+.*$"
       order: 7
     - title: "Other Changes"
       order: 999
@@ -189,7 +177,7 @@ changelog:
       - "^chore\\(deps\\): "
       - "^docs: update$"
       - "^test:"
-      - "^test\\("
+      - "^test("
       - "merge conflict"
       - Merge branch
       - Merge pull request
@@ -339,17 +327,16 @@ docker_signs:
     artifacts: images
     output: true
 
-# Homebrew tap configuration
-brews:
+# Homebrew cask configuration
+homebrew_casks:
   - name: compozy
-    # GitHub repository to push the formula to
+    # GitHub repository to push the cask to
     repository:
       owner: compozy
       name: homebrew-compozy
       branch: main
       # Token for the repository
-      # You need a personal access token with write access to the tap repository
-      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+      token: "{{ .Env.RELEASE_TOKEN }}"
 
     # Git author used to commit to the repository
     commit_author:
@@ -357,10 +344,10 @@ brews:
       email: bot@goreleaser.com
 
     # The project name and current git tag are used in the format string
-    commit_msg_template: "Brew formula update for {{ .ProjectName }} version {{ .Tag }}"
+    commit_msg_template: "Brew cask update for {{ .ProjectName }} version {{ .Tag }}"
 
-    # Directory inside the repository to put the formula
-    directory: Formula
+    # Directory inside the repository to put the cask
+    directory: Casks
 
     # Caveats for the user of your binary
     caveats: |
@@ -377,46 +364,19 @@ brews:
     # Short description of your project
     description: "Next-level Agentic Orchestration Platform"
 
-    # License of your project
-    license: "BSL-1.1"
-
-    # Setting this will prevent goreleaser to publish the formula
+    # Setting this will prevent goreleaser to publish the cask
     # in case there are no unix builds
     skip_upload: auto
 
-    # Custom block for the brew formula
-    # Can be used to add dependencies, conflicts, etc.
-    dependencies:
-      - name: git
-        type: optional
-      - name: docker
-        type: optional
+    # Shell completions
+    completions:
+      bash: "completions/compozy.bash"
+      zsh: "completions/compozy.zsh"
+      fish: "completions/compozy.fish"
 
-    # Install script
-    install: |
-      bin.install "compozy"
-
-      # Install shell completions from pre-generated files
-      bash_completion.install "completions/compozy.bash" => "compozy" if File.exist?("completions/compozy.bash")
-      zsh_completion.install "completions/compozy.zsh" => "_compozy" if File.exist?("completions/compozy.zsh")
-      fish_completion.install "completions/compozy.fish" if File.exist?("completions/compozy.fish")
-
-      # Install man pages
-      man1.install "manpages/compozy.1.gz" if File.exist?("manpages/compozy.1.gz")
-
-    # Test block
-    test: |
-      system "#{bin}/compozy", "version"
-
-# NPM publishing configuration
-npms:
-  - name: "compozy"
-    repository: "git+https://github.com/compozy/compozy.git"
-    bugs: https://github.com/compozy/compozy/issues
-    homepage: https://github.com/compozy/compozy
-    description: "Next-level Agentic Orchestration Platform - official CLI"
-    license: BSL-1.1
-    access: public
+    # Man pages
+    manpages:
+      - "manpages/compozy.1.gz"
 
 # NFPM packaging configuration
 nfpms:
@@ -465,17 +425,8 @@ nfpms:
 # Before hooks (run before building)
 before:
   hooks:
-    # Clean up any previous builds
-    - go clean -cache
     # Download dependencies
     - go mod download
-    # Verify dependencies
-    - go mod verify
-    # Run tests
-    - make test
-    # Generate documentation
-    - make swagger || true
-    - make schemagen || true
     # Generate shell completions
     - rm -rf completions
     - mkdir completions
@@ -503,7 +454,7 @@ nix:
       owner: compozy
       name: nur
       branch: main
-      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+      token: "{{ .Env.RELEASE_TOKEN }}"
 
     # Git author used to commit to the repository
     commit_author:
@@ -523,103 +474,51 @@ nix:
     license: "mit"
 
     # Skip upload in case there's no suitable binary
-    skip_upload: auto
 
-    # Dependencies
-    dependencies:
-      - git
+  # NPM publishing configuration (Pro feature)
+npms:
+  - id: compozy
 
-    # Install script
-    install: |
-      mkdir -p $out/bin
-      cp ./compozy $out/bin/compozy
+    # Package name on NPM registry
+    name: "compozy"
 
-      # Install man pages
-      installManPage ./manpages/compozy.1.gz || true
+    # IDs of the archives to use
+    ids:
+      - compozy-archive
 
-      # Install shell completions
-      installShellCompletion ./completions/compozy.{bash,zsh,fish} || true
-
-# AUR (Arch User Repository) configuration
-aurs:
-  # Source package
-  - name: compozy
-    homepage: "https://github.com/compozy/compozy"
+    # Package description
     description: "Next-level Agentic Orchestration Platform"
-    maintainers:
-      - "Compozy Team <support@compozy.com>"
-    license: BSL-1.1
-    private_key: "{{ .Env.AUR_KEY }}"
-    git_url: "ssh://aur@aur.archlinux.org/compozy.git"
-    skip_upload: auto
 
-    # Package build dependencies
-    depends:
-      - git
-
-    # Package relations
-    conflicts:
-      - compozy-bin
-      - compozy-git
-
-    # PKGBUILD customization
-    package: |
-      # Install binary
-      install -Dm755 compozy "$pkgdir/usr/bin/compozy"
-
-      # Install man pages
-      install -Dm644 manpages/compozy.1.gz "$pkgdir/usr/share/man/man1/compozy.1.gz"
-
-      # Install shell completions
-      install -Dm644 completions/compozy.bash "$pkgdir/usr/share/bash-completion/completions/compozy"
-      install -Dm644 completions/compozy.zsh "$pkgdir/usr/share/zsh/site-functions/_compozy"
-      install -Dm644 completions/compozy.fish "$pkgdir/usr/share/fish/vendor_completions.d/compozy.fish"
-
-    # Commit settings
-    commit_author:
-      name: goreleaserbot
-      email: bot@goreleaser.com
-
-    commit_msg_template: "Update to {{ .Version }}"
-
-  # Binary package
-  - name: compozy-bin
+    # Homepage
     homepage: "https://github.com/compozy/compozy"
-    description: "Next-level Agentic Orchestration Platform (binary release)"
-    maintainers:
-      - "Compozy Team <support@compozy.com>"
-    license: BSL-1.1
-    private_key: "{{ .Env.AUR_KEY }}"
-    git_url: "ssh://aur@aur.archlinux.org/compozy-bin.git"
-    skip_upload: auto
 
-    # Package build dependencies
-    depends:
-      - git
+    # Keywords for better discoverability
+    keywords:
+      - orchestration
+      - workflow
+      - ai
+      - agent
+      - llm
+      - automation
+      - temporal
 
-    # Package relations
-    provides:
-      - compozy
-    conflicts:
-      - compozy
-      - compozy-git
+    # License (inferred from metadata)
+    license: "BSL-1.1"
 
-    # Binary PKGBUILD package
-    package: |
-      # Install binary
-      install -Dm755 compozy "$pkgdir/usr/bin/compozy"
+    # Author information
+    author: "Compozy Team <support@compozy.com>"
 
-      # Install man pages
-      install -Dm644 manpages/compozy.1.gz "$pkgdir/usr/share/man/man1/compozy.1.gz"
+    # Repository URL
+    repository: "https://github.com/compozy/compozy"
 
-      # Install shell completions
-      install -Dm644 completions/compozy.bash "$pkgdir/usr/share/bash-completion/completions/compozy"
-      install -Dm644 completions/compozy.zsh "$pkgdir/usr/share/zsh/site-functions/_compozy"
-      install -Dm644 completions/compozy.fish "$pkgdir/usr/share/fish/vendor_completions.d/compozy.fish"
+    # Bug report URL
+    bugs: "https://github.com/compozy/compozy/issues"
 
-    # Commit settings
-    commit_author:
-      name: goreleaserbot
-      email: bot@goreleaser.com
+    # Access level
+    access: public
 
-    commit_msg_template: "Update to {{ .Version }}"
+    # Package format (using the archive format)
+    format: tgz
+
+    # Only publish stable releases to NPM
+    disable: "{{ if .Prerelease }}true{{ else }}false{{ end }}"

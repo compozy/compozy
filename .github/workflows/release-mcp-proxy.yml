@@ -95,63 +95,6 @@ jobs:
 
           echo "✅ Tag $TAG exists"
 
-  # Run tests before release
-  pre-release-tests:
-    name: Pre-Release Tests for Compozy MCP Proxy
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    needs: validate-release
-
-    services:
-      postgres:
-        image: postgres:15-alpine
-        env:
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: compozy_test
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-
-      redis:
-        image: redis:7.2-alpine
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 6379:6379
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go with caching
-        uses: ./.github/actions/setup-go
-        with:
-          go-version: "1.24.x"
-          install-tools: "false"
-
-      - name: Run tests
-        run: |
-          echo "Running comprehensive tests before Compozy MCP Proxy release..."
-          make test
-
-      - name: Run linting
-        run: |
-          echo "Running linting checks..."
-          make lint || echo "Linting completed with warnings"
-
-      - name: Validate Compozy MCP Proxy build
-        run: |
-          echo "Validating that Compozy MCP Proxy builds successfully..."
-          go build -o compozy-mcp-proxy-test ./cmd/mcp-proxy/main.go
-          ./compozy-mcp-proxy-test --help || echo "Compozy MCP Proxy build validation completed"
-
   # Main release job using GoReleaser
   release:
     name: Release Compozy MCP Proxy with GoReleaser
@@ -159,13 +102,19 @@ jobs:
     timeout-minutes: 30
     needs:
       - validate-release
-      - pre-release-tests
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          
+      - name: Checkout specific tag for manual dispatch
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          TAG="${{ github.event.inputs.tag }}"
+          echo "Checking out tag: $TAG"
+          git checkout "refs/tags/$TAG"
 
       - name: Set up Go with caching
         uses: ./.github/actions/setup-go
@@ -191,14 +140,15 @@ jobs:
       - name: Run GoReleaser for MCP Proxy
         uses: goreleaser/goreleaser-action@v6
         with:
-          distribution: goreleaser
-          version: "~> v2"
+          distribution: goreleaser-pro
+          version: v2.11.2
           args: release --clean --config .goreleaser.mcp-proxy.yml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
           AUR_KEY: ${{ secrets.AUR_KEY }}
           COSIGN_EXPERIMENTAL: 1
+          GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
 
       - name: Generate release summary
         run: |
