@@ -1,6 +1,6 @@
 {
   "name": "@compozy/example-signals",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "description": "Example demonstrating signal-based workflow communication",
   "private": true,
   "type": "module",

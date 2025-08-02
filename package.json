@@ -1,6 +1,6 @@
 {
   "name": "compozy-examples",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "description": "Compozy runtime examples and tools",
   "private": true,
   "type": "module",

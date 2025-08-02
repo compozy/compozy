@@ -84,7 +84,7 @@
     },
     "examples/memory": {
       "name": "@compozy/example-memory",
-      "version": "0.1.0",
+      "version": "0.0.1",
       "dependencies": {
         "openmeteo": "^1.1.4",
       },
@@ -96,7 +96,7 @@
     },
     "examples/nested-tasks": {
       "name": "@compozy/example-nested-tasks",
-      "version": "0.1.0",
+      "version": "0.0.1",
       "devDependencies": {
         "oxlint": "^1.4.0",
         "prettier": "^3.6.0",
@@ -105,7 +105,7 @@
     },
     "examples/schedules": {
       "name": "@compozy/example-schedules",
-      "version": "0.1.0",
+      "version": "0.0.1",
       "devDependencies": {
         "oxlint": "^1.4.0",
         "prettier": "^3.6.0",
@@ -114,7 +114,7 @@
     },
     "examples/signals": {
       "name": "@compozy/example-signals",
-      "version": "0.1.0",
+      "version": "0.0.1",
       "devDependencies": {
         "oxlint": "^1.4.0",
         "prettier": "^3.6.0",
@@ -123,7 +123,7 @@
     },
     "examples/wait-task": {
       "name": "@compozy/example-wait-task",
-      "version": "0.1.0",
+      "version": "0.0.1",
       "devDependencies": {
         "oxlint": "^1.4.0",
         "prettier": "^3.6.0",
@@ -132,7 +132,7 @@
     },
     "examples/weather": {
       "name": "@compozy/example-weather",
-      "version": "0.1.0",
+      "version": "0.0.1",
       "dependencies": {
         "openmeteo": "^1.1.4",
       },
@@ -144,7 +144,7 @@
     },
     "tools/delete-file": {
       "name": "@compozy/tool-delete-file",
-      "version": "0.1.0",
+      "version": "0.0.1",
       "devDependencies": {
         "@types/bun": "^1.1.17",
         "typescript": "^5.7.3",
@@ -152,7 +152,7 @@
     },
     "tools/exec": {
       "name": "@compozy/tool-exec",
-      "version": "0.1.0",
+      "version": "0.0.1",
       "devDependencies": {
         "@types/bun": "^1.2.18",
         "typescript": "^5.8.3",
@@ -160,7 +160,7 @@
     },
     "tools/fetch": {
       "name": "@compozy/tool-fetch",
-      "version": "0.1.0",
+      "version": "0.0.1",
       "devDependencies": {
         "@types/bun": "^1.2.18",
         "typescript": "^5.8.3",
@@ -168,7 +168,7 @@
     },
     "tools/grep": {
       "name": "@compozy/tool-grep",
-      "version": "0.1.0",
+      "version": "0.0.1",
       "devDependencies": {
         "@types/bun": "^1.2.18",
         "typescript": "^5.8.3",
@@ -176,7 +176,7 @@
     },
     "tools/list-dir": {
       "name": "@compozy/tool-list-dir",
-      "version": "0.1.0",
+      "version": "0.0.1",
       "dependencies": {
         "minimatch": "^9.0.3",
       },
@@ -196,7 +196,7 @@
     },
     "tools/read-file": {
       "name": "@compozy/tool-read-file",
-      "version": "0.1.0",
+      "version": "0.0.1",
       "devDependencies": {
         "@types/bun": "^1.2.18",
         "typescript": "^5.8.3",
@@ -204,7 +204,7 @@
     },
     "tools/write-file": {
       "name": "@compozy/tool-write-file",
-      "version": "1.0.0",
+      "version": "0.0.1",
       "devDependencies": {
         "@types/bun": "latest",
         "@types/node": "^20.0.0",

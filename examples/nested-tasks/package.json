@@ -1,6 +1,6 @@
 {
   "name": "@compozy/example-nested-tasks",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "description": "Example demonstrating nested task execution patterns",
   "private": true,
   "type": "module",
