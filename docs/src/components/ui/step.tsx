@@ -22,7 +22,7 @@ const stepVariants = tv({
     connector: "relative w-px h-full transition-all duration-300",
     content: "flex flex-col ml-4 pb-8 w-full min-w-0 overflow-x-auto",
     title: "transition-colors duration-200 mt-0 font-semibold",
-    description: "text-sm text-muted-foreground mt-1",
+    description: "text-muted-foreground mt-1",
   },
   variants: {
     size: {

@@ -3,6 +3,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
 import { Building2, CircleCheck, Cloud, Github } from "lucide-react";
 import { tv } from "tailwind-variants";
 
@@ -34,7 +35,7 @@ const pricingStyles = tv({
   variants: {
     isPopular: {
       true: {
-        card: "!rounded-2xl border-2 border-primary shadow-lg scale-105 lg:scale-110 z-10 bg-background",
+        card: "!rounded-2xl border-2 border-primary shadow-lg scale-105 lg:scale-110 z-10",
       },
     },
     isDisabled: {
@@ -149,10 +150,10 @@ export const Pricing = () => {
             return (
               <div
                 key={plan.name}
-                className={styles.card({
+                className={cn(styles.card({
                   isPopular: plan.isPopular,
                   isDisabled: plan.isDisabled,
-                })}
+                }))}
               >
                 {plan.isPopular && <Badge className={styles.popularBadge()}>Coming Soon</Badge>}
 

@@ -5,18 +5,20 @@ description: Install Compozy CLI and set up your development environment for bui
 
 ## Install Compozy CLI
 
-Choose your preferred installation method:
+Choose your preferred installation method. We support various package managers, pre-built binaries, and Docker for easy installation.
 
-<Tabs items={["Homebrew", "Go Install", "Pre-built Binary"]}>
+<Tabs items={["Homebrew", "Go Install", "Docker", "Linux Packages", "Arch Linux (AUR)", "Pre-built Binary"]}>
 
 <Tab>
+**For macOS and Linux users:**
 ```bash
-# Install via Homebrew (macOS/Linux)
-brew install compozy/tap/compozy
+# Install via Homebrew
+brew install compozy/compozy
 ```
 </Tab>
 
 <Tab>
+**For developers with a Go environment:**
 ```bash
 # Install via Go
 go install github.com/compozy/compozy@latest
@@ -24,13 +26,60 @@ go install github.com/compozy/compozy@latest
 </Tab>
 
 <Tab>
+**For containerized environments:**
 ```bash
-# Download and install pre-built binary
-curl -fsSL https://install.compozy.dev | sh
+# Pull the latest Docker image
+docker pull ghcr.io/compozy/compozy:latest
 
-# Or download manually from GitHub releases
-# https://github.com/compozy/compozy/releases
+# Run Compozy using Docker
+docker run --rm -it ghcr.io/compozy/compozy:latest --version
 ```
+</Tab>
+
+<Tab>
+Download the appropriate `.deb`, `.rpm`, or `.apk` package for your distribution from the [GitHub Releases](https://github.com/compozy/compozy/releases) page and install it using your system's package manager.
+
+**For Debian/Ubuntu:**
+```bash
+# Replace with the downloaded file name
+sudo dpkg -i compozy_*.deb
+```
+
+**For Fedora/CentOS:**
+```bash
+# Replace with the downloaded file name
+sudo rpm -i compozy_*.rpm
+```
+
+**For Alpine Linux:**
+```bash
+# Replace with the downloaded file name
+sudo apk add --allow-untrusted compozy_*.apk
+```
+</Tab>
+
+<Tab>
+Install from the Arch User Repository (AUR) using an AUR helper such as `yay`.
+
+**Install from source:**
+```bash
+yay -S compozy
+```
+
+**Install pre-built binary:**
+```bash
+yay -S compozy-bin
+```
+</Tab>
+
+<Tab>
+Our installer script automatically downloads the correct binary for your system.
+```bash
+# Download and install pre-built binary via script
+curl -fsSL https://install.compozy.dev | sh
+```
+
+Alternatively, you can download a specific binary for your OS and architecture from our [GitHub Releases](https://github.com/compozy/compozy/releases) page.
 </Tab>
 
 </Tabs>

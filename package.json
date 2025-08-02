@@ -34,6 +34,16 @@
     "typescript": "5.9.2",
     "vite": "7.0.6"
   },
+  "overrides": {
+    "@shikijs/core": "3.9.1",
+    "@shikijs/rehype": "3.9.1",
+    "@shikijs/types": "3.9.1",
+    "@shikijs/engine-javascript": "3.9.1",
+    "@shikijs/engine-oniguruma": "3.9.1",
+    "@shikijs/langs": "3.9.1",
+    "@shikijs/themes": "3.9.1",
+    "shiki": "3.9.1"
+  },
   "packageManager": "bun@1.2.18",
   "dependencies": {
     "lucide-static": "0.536.0"
