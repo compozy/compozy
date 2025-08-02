@@ -137,8 +137,6 @@ jobs:
           timeout 30s bash -c 'until redis-cli -h localhost -p 6379 ping; do sleep 1; done'
           echo "Redis is ready!"
 
-      # Go tools already installed by setup-go composite action
-
       - name: Run linting
         run: |
           echo "Running Go code quality checks..."
