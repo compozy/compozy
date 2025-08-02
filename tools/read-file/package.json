@@ -1,6 +1,6 @@
 {
   "name": "@compozy/tool-read-file",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Compozy tool for reading file content",
   "type": "module",
   "main": "index.ts",
