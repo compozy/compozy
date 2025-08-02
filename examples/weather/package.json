@@ -1,6 +1,6 @@
 {
   "name": "@compozy/example-weather",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "description": "Weather data collection and processing example with AI agents",
   "private": true,
   "type": "module",

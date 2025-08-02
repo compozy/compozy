@@ -1,6 +1,6 @@
 {
   "name": "@compozy/example-memory",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "description": "Simple conversational agent that remembers user information using memory",
   "private": true,
   "type": "module",

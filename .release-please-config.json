@@ -82,7 +82,7 @@
           "hidden": false
         }
       ],
-      "pull-request-title-pattern": "chore${scope}: release${component} ${version}",
+      "pull-request-title-pattern": "ci(release): Releasing new version v${version}",
       "tag-separator": "-",
       "extra-files": [
         {
@@ -175,7 +175,7 @@
           "hidden": false
         }
       ],
-      "pull-request-title-pattern": "chore${scope}: release${component} ${version}",
+      "pull-request-title-pattern": "ci(release): Releasing compozy-mcp-proxy v${version}",
       "extra-files": [
         {
           "type": "generic",
@@ -252,6 +252,7 @@
       "groupName": "compozy-monorepo",
       "components": [
         ".",
+        "cmd/mcp-proxy",
         "tools/delete-file",
         "tools/exec",
         "tools/fetch",
