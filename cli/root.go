@@ -21,7 +21,7 @@ func RootCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:   "compozy",
 		Short: "Compozy CLI tool for workflow orchestration",
-		Long: `Compozy is a powerful Next-level Agentic Orchestration Framework.
+		Long: `Compozy is a powerful Next-level Agentic Orchestration Platform.
 This CLI provides complete control over workflows, executions, schedules,
 and events with both interactive TUI and automation-friendly JSON output.`,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {

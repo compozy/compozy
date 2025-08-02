@@ -128,7 +128,7 @@ func RegisterRoutes(ctx context.Context, router *gin.Engine, state *appstate.Sta
 		c.JSON(200, gin.H{
 			"name":        "Compozy API",
 			"version":     version,
-			"description": "Next-level Agentic Orchestration Framework, tasks, and tools",
+			"description": "Next-level Agentic Orchestration Platform, tasks, and tools",
 			"endpoints": gin.H{
 				"health":  fmt.Sprintf("%s/health", baseURL),
 				"api":     fmt.Sprintf("%s%s", baseURL, prefixURL),

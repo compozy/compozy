@@ -1,7 +1,7 @@
 {
     "swagger": "2.0",
     "info": {
-        "description": "Compozy is a Next-level Agentic Orchestration Framework, tasks, and tools",
+        "description": "Compozy is a Next-level Agentic Orchestration Platform, tasks, and tools",
         "title": "Compozy API",
         "termsOfService": "https://github.com/compozy/compozy",
         "contact": {

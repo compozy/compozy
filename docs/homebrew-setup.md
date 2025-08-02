@@ -43,7 +43,7 @@ brew install compozy
 
 ## Available Formulae
 
-- `compozy` - Next-level Agentic Orchestration Framework
+- `compozy` - Next-level Agentic Orchestration Platform
 
 ````
 

@@ -22,7 +22,7 @@
 
 ## 🎯 Overview
 
-The `cli` package provides the command-line interface for Compozy, a Next-level Agentic Orchestration Framework. It includes commands for:
+The `cli` package provides the command-line interface for Compozy, a Next-level Agentic Orchestration Platform. It includes commands for:
 
 - **Development server** (`dev`) - Hot-reloading development environment
 - **Configuration management** (`config`) - Inspect, validate, and diagnose configuration

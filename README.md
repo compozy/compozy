@@ -2,7 +2,7 @@
 
 <div align="center">
   <p>
-    <strong>Next-level Agentic Orchestration Framework</strong>
+    <strong>Next-level Agentic Orchestration Platform</strong>
   </p>
   <p>
     <a href="https://github.com/compozy/compozy/actions/workflows/ci.yml">

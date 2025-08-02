@@ -69,7 +69,7 @@ runs:
           type=raw,value=latest,enable={{is_default_branch}}
         labels: |
           org.opencontainers.image.title=Compozy
-          org.opencontainers.image.description=Next-level Agentic Orchestration Framework
+          org.opencontainers.image.description=Next-level Agentic Orchestration Platform
           org.opencontainers.image.vendor=Compozy
           org.opencontainers.image.licenses=BSL-1.1
           ${{ inputs.labels }}

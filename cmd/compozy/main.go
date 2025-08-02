@@ -1,6 +1,6 @@
 //	@title			Compozy API
 //	@version		1.0
-//	@description	Compozy is a Next-level Agentic Orchestration Framework, tasks, and tools
+//	@description	Compozy is a Next-level Agentic Orchestration Platform, tasks, and tools
 //	@termsOfService	https://github.com/compozy/compozy
 
 //	@contact.name	Compozy Support

@@ -210,7 +210,7 @@ EXPOSE 5001
 
 # Container metadata labels
 LABEL org.opencontainers.image.title="Compozy" \
-      org.opencontainers.image.description="Next-level Agentic Orchestration Framework" \
+      org.opencontainers.image.description="Next-level Agentic Orchestration Platform" \
       org.opencontainers.image.url="https://github.com/compozy/compozy" \
       org.opencontainers.image.source="https://github.com/compozy/compozy" \
       org.opencontainers.image.documentation="https://github.com/compozy/compozy/blob/main/docs/deployment.md" \

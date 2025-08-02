@@ -5977,7 +5977,7 @@ var SwaggerInfo = &swag.Spec{
 	BasePath:         "/api/v0",
 	Schemes:          []string{},
 	Title:            "Compozy API",
-	Description:      "Compozy is a Next-level Agentic Orchestration Framework, tasks, and tools",
+	Description:      "Compozy is a Next-level Agentic Orchestration Platform, tasks, and tools",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

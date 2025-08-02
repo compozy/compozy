@@ -7,7 +7,7 @@ This file provides comprehensive guidance for working with the Compozy codebase,
 
 ## Project Overview
 
-Compozy is a **Next-level Agentic Orchestration Framework** that enables building AI-powered applications through declarative YAML configuration and a robust Go backend. It integrates with various LLM providers and supports the Model Context Protocol (MCP) for extending AI capabilities.
+Compozy is a **Next-level Agentic Orchestration Platform** that enables building AI-powered applications through declarative YAML configuration and a robust Go backend. It integrates with various LLM providers and supports the Model Context Protocol (MCP) for extending AI capabilities.
 
 ## Development Commands
 

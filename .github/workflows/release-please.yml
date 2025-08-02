@@ -33,9 +33,6 @@ jobs:
           # Release Please configuration
           config-file: .release-please-config.json
           manifest-file: .release-please-manifest.json
-          
-          # Enable manifest mode
-          release-type: manifest
 
           # Token with appropriate permissions
           token: ${{ secrets.GITHUB_TOKEN }}
