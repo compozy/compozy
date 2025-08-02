@@ -1,6 +1,6 @@
 {
   "name": "@compozy/example-wait-task",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "description": "Example demonstrating wait task patterns for async coordination",
   "private": true,
   "type": "module",

@@ -1,6 +1,6 @@
 {
   "name": "@compozy/tool-fetch",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "description": "Compozy tool for making HTTP/HTTPS requests",
   "type": "module",
   "main": "index.ts",
