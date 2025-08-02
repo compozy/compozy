@@ -10,7 +10,7 @@ metadata:
   mod_timestamp: "{{ .CommitTimestamp }}"
   license: "BSL-1.1"
   homepage: "https://github.com/compozy/compozy"
-  description: "Model Context Protocol Proxy - HTTP gateway for MCP servers"
+  description: "MCP Proxy for Compozy - enables Model Context Protocol server connections"
   maintainers:
     - "Compozy Team <support@compozy.com>"
 
@@ -22,12 +22,6 @@ env:
 # Git configuration
 git:
   tag_sort: -version:refname
-
-# Nightly builds configuration
-nightly:
-  publish_release: true
-  keep_single_release: true
-  version_template: "{{ incminor .Version }}-nightly"
 
 # Build configuration
 builds:
@@ -84,19 +78,15 @@ builds:
 # Archive configuration
 archives:
   - id: compozy-mcp-proxy-archive
-    builds:
+    ids:
       - compozy-mcp-proxy
 
     # Archive name template
     name_template:
-      "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{\\
-      \\ end }}"
+      "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{\
+      \ end }}"
 
-    # Archive format
-    format: tar.gz
-    format_overrides:
-      - goos: windows
-        format: zip
+    # Archive format (defaults to tar.gz, zip for windows)
 
     # Files to include in archive
     files:
@@ -330,16 +320,16 @@ docker_signs:
     artifacts: images
     output: true
 
-# Homebrew tap configuration
-brews:
+# Homebrew cask configuration
+homebrew_casks:
   - name: compozy-mcp-proxy
-    # GitHub repository to push the formula to
+    # GitHub repository to push the cask to
     repository:
       owner: compozy
       name: homebrew-compozy
       branch: main
       # Token for the repository
-      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+      token: "{{ .Env.RELEASE_TOKEN }}"
 
     # Git author used to commit to the repository
     commit_author:
@@ -347,10 +337,10 @@ brews:
       email: bot@goreleaser.com
 
     # The project name and current git tag are used in the format string
-    commit_msg_template: "Brew formula update for {{ .ProjectName }} version {{ .Tag }}"
+    commit_msg_template: "Brew cask update for {{ .ProjectName }} version {{ .Tag }}"
 
-    # Directory inside the repository to put the formula
-    directory: Formula
+    # Directory inside the repository to put the cask
+    directory: Casks
 
     # Caveats for the user of your binary
     caveats: |
@@ -366,36 +356,6 @@ brews:
 
     # Short description of your project
     description: "Model Context Protocol Proxy"
-
-    # License of your project
-    license: "BSL-1.1"
-
-    # Setting this will prevent goreleaser to publish the formula
-    # in case there are no unix builds
-    skip_upload: auto
-
-    # Custom block for the brew formula
-    dependencies:
-      - name: redis
-        type: optional
-
-    # Install script
-    install: |
-      bin.install "compozy-mcp-proxy"
-
-    # Test block
-    test: |
-      system "#{bin}/compozy-mcp-proxy", "--help"
-
-# NPM publishing configuration
-npms:
-  - name: "compozy-mcp-proxy"
-    repository: "git+https://github.com/compozy/compozy.git"
-    bugs: https://github.com/compozy/compozy/issues
-    homepage: https://github.com/compozy/compozy
-    description: "Model Context Protocol Proxy - HTTP gateway for MCP servers"
-    license: BSL-1.1
-    access: public
 
 # NFPM packaging configuration
 nfpms:
@@ -476,14 +436,56 @@ aurs:
       install -Dm644 completions/compozy-mcp-proxy.fish "$pkgdir/usr/share/fish/vendor_completions.d/compozy-mcp-proxy.fish"
       install -Dm644 completions/compozy-mcp-proxy.zsh "$pkgdir/usr/share/zsh/site-functions/_compozy-mcp-proxy"
 
+# NPM publishing configuration (Pro feature)
+npms:
+  - # ID of the NPM package
+    id: compozy-mcp-proxy
+
+    # Package name on NPM registry
+    name: "compozy-mcp-proxy"
+
+    # IDs of the archives to use
+    ids:
+      - compozy-mcp-proxy-archive
+
+    # Package description
+    description: "Model Context Protocol Proxy - HTTP gateway for MCP servers"
+
+    # Homepage
+    homepage: "https://github.com/compozy/compozy"
+
+    # Keywords for better discoverability
+    keywords:
+      - mcp
+      - model-context-protocol
+      - proxy
+      - ai
+      - llm
+      - gateway
+
+    # License (inferred from metadata)
+    license: "BSL-1.1"
+
+    # Author information
+    author: "Compozy Team <support@compozy.com>"
+
+    # Repository URL
+    repository: "https://github.com/compozy/compozy"
+
+    # Bug report URL
+    bugs: "https://github.com/compozy/compozy/issues"
+
+    # Access level
+    access: public
+
+    # Package format (using the archive format)
+    format: tgz
+
+    # Only publish stable releases to NPM
+    disable: "{{ if .Prerelease }}true{{ else }}false{{ end }}"
+
 # Before hooks (run before building)
 before:
   hooks:
-    # Clean up any previous builds
-    - go clean -cache
     # Download dependencies
     - go mod download
-    # Verify dependencies
-    - go mod verify
-    # Run tests
-    - make test || true
