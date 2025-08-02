@@ -24,7 +24,7 @@ export default function HeroText() {
         transition={{ duration: 0.8, delay: 0.2, ease: "easeOut" }}
       >
         <p className="mx-auto mt-8 max-w-4xl text-balance text-xl text-foreground/60 leading-relaxed">
-          Orchestrate multi-agent AI systems with ease. Compozy’s enterprise-grade framework uses
+          Orchestrate multi-agent AI systems with ease. Compozy’s enterprise-grade platform uses
           declarative YAML to deliver scalable, reliable, and cost-efficient distributed workflows,
           simplifying complex fan-outs, debugging, and monitoring for production-ready automation.
         </p>
