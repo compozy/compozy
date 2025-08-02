@@ -12,7 +12,7 @@ metadata:
   homepage: "https://github.com/compozy/compozy"
   description: "Model Context Protocol Proxy - HTTP gateway for MCP servers"
   maintainers:
-    - "Compozy Team <team@compozy.dev>"
+    - "Compozy Team <support@compozy.com>"
 
 # Environment variables
 env:
@@ -405,7 +405,7 @@ nfpms:
 
     vendor: "Compozy"
     homepage: "https://github.com/compozy/compozy"
-    maintainer: "Compozy Team <team@compozy.dev>"
+    maintainer: "Compozy Team <support@compozy.com>"
     description: "Model Context Protocol Proxy - HTTP gateway for MCP servers"
     license: "BSL-1.1"
 
@@ -448,7 +448,7 @@ aurs:
     homepage: "https://github.com/compozy/compozy"
     description: "Model Context Protocol Proxy - HTTP gateway for MCP servers"
     maintainers:
-      - "Compozy Team <team@compozy.dev>"
+      - "Compozy Team <support@compozy.com>"
     license: BSL-1.1
     private_key: "{{ .Env.AUR_KEY }}"
     git_url: "ssh://aur@aur.archlinux.org/compozy-mcp-proxy.git"

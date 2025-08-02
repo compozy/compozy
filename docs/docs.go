@@ -13,7 +13,7 @@ const docTemplate = `{
         "contact": {
             "name": "Compozy Support",
             "url": "https://github.com/compozy/compozy",
-            "email": "support@compozy.dev"
+            "email": "support@compozy.com"
         },
         "license": {
             "name": "BSL-1.1",

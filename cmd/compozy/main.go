@@ -5,7 +5,7 @@
 
 //	@contact.name	Compozy Support
 //	@contact.url	https://github.com/compozy/compozy
-//	@contact.email	support@compozy.dev
+//	@contact.email	support@compozy.com
 
 //	@license.name	BSL-1.1
 //	@license.url	https://github.com/compozy/compozy/blob/main/LICENSE

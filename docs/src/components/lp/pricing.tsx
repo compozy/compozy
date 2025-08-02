@@ -116,7 +116,7 @@ const plans: Plan[] = [
     ],
     buttonText: "Contact Sales",
     buttonVariant: "primary" as const,
-    buttonHref: "mailto:enterprise@compozy.dev",
+    buttonHref: "mailto:sales@compozy.dev",
     icon: Building2,
   },
 ];
@@ -150,10 +150,12 @@ export const Pricing = () => {
             return (
               <div
                 key={plan.name}
-                className={cn(styles.card({
-                  isPopular: plan.isPopular,
-                  isDisabled: plan.isDisabled,
-                }))}
+                className={cn(
+                  styles.card({
+                    isPopular: plan.isPopular,
+                    isDisabled: plan.isDisabled,
+                  })
+                )}
               >
                 {plan.isPopular && <Badge className={styles.popularBadge()}>Coming Soon</Badge>}
 

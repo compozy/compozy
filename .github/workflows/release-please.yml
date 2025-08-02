@@ -10,6 +10,8 @@ permissions:
   contents: write
   pull-requests: write
   packages: write
+  actions: write
+  id-token: write
 
 jobs:
   release-please:
@@ -27,7 +29,7 @@ jobs:
 
     steps:
       - name: Run Release Please
-        uses: google-github-actions/release-please-action@v4
+        uses: googleapis/release-please-action@v4
         id: release
         with:
           # Release Please configuration
@@ -35,7 +37,8 @@ jobs:
           manifest-file: .release-please-manifest.json
 
           # Token with appropriate permissions
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # Using PAT for creating pull requests
+          token: ${{ secrets.RELEASE_TOKEN }}
 
           # Command to run (default is 'github-release')
           command: github-release
@@ -117,7 +120,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: release-please
     if: needs.release-please.outputs.releases-created == 'true'
-    
+
     strategy:
       matrix:
         tool:
@@ -129,17 +132,17 @@ jobs:
           - list-files
           - read-file
           - write-file
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        
+
       - name: Check if tool was released
         id: check-release
         run: |
           PATHS_RELEASED='${{ needs.release-please.outputs.paths-released }}'
           echo "Paths released: $PATHS_RELEASED"
-          
+
           if echo "$PATHS_RELEASED" | grep -q "tools/${{ matrix.tool }}"; then
             echo "should-publish=true" >> $GITHUB_OUTPUT
             echo "✅ Tool ${{ matrix.tool }} was released"
@@ -147,18 +150,18 @@ jobs:
             echo "should-publish=false" >> $GITHUB_OUTPUT
             echo "ℹ️ Tool ${{ matrix.tool }} was not released"
           fi
-      
+
       - name: Setup Bun
         if: steps.check-release.outputs.should-publish == 'true'
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-      
+
       - name: Install dependencies
         if: steps.check-release.outputs.should-publish == 'true'
         working-directory: tools/${{ matrix.tool }}
         run: bun install
-      
+
       - name: Build package
         if: steps.check-release.outputs.should-publish == 'true'
         working-directory: tools/${{ matrix.tool }}
@@ -168,7 +171,7 @@ jobs:
           else
             echo "No build script found, skipping build step"
           fi
-      
+
       - name: Configure npm
         if: steps.check-release.outputs.should-publish == 'true'
         run: |
@@ -176,7 +179,7 @@ jobs:
           npm whoami
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-      
+
       - name: Publish to npm
         if: steps.check-release.outputs.should-publish == 'true'
         working-directory: tools/${{ matrix.tool }}
