@@ -30,8 +30,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/compozy/compozy/cli/helpers"
-	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	mcpproxy "github.com/compozy/compozy/pkg/mcp-proxy"
 	"github.com/compozy/compozy/pkg/version"
@@ -53,15 +51,25 @@ func createRootCommand() *cobra.Command {
 It acts as a gateway between AI agents and MCP servers, managing connections,
 authentication, and routing requests.`,
 		RunE: runMCPProxy,
-		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
-			return setupGlobalConfig(cmd)
-		},
 	}
 
-	// Add global configuration flags
-	helpers.AddGlobalFlags(root)
-
 	// Add MCP proxy specific flags
+	root.Flags().String("host", "", "Host interface for MCP proxy server to bind to")
+	root.Flags().Int("port", 0, "Port for MCP proxy server to listen on")
+	root.Flags().String("base-url", "", "Base URL for MCP proxy server (auto-generated if empty)")
+	root.Flags().Duration("shutdown-timeout", 0, "Maximum time to wait for graceful shutdown")
+
+	// Authentication flags
+	root.Flags().StringSlice("admin-tokens", nil, "Admin authentication tokens (comma-separated)")
+	root.Flags().StringSlice("admin-allow-ips", nil,
+		"IP addresses/CIDR blocks allowed for admin access (comma-separated)")
+	root.Flags().StringSlice("trusted-proxies", nil,
+		"Trusted proxy IP addresses/CIDR blocks (comma-separated)")
+	root.Flags().StringSlice("global-auth-tokens", nil,
+		"Global authentication tokens for all MCP clients (comma-separated)")
+
+	// Logging flags
+	root.Flags().String("log-level", "", "Log level (debug, info, warn, error)")
 	root.Flags().Bool("debug", false, "Enable debug mode (sets log level to debug)")
 
 	// Add version command
@@ -80,95 +88,41 @@ authentication, and routing requests.`,
 	return root
 }
 
-func setupGlobalConfig(cmd *cobra.Command) error {
-	// Load environment file if specified
-	if err := helpers.LoadEnvironmentFile(cmd); err != nil {
-		return fmt.Errorf("failed to load environment file: %w", err)
-	}
-
+func runMCPProxy(cmd *cobra.Command, _ []string) error {
 	ctx := cmd.Context()
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
-	// Extract CLI flag overrides
-	cliFlags, err := helpers.ExtractCLIFlags(cmd)
+	// Load configuration
+	cfg, err := LoadConfig(cmd)
 	if err != nil {
-		return fmt.Errorf("failed to extract CLI flags: %w", err)
+		return fmt.Errorf("failed to load configuration: %w", err)
 	}
 
-	// Build sources with proper precedence: defaults -> env -> config file -> CLI flags
-	sources := []config.Source{
-		config.NewDefaultProvider(),
-		config.NewEnvProvider(),
-	}
-
-	// Add config file if specified
-	configFile, err := cmd.Flags().GetString("config")
-	if err != nil {
-		return fmt.Errorf("failed to get config file: %w", err)
-	}
-	if configFile != "" {
-		sources = append(sources, config.NewYAMLProvider(configFile))
-	}
-
-	// Add CLI flags as highest precedence
-	if len(cliFlags) > 0 {
-		sources = append(sources, config.NewCLIProvider(cliFlags))
-	}
-
-	// Initialize global config
-	if err := config.Initialize(ctx, nil, sources...); err != nil {
-		return fmt.Errorf("failed to initialize global configuration: %w", err)
-	}
-
-	// Setup logger based on configuration
-	cfg := config.Get()
-	logLevel := logger.InfoLevel
-	if cfg.CLI.Quiet {
-		logLevel = logger.DisabledLevel
-	} else if cfg.CLI.Debug {
-		logLevel = logger.DebugLevel
-	}
-
-	// Override log level if debug flag is set
-	if debug, err := cmd.Flags().GetBool("debug"); err == nil && debug {
-		logLevel = logger.DebugLevel
-	}
-
-	log := logger.SetupLogger(logLevel, false, cfg.CLI.Debug)
+	// Setup logger
+	logLevel := parseLogLevel(cfg.LogLevel)
+	log := logger.SetupLogger(logLevel, false, cfg.Debug)
 	ctx = logger.ContextWithLogger(ctx, log)
-	cmd.SetContext(ctx)
 
-	return nil
-}
-
-func runMCPProxy(cmd *cobra.Command, _ []string) error {
-	ctx := cmd.Context()
-	log := logger.FromContext(ctx)
-
-	// Get MCP proxy configuration
-	cfg := config.Get()
-	mcpConfig := cfg.MCPProxy
+	// Debug: log the configuration values
+	log.Debug("MCP proxy configuration loaded",
+		"host", cfg.Host,
+		"port", cfg.Port,
+		"baseURL", cfg.BaseURL)
 
 	// Convert port from int to string as required by MCP proxy
-	port := strconv.Itoa(mcpConfig.Port)
-
-	// Set default base URL if not provided
-	baseURL := mcpConfig.BaseURL
-	if baseURL == "" {
-		baseURL = fmt.Sprintf("http://localhost:%s", port)
-	}
+	port := strconv.Itoa(cfg.Port)
 
 	proxyConfig := &mcpproxy.Config{
-		Host:             mcpConfig.Host,
+		Host:             cfg.Host,
 		Port:             port,
-		BaseURL:          baseURL,
-		ShutdownTimeout:  mcpConfig.ShutdownTimeout,
-		AdminTokens:      mcpConfig.AdminTokens,
-		AdminAllowIPs:    mcpConfig.AdminAllowIPs,
-		TrustedProxies:   mcpConfig.TrustedProxies,
-		GlobalAuthTokens: mcpConfig.GlobalAuthTokens,
+		BaseURL:          cfg.BaseURL,
+		ShutdownTimeout:  cfg.ShutdownTimeout,
+		AdminTokens:      cfg.AdminTokens,
+		AdminAllowIPs:    cfg.AdminAllowIPs,
+		TrustedProxies:   cfg.TrustedProxies,
+		GlobalAuthTokens: cfg.GlobalAuthTokens,
 	}
 
 	// Validate configuration
@@ -181,17 +135,11 @@ func runMCPProxy(cmd *cobra.Command, _ []string) error {
 	defer cancel()
 
 	// Display startup information
-	mode := cfg.CLI.Mode
-	if mode == "json" {
-		fmt.Printf(`{"message":"Starting MCP proxy server","host":"%s","port":"%s","base_url":"%s"}`+"\n",
-			proxyConfig.Host, proxyConfig.Port, proxyConfig.BaseURL)
-	} else {
-		fmt.Printf("🚀 Starting MCP proxy server\n")
-		fmt.Printf("📡 Host: %s\n", proxyConfig.Host)
-		fmt.Printf("🔌 Port: %s\n", proxyConfig.Port)
-		fmt.Printf("🌐 Base URL: %s\n", proxyConfig.BaseURL)
-		fmt.Printf("\n💡 Press Ctrl+C to stop the server\n\n")
-	}
+	fmt.Printf("🚀 Starting MCP proxy server\n")
+	fmt.Printf("📡 Host: %s\n", proxyConfig.Host)
+	fmt.Printf("🔌 Port: %s\n", proxyConfig.Port)
+	fmt.Printf("🌐 Base URL: %s\n", proxyConfig.BaseURL)
+	fmt.Printf("\n💡 Press Ctrl+C to stop the server\n\n")
 
 	log.Info("starting MCP proxy server",
 		"host", proxyConfig.Host,
@@ -201,4 +149,20 @@ func runMCPProxy(cmd *cobra.Command, _ []string) error {
 
 	// Run the MCP proxy server
 	return mcpproxy.Run(ctx, proxyConfig)
+}
+
+// parseLogLevel converts string log level to logger.LogLevel
+func parseLogLevel(level string) logger.LogLevel {
+	switch level {
+	case string(logger.DebugLevel):
+		return logger.DebugLevel
+	case string(logger.InfoLevel):
+		return logger.InfoLevel
+	case string(logger.WarnLevel):
+		return logger.WarnLevel
+	case string(logger.ErrorLevel):
+		return logger.ErrorLevel
+	default:
+		return logger.InfoLevel
+	}
 }

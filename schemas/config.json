@@ -185,7 +185,7 @@
           "type": "string"
         },
         "proxy_url": {
-          "description": "ProxyURL specifies the MCP proxy server endpoint.\n\nThe proxy handles:\n  - MCP server connections\n  - Tool discovery and routing\n  - Protocol translation\nDefault: \"http://localhost:8081\"",
+          "description": "ProxyURL specifies the MCP proxy server endpoint.\n\nThe proxy handles:\n  - MCP server connections\n  - Tool discovery and routing\n  - Protocol translation\nDefault: \"http://localhost:6001\"",
           "type": "string"
         }
       },
@@ -241,7 +241,7 @@
           "type": "array"
         },
         "base_url": {
-          "description": "BaseURL specifies the base URL for MCP proxy API endpoints.\n\n**Default**: `\"http://localhost:8081\"`",
+          "description": "BaseURL specifies the base URL for MCP proxy API endpoints.\n\n**Default**: `\"http://localhost:6001\"`",
           "type": "string"
         },
         "global_auth_tokens": {
@@ -256,7 +256,7 @@
           "type": "string"
         },
         "port": {
-          "description": "Port specifies the TCP port for the MCP proxy server.\n\n**Default**: `8081`",
+          "description": "Port specifies the TCP port for the MCP proxy server.\n\n**Default**: `6001`",
           "type": "integer"
         },
         "shutdown_timeout": {

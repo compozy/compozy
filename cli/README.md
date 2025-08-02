@@ -236,7 +236,7 @@ compozy config diagnostics --verbose
 
 ```bash
 # Start MCP proxy
-compozy mcp-proxy --port 8081
+compozy mcp-proxy --port 6001
 
 # With authentication
 compozy mcp-proxy \

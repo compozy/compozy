@@ -28,13 +28,13 @@ RUN go mod download && go mod verify
 COPY . .
 
 # Build the MCP Proxy binary with optimizations
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH:-amd64} \
+RUN cd cmd/mcp-proxy && \
+    CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH:-amd64} \
     go build \
     -a \
     -installsuffix cgo \
     -ldflags='-w -s -extldflags "-static"' \
-    -o compozy-mcp-proxy \
-    ./cmd/mcp-proxy/main.go
+    -o /build/compozy-mcp-proxy
 
 # Verify the binary
 RUN ./compozy-mcp-proxy --help || echo "Compozy MCP Proxy binary built successfully"
@@ -43,22 +43,7 @@ RUN ./compozy-mcp-proxy --help || echo "Compozy MCP Proxy binary built successfu
 FROM alpine:3.20
 
 # Install runtime dependencies required for engine/runtime and mcp-proxy
-RUN apk add --no-cache \
-    ca-certificates \
-    tzdata \
-    nodejs \
-    npm \
-    python3 \
-    py3-pip \
-    curl \
-    wget \
-    # Network debugging tools
-    netcat-openbsd \
-    bind-tools \
-    # Redis CLI for storage debugging
-    redis \
-    # Process monitoring
-    procps
+RUN apk add --no-cache     ca-certificates     tzdata     bash     nodejs     npm     python3     py3-pip     curl     wget     # Network debugging tools    netcat-openbsd     bind-tools     # Redis CLI for storage debugging    redis     # Process monitoring    procps
 
 # Install Bun - Latest stable version for production
 ENV BUN_VERSION=1.1.45
@@ -69,7 +54,7 @@ RUN curl -fsSL https://bun.sh/install | bash -s "bun-v${BUN_VERSION}" \
 
 # Install uv - pinned version with checksum verification for supply-chain security
 ENV UV_VERSION=0.5.14 \
-    UV_SHA256=e63f3a3a09f382ffc5cf94fb81301b88dd870a73c6394ba3cdad3b45c0baf442
+    UV_SHA256=e1ccdfe1691c1f791d84bb6e1697e49416ca4b62103dcdf3b63772f03834f113
 RUN curl -L -o /tmp/uv.tar.gz \
     "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-x86_64-unknown-linux-musl.tar.gz" \
     && echo "${UV_SHA256}  /tmp/uv.tar.gz" | sha256sum -c - \
@@ -102,7 +87,7 @@ USER mcpproxy
 ENV PATH="/app:${PATH}"
 ENV MCP_PROXY_ENV=production
 ENV MCP_PROXY_LOG_LEVEL=info
-ENV MCP_PROXY_PORT=8081
+ENV MCP_PROXY_PORT=6001
 # Security: Limit stdio transport commands by default
 ENV MCP_PROXY_STDIO_ALLOWED_COMMANDS=""
 # Performance: Connection pool settings
@@ -111,10 +96,10 @@ ENV MCP_PROXY_TIMEOUT=30s
 
 # Health check for production monitoring
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8081/healthz || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://localhost:6001/healthz || exit 1
 
 # Expose port
-EXPOSE 8081
+EXPOSE 6001
 
 # Container metadata labels
 LABEL org.opencontainers.image.title="Compozy MCP Proxy"

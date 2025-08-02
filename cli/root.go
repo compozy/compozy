@@ -14,10 +14,13 @@ import (
 	"github.com/compozy/compozy/cli/helpers"
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
+	"github.com/compozy/compozy/pkg/version"
 	"github.com/spf13/cobra"
 )
 
 func RootCmd() *cobra.Command {
+	var showVersion bool
+
 	root := &cobra.Command{
 		Use:   "compozy",
 		Short: "Compozy CLI tool for workflow orchestration",
@@ -27,10 +30,38 @@ and events with both interactive TUI and automation-friendly JSON output.`,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 			return SetupGlobalConfig(cmd)
 		},
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			// Handle --version flag when no subcommand is provided
+			if showVersion {
+				info := version.Get()
+				fmt.Printf("compozy version %s\n", info.Version)
+				fmt.Printf("commit: %s\n", info.CommitHash)
+				fmt.Printf("built: %s\n", info.BuildDate)
+				return nil
+			}
+			// Show help if no subcommand is provided
+			return cmd.Help()
+		},
 	}
+
+	// Add --version flag
+	root.Flags().BoolVarP(&showVersion, "version", "v", false, "Show version information")
 
 	// Add comprehensive global flags
 	helpers.AddGlobalFlags(root)
+
+	// Add version command
+	versionCmd := &cobra.Command{
+		Use:   "version",
+		Short: "Show version information",
+		Run: func(_ *cobra.Command, _ []string) {
+			info := version.Get()
+			fmt.Printf("compozy version %s\n", info.Version)
+			fmt.Printf("commit: %s\n", info.CommitHash)
+			fmt.Printf("built: %s\n", info.BuildDate)
+		},
+	}
+
 	root.AddCommand(
 		initcmd.NewInitCommand(),
 		dev.NewDevCommand(),
@@ -38,6 +69,7 @@ and events with both interactive TUI and automation-friendly JSON output.`,
 		configcmd.NewConfigCommand(),
 		authcmd.Cmd(),
 		workflowcmd.Cmd(),
+		versionCmd,
 	)
 
 	return root

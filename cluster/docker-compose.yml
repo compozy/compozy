@@ -185,12 +185,12 @@ services:
       dockerfile: cluster/mcpproxy.Dockerfile
     environment:
       - MCP_PROXY_HOST=0.0.0.0
-      - MCP_PROXY_PORT=8081
-      - MCP_PROXY_BASE_URL=http://localhost:8081
+      - MCP_PROXY_PORT=6001
+      - MCP_PROXY_BASE_URL=http://localhost:6001
     networks:
       - temporal-network
     ports:
-      - "${MCP_PROXY_PORT:-8081}:${MCP_PROXY_PORT:-8081}" # MCP Proxy HTTP API
+      - "${MCP_PROXY_PORT:-6001}:${MCP_PROXY_PORT:-6001}" # MCP Proxy HTTP API
     healthcheck:
       test:
         [
@@ -199,7 +199,7 @@ services:
           "--no-verbose",
           "--tries=1",
           "--spider",
-          "http://localhost:${MCP_PROXY_PORT:-8081}/healthz",
+          "http://localhost:${MCP_PROXY_PORT:-6001}/healthz",
         ]
       interval: 30s
       timeout: 3s

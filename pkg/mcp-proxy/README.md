@@ -70,9 +70,9 @@ import (
 func main() {
     // Create proxy configuration
     config := &mcpproxy.Config{
-        Port:               "8081",
+        Port:               "6001",
         Host:               "127.0.0.1",
-        BaseURL:            "http://127.0.0.1:8081",
+        BaseURL:            "http://127.0.0.1:6001",
         ShutdownTimeout:    10 * time.Second,
         AdminTokens:        []string{"your-admin-token"},
         AdminAllowIPs:      []string{"127.0.0.1", "::1"},
@@ -103,7 +103,7 @@ func main() {
         log.Fatal(err)
     }
 
-    log.Println("Proxy running on http://127.0.0.1:8081")
+    log.Println("Proxy running on http://127.0.0.1:6001")
     select {} // Keep running
 }
 ```
@@ -131,7 +131,7 @@ defer proxy.Stop()
 
 ```bash
 # Register a new MCP server
-curl -X POST http://127.0.0.1:8081/admin/mcps \
+curl -X POST http://127.0.0.1:6001/admin/mcps \
   -H 'Authorization: Bearer your-admin-token' \
   -H 'Content-Type: application/json' \
   -d '{
@@ -145,14 +145,14 @@ curl -X POST http://127.0.0.1:8081/admin/mcps \
 
 # List all registered MCPs
 curl -H 'Authorization: Bearer your-admin-token' \
-  http://127.0.0.1:8081/admin/mcps
+  http://127.0.0.1:6001/admin/mcps
 
 # Get aggregated tools
 curl -H 'Authorization: Bearer your-admin-token' \
-  http://127.0.0.1:8081/admin/tools
+  http://127.0.0.1:6001/admin/tools
 
 # Check proxy health
-curl http://127.0.0.1:8081/healthz
+curl http://127.0.0.1:6001/healthz
 ```
 
 ### Proxy Endpoints
@@ -160,10 +160,10 @@ curl http://127.0.0.1:8081/healthz
 ```go
 // Access MCP servers through the proxy
 // For SSE transport
-resp, err := http.Get("http://127.0.0.1:8081/chat-llm/sse")
+resp, err := http.Get("http://127.0.0.1:6001/chat-llm/sse")
 
 // For streamable-http transport
-resp, err := http.Post("http://127.0.0.1:8081/api-server/stream",
+resp, err := http.Post("http://127.0.0.1:6001/api-server/stream",
     "application/json", bytes.NewBuffer(payload))
 ```
 
@@ -191,7 +191,7 @@ config := &mcpproxy.Config{
 
 ```go
 type Config struct {
-    Port               string        // TCP port to bind (default: "8081")
+    Port               string        // TCP port to bind (default: "6001")
     Host               string        // Listen address (default: "127.0.0.1")
     BaseURL            string        // Base URL for generating SSE paths
     ShutdownTimeout    time.Duration // Graceful shutdown timeout
@@ -276,7 +276,7 @@ import (
 func main() {
     // Production configuration
     config := &mcpproxy.Config{
-        Port:            "8081",
+        Port:            "6001",
         Host:            "0.0.0.0",
         BaseURL:         "https://mcp-proxy.example.com",
         ShutdownTimeout: 30 * time.Second,
@@ -372,7 +372,7 @@ func main() {
 
     // Create MCP proxy client
     client := mcp.NewProxyClient(
-        "http://127.0.0.1:8081",
+        "http://127.0.0.1:6001",
         "admin-token",
         30*time.Second,
     )
@@ -418,7 +418,7 @@ version: "0.1.0"
 
 mcps:
   - id: search-mcp
-    url: http://127.0.0.1:8081/search-engine/sse
+    url: http://127.0.0.1:6001/search-engine/sse
     transport: sse
     use_proxy: true
     start_timeout: 10s

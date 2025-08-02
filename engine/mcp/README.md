@@ -108,7 +108,7 @@ func main() {
     // Configure MCP server
     config := &mcp.Config{
         ID:        "filesystem",
-        URL:       "http://localhost:8081/mcp",
+        URL:       "http://localhost:6001/mcp",
         Transport: "sse",
         Proto:     "2025-03-26",
     }
@@ -344,7 +344,7 @@ func ExampleBasicRegistration() {
     // Configure MCP server
     config := &mcp.Config{
         ID:        "calculator",
-        URL:       "http://localhost:8081/mcp",
+        URL:       "http://localhost:6001/mcp",
         Transport: "sse",
     }
 
@@ -738,7 +738,7 @@ func TestRegisterService_Ensure(t *testing.T) {
     // Test configuration
     config := &mcp.Config{
         ID:        "test-server",
-        URL:       "http://localhost:8081/mcp",
+        URL:       "http://localhost:6001/mcp",
         Transport: "sse",
     }
 
@@ -780,7 +780,7 @@ func TestClient_Integration(t *testing.T) {
     // Test MCP registration
     definition := &mcp.Definition{
         Name:      "test-mcp",
-        URL:       "http://localhost:8081/mcp",
+        URL:       "http://localhost:6001/mcp",
         Transport: "sse",
     }
 

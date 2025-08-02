@@ -458,7 +458,7 @@ type MemoryConfig struct {
 // ## Example Configuration
 //
 //	llm:
-//	  proxy_url: http://localhost:8081
+//	  proxy_url: http://localhost:6001
 //	  admin_token: "{{ .env.MCP_ADMIN_TOKEN }}"
 type LLMConfig struct {
 	// ProxyURL specifies the MCP proxy server endpoint.
@@ -467,7 +467,7 @@ type LLMConfig struct {
 	//   - MCP server connections
 	//   - Tool discovery and routing
 	//   - Protocol translation
-	// Default: "http://localhost:8081"
+	// Default: "http://localhost:6001"
 	ProxyURL string `koanf:"proxy_url" env:"MCP_PROXY_URL" json:"proxy_url" yaml:"proxy_url" mapstructure:"proxy_url"`
 
 	// AdminToken authenticates administrative operations.
@@ -815,8 +815,8 @@ type WorkerConfig struct {
 //
 //	mcp_proxy:
 //	  host: 0.0.0.0
-//	  port: 8081
-//	  base_url: http://localhost:8081
+//	  port: 6001
+//	  base_url: http://localhost:6001
 type MCPProxyConfig struct {
 	// Host specifies the network interface to bind the MCP proxy server to.
 	//
@@ -825,12 +825,12 @@ type MCPProxyConfig struct {
 
 	// Port specifies the TCP port for the MCP proxy server.
 	//
-	// **Default**: `8081`
+	// **Default**: `6001`
 	Port int `koanf:"port" json:"port" yaml:"port" mapstructure:"port" env:"MCP_PROXY_PORT"`
 
 	// BaseURL specifies the base URL for MCP proxy API endpoints.
 	//
-	// **Default**: `"http://localhost:8081"`
+	// **Default**: `"http://localhost:6001"`
 	BaseURL string `koanf:"base_url" json:"base_url" yaml:"base_url" mapstructure:"base_url" env:"MCP_PROXY_BASE_URL"`
 
 	// ShutdownTimeout sets timeout for graceful shutdown.

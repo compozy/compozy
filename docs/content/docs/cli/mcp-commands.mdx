@@ -72,7 +72,7 @@ The MCP proxy server enables HTTP-based access to MCP servers, providing:
     <TableRow>
       <TableCell>`--port`</TableCell>
       <TableCell>Port to run the MCP proxy server on</TableCell>
-      <TableCell>8081</TableCell>
+      <TableCell>6001</TableCell>
     </TableRow>
     <TableRow>
       <TableCell>`--base-url`</TableCell>
@@ -155,7 +155,7 @@ Start the MCP proxy with default settings:
 compozy-mcp-proxy
 ```
 
-This starts the proxy on `0.0.0.0:8081`.
+This starts the proxy on `0.0.0.0:6001`.
 
 ### Custom Port and Host
 
@@ -227,10 +227,10 @@ GET  /mcp/{server_id}    # Get MCP server information
 Example usage:
 ```bash
 # Get server information
-curl http://localhost:8081/mcp/my-server
+curl http://localhost:6001/mcp/my-server
 
 # Proxy MCP request
-curl -X POST http://localhost:8081/mcp/my-server \
+curl -X POST http://localhost:6001/mcp/my-server \
   -H "Content-Type: application/json" \
   -d '{"method": "tools/list", "params": {}}'
 ```
@@ -248,7 +248,7 @@ DELETE /admin/servers/{id}  # Remove MCP server
 
 Example server registration:
 ```bash
-curl -X POST http://localhost:8081/admin/servers \
+curl -X POST http://localhost:6001/admin/servers \
   -H "Authorization: Bearer admin-token" \
   -H "Content-Type: application/json" \
   -d '{
@@ -276,8 +276,8 @@ The MCP proxy can be configured through:
 # compozy-mcp-proxy.yaml
 mcp_proxy:
   host: "0.0.0.0"
-  port: "8081"
-  base_url: "http://localhost:8081"
+  port: "6001"
+  base_url: "http://localhost:6001"
 
   auth:
     global_tokens:
@@ -323,10 +323,10 @@ mcp_proxy:
 
 ```bash
 # Check basic health
-curl http://localhost:8081/health
+curl http://localhost:6001/health
 
 # Get detailed status
-curl http://localhost:8081/health/detailed
+curl http://localhost:6001/health/detailed
 ```
 
 ### Log Analysis
@@ -349,9 +349,9 @@ grep '"path":' /var/log/compozy/mcp-proxy.log | \
 
 ```dockerfile
 FROM compozy/compozy-mcp-proxy:latest
-EXPOSE 8081
+EXPOSE 6001
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:8081/health || exit 1
+  CMD curl -f http://localhost:6001/health || exit 1
 CMD ["compozy-mcp-proxy"]
 ```
 
@@ -364,12 +364,12 @@ services:
     image: compozy/compozy-mcp-proxy:latest
     command: ["compozy-mcp-proxy"]
     ports:
-      - "8081:8081"
+      - "6001:6001"
     environment:
       - MCP_PROXY_HOST=0.0.0.0
-      - MCP_PROXY_PORT=8081
+      - MCP_PROXY_PORT=6001
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:6001/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -398,22 +398,22 @@ spec:
         image: compozy/compozy-mcp-proxy:latest
         command: ["compozy-mcp-proxy"]
         ports:
-        - containerPort: 8081
+        - containerPort: 6001
         env:
         - name: MCP_PROXY_HOST
           value: "0.0.0.0"
         - name: MCP_PROXY_PORT
-          value: "8081"
+          value: "6001"
         livenessProbe:
           httpGet:
             path: /health
-            port: 8081
+            port: 6001
           initialDelaySeconds: 30
           periodSeconds: 10
         readinessProbe:
           httpGet:
             path: /health
-            port: 8081
+            port: 6001
           initialDelaySeconds: 5
           periodSeconds: 5
         resources:

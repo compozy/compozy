@@ -62,24 +62,50 @@ func NewService() Service {
 }
 
 // Load loads configuration from the specified sources with precedence order.
-// Sources are applied in reverse order, so the last source has highest precedence.
+// Precedence order (lowest to highest): defaults -> config file -> env -> CLI flags
 func (l *loader) Load(_ context.Context, sources ...Source) (*Config, error) {
 	// Clear and reset
 	l.reset()
 
-	// Load defaults
+	// Load defaults (lowest precedence)
 	if err := l.loadDefaults(); err != nil {
 		return nil, err
 	}
 
-	// Apply additional sources
-	if err := l.loadSources(sources); err != nil {
+	// Separate sources by type to ensure correct precedence
+	var cliSource Source
+	var otherSources []Source
+
+	for _, source := range sources {
+		if source == nil {
+			continue
+		}
+		switch source.Type() {
+		case SourceEnv:
+			// Skip env source as it's handled by loadEnvironment()
+			continue
+		case SourceCLI:
+			cliSource = source
+		default:
+			otherSources = append(otherSources, source)
+		}
+	}
+
+	// Load config files and other sources (medium precedence)
+	if err := l.loadSources(otherSources); err != nil {
 		return nil, err
 	}
 
-	// Load environment variables
+	// Load environment variables (higher precedence)
 	if err := l.loadEnvironment(); err != nil {
 		return nil, err
+	}
+
+	// Load CLI flags last (highest precedence)
+	if cliSource != nil {
+		if err := l.loadSource(cliSource); err != nil {
+			return nil, err
+		}
 	}
 
 	// Unmarshal and validate

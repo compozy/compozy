@@ -75,7 +75,7 @@ MCP is a protocol that allows AI agents to:
     D --> J[Databases]`} />
 
 <Callout type="info" className="my-8">
-**Proxy Architecture**: The MCP proxy runs on port 8081 and manages all server connections, providing a unified HTTP interface for multiple transport types.
+**Proxy Architecture**: The MCP proxy runs on port 6001 and manages all server connections, providing a unified HTTP interface for multiple transport types.
 </Callout>
 
 ### Key Components
@@ -254,7 +254,7 @@ mcps:
 
 ```bash title="Environment Variables"
 # Required: MCP proxy service URL
-MCP_PROXY_URL=http://localhost:8081
+MCP_PROXY_URL=http://localhost:6001
 
 # Optional: Admin token for proxy management
 MCP_PROXY_ADMIN_TOKEN=your-admin-token
@@ -276,7 +276,7 @@ cd my-mcp-project
 compozy dev --watch
 
 # 3. In another terminal, start the MCP proxy
-compozy-mcp-proxy --port 8081 --debug
+compozy-mcp-proxy --port 6001 --debug
 ```
 
 <Steps>
@@ -302,7 +302,7 @@ MCP seamlessly integrates with Compozy's workflow orchestration through a unifie
 sequenceDiagram
     participant Agent as AI Agent
     participant Client as MCP Client
-    participant Proxy as MCP Proxy (8081)
+    participant Proxy as MCP Proxy (6001)
     participant Server as MCP Server
     participant Service as External Service
 

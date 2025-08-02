@@ -487,7 +487,7 @@ func setupMonitoredWorker() (*worker.Worker, error) {
             w.WriteHeader(http.StatusOK)
             w.Write([]byte("healthy"))
         })
-        log.Fatal(http.ListenAndServe(":8081", nil))
+        log.Fatal(http.ListenAndServe(":6001", nil))
     }()
 
     return w, nil

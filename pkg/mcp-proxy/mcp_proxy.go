@@ -9,7 +9,7 @@ import (
 // DefaultConfig returns a default configuration for the MCP proxy server
 func DefaultConfig() *Config {
 	return &Config{
-		Port:             "8081",
+		Port:             "6001",
 		Host:             "127.0.0.1", // Bind to localhost by default for security
 		ShutdownTimeout:  10 * time.Second,
 		AdminTokens:      []string{"CHANGE_ME_ADMIN_TOKEN"}, // Require admin token by default

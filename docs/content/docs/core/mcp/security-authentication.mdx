@@ -20,7 +20,7 @@ The most common authentication method using Bearer tokens:
 # compozy.yaml
 mcps:
   - id: secure_mcp_server
-    url: "http://localhost:8081"
+    url: "http://localhost:6001"
     transport: sse
     auth:
       type: token
@@ -66,11 +66,11 @@ Verify token authentication works correctly:
 ```bash
 # Test valid token
 curl -H "Authorization: Bearer $MCP_AUTH_TOKEN" \
-  http://localhost:8081/api/v1/mcp/list
+  http://localhost:6001/api/v1/mcp/list
 
 # Test invalid token (should return 401)
 curl -H "Authorization: Bearer invalid-token" \
-  http://localhost:8081/api/v1/mcp/list
+  http://localhost:6001/api/v1/mcp/list
 ```
 </Step>
 </Steps>
@@ -85,7 +85,7 @@ For API-based integrations with key-based authentication:
 # compozy.yaml
 mcps:
   - id: api_key_mcp
-    url: "http://localhost:8081"
+    url: "http://localhost:6001"
     transport: sse
     auth:
       type: api_key
@@ -115,7 +115,7 @@ For stateless authentication with JSON Web Tokens:
 # compozy.yaml
 mcps:
   - id: jwt_mcp
-    url: "http://localhost:8081"
+    url: "http://localhost:6001"
     transport: sse
     auth:
       type: jwt
@@ -178,7 +178,7 @@ For enterprise-grade authentication with OAuth 2.0:
 # compozy.yaml
 mcps:
   - id: oauth_mcp
-    url: "http://localhost:8081"
+    url: "http://localhost:6001"
     transport: sse
     auth:
       type: oauth2
@@ -247,7 +247,7 @@ Configure IP whitelisting for access control:
 # IP whitelist configuration
 mcps:
   - id: production_mcp
-    url: "http://localhost:8081"
+    url: "http://localhost:6001"
     security:
       ip_whitelist:
         # Local development
@@ -368,7 +368,7 @@ Configure rate limiting to prevent abuse:
 ```yaml
 mcps:
   - id: rate_limited_mcp
-    url: "http://localhost:8081"
+    url: "http://localhost:6001"
     security:
       rate_limit:
         # Global rate limits
@@ -555,7 +555,7 @@ Configure Cross-Origin Resource Sharing:
 ```yaml
 mcps:
   - id: cors_enabled_mcp
-    url: "http://localhost:8081"
+    url: "http://localhost:6001"
     security:
       cors:
         enabled: true
@@ -1031,7 +1031,7 @@ describe('MCP Authentication', () => {
 
   beforeEach(() => {
     tester = new MCPSecurityTester({
-      baseUrl: 'http://localhost:8081',
+      baseUrl: 'http://localhost:6001',
       timeout: 5000
     });
   });
@@ -1145,7 +1145,7 @@ describe('MCP Authorization', () => {
 
   beforeEach(() => {
     tester = new MCPAuthorizationTester({
-      baseUrl: 'http://localhost:8081'
+      baseUrl: 'http://localhost:6001'
     });
   });
 
@@ -1296,7 +1296,7 @@ describe('MCP Penetration Testing', () => {
 
   beforeEach(() => {
     tester = new MCPPenetrationTester({
-      baseUrl: 'http://localhost:8081',
+      baseUrl: 'http://localhost:6001',
       timeout: 10000
     });
   });
@@ -1456,7 +1456,7 @@ describe('MCP Compliance Testing', () => {
 
   beforeEach(() => {
     tester = new MCPComplianceTester({
-      baseUrl: 'http://localhost:8081',
+      baseUrl: 'http://localhost:6001',
       complianceStandards: ['GDPR', 'HIPAA', 'SOX']
     });
   });
@@ -1597,22 +1597,22 @@ Test different authentication scenarios:
 ```bash
 # Test valid authentication
 curl -H "Authorization: Bearer $MCP_AUTH_TOKEN" \
-  http://localhost:8081/api/v1/mcp/list
+  http://localhost:6001/api/v1/mcp/list
 
 # Test invalid token (should return 401)
 curl -H "Authorization: Bearer invalid-token" \
-  http://localhost:8081/api/v1/mcp/list
+  http://localhost:6001/api/v1/mcp/list
 
 # Test missing authorization header (should return 401)
-curl http://localhost:8081/api/v1/mcp/list
+curl http://localhost:6001/api/v1/mcp/list
 
 # Test malformed authorization header (should return 401)
 curl -H "Authorization: InvalidFormat" \
-  http://localhost:8081/api/v1/mcp/list
+  http://localhost:6001/api/v1/mcp/list
 
 # Test expired token (JWT)
 curl -H "Authorization: Bearer $EXPIRED_JWT_TOKEN" \
-  http://localhost:8081/api/v1/mcp/list
+  http://localhost:6001/api/v1/mcp/list
 ```
 
 </Tab>
@@ -1627,21 +1627,21 @@ for i in {1..100}; do
   echo "Request $i:"
   curl -w "Status: %{http_code}, Time: %{time_total}s\n" \
     -H "Authorization: Bearer $TOKEN" \
-    http://localhost:8081/api/v1/mcp/list
+    http://localhost:6001/api/v1/mcp/list
   sleep 0.1
 done
 
 # Test burst capacity
 for i in {1..20}; do
   curl -H "Authorization: Bearer $TOKEN" \
-    http://localhost:8081/api/v1/mcp/list &
+    http://localhost:6001/api/v1/mcp/list &
 done
 wait
 
 # Test per-IP rate limiting
 curl -H "X-Forwarded-For: 192.168.1.100" \
   -H "Authorization: Bearer $TOKEN" \
-  http://localhost:8081/api/v1/mcp/list
+  http://localhost:6001/api/v1/mcp/list
 ```
 
 </Tab>
@@ -1654,22 +1654,22 @@ Test IP whitelist and blacklist functionality:
 # Test allowed IP (should succeed)
 curl -H "X-Forwarded-For: 127.0.0.1" \
   -H "Authorization: Bearer $TOKEN" \
-  http://localhost:8081/api/v1/mcp/list
+  http://localhost:6001/api/v1/mcp/list
 
 # Test blocked IP (should return 403)
 curl -H "X-Forwarded-For: 192.168.1.100" \
   -H "Authorization: Bearer $TOKEN" \
-  http://localhost:8081/api/v1/mcp/list
+  http://localhost:6001/api/v1/mcp/list
 
 # Test network range
 curl -H "X-Forwarded-For: 192.168.1.50" \
   -H "Authorization: Bearer $TOKEN" \
-  http://localhost:8081/api/v1/mcp/list
+  http://localhost:6001/api/v1/mcp/list
 
 # Test IPv6 addresses
 curl -H "X-Forwarded-For: ::1" \
   -H "Authorization: Bearer $TOKEN" \
-  http://localhost:8081/api/v1/mcp/list
+  http://localhost:6001/api/v1/mcp/list
 ```
 
 </Tab>
@@ -1681,19 +1681,19 @@ Verify security headers are properly set:
 ```bash
 # Test security headers
 curl -I -H "Authorization: Bearer $TOKEN" \
-  http://localhost:8081/api/v1/mcp/list
+  http://localhost:6001/api/v1/mcp/list
 
 # Test CORS headers
 curl -I -H "Origin: https://example.com" \
   -H "Authorization: Bearer $TOKEN" \
-  http://localhost:8081/api/v1/mcp/list
+  http://localhost:6001/api/v1/mcp/list
 
 # Test preflight request
 curl -I -X OPTIONS \
   -H "Origin: https://example.com" \
   -H "Access-Control-Request-Method: POST" \
   -H "Access-Control-Request-Headers: Authorization" \
-  http://localhost:8081/api/v1/mcp/list
+  http://localhost:6001/api/v1/mcp/list
 ```
 
 </Tab>
@@ -1705,17 +1705,17 @@ Basic security validation tests:
 ```bash
 # Test SQL injection attempts (should be blocked)
 curl -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8081/api/v1/mcp/tools/call" \
+  "http://localhost:6001/api/v1/mcp/tools/call" \
   -d '{"mcpName": "database", "toolName": "query", "arguments": {"sql": "SELECT * FROM users; DROP TABLE users;"}}'
 
 # Test XSS attempts (should be sanitized)
 curl -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8081/api/v1/mcp/tools/call" \
+  "http://localhost:6001/api/v1/mcp/tools/call" \
   -d '{"mcpName": "web", "toolName": "render", "arguments": {"html": "<script>alert(\"XSS\")</script>"}}'
 
 # Test directory traversal (should be blocked)
 curl -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8081/api/v1/mcp/tools/call" \
+  "http://localhost:6001/api/v1/mcp/tools/call" \
   -d '{"mcpName": "filesystem", "toolName": "read", "arguments": {"path": "../../../etc/passwd"}}'
 ```
 
@@ -1738,7 +1738,7 @@ echo $MCP_AUTH_TOKEN | base64 -d
 
 # Verify token format
 curl -H "Authorization: Bearer $MCP_AUTH_TOKEN" \
-  http://localhost:8081/api/v1/mcp/list -v
+  http://localhost:6001/api/v1/mcp/list -v
 
 # Check token expiration (for JWT)
 jwt decode $JWT_TOKEN
@@ -1763,7 +1763,7 @@ echo "Token: $MCP_AUTH_TOKEN"
 ```bash
 # Check authorization header format
 curl -H "Authorization: Bearer $TOKEN" \
-  http://localhost:8081/api/v1/mcp/list -v 2>&1 | grep "Authorization"
+  http://localhost:6001/api/v1/mcp/list -v 2>&1 | grep "Authorization"
 ```
 
 **Solution**: Ensure proper "Bearer " prefix and base64 encoding.
@@ -1783,7 +1783,7 @@ curl -H "Authorization: Bearer $TOKEN" \
 ```bash
 # Check current rate limit status
 curl -I -H "Authorization: Bearer $TOKEN" \
-  http://localhost:8081/api/v1/mcp/list
+  http://localhost:6001/api/v1/mcp/list
 
 # Look for rate limit headers
 grep -i "rate-limit" response_headers.txt
@@ -1796,11 +1796,11 @@ grep -i "rate-limit" response_headers.txt
 ```bash
 # Test rate limiting configuration
 curl -H "Authorization: Bearer $TOKEN" \
-  http://localhost:8081/admin/config/rate-limits
+  http://localhost:6001/admin/config/rate-limits
 
 # Check rate limit metrics
 curl -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:8081/admin/metrics/rate-limits
+  http://localhost:6001/admin/metrics/rate-limits
 ```
 
 **Solution**: Verify rate limit configuration and middleware order.
@@ -1820,12 +1820,12 @@ curl -H "Authorization: Bearer $ADMIN_TOKEN" \
 ```bash
 # Check real client IP
 curl -H "Authorization: Bearer $TOKEN" \
-  http://localhost:8081/admin/debug/client-ip
+  http://localhost:6001/admin/debug/client-ip
 
 # Test with different IP headers
 curl -H "X-Real-IP: 127.0.0.1" \
   -H "Authorization: Bearer $TOKEN" \
-  http://localhost:8081/api/v1/mcp/list
+  http://localhost:6001/api/v1/mcp/list
 ```
 
 **Solution**: Check proxy configuration and IP header precedence.
@@ -1835,12 +1835,12 @@ curl -H "X-Real-IP: 127.0.0.1" \
 ```bash
 # Verify IP whitelist configuration
 curl -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:8081/admin/config/ip-whitelist
+  http://localhost:6001/admin/config/ip-whitelist
 
 # Test IP parsing
 curl -H "X-Forwarded-For: 192.168.1.1" \
   -H "Authorization: Bearer $TOKEN" \
-  http://localhost:8081/api/v1/mcp/list -v
+  http://localhost:6001/api/v1/mcp/list -v
 ```
 
 **Solution**: Verify CIDR notation and IP parsing logic.
@@ -1862,11 +1862,11 @@ curl -H "X-Forwarded-For: 192.168.1.1" \
 curl -I -X OPTIONS \
   -H "Origin: https://example.com" \
   -H "Access-Control-Request-Method: POST" \
-  http://localhost:8081/api/v1/mcp/list
+  http://localhost:6001/api/v1/mcp/list
 
 # Check CORS headers
 curl -I -H "Origin: https://example.com" \
-  http://localhost:8081/api/v1/mcp/list
+  http://localhost:6001/api/v1/mcp/list
 ```
 
 **Solution**: Verify CORS configuration and allowed origins.
@@ -1878,7 +1878,7 @@ curl -I -H "Origin: https://example.com" \
 curl -H "Origin: https://example.com" \
   -H "Authorization: Bearer $TOKEN" \
   --cookie "session=abc123" \
-  http://localhost:8081/api/v1/mcp/list
+  http://localhost:6001/api/v1/mcp/list
 ```
 
 **Solution**: Set `allow_credentials: true` in CORS configuration.

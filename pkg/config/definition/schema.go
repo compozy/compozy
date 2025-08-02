@@ -931,7 +931,7 @@ func registerWorkerFields(registry *Registry) {
 
 func registerMCPProxyFields(registry *Registry) {
 	registry.Register(&FieldDef{
-		Path:    "mcpproxy.host",
+		Path:    "mcp_proxy.host",
 		Default: "127.0.0.1",
 		CLIFlag: "mcp-host",
 		EnvVar:  "MCP_PROXY_HOST",
@@ -940,8 +940,8 @@ func registerMCPProxyFields(registry *Registry) {
 	})
 
 	registry.Register(&FieldDef{
-		Path:    "mcpproxy.port",
-		Default: 8081,
+		Path:    "mcp_proxy.port",
+		Default: 6001,
 		CLIFlag: "mcp-port",
 		EnvVar:  "MCP_PROXY_PORT",
 		Type:    reflect.TypeOf(0),
@@ -949,7 +949,7 @@ func registerMCPProxyFields(registry *Registry) {
 	})
 
 	registry.Register(&FieldDef{
-		Path:    "mcpproxy.base_url",
+		Path:    "mcp_proxy.base_url",
 		Default: "",
 		CLIFlag: "mcp-base-url",
 		EnvVar:  "MCP_PROXY_BASE_URL",
@@ -958,7 +958,7 @@ func registerMCPProxyFields(registry *Registry) {
 	})
 
 	registry.Register(&FieldDef{
-		Path:    "mcpproxy.shutdown_timeout",
+		Path:    "mcp_proxy.shutdown_timeout",
 		Default: 10 * time.Second,
 		CLIFlag: "",
 		EnvVar:  "MCP_PROXY_SHUTDOWN_TIMEOUT",
@@ -967,7 +967,7 @@ func registerMCPProxyFields(registry *Registry) {
 	})
 
 	registry.Register(&FieldDef{
-		Path:    "mcpproxy.admin_tokens",
+		Path:    "mcp_proxy.admin_tokens",
 		Default: []string{},
 		CLIFlag: "mcp-admin-tokens",
 		EnvVar:  "MCP_PROXY_ADMIN_TOKENS",
@@ -976,7 +976,7 @@ func registerMCPProxyFields(registry *Registry) {
 	})
 
 	registry.Register(&FieldDef{
-		Path:    "mcpproxy.admin_allow_ips",
+		Path:    "mcp_proxy.admin_allow_ips",
 		Default: []string{"127.0.0.1/32", "::1/128"},
 		CLIFlag: "mcp-admin-allow-ips",
 		EnvVar:  "MCP_PROXY_ADMIN_ALLOW_IPS",
@@ -985,7 +985,7 @@ func registerMCPProxyFields(registry *Registry) {
 	})
 
 	registry.Register(&FieldDef{
-		Path:    "mcpproxy.trusted_proxies",
+		Path:    "mcp_proxy.trusted_proxies",
 		Default: []string{},
 		CLIFlag: "mcp-trusted-proxies",
 		EnvVar:  "MCP_PROXY_TRUSTED_PROXIES",
@@ -994,7 +994,7 @@ func registerMCPProxyFields(registry *Registry) {
 	})
 
 	registry.Register(&FieldDef{
-		Path:    "mcpproxy.global_auth_tokens",
+		Path:    "mcp_proxy.global_auth_tokens",
 		Default: []string{},
 		CLIFlag: "mcp-global-auth-tokens",
 		EnvVar:  "MCP_PROXY_GLOBAL_AUTH_TOKENS",

@@ -321,7 +321,7 @@ func addInfraDefaults(result map[string]any, defaultConfig *Config) {
 	result["redis"] = createRedisDefaults(defaultConfig)
 	result["cache"] = createCacheDefaults(defaultConfig)
 	result["worker"] = createWorkerDefaults(defaultConfig)
-	result["mcpproxy"] = createMCPProxyDefaults(defaultConfig)
+	result["mcp_proxy"] = createMCPProxyDefaults(defaultConfig)
 }
 
 // createServerDefaults creates server configuration defaults

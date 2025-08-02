@@ -179,7 +179,7 @@ func TestLoadMCPWorkflow(t *testing.T) {
 
 	t.Run("Should pass validation for valid MCP configuration", func(t *testing.T) {
 		// Set required environment variable for MCP validation
-		os.Setenv("MCP_PROXY_URL", "http://localhost:8081")
+		os.Setenv("MCP_PROXY_URL", "http://localhost:6001")
 		defer os.Unsetenv("MCP_PROXY_URL")
 
 		CWD, err := core.CWDFromPath("./fixtures")

@@ -43,16 +43,17 @@ clean:
 	rm -rf $(BINARY_DIR)/
 	rm -rf $(SWAGGER_DIR)/
 	$(GOCMD) clean
+	cd cmd/mcp-proxy && $(GOCMD) clean
 
 build: swagger
 	mkdir -p $(BINARY_DIR)
 	$(GOBUILD) -ldflags "$(LDFLAGS)" -o $(BINARY_DIR)/$(BINARY_NAME) ./cmd/compozy/main.go
 	chmod +x $(BINARY_DIR)/$(BINARY_NAME)
 
-build-mcp-proxy: swagger
+build-mcp-proxy:
 	@echo "Building mcp-proxy binary..."
 	mkdir -p $(BINARY_DIR)
-	$(GOBUILD) -ldflags "$(LDFLAGS)" -o $(BINARY_DIR)/mcp-proxy ./cmd/mcp-proxy/main.go
+	cd cmd/mcp-proxy && $(GOBUILD) -ldflags "$(LDFLAGS)" -o ../../$(BINARY_DIR)/mcp-proxy .
 	chmod +x $(BINARY_DIR)/mcp-proxy
 
 build-all: build build-mcp-proxy
@@ -63,6 +64,8 @@ build-all: build build-mcp-proxy
 lint:
 	$(BUNCMD) run lint
 	$(LINTCMD) run --fix --allow-parallel-runners
+	@echo "Linting mcp-proxy module..."
+	cd cmd/mcp-proxy && $(LINTCMD) run --fix --allow-parallel-runners
 	@echo "Running modernize analyzer for min/max suggestions..."
 	# @go run golang.org/x/tools/gopls/internal/analysis/modernize/cmd/modernize@latest ./... 2>&1 | grep -E "\.go:[0-9]+:[0-9]+:" || echo "No modernization suggestions found"
 	@echo "Linting completed successfully"
@@ -71,6 +74,8 @@ fmt:
 	@echo "Formatting code..."
 	$(BUNCMD) run format
 	$(LINTCMD) fmt
+	@echo "Formatting mcp-proxy module..."
+	cd cmd/mcp-proxy && $(LINTCMD) fmt
 	@echo "Formatting completed successfully"
 
 # -----------------------------------------------------------------------------
@@ -87,6 +92,8 @@ mcp-proxy:
 tidy:
 	@echo "Tidying modules..."
 	$(GOCMD) mod tidy
+	@echo "Tidying mcp-proxy module..."
+	cd cmd/mcp-proxy && $(GOCMD) mod tidy
 
 deps: swagger-deps
 	$(GOCMD) install gotest.tools/gotestsum@latest

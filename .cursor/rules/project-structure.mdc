@@ -42,7 +42,7 @@ See folder structure above for detailed component organization.
 - **PostgreSQL**: Main database (port 5432) + Temporal database (port 5433)
 - **Redis**: Caching, config storage, and pub/sub messaging (port 6379)
 - **Temporal**: Workflow orchestration engine (port 7233, Web UI: 8080)
-- **MCP Proxy**: HTTP proxy for MCP servers (port 8081)
+- **MCP Proxy**: HTTP proxy for MCP servers (port 6001)
 - **NATS**: High-performance messaging system
 - **Bun**: Secure runtime for TypeScript tool execution
 </tech_stack>
@@ -68,7 +68,7 @@ Port mappings and service details are included in the Technology Stack above.
 The MCP (Model Context Protocol) integration enables external tool servers:
 
 - **engine/mcp/**: MCP client implementation and protocol handling
-- **pkg/mcp-proxy/**: HTTP proxy for MCP servers (runs on port 8081)
+- **pkg/mcp-proxy/**: HTTP proxy for MCP servers (runs on port 6001)
 - **engine/llm/proxy_tool.go**: Tool for proxying MCP calls to external servers
 
 Configuration examples available in compozy-examples.mdc.

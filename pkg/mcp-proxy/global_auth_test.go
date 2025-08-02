@@ -86,7 +86,7 @@ func TestGlobalAuthTokensIntegration(t *testing.T) {
 		globalTokens := []string{"global-token-1", "global-token-2"}
 
 		config := &Config{
-			BaseURL:          "http://localhost:8081",
+			BaseURL:          "http://localhost:6001",
 			GlobalAuthTokens: globalTokens,
 		}
 
@@ -106,7 +106,7 @@ func TestGlobalAuthTokensIntegration(t *testing.T) {
 		storage := NewMemoryStorage()
 		clientManager := NewMockClientManager()
 
-		proxyHandlers := NewProxyHandlers(storage, clientManager, "http://localhost:8081", globalTokens)
+		proxyHandlers := NewProxyHandlers(storage, clientManager, "http://localhost:6001", globalTokens)
 
 		// Test the combination logic
 		combined := combineAuthTokens(proxyHandlers.globalAuthTokens, clientTokens)
@@ -121,7 +121,7 @@ func TestGlobalAuthTokensIntegration(t *testing.T) {
 		storage := NewMemoryStorage()
 		clientManager := NewMockClientManager()
 
-		proxyHandlers := NewProxyHandlers(storage, clientManager, "http://localhost:8081", globalTokens)
+		proxyHandlers := NewProxyHandlers(storage, clientManager, "http://localhost:6001", globalTokens)
 
 		// Test with empty client tokens
 		combined := combineAuthTokens(proxyHandlers.globalAuthTokens, []string{})
@@ -141,7 +141,7 @@ func TestGlobalAuthTokensIntegration(t *testing.T) {
 		clientManager := NewMockClientManager()
 
 		// No global tokens
-		proxyHandlers := NewProxyHandlers(storage, clientManager, "http://localhost:8081", nil)
+		proxyHandlers := NewProxyHandlers(storage, clientManager, "http://localhost:6001", nil)
 
 		combined := combineAuthTokens(proxyHandlers.globalAuthTokens, clientTokens)
 

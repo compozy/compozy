@@ -69,7 +69,7 @@ docker-compose up -d
 Your Compozy stack will be available at:
 - **Compozy API**: http://localhost:5001
 - **Temporal UI**: http://localhost:8080
-- **MCP Proxy**: http://localhost:8081
+- **MCP Proxy**: http://localhost:6001
 
 ## Production Deployment with Docker
 
@@ -111,7 +111,7 @@ The MCP Proxy enables integration with external Model Context Protocol servers:
 ```bash
 docker run -d \
   --name mcp-proxy \
-  -p 8081:8081 \
+  -p 6001:6001 \
   -e MCP_PROXY_ADMIN_TOKEN="your-admin-token" \
   -e REDIS_URL="redis://:password@host:6379/0" \
   compozy/compozy-mcp-proxy:latest

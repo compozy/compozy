@@ -38,7 +38,7 @@ func TestHealthMonitorBasic(t *testing.T) {
 		}
 		// System should always be available
 		systemStatus := status["System"]
-		assert.Equal(t, "healthy", systemStatus.Status)
+				assert.Equal(t, "healthy", systemStatus.Status)
 		assert.Contains(t, systemStatus.Details, "goroutines")
 		assert.Contains(t, systemStatus.Details, "memory")
 	})

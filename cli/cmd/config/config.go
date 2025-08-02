@@ -635,21 +635,21 @@ func flattenWorkerConfig(cfg *config.Config, result map[string]string) {
 
 // flattenMCPProxyConfig flattens MCP proxy configuration
 func flattenMCPProxyConfig(cfg *config.Config, result map[string]string) {
-	result["mcpproxy.host"] = cfg.MCPProxy.Host
-	result["mcpproxy.port"] = fmt.Sprintf("%d", cfg.MCPProxy.Port)
-	result["mcpproxy.base_url"] = cfg.MCPProxy.BaseURL
-	result["mcpproxy.shutdown_timeout"] = cfg.MCPProxy.ShutdownTimeout.String()
+	result["mcp_proxy.host"] = cfg.MCPProxy.Host
+	result["mcp_proxy.port"] = fmt.Sprintf("%d", cfg.MCPProxy.Port)
+	result["mcp_proxy.base_url"] = cfg.MCPProxy.BaseURL
+	result["mcp_proxy.shutdown_timeout"] = cfg.MCPProxy.ShutdownTimeout.String()
 	if len(cfg.MCPProxy.AdminTokens) > 0 {
-		result["mcpproxy.admin_tokens"] = fmt.Sprintf("[%d tokens configured]", len(cfg.MCPProxy.AdminTokens))
+		result["mcp_proxy.admin_tokens"] = fmt.Sprintf("[%d tokens configured]", len(cfg.MCPProxy.AdminTokens))
 	}
 	if len(cfg.MCPProxy.AdminAllowIPs) > 0 {
-		result["mcpproxy.admin_allow_ips"] = strings.Join(cfg.MCPProxy.AdminAllowIPs, ",")
+		result["mcp_proxy.admin_allow_ips"] = strings.Join(cfg.MCPProxy.AdminAllowIPs, ",")
 	}
 	if len(cfg.MCPProxy.TrustedProxies) > 0 {
-		result["mcpproxy.trusted_proxies"] = strings.Join(cfg.MCPProxy.TrustedProxies, ",")
+		result["mcp_proxy.trusted_proxies"] = strings.Join(cfg.MCPProxy.TrustedProxies, ",")
 	}
 	if len(cfg.MCPProxy.GlobalAuthTokens) > 0 {
-		result["mcpproxy.global_auth_tokens"] = fmt.Sprintf(
+		result["mcp_proxy.global_auth_tokens"] = fmt.Sprintf(
 			"[%d tokens configured]",
 			len(cfg.MCPProxy.GlobalAuthTokens),
 		)

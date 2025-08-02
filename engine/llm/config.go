@@ -34,7 +34,7 @@ type Config struct {
 // DefaultConfig returns a default configuration
 func DefaultConfig() *Config {
 	return &Config{
-		ProxyURL:               "http://localhost:8081",
+		ProxyURL:               "http://localhost:6001",
 		AdminToken:             "",
 		CacheTTL:               5 * time.Minute,
 		Timeout:                30 * time.Second,

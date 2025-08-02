@@ -33,7 +33,7 @@ func TestConfig_SetDefaults(t *testing.T) {
 
 func TestConfig_Validate(t *testing.T) {
 	t.Run("Should validate successfully with all required fields", func(t *testing.T) {
-		os.Setenv("MCP_PROXY_URL", "http://localhost:8081")
+		os.Setenv("MCP_PROXY_URL", "http://localhost:6001")
 		defer os.Unsetenv("MCP_PROXY_URL")
 
 		config := &Config{
@@ -103,7 +103,7 @@ func TestConfig_validateURL(t *testing.T) {
 
 func TestConfig_validateProxy(t *testing.T) {
 	t.Run("Should validate valid proxy URL", func(t *testing.T) {
-		os.Setenv("MCP_PROXY_URL", "http://localhost:8081")
+		os.Setenv("MCP_PROXY_URL", "http://localhost:6001")
 		defer os.Unsetenv("MCP_PROXY_URL")
 
 		config := &Config{}
@@ -120,7 +120,7 @@ func TestConfig_validateProxy(t *testing.T) {
 	})
 
 	t.Run("Should fail with invalid proxy URL scheme", func(t *testing.T) {
-		os.Setenv("MCP_PROXY_URL", "ftp://localhost:8081")
+		os.Setenv("MCP_PROXY_URL", "ftp://localhost:6001")
 		defer os.Unsetenv("MCP_PROXY_URL")
 
 		config := &Config{}
@@ -234,7 +234,7 @@ func TestValidateURLFormat(t *testing.T) {
 		validURLs := []string{
 			"http://localhost:3000",
 			"https://api.example.com",
-			"http://127.0.0.1:8081/path",
+			"http://127.0.0.1:6001/path",
 			"https://subdomain.example.com:443/api/v1",
 		}
 

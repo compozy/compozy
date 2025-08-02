@@ -46,7 +46,7 @@ func TestCLIProvider_Load(t *testing.T) {
 		// Arrange
 		flags := map[string]any{
 			"host":                          "cli.example.com",
-			"port":                          8081,
+			"port":                          6001,
 			"cors":                          true,
 			"max-nesting-depth":             20,
 			"max-string-length":             2048,
@@ -67,7 +67,7 @@ func TestCLIProvider_Load(t *testing.T) {
 		server, ok := data["server"].(map[string]any)
 		require.True(t, ok)
 		assert.Equal(t, "cli.example.com", server["host"])
-		assert.Equal(t, 8081, server["port"])
+		assert.Equal(t, 6001, server["port"])
 		assert.Equal(t, true, server["cors_enabled"])
 
 		// Check limits mapping

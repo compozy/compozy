@@ -738,7 +738,7 @@ definitions:
           ```yaml
           url: "http://localhost:3000/mcp"
           url: "https://api.example.com/v1/mcp"
-          url: "http://mcp-proxy:8081/filesystem"
+          url: "http://mcp-proxy:6001/filesystem"
           ```
 
           **Note**: Mutually exclusive with `command` - use either URL or Command, not both.

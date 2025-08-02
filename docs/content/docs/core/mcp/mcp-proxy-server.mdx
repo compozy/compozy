@@ -217,7 +217,7 @@ For large responses and file transfers:
 
 ```go title="Configuration Structure"
 type Config struct {
-    Port               string        // TCP port (default: "8081")
+    Port               string        // TCP port (default: "6001")
     Host               string        // Listen address (default: "0.0.0.0")
     BaseURL            string        // Base URL for generating paths
     ShutdownTimeout    time.Duration // Graceful shutdown timeout
@@ -240,9 +240,9 @@ type Config struct {
 ```go title="Default Values"
 func DefaultConfig() *Config {
     return &Config{
-        Port:            "8081",
+        Port:            "6001",
         Host:            "0.0.0.0",
-        BaseURL:         "http://localhost:8081",
+        BaseURL:         "http://localhost:6001",
         ShutdownTimeout: 30 * time.Second,
         StorageType:     "memory",
         MaxConnections:  100,
@@ -264,8 +264,8 @@ func DefaultConfig() *Config {
 ```bash title="Basic Environment Variables"
 # Server configuration
 MCP_PROXY_HOST=0.0.0.0
-MCP_PROXY_PORT=8081
-MCP_PROXY_BASE_URL=http://localhost:8081
+MCP_PROXY_PORT=6001
+MCP_PROXY_BASE_URL=http://localhost:6001
 
 # Shutdown timeout
 MCP_PROXY_SHUTDOWN_TIMEOUT=30s
@@ -332,7 +332,7 @@ Start with custom settings:
 ```bash
 compozy-mcp-proxy \
   --host 0.0.0.0 \
-  --port 8081 \
+  --port 6001 \
   --admin-tokens "secure-admin-token" \
   --admin-allow-ips "10.0.0.0/8,192.168.1.0/24"
 ```
@@ -344,7 +344,7 @@ Use environment variables for production:
 ```bash
 export MCP_PROXY_ADMIN_TOKEN="$(openssl rand -hex 32)"
 export MCP_PROXY_GLOBAL_AUTH_TOKEN="$(openssl rand -hex 32)"
-compozy-mcp-proxy --host 0.0.0.0 --port 8081
+compozy-mcp-proxy --host 0.0.0.0 --port 6001
 ```
 </Step>
 </Steps>
@@ -358,13 +358,13 @@ compozy-mcp-proxy --host 0.0.0.0 --port 8081
 ```dockerfile title="Dockerfile"
 FROM compozy/compozy:latest
 
-EXPOSE 8081
+EXPOSE 6001
 
-CMD ["compozy", "mcp-proxy", "--host", "0.0.0.0", "--port", "8081"]
+CMD ["compozy", "mcp-proxy", "--host", "0.0.0.0", "--port", "6001"]
 ```
 
 ```bash title="Run Container"
-docker run -p 8081:8081 \
+docker run -p 6001:6001 \
   -e MCP_PROXY_ADMIN_TOKEN=secure-token \
   -e MCP_PROXY_GLOBAL_AUTH_TOKEN=global-token \
   compozy/compozy:latest \
@@ -382,10 +382,10 @@ services:
   mcp-proxy:
     image: compozy/compozy:latest
     ports:
-      - "8081:8081"
+      - "6001:6001"
     environment:
       - MCP_PROXY_HOST=0.0.0.0
-      - MCP_PROXY_PORT=8081
+      - MCP_PROXY_PORT=6001
       - MCP_PROXY_ADMIN_TOKEN=${MCP_PROXY_ADMIN_TOKEN}
       - MCP_PROXY_GLOBAL_AUTH_TOKEN=${MCP_PROXY_GLOBAL_AUTH_TOKEN}
       - REDIS_URL=redis://redis:6379/0
@@ -430,13 +430,13 @@ spec:
       - name: mcp-proxy
         image: compozy/compozy:latest
         ports:
-        - containerPort: 8081
+        - containerPort: 6001
           name: http
         env:
         - name: MCP_PROXY_HOST
           value: "0.0.0.0"
         - name: MCP_PROXY_PORT
-          value: "8081"
+          value: "6001"
         - name: MCP_PROXY_ADMIN_TOKEN
           valueFrom:
             secretKeyRef:
@@ -457,13 +457,13 @@ spec:
         livenessProbe:
           httpGet:
             path: /healthz
-            port: 8081
+            port: 6001
           initialDelaySeconds: 30
           periodSeconds: 10
         readinessProbe:
           httpGet:
             path: /healthz
-            port: 8081
+            port: 6001
           initialDelaySeconds: 5
           periodSeconds: 5
         resources:
@@ -485,8 +485,8 @@ spec:
   selector:
     app: mcp-proxy
   ports:
-  - port: 8081
-    targetPort: 8081
+  - port: 6001
+    targetPort: 6001
     protocol: TCP
     name: http
   type: LoadBalancer
@@ -552,7 +552,7 @@ For detailed API endpoint documentation, see our comprehensive API reference:
 
 ```bash
 # Basic health check
-curl http://localhost:8081/healthz
+curl http://localhost:6001/healthz
 
 # Response format
 {
@@ -583,7 +583,7 @@ curl http://localhost:8081/healthz
 
 ```bash
 # Prometheus metrics
-curl http://localhost:8081/metrics
+curl http://localhost:6001/metrics
 
 # Sample metrics output
 # HELP mcp_proxy_connections_total Total number of connections
@@ -616,7 +616,7 @@ mcp_proxy_errors_total{type="timeout"} 2
 ```bash
 # Admin API health (requires token)
 curl -H "Authorization: Bearer $MCP_PROXY_ADMIN_TOKEN" \
-     http://localhost:8081/admin/status
+     http://localhost:6001/admin/status
 
 # Response format
 {
@@ -652,7 +652,7 @@ curl -H "Authorization: Bearer $MCP_PROXY_ADMIN_TOKEN" \
 |-------|----------|----------|
 | **Connection Refused** | `curl: (7) Failed to connect` | Check if proxy is running on correct port |
 | **Port Already in Use** | `bind: address already in use` | Change port or stop conflicting process |
-| **Firewall Blocking** | Connections timeout | Configure firewall rules for port 8081 |
+| **Firewall Blocking** | Connections timeout | Configure firewall rules for port 6001 |
 | **DNS Resolution** | `no such host` | Verify hostname/IP configuration |
 
 **Debug Commands:**
@@ -661,10 +661,10 @@ curl -H "Authorization: Bearer $MCP_PROXY_ADMIN_TOKEN" \
 ps aux | grep mcp-proxy
 
 # Verify port is open
-netstat -tulpn | grep :8081
+netstat -tulpn | grep :6001
 
 # Test connectivity
-telnet localhost 8081
+telnet localhost 6001
 ```
 </Tab>
 
@@ -682,12 +682,12 @@ telnet localhost 8081
 ```bash
 # Test admin API access
 curl -H "Authorization: Bearer $MCP_PROXY_ADMIN_TOKEN" \
-     http://localhost:8081/admin/mcps
+     http://localhost:6001/admin/mcps
 
 # Check IP allow-list
 curl -H "Authorization: Bearer $TOKEN" \
      -H "X-Forwarded-For: 192.168.1.100" \
-     http://localhost:8081/admin/mcps
+     http://localhost:6001/admin/mcps
 ```
 </Tab>
 
@@ -707,10 +707,10 @@ curl -H "Authorization: Bearer $TOKEN" \
 top -p $(pgrep mcp-proxy)
 
 # Check connection stats
-curl http://localhost:8081/metrics | grep mcp_proxy_connections
+curl http://localhost:6001/metrics | grep mcp_proxy_connections
 
 # Monitor request latency
-curl http://localhost:8081/metrics | grep mcp_proxy_requests_duration
+curl http://localhost:6001/metrics | grep mcp_proxy_requests_duration
 ```
 </Tab>
 
@@ -728,11 +728,11 @@ curl http://localhost:8081/metrics | grep mcp_proxy_requests_duration
 ```bash
 # List registered servers
 curl -H "Authorization: Bearer $TOKEN" \
-     http://localhost:8081/admin/mcps
+     http://localhost:6001/admin/mcps
 
 # Check specific server health
 curl -H "Authorization: Bearer $TOKEN" \
-     http://localhost:8081/admin/mcps/filesystem
+     http://localhost:6001/admin/mcps/filesystem
 
 # View server logs
 journalctl -f -u mcp-proxy
