@@ -1,6 +1,6 @@
 {
   "name": "@compozy/tool-list-files",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Compozy tool for listing files in a directory",
   "type": "module",
   "main": "index.ts",
