@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://schemas.compozy.dev/project-options.json",
+  "$id": "https://schemas.compozy.com/project-options.json",
   "$defs": {
     "ErrorTransition": {
       "properties": {

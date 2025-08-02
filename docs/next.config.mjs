@@ -14,15 +14,24 @@ const config = {
       },
     ];
   },
+  async rewrites() {
+    return [
+      {
+        source: "/docs/:path*.mdx",
+        destination: "/llms.mdx/:path*",
+      },
+    ];
+  },
   images: {
     remotePatterns: [
       {
-        protocol: 'https',
-        hostname: 'ik.imagekit.io',
-        pathname: '/**',
+        protocol: "https",
+        hostname: "ik.imagekit.io",
+        pathname: "/**",
       },
     ],
   },
+  serverExternalPackages: ["ts-morph", "typescript", "oxc-transform", "twoslash", "shiki"],
 };
 
 export default withMDX(config);

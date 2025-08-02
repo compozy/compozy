@@ -28,7 +28,7 @@ git:
 # Build configuration
 builds:
   - id: compozy
-    main: ./cmd/compozy/main.go
+    main: ./
     binary: compozy
 
     # Build for multiple platforms
@@ -36,18 +36,10 @@ builds:
       - linux
       - darwin
       - windows
-      - freebsd
-      - openbsd
-      - netbsd
 
     goarch:
       - amd64
       - arm64
-      - "386"
-      - arm
-
-    goarm:
-      - "7"
 
     # Build constraints
     ignore:
@@ -430,13 +422,14 @@ before:
     # Generate shell completions
     - rm -rf completions
     - mkdir completions
-    - sh -c 'go run . completion bash >./completions/compozy.bash || echo "Bash completions generation skipped"'
-    - sh -c 'go run . completion zsh >./completions/compozy.zsh || echo "Zsh completions generation skipped"'
-    - sh -c 'go run . completion fish >./completions/compozy.fish || echo "Fish completions generation skipped"'
-    # Generate man pages
     - rm -rf manpages
     - mkdir manpages
-    - sh -c 'go run . man | gzip -c >./manpages/compozy.1.gz || echo "Man page generation skipped"'
+    - go build -o compozy_tmp .
+    - ./compozy_tmp completion bash > ./completions/compozy.bash || echo "Bash completions generation skipped"
+    - ./compozy_tmp completion zsh > ./completions/compozy.zsh || echo "Zsh completions generation skipped"
+    - ./compozy_tmp completion fish > ./completions/compozy.fish || echo "Fish completions generation skipped"
+    - ./compozy_tmp man | gzip -c > ./manpages/compozy.1.gz || echo "Man page generation skipped"
+    - rm compozy_tmp
 
 # Software Bill of Materials (SBOM) generation
 sboms:

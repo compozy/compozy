@@ -67,7 +67,7 @@ compozy workflow list --format json --quiet | jq '.workflows[].name'
 compozy auth login --interactive
 
 # Login with specific server
-compozy auth login --server-url https://api.compozy.dev --interactive
+compozy auth login --server-url https://api.compozy.com --interactive
 
 # Check authentication status
 compozy auth status --format tui
@@ -310,7 +310,7 @@ jobs:
 
       - name: Install Compozy CLI
         run: |
-          curl -sSL https://install.compozy.dev | bash
+          curl -sSL https://install.compozy.com | bash
 
       - name: Deploy to Production
         env:
@@ -321,7 +321,7 @@ jobs:
         run: |
           compozy workflow run production-deploy \
             --config ./production.yaml \
-            --server-url https://api.compozy.dev
+            --server-url https://api.compozy.com
 ```
 
 ### GitLab CI
@@ -335,7 +335,7 @@ deploy_production:
   image: alpine:latest
   before_script:
     - apk add --no-cache curl jq
-    - curl -sSL https://install.compozy.dev | sh
+    - curl -sSL https://install.compozy.com | sh
   script:
     - |
       compozy workflow run production-deploy \
@@ -345,7 +345,7 @@ deploy_production:
         --no-color
   variables:
     COMPOZY_API_KEY: $CI_COMPOZY_API_KEY
-    COMPOZY_SERVER_URL: https://api.compozy.dev
+    COMPOZY_SERVER_URL: https://api.compozy.com
   only:
     - main
 ```

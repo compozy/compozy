@@ -1,6 +1,5 @@
 {
-  ".": "0.0.1",
-  "cmd/mcp-proxy": "0.0.1",
+  ".": "0.0.2",
   "tools/delete-file": "0.0.1",
   "tools/exec": "0.0.1",
   "tools/fetch": "0.0.1",

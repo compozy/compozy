@@ -1,9 +1,4 @@
-import type { Metadata } from "next";
-
-export const baseUrl =
-  process.env.NODE_ENV === "development" ? "http://localhost:3000" : "https://docs.dokploy.com";
-
-export const url = (path: string): string => new URL(path, baseUrl).toString();
+import type { Metadata } from "next/types";
 
 export function createMetadata(override: Metadata): Metadata {
   return {
@@ -11,14 +6,14 @@ export function createMetadata(override: Metadata): Metadata {
     openGraph: {
       title: override.title ?? undefined,
       description: override.description ?? undefined,
-      url: "https://fumadocs.vercel.app",
-      images: "/og.png",
-      siteName: "Fumadocs",
+      url: "https://compozy.com",
+      images: "/banner.png",
+      siteName: "Compozy",
       ...override.openGraph,
     },
     twitter: {
       card: "summary_large_image",
-      creator: "@money_is_shark",
+      creator: "@compozyai",
       title: override.title ?? undefined,
       description: override.description ?? undefined,
       images: "/banner.png",
@@ -26,3 +21,8 @@ export function createMetadata(override: Metadata): Metadata {
     },
   };
 }
+
+export const baseUrl =
+  process.env.NODE_ENV === "development" || !process.env.VERCEL_URL
+    ? new URL("http://localhost:5006")
+    : new URL(`https://${process.env.VERCEL_URL}`);

@@ -868,7 +868,7 @@ type MCPProxyConfig struct {
 //
 //	cli:
 //	  api_key: ${COMPOZY_API_KEY}      # Secure API authentication
-//	  base_url: https://api.compozy.dev # API endpoint
+//	  base_url: https://api.compozy.com # API endpoint
 //	  timeout: 30s                      # Request timeout
 //	  mode: normal                      # Execution mode
 //	  default_format: tui               # Output format
@@ -886,7 +886,7 @@ type CLIConfig struct {
 
 	// BaseURL specifies the Compozy API endpoint.
 	//
-	// Default: "https://api.compozy.dev"
+	// Default: "https://api.compozy.com"
 	// Use custom endpoints for self-hosted or development environments.
 	BaseURL string `koanf:"base_url" env:"COMPOZY_BASE_URL" json:"BaseURL" yaml:"base_url" mapstructure:"base_url"`
 
@@ -1205,7 +1205,6 @@ func buildCLIConfig(registry *definition.Registry) CLIConfig {
 	return CLIConfig{
 		APIKey:            SensitiveString(getString(registry, "cli.api_key")),
 		BaseURL:           getString(registry, "cli.base_url"),
-		ServerURL:         getString(registry, "cli.server_url"),
 		Timeout:           getDuration(registry, "cli.timeout"),
 		Mode:              getString(registry, "cli.mode"),
 		DefaultFormat:     getString(registry, "cli.default_format"),

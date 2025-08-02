@@ -507,7 +507,6 @@ func flattenLLMConfig(cfg *config.Config, result map[string]string) {
 func flattenCLIConfig(cfg *config.Config, result map[string]string) {
 	result["cli.api_key"] = redactSensitive(cfg.CLI.APIKey.String())
 	result["cli.base_url"] = cfg.CLI.BaseURL
-	result["cli.server_url"] = cfg.CLI.ServerURL
 	result["cli.timeout"] = cfg.CLI.Timeout.String()
 	result["cli.mode"] = cfg.CLI.Mode
 	result["cli.default_format"] = cfg.CLI.DefaultFormat

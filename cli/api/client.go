@@ -24,18 +24,9 @@ type client struct {
 
 // NewAuthClient creates a new auth client that implements AuthClient interface
 func NewAuthClient(cfg *config.Config, apiKey string) (AuthClient, error) {
-	// Use HTTP for localhost development, HTTPS for production
-	scheme := "https"
-	if cfg.Server.Host == "localhost" || cfg.Server.Host == "127.0.0.1" || cfg.Server.Host == "0.0.0.0" ||
-		cfg.Server.Host == "[::1]" ||
-		cfg.Server.Host == "::1" {
-		scheme = "http"
-	}
-	baseURL := fmt.Sprintf("%s://%s:%d/api/v0", scheme, cfg.Server.Host, cfg.Server.Port)
-
-	// Parse and validate base URL
-	if _, err := url.Parse(baseURL); err != nil {
-		return nil, fmt.Errorf("invalid base URL: %w", err)
+	baseURL, err := getBaseURL(cfg)
+	if err != nil {
+		return nil, err
 	}
 
 	return &client{
@@ -45,6 +36,33 @@ func NewAuthClient(cfg *config.Config, apiKey string) (AuthClient, error) {
 		baseURL: baseURL,
 		apiKey:  apiKey,
 	}, nil
+}
+
+// getBaseURL determines the base URL from configuration with proper precedence
+func getBaseURL(cfg *config.Config) (string, error) {
+	// Highest precedence: CLI base_url
+	if cfg.CLI.BaseURL != "" {
+		if _, err := url.Parse(cfg.CLI.BaseURL); err != nil {
+			return "", fmt.Errorf("invalid base URL from CLI config: %w", err)
+		}
+		return cfg.CLI.BaseURL, nil
+	}
+
+	// Fallback: construct from server host and port
+	scheme := "https"
+	if cfg.Server.Host == "localhost" || cfg.Server.Host == "127.0.0.1" || cfg.Server.Host == "0.0.0.0" ||
+		cfg.Server.Host == "[::1]" ||
+		cfg.Server.Host == "::1" {
+		scheme = "http"
+	}
+	baseURL := fmt.Sprintf("%s://%s:%d/api/v0", scheme, cfg.Server.Host, cfg.Server.Port)
+
+	// Final validation
+	if _, err := url.Parse(baseURL); err != nil {
+		return "", fmt.Errorf("invalid base URL constructed from server config: %w", err)
+	}
+
+	return baseURL, nil
 }
 
 // GetBaseURL returns the base URL for the client

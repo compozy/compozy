@@ -25,7 +25,7 @@
           "type": "string"
         },
         "BaseURL": {
-          "description": "BaseURL specifies the Compozy API endpoint.\n\nDefault: \"https://api.compozy.dev\"\nUse custom endpoints for self-hosted or development environments.",
+          "description": "BaseURL specifies the Compozy API endpoint.\n\nDefault: \"https://api.compozy.com\"\nUse custom endpoints for self-hosted or development environments.",
           "type": "string"
         },
         "ColorMode": {
@@ -545,7 +545,7 @@
       "type": "object"
     }
   },
-  "$id": "https://schemas.compozy.dev/config.json",
+  "$id": "https://schemas.compozy.com/config.json",
   "$schema": "http://json-schema.org/draft-07/schema#",
   "additionalProperties": false,
   "description": "Config represents the complete configuration for the Compozy system.",

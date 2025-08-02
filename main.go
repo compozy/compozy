@@ -36,8 +36,8 @@
 //	@tag.name			users
 //	@tag.description	User management operations (admin only)
 
-//	@tag.name			Operations
-//	@tag.description	Operational endpoints for monitoring and health
+// @tag.name			Operations
+// @tag.description	Operational endpoints for monitoring and health
 
 package main
 

@@ -9,6 +9,7 @@ import (
 	configcmd "github.com/compozy/compozy/cli/cmd/config"
 	"github.com/compozy/compozy/cli/cmd/dev"
 	initcmd "github.com/compozy/compozy/cli/cmd/init"
+	mcpproxycmd "github.com/compozy/compozy/cli/cmd/mcpproxy"
 	"github.com/compozy/compozy/cli/cmd/start"
 	workflowcmd "github.com/compozy/compozy/cli/cmd/workflow"
 	"github.com/compozy/compozy/cli/helpers"
@@ -40,7 +41,8 @@ and events with both interactive TUI and automation-friendly JSON output.`,
 				return nil
 			}
 			// Show help if no subcommand is provided
-			return cmd.Help()
+			cmd.HelpFunc()(cmd, []string{})
+			return nil
 		},
 	}
 
@@ -49,6 +51,9 @@ and events with both interactive TUI and automation-friendly JSON output.`,
 
 	// Add comprehensive global flags
 	helpers.AddGlobalFlags(root)
+
+	// Set up categorized help
+	helpers.SetupCategorizedHelp(root)
 
 	// Add version command
 	versionCmd := &cobra.Command{
@@ -66,6 +71,7 @@ and events with both interactive TUI and automation-friendly JSON output.`,
 		initcmd.NewInitCommand(),
 		dev.NewDevCommand(),
 		start.NewStartCommand(),
+		mcpproxycmd.NewMCPProxyCommand(),
 		configcmd.NewConfigCommand(),
 		authcmd.Cmd(),
 		workflowcmd.Cmd(),

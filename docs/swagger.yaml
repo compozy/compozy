@@ -3,7 +3,7 @@ definitions:
   agent.ActionConfig:
     properties:
       cwd:
-        $ref: "#/definitions/core.PathCWD"
+        $ref: '#/definitions/core.PathCWD'
       id:
         description: |-
           Unique identifier for the action within the agent's scope.
@@ -13,7 +13,7 @@ definitions:
         type: string
       input:
         allOf:
-          - $ref: "#/definitions/schema.Schema"
+        - $ref: '#/definitions/schema.Schema'
         description: |-
           JSON Schema defining the expected input parameters for this action.
           Enables validation and type checking of inputs before execution.
@@ -33,7 +33,7 @@ definitions:
         type: boolean
       output:
         allOf:
-          - $ref: "#/definitions/schema.Schema"
+        - $ref: '#/definitions/schema.Schema'
         description: |-
           JSON Schema defining the expected output format from this action.
           Used for validating agent responses and ensuring consistent output structure.
@@ -54,7 +54,7 @@ definitions:
         type: string
       with:
         allOf:
-          - $ref: "#/definitions/core.Input"
+        - $ref: '#/definitions/core.Input'
         description: |-
           Default parameters to provide to the action.
           These are merged with runtime parameters, with runtime values taking precedence.
@@ -64,7 +64,7 @@ definitions:
           - Providing constant context values
           - Pre-filling common parameters
     required:
-      - prompt
+    - prompt
     type: object
   agent.Config:
     properties:
@@ -96,11 +96,11 @@ definitions:
 
           $ref: inline:#action-configuration
         items:
-          $ref: "#/definitions/agent.ActionConfig"
+          $ref: '#/definitions/agent.ActionConfig'
         type: array
       config:
         allOf:
-          - $ref: "#/definitions/core.ProviderConfig"
+        - $ref: '#/definitions/core.ProviderConfig'
         description: |-
           LLM provider configuration defining which AI model to use and its parameters.
           Supports multiple providers including OpenAI, Anthropic, Google, Groq, and local models.
@@ -108,10 +108,10 @@ definitions:
           **Required fields:** provider, model
           **Optional fields:** api_key, api_url, params (temperature, max_tokens, etc.)
       cwd:
-        $ref: "#/definitions/core.PathCWD"
+        $ref: '#/definitions/core.PathCWD'
       env:
         allOf:
-          - $ref: "#/definitions/core.EnvMap"
+        - $ref: '#/definitions/core.EnvMap'
         description: |-
           Environment variables available during agent execution.
           Used for configuration, secrets, and runtime settings.
@@ -179,7 +179,7 @@ definitions:
 
           MCPs support both stdio and HTTP transport protocols.
         items:
-          $ref: "#/definitions/mcp.Config"
+          $ref: '#/definitions/mcp.Config'
         type: array
       memory:
         description: |-
@@ -198,7 +198,7 @@ definitions:
           - `"read-write"`: Full access to read and modify memory
           - `"read-only"`: Can only read existing memory entries
         items:
-          $ref: "#/definitions/core.MemoryReference"
+          $ref: '#/definitions/core.MemoryReference'
         type: array
       resource:
         description: |-
@@ -219,11 +219,11 @@ definitions:
 
           Tools are referenced by ID and can be shared across multiple agents.
         items:
-          $ref: "#/definitions/tool.Config"
+          $ref: '#/definitions/tool.Config'
         type: array
       with:
         allOf:
-          - $ref: "#/definitions/core.Input"
+        - $ref: '#/definitions/core.Input'
         description: |-
           Default input parameters passed to the agent on every invocation.
           These values are merged with runtime inputs, with runtime values taking precedence.
@@ -233,9 +233,9 @@ definitions:
           - Providing constant context or settings
           - Injecting workflow-level parameters
     required:
-      - config
-      - id
-      - instructions
+    - config
+    - id
+    - instructions
     type: object
   core.Author:
     properties:
@@ -245,7 +245,7 @@ definitions:
 
           Use this to acknowledge team members, collaborators, or external contributors.
         items:
-          $ref: "#/definitions/core.Contributor"
+          $ref: '#/definitions/core.Contributor'
         type: array
       email:
         description: |-
@@ -274,18 +274,18 @@ definitions:
     type: object
   core.ComponentType:
     enum:
-      - workflow
-      - task
-      - agent
-      - tool
-      - log
+    - workflow
+    - task
+    - agent
+    - tool
+    - log
     type: string
     x-enum-varnames:
-      - ComponentWorkflow
-      - ComponentTask
-      - ComponentAgent
-      - ComponentTool
-      - ComponentLog
+    - ComponentWorkflow
+    - ComponentTask
+    - ComponentAgent
+    - ComponentTool
+    - ComponentLog
   core.Contributor:
     properties:
       email:
@@ -328,7 +328,7 @@ definitions:
         type: string
       with:
         allOf:
-          - $ref: "#/definitions/core.Input"
+        - $ref: '#/definitions/core.Input'
         description: |-
           Error context passed to the handler
           Includes error details: { "error": "{{ .error }}", "attempt": "{{ .retryCount }}" }
@@ -348,12 +348,12 @@ definitions:
       mode:
         description: Mode defines access permissions (e.g., "read-write", "read-only").
         enum:
-          - read-write
-          - read-only
+        - read-write
+        - read-only
         type: string
     required:
-      - id
-      - key
+    - id
+    - key
     type: object
   core.Output:
     additionalProperties: {}
@@ -477,14 +477,14 @@ definitions:
         type: string
       params:
         allOf:
-          - $ref: "#/definitions/core.PromptParams"
+        - $ref: '#/definitions/core.PromptParams'
         description: |-
           Params contains the generation parameters that control LLM behavior.
           These parameters are applied to all requests using this provider configuration.
           Can be overridden at the task or action level for specific requirements.
       provider:
         allOf:
-          - $ref: "#/definitions/core.ProviderName"
+        - $ref: '#/definitions/core.ProviderName'
         description: |-
           Provider specifies which AI service to use for LLM operations.
           Must match one of the supported ProviderName constants.
@@ -493,14 +493,14 @@ definitions:
     type: object
   core.ProviderName:
     enum:
-      - openai
-      - groq
-      - anthropic
-      - google
-      - ollama
-      - deepseek
-      - xai
-      - mock
+    - openai
+    - groq
+    - anthropic
+    - google
+    - ollama
+    - deepseek
+    - xai
+    - mock
     type: string
     x-enum-comments:
       ProviderAnthropic: Anthropic Claude models
@@ -512,14 +512,14 @@ definitions:
       ProviderOpenAI: OpenAI GPT models (GPT-4, GPT-3.5, etc.)
       ProviderXAI: xAI Grok models
     x-enum-varnames:
-      - ProviderOpenAI
-      - ProviderGroq
-      - ProviderAnthropic
-      - ProviderGoogle
-      - ProviderOllama
-      - ProviderDeepSeek
-      - ProviderXAI
-      - ProviderMock
+    - ProviderOpenAI
+    - ProviderGroq
+    - ProviderAnthropic
+    - ProviderGoogle
+    - ProviderOllama
+    - ProviderDeepSeek
+    - ProviderXAI
+    - ProviderMock
   core.RetryPolicyConfig:
     properties:
       backoff_coefficient:
@@ -556,24 +556,24 @@ definitions:
     type: object
   core.StatusType:
     enum:
-      - PENDING
-      - RUNNING
-      - SUCCESS
-      - FAILED
-      - TIMED_OUT
-      - CANCELED
-      - WAITING
-      - PAUSED
+    - PENDING
+    - RUNNING
+    - SUCCESS
+    - FAILED
+    - TIMED_OUT
+    - CANCELED
+    - WAITING
+    - PAUSED
     type: string
     x-enum-varnames:
-      - StatusPending
-      - StatusRunning
-      - StatusSuccess
-      - StatusFailed
-      - StatusTimedOut
-      - StatusCanceled
-      - StatusWaiting
-      - StatusPaused
+    - StatusPending
+    - StatusRunning
+    - StatusSuccess
+    - StatusFailed
+    - StatusTimedOut
+    - StatusCanceled
+    - StatusWaiting
+    - StatusPaused
   gin.H:
     additionalProperties: {}
     type: object
@@ -677,7 +677,7 @@ definitions:
         type: string
       start_timeout:
         allOf:
-          - $ref: "#/definitions/time.Duration"
+        - $ref: '#/definitions/time.Duration'
         description: |-
           StartTimeout is the **maximum time to wait** for the MCP server to start.
 
@@ -698,7 +698,7 @@ definitions:
           **Recommendation**: Set to at least 10-30s for Docker-based servers.
       transport:
         allOf:
-          - $ref: "#/definitions/mcpproxy.TransportType"
+        - $ref: '#/definitions/mcpproxy.TransportType'
         description: |-
           Transport defines the **communication transport mechanism**.
 
@@ -756,23 +756,23 @@ definitions:
     type: object
   mcpproxy.ConnectionStatus:
     enum:
-      - disconnected
-      - connecting
-      - connected
-      - error
+    - disconnected
+    - connecting
+    - connected
+    - error
     type: string
     x-enum-varnames:
-      - StatusDisconnected
-      - StatusConnecting
-      - StatusConnected
-      - StatusError
+    - StatusDisconnected
+    - StatusConnecting
+    - StatusConnected
+    - StatusError
   mcpproxy.ListMCPsResponse:
     properties:
       count:
         type: integer
       mcps:
         items:
-          $ref: "#/definitions/mcpproxy.MCPDetailsResponse"
+          $ref: '#/definitions/mcpproxy.MCPDetailsResponse'
         type: array
     type: object
   mcpproxy.MCPDefinition:
@@ -811,7 +811,7 @@ definitions:
       healthCheckEnabled:
         type: boolean
       healthCheckInterval:
-        $ref: "#/definitions/time.Duration"
+        $ref: '#/definitions/time.Duration'
       logEnabled:
         type: boolean
       maxReconnects:
@@ -821,7 +821,7 @@ definitions:
         minLength: 1
         type: string
       reconnectDelay:
-        $ref: "#/definitions/time.Duration"
+        $ref: '#/definitions/time.Duration'
       requireAuth:
         type: boolean
       tags:
@@ -830,33 +830,33 @@ definitions:
         description: Metadata
         type: object
       timeout:
-        $ref: "#/definitions/time.Duration"
+        $ref: '#/definitions/time.Duration'
       toolFilter:
         allOf:
-          - $ref: "#/definitions/mcpproxy.ToolFilter"
+        - $ref: '#/definitions/mcpproxy.ToolFilter'
         description: Tool filtering
       transport:
-        $ref: "#/definitions/mcpproxy.TransportType"
+        $ref: '#/definitions/mcpproxy.TransportType'
       updatedAt:
         type: string
       url:
         description: HTTP-based transport configuration (SSE and streamable-http)
         type: string
     required:
-      - name
-      - transport
+    - name
+    - transport
     type: object
   mcpproxy.MCPDetailsResponse:
     properties:
       definition:
-        $ref: "#/definitions/mcpproxy.MCPDefinition"
+        $ref: '#/definitions/mcpproxy.MCPDefinition'
       status:
-        $ref: "#/definitions/mcpproxy.MCPStatus"
+        $ref: '#/definitions/mcpproxy.MCPStatus'
     type: object
   mcpproxy.MCPStatus:
     properties:
       avgResponseTime:
-        $ref: "#/definitions/time.Duration"
+        $ref: '#/definitions/time.Duration'
       lastConnected:
         type: string
       lastError:
@@ -868,13 +868,13 @@ definitions:
       reconnectAttempts:
         type: integer
       status:
-        $ref: "#/definitions/mcpproxy.ConnectionStatus"
+        $ref: '#/definitions/mcpproxy.ConnectionStatus'
       totalErrors:
         type: integer
       totalRequests:
         type: integer
       upTime:
-        $ref: "#/definitions/time.Duration"
+        $ref: '#/definitions/time.Duration'
     type: object
   mcpproxy.ToolFilter:
     properties:
@@ -883,28 +883,28 @@ definitions:
           type: string
         type: array
       mode:
-        $ref: "#/definitions/mcpproxy.ToolFilterMode"
+        $ref: '#/definitions/mcpproxy.ToolFilterMode'
     required:
-      - mode
+    - mode
     type: object
   mcpproxy.ToolFilterMode:
     enum:
-      - allow
-      - block
+    - allow
+    - block
     type: string
     x-enum-varnames:
-      - ToolFilterAllow
-      - ToolFilterBlock
+    - ToolFilterAllow
+    - ToolFilterBlock
   mcpproxy.TransportType:
     enum:
-      - stdio
-      - sse
-      - streamable-http
+    - stdio
+    - sse
+    - streamable-http
     type: string
     x-enum-varnames:
-      - TransportStdio
-      - TransportSSE
-      - TransportStreamableHTTP
+    - TransportStdio
+    - TransportSSE
+    - TransportStreamableHTTP
   memory.InstanceHealth:
     properties:
       consecutive_failures:
@@ -918,7 +918,7 @@ definitions:
       memory_id:
         type: string
       token_usage:
-        $ref: "#/definitions/memory.TokenUsageHealth"
+        $ref: '#/definitions/memory.TokenUsageHealth'
     type: object
   memory.SystemHealth:
     properties:
@@ -928,7 +928,7 @@ definitions:
         type: integer
       instance_health:
         additionalProperties:
-          $ref: "#/definitions/memory.InstanceHealth"
+          $ref: '#/definitions/memory.InstanceHealth'
         type: object
       last_checked:
         type: string
@@ -962,8 +962,8 @@ definitions:
           type: object
         type: array
     required:
-      - key
-      - messages
+    - key
+    - messages
     type: object
   memrouter.ClearMemoryRequest:
     properties:
@@ -974,15 +974,15 @@ definitions:
       key:
         type: string
     required:
-      - confirm
-      - key
+    - confirm
+    - key
     type: object
   memrouter.DeleteMemoryRequest:
     properties:
       key:
         type: string
     required:
-      - key
+    - key
     type: object
   memrouter.FlushMemoryRequest:
     properties:
@@ -997,7 +997,7 @@ definitions:
       strategy:
         type: string
     required:
-      - key
+    - key
     type: object
   memrouter.WriteMemoryRequest:
     properties:
@@ -1009,8 +1009,8 @@ definitions:
           type: object
         type: array
     required:
-      - key
-      - messages
+    - key
+    - messages
     type: object
   router.CreateUserRequest:
     properties:
@@ -1019,7 +1019,7 @@ definitions:
       role:
         type: string
     required:
-      - email
+    - email
     type: object
   router.ErrorInfo:
     properties:
@@ -1045,7 +1045,7 @@ definitions:
   router.GenerateKeyResponse:
     properties:
       data:
-        $ref: "#/definitions/router.GenerateKeyData"
+        $ref: '#/definitions/router.GenerateKeyData'
       message:
         type: string
     type: object
@@ -1053,7 +1053,7 @@ definitions:
     properties:
       data: {}
       error:
-        $ref: "#/definitions/router.ErrorInfo"
+        $ref: '#/definitions/router.ErrorInfo'
       message:
         type: string
       status:
@@ -1096,13 +1096,13 @@ definitions:
         example: daily-report
         type: string
       yaml_config:
-        $ref: "#/definitions/workflow.Schedule"
+        $ref: '#/definitions/workflow.Schedule'
     type: object
   schedulerouter.ScheduleListResponse:
     properties:
       schedules:
         items:
-          $ref: "#/definitions/schedulerouter.ScheduleInfoResponse"
+          $ref: '#/definitions/schedulerouter.ScheduleInfoResponse'
         type: array
       total:
         example: 5
@@ -1149,26 +1149,26 @@ definitions:
     type: object
   task.ExecutionType:
     enum:
-      - basic
-      - router
-      - parallel
-      - collection
-      - composite
-      - wait
-      - signal
-      - aggregate
-      - memory
+    - basic
+    - router
+    - parallel
+    - collection
+    - composite
+    - wait
+    - signal
+    - aggregate
+    - memory
     type: string
     x-enum-varnames:
-      - ExecutionBasic
-      - ExecutionRouter
-      - ExecutionParallel
-      - ExecutionCollection
-      - ExecutionComposite
-      - ExecutionWait
-      - ExecutionSignal
-      - ExecutionAggregate
-      - ExecutionMemory
+    - ExecutionBasic
+    - ExecutionRouter
+    - ExecutionParallel
+    - ExecutionCollection
+    - ExecutionComposite
+    - ExecutionWait
+    - ExecutionSignal
+    - ExecutionAggregate
+    - ExecutionMemory
   task.State:
     properties:
       action_id:
@@ -1178,26 +1178,26 @@ definitions:
         type: string
       component:
         allOf:
-          - $ref: "#/definitions/core.ComponentType"
+        - $ref: '#/definitions/core.ComponentType'
         description: Core identification
       created_at:
         description: Timestamps for audit trails and progress tracking
         type: string
       error:
-        $ref: "#/definitions/core.Error"
+        $ref: '#/definitions/core.Error'
       execution_type:
         allOf:
-          - $ref: "#/definitions/task.ExecutionType"
+        - $ref: '#/definitions/task.ExecutionType'
         description: Execution type and strategy
       input:
-        $ref: "#/definitions/core.Input"
+        $ref: '#/definitions/core.Input'
       output:
-        $ref: "#/definitions/core.Output"
+        $ref: '#/definitions/core.Output'
       parent_state_id:
         description: Parent-child relationship for hierarchical tasks
         type: string
       status:
-        $ref: "#/definitions/core.StatusType"
+        $ref: '#/definitions/core.StatusType'
       task_exec_id:
         type: string
       task_id:
@@ -1213,46 +1213,46 @@ definitions:
     type: object
   task.Type:
     enum:
-      - basic
-      - router
-      - parallel
-      - collection
-      - aggregate
-      - composite
-      - signal
-      - wait
-      - memory
+    - basic
+    - router
+    - parallel
+    - collection
+    - aggregate
+    - composite
+    - signal
+    - wait
+    - memory
     type: string
     x-enum-varnames:
-      - TaskTypeBasic
-      - TaskTypeRouter
-      - TaskTypeParallel
-      - TaskTypeCollection
-      - TaskTypeAggregate
-      - TaskTypeComposite
-      - TaskTypeSignal
-      - TaskTypeWait
-      - TaskTypeMemory
+    - TaskTypeBasic
+    - TaskTypeRouter
+    - TaskTypeParallel
+    - TaskTypeCollection
+    - TaskTypeAggregate
+    - TaskTypeComposite
+    - TaskTypeSignal
+    - TaskTypeWait
+    - TaskTypeMemory
   time.Duration:
     enum:
-      - -9223372036854775808
-      - 9223372036854775807
-      - 1
-      - 1000
-      - 1000000
-      - 1000000000
-      - 60000000000
-      - 3600000000000
+    - -9223372036854775808
+    - 9223372036854775807
+    - 1
+    - 1000
+    - 1000000
+    - 1000000000
+    - 60000000000
+    - 3600000000000
     type: integer
     x-enum-varnames:
-      - minDuration
-      - maxDuration
-      - Nanosecond
-      - Microsecond
-      - Millisecond
-      - Second
-      - Minute
-      - Hour
+    - minDuration
+    - maxDuration
+    - Nanosecond
+    - Microsecond
+    - Millisecond
+    - Second
+    - Minute
+    - Hour
   tkrouter.TaskResponse:
     properties:
       action:
@@ -1261,7 +1261,7 @@ definitions:
         description: Task-specific fields (without recursive Tasks/Task fields)
         type: string
       env:
-        $ref: "#/definitions/core.EnvMap"
+        $ref: '#/definitions/core.EnvMap'
       has_subtasks:
         description: Metadata
         type: boolean
@@ -1272,7 +1272,7 @@ definitions:
       mode:
         type: string
       outputs:
-        $ref: "#/definitions/core.Input"
+        $ref: '#/definitions/core.Input'
       routes:
         additionalProperties: {}
         type: object
@@ -1287,15 +1287,15 @@ definitions:
       timeout:
         type: string
       type:
-        $ref: "#/definitions/task.Type"
+        $ref: '#/definitions/task.Type'
       with:
-        $ref: "#/definitions/core.Input"
+        $ref: '#/definitions/core.Input'
     type: object
   tool.Config:
     properties:
       config:
         allOf:
-          - $ref: "#/definitions/core.Input"
+        - $ref: '#/definitions/core.Input'
         description: |-
           Configuration parameters passed to the tool separately from input data.
           Provides static configuration that tools can use for initialization and behavior control.
@@ -1315,7 +1315,7 @@ definitions:
             ```
       cwd:
         allOf:
-          - $ref: "#/definitions/core.PathCWD"
+        - $ref: '#/definitions/core.PathCWD'
         description: |-
           CWD defines the working directory for tool execution.
           Used for resolving relative file paths and setting process working directory.
@@ -1330,7 +1330,7 @@ definitions:
         type: string
       env:
         allOf:
-          - $ref: "#/definitions/core.EnvMap"
+        - $ref: '#/definitions/core.EnvMap'
         description: |-
           Environment variables available during tool execution.
           Variables are isolated to the tool's execution context for security.
@@ -1356,7 +1356,7 @@ definitions:
         type: string
       input:
         allOf:
-          - $ref: "#/definitions/schema.Schema"
+        - $ref: '#/definitions/schema.Schema'
         description: |-
           JSON schema defining the expected input parameters for the tool.
           Used for validation before execution and to generate LLM function call definitions.
@@ -1367,7 +1367,7 @@ definitions:
           - **Integration:** Automatically converts to LLM function parameters
       output:
         allOf:
-          - $ref: "#/definitions/schema.Schema"
+        - $ref: '#/definitions/schema.Schema'
         description: |-
           JSON schema defining the expected output format from the tool.
           Used for validation after execution and documentation purposes.
@@ -1393,7 +1393,7 @@ definitions:
         type: string
       with:
         allOf:
-          - $ref: "#/definitions/core.Input"
+        - $ref: '#/definitions/core.Input'
         description: |-
           Default input parameters merged with runtime parameters provided by agents.
           Provides a way to set tool defaults while allowing runtime customization.
@@ -1471,7 +1471,7 @@ definitions:
       message_count:
         type: integer
       pagination_info:
-        $ref: "#/definitions/uc.PaginationInfo"
+        $ref: '#/definitions/uc.PaginationInfo'
       role_distribution:
         additionalProperties:
           type: integer
@@ -1488,9 +1488,9 @@ definitions:
       name:
         type: string
       payload:
-        $ref: "#/definitions/core.Input"
+        $ref: '#/definitions/core.Input'
     required:
-      - name
+    - name
     type: object
   wfrouter.EventResponse:
     properties:
@@ -1515,16 +1515,15 @@ definitions:
     properties:
       payload:
         allOf:
-          - $ref: "#/definitions/core.Input"
+        - $ref: '#/definitions/core.Input'
         description: Payload contains the data to send with the signal
       signal_name:
-        description:
-          SignalName is the name of the signal to send to the workflow
+        description: SignalName is the name of the signal to send to the workflow
           execution
         example: ready_signal
         type: string
     required:
-      - signal_name
+    - signal_name
     type: object
   wfrouter.SignalResponse:
     properties:
@@ -1537,10 +1536,10 @@ definitions:
       agent_count:
         type: integer
       author:
-        $ref: "#/definitions/core.Author"
+        $ref: '#/definitions/core.Author'
       config:
         allOf:
-          - $ref: "#/definitions/workflow.Opts"
+        - $ref: '#/definitions/workflow.Opts'
         description: Configuration
       description:
         type: string
@@ -1550,7 +1549,7 @@ definitions:
       mcp_count:
         type: integer
       schedule:
-        $ref: "#/definitions/workflow.Schedule"
+        $ref: '#/definitions/workflow.Schedule'
       task_count:
         description: Task information (without circular references)
         type: integer
@@ -1563,7 +1562,7 @@ definitions:
         type: integer
       triggers:
         items:
-          $ref: "#/definitions/workflow.Trigger"
+          $ref: '#/definitions/workflow.Trigger'
         type: array
       version:
         type: string
@@ -1572,7 +1571,7 @@ definitions:
     properties:
       env:
         allOf:
-          - $ref: "#/definitions/core.EnvMap"
+        - $ref: '#/definitions/core.EnvMap'
         description: |-
           Environment variables available to the workflow and its components
           These variables are accessible to all tasks, agents, and tools within the workflow
@@ -1585,19 +1584,19 @@ definitions:
         type: string
       input:
         allOf:
-          - $ref: "#/definitions/schema.Schema"
+        - $ref: '#/definitions/schema.Schema'
         description: |-
           Input schema for validating workflow input parameters
           Uses JSON Schema format to define expected input structure and validation rules
       on_error:
         allOf:
-          - $ref: "#/definitions/core.ErrorTransition"
+        - $ref: '#/definitions/core.ErrorTransition'
         description: |-
           Error handler configuration
           Defines what happens when a task fails after all retries
       retry_policy:
         allOf:
-          - $ref: "#/definitions/core.RetryPolicyConfig"
+        - $ref: '#/definitions/core.RetryPolicyConfig'
         description: |-
           Retry configuration for transient failures
           Automatically retries failed tasks with exponential backoff
@@ -1625,16 +1624,16 @@ definitions:
     type: object
   workflow.OverlapPolicy:
     enum:
-      - skip
-      - allow
-      - buffer_one
-      - cancel_other
+    - skip
+    - allow
+    - buffer_one
+    - cancel_other
     type: string
     x-enum-varnames:
-      - OverlapSkip
-      - OverlapAllow
-      - OverlapBufferOne
-      - OverlapCancelOther
+    - OverlapSkip
+    - OverlapAllow
+    - OverlapBufferOne
+    - OverlapCancelOther
   workflow.Schedule:
     properties:
       cron:
@@ -1666,7 +1665,7 @@ definitions:
         type: string
       overlap_policy:
         allOf:
-          - $ref: "#/definitions/workflow.OverlapPolicy"
+        - $ref: '#/definitions/workflow.OverlapPolicy'
         description: |-
           Policy for handling overlapping executions (optional, default skip)
           Options: skip, allow, buffer_one, cancel_other
@@ -1681,21 +1680,21 @@ definitions:
           Uses IANA timezone names (e.g., "America/New_York", "Europe/London")
         type: string
     required:
-      - cron
+    - cron
     type: object
   workflow.State:
     properties:
       error:
-        $ref: "#/definitions/core.Error"
+        $ref: '#/definitions/core.Error'
       input:
-        $ref: "#/definitions/core.Input"
+        $ref: '#/definitions/core.Input'
       output:
-        $ref: "#/definitions/core.Output"
+        $ref: '#/definitions/core.Output'
       status:
-        $ref: "#/definitions/core.StatusType"
+        $ref: '#/definitions/core.StatusType'
       tasks:
         additionalProperties:
-          $ref: "#/definitions/task.State"
+          $ref: '#/definitions/task.State'
         type: object
       workflow_exec_id:
         type: string
@@ -1709,26 +1708,25 @@ definitions:
         type: string
       schema:
         allOf:
-          - $ref: "#/definitions/schema.Schema"
+        - $ref: '#/definitions/schema.Schema'
         description: Schema for validating trigger input data (optional)
       type:
         allOf:
-          - $ref: "#/definitions/workflow.TriggerType"
+        - $ref: '#/definitions/workflow.TriggerType'
         description: Type of trigger mechanism (e.g., "signal" for external signals)
     type: object
   workflow.TriggerType:
     enum:
-      - signal
+    - signal
     type: string
     x-enum-varnames:
-      - TriggerTypeSignal
+    - TriggerTypeSignal
 info:
   contact:
     email: support@compozy.com
     name: Compozy Support
     url: https://github.com/compozy/compozy
-  description:
-    Compozy is a Next-level Agentic Orchestration Platform, tasks, and
+  description: Compozy is a Next-level Agentic Orchestration Platform, tasks, and
     tools
   license:
     name: BSL-1.1
@@ -1741,11 +1739,11 @@ paths:
     get:
       description: Proxy Server-Sent Events requests to a specific MCP server
       parameters:
-        - description: MCP name
-          in: path
-          name: name
-          required: true
-          type: string
+      - description: MCP name
+        in: path
+        name: name
+        required: true
+        type: string
       responses:
         "200":
           description: SSE stream
@@ -1763,20 +1761,20 @@ paths:
             type: object
       summary: Proxy SSE requests to MCP server
       tags:
-        - MCP Proxy
+      - MCP Proxy
   /{name}/sse/{path}:
     get:
       description: Proxy Server-Sent Events requests to a specific MCP server
       parameters:
-        - description: MCP name
-          in: path
-          name: name
-          required: true
-          type: string
-        - description: Additional path
-          in: path
-          name: path
-          type: string
+      - description: MCP name
+        in: path
+        name: name
+        required: true
+        type: string
+      - description: Additional path
+        in: path
+        name: path
+        type: string
       responses:
         "200":
           description: SSE stream
@@ -1794,16 +1792,16 @@ paths:
             type: object
       summary: Proxy SSE requests to MCP server
       tags:
-        - MCP Proxy
+      - MCP Proxy
   /{name}/stream:
     delete:
       description: Proxy streamable HTTP requests to a specific MCP server
       parameters:
-        - description: MCP name
-          in: path
-          name: name
-          required: true
-          type: string
+      - description: MCP name
+        in: path
+        name: name
+        required: true
+        type: string
       responses:
         "200":
           description: HTTP stream
@@ -1821,15 +1819,15 @@ paths:
             type: object
       summary: Proxy streamable HTTP requests to MCP server
       tags:
-        - MCP Proxy
+      - MCP Proxy
     get:
       description: Proxy streamable HTTP requests to a specific MCP server
       parameters:
-        - description: MCP name
-          in: path
-          name: name
-          required: true
-          type: string
+      - description: MCP name
+        in: path
+        name: name
+        required: true
+        type: string
       responses:
         "200":
           description: HTTP stream
@@ -1847,15 +1845,15 @@ paths:
             type: object
       summary: Proxy streamable HTTP requests to MCP server
       tags:
-        - MCP Proxy
+      - MCP Proxy
     patch:
       description: Proxy streamable HTTP requests to a specific MCP server
       parameters:
-        - description: MCP name
-          in: path
-          name: name
-          required: true
-          type: string
+      - description: MCP name
+        in: path
+        name: name
+        required: true
+        type: string
       responses:
         "200":
           description: HTTP stream
@@ -1873,15 +1871,15 @@ paths:
             type: object
       summary: Proxy streamable HTTP requests to MCP server
       tags:
-        - MCP Proxy
+      - MCP Proxy
     post:
       description: Proxy streamable HTTP requests to a specific MCP server
       parameters:
-        - description: MCP name
-          in: path
-          name: name
-          required: true
-          type: string
+      - description: MCP name
+        in: path
+        name: name
+        required: true
+        type: string
       responses:
         "200":
           description: HTTP stream
@@ -1899,15 +1897,15 @@ paths:
             type: object
       summary: Proxy streamable HTTP requests to MCP server
       tags:
-        - MCP Proxy
+      - MCP Proxy
     put:
       description: Proxy streamable HTTP requests to a specific MCP server
       parameters:
-        - description: MCP name
-          in: path
-          name: name
-          required: true
-          type: string
+      - description: MCP name
+        in: path
+        name: name
+        required: true
+        type: string
       responses:
         "200":
           description: HTTP stream
@@ -1925,20 +1923,20 @@ paths:
             type: object
       summary: Proxy streamable HTTP requests to MCP server
       tags:
-        - MCP Proxy
+      - MCP Proxy
   /{name}/stream/{path}:
     delete:
       description: Proxy streamable HTTP requests to a specific MCP server
       parameters:
-        - description: MCP name
-          in: path
-          name: name
-          required: true
-          type: string
-        - description: Additional path
-          in: path
-          name: path
-          type: string
+      - description: MCP name
+        in: path
+        name: name
+        required: true
+        type: string
+      - description: Additional path
+        in: path
+        name: path
+        type: string
       responses:
         "200":
           description: HTTP stream
@@ -1956,19 +1954,19 @@ paths:
             type: object
       summary: Proxy streamable HTTP requests to MCP server
       tags:
-        - MCP Proxy
+      - MCP Proxy
     get:
       description: Proxy streamable HTTP requests to a specific MCP server
       parameters:
-        - description: MCP name
-          in: path
-          name: name
-          required: true
-          type: string
-        - description: Additional path
-          in: path
-          name: path
-          type: string
+      - description: MCP name
+        in: path
+        name: name
+        required: true
+        type: string
+      - description: Additional path
+        in: path
+        name: path
+        type: string
       responses:
         "200":
           description: HTTP stream
@@ -1986,19 +1984,19 @@ paths:
             type: object
       summary: Proxy streamable HTTP requests to MCP server
       tags:
-        - MCP Proxy
+      - MCP Proxy
     patch:
       description: Proxy streamable HTTP requests to a specific MCP server
       parameters:
-        - description: MCP name
-          in: path
-          name: name
-          required: true
-          type: string
-        - description: Additional path
-          in: path
-          name: path
-          type: string
+      - description: MCP name
+        in: path
+        name: name
+        required: true
+        type: string
+      - description: Additional path
+        in: path
+        name: path
+        type: string
       responses:
         "200":
           description: HTTP stream
@@ -2016,19 +2014,19 @@ paths:
             type: object
       summary: Proxy streamable HTTP requests to MCP server
       tags:
-        - MCP Proxy
+      - MCP Proxy
     post:
       description: Proxy streamable HTTP requests to a specific MCP server
       parameters:
-        - description: MCP name
-          in: path
-          name: name
-          required: true
-          type: string
-        - description: Additional path
-          in: path
-          name: path
-          type: string
+      - description: MCP name
+        in: path
+        name: name
+        required: true
+        type: string
+      - description: Additional path
+        in: path
+        name: path
+        type: string
       responses:
         "200":
           description: HTTP stream
@@ -2046,19 +2044,19 @@ paths:
             type: object
       summary: Proxy streamable HTTP requests to MCP server
       tags:
-        - MCP Proxy
+      - MCP Proxy
     put:
       description: Proxy streamable HTTP requests to a specific MCP server
       parameters:
-        - description: MCP name
-          in: path
-          name: name
-          required: true
-          type: string
-        - description: Additional path
-          in: path
-          name: path
-          type: string
+      - description: MCP name
+        in: path
+        name: name
+        required: true
+        type: string
+      - description: Additional path
+        in: path
+        name: path
+        type: string
       responses:
         "200":
           description: HTTP stream
@@ -2076,23 +2074,23 @@ paths:
             type: object
       summary: Proxy streamable HTTP requests to MCP server
       tags:
-        - MCP Proxy
+      - MCP Proxy
   /admin/mcps:
     get:
       description: Get a list of all configured Model Context Protocol servers
       parameters:
-        - description: Admin authorization token
-          in: header
-          name: Authorization
-          required: true
-          type: string
+      - description: Admin authorization token
+        in: header
+        name: Authorization
+        required: true
+        type: string
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: List of MCPs with their status
           schema:
-            $ref: "#/definitions/mcpproxy.ListMCPsResponse"
+            $ref: '#/definitions/mcpproxy.ListMCPsResponse'
         "401":
           description: Unauthorized
           schema:
@@ -2105,25 +2103,25 @@ paths:
             type: object
       summary: List all MCP definitions
       tags:
-        - MCP Management
+      - MCP Management
     post:
       consumes:
-        - application/json
+      - application/json
       description: Add a new Model Context Protocol server configuration
       parameters:
-        - description: Admin authorization token
-          in: header
-          name: Authorization
-          required: true
-          type: string
-        - description: MCP definition to add
-          in: body
-          name: mcp
-          required: true
-          schema:
-            $ref: "#/definitions/mcpproxy.MCPDefinition"
+      - description: Admin authorization token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: MCP definition to add
+        in: body
+        name: mcp
+        required: true
+        schema:
+          $ref: '#/definitions/mcpproxy.MCPDefinition'
       produces:
-        - application/json
+      - application/json
       responses:
         "201":
           description: MCP added successfully
@@ -2152,23 +2150,23 @@ paths:
             type: object
       summary: Add a new MCP definition
       tags:
-        - MCP Management
+      - MCP Management
   /admin/mcps/{name}:
     delete:
       description: Remove a Model Context Protocol server configuration
       parameters:
-        - description: Admin authorization token
-          in: header
-          name: Authorization
-          required: true
-          type: string
-        - description: MCP name
-          in: path
-          name: name
-          required: true
-          type: string
+      - description: Admin authorization token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: MCP name
+        in: path
+        name: name
+        required: true
+        type: string
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: MCP removed successfully
@@ -2192,27 +2190,27 @@ paths:
             type: object
       summary: Remove an MCP definition
       tags:
-        - MCP Management
+      - MCP Management
     get:
       description: Get details of a specific Model Context Protocol server configuration
       parameters:
-        - description: Admin authorization token
-          in: header
-          name: Authorization
-          required: true
-          type: string
-        - description: MCP name
-          in: path
-          name: name
-          required: true
-          type: string
+      - description: Admin authorization token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: MCP name
+        in: path
+        name: name
+        required: true
+        type: string
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: MCP details with status
           schema:
-            $ref: "#/definitions/mcpproxy.MCPDetailsResponse"
+            $ref: '#/definitions/mcpproxy.MCPDetailsResponse'
         "401":
           description: Unauthorized
           schema:
@@ -2230,30 +2228,30 @@ paths:
             type: object
       summary: Get an MCP definition
       tags:
-        - MCP Management
+      - MCP Management
     put:
       consumes:
-        - application/json
+      - application/json
       description: Update an existing Model Context Protocol server configuration
       parameters:
-        - description: Admin authorization token
-          in: header
-          name: Authorization
-          required: true
-          type: string
-        - description: MCP name
-          in: path
-          name: name
-          required: true
-          type: string
-        - description: Updated MCP definition
-          in: body
-          name: mcp
-          required: true
-          schema:
-            $ref: "#/definitions/mcpproxy.MCPDefinition"
+      - description: Admin authorization token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: MCP name
+        in: path
+        name: name
+        required: true
+        type: string
+      - description: Updated MCP definition
+        in: body
+        name: mcp
+        required: true
+        schema:
+          $ref: '#/definitions/mcpproxy.MCPDefinition'
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: MCP updated successfully
@@ -2282,18 +2280,18 @@ paths:
             type: object
       summary: Update an MCP definition
       tags:
-        - MCP Management
+      - MCP Management
   /admin/tools:
     get:
       description: Get a list of all tools available from all connected MCP servers
       parameters:
-        - description: Admin authorization token
-          in: header
-          name: Authorization
-          required: true
-          type: string
+      - description: Admin authorization token
+        in: header
+        name: Authorization
+        required: true
+        type: string
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: List of available tools
@@ -2312,28 +2310,27 @@ paths:
             type: object
       summary: List all available tools
       tags:
-        - MCP Tools
+      - MCP Tools
   /admin/tools/call:
     post:
       consumes:
-        - application/json
-      description:
-        Execute a specific tool with provided arguments on the specified
+      - application/json
+      description: Execute a specific tool with provided arguments on the specified
         MCP server
       parameters:
-        - description: Admin authorization token
-          in: header
-          name: Authorization
-          required: true
-          type: string
-        - description: Tool call request
-          in: body
-          name: request
-          required: true
-          schema:
-            $ref: "#/definitions/mcpproxy.CallToolRequest"
+      - description: Admin authorization token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Tool call request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/mcpproxy.CallToolRequest'
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: Tool execution result
@@ -2362,49 +2359,49 @@ paths:
             type: object
       summary: Call a tool on an MCP server
       tags:
-        - MCP Tools
+      - MCP Tools
   /auth/generate:
     post:
       consumes:
-        - application/json
+      - application/json
       description: Generate a new API key for the authenticated user
       parameters:
-        - description: Bearer token for authentication
-          in: header
-          name: Authorization
-          required: true
-          type: string
+      - description: Bearer token for authentication
+        in: header
+        name: Authorization
+        required: true
+        type: string
       produces:
-        - application/json
+      - application/json
       responses:
         "201":
           description: contains data.api_key and message
           schema:
-            $ref: "#/definitions/router.GenerateKeyResponse"
+            $ref: '#/definitions/router.GenerateKeyResponse'
         "401":
           description: authentication failure
           schema:
-            $ref: "#/definitions/router.ErrorResponse"
+            $ref: '#/definitions/router.ErrorResponse'
         "500":
           description: internal server error
           schema:
-            $ref: "#/definitions/router.ErrorResponse"
+            $ref: '#/definitions/router.ErrorResponse'
       summary: Generate a new API key
       tags:
-        - auth
+      - auth
   /auth/keys:
     get:
       consumes:
-        - application/json
+      - application/json
       description: List all API keys for the authenticated user
       parameters:
-        - description: Bearer token for authentication
-          in: header
-          name: Authorization
-          required: true
-          type: string
+      - description: Bearer token for authentication
+        in: header
+        name: Authorization
+        required: true
+        type: string
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: OK
@@ -2425,25 +2422,25 @@ paths:
             type: object
       summary: List user's API keys
       tags:
-        - auth
+      - auth
   /auth/keys/{id}:
     delete:
       consumes:
-        - application/json
+      - application/json
       description: Revoke an API key by ID
       parameters:
-        - description: Bearer token for authentication
-          in: header
-          name: Authorization
-          required: true
-          type: string
-        - description: API Key ID
-          in: path
-          name: id
-          required: true
-          type: string
+      - description: Bearer token for authentication
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: API Key ID
+        in: path
+        name: id
+        required: true
+        type: string
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: OK
@@ -2471,842 +2468,838 @@ paths:
             type: object
       summary: Revoke an API key
       tags:
-        - auth
+      - auth
   /events:
     post:
       consumes:
-        - application/json
+      - application/json
       description: Trigger workflows by sending events
       parameters:
-        - description: Event data
-          in: body
-          name: event
-          required: true
-          schema:
-            $ref: "#/definitions/wfrouter.EventRequest"
+      - description: Event data
+        in: body
+        name: event
+        required: true
+        schema:
+          $ref: '#/definitions/wfrouter.EventRequest'
       produces:
-        - application/json
+      - application/json
       responses:
         "202":
           description: Accepted
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  data:
-                    $ref: "#/definitions/wfrouter.EventResponse"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/wfrouter.EventResponse'
+              type: object
         "400":
           description: Bad Request
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
       summary: Send event
       tags:
-        - events
+      - events
   /executions/workflows:
     get:
       consumes:
-        - application/json
+      - application/json
       description: Retrieve a list of all workflow executions across all workflows
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: Workflow executions retrieved successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  data:
-                    properties:
-                      executions:
-                        items:
-                          $ref: "#/definitions/workflow.State"
-                        type: array
-                    type: object
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                data:
+                  properties:
+                    executions:
+                      items:
+                        $ref: '#/definitions/workflow.State'
+                      type: array
+                  type: object
+              type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
       summary: List all workflow executions
       tags:
-        - workflows
+      - workflows
   /executions/workflows/{exec_id}:
     get:
       consumes:
-        - application/json
+      - application/json
       description: Retrieve a specific workflow execution by its execution ID
       parameters:
-        - description: Workflow Execution ID
-          example: '"2Z4PVTL6K27XVT4A3NPKMDD5BG"'
-          in: path
-          name: exec_id
-          required: true
-          type: string
+      - description: Workflow Execution ID
+        example: '"2Z4PVTL6K27XVT4A3NPKMDD5BG"'
+        in: path
+        name: exec_id
+        required: true
+        type: string
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: Workflow execution retrieved successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  data:
-                    $ref: "#/definitions/workflow.State"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/workflow.State'
+              type: object
         "400":
           description: Invalid execution ID
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
         "404":
           description: Execution not found
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
       summary: Get workflow execution by ID
       tags:
-        - executions
+      - executions
   /executions/workflows/{exec_id}/cancel:
     post:
       consumes:
-        - application/json
+      - application/json
       description: Cancel a specific workflow execution by its execution ID
       parameters:
-        - description: Workflow Execution ID
-          example: '"workflowID_execID"'
-          in: path
-          name: exec_id
-          required: true
-          type: string
+      - description: Workflow Execution ID
+        example: '"workflowID_execID"'
+        in: path
+        name: exec_id
+        required: true
+        type: string
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: Workflow execution canceled successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  data:
-                    type: string
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                data:
+                  type: string
+              type: object
         "400":
           description: Invalid execution ID
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
       summary: Cancel workflow execution
       tags:
-        - executions
+      - executions
   /executions/workflows/{exec_id}/pause:
     post:
       consumes:
-        - application/json
+      - application/json
       description: Pause a specific workflow execution by its execution ID
       parameters:
-        - description: Workflow Execution ID
-          example: '"workflowID_execID"'
-          in: path
-          name: exec_id
-          required: true
-          type: string
+      - description: Workflow Execution ID
+        example: '"workflowID_execID"'
+        in: path
+        name: exec_id
+        required: true
+        type: string
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: Workflow execution paused successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  data:
-                    type: string
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                data:
+                  type: string
+              type: object
         "400":
           description: Invalid execution ID
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
       summary: Pause workflow execution
       tags:
-        - executions
+      - executions
   /executions/workflows/{exec_id}/resume:
     post:
       consumes:
-        - application/json
+      - application/json
       description: Resume a specific workflow execution by its execution ID
       parameters:
-        - description: Workflow Execution ID
-          example: '"workflowID_execID"'
-          in: path
-          name: exec_id
-          required: true
-          type: string
+      - description: Workflow Execution ID
+        example: '"workflowID_execID"'
+        in: path
+        name: exec_id
+        required: true
+        type: string
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: Workflow execution resumed successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  data:
-                    type: string
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                data:
+                  type: string
+              type: object
         "400":
           description: Invalid execution ID
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
       summary: Resume workflow execution
       tags:
-        - executions
+      - executions
   /executions/workflows/{exec_id}/signals:
     post:
       consumes:
-        - application/json
+      - application/json
       description: Send a signal with payload to a specific workflow execution
       parameters:
-        - description: Workflow Execution ID
-          example: '"2Z4PVTL6K27XVT4A3NPKMDD5BG"'
-          in: path
-          name: exec_id
-          required: true
-          type: string
-        - description: Signal data
-          in: body
-          name: signal
-          required: true
-          schema:
-            $ref: "#/definitions/wfrouter.SignalRequest"
+      - description: Workflow Execution ID
+        example: '"2Z4PVTL6K27XVT4A3NPKMDD5BG"'
+        in: path
+        name: exec_id
+        required: true
+        type: string
+      - description: Signal data
+        in: body
+        name: signal
+        required: true
+        schema:
+          $ref: '#/definitions/wfrouter.SignalRequest'
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: Signal sent successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  data:
-                    $ref: "#/definitions/wfrouter.SignalResponse"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/wfrouter.SignalResponse'
+              type: object
         "400":
           description: Invalid execution ID or signal data
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
         "404":
           description: Execution not found
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
       summary: Send signal to workflow execution
       tags:
-        - executions
+      - executions
   /memory/{memory_ref}/append:
     post:
       consumes:
-        - application/json
+      - application/json
       description: Append messages to existing memory content
       parameters:
-        - description: Memory reference
-          example: '"user_memory"'
-          in: path
-          name: memory_ref
-          required: true
-          type: string
-        - description: Key and messages to append
-          in: body
-          name: body
-          required: true
-          schema:
-            $ref: "#/definitions/memrouter.AppendMemoryRequest"
+      - description: Memory reference
+        example: '"user_memory"'
+        in: path
+        name: memory_ref
+        required: true
+        type: string
+      - description: Key and messages to append
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/memrouter.AppendMemoryRequest'
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: Memory appended successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  data:
-                    $ref: "#/definitions/service.AppendResponse"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/service.AppendResponse'
+              type: object
         "400":
           description: Invalid request
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
       summary: Append to memory
       tags:
-        - memory
+      - memory
   /memory/{memory_ref}/clear:
     post:
       consumes:
-        - application/json
+      - application/json
       description: Clear all memory content with confirmation
       parameters:
-        - description: Memory reference
-          example: '"user_memory"'
-          in: path
-          name: memory_ref
-          required: true
-          type: string
-        - description: Key and clear options
-          in: body
-          name: body
-          required: true
-          schema:
-            $ref: "#/definitions/memrouter.ClearMemoryRequest"
+      - description: Memory reference
+        example: '"user_memory"'
+        in: path
+        name: memory_ref
+        required: true
+        type: string
+      - description: Key and clear options
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/memrouter.ClearMemoryRequest'
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: Memory cleared successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  data:
-                    $ref: "#/definitions/uc.ClearMemoryResult"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/uc.ClearMemoryResult'
+              type: object
         "400":
           description: Invalid request
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
       summary: Clear memory
       tags:
-        - memory
+      - memory
   /memory/{memory_ref}/delete:
     post:
       consumes:
-        - application/json
+      - application/json
       description: Delete all memory content for a specific key
       parameters:
-        - description: Memory reference
-          example: '"user_memory"'
-          in: path
-          name: memory_ref
-          required: true
-          type: string
-        - description: Key to delete
-          in: body
-          name: body
-          required: true
-          schema:
-            $ref: "#/definitions/memrouter.DeleteMemoryRequest"
+      - description: Memory reference
+        example: '"user_memory"'
+        in: path
+        name: memory_ref
+        required: true
+        type: string
+      - description: Key to delete
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/memrouter.DeleteMemoryRequest'
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: Memory deleted successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  data:
-                    $ref: "#/definitions/service.DeleteResponse"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/service.DeleteResponse'
+              type: object
         "400":
           description: Invalid request
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
       summary: Delete memory
       tags:
-        - memory
+      - memory
   /memory/{memory_ref}/flush:
     post:
       consumes:
-        - application/json
-      description:
-        Flush memory content with optional summarization. The actual_strategy
+      - application/json
+      description: Flush memory content with optional summarization. The actual_strategy
         field in the response indicates which flush strategy was used.
       parameters:
-        - description: Memory reference
-          example: '"user_memory"'
-          in: path
-          name: memory_ref
-          required: true
-          type: string
-        - description: Key and flush options
-          in: body
-          name: body
-          required: true
-          schema:
-            $ref: "#/definitions/memrouter.FlushMemoryRequest"
+      - description: Memory reference
+        example: '"user_memory"'
+        in: path
+        name: memory_ref
+        required: true
+        type: string
+      - description: Key and flush options
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/memrouter.FlushMemoryRequest'
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
-          description:
-            Memory flushed successfully. Response includes actual_strategy
+          description: Memory flushed successfully. Response includes actual_strategy
             field showing which strategy was used
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  data:
-                    $ref: "#/definitions/uc.FlushMemoryResult"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/uc.FlushMemoryResult'
+              type: object
         "400":
           description: Invalid request
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
       summary: Flush memory
       tags:
-        - memory
+      - memory
   /memory/{memory_ref}/health:
     get:
       consumes:
-        - application/json
+      - application/json
       description: Get health status and metrics for memory
       parameters:
-        - description: Memory reference
-          example: '"user_memory"'
-          in: path
-          name: memory_ref
-          required: true
-          type: string
-        - description: Memory key
-          example: '"user:123:profile"'
-          in: query
-          name: key
-          required: true
-          type: string
-        - description: Include detailed stats
-          example: true
-          in: query
-          name: include_stats
-          type: boolean
+      - description: Memory reference
+        example: '"user_memory"'
+        in: path
+        name: memory_ref
+        required: true
+        type: string
+      - description: Memory key
+        example: '"user:123:profile"'
+        in: query
+        name: key
+        required: true
+        type: string
+      - description: Include detailed stats
+        example: true
+        in: query
+        name: include_stats
+        type: boolean
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: Memory health retrieved successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  data:
-                    $ref: "#/definitions/uc.HealthMemoryResult"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/uc.HealthMemoryResult'
+              type: object
         "400":
           description: Invalid request
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
       summary: Check memory health
       tags:
-        - memory
+      - memory
   /memory/{memory_ref}/read:
     get:
       consumes:
-        - application/json
+      - application/json
       description: Retrieve memory content for a specific memory reference and key
       parameters:
-        - description: Memory reference
-          example: '"user_memory"'
-          in: path
-          name: memory_ref
-          required: true
-          type: string
-        - description: Memory key
-          example: '"user:123:profile"'
-          in: query
-          name: key
-          required: true
-          type: string
-        - description: "Maximum number of messages to return (default: 50, max: 1000)"
-          example: 50
-          in: query
-          name: limit
-          type: integer
-        - description: Number of messages to skip (for pagination)
-          example: 0
-          in: query
-          name: offset
-          type: integer
+      - description: Memory reference
+        example: '"user_memory"'
+        in: path
+        name: memory_ref
+        required: true
+        type: string
+      - description: Memory key
+        example: '"user:123:profile"'
+        in: query
+        name: key
+        required: true
+        type: string
+      - description: 'Maximum number of messages to return (default: 50, max: 1000)'
+        example: 50
+        in: query
+        name: limit
+        type: integer
+      - description: Number of messages to skip (for pagination)
+        example: 0
+        in: query
+        name: offset
+        type: integer
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: Memory read successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  data:
-                    properties:
-                      has_more:
-                        type: boolean
-                      key:
-                        type: string
-                      limit:
-                        type: integer
-                      messages:
-                        items:
-                          properties:
-                            content:
-                              type: string
-                            role:
-                              type: string
-                          type: object
-                        type: array
-                      offset:
-                        type: integer
-                      total_count:
-                        type: integer
-                    type: object
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                data:
+                  properties:
+                    has_more:
+                      type: boolean
+                    key:
+                      type: string
+                    limit:
+                      type: integer
+                    messages:
+                      items:
+                        properties:
+                          content:
+                            type: string
+                          role:
+                            type: string
+                        type: object
+                      type: array
+                    offset:
+                      type: integer
+                    total_count:
+                      type: integer
+                  type: object
+              type: object
         "400":
           description: Invalid request
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
         "404":
           description: Memory not found
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
       summary: Read memory content
       tags:
-        - memory
+      - memory
   /memory/{memory_ref}/stats:
     get:
       consumes:
-        - application/json
+      - application/json
       description: Retrieve detailed statistics about memory content
       parameters:
-        - description: Memory reference
-          example: '"user_memory"'
-          in: path
-          name: memory_ref
-          required: true
-          type: string
-        - description: Memory key
-          example: '"user:123:profile"'
-          in: query
-          name: key
-          required: true
-          type: string
-        - description:
-            "Limit for role distribution calculation (default: 100, max:
-            10000)"
-          example: 100
-          in: query
-          name: limit
-          type: integer
-        - description: Offset for role distribution calculation
-          example: 0
-          in: query
-          name: offset
-          type: integer
+      - description: Memory reference
+        example: '"user_memory"'
+        in: path
+        name: memory_ref
+        required: true
+        type: string
+      - description: Memory key
+        example: '"user:123:profile"'
+        in: query
+        name: key
+        required: true
+        type: string
+      - description: 'Limit for role distribution calculation (default: 100, max:
+          10000)'
+        example: 100
+        in: query
+        name: limit
+        type: integer
+      - description: Offset for role distribution calculation
+        example: 0
+        in: query
+        name: offset
+        type: integer
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: Memory statistics retrieved successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  data:
-                    $ref: "#/definitions/uc.StatsMemoryOutput"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/uc.StatsMemoryOutput'
+              type: object
         "400":
           description: Invalid request
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
       summary: Get memory statistics
       tags:
-        - memory
+      - memory
   /memory/{memory_ref}/write:
     post:
       consumes:
-        - application/json
-      description:
-        Write or replace memory content for a specific memory reference
+      - application/json
+      description: Write or replace memory content for a specific memory reference
         and key
       parameters:
-        - description: Memory reference
-          example: '"user_memory"'
-          in: path
-          name: memory_ref
-          required: true
-          type: string
-        - description: Key and messages to write
-          in: body
-          name: body
-          required: true
-          schema:
-            $ref: "#/definitions/memrouter.WriteMemoryRequest"
+      - description: Memory reference
+        example: '"user_memory"'
+        in: path
+        name: memory_ref
+        required: true
+        type: string
+      - description: Key and messages to write
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/memrouter.WriteMemoryRequest'
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: Memory written successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  data:
-                    $ref: "#/definitions/service.WriteResponse"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/service.WriteResponse'
+              type: object
         "400":
           description: Invalid request
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
       summary: Write memory content
       tags:
-        - memory
+      - memory
   /memory/health:
     get:
       consumes:
-        - application/json
+      - application/json
       description: Returns comprehensive health information for the memory system
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: Memory system is healthy
           schema:
-            $ref: "#/definitions/memory.SystemHealth"
+            $ref: '#/definitions/memory.SystemHealth'
         "503":
           description: Memory system is unhealthy
           schema:
-            $ref: "#/definitions/memory.SystemHealth"
+            $ref: '#/definitions/memory.SystemHealth'
       summary: Get memory system health
       tags:
-        - memory
-        - health
+      - memory
+      - health
   /memory/health/{memory_id}:
     get:
       consumes:
-        - application/json
+      - application/json
       description: Returns health information for a specific memory instance
       parameters:
-        - description: Memory Instance ID
-          in: path
-          name: memory_id
-          required: true
-          type: string
+      - description: Memory Instance ID
+        in: path
+        name: memory_id
+        required: true
+        type: string
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: Memory instance health retrieved
           schema:
-            $ref: "#/definitions/memory.InstanceHealth"
+            $ref: '#/definitions/memory.InstanceHealth'
         "404":
           description: Memory instance not found
           schema:
-            $ref: "#/definitions/gin.H"
+            $ref: '#/definitions/gin.H'
       summary: Get memory instance health
       tags:
-        - memory
-        - health
+      - memory
+      - health
   /metrics:
     get:
       description: |-
@@ -3321,7 +3314,7 @@ paths:
         - Temporal workflow execution metrics
         - System health information
       produces:
-        - text/plain
+      - text/plain
       responses:
         "200":
           description: Metrics in Prometheus format
@@ -3333,54 +3326,52 @@ paths:
             type: string
       summary: Prometheus metrics endpoint
       tags:
-        - Operations
+      - Operations
   /schedules:
     get:
       consumes:
-        - application/json
-      description:
-        Retrieve a list of all scheduled workflows with their current status
+      - application/json
+      description: Retrieve a list of all scheduled workflows with their current status
         and override information
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: Schedules retrieved successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  data:
-                    $ref: "#/definitions/schedulerouter.ScheduleListResponse"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/schedulerouter.ScheduleListResponse'
+              type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
       summary: List all scheduled workflows
       tags:
-        - schedules
+      - schedules
   /schedules/{workflow_id}:
     delete:
       consumes:
-        - application/json
-      description:
-        Remove a scheduled workflow from Temporal. The schedule will be
+      - application/json
+      description: Remove a scheduled workflow from Temporal. The schedule will be
         recreated on the next YAML reload if still defined.
       parameters:
-        - description: Workflow ID
-          example: '"daily-report"'
-          in: path
-          name: workflow_id
-          required: true
-          type: string
+      - description: Workflow ID
+        example: '"daily-report"'
+        in: path
+        name: workflow_id
+        required: true
+        type: string
       produces:
-        - application/json
+      - application/json
       responses:
         "204":
           description: Schedule deleted successfully
@@ -3388,162 +3379,160 @@ paths:
           description: Invalid workflow ID
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
         "404":
           description: Schedule not found
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
       summary: Delete schedule
       tags:
-        - schedules
+      - schedules
     get:
       consumes:
-        - application/json
-      description:
-        Retrieve detailed information about a specific scheduled workflow
+      - application/json
+      description: Retrieve detailed information about a specific scheduled workflow
         including YAML configuration
       parameters:
-        - description: Workflow ID
-          example: '"daily-report"'
-          in: path
-          name: workflow_id
-          required: true
-          type: string
+      - description: Workflow ID
+        example: '"daily-report"'
+        in: path
+        name: workflow_id
+        required: true
+        type: string
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: Schedule retrieved successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  data:
-                    $ref: "#/definitions/schedulerouter.ScheduleInfoResponse"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/schedulerouter.ScheduleInfoResponse'
+              type: object
         "400":
           description: Invalid workflow ID
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
         "404":
           description: Schedule not found
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
       summary: Get schedule by workflow ID
       tags:
-        - schedules
+      - schedules
     patch:
       consumes:
-        - application/json
-      description:
-        Update a scheduled workflow's enabled state and/or cron expression.
+      - application/json
+      description: Update a scheduled workflow's enabled state and/or cron expression.
         At least one field must be provided. This creates a temporary override that
         persists until the next YAML reload.
       parameters:
-        - description: Workflow ID
-          example: '"daily-report"'
-          in: path
-          name: workflow_id
-          required: true
-          type: string
-        - description: Update request with at least one field (enabled or cron)
-          in: body
-          name: request
-          required: true
-          schema:
-            $ref: "#/definitions/schedulerouter.UpdateScheduleRequest"
+      - description: Workflow ID
+        example: '"daily-report"'
+        in: path
+        name: workflow_id
+        required: true
+        type: string
+      - description: Update request with at least one field (enabled or cron)
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/schedulerouter.UpdateScheduleRequest'
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: Schedule updated successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  data:
-                    $ref: "#/definitions/schedulerouter.ScheduleInfoResponse"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/schedulerouter.ScheduleInfoResponse'
+              type: object
         "400":
           description: Invalid request
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
         "404":
           description: Schedule not found
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
       summary: Update schedule
       tags:
-        - schedules
+      - schedules
   /users:
     get:
       consumes:
-        - application/json
+      - application/json
       description: List all users in the system
       parameters:
-        - description: Bearer token for authentication (admin required)
-          in: header
-          name: Authorization
-          required: true
-          type: string
+      - description: Bearer token for authentication (admin required)
+        in: header
+        name: Authorization
+        required: true
+        type: string
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: OK
@@ -3570,25 +3559,25 @@ paths:
             type: object
       summary: List all users (admin only)
       tags:
-        - users
+      - users
     post:
       consumes:
-        - application/json
+      - application/json
       description: Create a new user with the specified email and role
       parameters:
-        - description: Bearer token for authentication (admin required)
-          in: header
-          name: Authorization
-          required: true
-          type: string
-        - description: User details
-          in: body
-          name: user
-          required: true
-          schema:
-            $ref: "#/definitions/router.CreateUserRequest"
+      - description: Bearer token for authentication (admin required)
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: User details
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/router.CreateUserRequest'
       produces:
-        - application/json
+      - application/json
       responses:
         "201":
           description: Created
@@ -3621,25 +3610,25 @@ paths:
             type: object
       summary: Create a new user (admin only)
       tags:
-        - users
+      - users
   /users/{id}:
     delete:
       consumes:
-        - application/json
+      - application/json
       description: Delete a user by ID
       parameters:
-        - description: Bearer token for authentication (admin required)
-          in: header
-          name: Authorization
-          required: true
-          type: string
-        - description: User ID
-          in: path
-          name: id
-          required: true
-          type: string
+      - description: Bearer token for authentication (admin required)
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: OK
@@ -3673,30 +3662,30 @@ paths:
             type: object
       summary: Delete a user (admin only)
       tags:
-        - users
+      - users
     patch:
       consumes:
-        - application/json
+      - application/json
       description: Update a user's email or role
       parameters:
-        - description: Bearer token for authentication (admin required)
-          in: header
-          name: Authorization
-          required: true
-          type: string
-        - description: User ID
-          in: path
-          name: id
-          required: true
-          type: string
-        - description: User update details
-          in: body
-          name: user
-          required: true
-          schema:
-            $ref: "#/definitions/router.UpdateUserRequest"
+      - description: Bearer token for authentication (admin required)
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: User update details
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/router.UpdateUserRequest'
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: OK
@@ -3735,538 +3724,538 @@ paths:
             type: object
       summary: Update a user (admin only)
       tags:
-        - users
+      - users
   /workflows:
     get:
       consumes:
-        - application/json
+      - application/json
       description: Retrieve a list of all available workflow configurations
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: Workflows retrieved successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  data:
-                    properties:
-                      workflows:
-                        items:
-                          $ref: "#/definitions/wfrouter.WorkflowResponse"
-                        type: array
-                    type: object
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                data:
+                  properties:
+                    workflows:
+                      items:
+                        $ref: '#/definitions/wfrouter.WorkflowResponse'
+                      type: array
+                  type: object
+              type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
       summary: List all workflows
       tags:
-        - workflows
+      - workflows
   /workflows/{workflow_id}:
     get:
       consumes:
-        - application/json
+      - application/json
       description: Retrieve a specific workflow configuration by its ID
       parameters:
-        - description: Workflow ID
-          example: '"data-processing"'
-          in: path
-          name: workflow_id
-          required: true
-          type: string
+      - description: Workflow ID
+        example: '"data-processing"'
+        in: path
+        name: workflow_id
+        required: true
+        type: string
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: Workflow retrieved successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  data:
-                    $ref: "#/definitions/wfrouter.WorkflowResponse"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/wfrouter.WorkflowResponse'
+              type: object
         "400":
           description: Invalid workflow ID
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
         "404":
           description: Workflow not found
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
       summary: Get workflow by ID
       tags:
-        - workflows
+      - workflows
   /workflows/{workflow_id}/agents:
     get:
       consumes:
-        - application/json
+      - application/json
       description: Retrieve a list of all available agent configurations
       parameters:
-        - description: Workflow ID
-          in: path
-          name: workflow_id
-          required: true
-          type: string
+      - description: Workflow ID
+        in: path
+        name: workflow_id
+        required: true
+        type: string
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: Agents retrieved successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  data:
-                    properties:
-                      agents:
-                        items:
-                          $ref: "#/definitions/agent.Config"
-                        type: array
-                    type: object
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                data:
+                  properties:
+                    agents:
+                      items:
+                        $ref: '#/definitions/agent.Config'
+                      type: array
+                  type: object
+              type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
       summary: List all agents
       tags:
-        - agents
+      - agents
   /workflows/{workflow_id}/agents/{agent_id}:
     get:
       consumes:
-        - application/json
+      - application/json
       description: Retrieve a specific agent configuration by its ID
       parameters:
-        - description: Workflow ID
-          in: path
-          name: workflow_id
-          required: true
-          type: string
-        - description: Agent ID
-          example: '"code-assistant"'
-          in: path
-          name: agent_id
-          required: true
-          type: string
+      - description: Workflow ID
+        in: path
+        name: workflow_id
+        required: true
+        type: string
+      - description: Agent ID
+        example: '"code-assistant"'
+        in: path
+        name: agent_id
+        required: true
+        type: string
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: Agent retrieved successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  data:
-                    $ref: "#/definitions/agent.Config"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/agent.Config'
+              type: object
         "400":
           description: Invalid agent ID
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
         "404":
           description: Agent not found
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
       summary: Get agent by ID
       tags:
-        - agents
+      - agents
   /workflows/{workflow_id}/executions:
     get:
       consumes:
-        - application/json
+      - application/json
       description: Retrieve all executions for a specific workflow
       parameters:
-        - description: Workflow ID
-          example: '"data-processing"'
-          in: path
-          name: workflow_id
-          required: true
-          type: string
+      - description: Workflow ID
+        example: '"data-processing"'
+        in: path
+        name: workflow_id
+        required: true
+        type: string
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: Workflow executions retrieved successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  data:
-                    properties:
-                      executions:
-                        items:
-                          $ref: "#/definitions/workflow.State"
-                        type: array
-                    type: object
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                data:
+                  properties:
+                    executions:
+                      items:
+                        $ref: '#/definitions/workflow.State'
+                      type: array
+                  type: object
+              type: object
         "400":
           description: Invalid workflow ID
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
       summary: List executions by workflow ID
       tags:
-        - workflows
+      - workflows
     post:
       consumes:
-        - application/json
+      - application/json
       description: Trigger the execution of a workflow with provided input data
       parameters:
-        - description: Workflow ID
-          example: '"data-processing"'
-          in: path
-          name: workflow_id
-          required: true
-          type: string
-        - description: Workflow input data
-          in: body
-          name: input
-          required: true
-          schema:
-            type: object
+      - description: Workflow ID
+        example: '"data-processing"'
+        in: path
+        name: workflow_id
+        required: true
+        type: string
+      - description: Workflow input data
+        in: body
+        name: input
+        required: true
+        schema:
+          type: object
       produces:
-        - application/json
+      - application/json
       responses:
         "202":
           description: Workflow triggered successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  data:
-                    $ref: "#/definitions/wfrouter.ExecuteWorkflowResponse"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/wfrouter.ExecuteWorkflowResponse'
+              type: object
         "400":
           description: Invalid input or workflow ID
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
         "404":
           description: Workflow not found
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
       summary: Execute workflow
       tags:
-        - workflows
+      - workflows
   /workflows/{workflow_id}/tasks:
     get:
       consumes:
-        - application/json
+      - application/json
       description: Retrieve a list of all tasks within a specific workflow
       parameters:
-        - description: Workflow ID
-          example: '"data-processing"'
-          in: path
-          name: workflow_id
-          required: true
-          type: string
+      - description: Workflow ID
+        example: '"data-processing"'
+        in: path
+        name: workflow_id
+        required: true
+        type: string
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: Tasks retrieved successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  data:
-                    properties:
-                      tasks:
-                        items:
-                          $ref: "#/definitions/tkrouter.TaskResponse"
-                        type: array
-                    type: object
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                data:
+                  properties:
+                    tasks:
+                      items:
+                        $ref: '#/definitions/tkrouter.TaskResponse'
+                      type: array
+                  type: object
+              type: object
         "400":
           description: Invalid workflow ID
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
         "404":
           description: Workflow not found
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
       summary: List tasks for a workflow
       tags:
-        - tasks
+      - tasks
   /workflows/{workflow_id}/tasks/{task_id}:
     get:
       consumes:
-        - application/json
+      - application/json
       description: Retrieve a specific task configuration by its ID within a workflow
       parameters:
-        - description: Workflow ID
-          example: '"data-processing"'
-          in: path
-          name: workflow_id
-          required: true
-          type: string
-        - description: Task ID
-          example: '"validate-input"'
-          in: path
-          name: task_id
-          required: true
-          type: string
+      - description: Workflow ID
+        example: '"data-processing"'
+        in: path
+        name: workflow_id
+        required: true
+        type: string
+      - description: Task ID
+        example: '"validate-input"'
+        in: path
+        name: task_id
+        required: true
+        type: string
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: Task retrieved successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  data:
-                    $ref: "#/definitions/tkrouter.TaskResponse"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/tkrouter.TaskResponse'
+              type: object
         "400":
           description: Invalid workflow or task ID
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
         "404":
           description: Task not found
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
       summary: Get task by ID
       tags:
-        - tasks
+      - tasks
   /workflows/{workflow_id}/tools:
     get:
       consumes:
-        - application/json
+      - application/json
       description: Retrieve a list of all available tool configurations
       parameters:
-        - description: Workflow ID
-          in: path
-          name: workflow_id
-          required: true
-          type: string
+      - description: Workflow ID
+        in: path
+        name: workflow_id
+        required: true
+        type: string
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: Tools retrieved successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  data:
-                    properties:
-                      tools:
-                        items:
-                          $ref: "#/definitions/tool.Config"
-                        type: array
-                    type: object
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                data:
+                  properties:
+                    tools:
+                      items:
+                        $ref: '#/definitions/tool.Config'
+                      type: array
+                  type: object
+              type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
       summary: List all tools
       tags:
-        - tools
+      - tools
   /workflows/{workflow_id}/tools/{tool_id}:
     get:
       consumes:
-        - application/json
+      - application/json
       description: Retrieve a specific tool configuration by its ID
       parameters:
-        - description: Workflow ID
-          in: path
-          name: workflow_id
-          required: true
-          type: string
-        - description: Tool ID
-          example: '"format-code"'
-          in: path
-          name: tool_id
-          required: true
-          type: string
+      - description: Workflow ID
+        in: path
+        name: workflow_id
+        required: true
+        type: string
+      - description: Tool ID
+        example: '"format-code"'
+        in: path
+        name: tool_id
+        required: true
+        type: string
       produces:
-        - application/json
+      - application/json
       responses:
         "200":
           description: Tool retrieved successfully
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  data:
-                    $ref: "#/definitions/tool.Config"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/tool.Config'
+              type: object
         "400":
           description: Invalid tool ID
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
         "404":
           description: Tool not found
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
         "500":
           description: Internal server error
           schema:
             allOf:
-              - $ref: "#/definitions/router.Response"
-              - properties:
-                  error:
-                    $ref: "#/definitions/router.ErrorInfo"
-                type: object
+            - $ref: '#/definitions/router.Response'
+            - properties:
+                error:
+                  $ref: '#/definitions/router.ErrorInfo'
+              type: object
       summary: Get tool by ID
       tags:
-        - tools
+      - tools
 swagger: "2.0"
 tags:
-  - description: Workflow management operations
-    name: workflows
-  - description: Task management operations
-    name: tasks
-  - description: Agent management operations
-    name: agents
-  - description: Tool management operations
-    name: tools
-  - description: Schedule management operations
-    name: schedules
-  - description: Memory management operations
-    name: memory
-  - description: Authentication and API key management operations
-    name: auth
-  - description: User management operations (admin only)
-    name: users
-  - description: Operational endpoints for monitoring and health
-    name: Operations
+- description: Workflow management operations
+  name: workflows
+- description: Task management operations
+  name: tasks
+- description: Agent management operations
+  name: agents
+- description: Tool management operations
+  name: tools
+- description: Schedule management operations
+  name: schedules
+- description: Memory management operations
+  name: memory
+- description: Authentication and API key management operations
+  name: auth
+- description: User management operations (admin only)
+  name: users
+- description: Operational endpoints for monitoring and health
+  name: Operations

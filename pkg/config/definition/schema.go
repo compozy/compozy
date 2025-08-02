@@ -683,14 +683,6 @@ func registerBasicCLIFields(registry *Registry) {
 		Type:    reflect.TypeOf(""),
 		Help:    "CLI mode: auto, json, or tui",
 	})
-	registry.Register(&FieldDef{
-		Path:    "cli.server_url",
-		Default: "http://localhost:5001",
-		CLIFlag: "server-url",
-		EnvVar:  "COMPOZY_SERVER_URL",
-		Type:    reflect.TypeOf(""),
-		Help:    "Server URL for Compozy API",
-	})
 }
 
 func registerOutputFormatFields(registry *Registry) {

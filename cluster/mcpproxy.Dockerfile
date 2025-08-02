@@ -27,17 +27,17 @@ RUN go mod download && go mod verify
 # Copy source code
 COPY . .
 
-# Build the MCP Proxy binary with optimizations
-RUN cd cmd/mcp-proxy && \
-    CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH:-amd64} \
+# Build the Compozy binary with optimizations
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH:-amd64} \
     go build \
     -a \
     -installsuffix cgo \
     -ldflags='-w -s -extldflags "-static"' \
-    -o /build/compozy-mcp-proxy
+    -o /build/compozy \
+    ./
 
-# Verify the binary
-RUN ./compozy-mcp-proxy --help || echo "Compozy MCP Proxy binary built successfully"
+# Verify the binary (check that mcp-proxy command exists)
+RUN ./compozy mcp-proxy --help || echo "Compozy MCP Proxy command built successfully"
 
 # Production stage - Use Alpine for runtime dependencies while maintaining security
 FROM alpine:3.20
@@ -74,7 +74,7 @@ COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 WORKDIR /app
 
 # Copy the binary from builder
-COPY --from=builder --chown=mcpproxy:mcpproxy /build/compozy-mcp-proxy /app/compozy-mcp-proxy
+COPY --from=builder --chown=mcpproxy:mcpproxy /build/compozy /app/compozy
 
 # Copy additional files
 COPY --from=builder --chown=mcpproxy:mcpproxy /build/README.md /app/README.md
@@ -112,6 +112,6 @@ LABEL org.opencontainers.image.licenses="BSL-1.1"
 LABEL org.opencontainers.image.base.name="alpine:3.20"
 LABEL org.opencontainers.image.description="Model Context Protocol Proxy with runtime support for Node.js, Bun, Python, and uv"
 
-# Default command - run the compozy-mcp-proxy
-ENTRYPOINT ["/app/compozy-mcp-proxy"]
-CMD []
+# Default command - run the compozy mcp-proxy subcommand
+ENTRYPOINT ["/app/compozy"]
+CMD ["mcp-proxy"]

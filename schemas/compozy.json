@@ -279,7 +279,7 @@
           "type": "string"
         },
         "BaseURL": {
-          "description": "BaseURL specifies the Compozy API endpoint.\n\nDefault: \"https://api.compozy.dev\"\nUse custom endpoints for self-hosted or development environments.",
+          "description": "BaseURL specifies the Compozy API endpoint.\n\nDefault: \"https://api.compozy.com\"\nUse custom endpoints for self-hosted or development environments.",
           "type": "string"
         },
         "ColorMode": {
@@ -799,7 +799,7 @@
       "type": "object"
     }
   },
-  "$id": "https://schemas.compozy.dev/compozy.json",
+  "$id": "https://schemas.compozy.com/compozy.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "Complete configuration schema for compozy.yaml including both project and application settings",

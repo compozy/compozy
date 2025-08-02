@@ -106,7 +106,7 @@ func GenerateParserSchemas(ctx context.Context, outDir string) error {
 	}
 
 	// Create a base URI for schema cross-references
-	baseSchemaURI := "https://schemas.compozy.dev/"
+	baseSchemaURI := "https://schemas.compozy.com/"
 
 	// Define the structs for which to generate schemas
 	schemas := []struct {

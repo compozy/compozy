@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://schemas.compozy.dev/autoload.json",
+  "$id": "https://schemas.compozy.com/autoload.json",
   "properties": {
     "enabled": {
       "type": "boolean",
