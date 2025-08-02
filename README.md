@@ -1,6 +1,6 @@
-# Compozy
-
 <div align="center">
+  <img src="./docs/public/full_logo.png" alt="Compozy Logo" width="600">
+  
   <p>
     <strong>Next-level Agentic Orchestration Platform</strong>
   </p>
