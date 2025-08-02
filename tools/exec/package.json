@@ -1,6 +1,6 @@
 {
   "name": "@compozy/tool-exec",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "description": "Compozy tool for executing bash commands",
   "type": "module",
   "main": "index.ts",
