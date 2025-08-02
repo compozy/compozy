@@ -48,3 +48,4 @@ jobs:
         uses: github/codeql-action/analyze@v3
         with:
           category: "/language:${{matrix.language}}"
+          upload: false  # Don't upload results when default setup is enabled
