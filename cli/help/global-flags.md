@@ -10,7 +10,7 @@ Specifies the Compozy server URL for API requests.
 
 - **Environment**: `COMPOZY_SERVER_URL`
 - **Config**: `cli.server_url`
-- **Example**: `compozy workflow list --server-url https://api.compozy.dev`
+- **Example**: `compozy workflow list --server-url https://api.compozy.com`
 
 ### `--config` / `-c`
 
@@ -112,7 +112,7 @@ compozy workflow run --config ./production.yaml --quiet --no-color --format json
 ### Custom Server Configuration
 
 ```bash
-compozy workflow list --server-url https://staging.compozy.dev --format json
+compozy workflow list --server-url https://staging.compozy.com --format json
 ```
 
 ## Flag Aliases Summary
@@ -129,7 +129,7 @@ compozy workflow list --server-url https://staging.compozy.dev --format json
 All global flags can be controlled via environment variables:
 
 ```bash
-export COMPOZY_SERVER_URL="https://api.compozy.dev"
+export COMPOZY_SERVER_URL="https://api.compozy.com"
 export COMPOZY_CONFIG_FILE="./my-config.yaml"
 export COMPOZY_DEFAULT_FORMAT="json"
 export COMPOZY_DEBUG="true"
@@ -144,7 +144,7 @@ Global settings can also be configured in your `compozy.yaml`:
 
 ```yaml
 cli:
-  server_url: "https://api.compozy.dev"
+  server_url: "https://api.compozy.com"
   default_format: "tui"
   debug: false
   quiet: false

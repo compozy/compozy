@@ -88,103 +88,6 @@
       "extra-files": [
         {
           "type": "generic",
-          "path": "cmd/compozy/main.go",
-          "glob": false
-        },
-        {
-          "type": "generic",
-          "path": "pkg/version/version.go",
-          "glob": false
-        }
-      ]
-    },
-    "cmd/mcp-proxy": {
-      "release-type": "go",
-      "package-name": "compozy-mcp-proxy",
-      "include-component-in-tag": true,
-      "include-v-in-tag": true,
-      "tag-separator": "-",
-      "versioning": "default",
-      "bump-minor-pre-major": true,
-      "bump-patch-for-minor-pre-major": true,
-      "draft": false,
-      "prerelease": false,
-      "changelog-sections": [
-        {
-          "type": "feat",
-          "section": "Features",
-          "hidden": false
-        },
-        {
-          "type": "fix",
-          "section": "Bug Fixes",
-          "hidden": false
-        },
-        {
-          "type": "perf",
-          "section": "Performance Improvements",
-          "hidden": false
-        },
-        {
-          "type": "revert",
-          "section": "Reverts",
-          "hidden": false
-        },
-        {
-          "type": "docs",
-          "section": "Documentation",
-          "hidden": false
-        },
-        {
-          "type": "style",
-          "section": "Styles",
-          "hidden": true
-        },
-        {
-          "type": "chore",
-          "section": "Miscellaneous Chores",
-          "hidden": true
-        },
-        {
-          "type": "refactor",
-          "section": "Code Refactoring",
-          "hidden": false
-        },
-        {
-          "type": "test",
-          "section": "Tests",
-          "hidden": true
-        },
-        {
-          "type": "build",
-          "section": "Build System",
-          "hidden": true
-        },
-        {
-          "type": "ci",
-          "section": "Continuous Integration",
-          "hidden": true
-        },
-        {
-          "type": "deps",
-          "section": "Dependencies",
-          "hidden": false
-        },
-        {
-          "type": "security",
-          "section": "Security",
-          "hidden": false
-        }
-      ],
-      "pull-request-title-pattern": "ci(release): Releasing compozy-mcp-proxy v${version}",
-      "extra-files": [
-        {
-          "type": "generic",
-          "path": "cmd/mcp-proxy/main.go",
-          "glob": false
-        },
-        {
-          "type": "generic",
           "path": "pkg/version/version.go",
           "glob": false
         }
@@ -253,7 +156,6 @@
       "groupName": "compozy-monorepo",
       "components": [
         "compozy",
-        "compozy-mcp-proxy",
         "@compozy/tool-delete-file",
         "@compozy/tool-exec",
         "@compozy/tool-fetch",

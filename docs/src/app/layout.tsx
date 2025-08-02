@@ -1,8 +1,9 @@
+import { Toaster } from "@/components/ui/sonner";
+import { baseUrl, createMetadata } from "@/lib/metadata";
 import { Analytics } from "@vercel/analytics/next";
 import { RootProvider } from "fumadocs-ui/provider";
 import { GeistMono } from "geist/font/mono";
 import { GeistSans } from "geist/font/sans";
-import type { Metadata } from "next";
 import localFont from "next/font/local";
 import type { ReactNode } from "react";
 import "./global.css";
@@ -15,14 +16,14 @@ const clashDisplay = localFont({
   weight: "200 700", // Variable font weight range
 });
 
-export const metadata: Metadata = {
-  title: "Compozy",
-  description: "Next-level AI-agentic orchestraion platform",
-  icons: {
-    icon: "/icon",
-    apple: "/apple-icon",
+export const metadata = createMetadata({
+  title: {
+    template: "%s | Compozy",
+    default: "Compozy",
   },
-};
+  description: "Next-level Agentic Orchestration Platform",
+  metadataBase: baseUrl,
+});
 
 export default function Layout({ children }: { children: ReactNode }) {
   return (
@@ -33,6 +34,7 @@ export default function Layout({ children }: { children: ReactNode }) {
     >
       <body className="flex flex-col min-h-screen font-sans">
         <RootProvider>{children}</RootProvider>
+        <Toaster />
         <Analytics />
       </body>
     </html>

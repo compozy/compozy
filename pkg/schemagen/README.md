@@ -160,7 +160,7 @@ The tool generates schemas for these configuration types:
 
 ### Schema Features
 
-- **Base URI**: `https://schemas.compozy.dev/`
+- **Base URI**: `https://schemas.compozy.com/`
 - **Validation**: Respects `validate:"required"` tags
 - **Cross-references**: Links between related schemas using `$ref`
 - **YAML Compatibility**: Includes `yamlCompatible: true` metadata
@@ -175,7 +175,7 @@ The tool generates schemas for these configuration types:
 ```json
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://schemas.compozy.dev/agent.json",
+  "$id": "https://schemas.compozy.com/agent.json",
   "type": "object",
   "additionalProperties": false,
   "properties": {

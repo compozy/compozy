@@ -50,16 +50,10 @@ make reset-db       # Reset database completely
 - **Testing Standards**: @.cursor/rules/test-standard.mdc - MANDATORY `t.Run("Should...")` pattern, testify usage
 - **Go Implementation Patterns**: @.cursor/rules/go-patterns.mdc - Canonical implementations of architecture principles
 - **GoGraph**: @.cursor/rules/go-graph.mdc - GoGraph is a tool that helps you to understand the dependencies between your codebase.
-- **Architecture Principles**: @.cursor/rules/architecture.mdc - SOLID principles, Clean Architecture, DRY
-- **Code Quality & Security**: @.cursor/rules/quality-security.mdc - Linting rules, security requirements
-- **Required Libraries**: @.cursor/rules/core-libraries.mdc - Mandatory library choices and usage patterns
-- **API Development**: @.cursor/rules/api-standards.mdc - RESTful design, versioning, documentation
-- **Code Review Process**: @.cursor/rules/review-checklist.mdc - Pre-review requirements and checklist
-
-## Development Workflow
-
-- **New features:** Include comprehensive tests following @.cursor/rules/test-standard.mdc
-- **Task completion:** Follow @.claude/commands/task-review.md for mandatory code review workflow via Zen MCP tools
+- **Architecture Principles**: .cursor/rules/architecture.mdc - SOLID principles, Clean Architecture, DRY
+- **Code Quality & Security**: .cursor/rules/quality-security.mdc - Linting rules, security requirements
+- **Required Libraries**: .cursor/rules/core-libraries.mdc - Mandatory library choices and usage patterns
+- **API Development**: .cursor/rules/api-standards.mdc - RESTful design, versioning, documentation
 - **Backwards Compatibility:** See @.cursor/rules/backwards-compatibility.mdc - NOT REQUIRED during development phase
 
 ## Task Management

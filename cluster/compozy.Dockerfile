@@ -36,7 +36,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     go build -a -installsuffix cgo \
     -ldflags="-w -s -X main.Version=${VERSION} -X main.Commit=${COMMIT} -X main.BuildDate=${BUILD_DATE}" \
     -o compozy \
-    ./main.go
+    ./
 
 # Runtime stage - Alpine-based for Bun support
 FROM alpine:3.20

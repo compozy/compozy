@@ -201,7 +201,7 @@
       "type": "object"
     }
   },
-  "$id": "https://schemas.compozy.dev/task.json",
+  "$id": "https://schemas.compozy.com/task.json",
   "$schema": "http://json-schema.org/draft-07/schema#",
   "additionalProperties": false,
   "description": "Config is the main task configuration structure in Compozy.",

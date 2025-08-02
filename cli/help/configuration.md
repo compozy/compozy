@@ -28,7 +28,7 @@ The CLI looks for configuration files in this order:
 ```yaml
 # compozy.yaml
 cli:
-  server_url: "https://api.compozy.dev"
+  server_url: "https://api.compozy.com"
   default_format: "tui"
   debug: false
   quiet: false
@@ -63,7 +63,7 @@ The `cli` section controls CLI behavior and global flag defaults:
 ```yaml
 cli:
   # Server connection
-  server_url: "https://api.compozy.dev"
+  server_url: "https://api.compozy.com"
   config_file: "./custom-config.yaml"
 
   # Output control
@@ -84,7 +84,7 @@ All configuration values can be set via environment variables using the prefix `
 
 ```bash
 # Server connection
-export COMPOZY_SERVER_URL="https://api.compozy.dev"
+export COMPOZY_SERVER_URL="https://api.compozy.com"
 export COMPOZY_CONFIG_FILE="./production.yaml"
 
 # Output control
@@ -155,7 +155,7 @@ runtime:
 ```yaml
 # staging.yaml
 cli:
-  server_url: "https://staging-api.compozy.dev"
+  server_url: "https://staging-api.compozy.com"
   debug: false
   default_format: "json"
   quiet: true
@@ -186,7 +186,7 @@ runtime:
 ```yaml
 # production.yaml
 cli:
-  server_url: "https://api.compozy.dev"
+  server_url: "https://api.compozy.com"
   debug: false
   default_format: "json"
   quiet: true
@@ -320,7 +320,7 @@ Keep a changelog for configuration updates:
 # - Updated temporal namespace to "production"
 
 cli:
-  server_url: "https://api.compozy.dev"
+  server_url: "https://api.compozy.com"
   # ... rest of configuration
 ```
 

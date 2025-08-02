@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://schemas.compozy.dev/config-database.json",
+  "$id": "https://schemas.compozy.com/config-database.json",
   "properties": {
     "conn_string": {
       "type": "string",

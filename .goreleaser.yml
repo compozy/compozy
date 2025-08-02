@@ -28,7 +28,7 @@ git:
 # Build configuration
 builds:
   - id: compozy
-    main: ./cmd/compozy/main.go
+    main: ./
     binary: compozy
 
     # Build for multiple platforms

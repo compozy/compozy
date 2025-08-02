@@ -1,5 +1,5 @@
 {
-  "$id": "https://schemas.compozy.dev/config-cli.json",
+  "$id": "https://schemas.compozy.com/config-cli.json",
   "$schema": "http://json-schema.org/draft-07/schema#",
   "additionalProperties": false,
   "description": "CLIConfig contains CLI-specific configuration.",
@@ -9,7 +9,7 @@
       "type": "string"
     },
     "BaseURL": {
-      "description": "BaseURL specifies the Compozy API endpoint.\n\nDefault: \"https://api.compozy.dev\"\nUse custom endpoints for self-hosted or development environments.",
+      "description": "BaseURL specifies the Compozy API endpoint.\n\nDefault: \"https://api.compozy.com\"\nUse custom endpoints for self-hosted or development environments.",
       "type": "string"
     },
     "ColorMode": {

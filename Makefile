@@ -30,8 +30,8 @@ LDFLAGS := -X github.com/compozy/compozy/pkg/version.Version=$(VERSION) -X githu
 SWAGGER_DIR=./docs
 SWAGGER_OUTPUT=$(SWAGGER_DIR)/swagger.json
 
-.PHONY: all test lint fmt clean build build-mcp-proxy build-all dev deps schemagen schemagen-watch help integration-test
-.PHONY: tidy test-go start-docker stop-docker clean-docker reset-docker mcp-proxy rebuild-mcp-proxy
+.PHONY: all test lint fmt clean build dev deps schemagen schemagen-watch help integration-test
+.PHONY: tidy test-go start-docker stop-docker clean-docker reset-docker
 .PHONY: swagger swagger-deps swagger-gen swagger-serve
 
 # -----------------------------------------------------------------------------
@@ -43,20 +43,11 @@ clean:
 	rm -rf $(BINARY_DIR)/
 	rm -rf $(SWAGGER_DIR)/
 	$(GOCMD) clean
-	cd cmd/mcp-proxy && $(GOCMD) clean
 
 build: swagger
 	mkdir -p $(BINARY_DIR)
-	$(GOBUILD) -ldflags "$(LDFLAGS)" -o $(BINARY_DIR)/$(BINARY_NAME) ./cmd/compozy/main.go
+	$(GOBUILD) -ldflags "$(LDFLAGS)" -o $(BINARY_DIR)/$(BINARY_NAME) ./
 	chmod +x $(BINARY_DIR)/$(BINARY_NAME)
-
-build-mcp-proxy:
-	@echo "Building mcp-proxy binary..."
-	mkdir -p $(BINARY_DIR)
-	cd cmd/mcp-proxy && $(GOBUILD) -ldflags "$(LDFLAGS)" -o ../../$(BINARY_DIR)/mcp-proxy .
-	chmod +x $(BINARY_DIR)/mcp-proxy
-
-build-all: build build-mcp-proxy
 
 # -----------------------------------------------------------------------------
 # Code Quality & Formatting
@@ -64,8 +55,6 @@ build-all: build build-mcp-proxy
 lint:
 	$(BUNCMD) run lint
 	$(LINTCMD) run --fix --allow-parallel-runners
-	@echo "Linting mcp-proxy module..."
-	cd cmd/mcp-proxy && $(LINTCMD) run --fix --allow-parallel-runners
 	@echo "Running modernize analyzer for min/max suggestions..."
 	# @go run golang.org/x/tools/gopls/internal/analysis/modernize/cmd/modernize@latest ./... 2>&1 | grep -E "\.go:[0-9]+:[0-9]+:" || echo "No modernization suggestions found"
 	@echo "Linting completed successfully"
@@ -74,8 +63,6 @@ fmt:
 	@echo "Formatting code..."
 	$(BUNCMD) run format
 	$(LINTCMD) fmt
-	@echo "Formatting mcp-proxy module..."
-	cd cmd/mcp-proxy && $(LINTCMD) fmt
 	@echo "Formatting completed successfully"
 
 # -----------------------------------------------------------------------------
@@ -86,14 +73,9 @@ dev: EXAMPLE=weather
 dev:
 	wgo run . dev --cwd examples/$(EXAMPLE) --env-file .env --debug --watch
 
-mcp-proxy:
-	$(GOCMD) run . mcp-proxy
-
 tidy:
 	@echo "Tidying modules..."
 	$(GOCMD) mod tidy
-	@echo "Tidying mcp-proxy module..."
-	cd cmd/mcp-proxy && $(GOCMD) mod tidy
 
 deps: swagger-deps
 	$(GOCMD) install gotest.tools/gotestsum@latest
@@ -158,10 +140,6 @@ clean-docker:
 reset-docker:
 	make clean-docker
 	make start-docker
-
-rebuild-mcp-proxy:
-	docker compose -f ./cluster/docker-compose.yml build mcp-proxy
-	docker compose -f ./cluster/docker-compose.yml up -d mcp-proxy
 
 # -----------------------------------------------------------------------------
 # Database

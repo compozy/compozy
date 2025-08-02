@@ -17,7 +17,7 @@
       "type": "object"
     }
   },
-  "$id": "https://schemas.compozy.dev/action-config.json",
+  "$id": "https://schemas.compozy.com/action-config.json",
   "$schema": "http://json-schema.org/draft-07/schema#",
   "additionalProperties": false,
   "description": "ActionConfig defines a structured action that an agent can perform.",

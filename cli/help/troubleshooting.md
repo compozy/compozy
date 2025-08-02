@@ -80,7 +80,7 @@ curl http://localhost:5000/health
 compozy config show --debug | grep server_url
 
 # Use different server URL
-compozy workflow list --server-url https://api.compozy.dev --debug
+compozy workflow list --server-url https://api.compozy.com --debug
 
 # Check for port conflicts
 netstat -an | grep :5000
@@ -325,12 +325,12 @@ compozy dev --config ./test-config.yaml --debug --help
 curl -v http://localhost:5000/health
 
 # Check DNS resolution
-nslookup api.compozy.dev
-dig api.compozy.dev
+nslookup api.compozy.com
+dig api.compozy.com
 
 # Test API endpoints
 curl -v -H "Authorization: Bearer $COMPOZY_API_KEY" \
-  https://api.compozy.dev/api/v0/workflows
+  https://api.compozy.com/api/v0/workflows
 ```
 
 ### Process Diagnostics

@@ -116,7 +116,7 @@ const plans: Plan[] = [
     ],
     buttonText: "Contact Sales",
     buttonVariant: "primary" as const,
-    buttonHref: "mailto:sales@compozy.dev",
+    buttonHref: "mailto:sales@compozy.com",
     icon: Building2,
   },
 ];
