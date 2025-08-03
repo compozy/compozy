@@ -1,6 +1,6 @@
 {
   "name": "@compozy/tool-write-file",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "A Compozy tool for writing content to files",
   "type": "module",
   "main": "index.ts",
