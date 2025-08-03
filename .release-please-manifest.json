@@ -1,11 +1,11 @@
 {
-  ".": "0.0.2",
-  "tools/delete-file": "0.0.1",
-  "tools/exec": "0.0.1",
-  "tools/fetch": "0.0.1",
-  "tools/grep": "0.0.1",
-  "tools/list-dir": "0.0.1",
-  "tools/list-files": "0.0.1",
-  "tools/read-file": "0.0.1",
-  "tools/write-file": "0.0.1"
+  ".": "0.0.3",
+  "tools/delete-file": "0.1.0",
+  "tools/exec": "0.1.0",
+  "tools/fetch": "0.1.0",
+  "tools/grep": "0.1.0",
+  "tools/list-dir": "0.1.0",
+  "tools/list-files": "0.1.0",
+  "tools/read-file": "0.1.0",
+  "tools/write-file": "0.1.0"
 }
