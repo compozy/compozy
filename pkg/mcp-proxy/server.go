@@ -336,11 +336,7 @@ func (s *Server) validateSecurityConfig(ctx context.Context) error {
 		}
 	}
 
-	// Ensure at least one admin token is configured
-	if len(s.config.AdminTokens) == 0 {
-		return fmt.Errorf("no admin tokens configured. " +
-			"Please set MCP_PROXY_ADMIN_TOKEN environment variable")
-	}
+	// Admin tokens are optional - no need to enforce at least one
 
 	return nil
 }

@@ -173,8 +173,6 @@ migrate-reset:
 
 reset-db:
 	@make reset-docker
-	@sleep 2
-	@make migrate-up
 
 # -----------------------------------------------------------------------------
 # Redis

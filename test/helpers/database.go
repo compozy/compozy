@@ -60,6 +60,45 @@ func CreateTestContainerDatabase(ctx context.Context, t *testing.T) (*pgxpool.Po
 	return pool, cleanup
 }
 
+// CreateTestContainerDatabaseWithoutMigrations sets up a new PostgreSQL container without running migrations.
+// This is useful for testing migration logic itself.
+func CreateTestContainerDatabaseWithoutMigrations(ctx context.Context, t *testing.T) (*pgxpool.Pool, func()) {
+	pgContainer, err := postgres.Run(ctx,
+		"postgres:15-alpine",
+		postgres.WithDatabase("test-db"),
+		postgres.WithUsername("user"),
+		postgres.WithPassword("password"),
+		testcontainers.WithWaitStrategy(
+			wait.ForLog("database system is ready to accept connections").
+				WithOccurrence(2).
+				WithStartupTimeout(5*time.Second),
+		),
+	)
+	require.NoError(t, err)
+
+	connStr, err := pgContainer.ConnectionString(ctx, "sslmode=disable")
+	require.NoError(t, err)
+
+	pool, err := pgxpool.New(ctx, connStr)
+	require.NoError(t, err)
+
+	cleanup := func() {
+		// Close the pool first to release all connections
+		// pool.Close() is synchronous and waits for all connections to be properly closed
+		pool.Close()
+
+		// Terminate the container with a timeout
+		terminateCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		if err := pgContainer.Terminate(terminateCtx); err != nil {
+			t.Logf("Warning: failed to terminate container: %s", err)
+		}
+	}
+
+	return pool, cleanup
+}
+
 // ensureTablesExist runs goose migrations to create the required tables
 func ensureTablesExist(db *pgxpool.Pool) error {
 	// Convert pgxpool to standard sql.DB for goose

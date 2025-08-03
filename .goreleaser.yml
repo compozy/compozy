@@ -166,7 +166,7 @@ changelog:
       - "^chore\\(deps\\): "
       - "^docs: update$"
       - "^test:"
-      - "^test("
+      - "^test\\("
       - "merge conflict"
       - Merge branch
       - Merge pull request

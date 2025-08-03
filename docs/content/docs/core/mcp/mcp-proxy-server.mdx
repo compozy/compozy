@@ -276,19 +276,19 @@ MCP_PROXY_SHUTDOWN_TIMEOUT=30s
 **Security Configuration**
 
 ```bash title="Security Environment Variables"
-# Admin API security
-MCP_PROXY_ADMIN_TOKEN=your-secure-admin-token
-MCP_PROXY_ADMIN_ALLOW_IPS=127.0.0.1,::1,10.0.0.0/8
+# Admin API security (optional - only set if you want to enable authentication)
+# MCP_PROXY_ADMIN_TOKEN=your-secure-admin-token
+# MCP_PROXY_ADMIN_ALLOW_IPS=127.0.0.1,::1,10.0.0.0/8  # Optional: Restrict by IP
 
-# Global authentication
-MCP_PROXY_GLOBAL_AUTH_TOKEN=global-access-token
+# Global authentication (optional)
+# MCP_PROXY_GLOBAL_AUTH_TOKEN=global-access-token
 
 # Trusted proxies
 MCP_PROXY_TRUSTED_PROXIES=127.0.0.1,::1
 ```
 
-<Callout type="warning">
-**Security Best Practice**: Always use strong, unique tokens and restrict IP access in production environments.
+<Callout type="info">
+**Security Note**: By default, the MCP proxy runs without authentication for ease of development. In production environments, we strongly recommend setting secure admin tokens and IP restrictions.
 </Callout>
 </Tab>
 
@@ -330,6 +330,12 @@ compozy-mcp-proxy
 Start with custom settings:
 
 ```bash
+# Basic start without authentication
+compozy-mcp-proxy \
+  --host 0.0.0.0 \
+  --port 6001
+
+# With authentication enabled
 compozy-mcp-proxy \
   --host 0.0.0.0 \
   --port 6001 \

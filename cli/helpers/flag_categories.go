@@ -72,7 +72,7 @@ func getServerCategories() []FlagCategory {
 			Description: "PostgreSQL connection settings",
 			Flags: []string{
 				"db-host", "db-port", "db-user", "db-password",
-				"db-name", "db-ssl-mode", "db-conn-string",
+				"db-name", "db-ssl-mode", "db-conn-string", "db-auto-migrate",
 			},
 		},
 	}

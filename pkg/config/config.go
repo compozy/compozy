@@ -236,6 +236,15 @@ type DatabaseConfig struct {
 	//   - `"verify-ca"`: SSL with CA verification
 	//   - `"verify-full"`: SSL with full verification
 	SSLMode string `koanf:"ssl_mode" json:"ssl_mode" yaml:"ssl_mode" mapstructure:"ssl_mode" env:"DB_SSL_MODE"`
+
+	// AutoMigrate enables automatic database migrations on startup.
+	//
+	// When enabled, the system will automatically apply any pending database
+	// migrations when establishing a database connection. This eliminates
+	// the need for manual migration commands.
+	//
+	// Default: true
+	AutoMigrate bool `koanf:"auto_migrate" json:"auto_migrate" yaml:"auto_migrate" mapstructure:"auto_migrate" env:"DB_AUTO_MIGRATE"`
 }
 
 // TemporalConfig contains Temporal workflow engine configuration.
@@ -845,7 +854,7 @@ type MCPProxyConfig struct {
 
 	// AdminAllowIPs contains IP addresses allowed to access admin endpoints.
 	//
-	// **Default**: `["127.0.0.1", "::1"]`
+	// **Default**: `[]` (empty - allows all IPs)
 	AdminAllowIPs []string `koanf:"admin_allow_ips" json:"admin_allow_ips" yaml:"admin_allow_ips" mapstructure:"admin_allow_ips" env:"MCP_PROXY_ADMIN_ALLOW_IPS"`
 
 	// TrustedProxies contains trusted proxy IP addresses.
@@ -1127,12 +1136,13 @@ func buildServerConfig(registry *definition.Registry) ServerConfig {
 
 func buildDatabaseConfig(registry *definition.Registry) DatabaseConfig {
 	return DatabaseConfig{
-		Host:     getString(registry, "database.host"),
-		Port:     getString(registry, "database.port"),
-		User:     getString(registry, "database.user"),
-		Password: getString(registry, "database.password"),
-		DBName:   getString(registry, "database.name"),
-		SSLMode:  getString(registry, "database.ssl_mode"),
+		Host:        getString(registry, "database.host"),
+		Port:        getString(registry, "database.port"),
+		User:        getString(registry, "database.user"),
+		Password:    getString(registry, "database.password"),
+		DBName:      getString(registry, "database.name"),
+		SSLMode:     getString(registry, "database.ssl_mode"),
+		AutoMigrate: getBool(registry, "database.auto_migrate"),
 	}
 }
 

@@ -12,9 +12,9 @@ func DefaultConfig() *Config {
 		Port:             "6001",
 		Host:             "127.0.0.1", // Bind to localhost by default for security
 		ShutdownTimeout:  10 * time.Second,
-		AdminTokens:      []string{"CHANGE_ME_ADMIN_TOKEN"}, // Require admin token by default
-		AdminAllowIPs:    []string{"127.0.0.1", "::1"},      // Restrict to localhost by default
-		GlobalAuthTokens: []string{},                        // No global auth tokens by default
+		AdminTokens:      []string{}, // No authentication required by default - users can add if needed
+		AdminAllowIPs:    []string{}, // No IP restrictions by default - users can add if needed
+		GlobalAuthTokens: []string{}, // No global auth tokens by default
 	}
 }
 

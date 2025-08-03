@@ -179,6 +179,15 @@ func registerDatabaseFields(registry *Registry) {
 		Type:    reflect.TypeOf(""),
 		Help:    "Database connection string",
 	})
+
+	registry.Register(&FieldDef{
+		Path:    "database.auto_migrate",
+		Default: true,
+		CLIFlag: "db-auto-migrate",
+		EnvVar:  "DB_AUTO_MIGRATE",
+		Type:    reflect.TypeOf(true),
+		Help:    "Automatically run database migrations on startup",
+	})
 }
 
 func registerTemporalFields(registry *Registry) {
@@ -969,11 +978,11 @@ func registerMCPProxyFields(registry *Registry) {
 
 	registry.Register(&FieldDef{
 		Path:    "mcp_proxy.admin_allow_ips",
-		Default: []string{"127.0.0.1/32", "::1/128"},
+		Default: []string{},
 		CLIFlag: "mcp-admin-allow-ips",
 		EnvVar:  "MCP_PROXY_ADMIN_ALLOW_IPS",
 		Type:    reflect.TypeOf([]string{}),
-		Help:    "IP addresses/CIDR blocks allowed for admin access (comma-separated)",
+		Help:    "IP addresses/CIDR blocks allowed for admin access (comma-separated). If empty, allows all IPs",
 	})
 
 	registry.Register(&FieldDef{

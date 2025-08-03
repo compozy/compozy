@@ -449,6 +449,7 @@ func flattenDatabaseConfig(cfg *config.Config, result map[string]string) {
 	result["database.password"] = redactSensitive(cfg.Database.Password)
 	result["database.name"] = cfg.Database.DBName
 	result["database.ssl_mode"] = cfg.Database.SSLMode
+	result["database.auto_migrate"] = fmt.Sprintf("%v", cfg.Database.AutoMigrate)
 }
 
 // flattenTemporalConfig flattens temporal configuration

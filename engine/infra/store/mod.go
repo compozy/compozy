@@ -6,6 +6,7 @@ import (
 
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
+	"github.com/jackc/pgx/v5/stdlib"
 )
 
 type Store struct {
@@ -53,6 +54,21 @@ func SetupStoreWithConfig(ctx context.Context) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Run migrations if auto-migration is enabled
+	if cfg.Database.AutoMigrate {
+		log.Info("Running database migrations...")
+
+		// Convert pgxpool to sql.DB using stdlib
+		sqlDB := stdlib.OpenDBFromPool(db.Pool())
+		defer sqlDB.Close()
+
+		if err := runEmbeddedMigrations(ctx, sqlDB); err != nil {
+			return nil, fmt.Errorf("failed to run migrations: %w", err)
+		}
+		log.Info("Database migrations completed successfully")
+	}
+
 	return &Store{DB: db}, nil
 }
 
