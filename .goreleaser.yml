@@ -89,9 +89,6 @@ archives:
       - src: completions/*
         dst: completions
         strip_parent: true
-      - src: manpages/*
-        dst: manpages
-        strip_parent: true
 
     # Wrap in directory
     wrap_in_directory: true
@@ -366,9 +363,6 @@ homebrew_casks:
       zsh: "completions/compozy.zsh"
       fish: "completions/compozy.fish"
 
-    # Man pages
-    manpages:
-      - "manpages/compozy.1.gz"
 
 # NFPM packaging configuration
 nfpms:
@@ -401,10 +395,6 @@ nfpms:
         dst: /usr/share/zsh/site-functions/_compozy
         file_info:
           mode: 0644
-      - src: ./manpages/compozy.1.gz
-        dst: /usr/share/man/man1/compozy.1.gz
-        file_info:
-          mode: 0644
 
     rpm:
       signature:
@@ -422,13 +412,10 @@ before:
     # Generate shell completions
     - rm -rf completions
     - mkdir completions
-    - rm -rf manpages
-    - mkdir manpages
     - go build -o compozy_tmp .
     - ./compozy_tmp completion bash > ./completions/compozy.bash || echo "Bash completions generation skipped"
     - ./compozy_tmp completion zsh > ./completions/compozy.zsh || echo "Zsh completions generation skipped"
     - ./compozy_tmp completion fish > ./completions/compozy.fish || echo "Fish completions generation skipped"
-    - ./compozy_tmp man | gzip -c > ./manpages/compozy.1.gz || echo "Man page generation skipped"
     - rm compozy_tmp
 
 # Software Bill of Materials (SBOM) generation
