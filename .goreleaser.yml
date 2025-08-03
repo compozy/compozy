@@ -1,6 +1,7 @@
 # yaml-language-server: $schema=https://goreleaser.com/static/schema-pro.json
 # vim: set ts=2 sw=2 tw=0 fo=jcroql
 version: 2
+pro: true
 
 # Project configuration
 project_name: compozy
@@ -8,11 +9,11 @@ project_name: compozy
 # Metadata configuration
 metadata:
   mod_timestamp: "{{ .CommitTimestamp }}"
+  maintainers:
+    - "Compozy Team <support@compozy.com>"
   license: "BSL-1.1"
   homepage: "https://github.com/compozy/compozy"
   description: "Next-level Agentic Orchestration Platform"
-  maintainers:
-    - "Compozy Team <support@compozy.com>"
 
 # Environment variables
 env:
@@ -84,11 +85,8 @@ archives:
     files:
       - README.md
       - LICENSE*
-      - CHANGELOG.md
-      - docs/README.md
-      - src: completions/*
-        dst: completions
-        strip_parent: true
+      - src: completions/
+        dst: .
 
     # Wrap in directory
     wrap_in_directory: true
@@ -357,12 +355,7 @@ homebrew_casks:
     # in case there are no unix builds
     skip_upload: auto
 
-    # Shell completions
-    completions:
-      bash: "completions/compozy.bash"
-      zsh: "completions/compozy.zsh"
-      fish: "completions/compozy.fish"
-
+    # Shell completions will be generated dynamically by the binary itself
 
 # NFPM packaging configuration
 nfpms:
@@ -382,19 +375,7 @@ nfpms:
       - rpm
       - archlinux
 
-    contents:
-      - src: ./completions/compozy.bash
-        dst: /etc/bash_completion.d/compozy
-        file_info:
-          mode: 0644
-      - src: ./completions/compozy.fish
-        dst: /usr/share/fish/vendor_completions.d/compozy.fish
-        file_info:
-          mode: 0644
-      - src: ./completions/compozy.zsh
-        dst: /usr/share/zsh/site-functions/_compozy
-        file_info:
-          mode: 0644
+    # No additional contents - completions are included in the binary archives
 
     rpm:
       signature:
@@ -409,14 +390,12 @@ before:
   hooks:
     # Download dependencies
     - go mod download
-    # Generate shell completions
+    # Generate shell completions using go run
     - rm -rf completions
-    - mkdir completions
-    - go build -o compozy_tmp .
-    - ./compozy_tmp completion bash > ./completions/compozy.bash || echo "Bash completions generation skipped"
-    - ./compozy_tmp completion zsh > ./completions/compozy.zsh || echo "Zsh completions generation skipped"
-    - ./compozy_tmp completion fish > ./completions/compozy.fish || echo "Fish completions generation skipped"
-    - rm compozy_tmp
+    - mkdir -p completions
+    - sh -c "go run . completion bash > completions/compozy.bash || echo '# Bash completion' > completions/compozy.bash"
+    - sh -c "go run . completion zsh > completions/compozy.zsh || echo '# Zsh completion' > completions/compozy.zsh"
+    - sh -c "go run . completion fish > completions/compozy.fish || echo '# Fish completion' > completions/compozy.fish"
 
 # Software Bill of Materials (SBOM) generation
 sboms:
