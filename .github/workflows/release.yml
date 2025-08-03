@@ -140,6 +140,11 @@ jobs:
         with:
           cosign-release: "v2.2.4"
 
+      - name: Install syft
+        uses: anchore/sbom-action/download-syft@v0
+        with:
+          syft-version: latest
+
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:
