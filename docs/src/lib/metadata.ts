@@ -8,7 +8,7 @@ export function createMetadata(override: Metadata): Metadata {
     height: 630,
     alt: "Compozy - Next-level Agentic Orchestration Platform",
   };
-  
+
   return {
     ...override,
     openGraph: {
@@ -30,9 +30,8 @@ export function createMetadata(override: Metadata): Metadata {
   };
 }
 
-export const baseUrl =
-  process.env.NEXT_PUBLIC_SITE_URL
-    ? new URL(process.env.NEXT_PUBLIC_SITE_URL)
-    : process.env.NODE_ENV === "production"
+export const baseUrl = process.env.NEXT_PUBLIC_SITE_URL
+  ? new URL(process.env.NEXT_PUBLIC_SITE_URL)
+  : process.env.NODE_ENV === "production"
     ? new URL("https://compozy.com")
     : new URL("http://localhost:5006");
