@@ -130,9 +130,8 @@ func TestValidatePayloadAgainstCompiledSchema(t *testing.T) {
 		assert.Contains(t, validationErrors[0], "does not match the schema")
 	})
 
-	t.Run("Should handle schema compilation errors gracefully", func(t *testing.T) {
-		// Test that the function properly handles pre-compiled schemas
-		// This test verifies the business logic of validation without schema compilation
+	t.Run("Should validate enum constraints in schema", func(t *testing.T) {
+		// Test that enum validation works correctly for both valid and invalid values
 		validSchema := &schema.Schema{
 			"type": "object",
 			"properties": map[string]any{

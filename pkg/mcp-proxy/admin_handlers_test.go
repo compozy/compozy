@@ -13,28 +13,29 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// setupAdminHandlerTest creates a common test setup for admin handler tests
+func setupAdminHandlerTest() (*gin.Engine, *MCPService) {
+	storage := NewMemoryStorage()
+	clientManager := NewMockClientManager()
+	service := NewMCPService(storage, clientManager, nil)
+	handlers := NewAdminHandlers(service)
+	router := gin.New()
+	admin := router.Group("/admin")
+	{
+		admin.POST("/mcps", handlers.AddMCPHandler)
+		admin.PUT("/mcps/:name", handlers.UpdateMCPHandler)
+		admin.DELETE("/mcps/:name", handlers.RemoveMCPHandler)
+		admin.GET("/mcps", handlers.ListMCPsHandler)
+		admin.GET("/mcps/:name", handlers.GetMCPHandler)
+	}
+	return router, service
+}
+
 func TestAdminHandlers_AddMCP(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	setupTest := func() (*gin.Engine, *MCPService) {
-		storage := NewMemoryStorage()
-		clientManager := NewMockClientManager()
-		service := NewMCPService(storage, clientManager, nil)
-		handlers := NewAdminHandlers(service)
-		router := gin.New()
-		admin := router.Group("/admin")
-		{
-			admin.POST("/mcps", handlers.AddMCPHandler)
-			admin.PUT("/mcps/:name", handlers.UpdateMCPHandler)
-			admin.DELETE("/mcps/:name", handlers.RemoveMCPHandler)
-			admin.GET("/mcps", handlers.ListMCPsHandler)
-			admin.GET("/mcps/:name", handlers.GetMCPHandler)
-		}
-		return router, service
-	}
-
 	t.Run("Should create new MCP definition and return success response", func(t *testing.T) {
-		router, _ := setupTest()
+		router, _ := setupAdminHandlerTest()
 		mcpDef := MCPDefinition{
 			Name:        "test-mcp",
 			Description: "Test MCP server",
@@ -63,25 +64,8 @@ func TestAdminHandlers_AddMCP(t *testing.T) {
 func TestAdminHandlers_ListMCPs(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	setupTest := func() (*gin.Engine, *MCPService) {
-		storage := NewMemoryStorage()
-		clientManager := NewMockClientManager()
-		service := NewMCPService(storage, clientManager, nil)
-		handlers := NewAdminHandlers(service)
-		router := gin.New()
-		admin := router.Group("/admin")
-		{
-			admin.POST("/mcps", handlers.AddMCPHandler)
-			admin.PUT("/mcps/:name", handlers.UpdateMCPHandler)
-			admin.DELETE("/mcps/:name", handlers.RemoveMCPHandler)
-			admin.GET("/mcps", handlers.ListMCPsHandler)
-			admin.GET("/mcps/:name", handlers.GetMCPHandler)
-		}
-		return router, service
-	}
-
 	t.Run("Should return list of all MCP definitions with count", func(t *testing.T) {
-		router, service := setupTest()
+		router, service := setupAdminHandlerTest()
 		mcpDef := MCPDefinition{
 			Name:        "test-mcp",
 			Description: "Test MCP server",
@@ -110,25 +94,8 @@ func TestAdminHandlers_ListMCPs(t *testing.T) {
 func TestAdminHandlers_GetMCP(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	setupTest := func() (*gin.Engine, *MCPService) {
-		storage := NewMemoryStorage()
-		clientManager := NewMockClientManager()
-		service := NewMCPService(storage, clientManager, nil)
-		handlers := NewAdminHandlers(service)
-		router := gin.New()
-		admin := router.Group("/admin")
-		{
-			admin.POST("/mcps", handlers.AddMCPHandler)
-			admin.PUT("/mcps/:name", handlers.UpdateMCPHandler)
-			admin.DELETE("/mcps/:name", handlers.RemoveMCPHandler)
-			admin.GET("/mcps", handlers.ListMCPsHandler)
-			admin.GET("/mcps/:name", handlers.GetMCPHandler)
-		}
-		return router, service
-	}
-
 	t.Run("Should return specific MCP definition by name", func(t *testing.T) {
-		router, service := setupTest()
+		router, service := setupAdminHandlerTest()
 		mcpDef := MCPDefinition{
 			Name:        "test-mcp",
 			Description: "Test MCP server",
@@ -154,7 +121,7 @@ func TestAdminHandlers_GetMCP(t *testing.T) {
 	})
 
 	t.Run("Should return 404 for non-existent MCP definition", func(t *testing.T) {
-		router, _ := setupTest()
+		router, _ := setupAdminHandlerTest()
 		req, err := http.NewRequestWithContext(context.Background(), "GET", "/admin/mcps/non-existent", http.NoBody)
 		require.NoError(t, err)
 		w := httptest.NewRecorder()
@@ -172,25 +139,8 @@ func TestAdminHandlers_GetMCP(t *testing.T) {
 func TestAdminHandlers_UpdateMCP(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	setupTest := func() (*gin.Engine, *MCPService) {
-		storage := NewMemoryStorage()
-		clientManager := NewMockClientManager()
-		service := NewMCPService(storage, clientManager, nil)
-		handlers := NewAdminHandlers(service)
-		router := gin.New()
-		admin := router.Group("/admin")
-		{
-			admin.POST("/mcps", handlers.AddMCPHandler)
-			admin.PUT("/mcps/:name", handlers.UpdateMCPHandler)
-			admin.DELETE("/mcps/:name", handlers.RemoveMCPHandler)
-			admin.GET("/mcps", handlers.ListMCPsHandler)
-			admin.GET("/mcps/:name", handlers.GetMCPHandler)
-		}
-		return router, service
-	}
-
 	t.Run("Should update existing MCP definition successfully", func(t *testing.T) {
-		router, service := setupTest()
+		router, service := setupAdminHandlerTest()
 		originalMCP := MCPDefinition{
 			Name:        "test-mcp",
 			Description: "Test MCP server",
@@ -231,25 +181,8 @@ func TestAdminHandlers_UpdateMCP(t *testing.T) {
 func TestAdminHandlers_DeleteMCP(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	setupTest := func() (*gin.Engine, *MCPService) {
-		storage := NewMemoryStorage()
-		clientManager := NewMockClientManager()
-		service := NewMCPService(storage, clientManager, nil)
-		handlers := NewAdminHandlers(service)
-		router := gin.New()
-		admin := router.Group("/admin")
-		{
-			admin.POST("/mcps", handlers.AddMCPHandler)
-			admin.PUT("/mcps/:name", handlers.UpdateMCPHandler)
-			admin.DELETE("/mcps/:name", handlers.RemoveMCPHandler)
-			admin.GET("/mcps", handlers.ListMCPsHandler)
-			admin.GET("/mcps/:name", handlers.GetMCPHandler)
-		}
-		return router, service
-	}
-
 	t.Run("Should delete existing MCP definition successfully", func(t *testing.T) {
-		router, service := setupTest()
+		router, service := setupAdminHandlerTest()
 		mcpDef := MCPDefinition{
 			Name:        "test-mcp",
 			Description: "Test MCP server",
@@ -270,25 +203,8 @@ func TestAdminHandlers_DeleteMCP(t *testing.T) {
 func TestAdminHandlers_ErrorCases(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	setupTest := func() (*gin.Engine, *MCPService) {
-		storage := NewMemoryStorage()
-		clientManager := NewMockClientManager()
-		service := NewMCPService(storage, clientManager, nil)
-		handlers := NewAdminHandlers(service)
-		router := gin.New()
-		admin := router.Group("/admin")
-		{
-			admin.POST("/mcps", handlers.AddMCPHandler)
-			admin.PUT("/mcps/:name", handlers.UpdateMCPHandler)
-			admin.DELETE("/mcps/:name", handlers.RemoveMCPHandler)
-			admin.GET("/mcps", handlers.ListMCPsHandler)
-			admin.GET("/mcps/:name", handlers.GetMCPHandler)
-		}
-		return router, service
-	}
-
 	t.Run("Should reject duplicate MCP definition with conflict error", func(t *testing.T) {
-		router, _ := setupTest()
+		router, _ := setupAdminHandlerTest()
 		mcpDef := MCPDefinition{
 			Name:      "duplicate-test",
 			Transport: TransportStdio,
@@ -318,7 +234,7 @@ func TestAdminHandlers_ErrorCases(t *testing.T) {
 	})
 
 	t.Run("Should reject invalid MCP definition with validation error", func(t *testing.T) {
-		router, _ := setupTest()
+		router, _ := setupAdminHandlerTest()
 		invalidMCP := MCPDefinition{
 			Name:      "",
 			Transport: TransportStdio,

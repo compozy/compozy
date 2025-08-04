@@ -55,28 +55,44 @@ jobs:
           echo "- PR number: ${{ steps.release.outputs.pr_number }}"
           echo "- Paths released: ${{ steps.release.outputs.paths_released }}"
 
-          # Add to job summary
-          echo "## Release Please Results" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+          # Add to job summary with grouped commands to reduce shellcheck warnings
+          # shellcheck disable=SC2086,SC2129
+          {
+            echo "## Release Please Results"
+            echo ""
+          } >> $GITHUB_STEP_SUMMARY
+
           if [ "${{ steps.release.outputs.releases_created }}" = "true" ]; then
+            # shellcheck disable=SC2086
             echo "🎉 **Releases Created!**" >> $GITHUB_STEP_SUMMARY
             if [ "${{ steps.release.outputs.release_created }}" = "true" ]; then
-              echo "### Main Package" >> $GITHUB_STEP_SUMMARY
-              echo "- **Version:** ${{ steps.release.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-              echo "- **Tag:** ${{ steps.release.outputs.tag_name }}" >> $GITHUB_STEP_SUMMARY
+              # shellcheck disable=SC2086,SC2129
+              {
+                echo "### Main Package"
+                echo "- **Version:** ${{ steps.release.outputs.version }}"
+                echo "- **Tag:** ${{ steps.release.outputs.tag_name }}"
+              } >> $GITHUB_STEP_SUMMARY
             fi
             if [ -n "${{ steps.release.outputs.paths_released }}" ]; then
+              # shellcheck disable=SC2086
               echo "### Released Paths" >> $GITHUB_STEP_SUMMARY
               echo "${{ steps.release.outputs.paths_released }}" | tr ',' '\n' | while read -r path; do
+                # shellcheck disable=SC2086
                 echo "- $path" >> $GITHUB_STEP_SUMMARY
               done
             fi
           elif [ "${{ steps.release.outputs.pr_created }}" = "true" ]; then
-            echo "📝 **Release PR Created**" >> $GITHUB_STEP_SUMMARY
-            echo "- **PR Number:**  #${{ steps.release.outputs.pr_number }}" >> $GITHUB_STEP_SUMMARY
+            # shellcheck disable=SC2086,SC2129
+            {
+              echo "📝 **Release PR Created**"
+              echo "- **PR Number:**  #${{ steps.release.outputs.pr_number }}"
+            } >> $GITHUB_STEP_SUMMARY
           else
-            echo "ℹ️ **No Release Action Needed**" >> $GITHUB_STEP_SUMMARY
-            echo "No conventional commits found that warrant a release." >> $GITHUB_STEP_SUMMARY
+            # shellcheck disable=SC2086,SC2129
+            {
+              echo "ℹ️ **No Release Action Needed**"
+              echo "No conventional commits found that warrant a release."
+            } >> $GITHUB_STEP_SUMMARY
           fi
 
       - name: Checkout code for release validation

@@ -16,7 +16,9 @@ import (
 func SetupStoreTestWithSharedDB(t *testing.T, autoMigrate bool) (context.Context, *store.Store, func()) {
 	ctx := context.Background()
 	// Reset state to ensure clean test environment
-	config.Close(ctx)
+	if err := config.Close(ctx); err != nil {
+		t.Logf("Warning: failed to close config during test setup: %v", err)
+	}
 	config.ResetForTest()
 	store.ResetMigrationsForTest()
 	// Use shared container for better performance
@@ -39,8 +41,12 @@ func SetupStoreTestWithSharedDB(t *testing.T, autoMigrate bool) (context.Context
 	require.NotNil(t, testStore)
 	return ctx, testStore, func() {
 		// Clean up store resources but keep shared database
-		testStore.DB.Close(ctx)
-		config.Close(ctx)
+		if err := testStore.DB.Close(ctx); err != nil {
+			t.Logf("Warning: failed to close database connection: %v", err)
+		}
+		if err := config.Close(ctx); err != nil {
+			t.Logf("Warning: failed to close config during cleanup: %v", err)
+		}
 		cleanup() // This will truncate tables for next test
 	}
 }

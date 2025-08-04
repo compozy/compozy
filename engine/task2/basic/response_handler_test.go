@@ -48,13 +48,8 @@ func TestNewResponseHandler(t *testing.T) {
 		templateEngine := &tplengine.TemplateEngine{}
 		baseHandler := &shared.BaseResponseHandler{}
 		handler, err := NewResponseHandler(templateEngine, nil, baseHandler)
-		assert.Error(t, err)
+		assert.ErrorContains(t, err, "failed to create basic response handler: contextBuilder is required but was nil")
 		assert.Nil(t, handler)
-		assert.Contains(
-			t,
-			err.Error(),
-			"failed to create basic response handler: contextBuilder is required but was nil",
-		)
 	})
 }
 

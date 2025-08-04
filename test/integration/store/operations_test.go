@@ -282,9 +282,7 @@ func TestStoreOperations_Integration(t *testing.T) {
 
 		// Verify all users were created
 		for i, userID := range userIDs {
-			if userID == "" {
-				continue // Skip if userID wasn't set due to race condition
-			}
+			require.NotEmpty(t, userID, "userID at index %d should not be empty", i)
 			user, err := authRepo.GetUserByID(ctx, userID)
 			require.NoError(t, err)
 			assert.Equal(t, fmt.Sprintf("user%d@example.com", i), user.Email)

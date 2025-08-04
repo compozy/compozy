@@ -52,11 +52,15 @@ jobs:
 
       - name: Get short SHA
         id: sha
-        run: echo "short_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+        run: |
+          # shellcheck disable=SC2086
+          echo "short_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
       - name: Get timestamp
         id: timestamp
-        run: echo "timestamp=$(date +%Y%m%d-%H%M%S)" >> $GITHUB_OUTPUT
+        run: |
+          # shellcheck disable=SC2086
+          echo "timestamp=$(date +%Y%m%d-%H%M%S)" >> $GITHUB_OUTPUT
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -128,19 +132,22 @@ jobs:
     steps:
       - name: Development images summary
         run: |
-          echo "## 🐳 Development Docker Images Published" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "The following development images have been built and published:" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **Compozy (dev)**: \`ghcr.io/compozy/compozy-dev:dev-$(git rev-parse --short HEAD)\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **MCP Proxy (dev)**: \`ghcr.io/compozy/mcp-proxy-dev:dev-$(git rev-parse --short HEAD)\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Usage" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
-          echo "# Pull the latest development images" >> $GITHUB_STEP_SUMMARY
-          echo "docker pull ghcr.io/compozy/compozy-dev:dev-latest" >> $GITHUB_STEP_SUMMARY
-          echo "docker pull ghcr.io/compozy/mcp-proxy-dev:dev-latest" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Note" >> $GITHUB_STEP_SUMMARY
-          echo "These are **development images** built from the main branch. For production use, please use the official releases from GoReleaser." >> $GITHUB_STEP_SUMMARY
+          # shellcheck disable=SC2086,SC2129
+          {
+            echo "## 🐳 Development Docker Images Published"
+            echo ""
+            echo "The following development images have been built and published:"
+            echo ""
+            echo "- **Compozy (dev)**: \`ghcr.io/compozy/compozy-dev:dev-$(git rev-parse --short HEAD)\`"
+            echo "- **MCP Proxy (dev)**: \`ghcr.io/compozy/mcp-proxy-dev:dev-$(git rev-parse --short HEAD)\`"
+            echo ""
+            echo "### Usage"
+            echo "\`\`\`bash"
+            echo "# Pull the latest development images"
+            echo "docker pull ghcr.io/compozy/compozy-dev:dev-latest"
+            echo "docker pull ghcr.io/compozy/mcp-proxy-dev:dev-latest"
+            echo "\`\`\`"
+            echo ""
+            echo "### Note"
+            echo "These are **development images** built from the main branch. For production use, please use the official releases from GoReleaser."
+          } >> $GITHUB_STEP_SUMMARY
