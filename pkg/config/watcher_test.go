@@ -81,13 +81,16 @@ func TestWatcher_Watch(t *testing.T) {
 		require.NoError(t, err)
 		defer watcher.Close()
 
-		// Register multiple callbacks
-		var wg sync.WaitGroup
-		wg.Add(3)
+		// Register multiple callbacks with counters
+		var mu sync.Mutex
+		callbackCounts := make([]int, 3)
 
 		for i := 0; i < 3; i++ {
+			index := i // capture loop variable
 			watcher.OnChange(func() {
-				wg.Done()
+				mu.Lock()
+				callbackCounts[index]++
+				mu.Unlock()
 			})
 		}
 
@@ -105,19 +108,15 @@ func TestWatcher_Watch(t *testing.T) {
 		err = os.WriteFile(tmpFile.Name(), []byte("test: value"), 0644)
 		require.NoError(t, err)
 
-		// Wait for all callbacks
-		done := make(chan bool)
-		go func() {
-			wg.Wait()
-			done <- true
-		}()
+		// Wait for callbacks to be invoked
+		time.Sleep(200 * time.Millisecond)
 
-		select {
-		case <-done:
-			// Success - all callbacks invoked
-		case <-time.After(1 * time.Second):
-			t.Fatal("timeout waiting for callbacks")
+		// Verify all callbacks were invoked at least once
+		mu.Lock()
+		for i, count := range callbackCounts {
+			assert.Greater(t, count, 0, "callback %d should have been invoked at least once", i)
 		}
+		mu.Unlock()
 	})
 
 	t.Run("Should handle absolute file paths", func(t *testing.T) {
