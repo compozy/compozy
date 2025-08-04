@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 // MockTool implements the tool.Tool interface for testing
@@ -152,8 +153,7 @@ func TestOrchestrator_validateInput(t *testing.T) {
 			},
 		}
 		err := orchestrator.validateInput(ctx, request)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "input validation failed")
+		assert.ErrorContains(t, err, "input validation failed")
 	})
 
 	t.Run("Should skip validation when no input schema provided", func(t *testing.T) {
@@ -213,7 +213,7 @@ func TestOrchestrator_validateOutput(t *testing.T) {
 			OutputSchema: outputSchema,
 		}
 		err := orchestrator.validateOutput(ctx, &output, action)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("Should skip validation when no output schema provided", func(t *testing.T) {
@@ -324,9 +324,8 @@ func TestOrchestrator_executeToolCalls(t *testing.T) {
 		}
 		mockRegistry.On("Find", ctx, "nonexistent-tool").Return(nil, false)
 		result, err := orchestrator.executeToolCalls(ctx, toolCalls, request)
-		assert.Error(t, err)
+		assert.ErrorContains(t, err, "tool not found")
 		assert.Nil(t, result)
-		assert.Contains(t, err.Error(), "tool not found")
 		mockRegistry.AssertExpectations(t)
 	})
 }

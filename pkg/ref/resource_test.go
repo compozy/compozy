@@ -121,7 +121,7 @@ func TestEvaluator_ResourceScope(t *testing.T) {
 			},
 		}
 		result, err := evaluator.Eval(document)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, result)
 		assert.Contains(t, err.Error(), "resource scope is not configured")
 	})
@@ -137,8 +137,9 @@ func TestEvaluator_ResourceScope(t *testing.T) {
 			},
 		}
 		result, err := evaluator.Eval(document)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "assert.AnError general error for testing")
 		mockResolver.AssertExpectations(t)
 	})
 
@@ -151,7 +152,7 @@ func TestEvaluator_ResourceScope(t *testing.T) {
 			},
 		}
 		result, err := evaluator.Eval(document)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, result)
 		assert.Contains(t, err.Error(), "invalid resource path format")
 	})
@@ -165,7 +166,7 @@ func TestEvaluator_ResourceScope(t *testing.T) {
 			},
 		}
 		result, err := evaluator.Eval(document)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, result)
 		assert.Contains(t, err.Error(), "resource type cannot be empty")
 	})
@@ -179,7 +180,7 @@ func TestEvaluator_ResourceScope(t *testing.T) {
 			},
 		}
 		result, err := evaluator.Eval(document)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, result)
 		assert.Contains(t, err.Error(), "resource selector cannot be empty")
 	})
@@ -243,7 +244,7 @@ func TestResourceScopeValidation(t *testing.T) {
 
 	t.Run("Should reject invalid resource scope format", func(t *testing.T) {
 		err := validateRef("resource:invalid:format")
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid $ref syntax")
 	})
 }

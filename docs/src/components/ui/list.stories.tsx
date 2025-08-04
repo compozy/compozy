@@ -262,7 +262,7 @@ export const SizeComparison: Story = {
           </ListItem>
         </List>
       </div>
-      
+
       <div>
         <h3 className="text-lg font-semibold mb-4">Medium Size (Default)</h3>
         <List size="md" icon={CheckCircle2}>
@@ -277,7 +277,7 @@ export const SizeComparison: Story = {
           </ListItem>
         </List>
       </div>
-      
+
       <div>
         <h3 className="text-lg font-semibold mb-4">Large Size</h3>
         <List size="lg" icon={CheckCircle2}>

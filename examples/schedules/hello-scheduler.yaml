@@ -4,7 +4,7 @@ description: Simple scheduled workflow that runs every 15 seconds
 
 # Schedule configuration
 schedule:
-  cron: "0,15,30,45 * * * * *" # Every 15 seconds (at 0, 15, 30, 45 seconds of each minute)
+  cron: "0,15,30,45 * * * * *"  # Every 15 seconds (at 0, 15, 30, 45 seconds of each minute)
   timezone: UTC
   enabled: true
 

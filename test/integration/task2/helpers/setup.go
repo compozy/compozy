@@ -5,11 +5,11 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/tplengine"
+	utils "github.com/compozy/compozy/test/helpers"
 	"github.com/compozy/compozy/test/integration/worker/helpers"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
@@ -30,25 +30,18 @@ type TestSetup struct {
 }
 
 // NewTestSetup creates a new test setup with all common infrastructure
+// This version uses shared database resources for optimal performance
 func NewTestSetup(t *testing.T) *TestSetup {
 	if testing.Short() {
 		t.Skip("skipping integration tests")
 	}
 
-	// Setup test infrastructure
-	dbHelper := helpers.NewDatabaseHelper(t)
-	t.Cleanup(func() {
-		dbHelper.Cleanup(t)
-	})
-
+	// Use shared database helper to avoid container creation overhead
 	ctx := context.Background()
-	pool := dbHelper.GetPool()
+	taskRepo, workflowRepo, cleanup := getSharedTestRepos(ctx, t)
+	t.Cleanup(cleanup)
 
-	// Create real repository instances
-	taskRepo := store.NewTaskRepo(pool)
-	workflowRepo := store.NewWorkflowRepo(pool)
-
-	// Create handler dependencies
+	// Create handler dependencies - reuse mocks from centralized location
 	templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
 	contextBuilder := &shared.ContextBuilder{}
 	parentStatusManager := &MockParentStatusManager{}
@@ -66,7 +59,7 @@ func NewTestSetup(t *testing.T) *TestSetup {
 
 	return &TestSetup{
 		Context:             ctx,
-		Pool:                pool,
+		Pool:                nil, // Pool managed by shared helper
 		TaskRepo:            taskRepo,
 		WorkflowRepo:        workflowRepo,
 		TemplateEngine:      templateEngine,
@@ -74,8 +67,15 @@ func NewTestSetup(t *testing.T) *TestSetup {
 		ParentStatusManager: parentStatusManager,
 		OutputTransformer:   outputTransformer,
 		BaseHandler:         baseHandler,
-		DBHelper:            dbHelper,
+		DBHelper:            nil, // Managed by shared helper
 	}
+}
+
+// getSharedTestRepos provides shared database resources across all tests
+// This eliminates the need for individual container creation
+func getSharedTestRepos(ctx context.Context, t *testing.T) (task.Repository, workflow.Repository, func()) {
+	// Use the existing SetupTestRepos helper that already provides efficient database setup
+	return utils.SetupTestRepos(ctx, t)
 }
 
 // CreateWorkflowState creates and saves a workflow state for testing

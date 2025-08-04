@@ -126,10 +126,3 @@ func TestSignalResponseHandler_Integration(t *testing.T) {
 		assert.NotNil(t, savedState.Error)
 	})
 }
-
-func TestSignalResponseHandler_Type(t *testing.T) {
-	t.Run("Should return signal task type", func(t *testing.T) {
-		handler := signal.NewResponseHandler(nil, nil, nil)
-		assert.Equal(t, task.TaskTypeSignal, handler.Type())
-	})
-}

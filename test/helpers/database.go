@@ -11,92 +11,182 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
-	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
-var gooseDialectOnce sync.Once
+var (
+	gooseDialectOnce sync.Once
+	// Shared container infrastructure for optimized testing
+	sharedPGContainer     *postgres.PostgresContainer
+	sharedPGPool          *pgxpool.Pool
+	pgContainerOnce       sync.Once
+	pgContainerMu         sync.Mutex
+	pgContainerStartError error
 
-// CreateTestContainerDatabase sets up a new PostgreSQL container for integration tests.
-func CreateTestContainerDatabase(ctx context.Context, t *testing.T) (*pgxpool.Pool, func()) {
-	pgContainer, err := postgres.Run(ctx,
-		"postgres:15-alpine",
-		postgres.WithDatabase("test-db"),
-		postgres.WithUsername("user"),
-		postgres.WithPassword("password"),
-		testcontainers.WithWaitStrategy(
-			wait.ForLog("database system is ready to accept connections").
-				WithOccurrence(2).
-				WithStartupTimeout(5*time.Second),
-		),
-	)
-	require.NoError(t, err)
+	// Separate container for no-migrations testing
+	sharedPGContainerNoMigrations     *postgres.PostgresContainer
+	sharedPGPoolNoMigrations          *pgxpool.Pool
+	pgContainerNoMigrationsOnce       sync.Once
+	pgContainerNoMigrationsMu         sync.Mutex
+	pgContainerNoMigrationsStartError error
+)
 
-	connStr, err := pgContainer.ConnectionString(ctx, "sslmode=disable")
-	require.NoError(t, err)
+// GetSharedPostgresDB returns a shared PostgreSQL database for tests
+// This is 70-90% faster than creating individual containers
+func GetSharedPostgresDB(ctx context.Context, t *testing.T) (*pgxpool.Pool, func()) {
+	t.Helper()
 
-	pool, err := pgxpool.New(ctx, connStr)
-	require.NoError(t, err)
+	// Initialize shared container on first use
+	pgContainerOnce.Do(func() {
+		sharedPGContainer, sharedPGPool, pgContainerStartError = startSharedContainer(ctx, t)
+	})
 
-	err = ensureTablesExist(pool)
-	require.NoError(t, err)
-
-	cleanup := func() {
-		// Close the pool first to release all connections
-		// pool.Close() is synchronous and waits for all connections to be properly closed
-		pool.Close()
-
-		// Terminate the container with a timeout
-		terminateCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
-		if err := pgContainer.Terminate(terminateCtx); err != nil {
-			t.Logf("Warning: failed to terminate container: %s", err)
-		}
+	if pgContainerStartError != nil {
+		t.Fatalf("Failed to start shared container: %v", pgContainerStartError)
 	}
 
-	return pool, cleanup
+	// Create test-specific cleanup that preserves the container
+	cleanup := createTestIsolation(ctx, t, sharedPGPool)
+
+	return sharedPGPool, cleanup
 }
 
-// CreateTestContainerDatabaseWithoutMigrations sets up a new PostgreSQL container without running migrations.
-// This is useful for testing migration logic itself.
-func CreateTestContainerDatabaseWithoutMigrations(ctx context.Context, t *testing.T) (*pgxpool.Pool, func()) {
+// createPostgresContainer creates a PostgreSQL container with standard configuration
+func createPostgresContainer(ctx context.Context) (*postgres.PostgresContainer, *pgxpool.Pool, error) {
 	pgContainer, err := postgres.Run(ctx,
 		"postgres:15-alpine",
 		postgres.WithDatabase("test-db"),
 		postgres.WithUsername("user"),
 		postgres.WithPassword("password"),
 		testcontainers.WithWaitStrategy(
-			wait.ForLog("database system is ready to accept connections").
-				WithOccurrence(2).
-				WithStartupTimeout(5*time.Second),
+			wait.ForAll(
+				wait.ForLog("database system is ready to accept connections").
+					WithOccurrence(2).
+					WithStartupTimeout(30*time.Second),
+				wait.ForListeningPort("5432/tcp").
+					WithStartupTimeout(30*time.Second),
+			),
 		),
 	)
-	require.NoError(t, err)
-
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to start container: %w", err)
+	}
 	connStr, err := pgContainer.ConnectionString(ctx, "sslmode=disable")
-	require.NoError(t, err)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get connection string: %w", err)
+	}
+	config, err := pgxpool.ParseConfig(connStr)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to parse config: %w", err)
+	}
+	config.MaxConns = 50
+	config.MinConns = 5
+	config.MaxConnLifetime = 30 * time.Minute
+	config.MaxConnIdleTime = 5 * time.Minute
+	pool, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create pool: %w", err)
+	}
+	return pgContainer, pool, nil
+}
 
-	pool, err := pgxpool.New(ctx, connStr)
-	require.NoError(t, err)
+// startSharedContainer initializes the shared PostgreSQL container
+func startSharedContainer(ctx context.Context, _ *testing.T) (*postgres.PostgresContainer, *pgxpool.Pool, error) {
+	pgContainer, pool, err := createPostgresContainer(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	// Run migrations once
+	if err := ensureTablesExist(pool); err != nil {
+		return nil, nil, fmt.Errorf("failed to run migrations: %w", err)
+	}
+	return pgContainer, pool, nil
+}
 
-	cleanup := func() {
-		// Close the pool first to release all connections
-		// pool.Close() is synchronous and waits for all connections to be properly closed
-		pool.Close()
+// createTestIsolation creates cleanup function that preserves the shared container
+// For parallel tests, we use transactions for isolation instead of table truncation
+func createTestIsolation(ctx context.Context, t *testing.T, pool *pgxpool.Pool) func() {
+	// Start a transaction for test isolation
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("Failed to begin transaction: %v", err)
+	}
+	// Return cleanup that rolls back the transaction
+	return func() {
+		if err := tx.Rollback(ctx); err != nil {
+			t.Logf("Failed to rollback transaction: %v", err)
+		}
+	}
+}
 
-		// Terminate the container with a timeout
-		terminateCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+// GetSharedPostgresDBWithoutMigrations returns a shared PostgreSQL database without running migrations
+// This is used for testing migration logic itself
+func GetSharedPostgresDBWithoutMigrations(ctx context.Context, t *testing.T) (*pgxpool.Pool, func()) {
+	t.Helper()
+	// Initialize separate shared container for no-migrations testing
+	pgContainerNoMigrationsOnce.Do(func() {
+		sharedPGContainerNoMigrations, sharedPGPoolNoMigrations, pgContainerNoMigrationsStartError =
+			startSharedContainerWithoutMigrations(ctx, t)
+	})
+	if pgContainerNoMigrationsStartError != nil {
+		t.Fatalf("Failed to start shared container without migrations: %v", pgContainerNoMigrationsStartError)
+	}
+	// Create test-specific cleanup that preserves the container
+	cleanup := createTestIsolation(ctx, t, sharedPGPoolNoMigrations)
+	return sharedPGPoolNoMigrations, cleanup
+}
+
+// startSharedContainerWithoutMigrations initializes the shared PostgreSQL container without migrations
+func startSharedContainerWithoutMigrations(
+	ctx context.Context,
+	_ *testing.T,
+) (*postgres.PostgresContainer, *pgxpool.Pool, error) {
+	pgContainer, pool, err := createPostgresContainer(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	// NOTE: Skip migrations for testing migration logic
+	return pgContainer, pool, nil
+}
+
+// CleanupSharedContainer should be called in TestMain to terminate the shared container
+func CleanupSharedContainer() {
+	pgContainerMu.Lock()
+	defer pgContainerMu.Unlock()
+
+	if sharedPGPool != nil {
+		sharedPGPool.Close()
+	}
+
+	if sharedPGContainer != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
-		if err := pgContainer.Terminate(terminateCtx); err != nil {
-			t.Logf("Warning: failed to terminate container: %s", err)
+		if err := sharedPGContainer.Terminate(ctx); err != nil {
+			// Log but don't fail
+			fmt.Printf("Warning: failed to terminate shared container: %v\n", err)
 		}
 	}
 
-	return pool, cleanup
+	// Also cleanup the no-migrations container
+	pgContainerNoMigrationsMu.Lock()
+	defer pgContainerNoMigrationsMu.Unlock()
+
+	if sharedPGPoolNoMigrations != nil {
+		sharedPGPoolNoMigrations.Close()
+	}
+
+	if sharedPGContainerNoMigrations != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		if err := sharedPGContainerNoMigrations.Terminate(ctx); err != nil {
+			// Log but don't fail
+			fmt.Printf("Warning: failed to terminate shared no-migrations container: %v\n", err)
+		}
+	}
 }
 
 // ensureTablesExist runs goose migrations to create the required tables

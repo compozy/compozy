@@ -62,8 +62,13 @@ func TestMonitoringGracefulDegradation(t *testing.T) {
 		resp, err := http.DefaultClient.Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
-		// Should return 503 Service Unavailable
-		assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
+		// Should return 503 Service Unavailable when monitoring is degraded
+		require.Equal(
+			t,
+			http.StatusServiceUnavailable,
+			resp.StatusCode,
+			"Metrics endpoint should return 503 when monitoring is disabled",
+		)
 	})
 	t.Run("Should handle disabled monitoring configuration", func(t *testing.T) {
 		// Create monitoring service with disabled config
@@ -101,8 +106,8 @@ func TestMonitoringGracefulDegradation(t *testing.T) {
 		resp, err = http.DefaultClient.Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
-		// With disabled monitoring, the handler should indicate the service is unavailable
-		assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
+		// Disabled monitoring should return service unavailable status
+		require.Equal(t, http.StatusServiceUnavailable, resp.StatusCode, "Disabled monitoring should return 503 status")
 	})
 	t.Run("Should use fallback service for invalid configuration", func(t *testing.T) {
 		// Create invalid config
@@ -124,8 +129,13 @@ func TestMonitoringGracefulDegradation(t *testing.T) {
 		resp, err := http.DefaultClient.Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
-		// Should return 503 for degraded service
-		assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
+		// Should return 503 for degraded service with invalid config
+		require.Equal(
+			t,
+			http.StatusServiceUnavailable,
+			resp.StatusCode,
+			"Invalid configuration should result in degraded service returning 503",
+		)
 	})
 	t.Run("Should handle temporal interceptor with degraded monitoring", func(t *testing.T) {
 		// Create disabled monitoring service

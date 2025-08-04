@@ -220,10 +220,3 @@ func TestParallelResponseHandler_Integration(t *testing.T) {
 		}
 	})
 }
-
-func TestParallelResponseHandler_Type(t *testing.T) {
-	t.Run("Should return parallel task type", func(t *testing.T) {
-		handler := parallel.NewResponseHandler(nil, nil, nil)
-		assert.Equal(t, task.TaskTypeParallel, handler.Type())
-	})
-}

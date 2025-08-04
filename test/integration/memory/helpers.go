@@ -13,7 +13,9 @@ import (
 	"go.temporal.io/sdk/mocks"
 
 	"github.com/compozy/compozy/engine/autoload"
+	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/cache"
+	"github.com/compozy/compozy/engine/llm"
 	"github.com/compozy/compozy/engine/memory"
 	memcore "github.com/compozy/compozy/engine/memory/core"
 	"github.com/compozy/compozy/engine/memory/privacy"
@@ -248,4 +250,42 @@ func (env *TestEnvironment) addTestMemoryConfigs() {
 			panic(fmt.Sprintf("Failed to register test config: %v", err))
 		}
 	}
+}
+
+// CreateTestMemoryRef creates a standardized memory reference for tests
+func CreateTestMemoryRef(memoryID, testName string) core.MemoryReference {
+	return core.MemoryReference{
+		ID:  memoryID,
+		Key: fmt.Sprintf("%s-{{.test.id}}", testName),
+	}
+}
+
+// CreateTestWorkflowContext creates a standardized workflow context for tests
+func CreateTestWorkflowContext(testName string) map[string]any {
+	return map[string]any{
+		"project": map[string]any{
+			"id": "test-project",
+		},
+		"test": map[string]any{
+			"id": fmt.Sprintf("%s-%d", testName, time.Now().Unix()),
+		},
+	}
+}
+
+// CreateTestMessage creates a standardized test message
+func CreateTestMessage(role llm.MessageRole, content string) llm.Message {
+	return llm.Message{
+		Role:    role,
+		Content: content,
+	}
+}
+
+// AppendTestMessages appends a series of test messages to a memory instance
+func AppendTestMessages(ctx context.Context, instance memcore.Memory, messages []llm.Message) error {
+	for _, msg := range messages {
+		if err := instance.Append(ctx, msg); err != nil {
+			return fmt.Errorf("failed to append message: %w", err)
+		}
+	}
+	return nil
 }

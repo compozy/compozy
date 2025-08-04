@@ -11,20 +11,20 @@ import (
 )
 
 func TestDefaultStorageConfig(t *testing.T) {
-	config := DefaultStorageConfig()
+	t.Run("Should create default Redis storage configuration", func(t *testing.T) {
+		config := DefaultStorageConfig()
 
-	assert.Equal(t, StorageTypeRedis, config.Type)
-	assert.NotNil(t, config.Redis)
-	assert.Equal(t, "localhost:6379", config.Redis.Addr)
+		assert.Equal(t, StorageTypeRedis, config.Type)
+		assert.NotNil(t, config.Redis)
+		assert.Equal(t, "localhost:6379", config.Redis.Addr)
+	})
 }
 
 func TestNewStorage(t *testing.T) {
-	t.Run("Redis storage", func(t *testing.T) {
-		// Create miniredis instance for testing
+	t.Run("Should create Redis storage with proper configuration", func(t *testing.T) {
 		mr := miniredis.RunT(t)
 		defer mr.Close()
 
-		// Ensure miniredis is ready
 		time.Sleep(10 * time.Millisecond)
 
 		config := &StorageConfig{
@@ -48,7 +48,7 @@ func TestNewStorage(t *testing.T) {
 		defer storage.Close()
 	})
 
-	t.Run("Memory storage", func(t *testing.T) {
+	t.Run("Should create memory storage with proper type", func(t *testing.T) {
 		config := &StorageConfig{
 			Type: StorageTypeMemory,
 		}
@@ -59,24 +59,20 @@ func TestNewStorage(t *testing.T) {
 		defer storage.Close()
 	})
 
-	t.Run("Nil config", func(t *testing.T) {
-		// Test that nil config defaults to Redis storage type
-		// Since we can't connect to real Redis in tests, this should fail with connection error
+	t.Run("Should reject nil config with connection error", func(t *testing.T) {
 		storage, err := NewStorage(nil)
-		assert.Error(t, err)
+		assert.ErrorContains(t, err, "failed to connect to Redis")
 		assert.Nil(t, storage)
-		assert.Contains(t, err.Error(), "failed to connect to Redis")
 	})
 
-	t.Run("Unsupported type", func(t *testing.T) {
+	t.Run("Should reject unsupported storage type with specific error", func(t *testing.T) {
 		config := &StorageConfig{
 			Type: StorageType("unsupported"),
 		}
 
 		storage, err := NewStorage(config)
-		assert.Error(t, err)
+		assert.ErrorContains(t, err, "unsupported storage type")
 		assert.Nil(t, storage)
-		assert.Contains(t, err.Error(), "unsupported storage type")
 	})
 }
 
@@ -84,28 +80,26 @@ func TestMemoryStorage_SaveMCP(t *testing.T) {
 	storage := NewMemoryStorage()
 	ctx := context.Background()
 
-	t.Run("Valid definition", func(t *testing.T) {
+	t.Run("Should save valid MCP definition successfully", func(t *testing.T) {
 		def := createTestDefinition("test-server")
 
 		err := storage.SaveMCP(ctx, def)
 		assert.NoError(t, err)
 	})
 
-	t.Run("Nil definition", func(t *testing.T) {
+	t.Run("Should reject nil definition with validation error", func(t *testing.T) {
 		err := storage.SaveMCP(ctx, nil)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "definition cannot be nil")
+		assert.ErrorContains(t, err, "definition cannot be nil")
 	})
 
-	t.Run("Invalid definition", func(t *testing.T) {
+	t.Run("Should reject invalid definition with validation error", func(t *testing.T) {
 		def := &MCPDefinition{
-			Name:      "", // Invalid: empty name
+			Name:      "",
 			Transport: TransportStdio,
 		}
 
 		err := storage.SaveMCP(ctx, def)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid definition")
+		assert.ErrorContains(t, err, "invalid definition")
 	})
 }
 
@@ -113,14 +107,12 @@ func TestMemoryStorage_LoadMCP(t *testing.T) {
 	storage := NewMemoryStorage()
 	ctx := context.Background()
 
-	t.Run("Existing definition", func(t *testing.T) {
+	t.Run("Should load existing definition with all fields intact", func(t *testing.T) {
 		original := createTestDefinition("test-server")
 
-		// Save first
 		err := storage.SaveMCP(ctx, original)
 		require.NoError(t, err)
 
-		// Load
 		loaded, err := storage.LoadMCP(ctx, "test-server")
 		require.NoError(t, err)
 
@@ -129,20 +121,17 @@ func TestMemoryStorage_LoadMCP(t *testing.T) {
 		assert.Equal(t, original.Transport, loaded.Transport)
 		assert.Equal(t, original.Command, loaded.Command)
 
-		// Verify it's a clone (different memory address)
 		assert.NotSame(t, original, loaded)
 	})
 
-	t.Run("Non-existing definition", func(t *testing.T) {
+	t.Run("Should return not found error for non-existing definition", func(t *testing.T) {
 		_, err := storage.LoadMCP(ctx, "non-existing")
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "not found")
+		assert.ErrorContains(t, err, "not found")
 	})
 
-	t.Run("Empty name", func(t *testing.T) {
+	t.Run("Should reject empty name with validation error", func(t *testing.T) {
 		_, err := storage.LoadMCP(ctx, "")
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "name cannot be empty")
+		assert.ErrorContains(t, err, "name cannot be empty")
 	})
 }
 
@@ -150,43 +139,35 @@ func TestMemoryStorage_DeleteMCP(t *testing.T) {
 	storage := NewMemoryStorage()
 	ctx := context.Background()
 
-	t.Run("Existing definition", func(t *testing.T) {
+	t.Run("Should delete existing definition and associated status", func(t *testing.T) {
 		def := createTestDefinition("test-server")
 
-		// Save first
 		err := storage.SaveMCP(ctx, def)
 		require.NoError(t, err)
 
-		// Save status too
 		status := NewMCPStatus("test-server")
 		err = storage.SaveStatus(ctx, status)
 		require.NoError(t, err)
 
-		// Delete
 		err = storage.DeleteMCP(ctx, "test-server")
 		assert.NoError(t, err)
 
-		// Verify deletion
 		_, err = storage.LoadMCP(ctx, "test-server")
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "not found")
+		assert.ErrorContains(t, err, "not found")
 
-		// Verify status was also deleted (should return default)
 		loadedStatus, err := storage.LoadStatus(ctx, "test-server")
 		require.NoError(t, err)
 		assert.Equal(t, StatusDisconnected, loadedStatus.Status)
 	})
 
-	t.Run("Non-existing definition", func(t *testing.T) {
+	t.Run("Should return not found error for non-existing definition", func(t *testing.T) {
 		err := storage.DeleteMCP(ctx, "non-existing")
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "not found")
+		assert.ErrorContains(t, err, "not found")
 	})
 
-	t.Run("Empty name", func(t *testing.T) {
+	t.Run("Should reject empty name with validation error", func(t *testing.T) {
 		err := storage.DeleteMCP(ctx, "")
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "name cannot be empty")
+		assert.ErrorContains(t, err, "name cannot be empty")
 	})
 }
 
@@ -194,13 +175,13 @@ func TestMemoryStorage_ListMCPs(t *testing.T) {
 	storage := NewMemoryStorage()
 	ctx := context.Background()
 
-	t.Run("Empty list", func(t *testing.T) {
+	t.Run("Should return empty list when no definitions exist", func(t *testing.T) {
 		definitions, err := storage.ListMCPs(ctx)
 		assert.NoError(t, err)
 		assert.Empty(t, definitions)
 	})
 
-	t.Run("Multiple definitions", func(t *testing.T) {
+	t.Run("Should return all saved definitions with correct names", func(t *testing.T) {
 		// Save multiple definitions
 		def1 := createTestDefinition("server-1")
 		def2 := createTestDefinition("server-2")
@@ -233,7 +214,7 @@ func TestMemoryStorage_SaveStatus(t *testing.T) {
 	storage := NewMemoryStorage()
 	ctx := context.Background()
 
-	t.Run("Valid status", func(t *testing.T) {
+	t.Run("Should save valid status successfully", func(t *testing.T) {
 		status := NewMCPStatus("test-server")
 		status.UpdateStatus(StatusConnected, "")
 
@@ -241,18 +222,16 @@ func TestMemoryStorage_SaveStatus(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("Nil status", func(t *testing.T) {
+	t.Run("Should reject nil status with validation error", func(t *testing.T) {
 		err := storage.SaveStatus(ctx, nil)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "status cannot be nil")
+		assert.ErrorContains(t, err, "status cannot be nil")
 	})
 
-	t.Run("Empty name", func(t *testing.T) {
+	t.Run("Should reject status with empty name", func(t *testing.T) {
 		status := &MCPStatus{Name: ""}
 
 		err := storage.SaveStatus(ctx, status)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "status name cannot be empty")
+		assert.ErrorContains(t, err, "status name cannot be empty")
 	})
 }
 
@@ -260,16 +239,14 @@ func TestMemoryStorage_LoadStatus(t *testing.T) {
 	storage := NewMemoryStorage()
 	ctx := context.Background()
 
-	t.Run("Existing status", func(t *testing.T) {
+	t.Run("Should load existing status with all fields intact", func(t *testing.T) {
 		original := NewMCPStatus("test-server")
 		original.UpdateStatus(StatusConnected, "")
 		original.TotalRequests = 10
 
-		// Save first
 		err := storage.SaveStatus(ctx, original)
 		require.NoError(t, err)
 
-		// Load
 		loaded, err := storage.LoadStatus(ctx, "test-server")
 		require.NoError(t, err)
 
@@ -277,12 +254,10 @@ func TestMemoryStorage_LoadStatus(t *testing.T) {
 		assert.Equal(t, original.Status, loaded.Status)
 		assert.Equal(t, original.TotalRequests, loaded.TotalRequests)
 
-		// Verify it's a copy (different memory address)
 		assert.NotSame(t, original, loaded)
 	})
 
-	t.Run("Non-existing status", func(t *testing.T) {
-		// Should return default status, not error
+	t.Run("Should return default status for non-existing entry", func(t *testing.T) {
 		status, err := storage.LoadStatus(ctx, "non-existing")
 		require.NoError(t, err)
 
@@ -291,25 +266,25 @@ func TestMemoryStorage_LoadStatus(t *testing.T) {
 		assert.Equal(t, int64(0), status.TotalRequests)
 	})
 
-	t.Run("Empty name", func(t *testing.T) {
+	t.Run("Should reject empty name with validation error", func(t *testing.T) {
 		_, err := storage.LoadStatus(ctx, "")
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "name cannot be empty")
+		assert.ErrorContains(t, err, "name cannot be empty")
 	})
 }
 
 func TestMemoryStorage_Close(t *testing.T) {
-	storage := NewMemoryStorage()
-	err := storage.Close()
-	assert.NoError(t, err)
+	t.Run("Should close storage without errors", func(t *testing.T) {
+		storage := NewMemoryStorage()
+		err := storage.Close()
+		assert.NoError(t, err)
+	})
 }
 
 func TestMemoryStorage_Integration(t *testing.T) {
 	storage := NewMemoryStorage()
 	ctx := context.Background()
 
-	// Test complete workflow
-	t.Run("Complete workflow", func(t *testing.T) {
+	t.Run("Should handle complete CRUD workflow correctly", func(t *testing.T) {
 		// Create definition
 		def := createTestDefinition("integration-test")
 

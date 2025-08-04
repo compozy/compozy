@@ -54,9 +54,8 @@ func TestRouterResponseHandler_HandleResponse_Validation(t *testing.T) {
 
 		result, err := handler.HandleResponse(context.Background(), input)
 
-		assert.Error(t, err)
 		assert.Nil(t, result)
-		assert.Contains(t, err.Error(), "handler type does not match task type")
+		assert.ErrorContains(t, err, "handler type does not match task type")
 
 		var validationErr *shared.ValidationError
 		assert.ErrorAs(t, err, &validationErr)
@@ -70,8 +69,7 @@ func TestRouterResponseHandler_ValidateRoutingDecision(t *testing.T) {
 
 		err := handler.ValidateRoutingDecision(nil)
 
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "router output cannot be nil")
+		assert.ErrorContains(t, err, "router output cannot be nil")
 	})
 
 	t.Run("Should validate non-nil output", func(t *testing.T) {
@@ -135,8 +133,7 @@ func TestRouterResponseHandler_setNextTaskFromRoute(t *testing.T) {
 
 		err := handler.setNextTaskFromRoute(input, response)
 
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "route_taken must be a string")
+		assert.ErrorContains(t, err, "route_taken must be a string")
 	})
 
 	t.Run("Should handle route not found in workflow", func(t *testing.T) {
@@ -160,8 +157,7 @@ func TestRouterResponseHandler_setNextTaskFromRoute(t *testing.T) {
 
 		err := handler.setNextTaskFromRoute(input, response)
 
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "route 'nonexistent-task' not found in workflow tasks")
+		assert.ErrorContains(t, err, "route 'nonexistent-task' not found in workflow tasks")
 	})
 
 	t.Run("Should set next task override when route found", func(t *testing.T) {
@@ -417,7 +413,6 @@ func TestRouterResponseHandler_setNextTaskFromRoute(t *testing.T) {
 
 		err := handler.setNextTaskFromRoute(input, response)
 
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "route 'any-task' not found in workflow tasks")
+		assert.ErrorContains(t, err, "route 'any-task' not found in workflow tasks")
 	})
 }

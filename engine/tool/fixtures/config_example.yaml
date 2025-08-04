@@ -18,7 +18,11 @@ input:
     method:
       type: string
       description: HTTP method to use
-      enum: ["GET", "POST", "PUT", "DELETE"]
+      enum:
+        - "GET"
+        - "POST"
+        - "PUT"
+        - "DELETE"
     body:
       type: object
       description: Request body for POST/PUT requests

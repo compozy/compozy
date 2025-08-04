@@ -556,7 +556,7 @@ func TestExecuteMemory_ErrorHandling(t *testing.T) {
 		_, err := activity.Run(context.Background(), input)
 
 		// Assert
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "memory configuration error")
 	})
 
@@ -586,7 +586,7 @@ func TestExecuteMemory_ErrorHandling(t *testing.T) {
 		_, err := activity.Run(context.Background(), input)
 
 		// Assert
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "key_template")
 	})
 
@@ -616,7 +616,7 @@ func TestExecuteMemory_ErrorHandling(t *testing.T) {
 		_, err := activity.Run(context.Background(), input)
 
 		// Assert
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "unsupported memory operation")
 	})
 
@@ -636,7 +636,7 @@ func TestExecuteMemory_ErrorHandling(t *testing.T) {
 		_, err := activity.Run(context.Background(), input)
 
 		// Assert
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "task_config is required")
 	})
 }

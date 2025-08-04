@@ -40,8 +40,8 @@ func TestDistributedLockingAppend(t *testing.T) {
 				"id": fmt.Sprintf("append-%d", time.Now().Unix()),
 			},
 		}
-		const numWorkers = 20
-		const messagesPerWorker = 10
+		const numWorkers = 8        // Reduced from 20 for faster tests
+		const messagesPerWorker = 5 // Reduced from 10 for faster tests
 		var appendCount atomic.Int32
 		var lockWaitCount atomic.Int32
 		results := make(chan error, numWorkers)

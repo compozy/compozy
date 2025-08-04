@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 )
 
@@ -31,7 +32,7 @@ func TestConfig_Validate(t *testing.T) {
 			Include: []string{},
 		}
 		err := config.Validate()
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "include patterns are required")
 	})
 	t.Run("Should pass validation with valid include patterns", func(t *testing.T) {
@@ -47,7 +48,7 @@ func TestConfig_Validate(t *testing.T) {
 			Include: []string{"workflows/**/*.yaml", ""},
 		}
 		err := config.Validate()
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "empty include pattern")
 	})
 	t.Run("Should fail validation with empty exclude pattern", func(t *testing.T) {
@@ -57,7 +58,7 @@ func TestConfig_Validate(t *testing.T) {
 			Exclude: []string{"test/**", ""},
 		}
 		err := config.Validate()
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "empty exclude pattern")
 	})
 	t.Run("Should pass validation with valid exclude patterns", func(t *testing.T) {

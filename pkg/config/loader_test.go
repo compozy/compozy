@@ -87,7 +87,7 @@ func TestLoader_Load(t *testing.T) {
 		cfg, err := loader.Load(ctx, source)
 
 		// Assert
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "validation failed")
 		assert.Nil(t, cfg)
 	})
@@ -129,7 +129,7 @@ func TestLoader_Load(t *testing.T) {
 		cfg, err := loader.Load(ctx, source)
 
 		// Assert
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to load from source")
 		assert.Nil(t, cfg)
 	})
@@ -156,7 +156,7 @@ func TestLoader_Validate(t *testing.T) {
 		err := loader.Validate(nil)
 
 		// Assert
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "configuration cannot be nil")
 	})
 
@@ -170,7 +170,7 @@ func TestLoader_Validate(t *testing.T) {
 		err := loader.Validate(cfg)
 
 		// Assert
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "validation failed")
 	})
 
@@ -185,7 +185,7 @@ func TestLoader_Validate(t *testing.T) {
 		err := loader.Validate(cfg)
 
 		// Assert
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "dispatcher heartbeat TTL must be greater than heartbeat interval")
 	})
 }
@@ -245,7 +245,7 @@ func TestLoader_Watch(t *testing.T) {
 		err := loader.Watch(ctx, nil)
 
 		// Assert
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "callback cannot be nil")
 	})
 }

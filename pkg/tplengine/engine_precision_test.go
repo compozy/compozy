@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestTemplateEngine_PrecisionPreservation(t *testing.T) {
@@ -17,22 +18,25 @@ func TestTemplateEngine_PrecisionPreservation(t *testing.T) {
 			"normal_float": "3.14",
 		}
 
-		// Test direct value parsing (no template markers)
+		// Test large integer precision preservation
 		result1, err := engine.ParseAny("9007199254740992", context)
-		assert.NoError(t, err)
-		assert.Equal(t, "9007199254740992", result1) // Preserved as string
+		require.NoError(t, err)
+		assert.Equal(t, "9007199254740992", result1, "Large integers should be preserved as strings")
 
+		// Test high precision decimal preservation
 		result2, err := engine.ParseAny("0.123456789123456789", context)
-		assert.NoError(t, err)
-		assert.Equal(t, "0.123456789123456789", result2) // Preserved as string
+		require.NoError(t, err)
+		assert.Equal(t, "0.123456789123456789", result2, "High precision decimals should be preserved as strings")
 
+		// Test normal integer conversion
 		result3, err := engine.ParseAny("42", context)
-		assert.NoError(t, err)
-		assert.Equal(t, int64(42), result3) // Converted to int64
+		require.NoError(t, err)
+		assert.Equal(t, int64(42), result3, "Normal integers should be converted to int64")
 
+		// Test normal float conversion
 		result4, err := engine.ParseAny("3.14", context)
-		assert.NoError(t, err)
-		assert.Equal(t, float64(3.14), result4) // Converted to float64
+		require.NoError(t, err)
+		assert.Equal(t, float64(3.14), result4, "Normal floats should be converted to float64")
 	})
 
 	t.Run("Should apply precision to template results", func(t *testing.T) {
@@ -43,14 +47,15 @@ func TestTemplateEngine_PrecisionPreservation(t *testing.T) {
 			"decimal":   "0.123456789123456789",
 		}
 
-		// Test template rendering with precision
+		// Test template rendering preserves precision for large values
 		result1, err := engine.ParseAny("{{ .large_int }}", context)
-		assert.NoError(t, err)
-		assert.Equal(t, "9007199254740992", result1) // Preserved as string
+		require.NoError(t, err)
+		assert.Equal(t, "9007199254740992", result1, "Template rendering should preserve large integer precision")
 
+		// Test template rendering preserves precision for high-precision decimals
 		result2, err := engine.ParseAny("{{ .decimal }}", context)
-		assert.NoError(t, err)
-		assert.Equal(t, "0.123456789123456789", result2) // Preserved as string
+		require.NoError(t, err)
+		assert.Equal(t, "0.123456789123456789", result2, "Template rendering should preserve decimal precision")
 	})
 
 	t.Run("Should not apply precision when disabled", func(t *testing.T) {
@@ -60,10 +65,15 @@ func TestTemplateEngine_PrecisionPreservation(t *testing.T) {
 			"value": "123",
 		}
 
-		// Without precision preservation, strings remain strings
+		// Test disabled precision preservation behavior
 		result, err := engine.ParseAny("123", context)
-		assert.NoError(t, err)
-		assert.Equal(t, "123", result) // Remains as string
+		require.NoError(t, err)
+		assert.Equal(
+			t,
+			"123",
+			result,
+			"Numeric strings should remain as strings when precision preservation is disabled",
+		)
 	})
 
 	t.Run("Should handle maps with precision", func(t *testing.T) {
@@ -77,15 +87,16 @@ func TestTemplateEngine_PrecisionPreservation(t *testing.T) {
 		}
 
 		result, err := engine.ParseAny(input, nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		m, ok := result.(map[string]any)
-		assert.True(t, ok)
+		require.True(t, ok, "Result should be a map")
 
-		assert.Equal(t, "9007199254740992", m["large_int"])
-		assert.Equal(t, "0.123456789123456789", m["decimal"])
-		assert.Equal(t, int64(42), m["normal"])
-		assert.Equal(t, "hello", m["text"])
+		// Verify precision preservation behavior for different value types
+		assert.Equal(t, "9007199254740992", m["large_int"], "Large integers should be preserved as strings")
+		assert.Equal(t, "0.123456789123456789", m["decimal"], "High precision decimals should be preserved as strings")
+		assert.Equal(t, int64(42), m["normal"], "Normal integers should be converted to int64")
+		assert.Equal(t, "hello", m["text"], "Text values should remain unchanged")
 	})
 
 	t.Run("Should handle arrays with precision", func(t *testing.T) {
@@ -99,14 +110,20 @@ func TestTemplateEngine_PrecisionPreservation(t *testing.T) {
 		}
 
 		result, err := engine.ParseAny(input, nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		arr, ok := result.([]any)
-		assert.True(t, ok)
+		require.True(t, ok, "Result should be an array")
 
-		assert.Equal(t, "9007199254740992", arr[0])
-		assert.Equal(t, "0.123456789123456789", arr[1])
-		assert.Equal(t, int64(42), arr[2])
-		assert.Equal(t, "hello", arr[3])
+		// Verify precision preservation behavior for array elements
+		assert.Equal(t, "9007199254740992", arr[0], "Large integers in arrays should be preserved as strings")
+		assert.Equal(
+			t,
+			"0.123456789123456789",
+			arr[1],
+			"High precision decimals in arrays should be preserved as strings",
+		)
+		assert.Equal(t, int64(42), arr[2], "Normal integers in arrays should be converted to int64")
+		assert.Equal(t, "hello", arr[3], "Text values in arrays should remain unchanged")
 	})
 }

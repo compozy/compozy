@@ -12,10 +12,10 @@ tasks:
       content: |
         Daily Report - {{ .date }}
         ========================
-        
+
         Status: {{ .status }}
         Items processed: {{ .count }}
-        
+
         Summary:
         {{ .summary }}
 
@@ -34,8 +34,8 @@ tasks:
     tool: write_file
     input:
       path: "data/results.json"
-      content: '{{ .results | toJson }}'
-    
+      content: "{{ .results | toJson }}"
+
   - id: create-config
     type: basic
     description: Create a configuration file with custom permissions

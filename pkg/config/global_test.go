@@ -50,7 +50,7 @@ func TestGlobalConfig(t *testing.T) {
 
 		ctx := context.Background()
 		err := Initialize(ctx, nil, failingSource)
-		assert.Error(t, err, "Should return error from failed initialization")
+		require.Error(t, err, "Should return error from failed initialization")
 		assert.Contains(t, err.Error(), "failed to initialize global config")
 	})
 

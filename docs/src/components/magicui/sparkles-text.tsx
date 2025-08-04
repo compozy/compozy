@@ -111,14 +111,14 @@ export const SparklesText: React.FC<SparklesTextProps> = ({
     };
 
     const updateStars = () => {
-      setSparkles((currentSparkles) =>
-        currentSparkles.map((star) => {
+      setSparkles(currentSparkles =>
+        currentSparkles.map(star => {
           if (star.lifespan <= 0) {
             return generateStar();
           } else {
             return { ...star, lifespan: star.lifespan - 0.1 };
           }
-        }),
+        })
       );
     };
 
@@ -140,7 +140,7 @@ export const SparklesText: React.FC<SparklesTextProps> = ({
       }
     >
       <span className="relative inline-block">
-        {sparkles.map((sparkle) => (
+        {sparkles.map(sparkle => (
           <Sparkle key={sparkle.id} {...sparkle} />
         ))}
         <strong>{children}</strong>

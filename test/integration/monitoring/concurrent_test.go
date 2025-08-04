@@ -64,10 +64,11 @@ func TestConcurrentMetricUpdates(t *testing.T) {
 		}
 		// Wait for all goroutines to complete
 		wg.Wait()
-		// Verify all requests completed
+		// Verify all requests completed successfully
 		totalRequests := int64(numGoroutines * requestsPerGoroutine)
 		assert.Equal(t, totalRequests, successCount+errorCount)
-		assert.Equal(t, int64(0), errorCount, "Should have no errors")
+		require.Equal(t, int64(0), errorCount, "Should have no HTTP errors during concurrent execution")
+		assert.Equal(t, totalRequests, successCount, "All requests should complete successfully")
 		// Give metrics time to be recorded
 		time.Sleep(200 * time.Millisecond)
 		// Get metrics
@@ -80,10 +81,14 @@ func TestConcurrentMetricUpdates(t *testing.T) {
 		// Note: This is a basic check - a more thorough test would parse
 		// all counter values and sum them
 		assert.Contains(t, metrics, `http_route="/api/v1/health"`)
-		// Check for either templated path or literal paths for users endpoint
-		hasUsersRoute := strings.Contains(metrics, `http_route="/api/v1/users/:id"`) ||
-			strings.Contains(metrics, `http_route="/api/v1/users/`)
-		assert.True(t, hasUsersRoute, "Should contain users route (templated or literal)")
+		// Verify route templating prevents cardinality explosion
+		assert.Contains(
+			t,
+			metrics,
+			`http_route="/api/v1/users/:id"`,
+			"Should use route template to prevent high cardinality",
+		)
+		assert.NotContains(t, metrics, `http_route="/api/v1/users/0"`, "Should not contain literal user IDs in metrics")
 		assert.Contains(t, metrics, `http_route="/api/v1/error"`)
 	})
 	t.Run("Should handle concurrent metrics endpoint access", func(t *testing.T) {
@@ -162,14 +167,14 @@ func TestConcurrentMetricUpdates(t *testing.T) {
 			if strings.Contains(line, "compozy_http_requests_total") &&
 				strings.Contains(line, `http_route="/api/v1/health"`) &&
 				strings.Contains(line, `http_status_code="200"`) {
-				// Extract the counter value
+				// Validate counter value matches request count
 				parts := strings.Fields(line)
-				if len(parts) >= 2 {
-					var count float64
-					_, err := fmt.Sscanf(parts[1], "%f", &count)
-					require.NoError(t, err, "failed to parse Prometheus counter")
-					assert.Equal(t, float64(numRequests), count, "Counter should match number of requests")
-				}
+				require.GreaterOrEqual(t, len(parts), 2, "Metric line must have label and value")
+				var count float64
+				_, err := fmt.Sscanf(parts[1], "%f", &count)
+				require.NoError(t, err, "Counter value must be parseable as float")
+				assert.Equal(t, float64(numRequests), count, "Counter must accurately reflect concurrent request count")
+				return // Found and validated the metric
 			}
 		}
 	})

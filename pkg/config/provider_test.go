@@ -202,7 +202,7 @@ func TestSetNested(t *testing.T) {
 		err := setNested(m, "server.host", "should-not-be-set")
 
 		// Assert
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "configuration conflict: key \"server\" is not a map")
 		// Original value should remain unchanged
 		assert.Equal(t, "not-a-map", m["server"])
@@ -282,7 +282,7 @@ database:
 		provider := NewYAMLProvider(tmpFile.Name())
 		data, err := provider.Load()
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to parse YAML file")
 		assert.Nil(t, data)
 	})

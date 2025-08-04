@@ -294,8 +294,7 @@ func TestRouterNormalizer_Normalize(t *testing.T) {
 		err := normalizer.Normalize(taskConfig, ctx)
 
 		// Assert
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to normalize router task config")
+		assert.ErrorContains(t, err, "failed to normalize router task config")
 	})
 
 	t.Run("Should return error for invalid template in route map", func(t *testing.T) {
@@ -321,8 +320,7 @@ func TestRouterNormalizer_Normalize(t *testing.T) {
 		err := normalizer.Normalize(taskConfig, ctx)
 
 		// Assert
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to normalize router task config")
+		assert.ErrorContains(t, err, "failed to normalize router task config")
 	})
 }
 
@@ -353,8 +351,7 @@ func TestRouterNormalizer_Normalize_ErrorHandling(t *testing.T) {
 		// Act
 		err := normalizer.Normalize(taskConfig, ctx)
 		// Assert
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "router normalizer cannot handle task type: basic")
+		assert.ErrorContains(t, err, "router normalizer cannot handle task type: basic")
 	})
 
 	t.Run("Should handle template parsing errors in main config", func(t *testing.T) {
@@ -373,8 +370,7 @@ func TestRouterNormalizer_Normalize_ErrorHandling(t *testing.T) {
 		// Act
 		err := normalizer.Normalize(taskConfig, ctx)
 		// Assert
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to normalize router task config")
+		assert.ErrorContains(t, err, "failed to normalize router task config")
 	})
 
 	t.Run("Should handle config serialization errors", func(t *testing.T) {
@@ -393,8 +389,7 @@ func TestRouterNormalizer_Normalize_ErrorHandling(t *testing.T) {
 		// Act
 		err := normalizer.Normalize(taskConfig, ctx)
 		// Assert
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to convert task config to map")
+		assert.ErrorContains(t, err, "failed to convert task config to map")
 	})
 
 	t.Run("Should handle deeply nested template errors in routes", func(t *testing.T) {
@@ -422,8 +417,7 @@ func TestRouterNormalizer_Normalize_ErrorHandling(t *testing.T) {
 		// Act
 		err := normalizer.Normalize(taskConfig, ctx)
 		// Assert
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to normalize router task config")
+		assert.ErrorContains(t, err, "failed to normalize router task config")
 	})
 
 	t.Run("Should process router with conditional expressions successfully", func(t *testing.T) {
@@ -481,8 +475,7 @@ func TestRouterNormalizer_BoundaryConditions(t *testing.T) {
 		// Act
 		err := normalizer.Normalize(taskConfig, ctx)
 		// Assert - Should return error due to nil template engine
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "template engine is required for normalization")
+		assert.ErrorContains(t, err, "template engine is required for normalization")
 	})
 
 	t.Run("Should handle nil context gracefully", func(t *testing.T) {
@@ -498,8 +491,7 @@ func TestRouterNormalizer_BoundaryConditions(t *testing.T) {
 		err = normalizer.Normalize(taskConfig, nil)
 
 		// Assert
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid context type")
+		assert.ErrorContains(t, err, "invalid context type")
 	})
 
 	t.Run("Should handle very large route maps", func(t *testing.T) {

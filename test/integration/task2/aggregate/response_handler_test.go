@@ -136,11 +136,3 @@ func TestAggregateResponseHandler_Integration(t *testing.T) {
 		ts.OutputTransformer.AssertExpectations(t)
 	})
 }
-
-func TestAggregateResponseHandler_Type(t *testing.T) {
-	t.Run("Should return aggregate task type", func(t *testing.T) {
-		baseHandler := &shared.BaseResponseHandler{}
-		handler := aggregate.NewResponseHandler(nil, nil, baseHandler)
-		assert.Equal(t, task.TaskTypeAggregate, handler.Type())
-	})
-}

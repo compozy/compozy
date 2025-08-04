@@ -87,7 +87,7 @@ func TestWorkerMetrics(t *testing.T) {
 		runningCount := getUpDownCounterValue(t, &rm, "compozy_temporal_workers_running_total")
 		assert.Equal(t, int64(1), runningCount)
 	})
-	t.Run("Should handle nil worker metrics gracefully", func(t *testing.T) {
+	t.Run("Should handle nil worker metrics without panics", func(t *testing.T) {
 		workersRunning = nil
 		workersConfigured = nil
 		assert.NotPanics(t, func() {

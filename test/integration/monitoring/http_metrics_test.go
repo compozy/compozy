@@ -33,20 +33,21 @@ func TestHTTPMetricsIntegration(t *testing.T) {
 			require.Equal(t, req.status, resp.StatusCode)
 			resp.Body.Close()
 		}
-		// Wait for metrics to be recorded
+		// Verify all required HTTP metrics are properly recorded
 		assert.Eventually(t, func() bool {
 			metrics, err := env.GetMetrics()
 			if err != nil {
+				t.Logf("Failed to get metrics: %v", err)
 				return false
 			}
-			// Check all required metrics are present
+			// Verify counter metrics with correct route templates
 			return strings.Contains(metrics, "compozy_http_requests_total") &&
 				strings.Contains(metrics, `http_route="/api/v1/health",http_status_code="200"`) &&
 				strings.Contains(metrics, `http_route="/api/v1/users/:id",http_status_code="200"`) &&
 				strings.Contains(metrics, `http_route="/",http_status_code="200"`) &&
 				strings.Contains(metrics, "compozy_http_request_duration_seconds_bucket") &&
 				strings.Contains(metrics, "compozy_http_requests_in_flight")
-		}, 2*time.Second, 50*time.Millisecond, "Expected metrics should be recorded")
+		}, 2*time.Second, 50*time.Millisecond, "All HTTP metrics must be recorded with correct route templates")
 	})
 	t.Run("Should record metrics for error responses", func(t *testing.T) {
 		env := SetupTestEnvironment(t)

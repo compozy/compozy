@@ -46,7 +46,7 @@ func TestRegisterService_Ensure(t *testing.T) {
 			Transport: "sse",
 		}
 		err := service.Ensure(context.Background(), &config)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to register MCP with proxy")
 	})
 }
@@ -164,7 +164,7 @@ func TestRegisterService_HealthCheck(t *testing.T) {
 		service := NewRegisterService(client)
 
 		err := service.HealthCheck(context.Background())
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "proxy health check failed")
 	})
 }
@@ -222,7 +222,7 @@ func TestRegisterService_ConvertToDefinition(t *testing.T) {
 		}
 
 		_, err := service.convertToDefinition(&config)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "MCP configuration must specify either URL (for remote) or Command (for stdio)")
 	})
 
@@ -237,7 +237,7 @@ func TestRegisterService_ConvertToDefinition(t *testing.T) {
 		}
 
 		_, err := service.convertToDefinition(&config)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "MCP transport is required")
 	})
 }
@@ -275,25 +275,25 @@ func TestParseCommand(t *testing.T) {
 
 	t.Run("Should return error for empty command", func(t *testing.T) {
 		_, err := parseCommand("")
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "command cannot be empty")
 	})
 
 	t.Run("Should return error for command with newlines", func(t *testing.T) {
 		_, err := parseCommand("node\nserver.js")
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "command cannot contain newlines")
 	})
 
 	t.Run("Should return error for command starting with dash", func(t *testing.T) {
 		_, err := parseCommand("--help")
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "command name cannot start with dash")
 	})
 
 	t.Run("Should return error for malformed quotes", func(t *testing.T) {
 		_, err := parseCommand(`node server.js "unclosed quote`)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to parse command")
 	})
 }

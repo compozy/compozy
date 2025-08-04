@@ -18,6 +18,118 @@ permissions:
   pull-requests: read
 
 jobs:
+  validate-title:
+    name: Validate PR Title
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          requireScope: true
+          subjectPattern: ^([A-Z]).+$
+          types: |
+            build
+            ci
+            docs
+            feat
+            fix
+            perf
+            refactor
+            test
+          scopes: |
+            repo
+            cli
+            engine
+            pkg
+            docs
+            examples
+            tools
+            schemas
+            cluster
+            agent
+            auth
+            task
+            task2
+            workflow
+            memory
+            llm
+            mcp
+            runtime
+            infra
+            worker
+            core
+            autoload
+            project
+            schema
+            monitoring
+            server
+            store
+            cache
+            config
+            logger
+            template
+            swagger
+            ref
+            schemagen
+            tplengine
+            version
+
+  pre-commit:
+    name: Pre-commit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check workflow files
+        uses: docker://rhysd/actionlint:latest
+        env:
+          SHELLCHECK_OPTS: --exclude=SC2086,SC2129
+        with:
+          args: -color
+
+      - name: Set up Go with caching
+        uses: ./.github/actions/setup-go
+        with:
+          go-version: "1.24.x"
+          install-tools: "true"
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+
+      - name: Setup Bun
+        uses: ./.github/actions/setup-bun
+
+      - name: Install pre-commit
+        run: pip install pre-commit
+
+      - name: Run pre-commit
+        run: pre-commit run --all-files
+
+  commitlint:
+    name: Validating commits
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: ./.github/actions/setup-bun
+
+      - name: Validate current commit (last commit) with commitlint
+        if: github.event_name == 'push'
+        run: bunx commitlint --last --verbose
+
+      - name: Validate PR commits with commitlint
+        if: github.event_name == 'pull_request'
+        run: |
+          bunx commitlint \
+            --from ${{ github.event.pull_request.head.sha }}~${{ github.event.pull_request.commits }} \
+            --to ${{ github.event.pull_request.head.sha }} \
+            --verbose
+
   # Detect which components have changed to optimize build times
   changes:
     runs-on: ubuntu-latest
@@ -57,55 +169,16 @@ jobs:
               - '*.md'
               - 'README.md'
 
-  # Go backend testing with service dependencies
+  # Go backend testing with testcontainers
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: changes
     if: needs.changes.outputs.backend == 'true'
 
-    services:
-      postgres:
-        image: postgres:15-alpine
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: compozy_test
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-
-      redis:
-        image: redis:7.2-alpine
-        env:
-          REDIS_PASSWORD: redis_secret
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 6379:6379
-
     env:
-      # Database connection for tests
-      DB_HOST: localhost
-      DB_PORT: 5432
-      DB_USER: postgres
-      DB_PASSWORD: postgres
-      DB_NAME: compozy_test
-
-      # Redis connection for tests
-      REDIS_HOST: localhost
-      REDIS_PORT: 6379
-      REDIS_PASSWORD: redis_secret
-
       # Go environment
-      CGO_ENABLED: 0
+      CGO_ENABLED: 1
 
     strategy:
       matrix:
@@ -122,20 +195,8 @@ jobs:
           go-version: ${{ matrix.go-version }}
           install-tools: "true"
 
-      - name: Install service clients
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client redis-tools
-
-      - name: Verify service readiness
-        run: |
-          echo "Waiting for PostgreSQL to be ready..."
-          timeout 30s bash -c 'until pg_isready -h localhost -p 5432 -U postgres; do sleep 1; done'
-          echo "PostgreSQL is ready!"
-
-          echo "Waiting for Redis to be ready..."
-          timeout 30s bash -c 'until redis-cli -h localhost -p 6379 ping; do sleep 1; done'
-          echo "Redis is ready!"
+      - name: Setup Bun
+        uses: ./.github/actions/setup-bun
 
       - name: Run linting
         run: |

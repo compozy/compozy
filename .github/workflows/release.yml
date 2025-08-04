@@ -47,16 +47,20 @@ jobs:
             TAG="${{ github.ref_name }}"
           fi
 
+          # shellcheck disable=SC2086
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
           # Extract version (remove 'v' prefix if present)
           VERSION=${TAG#v}
+          # shellcheck disable=SC2086
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
           # Check if this is a prerelease
           if echo "$VERSION" | grep -qE '-(alpha|beta|rc|pre)'; then
+            # shellcheck disable=SC2086
             echo "is-prerelease=true" >> $GITHUB_OUTPUT
           else
+            # shellcheck disable=SC2086
             echo "is-prerelease=false" >> $GITHUB_OUTPUT
           fi
 
@@ -67,7 +71,6 @@ jobs:
 
       - name: Validate tag format
         run: |
-          TAG="${{ steps.version.outputs.tag }}"
           VERSION="${{ steps.version.outputs.version }}"
 
           # Validate semantic versioning format
@@ -161,24 +164,27 @@ jobs:
 
       - name: Generate release summary
         run: |
-          echo "## Release Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "🎉 **Release ${{ needs.validate-release.outputs.version }} completed successfully!**" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Release Details:**" >> $GITHUB_STEP_SUMMARY
-          echo "- **Version:** ${{ needs.validate-release.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Tag:** ${{ needs.validate-release.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Prerelease:** ${{ needs.validate-release.outputs.is-prerelease }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Artifacts:**" >> $GITHUB_STEP_SUMMARY
-          echo "- 📦 Multi-platform binaries (Linux, macOS, Windows)" >> $GITHUB_STEP_SUMMARY
-          echo "- 🐳 Container images (amd64, arm64)" >> $GITHUB_STEP_SUMMARY
-          echo "- 📋 Checksums and signatures" >> $GITHUB_STEP_SUMMARY
-          echo "- 📄 Release notes and changelog" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Container Images:**" >> $GITHUB_STEP_SUMMARY
-          echo "- `ghcr.io/compozy/compozy:${{ needs.validate-release.outputs.version }}`" >> $GITHUB_STEP_SUMMARY
-          echo "- `ghcr.io/compozy/compozy:latest`" >> $GITHUB_STEP_SUMMARY
+          # shellcheck disable=SC2086,SC2129
+          {
+            echo "## Release Summary"
+            echo ""
+            echo "🎉 **Release ${{ needs.validate-release.outputs.version }} completed successfully!**"
+            echo ""
+            echo "**Release Details:**"
+            echo "- **Version:** ${{ needs.validate-release.outputs.version }}"
+            echo "- **Tag:** ${{ needs.validate-release.outputs.tag }}"
+            echo "- **Prerelease:** ${{ needs.validate-release.outputs.is-prerelease }}"
+            echo ""
+            echo "**Artifacts:**"
+            echo "- 📦 Multi-platform binaries (Linux, macOS, Windows)"
+            echo "- 🐳 Container images (amd64, arm64)"
+            echo "- 📋 Checksums and signatures"
+            echo "- 📄 Release notes and changelog"
+            echo ""
+            echo "**Container Images:**"
+            echo "- ghcr.io/compozy/compozy:${{ needs.validate-release.outputs.version }}"
+            echo "- ghcr.io/compozy/compozy:latest"
+          } >> $GITHUB_STEP_SUMMARY
 
   # Post-release validation
   post-release-validation:
@@ -233,13 +239,16 @@ jobs:
 
       - name: Create validation summary
         run: |-
-          echo "## Post-Release Validation" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "✅ **All release artifacts validated successfully**" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Validated:**" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ GitHub release created" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Container images published" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Multi-architecture manifests created" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "🎉 **Release ${{ needs.validate-release.outputs.version }} is ready for use!**" >> $GITHUB_STEP_SUMMARY
+          # shellcheck disable=SC2086,SC2129
+          {
+            echo "## Post-Release Validation"
+            echo ""
+            echo "✅ **All release artifacts validated successfully**"
+            echo ""
+            echo "**Validated:**"
+            echo "- ✅ GitHub release created"
+            echo "- ✅ Container images published"
+            echo "- ✅ Multi-architecture manifests created"
+            echo ""
+            echo "🎉 **Release ${{ needs.validate-release.outputs.version }} is ready for use!**"
+          } >> $GITHUB_STEP_SUMMARY

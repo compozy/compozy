@@ -11,7 +11,7 @@ import (
 )
 
 func TestConfig_Basic(t *testing.T) {
-	t.Run("Valid configuration", func(t *testing.T) {
+	t.Run("Should accept valid configuration", func(t *testing.T) {
 		cfg := &Config{
 			Resource:  "memory",
 			ID:        "test-memory",
@@ -28,7 +28,7 @@ func TestConfig_Basic(t *testing.T) {
 		assert.Equal(t, core.ConfigMemory, cfg.Component())
 	})
 
-	t.Run("SetCWD works", func(t *testing.T) {
+	t.Run("Should set current working directory successfully", func(t *testing.T) {
 		cfg := &Config{}
 		err := cfg.SetCWD(".")
 		require.NoError(t, err)
@@ -37,7 +37,7 @@ func TestConfig_Basic(t *testing.T) {
 }
 
 func TestConfig_LockTTLMethods(t *testing.T) {
-	t.Run("GetAppendLockTTL - Should return parsed TTL when valid", func(t *testing.T) {
+	t.Run("Should return parsed TTL when valid AppendTTL provided", func(t *testing.T) {
 		cfg := &Config{
 			ID: "test-memory",
 			Locking: &memcore.LockConfig{
@@ -48,13 +48,13 @@ func TestConfig_LockTTLMethods(t *testing.T) {
 		assert.Equal(t, 45*time.Second, result)
 	})
 
-	t.Run("GetAppendLockTTL - Should return default when no locking config", func(t *testing.T) {
+	t.Run("Should return default AppendTTL when no locking config", func(t *testing.T) {
 		cfg := &Config{ID: "test-memory"}
 		result := cfg.GetAppendLockTTL()
 		assert.Equal(t, 30*time.Second, result)
 	})
 
-	t.Run("GetAppendLockTTL - Should return default when AppendTTL is empty", func(t *testing.T) {
+	t.Run("Should return default AppendTTL when field is empty", func(t *testing.T) {
 		cfg := &Config{
 			ID: "test-memory",
 			Locking: &memcore.LockConfig{
@@ -65,7 +65,7 @@ func TestConfig_LockTTLMethods(t *testing.T) {
 		assert.Equal(t, 30*time.Second, result)
 	})
 
-	t.Run("GetAppendLockTTL - Should return default when TTL is invalid", func(t *testing.T) {
+	t.Run("Should return default AppendTTL when format is invalid", func(t *testing.T) {
 		cfg := &Config{
 			ID: "test-memory",
 			Locking: &memcore.LockConfig{
@@ -79,7 +79,7 @@ func TestConfig_LockTTLMethods(t *testing.T) {
 		assert.Equal(t, 30*time.Second, result)
 	})
 
-	t.Run("GetClearLockTTL - Should return parsed TTL when valid", func(t *testing.T) {
+	t.Run("Should return parsed TTL when valid ClearTTL provided", func(t *testing.T) {
 		cfg := &Config{
 			ID: "test-memory",
 			Locking: &memcore.LockConfig{
@@ -90,13 +90,13 @@ func TestConfig_LockTTLMethods(t *testing.T) {
 		assert.Equal(t, 15*time.Second, result)
 	})
 
-	t.Run("GetClearLockTTL - Should return default when no locking config", func(t *testing.T) {
+	t.Run("Should return default ClearTTL when no locking config", func(t *testing.T) {
 		cfg := &Config{ID: "test-memory"}
 		result := cfg.GetClearLockTTL()
 		assert.Equal(t, 10*time.Second, result)
 	})
 
-	t.Run("GetClearLockTTL - Should return default when TTL is invalid", func(t *testing.T) {
+	t.Run("Should return default ClearTTL when format is invalid", func(t *testing.T) {
 		cfg := &Config{
 			ID: "test-memory",
 			Locking: &memcore.LockConfig{
@@ -110,7 +110,7 @@ func TestConfig_LockTTLMethods(t *testing.T) {
 		assert.Equal(t, 10*time.Second, result)
 	})
 
-	t.Run("GetFlushLockTTL - Should return parsed TTL when valid", func(t *testing.T) {
+	t.Run("Should return parsed TTL when valid FlushTTL provided", func(t *testing.T) {
 		cfg := &Config{
 			ID: "test-memory",
 			Locking: &memcore.LockConfig{
@@ -121,13 +121,13 @@ func TestConfig_LockTTLMethods(t *testing.T) {
 		assert.Equal(t, 10*time.Minute, result)
 	})
 
-	t.Run("GetFlushLockTTL - Should return default when no locking config", func(t *testing.T) {
+	t.Run("Should return default FlushTTL when no locking config", func(t *testing.T) {
 		cfg := &Config{ID: "test-memory"}
 		result := cfg.GetFlushLockTTL()
 		assert.Equal(t, 5*time.Minute, result)
 	})
 
-	t.Run("GetFlushLockTTL - Should return default when TTL is invalid", func(t *testing.T) {
+	t.Run("Should return default FlushTTL when format is invalid", func(t *testing.T) {
 		cfg := &Config{
 			ID: "test-memory",
 			Locking: &memcore.LockConfig{

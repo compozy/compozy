@@ -13,27 +13,6 @@ import (
 	"github.com/compozy/compozy/pkg/tplengine"
 )
 
-func TestBasicNormalizer_NewNormalizer(t *testing.T) {
-	t.Run("Should create basic normalizer", func(t *testing.T) {
-		// Arrange
-		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-
-		// Act
-		normalizer := basic.NewNormalizer(templateEngine)
-
-		// Assert
-		assert.NotNil(t, normalizer)
-	})
-
-	t.Run("Should handle nil template engine", func(t *testing.T) {
-		// Act
-		normalizer := basic.NewNormalizer(nil)
-
-		// Assert
-		assert.NotNil(t, normalizer)
-	})
-}
-
 func TestBasicNormalizer_Type(t *testing.T) {
 	t.Run("Should return correct task type", func(t *testing.T) {
 		// Arrange
@@ -88,8 +67,7 @@ func TestBasicNormalizer_Normalize_ErrorHandling(t *testing.T) {
 		// Act
 		err := normalizer.Normalize(taskConfig, ctx)
 		// Assert
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "basic normalizer cannot handle task type: collection")
+		assert.ErrorContains(t, err, "basic normalizer cannot handle task type: collection")
 	})
 
 	t.Run("Should handle template parsing errors", func(t *testing.T) {
@@ -108,8 +86,7 @@ func TestBasicNormalizer_Normalize_ErrorHandling(t *testing.T) {
 		// Act
 		err := normalizer.Normalize(taskConfig, ctx)
 		// Assert
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to normalize basic task config")
+		assert.ErrorContains(t, err, "failed to normalize basic task config")
 	})
 
 	t.Run("Should handle config serialization errors", func(t *testing.T) {
@@ -128,8 +105,7 @@ func TestBasicNormalizer_Normalize_ErrorHandling(t *testing.T) {
 		// Act
 		err := normalizer.Normalize(taskConfig, ctx)
 		// Assert
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to convert task config to map")
+		assert.ErrorContains(t, err, "failed to convert task config to map")
 	})
 
 	t.Run("Should process basic task action successfully", func(t *testing.T) {
@@ -193,8 +169,7 @@ func TestBasicNormalizer_BoundaryConditions(t *testing.T) {
 		// Act
 		err := normalizer.Normalize(taskConfig, ctx)
 		// Assert - Should return error instead of panicking
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "template engine is required for normalization")
+		assert.ErrorContains(t, err, "template engine is required for normalization")
 	})
 
 	t.Run("Should handle empty task type for basic tasks", func(t *testing.T) {

@@ -87,7 +87,8 @@ archives:
     # Archive format (defaults to tar.gz, zip for windows)
     format_overrides:
       - goos: windows
-        formats: [zip]
+        formats:
+          - zip
 
     # Files to include in archive
     files:
@@ -133,28 +134,28 @@ changelog:
 
   # Changelog groups
   groups:
-    - title: "🎉 New Features"
+    - title: "\U0001F389 New Features"
       regexp: "^.*feat[\\(\\w)]*:+.*$"
       order: 0
-    - title: "🐛 Bug Fixes"
+    - title: "\U0001F41B Bug Fixes"
       regexp: "^.*fix[\\(\\w)]*:+.*$"
       order: 1
     - title: "⚡ Performance Improvements"
       regexp: "^.*perf[\\(\\w)]*:+.*$"
       order: 2
-    - title: "🔐 Security Updates"
+    - title: "\U0001F510 Security Updates"
       regexp: "^.*security[\\(\\w)]*:+.*$"
       order: 3
-    - title: "📚 Documentation"
+    - title: "\U0001F4DA Documentation"
       regexp: "^.*docs[\\(\\w)]*:+.*$"
       order: 4
-    - title: "🔧 Refactoring"
+    - title: "\U0001F527 Refactoring"
       regexp: "^.*refactor[\\(\\w)]*:+.*$"
       order: 5
-    - title: "📦 Dependencies"
+    - title: "\U0001F4E6 Dependencies"
       regexp: "^.*deps[\\(\\w)]*:+.*$"
       order: 6
-    - title: "🧪 Testing"
+    - title: "\U0001F9EA Testing"
       regexp: "^.*test[\\(\\w)]*:+.*$"
       order: 7
     - title: "Other Changes"
@@ -506,6 +507,7 @@ nix:
     # Skip upload in case there's no suitable binary
 
   # NPM publishing configuration (Pro feature)
+
 npms:
   - name: "@compozy/cli"
     repository: "git+https://github.com/compozy/compozy.git"

@@ -155,10 +155,3 @@ func TestCollectionResponseHandler_Integration(t *testing.T) {
 		assert.Equal(t, childState.Output, response.Output)
 	})
 }
-
-func TestCollectionResponseHandler_Type(t *testing.T) {
-	t.Run("Should return collection task type", func(t *testing.T) {
-		handler := collection.NewResponseHandler(nil, nil, nil)
-		assert.Equal(t, task.TaskTypeCollection, handler.Type())
-	})
-}

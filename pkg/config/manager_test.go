@@ -187,7 +187,7 @@ func TestManager_Reload(t *testing.T) {
 		// Reload should fail validation
 		ctx := context.Background()
 		err := manager.Reload(ctx)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "configuration validation failed")
 	})
 }
