@@ -43,7 +43,7 @@ func TestClient_Health_Failure(t *testing.T) {
 		defer client.Close()
 
 		err := client.Health(context.Background())
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "proxy service unhealthy")
 	})
 }
@@ -116,7 +116,7 @@ func TestClient_Register_Unauthorized(t *testing.T) {
 		}
 
 		err := client.Register(context.Background(), &def)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "unauthorized")
 	})
 }
@@ -216,7 +216,9 @@ func TestClient_WithInvalidURL(t *testing.T) {
 		defer client.Close()
 
 		err := client.Health(context.Background())
-		assert.Error(t, err)
+		require.Error(t, err)
+		// The "invalid-url" gets treated as a hostname, so we get a DNS lookup error
+		assert.Contains(t, err.Error(), "invalid-url")
 	})
 }
 
@@ -308,7 +310,7 @@ func TestClient_ListTools_Failure(t *testing.T) {
 		defer client.Close()
 
 		_, err := client.ListTools(context.Background())
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "tools request failed")
 	})
 }
@@ -411,7 +413,7 @@ func TestClient_CallTool(t *testing.T) {
 
 		_, err := client.CallTool(context.Background(), "test-mcp", "unknown-tool", nil)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "Tool not found")
 	})
 
@@ -428,7 +430,7 @@ func TestClient_CallTool(t *testing.T) {
 
 		_, err := client.CallTool(context.Background(), "unknown-mcp", "test-tool", nil)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "tool call failed (status 404)")
 	})
 }

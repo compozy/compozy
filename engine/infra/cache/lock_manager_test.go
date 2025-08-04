@@ -43,8 +43,7 @@ func TestRedisLockManager_Acquire(t *testing.T) {
 
 		// Second acquisition should fail
 		lock2, err := manager.Acquire(ctx, resource, ttl)
-		assert.Error(t, err)
-		assert.Equal(t, ErrLockNotAcquired, err)
+		assert.ErrorIs(t, err, ErrLockNotAcquired)
 		assert.Nil(t, lock2)
 	})
 
@@ -95,8 +94,7 @@ func TestRedisLock_Release(t *testing.T) {
 
 		// Second release should fail
 		err = lock.Release(ctx)
-		assert.Error(t, err)
-		assert.Equal(t, ErrLockNotHeld, err)
+		assert.ErrorIs(t, err, ErrLockNotHeld)
 	})
 
 	t.Run("Should allow new lock after release", func(t *testing.T) {
@@ -141,8 +139,7 @@ func TestRedisLock_Refresh(t *testing.T) {
 		require.NoError(t, err)
 
 		err = lock.Refresh(ctx)
-		assert.Error(t, err)
-		assert.Equal(t, ErrLockNotHeld, err)
+		assert.ErrorIs(t, err, ErrLockNotHeld)
 	})
 
 	t.Run("Should extend lock lifetime", func(t *testing.T) {
@@ -312,7 +309,7 @@ func TestRedisLock_EdgeCases(t *testing.T) {
 		cancel() // Cancel immediately
 
 		lock, err := manager.Acquire(cancelCtx, resource, ttl)
-		assert.Error(t, err)
+		assert.ErrorIs(t, err, context.Canceled)
 		assert.Nil(t, lock)
 	})
 

@@ -17,9 +17,10 @@ type DatabaseHelper struct {
 	cleanup func()
 }
 
-// NewDatabaseHelper creates a new database helper using a test container.
+// NewDatabaseHelper creates a new database helper using the shared container pattern.
 func NewDatabaseHelper(t *testing.T) *DatabaseHelper {
-	pool, cleanup := helpers.CreateTestContainerDatabase(context.Background(), t)
+	ctx := context.Background()
+	pool, cleanup := helpers.GetSharedPostgresDB(ctx, t)
 	return &DatabaseHelper{
 		pool:    pool,
 		cleanup: cleanup,

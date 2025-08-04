@@ -10,14 +10,14 @@ tasks:
     input:
       path: "./temp-file.txt"
       content: "This is a temporary file"
-  
+
   # Delete the file
   - id: delete-temp
     type: tool
     tool: delete-file
     input:
       path: "./temp-file.txt"
-  
+
   # Log the result
   - id: log-result
     type: conditional

@@ -75,8 +75,7 @@ COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 # Copy the binary from builder
 COPY --from=builder --chown=compozy:compozy /build/compozy /usr/local/bin/compozy
 
-# Copy default configuration template (if exists)
-COPY --from=builder --chown=compozy:compozy /build/config/compozy.yaml.example /app/config/compozy.yaml.example || true
+# Note: Configuration should be provided at runtime via volume mount or ConfigMap
 
 # Switch to non-root user
 USER compozy
@@ -215,10 +214,7 @@ LABEL org.opencontainers.image.title="Compozy" \
       org.opencontainers.image.source="https://github.com/compozy/compozy" \
       org.opencontainers.image.documentation="https://github.com/compozy/compozy/blob/main/docs/deployment.md" \
       org.opencontainers.image.vendor="Compozy" \
-      org.opencontainers.image.licenses="BSL-1.1" \
-      org.opencontainers.image.version="${VERSION}" \
-      org.opencontainers.image.revision="${COMMIT}" \
-      org.opencontainers.image.created="${BUILD_DATE}"
+      org.opencontainers.image.licenses="BSL-1.1"
 
 # Use tini for proper signal handling and process reaping
 ENTRYPOINT ["/sbin/tini", "--"]

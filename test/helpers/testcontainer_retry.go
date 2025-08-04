@@ -76,15 +76,10 @@ func SetupTestReposWithRetry(ctx context.Context, t *testing.T, config ...RetryC
 	)
 }
 
-// trySetupTestContainer attempts to create a test container and returns pool, cleanup, and error
+// trySetupTestContainer attempts to get the shared container and returns pool, cleanup, and error
 func trySetupTestContainer(ctx context.Context, t *testing.T) (*pgxpool.Pool, func(), error) {
-	// Use a separate context with timeout for container creation
-	containerCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-
-	// Attempt to create the container
-	pool, cleanup := CreateTestContainerDatabase(containerCtx, t)
-
+	// Use shared container pattern for better performance
+	pool, cleanup := GetSharedPostgresDB(ctx, t)
 	// Test the connection
 	if err := pool.Ping(ctx); err != nil {
 		// Clean up on failure
@@ -93,7 +88,6 @@ func trySetupTestContainer(ctx context.Context, t *testing.T) (*pgxpool.Pool, fu
 		}
 		return nil, nil, fmt.Errorf("failed to ping database: %w", err)
 	}
-
 	return pool, cleanup, nil
 }
 

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
@@ -76,7 +77,7 @@ func TestExecuteSignal_dispatchSignal(t *testing.T) {
 		}
 		ctx := context.WithValue(context.Background(), core.ProjectNameKey{}, "test-project")
 		err := activity.dispatchSignal(ctx, taskConfig, "correlation-123", "test-project")
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "signal.id is required")
 		assert.Len(t, mockDispatcher.Calls, 0)
 	})

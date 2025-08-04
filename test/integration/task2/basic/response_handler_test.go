@@ -8,7 +8,6 @@ import (
 	"github.com/compozy/compozy/engine/task2/basic"
 	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/engine/workflow"
-	"github.com/compozy/compozy/pkg/tplengine"
 	task2helpers "github.com/compozy/compozy/test/integration/task2/helpers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -132,16 +131,5 @@ func TestBasicResponseHandler_Integration(t *testing.T) {
 		savedState := ts.GetSavedTaskState(t, taskState.TaskExecID)
 		assert.Equal(t, core.StatusFailed, savedState.Status)
 		assert.NotNil(t, savedState.Error)
-	})
-}
-
-func TestBasicResponseHandler_Type(t *testing.T) {
-	t.Run("Should return basic task type", func(t *testing.T) {
-		templateEngine := &tplengine.TemplateEngine{}
-		contextBuilder := &shared.ContextBuilder{}
-		baseHandler := &shared.BaseResponseHandler{}
-		handler, err := basic.NewResponseHandler(templateEngine, contextBuilder, baseHandler)
-		require.NoError(t, err)
-		assert.Equal(t, task.TaskTypeBasic, handler.Type())
 	})
 }

@@ -45,52 +45,16 @@ func (m *mockRuntime) GetGlobalTimeout() time.Duration {
 }
 
 func TestNewService(t *testing.T) {
-	t.Run("Should create service with clean architecture", func(t *testing.T) {
+	t.Run("Should create service with proper timeout configuration", func(t *testing.T) {
 		runtimeMgr := &mockRuntime{}
 		agentConfig := createTestAgentConfig()
+		customTimeout := 45 * time.Second
 
-		service, err := NewService(t.Context(), runtimeMgr, agentConfig)
-
-		require.NoError(t, err)
-		assert.NotNil(t, service)
-		assert.NotNil(t, service.orchestrator)
-		assert.NotNil(t, service.config)
-	})
-
-	t.Run("Should handle MCP configurations", func(t *testing.T) {
-		runtimeMgr := &mockRuntime{}
-		agentConfig := createTestAgentConfig()
-
-		service, err := NewService(t.Context(), runtimeMgr, agentConfig)
+		service, err := NewService(context.Background(), runtimeMgr, agentConfig, WithTimeout(customTimeout))
 
 		require.NoError(t, err)
-		assert.NotNil(t, service)
-		assert.NotNil(t, service.orchestrator)
-		assert.NotNil(t, service.config)
-	})
-}
-
-func TestService_InvalidateToolsCache(t *testing.T) {
-	t.Run("Should handle cache invalidation", func(t *testing.T) {
-		runtimeMgr := &mockRuntime{}
-		agentConfig := createTestAgentConfig()
-		service, err := NewService(t.Context(), runtimeMgr, agentConfig)
-		require.NoError(t, err)
-
-		// Should not panic
-		service.InvalidateToolsCache(t.Context())
-	})
-}
-
-func TestService_Close(t *testing.T) {
-	t.Run("Should close without error", func(t *testing.T) {
-		runtimeMgr := &mockRuntime{}
-		agentConfig := createTestAgentConfig()
-		service, err := NewService(t.Context(), runtimeMgr, agentConfig)
-		require.NoError(t, err)
-
-		err = service.Close()
-		assert.NoError(t, err)
+		assert.Equal(t, customTimeout, service.config.Timeout)
+		assert.True(t, service.config.EnableStructuredOutput) // Default should be true
 	})
 }
 

@@ -37,13 +37,16 @@ func TestWatcher_Watch(t *testing.T) {
 		require.NoError(t, err)
 		defer watcher.Close()
 
-		// Track callbacks
+		// Track callbacks with WaitGroup for deterministic synchronization
 		var mu sync.Mutex
 		callbackCount := 0
+		var wg sync.WaitGroup
+		wg.Add(1) // Expect 1 callback to be invoked
 		watcher.OnChange(func() {
 			mu.Lock()
 			callbackCount++
 			mu.Unlock()
+			wg.Done() // Signal callback completion
 		})
 
 		// Start watching
@@ -60,10 +63,21 @@ func TestWatcher_Watch(t *testing.T) {
 		err = os.WriteFile(tmpFile.Name(), []byte("test: value2"), 0644)
 		require.NoError(t, err)
 
-		// Wait for callback
-		time.Sleep(200 * time.Millisecond)
+		// Wait for callback with timeout for deterministic synchronization
+		done := make(chan struct{})
+		go func() {
+			wg.Wait()
+			close(done)
+		}()
 
-		// Check callback was invoked
+		select {
+		case <-done:
+			// Callback executed successfully
+		case <-time.After(1 * time.Second):
+			t.Fatal("timeout waiting for callback")
+		}
+
+		// Check callback was invoked exactly once
 		mu.Lock()
 		assert.Equal(t, 1, callbackCount)
 		mu.Unlock()
@@ -81,13 +95,19 @@ func TestWatcher_Watch(t *testing.T) {
 		require.NoError(t, err)
 		defer watcher.Close()
 
-		// Register multiple callbacks
+		// Register multiple callbacks with counters and WaitGroup for deterministic synchronization
+		var mu sync.Mutex
+		callbackCounts := make([]int, 3)
 		var wg sync.WaitGroup
-		wg.Add(3)
+		wg.Add(3) // Expect 3 callbacks to be invoked
 
 		for i := 0; i < 3; i++ {
+			index := i // capture loop variable
 			watcher.OnChange(func() {
-				wg.Done()
+				mu.Lock()
+				callbackCounts[index]++
+				mu.Unlock()
+				wg.Done() // Signal callback completion
 			})
 		}
 
@@ -105,19 +125,26 @@ func TestWatcher_Watch(t *testing.T) {
 		err = os.WriteFile(tmpFile.Name(), []byte("test: value"), 0644)
 		require.NoError(t, err)
 
-		// Wait for all callbacks
-		done := make(chan bool)
+		// Wait for all callbacks with timeout for deterministic synchronization
+		done := make(chan struct{})
 		go func() {
 			wg.Wait()
-			done <- true
+			close(done)
 		}()
 
 		select {
 		case <-done:
-			// Success - all callbacks invoked
+			// All callbacks executed successfully
 		case <-time.After(1 * time.Second):
 			t.Fatal("timeout waiting for callbacks")
 		}
+
+		// Verify all callbacks were invoked exactly once
+		mu.Lock()
+		for i, count := range callbackCounts {
+			assert.Equal(t, 1, count, "callback %d should have been invoked exactly once", i)
+		}
+		mu.Unlock()
 	})
 
 	t.Run("Should handle absolute file paths", func(t *testing.T) {

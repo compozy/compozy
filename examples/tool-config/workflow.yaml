@@ -33,12 +33,17 @@ tools:
           description: The API endpoint to call (relative to base_url)
         method:
           type: string
-          enum: ["GET", "POST", "PUT", "DELETE"]
+          enum:
+            - "GET"
+            - "POST"
+            - "PUT"
+            - "DELETE"
           default: "GET"
         data:
           type: object
           description: Request body data for POST/PUT requests
-      required: ["endpoint"]
+      required:
+        - "endpoint"
     output_schema:
       type: object
       properties:
@@ -65,9 +70,14 @@ tools:
           description: Data to format
         override_format:
           type: string
-          enum: ["json", "yaml", "xml", "csv"]
+          enum:
+            - "json"
+            - "yaml"
+            - "xml"
+            - "csv"
           description: Override the default format from config
-      required: ["data"]
+      required:
+        - "data"
     output_schema:
       type: object
       properties:
@@ -85,9 +95,9 @@ workflows:
       basic:
         type: basic
         agent: config-demo-agent
-        prompt: |
+        prompt: |-
           Please demonstrate the tool config feature by:
           1. Call the api-caller tool to fetch user data from endpoint "/users/123"
           2. Format the response using the formatter tool
-          
+
           Show how the tools use their configured defaults (base URL, formatting options, etc.)

@@ -129,6 +129,7 @@ func (t *MyTemplate) GetProjectConfig(opts *template.GenerateOptions) any {
 ## Template Functions
 
 Templates support all Sprig functions plus:
+
 - `jsEscape`: JavaScript string escaping
 - `yamlEscape`: YAML string escaping
 - `htmlEscape`: HTML string escaping

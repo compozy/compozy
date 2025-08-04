@@ -1,7 +1,6 @@
 "use client";
 
 import { MagicCard } from "@/components/magicui/magic-card";
-import { cn } from "@/lib/utils";
 import Image from "next/image";
 import React from "react";
 import { tv, type VariantProps } from "tailwind-variants";
@@ -57,7 +56,6 @@ const BentoCard = ({ className, background, children, icon, ...props }: BentoCar
   );
 };
 BentoCard.displayName = "BentoCard";
-
 
 // Card 1 Component - Enterprise-grade Reliability
 const ReliabilityCard: React.FC = () => {

@@ -9,50 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestCombineAuthTokens(t *testing.T) {
-	t.Run("Should return client tokens when global tokens are empty", func(t *testing.T) {
-		proxyHandlers := &ProxyHandlers{
-			globalAuthTokens: []string{},
-		}
-		result := combineAuthTokens(proxyHandlers.globalAuthTokens, []string{"token1", "token2"})
-		assert.Equal(t, []string{"token1", "token2"}, result)
-	})
-
-	t.Run("Should return global tokens when client tokens are empty", func(t *testing.T) {
-		proxyHandlers := &ProxyHandlers{
-			globalAuthTokens: []string{"global1", "global2"},
-		}
-		result := combineAuthTokens(proxyHandlers.globalAuthTokens, []string{})
-		assert.Equal(t, []string{"global1", "global2"}, result)
-	})
-
-	t.Run("Should return empty slice when both are empty", func(t *testing.T) {
-		proxyHandlers := &ProxyHandlers{
-			globalAuthTokens: []string{},
-		}
-		result := combineAuthTokens(proxyHandlers.globalAuthTokens, []string{})
-		assert.Empty(t, result)
-	})
-
-	t.Run("Should combine tokens and remove duplicates", func(t *testing.T) {
-		proxyHandlers := &ProxyHandlers{
-			globalAuthTokens: []string{"token1", "token2"},
-		}
-		result := combineAuthTokens(proxyHandlers.globalAuthTokens, []string{"token2", "token3"})
-		assert.Equal(t, []string{"token1", "token2", "token3"}, result)
-	})
-
-	t.Run("Should skip empty tokens", func(t *testing.T) {
-		proxyHandlers := &ProxyHandlers{
-			globalAuthTokens: []string{"token1", "", "token2"},
-		}
-		result := combineAuthTokens(proxyHandlers.globalAuthTokens, []string{"", "token3"})
-		assert.Equal(t, []string{"token1", "token2", "token3"}, result)
-	})
-}
-
-func TestNewAuthMiddleware(t *testing.T) {
-	t.Run("Should accept valid Bearer token", func(t *testing.T) {
+func TestAuthMiddleware_TokenValidation(t *testing.T) {
+	t.Run("Should accept valid Bearer token and allow request through", func(t *testing.T) {
 		gin.SetMode(gin.TestMode)
 
 		middleware := newAuthMiddleware([]string{"valid-token"})
@@ -69,7 +27,7 @@ func TestNewAuthMiddleware(t *testing.T) {
 		assert.False(t, c.IsAborted())
 	})
 
-	t.Run("Should accept case-insensitive Bearer token", func(t *testing.T) {
+	t.Run("Should accept case-insensitive Bearer token header", func(t *testing.T) {
 		gin.SetMode(gin.TestMode)
 
 		middleware := newAuthMiddleware([]string{"valid-token"})
@@ -86,7 +44,7 @@ func TestNewAuthMiddleware(t *testing.T) {
 		assert.False(t, c.IsAborted())
 	})
 
-	t.Run("Should accept mixed case Bearer token", func(t *testing.T) {
+	t.Run("Should accept mixed case Bearer prefix in authorization header", func(t *testing.T) {
 		gin.SetMode(gin.TestMode)
 
 		middleware := newAuthMiddleware([]string{"valid-token"})
@@ -103,7 +61,7 @@ func TestNewAuthMiddleware(t *testing.T) {
 		assert.False(t, c.IsAborted())
 	})
 
-	t.Run("Should reject invalid token", func(t *testing.T) {
+	t.Run("Should reject request with invalid auth token", func(t *testing.T) {
 		gin.SetMode(gin.TestMode)
 
 		middleware := newAuthMiddleware([]string{"valid-token"})
@@ -121,7 +79,7 @@ func TestNewAuthMiddleware(t *testing.T) {
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
 	})
 
-	t.Run("Should reject missing authorization header", func(t *testing.T) {
+	t.Run("Should reject request without authorization header", func(t *testing.T) {
 		gin.SetMode(gin.TestMode)
 
 		middleware := newAuthMiddleware([]string{"valid-token"})
@@ -138,7 +96,7 @@ func TestNewAuthMiddleware(t *testing.T) {
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
 	})
 
-	t.Run("Should reject non-Bearer authorization", func(t *testing.T) {
+	t.Run("Should reject non-Bearer authorization schemes", func(t *testing.T) {
 		gin.SetMode(gin.TestMode)
 
 		middleware := newAuthMiddleware([]string{"valid-token"})
@@ -156,7 +114,7 @@ func TestNewAuthMiddleware(t *testing.T) {
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
 	})
 
-	t.Run("Should skip empty tokens during initialization", func(t *testing.T) {
+	t.Run("Should filter out empty tokens and validate non-empty ones", func(t *testing.T) {
 		gin.SetMode(gin.TestMode)
 
 		middleware := newAuthMiddleware([]string{"valid-token", "", "another-token"})
@@ -174,8 +132,8 @@ func TestNewAuthMiddleware(t *testing.T) {
 	})
 }
 
-func TestWrapWithGinMiddlewares_PanicRecovery(t *testing.T) {
-	t.Run("Should catch panics from the handler", func(t *testing.T) {
+func TestMiddlewareWrapper_PanicRecovery(t *testing.T) {
+	t.Run("Should recover from handler panics and return 500 error", func(t *testing.T) {
 		gin.SetMode(gin.TestMode)
 
 		// Create a handler that panics
@@ -201,7 +159,7 @@ func TestWrapWithGinMiddlewares_PanicRecovery(t *testing.T) {
 		assert.Contains(t, w.Body.String(), "Internal server error")
 	})
 
-	t.Run("Should work with nil handler", func(t *testing.T) {
+	t.Run("Should handle nil handler gracefully with error response", func(t *testing.T) {
 		gin.SetMode(gin.TestMode)
 
 		wrappedHandler := wrapWithGinMiddlewares(nil)
@@ -217,7 +175,7 @@ func TestWrapWithGinMiddlewares_PanicRecovery(t *testing.T) {
 		assert.Contains(t, w.Body.String(), "Handler not initialized")
 	})
 
-	t.Run("Should properly chain middlewares", func(t *testing.T) {
+	t.Run("Should execute middlewares in correct order with proper chaining", func(t *testing.T) {
 		gin.SetMode(gin.TestMode)
 
 		var executionOrder []string

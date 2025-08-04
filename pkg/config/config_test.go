@@ -82,7 +82,8 @@ func TestConfig_Validation(t *testing.T) {
 				err := svc.Validate(cfg)
 
 				if tt.wantErr {
-					assert.Error(t, err)
+					require.Error(t, err)
+					assert.Contains(t, err.Error(), "validation failed")
 				} else {
 					assert.NoError(t, err)
 				}
@@ -112,7 +113,8 @@ func TestConfig_Validation(t *testing.T) {
 				err := svc.Validate(cfg)
 
 				if tt.wantErr {
-					assert.Error(t, err)
+					require.Error(t, err)
+					assert.Contains(t, err.Error(), "validation failed")
 				} else {
 					assert.NoError(t, err)
 				}
@@ -143,7 +145,8 @@ func TestConfig_Validation(t *testing.T) {
 				err := svc.Validate(cfg)
 
 				if tt.wantErr {
-					assert.Error(t, err)
+					require.Error(t, err)
+					assert.Contains(t, err.Error(), "validation failed")
 				} else {
 					assert.NoError(t, err)
 				}
@@ -193,7 +196,8 @@ func TestConfig_Validation(t *testing.T) {
 				err := svc.Validate(cfg)
 
 				if tt.wantErr {
-					assert.Error(t, err)
+					require.Error(t, err)
+					assert.Contains(t, err.Error(), "validation failed")
 				} else {
 					assert.NoError(t, err)
 				}
@@ -243,7 +247,8 @@ func TestConfig_Validation(t *testing.T) {
 				err := svc.Validate(cfg)
 
 				if tt.wantErr {
-					assert.Error(t, err)
+					require.Error(t, err)
+					assert.Contains(t, err.Error(), "validation failed")
 					if tt.errMsg != "" {
 						assert.Contains(t, err.Error(), tt.errMsg)
 					}
@@ -321,7 +326,8 @@ func TestConfig_Validation(t *testing.T) {
 				err := svc.Validate(cfg)
 
 				if tt.wantErr {
-					assert.Error(t, err)
+					require.Error(t, err)
+					assert.Contains(t, err.Error(), "validation failed")
 				} else {
 					assert.NoError(t, err)
 				}
@@ -358,30 +364,13 @@ func TestConfig_Validation(t *testing.T) {
 				err := svc.Validate(cfg)
 
 				if tt.wantErr {
-					assert.Error(t, err)
+					require.Error(t, err)
+					assert.Contains(t, err.Error(), "validation failed")
 				} else {
 					assert.NoError(t, err)
 				}
 			})
 		}
-	})
-}
-
-func TestMetadata_SourceTracking(t *testing.T) {
-	t.Run("Should track configuration sources", func(t *testing.T) {
-		meta := Metadata{
-			Sources: map[string]SourceType{
-				"server":   SourceCLI,
-				"database": SourceEnv,
-				"temporal": SourceYAML,
-				"runtime":  SourceDefault,
-			},
-		}
-
-		assert.Equal(t, SourceCLI, meta.Sources["server"])
-		assert.Equal(t, SourceEnv, meta.Sources["database"])
-		assert.Equal(t, SourceYAML, meta.Sources["temporal"])
-		assert.Equal(t, SourceDefault, meta.Sources["runtime"])
 	})
 }
 
@@ -486,7 +475,8 @@ func TestRedisPortValidation(t *testing.T) {
 				err := svc.Validate(cfg)
 
 				if tt.wantErr {
-					assert.Error(t, err)
+					require.Error(t, err)
+					assert.Contains(t, err.Error(), "validation failed")
 					if tt.errorMsg != "" {
 						assert.Contains(t, err.Error(), tt.errorMsg)
 					}

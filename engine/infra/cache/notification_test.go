@@ -91,7 +91,7 @@ func TestRedisNotificationSystem_Publish(t *testing.T) {
 		invalidMessage := func() {}
 
 		err := ns.Publish(ctx, channel, invalidMessage)
-		assert.Error(t, err)
+		assert.ErrorContains(t, err, "json")
 
 		metrics := ns.GetMetrics()
 		assert.Greater(t, metrics.PublishErrors, int64(0))
@@ -141,7 +141,7 @@ func TestRedisNotificationSystem_Subscribe(t *testing.T) {
 
 	t.Run("Should fail with empty channel list", func(t *testing.T) {
 		_, err := ns.Subscribe(ctx)
-		assert.Error(t, err)
+		assert.ErrorContains(t, err, "channel")
 	})
 }
 
@@ -198,7 +198,7 @@ func TestRedisNotificationSystem_SubscribePattern(t *testing.T) {
 
 	t.Run("Should fail with empty pattern list", func(t *testing.T) {
 		_, err := ns.SubscribePattern(ctx)
-		assert.Error(t, err)
+		assert.ErrorContains(t, err, "pattern")
 	})
 }
 

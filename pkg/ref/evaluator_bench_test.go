@@ -11,7 +11,7 @@ import (
 
 func createLargeScope(depth, breadth int) map[string]any {
 	scope := make(map[string]any)
-	for i := range breadth {
+	for i := 0; i < breadth; i++ {
 		key := fmt.Sprintf("item_%d", i)
 		scope[key] = createNestedObject(depth)
 	}
@@ -42,7 +42,8 @@ func BenchmarkResolvePath_NoCache(b *testing.B) {
 	scope := createLargeScope(5, 100)
 	ev := NewEvaluator(WithLocalScope(scope))
 
-	for b.Loop() {
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
 		_, err := ev.ResolvePath("local", "item_50.nested.nested.nested.nested.nested.value")
 		if err != nil {
 			b.Fatal(err)
@@ -56,7 +57,8 @@ func BenchmarkResolvePath_WithCache(b *testing.B) {
 		WithLocalScope(scope),
 		WithCacheEnabled(),
 	)
-	for b.Loop() {
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
 		_, err := ev.ResolvePath("local", "item_50.nested.nested.nested.nested.nested.value")
 		if err != nil {
 			b.Fatal(err)
@@ -73,7 +75,8 @@ func BenchmarkResolvePath_MixedPaths_NoCache(b *testing.B) {
 		"item_30.meta.level",
 		"item_40.nested.meta.level",
 	}
-	for i := 0; b.Loop(); i++ {
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
 		path := paths[i%len(paths)]
 		_, err := ev.ResolvePath("local", path)
 		if err != nil {

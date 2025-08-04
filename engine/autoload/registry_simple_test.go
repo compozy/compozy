@@ -46,7 +46,7 @@ func TestConfigRegistrySimple_Register(t *testing.T) {
 		err := registry.Register(config1, "manual")
 		assert.NoError(t, err)
 		err = registry.Register(config2, "autoload")
-		assert.Error(t, err)
+		require.Error(t, err)
 		coreErr, ok := err.(*core.Error)
 		require.True(t, ok)
 		assert.Equal(t, "DUPLICATE_CONFIG", coreErr.Code)
@@ -76,7 +76,7 @@ func TestConfigRegistrySimple_Register(t *testing.T) {
 			ID:       "",
 		}
 		err := registry.Register(config, "autoload")
-		assert.Error(t, err)
+		require.Error(t, err)
 		coreErr, ok := err.(*core.Error)
 		require.True(t, ok)
 		assert.Equal(t, "EMPTY_ID", coreErr.Code)
@@ -94,7 +94,7 @@ func TestConfigRegistrySimple_Register(t *testing.T) {
 		err := registry.Register(config1, "manual")
 		assert.NoError(t, err)
 		err = registry.Register(config2, "autoload")
-		assert.Error(t, err, "Should detect duplicate with different case")
+		require.Error(t, err, "Should detect duplicate with different case")
 		coreErr, ok := err.(*core.Error)
 		require.True(t, ok)
 		assert.Equal(t, "DUPLICATE_CONFIG", coreErr.Code)
@@ -136,7 +136,7 @@ func TestConfigRegistrySimple_Get(t *testing.T) {
 	t.Run("Should return error for non-existent configuration", func(t *testing.T) {
 		registry := NewConfigRegistry()
 		_, err := registry.Get("Workflow", "non-existent")
-		assert.Error(t, err)
+		require.Error(t, err)
 		coreErr, ok := err.(*core.Error)
 		require.True(t, ok)
 		assert.Equal(t, "RESOURCE_NOT_FOUND", coreErr.Code)
@@ -184,9 +184,9 @@ func TestConfigRegistrySimple_Clear(t *testing.T) {
 		assert.Equal(t, 0, registry.Count())
 		// Verify configs are actually gone
 		_, err = registry.Get("Workflow", "workflow-1")
-		assert.Error(t, err)
+		require.Error(t, err)
 		_, err = registry.Get("Agent", "agent-1")
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 }
 
@@ -268,7 +268,7 @@ func TestExtractResourceInfoSimple(t *testing.T) {
 	t.Run("Should handle unknown config type", func(t *testing.T) {
 		unknownConfig := struct{ SomeField string }{SomeField: "value"}
 		_, _, err := extractResourceInfo(&unknownConfig)
-		assert.Error(t, err)
+		require.Error(t, err)
 		coreErr, ok := err.(*core.Error)
 		require.True(t, ok)
 		assert.Equal(t, "UNKNOWN_CONFIG_TYPE", coreErr.Code)
@@ -276,7 +276,7 @@ func TestExtractResourceInfoSimple(t *testing.T) {
 	t.Run("Should handle non-struct config", func(t *testing.T) {
 		stringConfig := "not a struct"
 		_, _, err := extractResourceInfo(stringConfig)
-		assert.Error(t, err)
+		require.Error(t, err)
 		coreErr, ok := err.(*core.Error)
 		require.True(t, ok)
 		assert.Equal(t, "INVALID_CONFIG_TYPE", coreErr.Code)

@@ -34,10 +34,11 @@ func TestPrometheusClientScraping(t *testing.T) {
 		resp, err := env.GetMetricsClient().Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
-		// Parse with Prometheus text parser
+		// Parse with Prometheus text parser to validate format compliance
 		parser := expfmt.TextParser{}
 		metricFamilies, err := parser.TextToMetricFamilies(resp.Body)
-		require.NoError(t, err, "Metrics should be parseable by Prometheus client")
+		require.NoError(t, err, "Metrics must be parseable by Prometheus client without format errors")
+		require.NotEmpty(t, metricFamilies, "Should parse at least one metric family")
 		// Verify expected metric families exist (system metrics always present)
 		systemMetrics := []string{
 			"compozy_build_info",
@@ -72,10 +73,11 @@ func TestPrometheusClientScraping(t *testing.T) {
 		resp, err = env.GetMetricsClient().Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
-		// Parse metrics
+		// Parse metrics and validate structure
 		parser := expfmt.TextParser{}
 		metricFamilies, err := parser.TextToMetricFamilies(resp.Body)
-		require.NoError(t, err)
+		require.NoError(t, err, "Metrics must be parseable without format errors")
+		require.NotEmpty(t, metricFamilies, "Should contain metric families")
 		// Verify metric types
 		expectedTypes := map[string]dto.MetricType{
 			"compozy_http_requests_total":           dto.MetricType_COUNTER,
@@ -86,10 +88,17 @@ func TestPrometheusClientScraping(t *testing.T) {
 		}
 		for name, expectedType := range expectedTypes {
 			family, exists := metricFamilies[name]
-			if assert.True(t, exists, "Should have metric family: %s", name) {
-				require.NotNil(t, family.Type, "Metric %s has no TYPE metadata", name)
-				assert.Equal(t, expectedType, *family.Type, "Metric %s should be type %s", name, expectedType)
-			}
+			require.True(t, exists, "Should have metric family: %s", name)
+			require.NotNil(t, family.Type, "Metric %s must have TYPE metadata", name)
+			assert.Equal(
+				t,
+				expectedType,
+				*family.Type,
+				"Metric %s must be type %s, got %s",
+				name,
+				expectedType,
+				*family.Type,
+			)
 		}
 	})
 	t.Run("Should have valid metric help text", func(t *testing.T) {
@@ -101,16 +110,15 @@ func TestPrometheusClientScraping(t *testing.T) {
 		resp, err := env.GetMetricsClient().Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
-		// Parse metrics
+		// Parse metrics and validate help text presence
 		parser := expfmt.TextParser{}
 		metricFamilies, err := parser.TextToMetricFamilies(resp.Body)
-		require.NoError(t, err)
+		require.NoError(t, err, "Metrics must be parseable for help text validation")
+		require.NotEmpty(t, metricFamilies, "Should contain metric families")
 		// Check help text exists and is not empty
 		for name, family := range metricFamilies {
-			assert.NotNil(t, family.Help, "Metric %s should have help text", name)
-			if family.Help != nil {
-				assert.NotEmpty(t, *family.Help, "Metric %s help text should not be empty", name)
-			}
+			require.NotNil(t, family.Help, "Metric %s must have help text", name)
+			assert.NotEmpty(t, *family.Help, "Metric %s help text must not be empty", name)
 		}
 	})
 	t.Run("Should validate histogram buckets", func(t *testing.T) {
@@ -128,10 +136,11 @@ func TestPrometheusClientScraping(t *testing.T) {
 		resp, err := env.GetMetricsClient().Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
-		// Parse metrics
+		// Parse metrics and validate histogram structure
 		parser := expfmt.TextParser{}
 		metricFamilies, err := parser.TextToMetricFamilies(resp.Body)
-		require.NoError(t, err)
+		require.NoError(t, err, "Metrics must be parseable for histogram validation")
+		require.NotEmpty(t, metricFamilies, "Should contain metric families")
 		// Check histogram
 		histogram, exists := metricFamilies["compozy_http_request_duration_seconds"]
 		require.True(t, exists, "Should have HTTP duration histogram")
@@ -179,10 +188,11 @@ func TestPrometheusClientScraping(t *testing.T) {
 		resp, err := env.GetMetricsClient().Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
-		// Parse metrics
+		// Parse metrics and validate label structure
 		parser := expfmt.TextParser{}
 		metricFamilies, err := parser.TextToMetricFamilies(resp.Body)
-		require.NoError(t, err)
+		require.NoError(t, err, "Metrics must be parseable for label validation")
+		require.NotEmpty(t, metricFamilies, "Should contain metric families")
 		// Check counter labels
 		counter, exists := metricFamilies["compozy_http_requests_total"]
 		require.True(t, exists, "Should have HTTP requests counter")

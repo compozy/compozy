@@ -151,7 +151,7 @@ func TestFileDiscoverer_Security(t *testing.T) {
 	t.Run("Should reject absolute paths", func(t *testing.T) {
 		t.Parallel()
 		_, err := discoverer.Discover([]string{"/etc/passwd"}, nil)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "INVALID_PATTERN")
 		assert.Contains(t, err.Error(), "absolute paths not allowed")
 	})
@@ -159,7 +159,7 @@ func TestFileDiscoverer_Security(t *testing.T) {
 	t.Run("Should reject parent directory references", func(t *testing.T) {
 		t.Parallel()
 		_, err := discoverer.Discover([]string{"../../../etc/passwd"}, nil)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "INVALID_PATTERN")
 		assert.Contains(t, err.Error(), "parent directory references not allowed")
 	})
@@ -167,7 +167,7 @@ func TestFileDiscoverer_Security(t *testing.T) {
 	t.Run("Should reject patterns with .. in the middle", func(t *testing.T) {
 		t.Parallel()
 		_, err := discoverer.Discover([]string{"workflows/../../../etc/passwd"}, nil)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "INVALID_PATTERN")
 	})
 }
@@ -226,7 +226,7 @@ func TestFileDiscoverer_EdgeCases(t *testing.T) {
 	t.Run("Should handle invalid glob patterns", func(t *testing.T) {
 		t.Parallel()
 		_, err := discoverer.Discover([]string{"[invalid"}, nil)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid glob pattern")
 	})
 }

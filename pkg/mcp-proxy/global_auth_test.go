@@ -6,8 +6,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestProxyHandlers_CombineAuthTokens(t *testing.T) {
-	t.Run("Should handle no global tokens and client tokens only", func(t *testing.T) {
+func TestCombineAuthTokens_GlobalTokenHandling(t *testing.T) {
+	t.Run("Should return client tokens when no global tokens exist", func(t *testing.T) {
 		proxyHandlers := &ProxyHandlers{
 			globalAuthTokens: nil,
 		}
@@ -81,8 +81,8 @@ func TestProxyHandlers_CombineAuthTokens(t *testing.T) {
 	})
 }
 
-func TestGlobalAuthTokensIntegration(t *testing.T) {
-	t.Run("Server configuration with global auth tokens", func(t *testing.T) {
+func TestGlobalAuthTokens_Integration(t *testing.T) {
+	t.Run("Should properly configure proxy handlers with global auth tokens", func(t *testing.T) {
 		globalTokens := []string{"global-token-1", "global-token-2"}
 
 		config := &Config{
@@ -99,7 +99,7 @@ func TestGlobalAuthTokensIntegration(t *testing.T) {
 		assert.Equal(t, globalTokens, proxyHandlers.globalAuthTokens)
 	})
 
-	t.Run("Global auth tokens are inherited by client middleware", func(t *testing.T) {
+	t.Run("Should combine global and client tokens preserving both sets", func(t *testing.T) {
 		globalTokens := []string{"global-auth-123"}
 		clientTokens := []string{"client-auth-456"}
 
@@ -115,7 +115,7 @@ func TestGlobalAuthTokensIntegration(t *testing.T) {
 		assert.Equal(t, expected, combined)
 	})
 
-	t.Run("Global tokens work when client has no tokens", func(t *testing.T) {
+	t.Run("Should use global tokens when client provides no auth tokens", func(t *testing.T) {
 		globalTokens := []string{"global-only-token"}
 
 		storage := NewMemoryStorage()
@@ -134,7 +134,7 @@ func TestGlobalAuthTokensIntegration(t *testing.T) {
 		assert.Equal(t, globalTokens, combined)
 	})
 
-	t.Run("No global tokens means only client tokens are used", func(t *testing.T) {
+	t.Run("Should use only client tokens when no global tokens configured", func(t *testing.T) {
 		clientTokens := []string{"client-only-token"}
 
 		storage := NewMemoryStorage()

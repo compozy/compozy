@@ -1,7 +1,7 @@
 "use client";
 import { useCopyButton } from "fumadocs-ui/utils/use-copy-button";
-import { Check, Copy, ExternalLinkIcon, MoreHorizontal, Github, FileText } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Check, Copy, ExternalLinkIcon, FileText, Github, MoreHorizontal } from "lucide-react";
+import { useState } from "react";
 import { Button } from "../ui/button";
 import {
   DropdownMenu,
@@ -74,14 +74,24 @@ export function ViewOptions({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
         <DropdownMenuItem asChild>
-          <a href={githubUrl} rel="noreferrer noopener" target="_blank" className="flex items-center gap-2">
+          <a
+            href={githubUrl}
+            rel="noreferrer noopener"
+            target="_blank"
+            className="flex items-center gap-2"
+          >
             <Github className="h-4 w-4" />
             Open on GitHub
             <ExternalLinkIcon className="!size-3 ms-auto" />
           </a>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <a href={markdownUrl} rel="noreferrer noopener" target="_blank" className="flex items-center gap-2">
+          <a
+            href={markdownUrl}
+            rel="noreferrer noopener"
+            target="_blank"
+            className="flex items-center gap-2"
+          >
             <FileText className="h-4 w-4" />
             View in Markdown
             <ExternalLinkIcon className="!size-3 ms-auto" />

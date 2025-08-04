@@ -37,16 +37,17 @@ func TestMonitoringResourceLeaks(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 		// Check goroutine count
 		finalGoroutines := runtime.NumGoroutine()
-		// Allow for some variance but should be close to baseline
+		// Verify no significant goroutine leaks
 		diff := finalGoroutines - baselineGoroutines
-		assert.LessOrEqual(
-			t,
-			diff,
-			2,
-			"Should not leak goroutines (baseline: %d, final: %d)",
-			baselineGoroutines,
-			finalGoroutines,
-		)
+		if diff > 2 {
+			t.Errorf(
+				"Goroutine leak detected: baseline=%d, final=%d, diff=%d. Each monitoring environment should cleanup properly.",
+				baselineGoroutines,
+				finalGoroutines,
+				diff,
+			)
+		}
+		assert.LessOrEqual(t, diff, 2, "Should not leak goroutines over multiple environment cycles")
 	})
 	t.Run("Should handle high volume of requests without memory issues", func(t *testing.T) {
 		env := SetupTestEnvironment(t)
@@ -81,9 +82,16 @@ func TestMonitoringResourceLeaks(t *testing.T) {
 		// Calculate memory growth
 		heapGrowth := int64(after.HeapAlloc) - int64(baseline.HeapAlloc)
 		heapGrowthMB := float64(heapGrowth) / (1024 * 1024)
-		// Memory growth should be reasonable for the number of requests
-		// Allow up to 50MB growth for 1000 requests
-		assert.Less(t, heapGrowthMB, 50.0, "Memory growth should be reasonable (grew by %.2f MB)", heapGrowthMB)
+		// Verify memory growth is bounded for high-volume requests
+		// Memory growth should be proportional to metrics cardinality, not request count
+		if heapGrowthMB > 50.0 {
+			t.Errorf(
+				"Excessive memory growth detected: %.2f MB for %d requests. This suggests unbounded metric cardinality.",
+				heapGrowthMB,
+				numRequests,
+			)
+		}
+		assert.Less(t, heapGrowthMB, 50.0, "Memory growth must be bounded regardless of request volume")
 	})
 	t.Run("Should properly cleanup when monitoring is shutdown", func(t *testing.T) {
 		// Get baseline goroutine count
@@ -110,7 +118,15 @@ func TestMonitoringResourceLeaks(t *testing.T) {
 		// Check goroutines after cleanup
 		finalGoroutines := runtime.NumGoroutine()
 		diff := finalGoroutines - baselineGoroutines
-		assert.LessOrEqual(t, diff, 2, "Should cleanup goroutines after shutdown")
+		if diff > 2 {
+			t.Errorf(
+				"Shutdown failed to cleanup goroutines: baseline=%d, final=%d, diff=%d",
+				baselineGoroutines,
+				finalGoroutines,
+				diff,
+			)
+		}
+		assert.LessOrEqual(t, diff, 2, "Monitoring service shutdown must cleanup all goroutines")
 	})
 	t.Run("Should handle repeated initialization and shutdown cycles", func(t *testing.T) {
 		// Get baseline
@@ -143,7 +159,16 @@ func TestMonitoringResourceLeaks(t *testing.T) {
 		runtime.ReadMemStats(&finalMemStats)
 		// Check goroutines
 		goroutineDiff := finalGoroutines - baselineGoroutines
-		assert.LessOrEqual(t, goroutineDiff, 2, "Should not accumulate goroutines over cycles")
+		if goroutineDiff > 2 {
+			t.Errorf(
+				"Goroutine accumulation detected over %d cycles: baseline=%d, final=%d, diff=%d",
+				cycles,
+				baselineGoroutines,
+				finalGoroutines,
+				goroutineDiff,
+			)
+		}
+		assert.LessOrEqual(t, goroutineDiff, 2, "Should not accumulate goroutines over multiple init/shutdown cycles")
 		// Check memory
 		heapGrowth := int64(finalMemStats.HeapAlloc) - int64(baselineMemStats.HeapAlloc)
 		heapGrowthMB := float64(heapGrowth) / (1024 * 1024)

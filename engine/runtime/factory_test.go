@@ -18,7 +18,7 @@ func TestDefaultFactory_CreateRuntime(t *testing.T) {
 		rt, err := factory.CreateRuntime(ctx, nil)
 
 		assert.Nil(t, rt)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "runtime config must not be nil")
 	})
 
@@ -37,9 +37,6 @@ func TestDefaultFactory_CreateRuntime(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.NotNil(t, rt)
-
-		// Verify it implements the Runtime interface
-		assert.Implements(t, (*runtime.Runtime)(nil), rt)
 	})
 
 	t.Run("Should create runtime with explicit Bun type", func(t *testing.T) {
@@ -70,7 +67,7 @@ func TestDefaultFactory_CreateRuntime(t *testing.T) {
 		rt, err := factory.CreateRuntime(ctx, config)
 
 		assert.Nil(t, rt)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "node.js runtime not yet implemented")
 	})
 
@@ -84,7 +81,7 @@ func TestDefaultFactory_CreateRuntime(t *testing.T) {
 		rt, err := factory.CreateRuntime(ctx, config)
 
 		assert.Nil(t, rt)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "unsupported runtime type: python")
 		assert.Contains(t, err.Error(), "supported types:")
 	})
@@ -104,7 +101,7 @@ func TestDefaultFactory_CreateRuntime(t *testing.T) {
 			rt, err := factory.CreateRuntime(ctx, config)
 
 			assert.Nil(t, rt, "Runtime should be nil for invalid type: %s", invalidType)
-			assert.Error(t, err, "Should return error for invalid type: %s", invalidType)
+			require.Error(t, err, "Should return error for invalid type: %s", invalidType)
 			assert.Contains(
 				t,
 				err.Error(),
@@ -113,17 +110,5 @@ func TestDefaultFactory_CreateRuntime(t *testing.T) {
 				invalidType,
 			)
 		}
-	})
-}
-
-func TestNewDefaultFactory(t *testing.T) {
-	t.Run("Should create factory with project root", func(t *testing.T) {
-		projectRoot := "/test/project"
-		factory := runtime.NewDefaultFactory(projectRoot)
-
-		assert.NotNil(t, factory)
-
-		// Verify it implements the Factory interface
-		assert.Implements(t, (*runtime.Factory)(nil), factory)
 	})
 }

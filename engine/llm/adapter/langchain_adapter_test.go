@@ -232,17 +232,15 @@ func TestLangChainAdapter_ConvertResponse(t *testing.T) {
 
 		resp, err := adapter.convertResponse(langchainResp)
 
-		assert.Error(t, err)
+		assert.ErrorContains(t, err, "empty response")
 		assert.Nil(t, resp)
-		assert.Contains(t, err.Error(), "empty response")
 	})
 
 	t.Run("Should return error for nil response", func(t *testing.T) {
 		resp, err := adapter.convertResponse(nil)
 
-		assert.Error(t, err)
+		assert.ErrorContains(t, err, "empty response")
 		assert.Nil(t, resp)
-		assert.Contains(t, err.Error(), "empty response")
 	})
 }
 
@@ -298,7 +296,7 @@ func TestTestAdapter(t *testing.T) {
 
 		resp, err := adapter.GenerateContent(context.Background(), &LLMRequest{})
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, resp)
 		assert.Equal(t, assert.AnError, err)
 	})

@@ -1,0 +1,101 @@
+# Codecov configuration for Compozy Go project
+# Documentation: https://docs.codecov.io/docs/codecovyml-reference
+
+codecov:
+  max_report_age: "12h"  # Maximum age of coverage reports
+
+coverage:
+  status:
+    project:
+      default:
+        target: auto  # Auto-detect based on current coverage
+        threshold: 2%  # Allowed coverage drop before failing
+        base: auto  # Compare against base branch
+        if_ci_failed: error  # Fail if CI failed
+
+    patch:
+      default:
+        target: 75%  # Minimum coverage for changed code in PRs
+        threshold: 1%  # Allowed coverage drop for patches
+        base: auto
+        if_ci_failed: error
+
+  range: 60..90  # Coverage range colors (red to green)
+  round: down  # Round coverage down
+  precision: 2  # Decimal precision
+
+# Comment configuration for pull requests
+comment:
+  layout: "reach, diff, flags, files"
+  behavior: default
+  require_changes: false
+  require_base: false
+  require_head: true
+
+# Files and paths to ignore from coverage
+ignore:
+  - "vendor/**/*"  # Go vendor dependencies
+  - "**/*_test.go"  # Test files themselves
+  - "**/testdata/**/*"  # Test data files
+  - "**/mocks/**/*"  # Mock files
+  - "**/*.pb.go"  # Protobuf generated files
+  - "**/bin/**/*"  # Binary files
+  - "**/dist/**/*"  # Distribution files
+  - "**/node_modules/**/*"  # Node.js dependencies
+  - "**/examples/**/*"  # Example code
+  - "**/docs/**/*"  # Documentation
+  - "tools/**/*"  # Development tools
+  - "cluster/**/*"  # Docker/deployment files
+  - "schemas/**/*"  # Generated schemas
+  - "pkg/schemagen/**/*"  # Schema generation tool
+  - "**/*main.go"  # Main entry points (hard to test)
+
+# Modern flag management (2025 best practice)
+flag_management:
+  default_rules:
+    carryforward: true
+    statuses:
+      - name_prefix: "proj-"
+        type: project
+        target: 75%
+        threshold: 1%
+      - name_prefix: "patch-"
+        type: patch
+        target: 75%
+        threshold: 1%
+  individual_flags:
+    - name: unittests
+      paths:
+        - "engine/"
+        - "pkg/"
+        - "cli/"
+      carryforward: true
+      statuses:
+        - type: project
+          target: auto
+        - type: patch
+          target: 75%
+    - name: integration
+      paths:
+        - "test/integration/"
+      carryforward: false
+      statuses:
+        - type: project
+          target: 60%
+        - type: patch
+          target: 70%
+
+# GitHub integration settings
+github_checks:
+  annotations: true
+
+# Notification settings
+slack:
+  default:
+    only_pulls: true
+    message: "Coverage for {{owner}}/{{repo}} changed by {{change}} on {{branch}}"
+
+# Parsing configuration
+parsers:
+  go:
+    partials_as_hits: true  # Count partial lines as hits

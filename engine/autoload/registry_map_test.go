@@ -68,7 +68,7 @@ func TestConfigRegistry_MapConfigurations(t *testing.T) {
 		err := registry.Register(config1, "manual")
 		assert.NoError(t, err)
 		err = registry.Register(config2, "autoload")
-		assert.Error(t, err)
+		require.Error(t, err)
 		coreErr, ok := err.(*core.Error)
 		require.True(t, ok)
 		assert.Equal(t, "DUPLICATE_CONFIG", coreErr.Code)
@@ -142,7 +142,7 @@ func TestExtractResourceInfoFromMap(t *testing.T) {
 			"version": "1.0",
 		}
 		_, _, err := extractResourceInfoFromMap(configMap)
-		assert.Error(t, err)
+		require.Error(t, err)
 		coreErr, ok := err.(*core.Error)
 		require.True(t, ok)
 		assert.Equal(t, "MISSING_RESOURCE_FIELD", coreErr.Code)
@@ -154,7 +154,7 @@ func TestExtractResourceInfoFromMap(t *testing.T) {
 			"id":       "test-workflow",
 		}
 		_, _, err := extractResourceInfoFromMap(configMap)
-		assert.Error(t, err)
+		require.Error(t, err)
 		coreErr, ok := err.(*core.Error)
 		require.True(t, ok)
 		assert.Equal(t, "INVALID_RESOURCE_FIELD", coreErr.Code)
@@ -167,7 +167,7 @@ func TestExtractResourceInfoFromMap(t *testing.T) {
 			"id":       "test-workflow",
 		}
 		_, _, err := extractResourceInfoFromMap(configMap)
-		assert.Error(t, err)
+		require.Error(t, err)
 		coreErr, ok := err.(*core.Error)
 		require.True(t, ok)
 		assert.Equal(t, "INVALID_RESOURCE_FIELD", coreErr.Code)
@@ -179,7 +179,7 @@ func TestExtractResourceInfoFromMap(t *testing.T) {
 			"version":  "1.0",
 		}
 		_, _, err := extractResourceInfoFromMap(configMap)
-		assert.Error(t, err)
+		require.Error(t, err)
 		coreErr, ok := err.(*core.Error)
 		require.True(t, ok)
 		assert.Equal(t, "MISSING_ID_FIELD", coreErr.Code)
@@ -191,7 +191,7 @@ func TestExtractResourceInfoFromMap(t *testing.T) {
 			"id":       123,
 		}
 		_, _, err := extractResourceInfoFromMap(configMap)
-		assert.Error(t, err)
+		require.Error(t, err)
 		coreErr, ok := err.(*core.Error)
 		require.True(t, ok)
 		assert.Equal(t, "INVALID_ID_FIELD", coreErr.Code)
@@ -204,7 +204,7 @@ func TestExtractResourceInfoFromMap(t *testing.T) {
 			"id":       "",
 		}
 		_, _, err := extractResourceInfoFromMap(configMap)
-		assert.Error(t, err)
+		require.Error(t, err)
 		coreErr, ok := err.(*core.Error)
 		require.True(t, ok)
 		assert.Equal(t, "INVALID_ID_FIELD", coreErr.Code)

@@ -66,10 +66,11 @@ description: Test workflow without resource field
 		err = os.WriteFile(workflowPath, []byte(invalidContent), 0644)
 		require.NoError(t, err)
 		err = loader.Load(context.Background())
-		assert.Error(t, err)
+		require.Error(t, err)
 		coreErr, ok := err.(*core.Error)
 		require.True(t, ok)
 		assert.Equal(t, "AUTOLOAD_FILE_FAILED", coreErr.Code)
+		assert.Contains(t, err.Error(), "resource field")
 		assert.Equal(t, 0, registry.Count())
 	})
 
@@ -133,10 +134,11 @@ description: Test workflow without ID field
 		err = os.WriteFile(workflowPath, []byte(invalidContent), 0644)
 		require.NoError(t, err)
 		err = loader.Load(context.Background())
-		assert.Error(t, err)
+		require.Error(t, err)
 		coreErr, ok := err.(*core.Error)
 		require.True(t, ok)
 		assert.Equal(t, "AUTOLOAD_FILE_FAILED", coreErr.Code)
+		assert.Contains(t, err.Error(), "id field")
 		assert.Equal(t, 0, registry.Count())
 	})
 
@@ -163,8 +165,8 @@ version: "1.0"
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 		err = loader.Load(ctx)
-		assert.Error(t, err)
-		assert.Equal(t, context.Canceled, err)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, context.Canceled)
 	})
 
 	t.Run("Should skip loading when disabled", func(t *testing.T) {
@@ -308,7 +310,7 @@ version: "1.0"
 		err := os.WriteFile(filepath.Join(tempDir, "invalid.yaml"), []byte(invalidContent), 0644)
 		require.NoError(t, err)
 		result, err := loader.LoadWithResult(context.Background())
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.NotNil(t, result)
 		assert.Equal(t, 1, result.FilesProcessed)
 		assert.Equal(t, 0, result.ConfigsLoaded)
@@ -335,7 +337,7 @@ version: "1.0"
 		err = os.WriteFile(filepath.Join(tempDir, "invalid2.yaml"), []byte(invalidContent2), 0644)
 		require.NoError(t, err)
 		result, err := loader.LoadWithResult(context.Background())
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.NotNil(t, result)
 		// In strict mode, it fails fast on first error, so FilesProcessed will be 1
 		assert.Equal(t, 1, result.FilesProcessed)
@@ -445,9 +447,10 @@ func TestAutoLoader_validateFilePath(t *testing.T) {
 	t.Run("Should reject path outside project root", func(t *testing.T) {
 		outsidePath := "/etc/passwd"
 		err := loader.validateFilePath(outsidePath)
-		assert.Error(t, err)
+		require.Error(t, err)
 		coreErr, ok := err.(*core.Error)
 		require.True(t, ok)
 		assert.Equal(t, "PATH_TRAVERSAL_ATTEMPT", coreErr.Code)
+		assert.Contains(t, err.Error(), "path escapes project root")
 	})
 }

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPrecisionConverter_ConvertWithPrecision(t *testing.T) {
@@ -165,5 +166,63 @@ func TestPrecisionConverter_ConvertJSONWithPrecision(t *testing.T) {
 
 		item1 := items[1].(map[string]any)
 		assert.Equal(t, int64(123), item1["value"])
+	})
+
+	t.Run("Should handle invalid JSON gracefully", func(t *testing.T) {
+		pc := NewPrecisionConverter()
+
+		// Test malformed JSON
+		_, err := pc.ConvertJSONWithPrecision(`{"invalid": json}`)
+		require.Error(t, err, "Invalid JSON should return an error")
+		assert.Contains(t, err.Error(), "invalid", "Error should indicate JSON parsing failure")
+
+		// Test empty JSON
+		result, err := pc.ConvertJSONWithPrecision(`{}`)
+		require.NoError(t, err, "Empty JSON should parse successfully")
+		m, ok := result.(map[string]any)
+		require.True(t, ok, "Empty JSON should return empty map")
+		assert.Empty(t, m, "Empty JSON result should be empty map")
+	})
+}
+
+func TestPrecisionConverter_EdgeCases(t *testing.T) {
+	t.Run("Should handle boundary conditions and edge cases correctly", func(t *testing.T) {
+		pc := NewPrecisionConverter()
+
+		// Test zero values
+		result := pc.ConvertWithPrecision("0")
+		assert.Equal(t, int64(0), result, "Zero should be converted to int64")
+
+		result = pc.ConvertWithPrecision("0.0")
+		assert.Equal(t, int64(0), result, "Zero with decimal point should be converted to int64 as it's a whole number")
+
+		// Test negative numbers
+		result = pc.ConvertWithPrecision("-123")
+		assert.Equal(t, int64(-123), result, "Negative integers should be converted to int64")
+
+		result = pc.ConvertWithPrecision("-9007199254740992")
+		assert.Equal(t, "-9007199254740992", result, "Large negative integers should be preserved as strings")
+
+		result = pc.ConvertWithPrecision("-0.123456789123456789")
+		assert.Equal(t, "-0.123456789123456789", result, "High precision negative decimals should be preserved")
+
+		// Test leading/trailing zeros
+		result = pc.ConvertWithPrecision("000123")
+		assert.Equal(t, int64(123), result, "Leading zeros should be handled correctly")
+
+		result = pc.ConvertWithPrecision("123.000")
+		assert.Equal(
+			t,
+			int64(123),
+			result,
+			"Trailing zeros should be handled correctly and converted to int64 as it's a whole number",
+		)
+
+		// Test special float values as strings (edge case)
+		result = pc.ConvertWithPrecision("NaN")
+		assert.Equal(t, "NaN", result, "NaN as string should pass through unchanged")
+
+		result = pc.ConvertWithPrecision("Infinity")
+		assert.Equal(t, "Infinity", result, "Infinity as string should pass through unchanged")
 	})
 }

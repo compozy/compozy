@@ -11,315 +11,352 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// TestNewEngine is a basic test for the NewEngine function
-// More comprehensive tests are in test/integration/tplengine_test.go
-func TestNewEngine(t *testing.T) {
-	engine := NewEngine(FormatYAML)
-	assert.Equal(t, FormatYAML, engine.format)
-	assert.NotNil(t, engine.templates)
-	assert.NotNil(t, engine.globalValues)
-}
+func TestTemplateEngine_Configuration(t *testing.T) {
+	t.Run("Should create engine with specified format and allow format changes", func(t *testing.T) {
+		// Test YAML format initialization
+		engine := NewEngine(FormatYAML)
+		assert.Equal(t, FormatYAML, engine.format, "Engine should initialize with YAML format")
 
-func TestWithFormat(t *testing.T) {
-	engine := NewEngine(FormatYAML)
-	assert.Equal(t, FormatYAML, engine.format)
+		// Test format change behavior
+		engine = engine.WithFormat(FormatJSON)
+		assert.Equal(t, FormatJSON, engine.format, "Engine should change to JSON format")
 
-	engine = engine.WithFormat(FormatJSON)
-	assert.Equal(t, FormatJSON, engine.format)
-}
-
-// TestHasTemplate is a basic test for the HasTemplate function
-// More comprehensive tests are in test/integration/tplengine_test.go
-func TestHasTemplate(t *testing.T) {
-	assert.True(t, HasTemplate("Hello, {{ .name }}!"))
-	assert.False(t, HasTemplate("Hello, World!"))
-}
-
-func TestAddTemplate(t *testing.T) {
-	engine := NewEngine(FormatYAML)
-	err := engine.AddTemplate("greeting", "Hello, {{ .name }}!")
-	assert.NoError(t, err)
-
-	// Test with an invalid template
-	err = engine.AddTemplate("invalid", "Hello, {{ .name !")
-	assert.Error(t, err)
-}
-
-func TestRender(t *testing.T) {
-	engine := NewEngine(FormatYAML)
-	err := engine.AddTemplate("greeting", "Hello, {{ .name }}!")
-	assert.NoError(t, err)
-
-	result, err := engine.Render("greeting", map[string]any{"name": "World"})
-	assert.NoError(t, err)
-	assert.Equal(t, "Hello, World!", result)
-
-	_, err = engine.Render("non-existent", nil)
-	assert.Error(t, err)
-}
-
-func TestRenderString(t *testing.T) {
-	engine := NewEngine(FormatYAML)
-
-	// Simple variable substitution
-	result, err := engine.RenderString("Hello, {{ .name }}!", map[string]any{"name": "World"})
-	assert.NoError(t, err)
-	assert.Equal(t, "Hello, World!", result)
-
-	// No template markers
-	result, err = engine.RenderString("Hello, World!", nil)
-	assert.NoError(t, err)
-	assert.Equal(t, "Hello, World!", result)
-
-	// Nested property access
-	result, err = engine.RenderString("{{ .user.profile.name }}", map[string]any{
-		"user": map[string]any{
-			"profile": map[string]any{
-				"name": "John",
-			},
-		},
+		// Test precision preservation configuration
+		engine = engine.WithPrecisionPreservation(true)
+		assert.True(t, engine.preserveNumericPrecision, "Engine should enable precision preservation")
 	})
-	assert.NoError(t, err)
-	assert.Equal(t, "John", result)
-
-	// Invalid template
-	_, err = engine.RenderString("Hello, {{ .name !", nil)
-	assert.Error(t, err)
 }
 
-func TestProcessString(t *testing.T) {
-	// YAML format
-	engine := NewEngine(FormatYAML)
+func TestTemplateEngine_HasTemplate(t *testing.T) {
+	t.Run("Should correctly identify template markers", func(t *testing.T) {
+		// Test various template marker patterns
+		assert.True(t, HasTemplate("Hello, {{ .name }}!"), "Should detect simple template markers")
+		assert.True(t, HasTemplate("{{.user.profile.name}}"), "Should detect template markers without spaces")
+		assert.True(t, HasTemplate("{{ if .condition }}yes{{ end }}"), "Should detect conditional templates")
+		assert.False(t, HasTemplate("Hello, World!"), "Should not detect templates in plain text")
+		assert.False(t, HasTemplate("{ single brace }"), "Should not detect single braces as templates")
+	})
+}
 
-	// Simple YAML with template
-	yamlStr := `
-name: {{ .user.name }}
+func TestTemplateEngine_AddTemplate(t *testing.T) {
+	t.Run("Should add valid templates and reject invalid syntax", func(t *testing.T) {
+		engine := NewEngine(FormatYAML)
+
+		// Test adding valid template
+		err := engine.AddTemplate("greeting", "Hello, {{ .name }}!")
+		require.NoError(t, err, "Valid template should be added successfully")
+
+		// Test template with complex expressions
+		err = engine.AddTemplate("complex", "{{ if .user }}Hello {{ .user.name | upper }}{{ else }}Anonymous{{ end }}")
+		require.NoError(t, err, "Complex template should be added successfully")
+
+		// Test invalid template syntax
+		err = engine.AddTemplate("invalid", "Hello, {{ .name !")
+		require.Error(t, err, "Invalid template syntax should be rejected")
+		assert.Contains(t, err.Error(), "template", "Error should mention template parsing failure")
+	})
+}
+
+func TestTemplateEngine_Render(t *testing.T) {
+	t.Run("Should render registered templates with context data", func(t *testing.T) {
+		engine := NewEngine(FormatYAML)
+		err := engine.AddTemplate("greeting", "Hello, {{ .name }}!")
+		require.NoError(t, err)
+
+		// Test successful template rendering
+		result, err := engine.Render("greeting", map[string]any{"name": "World"})
+		require.NoError(t, err)
+		assert.Equal(t, "Hello, World!", result, "Template should render with provided context")
+
+		// Test rendering with complex context
+		err = engine.AddTemplate("user_info", "User: {{ .user.name }} ({{ .user.role | upper }})")
+		require.NoError(t, err)
+
+		result, err = engine.Render("user_info", map[string]any{
+			"user": map[string]any{
+				"name": "John",
+				"role": "admin",
+			},
+		})
+		require.NoError(t, err)
+		assert.Equal(t, "User: John (ADMIN)", result, "Template should handle nested context and filters")
+
+		// Test error for non-existent template
+		_, err = engine.Render("non-existent", nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "template", "Error should indicate template not found")
+	})
+}
+
+func TestTemplateEngine_RenderString(t *testing.T) {
+	t.Run("Should render template strings with context data and handle edge cases", func(t *testing.T) {
+		engine := NewEngine(FormatYAML)
+
+		// Test simple variable substitution
+		result, err := engine.RenderString("Hello, {{ .name }}!", map[string]any{"name": "World"})
+		require.NoError(t, err)
+		assert.Equal(t, "Hello, World!", result, "Simple template substitution should work")
+
+		// Test strings without template markers
+		result, err = engine.RenderString("Hello, World!", nil)
+		require.NoError(t, err)
+		assert.Equal(t, "Hello, World!", result, "Plain text should pass through unchanged")
+
+		// Test nested property access
+		result, err = engine.RenderString("{{ .user.profile.name }}", map[string]any{
+			"user": map[string]any{
+				"profile": map[string]any{
+					"name": "John",
+				},
+			},
+		})
+		require.NoError(t, err)
+		assert.Equal(t, "John", result, "Nested property access should work")
+
+		// Test template with Sprig functions
+		result, err = engine.RenderString("{{ .text | upper | trim }}", map[string]any{"text": "  hello world  "})
+		require.NoError(t, err)
+		assert.Equal(t, "HELLO WORLD", result, "Template should support chained Sprig functions")
+
+		// Test invalid template syntax
+		_, err = engine.RenderString("Hello, {{ .name !", nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "template", "Invalid template syntax should produce meaningful error")
+	})
+}
+
+func TestTemplateEngine_FormatSpecificRendering(t *testing.T) {
+	t.Run("Should render templates correctly for different output formats", func(t *testing.T) {
+		ctx := map[string]any{
+			"user": map[string]any{
+				"name":   "John",
+				"age":    30,
+				"active": true,
+			},
+		}
+
+		// Test YAML format rendering
+		yamlEngine := NewEngine(FormatYAML)
+		yamlStr := `name: {{ .user.name }}
 age: {{ .user.age }}
-`
-	ctx := map[string]any{
-		"user": map[string]any{
-			"name": "John",
-			"age":  30,
-		},
-	}
+active: {{ .user.active }}`
 
-	// For YAML format, we need to first render the template, then parse it
-	renderedYAML, err := engine.RenderString(yamlStr, ctx)
-	assert.NoError(t, err)
-	assert.NotNil(t, renderedYAML)
+		renderedYAML, err := yamlEngine.RenderString(yamlStr, ctx)
+		require.NoError(t, err)
+		assert.Contains(t, renderedYAML, "name: John", "YAML should render string values correctly")
+		assert.Contains(t, renderedYAML, "age: 30", "YAML should render numeric values correctly")
+		assert.Contains(t, renderedYAML, "active: true", "YAML should render boolean values correctly")
 
-	// Convert to map for easier assertions
-	var yamlMap map[string]any
-	// Parse the rendered YAML
-	err = yaml.Unmarshal([]byte(renderedYAML), &yamlMap)
-	assert.NoError(t, err)
-
-	assert.Equal(t, "John", yamlMap["name"])
-	assert.Equal(t, 30, yamlMap["age"])
-
-	// JSON format
-	engine = NewEngine(FormatJSON)
-
-	// For JSON format, we need to first render the template, then parse it
-	jsonStr := `{
+		// Test JSON format rendering
+		jsonEngine := NewEngine(FormatJSON)
+		jsonStr := `{
   "name": "{{ .user.name }}",
-  "age": {{ .user.age }}
+  "age": {{ .user.age }},
+  "active": {{ .user.active }}
 }`
 
-	// First render the template string
-	renderedJSON, err := engine.RenderString(jsonStr, ctx)
-	assert.NoError(t, err)
-	assert.NotNil(t, renderedJSON)
+		renderedJSON, err := jsonEngine.RenderString(jsonStr, ctx)
+		require.NoError(t, err)
 
-	// Then parse the rendered JSON
-	var jsonMap map[string]any
-	err = json.Unmarshal([]byte(renderedJSON), &jsonMap)
-	assert.NoError(t, err)
-	assert.Equal(t, "John", jsonMap["name"])
-	assert.Equal(t, float64(30), jsonMap["age"]) // JSON numbers are float64
+		// Verify JSON is valid by parsing it
+		var jsonMap map[string]any
+		err = json.Unmarshal([]byte(renderedJSON), &jsonMap)
+		require.NoError(t, err, "Rendered JSON should be valid")
+		assert.Equal(t, "John", jsonMap["name"], "JSON should preserve string values")
+		assert.Equal(t, float64(30), jsonMap["age"], "JSON should convert numbers to float64")
+		assert.Equal(t, true, jsonMap["active"], "JSON should preserve boolean values")
+	})
 }
 
-func TestProcessFile(t *testing.T) {
-	// Create temporary directory
-	tempDir, err := os.MkdirTemp("", "tplengine-test")
-	require.NoError(t, err)
-	defer func() {
-		if err := os.RemoveAll(tempDir); err != nil {
-			t.Logf("Failed to remove temp dir: %v", err)
+func TestTemplateEngine_FileProcessing(t *testing.T) {
+	t.Run("Should process template files with context data", func(t *testing.T) {
+		// Create temporary directory and test file
+		tempDir, err := os.MkdirTemp("", "tplengine-test")
+		require.NoError(t, err)
+		defer func() {
+			if err := os.RemoveAll(tempDir); err != nil {
+				t.Logf("Failed to remove temp dir: %v", err)
+			}
+		}()
+
+		// Create test template file with complex structure
+		templateContent := `workflow:
+  name: {{ .workflow.name }}
+  user: {{ .user.name }}
+  tasks:
+    - name: {{ .tasks.primary.name }}
+      status: {{ .tasks.primary.status }}
+    - name: {{ .tasks.secondary.name }}
+      status: {{ .tasks.secondary.status }}`
+
+		filePath := filepath.Join(tempDir, "workflow.yaml")
+		err = os.WriteFile(filePath, []byte(templateContent), 0o644)
+		require.NoError(t, err)
+
+		// Process file with comprehensive context
+		engine := NewEngine(FormatYAML)
+		ctx := map[string]any{
+			"workflow": map[string]any{"name": "TestWorkflow"},
+			"user":     map[string]any{"name": "John"},
+			"tasks": map[string]any{
+				"primary":   map[string]any{"name": "ProcessData", "status": "completed"},
+				"secondary": map[string]any{"name": "SendNotification", "status": "pending"},
+			},
 		}
-	}()
 
-	// Create test YAML file
-	yamlContent := `
-name: {{ .user.name }}
-age: {{ .user.age }}
-`
-	yamlPath := filepath.Join(tempDir, "test.yaml")
-	err = os.WriteFile(yamlPath, []byte(yamlContent), 0o644)
-	require.NoError(t, err)
+		// Read and render file content
+		content, err := os.ReadFile(filePath)
+		require.NoError(t, err)
 
-	// Process YAML file
-	engine := NewEngine(FormatYAML)
-	ctx := map[string]any{
-		"user": map[string]any{
-			"name": "John",
-			"age":  30,
-		},
-	}
+		renderedContent, err := engine.RenderString(string(content), ctx)
+		require.NoError(t, err)
 
-	// Read the file content manually and render it
-	content, err := os.ReadFile(yamlPath)
-	require.NoError(t, err)
+		// Verify template processing produced valid YAML with expected values
+		var result map[string]any
+		err = yaml.Unmarshal([]byte(renderedContent), &result)
+		require.NoError(t, err)
 
-	renderedYAML, err := engine.RenderString(string(content), ctx)
-	assert.NoError(t, err)
-	assert.NotNil(t, renderedYAML)
+		workflow := result["workflow"].(map[string]any)
+		assert.Equal(t, "TestWorkflow", workflow["name"], "Workflow name should be processed correctly")
+		assert.Equal(t, "John", workflow["user"], "User name should be processed correctly")
 
-	// Convert to map for easier assertions
-	var yamlMap map[string]any
-	// Parse the rendered YAML
-	err = yaml.Unmarshal([]byte(renderedYAML), &yamlMap)
-	assert.NoError(t, err)
+		tasks := workflow["tasks"].([]any)
+		assert.Len(t, tasks, 2, "Should process both task entries")
 
-	assert.Equal(t, "John", yamlMap["name"])
-	assert.Equal(t, 30, yamlMap["age"])
+		primaryTask := tasks[0].(map[string]any)
+		assert.Equal(t, "ProcessData", primaryTask["name"], "Primary task name should be processed")
+		assert.Equal(t, "completed", primaryTask["status"], "Primary task status should be processed")
+	})
 }
 
-func TestPreprocessContext(t *testing.T) {
-	engine := NewEngine(FormatYAML)
-	ctx := map[string]any{
-		"name": "John",
-	}
+func TestTemplateEngine_ContextPreprocessing(t *testing.T) {
+	t.Run("Should preprocess context with default fields while preserving user data", func(t *testing.T) {
+		engine := NewEngine(FormatYAML)
+		userContext := map[string]any{
+			"name":   "John",
+			"custom": "value",
+		}
 
-	processed := engine.preprocessContext(ctx)
+		processed := engine.preprocessContext(userContext)
 
-	// Check that original data is preserved
-	assert.Equal(t, "John", processed["name"])
+		// Verify user data is preserved
+		assert.Equal(t, "John", processed["name"], "User-provided name should be preserved")
+		assert.Equal(t, "value", processed["custom"], "User-provided custom field should be preserved")
 
-	// Check that default fields are added
-	assert.NotNil(t, processed["env"])
-	assert.NotNil(t, processed["input"])
-	assert.Nil(t, processed["output"])
-	assert.NotNil(t, processed["trigger"])
-	assert.NotNil(t, processed["tools"])
-	assert.NotNil(t, processed["tasks"])
-	assert.NotNil(t, processed["agents"])
+		// Verify default template context fields are added
+		assert.NotNil(t, processed["env"], "Default env field should be added")
+		assert.NotNil(t, processed["input"], "Default input field should be added")
+		assert.Nil(t, processed["output"], "Output field should be nil by default")
+		assert.NotNil(t, processed["trigger"], "Default trigger field should be added")
+		assert.NotNil(t, processed["tools"], "Default tools field should be added")
+		assert.NotNil(t, processed["tasks"], "Default tasks field should be added")
+		assert.NotNil(t, processed["agents"], "Default agents field should be added")
+
+		// Verify default fields don't override user data
+		userContextWithConflict := map[string]any{
+			"env":  "user-env",
+			"name": "Jane",
+		}
+		processedWithConflict := engine.preprocessContext(userContextWithConflict)
+		assert.Equal(t, "user-env", processedWithConflict["env"], "User-provided env should not be overridden")
+		assert.Equal(t, "Jane", processedWithConflict["name"], "User-provided name should be preserved")
+	})
 }
 
-// TestSprigFunctions tests the integration of Sprig functions
-func TestSprigFunctions(t *testing.T) {
-	engine := NewEngine(FormatYAML)
+func TestTemplateEngine_SprigFunctionIntegration(t *testing.T) {
+	t.Run("Should provide comprehensive Sprig function support for template operations", func(t *testing.T) {
+		engine := NewEngine(FormatYAML)
 
-	// Test contains function
-	result, err := engine.RenderString("{{ contains \"world\" \"hello world\" }}", nil)
-	assert.NoError(t, err)
-	assert.Equal(t, "true", result)
+		// Test string manipulation functions
+		result, err := engine.RenderString("{{ contains \"world\" \"hello world\" }}", nil)
+		require.NoError(t, err)
+		assert.Equal(t, "true", result, "Contains function should work correctly")
 
-	// Test hasPrefix function
-	result, err = engine.RenderString("{{ hasPrefix \"hello\" \"hello world\" }}", nil)
-	assert.NoError(t, err)
-	assert.Equal(t, "true", result)
+		result, err = engine.RenderString("{{ \"hello world\" | hasPrefix \"hello\" }}", nil)
+		require.NoError(t, err)
+		assert.Equal(t, "true", result, "HasPrefix function should work with pipe syntax")
 
-	// Test hasSuffix function
-	result, err = engine.RenderString("{{ hasSuffix \"world\" \"hello world\" }}", nil)
-	assert.NoError(t, err)
-	assert.Equal(t, "true", result)
+		result, err = engine.RenderString("{{ \"hello world\" | hasSuffix \"world\" }}", nil)
+		require.NoError(t, err)
+		assert.Equal(t, "true", result, "HasSuffix function should work with pipe syntax")
 
-	// Test regexMatch function
-	result, err = engine.RenderString("{{ regexMatch \"[a-z]+\" \"hello\" }}", nil)
-	assert.NoError(t, err)
-	assert.Equal(t, "true", result)
+		// Test regex pattern matching
+		result, err = engine.RenderString("{{ regexMatch \"^[a-z]+$\" \"hello\" }}", nil)
+		require.NoError(t, err)
+		assert.Equal(t, "true", result, "RegexMatch should validate patterns correctly")
 
-	// Test toString function with a map
-	ctx := map[string]any{
-		"myMap": map[string]any{
-			"key":    "value",
-			"number": 123,
-		},
-	}
-	result, err = engine.RenderString("{{ .myMap | toString }}", ctx)
-	assert.NoError(t, err)
-	assert.Contains(t, result, "key:value")
-	assert.Contains(t, result, "number:123")
+		// Test data transformation functions with complex data
+		ctx := map[string]any{
+			"workflow": map[string]any{
+				"name":    "ProcessData",
+				"version": 2,
+				"active":  true,
+				"tasks":   []string{"validate", "transform", "store"},
+			},
+		}
 
-	// Test toJson function with a map
-	result, err = engine.RenderString("{{ .myMap | toJson }}", ctx)
-	assert.NoError(t, err)
-	expectedJSON := `{"key":"value","number":123}`
-	assert.JSONEq(t, expectedJSON, result)
+		// Test JSON serialization of complex data
+		result, err = engine.RenderString("{{ .workflow | toJson }}", ctx)
+		require.NoError(t, err)
+
+		// Verify JSON output contains expected structure
+		var parsed map[string]any
+		err = json.Unmarshal([]byte(result), &parsed)
+		require.NoError(t, err, "toJson should produce valid JSON")
+		assert.Equal(t, "ProcessData", parsed["name"], "JSON should preserve string values")
+		assert.Equal(t, float64(2), parsed["version"], "JSON should preserve numeric values")
+		assert.Equal(t, true, parsed["active"], "JSON should preserve boolean values")
+
+		// Test toString function
+		result, err = engine.RenderString("{{ .workflow | toString }}", ctx)
+		require.NoError(t, err)
+		assert.Contains(t, result, "name:ProcessData", "toString should include key-value pairs")
+		assert.Contains(t, result, "version:2", "toString should include numeric values")
+	})
 }
 
-func TestMissingKeyError(t *testing.T) {
-	engine := NewEngine(FormatYAML)
+func TestTemplateEngine_MissingKeyHandling(t *testing.T) {
+	t.Run("Should enforce strict key validation and provide error handling mechanisms", func(t *testing.T) {
+		engine := NewEngine(FormatYAML)
 
-	t.Run("Should return error for missing key", func(t *testing.T) {
-		// This should now fail instead of rendering "<no value>"
+		// Test strict error handling for missing keys
 		_, err := engine.RenderString("{{ .nonexistent.field }}", map[string]any{})
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "nonexistent")
-	})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "nonexistent", "Error should identify the missing key")
 
-	t.Run("Should return error for misspelled key", func(t *testing.T) {
+		// Test error for common typos in field names
 		context := map[string]any{
-			"user": map[string]any{
-				"name": "John",
-			},
+			"user": map[string]any{"name": "John"},
 		}
-		// Common typo: "usr" instead of "user"
-		_, err := engine.RenderString("{{ .usr.name }}", context)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "usr")
-	})
+		_, err = engine.RenderString("{{ .usr.name }}", context)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "usr", "Error should identify the misspelled key")
 
-	t.Run("Should return error for accessing field on non-existent object", func(t *testing.T) {
-		context := map[string]any{
-			"user": map[string]any{
-				"name": "John",
-			},
-		}
-		// "profile" doesn't exist on user
-		_, err := engine.RenderString("{{ .user.profile.age }}", context)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "profile")
-	})
+		// Test error for accessing nested fields on non-existent objects
+		_, err = engine.RenderString("{{ .user.profile.age }}", context)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "profile", "Error should identify the missing nested key")
 
-	t.Run("Should work with default filter for missing keys", func(t *testing.T) {
-		context := map[string]any{
-			"user": map[string]any{
-				"name": "John",
-			},
-		}
-		// With missingkey=error, even default filter won't work for missing keys
-		// This is the expected behavior - you need to provide the key or handle it differently
-		_, err := engine.RenderString("{{ .user.age | default \"25\" }}", context)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "age")
-	})
-
-	t.Run("Should work with default filter when root key is missing", func(t *testing.T) {
-		context := map[string]any{
-			"config": map[string]any{
-				"timeout": 30,
-			},
-		}
-		// This approach works - use hasKey to check safely
+		// Test proper conditional handling for missing keys
 		result, err := engine.RenderString(
-			"{{ if hasKey .config \"missing\" }}{{ .config.missing }}{{ else }}default-value{{ end }}",
-			context,
+			"{{ if hasKey .config \"timeout\" }}{{ .config.timeout }}{{ else }}30{{ end }}",
+			map[string]any{"config": map[string]any{"timeout": 60}},
 		)
-		assert.NoError(t, err)
-		assert.Equal(t, "default-value", result)
-	})
+		require.NoError(t, err)
+		assert.Equal(t, "60", result, "Should access existing keys with conditional checks")
 
-	t.Run("Should work when key exists", func(t *testing.T) {
-		context := map[string]any{
-			"user": map[string]any{
-				"name": "John",
-			},
-		}
-		result, err := engine.RenderString("{{ .user.name }}", context)
-		assert.NoError(t, err)
-		assert.Equal(t, "John", result)
+		// Test default value for missing nested keys
+		result, err = engine.RenderString(
+			"{{ if hasKey .config \"missing\" }}{{ .config.missing }}{{ else }}default-value{{ end }}",
+			map[string]any{"config": map[string]any{"timeout": 30}},
+		)
+		require.NoError(t, err)
+		assert.Equal(t, "default-value", result, "Should provide default values for missing keys using conditionals")
+
+		// Test successful access to existing keys
+		result, err = engine.RenderString("{{ .user.name }}", context)
+		require.NoError(t, err)
+		assert.Equal(t, "John", result, "Should successfully access existing keys")
 	})
 }
 

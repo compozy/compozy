@@ -110,8 +110,8 @@ const AnimationComponent: React.FC<{
     // If segment is already a React element (like a span with styling), wrap it
     if (React.isValidElement(segment)) {
       return (
-        <motion.span 
-          variants={variants} 
+        <motion.span
+          variants={variants}
           className={per === "word" ? "inline-block" : "block"}
           style={{ display: per === "word" ? "inline-block" : "block" }}
         >
@@ -169,9 +169,9 @@ type SegmentType = string | React.ReactElement;
 
 const splitChildren = (children: React.ReactNode, per: PerType): SegmentType[] => {
   const segments: SegmentType[] = [];
-  
+
   const processNode = (node: React.ReactNode): void => {
-    if (typeof node === 'string' || typeof node === 'number') {
+    if (typeof node === "string" || typeof node === "number") {
       const text = String(node);
       if (per === "line") {
         segments.push(...text.split("\n"));

@@ -59,28 +59,8 @@ func TestFromAppConfig(t *testing.T) {
 	})
 }
 
-func TestDirectConfigUsage(t *testing.T) {
-	t.Run("Should create config with direct field assignment", func(t *testing.T) {
-		config := &runtime.Config{
-			RuntimeType:          runtime.RuntimeTypeNode,
-			EntrypointPath:       "/custom/path.js",
-			BunPermissions:       []string{"--allow-all"},
-			NodeOptions:          []string{"--experimental-modules"},
-			Environment:          "production",
-			ToolExecutionTimeout: 45 * time.Second,
-		}
-
-		assert.Equal(t, runtime.RuntimeTypeNode, config.RuntimeType)
-		assert.Equal(t, "/custom/path.js", config.EntrypointPath)
-		assert.Equal(t, []string{"--allow-all"}, config.BunPermissions)
-		assert.Equal(t, []string{"--experimental-modules"}, config.NodeOptions)
-		assert.Equal(t, "production", config.Environment)
-		assert.Equal(t, 45*time.Second, config.ToolExecutionTimeout)
-	})
-}
-
-func TestDefaultConfigRuntimeFields(t *testing.T) {
-	t.Run("Should have Bun as default runtime type", func(t *testing.T) {
+func TestConfigDefaults(t *testing.T) {
+	t.Run("Should have correct defaults for development config", func(t *testing.T) {
 		config := runtime.DefaultConfig()
 
 		assert.Equal(t, runtime.RuntimeTypeBun, config.RuntimeType)
@@ -88,10 +68,8 @@ func TestDefaultConfigRuntimeFields(t *testing.T) {
 		assert.Contains(t, config.BunPermissions, "--allow-read")
 		assert.Equal(t, "development", config.Environment)
 	})
-}
 
-func TestTestConfigRuntimeFields(t *testing.T) {
-	t.Run("Should have Bun as default runtime type for tests", func(t *testing.T) {
+	t.Run("Should have correct defaults for test config", func(t *testing.T) {
 		config := runtime.TestConfig()
 
 		assert.Equal(t, runtime.RuntimeTypeBun, config.RuntimeType)
