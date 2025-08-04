@@ -46,20 +46,20 @@ tasks:
       echo "=== Directory Summary ==="
       echo "Current directory has {{ .tasks.list_current.result.entries | len }} items"
       echo ""
-      
+
       echo "=== TypeScript Files in src/ ==="
       {{ range .tasks.list_ts_files.result.entries }}
       echo "  - {{ .name }} ({{ .size }} bytes)"
       {{ end }}
       echo ""
-      
+
       echo "=== Test Files Found ==="
       echo "Total: {{ .tasks.find_all_tests.result.entries | len }} test files"
       {{ range .tasks.find_all_tests.result.entries }}
       echo "  - {{ .path }}"
       {{ end }}
       echo ""
-      
+
       echo "=== Directory Structure ==="
       {{ range .tasks.list_folders.result.entries }}
       echo "  📁 {{ .path }}"

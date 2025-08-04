@@ -5,170 +5,236 @@ import (
 	"context"
 	"io"
 	"os"
+	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestLogger_BasicFunctionality(t *testing.T) {
-	ctx := t.Context()
-	log := FromContext(ctx)
-	log.Debug("debug message")
-	log.Info("info message")
-	log.Warn("warn message")
-	log.Error("error message")
+func TestFromContext(t *testing.T) {
+	t.Run("Should return logger from context when present", func(t *testing.T) {
+		expectedLogger := NewLogger(TestConfig())
+		ctx := ContextWithLogger(context.Background(), expectedLogger)
+
+		actualLogger := FromContext(ctx)
+
+		require.NotNil(t, actualLogger)
+		assert.Equal(t, expectedLogger, actualLogger)
+	})
+
+	t.Run("Should return default logger when no logger in context", func(t *testing.T) {
+		ctx := context.Background()
+
+		logger := FromContext(ctx)
+
+		require.NotNil(t, logger)
+		logger.Info("test message from default logger")
+	})
+
+	t.Run("Should return default logger when wrong type in context", func(t *testing.T) {
+		ctx := context.WithValue(context.Background(), LoggerCtxKey, "not a logger")
+
+		logger := FromContext(ctx)
+
+		require.NotNil(t, logger)
+		logger.Info("test message from fallback logger")
+	})
+
+	t.Run("Should return default logger when nil logger in context", func(t *testing.T) {
+		ctx := context.WithValue(context.Background(), LoggerCtxKey, (Logger)(nil))
+
+		logger := FromContext(ctx)
+
+		require.NotNil(t, logger)
+		logger.Info("test message from fallback logger")
+	})
 }
 
-func TestLogger_ManualTestConfig(t *testing.T) {
-	ctx := t.Context()
-	log := FromContext(ctx)
-	log.Info("test message")
-	log.Error("test error")
+func TestLogLevel_ToCharmlogLevel(t *testing.T) {
+	t.Run("Should convert all log levels to charm log levels correctly", func(t *testing.T) {
+		testCases := []struct {
+			level    LogLevel
+			expected int // Using int for comparison since charmlog.Level is int
+		}{
+			{DebugLevel, -4},         // charmlog.DebugLevel
+			{InfoLevel, 0},           // charmlog.InfoLevel
+			{WarnLevel, 4},           // charmlog.WarnLevel
+			{ErrorLevel, 8},          // charmlog.ErrorLevel
+			{DisabledLevel, 1000},    // High level to disable
+			{LogLevel("unknown"), 0}, // Default to InfoLevel
+		}
+
+		for _, tc := range testCases {
+			actual := tc.level.ToCharmlogLevel()
+			assert.Equal(
+				t,
+				tc.expected,
+				int(actual),
+				"LogLevel %s should convert to charm level %d",
+				tc.level,
+				tc.expected,
+			)
+		}
+	})
 }
 
-func TestLogger_WithOutput(t *testing.T) {
-	var buf bytes.Buffer
-	cfg := &Config{
-		Level:      InfoLevel,
-		Output:     &buf,
-		JSON:       false,
-		AddSource:  false,
-		TimeFormat: "15:04:05",
-	}
+func TestNewLogger(t *testing.T) {
+	t.Run("Should create logger with provided config", func(t *testing.T) {
+		var buf bytes.Buffer
+		config := &Config{
+			Level:      InfoLevel,
+			Output:     &buf,
+			JSON:       false,
+			AddSource:  false,
+			TimeFormat: "15:04:05",
+		}
 
-	log := NewLogger(cfg)
-	log.Info("Test message for verification")
+		logger := NewLogger(config)
+		logger.Info("test message")
 
-	output := buf.String()
-	if output == "" {
-		t.Error("Expected log output but got none")
-	}
+		require.NotNil(t, logger)
+		output := buf.String()
+		assert.Contains(t, output, "test message")
+	})
 
-	if !contains(output, "Test message for verification") {
-		t.Error("Expected log message not found in output")
-	}
+	t.Run("Should use default config when nil config provided in non-test environment", func(t *testing.T) {
+		// This test assumes we're not in a test environment detection scenario
+		logger := NewLogger(nil)
+
+		require.NotNil(t, logger)
+		// Verify it uses the default behavior (this is functional testing)
+		logger.Info("test default config")
+	})
+
+	t.Run("Should create logger with JSON formatting when enabled", func(t *testing.T) {
+		var buf bytes.Buffer
+		config := &Config{
+			Level:      InfoLevel,
+			Output:     &buf,
+			JSON:       true,
+			AddSource:  false,
+			TimeFormat: "15:04:05",
+		}
+
+		logger := NewLogger(config)
+		logger.Info("test message")
+
+		output := buf.String()
+		// JSON output should contain structured fields
+		assert.Contains(t, output, "test message")
+		// Basic JSON structure validation
+		assert.True(t, strings.Contains(output, "{") && strings.Contains(output, "}"))
+	})
 }
 
-func TestIsTestEnvironment(t *testing.T) {
-	if !IsTestEnvironment() {
-		t.Error("Expected IsTestEnvironment() to return true during tests")
-	}
-}
+func TestLogger_With(t *testing.T) {
+	t.Run("Should create logger with additional context fields", func(t *testing.T) {
+		var buf bytes.Buffer
+		baseLogger := NewLogger(&Config{
+			Level:      InfoLevel,
+			Output:     &buf,
+			JSON:       false,
+			AddSource:  false,
+			TimeFormat: "15:04:05",
+		})
 
-func TestLogger_AutoDetectTest(t *testing.T) {
-	ctx := t.Context()
-	log := FromContext(ctx)
+		contextLogger := baseLogger.With("component", "test", "operation", "validate")
+		contextLogger.Info("operation completed")
 
-	if log == nil {
-		t.Error("Expected logger to be created")
-	}
-
-	log.Info("auto-detected test logger")
-}
-
-func TestLogLevels(t *testing.T) {
-	ctx := t.Context()
-	log := FromContext(ctx)
-	log.Debug("debug level")
-	log.Info("info level")
-	log.Warn("warn level")
-	log.Error("error level")
+		output := buf.String()
+		assert.Contains(t, output, "component")
+		assert.Contains(t, output, "test")
+		assert.Contains(t, output, "operation")
+		assert.Contains(t, output, "validate")
+		assert.Contains(t, output, "operation completed")
+	})
 }
 
 func TestConfigDefaults(t *testing.T) {
-	defaultCfg := DefaultConfig()
-	if defaultCfg.Level != InfoLevel {
-		t.Errorf("Expected default level to be InfoLevel, got %v", defaultCfg.Level)
-	}
-	if defaultCfg.Output != os.Stdout {
-		t.Error("Expected default output to be os.Stdout")
-	}
+	t.Run("Should provide correct default configuration", func(t *testing.T) {
+		config := DefaultConfig()
 
-	testCfg := TestConfig()
-	if testCfg.Level != DisabledLevel {
-		t.Errorf("Expected test level to be DisabledLevel, got %v", testCfg.Level)
-	}
-	if testCfg.Output != io.Discard {
-		t.Error("Expected test output to be io.Discard")
-	}
-}
-
-func TestLogger_WithMethod(t *testing.T) {
-	var buf bytes.Buffer
-	logger := NewLogger(&Config{
-		Level:      InfoLevel,
-		Output:     &buf,
-		JSON:       false,
-		AddSource:  false,
-		TimeFormat: "15:04:05",
+		assert.Equal(t, InfoLevel, config.Level)
+		assert.Equal(t, os.Stdout, config.Output)
+		assert.False(t, config.JSON)
+		assert.False(t, config.AddSource)
+		assert.Equal(t, "15:04:05", config.TimeFormat)
 	})
 
-	// Test the With method
-	log := logger.With("component", "test")
-	log.Info("message with context")
-	output := buf.String()
-	if !contains(output, "component") || !contains(output, "test") {
-		t.Error("Expected context fields in log output")
-	}
+	t.Run("Should provide correct test configuration", func(t *testing.T) {
+		config := TestConfig()
+
+		assert.Equal(t, DisabledLevel, config.Level)
+		assert.Equal(t, io.Discard, config.Output)
+		assert.False(t, config.JSON)
+		assert.False(t, config.AddSource)
+		assert.Equal(t, "15:04:05", config.TimeFormat)
+	})
 }
 
-func TestContextWithLogger(t *testing.T) {
-	// Create a log
-	log := NewLogger(TestConfig())
+func TestIsTestEnvironment(t *testing.T) {
+	t.Run("Should detect test environment correctly", func(t *testing.T) {
+		// This should return true since we're running under go test
+		isTest := IsTestEnvironment()
 
-	// Store it in context
-	ctx := context.Background()
-	ctx = ContextWithLogger(ctx, log)
-
-	// Retrieve it from context
-	retrievedLogger := FromContext(ctx)
-
-	if retrievedLogger == nil {
-		t.Error("Expected to retrieve logger from context")
-	}
-
-	// Test that the logger works
-	retrievedLogger.Info("message from context logger")
+		assert.True(t, isTest, "Should detect we're running in a test environment")
+	})
 }
 
-func TestLoggerFromContext_WithoutLogger(t *testing.T) {
-	// Test context without logger returns default
-	ctx := context.Background()
-	log := FromContext(ctx)
+func TestLoggerLevels(t *testing.T) {
+	t.Run("Should respect log level filtering", func(t *testing.T) {
+		var buf bytes.Buffer
 
-	if log == nil {
-		t.Error("Expected default logger when none in context")
-	}
-
-	// Test that the default logger works
-	log.Info("message from default logger")
-}
-
-func TestLoggerFromContext_WithWrongType(t *testing.T) {
-	// Test context with wrong type returns default
-	ctx := context.Background()
-	ctx = context.WithValue(ctx, LoggerCtxKey, "not a logger")
-	log := FromContext(ctx)
-
-	if log == nil {
-		t.Error("Expected default logger when wrong type in context")
-	}
-
-	// Test that the default logger works
-	log.Info("message from default logger after wrong type")
-}
-
-// Helper function since strings.Contains might not be available in all contexts
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr ||
-		(len(s) > len(substr) && (s[:len(substr)] == substr ||
-			s[len(s)-len(substr):] == substr ||
-			containsAtPosition(s, substr))))
-}
-
-func containsAtPosition(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
+		// Create logger with WARN level - should only log WARN and ERROR
+		config := &Config{
+			Level:      WarnLevel,
+			Output:     &buf,
+			JSON:       false,
+			AddSource:  false,
+			TimeFormat: "15:04:05",
 		}
-	}
-	return false
+
+		logger := NewLogger(config)
+
+		// These should not appear in output
+		logger.Debug("debug message")
+		logger.Info("info message")
+
+		// These should appear in output
+		logger.Warn("warn message")
+		logger.Error("error message")
+
+		output := buf.String()
+
+		// Debug and Info should be filtered out
+		assert.NotContains(t, output, "debug message")
+		assert.NotContains(t, output, "info message")
+
+		// Warn and Error should be present
+		assert.Contains(t, output, "warn message")
+		assert.Contains(t, output, "error message")
+	})
+
+	t.Run("Should disable all logging when DisabledLevel is used", func(t *testing.T) {
+		var buf bytes.Buffer
+		config := &Config{
+			Level:      DisabledLevel,
+			Output:     &buf,
+			JSON:       false,
+			AddSource:  false,
+			TimeFormat: "15:04:05",
+		}
+
+		logger := NewLogger(config)
+		logger.Debug("debug message")
+		logger.Info("info message")
+		logger.Warn("warn message")
+		logger.Error("error message")
+
+		output := buf.String()
+
+		// All messages should be filtered out when disabled
+		assert.Empty(t, output, "No output should be generated when logging is disabled")
+	})
 }

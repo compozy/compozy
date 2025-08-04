@@ -41,7 +41,6 @@ token_provider:
 # Persistence Configuration
 persistence:
   ttl: 24h
-
 # Example configurations for other providers:
 
 # Anthropic Configuration

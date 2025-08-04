@@ -19,23 +19,26 @@ func TestHealthMonitorBasic(t *testing.T) {
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
 		monitor := NewHealthMonitor(env)
-		ctx := context.Background()
-		// Perform initial health check
-		monitor.performHealthChecks(ctx)
-		// Get status
-		status := monitor.GetHealthStatus()
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		// Wait for initial health check to complete with retries
+		var status map[string]HealthStatus
+		require.Eventually(t, func() bool {
+			monitor.performHealthChecks(ctx)
+			status = monitor.GetHealthStatus()
+			return len(status) >= 4 // Expect at least 4 components
+		}, 5*time.Second, 100*time.Millisecond, "Health check should complete within timeout")
 		// Should have status for all components
 		assert.Contains(t, status, "Redis")
 		assert.Contains(t, status, "Temporal")
 		assert.Contains(t, status, "MemoryManager")
 		assert.Contains(t, status, "System")
-		// Redis should be healthy if available
+		// Redis should be healthy (using miniredis in tests)
 		redisStatus := status["Redis"]
 		t.Logf("Redis status: %s, response time: %v", redisStatus.Status, redisStatus.ResponseTime)
-		if redisStatus.Status == "healthy" {
-			assert.NoError(t, redisStatus.LastError)
-			assert.NotZero(t, redisStatus.ResponseTime)
-		}
+		assert.Equal(t, "healthy", redisStatus.Status, "Redis should be healthy in test environment")
+		assert.NoError(t, redisStatus.LastError)
+		assert.Positive(t, redisStatus.ResponseTime)
 		// System should always be available
 		systemStatus := status["System"]
 		assert.Equal(t, "healthy", systemStatus.Status)
@@ -126,10 +129,12 @@ func TestHealthMonitorHelper(t *testing.T) {
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
 		helper := NewHealthCheckHelper(env)
-		// Should be healthy initially
+		// Give time for environment to stabilize
+		time.Sleep(100 * time.Millisecond)
+		// Should be healthy after stabilization
 		helper.RequireHealthy(t)
-		// Test wait functionality
-		helper.WaitForHealthy(t, 5*time.Second)
+		// Test wait functionality with reasonable timeout
+		helper.WaitForHealthy(t, 3*time.Second)
 	})
 	t.Run("Should monitor test execution", func(t *testing.T) {
 		env := NewTestEnvironment(t)

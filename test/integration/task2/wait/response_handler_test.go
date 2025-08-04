@@ -126,10 +126,3 @@ func TestWaitResponseHandler_Integration(t *testing.T) {
 		assert.NotNil(t, savedState.Error)
 	})
 }
-
-func TestWaitResponseHandler_Type(t *testing.T) {
-	t.Run("Should return wait task type", func(t *testing.T) {
-		handler := wait.NewResponseHandler(nil, nil, nil)
-		assert.Equal(t, task.TaskTypeWait, handler.Type())
-	})
-}

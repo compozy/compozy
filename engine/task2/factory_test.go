@@ -102,15 +102,6 @@ func TestDefaultNormalizerFactory_CreateNormalizer_UnsupportedType(t *testing.T)
 // -----------------------------------------------------------------------------
 
 func TestNewFactoryWithConfig(t *testing.T) {
-	t.Run("Should create extended factory with all dependencies", func(t *testing.T) {
-		// Arrange
-		factory, cleanup := setupTestFactory(context.Background(), t)
-		defer cleanup()
-		// Act
-		// Assert
-		assert.NotNil(t, factory)
-	})
-
 	t.Run("Should return error when template engine is nil", func(t *testing.T) {
 		// Arrange
 		config := &task2.FactoryConfig{
@@ -119,9 +110,8 @@ func TestNewFactoryWithConfig(t *testing.T) {
 		// Act
 		factory, err := task2.NewFactory(config)
 		// Assert
-		assert.Error(t, err)
 		assert.Nil(t, factory)
-		assert.Contains(t, err.Error(), "template engine is required")
+		assert.ErrorContains(t, err, "template engine is required")
 	})
 
 	t.Run("Should return error when env merger is nil", func(t *testing.T) {
@@ -132,9 +122,8 @@ func TestNewFactoryWithConfig(t *testing.T) {
 		// Act
 		factory, err := task2.NewFactory(config)
 		// Assert
-		assert.Error(t, err)
 		assert.Nil(t, factory)
-		assert.Contains(t, err.Error(), "env merger is required")
+		assert.ErrorContains(t, err, "env merger is required")
 	})
 }
 

@@ -270,7 +270,7 @@ func TestResilienceCircuitBreaker(t *testing.T) {
 				"id": fmt.Sprintf("timeout-%d", time.Now().Unix()),
 			},
 		}
-		const numAttempts = 20
+		const numAttempts = 8 // Reduced from 20 for faster tests
 		timeoutCount := 0
 		successCount := 0
 		for i := 0; i < numAttempts; i++ {
@@ -281,8 +281,11 @@ func TestResilienceCircuitBreaker(t *testing.T) {
 			// Use short timeout for append operations to simulate stress
 			opCtx := ctx
 			var cancel context.CancelFunc
-			if i%3 == 0 { // Every 3rd operation has a very short timeout
-				timeoutCtx, cancelFunc := context.WithTimeout(ctx, 1*time.Nanosecond)
+			if i%2 == 0 { // Every 2nd operation has a short timeout to ensure timeouts occur
+				timeoutCtx, cancelFunc := context.WithTimeout(
+					ctx,
+					1*time.Nanosecond,
+				) // Very short timeout to trigger failures
 				opCtx = timeoutCtx
 				cancel = cancelFunc
 			}

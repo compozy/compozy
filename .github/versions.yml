@@ -38,7 +38,6 @@ versions:
 
   # Test dependencies
   testcontainers: "v0.27.0"
-
 # Usage examples:
 # In workflows: ${{ vars.GO_VERSION }} or read from this file
 # In Dockerfiles: ARG GO_VERSION=1.24.x

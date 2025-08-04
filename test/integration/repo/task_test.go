@@ -23,141 +23,114 @@ func TestMain(m *testing.M) {
 }
 
 func TestTaskRepo_UpsertState(t *testing.T) {
-	mockSetup := utils.NewMockSetup(t)
-	defer mockSetup.Close()
-
-	repo := store.NewTaskRepo(mockSetup.Mock)
-	ctx := context.Background()
-	workflowID := "wf1"
-	workflowExecID := core.ID("exec1")
-	agentID := "agent1"
-	actionID := "default_action"
-	state := &task.State{
-		TaskExecID:     core.ID("task_exec1"),
-		TaskID:         "task1",
-		Component:      core.ComponentAgent,
-		Status:         core.StatusPending,
-		WorkflowID:     workflowID,
-		WorkflowExecID: workflowExecID,
-		ExecutionType:  task.ExecutionBasic,
-		AgentID:        &agentID,
-		ActionID:       &actionID,
-		Input:          &core.Input{"key": "value"},
-	}
-
-	dataBuilder := utils.NewDataBuilder()
-	inputJSON := dataBuilder.MustCreateInputData(map[string]any{"key": "value"})
-	expectedOutputJSON := dataBuilder.MustCreateNilJSONB()
-	expectedErrorJSON := dataBuilder.MustCreateNilJSONB()
-
-	queries := mockSetup.NewQueryExpectations()
-	queries.ExpectTaskStateQueryForUpsert([]any{
-		state.TaskExecID, state.TaskID, state.WorkflowExecID, state.WorkflowID, state.Component, state.Status,
-		state.ExecutionType, (*string)(nil), state.AgentID, state.ActionID, state.ToolID, inputJSON,
-		expectedOutputJSON,
-		expectedErrorJSON,
+	t.Run("Should insert or update task state successfully", func(t *testing.T) {
+		mockSetup := utils.NewMockSetup(t)
+		defer mockSetup.Close()
+		repo := store.NewTaskRepo(mockSetup.Mock)
+		ctx := context.Background()
+		workflowID := "wf1"
+		workflowExecID := core.ID("exec1")
+		agentID := "agent1"
+		actionID := "default_action"
+		state := &task.State{
+			TaskExecID:     core.ID("task_exec1"),
+			TaskID:         "task1",
+			Component:      core.ComponentAgent,
+			Status:         core.StatusPending,
+			WorkflowID:     workflowID,
+			WorkflowExecID: workflowExecID,
+			ExecutionType:  task.ExecutionBasic,
+			AgentID:        &agentID,
+			ActionID:       &actionID,
+			Input:          &core.Input{"key": "value"},
+		}
+		dataBuilder := utils.NewDataBuilder()
+		inputJSON := dataBuilder.MustCreateInputData(map[string]any{"key": "value"})
+		expectedOutputJSON := dataBuilder.MustCreateNilJSONB()
+		expectedErrorJSON := dataBuilder.MustCreateNilJSONB()
+		queries := mockSetup.NewQueryExpectations()
+		queries.ExpectTaskStateQueryForUpsert([]any{
+			state.TaskExecID, state.TaskID, state.WorkflowExecID, state.WorkflowID, state.Component, state.Status,
+			state.ExecutionType, (*string)(nil), state.AgentID, state.ActionID, state.ToolID, inputJSON,
+			expectedOutputJSON,
+			expectedErrorJSON,
+		})
+		err := repo.UpsertState(ctx, state)
+		assert.NoError(t, err)
+		mockSetup.ExpectationsWereMet()
 	})
-
-	err := repo.UpsertState(ctx, state)
-	assert.NoError(t, err)
-	mockSetup.ExpectationsWereMet()
 }
 
 func TestTaskRepo_CreateChildStatesInTransaction(t *testing.T) {
-	testTaskList(
-		t,
-		"should create multiple child states atomically",
-		func(mockSetup *utils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
-			parentStateID := core.ID("parent-exec-123")
-			workflowExecID := core.ID("exec1")
-
-			// Create child states to insert
-			childStates := []*task.State{
-				task.CreateAgentSubTaskState(
-					"child1", core.ID("child1-exec"), "wf1", workflowExecID,
-					&parentStateID, "agent1", "action1", &core.Input{"task": "subtask1"}),
-				task.CreateToolSubTaskState(
-					"child2", core.ID("child2-exec"), "wf1", workflowExecID,
-					&parentStateID, "tool1", &core.Input{"task": "subtask2"}),
-			}
-
-			dataBuilder := utils.NewDataBuilder()
-			input1JSON := dataBuilder.MustCreateInputData(map[string]any{"task": "subtask1"})
-			input2JSON := dataBuilder.MustCreateInputData(map[string]any{"task": "subtask2"})
-			nilJSON := dataBuilder.MustCreateNilJSONB()
-
-			// Expect transaction begin
-			mockSetup.Mock.ExpectBegin()
-
-			// Convert parentStateID to *string as the implementation does
-			parentStateIDStr := string(parentStateID)
-
-			// Expect first child insert
-			mockSetup.Mock.ExpectExec("INSERT INTO task_states").
-				WithArgs(
-					childStates[0].TaskExecID, childStates[0].TaskID, childStates[0].WorkflowExecID,
-					childStates[0].WorkflowID, childStates[0].Component, childStates[0].Status,
-					childStates[0].ExecutionType, &parentStateIDStr, childStates[0].AgentID,
-					childStates[0].ActionID, (*string)(nil), input1JSON, nilJSON, nilJSON,
-				).WillReturnResult(pgxmock.NewResult("INSERT", 1))
-
-			// Expect second child insert
-			mockSetup.Mock.ExpectExec("INSERT INTO task_states").
-				WithArgs(
-					childStates[1].TaskExecID, childStates[1].TaskID, childStates[1].WorkflowExecID,
-					childStates[1].WorkflowID, childStates[1].Component, childStates[1].Status,
-					childStates[1].ExecutionType, &parentStateIDStr, (*string)(nil), (*string)(nil),
-					childStates[1].ToolID, input2JSON, nilJSON, nilJSON,
-				).WillReturnResult(pgxmock.NewResult("INSERT", 1))
-
-			// Expect commit
-			mockSetup.Mock.ExpectCommit()
-
-			err := repo.CreateChildStatesInTransaction(ctx, parentStateID, childStates)
-			assert.NoError(t, err)
-		},
-	)
-
-	testTaskList(
-		t,
-		"should rollback transaction on error",
-		func(mockSetup *utils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
-			parentStateID := core.ID("parent-exec-456")
-			workflowExecID := core.ID("exec2")
-
-			childStates := []*task.State{
-				task.CreateAgentSubTaskState(
-					"child1", core.ID("child1-exec"), "wf2", workflowExecID,
-					&parentStateID, "agent1", "action1", &core.Input{"task": "subtask1"}),
-			}
-
-			dataBuilder := utils.NewDataBuilder()
-			inputJSON := dataBuilder.MustCreateInputData(map[string]any{"task": "subtask1"})
-			nilJSON := dataBuilder.MustCreateNilJSONB()
-
-			// Expect transaction begin
-			mockSetup.Mock.ExpectBegin()
-
-			// Convert parentStateID to *string as the implementation does
-			parentStateIDStr := string(parentStateID)
-
-			// Expect insert to fail
-			mockSetup.Mock.ExpectExec("INSERT INTO task_states").
-				WithArgs(
-					childStates[0].TaskExecID, childStates[0].TaskID, childStates[0].WorkflowExecID,
-					childStates[0].WorkflowID, childStates[0].Component, childStates[0].Status,
-					childStates[0].ExecutionType, &parentStateIDStr, childStates[0].AgentID,
-					childStates[0].ActionID, (*string)(nil), inputJSON, nilJSON, nilJSON,
-				).WillReturnError(fmt.Errorf("database error"))
-
-			// Expect rollback
-			mockSetup.Mock.ExpectRollback()
-
-			err := repo.CreateChildStatesInTransaction(ctx, parentStateID, childStates)
-			assert.Error(t, err)
-			assert.Contains(t, err.Error(), "database error")
-		},
-	)
+	t.Run("Should create multiple child states atomically", func(t *testing.T) {
+		mockSetup := utils.NewMockSetup(t)
+		defer mockSetup.Close()
+		repo := store.NewTaskRepo(mockSetup.Mock)
+		ctx := context.Background()
+		parentStateID := core.ID("parent-exec-123")
+		workflowExecID := core.ID("exec1")
+		childStates := []*task.State{
+			task.CreateAgentSubTaskState(
+				"child1", core.ID("child1-exec"), "wf1", workflowExecID,
+				&parentStateID, "agent1", "action1", &core.Input{"task": "subtask1"}),
+			task.CreateToolSubTaskState(
+				"child2", core.ID("child2-exec"), "wf1", workflowExecID,
+				&parentStateID, "tool1", &core.Input{"task": "subtask2"}),
+		}
+		dataBuilder := utils.NewDataBuilder()
+		input1JSON := dataBuilder.MustCreateInputData(map[string]any{"task": "subtask1"})
+		input2JSON := dataBuilder.MustCreateInputData(map[string]any{"task": "subtask2"})
+		nilJSON := dataBuilder.MustCreateNilJSONB()
+		mockSetup.Mock.ExpectBegin()
+		parentStateIDStr := string(parentStateID)
+		mockSetup.Mock.ExpectExec("INSERT INTO task_states").
+			WithArgs(
+				childStates[0].TaskExecID, childStates[0].TaskID, childStates[0].WorkflowExecID,
+				childStates[0].WorkflowID, childStates[0].Component, childStates[0].Status,
+				childStates[0].ExecutionType, &parentStateIDStr, childStates[0].AgentID,
+				childStates[0].ActionID, (*string)(nil), input1JSON, nilJSON, nilJSON,
+			).WillReturnResult(pgxmock.NewResult("INSERT", 1))
+		mockSetup.Mock.ExpectExec("INSERT INTO task_states").
+			WithArgs(
+				childStates[1].TaskExecID, childStates[1].TaskID, childStates[1].WorkflowExecID,
+				childStates[1].WorkflowID, childStates[1].Component, childStates[1].Status,
+				childStates[1].ExecutionType, &parentStateIDStr, (*string)(nil), (*string)(nil),
+				childStates[1].ToolID, input2JSON, nilJSON, nilJSON,
+			).WillReturnResult(pgxmock.NewResult("INSERT", 1))
+		mockSetup.Mock.ExpectCommit()
+		err := repo.CreateChildStatesInTransaction(ctx, parentStateID, childStates)
+		assert.NoError(t, err)
+		mockSetup.ExpectationsWereMet()
+	})
+	t.Run("Should rollback transaction on error", func(t *testing.T) {
+		mockSetup := utils.NewMockSetup(t)
+		defer mockSetup.Close()
+		repo := store.NewTaskRepo(mockSetup.Mock)
+		ctx := context.Background()
+		parentStateID := core.ID("parent-exec-456")
+		workflowExecID := core.ID("exec2")
+		childStates := []*task.State{
+			task.CreateAgentSubTaskState(
+				"child1", core.ID("child1-exec"), "wf2", workflowExecID,
+				&parentStateID, "agent1", "action1", &core.Input{"task": "subtask1"}),
+		}
+		dataBuilder := utils.NewDataBuilder()
+		inputJSON := dataBuilder.MustCreateInputData(map[string]any{"task": "subtask1"})
+		nilJSON := dataBuilder.MustCreateNilJSONB()
+		mockSetup.Mock.ExpectBegin()
+		parentStateIDStr := string(parentStateID)
+		mockSetup.Mock.ExpectExec("INSERT INTO task_states").
+			WithArgs(
+				childStates[0].TaskExecID, childStates[0].TaskID, childStates[0].WorkflowExecID,
+				childStates[0].WorkflowID, childStates[0].Component, childStates[0].Status,
+				childStates[0].ExecutionType, &parentStateIDStr, childStates[0].AgentID,
+				childStates[0].ActionID, (*string)(nil), inputJSON, nilJSON, nilJSON,
+			).WillReturnError(fmt.Errorf("database error"))
+		mockSetup.Mock.ExpectRollback()
+		err := repo.CreateChildStatesInTransaction(ctx, parentStateID, childStates)
+		assert.ErrorContains(t, err, "database error")
+		mockSetup.ExpectationsWereMet()
+	})
 }
 
 // Helper function for task Get tests
@@ -179,34 +152,31 @@ func testTaskGet(
 }
 
 func TestTaskRepo_GetState(t *testing.T) {
-	testTaskGet(
-		t,
-		"should get basic task state",
-		func(mockSetup *utils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
-			taskExecID := core.ID("task_exec1")
-
-			dataBuilder := utils.NewDataBuilder()
-			inputData := dataBuilder.MustCreateInputData(map[string]any{"key": "value"})
-
-			taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
-			taskRows := taskRowBuilder.CreateTaskStateRowsWithExecution(
-				"task_exec1", "task1", "exec1", "wf1",
-				core.StatusPending, task.ExecutionBasic, "agent1", nil, inputData,
-			)
-
-			mockSetup.Mock.ExpectQuery("SELECT \\*").
-				WithArgs(taskExecID).
-				WillReturnRows(taskRows)
-
-			state, err := repo.GetState(ctx, taskExecID)
-			assert.NoError(t, err)
-			assert.Equal(t, taskExecID, state.TaskExecID)
-			assert.Equal(t, core.StatusPending, state.Status)
-			assert.Equal(t, task.ExecutionBasic, state.ExecutionType)
-			assert.NotNil(t, state.Input)
-			assert.Equal(t, "agent1", *state.AgentID)
-		},
-	)
+	t.Run("Should get basic task state", func(t *testing.T) {
+		mockSetup := utils.NewMockSetup(t)
+		defer mockSetup.Close()
+		repo := store.NewTaskRepo(mockSetup.Mock)
+		ctx := context.Background()
+		taskExecID := core.ID("task_exec1")
+		dataBuilder := utils.NewDataBuilder()
+		inputData := dataBuilder.MustCreateInputData(map[string]any{"key": "value"})
+		taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
+		taskRows := taskRowBuilder.CreateTaskStateRowsWithExecution(
+			"task_exec1", "task1", "exec1", "wf1",
+			core.StatusPending, task.ExecutionBasic, "agent1", nil, inputData,
+		)
+		mockSetup.Mock.ExpectQuery("SELECT \\*").
+			WithArgs(taskExecID).
+			WillReturnRows(taskRows)
+		state, err := repo.GetState(ctx, taskExecID)
+		assert.NoError(t, err)
+		assert.Equal(t, taskExecID, state.TaskExecID)
+		assert.Equal(t, core.StatusPending, state.Status)
+		assert.Equal(t, task.ExecutionBasic, state.ExecutionType)
+		assert.NotNil(t, state.Input)
+		assert.Equal(t, "agent1", *state.AgentID)
+		mockSetup.ExpectationsWereMet()
+	})
 }
 
 func TestTaskRepo_GetParallelStateEquivalent(t *testing.T) {
@@ -274,20 +244,19 @@ func TestTaskRepo_GetParallelStateEquivalent(t *testing.T) {
 }
 
 func TestTaskRepo_GetState_NotFound(t *testing.T) {
-	testTaskGet(
-		t,
-		"should return not found error",
-		func(mockSetup *utils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
-			taskExecID := core.ID("task_exec1")
-
-			mockSetup.Mock.ExpectQuery("SELECT \\*").
-				WithArgs(taskExecID).
-				WillReturnError(pgx.ErrNoRows)
-
-			_, err := repo.GetState(ctx, taskExecID)
-			assert.ErrorIs(t, err, store.ErrTaskNotFound)
-		},
-	)
+	t.Run("Should return not found error when task does not exist", func(t *testing.T) {
+		mockSetup := utils.NewMockSetup(t)
+		defer mockSetup.Close()
+		repo := store.NewTaskRepo(mockSetup.Mock)
+		ctx := context.Background()
+		taskExecID := core.ID("task_exec1")
+		mockSetup.Mock.ExpectQuery("SELECT \\*").
+			WithArgs(taskExecID).
+			WillReturnError(pgx.ErrNoRows)
+		_, err := repo.GetState(ctx, taskExecID)
+		assert.ErrorIs(t, err, store.ErrTaskNotFound)
+		mockSetup.ExpectationsWereMet()
+	})
 }
 
 // Helper for list tests that return multiple states

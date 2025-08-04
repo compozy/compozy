@@ -32,22 +32,16 @@ func TestNewResponseHandler(t *testing.T) {
 
 	t.Run("Should return error with nil baseHandler", func(t *testing.T) {
 		handler, err := NewResponseHandler(nil, nil, nil)
-		assert.Error(t, err)
 		assert.Nil(t, handler)
-		assert.Contains(t, err.Error(), "failed to create basic response handler: baseHandler is required but was nil")
+		assert.ErrorContains(t, err, "failed to create basic response handler: baseHandler is required but was nil")
 	})
 
 	t.Run("Should return error with nil templateEngine", func(t *testing.T) {
 		contextBuilder := &shared.ContextBuilder{}
 		baseHandler := &shared.BaseResponseHandler{}
 		handler, err := NewResponseHandler(nil, contextBuilder, baseHandler)
-		assert.Error(t, err)
 		assert.Nil(t, handler)
-		assert.Contains(
-			t,
-			err.Error(),
-			"failed to create basic response handler: templateEngine is required but was nil",
-		)
+		assert.ErrorContains(t, err, "failed to create basic response handler: templateEngine is required but was nil")
 	})
 
 	t.Run("Should return error with nil contextBuilder", func(t *testing.T) {

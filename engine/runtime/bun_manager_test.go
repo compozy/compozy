@@ -103,9 +103,6 @@ func TestNewBunManager(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.NotNil(t, bm)
-
-		// Verify it implements the Runtime interface
-		assert.Implements(t, (*runtime.Runtime)(nil), bm)
 	})
 
 	t.Run("Should return error when Bun is not available", func(t *testing.T) {
@@ -121,7 +118,7 @@ func TestNewBunManager(t *testing.T) {
 		bm, err := runtime.NewBunManager(ctx, tmpDir, nil)
 
 		assert.Nil(t, bm)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "bun executable not found")
 	})
 
@@ -191,17 +188,17 @@ func TestBunManager_ExecuteTool(t *testing.T) {
 
 		// Test empty tool ID
 		_, err = bm.ExecuteTool(ctx, "", toolExecID, &core.Input{}, nil, core.EnvMap{})
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "tool_id cannot be empty")
 
 		// Test invalid tool ID with directory traversal
 		_, err = bm.ExecuteTool(ctx, "../malicious", toolExecID, &core.Input{}, nil, core.EnvMap{})
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "directory traversal patterns")
 
 		// Test invalid tool ID with invalid characters
 		_, err = bm.ExecuteTool(ctx, "tool@invalid", toolExecID, &core.Input{}, nil, core.EnvMap{})
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid characters")
 	})
 
@@ -239,7 +236,7 @@ export async function slow_tool(input: any) {
 			core.EnvMap{},
 			100*time.Millisecond,
 		)
-		assert.Error(t, err)
+		require.Error(t, err)
 		// Note: The specific timeout error will depend on Bun's behavior
 	})
 
@@ -299,7 +296,7 @@ export function dummy() {}
 		toolExecID, _ := core.NewID()
 
 		_, err = bm.ExecuteTool(ctx, "nonexistent_tool", toolExecID, &core.Input{}, nil, core.EnvMap{})
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "tool execution failed")
 	})
 

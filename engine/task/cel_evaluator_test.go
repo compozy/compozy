@@ -102,7 +102,8 @@ func TestCELEvaluator_Evaluate(t *testing.T) {
 		}
 		// CEL will return an error for undefined field access
 		result, err := evaluator.Evaluate(ctx, `signal.payload.status == "approved"`, data)
-		assert.Error(t, err)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "no such key")
 		assert.False(t, result)
 	})
 	t.Run("Should respect context cancellation", func(t *testing.T) {
@@ -118,7 +119,7 @@ func TestCELEvaluator_Evaluate(t *testing.T) {
 			},
 		}
 		result, err := evaluator.Evaluate(ctx, `signal.payload.status == "approved"`, data)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.True(t, errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) ||
 			errContains(err, "context"))
 		assert.False(t, result)
@@ -136,7 +137,8 @@ func TestCELEvaluator_Evaluate(t *testing.T) {
 		}
 		// Type mismatch should cause evaluation error
 		result, err := evaluator.Evaluate(ctx, `signal.payload.count > 10`, data)
-		assert.Error(t, err)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "no such overload")
 		assert.False(t, result)
 	})
 	t.Run("Should handle compilation errors", func(t *testing.T) {
@@ -148,7 +150,7 @@ func TestCELEvaluator_Evaluate(t *testing.T) {
 		}
 		// Invalid syntax
 		result, err := evaluator.Evaluate(ctx, `signal.payload.status ==`, data)
-		assert.Error(t, err)
+		require.Error(t, err)
 		// Check for compilation error without relying on exact string
 		assert.True(t, errContains(err, "compilation") || errContains(err, "parse"))
 		assert.False(t, result)
@@ -166,7 +168,7 @@ func TestCELEvaluator_Evaluate(t *testing.T) {
 		}
 		// Expression returns string, not boolean
 		result, err := evaluator.Evaluate(ctx, `signal.payload.status`, data)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.True(t, errContains(err, "boolean"))
 		assert.False(t, result)
 	})
@@ -265,7 +267,7 @@ func TestCELEvaluator_ValidateExpression(t *testing.T) {
 		evaluator, err := NewCELEvaluator()
 		require.NoError(t, err)
 		err = evaluator.ValidateExpression(`signal.payload.status ==`)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.True(t, errContains(err, "invalid") || errContains(err, "compilation"))
 	})
 }
@@ -334,7 +336,7 @@ func TestCELEvaluator_ContextTimeout(t *testing.T) {
 			},
 		}
 		result, err := evaluator.Evaluate(ctx, `signal.payload.status == "approved"`, data)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.True(t, errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) ||
 			errContains(err, "context"))
 		assert.False(t, result)

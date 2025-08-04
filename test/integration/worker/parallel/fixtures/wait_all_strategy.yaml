@@ -55,9 +55,9 @@ input:
 
 expected:
   workflow_state:
-    status: SUCCESS  # All tasks complete successfully
-    total_tasks: 4  # 1 parallel + 3 child tasks
-    completed_tasks: 4  # All tasks complete
+    status: SUCCESS # All tasks complete successfully
+    total_tasks: 4 # 1 parallel + 3 child tasks
+    completed_tasks: 4 # All tasks complete
   task_states:
     - name: wait-all-parallel-task
       status: SUCCESS

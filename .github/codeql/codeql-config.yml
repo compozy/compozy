@@ -46,4 +46,4 @@ query-filters:
 advanced-security: true
 
 # Configure build mode
-build-mode: none  # For Go, autobuild is usually sufficient
+build-mode: none # For Go, autobuild is usually sufficient

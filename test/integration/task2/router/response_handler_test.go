@@ -315,10 +315,3 @@ func TestRouterResponseHandler_Integration(t *testing.T) {
 		ts.OutputTransformer.AssertExpectations(t)
 	})
 }
-
-func TestRouterResponseHandler_Type(t *testing.T) {
-	t.Run("Should return router task type", func(t *testing.T) {
-		handler := router.NewResponseHandler(nil, nil, nil)
-		assert.Equal(t, task.TaskTypeRouter, handler.Type())
-	})
-}

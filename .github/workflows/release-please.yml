@@ -106,6 +106,45 @@ jobs:
             exit 1
           fi
 
+      - name: Checkout Release PR branch for formatting
+        if: steps.release.outputs.pr_created == 'true'
+        uses: actions/checkout@v4
+        with:
+          # Check out the branch created by release-please
+          ref: release-please-main
+          token: ${{ secrets.RELEASE_TOKEN }}
+
+      - name: Setup Bun
+        if: steps.release.outputs.pr_created == 'true'
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Format CHANGELOG.md in Release PR
+        if: steps.release.outputs.pr_created == 'true'
+        run: |
+          echo "📝 Formatting CHANGELOG.md in PR #${{ steps.release.outputs.pr_number }}"
+
+          # Install dependencies from lockfile
+          bun install --frozen-lockfile
+
+          # Format CHANGELOG.md and any related YAML files
+          bun run format:yaml
+          bunx prettier --write "CHANGELOG.md"
+
+          # Commit and push if formatting made changes
+          if ! git diff --quiet; then
+            echo "📝 Files have been formatted. Committing changes..."
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add .
+            git commit -m "style: format generated files with prettier" -m "Automated formatting for release PR."
+            git push
+            echo "✅ Pushed formatting changes to the release PR branch"
+          else
+            echo "✅ All files are already formatted"
+          fi
+
       - name: Trigger release workflow
         if: steps.release.outputs.release_created == 'true'
         run: |-

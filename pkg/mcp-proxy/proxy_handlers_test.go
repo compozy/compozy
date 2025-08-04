@@ -11,24 +11,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestProxyHandlers(t *testing.T) {
-	// Set gin to test mode
+func TestProxyHandlers_SSEProxy(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	// Create dependencies
 	storage := NewMemoryStorage()
 	clientManager := NewMockClientManager()
 
-	// Create proxy handlers
 	proxyHandlers := NewProxyHandlers(storage, clientManager, "http://localhost:6001", nil)
 
-	// Create a router with proxy endpoints
 	router := gin.New()
 	router.Any("/:name/sse", proxyHandlers.SSEProxyHandler)
 	router.Any("/:name/sse/*path", proxyHandlers.SSEProxyHandler)
 	router.Any("/:name/stream", proxyHandlers.StreamableHTTPProxyHandler)
 	router.Any("/:name/stream/*path", proxyHandlers.StreamableHTTPProxyHandler)
 
-	t.Run("SSE Proxy Handler - MCP Not Found", func(t *testing.T) {
+	t.Run("Should return 404 for non-existent MCP server", func(t *testing.T) {
 		req, err := http.NewRequestWithContext(context.Background(), "GET", "/nonexistent/sse", http.NoBody)
 		require.NoError(t, err)
 
@@ -37,8 +33,22 @@ func TestProxyHandlers(t *testing.T) {
 
 		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
+}
 
-	t.Run("Streamable HTTP Proxy Handler - MCP Not Found", func(t *testing.T) {
+func TestProxyHandlers_StreamableHTTPProxy(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	storage := NewMemoryStorage()
+	clientManager := NewMockClientManager()
+
+	proxyHandlers := NewProxyHandlers(storage, clientManager, "http://localhost:6001", nil)
+
+	router := gin.New()
+	router.Any("/:name/sse", proxyHandlers.SSEProxyHandler)
+	router.Any("/:name/sse/*path", proxyHandlers.SSEProxyHandler)
+	router.Any("/:name/stream", proxyHandlers.StreamableHTTPProxyHandler)
+	router.Any("/:name/stream/*path", proxyHandlers.StreamableHTTPProxyHandler)
+
+	t.Run("Should return 404 for non-existent MCP server in stream endpoint", func(t *testing.T) {
 		req, err := http.NewRequestWithContext(context.Background(), "POST", "/nonexistent/stream", http.NoBody)
 		require.NoError(t, err)
 
@@ -47,9 +57,22 @@ func TestProxyHandlers(t *testing.T) {
 
 		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
+}
 
-	t.Run("Register and Access MCP Proxy", func(t *testing.T) {
-		// Create a mock MCP definition
+func TestProxyHandlers_ProxyRegistration(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	storage := NewMemoryStorage()
+	clientManager := NewMockClientManager()
+
+	proxyHandlers := NewProxyHandlers(storage, clientManager, "http://localhost:6001", nil)
+
+	router := gin.New()
+	router.Any("/:name/sse", proxyHandlers.SSEProxyHandler)
+	router.Any("/:name/sse/*path", proxyHandlers.SSEProxyHandler)
+	router.Any("/:name/stream", proxyHandlers.StreamableHTTPProxyHandler)
+	router.Any("/:name/stream/*path", proxyHandlers.StreamableHTTPProxyHandler)
+
+	t.Run("Should route to proxy endpoint even when client registration fails", func(t *testing.T) {
 		mcpDef := MCPDefinition{
 			Name:        "test-mcp",
 			Description: "Test MCP for proxy",
@@ -58,13 +81,8 @@ func TestProxyHandlers(t *testing.T) {
 			Args:        []string{"hello"},
 		}
 
-		// Add to storage first
 		err := storage.SaveMCP(context.Background(), &mcpDef)
 		require.NoError(t, err)
-
-		// Note: We can't fully test the proxy registration without a real MCP client
-		// The GetClient call will fail with our mock, which is expected behavior
-		// This test just ensures the endpoint routing works
 
 		req, err := http.NewRequestWithContext(context.Background(), "GET", "/test-mcp/sse", http.NoBody)
 		require.NoError(t, err)
@@ -72,11 +90,10 @@ func TestProxyHandlers(t *testing.T) {
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 
-		// Should get 404 because proxy not registered (mock client fails)
 		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 
-	t.Run("Direct Proxy Server Access - Success Path", func(t *testing.T) {
+	t.Run("Should handle registered proxy server access correctly", func(t *testing.T) {
 		// Test successful access when proxy server is already registered
 		mockClientManager := NewMockClientManagerWithClient()
 		proxyHandlers := NewProxyHandlers(storage, mockClientManager, "http://localhost:6001", nil)
@@ -133,19 +150,17 @@ func TestProxyHandlers(t *testing.T) {
 	})
 }
 
-func TestProxyServerManagement(t *testing.T) {
-	// Create dependencies
+func TestProxyHandlers_ServerManagement(t *testing.T) {
 	storage := NewMemoryStorage()
 	clientManager := NewMockClientManager()
-	// Create proxy handlers
 	proxyHandlers := NewProxyHandlers(storage, clientManager, "http://localhost:6001", nil)
 
-	t.Run("Unregister Nonexistent Proxy", func(t *testing.T) {
+	t.Run("Should handle unregistering non-existent proxy without error", func(t *testing.T) {
 		err := proxyHandlers.UnregisterMCPProxy(t.Context(), "nonexistent")
-		assert.NoError(t, err) // Should not error, just log warning
+		assert.NoError(t, err)
 	})
 
-	t.Run("Get Proxy Server", func(t *testing.T) {
+	t.Run("Should return nil for non-existent proxy server", func(t *testing.T) {
 		server := proxyHandlers.GetProxyServer("nonexistent")
 		assert.Nil(t, server)
 	})

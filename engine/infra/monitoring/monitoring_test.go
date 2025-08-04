@@ -39,9 +39,8 @@ func TestNewMonitoringService(t *testing.T) {
 			Path:    "",
 		}
 		service, err := NewMonitoringService(t.Context(), cfg)
-		assert.Error(t, err)
+		assert.ErrorContains(t, err, "monitoring path cannot be empty")
 		assert.Nil(t, service)
-		assert.Contains(t, err.Error(), "monitoring path cannot be empty")
 	})
 	t.Run("Should initialize with Prometheus exporter when enabled", func(t *testing.T) {
 		cfg := &Config{

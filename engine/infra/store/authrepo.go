@@ -2,7 +2,6 @@ package store
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -197,10 +196,9 @@ func (r *AuthRepo) GetAPIKeyByID(ctx context.Context, id core.ID) (*model.APIKey
 	return &key, nil
 }
 
-// GetAPIKeyByHash retrieves an API key by its hash value (using fingerprint for lookup)
-func (r *AuthRepo) GetAPIKeyByHash(ctx context.Context, plaintextKey []byte) (*model.APIKey, error) {
-	// Compute fingerprint from the plaintext key for efficient lookup
-	fingerprint := computeFingerprint(plaintextKey)
+// GetAPIKeyByHash retrieves an API key by its fingerprint hash (SHA256)
+func (r *AuthRepo) GetAPIKeyByHash(ctx context.Context, fingerprint []byte) (*model.APIKey, error) {
+	// Use the provided fingerprint directly for lookup
 	query := `
 		SELECT id, user_id, hash, prefix, fingerprint, created_at, last_used
 		FROM api_keys
@@ -279,10 +277,4 @@ func (r *AuthRepo) DeleteAPIKey(ctx context.Context, id core.ID) error {
 		return fmt.Errorf("failed to delete API key: %w", err)
 	}
 	return nil
-}
-
-// computeFingerprint computes SHA-256 fingerprint of a plaintext API key
-func computeFingerprint(plaintext []byte) []byte {
-	hash := sha256.Sum256(plaintext)
-	return hash[:]
 }

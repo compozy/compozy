@@ -170,7 +170,7 @@ func TestExecuteWait_Run(t *testing.T) {
 		response, err := activity.Run(ctx, input)
 
 		// Assert
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, response)
 		assert.Contains(t, err.Error(), "task_config is required")
 	})
@@ -231,7 +231,7 @@ func TestExecuteWait_Run(t *testing.T) {
 		response, err := activity.Run(ctx, input)
 
 		// Assert
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, response)
 		assert.Contains(t, err.Error(), "workflow state not found")
 	})
@@ -312,7 +312,7 @@ func TestExecuteWait_Run(t *testing.T) {
 		response, err := activity.Run(ctx, input)
 
 		// Assert
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, response)
 		assert.Contains(t, err.Error(), "wait normalizer cannot handle task type")
 	})

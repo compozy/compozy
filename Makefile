@@ -121,6 +121,10 @@ test:
 	@bun run test
 	@gotestsum --format pkgname -- -race -parallel=4 ./...
 
+test-coverage:
+	@bun run test
+	@gotestsum --format pkgname -- -race -parallel=4 -coverprofile=coverage.out -covermode=atomic ./...
+
 test-nocache:
 	@bun run test
 	@gotestsum --format pkgname -- -race -count=1 -parallel=4 ./...

@@ -315,7 +315,7 @@ func TestDirectiveErrors(t *testing.T) {
 
 func TestDeterministicDirectivePick(t *testing.T) {
 	t.Run("Should consistently fail on multiple directives", func(t *testing.T) {
-		for range 10 {
+		for i := 0; i < 10; i++ {
 			_, err := ProcessBytes(
 				[]byte(`{"$ref":"local::x","$use":"agent(local::y)"}`),
 				WithLocalScope(map[string]any{"x": "a", "y": "b"}),
@@ -333,7 +333,7 @@ func TestDeterministicDirectivePick(t *testing.T) {
 func TestJSONCaching(t *testing.T) {
 	t.Run("Should cache JSON representations efficiently", func(t *testing.T) {
 		huge := make(map[string]any)
-		for i := range 1_000 {
+		for i := 0; i < 1000; i++ {
 			huge[string(rune(i))] = map[string]any{"deep": map[string]any{"path": map[string]any{"value": i}}}
 		}
 		ev := NewEvaluator(WithLocalScope(huge))
@@ -355,7 +355,7 @@ func TestEvaluatorConcurrency(t *testing.T) {
 		ev := NewEvaluator(WithLocalScope(scope))
 		var wg sync.WaitGroup
 		errs := make(chan error, 100)
-		for range 100 {
+		for i := 0; i < 100; i++ {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()

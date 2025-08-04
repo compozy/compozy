@@ -85,3 +85,9 @@ func resetForTest() {
 	closeOnce = sync.Once{}
 	GlobalManager = nil
 }
+
+// ResetForTest resets the global config singleton for testing.
+// This function should only be used in test code.
+func ResetForTest() {
+	resetForTest()
+}

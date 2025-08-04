@@ -28,7 +28,7 @@ func initMetrics(meter metric.Meter, log logger.Logger) {
 	initOnce.Do(func() {
 		var err error
 		httpRequestsTotal, err = meter.Int64Counter(
-			"compozy_http_requests_total",
+			"compozy_http_requests",
 			metric.WithDescription("Total HTTP requests"),
 		)
 		if err != nil {

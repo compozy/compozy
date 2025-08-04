@@ -89,5 +89,5 @@ workflows:
           Please demonstrate the tool config feature by:
           1. Call the api-caller tool to fetch user data from endpoint "/users/123"
           2. Format the response using the formatter tool
-          
+
           Show how the tools use their configured defaults (base URL, formatting options, etc.)

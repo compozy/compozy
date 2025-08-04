@@ -56,9 +56,9 @@ input:
 
 expected:
   workflow_state:
-    status: SUCCESS  # First task to complete wins
-    total_tasks: 2  # 1 parallel + 1 completed child task (winner)
-    completed_tasks: 2  # Only winner completes
+    status: SUCCESS # First task to complete wins
+    total_tasks: 2 # 1 parallel + 1 completed child task (winner)
+    completed_tasks: 2 # Only winner completes
   task_states:
     - name: race-parallel-task
       status: SUCCESS

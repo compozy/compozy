@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	mcpproxy "github.com/compozy/compozy/pkg/mcp-proxy"
 )
@@ -96,7 +97,7 @@ func TestConfig_validateURL(t *testing.T) {
 		err := config.validateURL()
 		// The URL "not-a-url" is parsed as a relative URL with no scheme,
 		// so it fails the scheme validation instead of format validation
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "mcp url must use http or https scheme")
 	})
 }
@@ -253,7 +254,7 @@ func TestValidateURLFormat(t *testing.T) {
 
 		for _, url := range invalidURLs {
 			err := validateURLFormat(url, "test url")
-			assert.Error(t, err)
+			require.Error(t, err)
 			assert.Contains(t, err.Error(), "test url must use http or https scheme")
 		}
 	})
@@ -266,14 +267,14 @@ func TestValidateURLFormat(t *testing.T) {
 
 		for _, url := range invalidURLs {
 			err := validateURLFormat(url, "test url")
-			assert.Error(t, err)
+			require.Error(t, err)
 			assert.Contains(t, err.Error(), "test url must include a host")
 		}
 	})
 
 	t.Run("Should include context in error messages", func(t *testing.T) {
 		err := validateURLFormat("invalid-url", "custom context")
-		assert.Error(t, err)
+		require.Error(t, err)
 		// The URL "invalid-url" is parsed as a relative URL with no scheme,
 		// so it fails the scheme validation with context
 		assert.Contains(t, err.Error(), "custom context must use http or https scheme")

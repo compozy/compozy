@@ -99,11 +99,18 @@ func TestConfig_AutoloadValidationCaching(t *testing.T) {
 			},
 		}
 		err1 := config.Validate()
-		assert.Error(t, err1)
+		require.Error(t, err1)
+		assert.Contains(t, err1.Error(), "autoload.include patterns are required when autoload is enabled")
 		assert.True(t, config.autoloadValidated)
-		assert.Error(t, config.autoloadValidError)
+		require.Error(t, config.autoloadValidError)
+		assert.Contains(
+			t,
+			config.autoloadValidError.Error(),
+			"autoload.include patterns are required when autoload is enabled",
+		)
 		err2 := config.Validate()
-		assert.Error(t, err2)
+		require.Error(t, err2)
+		assert.Contains(t, err2.Error(), "autoload.include patterns are required when autoload is enabled")
 		assert.Equal(t, err1.Error(), err2.Error())
 	})
 

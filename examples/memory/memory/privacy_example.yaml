@@ -32,8 +32,8 @@ privacy_policy:
     # UUID format
     - '\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b'
     # Custom patterns for your specific use case
-    - '\b[A-Z]{3,10}\b'  # Uppercase abbreviations
-    - '\baccount\s*#?\s*\d{6,12}\b'  # Account numbers
+    - '\b[A-Z]{3,10}\b' # Uppercase abbreviations
+    - '\baccount\s*#?\s*\d{6,12}\b' # Account numbers
   non_persistable_message_types:
     - system
     - tool

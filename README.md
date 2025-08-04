@@ -20,7 +20,7 @@
 > [!WARNING]
 > This project is currently in alpha. Please use with caution, as it may contain bugs and undergo significant changes.
 
-**Compozy** is a powerful, open-source workflow orchestration engine designed for building, deploying, and managing complex AI-powered applications. It simplifies the development of AI agents by providing a declarative YAML-based approach, allowing you to focus on your application's logic instead of boilerplate and integration complexities.
+**Compozy** is a powerful, open-source workflow orchestration engine designed for building, deploying, and managing complex multi-agent AI systems. It simplifies the development of AI agents by providing a declarative YAML-based approach, allowing you to focus on your application's logic instead of boilerplate and integration complexities.
 
 ## ✨ Key Features
 

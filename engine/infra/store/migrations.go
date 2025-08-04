@@ -19,6 +19,13 @@ var (
 	migrationErr  error
 )
 
+// ResetMigrationsForTest resets the migration singleton for testing.
+// This function should only be used in test code.
+func ResetMigrationsForTest() {
+	migrationOnce = sync.Once{}
+	migrationErr = nil
+}
+
 // runEmbeddedMigrations runs database migrations from embedded SQL files
 // in a thread-safe manner using PostgreSQL advisory locks.
 func runEmbeddedMigrations(ctx context.Context, db *sql.DB) error {

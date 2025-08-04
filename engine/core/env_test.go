@@ -4,6 +4,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // setupEnvFile creates a temporary .env file with the given content
@@ -15,7 +18,7 @@ func setupEnvFile(t *testing.T, content string) string {
 
 	// Write content to file
 	if err := os.WriteFile(envPath, []byte(content), 0o644); err != nil {
-		t.Fatalf("Failed to create test env file: %v", err)
+		require.NoError(t, err, "Failed to create test env file")
 	}
 
 	return tmpDir // Return the directory containing .env
@@ -31,16 +34,8 @@ func Test_NewEnvFromFile(t *testing.T) {
 
 		cwd := setupEnvFile(t, content)
 		env, err := NewEnvFromFile(cwd, "")
-		if err != nil {
-			t.Errorf("NewEnvFromFile() error = %v, want nil", err)
-			return
-		}
-
-		for k, v := range expected {
-			if got := env[k]; got != v {
-				t.Errorf("NewEnvFromFile() env[%s] = %v, want %v", k, got, v)
-			}
-		}
+		require.NoError(t, err)
+		assert.Equal(t, expected, env)
 	})
 
 	t.Run("Should handle empty file correctly", func(t *testing.T) {
@@ -49,14 +44,8 @@ func Test_NewEnvFromFile(t *testing.T) {
 
 		cwd := setupEnvFile(t, content)
 		env, err := NewEnvFromFile(cwd, "")
-		if err != nil {
-			t.Errorf("NewEnvFromFile() error = %v, want nil", err)
-			return
-		}
-
-		if len(env) != len(expected) {
-			t.Errorf("NewEnvFromFile() env length = %v, want %v", len(env), len(expected))
-		}
+		require.NoError(t, err)
+		assert.Equal(t, expected, env)
 	})
 
 	t.Run("Should handle comments in file correctly", func(t *testing.T) {
@@ -68,16 +57,8 @@ func Test_NewEnvFromFile(t *testing.T) {
 
 		cwd := setupEnvFile(t, content)
 		env, err := NewEnvFromFile(cwd, "")
-		if err != nil {
-			t.Errorf("NewEnvFromFile() error = %v, want nil", err)
-			return
-		}
-
-		for k, v := range expected {
-			if got := env[k]; got != v {
-				t.Errorf("NewEnvFromFile() env[%s] = %v, want %v", k, got, v)
-			}
-		}
+		require.NoError(t, err)
+		assert.Equal(t, expected, env)
 	})
 
 	t.Run("Should handle empty lines in file correctly", func(t *testing.T) {
@@ -89,29 +70,16 @@ func Test_NewEnvFromFile(t *testing.T) {
 
 		cwd := setupEnvFile(t, content)
 		env, err := NewEnvFromFile(cwd, "")
-		if err != nil {
-			t.Errorf("NewEnvFromFile() error = %v, want nil", err)
-			return
-		}
-
-		for k, v := range expected {
-			if got := env[k]; got != v {
-				t.Errorf("NewEnvFromFile() env[%s] = %v, want %v", k, got, v)
-			}
-		}
+		require.NoError(t, err)
+		assert.Equal(t, expected, env)
 	})
 
 	t.Run("Should handle nonexistent file gracefully", func(t *testing.T) {
 		// Create a temporary directory without an .env file
 		tmpDir := t.TempDir()
 		env, err := NewEnvFromFile(tmpDir, "")
-		if err != nil {
-			t.Errorf("NewEnvFromFile() error = %v, want nil for nonexistent file", err)
-		}
-
-		if len(env) != 0 {
-			t.Errorf("NewEnvFromFile() env = %v, want empty map for nonexistent file", env)
-		}
+		require.NoError(t, err)
+		assert.Empty(t, env)
 	})
 }
 
@@ -122,16 +90,8 @@ func Test_Merge(t *testing.T) {
 		expected := EnvMap{"KEY1": "value1"}
 		env := initial
 		env, err := env.Merge(other)
-		if err != nil {
-			t.Errorf("Merge() error = %v, want nil", err)
-			return
-		}
-
-		for k, v := range expected {
-			if got := env[k]; got != v {
-				t.Errorf("Merge() env[%s] = %v, want %v", k, got, v)
-			}
-		}
+		require.NoError(t, err)
+		assert.Equal(t, expected, env)
 	})
 
 	t.Run("Should merge with empty map on src", func(t *testing.T) {
@@ -141,16 +101,8 @@ func Test_Merge(t *testing.T) {
 
 		env := initial
 		env, err := env.Merge(other)
-		if err != nil {
-			t.Errorf("Merge() error = %v, want nil", err)
-			return
-		}
-
-		for k, v := range expected {
-			if got := env[k]; got != v {
-				t.Errorf("Merge() env[%s] = %v, want %v", k, got, v)
-			}
-		}
+		require.NoError(t, err)
+		assert.Equal(t, expected, env)
 	})
 
 	t.Run("Should merge and override values", func(t *testing.T) {
@@ -170,15 +122,118 @@ func Test_Merge(t *testing.T) {
 
 		env := initial
 		env, err := env.Merge(other)
-		if err != nil {
-			t.Errorf("Merge() error = %v, want nil", err)
-			return
-		}
+		require.NoError(t, err)
+		assert.Equal(t, expected, env)
+	})
+}
 
-		for k, v := range expected {
-			if got := env[k]; got != v {
-				t.Errorf("Merge() env[%s] = %v, want %v", k, got, v)
-			}
+func Test_EnvMap_Prop(t *testing.T) {
+	t.Run("Should return value for existing key", func(t *testing.T) {
+		env := EnvMap{"KEY1": "value1", "KEY2": "value2"}
+		result := env.Prop("KEY1")
+		assert.Equal(t, "value1", result)
+	})
+
+	t.Run("Should return empty string for non-existing key", func(t *testing.T) {
+		env := EnvMap{"KEY1": "value1"}
+		result := env.Prop("NONEXISTENT")
+		assert.Equal(t, "", result)
+	})
+
+	t.Run("Should return empty string for nil EnvMap", func(t *testing.T) {
+		var env EnvMap
+		result := env.Prop("KEY1")
+		assert.Equal(t, "", result)
+	})
+}
+
+func Test_EnvMap_Set(t *testing.T) {
+	t.Run("Should set key-value pair in EnvMap", func(t *testing.T) {
+		env := make(EnvMap)
+		env.Set("KEY1", "value1")
+		assert.Equal(t, "value1", env["KEY1"])
+	})
+
+	t.Run("Should override existing key", func(t *testing.T) {
+		env := EnvMap{"KEY1": "old_value"}
+		env.Set("KEY1", "new_value")
+		assert.Equal(t, "new_value", env["KEY1"])
+	})
+
+	t.Run("Should handle nil EnvMap gracefully", func(t *testing.T) {
+		var env *EnvMap
+		assert.NotPanics(t, func() {
+			env.Set("KEY1", "value1")
+		})
+	})
+}
+
+func Test_EnvMap_AsMap(t *testing.T) {
+	t.Run("Should convert EnvMap to map[string]any", func(t *testing.T) {
+		env := EnvMap{"KEY1": "value1", "KEY2": "value2"}
+		result := env.AsMap()
+		expected := map[string]any{"KEY1": "value1", "KEY2": "value2"}
+		assert.Equal(t, expected, result)
+	})
+
+	t.Run("Should return empty map for nil EnvMap", func(t *testing.T) {
+		var env *EnvMap
+		result := env.AsMap()
+		assert.Equal(t, map[string]any{}, result)
+	})
+}
+
+func Test_EnvMerger_Merge(t *testing.T) {
+	t.Run("Should merge multiple environment maps", func(t *testing.T) {
+		merger := &EnvMerger{}
+		env1 := EnvMap{"KEY1": "value1"}
+		env2 := EnvMap{"KEY2": "value2"}
+		env3 := EnvMap{"KEY1": "overridden", "KEY3": "value3"}
+
+		result, err := merger.Merge(env1, env2, env3)
+		require.NoError(t, err)
+
+		expected := EnvMap{
+			"KEY1": "overridden",
+			"KEY2": "value2",
+			"KEY3": "value3",
 		}
+		assert.Equal(t, expected, result)
+	})
+
+	t.Run("Should handle empty input", func(t *testing.T) {
+		merger := &EnvMerger{}
+		result, err := merger.Merge()
+		require.NoError(t, err)
+		assert.Equal(t, EnvMap{}, result)
+	})
+
+	t.Run("Should skip nil maps", func(t *testing.T) {
+		merger := &EnvMerger{}
+		env1 := EnvMap{"KEY1": "value1"}
+		result, err := merger.Merge(env1, nil, EnvMap{"KEY2": "value2"})
+		require.NoError(t, err)
+
+		expected := EnvMap{"KEY1": "value1", "KEY2": "value2"}
+		assert.Equal(t, expected, result)
+	})
+}
+
+func Test_EnvMerger_MergeWithDefaults(t *testing.T) {
+	t.Run("Should merge environments with nil handling", func(t *testing.T) {
+		merger := &EnvMerger{}
+		env1 := EnvMap{"KEY1": "value1"}
+		result, err := merger.MergeWithDefaults(env1, nil, EnvMap{"KEY2": "value2"})
+		require.NoError(t, err)
+
+		expected := EnvMap{"KEY1": "value1", "KEY2": "value2"}
+		assert.Equal(t, expected, result)
+	})
+
+	t.Run("Should handle all nil environments", func(t *testing.T) {
+		merger := &EnvMerger{}
+		result, err := merger.MergeWithDefaults(nil, nil)
+		require.NoError(t, err)
+		assert.Equal(t, EnvMap{}, result)
 	})
 }

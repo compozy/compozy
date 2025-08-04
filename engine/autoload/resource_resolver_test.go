@@ -110,7 +110,7 @@ func TestResourceResolver_ResolveResource(t *testing.T) {
 		registry := NewConfigRegistry()
 		resolver := NewResourceResolver(registry)
 		result, err := resolver.ResolveResource("workflow", "#(id=='missing')")
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, result)
 		// Check if it's a core.Error with the expected code
 		if coreErr, ok := err.(*core.Error); ok {
@@ -131,7 +131,7 @@ func TestResourceResolver_ResolveResource(t *testing.T) {
 		require.NoError(t, err)
 		resolver := NewResourceResolver(registry)
 		result, err := resolver.ResolveResource("task", "#(id=='test-task').missing_field")
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, result)
 		// Check if it's a core.Error with the expected code
 		if coreErr, ok := err.(*core.Error); ok {
@@ -145,7 +145,7 @@ func TestResourceResolver_ResolveResource(t *testing.T) {
 		registry := NewConfigRegistry()
 		resolver := NewResourceResolver(registry)
 		result, err := resolver.ResolveResource("workflow", "#(invalid)")
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, result)
 		assert.Contains(t, err.Error(), "invalid resource selector")
 	})
@@ -154,7 +154,7 @@ func TestResourceResolver_ResolveResource(t *testing.T) {
 		registry := NewConfigRegistry()
 		resolver := NewResourceResolver(registry)
 		result, err := resolver.ResolveResource("workflow", "")
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, result)
 		assert.Contains(t, err.Error(), "selector cannot be empty")
 	})
@@ -212,7 +212,7 @@ func TestParseResourceSelector(t *testing.T) {
 
 	t.Run("Should return error for empty selector", func(t *testing.T) {
 		id, fieldPath, err := ParseResourceSelector("")
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Equal(t, "", id)
 		assert.Equal(t, "", fieldPath)
 		assert.Contains(t, err.Error(), "selector cannot be empty")
@@ -220,7 +220,7 @@ func TestParseResourceSelector(t *testing.T) {
 
 	t.Run("Should return error for invalid selector format", func(t *testing.T) {
 		id, fieldPath, err := ParseResourceSelector("#(invalid==test)")
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Equal(t, "", id)
 		assert.Equal(t, "", fieldPath)
 	})
@@ -265,7 +265,7 @@ func TestApplyFieldPath(t *testing.T) {
 			"name": "Test Config",
 		}
 		result, err := ApplyFieldPath(config, "missing")
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, result)
 		// Check if it's a core.Error with the expected code
 		if coreErr, ok := err.(*core.Error); ok {
@@ -289,7 +289,7 @@ func TestApplyFieldPath(t *testing.T) {
 
 	t.Run("Should handle nil config", func(t *testing.T) {
 		result, err := ApplyFieldPath(nil, "field")
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, result)
 	})
 }

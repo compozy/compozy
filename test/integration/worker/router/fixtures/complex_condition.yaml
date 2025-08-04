@@ -9,11 +9,11 @@ workflow:
     - id: condition-router
       type: router
       action: route_by_condition
-      condition: "high_confidence"  # Business logic result for high confidence scenarios
+      condition: "high_confidence" # Business logic result for high confidence scenarios
       routes:
-        high_confidence: process-fast  # Fast processing for high confidence
-        low_confidence: process-manual  # Manual processing for low confidence
-      default_route: process-manual  # Default to manual processing
+        high_confidence: process-fast # Fast processing for high confidence
+        low_confidence: process-manual # Manual processing for low confidence
+      default_route: process-manual # Default to manual processing
     - id: process-fast
       type: basic
       action: process_data
@@ -31,7 +31,7 @@ input:
 expected:
   workflow_state:
     status: "SUCCESS"
-    total_tasks: 2  # 1 router + 1 routed task
+    total_tasks: 2 # 1 router + 1 routed task
     completed_tasks: 2
   task_states:
     - name: condition-router

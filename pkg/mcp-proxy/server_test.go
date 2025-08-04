@@ -13,100 +13,93 @@ import (
 )
 
 func TestNewServer(t *testing.T) {
-	config := &Config{
-		Port:            "6001",
-		Host:            "localhost",
-		ShutdownTimeout: 5 * time.Second,
-	}
+	t.Run("Should initialize server with proper configuration and dependencies", func(t *testing.T) {
+		config := &Config{
+			Port:            "6001",
+			Host:            "localhost",
+			ShutdownTimeout: 5 * time.Second,
+		}
 
-	server := newTestServer(config)
+		server := newTestServer(config)
 
-	assert.NotNil(t, server)
-	assert.Equal(t, config, server.config)
-	assert.NotNil(t, server.Router)
-	assert.NotNil(t, server.httpServer)
+		assert.NotNil(t, server)
+		assert.Equal(t, config, server.config)
+		assert.NotNil(t, server.Router)
+		assert.NotNil(t, server.httpServer)
+	})
 }
 
 func TestHealthzEndpoint(t *testing.T) {
-	config := DefaultConfig()
-	server := newTestServer(config)
+	t.Run("Should return healthy status with timestamp and version", func(t *testing.T) {
+		config := DefaultConfig()
+		server := newTestServer(config)
 
-	// Create a test request
-	req, err := http.NewRequestWithContext(context.Background(), "GET", "/healthz", http.NoBody)
-	require.NoError(t, err)
+		req, err := http.NewRequestWithContext(context.Background(), "GET", "/healthz", http.NoBody)
+		require.NoError(t, err)
 
-	// Create a response recorder
-	rr := httptest.NewRecorder()
+		rr := httptest.NewRecorder()
 
-	// Execute the request
-	server.Router.ServeHTTP(rr, req)
+		server.Router.ServeHTTP(rr, req)
 
-	// Check the response
-	assert.Equal(t, http.StatusOK, rr.Code)
-	assert.Contains(t, rr.Body.String(), "healthy")
-	assert.Contains(t, rr.Body.String(), "timestamp")
-	assert.Contains(t, rr.Body.String(), "version")
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Contains(t, rr.Body.String(), "healthy")
+		assert.Contains(t, rr.Body.String(), "timestamp")
+		assert.Contains(t, rr.Body.String(), "version")
+	})
 }
 
 func TestPingEndpoint(t *testing.T) {
-	config := DefaultConfig()
-	server := newTestServer(config)
+	t.Run("Should respond with pong to ping request", func(t *testing.T) {
+		config := DefaultConfig()
+		server := newTestServer(config)
 
-	// Create a test request
-	req, err := http.NewRequestWithContext(context.Background(), "GET", "/api/v1/ping", http.NoBody)
-	require.NoError(t, err)
+		req, err := http.NewRequestWithContext(context.Background(), "GET", "/api/v1/ping", http.NoBody)
+		require.NoError(t, err)
 
-	// Create a response recorder
-	rr := httptest.NewRecorder()
+		rr := httptest.NewRecorder()
 
-	// Execute the request
-	server.Router.ServeHTTP(rr, req)
+		server.Router.ServeHTTP(rr, req)
 
-	// Check the response
-	assert.Equal(t, http.StatusOK, rr.Code)
-	assert.Contains(t, rr.Body.String(), "pong")
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Contains(t, rr.Body.String(), "pong")
+	})
 }
 
 func TestServerShutdown(t *testing.T) {
-	config := &Config{
-		Port:            "0", // Use any available port
-		Host:            "localhost",
-		ShutdownTimeout: 1 * time.Second,
-	}
-
-	server := newTestServer(config)
-
-	ctx, cancel := context.WithCancel(context.Background())
-
-	// Channel to capture server error
-	serverErr := make(chan error, 1)
-
-	// Start server in background
-	go func() {
-		err := server.Start(ctx)
-		serverErr <- err
-	}()
-
-	// Give server time to start
-	time.Sleep(100 * time.Millisecond)
-
-	// Cancel context to trigger shutdown
-	cancel()
-
-	// Wait for server to shutdown and check error
-	select {
-	case err := <-serverErr:
-		// When context is canceled, we expect a "context canceled" error
-		// This is normal behavior for graceful shutdown
-		if err != nil && err.Error() != "context canceled" {
-			t.Errorf("Expected 'context canceled' error, got: %v", err)
+	t.Run("Should shutdown gracefully on context cancellation", func(t *testing.T) {
+		config := &Config{
+			Port:            "0",
+			Host:            "localhost",
+			ShutdownTimeout: 1 * time.Second,
 		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("Server shutdown timed out")
-	}
+
+		server := newTestServer(config)
+
+		ctx, cancel := context.WithCancel(context.Background())
+
+		serverErr := make(chan error, 1)
+
+		go func() {
+			err := server.Start(ctx)
+			serverErr <- err
+		}()
+
+		time.Sleep(100 * time.Millisecond)
+
+		cancel()
+
+		select {
+		case err := <-serverErr:
+			if err != nil && err.Error() != "context canceled" {
+				t.Errorf("Expected 'context canceled' error, got: %v", err)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("Server shutdown timed out")
+		}
+	})
 }
 
-func TestGetClientIP(t *testing.T) {
+func TestServer_GetClientIP(t *testing.T) {
 	tests := []struct {
 		name           string
 		trustedProxies []string
@@ -193,17 +186,15 @@ func TestGetClientIP(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run("Should extract client IP: "+tt.name, func(t *testing.T) {
 			config := &Config{
 				TrustedProxies: tt.trustedProxies,
 			}
 			server := &Server{config: config}
 
-			// Create a mock gin context
 			req := httptest.NewRequest("GET", "/test", http.NoBody)
 			req.RemoteAddr = tt.remoteAddr
 
-			// Add headers
 			for key, value := range tt.headers {
 				req.Header.Set(key, value)
 			}
@@ -212,14 +203,13 @@ func TestGetClientIP(t *testing.T) {
 			c, _ := gin.CreateTestContext(rr)
 			c.Request = req
 
-			// Test the function
 			result := server.getClientIP(c)
 			assert.Equal(t, tt.expectedIP, result)
 		})
 	}
 }
 
-func TestIsTrustedProxy(t *testing.T) {
+func TestServer_IsTrustedProxy(t *testing.T) {
 	tests := []struct {
 		name           string
 		trustedProxies []string
@@ -277,7 +267,7 @@ func TestIsTrustedProxy(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run("Should validate trusted proxy: "+tt.name, func(t *testing.T) {
 			config := &Config{
 				TrustedProxies: tt.trustedProxies,
 			}

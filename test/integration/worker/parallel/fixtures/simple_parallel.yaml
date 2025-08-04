@@ -20,7 +20,7 @@ input:
 expected:
   workflow_state:
     status: SUCCESS
-    total_tasks: 3  # 1 parallel + 2 child tasks
+    total_tasks: 3 # 1 parallel + 2 child tasks
     completed_tasks: 3
   task_states:
     - name: parallel-task

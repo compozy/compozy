@@ -1,4 +1,4 @@
-name: "CodeQL Security Analysis"
+name: "Security Analysis"
 
 on:
   push:
@@ -8,7 +8,8 @@ on:
     branches:
       - main
   schedule:
-    - cron: "0 4 * * 1"  # Weekly scan on Mondays at 4 AM UTC
+    - cron: "0 4 * * 1" # Weekly scan on Mondays at 4 AM UTC
+  workflow_dispatch:
 
 permissions:
   actions: read
@@ -16,36 +17,108 @@ permissions:
   security-events: write
 
 jobs:
-  analyze:
-    name: Analyze Go Code
+  codeql:
+    name: CodeQL Analysis
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
 
     strategy:
       fail-fast: false
       matrix:
-        language:
-          - "go"
+        language: ["go", "javascript"]
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Go with caching
-        uses: ./.github/actions/setup-go
-        with:
-          go-version: "1.24.x"
-          install-tools: "false"
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
           queries: security-extended,security-and-quality
 
+      - name: Set up Go
+        if: matrix.language == 'go'
+        uses: ./.github/actions/setup-go
+        with:
+          go-version: "1.24.x"
+          install-tools: "false"
+
+      - name: Setup Bun
+        if: matrix.language == 'javascript'
+        uses: oven-sh/setup-bun@v2
+
       - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
+        uses: github/codeql-action/autobuild@v4
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
         with:
           category: "/language:${{matrix.language}}"
-          upload: false  # Don't upload results when default setup is enabled
+
+  gosec:
+    name: Security Scan (gosec)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: ./.github/actions/setup-go
+        with:
+          go-version: "1.24.x"
+          install-tools: "false"
+
+      - name: Run Gosec Security Scanner
+        uses: securecodewarrior/github-action-gosec@v1
+        with:
+          args: "-fmt sarif -out gosec.sarif ./..."
+
+      - name: Upload SARIF file
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: gosec.sarif
+
+  trivy:
+    name: Container Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build Docker image for scanning
+        run: |
+          docker build -t compozy:test -f cluster/compozy.Dockerfile .
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@0.31.0
+        with:
+          image-ref: "compozy:test"
+          format: "sarif"
+          output: "trivy-results.sarif"
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: "trivy-results.sarif"
+
+  nancy:
+    name: Dependency Vulnerability Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: ./.github/actions/setup-go
+        with:
+          go-version: "1.24.x"
+          install-tools: "false"
+
+      - name: Install Nancy
+        run: go install github.com/sonatypecommunity/nancy@latest
+
+      - name: Run Nancy
+        run: |
+          go list -json -deps ./... | nancy sleuth --loud

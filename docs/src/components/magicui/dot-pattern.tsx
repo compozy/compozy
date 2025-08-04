@@ -89,9 +89,7 @@ export function DotPattern({
 
   const dots = Array.from(
     {
-      length:
-        Math.ceil(dimensions.width / width) *
-        Math.ceil(dimensions.height / height),
+      length: Math.ceil(dimensions.width / width) * Math.ceil(dimensions.height / height),
     },
     (_, i) => {
       const col = i % Math.ceil(dimensions.width / width);
@@ -102,17 +100,14 @@ export function DotPattern({
         delay: Math.random() * 5,
         duration: Math.random() * 3 + 2,
       };
-    },
+    }
   );
 
   return (
     <svg
       ref={containerRef}
       aria-hidden="true"
-      className={cn(
-        "pointer-events-none absolute inset-0 h-full w-full",
-        className,
-      )}
+      className={cn("pointer-events-none absolute inset-0 h-full w-full", className)}
       {...props}
     >
       <defs>
@@ -121,7 +116,7 @@ export function DotPattern({
           <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
         </radialGradient>
       </defs>
-      {dots.map((dot) => (
+      {dots.map(dot => (
         <motion.circle
           key={`${dot.x}-${dot.y}`}
           cx={dot.x}

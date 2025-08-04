@@ -51,9 +51,9 @@ input:
 
 expected:
   workflow_state:
-    status: FAILED  # Workflow fails due to fail_fast strategy
-    total_tasks: 3  # 1 parallel + 2 executed child tasks (pending may not execute)
-    completed_tasks: 2  # Only success-task and failing-task execute
+    status: FAILED # Workflow fails due to fail_fast strategy
+    total_tasks: 3 # 1 parallel + 2 executed child tasks (pending may not execute)
+    completed_tasks: 2 # Only success-task and failing-task execute
   task_states:
     - name: fail-fast-parallel-task
       status: FAILED

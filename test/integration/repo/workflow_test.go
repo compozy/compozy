@@ -15,82 +15,69 @@ import (
 )
 
 func TestWorkflowRepo_UpsertState(t *testing.T) {
-	mockSetup := utils.NewMockSetup(t)
-	defer mockSetup.Close()
-
-	repo := store.NewWorkflowRepo(mockSetup.Mock)
-	ctx := context.Background()
-	state := &workflow.State{
-		WorkflowID:     "wf1",
-		WorkflowExecID: core.ID("exec1"),
-		Status:         core.StatusPending,
-		Input:          &core.Input{"key": "value"},
-		Tasks:          make(map[string]*task.State),
-	}
-
-	dataBuilder := utils.NewDataBuilder()
-	inputJSON := dataBuilder.MustCreateInputData(map[string]any{"key": "value"})
-	expectedOutputJSON := dataBuilder.MustCreateNilJSONB()
-	expectedErrorJSON := dataBuilder.MustCreateNilJSONB()
-
-	queries := mockSetup.NewQueryExpectations()
-	queries.ExpectWorkflowStateQueryForUpsert([]any{
-		state.WorkflowExecID, state.WorkflowID, state.Status,
-		inputJSON,
-		expectedOutputJSON,
-		expectedErrorJSON,
+	t.Run("Should insert or update workflow state successfully", func(t *testing.T) {
+		mockSetup := utils.NewMockSetup(t)
+		defer mockSetup.Close()
+		repo := store.NewWorkflowRepo(mockSetup.Mock)
+		ctx := context.Background()
+		state := &workflow.State{
+			WorkflowID:     "wf1",
+			WorkflowExecID: core.ID("exec1"),
+			Status:         core.StatusPending,
+			Input:          &core.Input{"key": "value"},
+			Tasks:          make(map[string]*task.State),
+		}
+		dataBuilder := utils.NewDataBuilder()
+		inputJSON := dataBuilder.MustCreateInputData(map[string]any{"key": "value"})
+		expectedOutputJSON := dataBuilder.MustCreateNilJSONB()
+		expectedErrorJSON := dataBuilder.MustCreateNilJSONB()
+		queries := mockSetup.NewQueryExpectations()
+		queries.ExpectWorkflowStateQueryForUpsert([]any{
+			state.WorkflowExecID, state.WorkflowID, state.Status,
+			inputJSON,
+			expectedOutputJSON,
+			expectedErrorJSON,
+		})
+		err := repo.UpsertState(ctx, state)
+		assert.NoError(t, err)
+		mockSetup.ExpectationsWereMet()
 	})
-
-	err := repo.UpsertState(ctx, state)
-	assert.NoError(t, err)
-	mockSetup.ExpectationsWereMet()
 }
 
 func TestWorkflowRepo_GetState(t *testing.T) {
-	mockSetup := utils.NewMockSetup(t)
-	defer mockSetup.Close()
-
-	repo := store.NewWorkflowRepo(mockSetup.Mock)
-	ctx := context.Background()
-	workflowExecID := core.ID("exec1")
-
-	dataBuilder := utils.NewDataBuilder()
-	inputData := dataBuilder.MustCreateInputData(map[string]any{"key": "value"})
-
-	// Use utility functions to set up the test
-	tx := mockSetup.NewTransactionExpectations()
-	queries := mockSetup.NewQueryExpectations()
-	workflowRowBuilder := mockSetup.NewWorkflowStateRowBuilder()
-	taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
-
-	tx.ExpectBegin()
-
-	// Create workflow state rows
-	workflowRows := workflowRowBuilder.CreateWorkflowStateRows(
-		"exec1", "wf1", core.StatusPending, inputData,
-	)
-
-	// Expect workflow query
-	queries.ExpectWorkflowStateQuery(
-		"SELECT workflow_exec_id, workflow_id, status, input, output, error FROM workflow_states",
-		[]any{workflowExecID},
-		workflowRows,
-	)
-
-	// Create empty task rows and expect task query
-	taskRows := taskRowBuilder.CreateEmptyTaskStateRows()
-	queries.ExpectTaskStateQuery(workflowExecID, taskRows)
-
-	tx.ExpectCommit()
-
-	state, err := repo.GetState(ctx, workflowExecID)
-	assert.NoError(t, err)
-	assert.Equal(t, "wf1", state.WorkflowID)
-	assert.Equal(t, core.StatusPending, state.Status)
-	assert.NotNil(t, state.Input)
-	assert.NotNil(t, state.Tasks)
-	assert.Len(t, state.Tasks, 0) // No tasks in this test
-	mockSetup.ExpectationsWereMet()
+	t.Run("Should get workflow state without tasks", func(t *testing.T) {
+		mockSetup := utils.NewMockSetup(t)
+		defer mockSetup.Close()
+		repo := store.NewWorkflowRepo(mockSetup.Mock)
+		ctx := context.Background()
+		workflowExecID := core.ID("exec1")
+		dataBuilder := utils.NewDataBuilder()
+		inputData := dataBuilder.MustCreateInputData(map[string]any{"key": "value"})
+		tx := mockSetup.NewTransactionExpectations()
+		queries := mockSetup.NewQueryExpectations()
+		workflowRowBuilder := mockSetup.NewWorkflowStateRowBuilder()
+		taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
+		tx.ExpectBegin()
+		workflowRows := workflowRowBuilder.CreateWorkflowStateRows(
+			"exec1", "wf1", core.StatusPending, inputData,
+		)
+		queries.ExpectWorkflowStateQuery(
+			"SELECT workflow_exec_id, workflow_id, status, input, output, error FROM workflow_states",
+			[]any{workflowExecID},
+			workflowRows,
+		)
+		taskRows := taskRowBuilder.CreateEmptyTaskStateRows()
+		queries.ExpectTaskStateQuery(workflowExecID, taskRows)
+		tx.ExpectCommit()
+		state, err := repo.GetState(ctx, workflowExecID)
+		assert.NoError(t, err)
+		assert.Equal(t, "wf1", state.WorkflowID)
+		assert.Equal(t, core.StatusPending, state.Status)
+		assert.NotNil(t, state.Input)
+		assert.NotNil(t, state.Tasks)
+		assert.Len(t, state.Tasks, 0)
+		mockSetup.ExpectationsWereMet()
+	})
 }
 
 func TestWorkflowRepo_GetState_WithTasks(t *testing.T) {
@@ -326,39 +313,35 @@ func TestWorkflowRepo_GetStateByToolID(t *testing.T) {
 }
 
 func TestWorkflowRepo_UpdateStatus(t *testing.T) {
-	mockSetup := utils.NewMockSetup(t)
-	defer mockSetup.Close()
-
-	repo := store.NewWorkflowRepo(mockSetup.Mock)
-	ctx := context.Background()
-	workflowExecID := "exec1"
-	newStatus := core.StatusRunning
-
-	// Expect the update query with 1 row affected (success)
-	mockSetup.Mock.ExpectExec("UPDATE workflow_states").
-		WithArgs(newStatus, workflowExecID).
-		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
-
-	err := repo.UpdateStatus(ctx, workflowExecID, newStatus)
-	assert.NoError(t, err)
-	mockSetup.ExpectationsWereMet()
+	t.Run("Should update workflow status successfully", func(t *testing.T) {
+		mockSetup := utils.NewMockSetup(t)
+		defer mockSetup.Close()
+		repo := store.NewWorkflowRepo(mockSetup.Mock)
+		ctx := context.Background()
+		workflowExecID := "exec1"
+		newStatus := core.StatusRunning
+		mockSetup.Mock.ExpectExec("UPDATE workflow_states").
+			WithArgs(newStatus, workflowExecID).
+			WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+		err := repo.UpdateStatus(ctx, workflowExecID, newStatus)
+		assert.NoError(t, err)
+		mockSetup.ExpectationsWereMet()
+	})
 }
 
 func TestWorkflowRepo_UpdateStatus_NotFound(t *testing.T) {
-	mockSetup := utils.NewMockSetup(t)
-	defer mockSetup.Close()
-
-	repo := store.NewWorkflowRepo(mockSetup.Mock)
-	ctx := context.Background()
-	workflowExecID := "nonexistent"
-	newStatus := core.StatusRunning
-
-	// Expect the update query with 0 rows affected (not found)
-	mockSetup.Mock.ExpectExec("UPDATE workflow_states").
-		WithArgs(newStatus, workflowExecID).
-		WillReturnResult(pgxmock.NewResult("UPDATE", 0))
-
-	err := repo.UpdateStatus(ctx, workflowExecID, newStatus)
-	assert.ErrorIs(t, err, store.ErrWorkflowNotFound)
-	mockSetup.ExpectationsWereMet()
+	t.Run("Should return not found error when workflow does not exist", func(t *testing.T) {
+		mockSetup := utils.NewMockSetup(t)
+		defer mockSetup.Close()
+		repo := store.NewWorkflowRepo(mockSetup.Mock)
+		ctx := context.Background()
+		workflowExecID := "nonexistent"
+		newStatus := core.StatusRunning
+		mockSetup.Mock.ExpectExec("UPDATE workflow_states").
+			WithArgs(newStatus, workflowExecID).
+			WillReturnResult(pgxmock.NewResult("UPDATE", 0))
+		err := repo.UpdateStatus(ctx, workflowExecID, newStatus)
+		assert.ErrorIs(t, err, store.ErrWorkflowNotFound)
+		mockSetup.ExpectationsWereMet()
+	})
 }

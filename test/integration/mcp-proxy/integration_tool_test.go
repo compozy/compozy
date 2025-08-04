@@ -76,22 +76,21 @@ func TestToolAPIEndpointsIntegration(t *testing.T) {
 			ToolName:  "test-tool",
 			Arguments: map[string]any{},
 		}
-
 		callJSON, err := json.Marshal(toolCall)
 		require.NoError(t, err)
-
 		req := httptest.NewRequest(http.MethodPost, "/admin/tools/call", bytes.NewReader(callJSON))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer test-admin-token")
 		w := httptest.NewRecorder()
 		server.Router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusNotFound, w.Code)
-
 		var errorResponse map[string]any
 		err = json.Unmarshal(w.Body.Bytes(), &errorResponse)
 		require.NoError(t, err)
 		assert.Contains(t, errorResponse, "error")
-		assert.Contains(t, errorResponse["error"], "MCP not found")
+		errorMsg, ok := errorResponse["error"].(string)
+		require.True(t, ok, "error field should be a string")
+		assert.Contains(t, errorMsg, "MCP not found")
 	})
 
 	t.Run("Should validate tool call input", func(t *testing.T) {

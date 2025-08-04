@@ -106,8 +106,7 @@ func TestProxyTool_Call(t *testing.T) {
 		invalidInput := `{invalid json`
 		_, err := tool.Call(context.Background(), invalidInput)
 
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to parse tool arguments")
+		assert.ErrorContains(t, err, "failed to parse tool arguments")
 	})
 
 	t.Run("Should validate arguments against schema and accept valid input", func(t *testing.T) {
@@ -170,10 +169,9 @@ func TestProxyTool_Call(t *testing.T) {
 		invalidInput := `{"limit": 10}`
 		_, err := tool.Call(context.Background(), invalidInput)
 
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid tool arguments")
-		assert.Contains(t, err.Error(), "validation error for tool:validation-tool")
-		assert.Contains(t, err.Error(), "Required property 'query' is missing")
+		assert.ErrorContains(t, err, "invalid tool arguments")
+		assert.ErrorContains(t, err, "validation error for tool:validation-tool")
+		assert.ErrorContains(t, err, "Required property 'query' is missing")
 	})
 
 	t.Run("Should return validation error for wrong type", func(t *testing.T) {
@@ -198,10 +196,9 @@ func TestProxyTool_Call(t *testing.T) {
 		invalidInput := `{"limit": "not a number"}`
 		_, err := tool.Call(context.Background(), invalidInput)
 
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid tool arguments")
-		assert.Contains(t, err.Error(), "validation error for tool:validation-tool")
-		assert.Contains(t, err.Error(), "does not match the schema")
+		assert.ErrorContains(t, err, "invalid tool arguments")
+		assert.ErrorContains(t, err, "validation error for tool:validation-tool")
+		assert.ErrorContains(t, err, "does not match the schema")
 	})
 
 	t.Run("Should skip validation when no schema is defined", func(t *testing.T) {

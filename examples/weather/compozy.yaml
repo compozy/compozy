@@ -1,6 +1,7 @@
 name: weather-agent
 version: "0.1.0"
-description: A multi-agent weather advisory system that provides recommendations for tourists based on
+description:
+  A multi-agent weather advisory system that provides recommendations for tourists based on
   weather conditions
 
 author:

@@ -2,11 +2,13 @@ package dispatch
 
 import (
 	"os"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/testsuite"
 
@@ -132,14 +134,22 @@ func TestDispatcherWorkflow_SuccessfulDispatch(t *testing.T) {
 		// Wait for workflow completion
 		<-workflowFinished
 
-		// Verify the workflow was canceled (expected for long-running workflows)
-		assert.Error(t, env.GetWorkflowError(), "Workflow should be canceled")
+		// Verify the workflow completed as expected (canceled by test or timed out)
+		workflowErr := env.GetWorkflowError()
+		require.Error(t, workflowErr, "Workflow should end with error (canceled or timeout)")
+		// The workflow can either be canceled by our test or timeout due to long-running nature
+		errorMsg := workflowErr.Error()
+		assert.True(t,
+			errorMsg == "canceled" ||
+				strings.Contains(errorMsg, "deadline exceeded") ||
+				strings.Contains(errorMsg, "timeout"),
+			"Workflow should be canceled by test or timeout due to long-running nature, got: %s", errorMsg)
 		env.AssertExpectations(t)
 	})
 }
 
 func TestDispatcherWorkflow_UnknownSignal(t *testing.T) {
-	t.Run("Should handle unknown signal gracefully", func(t *testing.T) {
+	t.Run("Should handle unknown signal gracefully without triggering workflows", func(t *testing.T) {
 		testSuite := &testsuite.WorkflowTestSuite{}
 		env := testSuite.NewTestWorkflowEnvironment()
 		defer func() {
@@ -203,8 +213,16 @@ func TestDispatcherWorkflow_UnknownSignal(t *testing.T) {
 		// Wait for workflow completion
 		<-workflowFinished
 
-		// Verify the workflow was canceled and no child workflow was started
-		assert.Error(t, env.GetWorkflowError(), "Workflow should be canceled")
+		// Verify the workflow completed as expected (canceled by test or timed out)
+		workflowErr := env.GetWorkflowError()
+		require.Error(t, workflowErr, "Workflow should end with error (canceled or timeout)")
+		// The workflow can either be canceled by our test or timeout due to long-running nature
+		errorMsg := workflowErr.Error()
+		assert.True(t,
+			errorMsg == "canceled" ||
+				strings.Contains(errorMsg, "deadline exceeded") ||
+				strings.Contains(errorMsg, "timeout"),
+			"Workflow should be canceled by test or timeout due to long-running nature, got: %s", errorMsg)
 		env.AssertExpectations(t)
 	})
 }

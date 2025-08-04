@@ -167,8 +167,7 @@ func TestConfig_Validate(t *testing.T) {
 			Path:    "",
 		}
 		err := cfg.Validate()
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "monitoring path cannot be empty")
+		assert.ErrorContains(t, err, "monitoring path cannot be empty")
 	})
 	t.Run("Should reject path not starting with slash", func(t *testing.T) {
 		cfg := &Config{
@@ -176,8 +175,7 @@ func TestConfig_Validate(t *testing.T) {
 			Path:    "metrics",
 		}
 		err := cfg.Validate()
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "monitoring path must start with '/'")
+		assert.ErrorContains(t, err, "monitoring path must start with '/'")
 	})
 	t.Run("Should reject path under /api/", func(t *testing.T) {
 		cfg := &Config{
@@ -185,8 +183,7 @@ func TestConfig_Validate(t *testing.T) {
 			Path:    "/api/metrics",
 		}
 		err := cfg.Validate()
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "monitoring path cannot be under /api/")
+		assert.ErrorContains(t, err, "monitoring path cannot be under /api/")
 	})
 	t.Run("Should reject path with query parameters", func(t *testing.T) {
 		cfg := &Config{
@@ -194,8 +191,7 @@ func TestConfig_Validate(t *testing.T) {
 			Path:    "/metrics?format=json",
 		}
 		err := cfg.Validate()
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "monitoring path cannot contain query parameters")
+		assert.ErrorContains(t, err, "monitoring path cannot contain query parameters")
 	})
 	t.Run("Should accept various valid paths", func(t *testing.T) {
 		validPaths := []string{
