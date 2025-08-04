@@ -195,6 +195,9 @@ jobs:
           go-version: ${{ matrix.go-version }}
           install-tools: "true"
 
+      - name: Setup Bun
+        uses: ./.github/actions/setup-bun
+
       - name: Run linting
         run: |
           echo "Running Go code quality checks..."

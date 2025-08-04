@@ -29,6 +29,7 @@ dist/
 /dist/
 **/dist/
 completions
+ai-docs
 
 # === TURBOREPO ===
 .turbo
