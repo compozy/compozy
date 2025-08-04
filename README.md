@@ -1,26 +1,23 @@
 <div align="center">
-  <img src="./docs/public/full_logo.png" alt="Compozy Logo" width="600">
-  
-  <p>
-    <strong>Next-level Agentic Orchestration Platform</strong>
-  </p>
+  <img src="./docs/public/banner.png" alt="Compozy Logo" width="100%">
+  <br>
+  <br>
   <p>
     <a href="https://github.com/compozy/compozy/actions/workflows/ci.yml">
       <img src="https://github.com/compozy/compozy/actions/workflows/ci.yml/badge.svg" alt="Build Status">
     </a>
-    <a href="https://goreportcard.com/report/github.com/compozy/compozy">
-      <img src="https://goreportcard.com/badge/github.com/compozy/compozy" alt="Go Report Card">
-    </a>
-    <a href="https://github.com/compozy/compozy/blob/main/LICENSE">
-      <img src="https://img.shields.io/github/license/compozy/compozy" alt="License">
+    <a href="https://pkg.go.dev/github.com/compozy/compozy">
+      <img src="https://pkg.go.dev/badge/github.com/compozy/compozy.svg" alt="Go Reference">
     </a>
   </p>
 </div>
 
 > [!WARNING]
-> This project is currently in alpha. Please use with caution, as it may contain bugs and undergo significant changes.
+> ✨ Alpha Release is Here! This project is currently in alpha. Please use with caution, as it may contain bugs and undergo significant changes.
 
-**Compozy** is a powerful, open-source workflow orchestration engine designed for building, deploying, and managing complex multi-agent AI systems. It simplifies the development of AI agents by providing a declarative YAML-based approach, allowing you to focus on your application's logic instead of boilerplate and integration complexities.
+## Next-level Agentic Orchestration Platform
+
+**Compozy** orchestrates multi-agent AI systems with ease. Compozy's enterprise-grade platform uses declarative YAML to deliver scalable, reliable, and cost-efficient distributed workflows, simplifying complex fan-outs, debugging, and monitoring for production-ready automation.
 
 ## ✨ Key Features
 
@@ -37,10 +34,26 @@
 
 Get up and running with Compozy in just a few minutes.
 
-```bash
-# Install the Compozy CLI
-brew install compozy/tap/compozy
+### Install via Homebrew (macOS/Linux)
 
+```bash
+brew tap compozy/homebrew-compozy
+brew install compozy
+```
+
+### Install via NPM
+
+```bash
+npm install -g @compozy/cli
+# Or with Yarn
+yarn global add @compozy/cli
+# Or with pnpm
+pnpm add -g @compozy/cli
+```
+
+### Quick Start
+
+```bash
 # Create a new project
 compozy init my-ai-app
 cd my-ai-app
@@ -55,15 +68,21 @@ For a complete walkthrough, check out our [**Quick Start Guide**](./docs/content
 
 Our documentation website is the best place to find comprehensive information, tutorials, and API references.
 
-| Section                                                                             | Description                                       |
-| ----------------------------------------------------------------------------------- | ------------------------------------------------- |
-| 🚀 **[Getting Started](./docs/content/docs/core/getting-started/installation.mdx)** | Installation, setup, and your first workflow.     |
-| 💡 **[Core Concepts](./docs/content/docs/core/getting-started/core-concepts.mdx)**  | Understand Workflows, Agents, Tasks, and Tools.   |
-| 🛠️ **[Configuration](./docs/content/docs/core/configuration/project-setup.mdx)**    | Project, runtime, and provider configuration.     |
-| 🤖 **[Agents](./docs/content/docs/core/agents/overview.mdx)**                       | Building and configuring AI agents.               |
-| ⚙️ **[Tasks](./docs/content/docs/core/tasks/overview.mdx)**                         | Orchestrating operations with various task types. |
-| 🔌 **[API Reference](./docs/content/docs/api/overview.mdx)**                        | Programmatic access via the REST API.             |
-| 💻 **[CLI Reference](./docs/content/docs/cli/overview.mdx)**                        | Full reference for the command-line interface.    |
+| Section                                                                             | Description                                      |
+| ----------------------------------------------------------------------------------- | ------------------------------------------------ |
+| 🚀 **[Getting Started](./docs/content/docs/core/getting-started/installation.mdx)** | Installation, setup, and your first workflow     |
+| 🛠️ **[Configuration](./docs/content/docs/core/configuration/project-setup.mdx)**    | Project, runtime, and provider configuration     |
+| 🎨 **[Template Engine](./docs/content/docs/core/yaml-templates/overview.mdx)**      | Dynamic YAML configuration with templating       |
+| 🤖 **[Agents](./docs/content/docs/core/agents/overview.mdx)**                       | Building and configuring AI agents               |
+| ⚙️ **[Tasks](./docs/content/docs/core/tasks/overview.mdx)**                         | Orchestrating operations with various task types |
+| 🔧 **[Tools](./docs/content/docs/core/tools/overview.mdx)**                         | Extending agent capabilities with custom tools   |
+| 🧠 **[Memory & Context](./docs/content/docs/core/memory/overview.mdx)**             | Managing agent memory and conversation context   |
+| 🔌 **[MCP Integration](./docs/content/docs/core/mcp/overview.mdx)**                 | Model Context Protocol for external tool servers |
+| 📡 **[Signal System](./docs/content/docs/core/signals/overview.mdx)**               | Event-driven communication between components    |
+| 🚀 **[Deployment](./docs/content/docs/core/deployment/docker.mdx)**                 | Deploy Compozy to production environments        |
+| 💻 **[CLI Reference](./docs/content/docs/cli/overview.mdx)**                        | Command-line interface reference                 |
+| 📋 **[Schema Definition](./docs/content/docs/schema/project.mdx)**                  | YAML schema definitions for all components       |
+| 🔌 **[API Reference](./docs/content/docs/api/overview.mdx)**                        | REST API for programmatic access                 |
 
 **[➡️ Explore the full documentation](./docs/content/docs/core/index.mdx)**
 
