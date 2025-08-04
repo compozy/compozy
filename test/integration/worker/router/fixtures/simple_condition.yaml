@@ -9,9 +9,9 @@ workflow:
     - id: simple-router
       type: router
       action: route_task
-      condition: "production" # Static condition that matches the route key
+      condition: "production"  # Static condition that matches the route key
       routes:
-        production: deploy-task # Route key matches the condition
+        production: deploy-task  # Route key matches the condition
       default_route: deploy-task
     - id: deploy-task
       type: basic
@@ -25,7 +25,7 @@ input:
 expected:
   workflow_state:
     status: "SUCCESS"
-    total_tasks: 2 # 1 router + 1 routed task
+    total_tasks: 2  # 1 router + 1 routed task
     completed_tasks: 2
   task_states:
     - name: simple-router

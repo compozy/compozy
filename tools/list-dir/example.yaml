@@ -41,8 +41,12 @@ tasks:
   # Process the results
   - id: summarize
     type: basic
-    dependencies: [list_current, list_ts_files, find_all_tests, list_folders]
-    run: |
+    dependencies:
+      - list_current
+      - list_ts_files
+      - find_all_tests
+      - list_folders
+    run: |-
       echo "=== Directory Summary ==="
       echo "Current directory has {{ .tasks.list_current.result.entries | len }} items"
       echo ""

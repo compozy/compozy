@@ -131,7 +131,7 @@ jobs:
     if: always()
     steps:
       - name: Development images summary
-        run: |
+        run: |-
           # shellcheck disable=SC2086,SC2129
           {
             echo "## 🐳 Development Docker Images Published"

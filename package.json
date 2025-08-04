@@ -23,6 +23,7 @@
     "reinstall": "bun run clean:deps && bun install"
   },
   "devDependencies": {
+    "@commitlint/config-conventional": "^19.8.1",
     "@storybook/nextjs": "9.1.0",
     "@types/bun": "1.2.19",
     "oxlint": "1.9.0",

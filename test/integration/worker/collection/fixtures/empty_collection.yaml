@@ -25,7 +25,7 @@ input:
 expected:
   workflow_state:
     status: "SUCCESS"
-    total_tasks: 1 # Only parent task
+    total_tasks: 1  # Only parent task
     completed_tasks: 1
   task_states:
     - name: process-empty-collection

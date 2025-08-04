@@ -1,11 +1,9 @@
 import type { MetadataRoute } from "next";
 
-export function robots(): MetadataRoute.Robots {
+export default function robots(): MetadataRoute.Robots {
   const baseUrl =
     process.env.NEXT_PUBLIC_SITE_URL ??
-    (process.env.NODE_ENV === "production"
-      ? "https://compozy.com"
-      : "http://localhost:5006");
+    (process.env.NODE_ENV === "production" ? "https://compozy.com" : "http://localhost:5006");
 
   return {
     rules: {

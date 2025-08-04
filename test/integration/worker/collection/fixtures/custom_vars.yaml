@@ -35,7 +35,7 @@ input:
 expected:
   workflow_state:
     status: "SUCCESS"
-    total_tasks: 4 # 1 parent + 3 children
+    total_tasks: 4  # 1 parent + 3 children
     completed_tasks: 4
   task_states:
     - name: process-cities

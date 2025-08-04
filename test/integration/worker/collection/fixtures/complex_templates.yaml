@@ -61,7 +61,7 @@ input:
 expected:
   workflow_state:
     status: "SUCCESS"
-    total_tasks: 5 # 1 setup + 1 parent collection + 3 children
+    total_tasks: 5  # 1 setup + 1 parent collection + 3 children
     completed_tasks: 5
   task_states:
     - name: setup-context

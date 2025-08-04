@@ -53,9 +53,8 @@ func GetSharedPostgresDB(ctx context.Context, t *testing.T) (*pgxpool.Pool, func
 	return sharedPGPool, cleanup
 }
 
-// startSharedContainer initializes the shared PostgreSQL container
-func startSharedContainer(ctx context.Context, _ *testing.T) (*postgres.PostgresContainer, *pgxpool.Pool, error) {
-	// Start container with optimized settings
+// createPostgresContainer creates a PostgreSQL container with standard configuration
+func createPostgresContainer(ctx context.Context) (*postgres.PostgresContainer, *pgxpool.Pool, error) {
 	pgContainer, err := postgres.Run(ctx,
 		"postgres:15-alpine",
 		postgres.WithDatabase("test-db"),
@@ -74,33 +73,35 @@ func startSharedContainer(ctx context.Context, _ *testing.T) (*postgres.Postgres
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to start container: %w", err)
 	}
-
 	connStr, err := pgContainer.ConnectionString(ctx, "sslmode=disable")
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get connection string: %w", err)
 	}
-
-	// Create pool with optimized settings
 	config, err := pgxpool.ParseConfig(connStr)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to parse config: %w", err)
 	}
-
-	config.MaxConns = 50 // Support parallel tests
-	config.MinConns = 5  // Keep connections warm
+	config.MaxConns = 50
+	config.MinConns = 5
 	config.MaxConnLifetime = 30 * time.Minute
 	config.MaxConnIdleTime = 5 * time.Minute
-
 	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create pool: %w", err)
 	}
+	return pgContainer, pool, nil
+}
 
+// startSharedContainer initializes the shared PostgreSQL container
+func startSharedContainer(ctx context.Context, _ *testing.T) (*postgres.PostgresContainer, *pgxpool.Pool, error) {
+	pgContainer, pool, err := createPostgresContainer(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
 	// Run migrations once
 	if err := ensureTablesExist(pool); err != nil {
 		return nil, nil, fmt.Errorf("failed to run migrations: %w", err)
 	}
-
 	return pgContainer, pool, nil
 }
 
@@ -142,41 +143,9 @@ func startSharedContainerWithoutMigrations(
 	ctx context.Context,
 	_ *testing.T,
 ) (*postgres.PostgresContainer, *pgxpool.Pool, error) {
-	// Start container with optimized settings
-	pgContainer, err := postgres.Run(ctx,
-		"postgres:15-alpine",
-		postgres.WithDatabase("test-db"),
-		postgres.WithUsername("user"),
-		postgres.WithPassword("password"),
-		testcontainers.WithWaitStrategy(
-			wait.ForAll(
-				wait.ForLog("database system is ready to accept connections").
-					WithOccurrence(2).
-					WithStartupTimeout(30*time.Second),
-				wait.ForListeningPort("5432/tcp").
-					WithStartupTimeout(30*time.Second),
-			),
-		),
-	)
+	pgContainer, pool, err := createPostgresContainer(ctx)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to start container: %w", err)
-	}
-	connStr, err := pgContainer.ConnectionString(ctx, "sslmode=disable")
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get connection string: %w", err)
-	}
-	// Create pool with optimized settings
-	config, err := pgxpool.ParseConfig(connStr)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to parse config: %w", err)
-	}
-	config.MaxConns = 50 // Support parallel tests
-	config.MinConns = 5  // Keep connections warm
-	config.MaxConnLifetime = 30 * time.Minute
-	config.MaxConnIdleTime = 5 * time.Minute
-	pool, err := pgxpool.NewWithConfig(ctx, config)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create pool: %w", err)
+		return nil, nil, err
 	}
 	// NOTE: Skip migrations for testing migration logic
 	return pgContainer, pool, nil

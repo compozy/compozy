@@ -31,6 +31,9 @@ jobs:
           go-version: "1.24.x"
           install-tools: "true"
 
+      - name: Setup Bun
+        uses: ./.github/actions/setup-bun
+
       - name: Validate Codecov config
         run: |
           curl -X POST --data-binary @codecov.yml https://codecov.io/validate || echo "Codecov validation failed, continuing..."
@@ -98,6 +101,9 @@ jobs:
         with:
           go-version: "1.24.x"
           install-tools: "true"
+
+      - name: Setup Bun
+        uses: ./.github/actions/setup-bun
 
       - name: Run quality checks
         run: |

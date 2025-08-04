@@ -99,7 +99,7 @@ jobs:
         uses: actions/setup-python@v5
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: ./.github/actions/setup-bun
 
       - name: Install pre-commit
         run: pip install pre-commit
@@ -116,19 +116,16 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-
-      - name: Install commitlint
-        run: bun add -g @commitlint/cli @commitlint/config-conventional
+        uses: ./.github/actions/setup-bun
 
       - name: Validate current commit (last commit) with commitlint
         if: github.event_name == 'push'
-        run: bun x commitlint --last --verbose
+        run: bunx commitlint --last --verbose
 
       - name: Validate PR commits with commitlint
         if: github.event_name == 'pull_request'
         run: |
-          bun x commitlint \
+          bunx commitlint \
             --from ${{ github.event.pull_request.head.sha }}~${{ github.event.pull_request.commits }} \
             --to ${{ github.event.pull_request.head.sha }} \
             --verbose

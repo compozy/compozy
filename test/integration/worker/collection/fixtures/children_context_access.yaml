@@ -19,11 +19,9 @@ workflow:
         # Test existing aggregation pattern still works
         all_results: "{{ .output }}"
         # Simple test of children access - children is a map with task IDs as keys
-        first_child_output:
-          "{{ if .children }}{{ if index .children \"validate-0\" }}{{ (index .children\
+        first_child_output: "{{ if .children }}{{ if index .children \"validate-0\" }}{{ (index .children\
           \ \"validate-0\").output }}{{ else }}NO_CHILD{{ end }}{{ else }}NO_CHILDREN{{ end }}"
-        first_child_status:
-          "{{ if .children }}{{ if index .children \"validate-0\" }}{{ (index .children\
+        first_child_status: "{{ if .children }}{{ if index .children \"validate-0\" }}{{ (index .children\
           \ \"validate-0\").status }}{{ else }}NO_CHILD{{ end }}{{ else }}NO_CHILDREN{{ end }}"
       on_success:
         next: process-validated
@@ -35,8 +33,7 @@ workflow:
         # Test accessing previous task's transformed output - simplified
         some_results: "{{ .tasks.validate-items.output.all_results }}"
         # Test accessing children through tasks context - safe map access
-        some_validation:
-          "{{ if .tasks.validate-items.children }}{{ if index .tasks.validate-items.children\
+        some_validation: "{{ if .tasks.validate-items.children }}{{ if index .tasks.validate-items.children\
           \ \"validate-0\" }}{{ (index .tasks.validate-items.children \"validate-0\").output }}{{ else\
           \ }}NO_CHILD_FOUND{{ end }}{{ else }}NO_CHILDREN_PROPERTY{{ end }}"
 

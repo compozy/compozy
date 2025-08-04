@@ -32,7 +32,7 @@ runs:
       uses: actions/setup-go@v5
       with:
         go-version: ${{ inputs.go-version }}
-        cache: false # We handle caching manually for better control
+        cache: false  # We handle caching manually for better control
     - name: Cache Go modules
       id: go-cache
       uses: actions/cache@v4
@@ -40,8 +40,7 @@ runs:
         path: |
           ~/.cache/go-build
           ~/go/pkg/mod
-        key:
-          ${{ runner.os }}-go-${{ inputs.go-version }}-${{ hashFiles('**/go.sum') }}${{ inputs.cache-key-suffix
+        key: ${{ runner.os }}-go-${{ inputs.go-version }}-${{ hashFiles('**/go.sum') }}${{ inputs.cache-key-suffix
           }}
         restore-keys: |
           ${{ runner.os }}-go-${{ inputs.go-version }}-

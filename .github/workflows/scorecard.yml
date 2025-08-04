@@ -6,7 +6,8 @@ on:
     # Weekly on Sundays
     - cron: "30 1 * * 0"
   push:
-    branches: [main]
+    branches:
+      - main
   workflow_dispatch:
 
 # Declare default permissions as read only.

@@ -132,7 +132,7 @@ jobs:
 
       - name: Setup Bun
         if: steps.release.outputs.pr_created == 'true'
-        uses: oven-sh/setup-bun@v2
+        uses: ./.github/actions/setup-bun
         with:
           bun-version: latest
 
@@ -140,9 +140,6 @@ jobs:
         if: steps.release.outputs.pr_created == 'true'
         run: |
           echo "📝 Formatting CHANGELOG.md in PR #${{ steps.release.outputs.pr_number }}"
-
-          # Install dependencies from lockfile
-          bun install --frozen-lockfile
 
           # Format CHANGELOG.md and any related YAML files
           bun run format:yaml

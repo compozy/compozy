@@ -21,12 +21,12 @@ input:
 
 expected:
   workflow_state:
-    status: SUCCESS # Workflow can complete even with task failures
-    total_tasks: 3 # 1 parallel + 2 child tasks
+    status: SUCCESS  # Workflow can complete even with task failures
+    total_tasks: 3  # 1 parallel + 2 child tasks
     completed_tasks: 3
   task_states:
     - name: parallel-task
-      status: SUCCESS # Parent task manages child failures
+      status: SUCCESS  # Parent task manages child failures
     - name: success-task
       status: SUCCESS
     - name: failing-task

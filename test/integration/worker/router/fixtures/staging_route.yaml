@@ -9,10 +9,10 @@ workflow:
     - id: fallback-router
       type: router
       action: route_task
-      condition: "staging" # Environment condition that matches input
+      condition: "staging"  # Environment condition that matches input
       routes:
-        production: process-production # Production deployment task
-        staging: process-staging # Staging deployment task
+        production: process-production  # Production deployment task
+        staging: process-staging  # Staging deployment task
     - id: process-staging
       type: basic
       action: process_data
@@ -30,7 +30,7 @@ input:
 expected:
   workflow_state:
     status: "SUCCESS"
-    total_tasks: 2 # 1 router + 1 routed task
+    total_tasks: 2  # 1 router + 1 routed task
     completed_tasks: 2
   task_states:
     - name: fallback-router

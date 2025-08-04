@@ -46,4 +46,4 @@ workflows:
           Find all TypeScript files in the current directory
         input:
           command: "find . -name '*.ts' -type f"
-          timeout: 10000 # 10 seconds
+          timeout: 10000  # 10 seconds

@@ -40,7 +40,7 @@ input:
 expected:
   workflow_state:
     status: "SUCCESS"
-    total_tasks: 6 # 1 pipeline + 1 parent collection + 4 children
+    total_tasks: 6  # 1 pipeline + 1 parent collection + 4 children
     completed_tasks: 6
   task_states:
     - name: data-pipeline

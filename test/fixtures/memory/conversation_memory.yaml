@@ -14,8 +14,8 @@ persistence:
 
 privacy_policy:
   redact_patterns:
-    - '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b' # Email
-    - '\b\d{3}-\d{2}-\d{4}\b' # SSN
+    - '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'  # Email
+    - '\b\d{3}-\d{2}-\d{4}\b'  # SSN
   non_persistable_message_types:
     - system
     - tool

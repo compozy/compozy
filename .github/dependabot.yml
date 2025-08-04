@@ -1,4 +1,5 @@
 version: 2
+
 updates:
   # Go modules
   - package-ecosystem: "gomod"
@@ -26,7 +27,8 @@ updates:
     ignore:
       # Ignore patch releases for development dependencies
       - dependency-name: "*"
-        update-types: ["version-update:semver-patch"]
+        update-types:
+          - "version-update:semver-patch"
 
   # GitHub Actions
   - package-ecosystem: "github-actions"
@@ -87,7 +89,8 @@ updates:
     ignore:
       # Ignore patch releases for development dependencies
       - dependency-name: "*"
-        update-types: ["version-update:semver-patch"]
+        update-types:
+          - "version-update:semver-patch"
 
   # NPM for tools directory
   - package-ecosystem: "npm"

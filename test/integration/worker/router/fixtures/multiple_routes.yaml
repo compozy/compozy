@@ -9,11 +9,11 @@ workflow:
     - id: data-router
       type: router
       action: route_by_type
-      condition: "json" # Condition that matches input.data_type
+      condition: "json"  # Condition that matches input.data_type
       routes:
-        json: process-json # Route for JSON data processing
-        text: process-text # Route for text data processing
-      default_route: process-text # Fallback if no route matches
+        json: process-json  # Route for JSON data processing
+        text: process-text  # Route for text data processing
+      default_route: process-text  # Fallback if no route matches
     - id: process-json
       type: basic
       action: process_data
@@ -31,7 +31,7 @@ input:
 expected:
   workflow_state:
     status: "SUCCESS"
-    total_tasks: 2 # 1 router + 1 routed task
+    total_tasks: 2  # 1 router + 1 routed task
     completed_tasks: 2
   task_states:
     - name: data-router

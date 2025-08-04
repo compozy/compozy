@@ -48,4 +48,4 @@ tasks:
         port={{ .port }}
         debug={{ .debug }}
     config:
-      mode: 0o600 # Read/write for owner only
+      mode: 0o600  # Read/write for owner only
