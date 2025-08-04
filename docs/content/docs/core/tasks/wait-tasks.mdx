@@ -9,7 +9,7 @@ Wait tasks form the foundation of Compozy's [signal communication system](/docs/
 
 ## Overview
 
-Wait tasks enable **event-driven coordination** in workflows by pausing execution until specific conditions are met, signals are received, or timeouts occur. They are essential for building [reactive architectures](/docs/core/signals/overview), coordinating [multi-workflow systems](/docs/core/workflow/orchestration), and integrating with external systems through the [Event API](/docs/core/signals/event-api).
+Wait tasks enable **event-driven coordination** in workflows by pausing execution until specific conditions are met, signals are received, or timeouts occur. They are essential for building [reactive architectures](/docs/core/signals/overview), coordinating workflow patterns, and integrating with external systems through the [Event API](/docs/core/signals/event-api).
 
 <FeatureCardList cols={2} size="default">
   <FeatureCard
@@ -79,8 +79,8 @@ For the complete task configuration schema, see the [Task Schema Reference](/doc
 | `wait_for` | string | ✅ | Signal identifier to listen for - supports [template expressions](/docs/core/yaml-templates/context-variables) |
 | `timeout` | string | ✅ | Maximum wait duration (e.g., `5m`, `300s`, `1h`) - prevents indefinite blocking |
 | `processor` | object | ❌ | [Basic, composite, or agent task](/docs/core/tasks/basic-tasks) to process received signals |
-| `on_timeout` | string | ❌ | Task ID to execute when timeout occurs - enables [error handling patterns](/docs/core/workflow/error-handling) |
-| `condition` | string | ❌ | [CEL expression](/docs/core/yaml-templates/cel-expressions) for signal filtering and validation |
+| `on_timeout` | string | ❌ | Task ID to execute when timeout occurs - enables workflow patterns |
+| `condition` | string | ❌ | template expressions for signal filtering and validation |
 | `retry_policy` | object | ❌ | Automatic retry configuration for resilient wait operations |
 
 ## Signal Configuration Patterns
@@ -110,7 +110,7 @@ Use fixed signal identifiers for predictable coordination:
 ```
 
 <Callout type="tip">
-Static signal names are ideal for system-wide events like deployments, maintenance windows, or global notifications. Learn more about [signal naming conventions](/docs/core/signals/best-practices).
+Static signal names are ideal for system-wide events like deployments, maintenance windows, or global notifications. Learn more about signal best practices.
 </Callout>
 
 </Tab>
@@ -140,14 +140,14 @@ Use [template expressions](/docs/core/yaml-templates/context-variables) for user
 ```
 
 <Callout type="tip">
-Dynamic signals enable parallel processing of multiple requests while maintaining isolation. Use them for [multi-tenant workflows](/docs/core/workflow/multi-tenancy) and user-specific processing.
+Dynamic signals enable parallel processing of multiple requests while maintaining isolation. Use them for workflow patterns and user-specific processing.
 </Callout>
 
 </Tab>
 
 <Tab value="Conditional Filtering">
 
-Filter signals using [CEL expressions](/docs/core/yaml-templates/cel-expressions) for precise control:
+Filter signals using template expressions for precise control:
 
 ```yaml
 # Wait for high-priority orders only
@@ -179,7 +179,7 @@ Filter signals using [CEL expressions](/docs/core/yaml-templates/cel-expressions
 ```
 
 <Callout type="warning">
-CEL conditions are evaluated with [cost limits](/docs/core/performance/cel-optimization) for security. Complex expressions may impact performance - consider using [signal processors](#signal-processors) for heavy validation.
+CEL conditions are evaluated with performance optimization for security. Complex expressions may impact performance - consider using [signal processors](#signal-processors) for heavy validation.
 </Callout>
 
 </Tab>
@@ -194,7 +194,7 @@ Processors enable custom handling of received signal data using [tools](/docs/co
 
 <Tab value="Tool Processing">
 
-Use [TypeScript tools](/docs/core/tools/typescript-tools) for structured data processing:
+Use TypeScript tools for structured data processing:
 
 ```yaml
 - id: wait-and-process
@@ -333,7 +333,7 @@ Implement graceful degradation when primary services are unavailable:
 ```
 
 <Callout type="tip" title="Fallback Best Practices">
-Design fallback strategies to maintain service quality. Consider using [router tasks](/docs/core/tasks/router-tasks) for complex fallback logic and [circuit breaker patterns](/docs/core/patterns/circuit-breaker) for external service protection.
+Design fallback strategies to maintain service quality. Consider using [router tasks](/docs/core/tasks/router-tasks) for complex fallback logic and design patterns for external service protection.
 </Callout>
 
 </Tab>
@@ -371,7 +371,7 @@ Configure automatic retries for transient failures:
     Add randomization to retry intervals to prevent thundering herd effects
   </ListItem>
   <ListItem title="Circuit Breaking" icon="Zap">
-    Implement [circuit breaker patterns](/docs/core/patterns/circuit-breaker) for failing services
+    Implement design patterns for failing services
   </ListItem>
 </List>
 
@@ -445,7 +445,7 @@ Always validate signal content to ensure data integrity:
 ```
 
 <Callout type="warning" title="Security Considerations">
-Use [CEL expressions](/docs/core/yaml-templates/cel-expressions) for input validation and consider [security best practices](/docs/core/security/input-validation) when processing external signals.
+Use template expressions for input validation and consider security guidelines when processing external signals.
 </Callout>
 
   </Accordion>
@@ -510,16 +510,16 @@ Implement comprehensive error handling for resilient workflows:
 
 <List>
   <ListItem title="Timeout Strategies" icon="Clock">
-    Design meaningful [fallback behaviors](/docs/core/workflow/error-handling) for timeout scenarios
+    Design meaningful workflow patterns for timeout scenarios
   </ListItem>
   <ListItem title="Retry Logic" icon="RotateCcw">
     Implement exponential backoff for transient failures
   </ListItem>
   <ListItem title="Circuit Breakers" icon="Zap">
-    Use [circuit breaker patterns](/docs/core/patterns/circuit-breaker) for external dependencies
+    Use design patterns for external dependencies
   </ListItem>
   <ListItem title="Monitoring" icon="BarChart3">
-    Add [observability](/docs/core/monitoring/metrics) for wait task performance
+    Add monitoring for wait task performance
   </ListItem>
 </List>
 
@@ -600,21 +600,15 @@ Wait tasks are fundamental to building robust, coordinated workflows in Compozy.
     icon="Globe"
   />
   <ReferenceCard
-    title="Error Handling"
-    description="Build resilient workflows with proper error handling"
-    href="/docs/core/workflow/error-handling"
-    icon="AlertTriangle"
-  />
-  <ReferenceCard
-    title="Monitoring & Observability"
-    description="Monitor wait task performance and signal delivery"
-    href="/docs/core/monitoring/workflows"
+    title="Configuration Monitoring"
+    description="Monitor task performance and system metrics"
+    href="/docs/core/configuration/monitoring"
     icon="BarChart3"
   />
   <ReferenceCard
-    title="Security Best Practices"
-    description="Secure signal processing and input validation patterns"
-    href="/docs/core/security/input-validation"
+    title="Runtime Environment"
+    description="Secure execution environments and validation patterns"
+    href="/docs/core/tools/runtime-environment"
     icon="Shield"
   />
 </ReferenceCardList>

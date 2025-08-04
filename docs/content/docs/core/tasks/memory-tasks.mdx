@@ -7,7 +7,7 @@ description: Manage persistent memory storage with read, write, append, and memo
 
 Memory tasks provide persistent storage capabilities for workflows, enabling data persistence, session management, and context preservation across workflow executions. They integrate seamlessly with [Compozy's memory management system](/docs/core/memory/overview) to provide scalable, efficient storage for AI-powered applications.
 
-Unlike [basic tasks](/docs/core/tasks/basic-tasks) that operate in isolation, memory tasks create persistent state that survives workflow executions, enabling [agent-driven applications](/docs/core/agents/overview) with conversation history, [complex workflow orchestration](/docs/core/workflows/overview) with shared context, and [intelligent caching systems](/docs/core/memory/optimization) for improved performance.
+Unlike [basic tasks](/docs/core/tasks/basic-tasks) that operate in isolation, memory tasks create persistent state that survives workflow executions, enabling [agent-driven applications](/docs/core/agents/overview) with conversation history, complex workflow orchestration with shared context, and intelligent caching systems for improved performance.
 
 <FeatureCardList cols={2} size="default">
   <FeatureCard
@@ -73,7 +73,7 @@ Memory tasks follow a structured execution pattern that integrates with Compozy'
 
 ## Task Structure
 
-Here's the essential structure for a memory task, following [task configuration patterns](/docs/core/configuration/workflows#task-configuration). This example demonstrates user profile storage with [template expressions](/docs/core/yaml-templates/overview) for dynamic key generation and [workflow context](/docs/core/getting-started/core-concepts#workflow-context) for flexible data handling:
+Here's the essential structure for a memory task, following task configuration patterns. This example demonstrates user profile storage with template expressions for flexible data handling:
 
 ```yaml title="Memory Task Structure"
 id: store-user-data
@@ -97,7 +97,7 @@ on_success:
 
 ## Memory Operations Reference
 
-Memory tasks support 8 distinct operations, each optimized for specific use cases. These operations integrate with [workflow context](/docs/core/getting-started/core-concepts#workflow-context) and support [template expressions](/docs/core/yaml-templates/overview) for dynamic behavior.
+Memory tasks support 8 distinct operations, each optimized for specific use cases. These operations integrate with workflow context and support [template expressions](/docs/core/yaml-templates/overview) for dynamic behavior.
 
 <Tabs items={["Write", "Read", "Append", "Clear", "Delete", "Flush"]}>
 <Tab value="Write">
@@ -237,7 +237,7 @@ on_success:
 
 ## Memory Key Patterns
 
-Memory keys provide hierarchical organization and enable powerful querying patterns. They work with [template expressions](/docs/core/yaml-templates/overview) to create dynamic, context-aware storage keys that scale with your application needs. Combined with [workflow context](/docs/core/getting-started/core-concepts#workflow-context) and [configuration templates](/docs/core/configuration/workflows), memory keys enable sophisticated data organization patterns.
+Memory keys provide hierarchical organization and enable powerful querying patterns. They work with template expressions and [configuration templates](/docs/core/configuration/workflows), memory keys enable sophisticated data organization patterns.
 
 <Tabs items={["User Session Keys", "Hierarchical Keys", "Time-Based Keys"]}>
 <Tab value="User Session Keys">
@@ -299,19 +299,19 @@ payload:
     title="Design Hierarchical Keys"
     description="Use consistent, searchable key patterns like 'domain:entity:attribute' for maintainable memory organization. See key patterns guide for detailed examples."
     icon="FolderTree"
-    href="/docs/core/memory/key-patterns"
+    href="/docs/core/memory/operations"
   />
   <FeatureCard
     title="Implement Strategic TTL"
     description="Set appropriate time-to-live for temporary data and implement cleanup strategies. Learn about memory lifecycle management."
     icon="Clock"
-    href="/docs/core/memory/lifecycle"
+    href="/docs/core/memory/configuration"
   />
   <FeatureCard
     title="Monitor Memory Health"
     description="Use regular health checks and statistics to maintain optimal performance. Explore memory monitoring for comprehensive tracking."
     icon="Activity"
-    href="/docs/core/memory/monitoring"
+    href="/docs/core/configuration/monitoring"
   />
   <FeatureCard
     title="Choose Optimal Operations"
@@ -328,7 +328,7 @@ payload:
     title="Handle Failures Gracefully"
     description="Implement fallback strategies when memory is unavailable, using error handling patterns."
     icon="ShieldAlert"
-    href="/docs/core/tasks/flow-control#error-handling"
+    href="/docs/core/tasks/overview"
   />
 </FeatureCardList>
 
@@ -336,7 +336,7 @@ payload:
 
 Memory tasks provide powerful persistent storage capabilities that enable stateful workflows, intelligent AI agents, and efficient data caching. They integrate seamlessly with [signal tasks](/docs/core/tasks/signal-tasks) for event coordination, [parallel processing](/docs/core/tasks/parallel-processing) for scale, [wait tasks](/docs/core/tasks/wait-tasks) for synchronization, and [aggregate tasks](/docs/core/tasks/aggregate-tasks) for data consolidation patterns.
 
-For production deployments, consider [memory system configuration](/docs/core/configuration/global#memory), [security best practices](/docs/core/security/overview), and [performance monitoring](/docs/core/memory/monitoring) to ensure optimal operation at scale.
+For production deployments, consider memory system configuration, [security best practices](/docs/core/tools/runtime-environment), and performance monitoring to ensure optimal operation at scale.
 
 ## Next Steps
 
@@ -404,25 +404,25 @@ For production deployments, consider [memory system configuration](/docs/core/co
   <ReferenceCard
     title="Advanced Task Patterns"
     description="Explore sophisticated memory management patterns and optimization strategies"
-    href="/docs/core/tasks/advanced-patterns"
+    href="/docs/core/tasks/parallel-processing"
     icon="Layers"
   />
   <ReferenceCard
     title="Custom Task Types"
     description="Create specialized memory operations for domain-specific requirements"
-    href="/docs/core/tasks/custom-task-types"
+    href="/docs/core/tasks/composite-tasks"
     icon="Wrench"
   />
   <ReferenceCard
     title="Production Deployment"
     description="Deploy and scale memory systems in production environments with monitoring"
-    href="/docs/core/deployment/deployment-options"
+    href="/docs/core/deployment/docker"
     icon="Cloud"
   />
   <ReferenceCard
     title="Performance Optimization"
     description="Optimize memory performance, costs, and scalability for production workloads"
-    href="/docs/core/memory/optimization"
+    href="/docs/core/memory/configuration"
     icon="Zap"
   />
 </ReferenceCardList>

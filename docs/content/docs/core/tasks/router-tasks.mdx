@@ -3,7 +3,7 @@ title: Router Tasks
 description: Implement conditional branching and intelligent workflow routing with router tasks in Compozy workflows
 ---
 
-Router tasks are the **decision engine** of Compozy workflows, enabling dynamic routing based on runtime conditions. They evaluate [template expressions](/docs/core/yaml-templates/expressions) and direct workflow execution down different paths, making workflows intelligent and adaptive to varying data conditions. When combined with [basic tasks](/docs/core/tasks/basic-tasks) and [parallel processing](/docs/core/tasks/parallel-processing), router tasks create sophisticated automation that can handle complex business logic automatically.
+Router tasks are the **decision engine** of Compozy workflows, enabling dynamic routing based on runtime conditions. They evaluate template expressions and direct workflow execution down different paths, making workflows intelligent and adaptive to varying data conditions. When combined with [basic tasks](/docs/core/tasks/basic-tasks) and [parallel processing](/docs/core/tasks/parallel-processing), router tasks create sophisticated automation that can handle complex business logic automatically.
 
 ## Key Benefits
 
@@ -43,7 +43,7 @@ Router tasks are the **decision engine** of Compozy workflows, enabling dynamic 
     Based on the route selection, the workflow executes different task paths, enabling completely different business logic flows
   </ListItem>
   <ListItem title="State Management" icon="Database">
-    Router execution state and route decisions are tracked by [Temporal workflows](/docs/core/deployment/deployment-options) for durability and debugging
+    Router execution state and route decisions are tracked by deployment options for durability and debugging
   </ListItem>
 </List>
 
@@ -56,7 +56,7 @@ Router tasks are the **decision engine** of Compozy workflows, enabling dynamic 
 Understanding router task configuration is essential for building effective conditional workflows. Router tasks must define a condition expression and route mappings, with optional default and error handling strategies.
 
 <Callout type="warning">
-Before implementing router tasks, ensure you understand [basic task configuration](/docs/core/tasks/basic-tasks) and [template expression syntax](/docs/core/yaml-templates/expressions). Router tasks build on these foundational concepts.
+Before implementing router tasks, ensure you understand [basic task configuration](/docs/core/tasks/basic-tasks) and template expressions. Router tasks build on these foundational concepts.
 </Callout>
 
 ### Core Configuration
@@ -107,7 +107,7 @@ Router tasks support multiple configuration patterns, from simple routing to com
 <AccordionGroup>
 <Accordion title="Basic Routing" description="Simple condition-based routing with task references for straightforward decision making">
 
-The simplest router pattern uses string conditions and task ID references. This approach works well for straightforward routing decisions and integrates seamlessly with [workflow task definitions](/docs/core/configuration/workflows#task-definitions):
+The simplest router pattern uses string conditions and task ID references. This approach works well for straightforward routing decisions and integrates seamlessly with workflow task definitions:
 
 ```yaml
 id: document-classifier
@@ -133,7 +133,7 @@ on_error:
     Use direct template expressions that evaluate to string values matching route keys
   </ListItem>
   <ListItem title="Task References" icon="Link">
-    Route values are task IDs that reference other tasks defined in the same workflow or [shared task libraries](/docs/core/configuration/global#shared-tasks)
+    Route values are task IDs that reference other tasks defined in the same workflow or shared task libraries
   </ListItem>
   <ListItem title="Minimal Configuration" icon="Minimize2">
     Clean, readable configuration ideal for simple business logic and getting started with router tasks
@@ -144,7 +144,7 @@ on_error:
 
 <Accordion title="Complex Conditions" description="Advanced conditional logic with multi-factor decision making and business rules">
 
-For sophisticated routing logic, use multi-line template expressions with variables and conditional operators. This pattern excels at implementing complex [business rules and approval workflows](/docs/core/examples/business-workflows):
+For sophisticated routing logic, use multi-line template expressions with variables and conditional operators. This pattern excels at implementing complex workflow examples:
 
 ```yaml
 id: approval-router
@@ -196,7 +196,7 @@ default: escalation-handler
     Use YAML literal block syntax (`|`) for complex conditional logic with variables and functions
   </ListItem>
   <ListItem title="Variable Assignment" icon="Variable">
-    Assign intermediate values for cleaner logic using template [variable syntax](/docs/core/yaml-templates/expressions#variables)
+    Assign intermediate values for cleaner logic using template template expressions
   </ListItem>
   <ListItem title="Business Rules" icon="Shield">
     Implement approval thresholds, compliance checks, and multi-factor decision making declaratively
@@ -207,7 +207,7 @@ default: escalation-handler
 
 <Accordion title="Inline Tasks" description="Define complete task configurations directly within routes for specialized processing">
 
-Inline task definitions provide maximum flexibility by embedding complete task configurations within routes. This pattern works excellently with [collection tasks](/docs/core/tasks/collection-processing) and [parallel processing](/docs/core/tasks/parallel-processing):
+Inline task definitions provide maximum flexibility by embedding complete task configurations within routes. This pattern works excellently with [collection tasks](/docs/core/tasks/collection-tasks) and [parallel processing](/docs/core/tasks/parallel-processing):
 
 ```yaml
 id: content-router
@@ -259,7 +259,7 @@ default:
     Tailor task behavior precisely to the routing condition without creating separate task definitions
   </ListItem>
   <ListItem title="Nested Task Types" icon="Layers">
-    Use any task type including [collection](/docs/core/tasks/collection-processing) and [parallel](/docs/core/tasks/parallel-processing) within routes
+    Use any task type including [collection](/docs/core/tasks/collection-tasks) and [parallel](/docs/core/tasks/parallel-processing) within routes
   </ListItem>
 </List>
 
@@ -334,7 +334,7 @@ retry_policy:
     Always provide default routes to handle unexpected condition results gracefully
   </ListItem>
   <ListItem title="Timeout & Retries" icon="RotateCcw">
-    Use timeout and retry policies compatible with [Temporal workflow durability](/docs/core/deployment/deployment-options#temporal-integration)
+    Use timeout and retry policies compatible with deployment options
   </ListItem>
 </List>
 
@@ -399,7 +399,7 @@ Understanding how router tasks execute helps optimize performance and debug issu
     Selected routes execute using the same [task execution pipeline](/docs/core/tasks/basic-tasks) as regular workflow tasks
   </ListItem>
   <ListItem title="State Persistence" icon="Save">
-    Routing decisions and execution results are persisted by [Temporal workflows](/docs/core/deployment/deployment-options) for durability and observability
+    Routing decisions and execution results are persisted by deployment options for durability and observability
   </ListItem>
 </List>
 
@@ -409,7 +409,7 @@ Router tasks excel at implementing complex business logic through template expre
 
 ### Template Expression Routing
 
-The most common pattern uses template expressions to evaluate data and determine routing paths. This approach leverages Compozy's [template engine capabilities](/docs/core/yaml-templates/expressions) for powerful data processing:
+The most common pattern uses template expressions to evaluate data and determine routing paths. This approach leverages Compozy's template expressions for powerful data processing:
 
 ```yaml
 id: weather-activity-router
@@ -542,15 +542,15 @@ default: escalation-handler
 
 <ReferenceCardList>
   <ReferenceCard
-    title="Flow Control"
-    description="Master complete flow control patterns including conditional execution and dynamic routing"
-    href="/docs/core/tasks/flow-control"
+    title="Composite Tasks"
+    description="Master sequential task execution and orchestration patterns"
+    href="/docs/core/tasks/composite-tasks"
     icon="GitBranch"
   />
   <ReferenceCard
-    title="Template Expressions"
-    description="Learn advanced template expressions for complex routing conditions"
-    href="/docs/core/yaml-templates/expressions"
+    title="Context Variables"
+    description="Learn template expressions for complex routing conditions"
+    href="/docs/core/yaml-templates/context-variables"
     icon="Code"
   />
   <ReferenceCard
@@ -566,22 +566,10 @@ default: escalation-handler
     icon="AlertCircle"
   />
   <ReferenceCard
-    title="Business Workflows"
-    description="Explore real-world business logic implementations using router tasks"
-    href="/docs/core/examples/business-workflows"
-    icon="Briefcase"
-  />
-  <ReferenceCard
-    title="Approval Systems"
-    description="Build sophisticated approval workflows with conditional routing"
-    href="/docs/core/examples/approval-workflows"
-    icon="CheckCircle"
-  />
-  <ReferenceCard
-    title="Advanced Patterns"
-    description="Discover advanced task orchestration patterns and techniques"
-    href="/docs/core/tasks/advanced-patterns"
-    icon="Settings"
+    title="Parallel Processing"
+    description="Execute multiple tasks concurrently for advanced orchestration"
+    href="/docs/core/tasks/parallel-processing"
+    icon="Layers"
   />
   <ReferenceCard
     title="Workflow Design"

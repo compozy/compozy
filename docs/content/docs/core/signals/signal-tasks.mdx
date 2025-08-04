@@ -69,7 +69,7 @@ triggers:
 </Step>
 <Step title="Test the flow" description="Execute and monitor signal delivery">
 
-Use the [CLI workflow commands](/docs/cli/workflow-commands) to test your signal flow and monitor execution with [task metrics](/docs/core/monitoring/task-metrics).
+Use the [CLI workflow commands](/docs/cli/workflow-commands) to test your signal flow and monitor execution.
 
 </Step>
 </Steps>
@@ -96,12 +96,12 @@ signal:
   id: "deployment-finished"
 ```
 
-**Best for**: System notifications, [scheduled workflows](/docs/core/workflows/scheduled-workflows), infrastructure events
+**Best for**: System notifications, scheduled workflows, infrastructure events
 
 </Tab>
 <Tab value="Dynamic IDs">
 
-Create targeted signals using [workflow input](/docs/core/yaml-templates/context-variables#workflow-context):
+Create targeted signals using workflow input:
 
 ```yaml
 signal:
@@ -110,7 +110,7 @@ signal:
   id: "tenant-{{ .env.TENANT_ID }}-event"
 ```
 
-**Best for**: User-specific events, entity updates, [multi-tenant patterns](/docs/core/workflows/patterns#multi-tenant)
+**Best for**: User-specific events, entity updates, multi-tenant patterns
 
 </Tab>
 <Tab value="Context-Aware IDs">
@@ -162,7 +162,7 @@ Send workflow completion notifications:
       status: "success"
 ```
 
-Perfect for [monitoring integration](/docs/core/monitoring/task-metrics) and triggering [downstream workflows](/docs/core/workflows/patterns#event-driven).
+Perfect for monitoring integration and triggering downstream workflows.
 
 ### Approval Workflows
 
@@ -180,7 +180,7 @@ Implement human-in-the-loop patterns with the [Event API](/docs/core/signals/eve
       approval_link: "{{ .env.APP_URL }}/approve/{{ .workflow.input.request_id }}"
 ```
 
-See complete [approval workflow patterns →](/docs/core/workflows/patterns#approval-workflows)
+See complete approval workflow patterns in the patterns documentation.
 
 ### Data Pipeline Coordination
 
@@ -225,7 +225,7 @@ Combine with [router tasks](/docs/core/tasks/router-tasks) for dynamic routing:
 
 ### Error Recovery Signals
 
-Implement [error handling patterns](/docs/core/tasks/basic-tasks#error-handling) with notifications:
+Implement error handling patterns with notifications:
 
 ```yaml
 - id: process-data
@@ -292,28 +292,10 @@ Implement [error handling patterns](/docs/core/tasks/basic-tasks#error-handling)
     icon="Code"
   />
   <ReferenceCard
-    title="Workflow Patterns"
-    description="Explore event-driven and approval workflow patterns"
-    href="/docs/core/workflows/patterns"
-    icon="Workflow"
-  />
-  <ReferenceCard
     title="Task Execution"
     description="Understand how signals fit into task orchestration"
     href="/docs/core/tasks/overview"
     icon="Zap"
-  />
-  <ReferenceCard
-    title="Error Handling"
-    description="Build resilient signal-based workflows"
-    href="/docs/core/tasks/error-handling"
-    icon="Shield"
-  />
-  <ReferenceCard
-    title="Monitoring"
-    description="Track signal performance and reliability"
-    href="/docs/core/monitoring/task-metrics"
-    icon="Eye"
   />
   <ReferenceCard
     title="CLI Commands"

@@ -70,7 +70,7 @@ Strategic control over parallel execution behavior and failure handling:
 
 **Default Strategy** - Waits for all tasks to complete before proceeding.
 
-<Mermaid className="my-14" chart={`flowchart LR
+<Mermaid className="my-14" chart={`graph LR
     A[Start Parallel Tasks] --> B[Task 1]
     A --> C[Task 2]
     A --> D[Task 3]
@@ -110,7 +110,7 @@ tasks:
 
 **Fail Fast Strategy** - Stops execution immediately when any task fails.
 
-<Mermaid className="my-14" chart={`flowchart LR
+<Mermaid className="my-14" chart={`graph LR
     A[Start Parallel Tasks] --> B[Task 1]
     A --> C[Task 2]
     A --> D[Task 3]
@@ -152,7 +152,7 @@ tasks:
 
 **Best Effort Strategy** - Continues execution despite individual task failures.
 
-<Mermaid className="my-14" chart={`flowchart LR
+<Mermaid className="my-14" chart={`graph LR
     A[Start Parallel Tasks] --> B[Task 1]
     A --> C[Task 2]
     A --> D[Task 3]
@@ -191,7 +191,7 @@ tasks:
 
 **Race Strategy** - Returns as soon as the first task completes successfully.
 
-<Mermaid className="my-14" chart={`flowchart LR
+<Mermaid className="my-14" chart={`graph LR
     A[Start Parallel Tasks] --> B[Task 1]
     A --> C[Task 2]
     A --> D[Task 3]
@@ -389,7 +389,7 @@ Understanding how parallel processing works under the hood:
   <ReferenceCard
     title="Flow Control"
     description="Implement conditional routing and error handling"
-    href="/docs/core/tasks/flow-control"
+    href="/docs/core/tasks/composite-tasks"
     icon="GitBranch"
   />
   <ReferenceCard
@@ -408,7 +408,7 @@ Understanding how parallel processing works under the hood:
   <ReferenceCard
     title="Advanced Patterns"
     description="Complex workflow orchestration patterns and techniques"
-    href="/docs/core/tasks/advanced-patterns"
+    href="/docs/core/tasks/parallel-processing"
     icon="Layers"
   />
   <ReferenceCard
@@ -420,13 +420,13 @@ Understanding how parallel processing works under the hood:
   <ReferenceCard
     title="Performance Optimization"
     description="Monitor and optimize parallel workflow performance"
-    href="/docs/core/metrics/observability"
+    href="/docs/core/configuration/monitoring"
     icon="BarChart3"
   />
   <ReferenceCard
     title="Production Deployment"
     description="Scale parallel workflows in production environments"
-    href="/docs/core/deployment/deployment-options"
+    href="/docs/core/deployment/docker"
     icon="Cloud"
   />
 </ReferenceCardList>

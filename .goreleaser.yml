@@ -76,10 +76,18 @@ archives:
     ids:
       - compozy
 
-    # Archive name template
-    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ else }}{{ end }}"
+    # Archive name template with conventional architecture naming
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- with .Arm }}v{{ . }}{{ end }}
 
     # Archive format (defaults to tar.gz, zip for windows)
+    format_overrides:
+      - goos: windows
+        formats: [zip]
 
     # Files to include in archive
     files:
@@ -243,7 +251,7 @@ dockers:
   - id: compozy-main-amd64
     ids:
       - compozy
-    dockerfile: ./cluster/compozy.Dockerfile
+    dockerfile: ./cluster/compozy.goreleaser.Dockerfile
     use: buildx
     goos: linux
     goarch: amd64
@@ -269,7 +277,7 @@ dockers:
   - id: compozy-main-arm64
     ids:
       - compozy
-    dockerfile: ./cluster/compozy.Dockerfile
+    dockerfile: ./cluster/compozy.goreleaser.Dockerfile
     use: buildx
     goos: linux
     goarch: arm64
@@ -280,6 +288,58 @@ dockers:
       - "--platform=linux/arm64"
       - "--label=org.opencontainers.image.title={{ .ProjectName }}"
       - "--label=org.opencontainers.image.description=Compozy Workflow Orchestration Engine"
+      - "--label=org.opencontainers.image.url=https://github.com/compozy/compozy"
+      - "--label=org.opencontainers.image.source=https://github.com/compozy/compozy"
+      - "--label=org.opencontainers.image.version={{ .Version }}"
+      - "--label=org.opencontainers.image.created={{ .Date }}"
+      - "--label=org.opencontainers.image.revision={{ .FullCommit }}"
+      - "--label=org.opencontainers.image.licenses=BSL-1.1"
+      - "--label=org.opencontainers.image.vendor=Compozy"
+    extra_files:
+      - "README.md"
+      - "LICENSE"
+
+  # MCP Proxy - AMD64
+  - id: mcp-proxy-amd64
+    ids:
+      - compozy
+    dockerfile: ./cluster/mcpproxy.goreleaser.Dockerfile
+    use: buildx
+    goos: linux
+    goarch: amd64
+    image_templates:
+      - "ghcr.io/compozy/mcp-proxy:{{ .Version }}-amd64"
+      - "ghcr.io/compozy/mcp-proxy:latest-amd64"
+    build_flag_templates:
+      - "--platform=linux/amd64"
+      - "--label=org.opencontainers.image.title=Compozy MCP Proxy"
+      - "--label=org.opencontainers.image.description=Model Context Protocol Proxy for Compozy"
+      - "--label=org.opencontainers.image.url=https://github.com/compozy/compozy"
+      - "--label=org.opencontainers.image.source=https://github.com/compozy/compozy"
+      - "--label=org.opencontainers.image.version={{ .Version }}"
+      - "--label=org.opencontainers.image.created={{ .Date }}"
+      - "--label=org.opencontainers.image.revision={{ .FullCommit }}"
+      - "--label=org.opencontainers.image.licenses=BSL-1.1"
+      - "--label=org.opencontainers.image.vendor=Compozy"
+    extra_files:
+      - "README.md"
+      - "LICENSE"
+
+  # MCP Proxy - ARM64
+  - id: mcp-proxy-arm64
+    ids:
+      - compozy
+    dockerfile: ./cluster/mcpproxy.goreleaser.Dockerfile
+    use: buildx
+    goos: linux
+    goarch: arm64
+    image_templates:
+      - "ghcr.io/compozy/mcp-proxy:{{ .Version }}-arm64"
+      - "ghcr.io/compozy/mcp-proxy:latest-arm64"
+    build_flag_templates:
+      - "--platform=linux/arm64"
+      - "--label=org.opencontainers.image.title=Compozy MCP Proxy"
+      - "--label=org.opencontainers.image.description=Model Context Protocol Proxy for Compozy"
       - "--label=org.opencontainers.image.url=https://github.com/compozy/compozy"
       - "--label=org.opencontainers.image.source=https://github.com/compozy/compozy"
       - "--label=org.opencontainers.image.version={{ .Version }}"
@@ -303,6 +363,17 @@ docker_manifests:
     image_templates:
       - "ghcr.io/compozy/compozy:latest-amd64"
       - "ghcr.io/compozy/compozy:latest-arm64"
+
+  # MCP Proxy manifests
+  - name_template: "ghcr.io/compozy/mcp-proxy:{{ .Version }}"
+    image_templates:
+      - "ghcr.io/compozy/mcp-proxy:{{ .Version }}-amd64"
+      - "ghcr.io/compozy/mcp-proxy:{{ .Version }}-arm64"
+
+  - name_template: "ghcr.io/compozy/mcp-proxy:latest"
+    image_templates:
+      - "ghcr.io/compozy/mcp-proxy:latest-amd64"
+      - "ghcr.io/compozy/mcp-proxy:latest-arm64"
 
 # Container image signing with cosign
 docker_signs:
@@ -388,6 +459,8 @@ nfpms:
 # Before hooks (run before building)
 before:
   hooks:
+    # Ensure clean module dependencies
+    - go mod tidy
     # Download dependencies
     - go mod download
     # Generate shell completions using go run
@@ -399,11 +472,9 @@ before:
 
 # Software Bill of Materials (SBOM) generation
 sboms:
-  - id: compozy-sbom
-    artifacts: binary
-    args: ["$artifact", "--file", "$sbom", "--output", "cyclonedx-json"]
-    env:
-      - COSIGN_EXPERIMENTAL=1
+  - artifacts: archive
+  - id: source
+    artifacts: source
 
 # Nix package configuration
 nix:

@@ -409,12 +409,42 @@ func validateAnchorLink(link *Link, docsRoot string) {
 func validateFileLink(link *Link, _ string) {
 	// For relative file links
 	basePath := filepath.Dir(link.SourceFile)
-	fullPath := filepath.Join(basePath, link.URL)
+	linkPath := link.URL
 
 	// Remove any anchors
-	fullPath = strings.Split(fullPath, "#")[0]
+	linkPath = strings.Split(linkPath, "#")[0]
 
-	if _, err := os.Stat(fullPath); err != nil {
+	// Handle relative paths - try with .mdx extension
+	possiblePaths := []string{
+		filepath.Join(basePath, linkPath),
+		filepath.Join(basePath, linkPath+".mdx"),
+		filepath.Join(basePath, linkPath, "index.mdx"),
+	}
+
+	found := false
+	var foundPath string
+	for _, path := range possiblePaths {
+		if _, err := os.Stat(path); err == nil {
+			found = true
+			foundPath = path
+
+			// If there's an anchor, validate it
+			if strings.Contains(link.URL, "#") {
+				parts := strings.Split(link.URL, "#")
+				if len(parts) > 1 {
+					anchor := parts[1]
+					if !validateAnchorInFile(foundPath, anchor) {
+						link.Valid = false
+						link.Error = fmt.Sprintf("anchor '#%s' not found in file", anchor)
+						return
+					}
+				}
+			}
+			break
+		}
+	}
+
+	if !found {
 		link.Valid = false
 		link.Error = fmt.Sprintf("file not found: %s", link.URL)
 	}
