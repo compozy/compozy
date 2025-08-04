@@ -5,7 +5,7 @@ description: The Compozy CLI is your primary interface for managing AI workflow 
 
 ## What is the Compozy CLI?
 
-The Compozy Command Line Interface (CLI) is a comprehensive tool that serves as your primary interface for interacting with the [Compozy workflow orchestration engine](/docs/core/architecture/overview). It provides everything you need to create, develop, deploy, and manage AI-powered applications through simple, intuitive commands.
+The Compozy Command Line Interface (CLI) is a comprehensive tool that serves as your primary interface for interacting with the Compozy workflow orchestration engine. It provides everything you need to create, develop, deploy, and manage AI-powered applications through simple, intuitive commands.
 
 If you're new to Compozy, start with our [Quick Start guide](/docs/core/getting-started/quick-start) to get up and running in 5 minutes, or follow the [First Workflow tutorial](/docs/core/getting-started/first-workflow) for a hands-on introduction to building AI workflows.
 
@@ -13,16 +13,16 @@ If you're new to Compozy, start with our [Quick Start guide](/docs/core/getting-
 
 <List>
   <ListItem title="Rapid Project Setup">
-    Initialize new projects with intelligent scaffolding that creates the optimal [project structure](/docs/core/configuration/project-setup) for your AI workflows, complete with example configurations and [best practices](/docs/best-practices/project-organization)
+    Initialize new projects with intelligent scaffolding that creates the optimal [project structure](/docs/core/configuration/project-setup) for your AI workflows, complete with example configurations and best practices
   </ListItem>
   <ListItem title="Seamless Development">
-    Run development servers with [hot-reload capabilities](/docs/cli/dev-commands#hot-reload), allowing you to iterate quickly on your [workflows](/docs/core/workflows/overview) and see changes in real-time without restarting
+    Run development servers with hot-reload capabilities, allowing you to iterate quickly on your workflows and see changes in real-time without restarting
   </ListItem>
   <ListItem title="Workflow Management">
-    Execute, monitor, and debug AI workflows with rich interactive interfaces or [automation-friendly JSON output](/docs/cli/overview#interactive-vs-automation-modes) for [CI/CD integration](/docs/deployment/ci-cd)
+    Execute, monitor, and debug AI workflows with rich interactive interfaces or automation-friendly JSON output for CI/CD integration
   </ListItem>
   <ListItem title="Tool Integration">
-    Manage [Model Context Protocol (MCP) servers](/docs/core/mcp/overview) to extend your AI capabilities with [external tools](/docs/core/tools/mcp-integration) and services
+    Manage [Model Context Protocol (MCP) servers](/docs/core/mcp/overview) to extend your AI capabilities with external tools and services
   </ListItem>
 </List>
 
@@ -71,10 +71,10 @@ The CLI is organized into logical command groups that map to different aspects o
 
 ## Interactive vs Automation Modes
 
-The CLI intelligently adapts its output based on your environment, providing optimal experiences for both human operators and automated systems. Learn more about [CLI output modes](/docs/cli/overview#interactive-vs-automation-modes) and [automation patterns](/docs/deployment/automation):
+The CLI intelligently adapts its output based on your environment, providing optimal experiences for both human operators and automated systems:
 
-- **Interactive Mode**: Rich terminal UI with colors, progress bars, and interactive prompts when running in a terminal - ideal for [development workflows](/docs/cli/dev-commands)
-- **Automation Mode**: Clean JSON output with proper exit codes when running in scripts or [CI/CD pipelines](/docs/deployment/ci-cd) - perfect for [automated testing](/docs/testing/automation)
+- **Interactive Mode**: Rich terminal UI with colors, progress bars, and interactive prompts when running in a terminal - ideal for development workflows
+- **Automation Mode**: Clean JSON output with proper exit codes when running in scripts or CI/CD pipelines - perfect for automated testing
 
 ```bash
 # Interactive mode (automatic in terminal)
@@ -88,19 +88,19 @@ compozy workflow execute my-flow --quiet --format json
 ```
 
 <Callout type="tip">
-See our [CLI automation guide](/docs/deployment/cli-automation) for best practices on using the CLI in automated environments, including error handling and output parsing.
+See our CLI automation guide for best practices on using the CLI in automated environments, including error handling and output parsing.
 </Callout>
 
 ## Configuration and Environment
 
-The CLI respects a [configuration hierarchy](/docs/core/configuration/global#configuration-precedence) with multiple sources:
+The CLI respects a configuration hierarchy with multiple sources:
 
 1. **Command-line flags** override all other settings
-2. **Environment variables** like `COMPOZY_API_KEY` for [API authentication](/docs/security/api-keys)
+2. **Environment variables** like `COMPOZY_API_KEY` for API authentication
 3. **Configuration files** using the [application schema](/docs/schema/application)
 4. **Default values** optimized for development
 
-Learn about [environment-specific configuration](/docs/deployment/environments) and [security considerations](/docs/security/configuration) for production deployments.
+Learn about environment-specific configuration and security considerations for production deployments.
 
 ## Additional Resources
 
@@ -131,19 +131,19 @@ Learn about [environment-specific configuration](/docs/deployment/environments) 
   <ReferenceCard
     title="CLI Architecture"
     description="Deep dive into CLI internals, command structure, and extension patterns"
-    href="/docs/cli/overview#cli-architecture"
+    href="/docs/cli/overview"
     icon="Terminal"
   />
   <ReferenceCard
     title="Automation Patterns"
     description="Best practices for CI/CD integration, scripting, and automated workflows"
-    href="/docs/deployment/cli-automation"
+    href="/docs/cli/overview"
     icon="Bot"
   />
   <ReferenceCard
     title="Troubleshooting CLI"
     description="Common issues, debugging techniques, and solutions for CLI problems"
-    href="/docs/troubleshooting/cli"
+    href="/docs/cli/overview"
     icon="Wrench"
   />
 </ReferenceCardList>
@@ -159,13 +159,13 @@ Learn about [environment-specific configuration](/docs/deployment/environments) 
   <ReferenceCard
     title="Security Best Practices"
     description="Authentication, API keys, permissions, and secure configuration patterns"
-    href="/docs/security/best-practices"
+    href="/docs/core/configuration/global"
     icon="Shield"
   />
   <ReferenceCard
     title="Environment Variables"
     description="Complete reference of all environment variables and their usage"
-    href="/docs/reference/environment-variables"
+    href="/docs/core/configuration/global"
     icon="FileKey"
   />
 </ReferenceCardList>

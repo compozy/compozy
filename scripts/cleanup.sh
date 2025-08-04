@@ -48,11 +48,30 @@ else
     exit 1
 fi
 
-echo "WARNING: This will delete ALL tags and releases for $OWNER/$REPO."
+echo "WARNING: This will delete ALL GitHub artifacts, tags, and releases for $OWNER/$REPO."
 echo "Press Enter to continue or Ctrl+C to abort."
 read -r
 
-# Step 1: Delete all GitHub releases
+# Step 1: Delete all GitHub Actions artifacts
+echo "Cleaning up GitHub Actions artifacts..."
+
+# Delete workflow runs
+echo "Fetching and deleting workflow runs..."
+WORKFLOW_RUNS=$(gh run list --repo "$OWNER/$REPO" --json databaseId --jq '.[].databaseId')
+if [ -n "$WORKFLOW_RUNS" ]; then
+    for run_id in $WORKFLOW_RUNS; do
+        echo "Deleting workflow run: $run_id"
+        gh run delete "$run_id" --repo "$OWNER/$REPO" || echo "Failed to delete workflow run $run_id"
+    done
+else
+    echo "No workflow runs found."
+fi
+
+# Delete caches
+echo "Deleting GitHub Actions caches..."
+gh cache delete --all --repo "$OWNER/$REPO" || echo "Failed to delete some caches"
+
+# Step 2: Delete all GitHub releases
 echo "Fetching and deleting releases..."
 RELEASES=$(gh release list --repo "$OWNER/$REPO" --json tagName --jq '.[].tagName')
 if [ -n "$RELEASES" ]; then
@@ -64,7 +83,7 @@ else
     echo "No releases found."
 fi
 
-# Step 2: Delete all remote tags
+# Step 3: Delete all remote tags
 echo "Fetching and deleting remote tags..."
 REMOTE_TAGS=$(git ls-remote --tags origin | awk '{print $2}' | sed 's/refs\/tags\///' | grep -v '{}')
 if [ -n "$REMOTE_TAGS" ]; then
@@ -76,7 +95,7 @@ else
     echo "No remote tags found."
 fi
 
-# Step 3: Delete all local tags
+# Step 4: Delete all local tags
 echo "Deleting local tags..."
 LOCAL_TAGS=$(git tag -l)
 if [ -n "$LOCAL_TAGS" ]; then
@@ -85,4 +104,4 @@ else
     echo "No local tags found."
 fi
 
-echo "All tags and releases deleted successfully!"
+echo "All GitHub artifacts, tags, and releases deleted successfully!"

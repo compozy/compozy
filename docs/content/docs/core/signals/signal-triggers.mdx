@@ -66,12 +66,12 @@ New to Compozy? Start with the [Quick Start guide](/docs/core/getting-started/qu
 </List>
 
 <Callout type="info" className="mt-8">
-  Signal triggers integrate seamlessly with [Temporal workflows](/docs/core/deployment/deployment-options), providing durability, retry logic, and distributed execution. This ensures reliable event processing even during system failures.
+  Signal triggers integrate seamlessly with Temporal workflows, providing durability, retry logic, and distributed execution. This ensures reliable event processing even during system failures.
 </Callout>
 
 ## Configuration
 
-Understanding signal trigger configuration is essential for building event-driven workflows. Signal triggers are defined in the `triggers` section of your [workflow configuration](/docs/core/configuration/workflows) and support sophisticated filtering and validation using [template expressions](/docs/core/yaml-templates/expressions) for precise control over workflow activation.
+Understanding signal trigger configuration is essential for building event-driven workflows. Signal triggers are defined in the `triggers` section of your [workflow configuration](/docs/core/configuration/workflows) and support sophisticated filtering and validation using template expressions for precise control over workflow activation.
 
 <Callout type="warning">
 Before implementing signal triggers, ensure you understand [workflow basics](/docs/core/getting-started/first-workflow) and [signal system concepts](/docs/core/signals/overview). Signal triggers build on these foundational concepts and integrate with the broader [Compozy ecosystem](/docs/core/getting-started/core-concepts).
@@ -258,7 +258,7 @@ tasks:
 ```
 
 <Callout type="info">
-This example demonstrates several key patterns: [parallel task execution](/docs/core/tasks/parallel-processing) for concurrent operations, [router tasks](/docs/core/tasks/router-tasks) for conditional logic, and [signal tasks](/docs/core/signals/signal-tasks) for event propagation. The workflow structure follows [Compozy's composable task approach](/docs/core/getting-started/core-concepts#task-composition).
+This example demonstrates several key patterns: [parallel task execution](/docs/core/tasks/parallel-processing) for concurrent operations, [router tasks](/docs/core/tasks/router-tasks) for conditional logic, and [signal tasks](/docs/core/signals/signal-tasks) for event propagation. The workflow structure follows Compozy's composable task approach.
 </Callout>
 
 </Tab>
@@ -626,16 +626,16 @@ This example showcases advanced patterns including wait tasks for monitoring res
 
 <List>
   <ListItem title="Naming Conventions" icon="Tag">
-    **Use kebab-case with clear hierarchy**: `domain-entity-action` (e.g., `order-payment-completed`, `user-profile-updated`). See [naming best practices](/docs/core/configuration/best-practices#naming-conventions)
+    **Use kebab-case with clear hierarchy**: `domain-entity-action` (e.g., `order-payment-completed`, `user-profile-updated`). See naming best practices for more details.
   </ListItem>
   <ListItem title="Payload Structure" icon="Package">
     **Define consistent schemas**: Use JSON Schema validation to ensure payload consistency across publishers and consumers
   </ListItem>
   <ListItem title="Version Management" icon="GitBranch">
-    **Plan for evolution**: Include version info in signal names or payloads for backward compatibility during [deployment cycles](/docs/core/deployment/deployment-options)
+    **Plan for evolution**: Include version info in signal names or payloads for backward compatibility during deployment cycles
   </ListItem>
   <ListItem title="Error Recovery" icon="Shield">
-    **Design for failure**: Implement retry logic, dead letter queues, and compensation workflows using [error handling patterns](/docs/core/tasks/basic-tasks#error-handling)
+    **Design for failure**: Implement retry logic, dead letter queues, and compensation workflows using error handling patterns
   </ListItem>
 </List>
 
@@ -671,12 +671,6 @@ This example showcases advanced patterns including wait tasks for monitoring res
     description="Build conditional logic and dynamic routing within triggered workflows"
     href="/docs/core/tasks/router-tasks"
     icon="GitBranch"
-  />
-  <ReferenceCard
-    title="Template Expressions"
-    description="Master powerful expressions for dynamic conditions and data transformation"
-    href="/docs/core/yaml-templates/expressions"
-    icon="Code"
   />
   <ReferenceCard
     title="Workflow Configuration"

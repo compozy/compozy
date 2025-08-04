@@ -102,7 +102,7 @@ Signals are **lightweight messages** that enable workflows to communicate asynch
 
 
   <Step title="Signal Processing" icon="Code">
-    [Processors](/docs/core/tasks/basic-tasks#processors) transform and validate signal data using [agents](/docs/core/agents/overview) or [tools](/docs/core/tools/overview)
+    Processors transform and validate signal data using [agents](/docs/core/agents/overview) or [tools](/docs/core/tools/overview)
   </Step>
 
   <Step title="Workflow Orchestration" icon="Workflow">
@@ -174,7 +174,7 @@ tasks:
       order: "{{ .trigger.payload }}"
 ```
 
-See [Workflow Triggers](/docs/core/workflows/triggers) for signal-based workflow initiation.
+See signal triggers for signal-based workflow initiation.
 
 </Tab>
 </Tabs>
@@ -415,12 +415,6 @@ Use [composite tasks](/docs/core/tasks/composite-tasks) to coordinate multiple s
     description="REST endpoints for programmatic signal management"
     href="/docs/core/signals/event-api"
     icon="Code"
-  />
-  <ReferenceCard
-    title="Workflow Execution"
-    description="Access signal data in workflow execution context"
-    href="/docs/core/workflows/execution"
-    icon="Database"
   />
   <ReferenceCard
     title="Composite Tasks"

@@ -5,7 +5,7 @@ description: "JSON mode and schema validation for predictable agent responses"
 
 ## Overview
 
-Structured outputs ensure agents return data in predictable, machine-readable formats. This is essential for [workflow automation](/docs/core/workflows/overview), [API integrations](/docs/api/overview), and reliable data processing. Compozy provides JSON mode and [JSON Schema validation](https://json-schema.org/) to guarantee consistent output structures.
+Structured outputs ensure agents return data in predictable, machine-readable formats. This is essential for workflow automation, [API integrations](/docs/api/overview), and reliable data processing. Compozy provides JSON mode and [JSON Schema validation](https://json-schema.org/) to guarantee consistent output structures.
 
 If you're new to structured outputs, start with our [Quick Start Guide](/docs/core/getting-started/quick-start) to understand basic workflow concepts, then explore [Agent Configuration](/docs/core/agents/overview) for foundational agent setup patterns.
 
@@ -15,11 +15,11 @@ If you're new to structured outputs, start with our [Quick Start Guide](/docs/co
 
 ## JSON Mode
 
-JSON mode forces agents to respond with valid JSON, enabling reliable parsing and processing of agent outputs. This is particularly valuable for [multi-agent workflows](/docs/core/agents/multi-agent-patterns) where agent outputs become inputs for subsequent [workflow tasks](/docs/core/tasks/basic-tasks).
+JSON mode forces agents to respond with valid JSON, enabling reliable parsing and processing of agent outputs. This is particularly valuable for multi-agent workflows where agent outputs become inputs for subsequent workflow tasks.
 
 ### Enabling JSON Mode
 
-JSON mode can be enabled at multiple levels, providing flexibility for different [agent configurations](/docs/core/agents/overview#agent-configuration) and [action patterns](/docs/core/agents/actions):
+JSON mode can be enabled at multiple levels, providing flexibility for different agent configurations and action patterns:
 
 <Tabs items={["Agent Level", "Action Level", "Automatic"]} defaultValue="Agent Level">
   <Tab value="Agent Level">
@@ -36,7 +36,7 @@ JSON mode can be enabled at multiple levels, providing flexibility for different
           Always respond with valid JSON objects.
     ```
     
-    This approach works well when building [specialized agents](/docs/core/agents/multi-agent-patterns#specialized-agents) focused on data processing tasks.
+    This approach works well when building specialized agents focused on data processing tasks.
   </Tab>
 
   <Tab value="Action Level">
@@ -82,16 +82,16 @@ When JSON mode is enabled, agent behavior changes to ensure structured output co
 
 - **Pure JSON Response**: Agent must respond with valid JSON only
 - **No Markdown**: No markdown formatting or explanatory text outside JSON
-- **Direct Parsing**: Response is directly parseable by downstream [workflow tasks](/docs/core/tasks/basic-tasks)
+- **Direct Parsing**: Response is directly parseable by downstream workflow tasks
 - **Validation Errors**: Runtime errors occur if response isn't valid JSON
 
 <Callout type="warning">
-  **Trade-off Consideration**: JSON mode may limit the agent's ability to provide explanations or reasoning. For debugging complex logic, consider enabling [verbose logging](/docs/core/configuration/global#logging).
+  **Trade-off Consideration**: JSON mode may limit the agent's ability to provide explanations or reasoning. For debugging complex logic, consider enabling verbose logging.
 </Callout>
 
 ## Output Schemas
 
-Output schemas define the expected structure of agent responses using [JSON Schema (Draft 7)](https://json-schema.org/). Schemas provide validation, type safety, and clear contracts for [agent interactions](/docs/core/agents/multi-agent-patterns) within [workflow orchestration](/docs/core/workflows/overview).
+Output schemas define the expected structure of agent responses using [JSON Schema (Draft 7)](https://json-schema.org/). Schemas provide validation, type safety, and clear contracts for agent interactions within workflow orchestration.
 
 ### Basic Schema Definition
 
@@ -121,7 +121,7 @@ actions:
       required: ["sentiment", "confidence"]
 ```
 
-This basic approach works well for simple schemas. For complex validation patterns, consider using [reusable schemas](#reusable-schemas) to promote consistency across your [workflow definitions](/docs/core/configuration/workflows).
+This basic approach works well for simple schemas. For complex validation patterns, consider using [reusable schemas](#reusable-schemas) to promote consistency across your workflow definitions.
 
 ## Reusable Schemas
 
@@ -216,7 +216,7 @@ Use the [`$ref` directive](/docs/core/yaml-templates/directives#ref-directive) t
               $ref: "local::schemas.#(id==\"api_response\")"
     ```
     
-    This pattern ensures consistent validation throughout your [workflow execution](/docs/core/workflows/overview#execution-model).
+    This pattern ensures consistent validation throughout your workflow execution.
   </Tab>
 
   <Tab value="Complex Composition">
@@ -245,13 +245,13 @@ Use the [`$ref` directive](/docs/core/yaml-templates/directives#ref-directive) t
               $ref: "local::schemas.#(id==\"enhanced_response\")"
     ```
     
-    Learn more about schema composition in the [YAML Template Advanced Patterns](/docs/core/yaml-templates/advanced-patterns) documentation.
+    Learn more about schema composition in the YAML Template Advanced Patterns documentation.
   </Tab>
 </Tabs>
 
 ### Schema Benefits
 
-Reusable schemas provide several advantages for [workflow development](/docs/core/getting-started/first-workflow):
+Reusable schemas provide several advantages for workflow development:
 
 - **Consistency**: Ensure uniform data structures across agents and actions
 - **Maintainability**: Update schema definitions in one place for project-wide changes
@@ -265,7 +265,7 @@ Reusable schemas provide several advantages for [workflow development](/docs/cor
 
 ## Practical Examples
 
-Real-world examples demonstrating structured outputs in common scenarios. These patterns work well with [parallel task execution](/docs/core/tasks/parallel-tasks) and [collection tasks](/docs/core/tasks/collection-tasks) for processing multiple data items efficiently.
+Real-world examples demonstrating structured outputs in common scenarios. These patterns work well with parallel task execution and collection tasks for processing multiple data items efficiently.
 
 <Tabs items={["Data Extraction", "Analysis Results", "API Integration"]} defaultValue="Data Extraction">
   <Tab value="Data Extraction">
@@ -331,7 +331,7 @@ Real-world examples demonstrating structured outputs in common scenarios. These 
               $ref: "local::schemas.#(id==\"invoice_data\")"
     ```
     
-    This pattern works well for [document processing workflows](/docs/core/workflows/overview) that need to extract and validate financial data.
+    This pattern works well for document processing workflows that need to extract and validate financial data.
   </Tab>
 
   <Tab value="Analysis Results">
@@ -374,7 +374,7 @@ Real-world examples demonstrating structured outputs in common scenarios. These 
               $ref: "local::schemas.#(id==\"customer_analysis\")"
     ```
     
-    Ideal for [multi-agent workflows](/docs/core/agents/multi-agent-patterns) where customer analysis feeds into recommendation engines or marketing automation.
+    Ideal for multi-agent workflows where customer analysis feeds into recommendation engines or marketing automation.
   </Tab>
 
   <Tab value="API Integration">
@@ -434,7 +434,7 @@ Real-world examples demonstrating structured outputs in common scenarios. These 
 
 ## Schema Validation Process
 
-Understanding the validation lifecycle helps with debugging and building robust [AI-powered workflows](/docs/core/workflows/overview). Compozy validates schemas at multiple stages to ensure data integrity throughout the execution pipeline.
+Understanding the validation lifecycle helps with debugging and building robust AI-powered workflows. Compozy validates schemas at multiple stages to ensure data integrity throughout the execution pipeline.
 
 <Steps>
   <Step title="Pre-execution" description="Input schema validates incoming parameters. The input schema is applied to validate all incoming workflow parameters before execution begins, ensuring data integrity from the start. Failed validation prevents workflow execution and returns detailed error messages." />
@@ -444,7 +444,7 @@ Understanding the validation lifecycle helps with debugging and building robust 
 </Steps>
 
 <Callout type="info">
-  **Debugging Validation Issues**: When validation fails, examine the error path to identify which schema property caused the issue. Common problems include missing required fields, incorrect data types, or values outside defined ranges. See [Validation & Debugging](/docs/core/yaml-templates/validation-debugging) for troubleshooting techniques.
+  **Debugging Validation Issues**: When validation fails, examine the error path to identify which schema property caused the issue. Common problems include missing required fields, incorrect data types, or values outside defined ranges.
 </Callout>
 
 ### Validation Error Examples
@@ -471,7 +471,7 @@ output:
 {"score": 150}          # Error: value exceeds maximum of 100
 ```
 
-For advanced validation patterns and custom error handling, explore [YAML Template Advanced Patterns](/docs/core/yaml-templates/advanced-patterns) and [Error Handling in Workflows](/docs/core/workflows/overview#error-handling).
+For advanced validation patterns and custom error handling, explore YAML Template Advanced Patterns and Error Handling in Workflows.
 
 ## Advanced Topics
 
@@ -497,7 +497,7 @@ For advanced validation patterns and custom error handling, explore [YAML Templa
   <ReferenceCard
     title="Validation & Debugging"
     description="Troubleshooting techniques for schema validation errors and complex debugging scenarios"
-    href="/docs/core/yaml-templates/validation-debugging"
+    href="/docs/core/yaml-templates/overview"
     icon="Bug"
   />
 </ReferenceCardList>
@@ -505,18 +505,6 @@ For advanced validation patterns and custom error handling, explore [YAML Templa
 ## Integration Patterns
 
 <ReferenceCardList>
-  <ReferenceCard
-    title="Multi-Agent Patterns"
-    description="Design structured data flows between agents in complex orchestration scenarios"
-    href="/docs/core/agents/multi-agent-patterns"
-    icon="Users"
-  />
-  <ReferenceCard
-    title="Parallel Tasks"
-    description="Process structured data efficiently using parallel task execution patterns"
-    href="/docs/core/tasks/parallel-tasks"
-    icon="Zap"
-  />
   <ReferenceCard
     title="Collection Tasks"
     description="Apply structured outputs to batch processing and data collection workflows"

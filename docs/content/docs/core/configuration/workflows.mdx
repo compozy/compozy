@@ -28,7 +28,7 @@ author:
   email: "your.email@example.com"
 ```
 
-The workflow ID must be unique within your project and is used when [executing workflows](/docs/cli/workflow-commands#execute) via CLI or [API](/docs/api/workflows). Version tracking helps manage workflow evolution over time.
+The workflow ID must be unique within your project and is used when executing workflows via CLI or [API](/docs/api/workflows). Version tracking helps manage workflow evolution over time.
 
 ## Configuration Options
 
@@ -60,11 +60,11 @@ config:
     $ref: "local::schemas.#(id==\"user_input\")"
 ```
 
-Input validation errors are returned when [executing workflows](/docs/api/workflows#execute-workflow), helping developers quickly identify and fix issues. For debugging validation problems, see [Validation & Debugging](/docs/core/yaml-templates/validation-debugging).
+Input validation errors are returned when executing workflows, helping developers quickly identify and fix issues.
 
 ### Environment Variables
 
-Configure runtime environment variables for your workflows, tools, and agents. Variables can be set at multiple levels following Compozy's [configuration precedence](/docs/core/configuration/global#configuration-precedence).
+Configure runtime environment variables for your workflows, tools, and agents. Variables can be set at multiple levels following Compozy's [configuration precedence](/docs/core/configuration/global).
 
 ```yaml
 config:
@@ -75,11 +75,11 @@ config:
 ```
 
 Environment variables are injected into:
-- [Tool runtime environments](/docs/core/tools/runtime-environment) with controlled [permissions](/docs/core/tools/runtime-environment#permissions)
+- [Tool runtime environments](/docs/core/tools/runtime-environment) with controlled permissions
 - [Agent configurations](/docs/core/agents/overview) for API keys and settings
 - Task execution contexts via [template variables](/docs/core/yaml-templates/context-variables)
 
-For sensitive data, follow [security best practices](/docs/core/memory/privacy-security) and use the secrets system. Configure environment variables in your [project setup](/docs/core/configuration/project-setup#environment-variables) or [global configuration](/docs/core/configuration/global).
+For sensitive data, follow [security best practices](/docs/core/memory/privacy-security) and use the secrets system. Configure environment variables in your [project setup](/docs/core/configuration/project-setup) or [global configuration](/docs/core/configuration/global).
 
 ## Triggers
 
@@ -154,7 +154,7 @@ config:
     $ref: "local::schemas.#(id==\"customer_data\")"
 ```
 
-Schemas integrate with the broader [YAML Template System](/docs/core/yaml-templates/overview) and support all JSON Schema features. Learn more about [reference patterns](/docs/core/yaml-templates/directives) and [validation](/docs/core/yaml-templates/validation-debugging).
+Schemas integrate with the broader [YAML Template System](/docs/core/yaml-templates/overview) and support all JSON Schema features. Learn more about [reference patterns](/docs/core/yaml-templates/directives).
 
 ## MCP Servers
 
@@ -172,7 +172,7 @@ mcps:
 MCP servers connect through Compozy's [MCP Proxy Server](/docs/core/mcp/mcp-proxy-server) (port 6001) which handles authentication, connection management, and protocol translation. Learn about [MCP integration patterns](/docs/core/mcp/integration-patterns) and [transport configuration](/docs/core/mcp/transport-configuration).
 
 <Callout type="tip">
-  Discover available MCP tools at runtime using the [Admin API](/docs/core/mcp/admin-api) or configure [tool discovery](/docs/core/mcp/tool-discovery) for dynamic tool loading.
+  Discover available MCP tools at runtime using the [Admin API](/docs/core/mcp/admin-api) or configure tool discovery for dynamic tool loading.
 </Callout>
 
 ## Outputs
@@ -191,7 +191,7 @@ Access data through [template variables](/docs/core/yaml-templates/context-varia
 - Workflow metadata: `{{ .workflow.id }}`, `{{ .workflow.runId }}`
 - Conditional logic: Ternary operators and [Sprig functions](/docs/core/yaml-templates/sprig-functions)
 
-For advanced output patterns, see [Template Advanced Patterns](/docs/core/yaml-templates/advanced-patterns).
+For advanced output patterns, see [Template Advanced Patterns](/docs/core/yaml-templates/overview).
 
 ## Complete Workflow Examples
 
@@ -211,7 +211,7 @@ For advanced output patterns, see [Template Advanced Patterns](/docs/core/yaml-t
   <ReferenceCard
     title="Task Configuration Examples"
     description="Explore various task patterns including basic, parallel, collection, and router tasks"
-    href="/docs/core/tasks/basic-tasks#complete-examples"
+    href="/docs/core/tasks/basic-tasks"
     icon="Layers"
   />
 </ReferenceCardList>

@@ -5,12 +5,12 @@ description: "Memory systems that enable agents to maintain context and state ac
 
 ## Overview
 
-Memory in Compozy allows agents to maintain context across workflow steps, sessions, and even between different workflow executions. This enables stateful interactions, personalization, and complex multi-turn conversations. Memory is essential for building AI agents that can [remember user preferences](/docs/core/memory/privacy-security#user-consent), [maintain conversation history](/docs/core/memory/overview#conversation-management), and [share context between different agents](/docs/core/agents/multi-agent-patterns#shared-memory-patterns) in your workflows.
+Memory in Compozy allows agents to maintain context across workflow steps, sessions, and even between different workflow executions. This enables stateful interactions, personalization, and complex multi-turn conversations. Memory is essential for building AI agents that can remember user preferences, maintain conversation history, and share context between different agents in your workflows.
 
-If you're new to Compozy, start with the [Quick Start guide](/docs/core/getting-started/quick-start) to understand the basics before diving into memory configuration. For a complete understanding of how memory fits into the broader system, see [Core Concepts](/docs/core/getting-started/core-concepts#memory-system).
+If you're new to Compozy, start with the [Quick Start guide](/docs/core/getting-started/quick-start) to understand the basics before diving into memory configuration. For a complete understanding of how memory fits into the broader system, see [Core Concepts](/docs/core/getting-started/core-concepts).
 
 <Callout type="tip">
-**Getting Started with Memory?** Check out our [First Workflow tutorial](/docs/core/getting-started/first-workflow#adding-memory) which includes a simple memory implementation example.
+**Getting Started with Memory?** Check out our [First Workflow tutorial](/docs/core/getting-started/first-workflow) which includes a simple memory implementation example.
 </Callout>
 
 ## Key Features
@@ -40,7 +40,7 @@ If you're new to Compozy, start with the [Quick Start guide](/docs/core/getting-
 
 ## Memory Architecture
 
-Understanding the memory architecture is crucial for effective implementation. The system uses a layered approach where agents reference memory configurations that resolve to actual storage instances. Learn more about the [technical implementation details](/docs/core/memory/overview#core-architecture) and [storage backend options](/docs/core/mcp/storage-backends).
+Understanding the memory architecture is crucial for effective implementation. The system uses a layered approach where agents reference memory configurations that resolve to actual storage instances. Learn more about the technical implementation details and storage backend options.
 
 <Mermaid chart={`graph TD
     A[Agent] -->|References| B[Memory Configuration]
@@ -56,7 +56,7 @@ Understanding the memory architecture is crucial for effective implementation. T
     H --> J[User Messages]
     H --> K[Assistant Messages]`} />
 
-The architecture supports multiple [persistence backends](/docs/core/memory/configuration#persistence-configuration) with automatic failover and [circuit breaker patterns](/docs/core/memory/configuration#circuit-breaker) for production reliability. For high-traffic applications, see our [performance optimization guide](/docs/core/memory/overview#performance-optimization).
+The architecture supports multiple persistence backends with automatic failover and circuit breaker patterns for production reliability.
 
 ## Memory Configuration
 
@@ -81,21 +81,21 @@ agents:
 
 ### Memory Reference Structure
 
-Memory references in agent configurations connect agents to memory resources. Each reference specifies which memory resource to use, how to access it, and provides a template key for dynamic memory instances. This follows the same [reference pattern](/docs/core/configuration/workflows#references) used throughout Compozy for connecting resources.
+Memory references in agent configurations connect agents to memory resources. Each reference specifies which memory resource to use, how to access it, and provides a template key for dynamic memory instances. This follows the same reference pattern used throughout Compozy for connecting resources.
 
 Each memory reference requires:
 
 | Field | Type | Description | Required |
 |-------|------|-------------|----------|
-| `id` | string | References a memory resource defined in your [memory configuration files](/docs/core/memory/configuration) | Yes |
-| `key` | string | Template for the memory instance key using [Go template syntax](/docs/core/templates/overview) | Yes |
-| `mode` | string | Access mode: `read-write` or `read-only` (see [access control patterns](/docs/core/memory/privacy-security#access-control)) | No (default: `read-write`) |
+| `id` | string | References a memory resource defined in your memory configuration files | Yes |
+| `key` | string | Template for the memory instance key using Go template syntax | Yes |
+| `mode` | string | Access mode: `read-write` or `read-only` | No (default: `read-write`) |
 
-For more details on memory resource configuration, see the [Memory Configuration guide](/docs/core/memory/configuration). To understand how these references are resolved at runtime, check the [template engine documentation](/docs/core/templates/runtime-resolution).
+For more details on memory resource configuration, see the [Memory Configuration guide](/docs/core/memory/configuration).
 
 ### Dynamic Key Templates
 
-Memory keys support template expressions that are evaluated at runtime to create unique memory instances. This enables context-aware memory management where different users, sessions, or workflows can have separate memory spaces. The template system is powered by [Go templates with Sprig functions](/docs/core/templates/functions), giving you powerful string manipulation and logic capabilities.
+Memory keys support template expressions that are evaluated at runtime to create unique memory instances. This enables context-aware memory management where different users, sessions, or workflows can have separate memory spaces. The template system is powered by Go templates with Sprig functions, giving you powerful string manipulation and logic capabilities.
 
 Memory keys support template expressions:
 
@@ -118,11 +118,11 @@ memory:
     key: "daily:{{.workflow.input.date}}:{{.workflow.input.user_id}}"
 ```
 
-Learn more about [available template variables](/docs/core/agents/context#workflow-context) and [key design best practices](/docs/core/memory/configuration#key-design). For security considerations when using dynamic keys, see [key sanitization patterns](/docs/core/memory/privacy-security#key-sanitization).
+Learn more about available template variables and key design best practices.
 
 ## Memory Resources
 
-Memory resources define the storage configuration and schema for memory instances. These resources are referenced by agents through memory references and provide the actual storage backend and configuration. Memory resources follow the same [resource definition pattern](/docs/core/configuration/project-setup#resource-files) as other Compozy components.
+Memory resources define the storage configuration and schema for memory instances. These resources are referenced by agents through memory references and provide the actual storage backend and configuration. Memory resources follow the same resource definition pattern as other Compozy components.
 
 Define memory resources that agents can reference:
 
@@ -148,11 +148,11 @@ schema:
         type: object
 ```
 
-For a complete guide on memory resource configuration including [persistence options](/docs/core/memory/configuration#persistence-configuration), [TTL strategies](/docs/core/memory/configuration#ttl-configuration), and [privacy controls](/docs/core/memory/privacy-security), see the [Memory Configuration documentation](/docs/core/memory/configuration). Memory resources are typically stored in the `memory/` directory and can be [auto-loaded](/docs/core/configuration/autoload) like other resources.
+For a complete guide on memory resource configuration including persistence options, TTL strategies, and privacy controls, see the [Memory Configuration documentation](/docs/core/memory/configuration). Memory resources are typically stored in the `memory/` directory and can be auto-loaded like other resources.
 
 ## Multiple Memory Contexts
 
-Agents can access multiple memory instances simultaneously, allowing them to maintain different types of context (user profiles, team information, project state) within the same conversation. This pattern is essential for [multi-agent systems](/docs/core/agents/multi-agent-patterns#shared-memory-patterns) and complex workflows that need to maintain separate contexts for different aspects of the interaction.
+Agents can access multiple memory instances simultaneously, allowing them to maintain different types of context (user profiles, team information, project state) within the same conversation. This pattern is essential for multi-agent systems and complex workflows that need to maintain separate contexts for different aspects of the interaction.
 
 Agents can access multiple memory instances:
 
@@ -168,13 +168,13 @@ agents:
         key: "project:{{.workflow.input.project_id}}"
 ```
 
-Each memory instance operates independently with its own [eviction policies](/docs/core/memory/configuration#eviction-policies) and [TTL settings](/docs/core/memory/configuration#ttl-configuration). Learn how to design efficient multi-context systems in our [integration patterns guide](/docs/core/memory/integration-patterns#multi-context-patterns).
+Each memory instance operates independently with its own eviction policies and TTL settings.
 
 ## Memory in Action
 
 ### Conversational Memory
 
-Build conversational agents with context. This example demonstrates how to implement a chat system that maintains conversation history across multiple interactions. For more advanced patterns, see [conversational AI patterns](/docs/core/memory/integration-patterns#conversational-ai):
+Build conversational agents with context. This example demonstrates how to implement a chat system that maintains conversation history across multiple interactions. For more advanced patterns, see conversational AI patterns:
 
 ```yaml
 # Workflow with conversational memory
@@ -202,7 +202,7 @@ agents:
           Reference earlier topics when relevant.
 ```
 
-The agent automatically receives the full conversation history as context. To manage token usage in long conversations, consider implementing [memory summarization](/docs/core/memory/operations#memory-summarization) or [sliding window patterns](/docs/core/memory/overview#memory-types).
+The agent automatically receives the full conversation history as context. To manage token usage in long conversations, consider implementing memory summarization or sliding window patterns.
 
 ## Memory Lifecycle
 
@@ -216,7 +216,7 @@ The agent automatically receives the full conversation history as context. To ma
 ## Memory Size Considerations
 
 <Callout type="info">
-Memory content counts toward the agent's context window. Large conversation histories may need truncation. Learn about [token management strategies](/docs/core/memory/overview#token-based-memory) and [context window optimization](/docs/core/agents/context#token-management).
+Memory content counts toward the agent's context window. Large conversation histories may need truncation. Learn about token management strategies and context window optimization.
 </Callout>
 
 Strategies for managing memory size:
@@ -261,13 +261,13 @@ curl -X POST http://localhost:5001/api/v0/memory/clear \
   -d '{"key": "user:123"}'
 ```
 
-For programmatic access from workflows, use [memory tasks](/docs/core/tasks/memory-tasks) instead of direct API calls. Memory operations are also available through the [CLI commands](/docs/cli/workflow-commands#memory-operations).
+For programmatic access from workflows, use memory tasks instead of direct API calls.
 
 ## Advanced Patterns
 
 <Tabs items={["Contextual Memory Selection", "Memory Summarization", "Cross-Workflow Memory"]} defaultValue="Contextual Memory Selection">
   <Tab>
-Dynamically select memory based on context. This pattern is useful for multi-tenant applications or when different memory backends are needed based on user type. Learn more about [dynamic configuration patterns](/docs/core/templates/advanced-patterns#dynamic-references):
+Dynamically select memory based on context. This pattern is useful for multi-tenant applications or when different memory backends are needed based on user type. Learn more about dynamic configuration patterns:
 
 ```yaml
 agents:
@@ -279,7 +279,7 @@ agents:
   </Tab>
 
   <Tab>
-Implement memory compression for long conversations. This pattern helps manage token limits by periodically summarizing older conversations. For implementation details, see [memory summarization strategies](/docs/core/memory/operations#summarization-strategies):
+Implement memory compression for long conversations. This pattern helps manage token limits by periodically summarizing older conversations. For implementation details, see memory summarization strategies:
 
 ```yaml
 actions:
@@ -304,7 +304,7 @@ actions:
   </Tab>
 
   <Tab>
-Share memory across different workflows. This enables complex multi-step processes where different workflows contribute to and consume from shared memory. For coordination patterns, see [signal-based memory sharing](/docs/core/signals/signal-triggers#memory-coordination):
+Share memory across different workflows. This enables complex multi-step processes where different workflows contribute to and consume from shared memory. For coordination patterns, see signal-based memory sharing:
 
 ```yaml
 # Workflow 1: Data Collection
@@ -324,7 +324,7 @@ agents:
   </Tab>
 </Tabs>
 
-For more advanced patterns including [event-driven memory updates](/docs/core/memory/integration-patterns#event-driven-patterns) and [distributed memory architectures](/docs/core/memory/integration-patterns#distributed-systems), see the integration patterns guide.
+For more advanced patterns including event-driven memory updates and distributed memory architectures, see the integration patterns guide.
 
 ## Best Practices
 
@@ -332,16 +332,16 @@ For more advanced patterns including [event-driven memory updates](/docs/core/me
   <Accordion title="Key Design">
     <List>
       <ListItem title="Use hierarchical keys">
-        Organize memory with structured key patterns like "domain:entity:id" for better organization. See [key design patterns](/docs/core/memory/configuration#key-design) for examples.
+        Organize memory with structured key patterns like "domain:entity:id" for better organization.
       </ListItem>
       <ListItem title="Include relevant IDs">
-        Embed user, session, or workflow IDs in key templates for proper isolation. Learn about [template variables](/docs/core/agents/context#workflow-context) available for keys.
+        Embed user, session, or workflow IDs in key templates for proper isolation.
       </ListItem>
       <ListItem title="Consider key uniqueness">
-        Design keys to prevent collisions between different contexts or users. Review [multi-tenant patterns](/docs/core/memory/integration-patterns#multi-tenant-systems) for complex scenarios.
+        Design keys to prevent collisions between different contexts or users.
       </ListItem>
       <ListItem title="Document conventions">
-        Establish and document consistent key naming patterns across your project. Use [project documentation](/docs/core/configuration/project-setup#documentation) to maintain standards.
+        Establish and document consistent key naming patterns across your project.
       </ListItem>
     </List>
   </Accordion>
@@ -349,16 +349,16 @@ For more advanced patterns including [event-driven memory updates](/docs/core/me
   <Accordion title="Access Control">
     <List>
       <ListItem title="Use read-only mode">
-        Apply read-only access when agents only need to view historical context. Configure with [access modes](/docs/core/memory/privacy-security#access-modes).
+        Apply read-only access when agents only need to view historical context.
       </ListItem>
       <ListItem title="Separate by security context">
-        Isolate memory instances based on user permissions and security requirements. See [security boundaries](/docs/core/memory/privacy-security#security-boundaries).
+        Isolate memory instances based on user permissions and security requirements.
       </ListItem>
       <ListItem title="Validate user access">
-        Verify user authorization before granting access to memory keys. Implement [authentication patterns](/docs/core/mcp/security-authentication#memory-access).
+        Verify user authorization before granting access to memory keys.
       </ListItem>
       <ListItem title="Implement key sanitization">
-        Sanitize dynamic key components to prevent injection attacks. Follow [sanitization guidelines](/docs/core/memory/privacy-security#key-sanitization).
+        Sanitize dynamic key components to prevent injection attacks.
       </ListItem>
     </List>
   </Accordion>
@@ -366,16 +366,16 @@ For more advanced patterns including [event-driven memory updates](/docs/core/me
   <Accordion title="Performance">
     <List>
       <ListItem title="Set appropriate TTLs">
-        Configure expiration times to prevent unbounded memory growth. See [TTL configuration guide](/docs/core/memory/configuration#ttl-configuration).
+        Configure expiration times to prevent unbounded memory growth.
       </ListItem>
       <ListItem title="Monitor memory usage">
-        Track memory size and token consumption to optimize performance. Use [monitoring tools](/docs/core/mcp/monitoring-metrics#memory-metrics).
+        Track memory size and token consumption to optimize performance.
       </ListItem>
       <ListItem title="Implement pagination">
-        Handle large conversation histories with pagination strategies. Learn about [memory operations](/docs/core/memory/operations#pagination).
+        Handle large conversation histories with pagination strategies.
       </ListItem>
       <ListItem title="Use caching">
-        Cache frequently accessed memories to reduce storage backend load. Configure [Redis caching](/docs/core/memory/configuration#redis-configuration).
+        Cache frequently accessed memories to reduce storage backend load.
       </ListItem>
     </List>
   </Accordion>
@@ -383,16 +383,16 @@ For more advanced patterns including [event-driven memory updates](/docs/core/me
   <Accordion title="Privacy">
     <List>
       <ListItem title="Encrypt sensitive content">
-        Apply encryption to memory containing personal or sensitive data. Configure [encryption settings](/docs/core/memory/privacy-security#encryption).
+        Apply encryption to memory containing personal or sensitive data.
       </ListItem>
       <ListItem title="Implement retention policies">
-        Define and enforce data retention rules for compliance. Set up [GDPR-compliant retention](/docs/core/memory/privacy-security#gdpr-compliance).
+        Define and enforce data retention rules for compliance.
       </ListItem>
       <ListItem title="Provide user controls">
-        Enable users to view, export, and delete their memory data. Implement [data subject rights](/docs/core/memory/privacy-security#user-rights).
+        Enable users to view, export, and delete their memory data.
       </ListItem>
       <ListItem title="Audit access patterns">
-        Log and monitor memory access for security and compliance. Configure [audit logging](/docs/core/memory/privacy-security#audit-logging).
+        Log and monitor memory access for security and compliance.
       </ListItem>
     </List>
   </Accordion>
@@ -406,11 +406,5 @@ For more advanced patterns including [event-driven memory updates](/docs/core/me
     description="Learn about managing agent context effectively"
     href="/docs/core/agents/context"
     icon="Layers"
-  />
-  <ReferenceCard
-    title="Multi-Agent Patterns"
-    description="Explore patterns for multi-agent collaboration"
-    href="/docs/core/agents/multi-agent-patterns"
-    icon="Users"
   />
 </ReferenceCardList>

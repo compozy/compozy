@@ -28,6 +28,7 @@ build/
 dist/
 /dist/
 **/dist/
+completions
 
 # === TURBOREPO ===
 .turbo

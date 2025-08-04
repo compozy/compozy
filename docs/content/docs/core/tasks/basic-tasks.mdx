@@ -14,10 +14,10 @@ Each basic task performs a single, well-defined operation using either:
 **Why Basic Tasks Matter:**
 - **Foundation Layer**: All complex task types ([parallel](/docs/core/tasks/parallel-processing), [collection](/docs/core/tasks/collection-tasks), [router](/docs/core/tasks/router-tasks)) ultimately decompose into basic tasks
 - **Execution Flexibility**: Choose the optimal execution strategy for each operation based on complexity and requirements
-- **Production Ready**: Built-in [error handling](/docs/core/tasks/error-handling), [retry policies](/docs/core/tasks/error-handling#retry-strategies), and [monitoring integration](/docs/core/monitoring/task-metrics)
+- **Production Ready**: Built-in error handling, retry policies, and monitoring integration
 
 <Callout type="info">
-**Architecture Context**: Basic tasks integrate seamlessly with Compozy's [declarative YAML configuration](/docs/core/yaml-templates/overview), [distributed execution engine](/docs/core/getting-started/core-concepts#execution-engine), and [comprehensive monitoring system](/docs/core/monitoring/observability). New to workflow orchestration? Start with [Core Concepts](/docs/core/getting-started/core-concepts) to understand the full picture.
+**Architecture Context**: Basic tasks integrate seamlessly with Compozy's [declarative YAML configuration](/docs/core/yaml-templates/overview), distributed execution engine, and comprehensive monitoring system. New to workflow orchestration? Start with [Core Concepts](/docs/core/getting-started/core-concepts) to understand the full picture.
 </Callout>
 
 ## Task Execution Types
@@ -131,7 +131,7 @@ Basic tasks in Compozy follow several key principles that make them reliable and
     Full support for [dynamic parameters and outputs](/docs/core/yaml-templates/context-variables) using Sprig template expressions
   </ListItem>
   <ListItem title="Flow Control" icon="GitBranch">
-    Built-in conditional routing and sophisticated [error handling patterns](/docs/core/tasks/error-handling)
+    Built-in conditional routing and sophisticated error handling patterns
   </ListItem>
   <ListItem title="Schema Validation" icon="CheckCircle">
     Input/output validation with JSON Schema ensures type safety and reliable data flow
@@ -142,7 +142,7 @@ Basic tasks in Compozy follow several key principles that make them reliable and
 </List>
 
 <Callout type="info">
-**Foundation Layer**: Basic tasks serve as the foundation for all other task patterns in Compozy. Understanding them is essential before exploring [parallel processing](/docs/core/tasks/parallel-processing), [collection tasks](/docs/core/tasks/collection-tasks), or [advanced flow control](/docs/core/tasks/flow-control).
+**Foundation Layer**: Basic tasks serve as the foundation for all other task patterns in Compozy. Understanding them is essential before exploring [parallel processing](/docs/core/tasks/parallel-processing), [collection tasks](/docs/core/tasks/collection-tasks), or advanced flow control.
 </Callout>
 
 ## Task Structure
@@ -164,7 +164,7 @@ Basic tasks use a **declarative YAML structure** that makes them easy to read, w
 
     **Key components:**
     - `id`: Unique identifier for referencing in templates and flow control
-    - `$use`: [Reference to agent or tool](/docs/core/yaml-templates/overview#reference-types) using query syntax
+    - `$use`: Reference to agent or tool using query syntax
     - `action`: Specific action for agents (not needed for tools)
   </Step>
 
@@ -229,7 +229,7 @@ Basic tasks use a **declarative YAML structure** that makes them easy to read, w
     **Flow options:**
     - Route to different tasks based on execution outcome
     - Pass contextual data to next tasks
-    - Implement sophisticated [error handling strategies](/docs/core/tasks/error-handling)
+    - Implement sophisticated error handling strategies
   </Step>
 </Steps>
 
@@ -511,7 +511,7 @@ Tools are perfect for **deterministic operations** that require precise, predict
 |--------|-----------|------------------|
 | **Development complexity** | [YAML configuration](/docs/core/agents/instructions-actions) | TypeScript programming |
 | **Testing approach** | Output validation, prompting | Unit tests, integration tests |
-| **Debugging** | [LLM observability tools](/docs/core/agents/debugging) | Standard debugging tools |
+| **Debugging** | LLM observability tools | Standard debugging tools |
 | **Maintenance** | Prompt engineering | Code maintenance |
 | **Version control** | Configuration changes | Source code changes |
 </Tab>
@@ -557,7 +557,7 @@ Basic tasks leverage Compozy's [powerful template engine](/docs/core/yaml-templa
 1. **Start**: [Template Overview](/docs/core/yaml-templates/overview) for basic syntax
 2. **Learn**: [Context Variables](/docs/core/yaml-templates/context-variables) for data access patterns
 3. **Master**: [Sprig Functions](/docs/core/yaml-templates/sprig-functions) for data transformation
-4. **Apply**: [Conditional Logic](/docs/core/yaml-templates/conditionals) for advanced workflows
+4. **Apply**: Conditional Logic for advanced workflows
 </Callout>
 
 ### Input Template Patterns
@@ -735,7 +735,7 @@ Master these essential patterns to build robust, maintainable workflows with bas
         error_context: "{{ .task.error }}"
     ```
 
-    **Learn more**: [Error Handling Strategies →](/docs/core/tasks/error-handling)
+    **Learn more**: Error Handling Strategies in the task documentation
   </Step>
 
   <Step title="Input Validation" description="Use JSON Schema to validate inputs early">
@@ -854,7 +854,7 @@ outputs:
   source: "fallback"
 ```
 
-**Learn more**: [Resilient Workflow Patterns →](/docs/core/tasks/error-handling#resilient-patterns)
+**Learn more**: Resilient Workflow Patterns →
 </Tab>
 
 <Tab value="State Management">
@@ -897,16 +897,16 @@ on_success:
 
 <List>
   <ListItem title="Performance Optimization" icon="Zap">
-    **Timeouts**: 2-30s for most tasks | **Retries**: Efficient [backoff strategies](/docs/core/tasks/error-handling#retry-strategies) | **Data**: Minimize I/O payload size | **Resources**: Monitor [execution metrics](/docs/core/monitoring/task-metrics)
+    **Timeouts**: 2-30s for most tasks | **Retries**: Efficient backoff strategies | **Data**: Minimize I/O payload size | **Resources**: Monitor execution metrics
   </ListItem>
   <ListItem title="Security Best Practices" icon="Shield">
-    **Input Validation**: JSON Schema enforcement | **Secrets**: [Environment variables](/docs/core/configuration/project-setup#environment-variables) only | **Permissions**: [Minimal runtime access](/docs/core/tools/runtime-environment#permissions) | **Audit**: [Security logging](/docs/core/monitoring/security-logs)
+    **Input Validation**: JSON Schema enforcement | **Secrets**: Environment variables only | **Permissions**: Minimal runtime access | **Audit**: Security logging
   </ListItem>
   <ListItem title="Monitoring & Observability" icon="Eye">
-    **Task IDs**: Meaningful, traceable identifiers | **Metadata**: Execution context in outputs | **Health**: [Dependency monitoring](/docs/core/monitoring/health-checks) | **Alerts**: [Error rate thresholds](/docs/core/monitoring/alerting)
+    **Task IDs**: Meaningful, traceable identifiers | **Metadata**: Execution context in outputs | **Health**: Dependency monitoring | **Alerts**: Error rate thresholds
   </ListItem>
   <ListItem title="Testing & Validation" icon="TestTube">
-    **Isolation**: Unit test individual tasks | **Templates**: Validate expression syntax | **Fixtures**: [Consistent test data](/docs/core/testing/test-fixtures) | **Integration**: [End-to-end workflows](/docs/core/testing/e2e-testing)
+    **Isolation**: Unit test individual tasks | **Templates**: Validate expression syntax | **Fixtures**: Consistent test data | **Integration**: End-to-end workflows
   </ListItem>
 </List>
 
@@ -966,12 +966,6 @@ Choose your learning path based on your goals and experience level:
     href="/docs/core/agents/structured-outputs"
     icon="Target"
   />
-  <ReferenceCard
-    title="Multi-Agent Orchestration"
-    description="Build collaborative AI systems with agent coordination, specialized roles, and conflict resolution"
-    href="/docs/core/agents/multi-agent-patterns"
-    icon="Users"
-  />
 </ReferenceCardList>
 
 ### 🛠️ Tool Development
@@ -992,7 +986,7 @@ Choose your learning path based on your goals and experience level:
   <ReferenceCard
     title="Testing & Debugging"
     description="Test tools in isolation and debug execution issues effectively"
-    href="/docs/core/tools/typescript-development#testing-strategies"
+    href="/docs/core/tools/typescript-development"
     icon="Bug"
   />
   <ReferenceCard
@@ -1027,7 +1021,7 @@ Choose your learning path based on your goals and experience level:
   <ReferenceCard
     title="Flow Control Patterns"
     description="Master error handling, retries, and complex orchestration"
-    href="/docs/core/tasks/flow-control"
+    href="/docs/core/tasks/composite-tasks"
     icon="Workflow"
   />
 </ReferenceCardList>
@@ -1036,22 +1030,10 @@ Choose your learning path based on your goals and experience level:
 
 <ReferenceCardList>
   <ReferenceCard
-    title="Error Handling Strategies"
-    description="Build resilient workflows with comprehensive error handling and recovery"
-    href="/docs/core/tasks/error-handling"
-    icon="Shield"
-  />
-  <ReferenceCard
     title="Memory & State"
     description="Add persistent memory and state management to your workflows"
     href="/docs/core/memory/overview"
     icon="Database"
-  />
-  <ReferenceCard
-    title="Monitoring & Observability"
-    description="Monitor task execution, performance, and health in production"
-    href="/docs/core/monitoring/observability"
-    icon="Eye"
   />
   <ReferenceCard
     title="CLI Commands"

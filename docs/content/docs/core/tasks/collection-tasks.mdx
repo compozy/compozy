@@ -297,7 +297,7 @@ task:
 ## Processing Patterns
 
 <Callout type="tip">
-Understanding when to use each processing pattern is crucial for optimal performance. Learn more about [performance optimization strategies](/docs/core/tasks/advanced-patterns#performance-optimization) and [template expression patterns](/docs/core/yaml-templates/expressions) to make the best choice for your use case.
+Understanding when to use each processing pattern is crucial for optimal performance. Learn more about advanced patterns and template expressions to make the best choice for your use case.
 </Callout>
 
 ### Sequential Processing
@@ -340,12 +340,12 @@ Process large datasets in manageable chunks to optimize memory usage and provide
 - **Medium batches (10-100)**: Balanced performance and resource usage
 - **Large batches (100-1000+)**: Maximum throughput for bulk operations
 
-Learn more about [memory management strategies](/docs/core/deployment/scaling#memory-optimization) and [batch optimization patterns](/docs/core/tasks/advanced-patterns#batch-optimization).
+Learn more about deployment options and advanced patterns.
 
 ## Advanced Features
 
 <Callout type="warning">
-Advanced collection features require a solid understanding of [CEL expressions](/docs/core/yaml-templates/cel-expressions) and [template context variables](/docs/core/yaml-templates/context-variables). Review these concepts before implementing complex filtering and error handling patterns.
+Advanced collection features require a solid understanding of [CEL expressions](/docs/core/yaml-templates/context-variables) and [template context variables](/docs/core/yaml-templates/context-variables). Review these concepts before implementing complex filtering and error handling patterns.
 </Callout>
 
 ### Conditional Processing
@@ -484,7 +484,7 @@ outputs:
 ## Performance Guidelines
 
 <Callout type="warning" className="mt-4 mb-8" title="Performance Optimization">
-For production deployments, consider implementing [monitoring and observability](/docs/core/metrics/observability) to track collection task performance and identify optimization opportunities.
+For production deployments, consider implementing [monitoring and observability](/docs/core/configuration/monitoring) to track collection task performance and identify optimization opportunities.
 </Callout>
 
 ### Memory Management
@@ -598,7 +598,7 @@ For production deployments, consider implementing [monitoring and observability]
   <ReferenceCard
     title="Flow Control & Routing"
     description="Implement conditional logic and routing in collection workflows"
-    href="/docs/core/tasks/flow-control"
+    href="/docs/core/tasks/composite-tasks"
     icon="GitBranch"
   />
   <ReferenceCard
@@ -628,25 +628,25 @@ For production deployments, consider implementing [monitoring and observability]
   <ReferenceCard
     title="Performance Optimization"
     description="Optimize collection tasks for high-volume production workloads"
-    href="/docs/core/tasks/advanced-patterns#performance-optimization"
+    href="/docs/core/tasks/parallel-processing"
     icon="Gauge"
   />
   <ReferenceCard
     title="Monitoring & Observability"
     description="Monitor collection task performance and debug issues"
-    href="/docs/core/metrics/observability"
+    href="/docs/core/configuration/monitoring"
     icon="BarChart3"
   />
   <ReferenceCard
     title="Scaling Strategies"
     description="Scale collection processing for enterprise-grade deployments"
-    href="/docs/core/deployment/scaling"
+    href="/docs/core/deployment/kubernetes"
     icon="TrendingUp"
   />
   <ReferenceCard
     title="Security Best Practices"
     description="Secure collection workflows and handle sensitive data"
-    href="/docs/core/security/best-practices"
+    href="/docs/core/tools/runtime-environment"
     icon="Lock"
   />
 </ReferenceCardList>
