@@ -176,8 +176,8 @@ jobs:
           echo "- 📄 Release notes and changelog" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Container Images:**" >> $GITHUB_STEP_SUMMARY
-          echo "- `ghcr.io/compozy/compozy:${{ needs.validate-release.outputs.version }}`" >> $GITHUB_STEP_SUMMARY
-          echo "- `ghcr.io/compozy/compozy:latest`" >> $GITHUB_STEP_SUMMARY
+          echo "- ghcr.io/compozy/compozy:${{ needs.validate-release.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ghcr.io/compozy/compozy:latest" >> $GITHUB_STEP_SUMMARY
 
   # Post-release validation
   post-release-validation:
