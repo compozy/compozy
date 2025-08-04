@@ -1,13 +1,13 @@
 ---
 title: MCP Proxy Commands
-description: Manage Model Context Protocol (MCP) servers and proxy operations with the `compozy-mcp-proxy` binary. The MCP proxy server enables HTTP-based access to MCP servers, providing seamless integration between AI agents and external tools.
+description: Manage Model Context Protocol (MCP) servers and proxy operations with the `compozy mcp-proxy` binary. The MCP proxy server enables HTTP-based access to MCP servers, providing seamless integration between AI agents and external tools.
 icon: network
 ---
 
 ## Overview
 
 ```bash
-compozy-mcp-proxy [flags]
+compozy mcp-proxy [flags]
 ```
 
 <FeatureCardList cols={2} size="sm">
@@ -40,7 +40,7 @@ Start the MCP proxy server to provide HTTP access to MCP servers.
 ### Usage
 
 ```bash
-compozy-mcp-proxy [flags]
+compozy mcp-proxy [flags]
 ```
 
 ### Description
@@ -53,7 +53,7 @@ The MCP proxy server enables HTTP-based access to MCP servers, providing:
 
 ### Flags
 
-#### Server Configuration
+#### MCP Proxy Configuration
 
 <Table>
   <TableHeader>
@@ -65,18 +65,18 @@ The MCP proxy server enables HTTP-based access to MCP servers, providing:
   </TableHeader>
   <TableBody>
     <TableRow>
-      <TableCell>`--host`</TableCell>
-      <TableCell>Host to bind the server to</TableCell>
-      <TableCell>0.0.0.0</TableCell>
+      <TableCell>`--mcp-host`</TableCell>
+      <TableCell>Host interface for MCP proxy server to bind to</TableCell>
+      <TableCell>127.0.0.1</TableCell>
     </TableRow>
     <TableRow>
-      <TableCell>`--port`</TableCell>
-      <TableCell>Port to run the MCP proxy server on</TableCell>
+      <TableCell>`--mcp-port`</TableCell>
+      <TableCell>Port for MCP proxy server to listen on</TableCell>
       <TableCell>6001</TableCell>
     </TableRow>
     <TableRow>
-      <TableCell>`--base-url`</TableCell>
-      <TableCell>Base URL for the MCP proxy server</TableCell>
+      <TableCell>`--mcp-base-url`</TableCell>
+      <TableCell>Base URL for MCP proxy server (auto-generated if empty)</TableCell>
       <TableCell>-</TableCell>
     </TableRow>
   </TableBody>
@@ -94,22 +94,22 @@ The MCP proxy server enables HTTP-based access to MCP servers, providing:
   </TableHeader>
   <TableBody>
     <TableRow>
-      <TableCell>`--global-auth-tokens`</TableCell>
-      <TableCell>Global auth tokens for all MCP clients</TableCell>
+      <TableCell>`--mcp-global-auth-tokens`</TableCell>
+      <TableCell>Global authentication tokens for all MCP clients</TableCell>
       <TableCell>strings (comma-separated)</TableCell>
     </TableRow>
     <TableRow>
-      <TableCell>`--admin-tokens`</TableCell>
-      <TableCell>Admin API tokens</TableCell>
+      <TableCell>`--mcp-admin-tokens`</TableCell>
+      <TableCell>Admin authentication tokens for MCP proxy</TableCell>
       <TableCell>strings (comma-separated)</TableCell>
     </TableRow>
     <TableRow>
-      <TableCell>`--admin-allow-ips`</TableCell>
-      <TableCell>Admin API allowed IP addresses/CIDR blocks</TableCell>
+      <TableCell>`--mcp-admin-allow-ips`</TableCell>
+      <TableCell>IP addresses/CIDR blocks allowed for admin access. If empty, allows all IPs</TableCell>
       <TableCell>strings (comma-separated)</TableCell>
     </TableRow>
     <TableRow>
-      <TableCell>`--trusted-proxies`</TableCell>
+      <TableCell>`--mcp-trusted-proxies`</TableCell>
       <TableCell>Trusted proxy IP addresses/CIDR blocks</TableCell>
       <TableCell>strings (comma-separated)</TableCell>
     </TableRow>
@@ -137,12 +137,19 @@ The MCP proxy server enables HTTP-based access to MCP servers, providing:
 
 ### Environment Variables
 
+The MCP proxy can be configured through command-line flags (shown above) or environment variables. Command-line flags take precedence over environment variables.
+
 The MCP proxy respects these environment variables:
 
 ```bash
-MCP_PROXY_HOST             # Host to bind the server to
-MCP_PROXY_PORT             # Port to run the MCP proxy server on
-MCP_PROXY_BASE_URL         # Base URL for the MCP proxy server
+MCP_PROXY_HOST                  # Host to bind the server to
+MCP_PROXY_PORT                  # Port to run the MCP proxy server on
+MCP_PROXY_BASE_URL              # Base URL for the MCP proxy server
+MCP_PROXY_SHUTDOWN_TIMEOUT      # Graceful shutdown timeout
+MCP_PROXY_ADMIN_TOKENS          # Admin API authentication tokens (comma-separated)
+MCP_PROXY_ADMIN_ALLOW_IPS       # Admin API allowed IP addresses (comma-separated)
+MCP_PROXY_TRUSTED_PROXIES       # Trusted proxy IP addresses (comma-separated)
+MCP_PROXY_GLOBAL_AUTH_TOKENS    # Global authentication tokens (comma-separated)
 ```
 
 ## Examples
@@ -152,7 +159,7 @@ MCP_PROXY_BASE_URL         # Base URL for the MCP proxy server
 Start the MCP proxy with default settings:
 
 ```bash
-compozy-mcp-proxy
+compozy mcp-proxy
 ```
 
 This starts the proxy on `0.0.0.0:6001`.
@@ -160,22 +167,22 @@ This starts the proxy on `0.0.0.0:6001`.
 ### Custom Port and Host
 
 ```bash
-compozy-mcp-proxy --host localhost --port 9000
+compozy mcp-proxy --mcp-host localhost --mcp-port 9000
 ```
 
 ### With Authentication
 
 ```bash
-compozy-mcp-proxy \
-  --global-auth-tokens "token1,token2" \
-  --admin-tokens "admin-secret" \
-  --admin-allow-ips "192.168.1.0/24,10.0.0.0/8"
+compozy mcp-proxy \
+  --mcp-global-auth-tokens "token1,token2" \
+  --mcp-admin-tokens "admin-secret" \
+  --mcp-admin-allow-ips "192.168.1.0/24,10.0.0.0/8"
 ```
 
 ### Debug Mode
 
 ```bash
-compozy-mcp-proxy --debug
+compozy mcp-proxy --debug
 ```
 
 ### Using Environment Variables
@@ -185,7 +192,16 @@ export MCP_PROXY_HOST=localhost
 export MCP_PROXY_PORT=9000
 export MCP_PROXY_BASE_URL=http://localhost:9000
 
-compozy-mcp-proxy
+compozy mcp-proxy
+```
+
+### Mixed Configuration (Flags + Environment Variables)
+
+```bash
+export MCP_PROXY_GLOBAL_AUTH_TOKENS="token1,token2"
+export MCP_PROXY_ADMIN_TOKENS="admin-secret"
+
+compozy mcp-proxy --mcp-host localhost --mcp-port 9000 --debug
 ```
 
 ## API Endpoints
@@ -198,20 +214,13 @@ Once started, the MCP proxy provides these endpoints:
 **Health monitoring and status endpoints:**
 
 ```bash
-GET /health              # Basic health status
-GET /health/detailed     # Detailed health information with metrics
+GET /healthz             # Health check endpoint
 ```
 
 Example response:
 ```json
 {
-  "status": "healthy",
-  "version": "0.0.1",
-  "uptime": "1h30m45s",
-  "connections": {
-    "active": 5,
-    "total": 42
-  }
+  "status": "ok"
 }
 ```
 </Tab>
@@ -273,7 +282,7 @@ The MCP proxy can be configured through:
 ### Configuration File Example
 
 ```yaml
-# compozy-mcp-proxy.yaml
+# compozy.yaml
 mcp_proxy:
   host: "0.0.0.0"
   port: "6001"
@@ -322,11 +331,8 @@ mcp_proxy:
 ### Health Monitoring
 
 ```bash
-# Check basic health
-curl http://localhost:6001/health
-
-# Get detailed status
-curl http://localhost:6001/health/detailed
+# Check health status
+curl http://localhost:6001/healthz
 ```
 
 ### Log Analysis
@@ -348,11 +354,11 @@ grep '"path":' /var/log/compozy/mcp-proxy.log | \
 ### Docker
 
 ```dockerfile
-FROM compozy/compozy-mcp-proxy:latest
+FROM ghcr.io/compozy/mcp-proxy:latest
 EXPOSE 6001
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:6001/health || exit 1
-CMD ["compozy-mcp-proxy"]
+  CMD wget --no-verbose --tries=1 --spider http://localhost:6001/healthz || exit 1
+CMD ["compozy", "mcp-proxy"]
 ```
 
 ### Docker Compose
@@ -361,15 +367,15 @@ CMD ["compozy-mcp-proxy"]
 version: '3.8'
 services:
   mcp-proxy:
-    image: compozy/compozy-mcp-proxy:latest
-    command: ["compozy-mcp-proxy"]
+    image: ghcr.io/compozy/mcp-proxy:latest
+    command: ["compozy", "mcp-proxy"]
     ports:
       - "6001:6001"
     environment:
       - MCP_PROXY_HOST=0.0.0.0
       - MCP_PROXY_PORT=6001
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:6001/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:6001/healthz"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -395,8 +401,8 @@ spec:
     spec:
       containers:
       - name: mcp-proxy
-        image: compozy/compozy-mcp-proxy:latest
-        command: ["compozy-mcp-proxy"]
+        image: ghcr.io/compozy/mcp-proxy:latest
+        command: ["compozy", "mcp-proxy"]
         ports:
         - containerPort: 6001
         env:
@@ -406,13 +412,13 @@ spec:
           value: "6001"
         livenessProbe:
           httpGet:
-            path: /health
+            path: /healthz
             port: 6001
           initialDelaySeconds: 30
           periodSeconds: 10
         readinessProbe:
           httpGet:
-            path: /health
+            path: /healthz
             port: 6001
           initialDelaySeconds: 5
           periodSeconds: 5

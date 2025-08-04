@@ -226,16 +226,16 @@ compozy config validate
 
 ```bash
 # Start MCP proxy server
-compozy-mcp-proxy \
-  --host 0.0.0.0 \
-  --port 6001 \
-  --admin-tokens "your-admin-token" \
+compozy mcp-proxy \
+  --mcp-host 0.0.0.0 \
+  --mcp-port 6001 \
+  --mcp-admin-tokens "your-admin-token" \
   --debug
 
 # With environment variables
 MCP_PROXY_HOST=0.0.0.0 \
 MCP_PROXY_PORT=6001 \
-compozy-mcp-proxy --debug
+compozy mcp-proxy --debug
 ```
 
 ### Workflow Commands

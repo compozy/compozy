@@ -94,6 +94,31 @@ services:
     ports:
       - "${TEMPORAL_UI_PORT:-8080}:8080"
 
+  # MCP Proxy for Model Context Protocol servers
+  mcp-proxy:
+    container_name: {{ .Name | lower | replace " " "-" | replace "_" "-" }}-mcp-proxy
+    image: ghcr.io/compozy/mcp-proxy:${MCP_PROXY_VERSION:-latest}
+    environment:
+      - MCP_PROXY_HOST=0.0.0.0
+      - MCP_PROXY_PORT=6001
+      - MCP_PROXY_BASE_URL=http://localhost:6001
+    ports:
+      - "${MCP_PROXY_PORT:-6001}:6001"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost:6001/healthz",
+        ]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
 volumes:
   redis_data:
   postgres_data:

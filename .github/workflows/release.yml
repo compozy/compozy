@@ -242,4 +242,4 @@ jobs:
           echo "- ✅ Container images published" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Multi-architecture manifests created" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "🎉 **Release ${{ needs.validate-release.outputs.version }} is ready for use!*
+          echo "🎉 **Release ${{ needs.validate-release.outputs.version }} is ready for use!**" >> $GITHUB_STEP_SUMMARY

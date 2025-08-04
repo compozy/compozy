@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/compozy/compozy/cli/cmd"
 	"github.com/compozy/compozy/cli/cmd/init/components"
 	"github.com/compozy/compozy/cli/helpers"
+	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/template"
@@ -30,6 +32,7 @@ type Options struct {
 	AuthorURL   string
 	Interactive bool
 	DockerSetup bool
+	InstallBun  bool
 }
 
 // ensureTemplatesRegistered is called before template operations
@@ -143,6 +146,13 @@ func runInitJSON(ctx context.Context, _ *cobra.Command, _ *cmd.CommandExecutor, 
 		return fmt.Errorf("validation failed: %w", err)
 	}
 
+	// Install Bun if requested and not available
+	if opts.InstallBun && !runtime.IsBunAvailable() {
+		if err := installBun(ctx); err != nil {
+			return fmt.Errorf("failed to install Bun: %w", err)
+		}
+	}
+
 	// Ensure templates are registered
 	if err := ensureTemplatesRegistered(); err != nil {
 		return fmt.Errorf("failed to initialize templates: %w", err)
@@ -213,6 +223,13 @@ func runInitTUI(ctx context.Context, _ *cobra.Command, _ *cmd.CommandExecutor, o
 		return fmt.Errorf("validation failed: %w", err)
 	}
 
+	// Install Bun if requested and not available
+	if opts.InstallBun && !runtime.IsBunAvailable() {
+		if err := installBun(ctx); err != nil {
+			return fmt.Errorf("failed to install Bun: %w", err)
+		}
+	}
+
 	// Ensure templates are registered
 	if err := ensureTemplatesRegistered(); err != nil {
 		return fmt.Errorf("failed to initialize templates: %w", err)
@@ -237,6 +254,11 @@ func runInitTUI(ctx context.Context, _ *cobra.Command, _ *cmd.CommandExecutor, o
 	// Display success message
 	fmt.Printf("🎉 Project '%s' initialized successfully!\n", opts.Name)
 	fmt.Printf("📁 Location: %s\n", opts.Path)
+
+	// Show Bun installation status if it was installed
+	if opts.InstallBun {
+		fmt.Printf("🏃 Bun runtime installed successfully!\n")
+	}
 
 	// Check which env example file was created
 	envFileName := "env.example"
@@ -283,6 +305,7 @@ func runInteractiveForm(_ context.Context, opts *Options) error {
 		AuthorURL:     opts.AuthorURL,
 		Template:      opts.Template,
 		IncludeDocker: opts.DockerSetup,
+		InstallBun:    opts.InstallBun,
 	}
 
 	// Create and run the init model with header and form
@@ -309,7 +332,31 @@ func runInteractiveForm(_ context.Context, opts *Options) error {
 	opts.AuthorURL = projectData.AuthorURL
 	opts.Template = projectData.Template
 	opts.DockerSetup = projectData.IncludeDocker
+	opts.InstallBun = projectData.InstallBun
 
+	return nil
+}
+
+// installBun installs Bun using the official installer
+func installBun(ctx context.Context) error {
+	log := logger.FromContext(ctx)
+	log.Info("Installing Bun runtime...")
+
+	cmd := exec.CommandContext(ctx, "bash", "-c", "curl -fsSL https://bun.sh/install | bash")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to install Bun: %w", err)
+	}
+
+	// Verify installation
+	if !runtime.IsBunAvailable() {
+		return fmt.Errorf("bun installation completed but executable not found in PATH. " +
+			"You may need to restart your terminal or source your shell configuration")
+	}
+
+	log.Info("Bun installed successfully!")
 	return nil
 }
 

@@ -29,6 +29,9 @@ var envExampleTemplate string
 //go:embed compozy.http.tmpl
 var compozyHTTPTemplate string
 
+//go:embed gitignore.tmpl
+var gitignoreTemplate string
+
 // Template implements the Template interface for the basic project template
 type Template struct{}
 
@@ -74,6 +77,10 @@ func (t *Template) GetFiles() []template.File {
 		{
 			Name:    "env.example",
 			Content: envExampleTemplate,
+		},
+		{
+			Name:    ".gitignore",
+			Content: gitignoreTemplate,
 		},
 	}
 	return files

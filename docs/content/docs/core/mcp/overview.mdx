@@ -276,7 +276,7 @@ cd my-mcp-project
 compozy dev --watch
 
 # 3. In another terminal, start the MCP proxy
-compozy-mcp-proxy --port 6001 --debug
+compozy mcp-proxy --mcp-port 6001 --debug
 ```
 
 <Steps>
@@ -287,7 +287,7 @@ Use `compozy init` to create a new project with MCP support and default configur
 Run `compozy dev --watch` to start the development server with hot reload capabilities.
 </Step>
 <Step title="Start MCP Proxy">
-Launch `compozy-mcp-proxy` to handle all MCP server connections and routing.
+Launch `compozy mcp-proxy` to handle all MCP server connections and routing.
 </Step>
 <Step title="Test Integration">
 Use `compozy workflow execute` to verify that your workflows can use MCP tools.

@@ -25,6 +25,11 @@ export const baseOptions: BaseLayoutProps = {
       active: "nested-url",
     },
     {
+      text: "Install",
+      url: "/docs/core/getting-started/installation",
+      active: "nested-url",
+    },
+    {
       text: "Getting Started",
       url: "/docs/core/getting-started/quick-start",
       active: "nested-url",

@@ -31,10 +31,10 @@ description: Deploy Compozy using our production-ready Docker images with compre
 Compozy provides two production-ready Docker images:
 
 <List>
-  <ListItem title="compozy/compozy" icon="Container">
+  <ListItem title="ghcr.io/compozy/compozy" icon="Container">
     Full Compozy server with workflow engine, API server, and Bun runtime for TypeScript tools
   </ListItem>
-  <ListItem title="compozy/compozy-mcp-proxy" icon="Network">
+  <ListItem title="ghcr.io/compozy/mcp-proxy" icon="Network">
     Standalone MCP Proxy server for Model Context Protocol integrations
   </ListItem>
 </List>
@@ -87,7 +87,7 @@ docker run -d \
   -e REDIS_URL="redis://:password@your-managed-redis:6379/0" \
   -e TEMPORAL_HOST_PORT="your-temporal-cloud:7233" \
   -e OPENAI_API_KEY="sk-your-key" \
-  compozy/compozy:latest
+  ghcr.io/compozy/compozy:latest
 ```
 
 ### With Custom Configuration
@@ -101,7 +101,7 @@ docker run -d \
   -v $(pwd):/app/project \
   -v $(pwd)/compozy.yaml:/app/config/compozy.yaml \
   -e COMPOZY_CONFIG_FILE=/app/config/compozy.yaml \
-  compozy/compozy:latest
+  ghcr.io/compozy/compozy:latest
 ```
 
 ## Running MCP Proxy
@@ -114,7 +114,7 @@ docker run -d \
   -p 6001:6001 \
   -e MCP_PROXY_ADMIN_TOKEN="your-admin-token" \
   -e REDIS_URL="redis://:password@host:6379/0" \
-  compozy/compozy-mcp-proxy:latest
+  ghcr.io/compozy/mcp-proxy:latest
 ```
 
 ## Environment Configuration
@@ -242,7 +242,7 @@ LIMITS_MAX_MESSAGE_CONTENT_LENGTH=10240
     docker service create \
       --secret openai_key \
       -e OPENAI_API_KEY_FILE=/run/secrets/openai_key \
-      compozy/compozy:latest
+      ghcr.io/compozy/compozy:latest
     ```
   </Step>
 
@@ -273,7 +273,7 @@ LIMITS_MAX_MESSAGE_CONTENT_LENGTH=10240
       --memory="2g" \
       --cpus="2" \
       --restart=unless-stopped \
-      compozy/compozy:latest
+      ghcr.io/compozy/compozy:latest
     ```
   </Step>
 </Steps>
@@ -303,7 +303,7 @@ docker logs -f compozy-server
 docker run -d \
   -e RUNTIME_LOG_LEVEL=info \
   -e RUNTIME_LOG_FORMAT=json \
-  compozy/compozy:latest
+  ghcr.io/compozy/compozy:latest
 ```
 
 ## Volumes and Data Persistence
@@ -333,7 +333,7 @@ docker run -d \
   -v compozy-data:/app/data \
   -v compozy-tools:/app/tools \
   -v compozy-logs:/app/logs \
-  compozy/compozy:latest
+  ghcr.io/compozy/compozy:latest
 ```
 
 ## Debugging and Troubleshooting

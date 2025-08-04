@@ -7,13 +7,28 @@ description: Install Compozy CLI and set up your development environment for bui
 
 Choose your preferred installation method. We support various package managers, pre-built binaries, and Docker for easy installation.
 
-<Tabs items={["Homebrew", "Go Install", "Docker", "Linux Packages", "Arch Linux (AUR)", "Pre-built Binary"]}>
+<Tabs items={["Homebrew", "NPM", "Go Install", "Docker", "Linux Packages", "Arch Linux (AUR)", "Nix", "Pre-built Binary"]}>
 
 <Tab>
 **For macOS and Linux users:**
 ```bash
 # Install via Homebrew
-brew install compozy/compozy
+brew tap compozy/homebrew-compozy
+brew install compozy
+```
+</Tab>
+
+<Tab>
+**For Node.js developers:**
+```bash
+# Install via NPM
+npm install -g @compozy/cli
+
+# Or with Yarn
+yarn global add @compozy/cli
+
+# Or with pnpm
+pnpm add -g @compozy/cli
 ```
 </Tab>
 
@@ -73,13 +88,32 @@ yay -S compozy-bin
 </Tab>
 
 <Tab>
-Our installer script automatically downloads the correct binary for your system.
+**For Nix users:**
 ```bash
-# Download and install pre-built binary via script
-curl -fsSL https://install.compozy.com | sh
+# Install via Nix
+nix-env -iA nixpkgs.compozy
+
+# Or with Home Manager
+home.packages = [ pkgs.compozy ];
+```
+</Tab>
+
+<Tab>
+Download the pre-built binary for your platform.
+
+**Quick install script (coming soon):**
+```bash
+# This feature will be available in a future release
+# curl -fsSL https://install.compozy.com | sh
 ```
 
-Alternatively, you can download a specific binary for your OS and architecture from our [GitHub Releases](https://github.com/compozy/compozy/releases) page.
+**Manual download:**
+Download the appropriate binary for your OS and architecture from our [GitHub Releases](https://github.com/compozy/compozy/releases) page.
+
+1. Download the archive for your platform (e.g., `compozy_x.x.x_linux_x86_64.tar.gz`)
+2. Extract the archive: `tar -xzf compozy_*.tar.gz`
+3. Move the binary to your PATH: `sudo mv compozy /usr/local/bin/`
+4. Make it executable: `sudo chmod +x /usr/local/bin/compozy`
 </Tab>
 
 </Tabs>

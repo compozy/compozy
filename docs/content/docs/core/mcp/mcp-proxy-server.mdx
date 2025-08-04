@@ -322,7 +322,7 @@ MCP_PROXY_LOG_FORMAT=json
 Start with default configuration:
 
 ```bash
-compozy-mcp-proxy
+compozy mcp-proxy
 ```
 </Step>
 
@@ -331,12 +331,12 @@ Start with custom settings:
 
 ```bash
 # Basic start without authentication
-compozy-mcp-proxy \
-  --host 0.0.0.0 \
-  --port 6001
+compozy mcp-proxy \
+  --mcp-host 0.0.0.0 \
+  --mcp-port 6001
 
 # With authentication enabled
-compozy-mcp-proxy \
+compozy mcp-proxy \
   --host 0.0.0.0 \
   --port 6001 \
   --admin-tokens "secure-admin-token" \
@@ -350,7 +350,7 @@ Use environment variables for production:
 ```bash
 export MCP_PROXY_ADMIN_TOKEN="$(openssl rand -hex 32)"
 export MCP_PROXY_GLOBAL_AUTH_TOKEN="$(openssl rand -hex 32)"
-compozy-mcp-proxy --host 0.0.0.0 --port 6001
+compozy mcp-proxy --mcp-host 0.0.0.0 --mcp-port 6001
 ```
 </Step>
 </Steps>
@@ -362,19 +362,19 @@ compozy-mcp-proxy --host 0.0.0.0 --port 6001
 **Simple Docker Container**
 
 ```dockerfile title="Dockerfile"
-FROM compozy/compozy:latest
+FROM ghcr.io/compozy/mcp-proxy:latest
 
 EXPOSE 6001
 
-CMD ["compozy", "mcp-proxy", "--host", "0.0.0.0", "--port", "6001"]
+CMD ["compozy", "mcp-proxy", "--mcp-host", "0.0.0.0", "--mcp-port", "6001"]
 ```
 
 ```bash title="Run Container"
 docker run -p 6001:6001 \
   -e MCP_PROXY_ADMIN_TOKEN=secure-token \
   -e MCP_PROXY_GLOBAL_AUTH_TOKEN=global-token \
-  compozy/compozy:latest \
-  compozy-mcp-proxy
+  ghcr.io/compozy/mcp-proxy:latest \
+  compozy mcp-proxy
 ```
 </Tab>
 
@@ -386,7 +386,7 @@ version: '3.8'
 
 services:
   mcp-proxy:
-    image: compozy/compozy:latest
+    image: ghcr.io/compozy/mcp-proxy:latest
     ports:
       - "6001:6001"
     environment:
@@ -434,7 +434,7 @@ spec:
     spec:
       containers:
       - name: mcp-proxy
-        image: compozy/compozy:latest
+        image: ghcr.io/compozy/mcp-proxy:latest
         ports:
         - containerPort: 6001
           name: http
@@ -736,15 +736,15 @@ journalctl -f -u mcp-proxy
 
 ```bash
 # Enable debug logging
-compozy-mcp-proxy --debug
+compozy mcp-proxy --debug
 
 # Or with environment variable
-MCP_PROXY_LOG_LEVEL=debug compozy-mcp-proxy
+MCP_PROXY_LOG_LEVEL=debug compozy mcp-proxy
 
 # Debug with specific components
 MCP_PROXY_LOG_LEVEL=debug \
 MCP_PROXY_LOG_COMPONENTS=router,auth,transport \
-compozy-mcp-proxy
+compozy mcp-proxy
 ```
 
 **Debug Features:**

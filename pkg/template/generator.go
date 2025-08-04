@@ -96,6 +96,25 @@ func createTemplateFuncMap() template.FuncMap {
 	return funcMap
 }
 
+// appendToGitignore appends content to an existing .gitignore file
+func (g *generator) appendToGitignore(filePath string, tmpl *template.Template, data any) error {
+	f, err := os.OpenFile(filePath, os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to open .gitignore for appending: %w", err)
+	}
+	defer f.Close()
+	// Execute template to a buffer first
+	var buf strings.Builder
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return fmt.Errorf("failed to execute .gitignore template: %w", err)
+	}
+	// Append with a newline separator
+	if _, err := f.WriteString("\n# Added by Compozy\n" + buf.String()); err != nil {
+		return fmt.Errorf("failed to append to .gitignore: %w", err)
+	}
+	return nil
+}
+
 // createFile creates a single file from template
 func (g *generator) createFile(basePath string, file File, data any) error {
 	// Parse template
@@ -109,6 +128,12 @@ func (g *generator) createFile(basePath string, file File, data any) error {
 		return fmt.Errorf("invalid file name: %s contains path traversal", file.Name)
 	}
 	filePath := filepath.Join(basePath, cleanFileName)
+	// Handle special case for .gitignore
+	if file.Name == ".gitignore" {
+		if _, err := os.Stat(filePath); err == nil {
+			return g.appendToGitignore(filePath, tmpl, data)
+		}
+	}
 	// Handle special case for env.example
 	if file.Name == "env.example" {
 		if _, err := os.Stat(filePath); err == nil {

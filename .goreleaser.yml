@@ -507,48 +507,7 @@ nix:
 
   # NPM publishing configuration (Pro feature)
 npms:
-  - id: compozy
-
-    # Package name on NPM registry
-    name: "@compozy/cli"
-
-    # IDs of the archives to use
-    ids:
-      - compozy-archive
-
-    # Package description
-    description: "Next-level Agentic Orchestration Platform"
-
-    # Homepage
-    homepage: "https://github.com/compozy/compozy"
-
-    # Keywords for better discoverability
-    keywords:
-      - orchestration
-      - workflow
-      - ai
-      - agent
-      - llm
-      - automation
-      - temporal
-
-    # License (inferred from metadata)
-    license: "BSL-1.1"
-
-    # Author information
-    author: "Compozy Team <support@compozy.com>"
-
-    # Repository URL
-    repository: "https://github.com/compozy/compozy"
-
-    # Bug report URL
-    bugs: "https://github.com/compozy/compozy/issues"
-
-    # Access level
+  - name: "@compozy/cli"
+    repository: "git+https://github.com/compozy/compozy.git"
+    bugs: https://github.com/compozy/compozy/issues
     access: public
-
-    # Package format (using the archive format)
-    format: tgz
-
-    # Only publish stable releases to NPM
-    disable: "{{ if .Prerelease }}true{{ else }}false{{ end }}"
