@@ -1,13 +1,21 @@
 import type { Metadata } from "next/types";
 
 export function createMetadata(override: Metadata): Metadata {
+  // Use absolute URL with metadataBase
+  const ogImage = {
+    url: "/banner.png",
+    width: 1200,
+    height: 630,
+    alt: "Compozy - Next-level Agentic Orchestration Platform",
+  };
+  
   return {
     ...override,
     openGraph: {
       title: override.title ?? undefined,
       description: override.description ?? undefined,
       url: "https://compozy.com",
-      images: "/banner.png",
+      images: [ogImage],
       siteName: "Compozy",
       ...override.openGraph,
     },
@@ -16,13 +24,15 @@ export function createMetadata(override: Metadata): Metadata {
       creator: "@compozyai",
       title: override.title ?? undefined,
       description: override.description ?? undefined,
-      images: "/banner.png",
+      images: [ogImage.url],
       ...override.twitter,
     },
   };
 }
 
 export const baseUrl =
-  process.env.NODE_ENV === "development" || !process.env.VERCEL_URL
-    ? new URL("http://localhost:5006")
-    : new URL(`https://${process.env.VERCEL_URL}`);
+  process.env.NEXT_PUBLIC_SITE_URL
+    ? new URL(process.env.NEXT_PUBLIC_SITE_URL)
+    : process.env.NODE_ENV === "production"
+    ? new URL("https://compozy.com")
+    : new URL("http://localhost:5006");
