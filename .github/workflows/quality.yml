@@ -106,7 +106,7 @@ jobs:
         uses: ./.github/actions/setup-bun
 
       - name: Run quality checks
-        run: |
+        run: |-
           # Static analysis
           make lint
 
@@ -117,4 +117,3 @@ jobs:
           # Dead code detection
           go install golang.org/x/tools/cmd/deadcode@latest
           deadcode ./... || echo "Dead code detected"
-

@@ -32,14 +32,14 @@ repos:
       - id: turbo-lint
         name: turbo lint
         description: Run linting via Turborepo
-        entry: bunx turbo run lint --concurrency=1
+        entry: bun run lint
         language: system
         files: \.(js|jsx|ts|tsx)$
         pass_filenames: false
       - id: turbo-type-check
         name: turbo type check
         description: Run TypeScript checking via Turborepo
-        entry: bunx turbo run type-check --concurrency=1
+        entry: bun run type-check
         language: system
         files: \.(ts|tsx)$
         pass_filenames: false
