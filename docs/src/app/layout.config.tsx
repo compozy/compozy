@@ -9,6 +9,10 @@ import type { BaseLayoutProps } from "fumadocs-ui/layouts/shared";
  * Docs Layout: app/docs/layout.tsx
  */
 export const baseOptions: BaseLayoutProps = {
+  disableThemeSwitch: true,
+  themeSwitch: {
+    enabled: false,
+  },
   nav: {
     title: (
       <div className="mb-1">
