@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.0.5](https://github.com/compozy/compozy/compare/v0.0.4...v0.0.5) (2025-08-04)
+
+
+### Bug Fixes
+
+* **cli:** Add missing check on init command ([4bd1f2b](https://github.com/compozy/compozy/commit/4bd1f2be94c22055ef0d55334024f2f086d21478))
+
+
+### Documentation
+
+* **repo:** Adjust install page ([634d0af](https://github.com/compozy/compozy/commit/634d0afa123a89529967237a9cd54c14829f9014))
+
 ## [0.0.4](https://github.com/compozy/compozy/compare/v0.0.3...v0.0.4) (2025-08-04)
 
 

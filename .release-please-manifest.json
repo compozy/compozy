@@ -1,5 +1,5 @@
 {
-  ".": "0.0.4",
+  ".": "0.0.5",
   "tools/delete-file": "0.1.0",
   "tools/exec": "0.1.0",
   "tools/fetch": "0.1.0",
