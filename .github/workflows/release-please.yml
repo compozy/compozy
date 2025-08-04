@@ -67,7 +67,7 @@ jobs:
             fi
             if [ -n "${{ steps.release.outputs.paths_released }}" ]; then
               echo "### Released Paths" >> $GITHUB_STEP_SUMMARY
-              echo "${{ steps.release.outputs.paths_released }}" | tr ',' '\n' | while read path; do
+              echo "${{ steps.release.outputs.paths_released }}" | tr ',' '\n' | while read -r path; do
                 echo "- $path" >> $GITHUB_STEP_SUMMARY
               done
             fi

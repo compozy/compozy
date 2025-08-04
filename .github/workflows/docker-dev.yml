@@ -93,6 +93,7 @@ jobs:
             org.opencontainers.image.licenses=BSL-1.1
 
       - name: Build and push Docker image for ${{ matrix.package.name }} (dev-${{ steps.sha.outputs.short_sha }})
+        id: build
         if: |
           (github.event_name == 'workflow_dispatch' && (github.event.inputs.package == 'all' || github.event.inputs.package == matrix.package.name)) ||
           github.event_name != 'workflow_dispatch'

@@ -67,7 +67,6 @@ jobs:
 
       - name: Validate tag format
         run: |
-          TAG="${{ steps.version.outputs.tag }}"
           VERSION="${{ steps.version.outputs.version }}"
 
           # Validate semantic versioning format
