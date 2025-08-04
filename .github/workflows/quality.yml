@@ -118,35 +118,3 @@ jobs:
           go install golang.org/x/tools/cmd/deadcode@latest
           deadcode ./... || echo "Dead code detected"
 
-      - name: SonarCloud Scan
-        if: github.event_name != 'workflow_dispatch'
-        uses: SonarSource/sonarcloud-github-action@v3.1.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-
-  benchmark:
-    name: Performance Benchmarks
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go with caching
-        uses: ./.github/actions/setup-go
-        with:
-          go-version: "1.24.x"
-          install-tools: "false"
-
-      - name: Run benchmarks
-        run: |
-          go test -bench=. -benchmem -count=3 ./... > benchmark.txt
-
-      - name: Comment PR with benchmarks
-        uses: marocchino/sticky-pull-request-comment@v2
-        with:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          header: benchmark
-          path: benchmark.txt

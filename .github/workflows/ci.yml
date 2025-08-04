@@ -178,7 +178,7 @@ jobs:
 
     env:
       # Go environment
-      CGO_ENABLED: 0
+      CGO_ENABLED: 1
 
     strategy:
       matrix:
