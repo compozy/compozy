@@ -32,12 +32,8 @@ jobs:
         uses: googleapis/release-please-action@v4
         id: release
         with:
-          # Release Please configuration
           config-file: .release-please-config.json
           manifest-file: .release-please-manifest.json
-
-          # Token with appropriate permissions
-          # Using PAT for creating pull requests
           token: ${{ secrets.RELEASE_TOKEN }}
 
       - name: Show Release Please outputs
@@ -52,44 +48,28 @@ jobs:
           echo "- PR number: ${{ steps.release.outputs.pr_number }}"
           echo "- Paths released: ${{ steps.release.outputs.paths_released }}"
 
-          # Add to job summary with grouped commands to reduce shellcheck warnings
-          # shellcheck disable=SC2086,SC2129
-          {
-            echo "## Release Please Results"
-            echo ""
-          } >> $GITHUB_STEP_SUMMARY
-
+          # Add to job summary
+          echo "## Release Please Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
           if [ "${{ steps.release.outputs.releases_created }}" = "true" ]; then
-            # shellcheck disable=SC2086
             echo "🎉 **Releases Created!**" >> $GITHUB_STEP_SUMMARY
             if [ "${{ steps.release.outputs.release_created }}" = "true" ]; then
-              # shellcheck disable=SC2086,SC2129
-              {
-                echo "### Main Package"
-                echo "- **Version:** ${{ steps.release.outputs.version }}"
-                echo "- **Tag:** ${{ steps.release.outputs.tag_name }}"
-              } >> $GITHUB_STEP_SUMMARY
+              echo "### Main Package" >> $GITHUB_STEP_SUMMARY
+              echo "- **Version:** ${{ steps.release.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+              echo "- **Tag:** ${{ steps.release.outputs.tag_name }}" >> $GITHUB_STEP_SUMMARY
             fi
             if [ -n "${{ steps.release.outputs.paths_released }}" ]; then
-              # shellcheck disable=SC2086
               echo "### Released Paths" >> $GITHUB_STEP_SUMMARY
               echo "${{ steps.release.outputs.paths_released }}" | tr ',' '\n' | while read -r path; do
-                # shellcheck disable=SC2086
                 echo "- $path" >> $GITHUB_STEP_SUMMARY
               done
             fi
           elif [ "${{ steps.release.outputs.pr_created }}" = "true" ]; then
-            # shellcheck disable=SC2086,SC2129
-            {
-              echo "📝 **Release PR Created**"
-              echo "- **PR Number:**  #${{ steps.release.outputs.pr_number }}"
-            } >> $GITHUB_STEP_SUMMARY
+            echo "📝 **Release PR Created**" >> $GITHUB_STEP_SUMMARY
+            echo "- **PR Number:**  #${{ steps.release.outputs.pr_number }}" >> $GITHUB_STEP_SUMMARY
           else
-            # shellcheck disable=SC2086,SC2129
-            {
-              echo "ℹ️ **No Release Action Needed**"
-              echo "No conventional commits found that warrant a release."
-            } >> $GITHUB_STEP_SUMMARY
+            echo "ℹ️ **No Release Action Needed**" >> $GITHUB_STEP_SUMMARY
+            echo "No conventional commits found that warrant a release." >> $GITHUB_STEP_SUMMARY
           fi
 
       - name: Checkout code for release validation
@@ -119,20 +99,6 @@ jobs:
             exit 1
           fi
 
-      - name: Checkout Release PR branch for formatting
-        if: steps.release.outputs.pr_created == 'true'
-        uses: actions/checkout@v4
-        with:
-          # Check out the branch created by release-please
-          ref: release-please-main
-          token: ${{ secrets.RELEASE_TOKEN }}
-
-      - name: Setup Bun
-        if: steps.release.outputs.pr_created == 'true'
-        uses: ./.github/actions/setup-bun
-        with:
-          bun-version: latest
-
       - name: Trigger release workflow
         if: steps.release.outputs.release_created == 'true'
         run: |-
@@ -140,3 +106,51 @@ jobs:
           echo "The release workflow will be triggered by the tag push event"
           echo "Tag: ${{ steps.release.outputs.tag_name }}"
           echo "Version: ${{ steps.release.outputs.version }}"
+
+  # Publish npm packages job
+  # This job runs when release-please creates a new release tag for the main package
+  # It synchronizes all tool package versions to match the main version and publishes them
+  npm-publish:
+    name: Publish npm packages
+    runs-on: ubuntu-latest
+    needs: release-please
+    if: needs.release-please.outputs.release-created == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.RELEASE_TOKEN }}
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: ./.github/actions/setup-bun
+        with:
+          bun-version: latest
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Sync tool versions
+        run: |
+          echo "Synchronizing tool versions to ${{ needs.release-please.outputs.version }}"
+          ./scripts/sync-tool-versions.sh "${{ needs.release-please.outputs.version }}"
+
+          # Check if there are changes to commit
+          if ! git diff --quiet tools/*/package.json; then
+            echo "Committing version updates..."
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add tools/*/package.json
+            git commit -m "chore(tools): sync tool versions to v${{ needs.release-please.outputs.version }}"
+            git push
+          else
+            echo "No version changes needed"
+          fi
+
+      - name: Publish npm packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: ./scripts/publish.sh
