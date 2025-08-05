@@ -38,6 +38,9 @@
     },
     "clean": {
       "cache": false
+    },
+    "update:deps": {
+      "cache": false
     }
   }
 }

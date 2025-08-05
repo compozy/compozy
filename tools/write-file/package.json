@@ -12,7 +12,8 @@
     "test": "bun test",
     "type-check": "tsc --noEmit",
     "lint": "oxlint",
-    "lint:fix": "oxlint --fix"
+    "lint:fix": "oxlint --fix",
+    "update:deps": "updates -Gu"
   },
   "keywords": [
     "compozy",
@@ -37,9 +38,9 @@
   },
   "devDependencies": {
     "@types/bun": "latest",
-    "@types/node": "^20.0.0"
+    "@types/node": "^24.2.0"
   },
   "peerDependencies": {
-    "typescript": "^5.0.0"
+    "typescript": "^5.9.2"
   }
 }

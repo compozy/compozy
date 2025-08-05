@@ -17,6 +17,7 @@
         "prettier-plugin-sh": "0.18.0",
         "turbo": "2.5.5",
         "typescript": "5.9.2",
+        "updates": "^16.5.2",
         "vite": "7.0.6",
       },
     },
@@ -2806,6 +2807,8 @@
     "unplugin": ["unplugin@1.16.1", "", { "dependencies": { "acorn": "^8.14.0", "webpack-virtual-modules": "^0.6.2" } }, "sha512-4/u/j4FrCKdi17jaxuJA0jClGxB1AvU2hw/IuayPc4ay1XGaJs/rbb4v5WKwAjNifjmXK9PIFyuPiaK8azyR9w=="],
 
     "update-browserslist-db": ["update-browserslist-db@1.1.3", "", { "dependencies": { "escalade": "^3.2.0", "picocolors": "^1.1.1" }, "peerDependencies": { "browserslist": ">= 4.21.0" }, "bin": { "update-browserslist-db": "cli.js" } }, "sha512-UxhIZQ+QInVdunkDAaiazvvT/+fXL5Osr0JZlJulepYu6Jd7qJtDZjlur0emRlT71EN3ScPoE7gvsuIKKNavKw=="],
+
+    "updates": ["updates@16.5.2", "", { "bin": { "updates": "dist/index.js" } }, "sha512-CyxIT9TvUGe62hNWXW5FjbgNd8cPucqO5yrihmf+WgMtSUj31b4HyPuMsozxTnO0XQhTTLShIyV7ySJSSC5dsg=="],
 
     "uri-js": ["uri-js@4.4.1", "", { "dependencies": { "punycode": "^2.1.0" } }, "sha512-7rKUyy33Q1yc98pQ1DAmLtwX109F7TIfWlW1Ydo8Wl1ii1SeHieeh0HHfPeL2fMXK6z0s8ecKs9frCuLJvndBg=="],
 

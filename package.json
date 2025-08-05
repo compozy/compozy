@@ -20,7 +20,8 @@
     "test": "turbo run test",
     "clean": "turbo run clean",
     "clean:deps": "rm -rf node_modules bun.lockb",
-    "reinstall": "bun run clean:deps && bun install"
+    "reinstall": "bun run clean:deps && bun install",
+    "update:deps": "turbo run update:deps"
   },
   "devDependencies": {
     "@commitlint/config-conventional": "^19.8.1",
@@ -33,6 +34,7 @@
     "prettier-plugin-sh": "0.18.0",
     "turbo": "2.5.5",
     "typescript": "5.9.2",
+    "updates": "^16.5.2",
     "vite": "7.0.6"
   },
   "overrides": {
