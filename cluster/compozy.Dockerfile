@@ -39,7 +39,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     ./
 
 # Runtime stage - Alpine-based for Bun support
-FROM alpine:3.20
+FROM alpine:3.22
 
 # Install runtime dependencies
 RUN apk add --no-cache \

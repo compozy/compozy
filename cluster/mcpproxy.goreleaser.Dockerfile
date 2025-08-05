@@ -2,7 +2,7 @@
 # This Dockerfile expects the pre-built binary from GoReleaser
 
 # Production stage - Use Alpine for runtime dependencies while maintaining security
-FROM alpine:3.20
+FROM alpine:3.22
 
 # Install runtime dependencies required for engine/runtime and mcp-proxy
 RUN apk add --no-cache \

@@ -40,7 +40,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH:-amd64} \
 RUN ./compozy mcp-proxy --help || echo "Compozy MCP Proxy command built successfully"
 
 # Production stage - Use Alpine for runtime dependencies while maintaining security
-FROM alpine:3.20
+FROM alpine:3.22
 
 # Install runtime dependencies required for engine/runtime and mcp-proxy
 RUN apk add --no-cache     ca-certificates     tzdata     bash     nodejs     npm     python3     py3-pip     curl     wget     # Network debugging tools    netcat-openbsd     bind-tools     # Redis CLI for storage debugging    redis     # Process monitoring    procps
