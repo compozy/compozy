@@ -1,6 +1,6 @@
 {
   "name": "@compozy/tool-grep",
-  "version": "0.1.0",
+  "version": "0.0.4",
   "description": "Compozy tool for searching content in files using pattern matching",
   "type": "module",
   "main": "index.ts",
