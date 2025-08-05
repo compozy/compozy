@@ -59,7 +59,7 @@ jobs:
           GO_VERSION: "1.24.x"
 
       - name: Coverage Badge
-        uses: tj-actions/coverage-badge-go@v2
+        uses: tj-actions/coverage-badge-go@v3
         if: github.ref == 'refs/heads/main'
         with:
           filename: coverage.out
