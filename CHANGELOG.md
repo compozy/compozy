@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.0.5](https://github.com/compozy/compozy/compare/v0.0.4...v0.0.5) (2025-08-05)
+
+
+### Bug Fixes
+
+* **cli:** Add missing check on init command ([4bd1f2b](https://github.com/compozy/compozy/commit/4bd1f2be94c22055ef0d55334024f2f086d21478))
+* **docs:** Metadata og url ([f2dbd8d](https://github.com/compozy/compozy/commit/f2dbd8d85f24eecca61270df5cf7b2c882de235a))
+
+
+### Documentation
+
+* **repo:** Adjust install page ([634d0af](https://github.com/compozy/compozy/commit/634d0afa123a89529967237a9cd54c14829f9014))
+* **repo:** Update readme ([f5d276a](https://github.com/compozy/compozy/commit/f5d276a0e51018904edfc180d57fa168be18961a))
+
+
+### Code Refactoring
+
+* **docs:** Disable theme switcher ([e5d13eb](https://github.com/compozy/compozy/commit/e5d13ebb265ab5e43f5129c73f57c573815983f8))
+* **repo:** Improve test suite ([93eb766](https://github.com/compozy/compozy/commit/93eb7669132754aff960aead43abb0747b1184ac))
+
 ## [0.0.4](https://github.com/compozy/compozy/compare/v0.0.3...v0.0.4) (2025-08-04)
 
 ### Features
