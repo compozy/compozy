@@ -18,7 +18,7 @@ BUNCMD=bun
 # Build Variables
 # -----------------------------------------------------------------------------
 GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
-VERSION := $(shell git describe --tags --always 2>/dev/null || echo "unknown")
+VERSION := $(shell git describe --tags --match="v*" --always 2>/dev/null || echo "unknown")
 
 # Build flags for injecting version info (aligned with GoReleaser format)
 BUILD_DATE := $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
