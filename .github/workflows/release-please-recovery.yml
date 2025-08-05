@@ -1,0 +1,95 @@
+name: Release Please Recovery
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to recover (optional - recovers all if not specified)'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  recover-stuck-releases:
+    name: Recover Stuck Releases
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_TOKEN }}
+
+      - name: Find and fix stuck PRs
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: |
+          echo "🔍 Looking for stuck release PRs..."
+          
+          if [ -n "${{ github.event.inputs.pr_number }}" ]; then
+            # Specific PR recovery
+            PR_NUM="${{ github.event.inputs.pr_number }}"
+            echo "Recovering specific PR #$PR_NUM"
+            
+            # Remove autorelease:pending label
+            gh pr edit $PR_NUM --remove-label "autorelease: pending" || true
+            
+            # Get PR info
+            PR_INFO=$(gh pr view $PR_NUM --json mergeCommit,title,number)
+            MERGE_COMMIT=$(echo "$PR_INFO" | jq -r '.mergeCommit.oid')
+            PR_TITLE=$(echo "$PR_INFO" | jq -r '.title')
+            
+            # Extract version from PR title
+            VERSION=$(echo "$PR_TITLE" | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+            
+            if [ -n "$VERSION" ] && [ -n "$MERGE_COMMIT" ]; then
+              echo "Creating tag $VERSION at commit $MERGE_COMMIT"
+              git tag -a "$VERSION" "$MERGE_COMMIT" -m "Release $VERSION"
+              git push origin "$VERSION"
+              
+              # Trigger release workflow
+              echo "Tag created. The release workflow should trigger automatically."
+            fi
+          else
+            # Recover all stuck PRs
+            STUCK_PRS=$(gh pr list --state merged --label "autorelease: pending" --json number,title,mergeCommit --jq '.[]')
+            
+            if [ -n "$STUCK_PRS" ]; then
+              echo "$STUCK_PRS" | while IFS= read -r pr; do
+                PR_NUM=$(echo "$pr" | jq -r '.number')
+                PR_TITLE=$(echo "$pr" | jq -r '.title')
+                MERGE_COMMIT=$(echo "$pr" | jq -r '.mergeCommit.oid')
+                
+                echo "Processing PR #$PR_NUM: $PR_TITLE"
+                
+                # Remove autorelease:pending label
+                gh pr edit $PR_NUM --remove-label "autorelease: pending" || true
+                
+                # Extract version
+                VERSION=$(echo "$PR_TITLE" | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+                
+                if [ -n "$VERSION" ] && [ -n "$MERGE_COMMIT" ]; then
+                  # Check if tag already exists
+                  if ! git tag -l | grep -q "^$VERSION$"; then
+                    echo "Creating tag $VERSION at commit $MERGE_COMMIT"
+                    git tag -a "$VERSION" "$MERGE_COMMIT" -m "Release $VERSION"
+                    git push origin "$VERSION"
+                  else
+                    echo "Tag $VERSION already exists, skipping"
+                  fi
+                fi
+              done
+            else
+              echo "No stuck PRs found with autorelease:pending label"
+            fi
+          fi
+
+      - name: Trigger release-please
+        run: |
+          echo "Triggering release-please workflow..."
+          gh workflow run release-please.yml
