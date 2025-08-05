@@ -7,7 +7,8 @@
     "test": "bun test",
     "type-check": "tsc --noEmit",
     "lint": "oxlint",
-    "lint:fix": "oxlint --fix"
+    "lint:fix": "oxlint --fix",
+    "update:deps": "updates -Gu"
   },
   "keywords": [
     "compozy",
@@ -36,10 +37,10 @@
     "README.md"
   ],
   "dependencies": {
-    "minimatch": "^9.0.3"
+    "minimatch": "^10.0.3"
   },
   "devDependencies": {
-    "@types/bun": "^1.0.0",
-    "@types/minimatch": "^5.1.2"
+    "@types/bun": "^1.2.19",
+    "@types/minimatch": "^6.0.0"
   }
 }

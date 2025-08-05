@@ -25,10 +25,11 @@
     "test": "bun test",
     "type-check": "tsc --noEmit",
     "lint": "oxlint",
-    "lint:fix": "oxlint --fix"
+    "lint:fix": "oxlint --fix",
+    "update:deps": "updates -Gu"
   },
   "devDependencies": {
-    "@types/bun": "^1.1.17",
-    "typescript": "^5.7.3"
+    "@types/bun": "^1.2.19",
+    "typescript": "^5.9.2"
   }
 }

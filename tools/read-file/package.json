@@ -12,7 +12,8 @@
     "test": "bun test",
     "type-check": "tsc --noEmit",
     "lint": "oxlint",
-    "lint:fix": "oxlint --fix"
+    "lint:fix": "oxlint --fix",
+    "update:deps": "updates -Gu"
   },
   "keywords": [
     "compozy",
@@ -36,7 +37,7 @@
     "registry": "https://registry.npmjs.org/"
   },
   "devDependencies": {
-    "@types/bun": "^1.2.18",
-    "typescript": "^5.8.3"
+    "@types/bun": "^1.2.19",
+    "typescript": "^5.9.2"
   }
 }
