@@ -1,46 +1,5 @@
 {
   "name": "@compozy/tool-write-file",
-  "version": "0.0.4",
-  "description": "A Compozy tool for writing content to files",
-  "type": "module",
-  "main": "index.ts",
-  "files": [
-    "index.ts",
-    "README.md"
-  ],
-  "scripts": {
-    "test": "bun test",
-    "type-check": "tsc --noEmit",
-    "lint": "oxlint",
-    "lint:fix": "oxlint --fix",
-    "update:deps": "updates -Gu"
-  },
-  "keywords": [
-    "compozy",
-    "tool",
-    "file",
-    "write"
-  ],
-  "author": "Compozy",
-  "license": "BSL-1.1",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/compozy/compozy.git",
-    "directory": "tools/write-file"
-  },
-  "homepage": "https://github.com/compozy/compozy/tree/main/tools/write-file",
-  "bugs": {
-    "url": "https://github.com/compozy/compozy/issues"
-  },
-  "publishConfig": {
-    "access": "public",
-    "registry": "https://registry.npmjs.org/"
-  },
-  "devDependencies": {
-    "@types/bun": "latest",
-    "@types/node": "^24.2.0"
-  },
-  "peerDependencies": {
-    "typescript": "^5.9.2"
-  }
+  "version": "1.0.0",
+  "private": false
 }

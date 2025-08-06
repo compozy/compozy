@@ -20,7 +20,7 @@ fi
 echo "Preparing PR body for version: $VERSION"
 
 # Load the template
-if [ -f "$TEMPLATE_FILE" ]; then
+if [[ -f "$TEMPLATE_FILE" ]]; then
     TEMPLATE=$(cat "$TEMPLATE_FILE")
 else
     # Fallback template if file doesn't exist
@@ -41,15 +41,47 @@ This PR prepares the release of version **$VERSION**.
 fi
 
 # Get changelog preview
-if [ -f "$CHANGELOG_FILE" ]; then
+if [[ -f "$CHANGELOG_FILE" ]]; then
     CHANGELOG_PREVIEW=$(cat "$CHANGELOG_FILE")
 else
     CHANGELOG_PREVIEW="No changes detected - force release requested"
 fi
 
-# Replace placeholders
-BODY=$(echo "$TEMPLATE" | sed "s|{{ .Version }}|$VERSION|g")
-BODY=$(echo "$BODY" | sed "s|{{ .ChangelogPreview }}|$CHANGELOG_PREVIEW|g")
+# Create a temporary file for the changelog to avoid multi-line variable issues
+TEMP_CHANGELOG=$(mktemp)
+trap "rm -f '$TEMP_CHANGELOG'" EXIT
+echo "$CHANGELOG_PREVIEW" > "$TEMP_CHANGELOG"
 
-# Save to file for the PR action
-echo "$BODY" > "$OUTPUT_FILE"
+# Use awk with file reading instead of variable passing for multi-line content
+{
+    echo "$TEMPLATE" | awk -v version="$VERSION" -v changelog_file="$TEMP_CHANGELOG" '
+    BEGIN {
+        # Read the entire changelog file into a variable
+        changelog = ""
+        while ((getline line < changelog_file) > 0) {
+            if (changelog != "") {
+                changelog = changelog "\n" line
+            } else {
+                changelog = line
+            }
+        }
+        close(changelog_file)
+        
+        # Escape special characters for safe replacement
+        # Escape backslashes first
+        gsub(/\\/, "\\\\", changelog)
+        # Escape ampersands (which have special meaning in sub/gsub replacement)
+        gsub(/&/, "\\\\&", changelog)
+    }
+    {
+        # Replace {{ .Version }} with actual version
+        gsub(/\{\{ \.Version \}\}/, version)
+        
+        # For {{ .ChangelogPreview }}, we need special handling
+        if (match($0, /\{\{ \.ChangelogPreview \}\}/)) {
+            # Replace the placeholder with the changelog content
+            sub(/\{\{ \.ChangelogPreview \}\}/, changelog)
+        }
+        print
+    }'
+} > "$OUTPUT_FILE"

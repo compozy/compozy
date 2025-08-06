@@ -1,43 +1,5 @@
 {
   "name": "@compozy/tool-read-file",
-  "version": "0.0.4",
-  "description": "Compozy tool for reading file content",
-  "type": "module",
-  "main": "index.ts",
-  "files": [
-    "index.ts",
-    "README.md"
-  ],
-  "scripts": {
-    "test": "bun test",
-    "type-check": "tsc --noEmit",
-    "lint": "oxlint",
-    "lint:fix": "oxlint --fix",
-    "update:deps": "updates -Gu"
-  },
-  "keywords": [
-    "compozy",
-    "tool",
-    "file",
-    "read"
-  ],
-  "author": "Compozy",
-  "license": "BSL-1.1",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/compozy/compozy.git",
-    "directory": "tools/read-file"
-  },
-  "homepage": "https://github.com/compozy/compozy/tree/main/tools/read-file",
-  "bugs": {
-    "url": "https://github.com/compozy/compozy/issues"
-  },
-  "publishConfig": {
-    "access": "public",
-    "registry": "https://registry.npmjs.org/"
-  },
-  "devDependencies": {
-    "@types/bun": "^1.2.19",
-    "typescript": "^5.9.2"
-  }
+  "version": "1.0.0",
+  "private": false
 }

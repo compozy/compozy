@@ -116,7 +116,11 @@ schemagen-watch:
 # -----------------------------------------------------------------------------
 # Release Management
 # -----------------------------------------------------------------------------
-.PHONY: release release-dry-run release-minor release-major release-patch release-deps
+.PHONY: release release-dry-run release-minor release-major release-patch release-deps compozy-release
+
+# Build the compozy-release binary
+compozy-release:
+	$(GOBUILD) -o $(BINARY_DIR)/compozy-release ./pkg/release
 
 # Install go-semantic-release
 release-deps:

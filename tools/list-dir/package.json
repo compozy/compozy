@@ -1,46 +1,5 @@
 {
   "name": "@compozy/tool-list-dir",
-  "version": "0.0.4",
-  "description": "Directory listing tool for Compozy workflows",
-  "main": "index.ts",
-  "scripts": {
-    "test": "bun test",
-    "type-check": "tsc --noEmit",
-    "lint": "oxlint",
-    "lint:fix": "oxlint --fix",
-    "update:deps": "updates -Gu"
-  },
-  "keywords": [
-    "compozy",
-    "tool",
-    "directory",
-    "listing",
-    "glob"
-  ],
-  "author": "Compozy",
-  "license": "BSL-1.1",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/compozy/compozy.git",
-    "directory": "tools/list-dir"
-  },
-  "homepage": "https://github.com/compozy/compozy/tree/main/tools/list-dir",
-  "bugs": {
-    "url": "https://github.com/compozy/compozy/issues"
-  },
-  "publishConfig": {
-    "access": "public",
-    "registry": "https://registry.npmjs.org/"
-  },
-  "files": [
-    "index.ts",
-    "README.md"
-  ],
-  "dependencies": {
-    "minimatch": "^10.0.3"
-  },
-  "devDependencies": {
-    "@types/bun": "^1.2.19",
-    "@types/minimatch": "^6.0.0"
-  }
+  "version": "1.0.0",
+  "private": false
 }

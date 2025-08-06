@@ -7,20 +7,34 @@ set -euo pipefail
 
 # Get the latest tag
 LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-echo "latest_tag=$LATEST_TAG"
 
-if [ -z "$LATEST_TAG" ]; then
+# GitHub Actions output (write directly if available)
+if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+    echo "latest_tag=$LATEST_TAG" >> "$GITHUB_OUTPUT"
+else
+    echo "latest_tag=$LATEST_TAG"
+fi
+
+if [[ -z "$LATEST_TAG" ]]; then
     echo "No previous tags found, will create initial release"
-    echo "has_changes=true"
+    if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+        echo "has_changes=true" >> "$GITHUB_OUTPUT"
+    else
+        echo "has_changes=true"
+    fi
     exit 0
 fi
 
 # Check if there are any commits since last tag
 COMMITS_SINCE=$(git rev-list --count "$LATEST_TAG"..HEAD)
 
-if [ "$COMMITS_SINCE" -eq 0 ]; then
+if [[ "$COMMITS_SINCE" -eq 0 ]]; then
     echo "No commits since last tag"
-    echo "has_changes=false"
+    if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+        echo "has_changes=false" >> "$GITHUB_OUTPUT"
+    else
+        echo "has_changes=false"
+    fi
     exit 0
 fi
 
@@ -36,27 +50,43 @@ if command -v git-cliff &> /dev/null; then
     NEXT_VERSION=$(git-cliff --unreleased --bump --strip all 2>/dev/null | head -1 || echo "")
     
     # If git-cliff couldn't determine a version, try alternative method
-    if [ -z "$NEXT_VERSION" ]; then
+    if [[ -z "$NEXT_VERSION" ]]; then
         # Check for conventional commits that trigger bumps (feat, fix, breaking)
         BUMP_COMMITS=$(git log "$LATEST_TAG"..HEAD --oneline | grep -E "^[a-f0-9]+ (feat|fix|perf|refactor|revert|build|ci|docs|style|test|chore)(\(.+\))?!?:" || true)
         BREAKING_COMMITS=$(git log "$LATEST_TAG"..HEAD --oneline | grep -E "^[a-f0-9]+ .+!:" || true)
         VERSION_COMMITS=$(git log "$LATEST_TAG"..HEAD --oneline | grep -E "^[a-f0-9]+ (feat|fix|perf)(\(.+\))?:" || true)
         
-        if [ -n "$BREAKING_COMMITS" ] || [ -n "$VERSION_COMMITS" ]; then
+        if [[ -n "$BREAKING_COMMITS" ]] || [[ -n "$VERSION_COMMITS" ]]; then
             echo "Found commits that warrant a version bump"
-            echo "has_changes=true"
+            if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+                echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            else
+                echo "has_changes=true"
+            fi
         else
             echo "Commits found but they don't warrant a version bump (only chores, docs, etc.)"
-            echo "has_changes=false"
+            if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+                echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            else
+                echo "has_changes=false"
+            fi
         fi
     else
         # Compare versions to see if bump is needed
-        if [ "$NEXT_VERSION" != "$CURRENT_VERSION" ]; then
+        if [[ "$NEXT_VERSION" != "$CURRENT_VERSION" ]]; then
             echo "Version would bump from $CURRENT_VERSION to $NEXT_VERSION"
-            echo "has_changes=true"
+            if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+                echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            else
+                echo "has_changes=true"
+            fi
         else
             echo "No version bump needed (current: $CURRENT_VERSION, calculated: $NEXT_VERSION)"
-            echo "has_changes=false"
+            if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+                echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            else
+                echo "has_changes=false"
+            fi
         fi
     fi
 else
@@ -69,9 +99,17 @@ else
     
     if [ -n "$BREAKING_COMMITS" ] || [ -n "$VERSION_COMMITS" ]; then
         echo "Found commits that warrant a version bump"
-        echo "has_changes=true"
+        if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+        else
+            echo "has_changes=true"
+        fi
     else
         echo "Only non-bumping commits found (chores, docs, etc.)"
-        echo "has_changes=false"
+        if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+        else
+            echo "has_changes=false"
+        fi
     fi
 fi
