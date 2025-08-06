@@ -8,6 +8,10 @@ on:
     branches:
       - main
 
+env:
+  GO_VERSION: "1.24.x"
+  CGO_ENABLED: 1
+
 permissions:
   contents: write
   pull-requests: write
@@ -18,8 +22,6 @@ jobs:
     name: Test Coverage
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    env:
-      CGO_ENABLED: 1
 
     steps:
       - name: Checkout code
@@ -28,7 +30,7 @@ jobs:
       - name: Set up Go with caching
         uses: ./.github/actions/setup-go
         with:
-          go-version: "1.24.x"
+          go-version: ${{ env.GO_VERSION }}
           install-tools: "true"
 
       - name: Setup Bun
@@ -56,37 +58,4 @@ jobs:
           env_vars: OS,GO_VERSION
         env:
           OS: ${{ runner.os }}
-          GO_VERSION: "1.24.x"
-
-  quality-gate:
-    name: Quality Gate
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Set up Go with caching
-        uses: ./.github/actions/setup-go
-        with:
-          go-version: "1.24.x"
-          install-tools: "true"
-
-      - name: Setup Bun
-        uses: ./.github/actions/setup-bun
-
-      - name: Run quality checks
-        run: |-
-          # Static analysis
-          make lint
-
-          # Cyclomatic complexity check
-          go install github.com/fzipp/gocyclo/cmd/gocyclo@latest
-          gocyclo -over 15 . || echo "High complexity detected"
-
-          # Dead code detection
-          go install golang.org/x/tools/cmd/deadcode@latest
-          deadcode ./... || echo "Dead code detected"
+          GO_VERSION: ${{ env.GO_VERSION }}

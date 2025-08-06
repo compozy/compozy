@@ -21,6 +21,9 @@ on:
   schedule:
     - cron: '20 11 * * 5'
 
+env:
+  GO_VERSION: "1.24.x"
+
 permissions:
   contents: read
   security-events: write
@@ -60,7 +63,7 @@ jobs:
         if: matrix.language == 'go'
         uses: ./.github/actions/setup-go
         with:
-          go-version: "1.24.x"
+          go-version: ${{ env.GO_VERSION }}
           install-tools: "false"
 
     # Setup Bun for TypeScript analysis
@@ -112,7 +115,7 @@ jobs:
       - name: Set up Go
         uses: ./.github/actions/setup-go
         with:
-          go-version: "1.24.x"
+          go-version: ${{ env.GO_VERSION }}
           install-tools: "false"
 
       - name: Run Gosec Security Scanner
@@ -172,7 +175,7 @@ jobs:
       - name: Set up Go
         uses: ./.github/actions/setup-go
         with:
-          go-version: "1.24.x"
+          go-version: ${{ env.GO_VERSION }}
           install-tools: "false"
 
       - name: Install govulncheck
