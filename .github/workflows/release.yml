@@ -1,254 +1,191 @@
 name: Release
 
 on:
+  # Trigger on push to main for Release PR creation/update
   push:
-    tags:
-      - "v*"
+    branches:
+      - main
+    paths-ignore:
+      - "**.md"
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".github/PULL_REQUEST_TEMPLATE/**"
+
+  # Trigger on PR events for dry-run checks
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - labeled
+    branches:
+      - main
+
+  # Manual trigger for emergency releases
   workflow_dispatch:
     inputs:
-      tag:
-        description: "Tag to release"
-        required: true
-        type: string
+      force_release:
+        description: "Force a release even if no changes"
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
   group: release-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: "1.24.x"
+  NODE_VERSION: "22"
+  INITIAL_VERSION: "v0.0.4"
 
 permissions:
   contents: write
   packages: write
+  pull-requests: write
   id-token: write
   attestations: write
 
 jobs:
-  # Validate release prerequisites
-  validate-release:
-    name: Validate Release
+  # Job 1: Create or update Release PR
+  release-pr:
+    name: Create/Update Release PR
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    outputs:
-      version: ${{ steps.version.outputs.version }}
-      tag: ${{ steps.version.outputs.tag }}
-      is-prerelease: ${{ steps.version.outputs.is-prerelease }}
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_TOKEN }}
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - uses: ./.github/actions/setup-git-cliff
+
+      - name: Run PR Release Orchestrator
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+          INITIAL_VERSION: ${{ env.INITIAL_VERSION }}
+        run: |
+          if [[ "${{ github.event.inputs.force_release }}" == "true" ]]; then
+            go run ./pkg/release pr-release --force --enable-rollback --ci-output
+          else
+            go run ./pkg/release pr-release --enable-rollback --ci-output
+          fi
+
+  # Job 2: Dry-run checks on Release PR
+  dry-run:
+    name: Dry-Run Release Check
+    if: |
+      github.event_name == 'pull_request' &&
+      contains(github.event.pull_request.labels.*.name, 'release-pending')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Extract version information
-        id: version
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            TAG="${{ github.event.inputs.tag }}"
-          else
-            TAG="${{ github.ref_name }}"
-          fi
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
 
-          # shellcheck disable=SC2086
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
 
-          # Extract version (remove 'v' prefix if present)
-          VERSION=${TAG#v}
-          # shellcheck disable=SC2086
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+      - name: Setup Release Tools
+        uses: ./.github/actions/setup-release
+        with:
+          goreleaser-distribution: goreleaser-pro
+          setup-docker: false
+          setup-docker-login: false
 
-          # Check if this is a prerelease
-          if echo "$VERSION" | grep -qE '-(alpha|beta|rc|pre)'; then
-            # shellcheck disable=SC2086
-            echo "is-prerelease=true" >> $GITHUB_OUTPUT
-          else
-            # shellcheck disable=SC2086
-            echo "is-prerelease=false" >> $GITHUB_OUTPUT
-          fi
+      - name: Run Dry-Run Orchestrator
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+          GITHUB_HEAD_REF: ${{ github.head_ref }}
+          GITHUB_ISSUE_NUMBER: ${{ github.event.pull_request.number }}
+          GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
+        run: go run ./pkg/release dry-run --ci-output
 
-          echo "Release Information:"
-          echo "- Tag: $TAG"
-          echo "- Version: $VERSION"
-          echo "- Prerelease: $(echo "$VERSION" | grep -qE '-(alpha|beta|rc|pre)' && echo "true" || echo "false")"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dry-run-artifacts
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/checksums.txt
+            dist/metadata.json
+          retention-days: 7
 
-      - name: Validate tag format
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-
-          # Validate semantic versioning format
-          if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?(\+[a-zA-Z0-9.-]+)?$'; then
-            echo "❌ Invalid version format: $VERSION"
-            echo "Version must follow semantic versioning (e.g., 1.0.0, 1.0.0-beta.1)"
-            exit 1
-          fi
-
-          echo "✅ Version format is valid: $VERSION"
-
-      - name: Check if tag exists
-        run: |
-          TAG="${{ steps.version.outputs.tag }}"
-
-          if ! git tag -l | grep -q "^$TAG$"; then
-            echo "❌ Tag $TAG does not exist"
-            exit 1
-          fi
-
-          echo "✅ Tag $TAG exists"
-
-  # Main release job using GoReleaser
+  # Job 3: Production release on merge
   release:
-    name: Release with GoReleaser
+    name: Production Release
+    if: |
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      contains(github.event.head_commit.message, 'release:')
     runs-on: ubuntu-latest
     timeout-minutes: 120
-    needs:
-      - validate-release
+    env:
+      DOCKER_CLI_EXPERIMENTAL: enabled
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.RELEASE_TOKEN }}
 
-      - name: Checkout specific tag for manual dispatch
-        if: github.event_name == 'workflow_dispatch'
-        run: |
-          TAG="${{ github.event.inputs.tag }}"
-          echo "Checking out tag: $TAG"
-          git checkout "refs/tags/$TAG"
-
-      - name: Set up Go with caching
-        uses: ./.github/actions/setup-go
+      - uses: actions/setup-go@v5
         with:
-          go-version: "1.24.x"
-          install-tools: "false"
+          go-version: ${{ env.GO_VERSION }}
 
-      - name: Cache Go modules and build cache
-        uses: actions/cache@v4
+      - uses: actions/setup-node@v4
         with:
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          path: |
-            ~/.cache/go-build
-            ~/go/pkg/mod
+          node-version: ${{ env.NODE_VERSION }}
+          registry-url: "https://registry.npmjs.org"
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
+      - name: Setup Release Tools
+        uses: ./.github/actions/setup-release
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          goreleaser-distribution: goreleaser-pro
+          setup-docker: true
+          setup-docker-login: true
+          setup-qemu: true
+          docker-registry: ghcr.io
+          docker-username: ${{ github.actor }}
+          docker-token: ${{ secrets.RELEASE_TOKEN }}
+          cosign-version: "v2.2.4"
 
-      - name: Install cosign
-        uses: sigstore/cosign-installer@v3
-        with:
-          cosign-release: "v2.2.4"
+      - name: Run Release Orchestrator
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+          GITHUB_EVENT_HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+          INITIAL_VERSION: ${{ env.INITIAL_VERSION }}
+        run: go run ./pkg/release release --skip-npm --ci-output
 
-      - name: Install syft
-        uses: anchore/sbom-action/download-syft@v0
-        with:
-          syft-version: latest
-
-      - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v6
+      - uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser-pro
-          version: v2.11.2
-          args: release --clean
+          version: latest
+          args: release --clean --release-notes=RELEASE_NOTES.md
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
           RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
           AUR_KEY: ${{ secrets.AUR_KEY }}
           COSIGN_EXPERIMENTAL: 1
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Generate release summary
-        run: |
-          # shellcheck disable=SC2086,SC2129
-          {
-            echo "## Release Summary"
-            echo ""
-            echo "🎉 **Release ${{ needs.validate-release.outputs.version }} completed successfully!**"
-            echo ""
-            echo "**Release Details:**"
-            echo "- **Version:** ${{ needs.validate-release.outputs.version }}"
-            echo "- **Tag:** ${{ needs.validate-release.outputs.tag }}"
-            echo "- **Prerelease:** ${{ needs.validate-release.outputs.is-prerelease }}"
-            echo ""
-            echo "**Artifacts:**"
-            echo "- 📦 Multi-platform binaries (Linux, macOS, Windows)"
-            echo "- 🐳 Container images (amd64, arm64)"
-            echo "- 📋 Checksums and signatures"
-            echo "- 📄 Release notes and changelog"
-            echo ""
-            echo "**Container Images:**"
-            echo "- ghcr.io/compozy/compozy:${{ needs.validate-release.outputs.version }}"
-            echo "- ghcr.io/compozy/compozy:latest"
-          } >> $GITHUB_STEP_SUMMARY
-
-  # Post-release validation
-  post-release-validation:
-    name: Post-Release Validation
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    needs:
-      - validate-release
-      - release
-    if: always() && needs.release.result == 'success'
-
-    steps:
-      - name: Validate GitHub release
-        run: |
-          echo "Validating GitHub release..."
-
-          # Check if release exists
-          RELEASE_URL="https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ needs.validate-release.outputs.tag }}"
-
-          if curl -s -f -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "$RELEASE_URL" > /dev/null; then
-            echo "✅ GitHub release exists"
-          else
-            echo "❌ GitHub release not found"
-            exit 1
-          fi
-
-      - name: Validate container images
-        run: |
-          echo "Validating container images..."
-
-          # Check if container images exist
-          VERSION="${{ needs.validate-release.outputs.version }}"
-
-          for arch in amd64 arm64; do
-            IMAGE="ghcr.io/compozy/compozy:${VERSION}-${arch}"
-            if docker manifest inspect "$IMAGE" > /dev/null 2>&1; then
-              echo "✅ Container image exists: $IMAGE"
-            else
-              echo "❌ Container image not found: $IMAGE"
-              exit 1
-            fi
-          done
-
-          # Check multi-arch manifest
-          MANIFEST_IMAGE="ghcr.io/compozy/compozy:${VERSION}"
-          if docker manifest inspect "$MANIFEST_IMAGE" > /dev/null 2>&1; then
-            echo "✅ Multi-arch manifest exists: $MANIFEST_IMAGE"
-          else
-            echo "❌ Multi-arch manifest not found: $MANIFEST_IMAGE"
-            exit 1
-          fi
-
-      - name: Create validation summary
-        run: |-
-          # shellcheck disable=SC2086,SC2129
-          {
-            echo "## Post-Release Validation"
-            echo ""
-            echo "✅ **All release artifacts validated successfully**"
-            echo ""
-            echo "**Validated:**"
-            echo "- ✅ GitHub release created"
-            echo "- ✅ Container images published"
-            echo "- ✅ Multi-architecture manifests created"
-            echo ""
-            echo "🎉 **Release ${{ needs.validate-release.outputs.version }} is ready for use!**"
-          } >> $GITHUB_STEP_SUMMARY
