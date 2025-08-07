@@ -13,6 +13,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  CGO_ENABLED: 1
+  GO_VERSION: "1.24.x"
+
 permissions:
   contents: read
   pull-requests: read
@@ -80,6 +84,8 @@ jobs:
   pre-commit:
     name: Pre-commit
     runs-on: ubuntu-latest
+    # Skip pre-commit for release PRs to avoid formatting conflicts with generated files
+    if: ${{ !startsWith(github.head_ref, 'release/') }}
     steps:
       - uses: actions/checkout@v4
 
@@ -93,7 +99,7 @@ jobs:
       - name: Set up Go with caching
         uses: ./.github/actions/setup-go
         with:
-          go-version: "1.24.x"
+          go-version: ${{ env.GO_VERSION }}
           install-tools: "true"
 
       - name: Install Python
@@ -177,15 +183,6 @@ jobs:
     needs: changes
     if: needs.changes.outputs.backend == 'true'
 
-    env:
-      # Go environment
-      CGO_ENABLED: 1
-
-    strategy:
-      matrix:
-        go-version:
-          - "1.24.x"
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -193,11 +190,14 @@ jobs:
       - name: Set up Go with caching
         uses: ./.github/actions/setup-go
         with:
-          go-version: ${{ matrix.go-version }}
+          go-version: ${{ env.GO_VERSION }}
           install-tools: "true"
 
       - name: Setup Bun
         uses: ./.github/actions/setup-bun
+
+      - name: Setup git-cliff for release tests
+        uses: ./.github/actions/setup-git-cliff
 
       - name: Run linting
         run: |
@@ -221,7 +221,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: test-results-go-${{ matrix.go-version }}
+          name: test-results-go-${{ env.GO_VERSION }}
           path: |
             coverage.out
             test-results.xml
