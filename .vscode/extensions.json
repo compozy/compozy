@@ -1,8 +1,8 @@
 {
-    "recommendations": [
-        "oven.bun-vscode",
-        "bradlc.vscode-tailwindcss",
-        "esbenp.prettier-vscode",
-        "ms-vscode.vscode-typescript-next"
-    ]
+  "recommendations": [
+    "oven.bun-vscode",
+    "bradlc.vscode-tailwindcss",
+    "esbenp.prettier-vscode",
+    "ms-vscode.vscode-typescript-next"
+  ]
 }
