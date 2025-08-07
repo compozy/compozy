@@ -9,11 +9,11 @@ project_name: compozy
 # Metadata configuration
 metadata:
   mod_timestamp: "{{ .CommitTimestamp }}"
-  maintainers:
-    - "Compozy Team <support@compozy.com>"
   license: "BSL-1.1"
   homepage: "https://github.com/compozy/compozy"
   description: "Next-level Agentic Orchestration Platform"
+  maintainers:
+    - "Compozy Team <support@compozy.com>"
 
 # Environment variables
 env:
@@ -31,18 +31,13 @@ builds:
   - id: compozy
     main: ./
     binary: compozy
-
-    # Build for multiple platforms
     goos:
       - linux
       - darwin
       - windows
-
     goarch:
       - amd64
       - arm64
-
-    # Build constraints
     ignore:
       # Skip unsupported combinations
       - goos: windows
@@ -51,23 +46,15 @@ builds:
         goarch: "386"
       - goos: darwin
         goarch: arm
-
-    # Linker flags for version injection
     ldflags:
       - -s -w
       - -X github.com/compozy/compozy/pkg/version.Version={{.Version}}
       - -X github.com/compozy/compozy/pkg/version.CommitHash={{.ShortCommit}}
       - -X github.com/compozy/compozy/pkg/version.BuildDate={{.Date}}
-
-    # Build environment
     env:
       - CGO_ENABLED=0
-
-    # Build flags
     flags:
       - -trimpath
-
-    # Build mode
     mod_timestamp: "{{ .CommitTimestamp }}"
 
 # Archive configuration
@@ -120,88 +107,27 @@ signs:
 
 # Snapshot configuration (for non-tagged builds)
 snapshot:
-  version_template: "0.0.0-{{ .Timestamp }}"
+  version_template: "0.0.5-{{ .Timestamp }}"
 
 # Source archive configuration
 source:
   enabled: true
 
 # Changelog configuration
+# Disabled - using git-cliff for changelog generation
 changelog:
-  use: github
-  sort: asc
-  abbrev: 7
-
-  # Changelog groups
-  groups:
-    - title: "\U0001F389 New Features"
-      regexp: "^.*feat[\\(\\w)]*:+.*$"
-      order: 0
-    - title: "\U0001F41B Bug Fixes"
-      regexp: "^.*fix[\\(\\w)]*:+.*$"
-      order: 1
-    - title: "⚡ Performance Improvements"
-      regexp: "^.*perf[\\(\\w)]*:+.*$"
-      order: 2
-    - title: "\U0001F510 Security Updates"
-      regexp: "^.*security[\\(\\w)]*:+.*$"
-      order: 3
-    - title: "\U0001F4DA Documentation"
-      regexp: "^.*docs[\\(\\w)]*:+.*$"
-      order: 4
-    - title: "\U0001F527 Refactoring"
-      regexp: "^.*refactor[\\(\\w)]*:+.*$"
-      order: 5
-    - title: "\U0001F4E6 Dependencies"
-      regexp: "^.*deps[\\(\\w)]*:+.*$"
-      order: 6
-    - title: "\U0001F9EA Testing"
-      regexp: "^.*test[\\(\\w)]*:+.*$"
-      order: 7
-    - title: "Other Changes"
-      order: 999
-
-  # Filters
-  filters:
-    exclude:
-      - "^(build|ci): "
-      - "^chore: auto-update generated files$"
-      - "^chore: docs$"
-      - "^chore: schema update$"
-      - "^chore: typo$"
-      - "^chore\\(legal\\): "
-      - "^chore\\(deps\\): "
-      - "^docs: update$"
-      - "^test:"
-      - "^test\\("
-      - "merge conflict"
-      - Merge branch
-      - Merge pull request
-      - Merge remote-tracking branch
-      - go mod tidy
-      - "^wip "
-      - "^wip:"
+  disable: true
 
 # Release configuration
 release:
-  # GitHub repository
   github:
     owner: compozy
     name: compozy
 
-  # Release name template
   name_template: "Release {{ .Version }}"
-
-  # Release mode
   mode: replace
-
-  # Draft release
   draft: false
-
-  # Prerelease detection
   prerelease: auto
-
-  # Release header and footer
   header: |
     ## Compozy {{ .Version }}
 
@@ -389,70 +315,46 @@ docker_signs:
 # Homebrew cask configuration
 homebrew_casks:
   - name: compozy
-    # GitHub repository to push the cask to
     repository:
       owner: compozy
       name: homebrew-compozy
       branch: main
-      # Token for the repository
       token: "{{ .Env.RELEASE_TOKEN }}"
 
-    # Git author used to commit to the repository
     commit_author:
       name: goreleaserbot
       email: bot@goreleaser.com
 
-    # The project name and current git tag are used in the format string
     commit_msg_template: "Brew cask update for {{ .ProjectName }} version {{ .Tag }}"
-
-    # Directory inside the repository to put the cask
     directory: Casks
-
-    # Caveats for the user of your binary
     caveats: |
       To get started with Compozy, you need to:
-
       1. Set up the required environment variables
       2. Configure your first workflow
-
       See https://github.com/compozy/compozy for more information.
 
-    # Homepage for the project
     homepage: "https://github.com/compozy/compozy"
-
-    # Short description of your project
     description: "Next-level Agentic Orchestration Platform"
-
-    # Setting this will prevent goreleaser to publish the cask
-    # in case there are no unix builds
     skip_upload: auto
-
-    # Shell completions will be generated dynamically by the binary itself
 
 # NFPM packaging configuration
 nfpms:
   - id: compozy-packages
     package_name: compozy
     file_name_template: "{{ .ConventionalFileName }}"
-
     vendor: "Compozy"
     homepage: "https://github.com/compozy/compozy"
     maintainer: "Compozy Team <support@compozy.com>"
     description: "Next-level Agentic Orchestration Platform"
     license: "BSL-1.1"
-
     formats:
       - apk
       - deb
       - rpm
       - archlinux
-
-    # No additional contents - completions are included in the binary archives
-
     rpm:
       signature:
         key_file: '{{ if ne (index .Env "GPG_KEY_PATH") "" }}{{ .Env.GPG_KEY_PATH }}{{ else }}{{ end }}'
-
     deb:
       signature:
         key_file: '{{ if ne (index .Env "GPG_KEY_PATH") "" }}{{ .Env.GPG_KEY_PATH }}{{ else }}{{ end }}'
@@ -460,11 +362,8 @@ nfpms:
 # Before hooks (run before building)
 before:
   hooks:
-    # Ensure clean module dependencies
     - go mod tidy
-    # Download dependencies
     - go mod download
-    # Generate shell completions using go run
     - rm -rf completions
     - mkdir -p completions
     - sh -c "go run . completion bash > completions/compozy.bash || echo '# Bash completion' > completions/compozy.bash"
@@ -480,33 +379,20 @@ sboms:
 # Nix package configuration
 nix:
   - name: compozy
-    # GitHub repository to push the package to
     repository:
       owner: compozy
       name: nur
       branch: main
       token: "{{ .Env.RELEASE_TOKEN }}"
 
-    # Git author used to commit to the repository
     commit_author:
       name: goreleaserbot
       email: bot@goreleaser.com
 
-    # The project name and current git tag are used in the format string
     commit_msg_template: "compozy: {{ .Version }}"
-
-    # Homepage for the project
     homepage: "https://github.com/compozy/compozy"
-
-    # Short description of your project
     description: "Next-level Agentic Orchestration Platform"
-
-    # License of your project
-    license: "mit"
-
-    # Skip upload in case there's no suitable binary
-
-  # NPM publishing configuration (Pro feature)
+    license: "bsl11"
 
 npms:
   - name: "@compozy/cli"
