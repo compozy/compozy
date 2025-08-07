@@ -1,0 +1,156 @@
+name: "Setup Release Tools"
+description: "Sets up all necessary tools for release processes (GoReleaser, git-cliff, Syft, Docker,\
+  \ Cosign)"
+author: "Compozy Team"
+
+inputs:
+  goreleaser-version:
+    description: "GoReleaser version to install"
+    required: false
+    default: "latest"
+  goreleaser-distribution:
+    description: "GoReleaser distribution (goreleaser or goreleaser-pro)"
+    required: false
+    default: "goreleaser-pro"
+  git-cliff-version:
+    description: "git-cliff version to install"
+    required: false
+    default: "2.7.0"
+  cosign-version:
+    description: "Cosign version to install"
+    required: false
+    default: "v2.2.4"
+  setup-docker:
+    description: "Whether to setup Docker buildx"
+    required: false
+    default: "false"
+  setup-docker-login:
+    description: "Whether to setup Docker registry login"
+    required: false
+    default: "false"
+  setup-qemu:
+    description: "Whether to setup QEMU for cross-platform building"
+    required: false
+    default: "true"
+  docker-registry:
+    description: "Docker registry to login to"
+    required: false
+    default: "ghcr.io"
+  docker-username:
+    description: "Docker registry username"
+    required: false
+  docker-token:
+    description: "Docker registry token/password"
+    required: false
+
+outputs:
+  goreleaser-version:
+    description: "The GoReleaser version that was installed"
+    value: ${{ steps.setup-goreleaser.outputs.version }}
+  git-cliff-version:
+    description: "The git-cliff version that was installed"
+    value: ${{ steps.setup-git-cliff.outputs.version }}
+  cosign-version:
+    description: "The Cosign version that was installed"
+    value: ${{ steps.setup-cosign.outputs.version }}
+  syft-version:
+    description: "The Syft version that was installed"
+    value: ${{ steps.setup-syft.outputs.version }}
+
+runs:
+  using: "composite"
+  steps:
+    # Setup git-cliff for changelog generation
+    - name: Setup git-cliff
+      id: setup-git-cliff
+      uses: ./.github/actions/setup-git-cliff
+      with:
+        version: ${{ inputs.git-cliff-version }}
+
+    # Setup GoReleaser
+    - name: Setup GoReleaser
+      id: setup-goreleaser
+      uses: goreleaser/goreleaser-action@v6
+      with:
+        distribution: ${{ inputs.goreleaser-distribution }}
+        version: ${{ inputs.goreleaser-version }}
+        install-only: true
+
+    # Setup Syft for SBOM generation (always needed for release processes)
+    - name: Setup Syft for SBOM generation
+      id: setup-syft
+      uses: anchore/sbom-action/download-syft@v0
+
+    # Setup Cosign for signing (always install, but usage is conditional)
+    - name: Setup Cosign for artifact signing
+      id: setup-cosign
+      uses: sigstore/cosign-installer@v3
+      with:
+        cosign-release: ${{ inputs.cosign-version }}
+
+    # Setup QEMU for cross-platform building (conditional)
+    - name: Setup QEMU for cross-platform building
+      if: inputs.setup-qemu == 'true'
+      uses: docker/setup-qemu-action@v3
+
+    # Setup Docker buildx (conditional)
+    - name: Setup Docker Buildx
+      if: inputs.setup-docker == 'true'
+      uses: docker/setup-buildx-action@v3
+
+    # Setup Docker registry login (conditional)
+    - name: Login to Docker Registry
+      if: inputs.setup-docker-login == 'true'
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ inputs.docker-registry }}
+        username: ${{ inputs.docker-username }}
+        password: ${{ inputs.docker-token }}
+
+    # Verify installations
+    - name: Verify tool installations
+      shell: bash
+      run: |-
+        set -e
+        echo "=== Release Tools Verification ==="
+
+        echo "✅ Go version: $(go version)"
+
+        if command -v git-cliff &> /dev/null; then
+          echo "✅ git-cliff version: $(git-cliff --version)"
+        else
+          echo "❌ git-cliff not found"
+          exit 1
+        fi
+
+        if command -v goreleaser &> /dev/null; then
+          echo "✅ GoReleaser version: $(goreleaser --version)"
+        else
+          echo "❌ GoReleaser not found"  
+          exit 1
+        fi
+
+        if command -v syft &> /dev/null; then
+          echo "✅ Syft version: $(syft version)"
+        else
+          echo "❌ Syft not found"
+          exit 1
+        fi
+
+        if command -v cosign &> /dev/null; then
+          echo "✅ Cosign version: $(cosign version --short)"
+        else
+          echo "❌ Cosign not found"
+          exit 1
+        fi
+
+        if [[ "${{ inputs.setup-docker }}" == "true" ]]; then
+          if docker buildx version &> /dev/null; then
+            echo "✅ Docker buildx version: $(docker buildx version)"
+          else
+            echo "❌ Docker buildx not found"
+            exit 1
+          fi
+        fi
+
+        echo "=== All tools verified successfully ==="
