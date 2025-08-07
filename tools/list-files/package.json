@@ -1,48 +1,5 @@
 {
   "name": "@compozy/tool-list-files",
-  "version": "0.1.0",
-  "description": "Compozy tool for listing files in a directory",
-  "type": "module",
-  "main": "index.ts",
-  "scripts": {
-    "test": "bun test",
-    "test:watch": "bun test --watch",
-    "typecheck": "tsc --noEmit",
-    "lint": "oxlint",
-    "lint:fix": "oxlint --fix",
-    "update:deps": "updates -Gu"
-  },
-  "keywords": [
-    "compozy",
-    "tool",
-    "list-files",
-    "directory"
-  ],
-  "author": "Compozy",
-  "license": "BSL-1.1",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/compozy/compozy.git",
-    "directory": "tools/list-files"
-  },
-  "homepage": "https://github.com/compozy/compozy/tree/main/tools/list-files",
-  "bugs": {
-    "url": "https://github.com/compozy/compozy/issues"
-  },
-  "publishConfig": {
-    "access": "public",
-    "registry": "https://registry.npmjs.org/"
-  },
-  "files": [
-    "index.ts",
-    "README.md"
-  ],
-  "devDependencies": {
-    "@types/bun": "latest",
-    "@types/node": "^24.2.0",
-    "typescript": "^5.9.2"
-  },
-  "engines": {
-    "node": ">=18.0.0"
-  }
+  "version": "1.0.0",
+  "private": false
 }

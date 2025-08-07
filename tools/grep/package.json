@@ -1,45 +1,5 @@
 {
   "name": "@compozy/tool-grep",
-  "version": "0.1.0",
-  "description": "Compozy tool for searching content in files using pattern matching",
-  "type": "module",
-  "main": "index.ts",
-  "author": "Compozy",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/compozy/compozy.git",
-    "directory": "tools/grep"
-  },
-  "homepage": "https://github.com/compozy/compozy/tree/main/tools/grep",
-  "bugs": {
-    "url": "https://github.com/compozy/compozy/issues"
-  },
-  "publishConfig": {
-    "access": "public",
-    "registry": "https://registry.npmjs.org/"
-  },
-  "files": [
-    "index.ts",
-    "README.md"
-  ],
-  "scripts": {
-    "test": "bun test",
-    "type-check": "tsc --noEmit",
-    "lint": "oxlint",
-    "lint:fix": "oxlint --fix",
-    "update:deps": "updates -Gu"
-  },
-  "keywords": [
-    "compozy",
-    "tool",
-    "grep",
-    "search",
-    "pattern",
-    "regex"
-  ],
-  "license": "BSL-1.1",
-  "devDependencies": {
-    "@types/bun": "^1.2.19",
-    "typescript": "^5.9.2"
-  }
+  "version": "1.0.0",
+  "private": false
 }
