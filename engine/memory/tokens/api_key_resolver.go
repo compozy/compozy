@@ -31,7 +31,6 @@ func (r *APIKeyResolver) ResolveAPIKey(ctx context.Context, config *memcore.Toke
 		value := os.Getenv(config.APIKeyEnv)
 		if value == "" {
 			log.Warn("API key environment variable is not set",
-				"env_var", config.APIKeyEnv,
 				"provider", config.Provider)
 		}
 		return value
@@ -42,7 +41,6 @@ func (r *APIKeyResolver) ResolveAPIKey(ctx context.Context, config *memcore.Toke
 		value := os.Getenv(envVar)
 		if value == "" {
 			log.Warn("API key environment variable is not set",
-				"env_var", envVar,
 				"provider", config.Provider)
 		}
 		return value

@@ -106,7 +106,9 @@ func setupWatcher(ctx context.Context, cwd string) (*fsnotify.Watcher, error) {
 		}
 		return nil
 	}); err != nil {
-		watcher.Close()
+		if closeErr := watcher.Close(); closeErr != nil {
+			log.Warn("Failed to close watcher during error cleanup", "error", closeErr)
+		}
 		return nil, fmt.Errorf("failed to walk project directory: %w", err)
 	}
 

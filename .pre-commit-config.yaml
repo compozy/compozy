@@ -7,6 +7,7 @@ default_stages:
 exclude: |
   (?x)^(
     CHANGELOG.md|
+    tools/.*/package\.json|
     bun.lockb|
     node_modules|
   )$
