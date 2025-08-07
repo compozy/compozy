@@ -1,0 +1,46 @@
+name: "Setup Node.js Environment"
+description: "Sets up Node.js and npm with authentication for Compozy"
+author: "Compozy Team"
+
+inputs:
+  node-version:
+    description: "Node.js version to install"
+    required: false
+    default: "22"
+  npm-token:
+    description: "NPM authentication token"
+    required: true
+    default: ""
+
+outputs:
+  node-version:
+    description: "The Node.js version that was installed"
+    value: ${{ steps.setup-node.outputs.node-version }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Node.js
+      id: setup-node
+      uses: actions/setup-node@v4
+      env:
+        NODE_AUTH_TOKEN: ${{ inputs.npm-token }}
+      with:
+        node-version: ${{ inputs.node-version }}
+        registry-url: "https://registry.npmjs.org"
+        cache: "npm"
+
+    - name: Configure npm
+      run: |
+        cat << EOF > "$HOME/.npmrc"
+          //registry.npmjs.org/:_authToken=$NPM_TOKEN
+        EOF
+      env:
+        NPM_TOKEN: ${{ inputs.npm-token }}
+      shell: bash
+
+    - name: Ensure NPM access
+      run: npm whoami
+      env:
+        NODE_AUTH_TOKEN: ${{ inputs.npm-token }}
+      shell: bash
