@@ -84,6 +84,8 @@ jobs:
   pre-commit:
     name: Pre-commit
     runs-on: ubuntu-latest
+    # Skip pre-commit for release PRs to avoid formatting conflicts with generated files
+    if: ${{ !startsWith(github.head_ref, 'release/') }}
     steps:
       - uses: actions/checkout@v4
 

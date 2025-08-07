@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -111,6 +112,19 @@ func (o *DryRunOrchestrator) Execute(ctx context.Context, cfg DryRunConfig) erro
 func (o *DryRunOrchestrator) validateCliff(ctx context.Context) error {
 	fmt.Println("🔍 Running git-cliff --unreleased --verbose")
 	cmd := exec.CommandContext(ctx, "git-cliff", "--unreleased", "--verbose")
+
+	// Find the repository root by walking up directories
+	wd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get working directory: %w", err)
+	}
+
+	repoRoot := findRepoRoot(wd)
+	if repoRoot != "" {
+		cmd.Dir = repoRoot
+		fmt.Printf("🔍 Running git-cliff from repository root: %s\n", repoRoot)
+	}
+
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
@@ -237,4 +251,23 @@ func (o *DryRunOrchestrator) printStatus(ciOutput bool, message string) {
 	if !ciOutput {
 		fmt.Println(message)
 	}
+}
+
+// findRepoRoot walks up directories to find the git repository root
+func findRepoRoot(startDir string) string {
+	dir := startDir
+	for {
+		if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
+			return dir
+		}
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+	}
+	return ""
 }
