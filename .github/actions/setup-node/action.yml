@@ -1,0 +1,27 @@
+name: "Setup Node.js Environment"
+description: "Sets up Node.js and npm with authentication for Compozy"
+author: "Compozy Team"
+
+inputs:
+  node-version:
+    description: "Node.js version to install"
+    required: false
+    default: "22"
+
+outputs:
+  node-version:
+    description: "The Node.js version that was installed"
+    value: ${{ steps.setup-node.outputs.node-version }}
+
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        registry-url: "https://registry.npmjs.org"
+        scope: "@compozy"
+
+    - name: Ensure NPM access
+      run: npm whoami
+      shell: bash
