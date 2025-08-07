@@ -228,14 +228,24 @@ func (tc *TypeConverter) parseCharacterRange(start, end string) []any {
 	}
 	// Handle reverse ranges
 	if startChar > endChar {
-		result := make([]any, int(startChar-endChar)+1)
+		size := int(startChar-endChar) + 1
+		// Prevent allocation overflow - limit range size to reasonable bounds
+		if size > 10000 { // Max 10k characters in a range
+			return nil
+		}
+		result := make([]any, size)
 		for i := 0; i <= int(startChar-endChar); i++ {
 			result[i] = string(startChar - rune(i))
 		}
 		return result
 	}
 	// Normal ascending range
-	result := make([]any, int(endChar-startChar)+1)
+	size := int(endChar-startChar) + 1
+	// Prevent allocation overflow - limit range size to reasonable bounds
+	if size > 10000 { // Max 10k characters in a range
+		return nil
+	}
+	result := make([]any, size)
 	for i := 0; i <= int(endChar-startChar); i++ {
 		result[i] = string(startChar + rune(i))
 	}

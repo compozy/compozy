@@ -51,7 +51,7 @@ describe("fetchTool", () => {
 
       // Timeout endpoint - delays response
       if (url.pathname === "/timeout") {
-        const delay = parseInt(url.searchParams.get("delay") || "5000");
+        const delay = Math.min(parseInt(url.searchParams.get("delay") || "5000"), 10000); // Limit delay to 10 seconds max
         setTimeout(() => {
           res.writeHead(200);
           res.end("Delayed response");
