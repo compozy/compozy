@@ -92,20 +92,15 @@ func (o *DryRunOrchestrator) Execute(ctx context.Context, cfg DryRunConfig) erro
 	}
 	fmt.Println("✅ NPM validation completed")
 
-	// Step 4: If in CI, upload artifacts and comment on PR
+	// Step 4: If in CI, comment on PR
 	if os.Getenv("GITHUB_ACTIONS") == githubActionsTrue {
-		fmt.Println("🔍 Verifying artifacts for upload")
-		if err := o.uploadArtifacts(ctx); err != nil {
-			return fmt.Errorf("artifact upload failed: %w", err)
-		}
-		fmt.Println("✅ Artifacts verified")
 		fmt.Println("🔍 Creating PR comment")
 		if err := o.commentOnPR(ctx); err != nil {
 			return fmt.Errorf("PR comment failed: %w", err)
 		}
 		fmt.Println("✅ PR comment created")
 	} else {
-		o.printStatus(cfg.CIOutput, "Dry-run completed. Artifacts in dist/; manual review required.")
+		o.printStatus(cfg.CIOutput, "Dry-run completed. Review required.")
 	}
 
 	o.printStatus(cfg.CIOutput, "## ✅ Dry-Run Completed Successfully")
@@ -164,25 +159,6 @@ func (o *DryRunOrchestrator) validateNPMVersions(ctx context.Context, version st
 	// Optional: Verify versions in package.json files
 	// E.g., read root package.json and check "version" == version
 	return nil // Or add explicit checks if needed
-}
-
-// uploadArtifacts uploads dist/ files if in CI (using actions/upload-artifact via GitHub API)
-func (o *DryRunOrchestrator) uploadArtifacts(_ context.Context) error {
-	// In GitHub Actions, we can't directly upload artifacts from Go code.
-	// The workflow should handle this step using actions/upload-artifact.
-	// We'll just verify the artifacts exist.
-	expectedFiles := []string{
-		"dist/checksums.txt",
-		"dist/metadata.json",
-	}
-	for _, file := range expectedFiles {
-		if _, err := o.fsRepo.Stat(file); err != nil {
-			return fmt.Errorf("expected artifact file %s not found: %w", file, err)
-		}
-	}
-	// Log for CI output
-	fmt.Println("Artifacts ready for upload in dist/ directory")
-	return nil
 }
 
 // commentOnPR reads metadata.json, builds body, adds comment via GithubRepo
@@ -247,9 +223,6 @@ func (o *DryRunOrchestrator) commentOnPR(ctx context.Context) error {
 
 ### 📦 Built Artifacts
 %s
-
-### 🔗 Download
-Dry-run artifacts are available as workflow artifacts for 7 days.
 
 ---
 *This is an automated comment from the release dry-run check.*

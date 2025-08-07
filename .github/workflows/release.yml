@@ -13,7 +13,7 @@ on:
   # Trigger on PR events for dry-run checks
   pull_request:
     types:
-      - synchronize # Only on updates to existing PRs
+      - synchronize  # Only on updates to existing PRs
     branches:
       - main
 
@@ -115,16 +115,6 @@ jobs:
           GITHUB_ISSUE_NUMBER: ${{ github.event.pull_request.number }}
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
         run: go run ./pkg/release dry-run --ci-output
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: dry-run-artifacts
-          path: |
-            dist/*.tar.gz
-            dist/*.zip
-            dist/checksums.txt
-            dist/metadata.json
-          retention-days: 7
 
   # Job 3: Production release on merge
   release:
