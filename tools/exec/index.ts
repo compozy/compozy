@@ -27,7 +27,7 @@ const DANGEROUS_PATTERNS = [
   /\$\(/, // Command substitution
   /`/, // Backticks
   /\\\n/, // Line continuation
-  /\$\{.*\}/, // Variable expansion
+  /\$\{[^}]*\}/, // Variable expansion - fixed ReDoS vulnerability
 ];
 
 const ALLOWED_COMMANDS = new Set([

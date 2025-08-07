@@ -97,22 +97,27 @@ func createTemplateFuncMap() template.FuncMap {
 }
 
 // appendToGitignore appends content to an existing .gitignore file
-func (g *generator) appendToGitignore(filePath string, tmpl *template.Template, data any) error {
+func (g *generator) appendToGitignore(filePath string, tmpl *template.Template, data any) (writeErr error) {
 	f, err := os.OpenFile(filePath, os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to open .gitignore for appending: %w", err)
 	}
-	defer f.Close()
+	defer func() {
+		if closeErr := f.Close(); closeErr != nil && writeErr == nil {
+			writeErr = fmt.Errorf("failed to close .gitignore file: %w", closeErr)
+		}
+	}()
 	// Execute template to a buffer first
 	var buf strings.Builder
 	if err := tmpl.Execute(&buf, data); err != nil {
-		return fmt.Errorf("failed to execute .gitignore template: %w", err)
+		writeErr = fmt.Errorf("failed to execute .gitignore template: %w", err)
+		return
 	}
 	// Append with a newline separator
 	if _, err := f.WriteString("\n# Added by Compozy\n" + buf.String()); err != nil {
-		return fmt.Errorf("failed to append to .gitignore: %w", err)
+		writeErr = fmt.Errorf("failed to append to .gitignore: %w", err)
 	}
-	return nil
+	return
 }
 
 // createFile creates a single file from template
