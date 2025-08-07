@@ -23,6 +23,9 @@ on:
       - "cluster/mcpproxy.Dockerfile"
       - ".github/workflows/docker-dev.yml"
 
+env:
+  GO_VERSION: "1.24.x"
+
 permissions:
   contents: read
   packages: write
