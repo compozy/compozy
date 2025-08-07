@@ -107,7 +107,7 @@ signs:
 
 # Snapshot configuration (for non-tagged builds)
 snapshot:
-  version_template: "0.0.4-{{ .Timestamp }}"
+  version_template: "0.0.5-{{ .Timestamp }}"
 
 # Source archive configuration
 source:
