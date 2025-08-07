@@ -47,7 +47,12 @@ jobs:
   release-pr:
     name: Create/Update Release PR
     if: |
-      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'push' && 
+       github.ref == 'refs/heads/main' &&
+       !contains(github.event.head_commit.message, 'release:') &&
+       !startsWith(github.event.head_commit.message, 'ci(release):') &&
+       !startsWith(github.event.head_commit.message, 'Merge pull request') &&
+       github.event.head_commit.author.name != 'github-actions[bot]') ||
       (github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     steps:
