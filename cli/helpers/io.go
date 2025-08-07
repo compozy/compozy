@@ -126,7 +126,7 @@ func WriteFile(path string, data []byte) error {
 }
 
 // AppendToFile appends data to a file
-func AppendToFile(path string, data []byte) error {
+func AppendToFile(path string, data []byte) (returnErr error) {
 	if path == "" {
 		return NewCliError("INVALID_PATH", "File path cannot be empty")
 	}
@@ -142,14 +142,19 @@ func AppendToFile(path string, data []byte) error {
 	if err != nil {
 		return NewCliError("FILE_OPEN_ERROR", fmt.Sprintf("Failed to open file: %s", path), err.Error())
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil && returnErr == nil {
+			returnErr = NewCliError("FILE_CLOSE_ERROR", fmt.Sprintf("Failed to close file: %s", path), closeErr.Error())
+		}
+	}()
 
 	// Write data
 	if _, err := file.Write(data); err != nil {
-		return NewCliError("FILE_WRITE_ERROR", fmt.Sprintf("Failed to write to file: %s", path), err.Error())
+		returnErr = NewCliError("FILE_WRITE_ERROR", fmt.Sprintf("Failed to write to file: %s", path), err.Error())
+		return
 	}
 
-	return nil
+	return
 }
 
 // ReadLines reads a file line by line
@@ -214,7 +219,7 @@ func CreateTempFile(pattern string, content []byte) (string, error) {
 	defer tmpFile.Close()
 
 	if _, err := tmpFile.Write(content); err != nil {
-		os.Remove(tmpFile.Name()) // Clean up on error
+		_ = os.Remove(tmpFile.Name()) // Best effort cleanup, ignore error
 		return "", NewCliError("TEMP_FILE_ERROR", "Failed to write to temporary file", err.Error())
 	}
 

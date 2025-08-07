@@ -18,7 +18,7 @@ BUNCMD=bun
 # Build Variables
 # -----------------------------------------------------------------------------
 GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
-VERSION := $(shell git describe --tags --always 2>/dev/null || echo "unknown")
+VERSION := $(shell git describe --tags --match="v*" --always 2>/dev/null || echo "unknown")
 
 # Build flags for injecting version info (aligned with GoReleaser format)
 BUILD_DATE := $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
@@ -112,6 +112,48 @@ schemagen:
 
 schemagen-watch:
 	$(GOCMD) run pkg/schemagen/main.go -out=./schemas -watch
+
+# -----------------------------------------------------------------------------
+# Release Management
+# -----------------------------------------------------------------------------
+.PHONY: release release-dry-run release-minor release-major release-patch release-deps compozy-release
+
+# Build the compozy-release binary
+compozy-release:
+	$(GOBUILD) -o $(BINARY_DIR)/compozy-release ./pkg/release
+
+# Install go-semantic-release
+release-deps:
+	@echo "Installing go-semantic-release..."
+	@go install github.com/go-semantic-release/semantic-release/v2/cmd/semantic-release@latest
+
+# Run semantic-release in dry-run mode to preview the next version
+release-dry-run: release-deps
+	@echo "Running semantic-release in dry-run mode..."
+	@semantic-release --dry --allow-initial-development-versions
+
+# Create a new release based on conventional commits
+release: release-deps
+	@echo "Creating new release based on conventional commits..."
+	@semantic-release --allow-initial-development-versions
+
+# Force a patch release
+release-patch: release-deps
+	@echo "Creating patch release..."
+	@echo "fix: patch release" | git commit --allow-empty -F -
+	@semantic-release --allow-initial-development-versions
+
+# Force a minor release
+release-minor: release-deps
+	@echo "Creating minor release..."
+	@echo "feat: minor release" | git commit --allow-empty -F -
+	@semantic-release --allow-initial-development-versions
+
+# Force a major release
+release-major: release-deps
+	@echo "Creating major release..."
+	@echo "feat!: major release" | git commit --allow-empty -F -
+	@semantic-release --allow-initial-development-versions
 
 # -----------------------------------------------------------------------------
 # Testing
