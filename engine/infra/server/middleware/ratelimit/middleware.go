@@ -123,7 +123,9 @@ func (m *Manager) Middleware() gin.HandlerFunc {
 		lctx, err := limiter.Get(c.Request.Context(), key)
 		if err != nil {
 			log := logger.FromContext(c.Request.Context())
-			log.Error("Rate limit check failed", "error", err, "key", key, "fail_open", m.config.FailOpen)
+			// Log key type instead of actual key to avoid exposing sensitive API keys
+			keyType := m.getKeyType(key)
+			log.Error("Rate limit check failed", "error", err, "key_type", keyType, "fail_open", m.config.FailOpen)
 			if m.config.FailOpen {
 				// Fail open: Allow the request when backing store fails
 				// This prioritizes availability over strict rate limiting enforcement
