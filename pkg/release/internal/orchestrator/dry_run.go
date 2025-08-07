@@ -3,7 +3,6 @@ package orchestrator
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -12,12 +11,15 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/compozy/compozy/pkg/release/internal/repository"
 	"github.com/compozy/compozy/pkg/release/internal/service"
 	"github.com/compozy/compozy/pkg/release/internal/usecase"
 	"github.com/spf13/afero"
+)
+
+const (
+	githubActionsTrue = "true"
 )
 
 // DryRunConfig holds configuration for the dry-run orchestrator
@@ -58,7 +60,7 @@ func NewDryRunOrchestrator(
 // Execute runs the dry-run validation
 func (o *DryRunOrchestrator) Execute(ctx context.Context, cfg DryRunConfig) error {
 	// Add timeout to match workflow (default 60 minutes for jobs)
-	ctx, cancel := context.WithTimeout(ctx, 60*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, DefaultWorkflowTimeout)
 	defer cancel()
 	o.printStatus(cfg.CIOutput, "### 📝 Validating Changelog Generation")
 
@@ -70,28 +72,38 @@ func (o *DryRunOrchestrator) Execute(ctx context.Context, cfg DryRunConfig) erro
 	o.printStatus(cfg.CIOutput, "### 🏗️ Running GoReleaser Dry-Run")
 
 	// Step 2: Run GoReleaser dry-run
+	fmt.Println("🔍 Running GoReleaser dry-run")
 	if err := o.runGoReleaserDry(ctx); err != nil {
 		return fmt.Errorf("GoReleaser dry-run failed: %w", err)
 	}
+	fmt.Println("✅ GoReleaser dry-run completed")
 
 	// Step 3: Validate NPM packages
 	o.printStatus(cfg.CIOutput, "### 📦 Validating NPM packages")
+	fmt.Println("🔍 Extracting version from branch")
 	version, err := o.extractVersionFromBranch(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to extract version: %w", err)
 	}
+	fmt.Printf("ℹ️ Detected version: %s\n", version)
+	fmt.Println("🔍 Validating NPM package versions")
 	if err := o.validateNPMVersions(ctx, version); err != nil {
 		return fmt.Errorf("NPM validation failed: %w", err)
 	}
+	fmt.Println("✅ NPM validation completed")
 
 	// Step 4: If in CI, upload artifacts and comment on PR
-	if os.Getenv("GITHUB_ACTIONS") == "true" {
+	if os.Getenv("GITHUB_ACTIONS") == githubActionsTrue {
+		fmt.Println("🔍 Verifying artifacts for upload")
 		if err := o.uploadArtifacts(ctx); err != nil {
 			return fmt.Errorf("artifact upload failed: %w", err)
 		}
+		fmt.Println("✅ Artifacts verified")
+		fmt.Println("🔍 Creating PR comment")
 		if err := o.commentOnPR(ctx); err != nil {
 			return fmt.Errorf("PR comment failed: %w", err)
 		}
+		fmt.Println("✅ PR comment created")
 	} else {
 		o.printStatus(cfg.CIOutput, "Dry-run completed. Artifacts in dist/; manual review required.")
 	}
@@ -102,14 +114,14 @@ func (o *DryRunOrchestrator) Execute(ctx context.Context, cfg DryRunConfig) erro
 
 // validateCliff runs git-cliff --unreleased --verbose
 func (o *DryRunOrchestrator) validateCliff(ctx context.Context) error {
-	// Assuming CliffService has a ValidateUnreleased method; otherwise, use exec
+	fmt.Println("🔍 Running git-cliff --unreleased --verbose")
 	cmd := exec.CommandContext(ctx, "git-cliff", "--unreleased", "--verbose")
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("git-cliff failed: %w\nOutput: %s\nError: %s", err, stdout.String(), stderr.String())
+		return fmt.Errorf("git-cliff failed: %w", err)
 	}
+	fmt.Println("✅ git-cliff validation completed")
 	return nil
 }
 

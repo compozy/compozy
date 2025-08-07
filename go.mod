@@ -77,6 +77,7 @@ require (
 	github.com/go-git/go-git/v5 v5.16.2
 	github.com/go-resty/resty/v2 v2.16.5
 	github.com/go-viper/mapstructure/v2 v2.4.0
+	github.com/gofrs/flock v0.8.1
 	github.com/google/go-github/v74 v74.0.0
 	github.com/knadh/koanf/providers/env/v2 v2.0.0
 	github.com/knadh/koanf/providers/structs v1.0.0

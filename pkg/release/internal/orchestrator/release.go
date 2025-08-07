@@ -7,7 +7,6 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/compozy/compozy/pkg/release/internal/repository"
 	"github.com/compozy/compozy/pkg/release/internal/service"
@@ -64,7 +63,7 @@ func NewReleaseOrchestrator(
 // Execute runs the complete release workflow.
 func (o *ReleaseOrchestrator) Execute(ctx context.Context, cfg ReleaseConfig) error {
 	// Add timeout to match workflow (120 minutes for release job as per YAML)
-	ctx, cancel := context.WithTimeout(ctx, 120*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, ReleaseWorkflowTimeout)
 	defer cancel()
 	// Validate required environment variables
 	requiredVars := []string{"GITHUB_TOKEN"}
@@ -183,6 +182,9 @@ func (o *ReleaseOrchestrator) extractVersion(ctx context.Context, providedVersio
 	if commitMsg == "" {
 		// Try to get from latest commit
 		cmd := exec.CommandContext(ctx, "git", "log", "-1", "--pretty=%B")
+		if os.Getenv("GITHUB_ACTIONS") == githubActionsTrue {
+			cmd.Stderr = os.Stderr
+		}
 		output, err := cmd.Output()
 		if err != nil {
 			return "", fmt.Errorf("failed to get commit message: %w", err)
@@ -217,9 +219,13 @@ func (o *ReleaseOrchestrator) createTag(ctx context.Context, tag string) error {
 	}
 	message := fmt.Sprintf("Release %s", tag)
 	// Create and push tag with retry for network failures
-	return retry.Do(ctx, retry.WithMaxRetries(3, retry.NewExponential(1*time.Second)), func(ctx context.Context) error {
-		return uc.Execute(ctx, tag, message)
-	})
+	return retry.Do(
+		ctx,
+		retry.WithMaxRetries(DefaultRetryCount, retry.NewExponential(DefaultRetryDelay)),
+		func(ctx context.Context) error {
+			return uc.Execute(ctx, tag, message)
+		},
+	)
 }
 
 func (o *ReleaseOrchestrator) generateChangelog(ctx context.Context, version, mode string) (string, error) {
@@ -231,7 +237,7 @@ func (o *ReleaseOrchestrator) generateChangelog(ctx context.Context, version, mo
 		return "", err
 	}
 	// Write to RELEASE_NOTES.md for GoReleaser using filesystem repository
-	if err := afero.WriteFile(o.fsRepo, "RELEASE_NOTES.md", []byte(changelog), 0644); err != nil {
+	if err := afero.WriteFile(o.fsRepo, "RELEASE_NOTES.md", []byte(changelog), FilePermissionsReadWrite); err != nil {
 		return "", fmt.Errorf("failed to write release notes: %w", err)
 	}
 	return changelog, nil
@@ -243,7 +249,7 @@ func (o *ReleaseOrchestrator) runGoReleaser(ctx context.Context, _, changelog st
 	if o.goreleaserSvc != nil {
 		// Write changelog to file for GoReleaser to use
 		if changelog != "" {
-			if err := os.WriteFile("RELEASE_NOTES.md", []byte(changelog), 0600); err != nil {
+			if err := os.WriteFile("RELEASE_NOTES.md", []byte(changelog), FilePermissionsSecure); err != nil {
 				return fmt.Errorf("failed to write release notes for GoReleaser: %w", err)
 			}
 		}
@@ -261,9 +267,13 @@ func (o *ReleaseOrchestrator) publishNPM(ctx context.Context) error {
 		ToolsDir: o.toolsDir,
 	}
 	// Publish NPM with retry for network failures
-	return retry.Do(ctx, retry.WithMaxRetries(3, retry.NewExponential(1*time.Second)), func(ctx context.Context) error {
-		return uc.Execute(ctx)
-	})
+	return retry.Do(
+		ctx,
+		retry.WithMaxRetries(DefaultRetryCount, retry.NewExponential(DefaultRetryDelay)),
+		func(ctx context.Context) error {
+			return uc.Execute(ctx)
+		},
+	)
 }
 
 func (o *ReleaseOrchestrator) updateMainChangelog(ctx context.Context, changelog string) error {

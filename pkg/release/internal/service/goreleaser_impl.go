@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 )
 
@@ -17,9 +18,10 @@ func NewGoReleaserService() GoReleaserService {
 // Run executes goreleaser with the provided arguments
 func (s *goReleaserService) Run(ctx context.Context, args ...string) error {
 	cmd := exec.CommandContext(ctx, "goreleaser", args...)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("goreleaser failed: %w\nOutput: %s", err, string(output))
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("goreleaser failed: %w", err)
 	}
 	return nil
 }

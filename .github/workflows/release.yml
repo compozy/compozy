@@ -52,7 +52,6 @@ jobs:
       (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
       (github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
         with:
@@ -77,9 +76,9 @@ jobs:
           INITIAL_VERSION: ${{ env.INITIAL_VERSION }}
         run: |
           if [[ "${{ github.event.inputs.force_release }}" == "true" ]]; then
-            go run ./pkg/release pr-release --force --ci-output
+            go run ./pkg/release pr-release --force --enable-rollback --ci-output
           else
-            go run ./pkg/release pr-release --ci-output
+            go run ./pkg/release pr-release --enable-rollback --ci-output
           fi
 
   # Job 2: Dry-run checks on Release PR
@@ -89,7 +88,6 @@ jobs:
       github.event_name == 'pull_request' &&
       contains(github.event.pull_request.labels.*.name, 'release-pending')
     runs-on: ubuntu-latest
-    
     steps:
       - uses: actions/checkout@v4
         with:
@@ -103,12 +101,12 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - uses: ./.github/actions/setup-git-cliff
-
-      - uses: goreleaser/goreleaser-action@v6
+      - name: Setup Release Tools
+        uses: ./.github/actions/setup-release
         with:
-          distribution: goreleaser-pro
-          install-only: true
+          goreleaser-distribution: goreleaser-pro
+          setup-docker: false
+          setup-docker-login: false
 
       - name: Run Dry-Run Orchestrator
         env:
@@ -157,21 +155,17 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           registry-url: "https://registry.npmjs.org"
 
-      - uses: ./.github/actions/setup-git-cliff
-
-      - uses: docker/setup-buildx-action@v3
-
-      - uses: docker/login-action@v3
+      - name: Setup Release Tools
+        uses: ./.github/actions/setup-release
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.RELEASE_TOKEN }}
-
-      - uses: sigstore/cosign-installer@v3
-        with:
-          cosign-release: "v2.2.4"
-
-      - uses: anchore/sbom-action/download-syft@v0
+          goreleaser-distribution: goreleaser-pro
+          setup-docker: true
+          setup-docker-login: true
+          setup-qemu: true
+          docker-registry: ghcr.io
+          docker-username: ${{ github.actor }}
+          docker-token: ${{ secrets.RELEASE_TOKEN }}
+          cosign-version: "v2.2.4"
 
       - name: Run Release Orchestrator
         env:

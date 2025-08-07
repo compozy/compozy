@@ -21,7 +21,7 @@ type cliffService struct {
 // NewCliffService creates a new CliffService.
 func NewCliffService() CliffService {
 	return &cliffService{
-		timeout: 30 * time.Second, // Default 30 second timeout
+		timeout: DefaultCliffTimeout,
 	}
 }
 

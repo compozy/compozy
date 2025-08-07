@@ -11,6 +11,8 @@ import (
 	"time"
 )
 
+const githubActionsTrue = "true"
+
 // npmService is the implementation of the NpmService interface.
 type npmService struct {
 	// timeout for command execution
@@ -20,7 +22,7 @@ type npmService struct {
 // NewNpmService creates a new NpmService.
 func NewNpmService() NpmService {
 	return &npmService{
-		timeout: 60 * time.Second, // Default 60 second timeout for npm operations
+		timeout: DefaultNPMTimeout,
 	}
 }
 
@@ -124,20 +126,21 @@ func (s *npmService) executeCommand(ctx context.Context, dir string, name string
 		cmd.Env = append(cmd.Env, "NODE_AUTH_TOKEN="+npmToken)
 	}
 
-	// Capture both stdout and stderr for better error handling
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	// Stream output to stdout/stderr for CI visibility
+	if os.Getenv("GITHUB_ACTIONS") == githubActionsTrue {
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+	} else {
+		// Capture output for local development
+		var stdout, stderr bytes.Buffer
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
+	}
 
 	err := cmd.Run()
 	if err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
 			return fmt.Errorf("command timed out after %v", s.timeout)
-		}
-		// Include stderr in error message for debugging
-		errMsg := stderr.String()
-		if errMsg != "" {
-			return fmt.Errorf("command failed: %w (stderr: %s)", err, errMsg)
 		}
 		return fmt.Errorf("command failed: %w", err)
 	}

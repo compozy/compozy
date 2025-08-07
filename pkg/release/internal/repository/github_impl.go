@@ -87,7 +87,7 @@ func (r *githubRepository) CreatePullRequest(ctx context.Context, title, body, h
 		Base:  &base,
 	})
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("failed to create pull request: %w", err)
 	}
 	return pr.GetNumber(), nil
 }
@@ -156,4 +156,28 @@ func (r *githubRepository) AddComment(ctx context.Context, prNumber int, body st
 		return fmt.Errorf("failed to add comment to PR #%d: %w", prNumber, err)
 	}
 	return nil
+}
+
+// ClosePR closes a pull request
+func (r *githubRepository) ClosePR(ctx context.Context, prNumber int) error {
+	state := "closed"
+	_, _, err := r.client.PullRequests.Edit(ctx, r.owner, r.repo, prNumber, &github.PullRequest{
+		State: &state,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to close PR #%d: %w", prNumber, err)
+	}
+	return nil
+}
+
+// GetPRStatus returns the status of a pull request (open, closed, merged)
+func (r *githubRepository) GetPRStatus(ctx context.Context, prNumber int) (string, error) {
+	pr, _, err := r.client.PullRequests.Get(ctx, r.owner, r.repo, prNumber)
+	if err != nil {
+		return "", fmt.Errorf("failed to get PR #%d: %w", prNumber, err)
+	}
+	if pr.GetMerged() {
+		return "merged", nil
+	}
+	return pr.GetState(), nil
 }

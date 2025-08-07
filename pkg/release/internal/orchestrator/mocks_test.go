@@ -61,6 +61,44 @@ func (m *mockGitExtendedRepository) PushBranch(ctx context.Context, branch strin
 	args := m.Called(ctx, branch)
 	return args.Error(0)
 }
+func (m *mockGitExtendedRepository) DeleteBranch(ctx context.Context, name string) error {
+	args := m.Called(ctx, name)
+	return args.Error(0)
+}
+func (m *mockGitExtendedRepository) DeleteRemoteBranch(ctx context.Context, name string) error {
+	args := m.Called(ctx, name)
+	return args.Error(0)
+}
+func (m *mockGitExtendedRepository) RestoreFile(ctx context.Context, path string) error {
+	args := m.Called(ctx, path)
+	return args.Error(0)
+}
+func (m *mockGitExtendedRepository) ResetHard(ctx context.Context, ref string) error {
+	args := m.Called(ctx, ref)
+	return args.Error(0)
+}
+func (m *mockGitExtendedRepository) GetHeadCommit(ctx context.Context) (string, error) {
+	args := m.Called(ctx)
+	return args.String(0), args.Error(1)
+}
+func (m *mockGitExtendedRepository) ListLocalBranches(ctx context.Context) ([]string, error) {
+	args := m.Called(ctx)
+	if branches := args.Get(0); branches != nil {
+		return branches.([]string), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+func (m *mockGitExtendedRepository) ListRemoteBranches(ctx context.Context) ([]string, error) {
+	args := m.Called(ctx)
+	if branches := args.Get(0); branches != nil {
+		return branches.([]string), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+func (m *mockGitExtendedRepository) GetFileStatus(ctx context.Context, path string) (string, error) {
+	args := m.Called(ctx, path)
+	return args.String(0), args.Error(1)
+}
 
 // Mock for GithubExtendedRepository
 type mockGithubExtendedRepository struct{ mock.Mock }
@@ -84,6 +122,14 @@ func (m *mockGithubExtendedRepository) CreateOrUpdatePR(
 func (m *mockGithubExtendedRepository) AddComment(ctx context.Context, prNumber int, body string) error {
 	args := m.Called(ctx, prNumber, body)
 	return args.Error(0)
+}
+func (m *mockGithubExtendedRepository) ClosePR(ctx context.Context, prNumber int) error {
+	args := m.Called(ctx, prNumber)
+	return args.Error(0)
+}
+func (m *mockGithubExtendedRepository) GetPRStatus(ctx context.Context, prNumber int) (string, error) {
+	args := m.Called(ctx, prNumber)
+	return args.String(0), args.Error(1)
 }
 
 // Mock for CliffService
@@ -119,4 +165,38 @@ func (m *mockGoReleaserService) Run(ctx context.Context, args ...string) error {
 	}
 	result := m.Called(callArgs...)
 	return result.Error(0)
+}
+
+// Mock for StateRepository
+type mockStateRepository struct{ mock.Mock }
+
+func (m *mockStateRepository) Save(ctx context.Context, state *domain.RollbackState) error {
+	args := m.Called(ctx, state)
+	return args.Error(0)
+}
+
+func (m *mockStateRepository) Load(ctx context.Context, sessionID string) (*domain.RollbackState, error) {
+	args := m.Called(ctx, sessionID)
+	if state := args.Get(0); state != nil {
+		return state.(*domain.RollbackState), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *mockStateRepository) LoadLatest(ctx context.Context) (*domain.RollbackState, error) {
+	args := m.Called(ctx)
+	if state := args.Get(0); state != nil {
+		return state.(*domain.RollbackState), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
+func (m *mockStateRepository) Delete(ctx context.Context, sessionID string) error {
+	args := m.Called(ctx, sessionID)
+	return args.Error(0)
+}
+
+func (m *mockStateRepository) Exists(ctx context.Context, sessionID string) (bool, error) {
+	args := m.Called(ctx, sessionID)
+	return args.Bool(0), args.Error(1)
 }
