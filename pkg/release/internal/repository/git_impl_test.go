@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
@@ -76,6 +77,11 @@ func TestGitRepository_LatestTag(t *testing.T) {
 		require.NoError(t, err)
 		_, err = repo.CreateTag("v1.0.0", head.Hash(), &git.CreateTagOptions{
 			Message: "Release v1.0.0",
+			Tagger: &object.Signature{
+				Name:  "Test User",
+				Email: "test@example.com",
+				When:  time.Now(),
+			},
 		})
 		require.NoError(t, err)
 		gitRepo := &gitRepository{repo: repo}

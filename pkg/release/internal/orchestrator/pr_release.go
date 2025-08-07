@@ -376,11 +376,12 @@ func (o *PRReleaseOrchestrator) buildAndExecuteWorkflow(
 
 // workflowContext holds shared state for workflow execution
 type workflowContext struct {
-	version    string
-	branchName string
-	hasChanges bool
-	latestTag  string
-	prNumber   int
+	version          string
+	branchName       string
+	hasChanges       bool
+	latestTag        string
+	prNumber         int
+	createdInSession bool
 }
 
 // Workflow step methods
@@ -460,13 +461,21 @@ func (o *PRReleaseOrchestrator) addCreateBranchStep(
 			saga.SetBranchName(wctx.branchName)
 
 			// Check if branch already exists
-			currentBranch, err := o.gitRepo.GetCurrentBranch(ctx)
+			branches, err := o.gitRepo.ListLocalBranches(ctx)
 			if err != nil {
-				currentBranch = ""
+				return nil, fmt.Errorf("failed to list local branches: %w", err)
 			}
-			createdInSession := currentBranch != wctx.branchName
 
-			if createdInSession {
+			branchExists := false
+			for _, branch := range branches {
+				if branch == wctx.branchName {
+					branchExists = true
+					break
+				}
+			}
+
+			wctx.createdInSession = !branchExists
+			if wctx.createdInSession {
 				if err := o.createReleaseBranch(ctx, wctx.branchName); err != nil {
 					return nil, fmt.Errorf("failed to create release branch: %w", err)
 				}
@@ -479,7 +488,7 @@ func (o *PRReleaseOrchestrator) addCreateBranchStep(
 			return map[string]any{
 				"branch_name":        wctx.branchName,
 				"original_branch":    originalBranch,
-				"created_in_session": createdInSession,
+				"created_in_session": wctx.createdInSession,
 			}, nil
 		},
 		Compensate: compensator.DeleteBranch,
@@ -577,7 +586,14 @@ func (o *PRReleaseOrchestrator) addPushBranchStep(
 			if wctx.version == "" || cfg.DryRun {
 				return map[string]any{"skip": true}, nil
 			}
-			if err := o.gitRepo.PushBranch(ctx, wctx.branchName); err != nil {
+			// Use force push for existing branches to handle non-fast-forward updates
+			var err error
+			if wctx.createdInSession {
+				err = o.gitRepo.PushBranch(ctx, wctx.branchName)
+			} else {
+				err = o.gitRepo.PushBranchForce(ctx, wctx.branchName)
+			}
+			if err != nil {
 				return nil, fmt.Errorf("failed to push branch: %w", err)
 			}
 			return map[string]any{

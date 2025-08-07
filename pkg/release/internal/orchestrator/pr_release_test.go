@@ -716,6 +716,8 @@ func TestPRReleaseOrchestrator_RollbackOnFailure(t *testing.T) {
 
 		// Setup expectations for createBranch step - successful
 		branchName := "release/v1.1.0"
+		// Mock ListLocalBranches to return branches WITHOUT the target branch (so it gets created)
+		gitRepo.On("ListLocalBranches", mock.Anything).Return([]string{"main"}, nil).Once()
 		// Once for create, once during rollback check
 		gitRepo.On("CreateBranch", mock.Anything, branchName).Return(nil).Once()
 		gitRepo.On("PushBranch", mock.Anything, branchName).Return(nil).Once()
@@ -798,6 +800,8 @@ func TestPRReleaseOrchestrator_RollbackOnFailure(t *testing.T) {
 
 		branchName := "release/v1.1.0"
 		gitRepo.On("GetCurrentBranch", mock.Anything).Return("main", nil).Once()
+		// Mock ListLocalBranches to return branches WITHOUT the target branch (so it gets created)
+		gitRepo.On("ListLocalBranches", mock.Anything).Return([]string{"main"}, nil).Once()
 		gitRepo.On("CreateBranch", mock.Anything, branchName).Return(nil).Once()
 		gitRepo.On("PushBranch", mock.Anything, branchName).Return(nil).Times(2)
 		gitRepo.On("CheckoutBranch", mock.Anything, branchName).Return(nil).Once()
@@ -895,6 +899,8 @@ func TestPRReleaseOrchestrator_RollbackOnFailure(t *testing.T) {
 		cliffSvc.On("CalculateNextVersion", mock.Anything, "v1.0.0").Return(nextVersion, nil).Times(2)
 
 		branchName := "release/v1.1.0"
+		// Mock ListLocalBranches to return branches WITHOUT the target branch (so it gets created)
+		gitRepo.On("ListLocalBranches", mock.Anything).Return([]string{"main"}, nil).Once()
 		gitRepo.On("GetCurrentBranch", mock.Anything).Return("main", nil).Once()
 		gitRepo.On("CreateBranch", mock.Anything, branchName).Return(nil).Once()
 		gitRepo.On("PushBranch", mock.Anything, branchName).Return(nil).Once()
@@ -910,19 +916,19 @@ func TestPRReleaseOrchestrator_RollbackOnFailure(t *testing.T) {
 		gitRepo.On("ListRemoteBranches", mock.Anything).
 			Return([]string{"origin/main", "origin/" + branchName}, nil).
 			Maybe()
-		gitRepo.On("GetCurrentBranch", mock.Anything).Return(branchName, nil).Maybe()
+		gitRepo.On("GetCurrentBranch", mock.Anything).Return(branchName, nil).Times(2)
 		gitRepo.On("RestoreFile", mock.Anything, mock.Anything).Return(nil).Maybe()
 
-		// Rollback also fails
+		// Rollback also fails - make checkout operations fail during rollback
 		gitRepo.On("CheckoutBranch", mock.Anything, "main").
 			Return(errors.New("checkout failed")).
-			Maybe()
-			// May be called multiple times with retries
+			Maybe() // May be called multiple times due to retries
 		gitRepo.On("CheckoutBranch", mock.Anything, "master").
 			Return(errors.New("checkout failed")).
-			Maybe()
-			// Also handle master branch
-		gitRepo.On("DeleteBranch", mock.Anything, branchName).Return(nil).Maybe()
+			Maybe() // May be called multiple times due to retries
+		gitRepo.On("DeleteBranch", mock.Anything, branchName).
+			Return(errors.New("delete branch failed")).
+			Maybe() // This should cause rollback to fail
 		gitRepo.On("DeleteRemoteBranch", mock.Anything, branchName).Return(nil).Maybe()
 
 		orch := NewPRReleaseOrchestrator(gitRepo, githubRepo, fsRepo, cliffSvc, npmSvc)

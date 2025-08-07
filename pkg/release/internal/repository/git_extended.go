@@ -17,6 +17,7 @@ type GitExtendedRepository interface {
 	// Branch operations
 	GetCurrentBranch(ctx context.Context) (string, error)
 	PushBranch(ctx context.Context, branch string) error
+	PushBranchForce(ctx context.Context, branch string) error
 	DeleteBranch(ctx context.Context, name string) error
 	DeleteRemoteBranch(ctx context.Context, name string) error
 	ListLocalBranches(ctx context.Context) ([]string, error)

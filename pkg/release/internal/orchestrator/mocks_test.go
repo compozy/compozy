@@ -61,6 +61,10 @@ func (m *mockGitExtendedRepository) PushBranch(ctx context.Context, branch strin
 	args := m.Called(ctx, branch)
 	return args.Error(0)
 }
+func (m *mockGitExtendedRepository) PushBranchForce(ctx context.Context, branch string) error {
+	args := m.Called(ctx, branch)
+	return args.Error(0)
+}
 func (m *mockGitExtendedRepository) DeleteBranch(ctx context.Context, name string) error {
 	args := m.Called(ctx, name)
 	return args.Error(0)

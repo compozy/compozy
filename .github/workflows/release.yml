@@ -13,9 +13,7 @@ on:
   # Trigger on PR events for dry-run checks
   pull_request:
     types:
-      - opened
-      - synchronize
-      - labeled
+      - synchronize # Only on updates to existing PRs
     branches:
       - main
 
@@ -29,7 +27,7 @@ on:
         default: false
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 env:
@@ -86,7 +84,7 @@ jobs:
     name: Dry-Run Release Check
     if: |
       github.event_name == 'pull_request' &&
-      contains(github.event.pull_request.labels.*.name, 'release-pending')
+      startsWith(github.event.pull_request.title, 'ci(release): Release ')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

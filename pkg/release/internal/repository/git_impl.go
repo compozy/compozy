@@ -135,6 +135,11 @@ func (r *gitRepository) CreateTag(_ context.Context, tag, msg string) error {
 
 	_, err = r.repo.CreateTag(tag, head.Hash(), &git.CreateTagOptions{
 		Message: msg,
+		Tagger: &object.Signature{
+			Name:  "Test User",
+			Email: "test@example.com",
+			When:  time.Now(),
+		},
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create tag %s: %w", tag, err)
@@ -173,6 +178,15 @@ func (r *gitRepository) PushBranch(ctx context.Context, name string) error {
 	return r.repo.PushContext(ctx, &git.PushOptions{
 		RefSpecs: []config.RefSpec{config.RefSpec(fmt.Sprintf("refs/heads/%s:refs/heads/%s", name, name))},
 		Auth:     r.getAuth(),
+	})
+}
+
+// PushBranchForce pushes a branch to the remote with force.
+func (r *gitRepository) PushBranchForce(ctx context.Context, name string) error {
+	return r.repo.PushContext(ctx, &git.PushOptions{
+		RefSpecs: []config.RefSpec{config.RefSpec(fmt.Sprintf("refs/heads/%s:refs/heads/%s", name, name))},
+		Auth:     r.getAuth(),
+		Force:    true,
 	})
 }
 

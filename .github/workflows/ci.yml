@@ -194,6 +194,9 @@ jobs:
       - name: Setup Bun
         uses: ./.github/actions/setup-bun
 
+      - name: Setup git-cliff for release tests
+        uses: ./.github/actions/setup-git-cliff
+
       - name: Run linting
         run: |
           echo "Running Go code quality checks..."
