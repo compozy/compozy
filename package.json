@@ -1,6 +1,6 @@
 {
-  "name": "compozy-examples",
-  "version": "0.0.1",
+  "name": "compozy",
+  "version": "1.1.0",
   "description": "Compozy runtime examples and tools",
   "private": true,
   "type": "module",
@@ -27,6 +27,8 @@
     "@commitlint/config-conventional": "^19.8.1",
     "@storybook/nextjs": "9.1.0",
     "@types/bun": "1.2.19",
+    "@types/minimatch": "^6.0.0",
+    "minimatch": "^10.0.3",
     "oxlint": "1.9.0",
     "prettier": "3.6.2",
     "prettier-plugin-multiline-arrays": "4.0.3",
