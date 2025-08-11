@@ -52,7 +52,7 @@
     "fumadocs-openapi": "9.1.8",
     "fumadocs-ui": "15.6.9",
     "geist": "1.4.2",
-    "lucide-react": "^0.536.0",
+    "lucide-react": "^0.539.0",
     "mermaid": "11.9.0",
     "mermaid-isomorphic": "3.0.4",
     "motion": "12.23.12",
