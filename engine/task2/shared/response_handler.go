@@ -198,7 +198,7 @@ func (h *BaseResponseHandler) checkSuccessField(output *core.Output) error {
 			return h.getTaskFailureError(output)
 		}
 	case string:
-		if strings.EqualFold(s, "false") {
+		if strings.EqualFold(strings.TrimSpace(s), "false") {
 			return h.getTaskFailureError(output)
 		}
 	}

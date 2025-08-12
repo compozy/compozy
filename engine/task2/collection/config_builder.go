@@ -31,6 +31,9 @@ func (cb *ConfigBuilder) GetTemplateEngine() *tplengine.TemplateEngine {
 }
 
 // parseInputTemplate parses a template input and returns it as core.Input
+// parseInputTemplate parses a template input and returns it as core.Input.
+// It defers unresolved runtime task references by leveraging ParseMapWithFilter.
+// parseInputTemplate parses a template input and returns it as core.Input
 func (cb *ConfigBuilder) parseInputTemplate(input core.Input, context map[string]any) (core.Input, error) {
 	processedWith, err := cb.templateEngine.ParseAny(input, context)
 	if err != nil {

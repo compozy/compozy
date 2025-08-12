@@ -36,7 +36,14 @@ func (a *UpdateChildState) validateInput(input map[string]any) (core.ID, core.St
 	if !ok {
 		return "", "", core.NewError(nil, "INVALID_INPUT", map[string]any{"field": "status"})
 	}
-	return core.ID(taskExecIDStr), core.StatusType(statusStr), nil
+	status := core.StatusType(statusStr)
+	if !status.IsValid() {
+		return "", "", core.NewError(nil, "INVALID_INPUT", map[string]any{
+			"field":  "status",
+			"reason": "invalid_value",
+		})
+	}
+	return core.ID(taskExecIDStr), status, nil
 }
 
 func (a *UpdateChildState) updateOutput(currentState *task.State, input map[string]any) error {

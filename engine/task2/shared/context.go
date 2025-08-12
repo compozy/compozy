@@ -9,7 +9,7 @@ import (
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task2/contracts"
 	"github.com/compozy/compozy/engine/workflow"
-	"github.com/dgraph-io/ristretto"
+	"github.com/dgraph-io/ristretto/v2"
 )
 
 // NormalizationContext holds all data needed for normalization
@@ -753,10 +753,10 @@ func (nc *NormalizationContext) IsWithinCollection() bool {
 	// We can detect this by checking if there are collection-specific variables like "item" or "index"
 	if nc.Variables != nil {
 		// If we have item or index variables, we're within a collection context
-		if _, hasItem := nc.Variables["item"]; hasItem {
+		if _, hasItem := nc.Variables[ItemKey]; hasItem {
 			return true
 		}
-		if _, hasIndex := nc.Variables["index"]; hasIndex {
+		if _, hasIndex := nc.Variables[IndexKey]; hasIndex {
 			return true
 		}
 	}

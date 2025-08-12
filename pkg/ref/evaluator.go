@@ -6,7 +6,7 @@ import (
 	"math"
 	"strings"
 
-	"github.com/dgraph-io/ristretto"
+	"github.com/dgraph-io/ristretto/v2"
 	"github.com/tidwall/gjson"
 )
 

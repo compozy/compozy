@@ -652,7 +652,7 @@ func TestTaskRepo_GetTaskTree(t *testing.T) {
 			)
 
 			mockSetup.Mock.ExpectQuery("WITH RECURSIVE task_tree").
-				WithArgs(rootStateID).
+				WithArgs(rootStateID, 100).
 				WillReturnRows(treeRows)
 
 			tree, err := repo.GetTaskTree(ctx, rootStateID)
@@ -696,7 +696,7 @@ func TestTaskRepo_GetTaskTree(t *testing.T) {
 			)
 
 			mockSetup.Mock.ExpectQuery("WITH RECURSIVE task_tree").
-				WithArgs(rootStateID).
+				WithArgs(rootStateID, 100).
 				WillReturnRows(singleRow)
 
 			tree, err := repo.GetTaskTree(ctx, rootStateID)
@@ -722,7 +722,7 @@ func TestTaskRepo_GetTaskTree(t *testing.T) {
 			})
 
 			mockSetup.Mock.ExpectQuery("WITH RECURSIVE task_tree").
-				WithArgs(nonExistentRootID).
+				WithArgs(nonExistentRootID, 100).
 				WillReturnRows(emptyRows)
 
 			tree, err := repo.GetTaskTree(ctx, nonExistentRootID)

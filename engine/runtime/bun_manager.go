@@ -19,10 +19,10 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/Masterminds/semver/v3"
 	"github.com/compozy/compozy/engine/core"
 	appconfig "github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
-	"github.com/hashicorp/go-version"
 	"golang.org/x/text/unicode/norm"
 )
 
@@ -48,10 +48,11 @@ const (
 	// it gets wrapped in a standardized structure for consistent API behavior.
 	PrimitiveValueKey = "value"
 
-	// MaxStderrCaptureSize limits how much stderr we retain in-memory for error reporting.
+	// MaxStderrCaptureSize is the default limit for stderr retention in-memory.
+	// This is used as a fallback if not configured in Config.
 	// Tools that stream verbose logs (e.g., MCP/LLM tools) can emit large volumes of output.
 	// Capping prevents excessive memory usage while preserving enough context for debugging.
-	MaxStderrCaptureSize = 1 * 1024 * 1024 // 1MB
+	MaxStderrCaptureSize = 1 * 1024 * 1024 // 1MB default
 )
 
 // Pool for reusing buffers to reduce allocations and improve performance
@@ -59,6 +60,16 @@ var bufferPool = sync.Pool{
 	New: func() any {
 		return bytes.NewBuffer(make([]byte, 0, InitialBufferSize))
 	},
+}
+
+// secretRe matches common secret patterns in logs for redaction
+var secretRe = regexp.MustCompile(
+	`\b(sk-[A-Za-z0-9_\-]{16,}|api[-_]?key[-_]?[A-Za-z0-9_\-]{16,}|token[-_]?[A-Za-z0-9_\-]{16,})\b`,
+)
+
+// redact masks common secret patterns in logs (best-effort; keep fast/cheap).
+func redact(s string) string {
+	return secretRe.ReplaceAllString(s, "***REDACTED***")
 }
 
 // BunManager implements the Runtime interface for Bun execution
@@ -101,6 +112,9 @@ func MergeWithDefaults(config *Config) *Config {
 	}
 	if config.EntrypointPath == "" {
 		config.EntrypointPath = defaultConfig.EntrypointPath
+	}
+	if config.MaxStderrCaptureSize == 0 {
+		config.MaxStderrCaptureSize = defaultConfig.MaxStderrCaptureSize
 	}
 	return config
 }
@@ -259,7 +273,7 @@ func (bm *BunManager) executeBunWorker(ctx context.Context, requestData []byte, 
 		return nil, err
 	}
 	// Wait for process completion and stderr reading
-	if err := bm.waitForProcessCompletion(cmd, stderrWg, stderrBuf); err != nil {
+	if err := bm.waitForProcessCompletion(ctx, cmd, stderrWg, stderrBuf); err != nil {
 		return nil, err
 	}
 	return bm.parseToolResponse(response)
@@ -270,19 +284,21 @@ func (bm *BunManager) createBunCommand(ctx context.Context, env core.EnvMap) (*e
 	storeDir := core.GetStoreDir(bm.projectRoot)
 	workerPath := filepath.Join(storeDir, "bun_worker.ts")
 
-	args := []string{"run"}
+	args := make([]string, 0, 8)
 	// Add memory management flags for aggressive garbage collection
 	// Only add --smol flag if Bun version is 0.7.0 or later (when it was introduced)
 	bunVersionStr := bm.getBunVersion(ctx)
 	if bunVersionStr != "" {
-		bunVer, err := version.NewVersion(bunVersionStr)
+		bunVer, err := semver.NewVersion(bunVersionStr)
 		if err == nil {
-			minVersion, _ := version.NewVersion("0.7.0") //nolint:errcheck // hardcoded version string is safe
-			if bunVer.GreaterThanOrEqual(minVersion) {
-				args = append(args, "--smol") // Use smol mode for reduced memory footprint
+			minVersion := semver.MustParse("0.7.0")
+			if bunVer.GreaterThanEqual(minVersion) {
+				args = append(args, "--smol") // Global Bun flag for reduced memory footprint
 			}
 		}
 	}
+	// Now append the subcommand after global flags
+	args = append(args, "run")
 	args = append(args, bm.config.BunPermissions...)
 	args = append(args, workerPath)
 
@@ -301,7 +317,7 @@ func (bm *BunManager) createBunCommand(ctx context.Context, env core.EnvMap) (*e
 	// Add memory limit environment variable if configured
 	if bm.config.MaxMemoryMB > 0 {
 		cmd.Env = append(cmd.Env,
-			fmt.Sprintf("BUN_MAX_HEAP=%d", bm.config.MaxMemoryMB),
+			fmt.Sprintf("BUN_JSC_forceRAMSize=%d", bm.config.MaxMemoryMB*1024*1024),
 			fmt.Sprintf("COMPOZY_MAX_MEMORY_MB=%d", bm.config.MaxMemoryMB))
 	}
 
@@ -414,6 +430,10 @@ func (bm *BunManager) readStderrInBackground(
 		buf := make([]byte, 256) // Small buffer for immediate reads
 		var lineBuf bytes.Buffer
 		var captured int
+		maxCapture := bm.config.MaxStderrCaptureSize
+		if maxCapture == 0 {
+			maxCapture = MaxStderrCaptureSize // Use constant as fallback
+		}
 		for {
 			// Read with small buffer for immediate output
 			n, err := stderr.Read(buf)
@@ -426,11 +446,11 @@ func (bm *BunManager) readStderrInBackground(
 					if b == '\n' {
 						line := strings.TrimRight(lineBuf.String(), "\r\n")
 						if line != "" {
-							// Log immediately
-							log.Debug("Bun worker stderr", "output", line)
+							// Log immediately with redaction
+							log.Debug("Bun worker stderr", "output", redact(line))
 							// Capture for error context
-							if captured < MaxStderrCaptureSize {
-								remaining := MaxStderrCaptureSize - captured
+							if captured < maxCapture {
+								remaining := maxCapture - captured
 								toWrite := line + "\n"
 								if len(toWrite) > remaining {
 									toWrite = toWrite[:remaining]
@@ -448,9 +468,9 @@ func (bm *BunManager) readStderrInBackground(
 				if lineBuf.Len() > 0 {
 					line := strings.TrimRight(lineBuf.String(), "\r\n")
 					if line != "" {
-						log.Debug("Bun worker stderr", "output", line)
-						if captured < MaxStderrCaptureSize {
-							remaining := MaxStderrCaptureSize - captured
+						log.Debug("Bun worker stderr", "output", redact(line))
+						if captured < maxCapture {
+							remaining := maxCapture - captured
 							toWrite := line + "\n"
 							if len(toWrite) > remaining {
 								toWrite = toWrite[:remaining]
@@ -496,7 +516,17 @@ func (bm *BunManager) readStdoutResponse(stdout io.ReadCloser) (string, error) {
 }
 
 // waitForProcessCompletion waits for the process to complete and handles errors
-func (bm *BunManager) waitForProcessCompletion(cmd *exec.Cmd, stderrWg *sync.WaitGroup, stderrBuf *bytes.Buffer) error {
+func (bm *BunManager) waitForProcessCompletion(
+	ctx context.Context,
+	cmd *exec.Cmd,
+	stderrWg *sync.WaitGroup,
+	stderrBuf *bytes.Buffer,
+) error {
+	// Check for context cancellation first
+	if ctx.Err() != nil {
+		return fmt.Errorf("bun process canceled: %w", ctx.Err())
+	}
+
 	// Wait for process to complete
 	waitErr := cmd.Wait()
 
@@ -505,7 +535,7 @@ func (bm *BunManager) waitForProcessCompletion(cmd *exec.Cmd, stderrWg *sync.Wai
 
 	if waitErr != nil {
 		// Try to enrich error with exit status
-		var exitCode int
+		exitCode := -1 // Default to -1 for unknown exit status
 		if exitErr, ok := waitErr.(*exec.ExitError); ok {
 			// Extract status info
 			if status, ok := exitErr.Sys().(syscall.WaitStatus); ok {
@@ -540,7 +570,12 @@ func (bm *BunManager) waitForProcessCompletion(cmd *exec.Cmd, stderrWg *sync.Wai
 		}
 		// Include stderr output in error for debugging
 		if stderrOutput := stderrBuf.String(); stderrOutput != "" {
-			return fmt.Errorf("bun process failed (exit %d): %w\nstderr: %s", exitCode, waitErr, stderrOutput)
+			return fmt.Errorf(
+				"bun process failed (exit %d): %w\nstderr (truncated): %s",
+				exitCode,
+				waitErr,
+				stderrOutput,
+			)
 		}
 		return fmt.Errorf("bun process failed (exit %d): %w", exitCode, waitErr)
 	}

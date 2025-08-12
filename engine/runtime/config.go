@@ -22,7 +22,8 @@ type Config struct {
 	// Application config integration fields
 	Environment string // Deployment environment (development, staging, production)
 	// Memory management
-	MaxMemoryMB int // Maximum memory limit in MB for the runtime process (0 = no limit)
+	MaxMemoryMB          int // Maximum memory limit in MB for the runtime process (0 = no limit)
+	MaxStderrCaptureSize int // Maximum size of stderr buffer to capture (default 1MB)
 }
 
 // DefaultConfig returns a sensible default configuration
@@ -37,8 +38,9 @@ func DefaultConfig() *Config {
 		BunPermissions: []string{
 			"--allow-read", // Minimal permissions - allow read only by default
 		},
-		Environment: "development", // Default environment
-		MaxMemoryMB: 2048,          // Default 2GB memory limit
+		Environment:          "development",   // Default environment
+		MaxMemoryMB:          2048,            // Default 2GB memory limit
+		MaxStderrCaptureSize: 1 * 1024 * 1024, // Default 1MB stderr buffer
 	}
 }
 

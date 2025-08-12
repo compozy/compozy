@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/dgraph-io/ristretto"
+	"github.com/dgraph-io/ristretto/v2"
 	"github.com/google/cel-go/cel"
 
 	"github.com/compozy/compozy/engine/core"

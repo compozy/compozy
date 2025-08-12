@@ -433,7 +433,7 @@ func (r *TaskRepo) GetChildByTaskID(ctx context.Context, parentStateID core.ID, 
 
 // GetTaskTree retrieves a complete task hierarchy starting from the root using PostgreSQL CTE.
 func (r *TaskRepo) GetTaskTree(ctx context.Context, rootStateID core.ID) ([]*task.State, error) {
-	query := fmt.Sprintf(`
+	query := `
         WITH RECURSIVE task_tree AS (
 			-- Base case: start with the root task
 			SELECT task_exec_id, task_id, workflow_exec_id, workflow_id, component,
@@ -450,17 +450,17 @@ func (r *TaskRepo) GetTaskTree(ctx context.Context, rootStateID core.ID) ([]*tas
 				   ts.input, ts.output, ts.error, ts.created_at, ts.updated_at, tt.depth + 1
 			FROM task_states ts
 			INNER JOIN task_tree tt ON ts.parent_state_id = tt.task_exec_id
-			WHERE tt.depth < %d
+			WHERE tt.depth < $2
 		)
         SELECT task_exec_id, task_id, workflow_exec_id, workflow_id, component,
 			   status, execution_type, parent_state_id, agent_id, action_id, tool_id,
 			   input, output, error, created_at, updated_at
 		FROM task_tree
 		ORDER BY depth, created_at
-	`, maxTaskTreeDepth)
+	`
 
 	var statesDB []*task.StateDB
-	if err := pgxscan.Select(ctx, r.db, &statesDB, query, rootStateID); err != nil {
+	if err := pgxscan.Select(ctx, r.db, &statesDB, query, rootStateID, maxTaskTreeDepth); err != nil {
 		return nil, fmt.Errorf("scanning task tree: %w", err)
 	}
 

@@ -10,7 +10,7 @@ require (
 	github.com/bmatcuk/doublestar/v4 v4.9.1
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/charmbracelet/log v0.4.2
-	github.com/dgraph-io/ristretto v1.0.1
+	github.com/dgraph-io/ristretto/v2 v2.2.0
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/georgysavva/scany/v2 v2.1.4
 	github.com/gin-gonic/gin v1.10.1
@@ -78,6 +78,7 @@ require (
 	github.com/go-viper/mapstructure/v2 v2.4.0
 	github.com/gofrs/flock v0.12.1
 	github.com/google/go-github/v74 v74.0.0
+	github.com/hashicorp/go-version v1.7.0
 	github.com/knadh/koanf/providers/env/v2 v2.0.0
 	github.com/knadh/koanf/providers/structs v1.0.0
 	github.com/knadh/koanf/v2 v2.2.2
@@ -136,7 +137,6 @@ require (
 	github.com/cpuguy83/dockercfg v0.3.2 // indirect
 	github.com/cyphar/filepath-securejoin v0.4.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/dgryski/go-farm v0.0.0-20240924180020-3414d57e47da // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/dlclark/regexp2 v1.11.5 // indirect
@@ -178,7 +178,6 @@ require (
 	github.com/gotnospirit/messageformat v0.0.0-20221001023931-dfe49f1eb092 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.1 // indirect
-	github.com/hashicorp/go-version v1.7.0 // indirect
 	github.com/huandu/xstrings v1.5.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
