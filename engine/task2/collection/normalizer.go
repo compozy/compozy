@@ -110,7 +110,9 @@ func (n *Normalizer) normalizeConfig(config *task.Config, normCtx *shared.Normal
 	if childTaskConfig != nil {
 		config.Task = childTaskConfig
 		// Apply context inheritance to the child task template
-		shared.InheritTaskConfig(config.Task, config)
+		if err := shared.InheritTaskConfig(config.Task, config); err != nil {
+			return fmt.Errorf("failed to inherit task config: %w", err)
+		}
 	}
 	// Note: Collection-specific normalization (items expansion, filtering) happens at runtime
 	// during task execution, not during config normalization phase
@@ -121,7 +123,7 @@ func (n *Normalizer) normalizeConfig(config *task.Config, normCtx *shared.Normal
 func (n *Normalizer) shouldSkipField(k string) bool {
 	// Skip fields that need special handling
 	return k == "agent" || k == "tool" || k == "outputs" || k == "output" ||
-		k == "collection" || k == "items" || k == "filter" || k == "task"
+		k == "collection" || k == "items" || k == "filter" || k == "task" || k == "tasks"
 }
 
 // ExpandCollectionItems evaluates the 'items' template expression and converts the result

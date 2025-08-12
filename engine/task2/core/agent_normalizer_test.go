@@ -10,15 +10,13 @@ import (
 	"github.com/compozy/compozy/engine/task2/core"
 	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/engine/workflow"
-	"github.com/compozy/compozy/pkg/tplengine"
 )
 
 func TestAgentNormalizer_NormalizeAgent(t *testing.T) {
 	t.Run("Should return nil for nil config", func(t *testing.T) {
 		// Arrange
-		templateEngine := &tplengine.TemplateEngine{}
 		envMerger := core.NewEnvMerger()
-		normalizer := core.NewAgentNormalizer(templateEngine, envMerger)
+		normalizer := core.NewAgentNormalizer(envMerger)
 		ctx := &shared.NormalizationContext{}
 		// Act
 		err := normalizer.NormalizeAgent(nil, ctx, "")
@@ -28,9 +26,8 @@ func TestAgentNormalizer_NormalizeAgent(t *testing.T) {
 
 	t.Run("Should process agent config without errors", func(t *testing.T) {
 		// Arrange
-		templateEngine := &tplengine.TemplateEngine{}
 		envMerger := core.NewEnvMerger()
-		normalizer := core.NewAgentNormalizer(templateEngine, envMerger)
+		normalizer := core.NewAgentNormalizer(envMerger)
 		config := &agent.Config{
 			ID:           "test-agent",
 			Instructions: "Simple instructions without templates",
@@ -51,9 +48,8 @@ func TestAgentNormalizer_NormalizeAgent(t *testing.T) {
 
 	t.Run("Should set current input from config when nil", func(t *testing.T) {
 		// Arrange
-		templateEngine := &tplengine.TemplateEngine{}
 		envMerger := core.NewEnvMerger()
-		normalizer := core.NewAgentNormalizer(templateEngine, envMerger)
+		normalizer := core.NewAgentNormalizer(envMerger)
 		input := enginecore.NewInput(map[string]any{"key": "value"})
 		config := &agent.Config{
 			ID:           "test-agent",
@@ -75,9 +71,8 @@ func TestAgentNormalizer_NormalizeAgent(t *testing.T) {
 
 	t.Run("Should handle agent without actions", func(t *testing.T) {
 		// Arrange
-		templateEngine := &tplengine.TemplateEngine{}
 		envMerger := core.NewEnvMerger()
-		normalizer := core.NewAgentNormalizer(templateEngine, envMerger)
+		normalizer := core.NewAgentNormalizer(envMerger)
 		config := &agent.Config{
 			ID:           "test-agent",
 			Instructions: "Simple agent",

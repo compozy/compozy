@@ -1,7 +1,6 @@
 package runtime
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"crypto/sha256"
@@ -16,6 +15,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 	"unicode/utf8"
 
@@ -46,6 +46,11 @@ const (
 	// When a tool returns a primitive type (string, number, boolean) instead of an object,
 	// it gets wrapped in a standardized structure for consistent API behavior.
 	PrimitiveValueKey = "value"
+
+	// MaxStderrCaptureSize limits how much stderr we retain in-memory for error reporting.
+	// Tools that stream verbose logs (e.g., MCP/LLM tools) can emit large volumes of output.
+	// Capping prevents excessive memory usage while preserving enough context for debugging.
+	MaxStderrCaptureSize = 1 * 1024 * 1024 // 1MB
 )
 
 // Pool for reusing buffers to reduce allocations and improve performance
@@ -187,6 +192,7 @@ func (bm *BunManager) ExecuteToolWithTimeout(
 		Input:      input,
 		Config:     config,
 		Env:        env,
+		TimeoutMs:  int64(timeout / time.Millisecond),
 	}
 
 	requestData, err := json.Marshal(request)
@@ -262,6 +268,8 @@ func (bm *BunManager) createBunCommand(ctx context.Context, env core.EnvMap) (*e
 	workerPath := filepath.Join(storeDir, "bun_worker.ts")
 
 	args := []string{"run"}
+	// Add memory management flags for aggressive garbage collection
+	args = append(args, "--smol") // Use smol mode for reduced memory footprint
 	args = append(args, bm.config.BunPermissions...)
 	args = append(args, workerPath)
 
@@ -272,6 +280,17 @@ func (bm *BunManager) createBunCommand(ctx context.Context, env core.EnvMap) (*e
 	// This provides a more predictable execution environment for tools that may
 	// depend on standard environment variables like TMPDIR, LANG, USER, etc.
 	cmd.Env = os.Environ()
+	// Mark executions as running under Compozy runtime for tool-side conditional behavior
+	cmd.Env = append(cmd.Env,
+		"COMPOZY_RUNTIME=worker",
+		"COMPOZY_PROJECT_ROOT="+bm.projectRoot)
+
+	// Add memory limit environment variable if configured
+	if bm.config.MaxMemoryMB > 0 {
+		cmd.Env = append(cmd.Env,
+			fmt.Sprintf("BUN_MAX_HEAP=%d", bm.config.MaxMemoryMB),
+			fmt.Sprintf("COMPOZY_MAX_MEMORY_MB=%d", bm.config.MaxMemoryMB))
+	}
 
 	if err := bm.validateAndAddEnvironmentVars(&cmd.Env, env); err != nil {
 		return nil, fmt.Errorf("environment variable validation failed: %w", err)
@@ -372,15 +391,64 @@ func (bm *BunManager) readStderrInBackground(
 	stderr io.ReadCloser,
 ) (*bytes.Buffer, *sync.WaitGroup) {
 	var stderrBuf bytes.Buffer
+	stderrBuf.Grow(64 * 1024) // pre-allocate small buffer to reduce reallocs
 	var stderrWg sync.WaitGroup
 	stderrWg.Add(1)
 	go func() {
 		defer stderrWg.Done()
-		scanner := bufio.NewScanner(stderr)
-		for scanner.Scan() {
-			line := scanner.Text()
-			stderrBuf.WriteString(line + "\n")
-			logger.FromContext(ctx).Debug("Bun worker stderr", "output", line)
+		log := logger.FromContext(ctx)
+		// Use a small buffer for real-time reading
+		buf := make([]byte, 256) // Small buffer for immediate reads
+		var lineBuf bytes.Buffer
+		var captured int
+		for {
+			// Read with small buffer for immediate output
+			n, err := stderr.Read(buf)
+			if n > 0 {
+				// Process the bytes we just read
+				for i := 0; i < n; i++ {
+					b := buf[i]
+					lineBuf.WriteByte(b)
+					// When we hit a newline, process the complete line
+					if b == '\n' {
+						line := strings.TrimRight(lineBuf.String(), "\r\n")
+						if line != "" {
+							// Log immediately
+							log.Info("Bun worker stderr", "output", line)
+							// Capture for error context
+							if captured < MaxStderrCaptureSize {
+								remaining := MaxStderrCaptureSize - captured
+								toWrite := line + "\n"
+								if len(toWrite) > remaining {
+									toWrite = toWrite[:remaining]
+								}
+								stderrBuf.WriteString(toWrite)
+								captured += len(toWrite)
+							}
+						}
+						lineBuf.Reset()
+					}
+				}
+			}
+			if err != nil {
+				// Process any remaining data in lineBuf
+				if lineBuf.Len() > 0 {
+					line := strings.TrimRight(lineBuf.String(), "\r\n")
+					if line != "" {
+						log.Info("Bun worker stderr", "output", line)
+						if captured < MaxStderrCaptureSize {
+							remaining := MaxStderrCaptureSize - captured
+							toWrite := line + "\n"
+							if len(toWrite) > remaining {
+								toWrite = toWrite[:remaining]
+							}
+							stderrBuf.WriteString(toWrite)
+							// No need to update captured here as we're breaking
+						}
+					}
+				}
+				break // EOF or error
+			}
 		}
 	}()
 	return &stderrBuf, &stderrWg
@@ -423,11 +491,45 @@ func (bm *BunManager) waitForProcessCompletion(cmd *exec.Cmd, stderrWg *sync.Wai
 	stderrWg.Wait()
 
 	if waitErr != nil {
+		// Try to enrich error with exit status
+		var exitCode int
+		if exitErr, ok := waitErr.(*exec.ExitError); ok {
+			// Extract status info
+			if status, ok := exitErr.Sys().(syscall.WaitStatus); ok {
+				exitCode = status.ExitStatus()
+				if status.Signaled() {
+					sig := status.Signal()
+					// Common case: SIGKILL (9) → often OOM killer
+					if sig == syscall.SIGKILL {
+						if stderrOutput := stderrBuf.String(); stderrOutput != "" {
+							return fmt.Errorf(
+								"bun process failed: %w (signal: KILL)\npossible OOM or external kill; captured stderr (truncated):\n%s",
+								waitErr,
+								stderrOutput,
+							)
+						}
+						return fmt.Errorf(
+							"bun process failed: %w (signal: KILL) - possible OOM or external kill",
+							waitErr,
+						)
+					}
+					if stderrOutput := stderrBuf.String(); stderrOutput != "" {
+						return fmt.Errorf(
+							"bun process failed: %w (signal: %s)\nstderr (truncated):\n%s",
+							waitErr,
+							sig.String(),
+							stderrOutput,
+						)
+					}
+					return fmt.Errorf("bun process failed: %w (signal: %s)", waitErr, sig.String())
+				}
+			}
+		}
 		// Include stderr output in error for debugging
 		if stderrOutput := stderrBuf.String(); stderrOutput != "" {
-			return fmt.Errorf("bun process failed: %w\nstderr: %s", waitErr, stderrOutput)
+			return fmt.Errorf("bun process failed (exit %d): %w\nstderr: %s", exitCode, waitErr, stderrOutput)
 		}
-		return fmt.Errorf("bun process failed: %w", waitErr)
+		return fmt.Errorf("bun process failed (exit %d): %w", exitCode, waitErr)
 	}
 
 	return nil

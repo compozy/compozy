@@ -152,7 +152,9 @@ func (h *ResponseHandler) applyRouteInheritance(
 				return fmt.Errorf("failed to clone target task config for inheritance: %w", err)
 			}
 			// Apply config inheritance from router task to target task using shared utility
-			shared.InheritTaskConfig(targetTaskConfig, input.TaskConfig)
+			if err := shared.InheritTaskConfig(targetTaskConfig, input.TaskConfig); err != nil {
+				return fmt.Errorf("failed to inherit task config: %w", err)
+			}
 			// Set the inherited config as override
 			input.NextTaskOverride = targetTaskConfig
 			return nil

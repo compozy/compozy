@@ -33,7 +33,6 @@ func TestCompositeTaskExecution(t *testing.T) {
 
 	// Sequential execution tests
 	t.Run("Should execute tasks in sequence", func(t *testing.T) {
-		t.Parallel()
 		dbHelper := helpers.NewDatabaseHelper(t)
 		t.Cleanup(func() { dbHelper.Cleanup(t) })
 
@@ -47,7 +46,6 @@ func TestCompositeTaskExecution(t *testing.T) {
 
 	// Nested composite tests
 	t.Run("Should handle nested composite tasks", func(t *testing.T) {
-		t.Parallel()
 		dbHelper := helpers.NewDatabaseHelper(t)
 		t.Cleanup(func() { dbHelper.Cleanup(t) })
 
@@ -60,7 +58,6 @@ func TestCompositeTaskExecution(t *testing.T) {
 
 	// Empty composite tests
 	t.Run("Should handle empty composite tasks", func(t *testing.T) {
-		t.Parallel()
 		dbHelper := helpers.NewDatabaseHelper(t)
 		t.Cleanup(func() { dbHelper.Cleanup(t) })
 
@@ -72,7 +69,6 @@ func TestCompositeTaskExecution(t *testing.T) {
 
 	// Failure propagation tests
 	t.Run("Should handle child task failures", func(t *testing.T) {
-		t.Parallel()
 		dbHelper := helpers.NewDatabaseHelper(t)
 		t.Cleanup(func() { dbHelper.Cleanup(t) })
 
@@ -85,7 +81,6 @@ func TestCompositeTaskExecution(t *testing.T) {
 
 	// State management tests
 	t.Run("Should manage composite state correctly", func(t *testing.T) {
-		t.Parallel()
 		dbHelper := helpers.NewDatabaseHelper(t)
 		t.Cleanup(func() { dbHelper.Cleanup(t) })
 
@@ -102,7 +97,6 @@ func TestCompositeTaskDatabase(t *testing.T) {
 	fixtureLoader := helpers.NewFixtureLoader(basePath)
 
 	t.Run("Should verify database operations", func(t *testing.T) {
-		t.Parallel()
 		dbHelper := helpers.NewDatabaseHelper(t)
 		t.Cleanup(func() { dbHelper.Cleanup(t) })
 
@@ -116,7 +110,6 @@ func TestCompositeTaskRedis(t *testing.T) {
 	fixtureLoader := helpers.NewFixtureLoader(basePath)
 
 	t.Run("Should verify redis operations", func(t *testing.T) {
-		t.Parallel()
 		redisHelper := helpers.NewRedisHelper(t)
 		t.Cleanup(func() { redisHelper.Cleanup(t) })
 

@@ -104,6 +104,10 @@ func (ts *TestSetup) CreateTaskState(t *testing.T, config *TaskStateConfig) *tas
 	}
 	err := ts.TaskRepo.UpsertState(ts.Context, taskState)
 	require.NoError(t, err)
+	// Verify it was saved
+	saved, err := ts.TaskRepo.GetState(ts.Context, taskState.TaskExecID)
+	require.NoError(t, err, "Failed to verify saved state")
+	require.Equal(t, taskState.TaskExecID, saved.TaskExecID, "TaskExecID mismatch after save")
 	return taskState
 }
 
@@ -120,6 +124,9 @@ type TaskStateConfig struct {
 // GetSavedTaskState retrieves a task state from the database
 func (ts *TestSetup) GetSavedTaskState(t *testing.T, taskExecID core.ID) *task.State {
 	savedState, err := ts.TaskRepo.GetState(ts.Context, taskExecID)
+	if err != nil {
+		t.Logf("Failed to get task state with ID %s: %v", taskExecID, err)
+	}
 	require.NoError(t, err)
 	return savedState
 }

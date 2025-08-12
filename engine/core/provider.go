@@ -136,7 +136,7 @@ type ProviderConfig struct {
 	//
 	// - **Examples**:
 	//   - OpenAI: `"gpt-4-turbo"`, `"gpt-3.5-turbo"`
-	//   - Anthropic: `"claude-3-opus-20240229"`, `"claude-3-haiku-20240307"`
+	//   - Anthropic: `"claude-4-opus"`, `"claude-3-5-haiku-latest"`
 	//   - Google: `"gemini-pro"`, `"gemini-pro-vision"`
 	//   - Ollama: `"llama2:13b"`, `"mistral:7b"`
 	Model string `json:"model" yaml:"model" mapstructure:"model"`

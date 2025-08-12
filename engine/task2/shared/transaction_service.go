@@ -2,9 +2,11 @@ package shared
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/jackc/pgx/v5"
 )
@@ -102,14 +104,28 @@ func (s *TransactionService) saveWithTransaction(
 		// Get latest state with row-level lock
 		latestState, err := txRepo.GetStateForUpdate(ctx, tx, state.TaskExecID)
 		if err != nil {
+			// Check if this is a new state (doesn't exist yet)
+			if errors.Is(err, store.ErrTaskNotFound) {
+				// For new states, directly save without merging
+				if err := txRepo.UpsertStateWithTx(ctx, tx, state); err != nil {
+					return fmt.Errorf("unable to save new task state: %w", err)
+				}
+				return nil
+			}
 			return fmt.Errorf("unable to acquire task lock for update: %w", err)
 		}
 
 		// Merge changes into latest state
 		s.mergeStateChanges(latestState, state)
 
-		// Copy state back to original to ensure caller sees the merged state
-		*state = *latestState
+		// Update only the merged fields back to the original state
+		// DO NOT overwrite identity fields like TaskExecID
+		state.Status = latestState.Status
+		state.Output = latestState.Output
+		state.Error = latestState.Error
+		if state.Input == nil && latestState.Input != nil {
+			state.Input = latestState.Input
+		}
 
 		// Save with transaction safety
 		if err := txRepo.UpsertStateWithTx(ctx, tx, latestState); err != nil {

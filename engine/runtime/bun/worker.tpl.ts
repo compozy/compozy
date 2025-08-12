@@ -6,6 +6,10 @@
 // Import all tools from entrypoint
 import * as allExports from "{{.EntrypointPath}}";
 
+// Check if debugging is enabled
+const DEBUG_MODE = process.env.COMPOZY_DEBUG === "true";
+const HEAP_PROFILING = process.env.COMPOZY_HEAP_PROFILING === "true";
+
 interface Request {
   tool_id: string;
   tool_exec_id: string;
@@ -36,25 +40,28 @@ interface ErrorInfo {
 
 // Redirect all console output methods to stderr to prevent stdout pollution
 // This ensures that tool console calls don't interfere with JSON response parsing
+// In DEBUG_MODE, skip redirection to reduce buffering
 
 // Store the original console.error to use for redirecting other methods
 const originalError = console.error;
 
-console.log = (...args: unknown[]): void => {
-  originalError("[LOG]", ...args);
-};
-console.debug = (...args: unknown[]): void => {
-  originalError("[DEBUG]", ...args);
-};
-console.info = (...args: unknown[]): void => {
-  originalError("[INFO]", ...args);
-};
-console.warn = (...args: unknown[]): void => {
-  originalError("[WARN]", ...args);
-};
-console.error = (...args: unknown[]): void => {
-  originalError("[ERROR]", ...args);
-};
+if (!DEBUG_MODE) {
+  console.log = (...args: unknown[]): void => {
+    originalError("[LOG]", ...args);
+  };
+  console.debug = (...args: unknown[]): void => {
+    originalError("[DEBUG]", ...args);
+  };
+  console.info = (...args: unknown[]): void => {
+    originalError("[INFO]", ...args);
+  };
+  console.warn = (...args: unknown[]): void => {
+    originalError("[WARN]", ...args);
+  };
+  console.error = (...args: unknown[]): void => {
+    originalError("[ERROR]", ...args);
+  };
+}
 
 // Utility function to validate tool IDs
 function isValidToolId(toolId: string): boolean {
@@ -87,6 +94,19 @@ async function executeWithTimeout(
         reject(err);
       });
   });
+}
+
+// Set memory limit from environment if available
+if (process.env.COMPOZY_MAX_MEMORY_MB) {
+  const maxMemoryMB = parseInt(process.env.COMPOZY_MAX_MEMORY_MB, 10);
+  if (maxMemoryMB > 0 && typeof process.setResourceLimits === "function") {
+    try {
+      // Set memory limits if supported by runtime
+      process.setResourceLimits({ maxHeapSize: maxMemoryMB });
+    } catch (err) {
+      originalError("Failed to set memory limit:", err);
+    }
+  }
 }
 
 // Main execution logic
@@ -215,6 +235,17 @@ async function main() {
     };
     process.stdout.write(JSON.stringify(response));
   } catch (err) {
+    // Optional heap profiling on error for memory debugging
+    if (HEAP_PROFILING && typeof Bun !== "undefined" && Bun.writeHeapSnapshot) {
+      try {
+        const snapshotPath = `/tmp/heap-${tool_id}-${Date.now()}.heapsnapshot`;
+        await Bun.writeHeapSnapshot(snapshotPath);
+        originalError(`Heap snapshot written to ${snapshotPath}`);
+      } catch (snapshotErr) {
+        originalError("Failed to write heap snapshot:", snapshotErr);
+      }
+    }
+
     // Send error response
     const errorInfo: ErrorInfo = {
       message: err instanceof Error ? err.message : String(err),

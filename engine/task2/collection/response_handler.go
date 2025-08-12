@@ -35,6 +35,7 @@ func (h *ResponseHandler) HandleResponse(
 	ctx context.Context,
 	input *shared.ResponseInput,
 ) (*shared.ResponseOutput, error) {
+	originalExecID := input.TaskState.TaskExecID
 	// Validate input
 	if err := h.baseHandler.ValidateInput(input); err != nil {
 		return nil, err
@@ -52,7 +53,15 @@ func (h *ResponseHandler) HandleResponse(
 	// Delegate to base handler for common logic
 	response, err := h.baseHandler.ProcessMainTaskResponse(ctx, input)
 	if err != nil {
+		// Ensure the original ID is still restored even on error
+		input.TaskState.TaskExecID = originalExecID
 		return nil, err
+	}
+
+	// Restore the original TaskExecID on both the input state and the response state
+	input.TaskState.TaskExecID = originalExecID
+	if response != nil && response.State != nil {
+		response.State.TaskExecID = originalExecID
 	}
 
 	// Collection tasks use deferred output transformation

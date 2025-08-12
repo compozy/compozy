@@ -66,14 +66,24 @@ func (b *ContextBuilder) BuildIterationContext(
 	} else {
 		iterCtx.Variables = make(map[string]any)
 	}
+	// Deep copy tasks map to ensure isolation between collection children
+	if tasks, ok := iterCtx.Variables["tasks"].(map[string]any); ok {
+		iterCtx.Variables["tasks"] = deepCopyTasksMap(tasks)
+	}
 	// Add item and index to variables
 	iterCtx.Variables[shared.ItemKey] = item
 	iterCtx.Variables[shared.IndexKey] = index
-	// Create current input with item and index
-	currentInput := core.Input{
-		shared.ItemKey:  item,
-		shared.IndexKey: index,
+	// Create current input by merging parent context with item and index
+	currentInput := make(core.Input)
+	// First, copy parent's current input if it exists
+	if baseContext.CurrentInput != nil {
+		for k, v := range *baseContext.CurrentInput {
+			currentInput[k] = v
+		}
 	}
+	// Then add/override with item and index
+	currentInput[shared.ItemKey] = item
+	currentInput[shared.IndexKey] = index
 	iterCtx.CurrentInput = &currentInput
 	// Also add to input variable
 	iterCtx.Variables["input"] = &currentInput
@@ -128,4 +138,102 @@ func (b *ContextBuilder) ValidateContext(ctx *shared.NormalizationContext) error
 		}
 	}
 	return nil
+}
+
+// deepCopyTasksMap creates a deep copy of the tasks map to ensure isolation
+func deepCopyTasksMap(src map[string]any) map[string]any {
+	dst := make(map[string]any, len(src))
+	for k, v := range src {
+		switch t := v.(type) {
+		case core.Output:
+			// core.Output is an alias for map[string]any
+			copied := deepCopyGenericMap(map[string]any(t))
+			dst[k] = core.Output(copied)
+		case *core.Output:
+			if t != nil {
+				copied := deepCopyGenericMap(map[string]any(*t))
+				output := core.Output(copied)
+				dst[k] = &output
+			}
+		case map[string]any:
+			// Handle nested maps
+			dst[k] = deepCopyGenericMap(t)
+		default:
+			// For other types, direct assignment is safe
+			dst[k] = v
+		}
+	}
+	return dst
+}
+
+// deepCopyGenericMap performs a deep copy of a map[string]any to ensure isolation
+func deepCopyGenericMap(src map[string]any) map[string]any {
+	if src == nil {
+		return nil
+	}
+	dst := make(map[string]any, len(src))
+	for k, v := range src {
+		switch val := v.(type) {
+		case map[string]any:
+			dst[k] = deepCopyGenericMap(val)
+		case *map[string]any:
+			if val != nil {
+				dst[k] = deepCopyGenericMap(*val)
+			} else {
+				dst[k] = nil
+			}
+		case core.Input:
+			dst[k] = deepCopyGenericMap(map[string]any(val))
+		case *core.Input:
+			if val != nil {
+				dst[k] = deepCopyGenericMap(map[string]any(*val))
+			} else {
+				dst[k] = nil
+			}
+		case core.Output:
+			dst[k] = deepCopyGenericMap(map[string]any(val))
+		case *core.Output:
+			if val != nil {
+				dst[k] = deepCopyGenericMap(map[string]any(*val))
+			} else {
+				dst[k] = nil
+			}
+		case []any:
+			dst[k] = deepCopyGenericSlice(val)
+		case []map[string]any:
+			newSlice := make([]map[string]any, len(val))
+			for i, m := range val {
+				newSlice[i] = deepCopyGenericMap(m)
+			}
+			dst[k] = newSlice
+		default:
+			dst[k] = val
+		}
+	}
+	return dst
+}
+
+// deepCopyGenericSlice performs a deep copy of a []any
+func deepCopyGenericSlice(src []any) []any {
+	if src == nil {
+		return nil
+	}
+	dst := make([]any, len(src))
+	for i, v := range src {
+		switch val := v.(type) {
+		case map[string]any:
+			dst[i] = deepCopyGenericMap(val)
+		case *map[string]any:
+			if val != nil {
+				dst[i] = deepCopyGenericMap(*val)
+			} else {
+				dst[i] = nil
+			}
+		case []any:
+			dst[i] = deepCopyGenericSlice(val)
+		default:
+			dst[i] = val
+		}
+	}
+	return dst
 }

@@ -1,0 +1,26 @@
+### code-reviewer API Tests
+### This file contains HTTP requests to test your Compozy workflows
+### Make sure Compozy is running on localhost:5001 before executing these requests
+
+@baseUrl = http://localhost:5001/api/v0
+@workflowId = review
+
+### -----------------------------------------------------------------------------
+### Execute greet workflow with friendly style
+### -----------------------------------------------------------------------------
+# @name review
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+
+{
+  "input": {
+    "directory": "../../engine/schema"
+  }
+}
+
+### Get execution ID from response
+@execId1 = {{review.response.body.data.exec_id}}
+
+### Check execution status
+GET {{baseUrl}}/executions/workflows/{{execId1}}
+Accept: application/json

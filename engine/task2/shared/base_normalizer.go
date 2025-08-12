@@ -87,8 +87,8 @@ func (n *BaseNormalizer) Normalize(config *task.Config, ctx contracts.Normalizat
 	// Merge existing With values back into the normalized config
 	if existingWith != nil && config.With != nil {
 		mergedWith := make(core.Input)
-		maps.Copy(mergedWith, *config.With)
 		maps.Copy(mergedWith, *existingWith)
+		maps.Copy(mergedWith, *config.With)
 		config.With = &mergedWith
 	} else if existingWith != nil {
 		config.With = existingWith

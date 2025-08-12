@@ -998,7 +998,7 @@ func Test_TaskReference(t *testing.T) {
 		assert.Equal(t, "code-assistant", agent.ID)
 		require.NotNil(t, agent.Config)
 		assert.Equal(t, "anthropic", string(agent.Config.Provider))
-		assert.Equal(t, "claude-3-opus-20240229", agent.Config.Model)
+		assert.Equal(t, "claude-4-opus", agent.Config.Model)
 		assert.Equal(t, float64(0.7), agent.Config.Params.Temperature)
 		assert.Equal(t, int32(4000), agent.Config.Params.MaxTokens)
 		assert.Equal(t, "You are a powerful AI coding assistant.", agent.Instructions)

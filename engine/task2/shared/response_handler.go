@@ -142,6 +142,32 @@ func (h *BaseResponseHandler) handleProcessingError(
 	return nil, err
 }
 
+// detectOutputError checks if the task output contains error indicators
+func (h *BaseResponseHandler) detectOutputError(output *core.Output) error {
+	if output == nil {
+		return nil
+	}
+	// Check for explicit error field
+	if errVal, ok := (*output)["error"]; ok && errVal != nil {
+		// Convert error value to string
+		if errStr, ok := errVal.(string); ok && errStr != "" {
+			return fmt.Errorf("task output error: %s", errStr)
+		}
+		return fmt.Errorf("task output error: %v", errVal)
+	}
+	// Check for success=false indicator
+	if successVal, ok := (*output)["success"]; ok {
+		if success, ok := successVal.(bool); ok && !success {
+			// Try to get error message if available
+			if errVal, ok := (*output)["error"]; ok && errVal != nil {
+				return fmt.Errorf("task failed: %v", errVal)
+			}
+			return fmt.Errorf("task output reported success=false")
+		}
+	}
+	return nil
+}
+
 // processTaskExecutionResult handles output transformation and determines success status
 // Extracted from TaskResponder.processTaskExecutionResult
 func (h *BaseResponseHandler) processTaskExecutionResult(
@@ -150,6 +176,11 @@ func (h *BaseResponseHandler) processTaskExecutionResult(
 ) (bool, error) {
 	state := input.TaskState
 	executionErr := input.ExecutionError
+
+	// Check task output for error indicators (agent tasks may report errors in output)
+	if outputErr := h.detectOutputError(state.Output); outputErr != nil {
+		executionErr = outputErr
+	}
 
 	// Determine if task is successful so far
 	isSuccess := executionErr == nil && state.Status != core.StatusFailed

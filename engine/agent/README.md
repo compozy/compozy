@@ -99,7 +99,7 @@ config := &agent.Config{
     ID: "code-assistant",
     Config: core.ProviderConfig{
         Provider: "anthropic",
-        Model: "claude-3-opus-20240229",
+        Model: "claude-4-opus",
         Params: map[string]any{
             "temperature": 0.7,
             "max_tokens":  4000,
@@ -137,7 +137,7 @@ id: "code-assistant"
 
 config:
   provider: "anthropic"
-  model: "claude-3-opus-20240229"
+  model: "claude-4-opus"
   params:
     temperature: 0.7
     max_tokens: 4000
@@ -273,7 +273,7 @@ id: "code-reviewer"
 
 config:
   provider: "anthropic"
-  model: "claude-3-opus-20240229"
+  model: "claude-4-opus"
   params:
     temperature: 0.3
     max_tokens: 4000

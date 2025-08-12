@@ -3,6 +3,7 @@ package shared
 import (
 	"fmt"
 
+	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task2/contracts"
 	"github.com/compozy/compozy/pkg/tplengine"
@@ -122,18 +123,23 @@ func (n *BaseSubTaskNormalizer) normalizeSubTasks(parentConfig *task.Config, ctx
 
 // InheritTaskConfig is a shared utility function that copies relevant config fields from parent to child config
 // This function can be used across different normalizers to maintain consistency
-func InheritTaskConfig(child, parent *task.Config) {
+func InheritTaskConfig(child, parent *task.Config) error {
 	if child == nil || parent == nil {
-		return // Graceful handling of nil configs
+		return nil // Graceful handling of nil configs
 	}
 	// Copy CWD from parent config to child config if not already set
 	if child.CWD == nil && parent.CWD != nil {
 		child.CWD = parent.CWD
+		// Recursively propagate CWD to all nested tasks
+		if err := task.PropagateSingleTaskCWD(child, child.CWD, "sub-task"); err != nil {
+			return fmt.Errorf("failed to propagate CWD to nested tasks: %w", err)
+		}
 	}
 	// Copy FilePath from parent config to child config if not already set
 	if child.FilePath == "" && parent.FilePath != "" {
 		child.FilePath = parent.FilePath
 	}
+	return nil
 }
 
 // normalizeSingleSubTask normalizes a single sub-task with proper context setup
@@ -143,7 +149,9 @@ func (n *BaseSubTaskNormalizer) normalizeSingleSubTask(
 	ctx *NormalizationContext,
 ) error {
 	// Apply config inheritance before template processing
-	InheritTaskConfig(subTask, parentConfig)
+	if err := InheritTaskConfig(subTask, parentConfig); err != nil {
+		return err
+	}
 
 	// Prepare sub-task context
 	subTaskCtx, err := n.prepareSubTaskContext(subTask, parentConfig, ctx)
@@ -171,8 +179,24 @@ func (n *BaseSubTaskNormalizer) prepareSubTaskContext(
 	if err != nil {
 		return nil, fmt.Errorf("failed to build sub-task context: %w", err)
 	}
+	// Merge parent input with sub-task's With instead of overwriting
+	// This ensures parent-provided input (from collection.with) is accessible
 	if subTask.With != nil {
-		subTaskCtx.CurrentInput = subTask.With
+		if subTaskCtx.CurrentInput != nil {
+			// Merge parent input with sub-task's With
+			mergedInput := make(core.Input)
+			// First copy parent input
+			for k, v := range *subTaskCtx.CurrentInput {
+				mergedInput[k] = v
+			}
+			// Then overlay sub-task's With
+			for k, v := range *subTask.With {
+				mergedInput[k] = v
+			}
+			subTaskCtx.CurrentInput = &mergedInput
+		} else {
+			subTaskCtx.CurrentInput = subTask.With
+		}
 	}
 	if ctx.MergedEnv != nil {
 		subTaskCtx.MergedEnv = ctx.MergedEnv

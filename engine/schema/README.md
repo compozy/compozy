@@ -6,20 +6,35 @@
 
 ## 📑 Table of Contents
 
-- [🎯 Overview](#-overview)
-- [💡 Motivation](#-motivation)
-- [⚡ Design Highlights](#-design-highlights)
-- [🚀 Getting Started](#-getting-started)
-- [📖 Usage](#-usage)
-  - [Library](#library)
-  - [Schema Operations](#schema-operations)
-  - [Parameter Validation](#parameter-validation)
-  - [Composite Validation](#composite-validation)
-- [🎨 Examples](#-examples)
-- [📚 API Reference](#-api-reference)
-- [🧪 Testing](#-testing)
-- [📦 Contributing](#-contributing)
-- [📄 License](#-license)
+- [`engine/schema` – _JSON Schema Validation and Configuration Processing_](#engineschema--json-schema-validation-and-configuration-processing)
+  - [📑 Table of Contents](#-table-of-contents)
+  - [🎯 Overview](#-overview)
+  - [💡 Motivation](#-motivation)
+  - [⚡ Design Highlights](#-design-highlights)
+  - [🚀 Getting Started](#-getting-started)
+  - [📖 Usage](#-usage)
+    - [Library](#library)
+    - [Schema Operations](#schema-operations)
+      - [Creating and Compiling Schemas](#creating-and-compiling-schemas)
+      - [Validation and Defaults](#validation-and-defaults)
+    - [Parameter Validation](#parameter-validation)
+    - [Composite Validation](#composite-validation)
+  - [🎨 Examples](#-examples)
+    - [Task Configuration Validation](#task-configuration-validation)
+    - [Workflow Input Validation](#workflow-input-validation)
+  - [📚 API Reference](#-api-reference)
+    - [Core Types](#core-types)
+      - [`Schema`](#schema)
+      - [`ParamsValidator`](#paramsvalidator)
+      - [`CompositeValidator`](#compositevalidator)
+      - [`StructValidator`](#structvalidator)
+      - [`CWDValidator`](#cwdvalidator)
+    - [Interfaces](#interfaces)
+      - [`Validator`](#validator)
+  - [🧪 Testing](#-testing)
+    - [Test Categories](#test-categories)
+  - [📦 Contributing](#-contributing)
+  - [📄 License](#-license)
 
 ---
 
@@ -291,7 +306,7 @@ taskConfig := map[string]any{
     "id": "process-data",
     "agent": map[string]any{
         "id": "data-processor",
-        "model": "claude-3-haiku-20240307",
+        "model": "claude-3-5-haiku-latest",
     },
     // type, timeout, retry will get default values
 }

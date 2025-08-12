@@ -52,8 +52,16 @@ func (a *UpdateChildState) Run(ctx context.Context, input map[string]any) error 
 
 	// Update output if provided
 	if output, exists := input["output"]; exists && output != nil {
-		if outputMap, ok := output.(*core.Output); ok {
-			currentState.Output = outputMap
+		// Try different type assertions
+		switch v := output.(type) {
+		case *core.Output:
+			currentState.Output = v
+		case core.Output:
+			currentState.Output = &v
+		case map[string]any:
+			// Convert map to core.Output
+			outputMap := core.Output(v)
+			currentState.Output = &outputMap
 		}
 	}
 

@@ -254,45 +254,150 @@ func (e *TemplateEngine) parseArrayType(arr []any, data map[string]any) ([]any, 
 	return result, nil
 }
 
+// containsRuntimeReferences checks if a string contains runtime-only template references
+// that should be deferred until execution time
+func containsRuntimeReferences(s string) bool {
+	// Only check for task outputs which are truly runtime-only
+	// .item and .index can be either runtime collection variables OR normal context variables
+	// so we shouldn't block them here - let the template engine try to resolve them
+	return strings.Contains(s, ".tasks.")
+}
+
+// extractTaskReferences extracts all task IDs referenced in a template string
+// For example, "{{ .tasks.clothing.output }}" returns ["clothing"]
+func extractTaskReferences(s string) []string {
+	taskIDs := []string{}
+	// Match patterns like .tasks.TASKID.
+	re := regexp.MustCompile(`\.tasks\.([a-zA-Z0-9_-]+)\.`)
+	matches := re.FindAllStringSubmatch(s, -1)
+	for _, match := range matches {
+		if len(match) > 1 {
+			taskIDs = append(taskIDs, match[1])
+		}
+	}
+	return taskIDs
+}
+
+// areAllTasksAvailable checks if all referenced task IDs exist in the tasks map
+func areAllTasksAvailable(taskIDs []string, tasksMap map[string]any) bool {
+	for _, taskID := range taskIDs {
+		if _, exists := tasksMap[taskID]; !exists {
+			return false
+		}
+	}
+	return true
+}
+
 func (e *TemplateEngine) ParseMapWithFilter(value any, data map[string]any, filter func(k string) bool) (any, error) {
 	if value == nil {
 		return nil, nil
 	}
 	switch v := value.(type) {
 	case string:
-		return e.parseStringValue(v, data)
+		return e.parseStringWithFilter(v, data)
 	case map[string]any:
-		result := make(map[string]any, len(v))
-		for k, val := range v {
-			if filter != nil && filter(k) {
-				result[k] = val
-				continue
-			}
-			parsedVal, err := e.ParseMapWithFilter(val, data, filter)
-			if err != nil {
-				return nil, fmt.Errorf("failed to parse template in map key %s: %w", k, err)
-			}
-			result[k] = parsedVal
-		}
-		return result, nil
+		return e.parseMapWithFilterMap(v, data, filter)
 	case []any:
-		result := make([]any, len(v))
-		for i, val := range v {
-			if filter != nil && filter(strconv.Itoa(i)) {
-				result[i] = val
-				continue
-			}
-			parsedVal, err := e.ParseMapWithFilter(val, data, filter)
-			if err != nil {
-				return nil, fmt.Errorf("failed to parse template in array index %d: %w", i, err)
-			}
-			result[i] = parsedVal
-		}
-		return result, nil
+		return e.parseSliceWithFilter(v, data, filter)
 	default:
-		// For other types (int, float, bool, etc.), return as is
 		return v, nil
 	}
+}
+
+// parseStringWithFilter handles string values that may reference runtime-only task placeholders.
+func (e *TemplateEngine) parseStringWithFilter(v string, data map[string]any) (any, error) {
+	if HasTemplate(v) && containsRuntimeReferences(v) {
+		if !e.canResolveTaskReferencesNow(v, data) {
+			return v, nil
+		}
+	}
+	return e.parseStringValue(v, data)
+}
+
+// canResolveTaskReferencesNow checks whether all referenced tasks exist in the provided context.
+func (e *TemplateEngine) canResolveTaskReferencesNow(v string, data map[string]any) bool {
+	if data == nil {
+		return false
+	}
+
+	tasksVal, ok := data["tasks"]
+	if !ok || tasksVal == nil {
+		return false
+	}
+
+	// Accept concrete map, pointer to map, and alias types (core.Input/Output)
+	var tasksMap map[string]any
+	switch t := tasksVal.(type) {
+	case map[string]any:
+		tasksMap = t
+	case *map[string]any:
+		if t != nil {
+			tasksMap = *t
+		}
+	case core.Input:
+		tasksMap = t
+	case *core.Input:
+		if t != nil {
+			tasksMap = *t
+		}
+	case core.Output:
+		tasksMap = t
+	case *core.Output:
+		if t != nil {
+			tasksMap = *t
+		}
+	default:
+		return false // unsupported type – cannot resolve yet
+	}
+
+	if tasksMap == nil {
+		return false
+	}
+
+	referenced := extractTaskReferences(v)
+	return areAllTasksAvailable(referenced, tasksMap)
+}
+
+// parseMapWithFilterMap parses maps while honoring the provided filter function.
+func (e *TemplateEngine) parseMapWithFilterMap(
+	m map[string]any,
+	data map[string]any,
+	filter func(k string) bool,
+) (map[string]any, error) {
+	result := make(map[string]any, len(m))
+	for k, val := range m {
+		if filter != nil && filter(k) {
+			result[k] = val
+			continue
+		}
+		parsedVal, err := e.ParseMapWithFilter(val, data, filter)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse template in map key %s: %w", k, err)
+		}
+		result[k] = parsedVal
+	}
+	return result, nil
+}
+
+// parseSliceWithFilter parses arrays while honoring the provided filter function.
+func (e *TemplateEngine) parseSliceWithFilter(
+	arr []any,
+	data map[string]any,
+	filter func(k string) bool,
+) ([]any, error) {
+	result := make([]any, len(arr))
+	for i, val := range arr {
+		if filter != nil && filter(strconv.Itoa(i)) {
+			result[i] = val
+			continue
+		}
+		parsedVal, err := e.ParseMapWithFilter(val, data, filter)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse template in array index %d: %w", i, err)
+		}
+		result[i] = parsedVal
+	}
+	return result, nil
 }
 
 // ParseWithJSONHandling processes a value, resolves templates, and handles JSON parsing for strings

@@ -1,6 +1,7 @@
 package executors
 
 import (
+	"fmt"
 	"math"
 	"sort"
 	"sync/atomic"
@@ -69,23 +70,27 @@ func (h *ContainerHelpers) executeChild(
 				"status":       string(finalState.Status),
 				"output":       finalState.Output,
 			}
-			// Add retry policy for this non-critical but important update
-			// This makes the update more resilient to transient network or database issues
+			// Add retry policy for this critical update
+			// We MUST wait for this to complete to ensure database consistency
 			activityOpts := workflow.ActivityOptions{
 				StartToCloseTimeout: 30 * time.Second,
 				RetryPolicy: &temporal.RetryPolicy{
 					InitialInterval:    time.Second,
 					BackoffCoefficient: 2.0,
 					MaximumInterval:    10 * time.Second,
-					MaximumAttempts:    3,
+					MaximumAttempts:    5, // Increased attempts for critical operation
 				},
 			}
 			activityCtx := workflow.WithActivityOptions(ctx, activityOpts)
+			// CRITICAL: We must wait for this activity to complete or fail definitively
+			// This ensures the database state is updated before the parent queries it
 			err = workflow.ExecuteActivity(activityCtx, tkacts.UpdateChildStateLabel, updateInput).Get(activityCtx, nil)
 			if err != nil {
 				log.Error("Failed to update child state after nested task completion",
 					"child_task_id", childState.TaskID, "final_status", finalState.Status, "error", err)
-				// Don't fail the execution - this is for tracking purposes only
+				// Return the error to ensure proper state synchronization
+				// The parent needs to know that the state update failed
+				return fmt.Errorf("failed to update child state %s: %w", childState.TaskID, err)
 			}
 		}
 		return nil
@@ -207,16 +212,30 @@ func (h *ContainerHelpers) executeChildrenInParallel(
 }
 
 // awaitStrategyCompletion waits for tasks to complete based on strategy
+// It ensures all goroutines complete even after strategy is satisfied
 func (h *ContainerHelpers) awaitStrategyCompletion(
 	ctx workflow.Context,
 	strategy task.ParallelStrategy,
 	completed, failed *int32,
 	total int32,
 ) error {
-	return workflow.Await(ctx, func() bool {
+	// First wait for the strategy condition to be met
+	err := workflow.Await(ctx, func() bool {
 		completedCount := atomic.LoadInt32(completed)
 		failedCount := atomic.LoadInt32(failed)
 		return h.shouldCompleteParallelTask(strategy, completedCount, failedCount, total)
+	})
+	if err != nil {
+		return err
+	}
+	// Then ensure all goroutines have finished to avoid database sync issues
+	// This is critical for ensuring UpdateChildState activities complete
+	// before GetCollectionResponse queries the database
+	return workflow.Await(ctx, func() bool {
+		completedCount := atomic.LoadInt32(completed)
+		failedCount := atomic.LoadInt32(failed)
+		// All tasks must have reached a terminal state
+		return (completedCount + failedCount) >= total
 	})
 }
 

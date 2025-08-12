@@ -60,7 +60,9 @@ func (a *NormalizeWaitProcessor) Run(ctx context.Context, input *NormalizeWaitPr
 	}
 
 	// Apply parent context inheritance from wait task to processor
-	shared.InheritTaskConfig(normalizedConfig, input.ParentTaskConfig)
+	if err := shared.InheritTaskConfig(normalizedConfig, input.ParentTaskConfig); err != nil {
+		return nil, fmt.Errorf("failed to inherit task config: %w", err)
+	}
 
 	// Create task2 orchestrator for signal normalization
 	engine := tplengine.NewEngine(tplengine.FormatJSON)

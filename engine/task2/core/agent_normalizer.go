@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/engine/agent"
-	"github.com/compozy/compozy/engine/task"
+	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/pkg/tplengine"
 )
@@ -15,12 +15,107 @@ type AgentNormalizer struct {
 	envMerger      *EnvMerger
 }
 
+// parseInputTemplates resolves any template expressions contained in the
+// provided core.Input using the supplied template context. It returns a new
+// *core.Input with the parsed values or the original pointer if no changes are
+// necessary.
+func (n *AgentNormalizer) parseInputTemplates(
+	input *core.Input,
+	templateCtx map[string]any,
+) (*core.Input, error) {
+	if input == nil || len(*input) == 0 {
+		return input, nil
+	}
+
+	parsedAny, err := n.templateEngine.ParseAny(map[string]any(*input), templateCtx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse input templates: %w", err)
+	}
+
+	parsedMap, ok := parsedAny.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("parsed input is not a map (got %T)", parsedAny)
+	}
+
+	parsedInput := core.Input(parsedMap)
+	return &parsedInput, nil
+}
+
 // NewAgentNormalizer creates a new agent normalizer
-func NewAgentNormalizer(templateEngine *tplengine.TemplateEngine, envMerger *EnvMerger) *AgentNormalizer {
+func NewAgentNormalizer(envMerger *EnvMerger) *AgentNormalizer {
 	return &AgentNormalizer{
-		templateEngine: templateEngine,
+		templateEngine: tplengine.NewEngine(tplengine.FormatJSON),
 		envMerger:      envMerger,
 	}
+}
+
+// ReparseInput re-evaluates template expressions inside the With blocks of the
+// given agent configuration *at runtime*, when the full template context
+// (including `.tasks.*` data) is finally available.  It only mutates the `With`
+// fields of the agent and its actions; all other fields remain untouched.
+// If actionID is provided, only that specific action is reparsed.
+func (n *AgentNormalizer) ReparseInput(
+	agentCfg *agent.Config,
+	ctx *shared.NormalizationContext,
+	actionID string,
+) error {
+	if agentCfg == nil || ctx == nil {
+		return nil
+	}
+
+	// Build fresh template context with up-to-date workflow state
+	tplCtx := ctx.BuildTemplateContext()
+
+	// Re-parse agent-level With
+	parsedWith, err := n.parseInputTemplates(agentCfg.With, tplCtx)
+	if err != nil {
+		return fmt.Errorf("runtime template parse (agent.With) failed: %w", err)
+	}
+	agentCfg.With = parsedWith
+
+	// Re-parse action-level With and Prompt
+	// If actionID is specified, only reparse that specific action
+	// Otherwise, reparse all actions (backward compatibility)
+	if len(agentCfg.Actions) > 0 {
+		for _, action := range agentCfg.Actions {
+			if action == nil {
+				continue
+			}
+
+			// Skip if we're targeting a specific action and this isn't it
+			if actionID != "" && action.ID != actionID {
+				continue
+			}
+
+			// Re-parse action.With
+			parsedActionWith, err := n.parseInputTemplates(action.With, tplCtx)
+			if err != nil {
+				return fmt.Errorf(
+					"runtime template parse (action.With, action %s) failed: %w",
+					action.ID, err,
+				)
+			}
+			action.With = parsedActionWith
+
+			// Re-parse action.Prompt to resolve collection variables
+			if action.Prompt != "" {
+				parsedPromptAny, err := n.templateEngine.ParseAny(action.Prompt, tplCtx)
+				if err != nil {
+					return fmt.Errorf(
+						"runtime template parse (action.Prompt, action %s) failed: %w",
+						action.ID, err,
+					)
+				}
+				promptStr, ok := parsedPromptAny.(string)
+				if !ok {
+					return fmt.Errorf("parsed prompt is not a string (action %s)", action.ID)
+				}
+				action.Prompt = promptStr
+			}
+		}
+	}
+
+	return nil
 }
 
 // NormalizeAgent normalizes an agent configuration
@@ -46,8 +141,31 @@ func (n *AgentNormalizer) NormalizeAgent(
 	if ctx.CurrentInput == nil && config.With != nil {
 		ctx.CurrentInput = config.With
 	}
-	// Build template context
+
+	// Refresh `.task` so that templates inside an agent (or its actions)
+	// still see the expected workflow-level variables (.workflow, .task)
+	// and that `.task` now points to *this* agent instead of its parent.
+	if ctx != nil {
+		vars := ctx.GetVariables()
+		vars["task"] = map[string]any{
+			"id":           config.ID,
+			"type":         "agent",
+			"instructions": config.Instructions,
+			"with":         config.With,
+			"env":          config.Env,
+		}
+	}
+
+	// Build template context *after* the injection above
 	context := ctx.BuildTemplateContext()
+
+	// Lazily parse templates inside agent-level With block
+	parsedWith, err := n.parseInputTemplates(config.With, context)
+	if err != nil {
+		return fmt.Errorf("failed to parse agent input templates: %w", err)
+	}
+	config.With = parsedWith
+
 	// Convert config to map for template processing
 	configMap, err := config.AsMap()
 	if err != nil {
@@ -119,7 +237,7 @@ func (n *AgentNormalizer) normalizeAgentActions(
 	return nil
 }
 
-// normalizeAgentActionConfig normalizes an agent action configuration
+// normalizeAgentActionConfig normalizes an individual agent action configuration
 func (n *AgentNormalizer) normalizeAgentActionConfig(
 	config *agent.ActionConfig,
 	ctx *shared.NormalizationContext,
@@ -127,29 +245,54 @@ func (n *AgentNormalizer) normalizeAgentActionConfig(
 	if config == nil {
 		return nil
 	}
-	// Set current input if not already set
-	if ctx.CurrentInput == nil && config.With != nil {
-		ctx.CurrentInput = config.With
+	// Ensure template context has a stable `.input` map for prompts:
+	// 1) Seed from ctx.CurrentInput (task-level With) when available
+	// 2) Overlay action-level With when provided
+	vb := shared.NewVariableBuilder()
+	if ctx.CurrentInput != nil {
+		vb.AddCurrentInputToVariables(ctx.GetVariables(), ctx.CurrentInput)
 	}
+	if config.With != nil {
+		// Also set/override from action-level With
+		if ctx.CurrentInput == nil {
+			ctx.CurrentInput = config.With
+		}
+		vb.AddCurrentInputToVariables(ctx.GetVariables(), config.With)
+	}
+
+	// Make sure `.task` inside the action refers to *this* action.
+	if ctx != nil {
+		vars := ctx.GetVariables()
+		vars["task"] = map[string]any{
+			"id":     config.ID,
+			"type":   "agent_action",
+			"prompt": config.Prompt,
+			"with":   config.With,
+		}
+	}
+
 	// Build template context
 	context := ctx.BuildTemplateContext()
+
+	// Do NOT parse action-level With at config time.
+	// Action inputs may reference runtime-only variables (e.g., .item, .index, .output, .tasks).
+	// They are re-parsed at runtime in ExecuteTask.reparseTaskWith.
+
 	// Convert config to map for template processing
 	configMap, err := config.AsMap()
 	if err != nil {
 		return fmt.Errorf("failed to convert action config to map: %w", err)
 	}
 	// Apply template processing with appropriate filters
-	// Skip input and output fields during action normalization
-	// Also skip prompt field if we're within a collection context to preserve {{ .item }} references
+	// Skip input, output, with, prompt, and json_mode fields during action normalization
+	// Action prompts and json_mode must ALWAYS be parsed at runtime via ReparseInput because:
+	// 1. They may reference .input which comes from the task's resolved With block
+	// 2. They may reference .item/.index in collection contexts
+	// 3. They may reference .tasks.* which is only available at runtime
 	parsed, err := n.templateEngine.ParseMapWithFilter(configMap, context, func(k string) bool {
-		// Always skip input and output
-		if k == "input" || k == "output" {
+		// Always skip runtime-only fields
+		if k == "input" || k == "output" || k == "with" || k == "prompt" || k == "json_mode" {
 			return true
-		}
-		// If parent task is a collection, also skip prompt field
-		// to preserve collection-specific template variables like {{ .item }}
-		if ctx.ParentTask != nil && ctx.ParentTask.Type == task.TaskTypeCollection {
-			return k == "prompt" || k == "json_mode"
 		}
 		return false
 	})

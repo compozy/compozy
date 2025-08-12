@@ -1,0 +1,35 @@
+name: code-reviewer
+version: "0.0.1"
+description: Workflows to review a Go project using Compozy agents
+
+workflows:
+  - source: ./workflows/review.yaml
+
+models:
+  - provider: openai
+    model: o3-mini
+    api_key: "{{ .env.OPENAI_API_KEY }}"
+
+config:
+  schedule_to_start_timeout: 5m
+
+runtime:
+  type: bun
+  entrypoint: "./entrypoint.ts"
+  permissions:
+    - --allow-read
+    - --allow-write
+    - --allow-net
+    - --allow-env
+    - --allow-run
+
+autoload:
+  enabled: true
+  strict: true
+  include:
+    - "agents/*.yaml"
+    - "tools/*.yaml"
+  exclude:
+    - "**/*~"
+    - "**/*.bak"
+    - "**/*.tmp"

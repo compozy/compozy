@@ -48,7 +48,7 @@ func (cb *ConfigBuilder) BuildTaskConfig(
 	if err != nil {
 		return nil, fmt.Errorf("failed to clone task template: %w", err)
 	}
-	// Build merged input for the task
+	// Build merged input for the task - this will include workflow context
 	mergedInput, err := cb.buildMergedInput(parentTaskConfig, taskConfig, collectionConfig, item, index, itemContext)
 	if err != nil {
 		return nil, err
@@ -59,7 +59,9 @@ func (cb *ConfigBuilder) BuildTaskConfig(
 		return nil, err
 	}
 	// Inherit parent config properties
-	cb.inheritParentConfig(taskConfig, parentTaskConfig)
+	if err := cb.inheritParentConfig(taskConfig, parentTaskConfig); err != nil {
+		return nil, fmt.Errorf("failed to inherit parent config: %w", err)
+	}
 	return taskConfig, nil
 }
 
@@ -75,7 +77,20 @@ func (cb *ConfigBuilder) buildMergedInput(
 	mergedInput := make(core.Input)
 	// Start with parent task with if available
 	if parentTaskConfig.With != nil {
-		maps.Copy(mergedInput, *parentTaskConfig.With)
+		// Process templates in the with field using the item context
+		processedWith, err := cb.templateEngine.ParseAny(*parentTaskConfig.With, itemContext)
+		if err != nil {
+			return nil, fmt.Errorf("failed to process parent with field templates: %w", err)
+		}
+		// Convert processed result to Input map
+		switch v := processedWith.(type) {
+		case map[string]any:
+			maps.Copy(mergedInput, v)
+		case core.Input:
+			maps.Copy(mergedInput, v)
+		default:
+			return nil, fmt.Errorf("processed parent with field is not a map: %T", processedWith)
+		}
 	}
 	// Process and add task template with
 	if err := cb.processTaskWith(taskConfig, itemContext, mergedInput); err != nil {
@@ -83,6 +98,10 @@ func (cb *ConfigBuilder) buildMergedInput(
 	}
 	// Add collection context fields
 	cb.addCollectionContext(mergedInput, collectionConfig, item, index)
+	// Add workflow context from itemContext for nested tasks to access
+	if workflow, ok := itemContext["workflow"]; ok {
+		mergedInput["workflow"] = workflow
+	}
 	return mergedInput, nil
 }
 
@@ -156,15 +175,20 @@ func (cb *ConfigBuilder) processTaskID(taskConfig *task.Config, itemContext map[
 }
 
 // inheritParentConfig copies relevant fields from parent to child config
-func (cb *ConfigBuilder) inheritParentConfig(taskConfig, parentTaskConfig *task.Config) {
+func (cb *ConfigBuilder) inheritParentConfig(taskConfig, parentTaskConfig *task.Config) error {
 	// Copy CWD from parent config to child config if not already set
 	if taskConfig.CWD == nil && parentTaskConfig.CWD != nil {
 		taskConfig.CWD = parentTaskConfig.CWD
+		// Recursively propagate CWD to all nested tasks
+		if err := task.PropagateSingleTaskCWD(taskConfig, taskConfig.CWD, "collection item task"); err != nil {
+			return fmt.Errorf("failed to propagate CWD to nested tasks: %w", err)
+		}
 	}
 	// Copy FilePath from parent config to child config if not already set
 	if taskConfig.FilePath == "" && parentTaskConfig.FilePath != "" {
 		taskConfig.FilePath = parentTaskConfig.FilePath
 	}
+	return nil
 }
 
 // createItemContext creates a context for a collection item

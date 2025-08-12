@@ -85,17 +85,13 @@ func (r *WorkflowRepo) listTasksInWorkflowWithTx(
 	tx pgx.Tx,
 	workflowExecID core.ID,
 ) (map[string]*task.State, error) {
-	query := `
-		SELECT *
-		FROM task_states
-		WHERE workflow_exec_id = $1
-	`
-
+	// Use recursive CTE to get ALL task states including nested children
+	// This ensures that sibling tasks within composite parents can reference each other
+	query := TaskHierarchyCTEQuery
 	var statesDB []*task.StateDB
 	if err := pgxscan.Select(ctx, tx, &statesDB, query, workflowExecID); err != nil {
 		return nil, fmt.Errorf("scanning task states: %w", err)
 	}
-
 	result := make(map[string]*task.State)
 	for _, stateDB := range statesDB {
 		state, err := stateDB.ToState()
@@ -104,7 +100,6 @@ func (r *WorkflowRepo) listTasksInWorkflowWithTx(
 		}
 		result[state.TaskID] = state
 	}
-
 	return result, nil
 }
 
@@ -117,18 +112,22 @@ func (r *WorkflowRepo) populateTaskStatesWithTx(
 	if state == nil {
 		return nil
 	}
-
-	// Get all task states for this workflow execution within the transaction
-	tasks, err := r.listTasksInWorkflowWithTx(
-		ctx,
-		tx,
-		state.WorkflowExecID,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to load task states: %w", err)
+	// Get ALL task states for this workflow execution, including nested children
+	// This ensures that sibling tasks within composite parents can reference each other
+	query := TaskHierarchyCTEQuery
+	var statesDB []*task.StateDB
+	if err := pgxscan.Select(ctx, tx, &statesDB, query, state.WorkflowExecID); err != nil {
+		return fmt.Errorf("scanning task states: %w", err)
 	}
-
-	state.Tasks = tasks
+	result := make(map[string]*task.State)
+	for _, stateDB := range statesDB {
+		taskState, err := stateDB.ToState()
+		if err != nil {
+			return fmt.Errorf("converting task state: %w", err)
+		}
+		result[taskState.TaskID] = taskState
+	}
+	state.Tasks = result
 	return nil
 }
 

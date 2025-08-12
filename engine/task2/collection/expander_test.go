@@ -331,6 +331,48 @@ func TestExpander_InjectCollectionContext(t *testing.T) {
 	})
 }
 
+func TestExpander_InjectCollectionContext_PreservesParentContext(t *testing.T) {
+	t.Run("Should preserve existing With context when injecting collection variables", func(t *testing.T) {
+		// Arrange
+		expander := &Expander{}
+		parentContext := core.Input{
+			"dir":       "/test/directory",
+			"someParam": "value",
+		}
+		childConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:   "child",
+				With: &parentContext,
+			},
+		}
+		parentConfig := &task.Config{
+			CollectionConfig: task.CollectionConfig{
+				ItemVar:  "file",
+				IndexVar: "idx",
+			},
+		}
+		item := "test.go"
+		index := 0
+
+		// Act
+		expander.injectCollectionContext(childConfig, parentConfig, item, index)
+
+		// Assert
+		assert.NotNil(t, childConfig.With)
+		withMap := map[string]any(*childConfig.With)
+
+		// Check that parent context is preserved
+		assert.Equal(t, "/test/directory", withMap["dir"], "Parent context 'dir' should be preserved")
+		assert.Equal(t, "value", withMap["someParam"], "Parent context 'someParam' should be preserved")
+
+		// Check that collection variables are added
+		assert.Equal(t, item, withMap["_collection_item"])
+		assert.Equal(t, index, withMap["_collection_index"])
+		assert.Equal(t, item, withMap["file"])
+		assert.Equal(t, index, withMap["idx"])
+	})
+}
+
 func TestExpander_ValidateChildConfigs(t *testing.T) {
 	t.Run("Should pass validation for valid child configs", func(t *testing.T) {
 		// Arrange

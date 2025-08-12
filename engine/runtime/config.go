@@ -21,6 +21,8 @@ type Config struct {
 	NodeOptions    []string // Node.js-specific options
 	// Application config integration fields
 	Environment string // Deployment environment (development, staging, production)
+	// Memory management
+	MaxMemoryMB int // Maximum memory limit in MB for the runtime process (0 = no limit)
 }
 
 // DefaultConfig returns a sensible default configuration
@@ -36,6 +38,7 @@ func DefaultConfig() *Config {
 			"--allow-read", // Minimal permissions - allow read only by default
 		},
 		Environment: "development", // Default environment
+		MaxMemoryMB: 2048,          // Default 2GB memory limit
 	}
 }
 
@@ -51,6 +54,7 @@ func TestConfig() *Config {
 			"--allow-read",
 		},
 		Environment: "testing", // Test environment
+		MaxMemoryMB: 512,       // Lower memory limit for tests
 	}
 }
 

@@ -79,7 +79,9 @@ func (n *Normalizer) normalizeRoutes(parentConfig *task.Config, routes map[strin
 				childConfig := &task.Config{}
 				if err := childConfig.FromMap(v); err == nil {
 					// Apply inheritance from router task to inline task config
-					shared.InheritTaskConfig(childConfig, parentConfig)
+					if err := shared.InheritTaskConfig(childConfig, parentConfig); err != nil {
+						return fmt.Errorf("failed to inherit task config: %w", err)
+					}
 					// Convert back to map after inheritance
 					updatedMap, err := childConfig.AsMap()
 					if err != nil {

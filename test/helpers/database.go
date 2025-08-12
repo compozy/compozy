@@ -106,17 +106,22 @@ func startSharedContainer(ctx context.Context, _ *testing.T) (*postgres.Postgres
 }
 
 // createTestIsolation creates cleanup function that preserves the shared container
-// For parallel tests, we use transactions for isolation instead of table truncation
+// We use table truncation for test isolation to ensure database consistency
 func createTestIsolation(ctx context.Context, t *testing.T, pool *pgxpool.Pool) func() {
-	// Start a transaction for test isolation
-	tx, err := pool.Begin(ctx)
-	if err != nil {
-		t.Fatalf("Failed to begin transaction: %v", err)
-	}
-	// Return cleanup that rolls back the transaction
+	// Return cleanup that truncates test data
 	return func() {
-		if err := tx.Rollback(ctx); err != nil {
-			t.Logf("Failed to rollback transaction: %v", err)
+		// Truncate tables in reverse dependency order to avoid foreign key violations
+		tables := []string{
+			"task_states",
+			"workflow_states",
+			"agent_states",
+			"tool_states",
+		}
+		for _, table := range tables {
+			query := fmt.Sprintf("TRUNCATE TABLE %s CASCADE", table)
+			if _, err := pool.Exec(ctx, query); err != nil {
+				t.Logf("Warning: failed to truncate %s: %v", table, err)
+			}
 		}
 	}
 }

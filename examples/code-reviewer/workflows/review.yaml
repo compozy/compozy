@@ -1,0 +1,78 @@
+id: review
+version: 0.1.0
+description: Review code using Claude Code for a given directory
+
+schemas:
+  - id: review_input
+    type: object
+    properties:
+      directory:
+        type: string
+        description: The directory to review
+    required:
+      - directory
+
+config:
+  input:
+    $ref: local::schemas.#(id=="review_input")
+
+tools:
+  - id: list_files
+    description: List all files in the given directory
+    input:
+      type: object
+      properties:
+        dir:
+          type: string
+          description: The directory to list files from
+        exclude:
+          type: string
+          description: Pattern to exclude files (optional)
+      required:
+        - dir
+  - id: read_file
+    description: Read the contents of a file
+    input:
+      type: object
+      properties:
+        path:
+          type: string
+          description: The file path to read
+      required:
+        - path
+
+tasks:
+  - id: review
+    type: basic
+    $use: tool(local::tools.#(id=="list_files"))
+    with:
+      dir: "{{ .workflow.input.directory }}"
+      exclude: "!*.go"
+    on_success:
+      next: review_files
+
+  - id: review_files
+    type: collection
+    mode: parallel
+    items: "{{ .tasks.review.output.files }}"
+    item_var: file
+    final: true
+    with:
+      dir: "{{ .workflow.input.directory }}"
+    task:
+      id: "process-{{ .index }}"
+      type: composite
+      tasks:
+        - id: read_content
+          type: basic
+          $use: tool(local::tools.#(id=="read_file"))
+          with:
+            path: "{{ .input.dir }}/{{ .file }}"
+
+        - id: analyze_content
+          type: basic
+          $use: agent(resource::agent::#(id=="analyzer"))
+          action: analyze
+          with:
+            file_path: "{{ .input.dir }}/{{ .file }}"
+            content: "{{ .tasks.read_content.output.content }}"

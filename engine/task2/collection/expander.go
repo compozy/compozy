@@ -156,6 +156,16 @@ func (e *Expander) createChildConfigs(
 		if err != nil {
 			return nil, fmt.Errorf("failed to build child config at index %d: %w", i, err)
 		}
+
+		// NEW: ensure each child owns an independent With map (prevents pointer sharing)
+		if childConfig.With != nil {
+			cloned := core.Input(e.deepCopyMap(map[string]any(*childConfig.With)))
+			childConfig.With = &cloned
+		} else {
+			empty := core.Input{}
+			childConfig.With = &empty
+		}
+
 		// Inject collection context metadata into child config
 		e.injectCollectionContext(childConfig, config, item, i)
 		childConfigs[i] = childConfig
@@ -174,18 +184,118 @@ func (e *Expander) injectCollectionContext(
 	if childConfig.With == nil {
 		childConfig.With = &core.Input{}
 	}
-	withMap := map[string]any(*childConfig.With)
-	// Standard collection variables
+
+	// Deep copy existing child context to avoid shared pointer mutations
+	withMap := e.deepCopyMap(map[string]any(*childConfig.With))
+
+	// Always publish canonical vars
 	withMap[shared.FieldCollectionItem] = item
 	withMap[shared.FieldCollectionIndex] = index
-	// Custom variable naming support
-	if itemVar := parentConfig.GetItemVar(); itemVar != "" {
-		withMap[itemVar] = item
+
+	// Custom variable naming support (avoid duplicates)
+	if parentConfig != nil {
+		if iv := parentConfig.GetItemVar(); iv != "" && iv != shared.FieldCollectionItem {
+			withMap[iv] = item
+		}
+		if ix := parentConfig.GetIndexVar(); ix != "" && ix != shared.FieldCollectionIndex {
+			withMap[ix] = index
+		}
 	}
-	if indexVar := parentConfig.GetIndexVar(); indexVar != "" {
-		withMap[indexVar] = index
+
+	// Merge inherited parent With after deep-copy to preserve precedence rules
+	if parentConfig != nil && parentConfig.With != nil {
+		parentMap := e.deepCopyMap(map[string]any(*parentConfig.With))
+		for k, v := range parentMap {
+			if _, exists := withMap[k]; !exists {
+				withMap[k] = v
+			}
+		}
 	}
-	*childConfig.With = core.Input(withMap)
+
+	newWith := core.Input(withMap)
+	childConfig.With = &newWith
+}
+
+// deepCopyMap creates a deep copy of a map to avoid shared pointer mutations
+func (e *Expander) deepCopyMap(src map[string]any) map[string]any {
+	if src == nil {
+		return nil
+	}
+	dst := make(map[string]any, len(src))
+	for k, v := range src {
+		switch val := v.(type) {
+		case map[string]any:
+			// Recursively deep copy nested maps
+			dst[k] = e.deepCopyMap(val)
+		case *map[string]any:
+			// Dereference and deep copy pointer to map
+			if val != nil {
+				dst[k] = e.deepCopyMap(*val)
+			} else {
+				dst[k] = nil
+			}
+		case core.Input:
+			// Deep copy core.Input (alias for map[string]any)
+			dst[k] = e.deepCopyMap(map[string]any(val))
+		case *core.Input:
+			// Dereference and deep copy pointer to core.Input
+			if val != nil {
+				dst[k] = e.deepCopyMap(map[string]any(*val))
+			} else {
+				dst[k] = nil
+			}
+		case core.Output:
+			// Deep copy core.Output (alias for map[string]any)
+			dst[k] = e.deepCopyMap(map[string]any(val))
+		case *core.Output:
+			// Dereference and deep copy pointer to core.Output
+			if val != nil {
+				dst[k] = e.deepCopyMap(map[string]any(*val))
+			} else {
+				dst[k] = nil
+			}
+		case []any:
+			// Deep copy slices
+			dst[k] = e.deepCopySlice(val)
+		case []map[string]any:
+			// Deep copy slice of maps
+			newSlice := make([]map[string]any, len(val))
+			for i, m := range val {
+				newSlice[i] = e.deepCopyMap(m)
+			}
+			dst[k] = newSlice
+		default:
+			// For primitive types and other values, assign directly
+			// This includes string, int, float, bool, etc.
+			dst[k] = val
+		}
+	}
+	return dst
+}
+
+// deepCopySlice creates a deep copy of a slice
+func (e *Expander) deepCopySlice(src []any) []any {
+	if src == nil {
+		return nil
+	}
+	dst := make([]any, len(src))
+	for i, v := range src {
+		switch val := v.(type) {
+		case map[string]any:
+			dst[i] = e.deepCopyMap(val)
+		case *map[string]any:
+			if val != nil {
+				dst[i] = e.deepCopyMap(*val)
+			} else {
+				dst[i] = nil
+			}
+		case []any:
+			dst[i] = e.deepCopySlice(val)
+		default:
+			dst[i] = val
+		}
+	}
+	return dst
 }
 
 // validateChildConfigs validates all child configurations

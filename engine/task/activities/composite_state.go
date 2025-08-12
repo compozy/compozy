@@ -76,10 +76,18 @@ func (a *CreateCompositeState) Run(ctx context.Context, input *CreateCompositeSt
 	if err != nil {
 		return nil, fmt.Errorf("failed to create composite normalizer: %w", err)
 	}
-	// Create normalization context
+	// Build normalization context for composite task
+	// This ensures workflow context is available to nested tasks
+	variableBuilder := shared.NewVariableBuilder()
+	vars := variableBuilder.BuildBaseVariables(workflowState, workflowConfig, input.TaskConfig)
+	variableBuilder.AddCurrentInputToVariables(vars, input.TaskConfig.With)
+
 	normContext := &shared.NormalizationContext{
 		WorkflowState:  workflowState,
 		WorkflowConfig: workflowConfig,
+		TaskConfig:     input.TaskConfig,
+		CurrentInput:   input.TaskConfig.With,
+		Variables:      vars,
 	}
 	// Normalize the composite task configuration
 	normalizedConfig := input.TaskConfig
@@ -104,6 +112,12 @@ func (a *CreateCompositeState) Run(ctx context.Context, input *CreateCompositeSt
 	}
 	if err := configRepo.StoreCompositeMetadata(ctx, state.TaskExecID, compositeMetadata); err != nil {
 		return nil, fmt.Errorf("failed to store composite metadata: %w", err)
+	}
+	// CRITICAL FIX: Also store the full config so waitForPriorSiblings can find it
+	// This enables sequential execution in collection subtasks by allowing
+	// waitForPriorSiblings to load the parent config and determine sibling order
+	if err := a.configStore.Save(ctx, state.TaskExecID.String(), normalizedConfig); err != nil {
+		return nil, fmt.Errorf("failed to store composite config: %w", err)
 	}
 	// Add metadata to state output
 	a.addCompositeMetadata(state, normalizedConfig, len(childConfigs))

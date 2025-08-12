@@ -244,17 +244,13 @@ func (r *TaskRepo) WithTx(ctx context.Context, fn func(pgx.Tx) error) error {
 
 // ListTasksInWorkflow retrieves all task states for a workflow execution.
 func (r *TaskRepo) ListTasksInWorkflow(ctx context.Context, workflowExecID core.ID) (map[string]*task.State, error) {
-	query := `
-		SELECT *
-		FROM task_states
-		WHERE workflow_exec_id = $1
-	`
-
+	// Use recursive CTE to get ALL task states including nested children
+	// This ensures that sibling tasks within composite parents can reference each other
+	query := TaskHierarchyCTEQuery
 	var statesDB []*task.StateDB
 	if err := pgxscan.Select(ctx, r.db, &statesDB, query, workflowExecID); err != nil {
 		return nil, fmt.Errorf("scanning states: %w", err)
 	}
-
 	result := make(map[string]*task.State)
 	for _, stateDB := range statesDB {
 		state, err := stateDB.ToState()
@@ -263,7 +259,6 @@ func (r *TaskRepo) ListTasksInWorkflow(ctx context.Context, workflowExecID core.
 		}
 		result[state.TaskID] = state
 	}
-
 	return result, nil
 }
 
@@ -380,8 +375,8 @@ func (r *TaskRepo) ListChildren(ctx context.Context, parentStateID core.ID) ([]*
 // This is more efficient than loading full task states when only outputs are needed.
 func (r *TaskRepo) ListChildrenOutputs(ctx context.Context, parentStateID core.ID) (map[string]*core.Output, error) {
 	query := `
-		SELECT task_id, output 
-		FROM task_states 
+		SELECT task_id, output
+		FROM task_states
 		WHERE parent_state_id = $1 AND output IS NOT NULL
 		ORDER BY task_id
 	`
@@ -434,7 +429,7 @@ func (r *TaskRepo) GetChildByTaskID(ctx context.Context, parentStateID core.ID, 
 // GetTaskTree retrieves a complete task hierarchy starting from the root using PostgreSQL CTE.
 func (r *TaskRepo) GetTaskTree(ctx context.Context, rootStateID core.ID) ([]*task.State, error) {
 	query := `
-		WITH RECURSIVE task_tree AS (
+        WITH RECURSIVE task_tree AS (
 			-- Base case: start with the root task
 			SELECT task_exec_id, task_id, workflow_exec_id, workflow_id, component,
 				   status, execution_type, parent_state_id, agent_id, action_id, tool_id,
@@ -452,7 +447,7 @@ func (r *TaskRepo) GetTaskTree(ctx context.Context, rootStateID core.ID) ([]*tas
 			INNER JOIN task_tree tt ON ts.parent_state_id = tt.task_exec_id
 			WHERE tt.depth < 100
 		)
-		SELECT task_exec_id, task_id, workflow_exec_id, workflow_id, component,
+        SELECT task_exec_id, task_id, workflow_exec_id, workflow_id, component,
 			   status, execution_type, parent_state_id, agent_id, action_id, tool_id,
 			   input, output, error, created_at, updated_at
 		FROM task_tree

@@ -1,0 +1,27 @@
+{
+  "name": "@compozy/example-codereview",
+  "version": "0.0.1",
+  "description": "Workflows to review a Go project using Compozy agents",
+  "private": true,
+  "type": "module",
+  "main": "./entrypoint.ts",
+  "scripts": {
+    "build": "echo 'No build step required for Compozy examples'",
+    "lint": "oxlint *.ts",
+    "type-check": "tsc --noEmit",
+    "test": "echo 'No tests configured'",
+    "clean": "echo 'No clean step required'"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.0",
+    "@types/bun": "latest"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-code": "^1.0.70",
+    "@anthropic-ai/sdk": "^0.58.0",
+    "@instantlyeasy/claude-code-sdk-ts": "^0.3.3",
+    "@compozy/tool-list-files": "workspace:*",
+    "@compozy/tool-read-file": "workspace:*",
+    "@compozy/tool-write-file": "workspace:*"
+  }
+}

@@ -272,69 +272,7 @@ func (m *MockLLM) handleDelaySimulation(ctx context.Context, prompt string) erro
 
 // generateResponse generates a mock response based on the prompt
 func (m *MockLLM) generateResponse(prompt string) *llms.ContentResponse {
-	var responseText string
-
-	// Check for specific action patterns and return appropriate JSON responses
-	switch {
-	case strings.Contains(prompt, "Analyze a single activity") || strings.Contains(prompt, "analyze_activity"):
-		// Return response for analyze_activity action with different responses based on activity
-		switch {
-		case strings.Contains(prompt, "hiking"):
-			responseText = `{
-				"analysis": "Excellent outdoor activity for cardiovascular health",
-				"rating": 5
-			}`
-		case strings.Contains(prompt, "swimming"):
-			responseText = `{
-				"analysis": "Great full-body workout with low impact",
-				"rating": 5
-			}`
-		case strings.Contains(prompt, "cycling"):
-			responseText = `{
-				"analysis": "Efficient cardio exercise that builds leg strength",
-				"rating": 4
-			}`
-		default:
-			responseText = `{
-				"analysis": "Good physical activity",
-				"rating": 4
-			}`
-		}
-	case strings.Contains(prompt, "Process city data") || strings.Contains(prompt, "process_city"):
-		// Return response for process_city action with different responses based on city
-		switch {
-		case strings.Contains(prompt, "Seattle"):
-			responseText = `{
-				"weather": "Rainy",
-				"population": 750000
-			}`
-		case strings.Contains(prompt, "Portland"):
-			responseText = `{
-				"weather": "Cloudy",
-				"population": 650000
-			}`
-		case strings.Contains(prompt, "Vancouver"):
-			responseText = `{
-				"weather": "Mild",
-				"population": 700000
-			}`
-		default:
-			responseText = `{
-				"weather": "Unknown",
-				"population": 500000
-			}`
-		}
-	case strings.Contains(prompt, "Process a single collection item") || strings.Contains(prompt, "process_item"):
-		// Return response for process_item action
-		responseText = `{
-			"result": "Item processed successfully",
-			"processed_value": 100
-		}`
-	case prompt != "":
-		responseText = fmt.Sprintf("Mock response for: %s", prompt)
-	default:
-		responseText = "Mock agent response: task completed successfully"
-	}
+	responseText := m.routeResponse(prompt)
 
 	return &llms.ContentResponse{
 		Choices: []*llms.ContentChoice{
@@ -343,6 +281,93 @@ func (m *MockLLM) generateResponse(prompt string) *llms.ContentResponse {
 			},
 		},
 	}
+}
+
+// routeResponse reduces the cyclomatic complexity of generateResponse by delegating
+// to smaller, purpose-specific helpers.
+func (m *MockLLM) routeResponse(prompt string) string {
+	switch {
+	case containsAny(prompt, "Analyze a single activity", "analyze_activity"):
+		return m.responseForAnalyzeActivity(prompt)
+	case containsAny(prompt, "Process city data", "process_city"):
+		return m.responseForProcessCity(prompt)
+	case containsAny(prompt, "Read file content", "read_content"):
+		return `{"content":"// Mock file content for testing\npackage main\n\nfunc main() {\n\t// Sample code\n}"}`
+	case containsAny(prompt, "Analyze the following Go code file", "analyze"):
+		return `{
+            "review": "Code looks good. No major issues found.",
+            "suggestions": ["Consider adding error handling", "Add comments for complex logic"],
+            "score": 8
+        }`
+	case containsAny(prompt, "Process a single collection item", "process_item"):
+		return `{
+            "result": "Item processed successfully",
+            "processed_value": 100
+        }`
+	case prompt != "":
+		return fmt.Sprintf("Mock response for: %s", prompt)
+	default:
+		return "Mock agent response: task completed successfully"
+	}
+}
+
+func (m *MockLLM) responseForAnalyzeActivity(prompt string) string {
+	switch {
+	case strings.Contains(prompt, "hiking"):
+		return `{
+            "analysis": "Excellent outdoor activity for cardiovascular health",
+            "rating": 5
+        }`
+	case strings.Contains(prompt, "swimming"):
+		return `{
+            "analysis": "Great full-body workout with low impact",
+            "rating": 5
+        }`
+	case strings.Contains(prompt, "cycling"):
+		return `{
+            "analysis": "Efficient cardio exercise that builds leg strength",
+            "rating": 4
+        }`
+	default:
+		return `{
+            "analysis": "Good physical activity",
+            "rating": 4
+        }`
+	}
+}
+
+func (m *MockLLM) responseForProcessCity(prompt string) string {
+	switch {
+	case strings.Contains(prompt, "Seattle"):
+		return `{
+            "weather": "Rainy",
+            "population": 750000
+        }`
+	case strings.Contains(prompt, "Portland"):
+		return `{
+            "weather": "Cloudy",
+            "population": 650000
+        }`
+	case strings.Contains(prompt, "Vancouver"):
+		return `{
+            "weather": "Mild",
+            "population": 700000
+        }`
+	default:
+		return `{
+            "weather": "Unknown",
+            "population": 500000
+        }`
+	}
+}
+
+func containsAny(s string, substrings ...string) bool {
+	for _, sub := range substrings {
+		if strings.Contains(s, sub) {
+			return true
+		}
+	}
+	return false
 }
 
 // Call implements the legacy Call interface

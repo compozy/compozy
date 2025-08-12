@@ -42,7 +42,9 @@ func (n *Normalizer) Normalize(config *task.Config, ctx contracts.NormalizationC
 	}
 	// Apply inheritance to processor if present
 	if config != nil && config.Processor != nil {
-		shared.InheritTaskConfig(config.Processor, config)
+		if err := shared.InheritTaskConfig(config.Processor, config); err != nil {
+			return fmt.Errorf("failed to inherit task config: %w", err)
+		}
 	}
 	return nil
 }

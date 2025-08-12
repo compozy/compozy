@@ -1,0 +1,21 @@
+resource: tool
+id: write_file
+description: Write text to a file on disk (optionally appending)
+timeout: 60s  # Most writes should be fast; adjust if necessary
+
+input:
+  type: object
+  properties:
+    path:
+      type: string
+      description: The file path to write to. Must be relative to the workspace
+    content:
+      type: string
+      description: The content to write to the file
+    append:
+      type: boolean
+      description: If true, append to the file instead of overwriting
+      default: false
+  required:
+    - path
+    - content

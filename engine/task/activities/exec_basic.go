@@ -56,7 +56,7 @@ func NewExecuteBasic(
 	return &ExecuteBasic{
 		loadWorkflowUC: uc.NewLoadWorkflow(workflows, workflowRepo),
 		createStateUC:  uc.NewCreateState(taskRepo, configStore),
-		executeUC:      uc.NewExecuteTask(runtime, memoryManager, templateEngine, appConfig),
+		executeUC:      uc.NewExecuteTask(runtime, workflowRepo, memoryManager, templateEngine, appConfig),
 		task2Factory:   task2Factory,
 		workflowRepo:   workflowRepo,
 		taskRepo:       taskRepo,
@@ -88,6 +88,11 @@ func (a *ExecuteBasic) Run(ctx context.Context, input *ExecuteBasicInput) (*task
 	}
 	// Build proper normalization context with all template variables
 	normContext := contextBuilder.BuildContext(workflowState, workflowConfig, input.TaskConfig)
+	// Ensure task-level With is available as `.input` for templates (e.g., agent prompts)
+	normContext.CurrentInput = input.TaskConfig.With
+	if input.TaskConfig.With != nil {
+		contextBuilder.VariableBuilder.AddCurrentInputToVariables(normContext.Variables, input.TaskConfig.With)
+	}
 	// Normalize the task configuration
 	normalizedConfig := input.TaskConfig
 	if err := normalizer.Normalize(normalizedConfig, normContext); err != nil {

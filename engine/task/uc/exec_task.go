@@ -11,6 +11,8 @@ import (
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/task"
+	task2core "github.com/compozy/compozy/engine/task2/core"
+	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/config"
@@ -27,6 +29,7 @@ type ExecuteTaskInput struct {
 
 type ExecuteTask struct {
 	runtime        runtime.Runtime
+	workflowRepo   workflow.Repository
 	memoryManager  memcore.ManagerInterface
 	templateEngine *tplengine.TemplateEngine
 	appConfig      *config.Config
@@ -34,12 +37,14 @@ type ExecuteTask struct {
 
 func NewExecuteTask(
 	runtime runtime.Runtime,
+	workflowRepo workflow.Repository,
 	memoryManager memcore.ManagerInterface,
 	templateEngine *tplengine.TemplateEngine,
 	appConfig *config.Config,
 ) *ExecuteTask {
 	return &ExecuteTask{
 		runtime:        runtime,
+		workflowRepo:   workflowRepo,
 		memoryManager:  memoryManager,
 		templateEngine: templateEngine,
 		appConfig:      appConfig,
@@ -79,34 +84,65 @@ func (uc *ExecuteTask) Execute(ctx context.Context, input *ExecuteTaskInput) (*c
 	)
 }
 
-func (uc *ExecuteTask) executeAgent(
+// reparseAgentConfig re-parses agent configuration templates at runtime with full workflow context
+func (uc *ExecuteTask) reparseAgentConfig(
 	ctx context.Context,
 	agentConfig *agent.Config,
-	actionID string,
-	taskWith *core.Input,
 	input *ExecuteTaskInput,
-) (*core.Output, error) {
+	actionID string,
+) error {
+	if input.WorkflowState == nil {
+		return nil
+	}
+
+	// Build normalization context for runtime re-parsing
+	normCtx := &shared.NormalizationContext{
+		WorkflowState:  input.WorkflowState,
+		WorkflowConfig: input.WorkflowConfig,
+		TaskConfig:     input.TaskConfig,
+		Variables:      make(map[string]any),
+		CurrentInput:   input.TaskConfig.With, // Include task's current input for collection variables
+	}
+
+	// Build template context with all workflow data including tasks outputs
+	contextBuilder, err := shared.NewContextBuilder()
+	if err != nil {
+		return fmt.Errorf("failed to create context builder: %w", err)
+	}
+
+	// Build full context with tasks data
+	fullCtx := contextBuilder.BuildContext(input.WorkflowState, input.WorkflowConfig, input.TaskConfig)
+	normCtx.Variables = fullCtx.Variables
+
+	// Ensure task's current input (containing collection variables) is added to variables
+	if input.TaskConfig.With != nil {
+		vb := shared.NewVariableBuilder()
+		vb.AddCurrentInputToVariables(normCtx.Variables, input.TaskConfig.With)
+	}
+
+	// Create agent normalizer for runtime re-parsing
+	agentNormalizer := task2core.NewAgentNormalizer(nil)
+
+	// Re-parse the agent configuration with runtime context
+	// Pass actionID to only reparse the specific action being executed
+	if err := agentNormalizer.ReparseInput(agentConfig, normCtx, actionID); err != nil {
+		return fmt.Errorf("runtime template parse failed: %w", err)
+	}
+
 	log := logger.FromContext(ctx)
-	actionConfig, err := agent.FindActionConfig(agentConfig.Actions, actionID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find action config: %w", err)
-	}
+	log.Debug("Successfully re-parsed agent configuration at runtime",
+		"agent_id", agentConfig.ID,
+		"task_id", input.TaskConfig.ID)
 
-	// Create a deep copy of the action config with task's runtime input data
-	runtimeActionConfig, err := actionConfig.Clone()
-	if err != nil {
-		return nil, fmt.Errorf("failed to deep copy action config: %w", err)
-	}
-	if taskWith != nil {
-		inputCopy, err := taskWith.Clone()
-		if err != nil {
-			return nil, fmt.Errorf("failed to clone task with: %w", err)
-		}
-		runtimeActionConfig.With = inputCopy
-	}
+	return nil
+}
 
-	// Create LLM service options
+func (uc *ExecuteTask) setupMemoryResolver(
+	input *ExecuteTaskInput,
+	agentConfig *agent.Config,
+) ([]llm.Option, bool) {
 	var llmOpts []llm.Option
+	hasMemoryConfig := false
 
 	// Add app config if available
 	if uc.appConfig != nil {
@@ -125,16 +161,82 @@ func (uc *ExecuteTask) executeAgent(
 			input.TaskConfig,
 			input.ProjectConfig,
 		)
-
 		// Create memory resolver for this execution
 		memoryResolver := NewMemoryResolver(uc.memoryManager, uc.templateEngine, workflowContext)
 		llmOpts = append(llmOpts, llm.WithMemoryProvider(memoryResolver))
 	} else if len(agentConfig.Memory) > 0 {
-		// Log warning if agent has memory configuration but memory manager not available
+		hasMemoryConfig = true
+	}
+
+	return llmOpts, hasMemoryConfig
+}
+
+// refreshWorkflowState ensures we operate on the latest workflow state so template parsing
+// can see freshly produced task outputs.
+func (uc *ExecuteTask) refreshWorkflowState(ctx context.Context, input *ExecuteTaskInput) {
+	// Ensure we have the minimal data we need
+	if input == nil || input.WorkflowState == nil {
+		return
+	}
+
+	execID := input.WorkflowState.WorkflowExecID
+	if execID == "" {
+		return
+	}
+
+	if uc.workflowRepo == nil {
+		// If no workflow repo available (e.g., in ExecuteBasic), skip refresh
+		return
+	}
+
+	freshState, err := uc.workflowRepo.GetState(ctx, execID)
+	if err != nil {
+		// Non-fatal: log and keep the old snapshot
+		logger.FromContext(ctx).Warn("failed to refresh workflow state; continuing with stale snapshot",
+			"exec_id", execID.String(),
+			"error", err)
+		return
+	}
+
+	input.WorkflowState = freshState
+}
+
+func (uc *ExecuteTask) executeAgent(
+	ctx context.Context,
+	agentConfig *agent.Config,
+	actionID string,
+	taskWith *core.Input,
+	input *ExecuteTaskInput,
+) (*core.Output, error) {
+	log := logger.FromContext(ctx)
+
+	// Ensure we operate on the latest workflow state so template parsing sees
+	// freshly produced task outputs (e.g., read_content inside collections).
+	uc.refreshWorkflowState(ctx, input)
+
+	// Re-parse agent configuration templates at runtime with full workflow context
+	// This MUST happen BEFORE cloning action config so the clone gets updated templates
+	// This is critical for collection subtasks where .tasks.* references need actual data
+	log.Debug("About to re-parse agent configuration",
+		"agent_id", agentConfig.ID,
+		"action_id", actionID,
+		"task_id", input.TaskConfig.ID)
+	if err := uc.reparseAgentConfig(ctx, agentConfig, input, actionID); err != nil {
+		log.Warn("Failed to re-parse agent configuration at runtime",
+			"agent_id", agentConfig.ID,
+			"error", err)
+	} else {
+		log.Debug("Successfully completed re-parsing of agent configuration",
+			"agent_id", agentConfig.ID,
+			"action_id", actionID)
+	}
+
+	// Setup memory resolver and LLM options
+	llmOpts, hasMemoryConfig := uc.setupMemoryResolver(input, agentConfig)
+	if hasMemoryConfig {
 		log.Warn("Agent has memory configuration but memory manager not available",
 			"agent_id", agentConfig.ID,
-			"memory_count", len(agentConfig.Memory),
-		)
+			"memory_count", len(agentConfig.Memory))
 	}
 
 	llmService, err := llm.NewService(ctx, uc.runtime, agentConfig, llmOpts...)
@@ -149,7 +251,7 @@ func (uc *ExecuteTask) executeAgent(
 		}
 	}()
 
-	result, err := llmService.GenerateContent(ctx, agentConfig, runtimeActionConfig)
+	result, err := llmService.GenerateContent(ctx, agentConfig, taskWith, actionID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate content: %w", err)
 	}

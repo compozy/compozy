@@ -1,0 +1,51 @@
+name: collection-code-reviewer
+
+workflow:
+  id: test-code-reviewer
+  version: "1.0.0"
+  tasks:
+    - id: review_files
+      type: collection
+      mode: parallel
+      items: "{{ .workflow.input.files }}"
+      item_var: file
+      with:
+        dir: "{{ .workflow.input.directory }}"
+      task:
+        id: "process-{{ .index }}"
+        type: composite
+        action: dummy
+        tasks:
+          - id: read_content
+            type: basic
+            action: read_content
+            with:
+              file_path: "{{ .input.dir }}/{{ .file }}"
+
+          - id: analyze_content
+            type: basic
+            action: analyze
+            with:
+              file_path: "{{ .input.dir }}/{{ .file }}"
+              content: "{{ .tasks.read_content.output.content }}"
+
+input:
+  files:
+    - "file1.go"
+    - "file2.go"
+  directory: "/app"
+
+expected:
+  workflow_state:
+    status: "SUCCESS"
+    total_tasks: 5  # 1 parent + 2 composite children + 2*2 composite child tasks
+    completed_tasks: 5
+  task_states:
+    - name: review_files
+      status: "SUCCESS"
+    - name: process-0
+      status: "SUCCESS"
+      parent: review_files
+    - name: process-1
+      status: "SUCCESS"
+      parent: review_files

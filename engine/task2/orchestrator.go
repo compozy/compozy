@@ -98,6 +98,10 @@ func (o *ConfigOrchestrator) NormalizeAgentComponent(
 	normCtx.ParentConfig = parentConfig
 	normCtx.CurrentInput = agentConfig.With
 	normCtx.MergedEnv = agentConfig.Env // Assume env is already merged
+	// Ensure the newly set CurrentInput is reflected in template variables
+	if agentConfig.With != nil {
+		o.contextBuilder.VariableBuilder.AddCurrentInputToVariables(normCtx.Variables, agentConfig.With)
+	}
 	// Add parent context to variables for template processing
 	if normCtx.Variables == nil {
 		normCtx.Variables = make(map[string]any)

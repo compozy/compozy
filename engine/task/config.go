@@ -116,7 +116,7 @@ import (
 // agent:
 //
 //	id: data-processor
-//	model: claude-3-haiku-20240307
+//	model: claude-3-5-haiku-latest
 //	instructions: "Extract key information from customer data"
 //
 // # Input validation schema
@@ -327,7 +327,7 @@ const (
 	//   type: basic
 	//   agent:
 	//     id: data-processor
-	//     model: claude-3-haiku-20240307
+	//     model: claude-3-5-haiku-latest
 	TaskTypeBasic Type = "basic"
 	// TaskTypeRouter conditionally routes to different tasks based on conditions
 	// Uses CEL expressions to evaluate routing logic
@@ -437,7 +437,7 @@ const (
 // agent:
 //
 //	id: sentiment-analyzer
-//	model: claude-3-haiku-20240307
+//	model: claude-3-5-haiku-latest
 //	instructions: |
 //	  Analyze customer feedback sentiment and extract key insights:
 //	  1. Overall sentiment (positive/negative/neutral)
@@ -582,7 +582,7 @@ type BasicTask struct {
 //	  type: basic
 //	  agent:
 //	    id: invoice-processor
-//	    model: claude-3-opus-20240307
+//	    model: claude-4-opus
 //	    instructions: "Extract invoice data: vendor, amount, date, line items"
 //	  with:
 //	    document_content: "{{ .workflow.input.document.content }}"
@@ -946,7 +946,7 @@ func ValidateStrategy(strategy string) bool {
 //     type: basic
 //     agent:
 //     id: social-analyzer
-//     model: claude-3-haiku-20240307
+//     model: claude-3-5-haiku-latest
 //     instructions: "Extract insights from social media data"
 //     with:
 //     user_handle: "{{ .workflow.input.social_handle }}"
@@ -991,7 +991,7 @@ func ValidateStrategy(strategy string) bool {
 //     type: basic
 //     agent:
 //     id: fraud-detector
-//     model: claude-3-opus-20240307
+//     model: claude-4-opus
 //     instructions: |
 //     Analyze transaction for fraud indicators:
 //
@@ -1276,7 +1276,7 @@ func ValidateCollectionMode(mode string) bool {
 //	type: basic
 //	agent:
 //	  id: user-processor
-//	  model: claude-3-haiku-20240307
+//	  model: claude-3-5-haiku-latest
 //	  instructions: |
 //	    Process user account activation:
 //	    1. Validate user data
@@ -1342,7 +1342,7 @@ func ValidateCollectionMode(mode string) bool {
 //	    type: basic
 //	    agent:
 //	      id: content-analyzer
-//	      model: claude-3-opus-20240307
+//	      model: claude-4-opus
 //	      instructions: "Analyze document content and extract key information"
 //	    with:
 //	      text_content: "{{ .tasks.extract-text.output.text }}"
@@ -2140,7 +2140,7 @@ type ClearConfig struct {
 //
 //	id: advanced-sentiment-analyzer
 //	provider: anthropic
-//	model: claude-3-opus-20240307
+//	model: claude-4-opus
 //	instructions: |
 //	  You are an expert customer feedback analyst. Analyze the provided feedback with these objectives:
 //
