@@ -18,7 +18,7 @@ task:
   agent:
     id: user-processor
     provider: anthropic
-    model: claude-3-haiku-20240307
+    model: claude-3-5-haiku-latest
 
   with:
     user_id: "{{ .user.id }}"

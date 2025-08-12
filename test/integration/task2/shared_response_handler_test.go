@@ -1,6 +1,7 @@
 package task2
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/compozy/compozy/engine/core"
@@ -116,17 +117,15 @@ func TestAllTaskTypesResponseHandlers(t *testing.T) {
 	}
 
 	t.Run("Should process successful task responses for all task types", func(t *testing.T) {
-		t.Parallel()
-
 		// Use single test setup for all task types to minimize database overhead
 		ts := task2helpers.NewTestSetup(t)
 
-		// Create workflow state once for all tasks
-		workflowState, workflowExecID := ts.CreateWorkflowState(t, "test-workflow")
+		// Create workflow state once for all tasks - use unique workflow ID for this test group
+		workflowState, workflowExecID := ts.CreateWorkflowState(t, "test-workflow-success")
 
 		for _, tc := range testCases {
 			tc := tc // capture loop variable
-			t.Run(string(tc.TaskType), func(t *testing.T) {
+			t.Run(fmt.Sprintf("Should process %s", tc.TaskType), func(t *testing.T) {
 				// Create handler for this task type
 				handler := tc.HandlerFunc(ts)
 
@@ -141,7 +140,7 @@ func TestAllTaskTypesResponseHandlers(t *testing.T) {
 
 				// Create task state
 				taskState := ts.CreateTaskState(t, &task2helpers.TaskStateConfig{
-					WorkflowID:     "test-workflow",
+					WorkflowID:     "test-workflow-success",
 					WorkflowExecID: workflowExecID,
 					TaskID:         tc.TaskID,
 					Status:         initialStatus,
@@ -158,7 +157,7 @@ func TestAllTaskTypesResponseHandlers(t *testing.T) {
 						},
 					},
 					TaskState:      taskState,
-					WorkflowConfig: &workflow.Config{ID: "test-workflow"},
+					WorkflowConfig: &workflow.Config{ID: "test-workflow-success"},
 					WorkflowState:  workflowState,
 				}
 
@@ -191,23 +190,21 @@ func TestAllTaskTypesResponseHandlers(t *testing.T) {
 	})
 
 	t.Run("Should handle failed tasks for all task types", func(t *testing.T) {
-		t.Parallel()
-
 		// Use single test setup for all task types
 		ts := task2helpers.NewTestSetup(t)
 
-		// Create workflow state once for all tasks
-		workflowState, workflowExecID := ts.CreateWorkflowState(t, "test-workflow")
+		// Create workflow state once for all tasks - use unique workflow ID for this test group
+		workflowState, workflowExecID := ts.CreateWorkflowState(t, "test-workflow-failed")
 
 		for _, tc := range testCases {
 			tc := tc // capture loop variable
-			t.Run(string(tc.TaskType), func(t *testing.T) {
+			t.Run(fmt.Sprintf("Should handle failed %s", tc.TaskType), func(t *testing.T) {
 				// Create handler for this task type
 				handler := tc.HandlerFunc(ts)
 
 				// Create task state
 				taskState := ts.CreateTaskState(t, &task2helpers.TaskStateConfig{
-					WorkflowID:     "test-workflow",
+					WorkflowID:     "test-workflow-failed",
 					WorkflowExecID: workflowExecID,
 					TaskID:         tc.TaskID + "-failed",
 					Status:         core.StatusPending,
@@ -226,7 +223,7 @@ func TestAllTaskTypesResponseHandlers(t *testing.T) {
 					},
 					TaskState:      taskState,
 					ExecutionError: assert.AnError,
-					WorkflowConfig: &workflow.Config{ID: "test-workflow"},
+					WorkflowConfig: &workflow.Config{ID: "test-workflow-failed"},
 					WorkflowState:  workflowState,
 				}
 

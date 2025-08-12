@@ -119,6 +119,18 @@ const (
 	StatusPaused   StatusType = "PAUSED"
 )
 
+// IsValid returns true if the status is a valid StatusType
+func (s StatusType) IsValid() bool {
+	switch s {
+	case StatusPending, StatusRunning, StatusSuccess,
+		StatusFailed, StatusTimedOut, StatusCanceled,
+		StatusWaiting, StatusPaused:
+		return true
+	default:
+		return false
+	}
+}
+
 type ProtoStatusType string
 
 const (

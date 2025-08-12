@@ -51,6 +51,9 @@ func (o *ConfigOrchestrator) NormalizeTask(
 	normCtx.MergedEnv = taskConfig.Env     // Assume env is already merged at this point
 	// Add current input to variables for template processing
 	if taskConfig.With != nil {
+		if normCtx.Variables == nil {
+			normCtx.Variables = make(map[string]any)
+		}
 		o.contextBuilder.VariableBuilder.AddCurrentInputToVariables(normCtx.Variables, taskConfig.With)
 	}
 	// Get task normalizer
@@ -98,6 +101,13 @@ func (o *ConfigOrchestrator) NormalizeAgentComponent(
 	normCtx.ParentConfig = parentConfig
 	normCtx.CurrentInput = agentConfig.With
 	normCtx.MergedEnv = agentConfig.Env // Assume env is already merged
+	// Ensure the newly set CurrentInput is reflected in template variables
+	if agentConfig.With != nil {
+		if normCtx.Variables == nil {
+			normCtx.Variables = make(map[string]any)
+		}
+		o.contextBuilder.VariableBuilder.AddCurrentInputToVariables(normCtx.Variables, agentConfig.With)
+	}
 	// Add parent context to variables for template processing
 	if normCtx.Variables == nil {
 		normCtx.Variables = make(map[string]any)
@@ -150,6 +160,13 @@ func (o *ConfigOrchestrator) NormalizeToolComponent(
 	normCtx.ParentConfig = parentConfig
 	normCtx.CurrentInput = toolConfig.With
 	normCtx.MergedEnv = toolConfig.Env // Assume env is already merged
+	// Ensure the newly set CurrentInput is reflected in template variables
+	if toolConfig.With != nil {
+		if normCtx.Variables == nil {
+			normCtx.Variables = make(map[string]any)
+		}
+		o.contextBuilder.VariableBuilder.AddCurrentInputToVariables(normCtx.Variables, toolConfig.With)
+	}
 	// Add parent context to variables for template processing
 	if normCtx.Variables == nil {
 		normCtx.Variables = make(map[string]any)
@@ -190,6 +207,13 @@ func (o *ConfigOrchestrator) NormalizeSuccessTransition(
 	normCtx.ParentConfig = parentConfig
 	normCtx.CurrentInput = transition.With
 	normCtx.MergedEnv = mergedEnv
+	// Ensure the newly set CurrentInput is reflected in template variables
+	if transition.With != nil {
+		if normCtx.Variables == nil {
+			normCtx.Variables = make(map[string]any)
+		}
+		o.contextBuilder.VariableBuilder.AddCurrentInputToVariables(normCtx.Variables, transition.With)
+	}
 	// Get transition normalizer
 	transitionNormalizer := o.factory.CreateSuccessTransitionNormalizer()
 	// Normalize the transition
@@ -225,6 +249,13 @@ func (o *ConfigOrchestrator) NormalizeErrorTransition(
 	normCtx.ParentConfig = parentConfig
 	normCtx.CurrentInput = transition.With
 	normCtx.MergedEnv = mergedEnv
+	// Ensure the newly set CurrentInput is reflected in template variables
+	if transition.With != nil {
+		if normCtx.Variables == nil {
+			normCtx.Variables = make(map[string]any)
+		}
+		o.contextBuilder.VariableBuilder.AddCurrentInputToVariables(normCtx.Variables, transition.With)
+	}
 	// Get transition normalizer
 	transitionNormalizer := o.factory.CreateErrorTransitionNormalizer()
 	// Normalize the transition
@@ -253,6 +284,13 @@ func (o *ConfigOrchestrator) NormalizeTaskOutput(
 	normCtx.TaskConfigs = taskConfigs
 	normCtx.CurrentInput = taskConfig.With
 	normCtx.MergedEnv = taskConfig.Env
+	// Make CurrentInput available to templates
+	if taskConfig.With != nil {
+		if normCtx.Variables == nil {
+			normCtx.Variables = make(map[string]any)
+		}
+		o.contextBuilder.VariableBuilder.AddCurrentInputToVariables(normCtx.Variables, taskConfig.With)
+	}
 	// Get output transformer
 	transformer := o.factory.CreateOutputTransformer()
 	// Transform the output

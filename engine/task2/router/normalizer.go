@@ -77,28 +77,24 @@ func (n *Normalizer) normalizeRoutes(parentConfig *task.Config, routes map[strin
 			if _, hasType := v["type"]; hasType {
 				// This is an inline task config - convert to Config for inheritance
 				childConfig := &task.Config{}
-				if err := childConfig.FromMap(v); err == nil {
-					// Apply inheritance from router task to inline task config
-					shared.InheritTaskConfig(childConfig, parentConfig)
-					// Convert back to map after inheritance
-					updatedMap, err := childConfig.AsMap()
-					if err != nil {
-						return fmt.Errorf("failed to convert inherited config to map: %w", err)
-					}
-					// Process templates in the inherited config
-					processed, err := n.templateEngine.ParseAny(updatedMap, context)
-					if err != nil {
-						return fmt.Errorf("failed to process route %s: %w", routeName, err)
-					}
-					routes[routeName] = processed
-				} else {
-					// Failed to parse as task config, process as regular map
-					processedRoute, err := n.templateEngine.ParseAny(v, context)
-					if err != nil {
-						return fmt.Errorf("failed to process route %s: %w", routeName, err)
-					}
-					routes[routeName] = processedRoute
+				if err := childConfig.FromMap(v); err != nil {
+					return fmt.Errorf("invalid inline task config for route %q: %w", routeName, err)
 				}
+				// Apply inheritance from router task to inline task config
+				if err := shared.InheritTaskConfig(childConfig, parentConfig); err != nil {
+					return fmt.Errorf("failed to inherit task config: %w", err)
+				}
+				// Convert back to map after inheritance
+				updatedMap, err := childConfig.AsMap()
+				if err != nil {
+					return fmt.Errorf("failed to convert inherited config to map: %w", err)
+				}
+				// Process templates in the inherited config
+				processed, err := n.templateEngine.ParseAny(updatedMap, context)
+				if err != nil {
+					return fmt.Errorf("failed to process route %s: %w", routeName, err)
+				}
+				routes[routeName] = processed
 			} else {
 				// Regular map (condition/task_id structure) - just process templates
 				processedRoute, err := n.templateEngine.ParseAny(v, context)

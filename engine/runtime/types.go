@@ -72,6 +72,9 @@ type ToolExecuteParams struct {
 	Input      *core.Input `json:"input"`
 	Config     *core.Input `json:"config"`
 	Env        core.EnvMap `json:"env"`
+	// Optional per-execution timeout (milliseconds) propagated to the JS worker
+	// When not provided, the worker applies its internal default (60s)
+	TimeoutMs int64 `json:"timeout_ms,omitempty"`
 }
 
 // ToolExecuteResult represents the result of Tool.Execute method

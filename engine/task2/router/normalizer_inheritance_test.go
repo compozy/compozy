@@ -183,3 +183,85 @@ func TestRouterNormalizer_InlineTaskInheritance(t *testing.T) {
 		assert.False(t, hasCWD, "Condition route should not have CWD")
 	})
 }
+
+func TestRouterNormalizer_InlineTaskValidation(t *testing.T) {
+	t.Run("Should return error for malformed inline task config with type field", func(t *testing.T) {
+		// Arrange
+		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
+		contextBuilder, err := shared.NewContextBuilder()
+		require.NoError(t, err)
+		normalizer := router.NewNormalizer(templateEngine, contextBuilder)
+
+		routerTask := &task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:       "test-router",
+				Type:     task.TaskTypeRouter,
+				CWD:      &core.PathCWD{Path: "/router/base"},
+				FilePath: "router.yaml",
+			},
+			RouterTask: task.RouterTask{
+				Routes: map[string]any{
+					"invalid-route": map[string]any{
+						"type": "basic",
+						// Malformed data that will cause FromMap to fail
+						"CWD": "invalid-string-instead-of-object", // CWD should be an object
+					},
+				},
+			},
+		}
+
+		ctx := &shared.NormalizationContext{
+			Variables: make(map[string]any),
+		}
+
+		// Act
+		err = normalizer.Normalize(routerTask, ctx)
+
+		// Assert
+		require.Error(t, err, "Should return error for invalid inline task config")
+		assert.Contains(t, err.Error(), "invalid inline task config for route")
+		assert.Contains(t, err.Error(), "invalid-route")
+	})
+
+	t.Run("Should process regular map without type field correctly", func(t *testing.T) {
+		// Arrange
+		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
+		contextBuilder, err := shared.NewContextBuilder()
+		require.NoError(t, err)
+		normalizer := router.NewNormalizer(templateEngine, contextBuilder)
+
+		routerTask := &task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:   "test-router",
+				Type: task.TaskTypeRouter,
+			},
+			RouterTask: task.RouterTask{
+				Routes: map[string]any{
+					"regular-route": map[string]any{
+						// No type field - should be processed as regular map
+						"condition": "{{ .value }}",
+						"task_id":   "some-task",
+					},
+				},
+			},
+		}
+
+		ctx := &shared.NormalizationContext{
+			Variables: map[string]any{
+				"value": "test-value",
+			},
+		}
+
+		// Act
+		err = normalizer.Normalize(routerTask, ctx)
+
+		// Assert
+		require.NoError(t, err, "Should process regular map without error")
+
+		// Verify the route was processed correctly
+		routeMap, ok := routerTask.Routes["regular-route"].(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "test-value", routeMap["condition"])
+		assert.Equal(t, "some-task", routeMap["task_id"])
+	})
+}

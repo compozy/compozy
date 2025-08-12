@@ -1,7 +1,6 @@
 package runtime
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"crypto/sha256"
@@ -16,9 +15,11 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 	"unicode/utf8"
 
+	"github.com/Masterminds/semver/v3"
 	"github.com/compozy/compozy/engine/core"
 	appconfig "github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
@@ -46,6 +47,12 @@ const (
 	// When a tool returns a primitive type (string, number, boolean) instead of an object,
 	// it gets wrapped in a standardized structure for consistent API behavior.
 	PrimitiveValueKey = "value"
+
+	// MaxStderrCaptureSize is the default limit for stderr retention in-memory.
+	// This is used as a fallback if not configured in Config.
+	// Tools that stream verbose logs (e.g., MCP/LLM tools) can emit large volumes of output.
+	// Capping prevents excessive memory usage while preserving enough context for debugging.
+	MaxStderrCaptureSize = 1 * 1024 * 1024 // 1MB default
 )
 
 // Pool for reusing buffers to reduce allocations and improve performance
@@ -55,10 +62,22 @@ var bufferPool = sync.Pool{
 	},
 }
 
+// secretRe matches common secret patterns in logs for redaction
+var secretRe = regexp.MustCompile(
+	`\b(sk-[A-Za-z0-9_\-]{16,}|api[-_]?key[-_]?[A-Za-z0-9_\-]{16,}|token[-_]?[A-Za-z0-9_\-]{16,})\b`,
+)
+
+// redact masks common secret patterns in logs (best-effort; keep fast/cheap).
+func redact(s string) string {
+	return secretRe.ReplaceAllString(s, "***REDACTED***")
+}
+
 // BunManager implements the Runtime interface for Bun execution
 type BunManager struct {
 	config      *Config
 	projectRoot string
+	bunVersion  string    // Cached Bun version to avoid repeated exec calls
+	bunVerOnce  sync.Once // Ensures version is computed once safely
 }
 
 // MergeWithDefaults merges the provided config with default values for zero fields
@@ -93,6 +112,9 @@ func MergeWithDefaults(config *Config) *Config {
 	}
 	if config.EntrypointPath == "" {
 		config.EntrypointPath = defaultConfig.EntrypointPath
+	}
+	if config.MaxStderrCaptureSize == 0 {
+		config.MaxStderrCaptureSize = defaultConfig.MaxStderrCaptureSize
 	}
 	return config
 }
@@ -187,6 +209,7 @@ func (bm *BunManager) ExecuteToolWithTimeout(
 		Input:      input,
 		Config:     config,
 		Env:        env,
+		TimeoutMs:  int64(timeout / time.Millisecond),
 	}
 
 	requestData, err := json.Marshal(request)
@@ -250,7 +273,7 @@ func (bm *BunManager) executeBunWorker(ctx context.Context, requestData []byte, 
 		return nil, err
 	}
 	// Wait for process completion and stderr reading
-	if err := bm.waitForProcessCompletion(cmd, stderrWg, stderrBuf); err != nil {
+	if err := bm.waitForProcessCompletion(ctx, cmd, stderrWg, stderrBuf); err != nil {
 		return nil, err
 	}
 	return bm.parseToolResponse(response)
@@ -261,7 +284,21 @@ func (bm *BunManager) createBunCommand(ctx context.Context, env core.EnvMap) (*e
 	storeDir := core.GetStoreDir(bm.projectRoot)
 	workerPath := filepath.Join(storeDir, "bun_worker.ts")
 
-	args := []string{"run"}
+	args := make([]string, 0, 8)
+	// Add memory management flags for aggressive garbage collection
+	// Only add --smol flag if Bun version is 0.7.0 or later (when it was introduced)
+	bunVersionStr := bm.getBunVersion(ctx)
+	if bunVersionStr != "" {
+		bunVer, err := semver.NewVersion(bunVersionStr)
+		if err == nil {
+			minVersion := semver.MustParse("0.7.0")
+			if bunVer.GreaterThanEqual(minVersion) {
+				args = append(args, "--smol") // Global Bun flag for reduced memory footprint
+			}
+		}
+	}
+	// Now append the subcommand after global flags
+	args = append(args, "run")
 	args = append(args, bm.config.BunPermissions...)
 	args = append(args, workerPath)
 
@@ -272,6 +309,17 @@ func (bm *BunManager) createBunCommand(ctx context.Context, env core.EnvMap) (*e
 	// This provides a more predictable execution environment for tools that may
 	// depend on standard environment variables like TMPDIR, LANG, USER, etc.
 	cmd.Env = os.Environ()
+	// Mark executions as running under Compozy runtime for tool-side conditional behavior
+	cmd.Env = append(cmd.Env,
+		"COMPOZY_RUNTIME=worker",
+		"COMPOZY_PROJECT_ROOT="+bm.projectRoot)
+
+	// Add memory limit environment variable if configured
+	if bm.config.MaxMemoryMB > 0 {
+		cmd.Env = append(cmd.Env,
+			fmt.Sprintf("BUN_JSC_forceRAMSize=%d", bm.config.MaxMemoryMB*1024*1024),
+			fmt.Sprintf("COMPOZY_MAX_MEMORY_MB=%d", bm.config.MaxMemoryMB))
+	}
 
 	if err := bm.validateAndAddEnvironmentVars(&cmd.Env, env); err != nil {
 		return nil, fmt.Errorf("environment variable validation failed: %w", err)
@@ -372,15 +420,68 @@ func (bm *BunManager) readStderrInBackground(
 	stderr io.ReadCloser,
 ) (*bytes.Buffer, *sync.WaitGroup) {
 	var stderrBuf bytes.Buffer
+	stderrBuf.Grow(64 * 1024) // pre-allocate small buffer to reduce reallocs
 	var stderrWg sync.WaitGroup
 	stderrWg.Add(1)
 	go func() {
 		defer stderrWg.Done()
-		scanner := bufio.NewScanner(stderr)
-		for scanner.Scan() {
-			line := scanner.Text()
-			stderrBuf.WriteString(line + "\n")
-			logger.FromContext(ctx).Debug("Bun worker stderr", "output", line)
+		log := logger.FromContext(ctx)
+		// Use a small buffer for real-time reading
+		buf := make([]byte, 256) // Small buffer for immediate reads
+		var lineBuf bytes.Buffer
+		var captured int
+		maxCapture := bm.config.MaxStderrCaptureSize
+		if maxCapture == 0 {
+			maxCapture = MaxStderrCaptureSize // Use constant as fallback
+		}
+		for {
+			// Read with small buffer for immediate output
+			n, err := stderr.Read(buf)
+			if n > 0 {
+				// Process the bytes we just read
+				for i := 0; i < n; i++ {
+					b := buf[i]
+					lineBuf.WriteByte(b)
+					// When we hit a newline, process the complete line
+					if b == '\n' {
+						line := strings.TrimRight(lineBuf.String(), "\r\n")
+						if line != "" {
+							// Log immediately with redaction
+							log.Debug("Bun worker stderr", "output", redact(line))
+							// Capture for error context
+							if captured < maxCapture {
+								remaining := maxCapture - captured
+								toWrite := line + "\n"
+								if len(toWrite) > remaining {
+									toWrite = toWrite[:remaining]
+								}
+								stderrBuf.WriteString(toWrite)
+								captured += len(toWrite)
+							}
+						}
+						lineBuf.Reset()
+					}
+				}
+			}
+			if err != nil {
+				// Process any remaining data in lineBuf
+				if lineBuf.Len() > 0 {
+					line := strings.TrimRight(lineBuf.String(), "\r\n")
+					if line != "" {
+						log.Debug("Bun worker stderr", "output", redact(line))
+						if captured < maxCapture {
+							remaining := maxCapture - captured
+							toWrite := line + "\n"
+							if len(toWrite) > remaining {
+								toWrite = toWrite[:remaining]
+							}
+							stderrBuf.WriteString(toWrite)
+							// No need to update captured here as we're breaking
+						}
+					}
+				}
+				break // EOF or error
+			}
 		}
 	}()
 	return &stderrBuf, &stderrWg
@@ -415,7 +516,17 @@ func (bm *BunManager) readStdoutResponse(stdout io.ReadCloser) (string, error) {
 }
 
 // waitForProcessCompletion waits for the process to complete and handles errors
-func (bm *BunManager) waitForProcessCompletion(cmd *exec.Cmd, stderrWg *sync.WaitGroup, stderrBuf *bytes.Buffer) error {
+func (bm *BunManager) waitForProcessCompletion(
+	ctx context.Context,
+	cmd *exec.Cmd,
+	stderrWg *sync.WaitGroup,
+	stderrBuf *bytes.Buffer,
+) error {
+	// Check for context cancellation first
+	if ctx.Err() != nil {
+		return fmt.Errorf("bun process canceled: %w", ctx.Err())
+	}
+
 	// Wait for process to complete
 	waitErr := cmd.Wait()
 
@@ -423,11 +534,50 @@ func (bm *BunManager) waitForProcessCompletion(cmd *exec.Cmd, stderrWg *sync.Wai
 	stderrWg.Wait()
 
 	if waitErr != nil {
+		// Try to enrich error with exit status
+		exitCode := -1 // Default to -1 for unknown exit status
+		if exitErr, ok := waitErr.(*exec.ExitError); ok {
+			// Extract status info
+			if status, ok := exitErr.Sys().(syscall.WaitStatus); ok {
+				exitCode = status.ExitStatus()
+				if status.Signaled() {
+					sig := status.Signal()
+					// Common case: SIGKILL (9) → often OOM killer
+					if sig == syscall.SIGKILL {
+						if stderrOutput := stderrBuf.String(); stderrOutput != "" {
+							return fmt.Errorf(
+								"bun process failed: %w (signal: KILL)\npossible OOM or external kill; captured stderr (truncated):\n%s",
+								waitErr,
+								stderrOutput,
+							)
+						}
+						return fmt.Errorf(
+							"bun process failed: %w (signal: KILL) - possible OOM or external kill",
+							waitErr,
+						)
+					}
+					if stderrOutput := stderrBuf.String(); stderrOutput != "" {
+						return fmt.Errorf(
+							"bun process failed: %w (signal: %s)\nstderr (truncated):\n%s",
+							waitErr,
+							sig.String(),
+							stderrOutput,
+						)
+					}
+					return fmt.Errorf("bun process failed: %w (signal: %s)", waitErr, sig.String())
+				}
+			}
+		}
 		// Include stderr output in error for debugging
 		if stderrOutput := stderrBuf.String(); stderrOutput != "" {
-			return fmt.Errorf("bun process failed: %w\nstderr: %s", waitErr, stderrOutput)
+			return fmt.Errorf(
+				"bun process failed (exit %d): %w\nstderr (truncated): %s",
+				exitCode,
+				waitErr,
+				stderrOutput,
+			)
 		}
-		return fmt.Errorf("bun process failed: %w", waitErr)
+		return fmt.Errorf("bun process failed (exit %d): %w", exitCode, waitErr)
 	}
 
 	return nil
@@ -579,6 +729,24 @@ func (bm *BunManager) compileBunWorker() error {
 func IsBunAvailable() bool {
 	_, err := exec.LookPath("bun")
 	return err == nil
+}
+
+// getBunVersion retrieves the Bun version and caches it
+func (bm *BunManager) getBunVersion(ctx context.Context) string {
+	bm.bunVerOnce.Do(func() {
+		// Bound the version check to avoid hangs
+		verCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		defer cancel()
+		cmd := exec.CommandContext(verCtx, "bun", "--version")
+		output, err := cmd.Output()
+		if err != nil {
+			logger.FromContext(ctx).Warn("Failed to get Bun version", "error", err)
+			bm.bunVersion = ""
+			return
+		}
+		bm.bunVersion = strings.TrimSpace(string(output))
+	})
+	return bm.bunVersion
 }
 
 // GetBunWorkerFileHash returns a hash of the Bun worker file for caching purposes

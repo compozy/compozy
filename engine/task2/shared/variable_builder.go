@@ -41,10 +41,9 @@ func (vb *VariableBuilder) BuildBaseVariables(
 			"output": workflowState.Output,
 			"status": workflowState.Status,
 		}
-		// Only add config if it's not nil
-		if workflowConfig != nil {
-			workflowData["config"] = workflowConfig
-		}
+		// NOTE: We intentionally do NOT include workflowConfig here during normalization
+		// to prevent premature template evaluation of task references.
+		// The config is available through other means when needed at runtime.
 		vars["workflow"] = workflowData
 	}
 
@@ -85,9 +84,15 @@ func (vb *VariableBuilder) AddCurrentInputToVariables(vars map[string]any, curre
 		// Also add item and index at top level for collection tasks
 		if item, exists := (*currentInput)[FieldItem]; exists {
 			vars[FieldItem] = item
+		} else if collectionItem, exists := (*currentInput)[FieldCollectionItem]; exists {
+			// Fallback: if "item" not found, check for "_collection_item"
+			vars[FieldItem] = collectionItem
 		}
 		if index, exists := (*currentInput)[FieldIndex]; exists {
 			vars[FieldIndex] = index
+		} else if collectionIndex, exists := (*currentInput)[FieldCollectionIndex]; exists {
+			// Fallback: if "index" not found, check for "_collection_index"
+			vars[FieldIndex] = collectionIndex
 		}
 		// Handle collection-specific fields
 		if collectionItem, exists := (*currentInput)[FieldCollectionItem]; exists {

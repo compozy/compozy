@@ -60,6 +60,7 @@ tasks:
 
 outputs:
   result: "Wait task demo completed"
-  initial_output: "{{ .tasks.initial_step.output }}"
-  wait_output: "{{ .tasks.wait_for_ready.output }}"
-  final_output: "{{ if .tasks.final_step }}{{ .tasks.final_step.output }}{{ else }}null{{ end }}"
+  initial_output: "{{ .tasks.initial_step.output | toJson }}"
+  wait_output: "{{ .tasks.wait_for_ready.output | toJson }}"
+  final_output: "{{ if .tasks.final_step }}{{ .tasks.final_step.output | toJson }}{{ else }}null{{ end\
+    \ }}"

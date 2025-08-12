@@ -62,7 +62,7 @@ func FindInitialTaskID(fixture *TestFixture) string {
 	return ""
 }
 
-// RegisterCommonActivities registers common activities with Temporal test environment
+// names expected by the worker (e.g., the task-config and update-child-state labels).
 func RegisterCommonActivities(env *testsuite.TestWorkflowEnvironment, activities *worker.Activities) {
 	env.RegisterActivity(activities.GetWorkflowData)
 	env.RegisterActivity(activities.TriggerWorkflow)
@@ -75,6 +75,10 @@ func RegisterCommonActivities(env *testsuite.TestWorkflowEnvironment, activities
 	env.RegisterActivity(activities.CreateCompositeState)
 	env.RegisterActivity(activities.ListChildStates)
 	env.RegisterActivity(activities.ExecuteSubtask)
+	env.RegisterActivityWithOptions(
+		activities.UpdateChildState,
+		activity.RegisterOptions{Name: tkacts.UpdateChildStateLabel},
+	)
 	env.RegisterActivity(activities.GetCollectionResponse)
 	env.RegisterActivity(activities.GetParallelResponse)
 	env.RegisterActivity(activities.GetCompositeResponse)
@@ -357,7 +361,10 @@ func CreateParallelAgentConfig() *agent.Config {
 	}
 }
 
-// CreateTestActivities creates activity instances for testing
+// CreateTestActivities returns a *worker.Activities preconfigured for tests.
+// It builds a project config and workflow configs from the provided fixture and agentConfig,
+// initializes a JSON template engine, and constructs an Activities instance wired to the given
+// repos, runtime, and config store.
 func CreateTestActivities(
 	_ *testing.T,
 	taskRepo *store.TaskRepo,
@@ -391,7 +398,87 @@ func CreateTestActivities(
 	)
 }
 
-// createTestWorkflowConfigs creates workflow configs for testing with the provided agent config
+// applyAgentToTask sets the agent configuration for taskConfig, clears any tool reference,
+// and assigns the provided working directory. It mutates the supplied taskConfig in-place.
+func applyAgentToTask(taskConfig *task.Config, agentConfig *agent.Config, cwd *core.PathCWD) {
+	taskConfig.Agent = agentConfig
+	taskConfig.Tool = nil
+	taskConfig.CWD = cwd
+}
+
+// applyAgentToBasicTasks applies agentConfig and working directory to each basic task in the provided slice.
+// It mutates the task.Config elements in-place; tasks whose Type is not TaskTypeBasic are left unchanged.
+func applyAgentToBasicTasks(tasks []task.Config, agentConfig *agent.Config, cwd *core.PathCWD) {
+	for i := range tasks {
+		if tasks[i].Type == task.TaskTypeBasic {
+			applyAgentToTask(&tasks[i], agentConfig, cwd)
+		}
+	}
+}
+
+// selection, and setting the task's CWD.
+func configureBasicTask(taskConfig *task.Config, agentConfig *agent.Config, cwd *core.PathCWD) {
+	applyAgentToTask(taskConfig, agentConfig, cwd)
+}
+
+// configureCollectionTask configures a collection task and its child template by applying
+// the provided agent configuration and working directory.
+//
+// It mutates taskConfig in-place: assigns the agent and cwd to the collection task, and if a
+// child task template exists it clones that template
+// (to avoid mutating shared fixture state), applies the agent to the clone, and attaches it back
+// to taskConfig. If the cloned child is a composite
+// task, the agent is propagated to all nested basic child tasks.
+func configureCollectionTask(taskConfig *task.Config, agentConfig *agent.Config, cwd *core.PathCWD) {
+	applyAgentToTask(taskConfig, agentConfig, cwd)
+
+	// Apply to child task template if it exists
+	if taskConfig.Task != nil {
+		// Clone the child config to avoid mutating shared fixture state
+		child := *taskConfig.Task
+		// If the child has its own tasks, clone the slice header to decouple
+		if len(child.Tasks) > 0 {
+			child.Tasks = append([]task.Config(nil), child.Tasks...)
+		}
+		taskConfig.Task = &child
+		applyAgentToTask(taskConfig.Task, agentConfig, cwd)
+
+		// If child is composite, apply to its nested tasks
+		if taskConfig.Task.Type == task.TaskTypeComposite {
+			applyAgentToBasicTasks(taskConfig.Task.Tasks, agentConfig, cwd)
+		}
+	}
+}
+
+// configureParallelTask copies the task's child slice to decouple shared state and applies
+// the provided agent configuration and working directory to any basic child tasks.
+func configureParallelTask(taskConfig *task.Config, agentConfig *agent.Config, cwd *core.PathCWD) {
+	if len(taskConfig.Tasks) > 0 {
+		cloned := append([]task.Config(nil), taskConfig.Tasks...)
+		taskConfig.Tasks = cloned
+	}
+	applyAgentToBasicTasks(taskConfig.Tasks, agentConfig, cwd)
+}
+
+// configureCompositeTask configures a composite task and its child tasks.
+//
+// configureCompositeTask applies the provided agent configuration and working
+// directory to the composite task itself, clones the composite's child task
+// slice (to avoid shared/mutated state), and propagates the agent and CWD to
+// any basic child tasks contained directly in the composite.
+func configureCompositeTask(taskConfig *task.Config, agentConfig *agent.Config, cwd *core.PathCWD) {
+	applyAgentToTask(taskConfig, agentConfig, cwd)
+	if len(taskConfig.Tasks) > 0 {
+		cloned := append([]task.Config(nil), taskConfig.Tasks...)
+		taskConfig.Tasks = cloned
+	}
+	applyAgentToBasicTasks(taskConfig.Tasks, agentConfig, cwd)
+}
+
+// createTestWorkflowConfigs builds workflow configurations from the test fixture and applies
+// the provided agent configuration to every task (including nested child tasks) according to
+// each task's type. It precomputes a working directory (CWD) for tasks with a fallback to the
+// current directory and then returns a slice containing a single configured *workflow.Config.
 func createTestWorkflowConfigs(fixture *TestFixture, agentConfig *agent.Config) []*workflow.Config {
 	// Create CWD for tasks
 	cwd, err := core.CWDFromPath("/tmp/test-project")
@@ -407,29 +494,17 @@ func createTestWorkflowConfigs(fixture *TestFixture, agentConfig *agent.Config) 
 	for i := range fixture.Workflow.Tasks {
 		t := fixture.Workflow.Tasks[i]
 		tasks[i] = t
-		// Apply agent configuration and CWD to appropriate task types
-		if t.Type == task.TaskTypeBasic || t.Type == task.TaskTypeCollection {
-			tasks[i].Agent = agentConfig
-			tasks[i].Tool = nil // Remove any tool configuration
-			tasks[i].CWD = cwd  // Set CWD for task validation
 
-			// For collection tasks, also apply agent to the child task template
-			if t.Type == task.TaskTypeCollection && t.Task != nil {
-				tasks[i].Task.Agent = agentConfig
-				tasks[i].Task.Tool = nil
-				tasks[i].Task.CWD = cwd
-			}
-		}
-
-		// For parallel tasks, apply agent to all child tasks
-		if t.Type == task.TaskTypeParallel {
-			for j := range tasks[i].Tasks {
-				if tasks[i].Tasks[j].Type == task.TaskTypeBasic {
-					tasks[i].Tasks[j].Agent = agentConfig
-					tasks[i].Tasks[j].Tool = nil
-					tasks[i].Tasks[j].CWD = cwd
-				}
-			}
+		// Apply agent configuration based on task type
+		switch t.Type {
+		case task.TaskTypeBasic:
+			configureBasicTask(&tasks[i], agentConfig, cwd)
+		case task.TaskTypeCollection:
+			configureCollectionTask(&tasks[i], agentConfig, cwd)
+		case task.TaskTypeParallel:
+			configureParallelTask(&tasks[i], agentConfig, cwd)
+		case task.TaskTypeComposite:
+			configureCompositeTask(&tasks[i], agentConfig, cwd)
 		}
 	}
 

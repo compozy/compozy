@@ -4,12 +4,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/tplengine"
+)
+
+// Keys used in output maps
+const (
+	outputKeyError   = "error"
+	outputKeySuccess = "success"
 )
 
 // BaseResponseHandler provides common response handling logic for all task types
@@ -142,6 +149,70 @@ func (h *BaseResponseHandler) handleProcessingError(
 	return nil, err
 }
 
+// detectOutputError checks if the task output contains error indicators
+func (h *BaseResponseHandler) detectOutputError(output *core.Output) error {
+	if output == nil {
+		return nil
+	}
+	// Check for explicit error field
+	if err := h.checkErrorField(output); err != nil {
+		return err
+	}
+	// Check for success=false indicator
+	return h.checkSuccessField(output)
+}
+
+// checkErrorField checks for explicit error field in output
+func (h *BaseResponseHandler) checkErrorField(output *core.Output) error {
+	errVal, ok := (*output)[outputKeyError]
+	if !ok || errVal == nil {
+		return nil
+	}
+	switch v := errVal.(type) {
+	case string:
+		if v != "" {
+			return fmt.Errorf("task output error: %s", v)
+		}
+	case map[string]any:
+		if msg, ok := v["message"].(string); ok && msg != "" {
+			return fmt.Errorf("task output error: %s", msg)
+		}
+		return fmt.Errorf("task output error: %v", v)
+	case []any:
+		return fmt.Errorf("task output error: %v", v)
+	default:
+		return fmt.Errorf("task output error: %v", v)
+	}
+	return nil
+}
+
+// checkSuccessField checks for success=false indicator in output
+func (h *BaseResponseHandler) checkSuccessField(output *core.Output) error {
+	successVal, ok := (*output)[outputKeySuccess]
+	if !ok {
+		return nil
+	}
+	switch s := successVal.(type) {
+	case bool:
+		if !s {
+			return h.getTaskFailureError(output)
+		}
+	case string:
+		if strings.EqualFold(strings.TrimSpace(s), "false") {
+			return h.getTaskFailureError(output)
+		}
+	}
+	return nil
+}
+
+// getTaskFailureError returns appropriate error for task failure
+func (h *BaseResponseHandler) getTaskFailureError(output *core.Output) error {
+	if errVal, ok := (*output)[outputKeyError]; ok && errVal != nil {
+		return fmt.Errorf("task failed: %v", errVal)
+	}
+	return fmt.Errorf("task output reported success=false")
+}
+
 // processTaskExecutionResult handles output transformation and determines success status
 // Extracted from TaskResponder.processTaskExecutionResult
 func (h *BaseResponseHandler) processTaskExecutionResult(
@@ -151,12 +222,17 @@ func (h *BaseResponseHandler) processTaskExecutionResult(
 	state := input.TaskState
 	executionErr := input.ExecutionError
 
+	// Check task output for error indicators (agent tasks may report errors in output)
+	if outputErr := h.detectOutputError(state.Output); outputErr != nil {
+		executionErr = outputErr
+	}
+
 	// Determine if task is successful so far
 	isSuccess := executionErr == nil && state.Status != core.StatusFailed
 
 	// Apply output transformation if needed
 	// Skip for collection/parallel tasks as they need children data first
-	if isSuccess && !h.shouldDeferOutputTransformation(input.TaskConfig) {
+	if isSuccess && !h.ShouldDeferOutputTransformation(input.TaskConfig) {
 		state.UpdateStatus(core.StatusSuccess)
 		if input.TaskConfig.GetOutputs() != nil && state.Output != nil {
 			if err := h.applyOutputTransformation(ctx, input); err != nil {
@@ -173,12 +249,6 @@ func (h *BaseResponseHandler) processTaskExecutionResult(
 	}
 
 	return isSuccess, executionErr
-}
-
-// shouldDeferOutputTransformation determines if output transformation should be deferred
-// Extracted from TaskResponder.shouldDeferOutputTransformation
-func (h *BaseResponseHandler) shouldDeferOutputTransformation(taskConfig *task.Config) bool {
-	return taskConfig.Type == task.TaskTypeCollection || taskConfig.Type == task.TaskTypeParallel
 }
 
 // processTransitions normalizes transitions and validates error handling requirements
@@ -467,6 +537,9 @@ func (h *BaseResponseHandler) ValidateInput(input *ResponseInput) error {
 
 // CreateResponseContext creates response context for the given input
 func (h *BaseResponseHandler) CreateResponseContext(input *ResponseInput) *ResponseContext {
+	if input == nil || input.TaskState == nil || input.TaskConfig == nil {
+		return &ResponseContext{}
+	}
 	context := &ResponseContext{
 		IsParentTask: input.TaskState.ParentStateID != nil,
 	}

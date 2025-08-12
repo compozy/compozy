@@ -64,8 +64,6 @@ func TestRouterResponseHandler_Integration(t *testing.T) {
 	}
 
 	t.Run("Should process router task response with routing decision", func(t *testing.T) {
-		t.Parallel()
-
 		// Setup test infrastructure
 		ctx := context.Background()
 		taskRepo, workflowRepo, cleanup := utils.SetupTestRepos(ctx, t)
@@ -155,8 +153,6 @@ func TestRouterResponseHandler_Integration(t *testing.T) {
 	})
 
 	t.Run("Should validate routing decision output", func(t *testing.T) {
-		t.Parallel()
-
 		// Setup test infrastructure
 		ctx := context.Background()
 		taskRepo, workflowRepo, cleanup := utils.SetupTestRepos(ctx, t)
@@ -226,8 +222,6 @@ func TestRouterResponseHandler_Integration(t *testing.T) {
 	})
 
 	t.Run("Should inherit CWD and FilePath from router to target task", func(t *testing.T) {
-		t.Parallel()
-
 		// Setup test infrastructure using standard pattern
 		ts := task2helpers.NewTestSetup(t)
 

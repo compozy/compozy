@@ -91,7 +91,7 @@ func (f *DefaultNormalizerFactory) CreateNormalizer(taskType task.Type) (contrac
 
 // CreateAgentNormalizer creates a normalizer for agent components
 func (f *DefaultNormalizerFactory) CreateAgentNormalizer() *core.AgentNormalizer {
-	return core.NewAgentNormalizer(f.templateEngine, f.envMerger)
+	return core.NewAgentNormalizer(f.envMerger)
 }
 
 // CreateToolNormalizer creates a normalizer for tool components

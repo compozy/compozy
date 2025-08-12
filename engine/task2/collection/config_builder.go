@@ -30,6 +30,25 @@ func (cb *ConfigBuilder) GetTemplateEngine() *tplengine.TemplateEngine {
 	return cb.templateEngine
 }
 
+// parseInputTemplate parses a template input and returns it as core.Input
+// parseInputTemplate parses a template input and returns it as core.Input.
+// It defers unresolved runtime task references by leveraging ParseMapWithFilter.
+// parseInputTemplate parses a template input and returns it as core.Input
+func (cb *ConfigBuilder) parseInputTemplate(input core.Input, context map[string]any) (core.Input, error) {
+	processedWith, err := cb.templateEngine.ParseAny(input, context)
+	if err != nil {
+		return nil, fmt.Errorf("failed to process templates: %w", err)
+	}
+	switch v := processedWith.(type) {
+	case map[string]any:
+		return v, nil
+	case core.Input:
+		return v, nil
+	default:
+		return nil, fmt.Errorf("processed field is not a map: %T", processedWith)
+	}
+}
+
 // BuildTaskConfig builds a task config for a collection item
 func (cb *ConfigBuilder) BuildTaskConfig(
 	collectionConfig *task.CollectionConfig,
@@ -48,7 +67,7 @@ func (cb *ConfigBuilder) BuildTaskConfig(
 	if err != nil {
 		return nil, fmt.Errorf("failed to clone task template: %w", err)
 	}
-	// Build merged input for the task
+	// Build merged input for the task - this will include workflow context
 	mergedInput, err := cb.buildMergedInput(parentTaskConfig, taskConfig, collectionConfig, item, index, itemContext)
 	if err != nil {
 		return nil, err
@@ -59,7 +78,9 @@ func (cb *ConfigBuilder) BuildTaskConfig(
 		return nil, err
 	}
 	// Inherit parent config properties
-	cb.inheritParentConfig(taskConfig, parentTaskConfig)
+	if err := shared.InheritTaskConfig(taskConfig, parentTaskConfig); err != nil {
+		return nil, fmt.Errorf("failed to inherit parent config: %w", err)
+	}
 	return taskConfig, nil
 }
 
@@ -75,7 +96,11 @@ func (cb *ConfigBuilder) buildMergedInput(
 	mergedInput := make(core.Input)
 	// Start with parent task with if available
 	if parentTaskConfig.With != nil {
-		maps.Copy(mergedInput, *parentTaskConfig.With)
+		processed, err := cb.parseInputTemplate(*parentTaskConfig.With, itemContext)
+		if err != nil {
+			return nil, fmt.Errorf("failed to process parent with field: %w", err)
+		}
+		maps.Copy(mergedInput, processed)
 	}
 	// Process and add task template with
 	if err := cb.processTaskWith(taskConfig, itemContext, mergedInput); err != nil {
@@ -83,6 +108,12 @@ func (cb *ConfigBuilder) buildMergedInput(
 	}
 	// Add collection context fields
 	cb.addCollectionContext(mergedInput, collectionConfig, item, index)
+	// Add workflow context from itemContext for nested tasks to access (without overriding user input)
+	if workflow, ok := itemContext["workflow"]; ok {
+		if _, exists := mergedInput["workflow"]; !exists {
+			mergedInput["workflow"] = workflow
+		}
+	}
 	return mergedInput, nil
 }
 
@@ -95,20 +126,11 @@ func (cb *ConfigBuilder) processTaskWith(
 	if taskConfig.With == nil {
 		return nil
 	}
-	// Process templates in the with field using the item context
-	processedWith, err := cb.templateEngine.ParseAny(*taskConfig.With, itemContext)
+	processed, err := cb.parseInputTemplate(*taskConfig.With, itemContext)
 	if err != nil {
-		return fmt.Errorf("failed to process with field templates: %w", err)
+		return fmt.Errorf("failed to process with field: %w", err)
 	}
-	// Convert processed result to Input map
-	switch v := processedWith.(type) {
-	case map[string]any:
-		maps.Copy(mergedInput, v)
-	case core.Input:
-		maps.Copy(mergedInput, v)
-	default:
-		return fmt.Errorf("processed with field is not a map: %T", processedWith)
-	}
+	maps.Copy(mergedInput, processed)
 	return nil
 }
 
@@ -153,18 +175,6 @@ func (cb *ConfigBuilder) processTaskID(taskConfig *task.Config, itemContext map[
 	}
 	taskConfig.ID = value
 	return nil
-}
-
-// inheritParentConfig copies relevant fields from parent to child config
-func (cb *ConfigBuilder) inheritParentConfig(taskConfig, parentTaskConfig *task.Config) {
-	// Copy CWD from parent config to child config if not already set
-	if taskConfig.CWD == nil && parentTaskConfig.CWD != nil {
-		taskConfig.CWD = parentTaskConfig.CWD
-	}
-	// Copy FilePath from parent config to child config if not already set
-	if taskConfig.FilePath == "" && parentTaskConfig.FilePath != "" {
-		taskConfig.FilePath = parentTaskConfig.FilePath
-	}
 }
 
 // createItemContext creates a context for a collection item

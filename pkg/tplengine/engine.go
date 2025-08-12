@@ -19,10 +19,16 @@ import (
 	"github.com/compozy/compozy/engine/core"
 )
 
+const (
+	trueString  = "true"
+	falseString = "false"
+)
+
 // Pre-compiled regular expressions for template processing performance
 var (
 	templateExpressionRegex = regexp.MustCompile(`{{[^}]*}}`)
 	hyphenatedPathRegex     = regexp.MustCompile(`(\.[a-zA-Z_][a-zA-Z0-9_-]*(?:\.[a-zA-Z_][a-zA-Z0-9_-]*)*)`)
+	taskRefRe               = regexp.MustCompile(`\.tasks\.([a-zA-Z0-9_-]+)(?:\.|\[|\s|}|$)`)
 )
 
 // EngineFormat represents the format of the template engine output
@@ -254,45 +260,158 @@ func (e *TemplateEngine) parseArrayType(arr []any, data map[string]any) ([]any, 
 	return result, nil
 }
 
+// containsRuntimeReferences checks if a string contains runtime-only template references
+// containsRuntimeReferences reports whether the input string contains runtime-only
+// task references that should be deferred until execution (specifically the
+// ".tasks." path segment). Returns true if such a reference is present.
+func containsRuntimeReferences(s string) bool {
+	// Only check for task outputs which are truly runtime-only
+	// .item and .index can be either runtime collection variables OR normal context variables
+	// so we shouldn't block them here - let the template engine try to resolve them
+	return strings.Contains(s, ".tasks.")
+}
+
+// extractTaskReferences extracts all task IDs referenced in a template string
+// extractTaskReferences returns the task IDs referenced in s.
+// It scans s using the internal `taskRefRe` regular expression for patterns like
+// `.tasks.TASKID` and returns the captured TASKID values in order of appearance.
+// If no task references are found, an empty slice is returned.
+func extractTaskReferences(s string) []string {
+	taskIDs := []string{}
+	// Match patterns like .tasks.TASKID.
+	matches := taskRefRe.FindAllStringSubmatch(s, -1)
+	for _, match := range matches {
+		if len(match) > 1 {
+			taskIDs = append(taskIDs, match[1])
+		}
+	}
+	return taskIDs
+}
+
+// areAllTasksAvailable reports whether all task IDs in taskIDs exist as keys in tasksMap.
+// Returns true if every id is present (and true for an empty taskIDs slice).
+func areAllTasksAvailable(taskIDs []string, tasksMap map[string]any) bool {
+	for _, taskID := range taskIDs {
+		if _, exists := tasksMap[taskID]; !exists {
+			return false
+		}
+	}
+	return true
+}
+
 func (e *TemplateEngine) ParseMapWithFilter(value any, data map[string]any, filter func(k string) bool) (any, error) {
 	if value == nil {
 		return nil, nil
 	}
 	switch v := value.(type) {
 	case string:
-		return e.parseStringValue(v, data)
+		return e.parseStringWithFilter(v, data)
 	case map[string]any:
-		result := make(map[string]any, len(v))
-		for k, val := range v {
-			if filter != nil && filter(k) {
-				result[k] = val
-				continue
-			}
-			parsedVal, err := e.ParseMapWithFilter(val, data, filter)
-			if err != nil {
-				return nil, fmt.Errorf("failed to parse template in map key %s: %w", k, err)
-			}
-			result[k] = parsedVal
-		}
-		return result, nil
+		return e.parseMapWithFilter(v, data, filter)
 	case []any:
-		result := make([]any, len(v))
-		for i, val := range v {
-			if filter != nil && filter(strconv.Itoa(i)) {
-				result[i] = val
-				continue
-			}
-			parsedVal, err := e.ParseMapWithFilter(val, data, filter)
-			if err != nil {
-				return nil, fmt.Errorf("failed to parse template in array index %d: %w", i, err)
-			}
-			result[i] = parsedVal
-		}
-		return result, nil
+		return e.parseSliceWithFilter(v, data, filter)
 	default:
-		// For other types (int, float, bool, etc.), return as is
 		return v, nil
 	}
+}
+
+// parseStringWithFilter handles string values that may reference runtime-only task placeholders.
+// Contract: When task references cannot be resolved (e.g., tasks not yet available),
+// the original template string is returned unchanged for deferred resolution by upstream callers.
+func (e *TemplateEngine) parseStringWithFilter(v string, data map[string]any) (any, error) {
+	if HasTemplate(v) && containsRuntimeReferences(v) {
+		if !e.canResolveTaskReferencesNow(v, data) {
+			// Return unresolved template for downstream resolution
+			return v, nil
+		}
+	}
+	return e.parseStringValue(v, data)
+}
+
+// canResolveTaskReferencesNow checks whether all referenced tasks exist in the provided context.
+func (e *TemplateEngine) canResolveTaskReferencesNow(v string, data map[string]any) bool {
+	if data == nil {
+		return false
+	}
+
+	tasksVal, ok := data["tasks"]
+	if !ok || tasksVal == nil {
+		return false
+	}
+
+	// Handle pointer cases first, then value cases
+	var tasksMap map[string]any
+	switch t := tasksVal.(type) {
+	case *map[string]any:
+		if t != nil {
+			tasksMap = *t
+		}
+	case *core.Input:
+		if t != nil {
+			tasksMap = *t
+		}
+	case *core.Output:
+		if t != nil {
+			tasksMap = *t
+		}
+	case map[string]any:
+		tasksMap = t
+	case core.Input:
+		tasksMap = t
+	case core.Output:
+		tasksMap = t
+	default:
+		return false // unsupported type – cannot resolve yet
+	}
+
+	if tasksMap == nil {
+		return false
+	}
+
+	referenced := extractTaskReferences(v)
+	return areAllTasksAvailable(referenced, tasksMap)
+}
+
+// parseMapWithFilter parses maps while honoring the provided filter function.
+func (e *TemplateEngine) parseMapWithFilter(
+	m map[string]any,
+	data map[string]any,
+	filter func(k string) bool,
+) (map[string]any, error) {
+	result := make(map[string]any, len(m))
+	for k, val := range m {
+		if filter != nil && filter(k) {
+			result[k] = val
+			continue
+		}
+		parsedVal, err := e.ParseMapWithFilter(val, data, filter)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse template in map key %s: %w", k, err)
+		}
+		result[k] = parsedVal
+	}
+	return result, nil
+}
+
+// parseSliceWithFilter parses arrays while honoring the provided filter function.
+func (e *TemplateEngine) parseSliceWithFilter(
+	arr []any,
+	data map[string]any,
+	filter func(k string) bool,
+) ([]any, error) {
+	result := make([]any, len(arr))
+	for i, val := range arr {
+		if filter != nil && filter(strconv.Itoa(i)) {
+			result[i] = val
+			continue
+		}
+		parsedVal, err := e.ParseMapWithFilter(val, data, filter)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse template in array index %d: %w", i, err)
+		}
+		result[i] = parsedVal
+	}
+	return result, nil
 }
 
 // ParseWithJSONHandling processes a value, resolves templates, and handles JSON parsing for strings
@@ -394,7 +513,7 @@ func (e *TemplateEngine) renderAndProcessTemplate(v string, data map[string]any)
 	}
 
 	// Convert boolean results from template rendering to strings
-	if parsed == "true" || parsed == "false" {
+	if parsed == trueString || parsed == falseString {
 		return parsed, nil
 	}
 
@@ -551,8 +670,20 @@ func (e *TemplateEngine) preprocessContext(ctx map[string]any) map[string]any {
 func (e *TemplateEngine) preprocessTemplateForHyphens(templateStr string) string {
 	// Use pre-compiled regular expressions for better performance
 	return templateExpressionRegex.ReplaceAllStringFunc(templateStr, func(match string) string {
-		// Extract the content between {{ and }}
-		content := strings.TrimSpace(match[2 : len(match)-2])
+		// Handle whitespace trimming directives {{- and -}}
+		hasLeftTrim := strings.HasPrefix(match, "{{-")
+		hasRightTrim := strings.HasSuffix(match, "-}}")
+
+		// Extract the content between delimiters, accounting for trim markers
+		startIdx := 2
+		endIdx := len(match) - 2
+		if hasLeftTrim {
+			startIdx = 3
+		}
+		if hasRightTrim {
+			endIdx = len(match) - 3
+		}
+		content := strings.TrimSpace(match[startIdx:endIdx])
 
 		// Find dot-path patterns that contain hyphens using pre-compiled regex
 		processedContent := hyphenatedPathRegex.ReplaceAllStringFunc(content, func(pathMatch string) string {
@@ -572,6 +703,15 @@ func (e *TemplateEngine) preprocessTemplateForHyphens(templateStr string) string
 			return "(" + result + ")"
 		})
 
-		return "{{ " + processedContent + " }}"
+		// Reconstruct the template with proper delimiters
+		leftDelim := "{{"
+		rightDelim := "}}"
+		if hasLeftTrim {
+			leftDelim = "{{-"
+		}
+		if hasRightTrim {
+			rightDelim = "-}}"
+		}
+		return leftDelim + " " + processedContent + " " + rightDelim
 	})
 }

@@ -3,12 +3,13 @@ package shared
 import (
 	"fmt"
 	"maps"
+	"sort"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task2/contracts"
 	"github.com/compozy/compozy/engine/workflow"
-	"github.com/dgraph-io/ristretto"
+	"github.com/dgraph-io/ristretto/v2"
 )
 
 // NormalizationContext holds all data needed for normalization
@@ -49,7 +50,15 @@ type ContextBuilder struct {
 	ConfigMerger         *ConfigMerger
 }
 
-// NewContextBuilder creates a new context builder
+// NewContextBuilder creates and returns a ContextBuilder configured with its
+// auxiliary builders and a bounded in-memory cache used to memoize parent
+// normalization contexts.
+//
+// The returned ContextBuilder contains:
+// - a ristretto-based parentContextCache configured for modest memory usage,
+// - a VariableBuilder, ChildrenIndexBuilder, TaskOutputBuilder and ConfigMerger.
+//
+// Returns an error if the internal cache cannot be created.
 func NewContextBuilder() (*ContextBuilder, error) {
 	// Create Ristretto cache with proper configuration for memory management
 	// Using more conservative limits to prevent memory leaks in long-running workflows
@@ -74,12 +83,18 @@ func NewContextBuilder() (*ContextBuilder, error) {
 	}, nil
 }
 
-// BuildContext creates a normalization context from workflow and task data
-func (cb *ContextBuilder) BuildContext(
+func (cb *ContextBuilder) buildContextInternal(
 	workflowState *workflow.State,
 	workflowConfig *workflow.Config,
 	taskConfig *task.Config,
+	parentExecID *core.ID, // can be nil – means "discover heuristically"
 ) *NormalizationContext {
+	if workflowState == nil {
+		workflowState = &workflow.State{}
+	}
+	if workflowConfig == nil {
+		workflowConfig = &workflow.Config{}
+	}
 	nc := &NormalizationContext{
 		WorkflowState:  workflowState,
 		WorkflowConfig: workflowConfig,
@@ -95,26 +110,126 @@ func (cb *ContextBuilder) BuildContext(
 
 	// Add workflow output as tasks for backward compatibility in deterministic order
 	if workflowState != nil && workflowState.Tasks != nil {
-		tasksMap := make(map[string]any)
-		keys := SortedMapKeys(workflowState.Tasks)
-		for _, taskID := range keys {
-			taskState := workflowState.Tasks[taskID]
-			tasksMap[taskID] = cb.buildSingleTaskContext(taskID, taskState, nc)
-		}
+		tasksMap := cb.buildTasksMap(workflowState, taskConfig, parentExecID, nc)
 		cb.VariableBuilder.AddTasksToVariables(vars, workflowState, tasksMap)
 	}
 
-	// Set CurrentInput from task's with field if not already set
-	// This ensures collection child tasks have their item context available
+	// Preserve current input if available
 	if nc.CurrentInput == nil && taskConfig != nil && taskConfig.With != nil {
 		nc.CurrentInput = taskConfig.With
 	}
-
-	// Add current input if present
 	cb.VariableBuilder.AddCurrentInputToVariables(vars, nc.CurrentInput)
 
 	nc.Variables = vars
 	return nc
+}
+
+// buildTasksMap builds the tasks map for the context
+func (cb *ContextBuilder) buildTasksMap(
+	workflowState *workflow.State,
+	taskConfig *task.Config,
+	parentExecID *core.ID,
+	nc *NormalizationContext,
+) map[string]any {
+	// Determine the parent exec ID if not provided
+	if parentExecID == nil && taskConfig != nil {
+		parentExecID = cb.findParentExecID(workflowState, taskConfig)
+	}
+
+	// Build ordered task states
+	states := cb.buildOrderedTaskStates(workflowState)
+
+	// Build the tasks map with two passes
+	tasksMap := make(map[string]any)
+
+	// Pass 1: include non-sibling tasks first
+	cb.addNonSiblingTasks(tasksMap, states, parentExecID, nc)
+
+	// Pass 2: overlay siblings so they shadow duplicates
+	cb.addSiblingTasks(tasksMap, states, parentExecID, nc)
+
+	return tasksMap
+}
+
+// findParentExecID finds the parent execution ID for a task
+func (cb *ContextBuilder) findParentExecID(workflowState *workflow.State, taskConfig *task.Config) *core.ID {
+	for _, ts := range workflowState.Tasks {
+		if ts.TaskID == taskConfig.ID {
+			return ts.ParentStateID
+		}
+	}
+	return nil
+}
+
+// stateWithKey holds a task state with its key for sorting
+type stateWithKey struct {
+	key   string
+	state *task.State
+}
+
+// buildOrderedTaskStates builds a deterministically ordered slice of task states
+func (cb *ContextBuilder) buildOrderedTaskStates(workflowState *workflow.State) []stateWithKey {
+	states := make([]stateWithKey, 0, len(workflowState.Tasks))
+	for key, ts := range workflowState.Tasks {
+		states = append(states, stateWithKey{key: key, state: ts})
+	}
+	sort.Slice(states, func(i, j int) bool {
+		// TaskExecID is a ULID -> lexicographic order matches creation order.
+		return states[i].state.TaskExecID.String() < states[j].state.TaskExecID.String()
+	})
+	return states
+}
+
+// addNonSiblingTasks adds non-sibling tasks to the tasks map
+func (cb *ContextBuilder) addNonSiblingTasks(
+	tasksMap map[string]any,
+	states []stateWithKey,
+	parentExecID *core.ID,
+	nc *NormalizationContext,
+) {
+	for _, sw := range states {
+		if parentExecID != nil && sw.state.ParentStateID != nil &&
+			*sw.state.ParentStateID == *parentExecID {
+			continue
+		}
+		tasksMap[sw.key] = cb.buildSingleTaskContext(sw.state.TaskID, sw.state, nc)
+	}
+}
+
+// addSiblingTasks adds sibling tasks to the tasks map
+func (cb *ContextBuilder) addSiblingTasks(
+	tasksMap map[string]any,
+	states []stateWithKey,
+	parentExecID *core.ID,
+	nc *NormalizationContext,
+) {
+	if parentExecID == nil {
+		return
+	}
+	for _, sw := range states {
+		if sw.state.ParentStateID != nil && *sw.state.ParentStateID == *parentExecID {
+			tasksMap[sw.key] = cb.buildSingleTaskContext(sw.state.TaskID, sw.state, nc)
+		}
+	}
+}
+
+// BuildContext creates a normalization context from workflow and task data
+func (cb *ContextBuilder) BuildContext(
+	workflowState *workflow.State,
+	workflowConfig *workflow.Config,
+	taskConfig *task.Config,
+) *NormalizationContext {
+	return cb.buildContextInternal(workflowState, workflowConfig, taskConfig, nil)
+}
+
+// BuildContextForTaskInstance creates a normalization context with explicit parent execution ID
+func (cb *ContextBuilder) BuildContextForTaskInstance(
+	workflowState *workflow.State,
+	workflowConfig *workflow.Config,
+	taskConfig *task.Config,
+	parentExecID *core.ID,
+) *NormalizationContext {
+	return cb.buildContextInternal(workflowState, workflowConfig, taskConfig, parentExecID)
 }
 
 // buildSingleTaskContext builds context for a single task
@@ -629,4 +744,29 @@ func (nc *NormalizationContext) BuildTemplateContext() map[string]any {
 		return make(map[string]any)
 	}
 	return nc.Variables
+}
+
+// IsWithinCollection checks if the current task or any of its ancestors is a collection task
+func (nc *NormalizationContext) IsWithinCollection() bool {
+	// Check if the current task is a collection
+	if nc.TaskConfig != nil && nc.TaskConfig.Type == task.TaskTypeCollection {
+		return true
+	}
+	// Check if the parent task is a collection
+	if nc.ParentTask != nil && nc.ParentTask.Type == task.TaskTypeCollection {
+		return true
+	}
+	// For composite tasks within collections, we need to check the parent context
+	// The ParentTask might be a composite, but that composite might be within a collection
+	// We can detect this by checking if there are collection-specific variables like "item" or "index"
+	if nc.Variables != nil {
+		// If we have item or index variables, we're within a collection context
+		if _, hasItem := nc.Variables[ItemKey]; hasItem {
+			return true
+		}
+		if _, hasIndex := nc.Variables[IndexKey]; hasIndex {
+			return true
+		}
+	}
+	return false
 }

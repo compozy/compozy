@@ -17,8 +17,6 @@ import (
 
 func TestParallelResponseHandler_Integration(t *testing.T) {
 	t.Run("Should process parallel task response with strategy", func(t *testing.T) {
-		t.Parallel()
-
 		// Setup test infrastructure
 		ts := task2helpers.NewTestSetup(t)
 
@@ -68,8 +66,6 @@ func TestParallelResponseHandler_Integration(t *testing.T) {
 	})
 
 	t.Run("Should handle deferred output transformation", func(t *testing.T) {
-		t.Parallel()
-
 		// Setup test infrastructure
 		ts := task2helpers.NewTestSetup(t)
 
@@ -160,8 +156,6 @@ func TestParallelResponseHandler_Integration(t *testing.T) {
 	})
 
 	t.Run("Should extract strategy from config", func(t *testing.T) {
-		t.Parallel()
-
 		// Setup test infrastructure
 		ts := task2helpers.NewTestSetup(t)
 

@@ -42,7 +42,9 @@ func (n *Normalizer) Normalize(config *task.Config, ctx contracts.NormalizationC
 	}
 	// Apply inheritance to processor if present
 	if config != nil && config.Processor != nil {
-		shared.InheritTaskConfig(config.Processor, config)
+		if err := shared.InheritTaskConfig(config.Processor, config); err != nil {
+			return fmt.Errorf("failed to inherit task config: %w", err)
+		}
 	}
 	return nil
 }
@@ -87,11 +89,18 @@ func (n *Normalizer) NormalizeWithSignal(
 	// Merge existing With values back into the normalized config
 	if existingWith != nil && config.With != nil {
 		mergedWith := make(core.Input)
-		maps.Copy(mergedWith, *config.With)
+		// Keep consistency with BaseNormalizer: normalized config.With wins on key conflicts
 		maps.Copy(mergedWith, *existingWith)
+		maps.Copy(mergedWith, *config.With)
 		config.With = &mergedWith
 	} else if existingWith != nil {
-		config.With = existingWith
+		cloned, err := core.DeepCopy(*existingWith)
+		if err == nil {
+			config.With = &cloned
+		} else {
+			// Fall back to original to avoid dropping values if a deep copy fails
+			config.With = existingWith
+		}
 	}
 	return nil
 }

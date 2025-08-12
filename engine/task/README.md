@@ -78,7 +78,7 @@ func main() {
         },
         Agent: &agent.Config{
             ID:           "greeting-agent",
-            Model:        "claude-3-haiku-20240307",
+            Model:        "claude-3-5-haiku-latest",
             Instructions: "Generate a friendly greeting",
         },
         With: &core.Input{
@@ -153,7 +153,7 @@ basicTask := &task.Config{
     },
     Agent: &agent.Config{
         ID:           "data-processor",
-        Model:        "claude-3-haiku-20240307",
+        Model:        "claude-3-5-haiku-latest",
         Instructions: "Process the input data and extract key information",
     },
     Input: &schema.Schema{
@@ -186,7 +186,7 @@ parallelTask := &task.Config{
                 ID: "process-emails",
                 Agent: &agent.Config{
                     ID:           "email-processor",
-                    Model:        "claude-3-haiku-20240307",
+                    Model:        "claude-3-5-haiku-latest",
                     Instructions: "Process email data",
                 },
                 With: &core.Input{
@@ -199,7 +199,7 @@ parallelTask := &task.Config{
                 ID: "process-documents",
                 Agent: &agent.Config{
                     ID:           "doc-processor",
-                    Model:        "claude-3-haiku-20240307",
+                    Model:        "claude-3-5-haiku-latest",
                     Instructions: "Process document data",
                 },
                 With: &core.Input{
@@ -395,7 +395,7 @@ taskWithRetry := &task.Config{
     },
     Agent: &agent.Config{
         ID:           "processor",
-        Model:        "claude-3-haiku-20240307",
+        Model:        "claude-3-5-haiku-latest",
         Instructions: "Process data with error handling",
     },
     Input: &schema.Schema{
@@ -427,7 +427,7 @@ collectionTask := &task.Config{
                 ID: "process-item",
                 Agent: &agent.Config{
                     ID:           "item-processor",
-                    Model:        "claude-3-haiku-20240307",
+                    Model:        "claude-3-5-haiku-latest",
                     Instructions: "Process individual item",
                 },
                 With: &core.Input{
@@ -464,7 +464,7 @@ routerTask := &task.Config{
                         ID: "urgent-handler",
                         Agent: &agent.Config{
                             ID:           "urgent-processor",
-                            Model:        "claude-3-haiku-20240307",
+                            Model:        "claude-3-5-haiku-latest",
                             Instructions: "Handle urgent requests",
                         },
                     },
@@ -477,7 +477,7 @@ routerTask := &task.Config{
                         ID: "normal-handler",
                         Agent: &agent.Config{
                             ID:           "normal-processor",
-                            Model:        "claude-3-haiku-20240307",
+                            Model:        "claude-3-5-haiku-latest",
                             Instructions: "Handle normal requests",
                         },
                     },
@@ -489,7 +489,7 @@ routerTask := &task.Config{
                 ID: "default-handler",
                 Agent: &agent.Config{
                     ID:           "default-processor",
-                    Model:        "claude-3-haiku-20240307",
+                    Model:        "claude-3-5-haiku-latest",
                     Instructions: "Handle default case",
                 },
             },

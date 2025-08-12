@@ -331,6 +331,75 @@ func TestExpander_InjectCollectionContext(t *testing.T) {
 	})
 }
 
+func TestExpander_InjectCollectionContext_PreservesParentContext(t *testing.T) {
+	t.Run("Should preserve existing With context when injecting collection variables", func(t *testing.T) {
+		// Arrange
+		expander := &Expander{}
+		parentContext := core.Input{
+			"dir":       "/test/directory",
+			"someParam": "value",
+		}
+		childConfig := &task.Config{
+			BaseConfig: task.BaseConfig{
+				ID:   "child",
+				With: &parentContext,
+			},
+		}
+		parentConfig := &task.Config{
+			CollectionConfig: task.CollectionConfig{
+				ItemVar:  "file",
+				IndexVar: "idx",
+			},
+		}
+		item := "test.go"
+		index := 0
+
+		// Act
+		expander.injectCollectionContext(childConfig, parentConfig, item, index)
+
+		// Assert
+		assert.NotNil(t, childConfig.With)
+		withMap := map[string]any(*childConfig.With)
+
+		// Check that parent context is preserved
+		assert.Equal(t, "/test/directory", withMap["dir"], "Parent context 'dir' should be preserved")
+		assert.Equal(t, "value", withMap["someParam"], "Parent context 'someParam' should be preserved")
+
+		// Check that collection variables are added
+		assert.Equal(t, item, withMap["_collection_item"])
+		assert.Equal(t, index, withMap["_collection_index"])
+		assert.Equal(t, item, withMap["file"])
+		assert.Equal(t, index, withMap["idx"])
+	})
+}
+
+func TestExpander_InjectCollectionContext_DeepCopiesParentWith(t *testing.T) {
+	t.Run("Should deep copy parent With into child to avoid aliasing", func(t *testing.T) {
+		// Arrange
+		expander := &Expander{}
+		parentWith := core.Input{"dir": "/root", "keep": "yes"}
+		parentConfig := &task.Config{
+			BaseConfig: task.BaseConfig{With: &parentWith},
+			CollectionConfig: task.CollectionConfig{
+				ItemVar:  "file",
+				IndexVar: "idx",
+			},
+		}
+		childConfig := &task.Config{BaseConfig: task.BaseConfig{ID: "child"}}
+		item := "a.txt"
+		index := 3
+
+		// Act
+		expander.injectCollectionContext(childConfig, parentConfig, item, index)
+
+		// Assert
+		require.NotNil(t, childConfig.With)
+		// Mutate child and ensure parent not affected
+		(*childConfig.With)["dir"] = "/mutated"
+		assert.Equal(t, "/root", (*parentConfig.With)["dir"], "Parent With must not be mutated by child injections")
+	})
+}
+
 func TestExpander_ValidateChildConfigs(t *testing.T) {
 	t.Run("Should pass validation for valid child configs", func(t *testing.T) {
 		// Arrange

@@ -35,7 +35,7 @@ func Test_LoadAgent(t *testing.T) {
 
 		assert.Equal(t, "code-assistant", config.ID)
 		assert.Equal(t, core.ProviderAnthropic, config.Config.Provider)
-		assert.Equal(t, "claude-3-opus-20240229", config.Config.Model)
+		assert.Equal(t, "claude-4-opus", config.Config.Model)
 		assert.InDelta(t, float32(0.7), config.Config.Params.Temperature, 0.0001)
 		assert.Equal(t, int32(4000), config.Config.Params.MaxTokens)
 

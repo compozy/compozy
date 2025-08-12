@@ -6,21 +6,40 @@
 
 ## 📑 Table of Contents
 
-- [🎯 Overview](#-overview)
-- [💡 Motivation](#-motivation)
-- [⚡ Design Highlights](#-design-highlights)
-- [🚀 Getting Started](#-getting-started)
-- [📖 Usage](#-usage)
-  - [Library](#library)
-  - [Configuration Orchestration](#configuration-orchestration)
-  - [Task Normalization](#task-normalization)
-  - [Response Processing](#response-processing)
-  - [Factory Pattern](#factory-pattern)
-- [🎨 Examples](#-examples)
-- [📚 API Reference](#-api-reference)
-- [🧪 Testing](#-testing)
-- [📦 Contributing](#-contributing)
-- [📄 License](#-license)
+- [`engine/task2` – _Advanced Task Normalization and Response Processing_](#enginetask2--advanced-task-normalization-and-response-processing)
+  - [📑 Table of Contents](#-table-of-contents)
+  - [🎯 Overview](#-overview)
+  - [💡 Motivation](#-motivation)
+  - [⚡ Design Highlights](#-design-highlights)
+  - [🚀 Getting Started](#-getting-started)
+  - [📖 Usage](#-usage)
+    - [Library](#library)
+    - [Configuration Orchestration](#configuration-orchestration)
+    - [Task Normalization](#task-normalization)
+    - [Response Processing](#response-processing)
+    - [Factory Pattern](#factory-pattern)
+  - [🎨 Examples](#-examples)
+    - [Complete Workflow Normalization](#complete-workflow-normalization)
+    - [Signal-Based Task Processing](#signal-based-task-processing)
+    - [Custom Response Processing](#custom-response-processing)
+  - [📚 API Reference](#-api-reference)
+    - [Core Interfaces](#core-interfaces)
+      - [`Factory`](#factory)
+      - [`ConfigOrchestrator`](#configorchestrator)
+    - [Factory Implementation](#factory-implementation)
+      - [`DefaultNormalizerFactory`](#defaultnormalizerfactory)
+      - [`FactoryConfig`](#factoryconfig)
+    - [Task Type Support](#task-type-support)
+    - [Normalization Contracts](#normalization-contracts)
+      - [`TaskNormalizer`](#tasknormalizer)
+      - [`TaskResponseHandler`](#taskresponsehandler)
+    - [Utility Functions](#utility-functions)
+      - [`BuildTaskConfigsMap`](#buildtaskconfigsmap)
+  - [🧪 Testing](#-testing)
+    - [Test Categories](#test-categories)
+    - [Test Structure](#test-structure)
+  - [📦 Contributing](#-contributing)
+  - [📄 License](#-license)
 
 ---
 
@@ -351,7 +370,7 @@ func normalizeComplexWorkflow() error {
                 },
                 Agent: &agent.Config{
                     ID:           "validator",
-                    Model:        "claude-3-haiku-20240307",
+                    Model:        "claude-3-5-haiku-latest",
                     Instructions: "Validate the input data",
                 },
             },
@@ -372,7 +391,7 @@ func normalizeComplexWorkflow() error {
                             ID: "process-item",
                             Agent: &agent.Config{
                                 ID:           "processor",
-                                Model:        "claude-3-haiku-20240307",
+                                Model:        "claude-3-5-haiku-latest",
                                 Instructions: "Process individual item",
                             },
                             With: &core.Input{
@@ -484,7 +503,7 @@ func processWaitTaskWithSignal() error {
                             ID: "approval-processor",
                             Agent: &agent.Config{
                                 ID:           "approver",
-                                Model:        "claude-3-haiku-20240307",
+                                Model:        "claude-3-5-haiku-latest",
                                 Instructions: "Process approval signal",
                             },
                             With: &core.Input{
@@ -538,7 +557,7 @@ func createCustomResponseHandler() error {
             "confidence": 0.95,
             "metadata": map[string]any{
                 "tokens_used": 150,
-                "model": "claude-3-haiku-20240307",
+                "model": "claude-3-5-haiku-latest",
             },
         },
     }

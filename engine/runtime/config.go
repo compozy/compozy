@@ -21,9 +21,19 @@ type Config struct {
 	NodeOptions    []string // Node.js-specific options
 	// Application config integration fields
 	Environment string // Deployment environment (development, staging, production)
+	// Memory management
+	MaxMemoryMB          int // Maximum memory limit in MB for the runtime process (0 = no limit)
+	MaxStderrCaptureSize int // Maximum size of stderr buffer to capture (default 1MB)
 }
 
-// DefaultConfig returns a sensible default configuration
+// DefaultConfig returns a sensible default runtime configuration.
+//
+// The returned *Config is populated with conservative defaults suitable for
+// local development: short exponential backoff settings, secure worker file
+// permissions (0600), a 60s tool execution timeout, the Bun runtime as the
+// default runtime type with minimal Bun permissions, and the "development"
+// environment. MaxMemoryMB defaults to 2048 (2 GB); a value of 0 means no
+// memory limit.
 func DefaultConfig() *Config {
 	return &Config{
 		BackoffInitialInterval: 100 * time.Millisecond,
@@ -35,10 +45,23 @@ func DefaultConfig() *Config {
 		BunPermissions: []string{
 			"--allow-read", // Minimal permissions - allow read only by default
 		},
-		Environment: "development", // Default environment
+		Environment:          "development",   // Default environment
+		MaxMemoryMB:          2048,            // Default 2GB memory limit
+		MaxStderrCaptureSize: 1 * 1024 * 1024, // Default 1MB stderr buffer
 	}
 }
 
+// TestConfig returns a Config preconfigured for test runs.
+//
+// The returned Config uses much shorter backoff intervals and timeouts, secure
+// worker file permissions, and a reduced memory limit to make tests fast and
+// resource‑efficient. Key differences from DefaultConfig include:
+// - shorter BackoffInitialInterval, BackoffMaxInterval, and BackoffMaxElapsedTime
+// - shorter ToolExecutionTimeout
+// - Environment set to "testing"
+// - MaxMemoryMB reduced to 512
+//
+// Use this when creating runtime instances for unit or integration tests.
 func TestConfig() *Config {
 	return &Config{
 		BackoffInitialInterval: 10 * time.Millisecond,
@@ -51,6 +74,7 @@ func TestConfig() *Config {
 			"--allow-read",
 		},
 		Environment: "testing", // Test environment
+		MaxMemoryMB: 512,       // Lower memory limit for tests
 	}
 }
 

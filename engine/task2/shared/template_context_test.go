@@ -89,7 +89,8 @@ func TestVariableBuilder_BuildBaseVariables(t *testing.T) {
 		// Input should be dereferenced for template access
 		assert.Equal(t, *workflowState.Input, workflowVars["input"])
 		assert.Equal(t, workflowState.Output, workflowVars["output"])
-		assert.Equal(t, workflowConfig, workflowVars["config"])
+		// Config is intentionally not included to prevent premature template evaluation
+		assert.NotContains(t, workflowVars, "config")
 
 		// Check task variables
 		taskVars := result["task"].(map[string]any)

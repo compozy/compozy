@@ -66,17 +66,27 @@ func (b *ContextBuilder) BuildIterationContext(
 	} else {
 		iterCtx.Variables = make(map[string]any)
 	}
+
 	// Add item and index to variables
 	iterCtx.Variables[shared.ItemKey] = item
 	iterCtx.Variables[shared.IndexKey] = index
-	// Create current input with item and index
-	currentInput := core.Input{
-		shared.ItemKey:  item,
-		shared.IndexKey: index,
+	// Create current input by deep-copying parent context, then override with item and index
+	var currentInput core.Input
+	if baseContext.CurrentInput != nil {
+		copied, err := core.DeepCopy(*baseContext.CurrentInput)
+		if err != nil {
+			return nil, fmt.Errorf("failed to deep copy current input: %w", err)
+		}
+		currentInput = copied
+	} else {
+		currentInput = make(core.Input)
 	}
+	// Then add/override with item and index
+	currentInput[shared.ItemKey] = item
+	currentInput[shared.IndexKey] = index
 	iterCtx.CurrentInput = &currentInput
 	// Also add to input variable
-	iterCtx.Variables["input"] = &currentInput
+	iterCtx.Variables[shared.InputKey] = &currentInput
 	return iterCtx, nil
 }
 

@@ -2,9 +2,11 @@ package shared
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/jackc/pgx/v5"
 )
@@ -102,14 +104,28 @@ func (s *TransactionService) saveWithTransaction(
 		// Get latest state with row-level lock
 		latestState, err := txRepo.GetStateForUpdate(ctx, tx, state.TaskExecID)
 		if err != nil {
+			// Check if this is a new state (doesn't exist yet)
+			if errors.Is(err, store.ErrTaskNotFound) {
+				// For new states, directly save without merging
+				if err := txRepo.UpsertStateWithTx(ctx, tx, state); err != nil {
+					return fmt.Errorf("unable to save new task state: %w", err)
+				}
+				return nil
+			}
 			return fmt.Errorf("unable to acquire task lock for update: %w", err)
 		}
 
 		// Merge changes into latest state
 		s.mergeStateChanges(latestState, state)
 
-		// Copy state back to original to ensure caller sees the merged state
-		*state = *latestState
+		// Update only the merged fields back to the original state
+		// DO NOT overwrite identity fields like TaskExecID
+		state.Status = latestState.Status
+		state.Output = latestState.Output
+		state.Error = latestState.Error
+		if state.Input == nil && latestState.Input != nil {
+			state.Input = latestState.Input
+		}
 
 		// Save with transaction safety
 		if err := txRepo.UpsertStateWithTx(ctx, tx, latestState); err != nil {
@@ -125,8 +141,28 @@ func (s *TransactionService) saveWithoutTransaction(
 	ctx context.Context,
 	state *task.State,
 ) error {
-	if err := s.taskRepo.UpsertState(ctx, state); err != nil {
+	// Fetch current state to merge changes similarly to transactional flow
+	latest, err := s.taskRepo.GetState(ctx, state.TaskExecID)
+	if err != nil {
+		// If not found, persist as new
+		if errors.Is(err, store.ErrTaskNotFound) {
+			if err := s.taskRepo.UpsertState(ctx, state); err != nil {
+				return fmt.Errorf("unable to save new task state: %w", err)
+			}
+			return nil
+		}
+		return fmt.Errorf("unable to retrieve existing task state: %w", err)
+	}
+	s.mergeStateChanges(latest, state)
+	if err := s.taskRepo.UpsertState(ctx, latest); err != nil {
 		return fmt.Errorf("unable to save task changes: %w", err)
+	}
+	// Mirror merged fields back to caller for consistency with transactional path
+	state.Status = latest.Status
+	state.Output = latest.Output
+	state.Error = latest.Error
+	if state.Input == nil && latest.Input != nil {
+		state.Input = latest.Input
 	}
 	return nil
 }
@@ -184,19 +220,46 @@ func (s *TransactionService) applyWithoutTransaction(
 	return nil
 }
 
-// mergeStateChanges merges changes from source state into target state
-// Only Status, Output, and Error fields are merged because:
-// - These are the only fields that change during task execution
-// - Other fields like TaskID, TaskExecID, WorkflowID are immutable identifiers
-// - Input and Metadata are set at task creation and should not be modified
-// - ParentStateID and hierarchy fields are structural and must remain unchanged
+// mergeStateChanges merges mutable fields from source into target.
+//
+// - Merges: Status, Output, Error
+// - Backfills Input only if target is missing it (doesn't overwrite existing Input)
+// - Does not touch identity/structural fields (IDs, parent, etc.)
 func (s *TransactionService) mergeStateChanges(target, source *task.State) {
-	target.Status = source.Status
-	target.Output = source.Output
-	target.Error = source.Error
-	// CRITICAL FIX: Also merge Input if target doesn't have it but source does
-	// This handles cases where the initial save didn't include Input properly
-	if target.Input == nil && source.Input != nil {
-		target.Input = source.Input
+	if target == nil || source == nil {
+		return
 	}
+
+	// Status (only set when valid)
+	if source.Status.IsValid() {
+		target.Status = source.Status
+	}
+
+	// Output (deep copy to avoid aliasing)
+	if source.Output != nil {
+		target.Output = deepCopyOrSame(source.Output)
+	} else {
+		target.Output = nil
+	}
+
+	// Error (deep copy to avoid aliasing)
+	if source.Error != nil {
+		target.Error = deepCopyOrSame(source.Error)
+	} else {
+		target.Error = nil
+	}
+
+	// Backfill Input only when missing in target (deep copy to avoid aliasing)
+	if target.Input == nil && source.Input != nil {
+		target.Input = deepCopyOrSame(source.Input)
+	}
+}
+
+// returns the copied value. If deep copy fails, it returns the original value unchanged.
+func deepCopyOrSame[T any](v T) T {
+	copied, err := core.DeepCopy(v)
+	if err != nil {
+		return v
+	}
+	return copied
 }

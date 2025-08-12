@@ -73,12 +73,35 @@ func NewService(ctx context.Context, runtime runtime.Runtime, agent *agent.Confi
 // GenerateContent generates content using the orchestrator
 func (s *Service) GenerateContent(
 	ctx context.Context,
-	agent *agent.Config,
-	action *agent.ActionConfig,
+	agentConfig *agent.Config,
+	taskWith *core.Input,
+	actionID string,
 ) (*core.Output, error) {
+	if agentConfig == nil {
+		return nil, fmt.Errorf("agent config cannot be nil")
+	}
+	if actionID == "" {
+		return nil, fmt.Errorf("actionID cannot be empty")
+	}
+	actionConfig, err := agent.FindActionConfig(agentConfig.Actions, actionID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find action config: %w", err)
+	}
+	// Defensive copy to avoid shared-mutation/race on the agent's action config
+	actionCopy, err := core.DeepCopy(actionConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to clone action config: %w", err)
+	}
+	if taskWith != nil {
+		inputCopy, err := core.DeepCopy(taskWith)
+		if err != nil {
+			return nil, fmt.Errorf("failed to clone task with: %w", err)
+		}
+		actionCopy.With = inputCopy
+	}
 	request := Request{
-		Agent:  agent,
-		Action: action,
+		Agent:  agentConfig,
+		Action: actionCopy,
 	}
 	return s.orchestrator.Execute(ctx, request)
 }

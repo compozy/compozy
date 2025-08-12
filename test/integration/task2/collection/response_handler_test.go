@@ -79,7 +79,7 @@ func TestCollectionResponseHandler_Integration(t *testing.T) {
 		handler := collection.NewResponseHandler(ts.TemplateEngine, ts.ContextBuilder, ts.BaseHandler)
 
 		// Create workflow state
-		_, workflowExecID := ts.CreateWorkflowState(t, "test-workflow")
+		workflowState, workflowExecID := ts.CreateWorkflowState(t, "test-workflow")
 
 		// Create task state
 		taskState := ts.CreateTaskState(t, &task2helpers.TaskStateConfig{
@@ -101,7 +101,7 @@ func TestCollectionResponseHandler_Integration(t *testing.T) {
 			},
 			TaskState:      taskState,
 			WorkflowConfig: &workflow.Config{ID: "test-workflow"},
-			WorkflowState:  &workflow.State{WorkflowID: "test-workflow", WorkflowExecID: core.MustNewID()},
+			WorkflowState:  workflowState,
 		}
 
 		// Mock expectations for deferred transformation

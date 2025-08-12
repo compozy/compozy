@@ -40,7 +40,13 @@ type ExecuteBasic struct {
 	appConfig      *config.Config
 }
 
-// NewExecuteBasic creates a new ExecuteBasic activity with task2 integration
+// NewExecuteBasic creates and returns a configured ExecuteBasic activity.
+//
+// The constructed ExecuteBasic wires the provided repositories, runtime, memory
+// manager, template engine, project and app configs, and task2 factory into
+// its internal use-cases. It initializes use-cases for loading workflows,
+// creating task state, and executing tasks (ExecuteTask is constructed with the
+// workflow repository), and returns the ready-to-use ExecuteBasic or an error.
 func NewExecuteBasic(
 	workflows []*workflow.Config,
 	workflowRepo workflow.Repository,
@@ -56,7 +62,7 @@ func NewExecuteBasic(
 	return &ExecuteBasic{
 		loadWorkflowUC: uc.NewLoadWorkflow(workflows, workflowRepo),
 		createStateUC:  uc.NewCreateState(taskRepo, configStore),
-		executeUC:      uc.NewExecuteTask(runtime, memoryManager, templateEngine, appConfig),
+		executeUC:      uc.NewExecuteTask(runtime, workflowRepo, memoryManager, templateEngine, appConfig),
 		task2Factory:   task2Factory,
 		workflowRepo:   workflowRepo,
 		taskRepo:       taskRepo,
@@ -68,6 +74,10 @@ func NewExecuteBasic(
 }
 
 func (a *ExecuteBasic) Run(ctx context.Context, input *ExecuteBasicInput) (*task.MainTaskResponse, error) {
+	// Validate input
+	if input == nil || input.TaskConfig == nil {
+		return nil, fmt.Errorf("invalid ExecuteBasic input: task_config is required")
+	}
 	// Load workflow state and config
 	workflowState, workflowConfig, err := a.loadWorkflowUC.Execute(ctx, &uc.LoadWorkflowInput{
 		WorkflowID:     input.WorkflowID,
@@ -88,10 +98,19 @@ func (a *ExecuteBasic) Run(ctx context.Context, input *ExecuteBasicInput) (*task
 	}
 	// Build proper normalization context with all template variables
 	normContext := contextBuilder.BuildContext(workflowState, workflowConfig, input.TaskConfig)
+	// Don't inject raw TaskConfig.With before normalization - this causes circular dependency
+	// The workflow-level .input should be preserved for template processing
+
 	// Normalize the task configuration
 	normalizedConfig := input.TaskConfig
 	if err := normalizer.Normalize(normalizedConfig, normContext); err != nil {
 		return nil, fmt.Errorf("failed to normalize basic task: %w", err)
+	}
+	// AFTER normalization - add rendered with: as .input for downstream use
+	// This makes the normalized (template-processed) values available to agents/sub-tasks
+	if normalizedConfig.With != nil {
+		normContext.CurrentInput = normalizedConfig.With
+		contextBuilder.VariableBuilder.AddCurrentInputToVariables(normContext.Variables, normalizedConfig.With)
 	}
 	// Validate task type
 	if normalizedConfig.Type != task.TaskTypeBasic {

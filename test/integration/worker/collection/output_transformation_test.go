@@ -15,7 +15,6 @@ import (
 
 func TestCollectionTask_OutputTransformation(t *testing.T) {
 	t.Run("Should transform child outputs with item context", func(t *testing.T) {
-		t.Parallel()
 		// Setup test infrastructure
 		basePath := getTestDir()
 
@@ -39,7 +38,6 @@ func TestCollectionTask_OutputTransformation(t *testing.T) {
 	})
 
 	t.Run("Should handle custom item and index variable names", func(t *testing.T) {
-		t.Parallel()
 		// Setup test infrastructure
 		basePath := getTestDir()
 

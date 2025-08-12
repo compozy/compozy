@@ -288,6 +288,63 @@ func TestCollectionContextBuilder_BuildIterationContext(t *testing.T) {
 	})
 }
 
+func TestCollectionContextBuilder_TasksMapIsolation(t *testing.T) {
+	t.Run("Should isolate tasks map between collection iterations", func(t *testing.T) {
+		builder := collection.NewContextBuilder()
+
+		// Create base context with tasks map containing Output pointers
+		weatherOutput := core.Output(map[string]any{
+			"temperature": 25,
+			"humidity":    60,
+			"weather":     "Clear sky",
+		})
+
+		baseContext := &shared.NormalizationContext{
+			Variables: map[string]any{
+				"tasks": map[string]any{
+					"weather": &weatherOutput,
+				},
+			},
+		}
+
+		// Build first iteration context
+		ctx1, err := builder.BuildIterationContext(baseContext, "item1", 0)
+		require.NoError(t, err)
+
+		// Build second iteration context
+		ctx2, err := builder.BuildIterationContext(baseContext, "item2", 1)
+		require.NoError(t, err)
+
+		// Modify the weather output in ctx1
+		if tasks1, ok := ctx1.Variables["tasks"].(map[string]any); ok {
+			if weather1, ok := tasks1["weather"].(*core.Output); ok {
+				(*weather1)["temperature"] = 30
+				(*weather1)["humidity"] = 70
+			}
+		}
+
+		// Verify ctx2 still has original values
+		if tasks2, ok := ctx2.Variables["tasks"].(map[string]any); ok {
+			if weather2, ok := tasks2["weather"].(*core.Output); ok {
+				assert.Equal(t, 25, (*weather2)["temperature"])
+				assert.Equal(t, 60, (*weather2)["humidity"])
+			} else {
+				t.Error("weather output not found in ctx2")
+			}
+		} else {
+			t.Error("tasks map not found in ctx2")
+		}
+
+		// Verify base context still has original values
+		if baseTasks, ok := baseContext.Variables["tasks"].(map[string]any); ok {
+			if baseWeather, ok := baseTasks["weather"].(*core.Output); ok {
+				assert.Equal(t, 25, (*baseWeather)["temperature"])
+				assert.Equal(t, 60, (*baseWeather)["humidity"])
+			}
+		}
+	})
+}
+
 func TestCollectionContextBuilder_BuildIterationContextWithProgress(t *testing.T) {
 	// Setup
 	builder := collection.NewContextBuilder()

@@ -89,7 +89,7 @@ func (tob *DefaultTaskOutputBuilder) BuildTaskOutput(
 		}
 		return nestedOutput
 	}
-	if taskState.Output != nil {
+	if taskState.Output != nil && len(*taskState.Output) > 0 {
 		return *taskState.Output
 	}
 	return core.Output{}

@@ -1,0 +1,70 @@
+resource: agent
+id: analyzer
+description: Specialized in Go code analysis for performance and best practices
+version: 1.0.0
+
+config:
+  $ref: global::models.#(provider=="openai")
+
+instructions: |
+  You are an expert Go developer and code reviewer with deep knowledge of:
+  - Go performance optimization and profiling
+  - Go best practices and idiomatic patterns
+  - Concurrent programming in Go
+  - Memory management and garbage collection
+  - Go standard library and ecosystem
+
+  Your role is to analyze Go code and provide detailed, actionable reports.
+  Always provide specific, implementable suggestions with code examples when appropriate.
+  Focus on practical improvements that will have measurable impact.
+
+tools:
+  - id: write_file
+    description: Write content to a file
+    input:
+      type: object
+      properties:
+        path:
+          type: string
+          description: The file path to write to
+        content:
+          type: string
+          description: The content to write
+      required:
+        - path
+        - content
+
+actions:
+  - id: analyze
+    prompt: |-
+      Analyze the following Go code file and save the review as a markdown file:
+
+      File: {{ .input.file_path }}
+
+      Content:
+      ```go
+      {{ .input.content }}
+      ```
+
+      You must:
+      1. Analyze the code for:
+         - Performance optimizations
+         - Go best practices violations
+         - Potential bugs or issues
+         - Memory management concerns
+         - Concurrency issues (if applicable)
+         - Suggestions for improvement with specific code examples
+
+      2. Create a comprehensive markdown report with the following structure:
+         -  # Code Review: [filename]
+         -  ## Summary
+         -  ## Performance Analysis
+         -  ## Best Practices Review
+         -  ## Potential Issues
+         -  ## Recommendations
+         -  ## Code Examples (if applicable)
+
+      3. Use the write_file tool to save the review to: ./reviews/{{ .input.file_path }}.md
+         Make sure to replace any forward slashes in the file path with underscores for the output filename.
+
+      4. Return a summary of your findings after saving the review file.

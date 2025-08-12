@@ -156,6 +156,13 @@ func (e *Expander) createChildConfigs(
 		if err != nil {
 			return nil, fmt.Errorf("failed to build child config at index %d: %w", i, err)
 		}
+
+		// Ensure With is non-nil; injectCollectionContext will deep-copy and finalize
+		if childConfig.With == nil {
+			empty := core.Input{}
+			childConfig.With = &empty
+		}
+
 		// Inject collection context metadata into child config
 		e.injectCollectionContext(childConfig, config, item, i)
 		childConfigs[i] = childConfig
@@ -174,18 +181,44 @@ func (e *Expander) injectCollectionContext(
 	if childConfig.With == nil {
 		childConfig.With = &core.Input{}
 	}
-	withMap := map[string]any(*childConfig.With)
-	// Standard collection variables
+
+	// Deep copy existing child context to avoid shared pointer mutations
+	withMap, err := core.DeepCopy(*childConfig.With) // returns core.Input
+	if err != nil {
+		// If deep copy fails, preserve current values
+		withMap = *childConfig.With
+	}
+
+	// Always publish canonical vars
 	withMap[shared.FieldCollectionItem] = item
 	withMap[shared.FieldCollectionIndex] = index
-	// Custom variable naming support
-	if itemVar := parentConfig.GetItemVar(); itemVar != "" {
-		withMap[itemVar] = item
+
+	// Custom variable naming support (avoid duplicates)
+	if parentConfig != nil {
+		if iv := parentConfig.GetItemVar(); iv != "" && iv != shared.FieldCollectionItem {
+			withMap[iv] = item
+		}
+		if ix := parentConfig.GetIndexVar(); ix != "" && ix != shared.FieldCollectionIndex {
+			withMap[ix] = index
+		}
 	}
-	if indexVar := parentConfig.GetIndexVar(); indexVar != "" {
-		withMap[indexVar] = index
+
+	// Merge inherited parent With after deep-copy to preserve precedence rules
+	if parentConfig != nil && parentConfig.With != nil {
+		parentMap, err := core.DeepCopy(*parentConfig.With) // returns core.Input
+		if err != nil {
+			// If deep copy fails, preserve parent values
+			parentMap = *parentConfig.With
+		}
+		for k, v := range parentMap {
+			if _, exists := withMap[k]; !exists {
+				withMap[k] = v
+			}
+		}
 	}
-	*childConfig.With = core.Input(withMap)
+
+	newWith := withMap
+	childConfig.With = &newWith
 }
 
 // validateChildConfigs validates all child configurations

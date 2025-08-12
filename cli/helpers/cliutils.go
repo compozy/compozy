@@ -282,12 +282,32 @@ func ValidateEnum(value string, allowed []string, fieldName string) error {
 		fmt.Sprintf("provided: %s", value))
 }
 
-// Contains checks if a string contains a substring (case-insensitive)
+// Contains reports whether substr is within s using a case-insensitive comparison.
+// An empty substr returns true.
 func Contains(s, substr string) bool {
 	return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
 }
 
-// Truncate truncates a string to a maximum length with ellipsis
+// ContainsAny returns true if s contains any of the provided substrings.
+// ContainsAny reports whether s contains any of the provided substrings.
+// The comparison is case-insensitive; empty substrings are ignored.
+func ContainsAny(s string, substrings ...string) bool {
+	lower := strings.ToLower(s)
+	for _, sub := range substrings {
+		if sub == "" {
+			continue
+		}
+		if strings.Contains(lower, strings.ToLower(sub)) {
+			return true
+		}
+	}
+	return false
+}
+
+// Truncate returns s truncated to at most maxLength characters.
+// If s is longer than maxLength and maxLength > 3, the result ends with "..." and has length maxLength.
+// If maxLength <= 3 the function truncates to maxLength characters without adding an ellipsis.
+// If s is shorter than or equal to maxLength, it is returned unchanged.
 func Truncate(s string, maxLength int) string {
 	if len(s) <= maxLength {
 		return s

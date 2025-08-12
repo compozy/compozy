@@ -200,12 +200,16 @@ func (o *llmOrchestrator) buildLLMRequest(
 		})
 	}
 	messages := o.buildMessages(ctx, promptData.enhancedPrompt, memories)
+
+	// Determine temperature: use agent's configured value (explicit zero allowed; upstream default applies)
+	temperature := request.Agent.Config.Params.Temperature
+
 	return llmadapter.LLMRequest{
 		SystemPrompt: request.Agent.Instructions,
 		Messages:     messages,
 		Tools:        toolDefs,
 		Options: llmadapter.CallOptions{
-			Temperature:      0.7,
+			Temperature:      temperature,
 			UseJSONMode:      request.Action.JSONMode || (promptData.shouldUseStructured && len(toolDefs) == 0),
 			StructuredOutput: promptData.shouldUseStructured,
 		},

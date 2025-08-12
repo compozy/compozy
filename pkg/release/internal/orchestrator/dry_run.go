@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -20,7 +21,14 @@ import (
 )
 
 const (
-	githubActionsTrue = "true"
+	githubActionsTrue    = "true"
+	envGithubIssueNumber = "GITHUB_ISSUE_NUMBER"
+	envGithubEventPath   = "GITHUB_EVENT_PATH"
+	envGithubHeadRef     = "GITHUB_HEAD_REF"
+	envGithubSHA         = "GITHUB_SHA"
+	envGithubActions     = "GITHUB_ACTIONS"
+	metadataJSONPath     = "dist/metadata.json"
+	artifactTypeArchive  = "Archive"
 )
 
 // DryRunConfig holds configuration for the dry-run orchestrator
@@ -60,51 +68,81 @@ func NewDryRunOrchestrator(
 
 // Execute runs the dry-run validation
 func (o *DryRunOrchestrator) Execute(ctx context.Context, cfg DryRunConfig) error {
-	// Add timeout to match workflow (default 60 minutes for jobs)
 	ctx, cancel := context.WithTimeout(ctx, DefaultWorkflowTimeout)
 	defer cancel()
-	o.printStatus(cfg.CIOutput, "### 📝 Validating Changelog Generation")
+	if err := o.stepValidateChangelog(ctx, cfg); err != nil {
+		return err
+	}
+	if err := o.stepRunGoReleaser(ctx, cfg); err != nil {
+		return err
+	}
+	version, err := o.stepExtractVersion(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	if err := o.stepValidateNPM(ctx, cfg, version); err != nil {
+		return err
+	}
+	if os.Getenv(envGithubActions) == githubActionsTrue {
+		if err := o.stepCommentPR(ctx, cfg); err != nil {
+			return err
+		}
+	} else {
+		o.printStatus(cfg.CIOutput, "Dry-run completed. Review required.")
+	}
+	o.printStatus(cfg.CIOutput, "## ✅ Dry-Run Completed Successfully")
+	return nil
+}
 
-	// Step 1: Validate git-cliff (run --unreleased --verbose)
+// stepValidateChangelog validates git-cliff changelog generation
+func (o *DryRunOrchestrator) stepValidateChangelog(ctx context.Context, cfg DryRunConfig) error {
+	o.printStatus(cfg.CIOutput, "### 📝 Validating Changelog Generation")
 	if err := o.validateCliff(ctx); err != nil {
 		return fmt.Errorf("git-cliff validation failed: %w", err)
 	}
+	return nil
+}
 
+// stepRunGoReleaser executes GoReleaser dry-run
+func (o *DryRunOrchestrator) stepRunGoReleaser(ctx context.Context, cfg DryRunConfig) error {
 	o.printStatus(cfg.CIOutput, "### 🏗️ Running GoReleaser Dry-Run")
-
-	// Step 2: Run GoReleaser dry-run
 	fmt.Println("🔍 Running GoReleaser dry-run")
 	if err := o.runGoReleaserDry(ctx); err != nil {
 		return fmt.Errorf("GoReleaser dry-run failed: %w", err)
 	}
 	fmt.Println("✅ GoReleaser dry-run completed")
+	return nil
+}
 
-	// Step 3: Validate NPM packages
+// stepExtractVersion extracts version from branch name
+func (o *DryRunOrchestrator) stepExtractVersion(ctx context.Context, cfg DryRunConfig) (string, error) {
 	o.printStatus(cfg.CIOutput, "### 📦 Validating NPM packages")
 	fmt.Println("🔍 Extracting version from branch")
 	version, err := o.extractVersionFromBranch(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to extract version: %w", err)
+		return "", fmt.Errorf("failed to extract version: %w", err)
 	}
 	fmt.Printf("ℹ️ Detected version: %s\n", version)
+	return version, nil
+}
+
+// stepValidateNPM validates NPM package versions
+func (o *DryRunOrchestrator) stepValidateNPM(ctx context.Context, _ DryRunConfig, version string) error {
 	fmt.Println("🔍 Validating NPM package versions")
 	if err := o.validateNPMVersions(ctx, version); err != nil {
 		return fmt.Errorf("NPM validation failed: %w", err)
 	}
 	fmt.Println("✅ NPM validation completed")
+	return nil
+}
 
-	// Step 4: If in CI, comment on PR
-	if os.Getenv("GITHUB_ACTIONS") == githubActionsTrue {
-		fmt.Println("🔍 Creating PR comment")
-		if err := o.commentOnPR(ctx); err != nil {
-			return fmt.Errorf("PR comment failed: %w", err)
-		}
-		fmt.Println("✅ PR comment created")
-	} else {
-		o.printStatus(cfg.CIOutput, "Dry-run completed. Review required.")
+// stepCommentPR creates PR comment with dry-run results
+func (o *DryRunOrchestrator) stepCommentPR(ctx context.Context, _ DryRunConfig) error {
+	fmt.Println("🔍 Creating PR comment")
+	if err := o.commentOnPR(ctx); err != nil {
+		return fmt.Errorf("PR comment failed: %w", err)
 	}
-
-	o.printStatus(cfg.CIOutput, "## ✅ Dry-Run Completed Successfully")
+	fmt.Println("✅ PR comment created")
 	return nil
 }
 
@@ -112,19 +150,16 @@ func (o *DryRunOrchestrator) Execute(ctx context.Context, cfg DryRunConfig) erro
 func (o *DryRunOrchestrator) validateCliff(ctx context.Context) error {
 	fmt.Println("🔍 Running git-cliff --unreleased --verbose")
 	cmd := exec.CommandContext(ctx, "git-cliff", "--unreleased", "--verbose")
-
 	// Find the repository root by walking up directories
 	wd, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("failed to get working directory: %w", err)
 	}
-
 	repoRoot := findRepoRoot(wd)
 	if repoRoot != "" {
 		cmd.Dir = repoRoot
 		fmt.Printf("🔍 Running git-cliff from repository root: %s\n", repoRoot)
 	}
-
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
@@ -141,7 +176,7 @@ func (o *DryRunOrchestrator) runGoReleaserDry(ctx context.Context) error {
 
 // extractVersionFromBranch extracts version from GITHUB_HEAD_REF or branch name
 func (o *DryRunOrchestrator) extractVersionFromBranch(ctx context.Context) (string, error) {
-	headRef := os.Getenv("GITHUB_HEAD_REF")
+	headRef := os.Getenv(envGithubHeadRef)
 	if headRef == "" {
 		// Fallback to current branch
 		branch, err := o.gitRepo.GetCurrentBranch(ctx)
@@ -177,15 +212,14 @@ func (o *DryRunOrchestrator) validateNPMVersions(ctx context.Context, version st
 
 // commentOnPR reads metadata.json, builds body, adds comment via GithubRepo
 func (o *DryRunOrchestrator) commentOnPR(ctx context.Context) error {
-	// Get PR number from env (GITHUB_EVENT_PULL_REQUEST_NUMBER or similar; assume set)
-	prNumberStr := os.Getenv("GITHUB_ISSUE_NUMBER") // Adjust env var as needed
-	prNumber, err := strconv.Atoi(prNumberStr)
-	if err != nil {
-		return fmt.Errorf("invalid PR number: %w", err)
+	prNumber := o.getPRNumber(ctx)
+	if prNumber == 0 {
+		fmt.Println("ℹ️ Skipping PR comment (no PR number found)")
+		return nil
 	}
 
 	// Read metadata.json
-	metadataPath := "dist/metadata.json"
+	metadataPath := metadataJSONPath
 	file, err := o.fsRepo.Open(metadataPath)
 	if err != nil {
 		return fmt.Errorf("failed to open metadata.json: %w", err)
@@ -205,7 +239,7 @@ func (o *DryRunOrchestrator) commentOnPR(ctx context.Context) error {
 			if !ok {
 				continue
 			}
-			if artMap["type"] == "Archive" {
+			if artMap["type"] == artifactTypeArchive {
 				goos, ok := artMap["goos"].(string)
 				if !ok {
 					continue
@@ -221,11 +255,12 @@ func (o *DryRunOrchestrator) commentOnPR(ctx context.Context) error {
 		for b := range uniqueBuilds {
 			builds = append(builds, fmt.Sprintf("- %s", b))
 		}
+		sort.Strings(builds)
 		artifactsList = strings.Join(builds, "\n")
 	}
 
 	// Build comment body
-	sha := os.Getenv("GITHUB_SHA")
+	sha := os.Getenv(envGithubSHA)
 	if len(sha) > 7 {
 		sha = sha[:7]
 	}
@@ -244,6 +279,46 @@ func (o *DryRunOrchestrator) commentOnPR(ctx context.Context) error {
 
 	// Add comment
 	return o.githubRepo.AddComment(ctx, prNumber, body)
+}
+
+// getPRNumber retrieves PR number from environment variables or GitHub event payload
+func (o *DryRunOrchestrator) getPRNumber(_ context.Context) int {
+	// Try environment variable first
+	if prNumberStr := os.Getenv(envGithubIssueNumber); prNumberStr != "" {
+		if prNumber, err := strconv.Atoi(prNumberStr); err == nil {
+			return prNumber
+		}
+	}
+	// Try GitHub event payload as fallback
+	if eventPath := os.Getenv(envGithubEventPath); eventPath != "" {
+		// Validate the path is within the expected GitHub Actions directory
+		// GitHub Actions always sets this to a file in the runner's workspace
+		if !isValidGitHubEventPath(eventPath) {
+			return 0
+		}
+		// #nosec G304 - GITHUB_EVENT_PATH is validated and is a trusted environment variable
+		// set by GitHub Actions that always points to a controlled file
+		file, err := os.Open(eventPath)
+		if err == nil {
+			defer file.Close()
+			var payload map[string]any
+			if err := json.NewDecoder(file).Decode(&payload); err == nil {
+				// Check for pull_request.number
+				if pr, ok := payload["pull_request"].(map[string]any); ok {
+					if n, ok := pr["number"].(float64); ok {
+						return int(n)
+					}
+				}
+				// Check for issue.number as fallback
+				if issue, ok := payload["issue"].(map[string]any); ok {
+					if n, ok := issue["number"].(float64); ok {
+						return int(n)
+					}
+				}
+			}
+		}
+	}
+	return 0
 }
 
 // printStatus prints status if not CI
@@ -270,4 +345,44 @@ func findRepoRoot(startDir string) string {
 		dir = parent
 	}
 	return ""
+}
+
+// isValidGitHubEventPath validates that the GitHub event path is safe to open
+// GitHub Actions sets GITHUB_EVENT_PATH to a file in the runner's workspace
+func isValidGitHubEventPath(path string) bool {
+	// Ensure the path is absolute
+	if !filepath.IsAbs(path) {
+		return false
+	}
+
+	// Clean the path to remove any traversal attempts
+	cleanPath := filepath.Clean(path)
+
+	// GitHub Actions typically sets this to a path like:
+	// /home/runner/work/_temp/_github_workflow/event.json
+	// or /github/workflow/event.json
+	// We check that it contains expected patterns
+
+	// Must end with .json
+	if !strings.HasSuffix(cleanPath, ".json") {
+		return false
+	}
+
+	// Should contain typical GitHub Actions path patterns
+	validPatterns := []string{
+		"/_temp/",
+		"/workflow/",
+		"/_github_workflow/",
+		"/runner/",
+	}
+
+	hasValidPattern := false
+	for _, pattern := range validPatterns {
+		if strings.Contains(cleanPath, pattern) {
+			hasValidPattern = true
+			break
+		}
+	}
+
+	return hasValidPattern
 }
