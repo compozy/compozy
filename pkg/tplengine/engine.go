@@ -19,6 +19,11 @@ import (
 	"github.com/compozy/compozy/engine/core"
 )
 
+const (
+	trueString  = "true"
+	falseString = "false"
+)
+
 // Pre-compiled regular expressions for template processing performance
 var (
 	templateExpressionRegex = regexp.MustCompile(`{{[^}]*}}`)
@@ -256,7 +261,9 @@ func (e *TemplateEngine) parseArrayType(arr []any, data map[string]any) ([]any, 
 }
 
 // containsRuntimeReferences checks if a string contains runtime-only template references
-// that should be deferred until execution time
+// containsRuntimeReferences reports whether the input string contains runtime-only
+// task references that should be deferred until execution (specifically the
+// ".tasks." path segment). Returns true if such a reference is present.
 func containsRuntimeReferences(s string) bool {
 	// Only check for task outputs which are truly runtime-only
 	// .item and .index can be either runtime collection variables OR normal context variables
@@ -265,7 +272,10 @@ func containsRuntimeReferences(s string) bool {
 }
 
 // extractTaskReferences extracts all task IDs referenced in a template string
-// For example, "{{ .tasks.clothing.output }}" returns ["clothing"]
+// extractTaskReferences returns the task IDs referenced in s.
+// It scans s using the internal `taskRefRe` regular expression for patterns like
+// `.tasks.TASKID` and returns the captured TASKID values in order of appearance.
+// If no task references are found, an empty slice is returned.
 func extractTaskReferences(s string) []string {
 	taskIDs := []string{}
 	// Match patterns like .tasks.TASKID.
@@ -278,7 +288,8 @@ func extractTaskReferences(s string) []string {
 	return taskIDs
 }
 
-// areAllTasksAvailable checks if all referenced task IDs exist in the tasks map
+// areAllTasksAvailable reports whether all task IDs in taskIDs exist as keys in tasksMap.
+// Returns true if every id is present (and true for an empty taskIDs slice).
 func areAllTasksAvailable(taskIDs []string, tasksMap map[string]any) bool {
 	for _, taskID := range taskIDs {
 		if _, exists := tasksMap[taskID]; !exists {
@@ -502,7 +513,7 @@ func (e *TemplateEngine) renderAndProcessTemplate(v string, data map[string]any)
 	}
 
 	// Convert boolean results from template rendering to strings
-	if parsed == "true" || parsed == "false" {
+	if parsed == trueString || parsed == falseString {
 		return parsed, nil
 	}
 
@@ -659,8 +670,20 @@ func (e *TemplateEngine) preprocessContext(ctx map[string]any) map[string]any {
 func (e *TemplateEngine) preprocessTemplateForHyphens(templateStr string) string {
 	// Use pre-compiled regular expressions for better performance
 	return templateExpressionRegex.ReplaceAllStringFunc(templateStr, func(match string) string {
-		// Extract the content between {{ and }}
-		content := strings.TrimSpace(match[2 : len(match)-2])
+		// Handle whitespace trimming directives {{- and -}}
+		hasLeftTrim := strings.HasPrefix(match, "{{-")
+		hasRightTrim := strings.HasSuffix(match, "-}}")
+
+		// Extract the content between delimiters, accounting for trim markers
+		startIdx := 2
+		endIdx := len(match) - 2
+		if hasLeftTrim {
+			startIdx = 3
+		}
+		if hasRightTrim {
+			endIdx = len(match) - 3
+		}
+		content := strings.TrimSpace(match[startIdx:endIdx])
 
 		// Find dot-path patterns that contain hyphens using pre-compiled regex
 		processedContent := hyphenatedPathRegex.ReplaceAllStringFunc(content, func(pathMatch string) string {
@@ -680,6 +703,15 @@ func (e *TemplateEngine) preprocessTemplateForHyphens(templateStr string) string
 			return "(" + result + ")"
 		})
 
-		return "{{ " + processedContent + " }}"
+		// Reconstruct the template with proper delimiters
+		leftDelim := "{{"
+		rightDelim := "}}"
+		if hasLeftTrim {
+			leftDelim = "{{-"
+		}
+		if hasRightTrim {
+			rightDelim = "-}}"
+		}
+		return leftDelim + " " + processedContent + " " + rightDelim
 	})
 }

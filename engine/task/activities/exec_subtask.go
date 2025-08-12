@@ -40,7 +40,10 @@ type ExecuteSubtask struct {
 	appConfig      *config.Config
 }
 
-// NewExecuteSubtask creates a new ExecuteSubtask activity
+// NewExecuteSubtask creates and returns an ExecuteSubtask wired with the provided dependencies.
+// The returned ExecuteSubtask is ready to run individual subtasks within a workflow execution.
+// executeTaskUC is created without a memory manager (subtasks do not get task-local memory)
+// but retains templating support via the provided templateEngine.
 func NewExecuteSubtask(
 	workflows []*workflow.Config,
 	workflowRepo workflow.Repository,

@@ -52,7 +52,19 @@ interface ErrorInfo {
 // Store the original console.error to use for redirecting other methods
 const originalError = console.error;
 
-// Helper function to redirect console methods with proper prefixing
+/**
+ * Redirects common console methods to stderr and prefixes each message with an optional debug context.
+ *
+ * Replaces console.log/debug/info/warn/error so they all forward their arguments to the preserved
+ * stderr writer (via `originalError`) with a prefix. If `debugPrefix` is provided it is included
+ * in square brackets before the method name (e.g. `[MY_PREFIX][ERROR]`); otherwise only the
+ * method name is used (e.g. `[ERROR]`).
+ *
+ * Side effects:
+ * - Mutates the global `console` object by overwriting the listed methods.
+ *
+ * @param debugPrefix - Optional identifier used as a per-run debug prefix included in each message.
+ */
 function redirectConsole(debugPrefix = ""): void {
   const methods: (keyof Console)[] = ["log", "debug", "info", "warn", "error"];
   for (const method of methods) {
@@ -68,7 +80,15 @@ function redirectConsole(debugPrefix = ""): void {
 // Apply console redirection based on debug mode
 redirectConsole(DEBUG_MODE ? "DEBUG" : "");
 
-// Utility function to validate tool IDs
+/**
+ * Validate that a tool identifier is safe and well-formed.
+ *
+ * Returns true if `toolId` contains only letters, digits, underscores, slashes, dots, or dashes,
+ * and does not contain directory traversal segments (`".."`) or start with a leading slash.
+ *
+ * @param toolId - The tool identifier to validate.
+ * @returns `true` when `toolId` is allowed; otherwise `false`.
+ */
 function isValidToolId(toolId: string): boolean {
   const validPattern = /^[a-zA-Z0-9_/.-]+$/;
   if (!validPattern.test(toolId)) return false;
@@ -76,7 +96,17 @@ function isValidToolId(toolId: string): boolean {
   return true;
 }
 
-// Utility function to execute tool with timeout
+/**
+ * Executes an asynchronous tool function and rejects if it does not complete within the given timeout.
+ *
+ * Runs `fn(input, config)` and returns its resolved value. If execution exceeds `timeoutMs`, the returned promise rejects with an Error whose message indicates the timeout. Any error thrown by `fn` is propagated.
+ *
+ * @param fn - Asynchronous function to execute; receives `input` and optional `config`.
+ * @param input - Input passed to `fn`.
+ * @param config - Optional configuration passed to `fn`.
+ * @param timeoutMs - Maximum allowed execution time in milliseconds before rejecting with a timeout error.
+ * @returns A promise that resolves with `fn`'s result or rejects with the original error or a timeout Error.
+ */
 async function executeWithTimeout(
   fn: (input: any, config?: any) => Promise<any>,
   input: any,
@@ -101,7 +131,17 @@ async function executeWithTimeout(
   });
 }
 
-// Secure heap snapshot capture and cleanup function
+/**
+ * Capture a process-scoped heap snapshot (if available) and prune older snapshots.
+ *
+ * Creates a secure, per-process temporary directory, writes a heap snapshot file whose
+ * name includes a sanitized `toolId`, verifies the resolved path is contained in the
+ * snapshot directory, and then removes older `.heapsnapshot` files to keep disk usage
+ * bounded. All errors are logged and do not propagate.
+ *
+ * @param toolId - Identifier incorporated into the snapshot filename; characters unsafe for filenames are replaced with `_`.
+ * @returns A promise that resolves when snapshot capture and cleanup complete.
+ */
 async function captureAndCleanupHeapSnapshot(toolId: string): Promise<void> {
   try {
     // Create a dedicated, process-specific directory for heap snapshots
@@ -132,7 +172,16 @@ async function captureAndCleanupHeapSnapshot(toolId: string): Promise<void> {
   }
 }
 
-// Cleanup old heap snapshots with improved performance and safety
+/**
+ * Remove old `.heapsnapshot` files from a dedicated snapshot directory, keeping only the most recent snapshots.
+ *
+ * Scans the given directory for files ending with `.heapsnapshot`, sorts them by modification time (newest first),
+ * and deletes snapshots beyond the retention limit defined by `MAX_HEAP_SNAPSHOTS_TO_KEEP`.
+ * The function treats concurrently-removed files as non-fatal and logs other I/O errors without throwing.
+ *
+ * @param snapshotDir - Path to the directory that contains heap snapshot files to prune.
+ * @returns A promise that resolves once cleanup is complete.
+ */
 async function cleanupOldSnapshots(snapshotDir: string): Promise<void> {
   try {
     // Read only our dedicated directory (not entire /tmp)
@@ -221,7 +270,24 @@ if (process.env.COMPOZY_MAX_MEMORY_MB) {
   }
 }
 
-// Main execution logic
+/**
+ * Orchestrates the worker lifecycle: reads a JSON Request from stdin, executes the requested tool, and writes a JSON Response to stdout.
+ *
+ * The function:
+ * - Reads and parses stdin into a Request.
+ * - Validates `tool_id` and applies a validated set of environment variable overrides (restored in finally).
+ * - Resolves a tool function from the loaded entrypoint exports (supports default-exported object or named exports).
+ * - Executes the tool with a configurable timeout and returns a structured Response containing `result`, `error`, and optional `metadata` (including execution_time).
+ * - On parse/validation failures or other unrecoverable startup errors it writes an error Response and exits the process with code 1.
+ * - On runtime errors it optionally captures a heap snapshot (when heap profiling is enabled and supported) and returns an error Response.
+ *
+ * Side effects:
+ * - Mutates process.env temporarily while executing the tool (original environment is restored on completion).
+ * - Writes responses to stdout and diagnostic logs to stderr.
+ * - May call process.exit(1) for fatal startup errors (e.g., cannot read stdin or invalid JSON input).
+ *
+ * @returns A promise that resolves when execution and cleanup complete.
+ */
 async function main() {
   let inputText = "";
 

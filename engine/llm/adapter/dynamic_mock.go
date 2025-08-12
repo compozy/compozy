@@ -33,7 +33,7 @@ type DynamicMockLLM struct {
 	fallback        *MockLLM
 }
 
-// NewDynamicMockLLM creates a new dynamic mock LLM with expected outputs
+// (created via NewMockLLM) is used for prompts that don't match any expected action.
 func NewDynamicMockLLM(model string, expectedOutputs map[string]core.Output) *DynamicMockLLM {
 	copied := make(map[string]core.Output, len(expectedOutputs))
 	for k, v := range expectedOutputs {

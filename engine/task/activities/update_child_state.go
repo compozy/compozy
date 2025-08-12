@@ -20,7 +20,7 @@ type UpdateChildState struct {
 	taskRepo task.Repository
 }
 
-// NewUpdateChildState creates a new UpdateChildState activity
+// to load and persist child task states.
 func NewUpdateChildState(taskRepo task.Repository) *UpdateChildState {
 	return &UpdateChildState{
 		taskRepo: taskRepo,

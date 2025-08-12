@@ -122,7 +122,15 @@ func (n *BaseSubTaskNormalizer) normalizeSubTasks(parentConfig *task.Config, ctx
 }
 
 // InheritTaskConfig is a shared utility function that copies relevant config fields from parent to child config
-// This function can be used across different normalizers to maintain consistency
+// InheritTaskConfig copies non-empty parent task fields into a child task when the
+// child does not define them, and propagates the child's CWD to any nested tasks.
+//
+// If either child or parent is nil the function is a no-op. It will:
+//   - copy parent.CWD to child.CWD when child.CWD is nil and then call
+//     task.PropagateSingleTaskCWD to propagate that CWD to nested tasks;
+//   - copy parent.FilePath to child.FilePath when child.FilePath is empty.
+//
+// Returns an error if CWD propagation fails.
 func InheritTaskConfig(child, parent *task.Config) error {
 	if child == nil || parent == nil {
 		return nil // Graceful handling of nil configs

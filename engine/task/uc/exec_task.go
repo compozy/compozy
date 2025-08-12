@@ -35,6 +35,9 @@ type ExecuteTask struct {
 	appConfig      *config.Config
 }
 
+// NewExecuteTask creates a new ExecuteTask configured with the provided runtime, workflow
+// repository, memory manager, template engine, and application configuration. The returned
+// ExecuteTask coordinates task execution (agent or tool) using those injected dependencies.
 func NewExecuteTask(
 	runtime runtime.Runtime,
 	workflowRepo workflow.Repository,

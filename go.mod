@@ -78,7 +78,6 @@ require (
 	github.com/go-viper/mapstructure/v2 v2.4.0
 	github.com/gofrs/flock v0.12.1
 	github.com/google/go-github/v74 v74.0.0
-	github.com/hashicorp/go-version v1.7.0
 	github.com/knadh/koanf/providers/env/v2 v2.0.0
 	github.com/knadh/koanf/providers/structs v1.0.0
 	github.com/knadh/koanf/v2 v2.2.2

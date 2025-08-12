@@ -50,7 +50,15 @@ type ContextBuilder struct {
 	ConfigMerger         *ConfigMerger
 }
 
-// NewContextBuilder creates a new context builder
+// NewContextBuilder creates and returns a ContextBuilder configured with its
+// auxiliary builders and a bounded in-memory cache used to memoize parent
+// normalization contexts.
+//
+// The returned ContextBuilder contains:
+// - a ristretto-based parentContextCache configured for modest memory usage,
+// - a VariableBuilder, ChildrenIndexBuilder, TaskOutputBuilder and ConfigMerger.
+//
+// Returns an error if the internal cache cannot be created.
 func NewContextBuilder() (*ContextBuilder, error) {
 	// Create Ristretto cache with proper configuration for memory management
 	// Using more conservative limits to prevent memory leaks in long-running workflows

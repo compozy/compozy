@@ -49,6 +49,13 @@ func AsMapDefault(config any) (map[string]any, error) {
 	return configMap, nil
 }
 
+// FromMapDefault decodes a generic map-like value into a value of type T.
+// It uses github.com/mitchellh/mapstructure with `WeaklyTypedInput` enabled
+// and reads struct field tags named `mapstructure`.
+// The input `data` is typically a map[string]any (e.g., from JSON/unstructured sources)
+// but can be any value supported by mapstructure's decoding rules.
+// Returns the decoded value or the zero value of T and an error if decoder creation
+// or decoding fails.
 func FromMapDefault[T any](data any) (T, error) {
 	var config T
 

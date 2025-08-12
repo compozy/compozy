@@ -291,6 +291,13 @@ func (o *DryRunOrchestrator) getPRNumber(_ context.Context) int {
 	}
 	// Try GitHub event payload as fallback
 	if eventPath := os.Getenv(envGithubEventPath); eventPath != "" {
+		// Validate the path is within the expected GitHub Actions directory
+		// GitHub Actions always sets this to a file in the runner's workspace
+		if !isValidGitHubEventPath(eventPath) {
+			return 0
+		}
+		// #nosec G304 - GITHUB_EVENT_PATH is validated and is a trusted environment variable
+		// set by GitHub Actions that always points to a controlled file
 		file, err := os.Open(eventPath)
 		if err == nil {
 			defer file.Close()
@@ -338,4 +345,44 @@ func findRepoRoot(startDir string) string {
 		dir = parent
 	}
 	return ""
+}
+
+// isValidGitHubEventPath validates that the GitHub event path is safe to open
+// GitHub Actions sets GITHUB_EVENT_PATH to a file in the runner's workspace
+func isValidGitHubEventPath(path string) bool {
+	// Ensure the path is absolute
+	if !filepath.IsAbs(path) {
+		return false
+	}
+
+	// Clean the path to remove any traversal attempts
+	cleanPath := filepath.Clean(path)
+
+	// GitHub Actions typically sets this to a path like:
+	// /home/runner/work/_temp/_github_workflow/event.json
+	// or /github/workflow/event.json
+	// We check that it contains expected patterns
+
+	// Must end with .json
+	if !strings.HasSuffix(cleanPath, ".json") {
+		return false
+	}
+
+	// Should contain typical GitHub Actions path patterns
+	validPatterns := []string{
+		"/_temp/",
+		"/workflow/",
+		"/_github_workflow/",
+		"/runner/",
+	}
+
+	hasValidPattern := false
+	for _, pattern := range validPatterns {
+		if strings.Contains(cleanPath, pattern) {
+			hasValidPattern = true
+			break
+		}
+	}
+
+	return hasValidPattern
 }

@@ -138,7 +138,7 @@ func (c *ValueConverter) scalarToJSON(node *yaml.Node) (any, error) {
 	case "!!null":
 		return nil, nil
 	case "!!bool":
-		return node.Value == "true", nil
+		return node.Value == trueString, nil
 	case "!!int":
 		return strconv.ParseInt(node.Value, 10, 64)
 	case "!!float":
