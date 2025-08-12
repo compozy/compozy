@@ -6,6 +6,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// Register registers HTTP API routes under the provided apiBase RouterGroup.
+// It adds endpoints for events, workflow definitions, and workflow executions,
+// and conditionally attaches authentication middleware from authManager when
+// server authentication is enabled in the runtime configuration.
 func Register(apiBase *gin.RouterGroup, authManager *authmw.Manager) {
 	cfg := config.Get()
 	// Event routes (v1)

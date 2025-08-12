@@ -18,7 +18,7 @@ type Normalizer struct {
 	agentNormalizer *core.AgentNormalizer
 }
 
-// NewNormalizer creates a new basic task normalizer
+// created environment merger.
 func NewNormalizer(templateEngine *tplengine.TemplateEngine) *Normalizer {
 	envMerger := core.NewEnvMerger()
 	return &Normalizer{

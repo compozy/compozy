@@ -64,7 +64,9 @@ func (n *AgentNormalizer) parseInputTemplates(
 	return &parsedInput, nil
 }
 
-// NewAgentNormalizer creates a new agent normalizer
+// NewAgentNormalizer creates and returns an AgentNormalizer.
+// The returned normalizer uses a JSON-format template engine and the provided
+// EnvMerger to merge environment variables across workflow/task/agent levels.
 func NewAgentNormalizer(envMerger *EnvMerger) *AgentNormalizer {
 	return &AgentNormalizer{
 		templateEngine: tplengine.NewEngine(tplengine.FormatJSON),

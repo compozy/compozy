@@ -36,7 +36,12 @@ var (
 )
 
 // GetSharedPostgresDB returns a shared PostgreSQL database for tests
-// This is 70-90% faster than creating individual containers
+// GetSharedPostgresDB returns a shared *pgxpool.Pool for tests and a no-op cleanup function.
+//
+// GetSharedPostgresDB lazily starts a single shared PostgreSQL container and connection pool on
+// first use (significantly faster than creating per-test containers). If initialization fails the
+// test is fatally failed via t.Fatalf. Per-test isolation is expected to be achieved by running
+// each test inside its own transaction, so the returned cleanup is a no-op.
 func GetSharedPostgresDB(ctx context.Context, t *testing.T) (*pgxpool.Pool, func()) {
 	t.Helper()
 
@@ -94,7 +99,10 @@ func createPostgresContainer(ctx context.Context) (*postgres.PostgresContainer, 
 	return pgContainer, pool, nil
 }
 
-// startSharedContainer initializes the shared PostgreSQL container
+// startSharedContainer creates and starts a shared PostgreSQL test container, returns the container
+// and a configured pgx connection pool, and ensures database migrations are applied.
+// The testing.T parameter is unused.
+// Returns an error if container creation, pool setup, or applying migrations fails.
 func startSharedContainer(ctx context.Context, _ *testing.T) (*postgres.PostgresContainer, *pgxpool.Pool, error) {
 	pgContainer, pool, err := createPostgresContainer(ctx)
 	if err != nil {
@@ -109,7 +117,12 @@ func startSharedContainer(ctx context.Context, _ *testing.T) (*postgres.Postgres
 
 // BeginTestTx starts a transaction pinned to a single connection and registers
 // a rollback in t.Cleanup.  It returns both the pgx.Tx and the same cleanup
-// so callers may invoke it early if desired.
+// BeginTestTx starts a transaction tied to the given testing.T and pgxpool.Pool, and registers a cleanup
+// function that will rollback the transaction and release the acquired connection when the test ends.
+//
+// If one or more pgx.TxOptions are provided, the first is used to configure the transaction.
+// The returned cleanup is also registered with t.Cleanup; it performs the rollback using a background
+// context with a 5-second timeout and treats pgx.ErrTxClosed as a non-fatal condition.
 func BeginTestTx(
 	ctx context.Context,
 	t *testing.T,
@@ -154,7 +167,10 @@ func BeginTestTx(
 }
 
 // GetSharedPostgresTx is a convenience wrapper that obtains the shared pool
-// and starts a test-scoped transaction using BeginTestTx.
+// GetSharedPostgresTx obtains the shared test PostgreSQL pool and starts a test-scoped transaction.
+// It returns the active pgx.Tx and a cleanup function. The cleanup is registered with t.Cleanup and
+// will rollback the transaction and release the underlying connection when the test completes.
+// Optional pgx.TxOptions may be provided to configure the transaction.
 func GetSharedPostgresTx(
 	ctx context.Context,
 	t *testing.T,
@@ -167,7 +183,14 @@ func GetSharedPostgresTx(
 }
 
 // GetSharedPostgresDBWithoutMigrations returns a shared PostgreSQL database without running migrations
-// This is used for testing migration logic itself
+// GetSharedPostgresDBWithoutMigrations returns a shared PostgreSQL connection pool backed
+// by a lazily-initialized test container that does NOT run migrations.
+//
+// This helper is intended for tests that need to exercise migration logic itself (so the
+// container is left in its pristine state). It initializes a separate shared container
+// on first use; if initialization fails the test is fatally failed via t.Fatalf.
+// The returned cleanup is a no-op — tests should obtain per-test isolation by using
+// BeginTestTx or GetSharedPostgresTx to run each test inside a rollbackable transaction.
 func GetSharedPostgresDBWithoutMigrations(ctx context.Context, t *testing.T) (*pgxpool.Pool, func()) {
 	t.Helper()
 	// Initialize separate shared container for no-migrations testing
@@ -196,7 +219,12 @@ func startSharedContainerWithoutMigrations(
 	return pgContainer, pool, nil
 }
 
-// CleanupSharedContainer should be called in TestMain to terminate the shared container
+// CleanupSharedContainer terminates and cleans up any shared PostgreSQL test containers and connection pools.
+//
+// It closes and releases the shared pgx connection pools and attempts to terminate both the main
+// and "no-migrations" testcontainers, using a 30s timeout for termination. The function is safe
+// to call multiple times and is intended to be invoked from TestMain; it will not fatally fail
+// on termination errors but will print warnings instead. Cleanup is serialized with internal mutexes.
 func CleanupSharedContainer() {
 	// Cleanup for the main shared container
 	pgContainerMu.Lock()

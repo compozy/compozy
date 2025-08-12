@@ -40,7 +40,13 @@ type ExecuteBasic struct {
 	appConfig      *config.Config
 }
 
-// NewExecuteBasic creates a new ExecuteBasic activity with task2 integration
+// NewExecuteBasic creates and returns a configured ExecuteBasic activity.
+// 
+// The constructed ExecuteBasic wires the provided repositories, runtime, memory
+// manager, template engine, project and app configs, and task2 factory into
+// its internal use-cases. It initializes use-cases for loading workflows,
+// creating task state, and executing tasks (ExecuteTask is constructed with the
+// workflow repository), and returns the ready-to-use ExecuteBasic or an error.
 func NewExecuteBasic(
 	workflows []*workflow.Config,
 	workflowRepo workflow.Repository,

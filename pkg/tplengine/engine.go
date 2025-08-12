@@ -256,7 +256,9 @@ func (e *TemplateEngine) parseArrayType(arr []any, data map[string]any) ([]any, 
 }
 
 // containsRuntimeReferences checks if a string contains runtime-only template references
-// that should be deferred until execution time
+// containsRuntimeReferences reports whether the input string contains runtime-only
+// task references that should be deferred until execution (specifically the
+// ".tasks." path segment). Returns true if such a reference is present.
 func containsRuntimeReferences(s string) bool {
 	// Only check for task outputs which are truly runtime-only
 	// .item and .index can be either runtime collection variables OR normal context variables
@@ -265,7 +267,10 @@ func containsRuntimeReferences(s string) bool {
 }
 
 // extractTaskReferences extracts all task IDs referenced in a template string
-// For example, "{{ .tasks.clothing.output }}" returns ["clothing"]
+// extractTaskReferences returns the task IDs referenced in s.
+// It scans s using the internal `taskRefRe` regular expression for patterns like
+// `.tasks.TASKID` and returns the captured TASKID values in order of appearance.
+// If no task references are found, an empty slice is returned.
 func extractTaskReferences(s string) []string {
 	taskIDs := []string{}
 	// Match patterns like .tasks.TASKID.
@@ -278,7 +283,8 @@ func extractTaskReferences(s string) []string {
 	return taskIDs
 }
 
-// areAllTasksAvailable checks if all referenced task IDs exist in the tasks map
+// areAllTasksAvailable reports whether all task IDs in taskIDs exist as keys in tasksMap.
+// Returns true if every id is present (and true for an empty taskIDs slice).
 func areAllTasksAvailable(taskIDs []string, tasksMap map[string]any) bool {
 	for _, taskID := range taskIDs {
 		if _, exists := tasksMap[taskID]; !exists {

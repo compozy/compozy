@@ -255,6 +255,7 @@ func (s *TransactionService) mergeStateChanges(target, source *task.State) {
 	}
 }
 
+// returns the copied value. If deep copy fails, it returns the original value unchanged.
 func deepCopyOrSame[T any](v T) T {
 	copied, err := core.DeepCopy(v)
 	if err != nil {
