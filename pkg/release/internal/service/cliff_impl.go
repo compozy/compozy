@@ -115,10 +115,11 @@ func (s *cliffService) CalculateNextVersion(ctx context.Context, latestTag strin
 		return nil, fmt.Errorf("invalid latest tag: %w", err)
 	}
 
+	// git-cliff determines the next version relative to the most recent tag
+	// automatically.  Supplying --tag together with --bumped-version makes it
+	// interpret the given tag as the *target* version, which results in the
+	// same tag being echoed back.  Therefore we only need --bumped-version.
 	args := []string{"--bumped-version"}
-	if latestTag != "" {
-		args = append(args, "--tag", latestTag)
-	}
 
 	output, err := s.executeCommand(ctx, "git-cliff", args...)
 	if err != nil {

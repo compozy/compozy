@@ -21,20 +21,19 @@ func (uc *CheckChangesUseCase) Execute(ctx context.Context) (bool, string, error
 	if err != nil {
 		return false, "", fmt.Errorf("failed to get latest tag: %w", err)
 	}
-
 	if latestTag == "" {
 		return true, "", nil // Initial release
 	}
-
 	commitsSince, err := uc.GitRepo.CommitsSinceTag(ctx, latestTag)
-	if err != nil || commitsSince == 0 {
-		return false, latestTag, err
+	if err != nil {
+		return false, latestTag, fmt.Errorf("failed to get commits since tag: %w", err)
 	}
-
+	if commitsSince == 0 {
+		return false, latestTag, nil
+	}
 	nextVer, err := uc.CliffSvc.CalculateNextVersion(ctx, latestTag)
 	if err != nil {
 		return false, latestTag, fmt.Errorf("failed to calculate next version: %w", err)
 	}
-
 	return nextVer.String() != latestTag, latestTag, nil
 }

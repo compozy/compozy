@@ -10,6 +10,7 @@ import (
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
+	"github.com/go-git/go-git/v5/plumbing/storer"
 	"github.com/go-git/go-git/v5/plumbing/transport/http"
 )
 
@@ -39,14 +40,23 @@ func NewGitExtendedRepository() (GitExtendedRepository, error) {
 
 // LatestTag returns the latest git tag.
 func (r *gitRepository) LatestTag(_ context.Context) (string, error) {
+	// First, try to fetch tags from remote to ensure we have the latest
+	remote, err := r.repo.Remote("origin")
+	if err == nil {
+		// Fetch tags from remote (ignore error if already up to date)
+		_ = remote.Fetch(&git.FetchOptions{
+			RefSpecs: []config.RefSpec{
+				config.RefSpec("+refs/tags/*:refs/tags/*"),
+			},
+			Auth: r.getAuth(),
+		})
+	}
 	tagRefs, err := r.repo.Tags()
 	if err != nil {
 		return "", fmt.Errorf("failed to get tags: %w", err)
 	}
-
 	var latestTag string
 	var latestCommitTime time.Time
-
 	if err := tagRefs.ForEach(func(ref *plumbing.Reference) error {
 		// Try to get the commit directly first (lightweight tag)
 		commit, err := r.repo.CommitObject(ref.Hash())
@@ -61,7 +71,6 @@ func (r *gitRepository) LatestTag(_ context.Context) (string, error) {
 				return nil // Skip if we can't get the commit
 			}
 		}
-
 		if commit.Committer.When.After(latestCommitTime) {
 			latestCommitTime = commit.Committer.When
 			latestTag = ref.Name().Short()
@@ -70,27 +79,72 @@ func (r *gitRepository) LatestTag(_ context.Context) (string, error) {
 	}); err != nil {
 		return "", fmt.Errorf("failed to iterate tags: %w", err)
 	}
-
 	return latestTag, nil
 }
 
 // CommitsSinceTag returns the number of commits since the given tag.
 func (r *gitRepository) CommitsSinceTag(_ context.Context, tag string) (int, error) {
+	// First, try to fetch the tag from remote if it doesn't exist locally
 	tagRef, err := r.repo.Tag(tag)
 	if err != nil {
-		return 0, fmt.Errorf("failed to get tag %s: %w", tag, err)
+		// Tag doesn't exist locally, try to fetch it from remote
+		remote, err := r.repo.Remote("origin")
+		if err != nil {
+			return 0, fmt.Errorf("failed to get remote: %w", err)
+		}
+		// Fetch tags from remote
+		if err := remote.Fetch(&git.FetchOptions{
+			RefSpecs: []config.RefSpec{
+				config.RefSpec("+refs/tags/*:refs/tags/*"),
+			},
+			Auth: r.getAuth(),
+		}); err != nil && err != git.NoErrAlreadyUpToDate {
+			return 0, fmt.Errorf("failed to fetch tags from remote: %w", err)
+		}
+		// Try to get the tag again
+		tagRef, err = r.repo.Tag(tag)
+		if err != nil {
+			return 0, fmt.Errorf("failed to get tag %s after fetching: %w", tag, err)
+		}
 	}
-
-	commits, err := r.repo.Log(&git.LogOptions{From: tagRef.Hash()})
+	// Resolve the tag to a commit hash (handles lightweight *and* annotated tags)
+	var tagCommitHash plumbing.Hash
+	if commit, err := r.repo.CommitObject(tagRef.Hash()); err == nil {
+		// Lightweight tag – hash already points to commit
+		tagCommitHash = commit.Hash
+	} else if tagObj, err := r.repo.TagObject(tagRef.Hash()); err == nil {
+		// Annotated tag – resolve to the tagged commit
+		if commit, err := r.repo.CommitObject(tagObj.Target); err == nil {
+			tagCommitHash = commit.Hash
+		}
+	}
+	if tagCommitHash == (plumbing.Hash{}) {
+		return 0, fmt.Errorf("failed to resolve commit for tag %s", tag)
+	}
+	// Get HEAD commit
+	head, err := r.repo.Head()
 	if err != nil {
-		return 0, fmt.Errorf("failed to get commits since tag %s: %w", tag, err)
+		return 0, fmt.Errorf("failed to get HEAD: %w", err)
 	}
-
+	headCommit, err := r.repo.CommitObject(head.Hash())
+	if err != nil {
+		return 0, fmt.Errorf("failed to get HEAD commit: %w", err)
+	}
+	// Count commits from tag to HEAD (excluding the tag commit itself)
 	var count int
-	if err := commits.ForEach(func(_ *object.Commit) error {
+	commits, err := r.repo.Log(&git.LogOptions{From: headCommit.Hash})
+	if err != nil {
+		return 0, fmt.Errorf("failed to get commits: %w", err)
+	}
+	err = commits.ForEach(func(c *object.Commit) error {
+		// Stop when we reach the tag commit
+		if c.Hash == tagCommitHash {
+			return storer.ErrStop
+		}
 		count++
 		return nil
-	}); err != nil {
+	})
+	if err != nil && err != storer.ErrStop {
 		return 0, fmt.Errorf("failed to iterate commits: %w", err)
 	}
 	return count, nil

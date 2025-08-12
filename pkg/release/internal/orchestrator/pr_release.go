@@ -150,17 +150,26 @@ func (o *PRReleaseOrchestrator) updateAndCreatePR(
 	if err := o.updatePackageVersions(ctx, version); err != nil {
 		return fmt.Errorf("failed to update package versions: %w", err)
 	}
+
 	changelog, err := o.generateChangelog(ctx, version, "unreleased")
 	if err != nil {
 		return fmt.Errorf("failed to generate changelog: %w", err)
 	}
+
+	// Dry-run: stop here so no commit, push or PR is made.
+	if cfg.DryRun {
+		o.printStatus(cfg.CIOutput,
+			fmt.Sprintf("🛈 Dry-run complete – release %s prepared locally (no commit/push/PR).", version))
+		return nil
+	}
+
 	if err := o.commitChanges(ctx, version); err != nil {
 		return fmt.Errorf("failed to commit changes: %w", err)
 	}
 	if err := o.gitRepo.PushBranch(ctx, branchName); err != nil {
 		return fmt.Errorf("failed to push branch: %w", err)
 	}
-	if !cfg.SkipPR && !cfg.DryRun {
+	if !cfg.SkipPR {
 		if err := o.createPullRequest(ctx, version, changelog, branchName); err != nil {
 			return fmt.Errorf("failed to create pull request: %w", err)
 		}
