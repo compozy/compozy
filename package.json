@@ -1,6 +1,6 @@
 {
   "name": "compozy",
-  "version": "0.0.10",
+  "version": "1.1.0",
   "description": "Compozy runtime examples and tools",
   "private": true,
   "type": "module",
@@ -51,6 +51,8 @@
   },
   "packageManager": "bun@1.2.18",
   "dependencies": {
-    "lucide-static": "0.536.0"
+    "@types/micromatch": "^4.0.9",
+    "lucide-static": "0.536.0",
+    "micromatch": "^4.0.8"
   }
 }

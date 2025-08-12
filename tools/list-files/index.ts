@@ -1,3 +1,4 @@
+import micromatch from "micromatch";
 import { readdir } from "node:fs/promises";
 
 /**
@@ -6,6 +7,8 @@ import { readdir } from "node:fs/promises";
 interface ListFilesInput {
   /** The directory path to list files from */
   dir: string;
+  /** Glob pattern(s) to exclude files. Can be a string or array of strings */
+  exclude?: string | string[];
 }
 
 /**
@@ -19,15 +22,22 @@ interface ListFilesOutput {
 }
 
 /**
- * Lists all files in a directory (non-recursive)
+ * Lists all files in a directory (non-recursive) with optional exclusion patterns
  *
- * @param input - The input parameters containing the directory path
+ * @param input - The input parameters containing the directory path and optional exclude patterns
  * @returns An object containing an array of file names, or error information on failure
  *
  * @example
  * ```typescript
+ * // List all files
  * const result = await listFiles({ dir: './src' });
  * console.log(result.files); // ['index.ts', 'utils.ts', ...]
+ *
+ * // Exclude test files
+ * const result = await listFiles({ dir: './src', exclude: '*.test.ts' });
+ *
+ * // Exclude multiple patterns
+ * const result = await listFiles({ dir: './src', exclude: ['*.test.ts', '*.spec.ts'] });
  * ```
  */
 export async function listFiles(input: ListFilesInput): Promise<ListFilesOutput> {
@@ -50,11 +60,23 @@ export async function listFiles(input: ListFilesInput): Promise<ListFilesOutput>
     // Read directory entries with file type information
     const entries = await readdir(input.dir, { withFileTypes: true });
 
-    // Filter for files only (excluding directories) and sort alphabetically
-    const files = entries
+    // Filter for files only (excluding directories)
+    let files = entries
       .filter(entry => entry.isFile() || entry.isSymbolicLink())
-      .map(entry => entry.name)
-      .sort();
+      .map(entry => entry.name);
+
+    // Apply exclusion patterns if provided
+    if (input.exclude && input.exclude.length > 0) {
+      const excludePatterns = Array.isArray(input.exclude) ? input.exclude : [input.exclude];
+      // Only apply exclusion if there are patterns to exclude
+      if (excludePatterns.length > 0 && excludePatterns.some(p => p && p.trim() !== "")) {
+        // Use micromatch.not to exclude files matching the patterns
+        files = micromatch.not(files, excludePatterns);
+      }
+    }
+
+    // Sort alphabetically
+    files.sort();
 
     return { files };
   } catch (error: any) {

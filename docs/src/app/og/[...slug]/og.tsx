@@ -27,7 +27,7 @@ export function generateOGImage(options: GenerateProps & ImageResponseOptions): 
 }
 
 export function generate({
-  primaryTextColor = "rgb(255,255,255)",
+  primaryTextColor: _primaryTextColor = "rgb(255,255,255)",
   logoUrl,
   ...props
 }: GenerateProps & { logoUrl?: string }): ReactElement {

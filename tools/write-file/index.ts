@@ -63,14 +63,6 @@ export async function writeFile(
     };
   }
 
-  // Security check: prevent directory traversal
-  if (filePath.includes("..") || filePath.startsWith("/")) {
-    return {
-      success: false,
-      error: "Invalid path: absolute paths and parent directory references are not allowed",
-    };
-  }
-
   const encoding = config?.encoding || "utf-8";
   const mode = config?.mode || 0o644;
 

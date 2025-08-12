@@ -447,6 +447,9 @@ nix:
 
 npms:
   - name: "@compozy/cli"
+    description: "Next-level Agentic Orchestration Platform"
     repository: "git+https://github.com/compozy/compozy.git"
     bugs: https://github.com/compozy/compozy/issues
     access: public
+    license: BSL-1.1
+    homepage: "https://compozy.com"

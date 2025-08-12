@@ -29,7 +29,8 @@ dist/
 /dist/
 **/dist/
 completions
-ai-docs
+.serena/cache
+.venv
 
 # === TURBOREPO ===
 .turbo

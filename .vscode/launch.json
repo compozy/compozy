@@ -35,6 +35,7 @@
       "description": "Select example folder",
       "type": "pickString",
       "options": [
+        "examples/code-reviewer",
         "examples/memory",
         "examples/schedules",
         "examples/nested-tasks",

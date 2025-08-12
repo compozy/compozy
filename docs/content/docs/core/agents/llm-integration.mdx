@@ -94,7 +94,7 @@ config:
     ```yaml
     config:
       provider: anthropic
-      model: claude-3-opus-20240229
+      model: claude-4-opus
       api_key: "{{ .env.ANTHROPIC_API_KEY }}"
       params:
         temperature: 0.5
@@ -354,7 +354,7 @@ models:
       temperature: 0.7
 
   - provider: anthropic
-    model: claude-3-opus-20240229
+    model: claude-4-opus
     api_key: "{{ .env.ANTHROPIC_API_KEY }}"
 
   - provider: ollama

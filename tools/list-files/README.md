@@ -4,7 +4,7 @@ A Compozy tool for listing files in a directory.
 
 ## Description
 
-This tool provides a simple way to list all files in a specified directory. It returns only files (not subdirectories) and handles errors gracefully by returning an empty array.
+This tool provides a simple way to list all files in a specified directory with optional glob pattern exclusion. It returns only files (not subdirectories) and handles errors gracefully by returning an empty array.
 
 ## Installation
 
@@ -25,6 +25,7 @@ Lists all files in the specified directory.
 ```typescript
 interface ListFilesInput {
   dir: string; // The directory path to list files from
+  exclude?: string | string[]; // Optional glob pattern(s) to exclude files
 }
 ```
 
@@ -43,10 +44,30 @@ interface ListFilesOutput {
 ```typescript
 import { listFiles } from "@compozy/tool-list-files";
 
-// List files in a directory
+// List all files in a directory
 const result = await listFiles({ dir: "./src" });
 console.log(result.files);
 // Output: ['index.ts', 'utils.ts', 'config.ts', ...]
+
+// Exclude test files
+const noTests = await listFiles({
+  dir: "./src",
+  exclude: "*.test.ts",
+});
+console.log(noTests.files);
+// Output: ['index.ts', 'utils.ts', 'config.ts', ...] (no test files)
+
+// Exclude multiple patterns
+const filtered = await listFiles({
+  dir: "./src",
+  exclude: ["*.test.ts", "*.spec.ts", "*.d.ts"],
+});
+
+// Use brace expansion
+const noReactFiles = await listFiles({
+  dir: "./src",
+  exclude: "*.{jsx,tsx}",
+});
 
 // Handle non-existent directory
 const emptyResult = await listFiles({ dir: "./does-not-exist" });
@@ -70,18 +91,35 @@ tasks:
     tool: list-files
     input:
       dir: "./src"
+      exclude: "*.test.ts" # Exclude test files
     output: src_files
+
+  - name: list-config-files
+    tool: list-files
+    input:
+      dir: "./"
+      exclude:
+        - "*.test.*"
+        - "*.spec.*"
+        - "node_modules"
+    output: config_files
 
   - name: display-results
     type: basic
     run: |
-      echo "Files found in src directory:"
+      echo "Source files (excluding tests):"
       echo "{{ .src_files.files | join \", \" }}"
+      echo "Config files:"
+      echo "{{ .config_files.files | join \", \" }}"
 ```
 
 ## Features
 
 - **Non-recursive**: Only lists files in the specified directory, not in subdirectories
+- **Glob pattern exclusion**: Exclude files matching specified glob patterns
+- **Multiple exclusion patterns**: Support for single pattern or array of patterns
+- **Brace expansion**: Support patterns like `*.{js,ts}` to match multiple extensions
+- **Case-sensitive matching**: Patterns are case-sensitive by default
 - **Error handling**: Returns empty array on any error (non-existent directory, permission issues)
 - **Sorted output**: Files are returned in alphabetical order
 - **File types**: Includes regular files and symbolic links, excludes directories
@@ -132,6 +170,12 @@ The tool includes comprehensive tests for:
 - Special characters in file names
 - Excluding directories from results
 - Symbolic links handling (Unix-like systems)
+- Single glob pattern exclusion
+- Multiple glob pattern exclusion
+- Wildcard pattern matching
+- Brace expansion in patterns
+- Empty exclusion patterns
+- Case-sensitive pattern matching
 
 ## License
 

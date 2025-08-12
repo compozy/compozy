@@ -129,24 +129,6 @@ describe("writeFile", () => {
     expect(result3.error).toContain("Invalid input: expected an object");
   });
 
-  test("Should reject dangerous paths", async () => {
-    // Test parent directory traversal
-    const result1 = await writeFile({
-      path: "../dangerous.txt",
-      content: "test",
-    });
-    expect(result1.success).toBe(false);
-    expect(result1.error).toContain("parent directory references are not allowed");
-
-    // Test absolute path
-    const result2 = await writeFile({
-      path: "/etc/passwd",
-      content: "test",
-    });
-    expect(result2.success).toBe(false);
-    expect(result2.error).toContain("absolute paths");
-  });
-
   test("Should handle writing to a directory gracefully", async () => {
     const dirPath = join(TEST_DIR, "directory");
     await fs.mkdir(dirPath, { recursive: true });

@@ -55,7 +55,7 @@ version: 1.0.0
 
 config:
   provider: anthropic
-  model: claude-3-opus-20240229
+  model: claude-4-opus
   api_key: "{{ .env.CLAUDE_API_KEY }}"
 
 instructions: |

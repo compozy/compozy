@@ -4474,7 +4474,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "model": {
-                    "description": "Model defines the specific model identifier to use with the provider.\nModel names are provider-specific and determine capabilities and pricing.\n\n- **Examples**:\n  - OpenAI: ` + "`" + `\"gpt-4-turbo\"` + "`" + `, ` + "`" + `\"gpt-3.5-turbo\"` + "`" + `\n  - Anthropic: ` + "`" + `\"claude-3-opus-20240229\"` + "`" + `, ` + "`" + `\"claude-3-haiku-20240307\"` + "`" + `\n  - Google: ` + "`" + `\"gemini-pro\"` + "`" + `, ` + "`" + `\"gemini-pro-vision\"` + "`" + `\n  - Ollama: ` + "`" + `\"llama2:13b\"` + "`" + `, ` + "`" + `\"mistral:7b\"` + "`" + `",
+                    "description": "Model defines the specific model identifier to use with the provider.\nModel names are provider-specific and determine capabilities and pricing.\n\n- **Examples**:\n  - OpenAI: ` + "`" + `\"gpt-4-turbo\"` + "`" + `, ` + "`" + `\"gpt-3.5-turbo\"` + "`" + `\n  - Anthropic: ` + "`" + `\"claude-4-opus\"` + "`" + `, ` + "`" + `\"claude-3-5-haiku-latest\"` + "`" + `\n  - Google: ` + "`" + `\"gemini-pro\"` + "`" + `, ` + "`" + `\"gemini-pro-vision\"` + "`" + `\n  - Ollama: ` + "`" + `\"llama2:13b\"` + "`" + `, ` + "`" + `\"mistral:7b\"` + "`" + `",
                     "type": "string"
                 },
                 "organization": {

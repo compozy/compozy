@@ -2,8 +2,14 @@
 
 This file provides comprehensive guidance for working with the Compozy codebase, including development commands, standards, and workflow patterns.
 
-<critical>@.cursor/rules/critical-validation.mdc</critical>
-<critical>**YOU MUST ALWAYS** show all recommendations/issues from a Zen MCP review, does not matter if they are related to your task or not, you **NEED TO ALWAYS** show them.</critical>
+<critical>
+- **YOU MUST ALWAYS USE** the .cursor/rules/critical-validation.mdc
+- **YOU MUST ALWAYS** use Claude Code MCP to find out relevant files, symbols and context about the codebase  (priority 1)
+- **YOU MUST ALWAYS** use RepoPrompt to complex analysis in the codebase (with the `current_chat_model` as options) (priority 2)
+- **YOU MUST ALWAYS** use Serena MCP to discovers and edits code for instead of the READ, WRITE, UPDATE tool (priority 3)
+- **YOU MUSE ALWAYS** use Zen MCP (with Gemin 2.5 Pro) to debug, analyze and tracer complex flow (priority 4)   
+- **YOU MUST ALWAYS** show all recommendations/issues from a Zen MCP review, does not matter if they are related to your task or not, you **NEED TO ALWAYS** show them.
+</critical>
 
 ## Project Overview
 
@@ -39,22 +45,21 @@ make reset-db       # Reset database completely
 
 ## Architecture & Project Structure
 
-**📁 Complete project structure, technology stack, and architectural patterns:** See @.cursor/rules/project-structure.mdc
+**📁 Complete project structure, technology stack, and architectural patterns:** See .cursor/rules/project-structure.mdc
 
 ## 🚨 CRITICAL: Follow All Development Standards
 
 **📋 MANDATORY: Review and follow ALL established coding standards:**
 
-- **Code Formatting & Line Spacing**: @.cursor/rules/no_linebreaks.mdc - NEVER add blank lines inside function bodies
-- **Go Coding Standards**: @.cursor/rules/go-coding-standards.mdc - Function limits, error handling, documentation policy
-- **Testing Standards**: @.cursor/rules/test-standard.mdc - MANDATORY `t.Run("Should...")` pattern, testify usage
-- **Go Implementation Patterns**: @.cursor/rules/go-patterns.mdc - Canonical implementations of architecture principles
-- **GoGraph**: @.cursor/rules/go-graph.mdc - GoGraph is a tool that helps you to understand the dependencies between your codebase.
+- **Code Formatting & Line Spacing**: .cursor/rules/no_linebreaks.mdc - NEVER add blank lines inside function bodies
+- **Go Coding Standards**: .cursor/rules/go-coding-standards.mdc - Function limits, error handling, documentation policy
+- **Testing Standards**: .cursor/rules/test-standard.mdc - MANDATORY `t.Run("Should...")` pattern, testify usage
+- **Go Implementation Patterns**: .cursor/rules/go-patterns.mdc - Canonical implementations of architecture principles
 - **Architecture Principles**: .cursor/rules/architecture.mdc - SOLID principles, Clean Architecture, DRY
 - **Code Quality & Security**: .cursor/rules/quality-security.mdc - Linting rules, security requirements
 - **Required Libraries**: .cursor/rules/core-libraries.mdc - Mandatory library choices and usage patterns
 - **API Development**: .cursor/rules/api-standards.mdc - RESTful design, versioning, documentation
-- **Backwards Compatibility:** See @.cursor/rules/backwards-compatibility.mdc - NOT REQUIRED during development phase
+- **Backwards Compatibility:** See .cursor/rules/backwards-compatibility.mdc - NOT REQUIRED during development phase
 
 ## Task Management
 
@@ -79,3 +84,12 @@ For YAML configuration patterns and examples:
 **All rule files are located in `.cursor/rules/` and use semantic XML tags for better context and AI understanding.**
 
 The project uses Go 1.24+ features and requires external dependencies to be mocked in tests when necessary.
+
+<critical>
+- **YOU MUST ALWAYS USE** the .cursor/rules/critical-validation.mdc
+- **YOU MUST ALWAYS** use Claude Code MCP to do queries in the indexed codebase to find out relevant files, dependencies and be able to get a better context before execute 
+- **YOU MUST ALWAYS** use RepoPrompt to complex analysis in the codebase (with the `current_chat_model` as options)
+- **YOU MUST ALWAYS** use Serena MCP to discovers and edits code for instead of the READ, WRITE, UPDATE tool
+- **YOU MUSE ALWAYS** use Zen MCP (with Gemin 2.5 Pro) to debug, analyze and tracer complex flow
+- **YOU MUST ALWAYS** show all recommendations/issues from a Zen MCP review, does not matter if they are related to your task or not, you **NEED TO ALWAYS** show them.
+</critical>

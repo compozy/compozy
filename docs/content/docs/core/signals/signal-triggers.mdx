@@ -468,7 +468,7 @@ tasks:
   - id: assess-incident
     type: basic
     $use: agent(local::agents.#(id=="incident-analyzer"))
-    model: claude-3-opus-20240229
+    model: claude-4-opus
     instructions: |
       Analyze the incident with the enriched context and determine:
       1. Root cause analysis based on metrics and recent changes

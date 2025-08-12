@@ -15,7 +15,6 @@ alwaysApply: true
     - Testing requirements: @.cursor/rules/test-standard.mdc
     - API standards: @.cursor/rules/api-standards.mdc
     - Security & quality: @.cursor/rules/quality-security.md
-    - GoGraph MCP tools: @.cursor/rules/gograph.mdc
     - No Backwards Compatibility: @.cursor/rules/backwards-compatibility.mdc
 - **MUST** use `logger.FromContext(ctx)` - NEVER use logger as function parameter or dependency injection
 - **MUST** run `make lint` and `make test` before completing ANY subtask
