@@ -2,13 +2,14 @@ package helpers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
@@ -32,10 +33,6 @@ var (
 	pgContainerNoMigrationsOnce       sync.Once
 	pgContainerNoMigrationsMu         sync.Mutex
 	pgContainerNoMigrationsStartError error
-
-	// Track active tests and serialize truncation
-	activeTestCount int64      // number of tests currently using the shared DB
-	truncMu         sync.Mutex // ensures only one goroutine truncates tables
 )
 
 // GetSharedPostgresDB returns a shared PostgreSQL database for tests
@@ -52,8 +49,8 @@ func GetSharedPostgresDB(ctx context.Context, t *testing.T) (*pgxpool.Pool, func
 		t.Fatalf("Failed to start shared container: %v", pgContainerStartError)
 	}
 
-	// Create test-specific cleanup that preserves the container
-	cleanup := createTestIsolation(ctx, t, sharedPGPool)
+	// No-op cleanup; per-test isolation now achieved with transactions
+	cleanup := func() {}
 
 	return sharedPGPool, cleanup
 }
@@ -110,41 +107,63 @@ func startSharedContainer(ctx context.Context, _ *testing.T) (*postgres.Postgres
 	return pgContainer, pool, nil
 }
 
-// createTestIsolation creates cleanup function that preserves the shared container
-// We use table truncation for test isolation to ensure database consistency
-func createTestIsolation(ctx context.Context, t *testing.T, pool *pgxpool.Pool) func() {
-	// Increment the number of active tests using the shared DB.
-	atomic.AddInt64(&activeTestCount, 1)
+// BeginTestTx starts a transaction pinned to a single connection and registers
+// a rollback in t.Cleanup.  It returns both the pgx.Tx and the same cleanup
+// so callers may invoke it early if desired.
+func BeginTestTx(
+	ctx context.Context,
+	t *testing.T,
+	pool *pgxpool.Pool,
+	opts ...pgx.TxOptions,
+) (pgx.Tx, func()) {
+	t.Helper()
 
-	// Return cleanup that will be executed when the individual test finishes.
-	return func() {
-		// Decrement and capture the remaining count.
-		newCount := atomic.AddInt64(&activeTestCount, -1)
-
-		// Only the last finishing test performs the truncation.
-		if newCount != 0 {
-			return
-		}
-
-		// Serialise truncation to avoid races with future tests that might start
-		// before this cleanup executes.
-		truncMu.Lock()
-		defer truncMu.Unlock()
-
-		// Truncate tables in reverse dependency order to avoid foreign key violations.
-		tables := []string{
-			"task_states",
-			"workflow_states",
-			"agent_states",
-			"tool_states",
-		}
-		for _, table := range tables {
-			query := fmt.Sprintf("TRUNCATE TABLE %s CASCADE", table)
-			if _, err := pool.Exec(ctx, query); err != nil {
-				t.Logf("Warning: failed to truncate %s: %v", table, err)
-			}
-		}
+	conn, err := pool.Acquire(ctx)
+	if err != nil {
+		t.Fatalf("failed to acquire connection: %v", err)
 	}
+
+	var txOpts pgx.TxOptions
+	if len(opts) > 0 {
+		txOpts = opts[0]
+	}
+
+	tx, err := conn.BeginTx(ctx, txOpts)
+	if err != nil {
+		conn.Release()
+		t.Fatalf("failed to begin transaction: %v", err)
+	}
+
+	cleanup := func() {
+		// Use a background context with timeout for rollback to ensure it runs
+		// even if the test's context is canceled
+		rollbackCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		// Attempt rollback; ignore ErrTxClosed which means the test already closed it
+		if err := tx.Rollback(rollbackCtx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
+			t.Logf("warning: rollback failed: %v", err)
+		}
+		conn.Release()
+	}
+
+	// Ensure rollback & release even if the test panics or fails
+	t.Cleanup(cleanup)
+
+	return tx, cleanup
+}
+
+// GetSharedPostgresTx is a convenience wrapper that obtains the shared pool
+// and starts a test-scoped transaction using BeginTestTx.
+func GetSharedPostgresTx(
+	ctx context.Context,
+	t *testing.T,
+	opts ...pgx.TxOptions,
+) (pgx.Tx, func()) {
+	t.Helper()
+
+	pool, _ := GetSharedPostgresDB(ctx, t)
+	return BeginTestTx(ctx, t, pool, opts...)
 }
 
 // GetSharedPostgresDBWithoutMigrations returns a shared PostgreSQL database without running migrations
@@ -159,8 +178,8 @@ func GetSharedPostgresDBWithoutMigrations(ctx context.Context, t *testing.T) (*p
 	if pgContainerNoMigrationsStartError != nil {
 		t.Fatalf("Failed to start shared container without migrations: %v", pgContainerNoMigrationsStartError)
 	}
-	// Create test-specific cleanup that preserves the container
-	cleanup := createTestIsolation(ctx, t, sharedPGPoolNoMigrations)
+	// No-op cleanup; tests should call BeginTestTx / GetSharedPostgresTx for isolation
+	cleanup := func() {}
 	return sharedPGPoolNoMigrations, cleanup
 }
 
@@ -179,40 +198,35 @@ func startSharedContainerWithoutMigrations(
 
 // CleanupSharedContainer should be called in TestMain to terminate the shared container
 func CleanupSharedContainer() {
+	// Cleanup for the main shared container
 	pgContainerMu.Lock()
-	defer pgContainerMu.Unlock()
-
 	if sharedPGPool != nil {
 		sharedPGPool.Close()
 	}
-
 	if sharedPGContainer != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-
 		if err := sharedPGContainer.Terminate(ctx); err != nil {
 			// Log but don't fail
 			fmt.Printf("Warning: failed to terminate shared container: %v\n", err)
 		}
+		cancel()
 	}
+	pgContainerMu.Unlock()
 
-	// Also cleanup the no-migrations container
+	// Cleanup for the no-migrations container
 	pgContainerNoMigrationsMu.Lock()
-	defer pgContainerNoMigrationsMu.Unlock()
-
 	if sharedPGPoolNoMigrations != nil {
 		sharedPGPoolNoMigrations.Close()
 	}
-
 	if sharedPGContainerNoMigrations != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-
 		if err := sharedPGContainerNoMigrations.Terminate(ctx); err != nil {
 			// Log but don't fail
 			fmt.Printf("Warning: failed to terminate shared no-migrations container: %v\n", err)
 		}
+		cancel()
 	}
+	pgContainerNoMigrationsMu.Unlock()
 }
 
 // ensureTablesExist runs goose migrations to create the required tables

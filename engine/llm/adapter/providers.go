@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/cli/helpers"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/anthropic"
@@ -287,19 +288,19 @@ func (m *MockLLM) generateResponse(prompt string) *llms.ContentResponse {
 // to smaller, purpose-specific helpers.
 func (m *MockLLM) routeResponse(prompt string) string {
 	switch {
-	case containsAny(prompt, "Analyze a single activity", "analyze_activity"):
+	case helpers.ContainsAny(prompt, "Analyze a single activity", "analyze_activity"):
 		return m.responseForAnalyzeActivity(prompt)
-	case containsAny(prompt, "Process city data", "process_city"):
+	case helpers.ContainsAny(prompt, "Process city data", "process_city"):
 		return m.responseForProcessCity(prompt)
-	case containsAny(prompt, "Read file content", "read_content"):
+	case helpers.ContainsAny(prompt, "Read file content", "read_content"):
 		return `{"content":"// Mock file content for testing\npackage main\n\nfunc main() {\n\t// Sample code\n}"}`
-	case containsAny(prompt, "Analyze the following Go code file", "analyze"):
+	case helpers.ContainsAny(prompt, "Analyze the following Go code file", "analyze"):
 		return `{
             "review": "Code looks good. No major issues found.",
             "suggestions": ["Consider adding error handling", "Add comments for complex logic"],
             "score": 8
         }`
-	case containsAny(prompt, "Process a single collection item", "process_item"):
+	case helpers.ContainsAny(prompt, "Process a single collection item", "process_item"):
 		return `{
             "result": "Item processed successfully",
             "processed_value": 100
@@ -359,15 +360,6 @@ func (m *MockLLM) responseForProcessCity(prompt string) string {
             "population": 500000
         }`
 	}
-}
-
-func containsAny(s string, substrings ...string) bool {
-	for _, sub := range substrings {
-		if strings.Contains(s, sub) {
-			return true
-		}
-	}
-	return false
 }
 
 // Call implements the legacy Call interface

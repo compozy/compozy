@@ -1,6 +1,7 @@
 package worker
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -127,7 +128,10 @@ func TestValidatePayloadAgainstCompiledSchema(t *testing.T) {
 		assert.False(t, isValid)
 		require.NotEmpty(t, validationErrors)
 		assert.Contains(t, validationErrors[0], "user")
-		assert.Contains(t, validationErrors[0], "does not match the schema")
+		// Accept either error message format depending on jsonschema version
+		userErrorContains := strings.Contains(validationErrors[0], "Required property 'user' is missing") ||
+			strings.Contains(validationErrors[0], "Property 'user' does not match the schema")
+		assert.True(t, userErrorContains, "Expected error to mention user property validation failure")
 	})
 
 	t.Run("Should validate enum constraints in schema", func(t *testing.T) {
@@ -154,6 +158,6 @@ func TestValidatePayloadAgainstCompiledSchema(t *testing.T) {
 		assert.False(t, isValid)
 		require.NotEmpty(t, validationErrors)
 		assert.Contains(t, validationErrors[0], "status")
-		assert.Contains(t, validationErrors[0], "does not match the schema")
+		assert.Contains(t, validationErrors[0], "Property 'status' does not match the schema")
 	})
 }

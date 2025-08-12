@@ -65,10 +65,10 @@ func (h *ContainerHelpers) executeChild(
 		if response != nil && response.GetState() != nil {
 			finalState := response.GetState()
 			// Create a simple activity to update the child state status
-			updateInput := map[string]any{
-				"task_exec_id": childState.TaskExecID.String(),
-				"status":       string(finalState.Status),
-				"output":       finalState.Output,
+			updateInput := tkacts.UpdateChildStateInput{
+				TaskExecID: childState.TaskExecID.String(),
+				Status:     string(finalState.Status),
+				Output:     finalState.Output,
 			}
 			// Add retry policy for this critical update
 			// We MUST wait for this to complete to ensure database consistency

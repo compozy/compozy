@@ -6,11 +6,12 @@
 @workflowId = review
 
 ### -----------------------------------------------------------------------------
-### Execute greet workflow with friendly style
+### Execute review workflow
 ### -----------------------------------------------------------------------------
 # @name review
 POST {{baseUrl}}/workflows/{{workflowId}}/executions
 Content-Type: application/json
+Accept: application/json
 
 {
   "input": {

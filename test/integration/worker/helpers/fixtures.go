@@ -14,11 +14,13 @@ import (
 
 // TestFixture represents a test fixture for integration tests
 type TestFixture struct {
-	Name            string                 `yaml:"name"`
-	Workflow        *workflow.Config       `yaml:"workflow"`
-	Tasks           []*task.Config         `yaml:"tasks,omitempty"`
-	Input           map[string]any         `yaml:"input,omitempty"`
-	Expected        ExpectedResults        `yaml:"expected"`
+	Name     string           `yaml:"name"`
+	Workflow *workflow.Config `yaml:"workflow"`
+	Tasks    []*task.Config   `yaml:"tasks,omitempty"`
+	Input    map[string]any   `yaml:"input,omitempty"`
+	Expected ExpectedResults  `yaml:"expected"`
+	// ExpectedOutputs maps each action ID to a core.Output value
+	// for per-action assertions when using DynamicMockLLM in integration tests.
 	ExpectedOutputs map[string]core.Output `yaml:"expected_outputs,omitempty"`
 }
 

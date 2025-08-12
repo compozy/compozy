@@ -68,6 +68,10 @@ func NewExecuteBasic(
 }
 
 func (a *ExecuteBasic) Run(ctx context.Context, input *ExecuteBasicInput) (*task.MainTaskResponse, error) {
+	// Validate input
+	if input == nil || input.TaskConfig == nil {
+		return nil, fmt.Errorf("invalid ExecuteBasic input: task_config is required")
+	}
 	// Load workflow state and config
 	workflowState, workflowConfig, err := a.loadWorkflowUC.Execute(ctx, &uc.LoadWorkflowInput{
 		WorkflowID:     input.WorkflowID,

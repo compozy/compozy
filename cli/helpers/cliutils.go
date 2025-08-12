@@ -287,6 +287,17 @@ func Contains(s, substr string) bool {
 	return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
 }
 
+// ContainsAny returns true if s contains any of the provided substrings.
+// The comparison is case-insensitive.
+func ContainsAny(s string, substrings ...string) bool {
+	for _, sub := range substrings {
+		if Contains(s, sub) {
+			return true
+		}
+	}
+	return false
+}
+
 // Truncate truncates a string to a maximum length with ellipsis
 func Truncate(s string, maxLength int) string {
 	if len(s) <= maxLength {

@@ -154,6 +154,10 @@ func (o *ConfigOrchestrator) NormalizeToolComponent(
 	normCtx.ParentConfig = parentConfig
 	normCtx.CurrentInput = toolConfig.With
 	normCtx.MergedEnv = toolConfig.Env // Assume env is already merged
+	// Ensure the newly set CurrentInput is reflected in template variables
+	if toolConfig.With != nil {
+		o.contextBuilder.VariableBuilder.AddCurrentInputToVariables(normCtx.Variables, toolConfig.With)
+	}
 	// Add parent context to variables for template processing
 	if normCtx.Variables == nil {
 		normCtx.Variables = make(map[string]any)
@@ -257,6 +261,10 @@ func (o *ConfigOrchestrator) NormalizeTaskOutput(
 	normCtx.TaskConfigs = taskConfigs
 	normCtx.CurrentInput = taskConfig.With
 	normCtx.MergedEnv = taskConfig.Env
+	// Make CurrentInput available to templates
+	if taskConfig.With != nil {
+		o.contextBuilder.VariableBuilder.AddCurrentInputToVariables(normCtx.Variables, taskConfig.With)
+	}
 	// Get output transformer
 	transformer := o.factory.CreateOutputTransformer()
 	// Transform the output

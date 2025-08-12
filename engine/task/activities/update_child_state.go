@@ -2,6 +2,7 @@ package activities
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
@@ -52,16 +53,34 @@ func (a *UpdateChildState) Run(ctx context.Context, input map[string]any) error 
 
 	// Update output if provided
 	if output, exists := input["output"]; exists && output != nil {
-		// Try different type assertions
+		// Try different type assertions with deep copy to avoid aliasing
 		switch v := output.(type) {
 		case *core.Output:
-			currentState.Output = v
+			if v != nil {
+				copied, err := core.DeepCopy[core.Output](*v)
+				if err != nil {
+					return core.NewError(err, "INVALID_INPUT", map[string]any{"field": "output", "reason": "deepcopy_failed"})
+				}
+				currentState.Output = &copied
+			}
 		case core.Output:
-			currentState.Output = &v
+			copied, err := core.DeepCopy[core.Output](v)
+			if err != nil {
+				return core.NewError(err, "INVALID_INPUT", map[string]any{"field": "output", "reason": "deepcopy_failed"})
+			}
+			currentState.Output = &copied
 		case map[string]any:
-			// Convert map to core.Output
-			outputMap := core.Output(v)
-			currentState.Output = &outputMap
+			copied, err := core.DeepCopy[core.Output](core.Output(v))
+			if err != nil {
+				return core.NewError(err, "INVALID_INPUT", map[string]any{"field": "output", "reason": "deepcopy_failed"})
+			}
+			currentState.Output = &copied
+		default:
+			return core.NewError(nil, "INVALID_INPUT", map[string]any{
+				"field":  "output",
+				"reason": "unsupported_type",
+				"type":   fmt.Sprintf("%T", output),
+			})
 		}
 	}
 

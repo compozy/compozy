@@ -30,6 +30,22 @@ func (cb *ConfigBuilder) GetTemplateEngine() *tplengine.TemplateEngine {
 	return cb.templateEngine
 }
 
+// parseInputTemplate parses a template input and returns it as core.Input
+func (cb *ConfigBuilder) parseInputTemplate(input core.Input, context map[string]any) (core.Input, error) {
+	processedWith, err := cb.templateEngine.ParseAny(input, context)
+	if err != nil {
+		return nil, fmt.Errorf("failed to process templates: %w", err)
+	}
+	switch v := processedWith.(type) {
+	case map[string]any:
+		return v, nil
+	case core.Input:
+		return v, nil
+	default:
+		return nil, fmt.Errorf("processed field is not a map: %T", processedWith)
+	}
+}
+
 // BuildTaskConfig builds a task config for a collection item
 func (cb *ConfigBuilder) BuildTaskConfig(
 	collectionConfig *task.CollectionConfig,
@@ -77,20 +93,11 @@ func (cb *ConfigBuilder) buildMergedInput(
 	mergedInput := make(core.Input)
 	// Start with parent task with if available
 	if parentTaskConfig.With != nil {
-		// Process templates in the with field using the item context
-		processedWith, err := cb.templateEngine.ParseAny(*parentTaskConfig.With, itemContext)
+		processed, err := cb.parseInputTemplate(*parentTaskConfig.With, itemContext)
 		if err != nil {
-			return nil, fmt.Errorf("failed to process parent with field templates: %w", err)
+			return nil, fmt.Errorf("failed to process parent with field: %w", err)
 		}
-		// Convert processed result to Input map
-		switch v := processedWith.(type) {
-		case map[string]any:
-			maps.Copy(mergedInput, v)
-		case core.Input:
-			maps.Copy(mergedInput, v)
-		default:
-			return nil, fmt.Errorf("processed parent with field is not a map: %T", processedWith)
-		}
+		maps.Copy(mergedInput, processed)
 	}
 	// Process and add task template with
 	if err := cb.processTaskWith(taskConfig, itemContext, mergedInput); err != nil {
@@ -114,20 +121,11 @@ func (cb *ConfigBuilder) processTaskWith(
 	if taskConfig.With == nil {
 		return nil
 	}
-	// Process templates in the with field using the item context
-	processedWith, err := cb.templateEngine.ParseAny(*taskConfig.With, itemContext)
+	processed, err := cb.parseInputTemplate(*taskConfig.With, itemContext)
 	if err != nil {
-		return fmt.Errorf("failed to process with field templates: %w", err)
+		return fmt.Errorf("failed to process with field: %w", err)
 	}
-	// Convert processed result to Input map
-	switch v := processedWith.(type) {
-	case map[string]any:
-		maps.Copy(mergedInput, v)
-	case core.Input:
-		maps.Copy(mergedInput, v)
-	default:
-		return fmt.Errorf("processed with field is not a map: %T", processedWith)
-	}
+	maps.Copy(mergedInput, processed)
 	return nil
 }
 

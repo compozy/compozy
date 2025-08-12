@@ -201,11 +201,8 @@ func (o *llmOrchestrator) buildLLMRequest(
 	}
 	messages := o.buildMessages(ctx, promptData.enhancedPrompt, memories)
 
-	// Determine temperature: use agent's configured value; if zero, fall back to 1.0 (provider default)
+	// Determine temperature: use agent's configured value (explicit zero allowed; upstream default applies)
 	temperature := request.Agent.Config.Params.Temperature
-	if temperature == 0 {
-		temperature = 1.0
-	}
 
 	return llmadapter.LLMRequest{
 		SystemPrompt: request.Agent.Instructions,

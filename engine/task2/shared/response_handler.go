@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
@@ -148,24 +149,62 @@ func (h *BaseResponseHandler) detectOutputError(output *core.Output) error {
 		return nil
 	}
 	// Check for explicit error field
-	if errVal, ok := (*output)["error"]; ok && errVal != nil {
-		// Convert error value to string
-		if errStr, ok := errVal.(string); ok && errStr != "" {
-			return fmt.Errorf("task output error: %s", errStr)
-		}
-		return fmt.Errorf("task output error: %v", errVal)
+	if err := h.checkErrorField(output); err != nil {
+		return err
 	}
 	// Check for success=false indicator
-	if successVal, ok := (*output)["success"]; ok {
-		if success, ok := successVal.(bool); ok && !success {
-			// Try to get error message if available
-			if errVal, ok := (*output)["error"]; ok && errVal != nil {
-				return fmt.Errorf("task failed: %v", errVal)
-			}
-			return fmt.Errorf("task output reported success=false")
+	return h.checkSuccessField(output)
+}
+
+// checkErrorField checks for explicit error field in output
+func (h *BaseResponseHandler) checkErrorField(output *core.Output) error {
+	errVal, ok := (*output)["error"]
+	if !ok || errVal == nil {
+		return nil
+	}
+	switch v := errVal.(type) {
+	case string:
+		if v != "" {
+			return fmt.Errorf("task output error: %s", v)
+		}
+	case map[string]any:
+		if msg, ok := v["message"].(string); ok && msg != "" {
+			return fmt.Errorf("task output error: %s", msg)
+		}
+		return fmt.Errorf("task output error: %v", v)
+	case []any:
+		return fmt.Errorf("task output error: %v", v)
+	default:
+		return fmt.Errorf("task output error: %v", v)
+	}
+	return nil
+}
+
+// checkSuccessField checks for success=false indicator in output
+func (h *BaseResponseHandler) checkSuccessField(output *core.Output) error {
+	successVal, ok := (*output)["success"]
+	if !ok {
+		return nil
+	}
+	switch s := successVal.(type) {
+	case bool:
+		if !s {
+			return h.getTaskFailureError(output)
+		}
+	case string:
+		if strings.EqualFold(s, "false") {
+			return h.getTaskFailureError(output)
 		}
 	}
 	return nil
+}
+
+// getTaskFailureError returns appropriate error for task failure
+func (h *BaseResponseHandler) getTaskFailureError(output *core.Output) error {
+	if errVal, ok := (*output)["error"]; ok && errVal != nil {
+		return fmt.Errorf("task failed: %v", errVal)
+	}
+	return fmt.Errorf("task output reported success=false")
 }
 
 // processTaskExecutionResult handles output transformation and determines success status

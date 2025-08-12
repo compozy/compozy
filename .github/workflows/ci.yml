@@ -15,7 +15,7 @@ concurrency:
 
 env:
   CGO_ENABLED: 1
-  GO_VERSION: "1.24.x"
+  GO_VERSION: "1.24.4"
 
 permissions:
   contents: read

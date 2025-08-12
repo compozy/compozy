@@ -21,7 +21,6 @@ runtime:
     - --allow-write
     - --allow-net
     - --allow-env
-    - --allow-run
 
 autoload:
   enabled: true

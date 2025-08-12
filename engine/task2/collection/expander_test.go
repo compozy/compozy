@@ -373,6 +373,33 @@ func TestExpander_InjectCollectionContext_PreservesParentContext(t *testing.T) {
 	})
 }
 
+func TestExpander_InjectCollectionContext_DeepCopiesParentWith(t *testing.T) {
+	t.Run("Should deep copy parent With into child to avoid aliasing", func(t *testing.T) {
+		// Arrange
+		expander := &Expander{}
+		parentWith := core.Input{"dir": "/root", "keep": "yes"}
+		parentConfig := &task.Config{
+			BaseConfig: task.BaseConfig{With: &parentWith},
+			CollectionConfig: task.CollectionConfig{
+				ItemVar:  "file",
+				IndexVar: "idx",
+			},
+		}
+		childConfig := &task.Config{BaseConfig: task.BaseConfig{ID: "child"}}
+		item := "a.txt"
+		index := 3
+
+		// Act
+		expander.injectCollectionContext(childConfig, parentConfig, item, index)
+
+		// Assert
+		require.NotNil(t, childConfig.With)
+		// Mutate child and ensure parent not affected
+		(*childConfig.With)["dir"] = "/mutated"
+		assert.Equal(t, "/root", (*parentConfig.With)["dir"], "Parent With must not be mutated by child injections")
+	})
+}
+
 func TestExpander_ValidateChildConfigs(t *testing.T) {
 	t.Run("Should pass validation for valid child configs", func(t *testing.T) {
 		// Arrange

@@ -108,6 +108,16 @@ func (ts *TestSetup) CreateTaskState(t *testing.T, config *TaskStateConfig) *tas
 	saved, err := ts.TaskRepo.GetState(ts.Context, taskState.TaskExecID)
 	require.NoError(t, err, "Failed to verify saved state")
 	require.Equal(t, taskState.TaskExecID, saved.TaskExecID, "TaskExecID mismatch after save")
+	require.Equal(t, taskState.WorkflowID, saved.WorkflowID, "WorkflowID mismatch after save")
+	require.Equal(t, taskState.WorkflowExecID, saved.WorkflowExecID, "WorkflowExecID mismatch after save")
+	require.Equal(t, taskState.TaskID, saved.TaskID, "TaskID mismatch after save")
+	require.Equal(t, taskState.Status, saved.Status, "Status mismatch after save")
+	require.Equal(t, taskState.ParentStateID, saved.ParentStateID, "ParentStateID mismatch after save")
+	if taskState.Output == nil {
+		require.Nil(t, saved.Output, "Output should be nil")
+	} else {
+		require.NotNil(t, saved.Output, "Output should not be nil")
+	}
 	return taskState
 }
 

@@ -116,7 +116,11 @@ func (a *CreateCompositeState) Run(ctx context.Context, input *CreateCompositeSt
 	// CRITICAL FIX: Also store the full config so waitForPriorSiblings can find it
 	// This enables sequential execution in collection subtasks by allowing
 	// waitForPriorSiblings to load the parent config and determine sibling order
-	if err := a.configStore.Save(ctx, state.TaskExecID.String(), normalizedConfig); err != nil {
+	cfgCopy, err := core.DeepCopy(normalizedConfig) // returns *task.Config
+	if err != nil {
+		return nil, fmt.Errorf("failed to clone composite config: %w", err)
+	}
+	if err := a.configStore.Save(ctx, state.TaskExecID.String(), cfgCopy); err != nil {
 		return nil, fmt.Errorf("failed to store composite config: %w", err)
 	}
 	// Add metadata to state output

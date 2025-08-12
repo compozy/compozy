@@ -1,6 +1,7 @@
 package task2
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/compozy/compozy/engine/core"
@@ -124,7 +125,7 @@ func TestAllTaskTypesResponseHandlers(t *testing.T) {
 
 		for _, tc := range testCases {
 			tc := tc // capture loop variable
-			t.Run(string(tc.TaskType), func(t *testing.T) {
+			t.Run(fmt.Sprintf("Should process %s", tc.TaskType), func(t *testing.T) {
 				// Create handler for this task type
 				handler := tc.HandlerFunc(ts)
 
@@ -197,7 +198,7 @@ func TestAllTaskTypesResponseHandlers(t *testing.T) {
 
 		for _, tc := range testCases {
 			tc := tc // capture loop variable
-			t.Run(string(tc.TaskType), func(t *testing.T) {
+			t.Run(fmt.Sprintf("Should handle failed %s", tc.TaskType), func(t *testing.T) {
 				// Create handler for this task type
 				handler := tc.HandlerFunc(ts)
 

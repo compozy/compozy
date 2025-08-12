@@ -4,11 +4,27 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/tmc/langchaingo/llms"
 )
+
+// actionPattern represents a regex pattern and its corresponding action ID
+type actionPattern struct {
+	actionID string
+	pattern  *regexp.Regexp
+}
+
+// actionPatterns is a table of regex patterns for matching action IDs
+var actionPatterns = []actionPattern{
+	{"read_content", regexp.MustCompile(`(?i)Read file content|read_content`)},
+	{"analyze_content", regexp.MustCompile(`(?i)Analyze the following Go code|analyze`)},
+	{"process_city", regexp.MustCompile(`(?i)Process city data|process_city`)},
+	{"analyze_activity", regexp.MustCompile(`(?i)Analyze a single activity|analyze_activity`)},
+	{"process_item", regexp.MustCompile(`(?i)Process a single collection item|process_item`)},
+}
 
 // DynamicMockLLM is a mock LLM that returns fixture-defined outputs
 type DynamicMockLLM struct {
@@ -19,9 +35,14 @@ type DynamicMockLLM struct {
 
 // NewDynamicMockLLM creates a new dynamic mock LLM with expected outputs
 func NewDynamicMockLLM(model string, expectedOutputs map[string]core.Output) *DynamicMockLLM {
+	copied := make(map[string]core.Output, len(expectedOutputs))
+	for k, v := range expectedOutputs {
+		// shallow copy is enough for test fixtures; deep copy if needed later
+		copied[k] = v
+	}
 	return &DynamicMockLLM{
 		model:           model,
-		expectedOutputs: expectedOutputs,
+		expectedOutputs: copied,
 		fallback:        NewMockLLM(model),
 	}
 }
@@ -66,39 +87,29 @@ func (m *DynamicMockLLM) extractActionID(messages []llms.MessageContent) string 
 
 // extractPromptText extracts text content from messages
 func (m *DynamicMockLLM) extractPromptText(messages []llms.MessageContent) string {
+	var b strings.Builder
 	for _, message := range messages {
-		if message.Role == llms.ChatMessageTypeHuman || message.Role == llms.ChatMessageTypeSystem {
-			for _, part := range message.Parts {
-				if textPart, ok := part.(llms.TextContent); ok {
-					return textPart.Text
+		for _, part := range message.Parts {
+			if textPart, ok := part.(llms.TextContent); ok {
+				if b.Len() > 0 {
+					b.WriteString("\n")
 				}
+				b.WriteString(textPart.Text)
 			}
 		}
 	}
-	return ""
+	return b.String()
 }
 
-// matchActionPattern matches text against known action patterns
+// matchActionPattern matches text against known action patterns using regex table
 func (m *DynamicMockLLM) matchActionPattern(text string) string {
 	if text == "" {
 		return ""
 	}
-
-	// Check patterns for each action
-	if strings.Contains(text, "Read file content") || strings.Contains(text, "read_content") {
-		return "read_content"
-	}
-	if strings.Contains(text, "Analyze the following Go code") || strings.Contains(text, "analyze") {
-		return "analyze_content"
-	}
-	if strings.Contains(text, "Process city data") || strings.Contains(text, "process_city") {
-		return "process_city"
-	}
-	if strings.Contains(text, "Analyze a single activity") || strings.Contains(text, "analyze_activity") {
-		return "analyze_activity"
-	}
-	if strings.Contains(text, "Process a single collection item") || strings.Contains(text, "process_item") {
-		return "process_item"
+	for _, ap := range actionPatterns {
+		if ap.pattern.MatchString(text) {
+			return ap.actionID
+		}
 	}
 	return ""
 }

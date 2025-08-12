@@ -77,20 +77,31 @@ func (s *Service) GenerateContent(
 	taskWith *core.Input,
 	actionID string,
 ) (*core.Output, error) {
+	if agentConfig == nil {
+		return nil, fmt.Errorf("agent config cannot be nil")
+	}
+	if actionID == "" {
+		return nil, fmt.Errorf("actionID cannot be empty")
+	}
 	actionConfig, err := agent.FindActionConfig(agentConfig.Actions, actionID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find action config: %w", err)
 	}
+	// Defensive copy to avoid shared-mutation/race on the agent's action config
+	actionCopy, err := core.DeepCopy(actionConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to clone action config: %w", err)
+	}
 	if taskWith != nil {
-		inputCopy, err := taskWith.Clone()
+		inputCopy, err := core.DeepCopy(taskWith)
 		if err != nil {
 			return nil, fmt.Errorf("failed to clone task with: %w", err)
 		}
-		actionConfig.With = inputCopy
+		actionCopy.With = inputCopy
 	}
 	request := Request{
 		Agent:  agentConfig,
-		Action: actionConfig,
+		Action: actionCopy,
 	}
 	return s.orchestrator.Execute(ctx, request)
 }

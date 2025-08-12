@@ -22,6 +22,7 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	appconfig "github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
+	"github.com/hashicorp/go-version"
 	"golang.org/x/text/unicode/norm"
 )
 
@@ -64,6 +65,7 @@ var bufferPool = sync.Pool{
 type BunManager struct {
 	config      *Config
 	projectRoot string
+	bunVersion  string // Cached Bun version to avoid repeated exec calls
 }
 
 // MergeWithDefaults merges the provided config with default values for zero fields
@@ -269,7 +271,17 @@ func (bm *BunManager) createBunCommand(ctx context.Context, env core.EnvMap) (*e
 
 	args := []string{"run"}
 	// Add memory management flags for aggressive garbage collection
-	args = append(args, "--smol") // Use smol mode for reduced memory footprint
+	// Only add --smol flag if Bun version is 0.7.0 or later (when it was introduced)
+	bunVersionStr := bm.getBunVersion(ctx)
+	if bunVersionStr != "" {
+		bunVer, err := version.NewVersion(bunVersionStr)
+		if err == nil {
+			minVersion, _ := version.NewVersion("0.7.0") //nolint:errcheck // hardcoded version string is safe
+			if bunVer.GreaterThanOrEqual(minVersion) {
+				args = append(args, "--smol") // Use smol mode for reduced memory footprint
+			}
+		}
+	}
 	args = append(args, bm.config.BunPermissions...)
 	args = append(args, workerPath)
 
@@ -414,7 +426,7 @@ func (bm *BunManager) readStderrInBackground(
 						line := strings.TrimRight(lineBuf.String(), "\r\n")
 						if line != "" {
 							// Log immediately
-							log.Info("Bun worker stderr", "output", line)
+							log.Debug("Bun worker stderr", "output", line)
 							// Capture for error context
 							if captured < MaxStderrCaptureSize {
 								remaining := MaxStderrCaptureSize - captured
@@ -435,7 +447,7 @@ func (bm *BunManager) readStderrInBackground(
 				if lineBuf.Len() > 0 {
 					line := strings.TrimRight(lineBuf.String(), "\r\n")
 					if line != "" {
-						log.Info("Bun worker stderr", "output", line)
+						log.Debug("Bun worker stderr", "output", line)
 						if captured < MaxStderrCaptureSize {
 							remaining := MaxStderrCaptureSize - captured
 							toWrite := line + "\n"
@@ -681,6 +693,25 @@ func (bm *BunManager) compileBunWorker() error {
 func IsBunAvailable() bool {
 	_, err := exec.LookPath("bun")
 	return err == nil
+}
+
+// getBunVersion retrieves the Bun version and caches it
+func (bm *BunManager) getBunVersion(ctx context.Context) string {
+	// Return cached version if available
+	if bm.bunVersion != "" {
+		return bm.bunVersion
+	}
+	// Execute bun --version to get the version
+	cmd := exec.Command("bun", "--version")
+	output, err := cmd.Output()
+	if err != nil {
+		logger.FromContext(ctx).Warn("Failed to get Bun version", "error", err)
+		return ""
+	}
+	// Parse version from output (format: "1.0.0" or similar)
+	version := strings.TrimSpace(string(output))
+	bm.bunVersion = version
+	return version
 }
 
 // GetBunWorkerFileHash returns a hash of the Bun worker file for caching purposes

@@ -189,10 +189,10 @@ func (e *Expander) injectCollectionContext(
 	}
 
 	// Deep copy existing child context to avoid shared pointer mutations
-	withMap, err := core.DeepCopy(map[string]any(*childConfig.With))
+	withMap, err := core.DeepCopy(*childConfig.With) // returns core.Input
 	if err != nil {
-		// If deep copy fails, use an empty map as fallback
-		withMap = make(map[string]any)
+		// If deep copy fails, preserve current values
+		withMap = *childConfig.With
 	}
 
 	// Always publish canonical vars
@@ -211,10 +211,10 @@ func (e *Expander) injectCollectionContext(
 
 	// Merge inherited parent With after deep-copy to preserve precedence rules
 	if parentConfig != nil && parentConfig.With != nil {
-		parentMap, err := core.DeepCopy(map[string]any(*parentConfig.With))
+		parentMap, err := core.DeepCopy(*parentConfig.With) // returns core.Input
 		if err != nil {
-			// If deep copy fails, skip merging parent config
-			parentMap = make(map[string]any)
+			// If deep copy fails, preserve parent values
+			parentMap = *parentConfig.With
 		}
 		for k, v := range parentMap {
 			if _, exists := withMap[k]; !exists {
@@ -223,7 +223,7 @@ func (e *Expander) injectCollectionContext(
 		}
 	}
 
-	newWith := core.Input(withMap)
+	newWith := withMap
 	childConfig.With = &newWith
 }
 

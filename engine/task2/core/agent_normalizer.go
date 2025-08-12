@@ -15,6 +15,29 @@ type AgentNormalizer struct {
 	envMerger      *EnvMerger
 }
 
+// buildTaskMetadata creates task metadata for template context
+func (n *AgentNormalizer) buildTaskMetadata(id, taskType string, config any) map[string]any {
+	metadata := map[string]any{
+		"id":   id,
+		"type": taskType,
+	}
+	// Add config-specific fields based on type
+	switch taskType {
+	case "agent":
+		if agentCfg, ok := config.(*agent.Config); ok {
+			metadata["instructions"] = agentCfg.Instructions
+			metadata["with"] = agentCfg.With
+			metadata["env"] = agentCfg.Env
+		}
+	case "agent_action":
+		if actionCfg, ok := config.(*agent.ActionConfig); ok {
+			metadata["prompt"] = actionCfg.Prompt
+			metadata["with"] = actionCfg.With
+		}
+	}
+	return metadata
+}
+
 // parseInputTemplates resolves any template expressions contained in the
 // provided core.Input using the supplied template context. It returns a new
 // *core.Input with the parsed values or the original pointer if no changes are
@@ -23,7 +46,7 @@ func (n *AgentNormalizer) parseInputTemplates(
 	input *core.Input,
 	templateCtx map[string]any,
 ) (*core.Input, error) {
-	if input == nil || len(*input) == 0 {
+	if input == nil || *input == nil || len(*input) == 0 {
 		return input, nil
 	}
 
@@ -147,13 +170,7 @@ func (n *AgentNormalizer) NormalizeAgent(
 	// and that `.task` now points to *this* agent instead of its parent.
 	if ctx != nil {
 		vars := ctx.GetVariables()
-		vars["task"] = map[string]any{
-			"id":           config.ID,
-			"type":         "agent",
-			"instructions": config.Instructions,
-			"with":         config.With,
-			"env":          config.Env,
-		}
+		vars["task"] = n.buildTaskMetadata(config.ID, "agent", config)
 	}
 
 	// Build template context *after* the injection above
@@ -263,12 +280,7 @@ func (n *AgentNormalizer) normalizeAgentActionConfig(
 	// Make sure `.task` inside the action refers to *this* action.
 	if ctx != nil {
 		vars := ctx.GetVariables()
-		vars["task"] = map[string]any{
-			"id":     config.ID,
-			"type":   "agent_action",
-			"prompt": config.Prompt,
-			"with":   config.With,
-		}
+		vars["task"] = n.buildTaskMetadata(config.ID, "agent_action", config)
 	}
 
 	// Build template context

@@ -9,10 +9,10 @@ package store
 // goconst duplication rules.
 const TaskHierarchyCTEQuery = `
 		WITH RECURSIVE task_hierarchy AS (
-			-- Base case: top-level tasks
+			-- Base case: top-level tasks only (parent_state_id IS NULL)
 			SELECT *
 			FROM task_states
-			WHERE workflow_exec_id = $1
+			WHERE workflow_exec_id = $1 AND parent_state_id IS NULL
 
 			UNION ALL
 
@@ -20,6 +20,7 @@ const TaskHierarchyCTEQuery = `
 			SELECT ts.*
 			FROM task_states ts
 			INNER JOIN task_hierarchy th ON ts.parent_state_id = th.task_exec_id
+			WHERE ts.workflow_exec_id = $1
 		)
 		SELECT * FROM task_hierarchy
 `

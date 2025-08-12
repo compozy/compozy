@@ -141,7 +141,20 @@ func (s *TransactionService) saveWithoutTransaction(
 	ctx context.Context,
 	state *task.State,
 ) error {
-	if err := s.taskRepo.UpsertState(ctx, state); err != nil {
+	// Fetch current state to merge changes similarly to transactional flow
+	latest, err := s.taskRepo.GetState(ctx, state.TaskExecID)
+	if err != nil {
+		// If not found, persist as new
+		if errors.Is(err, store.ErrTaskNotFound) {
+			if err := s.taskRepo.UpsertState(ctx, state); err != nil {
+				return fmt.Errorf("unable to save new task state: %w", err)
+			}
+			return nil
+		}
+		return fmt.Errorf("unable to retrieve existing task state: %w", err)
+	}
+	s.mergeStateChanges(latest, state)
+	if err := s.taskRepo.UpsertState(ctx, latest); err != nil {
 		return fmt.Errorf("unable to save task changes: %w", err)
 	}
 	return nil

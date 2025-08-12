@@ -56,10 +56,10 @@ func NewExecuteSubtask(
 		executeTaskUC: uc.NewExecuteTask(
 			runtime,
 			workflowRepo,
-			nil,
-			nil,
+			nil,            // Subtasks don't need memory manager
+			templateEngine, // Ensure templating is available to subtasks
 			appConfig,
-		), // Subtasks don't need memory manager
+		),
 		task2Factory:   task2Factory,
 		templateEngine: templateEngine,
 		taskRepo:       taskRepo,
@@ -329,6 +329,10 @@ func (a *ExecuteSubtask) waitForPriorSiblings(
 		); err != nil {
 			return err
 		}
+		// Respect cancellation between siblings
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 	}
 	return nil
 }
@@ -368,6 +372,9 @@ func (a *ExecuteSubtask) waitForSingleSibling(
 ) error {
 	deadline := time.Now().Add(pollTimeout)
 	for {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		state, err := a.taskRepo.GetChildByTaskID(ctx, parentStateID, siblingID)
 		if err != nil {
 			if errors.Is(err, store.ErrTaskNotFound) && time.Now().Before(deadline) {

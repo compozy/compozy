@@ -252,11 +252,18 @@ func (r *TaskRepo) ListTasksInWorkflow(ctx context.Context, workflowExecID core.
 		return nil, fmt.Errorf("scanning states: %w", err)
 	}
 	result := make(map[string]*task.State)
+	seenExec := make(map[core.ID]struct{})
 	for _, stateDB := range statesDB {
 		state, err := stateDB.ToState()
 		if err != nil {
 			return nil, fmt.Errorf("converting state: %w", err)
 		}
+		if _, dup := seenExec[state.TaskExecID]; dup {
+			continue
+		}
+		seenExec[state.TaskExecID] = struct{}{}
+		// Note: This still keys by TaskID; if TaskIDs aren't unique per workflow,
+		// we should revisit this design or make the value a slice.
 		result[state.TaskID] = state
 	}
 	return result, nil

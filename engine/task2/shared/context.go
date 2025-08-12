@@ -2,7 +2,6 @@ package shared
 
 import (
 	"fmt"
-	"log"
 	"maps"
 	"sort"
 
@@ -82,10 +81,6 @@ func (cb *ContextBuilder) buildContextInternal(
 	taskConfig *task.Config,
 	parentExecID *core.ID, // can be nil – means "discover heuristically"
 ) *NormalizationContext {
-	// Debug logging
-	if taskConfig != nil && parentExecID != nil {
-		log.Printf("DEBUG buildContextInternal: taskID=%s, parentExecID=%s", taskConfig.ID, *parentExecID)
-	}
 	nc := &NormalizationContext{
 		WorkflowState:  workflowState,
 		WorkflowConfig: workflowConfig,

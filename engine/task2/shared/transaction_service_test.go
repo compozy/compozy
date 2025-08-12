@@ -239,4 +239,28 @@ func TestTransactionService_mergeStateChanges(t *testing.T) {
 		assert.Equal(t, originalTaskID, target.TaskID)
 		assert.Equal(t, originalInput, target.Input)
 	})
+
+	t.Run("Should backfill Input when missing", func(t *testing.T) {
+		// Arrange
+		service := &TransactionService{}
+
+		target := &task.State{
+			TaskExecID: core.MustNewID(),
+			TaskID:     "target-task",
+			Status:     core.StatusPending,
+			Input:      nil,
+		}
+		srcInput := &core.Input{"key": "new-value"}
+		source := &task.State{
+			Status: core.StatusSuccess,
+			Input:  srcInput,
+		}
+
+		// Act
+		service.mergeStateChanges(target, source)
+
+		// Assert
+		assert.Equal(t, core.StatusSuccess, target.Status)
+		assert.Equal(t, srcInput, target.Input)
+	})
 }

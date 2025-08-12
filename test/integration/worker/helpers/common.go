@@ -75,7 +75,10 @@ func RegisterCommonActivities(env *testsuite.TestWorkflowEnvironment, activities
 	env.RegisterActivity(activities.CreateCompositeState)
 	env.RegisterActivity(activities.ListChildStates)
 	env.RegisterActivity(activities.ExecuteSubtask)
-	env.RegisterActivity(activities.UpdateChildState)
+	env.RegisterActivityWithOptions(
+		activities.UpdateChildState,
+		activity.RegisterOptions{Name: tkacts.UpdateChildStateLabel},
+	)
 	env.RegisterActivity(activities.GetCollectionResponse)
 	env.RegisterActivity(activities.GetParallelResponse)
 	env.RegisterActivity(activities.GetCompositeResponse)
@@ -419,6 +422,13 @@ func configureCollectionTask(taskConfig *task.Config, agentConfig *agent.Config,
 
 	// Apply to child task template if it exists
 	if taskConfig.Task != nil {
+		// Clone the child config to avoid mutating shared fixture state
+		child := *taskConfig.Task
+		// If the child has its own tasks, clone the slice header to decouple
+		if len(child.Tasks) > 0 {
+			child.Tasks = append([]task.Config(nil), child.Tasks...)
+		}
+		taskConfig.Task = &child
 		applyAgentToTask(taskConfig.Task, agentConfig, cwd)
 
 		// If child is composite, apply to its nested tasks
@@ -430,12 +440,20 @@ func configureCollectionTask(taskConfig *task.Config, agentConfig *agent.Config,
 
 // configureParallelTask configures a parallel task's children
 func configureParallelTask(taskConfig *task.Config, agentConfig *agent.Config, cwd *core.PathCWD) {
+	if len(taskConfig.Tasks) > 0 {
+		cloned := append([]task.Config(nil), taskConfig.Tasks...)
+		taskConfig.Tasks = cloned
+	}
 	applyAgentToBasicTasks(taskConfig.Tasks, agentConfig, cwd)
 }
 
 // configureCompositeTask configures a composite task and its children
 func configureCompositeTask(taskConfig *task.Config, agentConfig *agent.Config, cwd *core.PathCWD) {
 	applyAgentToTask(taskConfig, agentConfig, cwd)
+	if len(taskConfig.Tasks) > 0 {
+		cloned := append([]task.Config(nil), taskConfig.Tasks...)
+		taskConfig.Tasks = cloned
+	}
 	applyAgentToBasicTasks(taskConfig.Tasks, agentConfig, cwd)
 }
 

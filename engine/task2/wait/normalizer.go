@@ -89,8 +89,9 @@ func (n *Normalizer) NormalizeWithSignal(
 	// Merge existing With values back into the normalized config
 	if existingWith != nil && config.With != nil {
 		mergedWith := make(core.Input)
-		maps.Copy(mergedWith, *config.With)
+		// Keep consistency with BaseNormalizer: normalized config.With wins on key conflicts
 		maps.Copy(mergedWith, *existingWith)
+		maps.Copy(mergedWith, *config.With)
 		config.With = &mergedWith
 	} else if existingWith != nil {
 		config.With = existingWith

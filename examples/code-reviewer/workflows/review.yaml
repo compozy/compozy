@@ -1,6 +1,6 @@
 id: review
 version: 0.1.0
-description: Review code using Claude Code for a given directory
+description: Review Go code for a given directory
 
 schemas:
   - id: review_input

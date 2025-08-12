@@ -23,6 +23,7 @@ import (
 var (
 	templateExpressionRegex = regexp.MustCompile(`{{[^}]*}}`)
 	hyphenatedPathRegex     = regexp.MustCompile(`(\.[a-zA-Z_][a-zA-Z0-9_-]*(?:\.[a-zA-Z_][a-zA-Z0-9_-]*)*)`)
+	taskRefRe               = regexp.MustCompile(`\.tasks\.([a-zA-Z0-9_-]+)\.`)
 )
 
 // EngineFormat represents the format of the template engine output
@@ -268,8 +269,7 @@ func containsRuntimeReferences(s string) bool {
 func extractTaskReferences(s string) []string {
 	taskIDs := []string{}
 	// Match patterns like .tasks.TASKID.
-	re := regexp.MustCompile(`\.tasks\.([a-zA-Z0-9_-]+)\.`)
-	matches := re.FindAllStringSubmatch(s, -1)
+	matches := taskRefRe.FindAllStringSubmatch(s, -1)
 	for _, match := range matches {
 		if len(match) > 1 {
 			taskIDs = append(taskIDs, match[1])
@@ -296,7 +296,7 @@ func (e *TemplateEngine) ParseMapWithFilter(value any, data map[string]any, filt
 	case string:
 		return e.parseStringWithFilter(v, data)
 	case map[string]any:
-		return e.parseMapWithFilterMap(v, data, filter)
+		return e.parseMapWithFilter(v, data, filter)
 	case []any:
 		return e.parseSliceWithFilter(v, data, filter)
 	default:
@@ -305,9 +305,12 @@ func (e *TemplateEngine) ParseMapWithFilter(value any, data map[string]any, filt
 }
 
 // parseStringWithFilter handles string values that may reference runtime-only task placeholders.
+// Contract: When task references cannot be resolved (e.g., tasks not yet available),
+// the original template string is returned unchanged for deferred resolution by upstream callers.
 func (e *TemplateEngine) parseStringWithFilter(v string, data map[string]any) (any, error) {
 	if HasTemplate(v) && containsRuntimeReferences(v) {
 		if !e.canResolveTaskReferencesNow(v, data) {
+			// Return unresolved template for downstream resolution
 			return v, nil
 		}
 	}
@@ -325,27 +328,27 @@ func (e *TemplateEngine) canResolveTaskReferencesNow(v string, data map[string]a
 		return false
 	}
 
-	// Accept concrete map, pointer to map, and alias types (core.Input/Output)
+	// Handle pointer cases first, then value cases
 	var tasksMap map[string]any
 	switch t := tasksVal.(type) {
-	case map[string]any:
-		tasksMap = t
 	case *map[string]any:
 		if t != nil {
 			tasksMap = *t
 		}
-	case core.Input:
-		tasksMap = t
 	case *core.Input:
 		if t != nil {
 			tasksMap = *t
 		}
-	case core.Output:
-		tasksMap = t
 	case *core.Output:
 		if t != nil {
 			tasksMap = *t
 		}
+	case map[string]any:
+		tasksMap = t
+	case core.Input:
+		tasksMap = t
+	case core.Output:
+		tasksMap = t
 	default:
 		return false // unsupported type – cannot resolve yet
 	}
@@ -358,8 +361,8 @@ func (e *TemplateEngine) canResolveTaskReferencesNow(v string, data map[string]a
 	return areAllTasksAvailable(referenced, tasksMap)
 }
 
-// parseMapWithFilterMap parses maps while honoring the provided filter function.
-func (e *TemplateEngine) parseMapWithFilterMap(
+// parseMapWithFilter parses maps while honoring the provided filter function.
+func (e *TemplateEngine) parseMapWithFilter(
 	m map[string]any,
 	data map[string]any,
 	filter func(k string) bool,

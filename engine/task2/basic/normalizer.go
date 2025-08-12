@@ -100,8 +100,38 @@ func (n *Normalizer) containsRuntimeReferences(input *enginecore.Input) bool {
 	if input == nil {
 		return false
 	}
-	// Check if the input contains .tasks references
-	// These should be deferred to runtime when task outputs are available
-	inputStr := fmt.Sprintf("%v", *input)
-	return strings.Contains(inputStr, ".tasks.")
+	// Recursively check the input map for template expressions with runtime references
+	return n.checkMapForRuntimeReferences(*input)
+}
+
+// checkMapForRuntimeReferences recursively checks a map for runtime template references
+func (n *Normalizer) checkMapForRuntimeReferences(m map[string]any) bool {
+	for _, v := range m {
+		switch val := v.(type) {
+		case string:
+			// Check for template syntax with .tasks reference
+			if strings.Contains(val, "{{") && strings.Contains(val, ".tasks.") {
+				return true
+			}
+		case map[string]any:
+			if n.checkMapForRuntimeReferences(val) {
+				return true
+			}
+		case []any:
+			// Handle slices of any type
+			for _, item := range val {
+				switch itemVal := item.(type) {
+				case map[string]any:
+					if n.checkMapForRuntimeReferences(itemVal) {
+						return true
+					}
+				case string:
+					if strings.Contains(itemVal, "{{") && strings.Contains(itemVal, ".tasks.") {
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
 }

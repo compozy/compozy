@@ -19,10 +19,10 @@ on:
     branches:
       - "main"
   schedule:
-    - cron: '20 11 * * 5'
+    - cron: "20 11 * * 5"
 
 env:
-  GO_VERSION: "1.24.x"
+  GO_VERSION: "1.24.4"
 
 permissions:
   contents: read
@@ -58,7 +58,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-    # Set up Go for compiled language analysis
+      # Set up Go for compiled language analysis
       - name: Set up Go
         if: matrix.language == 'go'
         uses: ./.github/actions/setup-go
@@ -66,30 +66,30 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           install-tools: "false"
 
-    # Setup Bun for TypeScript analysis
+      # Setup Bun for TypeScript analysis
       - name: Setup Bun
         if: matrix.language == 'javascript-typescript'
         uses: ./.github/actions/setup-bun
 
-    # Initializes the CodeQL tools for scanning.
+      # Initializes the CodeQL tools for scanning.
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
-        # If you wish to specify custom queries, you can do so here or in a config file.
-        # By default, queries listed here will override any specified in a config file.
-        # Prefix the list here with "+" to use these queries and those in the config file.
+          # If you wish to specify custom queries, you can do so here or in a config file.
+          # By default, queries listed here will override any specified in a config file.
+          # Prefix the list here with "+" to use these queries and those in the config file.
 
-        # For more details on CodeQL's query packs, refer to: https://docs.github.com/en/code-security/code-scanning/automatically-scanning-your-code-for-vulnerabilities-and-errors/configuring-code-scanning#using-queries-in-ql-packs
+          # For more details on CodeQL's query packs, refer to: https://docs.github.com/en/code-security/code-scanning/automatically-scanning-your-code-for-vulnerabilities-and-errors/configuring-code-scanning#using-queries-in-ql-packs
           queries: security-extended,security-and-quality
 
-    # If the analyze step fails for one of the languages you are analyzing with
-    # "We were unable to automatically build your code", modify the matrix above
-    # to set the build mode to "manual" for that language. Then modify this step
-    # to build your code.
-    # ℹ️ Command-line programs to run using the OS shell.
-    # 📚 See https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstepsrun
+      # If the analyze step fails for one of the languages you are analyzing with
+      # "We were unable to automatically build your code", modify the matrix above
+      # to set the build mode to "manual" for that language. Then modify this step
+      # to build your code.
+      # ℹ️ Command-line programs to run using the OS shell.
+      # 📚 See https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstepsrun
       - if: matrix.build-mode == 'manual'
         shell: bash
         run: |

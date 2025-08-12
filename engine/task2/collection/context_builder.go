@@ -66,31 +66,27 @@ func (b *ContextBuilder) BuildIterationContext(
 	} else {
 		iterCtx.Variables = make(map[string]any)
 	}
-	// Deep copy tasks map to ensure isolation between collection children
-	if tasks, ok := iterCtx.Variables["tasks"].(map[string]any); ok {
-		copiedTasks, err := core.DeepCopy(tasks)
-		if err != nil {
-			return nil, fmt.Errorf("failed to deep copy tasks map: %w", err)
-		}
-		iterCtx.Variables["tasks"] = copiedTasks
-	}
+
 	// Add item and index to variables
 	iterCtx.Variables[shared.ItemKey] = item
 	iterCtx.Variables[shared.IndexKey] = index
-	// Create current input by merging parent context with item and index
-	currentInput := make(core.Input)
-	// First, copy parent's current input if it exists
+	// Create current input by deep-copying parent context, then override with item and index
+	var currentInput core.Input
 	if baseContext.CurrentInput != nil {
-		for k, v := range *baseContext.CurrentInput {
-			currentInput[k] = v
+		copied, err := core.DeepCopy(*baseContext.CurrentInput)
+		if err != nil {
+			return nil, fmt.Errorf("failed to deep copy current input: %w", err)
 		}
+		currentInput = copied
+	} else {
+		currentInput = make(core.Input)
 	}
 	// Then add/override with item and index
 	currentInput[shared.ItemKey] = item
 	currentInput[shared.IndexKey] = index
 	iterCtx.CurrentInput = &currentInput
 	// Also add to input variable
-	iterCtx.Variables["input"] = &currentInput
+	iterCtx.Variables[shared.InputKey] = &currentInput
 	return iterCtx, nil
 }
 

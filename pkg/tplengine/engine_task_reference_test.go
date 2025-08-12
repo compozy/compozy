@@ -40,7 +40,7 @@ func TestExtractTaskReferences(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run("Should "+tt.name, func(t *testing.T) {
 			result := extractTaskReferences(tt.template)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -52,15 +52,15 @@ func TestAreAllTasksAvailable(t *testing.T) {
 		"task1": map[string]any{"output": "data1"},
 		"task2": map[string]any{"output": "data2"},
 	}
-	t.Run("all tasks available", func(t *testing.T) {
+	t.Run("Should return true when all tasks are available", func(t *testing.T) {
 		taskIDs := []string{"task1", "task2"}
 		assert.True(t, areAllTasksAvailable(taskIDs, tasksMap))
 	})
-	t.Run("some tasks missing", func(t *testing.T) {
+	t.Run("Should return false when some tasks are missing", func(t *testing.T) {
 		taskIDs := []string{"task1", "task3"}
 		assert.False(t, areAllTasksAvailable(taskIDs, tasksMap))
 	})
-	t.Run("empty task list", func(t *testing.T) {
+	t.Run("Should return true when task list is empty", func(t *testing.T) {
 		taskIDs := []string{}
 		assert.True(t, areAllTasksAvailable(taskIDs, tasksMap))
 	})
@@ -68,7 +68,7 @@ func TestAreAllTasksAvailable(t *testing.T) {
 
 func TestParseMapWithFilter_TaskReferences(t *testing.T) {
 	engine := NewEngine(FormatText)
-	t.Run("should defer evaluation when referenced task not available", func(t *testing.T) {
+	t.Run("Should defer evaluation when referenced task not available", func(t *testing.T) {
 		// Template references task "clothing" which doesn't exist yet
 		template := "{{ .tasks.clothing.output.save_data.clothing }}"
 		data := map[string]any{
@@ -82,7 +82,7 @@ func TestParseMapWithFilter_TaskReferences(t *testing.T) {
 		// Should keep the template string as-is since clothing task is not available
 		assert.Equal(t, template, result)
 	})
-	t.Run("should evaluate when all referenced tasks are available", func(t *testing.T) {
+	t.Run("Should evaluate when all referenced tasks are available", func(t *testing.T) {
 		// Template references task "clothing" which now exists
 		template := "{{ .tasks.clothing.output.save_data.clothing }}"
 		data := map[string]any{
@@ -103,7 +103,7 @@ func TestParseMapWithFilter_TaskReferences(t *testing.T) {
 		expected := []string{"jacket", "umbrella"}
 		assert.Equal(t, expected, result)
 	})
-	t.Run("should handle multiple task references correctly", func(t *testing.T) {
+	t.Run("Should handle multiple task references correctly", func(t *testing.T) {
 		// Template references both task1 and task2
 		template := "{{ .tasks.task1.output }} - {{ .tasks.task2.status }}"
 		// Only task1 is available
@@ -118,7 +118,7 @@ func TestParseMapWithFilter_TaskReferences(t *testing.T) {
 		// Should keep the template as-is since not all tasks are available
 		assert.Equal(t, template, result)
 	})
-	t.Run("should handle map with task references in values", func(t *testing.T) {
+	t.Run("Should handle map with task references in values", func(t *testing.T) {
 		// Map with a value containing task reference
 		value := map[string]any{
 			"items": "{{ .tasks.clothing.output.save_data.clothing }}",
@@ -139,7 +139,7 @@ func TestParseMapWithFilter_TaskReferences(t *testing.T) {
 		// Input reference should be evaluated
 		assert.Equal(t, "Paris", resultMap["city"])
 	})
-	t.Run("should handle nested structures correctly", func(t *testing.T) {
+	t.Run("Should handle nested structures correctly", func(t *testing.T) {
 		// Complex nested structure like in weather workflow
 		value := map[string]any{
 			"tasks": []any{

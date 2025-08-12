@@ -35,7 +35,6 @@ func (h *ResponseHandler) HandleResponse(
 	ctx context.Context,
 	input *shared.ResponseInput,
 ) (*shared.ResponseOutput, error) {
-	originalExecID := input.TaskState.TaskExecID
 	// Validate input
 	if err := h.baseHandler.ValidateInput(input); err != nil {
 		return nil, err
@@ -50,6 +49,8 @@ func (h *ResponseHandler) HandleResponse(
 	// Apply collection context variables before processing
 	h.applyCollectionContext(input)
 
+	// Capture after validation to avoid nil deref
+	originalExecID := input.TaskState.TaskExecID
 	// Delegate to base handler for common logic
 	response, err := h.baseHandler.ProcessMainTaskResponse(ctx, input)
 	if err != nil {

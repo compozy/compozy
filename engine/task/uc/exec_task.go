@@ -121,7 +121,9 @@ func (uc *ExecuteTask) reparseAgentConfig(
 	}
 
 	// Create agent normalizer for runtime re-parsing
-	agentNormalizer := task2core.NewAgentNormalizer(nil)
+	// Initialize EnvMerger to avoid nil-pointer dereference in AgentNormalizer
+	envMerger := task2core.NewEnvMerger()
+	agentNormalizer := task2core.NewAgentNormalizer(envMerger)
 
 	// Re-parse the agent configuration with runtime context
 	// Pass actionID to only reparse the specific action being executed
@@ -236,7 +238,8 @@ func (uc *ExecuteTask) executeAgent(
 	if hasMemoryConfig {
 		log.Warn("Agent has memory configuration but memory manager not available",
 			"agent_id", agentConfig.ID,
-			"memory_count", len(agentConfig.Memory))
+			"memory_count", len(agentConfig.Memory),
+			"action", "Memory features will be disabled for this execution")
 	}
 
 	llmService, err := llm.NewService(ctx, uc.runtime, agentConfig, llmOpts...)

@@ -88,7 +88,10 @@ func verifyCodeReviewerExecution(t *testing.T, result *workflow.State) {
 	require.NotNil(t, parentTask, "Should have a parent collection task")
 
 	childTasks := helpers.FindChildTasks(result, parentTask.TaskExecID)
-	assert.Len(t, childTasks, 2, "Should have 2 child tasks")
+	require.Len(t, childTasks, 2, "Should have 2 child tasks")
+
+	// Parent should also succeed
+	assert.Equal(t, core.StatusSuccess, parentTask.Status, "Parent collection task should be successful")
 
 	// Note: The template interpolation race condition has been fixed in the production code.
 	// The mock provider in tests may not generate the expected output format,
