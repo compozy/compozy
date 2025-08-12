@@ -159,7 +159,10 @@ func (e *Expander) createChildConfigs(
 
 		// NEW: ensure each child owns an independent With map (prevents pointer sharing)
 		if childConfig.With != nil {
-			cloned := core.Input(e.deepCopyMap(map[string]any(*childConfig.With)))
+			cloned, err := core.DeepCopy(*childConfig.With)
+			if err != nil {
+				return nil, fmt.Errorf("failed to deep copy With map at index %d: %w", i, err)
+			}
 			childConfig.With = &cloned
 		} else {
 			empty := core.Input{}
@@ -186,7 +189,11 @@ func (e *Expander) injectCollectionContext(
 	}
 
 	// Deep copy existing child context to avoid shared pointer mutations
-	withMap := e.deepCopyMap(map[string]any(*childConfig.With))
+	withMap, err := core.DeepCopy(map[string]any(*childConfig.With))
+	if err != nil {
+		// If deep copy fails, use an empty map as fallback
+		withMap = make(map[string]any)
+	}
 
 	// Always publish canonical vars
 	withMap[shared.FieldCollectionItem] = item
@@ -204,7 +211,11 @@ func (e *Expander) injectCollectionContext(
 
 	// Merge inherited parent With after deep-copy to preserve precedence rules
 	if parentConfig != nil && parentConfig.With != nil {
-		parentMap := e.deepCopyMap(map[string]any(*parentConfig.With))
+		parentMap, err := core.DeepCopy(map[string]any(*parentConfig.With))
+		if err != nil {
+			// If deep copy fails, skip merging parent config
+			parentMap = make(map[string]any)
+		}
 		for k, v := range parentMap {
 			if _, exists := withMap[k]; !exists {
 				withMap[k] = v
@@ -214,88 +225,6 @@ func (e *Expander) injectCollectionContext(
 
 	newWith := core.Input(withMap)
 	childConfig.With = &newWith
-}
-
-// deepCopyMap creates a deep copy of a map to avoid shared pointer mutations
-func (e *Expander) deepCopyMap(src map[string]any) map[string]any {
-	if src == nil {
-		return nil
-	}
-	dst := make(map[string]any, len(src))
-	for k, v := range src {
-		switch val := v.(type) {
-		case map[string]any:
-			// Recursively deep copy nested maps
-			dst[k] = e.deepCopyMap(val)
-		case *map[string]any:
-			// Dereference and deep copy pointer to map
-			if val != nil {
-				dst[k] = e.deepCopyMap(*val)
-			} else {
-				dst[k] = nil
-			}
-		case core.Input:
-			// Deep copy core.Input (alias for map[string]any)
-			dst[k] = e.deepCopyMap(map[string]any(val))
-		case *core.Input:
-			// Dereference and deep copy pointer to core.Input
-			if val != nil {
-				dst[k] = e.deepCopyMap(map[string]any(*val))
-			} else {
-				dst[k] = nil
-			}
-		case core.Output:
-			// Deep copy core.Output (alias for map[string]any)
-			dst[k] = e.deepCopyMap(map[string]any(val))
-		case *core.Output:
-			// Dereference and deep copy pointer to core.Output
-			if val != nil {
-				dst[k] = e.deepCopyMap(map[string]any(*val))
-			} else {
-				dst[k] = nil
-			}
-		case []any:
-			// Deep copy slices
-			dst[k] = e.deepCopySlice(val)
-		case []map[string]any:
-			// Deep copy slice of maps
-			newSlice := make([]map[string]any, len(val))
-			for i, m := range val {
-				newSlice[i] = e.deepCopyMap(m)
-			}
-			dst[k] = newSlice
-		default:
-			// For primitive types and other values, assign directly
-			// This includes string, int, float, bool, etc.
-			dst[k] = val
-		}
-	}
-	return dst
-}
-
-// deepCopySlice creates a deep copy of a slice
-func (e *Expander) deepCopySlice(src []any) []any {
-	if src == nil {
-		return nil
-	}
-	dst := make([]any, len(src))
-	for i, v := range src {
-		switch val := v.(type) {
-		case map[string]any:
-			dst[i] = e.deepCopyMap(val)
-		case *map[string]any:
-			if val != nil {
-				dst[i] = e.deepCopyMap(*val)
-			} else {
-				dst[i] = nil
-			}
-		case []any:
-			dst[i] = e.deepCopySlice(val)
-		default:
-			dst[i] = val
-		}
-	}
-	return dst
 }
 
 // validateChildConfigs validates all child configurations

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -31,6 +32,10 @@ var (
 	pgContainerNoMigrationsOnce       sync.Once
 	pgContainerNoMigrationsMu         sync.Mutex
 	pgContainerNoMigrationsStartError error
+
+	// Track active tests and serialize truncation
+	activeTestCount int64      // number of tests currently using the shared DB
+	truncMu         sync.Mutex // ensures only one goroutine truncates tables
 )
 
 // GetSharedPostgresDB returns a shared PostgreSQL database for tests
@@ -108,9 +113,25 @@ func startSharedContainer(ctx context.Context, _ *testing.T) (*postgres.Postgres
 // createTestIsolation creates cleanup function that preserves the shared container
 // We use table truncation for test isolation to ensure database consistency
 func createTestIsolation(ctx context.Context, t *testing.T, pool *pgxpool.Pool) func() {
-	// Return cleanup that truncates test data
+	// Increment the number of active tests using the shared DB.
+	atomic.AddInt64(&activeTestCount, 1)
+
+	// Return cleanup that will be executed when the individual test finishes.
 	return func() {
-		// Truncate tables in reverse dependency order to avoid foreign key violations
+		// Decrement and capture the remaining count.
+		newCount := atomic.AddInt64(&activeTestCount, -1)
+
+		// Only the last finishing test performs the truncation.
+		if newCount != 0 {
+			return
+		}
+
+		// Serialise truncation to avoid races with future tests that might start
+		// before this cleanup executes.
+		truncMu.Lock()
+		defer truncMu.Unlock()
+
+		// Truncate tables in reverse dependency order to avoid foreign key violations.
 		tables := []string{
 			"task_states",
 			"workflow_states",
