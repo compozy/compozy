@@ -75,7 +75,7 @@ func (cb *ConfigBuilder) BuildTaskConfig(
 		return nil, err
 	}
 	// Inherit parent config properties
-	if err := cb.inheritParentConfig(taskConfig, parentTaskConfig); err != nil {
+	if err := shared.InheritTaskConfig(taskConfig, parentTaskConfig); err != nil {
 		return nil, fmt.Errorf("failed to inherit parent config: %w", err)
 	}
 	return taskConfig, nil
@@ -105,9 +105,11 @@ func (cb *ConfigBuilder) buildMergedInput(
 	}
 	// Add collection context fields
 	cb.addCollectionContext(mergedInput, collectionConfig, item, index)
-	// Add workflow context from itemContext for nested tasks to access
+	// Add workflow context from itemContext for nested tasks to access (without overriding user input)
 	if workflow, ok := itemContext["workflow"]; ok {
-		mergedInput["workflow"] = workflow
+		if _, exists := mergedInput["workflow"]; !exists {
+			mergedInput["workflow"] = workflow
+		}
 	}
 	return mergedInput, nil
 }
@@ -169,23 +171,6 @@ func (cb *ConfigBuilder) processTaskID(taskConfig *task.Config, itemContext map[
 		return fmt.Errorf("task ID is not a string")
 	}
 	taskConfig.ID = value
-	return nil
-}
-
-// inheritParentConfig copies relevant fields from parent to child config
-func (cb *ConfigBuilder) inheritParentConfig(taskConfig, parentTaskConfig *task.Config) error {
-	// Copy CWD from parent config to child config if not already set
-	if taskConfig.CWD == nil && parentTaskConfig.CWD != nil {
-		taskConfig.CWD = parentTaskConfig.CWD
-		// Recursively propagate CWD to all nested tasks
-		if err := task.PropagateSingleTaskCWD(taskConfig, taskConfig.CWD, "collection item task"); err != nil {
-			return fmt.Errorf("failed to propagate CWD to nested tasks: %w", err)
-		}
-	}
-	// Copy FilePath from parent config to child config if not already set
-	if taskConfig.FilePath == "" && parentTaskConfig.FilePath != "" {
-		taskConfig.FilePath = parentTaskConfig.FilePath
-	}
 	return nil
 }
 

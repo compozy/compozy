@@ -94,7 +94,13 @@ func (n *Normalizer) NormalizeWithSignal(
 		maps.Copy(mergedWith, *config.With)
 		config.With = &mergedWith
 	} else if existingWith != nil {
-		config.With = existingWith
+		cloned, err := core.DeepCopy(*existingWith)
+		if err == nil {
+			config.With = &cloned
+		} else {
+			// Fall back to original to avoid dropping values if a deep copy fails
+			config.With = existingWith
+		}
 	}
 	return nil
 }

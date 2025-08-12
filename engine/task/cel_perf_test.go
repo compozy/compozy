@@ -10,102 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/compozy/compozy/engine/core"
 )
-
-func BenchmarkCELEvaluator_Evaluate(b *testing.B) {
-	evaluator, err := NewCELEvaluator()
-	require.NoError(b, err)
-
-	ctx := context.Background()
-	expression := `signal.payload.status == "approved" && signal.payload.priority > 5`
-	data := map[string]any{
-		"signal": map[string]any{
-			"payload": map[string]any{
-				"status":   "approved",
-				"priority": 10,
-			},
-		},
-	}
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		result, err := evaluator.Evaluate(ctx, expression, data)
-		if err != nil {
-			b.Fatal(err)
-		}
-		if !result {
-			b.Fatal("Expected true result")
-		}
-	}
-}
-
-func BenchmarkCELEvaluator_ValidateExpression(b *testing.B) {
-	evaluator, err := NewCELEvaluator()
-	require.NoError(b, err)
-
-	expressions := []string{
-		`signal.payload.status == "approved"`,
-		`signal.payload.value > 100`,
-		`has(signal.payload.data) && size(signal.payload.data) > 0`,
-		`processor.output.valid == true`,
-		`signal.payload.priority >= 5 && signal.payload.category == "urgent"`,
-	}
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		expr := expressions[i%len(expressions)]
-		err := evaluator.ValidateExpression(expr)
-		if err != nil {
-			b.Fatalf("Expression validation failed for %s: %v", expr, err)
-		}
-	}
-}
-
-func BenchmarkCELEvaluator_CachePerformance(b *testing.B) {
-	evaluator, err := NewCELEvaluator(WithCacheSize(1000))
-	require.NoError(b, err)
-
-	ctx := context.Background()
-
-	// Test with repeated expressions to measure cache effectiveness
-	expressions := []string{
-		`signal.payload.status == "approved"`,
-		`signal.payload.value > 100`,
-		`signal.payload.ready == true`,
-		`processor.output.valid == true`,
-		`signal.payload.count >= 5`,
-	}
-
-	data := map[string]any{
-		"signal": map[string]any{
-			"payload": map[string]any{
-				"status": "approved",
-				"value":  150,
-				"ready":  true,
-				"count":  10,
-			},
-		},
-		"processor": map[string]any{
-			"output": map[string]any{
-				"valid": true,
-			},
-		},
-	}
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		expr := expressions[i%len(expressions)]
-		result, err := evaluator.Evaluate(ctx, expr, data)
-		if err != nil {
-			b.Fatalf("Evaluation failed for %s: %v", expr, err)
-		}
-		if !result {
-			b.Fatalf("Expected true result for %s", expr)
-		}
-	}
-}
 
 func TestCELEvaluator_ConcurrentAccess(t *testing.T) {
 	evaluator, err := NewCELEvaluator(WithCacheSize(100))
@@ -149,7 +54,7 @@ func TestCELEvaluator_ConcurrentAccess(t *testing.T) {
 	var wg sync.WaitGroup
 	errorChan := make(chan error, numGoroutines*evaluationsPerGoroutine)
 
-	for i := 0; i < numGoroutines; i++ {
+	for i := range numGoroutines {
 		wg.Add(1)
 		go func(goroutineID int) {
 			defer wg.Done()
@@ -177,45 +82,6 @@ func TestCELEvaluator_ConcurrentAccess(t *testing.T) {
 	// Check for any errors
 	for err := range errorChan {
 		t.Error(err)
-	}
-}
-
-func BenchmarkCELEvaluator_MemoryAndCacheEviction(b *testing.B) {
-	evaluator, err := NewCELEvaluator(WithCacheSize(50))
-	require.NoError(b, err)
-	ctx := context.Background()
-
-	// Create many unique expressions to test cache eviction
-	expressions := make([]string, 200)
-	for i := 0; i < 200; i++ {
-		expressions[i] = fmt.Sprintf(`signal.payload.value_%d > %d`, i, i*10)
-	}
-
-	data := map[string]any{
-		"signal": map[string]any{
-			"payload": map[string]any{},
-		},
-	}
-
-	// Add all values to data
-	for i := 0; i < 200; i++ {
-		data["signal"].(map[string]any)["payload"].(map[string]any)[fmt.Sprintf("value_%d", i)] = (i + 1) * 10
-	}
-
-	b.ResetTimer()
-	b.ReportAllocs() // This is the key addition
-
-	for i := 0; i < b.N; i++ {
-		// Evaluate all expressions to force cache interaction
-		for _, expr := range expressions {
-			result, err := evaluator.Evaluate(ctx, expr, data)
-			if err != nil {
-				b.Fatal(err)
-			}
-			if !result {
-				b.Fatalf("Expected true result for %s", expr)
-			}
-		}
 	}
 }
 
@@ -299,77 +165,6 @@ func TestCELEvaluator_StressTest(t *testing.T) {
 	}
 }
 
-func BenchmarkWaitTask_ConfigValidation(b *testing.B) {
-	CWD, _ := core.CWDFromPath("/tmp")
-
-	// Create a complex wait task configuration
-	config := &Config{
-		BaseConfig: BaseConfig{
-			ID:        "performance-test-wait",
-			Type:      TaskTypeWait,
-			CWD:       CWD,
-			Condition: `signal.payload.status == "approved" && signal.payload.priority > 5 && has(signal.payload.metadata)`,
-			Timeout:   "30m",
-		},
-		WaitTask: WaitTask{
-			WaitFor: "complex_approval_signal",
-			Processor: &Config{
-				BaseConfig: BaseConfig{
-					ID:   "signal-processor",
-					Type: TaskTypeBasic,
-					CWD:  CWD,
-				},
-				BasicTask: BasicTask{
-					Action: "process_signal",
-				},
-			},
-		},
-	}
-
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
-		err := config.Validate()
-		if err != nil {
-			b.Fatal(err)
-		}
-	}
-}
-
-func BenchmarkWaitTask_LargeSignalPayload(b *testing.B) {
-	evaluator, err := NewCELEvaluator()
-	require.NoError(b, err)
-
-	ctx := context.Background()
-	expression := `has(signal.payload.data) && size(signal.payload.data) > 1000`
-
-	// Create a large payload
-	largeData := make(map[string]any)
-	for i := 0; i < 2000; i++ {
-		largeData[fmt.Sprintf("key_%d", i)] = fmt.Sprintf("value_%d", i)
-	}
-
-	data := map[string]any{
-		"signal": map[string]any{
-			"payload": map[string]any{
-				"data": largeData,
-			},
-		},
-	}
-
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
-		result, err := evaluator.Evaluate(ctx, expression, data)
-		if err != nil {
-			b.Fatal(err)
-		}
-		if !result {
-			b.Fatal("Expected true result")
-		}
-	}
-}
-
 func TestWaitTask_ExpressionComplexity(t *testing.T) {
 	evaluator, err := NewCELEvaluator(WithCostLimit(50000)) // Higher limit for complex expressions
 	require.NoError(t, err)
@@ -408,8 +203,8 @@ func TestWaitTask_ExpressionComplexity(t *testing.T) {
 		},
 		{
 			name: "high complexity",
-			expression: `signal.payload.status == "approved" && 
-						 signal.payload.priority > 5 && 
+			expression: `signal.payload.status == "approved" &&
+						 signal.payload.priority > 5 &&
 						 has(signal.payload.metadata) &&
 						 signal.payload.metadata.source in ["api", "ui"] &&
 						 size(signal.payload.items) > 0 &&

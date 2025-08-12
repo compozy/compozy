@@ -157,6 +157,13 @@ func (s *TransactionService) saveWithoutTransaction(
 	if err := s.taskRepo.UpsertState(ctx, latest); err != nil {
 		return fmt.Errorf("unable to save task changes: %w", err)
 	}
+	// Mirror merged fields back to caller for consistency with transactional path
+	state.Status = latest.Status
+	state.Output = latest.Output
+	state.Error = latest.Error
+	if state.Input == nil && latest.Input != nil {
+		state.Input = latest.Input
+	}
 	return nil
 }
 
@@ -213,19 +220,45 @@ func (s *TransactionService) applyWithoutTransaction(
 	return nil
 }
 
-// mergeStateChanges merges changes from source state into target state
-// Only Status, Output, and Error fields are merged because:
-// - These are the only fields that change during task execution
-// - Other fields like TaskID, TaskExecID, WorkflowID are immutable identifiers
-// - Input and Metadata are set at task creation and should not be modified
-// - ParentStateID and hierarchy fields are structural and must remain unchanged
+// mergeStateChanges merges mutable fields from source into target.
+//
+// - Merges: Status, Output, Error
+// - Backfills Input only if target is missing it (doesn't overwrite existing Input)
+// - Does not touch identity/structural fields (IDs, parent, etc.)
 func (s *TransactionService) mergeStateChanges(target, source *task.State) {
-	target.Status = source.Status
-	target.Output = source.Output
-	target.Error = source.Error
-	// CRITICAL FIX: Also merge Input if target doesn't have it but source does
-	// This handles cases where the initial save didn't include Input properly
-	if target.Input == nil && source.Input != nil {
-		target.Input = source.Input
+	if target == nil || source == nil {
+		return
 	}
+
+	// Status (only set when valid)
+	if source.Status.IsValid() {
+		target.Status = source.Status
+	}
+
+	// Output (deep copy to avoid aliasing)
+	if source.Output != nil {
+		target.Output = deepCopyOrSame(source.Output)
+	} else {
+		target.Output = nil
+	}
+
+	// Error (deep copy to avoid aliasing)
+	if source.Error != nil {
+		target.Error = deepCopyOrSame(source.Error)
+	} else {
+		target.Error = nil
+	}
+
+	// Backfill Input only when missing in target (deep copy to avoid aliasing)
+	if target.Input == nil && source.Input != nil {
+		target.Input = deepCopyOrSame(source.Input)
+	}
+}
+
+func deepCopyOrSame[T any](v T) T {
+	copied, err := core.DeepCopy(v)
+	if err != nil {
+		return v
+	}
+	return copied
 }

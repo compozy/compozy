@@ -17,6 +17,8 @@ import (
 // ErrTaskNotFound is returned when a task state is not found.
 var ErrTaskNotFound = fmt.Errorf("task state not found")
 
+const maxTaskTreeDepth = 100
+
 // TaskRepo implements the task.Repository interface.
 type TaskRepo struct {
 	db    DBInterface
@@ -252,16 +254,12 @@ func (r *TaskRepo) ListTasksInWorkflow(ctx context.Context, workflowExecID core.
 		return nil, fmt.Errorf("scanning states: %w", err)
 	}
 	result := make(map[string]*task.State)
-	seenExec := make(map[core.ID]struct{})
 	for _, stateDB := range statesDB {
 		state, err := stateDB.ToState()
 		if err != nil {
 			return nil, fmt.Errorf("converting state: %w", err)
 		}
-		if _, dup := seenExec[state.TaskExecID]; dup {
-			continue
-		}
-		seenExec[state.TaskExecID] = struct{}{}
+		// TODO: revisit this design
 		// Note: This still keys by TaskID; if TaskIDs aren't unique per workflow,
 		// we should revisit this design or make the value a slice.
 		result[state.TaskID] = state
@@ -435,7 +433,7 @@ func (r *TaskRepo) GetChildByTaskID(ctx context.Context, parentStateID core.ID, 
 
 // GetTaskTree retrieves a complete task hierarchy starting from the root using PostgreSQL CTE.
 func (r *TaskRepo) GetTaskTree(ctx context.Context, rootStateID core.ID) ([]*task.State, error) {
-	query := `
+	query := fmt.Sprintf(`
         WITH RECURSIVE task_tree AS (
 			-- Base case: start with the root task
 			SELECT task_exec_id, task_id, workflow_exec_id, workflow_id, component,
@@ -452,14 +450,14 @@ func (r *TaskRepo) GetTaskTree(ctx context.Context, rootStateID core.ID) ([]*tas
 				   ts.input, ts.output, ts.error, ts.created_at, ts.updated_at, tt.depth + 1
 			FROM task_states ts
 			INNER JOIN task_tree tt ON ts.parent_state_id = tt.task_exec_id
-			WHERE tt.depth < 100
+			WHERE tt.depth < %d
 		)
         SELECT task_exec_id, task_id, workflow_exec_id, workflow_id, component,
 			   status, execution_type, parent_state_id, agent_id, action_id, tool_id,
 			   input, output, error, created_at, updated_at
 		FROM task_tree
 		ORDER BY depth, created_at
-	`
+	`, maxTaskTreeDepth)
 
 	var statesDB []*task.StateDB
 	if err := pgxscan.Select(ctx, r.db, &statesDB, query, rootStateID); err != nil {

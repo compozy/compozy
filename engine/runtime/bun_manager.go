@@ -65,7 +65,8 @@ var bufferPool = sync.Pool{
 type BunManager struct {
 	config      *Config
 	projectRoot string
-	bunVersion  string // Cached Bun version to avoid repeated exec calls
+	bunVersion  string    // Cached Bun version to avoid repeated exec calls
+	bunVerOnce  sync.Once // Ensures version is computed once safely
 }
 
 // MergeWithDefaults merges the provided config with default values for zero fields
@@ -697,21 +698,20 @@ func IsBunAvailable() bool {
 
 // getBunVersion retrieves the Bun version and caches it
 func (bm *BunManager) getBunVersion(ctx context.Context) string {
-	// Return cached version if available
-	if bm.bunVersion != "" {
-		return bm.bunVersion
-	}
-	// Execute bun --version to get the version
-	cmd := exec.Command("bun", "--version")
-	output, err := cmd.Output()
-	if err != nil {
-		logger.FromContext(ctx).Warn("Failed to get Bun version", "error", err)
-		return ""
-	}
-	// Parse version from output (format: "1.0.0" or similar)
-	version := strings.TrimSpace(string(output))
-	bm.bunVersion = version
-	return version
+	bm.bunVerOnce.Do(func() {
+		// Bound the version check to avoid hangs
+		verCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		defer cancel()
+		cmd := exec.CommandContext(verCtx, "bun", "--version")
+		output, err := cmd.Output()
+		if err != nil {
+			logger.FromContext(ctx).Warn("Failed to get Bun version", "error", err)
+			bm.bunVersion = ""
+			return
+		}
+		bm.bunVersion = strings.TrimSpace(string(output))
+	})
+	return bm.bunVersion
 }
 
 // GetBunWorkerFileHash returns a hash of the Bun worker file for caching purposes

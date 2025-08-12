@@ -7,6 +7,53 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestExtractTaskReferencesEdgeCases tests edge cases for task reference extraction
+// including end-of-string and bracketed access patterns
+func TestExtractTaskReferencesEdgeCases(t *testing.T) {
+	tests := []struct {
+		name     string
+		template string
+		expected []string
+	}{
+		{
+			name:     "task reference at end of template",
+			template: "{{ .tasks.foo }}",
+			expected: []string{"foo"},
+		},
+		{
+			name:     "task reference with bracketed access",
+			template: `{{ .tasks.foo["bar"] }}`,
+			expected: []string{"foo"},
+		},
+		{
+			name:     "multiple task references with mixed patterns",
+			template: `{{ .tasks.first }} and {{ .tasks.second.output }} and {{ .tasks.third["key"] }}`,
+			expected: []string{"first", "second", "third"},
+		},
+		{
+			name:     "task reference with array index",
+			template: `{{ .tasks.myTask[0] }}`,
+			expected: []string{"myTask"},
+		},
+		{
+			name:     "task reference with complex bracketed path",
+			template: `{{ .tasks.processTask["result"]["data"] }}`,
+			expected: []string{"processTask"},
+		},
+		{
+			name:     "task reference at end within condition",
+			template: `{{ if .tasks.check }}valid{{ end }}`,
+			expected: []string{"check"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run("Should "+tt.name, func(t *testing.T) {
+			result := extractTaskReferences(tt.template)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
 func TestExtractTaskReferences(t *testing.T) {
 	tests := []struct {
 		name     string

@@ -179,6 +179,11 @@ func (o *DryRunOrchestrator) validateNPMVersions(ctx context.Context, version st
 func (o *DryRunOrchestrator) commentOnPR(ctx context.Context) error {
 	// Get PR number from env (GITHUB_EVENT_PULL_REQUEST_NUMBER or similar; assume set)
 	prNumberStr := os.Getenv("GITHUB_ISSUE_NUMBER") // Adjust env var as needed
+	if prNumberStr == "" {
+		// Skip PR comment if no PR number is available
+		fmt.Println("ℹ️ Skipping PR comment (no PR number found)")
+		return nil
+	}
 	prNumber, err := strconv.Atoi(prNumberStr)
 	if err != nil {
 		return fmt.Errorf("invalid PR number: %w", err)

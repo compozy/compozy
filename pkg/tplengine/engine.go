@@ -23,7 +23,7 @@ import (
 var (
 	templateExpressionRegex = regexp.MustCompile(`{{[^}]*}}`)
 	hyphenatedPathRegex     = regexp.MustCompile(`(\.[a-zA-Z_][a-zA-Z0-9_-]*(?:\.[a-zA-Z_][a-zA-Z0-9_-]*)*)`)
-	taskRefRe               = regexp.MustCompile(`\.tasks\.([a-zA-Z0-9_-]+)\.`)
+	taskRefRe               = regexp.MustCompile(`\.tasks\.([a-zA-Z0-9_-]+)(?:\.|\[|\s|})`)
 )
 
 // EngineFormat represents the format of the template engine output

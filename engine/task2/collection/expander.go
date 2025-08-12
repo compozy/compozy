@@ -157,14 +157,8 @@ func (e *Expander) createChildConfigs(
 			return nil, fmt.Errorf("failed to build child config at index %d: %w", i, err)
 		}
 
-		// NEW: ensure each child owns an independent With map (prevents pointer sharing)
-		if childConfig.With != nil {
-			cloned, err := core.DeepCopy(*childConfig.With)
-			if err != nil {
-				return nil, fmt.Errorf("failed to deep copy With map at index %d: %w", i, err)
-			}
-			childConfig.With = &cloned
-		} else {
+		// Ensure With is non-nil; injectCollectionContext will deep-copy and finalize
+		if childConfig.With == nil {
 			empty := core.Input{}
 			childConfig.With = &empty
 		}

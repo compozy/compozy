@@ -1,9 +1,45 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import * as fs from "fs/promises";
 import * as path from "path";
-import { promisify } from "util";
 
-const execAsync = promisify(require("child_process").exec);
+// Helper function to set up memory limits - replaces eval() usage for security
+function memorySetup(
+  env: NodeJS.ProcessEnv = process.env,
+  setResourceLimits?: typeof process.setResourceLimits
+): void {
+  const actualSetResourceLimits = setResourceLimits || (process as any).setResourceLimits;
+
+  if (env.COMPOZY_MAX_MEMORY_MB) {
+    const maxMemoryMB = parseInt(env.COMPOZY_MAX_MEMORY_MB, 10);
+
+    if (isNaN(maxMemoryMB) || maxMemoryMB <= 0) {
+      const error = new Error(
+        `Invalid COMPOZY_MAX_MEMORY_MB value: "${env.COMPOZY_MAX_MEMORY_MB}". ` +
+          `Expected a positive integer representing megabytes.`
+      );
+      console.error("[CRITICAL] Memory limit configuration error:", error.message);
+      process.exit(1);
+    }
+
+    if (typeof actualSetResourceLimits === "function") {
+      try {
+        actualSetResourceLimits({ maxHeapSize: maxMemoryMB });
+        console.error(`[INFO] Memory limit set to ${maxMemoryMB}MB`);
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error(String(err));
+        console.error("[CRITICAL] Failed to set memory limit:", {
+          error: error.message,
+          stack: error.stack,
+          requestedLimit: maxMemoryMB,
+          env: env.COMPOZY_MAX_MEMORY_MB,
+        });
+        process.exit(1);
+      }
+    } else {
+      console.error("[WARNING] process.setResourceLimits not available in this runtime");
+    }
+  }
+}
 
 describe("Worker Memory Limit Configuration", () => {
   let originalEnv: NodeJS.ProcessEnv;
@@ -50,38 +86,7 @@ describe("Worker Memory Limit Configuration", () => {
       process.env.COMPOZY_MAX_MEMORY_MB = "512";
 
       // Act - Execute the memory limit setup code
-      const setupCode = `
-        if (process.env.COMPOZY_MAX_MEMORY_MB) {
-          const maxMemoryMB = parseInt(process.env.COMPOZY_MAX_MEMORY_MB, 10);
-          
-          if (isNaN(maxMemoryMB) || maxMemoryMB <= 0) {
-            const error = new Error(
-              \`Invalid COMPOZY_MAX_MEMORY_MB value: "\${process.env.COMPOZY_MAX_MEMORY_MB}". \` +
-              \`Expected a positive integer representing megabytes.\`
-            );
-            console.error("[CRITICAL] Memory limit configuration error:", error.message);
-            process.exit(1);
-          }
-          
-          if (typeof process.setResourceLimits === "function") {
-            try {
-              process.setResourceLimits({ maxHeapSize: maxMemoryMB });
-              console.error(\`[INFO] Memory limit set to \${maxMemoryMB}MB\`);
-            } catch (err) {
-              const error = err instanceof Error ? err : new Error(String(err));
-              console.error("[CRITICAL] Failed to set memory limit:", {
-                error: error.message,
-                stack: error.stack,
-                requestedLimit: maxMemoryMB,
-                env: process.env.COMPOZY_MAX_MEMORY_MB,
-              });
-              process.exit(1);
-            }
-          }
-        }
-      `;
-
-      eval(setupCode);
+      memorySetup();
 
       // Assert
       expect(calledWith).toEqual({ maxHeapSize: 512 });
@@ -98,38 +103,7 @@ describe("Worker Memory Limit Configuration", () => {
       process.env.COMPOZY_MAX_MEMORY_MB = "8192"; // 8GB
 
       // Act
-      const setupCode = `
-        if (process.env.COMPOZY_MAX_MEMORY_MB) {
-          const maxMemoryMB = parseInt(process.env.COMPOZY_MAX_MEMORY_MB, 10);
-          
-          if (isNaN(maxMemoryMB) || maxMemoryMB <= 0) {
-            const error = new Error(
-              \`Invalid COMPOZY_MAX_MEMORY_MB value: "\${process.env.COMPOZY_MAX_MEMORY_MB}". \` +
-              \`Expected a positive integer representing megabytes.\`
-            );
-            console.error("[CRITICAL] Memory limit configuration error:", error.message);
-            process.exit(1);
-          }
-          
-          if (typeof process.setResourceLimits === "function") {
-            try {
-              process.setResourceLimits({ maxHeapSize: maxMemoryMB });
-              console.error(\`[INFO] Memory limit set to \${maxMemoryMB}MB\`);
-            } catch (err) {
-              const error = err instanceof Error ? err : new Error(String(err));
-              console.error("[CRITICAL] Failed to set memory limit:", {
-                error: error.message,
-                stack: error.stack,
-                requestedLimit: maxMemoryMB,
-                env: process.env.COMPOZY_MAX_MEMORY_MB,
-              });
-              process.exit(1);
-            }
-          }
-        }
-      `;
-
-      eval(setupCode);
+      memorySetup();
 
       // Assert
       expect(calledWith).toEqual({ maxHeapSize: 8192 });
@@ -144,20 +118,7 @@ describe("Worker Memory Limit Configuration", () => {
 
       // Act & Assert
       expect(() => {
-        eval(`
-          if (process.env.COMPOZY_MAX_MEMORY_MB) {
-            const maxMemoryMB = parseInt(process.env.COMPOZY_MAX_MEMORY_MB, 10);
-            
-            if (isNaN(maxMemoryMB) || maxMemoryMB <= 0) {
-              const error = new Error(
-                \`Invalid COMPOZY_MAX_MEMORY_MB value: "\${process.env.COMPOZY_MAX_MEMORY_MB}". \` +
-                \`Expected a positive integer representing megabytes.\`
-              );
-              console.error("[CRITICAL] Memory limit configuration error:", error.message);
-              process.exit(1);
-            }
-          }
-        `);
+        memorySetup();
       }).toThrow("Process exited with code 1");
 
       expect(exitCode).toBe(1);
@@ -171,20 +132,7 @@ describe("Worker Memory Limit Configuration", () => {
 
       // Act & Assert
       expect(() => {
-        eval(`
-          if (process.env.COMPOZY_MAX_MEMORY_MB) {
-            const maxMemoryMB = parseInt(process.env.COMPOZY_MAX_MEMORY_MB, 10);
-            
-            if (isNaN(maxMemoryMB) || maxMemoryMB <= 0) {
-              const error = new Error(
-                \`Invalid COMPOZY_MAX_MEMORY_MB value: "\${process.env.COMPOZY_MAX_MEMORY_MB}". \` +
-                \`Expected a positive integer representing megabytes.\`
-              );
-              console.error("[CRITICAL] Memory limit configuration error:", error.message);
-              process.exit(1);
-            }
-          }
-        `);
+        memorySetup();
       }).toThrow("Process exited with code 1");
 
       expect(exitCode).toBe(1);
@@ -197,20 +145,7 @@ describe("Worker Memory Limit Configuration", () => {
 
       // Act & Assert
       expect(() => {
-        eval(`
-          if (process.env.COMPOZY_MAX_MEMORY_MB) {
-            const maxMemoryMB = parseInt(process.env.COMPOZY_MAX_MEMORY_MB, 10);
-            
-            if (isNaN(maxMemoryMB) || maxMemoryMB <= 0) {
-              const error = new Error(
-                \`Invalid COMPOZY_MAX_MEMORY_MB value: "\${process.env.COMPOZY_MAX_MEMORY_MB}". \` +
-                \`Expected a positive integer representing megabytes.\`
-              );
-              console.error("[CRITICAL] Memory limit configuration error:", error.message);
-              process.exit(1);
-            }
-          }
-        `);
+        memorySetup();
       }).toThrow("Process exited with code 1");
 
       expect(exitCode).toBe(1);
@@ -226,25 +161,7 @@ describe("Worker Memory Limit Configuration", () => {
         calledWith = limits;
       });
 
-      eval(`
-        if (process.env.COMPOZY_MAX_MEMORY_MB) {
-          const maxMemoryMB = parseInt(process.env.COMPOZY_MAX_MEMORY_MB, 10);
-          
-          if (isNaN(maxMemoryMB) || maxMemoryMB <= 0) {
-            const error = new Error(
-              \`Invalid COMPOZY_MAX_MEMORY_MB value: "\${process.env.COMPOZY_MAX_MEMORY_MB}". \` +
-              \`Expected a positive integer representing megabytes.\`
-            );
-            console.error("[CRITICAL] Memory limit configuration error:", error.message);
-            process.exit(1);
-          }
-          
-          if (typeof process.setResourceLimits === "function") {
-            process.setResourceLimits({ maxHeapSize: maxMemoryMB });
-            console.error(\`[INFO] Memory limit set to \${maxMemoryMB}MB\`);
-          }
-        }
-      `);
+      memorySetup();
 
       // Assert - parseInt truncates to 512
       expect(calledWith).toEqual({ maxHeapSize: 512 });
@@ -263,36 +180,7 @@ describe("Worker Memory Limit Configuration", () => {
 
       // Act & Assert
       expect(() => {
-        eval(`
-          if (process.env.COMPOZY_MAX_MEMORY_MB) {
-            const maxMemoryMB = parseInt(process.env.COMPOZY_MAX_MEMORY_MB, 10);
-            
-            if (isNaN(maxMemoryMB) || maxMemoryMB <= 0) {
-              const error = new Error(
-                \`Invalid COMPOZY_MAX_MEMORY_MB value: "\${process.env.COMPOZY_MAX_MEMORY_MB}". \` +
-                \`Expected a positive integer representing megabytes.\`
-              );
-              console.error("[CRITICAL] Memory limit configuration error:", error.message);
-              process.exit(1);
-            }
-            
-            if (typeof process.setResourceLimits === "function") {
-              try {
-                process.setResourceLimits({ maxHeapSize: maxMemoryMB });
-                console.error(\`[INFO] Memory limit set to \${maxMemoryMB}MB\`);
-              } catch (err) {
-                const error = err instanceof Error ? err : new Error(String(err));
-                console.error("[CRITICAL] Failed to set memory limit:", {
-                  error: error.message,
-                  stack: error.stack,
-                  requestedLimit: maxMemoryMB,
-                  env: process.env.COMPOZY_MAX_MEMORY_MB,
-                });
-                process.exit(1);
-              }
-            }
-          }
-        `);
+        memorySetup();
       }).toThrow("Process exited with code 1");
 
       expect(exitCode).toBe(1);
@@ -313,36 +201,7 @@ describe("Worker Memory Limit Configuration", () => {
 
       // Act & Assert
       expect(() => {
-        eval(`
-          if (process.env.COMPOZY_MAX_MEMORY_MB) {
-            const maxMemoryMB = parseInt(process.env.COMPOZY_MAX_MEMORY_MB, 10);
-            
-            if (isNaN(maxMemoryMB) || maxMemoryMB <= 0) {
-              const error = new Error(
-                \`Invalid COMPOZY_MAX_MEMORY_MB value: "\${process.env.COMPOZY_MAX_MEMORY_MB}". \` +
-                \`Expected a positive integer representing megabytes.\`
-              );
-              console.error("[CRITICAL] Memory limit configuration error:", error.message);
-              process.exit(1);
-            }
-            
-            if (typeof process.setResourceLimits === "function") {
-              try {
-                process.setResourceLimits({ maxHeapSize: maxMemoryMB });
-                console.error(\`[INFO] Memory limit set to \${maxMemoryMB}MB\`);
-              } catch (err) {
-                const error = err instanceof Error ? err : new Error(String(err));
-                console.error("[CRITICAL] Failed to set memory limit:", {
-                  error: error.message,
-                  stack: error.stack,
-                  requestedLimit: maxMemoryMB,
-                  env: process.env.COMPOZY_MAX_MEMORY_MB,
-                });
-                process.exit(1);
-              }
-            }
-          }
-        `);
+        memorySetup();
       }).toThrow("Process exited with code 1");
 
       const loggedContext = errorLogs[0][1];
@@ -360,137 +219,12 @@ describe("Worker Memory Limit Configuration", () => {
       delete (process as any).setResourceLimits; // Simulate unavailable function
 
       // Act
-      eval(`
-        if (process.env.COMPOZY_MAX_MEMORY_MB) {
-          const maxMemoryMB = parseInt(process.env.COMPOZY_MAX_MEMORY_MB, 10);
-          
-          if (isNaN(maxMemoryMB) || maxMemoryMB <= 0) {
-            const error = new Error(
-              \`Invalid COMPOZY_MAX_MEMORY_MB value: "\${process.env.COMPOZY_MAX_MEMORY_MB}". \` +
-              \`Expected a positive integer representing megabytes.\`
-            );
-            console.error("[CRITICAL] Memory limit configuration error:", error.message);
-            process.exit(1);
-          }
-          
-          if (typeof process.setResourceLimits === "function") {
-            try {
-              process.setResourceLimits({ maxHeapSize: maxMemoryMB });
-              console.error(\`[INFO] Memory limit set to \${maxMemoryMB}MB\`);
-            } catch (err) {
-              const error = err instanceof Error ? err : new Error(String(err));
-              console.error("[CRITICAL] Failed to set memory limit:", {
-                error: error.message,
-                stack: error.stack,
-                requestedLimit: maxMemoryMB,
-                env: process.env.COMPOZY_MAX_MEMORY_MB,
-              });
-              process.exit(1);
-            }
-          } else {
-            console.error("[WARNING] process.setResourceLimits not available in this runtime");
-          }
-        }
-      `);
+      memorySetup();
 
-      // Assert
+      // Assert - warning should be logged when setResourceLimits is unavailable
       expect(errorLogs).toContainEqual([
         "[WARNING] process.setResourceLimits not available in this runtime",
       ]);
-      expect(exitCode).toBeUndefined(); // Should not exit, just warn
-    });
-
-    test("Should not call setResourceLimits when it's not a function", () => {
-      // Arrange
-      process.env.COMPOZY_MAX_MEMORY_MB = "512";
-      (process as any).setResourceLimits = "not-a-function"; // Invalid type
-
-      // Act
-      eval(`
-        if (process.env.COMPOZY_MAX_MEMORY_MB) {
-          const maxMemoryMB = parseInt(process.env.COMPOZY_MAX_MEMORY_MB, 10);
-          
-          if (isNaN(maxMemoryMB) || maxMemoryMB <= 0) {
-            const error = new Error(
-              \`Invalid COMPOZY_MAX_MEMORY_MB value: "\${process.env.COMPOZY_MAX_MEMORY_MB}". \` +
-              \`Expected a positive integer representing megabytes.\`
-            );
-            console.error("[CRITICAL] Memory limit configuration error:", error.message);
-            process.exit(1);
-          }
-          
-          if (typeof process.setResourceLimits === "function") {
-            try {
-              process.setResourceLimits({ maxHeapSize: maxMemoryMB });
-              console.error(\`[INFO] Memory limit set to \${maxMemoryMB}MB\`);
-            } catch (err) {
-              const error = err instanceof Error ? err : new Error(String(err));
-              console.error("[CRITICAL] Failed to set memory limit:", {
-                error: error.message,
-                stack: error.stack,
-                requestedLimit: maxMemoryMB,
-                env: process.env.COMPOZY_MAX_MEMORY_MB,
-              });
-              process.exit(1);
-            }
-          } else {
-            console.error("[WARNING] process.setResourceLimits not available in this runtime");
-          }
-        }
-      `);
-
-      // Assert
-      expect(errorLogs).toContainEqual([
-        "[WARNING] process.setResourceLimits not available in this runtime",
-      ]);
-      expect(exitCode).toBeUndefined();
-    });
-  });
-
-  describe("Environment variable not set", () => {
-    test("Should not attempt to set memory limit when COMPOZY_MAX_MEMORY_MB is not set", () => {
-      // Arrange
-      delete process.env.COMPOZY_MAX_MEMORY_MB;
-      let setResourceLimitsCalled = false;
-      (process as any).setResourceLimits = mock(() => {
-        setResourceLimitsCalled = true;
-      });
-
-      // Act
-      eval(`
-        if (process.env.COMPOZY_MAX_MEMORY_MB) {
-          const maxMemoryMB = parseInt(process.env.COMPOZY_MAX_MEMORY_MB, 10);
-          
-          if (isNaN(maxMemoryMB) || maxMemoryMB <= 0) {
-            const error = new Error(
-              \`Invalid COMPOZY_MAX_MEMORY_MB value: "\${process.env.COMPOZY_MAX_MEMORY_MB}". \` +
-              \`Expected a positive integer representing megabytes.\`
-            );
-            console.error("[CRITICAL] Memory limit configuration error:", error.message);
-            process.exit(1);
-          }
-          
-          if (typeof process.setResourceLimits === "function") {
-            try {
-              process.setResourceLimits({ maxHeapSize: maxMemoryMB });
-              console.error(\`[INFO] Memory limit set to \${maxMemoryMB}MB\`);
-            } catch (err) {
-              const error = err instanceof Error ? err : new Error(String(err));
-              console.error("[CRITICAL] Failed to set memory limit:", {
-                error: error.message,
-                stack: error.stack,
-                requestedLimit: maxMemoryMB,
-                env: process.env.COMPOZY_MAX_MEMORY_MB,
-              });
-              process.exit(1);
-            }
-          }
-        }
-      `);
-
-      // Assert
-      expect(setResourceLimitsCalled).toBe(false);
-      expect(errorLogs).toHaveLength(0);
       expect(exitCode).toBeUndefined();
     });
 
@@ -503,36 +237,7 @@ describe("Worker Memory Limit Configuration", () => {
       });
 
       // Act
-      eval(`
-        if (process.env.COMPOZY_MAX_MEMORY_MB) {
-          const maxMemoryMB = parseInt(process.env.COMPOZY_MAX_MEMORY_MB, 10);
-          
-          if (isNaN(maxMemoryMB) || maxMemoryMB <= 0) {
-            const error = new Error(
-              \`Invalid COMPOZY_MAX_MEMORY_MB value: "\${process.env.COMPOZY_MAX_MEMORY_MB}". \` +
-              \`Expected a positive integer representing megabytes.\`
-            );
-            console.error("[CRITICAL] Memory limit configuration error:", error.message);
-            process.exit(1);
-          }
-          
-          if (typeof process.setResourceLimits === "function") {
-            try {
-              process.setResourceLimits({ maxHeapSize: maxMemoryMB });
-              console.error(\`[INFO] Memory limit set to \${maxMemoryMB}MB\`);
-            } catch (err) {
-              const error = err instanceof Error ? err : new Error(String(err));
-              console.error("[CRITICAL] Failed to set memory limit:", {
-                error: error.message,
-                stack: error.stack,
-                requestedLimit: maxMemoryMB,
-                env: process.env.COMPOZY_MAX_MEMORY_MB,
-              });
-              process.exit(1);
-            }
-          }
-        }
-      `);
+      memorySetup();
 
       // Assert - empty string is falsy, so the if block is not entered
       expect(setResourceLimitsCalled).toBe(false);

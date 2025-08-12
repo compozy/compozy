@@ -294,7 +294,7 @@ func (m *MockLLM) routeResponse(prompt string) string {
 		return m.responseForProcessCity(prompt)
 	case helpers.ContainsAny(prompt, "Read file content", "read_content"):
 		return `{"content":"// Mock file content for testing\npackage main\n\nfunc main() {\n\t// Sample code\n}"}`
-	case helpers.ContainsAny(prompt, "Analyze the following Go code file", "analyze"):
+	case helpers.ContainsAny(prompt, "Analyze the following Go code file"):
 		return `{
             "review": "Code looks good. No major issues found.",
             "suggestions": ["Consider adding error handling", "Add comments for complex logic"],
@@ -314,17 +314,17 @@ func (m *MockLLM) routeResponse(prompt string) string {
 
 func (m *MockLLM) responseForAnalyzeActivity(prompt string) string {
 	switch {
-	case strings.Contains(prompt, "hiking"):
+	case helpers.Contains(prompt, "hiking"):
 		return `{
             "analysis": "Excellent outdoor activity for cardiovascular health",
             "rating": 5
         }`
-	case strings.Contains(prompt, "swimming"):
+	case helpers.Contains(prompt, "swimming"):
 		return `{
             "analysis": "Great full-body workout with low impact",
             "rating": 5
         }`
-	case strings.Contains(prompt, "cycling"):
+	case helpers.Contains(prompt, "cycling"):
 		return `{
             "analysis": "Efficient cardio exercise that builds leg strength",
             "rating": 4
@@ -339,17 +339,17 @@ func (m *MockLLM) responseForAnalyzeActivity(prompt string) string {
 
 func (m *MockLLM) responseForProcessCity(prompt string) string {
 	switch {
-	case strings.Contains(prompt, "Seattle"):
+	case helpers.Contains(prompt, "Seattle"):
 		return `{
             "weather": "Rainy",
             "population": 750000
         }`
-	case strings.Contains(prompt, "Portland"):
+	case helpers.Contains(prompt, "Portland"):
 		return `{
             "weather": "Cloudy",
             "population": 650000
         }`
-	case strings.Contains(prompt, "Vancouver"):
+	case helpers.Contains(prompt, "Vancouver"):
 		return `{
             "weather": "Mild",
             "population": 700000

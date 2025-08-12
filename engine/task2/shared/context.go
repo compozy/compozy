@@ -81,6 +81,12 @@ func (cb *ContextBuilder) buildContextInternal(
 	taskConfig *task.Config,
 	parentExecID *core.ID, // can be nil – means "discover heuristically"
 ) *NormalizationContext {
+	if workflowState == nil {
+		workflowState = &workflow.State{}
+	}
+	if workflowConfig == nil {
+		workflowConfig = &workflow.Config{}
+	}
 	nc := &NormalizationContext{
 		WorkflowState:  workflowState,
 		WorkflowConfig: workflowConfig,

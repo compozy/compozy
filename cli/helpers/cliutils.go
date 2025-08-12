@@ -288,10 +288,14 @@ func Contains(s, substr string) bool {
 }
 
 // ContainsAny returns true if s contains any of the provided substrings.
-// The comparison is case-insensitive.
+// The comparison is case-insensitive. Empty substrings are ignored.
 func ContainsAny(s string, substrings ...string) bool {
+	lower := strings.ToLower(s)
 	for _, sub := range substrings {
-		if Contains(s, sub) {
+		if sub == "" {
+			continue
+		}
+		if strings.Contains(lower, strings.ToLower(sub)) {
 			return true
 		}
 	}

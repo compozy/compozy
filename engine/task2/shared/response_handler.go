@@ -13,6 +13,12 @@ import (
 	"github.com/compozy/compozy/pkg/tplengine"
 )
 
+// Keys used in output maps
+const (
+	outputKeyError   = "error"
+	outputKeySuccess = "success"
+)
+
 // BaseResponseHandler provides common response handling logic for all task types
 type BaseResponseHandler struct {
 	templateEngine      *tplengine.TemplateEngine
@@ -158,7 +164,7 @@ func (h *BaseResponseHandler) detectOutputError(output *core.Output) error {
 
 // checkErrorField checks for explicit error field in output
 func (h *BaseResponseHandler) checkErrorField(output *core.Output) error {
-	errVal, ok := (*output)["error"]
+	errVal, ok := (*output)[outputKeyError]
 	if !ok || errVal == nil {
 		return nil
 	}
@@ -182,7 +188,7 @@ func (h *BaseResponseHandler) checkErrorField(output *core.Output) error {
 
 // checkSuccessField checks for success=false indicator in output
 func (h *BaseResponseHandler) checkSuccessField(output *core.Output) error {
-	successVal, ok := (*output)["success"]
+	successVal, ok := (*output)[outputKeySuccess]
 	if !ok {
 		return nil
 	}
@@ -201,7 +207,7 @@ func (h *BaseResponseHandler) checkSuccessField(output *core.Output) error {
 
 // getTaskFailureError returns appropriate error for task failure
 func (h *BaseResponseHandler) getTaskFailureError(output *core.Output) error {
-	if errVal, ok := (*output)["error"]; ok && errVal != nil {
+	if errVal, ok := (*output)[outputKeyError]; ok && errVal != nil {
 		return fmt.Errorf("task failed: %v", errVal)
 	}
 	return fmt.Errorf("task output reported success=false")
@@ -226,7 +232,7 @@ func (h *BaseResponseHandler) processTaskExecutionResult(
 
 	// Apply output transformation if needed
 	// Skip for collection/parallel tasks as they need children data first
-	if isSuccess && !h.shouldDeferOutputTransformation(input.TaskConfig) {
+	if isSuccess && !h.ShouldDeferOutputTransformation(input.TaskConfig) {
 		state.UpdateStatus(core.StatusSuccess)
 		if input.TaskConfig.GetOutputs() != nil && state.Output != nil {
 			if err := h.applyOutputTransformation(ctx, input); err != nil {
@@ -243,12 +249,6 @@ func (h *BaseResponseHandler) processTaskExecutionResult(
 	}
 
 	return isSuccess, executionErr
-}
-
-// shouldDeferOutputTransformation determines if output transformation should be deferred
-// Extracted from TaskResponder.shouldDeferOutputTransformation
-func (h *BaseResponseHandler) shouldDeferOutputTransformation(taskConfig *task.Config) bool {
-	return taskConfig.Type == task.TaskTypeCollection || taskConfig.Type == task.TaskTypeParallel
 }
 
 // processTransitions normalizes transitions and validates error handling requirements
@@ -537,6 +537,9 @@ func (h *BaseResponseHandler) ValidateInput(input *ResponseInput) error {
 
 // CreateResponseContext creates response context for the given input
 func (h *BaseResponseHandler) CreateResponseContext(input *ResponseInput) *ResponseContext {
+	if input == nil || input.TaskState == nil || input.TaskConfig == nil {
+		return &ResponseContext{}
+	}
 	context := &ResponseContext{
 		IsParentTask: input.TaskState.ParentStateID != nil,
 	}

@@ -92,15 +92,19 @@ func (a *ExecuteBasic) Run(ctx context.Context, input *ExecuteBasicInput) (*task
 	}
 	// Build proper normalization context with all template variables
 	normContext := contextBuilder.BuildContext(workflowState, workflowConfig, input.TaskConfig)
-	// Ensure task-level With is available as `.input` for templates (e.g., agent prompts)
-	normContext.CurrentInput = input.TaskConfig.With
-	if input.TaskConfig.With != nil {
-		contextBuilder.VariableBuilder.AddCurrentInputToVariables(normContext.Variables, input.TaskConfig.With)
-	}
+	// Don't inject raw TaskConfig.With before normalization - this causes circular dependency
+	// The workflow-level .input should be preserved for template processing
+
 	// Normalize the task configuration
 	normalizedConfig := input.TaskConfig
 	if err := normalizer.Normalize(normalizedConfig, normContext); err != nil {
 		return nil, fmt.Errorf("failed to normalize basic task: %w", err)
+	}
+	// AFTER normalization - add rendered with: as .input for downstream use
+	// This makes the normalized (template-processed) values available to agents/sub-tasks
+	if normalizedConfig.With != nil {
+		normContext.CurrentInput = normalizedConfig.With
+		contextBuilder.VariableBuilder.AddCurrentInputToVariables(normContext.Variables, normalizedConfig.With)
 	}
 	// Validate task type
 	if normalizedConfig.Type != task.TaskTypeBasic {

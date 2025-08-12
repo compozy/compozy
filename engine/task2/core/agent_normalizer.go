@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/engine/agent"
-	"github.com/compozy/compozy/engine/core"
+	enginecore "github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/pkg/tplengine"
 )
@@ -40,12 +40,12 @@ func (n *AgentNormalizer) buildTaskMetadata(id, taskType string, config any) map
 
 // parseInputTemplates resolves any template expressions contained in the
 // provided core.Input using the supplied template context. It returns a new
-// *core.Input with the parsed values or the original pointer if no changes are
+// *enginecore.Input with the parsed values or the original pointer if no changes are
 // necessary.
 func (n *AgentNormalizer) parseInputTemplates(
-	input *core.Input,
+	input *enginecore.Input,
 	templateCtx map[string]any,
-) (*core.Input, error) {
+) (*enginecore.Input, error) {
 	if input == nil || *input == nil || len(*input) == 0 {
 		return input, nil
 	}
@@ -60,7 +60,7 @@ func (n *AgentNormalizer) parseInputTemplates(
 		return nil, fmt.Errorf("parsed input is not a map (got %T)", parsedAny)
 	}
 
-	parsedInput := core.Input(parsedMap)
+	parsedInput := enginecore.Input(parsedMap)
 	return &parsedInput, nil
 }
 

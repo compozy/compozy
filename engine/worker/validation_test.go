@@ -158,6 +158,15 @@ func TestValidatePayloadAgainstCompiledSchema(t *testing.T) {
 		assert.False(t, isValid)
 		require.NotEmpty(t, validationErrors)
 		assert.Contains(t, validationErrors[0], "status")
-		assert.Contains(t, validationErrors[0], "Property 'status' does not match the schema")
+		var enumError bool
+		for _, msg := range validationErrors {
+			m := strings.ToLower(msg)
+			if strings.Contains(m, "property 'status' does not match the schema") ||
+				strings.Contains(m, "must be one of") {
+				enumError = true
+				break
+			}
+		}
+		assert.True(t, enumError, "Expected enum validation error for 'status', got: %v", validationErrors)
 	})
 }

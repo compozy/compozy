@@ -56,8 +56,6 @@ const (
 	DefaultBatchSize        = 100 // Default batch size for parent updates
 )
 
-// Environment variables - REMOVED: Now using pkg/config with COMPOZY_ prefixed env vars
-
 // Context keys
 const (
 	IDKey       = "id"
