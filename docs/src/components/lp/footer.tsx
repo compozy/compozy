@@ -15,18 +15,6 @@ const footerLinks = [
     title: "GitHub",
     href: "https://github.com/compozy/compozy",
   },
-  {
-    title: "Discord",
-    href: "https://discord.gg/compozy",
-  },
-  {
-    title: "Blog",
-    href: "/blog",
-  },
-  {
-    title: "Changelog",
-    href: "/changelog",
-  },
 ];
 
 export const Footer = () => {

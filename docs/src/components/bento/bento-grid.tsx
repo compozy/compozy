@@ -8,7 +8,7 @@ import styles from "./bento-grid.module.css";
 
 // Tailwind Variants for Bento Grid
 const bentoGrid = tv({
-  base: "grid w-full auto-rows-auto grid-cols-1 gap-6 lg:grid-cols-12",
+  base: "grid w-full auto-rows-auto grid-cols-1 gap-y-6 lg:gap-6 lg:grid-cols-12",
 });
 
 // Tailwind Variants for base Bento Card - only truly reusable styles
@@ -61,7 +61,7 @@ BentoCard.displayName = "BentoCard";
 const ReliabilityCard: React.FC = () => {
   return (
     <BentoCard
-      className="md:col-span-4 min-h-[28rem] @md:min-h-[30rem] p-8"
+      className="md:col-span-4 min-h-[28rem] @md:min-h-[30rem] p-8 sm:p-12"
       background={<div className={styles.card1Bg} />}
       icon={
         <Image
@@ -84,7 +84,7 @@ const ReliabilityCard: React.FC = () => {
               <span className="text-gradient-green">Reliability</span>
             </h3>
           </div>
-          <p className="text-lg text-[#C1C1C1] leading-[1.78] max-w-[90%]">
+          <p className="text-lg text-[#C1C1C1] leading-[1.78] max-w-[90%] max-sm:pb-32">
             Compozy is built on Temporal—a proven workflow engine trusted by Fortune 500
             companies—delivering durable, fault-tolerant workflows that withstand failures
           </p>
@@ -98,7 +98,7 @@ const ReliabilityCard: React.FC = () => {
 const ScalableCard: React.FC = () => {
   return (
     <BentoCard
-      className="md:col-span-4 min-h-[28rem] @md:min-h-[30rem] p-8"
+      className="md:col-span-4 min-h-[28rem] @md:min-h-[30rem] p-8 sm:p-12"
       background={<div className={styles.card2Bg} />}
       icon={
         <Image
@@ -135,7 +135,7 @@ const ScalableCard: React.FC = () => {
 const OpenSourceCard: React.FC = () => {
   return (
     <BentoCard
-      className="md:col-span-4 min-h-[28rem] @md:min-h-[30rem] p-8"
+      className="md:col-span-4 min-h-[28rem] @md:min-h-[30rem] p-8 sm:p-12"
       background={<div className={styles.card3Bg} />}
       icon={
         <Image
@@ -157,7 +157,7 @@ const OpenSourceCard: React.FC = () => {
             <span className="text-gradient-green">Advantage</span>
           </h3>
         </div>
-        <p className="text-lg text-[#C1C1C1] leading-[1.78] max-w-[80%] mt-4">
+        <p className="text-lg text-[#C1C1C1] leading-[1.78] max-w-[80%] mt-4 max-sm:pb-32">
           Fully customizable and free from vendor lock-in, our multi-agent platform delivers robust
           enterprise features right out of the box.
         </p>
@@ -170,7 +170,7 @@ const OpenSourceCard: React.FC = () => {
 const OrchestrationCard: React.FC = () => {
   return (
     <BentoCard
-      className="md:col-span-6 min-h-[37rem] p-12"
+      className="md:col-span-6 min-h-[37rem] p-8 sm:p-12"
       background={<div className={styles.card4Bg} />}
       icon={
         <Image
@@ -192,7 +192,7 @@ const OrchestrationCard: React.FC = () => {
             <span className="text-gradient-gray">Orchestration</span>
           </h3>
         </div>
-        <p className="text-lg text-[#C1C1C1] leading-[1.78] max-w-[90%] mt-4">
+        <p className="text-lg text-[#C1C1C1] leading-[1.78] max-w-[90%] mt-4 max-sm:pb-40">
           Offering support for AI agents, a broad spectrum of task types, and custom JS/TS tooling
           via a modern runtime, our platform seamlessly integrates with external systems, handles
           signals, manages scheduled workflows, and advanced memory management.
@@ -206,7 +206,7 @@ const OrchestrationCard: React.FC = () => {
 const LanguageAgnosticCard: React.FC = () => {
   return (
     <BentoCard
-      className="md:col-span-6 min-h-[37rem] p-12"
+      className="md:col-span-6 min-h-[37rem] p-8 sm:p-12"
       background={<div className={styles.card5Bg} />}
       icon={
         <Image
@@ -228,7 +228,7 @@ const LanguageAgnosticCard: React.FC = () => {
             <span className="text-gradient-gray">by Design</span>
           </h3>
         </div>
-        <p className="text-lg text-[#C1C1C1] leading-[1.78] max-w-[90%] mt-4">
+        <p className="text-lg text-[#C1C1C1] leading-[1.78] max-w-[90%] mt-4 max-sm:pb-40">
           Our declarative YAML-based approach makes workflows easy for LLMs to learn and generate,
           while enabling future multi-language support—all powered by Go's efficient backend core as
           the platform foundation, offering greater accessibility than code-heavy competitors.

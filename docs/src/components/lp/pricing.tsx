@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { Building2, CircleCheck, Cloud, Github } from "lucide-react";
+import Link from "next/link";
 import { tv } from "tailwind-variants";
 
 const pricingStyles = tv({
@@ -13,9 +14,9 @@ const pricingStyles = tv({
     container: "container mx-auto px-4",
     header: "text-center mb-12 md:mb-24",
     headerBadge: "mb-4",
-    headerTitle: "!text-foreground text-3xl md:text-4xl lg:text-5xl font-bold mb-4",
+    headerTitle: "!text-foreground text-3xl md:text-4xl lg:text-5xl mb-4",
     headerDescription: "text-muted-foreground text-lg max-w-3xl mx-auto",
-    grid: "max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-0 lg:gap-4",
+    grid: "max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6",
     card: "relative bg-background border rounded-2xl p-8 transition-all lg:rounded-none lg:first:rounded-l-2xl lg:last:rounded-r-2xl flex flex-col h-full",
     popularBadge: "absolute -top-3 left-1/2 -translate-x-1/2 px-4",
     cardContent: "mb-6",
@@ -35,7 +36,7 @@ const pricingStyles = tv({
   variants: {
     isPopular: {
       true: {
-        card: "!rounded-2xl border-2 border-primary shadow-lg scale-105 lg:scale-110 z-10",
+        card: "!rounded-2xl border-2 border-primary shadow-lg md:scale-105 lg:scale-110 z-10",
       },
     },
     isDisabled: {
@@ -54,6 +55,7 @@ interface Plan {
   buttonText: string;
   buttonVariant: "primary" | "outline" | "secondary" | "ghost" | "destructive";
   buttonHref?: string;
+  href?: string;
   icon: typeof Github;
   isPopular?: boolean;
   isDisabled?: boolean;
@@ -75,9 +77,9 @@ const plans: Plan[] = [
       "Self-hosted deployment",
       "Community support",
     ],
-    buttonText: "Get Started on GitHub",
+    buttonText: "Get Started",
     buttonVariant: "outline" as const,
-    buttonHref: "https://github.com/compozy/compozy",
+    href: "/docs/core/getting-started/installation",
     icon: Github,
   },
   {
@@ -119,12 +121,12 @@ const plans: Plan[] = [
     buttonHref: "mailto:sales@compozy.com",
     icon: Building2,
   },
-];
+] as const;
 
 export const Pricing = () => {
   const styles = pricingStyles();
 
-  const handleButtonClick = (plan: Plan) => {
+  const handleExternalButtonClick = (plan: Plan) => {
     if (plan.buttonHref) {
       window.open(plan.buttonHref, plan.name === "Enterprise" ? "_self" : "_blank");
     }
@@ -192,15 +194,27 @@ export const Pricing = () => {
                   ))}
                 </ul>
 
-                <Button
-                  variant={plan.buttonVariant}
-                  size="lg"
-                  className={styles.button()}
-                  disabled={plan.isDisabled}
-                  onClick={() => handleButtonClick(plan)}
-                >
-                  {plan.buttonText}
-                </Button>
+                {plan.href ? (
+                  <Button
+                    variant={plan.buttonVariant}
+                    size="lg"
+                    className={styles.button()}
+                    disabled={plan.isDisabled}
+                    asChild
+                  >
+                    <Link href={plan.href}>{plan.buttonText}</Link>
+                  </Button>
+                ) : (
+                  <Button
+                    variant={plan.buttonVariant}
+                    size="lg"
+                    className={styles.button()}
+                    disabled={plan.isDisabled}
+                    onClick={() => handleExternalButtonClick(plan)}
+                  >
+                    {plan.buttonText}
+                  </Button>
+                )}
               </div>
             );
           })}

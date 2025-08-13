@@ -3,7 +3,7 @@ title: First Workflow
 description: Interactive walkthrough to build your first complete workflow
 ---
 
-In this comprehensive tutorial, you'll build a complete AI-powered workflow that demonstrates Compozy's core features. We'll create a **Go Code Analyzer** that analyzes Go source files for performance issues and best practices using Claude Code SDK, showcasing parallel task execution and advanced AI-powered code analysis.
+In this comprehensive tutorial, you'll build a complete AI-powered workflow that demonstrates Compozy's core features. We'll create a **Go Code Reviewer** that analyzes all Go source files in a directory, showcasing parallel task execution and advanced AI-powered code analysis.
 
 ## Related Concepts
 
@@ -39,11 +39,10 @@ In this comprehensive tutorial, you'll build a complete AI-powered workflow that
 By the end of this tutorial, you'll have a workflow that:
 
 <List>
-  <ListItem title="File Path Input">Accepts Go source file paths for comprehensive code analysis</ListItem>
-  <ListItem title="Performance Analysis">Uses Claude Code SDK to analyze performance bottlenecks and optimization opportunities</ListItem>
-  <ListItem title="Best Practices Review">Evaluates Go code against established best practices and idioms</ListItem>
-  <ListItem title="Parallel Processing">Demonstrates concurrent analysis tasks for maximum efficiency</ListItem>
-  <ListItem title="Report Generation">Creates detailed Markdown reports with findings and recommendations</ListItem>
+  <ListItem title="Directory Input">Accepts a directory path to scan for Go source files.</ListItem>
+  <ListItem title="File Discovery">Lists all `.go` files within the specified directory.</ListItem>
+  <ListItem title="Parallel Analysis">Uses an AI agent to review each file concurrently for maximum efficiency.</ListItem>
+  <ListItem title="Report Generation">Creates a detailed Markdown review for each analyzed file.</ListItem>
 </List>
 
 ## Prerequisites
@@ -52,9 +51,8 @@ Before starting, ensure you have:
 - Compozy installed and running ([Installation Guide](/docs/getting-started/installation))
 - Basic understanding of [Core Concepts](/docs/getting-started/core-concepts)
 - A text editor or IDE
-- API key for Claude API (we'll use Anthropic's Claude Code SDK)
-- Go source files to analyze (or use our provided sample)
-
+- API key for OpenAI API
+- A directory with Go source files to analyze.
 
 ## Building the project
 
@@ -65,8 +63,8 @@ Before starting, ensure you have:
 Create a new directory for your workflow project:
 
 ```bash
-mkdir go-code-analyzer
-cd go-code-analyzer
+mkdir go-code-reviewer
+cd go-code-reviewer
 ```
 
 You'll be creating a project with the following structure:
@@ -74,38 +72,38 @@ You'll be creating a project with the following structure:
 <ProjectStructure
   structure={[
     {
-      id: "go-code-analyzer",
-      name: "go-code-analyzer/",
+      id: "go-code-reviewer",
+      name: "go-code-reviewer/",
       children: [
-      {
-        id: "agents",
-        name: "agents/",
-        children: [
-          { id: "go-code-analyzer-yaml", name: "go_code_analyzer.yaml" }
-        ]
-      },
-      {
-        id: "reports",
-        name: "reports/",
-        children: [
-          { id: "performance-analysis-md", name: "performance-analysis.md" },
-          { id: "best-practices-analysis-md", name: "best-practices-analysis.md" }
-        ]
-      },
+        {
+          id: "agents",
+          name: "agents/",
+          children: [
+            { id: "analyzer-yaml", name: "analyzer.yaml" }
+          ]
+        },
+        {
+          id: "workflows",
+          name: "workflows/",
+          children: [
+            { id: "review-yaml", name: "review.yaml" }
+          ]
+        },
+        {
+          id: "reviews",
+          name: "reviews/",
+          children: []
+        },
         { id: "compozy-yaml", name: "compozy.yaml" },
-        { id: "workflow-yaml", name: "workflow.yaml" },
         { id: "package-json", name: "package.json" },
         { id: "entrypoint-ts", name: "entrypoint.ts" },
-        { id: "claude-analyzer-ts", name: "claude_analyzer.ts" },
-        { id: "report-reader-ts", name: "report_reader.ts" },
-        { id: "sample-go", name: "sample.go" },
-        { id: "test-http", name: "test.http" },
+        { id: "api-http", name: "api.http" },
         { id: "env-file", name: ".env" },
       ],
     },
   ]}
-  initialSelectedId="go-code-analyzer"
-  initialExpandedItems={["go-code-analyzer", "agents", "reports"]}
+  initialSelectedId="go-code-reviewer"
+  initialExpandedItems={["go-code-reviewer", "agents", "workflows", "reviews"]}
 />
 
 ### Project Configuration
@@ -113,21 +111,20 @@ You'll be creating a project with the following structure:
 Create `compozy.yaml` to define your project:
 
 ```yaml title="compozy.yaml"
-name: go-code-analyzer
-version: "1.0.0"
-description: AI-powered Go code analysis using Claude Code SDK
-
-author:
-  name: Your Name
-  url: https://github.com/yourusername
+name: code-reviewer
+version: "0.0.1"
+description: Workflows to review a Go project using Compozy agents
 
 workflows:
-  - source: ./workflow.yaml
+  - source: ./workflows/review.yaml
 
 models:
-  - provider: anthropic
-    model: claude-4-opus
-    api_key: "{{ .env.CLAUDE_API_KEY }}"
+  - provider: openai
+    model: o3-mini
+    api_key: "{{ .env.OPENAI_API_KEY }}"
+
+config:
+  schedule_to_start_timeout: 5m
 
 runtime:
   type: bun
@@ -137,23 +134,46 @@ runtime:
     - --allow-write
     - --allow-net
     - --allow-env
+
+autoload:
+  enabled: true
+  strict: true
+  include:
+    - "agents/*.yaml"
+    - "tools/*.yaml"
+  exclude:
+    - "**/*~"
+    - "**/*.bak"
+    - "**/*.tmp"
 ```
 
 ### Package Dependencies
 
-Since we're using external dependencies, create `package.json`:
+Create `package.json` to define project dependencies. This example uses pre-built Compozy tools.
 
 ```json title="package.json"
 {
-  "name": "go-code-analyzer",
-  "version": "1.0.0",
-  "description": "AI-powered Go code analysis using Claude Code SDK",
+  "name": "@compozy/example-codereview",
+  "version": "0.0.1",
+  "description": "Workflows to review a Go project using Compozy agents",
+  "private": true,
   "type": "module",
-  "dependencies": {
-    "@anthropic-ai/claude-code": "^0.1.0"
+  "main": "./entrypoint.ts",
+  "scripts": {
+    "build": "echo 'No build step required for Compozy examples'",
+    "lint": "oxlint *.ts",
+    "type-check": "tsc --noEmit",
+    "test": "echo 'No tests configured'",
+    "clean": "echo 'No clean step required'"
   },
   "devDependencies": {
+    "typescript": "^5.8.0",
     "@types/bun": "latest"
+  },
+  "dependencies": {
+    "@compozy/tool-list-files": "0.0.11",
+    "@compozy/tool-read-file": "0.0.11",
+    "@compozy/tool-write-file": "0.0.11"
   }
 }
 ```
@@ -166,200 +186,45 @@ bun install
 
 ### Environment Setup
 
-Create `.env` file:
+Create a `.env` file to store your OpenAI API key:
 
 ```bash title=".env"
-# Get your API key from https://console.anthropic.com
-CLAUDE_API_KEY=your_claude_api_key_here
-```
-
-### Sample Go File for Testing
-
-Create `sample.go` to test the analyzer:
-
-```go title="sample.go"
-package main
-
-import (
-    "fmt"
-    "time"
-)
-
-// UserService handles user operations
-type UserService struct {
-    users map[string]User
-}
-
-// User represents a user in the system
-type User struct {
-    ID       string
-    Name     string
-    Email    string
-    Created  time.Time
-}
-
-// GetUser retrieves a user by ID (potential performance issue)
-func (s *UserService) GetUser(id string) *User {
-    // TODO: This could be optimized with better data structures
-    for _, user := range s.users {
-        if user.ID == id {
-            return &user
-        }
-    }
-    return nil
-}
-
-// CreateUser adds a new user
-func (s *UserService) CreateUser(name, email string) error {
-    if name == "" || email == "" {
-        return fmt.Errorf("name and email are required")
-    }
-
-    user := User{
-        ID:      fmt.Sprintf("user_%d", time.Now().Unix()),
-        Name:    name,
-        Email:   email,
-        Created: time.Now(),
-    }
-
-    s.users[user.ID] = user
-    return nil
-}
+# Get your API key from https://platform.openai.com/api-keys
+OPENAI_API_KEY=your_openai_api_key_here
 ```
 
 </Step>
 
-<Step title="Create Analysis Tools" description="Build TypeScript tools using Claude Code SDK and Bun runtime">
+<Step title="Register Tools" description="Expose pre-built Compozy tools to your workflow">
 
-<Tabs items={["Entrypoint", "Claude Code Analyzer", "Report Reader"]} className="mt-6">
-
-<Tab value="Entrypoint">
+The Bun runtime entrypoint registers the tools that your workflow will use. This example uses standard tools for file operations.
 
 ```typescript title="entrypoint.ts"
-import { claudeCodeAnalyzer } from "./claude_analyzer.ts";
-import { reportReader } from "./report_reader.ts";
+import { listFiles } from "@compozy/tool-list-files";
+import { readFile } from "@compozy/tool-read-file";
+import { writeFile } from "@compozy/tool-write-file";
 
-// Export tools with snake_case keys for Compozy runtime
 export default {
-  claude_code_analyzer: claudeCodeAnalyzer,
-  report_reader: reportReader,
+  list_files: listFiles,
+  read_file: readFile,
+  write_file: writeFile,
 };
 ```
 
-</Tab>
-
-<Tab value="Claude Code Analyzer">
-
-```typescript title="claude_analyzer.ts"
-import { query } from "@anthropic-ai/claude-code";
-
-interface ClaudeAnalyzerInput {
-  prompt: string;
-}
-
-interface ClaudeAnalyzerOutput {
-  analysis_result: string;
-  success: boolean;
-}
-
-export async function claudeCodeAnalyzer(
-  input: ClaudeAnalyzerInput
-): Promise<ClaudeAnalyzerOutput> {
-  try {
-    let analysisResult = "";
-
-    // Use Claude Code SDK for analysis
-    for await (const message of query({
-      prompt: input.prompt,
-      options: {
-        outputFormat: "text",
-        maxTurns: 1,
-      },
-    })) {
-      if (message.type === "assistant" && message.content) {
-        analysisResult = message.content;
-        break;
-      }
-    }
-
-    if (!analysisResult) {
-      throw new Error("No analysis result generated from Claude Code");
-    }
-
-    return {
-      analysis_result: analysisResult,
-      success: true,
-    };
-  } catch (error: any) {
-    throw new Error(`Claude Code analysis failed: ${error.message}`);
-  }
-}
-```
-
-</Tab>
-
-<Tab value="Report Reader">
-
-```typescript title="report_reader.ts"
-import { readFile } from "fs/promises";
-import { existsSync } from "fs";
-import { resolve } from "path";
-
-interface ReportReaderInput {
-  report_path: string;
-}
-
-interface ReportReaderOutput {
-  content: string;
-  success: boolean;
-  file_path: string;
-}
-
-export async function reportReader(
-  input: ReportReaderInput
-): Promise<ReportReaderOutput> {
-  // Resolve the absolute path
-  const absolutePath = resolve(input.report_path);
-
-  // Check if file exists
-  if (!existsSync(absolutePath)) {
-    throw new Error(`Report file not found: ${input.report_path}`);
-  }
-
-  try {
-    // Read the report file content
-    const content = await readFile(absolutePath, "utf8");
-
-    return {
-      content,
-      success: true,
-      file_path: absolutePath,
-    };
-  } catch (error: any) {
-    throw new Error(`Failed to read report file: ${error.message}`);
-  }
-}
-```
-
-</Tab>
-</Tabs>
-
 </Step>
 
-<Step title="Define Go Code Analyzer Agent" description="Create an AI agent specialized in Go code analysis">
+<Step title="Define the Analyzer Agent" description="Create an AI agent specialized in Go code analysis">
 
-Create `agents/go_code_analyzer.yaml`:
+Create `agents/analyzer.yaml` to define the agent that will perform the code review.
 
-```yaml title="agents/go_code_analyzer.yaml"
+```yaml title="agents/analyzer.yaml"
 resource: agent
-id: go_code_analyzer
-description: AI agent specialized in Go code analysis for performance and best practices
+id: analyzer
+description: Specialized in Go code analysis for performance and best practices
 version: 1.0.0
 
 config:
-  provider: anthropic
-  model: claude-4-opus
-  api_key: "{{ .env.CLAUDE_API_KEY }}"
+  $ref: global::models.#(provider=="openai")
 
 instructions: |
   You are an expert Go developer and code reviewer with deep knowledge of:
@@ -374,225 +239,183 @@ instructions: |
   Focus on practical improvements that will have measurable impact.
 
 tools:
-  - $ref: local::tools.#(id=="claude_code_analyzer")
+  - id: write_file
+    description: Write content to a file
+    input:
+      type: object
+      properties:
+        path:
+          type: string
+          description: The file path to write to
+        content:
+          type: string
+          description: The content to write
+      required:
+        - path
+        - content
 
 actions:
-  - id: analyze_performance
-    prompt: |
-      Use the Claude Code analyzer tool to analyze the Go file for performance issues.
+  - id: analyze
+    prompt: |-
+      Analyze the following Go code file and save the review as a markdown file:
 
-      Call the tool with this prompt:
+      File: {{ .input.file_path }}
 
-      You are an expert Go code reviewer specializing in performance analysis.
+      Content:
+      '''go
+      {{ .input.content }}
+      '''
 
-      Analyze the Go file: {{ .input.file_path }} for performance issues.
+      You must:
+      1. Analyze the code for:
+         - Performance optimizations
+         - Go best practices violations
+         - Potential bugs or issues
+         - Memory management concerns
+         - Concurrency issues (if applicable)
+         - Suggestions for improvement with specific code examples
 
-      Provide a comprehensive performance analysis focusing on:
-      - Performance bottlenecks and optimization opportunities
-      - Memory usage patterns and potential leaks
-      - Algorithm complexity and efficiency issues
-      - Concurrent code patterns and potential race conditions
-      - Specific optimizations with code examples
+      2. Create a comprehensive markdown report with the following structure:
+         -  # Code Review: [filename]
+         -  ## Summary
+         -  ## Performance Analysis
+         -  ## Best Practices Review
+         -  ## Potential Issues
+         -  ## Recommendations
+         -  ## Code Examples (if applicable)
 
-      Create a detailed markdown report with:
-      1. Executive summary with performance score (0-100)
-      2. Critical performance issues with line numbers
-      3. Optimization recommendations with before/after code examples
-      4. Memory analysis and suggestions
-      5. Algorithmic complexity assessment
+      3. Use the write_file tool to save the review to: ./reviews/{{ .input.file_path }}.md
+         Make sure to replace any forward slashes in the file path with underscores for the output filename.
 
-      Write the complete report to the file: {{ .input.output_path }}/performance-analysis.md
-
-  - id: analyze_best_practices
-    prompt: |
-      Use the Claude Code analyzer tool to analyze the Go file for best practices compliance.
-
-      Call the tool with this prompt:
-
-      You are an expert Go code reviewer specializing in Go best practices and idioms.
-
-      Analyze the Go file: {{ .input.file_path }} for best practices compliance.
-
-      Provide a comprehensive best practices analysis focusing on:
-      - Idiomatic Go code patterns and style
-      - Error handling best practices
-      - Code organization and naming conventions
-      - Documentation and comment quality
-      - Testing considerations and testability
-      - Security implications and vulnerabilities
-
-      Create a detailed markdown report with:
-      1. Executive summary with compliance score (0-100)
-      2. Best practice violations with line numbers and severity
-      3. Recommendations for improving code quality
-      4. Examples of idiomatic Go alternatives
-      5. Security and maintainability considerations
-
-      Write the complete report to the file: {{ .input.output_path }}/best-practices-analysis.md
+      4. Return a summary of your findings after saving the review file.
 ```
 
 </Step>
 
 <Step title="Create the Main Workflow" description="Orchestrate all components into a cohesive workflow">
 
-```yaml title="workflow.yaml" height="100px"
-id: go-code-analyzer
-version: 1.0.0
-description: AI-powered Go code analysis using Claude Code SDK with parallel processing
+Create `workflows/review.yaml` to define the main workflow logic.
+
+```yaml title="workflows/review.yaml"
+id: review
+version: 0.1.0
+description: Review Go code for a given directory
+
+schemas:
+  - id: review_input
+    type: object
+    properties:
+      directory:
+        type: string
+        description: The directory to review
+    required:
+      - directory
 
 config:
   input:
-    type: object
-    properties:
-      file_path:
-        type: string
-        description: Path to the Go source file to analyze
-        pattern: "^.*\\.go$"
-      output_path:
-        type: string
-        description: Directory path for the generated analysis reports
-        default: "./reports"
-    required:
-      - file_path
+    $ref: local::schemas.#(id=="review_input")
 
 tools:
-  - id: claude_code_analyzer
-    description: Analyzes Go code using Claude Code SDK
+  - id: list_files
+    description: List all files in the given directory
     input:
       type: object
       properties:
-        prompt:
+        dir:
           type: string
-          description: Analysis prompt for Claude Code SDK
+          description: The directory to list files from
+        exclude:
+          type: string
+          description: Pattern to exclude files (optional)
       required:
-        - prompt
-
-  - id: report_reader
-    description: Reads report files and returns content
+        - dir
+  - id: read_file
+    description: Read the contents of a file
     input:
       type: object
       properties:
-        report_path:
+        path:
           type: string
-          description: Path to report file
+          description: The file path to read
       required:
-        - report_path
-
-agents:
-  - $ref: resource::agent::#(id=="go_code_analyzer")
+        - path
 
 tasks:
-  # Phase 1: Parallel Analysis
-  - id: parallel_analysis
-    type: parallel
-    description: Run performance and best practices analysis in parallel
-    strategy: wait_all
-    tasks:
-      - id: performance_analysis
-        type: basic
-        description: Analyze Go code for performance issues
-        $use: agent(local::agents.#(id=="go_code_analyzer"))
-        action: analyze_performance
-        with:
-          file_path: "{{ .workflow.input.file_path }}"
-          output_path: "{{ .workflow.input.output_path }}"
-        outputs:
-          analysis_result: "{{ .output }}"
-
-      - id: best_practices_analysis
-        type: basic
-        description: Analyze Go code for best practices compliance
-        $use: agent(local::agents.#(id=="go_code_analyzer"))
-        action: analyze_best_practices
-        with:
-          file_path: "{{ .workflow.input.file_path }}"
-          output_path: "{{ .workflow.input.output_path }}"
-        outputs:
-          analysis_result: "{{ .output }}"
+  - id: review
+    type: basic
+    $use: tool(local::tools.#(id=="list_files"))
+    with:
+      dir: "{{ .workflow.input.directory }}"
+      exclude: "!*.go"
     on_success:
-      next: read_reports
+      next: review_files
 
-  # Phase 2: Read Generated Reports
-  - id: read_reports
-    type: parallel
-    description: Read the generated analysis reports
-    strategy: wait_all
-    tasks:
-      - id: read_performance_report
-        type: basic
-        description: Read performance analysis report
-        $use: tool(local::tools.#(id=="report_reader"))
-        with:
-          report_path: "{{ .workflow.input.output_path }}/performance-analysis.md"
-        outputs:
-          performance_report: "{{ .output }}"
-
-      - id: read_best_practices_report
-        type: basic
-        description: Read best practices analysis report
-        $use: tool(local::tools.#(id=="report_reader"))
-        with:
-          report_path: "{{ .workflow.input.output_path }}/best-practices-analysis.md"
-        outputs:
-          best_practices_report: "{{ .output }}"
+  - id: review_files
+    type: collection
+    mode: parallel
+    items: "{{ .tasks.review.output.files }}"
+    item_var: file
     final: true
+    with:
+      dir: "{{ .workflow.input.directory }}"
+    task:
+      id: "process-{{ .index }}"
+      type: composite
+      tasks:
+        - id: read_content
+          type: basic
+          $use: tool(local::tools.#(id=="read_file"))
+          with:
+            path: "{{ .input.dir }}/{{ .file }}"
 
-# Workflow outputs
-outputs:
-  analysis_complete: true
-  file_analyzed: "{{ .workflow.input.file_path }}"
-  reports_directory: "{{ .workflow.input.output_path }}"
-  performance_report: "{{ .tasks.read_reports.children.read_performance_report.output.performance_report }}"
-  best_practices_report: "{{ .tasks.read_reports.children.read_best_practices_report.output.best_practices_report }}"
+        - id: analyze_content
+          type: basic
+          $use: agent(resource::agent::#(id=="analyzer"))
+          action: analyze
+          with:
+            file_path: "{{ .input.dir }}/{{ .file }}"
+            content: "{{ .tasks.read_content.output.content }}"
 ```
 
 </Step>
 
-<Step title="Test Your Workflow" description="Validate the workflow with sample content">
+<Step title="Test Your Workflow" description="Validate the workflow with a sample directory">
 
-Create `test.http` with the following content to test your workflow:
+Create `api.http` with the following content to test your workflow. You can use a tool like the [REST Client extension for VS Code](https://marketplace.visualstudio.com/items?itemName=humao.rest-client).
 
-```http title="test.http"
-### Execute the Go code analyzer workflow
-POST http://localhost:8000/api/v0/workflows/go-code-analyzer/executions
+```http title="api.http"
+### code-reviewer API Tests
+### This file contains HTTP requests to test your Compozy workflows
+### Make sure Compozy is running on localhost:5001 before executing these requests
+
+@baseUrl = http://localhost:5001/api/v0
+@workflowId = review
+
+### -----------------------------------------------------------------------------
+### Execute review workflow
+### -----------------------------------------------------------------------------
+# @name review
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
 Content-Type: application/json
+Accept: application/json
 
 {
   "input": {
-    "file_path": "./sample.go",
-    "output_path": "./reports"
+    "directory": "../../engine/schema"
   }
 }
 
+### Get execution ID from response
+@execId1 = {{review.response.body.data.exec_id}}
+
 ### Check execution status
-GET http://localhost:8000/api/v0/executions/{{execution_id}}
+GET {{baseUrl}}/executions/workflows/{{execId1}}
+Accept: application/json
 ```
 
 ### Expected Output
 
-Your workflow should return analysis results like this:
-
-```json
-{
-  "execution_id": "exec_123456",
-  "status": "completed",
-  "outputs": {
-    "analysis_complete": true,
-    "file_analyzed": "./sample.go",
-    "reports_directory": "./reports",
-    "performance_report": {
-      "content": "# Performance Analysis Report\n\n## Executive Summary\n\nPerformance Score: 65/100\n\n...",
-      "success": true,
-      "file_path": "/absolute/path/to/reports/performance-analysis.md"
-    },
-    "best_practices_report": {
-      "content": "# Best Practices Analysis Report\n\n## Executive Summary\n\nCompliance Score: 72/100\n\n...",
-      "success": true,
-      "file_path": "/absolute/path/to/reports/best-practices-analysis.md"
-    }
-  }
-}
-```
+After running the workflow, you will find markdown files in the `reviews` directory, one for each `.go` file found in the target directory. The content of each file will be a detailed code review generated by the AI agent.
 
 </Step>
 
@@ -603,43 +426,57 @@ Your workflow should return analysis results like this:
 Your workflow demonstrates several key Compozy concepts:
 
 <List>
-  <ListItem title="Parallel execution">
-    Performance and best practices analysis run simultaneously for efficiency
+  <ListItem title="Collection Tasks">
+    The `review_files` task iterates over the list of files returned by the `list_files` tool.
   </ListItem>
-  <ListItem title="Agent actions">
-    Specialized AI actions with detailed prompts for different analysis types
+  <ListItem title="Parallel Execution">
+    By setting `mode: parallel` on the collection task, Compozy reviews all files simultaneously for maximum efficiency.
   </ListItem>
-  <ListItem title="File-based reporting">
-    AI agents write detailed reports to disk for persistence
+  <ListItem title="Composite Tasks">
+    Each item in the collection is processed by a composite task that first reads the file content and then passes it to the agent for analysis.
   </ListItem>
-  <ListItem title="Tool composition">
-    Simple tools combined to create powerful analysis workflows
+  <ListItem title="Agent Actions">
+    A specialized AI agent performs the code analysis using a detailed prompt and a file-writing tool.
   </ListItem>
-  <ListItem title="Resource references">
-    External agent configurations loaded dynamically
+  <ListItem title="Autoloading Resources">
+    The `compozy.yaml` file is configured to automatically load all agent and tool definitions from the `agents/` and `tools/` directories.
   </ListItem>
 </List>
 
 ### Task Dependencies
 
 <Mermaid chart={`graph TD
-    A[parallel_analysis<br/><i>parallel task</i>] --> B[read_reports<br/><i>parallel task</i>]
+    A[review<br/><i>list_files tool</i>] --> B[review_files<br/><i>parallel collection</i>]
 
-    A --> A1[performance_analysis<br/><i>basic task + agent action</i>]
-    A --> A2[best_practices_analysis<br/><i>basic task + agent action</i>]
+    subgraph B
+        direction LR
+        C[process-0<br/><i>composite task</i>]
+        D[process-1<br/><i>composite task</i>]
+        E[...]
+    end
 
-    B --> B1[read_performance_report<br/><i>basic task + tool</i>]
-    B --> B2[read_best_practices_report<br/><i>basic task + tool</i>]
+    subgraph C
+        C1[read_content] --> C2[analyze_content]
+    end
 
-    A1 --> |writes file| C1[performance-analysis.md]
-    A2 --> |writes file| C2[best-practices-analysis.md]
+    subgraph D
+        D1[read_content] --> D2[analyze_content]
+    end
 
-    C1 --> B1
-    C2 --> B2`} />
+    C2 --> |writes file| F[review_0.md]
+    D2 --> |writes file| G[review_1.md]
+
+    style A fill:#e1f5fe
+    style B fill:#f3e5f5
+    style C fill:#e8f5e8
+    style D fill:#e8f5e8
+    style F fill:#fffde7
+    style G fill:#fffde7
+`} />
 
 ## Next Steps
 
-Congratulations! You've built a sophisticated AI-powered content analysis workflow. Here's how to continue learning:
+Congratulations! You've built a sophisticated AI-powered code review workflow. Here's how to continue learning:
 
 ### Advanced Features
 

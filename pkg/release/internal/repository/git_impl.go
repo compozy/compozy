@@ -44,6 +44,7 @@ func (r *gitRepository) LatestTag(_ context.Context) (string, error) {
 	remote, err := r.repo.Remote("origin")
 	if err == nil {
 		// Fetch tags from remote (ignore error if already up to date)
+		//nolint:errcheck // We intentionally ignore the error as local tags are sufficient
 		_ = remote.Fetch(&git.FetchOptions{
 			RefSpecs: []config.RefSpec{
 				config.RefSpec("+refs/tags/*:refs/tags/*"),
@@ -82,46 +83,51 @@ func (r *gitRepository) LatestTag(_ context.Context) (string, error) {
 	return latestTag, nil
 }
 
-// CommitsSinceTag returns the number of commits since the given tag.
-func (r *gitRepository) CommitsSinceTag(_ context.Context, tag string) (int, error) {
-	// First, try to fetch the tag from remote if it doesn't exist locally
+// fetchTagIfNeeded fetches a tag from remote if it doesn't exist locally.
+func (r *gitRepository) fetchTagIfNeeded(tag string) (*plumbing.Reference, error) {
 	tagRef, err := r.repo.Tag(tag)
+	if err == nil {
+		return tagRef, nil
+	}
+	// Tag doesn't exist locally, try to fetch it from remote
+	remote, err := r.repo.Remote("origin")
 	if err != nil {
-		// Tag doesn't exist locally, try to fetch it from remote
-		remote, err := r.repo.Remote("origin")
-		if err != nil {
-			return 0, fmt.Errorf("failed to get remote: %w", err)
-		}
-		// Fetch tags from remote
-		if err := remote.Fetch(&git.FetchOptions{
-			RefSpecs: []config.RefSpec{
-				config.RefSpec("+refs/tags/*:refs/tags/*"),
-			},
-			Auth: r.getAuth(),
-		}); err != nil && err != git.NoErrAlreadyUpToDate {
-			return 0, fmt.Errorf("failed to fetch tags from remote: %w", err)
-		}
-		// Try to get the tag again
-		tagRef, err = r.repo.Tag(tag)
-		if err != nil {
-			return 0, fmt.Errorf("failed to get tag %s after fetching: %w", tag, err)
-		}
+		return nil, fmt.Errorf("failed to get remote: %w", err)
 	}
-	// Resolve the tag to a commit hash (handles lightweight *and* annotated tags)
-	var tagCommitHash plumbing.Hash
+	// Fetch tags from remote
+	if err := remote.Fetch(&git.FetchOptions{
+		RefSpecs: []config.RefSpec{
+			config.RefSpec("+refs/tags/*:refs/tags/*"),
+		},
+		Auth: r.getAuth(),
+	}); err != nil && err != git.NoErrAlreadyUpToDate {
+		return nil, fmt.Errorf("failed to fetch tags from remote: %w", err)
+	}
+	// Try to get the tag again
+	tagRef, err = r.repo.Tag(tag)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tag %s after fetching: %w", tag, err)
+	}
+	return tagRef, nil
+}
+
+// resolveTagCommit resolves a tag reference to its commit hash.
+func (r *gitRepository) resolveTagCommit(tagRef *plumbing.Reference) (plumbing.Hash, error) {
+	// Try as lightweight tag first
 	if commit, err := r.repo.CommitObject(tagRef.Hash()); err == nil {
-		// Lightweight tag – hash already points to commit
-		tagCommitHash = commit.Hash
-	} else if tagObj, err := r.repo.TagObject(tagRef.Hash()); err == nil {
-		// Annotated tag – resolve to the tagged commit
+		return commit.Hash, nil
+	}
+	// Try as annotated tag
+	if tagObj, err := r.repo.TagObject(tagRef.Hash()); err == nil {
 		if commit, err := r.repo.CommitObject(tagObj.Target); err == nil {
-			tagCommitHash = commit.Hash
+			return commit.Hash, nil
 		}
 	}
-	if tagCommitHash == (plumbing.Hash{}) {
-		return 0, fmt.Errorf("failed to resolve commit for tag %s", tag)
-	}
-	// Get HEAD commit
+	return plumbing.Hash{}, fmt.Errorf("failed to resolve commit for tag")
+}
+
+// countCommitsSince counts commits from HEAD to the given commit hash.
+func (r *gitRepository) countCommitsSince(tagCommitHash plumbing.Hash) (int, error) {
 	head, err := r.repo.Head()
 	if err != nil {
 		return 0, fmt.Errorf("failed to get HEAD: %w", err)
@@ -130,14 +136,12 @@ func (r *gitRepository) CommitsSinceTag(_ context.Context, tag string) (int, err
 	if err != nil {
 		return 0, fmt.Errorf("failed to get HEAD commit: %w", err)
 	}
-	// Count commits from tag to HEAD (excluding the tag commit itself)
-	var count int
 	commits, err := r.repo.Log(&git.LogOptions{From: headCommit.Hash})
 	if err != nil {
 		return 0, fmt.Errorf("failed to get commits: %w", err)
 	}
+	var count int
 	err = commits.ForEach(func(c *object.Commit) error {
-		// Stop when we reach the tag commit
 		if c.Hash == tagCommitHash {
 			return storer.ErrStop
 		}
@@ -148,6 +152,19 @@ func (r *gitRepository) CommitsSinceTag(_ context.Context, tag string) (int, err
 		return 0, fmt.Errorf("failed to iterate commits: %w", err)
 	}
 	return count, nil
+}
+
+// CommitsSinceTag returns the number of commits since the given tag.
+func (r *gitRepository) CommitsSinceTag(_ context.Context, tag string) (int, error) {
+	tagRef, err := r.fetchTagIfNeeded(tag)
+	if err != nil {
+		return 0, err
+	}
+	tagCommitHash, err := r.resolveTagCommit(tagRef)
+	if err != nil {
+		return 0, fmt.Errorf("failed to resolve tag %s: %w", tag, err)
+	}
+	return r.countCommitsSince(tagCommitHash)
 }
 
 // TagExists checks if a tag exists.

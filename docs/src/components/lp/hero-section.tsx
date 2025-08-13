@@ -52,7 +52,7 @@ export default function HeroSection() {
           <div className="absolute inset-0 -z-10 [background:radial-gradient(circle_at_center,transparent_0%,transparent_40%,var(--color-background)_100%)]"></div>
           <div className="relative h-full flex items-center justify-center">
             <div className="mx-auto max-w-7xl px-6">
-              <div className="text-center sm:mx-auto lg:mr-auto lg:mt-0 -translate-y-8">
+              <div className="text-center sm:mx-auto lg:mr-auto lg:mt-0 -translate-y-4 sm:-translate-y-8">
                 <AnimatedGroup variants={transitionVariants}>
                   <Link
                     href="/docs"
@@ -86,7 +86,7 @@ export default function HeroSection() {
                     },
                     ...transitionVariants,
                   }}
-                  className="mt-12 flex flex-col items-center justify-center gap-2 md:flex-row"
+                  className="mt-8 sm:mt-12 flex flex-col items-center justify-center gap-3 sm:flex-row sm:gap-2"
                 >
                   <Button asChild size="lg" className="rounded-full">
                     <Link href="/docs/core/getting-started/quick-start">

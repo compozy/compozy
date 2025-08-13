@@ -1,11 +1,29 @@
 "use client";
 
+// Extend TypeScript types for webkit properties and modern events
+declare global {
+  interface CSSStyleDeclaration {
+    webkitScrollSnapType?: string;
+  }
+
+  interface HTMLElementEventMap {
+    scrollend: Event;
+  }
+}
+
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { AnimatePresence, motion } from "framer-motion";
+import {
+  AnimatePresence,
+  motion,
+  useMotionValue,
+  useScroll,
+  useSpring,
+  useTransform,
+} from "framer-motion";
 import { DynamicCodeBlock } from "fumadocs-ui/components/dynamic-codeblock";
 import { Bot, Calendar, Cpu, Database, Globe, Radio, Workflow, Zap } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { tv, type VariantProps } from "tailwind-variants";
 
 const features = [
@@ -496,6 +514,206 @@ function FeatureDescription({ description, isActive, styles, feature }: FeatureD
 
 export default function FeaturesSection() {
   const [activeFeature, setActiveFeature] = useState(0);
+  const [activeSlide, setActiveSlide] = useState(0);
+  const dotsContainerRef = useRef<HTMLDivElement>(null);
+  const dotsRowRef = useRef<HTMLDivElement>(null);
+  const desktopDotsRowRef = useRef<HTMLDivElement>(null);
+  const carouselRef = useRef<HTMLDivElement>(null);
+
+  const [dotStep, setDotStep] = useState(0);
+
+  // Track carousel scroll progress with Motion's useScroll
+  const { scrollXProgress } = useScroll({
+    container: carouselRef,
+    axis: "x",
+  });
+
+  // Create indicator position based on scroll (mobile) or active feature (desktop)
+  const scrollBasedX = useTransform(scrollXProgress, [0, 1], [0, dotStep * (features.length - 1)]);
+
+  const clickBasedX = useMotionValue(0);
+
+  // Mobile spring animation
+  const springX = useSpring(scrollBasedX, {
+    stiffness: 700,
+    damping: 40,
+    mass: 0.2,
+  });
+
+  // Desktop spring animation
+  const desktopSpringX = useSpring(clickBasedX, {
+    stiffness: 700,
+    damping: 40,
+    mass: 0.2,
+  });
+
+  // Update click-based position when activeFeature changes (for desktop)
+  useEffect(() => {
+    clickBasedX.set(activeFeature * dotStep);
+  }, [activeFeature, dotStep, clickBasedX]);
+
+  // Track previous active feature to skip movement flag on first render
+  const prevActiveFeatureRef = useRef(activeFeature);
+  useEffect(() => {
+    if (prevActiveFeatureRef.current !== activeFeature) {
+      // Only mark as moving when the active feature actually changes
+      setIsDesktopMoving(true);
+    }
+    prevActiveFeatureRef.current = activeFeature;
+  }, [activeFeature]);
+
+  useEffect(() => {
+    const unsubscribe = desktopSpringX.on("change", latest => {
+      const target = clickBasedX.get();
+      if (Math.abs(latest - target) <= 0.5) {
+        setIsDesktopMoving(false);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [desktopSpringX, clickBasedX]);
+
+  // Track if user is actively scrolling vs at rest position
+  const [isScrolling, setIsScrolling] = useState(false);
+  const [isDesktopMoving, setIsDesktopMoving] = useState(false);
+
+  // Measure distance between dots for accurate positioning
+  useLayoutEffect(() => {
+    const measure = () => {
+      // Use desktop dots for measurement on large screens, mobile dots otherwise
+      const isDesktop = window.innerWidth >= 1024;
+      const row = isDesktop ? desktopDotsRowRef.current : dotsRowRef.current;
+      if (!row) return;
+      const dots = row.querySelectorAll<HTMLButtonElement>("button");
+      if (dots.length < 2) return;
+      const step = dots[1].offsetLeft - dots[0].offsetLeft;
+      setDotStep(step);
+    };
+
+    // Use timeout to ensure DOM is fully rendered
+    const timeoutId = setTimeout(measure, 0);
+    measure();
+
+    // Listen for orientation changes and layout changes
+    window.addEventListener("resize", measure);
+    window.addEventListener("orientationchange", measure);
+    return () => {
+      clearTimeout(timeoutId);
+      window.removeEventListener("resize", measure);
+      window.removeEventListener("orientationchange", measure);
+    };
+  }, []);
+
+  useEffect(() => {
+    const carousel = carouselRef.current;
+    if (!carousel) return;
+
+    const slides = Array.from(carousel.querySelectorAll<HTMLDivElement>("[data-slide-index]"));
+
+    // Track scroll events to detect when user is actively scrolling
+    let scrollTimeout: NodeJS.Timeout;
+    const handleScroll = () => {
+      setIsScrolling(true);
+      clearTimeout(scrollTimeout);
+      scrollTimeout = setTimeout(() => {
+        setIsScrolling(false);
+      }, 150); // Consider stopped after 150ms of no scroll
+    };
+
+    const handleScrollEnd = () => {
+      setIsScrolling(false);
+    };
+
+    // Use viewport as root with centered margin to fix iOS horizontal IO bug
+    const observer = new IntersectionObserver(
+      entries => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            const index = Number(entry.target.getAttribute("data-slide-index"));
+            setActiveSlide(index);
+          }
+        });
+      },
+      {
+        root: null, // Use viewport instead of carousel
+        rootMargin: "0px -40% 0px -40%", // Central 20% strip
+        threshold: 0.5, // Lower threshold for narrow phones
+      }
+    );
+
+    // Add scroll listeners
+    carousel.addEventListener("scroll", handleScroll);
+    if ("onscrollend" in carousel) {
+      carousel.addEventListener("scrollend", handleScrollEnd);
+    }
+
+    slides.forEach(slide => observer.observe(slide));
+    return () => {
+      observer.disconnect();
+      carousel.removeEventListener("scroll", handleScroll);
+      if ("onscrollend" in carousel) {
+        carousel.removeEventListener("scrollend", handleScrollEnd);
+      }
+      clearTimeout(scrollTimeout);
+    };
+  }, []);
+
+  const scrollToIndex = (index: number) => {
+    const carousel = carouselRef.current;
+    if (!carousel) return;
+
+    const slides = carousel.querySelectorAll<HTMLDivElement>("[data-slide-index]");
+    const targetSlide = slides[index];
+    if (!targetSlide) return;
+
+    // Disable snap temporarily to avoid jerky jump
+    const originalSnapType = carousel.style.scrollSnapType;
+    const originalWebkitSnapType = carousel.style.webkitScrollSnapType;
+    carousel.style.scrollSnapType = "none";
+    carousel.style.webkitScrollSnapType = "none";
+
+    // Get computed gap for accurate positioning
+    const gap = parseFloat(getComputedStyle(carousel).columnGap || "0");
+
+    // Calculate offset so the slide is centered
+    const left =
+      targetSlide.offsetLeft - (carousel.clientWidth - targetSlide.clientWidth) / 2 - gap / 2;
+
+    carousel.scrollTo({ left, behavior: "smooth" });
+
+    // Utility to restore snapping
+    const enableSnap = () => {
+      carousel.style.scrollSnapType = originalSnapType || "";
+      carousel.style.webkitScrollSnapType = originalWebkitSnapType || "";
+      carousel.removeEventListener("scroll", scrollStopDetector);
+    };
+
+    // Fallback scroll detection for iOS < 17
+    let scrollTimeout: NodeJS.Timeout;
+    const scrollStopDetector = () => {
+      clearTimeout(scrollTimeout);
+      scrollTimeout = setTimeout(enableSnap, 150);
+    };
+
+    // Try modern scrollend event first, fallback to scroll detection
+    const onScrollEnd = () => {
+      enableSnap();
+      carousel.removeEventListener("scrollend", onScrollEnd);
+    };
+
+    // Check if scrollend event is supported
+    const supportsScrollEnd = "onscrollend" in window;
+    if (supportsScrollEnd) {
+      carousel.addEventListener("scrollend", onScrollEnd, { once: true });
+    } else {
+      carousel.addEventListener("scroll", scrollStopDetector);
+    }
+
+    // Safety timeout
+    setTimeout(enableSnap, 600);
+  };
 
   return (
     <section id="features" className="py-12 md:py-24 lg:py-32">
@@ -517,26 +735,37 @@ export default function FeaturesSection() {
         </div>
 
         <div className="overflow-visible my-24">
-          <div className="mx-auto grid max-w-6xl gap-6 md:grid-cols-[320px_1fr] md:gap-8 lg:grid-cols-[384px_1fr] lg:gap-16 xl:grid-cols-[400px_1fr]">
+          <div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[320px_1fr] lg:gap-8 xl:grid-cols-[384px_1fr] xl:gap-16 2xl:grid-cols-[400px_1fr]">
             {/* Mobile Carousel */}
-            <div className="md:hidden col-span-2 scrollbar-none flex snap-x snap-mandatory gap-3 overflow-x-auto [-ms-overflow-style:'none'] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {features.map(feature => {
+            <div
+              ref={carouselRef}
+              className="lg:hidden col-span-2 scrollbar-none flex snap-x snap-mandatory gap-3 overflow-x-auto [-ms-overflow-style:'none'] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [overscroll-behavior-x:contain] [-webkit-overflow-scrolling:touch]"
+            >
+              {features.map((feature, index) => {
                 const Icon = feature.icon;
                 return (
                   <div
                     key={feature.id}
-                    className="relative h-[min(30rem,65vh)] w-[min(100%,100vw)] shrink-0 cursor-pointer snap-center overflow-hidden rounded-xl border border-border bg-background"
+                    data-slide-index={index}
+                    className="relative h-[min(30rem,65vh)] w-[min(92vw,100%)] shrink-0 cursor-pointer snap-center snap-always overflow-hidden rounded-xl border border-border bg-background first:ml-[4vw] last:mr-[4vw]"
                   >
                     <div className="h-full w-full p-4 flex flex-col">
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="flex size-10 items-center justify-center rounded-lg bg-primary p-2 text-primary-foreground">
-                          <Icon className="size-5" />
+                      <div className="mb-4">
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="flex size-10 items-center justify-center rounded-lg bg-primary p-2 text-primary-foreground">
+                            <Icon className="size-5" />
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-semibold text-foreground">
+                              {feature.title}
+                            </h3>
+                          </div>
                         </div>
-                        <div>
-                          <h3 className="text-lg font-semibold text-foreground">{feature.title}</h3>
-                        </div>
+                        <p className="text-sm text-muted-foreground leading-relaxed px-1">
+                          {feature.description}
+                        </p>
                       </div>
-                      <div className="flex-1 overflow-hidden">
+                      <div className="flex-1 overflow-auto">
                         <DynamicCodeBlock
                           lang={feature.language}
                           code={feature.code}
@@ -554,22 +783,45 @@ export default function FeaturesSection() {
               })}
             </div>
 
-            {/* Mobile Dots */}
-            <div className="md:hidden col-span-2 mb-4 flex justify-center gap-2">
-              {features.map((_, index) => (
-                <button
-                  key={index}
-                  className={cn(
-                    "size-2 rounded-full transition-all",
-                    index === 0 ? "w-6 bg-primary" : "bg-muted hover:bg-muted-foreground/50"
-                  )}
-                  aria-label={`Go to slide ${index + 1}`}
-                />
-              ))}
+            {/* Mobile Dots with sliding indicator */}
+            <div ref={dotsContainerRef} className="col-span-2 mb-4 flex justify-center lg:hidden">
+              {/* Inner wrapper creates proper positioning context */}
+              <div ref={dotsRowRef} className="relative flex gap-2">
+                {/* Static grey dots */}
+                {features.map((_, index) => (
+                  <button
+                    key={index}
+                    className="size-2 rounded-full bg-muted hover:bg-muted-foreground/50"
+                    onClick={() => {
+                      scrollToIndex(index);
+                    }}
+                    aria-label={`Go to slide ${index + 1}`}
+                  />
+                ))}
+
+                {/* Sliding green indicator */}
+                <motion.div className="absolute top-0 left-0 h-2" style={{ x: springX }}>
+                  <motion.span
+                    className="block h-full rounded-full bg-primary"
+                    initial={{ width: "8px" }}
+                    animate={{
+                      width: isScrolling ? "8px" : "24px",
+                      marginLeft: isScrolling ? "0px" : "-8px",
+                    }}
+                    transition={{
+                      type: "spring",
+                      stiffness: 400,
+                      damping: 25,
+                      duration: 0.08,
+                    }}
+                  />
+                </motion.div>
+                {/* End sliding indicator */}
+              </div>
             </div>
 
             {/* Desktop Feature List */}
-            <div className="hidden md:flex md:flex-col">
+            <div className="hidden lg:flex lg:flex-col">
               {features.map((feature, index) => (
                 <FeatureCard
                   key={feature.id}
@@ -581,7 +833,7 @@ export default function FeaturesSection() {
             </div>
 
             {/* Desktop Code Display */}
-            <div className="relative hidden md:flex md:flex-col">
+            <div className="relative hidden lg:flex lg:flex-col">
               <motion.div
                 className="overflow-hidden rounded-xl border border-border shadow-sm bg-background flex flex-col h-fit"
                 layout
@@ -652,21 +904,38 @@ export default function FeaturesSection() {
                 </AnimatePresence>
               </motion.div>
 
-              {/* Desktop Dots */}
-              <div className="mt-4 flex justify-center gap-2">
-                {features.map((_, index) => (
-                  <button
-                    key={index}
-                    className={cn(
-                      "size-2 rounded-full transition-all",
-                      index === activeFeature
-                        ? "w-6 bg-primary"
-                        : "bg-muted hover:bg-muted-foreground/50"
-                    )}
-                    onClick={() => setActiveFeature(index)}
-                    aria-label={`Go to slide ${index + 1}`}
-                  />
-                ))}
+              {/* Desktop Dots with sliding indicator */}
+              <div className="mt-6 flex justify-center">
+                {/* Inner wrapper creates proper positioning context */}
+                <div ref={desktopDotsRowRef} className="relative flex gap-2">
+                  {/* Static grey dots */}
+                  {features.map((_, index) => (
+                    <button
+                      key={index}
+                      className="size-2 rounded-full bg-muted hover:bg-muted-foreground/50"
+                      onClick={() => setActiveFeature(index)}
+                      aria-label={`Go to slide ${index + 1}`}
+                    />
+                  ))}
+
+                  {/* Sliding green indicator */}
+                  <motion.div className="absolute top-0 left-0 h-2" style={{ x: desktopSpringX }}>
+                    <motion.span
+                      className="block h-full rounded-full bg-primary"
+                      initial={{ width: "8px" }}
+                      animate={{
+                        width: isDesktopMoving ? "8px" : "24px",
+                        marginLeft: isDesktopMoving ? "0px" : "-8px",
+                      }}
+                      transition={{
+                        type: "spring",
+                        stiffness: 400,
+                        damping: 25,
+                        duration: 0.08,
+                      }}
+                    />
+                  </motion.div>
+                </div>
               </div>
             </div>
           </div>

@@ -20,7 +20,9 @@ repos:
       #   args:
       #     - --no-utf8-locale
       - id: end-of-file-fixer
+        exclude: '^(CHANGELOG\.md|tools/.*/package\.json|bun\.lockb|node_modules/)'
       - id: check-json
+        exclude: '^(tools/.*/package\.json|node_modules/)'
       - id: check-toml
       - id: check-added-large-files
         args:

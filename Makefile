@@ -97,6 +97,8 @@ swagger-gen:
 	@echo "Generating Swagger documentation..."
 	@mkdir -p $(SWAGGER_DIR)
 	@swag init --dir ./ --generalInfo main.go --output $(SWAGGER_DIR) --parseDependency --parseInternal 2>&1 | grep -v "warning: failed to evaluate const" | grep -v "reflect: call of reflect.Value" | grep -v "strconv.ParseUint: parsing" || true
+	@echo "Running pre-commit on generated swagger files..."
+	@pre-commit run --files $(SWAGGER_DIR)/docs.go $(SWAGGER_DIR)/swagger.json $(SWAGGER_DIR)/swagger.yaml || true
 	@echo "Swagger documentation generated at $(SWAGGER_DIR)"
 
 swagger-validate:

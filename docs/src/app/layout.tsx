@@ -29,11 +29,17 @@ export default function Layout({ children }: { children: ReactNode }) {
   return (
     <html
       lang="en"
-      className={`${GeistSans.variable} ${GeistMono.variable} ${clashDisplay.variable}`}
+      className={`dark ${GeistSans.variable} ${GeistMono.variable} ${clashDisplay.variable}`}
       suppressHydrationWarning
     >
       <body className="flex flex-col min-h-screen font-sans">
-        <RootProvider>{children}</RootProvider>
+        <RootProvider
+          theme={{
+            enabled: false,
+          }}
+        >
+          {children}
+        </RootProvider>
         <Toaster />
         <Analytics />
       </body>

@@ -7,6 +7,7 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  --breakpoint-xs: 24.99rem; /* 399.84px - just under 400px */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -102,6 +103,7 @@
     background-position: calc(100% + var(--shiny-width)) 0;}}}
 
 :root {
+  color-scheme: dark;
   --background: #faf9f5;
   --foreground: #3d3929;
   --card: #faf9f5;
@@ -227,10 +229,16 @@
 
   html {
     font-size: 16px;
+    color-scheme: dark;
   }
 
   body {
     @apply bg-background text-foreground;
+  }
+  
+  /* Force dark mode styles */
+  html, html.dark {
+    color-scheme: dark;
   }
 
   /* Apply font variables from Next.js font loader */

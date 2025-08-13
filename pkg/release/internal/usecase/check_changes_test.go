@@ -153,7 +153,7 @@ func TestCheckChangesUseCase_Execute(t *testing.T) {
 		gitRepo.On("CommitsSinceTag", ctx, "v1.0.0").Return(0, expectedErr)
 		hasChanges, latestTag, err := uc.Execute(ctx)
 		assert.Error(t, err)
-		assert.Equal(t, expectedErr, err)
+		assert.ErrorContains(t, err, "commit count error")
 		assert.False(t, hasChanges)
 		assert.Equal(t, "v1.0.0", latestTag)
 		gitRepo.AssertExpectations(t)
