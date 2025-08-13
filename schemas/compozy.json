@@ -399,6 +399,10 @@
       "additionalProperties": false,
       "description": "DatabaseConfig contains database connection configuration.",
       "properties": {
+        "auto_migrate": {
+          "description": "AutoMigrate enables automatic database migrations on startup.\n\nWhen enabled, the system will automatically apply any pending database\nmigrations when establishing a database connection. This eliminates\nthe need for manual migration commands.\n\nDefault: true",
+          "type": "boolean"
+        },
         "conn_string": {
           "description": "ConnString provides a complete PostgreSQL connection URL.\n\nFormat: `postgres://user:password@host:port/database?sslmode=mode`\nTakes precedence over individual connection parameters.",
           "type": "string"
@@ -481,7 +485,7 @@
       "description": "MCPProxyConfig contains MCP proxy server configuration.",
       "properties": {
         "admin_allow_ips": {
-          "description": "AdminAllowIPs contains IP addresses allowed to access admin endpoints.\n\n**Default**: `[\"127.0.0.1\", \"::1\"]`",
+          "description": "AdminAllowIPs contains IP addresses allowed to access admin endpoints.\n\n**Default**: `[]` (empty - allows all IPs)",
           "items": {
             "type": "string"
           },

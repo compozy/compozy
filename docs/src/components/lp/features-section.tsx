@@ -45,19 +45,19 @@ tasks:
     tasks:
       - id: performance_analysis
         type: basic
-        $use: agent(local::agents.#(id=="go_code_analyzer"))
-        action: analyze_performance
+        $use: agent(local::agents.#(id=="analyzer"))
+        action: analyze
         with:
           file_path: "{{ .workflow.input.file_path }}"
-          output_path: "{{ .workflow.input.output_path }}"
+          content: "{{ .workflow.input.file_content }}"
 
       - id: best_practices_analysis
         type: basic
-        $use: agent(local::agents.#(id=="go_code_analyzer"))
-        action: analyze_best_practices
+        $use: agent(local::agents.#(id=="analyzer"))
+        action: analyze
         with:
           file_path: "{{ .workflow.input.file_path }}"
-          output_path: "{{ .workflow.input.output_path }}"`,
+          content: "{{ .workflow.input.file_content }}"`,
     language: "yaml",
   },
   {
@@ -67,33 +67,27 @@ tasks:
       "Create intelligent agents with LLM integration, tool support, memory management, and structured outputs for sophisticated AI behaviors, surpassing simpler frameworks like LangChain in enterprise readiness.",
     icon: Bot,
     code: `resource: agent
-id: go_code_analyzer
-description: AI agent specialized in Go code analysis
+id: analyzer
+description: Specialized in Go code analysis for performance and best practices
 version: 1.0.0
 
 config:
-  provider: anthropic
-  model: claude-4-opus
-  api_key: "{{ .env.CLAUDE_API_KEY }}"
+  $ref: global::models.#(provider=="openai")
 
 instructions: |
-  You are an expert Go developer and code reviewer with deep knowledge of:
-  - Go performance optimization and profiling
-  - Go best practices and idiomatic patterns
-  - Concurrent programming in Go
-  - Memory management and garbage collection
-
-  Your role is to analyze Go code and provide detailed, actionable reports.
-  Always provide specific, implementable suggestions with code examples.
+  You are an expert Go developer specializing in performance optimization,
+  best practices, concurrency, and memory management. Analyze code and
+  provide actionable reports with specific, implementable suggestions.
 
 tools:
-  - $ref: local::tools.#(id=="claude_code_analyzer")
+  - $ref: local::tools.#(id=="write_file")
 
 actions:
-  - id: analyze_performance
-    prompt: |
-      Analyze the Go file: {{ .input.file_path }} for performance issues.
-      Create a detailed markdown report with optimization recommendations.`,
+  - id: analyze
+    prompt: |-
+      Analyze the following Go code file and save the review as a markdown file.
+      Create a comprehensive markdown report with proper structure.
+      Return a summary of your findings after saving the review file.`,
     language: "yaml",
   },
   {
@@ -106,9 +100,10 @@ actions:
 - id: analyze_code
   type: basic
   description: Analyze Go code for performance issues
-  $use: agent(local::agents.#(id=="code_analyzer"))
+  $use: agent(local::agents.#(id=="analyzer"))
   with:
-    code_path: "{{ .input.file_path }}"
+    file_path: "{{ .input.file_path }}"
+    content: "{{ .input.file_content }}"
 
 # Parallel Task - Concurrent execution
 - id: multi_analysis
@@ -128,7 +123,7 @@ actions:
   items: "{{ .input.file_list }}"
   task:
     type: basic
-    $use: tool(file_processor)
+    $use: tool(local::tools.#(id=="file_processor"))
     with:
       file: "{{ .item }}"`,
     language: "yaml",
@@ -139,36 +134,23 @@ actions:
     description:
       "Execute custom JavaScript/TypeScript code within tasks and agents using secure Bun runtime with granular permissions for safe, high-performance extensions—more flexible and efficient than rigid alternatives.",
     icon: Cpu,
-    code: `// TypeScript tool with secure Bun runtime
-import { readFile } from "fs/promises";
-import { existsSync } from "fs";
+    code: `import { z } from 'zod';
 
-interface CodeAnalyzerInput {
-  file_path: string;
-  analysis_type: "performance" | "security" | "style";
-}
+const inputSchema = z.object({
+  name: z.string(),
+  language: z.enum(['en', 'es', 'fr']).default('en')
+});
 
-interface CodeAnalyzerOutput {
-  analysis_result: string;
-  issues_found: number;
-  suggestions: string[];
-}
+export async function greeting(input: z.infer<typeof inputSchema>) {
+  const { name, language } = inputSchema.parse(input);
+  const greetings = {
+    en: \`Hello, \${name}!\`,
+    es: \`¡Hola, \${name}!\`,
+    fr: \`Bonjour, \${name}!\`
+  };
 
-export async function analyzeCode(
-  input: CodeAnalyzerInput
-): Promise<CodeAnalyzerOutput> {
-  // Secure file access with Bun permissions
-  if (!existsSync(input.file_path)) {
-    throw new Error(\`File not found: \${input.file_path}\`);
-  }
-
-  const code = await readFile(input.file_path, "utf8");
-
-  // Analysis logic here
   return {
-    analysis_result: "Analysis complete",
-    issues_found: 3,
-    suggestions: ["Use interfaces", "Add error handling"]
+    message: greetings[language],
   };
 }`,
     language: "typescript",
@@ -179,37 +161,29 @@ export async function analyzeCode(
     description:
       "Discover and execute external tools via Model Context Protocol (MCP) servers through our secure proxy server, enabling seamless integration with existing systems—more robust than basic API calls in competitors like Airflow.",
     icon: Globe,
-    code: `# MCP Server Configuration
-mcp:
-  servers:
-    - name: filesystem-tools
-      transport:
-        type: stdio
-        command: "npx"
-        args: ["@anthropic-ai/mcp-server-filesystem"]
-        cwd: "/tmp"
+    code: `# Global MCP server defined at workflow level
+mcps:
+  - id: context7
+    transport: stdio
+    command: "npx"
+    args: ["-y", "@upstash/context7-mcp"]
 
-    - name: github-integration
-      transport:
-        type: http/sse
-        url: "http://localhost:3001/sse"
-      auth:
-        type: bearer
-        token: "{{ .env.GITHUB_TOKEN }}"
+# Agent that uses the global MCP server
+agents:
+  - id: docs-assistant
+    config:
+      $ref: global::models.#(provider=="openai")
 
-# Using MCP tools in workflows
-- id: analyze_repository
-  type: basic
-  $use: mcp_tool(filesystem-tools::read_file)
-  with:
-    path: "{{ .input.repo_path }}/README.md"
+    instructions: |
+      You are a documentation assistant. Use the Context7 MCP
+      server to fetch up-to-date library documentation.
 
-- id: create_issue
-  type: basic
-  $use: mcp_tool(github-integration::create_issue)
-  with:
-    title: "Code analysis results"
-    body: "{{ .tasks.analyze_repository.output }}"`,
+    actions:
+      - id: get-docs
+        prompt: |
+          Find documentation for: {{ .input.library }}
+          Topic: {{ .input.topic }}
+          Use the Context7 MCP tools to retrieve the latest docs.`,
     language: "yaml",
   },
   {
@@ -221,28 +195,26 @@ mcp:
     code: `# Signal Task - Publish events
 - id: publish_analysis_complete
   type: signal
-  signal_name: "analysis.complete"
-  payload:
-    analysis_id: "{{ .workflow.execution_id }}"
-    file_path: "{{ .input.file_path }}"
-    results: "{{ .tasks.analyze_code.output }}"
-    timestamp: "{{ now }}"
+  signal:
+    id: "analysis.complete"
+    payload:
+      analysis_id: "{{ .workflow.id }}"
+      file_path: "{{ .input.file_path }}"
 
 # Wait Task - Subscribe to events
 - id: wait_for_approval
   type: wait
-  signal_name: "analysis.approved"
+  wait_for: "analysis.approved"
   timeout: "5m"
-  filter: |
-    .payload.analysis_id == "{{ .workflow.execution_id }}"
+  condition: 'signal.payload.analysis_id == "{{ .workflow.id }}"'
+  processor:
+    $use: tool(local::tools.#(id=="some_tool"))
 
-# Event-driven workflow coordination
-- id: process_after_approval
-  type: basic
-  depends_on: [wait_for_approval]
-  $use: tool(deploy_changes)
-  with:
-    approved_analysis: "{{ .tasks.wait_for_approval.output }}"`,
+# Event-triggered workflow
+id: deployment-workflow
+triggers:
+  - type: signal
+    name: "analysis.approved"`,
     language: "yaml",
   },
   {
@@ -261,7 +233,7 @@ schedule:
 tasks:
   - id: discover_repositories
     type: basic
-    $use: tool(git_scanner)
+    $use: tool(local::tools.#(id=="git_scanner"))
     with:
       scan_path: "/repos"
 
@@ -271,16 +243,10 @@ tasks:
     concurrency: 5  # Process 5 repos in parallel
     task:
       type: basic
-      $use: agent(code_analyzer)
+      $use: agent(local::agents.#(id=="analyzer"))
       with:
-        repo_path: "{{ .item.path }}"
-
-  - id: generate_report
-    type: basic
-    $use: tool(report_generator)
-    with:
-      analysis_results: "{{ .tasks.analyze_all_repos.output }}"
-      output_path: "/reports/daily-{{ .schedule.date }}.md"`,
+        file_path: "{{ .item.path }}"
+        content: "{{ .item.content }}"`,
     language: "yaml",
   },
   {
@@ -297,31 +263,19 @@ memory:
     key_template: "user:{{ .input.user_id }}:session:{{ .input.session_id }}"
     ttl: "24h"
 
-  - id: analysis_cache
-    type: buffer
-    max_messages: 50
-    key_template: "analysis:{{ .input.file_hash }}"
-    ttl: "7d"
-    flush_strategy: "lru"
-
 # Using memory in agents
 agents:
   - id: code_reviewer
+    resource: agent
     memory:
-      - $ref: local::memory.#(id=="conversation_history")
+      - id: conversation_history
+        key: "user:{{ .input.user_id }}:session:{{ .input.session_id }}"
+        mode: read-write
     config:
-      provider: anthropic
-      model: claude-3-sonnet
+      $ref: global::models.#(provider=="openai")
     instructions: |
       You are a code reviewer with access to conversation history.
-      Remember previous analysis and user preferences.
-
-# Privacy controls
-privacy:
-  pii_detection: true
-  redaction_patterns:
-    - "\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Z|a-z]{2,}\\b"  # Email
-    - "\\b\\d{3}-\\d{2}-\\d{4}\\b"  # SSN`,
+      Remember previous analysis and user preferences.`,
     language: "yaml",
   },
 ];

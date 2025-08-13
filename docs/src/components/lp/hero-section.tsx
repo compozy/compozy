@@ -1,9 +1,7 @@
-import { AnimatedShinyText } from "@/components/magicui/animated-shiny-text";
 import { DotPattern } from "@/components/magicui/dot-pattern";
 import { AnimatedGroup, type AnimatedGroupProps } from "@/components/ui/animated-group";
 import { Button } from "@/components/ui/button";
 import { GitHubLogoIcon } from "@radix-ui/react-icons";
-import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 
 import HeroText from "./hero-text";
@@ -53,25 +51,22 @@ export default function HeroSection() {
           <div className="relative h-full flex items-center justify-center">
             <div className="mx-auto max-w-7xl px-6">
               <div className="text-center sm:mx-auto lg:mr-auto lg:mt-0 -translate-y-4 sm:-translate-y-8">
-                <AnimatedGroup variants={transitionVariants}>
-                  <Link
-                    href="/docs"
-                    className="hover:bg-background dark:hover:border-t-border bg-muted group mx-auto flex w-fit items-center gap-4 rounded-full border p-1 pl-4 shadow-md shadow-zinc-950/5 transition-colors duration-300 dark:border-t-white/5 dark:shadow-zinc-950"
+                <AnimatedGroup variants={transitionVariants} className="flex justify-center">
+                  <a
+                    href="https://www.producthunt.com/products/compozy?embed=true&utm_source=badge-featured&utm_medium=badge&utm_source=badge-compozy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-block"
                   >
-                    <AnimatedShinyText>✨ Alpha Release is Here!</AnimatedShinyText>
-                    <span className="dark:border-background block h-4 w-0.5 border-l bg-white dark:bg-zinc-700"></span>
-
-                    <div className="bg-background group-hover:bg-muted size-6 overflow-hidden rounded-full duration-500">
-                      <div className="flex w-12 -translate-x-1/2 duration-500 ease-in-out group-hover:translate-x-0">
-                        <span className="flex size-6">
-                          <ArrowRight className="m-auto size-3" />
-                        </span>
-                        <span className="flex size-6">
-                          <ArrowRight className="m-auto size-3" />
-                        </span>
-                      </div>
-                    </div>
-                  </Link>
+                    <img
+                      src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1004723&theme=light&t=1755065549890"
+                      alt="Compozy - Design complex AI workflows using intuitive YAML templates | Product Hunt"
+                      style={{ width: "250px", height: "54px" }}
+                      width="250"
+                      height="54"
+                      className="mx-auto"
+                    />
+                  </a>
                 </AnimatedGroup>
                 <HeroText />
                 <AnimatedGroup

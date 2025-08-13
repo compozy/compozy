@@ -29,6 +29,10 @@
     "ssl_mode": {
       "type": "string",
       "description": "SSLMode configures SSL/TLS connection security.\n\nOptions:\n  - `\"disable\"`: No SSL (development only)\n  - `\"prefer\"`: Try SSL, fallback to non-SSL\n  - `\"require\"`: SSL required (recommended)\n  - `\"verify-ca\"`: SSL with CA verification\n  - `\"verify-full\"`: SSL with full verification"
+    },
+    "auto_migrate": {
+      "type": "boolean",
+      "description": "AutoMigrate enables automatic database migrations on startup.\n\nWhen enabled, the system will automatically apply any pending database\nmigrations when establishing a database connection. This eliminates\nthe need for manual migration commands.\n\nDefault: true"
     }
   },
   "additionalProperties": false,
