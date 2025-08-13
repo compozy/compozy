@@ -1,3 +1,4 @@
+import { Badge } from "@/components/ui/badge";
 import { Logo } from "@/components/ui/logo";
 import type { BaseLayoutProps } from "fumadocs-ui/layouts/shared";
 
@@ -15,8 +16,11 @@ export const baseOptions: BaseLayoutProps = {
   },
   nav: {
     title: (
-      <div className="mb-1">
+      <div className="mb-1 flex items-center gap-2">
         <Logo size="sm" />
+        <Badge variant="secondary" size="sm" className="text-[10px] px-1.5 py-0">
+          ALPHA
+        </Badge>
       </div>
     ),
   },
