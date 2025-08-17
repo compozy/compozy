@@ -113,7 +113,7 @@ Configure tasks based on runtime data:
 ```yaml
 - id: api_call
   type: basic
-  $use: tool(local::tools.#(id=="http_request"))
+  $use: tool(local::tools.#(id=="http_client"))
   with:
     url: "{{ .env.API_BASE_URL }}/users/{{ .workflow.input.user_id }}"
     method: "{{ .workflow.input.method | default 'GET' }}"

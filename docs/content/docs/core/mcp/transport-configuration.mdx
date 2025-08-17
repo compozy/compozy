@@ -20,7 +20,7 @@ Standard I/O transport for local processes and command execution:
 ```yaml
 # compozy.yaml
 mcps:
-  - name: filesystem_server
+  - id: filesystem_server
     transport: stdio
     command: npx
     args: ["-y", "@modelcontextprotocol/server-filesystem", "./workspace"]
@@ -48,7 +48,7 @@ Server-Sent Events for real-time HTTP streaming:
 ```yaml
 # compozy.yaml
 mcps:
-  - name: remote_server
+  - id: remote_server
     transport: sse
     url: "https://example.com/mcp"
     headers:
@@ -76,7 +76,7 @@ HTTP with streaming for large responses and file transfers:
 ```yaml
 # compozy.yaml
 mcps:
-  - name: file_server
+  - id: file_server
     transport: streamable-http
     url: "https://api.example.com/mcp-stream"
     headers:

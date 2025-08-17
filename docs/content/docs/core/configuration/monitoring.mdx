@@ -187,13 +187,13 @@ description: Configure Prometheus-compatible monitoring and metrics collection f
       <CardContent>
         ```bash
         # Default endpoint
-        curl http://localhost:8080/metrics
+        curl http://localhost:5001/metrics
 
         # Custom endpoint
-        curl http://localhost:8080/internal/metrics
+        curl http://localhost:5001/internal/metrics
 
         # Pretty print with jq
-        curl -s http://localhost:8080/metrics | grep compozy_
+        curl -s http://localhost:5001/metrics | grep compozy_
         ```
       </CardContent>
     </Card>
@@ -207,8 +207,8 @@ description: Configure Prometheus-compatible monitoring and metrics collection f
       </CardHeader>
       <CardContent>
         Navigate to:
-        - Default: `http://localhost:8080/metrics`
-        - Custom: `http://localhost:8080/internal/metrics`
+        - Default: `http://localhost:5001/metrics`
+        - Custom: `http://localhost:5001/internal/metrics`
 
         <Callout type="tip" icon="Lightbulb">
           Install a browser extension like "Prometheus Formatter" for better readability
@@ -229,7 +229,7 @@ description: Configure Prometheus-compatible monitoring and metrics collection f
         scrape_configs:
           - job_name: 'compozy'
             static_configs:
-              - targets: ['localhost:8080']
+              - targets: ['localhost:5001']
             metrics_path: '/metrics'
             scrape_interval: 15s
         ```

@@ -331,16 +331,12 @@ Start with custom settings:
 
 ```bash
 # Basic start without authentication
-compozy mcp-proxy \
-  --mcp-host 0.0.0.0 \
-  --mcp-port 6001
+compozy mcp-proxy
 
-# With authentication enabled
-compozy mcp-proxy \
-  --host 0.0.0.0 \
-  --port 6001 \
-  --admin-tokens "secure-admin-token" \
-  --admin-allow-ips "10.0.0.0/8,192.168.1.0/24"
+# With authentication enabled (using environment variables)
+MCP_PROXY_ADMIN_TOKEN="secure-admin-token" \
+MCP_PROXY_ADMIN_ALLOW_IPS="10.0.0.0/8,192.168.1.0/24" \
+compozy mcp-proxy
 ```
 </Step>
 
@@ -350,7 +346,7 @@ Use environment variables for production:
 ```bash
 export MCP_PROXY_ADMIN_TOKEN="$(openssl rand -hex 32)"
 export MCP_PROXY_GLOBAL_AUTH_TOKEN="$(openssl rand -hex 32)"
-compozy mcp-proxy --mcp-host 0.0.0.0 --mcp-port 6001
+compozy mcp-proxy
 ```
 </Step>
 </Steps>

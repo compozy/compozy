@@ -602,7 +602,7 @@ fast_ops: |
 expensive_ops: |
   {{ .items | sortAlpha }}               # ~10μs for 100 items
   {{ .items | uniq }}                    # ~5μs for 100 items
-  {{ .text | regexMatch "pattern" }}     # ~3μs
+  {{ .text | regexFind "pattern" }}      # ~3μs
   {{ .data | toJson }}                   # ~2μs for medium objects
 ```
 

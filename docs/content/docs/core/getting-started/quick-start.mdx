@@ -183,7 +183,7 @@ Your server will be running at `http://localhost:5001`.
 <Tab>
 ```http title="test.http"
 @baseUrl = http://localhost:5001/api/v0
-@workflowId = main-workflow
+@workflowId = hello-world
 
 ### Execute the workflow with friendly greeting
 POST {{baseUrl}}/workflows/{{workflowId}}/executions
@@ -216,12 +216,12 @@ GET {{baseUrl}}/executions/{{execId}}
 <Tab>
 ```bash
 # Execute the workflow via CLI
-compozy workflow execute main-workflow \
+compozy workflow execute hello-world \
   --param name="Alice" \
   --param style="friendly"
 
 # Or via HTTP API
-curl -X POST http://localhost:5001/api/v0/workflows/main-workflow/executions \
+curl -X POST http://localhost:5001/api/v0/workflows/hello-world/executions \
   -H "Content-Type: application/json" \
   -d '{"input": {"name": "Alice", "style": "friendly"}}'
 ```
@@ -260,10 +260,10 @@ Here's what happens when you execute this simple workflow:
     participant Temporal
     participant Executor as Task Executor
     participant Runtime as Bun Runtime
-    participant LLM as GPT-4.1
+    participant LLM as GPT-4o
     participant DB as PostgreSQL
 
-    Client->>API: POST /workflows/main-workflow/executions
+    Client->>API: POST /workflows/hello-world/executions
     API->>Worker: TriggerWorkflow(input: {name: "Alice", style: "friendly"})
     Worker->>Worker: Validate input & Generate exec ID
     Worker->>Temporal: StartWorkflow(CompozyWorkflow)
@@ -291,7 +291,7 @@ Here's what happens when you execute this simple workflow:
 
 <List className="mt-12">
   <ListItem title="HTTP API Layer">
-    The WorkflowController receives your request at `/api/v0/workflows/main-workflow/executions`
+    The WorkflowController receives your request at `/api/v0/workflows/hello-world/executions`
   </ListItem>
   <ListItem title="Input Validation">
     The system validates that the required `name` field is provided and the optional `style` field is valid
@@ -303,7 +303,7 @@ Here's what happens when you execute this simple workflow:
     The single `greet` task runs with the greeter agent, which uses the greeting tool to generate a response
   </ListItem>
   <ListItem title="Agent Intelligence">
-    GPT-4.1 receives the greeting instructions and autonomously calls the greeting tool, then enhances the response
+    GPT-4o receives the greeting instructions and autonomously calls the greeting tool, then enhances the response
   </ListItem>
   <ListItem title="Tool Execution">
     The greeting tool runs in the sandboxed Bun runtime and returns a structured response

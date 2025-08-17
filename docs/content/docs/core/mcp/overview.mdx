@@ -276,7 +276,7 @@ cd my-mcp-project
 compozy dev --watch
 
 # 3. In another terminal, start the MCP proxy
-compozy mcp-proxy --mcp-port 6001 --debug
+compozy mcp-proxy --debug
 ```
 
 <Steps>
@@ -290,7 +290,7 @@ Run `compozy dev --watch` to start the development server with hot reload capabi
 Launch `compozy mcp-proxy` to handle all MCP server connections and routing.
 </Step>
 <Step title="Test Integration">
-Use `compozy workflow execute` to verify that your workflows can use MCP tools.
+Use `compozy workflow execute --workflow-id <id>` to verify that your workflows can use MCP tools.
 </Step>
 </Steps>
 

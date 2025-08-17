@@ -158,6 +158,7 @@ Basic tasks use a **declarative YAML structure** that makes them easy to read, w
   >
     ```yaml title="Task Identity"
     id: analyze-sentiment
+    type: basic
     $use: agent(local::agents.#(id=="sentiment-analyzer"))
     action: analyze_text  # Required for agents
     ```
@@ -246,6 +247,7 @@ Agent tasks execute AI models with specific instructions:
 
 ```yaml
 id: analyze-text
+type: basic
 $use: agent(local::agents.#(id=="text-analyzer"))
 action: analyze_sentiment
 
@@ -258,6 +260,9 @@ agent:
   instructions: |
     Analyze the sentiment of the provided text.
     Return a score between -1 (negative) and 1 (positive).
+  actions:
+    - id: analyze_sentiment
+      description: Analyze the sentiment of text content
 
 with:
   text: "{{ .workflow.input.content }}"
@@ -276,6 +281,7 @@ Tool tasks execute TypeScript functions in secure Bun runtime:
 
 ```yaml
 id: format-code
+type: basic
 $use: tool(local::tools.#(id=="formatter"))
 
 # Tool configuration (can be inline or referenced)
@@ -302,6 +308,7 @@ Comprehensive task configuration options:
 
 ```yaml
 id: complete-task-example
+type: basic
 $use: agent(local::agents.#(id=="processor"))
 action: process_data
 

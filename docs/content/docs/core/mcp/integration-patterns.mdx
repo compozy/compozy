@@ -195,10 +195,10 @@ cd data-processing-project
 compozy dev --watch
 
 # 3. In another terminal, start MCP proxy
-compozy mcp-proxy --mcp-port 6001 --debug
+compozy mcp-proxy --debug
 
 # 4. Test your workflow
-compozy workflow execute data-processing-workflow
+compozy workflow execute --workflow-id data-processing-workflow
 ```
 
 ### Basic MCP Tool Usage
@@ -229,7 +229,7 @@ For simple data processing workflows, refer to the **Single MCP Server Integrati
     Create agents with access to MCP tools and build workflows
   </ListItem>
   <ListItem title="Testing Phase" icon="CheckCircle">
-    Test with `compozy workflow execute` and verify tool registration
+    Test with `compozy workflow execute --workflow-id <id>` and verify tool registration
   </ListItem>
   <ListItem title="Deployment Phase" icon="Cloud">
     Deploy with `compozy start` and proper logging configuration

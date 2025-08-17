@@ -25,10 +25,11 @@ const (
 // NewStartCommand creates the start command for production server
 func NewStartCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "start",
-		Short: "Start Compozy production server",
-		Long:  "Start the Compozy server optimized for production use",
-		RunE:  executeStartCommand,
+		Use:     "start",
+		Aliases: []string{"server"},
+		Short:   "Start Compozy production server",
+		Long:    "Start the Compozy server optimized for production use",
+		RunE:    executeStartCommand,
 	}
 	return cmd
 }

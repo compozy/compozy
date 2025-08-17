@@ -231,7 +231,8 @@ func generateSecureToken(length int) (string, error) {
 func main() {
     token, err := generateSecureToken(32)
     if err != nil {
-        panic(err)
+        fmt.Printf("Error generating token: %v\n", err)
+        return
     }
     fmt.Printf("Generated token: %s\n", token)
 }

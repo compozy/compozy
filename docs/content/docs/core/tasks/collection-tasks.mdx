@@ -71,6 +71,7 @@ Collection tasks are essential for data processing pipelines, user batch operati
 
 ```yaml
 id: process-users
+type: collection
 mode: parallel
 strategy: best_effort
 
@@ -104,6 +105,7 @@ Control how collection items are processed:
 
 ```yaml title="Sequential Processing"
 id: sequential-collection
+type: collection
 mode: sequential
 items: "{{ .workflow.input.documents }}"
 
@@ -117,6 +119,7 @@ task:
 
 ```yaml title="Parallel Processing"
 id: parallel-collection
+type: collection
 mode: parallel
 strategy: wait_all
 max_workers: 8
@@ -132,6 +135,7 @@ task:
 
 ```yaml title="Batched Processing"
 id: batched-collection
+type: collection
 mode: parallel
 batch_size: 5
 items: "{{ .workflow.input.records }}"
@@ -151,6 +155,7 @@ Filter items before processing:
 
 ```yaml title="Filter by Status"
 id: filter-by-status
+type: collection
 items: "{{ .workflow.input.orders }}"
 filter: "{{ eq .item.status 'pending' }}"
 
@@ -164,6 +169,7 @@ task:
 
 ```yaml title="Complex Filtering"
 id: complex-filter
+type: collection
 items: "{{ .workflow.input.users }}"
 filter: "{{ and (ne .item.status 'inactive') (gt .item.age 18) (ne .item.email '') }}"
 
@@ -177,6 +183,7 @@ task:
 
 ```yaml title="Date-based Filtering"
 id: date-filter
+type: collection
 items: "{{ .workflow.input.events }}"
 filter: "{{ and (gt .item.date '2024-01-01') (lt .item.date '2024-12-31') }}"
 
@@ -195,6 +202,7 @@ Process items in batches for efficiency:
 
 ```yaml title="Fixed Batch Size"
 id: fixed-batch
+type: collection
 mode: parallel
 batch_size: 10
 items: "{{ .workflow.input.large_dataset }}"
@@ -210,6 +218,7 @@ task:
 
 ```yaml title="Dynamic Batch Sizing"
 id: dynamic-batch
+type: collection
 mode: parallel
 batch_size: "{{ .env.BATCH_SIZE | default 5 | toNumber }}"
 items: "{{ .workflow.input.items }}"
@@ -228,6 +237,7 @@ task:
 
 ```yaml title="Batch with Overlap"
 id: overlapping-batch
+type: collection
 mode: sequential
 batch_size: 8
 batch_overlap: 2
@@ -250,6 +260,7 @@ Use collection-specific variables in tasks:
 
 ```yaml title="Collection Variables"
 id: collection-variables
+type: collection
 items: "{{ .workflow.input.products }}"
 item_var: product     # Custom variable name for current item
 index_var: idx        # Custom variable name for current index
@@ -280,6 +291,7 @@ task:
 
 ```yaml title="Default Variables"
 id: default-variables
+type: collection
 items: "{{ .workflow.input.tasks }}"
 
 task:
@@ -357,6 +369,7 @@ Implement sophisticated filtering logic using CEL expressions for complex busine
 
 ```yaml
 id: conditional-processing
+type: collection
 items: "{{ .workflow.input.transactions }}"
 
 # Complex filtering with multiple conditions
@@ -414,6 +427,7 @@ Process collections within collections:
 
 ```yaml
 id: nested-collection-processing
+type: collection
 items: "{{ .workflow.input.departments }}"
 
 task:

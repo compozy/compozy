@@ -140,15 +140,14 @@ runtime:
     - --allow-env=API_KEY,DATABASE_URL
 
 cache:
+  enabled: true
   url: redis://localhost:6379/0
-  pool_size: 10
-  key_prefix: "compozy:"
+  prefix: "compozy:cache:"
+  ttl: 86400
 
 monitoring:
   enabled: true
-  metrics:
-    provider: prometheus
-    endpoint: /metrics
+  path: /metrics
 
 autoload:
   enabled: true
@@ -197,7 +196,7 @@ runtime:
 autoload:
   enabled: true
   strict: true
-  watch_interval: 2s
+  watch_enabled: true
   include:
     - "agents/**/*.yaml"
     - "workflows/**/*.yaml"

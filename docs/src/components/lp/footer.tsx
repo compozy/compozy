@@ -9,7 +9,7 @@ const footerLinks = [
   },
   {
     title: "Getting Started",
-    href: "/docs/core/getting-started",
+    href: "/docs/core/getting-started/quick-start",
   },
   {
     title: "GitHub",
