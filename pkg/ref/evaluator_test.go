@@ -315,7 +315,7 @@ func TestDirectiveErrors(t *testing.T) {
 
 func TestDeterministicDirectivePick(t *testing.T) {
 	t.Run("Should consistently fail on multiple directives", func(t *testing.T) {
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			_, err := ProcessBytes(
 				[]byte(`{"$ref":"local::x","$use":"agent(local::y)"}`),
 				WithLocalScope(map[string]any{"x": "a", "y": "b"}),
@@ -333,7 +333,7 @@ func TestDeterministicDirectivePick(t *testing.T) {
 func TestJSONCaching(t *testing.T) {
 	t.Run("Should cache JSON representations efficiently", func(t *testing.T) {
 		huge := make(map[string]any)
-		for i := 0; i < 1000; i++ {
+		for i := range 1000 {
 			huge[string(rune(i))] = map[string]any{"deep": map[string]any{"path": map[string]any{"value": i}}}
 		}
 		ev := NewEvaluator(WithLocalScope(huge))
@@ -355,7 +355,7 @@ func TestEvaluatorConcurrency(t *testing.T) {
 		ev := NewEvaluator(WithLocalScope(scope))
 		var wg sync.WaitGroup
 		errs := make(chan error, 100)
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
@@ -405,12 +405,12 @@ func TestEdgeCases(t *testing.T) {
 	t.Run("Should handle deep nesting", func(t *testing.T) {
 		depth := 100
 		v := map[string]any{"value": "end"}
-		for i := 0; i < depth; i++ {
+		for range depth {
 			v = map[string]any{"next": v}
 		}
 		scope := map[string]any{"root": v}
 		path := "root"
-		for i := 0; i < depth; i++ {
+		for range depth {
 			path += ".next"
 		}
 		path += ".value"

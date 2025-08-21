@@ -50,8 +50,7 @@ func TestWatcher_Watch(t *testing.T) {
 		})
 
 		// Start watching
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx := t.Context()
 
 		err = watcher.Watch(ctx, tmpFile.Name())
 		require.NoError(t, err)
@@ -101,7 +100,7 @@ func TestWatcher_Watch(t *testing.T) {
 		var wg sync.WaitGroup
 		wg.Add(3) // Expect 3 callbacks to be invoked
 
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			index := i // capture loop variable
 			watcher.OnChange(func() {
 				mu.Lock()
@@ -112,8 +111,7 @@ func TestWatcher_Watch(t *testing.T) {
 		}
 
 		// Start watching
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx := t.Context()
 
 		err = watcher.Watch(ctx, tmpFile.Name())
 		require.NoError(t, err)
@@ -160,8 +158,7 @@ func TestWatcher_Watch(t *testing.T) {
 		defer watcher.Close()
 
 		// Should handle absolute path
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx := t.Context()
 
 		err = watcher.Watch(ctx, tmpFile.Name())
 		assert.NoError(t, err)
@@ -230,8 +227,7 @@ func TestWatcher_Close(t *testing.T) {
 		require.NoError(t, err)
 
 		// Start watching
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx := t.Context()
 
 		err = watcher.Watch(ctx, tmpFile.Name())
 		require.NoError(t, err)

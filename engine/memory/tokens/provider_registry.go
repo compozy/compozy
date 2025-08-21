@@ -2,6 +2,7 @@ package tokens
 
 import (
 	"fmt"
+	"maps"
 	"sync"
 )
 
@@ -85,8 +86,6 @@ func (r *ProviderRegistry) Clone(name string) (*ProviderConfig, error) {
 		Endpoint: config.Endpoint,
 		Settings: make(map[string]string),
 	}
-	for k, v := range config.Settings {
-		cloned.Settings[k] = v
-	}
+	maps.Copy(cloned.Settings, config.Settings)
 	return cloned, nil
 }

@@ -109,7 +109,7 @@ func (tmm *TokenMemoryManager) EnforceLimits(
 	if tmm.config.MaxMessages > 0 && len(messages) > tmm.config.MaxMessages {
 		evictCount := len(messages) - tmm.config.MaxMessages
 		// Recalculate tokens if messages were evicted due to count limit
-		for i := 0; i < evictCount; i++ {
+		for i := range evictCount {
 			currentTotalTokens -= messages[i].TokenCount
 		}
 		messages = messages[evictCount:]

@@ -150,7 +150,7 @@ func TestBuildChildrenContext_EdgeCases(t *testing.T) {
 		taskStates := make(map[string]*task.State)
 		// Create a deep hierarchy of tasks
 		var previousExecID *core.ID
-		for i := 0; i < 20; i++ {
+		for i := range 20 {
 			taskID := string(rune('A'+i)) + "-task"
 			execID := core.MustNewID()
 			taskConfigs[taskID] = &task.Config{

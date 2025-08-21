@@ -131,7 +131,7 @@ func TestManager_Get(t *testing.T) {
 
 		// Concurrent reads
 		var wg sync.WaitGroup
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
@@ -218,7 +218,7 @@ func TestManager_OnChange(t *testing.T) {
 
 		// Register multiple callbacks
 		var count int32
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			manager.OnChange(func(_ *Config) {
 				atomic.AddInt32(&count, 1)
 			})

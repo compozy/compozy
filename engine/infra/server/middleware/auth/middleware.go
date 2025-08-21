@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/engine/auth/model"
 	"github.com/compozy/compozy/engine/auth/uc"
 	"github.com/compozy/compozy/engine/auth/userctx"
+	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
 	"go.opentelemetry.io/otel/metric"
@@ -19,12 +20,14 @@ import (
 type Manager struct {
 	factory *uc.Factory
 	meter   metric.Meter
+	config  *config.Config
 }
 
 // NewManager creates a new auth middleware manager
-func NewManager(factory *uc.Factory) *Manager {
+func NewManager(factory *uc.Factory, cfg *config.Config) *Manager {
 	return &Manager{
 		factory: factory,
+		config:  cfg,
 	}
 }
 
@@ -49,6 +52,7 @@ func (m *Manager) Middleware() gin.HandlerFunc {
 		start := time.Now()
 		log := logger.FromContext(c.Request.Context())
 
+		// Extract bearer token
 		apiKey, err := m.extractBearerToken(c)
 		if err != nil {
 			var authErr *authError

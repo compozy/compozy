@@ -102,7 +102,7 @@ func TestConcurrentAgentAccess(t *testing.T) {
 		results := make(chan error, numWorkers)
 		var wg sync.WaitGroup
 		// Launch concurrent workers
-		for i := 0; i < numWorkers; i++ {
+		for i := range numWorkers {
 			wg.Add(1)
 			go func(workerID int) {
 				defer wg.Done()
@@ -122,7 +122,7 @@ func TestConcurrentAgentAccess(t *testing.T) {
 				}
 				// Add messages concurrently with retry logic for lock contention
 				successfulAppends := 0
-				for j := 0; j < messagesPerWorker; j++ {
+				for j := range messagesPerWorker {
 					msg := llm.Message{
 						Role:    "user",
 						Content: fmt.Sprintf("Message from worker %d, iteration %d", workerID, j),
@@ -201,7 +201,7 @@ func TestFlushWorkflow(t *testing.T) {
 		require.NoError(t, err)
 		// Add many messages to trigger flush
 		numMessages := 50
-		for i := 0; i < numMessages; i++ {
+		for i := range numMessages {
 			msg := llm.Message{
 				Role: "user",
 				Content: fmt.Sprintf(

@@ -304,7 +304,7 @@ func GenerateTestMessages(count int, avgTokensPerMessage int) []llm.Message {
 	messages := make([]llm.Message, count)
 	// Approximate tokens with words (roughly 1.3 tokens per word)
 	wordsPerMessage := avgTokensPerMessage * 3 / 4
-	for i := 0; i < count; i++ {
+	for i := range count {
 		role := "user"
 		if i%3 == 2 {
 			role = "assistant"
@@ -328,7 +328,7 @@ func generateContent(wordCount int, seed int) string {
 		"while", "thinking", "about", "complex", "problems", "in", "computer", "science",
 	}
 	result := ""
-	for i := 0; i < wordCount; i++ {
+	for i := range wordCount {
 		if i > 0 {
 			result += " "
 		}

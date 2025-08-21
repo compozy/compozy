@@ -142,7 +142,7 @@ func TestIterateSortedMap(t *testing.T) {
 
 		// Test multiple iterations to ensure consistency
 		var results [][]string
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			var keys []string
 			err := IterateSortedMap(m, func(k string, _ int) error {
 				keys = append(keys, k)

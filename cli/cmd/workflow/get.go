@@ -201,10 +201,7 @@ func (m *workflowDetailModel) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) 
 func (m *workflowDetailModel) handleScrollDown() {
 	if m.content != "" {
 		contentLines := strings.Split(m.content, "\n")
-		maxScroll := len(contentLines) - m.height
-		if maxScroll < 0 {
-			maxScroll = 0
-		}
+		maxScroll := max(len(contentLines)-m.height, 0)
 		if m.scrollOffset < maxScroll {
 			m.scrollOffset++
 		}
@@ -223,10 +220,7 @@ func (m *workflowDetailModel) handlePageUp() {
 func (m *workflowDetailModel) handlePageDown() {
 	if m.content != "" {
 		contentLines := strings.Split(m.content, "\n")
-		maxScroll := len(contentLines) - m.height
-		if maxScroll < 0 {
-			maxScroll = 0
-		}
+		maxScroll := max(len(contentLines)-m.height, 0)
 		m.scrollOffset += m.height / 2
 		if m.scrollOffset > maxScroll {
 			m.scrollOffset = maxScroll
@@ -256,10 +250,7 @@ func (m *workflowDetailModel) View() string {
 		start = 0
 	}
 
-	end := start + m.height
-	if end > len(lines) {
-		end = len(lines)
-	}
+	end := min(start+m.height, len(lines))
 
 	if start < len(lines) {
 		visibleLines = lines[start:end]

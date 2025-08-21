@@ -258,22 +258,13 @@ func (s *TokenAwareLRUStrategy) GetMinMaxToFlush(
 		maxFlush = 1 // Very few messages, only flush 1
 	case currentTokens > maxTokens:
 		// When over token limit, flush up to half the messages
-		maxFlush = totalMsgs / 2
-		if maxFlush < minFlush {
-			maxFlush = minFlush
-		}
+		maxFlush = max(totalMsgs/2, minFlush)
 	case float64(currentTokens) > float64(maxTokens)*0.9:
 		// High token pressure (>90% capacity): be more aggressive
-		maxFlush = totalMsgs / 2
-		if maxFlush < minFlush {
-			maxFlush = minFlush
-		}
+		maxFlush = max(totalMsgs/2, minFlush)
 	default:
 		// Normal case: flush up to 1/3 of messages
-		maxFlush = totalMsgs / 3
-		if maxFlush < minFlush {
-			maxFlush = minFlush
-		}
+		maxFlush = max(totalMsgs/3, minFlush)
 	}
 
 	return minFlush, maxFlush

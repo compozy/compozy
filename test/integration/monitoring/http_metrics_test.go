@@ -85,7 +85,7 @@ func TestHTTPMetricsIntegration(t *testing.T) {
 		env := SetupTestEnvironment(t)
 		defer env.Cleanup()
 		// Make requests with different IDs
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			resp, err := env.MakeRequest("GET", fmt.Sprintf("/api/v1/users/user-%d", i))
 			require.NoError(t, err)
 			require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -121,7 +121,7 @@ func TestHTTPMetricsIntegration(t *testing.T) {
 		})
 		// Start multiple concurrent requests
 		done := make(chan bool, 5)
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			go func() {
 				resp, err := env.MakeRequest("GET", "/api/v1/slow")
 				if err == nil {
@@ -149,7 +149,7 @@ func TestHTTPMetricsIntegration(t *testing.T) {
 		}
 		assert.True(t, foundNonZero, "Should have requests in flight during concurrent requests")
 		// Wait for all requests to complete
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			<-done
 		}
 		// Wait for in-flight count to return to 0

@@ -104,7 +104,7 @@ func TestLoadWithEnv(t *testing.T) {
 			{"0", false},
 		}
 		for _, tc := range testCases {
-			tc := tc // pin loop variable for the closure
+			// pin loop variable for the closure
 			t.Run("env value "+tc.envValue, func(t *testing.T) {
 				t.Setenv("MONITORING_ENABLED", tc.envValue)
 				yamlConfig := &Config{

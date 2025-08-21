@@ -160,7 +160,7 @@ func TestHealthMonitorHelper(t *testing.T) {
 			instance, err := env.GetMemoryManager().GetInstance(ctx, memRef, workflowContext)
 			require.NoError(t, err)
 			// Add messages
-			for i := 0; i < 5; i++ {
+			for i := range 5 {
 				err := instance.Append(ctx, llm.Message{
 					Role:    "user",
 					Content: fmt.Sprintf("Test message %d", i),
@@ -221,10 +221,10 @@ func TestHealthMonitorUnderLoad(t *testing.T) {
 		const numGoroutines = 10
 		const operationsPerGoroutine = 50
 		done := make(chan bool, numGoroutines)
-		for i := 0; i < numGoroutines; i++ {
+		for i := range numGoroutines {
 			go func(_ int) {
 				defer func() { done <- true }()
-				for j := 0; j < operationsPerGoroutine; j++ {
+				for j := range operationsPerGoroutine {
 					component := "Redis"
 					if j%3 == 0 {
 						component = "Memory"
@@ -237,7 +237,7 @@ func TestHealthMonitorUnderLoad(t *testing.T) {
 			}(i)
 		}
 		// Wait for completion
-		for i := 0; i < numGoroutines; i++ {
+		for range numGoroutines {
 			<-done
 		}
 		// Check metrics

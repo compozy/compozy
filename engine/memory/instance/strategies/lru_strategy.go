@@ -176,10 +176,7 @@ func (s *LRUStrategy) GetMinMaxToFlush(
 ) (minFlush, maxFlush int) {
 	// LRU strategy: minimum 1 message, maximum 50% of total messages
 	minFlush = 1
-	maxFlush = totalMsgs / 2
-	if maxFlush < minFlush {
-		maxFlush = minFlush
-	}
+	maxFlush = max(totalMsgs/2, minFlush)
 	return minFlush, maxFlush
 }
 

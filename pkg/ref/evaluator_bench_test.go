@@ -11,7 +11,7 @@ import (
 
 func createLargeScope(depth, breadth int) map[string]any {
 	scope := make(map[string]any)
-	for i := 0; i < breadth; i++ {
+	for i := range breadth {
 		key := fmt.Sprintf("item_%d", i)
 		scope[key] = createNestedObject(depth)
 	}
@@ -42,8 +42,7 @@ func BenchmarkResolvePath_NoCache(b *testing.B) {
 	scope := createLargeScope(5, 100)
 	ev := NewEvaluator(WithLocalScope(scope))
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := ev.ResolvePath("local", "item_50.nested.nested.nested.nested.nested.value")
 		if err != nil {
 			b.Fatal(err)
@@ -57,8 +56,8 @@ func BenchmarkResolvePath_WithCache(b *testing.B) {
 		WithLocalScope(scope),
 		WithCacheEnabled(),
 	)
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+
+	for b.Loop() {
 		_, err := ev.ResolvePath("local", "item_50.nested.nested.nested.nested.nested.value")
 		if err != nil {
 			b.Fatal(err)
@@ -75,8 +74,8 @@ func BenchmarkResolvePath_MixedPaths_NoCache(b *testing.B) {
 		"item_30.meta.level",
 		"item_40.nested.meta.level",
 	}
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+
+	for i := 0; b.Loop(); i++ {
 		path := paths[i%len(paths)]
 		_, err := ev.ResolvePath("local", path)
 		if err != nil {
@@ -98,8 +97,7 @@ func BenchmarkResolvePath_MixedPaths_WithCache(b *testing.B) {
 		"item_40.nested.meta.level",
 	}
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for i := 0; b.Loop(); i++ {
 		path := paths[i%len(paths)]
 		_, err := ev.ResolvePath("local", path)
 		if err != nil {
@@ -126,8 +124,7 @@ func BenchmarkEval_SimpleRef(b *testing.B) {
 		},
 	}
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := ev.Eval(node)
 		if err != nil {
 			b.Fatal(err)
@@ -155,8 +152,7 @@ func BenchmarkEval_NestedRefs(b *testing.B) {
 		},
 	}
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := ev.Eval(node)
 		if err != nil {
 			b.Fatal(err)
@@ -210,7 +206,7 @@ func BenchmarkEval_ComplexDocument(b *testing.B) {
 	b.Run("NoCache", func(b *testing.B) {
 		ev := NewEvaluator(WithLocalScope(scope))
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_, err := ev.Eval(node)
 			if err != nil {
 				b.Fatal(err)
@@ -224,7 +220,7 @@ func BenchmarkEval_ComplexDocument(b *testing.B) {
 			WithCacheEnabled(),
 		)
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_, err := ev.Eval(node)
 			if err != nil {
 				b.Fatal(err)
@@ -244,8 +240,7 @@ func BenchmarkMerge_DeepObjects(b *testing.B) {
 		createNestedObject(3),
 	}
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := mergeObjects(sources, StrategyDeep, KeyConflictReplace)
 		if err != nil {
 			b.Fatal(err)
@@ -260,8 +255,7 @@ func BenchmarkMerge_ShallowObjects(b *testing.B) {
 		createNestedObject(3),
 	}
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := mergeObjects(sources, StrategyShallow, KeyConflictReplace)
 		if err != nil {
 			b.Fatal(err)
@@ -272,7 +266,7 @@ func BenchmarkMerge_ShallowObjects(b *testing.B) {
 func BenchmarkMerge_LargeArrays(b *testing.B) {
 	createArray := func(size int) []any {
 		arr := make([]any, size)
-		for i := 0; i < size; i++ {
+		for i := range size {
 			arr[i] = fmt.Sprintf("item_%d", i)
 		}
 		return arr
@@ -286,7 +280,7 @@ func BenchmarkMerge_LargeArrays(b *testing.B) {
 
 	b.Run("Concat", func(b *testing.B) {
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_, err := mergeArrays(sources, StrategyConcat)
 			if err != nil {
 				b.Fatal(err)
@@ -296,7 +290,7 @@ func BenchmarkMerge_LargeArrays(b *testing.B) {
 
 	b.Run("Unique", func(b *testing.B) {
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_, err := mergeArrays(sources, StrategyUnique)
 			if err != nil {
 				b.Fatal(err)
@@ -329,7 +323,7 @@ tags:
 
 	b.Run("NoCache", func(b *testing.B) {
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_, err := ProcessBytes(yamlDoc, WithLocalScope(scope))
 			if err != nil {
 				b.Fatal(err)
@@ -339,7 +333,7 @@ tags:
 
 	b.Run("WithCache", func(b *testing.B) {
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_, err := ProcessBytes(yamlDoc, WithLocalScope(scope), WithCacheEnabled())
 			if err != nil {
 				b.Fatal(err)
@@ -351,7 +345,7 @@ tags:
 		// Create evaluator once with cache
 		ev := NewEvaluator(WithLocalScope(scope), WithCacheEnabled())
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_, err := ProcessBytesWithEvaluator(yamlDoc, ev)
 			if err != nil {
 				b.Fatal(err)
@@ -446,7 +440,7 @@ features:
 
 	b.Run("NoCache", func(b *testing.B) {
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_, err := ProcessBytes(yamlDoc, WithLocalScope(scope))
 			if err != nil {
 				b.Fatal(err)
@@ -456,7 +450,7 @@ features:
 
 	b.Run("WithCache", func(b *testing.B) {
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_, err := ProcessBytes(yamlDoc, WithLocalScope(scope), WithCacheEnabled())
 			if err != nil {
 				b.Fatal(err)
@@ -468,7 +462,7 @@ features:
 		// Create evaluator once with cache
 		ev := NewEvaluator(WithLocalScope(scope), WithCacheEnabled())
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_, err := ProcessBytesWithEvaluator(yamlDoc, ev)
 			if err != nil {
 				b.Fatal(err)

@@ -239,7 +239,7 @@ func TestLRUStrategy_ConcurrentAccess(t *testing.T) {
 
 		// Concurrent ShouldFlush calls
 		go func() {
-			for i := 0; i < 10; i++ {
+			for range 10 {
 				strategy.ShouldFlush(500, 5, config)
 			}
 			done <- true
@@ -247,7 +247,7 @@ func TestLRUStrategy_ConcurrentAccess(t *testing.T) {
 
 		// Concurrent PerformFlush calls
 		go func() {
-			for i := 0; i < 5; i++ {
+			for range 5 {
 				strategy.PerformFlush(context.Background(), messages, config)
 			}
 			done <- true

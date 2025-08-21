@@ -1,7 +1,6 @@
 package config
 
 import (
-	"context"
 	"os"
 	"sync"
 	"sync/atomic"
@@ -27,8 +26,7 @@ func TestYAMLProvider_MultipleWatchCalls(t *testing.T) {
 		// Create provider
 		provider := NewYAMLProvider(tmpFile.Name())
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx := t.Context()
 
 		// Create a WaitGroup to coordinate file modification
 		var wg sync.WaitGroup

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"regexp"
 	"strings"
 
@@ -36,10 +37,8 @@ type DynamicMockLLM struct {
 // (created via NewMockLLM) is used for prompts that don't match any expected action.
 func NewDynamicMockLLM(model string, expectedOutputs map[string]core.Output) *DynamicMockLLM {
 	copied := make(map[string]core.Output, len(expectedOutputs))
-	for k, v := range expectedOutputs {
-		// shallow copy is enough for test fixtures; deep copy if needed later
-		copied[k] = v
-	}
+	// shallow copy is enough for test fixtures; deep copy if needed later
+	maps.Copy(copied, expectedOutputs)
 	return &DynamicMockLLM{
 		model:           model,
 		expectedOutputs: copied,

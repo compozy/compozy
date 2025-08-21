@@ -70,10 +70,7 @@ func (t *testStore) ReadMessagesPaginated(_ context.Context, _ string, offset, l
 	if offset >= totalCount {
 		return []llm.Message{}, totalCount, nil
 	}
-	end := offset + limit
-	if end > totalCount {
-		end = totalCount
-	}
+	end := min(offset+limit, totalCount)
 	return t.messages[offset:end], totalCount, nil
 }
 
@@ -275,7 +272,7 @@ func TestOperations_calculateTokensFromMessages(t *testing.T) {
 		results := make([]int, 10)
 		errors := make([]error, 10)
 
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			wg.Add(1)
 			go func(index int) {
 				defer wg.Done()
@@ -338,7 +335,7 @@ func TestOperations_CachePerformance(t *testing.T) {
 
 		// Create many messages with repeated content to test caching
 		messages := make([]llm.Message, 100)
-		for i := 0; i < 100; i++ {
+		for i := range 100 {
 			messages[i] = llm.Message{
 				Role:    llm.MessageRoleUser,
 				Content: "Repeated content", // Same content for all messages

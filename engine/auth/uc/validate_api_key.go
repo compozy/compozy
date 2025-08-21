@@ -5,7 +5,9 @@ import (
 	"crypto/sha256"
 	"fmt"
 
+	"github.com/compozy/compozy/engine/auth"
 	"github.com/compozy/compozy/engine/auth/model"
+	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/pkg/logger"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -57,19 +59,33 @@ func (uc *ValidateAPIKey) Execute(ctx context.Context) (*model.User, error) {
 	// Now we can safely check if the key was found and valid
 	if !keyFound {
 		log.Debug("API key not found", "error", err)
-		return nil, fmt.Errorf("invalid API key")
+		return nil, core.NewError(
+			fmt.Errorf("invalid API key"),
+			auth.ErrCodeNotFound,
+			nil,
+		)
 	}
 
 	if compareErr != nil {
 		log.Debug("API key hash verification failed", "error", compareErr)
-		return nil, fmt.Errorf("invalid API key")
+		return nil, core.NewError(
+			fmt.Errorf("invalid API key"),
+			auth.ErrCodeForbidden,
+			nil,
+		)
 	}
 
 	// Get the associated user
 	user, err := uc.repo.GetUserByID(ctx, apiKey.UserID)
 	if err != nil {
 		log.Error("Failed to get user for valid API key", "error", err, "user_id", apiKey.UserID)
-		return nil, fmt.Errorf("failed to get user")
+		return nil, core.NewError(
+			fmt.Errorf("failed to get user: %w", err),
+			auth.ErrCodeInternal,
+			map[string]any{
+				"user_id": apiKey.UserID.String(),
+			},
+		)
 	}
 
 	// Update last used timestamp (fire and forget with resource limiting)

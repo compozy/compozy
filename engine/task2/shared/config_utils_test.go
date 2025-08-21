@@ -23,7 +23,7 @@ func TestGetGlobalConfigLimits_ConcurrentAccess(t *testing.T) {
 		results := make(chan *ConfigLimits, numGoroutines)
 
 		// Launch concurrent goroutines
-		for i := 0; i < numGoroutines; i++ {
+		for range numGoroutines {
 			go func() {
 				defer wg.Done()
 				limits := GetGlobalConfigLimits()
@@ -68,7 +68,7 @@ func TestGetGlobalConfigLimits_ConcurrentAccess(t *testing.T) {
 
 		// Launch concurrent readers
 		wg.Add(numOperations)
-		for i := 0; i < numOperations; i++ {
+		for range numOperations {
 			go func() {
 				defer wg.Done()
 				limits := GetGlobalConfigLimits()
@@ -82,7 +82,7 @@ func TestGetGlobalConfigLimits_ConcurrentAccess(t *testing.T) {
 
 		// Launch concurrent refreshers
 		wg.Add(numOperations)
-		for i := 0; i < numOperations; i++ {
+		for range numOperations {
 			go func() {
 				defer wg.Done()
 				RefreshGlobalConfigLimits()

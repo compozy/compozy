@@ -246,7 +246,7 @@ func TestConfig_LazyTTLManagerInitialization(t *testing.T) {
 		}
 		// Run multiple goroutines to test concurrent initialization
 		done := make(chan bool, 10)
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			go func() {
 				ttl := cfg.GetAppendLockTTL()
 				assert.Equal(t, 30*time.Second, ttl)
@@ -254,7 +254,7 @@ func TestConfig_LazyTTLManagerInitialization(t *testing.T) {
 			}()
 		}
 		// Wait for all goroutines to complete
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			<-done
 		}
 		// Verify only one TTLManager was created

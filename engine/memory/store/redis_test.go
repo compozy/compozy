@@ -310,7 +310,7 @@ func TestRedisMemoryStore_ReadMessagesPaginated(t *testing.T) {
 	t.Run("Should paginate messages correctly", func(t *testing.T) {
 		// Append 10 messages
 		messages := make([]llm.Message, 10)
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			messages[i] = llm.Message{
 				Role:    llm.MessageRoleUser,
 				Content: fmt.Sprintf("Message %d", i+1),

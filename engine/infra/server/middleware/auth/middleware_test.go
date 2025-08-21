@@ -77,7 +77,7 @@ func TestManager_Middleware(t *testing.T) {
 	t.Run("Should allow request without authorization header", func(t *testing.T) {
 		mockRepo := &MockRepository{}
 		factory := uc.NewFactory(mockRepo)
-		manager := NewManager(factory)
+		manager := NewManager(factory, nil)
 		router := gin.New()
 		router.Use(manager.Middleware())
 		router.GET("/test", func(c *gin.Context) {
@@ -93,7 +93,7 @@ func TestManager_Middleware(t *testing.T) {
 	t.Run("Should reject request with invalid authorization header format", func(t *testing.T) {
 		mockRepo := &MockRepository{}
 		factory := uc.NewFactory(mockRepo)
-		manager := NewManager(factory)
+		manager := NewManager(factory, nil)
 		router := gin.New()
 		router.Use(manager.Middleware())
 		router.GET("/test", func(c *gin.Context) {
@@ -114,7 +114,7 @@ func TestManager_Middleware(t *testing.T) {
 	t.Run("Should reject request with empty API key", func(t *testing.T) {
 		mockRepo := &MockRepository{}
 		factory := uc.NewFactory(mockRepo)
-		manager := NewManager(factory)
+		manager := NewManager(factory, nil)
 		router := gin.New()
 		router.Use(manager.Middleware())
 		router.GET("/test", func(c *gin.Context) {
@@ -137,7 +137,7 @@ func TestManager_Middleware(t *testing.T) {
 		mockRepo.On("GetAPIKeyByHash", mock.Anything, mock.Anything).
 			Return((*model.APIKey)(nil), errors.New("key not found"))
 		factory := uc.NewFactory(mockRepo)
-		manager := NewManager(factory)
+		manager := NewManager(factory, nil)
 		router := gin.New()
 		router.Use(manager.Middleware())
 		router.GET("/test", func(c *gin.Context) {
@@ -160,7 +160,7 @@ func TestManager_RequireAuth(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	t.Run("Should reject request without authentication", func(t *testing.T) {
-		manager := NewManager(nil)
+		manager := NewManager(nil, nil)
 		router := gin.New()
 		router.Use(manager.RequireAuth())
 		router.GET("/test", func(c *gin.Context) {
@@ -178,7 +178,7 @@ func TestManager_RequireAuth(t *testing.T) {
 	})
 
 	t.Run("Should allow request with authentication", func(t *testing.T) {
-		manager := NewManager(nil)
+		manager := NewManager(nil, nil)
 		router := gin.New()
 		router.Use(func(c *gin.Context) {
 			// Create a test user and inject into request context
@@ -207,7 +207,7 @@ func TestManager_RequireAdmin(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	t.Run("Should reject request without admin role", func(t *testing.T) {
-		manager := NewManager(nil)
+		manager := NewManager(nil, nil)
 		router := gin.New()
 		router.Use(func(c *gin.Context) {
 			c.Set("userRole", "user")
@@ -229,7 +229,7 @@ func TestManager_RequireAdmin(t *testing.T) {
 	})
 
 	t.Run("Should allow request with admin role", func(t *testing.T) {
-		manager := NewManager(nil)
+		manager := NewManager(nil, nil)
 		router := gin.New()
 		router.Use(func(c *gin.Context) {
 			// Create a test admin user and inject into request context
@@ -254,7 +254,7 @@ func TestManager_RequireAdmin(t *testing.T) {
 	})
 
 	t.Run("Should reject request without role", func(t *testing.T) {
-		manager := NewManager(nil)
+		manager := NewManager(nil, nil)
 		router := gin.New()
 		router.Use(manager.RequireAdmin())
 		router.GET("/test", func(c *gin.Context) {
@@ -276,7 +276,7 @@ func TestManager_AdminOnly(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	t.Run("Should be an alias for RequireAdmin", func(t *testing.T) {
-		manager := NewManager(nil)
+		manager := NewManager(nil, nil)
 		// AdminOnly should return the same function as RequireAdmin
 		router := gin.New()
 		router.Use(func(c *gin.Context) {

@@ -44,12 +44,12 @@ func TestTransactionService_ConcurrentAccess(t *testing.T) {
 		var successCount int64
 
 		// Launch concurrent goroutines
-		for i := 0; i < numGoroutines; i++ {
+		for i := range numGoroutines {
 			wg.Add(1)
 			go func(goroutineID int) {
 				defer wg.Done()
 
-				for j := 0; j < numOperations; j++ {
+				for j := range numOperations {
 					outputData := &core.Output{
 						"goroutine": goroutineID,
 						"operation": j,
@@ -122,7 +122,7 @@ func TestTransactionService_ConcurrentAccess(t *testing.T) {
 		}
 
 		// Launch concurrent transformations
-		for i := 0; i < numGoroutines; i++ {
+		for range numGoroutines {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
@@ -183,7 +183,7 @@ func TestValidationConfig_ConcurrentAccess(t *testing.T) {
 		}
 
 		// Launch concurrent validations
-		for i := 0; i < numGoroutines; i++ {
+		for i := range numGoroutines {
 			wg.Add(1)
 			go func(goroutineID int) {
 				defer wg.Done()
@@ -231,7 +231,7 @@ func TestInputSanitizer_ConcurrentAccess(t *testing.T) {
 		}
 
 		// Launch concurrent sanitizations
-		for i := 0; i < numGoroutines; i++ {
+		for range numGoroutines {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
@@ -262,14 +262,14 @@ func TestInputSanitizer_ConcurrentAccess(t *testing.T) {
 		// Create deeply nested config (should fail)
 		deepConfigMap := map[string]any{}
 		current := deepConfigMap
-		for i := 0; i < 15; i++ { // Exceeds max depth of 10
+		for range 15 { // Exceeds max depth of 10
 			next := map[string]any{}
 			current["next"] = next
 			current = next
 		}
 
 		// Launch concurrent validations
-		for i := 0; i < numGoroutines; i++ {
+		for i := range numGoroutines {
 			wg.Add(1)
 			go func(goroutineID int) {
 				defer wg.Done()
@@ -309,7 +309,7 @@ func TestUtilityFunctions_ConcurrentAccess(t *testing.T) {
 		}
 
 		// Launch concurrent sorted operations
-		for i := 0; i < numGoroutines; i++ {
+		for range numGoroutines {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()

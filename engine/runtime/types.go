@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/compozy/compozy/engine/core"
 )
@@ -22,12 +23,7 @@ var SupportedRuntimeTypes = []string{
 
 // IsValidRuntimeType checks if the given runtime type is valid
 func IsValidRuntimeType(runtimeType string) bool {
-	for _, supported := range SupportedRuntimeTypes {
-		if runtimeType == supported {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(SupportedRuntimeTypes, runtimeType)
 }
 
 // ToolExecutionError provides structured error information with context

@@ -11,8 +11,8 @@ import (
 // ValidateSchedule validates the schedule configuration
 func ValidateSchedule(cfg *Schedule) error {
 	// Check if it's an @every expression
-	if strings.HasPrefix(cfg.Cron, "@every ") {
-		durationStr := strings.TrimPrefix(cfg.Cron, "@every ")
+	if after, ok := strings.CutPrefix(cfg.Cron, "@every "); ok {
+		durationStr := after
 		if _, err := time.ParseDuration(durationStr); err != nil {
 			return fmt.Errorf("invalid @every duration '%s': %w", durationStr, err)
 		}

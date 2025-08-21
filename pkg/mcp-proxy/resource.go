@@ -129,7 +129,7 @@ func processBatch[T any](
 ) error {
 	g, gCtx := errgroup.WithContext(ctx)
 	for _, item := range items {
-		item := item // capture loop variable
+		// capture loop variable
 		g.Go(func() error {
 			// Acquire semaphore to limit concurrency
 			select {

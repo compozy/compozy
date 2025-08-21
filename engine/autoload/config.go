@@ -2,6 +2,7 @@ package autoload
 
 import (
 	"fmt"
+	"slices"
 )
 
 // DefaultExcludes contains patterns for common temporary/backup files that should be ignored
@@ -138,16 +139,12 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("autoload.include patterns are required when autoload is enabled")
 	}
 	// Validate include patterns
-	for _, pattern := range c.Include {
-		if pattern == "" {
-			return fmt.Errorf("empty include pattern is not allowed")
-		}
+	if slices.Contains(c.Include, "") {
+		return fmt.Errorf("empty include pattern is not allowed")
 	}
 	// Validate exclude patterns
-	for _, pattern := range c.Exclude {
-		if pattern == "" {
-			return fmt.Errorf("empty exclude pattern is not allowed")
-		}
+	if slices.Contains(c.Exclude, "") {
+		return fmt.Errorf("empty exclude pattern is not allowed")
 	}
 	return nil
 }

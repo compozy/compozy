@@ -68,10 +68,7 @@ func (m *testMemory) ReadPaginated(_ context.Context, offset, limit int) ([]llm.
 	if offset >= totalCount {
 		return []llm.Message{}, totalCount, nil
 	}
-	end := offset + limit
-	if end > totalCount {
-		end = totalCount
-	}
+	end := min(offset+limit, totalCount)
 	msgCopy := make([]llm.Message, end-offset)
 	copy(msgCopy, m.messages[offset:end])
 	return msgCopy, totalCount, nil

@@ -91,7 +91,7 @@ func setupAuthTestFixture(t *testing.T) *authTestFixture {
 	mockRepo.On("GetUserByID", mock.Anything, userID).Return(user, nil)
 	mockRepo.On("UpdateAPIKeyLastUsed", mock.Anything, keyID).Return(nil)
 	authFactory := uc.NewFactory(mockRepo)
-	authManager := authmiddleware.NewManager(authFactory)
+	authManager := authmiddleware.NewManager(authFactory, nil)
 	config := &ratelimit.Config{
 		GlobalRate: ratelimit.RateConfig{Limit: 100, Period: 1 * time.Minute},
 		APIKeyRate: ratelimit.RateConfig{Limit: 5, Period: 1 * time.Minute},
@@ -116,7 +116,7 @@ func TestAuthMiddleware_RateLimiting(t *testing.T) {
 
 	t.Run("Should rate limit authenticated requests by API key", func(t *testing.T) {
 		// Test within limit and rate limiting in single loop
-		for i := 0; i < 6; i++ {
+		for i := range 6 {
 			req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 			req.Header.Set("Authorization", "Bearer "+fixture.apiKey)
 			w := httptest.NewRecorder()
@@ -153,7 +153,7 @@ func TestAuthMiddleware_RateLimiting(t *testing.T) {
 
 	t.Run("Should apply global rate limit to unauthenticated requests", func(t *testing.T) {
 		// Test fewer requests to reduce execution time
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 			w := httptest.NewRecorder()
 			fixture.router.ServeHTTP(w, req)

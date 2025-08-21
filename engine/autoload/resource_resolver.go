@@ -3,6 +3,7 @@ package autoload
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"regexp"
 	"strings"
 
@@ -56,9 +57,7 @@ func createDefensiveCopy(node ref.Node) ref.Node {
 	case map[string]any:
 		// Create a shallow copy for maps to prevent shared state mutations
 		result := make(map[string]any, len(v))
-		for k, val := range v {
-			result[k] = val
-		}
+		maps.Copy(result, v)
 		return result
 	case []any:
 		// Create a copy for slices

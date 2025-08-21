@@ -18,7 +18,7 @@ func TestPrometheusClientScraping(t *testing.T) {
 		env := SetupTestEnvironment(t)
 		defer env.Cleanup()
 		// Generate some metrics
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			resp, err := env.MakeRequest("GET", "/api/v1/health")
 			require.NoError(t, err)
 			resp.Body.Close()
@@ -125,7 +125,7 @@ func TestPrometheusClientScraping(t *testing.T) {
 		env := SetupTestEnvironment(t)
 		defer env.Cleanup()
 		// Generate histogram data
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			if resp, err := env.MakeRequest("GET", "/api/v1/health"); err == nil {
 				resp.Body.Close()
 			}

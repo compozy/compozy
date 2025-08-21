@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"sync"
 )
 
@@ -107,9 +108,7 @@ func (m *MockToolAdapter) GenerateContent(_ context.Context, req *LLMRequest) (*
 	}
 	m.toolMu.RLock()
 	toolResults := make(map[string]string)
-	for k, v := range m.ToolResults {
-		toolResults[k] = v
-	}
+	maps.Copy(toolResults, m.ToolResults)
 	m.toolMu.RUnlock()
 	if len(req.Tools) > 0 && len(toolResults) > 0 {
 		for _, tool := range req.Tools {

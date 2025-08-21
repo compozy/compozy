@@ -51,7 +51,7 @@ func TestRateLimitMiddleware_PerKeyRateLimiting(t *testing.T) {
 		fixture := setupRateLimitFixture(t, 5, 3) // Lower limits for faster testing
 		apiKey1 := "test-api-key-1"
 		// Test within limit and over limit
-		for i := 0; i < 4; i++ {
+		for i := range 4 {
 			req := httptest.NewRequest("GET", "/api/test", http.NoBody)
 			req.Header.Set("X-API-Key", apiKey1)
 			w := httptest.NewRecorder()
@@ -76,7 +76,7 @@ func TestRateLimitMiddleware_PerKeyRateLimiting(t *testing.T) {
 		fixture := setupRateLimitFixture(t, 2, 10) // Global limit lower than API key
 		userID1 := "user-123"
 		// Test within limit and over limit
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			req := httptest.NewRequest("GET", "/api/test", http.NoBody)
 			req.Header.Set("X-User-ID", userID1)
 			w := httptest.NewRecorder()
@@ -98,7 +98,7 @@ func TestRateLimitMiddleware_PerKeyRateLimiting(t *testing.T) {
 	t.Run("Should enforce per-IP rate limiting for anonymous users", func(t *testing.T) {
 		fixture := setupRateLimitFixture(t, 2, 10)
 		// Test same IP rate limiting
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			req := httptest.NewRequest("GET", "/api/test", http.NoBody)
 			req.RemoteAddr = "192.168.1.100:12345"
 			w := httptest.NewRecorder()
@@ -122,7 +122,7 @@ func TestRateLimitMiddleware_PerKeyRateLimiting(t *testing.T) {
 		apiKey := "priority-test-key"
 		userID := "priority-test-user"
 		// First 5 requests should succeed (API key limit)
-		for i := 0; i < 6; i++ {
+		for i := range 6 {
 			req := httptest.NewRequest("GET", "/api/test", http.NoBody)
 			req.RemoteAddr = "192.168.1.100:12345"
 			req.Header.Set("X-API-Key", apiKey)
@@ -152,7 +152,7 @@ func TestRateLimitMiddleware_PerKeyRateLimiting(t *testing.T) {
 		rateLimitedCount := 0
 		var mu sync.Mutex
 		apiKey := "concurrent-test-key"
-		for i := 0; i < 15; i++ {
+		for range 15 {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
@@ -192,14 +192,14 @@ func TestRateLimitMiddleware_PerKeyRateLimiting(t *testing.T) {
 		router.GET("/api/test", func(c *gin.Context) { c.JSON(200, gin.H{"status": "ok"}) })
 		router.GET("/api/limited", func(c *gin.Context) { c.JSON(200, gin.H{"status": "ok"}) })
 		// Test excluded path - multiple requests should succeed
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			req := httptest.NewRequest("GET", "/health", http.NoBody)
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
 			assert.Equal(t, http.StatusOK, w.Code, "Excluded path should not be rate limited")
 		}
 		// Test route-specific limit
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			req := httptest.NewRequest("GET", "/api/limited", http.NoBody)
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)

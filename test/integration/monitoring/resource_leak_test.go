@@ -17,10 +17,10 @@ func TestMonitoringResourceLeaks(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 		baselineGoroutines := runtime.NumGoroutine()
 		// Create and destroy multiple monitoring environments
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			env := SetupTestEnvironment(t)
 			// Make some requests
-			for j := 0; j < 10; j++ {
+			for range 10 {
 				resp, err := env.MakeRequest("GET", "/api/v1/health")
 				require.NoError(t, err)
 				resp.Body.Close()
@@ -58,7 +58,7 @@ func TestMonitoringResourceLeaks(t *testing.T) {
 		runtime.ReadMemStats(&baseline)
 		// Generate high volume of requests
 		numRequests := 1000
-		for i := 0; i < numRequests; i++ {
+		for i := range numRequests {
 			// Vary the endpoints to create different metric labels
 			endpoints := []string{
 				"/api/v1/health",
@@ -101,7 +101,7 @@ func TestMonitoringResourceLeaks(t *testing.T) {
 		// Create environment
 		env := SetupTestEnvironment(t)
 		// Make requests to ensure monitoring is active
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			resp, err := env.MakeRequest("GET", "/api/v1/health")
 			require.NoError(t, err)
 			resp.Body.Close()
@@ -137,10 +137,10 @@ func TestMonitoringResourceLeaks(t *testing.T) {
 		runtime.ReadMemStats(&baselineMemStats)
 		// Perform multiple init/shutdown cycles
 		cycles := 10
-		for i := 0; i < cycles; i++ {
+		for range cycles {
 			env := SetupTestEnvironment(t)
 			// Use the monitoring
-			for j := 0; j < 5; j++ {
+			for range 5 {
 				resp, err := env.MakeRequest("GET", "/api/v1/health")
 				require.NoError(t, err)
 				resp.Body.Close()

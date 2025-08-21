@@ -41,7 +41,7 @@ func TestSortedMapUtilities(t *testing.T) {
 		}
 
 		var results [][]string
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			var keys []string
 			err := shared.IterateSortedMap(m, func(k string, _ int) error {
 				keys = append(keys, k)
@@ -81,7 +81,7 @@ func TestSortedMapUtilities(t *testing.T) {
 
 		// Multiple sequential calls should produce identical results
 		results := make([][]string, 5)
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			var keys []string
 			err := shared.IterateSortedMap(m, func(k string, _ int) error {
 				keys = append(keys, k)
@@ -110,7 +110,7 @@ func TestDeterministicMapIteration(t *testing.T) {
 		}
 
 		results := make([][]string, 5)
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			var keys []string
 			keyList := shared.SortedMapKeys(configMap)
 			keys = append(keys, keyList...)
@@ -134,7 +134,7 @@ func TestDeterministicMapIteration(t *testing.T) {
 
 		// Multiple "replays" should produce identical order
 		var replays [][]string
-		for replay := 0; replay < 10; replay++ {
+		for range 10 {
 			var taskOrder []string
 			keys := shared.SortedMapKeys(workflowTasks)
 			taskOrder = append(taskOrder, keys...)

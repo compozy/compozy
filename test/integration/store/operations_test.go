@@ -261,7 +261,7 @@ func TestStoreOperations_Integration(t *testing.T) {
 
 		// Create users concurrently
 		errChan := make(chan error, numUsers)
-		for i := 0; i < numUsers; i++ {
+		for i := range numUsers {
 			go func(index int) {
 				userID := core.MustNewID()
 				userIDs[index] = userID
@@ -275,7 +275,7 @@ func TestStoreOperations_Integration(t *testing.T) {
 		}
 
 		// Wait for all operations to complete
-		for i := 0; i < numUsers; i++ {
+		for range numUsers {
 			err := <-errChan
 			require.NoError(t, err, "concurrent user creation should succeed")
 		}

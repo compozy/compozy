@@ -144,7 +144,7 @@ func TestTokenCountingWithFlush(t *testing.T) {
 		instance, err := env.GetMemoryManager().GetInstance(ctx, memRef, workflowContext)
 		require.NoError(t, err)
 		// Add messages to trigger flush
-		for i := 0; i < 30; i++ {
+		for i := range 30 {
 			msg := llm.Message{
 				Role:    "user",
 				Content: fmt.Sprintf("Message %d - adding content to reach flush threshold", i),
@@ -276,7 +276,7 @@ func TestTokenCountingConcurrency(t *testing.T) {
 		instance, err := env.GetMemoryManager().GetInstance(ctx, memRef, workflowContext)
 		require.NoError(t, err)
 		// Add initial messages
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			msg := llm.Message{
 				Role:    "user",
 				Content: fmt.Sprintf("Initial message %d", i),
@@ -288,7 +288,7 @@ func TestTokenCountingConcurrency(t *testing.T) {
 		const numReaders = 10
 		tokenCounts := make(chan int, numReaders)
 		errors := make(chan error, numReaders)
-		for i := 0; i < numReaders; i++ {
+		for i := range numReaders {
 			go func(_ int) {
 				// Get token count
 				count, err := instance.GetTokenCount(ctx)
@@ -302,7 +302,7 @@ func TestTokenCountingConcurrency(t *testing.T) {
 		}
 		// Collect results
 		var counts []int
-		for i := 0; i < numReaders; i++ {
+		for range numReaders {
 			select {
 			case err := <-errors:
 				require.NoError(t, err)

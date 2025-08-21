@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -527,11 +528,5 @@ func IsValidFilename(filename string) bool {
 		"LPT9",
 	}
 	upperFilename := strings.ToUpper(filename)
-	for _, reservedName := range reserved {
-		if upperFilename == reservedName {
-			return false
-		}
-	}
-
-	return true
+	return !slices.Contains(reserved, upperFilename)
 }

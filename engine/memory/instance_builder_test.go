@@ -155,7 +155,7 @@ func TestLockManagerAdapter_Concurrency(t *testing.T) {
 		numGoroutines := 10
 		successfulLocks := 3
 
-		for i := 0; i < successfulLocks; i++ {
+		for range successfulLocks {
 			mockLock := &MockCacheLock{}
 			mockCacheLockManager.On("Acquire", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("time.Duration")).
 				Return(mockLock, nil).
@@ -178,7 +178,7 @@ func TestLockManagerAdapter_Concurrency(t *testing.T) {
 		var successCount int32
 
 		// Launch concurrent lock attempts
-		for i := 0; i < numGoroutines; i++ {
+		for i := range numGoroutines {
 			wg.Add(1)
 			go func(_ int) {
 				defer wg.Done()

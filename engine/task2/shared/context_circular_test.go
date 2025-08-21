@@ -196,7 +196,7 @@ func TestContextBuilder_CircularReferenceDetection(t *testing.T) {
 		taskStates := make(map[string]*task.State)
 		taskConfigs := make(map[string]*task.Config)
 
-		for i := 0; i < 15; i++ {
+		for i := range 15 {
 			taskID := fmt.Sprintf("task-%d", i)
 			tasks[i] = &task.Config{
 				BaseConfig: task.BaseConfig{

@@ -78,7 +78,7 @@ func TestFIFOEvictionPolicy_SelectMessagesToEvict(t *testing.T) {
 
 	t.Run("Should evict correct number of messages", func(t *testing.T) {
 		messages := make([]llm.Message, 10)
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			messages[i] = llm.Message{
 				Role:    llm.MessageRoleUser,
 				Content: string(rune('A' + i)),

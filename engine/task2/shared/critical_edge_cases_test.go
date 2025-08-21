@@ -116,7 +116,7 @@ func TestCriticalEdgeCases_ParentChildAccessPatterns(t *testing.T) {
 		taskStates := make(map[string]*task.State, chainDepth)
 
 		// Create chain: task-0 -> task-1 -> task-2 -> ... -> task-7
-		for i := 0; i < chainDepth; i++ {
+		for i := range chainDepth {
 			taskID := fmt.Sprintf("task-%d", i)
 			execID := core.MustNewID()
 

@@ -230,7 +230,7 @@ func TestBaseNormalizer_BoundaryConditions(t *testing.T) {
 
 		// Create large context with many variables
 		largeContext := make(map[string]any)
-		for i := 0; i < 1000; i++ {
+		for i := range 1000 {
 			largeContext[fmt.Sprintf("var_%d", i)] = fmt.Sprintf("value_%d", i)
 		}
 		largeContext["target"] = "success"

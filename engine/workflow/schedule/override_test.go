@@ -160,11 +160,11 @@ func TestOverrideCache_ConcurrentAccess(t *testing.T) {
 		numOperations := 100
 
 		// Concurrent writes
-		for i := 0; i < numGoroutines; i++ {
+		for i := range numGoroutines {
 			wg.Add(1)
 			go func(id int) {
 				defer wg.Done()
-				for j := 0; j < numOperations; j++ {
+				for j := range numOperations {
 					workflowID := fmt.Sprintf("workflow-%d-%d", id, j)
 					cache.SetOverride(workflowID, map[string]any{"enabled": true})
 				}
@@ -172,11 +172,11 @@ func TestOverrideCache_ConcurrentAccess(t *testing.T) {
 		}
 
 		// Concurrent reads
-		for i := 0; i < numGoroutines; i++ {
+		for i := range numGoroutines {
 			wg.Add(1)
 			go func(id int) {
 				defer wg.Done()
-				for j := 0; j < numOperations; j++ {
+				for j := range numOperations {
 					workflowID := fmt.Sprintf("workflow-%d-%d", id, j)
 					cache.GetOverride(workflowID)
 					cache.ShouldSkipReconciliation(workflowID, time.Now())

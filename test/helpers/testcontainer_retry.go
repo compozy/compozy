@@ -62,10 +62,7 @@ func SetupTestReposWithRetry(ctx context.Context, t *testing.T, config ...RetryC
 			}
 
 			// Exponential backoff with max delay
-			delay = time.Duration(float64(delay) * retryConfig.BackoffFactor)
-			if delay > retryConfig.MaxDelay {
-				delay = retryConfig.MaxDelay
-			}
+			delay = min(time.Duration(float64(delay)*retryConfig.BackoffFactor), retryConfig.MaxDelay)
 		}
 	}
 

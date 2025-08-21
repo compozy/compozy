@@ -498,7 +498,7 @@ func TestRouterNormalizer_BoundaryConditions(t *testing.T) {
 		// Arrange
 		normalizer := router.NewNormalizer(templateEngine, contextBuilder)
 		routes := make(map[string]any)
-		for i := 0; i < 1000; i++ {
+		for i := range 1000 {
 			routes[fmt.Sprintf("route_%d", i)] = fmt.Sprintf("task_%d", i)
 		}
 		taskConfig := &task.Config{

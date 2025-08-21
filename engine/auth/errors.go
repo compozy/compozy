@@ -14,6 +14,8 @@ const (
 	ErrCodeWeakPassword = "WEAK_PASSWORD"
 	// ErrCodeInvalidRole indicates invalid role specified
 	ErrCodeInvalidRole = "INVALID_ROLE"
+	// ErrCodeInternal indicates an internal server error
+	ErrCodeInternal = "INTERNAL_ERROR"
 )
 
 // Context keys used for auth middleware

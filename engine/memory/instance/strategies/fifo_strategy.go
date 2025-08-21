@@ -112,7 +112,7 @@ func (s *FIFOStrategy) PerformFlush(
 	remainingTokens := 0
 
 	// Count tokens for messages being removed
-	for i := 0; i < messagesToRemove; i++ {
+	for i := range messagesToRemove {
 		count, err := s.tokenCounter.CountTokens(ctx, messages[i].Content)
 		if err != nil {
 			// Fall back to estimation on error

@@ -203,7 +203,7 @@ func TestMemoryResolverConcurrency(t *testing.T) {
 		const numGoroutines = 5
 		results := make(chan error, numGoroutines)
 
-		for i := 0; i < numGoroutines; i++ {
+		for i := range numGoroutines {
 			go func(goroutineID int) {
 				workflowContext := map[string]any{
 					"workflow": map[string]any{
@@ -241,7 +241,7 @@ func TestMemoryResolverConcurrency(t *testing.T) {
 		}
 
 		// Wait for all goroutines and check results
-		for i := 0; i < numGoroutines; i++ {
+		for i := range numGoroutines {
 			err := <-results
 			require.NoError(t, err, "Concurrent operation %d should not fail", i)
 		}

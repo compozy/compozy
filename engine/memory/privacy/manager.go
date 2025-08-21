@@ -3,6 +3,7 @@ package privacy
 import (
 	"context"
 	"fmt"
+	"maps"
 	"regexp"
 	"strings"
 	"sync"
@@ -337,9 +338,7 @@ func (pm *Manager) LogPrivacyExclusion(
 		"reason":      reason,
 	}
 	// Merge metadata
-	for k, v := range metadata {
-		logData[k] = v
-	}
+	maps.Copy(logData, metadata)
 	log.Info("Privacy exclusion applied", logData)
 }
 

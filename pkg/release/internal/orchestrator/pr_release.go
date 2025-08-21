@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/pkg/release/internal/domain"
@@ -475,13 +476,7 @@ func (o *PRReleaseOrchestrator) addCreateBranchStep(
 				return nil, fmt.Errorf("failed to list local branches: %w", err)
 			}
 
-			branchExists := false
-			for _, branch := range branches {
-				if branch == wctx.branchName {
-					branchExists = true
-					break
-				}
-			}
+			branchExists := slices.Contains(branches, wctx.branchName)
 
 			wctx.createdInSession = !branchExists
 			if wctx.createdInSession {

@@ -107,7 +107,7 @@ func (s *RegisterService) Shutdown(ctx context.Context) error {
 	// Use errgroup for concurrent deregistration
 	g, gCtx := errgroup.WithContext(ctx)
 	for _, mcpID := range mcpIDs {
-		mcpID := mcpID // capture loop variable
+		// capture loop variable
 		g.Go(func() error {
 			if err := s.proxy.Deregister(gCtx, mcpID); err != nil {
 				log.Error("Failed to deregister MCP during shutdown",
@@ -238,7 +238,7 @@ func (s *RegisterService) EnsureMultiple(ctx context.Context, configs []Config) 
 	const maxConcurrent = 5
 	work := make(chan Config, len(configs))
 	// Start fixed number of workers
-	for i := 0; i < maxConcurrent; i++ {
+	for range maxConcurrent {
 		go func() {
 			for cfg := range work {
 				err := s.Ensure(ctx, &cfg)

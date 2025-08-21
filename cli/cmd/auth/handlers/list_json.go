@@ -117,10 +117,7 @@ func applyPagination(keys []api.KeyInfo, page, limit int) ([]api.KeyInfo, int) {
 	if startIdx >= totalKeys {
 		return []api.KeyInfo{}, totalKeys
 	}
-	endIdx := startIdx + limit
-	if endIdx > totalKeys {
-		endIdx = totalKeys
-	}
+	endIdx := min(startIdx+limit, totalKeys)
 	return keys[startIdx:endIdx], totalKeys
 }
 

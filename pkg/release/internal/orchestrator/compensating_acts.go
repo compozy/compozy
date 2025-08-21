@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/pkg/release/internal/repository"
@@ -289,12 +290,7 @@ func (ca *CompensatingActions) branchExistsLocally(ctx context.Context, branchNa
 	if err != nil {
 		return false
 	}
-	for _, branch := range branches {
-		if branch == branchName {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(branches, branchName)
 }
 
 func (ca *CompensatingActions) branchExistsRemotely(ctx context.Context, branchName string) bool {

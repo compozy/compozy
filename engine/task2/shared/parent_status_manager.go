@@ -78,10 +78,7 @@ func (m *DefaultParentStatusManager) updateParentStatusBatch(
 
 	// Process updates in batches to avoid overwhelming the database
 	for i := 0; i < len(updates); i += m.batchSize {
-		end := i + m.batchSize
-		if end > len(updates) {
-			end = len(updates)
-		}
+		end := min(i+m.batchSize, len(updates))
 
 		batch := updates[i:end]
 		if err := m.processBatch(ctx, batch); err != nil {

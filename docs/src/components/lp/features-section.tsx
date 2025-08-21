@@ -468,7 +468,7 @@ function FeatureDescription({ description, isActive, styles, feature }: FeatureD
 
 export default function FeaturesSection() {
   const [activeFeature, setActiveFeature] = useState(0);
-  const [activeSlide, setActiveSlide] = useState(0);
+  const [_, setActiveSlide] = useState(0);
   const dotsContainerRef = useRef<HTMLDivElement>(null);
   const dotsRowRef = useRef<HTMLDivElement>(null);
   const desktopDotsRowRef = useRef<HTMLDivElement>(null);

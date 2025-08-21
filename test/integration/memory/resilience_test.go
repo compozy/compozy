@@ -105,7 +105,7 @@ func TestResilienceTimeouts(t *testing.T) {
 		timeoutCtx, cancel := context.WithTimeout(ctx, 10*time.Millisecond)
 		defer cancel()
 		// Add many messages to potentially cause timeout
-		for i := 0; i < 100; i++ {
+		for i := range 100 {
 			msg := llm.Message{
 				Role:    "user",
 				Content: fmt.Sprintf("Message %d", i),
@@ -133,7 +133,7 @@ func TestResilienceConcurrentFailures(t *testing.T) {
 		errorsChan := make(chan error, numInstances*numOperations)
 		successCount := &atomic.Int32{}
 		failureCount := &atomic.Int32{}
-		for i := 0; i < numInstances; i++ {
+		for i := range numInstances {
 			wg.Add(1)
 			go func(instanceID int) {
 				defer wg.Done()
@@ -157,7 +157,7 @@ func TestResilienceConcurrentFailures(t *testing.T) {
 					return
 				}
 				// Perform operations with random failures
-				for j := 0; j < numOperations; j++ {
+				for j := range numOperations {
 					// Simulate random context cancellation
 					opCtx := ctx
 					if j%3 == 0 {
@@ -227,7 +227,7 @@ func TestResilienceMemoryPressure(t *testing.T) {
 		const maxMessages = 100                    // Test with reasonable number
 		largeContent := string(make([]byte, 1000)) // 1KB per message
 		messagesAdded := 0
-		for i := 0; i < maxMessages; i++ {
+		for i := range maxMessages {
 			msg := llm.Message{
 				Role:    "user",
 				Content: fmt.Sprintf("Message %d: %s", i, largeContent),
@@ -273,7 +273,7 @@ func TestResilienceCircuitBreaker(t *testing.T) {
 		const numAttempts = 8 // Reduced from 20 for faster tests
 		timeoutCount := 0
 		successCount := 0
-		for i := 0; i < numAttempts; i++ {
+		for i := range numAttempts {
 			// Create instance first
 			instance, err := env.GetMemoryManager().GetInstance(ctx, memRef, workflowContext)
 			require.NoError(t, err)
