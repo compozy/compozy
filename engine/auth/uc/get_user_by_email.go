@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/compozy/compozy/engine/auth"
 	"github.com/compozy/compozy/engine/auth/model"
+	"github.com/compozy/compozy/engine/core"
 )
 
 // GetUserByEmail use case for retrieving a user by email
@@ -25,7 +27,13 @@ func NewGetUserByEmail(repo Repository, email string) *GetUserByEmail {
 func (uc *GetUserByEmail) Execute(ctx context.Context) (*model.User, error) {
 	user, err := uc.repo.GetUserByEmail(ctx, uc.email)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get user by email: %w", err)
+		return nil, core.NewError(
+			fmt.Errorf("failed to get user by email: %w", err),
+			auth.ErrCodeNotFound,
+			map[string]any{
+				"email": uc.email,
+			},
+		)
 	}
 	return user, nil
 }

@@ -142,7 +142,7 @@ func TestMemoryInstance_WithRealRedis(t *testing.T) {
 
 		// Add 10 messages
 		messages := make([]llm.Message, 10)
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			messages[i] = llm.Message{
 				Role:    llm.MessageRoleUser,
 				Content: fmt.Sprintf("Message %d", i+1),
@@ -190,7 +190,7 @@ func TestMemoryInstance_WithRealRedis(t *testing.T) {
 		defer cleanup()
 
 		// Add some messages
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			msg := llm.Message{
 				Role:    llm.MessageRoleUser,
 				Content: fmt.Sprintf("Message %d", i+1),
@@ -261,12 +261,12 @@ func TestMemoryInstance_WithRealRedis(t *testing.T) {
 		errors := make(chan error, numGoroutines)
 
 		// Launch multiple goroutines that append messages concurrently
-		for i := 0; i < numGoroutines; i++ {
+		for i := range numGoroutines {
 			go func(id int) {
 				defer func() { done <- true }()
 
 				// Each goroutine appends 3 messages
-				for j := 0; j < 3; j++ {
+				for j := range 3 {
 					msg := llm.Message{
 						Role:    llm.MessageRoleUser,
 						Content: fmt.Sprintf("Goroutine %d Message %d", id, j+1),
@@ -280,7 +280,7 @@ func TestMemoryInstance_WithRealRedis(t *testing.T) {
 		}
 
 		// Wait for all goroutines to complete
-		for i := 0; i < numGoroutines; i++ {
+		for range numGoroutines {
 			select {
 			case <-done:
 				// Goroutine completed successfully

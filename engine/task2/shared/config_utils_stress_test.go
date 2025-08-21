@@ -21,10 +21,10 @@ func TestGetGlobalConfigLimits_ExtremeLoad(t *testing.T) {
 		// Channel to collect errors
 		errChan := make(chan error, numGoroutines*numIterations)
 		// Launch concurrent goroutines
-		for i := 0; i < numGoroutines; i++ {
+		for i := range numGoroutines {
 			go func(_ int) {
 				defer wg.Done()
-				for j := 0; j < numIterations; j++ {
+				for range numIterations {
 					limits := GetGlobalConfigLimits()
 					// Verify the limits are valid
 					if limits == nil {
@@ -71,7 +71,7 @@ func TestGetGlobalConfigLimits_ExtremeLoad(t *testing.T) {
 		// Channel to track successful operations
 		successChan := make(chan bool, numOperations*2)
 		// Concurrent reads
-		for i := 0; i < numOperations; i++ {
+		for range numOperations {
 			go func() {
 				defer wg.Done()
 				limits := GetGlobalConfigLimits()
@@ -81,7 +81,7 @@ func TestGetGlobalConfigLimits_ExtremeLoad(t *testing.T) {
 			}()
 		}
 		// Concurrent refreshes to simulate config updates
-		for i := 0; i < numOperations; i++ {
+		for range numOperations {
 			go func() {
 				defer wg.Done()
 				RefreshGlobalConfigLimits()
@@ -107,7 +107,7 @@ func TestGetGlobalConfigLimits_MemoryPressure(t *testing.T) {
 		RefreshGlobalConfigLimits()
 		// Perform many sequential accesses
 		const numAccesses = 10000
-		for i := 0; i < numAccesses; i++ {
+		for i := range numAccesses {
 			limits := GetGlobalConfigLimits()
 			require.NotNil(t, limits)
 			// Occasionally refresh config to simulate real-world updates
@@ -137,7 +137,7 @@ func TestGetGlobalConfigLimits_RaceConditionProtection(t *testing.T) {
 		var wg sync.WaitGroup
 		wg.Add(numGoroutines)
 		startSignal := make(chan struct{})
-		for i := 0; i < numGoroutines; i++ {
+		for range numGoroutines {
 			go func() {
 				defer wg.Done()
 				// Wait for signal to start all at once

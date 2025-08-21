@@ -10,6 +10,7 @@ package ratelimit
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -163,12 +164,7 @@ func (m *Manager) isRequestExcluded(c *gin.Context) bool {
 	}
 	// Check excluded IPs
 	clientIP := c.ClientIP()
-	for _, excludedIP := range m.config.ExcludedIPs {
-		if clientIP == excludedIP {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(m.config.ExcludedIPs, clientIP)
 }
 
 // getLimiterForRequest returns the appropriate limiter for the request

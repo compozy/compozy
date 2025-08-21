@@ -130,10 +130,7 @@ func (s StatusBarComponent) renderProgress() string {
 	}
 
 	width := 20
-	filled := int(s.Progress * float64(width))
-	if filled > width {
-		filled = width
-	}
+	filled := min(int(s.Progress*float64(width)), width)
 
 	filledBar := strings.Repeat("█", filled)
 	emptyBar := strings.Repeat("░", width-filled)

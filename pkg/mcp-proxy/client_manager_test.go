@@ -252,7 +252,7 @@ func TestMCPClientManager_ReconnectionPrevention(t *testing.T) {
 		reconnectionCount := 0
 		mu := sync.Mutex{}
 
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
@@ -303,7 +303,7 @@ func TestMCPClientManager_ConcurrentOperations(t *testing.T) {
 		clientCount := 5
 		errChan := make(chan error, clientCount)
 
-		for i := 0; i < clientCount; i++ {
+		for i := range clientCount {
 			wg.Add(1)
 			go func(id int) {
 				defer wg.Done()
@@ -315,7 +315,7 @@ func TestMCPClientManager_ConcurrentOperations(t *testing.T) {
 			}(i)
 		}
 
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()

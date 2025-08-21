@@ -6,6 +6,7 @@ import (
 
 	"github.com/compozy/compozy/engine/auth"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/pkg/logger"
 )
 
 // RevokeAPIKey use case for revoking (deleting) an API key
@@ -26,32 +27,39 @@ func NewRevokeAPIKey(repo Repository, userID, keyID core.ID) *RevokeAPIKey {
 
 // Execute revokes an API key after verifying ownership
 func (uc *RevokeAPIKey) Execute(ctx context.Context) error {
-	// First, get the API key to verify ownership
+	log := logger.FromContext(ctx)
+	log.Debug("Revoking API key", "key_id", uc.keyID)
+	// Get the API key first
 	apiKey, err := uc.repo.GetAPIKeyByID(ctx, uc.keyID)
 	if err != nil {
 		return core.NewError(
-			fmt.Errorf("API key not found"),
+			fmt.Errorf("API key not found: %w", err),
 			auth.ErrCodeNotFound,
 			map[string]any{
-				"key_id": uc.keyID,
+				"key_id": uc.keyID.String(),
 			},
 		)
 	}
-
-	// Verify the key belongs to the user
+	// Check if the key belongs to the requesting user
 	if apiKey.UserID != uc.userID {
 		return core.NewError(
 			fmt.Errorf("access denied"),
 			auth.ErrCodeForbidden,
 			map[string]any{
-				"key_id": uc.keyID,
+				"key_id": uc.keyID.String(),
 			},
 		)
 	}
-
-	// Now revoke the key
+	// Delete the key
 	if err := uc.repo.DeleteAPIKey(ctx, uc.keyID); err != nil {
-		return fmt.Errorf("failed to revoke API key: %w", err)
+		return core.NewError(
+			fmt.Errorf("failed to revoke API key: %w", err),
+			auth.ErrCodeInternal,
+			map[string]any{
+				"key_id": uc.keyID.String(),
+			},
+		)
 	}
+	log.Info("API key revoked successfully", "key_id", uc.keyID, "user_id", uc.userID)
 	return nil
 }

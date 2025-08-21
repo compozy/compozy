@@ -39,7 +39,7 @@ func TestFlushWorkflowComplete(t *testing.T) {
 		// Add messages to reach flush threshold (50% of 2000 tokens)
 		baseMessage := "This is a test message with some content to accumulate tokens. "
 		messageCount := 0
-		for i := 0; i < 100; i++ {
+		for i := range 100 {
 			msg := llm.Message{
 				Role:    "user",
 				Content: fmt.Sprintf("%s Message number %d", baseMessage, i),
@@ -197,7 +197,7 @@ func TestCleanupWorkflow(t *testing.T) {
 			instance, err := env.GetMemoryManager().GetInstance(ctx, memRef, workflowContext)
 			require.NoError(t, err)
 			// Add some messages
-			for i := 0; i < 10; i++ {
+			for i := range 10 {
 				msg := llm.Message{
 					Role:    "user",
 					Content: fmt.Sprintf("Message %d for %s", i, mem.key),
@@ -252,7 +252,7 @@ func TestFlushAndCleanupInteraction(t *testing.T) {
 		instance, err := env.GetMemoryManager().GetInstance(ctx, memRef, workflowContext)
 		require.NoError(t, err)
 		// Fill memory to trigger flush
-		for i := 0; i < 50; i++ {
+		for i := range 50 {
 			msg := llm.Message{
 				Role:    "user",
 				Content: fmt.Sprintf("Long message %d to trigger flush behavior quickly", i),
@@ -267,7 +267,7 @@ func TestFlushAndCleanupInteraction(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, flushResult.Success)
 		// Add more messages after flush
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			msg := llm.Message{
 				Role:    "assistant",
 				Content: fmt.Sprintf("Post-flush message %d", i),
@@ -300,7 +300,7 @@ func TestConcurrentFlushAndCleanup(t *testing.T) {
 		// Create multiple memory instances
 		const numInstances = 5
 		instances := make([]memcore.Memory, numInstances)
-		for i := 0; i < numInstances; i++ {
+		for i := range numInstances {
 			memRef := core.MemoryReference{
 				ID:  "flushable-memory",
 				Key: "concurrent-fc-{{.instance}}-{{.test.id}}",
@@ -318,7 +318,7 @@ func TestConcurrentFlushAndCleanup(t *testing.T) {
 			require.NoError(t, err)
 			instances[i] = instance
 			// Populate with messages
-			for j := 0; j < 30; j++ {
+			for j := range 30 {
 				msg := llm.Message{
 					Role:    "user",
 					Content: fmt.Sprintf("Instance %d, Message %d", i, j),
@@ -331,7 +331,7 @@ func TestConcurrentFlushAndCleanup(t *testing.T) {
 		var wg sync.WaitGroup
 		errors := make(chan error, numInstances*2)
 		// Flush operations
-		for i := 0; i < numInstances; i++ {
+		for i := range numInstances {
 			if i%2 == 0 { // Only flush even-numbered instances
 				wg.Add(1)
 				go func(idx int) {
@@ -351,7 +351,7 @@ func TestConcurrentFlushAndCleanup(t *testing.T) {
 			}
 		}
 		// Clear operations (with slight delay)
-		for i := 0; i < numInstances; i++ {
+		for i := range numInstances {
 			if i%2 == 1 { // Only clear odd-numbered instances
 				wg.Add(1)
 				go func(idx int) {

@@ -215,13 +215,10 @@ func (k *KeyboardShortcuts) renderMultiColumn(cols int) string {
 	var columns []string
 	itemsPerCol := (len(k.Categories) + cols - 1) / cols
 
-	for col := 0; col < cols; col++ {
+	for col := range cols {
 		var colContent string
 		start := col * itemsPerCol
-		end := start + itemsPerCol
-		if end > len(k.Categories) {
-			end = len(k.Categories)
-		}
+		end := min(start+itemsPerCol, len(k.Categories))
 
 		for i := start; i < end; i++ {
 			if i > start {

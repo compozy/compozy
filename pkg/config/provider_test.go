@@ -157,8 +157,7 @@ func TestYAMLProvider_Watch(t *testing.T) {
 		tmpFile.Close()
 
 		provider := NewYAMLProvider(tmpFile.Name())
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx := t.Context()
 
 		err = provider.Watch(ctx, func() {})
 		assert.NoError(t, err)
@@ -300,8 +299,7 @@ func TestYAMLProvider_WatchActual(t *testing.T) {
 		provider := NewYAMLProvider(tmpFile.Name())
 
 		// Setup watch
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx := t.Context()
 
 		// Use channel to safely track callback invocation
 		callbackCh := make(chan struct{}, 1)

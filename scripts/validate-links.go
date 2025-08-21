@@ -393,9 +393,9 @@ func validateExternalLink(ctx context.Context, link *Link, result *ValidationRes
 
 func validateAnchorLink(link *Link, docsRoot string) {
 	// Handle pure anchors (#section) and paths with anchors
-	if strings.HasPrefix(link.URL, "#") {
+	if after, ok := strings.CutPrefix(link.URL, "#"); ok {
 		// Pure anchor - check in the same file
-		if !validateAnchorInFile(link.SourceFile, strings.TrimPrefix(link.URL, "#")) {
+		if !validateAnchorInFile(link.SourceFile, after) {
 			link.Valid = false
 			link.Error = fmt.Sprintf("anchor '%s' not found in current file", link.URL)
 		}

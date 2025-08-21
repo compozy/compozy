@@ -3,6 +3,7 @@ package uc
 import (
 	"context"
 	"fmt"
+	"maps"
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
@@ -357,15 +358,11 @@ func (uc *CreateChildTasks) mergeEnvironments(parentEnv, childEnv *core.EnvMap) 
 	merged := make(core.EnvMap)
 	// Copy parent environment variables first
 	if parentEnv != nil {
-		for k, v := range *parentEnv {
-			merged[k] = v
-		}
+		maps.Copy(merged, *parentEnv)
 	}
 	// Override with child environment variables
 	if childEnv != nil {
-		for k, v := range *childEnv {
-			merged[k] = v
-		}
+		maps.Copy(merged, *childEnv)
 	}
 	// Return nil if the map is empty
 	if len(merged) == 0 {

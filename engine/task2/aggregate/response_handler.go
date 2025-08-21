@@ -3,6 +3,7 @@ package aggregate
 import (
 	"context"
 	"fmt"
+	"maps"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
@@ -113,9 +114,7 @@ func (h *ResponseHandler) HandleAggregateCompletion(
 		state.Output = &output
 	} else {
 		// Merge aggregated data into existing output
-		for k, v := range aggregatedData {
-			(*state.Output)[k] = v
-		}
+		maps.Copy((*state.Output), aggregatedData)
 	}
 
 	log := logger.FromContext(ctx).With(

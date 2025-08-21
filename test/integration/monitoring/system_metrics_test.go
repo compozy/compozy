@@ -22,8 +22,8 @@ func TestSystemHealthMetrics(t *testing.T) {
 		// Verify build info gauge exists
 		assert.Contains(t, metrics, "compozy_build_info")
 		// Parse build info line to verify labels
-		lines := strings.Split(metrics, "\n")
-		for _, line := range lines {
+		lines := strings.SplitSeq(metrics, "\n")
+		for line := range lines {
 			if strings.HasPrefix(line, "compozy_build_info{") {
 				// Should have version, commit_hash, and go_version labels
 				assert.Contains(t, line, `version=`)
@@ -131,8 +131,8 @@ func TestSystemHealthMetrics(t *testing.T) {
 		metrics, err := env.GetMetrics()
 		require.NoError(t, err)
 		// Verify that special characters in version strings are properly escaped
-		lines := strings.Split(metrics, "\n")
-		for _, line := range lines {
+		lines := strings.SplitSeq(metrics, "\n")
+		for line := range lines {
 			if strings.HasPrefix(line, "compozy_build_info{") {
 				// Labels should be properly quoted
 				assert.Contains(t, line, `version="`)

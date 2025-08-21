@@ -111,7 +111,7 @@ func TestPrometheusFormatCompliance(t *testing.T) {
 		env := SetupTestEnvironment(t)
 		defer env.Cleanup()
 		// Make requests to generate histogram data
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			if resp, err := env.MakeRequest("GET", "/api/v1/health"); err == nil {
 				resp.Body.Close()
 			}
@@ -161,8 +161,8 @@ func TestPrometheusFormatCompliance(t *testing.T) {
 		assert.Contains(t, metrics, `http_route="/api/v1/users/:id"`)
 		assert.NotContains(t, metrics, `http_route="/api/v1/users/test%20user"`)
 		// Verify no unescaped characters in labels
-		lines := strings.Split(metrics, "\n")
-		for _, line := range lines {
+		lines := strings.SplitSeq(metrics, "\n")
+		for line := range lines {
 			if strings.Contains(line, "{") && strings.Contains(line, "}") {
 				// Extract labels section
 				start := strings.Index(line, "{")
@@ -173,8 +173,8 @@ func TestPrometheusFormatCompliance(t *testing.T) {
 					assert.NotContains(t, labels, "\n")
 					assert.NotContains(t, labels, "\r")
 					// Quotes should be part of the label format
-					parts := strings.Split(labels, ",")
-					for _, part := range parts {
+					parts := strings.SplitSeq(labels, ",")
+					for part := range parts {
 						// Each label should be in key="value" format
 						assert.Contains(t, part, "=")
 						assert.Contains(t, part, `"`)

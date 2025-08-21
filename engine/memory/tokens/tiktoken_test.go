@@ -133,7 +133,7 @@ func TestTiktokenCounter_ConcurrentAccess(t *testing.T) {
 		const numGoroutines = 10
 		results := make(chan int, numGoroutines)
 
-		for i := 0; i < numGoroutines; i++ {
+		for range numGoroutines {
 			go func(text string) {
 				count, err := counter.CountTokens(ctx, text)
 				require.NoError(t, err)
@@ -143,7 +143,7 @@ func TestTiktokenCounter_ConcurrentAccess(t *testing.T) {
 
 		// Collect results
 		counts := make([]int, numGoroutines)
-		for i := 0; i < numGoroutines; i++ {
+		for i := range numGoroutines {
 			counts[i] = <-results
 		}
 

@@ -785,8 +785,8 @@ func (m *manager) scheduleID(workflowID string) string {
 // workflowIDFromScheduleID extracts the workflow ID from a schedule ID
 func (m *manager) workflowIDFromScheduleID(scheduleID string) string {
 	prefix := m.schedulePrefix()
-	if strings.HasPrefix(scheduleID, prefix) {
-		return strings.TrimPrefix(scheduleID, prefix)
+	if after, ok := strings.CutPrefix(scheduleID, prefix); ok {
+		return after
 	}
 	return ""
 }
@@ -863,7 +863,7 @@ func (m *manager) executeReconciliation(
 	// Start bounded worker pool
 	const maxWorkers = 10
 	var wg sync.WaitGroup
-	for i := 0; i < maxWorkers; i++ {
+	for range maxWorkers {
 		wg.Add(1)
 		go m.reconciliationWorker(ctx, log, workQueue, errChan, &wg)
 	}
@@ -915,7 +915,7 @@ func (m *manager) queueUpdateOperations(workQueue chan<- workItem, toUpdate map[
 // queueDeleteOperations queues delete operations
 func (m *manager) queueDeleteOperations(workQueue chan<- workItem, toDelete []string) {
 	for _, scheduleID := range toDelete {
-		scheduleID := scheduleID // Capture loop variable
+		// Capture loop variable
 		workQueue <- workItem{
 			scheduleID: scheduleID,
 			operation:  "delete",

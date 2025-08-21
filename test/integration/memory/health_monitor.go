@@ -3,6 +3,7 @@ package memory
 import (
 	"context"
 	"fmt"
+	"maps"
 	"runtime"
 	"strings"
 	"sync"
@@ -282,9 +283,7 @@ func (h *HealthMonitor) GetHealthStatus() map[string]HealthStatus {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	result := make(map[string]HealthStatus)
-	for k, v := range h.healthStatus {
-		result[k] = v
-	}
+	maps.Copy(result, h.healthStatus)
 	return result
 }
 
@@ -376,8 +375,8 @@ func (h *HealthMonitor) PrintHealthReport(t *testing.T) {
 func parseRedisInfo(info string) map[string]any {
 	result := make(map[string]any)
 	// Simplified parsing - just extract a few key metrics
-	lines := strings.Split(info, "\r\n")
-	for _, line := range lines {
+	lines := strings.SplitSeq(info, "\r\n")
+	for line := range lines {
 		if strings.Contains(line, ":") {
 			parts := strings.SplitN(line, ":", 2)
 			key := strings.TrimSpace(parts[0])

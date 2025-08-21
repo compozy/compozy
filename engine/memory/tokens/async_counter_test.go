@@ -209,7 +209,7 @@ func TestAsyncTokenCounter_WorkerPool(t *testing.T) {
 			}).
 			Return(10, nil)
 		// Act - send multiple requests
-		for i := 0; i < 6; i++ {
+		for range 6 {
 			asyncCounter.ProcessAsync(context.Background(), "ref", "text")
 		}
 		// Wait for processing
@@ -228,7 +228,7 @@ func TestAsyncTokenCounter_Shutdown(t *testing.T) {
 		// Queue some requests
 		mockCounter.On("CountTokens", mock.Anything, mock.Anything).
 			Return(10, nil).Maybe()
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			asyncCounter.ProcessAsync(context.Background(), "ref", "text")
 		}
 		// Act

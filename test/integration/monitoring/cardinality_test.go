@@ -70,7 +70,7 @@ func TestMetricCardinalityLimits(t *testing.T) {
 		defer env.Cleanup()
 		// Generate requests with many different IDs
 		uniqueIDs := 100
-		for i := 0; i < uniqueIDs; i++ {
+		for i := range uniqueIDs {
 			// Different user IDs
 			resp, err := env.MakeRequest("GET", fmt.Sprintf("/api/v1/users/user-%d", i))
 			require.NoError(t, err)
@@ -90,7 +90,7 @@ func TestMetricCardinalityLimits(t *testing.T) {
 		assert.Contains(t, pathLabels, "/api/v1/users/:id")
 		assert.Contains(t, pathLabels, "/api/v1/workflows/:workflow_id/executions/:exec_id")
 		// Should NOT have individual paths
-		for i := 0; i < uniqueIDs; i++ {
+		for i := range uniqueIDs {
 			assert.NotContains(t, pathLabels, fmt.Sprintf("/api/v1/users/user-%d", i))
 			assert.NotContains(t, pathLabels, fmt.Sprintf("/api/v1/workflows/wf-%d/executions/exec-%d", i, i*2))
 		}
@@ -134,7 +134,7 @@ func TestMetricCardinalityLimits(t *testing.T) {
 		env := SetupTestEnvironment(t)
 		defer env.Cleanup()
 		// Generate mixed traffic pattern
-		for i := 0; i < 50; i++ {
+		for i := range 50 {
 			// Static routes
 			if resp, err := env.MakeRequest("GET", "/"); err == nil {
 				resp.Body.Close()

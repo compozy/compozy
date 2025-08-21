@@ -130,7 +130,7 @@ func (h HelpComponent) renderTwoColumns() string {
 	var leftCol, rightCol string
 
 	// Left column
-	for i := 0; i < mid; i++ {
+	for i := range mid {
 		binding := h.Bindings[i]
 		key := styles.HelpKeyStyle.Render(binding[0])
 		desc := styles.HelpDescStyle.Render(binding[1])

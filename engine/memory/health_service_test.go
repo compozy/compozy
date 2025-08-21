@@ -96,7 +96,7 @@ func TestHealthService_ConcurrentAccess(t *testing.T) {
 		var wg sync.WaitGroup
 		results := make([]*SystemHealth, 10)
 
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			wg.Add(1)
 			go func(index int) {
 				defer wg.Done()
@@ -133,7 +133,7 @@ func TestHealthService_ConcurrentAccess(t *testing.T) {
 		}()
 
 		// Concurrent health checks
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()

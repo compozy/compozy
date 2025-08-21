@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"fmt"
+	"maps"
 	"reflect"
 	"strconv"
 	"strings"
@@ -297,9 +298,7 @@ func flattenMap(prefix string, m map[string]any) map[string]any {
 
 		if nestedMap, ok := v.(map[string]any); ok {
 			// Recursively flatten nested maps
-			for fk, fv := range flattenMap(key, nestedMap) {
-				result[fk] = fv
-			}
+			maps.Copy(result, flattenMap(key, nestedMap))
 		} else {
 			result[key] = v
 		}

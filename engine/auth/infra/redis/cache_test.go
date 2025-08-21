@@ -415,7 +415,7 @@ func TestCachedRepository_ConcurrentAccess(t *testing.T) {
 
 		// Business logic: concurrent requests should get cached results without database hits
 		const numRequests = 3 // Reduced complexity while maintaining business logic validation
-		for i := 0; i < numRequests; i++ {
+		for range numRequests {
 			result, err := cache.GetAPIKeyByHash(ctx, testKey.Fingerprint)
 			require.NoError(t, err)
 			assert.Equal(t, testKey.ID, result.ID)

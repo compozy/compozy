@@ -17,11 +17,11 @@ func TestMCPStatus_ThreadSafety(t *testing.T) {
 	iterations := 100
 
 	// Concurrent status updates
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for j := 0; j < iterations; j++ {
+			for range iterations {
 				status.UpdateStatus(StatusConnected, "")
 				status.UpdateStatus(StatusError, "test error")
 				status.RecordRequest(time.Millisecond * 100)
@@ -31,11 +31,11 @@ func TestMCPStatus_ThreadSafety(t *testing.T) {
 	}
 
 	// Concurrent status reads
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for j := 0; j < iterations; j++ {
+			for range iterations {
 				statusCopy := status.SafeCopy()
 				assert.NotNil(t, statusCopy)
 				assert.Equal(t, "test-status", statusCopy.Name)
@@ -99,11 +99,11 @@ func TestMCPStatus_ConcurrentSafeCopy(t *testing.T) {
 	copies := make([]*MCPStatus, iterations*5) // 5 goroutines * 50 iterations
 
 	// Concurrent SafeCopy operations while modifying the original
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		wg.Add(1)
 		go func(goroutineIndex int) {
 			defer wg.Done()
-			for j := 0; j < iterations; j++ {
+			for j := range iterations {
 				index := goroutineIndex*iterations + j
 				copies[index] = original.SafeCopy()
 
@@ -143,7 +143,7 @@ func TestMCPStatus_RaceConditionDetection(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		for i := 0; i < iterations; i++ {
+		for i := range iterations {
 			switch i % 3 {
 			case 0:
 				status.UpdateStatus(StatusConnected, "")
@@ -159,7 +159,7 @@ func TestMCPStatus_RaceConditionDetection(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		for i := 0; i < iterations; i++ {
+		for i := range iterations {
 			responseTime := time.Duration(i%100+1) * time.Millisecond
 			status.RecordRequest(responseTime)
 		}
@@ -169,7 +169,7 @@ func TestMCPStatus_RaceConditionDetection(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		for i := 0; i < iterations; i++ {
+		for range iterations {
 			status.IncrementErrors()
 		}
 	}()
@@ -178,7 +178,7 @@ func TestMCPStatus_RaceConditionDetection(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		for i := 0; i < iterations; i++ {
+		for range iterations {
 			statusCopy := status.SafeCopy()
 			assert.NotNil(t, statusCopy)
 			uptime := status.CalculateUpTime()
@@ -211,12 +211,12 @@ func TestMCPStatus_TimestampConsistency(t *testing.T) {
 	status.UpdateStatus(StatusConnected, "")
 
 	// Concurrent operations
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		wg.Add(1)
 		go func(_ int) {
 			defer wg.Done()
 
-			for j := 0; j < 50; j++ {
+			for j := range 50 {
 				if j%2 == 0 {
 					status.UpdateStatus(StatusConnected, "")
 				} else {
@@ -272,11 +272,11 @@ func TestMCPStatus_DataIntegrity(t *testing.T) {
 	var requestMutex, errorMutex sync.Mutex
 
 	// Concurrent request recording
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for j := 0; j < iterations; j++ {
+			for range iterations {
 				status.RecordRequest(time.Millisecond * 50)
 
 				requestMutex.Lock()
@@ -287,11 +287,11 @@ func TestMCPStatus_DataIntegrity(t *testing.T) {
 	}
 
 	// Concurrent error incrementing
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for j := 0; j < iterations; j++ {
+			for range iterations {
 				status.IncrementErrors()
 
 				errorMutex.Lock()

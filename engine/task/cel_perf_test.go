@@ -59,7 +59,7 @@ func TestCELEvaluator_ConcurrentAccess(t *testing.T) {
 		go func(goroutineID int) {
 			defer wg.Done()
 
-			for j := 0; j < evaluationsPerGoroutine; j++ {
+			for j := range evaluationsPerGoroutine {
 				expr := expressions[(goroutineID*evaluationsPerGoroutine+j)%len(expressions)]
 
 				result, err := evaluator.Evaluate(ctx, expr, data)

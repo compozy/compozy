@@ -336,10 +336,7 @@ func (m *ListModel[T]) buildStatusBar() string {
 	totalFiltered := len(m.filtered)
 	totalItems := len(m.items)
 	startIdx := m.currentPage * m.pageSize
-	endIdx := startIdx + m.pageSize
-	if endIdx > totalFiltered {
-		endIdx = totalFiltered
-	}
+	endIdx := min(startIdx+m.pageSize, totalFiltered)
 	status := fmt.Sprintf("Showing %d-%d of %d", startIdx+1, endIdx, totalFiltered)
 	if totalFiltered < totalItems {
 		status += fmt.Sprintf(" (filtered from %d)", totalItems)
@@ -404,10 +401,7 @@ func (m *ListModel[T]) updateTable() {
 	m.sortItems(m.filtered, m.sortBy, m.sortOrder)
 	// Get current page of items
 	startIdx := m.currentPage * m.pageSize
-	endIdx := startIdx + m.pageSize
-	if endIdx > len(m.filtered) {
-		endIdx = len(m.filtered)
-	}
+	endIdx := min(startIdx+m.pageSize, len(m.filtered))
 	// Convert to table rows
 	rows := make([]table.Row, 0)
 	for i := startIdx; i < endIdx; i++ {

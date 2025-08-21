@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
@@ -455,10 +456,5 @@ func (s *Server) extractToken(c *gin.Context) string {
 
 // isValidAdminToken checks if the provided token is valid
 func (s *Server) isValidAdminToken(token string) bool {
-	for _, validToken := range s.config.AdminTokens {
-		if token == validToken {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(s.config.AdminTokens, token)
 }

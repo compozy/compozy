@@ -124,7 +124,7 @@ func TestAllTaskTypesResponseHandlers(t *testing.T) {
 		workflowState, workflowExecID := ts.CreateWorkflowState(t, "test-workflow-success")
 
 		for _, tc := range testCases {
-			tc := tc // capture loop variable
+			// capture loop variable
 			t.Run(fmt.Sprintf("Should process %s", tc.TaskType), func(t *testing.T) {
 				// Create handler for this task type
 				handler := tc.HandlerFunc(ts)
@@ -197,7 +197,7 @@ func TestAllTaskTypesResponseHandlers(t *testing.T) {
 		workflowState, workflowExecID := ts.CreateWorkflowState(t, "test-workflow-failed")
 
 		for _, tc := range testCases {
-			tc := tc // capture loop variable
+			// capture loop variable
 			t.Run(fmt.Sprintf("Should handle failed %s", tc.TaskType), func(t *testing.T) {
 				// Create handler for this task type
 				handler := tc.HandlerFunc(ts)

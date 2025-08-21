@@ -18,6 +18,7 @@ import (
 	toolrouter "github.com/compozy/compozy/engine/tool/router"
 	wfrouter "github.com/compozy/compozy/engine/workflow/router"
 	schedulerouter "github.com/compozy/compozy/engine/workflow/schedule/router"
+	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
@@ -89,10 +90,7 @@ func CreateHealthHandler(server *Server, version string) gin.HandlerFunc {
 	}
 }
 
-func RegisterRoutes(ctx context.Context, router *gin.Engine, state *appstate.State, server *Server) error {
-	version := core.GetVersion()
-	prefixURL := fmt.Sprintf("/api/%s", version)
-	apiBase := router.Group(prefixURL)
+func setupSwaggerAndDocs(router *gin.Engine, prefixURL string) {
 	// Configure Swagger Info
 	docs.SwaggerInfo.BasePath = prefixURL
 	docs.SwaggerInfo.Host = ""
@@ -115,6 +113,26 @@ func RegisterRoutes(ctx context.Context, router *gin.Engine, state *appstate.Sta
 		url,
 		ginSwagger.DefaultModelsExpandDepth(-1),
 	))
+}
+
+func RegisterRoutes(ctx context.Context, router *gin.Engine, state *appstate.State, server *Server) error {
+	version := core.GetVersion()
+	prefixURL := fmt.Sprintf("/api/%s", version)
+	apiBase := router.Group(prefixURL)
+
+	// Get configuration
+	cfg := config.Get()
+
+	// Debug log for admin key
+	log := logger.FromContext(ctx)
+	if cfg.Server.Auth.AdminKey.Value() != "" {
+		log.Info("Admin bootstrap key is configured", "key_length", len(cfg.Server.Auth.AdminKey.Value()))
+	} else {
+		log.Info("No admin bootstrap key configured")
+	}
+
+	// Setup Swagger and documentation endpoints
+	setupSwaggerAndDocs(router, prefixURL)
 
 	// Root endpoint with API information
 	router.GET("/", func(c *gin.Context) {
@@ -142,35 +160,43 @@ func RegisterRoutes(ctx context.Context, router *gin.Engine, state *appstate.Sta
 	// Health check endpoint with readiness probe
 	router.GET("/health", CreateHealthHandler(server, version))
 
-	// Register auth routes with metrics if monitoring is available
+	// Setup auth factory and manager
 	authRepo := state.Store.NewAuthRepo()
 	authFactory := authuc.NewFactory(authRepo)
+	authManager := authmw.NewManager(authFactory, cfg)
+
+	// Apply global authentication middleware if enabled
+	// This applies to all routes under /api/v0/*
+	if cfg.Server.Auth.Enabled {
+		apiBase.Use(authManager.Middleware())
+		apiBase.Use(authManager.RequireAuth())
+	}
+
+	// Register auth routes (they handle their own specialized auth requirements)
+	// Auth routes must be registered AFTER global middleware to override with specific requirements
 	if server != nil && server.monitoring != nil && server.monitoring.IsInitialized() {
 		authrouter.RegisterRoutesWithMetrics(apiBase, authFactory, server.monitoring.Meter())
 	} else {
 		authrouter.RegisterRoutes(apiBase, authFactory)
 	}
 
-	// Create auth manager for routers that need authentication
-	authManager := authmw.NewManager(authFactory)
-
-	// Register all component routers with authentication support
-	wfrouter.Register(apiBase, authManager)
-	tkrouter.Register(apiBase, authManager)
-	agentrouter.Register(apiBase, authManager)
-	toolrouter.Register(apiBase, authManager)
+	// Register all component routers (no auth parameter needed - handled globally)
+	wfrouter.Register(apiBase)
+	tkrouter.Register(apiBase)
+	agentrouter.Register(apiBase)
+	toolrouter.Register(apiBase)
 	schedulerouter.Register(apiBase)
-	memrouter.Register(apiBase, authFactory)
+	memrouter.Register(apiBase)
 
 	// Register memory health routes if global health service is available
 	if globalHealthService := memory.GetGlobalHealthService(); globalHealthService != nil {
 		memory.RegisterMemoryHealthRoutes(apiBase, globalHealthService)
 	}
 
-	log := logger.FromContext(ctx)
 	log.Info("Completed route registration",
 		"total_workflows", len(state.Workflows),
 		"swagger_base_path", docs.SwaggerInfo.BasePath,
+		"auth_enabled", cfg.Server.Auth.Enabled,
 	)
 	return nil
 }

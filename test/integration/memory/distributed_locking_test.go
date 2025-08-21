@@ -51,7 +51,7 @@ func TestDistributedLockingAppend(t *testing.T) {
 		var orderMutex sync.Mutex
 		// Launch concurrent workers
 		startTime := time.Now()
-		for i := 0; i < numWorkers; i++ {
+		for i := range numWorkers {
 			wg.Add(1)
 			go func(workerID int) {
 				defer wg.Done()
@@ -62,7 +62,7 @@ func TestDistributedLockingAppend(t *testing.T) {
 					return
 				}
 				// Attempt to append messages
-				for j := 0; j < messagesPerWorker; j++ {
+				for j := range messagesPerWorker {
 					msgContent := fmt.Sprintf("Worker-%d-Message-%d", workerID, j)
 					msg := llm.Message{
 						Role:    "user",
@@ -166,7 +166,7 @@ func TestDistributedLockingClear(t *testing.T) {
 		instance, err := env.GetMemoryManager().GetInstance(ctx, memRef, workflowContext)
 		require.NoError(t, err)
 		// Add initial messages
-		for i := 0; i < 50; i++ {
+		for i := range 50 {
 			msg := llm.Message{
 				Role:    "assistant",
 				Content: fmt.Sprintf("Initial message %d", i),
@@ -184,7 +184,7 @@ func TestDistributedLockingClear(t *testing.T) {
 		var appendAfterClearCount atomic.Int32
 		results := make(chan error, numWorkers)
 		var wg sync.WaitGroup
-		for i := 0; i < numWorkers; i++ {
+		for i := range numWorkers {
 			wg.Add(1)
 			go func(workerID int) {
 				defer wg.Done()
@@ -274,7 +274,7 @@ func TestDistributedLockingFlush(t *testing.T) {
 		instance, err := env.GetMemoryManager().GetInstance(ctx, memRef, workflowContext)
 		require.NoError(t, err)
 		// Add messages to trigger flush threshold
-		for i := 0; i < 40; i++ {
+		for i := range 40 {
 			msg := llm.Message{
 				Role:    "user",
 				Content: fmt.Sprintf("Message %d - this is a longer message to accumulate tokens faster", i),
@@ -293,7 +293,7 @@ func TestDistributedLockingFlush(t *testing.T) {
 		var wg sync.WaitGroup
 		// Use a channel as a barrier to start all goroutines at once
 		startSignal := make(chan struct{})
-		for i := 0; i < numFlushAttempts; i++ {
+		for i := range numFlushAttempts {
 			wg.Add(1)
 			go func(attemptID int) {
 				defer wg.Done()
@@ -425,7 +425,7 @@ func TestDistributedLockingMixedOperations(t *testing.T) {
 					return
 				}
 				// Add multiple messages
-				for i := 0; i < 20; i++ {
+				for i := range 20 {
 					msg := llm.Message{
 						Role:    "user",
 						Content: fmt.Sprintf("Config %d - Message %d", id, i),
@@ -458,7 +458,7 @@ func TestDistributedLockingMixedOperations(t *testing.T) {
 					return
 				}
 				// Read multiple times
-				for i := 0; i < 10; i++ {
+				for range 10 {
 					messages, err := instance.Read(ctx)
 					if err != nil {
 						results <- fmt.Errorf("config %d: failed to read: %w", id, err)
@@ -548,7 +548,7 @@ func TestDistributedLockingTimeout(t *testing.T) {
 		const numLongOperations = 3
 		var wg sync.WaitGroup
 		results := make(chan error, numLongOperations)
-		for i := 0; i < numLongOperations; i++ {
+		for i := range numLongOperations {
 			wg.Add(1)
 			go func(opID int) {
 				defer wg.Done()

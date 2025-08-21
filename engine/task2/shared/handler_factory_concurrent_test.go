@@ -51,7 +51,7 @@ func TestResponseHandlerFactory_ConcurrentAccess(t *testing.T) {
 		}
 
 		// Register handlers concurrently
-		for i := 0; i < numRegistrations; i++ {
+		for i := range numRegistrations {
 			go func(index int) {
 				defer wg.Done()
 				taskType := taskTypes[index%len(taskTypes)]
@@ -87,7 +87,7 @@ func TestResponseHandlerFactory_ConcurrentAccess(t *testing.T) {
 		wg.Add(numReaders)
 
 		// Read handlers concurrently
-		for i := 0; i < numReaders; i++ {
+		for i := range numReaders {
 			go func(index int) {
 				defer wg.Done()
 				taskTypes := []task.Type{task.TaskTypeBasic, task.TaskTypeCollection, task.TaskTypeParallel}
@@ -115,7 +115,7 @@ func TestResponseHandlerFactory_ConcurrentAccess(t *testing.T) {
 		wg.Add(numOperations)
 
 		// Mix of readers and writers
-		for i := 0; i < numOperations; i++ {
+		for i := range numOperations {
 			if i%3 == 0 {
 				// Writer - try to register new handler
 				go func(index int) {
@@ -161,7 +161,7 @@ func TestResponseHandlerFactory_ConcurrentAccess(t *testing.T) {
 			task.TaskTypeMemory,
 		}
 
-		for i := 0; i < numValidations; i++ {
+		for i := range numValidations {
 			go func(index int) {
 				defer wg.Done()
 				taskType := testTypes[index%len(testTypes)]
@@ -215,7 +215,7 @@ func TestResponseHandlerFactory_ConcurrentAccess(t *testing.T) {
 		// Concurrent reads while registration is happening
 		numReaders := 10
 		wg.Add(numReaders)
-		for i := 0; i < numReaders; i++ {
+		for range numReaders {
 			go func() {
 				defer wg.Done()
 				// Try to get various handlers

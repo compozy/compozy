@@ -3,6 +3,7 @@ package autoload
 import (
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/bmatcuk/doublestar/v4"
@@ -86,10 +87,8 @@ func (d *fsDiscoverer) validatePattern(pattern string) error {
 	}
 
 	// Reject parent directory references
-	for _, part := range strings.Split(cleanPattern, string(filepath.Separator)) {
-		if part == ".." {
-			return fmt.Errorf("INVALID_PATTERN: parent directory references not allowed: %s", pattern)
-		}
+	if slices.Contains(strings.Split(cleanPattern, string(filepath.Separator)), "..") {
+		return fmt.Errorf("INVALID_PATTERN: parent directory references not allowed: %s", pattern)
 	}
 
 	return nil

@@ -224,7 +224,7 @@ func TestConcurrentKeyResolution(t *testing.T) {
 		numGoroutines := 100
 		results := make(chan string, numGoroutines)
 
-		for i := 0; i < numGoroutines; i++ {
+		for i := range numGoroutines {
 			go func(_ int) {
 				memRef := core.MemoryReference{
 					ID:  "test_memory",
@@ -244,7 +244,7 @@ func TestConcurrentKeyResolution(t *testing.T) {
 		}
 
 		// Collect all results
-		for i := 0; i < numGoroutines; i++ {
+		for range numGoroutines {
 			result := <-results
 			assert.Equal(
 				t,

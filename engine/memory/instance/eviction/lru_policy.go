@@ -70,7 +70,7 @@ func (p *LRUEvictionPolicy) SelectMessagesToEvict(
 	// Select messages to evict
 	evictCount := len(messages) - targetCount
 	evicted := make([]llm.Message, evictCount)
-	for i := 0; i < evictCount; i++ {
+	for i := range evictCount {
 		evicted[i] = messageAccess[i].message
 	}
 	return evicted

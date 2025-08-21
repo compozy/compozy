@@ -40,9 +40,9 @@ func (uc *PreparePRBodyUseCase) sanitizeChangelogContent(changelog string) strin
 		// Preserve blockquotes - handle escaped ">" at start of line only
 		// This is safe because we're only replacing at the beginning of a line
 		// where it's clearly meant to be a markdown blockquote
-		if strings.HasPrefix(line, "&gt; ") {
+		if after, ok := strings.CutPrefix(line, "&gt; "); ok {
 			// Only replace the first "&gt; " to preserve any other escaped content
-			lines[i] = "> " + strings.TrimPrefix(line, "&gt; ")
+			lines[i] = "> " + after
 			continue
 		}
 		// Preserve headers
