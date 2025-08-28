@@ -3,6 +3,8 @@ package bootstrap_test
 import (
 	"context"
 	"errors"
+	"fmt"
+	"sync"
 	"testing"
 
 	"github.com/compozy/compozy/engine/auth/bootstrap"
@@ -434,6 +436,98 @@ func TestService_CreateInitialAdmin(t *testing.T) {
 		assert.Nil(t, user)
 		assert.Empty(t, key)
 		assert.Contains(t, err.Error(), "system already has 1 admin user(s)")
+		mockRepo.AssertExpectations(t)
+	})
+}
+
+func TestService_ConcurrentBootstrap(t *testing.T) {
+	t.Run("Should handle concurrent bootstrap attempts safely", func(t *testing.T) {
+		// Given
+		ctx := context.Background()
+		mockRepo := new(MockRepository)
+		factory := authuc.NewFactory(mockRepo)
+		service := bootstrap.NewService(factory)
+
+		// Setup expectations - only one admin should be created successfully
+		// First call succeeds
+		mockRepo.On("ListUsers", ctx).Return([]*model.User{}, nil).Times(2)
+
+		adminID, err := core.NewID()
+		require.NoError(t, err)
+
+		// First CreateInitialAdminIfNone succeeds
+		mockRepo.On("CreateInitialAdminIfNone", ctx, mock.MatchedBy(func(u *model.User) bool {
+			return u.Email == "admin@test.com" && u.Role == model.RoleAdmin
+		})).Return(nil).Run(func(args mock.Arguments) {
+			u := args.Get(1).(*model.User)
+			u.ID = adminID
+		}).Once()
+
+		// Second CreateInitialAdminIfNone fails with already bootstrapped
+		mockRepo.On("CreateInitialAdminIfNone", ctx, mock.MatchedBy(func(u *model.User) bool {
+			return u.Email == "admin@test.com" && u.Role == model.RoleAdmin
+		})).Return(core.NewError(
+			fmt.Errorf("system already bootstrapped"),
+			"ALREADY_BOOTSTRAPPED",
+			nil,
+		)).Once()
+
+		apiKeyID, err := core.NewID()
+		require.NoError(t, err)
+
+		// Only one API key should be created (for the successful admin creation)
+		mockRepo.On("CreateAPIKey", ctx, mock.MatchedBy(func(k *model.APIKey) bool {
+			return k.UserID == adminID
+		})).Return(nil).Run(func(args mock.Arguments) {
+			k := args.Get(1).(*model.APIKey)
+			k.ID = apiKeyID
+			k.Hash = []byte("test-api-key-hash")
+			k.Fingerprint = []byte("test-fingerprint")
+			k.Prefix = "cpzy_"
+		}).Once()
+
+		input := &bootstrap.Input{
+			Email: "admin@test.com",
+			Force: false,
+		}
+
+		// When - simulate concurrent bootstrap attempts
+		var wg sync.WaitGroup
+		results := make([]*bootstrap.Result, 2)
+		errs := make([]error, 2)
+
+		for i := range 2 {
+			wg.Add(1)
+			go func(index int) {
+				defer wg.Done()
+				results[index], errs[index] = service.BootstrapAdmin(ctx, input)
+			}(i)
+		}
+
+		wg.Wait()
+
+		// Then - exactly one should succeed, one should fail
+		var successCount, errorCount int
+		for i := range 2 {
+			if errs[i] == nil {
+				successCount++
+				assert.NotNil(t, results[i])
+				assert.Equal(t, adminID.String(), results[i].UserID)
+				assert.Equal(t, "admin@test.com", results[i].Email)
+				assert.NotEmpty(t, results[i].APIKey)
+			} else {
+				errorCount++
+				assert.Nil(t, results[i])
+				// Should contain the structured error information
+				var coreErr *core.Error
+				assert.True(t, errors.As(errs[i], &coreErr))
+				assert.Equal(t, "ALREADY_BOOTSTRAPPED", coreErr.Code)
+			}
+		}
+
+		// Verify exactly one success and one failure
+		assert.Equal(t, 1, successCount, "Exactly one bootstrap should succeed")
+		assert.Equal(t, 1, errorCount, "Exactly one bootstrap should fail")
 		mockRepo.AssertExpectations(t)
 	})
 }

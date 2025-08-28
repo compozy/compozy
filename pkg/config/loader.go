@@ -411,9 +411,16 @@ func (l *loader) validateCustom(config *Config) error {
 		return fmt.Errorf("dispatcher stale threshold must be greater than heartbeat TTL")
 	}
 
-	// Validate Redis port if specified
+	// Validate all port configurations consistently
 	if config.Redis.Port != "" {
 		if err := validateTCPPort(config.Redis.Port, "Redis port"); err != nil {
+			return err
+		}
+	}
+
+	// Validate database port if specified
+	if config.Database.Port != "" {
+		if err := validateTCPPort(config.Database.Port, "Database port"); err != nil {
 			return err
 		}
 	}

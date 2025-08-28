@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/compozy/compozy/engine/auth/model"
@@ -171,6 +172,13 @@ func (s *Service) createInitialAdminUser(ctx context.Context, email string) (*Re
 	bootstrapUC := s.factory.BootstrapSystem(email)
 	user, apiKey, err := bootstrapUC.Execute(ctx)
 	if err != nil {
+		// Check if it's a structured error we should preserve
+		var coreErr *core.Error
+		if errors.As(err, &coreErr) {
+			// Preserve structured errors like ALREADY_BOOTSTRAPPED
+			return nil, err
+		}
+		// For non-structured errors, wrap with service-level context
 		return nil, core.NewError(
 			fmt.Errorf("failed to bootstrap system: %w", err),
 			"BOOTSTRAP_SYSTEM_FAILED",

@@ -42,10 +42,11 @@ func (uc *BootstrapSystem) Execute(ctx context.Context) (*model.User, string, er
 	}
 	// Use atomic operation to prevent race condition
 	if err := uc.repo.CreateInitialAdminIfNone(ctx, user); err != nil {
-		// Check if it's an already-bootstrapped error
+		// Check if it's an already-bootstrapped error and preserve structured error information
 		var coreErr *core.Error
 		if errors.As(err, &coreErr) && coreErr.Code == "ALREADY_BOOTSTRAPPED" {
-			return nil, "", fmt.Errorf("system already bootstrapped")
+			// Preserve the original structured error to maintain error metadata for callers
+			return nil, "", err
 		}
 		return nil, "", fmt.Errorf("creating admin user: %w", err)
 	}
