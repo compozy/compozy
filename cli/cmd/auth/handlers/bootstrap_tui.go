@@ -122,7 +122,7 @@ func checkAndPromptBootstrap(ctx context.Context, flags *bootstrapFlags) (bool, 
 			return false, nil, fmt.Errorf("bootstrap canceled due to status check failure")
 		}
 		// User chose to continue despite the error
-		status = &bootstrap.Status{IsBootstrapped: false}
+		status = &bootstrap.Status{}
 	} else if status.IsBootstrapped && !flags.force {
 		if !promptForAdditionalAdmin(status) {
 			fmt.Println(styles.HelpStyle.Render("Bootstrap canceled"))

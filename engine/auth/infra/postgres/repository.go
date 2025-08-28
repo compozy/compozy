@@ -63,7 +63,7 @@ func (r *Repository) GetUserByID(ctx context.Context, id core.ID) (*model.User, 
 	var user model.User
 	if err := pgxscan.Get(ctx, r.db, &user, query, args...); err != nil {
 		if pgxscan.NotFound(err) {
-			return nil, fmt.Errorf("user not found")
+			return nil, fmt.Errorf("%w", uc.ErrUserNotFound)
 		}
 		return nil, fmt.Errorf("scanning user: %w", err)
 	}
@@ -83,7 +83,7 @@ func (r *Repository) GetUserByEmail(ctx context.Context, email string) (*model.U
 	var user model.User
 	if err := pgxscan.Get(ctx, r.db, &user, query, args...); err != nil {
 		if pgxscan.NotFound(err) {
-			return nil, fmt.Errorf("user not found")
+			return nil, fmt.Errorf("%w", uc.ErrUserNotFound)
 		}
 		return nil, fmt.Errorf("scanning user: %w", err)
 	}
@@ -306,6 +306,9 @@ func (r *Repository) DeleteAPIKey(ctx context.Context, id core.ID) error {
 // Uses atomic INSERT...WHERE NOT EXISTS to prevent race conditions.
 // Returns ErrAlreadyBootstrapped if an admin user already exists.
 func (r *Repository) CreateInitialAdminIfNone(ctx context.Context, user *model.User) error {
+	// Enforce admin role to prevent system from being bootstrapped without an admin
+	user.Role = model.RoleAdmin
+
 	// Use atomic INSERT...WHERE NOT EXISTS to prevent race conditions
 	// This eliminates the check-then-act pattern that could allow concurrent duplicates
 	query := `
@@ -315,6 +318,14 @@ func (r *Repository) CreateInitialAdminIfNone(ctx context.Context, user *model.U
 	`
 	tag, err := r.db.Exec(ctx, query, user.ID, user.Email, user.Role, user.CreatedAt, model.RoleAdmin)
 	if err != nil {
+		// Handle unique constraint violation (concurrent bootstrap attempts)
+		if pgErr, ok := err.(*pgconn.PgError); ok && pgErr.Code == "23505" {
+			return core.NewError(
+				fmt.Errorf("system already bootstrapped"),
+				"ALREADY_BOOTSTRAPPED",
+				nil,
+			)
+		}
 		return fmt.Errorf("creating initial admin user: %w", err)
 	}
 

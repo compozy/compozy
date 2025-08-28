@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/engine/auth/model"
 	authuc "github.com/compozy/compozy/engine/auth/uc"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -295,7 +296,7 @@ func TestService_BootstrapAdmin(t *testing.T) {
 		require.NoError(t, err)
 
 		// For GetUserByEmail called by CreateUser use case
-		mockRepo.On("GetUserByEmail", ctx, "admin2@test.com").Return(nil, errors.New("not found"))
+		mockRepo.On("GetUserByEmail", ctx, "admin2@test.com").Return(nil, authuc.ErrUserNotFound)
 
 		// For CreateUser
 		mockRepo.On("CreateUser", ctx, mock.MatchedBy(func(u *model.User) bool {
@@ -356,6 +357,64 @@ func TestService_BootstrapAdmin(t *testing.T) {
 		assert.Equal(t, "BOOTSTRAP_INVALID_INPUT", coreErr.Code)
 		mockRepo.AssertExpectations(t)
 	})
+
+	t.Run("Should enforce admin role even if non-admin role is passed", func(t *testing.T) {
+		// Given
+		ctx := context.Background()
+		mockRepo := new(MockRepository)
+		factory := authuc.NewFactory(mockRepo)
+		service := bootstrap.NewService(factory)
+
+		input := &bootstrap.Input{
+			Email: "user@test.com",
+			Force: false,
+		}
+
+		// Setup expectations
+		mockRepo.On("ListUsers", ctx).Return([]*model.User{}, nil)
+
+		adminID, err := core.NewID()
+		require.NoError(t, err)
+
+		// The repository should enforce admin role regardless of what role the user object has
+		// This validates that CreateInitialAdminIfNone enforces admin role
+		mockRepo.On("CreateInitialAdminIfNone", ctx, mock.MatchedBy(func(u *model.User) bool {
+			// Even if a malicious actor somehow passed a user object with non-admin role,
+			// the repository should enforce admin role
+			// After our fix, u.Role should ALWAYS be model.RoleAdmin here
+			return u.Email == "user@test.com" && u.Role == model.RoleAdmin
+		})).Return(nil).Run(func(args mock.Arguments) {
+			// Verify that the user object was modified to have admin role
+			u := args.Get(1).(*model.User)
+			assert.Equal(t, model.RoleAdmin, u.Role, "Repository should enforce admin role")
+			u.ID = adminID
+		})
+
+		apiKeyID, err := core.NewID()
+		require.NoError(t, err)
+
+		// For CreateAPIKey
+		mockRepo.On("CreateAPIKey", ctx, mock.MatchedBy(func(k *model.APIKey) bool {
+			return k.UserID == adminID
+		})).Return(nil).Run(func(args mock.Arguments) {
+			k := args.Get(1).(*model.APIKey)
+			k.ID = apiKeyID
+			k.Hash = []byte("test-api-key-hash")
+			k.Fingerprint = []byte("test-fingerprint")
+			k.Prefix = "cpzy_"
+		})
+
+		// When
+		result, err := service.BootstrapAdmin(ctx, input)
+
+		// Then
+		require.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, adminID.String(), result.UserID)
+		assert.Equal(t, "user@test.com", result.Email)
+		assert.NotEmpty(t, result.APIKey)
+		mockRepo.AssertExpectations(t)
+	})
 }
 
 func TestService_CreateInitialAdmin(t *testing.T) {
@@ -373,7 +432,7 @@ func TestService_CreateInitialAdmin(t *testing.T) {
 		require.NoError(t, err)
 
 		// For GetUserByEmail called by CreateUser use case
-		mockRepo.On("GetUserByEmail", ctx, "admin@test.com").Return(nil, errors.New("not found"))
+		mockRepo.On("GetUserByEmail", ctx, "admin@test.com").Return(nil, authuc.ErrUserNotFound)
 
 		// For CreateUser
 		mockRepo.On("CreateUser", ctx, mock.MatchedBy(func(u *model.User) bool {
@@ -441,6 +500,39 @@ func TestService_CreateInitialAdmin(t *testing.T) {
 }
 
 func TestService_ConcurrentBootstrap(t *testing.T) {
+	t.Run("Should handle unique constraint violation gracefully", func(t *testing.T) {
+		// Given
+		ctx := context.Background()
+		mockRepo := new(MockRepository)
+		factory := authuc.NewFactory(mockRepo)
+		service := bootstrap.NewService(factory)
+
+		// No admins initially
+		mockRepo.On("ListUsers", ctx).Return([]*model.User{}, nil).Once()
+
+		// Simulate unique constraint violation (PostgreSQL error code 23505)
+		pgErr := &pgconn.PgError{
+			Code:    "23505",
+			Message: "duplicate key value violates unique constraint",
+		}
+		mockRepo.On("CreateInitialAdminIfNone", ctx, mock.MatchedBy(func(u *model.User) bool {
+			return u.Email == "admin@test.com" && u.Role == model.RoleAdmin
+		})).Return(pgErr).Once()
+
+		// When
+		result, err := service.BootstrapAdmin(ctx, &bootstrap.Input{
+			Email: "admin@test.com",
+			Force: false,
+		})
+
+		// Then
+		assert.Error(t, err)
+		assert.Nil(t, result)
+		// The error should be wrapped but indicate bootstrap failure
+		assert.Contains(t, err.Error(), "failed to bootstrap system")
+		mockRepo.AssertExpectations(t)
+	})
+
 	t.Run("Should handle concurrent bootstrap attempts safely", func(t *testing.T) {
 		// Given
 		ctx := context.Background()

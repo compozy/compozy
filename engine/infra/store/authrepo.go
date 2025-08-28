@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/engine/auth/uc"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -279,22 +280,42 @@ func (r *AuthRepo) DeleteAPIKey(ctx context.Context, id core.ID) error {
 	return nil
 }
 
-// CreateInitialAdminIfNone creates the initial admin user if no admin exists
+// CreateInitialAdminIfNone atomically creates the initial admin user if no admin exists.
+// Uses atomic INSERT...WHERE NOT EXISTS to prevent race conditions.
+// Returns ErrAlreadyBootstrapped if an admin user already exists.
 func (r *AuthRepo) CreateInitialAdminIfNone(ctx context.Context, user *model.User) error {
-	// Check if any admin user exists
-	var adminExists bool
-	err := r.db.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM users WHERE role = $1)", model.RoleAdmin).Scan(&adminExists)
-	if err != nil {
-		return fmt.Errorf("failed to check for existing admin: %w", err)
+	// Enforce admin role to prevent system from being bootstrapped without an admin
+	user.Role = model.RoleAdmin
+	// Ensure CreatedAt is set
+	if user.CreatedAt.IsZero() {
+		user.CreatedAt = time.Now().UTC()
 	}
-	// If an admin already exists, return an error
-	if adminExists {
+	// Use atomic INSERT...WHERE NOT EXISTS to prevent race conditions
+	// This eliminates the check-then-act pattern that could allow concurrent duplicates
+	query := `
+		INSERT INTO users (id, email, role, created_at)
+		SELECT $1, $2, $3, $4
+		WHERE NOT EXISTS (SELECT 1 FROM users WHERE role = $5)
+	`
+	tag, err := r.db.Exec(ctx, query, user.ID, user.Email, user.Role, user.CreatedAt, model.RoleAdmin)
+	if err != nil {
+		// Handle unique constraint violation (concurrent bootstrap attempts)
+		if pgErr, ok := err.(*pgconn.PgError); ok && pgErr.Code == "23505" {
+			return core.NewError(
+				fmt.Errorf("system already bootstrapped"),
+				"ALREADY_BOOTSTRAPPED",
+				nil,
+			)
+		}
+		return fmt.Errorf("creating initial admin user: %w", err)
+	}
+	// If no rows were affected, an admin already exists
+	if tag.RowsAffected() == 0 {
 		return core.NewError(
 			fmt.Errorf("system already bootstrapped"),
 			"ALREADY_BOOTSTRAPPED",
 			nil,
 		)
 	}
-	// Create the initial admin user
-	return r.CreateUser(ctx, user)
+	return nil
 }

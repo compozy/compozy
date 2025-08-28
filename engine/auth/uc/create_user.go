@@ -2,6 +2,7 @@ package uc
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -36,8 +37,15 @@ func (uc *CreateUser) Execute(ctx context.Context) (*model.User, error) {
 	log.Debug("Creating user", "email", uc.input.Email, "role", uc.input.Role)
 	// Check if user already exists
 	existingUser, err := uc.repo.GetUserByEmail(ctx, uc.input.Email)
-	if err == nil && existingUser != nil {
-		return nil, fmt.Errorf("user already exists with email %s", uc.input.Email)
+	if err != nil {
+		// If user not found, that's expected - we can proceed
+		// For any other error, we should fail fast
+		if !errors.Is(err, ErrUserNotFound) {
+			return nil, fmt.Errorf("checking existing user: %w", err)
+		}
+	} else if existingUser != nil {
+		// User exists - remove PII from error message
+		return nil, fmt.Errorf("user already exists")
 	}
 	// Generate user ID
 	userID, err := core.NewID()
@@ -52,7 +60,7 @@ func (uc *CreateUser) Execute(ctx context.Context) (*model.User, error) {
 		CreatedAt: time.Now().UTC(),
 	}
 	if err := uc.repo.CreateUser(ctx, user); err != nil {
-		return nil, fmt.Errorf("failed to create user with email %s: %w", uc.input.Email, err)
+		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
 	log.Info("User created successfully", "user_id", user.ID, "email", user.Email, "role", user.Role)
 	return user, nil
