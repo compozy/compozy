@@ -278,3 +278,23 @@ func (r *AuthRepo) DeleteAPIKey(ctx context.Context, id core.ID) error {
 	}
 	return nil
 }
+
+// CreateInitialAdminIfNone creates the initial admin user if no admin exists
+func (r *AuthRepo) CreateInitialAdminIfNone(ctx context.Context, user *model.User) error {
+	// Check if any admin user exists
+	var adminExists bool
+	err := r.db.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM users WHERE role = $1)", model.RoleAdmin).Scan(&adminExists)
+	if err != nil {
+		return fmt.Errorf("failed to check for existing admin: %w", err)
+	}
+	// If an admin already exists, return an error
+	if adminExists {
+		return core.NewError(
+			fmt.Errorf("system already bootstrapped"),
+			"ALREADY_BOOTSTRAPPED",
+			nil,
+		)
+	}
+	// Create the initial admin user
+	return r.CreateUser(ctx, user)
+}

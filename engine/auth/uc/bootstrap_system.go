@@ -2,9 +2,12 @@ package uc
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"time"
 
 	"github.com/compozy/compozy/engine/auth/model"
+	"github.com/compozy/compozy/engine/core"
 )
 
 // BootstrapSystem is a one-time use-case that initializes the very first
@@ -25,35 +28,32 @@ func NewBootstrapSystem(repo Repository, email string) *BootstrapSystem {
 // Execute creates the first admin user and API key.
 // It returns the created user and the plaintext API key.
 func (uc *BootstrapSystem) Execute(ctx context.Context) (*model.User, string, error) {
-	// 1. Make sure we are not already bootstrapped.
-	users, err := uc.repo.ListUsers(ctx)
+	// Generate user ID
+	userID, err := core.NewID()
 	if err != nil {
-		return nil, "", fmt.Errorf("listing users: %w", err)
+		return nil, "", fmt.Errorf("failed to generate user ID: %w", err)
 	}
-	for _, u := range users {
-		if u.Role == model.RoleAdmin {
+	// Create admin user atomically
+	user := &model.User{
+		ID:        userID,
+		Email:     uc.email,
+		Role:      model.RoleAdmin,
+		CreatedAt: time.Now().UTC(),
+	}
+	// Use atomic operation to prevent race condition
+	if err := uc.repo.CreateInitialAdminIfNone(ctx, user); err != nil {
+		// Check if it's an already-bootstrapped error
+		var coreErr *core.Error
+		if errors.As(err, &coreErr) && coreErr.Code == "ALREADY_BOOTSTRAPPED" {
 			return nil, "", fmt.Errorf("system already bootstrapped")
 		}
-	}
-
-	// 2. Create admin user.
-	createInput := &CreateUserInput{
-		Email: uc.email,
-		Role:  model.RoleAdmin,
-	}
-	createUC := NewCreateUser(uc.repo, createInput)
-
-	user, err := createUC.Execute(ctx)
-	if err != nil {
 		return nil, "", fmt.Errorf("creating admin user: %w", err)
 	}
-
-	// 3. Generate API key for the new admin.
+	// Generate API key for the new admin
 	genUC := NewGenerateAPIKey(uc.repo, user.ID)
 	apiKey, err := genUC.Execute(ctx)
 	if err != nil {
 		return nil, "", fmt.Errorf("generating API key: %w", err)
 	}
-
 	return user, apiKey, nil
 }

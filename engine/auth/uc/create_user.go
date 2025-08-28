@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/compozy/compozy/engine/auth"
 	"github.com/compozy/compozy/engine/auth/model"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/pkg/logger"
@@ -38,22 +37,12 @@ func (uc *CreateUser) Execute(ctx context.Context) (*model.User, error) {
 	// Check if user already exists
 	existingUser, err := uc.repo.GetUserByEmail(ctx, uc.input.Email)
 	if err == nil && existingUser != nil {
-		return nil, core.NewError(
-			fmt.Errorf("user already exists"),
-			auth.ErrCodeEmailExists,
-			map[string]any{
-				"email": uc.input.Email,
-			},
-		)
+		return nil, fmt.Errorf("user already exists with email %s", uc.input.Email)
 	}
 	// Generate user ID
 	userID, err := core.NewID()
 	if err != nil {
-		return nil, core.NewError(
-			fmt.Errorf("failed to generate user ID: %w", err),
-			auth.ErrCodeInternal,
-			nil,
-		)
+		return nil, fmt.Errorf("failed to generate user ID: %w", err)
 	}
 	// Create user
 	user := &model.User{
@@ -63,13 +52,7 @@ func (uc *CreateUser) Execute(ctx context.Context) (*model.User, error) {
 		CreatedAt: time.Now().UTC(),
 	}
 	if err := uc.repo.CreateUser(ctx, user); err != nil {
-		return nil, core.NewError(
-			fmt.Errorf("failed to create user: %w", err),
-			auth.ErrCodeInternal,
-			map[string]any{
-				"email": uc.input.Email,
-			},
-		)
+		return nil, fmt.Errorf("failed to create user with email %s: %w", uc.input.Email, err)
 	}
 	log.Info("User created successfully", "user_id", user.ID, "email", user.Email, "role", user.Role)
 	return user, nil

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/compozy/compozy/engine/auth"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/pkg/logger"
 )
@@ -30,23 +29,11 @@ func (uc *DeleteUser) Execute(ctx context.Context) error {
 	// Check if user exists
 	_, err := uc.repo.GetUserByID(ctx, uc.userID)
 	if err != nil {
-		return core.NewError(
-			fmt.Errorf("user not found: %w", err),
-			auth.ErrCodeNotFound,
-			map[string]any{
-				"user_id": uc.userID.String(),
-			},
-		)
+		return fmt.Errorf("user not found %s: %w", uc.userID, err)
 	}
-	// Delete user
+	// Delete the user
 	if err := uc.repo.DeleteUser(ctx, uc.userID); err != nil {
-		return core.NewError(
-			fmt.Errorf("failed to delete user: %w", err),
-			auth.ErrCodeInternal,
-			map[string]any{
-				"user_id": uc.userID.String(),
-			},
-		)
+		return fmt.Errorf("failed to delete user %s: %w", uc.userID, err)
 	}
 	log.Info("User deleted successfully", "user_id", uc.userID)
 	return nil

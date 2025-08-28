@@ -17,6 +17,10 @@ type Repository interface {
 	UpdateUser(ctx context.Context, user *model.User) error
 	DeleteUser(ctx context.Context, id core.ID) error
 
+	// CreateInitialAdminIfNone atomically creates the initial admin user if no admin exists.
+	// Returns ErrAlreadyBootstrapped if an admin user already exists.
+	CreateInitialAdminIfNone(ctx context.Context, user *model.User) error
+
 	// API Key operations
 	CreateAPIKey(ctx context.Context, key *model.APIKey) error
 	GetAPIKeyByID(ctx context.Context, id core.ID) (*model.APIKey, error)

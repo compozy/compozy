@@ -70,6 +70,9 @@ func (m *MockRepository) ListAPIKeysByUserID(_ context.Context, _ core.ID) ([]*m
 func (m *MockRepository) DeleteAPIKey(_ context.Context, _ core.ID) error {
 	return errors.New("not implemented")
 }
+func (m *MockRepository) CreateInitialAdminIfNone(_ context.Context, _ *model.User) error {
+	return errors.New("not implemented")
+}
 
 func TestManager_Middleware(t *testing.T) {
 	gin.SetMode(gin.TestMode)

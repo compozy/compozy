@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -176,10 +177,10 @@ func TestWatcher_Watch(t *testing.T) {
 		require.NoError(t, err)
 		defer watcher.Close()
 
-		// Track callbacks
-		callbackInvoked := false
+		// Track callbacks (avoid data races)
+		var callbackInvoked atomic.Bool
 		watcher.OnChange(func() {
-			callbackInvoked = true
+			callbackInvoked.Store(true)
 		})
 
 		// Start watching with cancellable context
@@ -202,7 +203,7 @@ func TestWatcher_Watch(t *testing.T) {
 		time.Sleep(200 * time.Millisecond)
 
 		// Callback should not be invoked
-		assert.False(t, callbackInvoked)
+		assert.False(t, callbackInvoked.Load())
 	})
 }
 

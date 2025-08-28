@@ -103,8 +103,26 @@ func checkAndPromptBootstrap(ctx context.Context, flags *bootstrapFlags) (bool, 
 	// Check current status
 	status, err := service.CheckBootstrapStatus(ctx)
 	if err != nil {
-		logger.FromContext(ctx).Debug("Failed to check bootstrap status", "error", err)
-		// Continue anyway if we can't check status
+		// Log the error and inform user
+		logger.FromContext(ctx).Warn("Failed to check bootstrap status", "error", err)
+		fmt.Println(styles.WarningStyle.Render("⚠️  Could not verify bootstrap status"))
+		fmt.Println(styles.HelpStyle.Render("   This might be due to database connectivity issues"))
+
+		// Ask user if they want to continue
+		var continueAnyway bool
+		form := huh.NewForm(
+			huh.NewGroup(
+				huh.NewConfirm().
+					Title("Do you want to continue anyway?").
+					Description("This might create duplicate admin users if the system is already bootstrapped").
+					Value(&continueAnyway),
+			),
+		)
+		if err := form.Run(); err != nil || !continueAnyway {
+			return false, nil, fmt.Errorf("bootstrap canceled due to status check failure")
+		}
+		// User chose to continue despite the error
+		status = &bootstrap.Status{IsBootstrapped: false}
 	} else if status.IsBootstrapped && !flags.force {
 		if !promptForAdditionalAdmin(status) {
 			fmt.Println(styles.HelpStyle.Render("Bootstrap canceled"))

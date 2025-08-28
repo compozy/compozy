@@ -4,9 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/compozy/compozy/engine/auth"
 	"github.com/compozy/compozy/engine/auth/model"
-	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/pkg/logger"
 )
 
 // GetUserByEmail use case for retrieving a user by email
@@ -25,15 +24,11 @@ func NewGetUserByEmail(repo Repository, email string) *GetUserByEmail {
 
 // Execute retrieves a user by email
 func (uc *GetUserByEmail) Execute(ctx context.Context) (*model.User, error) {
+	log := logger.FromContext(ctx)
+	log.Debug("Getting user by email", "email", uc.email)
 	user, err := uc.repo.GetUserByEmail(ctx, uc.email)
 	if err != nil {
-		return nil, core.NewError(
-			fmt.Errorf("failed to get user by email: %w", err),
-			auth.ErrCodeNotFound,
-			map[string]any{
-				"email": uc.email,
-			},
-		)
+		return nil, fmt.Errorf("failed to get user by email %s: %w", uc.email, err)
 	}
 	return user, nil
 }

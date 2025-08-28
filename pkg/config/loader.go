@@ -418,6 +418,11 @@ func (l *loader) validateCustom(config *Config) error {
 		}
 	}
 
+	// Validate Auth configuration
+	if config.Server.Auth.Enabled && config.Server.Auth.AdminKey == "" {
+		return fmt.Errorf("server.auth.admin_key is required when authentication is enabled")
+	}
+
 	return nil
 }
 

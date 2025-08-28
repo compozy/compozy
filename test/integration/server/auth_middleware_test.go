@@ -62,7 +62,8 @@ func (m *MockRepository) GetAPIKeyByID(context.Context, core.ID) (*model.APIKey,
 func (m *MockRepository) ListAPIKeysByUserID(context.Context, core.ID) ([]*model.APIKey, error) {
 	return nil, nil
 }
-func (m *MockRepository) DeleteAPIKey(context.Context, core.ID) error { return nil }
+func (m *MockRepository) DeleteAPIKey(context.Context, core.ID) error                 { return nil }
+func (m *MockRepository) CreateInitialAdminIfNone(context.Context, *model.User) error { return nil }
 
 // Test fixture for shared setup
 type authTestFixture struct {

@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/compozy/compozy/engine/auth"
 	"github.com/compozy/compozy/engine/auth/model"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/pkg/logger"
 )
 
 // GetAPIKey use case for retrieving an API key by ID
@@ -25,15 +25,11 @@ func NewGetAPIKey(repo Repository, keyID core.ID) *GetAPIKey {
 
 // Execute retrieves an API key by ID
 func (uc *GetAPIKey) Execute(ctx context.Context) (*model.APIKey, error) {
-	apiKey, err := uc.repo.GetAPIKeyByID(ctx, uc.keyID)
+	log := logger.FromContext(ctx)
+	log.Debug("Getting API key", "key_id", uc.keyID)
+	key, err := uc.repo.GetAPIKeyByID(ctx, uc.keyID)
 	if err != nil {
-		return nil, core.NewError(
-			fmt.Errorf("failed to get API key: %w", err),
-			auth.ErrCodeNotFound,
-			map[string]any{
-				"key_id": uc.keyID.String(),
-			},
-		)
+		return nil, fmt.Errorf("failed to get API key %s: %w", uc.keyID, err)
 	}
-	return apiKey, nil
+	return key, nil
 }

@@ -104,7 +104,7 @@ func (h *Handler) GenerateKey(c *gin.Context) {
 		"data": gin.H{
 			"api_key": apiKey,
 		},
-		"message": "API key generated successfully. Please save it securely as it cannot be retrieved again.",
+		"message": "Success",
 	})
 }
 

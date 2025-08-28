@@ -1727,7 +1727,10 @@ info:
     email: support@compozy.com
     name: Compozy Support
     url: https://github.com/compozy/compozy
-  description: Compozy is a Next-level Agentic Orchestration Platform, tasks, and tools
+  description: Compozy is a Next-level Agentic Orchestration Platform, tasks, and tools. Authentication
+    is configurable via the SERVER_AUTH_ENABLED environment variable. When enabled, all endpoints require
+    Bearer token authentication. When disabled (typical for development), endpoints are accessible without
+    authentication.
   license:
     name: BSL-1.1
     url: https://github.com/compozy/compozy/blob/main/LICENSE
@@ -4234,6 +4237,15 @@ paths:
       summary: Get tool by ID
       tags:
         - tools
+
+securityDefinitions:
+  BearerAuth:
+    description: Bearer token authentication (Optional - controlled by SERVER_AUTH_ENABLED environment
+      variable. When enabled, all API endpoints require valid authentication. In development/testing,
+      authentication may be disabled.)
+    in: header
+    name: Authorization
+    type: apiKey
 
 swagger: "2.0"
 

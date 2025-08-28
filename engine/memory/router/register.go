@@ -4,6 +4,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// Register wires memory routes under /memory.
+// Note: Authentication is enforced globally via server middleware in engine/infra/server/register.go
+// when cfg.Server.Auth.Enabled is true. All memory endpoints are protected by the global auth middleware.
 func Register(apiBase *gin.RouterGroup) {
 	// Memory routes
 	memoryGroup := apiBase.Group("/memory")

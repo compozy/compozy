@@ -86,6 +86,11 @@ func (m *MockRepository) DeleteAPIKey(ctx context.Context, id core.ID) error {
 	return args.Error(0)
 }
 
+func (m *MockRepository) CreateInitialAdminIfNone(ctx context.Context, user *model.User) error {
+	args := m.Called(ctx, user)
+	return args.Error(0)
+}
+
 // Test helpers
 func setupTestCache(t *testing.T) (*CachedRepository, *MockRepository, *redis.Client, *miniredis.Miniredis) {
 	mr := miniredis.RunT(t)

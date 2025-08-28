@@ -1,6 +1,6 @@
 //	@title			Compozy API
 //	@version		1.0
-//	@description	Compozy is a Next-level Agentic Orchestration Platform, tasks, and tools
+//	@description	Compozy is a Next-level Agentic Orchestration Platform, tasks, and tools. Authentication is configurable via the SERVER_AUTH_ENABLED environment variable. When enabled, all endpoints require Bearer token authentication. When disabled (typical for development), endpoints are accessible without authentication.
 //	@termsOfService	https://github.com/compozy/compozy
 
 //	@contact.name	Compozy Support
@@ -11,6 +11,11 @@
 //	@license.url	https://github.com/compozy/compozy/blob/main/LICENSE
 
 //	@BasePath	/api/v0
+//
+//	@securityDefinitions.apikey	BearerAuth
+//	@in								header
+//	@name							Authorization
+//	@description					Bearer token authentication (Optional - controlled by SERVER_AUTH_ENABLED environment variable. When enabled, all API endpoints require valid authentication. In development/testing, authentication may be disabled.)
 
 //	@tag.name			workflows
 //	@tag.description	Workflow management operations

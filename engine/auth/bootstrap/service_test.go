@@ -97,6 +97,11 @@ func (m *MockRepository) DeleteAPIKey(ctx context.Context, id core.ID) error {
 	return args.Error(0)
 }
 
+func (m *MockRepository) CreateInitialAdminIfNone(ctx context.Context, user *model.User) error {
+	args := m.Called(ctx, user)
+	return args.Error(0)
+}
+
 func TestService_CheckBootstrapStatus(t *testing.T) {
 	t.Run("Should return bootstrapped status when admin exists", func(t *testing.T) {
 		// Given
@@ -189,22 +194,17 @@ func TestService_BootstrapAdmin(t *testing.T) {
 		// Setup expectations for CheckBootstrapStatus
 		mockRepo.On("ListUsers", ctx).Return([]*model.User{}, nil).Once()
 
-		// Setup expectations for BootstrapSystem.Execute
-		mockRepo.On("ListUsers", ctx).Return([]*model.User{}, nil).Once()
-
 		adminID, err := core.NewID()
 		require.NoError(t, err)
 
-		mockRepo.On("CreateUser", ctx, mock.MatchedBy(func(u *model.User) bool {
+		// For CreateInitialAdminIfNone called by BootstrapSystem
+		mockRepo.On("CreateInitialAdminIfNone", ctx, mock.MatchedBy(func(u *model.User) bool {
 			return u.Email == "admin@test.com" && u.Role == model.RoleAdmin
 		})).Return(nil).Run(func(args mock.Arguments) {
 			// Set the ID on the user object passed in
 			u := args.Get(1).(*model.User)
 			u.ID = adminID
 		})
-
-		// For GetUserByEmail called by CreateUser use case
-		mockRepo.On("GetUserByEmail", ctx, "admin@test.com").Return(nil, errors.New("not found"))
 
 		apiKeyID, err := core.NewID()
 		require.NoError(t, err)

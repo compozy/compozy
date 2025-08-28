@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/compozy/compozy/engine/auth"
 	"github.com/compozy/compozy/engine/auth/model"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/pkg/logger"
@@ -30,13 +29,7 @@ func (uc *GetUser) Execute(ctx context.Context) (*model.User, error) {
 	log.Debug("Getting user", "user_id", uc.userID)
 	user, err := uc.repo.GetUserByID(ctx, uc.userID)
 	if err != nil {
-		return nil, core.NewError(
-			fmt.Errorf("failed to get user: %w", err),
-			auth.ErrCodeNotFound,
-			map[string]any{
-				"user_id": uc.userID.String(),
-			},
-		)
+		return nil, fmt.Errorf("failed to get user %s: %w", uc.userID, err)
 	}
 	return user, nil
 }

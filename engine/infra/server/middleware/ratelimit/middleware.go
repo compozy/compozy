@@ -134,7 +134,10 @@ func (m *Manager) Middleware() gin.HandlerFunc {
 			} else {
 				// Fail closed: Reject the request with 500 error
 				// This prioritizes rate limiting enforcement over availability
-				c.JSON(500, gin.H{"error": "Internal server error"})
+				c.JSON(500, gin.H{
+					"error":   "Internal server error",
+					"details": "Rate limiting backend unavailable",
+				})
 				c.Abort()
 			}
 			return

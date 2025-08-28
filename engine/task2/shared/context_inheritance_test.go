@@ -391,11 +391,11 @@ func TestInheritTaskConfig_ConcurrentSafety(t *testing.T) {
 
 		// Apply inheritance concurrently
 		done := make(chan bool, numChildren)
-		for i := range numChildren {
+		for _, child := range childTasks {
 			go func(childTask *task.Config) {
 				defer func() { done <- true }()
 				shared.InheritTaskConfig(childTask, parentTask)
-			}(childTasks[i])
+			}(child)
 		}
 
 		// Wait for all goroutines to complete

@@ -203,3 +203,8 @@ func (c *CachedRepository) DeleteAPIKey(ctx context.Context, id core.ID) error {
 	}
 	return c.repo.DeleteAPIKey(ctx, id)
 }
+
+// CreateInitialAdminIfNone delegates to the underlying repository (no caching needed for bootstrap)
+func (c *CachedRepository) CreateInitialAdminIfNone(ctx context.Context, user *model.User) error {
+	return c.repo.CreateInitialAdminIfNone(ctx, user)
+}

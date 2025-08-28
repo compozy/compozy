@@ -3,7 +3,6 @@ package privacy
 import (
 	"context"
 	"fmt"
-	"maps"
 	"regexp"
 	"strings"
 	"sync"
@@ -337,8 +336,24 @@ func (pm *Manager) LogPrivacyExclusion(
 		"resource_id": resourceID,
 		"reason":      reason,
 	}
-	// Merge metadata
-	maps.Copy(logData, metadata)
+	// Safely merge metadata with sensitive data filtering
+	for k, v := range metadata {
+		// Filter out potentially sensitive keys
+		lowerKey := strings.ToLower(k)
+		switch lowerKey {
+		case "content", "raw", "message", "body", "payload", "password", "token", "secret", "key", "auth", "credential":
+			// Redact sensitive data
+			logData["meta."+k] = DefaultRedactionString
+			continue
+		}
+		// Prevent overriding reserved fields by prefixing
+		if _, reserved := logData[k]; reserved {
+			logData["meta."+k] = v
+			continue
+		}
+		// Add non-sensitive, non-reserved metadata
+		logData[k] = v
+	}
 	log.Info("Privacy exclusion applied", logData)
 }
 

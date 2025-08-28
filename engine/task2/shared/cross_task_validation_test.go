@@ -1,6 +1,7 @@
 package shared_test
 
 import (
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -246,7 +247,7 @@ func TestRegressionPrevention(t *testing.T) {
 		for i := range 5 {
 			childTask := &task.Config{
 				BaseConfig: task.BaseConfig{
-					ID:   "child-" + string(rune(i)),
+					ID:   "child-" + strconv.Itoa(i),
 					Type: task.TaskTypeBasic,
 				},
 			}

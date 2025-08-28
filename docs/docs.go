@@ -5930,6 +5930,14 @@ const docTemplate = `{
             ]
         }
     },
+    "securityDefinitions": {
+        "BearerAuth": {
+            "description": "Bearer token authentication (Optional - controlled by SERVER_AUTH_ENABLED environment variable. When enabled, all API endpoints require valid authentication. In development/testing, authentication may be disabled.)",
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
+        }
+    },
     "tags": [
         {
             "description": "Workflow management operations",
@@ -5977,7 +5985,7 @@ var SwaggerInfo = &swag.Spec{
 	BasePath:         "/api/v0",
 	Schemes:          []string{},
 	Title:            "Compozy API",
-	Description:      "Compozy is a Next-level Agentic Orchestration Platform, tasks, and tools",
+	Description:      "Compozy is a Next-level Agentic Orchestration Platform, tasks, and tools. Authentication is configurable via the SERVER_AUTH_ENABLED environment variable. When enabled, all endpoints require Bearer token authentication. When disabled (typical for development), endpoints are accessible without authentication.",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

@@ -126,7 +126,7 @@ func RegisterRoutes(ctx context.Context, router *gin.Engine, state *appstate.Sta
 	// Debug log for admin key
 	log := logger.FromContext(ctx)
 	if cfg.Server.Auth.AdminKey.Value() != "" {
-		log.Info("Admin bootstrap key is configured", "key_length", len(cfg.Server.Auth.AdminKey.Value()))
+		log.Info("Admin bootstrap key is configured")
 	} else {
 		log.Info("No admin bootstrap key configured")
 	}

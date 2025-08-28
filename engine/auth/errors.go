@@ -13,7 +13,8 @@ const (
 	// ErrCodeWeakPassword indicates password doesn't meet requirements
 	ErrCodeWeakPassword = "WEAK_PASSWORD"
 	// ErrCodeInvalidRole indicates invalid role specified
-	ErrCodeInvalidRole = "INVALID_ROLE"
+	ErrCodeInvalidRole         = "INVALID_ROLE"
+	ErrCodeAlreadyBootstrapped = "ALREADY_BOOTSTRAPPED"
 	// ErrCodeInternal indicates an internal server error
 	ErrCodeInternal = "INTERNAL_ERROR"
 )

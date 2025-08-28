@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"time"
 
 	"github.com/compozy/compozy/engine/auth/bootstrap"
 	authrepo "github.com/compozy/compozy/engine/auth/infra/postgres"
@@ -25,6 +26,10 @@ type DefaultServiceFactory struct{}
 func (f *DefaultServiceFactory) CreateService(ctx context.Context) (*bootstrap.Service, func(), error) {
 	cfg := config.Get()
 
+	// Add timeout for database connection to prevent indefinite hanging
+	dbCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
 	dbCfg := &store.Config{
 		ConnString: cfg.Database.ConnString,
 		Host:       cfg.Database.Host,
@@ -35,7 +40,7 @@ func (f *DefaultServiceFactory) CreateService(ctx context.Context) (*bootstrap.S
 		SSLMode:    cfg.Database.SSLMode,
 	}
 
-	db, err := store.NewDB(ctx, dbCfg)
+	db, err := store.NewDB(dbCtx, dbCfg)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to connect to database: %w", err)
 	}

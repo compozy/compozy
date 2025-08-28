@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/compozy/compozy/engine/auth"
 	"github.com/compozy/compozy/engine/auth/model"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/pkg/logger"
@@ -30,13 +29,7 @@ func (uc *ListAPIKeys) Execute(ctx context.Context) ([]*model.APIKey, error) {
 	log.Debug("Listing API keys for user", "user_id", uc.userID)
 	keys, err := uc.repo.ListAPIKeysByUserID(ctx, uc.userID)
 	if err != nil {
-		return nil, core.NewError(
-			fmt.Errorf("failed to list API keys: %w", err),
-			auth.ErrCodeInternal,
-			map[string]any{
-				"user_id": uc.userID.String(),
-			},
-		)
+		return nil, fmt.Errorf("failed to list API keys for user %s: %w", uc.userID, err)
 	}
 	return keys, nil
 }

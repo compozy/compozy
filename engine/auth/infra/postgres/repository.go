@@ -294,3 +294,39 @@ func (r *Repository) DeleteAPIKey(ctx context.Context, id core.ID) error {
 	}
 	return nil
 }
+
+// CreateInitialAdminIfNone atomically creates the initial admin user if no admin exists.
+// Returns ErrAlreadyBootstrapped if an admin user already exists.
+func (r *Repository) CreateInitialAdminIfNone(ctx context.Context, user *model.User) error {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer func() {
+		tx.Rollback(ctx) //nolint:errcheck // Rollback is no-op if commit succeeded
+	}()
+	// Check if any admin exists
+	var adminExists bool
+	err = tx.QueryRow(ctx, `
+		SELECT EXISTS(SELECT 1 FROM users WHERE role = $1)
+	`, model.RoleAdmin).Scan(&adminExists)
+	if err != nil {
+		return fmt.Errorf("checking for admin: %w", err)
+	}
+	if adminExists {
+		return core.NewError(
+			fmt.Errorf("system already bootstrapped"),
+			"ALREADY_BOOTSTRAPPED",
+			nil,
+		)
+	}
+	// Create the admin user
+	_, err = tx.Exec(ctx, `
+		INSERT INTO users (id, email, role, created_at)
+		VALUES ($1, $2, $3, $4)
+	`, user.ID, user.Email, user.Role, user.CreatedAt)
+	if err != nil {
+		return fmt.Errorf("creating admin user: %w", err)
+	}
+	return tx.Commit(ctx)
+}
