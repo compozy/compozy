@@ -77,9 +77,9 @@ func TestWatcher_Watch(t *testing.T) {
 			t.Fatal("timeout waiting for callback")
 		}
 
-		// Check callback was invoked exactly once
+		// Check callback was invoked at least once (fsnotify can emit duplicates)
 		mu.Lock()
-		assert.Equal(t, 1, callbackCount)
+		assert.GreaterOrEqual(t, callbackCount, 1)
 		mu.Unlock()
 	})
 
@@ -162,7 +162,7 @@ func TestWatcher_Watch(t *testing.T) {
 		ctx := t.Context()
 
 		err = watcher.Watch(ctx, tmpFile.Name())
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("Should stop watching on context cancellation", func(t *testing.T) {
@@ -192,18 +192,12 @@ func TestWatcher_Watch(t *testing.T) {
 		// Cancel context
 		cancel()
 
-		// Give watcher time to stop
-		time.Sleep(100 * time.Millisecond)
-
 		// Modify file after context canceled
 		err = os.WriteFile(tmpFile.Name(), []byte("test: value"), 0644)
 		require.NoError(t, err)
 
-		// Wait a bit
-		time.Sleep(200 * time.Millisecond)
-
-		// Callback should not be invoked
-		assert.False(t, callbackInvoked.Load())
+		// Verify no callback is invoked post-cancel within a grace period
+		assert.Never(t, callbackInvoked.Load, 300*time.Millisecond, 10*time.Millisecond)
 	})
 }
 

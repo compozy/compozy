@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/charmbracelet/huh"
@@ -236,7 +237,8 @@ func executeTUIBootstrap(ctx context.Context, flags *bootstrapFlags) error {
 	})
 
 	if err != nil {
-		if coreErr, ok := err.(*core.Error); ok {
+		var coreErr *core.Error
+		if errors.As(err, &coreErr) {
 			fmt.Println(styles.ErrorStyle.Render(fmt.Sprintf("❌ %s: %s", coreErr.Code, coreErr.Message)))
 		} else {
 			fmt.Println(styles.ErrorStyle.Render("❌ Bootstrap failed: " + err.Error()))
@@ -265,5 +267,5 @@ func displaySuccess(result *bootstrap.Result) {
 	fmt.Println(styles.WarningStyle.Render("   It will not be shown again."))
 	fmt.Println()
 	fmt.Println(styles.HelpStyle.Render("You can now use this API key to authenticate with:"))
-	fmt.Println(styles.CodeStyle.Render("export COMPOZY_API_KEY=" + result.APIKey))
+	fmt.Println(styles.CodeStyle.Render("export COMPOZY_API_KEY='" + result.APIKey + "'"))
 }
