@@ -53,7 +53,7 @@ The engine supports multiple output formats, includes all Sprig template functio
 
 ### Prerequisites
 
-- Go 1.24+
+- Go 1.25+
 - Understanding of Go template syntax
 
 ### Installation

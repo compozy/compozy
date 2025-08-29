@@ -38,7 +38,7 @@ See folder structure above for detailed component organization.
 ## Technology Stack
 
 <tech_stack type="core_technologies">
-- **Go 1.24+**: Core language for backend services
+- **Go 1.25+**: Core language for backend services
 - **PostgreSQL**: Main database (port 5432) + Temporal database (port 5433)
 - **Redis**: Caching, config storage, and pub/sub messaging (port 6379)
 - **Temporal**: Workflow orchestration engine (port 7233, Web UI: 8080)

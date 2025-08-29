@@ -52,7 +52,7 @@ The tool supports both one-time generation and watch mode for continuous develop
 
 ### Prerequisites
 
-- Go 1.24+
+- Go 1.25+
 - Access to the Compozy engine source code
 
 ### Installation

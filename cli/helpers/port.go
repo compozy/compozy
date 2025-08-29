@@ -1,6 +1,7 @@
 package helpers
 
 import (
+	"context"
 	"fmt"
 	"net"
 )
@@ -13,7 +14,8 @@ const (
 func IsPortAvailable(host string, port int) bool {
 	// Try to listen on the port with a short timeout
 	addr := fmt.Sprintf("%s:%d", host, port)
-	listener, err := net.Listen("tcp", addr)
+	lc := &net.ListenConfig{}
+	listener, err := lc.Listen(context.Background(), "tcp", addr)
 	if err != nil {
 		return false
 	}

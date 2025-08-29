@@ -4521,6 +4521,16 @@ const docTemplate = `{
                 "ProviderOpenAI": "OpenAI GPT models (GPT-4, GPT-3.5, etc.)",
                 "ProviderXAI": "xAI Grok models"
             },
+            "x-enum-descriptions": [
+                "OpenAI GPT models (GPT-4, GPT-3.5, etc.)",
+                "Groq fast inference platform",
+                "Anthropic Claude models",
+                "Google Gemini models",
+                "Ollama local model hosting",
+                "DeepSeek AI models",
+                "xAI Grok models",
+                "Mock provider for testing"
+            ],
             "x-enum-varnames": [
                 "ProviderOpenAI",
                 "ProviderGroq",
@@ -5357,6 +5367,7 @@ const docTemplate = `{
         },
         "time.Duration": {
             "type": "integer",
+            "format": "int64",
             "enum": [
                 -9223372036854775808,
                 9223372036854775807,

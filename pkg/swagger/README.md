@@ -51,7 +51,7 @@ This package is designed to work seamlessly with Swagger/OpenAPI code generation
 
 ### Prerequisites
 
-- Go 1.24+
+- Go 1.25+
 - Familiarity with Compozy's core types (`engine/core`)
 
 ### Installation

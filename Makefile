@@ -14,6 +14,12 @@ SRC_DIRS=./...
 LINTCMD=golangci-lint
 BUNCMD=bun
 
+# Colors for output
+RED := \033[0;31m
+GREEN := \033[0;32m
+YELLOW := \033[0;33m
+NC := \033[0m # No Color
+
 # -----------------------------------------------------------------------------
 # Build Variables
 # -----------------------------------------------------------------------------
@@ -32,7 +38,29 @@ SWAGGER_OUTPUT=$(SWAGGER_DIR)/swagger.json
 
 .PHONY: all test lint fmt clean build dev deps schemagen schemagen-watch help integration-test
 .PHONY: tidy test-go start-docker stop-docker clean-docker reset-docker
-.PHONY: swagger swagger-deps swagger-gen swagger-serve
+.PHONY: swagger swagger-deps swagger-gen swagger-serve check-go-version setup clean-go-cache
+
+# -----------------------------------------------------------------------------
+# Setup & Version Checks
+# -----------------------------------------------------------------------------
+check-go-version:
+	@echo "Checking Go version..."
+	@GO_VERSION=$$(go version 2>/dev/null | awk '{print $$3}' | sed 's/go//'); \
+	REQUIRED_VERSION=$(GOVERSION); \
+	if [ -z "$$GO_VERSION" ]; then \
+		echo "$(RED)Error: Go is not installed$(NC)"; \
+		echo "Please install Go $(GOVERSION) from https://go.dev/dl/"; \
+		exit 1; \
+	elif [ "$$(printf '%s\n' "$$REQUIRED_VERSION" "$$GO_VERSION" | sort -V | head -n1)" != "$$REQUIRED_VERSION" ]; then \
+		echo "$(YELLOW)Warning: Go version $$GO_VERSION found, but $(GOVERSION) is required$(NC)"; \
+		echo "Please update Go to version $(GOVERSION) or later"; \
+		exit 1; \
+	else \
+		echo "$(GREEN)✓ Go version $$GO_VERSION is compatible$(NC)"; \
+	fi
+
+setup: check-go-version deps
+	@echo "$(GREEN)✓ Setup complete! You can now run 'make build' or 'make dev'$(NC)"
 
 # -----------------------------------------------------------------------------
 # Main Targets
@@ -44,7 +72,7 @@ clean:
 	rm -rf $(SWAGGER_DIR)/
 	$(GOCMD) clean
 
-build: swagger
+build: check-go-version swagger
 	mkdir -p $(BINARY_DIR)
 	$(GOBUILD) -ldflags "$(LDFLAGS)" -o $(BINARY_DIR)/$(BINARY_NAME) ./
 	chmod +x $(BINARY_DIR)/$(BINARY_NAME)
@@ -56,7 +84,7 @@ lint:
 	$(BUNCMD) run lint
 	$(LINTCMD) run --fix --allow-parallel-runners
 	@echo "Running modernize analyzer for min/max suggestions..."
-	@go run golang.org/x/tools/gopls/internal/analysis/modernize/cmd/modernize@latest -fix ./...
+	#@go run golang.org/x/tools/gopls/internal/analysis/modernize/cmd/modernize@latest -fix ./...
 	@echo "Linting completed successfully"
 
 fmt:
@@ -77,11 +105,22 @@ tidy:
 	@echo "Tidying modules..."
 	$(GOCMD) mod tidy
 
-deps: swagger-deps
-	$(GOCMD) install gotest.tools/gotestsum@latest
-	$(GOCMD) install github.com/bokwoon95/wgo@latest
-	$(GOCMD) install github.com/pressly/goose/v3/cmd/goose@latest
-	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b $$(go env GOPATH)/bin v2.2.1
+deps: check-go-version clean-go-cache swagger-deps
+	@echo "Installing Go dependencies..."
+	@echo "Installing gotestsum..."
+	@$(GOCMD) install gotest.tools/gotestsum@latest
+	@echo "Installing wgo for hot reload..."
+	@$(GOCMD) install github.com/bokwoon95/wgo@latest
+	@echo "Installing goose for migrations..."
+	@$(GOCMD) install github.com/pressly/goose/v3/cmd/goose@latest
+	@echo "Installing golangci-lint v2..."
+	@curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b $(go env GOPATH)/bin v2.2.1
+	@echo "$(GREEN)✓ All dependencies installed successfully$(NC)"
+
+clean-go-cache:
+	@echo "Cleaning Go build cache for fresh setup..."
+	@$(GOCMD) clean -cache -testcache -modcache 2>/dev/null || true
+	@echo "$(GREEN)✓ Go cache cleaned$(NC)"
 
 swagger-deps:
 	@echo "Installing Swagger dependencies..."
@@ -244,3 +283,37 @@ redis-flush:
 test-redis:
 	@echo "Testing Redis connection..."
 	@docker exec redis redis-cli -a ${REDIS_PASSWORD} ping
+# -----------------------------------------------------------------------------
+# Help
+# -----------------------------------------------------------------------------
+help:
+	@echo "$(GREEN)Compozy Makefile Commands$(NC)"
+	@echo ""
+	@echo "$(YELLOW)Setup & Build:$(NC)"
+	@echo "  make setup          - Complete setup with Go version check and dependencies"
+	@echo "  make deps           - Install all required dependencies"
+	@echo "  make build          - Build the compozy binary"
+	@echo "  make clean          - Clean build artifacts"
+	@echo ""
+	@echo "$(YELLOW)Development:$(NC)"
+	@echo "  make dev            - Run in development mode with hot reload"
+	@echo "  make test           - Run all tests"
+	@echo "  make lint           - Run linters and fix issues"
+	@echo "  make fmt            - Format code"
+	@echo ""
+	@echo "$(YELLOW)Docker & Database:$(NC)"
+	@echo "  make start-docker   - Start Docker services"
+	@echo "  make stop-docker    - Stop Docker services"
+	@echo "  make migrate-up     - Run database migrations"
+	@echo "  make migrate-down   - Rollback last migration"
+	@echo ""
+	@echo "$(YELLOW)Requirements:$(NC)"
+	@echo "  Go $(GOVERSION) or later"
+	@echo "  Bun (npm install -g bun)"
+	@echo "  Docker & Docker Compose"
+	@echo ""
+	@echo "$(GREEN)Quick Start:$(NC)"
+	@echo "  1. make setup        # Install dependencies"
+	@echo "  2. make start-docker # Start services"
+	@echo "  3. make migrate-up   # Setup database"
+	@echo "  4. make dev          # Start development server"

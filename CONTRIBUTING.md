@@ -28,7 +28,7 @@ This project and everyone participating in it is governed by the [Compozy Code o
 
 ### Prerequisites
 
-- [Go](https://golang.org/doc/install) (version 1.24 or later)
+- [Go](https://golang.org/doc/install) (version 1.25 or later)
 - [Bun](https://bun.sh/docs/installation) (v0.7.0 or later required for optimal memory management)
 - [Docker](https://docs.docker.com/get-docker/)
 - [Make](https://www.gnu.org/software/make/)

@@ -83,7 +83,7 @@ For YAML configuration patterns and examples:
 
 **All rule files are located in `.cursor/rules/` and use semantic XML tags for better context and AI understanding.**
 
-The project uses Go 1.24+ features and requires external dependencies to be mocked in tests when necessary.
+The project uses Go 1.25+ features and requires external dependencies to be mocked in tests when necessary.
 
 <critical>
 - **YOU MUST ALWAYS USE** the .cursor/rules/critical-validation.mdc

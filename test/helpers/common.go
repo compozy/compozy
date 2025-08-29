@@ -50,7 +50,8 @@ var (
 // loadBranchEnv loads the branch-specific environment file if available
 func loadBranchEnv() error {
 	// Get current git branch
-	cmd := exec.Command("git", "branch", "--show-current")
+	ctx := context.Background()
+	cmd := exec.CommandContext(ctx, "git", "branch", "--show-current")
 	output, err := cmd.Output()
 	if err != nil {
 		// If we can't get the branch, that's ok - fall back to defaults
