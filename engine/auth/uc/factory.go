@@ -11,9 +11,7 @@ type Factory struct {
 
 // NewFactory creates a new use case factory
 func NewFactory(repo Repository) *Factory {
-	return &Factory{
-		repo: repo,
-	}
+	return &Factory{repo: repo}
 }
 
 // CreateUser creates a new create user use case
@@ -62,11 +60,16 @@ func (f *Factory) RevokeAPIKey(userID, keyID core.ID) *RevokeAPIKey {
 }
 
 // GetAPIKey creates a new get API key use case
-func (f *Factory) GetAPIKey() *GetAPIKey {
-	return NewGetAPIKey(f.repo)
+func (f *Factory) GetAPIKey(keyID core.ID) *GetAPIKey {
+	return NewGetAPIKey(f.repo, keyID)
 }
 
 // ListAPIKeys creates a new list API keys use case
 func (f *Factory) ListAPIKeys(userID core.ID) *ListAPIKeys {
 	return NewListAPIKeys(f.repo, userID)
+}
+
+// BootstrapSystem creates the initial admin user (one-time bootstrap)
+func (f *Factory) BootstrapSystem(email string) *BootstrapSystem {
+	return NewBootstrapSystem(f.repo, email)
 }

@@ -17,8 +17,8 @@ func BenchmarkHealthEndpoint(b *testing.B) {
 	router := gin.New()
 	router.GET("/health", server.CreateHealthHandler(nil, "v1.0.0"))
 	req := httptest.NewRequest("GET", "/health", http.NoBody)
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+
+	for b.Loop() {
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 	}
@@ -46,8 +46,8 @@ func BenchmarkRateLimitMiddleware(b *testing.B) {
 	router.GET("/api/test", func(c *gin.Context) { c.JSON(200, gin.H{"status": "ok"}) })
 	req := httptest.NewRequest("GET", "/api/test", http.NoBody)
 	req.Header.Set("X-API-Key", "bench-test-key")
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+
+	for b.Loop() {
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 	}
@@ -55,8 +55,7 @@ func BenchmarkRateLimitMiddleware(b *testing.B) {
 
 // BenchmarkTestFixtureSetup measures the performance of our optimized test fixtures
 func BenchmarkTestFixtureSetup(b *testing.B) {
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = setupRateLimitFixture(&testing.T{}, 100, 100)
 	}
 }

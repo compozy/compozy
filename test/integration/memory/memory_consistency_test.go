@@ -50,7 +50,7 @@ func TestMemoryOperationConsistency(t *testing.T) {
 		errors := make([]error, numExecutions)
 
 		// Run the same execution multiple times
-		for i := 0; i < numExecutions; i++ {
+		for i := range numExecutions {
 			t.Run(fmt.Sprintf("Execution_%d", i+1), func(t *testing.T) {
 				// Create workflow state with consistent input
 				execID, _ := core.NewID()
@@ -119,7 +119,7 @@ func TestMemoryOperationConsistency(t *testing.T) {
 		results := make(chan string, numGoroutines)
 
 		// Run concurrent memory operations
-		for i := 0; i < numGoroutines; i++ {
+		for i := range numGoroutines {
 			wg.Add(1)
 			go func(idx int) {
 				defer wg.Done()

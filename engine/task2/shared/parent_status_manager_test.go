@@ -351,7 +351,7 @@ func TestDefaultParentStatusManager_BatchProcessing(t *testing.T) {
 
 		// Create 7 updates (will require 3 batches: 3, 3, 1)
 		updates := make([]ParentUpdate, 7)
-		for i := 0; i < 7; i++ {
+		for i := range 7 {
 			updates[i] = ParentUpdate{
 				ParentID: core.MustNewID(),
 				Strategy: task.StrategyWaitAll,
@@ -432,7 +432,7 @@ func TestDefaultParentStatusManager_BatchProcessing(t *testing.T) {
 
 		// Create 3 updates
 		updates := make([]ParentUpdate, 3)
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			updates[i] = ParentUpdate{
 				ParentID: core.MustNewID(),
 				Strategy: task.StrategyWaitAll,
@@ -471,7 +471,7 @@ func TestDefaultParentStatusManager_BatchProcessing(t *testing.T) {
 		}
 
 		// First batch succeeds
-		for i := 0; i < 2; i++ {
+		for i := range 2 {
 			parentState := &task.State{
 				TaskExecID: updates[i].ParentID,
 				TaskID:     "parent-task-" + strconv.Itoa(i),

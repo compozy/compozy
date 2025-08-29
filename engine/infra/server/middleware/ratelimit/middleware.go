@@ -10,6 +10,7 @@ package ratelimit
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -133,7 +134,10 @@ func (m *Manager) Middleware() gin.HandlerFunc {
 			} else {
 				// Fail closed: Reject the request with 500 error
 				// This prioritizes rate limiting enforcement over availability
-				c.JSON(500, gin.H{"error": "Internal server error"})
+				c.JSON(500, gin.H{
+					"error":   "Internal server error",
+					"details": "Rate limiting backend unavailable",
+				})
 				c.Abort()
 			}
 			return
@@ -163,12 +167,7 @@ func (m *Manager) isRequestExcluded(c *gin.Context) bool {
 	}
 	// Check excluded IPs
 	clientIP := c.ClientIP()
-	for _, excludedIP := range m.config.ExcludedIPs {
-		if clientIP == excludedIP {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(m.config.ExcludedIPs, clientIP)
 }
 
 // getLimiterForRequest returns the appropriate limiter for the request

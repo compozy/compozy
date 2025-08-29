@@ -86,6 +86,11 @@ func (m *MockRepository) DeleteAPIKey(ctx context.Context, id core.ID) error {
 	return args.Error(0)
 }
 
+func (m *MockRepository) CreateInitialAdminIfNone(ctx context.Context, user *model.User) error {
+	args := m.Called(ctx, user)
+	return args.Error(0)
+}
+
 // Test helpers
 func setupTestCache(t *testing.T) (*CachedRepository, *MockRepository, *redis.Client, *miniredis.Miniredis) {
 	mr := miniredis.RunT(t)
@@ -415,7 +420,7 @@ func TestCachedRepository_ConcurrentAccess(t *testing.T) {
 
 		// Business logic: concurrent requests should get cached results without database hits
 		const numRequests = 3 // Reduced complexity while maintaining business logic validation
-		for i := 0; i < numRequests; i++ {
+		for range numRequests {
 			result, err := cache.GetAPIKeyByHash(ctx, testKey.Fingerprint)
 			require.NoError(t, err)
 			assert.Equal(t, testKey.ID, result.ID)

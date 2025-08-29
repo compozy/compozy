@@ -112,8 +112,8 @@ func isValidListYearField(yearField string) bool {
 	if err != nil || !matched {
 		return false
 	}
-	years := strings.Split(yearField, ",")
-	for _, yearStr := range years {
+	years := strings.SplitSeq(yearField, ",")
+	for yearStr := range years {
 		if !isValidSingleYear(yearStr) {
 			return false
 		}
@@ -271,8 +271,8 @@ func (m *manager) getScheduleInfo(
 //     Note: When sending to Temporal, we automatically append year field
 func ValidateCronExpression(cronExpr string, workflowID string, log logger.Logger) error {
 	// Check if it's an @every expression
-	if strings.HasPrefix(cronExpr, "@every ") {
-		durationStr := strings.TrimPrefix(cronExpr, "@every ")
+	if after, ok := strings.CutPrefix(cronExpr, "@every "); ok {
+		durationStr := after
 		_, err := time.ParseDuration(durationStr)
 		if err != nil {
 			if log != nil {

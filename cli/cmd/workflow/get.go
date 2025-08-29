@@ -33,6 +33,12 @@ func GetCmd() *cobra.Command {
 	return cmd
 }
 
+// -----------------------------------------------------------------------------
+// Constants
+// -----------------------------------------------------------------------------
+
+const reservedLines = 4 // Space reserved for header and footer in TUI
+
 // runWorkflowGet handles the workflow get command execution
 func runWorkflowGet(cobraCmd *cobra.Command, args []string) error {
 	return cmd.ExecuteCommand(cobraCmd, cmd.ExecutorOptions{
@@ -167,7 +173,12 @@ func (m *workflowDetailModel) Init() tea.Cmd {
 func (m *workflowDetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.height = msg.Height - 4 // Reserve space for header and footer
+		h := max(
+			// Reserve space for header and footer
+			msg.Height-reservedLines,
+			// Clamp to minimum height of 1 to prevent negative values
+			1)
+		m.height = h
 		m.content = m.renderContent()
 		m.ready = true
 
@@ -201,10 +212,7 @@ func (m *workflowDetailModel) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) 
 func (m *workflowDetailModel) handleScrollDown() {
 	if m.content != "" {
 		contentLines := strings.Split(m.content, "\n")
-		maxScroll := len(contentLines) - m.height
-		if maxScroll < 0 {
-			maxScroll = 0
-		}
+		maxScroll := max(len(contentLines)-m.height, 0)
 		if m.scrollOffset < maxScroll {
 			m.scrollOffset++
 		}
@@ -223,10 +231,7 @@ func (m *workflowDetailModel) handlePageUp() {
 func (m *workflowDetailModel) handlePageDown() {
 	if m.content != "" {
 		contentLines := strings.Split(m.content, "\n")
-		maxScroll := len(contentLines) - m.height
-		if maxScroll < 0 {
-			maxScroll = 0
-		}
+		maxScroll := max(len(contentLines)-m.height, 0)
 		m.scrollOffset += m.height / 2
 		if m.scrollOffset > maxScroll {
 			m.scrollOffset = maxScroll
@@ -256,10 +261,7 @@ func (m *workflowDetailModel) View() string {
 		start = 0
 	}
 
-	end := start + m.height
-	if end > len(lines) {
-		end = len(lines)
-	}
+	end := min(start+m.height, len(lines))
 
 	if start < len(lines) {
 		visibleLines = lines[start:end]

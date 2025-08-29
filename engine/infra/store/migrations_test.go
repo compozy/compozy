@@ -97,7 +97,7 @@ func TestRunEmbeddedMigrations(t *testing.T) {
 		errors := make([]error, numGoroutines)
 		done := make(chan bool, numGoroutines)
 
-		for i := 0; i < numGoroutines; i++ {
+		for i := range numGoroutines {
 			go func(idx int) {
 				db := stdlib.OpenDBFromPool(pool)
 				defer db.Close()
@@ -107,7 +107,7 @@ func TestRunEmbeddedMigrations(t *testing.T) {
 		}
 
 		// Wait for all goroutines
-		for i := 0; i < numGoroutines; i++ {
+		for range numGoroutines {
 			<-done
 		}
 

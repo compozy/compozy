@@ -170,8 +170,9 @@ type CORSConfig struct {
 
 // AuthConfig contains authentication configuration.
 type AuthConfig struct {
-	Enabled            bool     `koanf:"enabled"             json:"enabled"             yaml:"enabled"             mapstructure:"enabled"             env:"SERVER_AUTH_ENABLED"`
-	WorkflowExceptions []string `koanf:"workflow_exceptions" json:"workflow_exceptions" yaml:"workflow_exceptions" mapstructure:"workflow_exceptions" env:"SERVER_AUTH_WORKFLOW_EXCEPTIONS" validate:"dive,workflow_id"`
+	Enabled            bool            `koanf:"enabled"             json:"enabled"             yaml:"enabled"             mapstructure:"enabled"             env:"SERVER_AUTH_ENABLED"`
+	WorkflowExceptions []string        `koanf:"workflow_exceptions" json:"workflow_exceptions" yaml:"workflow_exceptions" mapstructure:"workflow_exceptions" env:"SERVER_AUTH_WORKFLOW_EXCEPTIONS" validate:"dive,workflow_id"`
+	AdminKey           SensitiveString `koanf:"admin_key"           json:"admin_key"           yaml:"admin_key"           mapstructure:"admin_key"           env:"SERVER_AUTH_ADMIN_KEY"           validate:"omitempty,min=16" sensitive:"true"`
 }
 
 // DatabaseConfig contains database connection configuration.
@@ -1130,6 +1131,7 @@ func buildServerConfig(registry *definition.Registry) ServerConfig {
 		Auth: AuthConfig{
 			Enabled:            getBool(registry, "server.auth.enabled"),
 			WorkflowExceptions: getStringSlice(registry, "server.auth.workflow_exceptions"),
+			AdminKey:           SensitiveString(getString(registry, "server.auth.admin_key")),
 		},
 	}
 }

@@ -205,11 +205,9 @@ func (lma *lockManagerAdapter) waitForRetry(
 	}
 	// Calculate delay with overflow protection
 	// For attempts > 30, 1<<attempt would overflow, so we cap the shift operation
-	shiftAmount := attempt
-	if shiftAmount > 30 {
+	shiftAmount := min(attempt,
 		// 2^30 * 50ms ≈ 53687 seconds ≈ 14.9 hours - more than reasonable max
-		shiftAmount = 30
-	}
+		30)
 	delay := time.Duration(1<<shiftAmount) * baseDelay
 	log.Debug("Lock acquisition failed, retrying",
 		"key", lockKey, "attempt", attempt+1, "max_retries", maxRetries, "delay", delay, "error", err)

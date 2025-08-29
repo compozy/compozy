@@ -2,6 +2,7 @@ package ref
 
 import (
 	"fmt"
+	"maps"
 )
 
 // -----------------------------------------------------------------------------
@@ -327,9 +328,7 @@ func deepMergeMaps(sources []any) map[string]any {
 		if src != nil {
 			if srcMap, ok := src.(map[string]any); ok {
 				result = make(map[string]any, len(srcMap))
-				for k, v := range srcMap {
-					result[k] = v
-				}
+				maps.Copy(result, srcMap)
 				startIdx = i + 1
 				break
 			}

@@ -1,18 +1,15 @@
 package memrouter
 
 import (
-	"github.com/compozy/compozy/engine/auth/uc"
-	authmw "github.com/compozy/compozy/engine/infra/server/middleware/auth"
 	"github.com/gin-gonic/gin"
 )
 
-func Register(apiBase *gin.RouterGroup, authFactory *uc.Factory) {
-	// Create auth middleware manager
-	authManager := authmw.NewManager(authFactory)
-
-	// Memory routes - all routes require authentication
+// Register wires memory routes under /memory.
+// Note: Authentication is enforced globally via server middleware in engine/infra/server/register.go
+// when cfg.Server.Auth.Enabled is true. All memory endpoints are protected by the global auth middleware.
+func Register(apiBase *gin.RouterGroup) {
+	// Memory routes
 	memoryGroup := apiBase.Group("/memory")
-	memoryGroup.Use(authManager.RequireAuth())
 
 	// Routes with memory reference only (key moved to query params or body)
 	refGroup := memoryGroup.Group("/:memory_ref")

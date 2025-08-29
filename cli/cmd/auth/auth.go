@@ -16,6 +16,7 @@ func Cmd() *cobra.Command {
 
 	// Add subcommands
 	cmd.AddCommand(
+		BootstrapCmd(),
 		GenerateCmd(),
 		ListCmd(),
 		RevokeCmd(),

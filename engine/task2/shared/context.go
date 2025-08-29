@@ -456,9 +456,7 @@ func (cb *ContextBuilder) buildParentContextWithVisited(
 		// This prevents visited state pollution between different traversal branches
 		// Essential for handling complex task hierarchies with multiple paths
 		visitedCopy := make(map[string]bool)
-		for k, v := range visited {
-			visitedCopy[k] = v
-		}
+		maps.Copy(visitedCopy, visited)
 		// Recursive call to build grandparent context with incremented depth
 		parentMap[ParentKey] = cb.buildParentContextWithVisited(ctx, grandParentTask, depth+1, visitedCopy)
 	}

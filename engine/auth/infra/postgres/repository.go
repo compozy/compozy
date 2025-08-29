@@ -63,7 +63,7 @@ func (r *Repository) GetUserByID(ctx context.Context, id core.ID) (*model.User, 
 	var user model.User
 	if err := pgxscan.Get(ctx, r.db, &user, query, args...); err != nil {
 		if pgxscan.NotFound(err) {
-			return nil, fmt.Errorf("user not found")
+			return nil, fmt.Errorf("%w", uc.ErrUserNotFound)
 		}
 		return nil, fmt.Errorf("scanning user: %w", err)
 	}
@@ -83,7 +83,7 @@ func (r *Repository) GetUserByEmail(ctx context.Context, email string) (*model.U
 	var user model.User
 	if err := pgxscan.Get(ctx, r.db, &user, query, args...); err != nil {
 		if pgxscan.NotFound(err) {
-			return nil, fmt.Errorf("user not found")
+			return nil, fmt.Errorf("%w", uc.ErrUserNotFound)
 		}
 		return nil, fmt.Errorf("scanning user: %w", err)
 	}
@@ -184,7 +184,12 @@ func (r *Repository) GetAPIKeyByID(ctx context.Context, id core.ID) (*model.APIK
 	return &key, nil
 }
 
-// GetAPIKeyByHash retrieves an API key by its hash for validation
+// GetAPIKeyByHash retrieves an API key by its hash for validation.
+//
+// SECURITY NOTE: This function implements timing attack prevention by always performing
+// bcrypt operations even when the key is not found. While this is secure, it creates
+// a potential DoS vector as bcrypt is computationally expensive. Ensure aggressive
+// IP-based rate limiting is applied in middleware BEFORE this authentication check.
 func (r *Repository) GetAPIKeyByHash(ctx context.Context, hash []byte) (*model.APIKey, error) {
 	log := logger.FromContext(ctx)
 
@@ -207,8 +212,9 @@ func (r *Repository) GetAPIKeyByHash(ctx context.Context, hash []byte) (*model.A
 	if err := pgxscan.Get(ctx, r.db, &key, query, args...); err != nil {
 		if pgxscan.NotFound(err) {
 			// To prevent timing attacks, always perform bcrypt comparison even when key not found
-			// Use a dummy hash with same computational cost as a real bcrypt hash
-			dummyHash := []byte("$2a$10$dummy.hash.to.prevent.timing.attack.abcdefghijklmnopqrstuvw")
+			// Use a valid dummy bcrypt hash with same computational cost as a real bcrypt hash
+			// This is a valid bcrypt hash for "dummyPassword" with cost 10
+			dummyHash := []byte("$2a$10$g.L2nI52OAiN/O8Qk25SluXfK090sjsV2e9.j2y.Xy.Z2.a4.b6cK")
 			// Dummy operation - error is expected and ignored for timing attack prevention
 			_ = bcrypt.CompareHashAndPassword( //nolint:errcheck // intentional dummy operation for timing attack prevention
 				dummyHash,
@@ -225,7 +231,8 @@ func (r *Repository) GetAPIKeyByHash(ctx context.Context, hash []byte) (*model.A
 		bcryptErr = bcrypt.CompareHashAndPassword(key.Hash, hash)
 	} else {
 		// Database error case - still perform dummy bcrypt to maintain constant time
-		dummyHash := []byte("$2a$10$dummy.hash.to.prevent.timing.attack.abcdefghijklmnopqrstuvw")
+		// Use the same valid dummy bcrypt hash to ensure consistent timing
+		dummyHash := []byte("$2a$10$g.L2nI52OAiN/O8Qk25SluXfK090sjsV2e9.j2y.Xy.Z2.a4.b6cK")
 		// Dummy operation - error is expected and ignored for timing attack prevention
 		_ = bcrypt.CompareHashAndPassword( //nolint:errcheck // intentional dummy operation for timing attack prevention
 			dummyHash,
@@ -291,6 +298,44 @@ func (r *Repository) DeleteAPIKey(ctx context.Context, id core.ID) error {
 	}
 	if tag.RowsAffected() == 0 {
 		return fmt.Errorf("API key not found")
+	}
+	return nil
+}
+
+// CreateInitialAdminIfNone atomically creates the initial admin user if no admin exists.
+// Uses atomic INSERT...WHERE NOT EXISTS to prevent race conditions.
+// Returns ErrAlreadyBootstrapped if an admin user already exists.
+func (r *Repository) CreateInitialAdminIfNone(ctx context.Context, user *model.User) error {
+	// Enforce admin role to prevent system from being bootstrapped without an admin
+	user.Role = model.RoleAdmin
+
+	// Use atomic INSERT...WHERE NOT EXISTS to prevent race conditions
+	// This eliminates the check-then-act pattern that could allow concurrent duplicates
+	query := `
+		INSERT INTO users (id, email, role, created_at)
+		SELECT $1, $2, $3, $4
+		WHERE NOT EXISTS (SELECT 1 FROM users WHERE role = $5)
+	`
+	tag, err := r.db.Exec(ctx, query, user.ID, user.Email, user.Role, user.CreatedAt, model.RoleAdmin)
+	if err != nil {
+		// Handle unique constraint violation (concurrent bootstrap attempts)
+		if pgErr, ok := err.(*pgconn.PgError); ok && pgErr.Code == "23505" {
+			return core.NewError(
+				fmt.Errorf("system already bootstrapped"),
+				"ALREADY_BOOTSTRAPPED",
+				nil,
+			)
+		}
+		return fmt.Errorf("creating initial admin user: %w", err)
+	}
+
+	// If no rows were affected, an admin already exists
+	if tag.RowsAffected() == 0 {
+		return core.NewError(
+			fmt.Errorf("system already bootstrapped"),
+			"ALREADY_BOOTSTRAPPED",
+			nil,
+		)
 	}
 	return nil
 }

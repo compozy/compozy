@@ -424,7 +424,7 @@ func TestDeepNesting_DepthLimitEnforcement(t *testing.T) {
 		taskStates := make(map[string]*task.State)
 		var parentExecID *core.ID
 
-		for i := 0; i < testDepth; i++ {
+		for i := range testDepth {
 			taskID := fmt.Sprintf("level-%d-task", i)
 			execID := core.MustNewID()
 

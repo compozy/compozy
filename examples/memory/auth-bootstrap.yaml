@@ -1,0 +1,10 @@
+server:
+  host: 0.0.0.0
+  port: 5001
+  auth:
+    enabled: true
+    admin_key: "test-admin-key-1234567890"
+
+runtime:
+  type: bun
+  entrypoint: "./entrypoint.ts"

@@ -2,11 +2,13 @@ package uc
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"time"
 
-	"github.com/compozy/compozy/engine/auth"
 	"github.com/compozy/compozy/engine/auth/model"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/pkg/logger"
 )
 
 // CreateUserInput represents the input for creating a user
@@ -31,35 +33,35 @@ func NewCreateUser(repo Repository, input *CreateUserInput) *CreateUser {
 
 // Execute creates a new user
 func (uc *CreateUser) Execute(ctx context.Context) (*model.User, error) {
+	log := logger.FromContext(ctx)
+	log.Debug("Creating user", "email", uc.input.Email, "role", uc.input.Role)
 	// Check if user already exists
 	existingUser, err := uc.repo.GetUserByEmail(ctx, uc.input.Email)
-	if err == nil && existingUser != nil {
-		return nil, core.NewError(
-			fmt.Errorf("user already exists"),
-			auth.ErrCodeEmailExists,
-			map[string]any{
-				"email": uc.input.Email,
-			},
-		)
+	if err != nil {
+		// If user not found, that's expected - we can proceed
+		// For any other error, we should fail fast
+		if !errors.Is(err, ErrUserNotFound) {
+			return nil, fmt.Errorf("checking existing user: %w", err)
+		}
+	} else if existingUser != nil {
+		// User exists - remove PII from error message
+		return nil, fmt.Errorf("user already exists")
 	}
-
-	// Generate ID for new user
+	// Generate user ID
 	userID, err := core.NewID()
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate user ID: %w", err)
 	}
-
 	// Create user
 	user := &model.User{
-		ID:    userID,
-		Email: uc.input.Email,
-		Role:  uc.input.Role,
+		ID:        userID,
+		Email:     uc.input.Email,
+		Role:      uc.input.Role,
+		CreatedAt: time.Now().UTC(),
 	}
-
-	// Save user
 	if err := uc.repo.CreateUser(ctx, user); err != nil {
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
-
+	log.Info("User created successfully", "user_id", user.ID, "email", user.Email, "role", user.Role)
 	return user, nil
 }

@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"fmt"
+	"maps"
 	"reflect"
 	"strconv"
 	"strings"
@@ -297,9 +298,7 @@ func flattenMap(prefix string, m map[string]any) map[string]any {
 
 		if nestedMap, ok := v.(map[string]any); ok {
 			// Recursively flatten nested maps
-			for fk, fv := range flattenMap(key, nestedMap) {
-				result[fk] = fv
-			}
+			maps.Copy(result, flattenMap(key, nestedMap))
 		} else {
 			result[key] = v
 		}
@@ -412,11 +411,23 @@ func (l *loader) validateCustom(config *Config) error {
 		return fmt.Errorf("dispatcher stale threshold must be greater than heartbeat TTL")
 	}
 
-	// Validate Redis port if specified
+	// Validate all port configurations consistently
 	if config.Redis.Port != "" {
 		if err := validateTCPPort(config.Redis.Port, "Redis port"); err != nil {
 			return err
 		}
+	}
+
+	// Validate database port if specified
+	if config.Database.Port != "" {
+		if err := validateTCPPort(config.Database.Port, "Database port"); err != nil {
+			return err
+		}
+	}
+
+	// Validate Auth configuration
+	if config.Server.Auth.Enabled && config.Server.Auth.AdminKey == "" {
+		return fmt.Errorf("server.auth.admin_key is required when authentication is enabled")
 	}
 
 	return nil

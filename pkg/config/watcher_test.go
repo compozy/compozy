@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -50,8 +51,7 @@ func TestWatcher_Watch(t *testing.T) {
 		})
 
 		// Start watching
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx := t.Context()
 
 		err = watcher.Watch(ctx, tmpFile.Name())
 		require.NoError(t, err)
@@ -77,9 +77,9 @@ func TestWatcher_Watch(t *testing.T) {
 			t.Fatal("timeout waiting for callback")
 		}
 
-		// Check callback was invoked exactly once
+		// Check callback was invoked at least once (fsnotify can emit duplicates)
 		mu.Lock()
-		assert.Equal(t, 1, callbackCount)
+		assert.GreaterOrEqual(t, callbackCount, 1)
 		mu.Unlock()
 	})
 
@@ -101,7 +101,7 @@ func TestWatcher_Watch(t *testing.T) {
 		var wg sync.WaitGroup
 		wg.Add(3) // Expect 3 callbacks to be invoked
 
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			index := i // capture loop variable
 			watcher.OnChange(func() {
 				mu.Lock()
@@ -112,8 +112,7 @@ func TestWatcher_Watch(t *testing.T) {
 		}
 
 		// Start watching
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx := t.Context()
 
 		err = watcher.Watch(ctx, tmpFile.Name())
 		require.NoError(t, err)
@@ -160,11 +159,10 @@ func TestWatcher_Watch(t *testing.T) {
 		defer watcher.Close()
 
 		// Should handle absolute path
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx := t.Context()
 
 		err = watcher.Watch(ctx, tmpFile.Name())
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("Should stop watching on context cancellation", func(t *testing.T) {
@@ -179,10 +177,10 @@ func TestWatcher_Watch(t *testing.T) {
 		require.NoError(t, err)
 		defer watcher.Close()
 
-		// Track callbacks
-		callbackInvoked := false
+		// Track callbacks (avoid data races)
+		var callbackInvoked atomic.Bool
 		watcher.OnChange(func() {
-			callbackInvoked = true
+			callbackInvoked.Store(true)
 		})
 
 		// Start watching with cancellable context
@@ -194,18 +192,12 @@ func TestWatcher_Watch(t *testing.T) {
 		// Cancel context
 		cancel()
 
-		// Give watcher time to stop
-		time.Sleep(100 * time.Millisecond)
-
 		// Modify file after context canceled
 		err = os.WriteFile(tmpFile.Name(), []byte("test: value"), 0644)
 		require.NoError(t, err)
 
-		// Wait a bit
-		time.Sleep(200 * time.Millisecond)
-
-		// Callback should not be invoked
-		assert.False(t, callbackInvoked)
+		// Verify no callback is invoked post-cancel within a grace period
+		assert.Never(t, callbackInvoked.Load, 300*time.Millisecond, 10*time.Millisecond)
 	})
 }
 
@@ -230,8 +222,7 @@ func TestWatcher_Close(t *testing.T) {
 		require.NoError(t, err)
 
 		// Start watching
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx := t.Context()
 
 		err = watcher.Watch(ctx, tmpFile.Name())
 		require.NoError(t, err)

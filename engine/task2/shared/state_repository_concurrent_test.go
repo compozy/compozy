@@ -171,7 +171,7 @@ func TestDefaultStateRepository_ConcurrentAccess(t *testing.T) {
 		numReaders := 10
 		wg.Add(numReaders)
 
-		for i := 0; i < numReaders; i++ {
+		for range numReaders {
 			go func() {
 				defer wg.Done()
 				state, err := repo.GetParentState(ctx, parentID)
@@ -197,7 +197,7 @@ func TestDefaultStateRepository_ConcurrentAccess(t *testing.T) {
 
 		// Create states for concurrent access
 		states := make([]*task.State, numWriters)
-		for i := 0; i < numWriters; i++ {
+		for i := range numWriters {
 			id, _ := core.NewID()
 			states[i] = &task.State{
 				TaskExecID: id,
@@ -208,7 +208,7 @@ func TestDefaultStateRepository_ConcurrentAccess(t *testing.T) {
 		}
 
 		// Launch multiple goroutines to write to cache concurrently
-		for i := 0; i < numWriters; i++ {
+		for i := range numWriters {
 			go func(index int) {
 				defer wg.Done()
 				_, err := repo.GetParentState(ctx, states[index].TaskExecID)
@@ -238,7 +238,7 @@ func TestDefaultStateRepository_ConcurrentAccess(t *testing.T) {
 		numOperations := 20
 
 		// Mix of readers and writers
-		for i := 0; i < numOperations; i++ {
+		for range numOperations {
 			wg.Add(1)
 			// All operations are effectively the same - GetParentState reads from cache if present,
 			// or fetches from repository and caches the result
@@ -263,7 +263,7 @@ func TestDefaultStateRepository_ConcurrentAccess(t *testing.T) {
 		numValidations := 10
 
 		wg.Add(numValidations)
-		for i := 0; i < numValidations; i++ {
+		for range numValidations {
 			go func() {
 				defer wg.Done()
 				// Test with invalid IDs that should fail validation
@@ -286,7 +286,7 @@ func TestDefaultStateRepository_ConcurrentAccess(t *testing.T) {
 		states := make([]*task.State, numStates)
 
 		// Create states and add to stub
-		for i := 0; i < numStates; i++ {
+		for i := range numStates {
 			id, _ := core.NewID()
 			states[i] = &task.State{
 				TaskExecID: id,
@@ -300,7 +300,7 @@ func TestDefaultStateRepository_ConcurrentAccess(t *testing.T) {
 		wg.Add(numStates)
 
 		// Concurrently add all states to cache
-		for i := 0; i < numStates; i++ {
+		for i := range numStates {
 			go func(index int) {
 				defer wg.Done()
 				_, err := repo.GetParentState(ctx, states[index].TaskExecID)

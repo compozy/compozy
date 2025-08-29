@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -271,10 +272,8 @@ func ValidateEnum(value string, allowed []string, fieldName string) error {
 		return nil // Allow empty values, use ValidateRequired separately if needed
 	}
 
-	for _, allowedValue := range allowed {
-		if value == allowedValue {
-			return nil
-		}
+	if slices.Contains(allowed, value) {
+		return nil
 	}
 
 	return NewCliError("INVALID_ENUM",

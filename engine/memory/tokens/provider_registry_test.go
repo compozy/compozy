@@ -237,7 +237,7 @@ func TestProviderRegistry_ThreadSafety(t *testing.T) {
 		// Run multiple goroutines concurrently
 		done := make(chan bool, 20)
 		// Readers
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			go func(_ int) {
 				providers := registry.List()
 				assert.True(t, len(providers) > 0)
@@ -255,7 +255,7 @@ func TestProviderRegistry_ThreadSafety(t *testing.T) {
 			}(i)
 		}
 		// Writers
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			go func(i int) {
 				config := &ProviderConfig{
 					Provider: "TestProvider",
@@ -274,7 +274,7 @@ func TestProviderRegistry_ThreadSafety(t *testing.T) {
 			}(i)
 		}
 		// Wait for all goroutines to complete
-		for i := 0; i < 20; i++ {
+		for range 20 {
 			<-done
 		}
 	})

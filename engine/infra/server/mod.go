@@ -144,14 +144,16 @@ func (s *Server) buildRouter(state *appstate.State) error {
 	r := gin.New()
 	r.Use(gin.Recovery())
 
+	// Get config first
+	cfg := config.Get()
+
 	// Setup auth middleware first (before rate limiting)
 	authRepo := state.Store.NewAuthRepo()
 	authFactory := authuc.NewFactory(authRepo)
-	authManager := authmw.NewManager(authFactory)
+	authManager := authmw.NewManager(authFactory, cfg)
 	r.Use(authManager.Middleware())
 
 	// Setup rate limiting
-	cfg := config.Get()
 	if cfg.RateLimit.GlobalRate.Limit > 0 {
 		log := logger.FromContext(s.ctx)
 		rateLimitConfig := convertRateLimitConfig(cfg)

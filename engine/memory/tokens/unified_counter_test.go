@@ -232,7 +232,7 @@ func TestUnifiedTokenCounter_ThreadSafety(t *testing.T) {
 		// Run multiple goroutines concurrently
 		ctx := context.Background()
 		done := make(chan bool, 10)
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			go func(i int) {
 				// Test reading
 				config := counter.GetProviderConfig()
@@ -263,7 +263,7 @@ func TestUnifiedTokenCounter_ThreadSafety(t *testing.T) {
 			}(i)
 		}
 		// Wait for all goroutines to complete
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			<-done
 		}
 	})

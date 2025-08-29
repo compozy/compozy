@@ -1,6 +1,7 @@
 package shared_test
 
 import (
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -243,10 +244,10 @@ func TestRegressionPrevention(t *testing.T) {
 		}
 
 		// Create multiple children
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			childTask := &task.Config{
 				BaseConfig: task.BaseConfig{
-					ID:   "child-" + string(rune(i)),
+					ID:   "child-" + strconv.Itoa(i),
 					Type: task.TaskTypeBasic,
 				},
 			}
@@ -335,7 +336,7 @@ func BenchmarkInheritance(b *testing.B) {
 	}
 
 	b.Run("Single inheritance", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			childTask := &task.Config{
 				BaseConfig: task.BaseConfig{
 					ID:   "bench-child",
@@ -347,7 +348,7 @@ func BenchmarkInheritance(b *testing.B) {
 	})
 
 	b.Run("Chain inheritance depth 3", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			level1 := &task.Config{BaseConfig: task.BaseConfig{ID: "l1", Type: task.TaskTypeParallel}}
 			level2 := &task.Config{BaseConfig: task.BaseConfig{ID: "l2", Type: task.TaskTypeComposite}}
 			level3 := &task.Config{BaseConfig: task.BaseConfig{ID: "l3", Type: task.TaskTypeBasic}}

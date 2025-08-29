@@ -16,6 +16,43 @@ import (
 // Default redaction string
 const DefaultRedactionString = "[REDACTED]"
 
+// normalizeMetaKey normalizes a metadata key by lowercasing and removing non-alphanumeric characters
+func normalizeMetaKey(k string) string {
+	lower := strings.ToLower(k)
+	b := strings.Builder{}
+	for i := 0; i < len(lower); i++ {
+		c := lower[i]
+		if (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') {
+			b.WriteByte(c)
+		}
+	}
+	return b.String()
+}
+
+// isSensitiveMetaKey checks if a normalized key contains sensitive information
+func isSensitiveMetaKey(k string) bool {
+	// Check exact matches first (most common cases)
+	switch k {
+	case "content", "raw", "message", "body", "payload",
+		"password", "pass", "passwd", "pwd",
+		"token", "accesstoken", "refreshtoken",
+		"secret", "clientsecret",
+		"apikey", "xapikey",
+		"authorization", "bearer", "auth", "credential", "credentials",
+		"cookie", "cookies", "setcookie", "session", "sessionid",
+		"privatekey", "sshkey", "ssn":
+		return true
+	}
+	// Check if key contains sensitive patterns
+	if strings.Contains(k, "apikey") || strings.Contains(k, "token") ||
+		strings.Contains(k, "authorization") || strings.Contains(k, "secret") ||
+		strings.Contains(k, "privatekey") || strings.Contains(k, "sshkey") ||
+		strings.Contains(k, "password") || strings.Contains(k, "credential") {
+		return true
+	}
+	return false
+}
+
 // Manager handles privacy controls and data protection
 type Manager struct {
 	policies             map[string]*memcore.PrivacyPolicyConfig
@@ -336,8 +373,20 @@ func (pm *Manager) LogPrivacyExclusion(
 		"resource_id": resourceID,
 		"reason":      reason,
 	}
-	// Merge metadata
+	// Safely merge metadata with sensitive data filtering
 	for k, v := range metadata {
+		// Filter out potentially sensitive keys (normalized)
+		normalized := normalizeMetaKey(k)
+		if isSensitiveMetaKey(normalized) {
+			logData["meta."+k] = DefaultRedactionString
+			continue
+		}
+		// Prevent overriding reserved fields by prefixing
+		if _, reserved := logData[k]; reserved {
+			logData["meta."+k] = v
+			continue
+		}
+		// Add non-sensitive, non-reserved metadata
 		logData[k] = v
 	}
 	log.Info("Privacy exclusion applied", logData)

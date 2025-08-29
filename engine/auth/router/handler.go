@@ -87,7 +87,7 @@ func (h *Handler) getUserIDFromContext(c *gin.Context) (core.ID, bool) {
 func (h *Handler) GenerateKey(c *gin.Context) {
 	ctx := c.Request.Context()
 	log := logger.FromContext(ctx)
-	// Get user ID from context (set by auth middleware)
+	// Regular API key generation flow
 	userID, ok := h.getUserIDFromContext(c)
 	if !ok {
 		return // Error response already sent by helper
@@ -104,7 +104,7 @@ func (h *Handler) GenerateKey(c *gin.Context) {
 		"data": gin.H{
 			"api_key": apiKey,
 		},
-		"message": "API key generated successfully. Please save it securely as it cannot be retrieved again.",
+		"message": "Success",
 	})
 }
 

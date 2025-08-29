@@ -159,7 +159,7 @@ func TestLRUEvictionPolicy_ConcurrentAccess(t *testing.T) {
 	t.Run("Should handle concurrent access updates safely", func(t *testing.T) {
 		policy := NewLRUEvictionPolicy()
 		messages := make([]llm.Message, 100)
-		for i := 0; i < 100; i++ {
+		for i := range 100 {
 			messages[i] = llm.Message{
 				Role:    llm.MessageRoleUser,
 				Content: string(rune('A' + (i % 26))),
@@ -169,7 +169,7 @@ func TestLRUEvictionPolicy_ConcurrentAccess(t *testing.T) {
 		done := make(chan bool, 3)
 		// Goroutine 1: Update first 50 messages
 		go func() {
-			for i := 0; i < 50; i++ {
+			for i := range 50 {
 				policy.UpdateAccess(messages[i])
 			}
 			done <- true
@@ -183,13 +183,13 @@ func TestLRUEvictionPolicy_ConcurrentAccess(t *testing.T) {
 		}()
 		// Goroutine 3: Perform evictions
 		go func() {
-			for i := 0; i < 10; i++ {
+			for range 10 {
 				policy.SelectMessagesToEvict(messages, 50)
 			}
 			done <- true
 		}()
 		// Wait for all goroutines
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			<-done
 		}
 		// Should complete without panic

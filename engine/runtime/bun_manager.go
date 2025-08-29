@@ -439,7 +439,7 @@ func (bm *BunManager) readStderrInBackground(
 			n, err := stderr.Read(buf)
 			if n > 0 {
 				// Process the bytes we just read
-				for i := 0; i < n; i++ {
+				for i := range n {
 					b := buf[i]
 					lineBuf.WriteByte(b)
 					// When we hit a newline, process the complete line

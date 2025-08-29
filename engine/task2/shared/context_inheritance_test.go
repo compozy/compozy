@@ -380,7 +380,7 @@ func TestInheritTaskConfig_ConcurrentSafety(t *testing.T) {
 		// Create multiple child tasks
 		numChildren := 10
 		childTasks := make([]*task.Config, numChildren)
-		for i := 0; i < numChildren; i++ {
+		for i := range numChildren {
 			childTasks[i] = &task.Config{
 				BaseConfig: task.BaseConfig{
 					ID:   fmt.Sprintf("child-task-%d", i),
@@ -391,15 +391,15 @@ func TestInheritTaskConfig_ConcurrentSafety(t *testing.T) {
 
 		// Apply inheritance concurrently
 		done := make(chan bool, numChildren)
-		for i := 0; i < numChildren; i++ {
+		for _, child := range childTasks {
 			go func(childTask *task.Config) {
 				defer func() { done <- true }()
 				shared.InheritTaskConfig(childTask, parentTask)
-			}(childTasks[i])
+			}(child)
 		}
 
 		// Wait for all goroutines to complete
-		for i := 0; i < numChildren; i++ {
+		for range numChildren {
 			<-done
 		}
 

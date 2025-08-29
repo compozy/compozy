@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/engine/auth/uc"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -275,6 +276,46 @@ func (r *AuthRepo) DeleteAPIKey(ctx context.Context, id core.ID) error {
 	_, err := r.db.Exec(ctx, "DELETE FROM api_keys WHERE id = $1", id)
 	if err != nil {
 		return fmt.Errorf("failed to delete API key: %w", err)
+	}
+	return nil
+}
+
+// CreateInitialAdminIfNone atomically creates the initial admin user if no admin exists.
+// Uses atomic INSERT...WHERE NOT EXISTS to prevent race conditions.
+// Returns ErrAlreadyBootstrapped if an admin user already exists.
+func (r *AuthRepo) CreateInitialAdminIfNone(ctx context.Context, user *model.User) error {
+	// Enforce admin role to prevent system from being bootstrapped without an admin
+	user.Role = model.RoleAdmin
+	// Ensure CreatedAt is set
+	if user.CreatedAt.IsZero() {
+		user.CreatedAt = time.Now().UTC()
+	}
+	// Use atomic INSERT...WHERE NOT EXISTS to prevent race conditions
+	// This eliminates the check-then-act pattern that could allow concurrent duplicates
+	query := `
+		INSERT INTO users (id, email, role, created_at)
+		SELECT $1, $2, $3, $4
+		WHERE NOT EXISTS (SELECT 1 FROM users WHERE role = $5)
+	`
+	tag, err := r.db.Exec(ctx, query, user.ID, user.Email, user.Role, user.CreatedAt, model.RoleAdmin)
+	if err != nil {
+		// Handle unique constraint violation (concurrent bootstrap attempts)
+		if pgErr, ok := err.(*pgconn.PgError); ok && pgErr.Code == "23505" {
+			return core.NewError(
+				fmt.Errorf("system already bootstrapped"),
+				"ALREADY_BOOTSTRAPPED",
+				nil,
+			)
+		}
+		return fmt.Errorf("creating initial admin user: %w", err)
+	}
+	// If no rows were affected, an admin already exists
+	if tag.RowsAffected() == 0 {
+		return core.NewError(
+			fmt.Errorf("system already bootstrapped"),
+			"ALREADY_BOOTSTRAPPED",
+			nil,
+		)
 	}
 	return nil
 }

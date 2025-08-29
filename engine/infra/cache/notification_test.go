@@ -176,7 +176,7 @@ func TestRedisNotificationSystem_SubscribePattern(t *testing.T) {
 		receivedChannels := make(map[string]bool)
 		timeout := time.After(time.Second)
 
-		for i := 0; i < 2; i++ { // Expect 2 messages from matching channels
+		for range 2 { // Expect 2 messages from matching channels
 			select {
 			case msg := <-msgChan:
 				receivedChannels[msg.Channel] = true

@@ -543,7 +543,7 @@ func TestMemoryInstance_Close_RaceCondition(t *testing.T) {
 		var wg sync.WaitGroup
 		errors := make([]error, 5)
 
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			wg.Add(1)
 			go func(idx int) {
 				defer wg.Done()

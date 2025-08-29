@@ -69,7 +69,7 @@ func (uc *ValidateAPIKey) Execute(ctx context.Context) (*model.User, error) {
 	user, err := uc.repo.GetUserByID(ctx, apiKey.UserID)
 	if err != nil {
 		log.Error("Failed to get user for valid API key", "error", err, "user_id", apiKey.UserID)
-		return nil, fmt.Errorf("failed to get user")
+		return nil, fmt.Errorf("failed to get user for API key: %w", err)
 	}
 
 	// Update last used timestamp (fire and forget with resource limiting)

@@ -222,7 +222,7 @@ func TestRedisLockManager_ConcurrentAccess(t *testing.T) {
 
 		wg.Add(numGoroutines)
 
-		for i := 0; i < numGoroutines; i++ {
+		for range numGoroutines {
 			go func() {
 				defer wg.Done()
 				lock, err := manager.Acquire(ctx, resource, ttl)
@@ -342,8 +342,7 @@ func BenchmarkRedisLockManager_Acquire(b *testing.B) {
 	ctx := context.Background()
 	ttl := time.Second * 10
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for i := 0; b.Loop(); i++ {
 		resource := fmt.Sprintf("bench-resource-%d", i)
 		lock, err := manager.Acquire(ctx, resource, ttl)
 		if err != nil {

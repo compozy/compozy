@@ -196,7 +196,7 @@ func TestConfigRegistrySimple_Concurrency(t *testing.T) {
 		var wg sync.WaitGroup
 		errCh := make(chan error, 10)
 		// Spawn 10 goroutines to register configs concurrently
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			wg.Add(1)
 			go func(id int) {
 				defer wg.Done()

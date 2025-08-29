@@ -3,6 +3,7 @@ package router
 import (
 	"github.com/compozy/compozy/engine/auth/uc"
 	authmw "github.com/compozy/compozy/engine/infra/server/middleware/auth"
+	"github.com/compozy/compozy/pkg/config"
 	"github.com/gin-gonic/gin"
 	"go.opentelemetry.io/otel/metric"
 )
@@ -15,7 +16,8 @@ func RegisterRoutes(apiBase *gin.RouterGroup, factory *uc.Factory) {
 // RegisterRoutesWithMetrics registers all auth routes with metrics instrumentation
 func RegisterRoutesWithMetrics(apiBase *gin.RouterGroup, factory *uc.Factory, meter metric.Meter) {
 	handler := NewHandler(factory)
-	authManager := authmw.NewManager(factory)
+	cfg := config.Get()
+	authManager := authmw.NewManager(factory, cfg)
 
 	// Add metrics instrumentation if meter is provided
 	if meter != nil {

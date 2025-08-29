@@ -240,7 +240,7 @@ func TestPolicyFactory_ConcurrentAccess(t *testing.T) {
 		done := make(chan bool, 4)
 		// Goroutine 1: Register policies
 		go func() {
-			for i := 0; i < 50; i++ {
+			for i := range 50 {
 				factory.Register(
 					"concurrent"+string(rune('A'+i)),
 					func() instance.EvictionPolicy {
@@ -252,7 +252,7 @@ func TestPolicyFactory_ConcurrentAccess(t *testing.T) {
 		}()
 		// Goroutine 2: Create policies
 		go func() {
-			for i := 0; i < 100; i++ {
+			for range 100 {
 				factory.Create("fifo")
 				factory.Create("lru")
 				factory.Create("priority")
@@ -261,21 +261,21 @@ func TestPolicyFactory_ConcurrentAccess(t *testing.T) {
 		}()
 		// Goroutine 3: List available
 		go func() {
-			for i := 0; i < 50; i++ {
+			for range 50 {
 				factory.ListAvailable()
 			}
 			done <- true
 		}()
 		// Goroutine 4: Check support
 		go func() {
-			for i := 0; i < 100; i++ {
+			for range 100 {
 				factory.IsSupported("fifo")
 				factory.IsSupported("unknown")
 			}
 			done <- true
 		}()
 		// Wait for all goroutines
-		for i := 0; i < 4; i++ {
+		for range 4 {
 			<-done
 		}
 		// Should complete without panic

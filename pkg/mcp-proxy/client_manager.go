@@ -3,6 +3,7 @@ package mcpproxy
 import (
 	"context"
 	"fmt"
+	"maps"
 	"sync"
 	"time"
 
@@ -91,7 +92,7 @@ func (m *MCPClientManager) Start(ctx context.Context) error {
 	// This improves startup time when multiple MCP servers need to be connected
 	g, groupCtx := errgroup.WithContext(ctx)
 	for _, def := range definitions {
-		def := def // capture loop variable for closure
+		// capture loop variable for closure
 		g.Go(func() error {
 			if err := m.AddClient(groupCtx, def); err != nil {
 				log.Error("Failed to add client during startup", "name", def.Name, "error", err)
@@ -125,9 +126,7 @@ func (m *MCPClientManager) Stop(ctx context.Context) error {
 	// Disconnect all clients concurrently using errgroup
 	m.mu.Lock()
 	clients := make(map[string]*MCPClient)
-	for name, client := range m.clients {
-		clients[name] = client
-	}
+	maps.Copy(clients, m.clients)
 	m.mu.Unlock()
 
 	// Use errgroup for concurrent disconnection
@@ -250,9 +249,7 @@ func (m *MCPClientManager) ListClientStatuses(ctx context.Context) map[string]*M
 	log := logger.FromContext(ctx)
 	m.mu.RLock()
 	clients := make(map[string]*MCPClient)
-	for name, client := range m.clients {
-		clients[name] = client
-	}
+	maps.Copy(clients, m.clients)
 	m.mu.RUnlock()
 
 	if len(clients) == 0 {
@@ -370,10 +367,9 @@ func (m *MCPClientManager) connectClient(ctx context.Context, client *MCPClient)
 		// Don't sleep after last attempt
 		if attempt < maxRetries {
 			// Exponential backoff with jitter to prevent thundering herd
-			backoffDelay := time.Duration(float64(reconnectDelay) * (1.5*float64(attempt) + 1))
-			if backoffDelay > MaxBackoffDelay {
-				backoffDelay = MaxBackoffDelay // Cap at 60 seconds
-			}
+			backoffDelay := min(time.Duration(float64(reconnectDelay)*(1.5*float64(attempt)+1)),
+				// Cap at 60 seconds
+				MaxBackoffDelay)
 
 			select {
 			case <-time.After(backoffDelay):
@@ -414,9 +410,7 @@ func (m *MCPClientManager) performHealthChecks() {
 	// Get client list outside of individual health checks to avoid long lock
 	m.mu.RLock()
 	clientsCopy := make(map[string]*MCPClient)
-	for name, client := range m.clients {
-		clientsCopy[name] = client
-	}
+	maps.Copy(clientsCopy, m.clients)
 	m.mu.RUnlock()
 
 	// Filter clients that need health checks

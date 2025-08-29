@@ -141,7 +141,7 @@ func TestResilientManager_ApplyPrivacyControls(t *testing.T) {
 		}
 		metadata := memcore.PrivacyMetadata{}
 		// Make enough requests to open the circuit
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			_, _, _ = rm.ApplyPrivacyControls(ctx, msg, "resource-1", metadata)
 		}
 		// Circuit should be open now
@@ -342,7 +342,7 @@ func TestResilientManager_ConcurrentRequests(t *testing.T) {
 		var wg sync.WaitGroup
 		wg.Add(concurrency)
 		errors := make([]error, concurrency)
-		for i := 0; i < concurrency; i++ {
+		for i := range concurrency {
 			go func(idx int) {
 				defer wg.Done()
 				msg := llm.Message{
@@ -446,7 +446,7 @@ func TestResilientManager_CircuitBreakerIntegration(t *testing.T) {
 		msg := llm.Message{Role: llm.MessageRoleUser, Content: "test"}
 		metadata := memcore.PrivacyMetadata{}
 		// Make requests to trip the circuit
-		for i := 0; i < 6; i++ {
+		for range 6 {
 			_, _, _ = rm.ApplyPrivacyControls(ctx, msg, "resource-1", metadata)
 			time.Sleep(10 * time.Millisecond) // Small delay between requests
 		}
@@ -520,20 +520,20 @@ func TestResilientManager_PerformanceBaseline(t *testing.T) {
 		msg := llm.Message{Role: llm.MessageRoleUser, Content: strings.Repeat("test ", 100)}
 		metadata := memcore.PrivacyMetadata{}
 		// Warm up
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			_, _, _ = rm.ApplyPrivacyControls(ctx, msg, "resource-1", metadata)
 		}
 		// Measure baseline (direct manager)
 		baseManager := NewManager()
 		baseStart := time.Now()
 		iterations := 100
-		for i := 0; i < iterations; i++ {
+		for range iterations {
 			_, _, _ = baseManager.ApplyPrivacyControls(ctx, msg, "resource-1", metadata)
 		}
 		baseDuration := time.Since(baseStart)
 		// Measure with resilience
 		resilientStart := time.Now()
-		for i := 0; i < iterations; i++ {
+		for range iterations {
 			_, _, _ = rm.ApplyPrivacyControls(ctx, msg, "resource-1", metadata)
 		}
 		resilientDuration := time.Since(resilientStart)

@@ -29,11 +29,11 @@ func TestConcurrentMetricUpdates(t *testing.T) {
 		var wg sync.WaitGroup
 		wg.Add(numGoroutines)
 		// Start concurrent requests
-		for i := 0; i < numGoroutines; i++ {
+		for i := range numGoroutines {
 			go func(routineID int) {
 				defer wg.Done()
 				client := env.GetHTTPClient()
-				for j := 0; j < requestsPerGoroutine; j++ {
+				for j := range requestsPerGoroutine {
 					// Mix of different endpoints
 					paths := []string{
 						"/api/v1/health",
@@ -95,7 +95,7 @@ func TestConcurrentMetricUpdates(t *testing.T) {
 		env := SetupTestEnvironment(t)
 		defer env.Cleanup()
 		// Generate some initial metrics
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			if resp, err := env.MakeRequest("GET", "/api/v1/health"); err == nil {
 				resp.Body.Close()
 			}
@@ -107,12 +107,12 @@ func TestConcurrentMetricUpdates(t *testing.T) {
 		// Track successful reads
 		var successCount int64
 		// Start concurrent metrics reads
-		for i := 0; i < numReaders; i++ {
+		for range numReaders {
 			go func() {
 				defer wg.Done()
 				client := env.GetMetricsClient()
 				// Each reader makes multiple requests
-				for j := 0; j < 5; j++ {
+				for range 5 {
 					req, err := http.NewRequestWithContext(context.Background(), "GET", env.metricsURL, http.NoBody)
 					if err != nil {
 						continue
@@ -145,7 +145,7 @@ func TestConcurrentMetricUpdates(t *testing.T) {
 		// Make requests concurrently
 		var wg sync.WaitGroup
 		wg.Add(numRequests)
-		for i := 0; i < numRequests; i++ {
+		for range numRequests {
 			go func() {
 				defer wg.Done()
 				resp, err := env.MakeRequest("GET", testPath)
@@ -162,8 +162,8 @@ func TestConcurrentMetricUpdates(t *testing.T) {
 		metrics, err := env.GetMetrics()
 		require.NoError(t, err)
 		// Parse the specific counter value
-		lines := strings.Split(metrics, "\n")
-		for _, line := range lines {
+		lines := strings.SplitSeq(metrics, "\n")
+		for line := range lines {
 			if strings.Contains(line, "compozy_http_requests_total") &&
 				strings.Contains(line, `http_route="/api/v1/health"`) &&
 				strings.Contains(line, `http_status_code="200"`) {
@@ -208,10 +208,10 @@ func TestConcurrentMetricUpdates(t *testing.T) {
 		var wg sync.WaitGroup
 		numReaders := 10
 		wg.Add(numReaders)
-		for i := 0; i < numReaders; i++ {
+		for range numReaders {
 			go func() {
 				defer wg.Done()
-				for j := 0; j < 10; j++ {
+				for range 10 {
 					metrics, err := env.GetMetrics()
 					assert.NoError(t, err)
 					assert.NotEmpty(t, metrics)
