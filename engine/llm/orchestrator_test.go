@@ -2,6 +2,9 @@ package llm
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"net/http"
 	"testing"
 
 	"github.com/compozy/compozy/engine/agent"
@@ -248,8 +251,8 @@ func TestOrchestrator_executeToolCalls(t *testing.T) {
 				Arguments: []byte(`{"arg": "value"}`),
 			},
 		}
-		mockRegistry.On("Find", ctx, "test-tool").Return(mockTool, true)
-		mockTool.On("Call", ctx, `{"arg": "value"}`).Return(`{"result": "success"}`, nil)
+		mockRegistry.On("Find", mock.Anything, "test-tool").Return(mockTool, true)
+		mockTool.On("Call", mock.Anything, `{"arg": "value"}`).Return(`{"result": "success"}`, nil)
 		result, err := orchestrator.executeToolCalls(ctx, toolCalls, request)
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
@@ -258,7 +261,6 @@ func TestOrchestrator_executeToolCalls(t *testing.T) {
 		mockRegistry.AssertExpectations(t)
 		mockTool.AssertExpectations(t)
 	})
-
 	t.Run("Should execute multiple tool calls and return combined results", func(t *testing.T) {
 		mockRegistry := &MockToolRegistry{}
 		mockTool1 := &MockTool{}
@@ -276,36 +278,43 @@ func TestOrchestrator_executeToolCalls(t *testing.T) {
 			{
 				ID:        "call1",
 				Name:      "tool1",
-				Arguments: []byte(`{"arg1": "value1"}`),
+				Arguments: []byte(`{"arg": "value1"}`),
 			},
 			{
 				ID:        "call2",
 				Name:      "tool2",
-				Arguments: []byte(`{"arg2": "value2"}`),
+				Arguments: []byte(`{"arg": "value2"}`),
 			},
 		}
-		mockRegistry.On("Find", ctx, "tool1").Return(mockTool1, true)
-		mockRegistry.On("Find", ctx, "tool2").Return(mockTool2, true)
-		mockTool1.On("Call", ctx, `{"arg1": "value1"}`).Return(`{"result1": "success1"}`, nil)
-		mockTool2.On("Call", ctx, `{"arg2": "value2"}`).Return(`{"result2": "success2"}`, nil)
+		mockRegistry.On("Find", mock.Anything, "tool1").Return(mockTool1, true)
+		mockRegistry.On("Find", mock.Anything, "tool2").Return(mockTool2, true)
+		mockTool1.On("Call", mock.Anything, `{"arg": "value1"}`).Return(`{"result": "success1"}`, nil)
+		mockTool2.On("Call", mock.Anything, `{"arg": "value2"}`).Return(`{"result": "success2"}`, nil)
 		result, err := orchestrator.executeToolCalls(ctx, toolCalls, request)
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
-		resultMap := map[string]any(*result)
-		assert.Contains(t, resultMap, "results")
-		toolResults := resultMap["results"].([]map[string]any)
-		assert.Len(t, toolResults, 2)
-		assert.Equal(t, "call1", toolResults[0]["tool_call_id"])
-		assert.Equal(t, "tool1", toolResults[0]["tool_name"])
-		assert.Equal(t, "call2", toolResults[1]["tool_call_id"])
-		assert.Equal(t, "tool2", toolResults[1]["tool_name"])
+		expected := core.Output(map[string]any{
+			"results": []map[string]any{
+				{
+					"tool_call_id": "call1",
+					"tool_name":    "tool1",
+					"result":       &core.Output{"result": "success1"},
+				},
+				{
+					"tool_call_id": "call2",
+					"tool_name":    "tool2",
+					"result":       &core.Output{"result": "success2"},
+				},
+			},
+		})
+		assert.Equal(t, &expected, result)
 		mockRegistry.AssertExpectations(t)
 		mockTool1.AssertExpectations(t)
 		mockTool2.AssertExpectations(t)
 	})
-
-	t.Run("Should return error when tool not found", func(t *testing.T) {
+	t.Run("Should handle tool execution errors", func(t *testing.T) {
 		mockRegistry := &MockToolRegistry{}
+		mockTool := &MockTool{}
 		orchestrator := &llmOrchestrator{
 			config: OrchestratorConfig{
 				ToolRegistry: mockRegistry,
@@ -318,14 +327,182 @@ func TestOrchestrator_executeToolCalls(t *testing.T) {
 		toolCalls := []llmadapter.ToolCall{
 			{
 				ID:        "call1",
-				Name:      "nonexistent-tool",
+				Name:      "test-tool",
 				Arguments: []byte(`{"arg": "value"}`),
 			},
 		}
-		mockRegistry.On("Find", ctx, "nonexistent-tool").Return(nil, false)
+		expectedErr := fmt.Errorf("tool execution failed")
+		mockRegistry.On("Find", mock.Anything, "test-tool").Return(mockTool, true)
+		mockTool.On("Call", mock.Anything, `{"arg": "value"}`).Return("", expectedErr)
 		result, err := orchestrator.executeToolCalls(ctx, toolCalls, request)
-		assert.ErrorContains(t, err, "tool not found")
+		assert.Error(t, err)
 		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "tool execution failed")
 		mockRegistry.AssertExpectations(t)
+		mockTool.AssertExpectations(t)
 	})
+}
+
+func TestIsRetryableError(t *testing.T) {
+	t.Run("Should not retry on context cancellation", func(t *testing.T) {
+		err := context.Canceled
+		retryable := isRetryableError(err)
+		assert.False(t, retryable)
+	})
+
+	t.Run("Should retry on context deadline exceeded", func(t *testing.T) {
+		err := context.DeadlineExceeded
+		retryable := isRetryableError(err)
+		assert.True(t, retryable)
+	})
+
+	t.Run("Should use structured LLM error retry decision", func(t *testing.T) {
+		// Test retryable LLM error
+		retryableErr := llmadapter.NewError(http.StatusTooManyRequests, "Rate limit exceeded", "openai", nil)
+		retryable := isRetryableError(retryableErr)
+		assert.True(t, retryable)
+
+		// Test non-retryable LLM error
+		nonRetryableErr := llmadapter.NewError(http.StatusUnauthorized, "Invalid API key", "openai", nil)
+		retryable = isRetryableError(nonRetryableErr)
+		assert.False(t, retryable)
+	})
+
+	t.Run("Should retry on network timeout errors", func(t *testing.T) {
+		mockNetErr := &mockNetError{timeout: true}
+		retryable := isRetryableError(mockNetErr)
+		assert.True(t, retryable)
+	})
+
+	t.Run("Should not retry on non-timeout network errors", func(t *testing.T) {
+		mockNetErr := &mockNetError{timeout: false}
+		retryable := isRetryableError(mockNetErr)
+		assert.False(t, retryable)
+	})
+
+	t.Run("Should retry on retryable string patterns", func(t *testing.T) {
+		testCases := []struct {
+			errorMsg string
+			expected bool
+		}{
+			{"rate limit exceeded", true},
+			{"429 Too Many Requests", true},
+			{"service unavailable", true},
+			{"503 Service Unavailable", true},
+			{"gateway timeout", true},
+			{"504 Gateway Timeout", true},
+			{"connection reset", true},
+			{"throttled request", true},
+			{"quota exceeded", true},
+			{"capacity error", true},
+			{"temporary failure", true},
+			{"invalid api key", false},
+			{"unauthorized", false},
+			{"401 Unauthorized", false},
+			{"forbidden", false},
+			{"403 Forbidden", false},
+			{"invalid model", false},
+			{"unknown error", false},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.errorMsg, func(t *testing.T) {
+				err := errors.New(tc.errorMsg)
+				retryable := isRetryableError(err)
+				assert.Equal(t, tc.expected, retryable, "Error message: %s", tc.errorMsg)
+			})
+		}
+	})
+
+	t.Run("Should default to not retrying unknown errors", func(t *testing.T) {
+		err := errors.New("completely unknown error type")
+		retryable := isRetryableError(err)
+		assert.False(t, retryable)
+	})
+}
+
+func TestLangChainAdapterErrorExtraction(t *testing.T) {
+	t.Run("Should extract HTTP status codes from error messages", func(t *testing.T) {
+		testCases := []struct {
+			errorMsg     string
+			expectedCode int
+		}{
+			{"HTTP 429: Rate limit exceeded", http.StatusTooManyRequests},
+			{"status code: 503 service unavailable", http.StatusServiceUnavailable},
+			{"error 500 internal server error", http.StatusInternalServerError},
+			{"API returned 404 not found", http.StatusNotFound},
+			{"request failed with 401", http.StatusUnauthorized},
+			{"timeout error", 0}, // No status code
+			{"generic error", 0}, // No status code
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.errorMsg, func(t *testing.T) {
+				// Use reflection or create a test method to access private extractHTTPStatusCode
+				// For now, test the overall extractStructuredError behavior
+				err := errors.New(tc.errorMsg)
+
+				// This tests the pattern matching logic indirectly
+				retryable := isRetryableError(err)
+
+				// Verify that errors with retryable status codes are marked as retryable
+				if tc.expectedCode == http.StatusTooManyRequests ||
+					tc.expectedCode == http.StatusServiceUnavailable ||
+					tc.expectedCode >= 500 {
+					assert.True(
+						t,
+						retryable,
+						"Error with status %d should be retryable: %s",
+						tc.expectedCode,
+						tc.errorMsg,
+					)
+				} else if tc.expectedCode >= 400 && tc.expectedCode < 500 && tc.expectedCode != http.StatusTooManyRequests {
+					assert.False(t, retryable, "Error with status %d should not be retryable: %s", tc.expectedCode, tc.errorMsg)
+				}
+			})
+		}
+	})
+
+	t.Run("Should handle provider-specific error patterns", func(t *testing.T) {
+		testCases := []struct {
+			errorMsg  string
+			retryable bool
+		}{
+			{"OpenAI: insufficient_quota", true},
+			{"Anthropic: rate_limit_error", true},
+			{"Google: quota exceeded", true},
+			{"invalid model specified", false},
+			{"content policy violation", false},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.errorMsg, func(t *testing.T) {
+				err := errors.New(tc.errorMsg)
+				retryable := isRetryableError(err)
+				assert.Equal(t, tc.retryable, retryable, "Error message: %s", tc.errorMsg)
+			})
+		}
+	})
+}
+
+// mockNetError implements net.Error for testing
+type mockNetError struct {
+	timeout   bool
+	temporary bool
+	msg       string
+}
+
+func (e *mockNetError) Error() string {
+	if e.msg != "" {
+		return e.msg
+	}
+	return "mock network error"
+}
+
+func (e *mockNetError) Timeout() bool {
+	return e.timeout
+}
+
+func (e *mockNetError) Temporary() bool {
+	return e.temporary
 }

@@ -11,8 +11,9 @@ import (
 
 // LangChainAdapter adapts langchaingo to our LLMClient interface
 type LangChainAdapter struct {
-	model    llms.Model
-	provider core.ProviderConfig
+	model       llms.Model
+	provider    core.ProviderConfig
+	errorParser *ErrorParser
 }
 
 // NewLangChainAdapter creates a new LangChain adapter
@@ -25,8 +26,9 @@ func NewLangChainAdapter(config *core.ProviderConfig) (*LangChainAdapter, error)
 		return nil, fmt.Errorf("failed to create LLM model: %w", err)
 	}
 	return &LangChainAdapter{
-		model:    model,
-		provider: *config,
+		model:       model,
+		provider:    *config,
+		errorParser: NewErrorParser(string(config.Provider)),
 	}, nil
 }
 
@@ -35,13 +37,16 @@ func (a *LangChainAdapter) GenerateContent(ctx context.Context, req *LLMRequest)
 	// Convert our request to langchain format
 	messages := a.convertMessages(req)
 	options := a.buildCallOptions(req)
-
 	// Call the underlying model
 	response, err := a.model.GenerateContent(ctx, messages, options...)
 	if err != nil {
+		// Try to extract structured error information before wrapping
+		if structuredErr := a.errorParser.ParseError(err); structuredErr != nil {
+			return nil, structuredErr
+		}
+		// Fallback to wrapping unknown errors
 		return nil, fmt.Errorf("langchain GenerateContent failed: %w", err)
 	}
-
 	// Convert response back to our format
 	return a.convertResponse(response)
 }

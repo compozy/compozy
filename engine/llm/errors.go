@@ -1,10 +1,16 @@
 package llm
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
+	"net"
 	"strings"
 
 	"github.com/compozy/compozy/engine/core"
+	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
+	"github.com/compozy/compozy/pkg/logger"
 )
 
 // Error codes for LLM operations
@@ -124,4 +130,87 @@ func WrapMCPError(err error, operation string) error {
 	return core.NewError(err, ErrCodeMCPConnection, map[string]any{
 		"operation": operation,
 	})
+}
+
+// isRetryableErrorWithContext determines if an error should trigger a retry with context-aware logging
+func isRetryableErrorWithContext(ctx context.Context, err error) bool {
+	log := logger.FromContext(ctx)
+
+	retryable := isRetryableError(err)
+
+	// Log retry decision with structured information
+	logFields := []any{
+		"error", err.Error(),
+		"retryable", retryable,
+		"error_type", fmt.Sprintf("%T", err),
+	}
+
+	// Add structured error information if available
+	if llmErr, ok := llmadapter.IsLLMError(err); ok {
+		logFields = append(logFields,
+			"llm_error_code", string(llmErr.Code),
+			"http_status", llmErr.HTTPStatus,
+			"provider", llmErr.Provider,
+		)
+	}
+
+	if retryable {
+		log.Debug("Error is retryable, will retry", logFields...)
+	} else {
+		log.Debug("Error is not retryable, will not retry", logFields...)
+	}
+
+	return retryable
+}
+
+// isRetryableError determines if an error should trigger a retry
+func isRetryableError(err error) bool {
+	// Don't retry on context cancellation (user-initiated)
+	if errors.Is(err, context.Canceled) {
+		return false
+	}
+	// Context deadline exceeded can be retried (timeout)
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	// Check for our structured LLM errors first
+	if llmErr, ok := llmadapter.IsLLMError(err); ok {
+		return llmErr.IsRetryable()
+	}
+	// Check for network errors - only use Timeout() as Temporary() is deprecated
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		// Retry on timeout errors
+		if netErr.Timeout() {
+			return true
+		}
+	}
+	// Fallback: Check for specific string patterns in error messages
+	// This is kept as a last resort for compatibility with providers that don't return structured errors
+	errMsg := strings.ToLower(err.Error())
+	// Common retryable patterns across LLM providers
+	retryablePatterns := []string{
+		"rate limit", "429", "service unavailable", "503",
+		"gateway timeout", "504", "connection reset",
+		"throttled", "quota exceeded", "capacity",
+		"temporary", "transient", "500", "insufficient_quota",
+		"rate_limit_error", // Still check for "temporary" in error messages
+	}
+	for _, pattern := range retryablePatterns {
+		if strings.Contains(errMsg, pattern) {
+			return true
+		}
+	}
+	// Non-retryable patterns
+	nonRetryablePatterns := []string{
+		"invalid api key", "unauthorized", "401",
+		"forbidden", "403", "invalid model",
+	}
+	for _, pattern := range nonRetryablePatterns {
+		if strings.Contains(errMsg, pattern) {
+			return false
+		}
+	}
+	// Default to not retrying unknown errors
+	return false
 }
