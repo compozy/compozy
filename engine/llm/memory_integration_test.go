@@ -173,7 +173,7 @@ func TestStoreResponseInMemory(t *testing.T) {
 		mockMemory.AssertNotCalled(t, "Append")
 	})
 
-	t.Run("Should handle append errors gracefully", func(t *testing.T) {
+	t.Run("Should return errors when append fails", func(t *testing.T) {
 		mockMemory1 := new(mockMemory)
 		mockMemory1.On("Append", ctx, mock.Anything).Return(assert.AnError)
 
@@ -194,8 +194,10 @@ func TestStoreResponseInMemory(t *testing.T) {
 			llmadapter.Message{Role: "user", Content: "Question"},
 		)
 
-		// Should not fail entirely
-		assert.NoError(t, err)
+		// Should now return an error when any memory fails
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "memory storage errors")
+		assert.Contains(t, err.Error(), "memory1")
 		mockMemory1.AssertExpectations(t)
 		mockMemory2.AssertExpectations(t)
 	})

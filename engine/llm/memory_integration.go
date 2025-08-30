@@ -2,6 +2,7 @@ package llm
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/compozy/compozy/engine/core"
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
@@ -64,6 +65,7 @@ func StoreResponseInMemory(
 	}
 
 	log := logger.FromContext(ctx)
+	var errors []error
 
 	// Store both user message and assistant response in each memory
 	for _, ref := range memoryRefs {
@@ -88,6 +90,7 @@ func StoreResponseInMemory(
 				"memory_id", ref.ID,
 				"error", err,
 			)
+			errors = append(errors, fmt.Errorf("failed to append user message to memory %s: %w", ref.ID, err))
 			continue
 		}
 
@@ -101,10 +104,16 @@ func StoreResponseInMemory(
 				"memory_id", ref.ID,
 				"error", err,
 			)
+			errors = append(errors, fmt.Errorf("failed to append assistant response to memory %s: %w", ref.ID, err))
 			continue
 		}
 
 		log.Debug("Messages stored in memory", "memory_id", ref.ID)
+	}
+
+	// Return combined errors if any occurred
+	if len(errors) > 0 {
+		return fmt.Errorf("memory storage errors: %v", errors)
 	}
 
 	return nil

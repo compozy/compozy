@@ -57,11 +57,13 @@ func NewService(ctx context.Context, runtime runtime.Runtime, agent *agent.Confi
 	promptBuilder := NewPromptBuilder()
 	// Create orchestrator
 	orchestratorConfig := OrchestratorConfig{
-		ToolRegistry:   toolRegistry,
-		PromptBuilder:  promptBuilder,
-		RuntimeManager: runtime,
-		LLMFactory:     config.LLMFactory,
-		MemoryProvider: config.MemoryProvider,
+		ToolRegistry:       toolRegistry,
+		PromptBuilder:      promptBuilder,
+		RuntimeManager:     runtime,
+		LLMFactory:         config.LLMFactory,
+		MemoryProvider:     config.MemoryProvider,
+		Timeout:            config.Timeout,
+		MaxConcurrentTools: config.MaxConcurrentTools,
 	}
 	llmOrchestrator := NewOrchestrator(&orchestratorConfig)
 	return &Service{
