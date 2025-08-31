@@ -34,6 +34,11 @@ func (m *mockMemory) Append(ctx context.Context, msg Message) error {
 	return args.Error(0)
 }
 
+func (m *mockMemory) AppendMany(ctx context.Context, msgs []Message) error {
+	args := m.Called(ctx, msgs)
+	return args.Error(0)
+}
+
 func (m *mockMemory) Read(ctx context.Context) ([]Message, error) {
 	args := m.Called(ctx)
 	if args.Get(0) == nil {
@@ -131,23 +136,25 @@ func TestStoreResponseInMemory(t *testing.T) {
 
 	t.Run("Should store messages in read-write memory", func(t *testing.T) {
 		mockMemory := new(mockMemory)
+		mockMemory.id = "memory1"
+
 		userMsg := Message{Role: MessageRoleUser, Content: "Question"}
 		assistantMsg := Message{Role: MessageRoleAssistant, Content: "Answer"}
-
-		mockMemory.On("Append", ctx, userMsg).Return(nil)
-		mockMemory.On("Append", ctx, assistantMsg).Return(nil)
+		expectedMsgs := []Message{userMsg, assistantMsg}
+		mockMemory.On("AppendMany", ctx, expectedMsgs).Return(nil)
 
 		memories := map[string]Memory{
 			"memory1": mockMemory,
 		}
+
 		memoryRefs := []core.MemoryReference{
 			{ID: "memory1", Mode: "read-write"},
 		}
 
-		err := StoreResponseInMemory(ctx, memories, memoryRefs,
-			llmadapter.Message{Role: "assistant", Content: "Answer"},
-			llmadapter.Message{Role: "user", Content: "Question"},
-		)
+		userMessage := llmadapter.Message{Role: "user", Content: "Question"}
+		assistantResponse := llmadapter.Message{Role: "assistant", Content: "Answer"}
+
+		err := StoreResponseInMemory(ctx, memories, memoryRefs, assistantResponse, userMessage)
 
 		assert.NoError(t, err)
 		mockMemory.AssertExpectations(t)
@@ -155,50 +162,155 @@ func TestStoreResponseInMemory(t *testing.T) {
 
 	t.Run("Should skip read-only memories", func(t *testing.T) {
 		mockMemory := new(mockMemory)
-		// Should not be called for read-only
+		mockMemory.id = "memory1"
+
+		// No expectations set since read-only memories should be skipped
 
 		memories := map[string]Memory{
 			"memory1": mockMemory,
 		}
+
 		memoryRefs := []core.MemoryReference{
 			{ID: "memory1", Mode: "read-only"},
 		}
 
-		err := StoreResponseInMemory(ctx, memories, memoryRefs,
-			llmadapter.Message{Role: "assistant", Content: "Answer"},
-			llmadapter.Message{Role: "user", Content: "Question"},
-		)
+		userMessage := llmadapter.Message{Role: "user", Content: "Question"}
+		assistantResponse := llmadapter.Message{Role: "assistant", Content: "Answer"}
+
+		err := StoreResponseInMemory(ctx, memories, memoryRefs, assistantResponse, userMessage)
 
 		assert.NoError(t, err)
-		mockMemory.AssertNotCalled(t, "Append")
+		// Should not have called AppendMany since it's read-only
+		mockMemory.AssertNotCalled(t, "AppendMany")
 	})
 
-	t.Run("Should return errors when append fails", func(t *testing.T) {
+	t.Run("Should handle storage errors", func(t *testing.T) {
 		mockMemory1 := new(mockMemory)
-		mockMemory1.On("Append", ctx, mock.Anything).Return(assert.AnError)
-
+		mockMemory1.id = "memory1"
 		mockMemory2 := new(mockMemory)
-		mockMemory2.On("Append", ctx, mock.Anything).Return(nil)
+		mockMemory2.id = "memory2"
+
+		// First memory fails
+		mockMemory1.On("AppendMany", ctx, mock.Anything).Return(assert.AnError)
+		// Second memory succeeds
+		mockMemory2.On("AppendMany", ctx, mock.Anything).Return(nil)
 
 		memories := map[string]Memory{
 			"memory1": mockMemory1,
 			"memory2": mockMemory2,
 		}
+
 		memoryRefs := []core.MemoryReference{
 			{ID: "memory1", Mode: "read-write"},
 			{ID: "memory2", Mode: "read-write"},
 		}
 
-		err := StoreResponseInMemory(ctx, memories, memoryRefs,
-			llmadapter.Message{Role: "assistant", Content: "Answer"},
-			llmadapter.Message{Role: "user", Content: "Question"},
-		)
+		userMessage := llmadapter.Message{Role: "user", Content: "Question"}
+		assistantResponse := llmadapter.Message{Role: "assistant", Content: "Answer"}
+
+		err := StoreResponseInMemory(ctx, memories, memoryRefs, assistantResponse, userMessage)
 
 		// Should now return an error when any memory fails
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "memory storage errors")
 		assert.Contains(t, err.Error(), "memory1")
+		// Verify control flow: exactly one atomic append attempted per memory
+		mockMemory1.AssertNumberOfCalls(t, "AppendMany", 1)
+		mockMemory2.AssertNumberOfCalls(t, "AppendMany", 1)
 		mockMemory1.AssertExpectations(t)
 		mockMemory2.AssertExpectations(t)
+	})
+}
+
+func TestStoreResponseInMemory_AtomicStorage(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("Should use AppendMany for atomic storage", func(t *testing.T) {
+		mockMemory := new(mockMemory)
+		mockMemory.id = "memory1"
+
+		// Mock AppendMany to succeed
+		userMsg := Message{Role: MessageRoleUser, Content: "Test question"}
+		assistantMsg := Message{Role: MessageRoleAssistant, Content: "Test response"}
+		expectedMsgs := []Message{userMsg, assistantMsg}
+		mockMemory.On("AppendMany", ctx, expectedMsgs).Return(nil)
+
+		memories := map[string]Memory{
+			"memory1": mockMemory,
+		}
+
+		memoryRefs := []core.MemoryReference{
+			{ID: "memory1", Mode: "read-write"},
+		}
+
+		userMessage := llmadapter.Message{Role: "user", Content: "Test question"}
+		assistantResponse := llmadapter.Message{Role: "assistant", Content: "Test response"}
+
+		err := StoreResponseInMemory(ctx, memories, memoryRefs, assistantResponse, userMessage)
+
+		assert.NoError(t, err)
+		mockMemory.AssertExpectations(t)
+		// Ensure AppendMany was called instead of individual Append calls
+		mockMemory.AssertNotCalled(t, "Append")
+	})
+
+	t.Run("Should handle AppendMany failure gracefully", func(t *testing.T) {
+		mockMemory := new(mockMemory)
+		mockMemory.id = "memory1"
+
+		// Mock AppendMany to fail
+		expectedError := assert.AnError
+		mockMemory.On("AppendMany", ctx, mock.Anything).Return(expectedError)
+
+		memories := map[string]Memory{
+			"memory1": mockMemory,
+		}
+
+		memoryRefs := []core.MemoryReference{
+			{ID: "memory1", Mode: "read-write"},
+		}
+
+		userMessage := llmadapter.Message{Role: "user", Content: "Test question"}
+		assistantResponse := llmadapter.Message{Role: "assistant", Content: "Test response"}
+
+		err := StoreResponseInMemory(ctx, memories, memoryRefs, assistantResponse, userMessage)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to append messages to memory memory1")
+		mockMemory.AssertExpectations(t)
+	})
+
+	t.Run("Should maintain atomicity - all messages stored together", func(t *testing.T) {
+		mockMemory1 := new(mockMemory)
+		mockMemory1.id = "memory1"
+		mockMemory2 := new(mockMemory)
+		mockMemory2.id = "memory2"
+
+		// First memory succeeds
+		mockMemory1.On("AppendMany", ctx, mock.Anything).Return(nil)
+		// Second memory fails
+		mockMemory2.On("AppendMany", ctx, mock.Anything).Return(assert.AnError)
+
+		memories := map[string]Memory{
+			"memory1": mockMemory1,
+			"memory2": mockMemory2,
+		}
+
+		memoryRefs := []core.MemoryReference{
+			{ID: "memory1", Mode: "read-write"},
+			{ID: "memory2", Mode: "read-write"},
+		}
+
+		userMessage := llmadapter.Message{Role: "user", Content: "Test question"}
+		assistantResponse := llmadapter.Message{Role: "assistant", Content: "Test response"}
+
+		err := StoreResponseInMemory(ctx, memories, memoryRefs, assistantResponse, userMessage)
+
+		assert.Error(t, err)
+		mockMemory1.AssertExpectations(t)
+		mockMemory2.AssertExpectations(t)
+		// Verify that both memories attempted atomic storage
+		mockMemory1.AssertCalled(t, "AppendMany", ctx, mock.Anything)
+		mockMemory2.AssertCalled(t, "AppendMany", ctx, mock.Anything)
 	})
 }

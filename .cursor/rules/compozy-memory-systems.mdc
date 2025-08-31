@@ -1,0 +1,499 @@
+# Compozy Rule — Memory Systems
+
+## 1. Overview
+
+Memory systems in Compozy provide persistent, stateful storage for AI agents and workflows. They enable:
+
+- **Conversational Memory**: Store user interactions and context across sessions
+- **Workflow State**: Persist data between task executions
+- **Agent Context**: Maintain agent knowledge across multiple invocations
+- **Multi-User Isolation**: Separate memory spaces per user/session
+- **Token Management**: Intelligent memory limits based on LLM context windows
+- **Privacy Controls**: Built-in data redaction and compliance features
+
+Use memory systems when you need to maintain state across workflow executions, enable conversational AI agents, or store user-specific data that persists beyond individual requests.
+
+## 2. Minimal Setup (validated)
+
+### Basic Memory Configuration
+
+```yaml
+# memory/user_conversation.yaml
+resource: memory
+id: user_conversation
+description: User conversation history and personal information
+version: 0.1.0
+
+# Dynamic key template using workflow input
+key: "user:{{.workflow.input.user_id}}"
+
+# Memory management strategy
+type: token_based
+max_tokens: 2000
+max_messages: 50
+
+# Persistence configuration (required)
+persistence:
+  type: redis
+  ttl: 168h  # 7 days
+```
+
+### Project Integration
+
+```yaml
+# compozy.yaml
+name: my-conversational-app
+version: 0.1.0
+description: Application with persistent memory
+
+# Auto-discover memory configurations
+autoload:
+  enabled: true
+  strict: true
+  include:
+    - "memory/*.yaml"
+  exclude:
+    - "**/*~"
+    - "**/*.bak"
+
+# Redis required for persistence
+# Configure via environment or docker-compose
+runtime:
+  type: bun
+  entrypoint: "./entrypoint.ts"
+  permissions:
+    - --allow-net
+    - --allow-read
+```
+
+## 3. Schema Alignment
+
+Based on `schemas/memory.json`:
+
+### Required Fields
+- **`resource`**: Must be `"memory"` for autoloader recognition
+- **`id`**: Unique identifier for memory reference
+- **`persistence`**: Persistence configuration with type and TTL
+
+### Memory Types (Enum Values)
+- **`"token_based"`**: Recommended for LLM contexts (supports context ratio)
+- **`"message_count_based"`**: Simple message count limits
+- **`"buffer"`**: Basic buffer without sophisticated eviction
+
+### Persistence Types
+- **`"redis"`**: Production-grade with distributed locking
+- **`"in_memory"`**: Development/testing only
+
+### Flushing Strategies
+- **`"simple_fifo"`**: Remove oldest messages (fastest, no LLM required)
+- **`"lru"`**: Remove least recently used messages
+- **`"hybrid_summary"`**: Summarize before removal (requires LLM)
+- **`"token_aware_lru"`**: LRU with token cost optimization
+
+## 4. Examples (from repo)
+
+### Token-Based Memory with Advanced Features
+
+Based on `examples/memory/memory/token_provider_example.yaml`:
+
+```yaml
+resource: memory
+id: advanced_memory
+description: Memory with multi-provider token counting
+version: 1.0.0
+
+key: "session:{{.session_id}}"
+
+# Token-based with dynamic sizing
+type: token_based
+max_context_ratio: 0.5  # Use 50% of model's context window
+max_messages: 100
+
+# Token allocation strategy
+token_allocation:
+  short_term: 0.6   # 60% for recent messages
+  long_term: 0.3    # 30% for summarized context
+  system: 0.1       # 10% for system prompts
+
+# Intelligent flushing strategy
+flushing:
+  type: hybrid_summary
+  summarize_threshold: 0.8
+  summary_tokens: 200
+  summarize_oldest_percent: 0.3
+
+# Multi-provider token counting
+token_provider:
+  provider: openai
+  model: gpt-4
+  api_key_env: OPENAI_API_KEY
+  fallback: tiktoken
+
+persistence:
+  type: redis
+  ttl: 24h
+  circuit_breaker:
+    enabled: true
+    timeout: "100ms"
+    max_failures: 3
+    reset_timeout: "30s"
+
+# Distributed locking for concurrent access
+locking:
+  append_ttl: "30s"
+  clear_ttl: "10s"
+  flush_ttl: "5m"
+```
+
+### Privacy-Aware Memory
+
+Based on `examples/memory/memory/privacy_example.yaml`:
+
+```yaml
+resource: memory
+id: customer_support_memory
+description: Customer support with privacy protection
+version: 1.0.0
+
+key: "support:{{.conversation_id}}"
+
+type: token_based
+max_tokens: 4000
+max_messages: 100
+
+# Privacy controls for sensitive data
+privacy_policy:
+  redact_patterns:
+    # Social Security Numbers
+    - '\b\d{3}-\d{2}-\d{4}\b'
+    # Credit card numbers
+    - '\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{3,6}\b'
+    # Email addresses
+    - '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+    # Phone numbers
+    - '\b(?:\+?1[-.\s]?)?\(?[2-9]\d{2}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b'
+    # Custom patterns
+    - '\baccount\s*#?\s*\d{6,12}\b'
+  
+  # Message types that shouldn't be persisted
+  non_persistable_message_types:
+    - system
+    - tool
+  
+  default_redaction_string: "[REDACTED]"
+
+flushing:
+  type: simple_fifo
+  summarize_threshold: 0.9
+
+persistence:
+  type: redis
+  ttl: 24h
+```
+
+## 5. Memory Operations in Workflows
+
+### Agent Memory References
+
+```yaml
+# agents/conversation_agent.yaml
+resource: agent
+id: conversation_agent
+description: Agent with persistent memory
+
+# Memory access configuration
+memory:
+  - id: user_conversation      # References memory/user_conversation.yaml
+    key: "user:{{.workflow.input.user_id}}"
+    mode: read-write          # read-only, read-write (default)
+
+# Agent accesses memory automatically in prompts
+instructions: |
+  You are a helpful assistant that remembers our conversations.
+  Use the conversation history to provide personalized responses.
+```
+
+### Direct Memory Tasks
+
+Based on `examples/memory/memory-task.yaml`:
+
+```yaml
+# Memory task operations (all supported operations)
+tasks:
+  # Read operation
+  - id: read_user_data
+    type: memory
+    operation: read
+    memory_ref: user_conversation
+    key_template: "user:{{.workflow.input.user_id}}:profile"
+    
+  # Write operation (overwrites existing)
+  - id: initialize_user
+    type: memory
+    operation: write
+    memory_ref: user_conversation
+    key_template: "user:{{.workflow.input.user_id}}:profile"
+    payload:
+      role: system
+      content: |
+        User Profile: {{.workflow.input.user_data.name}}
+        Created: {{now | date "2006-01-02 15:04:05"}}
+        
+  # Append operation (adds to existing)
+  - id: update_profile
+    type: memory
+    operation: append
+    memory_ref: user_conversation
+    key_template: "user:{{.workflow.input.user_id}}:profile"
+    payload:
+      role: user
+      content: "Profile updated at {{now}}"
+      
+  # Statistics operation
+  - id: get_stats
+    type: memory
+    operation: stats
+    memory_ref: user_conversation
+    key_template: "user:{{.workflow.input.user_id}}:*"
+    stats_config:
+      include_content: true
+      group_by: user
+      
+  # Health check operation
+  - id: health_check
+    type: memory
+    operation: health
+    memory_ref: user_conversation
+    key_template: "user:{{.workflow.input.user_id}}:profile"
+    health_config:
+      include_stats: true
+      check_connectivity: true
+      
+  # Flush operation (trigger cleanup)
+  - id: flush_memory
+    type: memory
+    operation: flush
+    memory_ref: user_conversation
+    key_template: "user:{{.workflow.input.user_id}}:profile"
+    flush_config:
+      strategy: hybrid_summary
+      dry_run: false
+      force: false
+      threshold: 0.8
+      
+  # Clear operation (remove all matching keys)
+  - id: cleanup_data
+    type: memory
+    operation: clear
+    memory_ref: user_conversation
+    key_template: "user:{{.workflow.input.user_id}}:*"
+    clear_config:
+      confirm: true
+      backup: true
+      
+  # Delete operation (remove specific key)
+  - id: delete_profile
+    type: memory
+    operation: delete
+    memory_ref: user_conversation
+    key_template: "user:{{.workflow.input.user_id}}:profile"
+```
+
+### Memory Task Configuration Options
+
+```yaml
+# Batch operations for performance
+batch_size: 100        # Process 100 keys per batch
+max_keys: 1000         # Safety limit for operations
+
+# Operation-specific configurations
+flush_config:
+  strategy: simple_fifo  # Override memory's default strategy
+  dry_run: true         # Test flush without executing
+  force: false          # Force flush even if below threshold
+  threshold: 0.8        # Custom threshold for this operation
+
+health_config:
+  include_stats: true    # Include usage statistics
+  check_connectivity: true  # Test Redis connectivity
+
+stats_config:
+  include_content: false  # Don't return message content
+  group_by: user         # Group statistics by user
+
+clear_config:
+  confirm: true          # Require confirmation for destructive ops
+  backup: true           # Create backup before clearing
+```
+
+## 6. Performance and Optimization
+
+### Token Counting Configuration
+
+```yaml
+# Real-time token counting for accuracy
+token_provider:
+  provider: openai
+  model: gpt-4
+  api_key_env: OPENAI_API_KEY
+  settings:
+    timeout: "30s"
+    
+# Alternative providers
+# provider: anthropic, google, cohere, deepseek
+# Falls back to tiktoken if API unavailable
+```
+
+### Memory Compression and Caching
+
+```yaml
+# Intelligent flushing for large memories
+flushing:
+  type: hybrid_summary
+  summarize_threshold: 0.8     # Trigger at 80% capacity
+  summary_tokens: 200          # Target summary length
+  summarize_oldest_percent: 0.3  # Summarize oldest 30%
+
+# Circuit breaker for resilience
+persistence:
+  circuit_breaker:
+    enabled: true
+    timeout: "100ms"
+    max_failures: 3
+    reset_timeout: "30s"
+```
+
+### Context Window Optimization
+
+```yaml
+# Dynamic sizing based on model capabilities
+type: token_based
+max_context_ratio: 0.5  # Use 50% of model's context window
+
+# Allocation strategy
+token_allocation:
+  short_term: 0.6   # Recent messages (highest priority)
+  long_term: 0.3    # Summarized context (medium priority)
+  system: 0.1       # System prompts (lowest priority)
+```
+
+## 7. Privacy and Security
+
+### Data Redaction Patterns
+
+```yaml
+privacy_policy:
+  redact_patterns:
+    # Financial data
+    - '\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{3,6}\b'  # Credit cards
+    - '\baccount\s*#?\s*\d{6,12}\b'                    # Account numbers
+    
+    # Personal identifiers
+    - '\b\d{3}-\d{2}-\d{4}\b'                          # SSN (US)
+    - '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'  # Email
+    - '\b(?:\+?1[-.\s]?)?\(?[2-9]\d{2}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b'  # Phone
+    
+    # Technical identifiers
+    - '\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b'  # UUID
+    - '\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b'  # IPv4
+    
+  # Custom redaction string
+  default_redaction_string: "[CONFIDENTIAL]"
+  
+  # Message types to exclude from persistence
+  non_persistable_message_types:
+    - system      # System messages
+    - tool        # Tool execution results
+    - debug       # Debug information
+```
+
+### Access Control and Locking
+
+```yaml
+# Distributed locking for concurrent access
+locking:
+  append_ttl: "30s"   # Lock timeout for append operations
+  clear_ttl: "10s"    # Lock timeout for clear operations
+  flush_ttl: "5m"     # Lock timeout for flush operations (longer)
+
+# Memory isolation via key templates
+key: "tenant:{{.tenant_id}}:user:{{.user_id}}"  # Multi-tenant isolation
+key: "env:{{.environment}}:session:{{.session_id}}"  # Environment separation
+```
+
+### Audit and Compliance
+
+```yaml
+# TTL for compliance with data retention policies
+persistence:
+  ttl: 24h        # GDPR: 24 hours for temporary data
+  ttl: 2160h      # 90 days for business records
+  ttl: 8760h      # 1 year for audit logs
+```
+
+## 8. Pitfalls & Gotchas
+
+### Common Configuration Mistakes
+
+- **Missing `resource: memory`**: Required for autoloader recognition
+- **Invalid TTL format**: Use duration strings like `"24h"`, `"30m"`, `"168h"`
+- **Token allocation not summing to 1.0**: `short_term + long_term + system = 1.0`
+- **Missing persistence configuration**: Required field, no defaults
+- **Regex escaping in privacy patterns**: Use `\\b` for word boundaries in YAML strings
+
+### Key Template Issues
+
+- **Static keys**: Don't use static keys like `"user_data"` - use templates for isolation
+- **Missing template variables**: Ensure workflow provides referenced input variables
+- **Special characters**: Redis keys should avoid spaces and special characters
+
+### Performance Considerations
+
+- **Large max_tokens**: High limits can cause memory pressure and slow operations
+- **Complex regex patterns**: Multiple privacy patterns can impact append performance
+- **Missing circuit breaker**: Can cause cascading failures in distributed systems
+- **Inefficient flushing**: `hybrid_summary` requires LLM calls, use `simple_fifo` for speed
+
+### Memory Operation Errors
+
+- **Clear without confirmation**: Destructive operations fail without proper configuration
+- **Stats on non-existent keys**: Returns empty results, not errors
+- **Concurrent access**: Use locking configuration for multi-agent scenarios
+- **Token provider API failures**: Ensure fallback strategies are configured
+
+## 9. Checklist
+
+- [ ] Memory configuration has `resource: memory` and unique `id`
+- [ ] Key template uses dynamic variables for proper isolation
+- [ ] Persistence configuration includes `type` and `ttl`
+- [ ] Token allocation percentages sum to 1.0 (for token_based)
+- [ ] Privacy patterns tested with sample sensitive data
+- [ ] Flushing strategy appropriate for use case (speed vs. context preservation)
+- [ ] Circuit breaker configured for production Redis usage
+- [ ] Locking timeouts appropriate for expected operation duration
+- [ ] TTL complies with data retention requirements
+- [ ] Memory operations include proper error handling in workflows
+
+## 10. Next Steps
+
+### Extend Memory Capabilities
+- Add custom flushing strategies in Go code
+- Implement custom privacy redaction patterns
+- Create memory analytics and monitoring dashboards
+
+### Integration Testing
+- Test concurrent access patterns with multiple agents
+- Validate memory performance under load
+- Test circuit breaker and failure recovery
+
+### Production Deployment
+- Configure Redis clustering for high availability
+- Set up monitoring and alerting for memory health
+- Implement backup and disaster recovery procedures
+
+### Advanced Patterns
+- Multi-tenant memory isolation strategies
+- Memory compression and archival for long-term storage
+- Custom token counting for domain-specific models
+
+Remember: Memory systems are stateful components that require careful planning for data lifecycle, privacy compliance, and performance characteristics in production environments.

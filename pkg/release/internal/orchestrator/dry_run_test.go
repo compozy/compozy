@@ -116,6 +116,13 @@ func TestDryRunOrchestrator_Execute(t *testing.T) {
 
 		goreleaserSvc.On("Run", mock.Anything, "release", "--snapshot", "--skip=publish", "--clean").Return(nil)
 
+		// Create mock metadata file that GoReleaser would generate
+		metadata := `{"version":"v1.1.0","artifacts":[{"type":"Archive","goos":"linux","goarch":"amd64"}]}`
+		err = fsRepo.MkdirAll("dist", 0755)
+		require.NoError(t, err)
+		err = afero.WriteFile(fsRepo, "dist/metadata.json", []byte(metadata), 0644)
+		require.NoError(t, err)
+
 		err = orch.Execute(ctx, DryRunConfig{CIOutput: false})
 		require.NoError(t, err)
 
@@ -237,6 +244,13 @@ func TestDryRunOrchestrator_Execute(t *testing.T) {
 		require.NoError(t, err)
 
 		goreleaserSvc.On("Run", mock.Anything, "release", "--snapshot", "--skip=publish", "--clean").Return(nil)
+
+		// Create mock metadata file that GoReleaser would generate
+		metadata := `{"version":"v1.2.3","artifacts":[{"type":"Archive","goos":"linux","goarch":"amd64"}]}`
+		err = fsRepo.MkdirAll("dist", 0755)
+		require.NoError(t, err)
+		err = afero.WriteFile(fsRepo, "dist/metadata.json", []byte(metadata), 0644)
+		require.NoError(t, err)
 
 		err = orch.Execute(ctx, DryRunConfig{CIOutput: false})
 		require.NoError(t, err)

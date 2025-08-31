@@ -17,6 +17,14 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// Default configuration constants
+const (
+	defaultMaxConcurrentTools = 10
+	defaultRetryAttempts      = 3
+	defaultRetryBackoffBase   = 100 * time.Millisecond
+	defaultRetryBackoffMax    = 10 * time.Second
+)
+
 // AsyncHook provides hooks for monitoring async operations
 type AsyncHook interface {
 	// OnMemoryStoreComplete is called when async memory storage completes
@@ -45,6 +53,11 @@ type OrchestratorConfig struct {
 	AsyncHook          AsyncHook      // Optional: hook for monitoring async operations
 	Timeout            time.Duration  // Optional: timeout for LLM operations
 	MaxConcurrentTools int            // Maximum concurrent tool executions
+	// Retry configuration
+	RetryAttempts    int           // Number of retry attempts for LLM operations
+	RetryBackoffBase time.Duration // Base delay for exponential backoff retry strategy
+	RetryBackoffMax  time.Duration // Maximum delay between retry attempts
+	RetryJitter      bool          // Enable random jitter in retry delays
 }
 
 // Implementation of LLMOrchestrator
@@ -55,10 +68,10 @@ type llmOrchestrator struct {
 
 // NewOrchestrator creates a new LLM orchestrator
 func NewOrchestrator(config *OrchestratorConfig) Orchestrator {
-	return &llmOrchestrator{
-		config:     *config,
-		memorySync: NewMemorySync(),
+	if config == nil {
+		config = &OrchestratorConfig{}
 	}
+	return &llmOrchestrator{config: *config, memorySync: NewMemorySync()}
 }
 
 // Execute processes an LLM request end-to-end
@@ -120,8 +133,35 @@ func (o *llmOrchestrator) generateLLMResponse(
 		defer cancel()
 	}
 	var response *llmadapter.LLMResponse
-	// Use exponential backoff with max 3 attempts
-	backoff := retry.WithMaxRetries(3, retry.NewExponential(100*time.Millisecond))
+	// Use configurable retry with exponential backoff
+	attempts := o.config.RetryAttempts
+	if attempts <= 0 {
+		attempts = defaultRetryAttempts
+	}
+	backoffBase := o.config.RetryBackoffBase
+	if backoffBase <= 0 {
+		backoffBase = defaultRetryBackoffBase
+	}
+	backoffMax := o.config.RetryBackoffMax
+	if backoffMax <= 0 {
+		backoffMax = defaultRetryBackoffMax
+	}
+
+	var backoff retry.Backoff
+	exponential := retry.NewExponential(backoffBase)
+	exponential = retry.WithMaxDuration(backoffMax, exponential)
+	// Validate attempts is positive and within reasonable bounds to prevent overflow
+	if attempts < 0 || attempts > 100 {
+		attempts = defaultRetryAttempts
+	}
+	// Safe conversion: attempts is validated to be in range [0, 100]
+	maxRetries := uint64(attempts) //nolint:gosec // G115: bounds checked above
+	if o.config.RetryJitter {
+		backoff = retry.WithMaxRetries(maxRetries, retry.WithJitter(time.Millisecond*50, exponential))
+	} else {
+		backoff = retry.WithMaxRetries(maxRetries, exponential)
+	}
+
 	err := retry.Do(ctx, backoff, func(ctx context.Context) error {
 		var err error
 		response, err = llmClient.GenerateContent(ctx, llmReq)
@@ -318,37 +358,29 @@ func (o *llmOrchestrator) storeResponseInMemoryAsync(
 		bgCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 		defer cancel()
 
-		// Acquire locks for all memories to prevent concurrent writes
-		var locks []*sync.Mutex
+		// Collect memory IDs for multi-lock synchronization
 		var memoryIDs []string
 		for _, memory := range memories {
 			if memory != nil {
-				lock := o.memorySync.GetLock(memory.GetID())
-				locks = append(locks, lock)
 				memoryIDs = append(memoryIDs, memory.GetID())
-				lock.Lock()
 			}
 		}
 
-		// Release locks when done
-		defer func() {
-			for i, lock := range locks {
-				lock.Unlock()
-				o.memorySync.ReleaseLock(memoryIDs[i])
+		// Use WithMultipleLocks for safe concurrent memory access
+		var err error
+		o.memorySync.WithMultipleLocks(memoryIDs, func() {
+			assistantMsg := llmadapter.Message{
+				Role:    "assistant",
+				Content: response.Content,
 			}
-		}()
-
-		assistantMsg := llmadapter.Message{
-			Role:    "assistant",
-			Content: response.Content,
-		}
-		err := StoreResponseInMemory(
-			bgCtx,
-			memories,
-			request.Agent.Memory,
-			assistantMsg,
-			messages[len(messages)-1],
-		)
+			err = StoreResponseInMemory(
+				bgCtx,
+				memories,
+				request.Agent.Memory,
+				assistantMsg,
+				messages[len(messages)-1],
+			)
+		})
 		if err != nil {
 			log.Error("Failed to store response in memory",
 				"error", err,
@@ -467,7 +499,7 @@ func (o *llmOrchestrator) executeToolCalls(
 	// Use parallel execution with semaphore for concurrency control
 	maxConcurrent := o.config.MaxConcurrentTools
 	if maxConcurrent <= 0 {
-		maxConcurrent = 10 // Default to 10 concurrent tools
+		maxConcurrent = defaultMaxConcurrentTools
 	}
 	// Create error group for parallel execution
 	g, ctx := errgroup.WithContext(ctx)

@@ -2,6 +2,7 @@ package llmadapter
 
 import (
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -42,50 +43,18 @@ func (p *ErrorParser) ParseError(err error) *Error {
 
 // extractHTTPStatusCode attempts to extract HTTP status codes from error messages
 func (p *ErrorParser) extractHTTPStatusCode(errMsg string) int {
-	// Common HTTP status code patterns in error messages
-	patterns := map[string]int{
-		"400": http.StatusBadRequest,
-		"401": http.StatusUnauthorized,
-		"403": http.StatusForbidden,
-		"404": http.StatusNotFound,
-		"429": http.StatusTooManyRequests,
-		"500": http.StatusInternalServerError,
-		"502": http.StatusBadGateway,
-		"503": http.StatusServiceUnavailable,
-		"504": http.StatusGatewayTimeout,
+	// Match "HTTP 503", "status code: 429", "error 500", "code 404", or standalone 3-digit tokens
+	pats := []string{
+		`(?i)\bhttp\s+(\d{3})\b`,
+		`(?i)\bstatus(?:\s+code)?:\s*(\d{3})\b`,
+		`(?i)\berror\s+(\d{3})\b`,
+		`(?i)\bcode\s+(\d{3})\b`,
+		`(?i)\b(\d{3})\b`,
 	}
-	for pattern, status := range patterns {
-		if strings.Contains(errMsg, pattern) {
-			return status
-		}
-	}
-	// Try to extract numeric status codes from common patterns
-	// e.g., "status code: 429", "HTTP 503", "error 500"
-	statusPatterns := []string{
-		"status code: ",
-		"status code ",
-		"http ",
-		"error ",
-		"code ",
-	}
-	for _, prefix := range statusPatterns {
-		if idx := strings.Index(errMsg, prefix); idx >= 0 {
-			start := idx + len(prefix)
-			if start < len(errMsg) {
-				// Extract next 3 digits
-				var numStr strings.Builder
-				for i := start; i < len(errMsg) && i < start+3; i++ {
-					if errMsg[i] >= '0' && errMsg[i] <= '9' {
-						numStr.WriteByte(errMsg[i])
-					} else {
-						break
-					}
-				}
-				if numStr.Len() == 3 {
-					if code, err := strconv.Atoi(numStr.String()); err == nil && code >= 100 && code < 600 {
-						return code
-					}
-				}
+	for _, ptn := range pats {
+		if m := regexp.MustCompile(ptn).FindStringSubmatch(errMsg); len(m) == 2 {
+			if code, err := strconv.Atoi(m[1]); err == nil && code >= 100 && code < 600 {
+				return code
 			}
 		}
 	}
@@ -115,10 +84,11 @@ func (p *ErrorParser) matchProviderPatterns(errMsgLower, errMsg string, original
 			return NewError(http.StatusServiceUnavailable, errMsg, p.provider, originalErr)
 		}
 	}
-	// Authorization patterns
+	// Authorization patterns (use specific phrases to avoid overmatching e.g., "author")
 	authPatterns := []string{
 		"unauthorized", "invalid api key", "invalid_api_key", "api key",
-		"authentication", "auth", "token", "credential",
+		"authentication failed", "invalid token", "expired token",
+		"invalid credentials", "forbidden", "permission denied",
 	}
 	for _, pattern := range authPatterns {
 		if strings.Contains(errMsgLower, pattern) {

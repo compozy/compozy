@@ -1,0 +1,296 @@
+# Compozy Rule — Authentication & Security Configuration
+
+## 1. Overview
+
+This rule documents how to configure authentication, authorization, and security settings in Compozy projects. End users need to understand API authentication, workflow security, runtime permissions, rate limiting, and data protection patterns to deploy secure Compozy applications.
+
+**When to use**: Configure security when deploying to production, handling sensitive data, managing multi-tenant environments, or implementing access controls.
+
+## 2. Minimal Setup (Validated)
+
+### Basic Security Configuration
+
+```yaml
+# compozy.yaml - Minimal secure setup
+name: secure-app
+version: "1.0.0"
+
+# Model configuration with secure API keys
+models:
+  - provider: openai
+    model: gpt-4
+    api_key: "{{ .env.OPENAI_API_KEY }}"  # Always use environment variables
+
+# Runtime permissions (restrictive by default)
+runtime:
+  type: bun
+  entrypoint: "./tools.ts"
+  permissions:
+    - --allow-read=/data          # Specific directory access
+    - --allow-net=api.trusted.com # Specific domain access
+    - --allow-env=API_KEY,DB_URL  # Specific environment variables
+```
+
+### Server Authentication Configuration
+
+```yaml
+# Global server config (separate config file)
+server:
+  auth:
+    enabled: true                    # Enable API authentication
+    workflow_exceptions:             # Public workflows (use sparingly)
+      - health-check
+      - public-status
+  cors:
+    allowed_origins:
+      - "https://yourdomain.com"
+    allow_credentials: true
+
+# Rate limiting protection
+ratelimit:
+  global_rate:
+    limit: 1000                      # 1000 requests
+    period: 3600                     # per hour (3600 seconds)
+  api_key_rate:
+    limit: 100                       # 100 requests per API key
+    period: 60                       # per minute
+```
+
+## 3. Schema Alignment
+
+**Referenced Schemas:**
+- `schemas/config-server.json#AuthConfig` - API authentication settings
+- `schemas/config-ratelimit.json#RateLimitConfig` - Rate limiting configuration
+- `schemas/runtime.json#permissions` - Runtime security permissions
+- `schemas/config.json#CLIConfig.APIKey` - CLI authentication
+
+**Required fields:**
+- `server.auth.enabled: boolean` (default: true)
+- `runtime.permissions: string[]` (security permissions array)
+
+**Enums and constraints:**
+- SSL modes: `disable`, `prefer`, `require`, `verify-ca`, `verify-full`
+- Runtime types: `bun`, `node`
+- Rate limit periods: duration in seconds (e.g., 60, 3600, 86400)
+
+## 4. Examples (From Repository)
+
+### API Authentication Patterns
+
+Based on `engine/auth/model/apikey.go` and rate limiting middleware:
+
+```yaml
+# CLI API key configuration
+cli:
+  api_key: "${COMPOZY_API_KEY}"      # Environment variable (required)
+  base_url: "https://api.compozy.com"
+  timeout: 30s
+
+# Server-side authentication
+server:
+  auth:
+    enabled: true
+    admin_key: "${COMPOZY_ADMIN_KEY}" # Admin operations (16+ chars)
+    workflow_exceptions:              # Public workflows bypass auth
+      - "public-health-check"
+      - "metrics-collector"
+```
+
+### Workflow Security Configuration
+
+Based on `engine/infra/server/middleware/auth/workflow.go`:
+
+```yaml
+# Workflow access control
+server:
+  auth:
+    enabled: true
+    workflow_exceptions:              # O(1) lookup for performance
+      - "public-workflow-id"          # Must match exact workflow ID
+      - "health-status"               # Health check endpoints
+      - "public-api"                  # Public API workflows
+
+# Individual workflow files remain unchanged - security is global
+```
+
+### Runtime Permissions (From Examples)
+
+Based on examples in `examples/*/compozy.yaml`:
+
+```yaml
+# Restrictive permissions (production recommended)
+runtime:
+  type: bun
+  permissions:
+    - --allow-read=/app/data          # Specific directory
+    - --allow-net=api.example.com     # Specific domain
+    - --allow-env=API_KEY,DB_URL      # Specific variables
+
+# Development permissions (examples/weather)
+runtime:
+  type: bun
+  permissions:
+    - --allow-read                    # All file access
+    - --allow-net                     # All network access
+
+# Full permissions (examples/code-reviewer)
+runtime:
+  type: bun  
+  permissions:
+    - --allow-read                    # File system access
+    - --allow-write                   # File modification
+    - --allow-net                     # Network requests
+    - --allow-env                     # Environment variables
+```
+
+### Rate Limiting Configuration
+
+Based on `schemas/config-ratelimit.json` and middleware implementation:
+
+```yaml
+# Production rate limiting
+ratelimit:
+  global_rate:
+    limit: 10000                      # Total system limit
+    period: 3600                      # Per hour
+  api_key_rate:
+    limit: 1000                       # Per API key limit  
+    period: 3600                      # Per hour
+  prefix: "compozy:ratelimit:"        # Redis key namespace
+  max_retry: 3                        # Retry attempts
+
+# Development rate limiting
+ratelimit:
+  global_rate:
+    limit: 100
+    period: 60                        # Per minute for testing
+  api_key_rate:
+    limit: 50
+    period: 60
+```
+
+### Database Security
+
+Based on `schemas/config.json#DatabaseConfig`:
+
+```yaml
+# Secure database connection
+database:
+  conn_string: "${DATABASE_URL}"      # Full connection string preferred
+  ssl_mode: "require"                 # Force SSL in production
+  auto_migrate: false                 # Disable in production
+
+# Alternative individual parameters
+database:
+  host: "db.internal"
+  port: "5432"
+  name: "compozy_prod"
+  user: "compozy_user"
+  password: "${DB_PASSWORD}"          # Environment variable
+  ssl_mode: "verify-full"             # Highest security level
+```
+
+### Data Encryption and Secrets
+
+Based on configuration patterns and security implementations:
+
+```yaml
+# Redis with encryption
+redis:
+  url: "${REDIS_URL}"                 # Include auth in URL
+  tls_enabled: true                   # Enable encryption
+  password: "${REDIS_PASSWORD}"       # Authenticate
+
+# Memory service configuration
+memory:
+  prefix: "compozy:memory:"           # Namespace separation
+  ttl: 86400                          # 24h expiration for security
+  max_entries: 100                    # Prevent memory exhaustion
+
+# Cache security
+cache:
+  enabled: true
+  compression_enabled: true           # Reduce data size
+  prefix: "compozy:cache:"            # Namespace isolation
+  ttl: 3600                           # 1h expiration
+```
+
+## 5. Pitfalls & Gotchas
+
+### API Key Security
+- **Never commit API keys** to version control - always use environment variables
+- **API key format**: Must be `cpzy_` prefixed, bcrypt hashed, with SHA-256 fingerprint
+- **Minimum length**: Admin tokens require 16+ characters
+
+### Workflow Exceptions
+- **Exact matching**: `workflow_exceptions` uses exact string matching of workflow IDs
+- **Performance**: Pre-computed to O(1) map lookup for high performance
+- **Security risk**: Each exception bypasses all authentication - use sparingly
+
+### Runtime Permissions
+- **Default behavior**: Without permissions, runtime has no access
+- **Granular control**: Prefer specific paths/domains over broad permissions
+- **Development vs Production**: Use restrictive permissions in production
+
+### Rate Limiting
+- **Global vs API key**: Global limits apply system-wide, API key limits per client
+- **Period format**: Specified in seconds (60=1min, 3600=1hr, 86400=1day)
+- **Redis dependency**: Rate limiting requires Redis for state storage
+
+### SSL/TLS Configuration
+- **Database SSL**: Use `require` or higher in production, never `disable`
+- **Redis TLS**: Enable for production deployments
+- **Certificate validation**: `verify-full` provides strongest security
+
+## 6. Checklist
+
+- [ ] API keys stored in environment variables, never hardcoded
+- [ ] Server authentication enabled (`server.auth.enabled: true`)
+- [ ] Workflow exceptions minimized and documented
+- [ ] Runtime permissions restrictive and specific
+- [ ] Rate limiting configured for production load
+- [ ] Database SSL mode set to `require` or higher
+- [ ] Redis TLS enabled for production
+- [ ] Admin tokens meet minimum length requirements
+- [ ] Memory and cache TTL configured to prevent data leakage
+- [ ] CORS origins restricted to required domains
+- [ ] Sensitive values use `SensitiveString` type for redaction
+
+## 7. Next Steps
+
+### Advanced Security Configuration
+
+1. **Custom Authentication**: Implement custom auth middleware for specific requirements
+2. **Audit Logging**: Enable comprehensive security event logging
+3. **IP Filtering**: Configure IP allowlists for admin endpoints
+4. **Token Rotation**: Implement API key rotation strategies
+5. **Multi-tenancy**: Configure namespace isolation for tenant separation
+
+### Security Monitoring
+
+1. **Rate Limit Monitoring**: Track rate limit events and adjust limits
+2. **Authentication Failures**: Monitor failed auth attempts for security threats
+3. **Resource Usage**: Monitor memory and cache usage patterns
+4. **SSL Certificate Expiry**: Track certificate expiration dates
+
+### Validation Commands
+
+```bash
+# Validate security configuration
+compozy config validate --debug
+
+# Check authentication status
+compozy auth status --format json
+
+# Test rate limiting (development)
+compozy config show | grep -E "(ratelimit|auth)"
+```
+
+### Configuration Files
+
+Place security configurations in:
+- **Project level**: `compozy.yaml` (runtime permissions, model keys)
+- **Server level**: `config.yaml` or environment variables (auth, rate limits)
+- **Environment**: `.env` files (secrets, connection strings)
+
+This rule ensures secure Compozy deployments by following established patterns from the schemas and examples, with proper separation of concerns and defense in depth.

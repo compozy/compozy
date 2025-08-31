@@ -293,17 +293,20 @@ func TestOrchestrator_executeToolCalls(t *testing.T) {
 		result, err := orchestrator.executeToolCalls(ctx, toolCalls, request)
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
+		// create addressable variables for nested outputs
+		res1 := core.Output(map[string]any{"result": "success1"})
+		res2 := core.Output(map[string]any{"result": "success2"})
 		expected := core.Output(map[string]any{
 			"results": []map[string]any{
 				{
 					"tool_call_id": "call1",
 					"tool_name":    "tool1",
-					"result":       &core.Output{"result": "success1"},
+					"result":       &res1,
 				},
 				{
 					"tool_call_id": "call2",
 					"tool_name":    "tool2",
-					"result":       &core.Output{"result": "success2"},
+					"result":       &res2,
 				},
 			},
 		})

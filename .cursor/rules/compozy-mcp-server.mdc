@@ -1,0 +1,388 @@
+# Compozy Rule — MCP Server Configuration
+
+## 1. Overview
+
+MCP (Model Context Protocol) servers extend AI agents with external tools and services through a standardized protocol. This rule covers how to configure, register, and use MCP servers in Compozy projects.
+
+**When to use**:
+- Integrating external APIs, databases, or file systems
+- Adding custom tools beyond built-in capabilities
+- Connecting to third-party MCP-compatible services
+- Extending agent capabilities with specialized tools
+
+**Key concepts**:
+- MCP servers provide tools that agents can use
+- Transport types define how communication happens (SSE, stdio, streamable-http)
+- MCP proxy manages server registration and tool discovery
+- Tool filtering controls which MCP tools are available
+
+## 2. Minimal Setup
+
+### Basic MCP Server Configuration
+
+```yaml
+# compozy.yaml - Project configuration with MCP
+name: my-project
+version: "1.0.0"
+
+# Environment variables
+config:
+  env:
+    MCP_PROXY_URL: "http://localhost:6001"
+    MCP_API_KEY: "{{ .env.API_KEY }}"
+
+# MCP server definitions
+mcps:
+  # Remote HTTP server with SSE transport
+  - id: file-server
+    url: "http://localhost:3000/mcp"
+    transport: sse
+    proto: "2025-03-26"
+    env:
+      API_KEY: "{{ .env.MCP_API_KEY }}"
+
+  # Local process server with stdio transport  
+  - id: database-server
+    command: "mcp-server-postgres"
+    transport: stdio
+    env:
+      DATABASE_URL: "{{ .env.DATABASE_URL }}"
+    start_timeout: 30s
+    max_sessions: 5
+```
+
+### Agent Configuration with MCP Tools
+
+```yaml
+# agents/data-processor.yaml
+id: data-processor
+config:
+  $ref: global::models.#(id="gpt-4")
+instructions: |
+  You are a data processing agent with access to file system and database tools.
+  Use MCP tools to read files, query databases, and process data.
+
+# Reference MCP servers
+mcps:
+  - id: file-server    # References the MCP server defined in compozy.yaml
+  - id: database-server
+```
+
+## 3. Schema Alignment
+
+**Primary Schema**: `schemas/mcp.json` defines the MCP configuration structure
+
+**Required Fields**:
+- `id`: Unique identifier for the MCP server
+- Either `url` (for remote servers) OR `command` (for local processes)
+
+**Transport Types** (from `TransportType` enum):
+- `sse`: Server-Sent Events (default, for HTTP servers)
+- `streamable-http`: HTTP with streaming support
+- `stdio`: Standard I/O (for local processes)
+
+**Protocol Version**: 
+- `proto`: MCP protocol version (default: "2025-03-26")
+
+**Timeouts and Limits**:
+- `start_timeout`: Time to wait for server startup (stdio only)
+- `max_sessions`: Maximum concurrent connections (0 = unlimited)
+
+## 4. Examples (from repo)
+
+### Remote MCP Server with SSE Transport
+*Based on `engine/workflow/fixtures/mcp_workflow.yaml`*
+
+```yaml
+mcps:
+  - id: primary-mcp-server
+    url: http://localhost:4000/mcp
+    transport: sse  # Default transport
+    proto: "2025-03-26"
+    env:
+      API_KEY: "{{ .env.MCP_API_KEY }}"
+    start_timeout: 15s
+    max_sessions: 10
+
+  - id: external-api
+    url: https://api.example.com/mcp
+    transport: sse
+    env:
+      AUTH_TOKEN: "{{ .env.EXTERNAL_MCP_TOKEN }}"
+    start_timeout: 30s
+```
+
+### Local Process Server with Stdio Transport
+*Derived from `pkg/mcp-proxy/README.md` examples*
+
+```yaml
+mcps:
+  - id: filesystem
+    command: "mcp-server-filesystem"
+    transport: stdio
+    env:
+      WORKSPACE_DIR: "/data/workspace"
+      LOG_LEVEL: "debug"
+    start_timeout: 30s
+    max_sessions: 1  # Single session for stateful servers
+
+  - id: python-runtime
+    command: "python /app/mcp_server.py --mode production"
+    transport: stdio
+    env:
+      PYTHON_PATH: "/usr/local/bin/python"
+    start_timeout: 45s
+```
+
+### Docker-based MCP Server
+
+```yaml
+mcps:
+  - id: postgres-mcp
+    command: "docker run --rm -i mcp/postgres:latest"
+    transport: stdio
+    env:
+      DATABASE_URL: "{{ .env.DATABASE_URL }}"
+      POSTGRES_USER: "{{ .env.DB_USER }}"
+    start_timeout: 60s  # Docker containers need more time
+    max_sessions: 10
+```
+
+### Streamable HTTP Transport
+
+```yaml
+mcps:
+  - id: large-file-server
+    url: "http://localhost:8080/mcp/stream"
+    transport: streamable-http
+    env:
+      MAX_FILE_SIZE: "100MB"
+    start_timeout: 30s
+```
+
+## 5. MCP Proxy Integration
+
+### Proxy Configuration
+The MCP proxy manages server registration and provides unified access:
+
+```yaml
+# Project configuration
+config:
+  env:
+    MCP_PROXY_URL: "http://localhost:6001"       # Proxy endpoint
+    MCP_PROXY_ADMIN_TOKEN: "{{ .env.ADMIN_TOKEN }}" # Admin authentication
+```
+
+### Tool Discovery Process
+
+1. **Server Registration**: MCP servers are registered with the proxy
+2. **Tool Discovery**: Proxy discovers available tools from each server  
+3. **Aggregation**: Tools from all servers are aggregated and exposed
+4. **Namespacing**: Tools are prefixed with MCP server ID to avoid conflicts
+
+### Security Boundaries
+
+- **Authentication**: MCP proxy handles authentication tokens
+- **IP Filtering**: Allow-lists control access to MCP endpoints
+- **Tool Filtering**: Limit which tools are available to specific agents
+- **Environment Isolation**: Each MCP server runs in its own environment
+
+## 6. Using MCP Tools in Workflows
+
+### Tool Invocation Patterns
+
+```yaml
+# workflow.yaml
+tasks:
+  - id: read-config-file
+    type: basic
+    $use: agent(local::agents.#(id="file-processor"))
+    with:
+      file_path: "/config/settings.json"
+      # Agent will use file-server MCP tools automatically
+
+  - id: query-database  
+    type: basic
+    $use: agent(local::agents.#(id="data-analyst"))
+    with:
+      query: "SELECT * FROM users WHERE active = true"
+      # Agent will use database-server MCP tools
+```
+
+### MCP Tool Namespacing
+Tools are namespaced by MCP server ID:
+- `file-server/read_file`
+- `database-server/execute_query`
+- `python-runtime/run_script`
+
+## 7. Pitfalls & Gotchas
+
+### Configuration Mistakes
+
+❌ **Wrong**: Mixing URL and Command
+```yaml
+mcps:
+  - id: broken-server
+    url: "http://localhost:3000"
+    command: "mcp-server"  # Don't use both!
+```
+
+✅ **Right**: Use either URL or Command
+```yaml
+mcps:
+  - id: remote-server
+    url: "http://localhost:3000"
+  - id: local-server  
+    command: "mcp-server"
+```
+
+### Transport Mismatches
+
+❌ **Wrong**: Using stdio transport with URL
+```yaml
+mcps:
+  - id: wrong-transport
+    url: "http://localhost:3000"
+    transport: stdio  # stdio needs command, not URL
+```
+
+✅ **Right**: Match transport to connection type
+```yaml
+mcps:
+  - id: http-server
+    url: "http://localhost:3000"
+    transport: sse
+  - id: process-server
+    command: "mcp-server"
+    transport: stdio
+```
+
+### Environment Variable Issues
+
+❌ **Wrong**: Missing template syntax
+```yaml
+mcps:
+  - id: server
+    env:
+      API_KEY: .env.API_KEY  # Missing template brackets
+```
+
+✅ **Right**: Proper template syntax
+```yaml
+mcps:
+  - id: server
+    env:
+      API_KEY: "{{ .env.API_KEY }}"
+```
+
+### Timeout Configuration
+
+- **stdio servers**: Always set `start_timeout` for local processes
+- **Docker containers**: Use longer timeouts (60s+) for container startup
+- **Remote servers**: Keep default timeouts unless network is slow
+
+## 8. Troubleshooting MCP
+
+### Connection Debugging
+
+**Check MCP Proxy Status**:
+```bash
+curl http://localhost:6001/healthz
+```
+
+**List Registered Servers**:
+```bash
+curl -H 'Authorization: Bearer admin-token' \
+  http://localhost:6001/admin/servers
+```
+
+**Check Available Tools**:
+```bash
+curl -H 'Authorization: Bearer admin-token' \
+  http://localhost:6001/admin/tools
+```
+
+### Common Error Patterns
+
+**Connection Timeout**:
+- Increase `start_timeout` for slow-starting processes
+- Verify server command is correct and executable
+- Check environment variables are properly set
+
+**Tool Discovery Issues**:
+- Verify MCP server implements protocol correctly
+- Check server logs for tool registration errors
+- Ensure proxy can reach MCP server endpoint
+
+**Performance Optimization**:
+- Set appropriate `max_sessions` limits
+- Use `streamable-http` for large file transfers
+- Consider tool filtering for focused agent capabilities
+
+### Log Analysis
+
+**MCP Connection Errors** (`ErrCodeMCPConnection`):
+- Check network connectivity to remote servers
+- Verify authentication tokens and headers
+- Confirm server is running and accepting connections
+
+**MCP Timeout Errors** (`ErrCodeMCPTimeout`):
+- Increase timeout values in configuration
+- Check server performance and resource usage
+- Consider connection pooling for high-traffic scenarios
+
+## 9. Checklist
+
+- [ ] **Schema Validation**: MCP config follows `schemas/mcp.json` structure
+- [ ] **Transport Selection**: Correct transport type for connection method
+- [ ] **Environment Variables**: Template syntax used for dynamic values
+- [ ] **Timeout Configuration**: Appropriate timeouts set for server type
+- [ ] **Security Setup**: Authentication tokens and environment isolation
+- [ ] **Proxy Integration**: MCP_PROXY_URL configured in project settings
+- [ ] **Tool Discovery**: Servers register successfully and tools are discoverable
+- [ ] **Error Handling**: Connection and tool execution errors handled gracefully
+
+## 10. Next Steps
+
+### Extending MCP Integration
+
+**Add Tool Filtering**:
+```yaml
+mcps:
+  - id: filtered-server
+    url: "http://localhost:3000"
+    tool_filter:
+      mode: allow
+      list: ["read_file", "write_file"]  # Only allow specific tools
+```
+
+**Enable Health Monitoring**:
+```yaml
+mcps:
+  - id: monitored-server
+    url: "http://localhost:3000"
+    health_check_enabled: true
+    health_check_interval: 30s
+```
+
+**Implement Auto-Reconnection**:
+```yaml
+mcps:
+  - id: resilient-server
+    url: "http://localhost:3000"
+    auto_reconnect: true
+    max_reconnects: 5
+    reconnect_delay: 5s
+```
+
+### Validation and Testing
+
+- Test MCP server connectivity: `curl http://localhost:6001/admin/servers`
+- Validate tool availability: Check agent logs for tool discovery
+- Monitor performance: Use proxy metrics and server health checks
+- Save configurations: Store MCP configs in version control for reproducibility
+
+**File Locations**:
+- Project MCP configs: `compozy.yaml` (mcps section)
+- Agent MCP references: `agents/*.yaml` (mcps section)  
+- Workflow integration: `workflows/*.yaml` (task definitions)

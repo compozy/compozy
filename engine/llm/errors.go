@@ -138,11 +138,11 @@ func isRetryableErrorWithContext(ctx context.Context, err error) bool {
 
 	retryable := isRetryableError(err)
 
-	// Log retry decision with structured information
+	// Log retry decision with safe, structured information only
+	// Avoid logging raw err.Error() to prevent leaking provider/internal details
 	logFields := []any{
-		"error", err.Error(),
-		"retryable", retryable,
 		"error_type", fmt.Sprintf("%T", err),
+		"retryable", retryable,
 	}
 
 	// Add structured error information if available

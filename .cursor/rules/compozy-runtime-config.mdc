@@ -1,0 +1,403 @@
+# Compozy Rule — Runtime Configuration
+
+Runtime configuration in Compozy controls the JavaScript/TypeScript execution environment for custom tools, manages security permissions, and optimizes performance for your project's specific needs.
+
+## 1. Overview
+
+### What This Enables
+- **Runtime Selection**: Choose between Bun (default) and Node.js runtimes
+- **Security Control**: Define fine-grained permissions for file system, network, and process access
+- **Performance Tuning**: Configure timeouts, memory limits, and execution parameters
+- **Environment Isolation**: Separate development, staging, and production runtime behaviors
+- **Custom Tool Execution**: Run JavaScript/TypeScript tools with controlled access
+
+### When to Use Runtime Configuration
+- Custom tools require specific permissions (file read/write, network access)
+- Need performance optimization for tool execution
+- Different runtime requirements per environment
+- Custom entrypoint file structure
+- Security compliance requirements
+
+## 2. Minimal Setup (Validated)
+
+### Basic Project Runtime (compozy.yaml)
+```yaml
+name: my-project
+version: "1.0.0"
+
+# Project-specific runtime overrides
+runtime:
+  type: bun                    # Default runtime
+  entrypoint: "./tools.ts"     # Default entrypoint
+  permissions:
+    - --allow-read             # Default permission
+```
+
+### Global Runtime Configuration
+Global runtime settings are configured in the main application configuration and apply system-wide unless overridden by project-specific settings.
+
+```yaml
+# Application config (config.yaml)
+runtime:
+  runtime_type: "bun"                           # Default: "bun" 
+  entrypoint_path: "./tools.ts"                 # Default entrypoint
+  tool_execution_timeout: "60s"                 # Default: 60s
+  bun_permissions:                              # Security permissions
+    - "--allow-read"
+    - "--allow-env"
+    - "--allow-net"
+  async_token_counter_workers: 5                # Performance tuning
+  async_token_counter_buffer_size: 1000
+  environment: "production"                     # Environment setting
+  log_level: "info"                            # Logging verbosity
+```
+
+## 3. Schema Alignment
+
+### Project Schema References
+- `schemas/project.json#RuntimeConfig`: Project-specific runtime overrides
+  - `type`: Runtime selection ("bun" or "node")
+  - `entrypoint`: Path to entrypoint file
+  - `permissions`: Security permissions array
+
+### Global Configuration Schema References  
+- `schemas/config.json#RuntimeConfig`: System-wide runtime configuration
+  - `runtime_type`: Global runtime default (validate: "oneof=bun node")
+  - `entrypoint_path`: Global entrypoint default
+  - `tool_execution_timeout`: Timeout duration
+  - `bun_permissions`: Default security permissions array
+  - `environment`: Deployment environment setting
+
+### Required Fields
+- **None**: All runtime configuration fields are optional with sensible defaults
+- **Validation**: `runtime_type` must be "bun" or "node" when specified
+
+### Default Values (from schemas)
+- `runtime_type`: "bun"
+- `entrypoint_path`: "./tools.ts"  
+- `tool_execution_timeout`: 60s
+- `bun_permissions`: ["--allow-read"]
+
+## 4. Runtime Selection Patterns
+
+### Bun Runtime (Recommended Default)
+```yaml
+runtime:
+  type: bun
+  entrypoint: "./entrypoint.ts"
+  permissions:
+    - --allow-read           # File system read access
+    - --allow-write          # File system write access  
+    - --allow-net            # Network access
+    - --allow-env            # Environment variable access
+    - --allow-run            # Process spawning (use carefully)
+```
+
+### Node.js Runtime
+```yaml
+runtime:
+  type: node
+  entrypoint: "./tools.js"
+  permissions: []            # Node.js uses different permission model
+```
+
+### Local Development Runtime
+```yaml
+runtime:
+  type: bun
+  entrypoint: "./dev-tools.ts"
+  permissions:
+    - --allow-read
+    - --allow-write
+    - --allow-net
+    - --allow-env
+    - --allow-run           # Development may need process access
+```
+
+### Production Runtime (Restricted)
+```yaml
+runtime:
+  type: bun
+  entrypoint: "./prod-tools.ts"
+  permissions:
+    - --allow-read          # Minimal permissions for security
+    - --allow-net           # Only network access
+```
+
+## 5. Project Structure Requirements
+
+### Package.json Configuration
+```json
+{
+  "name": "@company/compozy-project",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "./entrypoint.ts",
+  "scripts": {
+    "build": "tsc --noEmit",
+    "lint": "oxlint *.ts",
+    "type-check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.0",
+    "@types/node": "^22.0.0"
+  },
+  "dependencies": {
+    // Project-specific dependencies
+  }
+}
+```
+
+### TypeScript Configuration (tsconfig.json)
+```json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "types": ["node"]
+  },
+  "include": [
+    "*.ts",
+    "tools/**/*.ts"
+  ]
+}
+```
+
+### Entrypoint File Structure
+```typescript
+// entrypoint.ts - Main tool exports
+import { weatherTool } from "./weather_tool";
+import { saveDataTool } from "./save_data_tool";
+
+// Export all tools for Compozy runtime
+export {
+  weatherTool,
+  saveDataTool
+};
+
+// Optional: Runtime initialization
+console.log("Tools loaded:", Object.keys(module.exports));
+```
+
+## 6. Environment Configuration
+
+### Environment Variables
+```bash
+# Runtime behavior
+RUNTIME_TYPE="bun"
+RUNTIME_ENTRYPOINT_PATH="./tools.ts"
+TOOL_EXECUTION_TIMEOUT="120s"
+
+# Bun permissions
+RUNTIME_BUN_PERMISSIONS="--allow-read,--allow-net,--allow-write"
+
+# Performance tuning  
+RUNTIME_ASYNC_TOKEN_COUNTER_WORKERS=5
+RUNTIME_ASYNC_TOKEN_COUNTER_BUFFER_SIZE=1000
+
+# Environment context
+RUNTIME_ENVIRONMENT="production"
+RUNTIME_LOG_LEVEL="info"
+```
+
+### .env File Usage
+```bash
+# .env - Development environment
+RUNTIME_ENVIRONMENT=development
+RUNTIME_LOG_LEVEL=debug
+TOOL_EXECUTION_TIMEOUT=300s
+
+# Tool dependencies
+OPENAI_API_KEY=sk-your-key-here
+GROQ_API_KEY=gsk-your-key-here
+```
+
+### Variable Precedence
+1. **CLI Flags**: Highest precedence
+2. **Environment Variables**: Override configuration files
+3. **Project Runtime Config**: Project-specific overrides
+4. **Global Runtime Config**: System defaults
+5. **Schema Defaults**: Lowest precedence
+
+## 7. Security & Permissions
+
+### Bun Permission Model
+```yaml
+# Minimal permissions (recommended for production)
+permissions:
+  - --allow-read              # Read-only file system access
+
+# Network-enabled tools
+permissions:
+  - --allow-read
+  - --allow-net              # HTTP/HTTPS requests
+
+# File manipulation tools
+permissions:
+  - --allow-read
+  - --allow-write            # File creation/modification
+  - --allow-net
+
+# Full development access (use carefully)
+permissions:
+  - --allow-read
+  - --allow-write
+  - --allow-net
+  - --allow-env              # Environment variable access
+  - --allow-run              # Process spawning (security risk)
+```
+
+### Security Best Practices
+- **Principle of Least Privilege**: Grant minimal permissions required
+- **Environment Separation**: Stricter permissions in production
+- **Permission Audit**: Regularly review permission requirements
+- **Tool Isolation**: Consider separate runtimes for different tool types
+
+### Permission Descriptions
+| Permission | Purpose | Security Risk | Use Cases |
+|------------|---------|---------------|-----------|
+| `--allow-read` | File system reading | Low | Config reading, data processing |
+| `--allow-write` | File system writing | Medium | Data export, report generation |  
+| `--allow-net` | Network requests | Medium | API calls, web scraping |
+| `--allow-env` | Environment access | Low | Configuration, secrets |
+| `--allow-run` | Process spawning | High | System commands, external tools |
+
+## 8. Performance Configuration
+
+### Timeout Settings
+```yaml
+# Global timeout configuration
+runtime:
+  tool_execution_timeout: "120s"        # Per-tool timeout
+  dispatcher_heartbeat_interval: "5s"   # Health check frequency
+  dispatcher_heartbeat_ttl: "15s"       # Heartbeat expiration
+
+# Project-specific timeout overrides
+config:
+  start_to_close_timeout: "10m"         # Task execution timeout
+  schedule_to_start_timeout: "5m"       # Queue wait timeout
+  schedule_to_close_timeout: "15m"      # Total operation timeout
+```
+
+### Memory & Concurrency
+```yaml
+runtime:
+  async_token_counter_workers: 10        # More workers for high throughput
+  async_token_counter_buffer_size: 2000  # Larger buffer for traffic spikes
+
+limits:
+  max_string_length: 10485760            # 10MB string limit
+  max_message_content: 52428800          # 50MB message limit
+  max_total_content_size: 104857600      # 100MB total limit
+```
+
+## 9. Examples from Repository
+
+### Weather Example (`examples/weather/compozy.yaml`)
+```yaml
+runtime:
+  type: bun
+  entrypoint: "./entrypoint.ts"
+  permissions:
+    - --allow-read               # Read weather data files
+    - --allow-net                # Fetch weather APIs
+    - --allow-write              # Save processed data
+```
+
+### Code Reviewer Example (`examples/code-reviewer/compozy.yaml`)
+```yaml
+runtime:
+  type: bun
+  entrypoint: "./entrypoint.ts"
+  permissions:
+    - --allow-read               # Read source code
+    - --allow-write              # Write review reports
+    - --allow-net                # Access code repositories
+    - --allow-env                # Read environment config
+```
+
+### Memory Example (`examples/memory/auth-bootstrap.yaml`)
+```yaml
+runtime:
+  type: bun
+  entrypoint: "./entrypoint.ts"
+  # Uses minimal default permissions for secure memory operations
+```
+
+## 10. Pitfalls & Gotchas
+
+### Common Mistakes
+- **Over-Privileged Tools**: Granting `--allow-run` when not needed
+- **Missing Dependencies**: Forgetting to install tool dependencies in package.json
+- **Wrong Module Type**: Not setting `"type": "module"` in package.json for ES modules
+- **Timeout Too Short**: Setting tool_execution_timeout too low for complex operations
+- **Permission Conflicts**: Different permissions between development and production
+- **Entrypoint Export Issues**: Not properly exporting tools from entrypoint file
+
+### Troubleshooting
+```bash
+# Check runtime availability
+bun --version
+node --version
+
+# Validate configuration
+compozy config validate
+
+# Test tool execution
+compozy dev --debug
+
+# Check permissions
+# Tools will fail with specific permission errors if missing required access
+```
+
+### File Structure Issues
+- **Relative Paths**: Entrypoint paths are relative to project root
+- **Module Resolution**: Ensure proper TypeScript/ES module configuration
+- **Export Names**: Tool exports must match expected naming conventions
+
+## 11. Checklist
+
+- [ ] Runtime type specified ("bun" or "node")
+- [ ] Entrypoint file exists and exports tools correctly
+- [ ] Permissions aligned with tool requirements
+- [ ] Package.json configured with correct module type
+- [ ] TypeScript configuration supports runtime target
+- [ ] Timeout values appropriate for tool complexity
+- [ ] Environment variables configured properly
+- [ ] Security permissions follow principle of least privilege
+- [ ] Development vs production permission differences documented
+- [ ] Tool dependencies installed in package.json
+
+## 12. Next Steps
+
+### Extending Runtime Configuration
+- **Custom Permission Sets**: Create reusable permission templates
+- **Environment-Specific Configs**: Separate runtime configs per environment
+- **Performance Monitoring**: Add runtime metrics and monitoring
+- **Tool Categories**: Organize tools by permission requirements
+- **Security Auditing**: Regular permission and dependency audits
+
+### Validation & Testing
+- Use `compozy config validate` to verify configuration syntax
+- Test tool execution with `compozy dev --debug` for detailed logging  
+- Monitor runtime performance and adjust timeouts as needed
+- Validate entrypoint exports with TypeScript type checking
+
+### Advanced Configuration
+- Explore worker configuration for high-throughput scenarios
+- Configure rate limiting and concurrency controls
+- Set up environment-specific runtime optimizations
+- Implement custom tool loading and discovery patterns
+
+### File Locations
+- **Project Config**: `./compozy.yaml` (runtime overrides)
+- **Global Config**: System configuration file (runtime defaults)
+- **Entrypoint**: `./tools.ts` or custom path (tool exports)
+- **Package Config**: `./package.json` (dependencies and module type)
+- **TypeScript Config**: `./tsconfig.json` (compilation settings)

@@ -52,6 +52,15 @@ func (m *testMemory) Append(ctx context.Context, msg llm.Message) error {
 	return nil
 }
 
+func (m *testMemory) AppendMany(ctx context.Context, msgs []llm.Message) error {
+	for _, msg := range msgs {
+		if err := m.Append(ctx, msg); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (m *testMemory) Read(_ context.Context) ([]llm.Message, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()

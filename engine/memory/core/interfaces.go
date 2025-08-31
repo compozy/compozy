@@ -14,6 +14,9 @@ import (
 type Memory interface {
 	// Append adds a message to the memory.
 	Append(ctx context.Context, msg llm.Message) error
+	// AppendMany atomically adds multiple messages to the memory.
+	// This ensures all messages are stored together or none are stored.
+	AppendMany(ctx context.Context, msgs []llm.Message) error
 	// Read retrieves all messages from the memory.
 	// Implementations should handle ordering (e.g., chronological).
 	Read(ctx context.Context) ([]llm.Message, error)

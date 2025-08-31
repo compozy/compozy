@@ -1,0 +1,477 @@
+# Compozy Rule — Scheduling and Triggers
+
+## 1. Overview
+
+Compozy provides comprehensive scheduling and triggering capabilities for automated workflow execution. This rule documents how END USERS configure:
+
+- **Schedule Configuration**: Time-based triggers using cron expressions and intervals
+- **Trigger Types**: Event-based, signal-based, webhook, and manual triggers
+- **Overlap Policies**: Managing concurrent and overlapping executions
+- **Advanced Patterns**: Complex scheduling scenarios with conditional logic
+
+Use this when you need automated workflow execution, event-driven architecture, or coordinated multi-workflow processes.
+
+## 2. Minimal Setup (validated)
+
+### Basic Scheduled Workflow
+
+```yaml
+# compozy.yaml
+name: my-project
+workflows:
+  - source: ./scheduled-workflow.yaml
+
+# scheduled-workflow.yaml
+id: hello-scheduler
+description: Simple scheduled workflow
+
+schedule:
+  cron: "0 0 9 * * 1-5"  # 9 AM on weekdays
+  timezone: "America/New_York"
+  enabled: true
+
+tasks:
+  - id: daily-task
+    type: basic
+    $use: tool(local::tools.#(id="my_tool"))
+    with:
+      message: "Daily scheduled execution"
+```
+
+### Event-Triggered Workflow
+
+```yaml
+id: event-receiver
+description: Workflow triggered by external events
+
+triggers:
+  - type: signal
+    name: user-registered
+    schema:
+      type: object
+      properties:
+        user_id: { type: string }
+        email: { type: string, format: email }
+      required: [user_id, email]
+
+tasks:
+  - id: process-event
+    type: basic
+    $use: agent(local::agents.#(id="processor"))
+    with:
+      user_info: "{{ .workflow.input.user_id }}"
+      email: "{{ .workflow.input.email }}"
+```
+
+## 3. Schedule Configuration Details
+
+### Cron Expression Formats
+
+Compozy supports three schedule formats based on `schemas/workflow.json#Schedule`:
+
+#### 1. @every Syntax (Simple Intervals)
+```yaml
+schedule:
+  cron: "@every 15s"    # Every 15 seconds
+  cron: "@every 5m"     # Every 5 minutes  
+  cron: "@every 1h30m"  # Every 1 hour 30 minutes
+  cron: "@every 24h"    # Every 24 hours
+```
+
+#### 2. 6-Field Cron Format (Recommended)
+```
+┌─────────── second (0 - 59)
+│ ┌───────── minute (0 - 59)
+│ │ ┌─────── hour (0 - 23)
+│ │ │ ┌───── day of month (1 - 31)
+│ │ │ │ ┌─── month (1 - 12)
+│ │ │ │ │ ┌─ day of week (0 - 6) (Sunday to Saturday)
+│ │ │ │ │ │
+* * * * * *
+```
+
+**Examples:**
+```yaml
+schedule:
+  cron: "0 * * * * *"        # Every minute at 0 seconds
+  cron: "*/30 * * * * *"     # Every 30 seconds
+  cron: "0 0 * * * *"        # Every hour
+  cron: "0 0 9 * * 1-5"      # 9 AM weekdays
+  cron: "0,15,30,45 * * * * *" # At 0, 15, 30, 45 seconds
+```
+
+#### 3. 7-Field Cron Format (Optional)
+```yaml
+schedule:
+  cron: "0 0 0 1 1 * 2025"   # January 1, 2025 at midnight
+```
+
+### Complete Schedule Configuration
+
+```yaml
+schedule:
+  # Cron expression (required)
+  cron: "0 0 9 * * MON-FRI"
+  
+  # Timezone (optional, default UTC)
+  # Uses IANA timezone names
+  timezone: "America/New_York"
+  
+  # Schedule enabled state (optional, default true)
+  enabled: true
+  
+  # Overlap policy (optional, default skip)
+  overlap_policy: "skip"
+  
+  # Execution window (optional)
+  start_at: "2024-01-01T00:00:00Z"
+  end_at: "2024-12-31T23:59:59Z"
+  
+  # Random execution delay (optional)
+  # Helps distribute load
+  jitter: "5m"
+  
+  # Default input for scheduled runs (optional)
+  input:
+    source: "scheduled"
+    priority: "normal"
+```
+
+## 4. Trigger Types
+
+### Signal Triggers (Event-Based)
+
+Signal triggers enable event-driven workflow execution:
+
+```yaml
+triggers:
+  - type: signal
+    name: "order-completed"
+    schema:
+      type: object
+      properties:
+        order_id: { type: string }
+        customer_id: { type: string }
+        total_amount: { type: number }
+        items: 
+          type: array
+          items: { type: string }
+      required: [order_id, customer_id, total_amount]
+
+  - type: signal
+    name: "user-action"
+    schema:
+      $ref: 'local::schemas.#(id="user_action_schema")'
+```
+
+### Webhook Triggers (External Events)
+
+Based on the REST API patterns in `examples/schedules/api.http`, workflows can be triggered via HTTP requests:
+
+```bash
+# Manual trigger via API
+POST /api/v0/workflows/{workflow_id}/executions
+Content-Type: application/json
+
+{
+  "input": {
+    "user_id": "12345",
+    "action": "process_data"
+  }
+}
+```
+
+### Signal Task (Event Broadcasting)
+
+Send signals to coordinate between workflows:
+
+```yaml
+tasks:
+  - id: notify-completion
+    type: signal
+    signal:
+      id: "data-processing-complete-{{ .workflow.input.batch_id }}"
+      payload:
+        batch_id: "{{ .workflow.input.batch_id }}"
+        records_processed: "{{ .tasks.process-data.output.count }}"
+        completion_time: "{{ now }}"
+        status: "success"
+```
+
+### Wait Task (Event Listening)
+
+Wait for external signals or conditions:
+
+```yaml
+tasks:
+  - id: await-approval
+    type: wait
+    wait_for: "approval-{{ .workflow.input.request_id }}"
+    condition: |
+      signal.payload.approved == true &&
+      signal.payload.approver_level >= input.required_level
+    timeout: "24h"
+    on_timeout: "escalate-request"
+```
+
+## 5. Overlap Policies
+
+Based on `engine/workflow/config.go#OverlapPolicy`, four overlap policies control concurrent execution:
+
+### skip (Default)
+```yaml
+schedule:
+  overlap_policy: "skip"
+```
+- Skips new execution if previous is still running
+- Ensures only one instance runs at a time
+- Best for workflows that shouldn't have concurrent executions
+
+### allow
+```yaml
+schedule:
+  overlap_policy: "allow"  
+```
+- Allows multiple executions to run concurrently
+- Use when executions are independent and can safely run in parallel
+- Monitor resource consumption carefully
+
+### buffer_one
+```yaml
+schedule:
+  overlap_policy: "buffer_one"
+```
+- Buffers one execution to run after current completes
+- Only the most recent trigger is queued if multiple occur
+- Good for processing latest data without skipping entirely
+
+### cancel_other
+```yaml
+schedule:
+  overlap_policy: "cancel_other"
+```
+- Cancels running execution and starts new one
+- Latest trigger invalidates previous executions
+- Canceled executions marked as canceled in history
+
+## 6. Schedule Management
+
+### Enable/Disable Schedules
+
+Via API (from `examples/schedules/api.http`):
+```bash
+# Disable schedule
+PATCH /api/v0/schedules/{workflow_id}
+Content-Type: application/json
+{ "enabled": false }
+
+# Enable schedule  
+PATCH /api/v0/schedules/{workflow_id}
+Content-Type: application/json
+{ "enabled": true }
+
+# Update cron expression
+PATCH /api/v0/schedules/{workflow_id}
+Content-Type: application/json
+{ "cron": "*/30 * * * * *" }
+```
+
+Via YAML configuration:
+```yaml
+schedule:
+  enabled: false  # Temporarily disable without removing config
+```
+
+### Schedule Information
+
+```bash
+# List all schedules
+GET /api/v0/schedules
+
+# Get specific schedule details
+GET /api/v0/schedules/{workflow_id}
+
+# Delete schedule
+DELETE /api/v0/schedules/{workflow_id}
+```
+
+## 7. Advanced Patterns
+
+### Complex Scheduling Scenarios
+
+#### Business Hours with Timezone
+```yaml
+schedule:
+  cron: "0 0 9-17 * * 1-5"  # 9 AM to 5 PM weekdays
+  timezone: "America/New_York"
+  jitter: "15m"  # Random 0-15 minute delay
+```
+
+#### Seasonal Schedules
+```yaml
+schedule:
+  cron: "0 0 8 * * *"  # Daily 8 AM
+  start_at: "2024-06-01T00:00:00Z"  # Summer schedule
+  end_at: "2024-09-01T00:00:00Z"
+```
+
+#### High-Frequency with Load Distribution  
+```yaml
+schedule:
+  cron: "*/10 * * * * *"  # Every 10 seconds
+  jitter: "3s"  # 0-3 second random delay
+  overlap_policy: "skip"  # Prevent overlap
+```
+
+### Conditional Scheduling
+
+Using task conditions for runtime control:
+```yaml
+tasks:
+  - id: conditional-task
+    type: basic
+    condition: |
+      workflow.input.environment == "production" &&
+      now().hour >= 9 && now().hour < 17
+    $use: agent(local::agents.#(id="processor"))
+```
+
+### Schedule Chaining (Event-Driven Workflows)
+
+```yaml
+# Primary scheduled workflow
+id: data-processor
+schedule:
+  cron: "0 0 2 * * *"  # 2 AM daily
+
+tasks:
+  - id: process-data
+    type: basic
+    $use: agent(local::agents.#(id="data-processor"))
+    
+  - id: signal-completion
+    type: signal
+    signal:
+      id: "daily-processing-complete"
+      payload:
+        date: "{{ now | date '2006-01-02' }}"
+        records: "{{ .tasks.process-data.output.count }}"
+
+---
+# Dependent workflow triggered by signal
+id: report-generator
+triggers:
+  - type: signal
+    name: "daily-processing-complete"
+
+tasks:
+  - id: generate-report
+    type: basic
+    $use: agent(local::agents.#(id="reporter"))
+    with:
+      data_date: "{{ .workflow.input.date }}"
+      record_count: "{{ .workflow.input.records }}"
+```
+
+### Error Handling for Scheduled Workflows
+
+```yaml
+schedule:
+  cron: "0 0 */6 * * *"  # Every 6 hours
+  input:
+    retry_count: 0
+
+config:
+  retry_policy:
+    maximum_attempts: 3
+    initial_interval: "5m"
+    maximum_interval: "1h"
+    backoff_coefficient: 2.0
+    
+  on_error:
+    next: "handle-schedule-failure"
+    with:
+      scheduled_time: "{{ .workflow.scheduled_time }}"
+      error_details: "{{ .error }}"
+
+tasks:
+  - id: main-task
+    type: basic
+    $use: agent(local::agents.#(id="processor"))
+    
+  - id: handle-schedule-failure
+    type: basic
+    $use: agent(local::agents.#(id="error-handler"))
+    condition: "task.id == 'handle-schedule-failure'"
+```
+
+## 8. Schema Alignment
+
+**Primary schemas relied upon:**
+- `schemas/workflow.json#Schedule` - Complete schedule configuration
+- `schemas/workflow.json#Trigger` - Event trigger definitions
+- `engine/workflow/config.go#OverlapPolicy` - Overlap policy constants
+- `engine/workflow/schedule/operations.go` - Cron validation logic
+
+**Required fields from schemas:**
+- `schedule.cron` (required) - Cron expression string
+- `triggers[].type` (required) - Must be "signal" for signal triggers  
+- `triggers[].name` (required) - Unique trigger identifier
+
+**Enums and defaults:**
+- `overlap_policy`: skip (default), allow, buffer_one, cancel_other
+- `enabled`: true (default) 
+- `timezone`: "UTC" (default)
+
+## 9. Examples (from repo)
+
+**Referenced examples:**
+- `examples/schedules/` - Complete scheduled workflow with API management
+- `examples/signals/` - Signal-based workflow communication
+- `examples/schedules/hello-scheduler.yaml` - 6-field cron pattern
+- `examples/schedules/api.http` - REST API for schedule management
+
+**Copyable YAML snippets validated against:**
+- `examples/schedules/compozy.yaml` - Project configuration with workflows
+- Runtime permissions from Bun runtime configuration
+- Tool and agent patterns from examples directory
+
+## 10. Pitfalls & Gotchas
+
+1. **Cron Field Count**: Compozy expects 6-field format; automatically appends wildcard year for Temporal compatibility
+2. **Timezone Names**: Use IANA timezone names (e.g., "America/New_York", not "EST") 
+3. **Overlap Policy Defaults**: Default is "skip" - explicitly set if you need different behavior
+4. **Jitter Format**: Use Go duration format ("5m", "30s") not human text ("5 minutes")
+5. **Signal Names**: Must be unique across the system; use workflow/task IDs in signal names
+6. **Schedule Input**: Merged with trigger inputs; trigger inputs take precedence
+7. **Timezone Handling**: Start/end times are in UTC; timezone only affects cron scheduling
+8. **Validation**: Invalid cron expressions fail at startup, not runtime
+
+## 11. Checklist
+
+- [ ] Cron expression uses 6-field format with valid values
+- [ ] Timezone uses IANA names if specified  
+- [ ] Overlap policy chosen based on concurrency requirements
+- [ ] Jitter uses Go duration format if specified
+- [ ] Signal triggers have unique names across workflows
+- [ ] Schedule input schema matches workflow input requirements
+- [ ] Start/end times are properly formatted ISO 8601 if used
+- [ ] Runtime permissions include required access for scheduled operations
+
+## 12. Next Steps
+
+**Extend scheduling capabilities:**
+- Add more trigger types (webhook endpoints, file system events)
+- Implement conditional scheduling based on external data
+- Create schedule templates for common patterns
+- Set up monitoring and alerting for schedule execution
+
+**Validate schedules:**
+- Test cron expressions with online validators
+- Use `/api/v0/schedules` endpoints to verify configuration
+- Monitor execution logs for schedule behavior
+
+**Save configuration:**
+- Place schedule config in workflow YAML files
+- Use `compozy.yaml` to reference scheduled workflows  
+- Commit API management scripts (`api.http`) for team use

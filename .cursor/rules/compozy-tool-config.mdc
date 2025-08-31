@@ -1,0 +1,290 @@
+# Compozy Rule — Tool Configuration
+
+## 1. Overview
+
+Tools in Compozy are reusable, executable components that provide specific functionality to AI agents and workflows. This rule covers how END USERS configure tools through YAML configuration files, including TypeScript/JavaScript implementations, external API integrations, system commands, and MCP-provided tools.
+
+**When to use this:**
+- Creating custom business logic tools (TypeScript/JavaScript)
+- Integrating with external APIs or services 
+- Wrapping system commands or CLI tools
+- Defining reusable components for agents
+- Setting up tool validation schemas and environment configuration
+
+## 2. Minimal Setup (validated)
+
+### Basic Tool Configuration Template
+
+```yaml
+# tools/my-tool.yaml
+resource: "tool"
+id: "my-tool"
+description: "Brief description of what this tool does"
+timeout: "30s"
+
+input:
+  type: "object"
+  properties:
+    param1:
+      type: "string" 
+      description: "Description of parameter"
+  required: ["param1"]
+
+output:
+  type: "object"
+  properties:
+    result:
+      type: "string"
+
+with:
+  default_value: "example"
+
+env:
+  API_KEY: "{{ .env.MY_API_KEY }}"
+```
+
+### Project Runtime Configuration
+
+```yaml
+# compozy.yaml
+runtime:
+  type: bun                    # or "node"
+  entrypoint: "./entrypoint.ts"
+  permissions:
+    - --allow-read
+    - --allow-write 
+    - --allow-net
+    - --allow-env
+
+autoload:
+  enabled: true
+  include:
+    - "tools/*.yaml"
+  exclude:
+    - "**/*.tmp"
+```
+
+### TypeScript Tool Entrypoint
+
+```typescript
+// entrypoint.ts
+import { myTool } from "./my_tool.ts";
+
+export default {
+  my_tool: myTool,  // snake_case key matches tool ID
+};
+```
+
+## 3. Schema Alignment
+
+**Primary Schema**: `schemas/tool.json`
+
+**Required Fields:**
+- `resource`: Must be `"tool"` for autoloader discovery
+- `id`: Unique identifier (kebab-case recommended)
+- `description`: Human-readable description for AI agents
+
+**Key Schema References:**
+- `input`: `#/$defs/Schema` - JSON Schema Draft 7 for input validation
+- `output`: `#/$defs/Schema` - JSON Schema Draft 7 for output validation  
+- `with`: `#/$defs/Input` - Default parameters object
+- `env`: `#/$defs/EnvMap` - Environment variables (string keys/values)
+- `config`: `#/$defs/Input` - Static configuration separate from runtime input
+
+**Validation Enums:**
+- `timeout`: Go duration format (`"30s"`, `"5m"`, `"1h"`)
+
+## 4. Examples (from repo)
+
+### TypeScript Weather API Tool
+*From `examples/weather/weather_tool.ts` and `examples/weather/compozy.yaml`*
+
+```typescript
+// weather_tool.ts
+interface WeatherData {
+  temperature: number;
+  humidity: number; 
+  weather: string;
+}
+
+export async function weatherTool(input: { city: string }): Promise<WeatherData> {
+  // Input validation
+  if (!input || typeof input.city !== "string" || input.city.trim() === "") {
+    throw new Error("Invalid input: city must be a non-empty string");
+  }
+
+  // API calls and processing...
+  return {
+    temperature: 20,
+    humidity: 50,
+    weather: "Clear sky"
+  };
+}
+```
+
+```yaml
+# Workflow tool reference
+tools:
+  - id: weather_tool
+    description: Get the current weather for a specific location
+    input:
+      $ref: local::schemas.#(id=="city_input")
+```
+
+### Memory Operations Tool  
+*From `examples/memory/memory_tool.ts`*
+
+```typescript
+// memory_tool.ts
+interface MemoryInput {
+  operation: "read" | "append";
+  memory_key?: string;
+  message?: string;
+}
+
+export function memoryTool(input: MemoryInput): MemoryOutput {
+  // Validation and operation routing
+  switch (input.operation) {
+    case "read":
+      return handleRead(input.memory_key);
+    case "append": 
+      return handleAppend(input.memory_key, input.message);
+  }
+}
+```
+
+### Agent-Defined Tool
+*From `examples/code-reviewer/agents/analyzer.yaml`*
+
+```yaml
+# Agent with inline tool definition
+tools:
+  - id: write_file
+    description: Write content to a file
+    input:
+      type: object
+      properties:
+        path:
+          type: string
+          description: The file path to write to
+        content:
+          type: string
+          description: The content to write
+      required:
+        - path
+        - content
+```
+
+### Complete Tool Configuration
+*Synthesized from `engine/tool/README.md` examples*
+
+```yaml
+# tools/api-client.yaml
+resource: "tool"
+id: "slack-notifier"
+description: "Send notifications to Slack channels"
+timeout: "10s"
+
+input:
+  type: "object"
+  properties:
+    channel:
+      type: "string"
+      description: "Slack channel name or ID"
+    message:
+      type: "string"
+      description: "Message to send"
+    attachments:
+      type: "array"
+      items:
+        type: "object"
+        properties:
+          title:
+            type: "string"
+          text:
+            type: "string"
+          color:
+            type: "string"
+            enum: ["good", "warning", "danger"]
+  required: ["channel", "message"]
+
+output:
+  type: "object"
+  properties:
+    message_id:
+      type: "string"
+    timestamp:
+      type: "string"
+    channel_id:
+      type: "string"
+
+with:
+  username: "Compozy Bot"
+  icon_emoji: ":robot_face:"
+
+config:
+  base_url: "https://api.example.com"
+  timeout: 30
+  retry_count: 3
+
+env:
+  SLACK_TOKEN: "{{ .env.SLACK_BOT_TOKEN }}"
+  SLACK_WEBHOOK_URL: "{{ .secrets.SLACK_WEBHOOK_URL }}"
+```
+
+## 5. Pitfalls & Gotchas
+
+### Runtime Configuration Issues
+- **Missing Permissions**: Tools accessing filesystem, network, or environment need explicit runtime permissions
+- **Wrong Entrypoint**: Export function names must match tool IDs in snake_case
+- **Type Mismatch**: Runtime type must match project setup (`bun` vs `node`)
+
+### Schema Validation Problems  
+- **Invalid JSON Schema**: Input/output schemas must be valid JSON Schema Draft 7
+- **Required Fields**: Forgetting to mark required parameters in input schema
+- **Type Mismatches**: Tool implementation types not matching schema definitions
+
+### Environment Variables
+- **Template Errors**: Invalid template expressions in env values (use `{{ .env.VAR_NAME }}`)
+- **Security**: Avoid hardcoding secrets in `with` field, use `env` instead
+- **Scope**: Environment variables only available during tool execution, not globally
+
+### Tool Registration
+- **ID Conflicts**: Tool IDs must be unique across the entire project
+- **Autoload Patterns**: Tools not discovered due to incorrect `include`/`exclude` patterns
+- **Resource Field**: Missing `resource: "tool"` prevents autoloader discovery
+
+## 6. Checklist
+
+- [ ] Schema fields validated against `schemas/tool.json`
+- [ ] Tool ID is unique and uses kebab-case
+- [ ] Input/output schemas follow JSON Schema Draft 7
+- [ ] Runtime permissions include required access (`--allow-read`, `--allow-net`, etc.)
+- [ ] TypeScript exports match tool IDs in snake_case format
+- [ ] Environment variables use template syntax for dynamic values
+- [ ] Timeout uses valid Go duration format
+- [ ] Autoload include/exclude patterns cover tool files
+- [ ] Tool descriptions are clear for AI agent understanding
+
+## 7. Next Steps
+
+**Extend Tool Functionality:**
+- Add input validation and error handling in TypeScript implementations
+- Configure tool-specific timeouts and retry policies
+- Set up environment-specific configuration overrides
+
+**Integration Points:**
+- Reference tools in agent configurations: `$ref: local::tools.#(id=="tool-id")`
+- Use tools in workflow tasks: `$use: tool(local::tools.#(id=="tool-id"))`
+- Configure MCP tool integrations for external capabilities
+
+**Testing & Validation:**
+- Test tool schemas with `compozy config validate`
+- Verify runtime permissions with actual tool execution
+- Validate template expressions resolve correctly in different environments
+
+**File Locations:**
+- Tool YAML configs: `tools/tool-name.yaml`
+- TypeScript implementations: `tool-name_tool.ts` (snake_case)
+- Entrypoint exports: `entrypoint.ts`
+- Project configuration: `compozy.yaml` (runtime and autoload sections)

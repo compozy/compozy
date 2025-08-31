@@ -248,6 +248,8 @@ server:
 		require.NoError(t, err)
 
 		manager := NewManager(nil)
+		// Reduce debounce to make test faster and more reliable
+		manager.SetDebounce(10 * time.Millisecond)
 		defer manager.Close(context.Background())
 
 		// Track reloads
@@ -262,20 +264,26 @@ server:
 		require.NoError(t, err)
 		assert.Equal(t, "initial.example.com", config.Server.Host)
 
-		// Wait for watcher to start
-		require.Eventually(t, func() bool {
-			// Watcher is ready when we can detect file changes
-			return true
-		}, 1*time.Second, 10*time.Millisecond, "watcher failed to start")
+		// Wait for watcher to start by giving it time to initialize
+		// fsnotify needs time to set up file watching on the OS level
+		time.Sleep(200 * time.Millisecond)
 
-		// Modify file
+		// Modify file using non-atomic write to ensure fsnotify detects the change
+		// os.WriteFile uses atomic writes on macOS which can bypass fsnotify
 		updatedContent := `
 server:
   host: updated.example.com
   port: 9090
 `
-		err = os.WriteFile(yamlPath, []byte(updatedContent), 0o644)
+		file, err := os.OpenFile(yamlPath, os.O_WRONLY|os.O_TRUNC, 0o644)
 		require.NoError(t, err)
+		_, err = file.WriteString(updatedContent)
+		require.NoError(t, err)
+		err = file.Close()
+		require.NoError(t, err)
+
+		// Give fsnotify time to process the file change event
+		time.Sleep(100 * time.Millisecond)
 
 		// Wait for configuration to be reloaded
 		require.Eventually(t, func() bool {

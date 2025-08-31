@@ -1,6 +1,7 @@
 package llm
 
 import (
+	"sort"
 	"sync"
 )
 
@@ -19,7 +20,65 @@ func NewMemorySync() *MemorySync {
 	}
 }
 
-// GetLock returns a mutex for the given memory ID, creating it if necessary
+// WithLock runs fn while holding the per-memory mutex and ensures proper release.
+func (ms *MemorySync) WithLock(memoryID string, fn func()) {
+	l := ms.GetLock(memoryID)
+	l.Lock()
+	defer func() {
+		l.Unlock()
+		ms.ReleaseLock(memoryID)
+	}()
+	fn()
+}
+
+// WithMultipleLocks runs fn while holding multiple per-memory mutexes and ensures proper release.
+// Memory IDs are sorted to prevent deadlocks when multiple goroutines request the same set of locks.
+func (ms *MemorySync) WithMultipleLocks(memoryIDs []string, fn func()) {
+	if len(memoryIDs) == 0 {
+		fn()
+		return
+	}
+	if len(memoryIDs) == 1 {
+		ms.WithLock(memoryIDs[0], fn)
+		return
+	}
+	// Sort memory IDs to prevent deadlocks
+	sortedIDs := make([]string, len(memoryIDs))
+	copy(sortedIDs, memoryIDs)
+	sort.Strings(sortedIDs)
+	// Remove duplicates while preserving order
+	uniqueIDs := make([]string, 0, len(sortedIDs))
+	seen := make(map[string]bool)
+	for _, id := range sortedIDs {
+		if !seen[id] {
+			uniqueIDs = append(uniqueIDs, id)
+			seen[id] = true
+		}
+	}
+	// Acquire locks in sorted order
+	var locks []*sync.Mutex
+	for _, id := range uniqueIDs {
+		lock := ms.GetLock(id)
+		locks = append(locks, lock)
+		lock.Lock()
+	}
+	// Release locks in reverse order when done
+	defer func() {
+		for i := len(locks) - 1; i >= 0; i-- {
+			locks[i].Unlock()
+			ms.ReleaseLock(uniqueIDs[i])
+		}
+	}()
+	fn()
+}
+
+// GetLock returns a mutex for the given memory ID, creating it if necessary.
+// Usage contract:
+//
+//	l := ms.GetLock(id); l.Lock(); defer func(){ l.Unlock(); ms.ReleaseLock(id) }()
+//
+// Always ReleaseLock AFTER Unlock. Releasing while locked may create a new mutex
+// for the same ID, breaking mutual exclusion guarantees across callers.
 func (ms *MemorySync) GetLock(memoryID string) *sync.Mutex {
 	ms.mu.Lock()
 	defer ms.mu.Unlock()

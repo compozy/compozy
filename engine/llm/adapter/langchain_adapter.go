@@ -44,8 +44,11 @@ func (a *LangChainAdapter) GenerateContent(ctx context.Context, req *LLMRequest)
 		if structuredErr := a.errorParser.ParseError(err); structuredErr != nil {
 			return nil, structuredErr
 		}
-		// Fallback to wrapping unknown errors
-		return nil, fmt.Errorf("langchain GenerateContent failed: %w", err)
+		// Fallback to wrapping unknown errors with provider/model context
+		return nil, fmt.Errorf(
+			"langchain GenerateContent failed (provider=%s, model=%s): %w",
+			string(a.provider.Provider), a.provider.Model, err,
+		)
 	}
 	// Convert response back to our format
 	return a.convertResponse(response)

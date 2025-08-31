@@ -22,6 +22,10 @@ func (m *memoryResolverAdapter) Append(ctx context.Context, msg llm.Message) err
 	return m.memory.Append(ctx, msg)
 }
 
+func (m *memoryResolverAdapter) AppendMany(ctx context.Context, msgs []llm.Message) error {
+	return m.memory.AppendMany(ctx, msgs)
+}
+
 func (m *memoryResolverAdapter) Read(ctx context.Context) ([]llm.Message, error) {
 	return m.memory.Read(ctx)
 }

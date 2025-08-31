@@ -236,6 +236,110 @@ func (mi *memoryInstance) Append(ctx context.Context, msg llm.Message) error {
 	return nil
 }
 
+// AppendMany atomically appends multiple messages to the memory.
+// This ensures all messages are stored together or none are stored.
+func (mi *memoryInstance) AppendMany(ctx context.Context, msgs []llm.Message) error {
+	if len(msgs) == 0 {
+		return nil
+	}
+	start := time.Now()
+	log := logger.FromContext(ctx)
+	log.Debug("AppendMany called",
+		"message_count", len(msgs),
+		"memory_id", mi.id,
+		"operation", "append_many")
+	lock, err := mi.lockManager.AcquireAppendLock(ctx, mi.id)
+	if err != nil {
+		mi.metrics.RecordAppend(ctx, time.Since(start), 0, err)
+		return fmt.Errorf("failed to acquire lock for append_many on memory %s: %w", mi.id, err)
+	}
+	var lockReleaseErr error
+	defer func() {
+		if releaseErr := lock(); releaseErr != nil {
+			lockReleaseErr = releaseErr
+			log.Error("Failed to release lock",
+				"error", releaseErr,
+				"operation", "append_many",
+				"memory_id", mi.id,
+				"context", "memory_append_many_operation")
+		}
+	}()
+	totalTokenCount := mi.calculateTotalTokenCount(ctx, msgs)
+	if err := mi.store.AppendMessages(ctx, mi.id, msgs); err != nil {
+		mi.metrics.RecordAppend(ctx, time.Since(start), totalTokenCount, err)
+		if lockReleaseErr != nil {
+			return fmt.Errorf(
+				"failed to append messages to store: %w (also failed to release lock: %v)",
+				err,
+				lockReleaseErr,
+			)
+		}
+		return fmt.Errorf("failed to append messages to store: %w", err)
+	}
+	mi.updateMetadataAndMetrics(ctx, totalTokenCount)
+	mi.metrics.RecordAppend(ctx, time.Since(start), totalTokenCount, nil)
+	mi.handleTTLForAppendMany(ctx, log)
+	mi.checkFlushTrigger(ctx)
+	if lockReleaseErr != nil {
+		return fmt.Errorf("operation completed but failed to release lock: %w", lockReleaseErr)
+	}
+	return nil
+}
+
+// calculateTotalTokenCount calculates the total token count for multiple messages
+func (mi *memoryInstance) calculateTotalTokenCount(ctx context.Context, msgs []llm.Message) int {
+	var totalTokenCount int
+	for _, msg := range msgs {
+		var tokenCount int
+		if mi.asyncTokenCounter != nil {
+			// Queue async token counting (non-blocking)
+			mi.asyncTokenCounter.ProcessAsync(ctx, mi.id, msg.Content)
+			// Use estimate for immediate metrics
+			tokenCount = mi.estimateTokenCount(msg.Content) + mi.estimateTokenCount(string(msg.Role)) + 2
+		} else {
+			// Fallback to synchronous counting
+			tokenCount = mi.calculateMessageTokenCount(ctx, msg)
+		}
+		totalTokenCount += tokenCount
+	}
+	return totalTokenCount
+}
+
+// updateMetadataAndMetrics updates token count metadata and metrics
+func (mi *memoryInstance) updateMetadataAndMetrics(ctx context.Context, totalTokenCount int) {
+	log := logger.FromContext(ctx)
+	// Update token count metadata
+	if err := mi.store.IncrementTokenCount(ctx, mi.id, totalTokenCount); err != nil {
+		log.Warn("Failed to update token count metadata after append_many",
+			"error", err,
+			"memory_id", mi.id,
+			"token_count", totalTokenCount)
+		// Continue as this is not critical for the append operation
+	}
+	mi.metrics.RecordTokenCount(ctx, totalTokenCount)
+}
+
+// handleTTLForAppendMany handles TTL configuration for AppendMany operation
+func (mi *memoryInstance) handleTTLForAppendMany(ctx context.Context, log logger.Logger) {
+	if mi.resourceConfig != nil && mi.resourceConfig.Persistence.ParsedTTL > 0 {
+		// Check if we need to set/extend TTL
+		currentTTL, err := mi.store.GetKeyTTL(ctx, mi.id)
+		if err != nil {
+			log.Warn("Failed to get current TTL", "error", err, "memory_id", mi.id)
+			// Continue with setting TTL anyway
+			currentTTL = 0
+		}
+		// Set TTL if not set or extend if needed
+		if currentTTL <= 0 || currentTTL < mi.resourceConfig.Persistence.ParsedTTL/2 {
+			if err := mi.store.SetExpiration(ctx, mi.id, mi.resourceConfig.Persistence.ParsedTTL); err != nil {
+				log.Error("Failed to set TTL on memory", "error", err, "memory_id", mi.id)
+			} else {
+				log.Debug("Set TTL on memory", "memory_id", mi.id, "ttl", mi.resourceConfig.Persistence.ParsedTTL)
+			}
+		}
+	}
+}
+
 func (mi *memoryInstance) Read(ctx context.Context) ([]llm.Message, error) {
 	start := time.Now()
 	messages, err := mi.store.ReadMessages(ctx, mi.id)

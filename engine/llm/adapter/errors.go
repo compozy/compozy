@@ -118,6 +118,7 @@ func classifyHTTPStatus(status int) (ErrCode, bool) {
 		if status >= 400 {
 			return ErrCodeBadRequest, false
 		}
+		// Should not be called for 1xx/2xx/3xx; default to internal classification.
 		return ErrCodeInternalServer, false
 	}
 }

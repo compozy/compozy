@@ -488,6 +488,41 @@ type LLMConfig struct {
 	//   - Debug endpoints
 	// **Security**: Use environment variables
 	AdminToken SensitiveString `koanf:"admin_token" env:"MCP_ADMIN_TOKEN" sensitive:"true" json:"admin_token" yaml:"admin_token" mapstructure:"admin_token"`
+
+	// RetryAttempts configures the number of retry attempts for LLM operations.
+	//
+	// Controls how many times the orchestrator will retry failed LLM requests
+	// before giving up. Higher values improve reliability but may increase latency.
+	// Default: 3
+	RetryAttempts int `koanf:"retry_attempts" env:"LLM_RETRY_ATTEMPTS" json:"retry_attempts" yaml:"retry_attempts" mapstructure:"retry_attempts"`
+
+	// RetryBackoffBase sets the base delay for exponential backoff retry strategy.
+	//
+	// The actual delay will be calculated as base * (2 ^ attempt) with optional jitter.
+	// Lower values retry faster, higher values reduce server load.
+	// Default: 100ms
+	RetryBackoffBase time.Duration `koanf:"retry_backoff_base" env:"LLM_RETRY_BACKOFF_BASE" json:"retry_backoff_base" yaml:"retry_backoff_base" mapstructure:"retry_backoff_base"`
+
+	// RetryBackoffMax limits the maximum delay between retry attempts.
+	//
+	// Prevents exponential backoff from creating extremely long delays.
+	// Should be set based on user tolerance for response time.
+	// Default: 10s
+	RetryBackoffMax time.Duration `koanf:"retry_backoff_max" env:"LLM_RETRY_BACKOFF_MAX" json:"retry_backoff_max" yaml:"retry_backoff_max" mapstructure:"retry_backoff_max"`
+
+	// RetryJitter enables random jitter in retry delays to avoid thundering herd.
+	//
+	// When enabled, adds randomness to retry delays to prevent all clients
+	// from retrying simultaneously. Improves system stability under load.
+	// Default: true
+	RetryJitter bool `koanf:"retry_jitter" env:"LLM_RETRY_JITTER" json:"retry_jitter" yaml:"retry_jitter" mapstructure:"retry_jitter"`
+
+	// MaxConcurrentTools limits the number of tools that can execute in parallel.
+	//
+	// Controls resource usage and prevents overwhelming downstream services.
+	// Higher values improve throughput, lower values reduce resource contention.
+	// Default: 10
+	MaxConcurrentTools int `koanf:"max_concurrent_tools" env:"LLM_MAX_CONCURRENT_TOOLS" json:"max_concurrent_tools" yaml:"max_concurrent_tools" mapstructure:"max_concurrent_tools"`
 }
 
 // RateLimitConfig contains rate limiting configuration.
@@ -1193,8 +1228,13 @@ func buildMemoryConfig(registry *definition.Registry) MemoryConfig {
 
 func buildLLMConfig(registry *definition.Registry) LLMConfig {
 	return LLMConfig{
-		ProxyURL:   getString(registry, "llm.proxy_url"),
-		AdminToken: SensitiveString(getString(registry, "llm.admin_token")),
+		ProxyURL:           getString(registry, "llm.proxy_url"),
+		AdminToken:         SensitiveString(getString(registry, "llm.admin_token")),
+		RetryAttempts:      getInt(registry, "llm.retry_attempts"),
+		RetryBackoffBase:   getDuration(registry, "llm.retry_backoff_base"),
+		RetryBackoffMax:    getDuration(registry, "llm.retry_backoff_max"),
+		RetryJitter:        getBool(registry, "llm.retry_jitter"),
+		MaxConcurrentTools: getInt(registry, "llm.max_concurrent_tools"),
 	}
 }
 
