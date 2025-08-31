@@ -126,6 +126,15 @@
         "typescript": "^5.8.0",
       },
     },
+    "examples/prompt-only": {
+      "name": "@compozy/example-prompt-only",
+      "version": "0.0.1",
+      "devDependencies": {
+        "oxlint": "^1.4.0",
+        "prettier": "^3.6.0",
+        "typescript": "^5.8.0",
+      },
+    },
     "examples/schedules": {
       "name": "@compozy/example-schedules",
       "version": "0.0.1",
@@ -482,6 +491,8 @@
     "@compozy/example-memory": ["@compozy/example-memory@workspace:examples/memory"],
 
     "@compozy/example-nested-tasks": ["@compozy/example-nested-tasks@workspace:examples/nested-tasks"],
+
+    "@compozy/example-prompt-only": ["@compozy/example-prompt-only@workspace:examples/prompt-only"],
 
     "@compozy/example-schedules": ["@compozy/example-schedules@workspace:examples/schedules"],
 
