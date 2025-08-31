@@ -1,0 +1,20 @@
+name: prompt-only
+version: 0.1.0
+description: Minimal example of a basic task using a direct prompt with an agent
+
+workflows:
+  - source: ./workflow.yaml
+
+models:
+  - provider: openai
+    model: gpt-4o-mini
+    api_key: "{{ .env.OPENAI_API_KEY }}"
+
+runtime:
+  type: bun
+  entrypoint: "./entrypoint.ts"
+  permissions:
+    - --allow-read
+    - --allow-net
+
+# No autoload needed since agent is defined inline in workflow

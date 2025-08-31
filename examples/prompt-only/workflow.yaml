@@ -1,0 +1,38 @@
+id: prompt-only
+version: 0.1.0
+description: Minimal example of a basic task using an agent with a direct prompt (no actions)
+
+schemas:
+  - id: analyze_input
+    type: object
+    properties:
+      text:
+        type: string
+        description: The text content to analyze
+    required:
+      - text
+
+config:
+  input:
+    $ref: local::schemas.#(id=="analyze_input")
+
+agents:
+  - id: prompt-agent
+    config:
+      $ref: global::models.#(provider=="openai")
+    instructions: |
+      You are a concise text analysis assistant.
+      - Provide short, useful insights when asked.
+      - When asked for a summary, keep it under 2 sentences.
+
+tasks:
+  - id: analyze
+    type: basic
+    $use: agent(local::agents.#(id=="prompt-agent"))
+    prompt: |
+      Analyze the following text and provide a short summary of the key themes:
+      ---
+      {{ .workflow.input.text }}
+    outputs:
+      summary: "{{ .output.response }}"
+    final: true

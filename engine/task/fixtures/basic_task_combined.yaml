@@ -1,0 +1,22 @@
+# Example of a combined action+prompt basic task
+# This demonstrates the enhanced context capability where a prompt customizes an action
+
+id: enhanced-analysis
+type: basic
+$use: agent(local::agents.#(id=="analyzer"))
+
+# Combined mode: action provides structure, prompt adds context
+action: "standard-analysis"
+prompt: "Additionally, focus on security implications and performance concerns"
+
+# Input data to process
+with:
+  data: "{{ .input.data }}"
+  context: "{{ .input.context }}"
+
+# Output mapping
+outputs:
+  analysis: "{{ .output.analysis }}"
+  security_findings: "{{ .output.security_findings }}"
+  performance_metrics: "{{ .output.performance_metrics }}"
+  recommendations: "{{ .output.recommendations }}"

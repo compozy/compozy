@@ -53,7 +53,7 @@ func (w *Watcher) Watch(ctx context.Context, path string) error {
 	w.watched[absPath] = struct{}{}
 	w.mu.Unlock()
 
-	// Stop watching this specific path when the provided context is cancelled
+	// Stop watching this specific path when the provided context is canceled
 	if ctx != nil {
 		go func(p string, c context.Context) {
 			<-c.Done()
@@ -62,7 +62,13 @@ func (w *Watcher) Watch(ctx context.Context, path string) error {
 			delete(w.watched, p)
 			w.mu.Unlock()
 			// Best-effort removal from fsnotify watcher; ignore error if already removed/closed
-			_ = w.watcher.Remove(p)
+			if err := w.watcher.Remove(p); err != nil {
+				// Intentionally ignore error: removal may fail if watcher is already closed
+				// or path was already removed. Since this happens during context cancellation,
+				// we cannot propagate the error and logging is not yet available.
+				// TODO: Add logger injection for proper error logging
+				_ = err
+			}
 		}(absPath, ctx)
 	}
 

@@ -62,12 +62,12 @@ func (uc *ExecuteTask) Execute(ctx context.Context, input *ExecuteTaskInput) (*c
 	switch {
 	case agentConfig != nil:
 		actionID := input.TaskConfig.Action
-		// TODO: Implement automatic action selection for agents (tracked in project backlog)
-		// Current behavior requires explicit action ID specification for agent tasks
-		if actionID == "" {
-			return nil, fmt.Errorf("action ID is required for agent")
-		}
-		result, err = uc.executeAgent(ctx, agentConfig, actionID, input.TaskConfig.With, input)
+		promptText := input.TaskConfig.Prompt
+
+		// Trust load-time validation - both action and prompt can be provided together for enhanced context
+		// At least one of them is guaranteed to be present by validators.go
+
+		result, err = uc.executeAgent(ctx, agentConfig, actionID, promptText, input.TaskConfig.With, input)
 		if err != nil {
 			return nil, fmt.Errorf("failed to execute agent: %w", err)
 		}
@@ -210,6 +210,7 @@ func (uc *ExecuteTask) executeAgent(
 	ctx context.Context,
 	agentConfig *agent.Config,
 	actionID string,
+	promptText string,
 	taskWith *core.Input,
 	input *ExecuteTaskInput,
 ) (*core.Output, error) {
@@ -257,7 +258,24 @@ func (uc *ExecuteTask) executeAgent(
 		}
 	}()
 
-	result, err := llmService.GenerateContent(ctx, agentConfig, taskWith, actionID)
+	// Resolve templates in promptText if present and context available
+	resolvedPrompt := promptText
+	if promptText != "" && uc.templateEngine != nil && input.WorkflowState != nil {
+		workflowContext := buildWorkflowContext(
+			input.WorkflowState,
+			input.WorkflowConfig,
+			input.TaskConfig,
+			input.ProjectConfig,
+		)
+		if rendered, rerr := uc.templateEngine.RenderString(promptText, workflowContext); rerr == nil {
+			resolvedPrompt = rendered
+		} else {
+			log.Warn("Failed to resolve templates in prompt; using raw value",
+				"error", rerr)
+		}
+	}
+
+	result, err := llmService.GenerateContent(ctx, agentConfig, taskWith, actionID, resolvedPrompt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate content: %w", err)
 	}

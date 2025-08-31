@@ -529,6 +529,11 @@ type BasicTask struct {
 	// Used for logging and debugging purposes
 	// - **Example**: "process-user-data", "send-notification"
 	Action string `json:"action,omitempty" yaml:"action,omitempty" mapstructure:"action,omitempty"`
+
+	// Prompt provides direct instruction to agents when no specific action is needed
+	// Used for ad-hoc agent interactions without predefined action definitions
+	// - **Example**: "Analyze this code for security issues", "Summarize the following text"
+	Prompt string `json:"prompt,omitempty" yaml:"prompt,omitempty" mapstructure:"prompt,omitempty"`
 }
 
 // -----------------------------------------------------------------------------

@@ -136,11 +136,25 @@ func (v *TypeValidator) validateExecutorFields() error {
 	if v.config.GetTool() != nil && v.config.GetAgent() != nil {
 		return fmt.Errorf("cannot specify both agent and tool - use only one executor type")
 	}
-	if v.config.GetTool() != nil && v.config.Action != "" {
-		return fmt.Errorf("action is not allowed when executor type is tool")
+	// When using tools, neither action nor prompt should be specified
+	if v.config.GetTool() != nil {
+		if v.config.Action != "" {
+			return fmt.Errorf("action is not allowed when executor type is tool")
+		}
+		if v.config.Prompt != "" {
+			return fmt.Errorf("prompt is not allowed when executor type is tool")
+		}
 	}
-	if v.config.GetAgent() != nil && v.config.Action == "" {
-		return fmt.Errorf("action is required when executor type is agent")
+
+	// When using agents, require at least one of action or prompt (both can be provided for enhanced context)
+	if v.config.GetAgent() != nil {
+		hasAction := v.config.Action != ""
+		hasPrompt := v.config.Prompt != ""
+		if !hasAction && !hasPrompt {
+			return fmt.Errorf("basic tasks using agents must specify at least one of 'action' or 'prompt'")
+		}
+		// Note: Both action and prompt can be provided together for enhanced context
+		// The prompt will augment or customize the action's behavior
 	}
 	return nil
 }

@@ -89,16 +89,51 @@ func (s *Service) GenerateContent(
 	agentConfig *agent.Config,
 	taskWith *core.Input,
 	actionID string,
+	directPrompt string,
 ) (*core.Output, error) {
 	if agentConfig == nil {
 		return nil, fmt.Errorf("agent config cannot be nil")
 	}
-	if actionID == "" {
-		return nil, fmt.Errorf("actionID cannot be empty")
+	// Validate either actionID or directPrompt is provided
+	if actionID == "" && directPrompt == "" {
+		return nil, fmt.Errorf("either actionID or directPrompt must be provided")
 	}
-	actionConfig, err := agent.FindActionConfig(agentConfig.Actions, actionID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find action config: %w", err)
+
+	var actionConfig *agent.ActionConfig
+	var err error
+
+	if actionID != "" {
+		// Action-based flow (with optional prompt augmentation)
+		actionConfig, err = agent.FindActionConfig(agentConfig.Actions, actionID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to find action config: %w", err)
+		}
+
+		// If directPrompt is also provided, augment the action with it
+		if directPrompt != "" {
+			// Create a copy to avoid mutating the original action config
+			actionConfigCopy := *actionConfig
+
+			// Combine the action's prompt with the direct prompt for enhanced context
+			if actionConfigCopy.Prompt != "" {
+				// Append the direct prompt to the action's prompt
+				actionConfigCopy.Prompt = fmt.Sprintf(
+					"%s\n\nAdditional context: %s",
+					actionConfigCopy.Prompt,
+					directPrompt,
+				)
+			} else {
+				// If the action has no prompt, use the direct prompt
+				actionConfigCopy.Prompt = directPrompt
+			}
+			actionConfig = &actionConfigCopy
+		}
+	} else {
+		// Prompt-only flow: Create transient ActionConfig for direct prompt execution
+		actionConfig = &agent.ActionConfig{
+			ID:     "direct-prompt",
+			Prompt: directPrompt,
+		}
 	}
 	// Defensive copy to avoid shared-mutation/race on the agent's action config
 	actionCopy, err := core.DeepCopy(actionConfig)
