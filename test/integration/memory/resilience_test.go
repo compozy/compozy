@@ -256,7 +256,11 @@ func TestResilienceCircuitBreaker(t *testing.T) {
 	t.Run("Should handle timeout and recovery scenarios", func(t *testing.T) {
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
-		ctx := context.Background()
+
+		// Set a reasonable overall test timeout
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
 		// Test timeout handling and recovery
 		memRef := core.MemoryReference{
 			ID:  "customer-support",
@@ -273,21 +277,30 @@ func TestResilienceCircuitBreaker(t *testing.T) {
 		const numAttempts = 8 // Reduced from 20 for faster tests
 		timeoutCount := 0
 		successCount := 0
+
 		for i := range numAttempts {
+			// Check if test context is canceled
+			select {
+			case <-ctx.Done():
+				t.Log("Test context canceled, stopping attempts")
+				break
+			default:
+			}
+
 			// Create instance first
 			instance, err := env.GetMemoryManager().GetInstance(ctx, memRef, workflowContext)
 			require.NoError(t, err)
 
 			// Use short timeout for append operations to simulate stress
 			opCtx := ctx
-			var cancel context.CancelFunc
+			var opCancel context.CancelFunc
 			if i%2 == 0 { // Every 2nd operation has a short timeout to ensure timeouts occur
 				timeoutCtx, cancelFunc := context.WithTimeout(
 					ctx,
 					1*time.Nanosecond,
 				) // Very short timeout to trigger failures
 				opCtx = timeoutCtx
-				cancel = cancelFunc
+				opCancel = cancelFunc
 			}
 
 			// Try append operation with potential timeout
@@ -297,7 +310,7 @@ func TestResilienceCircuitBreaker(t *testing.T) {
 			})
 
 			if err != nil {
-				if opCtx.Err() == context.DeadlineExceeded {
+				if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 					timeoutCount++
 					t.Logf("Attempt %d timed out (expected)", i)
 				} else {
@@ -307,13 +320,17 @@ func TestResilienceCircuitBreaker(t *testing.T) {
 				successCount++
 			}
 
-			if cancel != nil {
-				cancel()
+			if opCancel != nil {
+				opCancel()
 			}
+
+			// Small sleep to prevent overwhelming the system
 			time.Sleep(2 * time.Millisecond)
 		}
+
 		t.Logf("Total attempts: %d, Timeouts: %d, Successes: %d",
 			numAttempts, timeoutCount, successCount)
+
 		// Should have both timeouts and successes
 		assert.Greater(t, timeoutCount, 0, "Should have some timeouts")
 		assert.Greater(t, successCount, 0, "Should have some successes")

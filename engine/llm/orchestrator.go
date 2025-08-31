@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/compozy/compozy/engine/agent"
@@ -12,6 +13,16 @@ import (
 	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/pkg/logger"
+	"github.com/sethvargo/go-retry"
+	"golang.org/x/sync/errgroup"
+)
+
+// Default configuration constants
+const (
+	defaultMaxConcurrentTools = 10
+	defaultRetryAttempts      = 3
+	defaultRetryBackoffBase   = 100 * time.Millisecond
+	defaultRetryBackoffMax    = 10 * time.Second
 )
 
 // AsyncHook provides hooks for monitoring async operations
@@ -34,24 +45,33 @@ type Request struct {
 
 // OrchestratorConfig configures the LLM orchestrator
 type OrchestratorConfig struct {
-	ToolRegistry   ToolRegistry
-	PromptBuilder  PromptBuilder
-	RuntimeManager runtime.Runtime
-	LLMFactory     llmadapter.Factory
-	MemoryProvider MemoryProvider // Optional: provides memory instances for agents
-	AsyncHook      AsyncHook      // Optional: hook for monitoring async operations
+	ToolRegistry       ToolRegistry
+	PromptBuilder      PromptBuilder
+	RuntimeManager     runtime.Runtime
+	LLMFactory         llmadapter.Factory
+	MemoryProvider     MemoryProvider // Optional: provides memory instances for agents
+	AsyncHook          AsyncHook      // Optional: hook for monitoring async operations
+	Timeout            time.Duration  // Optional: timeout for LLM operations
+	MaxConcurrentTools int            // Maximum concurrent tool executions
+	// Retry configuration
+	RetryAttempts    int           // Number of retry attempts for LLM operations
+	RetryBackoffBase time.Duration // Base delay for exponential backoff retry strategy
+	RetryBackoffMax  time.Duration // Maximum delay between retry attempts
+	RetryJitter      bool          // Enable random jitter in retry delays
 }
 
 // Implementation of LLMOrchestrator
 type llmOrchestrator struct {
-	config OrchestratorConfig
+	config     OrchestratorConfig
+	memorySync *MemorySync
 }
 
 // NewOrchestrator creates a new LLM orchestrator
 func NewOrchestrator(config *OrchestratorConfig) Orchestrator {
-	return &llmOrchestrator{
-		config: *config,
+	if config == nil {
+		config = &OrchestratorConfig{}
 	}
+	return &llmOrchestrator{config: *config, memorySync: NewMemorySync()}
 }
 
 // Execute processes an LLM request end-to-end
@@ -106,7 +126,55 @@ func (o *llmOrchestrator) generateLLMResponse(
 	llmReq *llmadapter.LLMRequest,
 	request Request,
 ) (*llmadapter.LLMResponse, error) {
-	response, err := llmClient.GenerateContent(ctx, llmReq)
+	// Apply timeout if configured
+	if o.config.Timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, o.config.Timeout)
+		defer cancel()
+	}
+	var response *llmadapter.LLMResponse
+	// Use configurable retry with exponential backoff
+	attempts := o.config.RetryAttempts
+	if attempts <= 0 {
+		attempts = defaultRetryAttempts
+	}
+	backoffBase := o.config.RetryBackoffBase
+	if backoffBase <= 0 {
+		backoffBase = defaultRetryBackoffBase
+	}
+	backoffMax := o.config.RetryBackoffMax
+	if backoffMax <= 0 {
+		backoffMax = defaultRetryBackoffMax
+	}
+
+	var backoff retry.Backoff
+	exponential := retry.NewExponential(backoffBase)
+	exponential = retry.WithMaxDuration(backoffMax, exponential)
+	// Validate attempts is positive and within reasonable bounds to prevent overflow
+	if attempts < 0 || attempts > 100 {
+		attempts = defaultRetryAttempts
+	}
+	// Safe conversion: attempts is validated to be in range [0, 100]
+	maxRetries := uint64(attempts) //nolint:gosec // G115: bounds checked above
+	if o.config.RetryJitter {
+		backoff = retry.WithMaxRetries(maxRetries, retry.WithJitter(time.Millisecond*50, exponential))
+	} else {
+		backoff = retry.WithMaxRetries(maxRetries, exponential)
+	}
+
+	err := retry.Do(ctx, backoff, func(ctx context.Context) error {
+		var err error
+		response, err = llmClient.GenerateContent(ctx, llmReq)
+		if err != nil {
+			// Check if error is retryable
+			if isRetryableErrorWithContext(ctx, err) {
+				return retry.RetryableError(err)
+			}
+			// Non-retryable error
+			return err
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, NewLLMError(err, ErrCodeLLMGeneration, map[string]any{
 			"agent":  request.Agent.ID,
@@ -290,17 +358,29 @@ func (o *llmOrchestrator) storeResponseInMemoryAsync(
 		bgCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 		defer cancel()
 
-		assistantMsg := llmadapter.Message{
-			Role:    "assistant",
-			Content: response.Content,
+		// Collect memory IDs for multi-lock synchronization
+		var memoryIDs []string
+		for _, memory := range memories {
+			if memory != nil {
+				memoryIDs = append(memoryIDs, memory.GetID())
+			}
 		}
-		err := StoreResponseInMemory(
-			bgCtx,
-			memories,
-			request.Agent.Memory,
-			assistantMsg,
-			messages[len(messages)-1],
-		)
+
+		// Use WithMultipleLocks for safe concurrent memory access
+		var err error
+		o.memorySync.WithMultipleLocks(memoryIDs, func() {
+			assistantMsg := llmadapter.Message{
+				Role:    "assistant",
+				Content: response.Content,
+			}
+			err = StoreResponseInMemory(
+				bgCtx,
+				memories,
+				request.Agent.Memory,
+				assistantMsg,
+				messages[len(messages)-1],
+			)
+		})
 		if err != nil {
 			log.Error("Failed to store response in memory",
 				"error", err,
@@ -416,18 +496,49 @@ func (o *llmOrchestrator) executeToolCalls(
 	if len(toolCalls) == 0 {
 		return nil, fmt.Errorf("no tool calls to execute")
 	}
-	// Execute all tool calls sequentially
-	var results []map[string]any
-	for _, toolCall := range toolCalls {
-		result, err := o.executeSingleToolCall(ctx, toolCall, request)
-		if err != nil {
-			return nil, err
-		}
-		results = append(results, map[string]any{
-			"tool_call_id": toolCall.ID,
-			"tool_name":    toolCall.Name,
-			"result":       result,
+	// Use parallel execution with semaphore for concurrency control
+	maxConcurrent := o.config.MaxConcurrentTools
+	if maxConcurrent <= 0 {
+		maxConcurrent = defaultMaxConcurrentTools
+	}
+	// Create error group for parallel execution
+	g, ctx := errgroup.WithContext(ctx)
+	// Create semaphore to limit concurrent executions
+	sem := make(chan struct{}, maxConcurrent)
+	// Results need to be collected in a thread-safe way
+	results := make([]map[string]any, len(toolCalls))
+	var resultsMu sync.Mutex
+	// Execute tool calls in parallel with concurrency limit
+	for i, tc := range toolCalls {
+		index := i
+		toolCall := tc
+		g.Go(func() error {
+			// Acquire semaphore
+			select {
+			case sem <- struct{}{}:
+				defer func() { <-sem }()
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+			// Execute the tool call
+			result, err := o.executeSingleToolCall(ctx, toolCall, request)
+			if err != nil {
+				return err
+			}
+			// Store result thread-safely
+			resultsMu.Lock()
+			results[index] = map[string]any{
+				"tool_call_id": toolCall.ID,
+				"tool_name":    toolCall.Name,
+				"result":       result,
+			}
+			resultsMu.Unlock()
+			return nil
 		})
+	}
+	// Wait for all tool calls to complete
+	if err := g.Wait(); err != nil {
+		return nil, err
 	}
 	// If only one tool call, return its result directly
 	if len(results) == 1 {

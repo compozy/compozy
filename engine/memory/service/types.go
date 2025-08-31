@@ -34,6 +34,9 @@ type MemoryOperationsService interface {
 	ReadPaginated(ctx context.Context, req *ReadPaginatedRequest) (*ReadPaginatedResponse, error)
 	Write(ctx context.Context, req *WriteRequest) (*WriteResponse, error)
 	Append(ctx context.Context, req *AppendRequest) (*AppendResponse, error)
+	// AppendMany performs an ordered, atomic append of multiple messages derived
+	// from the request payload. Treats nil/empty payload as no-op.
+	AppendMany(ctx context.Context, req *AppendRequest) (*AppendResponse, error)
 	Delete(ctx context.Context, req *DeleteRequest) (*DeleteResponse, error)
 
 	// Advanced operations

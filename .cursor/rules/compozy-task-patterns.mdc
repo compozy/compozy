@@ -8,132 +8,340 @@ alwaysApply: false
 # Compozy Task Patterns
 
 <configuration_overview type="task_patterns">
-Task patterns define different types of task execution strategies including basic, composite, parallel, collection, router, signal, and aggregate tasks.
+Task patterns define different types of task execution strategies including basic, router, parallel, collection, composite, aggregate, signal, wait, and memory tasks. Each task type provides specialized execution patterns for different automation needs.
 </configuration_overview>
+
+## Task Type Overview
+
+<task_type_reference type="complete_reference">
+| Type | Pattern | Concurrency | Use Cases | Example Scenarios |
+|------|---------|-------------|-----------|-------------------|
+| **basic** | Single execution | None | Individual operations | API calls, data processing, AI analysis |
+| **router** | Conditional branching | None | Decision logic | Approval routing, content classification |
+| **parallel** | Concurrent execution | Multi-task | Independent operations | Data enrichment, batch validation |
+| **collection** | Iteration | Configurable | Array processing | User processing, file transformation |
+| **composite** | Sequential grouping | None | Related tasks | Multi-step processes, reusable workflows |
+| **aggregate** | Result combining | None | Data consolidation | Report generation, data merging |
+| **signal** | Event emission | None | Coordination | Notifications, workflow triggers |
+| **wait** | Event listening | None | Synchronization | Approvals, external events |
+| **memory** | State management | None | Persistent data | Caching, session management, counters |
+</task_type_reference>
+
+## Architecture Patterns
+
+<architecture_patterns type="workflow_patterns">
+### Fan-Out/Fan-In Pattern
+```
+Input → Parallel/Collection Tasks → Aggregate → Output
+```
+Use `parallel` or `collection` followed by `aggregate` for distributed processing.
+
+### Pipeline Pattern
+```
+Task A → Task B → Task C → Output
+```
+Use `composite` for sequential processing stages.
+
+### Conditional Pipeline
+```
+Input → Router → Branch A or Branch B → Output
+```
+Use `router` for dynamic workflow paths.
+
+### Event-Driven Pattern
+```
+Process → Signal → Wait → Continue
+```
+Use `signal`/`wait` for cross-workflow coordination.
+</architecture_patterns>
 
 ## Basic Task Pattern
 
 <task_patterns type="basic_task">
+Executes a single action using an agent or tool. This is the most common task type for individual operations.
+
+**Configuration Fields:**
+- `action`: Action identifier for logging/debugging
+- `$use`: Reference to agent or tool configuration
+- `with`: Input parameters passed to the task
+- `outputs`: Output mappings for subsequent tasks
+- `on_success`/`on_error`: Flow control transitions
+
 ```yaml
-# Basic task with tool execution
+# Basic task with agent execution
 - id: weather
   type: basic
-  $use: tool(local::tools.#(id=="weather_tool"))
+  $use: agent(local::agents.#(id="tourist_guide"))
+  action: get_weather
   with:
     city: "{{ .workflow.input.city }}"
   outputs:
     temperature: "{{ .output.temperature }}"
+    humidity: "{{ .output.humidity }}"
+    description: "{{ .output.weather }}"
     city: "{{ .workflow.input.city }}"
+    timestamp: "{{ now }}"
   on_success:
-    next: next_task
-```
-</task_patterns>
+    next: activities
 
-## Composite Task Pattern
-
-<task_patterns type="composite_task">
-```yaml
-# Composite task containing multiple sub-tasks
-- id: root_composite
-  type: composite
-  strategy: fail_fast
-  tasks:
-    - id: subtask_1
-      type: basic
-      $use: tool(local::tools.#(id=="echo_tool"))
-      with:
-        message: "First subtask"
-    - id: subtask_2
-      type: basic
-      $use: tool(local::tools.#(id=="echo_tool"))
-      with:
-        message: "Second subtask"
-```
-</task_patterns>
-
-## Parallel Task Pattern
-
-<task_patterns type="parallel_task">
-```yaml
-# Parallel task execution
-- id: parallel_section
-  type: parallel
-  strategy: wait_all  # or race
-  tasks:
-    - id: task_a
-      type: basic
-      $use: tool(local::tools.#(id=="echo_tool"))
-      with:
-        message: "Parallel Task A"
-    - id: task_b
-      type: basic
-      $use: tool(local::tools.#(id=="echo_tool"))
-      with:
-        message: "Parallel Task B"
-```
-</task_patterns>
-
-## Collection Task Pattern
-
-<task_patterns type="collection_task">
-```yaml
-# Collection task for processing arrays
-- id: collection_section
-  type: collection
-  mode: parallel  # or sequential
-  strategy: best_effort  # or fail_fast
-  items: "{{ .workflow.input.test_data }}"
-  task:
-    id: "process-{{ .index }}"
-    type: basic
-    $use: tool(local::tools.#(id=="echo_tool"))
-    with:
-      message: "Processing item: {{ .item }} at index {{ .index }}"
+# Basic task with tool execution
+- id: save_json
+  type: basic
+  $use: tool(local::tools.#(id="save_data"))
+  with:
+    payload: "{{ .tasks.aggr.output }}"
+    format: "json"
 ```
 </task_patterns>
 
 ## Router Task Pattern
 
 <task_patterns type="router_task">
+Conditionally routes to different tasks based on CEL expressions. Enables dynamic workflow paths based on runtime conditions.
+
+**Configuration Fields:**
+- `condition`: CEL expression that evaluates to a route key
+- `routes`: Map of route keys to target tasks
+- `timeout`: Maximum time for route evaluation
+
 ```yaml
 # Router task for conditional branching
 - id: clothing_check
   type: router
-  condition: '{{ .tasks.clothing.output.clothing | empty | ternary "no_clothes" "has_clothes" }}'
+  condition: '{{ .tasks.clothing.output.save_data.clothing | empty | ternary "no_clothes" "has_clothes" }}'
   routes:
     has_clothes:
       $ref: local::tasks.#(id="save_results")
     no_clothes:
       $ref: local::tasks.#(id="no_results")
+
+# Router with inline task definitions
+- id: approval_router
+  type: router
+  condition: '{{ .workflow.input.amount > 1000 | ternary "high_value" "standard" }}'
+  routes:
+    high_value:
+      id: manager_approval
+      type: basic
+      $use: agent(local::agents.#(id="manager"))
+      action: review_request
+    standard:
+      id: auto_approve
+      type: basic
+      $use: tool(local::tools.#(id="auto_approver"))
 ```
 </task_patterns>
 
-## Signal Task Pattern
+## Parallel Task Pattern
 
-<task_patterns type="signal_task">
+<task_patterns type="parallel_task">
+Executes multiple tasks concurrently with configurable execution strategies.
+
+**Configuration Fields:**
+- `strategy`: Execution strategy (`wait_all`, `fail_fast`, `best_effort`, `race`)
+- `max_workers`: Maximum number of concurrent workers (0 = unlimited)
+- `tasks`: Array of tasks to execute in parallel
+- `timeout`: Maximum execution time for all tasks
+
+**Execution Strategies:**
+- `wait_all`: Wait for all tasks to complete successfully
+- `fail_fast`: Stop immediately on first failure
+- `best_effort`: Continue despite individual task failures
+- `race`: Return as soon as first task completes
+
 ```yaml
-# Signal task for workflow communication
-- id: send-signal
-  type: signal
-  signal:
-    id: workflow-ready
-    payload:
-      message: "Hello from sender!"
+# Parallel task with wait_all strategy
+- id: parallel_validation
+  type: parallel
+  strategy: wait_all
+  max_workers: 5
+  timeout: "5m"
+  tasks:
+    - id: validate_schema
+      type: basic
+      $use: tool(local::tools.#(id="schema_validator"))
+      with:
+        data: "{{ .workflow.input.data }}"
+    - id: validate_business_rules
+      type: basic
+      $use: agent(local::agents.#(id="validator"))
+      action: validate_rules
+      with:
+        data: "{{ .workflow.input.data }}"
+    - id: validate_permissions
+      type: basic
+      $use: tool(local::tools.#(id="auth_checker"))
+      with:
+        user_id: "{{ .workflow.input.user_id }}"
+```
+</task_patterns>
+
+## Collection Task Pattern
+
+<task_patterns type="collection_task">
+Iterates over arrays, executing the same task template for each item. Supports both parallel and sequential processing modes.
+
+**Configuration Fields:**
+- `items`: Template expression that evaluates to an array
+- `mode`: Processing mode (`parallel` or `sequential`)
+- `strategy`: Error handling (`fail_fast` or `best_effort`)
+- `batch`: Batch size for parallel processing
+- `max_workers`: Maximum concurrent workers for parallel mode
+- `task`: Task template executed for each item
+
+**Template Variables:**
+- `{{ .item }}`: Current item being processed
+- `{{ .index }}`: Zero-based index of current item
+- `{{ .items }}`: Complete array of items
+
+```yaml
+# Parallel collection processing with batching
+- id: activity_analysis
+  type: collection
+  items: "{{ .tasks.activities.output.activities }}"
+  mode: parallel
+  strategy: best_effort
+  batch: 5
+  max_workers: 10
+  task:
+    id: "analyze-activity-{{ .index }}"
+    type: basic
+    $use: agent(local::agents.#(id="tourist_guide"))
+    action: analyze_activity
+    with:
+      activity: "{{ .item }}"
+      context: "{{ .workflow.input.city }}"
+    outputs:
+      activity: "{{ .item }}"
+      analysis: "{{ .output }}"
+  outputs:
+    detailed_recommendations: "{{ .output }}"
+    analyzed_count: "{{ len .output }}"
+  on_success:
+    next: clothing
+
+# Sequential collection processing
+- id: user_notifications
+  type: collection
+  items: "{{ .workflow.input.users }}"
+  mode: sequential
+  strategy: fail_fast
+  task:
+    id: "notify-user-{{ .index }}"
+    type: basic
+    $use: tool(local::tools.#(id="email_sender"))
+    with:
+      to: "{{ .item.email }}"
+      subject: "Welcome {{ .item.name }}"
+      template: "welcome_template"
+```
+</task_patterns>
+
+## Composite Task Pattern
+
+<task_patterns type="composite_task">
+Groups multiple tasks for sequential execution. Creates reusable sub-workflows and logical task groupings.
+
+**Configuration Fields:**
+- `strategy`: Error handling strategy (`fail_fast` or `best_effort`)
+- `tasks`: Array of tasks to execute sequentially
+- `timeout`: Maximum execution time for all tasks
+
+```yaml
+# Composite task for multi-step file processing
+- id: save_results
+  type: composite
+  strategy: fail_fast
+  timeout: "10m"
+  tasks:
+    - id: save_json
+      type: basic
+      $use: tool(local::tools.#(id="save_data"))
+      with:
+        payload: "{{ .tasks.aggr.output }}"
+        format: "json"
+    - id: save_txt
+      type: basic
+      $use: tool(local::tools.#(id="save_data"))
+      with:
+        payload: "{{ .tasks.aggr.output }}"
+        format: "txt"
+    - id: create_backup
+      type: basic
+      $use: tool(local::tools.#(id="backup_tool"))
+      with:
+        files: ["{{ .tasks.save_json.output.file_path }}", "{{ .tasks.save_txt.output.file_path }}"]
+  outputs:
+    json_file: "{{ .tasks.save_json.output.file_path }}"
+    txt_file: "{{ .tasks.save_txt.output.file_path }}"
+    backup_path: "{{ .tasks.create_backup.output.backup_path }}"
+  on_success:
+    next: verify_saved_files
 ```
 </task_patterns>
 
 ## Aggregate Task Pattern
 
 <task_patterns type="aggregate_task">
+Combines and consolidates outputs from multiple previous tasks into a unified result.
+
+**Configuration Fields:**
+- `outputs`: Map of output variables to template expressions
+- `strategy`: Aggregation strategy (future extension point)
+
 ```yaml
-# Aggregate task for combining outputs
+# Aggregate task combining multiple task outputs
 - id: aggr
   type: aggregate
   outputs:
     city: "{{ .workflow.input.city }}"
     weather: "{{ .tasks.weather.output }}"
+    clothing: "{{ .tasks.clothing.output.save_data.clothing }}"
     activities: "{{ .tasks.activities.output }}"
-    analysis: "{{ .tasks.activity_analysis.output }}"
+    detailed_analysis: "{{ .tasks.activity_analysis.output }}"
+    validated_items: "{{ .tasks.clothing_validation.output }}"
+    execution_summary:
+      total_activities: "{{ len .tasks.activity_analysis.output }}"
+      total_clothing_items: "{{ len .tasks.clothing_validation.output }}"
+      processing_time: "{{ now }}"
+  on_success:
+    next: clothing_check
+```
+</task_patterns>
+
+## Signal Task Pattern
+
+<task_patterns type="signal_task">
+Sends events/signals to coordinate between workflows or trigger external processes.
+
+**Configuration Fields:**
+- `signal_name`: Name of the signal to send
+- `payload`: Data to include with the signal
+- `target_workflow`: Optional target workflow ID
+- `broadcast`: Whether to broadcast to all listening workflows
+
+```yaml
+# Signal task for workflow communication
+- id: send_ready_signal
+  type: signal
+  signal_name: "workflow-ready"
+  payload:
+    message: "Hello from sender!"
+    timestamp: "{{ now }}"
+    workflow_id: "{{ .workflow.id }}"
+    data: "{{ .tasks.previous_task.output }}"
+  target_workflow: "receiver_workflow"
+  final: true
+
+# Broadcast signal to all listeners
+- id: broadcast_completion
+  type: signal
+  signal_name: "processing_complete"
+  broadcast: true
+  payload:
+    status: "completed"
+    results: "{{ .tasks.aggregate.output }}"
+    completion_time: "{{ now }}"
 ```
 </task_patterns>
 
@@ -180,21 +388,176 @@ tasks:
 ```
 </workflow_config_pattern>
 
+## Wait Task Pattern
+
+<task_patterns type="wait_task">
+Waits for signals with optional conditions and timeout handling. Enables synchronization between workflows.
+
+**Configuration Fields:**
+- `wait_for`: Signal name to wait for
+- `condition`: CEL expression to evaluate signal payload
+- `timeout`: Maximum wait duration
+- `processor`: Optional task to process received signals
+
+```yaml
+# Wait task with signal condition
+- id: wait_for_ready
+  type: wait
+  wait_for: "ready_signal"
+  condition: 'signal.payload.status == "ready"'
+  timeout: "5m"
+  processor:
+    $use: tool(local::tools.#(id="echo_tool"))
+    with:
+      message: "Processing signal: {{ .signal.payload.status }}"
+  on_success:
+    next: final_step
+
+# Simple wait without condition
+- id: wait_for_approval
+  type: wait
+  wait_for: "approval_signal"
+  timeout: "1h"
+  on_success:
+    next: process_approval
+  on_error:
+    next: handle_timeout
+```
+</task_patterns>
+
+## Memory Task Pattern
+
+<task_patterns type="memory_task">
+Manages persistent state and data storage with various operations for session management, caching, and counters.
+
+**Configuration Fields:**
+- `operation`: Memory operation type
+- `memory_ref`: Reference to memory configuration
+- `key_template`: Template for generating storage keys
+- `payload`: Data to store (for write/append operations)
+- Operation-specific config objects
+
+**Memory Operations:**
+- `read`: Retrieve stored data
+- `write`: Store new data (overwrites existing)
+- `append`: Add data to existing entry
+- `stats`: Get memory usage statistics
+- `health`: Check memory system health
+- `clear`: Remove data matching key pattern
+- `delete`: Remove specific memory instance
+- `flush`: Trigger memory cleanup based on strategy
+
+```yaml
+# Memory write operation
+- id: initialize_user
+  type: memory
+  operation: write
+  memory_ref: user_memory
+  key_template: "user:{{ .workflow.input.user_id }}:profile"
+  payload:
+    role: "system"
+    content: |
+      User Profile Initialized:
+      Name: {{ .workflow.input.user_data.name }}
+      Email: {{ .workflow.input.user_data.email }}
+      Created: {{ now | date "2006-01-02 15:04:05" }}
+  on_success:
+    next: add_session_data
+
+# Memory read operation
+- id: read_user_data
+  type: memory
+  operation: read
+  memory_ref: user_memory
+  key_template: "user:{{ .workflow.input.user_id }}:profile"
+  on_success:
+    next: process_action
+
+# Memory append operation
+- id: add_session_data
+  type: memory
+  operation: append
+  memory_ref: user_memory
+  key_template: "user:{{ .workflow.input.user_id }}:sessions"
+  payload:
+    role: "user"
+    content: |
+      Session {{ .workflow.input.session_id }} started at {{ now | date "15:04:05" }}
+  final: true
+
+# Memory statistics
+- id: get_memory_stats
+  type: memory
+  operation: stats
+  memory_ref: user_memory
+  key_template: "user:{{ .workflow.input.user_id }}:*"
+  stats_config:
+    include_content: true
+    group_by: "user"
+  on_success:
+    next: get_health_check
+
+# Memory flush with strategy
+- id: flush_user_memory
+  type: memory
+  operation: flush
+  memory_ref: user_memory
+  key_template: "user:{{ .workflow.input.user_id }}:profile"
+  flush_config:
+    strategy: "simple_fifo"
+    dry_run: false
+    force: false
+    threshold: 0.8
+  on_success:
+    next: get_memory_stats_after_flush
+```
+</task_patterns>
+
 ## Strategy Patterns
 
 <strategy_patterns type="execution_strategies">
+**Parallel Task Strategies:**
+- `wait_all`: Wait for all tasks to complete successfully (default)
+- `fail_fast`: Stop immediately on first task failure
+- `best_effort`: Continue despite individual task failures
+- `race`: Return as soon as first task completes successfully
+
+**Collection Task Strategies:**
+- `fail_fast`: Stop processing on first item failure
+- `best_effort`: Process all items regardless of individual failures (default)
+
+**Composite Task Strategies:**
+- `fail_fast`: Stop on first task failure (default)
+- `best_effort`: Continue executing tasks despite failures
+
 ```yaml
+# Parallel execution strategies
+- id: parallel_validation
+  type: parallel
+  strategy: wait_all        # All tasks must succeed
+  max_workers: 5
+  tasks: [/* ... */]
+
+- id: parallel_race
+  type: parallel
+  strategy: race           # First success wins
+  timeout: "30s"
+  tasks: [/* ... */]
+
+# Collection processing strategies
+- id: user_processing
+  type: collection
+  items: "{{ .workflow.input.users }}"
+  mode: parallel
+  strategy: best_effort    # Process all users even if some fail
+  batch: 10
+  task: {/* ... */}
+
 # Composite task strategies
-strategy: fail_fast    # Stop on first failure
-strategy: best_effort  # Continue despite failures
-
-# Parallel task strategies
-strategy: wait_all      # Wait for all tasks to complete
-strategy: race          # First task to complete wins
-
-# Collection task strategies
-strategy: fail_fast     # Stop on first failure
-strategy: best_effort   # Process all items regardless of failures
+- id: data_pipeline
+  type: composite
+  strategy: fail_fast      # Stop pipeline on any step failure
+  tasks: [/* ... */]
 ```
 </strategy_patterns>
 

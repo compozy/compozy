@@ -14,6 +14,9 @@ type Watcher struct {
 	watcher   *fsnotify.Watcher
 	callbacks []func()
 	mu        sync.RWMutex
+	// watched keeps track of actively watched absolute file paths.
+	// It's used to filter events and to support per-call context cancellation.
+	watched   map[string]struct{}
 	startOnce sync.Once // Ensures handleEvents goroutine is started only once
 	closeOnce sync.Once // Ensures Close is idempotent
 }
@@ -28,6 +31,7 @@ func NewWatcher() (*Watcher, error) {
 	return &Watcher{
 		watcher:   fsWatcher,
 		callbacks: make([]func(), 0),
+		watched:   make(map[string]struct{}),
 	}, nil
 }
 
@@ -44,9 +48,27 @@ func (w *Watcher) Watch(ctx context.Context, path string) error {
 		return fmt.Errorf("failed to watch file: %w", err)
 	}
 
+	// Mark path as being watched
+	w.mu.Lock()
+	w.watched[absPath] = struct{}{}
+	w.mu.Unlock()
+
+	// Stop watching this specific path when the provided context is cancelled
+	if ctx != nil {
+		go func(p string, c context.Context) {
+			<-c.Done()
+			// Remove from internal registry first to filter any in-flight events
+			w.mu.Lock()
+			delete(w.watched, p)
+			w.mu.Unlock()
+			// Best-effort removal from fsnotify watcher; ignore error if already removed/closed
+			_ = w.watcher.Remove(p)
+		}(absPath, ctx)
+	}
+
 	// Start the event handler only once
 	w.startOnce.Do(func() {
-		go w.handleEvents(ctx)
+		go w.handleEvents()
 	})
 
 	return nil
@@ -59,19 +81,23 @@ func (w *Watcher) OnChange(callback func()) {
 	w.callbacks = append(w.callbacks, callback)
 }
 
-// handleEvents processes file system events.
-func (w *Watcher) handleEvents(ctx context.Context) {
+// handleEvents processes file system events until the watcher is closed.
+func (w *Watcher) handleEvents() {
 	for {
 		select {
-		case <-ctx.Done():
-			return
-
 		case event, ok := <-w.watcher.Events:
 			if !ok {
 				return
 			}
+			// Filter out events for paths that are no longer being watched
+			w.mu.RLock()
+			_, stillWatched := w.watched[event.Name]
+			w.mu.RUnlock()
+			if !stillWatched {
+				continue
+			}
 
-			// Handle write and create events
+			// Handle write and create events only when active
 			if event.Op&(fsnotify.Write|fsnotify.Create) != 0 {
 				w.notifyCallbacks()
 			}

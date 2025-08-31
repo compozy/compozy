@@ -1,0 +1,510 @@
+# Compozy Rule — LLM Provider Configuration
+
+## 1. Overview
+
+This rule documents how end users configure LLM providers in Compozy projects. LLM providers enable AI agents to interact with different language models from various services. Compozy supports 8 major providers with flexible configuration options for authentication, model selection, and performance tuning.
+
+**When to use**: Configure LLM providers in your `compozy.yaml` when setting up AI agents that need access to language models. Multiple providers can be configured for redundancy, cost optimization, or different capabilities.
+
+## 2. Minimal Setup (validated)
+
+### Basic Provider Configuration
+
+```yaml
+# compozy.yaml
+name: my-ai-project
+version: "1.0.0"
+description: "AI project with LLM providers"
+
+models:
+  - provider: openai
+    model: gpt-4-turbo
+    api_key: "{{ .env.OPENAI_API_KEY }}"
+```
+
+### Multi-Provider Configuration
+
+```yaml
+models:
+  # Primary model for complex reasoning
+  - provider: openai
+    model: gpt-4-turbo
+    api_key: "{{ .env.OPENAI_API_KEY }}"
+    temperature: 0.7
+    max_tokens: 4000
+    
+  # Cost-effective fallback
+  - provider: groq
+    model: llama-3.3-70b-versatile
+    api_key: "{{ .env.GROQ_API_KEY }}"
+    
+  # Local model for sensitive data
+  - provider: ollama
+    model: llama3.2:8b
+    api_url: "http://localhost:11434"
+```
+
+## 3. Schema Alignment
+
+**Schema Reference**: `schemas/provider.json#ProviderConfig`
+
+**Required Fields**:
+- `provider` (string): Provider name from supported list
+- `model` (string): Provider-specific model identifier
+
+**Optional Fields**:
+- `api_key` (string): Authentication key (required for cloud providers)
+- `api_url` (string): Custom API endpoint
+- `organization` (string): Organization ID (OpenAI-specific)
+- `params` (object): Generation parameters (temperature, max_tokens, etc.)
+
+**Provider Names** (from `engine/core/provider.go`):
+- `openai` - OpenAI GPT models
+- `anthropic` - Anthropic Claude models  
+- `google` - Google Gemini models
+- `groq` - Groq fast inference
+- `ollama` - Local model hosting
+- `deepseek` - DeepSeek AI models
+- `xai` - xAI Grok models
+- `mock` - Testing provider
+
+## 4. Provider-Specific Configurations
+
+### 4.1. OpenAI Configuration
+
+```yaml
+models:
+  - provider: openai
+    model: gpt-4o                          # Models: gpt-4, gpt-4-turbo, gpt-3.5-turbo, o3-mini
+    api_key: "{{ .env.OPENAI_API_KEY }}"
+    api_url: "https://api.openai.com/v1"   # Optional: Custom endpoint
+    organization: "org-123456789abcdef"     # Optional: Organization ID
+    params:
+      temperature: 0.7
+      max_tokens: 4000
+      top_p: 0.9
+      seed: 42                             # For reproducible outputs
+      stop_words: ["END", "STOP"]
+```
+
+**Features Supported**:
+- ✅ Custom API endpoints (for enterprise)
+- ✅ Organization management
+- ✅ Structured output (JSON mode)
+- ✅ Function calling
+- ✅ Vision capabilities (GPT-4V)
+- ✅ Reproducible outputs (seed parameter)
+
+### 4.2. Anthropic Configuration
+
+```yaml
+models:
+  - provider: anthropic
+    model: claude-3-5-sonnet-latest        # Models: claude-3-opus, claude-3-sonnet, claude-3-haiku
+    api_key: "{{ .env.ANTHROPIC_API_KEY }}"
+    params:
+      temperature: 0.3
+      max_tokens: 8000
+      top_p: 0.95
+```
+
+**Features Supported**:
+- ✅ High context windows (up to 200K tokens)
+- ❌ Organization parameter (not supported)
+- ❌ Custom response format (not supported)
+- ✅ Function calling
+- ✅ Vision capabilities
+
+### 4.3. Google Gemini Configuration
+
+```yaml
+models:
+  - provider: google
+    model: gemini-1.5-pro                  # Models: gemini-pro, gemini-pro-vision, gemini-flash
+    api_key: "{{ .env.GOOGLE_API_KEY }}"
+    params:
+      temperature: 0.5
+      top_k: 40                            # Google-specific parameter
+      top_p: 0.8
+```
+
+**Features Supported**:
+- ✅ Vision and multimodal capabilities
+- ✅ Large context windows (1M+ tokens)
+- ✅ Top-K sampling (Google-specific)
+- ❌ Custom API URL (not supported)
+- ❌ Organization parameter (not supported)
+
+### 4.4. Groq Configuration
+
+```yaml
+models:
+  - provider: groq
+    model: llama-3.3-70b-versatile         # Models: llama variants, mixtral models
+    api_key: "{{ .env.GROQ_API_KEY }}"
+    api_url: "https://api.groq.com/openai/v1"  # Default, can be customized
+    params:
+      temperature: 0.6
+      max_tokens: 2048
+```
+
+**Features Supported**:
+- ✅ Ultra-fast inference
+- ✅ OpenAI-compatible API
+- ✅ Custom endpoints
+- ✅ Organization parameter support
+- ✅ Structured output
+
+### 4.5. Ollama (Local) Configuration
+
+```yaml
+models:
+  - provider: ollama
+    model: llama3.2:8b                     # Models: Any Ollama-hosted model
+    api_url: "http://localhost:11434"      # Required: Ollama server URL
+    params:
+      temperature: 0.8
+      repetition_penalty: 1.1             # Local model specific
+      min_length: 10
+```
+
+**Features Supported**:
+- ✅ Local/private model hosting
+- ✅ Custom model variants and sizes
+- ✅ No API key required
+- ✅ Repetition penalty control
+- ✅ JSON format support
+- ❌ Organization parameter (not supported)
+
+### 4.6. DeepSeek Configuration
+
+```yaml
+models:
+  - provider: deepseek
+    model: deepseek-v2                     # Models: deepseek-v2, deepseek-coder
+    api_key: "{{ .env.DEEPSEEK_API_KEY }}"
+    api_url: "https://api.deepseek.com/v1" # Default endpoint
+    params:
+      temperature: 0.4
+      max_tokens: 4000
+```
+
+**Features Supported**:
+- ✅ Competitive pricing
+- ✅ OpenAI-compatible API
+- ✅ Code-specialized models
+- ✅ Custom endpoints
+- ✅ Organization parameter support
+
+### 4.7. XAI (Grok) Configuration
+
+```yaml
+models:
+  - provider: xai
+    model: grok-beta                       # Models: grok-beta, grok variants
+    api_key: "{{ .env.XAI_API_KEY }}"
+    api_url: "https://api.x.ai/v1"        # Default endpoint
+    params:
+      temperature: 0.9                    # Grok works well with higher creativity
+      max_tokens: 4000
+```
+
+**Features Supported**:
+- ✅ Real-time information access
+- ✅ OpenAI-compatible API
+- ✅ Custom endpoints
+- ✅ Organization parameter support
+
+## 5. Authentication Patterns
+
+### 5.1. Environment Variable Templates (Recommended)
+
+```yaml
+models:
+  - provider: openai
+    api_key: "{{ .env.OPENAI_API_KEY }}"   # Template reference to .env file
+  - provider: anthropic
+    api_key: "{{ .secrets.ANTHROPIC_KEY }}" # Alternative: secrets reference
+```
+
+**Environment File (.env)**:
+```bash
+# Core LLM Provider Keys
+OPENAI_API_KEY=sk-proj-...
+ANTHROPIC_API_KEY=sk-ant-...
+GOOGLE_API_KEY=AIza...
+GROQ_API_KEY=gsk_...
+DEEPSEEK_API_KEY=sk-...
+XAI_API_KEY=xai-...
+
+# Optional: Organization IDs
+OPENAI_ORG_ID=org-123456789abcdef
+```
+
+### 5.2. API Key Precedence and Fallbacks
+
+```yaml
+models:
+  # Primary with fallback
+  - provider: openai
+    model: gpt-4-turbo
+    api_key: "{{ .env.OPENAI_API_KEY | default .env.BACKUP_OPENAI_KEY }}"
+    
+  # Different keys for different models  
+  - provider: openai
+    model: gpt-3.5-turbo
+    api_key: "{{ .env.OPENAI_CHEAP_KEY }}"  # Different key for cost optimization
+```
+
+### 5.3. Enterprise/Custom Authentication
+
+```yaml
+models:
+  # Custom enterprise endpoint
+  - provider: openai
+    model: gpt-4
+    api_key: "{{ .env.ENTERPRISE_API_KEY }}"
+    api_url: "https://enterprise-api.company.com/v1"
+    organization: "{{ .env.COMPANY_ORG_ID }}"
+    
+  # Proxy configuration
+  - provider: anthropic
+    model: claude-3-opus
+    api_key: "{{ .env.CLAUDE_KEY }}"
+    api_url: "https://proxy.company.com/anthropic/v1"
+```
+
+## 6. Advanced Configuration
+
+### 6.1. Performance Tuning
+
+```yaml
+models:
+  - provider: openai
+    model: gpt-4-turbo
+    api_key: "{{ .env.OPENAI_API_KEY }}"
+    params:
+      # Response control
+      temperature: 0.1              # Low for factual tasks
+      max_tokens: 2000              # Limit for cost control
+      top_p: 0.9                    # Nucleus sampling
+      
+      # Quality control
+      seed: 42                      # Reproducible outputs
+      stop_words: ["###", "END"]    # Stop generation patterns
+```
+
+### 6.2. Cost Optimization Strategy
+
+```yaml
+models:
+  # Tier 1: High-capability for complex tasks
+  - provider: openai
+    model: gpt-4-turbo
+    api_key: "{{ .env.OPENAI_API_KEY }}"
+    params:
+      temperature: 0.3
+      max_tokens: 1000              # Conservative token limit
+      
+  # Tier 2: Balanced performance/cost
+  - provider: groq
+    model: llama-3.3-70b-versatile
+    api_key: "{{ .env.GROQ_API_KEY }}"
+    
+  # Tier 3: Local for high-volume/sensitive tasks
+  - provider: ollama
+    model: llama3.2:8b
+    api_url: "http://localhost:11434"
+```
+
+### 6.3. Regional/Compliance Configuration
+
+```yaml
+models:
+  # EU region for GDPR compliance
+  - provider: openai
+    model: gpt-4
+    api_key: "{{ .env.OPENAI_EU_KEY }}"
+    api_url: "https://api.openai.eu/v1"
+    
+  # On-premise for sensitive data
+  - provider: ollama
+    model: llama3.2:8b
+    api_url: "https://internal-ai.company.com:11434"
+```
+
+## 7. Model Selection Guide
+
+### 7.1. Capability Matrix
+
+| Provider | Strengths | Best For | Context Window |
+|----------|-----------|----------|----------------|
+| **OpenAI** | Advanced reasoning, function calling | Complex analysis, coding | 128K tokens |
+| **Anthropic** | Safety, long context, helpfulness | Document analysis, writing | 200K tokens |
+| **Google** | Multimodal, massive context | Vision tasks, document processing | 1M+ tokens |
+| **Groq** | Ultra-fast inference | Real-time applications | 32K tokens |
+| **Ollama** | Privacy, cost-effective | Local deployment, sensitive data | Varies |
+| **DeepSeek** | Code specialization, competitive pricing | Programming tasks | 32K tokens |
+| **XAI** | Real-time info, creativity | Current events, creative tasks | 128K tokens |
+
+### 7.2. Model Recommendations by Use Case
+
+```yaml
+# Document Analysis - Long Context
+models:
+  - provider: google
+    model: gemini-1.5-pro
+    api_key: "{{ .env.GOOGLE_API_KEY }}"
+
+# Code Generation - Specialized Models  
+models:
+  - provider: deepseek
+    model: deepseek-coder
+    api_key: "{{ .env.DEEPSEEK_API_KEY }}"
+
+# Real-time Chat - Fast Inference
+models:
+  - provider: groq
+    model: llama-3.3-70b-versatile
+    api_key: "{{ .env.GROQ_API_KEY }}"
+
+# Privacy-Critical - Local Models
+models:
+  - provider: ollama
+    model: llama3.2:8b
+    api_url: "http://localhost:11434"
+```
+
+## 8. Examples from Repository
+
+**Reference Examples**: 
+- `examples/weather/compozy.yaml` - Groq + Ollama configuration
+- `examples/code-reviewer/compozy.yaml` - OpenAI o3-mini setup
+- `examples/memory/compozy.yaml` - Groq configuration
+- `pkg/template/templates/basic/compozy.yaml.tmpl` - Template structure
+
+**Validated YAML snippets** adapted from `examples/weather/compozy.yaml`:
+
+```yaml
+name: weather-agent
+version: "0.1.0"
+description: Multi-agent weather advisory system
+
+models:
+  - provider: groq
+    model: llama-3.3-70b-versatile
+    api_key: "{{ .env.GROQ_API_KEY }}"
+  - provider: ollama
+    model: llama4:16x17b
+    api_url: "http://localhost:11434"
+
+runtime:
+  type: bun
+  entrypoint: "./entrypoint.ts"
+  permissions:
+    - --allow-read
+    - --allow-net
+    - --allow-write
+```
+
+## 9. Pitfalls & Gotchas
+
+### 9.1. Common Configuration Mistakes
+
+```yaml
+# ❌ Wrong: Hardcoded API keys (security risk)
+models:
+  - provider: openai
+    api_key: "sk-proj-actual-key-here"
+
+# ✅ Correct: Environment variable template
+models:
+  - provider: openai
+    api_key: "{{ .env.OPENAI_API_KEY }}"
+```
+
+```yaml
+# ❌ Wrong: Unsupported feature combinations
+models:
+  - provider: anthropic
+    model: claude-3-opus
+    organization: "my-org"          # Anthropic doesn't support organization
+
+# ✅ Correct: Provider-appropriate configuration
+models:
+  - provider: anthropic
+    model: claude-3-opus
+    api_key: "{{ .env.ANTHROPIC_API_KEY }}"
+```
+
+### 9.2. Performance Pitfalls
+
+```yaml
+# ❌ Wrong: Expensive default settings
+models:
+  - provider: openai
+    model: gpt-4-turbo
+    # No max_tokens limit = potential high costs
+
+# ✅ Correct: Cost-controlled settings
+models:
+  - provider: openai
+    model: gpt-4-turbo
+    api_key: "{{ .env.OPENAI_API_KEY }}"
+    params:
+      max_tokens: 2000              # Reasonable limit
+      temperature: 0.3              # Focused responses
+```
+
+### 9.3. Local Provider Gotchas
+
+```yaml
+# ❌ Wrong: Missing API URL for Ollama
+models:
+  - provider: ollama
+    model: llama3.2:8b
+    # Missing api_url will fail
+
+# ✅ Correct: Required URL for local providers
+models:
+  - provider: ollama
+    model: llama3.2:8b
+    api_url: "http://localhost:11434"
+```
+
+## 10. Checklist
+
+- [ ] Provider name matches supported constants (`openai`, `anthropic`, `google`, `groq`, `ollama`, `deepseek`, `xai`)
+- [ ] Model name is valid for the chosen provider
+- [ ] API keys use environment variable templates (not hardcoded)
+- [ ] Local providers (Ollama) include required `api_url`
+- [ ] Provider-specific limitations respected (e.g., Anthropic doesn't support organization)
+- [ ] Cost control parameters configured (max_tokens, temperature)
+- [ ] Environment variables defined in `.env` file
+- [ ] Multiple providers configured for redundancy (if needed)
+- [ ] Model selection aligned with use case requirements
+- [ ] Custom endpoints properly configured for enterprise setups
+
+## 11. Next Steps
+
+**Extend Configuration**:
+- Add more providers for specific use cases
+- Configure different models for different agents
+- Set up cost monitoring and usage tracking
+
+**Validation**:
+- Test provider connections: `compozy config validate`
+- Verify environment variables are loaded correctly
+- Monitor token usage and costs in production
+
+**Save Files**:
+- Main configuration: `compozy.yaml` (project root)
+- Environment variables: `.env` (project root, add to .gitignore)
+- Agent configurations: Reference providers in `agents/*.yaml`
+- Workflow configurations: Use providers in `workflows/*.yaml`
+
+**Advanced Features**:
+- Implement provider failover strategies
+- Configure rate limiting per provider
+- Set up provider-specific logging and monitoring
+- Implement custom authentication for enterprise deployments

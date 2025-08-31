@@ -12,6 +12,9 @@
             "type": "string"
           },
           "type": "array"
+        },
+        "admin_key": {
+          "type": "string"
         }
       },
       "additionalProperties": false,

@@ -14,6 +14,17 @@ import (
 	"go.temporal.io/sdk/client"
 )
 
+// Domain-specific constants for token estimation and message overhead
+const (
+	// estimatedCharsPerToken is the average number of characters per token
+	// This is a common approximation for most tokenizers
+	estimatedCharsPerToken = 4
+
+	// messageStructureOverhead represents the token overhead for message formatting
+	// (e.g., delimiters, special tokens)
+	messageStructureOverhead = 2
+)
+
 type memoryInstance struct {
 	id                string
 	resourceID        string
@@ -100,7 +111,7 @@ func NewMemoryInstance(ctx context.Context, opts *BuilderOptions) (Instance, err
 // estimateTokenCount provides a consistent fallback token estimation
 func (mi *memoryInstance) estimateTokenCount(text string) int {
 	// Rough estimate: 4 characters per token (common for most tokenizers)
-	tokens := len(text) / 4
+	tokens := len(text) / estimatedCharsPerToken
 	// Ensure at least 1 token for non-empty text
 	if tokens == 0 && text != "" {
 		tokens = 1
@@ -132,8 +143,7 @@ func (mi *memoryInstance) calculateMessageTokenCount(ctx context.Context, msg ll
 	roleCount := mi.calculateTokenCountWithFallback(ctx, string(msg.Role), "role")
 
 	// Add structure overhead for message formatting
-	structureOverhead := 2
-	return contentCount + roleCount + structureOverhead
+	return contentCount + roleCount + messageStructureOverhead
 }
 
 func (mi *memoryInstance) GetID() string {
@@ -187,17 +197,8 @@ func (mi *memoryInstance) Append(ctx context.Context, msg llm.Message) error {
 				"context", "memory_append_operation")
 		}
 	}()
-	// Use async token counting if available
-	var tokenCount int
-	if mi.asyncTokenCounter != nil {
-		// Queue async token counting (non-blocking)
-		mi.asyncTokenCounter.ProcessAsync(ctx, mi.id, msg.Content)
-		// Use estimate for immediate metrics
-		tokenCount = mi.estimateTokenCount(msg.Content) + mi.estimateTokenCount(string(msg.Role)) + 2
-	} else {
-		// Fallback to synchronous counting
-		tokenCount = mi.calculateMessageTokenCount(ctx, msg)
-	}
+	// Compute token count for this message
+	tokenCount := mi.calculateTokenCountForMessage(ctx, msg)
 	if err := mi.store.AppendMessageWithTokenCount(ctx, mi.id, msg, tokenCount); err != nil {
 		mi.metrics.RecordAppend(ctx, time.Since(start), tokenCount, err)
 		if lockReleaseErr != nil {
@@ -234,6 +235,113 @@ func (mi *memoryInstance) Append(ctx context.Context, msg llm.Message) error {
 		return fmt.Errorf("operation completed but failed to release lock: %w", lockReleaseErr)
 	}
 	return nil
+}
+
+// AppendMany atomically appends multiple messages to the memory.
+// This ensures all messages are stored together or none are stored.
+func (mi *memoryInstance) AppendMany(ctx context.Context, msgs []llm.Message) error {
+	if len(msgs) == 0 {
+		return nil
+	}
+	start := time.Now()
+	log := logger.FromContext(ctx)
+	log.Debug("AppendMany called",
+		"message_count", len(msgs),
+		"memory_id", mi.id,
+		"operation", "append_many")
+	lock, err := mi.lockManager.AcquireAppendLock(ctx, mi.id)
+	if err != nil {
+		mi.metrics.RecordAppend(ctx, time.Since(start), 0, err)
+		return fmt.Errorf("failed to acquire lock for append_many on memory %s: %w", mi.id, err)
+	}
+	var lockReleaseErr error
+	defer func() {
+		if releaseErr := lock(); releaseErr != nil {
+			lockReleaseErr = releaseErr
+			log.Error("Failed to release lock",
+				"error", releaseErr,
+				"operation", "append_many",
+				"memory_id", mi.id,
+				"context", "memory_append_many_operation")
+		}
+	}()
+	totalTokenCount := mi.calculateTotalTokenCount(ctx, msgs)
+	if err := mi.store.AppendMessages(ctx, mi.id, msgs); err != nil {
+		mi.metrics.RecordAppend(ctx, time.Since(start), totalTokenCount, err)
+		if lockReleaseErr != nil {
+			return fmt.Errorf(
+				"failed to append messages to store: %w (also failed to release lock: %v)",
+				err,
+				lockReleaseErr,
+			)
+		}
+		return fmt.Errorf("failed to append messages to store: %w", err)
+	}
+	mi.updateMetadataAndMetrics(ctx, totalTokenCount)
+	mi.metrics.RecordAppend(ctx, time.Since(start), totalTokenCount, nil)
+	mi.handleTTLForAppendMany(ctx, log)
+	mi.checkFlushTrigger(ctx)
+	if lockReleaseErr != nil {
+		return fmt.Errorf("operation completed but failed to release lock: %w", lockReleaseErr)
+	}
+	return nil
+}
+
+// calculateTokenCountForMessage calculates tokens for a single message
+func (mi *memoryInstance) calculateTokenCountForMessage(ctx context.Context, msg llm.Message) int {
+	if mi.asyncTokenCounter != nil {
+		// Queue async token counting (non-blocking)
+		mi.asyncTokenCounter.ProcessAsync(ctx, mi.id, msg.Content)
+		// Use estimate for immediate metrics
+		return mi.estimateTokenCount(msg.Content) + mi.estimateTokenCount(string(msg.Role)) + messageStructureOverhead
+	}
+	// Fallback to synchronous counting
+	return mi.calculateMessageTokenCount(ctx, msg)
+}
+
+// calculateTotalTokenCount calculates the total token count for multiple messages
+func (mi *memoryInstance) calculateTotalTokenCount(ctx context.Context, msgs []llm.Message) int {
+	var totalTokenCount int
+	for _, msg := range msgs {
+		tokenCount := mi.calculateTokenCountForMessage(ctx, msg)
+		totalTokenCount += tokenCount
+	}
+	return totalTokenCount
+}
+
+// updateMetadataAndMetrics updates token count metadata and metrics
+func (mi *memoryInstance) updateMetadataAndMetrics(ctx context.Context, totalTokenCount int) {
+	log := logger.FromContext(ctx)
+	// Update token count metadata
+	if err := mi.store.IncrementTokenCount(ctx, mi.id, totalTokenCount); err != nil {
+		log.Warn("Failed to update token count metadata after append_many",
+			"error", err,
+			"memory_id", mi.id,
+			"token_count", totalTokenCount)
+		// Continue as this is not critical for the append operation
+	}
+	mi.metrics.RecordTokenCount(ctx, totalTokenCount)
+}
+
+// handleTTLForAppendMany handles TTL configuration for AppendMany operation
+func (mi *memoryInstance) handleTTLForAppendMany(ctx context.Context, log logger.Logger) {
+	if mi.resourceConfig != nil && mi.resourceConfig.Persistence.ParsedTTL > 0 {
+		// Check if we need to set/extend TTL
+		currentTTL, err := mi.store.GetKeyTTL(ctx, mi.id)
+		if err != nil {
+			log.Warn("Failed to get current TTL", "error", err, "memory_id", mi.id)
+			// Continue with setting TTL anyway
+			currentTTL = 0
+		}
+		// Set TTL if not set or extend if needed
+		if currentTTL <= 0 || currentTTL < mi.resourceConfig.Persistence.ParsedTTL/2 {
+			if err := mi.store.SetExpiration(ctx, mi.id, mi.resourceConfig.Persistence.ParsedTTL); err != nil {
+				log.Error("Failed to set TTL on memory", "error", err, "memory_id", mi.id)
+			} else {
+				log.Debug("Set TTL on memory", "memory_id", mi.id, "ttl", mi.resourceConfig.Persistence.ParsedTTL)
+			}
+		}
+	}
 }
 
 func (mi *memoryInstance) Read(ctx context.Context) ([]llm.Message, error) {

@@ -258,6 +258,9 @@
       "additionalProperties": false,
       "description": "AuthConfig contains authentication configuration.",
       "properties": {
+        "admin_key": {
+          "type": "string"
+        },
         "enabled": {
           "type": "boolean"
         },
@@ -442,9 +445,29 @@
           "description": "AdminToken authenticates administrative operations.\n\nRequired for:\n  - MCP server registration\n  - Proxy configuration changes\n  - Debug endpoints\n**Security**: Use environment variables",
           "type": "string"
         },
+        "max_concurrent_tools": {
+          "description": "MaxConcurrentTools limits the number of tools that can execute in parallel.\n\nControls resource usage and prevents overwhelming downstream services.\nHigher values improve throughput, lower values reduce resource contention.\nDefault: 10",
+          "type": "integer"
+        },
         "proxy_url": {
           "description": "ProxyURL specifies the MCP proxy server endpoint.\n\nThe proxy handles:\n  - MCP server connections\n  - Tool discovery and routing\n  - Protocol translation\nDefault: \"http://localhost:6001\"",
           "type": "string"
+        },
+        "retry_attempts": {
+          "description": "RetryAttempts configures the number of retry attempts for LLM operations.\n\nControls how many times the orchestrator will retry failed LLM requests\nbefore giving up. Higher values improve reliability but may increase latency.\nDefault: 3",
+          "type": "integer"
+        },
+        "retry_backoff_base": {
+          "description": "RetryBackoffBase sets the base delay for exponential backoff retry strategy.\n\nThe actual delay will be calculated as base * (2 ^ attempt) with optional jitter.\nLower values retry faster, higher values reduce server load.\nDefault: 100ms",
+          "type": "integer"
+        },
+        "retry_backoff_max": {
+          "description": "RetryBackoffMax limits the maximum delay between retry attempts.\n\nPrevents exponential backoff from creating extremely long delays.\nShould be set based on user tolerance for response time.\nDefault: 10s",
+          "type": "integer"
+        },
+        "retry_jitter": {
+          "description": "RetryJitter enables random jitter in retry delays to avoid thundering herd.\n\nWhen enabled, adds randomness to retry delays to prevent all clients\nfrom retrying simultaneously. Improves system stability under load.\nDefault: true",
+          "type": "boolean"
         }
       },
       "type": "object"

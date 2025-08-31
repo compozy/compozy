@@ -30,6 +30,13 @@ func NewService(ctx context.Context, runtime runtime.Runtime, agent *agent.Confi
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid configuration: %w", err)
 	}
+	// Additional sanity checks to fail fast on obviously bad values
+	if config.Timeout <= 0 {
+		return nil, fmt.Errorf("invalid configuration: Timeout must be > 0")
+	}
+	if config.MaxConcurrentTools < 1 {
+		return nil, fmt.Errorf("invalid configuration: MaxConcurrentTools must be >= 1")
+	}
 	// Create MCP client if configured
 	var mcpClient *mcp.Client
 	if config.ProxyURL != "" {
@@ -57,11 +64,17 @@ func NewService(ctx context.Context, runtime runtime.Runtime, agent *agent.Confi
 	promptBuilder := NewPromptBuilder()
 	// Create orchestrator
 	orchestratorConfig := OrchestratorConfig{
-		ToolRegistry:   toolRegistry,
-		PromptBuilder:  promptBuilder,
-		RuntimeManager: runtime,
-		LLMFactory:     config.LLMFactory,
-		MemoryProvider: config.MemoryProvider,
+		ToolRegistry:       toolRegistry,
+		PromptBuilder:      promptBuilder,
+		RuntimeManager:     runtime,
+		LLMFactory:         config.LLMFactory,
+		MemoryProvider:     config.MemoryProvider,
+		Timeout:            config.Timeout,
+		MaxConcurrentTools: config.MaxConcurrentTools,
+		RetryAttempts:      config.RetryAttempts,
+		RetryBackoffBase:   config.RetryBackoffBase,
+		RetryBackoffMax:    config.RetryBackoffMax,
+		RetryJitter:        config.RetryJitter,
 	}
 	llmOrchestrator := NewOrchestrator(&orchestratorConfig)
 	return &Service{

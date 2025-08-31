@@ -293,6 +293,80 @@ func (s *memoryOperationsService) Append(ctx context.Context, req *AppendRequest
 	}, nil
 }
 
+// AppendMany executes an atomic append of multiple messages derived from the payload
+func (s *memoryOperationsService) AppendMany(ctx context.Context, req *AppendRequest) (*AppendResponse, error) {
+	ctx, span := s.tracer.Start(ctx, "memory.service.AppendMany")
+	defer span.End()
+
+	// Attributes and metrics
+	span.SetAttributes(
+		attribute.String("memory_ref", req.MemoryRef),
+		attribute.String("key", req.Key),
+	)
+	if s.operationCount != nil {
+		s.operationCount.Add(ctx, 1, metric.WithAttributes(
+			attribute.String("operation", "append_many"),
+			attribute.String("memory_ref", req.MemoryRef),
+		))
+	}
+
+	// Validate base request
+	if err := ValidateBaseRequestWithLimits(&req.BaseRequest, &s.config.ValidationLimits); err != nil {
+		return nil, err
+	}
+
+	// Prepare instance and messages (handles payload resolution + conversion)
+	instance, messages, beforeCount, err := s.prepareAppendOperation(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	// Treat empty as no-op
+	if len(messages) == 0 {
+		span.SetAttributes(
+			attribute.Int("appended_count", 0),
+			attribute.Int("total_count", beforeCount),
+		)
+		return &AppendResponse{
+			Success:    true,
+			Appended:   0,
+			TotalCount: beforeCount,
+			Key:        req.Key,
+		}, nil
+	}
+
+	// Try to use instance-level atomic AppendMany
+	if err := instance.AppendMany(ctx, messages); err != nil {
+		return nil, memcore.NewMemoryError(
+			memcore.ErrCodeMemoryAppend,
+			"append_many failed, no partial writes expected",
+			err,
+		).WithContext("memory_ref", req.MemoryRef).WithContext("key", req.Key)
+	}
+
+	// Fetch total count after append
+	totalCount, err := instance.Len(ctx)
+	if err != nil {
+		return nil, memcore.NewMemoryError(
+			memcore.ErrCodeMemoryAppend,
+			"failed to get message count",
+			err,
+		).WithContext("memory_ref", req.MemoryRef).WithContext("key", req.Key)
+	}
+
+	appended := totalCount - beforeCount
+	span.SetAttributes(
+		attribute.Int("appended_count", appended),
+		attribute.Int("total_count", totalCount),
+	)
+	return &AppendResponse{
+		Success:    true,
+		Appended:   appended,
+		TotalCount: totalCount,
+		Key:        req.Key,
+	}, nil
+}
+
 // Delete executes a memory delete operation
 func (s *memoryOperationsService) Delete(ctx context.Context, req *DeleteRequest) (*DeleteResponse, error) {
 	ctx, span := s.tracer.Start(ctx, "memory.service.Delete")

@@ -425,6 +425,51 @@ func registerLLMFields(registry *Registry) {
 		Type:    reflect.TypeOf(""),
 		Help:    "LLM admin token",
 	})
+
+	registry.Register(&FieldDef{
+		Path:    "llm.retry_attempts",
+		Default: 3,
+		CLIFlag: "",
+		EnvVar:  "LLM_RETRY_ATTEMPTS",
+		Type:    reflect.TypeOf(0),
+		Help:    "Number of retry attempts for LLM operations",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "llm.retry_backoff_base",
+		Default: 100 * time.Millisecond,
+		CLIFlag: "",
+		EnvVar:  "LLM_RETRY_BACKOFF_BASE",
+		Type:    durationType,
+		Help:    "Base delay for exponential backoff retry strategy",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "llm.retry_backoff_max",
+		Default: 10 * time.Second,
+		CLIFlag: "",
+		EnvVar:  "LLM_RETRY_BACKOFF_MAX",
+		Type:    durationType,
+		Help:    "Maximum delay between retry attempts",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "llm.retry_jitter",
+		Default: true,
+		CLIFlag: "",
+		EnvVar:  "LLM_RETRY_JITTER",
+		Type:    reflect.TypeOf(true),
+		Help:    "Enable random jitter in retry delays to prevent thundering herd",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "llm.max_concurrent_tools",
+		Default: 10,
+		CLIFlag: "",
+		EnvVar:  "LLM_MAX_CONCURRENT_TOOLS",
+		Type:    reflect.TypeOf(0),
+		Help:    "Maximum number of concurrent tool executions",
+	})
 }
 
 func registerRateLimitFields(registry *Registry) {

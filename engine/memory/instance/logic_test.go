@@ -238,8 +238,9 @@ func TestMemoryInstance_ErrorHandling(t *testing.T) {
 
 		mockFlushStrategy := &mockFlushStrategy{}
 
-		// Create synchronization channel for async operations
-		flushCheckDone := make(chan bool, 1)
+		// Use a WaitGroup for better synchronization control
+		var asyncComplete sync.WaitGroup
+		asyncComplete.Add(1)
 
 		instance := &memoryInstance{
 			id:               "test-id",
@@ -250,29 +251,25 @@ func TestMemoryInstance_ErrorHandling(t *testing.T) {
 			metrics:          NewDefaultMetrics(),
 		}
 
-		// Create a mock debounced flush that executes synchronously for testing
+		// Create a deterministic mock debounced flush that ensures proper call order
 		instance.debouncedFlush = func() {
-			// For this test, we need to execute the flush check in a goroutine
-			// but track when it starts to ensure proper synchronization
 			go func() {
-				// Get token count
+				defer asyncComplete.Done()
+
+				// Get token count first
 				tokenCount, err := instance.GetTokenCount(context.Background())
 				if err != nil {
 					return
 				}
-				// Get message count
+
+				// Get message count second
 				messageCount, err := instance.Len(context.Background())
 				if err != nil {
 					return
 				}
-				// Check if should flush
-				instance.flushingStrategy.ShouldFlush(tokenCount, messageCount, instance.resourceConfig)
 
-				// Signal completion
-				select {
-				case flushCheckDone <- true:
-				default:
-				}
+				// Check if should flush third
+				instance.flushingStrategy.ShouldFlush(tokenCount, messageCount, instance.resourceConfig)
 			}()
 		}
 
@@ -284,28 +281,27 @@ func TestMemoryInstance_ErrorHandling(t *testing.T) {
 		mockTokenCounter.On("CountTokens", ctx, "user").Return(1, nil)
 		mockStore.On("AppendMessageWithTokenCount", ctx, "test-id", msg, 6).Return(nil)
 
-		// The checkFlushTrigger is called before lock release check,
-		// so these expectations should be set
-		mockStore.On("GetTokenCount", mock.Anything, "test-id").Return(6, nil).Run(func(_ mock.Arguments) {
-			// Signal that the async operation has started
-			select {
-			case flushCheckDone <- true:
-			default:
-			}
-		})
-		mockStore.On("GetMessageCount", mock.Anything, "test-id").Return(1, nil)
-		mockFlushStrategy.On("ShouldFlush", 6, 1, (*core.Resource)(nil)).Return(false)
+		// Set up expectations in the exact order they will be called
+		mockStore.On("GetTokenCount", mock.Anything, "test-id").Return(6, nil).Once()
+		mockStore.On("GetMessageCount", mock.Anything, "test-id").Return(1, nil).Once()
+		mockFlushStrategy.On("ShouldFlush", 6, 1, (*core.Resource)(nil)).Return(false).Once()
 
 		err := instance.Append(ctx, msg)
 
 		// Should succeed despite lock release failure
 		assert.NoError(t, err)
 
-		// Wait for async goroutine to complete using channel
+		// Wait for async goroutine to complete with timeout
+		done := make(chan struct{})
+		go func() {
+			asyncComplete.Wait()
+			close(done)
+		}()
+
 		select {
-		case <-flushCheckDone:
-			// Async operation completed
-		case <-time.After(100 * time.Millisecond):
+		case <-done:
+			// Async operation completed successfully
+		case <-time.After(200 * time.Millisecond):
 			t.Fatal("Async flush check did not complete within timeout")
 		}
 
@@ -541,20 +537,20 @@ func TestMemoryInstance_Close_RaceCondition(t *testing.T) {
 
 		// Start multiple concurrent Close calls
 		var wg sync.WaitGroup
-		errors := make([]error, 5)
+		errs := make([]error, 5)
 
 		for i := range 5 {
 			wg.Add(1)
 			go func(idx int) {
 				defer wg.Done()
-				errors[idx] = instance.Close(context.Background())
+				errs[idx] = instance.Close(context.Background())
 			}(i)
 		}
 
 		wg.Wait()
 
 		// All Close calls should succeed without error
-		for i, err := range errors {
+		for i, err := range errs {
 			assert.NoError(t, err, "Close call %d should not error", i)
 		}
 

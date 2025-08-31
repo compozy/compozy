@@ -11,8 +11,9 @@ import (
 
 // LangChainAdapter adapts langchaingo to our LLMClient interface
 type LangChainAdapter struct {
-	model    llms.Model
-	provider core.ProviderConfig
+	model       llms.Model
+	provider    core.ProviderConfig
+	errorParser *ErrorParser
 }
 
 // NewLangChainAdapter creates a new LangChain adapter
@@ -25,23 +26,38 @@ func NewLangChainAdapter(config *core.ProviderConfig) (*LangChainAdapter, error)
 		return nil, fmt.Errorf("failed to create LLM model: %w", err)
 	}
 	return &LangChainAdapter{
-		model:    model,
-		provider: *config,
+		model:       model,
+		provider:    *config,
+		errorParser: NewErrorParser(string(config.Provider)),
 	}, nil
 }
 
 // GenerateContent implements LLMClient interface
 func (a *LangChainAdapter) GenerateContent(ctx context.Context, req *LLMRequest) (*LLMResponse, error) {
+	// Guard against nil request
+	if req == nil {
+		return nil, fmt.Errorf("nil LLMRequest")
+	}
 	// Convert our request to langchain format
 	messages := a.convertMessages(req)
 	options := a.buildCallOptions(req)
-
 	// Call the underlying model
 	response, err := a.model.GenerateContent(ctx, messages, options...)
 	if err != nil {
-		return nil, fmt.Errorf("langchain GenerateContent failed: %w", err)
+		// Try to extract structured error information before wrapping
+		// Lazy-init parser if nil to protect against zero-value construction
+		if a.errorParser == nil {
+			a.errorParser = NewErrorParser(string(a.provider.Provider))
+		}
+		if structuredErr := a.errorParser.ParseError(err); structuredErr != nil {
+			return nil, structuredErr
+		}
+		// Fallback to wrapping unknown errors with provider/model context
+		return nil, fmt.Errorf(
+			"langchain GenerateContent failed (provider=%s, model=%s): %w",
+			string(a.provider.Provider), a.provider.Model, err,
+		)
 	}
-
 	// Convert response back to our format
 	return a.convertResponse(response)
 }

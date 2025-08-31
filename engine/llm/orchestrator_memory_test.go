@@ -195,14 +195,12 @@ func TestOrchestrator_ExecuteWithMemory(t *testing.T) {
 		mockMemoryProvider.On("GetMemory", ctx, "test-memory", "user-123").Return(mockMemory, nil)
 		mockMemory.On("Read", ctx).Return(memoryMessages, nil)
 
-		// Expect messages to be stored asynchronously after response
+		// Expect messages to be stored asynchronously after response using AppendMany
 		asyncHook.expectMemoryStore() // Signal that we expect one memory store operation
-		mockMemory.On("Append", mock.Anything, mock.MatchedBy(func(msg Message) bool {
-			return msg.Role == MessageRoleUser && msg.Content == "What did we talk about last time?"
-		})).Return(nil)
-		mockMemory.On("Append", mock.Anything, mock.MatchedBy(func(msg Message) bool {
-			return msg.Role == MessageRoleAssistant &&
-				msg.Content == "We were discussing cats and their characteristics."
+		mockMemory.On("AppendMany", mock.Anything, mock.MatchedBy(func(msgs []Message) bool {
+			return len(msgs) == 2 &&
+				msgs[0].Role == MessageRoleUser && msgs[0].Content == "What did we talk about last time?" &&
+				msgs[1].Role == MessageRoleAssistant && msgs[1].Content == "We were discussing cats and their characteristics."
 		})).Return(nil)
 
 		// Setup other expectations

@@ -22,6 +22,11 @@ type Config struct {
 	Timeout time.Duration
 	// Tool execution configuration
 	MaxConcurrentTools int
+	// Retry configuration
+	RetryAttempts    int
+	RetryBackoffBase time.Duration
+	RetryBackoffMax  time.Duration
+	RetryJitter      bool
 	// Feature flags
 	EnableStructuredOutput bool
 	EnableToolCaching      bool
@@ -39,6 +44,10 @@ func DefaultConfig() *Config {
 		CacheTTL:               5 * time.Minute,
 		Timeout:                30 * time.Second,
 		MaxConcurrentTools:     10,
+		RetryAttempts:          3,
+		RetryBackoffBase:       100 * time.Millisecond,
+		RetryBackoffMax:        10 * time.Second,
+		RetryJitter:            true,
 		EnableStructuredOutput: true,
 		EnableToolCaching:      true,
 	}
@@ -110,6 +119,34 @@ func WithMemoryProvider(provider MemoryProvider) Option {
 	}
 }
 
+// WithRetryAttempts sets the number of retry attempts for LLM operations
+func WithRetryAttempts(attempts int) Option {
+	return func(c *Config) {
+		c.RetryAttempts = attempts
+	}
+}
+
+// WithRetryBackoffBase sets the base delay for exponential backoff retry strategy
+func WithRetryBackoffBase(base time.Duration) Option {
+	return func(c *Config) {
+		c.RetryBackoffBase = base
+	}
+}
+
+// WithRetryBackoffMax sets the maximum delay between retry attempts
+func WithRetryBackoffMax(maxDelay time.Duration) Option {
+	return func(c *Config) {
+		c.RetryBackoffMax = maxDelay
+	}
+}
+
+// WithRetryJitter enables or disables random jitter in retry delays
+func WithRetryJitter(enabled bool) Option {
+	return func(c *Config) {
+		c.RetryJitter = enabled
+	}
+}
+
 // WithAppConfig sets configuration values from the application config
 func WithAppConfig(appConfig *config.Config) Option {
 	return func(c *Config) {
@@ -122,6 +159,19 @@ func WithAppConfig(appConfig *config.Config) Option {
 		}
 		if appConfig.LLM.AdminToken.Value() != "" {
 			c.AdminToken = appConfig.LLM.AdminToken.Value()
+		}
+		if appConfig.LLM.RetryAttempts > 0 {
+			c.RetryAttempts = appConfig.LLM.RetryAttempts
+		}
+		if appConfig.LLM.RetryBackoffBase > 0 {
+			c.RetryBackoffBase = appConfig.LLM.RetryBackoffBase
+		}
+		if appConfig.LLM.RetryBackoffMax > 0 {
+			c.RetryBackoffMax = appConfig.LLM.RetryBackoffMax
+		}
+		c.RetryJitter = appConfig.LLM.RetryJitter
+		if appConfig.LLM.MaxConcurrentTools > 0 {
+			c.MaxConcurrentTools = appConfig.LLM.MaxConcurrentTools
 		}
 	}
 }

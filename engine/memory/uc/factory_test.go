@@ -61,6 +61,17 @@ func (m *mockMemoryOperationsService) Append(
 	return nil, args.Error(1)
 }
 
+func (m *mockMemoryOperationsService) AppendMany(
+	ctx context.Context,
+	req *service.AppendRequest,
+) (*service.AppendResponse, error) {
+	args := m.Called(ctx, req)
+	if resp := args.Get(0); resp != nil {
+		return resp.(*service.AppendResponse), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
+
 func (m *mockMemoryOperationsService) Delete(
 	ctx context.Context,
 	req *service.DeleteRequest,

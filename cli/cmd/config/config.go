@@ -502,6 +502,19 @@ func flattenLLMConfig(cfg *config.Config, result map[string]string) {
 	if cfg.LLM.AdminToken != "" {
 		result["llm.admin_token"] = redactSensitive(cfg.LLM.AdminToken.String())
 	}
+	if cfg.LLM.RetryAttempts > 0 {
+		result["llm.retry_attempts"] = fmt.Sprintf("%d", cfg.LLM.RetryAttempts)
+	}
+	if cfg.LLM.RetryBackoffBase > 0 {
+		result["llm.retry_backoff_base"] = cfg.LLM.RetryBackoffBase.String()
+	}
+	if cfg.LLM.RetryBackoffMax > 0 {
+		result["llm.retry_backoff_max"] = cfg.LLM.RetryBackoffMax.String()
+	}
+	result["llm.retry_jitter"] = fmt.Sprintf("%v", cfg.LLM.RetryJitter)
+	if cfg.LLM.MaxConcurrentTools > 0 {
+		result["llm.max_concurrent_tools"] = fmt.Sprintf("%d", cfg.LLM.MaxConcurrentTools)
+	}
 }
 
 // flattenCLIConfig flattens CLI configuration

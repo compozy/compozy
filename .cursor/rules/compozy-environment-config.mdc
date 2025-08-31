@@ -1,0 +1,354 @@
+# Compozy Rule — Environment Configuration & Deployment
+
+<purpose>
+Covers how end users configure environment-specific settings, manage deployment configurations, and deploy Compozy projects to different environments. Includes Docker setup, environment variable management, health checks, and production deployment best practices.
+</purpose>
+
+## 1. Overview
+
+Environment configuration in Compozy provides:
+- **Environment Variable Resolution**: Template-based configuration with precedence rules
+- **Multi-Environment Support**: Development, staging, and production configurations  
+- **Docker Deployment**: Container orchestration with health checks and graceful shutdown
+- **Configuration Precedence**: CLI flags > Config file > Environment variables > Defaults
+- **Security**: Template-based API key management and secrets handling
+
+**When to use**: Setting up deployment environments, configuring different runtime environments, managing secrets and API keys, preparing for production deployment.
+
+## 2. Minimal Setup (validated)
+
+### Basic Environment File
+
+```bash
+# .env
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+GROQ_API_KEY=gsk_...
+
+# Database Configuration
+DATABASE_URL=postgres://user:pass@localhost:5432/compozy
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=compozy
+DB_PASSWORD=secret
+DB_NAME=compozy_dev
+
+# Redis Configuration
+REDIS_URL=redis://localhost:6379/0
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=redis_secret
+
+# Temporal Configuration
+TEMPORAL_HOST_PORT=localhost:7233
+TEMPORAL_NAMESPACE=compozy-dev
+TEMPORAL_TASK_QUEUE=compozy-tasks
+
+# Runtime Configuration
+RUNTIME_LOG_LEVEL=info
+TOOL_EXECUTION_TIMEOUT=60s
+```
+
+### Project Configuration with Environment Templates
+
+```yaml
+# compozy.yaml
+name: my-app
+version: "1.0.0"
+description: "Production AI application"
+
+models:
+  - provider: openai
+    model: gpt-4
+    api_key: "{{ .env.OPENAI_API_KEY }}"
+  - provider: anthropic  
+    model: claude-3-sonnet
+    api_key: "{{ .env.ANTHROPIC_API_KEY }}"
+
+runtime:
+  type: bun
+  entrypoint: "./tools.ts"
+  permissions:
+    - "--allow-read={{ .env.DATA_PATH | default \"/data\" }}"
+    - "--allow-net={{ .env.ALLOWED_HOSTS | default \"*\" }}"
+    - "--allow-env=API_KEY,DATABASE_URL"
+
+cache:
+  url: "{{ .env.REDIS_URL }}"
+  
+workflows:
+  - source: ./workflows/main.yaml
+```
+
+## 3. Schema Alignment
+
+**Schema References**: 
+- `schemas/config.json#/properties/envFile` - Environment file loading
+- `schemas/provider.json#/properties/api_key` - Template-based API key configuration  
+- `schemas/compozy.json#/properties/models` - Provider configuration with environment templates
+- `cluster/compozy.Dockerfile` - Production Docker configuration
+- `cluster/docker-compose.yml` - Development Docker orchestration
+
+**Required Fields**:
+- Environment variables: Optional, but recommended for all sensitive values
+- Template expressions: Must use `{{ .env.VARIABLE_NAME }}` format
+- Docker health checks: Required `HEALTHCHECK` directive for production
+
+**Default Values**:
+- Configuration precedence: CLI flags > Config file > Environment variables > Defaults
+- Environment file: `.env` (loaded automatically if present)
+- Health check intervals: 30s interval, 10s timeout, 3 retries
+
+## 4. Examples (from repo)
+
+### Environment-Specific Configurations
+
+**Development Environment**:
+```yaml
+# compozy.dev.yaml  
+runtime:
+  log_level: debug
+  tool_execution_timeout: "300s"
+
+models:
+  - provider: openai
+    model: gpt-4
+    api_key: "{{ .env.OPENAI_API_KEY }}"
+    temperature: 0.8
+
+cache:
+  url: "{{ .env.REDIS_URL | default \"redis://localhost:6379/0\" }}"
+```
+
+**Production Environment**:
+```yaml
+# compozy.prod.yaml
+runtime:
+  log_level: warn
+  tool_execution_timeout: "120s"
+
+models:
+  - provider: openai
+    model: gpt-4
+    api_key: "{{ .env.OPENAI_API_KEY }}"
+    temperature: 0.7
+    max_tokens: 4000
+
+cache:
+  url: "{{ .env.REDIS_URL }}"
+  ttl: 24h
+  max_entries: 10000
+```
+
+### Docker Configuration
+
+**Development Docker Compose** (from `cluster/docker-compose.yml`):
+```yaml
+services:
+  redis:
+    image: redis:7.2-alpine
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-redis_secret}
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redis_secret}", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  app-postgresql:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-compozy}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+```
+
+**Production Dockerfile** (from `cluster/compozy.Dockerfile`):
+```dockerfile
+# Production environment variables with defaults
+ENV RUNTIME_ENVIRONMENT=${RUNTIME_ENVIRONMENT:-production}
+ENV SERVER_HOST=${SERVER_HOST:-0.0.0.0}  
+ENV SERVER_PORT=${SERVER_PORT:-5001}
+ENV DB_SSL_MODE=${DB_SSL_MODE:-require}
+
+# Health check with proper endpoint
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD ["/usr/local/bin/compozy", "api", "health"]
+
+# Graceful shutdown with tini
+ENTRYPOINT ["/sbin/tini", "--"]
+CMD ["/usr/local/bin/compozy", "server"]
+```
+
+### CLI Environment Configuration
+
+```bash
+# Development
+compozy dev --env-file .env.development
+
+# Staging  
+compozy start --env-file .env.staging --config staging.yaml
+
+# Production
+compozy server --env-file .env.production --config production.yaml
+```
+
+## 5. Configuration Precedence & Resolution
+
+### Precedence Order (highest to lowest)
+1. **CLI Flags**: `--port 8080`, `--debug`
+2. **Config File**: Values from `compozy.yaml`  
+3. **Environment Variables**: `COMPOZY_*` prefixed variables
+4. **Defaults**: Built-in default values
+
+### Environment Variable Mapping
+```bash
+# CLI configuration
+COMPOZY_SERVER_HOST=0.0.0.0
+COMPOZY_SERVER_PORT=8080
+COMPOZY_DEBUG=true
+
+# Runtime configuration  
+RUNTIME_LOG_LEVEL=info
+TOOL_EXECUTION_TIMEOUT=60s
+RUNTIME_TYPE=bun
+
+# Database configuration
+DB_HOST=localhost
+DB_PORT=5432
+DATABASE_URL=postgres://user:pass@host:5432/db
+```
+
+### Template Expression Examples
+```yaml
+# Simple environment variable
+api_key: "{{ .env.OPENAI_API_KEY }}"
+
+# With default value
+port: "{{ .env.PORT | default '3000' | int }}"
+
+# Conditional configuration
+ssl_mode: "{{ if eq .env.NODE_ENV 'production' }}require{{ else }}disable{{ end }}"
+
+# Complex template with multiple variables  
+database_url: "postgres://{{ .env.DB_USER }}:{{ .env.DB_PASSWORD }}@{{ .env.DB_HOST }}:{{ .env.DB_PORT }}/{{ .env.DB_NAME }}"
+```
+
+## 6. Production Deployment Patterns
+
+### Docker Production Stack
+
+```yaml
+# docker-compose.prod.yml
+version: '3.8'
+services:
+  compozy:
+    image: compozy/compozy:latest
+    environment:
+      - RUNTIME_ENVIRONMENT=production
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=5001
+      - DB_SSL_MODE=require
+      - REDIS_TLS_ENABLED=true
+    volumes:
+      - ./config:/app/config:ro
+      - ./logs:/app/logs
+    healthcheck:
+      test: ["/usr/local/bin/compozy", "api", "health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    
+  nginx:
+    image: nginx:alpine
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "443:443" 
+      - "80:80"
+    depends_on:
+      - compozy
+```
+
+### Health Check Implementation
+
+Compozy provides built-in health checks via:
+- **HTTP Endpoint**: `GET /health` - Basic health status
+- **Docker Health Check**: Configured in Dockerfile with proper timeouts
+- **Component Health**: Database, Redis, Temporal, and Worker status
+
+**Health Check Response**:
+```json
+{
+  "status": "ok",
+  "timestamp": "2024-01-15T10:30:00Z",
+  "database": {"status": "healthy"},
+  "redis": {"status": "healthy"},  
+  "worker": {"status": "running"},
+  "reconciliation": {
+    "ready": true,
+    "last_attempt": "2024-01-15T10:29:45Z"
+  }
+}
+```
+
+### Graceful Shutdown
+
+Compozy handles `SIGINT` and `SIGTERM` signals with:
+- **Resource Cleanup**: Proper cleanup of database connections, workers
+- **Request Completion**: Allows in-flight requests to complete
+- **Timeout Protection**: Configurable shutdown timeout (default: 30s)
+
+## 7. Pitfalls & Gotchas
+
+- **Template Syntax**: Must use `{{ .env.VAR }}` not `$VAR` or `${VAR}`
+- **Environment File Loading**: `.env` files are loaded before config processing, variables are available in templates
+- **Case Sensitivity**: Environment variable names are case-sensitive (`OPENAI_API_KEY` not `openai_api_key`)
+- **Docker Secrets**: Never include secrets directly in Dockerfiles, use environment variables or volume mounts
+- **Health Check Timeouts**: Set appropriate timeouts for production (30s interval recommended)
+- **Missing Variables**: Templates with missing environment variables will cause configuration errors
+- **Port Conflicts**: Ensure Docker ports don't conflict with host services (use different ports for dev/staging)
+
+## 8. Checklist
+
+- [ ] Environment file created with all required variables
+- [ ] Template expressions use correct `{{ .env.VAR }}` syntax
+- [ ] Sensitive values (API keys, passwords) use environment variables, not hardcoded
+- [ ] Health checks configured for production Docker containers
+- [ ] Graceful shutdown enabled with proper signal handling
+- [ ] Environment-specific configurations separated (dev/staging/prod)
+- [ ] Docker volumes configured for persistent data
+- [ ] SSL/TLS enabled for production databases and Redis
+- [ ] Monitoring and logging configured for production
+
+## 9. Next Steps
+
+**Extend Configuration**:
+- Add monitoring with Prometheus/Grafana (see `cluster/docker-compose.yml`)
+- Configure additional providers in `models` section
+- Set up MCP servers with environment-specific credentials
+
+**Validate Setup**:
+```bash
+# Validate configuration
+compozy config validate --config production.yaml --env-file .env.production
+
+# Test health endpoint  
+curl http://localhost:5001/health
+
+# Check Docker health
+docker ps --filter health=healthy
+```
+
+**Deploy**:
+- Use Docker Compose for orchestration
+- Configure reverse proxy (nginx/traefik) for TLS termination
+- Set up log aggregation and monitoring
+- Configure automated backups for PostgreSQL data volumes
