@@ -537,20 +537,20 @@ func TestMemoryInstance_Close_RaceCondition(t *testing.T) {
 
 		// Start multiple concurrent Close calls
 		var wg sync.WaitGroup
-		errors := make([]error, 5)
+		errs := make([]error, 5)
 
 		for i := range 5 {
 			wg.Add(1)
 			go func(idx int) {
 				defer wg.Done()
-				errors[idx] = instance.Close(context.Background())
+				errs[idx] = instance.Close(context.Background())
 			}(i)
 		}
 
 		wg.Wait()
 
 		// All Close calls should succeed without error
-		for i, err := range errors {
+		for i, err := range errs {
 			assert.NoError(t, err, "Close call %d should not error", i)
 		}
 

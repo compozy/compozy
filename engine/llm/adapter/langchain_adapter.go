@@ -34,6 +34,10 @@ func NewLangChainAdapter(config *core.ProviderConfig) (*LangChainAdapter, error)
 
 // GenerateContent implements LLMClient interface
 func (a *LangChainAdapter) GenerateContent(ctx context.Context, req *LLMRequest) (*LLMResponse, error) {
+	// Guard against nil request
+	if req == nil {
+		return nil, fmt.Errorf("nil LLMRequest")
+	}
 	// Convert our request to langchain format
 	messages := a.convertMessages(req)
 	options := a.buildCallOptions(req)
@@ -41,6 +45,10 @@ func (a *LangChainAdapter) GenerateContent(ctx context.Context, req *LLMRequest)
 	response, err := a.model.GenerateContent(ctx, messages, options...)
 	if err != nil {
 		// Try to extract structured error information before wrapping
+		// Lazy-init parser if nil to protect against zero-value construction
+		if a.errorParser == nil {
+			a.errorParser = NewErrorParser(string(a.provider.Provider))
+		}
 		if structuredErr := a.errorParser.ParseError(err); structuredErr != nil {
 			return nil, structuredErr
 		}

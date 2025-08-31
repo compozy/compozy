@@ -10,10 +10,7 @@ import (
 	"github.com/compozy/compozy/pkg/logger"
 )
 
-// memory access mode constants for this package
-const (
-	memoryModeReadOnly = "read-only"
-)
+// Use shared core memory mode constants to avoid drift.
 
 // PrepareMemoryContext prepares messages with memory context.
 // It prepends memory messages to the provided messages slice.
@@ -78,7 +75,7 @@ func StoreResponseInMemory(
 			continue
 		}
 		// Skip read-only memories
-		if ref.Mode == memoryModeReadOnly {
+		if ref.Mode == core.MemoryModeReadOnly {
 			log.Debug("Skipping read-only memory", "memory_id", ref.ID)
 			continue
 		}

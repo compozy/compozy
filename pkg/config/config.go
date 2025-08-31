@@ -494,7 +494,7 @@ type LLMConfig struct {
 	// Controls how many times the orchestrator will retry failed LLM requests
 	// before giving up. Higher values improve reliability but may increase latency.
 	// Default: 3
-	RetryAttempts int `koanf:"retry_attempts" env:"LLM_RETRY_ATTEMPTS" json:"retry_attempts" yaml:"retry_attempts" mapstructure:"retry_attempts"`
+	RetryAttempts int `koanf:"retry_attempts" env:"LLM_RETRY_ATTEMPTS" json:"retry_attempts" yaml:"retry_attempts" mapstructure:"retry_attempts" validate:"min=0"`
 
 	// RetryBackoffBase sets the base delay for exponential backoff retry strategy.
 	//
@@ -522,7 +522,7 @@ type LLMConfig struct {
 	// Controls resource usage and prevents overwhelming downstream services.
 	// Higher values improve throughput, lower values reduce resource contention.
 	// Default: 10
-	MaxConcurrentTools int `koanf:"max_concurrent_tools" env:"LLM_MAX_CONCURRENT_TOOLS" json:"max_concurrent_tools" yaml:"max_concurrent_tools" mapstructure:"max_concurrent_tools"`
+	MaxConcurrentTools int `koanf:"max_concurrent_tools" env:"LLM_MAX_CONCURRENT_TOOLS" json:"max_concurrent_tools" yaml:"max_concurrent_tools" mapstructure:"max_concurrent_tools" validate:"min=0"`
 }
 
 // RateLimitConfig contains rate limiting configuration.

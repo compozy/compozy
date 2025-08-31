@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"regexp"
 	"strings"
 
 	"github.com/compozy/compozy/engine/core"
@@ -187,29 +188,18 @@ func isRetryableError(err error) bool {
 	}
 	// Fallback: Check for specific string patterns in error messages
 	// This is kept as a last resort for compatibility with providers that don't return structured errors
+	// Use regex with word boundaries to avoid false positives (e.g., "500ms")
+	retryableRe := regexp.MustCompile(
+		`(?i)\b(429|500|503|504|rate limit|service unavailable|gateway timeout|connection reset|throttled|quota exceeded|capacity|insufficient_quota|rate_limit_error)\b`,
+	)
+	nonRetryableRe := regexp.MustCompile(`(?i)\b(unauthorized|invalid api key|forbidden|invalid model|401|403)\b`)
 	errMsg := strings.ToLower(err.Error())
-	// Common retryable patterns across LLM providers
-	retryablePatterns := []string{
-		"rate limit", "429", "service unavailable", "503",
-		"gateway timeout", "504", "connection reset",
-		"throttled", "quota exceeded", "capacity",
-		"temporary", "transient", "500", "insufficient_quota",
-		"rate_limit_error", // Still check for "temporary" in error messages
+	if retryableRe.MatchString(errMsg) || strings.Contains(errMsg, "temporary") ||
+		strings.Contains(errMsg, "transient") {
+		return true
 	}
-	for _, pattern := range retryablePatterns {
-		if strings.Contains(errMsg, pattern) {
-			return true
-		}
-	}
-	// Non-retryable patterns
-	nonRetryablePatterns := []string{
-		"invalid api key", "unauthorized", "401",
-		"forbidden", "403", "invalid model",
-	}
-	for _, pattern := range nonRetryablePatterns {
-		if strings.Contains(errMsg, pattern) {
-			return false
-		}
+	if nonRetryableRe.MatchString(errMsg) {
+		return false
 	}
 	// Default to not retrying unknown errors
 	return false

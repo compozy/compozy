@@ -1,5 +1,11 @@
 package core
 
+// Standard memory access mode constants to avoid string drift across packages.
+const (
+	MemoryModeReadWrite = "read-write"
+	MemoryModeReadOnly  = "read-only"
+)
+
 // MemoryReference is used in Agent configuration to point to a MemoryResource
 // and define how the agent interacts with it.
 type MemoryReference struct {

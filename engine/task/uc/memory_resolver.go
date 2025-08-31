@@ -94,15 +94,14 @@ func (r *MemoryResolver) GetMemory(ctx context.Context, memoryID string, keyTemp
 	// The Manager's resolveMemoryKey method will handle the template resolution
 	memRef := core.MemoryReference{
 		ID:          memoryID,
-		Key:         keyTemplate,  // This contains the template string
-		ResolvedKey: "",           // Leave empty - Manager will resolve
-		Mode:        "read-write", // TODO: Get mode from agent memory configuration
+		Key:         keyTemplate,              // This contains the template string
+		ResolvedKey: "",                       // Leave empty - Manager will resolve
+		Mode:        core.MemoryModeReadWrite, // TODO: Get mode from agent memory configuration
 	}
 
 	log.Debug("Passing memory reference to manager",
 		"memory_id", memoryID,
-		"key_template", keyTemplate,
-		"memRef", fmt.Sprintf("%+v", memRef))
+		"key_template", keyTemplate)
 
 	// Get the memory instance from the manager
 	memInstance, err := r.memoryManager.GetInstance(ctx, memRef, r.workflowContext)
@@ -188,7 +187,7 @@ func (r *MemoryResolver) ResolveAgentMemories(ctx context.Context, agent *agent.
 
 	for i := range localMemoryRefs {
 		// Skip read-only memories for now (will be handled in Task 8)
-		if localMemoryRefs[i].Mode == "read-only" {
+		if localMemoryRefs[i].Mode == core.MemoryModeReadOnly {
 			log.Debug("Skipping read-only memory (not yet implemented)",
 				"memory_id", localMemoryRefs[i].ID,
 				"mode", localMemoryRefs[i].Mode,

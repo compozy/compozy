@@ -14,6 +14,17 @@ import (
 	"go.temporal.io/sdk/client"
 )
 
+// Domain-specific constants for token estimation and message overhead
+const (
+	// estimatedCharsPerToken is the average number of characters per token
+	// This is a common approximation for most tokenizers
+	estimatedCharsPerToken = 4
+
+	// messageStructureOverhead represents the token overhead for message formatting
+	// (e.g., delimiters, special tokens)
+	messageStructureOverhead = 2
+)
+
 type memoryInstance struct {
 	id                string
 	resourceID        string
@@ -100,7 +111,7 @@ func NewMemoryInstance(ctx context.Context, opts *BuilderOptions) (Instance, err
 // estimateTokenCount provides a consistent fallback token estimation
 func (mi *memoryInstance) estimateTokenCount(text string) int {
 	// Rough estimate: 4 characters per token (common for most tokenizers)
-	tokens := len(text) / 4
+	tokens := len(text) / estimatedCharsPerToken
 	// Ensure at least 1 token for non-empty text
 	if tokens == 0 && text != "" {
 		tokens = 1
@@ -132,8 +143,7 @@ func (mi *memoryInstance) calculateMessageTokenCount(ctx context.Context, msg ll
 	roleCount := mi.calculateTokenCountWithFallback(ctx, string(msg.Role), "role")
 
 	// Add structure overhead for message formatting
-	structureOverhead := 2
-	return contentCount + roleCount + structureOverhead
+	return contentCount + roleCount + messageStructureOverhead
 }
 
 func (mi *memoryInstance) GetID() string {
@@ -187,17 +197,8 @@ func (mi *memoryInstance) Append(ctx context.Context, msg llm.Message) error {
 				"context", "memory_append_operation")
 		}
 	}()
-	// Use async token counting if available
-	var tokenCount int
-	if mi.asyncTokenCounter != nil {
-		// Queue async token counting (non-blocking)
-		mi.asyncTokenCounter.ProcessAsync(ctx, mi.id, msg.Content)
-		// Use estimate for immediate metrics
-		tokenCount = mi.estimateTokenCount(msg.Content) + mi.estimateTokenCount(string(msg.Role)) + 2
-	} else {
-		// Fallback to synchronous counting
-		tokenCount = mi.calculateMessageTokenCount(ctx, msg)
-	}
+	// Compute token count for this message
+	tokenCount := mi.calculateTokenCountForMessage(ctx, msg)
 	if err := mi.store.AppendMessageWithTokenCount(ctx, mi.id, msg, tokenCount); err != nil {
 		mi.metrics.RecordAppend(ctx, time.Since(start), tokenCount, err)
 		if lockReleaseErr != nil {
@@ -286,20 +287,23 @@ func (mi *memoryInstance) AppendMany(ctx context.Context, msgs []llm.Message) er
 	return nil
 }
 
+// calculateTokenCountForMessage calculates tokens for a single message
+func (mi *memoryInstance) calculateTokenCountForMessage(ctx context.Context, msg llm.Message) int {
+	if mi.asyncTokenCounter != nil {
+		// Queue async token counting (non-blocking)
+		mi.asyncTokenCounter.ProcessAsync(ctx, mi.id, msg.Content)
+		// Use estimate for immediate metrics
+		return mi.estimateTokenCount(msg.Content) + mi.estimateTokenCount(string(msg.Role)) + messageStructureOverhead
+	}
+	// Fallback to synchronous counting
+	return mi.calculateMessageTokenCount(ctx, msg)
+}
+
 // calculateTotalTokenCount calculates the total token count for multiple messages
 func (mi *memoryInstance) calculateTotalTokenCount(ctx context.Context, msgs []llm.Message) int {
 	var totalTokenCount int
 	for _, msg := range msgs {
-		var tokenCount int
-		if mi.asyncTokenCounter != nil {
-			// Queue async token counting (non-blocking)
-			mi.asyncTokenCounter.ProcessAsync(ctx, mi.id, msg.Content)
-			// Use estimate for immediate metrics
-			tokenCount = mi.estimateTokenCount(msg.Content) + mi.estimateTokenCount(string(msg.Role)) + 2
-		} else {
-			// Fallback to synchronous counting
-			tokenCount = mi.calculateMessageTokenCount(ctx, msg)
-		}
+		tokenCount := mi.calculateTokenCountForMessage(ctx, msg)
 		totalTokenCount += tokenCount
 	}
 	return totalTokenCount

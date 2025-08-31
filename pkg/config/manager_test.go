@@ -279,6 +279,9 @@ server:
 		require.NoError(t, err)
 		_, err = file.WriteString(updatedContent)
 		require.NoError(t, err)
+		// Ensure data hits disk before close so fsnotify reliably observes the change
+		err = file.Sync()
+		require.NoError(t, err)
 		err = file.Close()
 		require.NoError(t, err)
 

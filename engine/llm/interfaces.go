@@ -19,8 +19,21 @@ type MemoryProvider interface {
 type Memory interface {
 	// Append adds a message to the memory.
 	Append(ctx context.Context, msg Message) error
-	// AppendMany atomically adds multiple messages to the memory.
-	// This ensures all messages are stored together or none are stored.
+	// AppendMany appends multiple messages with well-defined semantics:
+	// - Empty input: msgs == nil or len(msgs) == 0 is a no-op; returns nil.
+	// - Ordering: preserves input order; messages are persisted in the same order
+	//   as provided in msgs.
+	// - Atomicity: all-or-none. Either all messages are persisted or none are. If
+	//   the implementation cannot uphold atomicity (e.g., backend limitation or
+	//   failure mid-batch), it must return an error instead of leaving partial
+	//   writes. Compozy memory implementations return a memory-specific error
+	//   (e.g., *memory/core.MemoryError with code MEMORY_APPEND_ERROR) to indicate
+	//   this failure.
+	// - Idempotency: retries are safe in the sense that each AppendMany call is
+	//   applied atomically as a single unit. However, without idempotency keys or
+	//   unique message IDs, repeated successful calls can append duplicate batches.
+	//   Callers that require exactly-once semantics must implement deduplication
+	//   at a higher level.
 	AppendMany(ctx context.Context, msgs []Message) error
 	// Read retrieves all messages from the memory.
 	// Implementations should handle ordering (e.g., chronological).

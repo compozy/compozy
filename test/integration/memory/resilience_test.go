@@ -293,14 +293,14 @@ func TestResilienceCircuitBreaker(t *testing.T) {
 
 			// Use short timeout for append operations to simulate stress
 			opCtx := ctx
-			var cancel context.CancelFunc
+			var opCancel context.CancelFunc
 			if i%2 == 0 { // Every 2nd operation has a short timeout to ensure timeouts occur
 				timeoutCtx, cancelFunc := context.WithTimeout(
 					ctx,
 					1*time.Nanosecond,
 				) // Very short timeout to trigger failures
 				opCtx = timeoutCtx
-				cancel = cancelFunc
+				opCancel = cancelFunc
 			}
 
 			// Try append operation with potential timeout
@@ -310,7 +310,7 @@ func TestResilienceCircuitBreaker(t *testing.T) {
 			})
 
 			if err != nil {
-				if opCtx.Err() == context.DeadlineExceeded {
+				if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 					timeoutCount++
 					t.Logf("Attempt %d timed out (expected)", i)
 				} else {
@@ -320,8 +320,8 @@ func TestResilienceCircuitBreaker(t *testing.T) {
 				successCount++
 			}
 
-			if cancel != nil {
-				cancel()
+			if opCancel != nil {
+				opCancel()
 			}
 
 			// Small sleep to prevent overwhelming the system

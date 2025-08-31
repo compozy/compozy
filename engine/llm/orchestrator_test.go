@@ -422,6 +422,55 @@ func TestIsRetryableError(t *testing.T) {
 		retryable := isRetryableError(err)
 		assert.False(t, retryable)
 	})
+
+	t.Run("Should avoid false positives with numbers in other contexts", func(t *testing.T) {
+		// These error messages contain numbers that match HTTP status codes
+		// but in different contexts, so they should NOT trigger retries
+		falsePositives := []struct {
+			errorMsg string
+			desc     string
+		}{
+			{"timeout set to 500ms", "duration with 500ms"},
+			{"response time was 429ms", "time measurement with 429ms"},
+			{"file size is 503kb", "file size with 503kb"},
+			{"version 401.2.3", "version number with 401"},
+			{"localhost:403", "port number with 403"},
+			{"waited 500ms for response", "timing with 500ms"},
+			{"SHA256:429abc123def", "hash with 429"},
+		}
+
+		for _, tc := range falsePositives {
+			t.Run(tc.desc, func(t *testing.T) {
+				err := errors.New(tc.errorMsg)
+				retryable := isRetryableError(err)
+				assert.False(t, retryable, "Should not retry for: %s", tc.errorMsg)
+			})
+		}
+	})
+
+	t.Run("Should correctly identify actual HTTP status codes", func(t *testing.T) {
+		// These are actual error messages with HTTP status codes
+		// that SHOULD trigger retries
+		truePositives := []struct {
+			errorMsg string
+			desc     string
+		}{
+			{"error 500: internal server error", "HTTP 500 error"},
+			{"429 too many requests", "HTTP 429 status"},
+			{"503 service unavailable", "HTTP 503 status"},
+			{"504 gateway timeout", "HTTP 504 status"},
+			{"HTTP 429 rate limit exceeded", "HTTP 429 with context"},
+			{"status: 503", "status code 503"},
+		}
+
+		for _, tc := range truePositives {
+			t.Run(tc.desc, func(t *testing.T) {
+				err := errors.New(tc.errorMsg)
+				retryable := isRetryableError(err)
+				assert.True(t, retryable, "Should retry for: %s", tc.errorMsg)
+			})
+		}
+	})
 }
 
 func TestLangChainAdapterErrorExtraction(t *testing.T) {

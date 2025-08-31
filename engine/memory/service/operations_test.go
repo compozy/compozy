@@ -53,11 +53,29 @@ func (m *testMemory) Append(ctx context.Context, msg llm.Message) error {
 }
 
 func (m *testMemory) AppendMany(ctx context.Context, msgs []llm.Message) error {
-	for _, msg := range msgs {
-		if err := m.Append(ctx, msg); err != nil {
-			return err
-		}
+	// Treat nil/empty as no-op
+	if len(msgs) == 0 {
+		return nil
 	}
+	// Respect context cancellation
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+	// If a custom appendFn is provided, honor it per message (cannot rollback external side effects)
+	if m.appendFn != nil {
+		for _, msg := range msgs {
+			if err := m.appendFn(ctx, msg); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	// Atomic append on the in-memory slice under a single lock
+	m.mu.Lock()
+	m.messages = append(m.messages, msgs...)
+	m.mu.Unlock()
 	return nil
 }
 
