@@ -88,6 +88,7 @@ func TestService_GenerateContent_DirectPrompt(t *testing.T) {
 			WithLLMFactory(testFactory{client: testClient{ta}}),
 		)
 		require.NoError(t, err)
+		t.Cleanup(func() { _ = service.Close() })
 
 		out, err := service.GenerateContent(context.Background(), agentConfig, &core.Input{}, "", "Analyze this text")
 		require.NoError(t, err)
@@ -108,6 +109,7 @@ func TestService_GenerateContent_DirectPrompt(t *testing.T) {
 			WithLLMFactory(testFactory{client: testClient{llmadapter.NewTestAdapter()}}),
 		)
 		require.NoError(t, err)
+		t.Cleanup(func() { _ = service.Close() })
 
 		_, err = service.GenerateContent(context.Background(), agentConfig, &core.Input{}, "", "")
 		require.Error(t, err)
@@ -131,6 +133,7 @@ func TestService_GenerateContent_DirectPrompt(t *testing.T) {
 			WithLLMFactory(testFactory{client: testClient{ta}}),
 		)
 		require.NoError(t, err)
+		t.Cleanup(func() { _ = service.Close() })
 
 		with := core.Input{"text": "hello"}
 		out, err := service.GenerateContent(context.Background(), agentConfig, &with, "analyze", "")
@@ -156,6 +159,7 @@ func TestService_GenerateContent_DirectPrompt(t *testing.T) {
 			WithLLMFactory(testFactory{client: testClient{ta}}),
 		)
 		require.NoError(t, err)
+		t.Cleanup(func() { _ = service.Close() })
 
 		with := core.Input{"data": "test data"}
 		// Provide both action and prompt for enhanced context

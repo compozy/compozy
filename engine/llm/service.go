@@ -120,7 +120,7 @@ func (s *Service) GenerateContent(
 			if actionConfigCopy.Prompt != "" {
 				// Append the direct prompt to the action's prompt
 				actionConfigCopy.Prompt = fmt.Sprintf(
-					"%s\n\nAdditional context: %s",
+					"%s\n\nAdditional context:\n\"\"\"\n%s\n\"\"\"",
 					actionConfigCopy.Prompt,
 					dp,
 				)

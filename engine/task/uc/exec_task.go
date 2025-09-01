@@ -59,6 +59,9 @@ func NewExecuteTask(
 // 2. Agent-specific Config (if agent exists and has config)
 // 3. Project default model (if configured)
 func (uc *ExecuteTask) resolveModelConfig(input *ExecuteTaskInput) error {
+	if input == nil || input.TaskConfig == nil {
+		return fmt.Errorf("invalid input: missing task configuration")
+	}
 	// If task already has a model config, nothing to do
 	if input.TaskConfig.ModelConfig.Provider != "" {
 		return nil
@@ -74,10 +77,6 @@ func (uc *ExecuteTask) resolveModelConfig(input *ExecuteTaskInput) error {
 		if defaultModel != nil {
 			// Set the default model as the task's model config for direct LLM tasks
 			input.TaskConfig.ModelConfig = *defaultModel
-			// Normalize provider config with environment after applying default
-			if err := uc.normalizeProviderConfigWithEnv(&input.TaskConfig.ModelConfig, input); err != nil {
-				return fmt.Errorf("failed to normalize default model config: %w", err)
-			}
 			return nil
 		}
 	}
@@ -91,9 +90,10 @@ func (uc *ExecuteTask) resolveModelConfig(input *ExecuteTaskInput) error {
 
 // normalizeProviderConfigWithEnv resolves template expressions inside a ProviderConfig
 // (e.g., api_key: "{{ .env.OPENAI_API_KEY }}") using the available environment context.
-// It merges environment sources in this order of precedence:
-// - Workflow config env (preferred for runtime/task context)
-// - Project-level env (fallback when workflow env not set)
+// It merges environment sources using task2core.EnvMerger.MergeWorkflowToTask:
+// - Workflow config env (preferred)
+// - Task-level env (merged)
+// Ensure project-level env is included by the merger if required by spec.
 // The function updates cfg in-place with resolved values.
 func (uc *ExecuteTask) normalizeProviderConfigWithEnv(cfg *core.ProviderConfig, input *ExecuteTaskInput) error {
 	if cfg == nil {
@@ -130,10 +130,9 @@ func (uc *ExecuteTask) normalizeProviderConfigWithEnv(cfg *core.ProviderConfig, 
 	if err != nil {
 		return fmt.Errorf("failed to convert provider config to map: %w", err)
 	}
-	parsed, err := engine.ParseMapWithFilter(
+	parsed, err := engine.ParseAny(
 		cfgMap,
 		normCtx.BuildTemplateContext(),
-		func(k string) bool { return false },
 	)
 	if err != nil {
 		return fmt.Errorf("failed to render provider config templates: %w", err)
@@ -151,7 +150,9 @@ func (uc *ExecuteTask) Execute(ctx context.Context, input *ExecuteTaskInput) (*c
 	}
 	agentConfig := input.TaskConfig.Agent
 	toolConfig := input.TaskConfig.Tool
-	hasDirectLLM := input.TaskConfig.ModelConfig.Provider != "" && input.TaskConfig.Prompt != ""
+	hasDirectLLM := input.TaskConfig.ModelConfig.Provider != "" &&
+		input.TaskConfig.ModelConfig.Model != "" &&
+		input.TaskConfig.Prompt != ""
 
 	var result *core.Output
 	var err error
@@ -332,6 +333,11 @@ func (uc *ExecuteTask) executeAgent(
 	if err := uc.normalizeProviderConfigWithEnv(&agentConfig.Config, input); err != nil {
 		return nil, fmt.Errorf("failed to normalize provider config: %w", err)
 	}
+	if agentConfig.Config.Provider == "" {
+		log.Warn("No model provider configured for agent; execution may fail",
+			"agent_id", agentConfig.ID,
+			"task_id", input.TaskConfig.ID)
+	}
 	// Ensure we operate on the latest workflow state so template parsing sees
 	// freshly produced task outputs (e.g., read_content inside collections).
 	uc.refreshWorkflowState(ctx, input)
@@ -385,7 +391,7 @@ func (uc *ExecuteTask) executeAgent(
 			log.Warn("Failed to resolve templates in prompt; using raw value",
 				"agent_id", agentConfig.ID,
 				"task_id", input.TaskConfig.ID,
-				"error", rerr)
+				"reason", "template_render_failed")
 		}
 	}
 	result, err := llmService.GenerateContent(ctx, agentConfig, taskWith, actionID, resolvedPrompt)
@@ -397,6 +403,17 @@ func (uc *ExecuteTask) executeAgent(
 
 // executeDirectLLM executes a task with direct LLM configuration (no agent)
 func (uc *ExecuteTask) executeDirectLLM(ctx context.Context, input *ExecuteTaskInput) (*core.Output, error) {
+	// Preflight validation for clearer failures
+	if input == nil || input.TaskConfig == nil {
+		return nil, fmt.Errorf("invalid task input: missing task configuration")
+	}
+	if input.TaskConfig.ModelConfig.Provider == "" || input.TaskConfig.ModelConfig.Model == "" {
+		return nil, fmt.Errorf("direct LLM requires provider and model (task_id=%s)", input.TaskConfig.ID)
+	}
+	if input.TaskConfig.Prompt == "" {
+		return nil, fmt.Errorf("direct LLM requires a non-empty prompt (task_id=%s)", input.TaskConfig.ID)
+	}
+
 	// Build a synthetic agent config from the task's LLM properties
 	syntheticAgent := &agent.Config{
 		ID:            fmt.Sprintf("task-%s-llm", input.TaskConfig.ID),
@@ -404,6 +421,10 @@ func (uc *ExecuteTask) executeDirectLLM(ctx context.Context, input *ExecuteTaskI
 		Config:        input.TaskConfig.ModelConfig,
 		LLMProperties: input.TaskConfig.LLMProperties,
 	}
+	logger.FromContext(ctx).Debug("Executing direct LLM task",
+		"task_id", input.TaskConfig.ID,
+		"provider", input.TaskConfig.ModelConfig.Provider,
+		"model", input.TaskConfig.ModelConfig.Model)
 	// Normalize provider config for direct LLM before execution
 	if err := uc.normalizeProviderConfigWithEnv(&syntheticAgent.Config, input); err != nil {
 		return nil, fmt.Errorf("failed to normalize provider config for direct LLM: %w", err)

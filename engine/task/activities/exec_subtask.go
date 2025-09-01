@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"time"
 
+	crand "crypto/rand"
+	"math/big"
+
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/project"
@@ -20,6 +23,7 @@ import (
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/tplengine"
 	"github.com/sethvargo/go-retry"
+	"go.temporal.io/sdk/activity"
 )
 
 const ExecuteSubtaskLabel = "ExecuteSubtask"
@@ -321,9 +325,8 @@ func (a *ExecuteSubtask) waitForPriorSiblings(
 		"current_task_id", currentTaskID,
 		"prior_siblings", priorSiblingIDs)
 
-	// CRITICAL FIX: Use time.Sleep instead of retry.RetryableError to force Temporal
-	// activity yield and database cache refresh between polling attempts.
-	// This ensures we can observe the second transaction (TX-B) that commits the actual output.
+	// Poll with context-aware waits, Temporal heartbeats, and small jitter
+	// to reduce contention across many activities and allow prompt cancellation.
 	const (
 		pollInterval = 200 * time.Millisecond
 		pollTimeout  = 30 * time.Second
@@ -366,6 +369,20 @@ func (a *ExecuteSubtask) findPriorSiblingIDs(
 	return ids
 }
 
+// randomJitter returns a random duration in [0, max).
+// Uses crypto/rand to avoid predictable seeding and satisfy security linters.
+func randomJitter(m time.Duration) time.Duration {
+	if m <= 0 {
+		return 0
+	}
+	n := big.NewInt(int64(m))
+	r, err := crand.Int(crand.Reader, n)
+	if err != nil {
+		return 0
+	}
+	return time.Duration(r.Int64())
+}
+
 // waitForSingleSibling waits until the specified sibling reaches a terminal state, ensuring
 // output visibility before proceeding.
 func (a *ExecuteSubtask) waitForSingleSibling(
@@ -377,6 +394,8 @@ func (a *ExecuteSubtask) waitForSingleSibling(
 	pollInterval time.Duration,
 	pollTimeout time.Duration,
 ) error {
+	// Small jitter to reduce thundering herd when many activities poll together.
+	// Use crypto/rand-based jitter to avoid predictability and satisfy security linters.
 	deadline := time.Now().Add(pollTimeout)
 	for {
 		if ctx.Err() != nil {
@@ -385,7 +404,15 @@ func (a *ExecuteSubtask) waitForSingleSibling(
 		state, err := a.taskRepo.GetChildByTaskID(ctx, parentStateID, siblingID)
 		if err != nil {
 			if errors.Is(err, store.ErrTaskNotFound) && time.Now().Before(deadline) {
-				time.Sleep(pollInterval)
+				// Heartbeat so Temporal can detect cancellations and we don't hold a worker slot silently.
+				activity.RecordHeartbeat(ctx, fmt.Sprintf("waiting for sibling %s to appear", siblingID))
+				// Add up to 20% jitter.
+				jitter := randomJitter(pollInterval / 5)
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case <-time.After(pollInterval + jitter):
+				}
 				continue
 			}
 			return fmt.Errorf("failed to query sibling %s: %w", siblingID, err)
@@ -410,6 +437,17 @@ func (a *ExecuteSubtask) waitForSingleSibling(
 		if time.Now().After(deadline) {
 			return fmt.Errorf("timeout waiting for sibling %s to complete", siblingID)
 		}
-		time.Sleep(pollInterval)
+		// Heartbeat during waits so server side can observe liveness and cancellations.
+		activity.RecordHeartbeat(
+			ctx,
+			fmt.Sprintf("waiting for sibling %s to complete (status=%s)", siblingID, state.Status),
+		)
+		// Add up to 20% jitter to reduce contention.
+		jitter := randomJitter(pollInterval / 5)
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(pollInterval + jitter):
+		}
 	}
 }

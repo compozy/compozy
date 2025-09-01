@@ -561,14 +561,16 @@ func TestDefaultModel_GetDefaultModel(t *testing.T) {
 
 func TestDefaultModel_Validation(t *testing.T) {
 	// Helper to create a valid CWD
-	createTestCWD := func() *core.PathCWD {
-		cwd, _ := core.CWDFromPath("/tmp/test")
+	createTestCWD := func(t *testing.T) *core.PathCWD {
+		dir := t.TempDir()
+		cwd, err := core.CWDFromPath(dir)
+		require.NoError(t, err)
 		return cwd
 	}
 	t.Run("Should pass validation with no default model", func(t *testing.T) {
 		config := &Config{
 			Name: "test-project",
-			CWD:  createTestCWD(),
+			CWD:  createTestCWD(t),
 			Models: []*core.ProviderConfig{
 				{Provider: "openai", Model: "gpt-4"},
 				{Provider: "anthropic", Model: "claude-3"},
@@ -580,7 +582,7 @@ func TestDefaultModel_Validation(t *testing.T) {
 	t.Run("Should pass validation with one default model", func(t *testing.T) {
 		config := &Config{
 			Name: "test-project",
-			CWD:  createTestCWD(),
+			CWD:  createTestCWD(t),
 			Models: []*core.ProviderConfig{
 				{Provider: "openai", Model: "gpt-4", Default: true},
 				{Provider: "anthropic", Model: "claude-3"},
@@ -592,7 +594,7 @@ func TestDefaultModel_Validation(t *testing.T) {
 	t.Run("Should fail validation with multiple default models", func(t *testing.T) {
 		config := &Config{
 			Name: "test-project",
-			CWD:  createTestCWD(),
+			CWD:  createTestCWD(t),
 			Models: []*core.ProviderConfig{
 				{Provider: "openai", Model: "gpt-4", Default: true},
 				{Provider: "anthropic", Model: "claude-3", Default: true},
@@ -606,7 +608,7 @@ func TestDefaultModel_Validation(t *testing.T) {
 	t.Run("Should pass validation with empty models array", func(t *testing.T) {
 		config := &Config{
 			Name:   "test-project",
-			CWD:    createTestCWD(),
+			CWD:    createTestCWD(t),
 			Models: []*core.ProviderConfig{},
 		}
 		err := config.Validate()
@@ -615,7 +617,7 @@ func TestDefaultModel_Validation(t *testing.T) {
 	t.Run("Should handle nil models in array gracefully", func(t *testing.T) {
 		config := &Config{
 			Name: "test-project",
-			CWD:  createTestCWD(),
+			CWD:  createTestCWD(t),
 			Models: []*core.ProviderConfig{
 				nil,
 				{Provider: "openai", Model: "gpt-4", Default: true},

@@ -247,5 +247,5 @@ func (p *ProviderConfig) FromMap(data any) error {
 	if err != nil {
 		return err
 	}
-	return mergo.Merge(p, config, mergo.WithOverride)
+	return mergo.Merge(p, config, mergo.WithOverride, mergo.WithOverwriteWithEmptyValue)
 }

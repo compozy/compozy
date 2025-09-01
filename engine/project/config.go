@@ -401,13 +401,15 @@ func (p *Config) validateModels() error {
 	if len(p.Models) == 0 {
 		return nil
 	}
-	defaultCount := 0
+	firstIdx := -1
 	for i, model := range p.Models {
 		if model != nil && model.Default {
-			defaultCount++
-			if defaultCount > 1 {
+			if firstIdx == -1 {
+				firstIdx = i
+			} else {
 				return fmt.Errorf(
-					"project configuration error: only one model can be marked as default, found multiple at index %d",
+					"project configuration error: only one model can be marked as default, found multiple at indices %d and %d",
+					firstIdx,
 					i,
 				)
 			}

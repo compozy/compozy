@@ -135,7 +135,8 @@ func (v *TypeValidator) Validate() error {
 func (v *TypeValidator) validateExecutorFields() error {
 	hasAgent := v.config.GetAgent() != nil
 	hasTool := v.config.GetTool() != nil
-	hasDirectLLM := v.config.ModelConfig.Provider != "" && v.config.Prompt != ""
+	prompt := strings.TrimSpace(v.config.Prompt)
+	hasDirectLLM := v.config.ModelConfig.Provider != "" && prompt != ""
 
 	// Count how many executor types are specified
 	executorCount := 0
@@ -152,8 +153,8 @@ func (v *TypeValidator) validateExecutorFields() error {
 	// Ensure exactly one executor type is specified
 	if executorCount > 1 {
 		return fmt.Errorf(
-			"cannot specify multiple executor types - " +
-				"use only one of: agent, tool, or direct LLM (model_config + prompt)",
+			"cannot specify multiple executor types; use only one: " +
+				"agent, tool, or direct LLM (model_config + prompt)",
 		)
 	}
 
@@ -162,7 +163,7 @@ func (v *TypeValidator) validateExecutorFields() error {
 		if v.config.Action != "" {
 			return fmt.Errorf("action is not allowed when executor type is tool")
 		}
-		if v.config.Prompt != "" {
+		if prompt != "" {
 			return fmt.Errorf("prompt is not allowed when executor type is tool")
 		}
 	}
@@ -170,7 +171,7 @@ func (v *TypeValidator) validateExecutorFields() error {
 	// When using agents, require at least one of action or prompt (both can be provided for enhanced context)
 	if hasAgent {
 		hasAction := v.config.Action != ""
-		hasPrompt := v.config.Prompt != ""
+		hasPrompt := prompt != ""
 		if !hasAction && !hasPrompt {
 			return fmt.Errorf("tasks using agents must specify at least one of 'action' or 'prompt'")
 		}

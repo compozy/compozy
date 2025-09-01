@@ -424,9 +424,12 @@ const (
 // | **Validation** | Schema checking, business rules | Single validation step |
 // | **Calculations** | Math operations, scoring, metrics | Single computation |
 //
-// ## ⚡ Execution Modes: Agent vs Tool
+// ## ⚡ Execution Modes: Agent, Tool, Direct LLM
 //
-// Basic tasks support two execution modes, each optimized for different use cases:
+// Basic tasks support three execution modes. Use exactly one per task:
+// - Agent: AI-powered execution using an agent definition
+// - Tool: Deterministic execution using a tool configuration (no action or prompt)
+// - Direct LLM: Call the LLM directly using `model_config` + `prompt`
 //
 // ### 🤖 Agent Execution (AI-Powered)
 //
@@ -467,6 +470,8 @@ const (
 //
 // **Best for:** API calls, file operations, data processing, integrations
 //
+// Note: When using tools, `action` and `prompt` are not allowed.
+//
 // ```yaml
 // type: basic
 // tool:
@@ -479,7 +484,6 @@ const (
 //	    Authorization: "Bearer {{ .env.CRM_TOKEN }}"
 //	    Content-Type: "application/json"
 //
-// action: create_customer_record
 // with:
 //
 //	customer_data:
@@ -496,9 +500,39 @@ const (
 //
 // ```
 //
+// ### 🧠 Direct LLM (model_config + prompt)
+//
+// **Best for:** Simple, ad-hoc LLM calls without defining an agent
+//
+// ```yaml
+// type: basic
+// model_config:
+//
+//	provider: anthropic
+//	model: claude-3-5-haiku-latest
+//
+// prompt: |
+//
+//	Analyze this customer message and return JSON with:
+//	- sentiment: positive|neutral|negative
+//	- confidence: 0..1
+//	- themes: string[]
+//
+// with:
+//
+//	message: "{{ .workflow.input.customer_message }}"
+//
+// outputs:
+//
+//	sentiment: "{{ .task.output.sentiment }}"
+//	confidence: "{{ .task.output.confidence }}"
+//	themes: "{{ .task.output.themes }}"
+//
+// ```
+//
 // ## 🏷️ Action Field Benefits
 //
-// The `action` field provides multiple advantages:
+// The `action` field (for agents and direct LLM tasks) provides multiple advantages. It is not used with tools:
 //
 // | Benefit | Description | Example |
 // |---------|-------------|---------|
@@ -534,7 +568,7 @@ type BasicTask struct {
 	//
 	// **Required fields:** provider, model
 	// **Optional fields:** api_key, api_url, params (temperature, max_tokens, etc.)
-	ModelConfig core.ProviderConfig `json:"model_config" yaml:"model_config" mapstructure:"model_config" validate:"required"`
+	ModelConfig core.ProviderConfig `json:"model_config,omitempty" yaml:"model_config,omitempty" mapstructure:"model_config,omitempty"`
 
 	// Action identifier that describes what this task does
 	// Used for logging and debugging purposes

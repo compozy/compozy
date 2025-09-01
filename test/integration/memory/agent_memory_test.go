@@ -2,6 +2,7 @@ package memory
 
 import (
 	"context"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -208,8 +209,8 @@ func TestMemoryResolverConcurrency(t *testing.T) {
 				workflowContext := map[string]any{
 					"workflow": map[string]any{
 						"input": map[string]any{
-							"user_id":    "concurrent-user-" + string(rune(goroutineID+'0')),
-							"session_id": "session-" + string(rune(goroutineID+'0')),
+							"user_id":    "concurrent-user-" + strconv.Itoa(goroutineID),
+							"session_id": "session-" + strconv.Itoa(goroutineID),
 						},
 					},
 				}
@@ -228,7 +229,7 @@ func TestMemoryResolverConcurrency(t *testing.T) {
 					for _, memory := range memories {
 						testMsg := llm.Message{
 							Role:    llm.MessageRoleUser,
-							Content: "Concurrent message from goroutine " + string(rune(goroutineID+'0')),
+							Content: "Concurrent message from goroutine " + strconv.Itoa(goroutineID),
 						}
 						if err := memory.Append(ctx, testMsg); err != nil {
 							results <- err
