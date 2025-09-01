@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"sync"
@@ -53,7 +54,7 @@ func (w *Watcher) Watch(ctx context.Context, path string) error {
 	w.watched[absPath] = struct{}{}
 	w.mu.Unlock()
 
-	// Stop watching this specific path when the provided context is cancelled
+	// Stop watching this specific path when the provided context is canceled
 	if ctx != nil {
 		go func(p string, c context.Context) {
 			<-c.Done()
@@ -62,7 +63,13 @@ func (w *Watcher) Watch(ctx context.Context, path string) error {
 			delete(w.watched, p)
 			w.mu.Unlock()
 			// Best-effort removal from fsnotify watcher; ignore error if already removed/closed
-			_ = w.watcher.Remove(p)
+			if err := w.watcher.Remove(p); err != nil {
+				// Ignore when watcher is closed; TODO: log other errors once logger is injected
+
+				if !errors.Is(err, fsnotify.ErrClosed) {
+					_ = err
+				}
+			}
 		}(absPath, ctx)
 	}
 

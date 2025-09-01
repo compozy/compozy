@@ -354,6 +354,62 @@ func Test_LoadTask(t *testing.T) {
 		assert.Equal(t, "{{ .now }}", config.Signal.Payload["timestamp"])
 		assert.Equal(t, "{{ .workflow.id }}", config.Signal.Payload["workflow_id"])
 	})
+
+	t.Run("Should load prompt-only basic task fixture", func(t *testing.T) {
+		CWD, dstPath := setupTest(t, "basic_task_prompt_only.yaml")
+
+		config, err := Load(CWD, dstPath)
+		require.NoError(t, err)
+		require.NotNil(t, config)
+
+		// Validate it loaded correctly
+		err = config.Validate()
+		require.NoError(t, err)
+
+		assert.Equal(t, "text-analysis-prompt", config.ID)
+		assert.Equal(t, TaskTypeBasic, config.Type)
+		assert.Empty(t, config.Action, "Should have no action in prompt-only mode")
+		assert.Equal(t, "Analyze the following text for sentiment and key themes", config.Prompt)
+
+		// Validate with parameters
+		require.NotNil(t, config.With)
+		assert.Equal(t, "{{ .input.text }}", (*config.With)["text"])
+
+		// Validate outputs
+		require.NotNil(t, config.Outputs)
+		assert.Equal(t, "{{ .output.sentiment }}", (*config.Outputs)["sentiment"])
+		assert.Equal(t, "{{ .output.themes }}", (*config.Outputs)["themes"])
+		assert.Equal(t, "{{ .output.summary }}", (*config.Outputs)["summary"])
+	})
+
+	t.Run("Should load combined action+prompt basic task fixture", func(t *testing.T) {
+		CWD, dstPath := setupTest(t, "basic_task_combined.yaml")
+
+		config, err := Load(CWD, dstPath)
+		require.NoError(t, err)
+		require.NotNil(t, config)
+
+		// Validate it loaded correctly
+		err = config.Validate()
+		require.NoError(t, err)
+
+		assert.Equal(t, "enhanced-analysis", config.ID)
+		assert.Equal(t, TaskTypeBasic, config.Type)
+		assert.Equal(t, "standard-analysis", config.Action)
+		assert.Equal(t, "Additionally, focus on security implications and performance concerns", config.Prompt)
+
+		// Validate with parameters
+		require.NotNil(t, config.With)
+		assert.Equal(t, "{{ .input.data }}", (*config.With)["data"])
+		assert.Equal(t, "{{ .input.context }}", (*config.With)["context"])
+
+		// Validate outputs
+		require.NotNil(t, config.Outputs)
+		assert.Equal(t, "{{ .output.analysis }}", (*config.Outputs)["analysis"])
+		assert.Equal(t, "{{ .output.security_findings }}", (*config.Outputs)["security_findings"])
+		assert.Equal(t, "{{ .output.performance_metrics }}", (*config.Outputs)["performance_metrics"])
+		assert.Equal(t, "{{ .output.recommendations }}", (*config.Outputs)["recommendations"])
+	})
 }
 
 func Test_TaskConfigValidation(t *testing.T) {
@@ -375,6 +431,88 @@ func Test_TaskConfigValidation(t *testing.T) {
 
 		err := config.Validate()
 		assert.NoError(t, err)
+	})
+
+	// New validation cases for agent prompt/action either-or
+	t.Run("Agent: action only is valid", func(t *testing.T) {
+		config := &Config{
+			BaseConfig: BaseConfig{ID: taskID, Type: TaskTypeBasic, CWD: taskCWD, Agent: &agent.Config{ID: "a"}},
+			BasicTask:  BasicTask{Action: "do_thing"},
+		}
+
+		err := config.Validate()
+		assert.NoError(t, err)
+	})
+
+	t.Run("Agent: prompt only is valid", func(t *testing.T) {
+		config := &Config{
+			BaseConfig: BaseConfig{ID: taskID, Type: TaskTypeBasic, CWD: taskCWD, Agent: &agent.Config{ID: "a"}},
+			BasicTask:  BasicTask{Prompt: "Analyze this input"},
+		}
+
+		err := config.Validate()
+		assert.NoError(t, err)
+	})
+
+	t.Run("Agent: neither action nor prompt returns error", func(t *testing.T) {
+		config := &Config{
+			BaseConfig: BaseConfig{ID: taskID, Type: TaskTypeBasic, CWD: taskCWD, Agent: &agent.Config{ID: "a"}},
+		}
+
+		err := config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "must specify at least one of 'action' or 'prompt'")
+	})
+
+	t.Run("Should support combined action and prompt for enhanced context", func(t *testing.T) {
+		config := &Config{
+			BaseConfig: BaseConfig{ID: taskID, Type: TaskTypeBasic, CWD: taskCWD, Agent: &agent.Config{ID: "a"}},
+			BasicTask:  BasicTask{Action: "analyze", Prompt: "Focus on security issues"},
+		}
+
+		err := config.Validate()
+		assert.NoError(t, err, "Combined action and prompt should be valid for enhanced context")
+	})
+
+	t.Run("Should support prompt-only mode without action", func(t *testing.T) {
+		config := &Config{
+			BaseConfig: BaseConfig{ID: taskID, Type: TaskTypeBasic, CWD: taskCWD, Agent: &agent.Config{ID: "a"}},
+			BasicTask:  BasicTask{Prompt: "Analyze the following text for sentiment"},
+		}
+
+		err := config.Validate()
+		assert.NoError(t, err, "Prompt-only mode should be valid")
+	})
+
+	t.Run("Should support action-only mode for backward compatibility", func(t *testing.T) {
+		config := &Config{
+			BaseConfig: BaseConfig{ID: taskID, Type: TaskTypeBasic, CWD: taskCWD, Agent: &agent.Config{ID: "a"}},
+			BasicTask:  BasicTask{Action: "process"},
+		}
+
+		err := config.Validate()
+		assert.NoError(t, err, "Action-only mode should remain valid for backward compatibility")
+	})
+
+	t.Run("Tool: prompt is not allowed", func(t *testing.T) {
+		config := &Config{
+			BaseConfig: BaseConfig{ID: taskID, Type: TaskTypeBasic, CWD: taskCWD, Tool: &tool.Config{ID: "t"}},
+			BasicTask:  BasicTask{Prompt: "not allowed"},
+		}
+
+		err := config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "prompt is not allowed when executor type is tool")
+	})
+
+	t.Run("Tool: action is not allowed", func(t *testing.T) {
+		config := &Config{
+			BaseConfig: BaseConfig{ID: taskID, Type: TaskTypeBasic, CWD: taskCWD, Tool: &tool.Config{ID: "t"}},
+			BasicTask:  BasicTask{Action: "also-not-allowed"},
+		}
+		err := config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "action is not allowed when executor type is tool")
 	})
 
 	t.Run("Should validate valid router task", func(t *testing.T) {

@@ -9,6 +9,7 @@ models:
   - provider: openai
     model: o3-mini
     api_key: "{{ .env.OPENAI_API_KEY }}"
+    default: true
 
 config:
   schedule_to_start_timeout: 5m

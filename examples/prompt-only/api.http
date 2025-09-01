@@ -1,0 +1,20 @@
+### Prompt-Only Example API
+@baseUrl = http://localhost:5001/api/v0
+@workflowId = prompt-only
+
+### Execute prompt-only workflow
+# @name executeWorkflow
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/jsonAccept: application/json
+Accept: application/json
+
+{
+  "input": {
+    "text": "Compozy makes building AI workflows easier."
+  }
+}
+
+### Get exec details
+@execId = {{executeWorkflow.response.body.data.exec_id}}
+GET {{baseUrl}}/executions/workflows/{{execId}}
+Accept: application/json

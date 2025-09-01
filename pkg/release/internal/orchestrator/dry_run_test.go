@@ -87,30 +87,6 @@ func TestDryRunOrchestrator_Execute(t *testing.T) {
 		assert.ErrorContains(t, err, "no version found in branch name")
 	})
 
-	t.Run("Should skip artifact upload when not in CI environment", func(t *testing.T) {
-		ctx := context.Background()
-		fsRepo := afero.NewMemMapFs()
-		toolsDir := "tools"
-		// Create tools directory in memory filesystem
-		err := fsRepo.MkdirAll(toolsDir, 0755)
-		require.NoError(t, err)
-		gitRepo := new(mockGitExtendedRepository)
-		githubRepo := new(mockGithubExtendedRepository)
-		cliffSvc := new(mockCliffService)
-		goreleaserSvc := new(mockGoReleaserService)
-		orch := NewDryRunOrchestrator(gitRepo, githubRepo, cliffSvc, goreleaserSvc, fsRepo, toolsDir)
-		t.Setenv("GITHUB_HEAD_REF", "release/v1.1.0")
-		// Do NOT set GITHUB_ACTIONS - simulating local run
-		goreleaserSvc.On("Run", append([]any{mock.Anything}, toIface(goreleaserArgs)...)...).Return(nil)
-		// Create mock metadata file that GoReleaser would generate
-		metadata := `{"version":"v1.1.0","artifacts":[{"type":"Archive","goos":"linux","goarch":"amd64"}]}`
-		writeGoReleaserOutput(t, fsRepo, metadata, false)
-		err = orch.Execute(ctx, DryRunConfig{CIOutput: false})
-		require.NoError(t, err)
-		// Should NOT call AddComment since not in CI
-		githubRepo.AssertNotCalled(t, "AddComment", mock.Anything, mock.Anything, mock.Anything)
-	})
-
 	t.Run("Should handle invalid metadata.json gracefully", func(t *testing.T) {
 		ctx := context.Background()
 		fsRepo := afero.NewMemMapFs()

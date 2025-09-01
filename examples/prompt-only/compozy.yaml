@@ -1,0 +1,19 @@
+name: prompt-only
+version: 0.1.0
+description: Minimal example of a basic task using direct LLM configuration (no agent)
+
+workflows:
+  - source: ./workflow.yaml
+
+models:
+  - provider: groq
+    model: llama-3.3-70b-versatile
+    api_key: "{{ .env.GROQ_API_KEY }}"
+    default: true
+
+runtime:
+  type: bun
+  entrypoint: "./entrypoint.ts"
+  permissions:
+    - --allow-read
+    - --allow-net

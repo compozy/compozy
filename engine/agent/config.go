@@ -17,6 +17,69 @@ import (
 	"github.com/compozy/compozy/pkg/ref"
 )
 
+type LLMProperties struct {
+	// Tools available to the agent for extending its capabilities.
+	// When tools are defined, the agent automatically has `toolChoice` set to `"auto"`,
+	// enabling autonomous tool selection and invocation during task execution.
+	//
+	// **Tool types supported:**
+	// - File system operations (read, write, list)
+	// - API integrations (HTTP requests, webhooks)
+	// - Data processing utilities (parsing, transformation)
+	// - Custom business logic (TypeScript/JavaScript execution)
+	//
+	// Tools are referenced by ID and can be shared across multiple agents.
+	Tools []tool.Config `json:"tools,omitempty"          yaml:"tools,omitempty"          mapstructure:"tools,omitempty"`
+	// Model Context Protocol (MCP) server configurations.
+	// MCPs provide standardized interfaces for extending agent capabilities
+	// with external services and data sources through protocol-based communication.
+	//
+	// **Common MCP integrations:**
+	// - Database connectors (PostgreSQL, Redis, MongoDB)
+	// - Search engines (Elasticsearch, Solr)
+	// - Knowledge bases (vector databases, documentation systems)
+	// - External APIs (REST, GraphQL, gRPC services)
+	//
+	// MCPs support both stdio and HTTP transport protocols.
+	MCPs []mcp.Config `json:"mcps,omitempty"           yaml:"mcps,omitempty"           mapstructure:"mcps,omitempty"`
+	// Maximum number of reasoning iterations the agent can perform.
+	// The agent may self-correct and refine its response across multiple iterations
+	// to improve accuracy and address complex multi-step problems.
+	//
+	// **Default:** `5` iterations
+	//
+	// **Trade-offs:**
+	// - Higher values enable more thorough problem-solving and self-correction
+	// - Each iteration consumes additional tokens and increases response latency
+	// - Configure based on task complexity, accuracy requirements, and cost constraints
+	MaxIterations int `json:"max_iterations,omitempty" yaml:"max_iterations,omitempty" mapstructure:"max_iterations,omitempty"`
+	// Forces the agent to always respond in valid JSON format.
+	// When enabled, the agent's responses must be parseable JSON objects.
+	//
+	// **Use cases:**
+	// - API integrations requiring structured data
+	// - Automated processing of agent outputs
+	// - Ensuring consistent response formats
+	//
+	// ⚠️ **Note:** May limit the agent's ability to provide explanatory text
+	JSONMode bool `json:"json_mode"                yaml:"json_mode"                mapstructure:"json_mode"`
+	// Memory references enabling the agent to access persistent context.
+	// Memory provides stateful interactions across workflow steps and sessions.
+	//
+	// **Configuration format:**
+	// ```yaml
+	// memory:
+	//   - id: "user_context"           # Memory resource ID
+	//     key: "user:{{.user_id}}"     # Dynamic key with template
+	//     mode: "read-write"           # Access mode (default: "read-write")
+	// ```
+	//
+	// **Access modes:**
+	// - `"read-write"`: Full access to read and modify memory
+	// - `"read-only"`: Can only read existing memory entries
+	Memory []core.MemoryReference `json:"memory,omitempty"         yaml:"memory,omitempty"         mapstructure:"memory,omitempty"`
+}
+
 // Config represents an AI agent configuration in Compozy.
 //
 // Agents are **autonomous AI-powered entities** that can reason, make decisions,
@@ -83,20 +146,24 @@ import (
 // json_mode: false
 // ```
 type Config struct {
+	// Embed LLMProperties with inline tags for backward compatibility
+	// This allows fields to be accessed directly on Config in YAML/JSON
+	LLMProperties `json:",inline" yaml:",inline" mapstructure:",squash"`
+
 	// Resource identifier for the autoloader system (must be `"agent"`).
 	// This field enables automatic discovery and registration of agent configurations.
-	Resource string `json:"resource,omitempty"       yaml:"resource,omitempty"       mapstructure:"resource,omitempty"`
+	Resource string `json:"resource,omitempty" yaml:"resource,omitempty" mapstructure:"resource,omitempty"`
 	// Unique identifier for the agent within the project scope.
 	// Used for referencing the agent in workflows and other configurations.
 	//
 	// - **Examples:** `"code-assistant"`, `"data-analyst"`, `"customer-support"`
-	ID string `json:"id"                       yaml:"id"                       mapstructure:"id"                       validate:"required"`
+	ID string `json:"id"                 yaml:"id"                 mapstructure:"id"                 validate:"required"`
 	// LLM provider configuration defining which AI model to use and its parameters.
 	// Supports multiple providers including OpenAI, Anthropic, Google, Groq, and local models.
 	//
 	// **Required fields:** provider, model
 	// **Optional fields:** api_key, api_url, params (temperature, max_tokens, etc.)
-	Config core.ProviderConfig `json:"config"                   yaml:"config"                   mapstructure:"config"                   validate:"required"`
+	Config core.ProviderConfig `json:"config"             yaml:"config"             mapstructure:"config"             validate:"required"`
 	// System instructions that define the agent's personality, behavior, and constraints.
 	// These instructions guide how the agent interprets tasks and generates responses.
 	//
@@ -105,7 +172,7 @@ type Config struct {
 	// - Define boundaries and ethical guidelines
 	// - Include domain-specific knowledge or constraints
 	// - Use markdown formatting for better structure
-	Instructions string `json:"instructions"             yaml:"instructions"             mapstructure:"instructions"             validate:"required"`
+	Instructions string `json:"instructions"       yaml:"instructions"       mapstructure:"instructions"       validate:"required"`
 	// Structured actions the agent can perform with defined input/output schemas.
 	// Actions provide type-safe interfaces for specific agent capabilities.
 	//
@@ -131,7 +198,7 @@ type Config struct {
 	// ```
 	//
 	// $ref: inline:#action-configuration
-	Actions []*ActionConfig `json:"actions,omitempty"        yaml:"actions,omitempty"        mapstructure:"actions,omitempty"`
+	Actions []*ActionConfig `json:"actions,omitempty"  yaml:"actions,omitempty"  mapstructure:"actions,omitempty"`
 	// Default input parameters passed to the agent on every invocation.
 	// These values are merged with runtime inputs, with runtime values taking precedence.
 	//
@@ -139,7 +206,7 @@ type Config struct {
 	// - Setting default configuration values
 	// - Providing constant context or settings
 	// - Injecting workflow-level parameters
-	With *core.Input `json:"with,omitempty"           yaml:"with,omitempty"           mapstructure:"with,omitempty"`
+	With *core.Input `json:"with,omitempty"     yaml:"with,omitempty"     mapstructure:"with,omitempty"`
 	// Environment variables available during agent execution.
 	// Used for configuration, secrets, and runtime settings.
 	//
@@ -149,67 +216,7 @@ type Config struct {
 	//   API_KEY: "{{.env.OPENAI_API_KEY}}"
 	//   DEBUG_MODE: "true"
 	// ```
-	Env *core.EnvMap `json:"env,omitempty"            yaml:"env,omitempty"            mapstructure:"env,omitempty"`
-	// Tools available to the agent for extending its capabilities.
-	// When tools are defined, the agent automatically has `toolChoice` set to `"auto"`,
-	// enabling autonomous tool selection and invocation during task execution.
-	//
-	// **Tool types supported:**
-	// - File system operations (read, write, list)
-	// - API integrations (HTTP requests, webhooks)
-	// - Data processing utilities (parsing, transformation)
-	// - Custom business logic (TypeScript/JavaScript execution)
-	//
-	// Tools are referenced by ID and can be shared across multiple agents.
-	Tools []tool.Config `json:"tools,omitempty"          yaml:"tools,omitempty"          mapstructure:"tools,omitempty"`
-	// Model Context Protocol (MCP) server configurations.
-	// MCPs provide standardized interfaces for extending agent capabilities
-	// with external services and data sources through protocol-based communication.
-	//
-	// **Common MCP integrations:**
-	// - Database connectors (PostgreSQL, Redis, MongoDB)
-	// - Search engines (Elasticsearch, Solr)
-	// - Knowledge bases (vector databases, documentation systems)
-	// - External APIs (REST, GraphQL, gRPC services)
-	//
-	// MCPs support both stdio and HTTP transport protocols.
-	MCPs []mcp.Config `json:"mcps,omitempty"           yaml:"mcps,omitempty"           mapstructure:"mcps,omitempty"`
-	// Maximum number of reasoning iterations the agent can perform.
-	// The agent may self-correct and refine its response across multiple iterations
-	// to improve accuracy and address complex multi-step problems.
-	//
-	// **Default:** `5` iterations
-	//
-	// **Trade-offs:**
-	// - Higher values enable more thorough problem-solving and self-correction
-	// - Each iteration consumes additional tokens and increases response latency
-	// - Configure based on task complexity, accuracy requirements, and cost constraints
-	MaxIterations int `json:"max_iterations,omitempty" yaml:"max_iterations,omitempty" mapstructure:"max_iterations,omitempty"`
-	// Forces the agent to always respond in valid JSON format.
-	// When enabled, the agent's responses must be parseable JSON objects.
-	//
-	// **Use cases:**
-	// - API integrations requiring structured data
-	// - Automated processing of agent outputs
-	// - Ensuring consistent response formats
-	//
-	// ⚠️ **Note:** May limit the agent's ability to provide explanatory text
-	JSONMode bool `json:"json_mode"                yaml:"json_mode"                mapstructure:"json_mode"`
-	// Memory references enabling the agent to access persistent context.
-	// Memory provides stateful interactions across workflow steps and sessions.
-	//
-	// **Configuration format:**
-	// ```yaml
-	// memory:
-	//   - id: "user_context"           # Memory resource ID
-	//     key: "user:{{.user_id}}"     # Dynamic key with template
-	//     mode: "read-write"           # Access mode (default: "read-write")
-	// ```
-	//
-	// **Access modes:**
-	// - `"read-write"`: Full access to read and modify memory
-	// - `"read-only"`: Can only read existing memory entries
-	Memory []core.MemoryReference `json:"memory,omitempty"         yaml:"memory,omitempty"         mapstructure:"memory,omitempty"`
+	Env *core.EnvMap `json:"env,omitempty"      yaml:"env,omitempty"      mapstructure:"env,omitempty"`
 
 	filePath string
 	CWD      *core.PathCWD

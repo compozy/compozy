@@ -133,15 +133,60 @@ func (v *TypeValidator) Validate() error {
 }
 
 func (v *TypeValidator) validateExecutorFields() error {
-	if v.config.GetTool() != nil && v.config.GetAgent() != nil {
-		return fmt.Errorf("cannot specify both agent and tool - use only one executor type")
+	hasAgent := v.config.GetAgent() != nil
+	hasTool := v.config.GetTool() != nil
+	prompt := strings.TrimSpace(v.config.Prompt)
+	hasDirectLLM := v.config.ModelConfig.Provider != "" && prompt != ""
+
+	// Count how many executor types are specified
+	executorCount := 0
+	if hasAgent {
+		executorCount++
 	}
-	if v.config.GetTool() != nil && v.config.Action != "" {
-		return fmt.Errorf("action is not allowed when executor type is tool")
+	if hasTool {
+		executorCount++
 	}
-	if v.config.GetAgent() != nil && v.config.Action == "" {
-		return fmt.Errorf("action is required when executor type is agent")
+	if hasDirectLLM {
+		executorCount++
 	}
+
+	// Ensure exactly one executor type is specified
+	if executorCount > 1 {
+		return fmt.Errorf(
+			"cannot specify multiple executor types; use only one: " +
+				"agent, tool, or direct LLM (model_config + prompt)",
+		)
+	}
+
+	// When using tools, neither action nor prompt should be specified
+	if hasTool {
+		if v.config.Action != "" {
+			return fmt.Errorf("action is not allowed when executor type is tool")
+		}
+		if prompt != "" {
+			return fmt.Errorf("prompt is not allowed when executor type is tool")
+		}
+	}
+
+	// When using agents, require at least one of action or prompt (both can be provided for enhanced context)
+	if hasAgent {
+		hasAction := v.config.Action != ""
+		hasPrompt := prompt != ""
+		if !hasAction && !hasPrompt {
+			return fmt.Errorf("tasks using agents must specify at least one of 'action' or 'prompt'")
+		}
+		// Note: Both action and prompt can be provided together for enhanced context
+		// The prompt will augment or customize the action's behavior
+	}
+
+	// When using direct LLM, validate required fields
+	if hasDirectLLM {
+		if v.config.ModelConfig.Model == "" {
+			return fmt.Errorf("model is required in model_config for direct LLM tasks")
+		}
+		// Action is optional for direct LLM tasks (used for logging/identification)
+	}
+
 	return nil
 }
 

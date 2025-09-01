@@ -1,0 +1,19 @@
+# Example of a prompt-only basic task
+# This demonstrates the new capability to use direct prompts without predefined actions
+
+id: text-analysis-prompt
+type: basic
+$use: agent(local::agents.#(id=="text-processor"))
+
+# Direct prompt without action - new capability
+prompt: "Analyze the following text for sentiment and key themes"
+
+# Input data to process
+with:
+  text: "{{ .input.text }}"
+
+# Output mapping
+outputs:
+  sentiment: "{{ .output.sentiment }}"
+  themes: "{{ .output.themes }}"
+  summary: "{{ .output.summary }}"

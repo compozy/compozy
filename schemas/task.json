@@ -329,6 +329,10 @@
       "$ref": "#/$defs/Config",
       "description": "Processor is an optional task configuration to process received signals\nAllows custom handling of signal data before continuing\nThe processor receives the signal payload as input\n$ref: inline:#"
     },
+    "prompt": {
+      "description": "Prompt provides direct instruction to agents when no specific action is needed\nUsed for ad-hoc agent interactions without predefined action definitions\n- **Example**: \"Analyze this code for security issues\", \"Summarize the following text\"",
+      "type": "string"
+    },
     "resource": {
       "description": "Resource reference for the task\nFormat: \"compozy:task:\u003cname\u003e\" (e.g., \"compozy:task:process-data\")",
       "type": "string"

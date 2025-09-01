@@ -1,0 +1,23 @@
+id: prompt-only
+version: 0.1.0
+description: Minimal example of a basic task using direct LLM configuration (no agent)
+
+config:
+  input:
+    type: object
+    properties:
+      text:
+        type: string
+        description: The text content to analyze
+
+tasks:
+  - id: analyze
+    type: basic
+    prompt: |-
+      You are a concise text analysis assistant.
+      - Provide short, useful insights when asked.
+      - When asked for a summary, keep it under 2 sentences.
+
+      Analyze the following text and provide a short summary of the key themes:
+      ---
+      {{ .workflow.input.text }}

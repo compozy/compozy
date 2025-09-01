@@ -3,6 +3,7 @@ package llm
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
@@ -89,16 +90,52 @@ func (s *Service) GenerateContent(
 	agentConfig *agent.Config,
 	taskWith *core.Input,
 	actionID string,
+	directPrompt string,
 ) (*core.Output, error) {
 	if agentConfig == nil {
 		return nil, fmt.Errorf("agent config cannot be nil")
 	}
-	if actionID == "" {
-		return nil, fmt.Errorf("actionID cannot be empty")
+	dp := strings.TrimSpace(directPrompt)
+	// Validate either actionID or directPrompt is provided
+	if actionID == "" && dp == "" {
+		return nil, fmt.Errorf("either actionID or directPrompt must be provided")
 	}
-	actionConfig, err := agent.FindActionConfig(agentConfig.Actions, actionID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find action config: %w", err)
+
+	var actionConfig *agent.ActionConfig
+	var err error
+
+	if actionID != "" {
+		// Action-based flow (with optional prompt augmentation)
+		actionConfig, err = agent.FindActionConfig(agentConfig.Actions, actionID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to find action config: %w", err)
+		}
+
+		// If directPrompt is also provided, augment the action with it
+		if dp != "" {
+			// Create a copy to avoid mutating the original action config
+			actionConfigCopy := *actionConfig
+
+			// Combine the action's prompt with the direct prompt for enhanced context
+			if actionConfigCopy.Prompt != "" {
+				// Append the direct prompt to the action's prompt
+				actionConfigCopy.Prompt = fmt.Sprintf(
+					"%s\n\nAdditional context:\n\"\"\"\n%s\n\"\"\"",
+					actionConfigCopy.Prompt,
+					dp,
+				)
+			} else {
+				// If the action has no prompt, use the direct prompt
+				actionConfigCopy.Prompt = dp
+			}
+			actionConfig = &actionConfigCopy
+		}
+	} else {
+		// Prompt-only flow: Create transient ActionConfig for direct prompt execution
+		actionConfig = &agent.ActionConfig{
+			ID:     "direct-prompt",
+			Prompt: dp,
+		}
 	}
 	// Defensive copy to avoid shared-mutation/race on the agent's action config
 	actionCopy, err := core.DeepCopy(actionConfig)

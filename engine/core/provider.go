@@ -169,6 +169,23 @@ type ProviderConfig struct {
 	// - **Example**: `"org-123456789abcdef"`
 	// > **Note:**: Optional for most providers
 	Organization string `json:"organization" yaml:"organization" mapstructure:"organization"`
+
+	// Default indicates that this model should be used as the fallback when no explicit
+	// model configuration is provided at the task or agent level.
+	//
+	// **Behavior**:
+	//   - Only one model per project can be marked as default
+	//   - When set to true, this model will be used for tasks/agents without explicit model config
+	//   - Validation ensures at most one default model per project
+	//
+	// **Example**:
+	// ```yaml
+	// models:
+	//   - provider: openai
+	//     model: gpt-4
+	//     default: true  # This will be used by default
+	// ```
+	Default bool `json:"default,omitempty" yaml:"default,omitempty" mapstructure:"default"`
 }
 
 // NewProviderConfig creates a new ProviderConfig with the specified core parameters.
@@ -230,5 +247,5 @@ func (p *ProviderConfig) FromMap(data any) error {
 	if err != nil {
 		return err
 	}
-	return mergo.Merge(p, config, mergo.WithOverride)
+	return mergo.Merge(p, config, mergo.WithOverride, mergo.WithOverwriteWithEmptyValue)
 }
