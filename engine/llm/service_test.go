@@ -178,8 +178,10 @@ func createTestAgentConfig() *agent.Config {
 	return &agent.Config{
 		ID:           "test-agent",
 		Instructions: "Test instructions",
-		Tools:        []tool.Config{},
-		MCPs:         []mcp.Config{},
+		LLMProperties: agent.LLMProperties{
+			Tools: []tool.Config{},
+			MCPs:  []mcp.Config{},
+		},
 		Config: core.ProviderConfig{
 			Provider: "test",
 			Model:    "test-model",

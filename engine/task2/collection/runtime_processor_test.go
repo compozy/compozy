@@ -692,10 +692,12 @@ func TestRuntimeProcessor_EdgeCases(t *testing.T) {
 				Provider: "openai",
 				Model:    "gpt-4",
 			},
-			Tools: []tool.Config{
-				{
-					ID:          "tool1",
-					Description: "Tool for {{.item.purpose}}",
+			LLMProperties: agent.LLMProperties{
+				Tools: []tool.Config{
+					{
+						ID:          "tool1",
+						Description: "Tool for {{.item.purpose}}",
+					},
 				},
 			},
 		}

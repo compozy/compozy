@@ -29,11 +29,13 @@ func TestMemoryOperationConsistency(t *testing.T) {
 			Model:    "gpt-4",
 		},
 		Instructions: "Test agent with memory",
-		Memory: []core.MemoryReference{
-			{
-				ID:   "customer-support", // Use existing registered memory config
-				Key:  "user:{{.workflow.input.user_id}}",
-				Mode: "read-write",
+		LLMProperties: agent.LLMProperties{
+			Memory: []core.MemoryReference{
+				{
+					ID:   "customer-support", // Use existing registered memory config
+					Key:  "user:{{.workflow.input.user_id}}",
+					Mode: "read-write",
+				},
 			},
 		},
 		Actions: []*agent.ActionConfig{
@@ -202,7 +204,9 @@ func TestMemoryOperationConsistency(t *testing.T) {
 				Model:    "gpt-4",
 			},
 			Instructions: "Test agent without memory",
-			Memory:       []core.MemoryReference{}, // Empty memory configuration
+			LLMProperties: agent.LLMProperties{
+				Memory: []core.MemoryReference{}, // Empty memory configuration
+			},
 		}
 
 		execID, _ := core.NewID()

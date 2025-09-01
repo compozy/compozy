@@ -1,6 +1,6 @@
 id: prompt-only
 version: 0.1.0
-description: Minimal example of a basic task using an agent with a direct prompt (no actions)
+description: Minimal example of a basic task using direct LLM configuration (no agent)
 
 schemas:
   - id: analyze_input
@@ -16,23 +16,22 @@ config:
   input:
     $ref: local::schemas.#(id=="analyze_input")
 
-agents:
-  - id: prompt-agent
-    config:
-      $ref: global::models.#(provider=="openai")
-    instructions: |
+tasks:
+  - id: analyze
+    type: basic
+    prompt: |
       You are a concise text analysis assistant.
       - Provide short, useful insights when asked.
       - When asked for a summary, keep it under 2 sentences.
 
-tasks:
-  - id: analyze
-    type: basic
-    $use: agent(local::agents.#(id=="prompt-agent"))
-    prompt: |
       Analyze the following text and provide a short summary of the key themes:
       ---
       {{ .workflow.input.text }}
+
+    # Direct LLM configuration (no agent required)
+    model_config:
+      $ref: global::models.#(provider=="openai")
+
     outputs:
       summary: "{{ .output.response }}"
     final: true

@@ -525,6 +525,17 @@ const (
 // - Define fallback tasks for critical operations
 // - Use exponential backoff for external APIs
 type BasicTask struct {
+	// Embed LLMProperties with inline tags for backward compatibility
+	// This allows fields to be accessed directly on Config in YAML/JSON
+	agent.LLMProperties `json:",inline" yaml:",inline" mapstructure:",squash"`
+
+	// LLM provider configuration defining which AI model to use and its parameters.
+	// Supports multiple providers including OpenAI, Anthropic, Google, Groq, and local models.
+	//
+	// **Required fields:** provider, model
+	// **Optional fields:** api_key, api_url, params (temperature, max_tokens, etc.)
+	ModelConfig core.ProviderConfig `json:"model_config" yaml:"model_config" mapstructure:"model_config" validate:"required"`
+
 	// Action identifier that describes what this task does
 	// Used for logging and debugging purposes
 	// - **Example**: "process-user-data", "send-notification"

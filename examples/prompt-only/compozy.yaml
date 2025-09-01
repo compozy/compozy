@@ -1,6 +1,6 @@
 name: prompt-only
 version: 0.1.0
-description: Minimal example of a basic task using a direct prompt with an agent
+description: Minimal example of a basic task using direct LLM configuration (no agent)
 
 workflows:
   - source: ./workflow.yaml
@@ -17,4 +17,4 @@ runtime:
     - --allow-read
     - --allow-net
 
-# No autoload needed since agent is defined inline in workflow
+# No agents needed - tasks use direct LLM configuration

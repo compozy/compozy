@@ -167,8 +167,10 @@ func createTestAgentWithNewMemoryFormat(t *testing.T, _ *TestEnvironment) *agent
 		ID:           "test-agent-new-format",
 		Config:       core.ProviderConfig{Provider: core.ProviderMock, Model: "test-model"},
 		Instructions: "Test agent with new memory format",
-		Memory: []core.MemoryReference{
-			{ID: "customer-support", Key: "user:{{.workflow.input.user_id}}", Mode: "read-write"},
+		LLMProperties: agent.LLMProperties{
+			Memory: []core.MemoryReference{
+				{ID: "customer-support", Key: "user:{{.workflow.input.user_id}}", Mode: "read-write"},
+			},
 		},
 		CWD: cwd,
 		Actions: []*agent.ActionConfig{
@@ -201,9 +203,11 @@ func createTestAgentWithMultipleNewMemoryFormat(t *testing.T, _ *TestEnvironment
 		ID:           "test-agent-multi-new-format",
 		Config:       core.ProviderConfig{Provider: core.ProviderMock, Model: "test-model"},
 		Instructions: "Test agent with multiple memories in new format",
-		Memory: []core.MemoryReference{
-			{ID: "customer-support", Key: "user:{{.workflow.input.user_id}}", Mode: "read-write"},
-			{ID: "shared-memory", Key: "shared:{{.workflow.input.session_id}}", Mode: "read-write"},
+		LLMProperties: agent.LLMProperties{
+			Memory: []core.MemoryReference{
+				{ID: "customer-support", Key: "user:{{.workflow.input.user_id}}", Mode: "read-write"},
+				{ID: "shared-memory", Key: "shared:{{.workflow.input.session_id}}", Mode: "read-write"},
+			},
 		},
 		CWD: cwd,
 		Actions: []*agent.ActionConfig{
@@ -236,8 +240,10 @@ func createTestAgentWithReadOnlyNewMemoryFormat(t *testing.T, _ *TestEnvironment
 		ID:           "test-agent-readonly-new-format",
 		Config:       core.ProviderConfig{Provider: core.ProviderMock, Model: "test-model"},
 		Instructions: "Test agent with read-only memory in new format",
-		Memory: []core.MemoryReference{
-			{ID: "customer-support", Key: "readonly:{{.workflow.input.user_id}}", Mode: "read-only"},
+		LLMProperties: agent.LLMProperties{
+			Memory: []core.MemoryReference{
+				{ID: "customer-support", Key: "readonly:{{.workflow.input.user_id}}", Mode: "read-only"},
+			},
 		},
 		CWD: cwd,
 		Actions: []*agent.ActionConfig{

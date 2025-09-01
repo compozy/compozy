@@ -57,15 +57,14 @@ func NewExecuteTask(
 func (uc *ExecuteTask) Execute(ctx context.Context, input *ExecuteTaskInput) (*core.Output, error) {
 	agentConfig := input.TaskConfig.Agent
 	toolConfig := input.TaskConfig.Tool
+	hasDirectLLM := input.TaskConfig.ModelConfig.Provider != "" && input.TaskConfig.Prompt != ""
+
 	var result *core.Output
 	var err error
 	switch {
 	case agentConfig != nil:
 		actionID := input.TaskConfig.Action
 		promptText := input.TaskConfig.Prompt
-
-		// Trust load-time validation - both action and prompt can be provided together for enhanced context
-		// At least one of them is guaranteed to be present by validators.go
 
 		// Defensive guard: ensure at least one of action or prompt is provided
 		if actionID == "" && promptText == "" {
@@ -83,10 +82,18 @@ func (uc *ExecuteTask) Execute(ctx context.Context, input *ExecuteTaskInput) (*c
 			return nil, fmt.Errorf("failed to execute tool: %w", err)
 		}
 		return result, nil
+	case hasDirectLLM:
+		// Execute direct LLM task
+		result, err = uc.executeDirectLLM(ctx, input)
+		if err != nil {
+			return nil, fmt.Errorf("failed to execute direct LLM task: %w", err)
+		}
+		return result, nil
 	}
 	// This should be unreachable for valid basic tasks due to load-time validation
 	return nil, fmt.Errorf(
-		"unreachable: task (ID: %s, Type: %s) has no executable component (agent/tool); validation may be misconfigured",
+		"unreachable: task (ID: %s, Type: %s) has no executable component "+
+			"(agent/tool/direct LLM); validation may be misconfigured",
 		input.TaskConfig.ID,
 		input.TaskConfig.Type,
 	)
@@ -287,6 +294,20 @@ func (uc *ExecuteTask) executeAgent(
 		return nil, fmt.Errorf("failed to generate content: %w", err)
 	}
 	return result, nil
+}
+
+// executeDirectLLM executes a task with direct LLM configuration (no agent)
+func (uc *ExecuteTask) executeDirectLLM(ctx context.Context, input *ExecuteTaskInput) (*core.Output, error) {
+	// Build a synthetic agent config from the task's LLM properties
+	syntheticAgent := &agent.Config{
+		ID:            fmt.Sprintf("task-%s-llm", input.TaskConfig.ID),
+		Instructions:  "Direct LLM task execution - follow the task prompt",
+		Config:        input.TaskConfig.ModelConfig,
+		LLMProperties: input.TaskConfig.LLMProperties,
+	}
+	promptText := input.TaskConfig.Prompt
+	// We don't need an action ID for direct LLM execution since we're using the task prompt
+	return uc.executeAgent(ctx, syntheticAgent, "", promptText, input.TaskConfig.With, input)
 }
 
 func (uc *ExecuteTask) executeTool(

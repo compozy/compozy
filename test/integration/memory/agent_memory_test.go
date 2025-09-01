@@ -307,8 +307,10 @@ func createTestAgentWithMemory(t *testing.T, _ *TestEnvironment) *agent.Config {
 		ID:           "test-agent-with-memory",
 		Config:       core.ProviderConfig{Provider: core.ProviderMock, Model: "test-model"},
 		Instructions: "Test agent with memory integration",
-		Memory: []core.MemoryReference{
-			{ID: "customer-support", Key: "user:{{.workflow.input.user_id}}", Mode: "read-write"},
+		LLMProperties: agent.LLMProperties{
+			Memory: []core.MemoryReference{
+				{ID: "customer-support", Key: "user:{{.workflow.input.user_id}}", Mode: "read-write"},
+			},
 		},
 		CWD: cwd,
 		Actions: []*agent.ActionConfig{
@@ -341,9 +343,11 @@ func createTestAgentWithMultipleMemories(t *testing.T, _ *TestEnvironment) *agen
 		ID:           "test-agent-multi-memory",
 		Config:       core.ProviderConfig{Provider: core.ProviderMock, Model: "test-model"},
 		Instructions: "Test agent with multiple memories",
-		Memory: []core.MemoryReference{
-			{ID: "customer-support", Key: "user:{{.workflow.input.user_id}}", Mode: "read-write"},
-			{ID: "shared-memory", Key: "shared:{{.workflow.input.session_id}}", Mode: "read-write"},
+		LLMProperties: agent.LLMProperties{
+			Memory: []core.MemoryReference{
+				{ID: "customer-support", Key: "user:{{.workflow.input.user_id}}", Mode: "read-write"},
+				{ID: "shared-memory", Key: "shared:{{.workflow.input.session_id}}", Mode: "read-write"},
+			},
 		},
 		CWD: cwd,
 		Actions: []*agent.ActionConfig{
@@ -376,8 +380,10 @@ func createTestAgentWithInvalidTemplate(t *testing.T, _ *TestEnvironment) *agent
 		ID:           "test-agent-invalid-template",
 		Config:       core.ProviderConfig{Provider: core.ProviderMock, Model: "test-model"},
 		Instructions: "Test agent with invalid template",
-		Memory: []core.MemoryReference{
-			{ID: "customer-support", Key: "invalid:{{.workflow.input.missing_variable}}", Mode: "read-write"},
+		LLMProperties: agent.LLMProperties{
+			Memory: []core.MemoryReference{
+				{ID: "customer-support", Key: "invalid:{{.workflow.input.missing_variable}}", Mode: "read-write"},
+			},
 		},
 		CWD: cwd,
 		Actions: []*agent.ActionConfig{
@@ -410,8 +416,10 @@ func createTestAgentWithReadOnlyMemory(t *testing.T, _ *TestEnvironment) *agent.
 		ID:           "test-agent-readonly",
 		Config:       core.ProviderConfig{Provider: core.ProviderMock, Model: "test-model"},
 		Instructions: "Test agent with read-only memory",
-		Memory: []core.MemoryReference{
-			{ID: "customer-support", Key: "readonly:{{.workflow.input.user_id}}", Mode: "read-only"},
+		LLMProperties: agent.LLMProperties{
+			Memory: []core.MemoryReference{
+				{ID: "customer-support", Key: "readonly:{{.workflow.input.user_id}}", Mode: "read-only"},
+			},
 		},
 		CWD: cwd,
 		Actions: []*agent.ActionConfig{

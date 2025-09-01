@@ -65,7 +65,7 @@ func (w *Watcher) Watch(ctx context.Context, path string) error {
 			// Best-effort removal from fsnotify watcher; ignore error if already removed/closed
 			if err := w.watcher.Remove(p); err != nil {
 				// Ignore when watcher is closed; TODO: log other errors once logger is injected
-				//nolint:errcheck // temporary until logger is wired
+
 				if !errors.Is(err, fsnotify.ErrClosed) {
 					_ = err
 				}

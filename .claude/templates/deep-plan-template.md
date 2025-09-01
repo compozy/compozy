@@ -1,6 +1,6 @@
 # Deep Plan Output Template
 
-Use this template for the final planning document and the initial `_phase2` draft. Replace bracketed prompts with project-specific content.
+Use this template for the final planning document. Replace bracketed prompts with project-specific content.
 
 ```markdown
 🗺️ Deep Plan Complete
@@ -35,15 +35,14 @@ Use this template for the final planning document and the initial `_phase2` draf
 
 - [Key modules, interfaces, boundaries]
 
+📜 Relevant Files
+
+- [List of relevant files]
+
 📐 Standards Compliance
 
 - Rules satisfied: [@api-standards.mdc, @architecture.mdc, ...]
 - Deviations (if any): [explain + compliant alternative]
-
-📅 Milestones
-
-1. [Milestone name] — [exit criteria]
-2. [...]
 
 🧱 Work Breakdown Structure (WBS)
 
@@ -57,16 +56,6 @@ Use this template for the final planning document and the initial `_phase2` draf
 🚀 Rollout & Ops
 
 - [Release plan, feature flags, monitoring, rollback]
-
-📝 Decision Log
-
-- [Decision] — [Rationale] — [Date]
-
-🤝 Multi‑Model Synthesis (gemini-2.5-pro + o3)
-
-- Agreements: [shared conclusions]
-- Divergences: [differences]
-- Final Rationale: [why selected approach]
 
 ❓ Open Questions
 
@@ -91,5 +80,3 @@ After printing the markdown plan, emit the structured save block with the same c
   <audience>main-agent</audience>
 </save>
 ```
-
-For the initial Phase 2 draft synthesis, use the same structure but append `_phase2` to the filename before the extension.

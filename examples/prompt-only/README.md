@@ -1,6 +1,6 @@
 # Prompt-Only Basic Task Example
 
-Minimal example showing a basic task calling an agent using a direct `prompt` (no actions).
+Minimal example showing a basic task using direct LLM configuration with a `prompt` (no agent required).
 
 ## Run
 
