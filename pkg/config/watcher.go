@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"sync"
@@ -63,11 +64,11 @@ func (w *Watcher) Watch(ctx context.Context, path string) error {
 			w.mu.Unlock()
 			// Best-effort removal from fsnotify watcher; ignore error if already removed/closed
 			if err := w.watcher.Remove(p); err != nil {
-				// Intentionally ignore error: removal may fail if watcher is already closed
-				// or path was already removed. Since this happens during context cancellation,
-				// we cannot propagate the error and logging is not yet available.
-				// TODO: Add logger injection for proper error logging
-				_ = err
+				// Ignore when watcher is closed; TODO: log other errors once logger is injected
+				//nolint:errcheck // temporary until logger is wired
+				if !errors.Is(err, fsnotify.ErrClosed) {
+					_ = err
+				}
 			}
 		}(absPath, ctx)
 	}

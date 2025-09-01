@@ -3,6 +3,7 @@ package llm
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
@@ -94,8 +95,9 @@ func (s *Service) GenerateContent(
 	if agentConfig == nil {
 		return nil, fmt.Errorf("agent config cannot be nil")
 	}
+	dp := strings.TrimSpace(directPrompt)
 	// Validate either actionID or directPrompt is provided
-	if actionID == "" && directPrompt == "" {
+	if actionID == "" && dp == "" {
 		return nil, fmt.Errorf("either actionID or directPrompt must be provided")
 	}
 
@@ -110,7 +112,7 @@ func (s *Service) GenerateContent(
 		}
 
 		// If directPrompt is also provided, augment the action with it
-		if directPrompt != "" {
+		if dp != "" {
 			// Create a copy to avoid mutating the original action config
 			actionConfigCopy := *actionConfig
 
@@ -120,11 +122,11 @@ func (s *Service) GenerateContent(
 				actionConfigCopy.Prompt = fmt.Sprintf(
 					"%s\n\nAdditional context: %s",
 					actionConfigCopy.Prompt,
-					directPrompt,
+					dp,
 				)
 			} else {
 				// If the action has no prompt, use the direct prompt
-				actionConfigCopy.Prompt = directPrompt
+				actionConfigCopy.Prompt = dp
 			}
 			actionConfig = &actionConfigCopy
 		}
@@ -132,7 +134,7 @@ func (s *Service) GenerateContent(
 		// Prompt-only flow: Create transient ActionConfig for direct prompt execution
 		actionConfig = &agent.ActionConfig{
 			ID:     "direct-prompt",
-			Prompt: directPrompt,
+			Prompt: dp,
 		}
 	}
 	// Defensive copy to avoid shared-mutation/race on the agent's action config

@@ -73,6 +73,7 @@ func (c testClient) Close() error { return nil }
 
 func TestService_GenerateContent_DirectPrompt(t *testing.T) {
 	t.Run("Should handle direct prompt without actionID", func(t *testing.T) {
+		t.Parallel()
 		runtimeMgr := &mockRuntime{}
 		agentConfig := createTestAgentConfig()
 		agentConfig.Instructions = "You are a helpful test agent"

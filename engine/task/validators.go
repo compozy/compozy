@@ -151,7 +151,7 @@ func (v *TypeValidator) validateExecutorFields() error {
 		hasAction := v.config.Action != ""
 		hasPrompt := v.config.Prompt != ""
 		if !hasAction && !hasPrompt {
-			return fmt.Errorf("basic tasks using agents must specify at least one of 'action' or 'prompt'")
+			return fmt.Errorf("tasks using agents must specify at least one of 'action' or 'prompt'")
 		}
 		// Note: Both action and prompt can be provided together for enhanced context
 		// The prompt will augment or customize the action's behavior

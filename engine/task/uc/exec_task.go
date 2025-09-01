@@ -67,6 +67,11 @@ func (uc *ExecuteTask) Execute(ctx context.Context, input *ExecuteTaskInput) (*c
 		// Trust load-time validation - both action and prompt can be provided together for enhanced context
 		// At least one of them is guaranteed to be present by validators.go
 
+		// Defensive guard: ensure at least one of action or prompt is provided
+		if actionID == "" && promptText == "" {
+			return nil, fmt.Errorf("agent execution requires action or prompt")
+		}
+
 		result, err = uc.executeAgent(ctx, agentConfig, actionID, promptText, input.TaskConfig.With, input)
 		if err != nil {
 			return nil, fmt.Errorf("failed to execute agent: %w", err)
@@ -271,6 +276,8 @@ func (uc *ExecuteTask) executeAgent(
 			resolvedPrompt = rendered
 		} else {
 			log.Warn("Failed to resolve templates in prompt; using raw value",
+				"agent_id", agentConfig.ID,
+				"task_id", input.TaskConfig.ID,
 				"error", rerr)
 		}
 	}

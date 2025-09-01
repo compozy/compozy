@@ -505,6 +505,16 @@ func Test_TaskConfigValidation(t *testing.T) {
 		assert.Contains(t, err.Error(), "prompt is not allowed when executor type is tool")
 	})
 
+	t.Run("Tool: action is not allowed", func(t *testing.T) {
+		config := &Config{
+			BaseConfig: BaseConfig{ID: taskID, Type: TaskTypeBasic, CWD: taskCWD, Tool: &tool.Config{ID: "t"}},
+			BasicTask:  BasicTask{Action: "also-not-allowed"},
+		}
+		err := config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "action is not allowed when executor type is tool")
+	})
+
 	t.Run("Should validate valid router task", func(t *testing.T) {
 		config := &Config{
 			BaseConfig: BaseConfig{

@@ -5,7 +5,8 @@
 ### Execute prompt-only workflow
 # @name executeWorkflow
 POST {{baseUrl}}/workflows/{{workflowId}}/executions
-Content-Type: application/json
+Content-Type: application/jsonAccept: application/json
+Accept: application/json
 
 {
   "input": {
