@@ -26,8 +26,6 @@ tools:
 
 agents:
   - id: tourist_guide
-    config:
-      $ref: global::models.#(provider=="groq")
     instructions: |
       You are a helpful tourist guide assistant.
       That's is your capabilities:

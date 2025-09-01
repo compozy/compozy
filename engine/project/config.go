@@ -337,11 +337,30 @@ func (p *Config) HasSchema() bool {
 	return false
 }
 
+// GetDefaultModel returns the model configuration marked as default.
+// Returns nil if no model is marked as default.
+// This is used as a fallback when tasks or agents don't specify a model.
+func (p *Config) GetDefaultModel() *core.ProviderConfig {
+	if p.Models == nil {
+		return nil
+	}
+	for _, model := range p.Models {
+		if model != nil && model.Default {
+			return model
+		}
+	}
+	return nil
+}
+
 func (p *Config) Validate() error {
 	validator := schema.NewCompositeValidator(
 		schema.NewCWDValidator(p.CWD, p.Name),
 	)
 	if err := validator.Validate(); err != nil {
+		return err
+	}
+	// Validate models configuration (including default model)
+	if err := p.validateModels(); err != nil {
 		return err
 	}
 	// Validate runtime configuration
@@ -374,6 +393,26 @@ func (p *Config) ValidateInput(_ context.Context, _ *core.Input) error {
 
 func (p *Config) ValidateOutput(_ context.Context, _ *core.Output) error {
 	// Does not make sense the project having a schema
+	return nil
+}
+
+// validateModels ensures that at most one model is marked as default
+func (p *Config) validateModels() error {
+	if len(p.Models) == 0 {
+		return nil
+	}
+	defaultCount := 0
+	for i, model := range p.Models {
+		if model != nil && model.Default {
+			defaultCount++
+			if defaultCount > 1 {
+				return fmt.Errorf(
+					"project configuration error: only one model can be marked as default, found multiple at index %d",
+					i,
+				)
+			}
+		}
+	}
 	return nil
 }
 

@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/store"
+	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
@@ -38,6 +39,7 @@ type ExecuteSubtask struct {
 	taskRepo       task.Repository
 	configStore    services.ConfigStore
 	appConfig      *config.Config
+	projectConfig  *project.Config
 }
 
 // NewExecuteSubtask creates and returns an ExecuteSubtask wired with the provided dependencies.
@@ -53,6 +55,7 @@ func NewExecuteSubtask(
 	task2Factory task2.Factory,
 	templateEngine *tplengine.TemplateEngine,
 	appConfig *config.Config,
+	projectConfig *project.Config,
 ) *ExecuteSubtask {
 	return &ExecuteSubtask{
 		loadWorkflowUC: uc.NewLoadWorkflow(workflows, workflowRepo),
@@ -68,6 +71,7 @@ func NewExecuteSubtask(
 		taskRepo:       taskRepo,
 		configStore:    configStore,
 		appConfig:      appConfig,
+		projectConfig:  projectConfig,
 	}
 }
 
@@ -180,7 +184,7 @@ func (a *ExecuteSubtask) executeAndHandleResponse(
 		TaskConfig:     taskConfig,
 		WorkflowState:  workflowState,
 		WorkflowConfig: workflowConfig,
-		ProjectConfig:  nil, // Subtasks don't use memory operations
+		ProjectConfig:  a.projectConfig,
 	})
 	// Update task status and output based on execution result
 	if executionError != nil {

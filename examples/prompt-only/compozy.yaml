@@ -6,9 +6,10 @@ workflows:
   - source: ./workflow.yaml
 
 models:
-  - provider: openai
-    model: gpt-4o-mini
-    api_key: "{{ .env.OPENAI_API_KEY }}"
+  - provider: groq
+    model: llama-3.3-70b-versatile
+    api_key: "{{ .env.GROQ_API_KEY }}"
+    default: true
 
 runtime:
   type: bun
@@ -16,5 +17,3 @@ runtime:
   permissions:
     - --allow-read
     - --allow-net
-
-# No agents needed - tasks use direct LLM configuration

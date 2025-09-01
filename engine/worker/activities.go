@@ -222,6 +222,7 @@ func (a *Activities) ExecuteSubtask(
 		a.task2Factory,
 		a.templateEngine,
 		cfg,
+		a.projectConfig,
 	)
 	return act.Run(ctx, input)
 }

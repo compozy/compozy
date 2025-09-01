@@ -517,6 +517,119 @@ func TestRuntimeConfig_Defaults(t *testing.T) {
 	})
 }
 
+func TestDefaultModel_GetDefaultModel(t *testing.T) {
+	t.Run("Should return nil when no models configured", func(t *testing.T) {
+		config := &Config{
+			Models: nil,
+		}
+		assert.Nil(t, config.GetDefaultModel())
+	})
+	t.Run("Should return nil when no default model set", func(t *testing.T) {
+		config := &Config{
+			Models: []*core.ProviderConfig{
+				{Provider: "openai", Model: "gpt-4"},
+				{Provider: "anthropic", Model: "claude-3"},
+			},
+		}
+		assert.Nil(t, config.GetDefaultModel())
+	})
+	t.Run("Should return the default model when one is set", func(t *testing.T) {
+		config := &Config{
+			Models: []*core.ProviderConfig{
+				{Provider: "openai", Model: "gpt-4", Default: true},
+				{Provider: "anthropic", Model: "claude-3"},
+			},
+		}
+		defaultModel := config.GetDefaultModel()
+		assert.NotNil(t, defaultModel)
+		assert.Equal(t, "openai", string(defaultModel.Provider))
+		assert.Equal(t, "gpt-4", defaultModel.Model)
+		assert.True(t, defaultModel.Default)
+	})
+	t.Run("Should return first default when multiple exist", func(t *testing.T) {
+		config := &Config{
+			Models: []*core.ProviderConfig{
+				{Provider: "openai", Model: "gpt-4", Default: true},
+				{Provider: "anthropic", Model: "claude-3", Default: true},
+			},
+		}
+		defaultModel := config.GetDefaultModel()
+		assert.NotNil(t, defaultModel)
+		assert.Equal(t, "openai", string(defaultModel.Provider))
+	})
+}
+
+func TestDefaultModel_Validation(t *testing.T) {
+	// Helper to create a valid CWD
+	createTestCWD := func() *core.PathCWD {
+		cwd, _ := core.CWDFromPath("/tmp/test")
+		return cwd
+	}
+	t.Run("Should pass validation with no default model", func(t *testing.T) {
+		config := &Config{
+			Name: "test-project",
+			CWD:  createTestCWD(),
+			Models: []*core.ProviderConfig{
+				{Provider: "openai", Model: "gpt-4"},
+				{Provider: "anthropic", Model: "claude-3"},
+			},
+		}
+		err := config.Validate()
+		assert.NoError(t, err)
+	})
+	t.Run("Should pass validation with one default model", func(t *testing.T) {
+		config := &Config{
+			Name: "test-project",
+			CWD:  createTestCWD(),
+			Models: []*core.ProviderConfig{
+				{Provider: "openai", Model: "gpt-4", Default: true},
+				{Provider: "anthropic", Model: "claude-3"},
+			},
+		}
+		err := config.Validate()
+		assert.NoError(t, err)
+	})
+	t.Run("Should fail validation with multiple default models", func(t *testing.T) {
+		config := &Config{
+			Name: "test-project",
+			CWD:  createTestCWD(),
+			Models: []*core.ProviderConfig{
+				{Provider: "openai", Model: "gpt-4", Default: true},
+				{Provider: "anthropic", Model: "claude-3", Default: true},
+				{Provider: "google", Model: "gemini-pro"},
+			},
+		}
+		err := config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "only one model can be marked as default")
+	})
+	t.Run("Should pass validation with empty models array", func(t *testing.T) {
+		config := &Config{
+			Name:   "test-project",
+			CWD:    createTestCWD(),
+			Models: []*core.ProviderConfig{},
+		}
+		err := config.Validate()
+		assert.NoError(t, err)
+	})
+	t.Run("Should handle nil models in array gracefully", func(t *testing.T) {
+		config := &Config{
+			Name: "test-project",
+			CWD:  createTestCWD(),
+			Models: []*core.ProviderConfig{
+				nil,
+				{Provider: "openai", Model: "gpt-4", Default: true},
+				nil,
+			},
+		}
+		err := config.Validate()
+		assert.NoError(t, err)
+		defaultModel := config.GetDefaultModel()
+		assert.NotNil(t, defaultModel)
+		assert.Equal(t, "openai", string(defaultModel.Provider))
+	})
+}
+
 func TestLoad_RuntimeConfig(t *testing.T) {
 	t.Run("Should load runtime config from YAML", func(t *testing.T) {
 		tmpDir := t.TempDir()

@@ -3,9 +3,6 @@ id: analyzer
 description: Specialized in Go code analysis for performance and best practices
 version: 1.0.0
 
-config:
-  $ref: global::models.#(provider=="openai")
-
 instructions: |
   You are an expert Go developer and code reviewer with deep knowledge of:
   - Go performance optimization and profiling
