@@ -94,16 +94,15 @@ func NewActivities(
 // with the correct level derived from application configuration (e.g., --debug).
 func withActivityLogger(ctx context.Context) context.Context {
 	cfg := config.Get()
+	if !cfg.CLI.Debug && !cfg.CLI.Quiet {
+		return ctx
+	}
 	level := logger.InfoLevel
 	if cfg.CLI.Quiet {
 		level = logger.DisabledLevel
 	} else if cfg.CLI.Debug {
 		level = logger.DebugLevel
 	}
-	// Build a request-scoped logger without mutating the global default.
-	// Using SetupLogger here caused a data race when called concurrently
-	// by parallel activities because it updates a package-level default.
-	// NewLogger returns an independent instance, which we attach to context.
 	log := logger.NewLogger(&logger.Config{
 		Level:      level,
 		JSON:       false,

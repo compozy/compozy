@@ -92,11 +92,25 @@ func NewToolsValidator(config *Config) *ToolsValidator {
 }
 
 func (v *ToolsValidator) Validate() error {
+	if len(v.config.Tools) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(v.config.Tools))
 	for i := range v.config.Tools {
 		tc := &v.config.Tools[i]
+		// Validate tool configuration
 		if err := tc.Validate(); err != nil {
 			return fmt.Errorf("tool validation error: %s", err)
 		}
+		// Check required ID
+		if tc.ID == "" {
+			return fmt.Errorf("tool[%d] missing required ID field", i)
+		}
+		// Detect duplicates
+		if _, ok := seen[tc.ID]; ok {
+			return fmt.Errorf("duplicate tool ID '%s' found in workflow tools", tc.ID)
+		}
+		seen[tc.ID] = struct{}{}
 	}
 	return nil
 }

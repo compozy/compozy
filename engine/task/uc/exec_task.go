@@ -34,6 +34,7 @@ type ExecuteTask struct {
 	memoryManager  memcore.ManagerInterface
 	templateEngine *tplengine.TemplateEngine
 	appConfig      *config.Config
+	toolResolver   resolver.ToolResolver
 }
 
 // NewExecuteTask creates a new ExecuteTask configured with the provided runtime, workflow
@@ -52,6 +53,7 @@ func NewExecuteTask(
 		memoryManager:  memoryManager,
 		templateEngine: templateEngine,
 		appConfig:      appConfig,
+		toolResolver:   resolver.NewHierarchicalResolver(),
 	}
 }
 
@@ -293,7 +295,8 @@ func (uc *ExecuteTask) refreshWorkflowState(ctx context.Context, input *ExecuteT
 	}
 
 	execID := input.WorkflowState.WorkflowExecID
-	if execID == "" {
+	// Treat zero ID as absent (prefer execID.IsZero() if available)
+	if execID.String() == "" {
 		return
 	}
 
@@ -410,8 +413,7 @@ func (uc *ExecuteTask) createLLMService(
 			"action", "Memory features will be disabled for this execution")
 	}
 	// Resolve tools using hierarchical inheritance
-	toolResolver := resolver.NewHierarchicalResolver()
-	resolvedTools, err := toolResolver.ResolveTools(input.ProjectConfig, input.WorkflowConfig, agentConfig)
+	resolvedTools, err := uc.toolResolver.ResolveTools(input.ProjectConfig, input.WorkflowConfig, agentConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve tools: %w", err)
 	}

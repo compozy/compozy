@@ -186,6 +186,11 @@ type ProviderConfig struct {
 	//     default: true  # This will be used by default
 	// ```
 	Default bool `json:"default,omitempty" yaml:"default,omitempty" mapstructure:"default"`
+
+	// MaxToolIterations optionally caps the maximum number of tool-call iterations
+	// during a single LLM request when tools are available.
+	// If set to a positive value, this overrides global defaults for this model.
+	MaxToolIterations int `json:"max_tool_iterations,omitempty" yaml:"max_tool_iterations,omitempty" mapstructure:"max_tool_iterations,omitempty"`
 }
 
 // NewProviderConfig creates a new ProviderConfig with the specified core parameters.

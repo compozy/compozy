@@ -24,6 +24,8 @@ const (
 	defaultRetryAttempts      = 3
 	defaultRetryBackoffBase   = 100 * time.Millisecond
 	defaultRetryBackoffMax    = 10 * time.Second
+	// defaultMaxToolIterations caps the tool-call iteration loop when no overrides are provided
+	defaultMaxToolIterations = 10
 )
 
 // AsyncHook provides hooks for monitoring async operations
@@ -54,6 +56,9 @@ type OrchestratorConfig struct {
 	AsyncHook          AsyncHook      // Optional: hook for monitoring async operations
 	Timeout            time.Duration  // Optional: timeout for LLM operations
 	MaxConcurrentTools int            // Maximum concurrent tool executions
+	// MaxToolIterations optionally caps the tool-iteration loop. If <= 0, defaults apply.
+	// Precedence at runtime: model-specific (agent.Config.MaxToolIterations) > this value > default.
+	MaxToolIterations int
 	// Retry configuration
 	RetryAttempts    int           // Number of retry attempts for LLM operations
 	RetryBackoffBase time.Duration // Base delay for exponential backoff retry strategy
@@ -113,7 +118,7 @@ func (o *llmOrchestrator) executeWithClient(
 	// Iteratively handle tool calls by feeding tool results back to the LLM
 	// to allow multi-step workflows (e.g., read_file -> analyze -> write_file).
 	// Hard cap iterations to avoid infinite loops.
-	const maxIterations = 8
+	maxIterations := o.maxToolIterationsFor(request)
 	for iter := 0; iter < maxIterations; iter++ {
 		log.Debug("Generating LLM response",
 			"agent_id", request.Agent.ID,
@@ -171,25 +176,32 @@ func (o *llmOrchestrator) executeToolCallsRaw(
 		"tool_calls_count", len(toolCalls),
 		"tools", extractToolNames(toolCalls),
 	)
-	// Concurrency bounded by MaxConcurrentTools
+	// Concurrency bounded by MaxConcurrentTools with early-cancel support via errgroup
 	concurrency := o.config.MaxConcurrentTools
 	if concurrency <= 0 {
 		concurrency = defaultMaxConcurrentTools
 	}
 	sem := make(chan struct{}, concurrency)
-	var wg sync.WaitGroup
 	results := make([]llmadapter.ToolResult, len(toolCalls))
+	g, ctx := errgroup.WithContext(ctx)
 	for i := range toolCalls {
-		i := i
-		wg.Add(1)
-		sem <- struct{}{}
-		go func() {
-			defer wg.Done()
-			defer func() { <-sem }()
-			results[i] = o.executeSingleToolCallRaw(ctx, toolCalls[i])
-		}()
+		idx := i
+		call := toolCalls[i]
+		g.Go(func() error {
+			// Acquire semaphore or respect context cancellation
+			select {
+			case sem <- struct{}{}:
+				defer func() { <-sem }()
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+			results[idx] = o.executeSingleToolCallRaw(ctx, call)
+			return nil
+		})
 	}
-	wg.Wait()
+	if err := g.Wait(); err != nil {
+		log.Debug("Tool calls group ended early", "error", err)
+	}
 	log.Debug("All tool calls completed",
 		"results_count", len(results),
 		"successful_count", countSuccessfulResults(results),
@@ -206,7 +218,6 @@ func (o *llmOrchestrator) executeSingleToolCallRaw(
 	log.Debug("Processing tool call",
 		"tool_name", tc.Name,
 		"tool_call_id", tc.ID,
-		"arguments", string(tc.Arguments),
 	)
 	// Find tool
 	t, found := o.config.ToolRegistry.Find(ctx, tc.Name)
@@ -215,10 +226,12 @@ func (o *llmOrchestrator) executeSingleToolCallRaw(
 			"tool_name", tc.Name,
 			"tool_call_id", tc.ID,
 		)
+		errJSON := fmt.Sprintf("{\"error\":\"tool not found: %s\"}", tc.Name)
 		return llmadapter.ToolResult{
-			ID:      tc.ID,
-			Name:    tc.Name,
-			Content: fmt.Sprintf("{\"error\":\"tool not found: %s\"}", tc.Name),
+			ID:          tc.ID,
+			Name:        tc.Name,
+			Content:     errJSON,
+			JSONContent: json.RawMessage(errJSON),
 		}
 	}
 	log.Debug("Executing tool",
@@ -233,22 +246,28 @@ func (o *llmOrchestrator) executeSingleToolCallRaw(
 			"tool_call_id", tc.ID,
 			"error", err.Error(),
 		)
+		errJSON := fmt.Sprintf("{\"error\":%q}", err.Error())
 		return llmadapter.ToolResult{
-			ID:      tc.ID,
-			Name:    tc.Name,
-			Content: fmt.Sprintf("{\"error\":%q}", err.Error()),
+			ID:          tc.ID,
+			Name:        tc.Name,
+			Content:     errJSON,
+			JSONContent: json.RawMessage(errJSON),
 		}
 	}
 	log.Debug("Tool execution succeeded",
 		"tool_name", tc.Name,
 		"tool_call_id", tc.ID,
-		"result_length", len(raw),
-		"result_preview", truncateString(raw, 200),
 	)
+	// Populate JSONContent when the tool returns valid JSON to avoid double-encoding downstream
+	var jsonContent json.RawMessage
+	if json.Valid([]byte(raw)) {
+		jsonContent = json.RawMessage(raw)
+	}
 	return llmadapter.ToolResult{
-		ID:      tc.ID,
-		Name:    tc.Name,
-		Content: raw,
+		ID:          tc.ID,
+		Name:        tc.Name,
+		Content:     raw,
+		JSONContent: jsonContent,
 	}
 }
 
@@ -265,19 +284,68 @@ func extractToolNames(toolCalls []llmadapter.ToolCall) []string {
 func countSuccessfulResults(results []llmadapter.ToolResult) int {
 	count := 0
 	for _, r := range results {
-		if !strings.Contains(r.Content, "\"error\"") {
+		// Prefer JSONContent if present
+		if len(r.JSONContent) > 0 {
+			if ok, parsed := isSuccessJSONRaw(r.JSONContent); parsed {
+				if ok {
+					count++
+				}
+				continue
+			}
+			// Fallback heuristic when JSON parsing fails
+			if isSuccessText(string(r.JSONContent)) {
+				count++
+			}
+			continue
+		}
+		if isSuccessText(r.Content) {
 			count++
 		}
 	}
 	return count
 }
 
-// truncateString truncates a string for logging preview
-func truncateString(s string, maxLen int) string {
-	if len(s) > maxLen {
-		return s[:maxLen] + "..."
+// isSuccessJSONRaw attempts to parse a JSON object and checks for a top-level "error" key.
+// Returns (success, parsed). When parsed is false, caller may apply a fallback heuristic.
+func isSuccessJSONRaw(raw json.RawMessage) (bool, bool) {
+	var obj map[string]any
+	if err := json.Unmarshal(raw, &obj); err != nil {
+		return false, false
 	}
-	return s
+	if _, hasErr := obj["error"]; hasErr {
+		return false, true
+	}
+	return true, true
+}
+
+// isSuccessText checks non-JSON or ambiguous content for success by parsing JSON object
+// when possible and otherwise using a conservative substring heuristic.
+func isSuccessText(s string) bool {
+	trimmed := strings.TrimSpace(s)
+	if strings.HasPrefix(trimmed, "{") {
+		var obj map[string]any
+		if err := json.Unmarshal([]byte(trimmed), &obj); err == nil {
+			if _, hasErr := obj["error"]; hasErr {
+				return false
+			}
+			return true
+		}
+	}
+	// Fallback heuristic for non-JSON content
+	return !strings.Contains(s, "\"error\"")
+}
+
+// maxToolIterationsFor resolves the effective max tool iterations for a request
+// with precedence: agent model override > orchestrator config > default.
+func (o *llmOrchestrator) maxToolIterationsFor(request Request) int {
+	maxIterations := o.config.MaxToolIterations
+	if request.Agent != nil && request.Agent.Config.MaxToolIterations > 0 {
+		maxIterations = request.Agent.Config.MaxToolIterations
+	}
+	if maxIterations <= 0 {
+		maxIterations = defaultMaxToolIterations
+	}
+	return maxIterations
 }
 
 func (o *llmOrchestrator) generateLLMResponse(
@@ -551,6 +619,11 @@ func (o *llmOrchestrator) storeResponseInMemoryAsync(
 				Role:    "assistant",
 				Content: response.Content,
 			}
+			if len(messages) == 0 {
+				// Nothing to store alongside; skip user message association
+				err = nil
+				return
+			}
 			lastMsg := messages[len(messages)-1]
 			err = StoreResponseInMemory(
 				bgCtx,
@@ -735,45 +808,17 @@ func (o *llmOrchestrator) executeSingleToolCall(
 	log.Debug("Processing single tool call (structured)",
 		"tool_name", toolCall.Name,
 		"tool_call_id", toolCall.ID,
-		"arguments", string(toolCall.Arguments),
 	)
 	// Find the tool
-	tool, found := o.config.ToolRegistry.Find(ctx, toolCall.Name)
-	if !found {
-		log.Debug("Tool not found (structured mode)",
-			"tool_name", toolCall.Name,
-			"tool_call_id", toolCall.ID,
-		)
-		return nil, NewToolError(
-			fmt.Errorf("tool not found for execution"),
-			ErrCodeToolNotFound,
-			toolCall.Name,
-			map[string]any{"call_id": toolCall.ID},
-		)
-	}
-	log.Debug("Executing tool (structured mode)",
-		"tool_name", toolCall.Name,
-		"tool_call_id", toolCall.ID,
-	)
-	// Execute the tool
-	result, err := tool.Call(ctx, string(toolCall.Arguments))
+	tool, err := o.findToolForStructured(ctx, toolCall, log)
 	if err != nil {
-		log.Debug("Tool execution failed (structured mode)",
-			"tool_name", toolCall.Name,
-			"tool_call_id", toolCall.ID,
-			"error", err.Error(),
-		)
-		return nil, NewToolError(err, ErrCodeToolExecution, toolCall.Name, map[string]any{
-			"call_id":   toolCall.ID,
-			"arguments": toolCall.Arguments,
-		})
+		return nil, err
 	}
-	log.Debug("Tool execution succeeded (structured mode)",
-		"tool_name", toolCall.Name,
-		"tool_call_id", toolCall.ID,
-		"result_length", len(result),
-		"result_preview", truncateString(result, 200),
-	)
+	// Execute the tool with structured logs and redaction policy applied
+	result, err := o.callToolStructured(ctx, tool, toolCall, log)
+	if err != nil {
+		return nil, err
+	}
 	// Check for tool execution errors using improved error detection
 	if toolErr, isError := IsToolExecutionError(result); isError {
 		return nil, NewToolError(
@@ -790,6 +835,59 @@ func (o *llmOrchestrator) executeSingleToolCall(
 	// Note: Tool output schema should come from the tool configuration, not action
 	// For now, use action schema as fallback until tool schemas are properly wired
 	return o.parseContent(ctx, result, request.Action)
+}
+
+// findToolForStructured locates a tool for structured execution with standardized logging and error type
+func (o *llmOrchestrator) findToolForStructured(
+	ctx context.Context,
+	toolCall llmadapter.ToolCall,
+	log logger.Logger,
+) (Tool, error) {
+	t, found := o.config.ToolRegistry.Find(ctx, toolCall.Name)
+	if !found {
+		log.Debug("Tool not found (structured mode)",
+			"tool_name", toolCall.Name,
+			"tool_call_id", toolCall.ID,
+		)
+		return nil, NewToolError(
+			fmt.Errorf("tool not found for execution"),
+			ErrCodeToolNotFound,
+			toolCall.Name,
+			map[string]any{"call_id": toolCall.ID},
+		)
+	}
+	log.Debug("Executing tool (structured mode)",
+		"tool_name", toolCall.Name,
+		"tool_call_id", toolCall.ID,
+	)
+	return t, nil
+}
+
+// callToolStructured executes a tool call with structured logging and standardized error wrapping
+func (o *llmOrchestrator) callToolStructured(
+	ctx context.Context,
+	t Tool,
+	toolCall llmadapter.ToolCall,
+	log logger.Logger,
+) (string, error) {
+	result, err := t.Call(ctx, string(toolCall.Arguments))
+	if err != nil {
+		log.Debug("Tool execution failed (structured mode)",
+			"tool_name", toolCall.Name,
+			"tool_call_id", toolCall.ID,
+			"error", err.Error(),
+		)
+		return "", NewToolError(err, ErrCodeToolExecution, toolCall.Name, map[string]any{
+			"call_id": toolCall.ID,
+			// arguments intentionally redacted
+		})
+	}
+	log.Debug("Tool execution succeeded (structured mode)",
+		"tool_name", toolCall.Name,
+		"tool_call_id", toolCall.ID,
+		"result_length", len(result),
+	)
+	return result, nil
 }
 
 // parseContent parses content and validates against schema if provided

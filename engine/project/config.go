@@ -296,6 +296,10 @@ type Config struct {
 	//   - Workflow tools override project tools by ID
 	//   - Tool ID collisions resolved by precedence: Agent > Workflow > Project
 	//
+	// **Location & autoload**:
+	//   - Place reusable tool configuration files under the `tools/` directory (e.g., `tools/*.yaml`)
+	//   - If autoload is enabled, files in `tools/` will be discovered and validated automatically
+	//
 	// **Example**:
 	//
 	// ```yaml
@@ -448,7 +452,7 @@ func (p *Config) validateTools() error {
 	if len(p.Tools) == 0 {
 		return nil
 	}
-	toolIDs := make(map[string]bool)
+	toolIDs := make(map[string]struct{}, len(p.Tools))
 	for i := range p.Tools {
 		// Validate tool configuration
 		if err := p.Tools[i].Validate(); err != nil {
@@ -458,10 +462,10 @@ func (p *Config) validateTools() error {
 		if p.Tools[i].ID == "" {
 			return fmt.Errorf("tool[%d] missing required ID field", i)
 		}
-		if toolIDs[p.Tools[i].ID] {
+		if _, exists := toolIDs[p.Tools[i].ID]; exists {
 			return fmt.Errorf("duplicate tool ID '%s' found in project tools", p.Tools[i].ID)
 		}
-		toolIDs[p.Tools[i].ID] = true
+		toolIDs[p.Tools[i].ID] = struct{}{}
 	}
 	return nil
 }

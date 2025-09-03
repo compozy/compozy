@@ -135,6 +135,12 @@ func TestStoreResponseInMemory(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
+	t.Run("Should error on nil message pointers", func(t *testing.T) {
+		err := StoreResponseInMemory(ctx, nil, nil, nil, nil)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "nil message pointer")
+	})
+
 	t.Run("Should store messages in read-write memory", func(t *testing.T) {
 		mockMemory := new(mockMemory)
 		mockMemory.id = "memory1"
@@ -172,7 +178,7 @@ func TestStoreResponseInMemory(t *testing.T) {
 		}
 
 		memoryRefs := []core.MemoryReference{
-			{ID: "memory1", Mode: "read-only"},
+			{ID: "memory1", Mode: core.MemoryModeReadOnly},
 		}
 
 		userMessage := llmadapter.Message{Role: "user", Content: "Question"}

@@ -23,6 +23,9 @@ type Config struct {
 	Timeout time.Duration
 	// Tool execution configuration
 	MaxConcurrentTools int
+	// MaxToolIterations caps the maximum number of tool-iteration loops per request.
+	// If zero or negative, provider-specific or default limits apply.
+	MaxToolIterations int
 	// Retry configuration
 	RetryAttempts    int
 	RetryBackoffBase time.Duration
@@ -40,13 +43,18 @@ type Config struct {
 }
 
 // DefaultConfig returns a default configuration
+// defaultTimeout is the default timeout for LLM operations (5 minutes)
+// This aligns with MCP proxy SLAs and provider timeouts for long-running operations
+const defaultTimeout = 300 * time.Second
+
 func DefaultConfig() *Config {
 	return &Config{
 		ProxyURL:               "http://localhost:6001",
 		AdminToken:             "",
 		CacheTTL:               5 * time.Minute,
-		Timeout:                300 * time.Second,
+		Timeout:                defaultTimeout,
 		MaxConcurrentTools:     10,
+		MaxToolIterations:      10,
 		RetryAttempts:          3,
 		RetryBackoffBase:       100 * time.Millisecond,
 		RetryBackoffMax:        10 * time.Second,
@@ -123,9 +131,14 @@ func WithMemoryProvider(provider MemoryProvider) Option {
 }
 
 // WithResolvedTools sets the pre-resolved tools from hierarchical inheritance
+// The slice is copied to prevent external mutation after construction
 func WithResolvedTools(tools []tool.Config) Option {
 	return func(c *Config) {
-		c.ResolvedTools = tools
+		if len(tools) == 0 {
+			c.ResolvedTools = nil
+			return
+		}
+		c.ResolvedTools = append(make([]tool.Config, 0, len(tools)), tools...)
 	}
 }
 
@@ -183,6 +196,9 @@ func WithAppConfig(appConfig *config.Config) Option {
 		if appConfig.LLM.MaxConcurrentTools > 0 {
 			c.MaxConcurrentTools = appConfig.LLM.MaxConcurrentTools
 		}
+		if appConfig.LLM.MaxToolIterations > 0 {
+			c.MaxToolIterations = appConfig.LLM.MaxToolIterations
+		}
 	}
 }
 
@@ -200,6 +216,22 @@ func (c *Config) Validate() error {
 	if c.MaxConcurrentTools <= 0 {
 		return fmt.Errorf("max concurrent tools must be positive")
 	}
+
+	// Validate pre-resolved tools if present
+	if len(c.ResolvedTools) > 0 {
+		seenIDs := make(map[string]bool)
+		for i := range c.ResolvedTools {
+			tool := &c.ResolvedTools[i]
+			if strings.TrimSpace(tool.ID) == "" {
+				return fmt.Errorf("resolved tool at index %d has empty ID", i)
+			}
+			if seenIDs[tool.ID] {
+				return fmt.Errorf("duplicate tool ID '%s' found in resolved tools", tool.ID)
+			}
+			seenIDs[tool.ID] = true
+		}
+	}
+
 	return nil
 }
 

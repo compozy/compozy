@@ -11,23 +11,23 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setCWDAndValidateProject(p *project.Config) {
+func setCWDAndValidateProject(t *testing.T, p *project.Config) {
 	if p == nil {
 		return
 	}
-	_ = p.SetCWD(".")
+	require.NoError(t, p.SetCWD("."))
 	for i := range p.Tools {
-		_ = p.Tools[i].SetCWD(p.CWD.PathStr())
+		require.NoError(t, p.Tools[i].SetCWD(p.CWD.PathStr()))
 	}
 }
 
-func setCWDAndValidateWorkflow(w *workflow.Config) {
+func setCWDAndValidateWorkflow(t *testing.T, w *workflow.Config) {
 	if w == nil {
 		return
 	}
-	_ = w.SetCWD(".")
+	require.NoError(t, w.SetCWD("."))
 	for i := range w.Tools {
-		_ = w.Tools[i].SetCWD(w.CWD.PathStr())
+		require.NoError(t, w.Tools[i].SetCWD(w.CWD.PathStr()))
 	}
 }
 
@@ -42,8 +42,8 @@ func TestHierarchicalResolver_ResolveTools(t *testing.T) {
 		}
 		workflowConfig := &workflow.Config{}
 		agentConfig := &agent.Config{}
-		setCWDAndValidateProject(projectConfig)
-		setCWDAndValidateWorkflow(workflowConfig)
+		setCWDAndValidateProject(t, projectConfig)
+		setCWDAndValidateWorkflow(t, workflowConfig)
 		resolver := NewHierarchicalResolver()
 		// Act
 		result, err := resolver.ResolveTools(projectConfig, workflowConfig, agentConfig)
@@ -73,8 +73,8 @@ func TestHierarchicalResolver_ResolveTools(t *testing.T) {
 			},
 		}
 		agentConfig := &agent.Config{}
-		setCWDAndValidateProject(projectConfig)
-		setCWDAndValidateWorkflow(workflowConfig)
+		setCWDAndValidateProject(t, projectConfig)
+		setCWDAndValidateWorkflow(t, workflowConfig)
 		resolver := NewHierarchicalResolver()
 		// Act
 		result, err := resolver.ResolveTools(projectConfig, workflowConfig, agentConfig)
@@ -109,8 +109,8 @@ func TestHierarchicalResolver_ResolveTools(t *testing.T) {
 				},
 			},
 		}
-		setCWDAndValidateProject(projectConfig)
-		setCWDAndValidateWorkflow(workflowConfig)
+		setCWDAndValidateProject(t, projectConfig)
+		setCWDAndValidateWorkflow(t, workflowConfig)
 		resolver := NewHierarchicalResolver()
 		// Act
 		result, err := resolver.ResolveTools(projectConfig, workflowConfig, agentConfig)
@@ -133,7 +133,7 @@ func TestHierarchicalResolver_ResolveTools(t *testing.T) {
 				{ID: "tool1", Description: "Tool 1"},
 			},
 		}
-		setCWDAndValidateProject(projectConfig)
+		setCWDAndValidateProject(t, projectConfig)
 		result, err = resolver.ResolveTools(projectConfig, nil, nil)
 		require.NoError(t, err)
 		assert.Len(t, result, 1)
@@ -143,7 +143,7 @@ func TestHierarchicalResolver_ResolveTools(t *testing.T) {
 				{ID: "tool2", Description: "Tool 2"},
 			},
 		}
-		setCWDAndValidateWorkflow(workflowConfig)
+		setCWDAndValidateWorkflow(t, workflowConfig)
 		result, err = resolver.ResolveTools(nil, workflowConfig, nil)
 		require.NoError(t, err)
 		assert.Len(t, result, 1)
@@ -156,7 +156,7 @@ func TestHierarchicalResolver_ResolveTools(t *testing.T) {
 				{Description: "Missing ID"}, // No ID
 			},
 		}
-		setCWDAndValidateProject(projectConfig)
+		setCWDAndValidateProject(t, projectConfig)
 		resolver := NewHierarchicalResolver()
 		// Act
 		result, err := resolver.ResolveTools(projectConfig, nil, nil)
@@ -173,7 +173,7 @@ func TestHierarchicalResolver_ResolveTools(t *testing.T) {
 				{Description: "Missing ID"}, // No ID
 			},
 		}
-		setCWDAndValidateWorkflow(workflowConfig)
+		setCWDAndValidateWorkflow(t, workflowConfig)
 		resolver := NewHierarchicalResolver()
 		// Act
 		result, err := resolver.ResolveTools(nil, workflowConfig, nil)
@@ -195,8 +195,8 @@ func TestHierarchicalResolver_ResolveTools(t *testing.T) {
 				Tools: []tool.Config{},
 			},
 		}
-		setCWDAndValidateProject(projectConfig)
-		setCWDAndValidateWorkflow(workflowConfig)
+		setCWDAndValidateProject(t, projectConfig)
+		setCWDAndValidateWorkflow(t, workflowConfig)
 		resolver := NewHierarchicalResolver()
 		// Act
 		result, err := resolver.ResolveTools(projectConfig, workflowConfig, agentConfig)
@@ -221,8 +221,8 @@ func TestHierarchicalResolver_ResolveTools(t *testing.T) {
 		}
 		agentConfig := &agent.Config{}
 		// Ensure CWD is set so validation in resolver passes
-		setCWDAndValidateProject(projectConfig)
-		setCWDAndValidateWorkflow(workflowConfig)
+		setCWDAndValidateProject(t, projectConfig)
+		setCWDAndValidateWorkflow(t, workflowConfig)
 		resolver := NewHierarchicalResolver()
 		// Act
 		result, err := resolver.ResolveTools(projectConfig, workflowConfig, agentConfig)

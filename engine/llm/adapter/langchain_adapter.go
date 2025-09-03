@@ -38,6 +38,10 @@ func (a *LangChainAdapter) GenerateContent(ctx context.Context, req *LLMRequest)
 	if req == nil {
 		return nil, fmt.Errorf("nil LLMRequest")
 	}
+	// Validate role-specific constraints to catch wiring mistakes early
+	if err := ValidateConversation(req.Messages); err != nil {
+		return nil, fmt.Errorf("invalid conversation: %w", err)
+	}
 	// Convert our request to langchain format
 	messages := a.convertMessages(req)
 	options := a.buildCallOptions(req)
@@ -92,8 +96,8 @@ func (a *LangChainAdapter) convertMessages(req *LLMRequest) []llms.MessageConten
 				})
 			}
 		}
-		// Tool results
-		if len(msg.ToolResults) > 0 {
+		// Tool results - only append for appropriate roles
+		if len(msg.ToolResults) > 0 && (msg.Role == RoleTool || msg.Role == RoleAssistant) {
 			for _, tr := range msg.ToolResults {
 				parts = append(parts, llms.ToolCallResponse{
 					ToolCallID: tr.ID,
@@ -102,7 +106,10 @@ func (a *LangChainAdapter) convertMessages(req *LLMRequest) []llms.MessageConten
 				})
 			}
 		}
-		messages = append(messages, llms.MessageContent{Role: msgType, Parts: parts})
+		// Only append message if it has content parts to reduce token noise
+		if len(parts) > 0 {
+			messages = append(messages, llms.MessageContent{Role: msgType, Parts: parts})
+		}
 	}
 
 	return messages
@@ -111,13 +118,13 @@ func (a *LangChainAdapter) convertMessages(req *LLMRequest) []llms.MessageConten
 // mapMessageRole maps our role to langchain ChatMessageType
 func (a *LangChainAdapter) mapMessageRole(role string) llms.ChatMessageType {
 	switch role {
-	case "system":
+	case RoleSystem:
 		return llms.ChatMessageTypeSystem
-	case "user":
+	case RoleUser:
 		return llms.ChatMessageTypeHuman
-	case "assistant":
+	case RoleAssistant:
 		return llms.ChatMessageTypeAI
-	case "tool":
+	case RoleTool:
 		return llms.ChatMessageTypeTool
 	default:
 		return llms.ChatMessageTypeHuman

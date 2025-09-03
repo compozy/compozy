@@ -23,6 +23,9 @@ import (
 	"github.com/compozy/compozy/test/helpers"
 )
 
+// defaultTestTimeout is the maximum duration for any test using SetupTestEnvironment.
+const defaultTestTimeout = 30 * time.Second
+
 // TestEnvironment provides a complete test environment for tool inheritance tests
 type TestEnvironment struct {
 	ctx     context.Context
@@ -34,9 +37,14 @@ type TestEnvironment struct {
 // SetupTestEnvironment creates a test environment with real database
 func SetupTestEnvironment(t *testing.T) *TestEnvironment {
 	t.Helper()
-	ctx := context.Background()
+	// Use a cancellable context with timeout to prevent hanging tests.
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTestTimeout)
+	// Ensure cancel is called even on test panic or early return.
+	t.Cleanup(cancel)
 	// Reset state to ensure clean test environment
-	config.Close(ctx)
+	if err := config.Close(ctx); err != nil {
+		t.Logf("Warning: failed to close config during test setup: %v", err)
+	}
 	config.ResetForTest()
 	store.ResetMigrationsForTest()
 	// Use shared container for better performance
@@ -58,9 +66,15 @@ func SetupTestEnvironment(t *testing.T) *TestEnvironment {
 		pool:  pool,
 		store: testStore,
 		cleanup: func() {
-			testStore.DB.Close(ctx)
-			config.Close(ctx)
+			if err := testStore.DB.Close(ctx); err != nil {
+				t.Logf("Warning: failed to close database connection: %v", err)
+			}
+			if err := config.Close(ctx); err != nil {
+				t.Logf("Warning: failed to close config during cleanup: %v", err)
+			}
 			dbCleanup()
+			// Cancel context to clean up any pending operations
+			cancel()
 		},
 	}
 	// Prefer t.Cleanup to ensure cleanup runs even on panic
@@ -138,10 +152,10 @@ func CreateTestTool(id, description string) tool.Config {
 }
 
 // CreateMockRuntime creates a minimal mock runtime for testing
-func CreateMockRuntime() coreruntime.Runtime {
-	ctx := context.Background()
+func CreateMockRuntime(ctx context.Context, t *testing.T) coreruntime.Runtime {
+	t.Helper()
 	config := coreruntime.TestConfig()
-	factory := coreruntime.NewDefaultFactory("/tmp")
+	factory := coreruntime.NewDefaultFactory(t.TempDir())
 	rtManager, err := factory.CreateRuntime(ctx, config)
 	if err != nil {
 		panic(fmt.Sprintf("failed to create runtime: %v", err))
@@ -170,7 +184,7 @@ func AssertToolPrecedence(t *testing.T, tools []tool.Config, toolID, expectedDes
 			return
 		}
 	}
-	t.Errorf("Tool %s not found in resolved tools", toolID)
+	t.Fatalf("Tool %s not found in resolved tools", toolID)
 }
 
 // AssertDeterministicOrder verifies tools are in alphabetical order
@@ -189,8 +203,8 @@ func ResolveToolsWithHierarchy(
 	workflowConfig *workflow.Config,
 	agentConfig *agent.Config,
 ) ([]tool.Config, error) {
-	resolver := resolver.NewHierarchicalResolver()
-	return resolver.ResolveTools(projectConfig, workflowConfig, agentConfig)
+	r := resolver.NewHierarchicalResolver()
+	return r.ResolveTools(projectConfig, workflowConfig, agentConfig)
 }
 
 // CreateLLMServiceWithResolvedTools creates an LLM service with resolved tools
@@ -200,7 +214,7 @@ func CreateLLMServiceWithResolvedTools(
 	resolvedTools []tool.Config,
 	agentConfig *agent.Config,
 ) *llm.Service {
-	mockRuntime := CreateMockRuntime()
+	mockRuntime := CreateMockRuntime(ctx, t)
 	service, err := llm.NewService(ctx, mockRuntime, agentConfig, func(c *llm.Config) {
 		c.ResolvedTools = resolvedTools
 		c.ProxyURL = "http://test-proxy"

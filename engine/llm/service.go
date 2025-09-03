@@ -13,6 +13,8 @@ import (
 	"github.com/compozy/compozy/pkg/logger"
 )
 
+const directPromptActionID = "direct-prompt"
+
 // Service provides LLM integration capabilities using clean architecture
 type Service struct {
 	orchestrator Orchestrator
@@ -56,7 +58,7 @@ func NewService(ctx context.Context, runtime runtime.Runtime, agent *agent.Confi
 	}
 	// Register the determined tools
 	for i := range toolsToRegister {
-		localTool := NewLocalToolAdapter(&toolsToRegister[i], &runtimeAdapter{runtime})
+		localTool := NewLocalToolAdapter(&toolsToRegister[i], &runtimeAdapter{manager: runtime})
 		if err := toolRegistry.Register(ctx, localTool); err != nil {
 			log.Warn("Failed to register local tool", "tool", toolsToRegister[i].ID, "error", err)
 		}
@@ -72,6 +74,7 @@ func NewService(ctx context.Context, runtime runtime.Runtime, agent *agent.Confi
 		MemoryProvider:     config.MemoryProvider,
 		Timeout:            config.Timeout,
 		MaxConcurrentTools: config.MaxConcurrentTools,
+		MaxToolIterations:  config.MaxToolIterations,
 		RetryAttempts:      config.RetryAttempts,
 		RetryBackoffBase:   config.RetryBackoffBase,
 		RetryBackoffMax:    config.RetryBackoffMax,
@@ -156,7 +159,7 @@ func (s *Service) buildActionConfig(
 		return &acCopy, nil
 	}
 	// Direct prompt only flow
-	return &agent.ActionConfig{ID: "direct-prompt", Prompt: directPrompt}, nil
+	return &agent.ActionConfig{ID: directPromptActionID, Prompt: directPrompt}, nil
 }
 
 // buildEffectiveAgent ensures the LLM is informed about available tools. If the

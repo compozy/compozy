@@ -63,6 +63,13 @@ func StoreResponseInMemory(
 	assistantResponse *llmadapter.Message,
 	userMessage *llmadapter.Message,
 ) error {
+	// Guard against nil pointers to prevent panics when dereferencing
+	if assistantResponse == nil || userMessage == nil {
+		return fmt.Errorf(
+			"StoreResponseInMemory: nil message pointer(s): assistant=%v user=%v",
+			assistantResponse == nil, userMessage == nil,
+		)
+	}
 	if len(memories) == 0 {
 		return nil
 	}
@@ -70,8 +77,12 @@ func StoreResponseInMemory(
 	var errs []error
 	// Store both user message and assistant response in each memory
 	for _, ref := range memoryRefs {
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("StoreResponseInMemory canceled: %w", err)
+		}
 		memory, exists := memories[ref.ID]
 		if !exists {
+			log.Debug("Memory reference not found; skipping", "memory_id", ref.ID)
 			continue
 		}
 		// Skip read-only memories
