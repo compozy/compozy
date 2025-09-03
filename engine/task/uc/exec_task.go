@@ -14,6 +14,7 @@ import (
 	task2core "github.com/compozy/compozy/engine/task2/core"
 	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/engine/tool"
+	"github.com/compozy/compozy/engine/tool/resolver"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
@@ -322,6 +323,44 @@ func (uc *ExecuteTask) executeAgent(
 	input *ExecuteTaskInput,
 ) (*core.Output, error) {
 	log := logger.FromContext(ctx)
+	// Prepare agent configuration
+	if err := uc.prepareAgentConfig(ctx, agentConfig, input, actionID); err != nil {
+		return nil, err
+	}
+	if agentConfig.Config.Provider == "" {
+		log.Warn("No model provider configured for agent; execution may fail",
+			"agent_id", agentConfig.ID,
+			"task_id", input.TaskConfig.ID)
+	}
+	// Create LLM service with resolved tools and memory
+	llmService, err := uc.createLLMService(ctx, agentConfig, input)
+	if err != nil {
+		return nil, err
+	}
+	// Ensure MCP connections are properly closed when agent execution completes
+	defer func() {
+		if closeErr := llmService.Close(); closeErr != nil {
+			// Log error but don't fail the task
+			log.Warn("Failed to close LLM service", "error", closeErr)
+		}
+	}()
+	// Resolve templates in promptText if present and context available
+	resolvedPrompt := uc.resolvePromptTemplates(ctx, promptText, agentConfig, input)
+	result, err := llmService.GenerateContent(ctx, agentConfig, taskWith, actionID, resolvedPrompt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate content: %w", err)
+	}
+	return result, nil
+}
+
+// prepareAgentConfig handles agent configuration preparation including default model and template normalization
+func (uc *ExecuteTask) prepareAgentConfig(
+	ctx context.Context,
+	agentConfig *agent.Config,
+	input *ExecuteTaskInput,
+	actionID string,
+) error {
+	log := logger.FromContext(ctx)
 	// Apply default model to agent if it doesn't have one
 	if agentConfig.Config.Provider == "" && input.ProjectConfig != nil {
 		defaultModel := input.ProjectConfig.GetDefaultModel()
@@ -331,12 +370,7 @@ func (uc *ExecuteTask) executeAgent(
 	}
 	// Ensure provider config templates (like API keys) are normalized with env
 	if err := uc.normalizeProviderConfigWithEnv(&agentConfig.Config, input); err != nil {
-		return nil, fmt.Errorf("failed to normalize provider config: %w", err)
-	}
-	if agentConfig.Config.Provider == "" {
-		log.Warn("No model provider configured for agent; execution may fail",
-			"agent_id", agentConfig.ID,
-			"task_id", input.TaskConfig.ID)
+		return fmt.Errorf("failed to normalize provider config: %w", err)
 	}
 	// Ensure we operate on the latest workflow state so template parsing sees
 	// freshly produced task outputs (e.g., read_content inside collections).
@@ -357,6 +391,16 @@ func (uc *ExecuteTask) executeAgent(
 			"agent_id", agentConfig.ID,
 			"action_id", actionID)
 	}
+	return nil
+}
+
+// createLLMService creates the LLM service with resolved tools and memory configuration
+func (uc *ExecuteTask) createLLMService(
+	ctx context.Context,
+	agentConfig *agent.Config,
+	input *ExecuteTaskInput,
+) (*llm.Service, error) {
+	log := logger.FromContext(ctx)
 	// Setup memory resolver and LLM options
 	llmOpts, hasMemoryConfig := uc.setupMemoryResolver(input, agentConfig)
 	if hasMemoryConfig {
@@ -365,18 +409,31 @@ func (uc *ExecuteTask) executeAgent(
 			"memory_count", len(agentConfig.Memory),
 			"action", "Memory features will be disabled for this execution")
 	}
+	// Resolve tools using hierarchical inheritance
+	toolResolver := resolver.NewHierarchicalResolver()
+	resolvedTools, err := toolResolver.ResolveTools(input.ProjectConfig, input.WorkflowConfig, agentConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve tools: %w", err)
+	}
+	// Add resolved tools to LLM options
+	if len(resolvedTools) > 0 {
+		llmOpts = append(llmOpts, llm.WithResolvedTools(resolvedTools))
+	}
 	llmService, err := llm.NewService(ctx, uc.runtime, agentConfig, llmOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create LLM service: %w", err)
 	}
-	// Ensure MCP connections are properly closed when agent execution completes
-	defer func() {
-		if closeErr := llmService.Close(); closeErr != nil {
-			// Log error but don't fail the task
-			log.Warn("Failed to close LLM service", "error", closeErr)
-		}
-	}()
-	// Resolve templates in promptText if present and context available
+	return llmService, nil
+}
+
+// resolvePromptTemplates handles template resolution in the prompt text
+func (uc *ExecuteTask) resolvePromptTemplates(
+	ctx context.Context,
+	promptText string,
+	agentConfig *agent.Config,
+	input *ExecuteTaskInput,
+) string {
+	log := logger.FromContext(ctx)
 	resolvedPrompt := promptText
 	if promptText != "" && uc.templateEngine != nil && input.WorkflowState != nil {
 		workflowContext := buildWorkflowContext(
@@ -394,11 +451,7 @@ func (uc *ExecuteTask) executeAgent(
 				"reason", "template_render_failed")
 		}
 	}
-	result, err := llmService.GenerateContent(ctx, agentConfig, taskWith, actionID, resolvedPrompt)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate content: %w", err)
-	}
-	return result, nil
+	return resolvedPrompt
 }
 
 // executeDirectLLM executes a task with direct LLM configuration (no agent)

@@ -60,8 +60,8 @@ func StoreResponseInMemory(
 	ctx context.Context,
 	memories map[string]Memory,
 	memoryRefs []core.MemoryReference,
-	assistantResponse llmadapter.Message,
-	userMessage llmadapter.Message,
+	assistantResponse *llmadapter.Message,
+	userMessage *llmadapter.Message,
 ) error {
 	if len(memories) == 0 {
 		return nil

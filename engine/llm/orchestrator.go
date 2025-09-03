@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -108,16 +109,175 @@ func (o *llmOrchestrator) executeWithClient(
 	if err != nil {
 		return nil, err
 	}
-	response, err := o.generateLLMResponse(ctx, llmClient, &llmReq, request)
-	if err != nil {
-		return nil, err
+
+	// Iteratively handle tool calls by feeding tool results back to the LLM
+	// to allow multi-step workflows (e.g., read_file -> analyze -> write_file).
+	// Hard cap iterations to avoid infinite loops.
+	const maxIterations = 8
+	for iter := 0; iter < maxIterations; iter++ {
+		log.Debug("Generating LLM response",
+			"agent_id", request.Agent.ID,
+			"action_id", request.Action.ID,
+			"messages_count", len(llmReq.Messages),
+			"tools_count", len(llmReq.Tools),
+			"iteration", iter,
+		)
+
+		response, err := o.generateLLMResponse(ctx, llmClient, &llmReq, request)
+		if err != nil {
+			return nil, err
+		}
+
+		// If no tool calls, parse and return final content
+		if len(response.ToolCalls) == 0 {
+			output, perr := o.parseContentResponse(ctx, response.Content, request.Action)
+			if perr != nil {
+				return nil, fmt.Errorf("failed to process LLM response: %w", perr)
+			}
+			o.storeResponseInMemoryAsync(ctx, memories, response, llmReq.Messages, request, log)
+			return output, nil
+		}
+
+		// Execute tool calls and feed results back into the conversation (structured tool role)
+
+		// Append structured assistant tool calls and tool responses for provider-native semantics
+		llmReq.Messages = append(llmReq.Messages,
+			llmadapter.Message{Role: "assistant", ToolCalls: response.ToolCalls},
+		)
+
+		// Execute tool calls and convert to tool results for the tool role message
+		toolResults := o.executeToolCallsRaw(ctx, response.ToolCalls, request)
+		// Include raw results even if some failed (model can handle errors)
+		llmReq.Messages = append(llmReq.Messages,
+			llmadapter.Message{Role: "tool", ToolResults: toolResults},
+		)
+		// Continue the loop with the augmented messages
 	}
-	output, err := o.processResponse(ctx, response, request)
-	if err != nil {
-		return nil, fmt.Errorf("failed to process LLM response: %w", err)
+
+	return nil, fmt.Errorf("max tool iterations reached without final response")
+}
+
+// executeToolCallsRaw executes tool calls and returns generic tool results for the tool role message
+func (o *llmOrchestrator) executeToolCallsRaw(
+	ctx context.Context,
+	toolCalls []llmadapter.ToolCall,
+	_ Request,
+) []llmadapter.ToolResult {
+	if len(toolCalls) == 0 {
+		return nil
 	}
-	o.storeResponseInMemoryAsync(ctx, memories, response, llmReq.Messages, request, log)
-	return output, nil
+	log := logger.FromContext(ctx)
+	log.Debug("Executing tool calls",
+		"tool_calls_count", len(toolCalls),
+		"tools", extractToolNames(toolCalls),
+	)
+	// Concurrency bounded by MaxConcurrentTools
+	concurrency := o.config.MaxConcurrentTools
+	if concurrency <= 0 {
+		concurrency = defaultMaxConcurrentTools
+	}
+	sem := make(chan struct{}, concurrency)
+	var wg sync.WaitGroup
+	results := make([]llmadapter.ToolResult, len(toolCalls))
+	for i := range toolCalls {
+		i := i
+		wg.Add(1)
+		sem <- struct{}{}
+		go func() {
+			defer wg.Done()
+			defer func() { <-sem }()
+			results[i] = o.executeSingleToolCallRaw(ctx, toolCalls[i])
+		}()
+	}
+	wg.Wait()
+	log.Debug("All tool calls completed",
+		"results_count", len(results),
+		"successful_count", countSuccessfulResults(results),
+	)
+	return results
+}
+
+// executeSingleToolCallRaw executes a single tool call and returns the result
+func (o *llmOrchestrator) executeSingleToolCallRaw(
+	ctx context.Context,
+	tc llmadapter.ToolCall,
+) llmadapter.ToolResult {
+	log := logger.FromContext(ctx)
+	log.Debug("Processing tool call",
+		"tool_name", tc.Name,
+		"tool_call_id", tc.ID,
+		"arguments", string(tc.Arguments),
+	)
+	// Find tool
+	t, found := o.config.ToolRegistry.Find(ctx, tc.Name)
+	if !found || t == nil {
+		log.Debug("Tool not found",
+			"tool_name", tc.Name,
+			"tool_call_id", tc.ID,
+		)
+		return llmadapter.ToolResult{
+			ID:      tc.ID,
+			Name:    tc.Name,
+			Content: fmt.Sprintf("{\"error\":\"tool not found: %s\"}", tc.Name),
+		}
+	}
+	log.Debug("Executing tool",
+		"tool_name", tc.Name,
+		"tool_call_id", tc.ID,
+	)
+	// Execute tool and capture raw content; include errors as JSON so the model can react
+	raw, err := t.Call(ctx, string(tc.Arguments))
+	if err != nil {
+		log.Debug("Tool execution failed",
+			"tool_name", tc.Name,
+			"tool_call_id", tc.ID,
+			"error", err.Error(),
+		)
+		return llmadapter.ToolResult{
+			ID:      tc.ID,
+			Name:    tc.Name,
+			Content: fmt.Sprintf("{\"error\":%q}", err.Error()),
+		}
+	}
+	log.Debug("Tool execution succeeded",
+		"tool_name", tc.Name,
+		"tool_call_id", tc.ID,
+		"result_length", len(raw),
+		"result_preview", truncateString(raw, 200),
+	)
+	return llmadapter.ToolResult{
+		ID:      tc.ID,
+		Name:    tc.Name,
+		Content: raw,
+	}
+}
+
+// extractToolNames extracts tool names from tool calls for logging
+func extractToolNames(toolCalls []llmadapter.ToolCall) []string {
+	names := make([]string, len(toolCalls))
+	for i, tc := range toolCalls {
+		names[i] = tc.Name
+	}
+	return names
+}
+
+// countSuccessfulResults counts successful tool results
+func countSuccessfulResults(results []llmadapter.ToolResult) int {
+	count := 0
+	for _, r := range results {
+		if !strings.Contains(r.Content, "\"error\"") {
+			count++
+		}
+	}
+	return count
+}
+
+// truncateString truncates a string for logging preview
+func truncateString(s string, maxLen int) string {
+	if len(s) > maxLen {
+		return s[:maxLen] + "..."
+	}
+	return s
 }
 
 func (o *llmOrchestrator) generateLLMResponse(
@@ -272,6 +432,23 @@ func (o *llmOrchestrator) buildLLMRequest(
 	// Determine temperature: use agent's configured value (explicit zero allowed; upstream default applies)
 	temperature := request.Agent.Config.Params.Temperature
 
+	// Determine tool choice: default to "auto" when tools are available
+	toolChoice := ""
+	if len(toolDefs) > 0 {
+		toolChoice = "auto"
+	}
+
+	// Log a concise snapshot of the outbound request
+	logger.FromContext(ctx).Debug("LLM request prepared",
+		"agent_id", request.Agent.ID,
+		"action_id", request.Action.ID,
+		"messages_count", len(messages),
+		"tools_count", len(toolDefs),
+		"tool_choice", toolChoice,
+		"json_mode", request.Action.JSONMode || (promptData.shouldUseStructured && len(toolDefs) == 0),
+		"structured_output", promptData.shouldUseStructured,
+	)
+
 	return llmadapter.LLMRequest{
 		SystemPrompt: request.Agent.Instructions,
 		Messages:     messages,
@@ -279,6 +456,7 @@ func (o *llmOrchestrator) buildLLMRequest(
 		Options: llmadapter.CallOptions{
 			Temperature:      temperature,
 			UseJSONMode:      request.Action.JSONMode || (promptData.shouldUseStructured && len(toolDefs) == 0),
+			ToolChoice:       toolChoice,
 			StructuredOutput: promptData.shouldUseStructured,
 		},
 	}, nil
@@ -373,12 +551,13 @@ func (o *llmOrchestrator) storeResponseInMemoryAsync(
 				Role:    "assistant",
 				Content: response.Content,
 			}
+			lastMsg := messages[len(messages)-1]
 			err = StoreResponseInMemory(
 				bgCtx,
 				memories,
 				request.Agent.Memory,
-				assistantMsg,
-				messages[len(messages)-1],
+				&assistantMsg,
+				&lastMsg,
 			)
 		})
 		if err != nil {
@@ -461,18 +640,6 @@ func (o *llmOrchestrator) buildToolDefinitions(
 	return definitions, nil
 }
 
-// processResponse processes the LLM response and executes any tool calls
-func (o *llmOrchestrator) processResponse(
-	ctx context.Context,
-	response *llmadapter.LLMResponse,
-	request Request,
-) (*core.Output, error) {
-	if len(response.ToolCalls) > 0 {
-		return o.executeToolCalls(ctx, response.ToolCalls, request)
-	}
-	return o.parseContentResponse(ctx, response.Content, request.Action)
-}
-
 func (o *llmOrchestrator) parseContentResponse(
 	ctx context.Context,
 	content string,
@@ -496,6 +663,11 @@ func (o *llmOrchestrator) executeToolCalls(
 	if len(toolCalls) == 0 {
 		return nil, fmt.Errorf("no tool calls to execute")
 	}
+	log := logger.FromContext(ctx)
+	log.Debug("Executing tool calls (structured output mode)",
+		"tool_calls_count", len(toolCalls),
+		"tools", extractToolNames(toolCalls),
+	)
 	// Use parallel execution with semaphore for concurrency control
 	maxConcurrent := o.config.MaxConcurrentTools
 	if maxConcurrent <= 0 {
@@ -559,9 +731,19 @@ func (o *llmOrchestrator) executeSingleToolCall(
 	toolCall llmadapter.ToolCall,
 	request Request,
 ) (*core.Output, error) {
+	log := logger.FromContext(ctx)
+	log.Debug("Processing single tool call (structured)",
+		"tool_name", toolCall.Name,
+		"tool_call_id", toolCall.ID,
+		"arguments", string(toolCall.Arguments),
+	)
 	// Find the tool
 	tool, found := o.config.ToolRegistry.Find(ctx, toolCall.Name)
 	if !found {
+		log.Debug("Tool not found (structured mode)",
+			"tool_name", toolCall.Name,
+			"tool_call_id", toolCall.ID,
+		)
 		return nil, NewToolError(
 			fmt.Errorf("tool not found for execution"),
 			ErrCodeToolNotFound,
@@ -569,14 +751,29 @@ func (o *llmOrchestrator) executeSingleToolCall(
 			map[string]any{"call_id": toolCall.ID},
 		)
 	}
+	log.Debug("Executing tool (structured mode)",
+		"tool_name", toolCall.Name,
+		"tool_call_id", toolCall.ID,
+	)
 	// Execute the tool
 	result, err := tool.Call(ctx, string(toolCall.Arguments))
 	if err != nil {
+		log.Debug("Tool execution failed (structured mode)",
+			"tool_name", toolCall.Name,
+			"tool_call_id", toolCall.ID,
+			"error", err.Error(),
+		)
 		return nil, NewToolError(err, ErrCodeToolExecution, toolCall.Name, map[string]any{
 			"call_id":   toolCall.ID,
 			"arguments": toolCall.Arguments,
 		})
 	}
+	log.Debug("Tool execution succeeded (structured mode)",
+		"tool_name", toolCall.Name,
+		"tool_call_id", toolCall.ID,
+		"result_length", len(result),
+		"result_preview", truncateString(result, 200),
+	)
 	// Check for tool execution errors using improved error detection
 	if toolErr, isError := IsToolExecutionError(result); isError {
 		return nil, NewToolError(

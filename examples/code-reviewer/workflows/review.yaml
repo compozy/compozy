@@ -30,6 +30,20 @@ tools:
           description: Pattern to exclude files (optional)
       required:
         - dir
+  - id: write_file
+    description: Write content to a file
+    input:
+      type: object
+      properties:
+        path:
+          type: string
+          description: The file path to write to
+        content:
+          type: string
+          description: The content to write
+      required:
+        - path
+        - content
   - id: read_file
     description: Read the contents of a file
     input:
@@ -57,22 +71,10 @@ tasks:
     items: "{{ .tasks.review.output.files }}"
     item_var: file
     final: true
-    with:
-      dir: "{{ .workflow.input.directory }}"
     task:
       id: "process-{{ .index }}"
-      type: composite
-      tasks:
-        - id: read_content
-          type: basic
-          $use: tool(local::tools.#(id=="read_file"))
-          with:
-            path: "{{ .input.dir }}/{{ .file }}"
-
-        - id: analyze_content
-          type: basic
-          $use: agent(resource::agent::#(id=="analyzer"))
-          action: analyze
-          with:
-            file_path: "{{ .input.dir }}/{{ .file }}"
-            content: "{{ .tasks.read_content.output.content }}"
+      type: basic
+      $use: agent(resource::agent::#(id=="analyzer"))
+      action: analyze
+      with:
+        file_path: "{{ .workflow.input.directory }}/{{ .file }}"

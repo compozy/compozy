@@ -130,7 +130,8 @@ func TestStoreResponseInMemory(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("Should handle empty memories", func(t *testing.T) {
-		err := StoreResponseInMemory(ctx, nil, nil, llmadapter.Message{}, llmadapter.Message{})
+		msg := llmadapter.Message{}
+		err := StoreResponseInMemory(ctx, nil, nil, &msg, &msg)
 		assert.NoError(t, err)
 	})
 
@@ -154,7 +155,7 @@ func TestStoreResponseInMemory(t *testing.T) {
 		userMessage := llmadapter.Message{Role: "user", Content: "Question"}
 		assistantResponse := llmadapter.Message{Role: "assistant", Content: "Answer"}
 
-		err := StoreResponseInMemory(ctx, memories, memoryRefs, assistantResponse, userMessage)
+		err := StoreResponseInMemory(ctx, memories, memoryRefs, &assistantResponse, &userMessage)
 
 		assert.NoError(t, err)
 		mockMemory.AssertExpectations(t)
@@ -177,7 +178,7 @@ func TestStoreResponseInMemory(t *testing.T) {
 		userMessage := llmadapter.Message{Role: "user", Content: "Question"}
 		assistantResponse := llmadapter.Message{Role: "assistant", Content: "Answer"}
 
-		err := StoreResponseInMemory(ctx, memories, memoryRefs, assistantResponse, userMessage)
+		err := StoreResponseInMemory(ctx, memories, memoryRefs, &assistantResponse, &userMessage)
 
 		assert.NoError(t, err)
 		// Should not have called AppendMany since it's read-only
@@ -208,7 +209,7 @@ func TestStoreResponseInMemory(t *testing.T) {
 		userMessage := llmadapter.Message{Role: "user", Content: "Question"}
 		assistantResponse := llmadapter.Message{Role: "assistant", Content: "Answer"}
 
-		err := StoreResponseInMemory(ctx, memories, memoryRefs, assistantResponse, userMessage)
+		err := StoreResponseInMemory(ctx, memories, memoryRefs, &assistantResponse, &userMessage)
 
 		// Should now return an error when any memory fails
 		assert.Error(t, err)
@@ -246,7 +247,7 @@ func TestStoreResponseInMemory_AtomicStorage(t *testing.T) {
 		userMessage := llmadapter.Message{Role: "user", Content: "Test question"}
 		assistantResponse := llmadapter.Message{Role: "assistant", Content: "Test response"}
 
-		err := StoreResponseInMemory(ctx, memories, memoryRefs, assistantResponse, userMessage)
+		err := StoreResponseInMemory(ctx, memories, memoryRefs, &assistantResponse, &userMessage)
 
 		assert.NoError(t, err)
 		mockMemory.AssertExpectations(t)
@@ -273,7 +274,7 @@ func TestStoreResponseInMemory_AtomicStorage(t *testing.T) {
 		userMessage := llmadapter.Message{Role: "user", Content: "Test question"}
 		assistantResponse := llmadapter.Message{Role: "assistant", Content: "Test response"}
 
-		err := StoreResponseInMemory(ctx, memories, memoryRefs, assistantResponse, userMessage)
+		err := StoreResponseInMemory(ctx, memories, memoryRefs, &assistantResponse, &userMessage)
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to append messages to memory memory1")
@@ -304,7 +305,7 @@ func TestStoreResponseInMemory_AtomicStorage(t *testing.T) {
 		userMessage := llmadapter.Message{Role: "user", Content: "Test question"}
 		assistantResponse := llmadapter.Message{Role: "assistant", Content: "Test response"}
 
-		err := StoreResponseInMemory(ctx, memories, memoryRefs, assistantResponse, userMessage)
+		err := StoreResponseInMemory(ctx, memories, memoryRefs, &assistantResponse, &userMessage)
 
 		assert.Error(t, err)
 		mockMemory1.AssertExpectations(t)

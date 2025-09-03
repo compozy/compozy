@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/monitoring"
 	"github.com/compozy/compozy/engine/schema"
+	"github.com/compozy/compozy/engine/tool"
 )
 
 // RuntimeConfig defines project-specific runtime overrides.
@@ -287,6 +288,26 @@ type Config struct {
 	// ```
 	AutoLoad *autoload.Config `json:"autoload,omitempty" yaml:"autoload,omitempty" mapstructure:"autoload,omitempty"`
 
+	// Tools defines shared tool definitions available to all workflows and agents
+	// within this project. These tools are inherited unless explicitly overridden.
+	//
+	// **Inheritance Rules**:
+	//   - Agent tools completely override inheritance when present
+	//   - Workflow tools override project tools by ID
+	//   - Tool ID collisions resolved by precedence: Agent > Workflow > Project
+	//
+	// **Example**:
+	//
+	// ```yaml
+	// tools:
+	//   - id: code-analyzer
+	//     description: Analyzes code quality and patterns
+	//     timeout: 30s
+	//   - id: data-processor
+	//     description: Processes and transforms data
+	// ```
+	Tools []tool.Config `json:"tools,omitempty" yaml:"tools,omitempty" mapstructure:"tools,omitempty"`
+
 	// MonitoringConfig enables observability and metrics collection for performance tracking.
 	//
 	// $ref: inline:#monitoring
@@ -367,6 +388,10 @@ func (p *Config) Validate() error {
 	if err := p.validateRuntimeConfig(); err != nil {
 		return fmt.Errorf("runtime configuration validation failed: %w", err)
 	}
+	// Validate project-level tools
+	if err := p.validateTools(); err != nil {
+		return fmt.Errorf("project tools validation failed: %w", err)
+	}
 	// Validate monitoring configuration if present
 	if p.MonitoringConfig != nil {
 		if err := p.MonitoringConfig.Validate(); err != nil {
@@ -414,6 +439,29 @@ func (p *Config) validateModels() error {
 				)
 			}
 		}
+	}
+	return nil
+}
+
+// validateTools validates the project-level tools configuration
+func (p *Config) validateTools() error {
+	if len(p.Tools) == 0 {
+		return nil
+	}
+	toolIDs := make(map[string]bool)
+	for i := range p.Tools {
+		// Validate tool configuration
+		if err := p.Tools[i].Validate(); err != nil {
+			return fmt.Errorf("tool[%d] validation failed: %w", i, err)
+		}
+		// Check for duplicate tool IDs
+		if p.Tools[i].ID == "" {
+			return fmt.Errorf("tool[%d] missing required ID field", i)
+		}
+		if toolIDs[p.Tools[i].ID] {
+			return fmt.Errorf("duplicate tool ID '%s' found in project tools", p.Tools[i].ID)
+		}
+		toolIDs[p.Tools[i].ID] = true
 	}
 	return nil
 }

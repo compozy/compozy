@@ -16,6 +16,11 @@ func LoggerMiddleware(log logger.Logger) gin.HandlerFunc {
 		start := time.Now()
 		path := c.Request.URL.Path
 		raw := c.Request.URL.RawQuery
+		// Inject the configured logger into the request context so all
+		// downstream handlers use the correct log level/format.
+		ctx := logger.ContextWithLogger(c.Request.Context(), log)
+		c.Request = c.Request.WithContext(ctx)
+
 		c.Next()
 		param := gin.LogFormatterParams{
 			Request: c.Request,
@@ -32,8 +37,8 @@ func LoggerMiddleware(log logger.Logger) gin.HandlerFunc {
 			path = path + "?" + raw
 		}
 		param.Path = path
-		ctx := logger.ContextWithLogger(c.Request.Context(), log)
-		log := logger.FromContext(ctx)
+		// Use the request-scoped logger for request completion log
+		log := logger.FromContext(c.Request.Context())
 		log.Info("Request completed",
 			"timestamp", param.TimeStamp.Format(time.RFC3339),
 			"latency", param.Latency,

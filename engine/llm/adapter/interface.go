@@ -19,6 +19,10 @@ type LLMRequest struct {
 type Message struct {
 	Role    string // "system", "user", "assistant", "tool"
 	Content string
+	// ToolCalls carries function/tool calls emitted by the assistant
+	ToolCalls []ToolCall
+	// ToolResults carries tool responses provided by the runtime (tool role)
+	ToolResults []ToolResult
 }
 
 // ToolDefinition represents a tool available to the LLM
@@ -26,6 +30,13 @@ type ToolDefinition struct {
 	Name        string
 	Description string
 	Parameters  map[string]any // JSON Schema
+}
+
+// ToolResult represents a tool's response payload for the LLM
+type ToolResult struct {
+	ID      string
+	Name    string
+	Content string
 }
 
 // CallOptions represents options for the LLM call

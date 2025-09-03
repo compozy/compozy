@@ -74,7 +74,35 @@ func (a *LangChainAdapter) convertMessages(req *LLMRequest) []llms.MessageConten
 	// Convert each message
 	for _, msg := range req.Messages {
 		msgType := a.mapMessageRole(msg.Role)
-		messages = append(messages, llms.TextParts(msgType, msg.Content))
+		// Build parts supporting text, tool calls, and tool results
+		var parts []llms.ContentPart
+		if msg.Content != "" {
+			parts = append(parts, llms.TextContent{Text: msg.Content})
+		}
+		// Assistant tool calls
+		if len(msg.ToolCalls) > 0 {
+			for _, tc := range msg.ToolCalls {
+				parts = append(parts, llms.ToolCall{
+					ID:   tc.ID,
+					Type: "function",
+					FunctionCall: &llms.FunctionCall{
+						Name:      tc.Name,
+						Arguments: string(tc.Arguments),
+					},
+				})
+			}
+		}
+		// Tool results
+		if len(msg.ToolResults) > 0 {
+			for _, tr := range msg.ToolResults {
+				parts = append(parts, llms.ToolCallResponse{
+					ToolCallID: tr.ID,
+					Name:       tr.Name,
+					Content:    tr.Content,
+				})
+			}
+		}
+		messages = append(messages, llms.MessageContent{Role: msgType, Parts: parts})
 	}
 
 	return messages

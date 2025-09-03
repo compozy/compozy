@@ -8,6 +8,7 @@ import (
 
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
 	"github.com/compozy/compozy/engine/mcp"
+	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/pkg/config"
 )
 
@@ -34,6 +35,8 @@ type Config struct {
 	LLMFactory llmadapter.Factory
 	// Memory provider for agent memory support
 	MemoryProvider MemoryProvider
+	// ResolvedTools contains pre-resolved tools from hierarchical inheritance
+	ResolvedTools []tool.Config
 }
 
 // DefaultConfig returns a default configuration
@@ -42,7 +45,7 @@ func DefaultConfig() *Config {
 		ProxyURL:               "http://localhost:6001",
 		AdminToken:             "",
 		CacheTTL:               5 * time.Minute,
-		Timeout:                30 * time.Second,
+		Timeout:                300 * time.Second,
 		MaxConcurrentTools:     10,
 		RetryAttempts:          3,
 		RetryBackoffBase:       100 * time.Millisecond,
@@ -116,6 +119,13 @@ func WithLLMFactory(factory llmadapter.Factory) Option {
 func WithMemoryProvider(provider MemoryProvider) Option {
 	return func(c *Config) {
 		c.MemoryProvider = provider
+	}
+}
+
+// WithResolvedTools sets the pre-resolved tools from hierarchical inheritance
+func WithResolvedTools(tools []tool.Config) Option {
+	return func(c *Config) {
+		c.ResolvedTools = tools
 	}
 }
 

@@ -31,13 +31,6 @@ func NewService(ctx context.Context, runtime runtime.Runtime, agent *agent.Confi
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid configuration: %w", err)
 	}
-	// Additional sanity checks to fail fast on obviously bad values
-	if config.Timeout <= 0 {
-		return nil, fmt.Errorf("invalid configuration: Timeout must be > 0")
-	}
-	if config.MaxConcurrentTools < 1 {
-		return nil, fmt.Errorf("invalid configuration: MaxConcurrentTools must be >= 1")
-	}
 	// Create MCP client if configured
 	var mcpClient *mcp.Client
 	if config.ProxyURL != "" {
@@ -52,13 +45,20 @@ func NewService(ctx context.Context, runtime runtime.Runtime, agent *agent.Confi
 		ProxyClient: mcpClient,
 		CacheTTL:    config.CacheTTL,
 	})
-	// Register local tools
-	if agent != nil {
-		for i := range agent.Tools {
-			localTool := NewLocalToolAdapter(&agent.Tools[i], &runtimeAdapter{runtime})
-			if err := toolRegistry.Register(ctx, localTool); err != nil {
-				log.Warn("Failed to register local tool", "tool", agent.Tools[i].ID, "error", err)
-			}
+	// Register tools - use resolved tools if provided, otherwise use agent tools
+	var toolsToRegister []tool.Config
+	if len(config.ResolvedTools) > 0 {
+		// Use pre-resolved tools from hierarchical inheritance
+		toolsToRegister = config.ResolvedTools
+	} else if agent != nil && len(agent.Tools) > 0 {
+		// Fall back to agent-specific tools (backward compatibility)
+		toolsToRegister = agent.Tools
+	}
+	// Register the determined tools
+	for i := range toolsToRegister {
+		localTool := NewLocalToolAdapter(&toolsToRegister[i], &runtimeAdapter{runtime})
+		if err := toolRegistry.Register(ctx, localTool); err != nil {
+			log.Warn("Failed to register local tool", "tool", toolsToRegister[i].ID, "error", err)
 		}
 	}
 	// Create components
@@ -96,48 +96,16 @@ func (s *Service) GenerateContent(
 		return nil, fmt.Errorf("agent config cannot be nil")
 	}
 	dp := strings.TrimSpace(directPrompt)
-	// Validate either actionID or directPrompt is provided
 	if actionID == "" && dp == "" {
 		return nil, fmt.Errorf("either actionID or directPrompt must be provided")
 	}
 
-	var actionConfig *agent.ActionConfig
-	var err error
-
-	if actionID != "" {
-		// Action-based flow (with optional prompt augmentation)
-		actionConfig, err = agent.FindActionConfig(agentConfig.Actions, actionID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to find action config: %w", err)
-		}
-
-		// If directPrompt is also provided, augment the action with it
-		if dp != "" {
-			// Create a copy to avoid mutating the original action config
-			actionConfigCopy := *actionConfig
-
-			// Combine the action's prompt with the direct prompt for enhanced context
-			if actionConfigCopy.Prompt != "" {
-				// Append the direct prompt to the action's prompt
-				actionConfigCopy.Prompt = fmt.Sprintf(
-					"%s\n\nAdditional context:\n\"\"\"\n%s\n\"\"\"",
-					actionConfigCopy.Prompt,
-					dp,
-				)
-			} else {
-				// If the action has no prompt, use the direct prompt
-				actionConfigCopy.Prompt = dp
-			}
-			actionConfig = &actionConfigCopy
-		}
-	} else {
-		// Prompt-only flow: Create transient ActionConfig for direct prompt execution
-		actionConfig = &agent.ActionConfig{
-			ID:     "direct-prompt",
-			Prompt: dp,
-		}
+	actionConfig, err := s.buildActionConfig(agentConfig, actionID, dp)
+	if err != nil {
+		return nil, err
 	}
-	// Defensive copy to avoid shared-mutation/race on the agent's action config
+
+	// Defensive copy to avoid shared mutation
 	actionCopy, err := core.DeepCopy(actionConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to clone action config: %w", err)
@@ -149,11 +117,65 @@ func (s *Service) GenerateContent(
 		}
 		actionCopy.With = inputCopy
 	}
-	request := Request{
-		Agent:  agentConfig,
-		Action: actionCopy,
+
+	effectiveAgent, err := s.buildEffectiveAgent(agentConfig)
+	if err != nil {
+		return nil, err
 	}
+
+	request := Request{Agent: effectiveAgent, Action: actionCopy}
 	return s.orchestrator.Execute(ctx, request)
+}
+
+// buildActionConfig resolves the action configuration from either an action ID
+// or a direct prompt, augmenting the prompt when both are provided.
+func (s *Service) buildActionConfig(
+	agentConfig *agent.Config,
+	actionID string,
+	directPrompt string,
+) (*agent.ActionConfig, error) {
+	if actionID != "" {
+		ac, err := agent.FindActionConfig(agentConfig.Actions, actionID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to find action config: %w", err)
+		}
+		if directPrompt == "" {
+			return ac, nil
+		}
+		// Create a copy so we don't mutate the original action
+		acCopy := *ac
+		if acCopy.Prompt != "" {
+			acCopy.Prompt = fmt.Sprintf(
+				"%s\n\nAdditional context:\n\"\"\"\n%s\n\"\"\"",
+				acCopy.Prompt,
+				directPrompt,
+			)
+		} else {
+			acCopy.Prompt = directPrompt
+		}
+		return &acCopy, nil
+	}
+	// Direct prompt only flow
+	return &agent.ActionConfig{ID: "direct-prompt", Prompt: directPrompt}, nil
+}
+
+// buildEffectiveAgent ensures the LLM is informed about available tools. If the
+// agent doesn't declare tools but resolved tools exist (from project/workflow),
+// clone the agent and attach those tool definitions for LLM advertisement.
+func (s *Service) buildEffectiveAgent(agentConfig *agent.Config) (*agent.Config, error) {
+	if agentConfig == nil {
+		return nil, fmt.Errorf("agent config cannot be nil")
+	}
+	if len(agentConfig.Tools) > 0 || len(s.config.ResolvedTools) == 0 {
+		return agentConfig, nil
+	}
+	if cloned, err := agentConfig.Clone(); err == nil && cloned != nil {
+		cloned.Tools = s.config.ResolvedTools
+		return cloned, nil
+	}
+	tmp := *agentConfig
+	tmp.Tools = s.config.ResolvedTools
+	return &tmp, nil
 }
 
 // InvalidateToolsCache invalidates the tools cache
