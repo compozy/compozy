@@ -169,6 +169,14 @@
           "description": "APIURL specifies a custom API endpoint for the provider.\n**Use Cases**:\n  - Local model hosting (Ollama, OpenAI-compatible servers)\n  - Enterprise API gateways\n  - Regional API endpoints\n  - Custom proxy servers\n\n**Examples**: `\"http://localhost:11434\"`, `\"https://api.openai.com/v1\"`",
           "type": "string"
         },
+        "default": {
+          "description": "Default indicates that this model should be used as the fallback when no explicit\nmodel configuration is provided at the task or agent level.\n\n**Behavior**:\n  - Only one model per project can be marked as default\n  - When set to true, this model will be used for tasks/agents without explicit model config\n  - Validation ensures at most one default model per project\n\n**Example**:\n```yaml\nmodels:\n  - provider: openai\n    model: gpt-4\n    default: true  # This will be used by default\n```",
+          "type": "boolean"
+        },
+        "max_tool_iterations": {
+          "description": "MaxToolIterations optionally caps the maximum number of tool-call iterations\nduring a single LLM request when tools are available.\nIf set to a positive value, this overrides global defaults for this model.",
+          "type": "integer"
+        },
         "model": {
           "description": "Model defines the specific model identifier to use with the provider.\nModel names are provider-specific and determine capabilities and pricing.\n\n- **Examples**:\n  - OpenAI: `\"gpt-4-turbo\"`, `\"gpt-3.5-turbo\"`\n  - Anthropic: `\"claude-4-opus\"`, `\"claude-3-5-haiku-latest\"`\n  - Google: `\"gemini-pro\"`, `\"gemini-pro-vision\"`\n  - Ollama: `\"llama2:13b\"`, `\"mistral:7b\"`",
           "type": "string"
@@ -447,6 +455,10 @@
         },
         "max_concurrent_tools": {
           "description": "MaxConcurrentTools limits the number of tools that can execute in parallel.\n\nControls resource usage and prevents overwhelming downstream services.\nHigher values improve throughput, lower values reduce resource contention.\nDefault: 10",
+          "type": "integer"
+        },
+        "max_tool_iterations": {
+          "description": "MaxToolIterations caps the maximum number of tool-iteration loops per request.\n\nThis acts as a global default and can be overridden by model-specific configuration\nin project files. Set to 0 to use the orchestrator's built-in default.\nDefault: 0 (use default)",
           "type": "integer"
         },
         "proxy_url": {
@@ -920,6 +932,13 @@
     "temporal": {
       "$ref": "#/$defs/config_TemporalConfig",
       "description": "Temporal configures the workflow engine connection.\n\n$ref: schema://application#temporal"
+    },
+    "tools": {
+      "description": "Tools defines shared tool definitions available to all workflows and agents\nwithin this project. These tools are inherited unless explicitly overridden.\n\n**Inheritance Rules**:\n  - Agent tools completely override inheritance when present\n  - Workflow tools override project tools by ID\n  - Tool ID collisions resolved by precedence: Agent \u003e Workflow \u003e Project\n\n**Location \u0026 autoload**:\n  - Place reusable tool configuration files under the `tools/` directory (e.g., `tools/*.yaml`)\n  - If autoload is enabled, files in `tools/` will be discovered and validated automatically\n\n**Example**:\n\n```yaml\ntools:\n  - id: code-analyzer\n    description: Analyzes code quality and patterns\n    timeout: 30s\n  - id: data-processor\n    description: Processes and transforms data\n```",
+      "items": {
+        "$ref": "#/$defs/Config"
+      },
+      "type": "array"
     },
     "version": {
       "description": "Version specifies the semantic version of this project configuration.\n\n**Format**: Follows [Semantic Versioning 2.0.0](https://semver.org/)\n  - `MAJOR.MINOR.PATCH` (e.g., `1.2.3`)\n  - Optional pre-release: `1.0.0-alpha.1`\n  - Optional build metadata: `1.0.0+20230615`",

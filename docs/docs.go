@@ -4473,6 +4473,14 @@ const docTemplate = `{
                     "description": "APIURL specifies a custom API endpoint for the provider.\n**Use Cases**:\n  - Local model hosting (Ollama, OpenAI-compatible servers)\n  - Enterprise API gateways\n  - Regional API endpoints\n  - Custom proxy servers\n\n**Examples**: ` + "`" + `\"http://localhost:11434\"` + "`" + `, ` + "`" + `\"https://api.openai.com/v1\"` + "`" + `",
                     "type": "string"
                 },
+                "default": {
+                    "description": "Default indicates that this model should be used as the fallback when no explicit\nmodel configuration is provided at the task or agent level.\n\n**Behavior**:\n  - Only one model per project can be marked as default\n  - When set to true, this model will be used for tasks/agents without explicit model config\n  - Validation ensures at most one default model per project\n\n**Example**:\n` + "`" + `` + "`" + `` + "`" + `yaml\nmodels:\n  - provider: openai\n    model: gpt-4\n    default: true  # This will be used by default\n` + "`" + `` + "`" + `` + "`" + `",
+                    "type": "boolean"
+                },
+                "max_tool_iterations": {
+                    "description": "MaxToolIterations optionally caps the maximum number of tool-call iterations\nduring a single LLM request when tools are available.\nIf set to a positive value, this overrides global defaults for this model.",
+                    "type": "integer"
+                },
                 "model": {
                     "description": "Model defines the specific model identifier to use with the provider.\nModel names are provider-specific and determine capabilities and pricing.\n\n- **Examples**:\n  - OpenAI: ` + "`" + `\"gpt-4-turbo\"` + "`" + `, ` + "`" + `\"gpt-3.5-turbo\"` + "`" + `\n  - Anthropic: ` + "`" + `\"claude-4-opus\"` + "`" + `, ` + "`" + `\"claude-3-5-haiku-latest\"` + "`" + `\n  - Google: ` + "`" + `\"gemini-pro\"` + "`" + `, ` + "`" + `\"gemini-pro-vision\"` + "`" + `\n  - Ollama: ` + "`" + `\"llama2:13b\"` + "`" + `, ` + "`" + `\"mistral:7b\"` + "`" + `",
                     "type": "string"

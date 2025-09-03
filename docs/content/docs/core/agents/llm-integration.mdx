@@ -337,6 +337,15 @@ Most providers support these standard parameters. For the complete and most up-t
   </Accordion>
 </AccordionGroup>
 
+## Tool Iterations
+
+When tools are available, agents can iterate between the LLM and tools multiple times to complete a task (e.g., read → analyze → write). To prevent infinite loops, Compozy applies iteration caps:
+
+- Global cap: configured as `llm.max_tool_iterations` (see global configuration schema)
+- Per-model override: `models[].max_tool_iterations` in provider config
+
+If a per-model value is set, it overrides the global cap for that model.
+
 <Callout type="info">
 For provider-specific parameter validation and requirements, consult the [Provider Schema Documentation](/docs/schema/provider) which contains the authoritative schema definitions.
 </Callout>

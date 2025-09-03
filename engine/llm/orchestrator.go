@@ -437,7 +437,7 @@ func (o *llmOrchestrator) prepareMemoryContext(
 	for _, ref := range memoryRefs {
 		log.Debug("Retrieving memory for agent",
 			"memory_id", ref.ID,
-			"key", ref.Key,
+			"has_key", ref.Key != "",
 		)
 
 		memory, err := o.config.MemoryProvider.GetMemory(ctx, ref.ID, ref.Key)
@@ -681,14 +681,34 @@ func (o *llmOrchestrator) buildToolDefinitions(
 	ctx context.Context,
 	tools []tool.Config,
 ) ([]llmadapter.ToolDefinition, error) {
-	var definitions []llmadapter.ToolDefinition
+	defs, included, err := o.collectConfiguredToolDefs(ctx, tools)
+	if err != nil {
+		return nil, err
+	}
+	defs = o.appendRegistryToolDefs(ctx, defs, included)
+	return defs, nil
+}
+
+// collectConfiguredToolDefs converts explicitly configured tools to adapter definitions
+// and returns a set of canonicalised names already included.
+func (o *llmOrchestrator) collectConfiguredToolDefs(
+	ctx context.Context,
+	tools []tool.Config,
+) ([]llmadapter.ToolDefinition, map[string]struct{}, error) {
+	// Helper to canonicalize names consistently (match registry behavior)
+	canonical := func(name string) string {
+		return strings.ToLower(strings.TrimSpace(name))
+	}
+
+	var defs []llmadapter.ToolDefinition
+	included := make(map[string]struct{})
 
 	for i := range tools {
 		toolConfig := &tools[i]
-		// Find the tool in registry
-		tool, found := o.config.ToolRegistry.Find(ctx, toolConfig.ID)
+		// Find the tool in registry for name/description
+		t, found := o.config.ToolRegistry.Find(ctx, toolConfig.ID)
 		if !found {
-			return nil, NewToolError(
+			return nil, nil, NewToolError(
 				fmt.Errorf("tool not found"),
 				ErrCodeToolNotFound,
 				toolConfig.ID,
@@ -696,21 +716,64 @@ func (o *llmOrchestrator) buildToolDefinitions(
 			)
 		}
 
-		// Build tool definition
 		def := llmadapter.ToolDefinition{
-			Name:        tool.Name(),
-			Description: tool.Description(),
+			Name:        t.Name(),
+			Description: t.Description(),
 		}
-
-		// Add parameters schema if available
 		if toolConfig.InputSchema != nil {
 			def.Parameters = *toolConfig.InputSchema
+		} else {
+			// Initialize empty parameters object for API compatibility
+			def.Parameters = map[string]any{
+				"type":       "object",
+				"properties": map[string]any{},
+			}
 		}
 
-		definitions = append(definitions, def)
+		defs = append(defs, def)
+		included[canonical(def.Name)] = struct{}{}
 	}
+	return defs, included, nil
+}
 
-	return definitions, nil
+// appendRegistryToolDefs adds any additional tools from the registry (e.g., MCP tools)
+// that are not already included, assigning a minimal parameters schema when unknown.
+func (o *llmOrchestrator) appendRegistryToolDefs(
+	ctx context.Context,
+	defs []llmadapter.ToolDefinition,
+	included map[string]struct{},
+) []llmadapter.ToolDefinition {
+	// Helper to canonicalize names consistently
+	canonical := func(name string) string {
+		return strings.ToLower(strings.TrimSpace(name))
+	}
+	if o.config.ToolRegistry == nil {
+		return defs
+	}
+	log := logger.FromContext(ctx)
+	allTools, err := o.config.ToolRegistry.ListAll(ctx)
+	if err != nil {
+		// Non-fatal: proceed with configured tools only
+		log.Warn("Failed to list tools from registry", "error", err)
+		return defs
+	}
+	for _, rt := range allTools {
+		name := rt.Name()
+		if _, ok := included[canonical(name)]; ok {
+			continue // already included via configured tools
+		}
+		def := llmadapter.ToolDefinition{
+			Name:        name,
+			Description: rt.Description(),
+			Parameters: map[string]any{
+				"type":       "object",
+				"properties": map[string]any{},
+			},
+		}
+		defs = append(defs, def)
+		included[canonical(name)] = struct{}{}
+	}
+	return defs
 }
 
 func (o *llmOrchestrator) parseContentResponse(
@@ -885,7 +948,6 @@ func (o *llmOrchestrator) callToolStructured(
 	log.Debug("Tool execution succeeded (structured mode)",
 		"tool_name", toolCall.Name,
 		"tool_call_id", toolCall.ID,
-		"result_length", len(result),
 	)
 	return result, nil
 }

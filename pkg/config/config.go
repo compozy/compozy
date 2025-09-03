@@ -528,7 +528,7 @@ type LLMConfig struct {
 	//
 	// This acts as a global default and can be overridden by model-specific configuration
 	// in project files. Set to 0 to use the orchestrator's built-in default.
-	// Default: 0 (use default)
+	// Default: 10 (registry default)
 	MaxToolIterations int `koanf:"max_tool_iterations" env:"LLM_MAX_TOOL_ITERATIONS" json:"max_tool_iterations" yaml:"max_tool_iterations" mapstructure:"max_tool_iterations" validate:"min=0"`
 }
 

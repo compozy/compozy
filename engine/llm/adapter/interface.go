@@ -45,14 +45,14 @@ type ToolDefinition struct {
 
 // ToolResult represents a tool's response payload for the LLM
 type ToolResult struct {
-	ID   string
-	Name string
+	ID   string `json:"id,omitempty"`
+	Name string `json:"name,omitempty"`
 	// Content is the textual tool output (for text-first tools)
-	Content string
+	Content string `json:"content,omitempty"`
 	// JSONContent carries raw JSON payloads to avoid double-encoding.
 	// Adapters that support structured tool output can prefer this field
 	// when present; otherwise, fall back to Content.
-	JSONContent json.RawMessage
+	JSONContent json.RawMessage `json:"json,omitempty"`
 }
 
 // CallOptions represents options for the LLM call

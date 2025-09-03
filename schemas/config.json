@@ -195,6 +195,10 @@
           "description": "MaxConcurrentTools limits the number of tools that can execute in parallel.\n\nControls resource usage and prevents overwhelming downstream services.\nHigher values improve throughput, lower values reduce resource contention.\nDefault: 10",
           "type": "integer"
         },
+        "max_tool_iterations": {
+          "description": "MaxToolIterations caps the maximum number of tool-iteration loops per request.\n\nThis acts as a global default and can be overridden by model-specific configuration\nin project files. Set to 0 to use the orchestrator's built-in default.\nDefault: 0 (use default)",
+          "type": "integer"
+        },
         "proxy_url": {
           "description": "ProxyURL specifies the MCP proxy server endpoint.\n\nThe proxy handles:\n  - MCP server connections\n  - Tool discovery and routing\n  - Protocol translation\nDefault: \"http://localhost:6001\"",
           "type": "string"

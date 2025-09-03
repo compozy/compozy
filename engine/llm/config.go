@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/engine/core"
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/tool"
@@ -138,7 +139,16 @@ func WithResolvedTools(tools []tool.Config) Option {
 			c.ResolvedTools = nil
 			return
 		}
-		c.ResolvedTools = append(make([]tool.Config, 0, len(tools)), tools...)
+		// Deep copy each tool to prevent external mutation of nested fields
+		c.ResolvedTools = make([]tool.Config, 0, len(tools))
+		for i := range tools {
+			// Use core.DeepCopy to clone the element; on failure, fall back to value copy
+			if cloned, err := core.DeepCopy(tools[i]); err == nil {
+				c.ResolvedTools = append(c.ResolvedTools, cloned)
+			} else {
+				c.ResolvedTools = append(c.ResolvedTools, tools[i])
+			}
+		}
 	}
 }
 
@@ -219,16 +229,25 @@ func (c *Config) Validate() error {
 
 	// Validate pre-resolved tools if present
 	if len(c.ResolvedTools) > 0 {
+		// First pass: check structural issues (empty IDs, duplicates)
 		seenIDs := make(map[string]bool)
 		for i := range c.ResolvedTools {
-			tool := &c.ResolvedTools[i]
-			if strings.TrimSpace(tool.ID) == "" {
+			t := &c.ResolvedTools[i]
+			if strings.TrimSpace(t.ID) == "" {
 				return fmt.Errorf("resolved tool at index %d has empty ID", i)
 			}
-			if seenIDs[tool.ID] {
-				return fmt.Errorf("duplicate tool ID '%s' found in resolved tools", tool.ID)
+			if seenIDs[t.ID] {
+				return fmt.Errorf("duplicate tool ID '%s' found in resolved tools", t.ID)
 			}
-			seenIDs[tool.ID] = true
+			seenIDs[t.ID] = true
+		}
+
+		// Second pass: validate each tool only after ID set and uniqueness guaranteed
+		for i := range c.ResolvedTools {
+			t := &c.ResolvedTools[i]
+			if err := t.Validate(); err != nil {
+				return fmt.Errorf("resolved tool '%s' validation failed: %w", t.ID, err)
+			}
 		}
 	}
 

@@ -112,11 +112,114 @@
     "Input": {
       "type": "object"
     },
+    "MemoryReference": {
+      "additionalProperties": false,
+      "description": "MemoryReference is used in Agent configuration to point to a MemoryResource and define how the agent interacts with it.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "key": {
+          "description": "Key is a template string that resolves to the actual memory instance key.\ne.g., \"support-{{ .workflow.input.conversationId }}\"",
+          "type": "string"
+        },
+        "mode": {
+          "description": "Mode defines access permissions (e.g., \"read-write\", \"read-only\").",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
     "PathCWD": {
       "additionalProperties": false,
       "properties": {
         "path": {
           "description": "Path holds the absolute working directory.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "PromptParams": {
+      "additionalProperties": false,
+      "description": "PromptParams defines the parameters that control LLM behavior during text generation.",
+      "properties": {
+        "max_length": {
+          "description": "MaxLength provides an alternative way to specify maximum response length.\nTypically used by providers that distinguish between length and token limits.\n- **Range**: MinLength to provider-specific maximum\n- **Provider Support**: Primarily local models and some API providers",
+          "type": "integer"
+        },
+        "max_tokens": {
+          "description": "MaxTokens limits the maximum number of tokens in the generated response.\nThis parameter is crucial for cost control and response time management.\n- **Range**: 1 to model-specific maximum (e.g., 8192 for GPT-4)\n- **Default**: Provider-specific default (typically 1000-2000)",
+          "type": "integer"
+        },
+        "min_length": {
+          "description": "MinLength specifies the minimum number of tokens that must be generated.\nPrevents the model from generating responses that are too short.\n- **Range**: 1 to MaxTokens\n- **Provider Support**: Limited; primarily local models",
+          "type": "integer"
+        },
+        "repetition_penalty": {
+          "description": "RepetitionPenalty reduces the likelihood of repeating the same tokens.\nValues \u003e 1.0 penalize repetition, values \u003c 1.0 encourage it.\n- **Range**: 0.1 to 2.0\n- **Recommended**: 1.0 (no penalty) to 1.2 (moderate penalty)\n- **Provider Support**: Primarily local models (Ollama, etc.)",
+          "type": "number"
+        },
+        "seed": {
+          "description": "Seed provides a random seed for reproducible outputs.\nWhen set, the same input with the same parameters will generate identical responses.\n- **Use Cases**: Testing, debugging, demonstration, A/B testing\n\u003e **Note:**: Not all providers support seeding; OpenAI and some others do",
+          "type": "integer"
+        },
+        "stop_words": {
+          "description": "StopWords defines a list of strings that will halt text generation when encountered.\nUseful for creating structured outputs or preventing unwanted content patterns.\n\n- **Example**: `[\"END\", \"STOP\", \"\\n\\n---\"]` for section-based content\n\u003e **Note:**: Not all providers support stop words; check provider documentation",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "temperature": {
+          "description": "Temperature controls the randomness of the generated text.\nLower values produce more deterministic, focused responses.\nHigher values increase creativity and variation but may reduce coherence.\n- **Range**: 0.0 (deterministic) to 1.0 (maximum randomness)\n- **Recommended**: 0.1-0.3 for factual tasks, 0.7-0.9 for creative tasks",
+          "type": "number"
+        },
+        "top_k": {
+          "description": "TopK limits the number of highest probability tokens considered during sampling.\nLower values focus on the most likely tokens, higher values allow more variety.\n- **Range**: 1 to vocabulary size (typically 1-100)\n- **Provider Support**: Primarily Google models and some local models",
+          "type": "integer"
+        },
+        "top_p": {
+          "description": "TopP (nucleus sampling) considers only tokens with cumulative probability up to this value.\nDynamically adjusts the vocabulary size based on probability distribution.\n- **Range**: 0.0 to 1.0\n- **Recommended**: 0.9 for balanced outputs, 0.95 for more variety",
+          "type": "number"
+        }
+      },
+      "type": "object"
+    },
+    "ProviderConfig": {
+      "additionalProperties": false,
+      "description": "ProviderConfig represents the complete configuration for an LLM provider in Compozy workflows.",
+      "properties": {
+        "api_key": {
+          "description": "APIKey contains the authentication key for the AI provider.\n\n- **Security**: Use template references to environment variables.\n- **Examples**: `\"{{ .env.OPENAI_API_KEY }}\"`, `\"{{ .secrets.ANTHROPIC_KEY }}\"`\n\u003e **Note:**: Required for most cloud providers, optional for local providers",
+          "type": "string"
+        },
+        "api_url": {
+          "description": "APIURL specifies a custom API endpoint for the provider.\n**Use Cases**:\n  - Local model hosting (Ollama, OpenAI-compatible servers)\n  - Enterprise API gateways\n  - Regional API endpoints\n  - Custom proxy servers\n\n**Examples**: `\"http://localhost:11434\"`, `\"https://api.openai.com/v1\"`",
+          "type": "string"
+        },
+        "default": {
+          "description": "Default indicates that this model should be used as the fallback when no explicit\nmodel configuration is provided at the task or agent level.\n\n**Behavior**:\n  - Only one model per project can be marked as default\n  - When set to true, this model will be used for tasks/agents without explicit model config\n  - Validation ensures at most one default model per project\n\n**Example**:\n```yaml\nmodels:\n  - provider: openai\n    model: gpt-4\n    default: true  # This will be used by default\n```",
+          "type": "boolean"
+        },
+        "max_tool_iterations": {
+          "description": "MaxToolIterations optionally caps the maximum number of tool-call iterations\nduring a single LLM request when tools are available.\nIf set to a positive value, this overrides global defaults for this model.",
+          "type": "integer"
+        },
+        "model": {
+          "description": "Model defines the specific model identifier to use with the provider.\nModel names are provider-specific and determine capabilities and pricing.\n\n- **Examples**:\n  - OpenAI: `\"gpt-4-turbo\"`, `\"gpt-3.5-turbo\"`\n  - Anthropic: `\"claude-4-opus\"`, `\"claude-3-5-haiku-latest\"`\n  - Google: `\"gemini-pro\"`, `\"gemini-pro-vision\"`\n  - Ollama: `\"llama2:13b\"`, `\"mistral:7b\"`",
+          "type": "string"
+        },
+        "organization": {
+          "description": "Organization specifies the organization ID for providers that support it.\n- **Primary Use**: OpenAI organization management for billing and access control\n\n- **Example**: `\"org-123456789abcdef\"`\n\u003e **Note:**: Optional for most providers",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/$defs/PromptParams",
+          "description": "Params contains the generation parameters that control LLM behavior.\nThese parameters are applied to all requests using this provider configuration.\nCan be overridden at the task or action level for specific requirements."
+        },
+        "provider": {
+          "description": "Provider specifies which AI service to use for LLM operations.\nMust match one of the supported ProviderName constants.\n\n- **Examples**: `\"openai\"`, `\"anthropic\"`, `\"google\"`, `\"ollama\"`",
           "type": "string"
         }
       },
@@ -278,9 +381,17 @@
       "description": "Items is a template expression that evaluates to an array\nThe expression should resolve to a list of items to iterate over\n- **Example**: \"{{ .workflow.input.users }}\" or \"{{ range(1, 10) }}\"",
       "type": "string"
     },
+    "json_mode": {
+      "description": "Forces the agent to always respond in valid JSON format.\nWhen enabled, the agent's responses must be parseable JSON objects.\n\n**Use cases:**\n- API integrations requiring structured data\n- Automated processing of agent outputs\n- Ensuring consistent response formats\n\n⚠️ **Note:** May limit the agent's ability to provide explanatory text",
+      "type": "boolean"
+    },
     "key_template": {
       "description": "KeyTemplate is a template expression for the memory key\nSupports template variables for dynamic key generation\n- **Example**: \"user:{{ .workflow.input.user_id }}:profile\"",
       "type": "string"
+    },
+    "max_iterations": {
+      "description": "Maximum number of reasoning iterations the agent can perform.\nThe agent may self-correct and refine its response across multiple iterations\nto improve accuracy and address complex multi-step problems.\n\n**Default:** `5` iterations\n\n**Trade-offs:**\n- Higher values enable more thorough problem-solving and self-correction\n- Each iteration consumes additional tokens and increases response latency\n- Configure based on task complexity, accuracy requirements, and cost constraints",
+      "type": "integer"
     },
     "max_keys": {
       "description": "MaxKeys limits the number of keys processed\nSafety limit to prevent runaway operations\nDefault: 1,000, Maximum: 50,000",
@@ -290,6 +401,20 @@
       "description": "MaxWorkers limits the number of concurrent task executions\n0 means no limit (all tasks run concurrently)\n- **Example**: 5 means at most 5 tasks run at the same time",
       "type": "integer"
     },
+    "mcps": {
+      "description": "Model Context Protocol (MCP) server configurations.\nMCPs provide standardized interfaces for extending agent capabilities\nwith external services and data sources through protocol-based communication.\n\n**Common MCP integrations:**\n- Database connectors (PostgreSQL, Redis, MongoDB)\n- Search engines (Elasticsearch, Solr)\n- Knowledge bases (vector databases, documentation systems)\n- External APIs (REST, GraphQL, gRPC services)\n\nMCPs support both stdio and HTTP transport protocols.",
+      "items": {
+        "$ref": "#/$defs/Config"
+      },
+      "type": "array"
+    },
+    "memory": {
+      "description": "Memory references enabling the agent to access persistent context.\nMemory provides stateful interactions across workflow steps and sessions.\n\n**Configuration format:**\n```yaml\nmemory:\n  - id: \"user_context\"           # Memory resource ID\n    key: \"user:{{.user_id}}\"     # Dynamic key with template\n    mode: \"read-write\"           # Access mode (default: \"read-write\")\n```\n\n**Access modes:**\n- `\"read-write\"`: Full access to read and modify memory\n- `\"read-only\"`: Can only read existing memory entries",
+      "items": {
+        "$ref": "#/$defs/MemoryReference"
+      },
+      "type": "array"
+    },
     "memory_ref": {
       "description": "MemoryRef identifies which memory store to use\nReferences a memory configuration defined at the project level\n- **Example**: \"user-sessions\", \"workflow-state\", \"cache\"",
       "type": "string"
@@ -297,6 +422,10 @@
     "mode": {
       "description": "Mode determines if items are processed in parallel or sequentially\nDefaults to \"parallel\"\nOptions: parallel, sequential",
       "type": "string"
+    },
+    "model_config": {
+      "$ref": "#/$defs/ProviderConfig",
+      "description": "LLM provider configuration defining which AI model to use and its parameters.\nSupports multiple providers including OpenAI, Anthropic, Google, Groq, and local models.\n\n**Required fields:** provider, model\n**Optional fields:** api_key, api_url, params (temperature, max_tokens, etc.)"
     },
     "on_error": {
       "$ref": "#/$defs/ErrorTransition",
@@ -379,6 +508,13 @@
     "tool": {
       "$ref": "tool.json",
       "description": "Tool configuration for executing specific tool operations\nUsed when the task needs to execute a predefined tool\nMutually exclusive with Agent field\n$ref: schema://tools"
+    },
+    "tools": {
+      "description": "Tools available to the agent for extending its capabilities.\nWhen tools are defined, the agent automatically has `toolChoice` set to `\"auto\"`,\nenabling autonomous tool selection and invocation during task execution.\n\n**Tool types supported:**\n- File system operations (read, write, list)\n- API integrations (HTTP requests, webhooks)\n- Data processing utilities (parsing, transformation)\n- Custom business logic (TypeScript/JavaScript execution)\n\nTools are referenced by ID and can be shared across multiple agents.",
+      "items": {
+        "$ref": "#/$defs/Config"
+      },
+      "type": "array"
     },
     "type": {
       "description": "Type of task that determines execution behavior\nIf not specified, defaults to \"basic\"",

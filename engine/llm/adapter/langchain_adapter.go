@@ -97,12 +97,16 @@ func (a *LangChainAdapter) convertMessages(req *LLMRequest) []llms.MessageConten
 			}
 		}
 		// Tool results - only append for appropriate roles
-		if len(msg.ToolResults) > 0 && (msg.Role == RoleTool || msg.Role == RoleAssistant) {
+		if len(msg.ToolResults) > 0 && msg.Role == RoleTool {
 			for _, tr := range msg.ToolResults {
+				content := tr.Content
+				if len(tr.JSONContent) > 0 {
+					content = string(tr.JSONContent)
+				}
 				parts = append(parts, llms.ToolCallResponse{
 					ToolCallID: tr.ID,
 					Name:       tr.Name,
-					Content:    tr.Content,
+					Content:    content,
 				})
 			}
 		}

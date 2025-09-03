@@ -59,6 +59,47 @@ When building AI-powered applications, you often need agents to perform specific
   </Step>
 </Steps>
 
+## Tool Inheritance
+
+Compozy supports hierarchical tool inheritance so you can define reusable tools once and make them available across workflows and agents.
+
+<List>
+  <ListItem title="Project Tools">
+    Define shared tools at the project level under <code>tools:</code> in <code>compozy.yaml</code>. These are available to all workflows and agents by default.
+  </ListItem>
+  <ListItem title="Workflow Overrides">
+    Workflows can declare their own <code>tools:</code>. When a tool ID matches a project tool, the workflow version overrides it.
+  </ListItem>
+  <ListItem title="Agent Overrides">
+    If an agent declares any tools, inheritance is disabled for that agent and only the agent's tools are advertised to the LLM.
+  </ListItem>
+  <ListItem title="Deterministic Order">
+    When tools are inherited, the final set is sorted alphabetically by tool ID to keep LLM context stable.
+  </ListItem>
+</List>
+
+```yaml title="compozy.yaml (project tools)"
+tools:
+  - id: code-analyzer
+    description: Analyzes code quality and patterns
+  - id: data-processor
+    description: Processes and transforms data
+```
+
+```yaml title="workflow.yaml (override a shared tool)"
+tools:
+  - id: code-analyzer   # Overrides project definition with workflow-specific config
+    description: Analyzer tuned for this workflow
+```
+
+```yaml title="agent.yaml (agent tools disable inheritance)"
+agents:
+  - id: reviewer
+    tools:
+      - $ref: local::tools.#(id=="code-analyzer")
+      - $ref: local::tools.#(id=="read_file")
+```
+
 ## Core Features
 
 ### Schema-First Design
@@ -267,7 +308,7 @@ Built-in optimizations ensure tools run efficiently:
   />
 </FeatureCardList>
 
-<Callout type="tip">
+<Callout type="info">
 Start with the [TypeScript Development](/docs/core/tools/typescript-development) guide to build your first tool, then explore the [Runtime Environment](/docs/core/tools/runtime-environment) documentation to understand security and performance considerations.
 </Callout>
 

@@ -9,7 +9,7 @@ Structured outputs ensure agents return data in predictable, machine-readable fo
 
 If you're new to structured outputs, start with our [Quick Start Guide](/docs/core/getting-started/quick-start) to understand basic workflow concepts, then explore [Agent Configuration](/docs/core/agents/overview) for foundational agent setup patterns.
 
-<Callout type="tip">
+<Callout type="info">
   For complex validation scenarios, leverage [reusable schemas](#reusable-schemas) and Compozy's [YAML template system](/docs/core/yaml-templates/overview) to build maintainable, modular configurations.
 </Callout>
 
@@ -24,7 +24,7 @@ JSON mode can be enabled at multiple levels, providing flexibility for different
 <Tabs items={["Agent Level", "Action Level", "Automatic"]} defaultValue="Agent Level">
   <Tab value="Agent Level">
     Enable JSON mode for all actions of an agent:
-    
+
     ```yaml
     agents:
       - id: data-processor
@@ -35,13 +35,13 @@ JSON mode can be enabled at multiple levels, providing flexibility for different
         instructions: |
           Always respond with valid JSON objects.
     ```
-    
+
     This approach works well when building specialized agents focused on data processing tasks.
   </Tab>
 
   <Tab value="Action Level">
     Enable JSON mode for specific actions within an agent:
-    
+
     ```yaml
     actions:
       - id: analyze-data
@@ -53,13 +53,13 @@ JSON mode can be enabled at multiple levels, providing flexibility for different
             findings:
               type: array
     ```
-    
+
     Use this pattern when mixing structured and conversational outputs within the same agent.
   </Tab>
 
   <Tab value="Automatic">
     JSON mode is automatically enabled when output schemas are defined:
-    
+
     ```yaml
     actions:
       - id: get-metrics
@@ -71,7 +71,7 @@ JSON mode can be enabled at multiple levels, providing flexibility for different
             metrics:
               type: object
     ```
-    
+
     This automatic behavior ensures consistency between schema definitions and JSON output requirements.
   </Tab>
 </Tabs>
@@ -182,7 +182,7 @@ Use the [`$ref` directive](/docs/core/yaml-templates/directives#ref-directive) t
 <Tabs items={["Basic Reference", "Input Validation", "Complex Composition"]}>
   <Tab value="Basic Reference">
     Reference a schema by ID using local scope:
-    
+
     ```yaml
     agents:
       - id: user-processor
@@ -191,7 +191,7 @@ Use the [`$ref` directive](/docs/core/yaml-templates/directives#ref-directive) t
             prompt: "Validate the user data structure"
             output:
               $ref: "local::schemas.#(id==\"user_profile\")"
-          
+
           - id: classify-content
             prompt: "Classify the content type"
             output:
@@ -201,7 +201,7 @@ Use the [`$ref` directive](/docs/core/yaml-templates/directives#ref-directive) t
 
   <Tab value="Input Validation">
     Use schemas for both input and output validation:
-    
+
     ```yaml
     config:
       input:
@@ -215,13 +215,13 @@ Use the [`$ref` directive](/docs/core/yaml-templates/directives#ref-directive) t
             output:
               $ref: "local::schemas.#(id==\"api_response\")"
     ```
-    
+
     This pattern ensures consistent validation throughout your workflow execution.
   </Tab>
 
   <Tab value="Complex Composition">
     Combine schemas using JSON Schema composition keywords:
-    
+
     ```yaml
     schemas:
       - id: enhanced_response
@@ -244,7 +244,7 @@ Use the [`$ref` directive](/docs/core/yaml-templates/directives#ref-directive) t
             output:
               $ref: "local::schemas.#(id==\"enhanced_response\")"
     ```
-    
+
     Learn more about schema composition in the YAML Template Advanced Patterns documentation.
   </Tab>
 </Tabs>
@@ -259,7 +259,7 @@ Reusable schemas provide several advantages for workflow development:
 - **Documentation**: Schema descriptions serve as inline documentation for data structures
 - **Integration**: Seamless integration with [YAML template system](/docs/core/yaml-templates/overview) and [workflow configuration](/docs/core/configuration/workflows)
 
-<Callout type="tip">
+<Callout type="info">
   For schemas shared across multiple workflows, consider defining them in your [global configuration](/docs/core/configuration/global) and using `global::` references, or organize them in external files with `resource::` references as described in the [Template Directives](/docs/core/yaml-templates/directives) documentation.
 </Callout>
 
@@ -330,7 +330,7 @@ Real-world examples demonstrating structured outputs in common scenarios. These 
             output:
               $ref: "local::schemas.#(id==\"invoice_data\")"
     ```
-    
+
     This pattern works well for document processing workflows that need to extract and validate financial data.
   </Tab>
 
@@ -368,12 +368,12 @@ Real-world examples demonstrating structured outputs in common scenarios. These 
             prompt: |
               Analyze customer behavior from transaction data:
               {{.input.transactions | toJson}}
-              
+
               Focus on purchase patterns, frequency, and value trends.
             output:
               $ref: "local::schemas.#(id==\"customer_analysis\")"
     ```
-    
+
     Ideal for multi-agent workflows where customer analysis feeds into recommendation engines or marketing automation.
   </Tab>
 
@@ -419,7 +419,7 @@ Real-world examples demonstrating structured outputs in common scenarios. These 
               Target system: {{.input.target_system}}
             output:
               $ref: "local::schemas.#(id==\"api_request\")"
-              
+
           - id: process-response
             prompt: |
               Process the API response and extract key information:
@@ -427,7 +427,7 @@ Real-world examples demonstrating structured outputs in common scenarios. These 
             output:
               $ref: "local::schemas.#(id==\"api_response\")"
     ```
-    
+
     This pattern enables robust [tool integration](/docs/core/tools/overview) and seamless connectivity with external services.
   </Tab>
 </Tabs>

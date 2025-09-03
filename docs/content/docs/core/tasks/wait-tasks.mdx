@@ -109,7 +109,7 @@ Use fixed signal identifiers for predictable coordination:
     user_decision: "{{ .signal.payload.decision }}"
 ```
 
-<Callout type="tip">
+<Callout type="info">
 Static signal names are ideal for system-wide events like deployments, maintenance windows, or global notifications. Learn more about signal best practices.
 </Callout>
 
@@ -139,7 +139,7 @@ Use [template expressions](/docs/core/yaml-templates/context-variables) for user
   timeout: 24h
 ```
 
-<Callout type="tip">
+<Callout type="info">
 Dynamic signals enable parallel processing of multiple requests while maintaining isolation. Use them for workflow patterns and user-specific processing.
 </Callout>
 
@@ -332,7 +332,7 @@ Implement graceful degradation when primary services are unavailable:
     data_processed: "{{ .processor.output.result }}"
 ```
 
-<Callout type="tip" title="Fallback Best Practices">
+<Callout type="info" title="Fallback Best Practices">
 Design fallback strategies to maintain service quality. Consider using [router tasks](/docs/core/tasks/router-tasks) for complex fallback logic and design patterns for external service protection.
 </Callout>
 

@@ -99,6 +99,9 @@ func TestOrchestrator_ExecuteWithMemory(t *testing.T) {
 			MemoryProvider: nil, // No memory provider
 		})
 
+		// Registry list is invoked to advertise tools; return empty list in tests
+		mockRegistry.On("ListAll", mock.Anything).Return([]Tool{}, nil)
+
 		// Setup request
 		agentCfg := &agent.Config{
 			ID:           "test-agent",
@@ -160,6 +163,9 @@ func TestOrchestrator_ExecuteWithMemory(t *testing.T) {
 			MemoryProvider: mockMemoryProvider,
 			AsyncHook:      asyncHook,
 		})
+
+		// Registry list is invoked to advertise tools; return empty list in tests
+		mockRegistry.On("ListAll", mock.Anything).Return([]Tool{}, nil)
 
 		// Setup request with memory references
 		agentCfg := &agent.Config{
@@ -256,6 +262,9 @@ func TestOrchestrator_ExecuteWithMemory(t *testing.T) {
 			LLMFactory:     mockFactory,
 			MemoryProvider: mockMemoryProvider,
 		})
+
+		// Registry list is invoked to advertise tools; return empty list in tests
+		mockRegistry.On("ListAll", mock.Anything).Return([]Tool{}, nil)
 
 		// Setup request with memory references
 		agentCfg := &agent.Config{

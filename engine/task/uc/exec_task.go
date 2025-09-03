@@ -46,6 +46,7 @@ func NewExecuteTask(
 	memoryManager memcore.ManagerInterface,
 	templateEngine *tplengine.TemplateEngine,
 	appConfig *config.Config,
+	toolResolver resolver.ToolResolver,
 ) *ExecuteTask {
 	return &ExecuteTask{
 		runtime:        runtime,
@@ -53,7 +54,12 @@ func NewExecuteTask(
 		memoryManager:  memoryManager,
 		templateEngine: templateEngine,
 		appConfig:      appConfig,
-		toolResolver:   resolver.NewHierarchicalResolver(),
+		toolResolver: func() resolver.ToolResolver {
+			if toolResolver != nil {
+				return toolResolver
+			}
+			return resolver.NewHierarchicalResolver()
+		}(),
 	}
 }
 
@@ -175,7 +181,7 @@ func (uc *ExecuteTask) Execute(ctx context.Context, input *ExecuteTaskInput) (*c
 		}
 		return result, nil
 	case toolConfig != nil:
-		result, err = uc.executeTool(ctx, input.TaskConfig, toolConfig)
+		result, err = uc.executeTool(ctx, input, toolConfig)
 		if err != nil {
 			return nil, fmt.Errorf("failed to execute tool: %w", err)
 		}
@@ -295,8 +301,7 @@ func (uc *ExecuteTask) refreshWorkflowState(ctx context.Context, input *ExecuteT
 	}
 
 	execID := input.WorkflowState.WorkflowExecID
-	// Treat zero ID as absent (prefer execID.IsZero() if available)
-	if execID.String() == "" {
+	if execID.IsZero() {
 		return
 	}
 
@@ -371,6 +376,12 @@ func (uc *ExecuteTask) prepareAgentConfig(
 			agentConfig.Config = *defaultModel
 		}
 	}
+	// If provider is set but model is empty, try to fill from project default (same provider)
+	if agentConfig.Config.Provider != "" && agentConfig.Config.Model == "" && input.ProjectConfig != nil {
+		if dm := input.ProjectConfig.GetDefaultModel(); dm != nil && dm.Provider == agentConfig.Config.Provider {
+			agentConfig.Config.Model = dm.Model
+		}
+	}
 	// Ensure provider config templates (like API keys) are normalized with env
 	if err := uc.normalizeProviderConfigWithEnv(&agentConfig.Config, input); err != nil {
 		return fmt.Errorf("failed to normalize provider config: %w", err)
@@ -407,18 +418,31 @@ func (uc *ExecuteTask) createLLMService(
 	// Setup memory resolver and LLM options
 	llmOpts, hasMemoryConfig := uc.setupMemoryResolver(input, agentConfig)
 	if hasMemoryConfig {
-		log.Warn("Agent has memory configuration but memory manager not available",
+		log.Warn("Agent memory configured but runtime dependencies unavailable; disabling memory for this run",
 			"agent_id", agentConfig.ID,
 			"memory_count", len(agentConfig.Memory),
-			"action", "Memory features will be disabled for this execution")
+			"has_manager", uc.memoryManager != nil,
+			"has_template_engine", uc.templateEngine != nil,
+			"has_workflow_context", input.WorkflowState != nil)
 	}
 	// Resolve tools using hierarchical inheritance
 	resolvedTools, err := uc.toolResolver.ResolveTools(input.ProjectConfig, input.WorkflowConfig, agentConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve tools: %w", err)
 	}
-	// Add resolved tools to LLM options
+	// Merge environment inheritance for tools: workflow -> task -> agent -> tool
 	if len(resolvedTools) > 0 {
+		envMerger := task2core.NewEnvMerger()
+		// Base: workflow + task
+		baseEnv := envMerger.MergeWorkflowToTask(input.WorkflowConfig, input.TaskConfig)
+		// Add agent env on top of base (if any)
+		baseWithAgent := envMerger.MergeForComponent(baseEnv, agentConfig.Env)
+		// For every resolved tool, apply component-level overrides
+		for i := range resolvedTools {
+			merged := envMerger.MergeForComponent(baseWithAgent, resolvedTools[i].Env)
+			resolvedTools[i].Env = merged
+		}
+		// Add resolved tools (with merged env) to LLM options
 		llmOpts = append(llmOpts, llm.WithResolvedTools(resolvedTools))
 	}
 	llmService, err := llm.NewService(ctx, uc.runtime, agentConfig, llmOpts...)
@@ -491,11 +515,15 @@ func (uc *ExecuteTask) executeDirectLLM(ctx context.Context, input *ExecuteTaskI
 
 func (uc *ExecuteTask) executeTool(
 	ctx context.Context,
-	taskConfig *task.Config,
+	input *ExecuteTaskInput,
 	toolConfig *tool.Config,
 ) (*core.Output, error) {
-	tool := llm.NewTool(toolConfig, toolConfig.Env, uc.runtime)
-	output, err := tool.Call(ctx, taskConfig.With)
+	// Ensure direct tool execution receives merged environment: workflow -> task -> tool
+	envMerger := task2core.NewEnvMerger()
+	baseEnv := envMerger.MergeWorkflowToTask(input.WorkflowConfig, input.TaskConfig)
+	mergedEnv := envMerger.MergeForComponent(baseEnv, toolConfig.Env)
+	tool := llm.NewTool(toolConfig, mergedEnv, uc.runtime)
+	output, err := tool.Call(ctx, input.TaskConfig.With)
 	if err != nil {
 		return nil, fmt.Errorf("tool execution failed: %w", err)
 	}
@@ -567,9 +595,6 @@ func buildWorkflowContext(
 		}
 	}
 
-	// Note: timestamp removed to ensure deterministic memory keys
-	// If timestamp is needed, it should be provided by the workflow itself
-
 	return context
 }
 
@@ -578,7 +603,5 @@ func dereferenceInput(input *core.Input) any {
 	if input == nil {
 		return nil
 	}
-	// Dereference the pointer to expose the underlying map
-	// This allows templates to access nested fields like .workflow.input.user_id
 	return *input
 }

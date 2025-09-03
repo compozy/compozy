@@ -215,6 +215,10 @@ func (r *runtimeAdapter) ExecuteTool(
 	}
 	// Get config from tool configuration
 	config := toolConfig.GetConfig()
-	// Execute the tool using the runtime manager
-	return r.manager.ExecuteTool(ctx, toolConfig.ID, toolExecID, &coreInput, config, core.EnvMap{})
+	// Execute the tool using the runtime manager (preserve tool env if provided)
+	env := core.EnvMap{}
+	if toolConfig.Env != nil {
+		env = *toolConfig.Env
+	}
+	return r.manager.ExecuteTool(ctx, toolConfig.ID, toolExecID, &coreInput, config, env)
 }
