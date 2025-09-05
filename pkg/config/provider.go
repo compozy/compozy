@@ -406,8 +406,14 @@ func createMemoryDefaults(defaultConfig *Config) map[string]any {
 // createLLMDefaults creates LLM configuration defaults
 func createLLMDefaults(defaultConfig *Config) map[string]any {
 	return map[string]any{
-		"proxy_url":   defaultConfig.LLM.ProxyURL,
-		"admin_token": string(defaultConfig.LLM.AdminToken),
+		"proxy_url":            defaultConfig.LLM.ProxyURL,
+		"admin_token":          string(defaultConfig.LLM.AdminToken),
+		"retry_attempts":       defaultConfig.LLM.RetryAttempts,
+		"retry_backoff_base":   defaultConfig.LLM.RetryBackoffBase.String(),
+		"retry_backoff_max":    defaultConfig.LLM.RetryBackoffMax.String(),
+		"retry_jitter":         defaultConfig.LLM.RetryJitter,
+		"max_concurrent_tools": defaultConfig.LLM.MaxConcurrentTools,
+		"max_tool_iterations":  defaultConfig.LLM.MaxToolIterations,
 	}
 }
 

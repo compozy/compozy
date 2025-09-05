@@ -33,12 +33,23 @@ agents:
       - You can provide thoughtful recommendations for activities based on some weather data.
       - You can suggest clothing to use for specific activities and weather
       Always respond in valid JSON format.
-    tools:
-      - $ref: local::tools.#(id=="weather_tool")
     actions:
       - id: get_weather
         prompt: |
           What is the current weather in {{ .input.city }}?
+        output:
+          type: object
+          properties:
+            weather:
+              type: string
+            temperature:
+              type: number
+            humidity:
+              type: number
+          required:
+            - weather
+            - temperature
+            - humidity
       - id: suggest_activities
         json_mode: true
         prompt: |

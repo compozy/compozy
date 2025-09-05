@@ -90,6 +90,45 @@ Tools must be defined separately and then referenced in agent configurations:
   </Tab>
 </Tabs>
 
+## Tool Inheritance
+
+Agents can inherit tools defined at the project and workflow levels so you don't have to repeat shared tool lists everywhere.
+
+<List>
+  <ListItem title="Precedence">
+    Agent tools > Workflow tools > Project tools. If an agent declares any tools, inheritance is disabled for that agent.
+  </ListItem>
+  <ListItem title="Deterministic Ordering">
+    Inherited tools are merged and then sorted alphabetically by ID before being advertised to the LLM.
+  </ListItem>
+  <ListItem title="Where to Define">
+    Use <code>tools:</code> in <code>compozy.yaml</code> for shared tools, <code>tools:</code> in workflows for workflow‑specific overrides, and <code>tools:</code> in agents when you need explicit control.
+  </ListItem>
+</List>
+
+```yaml title="Project-level tools (compozy.yaml)"
+tools:
+  - id: read_file
+    description: Read the contents of a file
+  - id: write_file
+    description: Write content to a file
+```
+
+```yaml title="Workflow overrides (workflow.yaml)"
+tools:
+  - id: write_file
+    description: Write with workflow policies
+```
+
+```yaml title="Agent inheritance (agent.yaml)"
+# No tools declared here → agent inherits project/workflow tools.
+agents:
+  - id: analyzer
+    config:
+      provider: openai
+      model: gpt-4o
+```
+
 ## Tool Usage Patterns
 
 ### Automatic Tool Selection

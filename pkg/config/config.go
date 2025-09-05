@@ -523,6 +523,13 @@ type LLMConfig struct {
 	// Higher values improve throughput, lower values reduce resource contention.
 	// Default: 10
 	MaxConcurrentTools int `koanf:"max_concurrent_tools" env:"LLM_MAX_CONCURRENT_TOOLS" json:"max_concurrent_tools" yaml:"max_concurrent_tools" mapstructure:"max_concurrent_tools" validate:"min=0"`
+
+	// MaxToolIterations caps the maximum number of tool-iteration loops per request.
+	//
+	// This acts as a global default and can be overridden by model-specific configuration
+	// in project files. Set to 0 to use the orchestrator's built-in default.
+	// Default: 10 (registry default)
+	MaxToolIterations int `koanf:"max_tool_iterations" env:"LLM_MAX_TOOL_ITERATIONS" json:"max_tool_iterations" yaml:"max_tool_iterations" mapstructure:"max_tool_iterations" validate:"min=0"`
 }
 
 // RateLimitConfig contains rate limiting configuration.
@@ -1235,6 +1242,7 @@ func buildLLMConfig(registry *definition.Registry) LLMConfig {
 		RetryBackoffMax:    getDuration(registry, "llm.retry_backoff_max"),
 		RetryJitter:        getBool(registry, "llm.retry_jitter"),
 		MaxConcurrentTools: getInt(registry, "llm.max_concurrent_tools"),
+		MaxToolIterations:  getInt(registry, "llm.max_tool_iterations"),
 	}
 }
 

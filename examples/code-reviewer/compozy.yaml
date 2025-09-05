@@ -7,9 +7,12 @@ workflows:
 
 models:
   - provider: openai
-    model: o3-mini
+    model: o3
     api_key: "{{ .env.OPENAI_API_KEY }}"
     default: true
+    params:
+      temperature: 0.3
+      max_tokens: 2000
 
 config:
   schedule_to_start_timeout: 5m

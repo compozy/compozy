@@ -515,6 +515,9 @@ func flattenLLMConfig(cfg *config.Config, result map[string]string) {
 	if cfg.LLM.MaxConcurrentTools > 0 {
 		result["llm.max_concurrent_tools"] = fmt.Sprintf("%d", cfg.LLM.MaxConcurrentTools)
 	}
+	if cfg.LLM.MaxToolIterations > 0 {
+		result["llm.max_tool_iterations"] = fmt.Sprintf("%d", cfg.LLM.MaxToolIterations)
+	}
 }
 
 // flattenCLIConfig flattens CLI configuration

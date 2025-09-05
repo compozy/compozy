@@ -73,6 +73,14 @@
     "organization": {
       "type": "string",
       "description": "Organization specifies the organization ID for providers that support it.\n- **Primary Use**: OpenAI organization management for billing and access control\n\n- **Example**: `\"org-123456789abcdef\"`\n\u003e **Note:**: Optional for most providers"
+    },
+    "default": {
+      "type": "boolean",
+      "description": "Default indicates that this model should be used as the fallback when no explicit\nmodel configuration is provided at the task or agent level.\n\n**Behavior**:\n  - Only one model per project can be marked as default\n  - When set to true, this model will be used for tasks/agents without explicit model config\n  - Validation ensures at most one default model per project\n\n**Example**:\n```yaml\nmodels:\n  - provider: openai\n    model: gpt-4\n    default: true  # This will be used by default\n```"
+    },
+    "max_tool_iterations": {
+      "type": "integer",
+      "description": "MaxToolIterations optionally caps the maximum number of tool-call iterations\nduring a single LLM request when tools are available.\nIf set to a positive value, this overrides global defaults for this model."
     }
   },
   "additionalProperties": false,

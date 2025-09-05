@@ -2,6 +2,7 @@ package llm
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -75,6 +76,98 @@ func (m *MockToolRegistry) Close() error {
 // MockPromptBuilder implements the PromptBuilder interface for testing
 type MockPromptBuilder struct {
 	mock.Mock
+}
+
+func TestExecuteSingleToolCallRaw_JSONContentPopulation(t *testing.T) {
+	t.Run("populates JSONContent when tool returns valid JSON", func(t *testing.T) {
+		mockRegistry := &MockToolRegistry{}
+		mockTool := &MockTool{}
+		o := &llmOrchestrator{config: OrchestratorConfig{ToolRegistry: mockRegistry}}
+		ctx := context.Background()
+		tc := llmadapter.ToolCall{ID: "id1", Name: "json-tool", Arguments: []byte(`{"arg":1}`)}
+
+		mockRegistry.On("Find", mock.Anything, "json-tool").Return(mockTool, true)
+		mockTool.On("Call", mock.Anything, `{"arg":1}`).Return(`{"ok":true}`, nil)
+
+		res := o.executeSingleToolCallRaw(ctx, tc)
+		assert.Equal(t, "id1", res.ID)
+		assert.Equal(t, "json-tool", res.Name)
+		assert.Equal(t, `{"ok":true}`, res.Content)
+		require.NotNil(t, res.JSONContent)
+		assert.JSONEq(t, `{"ok":true}`, string(res.JSONContent))
+
+		mockRegistry.AssertExpectations(t)
+		mockTool.AssertExpectations(t)
+	})
+
+	t.Run("leaves JSONContent nil for non-JSON tool output", func(t *testing.T) {
+		mockRegistry := &MockToolRegistry{}
+		mockTool := &MockTool{}
+		o := &llmOrchestrator{config: OrchestratorConfig{ToolRegistry: mockRegistry}}
+		ctx := context.Background()
+		tc := llmadapter.ToolCall{ID: "id2", Name: "text-tool", Arguments: []byte(`{"foo":"bar"}`)}
+
+		mockRegistry.On("Find", mock.Anything, "text-tool").Return(mockTool, true)
+		mockTool.On("Call", mock.Anything, `{"foo":"bar"}`).Return("plain text response", nil)
+
+		res := o.executeSingleToolCallRaw(ctx, tc)
+		assert.Equal(t, "plain text response", res.Content)
+		assert.Nil(t, res.JSONContent)
+
+		mockRegistry.AssertExpectations(t)
+		mockTool.AssertExpectations(t)
+	})
+
+	t.Run("returns JSON error payload when tool not found", func(t *testing.T) {
+		mockRegistry := &MockToolRegistry{}
+		o := &llmOrchestrator{config: OrchestratorConfig{ToolRegistry: mockRegistry}}
+		ctx := context.Background()
+		tc := llmadapter.ToolCall{ID: "id3", Name: "missing", Arguments: []byte(`{}`)}
+
+		mockRegistry.On("Find", mock.Anything, "missing").Return(nil, false)
+
+		res := o.executeSingleToolCallRaw(ctx, tc)
+		require.NotNil(t, res.JSONContent)
+		// Ensure JSONContent is valid JSON and includes an error field
+		var decoded map[string]any
+		require.NoError(t, json.Unmarshal(res.JSONContent, &decoded))
+		assert.Contains(t, decoded, "error")
+		assert.NotEmpty(t, res.Content)
+
+		mockRegistry.AssertExpectations(t)
+	})
+
+	t.Run("returns JSON error payload when tool execution fails", func(t *testing.T) {
+		mockRegistry := &MockToolRegistry{}
+		mockTool := &MockTool{}
+		o := &llmOrchestrator{config: OrchestratorConfig{ToolRegistry: mockRegistry}}
+		ctx := context.Background()
+		tc := llmadapter.ToolCall{ID: "id4", Name: "err", Arguments: []byte(`{"q":true}`)}
+
+		mockRegistry.On("Find", mock.Anything, "err").Return(mockTool, true)
+		mockTool.On("Call", mock.Anything, `{"q":true}`).Return("", fmt.Errorf("boom"))
+
+		res := o.executeSingleToolCallRaw(ctx, tc)
+		require.NotNil(t, res.JSONContent)
+		var decoded map[string]any
+		require.NoError(t, json.Unmarshal(res.JSONContent, &decoded))
+		assert.Contains(t, decoded, "error")
+		assert.NotEmpty(t, res.Content)
+
+		mockRegistry.AssertExpectations(t)
+		mockTool.AssertExpectations(t)
+	})
+}
+
+func TestCountSuccessfulResults_PrefersJSONContent(t *testing.T) {
+	results := []llmadapter.ToolResult{
+		{ID: "1", Name: "a", JSONContent: json.RawMessage(`{"ok":true}`)},     // success
+		{ID: "2", Name: "b", JSONContent: json.RawMessage(`{"error":"bad"}`)}, // error
+		{ID: "3", Name: "c", Content: "non-json plain text"},                  // success
+		{ID: "4", Name: "d", Content: "{\"error\":\"boom\"}"},                 // error (string check)
+	}
+	count := countSuccessfulResults(results)
+	assert.Equal(t, 2, count)
 }
 
 func (m *MockPromptBuilder) Build(ctx context.Context, action *agent.ActionConfig) (string, error) {
@@ -557,4 +650,68 @@ func (e *mockNetError) Timeout() bool {
 
 func (e *mockNetError) Temporary() bool {
 	return e.temporary
+}
+
+func TestIsSuccessJSONRaw(t *testing.T) {
+	cases := []struct {
+		name        string
+		input       string
+		wantSuccess bool
+		wantParsed  bool
+	}{
+		{name: "object_no_error", input: `{"ok": true}`, wantSuccess: true, wantParsed: true},
+		{name: "object_with_error_string", input: `{"error": "boom"}`, wantSuccess: false, wantParsed: true},
+		{name: "object_with_error_null", input: `{"error": null}`, wantSuccess: false, wantParsed: true},
+		{
+			name:        "nested_error_not_top_level",
+			input:       `{"data": {"error": "nested"}}`,
+			wantSuccess: true,
+			wantParsed:  true,
+		},
+		{name: "non_object_array", input: `[]`, wantSuccess: false, wantParsed: false},
+		{name: "non_object_string", input: `"hi"`, wantSuccess: false, wantParsed: false},
+		{name: "invalid_json", input: `{`, wantSuccess: false, wantParsed: false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			raw := json.RawMessage(tc.input)
+			gotSuccess, gotParsed := isSuccessJSONRaw(raw)
+			if gotSuccess != tc.wantSuccess || gotParsed != tc.wantParsed {
+				t.Fatalf(
+					"isSuccessJSONRaw(%s) = (%v,%v), want (%v,%v)",
+					tc.name,
+					gotSuccess,
+					gotParsed,
+					tc.wantSuccess,
+					tc.wantParsed,
+				)
+			}
+		})
+	}
+}
+
+func TestIsSuccessText(t *testing.T) {
+	cases := []struct {
+		name        string
+		input       string
+		wantSuccess bool
+	}{
+		{name: "json_ok", input: `{"message": "ok"}`, wantSuccess: true},
+		{name: "json_error_string", input: `{"error": "nope"}`, wantSuccess: false},
+		{name: "json_error_null", input: `{"error": null}`, wantSuccess: false},
+		{name: "json_nested_error", input: `{"data": {"error": "nested"}}`, wantSuccess: true},
+		{name: "plain_text_ok", input: "all good", wantSuccess: true},
+		{name: "plain_text_with_quoted_error", input: "some text with \"error\" token", wantSuccess: false},
+		{name: "plain_text_with_unquoted_error", input: "some text with error word", wantSuccess: true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := isSuccessText(tc.input)
+			if got != tc.wantSuccess {
+				t.Fatalf("isSuccessText(%s) = %v, want %v", tc.name, got, tc.wantSuccess)
+			}
+		})
+	}
 }

@@ -66,6 +66,8 @@ All providers support these core configuration properties. For the complete sche
 | `api_url` | string | ❌ | Custom API endpoint URL |
 | `organization` | string | ❌ | Organization ID (OpenAI only) |
 | `params` | object | ❌ | Generation parameters (temperature, max_tokens, etc.) |
+| `default` | boolean | ❌ | Mark this model as the project default |
+| `max_tool_iterations` | integer | ❌ | Per-model cap on tool-call iterations |
 
 ### Parameter Support
 
@@ -98,6 +100,8 @@ models:
       - provider: openai
         model: gpt-4
         api_key: "{{ .env.OPENAI_API_KEY }}"
+        default: true               # Use as project default model
+        max_tool_iterations: 12     # Cap tool-call loops for this model
         organization: "org-123"                # Optional
         params:
           temperature: 0.7
@@ -262,6 +266,15 @@ models:
     - ✅ Custom API URL supported
   </Tab>
 </Tabs>
+
+## Tool Iterations (Advanced)
+
+During tool-enabled actions, agents may iterate between LLM and tools multiple times (e.g., read → analyze → write). Compozy caps these loops to prevent infinite cycles:
+
+- Global cap: `llm.max_tool_iterations` in global config (see schema)
+- Per-model override: `models[].max_tool_iterations`
+
+If a per-model value is set to a positive integer, it overrides the global cap for that model.
 
 ## Environment Variables
 

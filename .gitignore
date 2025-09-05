@@ -9,6 +9,7 @@ examples/**/results.*
 sessions/
 ./compozy
 diff.txt
+engine/schema/reviews/*.md
 
 # === DEPENDENCIES ===
 node_modules/

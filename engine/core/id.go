@@ -12,6 +12,10 @@ func (c ID) String() string {
 	return string(c)
 }
 
+func (c ID) IsZero() bool {
+	return c == ""
+}
+
 func NewID() (ID, error) {
 	id, err := ksuid.NewRandom()
 	if err != nil {

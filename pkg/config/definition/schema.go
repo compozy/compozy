@@ -470,6 +470,15 @@ func registerLLMFields(registry *Registry) {
 		Type:    reflect.TypeOf(0),
 		Help:    "Maximum number of concurrent tool executions",
 	})
+
+	registry.Register(&FieldDef{
+		Path:    "llm.max_tool_iterations",
+		Default: 10,
+		CLIFlag: "",
+		EnvVar:  "LLM_MAX_TOOL_ITERATIONS",
+		Type:    reflect.TypeOf(0),
+		Help:    "Maximum tool-iteration loops per request (global default)",
+	})
 }
 
 func registerRateLimitFields(registry *Registry) {

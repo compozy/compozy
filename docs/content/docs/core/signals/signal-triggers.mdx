@@ -399,7 +399,7 @@ tasks:
     depends_on: [finalize-order]
 ```
 
-<Callout type="tip">
+<Callout type="info">
 Notice the use of composite tasks with `fail_fast` strategy for validation, ensuring all checks pass before payment processing. The [retry configuration](/docs/core/tasks/basic-tasks#retry-configuration) on payment processing handles transient failures gracefully, while [error handling patterns](/docs/core/tasks/basic-tasks#error-handling) provide robust failure recovery.
 </Callout>
 

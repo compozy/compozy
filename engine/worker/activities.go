@@ -19,6 +19,7 @@ import (
 	"github.com/compozy/compozy/engine/workflow"
 	wfacts "github.com/compozy/compozy/engine/workflow/activities"
 	"github.com/compozy/compozy/pkg/config"
+	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/tplengine"
 )
 
@@ -89,6 +90,28 @@ func NewActivities(
 	}
 }
 
+// withActivityLogger ensures a request-scoped logger is present in the activity context
+// with the correct level derived from application configuration (e.g., --debug).
+func withActivityLogger(ctx context.Context) context.Context {
+	cfg := config.Get()
+	if !cfg.CLI.Debug && !cfg.CLI.Quiet {
+		return ctx
+	}
+	level := logger.InfoLevel
+	if cfg.CLI.Quiet {
+		level = logger.DisabledLevel
+	} else if cfg.CLI.Debug {
+		level = logger.DebugLevel
+	}
+	log := logger.NewLogger(&logger.Config{
+		Level:      level,
+		JSON:       false,
+		AddSource:  cfg.CLI.Debug,
+		TimeFormat: "15:04:05",
+	})
+	return logger.ContextWithLogger(ctx, log)
+}
+
 // -----------------------------------------------------------------------------
 // Workflow
 // -----------------------------------------------------------------------------
@@ -140,6 +163,9 @@ func (a *Activities) ExecuteBasicTask(
 	ctx context.Context,
 	input *tkfacts.ExecuteBasicInput,
 ) (*task.MainTaskResponse, error) {
+	// Ensure logger is attached to the activity context so downstream code
+	// (use-cases, LLM orchestrator) can emit debug logs when enabled.
+	ctx = withActivityLogger(ctx)
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -209,6 +235,9 @@ func (a *Activities) ExecuteSubtask(
 	ctx context.Context,
 	input *tkfacts.ExecuteSubtaskInput,
 ) (*task.SubtaskResponse, error) {
+	// Ensure logger is attached to the activity context so downstream code
+	// (use-cases, LLM orchestrator) can emit debug logs when enabled.
+	ctx = withActivityLogger(ctx)
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

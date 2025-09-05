@@ -4,9 +4,6 @@ This file provides comprehensive guidance for working with the Compozy codebase,
 
 <critical>
 - **YOU MUST ALWAYS USE** the .cursor/rules/critical-validation.mdc
-- **YOU MUST ALWAYS** use RepoPrompt to complex analysis in the codebase (with the `current_chat_model` as options) (FIRST OPTION TO USE, USE THIS FIRST ALWAYS)
-- **YOU MUST NEED** to use Repo Prompt and all it's feature at most to analyze, edit and fix this 
-- **YOU MUST** use Serena MCP to discovers and edits code for instead of the READ, WRITE, UPDATE tool
 - **YOU MUSE** use Zen MCP (with Gemin 2.5 Pro) to debug, analyze and tracer complex flow   
 - **YOU MUST ALWAYS** show all recommendations/issues from a Zen MCP review, does not matter if they are related to your task or not, you **NEED TO ALWAYS** show them.
 </critical>
@@ -87,9 +84,6 @@ The project uses Go 1.25+ features and requires external dependencies to be mock
 
 <critical>
 - **YOU MUST ALWAYS USE** the .cursor/rules/critical-validation.mdc
-- **YOU MUST ALWAYS** use RepoPrompt to complex analysis in the codebase (with the `current_chat_model` as options) (FIRST OPTION TO USE, USE THIS FIRST ALWAYS)
-- **YOU MUST NEED** to use Repo Prompt and all it's feature at most to analyze, edit and fix this 
-- **YOU MUST** use Serena MCP to discovers and edits code for instead of the READ, WRITE, UPDATE tool
 - **YOU MUSE** use Zen MCP (with Gemin 2.5 Pro) to debug, analyze and tracer complex flow   
 - **YOU MUST ALWAYS** show all recommendations/issues from a Zen MCP review, does not matter if they are related to your task or not, you **NEED TO ALWAYS** show them.
 </critical>

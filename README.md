@@ -28,7 +28,6 @@
 - **Multi-Model Support**: Integrates with 7+ LLM providers like OpenAI, Anthropic, Google, and local models.
 - **Enterprise-Ready**: With Temporal behind the scenes, Compozy is built for production with persistence, monitoring, and security features.
 - **High Performance**: Built with Go at its core, Compozy delivers exceptional speed and efficiency.
-- **Multi-Model Support**: Integrates with 7+ LLM providers like OpenAI, Anthropic, Google, and local models.
 
 ## 🚀 Getting Started
 

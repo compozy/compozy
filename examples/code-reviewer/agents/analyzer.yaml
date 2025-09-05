@@ -15,36 +15,34 @@ instructions: |
   Always provide specific, implementable suggestions with code examples when appropriate.
   Focus on practical improvements that will have measurable impact.
 
-tools:
-  - id: write_file
-    description: Write content to a file
-    input:
-      type: object
-      properties:
-        path:
-          type: string
-          description: The file path to write to
-        content:
-          type: string
-          description: The content to write
-      required:
-        - path
-        - content
+  CRITICAL INSTRUCTION: You are equipped with tools (read_file and write_file) that you MUST use to complete tasks.
+  When asked to analyze code or save reports, you must:
+  1. Use the read_file tool to read file contents
+  2. Perform your analysis
+  3. Use the write_file tool to save results
+  Never return raw file contents or analysis as plain text - always use the provided tools.
 
 actions:
   - id: analyze
     prompt: |-
-      Analyze the following Go code file and save the review as a markdown file:
+      You are a code review agent with access to tools. You MUST use the available tools to complete this task.
 
-      File: {{ .input.file_path }}
+      IMPORTANT: You have access to the following tools:
+      - read_file: To read the contents of files
+      - write_file: To write content to files
 
-      Content:
-      ```go
-      {{ .input.content }}
-      ```
+      Task: Analyze the following Go code file and save the review as a markdown file.
 
-      You must:
-      1. Analyze the code for:
+      File to review: {{ .input.file_path }}
+
+      STEP-BY-STEP INSTRUCTIONS (YOU MUST USE TOOLS):
+
+      Step 1: First, use the read_file tool with the following parameters:
+      {
+        "path": "{{ .input.file_path }}"
+      }
+
+      Step 2: After reading the file, analyze the code for:
          - Performance optimizations
          - Go best practices violations
          - Potential bugs or issues
@@ -52,16 +50,37 @@ actions:
          - Concurrency issues (if applicable)
          - Suggestions for improvement with specific code examples
 
-      2. Create a comprehensive markdown report with the following structure:
-         -  # Code Review: [filename]
-         -  ## Summary
-         -  ## Performance Analysis
-         -  ## Best Practices Review
-         -  ## Potential Issues
-         -  ## Recommendations
-         -  ## Code Examples (if applicable)
+      Step 3: Create a comprehensive markdown report with the following structure:
+         # Code Review: [filename]
+         ## Summary
+         Brief overview of the file and its purpose
 
-      3. Use the write_file tool to save the review to: ./reviews/{{ .input.file_path }}.md
-         Make sure to replace any forward slashes in the file path with underscores for the output filename.
+         ## Performance Analysis
+         Any performance concerns or optimizations
 
-      4. Return a summary of your findings after saving the review file.
+         ## Best Practices Review
+         Go idioms and conventions analysis
+
+         ## Potential Issues
+         Bugs, edge cases, or error handling problems
+
+         ## Recommendations
+         Specific actionable improvements
+
+         ## Code Examples
+         Improved code snippets where applicable
+
+      Step 4: Use the write_file tool to save your review. Calculate the output path:
+         - Input file: {{ .input.file_path }}
+         - Output path: Add "/reviews/" before the filename and ".md" extension
+         - Example: ./engine/schema/cwd.go → ./engine/schema/reviews/cwd.go.md
+
+      Use write_file with parameters:
+      {
+        "path": "[calculated review file path]",
+        "content": "[your markdown review]"
+      }
+
+      Step 5: Return a brief summary of your findings.
+
+      CRITICAL: You MUST use the tools. Do not just return the file content or analysis as text. Execute the tools to read and write files.
