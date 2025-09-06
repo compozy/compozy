@@ -524,7 +524,7 @@ For detailed API endpoint documentation, see our comprehensive API reference:
 
 - **Health Check**: `GET /healthz` - Monitor server health
 - **Metrics**: `GET /metrics` - Prometheus-compatible metrics
-- **Admin API**: Requires `Authorization: Bearer <token>` header
+- **Admin API**: No built-in authentication. Protect `/admin` endpoints using network controls (localhost binding, IP allow-lists) or a reverse proxy.
 - **Server Management**: Register, update, and remove MCP servers
 - **Tool Discovery**: List all available tools across servers
 
@@ -598,23 +598,9 @@ mcp_proxy_errors_total{type="timeout"} 2
 **Admin API Status**
 
 ```bash
-# Admin API health (requires token)
-curl -H "Authorization: Bearer $MCP_PROXY_ADMIN_TOKEN" \
-     http://localhost:6001/admin/status
-
-# Response format
-{
-  "admin_api": "healthy",
-  "registered_servers": 5,
-  "active_sessions": 12,
-  "server_health": {
-    "filesystem": "healthy",
-    "database": "healthy",
-    "weather-api": "reconnecting",
-    "python-runtime": "healthy",
-    "docker-postgres": "healthy"
-  }
-}
+# Admin API endpoints are not authenticated by default.
+# Keep proxy bound to localhost in development or front it with your own gateway in production.
+curl http://localhost:6001/admin/mcps
 ```
 
 **Admin Status Features:**
@@ -653,24 +639,20 @@ telnet localhost 6001
 </Tab>
 
 <Tab>
-**Authentication Issues**
+**Access Control Guidance**
 
 | Issue | Symptoms | Solution |
 |-------|----------|----------|
-| **Invalid Token** | `401 Unauthorized` | Verify admin token is correct |
-| **Missing Headers** | `403 Forbidden` | Include Authorization header |
-| **IP Restrictions** | `403 Forbidden` | Check IP allow-lists |
-| **Token Expiration** | `401 Unauthorized` | Refresh or rotate tokens |
+| **Exposed Admin API** | `/admin` reachable externally | Bind to localhost, place behind reverse proxy, or enable IP allow-lists |
+| **Unexpected 403** | Forbidden with IP checks | Verify `AdminAllowIPs` configuration and proxy chain headers |
 
 **Debug Commands:**
 ```bash
-# Test admin API access
-curl -H "Authorization: Bearer $MCP_PROXY_ADMIN_TOKEN" \
-     http://localhost:6001/admin/mcps
+# Check admin API locally
+curl http://localhost:6001/admin/mcps
 
-# Check IP allow-list
-curl -H "Authorization: Bearer $TOKEN" \
-     -H "X-Forwarded-For: 192.168.1.100" \
+# Validate IP allow-list behavior (from a trusted proxy)
+curl -H "X-Forwarded-For: 192.168.1.100" \
      http://localhost:6001/admin/mcps
 ```
 </Tab>

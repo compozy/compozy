@@ -1,0 +1,27 @@
+### GitHub MCP Example API
+### Make sure Compozy is running on localhost:5001 and MCP gateway is available.
+
+@baseUrl = http://localhost:5001/api/v0
+@workflowId = github_mcp
+
+### -----------------------------------------------------------------------------
+### Execute workflow to fetch latest PR for a repository
+### -----------------------------------------------------------------------------
+# @name executeWorkflow
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+
+{
+  "input": {
+    "repository": "compozy/compozy"
+  }
+}
+
+### Extract execution ID
+@execId = {{executeWorkflow.response.body.data.exec_id}}
+
+### -----------------------------------------------------------------------------
+### Get execution details
+### -----------------------------------------------------------------------------
+GET {{baseUrl}}/executions/workflows/{{execId}}
+Accept: application/json

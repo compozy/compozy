@@ -1,0 +1,37 @@
+name: github-mcp
+version: "0.1.0"
+description: Minimal example using GitHub MCP to fetch latest pull request
+
+author:
+  name: Pedro Nauck
+  url: https://github.com/pedronauck
+
+workflows:
+  - source: ./workflow.yaml
+
+models:
+  - provider: groq
+    model: openai/gpt-oss-120b
+    api_key: "{{ .env.GROQ_API_KEY }}"
+    default: true
+    params:
+      temperature: 0.3
+
+runtime:
+  type: bun
+  entrypoint: "./entrypoint.ts"
+  permissions:
+    - --allow-read
+    - --allow-net
+
+# AutoLoad (no local agents/tools in this example; kept for consistency)
+autoload:
+  enabled: true
+  strict: true
+  include:
+    - "agents/*.yaml"
+    - "tools/*.yaml"
+  exclude:
+    - "**/*~"
+    - "**/*.bak"
+    - "**/*.tmp"

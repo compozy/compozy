@@ -16,7 +16,7 @@ func TestProxyHandlers_SSEProxy(t *testing.T) {
 	storage := NewMemoryStorage()
 	clientManager := NewMockClientManager()
 
-	proxyHandlers := NewProxyHandlers(storage, clientManager, "http://localhost:6001", nil)
+	proxyHandlers := NewProxyHandlers(storage, clientManager, "http://localhost:6001")
 
 	router := gin.New()
 	router.Any("/:name/sse", proxyHandlers.SSEProxyHandler)
@@ -40,7 +40,7 @@ func TestProxyHandlers_StreamableHTTPProxy(t *testing.T) {
 	storage := NewMemoryStorage()
 	clientManager := NewMockClientManager()
 
-	proxyHandlers := NewProxyHandlers(storage, clientManager, "http://localhost:6001", nil)
+	proxyHandlers := NewProxyHandlers(storage, clientManager, "http://localhost:6001")
 
 	router := gin.New()
 	router.Any("/:name/sse", proxyHandlers.SSEProxyHandler)
@@ -64,7 +64,7 @@ func TestProxyHandlers_ProxyRegistration(t *testing.T) {
 	storage := NewMemoryStorage()
 	clientManager := NewMockClientManager()
 
-	proxyHandlers := NewProxyHandlers(storage, clientManager, "http://localhost:6001", nil)
+	proxyHandlers := NewProxyHandlers(storage, clientManager, "http://localhost:6001")
 
 	router := gin.New()
 	router.Any("/:name/sse", proxyHandlers.SSEProxyHandler)
@@ -96,7 +96,7 @@ func TestProxyHandlers_ProxyRegistration(t *testing.T) {
 	t.Run("Should handle registered proxy server access correctly", func(t *testing.T) {
 		// Test successful access when proxy server is already registered
 		mockClientManager := NewMockClientManagerWithClient()
-		proxyHandlers := NewProxyHandlers(storage, mockClientManager, "http://localhost:6001", nil)
+		proxyHandlers := NewProxyHandlers(storage, mockClientManager, "http://localhost:6001")
 
 		// Create a new router for this test
 		successRouter := gin.New()
@@ -111,7 +111,6 @@ func TestProxyHandlers_ProxyRegistration(t *testing.T) {
 			Transport:   TransportStdio,
 			Command:     "echo",
 			LogEnabled:  false,
-			AuthTokens:  nil,
 		}
 		mockProxyServer := &ProxyServer{
 			mcpServer: nil, // Can be nil for this routing test
@@ -153,7 +152,7 @@ func TestProxyHandlers_ProxyRegistration(t *testing.T) {
 func TestProxyHandlers_ServerManagement(t *testing.T) {
 	storage := NewMemoryStorage()
 	clientManager := NewMockClientManager()
-	proxyHandlers := NewProxyHandlers(storage, clientManager, "http://localhost:6001", nil)
+	proxyHandlers := NewProxyHandlers(storage, clientManager, "http://localhost:6001")
 
 	t.Run("Should handle unregistering non-existent proxy without error", func(t *testing.T) {
 		err := proxyHandlers.UnregisterMCPProxy(t.Context(), "nonexistent")

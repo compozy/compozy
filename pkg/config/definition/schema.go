@@ -418,15 +418,6 @@ func registerLLMFields(registry *Registry) {
 	})
 
 	registry.Register(&FieldDef{
-		Path:    "llm.admin_token",
-		Default: "",
-		CLIFlag: "",
-		EnvVar:  "MCP_ADMIN_TOKEN",
-		Type:    reflect.TypeOf(""),
-		Help:    "LLM admin token",
-	})
-
-	registry.Register(&FieldDef{
 		Path:    "llm.retry_attempts",
 		Default: 3,
 		CLIFlag: "",
@@ -473,11 +464,20 @@ func registerLLMFields(registry *Registry) {
 
 	registry.Register(&FieldDef{
 		Path:    "llm.max_tool_iterations",
-		Default: 10,
+		Default: 100,
 		CLIFlag: "",
 		EnvVar:  "LLM_MAX_TOOL_ITERATIONS",
 		Type:    reflect.TypeOf(0),
 		Help:    "Maximum tool-iteration loops per request (global default)",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "llm.max_sequential_tool_errors",
+		Default: 10,
+		CLIFlag: "llm-max-sequential-tool-errors",
+		EnvVar:  "LLM_MAX_SEQUENTIAL_TOOL_ERRORS",
+		Type:    reflect.TypeOf(0),
+		Help:    "Maximum sequential tool/content errors tolerated per tool before aborting",
 	})
 }
 
@@ -1019,15 +1019,6 @@ func registerMCPProxyFields(registry *Registry) {
 		EnvVar:  "MCP_PROXY_SHUTDOWN_TIMEOUT",
 		Type:    durationType,
 		Help:    "Maximum time to wait for graceful shutdown",
-	})
-
-	registry.Register(&FieldDef{
-		Path:    "mcp_proxy.admin_tokens",
-		Default: []string{},
-		CLIFlag: "mcp-admin-tokens",
-		EnvVar:  "MCP_PROXY_ADMIN_TOKENS",
-		Type:    reflect.TypeOf([]string{}),
-		Help:    "Admin authentication tokens for MCP proxy (comma-separated)",
 	})
 
 	registry.Register(&FieldDef{

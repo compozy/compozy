@@ -15,12 +15,11 @@ import (
 
 // ProxyHandlers handles MCP protocol proxy requests
 type ProxyHandlers struct {
-	storage          Storage
-	clientManager    ClientManager
-	baseURL          string                  // Base URL for SSE servers
-	servers          map[string]*ProxyServer // Map of MCP name to proxy server
-	serversMutex     sync.RWMutex            // Protects servers map
-	globalAuthTokens []string                // Global auth tokens inherited by all clients
+	storage       Storage
+	clientManager ClientManager
+	baseURL       string                  // Base URL for SSE servers
+	servers       map[string]*ProxyServer // Map of MCP name to proxy server
+	serversMutex  sync.RWMutex            // Protects servers map
 }
 
 // ProxyServer wraps an MCP server and SSE server for proxying requests
@@ -36,14 +35,12 @@ func NewProxyHandlers(
 	storage Storage,
 	clientManager ClientManager,
 	baseURL string,
-	globalAuthTokens []string,
 ) *ProxyHandlers {
 	return &ProxyHandlers{
-		storage:          storage,
-		clientManager:    clientManager,
-		baseURL:          baseURL,
-		servers:          make(map[string]*ProxyServer),
-		globalAuthTokens: globalAuthTokens,
+		storage:       storage,
+		clientManager: clientManager,
+		baseURL:       baseURL,
+		servers:       make(map[string]*ProxyServer),
 	}
 }
 
@@ -201,13 +198,7 @@ func (p *ProxyHandlers) SSEProxyHandler(c *gin.Context) {
 		recoverMiddleware(name), // Recovery should be outermost
 	}
 
-	// Add auth middleware first (before logging to prevent logging unauthorized requests)
-	allTokens := combineAuthTokens(p.globalAuthTokens, def.AuthTokens)
-	if len(allTokens) > 0 {
-		middlewares = append(middlewares, newAuthMiddleware(allTokens))
-	}
-
-	// Add logging middleware after auth
+	// Add logging middleware
 	if def.LogEnabled {
 		middlewares = append(middlewares, logger.Middleware(log))
 	}

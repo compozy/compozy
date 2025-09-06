@@ -202,6 +202,7 @@ tasks:
 
   - id: save_results
     type: composite
+    final: true
     tasks:
       - id: save_json
         type: basic
@@ -215,8 +216,6 @@ tasks:
         with:
           payload: "{{ .tasks.aggr.output }}"
           format: "txt"
-    on_success:
-      next: verify_saved_files
 
   - id: no_results
     type: basic
@@ -225,12 +224,6 @@ tasks:
     with:
       payload: "{{ .tasks.aggr.output }}"
       format: "txt"
-
-  - id: verify_saved_files
-    type: basic
-    $use: agent(resource::agent::#(id=='file_reader'))
-    action: list_saved_files
-    final: true
 
 outputs:
   city: "{{ .workflow.input.city }}"
@@ -253,7 +246,6 @@ outputs:
       | toJson }}{{ else }}null{{ end }}{{ else }}null{{ end }}'
   data_persistence:
     files_saved: "{{ .tasks.save_results.output | toJson }}"
-    verification_completed: "{{ .tasks.verify_saved_files.output | toJson }}"
     save_tasks_children: "{{ .tasks.save_results.children | toJson }}"
   execution_summary:
     total_tasks_completed: "{{ len .tasks }}"

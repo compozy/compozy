@@ -59,10 +59,8 @@ type MCPDefinition struct {
 	Headers map[string]string `json:"headers,omitempty"`
 	Timeout time.Duration     `json:"timeout,omitempty"`
 
-	// Security and access control
-	AuthTokens  []string `json:"authTokens,omitempty"`
-	AllowedIPs  []string `json:"allowedIPs,omitempty"`
-	RequireAuth bool     `json:"requireAuth,omitempty"`
+	// Access control
+	AllowedIPs []string `json:"allowedIPs,omitempty"`
 
 	// Behavior configuration
 	AutoReconnect       bool          `json:"autoReconnect,omitempty"`
@@ -230,10 +228,6 @@ func (m *MCPDefinition) setMapDefaults() {
 func (m *MCPDefinition) setSliceDefaults() {
 	if m.Args == nil {
 		m.Args = make([]string, 0)
-	}
-
-	if m.AuthTokens == nil {
-		m.AuthTokens = make([]string, 0)
 	}
 
 	if m.AllowedIPs == nil {

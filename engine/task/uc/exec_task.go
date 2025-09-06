@@ -3,6 +3,7 @@ package uc
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
@@ -445,6 +446,13 @@ func (uc *ExecuteTask) createLLMService(
 		// Add resolved tools (with merged env) to LLM options
 		llmOpts = append(llmOpts, llm.WithResolvedTools(resolvedTools))
 	}
+
+	// Build MCP allowlist from agent/workflow declarations (IDs)
+	if ids := uc.allowedMCPIDs(agentConfig, input); len(ids) > 0 {
+		llmOpts = append(llmOpts, llm.WithAllowedMCPNames(ids))
+	}
+	// MCP registration is handled by server startup (engine/mcp.SetupForWorkflows)
+	// We no longer register workflow-level MCPs from the exec task.
 	llmService, err := llm.NewService(ctx, uc.runtime, agentConfig, llmOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create LLM service: %w", err)
@@ -604,4 +612,37 @@ func dereferenceInput(input *core.Input) any {
 		return nil
 	}
 	return *input
+}
+
+// allowedMCPIDs returns the lowercased, deduplicated list of MCP IDs declared on the
+// agent and workflow config for this execution context.
+func (uc *ExecuteTask) allowedMCPIDs(agentConfig *agent.Config, input *ExecuteTaskInput) []string {
+	allowed := make(map[string]struct{})
+	// Agent-level MCPs
+	if agentConfig != nil {
+		for i := range agentConfig.MCPs {
+			id := strings.ToLower(strings.TrimSpace(agentConfig.MCPs[i].ID))
+			if id != "" {
+				allowed[id] = struct{}{}
+			}
+		}
+	}
+	// Workflow-level MCPs
+	if input != nil && input.WorkflowConfig != nil {
+		mcps := input.WorkflowConfig.GetMCPs()
+		for i := range mcps {
+			id := strings.ToLower(strings.TrimSpace(mcps[i].ID))
+			if id != "" {
+				allowed[id] = struct{}{}
+			}
+		}
+	}
+	if len(allowed) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(allowed))
+	for id := range allowed {
+		out = append(out, id)
+	}
+	return out
 }

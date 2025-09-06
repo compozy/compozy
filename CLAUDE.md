@@ -4,7 +4,8 @@ This file provides comprehensive guidance for working with the Compozy codebase,
 
 <critical>
 - **YOU MUST ALWAYS USE** the .cursor/rules/critical-validation.mdc
-- **YOU MUSE** use Zen MCP (with Gemin 2.5 Pro) to debug, analyze and tracer complex flow   
+- **YOU MUST** use Zen MCP (with Gemini 2.5 Pro) debug, analyze or tracer complex flow **BEFORE INITIATE A TASK**
+- **YOU MUST** use Zen MCP (with Gemini 2.5 Pro and O3) codereview tool **AFTER FINISH A TASK**
 - **YOU MUST ALWAYS** show all recommendations/issues from a Zen MCP review, does not matter if they are related to your task or not, you **NEED TO ALWAYS** show them.
 </critical>
 
@@ -84,6 +85,7 @@ The project uses Go 1.25+ features and requires external dependencies to be mock
 
 <critical>
 - **YOU MUST ALWAYS USE** the .cursor/rules/critical-validation.mdc
-- **YOU MUSE** use Zen MCP (with Gemin 2.5 Pro) to debug, analyze and tracer complex flow   
+- **YOU MUST** use Zen MCP (with Gemini 2.5 Pro) debug, analyze or tracer complex flow **BEFORE INITIATE A TASK**
+- **YOU MUST** use Zen MCP (with Gemini 2.5 Pro and O3) codereview tool **AFTER FINISH A TASK**
 - **YOU MUST ALWAYS** show all recommendations/issues from a Zen MCP review, does not matter if they are related to your task or not, you **NEED TO ALWAYS** show them.
 </critical>

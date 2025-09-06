@@ -4,10 +4,8 @@ This file provides comprehensive guidance for working with the Compozy codebase,
 
 <critical>
 - **YOU MUST ALWAYS USE** the .cursor/rules/critical-validation.mdc
-- **YOU MUST ALWAYS** use Claude Code MCP to find out relevant files, symbols and context about the codebase  (priority 1)
-- **YOU MUST ALWAYS** use RepoPrompt to complex analysis in the codebase (with the `current_chat_model` as options) (priority 2)
-- **YOU MUST ALWAYS** use Serena MCP to discovers and edits code for instead of the READ, WRITE, UPDATE tool (priority 3)
-- **YOU MUSE ALWAYS** use Zen MCP (with Gemin 2.5 Pro) to debug, analyze and tracer complex flow (priority 4)   
+- **YOU MUST** use Zen MCP (with Gemini 2.5 Pro) debug, analyze or tracer complex flow **BEFORE INITIATE A TASK**
+- **YOU MUST** use Zen MCP (with Gemini 2.5 Pro and O3) codereview tool **AFTER FINISH A TASK**
 - **YOU MUST ALWAYS** show all recommendations/issues from a Zen MCP review, does not matter if they are related to your task or not, you **NEED TO ALWAYS** show them.
 </critical>
 
@@ -87,9 +85,7 @@ The project uses Go 1.25+ features and requires external dependencies to be mock
 
 <critical>
 - **YOU MUST ALWAYS USE** the .cursor/rules/critical-validation.mdc
-- **YOU MUST ALWAYS** use Claude Code MCP to do queries in the indexed codebase to find out relevant files, dependencies and be able to get a better context before execute 
-- **YOU MUST ALWAYS** use RepoPrompt to complex analysis in the codebase (with the `current_chat_model` as options)
-- **YOU MUST ALWAYS** use Serena MCP to discovers and edits code for instead of the READ, WRITE, UPDATE tool
-- **YOU MUSE ALWAYS** use Zen MCP (with Gemin 2.5 Pro) to debug, analyze and tracer complex flow
+- **YOU MUST** use Zen MCP (with Gemini 2.5 Pro) debug, analyze or tracer complex flow **BEFORE INITIATE A TASK**
+- **YOU MUST** use Zen MCP (with Gemini 2.5 Pro and O3) codereview tool **AFTER FINISH A TASK**
 - **YOU MUST ALWAYS** show all recommendations/issues from a Zen MCP review, does not matter if they are related to your task or not, you **NEED TO ALWAYS** show them.
 </critical>

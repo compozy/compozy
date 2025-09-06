@@ -2,6 +2,7 @@ package mcpproxy
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -238,7 +239,6 @@ func (s *MCPService) CallTool(
 		log.Error("Failed to call tool", "mcp_name", mcpName, "tool_name", toolName, "error", err)
 		return nil, fmt.Errorf("tool execution failed: %w", err)
 	}
-	log.Debug("Tool executed successfully", "mcp_name", mcpName, "tool_name", toolName)
 	return result, nil
 }
 
@@ -288,10 +288,25 @@ func convertToolSchema(inputSchema any) map[string]any {
 	if inputSchema == nil {
 		return nil
 	}
-	// Try direct type assertion first
 	if schema, ok := inputSchema.(map[string]any); ok {
 		return schema
 	}
-	// If that fails, we'll return nil and let the caller handle it
+	// Fallback: attempt JSON round-trip to decode arbitrary schema structs
+	// commonly used by MCP SDKs into a generic map[string]any.
+	// This handles cases where InputSchema is a typed struct or json.RawMessage.
+	// If marshaling fails or yields non-object JSON, return nil.
+	if b, err := json.Marshal(inputSchema); err == nil && len(b) > 0 {
+		var out map[string]any
+		if json.Unmarshal(b, &out) == nil && len(out) > 0 {
+			return out
+		}
+	}
+	// Final fallback: if the schema was provided as a JSON string, try to parse it.
+	if s, ok := inputSchema.(string); ok && s != "" {
+		var out map[string]any
+		if json.Unmarshal([]byte(s), &out) == nil && len(out) > 0 {
+			return out
+		}
+	}
 	return nil
 }

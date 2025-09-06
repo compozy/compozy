@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 
 	"github.com/spf13/cobra"
@@ -137,14 +138,12 @@ func buildMCPProxyConfig(_ *cobra.Command) *mcpproxy.Config {
 	}
 
 	return &mcpproxy.Config{
-		Host:             mcpConfig.Host,
-		Port:             port,
-		BaseURL:          baseURL,
-		ShutdownTimeout:  mcpConfig.ShutdownTimeout,
-		AdminTokens:      mcpConfig.AdminTokens,
-		AdminAllowIPs:    mcpConfig.AdminAllowIPs,
-		TrustedProxies:   mcpConfig.TrustedProxies,
-		GlobalAuthTokens: mcpConfig.GlobalAuthTokens,
+		Host:            mcpConfig.Host,
+		Port:            port,
+		BaseURL:         baseURL,
+		ShutdownTimeout: mcpConfig.ShutdownTimeout,
+		AdminAllowIPs:   mcpConfig.AdminAllowIPs,
+		TrustedProxies:  mcpConfig.TrustedProxies,
 	}
 }
 
@@ -154,13 +153,15 @@ func buildMCPProxyConfig(_ *cobra.Command) *mcpproxy.Config {
 func setupMCPProxyLogging(cobraCmd *cobra.Command, _ *cmd.CommandExecutor) logger.Logger {
 	cfg := config.Get()
 	logLevel := cfg.Runtime.LogLevel
-
-	// Override log level if debug flag is set
+	if envLevel := os.Getenv("MCP_PROXY_LOG_LEVEL"); envLevel != "" {
+		logLevel = strings.ToLower(envLevel)
+	}
+	if cfg.CLI.Debug {
+		logLevel = "debug"
+	}
 	if debug, err := cobraCmd.Flags().GetBool("debug"); err == nil && debug {
 		logLevel = "debug"
 	}
-
-	// Use global configuration for logging setup
 	return logger.SetupLogger(logger.LogLevel(logLevel), false, false)
 }
 

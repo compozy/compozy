@@ -43,7 +43,25 @@ RUN ./compozy mcp-proxy --help || echo "Compozy MCP Proxy command built successf
 FROM alpine:3.20
 
 # Install runtime dependencies required for engine/runtime and mcp-proxy
-RUN apk add --no-cache     ca-certificates     tzdata     bash     nodejs     npm     python3     py3-pip     curl     wget     # Network debugging tools    netcat-openbsd     bind-tools     # Redis CLI for storage debugging    redis     # Process monitoring    procps
+RUN apk add --no-cache \
+    ca-certificates \
+    tzdata \
+    bash \
+    nodejs \
+    npm \
+    python3 \
+    py3-pip \
+    curl \
+    wget \
+    # Network debugging tools
+    netcat-openbsd \
+    bind-tools \
+    # Redis CLI for storage debugging
+    redis \
+    # Process monitoring
+    procps \
+    # Docker CLI for stdio commands that call `docker`
+    docker-cli
 
 # Install Bun - Latest stable version for production
 ENV BUN_VERSION=1.1.45
