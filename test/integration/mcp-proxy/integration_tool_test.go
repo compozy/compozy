@@ -33,14 +33,13 @@ func TestToolAPIEndpointsIntegration(t *testing.T) {
 			Host:            "localhost",
 			BaseURL:         "http://localhost:6001",
 			ShutdownTimeout: 5 * time.Second,
-			AdminTokens:     []string{"test-admin-token"},
 		}
 
 		server := mcpproxy.NewServer(config, storage, clientManager)
 
 		// Test tool listing endpoint exists and responds with proper structure
 		req := httptest.NewRequest(http.MethodGet, "/admin/tools", http.NoBody)
-		req.Header.Set("Authorization", "Bearer test-admin-token")
+		// No authentication required anymore
 		w := httptest.NewRecorder()
 		server.Router.ServeHTTP(w, req)
 
@@ -65,7 +64,6 @@ func TestToolAPIEndpointsIntegration(t *testing.T) {
 			Host:            "localhost",
 			BaseURL:         "http://localhost:6001",
 			ShutdownTimeout: 5 * time.Second,
-			AdminTokens:     []string{"test-admin-token"},
 		}
 
 		server := mcpproxy.NewServer(config, storage, clientManager)
@@ -80,7 +78,7 @@ func TestToolAPIEndpointsIntegration(t *testing.T) {
 		require.NoError(t, err)
 		req := httptest.NewRequest(http.MethodPost, "/admin/tools/call", bytes.NewReader(callJSON))
 		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("Authorization", "Bearer test-admin-token")
+		// No authentication required anymore
 		w := httptest.NewRecorder()
 		server.Router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusNotFound, w.Code)
@@ -102,7 +100,6 @@ func TestToolAPIEndpointsIntegration(t *testing.T) {
 			Host:            "localhost",
 			BaseURL:         "http://localhost:6001",
 			ShutdownTimeout: 5 * time.Second,
-			AdminTokens:     []string{"test-admin-token"},
 		}
 
 		server := mcpproxy.NewServer(config, storage, clientManager)
@@ -110,7 +107,7 @@ func TestToolAPIEndpointsIntegration(t *testing.T) {
 		// Test invalid JSON
 		req := httptest.NewRequest(http.MethodPost, "/admin/tools/call", bytes.NewReader([]byte("invalid json")))
 		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("Authorization", "Bearer test-admin-token")
+		// No authentication required anymore
 		w := httptest.NewRecorder()
 		server.Router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusBadRequest, w.Code)
@@ -126,7 +123,7 @@ func TestToolAPIEndpointsIntegration(t *testing.T) {
 
 		req = httptest.NewRequest(http.MethodPost, "/admin/tools/call", bytes.NewReader(callJSON))
 		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("Authorization", "Bearer test-admin-token")
+		// No authentication required anymore
 		w = httptest.NewRecorder()
 		server.Router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusBadRequest, w.Code)
@@ -142,54 +139,9 @@ func TestToolAPIEndpointsIntegration(t *testing.T) {
 
 		req = httptest.NewRequest(http.MethodPost, "/admin/tools/call", bytes.NewReader(callJSON))
 		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("Authorization", "Bearer test-admin-token")
+		// No authentication required anymore
 		w = httptest.NewRecorder()
 		server.Router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusBadRequest, w.Code)
-	})
-
-	t.Run("Should require authentication for tool endpoints", func(t *testing.T) {
-		storage := mcpproxy.NewMemoryStorage()
-		clientManager := mcpproxy.NewMockClientManager()
-
-		config := &mcpproxy.Config{
-			Port:            "6001",
-			Host:            "localhost",
-			BaseURL:         "http://localhost:6001",
-			ShutdownTimeout: 5 * time.Second,
-			AdminTokens:     []string{"valid-token"},
-		}
-
-		server := mcpproxy.NewServer(config, storage, clientManager)
-
-		// Test tool listing without auth
-		req := httptest.NewRequest(http.MethodGet, "/admin/tools", http.NoBody)
-		w := httptest.NewRecorder()
-		server.Router.ServeHTTP(w, req)
-		assert.Equal(t, http.StatusUnauthorized, w.Code)
-
-		// Test tool call without auth
-		toolCall := mcpproxy.CallToolRequest{
-			MCPName:   "test-mcp",
-			ToolName:  "test-tool",
-			Arguments: map[string]any{},
-		}
-
-		callJSON, err := json.Marshal(toolCall)
-		require.NoError(t, err)
-
-		req = httptest.NewRequest(http.MethodPost, "/admin/tools/call", bytes.NewReader(callJSON))
-		req.Header.Set("Content-Type", "application/json")
-		w = httptest.NewRecorder()
-		server.Router.ServeHTTP(w, req)
-		assert.Equal(t, http.StatusUnauthorized, w.Code)
-
-		// Test with invalid token
-		req = httptest.NewRequest(http.MethodPost, "/admin/tools/call", bytes.NewReader(callJSON))
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("Authorization", "Bearer invalid-token")
-		w = httptest.NewRecorder()
-		server.Router.ServeHTTP(w, req)
-		assert.Equal(t, http.StatusUnauthorized, w.Code)
 	})
 }

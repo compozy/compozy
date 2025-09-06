@@ -469,7 +469,6 @@ type MemoryConfig struct {
 //
 //	llm:
 //	  proxy_url: http://localhost:6001
-//	  admin_token: "{{ .env.MCP_ADMIN_TOKEN }}"
 type LLMConfig struct {
 	// ProxyURL specifies the MCP proxy server endpoint.
 	//
@@ -479,15 +478,6 @@ type LLMConfig struct {
 	//   - Protocol translation
 	// Default: "http://localhost:6001"
 	ProxyURL string `koanf:"proxy_url" env:"MCP_PROXY_URL" json:"proxy_url" yaml:"proxy_url" mapstructure:"proxy_url"`
-
-	// AdminToken authenticates administrative operations.
-	//
-	// Required for:
-	//   - MCP server registration
-	//   - Proxy configuration changes
-	//   - Debug endpoints
-	// **Security**: Use environment variables
-	AdminToken SensitiveString `koanf:"admin_token" env:"MCP_ADMIN_TOKEN" sensitive:"true" json:"admin_token" yaml:"admin_token" mapstructure:"admin_token"`
 
 	// RetryAttempts configures the number of retry attempts for LLM operations.
 	//
@@ -530,6 +520,12 @@ type LLMConfig struct {
 	// in project files. Set to 0 to use the orchestrator's built-in default.
 	// Default: 10 (registry default)
 	MaxToolIterations int `koanf:"max_tool_iterations" env:"LLM_MAX_TOOL_ITERATIONS" json:"max_tool_iterations" yaml:"max_tool_iterations" mapstructure:"max_tool_iterations" validate:"min=0"`
+
+	// MaxSequentialToolErrors caps how many sequential tool execution/content errors
+	// are tolerated for the same tool before aborting the task. Set to 0 to use
+	// the orchestrator's built-in default.
+	// Default: 3 (registry default)
+	MaxSequentialToolErrors int `koanf:"max_sequential_tool_errors" env:"LLM_MAX_SEQUENTIAL_TOOL_ERRORS" json:"max_sequential_tool_errors" yaml:"max_sequential_tool_errors" mapstructure:"max_sequential_tool_errors" validate:"min=0"`
 }
 
 // RateLimitConfig contains rate limiting configuration.
@@ -890,11 +886,6 @@ type MCPProxyConfig struct {
 	// **Default**: `30s`
 	ShutdownTimeout time.Duration `koanf:"shutdown_timeout" json:"shutdown_timeout" yaml:"shutdown_timeout" mapstructure:"shutdown_timeout" env:"MCP_PROXY_SHUTDOWN_TIMEOUT"`
 
-	// AdminTokens contains admin tokens for proxy management.
-	//
-	// **Security**: Use environment variables for tokens.
-	AdminTokens []string `koanf:"admin_tokens" json:"admin_tokens" yaml:"admin_tokens" mapstructure:"admin_tokens" env:"MCP_PROXY_ADMIN_TOKENS"`
-
 	// AdminAllowIPs contains IP addresses allowed to access admin endpoints.
 	//
 	// **Default**: `[]` (empty - allows all IPs)
@@ -904,11 +895,6 @@ type MCPProxyConfig struct {
 	//
 	// **Default**: `["127.0.0.1", "::1"]`
 	TrustedProxies []string `koanf:"trusted_proxies" json:"trusted_proxies" yaml:"trusted_proxies" mapstructure:"trusted_proxies" env:"MCP_PROXY_TRUSTED_PROXIES"`
-
-	// GlobalAuthTokens contains global authentication tokens.
-	//
-	// **Security**: Use environment variables for tokens.
-	GlobalAuthTokens []string `koanf:"global_auth_tokens" json:"global_auth_tokens" yaml:"global_auth_tokens" mapstructure:"global_auth_tokens" env:"MCP_PROXY_GLOBAL_AUTH_TOKENS"`
 }
 
 // CLIConfig contains CLI-specific configuration.
@@ -1236,7 +1222,6 @@ func buildMemoryConfig(registry *definition.Registry) MemoryConfig {
 func buildLLMConfig(registry *definition.Registry) LLMConfig {
 	return LLMConfig{
 		ProxyURL:           getString(registry, "llm.proxy_url"),
-		AdminToken:         SensitiveString(getString(registry, "llm.admin_token")),
 		RetryAttempts:      getInt(registry, "llm.retry_attempts"),
 		RetryBackoffBase:   getDuration(registry, "llm.retry_backoff_base"),
 		RetryBackoffMax:    getDuration(registry, "llm.retry_backoff_max"),
@@ -1330,13 +1315,11 @@ func buildWorkerConfig(registry *definition.Registry) WorkerConfig {
 
 func buildMCPProxyConfig(registry *definition.Registry) MCPProxyConfig {
 	return MCPProxyConfig{
-		Host:             getString(registry, "mcp_proxy.host"),
-		Port:             getInt(registry, "mcp_proxy.port"),
-		BaseURL:          getString(registry, "mcp_proxy.base_url"),
-		ShutdownTimeout:  getDuration(registry, "mcp_proxy.shutdown_timeout"),
-		AdminTokens:      getStringSlice(registry, "mcp_proxy.admin_tokens"),
-		AdminAllowIPs:    getStringSlice(registry, "mcp_proxy.admin_allow_ips"),
-		TrustedProxies:   getStringSlice(registry, "mcp_proxy.trusted_proxies"),
-		GlobalAuthTokens: getStringSlice(registry, "mcp_proxy.global_auth_tokens"),
+		Host:            getString(registry, "mcp_proxy.host"),
+		Port:            getInt(registry, "mcp_proxy.port"),
+		BaseURL:         getString(registry, "mcp_proxy.base_url"),
+		ShutdownTimeout: getDuration(registry, "mcp_proxy.shutdown_timeout"),
+		AdminAllowIPs:   getStringSlice(registry, "mcp_proxy.admin_allow_ips"),
+		TrustedProxies:  getStringSlice(registry, "mcp_proxy.trusted_proxies"),
 	}
 }

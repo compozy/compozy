@@ -283,7 +283,6 @@ service, err := llm.NewService(ctx, runtime, agentConfig,
 ```go
 type Config struct {
     ProxyURL         string                 // MCP proxy URL for remote tools
-    AdminToken       string                 // Admin token for MCP proxy
     MaxConcurrentTools int                  // Maximum concurrent tool executions
     ToolCaching      bool                   // Enable tool result caching
     CacheTTL         time.Duration          // Cache time-to-live
@@ -306,7 +305,7 @@ llm.WithStructuredOutput(true)
 llm.WithMemoryProvider(memoryProvider)
 llm.WithLLMFactory(customFactory)
 llm.WithProxyURL("http://mcp-proxy:3000")
-llm.WithAdminToken("admin-token")
+// Admin token option has been removed
 ```
 
 ---
@@ -605,7 +604,6 @@ func NewOrchestrator(config *OrchestratorConfig) Orchestrator
 ```go
 type Config struct {
     ProxyURL           string
-    AdminToken         string
     MaxConcurrentTools int
     ToolCaching        bool
     CacheTTL           time.Duration
@@ -669,7 +667,7 @@ func WithStructuredOutput(enabled bool) Option
 func WithMemoryProvider(provider MemoryProvider) Option
 func WithLLMFactory(factory llmadapter.Factory) Option
 func WithProxyURL(url string) Option
-func WithAdminToken(token string) Option
+// WithAdminToken option has been removed
 ```
 
 ### Error Types

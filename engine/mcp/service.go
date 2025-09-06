@@ -7,7 +7,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/pkg/logger"
+	"github.com/compozy/compozy/pkg/tplengine"
 	"github.com/google/shlex"
 	"golang.org/x/sync/errgroup"
 )
@@ -15,6 +17,7 @@ import (
 // WorkflowConfig represents the minimal interface needed from workflow configs
 type WorkflowConfig interface {
 	GetMCPs() []Config
+	GetEnv() core.EnvMap
 }
 
 // RegisterService manages MCP registration lifecycle with the proxy
@@ -30,17 +33,22 @@ func NewRegisterService(proxyClient *Client) *RegisterService {
 }
 
 // NewWithTimeout creates a service with a configured proxy client using default timeout
-func NewWithTimeout(proxyURL, adminToken string, timeout time.Duration) *RegisterService {
-	proxyClient := NewProxyClient(proxyURL, adminToken, timeout)
+func NewWithTimeout(proxyURL string, timeout time.Duration) *RegisterService {
+	proxyClient := NewProxyClient(proxyURL, timeout)
 	return NewRegisterService(proxyClient)
 }
 
 // Ensure registers an MCP with the proxy if not already registered (idempotent)
 func (s *RegisterService) Ensure(ctx context.Context, config *Config) error {
+	log := logger.FromContext(ctx)
 	// Convert MCP config to proxy definition
 	def, err := s.convertToDefinition(config)
 	if err != nil {
 		return fmt.Errorf("failed to convert MCP config to definition: %w", err)
+	}
+	// Log registration with redacted headers for security
+	if len(def.Headers) > 0 {
+		log.Debug("Registering MCP with headers", "mcp_id", config.ID, "headers", redactHeaders(def.Headers))
 	}
 
 	// Register with proxy
@@ -107,14 +115,14 @@ func (s *RegisterService) Shutdown(ctx context.Context) error {
 	// Use errgroup for concurrent deregistration
 	g, gCtx := errgroup.WithContext(ctx)
 	for _, mcpID := range mcpIDs {
-		// capture loop variable
+		id := mcpID
 		g.Go(func() error {
-			if err := s.proxy.Deregister(gCtx, mcpID); err != nil {
+			if err := s.proxy.Deregister(gCtx, id); err != nil {
 				log.Error("Failed to deregister MCP during shutdown",
-					"mcp_id", mcpID, "error", err)
-				return fmt.Errorf("failed to deregister %s: %w", mcpID, err)
+					"mcp_id", id, "error", err)
+				return fmt.Errorf("failed to deregister %s: %w", id, err)
 			}
-			log.Debug("Deregistered MCP during shutdown", "mcp_id", mcpID)
+			log.Debug("Deregistered MCP during shutdown", "mcp_id", id)
 			return nil
 		})
 	}
@@ -151,6 +159,8 @@ func (s *RegisterService) convertToDefinition(config *Config) (Definition, error
 		Name:      config.ID,
 		Transport: config.Transport,
 		Env:       config.Env,
+		Headers:   normalizeHeaders(config.Headers),
+		Timeout:   config.StartTimeout,
 	}
 
 	// Handle different MCP types based on available fields
@@ -186,6 +196,101 @@ func (s *RegisterService) convertToDefinition(config *Config) (Definition, error
 	}
 
 	return def, nil
+}
+
+// normalizeHeaders returns a defensive copy of headers with case normalization.
+// It ensures the Authorization header uses proper casing but does NOT infer schemes.
+// Users must provide complete Authorization headers with the correct scheme.
+func normalizeHeaders(h map[string]string) map[string]string {
+	if len(h) == 0 {
+		return map[string]string{}
+	}
+	out := make(map[string]string, len(h))
+	var authValue string
+	var haveAuth bool
+	for k, v := range h {
+		if strings.EqualFold(k, "authorization") {
+			authValue = v
+			haveAuth = true
+			continue
+		}
+		out[k] = v
+	}
+	if haveAuth {
+		out["Authorization"] = authValue
+	}
+	return out
+}
+
+// redactToken redacts sensitive parts of tokens for safe logging.
+// Keeps first 6 and last 4 characters visible for debugging.
+func redactToken(token string) string {
+	if len(token) <= 10 {
+		return "***REDACTED***"
+	}
+	return token[:6] + "..." + token[len(token)-4:]
+}
+
+// redactHeaders creates a copy of headers with redacted Authorization values for logging.
+func redactHeaders(headers map[string]string) map[string]string {
+	if len(headers) == 0 {
+		return headers
+	}
+	redacted := make(map[string]string, len(headers))
+	for k, v := range headers {
+		if strings.EqualFold(k, "authorization") {
+			// Redact the token part while keeping the scheme visible
+			parts := strings.SplitN(v, " ", 2)
+			if len(parts) == 2 {
+				redacted[k] = parts[0] + " " + redactToken(parts[1])
+			} else {
+				redacted[k] = redactToken(v)
+			}
+		} else {
+			redacted[k] = v
+		}
+	}
+	return redacted
+}
+
+// resolveHeadersWithEnv evaluates header templates using the provided env (hierarchical env already merged by loader)
+// It validates templates to prevent injection attacks.
+func resolveHeadersWithEnv(headers map[string]string, env core.EnvMap) map[string]string {
+	if len(headers) == 0 {
+		return headers
+	}
+	out := make(map[string]string, len(headers))
+	engine := tplengine.NewEngine(tplengine.FormatText)
+	// Use a restricted context with only environment variables
+	// The template engine already provides XSS protection via htmlEscape functions
+	ctx := map[string]any{"env": env.AsMap()}
+	for k, v := range headers {
+		if tplengine.HasTemplate(v) {
+			// Validate template doesn't contain dangerous patterns
+			if err := validateTemplate(v); err != nil {
+				// Skip suspicious templates and use original value
+				out[k] = v
+				continue
+			}
+			if s, err := engine.ProcessString(v, ctx); err == nil {
+				out[k] = s
+			} else {
+				// Use original value if template processing fails
+				out[k] = v
+			}
+		} else {
+			out[k] = v
+		}
+	}
+	return normalizeHeaders(out)
+}
+
+// validateTemplate checks for potentially dangerous template patterns
+func validateTemplate(tmpl string) error {
+	if strings.Count(tmpl, "{{") > 5 {
+		return fmt.Errorf("template too complex: too many expressions")
+	}
+	return nil
 }
 
 // parseCommand safely parses a command string into command and arguments
@@ -238,7 +343,7 @@ func (s *RegisterService) EnsureMultiple(ctx context.Context, configs []Config) 
 	const maxConcurrent = 5
 	work := make(chan Config, len(configs))
 	// Start fixed number of workers
-	for range maxConcurrent {
+	for i := 0; i < maxConcurrent; i++ {
 		go func() {
 			for cfg := range work {
 				err := s.Ensure(ctx, &cfg)
@@ -247,8 +352,8 @@ func (s *RegisterService) EnsureMultiple(ctx context.Context, configs []Config) 
 		}()
 	}
 	// Send work to workers
-	for _, config := range configs {
-		work <- config
+	for i := range configs {
+		work <- configs[i]
 	}
 	close(work)
 	// Collect results
@@ -288,32 +393,46 @@ func SetupForWorkflows(ctx context.Context, workflows []WorkflowConfig) (*Regist
 	log := logger.FromContext(ctx)
 	proxyURL := os.Getenv("MCP_PROXY_URL")
 	if proxyURL == "" {
-		return nil, nil // No proxy configured
+		return nil, nil
 	}
-
-	adminToken := os.Getenv("MCP_PROXY_ADMIN_TOKEN")
 	timeout := 30 * time.Second
-	service := NewWithTimeout(proxyURL, adminToken, timeout)
+	service := NewWithTimeout(proxyURL, timeout)
 	log.Info("Initialized MCP register with proxy", "proxy_url", proxyURL)
 
-	// Collect all MCPs from all workflows
+	// Collect unique MCPs declared by all workflows
 	allMCPs := CollectWorkflowMCPs(workflows)
-	if len(allMCPs) > 0 {
-		log.Info("Starting async MCP registration", "mcp_count", len(allMCPs))
-		// Register MCPs asynchronously to avoid blocking server startup
-		go func() {
-			// Use a fresh context with timeout for registration
-			regCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			defer cancel()
-			regLog := logger.FromContext(regCtx)
-			if err := service.EnsureMultiple(regCtx, allMCPs); err != nil {
-				regLog.Error("Failed to register some MCPs with proxy", "error", err)
-			} else {
-				regLog.Info("Successfully registered all MCPs", "count", len(allMCPs))
-			}
-		}()
+	if len(allMCPs) == 0 {
+		return service, nil
 	}
 
+	log.Info("Registering MCPs and waiting for connections", "mcp_count", len(allMCPs))
+
+	// Fresh instance per server lifecycle: deregister first to avoid reusing existing clients
+	// Log errors but proceed to re-register.
+	for i := range allMCPs {
+		if err := service.proxy.Deregister(ctx, allMCPs[i].ID); err != nil {
+			log.Debug("Failed to deregister MCP (may not exist)", "mcp", allMCPs[i].ID, "error", err)
+		}
+	}
+
+	// Register all
+	if err := service.EnsureMultiple(ctx, allMCPs); err != nil {
+		return service, err
+	}
+
+	// Wait until all registered MCPs report connected
+	clientNames := make([]string, 0, len(allMCPs))
+	for i := range allMCPs {
+		clientNames = append(clientNames, allMCPs[i].ID)
+	}
+	// Bound the total wait; surface detailed errors on timeout
+	waitCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+	if err := service.proxy.WaitForConnections(waitCtx, clientNames, 200*time.Millisecond); err != nil {
+		return service, fmt.Errorf("MCP connection readiness failed: %w", err)
+	}
+
+	log.Info("All MCP clients connected", "count", len(clientNames))
 	return service, nil
 }
 
@@ -323,12 +442,17 @@ func CollectWorkflowMCPs(workflows []WorkflowConfig) []Config {
 	var allMCPs []Config
 
 	for _, workflow := range workflows {
-		for _, mcpConfig := range workflow.GetMCPs() {
-			mcpConfig.SetDefaults() // Ensure defaults are applied
+		mcps := workflow.GetMCPs()
+		for i := range mcps {
+			mcps[i].SetDefaults() // Ensure defaults are applied
+			// Resolve headers using hierarchical env from workflow
+			if len(mcps[i].Headers) > 0 {
+				mcps[i].Headers = resolveHeadersWithEnv(mcps[i].Headers, workflow.GetEnv())
+			}
 			// Use ID to deduplicate MCPs across workflows
-			if !seen[mcpConfig.ID] {
-				seen[mcpConfig.ID] = true
-				allMCPs = append(allMCPs, mcpConfig)
+			if !seen[mcps[i].ID] {
+				seen[mcps[i].ID] = true
+				allMCPs = append(allMCPs, mcps[i])
 			}
 		}
 	}

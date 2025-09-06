@@ -146,7 +146,7 @@ MCP_PROXY_HOST                  # Host to bind the server to
 MCP_PROXY_PORT                  # Port to run the MCP proxy server on
 MCP_PROXY_BASE_URL              # Base URL for the MCP proxy server
 MCP_PROXY_SHUTDOWN_TIMEOUT      # Graceful shutdown timeout
-MCP_PROXY_ADMIN_TOKENS          # Admin API authentication tokens (comma-separated)
+MCP_PROXY_ADMIN_TOKENS          # (Deprecated) No longer used; protect /admin via network controls
 MCP_PROXY_ADMIN_ALLOW_IPS       # Admin API allowed IP addresses (comma-separated)
 MCP_PROXY_TRUSTED_PROXIES       # Trusted proxy IP addresses (comma-separated)
 MCP_PROXY_GLOBAL_AUTH_TOKENS    # Global authentication tokens (comma-separated)
@@ -199,7 +199,7 @@ compozy mcp-proxy
 
 ```bash
 export MCP_PROXY_GLOBAL_AUTH_TOKENS="token1,token2"
-export MCP_PROXY_ADMIN_TOKENS="admin-secret"
+# Deprecated: MCP_PROXY_ADMIN_TOKENS is no longer used by the proxy.
 
 compozy mcp-proxy --mcp-host localhost --mcp-port 9000 --debug
 ```

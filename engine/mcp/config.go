@@ -219,6 +219,12 @@ type Config struct {
 	// **Security Note**: Commands are parsed using shell lexing for safety.
 	// Avoid user-provided input in commands.
 	Command string `yaml:"command,omitempty"       json:"command,omitempty"`
+	// Headers contains HTTP headers to include when connecting to remote MCP servers (SSE/HTTP).
+	// Useful for passing Authorization tokens, custom auth headers, or version negotiation.
+	// Example:
+	// headers:
+	//   Authorization: "Bearer {{ .env.GITHUB_MCP_OAUTH_TOKEN }}"
+	Headers map[string]string `yaml:"headers,omitempty"       json:"headers,omitempty"`
 	// Env contains **environment variables** to pass to the MCP server process.
 	//
 	// Only used when `command` is specified for spawning local processes.
@@ -427,11 +433,15 @@ func (c *Config) validateID() error {
 }
 
 func (c *Config) validateURL() error {
-	if c.URL == "" {
-		return errors.New("mcp url is required when not using proxy")
+	// Only HTTP-based transports require URL
+	if c.Transport == mcpproxy.TransportSSE || c.Transport == mcpproxy.TransportStreamableHTTP {
+		if c.URL == "" {
+			return errors.New("mcp url is required for HTTP transports (sse, streamable-http)")
+		}
+		return validateURLFormat(c.URL, "mcp url")
 	}
-
-	return validateURLFormat(c.URL, "mcp url")
+	// stdio does not require URL
+	return nil
 }
 
 func (c *Config) validateProxy() error {

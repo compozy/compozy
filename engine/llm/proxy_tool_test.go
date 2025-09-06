@@ -30,7 +30,7 @@ func TestNewProxyTool(t *testing.T) {
 			MCPName: "test-mcp",
 		}
 
-		proxyClient := mcp.NewProxyClient("http://localhost:7077", "", 0)
+		proxyClient := mcp.NewProxyClient("http://localhost:7077", 0)
 		defer proxyClient.Close()
 
 		tool := NewProxyTool(toolDef, proxyClient)
@@ -72,7 +72,7 @@ func TestProxyTool_Call(t *testing.T) {
 			MCPName:     "search-mcp",
 		}
 
-		proxyClient := mcp.NewProxyClient(server.URL, "", 5*time.Second)
+		proxyClient := mcp.NewProxyClient(server.URL, 5*time.Second)
 		defer proxyClient.Close()
 
 		tool := NewProxyTool(toolDef, proxyClient)
@@ -98,7 +98,7 @@ func TestProxyTool_Call(t *testing.T) {
 			MCPName: "test-mcp",
 		}
 
-		proxyClient := mcp.NewProxyClient("http://localhost:7077", "", 0)
+		proxyClient := mcp.NewProxyClient("http://localhost:7077", 0)
 		defer proxyClient.Close()
 
 		tool := NewProxyTool(toolDef, proxyClient)
@@ -135,7 +135,7 @@ func TestProxyTool_Call(t *testing.T) {
 			},
 		}
 
-		proxyClient := mcp.NewProxyClient(server.URL, "", 5*time.Second)
+		proxyClient := mcp.NewProxyClient(server.URL, 5*time.Second)
 		defer proxyClient.Close()
 
 		tool := NewProxyTool(toolDef, proxyClient)
@@ -161,7 +161,7 @@ func TestProxyTool_Call(t *testing.T) {
 			},
 		}
 
-		proxyClient := mcp.NewProxyClient("http://localhost:7077", "", 0)
+		proxyClient := mcp.NewProxyClient("http://localhost:7077", 0)
 		defer proxyClient.Close()
 
 		tool := NewProxyTool(toolDef, proxyClient)
@@ -188,7 +188,7 @@ func TestProxyTool_Call(t *testing.T) {
 			},
 		}
 
-		proxyClient := mcp.NewProxyClient("http://localhost:7077", "", 0)
+		proxyClient := mcp.NewProxyClient("http://localhost:7077", 0)
 		defer proxyClient.Close()
 
 		tool := NewProxyTool(toolDef, proxyClient)
@@ -216,7 +216,7 @@ func TestProxyTool_Call(t *testing.T) {
 			InputSchema: nil, // No schema defined
 		}
 
-		proxyClient := mcp.NewProxyClient(server.URL, "", 5*time.Second)
+		proxyClient := mcp.NewProxyClient(server.URL, 5*time.Second)
 		defer proxyClient.Close()
 
 		tool := NewProxyTool(toolDef, proxyClient)
@@ -243,7 +243,7 @@ func TestProxyTool_Call(t *testing.T) {
 			InputSchema: map[string]any{}, // Empty schema
 		}
 
-		proxyClient := mcp.NewProxyClient(server.URL, "", 5*time.Second)
+		proxyClient := mcp.NewProxyClient(server.URL, 5*time.Second)
 		defer proxyClient.Close()
 
 		tool := NewProxyTool(toolDef, proxyClient)
@@ -273,7 +273,7 @@ func TestProxyTool_ArgsType(t *testing.T) {
 			MCPName:     "test-mcp",
 		}
 
-		proxyClient := mcp.NewProxyClient("http://localhost:7077", "", 0)
+		proxyClient := mcp.NewProxyClient("http://localhost:7077", 0)
 		defer proxyClient.Close()
 
 		tool := NewProxyTool(toolDef, proxyClient)
@@ -287,3 +287,5 @@ func TestProxyTool_ArgsType(t *testing.T) {
 		}
 	})
 }
+
+// Removed: TestProxyTool_TransformParameters

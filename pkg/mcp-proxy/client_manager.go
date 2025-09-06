@@ -341,8 +341,13 @@ func (m *MCPClientManager) connectClient(ctx context.Context, client *MCPClient)
 		status.UpdateStatus(StatusConnecting, "")
 		m.saveStatus(ctx, status)
 
-		// Attempt connection with timeout, but use manager context for lifecycle
-		connectCtx, cancel := context.WithTimeout(m.ctx, m.config.DefaultConnectTimeout)
+		// Attempt connection with timeout; prefer per-definition Timeout when provided
+		timeout := m.config.DefaultConnectTimeout
+		if def.Timeout > 0 {
+			timeout = def.Timeout
+		}
+		// Use manager context for lifecycle cancellation
+		connectCtx, cancel := context.WithTimeout(m.ctx, timeout)
 		err := client.Connect(connectCtx)
 		cancel()
 

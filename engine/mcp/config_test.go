@@ -63,37 +63,37 @@ func TestConfig_Validate(t *testing.T) {
 		}
 
 		err := config.Validate()
-		assert.EqualError(t, err, "mcp url is required when not using proxy")
+		assert.EqualError(t, err, "mcp url is required for HTTP transports (sse, streamable-http)")
 	})
 }
 
 func TestConfig_validateURL(t *testing.T) {
 	t.Run("Should validate valid HTTP URL", func(t *testing.T) {
-		config := &Config{URL: "http://localhost:3000"}
+		config := &Config{URL: "http://localhost:3000", Transport: mcpproxy.TransportSSE}
 		err := config.validateURL()
 		assert.NoError(t, err)
 	})
 
 	t.Run("Should validate valid HTTPS URL", func(t *testing.T) {
-		config := &Config{URL: "https://api.example.com/mcp"}
+		config := &Config{URL: "https://api.example.com/mcp", Transport: mcpproxy.TransportStreamableHTTP}
 		err := config.validateURL()
 		assert.NoError(t, err)
 	})
 
 	t.Run("Should fail with invalid scheme", func(t *testing.T) {
-		config := &Config{URL: "ftp://localhost:3000"}
+		config := &Config{URL: "ftp://localhost:3000", Transport: mcpproxy.TransportSSE}
 		err := config.validateURL()
 		assert.EqualError(t, err, "mcp url must use http or https scheme, got: ftp")
 	})
 
 	t.Run("Should fail with missing host", func(t *testing.T) {
-		config := &Config{URL: "http://"}
+		config := &Config{URL: "http://", Transport: mcpproxy.TransportSSE}
 		err := config.validateURL()
 		assert.EqualError(t, err, "mcp url must include a host")
 	})
 
 	t.Run("Should fail with malformed URL", func(t *testing.T) {
-		config := &Config{URL: "not-a-url"}
+		config := &Config{URL: "not-a-url", Transport: mcpproxy.TransportSSE}
 		err := config.validateURL()
 		// The URL "not-a-url" is parsed as a relative URL with no scheme,
 		// so it fails the scheme validation instead of format validation

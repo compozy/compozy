@@ -16,8 +16,7 @@ import (
 // Config represents the configuration for the LLM service
 type Config struct {
 	// MCP proxy configuration
-	ProxyURL   string
-	AdminToken string
+	ProxyURL string
 	// Caching configuration
 	CacheTTL time.Duration
 	// Timeout configuration
@@ -27,6 +26,10 @@ type Config struct {
 	// MaxToolIterations caps the maximum number of tool-iteration loops per request.
 	// If zero or negative, provider-specific or default limits apply.
 	MaxToolIterations int
+	// MaxSequentialToolErrors caps how many sequential failures are tolerated
+	// for the same tool (or content-level error) before aborting the task.
+	// When <= 0, a default of 3 is used.
+	MaxSequentialToolErrors int
 	// Retry configuration
 	RetryAttempts    int
 	RetryBackoffBase time.Duration
@@ -41,27 +44,33 @@ type Config struct {
 	MemoryProvider MemoryProvider
 	// ResolvedTools contains pre-resolved tools from hierarchical inheritance
 	ResolvedTools []tool.Config
+	// AllowedMCPNames restricts MCP tool advertisement/lookup to these MCP IDs.
+	// When empty, all discovered MCP tools are eligible.
+	AllowedMCPNames []string
+	// FailOnMCPRegistrationError enforces fail-fast behavior when registering
+	// agent-declared MCPs. When true, NewService returns error on registration failure.
+	FailOnMCPRegistrationError bool
+	// RegisterMCPs contains additional MCP configurations to register with the
+	// proxy for this service instance (e.g., workflow-level MCPs). These are
+	// merged with agent-declared MCPs for registration.
+	RegisterMCPs []mcp.Config
 }
-
-// DefaultConfig returns a default configuration
-// defaultTimeout is the default timeout for LLM operations (5 minutes)
-// This aligns with MCP proxy SLAs and provider timeouts for long-running operations
-const defaultTimeout = 300 * time.Second
 
 func DefaultConfig() *Config {
 	return &Config{
-		ProxyURL:               "http://localhost:6001",
-		AdminToken:             "",
-		CacheTTL:               5 * time.Minute,
-		Timeout:                defaultTimeout,
-		MaxConcurrentTools:     10,
-		MaxToolIterations:      10,
-		RetryAttempts:          3,
-		RetryBackoffBase:       100 * time.Millisecond,
-		RetryBackoffMax:        10 * time.Second,
-		RetryJitter:            true,
-		EnableStructuredOutput: true,
-		EnableToolCaching:      true,
+		ProxyURL:                   "http://localhost:6001",
+		CacheTTL:                   5 * time.Minute,
+		Timeout:                    300 * time.Second,
+		MaxConcurrentTools:         10,
+		MaxToolIterations:          10,
+		MaxSequentialToolErrors:    8,
+		RetryAttempts:              3,
+		RetryBackoffBase:           100 * time.Millisecond,
+		RetryBackoffMax:            10 * time.Second,
+		RetryJitter:                true,
+		EnableStructuredOutput:     true,
+		EnableToolCaching:          true,
+		FailOnMCPRegistrationError: false,
 	}
 }
 
@@ -72,13 +81,6 @@ type Option func(*Config)
 func WithProxyURL(url string) Option {
 	return func(c *Config) {
 		c.ProxyURL = url
-	}
-}
-
-// WithAdminToken sets the admin token for the MCP proxy
-func WithAdminToken(token string) Option {
-	return func(c *Config) {
-		c.AdminToken = token
 	}
 }
 
@@ -114,6 +116,51 @@ func WithStructuredOutput(enabled bool) Option {
 func WithToolCaching(enabled bool) Option {
 	return func(c *Config) {
 		c.EnableToolCaching = enabled
+	}
+}
+
+// WithAllowedMCPNames sets an allowlist of MCP IDs to restrict which MCP tools
+// are advertised and callable for this service instance.
+func WithAllowedMCPNames(mcpIDs []string) Option {
+	return func(c *Config) {
+		// Shallow copy is sufficient; values are strings
+		c.AllowedMCPNames = nil
+		if len(mcpIDs) > 0 {
+			// Deduplicate and normalize
+			seen := make(map[string]struct{})
+			out := make([]string, 0, len(mcpIDs))
+			for _, id := range mcpIDs {
+				nid := strings.ToLower(strings.TrimSpace(id))
+				if nid == "" {
+					continue
+				}
+				if _, ok := seen[nid]; ok {
+					continue
+				}
+				seen[nid] = struct{}{}
+				out = append(out, nid)
+			}
+			c.AllowedMCPNames = out
+		}
+	}
+}
+
+// WithStrictMCPRegistration sets fail-fast behavior for MCP registration errors.
+func WithStrictMCPRegistration(strict bool) Option {
+	return func(c *Config) {
+		c.FailOnMCPRegistrationError = strict
+	}
+}
+
+// WithRegisterMCPs adds MCP configurations to be registered with the proxy
+// in addition to any MCPs declared on the agent configuration (e.g., workflow MCPs).
+func WithRegisterMCPs(mcps []mcp.Config) Option {
+	return func(c *Config) {
+		if len(mcps) == 0 {
+			return
+		}
+		// Shallow copy is fine; the elements are value types with strings/maps
+		c.RegisterMCPs = append([]mcp.Config(nil), mcps...)
 	}
 }
 
@@ -190,9 +237,6 @@ func WithAppConfig(appConfig *config.Config) Option {
 		if appConfig.LLM.ProxyURL != "" {
 			c.ProxyURL = appConfig.LLM.ProxyURL
 		}
-		if appConfig.LLM.AdminToken.Value() != "" {
-			c.AdminToken = appConfig.LLM.AdminToken.Value()
-		}
 		if appConfig.LLM.RetryAttempts > 0 {
 			c.RetryAttempts = appConfig.LLM.RetryAttempts
 		}
@@ -208,6 +252,9 @@ func WithAppConfig(appConfig *config.Config) Option {
 		}
 		if appConfig.LLM.MaxToolIterations > 0 {
 			c.MaxToolIterations = appConfig.LLM.MaxToolIterations
+		}
+		if appConfig.LLM.MaxSequentialToolErrors > 0 {
+			c.MaxSequentialToolErrors = appConfig.LLM.MaxSequentialToolErrors
 		}
 	}
 }
@@ -262,7 +309,7 @@ func (c *Config) CreateMCPClient() (*mcp.Client, error) {
 	if _, err := url.ParseRequestURI(c.ProxyURL); err != nil {
 		return nil, fmt.Errorf("invalid proxy URL: %w", err)
 	}
-	client := mcp.NewProxyClient(c.ProxyURL, c.AdminToken, c.Timeout)
+	client := mcp.NewProxyClient(c.ProxyURL, c.Timeout)
 	if client == nil {
 		return nil, fmt.Errorf("failed to create MCP proxy client")
 	}

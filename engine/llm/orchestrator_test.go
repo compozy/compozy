@@ -697,13 +697,33 @@ func TestIsSuccessText(t *testing.T) {
 		input       string
 		wantSuccess bool
 	}{
+		// JSON cases
 		{name: "json_ok", input: `{"message": "ok"}`, wantSuccess: true},
 		{name: "json_error_string", input: `{"error": "nope"}`, wantSuccess: false},
 		{name: "json_error_null", input: `{"error": null}`, wantSuccess: false},
 		{name: "json_nested_error", input: `{"data": {"error": "nested"}}`, wantSuccess: true},
+		// Plain text success cases
 		{name: "plain_text_ok", input: "all good", wantSuccess: true},
-		{name: "plain_text_with_quoted_error", input: "some text with \"error\" token", wantSuccess: false},
-		{name: "plain_text_with_unquoted_error", input: "some text with error word", wantSuccess: true},
+		{name: "plain_text_success_message", input: "Operation completed successfully", wantSuccess: true},
+		{name: "plain_text_result", input: "Result: 42", wantSuccess: true},
+		// Plain text error cases (updated behavior)
+		{name: "plain_text_with_error_word", input: "some text with error word", wantSuccess: false},
+		{name: "plain_text_error_message", input: "Error: something went wrong", wantSuccess: false},
+		{name: "plain_text_failed", input: "Operation failed", wantSuccess: false},
+		{name: "plain_text_missing_required", input: "missing required parameter: owner", wantSuccess: false},
+		{name: "plain_text_invalid", input: "Invalid input provided", wantSuccess: false},
+		{name: "plain_text_not_found", input: "Resource not found", wantSuccess: false},
+		{name: "plain_text_unauthorized", input: "Unauthorized access", wantSuccess: false},
+		{name: "plain_text_forbidden", input: "Forbidden: insufficient permissions", wantSuccess: false},
+		{name: "plain_text_bad_request", input: "Bad request: malformed input", wantSuccess: false},
+		{name: "plain_text_exception", input: "Exception occurred during processing", wantSuccess: false},
+		{name: "plain_text_cannot", input: "Cannot perform this operation", wantSuccess: false},
+		{name: "plain_text_unable", input: "Unable to complete request", wantSuccess: false},
+		// Edge cases
+		{name: "plain_text_error_case_insensitive", input: "ERROR: SOMETHING WENT WRONG", wantSuccess: false},
+		{name: "plain_text_mixed_case_failure", input: "Operation FAILED with code 500", wantSuccess: false},
+		{name: "empty_string", input: "", wantSuccess: true},
+		{name: "whitespace_only", input: "   \n\t  ", wantSuccess: true},
 	}
 
 	for _, tc := range cases {

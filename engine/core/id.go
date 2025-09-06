@@ -12,6 +12,7 @@ func (c ID) String() string {
 	return string(c)
 }
 
+// IsZero reports whether the ID is the zero value ("")
 func (c ID) IsZero() bool {
 	return c == ""
 }

@@ -136,6 +136,9 @@ func createStdioMCPClient(def *MCPDefinition) (*mcpclient.Client, bool, bool, er
 		return nil, false, false, fmt.Errorf("failed to create stdio client: %w", err)
 	}
 
+	// For stdio transports, the upstream client already starts the process when
+	// constructed via NewStdioMCPClient. Calling Start twice can cause races on
+	// shared stdio readers. Avoid manual Start in Connect for stdio.
 	return client, false, false, nil
 }
 
@@ -143,7 +146,11 @@ func createStdioMCPClient(def *MCPDefinition) (*mcpclient.Client, bool, bool, er
 func createSSEMCPClient(def *MCPDefinition) (*mcpclient.Client, bool, bool, error) {
 	var options []transport.ClientOption
 	if len(def.Headers) > 0 {
-		options = append(options, transport.WithHeaders(def.Headers))
+		hdr := make(map[string]string, len(def.Headers))
+		for k, v := range def.Headers {
+			hdr[k] = v
+		}
+		options = append(options, transport.WithHeaders(hdr))
 	}
 
 	client, err := mcpclient.NewSSEMCPClient(def.URL, options...)
@@ -158,7 +165,11 @@ func createSSEMCPClient(def *MCPDefinition) (*mcpclient.Client, bool, bool, erro
 func createStreamableHTTPMCPClient(def *MCPDefinition) (*mcpclient.Client, bool, bool, error) {
 	var options []transport.StreamableHTTPCOption
 	if len(def.Headers) > 0 {
-		options = append(options, transport.WithHTTPHeaders(def.Headers))
+		hdr := make(map[string]string, len(def.Headers))
+		for k, v := range def.Headers {
+			hdr[k] = v
+		}
+		options = append(options, transport.WithHTTPHeaders(hdr))
 	}
 	if def.Timeout > 0 {
 		options = append(options, transport.WithHTTPTimeout(def.Timeout))
@@ -405,8 +416,37 @@ func (c *MCPClient) CallTool(ctx context.Context, request mcp.CallToolRequest) (
 		c.recordError()
 		return nil, fmt.Errorf("failed to call tool: %w", err)
 	}
-
+	log := logger.FromContext(ctx)
+	log.Info("MCP tool call result",
+		"mcp_name", c.definition.Name,
+		"tool_name", request.Params.Name,
+		"result", summarizeCallToolResult(result),
+	)
 	return result, nil
+}
+
+// summarizeCallToolResult creates a compact, safe-to-log summary of a tool result
+func summarizeCallToolResult(result *mcp.CallToolResult) any {
+	if result == nil {
+		return nil
+	}
+	if len(result.Content) == 0 {
+		return map[string]any{"info": "no content"}
+	}
+	content := result.Content[0]
+	switch typed := content.(type) {
+	case mcp.TextContent:
+		text := typed.Text
+		const limit = 500
+		if len(text) > limit {
+			text = text[:limit] + "…(truncated)"
+		}
+		return map[string]any{"type": "text", "text": text}
+	case mcp.ImageContent:
+		return map[string]any{"type": "image", "mimeType": typed.MIMEType, "bytes": len(typed.Data)}
+	default:
+		return map[string]any{"type": "unknown"}
+	}
 }
 
 // ListPrompts returns available prompts from the MCP server

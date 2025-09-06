@@ -634,7 +634,7 @@ func (o *Worker) checkMCPProxyHealth(ctx context.Context) error {
 	if cfg.LLM.ProxyURL == "" {
 		return nil // No proxy configured
 	}
-	client := mcp.NewProxyClient(cfg.LLM.ProxyURL, string(cfg.LLM.AdminToken), cfg.Worker.MCPProxyHealthCheckTimeout)
+	client := mcp.NewProxyClient(cfg.LLM.ProxyURL, cfg.Worker.MCPProxyHealthCheckTimeout)
 	defer client.Close()
 	return client.Health(ctx)
 }

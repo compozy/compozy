@@ -1,0 +1,114 @@
+id: github_mcp
+version: 0.1.0
+description: Fetch the most recent pull request from a GitHub repository using MCP
+
+schemas:
+  - id: repo_input
+    type: object
+    properties:
+      repository:
+        type: string
+        description: GitHub repository in the format owner/repo
+        examples:
+          - "vercel/next.js"
+          - "compozy/compozy"
+    required:
+      - repository
+
+config:
+  input:
+    $ref: local::schemas.#(id=="repo_input")
+
+mcps:
+  - id: github-mcp
+    transport: streamable-http
+    url: "https://api.githubcopilot.com/mcp"
+    headers:
+      Authorization: "Bearer {{ .env.GITHUB_TOKEN }}"
+
+agents:
+  - id: github_assistant
+    instructions: |
+      You are a GitHub assistant. Your goal is to fetch the latest pull request
+      for a given repository using the GitHub MCP server.
+
+      Tool-Use Protocol (mandatory when tools are available):
+      - Inspect the available tools exposed by the GitHub MCP server.
+      - For THIS task (read-only), you MUST restrict yourself to READ-ONLY tools:
+        - Prefer: list_pull_requests (required fields typically: owner, repo; optional: state, sort, direction, perPage)
+        - Optionally (if needed after listing): get_pull_request (owner, repo, pullNumber)
+        - DO NOT use any mutating tools (e.g., add_comment_to_pending_review, create_*_review, merge_pull_request, update_pull_request, etc.).
+      - Provide arguments according to the tool schema. Use the exact parameter names from the schema (camelCase when shown):
+        - owner: string (required)
+        - repo: string (required)
+        - state: string (optional; prefer "open")
+        - sort: string (optional; prefer "updated")
+        - direction: string (optional; prefer "desc")
+        - perPage: number (optional; 10)
+
+      CRITICAL Parameter Transformation:
+      - You will receive: repository: "owner/repo" (e.g., "vercel/next.js" or "compozy/compozy")
+      - You MUST split this into two separate parameters:
+        1. Extract owner: the part BEFORE the "/" (e.g., "vercel" or "compozy")
+        2. Extract repo: the part AFTER the "/" (e.g., "next.js" or "compozy")
+      - Example transformation:
+        Input: repository: "vercel/next.js"
+        Transform to: {"owner":"vercel","repo":"next.js","state":"open","sort":"updated","direction":"desc","perPage":10}
+      - Example arguments for list_pull_requests:
+        {"owner":"compozy","repo":"compozy","state":"open","sort":"updated","direction":"desc","perPage":10}
+      - NEVER pass the repository as a single field to list_pull_requests
+      - ALWAYS split it into owner and repo fields
+
+      - Parameter mapping:
+        - The tool REQUIRES separate `owner` and `repo` parameters
+        - You MUST derive them from the repository string by splitting on `/`
+        - Do NOT pass repository as a single field - it will fail
+      - Sorting requirements (if supported by the tool schema; use canonical names or closest equivalents):
+        - sort: "updated"
+        - direction: "desc"
+        - state: "open" (prefer open PRs when supported)
+        - perPage: 10 (limit to first page)
+        If the schema uses synonyms (e.g., sort_by/order), map accordingly; however prefer the names listed by the tool.
+      - One-shot tool use: Call list_pull_requests exactly once. After receiving results,
+        select the latest PR locally and produce the final JSON. Do not call tools again
+        after a successful list response. Do not paginate beyond the first page.
+      - If tool invocation is unavailable or no suitable tool exists, return a JSON error.
+
+      Selection logic:
+      - Prefer open PRs; if the tool cannot filter by state, select by most recent update time.
+      - From the result set, choose the latest PR by the most recent updated timestamp field
+        (e.g., "updated_at" or "updatedAt"). Fallbacks: "created_at" then highest PR number.
+
+      Output Contract:
+        - Respond with JSON only, no commentary.
+        - On success, include at minimum: { "number", "title", "state", "html_url" } and include timestamps if available. If the API uses different casing (e.g., htmlUrl), pass through what the API returns and include a stable alias field when possible.
+        - On failure, return: {"error": "message"}.
+    json_mode: true
+    actions:
+      - id: get_last_pull_request
+        json_mode: true
+        prompt: |
+          Repository: {{ .input.repository }}
+
+          Use an available GitHub MCP tool to list pull requests for the repository above.
+          Use ONLY read-only tools; do not use any tool that creates, updates, or comments on pull requests.
+          If the tool requires separate fields, set owner and repo by splitting the repository on '/':
+          owner = part before '/', repo = part after '/'.
+          When calling list_pull_requests, set (if supported): sort="updated", direction="desc", state="open", perPage=10.
+          If parameter names differ, map to the tool's exact names.
+          After the tool response, pick the single most recently updated PR and return JSON only.
+          Do not call any tool more than once; do not paginate. If no suitable tool exists or the call fails,
+          return {"error": "reason"}.
+
+tasks:
+  - id: latest_pr
+    type: basic
+    $use: agent(local::agents.#(id="github_assistant"))
+    action: get_last_pull_request
+    with:
+      repository: "{{ .workflow.input.repository }}"
+    final: true
+
+outputs:
+  repository: "{{ .workflow.input.repository }}"
+  latest_pull_request: "{{ .tasks.latest_pr.output }}"

@@ -74,7 +74,6 @@ func main() {
         Host:               "127.0.0.1",
         BaseURL:            "http://127.0.0.1:6001",
         ShutdownTimeout:    10 * time.Second,
-        AdminTokens:        []string{"your-admin-token"},
         AdminAllowIPs:      []string{"127.0.0.1", "::1"},
         GlobalAuthTokens:   []string{"global-token"},
     }
@@ -132,7 +131,6 @@ defer proxy.Stop()
 ```bash
 # Register a new MCP server
 curl -X POST http://127.0.0.1:6001/admin/mcps \
-  -H 'Authorization: Bearer your-admin-token' \
   -H 'Content-Type: application/json' \
   -d '{
     "name": "chat-llm",
@@ -144,12 +142,10 @@ curl -X POST http://127.0.0.1:6001/admin/mcps \
   }'
 
 # List all registered MCPs
-curl -H 'Authorization: Bearer your-admin-token' \
-  http://127.0.0.1:6001/admin/mcps
+curl http://127.0.0.1:6001/admin/mcps
 
 # Get aggregated tools
-curl -H 'Authorization: Bearer your-admin-token' \
-  http://127.0.0.1:6001/admin/tools
+curl http://127.0.0.1:6001/admin/tools
 
 # Check proxy health
 curl http://127.0.0.1:6001/healthz
@@ -172,7 +168,6 @@ resp, err := http.Post("http://127.0.0.1:6001/api-server/stream",
 ```go
 config := &mcpproxy.Config{
     // Admin API security
-    AdminTokens:   []string{"secure-admin-token"},
     AdminAllowIPs: []string{"10.0.0.0/8", "192.168.1.0/24"},
 
     // Global authentication for all MCP requests
@@ -195,7 +190,6 @@ type Config struct {
     Host               string        // Listen address (default: "127.0.0.1")
     BaseURL            string        // Base URL for generating SSE paths
     ShutdownTimeout    time.Duration // Graceful shutdown timeout
-    AdminTokens        []string      // Admin API bearer tokens
     AdminAllowIPs      []string      // Admin API IP allow-list
     TrustedProxies     []string      // Trusted proxy IPs for X-Forwarded-For
     GlobalAuthTokens   []string      // Global auth tokens for all requests
@@ -280,7 +274,6 @@ func main() {
         Host:            "0.0.0.0",
         BaseURL:         "https://mcp-proxy.example.com",
         ShutdownTimeout: 30 * time.Second,
-        AdminTokens:     []string{os.Getenv("ADMIN_TOKEN")},
         AdminAllowIPs:   []string{"10.0.0.0/8"},
         TrustedProxies:  []string{"10.0.0.1"},
         GlobalAuthTokens: []string{os.Getenv("GLOBAL_AUTH_TOKEN")},
@@ -503,7 +496,6 @@ func TestProxyBasicFunctionality(t *testing.T) {
     config := &mcpproxy.Config{
         Port:        "0", // Random port
         Host:        "127.0.0.1",
-        AdminTokens: []string{"test-token"},
     }
 
     proxy := mcpproxy.NewProxy(config, storage)

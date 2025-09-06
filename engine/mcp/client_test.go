@@ -22,7 +22,7 @@ func TestClient_Health_Success(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := NewProxyClient(server.URL, "", 5*time.Second)
+		client := NewProxyClient(server.URL, 5*time.Second)
 		defer client.Close()
 
 		err := client.Health(context.Background())
@@ -39,7 +39,7 @@ func TestClient_Health_Failure(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := NewProxyClient(server.URL, "", 5*time.Second)
+		client := NewProxyClient(server.URL, 5*time.Second)
 		defer client.Close()
 
 		err := client.Health(context.Background())
@@ -59,7 +59,7 @@ func TestClient_Register_Success(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := NewProxyClient(server.URL, "", 5*time.Second)
+		client := NewProxyClient(server.URL, 5*time.Second)
 		defer client.Close()
 
 		def := Definition{
@@ -82,7 +82,7 @@ func TestClient_Register_AlreadyExists(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := NewProxyClient(server.URL, "", 5*time.Second)
+		client := NewProxyClient(server.URL, 5*time.Second)
 		defer client.Close()
 
 		def := Definition{
@@ -106,7 +106,7 @@ func TestClient_Register_Unauthorized(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := NewProxyClient(server.URL, "invalid-token", 5*time.Second)
+		client := NewProxyClient(server.URL, 5*time.Second)
 		defer client.Close()
 
 		def := Definition{
@@ -131,7 +131,7 @@ func TestClient_Deregister_Success(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := NewProxyClient(server.URL, "", 5*time.Second)
+		client := NewProxyClient(server.URL, 5*time.Second)
 		defer client.Close()
 
 		err := client.Deregister(context.Background(), "test-mcp")
@@ -148,7 +148,7 @@ func TestClient_Deregister_NotFound(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := NewProxyClient(server.URL, "", 5*time.Second)
+		client := NewProxyClient(server.URL, 5*time.Second)
 		defer client.Close()
 
 		// Should treat not found as success (idempotent)
@@ -167,7 +167,7 @@ func TestClient_Deregister_NoContent(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := NewProxyClient(server.URL, "", 5*time.Second)
+		client := NewProxyClient(server.URL, 5*time.Second)
 		defer client.Close()
 
 		err := client.Deregister(context.Background(), "test-mcp")
@@ -199,7 +199,7 @@ func TestClient_ListMCPs_Success(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := NewProxyClient(server.URL, "", 5*time.Second)
+		client := NewProxyClient(server.URL, 5*time.Second)
 		defer client.Close()
 
 		mcps, err := client.ListMCPs(context.Background())
@@ -212,7 +212,7 @@ func TestClient_ListMCPs_Success(t *testing.T) {
 
 func TestClient_WithInvalidURL(t *testing.T) {
 	t.Run("Should return error when using invalid URL", func(t *testing.T) {
-		client := NewProxyClient("invalid-url", "", 5*time.Second)
+		client := NewProxyClient("invalid-url", 5*time.Second)
 		defer client.Close()
 
 		err := client.Health(context.Background())
@@ -235,7 +235,7 @@ func TestClient_RetryLogic(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := NewProxyClient(server.URL, "", 5*time.Second)
+		client := NewProxyClient(server.URL, 5*time.Second)
 		defer client.Close()
 
 		err := client.Health(context.Background())
@@ -279,7 +279,7 @@ func TestClient_ListTools_Success(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := NewProxyClient(server.URL, "", 5*time.Second)
+		client := NewProxyClient(server.URL, 5*time.Second)
 		defer client.Close()
 
 		tools, err := client.ListTools(context.Background())
@@ -306,7 +306,7 @@ func TestClient_ListTools_Failure(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := NewProxyClient(server.URL, "", 5*time.Second)
+		client := NewProxyClient(server.URL, 5*time.Second)
 		defer client.Close()
 
 		_, err := client.ListTools(context.Background())
@@ -345,9 +345,8 @@ func TestNewProxyClient(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client := NewProxyClient(tt.baseURL, "token", 5*time.Second)
+			client := NewProxyClient(tt.baseURL, 5*time.Second)
 			assert.Equal(t, tt.expected, client.baseURL)
-			assert.Equal(t, "token", client.adminTok)
 			client.Close()
 		})
 	}
@@ -359,7 +358,6 @@ func TestClient_CallTool(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "/admin/tools/call", r.URL.Path)
 			assert.Equal(t, "POST", r.Method)
-			assert.Equal(t, "Bearer test-token", r.Header.Get("Authorization"))
 
 			// Verify request body
 			var req ToolCallRequest
@@ -381,7 +379,7 @@ func TestClient_CallTool(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := NewProxyClient(server.URL, "test-token", 5*time.Second)
+		client := NewProxyClient(server.URL, 5*time.Second)
 		defer client.Close()
 
 		result, err := client.CallTool(context.Background(), "test-mcp", "test-tool", map[string]any{
@@ -408,7 +406,7 @@ func TestClient_CallTool(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := NewProxyClient(server.URL, "", 5*time.Second)
+		client := NewProxyClient(server.URL, 5*time.Second)
 		defer client.Close()
 
 		_, err := client.CallTool(context.Background(), "test-mcp", "unknown-tool", nil)
@@ -425,7 +423,7 @@ func TestClient_CallTool(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := NewProxyClient(server.URL, "", 5*time.Second)
+		client := NewProxyClient(server.URL, 5*time.Second)
 		defer client.Close()
 
 		_, err := client.CallTool(context.Background(), "unknown-mcp", "test-tool", nil)
