@@ -244,6 +244,22 @@ func TestClient_RetryLogic(t *testing.T) {
 	})
 }
 
+func TestClient_Timeout(t *testing.T) {
+	t.Run("Should timeout when server hangs beyond client timeout", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			time.Sleep(200 * time.Millisecond)
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer server.Close()
+
+		client := NewProxyClient(server.URL, 50*time.Millisecond)
+		defer client.Close()
+
+		err := client.Health(context.Background())
+		require.Error(t, err)
+	})
+}
+
 func TestClient_ListTools_Success(t *testing.T) {
 	t.Run("Should successfully list tools when server responds with valid data", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -313,6 +329,20 @@ func TestClient_ListTools_Failure(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "tools request failed")
 	})
+
+	t.Run("Should error on invalid JSON response", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("not-json"))
+		}))
+		defer server.Close()
+
+		client := NewProxyClient(server.URL, 5*time.Second)
+		defer client.Close()
+
+		_, err := client.ListTools(context.Background())
+		require.Error(t, err)
+	})
 }
 
 func TestNewProxyClient(t *testing.T) {
@@ -358,6 +388,7 @@ func TestClient_CallTool(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "/admin/tools/call", r.URL.Path)
 			assert.Equal(t, "POST", r.Method)
+			assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
 
 			// Verify request body
 			var req ToolCallRequest
@@ -429,6 +460,20 @@ func TestClient_CallTool(t *testing.T) {
 		_, err := client.CallTool(context.Background(), "unknown-mcp", "test-tool", nil)
 
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "tool call failed (status 404)")
+		assert.Contains(t, err.Error(), "proxy request failed (status 404)")
+	})
+
+	t.Run("Should error on invalid JSON response", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("not-json"))
+		}))
+		defer server.Close()
+
+		client := NewProxyClient(server.URL, 5*time.Second)
+		defer client.Close()
+
+		_, err := client.CallTool(context.Background(), "test-mcp", "test-tool", map[string]any{"query": "x"})
+		require.Error(t, err)
 	})
 }

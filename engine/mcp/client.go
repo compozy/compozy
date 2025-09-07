@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 	"time"
 
@@ -35,6 +36,8 @@ type Client struct {
 	baseURL   string
 	http      *http.Client
 	retryConf RetryConfig
+	jitter    bool
+	jitterPct uint64
 }
 
 // RetryConfig configures retry behavior for proxy operations
@@ -84,6 +87,31 @@ func DefaultRetryConfig() RetryConfig {
 	}
 }
 
+// ConfigureRetry updates the client's retry settings using provided parameters.
+// maxRetries is the number of retries (not attempts). When jitter is true, a
+// small random jitter is added to reduce synchronized retries.
+func (c *Client) ConfigureRetry(maxRetries uint64, base, maxDelay time.Duration, jitter bool, jitterPercent uint64) {
+	if maxRetries > 0 {
+		// Apply a conservative upper bound to avoid runaway retries
+		if maxRetries > 64 {
+			c.retryConf.MaxAttempts = 64
+		} else {
+			c.retryConf.MaxAttempts = maxRetries
+		}
+	}
+	if base > 0 {
+		c.retryConf.BaseDelay = base
+	}
+	if maxDelay > 0 {
+		c.retryConf.MaxDelay = maxDelay
+	}
+	c.jitter = jitter
+	if jitterPercent > 100 {
+		jitterPercent = 100
+	}
+	c.jitterPct = jitterPercent
+}
+
 // NewProxyClient creates a new proxy client with the specified configuration
 func NewProxyClient(baseURL string, timeout time.Duration) *Client {
 	if !strings.HasPrefix(baseURL, "http://") && !strings.HasPrefix(baseURL, "https://") {
@@ -94,10 +122,13 @@ func NewProxyClient(baseURL string, timeout time.Duration) *Client {
 		http: &http.Client{
 			Timeout: timeout,
 			Transport: &http.Transport{
-				MaxIdleConns:       10,
-				IdleConnTimeout:    30 * time.Second,
-				DisableCompression: false,
-				DisableKeepAlives:  false,
+				MaxIdleConns:          10,
+				IdleConnTimeout:       30 * time.Second,
+				DisableCompression:    false,
+				DisableKeepAlives:     false,
+				TLSHandshakeTimeout:   10 * time.Second,
+				ExpectContinueTimeout: 1 * time.Second,
+				ForceAttemptHTTP2:     true,
 			},
 		},
 		retryConf: DefaultRetryConfig(),
@@ -166,8 +197,13 @@ func (c *Client) Register(ctx context.Context, def *Definition) error {
 				"mcp_name", def.Name, "proxy_url", c.baseURL)
 			return nil // Treat as success - idempotent operation
 		case http.StatusUnauthorized:
-			// Preserve expected substring for tests and human readability
-			return &ProxyRequestError{StatusCode: resp.StatusCode, Message: strings.ToLower(string(body))}
+			// Parse structured error and lowercase message for test compatibility
+			err := parseProxyError(resp.StatusCode, body)
+			if perr, ok := err.(*ProxyRequestError); ok {
+				perr.Message = strings.ToLower(perr.Message)
+				return perr
+			}
+			return err
 		case http.StatusBadRequest:
 			return parseProxyError(resp.StatusCode, body)
 		default:
@@ -229,10 +265,7 @@ func (c *Client) ListMCPs(ctx context.Context) ([]Definition, error) {
 			return fmt.Errorf("failed to read response: %w", err)
 		}
 		if resp.StatusCode != http.StatusOK {
-			return &ProxyRequestError{
-				StatusCode: resp.StatusCode,
-				Message:    fmt.Sprintf("tools request failed: %s", string(body)),
-			}
+			return parseProxyError(resp.StatusCode, body)
 		}
 		var response struct {
 			MCPs []Definition `json:"mcps"`
@@ -323,10 +356,7 @@ func (c *Client) ListMCPDetails(ctx context.Context) ([]Details, error) {
 			return fmt.Errorf("failed to read response: %w", err)
 		}
 		if resp.StatusCode != http.StatusOK {
-			return &ProxyRequestError{
-				StatusCode: resp.StatusCode,
-				Message:    fmt.Sprintf("tools request failed: %s", string(body)),
-			}
+			return parseProxyError(resp.StatusCode, body)
 		}
 		var response listMCPDetailsResponse
 		if err := json.Unmarshal(body, &response); err != nil {
@@ -357,7 +387,16 @@ func buildNameSet(names []string) map[string]struct{} {
 func formatConnectionErrors(lastErrors map[string]string) string {
 	var b strings.Builder
 	b.WriteString("MCP connection wait canceled/expired; statuses:")
-	for n, msg := range lastErrors {
+	if len(lastErrors) == 0 {
+		return b.String()
+	}
+	names := make([]string, 0, len(lastErrors))
+	for n := range lastErrors {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	for _, n := range names {
+		msg := lastErrors[n]
 		b.WriteString(" ")
 		b.WriteString(n)
 		b.WriteString("=")
@@ -417,7 +456,7 @@ func (c *Client) WaitForConnections(ctx context.Context, names []string, pollInt
 				return ctx.Err()
 			}
 			// Include last seen connection errors in timeout/error message
-			return errors.New(formatConnectionErrors(lastErrors))
+			return fmt.Errorf("%w: %s", ctx.Err(), formatConnectionErrors(lastErrors))
 		case <-ticker.C:
 			connected, err := c.checkConnections(ctx, nameSet, lastErrors)
 			if err != nil {
@@ -510,10 +549,7 @@ func (c *Client) CallTool(ctx context.Context, mcpName, toolName string, argumen
 		}
 
 		if resp.StatusCode != http.StatusOK {
-			return &ProxyRequestError{
-				StatusCode: resp.StatusCode,
-				Message:    fmt.Sprintf("tool call failed (status %d): %s", resp.StatusCode, string(body)),
-			}
+			return parseProxyError(resp.StatusCode, body)
 		}
 
 		if err := json.Unmarshal(body, &response); err != nil {
@@ -552,21 +588,31 @@ func (c *Client) Close() error {
 // withRetry executes the provided function with exponential backoff retry logic
 func (c *Client) withRetry(ctx context.Context, operation string, fn func() error) error {
 	log := logger.FromContext(ctx)
-	return retry.Do(
-		ctx,
-		retry.WithMaxRetries(c.retryConf.MaxAttempts, retry.NewExponential(c.retryConf.BaseDelay)),
-		func(_ context.Context) error {
-			err := fn()
-			if err != nil {
-				if !isRetryableError(err) {
-					return err
-				}
-				log.Warn("Proxy operation failed, retrying", "operation", operation, "error", err)
-				return retry.RetryableError(err)
+	// Build backoff chain from config
+	var b = retry.NewExponential(c.retryConf.BaseDelay)
+	if c.retryConf.MaxDelay > 0 {
+		b = retry.WithCappedDuration(c.retryConf.MaxDelay, b)
+	}
+	if c.jitter {
+		jp := c.jitterPct
+		if jp == 0 {
+			jp = 10
+		}
+		b = retry.WithJitterPercent(jp, b)
+	}
+	b = retry.WithMaxRetries(c.retryConf.MaxAttempts, b)
+
+	return retry.Do(ctx, b, func(_ context.Context) error {
+		err := fn()
+		if err != nil {
+			if !isRetryableError(err) {
+				return err
 			}
-			return nil
-		},
-	)
+			log.Warn("Proxy operation failed, retrying", "operation", operation, "error", err)
+			return retry.RetryableError(err)
+		}
+		return nil
+	})
 }
 
 // isRetryableError determines if an error is worth retrying
@@ -602,5 +648,13 @@ func isRetryableError(err error) bool {
 		return false
 	}
 
+	// Generic transient patterns
+	lc := strings.ToLower(err.Error())
+	if strings.Contains(lc, "connection reset by peer") ||
+		strings.Contains(lc, "broken pipe") ||
+		strings.Contains(lc, "temporary failure") ||
+		errors.Is(err, io.EOF) {
+		return true
+	}
 	return false
 }

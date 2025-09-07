@@ -34,8 +34,15 @@ func TestConfig_SetDefaults(t *testing.T) {
 
 func TestConfig_Validate(t *testing.T) {
 	t.Run("Should validate successfully with all required fields", func(t *testing.T) {
-		os.Setenv("MCP_PROXY_URL", "http://localhost:6001")
-		defer os.Unsetenv("MCP_PROXY_URL")
+		prev, had := os.LookupEnv("MCP_PROXY_URL")
+		_ = os.Setenv("MCP_PROXY_URL", "http://localhost:6001")
+		t.Cleanup(func() {
+			if had {
+				_ = os.Setenv("MCP_PROXY_URL", prev)
+			} else {
+				_ = os.Unsetenv("MCP_PROXY_URL")
+			}
+		})
 
 		config := &Config{
 			ID:        "test-mcp",
@@ -44,6 +51,26 @@ func TestConfig_Validate(t *testing.T) {
 			Transport: mcpproxy.TransportSSE,
 		}
 
+		err := config.Validate()
+		assert.NoError(t, err)
+	})
+
+	t.Run("Should validate stdio transport without URL", func(t *testing.T) {
+		prev, had := os.LookupEnv("MCP_PROXY_URL")
+		_ = os.Setenv("MCP_PROXY_URL", "http://localhost:6001")
+		t.Cleanup(func() {
+			if had {
+				_ = os.Setenv("MCP_PROXY_URL", prev)
+			} else {
+				_ = os.Unsetenv("MCP_PROXY_URL")
+			}
+		})
+		config := &Config{
+			ID:        "local-mcp",
+			Command:   "python -m mymcp",
+			Transport: mcpproxy.TransportStdio,
+			Proto:     "2025-01-01",
+		}
 		err := config.Validate()
 		assert.NoError(t, err)
 	})
@@ -104,8 +131,15 @@ func TestConfig_validateURL(t *testing.T) {
 
 func TestConfig_validateProxy(t *testing.T) {
 	t.Run("Should validate valid proxy URL", func(t *testing.T) {
-		os.Setenv("MCP_PROXY_URL", "http://localhost:6001")
-		defer os.Unsetenv("MCP_PROXY_URL")
+		prev, had := os.LookupEnv("MCP_PROXY_URL")
+		_ = os.Setenv("MCP_PROXY_URL", "http://localhost:6001")
+		t.Cleanup(func() {
+			if had {
+				_ = os.Setenv("MCP_PROXY_URL", prev)
+			} else {
+				_ = os.Unsetenv("MCP_PROXY_URL")
+			}
+		})
 
 		config := &Config{}
 		err := config.validateProxy()
@@ -113,7 +147,13 @@ func TestConfig_validateProxy(t *testing.T) {
 	})
 
 	t.Run("Should fail when MCP_PROXY_URL is not set", func(t *testing.T) {
-		os.Unsetenv("MCP_PROXY_URL")
+		prev, had := os.LookupEnv("MCP_PROXY_URL")
+		_ = os.Unsetenv("MCP_PROXY_URL")
+		t.Cleanup(func() {
+			if had {
+				_ = os.Setenv("MCP_PROXY_URL", prev)
+			}
+		})
 
 		config := &Config{}
 		err := config.validateProxy()
@@ -121,8 +161,15 @@ func TestConfig_validateProxy(t *testing.T) {
 	})
 
 	t.Run("Should fail with invalid proxy URL scheme", func(t *testing.T) {
-		os.Setenv("MCP_PROXY_URL", "ftp://localhost:6001")
-		defer os.Unsetenv("MCP_PROXY_URL")
+		prev, had := os.LookupEnv("MCP_PROXY_URL")
+		_ = os.Setenv("MCP_PROXY_URL", "ftp://localhost:6001")
+		t.Cleanup(func() {
+			if had {
+				_ = os.Setenv("MCP_PROXY_URL", prev)
+			} else {
+				_ = os.Unsetenv("MCP_PROXY_URL")
+			}
+		})
 
 		config := &Config{}
 		err := config.validateProxy()
@@ -130,8 +177,15 @@ func TestConfig_validateProxy(t *testing.T) {
 	})
 
 	t.Run("Should fail with missing proxy URL host", func(t *testing.T) {
-		os.Setenv("MCP_PROXY_URL", "http://")
-		defer os.Unsetenv("MCP_PROXY_URL")
+		prev, had := os.LookupEnv("MCP_PROXY_URL")
+		_ = os.Setenv("MCP_PROXY_URL", "http://")
+		t.Cleanup(func() {
+			if had {
+				_ = os.Setenv("MCP_PROXY_URL", prev)
+			} else {
+				_ = os.Unsetenv("MCP_PROXY_URL")
+			}
+		})
 
 		config := &Config{}
 		err := config.validateProxy()
@@ -278,5 +332,99 @@ func TestValidateURLFormat(t *testing.T) {
 		// The URL "invalid-url" is parsed as a relative URL with no scheme,
 		// so it fails the scheme validation with context
 		assert.Contains(t, err.Error(), "custom context must use http or https scheme")
+	})
+}
+
+func TestConfig_validateHeaders(t *testing.T) {
+	t.Run("Should accept and canonicalize valid headers", func(t *testing.T) {
+		key := "x-api-token"
+		spacedKey := " " + key + " "
+		val := "abc"
+		spacedVal := " " + val + " "
+		c := &Config{Headers: map[string]string{"authorization": " Bearer token ", spacedKey: spacedVal}}
+		err := c.validateHeaders()
+		assert.NoError(t, err)
+		expected := map[string]string{"Authorization": "Bearer token", "X-Api-Token": "abc"}
+		assert.Equal(t, expected, c.Headers)
+	})
+	t.Run("Should reject empty key", func(t *testing.T) {
+		c := &Config{Headers: map[string]string{" ": "v"}}
+		err := c.validateHeaders()
+		assert.EqualError(t, err, "headers: empty key")
+	})
+	t.Run("Should reject CRLF in key", func(t *testing.T) {
+		c := &Config{Headers: map[string]string{"X-Bad\r\n": "v"}}
+		err := c.validateHeaders()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "CR/LF not allowed")
+	})
+	t.Run("Should reject CRLF in value", func(t *testing.T) {
+		c := &Config{Headers: map[string]string{"X-Good": "bad\r\n"}}
+		err := c.validateHeaders()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "CR/LF not allowed")
+	})
+	t.Run("Should reject reserved headers", func(t *testing.T) {
+		c := &Config{Headers: map[string]string{"Host": "example"}}
+		err := c.validateHeaders()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "reserved header")
+	})
+}
+
+func TestConfig_Validate_HeadersAndOrder(t *testing.T) {
+	t.Run("Should validate and canonicalize headers for HTTP transports", func(t *testing.T) {
+		prev, had := os.LookupEnv("MCP_PROXY_URL")
+		_ = os.Setenv("MCP_PROXY_URL", "http://localhost:6001")
+		t.Cleanup(func() {
+			if had {
+				_ = os.Setenv("MCP_PROXY_URL", prev)
+			} else {
+				_ = os.Unsetenv("MCP_PROXY_URL")
+			}
+		})
+		key := "x-api-token"
+		c := &Config{
+			ID:        "svc",
+			URL:       "http://localhost:3000",
+			Transport: mcpproxy.TransportSSE,
+			Headers:   map[string]string{"authorization": "Bearer x", " " + key + " ": " " + "abc" + " "},
+		}
+		err := c.Validate()
+		assert.NoError(t, err)
+		assert.Equal(t, map[string]string{"Authorization": "Bearer x", "X-Api-Token": "abc"}, c.Headers)
+	})
+	t.Run("Should skip header validation for stdio transport", func(t *testing.T) {
+		prev, had := os.LookupEnv("MCP_PROXY_URL")
+		_ = os.Setenv("MCP_PROXY_URL", "http://localhost:6001")
+		t.Cleanup(func() {
+			if had {
+				_ = os.Setenv("MCP_PROXY_URL", prev)
+			} else {
+				_ = os.Unsetenv("MCP_PROXY_URL")
+			}
+		})
+		c := &Config{
+			ID:        "svc",
+			Transport: mcpproxy.TransportStdio,
+			Headers:   map[string]string{"Host": "should-not-error"},
+		}
+		err := c.Validate()
+		assert.NoError(t, err)
+	})
+	t.Run("Should validate transport before URL for clearer errors", func(t *testing.T) {
+		prev, had := os.LookupEnv("MCP_PROXY_URL")
+		_ = os.Setenv("MCP_PROXY_URL", "http://localhost:6001")
+		t.Cleanup(func() {
+			if had {
+				_ = os.Setenv("MCP_PROXY_URL", prev)
+			} else {
+				_ = os.Unsetenv("MCP_PROXY_URL")
+			}
+		})
+		c := &Config{ID: "svc", Transport: mcpproxy.TransportType("invalid")}
+		err := c.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid transport type")
 	})
 }

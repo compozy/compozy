@@ -56,7 +56,7 @@ cd examples/github-mcp
 
 Then, use the `api.http` file in this directory to execute the workflow and fetch the latest pull request. No local Docker container will be started in this mode.
 
-Note: The MCP proxy does not include built-in admin authentication. Protect the `/admin` API using network controls (localhost binding, IP allow-list) or a reverse proxy in your environment.
+Note: The MCP proxy does not include built-in admin authentication. Protect the `/admin` API using network controls (localhost binding, firewall) or a reverse proxy in your environment.
 
 ## Expected behavior
 

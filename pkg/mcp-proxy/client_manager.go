@@ -346,8 +346,8 @@ func (m *MCPClientManager) connectClient(ctx context.Context, client *MCPClient)
 		if def.Timeout > 0 {
 			timeout = def.Timeout
 		}
-		// Use manager context for lifecycle cancellation
-		connectCtx, cancel := context.WithTimeout(m.ctx, timeout)
+		// Derive from the provided context to honor upstream cancellation
+		connectCtx, cancel := context.WithTimeout(ctx, timeout)
 		err := client.Connect(connectCtx)
 		cancel()
 

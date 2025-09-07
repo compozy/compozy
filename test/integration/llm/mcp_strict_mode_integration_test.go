@@ -57,8 +57,9 @@ func TestStrictMode_MCPRegistration(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		// Use background context; default logger will be used implicitly
-		ctx := context.Background()
+		// Use context with timeout to prevent test hangs
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
 		ag := &agent.Config{
 			ID:            "strict-agent",
 			LLMProperties: agent.LLMProperties{MCPs: []mcp.Config{{ID: "fs", URL: "http://example"}}},
@@ -85,7 +86,8 @@ func TestStrictMode_MCPRegistration(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		ctx := context.Background()
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
 		ag := &agent.Config{
 			ID:            "non-strict-agent",
 			LLMProperties: agent.LLMProperties{MCPs: []mcp.Config{{ID: "fs", URL: "http://example"}}},

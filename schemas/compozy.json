@@ -174,7 +174,7 @@
           "type": "boolean"
         },
         "max_tool_iterations": {
-          "description": "MaxToolIterations optionally caps the maximum number of tool-call iterations\nduring a single LLM request when tools are available.\nIf set to a positive value, this overrides global defaults for this model.",
+          "description": "MaxToolIterations optionally caps the maximum number of tool-call iterations\nduring a single LLM request when tools are available.\nWhen \u003e 0, overrides the global default for this model; 0 uses the global default.",
           "type": "integer"
         },
         "model": {
@@ -449,21 +449,55 @@
       "additionalProperties": false,
       "description": "LLMConfig contains LLM service configuration.",
       "properties": {
-        "admin_token": {
-          "description": "AdminToken authenticates administrative operations.\n\nRequired for:\n  - MCP server registration\n  - Proxy configuration changes\n  - Debug endpoints\n**Security**: Use environment variables",
-          "type": "string"
+        "allowed_mcp_names": {
+          "description": "AllowedMCPNames restricts which MCP servers/tools are considered eligible\nfor advertisement and invocation. When empty, all discovered MCP tools\nare eligible.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "fail_on_mcp_registration_error": {
+          "description": "FailOnMCPRegistrationError enforces fail-fast behavior when registering\nMCP configurations sourced from agents/projects. When true, MCP\nregistration failures cause service initialization to error.",
+          "type": "boolean"
         },
         "max_concurrent_tools": {
           "description": "MaxConcurrentTools limits the number of tools that can execute in parallel.\n\nControls resource usage and prevents overwhelming downstream services.\nHigher values improve throughput, lower values reduce resource contention.\nDefault: 10",
           "type": "integer"
         },
+        "max_sequential_tool_errors": {
+          "description": "MaxSequentialToolErrors caps how many sequential tool execution/content errors\nare tolerated for the same tool before aborting the task. Set to 0 to use\nthe orchestrator's built-in default.\nDefault: 10 (registry default)",
+          "type": "integer"
+        },
         "max_tool_iterations": {
-          "description": "MaxToolIterations caps the maximum number of tool-iteration loops per request.\n\nThis acts as a global default and can be overridden by model-specific configuration\nin project files. Set to 0 to use the orchestrator's built-in default.\nDefault: 0 (use default)",
+          "description": "MaxToolIterations caps the maximum number of tool-iteration loops per request.\n\nThis acts as a global default and can be overridden by model-specific configuration\nin project files. Set to 0 to use the orchestrator's built-in default.\nDefault: 10 (registry default)",
+          "type": "integer"
+        },
+        "mcp_client_timeout": {
+          "description": "MCPClientTimeout sets the HTTP client timeout for MCP proxy communication.",
+          "type": "integer"
+        },
+        "mcp_header_template_strict": {
+          "description": "MCPHeaderTemplateStrict enables strict template validation for MCP HTTP headers.\nWhen true, allows only simple lookups (no pipelines/function calls/inclusions).\nDefault: false",
+          "type": "boolean"
+        },
+        "mcp_readiness_poll_interval": {
+          "description": "MCPReadinessPollInterval sets how often to poll the proxy for MCP connection status.\nDefault: 200ms",
+          "type": "integer"
+        },
+        "mcp_readiness_timeout": {
+          "description": "MCPReadinessTimeout bounds how long to wait for MCP clients to connect during setup.\nDefault: 60s",
           "type": "integer"
         },
         "proxy_url": {
           "description": "ProxyURL specifies the MCP proxy server endpoint.\n\nThe proxy handles:\n  - MCP server connections\n  - Tool discovery and routing\n  - Protocol translation\nDefault: \"http://localhost:6001\"",
           "type": "string"
+        },
+        "register_mcps": {
+          "description": "RegisterMCPs contains additional MCP configurations to be registered\nwith the MCP proxy at runtime. Represented as a generic slice to avoid\nimport cycles with engine packages.",
+          "items": {
+            "type": "object"
+          },
+          "type": "array"
         },
         "retry_attempts": {
           "description": "RetryAttempts configures the number of retry attempts for LLM operations.\n\nControls how many times the orchestrator will retry failed LLM requests\nbefore giving up. Higher values improve reliability but may increase latency.\nDefault: 3",
@@ -480,6 +514,10 @@
         "retry_jitter": {
           "description": "RetryJitter enables random jitter in retry delays to avoid thundering herd.\n\nWhen enabled, adds randomness to retry delays to prevent all clients\nfrom retrying simultaneously. Improves system stability under load.\nDefault: true",
           "type": "boolean"
+        },
+        "retry_jitter_percent": {
+          "description": "RetryJitterPercent controls jitter strength when retry_jitter is enabled.",
+          "type": "integer"
         }
       },
       "type": "object"
@@ -519,30 +557,9 @@
       "additionalProperties": false,
       "description": "MCPProxyConfig contains MCP proxy server configuration.",
       "properties": {
-        "admin_allow_ips": {
-          "description": "AdminAllowIPs contains IP addresses allowed to access admin endpoints.\n\n**Default**: `[]` (empty - allows all IPs)",
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "admin_tokens": {
-          "description": "AdminTokens contains admin tokens for proxy management.\n\n**Security**: Use environment variables for tokens.",
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
         "base_url": {
           "description": "BaseURL specifies the base URL for MCP proxy API endpoints.\n\n**Default**: `\"http://localhost:6001\"`",
           "type": "string"
-        },
-        "global_auth_tokens": {
-          "description": "GlobalAuthTokens contains global authentication tokens.\n\n**Security**: Use environment variables for tokens.",
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
         },
         "host": {
           "description": "Host specifies the network interface to bind the MCP proxy server to.\n\n**Default**: `\"0.0.0.0\"`",
@@ -555,13 +572,6 @@
         "shutdown_timeout": {
           "description": "ShutdownTimeout sets timeout for graceful shutdown.\n\n**Default**: `30s`",
           "type": "integer"
-        },
-        "trusted_proxies": {
-          "description": "TrustedProxies contains trusted proxy IP addresses.\n\n**Default**: `[\"127.0.0.1\", \"::1\"]`",
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
         }
       },
       "type": "object"

@@ -41,6 +41,10 @@ type Tool interface {
 type ToolRegistryConfig struct {
 	ProxyClient *mcp.Client
 	CacheTTL    time.Duration
+	// EmptyCacheTTL controls how long an empty MCP tools state is cached
+	// to avoid repeated proxy hits when no tools are available yet.
+	// Defaults to 30s when zero.
+	EmptyCacheTTL time.Duration
 	// AllowedMCPNames restricts MCP tool advertisement/lookup to these MCP IDs.
 	// When empty, all discovered MCP tools are eligible. Local tools are never filtered.
 	AllowedMCPNames []string
@@ -53,9 +57,10 @@ type toolRegistry struct {
 	localTools map[string]Tool
 	localMu    sync.RWMutex
 	// MCP tools cache
-	mcpTools   []tools.Tool
-	mcpCacheTs time.Time
-	mcpMu      sync.RWMutex
+	mcpTools       []tools.Tool
+	mcpCacheTs     time.Time
+	mcpCachedEmpty bool
+	mcpMu          sync.RWMutex
 	// Singleflight for cache refresh to prevent thundering herd
 	sfGroup singleflight.Group
 	// Fast membership check for allowed MCP names
@@ -70,6 +75,9 @@ func NewToolRegistry(config ToolRegistryConfig) ToolRegistry {
 	if config.CacheTTL == 0 {
 		config.CacheTTL = 5 * time.Minute
 	}
+	if config.EmptyCacheTTL == 0 {
+		config.EmptyCacheTTL = 30 * time.Second
+	}
 
 	return &toolRegistry{
 		config:        config,
@@ -80,7 +88,7 @@ func NewToolRegistry(config ToolRegistryConfig) ToolRegistry {
 
 // buildAllowedMCPSet normalizes and constructs a fast lookup set for MCP IDs
 func buildAllowedMCPSet(names []string) map[string]struct{} {
-	set := make(map[string]struct{})
+	set := make(map[string]struct{}, len(names))
 	for _, n := range names {
 		nn := strings.ToLower(strings.TrimSpace(n))
 		if nn != "" {
@@ -196,6 +204,7 @@ func (r *toolRegistry) ListAll(ctx context.Context) ([]Tool, error) {
 		"allowed", allowedCount,
 		"filtered", filteredCount,
 		"allowlist_size", len(r.allowedMCPSet),
+		"allowlist_ids", r.allowlistIDs(),
 	)
 
 	return allTools, nil
@@ -209,6 +218,7 @@ func (r *toolRegistry) InvalidateCache(ctx context.Context) {
 
 	r.mcpTools = nil
 	r.mcpCacheTs = time.Time{}
+	r.mcpCachedEmpty = false
 	log.Debug("Invalidated MCP tools cache")
 }
 
@@ -264,22 +274,30 @@ func (r *toolRegistry) refreshMCPTools(ctx context.Context) ([]tools.Tool, error
 		mcpTools = append(mcpTools, NewProxyTool(toolDef, r.config.ProxyClient))
 	}
 
-	// Only cache when at least one tool is discovered to avoid caching empty state
-	if len(mcpTools) > 0 {
-		r.mcpMu.Lock()
-		r.mcpTools = mcpTools
-		r.mcpCacheTs = time.Now()
-		r.mcpMu.Unlock()
+	// Cache results, including empty, to avoid repeated proxy hits.
+	r.mcpMu.Lock()
+	r.mcpTools = mcpTools
+	r.mcpCacheTs = time.Now()
+	r.mcpCachedEmpty = len(mcpTools) == 0
+	r.mcpMu.Unlock()
+	if r.mcpCachedEmpty {
+		log.Debug("Refreshed MCP tools cache (empty)")
 	} else {
-		log.Debug("No MCP tools discovered yet; not caching empty state")
+		log.Debug("Refreshed MCP tools cache", "count", len(mcpTools))
 	}
-	log.Debug("Refreshed MCP tools cache", "count", len(mcpTools))
 	return mcpTools, nil
 }
 
 // isCacheValid checks if the MCP cache is still valid
 func (r *toolRegistry) isCacheValid() bool {
-	return !r.mcpCacheTs.IsZero() && time.Since(r.mcpCacheTs) < r.config.CacheTTL
+	if r.mcpCacheTs.IsZero() {
+		return false
+	}
+	ttl := r.config.CacheTTL
+	if r.mcpCachedEmpty && r.config.EmptyCacheTTL > 0 {
+		ttl = r.config.EmptyCacheTTL
+	}
+	return time.Since(r.mcpCacheTs) < ttl
 }
 
 // canonicalize normalizes tool names to prevent conflicts
@@ -323,6 +341,18 @@ func (a *mcpToolAdapter) MCPName() string {
 		return mn.MCPName()
 	}
 	return ""
+}
+
+// allowlistIDs returns configured allowlist MCP IDs for debug logging
+func (r *toolRegistry) allowlistIDs() []string {
+	if len(r.allowedMCPSet) == 0 {
+		return nil
+	}
+	ids := make([]string, 0, len(r.allowedMCPSet))
+	for id := range r.allowedMCPSet {
+		ids = append(ids, id)
+	}
+	return ids
 }
 
 // mcpProxyTool implements tools.Tool for MCP proxy tools

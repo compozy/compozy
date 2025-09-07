@@ -27,9 +27,11 @@ func TestToolRegistry_AllowedMCPFiltering(t *testing.T) {
 		defer srv.Close()
 
 		client := mcp.NewProxyClient(srv.URL, 2*time.Second)
-		reg := NewToolRegistry(ToolRegistryConfig{ProxyClient: client, CacheTTL: 1 * time.Millisecond}).(*toolRegistry)
+		reg := NewToolRegistry(ToolRegistryConfig{ProxyClient: client, CacheTTL: 1 * time.Millisecond})
 
-		tools, err := reg.ListAll(context.Background())
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		tools, err := reg.ListAll(ctx)
 		require.NoError(t, err)
 		names := namesOf(tools)
 		assert.ElementsMatch(t, []string{"tool-a", "tool-b"}, names)
@@ -47,20 +49,28 @@ func TestToolRegistry_AllowedMCPFiltering(t *testing.T) {
 			ProxyClient:     client,
 			CacheTTL:        1 * time.Millisecond,
 			AllowedMCPNames: []string{"mcp2"},
-		}).(*toolRegistry)
+		})
 
-		tools, err := reg.ListAll(context.Background())
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		tools, err := reg.ListAll(ctx)
 		require.NoError(t, err)
 		names := namesOf(tools)
 		assert.ElementsMatch(t, []string{"y-analyze"}, names)
 
-		// Find should succeed for allowed and fail for filtered
-		if _, ok := reg.Find(context.Background(), "y-analyze"); !ok {
-			t.Fatalf("expected to find allowed tool")
+		// Verify tools through ListAll results instead of using internal Find method
+		foundYAnalyze := false
+		foundXSearch := false
+		for _, tool := range tools {
+			if tool.Name() == "y-analyze" {
+				foundYAnalyze = true
+			}
+			if tool.Name() == "x-search" {
+				foundXSearch = true
+			}
 		}
-		if _, ok := reg.Find(context.Background(), "x-search"); ok {
-			t.Fatalf("did not expect to find filtered tool")
-		}
+		assert.True(t, foundYAnalyze, "expected to find allowed tool y-analyze")
+		assert.False(t, foundXSearch, "did not expect to find filtered tool x-search")
 	})
 }
 
@@ -71,6 +81,11 @@ func makeToolsServer(t *testing.T, defs []mcp.ToolDefinition) *httptest.Server {
 			http.NotFound(w, r)
 			return
 		}
+		if r.Method != http.MethodGet {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(toolsResponse{Tools: defs})
 	}))
 }

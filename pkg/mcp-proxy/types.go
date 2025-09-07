@@ -59,9 +59,6 @@ type MCPDefinition struct {
 	Headers map[string]string `json:"headers,omitempty"`
 	Timeout time.Duration     `json:"timeout,omitempty"`
 
-	// Access control
-	AllowedIPs []string `json:"allowedIPs,omitempty"`
-
 	// Behavior configuration
 	AutoReconnect       bool          `json:"autoReconnect,omitempty"`
 	MaxReconnects       int           `json:"maxReconnects,omitempty"`
@@ -111,15 +108,33 @@ type MCPStatus struct {
 }
 
 // Validate validates the MCP definition
+
 func (m *MCPDefinition) Validate() error {
+	if err := m.validateBasicFields(); err != nil {
+		return err
+	}
+	if err := m.validateTransport(); err != nil {
+		return err
+	}
+	if err := m.validateOptionalFields(); err != nil {
+		return err
+	}
+	return nil
+}
+
+// validateBasicFields validates required basic fields
+func (m *MCPDefinition) validateBasicFields() error {
 	if m.Name == "" {
 		return errors.New("name is required")
 	}
-
 	if !m.Transport.IsValid() {
 		return fmt.Errorf("invalid transport type: %s", m.Transport)
 	}
+	return nil
+}
 
+// validateTransport validates transport-specific fields
+func (m *MCPDefinition) validateTransport() error {
 	switch m.Transport {
 	case TransportStdio:
 		if m.Command == "" {
@@ -130,31 +145,32 @@ func (m *MCPDefinition) Validate() error {
 			return errors.New("url is required for HTTP-based transports")
 		}
 	}
+	return nil
+}
 
+// validateOptionalFields validates optional configuration fields
+func (m *MCPDefinition) validateOptionalFields() error {
 	if m.ToolFilter != nil {
 		if err := m.ToolFilter.Validate(); err != nil {
 			return fmt.Errorf("tool filter validation failed: %w", err)
 		}
 	}
-
 	if m.Timeout < 0 {
 		return errors.New("timeout cannot be negative")
 	}
-
 	if m.MaxReconnects < 0 {
 		return errors.New("maxReconnects cannot be negative")
 	}
-
 	if m.ReconnectDelay < 0 {
 		return errors.New("reconnectDelay cannot be negative")
 	}
-
 	if m.HealthCheckInterval < 0 {
 		return errors.New("healthCheckInterval cannot be negative")
 	}
-
 	return nil
 }
+
+// Note: per-MCP IP allowlist validation has been removed.
 
 // Validate validates the tool filter configuration
 func (tf *ToolFilter) Validate() error {
@@ -228,10 +244,6 @@ func (m *MCPDefinition) setMapDefaults() {
 func (m *MCPDefinition) setSliceDefaults() {
 	if m.Args == nil {
 		m.Args = make([]string, 0)
-	}
-
-	if m.AllowedIPs == nil {
-		m.AllowedIPs = make([]string, 0)
 	}
 
 	if m.ToolFilter != nil && m.ToolFilter.List == nil {

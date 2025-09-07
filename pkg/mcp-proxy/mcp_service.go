@@ -288,25 +288,38 @@ func convertToolSchema(inputSchema any) map[string]any {
 	if inputSchema == nil {
 		return nil
 	}
-	if schema, ok := inputSchema.(map[string]any); ok {
-		return schema
-	}
-	// Fallback: attempt JSON round-trip to decode arbitrary schema structs
-	// commonly used by MCP SDKs into a generic map[string]any.
-	// This handles cases where InputSchema is a typed struct or json.RawMessage.
-	// If marshaling fails or yields non-object JSON, return nil.
-	if b, err := json.Marshal(inputSchema); err == nil && len(b) > 0 {
-		var out map[string]any
-		if json.Unmarshal(b, &out) == nil && len(out) > 0 {
-			return out
+	// Prefer direct handling to reduce allocations; fall back to JSON round-trip.
+	switch s := inputSchema.(type) {
+	case map[string]any:
+		return s
+	case json.RawMessage:
+		return unmarshalToMap([]byte(s))
+	case []byte:
+		return unmarshalToMap(s)
+	case string:
+		if s != "" {
+			return unmarshalToMap([]byte(s))
 		}
-	}
-	// Final fallback: if the schema was provided as a JSON string, try to parse it.
-	if s, ok := inputSchema.(string); ok && s != "" {
-		var out map[string]any
-		if json.Unmarshal([]byte(s), &out) == nil && len(out) > 0 {
-			return out
-		}
+	default:
+		return marshalAndUnmarshal(s)
 	}
 	return nil
+}
+
+// unmarshalToMap attempts to unmarshal bytes to a map
+func unmarshalToMap(data []byte) map[string]any {
+	var out map[string]any
+	if json.Unmarshal(data, &out) == nil && len(out) > 0 {
+		return out
+	}
+	return nil
+}
+
+// marshalAndUnmarshal marshals input then unmarshals to map
+func marshalAndUnmarshal(input any) map[string]any {
+	b, err := json.Marshal(input)
+	if err != nil || len(b) == 0 {
+		return nil
+	}
+	return unmarshalToMap(b)
 }

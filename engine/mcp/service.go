@@ -3,11 +3,13 @@ package mcp
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
+	"text/template"
+	tplparse "text/template/parse"
 	"time"
 
 	"github.com/compozy/compozy/engine/core"
+	appconfig "github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/tplengine"
 	"github.com/google/shlex"
@@ -48,7 +50,7 @@ func (s *RegisterService) Ensure(ctx context.Context, config *Config) error {
 	}
 	// Log registration with redacted headers for security
 	if len(def.Headers) > 0 {
-		log.Debug("Registering MCP with headers", "mcp_id", config.ID, "headers", redactHeaders(def.Headers))
+		log.Debug("Registering MCP with headers", "mcp_id", config.ID, "headers", core.RedactHeaders(def.Headers))
 	}
 
 	// Register with proxy
@@ -101,6 +103,7 @@ func (s *RegisterService) ListRegistered(ctx context.Context) ([]string, error) 
 // Shutdown deregisters all MCPs and cleans up resources
 func (s *RegisterService) Shutdown(ctx context.Context) error {
 	log := logger.FromContext(ctx)
+	defer func() { _ = s.proxy.Close() }()
 	log.Info("Shutting down MCP register, deregistering all MCPs")
 	mcpIDs, err := s.ListRegistered(ctx)
 	if err != nil {
@@ -222,36 +225,11 @@ func normalizeHeaders(h map[string]string) map[string]string {
 	return out
 }
 
-// redactToken redacts sensitive parts of tokens for safe logging.
-// Keeps first 6 and last 4 characters visible for debugging.
-func redactToken(token string) string {
-	if len(token) <= 10 {
-		return "***REDACTED***"
-	}
-	return token[:6] + "..." + token[len(token)-4:]
-}
-
-// redactHeaders creates a copy of headers with redacted Authorization values for logging.
-func redactHeaders(headers map[string]string) map[string]string {
-	if len(headers) == 0 {
-		return headers
-	}
-	redacted := make(map[string]string, len(headers))
-	for k, v := range headers {
-		if strings.EqualFold(k, "authorization") {
-			// Redact the token part while keeping the scheme visible
-			parts := strings.SplitN(v, " ", 2)
-			if len(parts) == 2 {
-				redacted[k] = parts[0] + " " + redactToken(parts[1])
-			} else {
-				redacted[k] = redactToken(v)
-			}
-		} else {
-			redacted[k] = v
-		}
-	}
-	return redacted
-}
+// redactHeaders returns a copy of headers with sensitive values redacted for logging.
+// Any header key containing "token", "key", or "secret" (case-insensitive), or
+// the Authorization header, will have its value replaced with "[REDACTED]".
+// Other headers have values passed through core.RedactString for safety.
+// redaction of headers moved to core.RedactHeaders
 
 // resolveHeadersWithEnv evaluates header templates using the provided env (hierarchical env already merged by loader)
 // It validates templates to prevent injection attacks.
@@ -266,12 +244,14 @@ func resolveHeadersWithEnv(headers map[string]string, env core.EnvMap) map[strin
 	ctx := map[string]any{"env": env.AsMap()}
 	for k, v := range headers {
 		if tplengine.HasTemplate(v) {
-			// Validate template doesn't contain dangerous patterns
-			if err := validateTemplate(v); err != nil {
-				// Skip suspicious templates and use original value
-				out[k] = v
-				continue
+			// Optional strict mode for template validation, disabled by default for compatibility.
+			if appconfig.Get().LLM.MCPHeaderTemplateStrict {
+				if err := validateTemplate(v); err != nil {
+					out[k] = v
+					continue
+				}
 			}
+			// Validate template doesn't contain dangerous patterns
 			if s, err := engine.ProcessString(v, ctx); err == nil {
 				out[k] = s
 			} else {
@@ -286,11 +266,137 @@ func resolveHeadersWithEnv(headers map[string]string, env core.EnvMap) map[strin
 }
 
 // validateTemplate checks for potentially dangerous template patterns
+// In strict mode, we allow only simple lookups such as {{ .env.API_KEY }} without
+// function calls or pipelines. Control structures and template inclusions are rejected.
 func validateTemplate(tmpl string) error {
-	if strings.Count(tmpl, "{{") > 5 {
+	if strings.Count(tmpl, "{{") > 10 {
 		return fmt.Errorf("template too complex: too many expressions")
 	}
+	t, err := template.New("hdr").Parse(tmpl)
+	if err != nil {
+		return fmt.Errorf("invalid template: %w", err)
+	}
+	if t.Tree == nil || t.Root == nil {
+		return nil
+	}
+	return walkTemplateNodes(t.Root)
+}
+
+func walkTemplateNodes(n tplparse.Node) error {
+	switch nn := n.(type) {
+	case *tplparse.ListNode:
+		return walkListNode(nn)
+	case *tplparse.ActionNode:
+		return walkActionNode(nn)
+	case *tplparse.IfNode:
+		return walkIfNode(nn)
+	case *tplparse.RangeNode:
+		return walkRangeNode(nn)
+	case *tplparse.WithNode:
+		return walkWithNode(nn)
+	case *tplparse.TemplateNode:
+		return fmt.Errorf("template inclusions are not allowed")
+	default:
+		return nil
+	}
+}
+
+func walkListNode(n *tplparse.ListNode) error {
+	for _, ch := range n.Nodes {
+		if err := walkTemplateNodes(ch); err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+func walkActionNode(n *tplparse.ActionNode) error { return checkPipeNode(n.Pipe) }
+
+func walkIfNode(n *tplparse.IfNode) error {
+	if err := checkPipeNode(n.Pipe); err != nil {
+		return err
+	}
+	if n.List != nil {
+		if err := walkTemplateNodes(n.List); err != nil {
+			return err
+		}
+	}
+	if n.ElseList != nil {
+		if err := walkTemplateNodes(n.ElseList); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func walkRangeNode(n *tplparse.RangeNode) error {
+	if err := checkPipeNode(n.Pipe); err != nil {
+		return err
+	}
+	if n.List != nil {
+		if err := walkTemplateNodes(n.List); err != nil {
+			return err
+		}
+	}
+	if n.ElseList != nil {
+		if err := walkTemplateNodes(n.ElseList); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func walkWithNode(n *tplparse.WithNode) error {
+	if err := checkPipeNode(n.Pipe); err != nil {
+		return err
+	}
+	if n.List != nil {
+		if err := walkTemplateNodes(n.List); err != nil {
+			return err
+		}
+	}
+	if n.ElseList != nil {
+		if err := walkTemplateNodes(n.ElseList); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func checkPipeNode(p *tplparse.PipeNode) error {
+	if p == nil {
+		return nil
+	}
+	if len(p.Cmds) != 1 {
+		return fmt.Errorf("pipelines are not allowed")
+	}
+	return checkCommandNode(p.Cmds[0])
+}
+
+func checkCommandNode(cmd *tplparse.CommandNode) error {
+	if cmd == nil {
+		return nil
+	}
+	if len(cmd.Args) != 1 {
+		return fmt.Errorf("function calls are not allowed")
+	}
+	switch a := cmd.Args[0].(type) {
+	case *tplparse.FieldNode, *tplparse.VariableNode, *tplparse.DotNode:
+		return nil
+	case *tplparse.ChainNode:
+		switch a.Node.(type) {
+		case *tplparse.DotNode, *tplparse.FieldNode, *tplparse.VariableNode:
+			return nil
+		default:
+			return fmt.Errorf("function calls are not allowed")
+		}
+	case *tplparse.IdentifierNode:
+		return fmt.Errorf("function calls are not allowed")
+	case *tplparse.StringNode, *tplparse.NumberNode, *tplparse.BoolNode, *tplparse.NilNode:
+		return nil
+	default:
+		return fmt.Errorf("unsupported template expression")
+	}
 }
 
 // parseCommand safely parses a command string into command and arguments
@@ -372,6 +478,7 @@ func (s *RegisterService) EnsureMultiple(ctx context.Context, configs []Config) 
 			return fmt.Errorf("registration canceled: %w", ctx.Err())
 		}
 	}
+	close(results)
 	log.Info("MCP registration completed",
 		"total", len(configs),
 		"successful", successCount,
@@ -391,12 +498,15 @@ func (s *RegisterService) EnsureMultiple(ctx context.Context, configs []Config) 
 // Returns nil if MCP_PROXY_URL is not configured
 func SetupForWorkflows(ctx context.Context, workflows []WorkflowConfig) (*RegisterService, error) {
 	log := logger.FromContext(ctx)
-	proxyURL := os.Getenv("MCP_PROXY_URL")
+	proxyURL := appconfig.Get().LLM.ProxyURL
 	if proxyURL == "" {
 		return nil, nil
 	}
-	timeout := 30 * time.Second
-	service := NewWithTimeout(proxyURL, timeout)
+	clientTimeout := appconfig.Get().LLM.MCPClientTimeout
+	if clientTimeout <= 0 {
+		clientTimeout = 30 * time.Second
+	}
+	service := NewWithTimeout(proxyURL, clientTimeout)
 	log.Info("Initialized MCP register with proxy", "proxy_url", proxyURL)
 
 	// Collect unique MCPs declared by all workflows
@@ -426,9 +536,17 @@ func SetupForWorkflows(ctx context.Context, workflows []WorkflowConfig) (*Regist
 		clientNames = append(clientNames, allMCPs[i].ID)
 	}
 	// Bound the total wait; surface detailed errors on timeout
-	waitCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	readinessTimeout := appconfig.Get().LLM.MCPReadinessTimeout
+	if readinessTimeout <= 0 {
+		readinessTimeout = 60 * time.Second
+	}
+	pollInterval := appconfig.Get().LLM.MCPReadinessPollInterval
+	if pollInterval <= 0 {
+		pollInterval = 200 * time.Millisecond
+	}
+	waitCtx, cancel := context.WithTimeout(ctx, readinessTimeout)
 	defer cancel()
-	if err := service.proxy.WaitForConnections(waitCtx, clientNames, 200*time.Millisecond); err != nil {
+	if err := service.proxy.WaitForConnections(waitCtx, clientNames, pollInterval); err != nil {
 		return service, fmt.Errorf("MCP connection readiness failed: %w", err)
 	}
 
@@ -444,18 +562,20 @@ func CollectWorkflowMCPs(workflows []WorkflowConfig) []Config {
 	for _, workflow := range workflows {
 		mcps := workflow.GetMCPs()
 		for i := range mcps {
-			mcps[i].SetDefaults() // Ensure defaults are applied
-			// Resolve headers using hierarchical env from workflow
-			if len(mcps[i].Headers) > 0 {
-				mcps[i].Headers = resolveHeadersWithEnv(mcps[i].Headers, workflow.GetEnv())
+			cfg := mcps[i]
+			cfg.SetDefaults()
+			if len(cfg.Headers) > 0 {
+				cfg.Headers = resolveHeadersWithEnv(cfg.Headers, workflow.GetEnv())
 			}
-			// Use ID to deduplicate MCPs across workflows
-			if !seen[mcps[i].ID] {
-				seen[mcps[i].ID] = true
-				allMCPs = append(allMCPs, mcps[i])
+			if !seen[cfg.ID] {
+				seen[cfg.ID] = true
+				allMCPs = append(allMCPs, cfg)
 			}
 		}
 	}
 
 	return allMCPs
 }
+
+// readDurationEnv returns a parsed duration from env or the provided default on empty/invalid values
+// readDurationEnv removed in favor of pkg/config driven values

@@ -80,7 +80,7 @@
     },
     "max_tool_iterations": {
       "type": "integer",
-      "description": "MaxToolIterations optionally caps the maximum number of tool-call iterations\nduring a single LLM request when tools are available.\nIf set to a positive value, this overrides global defaults for this model."
+      "description": "MaxToolIterations optionally caps the maximum number of tool-call iterations\nduring a single LLM request when tools are available.\nWhen \u003e 0, overrides the global default for this model; 0 uses the global default."
     }
   },
   "additionalProperties": false,

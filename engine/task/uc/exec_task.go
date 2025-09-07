@@ -3,6 +3,7 @@ package uc
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/compozy/compozy/engine/agent"
@@ -644,5 +645,6 @@ func (uc *ExecuteTask) allowedMCPIDs(agentConfig *agent.Config, input *ExecuteTa
 	for id := range allowed {
 		out = append(out, id)
 	}
+	sort.Strings(out)
 	return out
 }

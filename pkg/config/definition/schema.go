@@ -411,16 +411,101 @@ func registerLLMFields(registry *Registry) {
 	registry.Register(&FieldDef{
 		Path:    "llm.proxy_url",
 		Default: "",
-		CLIFlag: "",
+		CLIFlag: "llm-proxy-url",
 		EnvVar:  "MCP_PROXY_URL",
 		Type:    reflect.TypeOf(""),
 		Help:    "LLM proxy URL",
 	})
 
 	registry.Register(&FieldDef{
+		Path:    "llm.mcp_readiness_timeout",
+		Default: 60 * time.Second,
+		CLIFlag: "llm-mcp-readiness-timeout",
+		EnvVar:  "MCP_READINESS_TIMEOUT",
+		Type:    durationType,
+		Help:    "Max time to wait for MCP clients to connect",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "llm.mcp_readiness_poll_interval",
+		Default: 200 * time.Millisecond,
+		CLIFlag: "llm-mcp-readiness-poll-interval",
+		EnvVar:  "MCP_READINESS_POLL_INTERVAL",
+		Type:    durationType,
+		Help:    "Polling interval for MCP connection readiness",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "llm.mcp_header_template_strict",
+		Default: false,
+		CLIFlag: "llm-mcp-header-template-strict",
+		EnvVar:  "MCP_HEADER_TEMPLATE_STRICT",
+		Type:    reflect.TypeOf(true),
+		Help:    "Enable strict template validation for MCP headers",
+	})
+
+	registerLLMRetryAndLimits(registry)
+
+	registerLLMMCPExtras(registry)
+}
+
+// registerLLMMCPExtras splits MCP-related LLM fields to keep function sizes small
+func registerLLMMCPExtras(registry *Registry) {
+	// MCP options
+	registry.Register(&FieldDef{
+		Path:    "llm.allowed_mcp_names",
+		Default: []string{},
+		CLIFlag: "llm-allowed-mcp-names",
+		EnvVar:  "LLM_ALLOWED_MCP_NAMES",
+		Type:    reflect.TypeOf([]string{}),
+		Help:    "Allowed MCP IDs for tool advertisement and lookup",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "llm.fail_on_mcp_registration_error",
+		Default: false,
+		CLIFlag: "llm-fail-on-mcp-registration-error",
+		EnvVar:  "LLM_FAIL_ON_MCP_REGISTRATION_ERROR",
+		Type:    reflect.TypeOf(true),
+		Help:    "Fail-fast when MCP registration encounters an error",
+	})
+
+	// Complex type; CLI flag omitted due to structure complexity
+	registry.Register(&FieldDef{
+		Path:    "llm.register_mcps",
+		Default: []any{},
+		CLIFlag: "",
+		EnvVar:  "",
+		Type:    reflect.TypeOf([]any{}),
+		Help:    "Additional MCP configurations to register with the proxy",
+	})
+
+	// MCP client HTTP timeout (separate from readiness timeout)
+	registry.Register(&FieldDef{
+		Path:    "llm.mcp_client_timeout",
+		Default: 30 * time.Second,
+		CLIFlag: "llm-mcp-client-timeout",
+		EnvVar:  "MCP_CLIENT_TIMEOUT",
+		Type:    durationType,
+		Help:    "HTTP client timeout for MCP proxy communication",
+	})
+
+	// Retry jitter percent applied to proxy retries (when jitter enabled)
+	registry.Register(&FieldDef{
+		Path:    "llm.retry_jitter_percent",
+		Default: 10,
+		CLIFlag: "llm-retry-jitter-percent",
+		EnvVar:  "LLM_RETRY_JITTER_PERCENT",
+		Type:    reflect.TypeOf(0),
+		Help:    "Jitter percentage (1-100) applied to retry backoff",
+	})
+}
+
+func registerLLMRetryAndLimits(registry *Registry) {
+	registry.Register(&FieldDef{
 		Path:    "llm.retry_attempts",
 		Default: 3,
-		CLIFlag: "",
+		CLIFlag: "llm-retry-attempts",
 		EnvVar:  "LLM_RETRY_ATTEMPTS",
 		Type:    reflect.TypeOf(0),
 		Help:    "Number of retry attempts for LLM operations",
@@ -429,7 +514,7 @@ func registerLLMFields(registry *Registry) {
 	registry.Register(&FieldDef{
 		Path:    "llm.retry_backoff_base",
 		Default: 100 * time.Millisecond,
-		CLIFlag: "",
+		CLIFlag: "llm-retry-backoff-base",
 		EnvVar:  "LLM_RETRY_BACKOFF_BASE",
 		Type:    durationType,
 		Help:    "Base delay for exponential backoff retry strategy",
@@ -438,7 +523,7 @@ func registerLLMFields(registry *Registry) {
 	registry.Register(&FieldDef{
 		Path:    "llm.retry_backoff_max",
 		Default: 10 * time.Second,
-		CLIFlag: "",
+		CLIFlag: "llm-retry-backoff-max",
 		EnvVar:  "LLM_RETRY_BACKOFF_MAX",
 		Type:    durationType,
 		Help:    "Maximum delay between retry attempts",
@@ -447,7 +532,7 @@ func registerLLMFields(registry *Registry) {
 	registry.Register(&FieldDef{
 		Path:    "llm.retry_jitter",
 		Default: true,
-		CLIFlag: "",
+		CLIFlag: "llm-retry-jitter",
 		EnvVar:  "LLM_RETRY_JITTER",
 		Type:    reflect.TypeOf(true),
 		Help:    "Enable random jitter in retry delays to prevent thundering herd",
@@ -456,7 +541,7 @@ func registerLLMFields(registry *Registry) {
 	registry.Register(&FieldDef{
 		Path:    "llm.max_concurrent_tools",
 		Default: 10,
-		CLIFlag: "",
+		CLIFlag: "llm-max-concurrent-tools",
 		EnvVar:  "LLM_MAX_CONCURRENT_TOOLS",
 		Type:    reflect.TypeOf(0),
 		Help:    "Maximum number of concurrent tool executions",
@@ -465,7 +550,7 @@ func registerLLMFields(registry *Registry) {
 	registry.Register(&FieldDef{
 		Path:    "llm.max_tool_iterations",
 		Default: 100,
-		CLIFlag: "",
+		CLIFlag: "llm-max-tool-iterations",
 		EnvVar:  "LLM_MAX_TOOL_ITERATIONS",
 		Type:    reflect.TypeOf(0),
 		Help:    "Maximum tool-iteration loops per request (global default)",
@@ -1019,32 +1104,5 @@ func registerMCPProxyFields(registry *Registry) {
 		EnvVar:  "MCP_PROXY_SHUTDOWN_TIMEOUT",
 		Type:    durationType,
 		Help:    "Maximum time to wait for graceful shutdown",
-	})
-
-	registry.Register(&FieldDef{
-		Path:    "mcp_proxy.admin_allow_ips",
-		Default: []string{},
-		CLIFlag: "mcp-admin-allow-ips",
-		EnvVar:  "MCP_PROXY_ADMIN_ALLOW_IPS",
-		Type:    reflect.TypeOf([]string{}),
-		Help:    "IP addresses/CIDR blocks allowed for admin access (comma-separated). If empty, allows all IPs",
-	})
-
-	registry.Register(&FieldDef{
-		Path:    "mcp_proxy.trusted_proxies",
-		Default: []string{},
-		CLIFlag: "mcp-trusted-proxies",
-		EnvVar:  "MCP_PROXY_TRUSTED_PROXIES",
-		Type:    reflect.TypeOf([]string{}),
-		Help:    "Trusted proxy IP addresses/CIDR blocks (comma-separated)",
-	})
-
-	registry.Register(&FieldDef{
-		Path:    "mcp_proxy.global_auth_tokens",
-		Default: []string{},
-		CLIFlag: "mcp-global-auth-tokens",
-		EnvVar:  "MCP_PROXY_GLOBAL_AUTH_TOKENS",
-		Type:    reflect.TypeOf([]string{}),
-		Help:    "Global authentication tokens for all MCP clients (comma-separated)",
 	})
 }

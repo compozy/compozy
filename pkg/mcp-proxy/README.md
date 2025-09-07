@@ -6,21 +6,34 @@
 
 ## 📑 Table of Contents
 
-- [🎯 Overview](#-overview)
-- [💡 Motivation](#-motivation)
-- [⚡ Design Highlights](#-design-highlights)
-- [🚀 Getting Started](#-getting-started)
-- [📖 Usage](#-usage)
-  - [Basic Proxy Setup](#basic-proxy-setup)
-  - [Admin API](#admin-api)
-  - [Proxy Endpoints](#proxy-endpoints)
-  - [Security Configuration](#security-configuration)
-- [🔧 Configuration](#-configuration)
-- [🎨 Examples](#-examples)
-- [📚 API Reference](#-api-reference)
-- [🧪 Testing](#-testing)
-- [📦 Contributing](#-contributing)
-- [📄 License](#-license)
+- [`mcp-proxy` – _Lightweight, secure Model-Context-Protocol gateway_](#mcp-proxy--lightweight-secure-model-context-protocol-gateway)
+  - [📑 Table of Contents](#-table-of-contents)
+  - [🎯 Overview](#-overview)
+  - [💡 Motivation](#-motivation)
+  - [⚡ Design Highlights](#-design-highlights)
+  - [🚀 Getting Started](#-getting-started)
+  - [📖 Usage](#-usage)
+    - [Basic Proxy Setup](#basic-proxy-setup)
+    - [Admin API](#admin-api)
+    - [Proxy Endpoints](#proxy-endpoints)
+  - [🔧 Configuration](#-configuration)
+    - [Server Configuration](#server-configuration)
+    - [MCP Definition Schema](#mcp-definition-schema)
+    - [Storage Options](#storage-options)
+  - [🎨 Examples](#-examples)
+    - [Complete Production Setup](#complete-production-setup)
+    - [Compozy Engine Integration](#compozy-engine-integration)
+    - [Workflow YAML Integration](#workflow-yaml-integration)
+  - [📚 API Reference](#-api-reference)
+    - [Core Types](#core-types)
+    - [HTTP API Endpoints](#http-api-endpoints)
+      - [System Endpoints](#system-endpoints)
+      - [Admin API (requires authentication)](#admin-api-requires-authentication)
+      - [Proxy Endpoints](#proxy-endpoints-1)
+    - [Factory Functions](#factory-functions)
+  - [🧪 Testing](#-testing)
+  - [📦 Contributing](#-contributing)
+  - [📄 License](#-license)
 
 ---
 
@@ -47,7 +60,6 @@ The proxy supports multiple transport protocols (stdio, SSE, streamable-http), p
 - **Multi-Transport Support**: Handles stdio, SSE, and streamable-http protocols
 - **Dynamic Registration**: Hot-add, update, or remove servers via Admin API
 - **Pluggable Storage**: In-memory (default) or Redis persistence
-- **Security First**: Token authentication, IP allow-lists, and trusted proxy support
 - **Auto-Reconnection**: Automatic connection recovery with configurable back-off
 - **Tool Discovery**: Aggregates and exposes tools from all registered MCP servers
 - **Thread-Safe**: Safe for concurrent use across multiple goroutines
@@ -74,8 +86,6 @@ func main() {
         Host:               "127.0.0.1",
         BaseURL:            "http://127.0.0.1:6001",
         ShutdownTimeout:    10 * time.Second,
-        AdminAllowIPs:      []string{"127.0.0.1", "::1"},
-        GlobalAuthTokens:   []string{"global-token"},
     }
 
     // Create storage (in-memory)
@@ -163,20 +173,7 @@ resp, err := http.Post("http://127.0.0.1:6001/api-server/stream",
     "application/json", bytes.NewBuffer(payload))
 ```
 
-### Security Configuration
-
-```go
-config := &mcpproxy.Config{
-    // Admin API security
-    AdminAllowIPs: []string{"10.0.0.0/8", "192.168.1.0/24"},
-
-    // Global authentication for all MCP requests
-    GlobalAuthTokens: []string{"global-auth-token"},
-
-    // Trusted proxies for X-Forwarded-For headers
-    TrustedProxies: []string{"10.0.0.1", "172.16.0.0/12"},
-}
-```
+<!-- Security configuration handled by external network controls -->
 
 ---
 
@@ -190,9 +187,6 @@ type Config struct {
     Host               string        // Listen address (default: "127.0.0.1")
     BaseURL            string        // Base URL for generating SSE paths
     ShutdownTimeout    time.Duration // Graceful shutdown timeout
-    AdminAllowIPs      []string      // Admin API IP allow-list
-    TrustedProxies     []string      // Trusted proxy IPs for X-Forwarded-For
-    GlobalAuthTokens   []string      // Global auth tokens for all requests
 }
 ```
 
@@ -217,7 +211,6 @@ type MCPDefinition struct {
 
     // Security
     AuthTokens  []string `json:"authTokens,omitempty"`
-    AllowedIPs  []string `json:"allowedIPs,omitempty"`
     RequireAuth bool     `json:"requireAuth,omitempty"`
 
     // Behavior
@@ -274,9 +267,6 @@ func main() {
         Host:            "0.0.0.0",
         BaseURL:         "https://mcp-proxy.example.com",
         ShutdownTimeout: 30 * time.Second,
-        AdminAllowIPs:   []string{"10.0.0.0/8"},
-        TrustedProxies:  []string{"10.0.0.1"},
-        GlobalAuthTokens: []string{os.Getenv("GLOBAL_AUTH_TOKEN")},
     }
 
     // Redis storage for persistence

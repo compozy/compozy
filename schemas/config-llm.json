@@ -6,9 +6,17 @@
       "type": "string",
       "description": "ProxyURL specifies the MCP proxy server endpoint.\n\nThe proxy handles:\n  - MCP server connections\n  - Tool discovery and routing\n  - Protocol translation\nDefault: \"http://localhost:6001\""
     },
-    "admin_token": {
-      "type": "string",
-      "description": "AdminToken authenticates administrative operations.\n\nRequired for:\n  - MCP server registration\n  - Proxy configuration changes\n  - Debug endpoints\n**Security**: Use environment variables"
+    "mcp_readiness_timeout": {
+      "type": "integer",
+      "description": "MCPReadinessTimeout bounds how long to wait for MCP clients to connect during setup.\nDefault: 60s"
+    },
+    "mcp_readiness_poll_interval": {
+      "type": "integer",
+      "description": "MCPReadinessPollInterval sets how often to poll the proxy for MCP connection status.\nDefault: 200ms"
+    },
+    "mcp_header_template_strict": {
+      "type": "boolean",
+      "description": "MCPHeaderTemplateStrict enables strict template validation for MCP HTTP headers.\nWhen true, allows only simple lookups (no pipelines/function calls/inclusions).\nDefault: false"
     },
     "retry_attempts": {
       "type": "integer",
@@ -32,7 +40,37 @@
     },
     "max_tool_iterations": {
       "type": "integer",
-      "description": "MaxToolIterations caps the maximum number of tool-iteration loops per request.\n\nThis acts as a global default and can be overridden by model-specific configuration\nin project files. Set to 0 to use the orchestrator's built-in default.\nDefault: 0 (use default)"
+      "description": "MaxToolIterations caps the maximum number of tool-iteration loops per request.\n\nThis acts as a global default and can be overridden by model-specific configuration\nin project files. Set to 0 to use the orchestrator's built-in default.\nDefault: 10 (registry default)"
+    },
+    "max_sequential_tool_errors": {
+      "type": "integer",
+      "description": "MaxSequentialToolErrors caps how many sequential tool execution/content errors\nare tolerated for the same tool before aborting the task. Set to 0 to use\nthe orchestrator's built-in default.\nDefault: 10 (registry default)"
+    },
+    "allowed_mcp_names": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array",
+      "description": "AllowedMCPNames restricts which MCP servers/tools are considered eligible\nfor advertisement and invocation. When empty, all discovered MCP tools\nare eligible."
+    },
+    "fail_on_mcp_registration_error": {
+      "type": "boolean",
+      "description": "FailOnMCPRegistrationError enforces fail-fast behavior when registering\nMCP configurations sourced from agents/projects. When true, MCP\nregistration failures cause service initialization to error."
+    },
+    "register_mcps": {
+      "items": {
+        "type": "object"
+      },
+      "type": "array",
+      "description": "RegisterMCPs contains additional MCP configurations to be registered\nwith the MCP proxy at runtime. Represented as a generic slice to avoid\nimport cycles with engine packages."
+    },
+    "mcp_client_timeout": {
+      "type": "integer",
+      "description": "MCPClientTimeout sets the HTTP client timeout for MCP proxy communication."
+    },
+    "retry_jitter_percent": {
+      "type": "integer",
+      "description": "RetryJitterPercent controls jitter strength when retry_jitter is enabled."
     }
   },
   "additionalProperties": false,

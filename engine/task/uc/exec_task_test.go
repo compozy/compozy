@@ -32,4 +32,12 @@ func TestAllowedMCPIDs(t *testing.T) {
 		ids := exec.allowedMCPIDs(&agent.Config{}, &ExecuteTaskInput{WorkflowConfig: &workflow.Config{}})
 		assert.Nil(t, ids)
 	})
+	t.Run("Should trim spaces and normalize casing", func(t *testing.T) {
+		exec := &ExecuteTask{}
+		ag := &agent.Config{LLMProperties: agent.LLMProperties{MCPs: []mcp.Config{{ID: "  FileSystem  "}}}}
+		wf := &workflow.Config{MCPs: []mcp.Config{{ID: "FILESYSTEM"}}}
+		ids := exec.allowedMCPIDs(ag, &ExecuteTaskInput{WorkflowConfig: wf})
+		require.NotNil(t, ids)
+		assert.ElementsMatch(t, []string{"filesystem"}, ids)
+	})
 }

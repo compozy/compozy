@@ -50,9 +50,15 @@ func TestToolAPIEndpointsIntegration(t *testing.T) {
 		err := json.Unmarshal(w.Body.Bytes(), &toolsResponse)
 		require.NoError(t, err)
 
-		// Response should have tools array (empty is fine)
-		_, ok := toolsResponse["tools"]
+		// Response should have tools array (empty or null is fine)
+		tools, ok := toolsResponse["tools"]
 		assert.True(t, ok, "Response should contain 'tools' field")
+		// Tools can be null or empty array when no tools are available
+		if tools != nil {
+			// If not nil, should be an array
+			_, isArray := tools.([]any)
+			assert.True(t, isArray, "Tools field should be an array when not nil")
+		}
 	})
 
 	t.Run("Should handle non-existent MCP in tool call", func(t *testing.T) {
@@ -107,10 +113,16 @@ func TestToolAPIEndpointsIntegration(t *testing.T) {
 		// Test invalid JSON
 		req := httptest.NewRequest(http.MethodPost, "/admin/tools/call", bytes.NewReader([]byte("invalid json")))
 		req.Header.Set("Content-Type", "application/json")
-		// No authentication required anymore
 		w := httptest.NewRecorder()
 		server.Router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusBadRequest, w.Code)
+
+		// Validate error response structure
+		var errorResponse map[string]any
+		err := json.Unmarshal(w.Body.Bytes(), &errorResponse)
+		require.NoError(t, err)
+		assert.Contains(t, errorResponse, "error", "Response should contain 'error' field")
+		// Details field is optional for JSON parsing errors
 
 		// Test missing MCP name
 		toolCall := mcpproxy.CallToolRequest{
@@ -123,10 +135,14 @@ func TestToolAPIEndpointsIntegration(t *testing.T) {
 
 		req = httptest.NewRequest(http.MethodPost, "/admin/tools/call", bytes.NewReader(callJSON))
 		req.Header.Set("Content-Type", "application/json")
-		// No authentication required anymore
 		w = httptest.NewRecorder()
 		server.Router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusBadRequest, w.Code)
+
+		// Validate error response structure
+		err = json.Unmarshal(w.Body.Bytes(), &errorResponse)
+		require.NoError(t, err)
+		assert.Contains(t, errorResponse, "error", "Response should contain 'error' field")
 
 		// Test missing tool name
 		toolCall = mcpproxy.CallToolRequest{
@@ -139,9 +155,15 @@ func TestToolAPIEndpointsIntegration(t *testing.T) {
 
 		req = httptest.NewRequest(http.MethodPost, "/admin/tools/call", bytes.NewReader(callJSON))
 		req.Header.Set("Content-Type", "application/json")
-		// No authentication required anymore
 		w = httptest.NewRecorder()
 		server.Router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusBadRequest, w.Code)
+
+		// Validate error response structure
+		err = json.Unmarshal(w.Body.Bytes(), &errorResponse)
+		require.NoError(t, err)
+		assert.Contains(t, errorResponse, "error", "Response should contain 'error' field")
 	})
 }
+
+// IP allowlist enforcement tests were removed along with the feature.

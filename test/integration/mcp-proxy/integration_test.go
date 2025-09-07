@@ -228,6 +228,8 @@ func TestAdminSecurity(t *testing.T) {
 		require.NoError(t, err)
 		assert.Contains(t, response, "mcps")
 	})
+
+	// IP allowlist rejection test removed along with feature.
 }
 
 // NOTE: Additional tool execution integration tests are available in integration_tool_test.go

@@ -6,31 +6,42 @@
 
 ## 📑 Table of Contents
 
-- [🎯 Overview](#-overview)
-- [💡 Motivation](#-motivation)
-- [⚡ Design Highlights](#-design-highlights)
-- [🚀 Getting Started](#-getting-started)
-- [📖 Usage](#-usage)
-  - [Service Setup](#service-setup)
-  - [Agent Configuration](#agent-configuration)
-  - [Tool Management](#tool-management)
-  - [Memory Integration](#memory-integration)
-  - [Custom Providers](#custom-providers)
-- [🔧 Configuration](#-configuration)
-- [🎨 Examples](#-examples)
-  - [Basic Agent Execution](#basic-agent-execution)
-  - [Tool-Enabled Agents](#tool-enabled-agents)
-  - [Memory-Aware Agents](#memory-aware-agents)
-  - [Multi-Provider Setup](#multi-provider-setup)
-- [📚 API Reference](#-api-reference)
-  - [Service](#service)
-  - [Orchestrator](#orchestrator)
-  - [Config](#config)
-  - [Tool Registry](#tool-registry)
-  - [Memory Integration](#memory-integration-1)
-- [🧪 Testing](#-testing)
-- [📦 Contributing](#-contributing)
-- [📄 License](#-license)
+- [`llm` – _LLM integration layer for AI agent orchestration_](#llm--llm-integration-layer-for-ai-agent-orchestration)
+  - [📑 Table of Contents](#-table-of-contents)
+  - [🎯 Overview](#-overview)
+  - [💡 Motivation](#-motivation)
+  - [⚡ Design Highlights](#-design-highlights)
+  - [🚀 Getting Started](#-getting-started)
+    - [Prerequisites](#prerequisites)
+    - [Quick Setup](#quick-setup)
+  - [📖 Usage](#-usage)
+    - [Service Setup](#service-setup)
+    - [Agent Configuration](#agent-configuration)
+    - [Tool Management](#tool-management)
+    - [Memory Integration](#memory-integration)
+    - [Custom Providers](#custom-providers)
+  - [🔧 Configuration](#-configuration)
+    - [LLM Service Configuration](#llm-service-configuration)
+    - [Configuration Options](#configuration-options)
+  - [🎨 Examples](#-examples)
+    - [Basic Agent Execution](#basic-agent-execution)
+    - [Tool-Enabled Agents](#tool-enabled-agents)
+    - [Memory-Aware Agents](#memory-aware-agents)
+    - [Multi-Provider Setup](#multi-provider-setup)
+  - [📚 API Reference](#-api-reference)
+    - [Service](#service)
+    - [Orchestrator](#orchestrator)
+    - [Config](#config)
+    - [Tool Registry](#tool-registry)
+    - [Memory Integration](#memory-integration-1)
+    - [Configuration Options](#configuration-options-1)
+    - [Error Types](#error-types)
+  - [🧪 Testing](#-testing)
+    - [Unit Testing](#unit-testing)
+    - [Integration Testing](#integration-testing)
+    - [Running Tests](#running-tests)
+  - [📦 Contributing](#-contributing)
+  - [📄 License](#-license)
 
 ---
 
@@ -667,7 +678,6 @@ func WithStructuredOutput(enabled bool) Option
 func WithMemoryProvider(provider MemoryProvider) Option
 func WithLLMFactory(factory llmadapter.Factory) Option
 func WithProxyURL(url string) Option
-// WithAdminToken option has been removed
 ```
 
 ### Error Types

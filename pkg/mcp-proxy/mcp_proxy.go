@@ -12,7 +12,6 @@ func DefaultConfig() *Config {
 		Port:            "6001",
 		Host:            "127.0.0.1", // Bind to localhost by default for security
 		ShutdownTimeout: 10 * time.Second,
-		AdminAllowIPs:   []string{}, // No IP restrictions by default - users can add if needed
 	}
 }
 

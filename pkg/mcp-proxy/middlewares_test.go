@@ -1,6 +1,7 @@
 package mcpproxy
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -12,6 +13,8 @@ import (
 // TestAuthMiddleware_TokenValidation has been removed as authentication
 // functionality has been removed from the MCP proxy server.
 // The proxy server no longer provides or enforces authentication mechanisms.
+
+// Admin IP allowlist middleware tests were removed along with the feature.
 
 func TestMiddlewareWrapper_PanicRecovery(t *testing.T) {
 	t.Run("Should recover from handler panics and return 500 error", func(t *testing.T) {
@@ -37,7 +40,11 @@ func TestMiddlewareWrapper_PanicRecovery(t *testing.T) {
 		wrappedHandler(c)
 
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
-		assert.Contains(t, w.Body.String(), "Internal server error")
+		var resp map[string]string
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		assert.NoError(t, err)
+		assert.Equal(t, "Internal server error", resp["error"])
+		assert.Equal(t, "test panic", resp["details"])
 	})
 
 	t.Run("Should handle nil handler gracefully with error response", func(t *testing.T) {
@@ -53,7 +60,11 @@ func TestMiddlewareWrapper_PanicRecovery(t *testing.T) {
 		wrappedHandler(c)
 
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
-		assert.Contains(t, w.Body.String(), "Handler not initialized")
+		var resp map[string]string
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		assert.NoError(t, err)
+		assert.Equal(t, "Handler not initialized", resp["error"])
+		assert.Equal(t, "Handler not initialized", resp["details"])
 	})
 
 	t.Run("Should execute middlewares in correct order with proper chaining", func(t *testing.T) {

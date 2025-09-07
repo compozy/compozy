@@ -63,7 +63,7 @@ func getServerCategories() []FlagCategory {
 			Name:        "Server Configuration",
 			Description: "API server and network settings",
 			Flags: []string{
-				"host", "port", "server-url", "base-url", "cors",
+				"host", "port", "base-url", "cors",
 				"cors-allowed-origins", "cors-allow-credentials", "cors-max-age",
 			},
 		},
@@ -86,6 +86,18 @@ func getRuntimeCategories() []FlagCategory {
 			Flags: []string{
 				"runtime-type", "entrypoint-path", "bun-permissions",
 				"tool-execution-timeout", "timeout", "page-size",
+			},
+		},
+		{
+			Name:        "LLM Configuration",
+			Description: "LLM proxy and orchestration behavior",
+			Flags: []string{
+				"llm-proxy-url", "llm-mcp-readiness-timeout", "llm-mcp-readiness-poll-interval",
+				"llm-mcp-header-template-strict", "llm-retry-attempts", "llm-retry-backoff-base",
+				"llm-retry-backoff-max", "llm-retry-jitter", "llm-max-concurrent-tools",
+				"llm-max-tool-iterations", "llm-max-sequential-tool-errors",
+				"llm-allowed-mcp-names", "llm-fail-on-mcp-registration-error",
+				"llm-mcp-client-timeout", "llm-retry-jitter-percent",
 			},
 		},
 		{
@@ -122,8 +134,6 @@ func getInfrastructureCategories() []FlagCategory {
 			Description: "Model Context Protocol proxy settings",
 			Flags: []string{
 				"mcp-host", "mcp-port", "mcp-base-url",
-				"mcp-admin-tokens", "mcp-admin-allow-ips",
-				"mcp-trusted-proxies", "mcp-global-auth-tokens",
 			},
 		},
 	}

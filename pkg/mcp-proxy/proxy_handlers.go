@@ -99,9 +99,15 @@ func (p *ProxyHandlers) RegisterMCPProxy(ctx context.Context, name string, def *
 	// Initialize the client connection and add its capabilities to the server
 	// This runs in background after the server is registered
 	go func() {
-		// Create independent context to avoid cancellation affecting background initialization
+		// Independent context with timeout to avoid indefinite wait
 		bgCtx := logger.ContextWithLogger(context.Background(), log)
-		if err := p.initializeClientConnection(bgCtx, client, mcpServer, name, def); err != nil {
+		timeout := 30 * time.Second
+		if def != nil && def.Timeout > 0 {
+			timeout = def.Timeout
+		}
+		waitCtx, cancel := context.WithTimeout(bgCtx, timeout)
+		defer cancel()
+		if err := p.initializeClientConnection(waitCtx, client, mcpServer, name, def); err != nil {
 			log.Error("Failed to initialize MCP client connection", "name", name, "error", err)
 			// Update client status to reflect initialization failure
 			if status := client.GetStatus(); status != nil {
@@ -160,6 +166,7 @@ func (p *ProxyHandlers) UnregisterMCPProxy(ctx context.Context, name string) err
 // @Success 200 {string} string "SSE stream"
 // @Failure 400 {object} map[string]interface{} "Bad request"
 // @Failure 404 {object} map[string]interface{} "MCP not found"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /{name}/sse [get]
 // @Router /{name}/sse/{path} [get]
 func (p *ProxyHandlers) SSEProxyHandler(c *gin.Context) {
@@ -193,7 +200,7 @@ func (p *ProxyHandlers) SSEProxyHandler(c *gin.Context) {
 	// Use cached definition to avoid repeated storage queries
 	def := proxyServer.def
 
-	// Apply middleware chain in security-first order
+	// Apply middleware chain
 	middlewares := []gin.HandlerFunc{
 		recoverMiddleware(name), // Recovery should be outermost
 	}
@@ -223,6 +230,7 @@ func (p *ProxyHandlers) SSEProxyHandler(c *gin.Context) {
 // @Success 200 {string} string "HTTP stream"
 // @Failure 400 {object} map[string]interface{} "Bad request"
 // @Failure 404 {object} map[string]interface{} "MCP not found"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /{name}/stream [get]
 // @Router /{name}/stream [post]
 // @Router /{name}/stream [put]
@@ -324,3 +332,5 @@ func (p *ProxyHandlers) GetProxyServer(name string) *ProxyServer {
 	defer p.serversMutex.RUnlock()
 	return p.servers[name]
 }
+
+// Note: IP allowlist middleware has been removed. Network-level controls should be used instead.

@@ -121,16 +121,6 @@ Persistent storage for MCP server configurations and state.
 - Custom storage backends
 - Configuration persistence
 </Accordion>
-
-<Accordion title="Authentication Manager" icon="shield">
-Handles security and access control for the proxy server.
-
-**Security Features:**
-- Token-based authentication
-- IP allow-lists and restrictions
-- Trusted proxy support
-- Role-based access control
-</Accordion>
 </AccordionGroup>
 
 ## Key Features
@@ -145,11 +135,6 @@ Handles security and access control for the proxy server.
     title="Dynamic Registration"
     description="Hot-add, update, or remove servers via Admin API with zero downtime"
     icon="refresh-cw"
-  />
-  <FeatureCard
-    title="Security & Authentication"
-    description="Token-based auth, IP restrictions, and trusted proxy support"
-    icon="shield"
   />
   <FeatureCard
     title="Storage Flexibility"
@@ -221,10 +206,6 @@ type Config struct {
     Host               string        // Listen address (default: "0.0.0.0")
     BaseURL            string        // Base URL for generating paths
     ShutdownTimeout    time.Duration // Graceful shutdown timeout
-    AdminTokens        []string      // Admin API bearer tokens
-    AdminAllowIPs      []string      // Admin API IP allow-list
-    TrustedProxies     []string      // Trusted proxy IPs
-    GlobalAuthTokens   []string      // Global auth tokens
     StorageType        string        // Storage backend type
     MaxConnections     int           // Maximum concurrent connections
     IdleTimeout        time.Duration // Connection idle timeout
@@ -276,19 +257,11 @@ MCP_PROXY_SHUTDOWN_TIMEOUT=30s
 **Security Configuration**
 
 ```bash title="Security Environment Variables"
-# Admin API security (optional - only set if you want to enable authentication)
-# MCP_PROXY_ADMIN_TOKEN=your-secure-admin-token
-# MCP_PROXY_ADMIN_ALLOW_IPS=127.0.0.1,::1,10.0.0.0/8  # Optional: Restrict by IP
-
-# Global authentication (optional)
-# MCP_PROXY_GLOBAL_AUTH_TOKEN=global-access-token
-
-# Trusted proxies
-MCP_PROXY_TRUSTED_PROXIES=127.0.0.1,::1
+# Configure security via your reverse proxy or firewall
 ```
 
 <Callout type="info">
-**Security Note**: By default, the MCP proxy runs without authentication for ease of development. In production environments, we strongly recommend setting secure admin tokens and IP restrictions.
+**Security Note**: Protect `/admin` endpoints using network controls (localhost binding, firewall, or reverse proxy). The proxy no longer enforces IP allow-lists.
 </Callout>
 </Tab>
 
@@ -332,11 +305,6 @@ Start with custom settings:
 ```bash
 # Basic start without authentication
 compozy mcp-proxy
-
-# With authentication enabled (using environment variables)
-MCP_PROXY_ADMIN_TOKEN="secure-admin-token" \
-MCP_PROXY_ADMIN_ALLOW_IPS="10.0.0.0/8,192.168.1.0/24" \
-compozy mcp-proxy
 ```
 </Step>
 
@@ -344,8 +312,7 @@ compozy mcp-proxy
 Use environment variables for production:
 
 ```bash
-export MCP_PROXY_ADMIN_TOKEN="$(openssl rand -hex 32)"
-export MCP_PROXY_GLOBAL_AUTH_TOKEN="$(openssl rand -hex 32)"
+# Configure access controls at your network edge (reverse proxy)
 compozy mcp-proxy
 ```
 </Step>
@@ -367,8 +334,6 @@ CMD ["compozy", "mcp-proxy", "--mcp-host", "0.0.0.0", "--mcp-port", "6001"]
 
 ```bash title="Run Container"
 docker run -p 6001:6001 \
-  -e MCP_PROXY_ADMIN_TOKEN=secure-token \
-  -e MCP_PROXY_GLOBAL_AUTH_TOKEN=global-token \
   ghcr.io/compozy/mcp-proxy:latest \
   compozy mcp-proxy
 ```
@@ -388,8 +353,6 @@ services:
     environment:
       - MCP_PROXY_HOST=0.0.0.0
       - MCP_PROXY_PORT=6001
-      - MCP_PROXY_ADMIN_TOKEN=${MCP_PROXY_ADMIN_TOKEN}
-      - MCP_PROXY_GLOBAL_AUTH_TOKEN=${MCP_PROXY_GLOBAL_AUTH_TOKEN}
       - REDIS_URL=redis://redis:6379/0
     depends_on:
       - redis
@@ -439,16 +402,7 @@ spec:
           value: "0.0.0.0"
         - name: MCP_PROXY_PORT
           value: "6001"
-        - name: MCP_PROXY_ADMIN_TOKEN
-          valueFrom:
-            secretKeyRef:
-              name: mcp-proxy-secrets
-              key: admin-token
-        - name: MCP_PROXY_GLOBAL_AUTH_TOKEN
-          valueFrom:
-            secretKeyRef:
-              name: mcp-proxy-secrets
-              key: global-token
+        # Configure auth at your ingress or API gateway
         - name: REDIS_URL
           value: "redis://redis-service:6379/0"
         - name: MCP_PROXY_MAX_CONNECTIONS
@@ -502,7 +456,6 @@ type: Opaque
 data:
   # Base64 encoded tokens
   admin-token: <base64-encoded-admin-token>
-  global-token: <base64-encoded-global-token>
 ```
 </Tab>
 </Tabs>
@@ -524,7 +477,7 @@ For detailed API endpoint documentation, see our comprehensive API reference:
 
 - **Health Check**: `GET /healthz` - Monitor server health
 - **Metrics**: `GET /metrics` - Prometheus-compatible metrics
-- **Admin API**: No built-in authentication. Protect `/admin` endpoints using network controls (localhost binding, IP allow-lists) or a reverse proxy.
+- **Admin API**: No built-in authentication. Protect `/admin` endpoints using network controls (localhost binding, firewall) or a reverse proxy.
 - **Server Management**: Register, update, and remove MCP servers
 - **Tool Discovery**: List all available tools across servers
 
@@ -643,17 +596,16 @@ telnet localhost 6001
 
 | Issue | Symptoms | Solution |
 |-------|----------|----------|
-| **Exposed Admin API** | `/admin` reachable externally | Bind to localhost, place behind reverse proxy, or enable IP allow-lists |
-| **Unexpected 403** | Forbidden with IP checks | Verify `AdminAllowIPs` configuration and proxy chain headers |
+| **Exposed Admin API** | `/admin` reachable externally | Bind to localhost or place behind reverse proxy/firewall |
+| **Unexpected 403** | Forbidden responses | Verify reverse proxy headers and trusted proxy configuration |
 
 **Debug Commands:**
 ```bash
 # Check admin API locally
 curl http://localhost:6001/admin/mcps
 
-# Validate IP allow-list behavior (from a trusted proxy)
-curl -H "X-Forwarded-For: 192.168.1.100" \
-     http://localhost:6001/admin/mcps
+# Validate admin API locally
+curl http://localhost:6001/admin/mcps
 ```
 </Tab>
 

@@ -56,7 +56,6 @@ Store tokens securely in environment variables:
 ```bash
 # .env
 MCP_AUTH_TOKEN=your-secure-token-here
-MCP_ADMIN_TOKEN=admin-token-for-management
 ```
 </Step>
 
@@ -204,7 +203,6 @@ Set authentication tokens securely:
 ```bash
 # .env
 MCP_AUTH_TOKEN=your-secure-token-here
-MCP_ADMIN_TOKEN=admin-token-for-management
 ```
 
 ### Token Generation
@@ -1152,7 +1150,6 @@ describe('MCP Authorization', () => {
 
   describe('Role-Based Access Control', () => {
     it('should allow admin access to all endpoints', async () => {
-      const adminToken = await tester.getAdminToken();
       const endpoints = [
         '/api/v1/mcp/list',
         '/api/v1/mcp/register',
@@ -1164,7 +1161,6 @@ describe('MCP Authorization', () => {
       for (const endpoint of endpoints) {
         const result = await tester.testEndpointAccess({
           endpoint,
-          token: adminToken,
           expectedStatusCode: 200
         });
         expect(result.statusCode).toBe(200);
@@ -1798,10 +1794,6 @@ grep -i "rate-limit" response_headers.txt
 # Test rate limiting configuration
 curl -H "Authorization: Bearer $TOKEN" \
   http://localhost:6001/admin/config/rate-limits
-
-# Check rate limit metrics
-curl -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:6001/admin/metrics/rate-limits
 ```
 
 **Solution**: Verify rate limit configuration and middleware order.
@@ -1834,10 +1826,6 @@ curl -H "X-Real-IP: 127.0.0.1" \
 
 <Step title="IP Whitelist Not Working">
 ```bash
-# Verify IP whitelist configuration
-curl -H "Authorization: Bearer $ADMIN_TOKEN" \
-  http://localhost:6001/admin/config/ip-whitelist
-
 # Test IP parsing
 curl -H "X-Forwarded-For: 192.168.1.1" \
   -H "Authorization: Bearer $TOKEN" \

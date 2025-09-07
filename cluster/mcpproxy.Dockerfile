@@ -42,6 +42,9 @@ RUN ./compozy mcp-proxy --help || echo "Compozy MCP Proxy command built successf
 # Production stage - Use Alpine for runtime dependencies while maintaining security
 FROM alpine:3.20
 
+# Optional: include Docker CLI only when needed to reduce image size and CVE surface
+ARG WITH_DOCKER_CLI=false
+
 # Install runtime dependencies required for engine/runtime and mcp-proxy
 RUN apk add --no-cache \
     ca-certificates \
@@ -60,8 +63,7 @@ RUN apk add --no-cache \
     redis \
     # Process monitoring
     procps \
-    # Docker CLI for stdio commands that call `docker`
-    docker-cli
+    && if [ "$WITH_DOCKER_CLI" = "true" ]; then apk add --no-cache docker-cli; fi
 
 # Install Bun - Latest stable version for production
 ENV BUN_VERSION=1.1.45
@@ -84,9 +86,7 @@ RUN curl -L -o /tmp/uv.tar.gz \
 RUN addgroup -g 1001 -S mcpproxy \
     && adduser -u 1001 -S mcpproxy -G mcpproxy
 
-# Copy timezone data and certificates from builder
-COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
-COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+# tzdata and ca-certificates already installed in runtime; no need to copy from builder
 
 # Set working directory
 WORKDIR /app
@@ -114,7 +114,7 @@ ENV MCP_PROXY_TIMEOUT=30s
 
 # Health check for production monitoring
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:6001/healthz || exit 1
+    CMD sh -c 'wget --no-verbose --tries=1 --spider "http://localhost:${MCP_PROXY_PORT:-6001}/healthz" || exit 1'
 
 # Expose port
 EXPOSE 6001
@@ -128,7 +128,6 @@ LABEL org.opencontainers.image.documentation="https://github.com/compozy/compozy
 LABEL org.opencontainers.image.vendor="Compozy"
 LABEL org.opencontainers.image.licenses="BSL-1.1"
 LABEL org.opencontainers.image.base.name="alpine:3.20"
-LABEL org.opencontainers.image.description="Model Context Protocol Proxy with runtime support for Node.js, Bun, Python, and uv"
 
 # Default command - run the compozy mcp-proxy subcommand
 ENTRYPOINT ["/app/compozy"]

@@ -62,15 +62,7 @@ var bufferPool = sync.Pool{
 	},
 }
 
-// secretRe matches common secret patterns in logs for redaction
-var secretRe = regexp.MustCompile(
-	`\b(sk-[A-Za-z0-9_\-]{16,}|api[-_]?key[-_]?[A-Za-z0-9_\-]{16,}|token[-_]?[A-Za-z0-9_\-]{16,})\b`,
-)
-
-// redact masks common secret patterns in logs (best-effort; keep fast/cheap).
-func redact(s string) string {
-	return secretRe.ReplaceAllString(s, "***REDACTED***")
-}
+// Redaction centralized in engine/core. Use core.RedactString for log outputs.
 
 // BunManager implements the Runtime interface for Bun execution
 type BunManager struct {
@@ -447,7 +439,7 @@ func (bm *BunManager) readStderrInBackground(
 						line := strings.TrimRight(lineBuf.String(), "\r\n")
 						if line != "" {
 							// Log immediately with redaction
-							log.Debug("Bun worker stderr", "output", redact(line))
+							log.Debug("Bun worker stderr", "output", core.RedactString(line))
 							// Capture for error context
 							if captured < maxCapture {
 								remaining := maxCapture - captured
@@ -468,7 +460,7 @@ func (bm *BunManager) readStderrInBackground(
 				if lineBuf.Len() > 0 {
 					line := strings.TrimRight(lineBuf.String(), "\r\n")
 					if line != "" {
-						log.Debug("Bun worker stderr", "output", redact(line))
+						log.Debug("Bun worker stderr", "output", core.RedactString(line))
 						if captured < maxCapture {
 							remaining := maxCapture - captured
 							toWrite := line + "\n"

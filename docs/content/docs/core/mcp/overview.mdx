@@ -230,11 +230,6 @@ mcps:
     icon="RefreshCw"
   />
   <FeatureCard
-    title="Security & Authentication"
-    description="Token-based auth, IP allow-lists, and environment variable management"
-    icon="Shield"
-  />
-  <FeatureCard
     title="Observability & Monitoring"
     description="Health checks, metrics tracking, and comprehensive logging"
     icon="BarChart3"
@@ -255,12 +250,6 @@ mcps:
 ```bash title="Environment Variables"
 # Required: MCP proxy service URL
 MCP_PROXY_URL=http://localhost:6001
-
-# Optional: Admin token for proxy management
-# Note: The MCP proxy does not implement built-in admin authentication.
-
-# Optional: Global authentication token
-MCP_PROXY_GLOBAL_AUTH_TOKEN=global-token
 ```
 
 ## Quick Start with CLI

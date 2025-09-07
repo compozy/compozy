@@ -18,6 +18,13 @@ import (
 	mcpproxy "github.com/compozy/compozy/pkg/mcp-proxy"
 )
 
+const (
+	logLevelDebug = "debug"
+	logLevelInfo  = "info"
+	logLevelWarn  = "warn"
+	logLevelError = "error"
+)
+
 // NewMCPProxyCommand creates the mcp-proxy command using the unified command pattern
 func NewMCPProxyCommand() *cobra.Command {
 	cmd := &cobra.Command{
@@ -142,8 +149,6 @@ func buildMCPProxyConfig(_ *cobra.Command) *mcpproxy.Config {
 		Port:            port,
 		BaseURL:         baseURL,
 		ShutdownTimeout: mcpConfig.ShutdownTimeout,
-		AdminAllowIPs:   mcpConfig.AdminAllowIPs,
-		TrustedProxies:  mcpConfig.TrustedProxies,
 	}
 }
 
@@ -154,13 +159,17 @@ func setupMCPProxyLogging(cobraCmd *cobra.Command, _ *cmd.CommandExecutor) logge
 	cfg := config.Get()
 	logLevel := cfg.Runtime.LogLevel
 	if envLevel := os.Getenv("MCP_PROXY_LOG_LEVEL"); envLevel != "" {
-		logLevel = strings.ToLower(envLevel)
+		v := strings.ToLower(envLevel)
+		switch v {
+		case logLevelDebug, logLevelInfo, logLevelWarn, logLevelError:
+			logLevel = v
+		}
 	}
 	if cfg.CLI.Debug {
-		logLevel = "debug"
+		logLevel = logLevelDebug
 	}
 	if debug, err := cobraCmd.Flags().GetBool("debug"); err == nil && debug {
-		logLevel = "debug"
+		logLevel = logLevelDebug
 	}
 	return logger.SetupLogger(logger.LogLevel(logLevel), false, false)
 }

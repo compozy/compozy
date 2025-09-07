@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
@@ -203,24 +204,24 @@ func (s *Service) Close() error {
 	return nil
 }
 
-// collectMCPsToRegister combines workflow-provided and agent-declared MCPs
-// for proxy registration.
+// collectMCPsToRegister combines agent-declared and workflow-level MCPs for
+// proxy registration. Precedence: agent-level definitions override workflow
+// duplicates (dedupe keeps the first occurrence).
 func collectMCPsToRegister(agentCfg *agent.Config, cfg *Config) []mcp.Config {
 	var out []mcp.Config
-	if cfg != nil && len(cfg.RegisterMCPs) > 0 {
-		out = append(out, cfg.RegisterMCPs...)
-	}
 	if agentCfg != nil && len(agentCfg.MCPs) > 0 {
 		out = append(out, agentCfg.MCPs...)
+	}
+	if cfg != nil && len(cfg.RegisterMCPs) > 0 {
+		out = append(out, cfg.RegisterMCPs...)
 	}
 	return out
 }
 
 // dedupeMCPsByID removes duplicates using case-insensitive ID comparison.
 func dedupeMCPsByID(in []mcp.Config) []mcp.Config {
-	if len(in) == 0 {
-		return nil
-	}
+	// Keeps the first occurrence of an ID (case-insensitive). Given the
+	// collection order, agent-level entries take precedence over workflow ones.
 	seen := make(map[string]struct{})
 	out := make([]mcp.Config, 0, len(in))
 	for i := range in {
@@ -234,9 +235,6 @@ func dedupeMCPsByID(in []mcp.Config) []mcp.Config {
 		seen[id] = struct{}{}
 		out = append(out, in[i])
 	}
-	if len(out) == 0 {
-		return nil
-	}
 	return out
 }
 
@@ -245,6 +243,8 @@ func registerMCPsWithProxy(ctx context.Context, client *mcp.Client, mcps []mcp.C
 	if client == nil || len(mcps) == 0 {
 		return nil
 	}
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
 	reg := mcp.NewRegisterService(client)
 	if err := reg.EnsureMultiple(ctx, mcps); err != nil {
 		if strict {

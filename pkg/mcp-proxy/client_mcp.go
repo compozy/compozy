@@ -227,11 +227,13 @@ func (c *MCPClient) Connect(ctx context.Context) error {
 	// Start ping routine if needed - use manager context for proper lifecycle
 	if c.needPing {
 		pingCtx, pingCancel := context.WithCancel(c.managerCtx)
+		done := make(chan struct{})
 		c.mu.Lock()
 		c.pingCancel = pingCancel
+		c.pingDone = done
 		c.mu.Unlock()
 		pingCtx = logger.ContextWithLogger(pingCtx, log)
-		go c.startPingRoutine(pingCtx)
+		go c.startPingRoutine(pingCtx, done)
 	}
 
 	log.Info("Successfully connected to MCP server", "mcp_name", c.definition.Name)
@@ -342,12 +344,16 @@ func (c *MCPClient) initializeMCP(ctx context.Context) error {
 }
 
 // startPingRoutine starts a background ping routine for connection health
-func (c *MCPClient) startPingRoutine(ctx context.Context) {
+func (c *MCPClient) startPingRoutine(ctx context.Context, done chan struct{}) {
 	log := logger.FromContext(ctx)
 	log.Debug("Starting ping routine", "mcp_name", c.definition.Name)
-	defer close(c.pingDone) // Signal completion when routine exits
+	defer close(done) // Signal completion when routine exits
 
-	ticker := time.NewTicker(30 * time.Second)
+	interval := DefaultHealthCheckInterval
+	if c.definition != nil && c.definition.HealthCheckInterval > 0 {
+		interval = c.definition.HealthCheckInterval
+	}
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for {

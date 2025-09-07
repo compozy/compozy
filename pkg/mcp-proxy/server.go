@@ -4,11 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
@@ -34,12 +32,6 @@ type Config struct {
 	Host            string
 	BaseURL         string // Base URL for SSE server
 	ShutdownTimeout time.Duration
-
-	// Admin API security
-	AdminAllowIPs []string // List of allowed IP addresses/CIDR blocks for admin API
-
-	// Trusted proxies for X-Forwarded-For header validation
-	TrustedProxies []string // List of trusted proxy IP addresses/CIDR blocks
 }
 
 // Validate validates the server configuration
@@ -107,9 +99,8 @@ func (s *Server) setupRoutes() {
 	// Health check endpoint
 	s.Router.GET("/healthz", s.healthzHandler)
 
-	// Admin API for MCP management with IP-based security middleware
+	// Admin API for MCP management (no IP-based filtering; rely on external network controls)
 	admin := s.Router.Group("/admin")
-	admin.Use(s.adminSecurityMiddleware())
 	{
 		// MCP Definition CRUD operations
 		admin.POST("/mcps", s.adminHandlers.AddMCPHandler)
@@ -171,11 +162,6 @@ func (s *Server) metricsHandler(c *gin.Context) {
 func (s *Server) Start(ctx context.Context) error {
 	log := logger.FromContext(ctx)
 	log.Info("Starting MCP proxy server", "port", s.config.Port, "host", s.config.Host)
-
-	// Security check: prevent default admin token in production
-	if err := s.validateSecurityConfig(ctx); err != nil {
-		return fmt.Errorf("security configuration error: %w", err)
-	}
 
 	// Start client manager to restore existing MCP connections
 	if err := s.clientManager.Start(ctx); err != nil {
@@ -261,124 +247,4 @@ func (s *Server) waitForShutdown(ctx context.Context, errChan <-chan error) erro
 	}
 }
 
-// adminSecurityMiddleware implements security checks for admin API
-func (s *Server) adminSecurityMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		// Check IP allow-list if configured
-		if len(s.config.AdminAllowIPs) > 0 {
-			clientIP := s.getClientIP(c)
-			if !s.isIPAllowed(clientIP, s.config.AdminAllowIPs) {
-				c.JSON(http.StatusForbidden, gin.H{
-					"error": "Access denied: IP not allowed",
-				})
-				c.Abort()
-				return
-			}
-		}
-
-		c.Next()
-	}
-}
-
-// validateSecurityConfig checks security configuration at startup
-func (s *Server) validateSecurityConfig(_ context.Context) error {
-	// Currently only validates IP configuration if needed
-	// Admin API is open by default unless IP restrictions are configured
-	return nil
-}
-
-// getClientIP extracts the real client IP from the request
-func (s *Server) getClientIP(c *gin.Context) string {
-	// Extract the direct connection IP first
-	directIP, _, err := net.SplitHostPort(c.Request.RemoteAddr)
-	if err != nil {
-		directIP = c.Request.RemoteAddr
-	}
-
-	// Only trust X-Forwarded-For and X-Real-IP headers if the request comes from a trusted proxy
-	if s.isTrustedProxy(directIP) {
-		// Check X-Forwarded-For header first (for reverse proxies)
-		if xff := c.GetHeader("X-Forwarded-For"); xff != "" {
-			ips := strings.Split(xff, ",")
-			if len(ips) > 0 {
-				return strings.TrimSpace(ips[0])
-			}
-		}
-
-		// Check X-Real-IP header
-		if xri := c.GetHeader("X-Real-IP"); xri != "" {
-			return strings.TrimSpace(xri)
-		}
-	}
-
-	// Fall back to direct connection IP
-	return directIP
-}
-
-// isIPAllowed checks if an IP is allowed based on the allow list
-func (s *Server) isIPAllowed(clientIP string, allowList []string) bool {
-	if len(allowList) == 0 {
-		return true
-	}
-
-	// Parse client IP
-	ip := net.ParseIP(clientIP)
-	if ip == nil {
-		return false
-	}
-
-	for _, allowed := range allowList {
-		// Check if it's a CIDR block
-		if strings.Contains(allowed, "/") {
-			_, cidr, err := net.ParseCIDR(allowed)
-			if err != nil {
-				continue
-			}
-			if cidr.Contains(ip) {
-				return true
-			}
-		} else {
-			// Direct IP comparison
-			allowedIP := net.ParseIP(allowed)
-			if allowedIP != nil && ip.Equal(allowedIP) {
-				return true
-			}
-		}
-	}
-
-	return false
-}
-
-// isTrustedProxy checks if an IP is in the trusted proxy list
-func (s *Server) isTrustedProxy(clientIP string) bool {
-	if len(s.config.TrustedProxies) == 0 {
-		return false
-	}
-
-	// Parse client IP
-	ip := net.ParseIP(clientIP)
-	if ip == nil {
-		return false
-	}
-
-	for _, trusted := range s.config.TrustedProxies {
-		// Check if it's a CIDR block
-		if strings.Contains(trusted, "/") {
-			_, cidr, err := net.ParseCIDR(trusted)
-			if err != nil {
-				continue
-			}
-			if cidr.Contains(ip) {
-				return true
-			}
-		} else {
-			// Direct IP comparison
-			trustedIP := net.ParseIP(trusted)
-			if trustedIP != nil && ip.Equal(trustedIP) {
-				return true
-			}
-		}
-	}
-
-	return false
-}
+// Client IP resolution relies on gin's default ClientIP() behavior.

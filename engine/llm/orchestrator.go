@@ -66,7 +66,7 @@ type OrchestratorConfig struct {
 	// Precedence at runtime: model-specific (agent.Config.MaxToolIterations) > this value > default.
 	MaxToolIterations int
 	// MaxSequentialToolErrors limits how many sequential failures for the same tool
-	// (or content-level error) are tolerated before aborting. When <= 0, defaults to 3.
+	// (or content-level error) are tolerated before aborting. When <= 0, defaults to 8.
 	MaxSequentialToolErrors int
 	// Retry configuration
 	RetryAttempts    int           // Number of retry attempts for LLM operations
@@ -95,25 +95,23 @@ func NewOrchestrator(config *OrchestratorConfig) Orchestrator {
 
 // Execute processes an LLM request end-to-end
 func (o *llmOrchestrator) Execute(ctx context.Context, request Request) (*core.Output, error) {
-	log := logger.FromContext(ctx)
 	if err := o.validateInput(ctx, request); err != nil {
 		return nil, NewValidationError(err, "request", request)
 	}
-	return o.executeWithValidatedRequest(ctx, request, log)
+	return o.executeWithValidatedRequest(ctx, request)
 }
 
 func (o *llmOrchestrator) executeWithValidatedRequest(
 	ctx context.Context,
 	request Request,
-	log logger.Logger,
 ) (*core.Output, error) {
-	memories := o.prepareMemoryContext(ctx, request, log)
+	memories := o.prepareMemoryContext(ctx, request)
 	llmClient, err := o.createLLMClient(request)
 	if err != nil {
 		return nil, err
 	}
-	defer o.closeLLMClient(llmClient, log)
-	return o.executeWithClient(ctx, request, memories, llmClient, log)
+	defer o.closeLLMClient(ctx, llmClient)
+	return o.executeWithClient(ctx, request, memories, llmClient)
 }
 
 func (o *llmOrchestrator) executeWithClient(
@@ -121,40 +119,26 @@ func (o *llmOrchestrator) executeWithClient(
 	request Request,
 	memories map[string]Memory,
 	llmClient llmadapter.LLMClient,
-	log logger.Logger,
 ) (*core.Output, error) {
 	llmReq, err := o.buildLLMRequest(ctx, request, memories)
 	if err != nil {
 		return nil, err
 	}
-
 	// Track sequential error counts per tool name; "__content__" used for content-level errors
-	errBudget := o.config.MaxSequentialToolErrors
-	if errBudget <= 0 {
-		errBudget = 8
-	}
+	errBudget := o.computeErrorBudget()
 	consecutiveErrors := map[string]int{}
 
 	// Track successes and last results to detect non-progressive loops
 	successCounters := map[string]int{}
 	lastResults := map[string]string{}
-	noProgressCount, lastMessageCount := 0, 0
-
+	noProgressCount := 0
+	lastFingerprint := ""
 	// Iteratively handle tool calls by feeding tool results back to the LLM
 	// to allow multi-step workflows (e.g., read_file -> analyze -> write_file).
 	// Hard cap iterations to avoid infinite loops.
 	maxIterations := o.maxToolIterationsFor(request)
 	for iter := 0; iter < maxIterations; iter++ {
-		if o.config.EnableProgressTracking {
-			threshold := o.config.NoProgressThreshold
-			if threshold <= 0 {
-				threshold = defaultNoProgressThreshold
-			}
-			if o.detectNoProgress(threshold, len(llmReq.Messages), &lastMessageCount, &noProgressCount) {
-				return nil, fmt.Errorf("no progress after %d iterations", noProgressCount)
-			}
-		}
-		o.logLoopStart(log, request, &llmReq, iter)
+		o.logLoopStart(ctx, request, &llmReq, iter)
 
 		response, err := o.generateLLMResponse(ctx, llmClient, &llmReq, request)
 		if err != nil {
@@ -171,7 +155,6 @@ func (o *llmOrchestrator) executeWithClient(
 				consecutiveErrors,
 				errBudget,
 				memories,
-				log,
 			)
 			if perr != nil {
 				return nil, perr
@@ -188,14 +171,17 @@ func (o *llmOrchestrator) executeWithClient(
 		)
 
 		// Execute tool calls and convert to tool results for the tool role message
-		toolResults := o.executeToolCallsRaw(ctx, response.ToolCalls, request)
+		toolResults, execErr := o.executeToolCallsRaw(ctx, response.ToolCalls, request)
+		if execErr != nil {
+			return nil, execErr
+		}
 		if err := o.updateErrorBudgetForResults(
+			ctx,
 			toolResults,
 			consecutiveErrors,
 			successCounters,
 			lastResults,
 			errBudget,
-			log,
 		); err != nil {
 			return nil, err
 		}
@@ -203,6 +189,18 @@ func (o *llmOrchestrator) executeWithClient(
 		llmReq.Messages = append(llmReq.Messages,
 			llmadapter.Message{Role: "tool", ToolResults: toolResults},
 		)
+		// Detect no progress after appending assistant/tool messages using a stable fingerprint
+		if o.config.EnableProgressTracking {
+			if o.noProgressExceeded(
+				o.effectiveNoProgressThreshold(),
+				response.ToolCalls,
+				toolResults,
+				&lastFingerprint,
+				&noProgressCount,
+			) {
+				return nil, fmt.Errorf("no progress for %d consecutive iterations", noProgressCount)
+			}
+		}
 		// Continue the loop with the augmented messages
 	}
 
@@ -214,9 +212,9 @@ func (o *llmOrchestrator) executeToolCallsRaw(
 	ctx context.Context,
 	toolCalls []llmadapter.ToolCall,
 	_ Request,
-) []llmadapter.ToolResult {
+) ([]llmadapter.ToolResult, error) {
 	if len(toolCalls) == 0 {
-		return nil
+		return nil, nil
 	}
 	log := logger.FromContext(ctx)
 	log.Debug("Executing tool calls",
@@ -247,13 +245,13 @@ func (o *llmOrchestrator) executeToolCallsRaw(
 		})
 	}
 	if err := g.Wait(); err != nil {
-		log.Debug("Tool calls group ended early", "error", err)
+		return nil, err
 	}
 	log.Debug("All tool calls completed",
 		"results_count", len(results),
 		"successful_count", countSuccessfulResults(results),
 	)
-	return results
+	return results, nil
 }
 
 // executeSingleToolCallRaw executes a single tool call and returns the result
@@ -291,15 +289,15 @@ func (o *llmOrchestrator) executeSingleToolCallRaw(
 		log.Debug("Tool execution failed",
 			"tool_name", tc.Name,
 			"tool_call_id", tc.ID,
-			"error", err.Error(),
+			"error", core.RedactError(err),
 		)
-		// Return structured error with safe details so the model can self-correct
+		// Return structured error with safe details (avoid leaking secrets)
 		errObj := ToolExecutionResult{
 			Success: false,
 			Error: &ToolError{
 				Code:    ErrCodeToolExecution,
 				Message: "Tool execution failed",
-				Details: err.Error(),
+				Details: core.RedactError(err),
 			},
 		}
 		b, merr := json.Marshal(errObj)
@@ -365,6 +363,34 @@ func countSuccessfulResults(results []llmadapter.ToolResult) int {
 		}
 	}
 	return count
+}
+
+// buildIterationFingerprint generates a stable fingerprint for a loop iteration
+// based on assistant tool calls and resulting tool observations. This helps detect
+// no-progress situations where the LLM repeats identical actions and results.
+func buildIterationFingerprint(calls []llmadapter.ToolCall, results []llmadapter.ToolResult) string {
+	var b bytes.Buffer
+	for _, tc := range calls {
+		b.WriteString(tc.Name)
+		b.WriteByte('|')
+		if len(tc.Arguments) > 0 {
+			b.WriteString(stableJSONFingerprint(tc.Arguments))
+		}
+		b.WriteByte(';')
+	}
+	for _, r := range results {
+		b.WriteString(r.Name)
+		b.WriteByte('|')
+		switch {
+		case len(r.JSONContent) > 0:
+			b.WriteString(stableJSONFingerprint(r.JSONContent))
+		default:
+			b.WriteString(stableJSONFingerprint([]byte(r.Content)))
+		}
+		b.WriteByte(';')
+	}
+	sum := sha256.Sum256(b.Bytes())
+	return hex.EncodeToString(sum[:])
 }
 
 // isSuccessJSONRaw attempts to parse a JSON object and checks for a top-level "error" key.
@@ -434,11 +460,13 @@ func isToolResultSuccess(r llmadapter.ToolResult) bool {
 // If input is not valid JSON, it returns the raw string as the fingerprint.
 func stableJSONFingerprint(raw []byte) string {
 	if len(raw) == 0 || !json.Valid(raw) {
-		return string(raw)
+		sum := sha256.Sum256(raw)
+		return hex.EncodeToString(sum[:])
 	}
 	var v any
 	if err := json.Unmarshal(raw, &v); err != nil {
-		return string(raw)
+		sum := sha256.Sum256(raw)
+		return hex.EncodeToString(sum[:])
 	}
 	var b bytes.Buffer
 	writeStableJSON(&b, v)
@@ -504,7 +532,7 @@ func writeStableJSON(b *bytes.Buffer, v any) {
 }
 
 // detectNoProgress updates counters and detects no-progress condition
-func (o *llmOrchestrator) detectNoProgress(threshold int, current int, last *int, counter *int) bool {
+func (o *llmOrchestrator) detectNoProgress(threshold int, current string, last *string, counter *int) bool {
 	if current == *last {
 		*counter++
 		return *counter >= threshold
@@ -514,9 +542,39 @@ func (o *llmOrchestrator) detectNoProgress(threshold int, current int, last *int
 	return false
 }
 
+// computeErrorBudget returns the effective max sequential error budget per tool/content.
+func (o *llmOrchestrator) computeErrorBudget() int {
+	b := o.config.MaxSequentialToolErrors
+	if b <= 0 {
+		b = 8
+	}
+	return b
+}
+
+// effectiveNoProgressThreshold resolves the no-progress threshold with defaults.
+func (o *llmOrchestrator) effectiveNoProgressThreshold() int {
+	t := o.config.NoProgressThreshold
+	if t <= 0 {
+		t = defaultNoProgressThreshold
+	}
+	return t
+}
+
+// noProgressExceeded determines if no-progress threshold has been exceeded for this iteration.
+func (o *llmOrchestrator) noProgressExceeded(
+	threshold int,
+	calls []llmadapter.ToolCall,
+	results []llmadapter.ToolResult,
+	last *string,
+	counter *int,
+) bool {
+	fp := buildIterationFingerprint(calls, results)
+	return o.detectNoProgress(threshold, fp, last, counter)
+}
+
 // logLoopStart centralizes loop-start debug logging to reduce function length
-func (o *llmOrchestrator) logLoopStart(log logger.Logger, request Request, llmReq *llmadapter.LLMRequest, iter int) {
-	log.Debug(
+func (o *llmOrchestrator) logLoopStart(ctx context.Context, request Request, llmReq *llmadapter.LLMRequest, iter int) {
+	logger.FromContext(ctx).Debug(
 		"Generating LLM response",
 		"agent_id", request.Agent.ID,
 		"action_id", request.Action.ID,
@@ -529,12 +587,13 @@ func (o *llmOrchestrator) logLoopStart(log logger.Logger, request Request, llmRe
 // handleJSONModeNoToolCalls enforces JSON object output when JSON mode is active.
 // Returns (continueLoop, error).
 func (o *llmOrchestrator) handleJSONModeNoToolCalls(
+	ctx context.Context,
 	content string,
 	llmReq *llmadapter.LLMRequest,
 	counters map[string]int,
 	budget int,
-	log logger.Logger,
 ) (bool, error) {
+	log := logger.FromContext(ctx)
 	if !llmReq.Options.UseJSONMode {
 		return false, nil
 	}
@@ -596,12 +655,13 @@ func (o *llmOrchestrator) handleJSONModeNoToolCalls(
 // handleContentErrorMessageNoToolCalls handles a top-level JSON {"error":...} message
 // by incrementing the content error counter and appending the assistant message.
 func (o *llmOrchestrator) handleContentErrorMessageNoToolCalls(
+	ctx context.Context,
 	content string,
 	llmReq *llmadapter.LLMRequest,
 	counters map[string]int,
 	budget int,
-	log logger.Logger,
 ) (bool, error) {
+	log := logger.FromContext(ctx)
 	if msg, hasErr := extractTopLevelErrorMessage(content); hasErr {
 		key := "content_validator"
 		counters[key]++
@@ -653,13 +713,14 @@ func (o *llmOrchestrator) handleContentErrorMessageNoToolCalls(
 // updateErrorBudgetForResults applies a sliding error budget per tool result.
 // Success decrements the counter toward zero; failure increments it. Exceeds trigger warning and error.
 func (o *llmOrchestrator) updateErrorBudgetForResults(
+	ctx context.Context,
 	results []llmadapter.ToolResult,
 	counters map[string]int,
 	successCounters map[string]int,
 	lastResults map[string]string,
 	budget int,
-	log logger.Logger,
 ) error {
+	log := logger.FromContext(ctx)
 	maxSucc := o.config.MaxConsecutiveSuccesses
 	if maxSucc <= 0 {
 		maxSucc = defaultMaxConsecutiveSuccesses
@@ -668,10 +729,11 @@ func (o *llmOrchestrator) updateErrorBudgetForResults(
 		name := r.Name
 		if isToolResultSuccess(r) {
 			if o.config.EnableProgressTracking {
-				fp := r.Content
-				if len(r.JSONContent) > 0 {
+				var fp string
+				switch {
+				case len(r.JSONContent) > 0:
 					fp = stableJSONFingerprint(r.JSONContent)
-				} else if json.Valid([]byte(r.Content)) {
+				default:
 					fp = stableJSONFingerprint([]byte(r.Content))
 				}
 				if last, ok := lastResults[name]; ok && last == fp {
@@ -826,8 +888,8 @@ func (o *llmOrchestrator) generateLLMResponse(
 func (o *llmOrchestrator) prepareMemoryContext(
 	ctx context.Context,
 	request Request,
-	log logger.Logger,
 ) map[string]Memory {
+	log := logger.FromContext(ctx)
 	memoryRefs := request.Agent.Memory
 
 	log.Debug("Preparing memory context for agent",
@@ -885,9 +947,9 @@ func (o *llmOrchestrator) createLLMClient(request Request) (llmadapter.LLMClient
 	return llmClient, nil
 }
 
-func (o *llmOrchestrator) closeLLMClient(llmClient llmadapter.LLMClient, log logger.Logger) {
+func (o *llmOrchestrator) closeLLMClient(ctx context.Context, llmClient llmadapter.LLMClient) {
 	if closeErr := llmClient.Close(); closeErr != nil {
-		log.Error("Failed to close LLM client", "error", closeErr)
+		logger.FromContext(ctx).Error("Failed to close LLM client", "error", closeErr)
 	}
 }
 
@@ -1003,12 +1065,12 @@ func (o *llmOrchestrator) storeResponseInMemoryAsync(
 	response *llmadapter.LLMResponse,
 	messages []llmadapter.Message,
 	request Request,
-	log logger.Logger,
 ) {
 	if len(memories) == 0 || response.Content == "" {
 		return
 	}
 	go func() {
+		log := logger.FromContext(ctx)
 		// Create a detached context with timeout to prevent goroutine leaks
 		// context.WithoutCancel preserves values from the parent context
 		// while allowing the goroutine to continue even if the parent is canceled
@@ -1290,18 +1352,17 @@ func (o *llmOrchestrator) executeSingleToolCall(
 	toolCall llmadapter.ToolCall,
 	request Request,
 ) (*core.Output, error) {
-	log := logger.FromContext(ctx)
-	log.Debug("Processing single tool call (structured)",
+	logger.FromContext(ctx).Debug("Processing single tool call (structured)",
 		"tool_name", toolCall.Name,
 		"tool_call_id", toolCall.ID,
 	)
 	// Find the tool
-	tool, err := o.findToolForStructured(ctx, toolCall, log)
+	tool, err := o.findToolForStructured(ctx, toolCall)
 	if err != nil {
 		return nil, err
 	}
 	// Execute the tool with structured logs and redaction policy applied
-	result, err := o.callToolStructured(ctx, tool, toolCall, log)
+	result, err := o.callToolStructured(ctx, tool, toolCall)
 	if err != nil {
 		return nil, err
 	}
@@ -1327,8 +1388,8 @@ func (o *llmOrchestrator) executeSingleToolCall(
 func (o *llmOrchestrator) findToolForStructured(
 	ctx context.Context,
 	toolCall llmadapter.ToolCall,
-	log logger.Logger,
 ) (Tool, error) {
+	log := logger.FromContext(ctx)
 	t, found := o.config.ToolRegistry.Find(ctx, toolCall.Name)
 	if !found {
 		log.Debug("Tool not found (structured mode)",
@@ -1354,8 +1415,8 @@ func (o *llmOrchestrator) callToolStructured(
 	ctx context.Context,
 	t Tool,
 	toolCall llmadapter.ToolCall,
-	log logger.Logger,
 ) (string, error) {
+	log := logger.FromContext(ctx)
 	result, err := t.Call(ctx, string(toolCall.Arguments))
 	if err != nil {
 		log.Debug("Tool execution failed (structured mode)",
@@ -1437,11 +1498,11 @@ func (o *llmOrchestrator) handleNoToolCalls(
 	counters map[string]int,
 	budget int,
 	memories map[string]Memory,
-	log logger.Logger,
 ) (*core.Output, bool, error) {
+	log := logger.FromContext(ctx)
 	// Content-level error observation
 	if cont, cerr := o.handleContentErrorMessageNoToolCalls(
-		response.Content, llmReq, counters, budget, log,
+		ctx, response.Content, llmReq, counters, budget,
 	); cont || cerr != nil {
 		if cerr != nil {
 			return nil, false, cerr
@@ -1450,7 +1511,7 @@ func (o *llmOrchestrator) handleNoToolCalls(
 	}
 	// JSON-mode enforcement observation
 	if cont, jerr := o.handleJSONModeNoToolCalls(
-		response.Content, llmReq, counters, budget, log,
+		ctx, response.Content, llmReq, counters, budget,
 	); cont || jerr != nil {
 		if jerr != nil {
 			return nil, false, jerr
@@ -1505,6 +1566,6 @@ func (o *llmOrchestrator) handleNoToolCalls(
 		return nil, true, nil
 	}
 	// Success path
-	o.storeResponseInMemoryAsync(ctx, memories, response, llmReq.Messages, request, log)
+	o.storeResponseInMemoryAsync(ctx, memories, response, llmReq.Messages, request)
 	return output, false, nil
 }

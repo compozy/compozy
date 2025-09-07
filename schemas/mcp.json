@@ -18,6 +18,13 @@
       "type": "string",
       "description": "Command is the **executable command** to spawn a local MCP server process.\n\nUsed for stdio transport to run MCP servers as child processes.\nSupports both direct executables and complex commands with arguments.\n\n- **Examples**:\n```yaml\n# Simple executable\ncommand: \"mcp-server-filesystem\"\n\n# Command with arguments\ncommand: \"python /app/mcp_server.py --mode production\"\n\n# Docker container\ncommand: \"docker run --rm -i mcp/postgres:latest\"\n```\n\n**Security Note**: Commands are parsed using shell lexing for safety.\nAvoid user-provided input in commands."
     },
+    "headers": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "type": "object",
+      "description": "Headers contains HTTP headers to include when connecting to remote MCP servers (SSE/HTTP).\nUseful for passing Authorization tokens, custom auth headers, or version negotiation.\nExample:\nheaders:\n  Authorization: \"Bearer {{ .env.GITHUB_MCP_OAUTH_TOKEN }}\""
+    },
     "env": {
       "additionalProperties": {
         "type": "string"

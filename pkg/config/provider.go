@@ -406,14 +406,19 @@ func createMemoryDefaults(defaultConfig *Config) map[string]any {
 // createLLMDefaults creates LLM configuration defaults
 func createLLMDefaults(defaultConfig *Config) map[string]any {
 	return map[string]any{
-		"proxy_url":                  defaultConfig.LLM.ProxyURL,
-		"retry_attempts":             defaultConfig.LLM.RetryAttempts,
-		"retry_backoff_base":         defaultConfig.LLM.RetryBackoffBase.String(),
-		"retry_backoff_max":          defaultConfig.LLM.RetryBackoffMax.String(),
-		"retry_jitter":               defaultConfig.LLM.RetryJitter,
-		"max_concurrent_tools":       defaultConfig.LLM.MaxConcurrentTools,
-		"max_tool_iterations":        defaultConfig.LLM.MaxToolIterations,
-		"max_sequential_tool_errors": defaultConfig.LLM.MaxSequentialToolErrors,
+		"proxy_url":                      defaultConfig.LLM.ProxyURL,
+		"retry_attempts":                 defaultConfig.LLM.RetryAttempts,
+		"retry_backoff_base":             defaultConfig.LLM.RetryBackoffBase.String(),
+		"retry_backoff_max":              defaultConfig.LLM.RetryBackoffMax.String(),
+		"retry_jitter":                   defaultConfig.LLM.RetryJitter,
+		"max_concurrent_tools":           defaultConfig.LLM.MaxConcurrentTools,
+		"max_tool_iterations":            defaultConfig.LLM.MaxToolIterations,
+		"max_sequential_tool_errors":     defaultConfig.LLM.MaxSequentialToolErrors,
+		"register_mcps":                  defaultConfig.LLM.RegisterMCPs,
+		"allowed_mcp_names":              defaultConfig.LLM.AllowedMCPNames,
+		"fail_on_mcp_registration_error": defaultConfig.LLM.FailOnMCPRegistrationError,
+		"mcp_client_timeout":             defaultConfig.LLM.MCPClientTimeout.String(),
+		"retry_jitter_percent":           defaultConfig.LLM.RetryJitterPercent,
 	}
 }
 
@@ -502,7 +507,5 @@ func createMCPProxyDefaults(defaultConfig *Config) map[string]any {
 		"port":             defaultConfig.MCPProxy.Port,
 		"base_url":         defaultConfig.MCPProxy.BaseURL,
 		"shutdown_timeout": defaultConfig.MCPProxy.ShutdownTimeout.String(),
-		"admin_allow_ips":  defaultConfig.MCPProxy.AdminAllowIPs,
-		"trusted_proxies":  defaultConfig.MCPProxy.TrustedProxies,
 	}
 }

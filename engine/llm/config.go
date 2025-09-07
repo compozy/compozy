@@ -28,13 +28,14 @@ type Config struct {
 	MaxToolIterations int
 	// MaxSequentialToolErrors caps how many sequential failures are tolerated
 	// for the same tool (or content-level error) before aborting the task.
-	// When <= 0, a default of 3 is used.
+	// When <= 0, a default of 8 is used (see DefaultConfig).
 	MaxSequentialToolErrors int
 	// Retry configuration
-	RetryAttempts    int
-	RetryBackoffBase time.Duration
-	RetryBackoffMax  time.Duration
-	RetryJitter      bool
+	RetryAttempts      int
+	RetryBackoffBase   time.Duration
+	RetryBackoffMax    time.Duration
+	RetryJitter        bool
+	RetryJitterPercent int
 	// Feature flags
 	EnableStructuredOutput bool
 	EnableToolCaching      bool
@@ -68,6 +69,7 @@ func DefaultConfig() *Config {
 		RetryBackoffBase:           100 * time.Millisecond,
 		RetryBackoffMax:            10 * time.Second,
 		RetryJitter:                true,
+		RetryJitterPercent:         10,
 		EnableStructuredOutput:     true,
 		EnableToolCaching:          true,
 		FailOnMCPRegistrationError: false,
@@ -159,8 +161,24 @@ func WithRegisterMCPs(mcps []mcp.Config) Option {
 		if len(mcps) == 0 {
 			return
 		}
-		// Shallow copy is fine; the elements are value types with strings/maps
-		c.RegisterMCPs = append([]mcp.Config(nil), mcps...)
+		// Deep copy selected map fields to avoid aliasing
+		c.RegisterMCPs = make([]mcp.Config, 0, len(mcps))
+		for i := range mcps {
+			dst := mcps[i]
+			if mcps[i].Headers != nil {
+				dst.Headers = make(map[string]string, len(mcps[i].Headers))
+				for k, v := range mcps[i].Headers {
+					dst.Headers[k] = v
+				}
+			}
+			if mcps[i].Env != nil {
+				dst.Env = make(map[string]string, len(mcps[i].Env))
+				for k, v := range mcps[i].Env {
+					dst.Env[k] = v
+				}
+			}
+			c.RegisterMCPs = append(c.RegisterMCPs, dst)
+		}
 	}
 }
 
@@ -256,6 +274,23 @@ func WithAppConfig(appConfig *config.Config) Option {
 		if appConfig.LLM.MaxSequentialToolErrors > 0 {
 			c.MaxSequentialToolErrors = appConfig.LLM.MaxSequentialToolErrors
 		}
+		if appConfig.LLM.RetryJitterPercent > 0 {
+			c.RetryJitterPercent = appConfig.LLM.RetryJitterPercent
+		}
+
+		// Propagate MCP-related options
+		if len(appConfig.LLM.AllowedMCPNames) > 0 {
+			WithAllowedMCPNames(appConfig.LLM.AllowedMCPNames)(c)
+		}
+		c.FailOnMCPRegistrationError = appConfig.LLM.FailOnMCPRegistrationError
+
+		// Convert RegisterMCPs from generic maps into typed mcp.Configs (best-effort)
+		if len(appConfig.LLM.RegisterMCPs) > 0 {
+			converted := mcp.ConvertRegisterMCPsFromMaps(appConfig.LLM.RegisterMCPs)
+			if len(converted) > 0 {
+				c.RegisterMCPs = converted
+			}
+		}
 	}
 }
 
@@ -306,12 +341,36 @@ func (c *Config) CreateMCPClient() (*mcp.Client, error) {
 	if c.ProxyURL == "" {
 		return nil, fmt.Errorf("proxy URL is required for MCP client creation")
 	}
-	if _, err := url.ParseRequestURI(c.ProxyURL); err != nil {
+	// Normalize URL by adding http:// prefix if no scheme is present
+	u := c.ProxyURL
+	if !strings.HasPrefix(u, "http://") && !strings.HasPrefix(u, "https://") {
+		u = "http://" + u
+	}
+	if _, err := url.ParseRequestURI(u); err != nil {
 		return nil, fmt.Errorf("invalid proxy URL: %w", err)
 	}
-	client := mcp.NewProxyClient(c.ProxyURL, c.Timeout)
+	client := mcp.NewProxyClient(u, c.Timeout)
 	if client == nil {
 		return nil, fmt.Errorf("failed to create MCP proxy client")
 	}
+	// Align retry behavior with configured LLM retry settings
+	// RetryAttempts maps to retries (not attempts). Base and Max are respected.
+	attempts := c.RetryAttempts
+	if attempts < 0 {
+		attempts = 0
+	}
+	retries := uint64(attempts) //nolint:gosec // G115: bounds checked above and values come from validated config
+	// Configure retry with jitter percentage (capped inside the client)
+	jp := uint64(0)
+	if c.RetryJitter && c.RetryJitterPercent > 0 {
+		jp = uint64(c.RetryJitterPercent)
+	}
+	client.ConfigureRetry(
+		retries,
+		c.RetryBackoffBase,
+		c.RetryBackoffMax,
+		c.RetryJitter,
+		jp,
+	)
 	return client, nil
 }

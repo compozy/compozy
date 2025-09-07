@@ -8,13 +8,13 @@ import (
 
 type ID string
 
-func (c ID) String() string {
-	return string(c)
+func (id ID) String() string {
+	return string(id)
 }
 
 // IsZero reports whether the ID is the zero value ("")
-func (c ID) IsZero() bool {
-	return c == ""
+func (id ID) IsZero() bool {
+	return id == ""
 }
 
 func NewID() (ID, error) {

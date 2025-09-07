@@ -479,6 +479,19 @@ type LLMConfig struct {
 	// Default: "http://localhost:6001"
 	ProxyURL string `koanf:"proxy_url" env:"MCP_PROXY_URL" json:"proxy_url" yaml:"proxy_url" mapstructure:"proxy_url"`
 
+	// MCPReadinessTimeout bounds how long to wait for MCP clients to connect during setup.
+	// Default: 60s
+	MCPReadinessTimeout time.Duration `koanf:"mcp_readiness_timeout" env:"MCP_READINESS_TIMEOUT" json:"mcp_readiness_timeout" yaml:"mcp_readiness_timeout" mapstructure:"mcp_readiness_timeout"`
+
+	// MCPReadinessPollInterval sets how often to poll the proxy for MCP connection status.
+	// Default: 200ms
+	MCPReadinessPollInterval time.Duration `koanf:"mcp_readiness_poll_interval" env:"MCP_READINESS_POLL_INTERVAL" json:"mcp_readiness_poll_interval" yaml:"mcp_readiness_poll_interval" mapstructure:"mcp_readiness_poll_interval"`
+
+	// MCPHeaderTemplateStrict enables strict template validation for MCP HTTP headers.
+	// When true, allows only simple lookups (no pipelines/function calls/inclusions).
+	// Default: false
+	MCPHeaderTemplateStrict bool `koanf:"mcp_header_template_strict" env:"MCP_HEADER_TEMPLATE_STRICT" json:"mcp_header_template_strict" yaml:"mcp_header_template_strict" mapstructure:"mcp_header_template_strict"`
+
 	// RetryAttempts configures the number of retry attempts for LLM operations.
 	//
 	// Controls how many times the orchestrator will retry failed LLM requests
@@ -524,8 +537,29 @@ type LLMConfig struct {
 	// MaxSequentialToolErrors caps how many sequential tool execution/content errors
 	// are tolerated for the same tool before aborting the task. Set to 0 to use
 	// the orchestrator's built-in default.
-	// Default: 3 (registry default)
+	// Default: 10 (registry default)
 	MaxSequentialToolErrors int `koanf:"max_sequential_tool_errors" env:"LLM_MAX_SEQUENTIAL_TOOL_ERRORS" json:"max_sequential_tool_errors" yaml:"max_sequential_tool_errors" mapstructure:"max_sequential_tool_errors" validate:"min=0"`
+
+	// AllowedMCPNames restricts which MCP servers/tools are considered eligible
+	// for advertisement and invocation. When empty, all discovered MCP tools
+	// are eligible.
+	AllowedMCPNames []string `koanf:"allowed_mcp_names" env:"LLM_ALLOWED_MCP_NAMES" json:"allowed_mcp_names" yaml:"allowed_mcp_names" mapstructure:"allowed_mcp_names"`
+
+	// FailOnMCPRegistrationError enforces fail-fast behavior when registering
+	// MCP configurations sourced from agents/projects. When true, MCP
+	// registration failures cause service initialization to error.
+	FailOnMCPRegistrationError bool `koanf:"fail_on_mcp_registration_error" env:"LLM_FAIL_ON_MCP_REGISTRATION_ERROR" json:"fail_on_mcp_registration_error" yaml:"fail_on_mcp_registration_error" mapstructure:"fail_on_mcp_registration_error"`
+
+	// RegisterMCPs contains additional MCP configurations to be registered
+	// with the MCP proxy at runtime. Represented as a generic slice to avoid
+	// import cycles with engine packages.
+	RegisterMCPs []map[string]any `koanf:"register_mcps" json:"register_mcps" yaml:"register_mcps" mapstructure:"register_mcps"`
+
+	// MCPClientTimeout sets the HTTP client timeout for MCP proxy communication.
+	MCPClientTimeout time.Duration `koanf:"mcp_client_timeout" env:"MCP_CLIENT_TIMEOUT" json:"mcp_client_timeout" yaml:"mcp_client_timeout" mapstructure:"mcp_client_timeout"`
+
+	// RetryJitterPercent controls jitter strength when retry_jitter is enabled.
+	RetryJitterPercent int `koanf:"retry_jitter_percent" env:"LLM_RETRY_JITTER_PERCENT" json:"retry_jitter_percent" yaml:"retry_jitter_percent" mapstructure:"retry_jitter_percent"`
 }
 
 // RateLimitConfig contains rate limiting configuration.
@@ -885,16 +919,6 @@ type MCPProxyConfig struct {
 	//
 	// **Default**: `30s`
 	ShutdownTimeout time.Duration `koanf:"shutdown_timeout" json:"shutdown_timeout" yaml:"shutdown_timeout" mapstructure:"shutdown_timeout" env:"MCP_PROXY_SHUTDOWN_TIMEOUT"`
-
-	// AdminAllowIPs contains IP addresses allowed to access admin endpoints.
-	//
-	// **Default**: `[]` (empty - allows all IPs)
-	AdminAllowIPs []string `koanf:"admin_allow_ips" json:"admin_allow_ips" yaml:"admin_allow_ips" mapstructure:"admin_allow_ips" env:"MCP_PROXY_ADMIN_ALLOW_IPS"`
-
-	// TrustedProxies contains trusted proxy IP addresses.
-	//
-	// **Default**: `["127.0.0.1", "::1"]`
-	TrustedProxies []string `koanf:"trusted_proxies" json:"trusted_proxies" yaml:"trusted_proxies" mapstructure:"trusted_proxies" env:"MCP_PROXY_TRUSTED_PROXIES"`
 }
 
 // CLIConfig contains CLI-specific configuration.
@@ -1221,13 +1245,18 @@ func buildMemoryConfig(registry *definition.Registry) MemoryConfig {
 
 func buildLLMConfig(registry *definition.Registry) LLMConfig {
 	return LLMConfig{
-		ProxyURL:           getString(registry, "llm.proxy_url"),
-		RetryAttempts:      getInt(registry, "llm.retry_attempts"),
-		RetryBackoffBase:   getDuration(registry, "llm.retry_backoff_base"),
-		RetryBackoffMax:    getDuration(registry, "llm.retry_backoff_max"),
-		RetryJitter:        getBool(registry, "llm.retry_jitter"),
-		MaxConcurrentTools: getInt(registry, "llm.max_concurrent_tools"),
-		MaxToolIterations:  getInt(registry, "llm.max_tool_iterations"),
+		ProxyURL:                   getString(registry, "llm.proxy_url"),
+		RetryAttempts:              getInt(registry, "llm.retry_attempts"),
+		RetryBackoffBase:           getDuration(registry, "llm.retry_backoff_base"),
+		RetryBackoffMax:            getDuration(registry, "llm.retry_backoff_max"),
+		RetryJitter:                getBool(registry, "llm.retry_jitter"),
+		MaxConcurrentTools:         getInt(registry, "llm.max_concurrent_tools"),
+		MaxToolIterations:          getInt(registry, "llm.max_tool_iterations"),
+		MaxSequentialToolErrors:    getInt(registry, "llm.max_sequential_tool_errors"),
+		AllowedMCPNames:            getStringSlice(registry, "llm.allowed_mcp_names"),
+		FailOnMCPRegistrationError: getBool(registry, "llm.fail_on_mcp_registration_error"),
+		MCPClientTimeout:           getDuration(registry, "llm.mcp_client_timeout"),
+		RetryJitterPercent:         getInt(registry, "llm.retry_jitter_percent"),
 	}
 }
 
@@ -1319,7 +1348,5 @@ func buildMCPProxyConfig(registry *definition.Registry) MCPProxyConfig {
 		Port:            getInt(registry, "mcp_proxy.port"),
 		BaseURL:         getString(registry, "mcp_proxy.base_url"),
 		ShutdownTimeout: getDuration(registry, "mcp_proxy.shutdown_timeout"),
-		AdminAllowIPs:   getStringSlice(registry, "mcp_proxy.admin_allow_ips"),
-		TrustedProxies:  getStringSlice(registry, "mcp_proxy.trusted_proxies"),
 	}
 }

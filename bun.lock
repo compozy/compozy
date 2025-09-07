@@ -105,6 +105,15 @@
         "typescript": "^5.8.0",
       },
     },
+    "examples/github-mcp": {
+      "name": "@compozy/example-github-mcp",
+      "version": "0.0.1",
+      "devDependencies": {
+        "oxlint": "^1.4.0",
+        "prettier": "^3.6.0",
+        "typescript": "^5.8.0",
+      },
+    },
     "examples/memory": {
       "name": "@compozy/example-memory",
       "version": "0.0.1",
@@ -176,35 +185,35 @@
     },
     "tools/delete-file": {
       "name": "@compozy/tool-delete-file",
-      "version": "0.0.11",
+      "version": "0.0.12",
     },
     "tools/exec": {
       "name": "@compozy/tool-exec",
-      "version": "0.0.11",
+      "version": "0.0.12",
     },
     "tools/fetch": {
       "name": "@compozy/tool-fetch",
-      "version": "0.0.11",
+      "version": "0.0.12",
     },
     "tools/grep": {
       "name": "@compozy/tool-grep",
-      "version": "0.0.11",
+      "version": "0.0.12",
     },
     "tools/list-dir": {
       "name": "@compozy/tool-list-dir",
-      "version": "0.0.11",
+      "version": "0.0.12",
     },
     "tools/list-files": {
       "name": "@compozy/tool-list-files",
-      "version": "0.0.11",
+      "version": "0.0.12",
     },
     "tools/read-file": {
       "name": "@compozy/tool-read-file",
-      "version": "0.0.11",
+      "version": "0.0.12",
     },
     "tools/write-file": {
       "name": "@compozy/tool-write-file",
-      "version": "0.0.11",
+      "version": "0.0.12",
     },
   },
   "overrides": {
@@ -487,6 +496,8 @@
     "@commitlint/types": ["@commitlint/types@19.8.1", "", { "dependencies": { "@types/conventional-commits-parser": "^5.0.0", "chalk": "^5.3.0" } }, "sha512-/yCrWGCoA1SVKOks25EGadP9Pnj0oAIHGpl2wH2M2Y46dPM2ueb8wyCVOD7O3WCTkaJ0IkKvzhl1JY7+uCT2Dw=="],
 
     "@compozy/example-codereview": ["@compozy/example-codereview@workspace:examples/code-reviewer"],
+
+    "@compozy/example-github-mcp": ["@compozy/example-github-mcp@workspace:examples/github-mcp"],
 
     "@compozy/example-memory": ["@compozy/example-memory@workspace:examples/memory"],
 
