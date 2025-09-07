@@ -20,8 +20,13 @@ var (
 		`\b(ghp_[A-Za-z0-9]{36}|gho_[A-Za-z0-9]{36}|ghs_[A-Za-z0-9]{36}|ghr_[A-Za-z0-9]{36})\b`,
 	)
 	slackTokenRe = regexp.MustCompile(`\b(xox[baprs]-[A-Za-z0-9\-]{10,})\b`)
+	// Scheme-based URIs with credentials (e.g., postgres://user:pass@host/db)
 	connectionRe = regexp.MustCompile(
-		`(?i)(postgres|mysql|mongodb|redis|amqp|database_url|connection_string|conn_str|dsn)://[^@\s]+@[^\s]+`,
+		`(?i)((postgres|postgresql|mysql|mongodb(\+srv)?|redis|rediss|amqp|amqps|https?)://)[^@\s]+@[^\s]+`,
+	)
+	// Env-var style key=value connection strings (e.g., DATABASE_URL=...)
+	envConnRe = regexp.MustCompile(
+		`(?i)\b((?:database_url|connection_string|conn_str|dsn)\s*[:=]\s*)([^"'\s:]+)(\s|$)`,
 	)
 	emailRe = regexp.MustCompile(`\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b`)
 )
@@ -30,19 +35,20 @@ var (
 func RedactString(s string) string {
 	const maxLen = 256
 	s = strings.TrimSpace(s)
-	if len(s) > maxLen {
-		s = s[:maxLen] + "…"
-	}
 	// Apply redaction patterns in order of specificity
 	s = jwtRe.ReplaceAllString(s, "[JWT_REDACTED]")
 	s = awsKeyRe.ReplaceAllString(s, "[AWS_KEY_REDACTED]")
 	s = githubTokenRe.ReplaceAllString(s, "[GITHUB_TOKEN_REDACTED]")
 	s = slackTokenRe.ReplaceAllString(s, "[SLACK_TOKEN_REDACTED]")
-	s = connectionRe.ReplaceAllString(s, "$1://[REDACTED]")
+	s = connectionRe.ReplaceAllString(s, "$1[REDACTED]")
+	s = envConnRe.ReplaceAllString(s, "$1[REDACTED]")
 	s = bearerTokenRe.ReplaceAllString(s, "$1[REDACTED]")
 	s = kvSecretRe.ReplaceAllString(s, "$1=[REDACTED]")
 	s = genericKeyRe.ReplaceAllString(s, "[REDACTED]")
 	s = emailRe.ReplaceAllString(s, "[EMAIL_REDACTED]")
+	if len(s) > maxLen {
+		s = s[:maxLen] + "…"
+	}
 	return s
 }
 
@@ -54,13 +60,62 @@ func RedactError(err error) string {
 	return RedactString(err.Error())
 }
 
-// sensitiveHeaderPatterns contains patterns to identify sensitive headers
-var sensitiveHeaderPatterns = []string{
-	"token", "secret", "api-key", "apikey", "key",
-	"password", "passwd", "pwd", "auth",
-	"credential", "cred", "session",
-	"cookie", "jwt", "bearer",
-	"x-api-", "x-auth-", "x-access-",
+// sensitiveSubstrings contains words that identify a sensitive header if they appear in any segment.
+// These are typically nouns that strongly imply confidentiality.
+var sensitiveSubstrings = []string{
+	"password", "secret", "passwd", "pwd", "apikey", "api-key", "api_key",
+	"private-key", "public-key", "secret-key", "access-key",
+	"session", "credential", "cred",
+}
+
+// sensitiveSuffixes contains words that identify a sensitive header ONLY if they are the last segment.
+// These are often standard header names or common suffixes for tokens and identifiers.
+var sensitiveSuffixes = []string{
+	"authorization", "token", "cookie", "auth", "key", "bearer", "jwt", "id",
+}
+
+// isSensitiveHeader checks if a header name contains sensitive information using segment-based matching.
+// It splits the header by common delimiters and checks:
+// 1. If any segment matches sensitive substrings (always sensitive)
+// 2. If the last segment matches sensitive suffixes (contextually sensitive)
+// 3. Also checks for compound patterns (e.g., "public-key")
+func isSensitiveHeader(headerName string) bool {
+	lowerName := strings.ToLower(headerName)
+	// First check for compound patterns that should be treated as sensitive
+	compoundPatterns := []string{
+		"api-key", "api_key", "apikey",
+		"private-key", "private_key", "privatekey",
+		"public-key", "public_key", "publickey",
+		"secret-key", "secret_key", "secretkey",
+		"access-key", "access_key", "accesskey",
+	}
+	for _, pattern := range compoundPatterns {
+		if strings.Contains(lowerName, pattern) {
+			return true
+		}
+	}
+	// Split by common delimiters: dash, underscore, dot
+	segments := strings.FieldsFunc(lowerName, func(r rune) bool {
+		return r == '-' || r == '_' || r == '.'
+	})
+	// Check for sensitive substrings anywhere in the header name
+	for _, segment := range segments {
+		for _, pattern := range sensitiveSubstrings {
+			if segment == pattern {
+				return true
+			}
+		}
+	}
+	// Check for sensitive suffixes in the last segment
+	if len(segments) > 0 {
+		lastSegment := segments[len(segments)-1]
+		for _, suffix := range sensitiveSuffixes {
+			if lastSegment == suffix {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // RedactHeaders returns a copy of headers with sensitive values redacted for logging.
@@ -74,20 +129,11 @@ func RedactHeaders(headers map[string]string) map[string]string {
 	}
 	out := make(map[string]string, len(headers))
 	for k, v := range headers {
-		lk := strings.ToLower(k)
-		isSensitive := false
-		// Check if header name contains any sensitive pattern
-		for _, pattern := range sensitiveHeaderPatterns {
-			if strings.Contains(lk, pattern) {
-				isSensitive = true
-				break
-			}
-		}
 		// Special handling for specific headers
 		switch {
 		case strings.EqualFold(k, "authorization") || strings.EqualFold(k, "proxy-authorization"):
 			out[k] = RedactString(v)
-		case isSensitive || strings.EqualFold(k, "set-cookie") || strings.EqualFold(k, "cookie"):
+		case isSensitiveHeader(k) || strings.EqualFold(k, "set-cookie") || strings.EqualFold(k, "cookie"):
 			out[k] = "[REDACTED]"
 		default:
 			// Still pass through RedactString for non-sensitive headers to catch embedded secrets

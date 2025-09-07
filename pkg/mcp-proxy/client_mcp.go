@@ -49,8 +49,12 @@ func NewMCPClient(
 		return nil, fmt.Errorf("failed to create MCP client: %w", err)
 	}
 
+	clonedDef, cerr := def.Clone()
+	if cerr != nil {
+		return nil, fmt.Errorf("failed to clone definition: %w", cerr)
+	}
 	return &MCPClient{
-		definition:      def.Clone(),
+		definition:      clonedDef,
 		status:          NewMCPStatus(def.Name),
 		storage:         storage,
 		config:          config,
@@ -64,7 +68,10 @@ func NewMCPClient(
 
 // GetDefinition returns the MCP definition
 func (c *MCPClient) GetDefinition() *MCPDefinition {
-	return c.definition.Clone()
+	if cloned, err := c.definition.Clone(); err == nil && cloned != nil {
+		return cloned
+	}
+	return c.definition
 }
 
 // GetStatus returns the current status (thread-safe copy)

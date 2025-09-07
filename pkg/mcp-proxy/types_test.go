@@ -238,7 +238,8 @@ func TestMCPDefinition_Clone(t *testing.T) {
 		Tags:      map[string]string{"tag": "value"},
 	}
 
-	clone := original.Clone()
+	clone, err := original.Clone()
+	require.NoError(t, err)
 
 	assert.Equal(t, original.Name, clone.Name)
 	assert.Equal(t, original.Transport, clone.Transport)

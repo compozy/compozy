@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -352,6 +353,7 @@ func (r *toolRegistry) allowlistIDs() []string {
 	for id := range r.allowedMCPSet {
 		ids = append(ids, id)
 	}
+	sort.Strings(ids)
 	return ids
 }
 
@@ -391,8 +393,7 @@ func (a *localToolAdapter) Call(ctx context.Context, input string) (string, erro
 	var inputMap map[string]any
 	if err := json.Unmarshal([]byte(input), &inputMap); err != nil {
 		return "", core.NewError(err, "INVALID_TOOL_INPUT", map[string]any{
-			"tool":  a.config.ID,
-			"input": input,
+			"tool": a.config.ID,
 		})
 	}
 

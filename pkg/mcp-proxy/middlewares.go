@@ -1,7 +1,6 @@
 package mcpproxy
 
 import (
-	"fmt"
 	"net/http"
 	"runtime/debug"
 
@@ -22,7 +21,7 @@ func wrapWithGinMiddlewares(handler http.Handler, middlewares ...gin.HandlerFunc
 	// Add the final handler that calls the wrapped http.Handler
 	engine.Use(func(c *gin.Context) {
 		if handler == nil {
-			c.JSON(
+			c.AbortWithStatusJSON(
 				http.StatusInternalServerError,
 				gin.H{"error": "Handler not initialized", "details": "Handler not initialized"},
 			)
@@ -47,9 +46,9 @@ func recoverMiddleware(clientName string) gin.HandlerFunc {
 					"client", clientName,
 					"panic", r,
 					"stack", string(debug.Stack()))
-				c.JSON(
+				c.AbortWithStatusJSON(
 					http.StatusInternalServerError,
-					gin.H{"error": "Internal server error", "details": fmt.Sprintf("%v", r)},
+					gin.H{"error": "Internal server error", "details": "An unexpected error occurred"},
 				)
 				c.Abort()
 			}

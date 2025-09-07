@@ -1,12 +1,15 @@
 package core
 
 import (
+	"encoding/json"
 	"strconv"
 	"strings"
 	"time"
 )
 
-// ToStringMap converts supported map forms into map[string]string. Unsupported inputs return nil.
+// ToStringMap converts supported map forms into map[string]string.
+// Note: For map[string]string inputs, this returns a copy to avoid aliasing.
+// Unsupported inputs return nil.
 func ToStringMap(v any) map[string]string {
 	if v == nil {
 		return nil
@@ -14,7 +17,11 @@ func ToStringMap(v any) map[string]string {
 	out := map[string]string{}
 	switch m := v.(type) {
 	case map[string]string:
-		return m
+		cp := make(map[string]string, len(m))
+		for k, v := range m {
+			cp[k] = v
+		}
+		return cp
 	case map[string]any:
 		for k, vv := range m {
 			if s, ok := vv.(string); ok {
@@ -57,13 +64,21 @@ func ParseAnyInt(v any) (int, bool) {
 	case int64:
 		return int(t), true
 	case float64:
-		return int(t), true
+		if t == float64(int(t)) {
+			return int(t), true
+		}
+		return 0, false
 	case string:
 		if strings.TrimSpace(t) == "" {
 			return 0, false
 		}
 		if iv, err := strconv.Atoi(t); err == nil {
 			return iv, true
+		}
+		return 0, false
+	case json.Number:
+		if i, err := t.Int64(); err == nil {
+			return int(i), true
 		}
 		return 0, false
 	default:

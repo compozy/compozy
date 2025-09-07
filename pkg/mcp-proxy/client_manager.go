@@ -92,7 +92,7 @@ func (m *MCPClientManager) Start(ctx context.Context) error {
 	// This improves startup time when multiple MCP servers need to be connected
 	g, groupCtx := errgroup.WithContext(ctx)
 	for _, def := range definitions {
-		// capture loop variable for closure
+		def := def // capture loop variable for closure
 		g.Go(func() error {
 			if err := m.AddClient(groupCtx, def); err != nil {
 				log.Error("Failed to add client during startup", "name", def.Name, "error", err)

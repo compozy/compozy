@@ -44,7 +44,7 @@ func TestMiddlewareWrapper_PanicRecovery(t *testing.T) {
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
 		assert.NoError(t, err)
 		assert.Equal(t, "Internal server error", resp["error"])
-		assert.Equal(t, "test panic", resp["details"])
+		assert.Equal(t, "An unexpected error occurred", resp["details"])
 	})
 
 	t.Run("Should handle nil handler gracefully with error response", func(t *testing.T) {

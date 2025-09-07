@@ -56,7 +56,10 @@ func NewMockMCPClient(name string) *MockMCPClient {
 
 // GetDefinition returns the mock definition
 func (m *MockMCPClient) GetDefinition() *MCPDefinition {
-	return m.definition.Clone()
+	if cloned, err := m.definition.Clone(); err == nil && cloned != nil {
+		return cloned
+	}
+	return m.definition
 }
 
 // GetStatus returns the mock status

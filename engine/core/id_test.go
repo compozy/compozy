@@ -50,8 +50,10 @@ func TestNewID(t *testing.T) {
 	t.Run("Should generate valid KSUID format", func(t *testing.T) {
 		id, err := core.NewID()
 		require.NoError(t, err)
-		// KSUID is always 27 characters long
-		assert.Len(t, id.String(), 27)
+		// Validate using our parser instead of length to avoid brittle checks
+		parsed, err := core.ParseID(id.String())
+		require.NoError(t, err)
+		assert.Equal(t, id, parsed)
 	})
 }
 

@@ -33,7 +33,7 @@ func TestMCPProxyIntegration(t *testing.T) {
 		api.Use(func(c *gin.Context) {
 			auth := c.GetHeader("Authorization")
 			if auth != "Bearer test-admin-token" {
-				c.JSON(401, gin.H{"error": "unauthorized"})
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 				c.Abort()
 				return
 			}
@@ -94,7 +94,7 @@ func TestMCPProxyIntegration(t *testing.T) {
 		api.Use(func(c *gin.Context) {
 			auth := c.GetHeader("Authorization")
 			if auth != "Bearer test-admin-token" {
-				c.JSON(401, gin.H{"error": "unauthorized"})
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 				c.Abort()
 				return
 			}
@@ -181,7 +181,7 @@ func TestMCPProxyIntegration(t *testing.T) {
 		api.Use(func(c *gin.Context) {
 			auth := c.GetHeader("Authorization")
 			if auth != "Bearer test-admin-token" {
-				c.JSON(401, gin.H{"error": "unauthorized"})
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 				c.Abort()
 				return
 			}

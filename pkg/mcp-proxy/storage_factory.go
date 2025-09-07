@@ -72,9 +72,9 @@ func (m *MemoryStorage) SaveMCP(_ context.Context, def *MCPDefinition) error {
 	def.SetDefaults()
 
 	// Clone to prevent external modifications
-	clone := def.Clone()
-	if clone == nil {
-		return fmt.Errorf("failed to clone definition")
+	clone, cerr := def.Clone()
+	if cerr != nil {
+		return fmt.Errorf("failed to clone definition: %w", cerr)
 	}
 
 	m.mu.Lock()
@@ -98,9 +98,9 @@ func (m *MemoryStorage) LoadMCP(_ context.Context, name string) (*MCPDefinition,
 	}
 
 	// Return a clone to prevent external modifications
-	clone := def.Clone()
-	if clone == nil {
-		return nil, fmt.Errorf("failed to clone definition")
+	clone, cerr := def.Clone()
+	if cerr != nil {
+		return nil, fmt.Errorf("failed to clone definition: %w", cerr)
 	}
 
 	return clone, nil
@@ -134,8 +134,7 @@ func (m *MemoryStorage) ListMCPs(_ context.Context) ([]*MCPDefinition, error) {
 
 	for _, def := range m.mcps {
 		// Return clones to prevent external modifications
-		clone := def.Clone()
-		if clone != nil {
+		if clone, err := def.Clone(); err == nil && clone != nil {
 			definitions = append(definitions, clone)
 		}
 	}

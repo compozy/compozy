@@ -65,20 +65,32 @@ RUN apk add --no-cache \
     procps \
     && if [ "$WITH_DOCKER_CLI" = "true" ]; then apk add --no-cache docker-cli; fi
 
-# Install Bun - Latest stable version for production
-ENV BUN_VERSION=1.1.45
-RUN curl -fsSL https://bun.sh/install | bash -s "bun-v${BUN_VERSION}" \
-    && mv /root/.bun/bin/bun /usr/local/bin/ \
-    && chmod +x /usr/local/bin/bun \
-    && rm -rf /root/.bun
+# Install Bun - pinned version with checksum verification (supply-chain hardening)
+ENV BUN_VERSION=1.1.45 BUN_SHA256=487c837f9183598f639fc64fad087b3d1cf5ea68ec13452ef5e11fb90e31eb96
+RUN set -e; \
+    curl -L -o /tmp/bun.zip "https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}/bun-linux-x64.zip"; \
+    echo "${BUN_SHA256}  /tmp/bun.zip" | sha256sum -c -; \
+    apk add --no-cache unzip; \
+    unzip -q /tmp/bun.zip -d /usr/local/bin; \
+    chmod +x /usr/local/bin/bun; \
+    rm -f /tmp/bun.zip
 
 # Install uv - pinned version with checksum verification for supply-chain security
-ENV UV_VERSION=0.5.14 \
-    UV_SHA256=e1ccdfe1691c1f791d84bb6e1697e49416ca4b62103dcdf3b63772f03834f113
-RUN curl -L -o /tmp/uv.tar.gz \
-    "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-x86_64-unknown-linux-musl.tar.gz" \
-    && echo "${UV_SHA256}  /tmp/uv.tar.gz" | sha256sum -c - \
-    && tar -C /usr/local/bin --strip-components=1 -xzf /tmp/uv.tar.gz uv-x86_64-unknown-linux-musl/uv \
+ARG TARGETARCH
+ENV UV_VERSION=0.5.14
+RUN set -e; \
+    case "$TARGETARCH" in \
+      amd64) UV_ASSET="uv-x86_64-unknown-linux-musl.tar.gz"; \
+             UV_SHA256="e1ccdfe1691c1f791d84bb6e1697e49416ca4b62103dcdf3b63772f03834f113";; \
+      arm64) UV_ASSET="uv-aarch64-unknown-linux-musl.tar.gz"; \
+             UV_SHA256="64c5321f5141db39e04209d170db34fcef5c8de3f561346dc0c1d132801c4f88";; \
+      *) echo "Unsupported arch: $TARGETARCH"; exit 1;; \
+    esac; \
+    curl -L -o /tmp/uv.tar.gz \
+        "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/${UV_ASSET}"; \
+    echo "${UV_SHA256}  /tmp/uv.tar.gz" | sha256sum -c - \
+    && tar -C /usr/local/bin --strip-components=1 \
+        -xzf /tmp/uv.tar.gz ${UV_ASSET%.tar.gz}/uv \
     && chmod +x /usr/local/bin/uv \
     && rm /tmp/uv.tar.gz
 
@@ -113,7 +125,7 @@ ENV MCP_PROXY_MAX_CONNECTIONS=100
 ENV MCP_PROXY_TIMEOUT=30s
 
 # Health check for production monitoring
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
     CMD sh -c 'wget --no-verbose --tries=1 --spider "http://localhost:${MCP_PROXY_PORT:-6001}/healthz" || exit 1'
 
 # Expose port
@@ -129,6 +141,9 @@ LABEL org.opencontainers.image.vendor="Compozy"
 LABEL org.opencontainers.image.licenses="BSL-1.1"
 LABEL org.opencontainers.image.base.name="alpine:3.20"
 
+# Add tini for proper signal handling and zombie reaping
+RUN apk add --no-cache tini
+
 # Default command - run the compozy mcp-proxy subcommand
-ENTRYPOINT ["/app/compozy"]
+ENTRYPOINT ["/sbin/tini", "--", "/app/compozy"]
 CMD ["mcp-proxy"]

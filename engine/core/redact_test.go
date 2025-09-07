@@ -90,9 +90,7 @@ func TestRedactString(t *testing.T) {
 		}
 		for _, tc := range testCases {
 			// Fill with valid characters
-			for i := 4; i < 40; i++ {
-				tc.input = tc.input[:i] + "a" + tc.input[i+1:]
-			}
+			tc.input = tc.input[:4] + strings.Repeat("a", 36)
 			result := core.RedactString(tc.input)
 			assert.Equal(t, tc.expected, result, "Failed for input: %s", tc.input)
 		}
@@ -247,5 +245,23 @@ func TestRedactHeaders(t *testing.T) {
 		for k := range headers {
 			assert.Equal(t, "[REDACTED]", result[k], "Failed for header: %s", k)
 		}
+	})
+	t.Run("Should not false positive on common words containing 'key'", func(t *testing.T) {
+		// These headers should NOT be redacted based on the header name alone
+		// (though their values might still be redacted if they contain secrets)
+		headers := map[string]string{
+			"X-Monkey-Header":   "banana",
+			"X-Hockey-League":   "NHL",
+			"X-Turkey-Region":   "Istanbul",
+			"X-Keyboard-Layout": "QWERTY",
+			"X-Donkey-Mode":     "enabled",
+		}
+		result := core.RedactHeaders(headers)
+		// These headers should pass through since they don't match sensitive patterns
+		assert.Equal(t, "banana", result["X-Monkey-Header"])
+		assert.Equal(t, "NHL", result["X-Hockey-League"])
+		assert.Equal(t, "Istanbul", result["X-Turkey-Region"])
+		assert.Equal(t, "QWERTY", result["X-Keyboard-Layout"])
+		assert.Equal(t, "enabled", result["X-Donkey-Mode"])
 	})
 }

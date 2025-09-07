@@ -2,7 +2,6 @@ package config
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
@@ -13,29 +12,15 @@ import (
 func TestLLM_MCP_Durations_ParseFromEnv(t *testing.T) {
 	t.Run("Should parse readiness durations from env", func(t *testing.T) {
 		ResetForTest()
-		prevTO, hadTO := os.LookupEnv("MCP_READINESS_TIMEOUT")
-		prevPI, hadPI := os.LookupEnv("MCP_READINESS_POLL_INTERVAL")
-		_ = os.Setenv("MCP_READINESS_TIMEOUT", "2s")
-		_ = os.Setenv("MCP_READINESS_POLL_INTERVAL", "150ms")
-		defer func() {
-			if hadTO {
-				_ = os.Setenv("MCP_READINESS_TIMEOUT", prevTO)
-			} else {
-				_ = os.Unsetenv("MCP_READINESS_TIMEOUT")
-			}
-			if hadPI {
-				_ = os.Setenv("MCP_READINESS_POLL_INTERVAL", prevPI)
-			} else {
-				_ = os.Unsetenv("MCP_READINESS_POLL_INTERVAL")
-			}
-			ResetForTest()
-		}()
+		t.Setenv("MCP_READINESS_TIMEOUT", "2s")
+		t.Setenv("MCP_READINESS_POLL_INTERVAL", "150ms")
 		err := Initialize(context.Background(), nil, NewDefaultProvider(), NewEnvProvider())
 		require.NoError(t, err)
 		cfg := Get()
 		require.NotNil(t, cfg)
 		assert.Equal(t, 2*time.Second, cfg.LLM.MCPReadinessTimeout)
 		assert.Equal(t, 150*time.Millisecond, cfg.LLM.MCPReadinessPollInterval)
+		ResetForTest()
 	})
 }
 
