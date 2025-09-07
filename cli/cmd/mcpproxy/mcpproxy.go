@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 
 	"github.com/spf13/cobra"
@@ -15,6 +16,13 @@ import (
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	mcpproxy "github.com/compozy/compozy/pkg/mcp-proxy"
+)
+
+const (
+	logLevelDebug = "debug"
+	logLevelInfo  = "info"
+	logLevelWarn  = "warn"
+	logLevelError = "error"
 )
 
 // NewMCPProxyCommand creates the mcp-proxy command using the unified command pattern
@@ -137,14 +145,10 @@ func buildMCPProxyConfig(_ *cobra.Command) *mcpproxy.Config {
 	}
 
 	return &mcpproxy.Config{
-		Host:             mcpConfig.Host,
-		Port:             port,
-		BaseURL:          baseURL,
-		ShutdownTimeout:  mcpConfig.ShutdownTimeout,
-		AdminTokens:      mcpConfig.AdminTokens,
-		AdminAllowIPs:    mcpConfig.AdminAllowIPs,
-		TrustedProxies:   mcpConfig.TrustedProxies,
-		GlobalAuthTokens: mcpConfig.GlobalAuthTokens,
+		Host:            mcpConfig.Host,
+		Port:            port,
+		BaseURL:         baseURL,
+		ShutdownTimeout: mcpConfig.ShutdownTimeout,
 	}
 }
 
@@ -154,13 +158,19 @@ func buildMCPProxyConfig(_ *cobra.Command) *mcpproxy.Config {
 func setupMCPProxyLogging(cobraCmd *cobra.Command, _ *cmd.CommandExecutor) logger.Logger {
 	cfg := config.Get()
 	logLevel := cfg.Runtime.LogLevel
-
-	// Override log level if debug flag is set
-	if debug, err := cobraCmd.Flags().GetBool("debug"); err == nil && debug {
-		logLevel = "debug"
+	if envLevel := os.Getenv("MCP_PROXY_LOG_LEVEL"); envLevel != "" {
+		v := strings.ToLower(envLevel)
+		switch v {
+		case logLevelDebug, logLevelInfo, logLevelWarn, logLevelError:
+			logLevel = v
+		}
 	}
-
-	// Use global configuration for logging setup
+	if cfg.CLI.Debug {
+		logLevel = logLevelDebug
+	}
+	if debug, err := cobraCmd.Flags().GetBool("debug"); err == nil && debug {
+		logLevel = logLevelDebug
+	}
 	return logger.SetupLogger(logger.LogLevel(logLevel), false, false)
 }
 

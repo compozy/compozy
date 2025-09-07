@@ -112,7 +112,7 @@ The MCP Proxy enables integration with external Model Context Protocol servers:
 docker run -d \
   --name mcp-proxy \
   -p 6001:6001 \
-  -e MCP_PROXY_ADMIN_TOKEN="your-admin-token" \
+  # Note: No built-in admin auth; secure /admin via your environment (network, reverse proxy)
   -e REDIS_URL="redis://:password@host:6379/0" \
   ghcr.io/compozy/mcp-proxy:latest
 ```

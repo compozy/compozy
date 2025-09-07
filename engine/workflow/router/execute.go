@@ -61,7 +61,7 @@ func handleExecute(c *gin.Context) {
 	}
 
 	execID := workflowStateID.WorkflowExecID.String()
-	execURL := fmt.Sprintf("%s/api/workflows/executions/%s", router.GetServerAddress(c), execID)
+	execURL := fmt.Sprintf("/api/v0/executions/workflows/%s", execID)
 	router.RespondAccepted(c, "workflow triggered successfully", gin.H{
 		"exec_url":    execURL,
 		"exec_id":     execID,

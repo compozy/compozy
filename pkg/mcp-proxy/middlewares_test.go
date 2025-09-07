@@ -1,6 +1,7 @@
 package mcpproxy
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -9,128 +10,11 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestAuthMiddleware_TokenValidation(t *testing.T) {
-	t.Run("Should accept valid Bearer token and allow request through", func(t *testing.T) {
-		gin.SetMode(gin.TestMode)
+// TestAuthMiddleware_TokenValidation has been removed as authentication
+// functionality has been removed from the MCP proxy server.
+// The proxy server no longer provides or enforces authentication mechanisms.
 
-		middleware := newAuthMiddleware([]string{"valid-token"})
-
-		w := httptest.NewRecorder()
-		c, _ := gin.CreateTestContext(w)
-
-		req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
-		req.Header.Set("Authorization", "Bearer valid-token")
-		c.Request = req
-
-		middleware(c)
-
-		assert.False(t, c.IsAborted())
-	})
-
-	t.Run("Should accept case-insensitive Bearer token header", func(t *testing.T) {
-		gin.SetMode(gin.TestMode)
-
-		middleware := newAuthMiddleware([]string{"valid-token"})
-
-		w := httptest.NewRecorder()
-		c, _ := gin.CreateTestContext(w)
-
-		req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
-		req.Header.Set("Authorization", "bearer valid-token")
-		c.Request = req
-
-		middleware(c)
-
-		assert.False(t, c.IsAborted())
-	})
-
-	t.Run("Should accept mixed case Bearer prefix in authorization header", func(t *testing.T) {
-		gin.SetMode(gin.TestMode)
-
-		middleware := newAuthMiddleware([]string{"valid-token"})
-
-		w := httptest.NewRecorder()
-		c, _ := gin.CreateTestContext(w)
-
-		req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
-		req.Header.Set("Authorization", "BeArEr valid-token")
-		c.Request = req
-
-		middleware(c)
-
-		assert.False(t, c.IsAborted())
-	})
-
-	t.Run("Should reject request with invalid auth token", func(t *testing.T) {
-		gin.SetMode(gin.TestMode)
-
-		middleware := newAuthMiddleware([]string{"valid-token"})
-
-		w := httptest.NewRecorder()
-		c, _ := gin.CreateTestContext(w)
-
-		req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
-		req.Header.Set("Authorization", "Bearer invalid-token")
-		c.Request = req
-
-		middleware(c)
-
-		assert.True(t, c.IsAborted())
-		assert.Equal(t, http.StatusUnauthorized, w.Code)
-	})
-
-	t.Run("Should reject request without authorization header", func(t *testing.T) {
-		gin.SetMode(gin.TestMode)
-
-		middleware := newAuthMiddleware([]string{"valid-token"})
-
-		w := httptest.NewRecorder()
-		c, _ := gin.CreateTestContext(w)
-
-		req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
-		c.Request = req
-
-		middleware(c)
-
-		assert.True(t, c.IsAborted())
-		assert.Equal(t, http.StatusUnauthorized, w.Code)
-	})
-
-	t.Run("Should reject non-Bearer authorization schemes", func(t *testing.T) {
-		gin.SetMode(gin.TestMode)
-
-		middleware := newAuthMiddleware([]string{"valid-token"})
-
-		w := httptest.NewRecorder()
-		c, _ := gin.CreateTestContext(w)
-
-		req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
-		req.Header.Set("Authorization", "Basic dXNlcjpwYXNz")
-		c.Request = req
-
-		middleware(c)
-
-		assert.True(t, c.IsAborted())
-		assert.Equal(t, http.StatusUnauthorized, w.Code)
-	})
-
-	t.Run("Should filter out empty tokens and validate non-empty ones", func(t *testing.T) {
-		gin.SetMode(gin.TestMode)
-
-		middleware := newAuthMiddleware([]string{"valid-token", "", "another-token"})
-
-		w := httptest.NewRecorder()
-		c, _ := gin.CreateTestContext(w)
-
-		req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
-		req.Header.Set("Authorization", "Bearer another-token")
-		c.Request = req
-
-		middleware(c)
-
-		assert.False(t, c.IsAborted())
-	})
-}
+// Admin IP allowlist middleware tests were removed along with the feature.
 
 func TestMiddlewareWrapper_PanicRecovery(t *testing.T) {
 	t.Run("Should recover from handler panics and return 500 error", func(t *testing.T) {
@@ -156,7 +40,11 @@ func TestMiddlewareWrapper_PanicRecovery(t *testing.T) {
 		wrappedHandler(c)
 
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
-		assert.Contains(t, w.Body.String(), "Internal server error")
+		var resp map[string]string
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		assert.NoError(t, err)
+		assert.Equal(t, "Internal server error", resp["error"])
+		assert.Equal(t, "An unexpected error occurred", resp["details"])
 	})
 
 	t.Run("Should handle nil handler gracefully with error response", func(t *testing.T) {
@@ -172,7 +60,11 @@ func TestMiddlewareWrapper_PanicRecovery(t *testing.T) {
 		wrappedHandler(c)
 
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
-		assert.Contains(t, w.Body.String(), "Handler not initialized")
+		var resp map[string]string
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		assert.NoError(t, err)
+		assert.Equal(t, "Handler not initialized", resp["error"])
+		assert.Equal(t, "Handler not initialized", resp["details"])
 	})
 
 	t.Run("Should execute middlewares in correct order with proper chaining", func(t *testing.T) {

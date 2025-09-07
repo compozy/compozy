@@ -479,7 +479,8 @@ definitions:
         description: |-
           MaxToolIterations optionally caps the maximum number of tool-call iterations
           during a single LLM request when tools are available.
-          If set to a positive value, this overrides global defaults for this model.
+          When > 0, overrides the global default for this model; 0 uses the global default.
+        minimum: 0
         type: integer
       model:
         description: |-
@@ -656,6 +657,16 @@ definitions:
           **Template Support**: Values can use Go template syntax to reference
           environment variables from the host system.
         type: object
+      headers:
+        additionalProperties:
+          type: string
+        description: |-
+          Headers contains HTTP headers to include when connecting to remote MCP servers (SSE/HTTP).
+          Useful for passing Authorization tokens, custom auth headers, or version negotiation.
+          Example:
+          headers:
+            Authorization: "Bearer {{ .env.GITHUB_MCP_OAUTH_TOKEN }}"
+        type: object
       id:
         description: |-
           ID is the **unique identifier** for this MCP server configuration.
@@ -811,16 +822,7 @@ definitions:
     type: object
   mcpproxy.MCPDefinition:
     properties:
-      allowedIPs:
-        items:
-          type: string
-        type: array
       args:
-        items:
-          type: string
-        type: array
-      authTokens:
-        description: Security and access control
         items:
           type: string
         type: array
@@ -856,8 +858,6 @@ definitions:
         type: string
       reconnectDelay:
         $ref: '#/definitions/time.Duration'
-      requireAuth:
-        type: boolean
       tags:
         additionalProperties:
           type: string
@@ -1797,6 +1797,11 @@ paths:
           schema:
             additionalProperties: true
             type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
       summary: Proxy SSE requests to MCP server
       tags:
         - MCP Proxy
@@ -1828,6 +1833,11 @@ paths:
           schema:
             additionalProperties: true
             type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
       summary: Proxy SSE requests to MCP server
       tags:
         - MCP Proxy
@@ -1852,6 +1862,11 @@ paths:
             type: object
         "404":
           description: MCP not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
           schema:
             additionalProperties: true
             type: object
@@ -1881,6 +1896,11 @@ paths:
           schema:
             additionalProperties: true
             type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
       summary: Proxy streamable HTTP requests to MCP server
       tags:
         - MCP Proxy
@@ -1904,6 +1924,11 @@ paths:
             type: object
         "404":
           description: MCP not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
           schema:
             additionalProperties: true
             type: object
@@ -1933,6 +1958,11 @@ paths:
           schema:
             additionalProperties: true
             type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
       summary: Proxy streamable HTTP requests to MCP server
       tags:
         - MCP Proxy
@@ -1956,6 +1986,11 @@ paths:
             type: object
         "404":
           description: MCP not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
           schema:
             additionalProperties: true
             type: object
@@ -1990,6 +2025,11 @@ paths:
           schema:
             additionalProperties: true
             type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
       summary: Proxy streamable HTTP requests to MCP server
       tags:
         - MCP Proxy
@@ -2017,6 +2057,11 @@ paths:
             type: object
         "404":
           description: MCP not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
           schema:
             additionalProperties: true
             type: object
@@ -2050,6 +2095,11 @@ paths:
           schema:
             additionalProperties: true
             type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
       summary: Proxy streamable HTTP requests to MCP server
       tags:
         - MCP Proxy
@@ -2080,6 +2130,11 @@ paths:
           schema:
             additionalProperties: true
             type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
       summary: Proxy streamable HTTP requests to MCP server
       tags:
         - MCP Proxy
@@ -2107,6 +2162,11 @@ paths:
             type: object
         "404":
           description: MCP not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
           schema:
             additionalProperties: true
             type: object

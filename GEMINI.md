@@ -3,13 +3,15 @@
 This file provides comprehensive guidance for working with the Compozy codebase, including development commands, standards, and workflow patterns.
 
 <critical>
-- **YOU MUST ALWAYS USE** the .cursor/rules/critical-validation.mdc
-- **YOU MUST ALWAYS** use Claude Code MCP to find out relevant files, symbols and context about the codebase  (priority 1)
-- **YOU MUST ALWAYS** use RepoPrompt to complex analysis in the codebase (with the `current_chat_model` as options) (priority 2)
-- **YOU MUST ALWAYS** use Serena MCP to discovers and edits code for instead of the READ, WRITE, UPDATE tool (priority 3)
-- **YOU MUSE ALWAYS** use Zen MCP (with Gemin 2.5 Pro) to debug, analyze and tracer complex flow (priority 4)   
+- **YOU MUST ALWAYS CHECK** the .cursor/rules/critical-validation.mdc
+- **YOU CAN ONLY** finish a task if `make lint` and `make tests` are passing, your task should not finish before this
+
+### For complex/big tasks
+
+- **YOU MUST** use Zen MCP (with Gemini 2.5 Pro) debug, analyze or tracer complex flow **BEFORE INITIATE A TASK**
+- **YOU MUST** use Zen MCP (with Gemini 2.5 Pro and O3) codereview tool **AFTER FINISH A TASK**
 - **YOU MUST ALWAYS** show all recommendations/issues from a Zen MCP review, does not matter if they are related to your task or not, you **NEED TO ALWAYS** show them.
-</critical>
+  </critical>
 
 ## Project Overview
 
@@ -61,16 +63,6 @@ make reset-db       # Reset database completely
 - **API Development**: .cursor/rules/api-standards.mdc - RESTful design, versioning, documentation
 - **Backwards Compatibility:** See .cursor/rules/backwards-compatibility.mdc - NOT REQUIRED during development phase
 
-## Task Management
-
-For task-based development workflows, see these rule files:
-
-- .claude/commands/prd-create.md - PRD Creation
-- .claude/commands/prd-techspec.md - Technical Specifications
-- .claude/commands/prd-tasks.md - Task List Generation
-- .claude/commands/task-next.md - Task Next
-- .claude/commands/task-review.md - Task Completion with Zen MCP code review
-
 ## Compozy Configuration Examples
 
 For YAML configuration patterns and examples:
@@ -85,11 +77,13 @@ For YAML configuration patterns and examples:
 
 The project uses Go 1.25+ features and requires external dependencies to be mocked in tests when necessary.
 
-<critical>
-- **YOU MUST ALWAYS USE** the .cursor/rules/critical-validation.mdc
-- **YOU MUST ALWAYS** use Claude Code MCP to do queries in the indexed codebase to find out relevant files, dependencies and be able to get a better context before execute 
-- **YOU MUST ALWAYS** use RepoPrompt to complex analysis in the codebase (with the `current_chat_model` as options)
-- **YOU MUST ALWAYS** use Serena MCP to discovers and edits code for instead of the READ, WRITE, UPDATE tool
-- **YOU MUSE ALWAYS** use Zen MCP (with Gemin 2.5 Pro) to debug, analyze and tracer complex flow
+  <critical>
+- **YOU MUST ALWAYS CHECK** the .cursor/rules/critical-validation.mdc
+- **YOU CAN ONLY** finish a task if `make lint` and `make tests` are passing, your task should not finish before this
+
+### For complex/big tasks
+
+- **YOU MUST** use Zen MCP (with Gemini 2.5 Pro) debug, analyze or tracer complex flow **BEFORE INITIATE A TASK**
+- **YOU MUST** use Zen MCP (with Gemini 2.5 Pro and O3) codereview tool **AFTER FINISH A TASK**
 - **YOU MUST ALWAYS** show all recommendations/issues from a Zen MCP review, does not matter if they are related to your task or not, you **NEED TO ALWAYS** show them.
-</critical>
+  </critical>

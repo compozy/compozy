@@ -1,12 +1,28 @@
 package config
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestLLM_MCP_Durations_ParseFromEnv(t *testing.T) {
+	t.Run("Should parse readiness durations from env", func(t *testing.T) {
+		ResetForTest()
+		t.Setenv("MCP_READINESS_TIMEOUT", "2s")
+		t.Setenv("MCP_READINESS_POLL_INTERVAL", "150ms")
+		err := Initialize(context.Background(), nil, NewDefaultProvider(), NewEnvProvider())
+		require.NoError(t, err)
+		cfg := Get()
+		require.NotNil(t, cfg)
+		assert.Equal(t, 2*time.Second, cfg.LLM.MCPReadinessTimeout)
+		assert.Equal(t, 150*time.Millisecond, cfg.LLM.MCPReadinessPollInterval)
+		ResetForTest()
+	})
+}
 
 func TestConfig_Default(t *testing.T) {
 	t.Run("Should return valid default configuration", func(t *testing.T) {

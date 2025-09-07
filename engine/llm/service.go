@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
@@ -41,11 +42,17 @@ func NewService(ctx context.Context, runtime runtime.Runtime, agent *agent.Confi
 			return nil, fmt.Errorf("failed to create MCP client: %w", err)
 		}
 		mcpClient = client
+		toRegister := collectMCPsToRegister(agent, config)
+		uniq := dedupeMCPsByID(toRegister)
+		if err := registerMCPsWithProxy(ctx, mcpClient, uniq, config.FailOnMCPRegistrationError); err != nil {
+			return nil, err
+		}
 	}
 	// Create tool registry
 	toolRegistry := NewToolRegistry(ToolRegistryConfig{
-		ProxyClient: mcpClient,
-		CacheTTL:    config.CacheTTL,
+		ProxyClient:     mcpClient,
+		CacheTTL:        config.CacheTTL,
+		AllowedMCPNames: config.AllowedMCPNames,
 	})
 	// Register tools - use resolved tools if provided, otherwise use agent tools
 	var toolsToRegister []tool.Config
@@ -67,18 +74,19 @@ func NewService(ctx context.Context, runtime runtime.Runtime, agent *agent.Confi
 	promptBuilder := NewPromptBuilder()
 	// Create orchestrator
 	orchestratorConfig := OrchestratorConfig{
-		ToolRegistry:       toolRegistry,
-		PromptBuilder:      promptBuilder,
-		RuntimeManager:     runtime,
-		LLMFactory:         config.LLMFactory,
-		MemoryProvider:     config.MemoryProvider,
-		Timeout:            config.Timeout,
-		MaxConcurrentTools: config.MaxConcurrentTools,
-		MaxToolIterations:  config.MaxToolIterations,
-		RetryAttempts:      config.RetryAttempts,
-		RetryBackoffBase:   config.RetryBackoffBase,
-		RetryBackoffMax:    config.RetryBackoffMax,
-		RetryJitter:        config.RetryJitter,
+		ToolRegistry:            toolRegistry,
+		PromptBuilder:           promptBuilder,
+		RuntimeManager:          runtime,
+		LLMFactory:              config.LLMFactory,
+		MemoryProvider:          config.MemoryProvider,
+		Timeout:                 config.Timeout,
+		MaxConcurrentTools:      config.MaxConcurrentTools,
+		MaxToolIterations:       config.MaxToolIterations,
+		MaxSequentialToolErrors: config.MaxSequentialToolErrors,
+		RetryAttempts:           config.RetryAttempts,
+		RetryBackoffBase:        config.RetryBackoffBase,
+		RetryBackoffMax:         config.RetryBackoffMax,
+		RetryJitter:             config.RetryJitter,
 	}
 	llmOrchestrator := NewOrchestrator(&orchestratorConfig)
 	return &Service{
@@ -192,6 +200,58 @@ func (s *Service) InvalidateToolsCache(ctx context.Context) {
 func (s *Service) Close() error {
 	if s.orchestrator != nil {
 		return s.orchestrator.Close()
+	}
+	return nil
+}
+
+// collectMCPsToRegister combines agent-declared and workflow-level MCPs for
+// proxy registration. Precedence: agent-level definitions override workflow
+// duplicates (dedupe keeps the first occurrence).
+func collectMCPsToRegister(agentCfg *agent.Config, cfg *Config) []mcp.Config {
+	var out []mcp.Config
+	if agentCfg != nil && len(agentCfg.MCPs) > 0 {
+		out = append(out, agentCfg.MCPs...)
+	}
+	if cfg != nil && len(cfg.RegisterMCPs) > 0 {
+		out = append(out, cfg.RegisterMCPs...)
+	}
+	return out
+}
+
+// dedupeMCPsByID removes duplicates using case-insensitive ID comparison.
+func dedupeMCPsByID(in []mcp.Config) []mcp.Config {
+	// Keeps the first occurrence of an ID (case-insensitive). Given the
+	// collection order, agent-level entries take precedence over workflow ones.
+	seen := make(map[string]struct{})
+	out := make([]mcp.Config, 0, len(in))
+	for i := range in {
+		id := strings.ToLower(strings.TrimSpace(in[i].ID))
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, in[i])
+	}
+	return out
+}
+
+// registerMCPsWithProxy registers MCPs via proxy, honoring strict mode.
+func registerMCPsWithProxy(ctx context.Context, client *mcp.Client, mcps []mcp.Config, strict bool) error {
+	if client == nil || len(mcps) == 0 {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	reg := mcp.NewRegisterService(client)
+	if err := reg.EnsureMultiple(ctx, mcps); err != nil {
+		if strict {
+			return fmt.Errorf("failed to register MCPs: %w", err)
+		}
+		logger.FromContext(ctx).
+			Warn("Failed to register MCPs; tools may be unavailable", "mcp_count", len(mcps), "error", err)
 	}
 	return nil
 }

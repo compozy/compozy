@@ -15,12 +15,11 @@ import (
 
 // ProxyHandlers handles MCP protocol proxy requests
 type ProxyHandlers struct {
-	storage          Storage
-	clientManager    ClientManager
-	baseURL          string                  // Base URL for SSE servers
-	servers          map[string]*ProxyServer // Map of MCP name to proxy server
-	serversMutex     sync.RWMutex            // Protects servers map
-	globalAuthTokens []string                // Global auth tokens inherited by all clients
+	storage       Storage
+	clientManager ClientManager
+	baseURL       string                  // Base URL for SSE servers
+	servers       map[string]*ProxyServer // Map of MCP name to proxy server
+	serversMutex  sync.RWMutex            // Protects servers map
 }
 
 // ProxyServer wraps an MCP server and SSE server for proxying requests
@@ -36,14 +35,12 @@ func NewProxyHandlers(
 	storage Storage,
 	clientManager ClientManager,
 	baseURL string,
-	globalAuthTokens []string,
 ) *ProxyHandlers {
 	return &ProxyHandlers{
-		storage:          storage,
-		clientManager:    clientManager,
-		baseURL:          baseURL,
-		servers:          make(map[string]*ProxyServer),
-		globalAuthTokens: globalAuthTokens,
+		storage:       storage,
+		clientManager: clientManager,
+		baseURL:       baseURL,
+		servers:       make(map[string]*ProxyServer),
 	}
 }
 
@@ -102,9 +99,15 @@ func (p *ProxyHandlers) RegisterMCPProxy(ctx context.Context, name string, def *
 	// Initialize the client connection and add its capabilities to the server
 	// This runs in background after the server is registered
 	go func() {
-		// Create independent context to avoid cancellation affecting background initialization
+		// Independent context with timeout to avoid indefinite wait
 		bgCtx := logger.ContextWithLogger(context.Background(), log)
-		if err := p.initializeClientConnection(bgCtx, client, mcpServer, name, def); err != nil {
+		timeout := 30 * time.Second
+		if def != nil && def.Timeout > 0 {
+			timeout = def.Timeout
+		}
+		waitCtx, cancel := context.WithTimeout(bgCtx, timeout)
+		defer cancel()
+		if err := p.initializeClientConnection(waitCtx, client, mcpServer, name, def); err != nil {
 			log.Error("Failed to initialize MCP client connection", "name", name, "error", err)
 			// Update client status to reflect initialization failure
 			if status := client.GetStatus(); status != nil {
@@ -163,6 +166,7 @@ func (p *ProxyHandlers) UnregisterMCPProxy(ctx context.Context, name string) err
 // @Success 200 {string} string "SSE stream"
 // @Failure 400 {object} map[string]interface{} "Bad request"
 // @Failure 404 {object} map[string]interface{} "MCP not found"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /{name}/sse [get]
 // @Router /{name}/sse/{path} [get]
 func (p *ProxyHandlers) SSEProxyHandler(c *gin.Context) {
@@ -196,18 +200,12 @@ func (p *ProxyHandlers) SSEProxyHandler(c *gin.Context) {
 	// Use cached definition to avoid repeated storage queries
 	def := proxyServer.def
 
-	// Apply middleware chain in security-first order
+	// Apply middleware chain
 	middlewares := []gin.HandlerFunc{
 		recoverMiddleware(name), // Recovery should be outermost
 	}
 
-	// Add auth middleware first (before logging to prevent logging unauthorized requests)
-	allTokens := combineAuthTokens(p.globalAuthTokens, def.AuthTokens)
-	if len(allTokens) > 0 {
-		middlewares = append(middlewares, newAuthMiddleware(allTokens))
-	}
-
-	// Add logging middleware after auth
+	// Add logging middleware
 	if def.LogEnabled {
 		middlewares = append(middlewares, logger.Middleware(log))
 	}
@@ -232,6 +230,7 @@ func (p *ProxyHandlers) SSEProxyHandler(c *gin.Context) {
 // @Success 200 {string} string "HTTP stream"
 // @Failure 400 {object} map[string]interface{} "Bad request"
 // @Failure 404 {object} map[string]interface{} "MCP not found"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /{name}/stream [get]
 // @Router /{name}/stream [post]
 // @Router /{name}/stream [put]
@@ -333,3 +332,5 @@ func (p *ProxyHandlers) GetProxyServer(name string) *ProxyServer {
 	defer p.serversMutex.RUnlock()
 	return p.servers[name]
 }
+
+// Note: IP allowlist middleware has been removed. Network-level controls should be used instead.

@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -12,6 +14,16 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type stubTransport struct {
+	base   http.RoundTripper
+	called bool
+}
+
+func (s *stubTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	return s.base.RoundTrip(r)
+}
+func (s *stubTransport) CloseIdleConnections() { s.called = true }
 
 func TestRegisterService_Ensure(t *testing.T) {
 	t.Run("Should register MCP successfully when not already registered", func(t *testing.T) {
@@ -22,7 +34,7 @@ func TestRegisterService_Ensure(t *testing.T) {
 			}
 		}))
 		defer server.Close()
-		client := NewProxyClient(server.URL, "", 5*time.Second)
+		client := NewProxyClient(server.URL, 5*time.Second)
 		service := NewRegisterService(client)
 		config := Config{
 			ID:        "test-mcp",
@@ -38,7 +50,7 @@ func TestRegisterService_Ensure(t *testing.T) {
 			w.Write([]byte("Internal server error"))
 		}))
 		defer server.Close()
-		client := NewProxyClient(server.URL, "", 5*time.Second)
+		client := NewProxyClient(server.URL, 5*time.Second)
 		service := NewRegisterService(client)
 		config := Config{
 			ID:        "test-mcp",
@@ -59,7 +71,7 @@ func TestRegisterService_Deregister(t *testing.T) {
 			}
 		}))
 		defer server.Close()
-		client := NewProxyClient(server.URL, "", 5*time.Second)
+		client := NewProxyClient(server.URL, 5*time.Second)
 		service := NewRegisterService(client)
 		err := service.Deregister(context.Background(), "test-mcp")
 		assert.NoError(t, err)
@@ -69,7 +81,7 @@ func TestRegisterService_Deregister(t *testing.T) {
 			w.WriteHeader(http.StatusNotFound)
 		}))
 		defer server.Close()
-		client := NewProxyClient(server.URL, "", 5*time.Second)
+		client := NewProxyClient(server.URL, 5*time.Second)
 		service := NewRegisterService(client)
 		err := service.Deregister(context.Background(), "test-mcp")
 		assert.NoError(t, err)
@@ -84,7 +96,7 @@ func TestRegisterService_EnsureMultiple(t *testing.T) {
 			}
 		}))
 		defer server.Close()
-		client := NewProxyClient(server.URL, "", 5*time.Second)
+		client := NewProxyClient(server.URL, 5*time.Second)
 		service := NewRegisterService(client)
 		configs := []Config{
 			{ID: "mcp-1", URL: "http://example.com/mcp1", Transport: "sse"},
@@ -98,7 +110,7 @@ func TestRegisterService_EnsureMultiple(t *testing.T) {
 			t.Error("Should not make any HTTP calls for empty MCP list")
 		}))
 		defer server.Close()
-		client := NewProxyClient(server.URL, "", 5*time.Second)
+		client := NewProxyClient(server.URL, 5*time.Second)
 		service := NewRegisterService(client)
 		err := service.EnsureMultiple(context.Background(), []Config{})
 		assert.NoError(t, err)
@@ -108,6 +120,7 @@ func TestRegisterService_EnsureMultiple(t *testing.T) {
 func TestRegisterService_Shutdown(t *testing.T) {
 	t.Run("Should deregister all MCPs during shutdown", func(t *testing.T) {
 		var deregisteredMCPs []string
+		var mu sync.Mutex
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Method == "GET" && r.URL.Path == "/admin/mcps" {
 				// Return list of MCPs
@@ -123,18 +136,65 @@ func TestRegisterService_Shutdown(t *testing.T) {
 				json.NewEncoder(w).Encode(response)
 			} else if r.Method == "DELETE" {
 				mcpID := r.URL.Path[len("/admin/mcps/"):]
+				mu.Lock()
 				deregisteredMCPs = append(deregisteredMCPs, mcpID)
+				mu.Unlock()
 				w.WriteHeader(http.StatusOK)
 			}
 		}))
 		defer server.Close()
-		client := NewProxyClient(server.URL, "", 5*time.Second)
+		client := NewProxyClient(server.URL, 5*time.Second)
 		service := NewRegisterService(client)
 		err := service.Shutdown(context.Background())
 		assert.NoError(t, err)
 		// Verify both MCPs were deregistered
 		assert.Contains(t, deregisteredMCPs, "mcp-1")
 		assert.Contains(t, deregisteredMCPs, "mcp-2")
+	})
+
+	t.Run("Should call proxy Close() during shutdown (defer)", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch {
+			case r.Method == "GET" && r.URL.Path == "/admin/mcps":
+				w.Header().Set("Content-Type", "application/json")
+				json.NewEncoder(w).Encode(map[string]any{"mcps": []Definition{{Name: "m1"}, {Name: "m2"}}})
+			case r.Method == "DELETE" && strings.HasPrefix(r.URL.Path, "/admin/mcps/"):
+				w.WriteHeader(http.StatusOK)
+			default:
+				w.WriteHeader(http.StatusNotFound)
+			}
+		}))
+		defer server.Close()
+
+		client := NewProxyClient(server.URL, 5*time.Second)
+		st := &stubTransport{base: http.DefaultTransport}
+		client.http.Transport = st
+		service := NewRegisterService(client)
+		err := service.Shutdown(context.Background())
+		assert.NoError(t, err)
+		assert.True(t, st.called, "expected CloseIdleConnections to be called via client.Close()")
+	})
+}
+
+func TestTemplateValidation_StrictModeRules(t *testing.T) {
+	t.Run("Should allow simple lookups", func(t *testing.T) {
+		err := validateTemplate("{{ .env.API_KEY }}")
+		assert.NoError(t, err)
+	})
+	t.Run("Should reject pipelines", func(t *testing.T) {
+		err := validateTemplate("{{ .env.API_KEY | printf \"%s\" }}")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "pipelines")
+	})
+	t.Run("Should reject function calls", func(t *testing.T) {
+		err := validateTemplate("{{ printf \"%s\" .env.API_KEY }}")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "function")
+	})
+	t.Run("Should reject template inclusions", func(t *testing.T) {
+		err := validateTemplate("{{ template \"name\" }}")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "inclusions")
 	})
 }
 
@@ -147,7 +207,7 @@ func TestRegisterService_HealthCheck(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := NewProxyClient(server.URL, "", 5*time.Second)
+		client := NewProxyClient(server.URL, 5*time.Second)
 		service := NewRegisterService(client)
 
 		err := service.HealthCheck(context.Background())
@@ -160,7 +220,7 @@ func TestRegisterService_HealthCheck(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := NewProxyClient(server.URL, "", 5*time.Second)
+		client := NewProxyClient(server.URL, 5*time.Second)
 		service := NewRegisterService(client)
 
 		err := service.HealthCheck(context.Background())
@@ -171,7 +231,7 @@ func TestRegisterService_HealthCheck(t *testing.T) {
 
 func TestRegisterService_ConvertToDefinition(t *testing.T) {
 	t.Run("Should convert valid remote MCP config to proxy definition", func(t *testing.T) {
-		client := NewProxyClient("http://localhost:7077", "", 5*time.Second)
+		client := NewProxyClient("http://localhost:7077", 5*time.Second)
 		service := NewRegisterService(client)
 
 		config := Config{
@@ -191,7 +251,7 @@ func TestRegisterService_ConvertToDefinition(t *testing.T) {
 	})
 
 	t.Run("Should convert valid stdio MCP config to proxy definition", func(t *testing.T) {
-		client := NewProxyClient("http://localhost:7077", "", 5*time.Second)
+		client := NewProxyClient("http://localhost:7077", 5*time.Second)
 		service := NewRegisterService(client)
 
 		config := Config{
@@ -212,7 +272,7 @@ func TestRegisterService_ConvertToDefinition(t *testing.T) {
 	})
 
 	t.Run("Should return error when neither URL nor Command is provided", func(t *testing.T) {
-		client := NewProxyClient("http://localhost:7077", "", 5*time.Second)
+		client := NewProxyClient("http://localhost:7077", 5*time.Second)
 		service := NewRegisterService(client)
 
 		config := Config{
@@ -227,7 +287,7 @@ func TestRegisterService_ConvertToDefinition(t *testing.T) {
 	})
 
 	t.Run("Should return error for missing required fields", func(t *testing.T) {
-		client := NewProxyClient("http://localhost:7077", "", 5*time.Second)
+		client := NewProxyClient("http://localhost:7077", 5*time.Second)
 		service := NewRegisterService(client)
 
 		config := Config{

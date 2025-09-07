@@ -75,9 +75,14 @@ func (t *ProxyTool) Call(ctx context.Context, input string) (string, error) {
 	}
 }
 
-// ArgsType returns the input schema (not implemented for langchain tools)
+// ArgsType returns the input schema to allow the registry to expose parameters
 func (t *ProxyTool) ArgsType() any {
 	return t.inputSchema
+}
+
+// MCPName returns the MCP server ID that provides this tool
+func (t *ProxyTool) MCPName() string {
+	return t.mcpName
 }
 
 // validateArguments validates the provided arguments against the tool's input schema

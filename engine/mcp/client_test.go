@@ -13,6 +13,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func newTestClient(t *testing.T, baseURL string, timeout time.Duration) *Client {
+	t.Helper()
+	c := NewProxyClient(baseURL, timeout)
+	t.Cleanup(func() { _ = c.Close() })
+	return c
+}
+
 func TestClient_Health_Success(t *testing.T) {
 	t.Run("Should successfully check health when server responds OK", func(t *testing.T) {
 		// Create test server
@@ -22,8 +29,7 @@ func TestClient_Health_Success(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := NewProxyClient(server.URL, "", 5*time.Second)
-		defer client.Close()
+		client := newTestClient(t, server.URL, 5*time.Second)
 
 		err := client.Health(context.Background())
 		assert.NoError(t, err)
@@ -39,8 +45,7 @@ func TestClient_Health_Failure(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := NewProxyClient(server.URL, "", 5*time.Second)
-		defer client.Close()
+		client := newTestClient(t, server.URL, 5*time.Second)
 
 		err := client.Health(context.Background())
 		require.Error(t, err)
@@ -54,13 +59,12 @@ func TestClient_Register_Success(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "/admin/mcps", r.URL.Path)
 			assert.Equal(t, "POST", r.Method)
-			assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
+			assert.Contains(t, r.Header.Get("Content-Type"), "application/json")
 			w.WriteHeader(http.StatusCreated)
 		}))
 		defer server.Close()
 
-		client := NewProxyClient(server.URL, "", 5*time.Second)
-		defer client.Close()
+		client := newTestClient(t, server.URL, 5*time.Second)
 
 		def := Definition{
 			Name:      "test-mcp",
@@ -82,8 +86,7 @@ func TestClient_Register_AlreadyExists(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := NewProxyClient(server.URL, "", 5*time.Second)
-		defer client.Close()
+		client := newTestClient(t, server.URL, 5*time.Second)
 
 		def := Definition{
 			Name:      "test-mcp",
@@ -106,8 +109,7 @@ func TestClient_Register_Unauthorized(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := NewProxyClient(server.URL, "invalid-token", 5*time.Second)
-		defer client.Close()
+		client := newTestClient(t, server.URL, 5*time.Second)
 
 		def := Definition{
 			Name:      "test-mcp",
@@ -131,8 +133,7 @@ func TestClient_Deregister_Success(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := NewProxyClient(server.URL, "", 5*time.Second)
-		defer client.Close()
+		client := newTestClient(t, server.URL, 5*time.Second)
 
 		err := client.Deregister(context.Background(), "test-mcp")
 		assert.NoError(t, err)
@@ -148,8 +149,7 @@ func TestClient_Deregister_NotFound(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := NewProxyClient(server.URL, "", 5*time.Second)
-		defer client.Close()
+		client := newTestClient(t, server.URL, 5*time.Second)
 
 		// Should treat not found as success (idempotent)
 		err := client.Deregister(context.Background(), "nonexistent-mcp")
@@ -167,8 +167,7 @@ func TestClient_Deregister_NoContent(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := NewProxyClient(server.URL, "", 5*time.Second)
-		defer client.Close()
+		client := newTestClient(t, server.URL, 5*time.Second)
 
 		err := client.Deregister(context.Background(), "test-mcp")
 		assert.NoError(t, err)
@@ -199,8 +198,7 @@ func TestClient_ListMCPs_Success(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := NewProxyClient(server.URL, "", 5*time.Second)
-		defer client.Close()
+		client := newTestClient(t, server.URL, 5*time.Second)
 
 		mcps, err := client.ListMCPs(context.Background())
 		require.NoError(t, err)
@@ -212,8 +210,7 @@ func TestClient_ListMCPs_Success(t *testing.T) {
 
 func TestClient_WithInvalidURL(t *testing.T) {
 	t.Run("Should return error when using invalid URL", func(t *testing.T) {
-		client := NewProxyClient("invalid-url", "", 5*time.Second)
-		defer client.Close()
+		client := newTestClient(t, "invalid-url", 5*time.Second)
 
 		err := client.Health(context.Background())
 		require.Error(t, err)
@@ -235,12 +232,26 @@ func TestClient_RetryLogic(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := NewProxyClient(server.URL, "", 5*time.Second)
-		defer client.Close()
+		client := newTestClient(t, server.URL, 5*time.Second)
 
 		err := client.Health(context.Background())
 		assert.NoError(t, err)
 		assert.Equal(t, int32(2), atomic.LoadInt32(&callCount)) // Should have retried once
+	})
+}
+
+func TestClient_Timeout(t *testing.T) {
+	t.Run("Should timeout when server hangs beyond client timeout", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			time.Sleep(1 * time.Second)
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer server.Close()
+
+		client := newTestClient(t, server.URL, 50*time.Millisecond)
+
+		err := client.Health(context.Background())
+		require.Error(t, err)
 	})
 }
 
@@ -279,8 +290,7 @@ func TestClient_ListTools_Success(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := NewProxyClient(server.URL, "", 5*time.Second)
-		defer client.Close()
+		client := newTestClient(t, server.URL, 5*time.Second)
 
 		tools, err := client.ListTools(context.Background())
 		require.NoError(t, err)
@@ -306,12 +316,24 @@ func TestClient_ListTools_Failure(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := NewProxyClient(server.URL, "", 5*time.Second)
-		defer client.Close()
+		client := newTestClient(t, server.URL, 5*time.Second)
 
 		_, err := client.ListTools(context.Background())
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "tools request failed")
+	})
+
+	t.Run("Should error on invalid JSON response", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("not-json"))
+		}))
+		defer server.Close()
+
+		client := newTestClient(t, server.URL, 5*time.Second)
+
+		_, err := client.ListTools(context.Background())
+		require.Error(t, err)
 	})
 }
 
@@ -345,10 +367,8 @@ func TestNewProxyClient(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client := NewProxyClient(tt.baseURL, "token", 5*time.Second)
+			client := newTestClient(t, tt.baseURL, 5*time.Second)
 			assert.Equal(t, tt.expected, client.baseURL)
-			assert.Equal(t, "token", client.adminTok)
-			client.Close()
 		})
 	}
 }
@@ -359,7 +379,7 @@ func TestClient_CallTool(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "/admin/tools/call", r.URL.Path)
 			assert.Equal(t, "POST", r.Method)
-			assert.Equal(t, "Bearer test-token", r.Header.Get("Authorization"))
+			assert.Contains(t, r.Header.Get("Content-Type"), "application/json")
 
 			// Verify request body
 			var req ToolCallRequest
@@ -381,8 +401,7 @@ func TestClient_CallTool(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := NewProxyClient(server.URL, "test-token", 5*time.Second)
-		defer client.Close()
+		client := newTestClient(t, server.URL, 5*time.Second)
 
 		result, err := client.CallTool(context.Background(), "test-mcp", "test-tool", map[string]any{
 			"query": "test query",
@@ -408,8 +427,7 @@ func TestClient_CallTool(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := NewProxyClient(server.URL, "", 5*time.Second)
-		defer client.Close()
+		client := newTestClient(t, server.URL, 5*time.Second)
 
 		_, err := client.CallTool(context.Background(), "test-mcp", "unknown-tool", nil)
 
@@ -425,12 +443,24 @@ func TestClient_CallTool(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := NewProxyClient(server.URL, "", 5*time.Second)
-		defer client.Close()
+		client := newTestClient(t, server.URL, 5*time.Second)
 
 		_, err := client.CallTool(context.Background(), "unknown-mcp", "test-tool", nil)
 
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "tool call failed (status 404)")
+		assert.Contains(t, err.Error(), "proxy request failed (status 404)")
+	})
+
+	t.Run("Should error on invalid JSON response", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("not-json"))
+		}))
+		defer server.Close()
+
+		client := newTestClient(t, server.URL, 5*time.Second)
+
+		_, err := client.CallTool(context.Background(), "test-mcp", "test-tool", map[string]any{"query": "x"})
+		require.Error(t, err)
 	})
 }

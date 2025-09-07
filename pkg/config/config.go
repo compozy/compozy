@@ -283,7 +283,7 @@ type TemporalConfig struct {
 	//   - Workflow type separation
 	//   - Priority-based routing
 	//   - Resource isolation
-	// Default: "compozy-queue"
+	// Default: "compozy-tasks"
 	TaskQueue string `koanf:"task_queue" env:"TEMPORAL_TASK_QUEUE" json:"task_queue" yaml:"task_queue" mapstructure:"task_queue"`
 }
 
@@ -325,37 +325,37 @@ type RuntimeConfig struct {
 	// DispatcherHeartbeatInterval sets how often dispatchers report health.
 	//
 	// Lower values provide faster failure detection but increase load.
-	// Default: 5s
+	// Default: 30s
 	DispatcherHeartbeatInterval time.Duration `koanf:"dispatcher_heartbeat_interval" env:"RUNTIME_DISPATCHER_HEARTBEAT_INTERVAL" json:"dispatcher_heartbeat_interval" yaml:"dispatcher_heartbeat_interval" mapstructure:"dispatcher_heartbeat_interval"`
 
 	// DispatcherHeartbeatTTL sets heartbeat expiration time.
 	//
 	// Must be greater than heartbeat interval to handle network delays.
-	// Default: 15s (3x interval)
+	// Default: 90s
 	DispatcherHeartbeatTTL time.Duration `koanf:"dispatcher_heartbeat_ttl" env:"RUNTIME_DISPATCHER_HEARTBEAT_TTL" json:"dispatcher_heartbeat_ttl" yaml:"dispatcher_heartbeat_ttl" mapstructure:"dispatcher_heartbeat_ttl"`
 
 	// DispatcherStaleThreshold defines when a dispatcher is considered failed.
 	//
 	// Triggers reassignment of dispatcher's workflows.
-	// Default: 30s
+	// Default: 120s
 	DispatcherStaleThreshold time.Duration `koanf:"dispatcher_stale_threshold" env:"RUNTIME_DISPATCHER_STALE_THRESHOLD" json:"dispatcher_stale_threshold" yaml:"dispatcher_stale_threshold" mapstructure:"dispatcher_stale_threshold"`
 
 	// AsyncTokenCounterWorkers sets the number of token counting workers.
 	//
 	// More workers improve throughput for high-volume token counting.
-	// Default: 5
+	// Default: 4
 	AsyncTokenCounterWorkers int `koanf:"async_token_counter_workers" validate:"min=1" env:"RUNTIME_ASYNC_TOKEN_COUNTER_WORKERS" json:"async_token_counter_workers" yaml:"async_token_counter_workers" mapstructure:"async_token_counter_workers"`
 
 	// AsyncTokenCounterBufferSize sets the token counter queue size.
 	//
 	// Larger buffers handle traffic spikes better but use more memory.
-	// Default: 1000
+	// Default: 100
 	AsyncTokenCounterBufferSize int `koanf:"async_token_counter_buffer_size" validate:"min=1" env:"RUNTIME_ASYNC_TOKEN_COUNTER_BUFFER_SIZE" json:"async_token_counter_buffer_size" yaml:"async_token_counter_buffer_size" mapstructure:"async_token_counter_buffer_size"`
 
 	// ToolExecutionTimeout sets the maximum time for tool execution.
 	//
 	// Prevents runaway tools from blocking workflows.
-	// Default: 30s
+	// Default: 60s
 	ToolExecutionTimeout time.Duration `koanf:"tool_execution_timeout" env:"TOOL_EXECUTION_TIMEOUT" json:"tool_execution_timeout" yaml:"tool_execution_timeout" mapstructure:"tool_execution_timeout"`
 
 	// RuntimeType specifies the JavaScript runtime to use for tool execution.
@@ -371,7 +371,7 @@ type RuntimeConfig struct {
 
 	// BunPermissions defines runtime security permissions for Bun.
 	//
-	// Default: ["--allow-read", "--allow-env", "--allow-net"]
+	// Default: ["--allow-read"]
 	BunPermissions []string `koanf:"bun_permissions" env:"RUNTIME_BUN_PERMISSIONS" json:"bun_permissions" yaml:"bun_permissions" mapstructure:"bun_permissions"`
 }
 
@@ -455,7 +455,7 @@ type MemoryConfig struct {
 	// MaxEntries limits memory entries per conversation.
 	//
 	// Prevents unbounded memory growth.
-	// Default: 100
+	// Default: 10000
 	MaxEntries int `koanf:"max_entries" env:"MEMORY_MAX_ENTRIES" validate:"min=1" json:"max_entries" yaml:"max_entries" mapstructure:"max_entries"`
 }
 
@@ -469,7 +469,6 @@ type MemoryConfig struct {
 //
 //	llm:
 //	  proxy_url: http://localhost:6001
-//	  admin_token: "{{ .env.MCP_ADMIN_TOKEN }}"
 type LLMConfig struct {
 	// ProxyURL specifies the MCP proxy server endpoint.
 	//
@@ -477,17 +476,21 @@ type LLMConfig struct {
 	//   - MCP server connections
 	//   - Tool discovery and routing
 	//   - Protocol translation
-	// Default: "http://localhost:6001"
+	// Default: "" (empty; supply MCP proxy URL explicitly or derive from MCPProxy.BaseURL)
 	ProxyURL string `koanf:"proxy_url" env:"MCP_PROXY_URL" json:"proxy_url" yaml:"proxy_url" mapstructure:"proxy_url"`
 
-	// AdminToken authenticates administrative operations.
-	//
-	// Required for:
-	//   - MCP server registration
-	//   - Proxy configuration changes
-	//   - Debug endpoints
-	// **Security**: Use environment variables
-	AdminToken SensitiveString `koanf:"admin_token" env:"MCP_ADMIN_TOKEN" sensitive:"true" json:"admin_token" yaml:"admin_token" mapstructure:"admin_token"`
+	// MCPReadinessTimeout bounds how long to wait for MCP clients to connect during setup.
+	// Default: 60s
+	MCPReadinessTimeout time.Duration `koanf:"mcp_readiness_timeout" env:"MCP_READINESS_TIMEOUT" json:"mcp_readiness_timeout" yaml:"mcp_readiness_timeout" mapstructure:"mcp_readiness_timeout"`
+
+	// MCPReadinessPollInterval sets how often to poll the proxy for MCP connection status.
+	// Default: 200ms
+	MCPReadinessPollInterval time.Duration `koanf:"mcp_readiness_poll_interval" env:"MCP_READINESS_POLL_INTERVAL" json:"mcp_readiness_poll_interval" yaml:"mcp_readiness_poll_interval" mapstructure:"mcp_readiness_poll_interval"`
+
+	// MCPHeaderTemplateStrict enables strict template validation for MCP HTTP headers.
+	// When true, allows only simple lookups (no pipelines/function calls/inclusions).
+	// Default: false
+	MCPHeaderTemplateStrict bool `koanf:"mcp_header_template_strict" env:"MCP_HEADER_TEMPLATE_STRICT" json:"mcp_header_template_strict" yaml:"mcp_header_template_strict" mapstructure:"mcp_header_template_strict"`
 
 	// RetryAttempts configures the number of retry attempts for LLM operations.
 	//
@@ -528,8 +531,35 @@ type LLMConfig struct {
 	//
 	// This acts as a global default and can be overridden by model-specific configuration
 	// in project files. Set to 0 to use the orchestrator's built-in default.
-	// Default: 10 (registry default)
+	// Default: 100 (registry default)
 	MaxToolIterations int `koanf:"max_tool_iterations" env:"LLM_MAX_TOOL_ITERATIONS" json:"max_tool_iterations" yaml:"max_tool_iterations" mapstructure:"max_tool_iterations" validate:"min=0"`
+
+	// MaxSequentialToolErrors caps how many sequential tool execution/content errors
+	// are tolerated for the same tool before aborting the task. Set to 0 to use
+	// the orchestrator's built-in default.
+	// Default: 10 (registry default)
+	MaxSequentialToolErrors int `koanf:"max_sequential_tool_errors" env:"LLM_MAX_SEQUENTIAL_TOOL_ERRORS" json:"max_sequential_tool_errors" yaml:"max_sequential_tool_errors" mapstructure:"max_sequential_tool_errors" validate:"min=0"`
+
+	// AllowedMCPNames restricts which MCP servers/tools are considered eligible
+	// for advertisement and invocation. When empty, all discovered MCP tools
+	// are eligible.
+	AllowedMCPNames []string `koanf:"allowed_mcp_names" env:"LLM_ALLOWED_MCP_NAMES" json:"allowed_mcp_names" yaml:"allowed_mcp_names" mapstructure:"allowed_mcp_names"`
+
+	// FailOnMCPRegistrationError enforces fail-fast behavior when registering
+	// MCP configurations sourced from agents/projects. When true, MCP
+	// registration failures cause service initialization to error.
+	FailOnMCPRegistrationError bool `koanf:"fail_on_mcp_registration_error" env:"LLM_FAIL_ON_MCP_REGISTRATION_ERROR" json:"fail_on_mcp_registration_error" yaml:"fail_on_mcp_registration_error" mapstructure:"fail_on_mcp_registration_error"`
+
+	// RegisterMCPs contains additional MCP configurations to be registered
+	// with the MCP proxy at runtime. Represented as a generic slice to avoid
+	// import cycles with engine packages.
+	RegisterMCPs []map[string]any `koanf:"register_mcps" json:"register_mcps" yaml:"register_mcps" mapstructure:"register_mcps"`
+
+	// MCPClientTimeout sets the HTTP client timeout for MCP proxy communication.
+	MCPClientTimeout time.Duration `koanf:"mcp_client_timeout" env:"MCP_CLIENT_TIMEOUT" json:"mcp_client_timeout" yaml:"mcp_client_timeout" mapstructure:"mcp_client_timeout"`
+
+	// RetryJitterPercent controls jitter strength when retry_jitter is enabled.
+	RetryJitterPercent int `koanf:"retry_jitter_percent" env:"LLM_RETRY_JITTER_PERCENT" json:"retry_jitter_percent" yaml:"retry_jitter_percent" mapstructure:"retry_jitter_percent"`
 }
 
 // RateLimitConfig contains rate limiting configuration.
@@ -839,22 +869,22 @@ type WorkerConfig struct {
 
 	// MCPShutdownTimeout sets timeout for MCP server shutdown.
 	//
-	// **Default**: `10s`
+	// **Default**: `30s`
 	MCPShutdownTimeout time.Duration `koanf:"mcp_shutdown_timeout" json:"mcp_shutdown_timeout" yaml:"mcp_shutdown_timeout" mapstructure:"mcp_shutdown_timeout" env:"WORKER_MCP_SHUTDOWN_TIMEOUT"`
 
 	// DispatcherRetryDelay sets delay between dispatcher retry attempts.
 	//
-	// **Default**: `1s`
+	// **Default**: `50ms`
 	DispatcherRetryDelay time.Duration `koanf:"dispatcher_retry_delay" json:"dispatcher_retry_delay" yaml:"dispatcher_retry_delay" mapstructure:"dispatcher_retry_delay" env:"WORKER_DISPATCHER_RETRY_DELAY"`
 
 	// DispatcherMaxRetries sets maximum dispatcher retry attempts.
 	//
-	// **Default**: `3`
+	// **Default**: `2`
 	DispatcherMaxRetries int `koanf:"dispatcher_max_retries" json:"dispatcher_max_retries" yaml:"dispatcher_max_retries" mapstructure:"dispatcher_max_retries" env:"WORKER_DISPATCHER_MAX_RETRIES"`
 
 	// MCPProxyHealthCheckTimeout sets timeout for MCP proxy health checks.
 	//
-	// **Default**: `5s`
+	// **Default**: `10s`
 	MCPProxyHealthCheckTimeout time.Duration `koanf:"mcp_proxy_health_check_timeout" json:"mcp_proxy_health_check_timeout" yaml:"mcp_proxy_health_check_timeout" mapstructure:"mcp_proxy_health_check_timeout" env:"WORKER_MCP_PROXY_HEALTH_CHECK_TIMEOUT"`
 }
 
@@ -882,33 +912,13 @@ type MCPProxyConfig struct {
 
 	// BaseURL specifies the base URL for MCP proxy API endpoints.
 	//
-	// **Default**: `"http://localhost:6001"`
+	// **Default**: `""` (empty string)
 	BaseURL string `koanf:"base_url" json:"base_url" yaml:"base_url" mapstructure:"base_url" env:"MCP_PROXY_BASE_URL"`
 
 	// ShutdownTimeout sets timeout for graceful shutdown.
 	//
 	// **Default**: `30s`
 	ShutdownTimeout time.Duration `koanf:"shutdown_timeout" json:"shutdown_timeout" yaml:"shutdown_timeout" mapstructure:"shutdown_timeout" env:"MCP_PROXY_SHUTDOWN_TIMEOUT"`
-
-	// AdminTokens contains admin tokens for proxy management.
-	//
-	// **Security**: Use environment variables for tokens.
-	AdminTokens []string `koanf:"admin_tokens" json:"admin_tokens" yaml:"admin_tokens" mapstructure:"admin_tokens" env:"MCP_PROXY_ADMIN_TOKENS"`
-
-	// AdminAllowIPs contains IP addresses allowed to access admin endpoints.
-	//
-	// **Default**: `[]` (empty - allows all IPs)
-	AdminAllowIPs []string `koanf:"admin_allow_ips" json:"admin_allow_ips" yaml:"admin_allow_ips" mapstructure:"admin_allow_ips" env:"MCP_PROXY_ADMIN_ALLOW_IPS"`
-
-	// TrustedProxies contains trusted proxy IP addresses.
-	//
-	// **Default**: `["127.0.0.1", "::1"]`
-	TrustedProxies []string `koanf:"trusted_proxies" json:"trusted_proxies" yaml:"trusted_proxies" mapstructure:"trusted_proxies" env:"MCP_PROXY_TRUSTED_PROXIES"`
-
-	// GlobalAuthTokens contains global authentication tokens.
-	//
-	// **Security**: Use environment variables for tokens.
-	GlobalAuthTokens []string `koanf:"global_auth_tokens" json:"global_auth_tokens" yaml:"global_auth_tokens" mapstructure:"global_auth_tokens" env:"MCP_PROXY_GLOBAL_AUTH_TOKENS"`
 }
 
 // CLIConfig contains CLI-specific configuration.
@@ -1159,6 +1169,25 @@ func getStringSlice(registry *definition.Registry, path string) []string {
 	return []string{}
 }
 
+// getMapSlice returns []map[string]any from registry defaults, tolerating []any input.
+func getMapSlice(registry *definition.Registry, path string) []map[string]any {
+	if val := registry.GetDefault(path); val != nil {
+		if m, ok := val.([]map[string]any); ok {
+			return m
+		}
+		if arr, ok := val.([]any); ok {
+			out := make([]map[string]any, 0, len(arr))
+			for _, v := range arr {
+				if mv, ok := v.(map[string]any); ok {
+					out = append(out, mv)
+				}
+			}
+			return out
+		}
+	}
+	return nil
+}
+
 func buildServerConfig(registry *definition.Registry) ServerConfig {
 	return ServerConfig{
 		Host:        getString(registry, "server.host"),
@@ -1235,14 +1264,22 @@ func buildMemoryConfig(registry *definition.Registry) MemoryConfig {
 
 func buildLLMConfig(registry *definition.Registry) LLMConfig {
 	return LLMConfig{
-		ProxyURL:           getString(registry, "llm.proxy_url"),
-		AdminToken:         SensitiveString(getString(registry, "llm.admin_token")),
-		RetryAttempts:      getInt(registry, "llm.retry_attempts"),
-		RetryBackoffBase:   getDuration(registry, "llm.retry_backoff_base"),
-		RetryBackoffMax:    getDuration(registry, "llm.retry_backoff_max"),
-		RetryJitter:        getBool(registry, "llm.retry_jitter"),
-		MaxConcurrentTools: getInt(registry, "llm.max_concurrent_tools"),
-		MaxToolIterations:  getInt(registry, "llm.max_tool_iterations"),
+		ProxyURL:                   getString(registry, "llm.proxy_url"),
+		MCPReadinessTimeout:        getDuration(registry, "llm.mcp_readiness_timeout"),
+		MCPReadinessPollInterval:   getDuration(registry, "llm.mcp_readiness_poll_interval"),
+		MCPHeaderTemplateStrict:    getBool(registry, "llm.mcp_header_template_strict"),
+		RetryAttempts:              getInt(registry, "llm.retry_attempts"),
+		RetryBackoffBase:           getDuration(registry, "llm.retry_backoff_base"),
+		RetryBackoffMax:            getDuration(registry, "llm.retry_backoff_max"),
+		RetryJitter:                getBool(registry, "llm.retry_jitter"),
+		MaxConcurrentTools:         getInt(registry, "llm.max_concurrent_tools"),
+		MaxToolIterations:          getInt(registry, "llm.max_tool_iterations"),
+		MaxSequentialToolErrors:    getInt(registry, "llm.max_sequential_tool_errors"),
+		AllowedMCPNames:            getStringSlice(registry, "llm.allowed_mcp_names"),
+		FailOnMCPRegistrationError: getBool(registry, "llm.fail_on_mcp_registration_error"),
+		RegisterMCPs:               getMapSlice(registry, "llm.register_mcps"),
+		MCPClientTimeout:           getDuration(registry, "llm.mcp_client_timeout"),
+		RetryJitterPercent:         getInt(registry, "llm.retry_jitter_percent"),
 	}
 }
 
@@ -1330,13 +1367,9 @@ func buildWorkerConfig(registry *definition.Registry) WorkerConfig {
 
 func buildMCPProxyConfig(registry *definition.Registry) MCPProxyConfig {
 	return MCPProxyConfig{
-		Host:             getString(registry, "mcp_proxy.host"),
-		Port:             getInt(registry, "mcp_proxy.port"),
-		BaseURL:          getString(registry, "mcp_proxy.base_url"),
-		ShutdownTimeout:  getDuration(registry, "mcp_proxy.shutdown_timeout"),
-		AdminTokens:      getStringSlice(registry, "mcp_proxy.admin_tokens"),
-		AdminAllowIPs:    getStringSlice(registry, "mcp_proxy.admin_allow_ips"),
-		TrustedProxies:   getStringSlice(registry, "mcp_proxy.trusted_proxies"),
-		GlobalAuthTokens: getStringSlice(registry, "mcp_proxy.global_auth_tokens"),
+		Host:            getString(registry, "mcp_proxy.host"),
+		Port:            getInt(registry, "mcp_proxy.port"),
+		BaseURL:         getString(registry, "mcp_proxy.base_url"),
+		ShutdownTimeout: getDuration(registry, "mcp_proxy.shutdown_timeout"),
 	}
 }

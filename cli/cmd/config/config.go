@@ -499,9 +499,13 @@ func flattenLLMConfig(cfg *config.Config, result map[string]string) {
 	if cfg.LLM.ProxyURL != "" {
 		result["llm.proxy_url"] = cfg.LLM.ProxyURL
 	}
-	if cfg.LLM.AdminToken != "" {
-		result["llm.admin_token"] = redactSensitive(cfg.LLM.AdminToken.String())
+	if cfg.LLM.MCPReadinessTimeout > 0 {
+		result["llm.mcp_readiness_timeout"] = cfg.LLM.MCPReadinessTimeout.String()
 	}
+	if cfg.LLM.MCPReadinessPollInterval > 0 {
+		result["llm.mcp_readiness_poll_interval"] = cfg.LLM.MCPReadinessPollInterval.String()
+	}
+	result["llm.mcp_header_template_strict"] = fmt.Sprintf("%v", cfg.LLM.MCPHeaderTemplateStrict)
 	if cfg.LLM.RetryAttempts > 0 {
 		result["llm.retry_attempts"] = fmt.Sprintf("%d", cfg.LLM.RetryAttempts)
 	}
@@ -517,6 +521,26 @@ func flattenLLMConfig(cfg *config.Config, result map[string]string) {
 	}
 	if cfg.LLM.MaxToolIterations > 0 {
 		result["llm.max_tool_iterations"] = fmt.Sprintf("%d", cfg.LLM.MaxToolIterations)
+	}
+	if cfg.LLM.MaxSequentialToolErrors > 0 {
+		result["llm.max_sequential_tool_errors"] = fmt.Sprintf("%d", cfg.LLM.MaxSequentialToolErrors)
+	}
+	// MCP-related fields
+	if len(cfg.LLM.AllowedMCPNames) > 0 {
+		result["llm.allowed_mcp_names"] = strings.Join(cfg.LLM.AllowedMCPNames, ",")
+	} else {
+		result["llm.allowed_mcp_names"] = ""
+	}
+	result["llm.fail_on_mcp_registration_error"] = fmt.Sprintf("%v", cfg.LLM.FailOnMCPRegistrationError)
+	if cfg.LLM.MCPClientTimeout > 0 {
+		result["llm.mcp_client_timeout"] = cfg.LLM.MCPClientTimeout.String()
+	}
+	if cfg.LLM.RetryJitterPercent > 0 {
+		result["llm.retry_jitter_percent"] = fmt.Sprintf("%d", cfg.LLM.RetryJitterPercent)
+	}
+	// register_mcps is a complex structure; surface count for diagnostics
+	if len(cfg.LLM.RegisterMCPs) > 0 {
+		result["llm.register_mcps"] = fmt.Sprintf("%d", len(cfg.LLM.RegisterMCPs))
 	}
 }
 
@@ -655,19 +679,4 @@ func flattenMCPProxyConfig(cfg *config.Config, result map[string]string) {
 	result["mcp_proxy.port"] = fmt.Sprintf("%d", cfg.MCPProxy.Port)
 	result["mcp_proxy.base_url"] = cfg.MCPProxy.BaseURL
 	result["mcp_proxy.shutdown_timeout"] = cfg.MCPProxy.ShutdownTimeout.String()
-	if len(cfg.MCPProxy.AdminTokens) > 0 {
-		result["mcp_proxy.admin_tokens"] = fmt.Sprintf("[%d tokens configured]", len(cfg.MCPProxy.AdminTokens))
-	}
-	if len(cfg.MCPProxy.AdminAllowIPs) > 0 {
-		result["mcp_proxy.admin_allow_ips"] = strings.Join(cfg.MCPProxy.AdminAllowIPs, ",")
-	}
-	if len(cfg.MCPProxy.TrustedProxies) > 0 {
-		result["mcp_proxy.trusted_proxies"] = strings.Join(cfg.MCPProxy.TrustedProxies, ",")
-	}
-	if len(cfg.MCPProxy.GlobalAuthTokens) > 0 {
-		result["mcp_proxy.global_auth_tokens"] = fmt.Sprintf(
-			"[%d tokens configured]",
-			len(cfg.MCPProxy.GlobalAuthTokens),
-		)
-	}
 }

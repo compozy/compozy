@@ -142,7 +142,6 @@ Run an HTTP proxy for Model Context Protocol servers.
 **Features:**
 
 - Admin API for client management
-- Global authentication tokens
 - IP-based access control
 - Structured logging
 
@@ -237,12 +236,6 @@ compozy config diagnostics --verbose
 ```bash
 # Start MCP proxy
 compozy mcp-proxy --port 6001
-
-# With authentication
-compozy mcp-proxy \
-  --admin-tokens "admin-token-123" \
-  --global-auth-tokens "global-token-456" \
-  --admin-allow-ips "192.168.1.0/24"
 ```
 
 ### Advanced Usage

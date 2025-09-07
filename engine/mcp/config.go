@@ -51,14 +51,15 @@
 // ## Environment Requirements
 //
 // - `MCP_PROXY_URL`: Required. URL of the MCP proxy service
-// - `MCP_PROXY_ADMIN_TOKEN`: Optional. Admin token for proxy management
 package mcp
 
 import (
 	"errors"
 	"fmt"
+	"net/textproto"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/compozy/compozy/engine/core"
@@ -219,6 +220,12 @@ type Config struct {
 	// **Security Note**: Commands are parsed using shell lexing for safety.
 	// Avoid user-provided input in commands.
 	Command string `yaml:"command,omitempty"       json:"command,omitempty"`
+	// Headers contains HTTP headers to include when connecting to remote MCP servers (SSE/HTTP).
+	// Useful for passing Authorization tokens, custom auth headers, or version negotiation.
+	// Example:
+	// headers:
+	//   Authorization: "Bearer {{ .env.GITHUB_MCP_OAUTH_TOKEN }}"
+	Headers map[string]string `yaml:"headers,omitempty"       json:"headers,omitempty"`
 	// Env contains **environment variables** to pass to the MCP server process.
 	//
 	// Only used when `command` is specified for spawning local processes.
@@ -394,16 +401,21 @@ func (c *Config) Validate() error {
 	if err := c.validateResource(); err != nil {
 		return err
 	}
+	if err := c.validateTransport(); err != nil {
+		return err
+	}
 	if err := c.validateURL(); err != nil {
 		return err
+	}
+	if (c.Transport == mcpproxy.TransportSSE || c.Transport == mcpproxy.TransportStreamableHTTP) && len(c.Headers) > 0 {
+		if err := c.validateHeaders(); err != nil {
+			return err
+		}
 	}
 	if err := c.validateProxy(); err != nil {
 		return err
 	}
 	if err := c.validateProto(); err != nil {
-		return err
-	}
-	if err := c.validateTransport(); err != nil {
 		return err
 	}
 	if err := c.validateLimits(); err != nil {
@@ -427,11 +439,15 @@ func (c *Config) validateID() error {
 }
 
 func (c *Config) validateURL() error {
-	if c.URL == "" {
-		return errors.New("mcp url is required when not using proxy")
+	// Only HTTP-based transports require URL
+	if c.Transport == mcpproxy.TransportSSE || c.Transport == mcpproxy.TransportStreamableHTTP {
+		if c.URL == "" {
+			return errors.New("mcp url is required for HTTP transports (sse, streamable-http)")
+		}
+		return validateURLFormat(c.URL, "mcp url")
 	}
-
-	return validateURLFormat(c.URL, "mcp url")
+	// stdio does not require URL
+	return nil
 }
 
 func (c *Config) validateProxy() error {
@@ -512,6 +528,31 @@ func (c *Config) validateLimits() error {
 	if c.MaxSessions < 0 {
 		return errors.New("max_sessions cannot be negative")
 	}
+	return nil
+}
+
+// validateHeaders validates and canonicalizes custom HTTP headers.
+func (c *Config) validateHeaders() error {
+	if len(c.Headers) == 0 {
+		return nil
+	}
+	reserved := map[string]struct{}{"host": {}, "content-length": {}, "connection": {}, "transfer-encoding": {}}
+	canonical := make(map[string]string, len(c.Headers))
+	for k, v := range c.Headers {
+		if strings.ContainsAny(k, "\r\n") || strings.ContainsAny(v, "\r\n") {
+			return fmt.Errorf("headers[%q]: CR/LF not allowed", k)
+		}
+		kt := strings.TrimSpace(k)
+		if kt == "" {
+			return errors.New("headers: empty key")
+		}
+		if _, ok := reserved[strings.ToLower(kt)]; ok {
+			return fmt.Errorf("headers: reserved header %q not allowed", kt)
+		}
+		ck := textproto.CanonicalMIMEHeaderKey(kt)
+		canonical[ck] = strings.TrimSpace(v)
+	}
+	c.Headers = canonical
 	return nil
 }
 

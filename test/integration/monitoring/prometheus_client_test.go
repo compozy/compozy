@@ -9,6 +9,7 @@ import (
 
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -35,7 +36,7 @@ func TestPrometheusClientScraping(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		// Parse with Prometheus text parser to validate format compliance
-		parser := expfmt.TextParser{}
+		parser := expfmt.NewTextParser(model.UTF8Validation)
 		metricFamilies, err := parser.TextToMetricFamilies(resp.Body)
 		require.NoError(t, err, "Metrics must be parseable by Prometheus client without format errors")
 		require.NotEmpty(t, metricFamilies, "Should parse at least one metric family")
@@ -74,7 +75,7 @@ func TestPrometheusClientScraping(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		// Parse metrics and validate structure
-		parser := expfmt.TextParser{}
+		parser := expfmt.NewTextParser(model.UTF8Validation)
 		metricFamilies, err := parser.TextToMetricFamilies(resp.Body)
 		require.NoError(t, err, "Metrics must be parseable without format errors")
 		require.NotEmpty(t, metricFamilies, "Should contain metric families")
@@ -111,7 +112,7 @@ func TestPrometheusClientScraping(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		// Parse metrics and validate help text presence
-		parser := expfmt.TextParser{}
+		parser := expfmt.NewTextParser(model.UTF8Validation)
 		metricFamilies, err := parser.TextToMetricFamilies(resp.Body)
 		require.NoError(t, err, "Metrics must be parseable for help text validation")
 		require.NotEmpty(t, metricFamilies, "Should contain metric families")
@@ -137,7 +138,7 @@ func TestPrometheusClientScraping(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		// Parse metrics and validate histogram structure
-		parser := expfmt.TextParser{}
+		parser := expfmt.NewTextParser(model.UTF8Validation)
 		metricFamilies, err := parser.TextToMetricFamilies(resp.Body)
 		require.NoError(t, err, "Metrics must be parseable for histogram validation")
 		require.NotEmpty(t, metricFamilies, "Should contain metric families")
@@ -189,7 +190,7 @@ func TestPrometheusClientScraping(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		// Parse metrics and validate label structure
-		parser := expfmt.TextParser{}
+		parser := expfmt.NewTextParser(model.UTF8Validation)
 		metricFamilies, err := parser.TextToMetricFamilies(resp.Body)
 		require.NoError(t, err, "Metrics must be parseable for label validation")
 		require.NotEmpty(t, metricFamilies, "Should contain metric families")
@@ -224,7 +225,7 @@ func TestPrometheusClientScraping(t *testing.T) {
 		require.NoError(t, err)
 		// The fact that we can parse the metrics without errors means
 		// they are compatible with Prometheus format
-		parser := expfmt.TextParser{}
+		parser := expfmt.NewTextParser(model.UTF8Validation)
 		reader := strings.NewReader(metrics)
 		families, err := parser.TextToMetricFamilies(reader)
 		require.NoError(t, err)

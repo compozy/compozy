@@ -33,7 +33,7 @@ func TestMCPProxyIntegration(t *testing.T) {
 		api.Use(func(c *gin.Context) {
 			auth := c.GetHeader("Authorization")
 			if auth != "Bearer test-admin-token" {
-				c.JSON(401, gin.H{"error": "unauthorized"})
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 				c.Abort()
 				return
 			}
@@ -94,7 +94,7 @@ func TestMCPProxyIntegration(t *testing.T) {
 		api.Use(func(c *gin.Context) {
 			auth := c.GetHeader("Authorization")
 			if auth != "Bearer test-admin-token" {
-				c.JSON(401, gin.H{"error": "unauthorized"})
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 				c.Abort()
 				return
 			}
@@ -181,7 +181,7 @@ func TestMCPProxyIntegration(t *testing.T) {
 		api.Use(func(c *gin.Context) {
 			auth := c.GetHeader("Authorization")
 			if auth != "Bearer test-admin-token" {
-				c.JSON(401, gin.H{"error": "unauthorized"})
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 				c.Abort()
 				return
 			}
@@ -208,7 +208,7 @@ func TestMCPProxyIntegration(t *testing.T) {
 
 // TestAdminSecurity tests the admin API security features
 func TestAdminSecurity(t *testing.T) {
-	t.Run("Should reject requests without authorization token", func(t *testing.T) {
+	t.Run("Should accept requests without authentication by default", func(t *testing.T) {
 		storage := mcpproxy.NewMemoryStorage()
 		clientManager := mcpproxy.NewMockClientManager()
 		config := &mcpproxy.Config{
@@ -216,57 +216,10 @@ func TestAdminSecurity(t *testing.T) {
 			Host:            "localhost",
 			BaseURL:         "http://localhost:6001",
 			ShutdownTimeout: 5 * time.Second,
-			AdminTokens:     []string{"valid-token"},
 		}
 		server := mcpproxy.NewServer(config, storage, clientManager)
-		// Test unauthorized access (no token)
+		// Test access without any authentication
 		req := httptest.NewRequest(http.MethodGet, "/admin/mcps", http.NoBody)
-		w := httptest.NewRecorder()
-		server.Router.ServeHTTP(w, req)
-		assert.Equal(t, http.StatusUnauthorized, w.Code)
-		var errorResponse map[string]any
-		err := json.Unmarshal(w.Body.Bytes(), &errorResponse)
-		require.NoError(t, err)
-		assert.Contains(t, errorResponse, "error")
-	})
-
-	t.Run("Should reject requests with invalid authorization token", func(t *testing.T) {
-		storage := mcpproxy.NewMemoryStorage()
-		clientManager := mcpproxy.NewMockClientManager()
-		config := &mcpproxy.Config{
-			Port:            "6001",
-			Host:            "localhost",
-			BaseURL:         "http://localhost:6001",
-			ShutdownTimeout: 5 * time.Second,
-			AdminTokens:     []string{"valid-token"},
-		}
-		server := mcpproxy.NewServer(config, storage, clientManager)
-		// Test invalid token
-		req := httptest.NewRequest(http.MethodGet, "/admin/mcps", http.NoBody)
-		req.Header.Set("Authorization", "Bearer invalid-token")
-		w := httptest.NewRecorder()
-		server.Router.ServeHTTP(w, req)
-		assert.Equal(t, http.StatusUnauthorized, w.Code)
-		var errorResponse map[string]any
-		err := json.Unmarshal(w.Body.Bytes(), &errorResponse)
-		require.NoError(t, err)
-		assert.Contains(t, errorResponse, "error")
-	})
-
-	t.Run("Should accept requests with valid authorization token", func(t *testing.T) {
-		storage := mcpproxy.NewMemoryStorage()
-		clientManager := mcpproxy.NewMockClientManager()
-		config := &mcpproxy.Config{
-			Port:            "6001",
-			Host:            "localhost",
-			BaseURL:         "http://localhost:6001",
-			ShutdownTimeout: 5 * time.Second,
-			AdminTokens:     []string{"valid-token"},
-		}
-		server := mcpproxy.NewServer(config, storage, clientManager)
-		// Test valid token
-		req := httptest.NewRequest(http.MethodGet, "/admin/mcps", http.NoBody)
-		req.Header.Set("Authorization", "Bearer valid-token")
 		w := httptest.NewRecorder()
 		server.Router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -275,6 +228,8 @@ func TestAdminSecurity(t *testing.T) {
 		require.NoError(t, err)
 		assert.Contains(t, response, "mcps")
 	})
+
+	// IP allowlist rejection test removed along with feature.
 }
 
 // NOTE: Additional tool execution integration tests are available in integration_tool_test.go

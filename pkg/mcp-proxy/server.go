@@ -4,16 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"os"
 	"os/signal"
-	"slices"
-	"strings"
 	"syscall"
 	"time"
 
 	"github.com/compozy/compozy/pkg/logger"
+	"github.com/compozy/compozy/pkg/version"
 	"github.com/gin-gonic/gin"
 )
 
@@ -34,19 +32,6 @@ type Config struct {
 	Host            string
 	BaseURL         string // Base URL for SSE server
 	ShutdownTimeout time.Duration
-
-	// Admin API security
-	AdminTokens   []string // List of valid admin tokens
-	AdminAllowIPs []string // List of allowed IP addresses/CIDR blocks for admin API
-
-	// Trusted proxies for X-Forwarded-For header validation
-	TrustedProxies []string // List of trusted proxy IP addresses/CIDR blocks
-
-	// Global auth tokens that apply to all MCP clients
-	// These tokens are automatically inherited by all MCP clients in addition to their specific auth tokens.
-	// Global tokens are checked first, then client-specific tokens.
-	// This enables setting common authentication tokens once that work for all clients.
-	GlobalAuthTokens []string
 }
 
 // Validate validates the server configuration
@@ -71,10 +56,14 @@ func NewServer(config *Config, storage Storage, clientManager ClientManager) *Se
 	// Add logging middleware
 	router.Use(gin.LoggerWithConfig(gin.LoggerConfig{
 		Formatter: func(param gin.LogFormatterParams) string {
+			p := param.Path
+			if param.Request != nil && param.Request.URL != nil {
+				p = param.Request.URL.EscapedPath()
+			}
 			return fmt.Sprintf("[%s] %s %s %d %s\n",
 				param.TimeStamp.Format("2006-01-02 15:04:05"),
 				param.Method,
-				param.Path,
+				p,
 				param.StatusCode,
 				param.Latency,
 			)
@@ -82,7 +71,7 @@ func NewServer(config *Config, storage Storage, clientManager ClientManager) *Se
 	}))
 
 	router.Use(gin.Recovery())
-	proxyHandlers := NewProxyHandlers(storage, clientManager, config.BaseURL, config.GlobalAuthTokens)
+	proxyHandlers := NewProxyHandlers(storage, clientManager, config.BaseURL)
 	service := NewMCPService(storage, clientManager, proxyHandlers)
 	adminHandlers := NewAdminHandlers(service)
 	server := &Server{
@@ -110,9 +99,8 @@ func (s *Server) setupRoutes() {
 	// Health check endpoint
 	s.Router.GET("/healthz", s.healthzHandler)
 
-	// Admin API for MCP management with security middleware
+	// Admin API for MCP management (no IP-based filtering; rely on external network controls)
 	admin := s.Router.Group("/admin")
-	admin.Use(s.adminSecurityMiddleware())
 	{
 		// MCP Definition CRUD operations
 		admin.POST("/mcps", s.adminHandlers.AddMCPHandler)
@@ -156,7 +144,7 @@ func (s *Server) healthzHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status":    "healthy",
 		"timestamp": time.Now().UTC(),
-		"version":   "1.0.0",
+		"version":   version.Get().Version,
 	})
 }
 
@@ -174,11 +162,6 @@ func (s *Server) metricsHandler(c *gin.Context) {
 func (s *Server) Start(ctx context.Context) error {
 	log := logger.FromContext(ctx)
 	log.Info("Starting MCP proxy server", "port", s.config.Port, "host", s.config.Host)
-
-	// Security check: prevent default admin token in production
-	if err := s.validateSecurityConfig(ctx); err != nil {
-		return fmt.Errorf("security configuration error: %w", err)
-	}
 
 	// Start client manager to restore existing MCP connections
 	if err := s.clientManager.Start(ctx); err != nil {
@@ -264,197 +247,4 @@ func (s *Server) waitForShutdown(ctx context.Context, errChan <-chan error) erro
 	}
 }
 
-// adminSecurityMiddleware implements security checks for admin API
-func (s *Server) adminSecurityMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		// Check IP allow-list if configured
-		if len(s.config.AdminAllowIPs) > 0 {
-			clientIP := s.getClientIP(c)
-			if !s.isIPAllowed(clientIP, s.config.AdminAllowIPs) {
-				c.JSON(http.StatusForbidden, gin.H{
-					"error": "Access denied: IP not allowed",
-				})
-				c.Abort()
-				return
-			}
-		}
-
-		// Check admin token if configured
-		if len(s.config.AdminTokens) > 0 {
-			token := s.extractToken(c)
-			if token == "" {
-				c.JSON(http.StatusUnauthorized, gin.H{
-					"error": "Unauthorized: admin token required",
-				})
-				c.Abort()
-				return
-			}
-
-			if !s.isValidAdminToken(token) {
-				c.JSON(http.StatusUnauthorized, gin.H{
-					"error": "Unauthorized: invalid admin token",
-				})
-				c.Abort()
-				return
-			}
-		}
-
-		c.Next()
-	}
-}
-
-// validateSecurityConfig checks security configuration at startup
-func (s *Server) validateSecurityConfig(ctx context.Context) error {
-	log := logger.FromContext(ctx)
-	const minTokenLength = 16
-
-	// Check if we should disable default token in production
-	disableDefault := os.Getenv("MCP_PROXY_DISABLE_DEFAULT_TOKEN") == "true"
-	if !disableDefault {
-		// Not enforcing, just warn
-		for _, token := range s.config.AdminTokens {
-			if token == "CHANGE_ME_ADMIN_TOKEN" {
-				log.Warn("SECURITY WARNING: Using default admin token. " +
-					"Set MCP_PROXY_DISABLE_DEFAULT_TOKEN=true to fail on startup with default token")
-			}
-			if len(token) < minTokenLength {
-				log.Warn("SECURITY WARNING: Admin token is shorter than recommended minimum length",
-					"min_length", minTokenLength, "actual_length", len(token))
-			}
-		}
-		return nil
-	}
-
-	// Strict mode: fail if default token is found
-	for _, token := range s.config.AdminTokens {
-		if token == "CHANGE_ME_ADMIN_TOKEN" {
-			return fmt.Errorf("default admin token 'CHANGE_ME_ADMIN_TOKEN' is not allowed. " +
-				"Please set a secure admin token via MCP_PROXY_ADMIN_TOKEN environment variable")
-		}
-		if len(token) < minTokenLength {
-			return fmt.Errorf("admin token length (%d) is below minimum required length (%d). "+
-				"Please use a stronger token", len(token), minTokenLength)
-		}
-	}
-
-	// Admin tokens are optional - no need to enforce at least one
-
-	return nil
-}
-
-// getClientIP extracts the real client IP from the request
-func (s *Server) getClientIP(c *gin.Context) string {
-	// Extract the direct connection IP first
-	directIP, _, err := net.SplitHostPort(c.Request.RemoteAddr)
-	if err != nil {
-		directIP = c.Request.RemoteAddr
-	}
-
-	// Only trust X-Forwarded-For and X-Real-IP headers if the request comes from a trusted proxy
-	if s.isTrustedProxy(directIP) {
-		// Check X-Forwarded-For header first (for reverse proxies)
-		if xff := c.GetHeader("X-Forwarded-For"); xff != "" {
-			ips := strings.Split(xff, ",")
-			if len(ips) > 0 {
-				return strings.TrimSpace(ips[0])
-			}
-		}
-
-		// Check X-Real-IP header
-		if xri := c.GetHeader("X-Real-IP"); xri != "" {
-			return strings.TrimSpace(xri)
-		}
-	}
-
-	// Fall back to direct connection IP
-	return directIP
-}
-
-// isIPAllowed checks if an IP is allowed based on the allow list
-func (s *Server) isIPAllowed(clientIP string, allowList []string) bool {
-	if len(allowList) == 0 {
-		return true
-	}
-
-	// Parse client IP
-	ip := net.ParseIP(clientIP)
-	if ip == nil {
-		return false
-	}
-
-	for _, allowed := range allowList {
-		// Check if it's a CIDR block
-		if strings.Contains(allowed, "/") {
-			_, cidr, err := net.ParseCIDR(allowed)
-			if err != nil {
-				continue
-			}
-			if cidr.Contains(ip) {
-				return true
-			}
-		} else {
-			// Direct IP comparison
-			allowedIP := net.ParseIP(allowed)
-			if allowedIP != nil && ip.Equal(allowedIP) {
-				return true
-			}
-		}
-	}
-
-	return false
-}
-
-// isTrustedProxy checks if an IP is in the trusted proxy list
-func (s *Server) isTrustedProxy(clientIP string) bool {
-	if len(s.config.TrustedProxies) == 0 {
-		return false
-	}
-
-	// Parse client IP
-	ip := net.ParseIP(clientIP)
-	if ip == nil {
-		return false
-	}
-
-	for _, trusted := range s.config.TrustedProxies {
-		// Check if it's a CIDR block
-		if strings.Contains(trusted, "/") {
-			_, cidr, err := net.ParseCIDR(trusted)
-			if err != nil {
-				continue
-			}
-			if cidr.Contains(ip) {
-				return true
-			}
-		} else {
-			// Direct IP comparison
-			trustedIP := net.ParseIP(trusted)
-			if trustedIP != nil && ip.Equal(trustedIP) {
-				return true
-			}
-		}
-	}
-
-	return false
-}
-
-// extractToken extracts the authentication token from the request
-func (s *Server) extractToken(c *gin.Context) string {
-	// Try Authorization header first
-	auth := c.GetHeader("Authorization")
-	if auth != "" {
-		// Support both "Bearer token" and "token" formats
-		if strings.HasPrefix(auth, "Bearer ") {
-			return strings.TrimSpace(auth[7:])
-		}
-		return strings.TrimSpace(auth)
-	}
-
-	// Try query parameter as fallback
-	return c.Query("token")
-}
-
-// isValidAdminToken checks if the provided token is valid
-func (s *Server) isValidAdminToken(token string) bool {
-	return slices.Contains(s.config.AdminTokens, token)
-}
+// Client IP resolution relies on gin's default ClientIP() behavior.

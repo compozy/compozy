@@ -8,12 +8,14 @@ import (
 
 type ID string
 
-func (c ID) String() string {
-	return string(c)
+// String returns the string representation of the ID.
+func (id ID) String() string {
+	return string(id)
 }
 
-func (c ID) IsZero() bool {
-	return c == ""
+// IsZero reports whether the ID is the zero value ("")
+func (id ID) IsZero() bool {
+	return id == ""
 }
 
 func NewID() (ID, error) {

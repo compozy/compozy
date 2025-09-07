@@ -7,13 +7,14 @@ import (
 
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // parseMetrics parses Prometheus metrics text format into metric families
 func parseMetrics(t *testing.T, metricsText string) map[string]*dto.MetricFamily {
-	var parser expfmt.TextParser
+	parser := expfmt.NewTextParser(model.UTF8Validation)
 	mf, err := parser.TextToMetricFamilies(strings.NewReader(metricsText))
 	require.NoError(t, err)
 	return mf

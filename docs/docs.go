@@ -3675,6 +3675,13 @@ const docTemplate = `{
                             "type": "object",
                             "additionalProperties": true
                         }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
                     }
                 }
             }
@@ -3721,6 +3728,13 @@ const docTemplate = `{
                             "type": "object",
                             "additionalProperties": true
                         }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
                     }
                 }
             }
@@ -3757,6 +3771,13 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "MCP not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
@@ -3799,6 +3820,13 @@ const docTemplate = `{
                             "type": "object",
                             "additionalProperties": true
                         }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
                     }
                 }
             },
@@ -3833,6 +3861,13 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "MCP not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
@@ -3875,6 +3910,13 @@ const docTemplate = `{
                             "type": "object",
                             "additionalProperties": true
                         }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
                     }
                 }
             },
@@ -3909,6 +3951,13 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "MCP not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
@@ -3959,6 +4008,13 @@ const docTemplate = `{
                             "type": "object",
                             "additionalProperties": true
                         }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
                     }
                 }
             },
@@ -3999,6 +4055,13 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "MCP not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
@@ -4047,6 +4110,13 @@ const docTemplate = `{
                             "type": "object",
                             "additionalProperties": true
                         }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
                     }
                 }
             },
@@ -4091,6 +4161,13 @@ const docTemplate = `{
                             "type": "object",
                             "additionalProperties": true
                         }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
                     }
                 }
             },
@@ -4131,6 +4208,13 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "MCP not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
@@ -4478,8 +4562,9 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "max_tool_iterations": {
-                    "description": "MaxToolIterations optionally caps the maximum number of tool-call iterations\nduring a single LLM request when tools are available.\nIf set to a positive value, this overrides global defaults for this model.",
-                    "type": "integer"
+                    "description": "MaxToolIterations optionally caps the maximum number of tool-call iterations\nduring a single LLM request when tools are available.\nWhen \u003e 0, overrides the global default for this model; 0 uses the global default.",
+                    "type": "integer",
+                    "minimum": 0
                 },
                 "model": {
                     "description": "Model defines the specific model identifier to use with the provider.\nModel names are provider-specific and determine capabilities and pricing.\n\n- **Examples**:\n  - OpenAI: ` + "`" + `\"gpt-4-turbo\"` + "`" + `, ` + "`" + `\"gpt-3.5-turbo\"` + "`" + `\n  - Anthropic: ` + "`" + `\"claude-4-opus\"` + "`" + `, ` + "`" + `\"claude-3-5-haiku-latest\"` + "`" + `\n  - Google: ` + "`" + `\"gemini-pro\"` + "`" + `, ` + "`" + `\"gemini-pro-vision\"` + "`" + `\n  - Ollama: ` + "`" + `\"llama2:13b\"` + "`" + `, ` + "`" + `\"mistral:7b\"` + "`" + `",
@@ -4619,6 +4704,13 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "headers": {
+                    "description": "Headers contains HTTP headers to include when connecting to remote MCP servers (SSE/HTTP).\nUseful for passing Authorization tokens, custom auth headers, or version negotiation.\nExample:\nheaders:\n  Authorization: \"Bearer {{ .env.GITHUB_MCP_OAUTH_TOKEN }}\"",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
                 "id": {
                     "description": "ID is the **unique identifier** for this MCP server configuration.\n\nThis identifier is used throughout the system to reference this specific MCP server.\nChoose descriptive IDs that reflect the server's purpose.\n\n- **Examples**:\n- ` + "`" + `filesystem` + "`" + ` - for file system operations\n- ` + "`" + `postgres-db` + "`" + ` - for PostgreSQL database access\n- ` + "`" + `github-api` + "`" + ` - for GitHub integration\n- ` + "`" + `python-runtime` + "`" + ` - for Python code execution",
                     "type": "string"
@@ -4708,20 +4800,7 @@ const docTemplate = `{
                 "transport"
             ],
             "properties": {
-                "allowedIPs": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
                 "args": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "authTokens": {
-                    "description": "Security and access control",
                     "type": "array",
                     "items": {
                         "type": "string"
@@ -4772,9 +4851,6 @@ const docTemplate = `{
                 },
                 "reconnectDelay": {
                     "$ref": "#/definitions/time.Duration"
-                },
-                "requireAuth": {
-                    "type": "boolean"
                 },
                 "tags": {
                     "description": "Metadata",

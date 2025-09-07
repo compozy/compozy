@@ -238,7 +238,8 @@ func TestMCPDefinition_Clone(t *testing.T) {
 		Tags:      map[string]string{"tag": "value"},
 	}
 
-	clone := original.Clone()
+	clone, err := original.Clone()
+	require.NoError(t, err)
 
 	assert.Equal(t, original.Name, clone.Name)
 	assert.Equal(t, original.Transport, clone.Transport)
@@ -272,8 +273,6 @@ func TestMCPDefinition_JSON(t *testing.T) {
 		Command:     "/usr/bin/test",
 		Args:        []string{"--verbose"},
 		Env:         map[string]string{"DEBUG": "true"},
-		AuthTokens:  []string{"token1"},
-		RequireAuth: true,
 	}
 
 	def.SetDefaults()
@@ -294,8 +293,6 @@ func TestMCPDefinition_JSON(t *testing.T) {
 	assert.Equal(t, def.Command, restored.Command)
 	assert.Equal(t, def.Args, restored.Args)
 	assert.Equal(t, def.Env, restored.Env)
-	assert.Equal(t, def.AuthTokens, restored.AuthTokens)
-	assert.Equal(t, def.RequireAuth, restored.RequireAuth)
 }
 
 func TestFromJSON_InvalidData(t *testing.T) {

@@ -22,8 +22,8 @@ compozy mcp-proxy [flags]
     icon="Settings"
   />
   <FeatureCard
-    title="Security & Authentication"
-    description="Global auth tokens, admin access controls, and IP-based restrictions for secure operations"
+    title="Network Controls"
+    description="Rely on external network controls and reverse proxies"
     icon="Shield"
   />
   <FeatureCard
@@ -82,40 +82,6 @@ The MCP proxy server enables HTTP-based access to MCP servers, providing:
   </TableBody>
 </Table>
 
-#### Security and Authentication
-
-<Table>
-  <TableHeader>
-    <TableRow>
-      <TableHead>Flag</TableHead>
-      <TableHead>Description</TableHead>
-      <TableHead>Type</TableHead>
-    </TableRow>
-  </TableHeader>
-  <TableBody>
-    <TableRow>
-      <TableCell>`--mcp-global-auth-tokens`</TableCell>
-      <TableCell>Global authentication tokens for all MCP clients</TableCell>
-      <TableCell>strings (comma-separated)</TableCell>
-    </TableRow>
-    <TableRow>
-      <TableCell>`--mcp-admin-tokens`</TableCell>
-      <TableCell>Admin authentication tokens for MCP proxy</TableCell>
-      <TableCell>strings (comma-separated)</TableCell>
-    </TableRow>
-    <TableRow>
-      <TableCell>`--mcp-admin-allow-ips`</TableCell>
-      <TableCell>IP addresses/CIDR blocks allowed for admin access. If empty, allows all IPs</TableCell>
-      <TableCell>strings (comma-separated)</TableCell>
-    </TableRow>
-    <TableRow>
-      <TableCell>`--mcp-trusted-proxies`</TableCell>
-      <TableCell>Trusted proxy IP addresses/CIDR blocks</TableCell>
-      <TableCell>strings (comma-separated)</TableCell>
-    </TableRow>
-  </TableBody>
-</Table>
-
 #### Debugging
 
 <Table>
@@ -146,10 +112,6 @@ MCP_PROXY_HOST                  # Host to bind the server to
 MCP_PROXY_PORT                  # Port to run the MCP proxy server on
 MCP_PROXY_BASE_URL              # Base URL for the MCP proxy server
 MCP_PROXY_SHUTDOWN_TIMEOUT      # Graceful shutdown timeout
-MCP_PROXY_ADMIN_TOKENS          # Admin API authentication tokens (comma-separated)
-MCP_PROXY_ADMIN_ALLOW_IPS       # Admin API allowed IP addresses (comma-separated)
-MCP_PROXY_TRUSTED_PROXIES       # Trusted proxy IP addresses (comma-separated)
-MCP_PROXY_GLOBAL_AUTH_TOKENS    # Global authentication tokens (comma-separated)
 ```
 
 ## Examples
@@ -170,15 +132,6 @@ This starts the proxy on `0.0.0.0:6001`.
 compozy mcp-proxy --mcp-host localhost --mcp-port 9000
 ```
 
-### With Authentication
-
-```bash
-compozy mcp-proxy \
-  --mcp-global-auth-tokens "token1,token2" \
-  --mcp-admin-tokens "admin-secret" \
-  --mcp-admin-allow-ips "192.168.1.0/24,10.0.0.0/8"
-```
-
 ### Debug Mode
 
 ```bash
@@ -193,15 +146,6 @@ export MCP_PROXY_PORT=9000
 export MCP_PROXY_BASE_URL=http://localhost:9000
 
 compozy mcp-proxy
-```
-
-### Mixed Configuration (Flags + Environment Variables)
-
-```bash
-export MCP_PROXY_GLOBAL_AUTH_TOKENS="token1,token2"
-export MCP_PROXY_ADMIN_TOKENS="admin-secret"
-
-compozy mcp-proxy --mcp-host localhost --mcp-port 9000 --debug
 ```
 
 ## API Endpoints
@@ -285,46 +229,15 @@ The MCP proxy can be configured through:
 # compozy.yaml
 mcp_proxy:
   host: "0.0.0.0"
-  port: "6001"
+  port: 6001
   base_url: "http://localhost:6001"
-
-  auth:
-    global_tokens:
-      - "your-auth-token"
-    admin_tokens:
-      - "admin-secret"
-    admin_allow_ips:
-      - "192.168.1.0/24"
-      - "127.0.0.1"
-
-  security:
-    trusted_proxies:
-      - "10.0.0.0/8"
-      - "172.16.0.0/12"
-      - "192.168.0.0/16"
-
-  logging:
-    level: "info"
-    format: "json"
 ```
 
 ## Security Considerations
 
-### Authentication Tokens
-- **Global auth tokens**: Required for all MCP client requests
-- **Admin tokens**: Required for admin API access
-- Use strong, randomly generated tokens
-- Rotate tokens regularly
-
-### IP Restrictions
-- **Admin IP allowlist**: Restrict admin API access by IP
-- **Trusted proxies**: Configure known proxy IPs for proper client IP detection
-- Use CIDR notation for IP ranges
-
-### Network Security
-- Run behind a reverse proxy in production
-- Use HTTPS termination at the proxy level
-- Implement rate limiting and request size limits
+- Use a reverse proxy or firewall to restrict access to `/admin` endpoints.
+- Terminate TLS at your ingress/proxy.
+- Apply rate limits and request size limits at your edge.
 
 ## Monitoring and Logging
 

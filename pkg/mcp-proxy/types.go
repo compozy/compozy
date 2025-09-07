@@ -4,8 +4,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
+)
+
+const (
+	defaultHTTPTimeout         = 30 * time.Second
+	defaultHealthCheckInterval = 30 * time.Second
+	defaultMaxReconnects       = 5
+	defaultReconnectDelay      = 5 * time.Second
 )
 
 // TransportType represents the transport type for MCP communication
@@ -59,11 +67,6 @@ type MCPDefinition struct {
 	Headers map[string]string `json:"headers,omitempty"`
 	Timeout time.Duration     `json:"timeout,omitempty"`
 
-	// Security and access control
-	AuthTokens  []string `json:"authTokens,omitempty"`
-	AllowedIPs  []string `json:"allowedIPs,omitempty"`
-	RequireAuth bool     `json:"requireAuth,omitempty"`
-
 	// Behavior configuration
 	AutoReconnect       bool          `json:"autoReconnect,omitempty"`
 	MaxReconnects       int           `json:"maxReconnects,omitempty"`
@@ -113,15 +116,33 @@ type MCPStatus struct {
 }
 
 // Validate validates the MCP definition
+
 func (m *MCPDefinition) Validate() error {
+	if err := m.validateBasicFields(); err != nil {
+		return err
+	}
+	if err := m.validateTransport(); err != nil {
+		return err
+	}
+	if err := m.validateOptionalFields(); err != nil {
+		return err
+	}
+	return nil
+}
+
+// validateBasicFields validates required basic fields
+func (m *MCPDefinition) validateBasicFields() error {
 	if m.Name == "" {
 		return errors.New("name is required")
 	}
-
 	if !m.Transport.IsValid() {
 		return fmt.Errorf("invalid transport type: %s", m.Transport)
 	}
+	return nil
+}
 
+// validateTransport validates transport-specific fields
+func (m *MCPDefinition) validateTransport() error {
 	switch m.Transport {
 	case TransportStdio:
 		if m.Command == "" {
@@ -132,31 +153,32 @@ func (m *MCPDefinition) Validate() error {
 			return errors.New("url is required for HTTP-based transports")
 		}
 	}
+	return nil
+}
 
+// validateOptionalFields validates optional configuration fields
+func (m *MCPDefinition) validateOptionalFields() error {
 	if m.ToolFilter != nil {
 		if err := m.ToolFilter.Validate(); err != nil {
 			return fmt.Errorf("tool filter validation failed: %w", err)
 		}
 	}
-
 	if m.Timeout < 0 {
 		return errors.New("timeout cannot be negative")
 	}
-
 	if m.MaxReconnects < 0 {
 		return errors.New("maxReconnects cannot be negative")
 	}
-
 	if m.ReconnectDelay < 0 {
 		return errors.New("reconnectDelay cannot be negative")
 	}
-
 	if m.HealthCheckInterval < 0 {
 		return errors.New("healthCheckInterval cannot be negative")
 	}
-
 	return nil
 }
+
+// Note: per-MCP IP allowlist validation has been removed.
 
 // Validate validates the tool filter configuration
 func (tf *ToolFilter) Validate() error {
@@ -192,22 +214,20 @@ func (m *MCPDefinition) setTimestampDefaults() {
 // setTimeoutDefaults sets default timeout values
 func (m *MCPDefinition) setTimeoutDefaults() {
 	if m.Timeout == 0 && (m.Transport == TransportSSE || m.Transport == TransportStreamableHTTP) {
-		m.Timeout = 30 * time.Second
+		m.Timeout = defaultHTTPTimeout
 	}
-
 	if m.HealthCheckInterval == 0 && m.HealthCheckEnabled {
-		m.HealthCheckInterval = 30 * time.Second
+		m.HealthCheckInterval = defaultHealthCheckInterval
 	}
 }
 
 // setReconnectDefaults sets default reconnection values
 func (m *MCPDefinition) setReconnectDefaults() {
 	if m.MaxReconnects == 0 && m.AutoReconnect {
-		m.MaxReconnects = 5
+		m.MaxReconnects = defaultMaxReconnects
 	}
-
 	if m.ReconnectDelay == 0 && m.AutoReconnect {
-		m.ReconnectDelay = 5 * time.Second
+		m.ReconnectDelay = defaultReconnectDelay
 	}
 }
 
@@ -232,35 +252,44 @@ func (m *MCPDefinition) setSliceDefaults() {
 		m.Args = make([]string, 0)
 	}
 
-	if m.AuthTokens == nil {
-		m.AuthTokens = make([]string, 0)
-	}
-
-	if m.AllowedIPs == nil {
-		m.AllowedIPs = make([]string, 0)
-	}
-
 	if m.ToolFilter != nil && m.ToolFilter.List == nil {
 		m.ToolFilter.List = make([]string, 0)
 	}
 }
 
 // Clone creates a deep copy of the MCP definition
-func (m *MCPDefinition) Clone() *MCPDefinition {
+func (m *MCPDefinition) Clone() (*MCPDefinition, error) {
 	data, err := json.Marshal(m)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("clone marshal: %w", err)
 	}
 	var clone MCPDefinition
 	if err := json.Unmarshal(data, &clone); err != nil {
-		return nil
+		return nil, fmt.Errorf("clone unmarshal: %w", err)
 	}
-	return &clone
+	return &clone, nil
 }
 
 // GetNamespace returns the Redis namespace for this definition
 func (m *MCPDefinition) GetNamespace() string {
-	return fmt.Sprintf("mcp_proxy:%s", m.Name)
+	return fmt.Sprintf("mcp_proxy:%s", sanitizeRedisKeyComponent(m.Name))
+}
+
+func sanitizeRedisKeyComponent(s string) string {
+	s = strings.ToLower(s)
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		switch {
+		case (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == ':' || r == '_' || r == '-':
+			b.WriteRune(r)
+		case r == ' ':
+			b.WriteRune('_')
+		default:
+			b.WriteRune('-')
+		}
+	}
+	return b.String()
 }
 
 // ToJSON converts the definition to JSON

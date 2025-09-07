@@ -92,7 +92,7 @@ func (m *MCPClientManager) Start(ctx context.Context) error {
 	// This improves startup time when multiple MCP servers need to be connected
 	g, groupCtx := errgroup.WithContext(ctx)
 	for _, def := range definitions {
-		// capture loop variable for closure
+		def := def // capture loop variable for closure
 		g.Go(func() error {
 			if err := m.AddClient(groupCtx, def); err != nil {
 				log.Error("Failed to add client during startup", "name", def.Name, "error", err)
@@ -341,8 +341,13 @@ func (m *MCPClientManager) connectClient(ctx context.Context, client *MCPClient)
 		status.UpdateStatus(StatusConnecting, "")
 		m.saveStatus(ctx, status)
 
-		// Attempt connection with timeout, but use manager context for lifecycle
-		connectCtx, cancel := context.WithTimeout(m.ctx, m.config.DefaultConnectTimeout)
+		// Attempt connection with timeout; prefer per-definition Timeout when provided
+		timeout := m.config.DefaultConnectTimeout
+		if def.Timeout > 0 {
+			timeout = def.Timeout
+		}
+		// Derive from the provided context to honor upstream cancellation
+		connectCtx, cancel := context.WithTimeout(ctx, timeout)
 		err := client.Connect(connectCtx)
 		cancel()
 

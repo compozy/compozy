@@ -697,13 +697,65 @@ func TestIsSuccessText(t *testing.T) {
 		input       string
 		wantSuccess bool
 	}{
-		{name: "json_ok", input: `{"message": "ok"}`, wantSuccess: true},
-		{name: "json_error_string", input: `{"error": "nope"}`, wantSuccess: false},
-		{name: "json_error_null", input: `{"error": null}`, wantSuccess: false},
-		{name: "json_nested_error", input: `{"data": {"error": "nested"}}`, wantSuccess: true},
-		{name: "plain_text_ok", input: "all good", wantSuccess: true},
-		{name: "plain_text_with_quoted_error", input: "some text with \"error\" token", wantSuccess: false},
-		{name: "plain_text_with_unquoted_error", input: "some text with error word", wantSuccess: true},
+		// JSON cases
+		{name: "Should treat JSON without error field as success", input: `{"message": "ok"}`, wantSuccess: true},
+		{name: "Should treat JSON with error string as failure", input: `{"error": "nope"}`, wantSuccess: false},
+		{name: "Should treat JSON with error null as failure", input: `{"error": null}`, wantSuccess: false},
+		{
+			name:        "Should treat JSON with nested error as success",
+			input:       `{"data": {"error": "nested"}}`,
+			wantSuccess: true,
+		},
+		// Plain text success cases
+		{name: "Should treat plain text without error keywords as success", input: "all good", wantSuccess: true},
+		{
+			name:        "Should treat text with success message as success",
+			input:       "Operation completed successfully",
+			wantSuccess: true,
+		},
+		{name: "Should treat result text as success", input: "Result: 42", wantSuccess: true},
+		// Plain text error cases (updated behavior)
+		{
+			name:        "Should treat text containing error word as failure",
+			input:       "some text with error word",
+			wantSuccess: false,
+		},
+		{name: "Should treat error message as failure", input: "Error: something went wrong", wantSuccess: false},
+		{name: "Should treat failed message as failure", input: "Operation failed", wantSuccess: false},
+		{
+			name:        "Should treat missing required parameter as failure",
+			input:       "missing required parameter: owner",
+			wantSuccess: false,
+		},
+		{name: "Should treat invalid message as failure", input: "Invalid input provided", wantSuccess: false},
+		{name: "Should treat not found message as failure", input: "Resource not found", wantSuccess: false},
+		{name: "Should treat unauthorized message as failure", input: "Unauthorized access", wantSuccess: false},
+		{
+			name:        "Should treat forbidden message as failure",
+			input:       "Forbidden: insufficient permissions",
+			wantSuccess: false,
+		},
+		{
+			name:        "Should treat bad request message as failure",
+			input:       "Bad request: malformed input",
+			wantSuccess: false,
+		},
+		{
+			name:        "Should treat exception message as failure",
+			input:       "Exception occurred during processing",
+			wantSuccess: false,
+		},
+		{name: "Should treat cannot message as failure", input: "Cannot perform this operation", wantSuccess: false},
+		{name: "Should treat unable message as failure", input: "Unable to complete request", wantSuccess: false},
+		// Edge cases
+		{name: "Should treat uppercase error as failure", input: "ERROR: SOMETHING WENT WRONG", wantSuccess: false},
+		{
+			name:        "Should treat mixed case failure as failure",
+			input:       "Operation FAILED with code 500",
+			wantSuccess: false,
+		},
+		{name: "Should treat empty string as success", input: "", wantSuccess: true},
+		{name: "Should treat whitespace only as success", input: "   \n\t  ", wantSuccess: true},
 	}
 
 	for _, tc := range cases {
@@ -714,4 +766,54 @@ func TestIsSuccessText(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestStableJSONFingerprint_NonJSONHashes(t *testing.T) {
+	t.Run("Should hash non-JSON bytes instead of returning raw", func(t *testing.T) {
+		input := []byte("plain-text-response")
+		got := stableJSONFingerprint(input)
+		// Expect a hex string of length 64 (sha256)
+		require.Equal(t, 64, len(got))
+	})
+	t.Run("Should produce same hash for same non-JSON input", func(t *testing.T) {
+		input := []byte("abcdef")
+		a := stableJSONFingerprint(input)
+		b := stableJSONFingerprint(input)
+		assert.Equal(t, a, b)
+	})
+}
+
+func TestBuildIterationFingerprint_StableAcrossOrder(t *testing.T) {
+	t.Run("Should be stable for JSON arg key order and result key order", func(t *testing.T) {
+		callsA := []llmadapter.ToolCall{{Name: "tool", Arguments: []byte(`{"a":1,"b":2}`)}}
+		callsB := []llmadapter.ToolCall{{Name: "tool", Arguments: []byte(`{"b":2,"a":1}`)}}
+		resA := []llmadapter.ToolResult{{Name: "tool", JSONContent: json.RawMessage(`{"x":true,"y":false}`)}}
+		resB := []llmadapter.ToolResult{{Name: "tool", JSONContent: json.RawMessage(`{"y":false,"x":true}`)}}
+		fp1 := buildIterationFingerprint(callsA, resA)
+		fp2 := buildIterationFingerprint(callsB, resB)
+		assert.Equal(t, fp1, fp2)
+	})
+}
+
+func TestDetectNoProgress_StringCounter(t *testing.T) {
+	t.Run("Should trigger after consecutive identical fingerprints and reset on change", func(t *testing.T) {
+		o := &llmOrchestrator{}
+		threshold := 2
+		last := ""
+		count := 0
+		// first occurrence sets last, no trigger
+		tr1 := o.detectNoProgress(threshold, "fp1", &last, &count)
+		assert.False(t, tr1)
+		// second equal increments counter=1, still below threshold
+		tr2 := o.detectNoProgress(threshold, "fp1", &last, &count)
+		assert.False(t, tr2)
+		// third equal reaches threshold
+		tr3 := o.detectNoProgress(threshold, "fp1", &last, &count)
+		assert.True(t, tr3)
+		// change fingerprint resets counter
+		tr4 := o.detectNoProgress(threshold, "fp2", &last, &count)
+		assert.False(t, tr4)
+		assert.Equal(t, 0, count)
+		assert.Equal(t, "fp2", last)
+	})
 }

@@ -49,8 +49,12 @@ func NewMCPClient(
 		return nil, fmt.Errorf("failed to create MCP client: %w", err)
 	}
 
+	clonedDef, cerr := def.Clone()
+	if cerr != nil {
+		return nil, fmt.Errorf("failed to clone definition: %w", cerr)
+	}
 	return &MCPClient{
-		definition:      def.Clone(),
+		definition:      clonedDef,
 		status:          NewMCPStatus(def.Name),
 		storage:         storage,
 		config:          config,
@@ -64,7 +68,10 @@ func NewMCPClient(
 
 // GetDefinition returns the MCP definition
 func (c *MCPClient) GetDefinition() *MCPDefinition {
-	return c.definition.Clone()
+	if cloned, err := c.definition.Clone(); err == nil && cloned != nil {
+		return cloned
+	}
+	return c.definition
 }
 
 // GetStatus returns the current status (thread-safe copy)
@@ -136,6 +143,9 @@ func createStdioMCPClient(def *MCPDefinition) (*mcpclient.Client, bool, bool, er
 		return nil, false, false, fmt.Errorf("failed to create stdio client: %w", err)
 	}
 
+	// For stdio transports, the upstream client already starts the process when
+	// constructed via NewStdioMCPClient. Calling Start twice can cause races on
+	// shared stdio readers. Avoid manual Start in Connect for stdio.
 	return client, false, false, nil
 }
 
@@ -143,7 +153,11 @@ func createStdioMCPClient(def *MCPDefinition) (*mcpclient.Client, bool, bool, er
 func createSSEMCPClient(def *MCPDefinition) (*mcpclient.Client, bool, bool, error) {
 	var options []transport.ClientOption
 	if len(def.Headers) > 0 {
-		options = append(options, transport.WithHeaders(def.Headers))
+		hdr := make(map[string]string, len(def.Headers))
+		for k, v := range def.Headers {
+			hdr[k] = v
+		}
+		options = append(options, transport.WithHeaders(hdr))
 	}
 
 	client, err := mcpclient.NewSSEMCPClient(def.URL, options...)
@@ -158,7 +172,11 @@ func createSSEMCPClient(def *MCPDefinition) (*mcpclient.Client, bool, bool, erro
 func createStreamableHTTPMCPClient(def *MCPDefinition) (*mcpclient.Client, bool, bool, error) {
 	var options []transport.StreamableHTTPCOption
 	if len(def.Headers) > 0 {
-		options = append(options, transport.WithHTTPHeaders(def.Headers))
+		hdr := make(map[string]string, len(def.Headers))
+		for k, v := range def.Headers {
+			hdr[k] = v
+		}
+		options = append(options, transport.WithHTTPHeaders(hdr))
 	}
 	if def.Timeout > 0 {
 		options = append(options, transport.WithHTTPTimeout(def.Timeout))
@@ -216,11 +234,13 @@ func (c *MCPClient) Connect(ctx context.Context) error {
 	// Start ping routine if needed - use manager context for proper lifecycle
 	if c.needPing {
 		pingCtx, pingCancel := context.WithCancel(c.managerCtx)
+		done := make(chan struct{})
 		c.mu.Lock()
 		c.pingCancel = pingCancel
+		c.pingDone = done
 		c.mu.Unlock()
 		pingCtx = logger.ContextWithLogger(pingCtx, log)
-		go c.startPingRoutine(pingCtx)
+		go c.startPingRoutine(pingCtx, done)
 	}
 
 	log.Info("Successfully connected to MCP server", "mcp_name", c.definition.Name)
@@ -331,12 +351,16 @@ func (c *MCPClient) initializeMCP(ctx context.Context) error {
 }
 
 // startPingRoutine starts a background ping routine for connection health
-func (c *MCPClient) startPingRoutine(ctx context.Context) {
+func (c *MCPClient) startPingRoutine(ctx context.Context, done chan struct{}) {
 	log := logger.FromContext(ctx)
 	log.Debug("Starting ping routine", "mcp_name", c.definition.Name)
-	defer close(c.pingDone) // Signal completion when routine exits
+	defer close(done) // Signal completion when routine exits
 
-	ticker := time.NewTicker(30 * time.Second)
+	interval := DefaultHealthCheckInterval
+	if c.definition != nil && c.definition.HealthCheckInterval > 0 {
+		interval = c.definition.HealthCheckInterval
+	}
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for {
@@ -405,8 +429,37 @@ func (c *MCPClient) CallTool(ctx context.Context, request mcp.CallToolRequest) (
 		c.recordError()
 		return nil, fmt.Errorf("failed to call tool: %w", err)
 	}
-
+	log := logger.FromContext(ctx)
+	log.Info("MCP tool call result",
+		"mcp_name", c.definition.Name,
+		"tool_name", request.Params.Name,
+		"result", summarizeCallToolResult(result),
+	)
 	return result, nil
+}
+
+// summarizeCallToolResult creates a compact, safe-to-log summary of a tool result
+func summarizeCallToolResult(result *mcp.CallToolResult) any {
+	if result == nil {
+		return nil
+	}
+	if len(result.Content) == 0 {
+		return map[string]any{"info": "no content"}
+	}
+	content := result.Content[0]
+	switch typed := content.(type) {
+	case mcp.TextContent:
+		text := typed.Text
+		const limit = 500
+		if len(text) > limit {
+			text = text[:limit] + "…(truncated)"
+		}
+		return map[string]any{"type": "text", "text": text}
+	case mcp.ImageContent:
+		return map[string]any{"type": "image", "mimeType": typed.MIMEType, "bytes": len(typed.Data)}
+	default:
+		return map[string]any{"type": "unknown"}
+	}
 }
 
 // ListPrompts returns available prompts from the MCP server

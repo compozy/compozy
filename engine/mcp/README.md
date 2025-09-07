@@ -6,30 +6,42 @@
 
 ## 📑 Table of Contents
 
-- [🎯 Overview](#-overview)
-- [💡 Motivation](#-motivation)
-- [⚡ Design Highlights](#-design-highlights)
-- [🚀 Getting Started](#-getting-started)
-- [📖 Usage](#-usage)
-  - [MCP Configuration](#mcp-configuration)
-  - [Register Service](#register-service)
-  - [Client Operations](#client-operations)
-  - [Workflow Integration](#workflow-integration)
-- [🔧 Configuration](#-configuration)
-- [🎨 Examples](#-examples)
-  - [Basic MCP Registration](#basic-mcp-registration)
-  - [Remote MCP Servers](#remote-mcp-servers)
-  - [Local Process Servers](#local-process-servers)
-  - [Docker-based Servers](#docker-based-servers)
-  - [Workflow Integration](#workflow-integration-1)
-- [📚 API Reference](#-api-reference)
-  - [Config](#config)
-  - [RegisterService](#registerservice)
-  - [Client](#client)
-  - [Configuration Types](#configuration-types)
-- [🧪 Testing](#-testing)
-- [📦 Contributing](#-contributing)
-- [📄 License](#-license)
+- [`mcp` – _Model Context Protocol client for external tool integration_](#mcp--model-context-protocol-client-for-external-tool-integration)
+  - [📑 Table of Contents](#-table-of-contents)
+  - [🎯 Overview](#-overview)
+  - [💡 Motivation](#-motivation)
+  - [⚡ Design Highlights](#-design-highlights)
+  - [🚀 Getting Started](#-getting-started)
+    - [Prerequisites](#prerequisites)
+    - [Quick Setup](#quick-setup)
+  - [📖 Usage](#-usage)
+    - [MCP Configuration](#mcp-configuration)
+    - [Register Service](#register-service)
+    - [Client Operations](#client-operations)
+    - [Workflow Integration](#workflow-integration)
+  - [🔧 Configuration](#-configuration)
+    - [MCP Server Configuration](#mcp-server-configuration)
+    - [Transport Types](#transport-types)
+    - [Default Values](#default-values)
+  - [🎨 Examples](#-examples)
+    - [Basic MCP Registration](#basic-mcp-registration)
+    - [Remote MCP Servers](#remote-mcp-servers)
+    - [Local Process Servers](#local-process-servers)
+    - [Docker-based Servers](#docker-based-servers)
+    - [Workflow Integration](#workflow-integration-1)
+  - [📚 API Reference](#-api-reference)
+    - [Config](#config)
+    - [RegisterService](#registerservice)
+    - [Client](#client)
+    - [Configuration Types](#configuration-types)
+    - [Error Types](#error-types)
+    - [Utility Functions](#utility-functions)
+  - [🧪 Testing](#-testing)
+    - [Unit Testing](#unit-testing)
+    - [Integration Testing](#integration-testing)
+    - [Running Tests](#running-tests)
+  - [📦 Contributing](#-contributing)
+  - [📄 License](#-license)
 
 ---
 
@@ -77,7 +89,6 @@ Key capabilities include:
 - MCP proxy server running (required for MCP operations)
 - Environment variables configured:
   - `MCP_PROXY_URL`: URL of the MCP proxy service
-  - `MCP_PROXY_ADMIN_TOKEN`: Optional admin token for proxy authentication
 
 ### Quick Setup
 
@@ -635,7 +646,7 @@ type RegisterService struct {
 }
 
 func NewRegisterService(proxyClient *Client) *RegisterService
-func NewWithTimeout(proxyURL, adminToken string, timeout time.Duration) *RegisterService
+func NewWithTimeout(proxyURL string, timeout time.Duration) *RegisterService
 
 // Registration operations
 func (s *RegisterService) Ensure(ctx context.Context, config *Config) error
@@ -658,7 +669,7 @@ type Client struct {
     // HTTP client for MCP proxy communication
 }
 
-func NewProxyClient(baseURL, adminToken string, timeout time.Duration) *Client
+func NewProxyClient(baseURL, timeout time.Duration) *Client
 
 // Proxy operations
 func (c *Client) Health(ctx context.Context) error

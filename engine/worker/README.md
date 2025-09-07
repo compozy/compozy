@@ -287,7 +287,6 @@ TOOL_EXECUTION_TIMEOUT=60s
 
 # MCP Integration
 MCP_PROXY_URL=http://localhost:5001
-MCP_PROXY_ADMIN_TOKEN=admin-token-123
 
 # Redis Configuration
 REDIS_HOST=localhost

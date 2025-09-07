@@ -2,6 +2,7 @@ package mcpproxy
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -238,7 +239,6 @@ func (s *MCPService) CallTool(
 		log.Error("Failed to call tool", "mcp_name", mcpName, "tool_name", toolName, "error", err)
 		return nil, fmt.Errorf("tool execution failed: %w", err)
 	}
-	log.Debug("Tool executed successfully", "mcp_name", mcpName, "tool_name", toolName)
 	return result, nil
 }
 
@@ -288,10 +288,38 @@ func convertToolSchema(inputSchema any) map[string]any {
 	if inputSchema == nil {
 		return nil
 	}
-	// Try direct type assertion first
-	if schema, ok := inputSchema.(map[string]any); ok {
-		return schema
+	// Prefer direct handling to reduce allocations; fall back to JSON round-trip.
+	switch s := inputSchema.(type) {
+	case map[string]any:
+		return s
+	case json.RawMessage:
+		return unmarshalToMap([]byte(s))
+	case []byte:
+		return unmarshalToMap(s)
+	case string:
+		if s != "" {
+			return unmarshalToMap([]byte(s))
+		}
+	default:
+		return marshalAndUnmarshal(s)
 	}
-	// If that fails, we'll return nil and let the caller handle it
 	return nil
+}
+
+// unmarshalToMap attempts to unmarshal bytes to a map
+func unmarshalToMap(data []byte) map[string]any {
+	var out map[string]any
+	if json.Unmarshal(data, &out) == nil && len(out) > 0 {
+		return out
+	}
+	return nil
+}
+
+// marshalAndUnmarshal marshals input then unmarshals to map
+func marshalAndUnmarshal(input any) map[string]any {
+	b, err := json.Marshal(input)
+	if err != nil || len(b) == 0 {
+		return nil
+	}
+	return unmarshalToMap(b)
 }

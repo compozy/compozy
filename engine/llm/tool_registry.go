@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -41,6 +42,13 @@ type Tool interface {
 type ToolRegistryConfig struct {
 	ProxyClient *mcp.Client
 	CacheTTL    time.Duration
+	// EmptyCacheTTL controls how long an empty MCP tools state is cached
+	// to avoid repeated proxy hits when no tools are available yet.
+	// Defaults to 30s when zero.
+	EmptyCacheTTL time.Duration
+	// AllowedMCPNames restricts MCP tool advertisement/lookup to these MCP IDs.
+	// When empty, all discovered MCP tools are eligible. Local tools are never filtered.
+	AllowedMCPNames []string
 }
 
 // Implementation of ToolRegistry
@@ -50,23 +58,58 @@ type toolRegistry struct {
 	localTools map[string]Tool
 	localMu    sync.RWMutex
 	// MCP tools cache
-	mcpTools   []tools.Tool
-	mcpCacheTs time.Time
-	mcpMu      sync.RWMutex
+	mcpTools       []tools.Tool
+	mcpCacheTs     time.Time
+	mcpCachedEmpty bool
+	mcpMu          sync.RWMutex
 	// Singleflight for cache refresh to prevent thundering herd
 	sfGroup singleflight.Group
+	// Fast membership check for allowed MCP names
+	allowedMCPSet map[string]struct{}
 }
+
+// mcpNamed is implemented by MCP-backed tools to expose their MCP server ID
+type mcpNamed interface{ MCPName() string }
 
 // NewToolRegistry creates a new tool registry
 func NewToolRegistry(config ToolRegistryConfig) ToolRegistry {
 	if config.CacheTTL == 0 {
 		config.CacheTTL = 5 * time.Minute
 	}
+	if config.EmptyCacheTTL == 0 {
+		config.EmptyCacheTTL = 30 * time.Second
+	}
 
 	return &toolRegistry{
-		config:     config,
-		localTools: make(map[string]Tool),
+		config:        config,
+		localTools:    make(map[string]Tool),
+		allowedMCPSet: buildAllowedMCPSet(config.AllowedMCPNames),
 	}
+}
+
+// buildAllowedMCPSet normalizes and constructs a fast lookup set for MCP IDs
+func buildAllowedMCPSet(names []string) map[string]struct{} {
+	set := make(map[string]struct{}, len(names))
+	for _, n := range names {
+		nn := strings.ToLower(strings.TrimSpace(n))
+		if nn != "" {
+			set[nn] = struct{}{}
+		}
+	}
+	return set
+}
+
+// mcpToolAllowed returns true when the given MCP tool is permitted by the allowlist
+func (r *toolRegistry) mcpToolAllowed(t tools.Tool) bool {
+	if len(r.allowedMCPSet) == 0 {
+		return true
+	}
+	if named, ok := any(t).(mcpNamed); ok {
+		_, allowed := r.allowedMCPSet[r.canonicalize(named.MCPName())]
+		return allowed
+	}
+	// Unknown tool type with allowlist active -> deny
+	return false
 }
 
 // Register registers a local tool with precedence over MCP tools
@@ -105,6 +148,9 @@ func (r *toolRegistry) Find(ctx context.Context, name string) (Tool, bool) {
 
 	for _, mcpTool := range mcpTools {
 		if r.canonicalize(mcpTool.Name()) == canonical {
+			if !r.mcpToolAllowed(mcpTool) {
+				continue
+			}
 			return &mcpToolAdapter{mcpTool}, true
 		}
 	}
@@ -131,6 +177,8 @@ func (r *toolRegistry) ListAll(ctx context.Context) ([]Tool, error) {
 		})
 	}
 
+	allowedCount := 0
+	filteredCount := 0
 	for _, mcpTool := range mcpTools {
 		canonical := r.canonicalize(mcpTool.Name())
 
@@ -139,10 +187,26 @@ func (r *toolRegistry) ListAll(ctx context.Context) ([]Tool, error) {
 		_, isOverridden := r.localTools[canonical]
 		r.localMu.RUnlock()
 
-		if !isOverridden {
-			allTools = append(allTools, &mcpToolAdapter{mcpTool})
+		if isOverridden {
+			continue
 		}
+
+		// Honor allowlist when present
+		if !r.mcpToolAllowed(mcpTool) {
+			filteredCount++
+			continue
+		}
+		allowedCount++
+
+		allTools = append(allTools, &mcpToolAdapter{mcpTool})
 	}
+	logger.FromContext(ctx).Debug("MCP allowlist filtering",
+		"total", len(mcpTools),
+		"allowed", allowedCount,
+		"filtered", filteredCount,
+		"allowlist_size", len(r.allowedMCPSet),
+		"allowlist_ids", r.allowlistIDs(),
+	)
 
 	return allTools, nil
 }
@@ -155,6 +219,7 @@ func (r *toolRegistry) InvalidateCache(ctx context.Context) {
 
 	r.mcpTools = nil
 	r.mcpCacheTs = time.Time{}
+	r.mcpCachedEmpty = false
 	log.Debug("Invalidated MCP tools cache")
 }
 
@@ -207,26 +272,33 @@ func (r *toolRegistry) refreshMCPTools(ctx context.Context) ([]tools.Tool, error
 	// Convert ToolDefinitions to tools.Tool
 	var mcpTools []tools.Tool
 	for _, toolDef := range toolDefs {
-		// Create a simple proxy tool adapter
-		mcpTool := &mcpProxyTool{
-			name:        toolDef.Name,
-			description: toolDef.Description,
-			client:      r.config.ProxyClient,
-		}
-		mcpTools = append(mcpTools, mcpTool)
+		mcpTools = append(mcpTools, NewProxyTool(toolDef, r.config.ProxyClient))
 	}
 
+	// Cache results, including empty, to avoid repeated proxy hits.
 	r.mcpMu.Lock()
 	r.mcpTools = mcpTools
 	r.mcpCacheTs = time.Now()
+	r.mcpCachedEmpty = len(mcpTools) == 0
 	r.mcpMu.Unlock()
-	log.Debug("Refreshed MCP tools cache", "count", len(mcpTools))
+	if r.mcpCachedEmpty {
+		log.Debug("Refreshed MCP tools cache (empty)")
+	} else {
+		log.Debug("Refreshed MCP tools cache", "count", len(mcpTools))
+	}
 	return mcpTools, nil
 }
 
 // isCacheValid checks if the MCP cache is still valid
 func (r *toolRegistry) isCacheValid() bool {
-	return !r.mcpCacheTs.IsZero() && time.Since(r.mcpCacheTs) < r.config.CacheTTL
+	if r.mcpCacheTs.IsZero() {
+		return false
+	}
+	ttl := r.config.CacheTTL
+	if r.mcpCachedEmpty && r.config.EmptyCacheTTL > 0 {
+		ttl = r.config.EmptyCacheTTL
+	}
+	return time.Since(r.mcpCacheTs) < ttl
 }
 
 // canonicalize normalizes tool names to prevent conflicts
@@ -251,36 +323,44 @@ func (a *mcpToolAdapter) Call(ctx context.Context, input string) (string, error)
 	return a.tool.Call(ctx, input)
 }
 
-// mcpProxyTool implements tools.Tool for MCP proxy tools
-type mcpProxyTool struct {
-	name        string
-	description string
-	client      *mcp.Client
-}
-
-func (m *mcpProxyTool) Name() string {
-	return m.name
-}
-
-func (m *mcpProxyTool) Description() string {
-	return m.description
-}
-
-func (m *mcpProxyTool) Call(_ context.Context, _ string) (string, error) {
-	// TODO: Implement actual proxy call using m.client.ExecuteTool
-	// For now, fail fast rather than returning misleading success
-	return "", core.NewError(
-		fmt.Errorf("MCP proxy tool execution not yet implemented"),
-		"MCP_TOOL_UNIMPLEMENTED",
-		map[string]any{
-			"tool_name": m.name,
-		},
-	)
-}
-
-func (m *mcpProxyTool) ArgsType() any {
+// ArgsType forwards the argument schema when the underlying MCP tool exposes it.
+// This allows the orchestrator to advertise proper JSON Schema to the LLM so it
+// can provide required arguments instead of calling tools with empty payloads.
+func (a *mcpToolAdapter) ArgsType() any {
+	type argsTyper interface{ ArgsType() any }
+	if at, ok := any(a.tool).(argsTyper); ok {
+		return at.ArgsType()
+	}
 	return nil
 }
+
+// MCPName forwards the MCP server identifier when the underlying tool exposes it.
+// This preserves allowlist filtering behavior in registries that restrict tools
+// by MCP ID.
+func (a *mcpToolAdapter) MCPName() string {
+	if mn, ok := any(a.tool).(mcpNamed); ok {
+		return mn.MCPName()
+	}
+	return ""
+}
+
+// allowlistIDs returns configured allowlist MCP IDs for debug logging
+func (r *toolRegistry) allowlistIDs() []string {
+	if len(r.allowedMCPSet) == 0 {
+		return nil
+	}
+	ids := make([]string, 0, len(r.allowedMCPSet))
+	for id := range r.allowedMCPSet {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	return ids
+}
+
+// mcpProxyTool implements tools.Tool for MCP proxy tools
+// legacy mcpProxyTool removed; ProxyTool is canonical
+
+// Legacy mcpProxyTool removed; ProxyTool is the canonical MCP tool implementation
 
 // localToolAdapter adapts engine/tool.Config to our Tool interface
 type localToolAdapter struct {
@@ -313,8 +393,7 @@ func (a *localToolAdapter) Call(ctx context.Context, input string) (string, erro
 	var inputMap map[string]any
 	if err := json.Unmarshal([]byte(input), &inputMap); err != nil {
 		return "", core.NewError(err, "INVALID_TOOL_INPUT", map[string]any{
-			"tool":  a.config.ID,
-			"input": input,
+			"tool": a.config.ID,
 		})
 	}
 
