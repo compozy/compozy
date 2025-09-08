@@ -3,6 +3,7 @@ package webhook
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 )
@@ -72,5 +73,6 @@ func (r *Registry) Slugs() []string {
 	for s := range r.bySlug {
 		out = append(out, s)
 	}
+	sort.Strings(out)
 	return out
 }

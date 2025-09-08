@@ -66,10 +66,10 @@ func validateVerify(cfg *Config) error {
 		return nil
 	}
 	s := cfg.Verify.Strategy
-	if s != "none" && s != "hmac" && s != "stripe" && s != "github" {
+	if s != StrategyNone && s != StrategyHMAC && s != StrategyStripe && s != StrategyGitHub {
 		return fmt.Errorf("invalid verify.strategy: %s", s)
 	}
-	if s == "hmac" {
+	if s == StrategyHMAC {
 		if cfg.Verify.Secret == "" || cfg.Verify.Header == "" {
 			return fmt.Errorf("hmac verification requires secret and header")
 		}

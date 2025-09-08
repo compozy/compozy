@@ -1,16 +1,17 @@
 package webhook
 
 import (
+	"time"
+
 	"github.com/compozy/compozy/engine/schema"
 )
 
-// Config defines per-workflow webhook settings and routing events.
+// Config represents per-workflow webhook settings and routing events.
 type Config struct {
 	Slug   string        `json:"slug"             yaml:"slug"`
 	Method string        `json:"method,omitempty" yaml:"method,omitempty"`
-	Verify *VerifySpec   `json:"verify,omitempty" yaml:"verify,omitempty"`
-	Dedupe *DedupeSpec   `json:"dedupe,omitempty" yaml:"dedupe,omitempty"`
 	Events []EventConfig `json:"events"           yaml:"events"`
+	Verify *VerifySpec   `json:"verify,omitempty" yaml:"verify,omitempty"`
 }
 
 // EventConfig defines a single routable event within a webhook trigger.
@@ -22,29 +23,27 @@ type EventConfig struct {
 }
 
 // VerifySpec defines signature verification options for webhook requests.
-// strategy: none|hmac|stripe|github
 type VerifySpec struct {
-	Strategy string `json:"strategy"         yaml:"strategy"`
-	Secret   string `json:"secret,omitempty" yaml:"secret,omitempty"`
-	Header   string `json:"header,omitempty" yaml:"header,omitempty"`
+	Strategy string        `json:"strategy,omitempty" yaml:"strategy,omitempty"`
+	Secret   string        `json:"secret,omitempty"   yaml:"secret,omitempty"`
+	Header   string        `json:"header,omitempty"   yaml:"header,omitempty"`
+	Skew     time.Duration `json:"skew,omitempty"     yaml:"skew,omitempty"`
 }
 
-// DedupeSpec controls idempotency behavior for webhook requests.
-type DedupeSpec struct {
-	Enabled bool   `json:"enabled"       yaml:"enabled"`
-	TTL     string `json:"ttl,omitempty" yaml:"ttl,omitempty"`
-	Key     string `json:"key,omitempty" yaml:"key,omitempty"`
-}
-
-// ApplyDefaults applies webhook-default values.
+// ApplyDefaults sets default values for optional fields.
 func ApplyDefaults(cfg *Config) {
-	if cfg == nil {
-		return
-	}
 	if cfg.Method == "" {
 		cfg.Method = "POST"
 	}
-	if cfg.Dedupe != nil && cfg.Dedupe.Enabled && cfg.Dedupe.TTL == "" {
-		cfg.Dedupe.TTL = "5m"
+	if cfg.Verify != nil && cfg.Verify.Strategy == "" {
+		cfg.Verify.Strategy = StrategyNone
 	}
+}
+
+// ToVerifyConfig converts VerifySpec to runtime VerifyConfig used by verifiers.
+func (v *VerifySpec) ToVerifyConfig() VerifyConfig {
+	if v == nil {
+		return VerifyConfig{Strategy: StrategyNone}
+	}
+	return VerifyConfig{Strategy: v.Strategy, Secret: v.Secret, Header: v.Header, Skew: v.Skew}
 }
