@@ -253,10 +253,7 @@ func TestMCPClientManager_ReconnectionPrevention(t *testing.T) {
 		mu := sync.Mutex{}
 
 		for range 5 {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-
+			wg.Go(func() {
 				manager.reconnectMu.Lock()
 				if !manager.reconnecting[def.Name] {
 					manager.reconnecting[def.Name] = true
@@ -274,7 +271,7 @@ func TestMCPClientManager_ReconnectionPrevention(t *testing.T) {
 				} else {
 					manager.reconnectMu.Unlock()
 				}
-			}()
+			})
 		}
 
 		wg.Wait()
@@ -316,12 +313,10 @@ func TestMCPClientManager_ConcurrentOperations(t *testing.T) {
 		}
 
 		for range 10 {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				_ = manager.GetMetrics()
 				_ = manager.ListClientStatuses(ctx)
-			}()
+			})
 		}
 
 		wg.Wait()

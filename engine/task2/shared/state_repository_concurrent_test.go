@@ -239,15 +239,13 @@ func TestDefaultStateRepository_ConcurrentAccess(t *testing.T) {
 
 		// Mix of readers and writers
 		for range numOperations {
-			wg.Add(1)
 			// All operations are effectively the same - GetParentState reads from cache if present,
 			// or fetches from repository and caches the result
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				state, err := repo.GetParentState(ctx, sharedID)
 				assert.NoError(t, err)
 				assert.NotNil(t, state)
-			}()
+			})
 		}
 
 		wg.Wait()

@@ -132,12 +132,10 @@ func TestManager_Get(t *testing.T) {
 		// Concurrent reads
 		var wg sync.WaitGroup
 		for range 100 {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				config := manager.Get()
 				assert.NotNil(t, config)
-			}()
+			})
 		}
 		wg.Wait()
 	})

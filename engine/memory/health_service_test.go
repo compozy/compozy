@@ -124,22 +124,18 @@ func TestHealthService_ConcurrentAccess(t *testing.T) {
 		var wg sync.WaitGroup
 
 		// Start background health monitoring
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			service.Start(ctx)
 			time.Sleep(100 * time.Millisecond)
 			service.Stop()
-		}()
+		})
 
 		// Concurrent health checks
 		for range 5 {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				health := service.GetOverallHealth(ctx)
 				assert.NotZero(t, health.LastChecked)
-			}()
+			})
 		}
 
 		wg.Wait()

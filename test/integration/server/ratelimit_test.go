@@ -153,9 +153,7 @@ func TestRateLimitMiddleware_PerKeyRateLimiting(t *testing.T) {
 		var mu sync.Mutex
 		apiKey := "concurrent-test-key"
 		for range 15 {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				req := httptest.NewRequest("GET", "/api/test", http.NoBody)
 				req.Header.Set("X-API-Key", apiKey)
 				w := httptest.NewRecorder()
@@ -168,7 +166,7 @@ func TestRateLimitMiddleware_PerKeyRateLimiting(t *testing.T) {
 					rateLimitedCount++
 				}
 				mu.Unlock()
-			}()
+			})
 		}
 		wg.Wait()
 		assert.Equal(t, 10, successCount, "Should allow exactly 10 requests")

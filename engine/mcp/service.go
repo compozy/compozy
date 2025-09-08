@@ -449,7 +449,7 @@ func (s *RegisterService) EnsureMultiple(ctx context.Context, configs []Config) 
 	const maxConcurrent = 5
 	work := make(chan Config, len(configs))
 	// Start fixed number of workers
-	for i := 0; i < maxConcurrent; i++ {
+	for range maxConcurrent {
 		go func() {
 			for cfg := range work {
 				err := s.Ensure(ctx, &cfg)
