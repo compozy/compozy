@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"sort"
 
 	docs "github.com/compozy/compozy/docs"
 	agentrouter "github.com/compozy/compozy/engine/agent/router"
@@ -16,6 +17,8 @@ import (
 	memrouter "github.com/compozy/compozy/engine/memory/router"
 	tkrouter "github.com/compozy/compozy/engine/task/router"
 	toolrouter "github.com/compozy/compozy/engine/tool/router"
+	"github.com/compozy/compozy/engine/webhook/registry"
+	"github.com/compozy/compozy/engine/workflow"
 	wfrouter "github.com/compozy/compozy/engine/workflow/router"
 	schedulerouter "github.com/compozy/compozy/engine/workflow/schedule/router"
 	"github.com/compozy/compozy/pkg/config"
@@ -24,6 +27,8 @@ import (
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
+
+// moved to register_webhook.go
 
 func CreateHealthHandler(server *Server, version string) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -131,6 +136,10 @@ func RegisterRoutes(ctx context.Context, router *gin.Engine, state *appstate.Sta
 		log.Info("No admin bootstrap key configured")
 	}
 
+	if err := attachWebhookRegistry(ctx, state); err != nil {
+		return err
+	}
+
 	// Setup Swagger and documentation endpoints
 	setupSwaggerAndDocs(router, prefixURL)
 
@@ -198,5 +207,36 @@ func RegisterRoutes(ctx context.Context, router *gin.Engine, state *appstate.Sta
 		"swagger_base_path", docs.SwaggerInfo.BasePath,
 		"auth_enabled", cfg.Server.Auth.Enabled,
 	)
+	return nil
+}
+
+func attachWebhookRegistry(ctx context.Context, state *appstate.State) error {
+	reg := registry.New()
+	for _, wf := range state.Workflows {
+		for i := range wf.Triggers {
+			t := wf.Triggers[i]
+			if t.Type == workflow.TriggerTypeWebhook && t.Webhook != nil {
+				entry := registry.Entry{WorkflowID: wf.ID, Webhook: t.Webhook}
+				if err := reg.Add(t.Webhook.Slug, entry); err != nil {
+					return fmt.Errorf(
+						"webhook registry: failed to add slug '%s' from workflow '%s': %w",
+						t.Webhook.Slug,
+						wf.ID,
+						err,
+					)
+				}
+			}
+		}
+	}
+	state.Extensions[appstate.WebhookRegistryKey] = reg
+	slugs := reg.Slugs()
+	limit := min(len(slugs), 5)
+	log := logger.FromContext(ctx)
+	if limit > 0 {
+		sort.Strings(slugs)
+		log.Info("Webhook registry initialized", "count", len(slugs), "slugs", slugs[:limit])
+	} else {
+		log.Info("Webhook registry initialized", "count", 0)
+	}
 	return nil
 }

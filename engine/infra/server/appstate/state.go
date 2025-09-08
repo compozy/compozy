@@ -17,6 +17,7 @@ type contextKey string
 const (
 	StateKey           contextKey = "app_state"
 	ScheduleManagerKey string     = "scheduleManager"
+	WebhookRegistryKey string     = "webhook.registry"
 )
 
 type BaseDeps struct {
