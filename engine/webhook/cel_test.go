@@ -13,7 +13,7 @@ import (
 func TestCELAdapter_Allow(t *testing.T) {
 	eval, err := task.NewCELEvaluator()
 	require.NoError(t, err)
-	a := NewCELdapter(eval)
+	a := NewCELAdapter(eval)
 	ctx := context.Background()
 
 	t.Run("Should allow when expression is true", func(t *testing.T) {

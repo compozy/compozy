@@ -9,7 +9,9 @@ import (
 	"github.com/compozy/compozy/pkg/tplengine"
 )
 
-type RenderContext struct{ Payload map[string]any }
+type RenderContext struct {
+	Payload map[string]any
+}
 
 func RenderTemplate(ctx context.Context, rctx RenderContext, input map[string]string) (map[string]any, error) {
 	_ = ctx

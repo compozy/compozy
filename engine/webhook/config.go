@@ -12,6 +12,7 @@ type Config struct {
 	Method string        `json:"method,omitempty" yaml:"method,omitempty"`
 	Events []EventConfig `json:"events"           yaml:"events"`
 	Verify *VerifySpec   `json:"verify,omitempty" yaml:"verify,omitempty"`
+	Dedupe *DedupeSpec   `json:"dedupe,omitempty" yaml:"dedupe,omitempty"`
 }
 
 // EventConfig defines a single routable event within a webhook trigger.
@@ -28,6 +29,13 @@ type VerifySpec struct {
 	Secret   string        `json:"secret,omitempty"   yaml:"secret,omitempty"`
 	Header   string        `json:"header,omitempty"   yaml:"header,omitempty"`
 	Skew     time.Duration `json:"skew,omitempty"     yaml:"skew,omitempty"`
+}
+
+// DedupeSpec controls idempotency behavior for webhook requests.
+type DedupeSpec struct {
+	Enabled bool   `json:"enabled"       yaml:"enabled"`
+	TTL     string `json:"ttl,omitempty" yaml:"ttl,omitempty"`
+	Key     string `json:"key,omitempty" yaml:"key,omitempty"`
 }
 
 // ApplyDefaults sets default values for optional fields.

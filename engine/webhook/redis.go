@@ -21,9 +21,13 @@ type RedisClient interface {
 	SetNX(ctx context.Context, key string, value any, expiration time.Duration) (bool, error)
 }
 
-type redisSvc struct{ client RedisClient }
+type redisSvc struct {
+	client RedisClient
+}
 
-func NewRedisClient(client RedisClient) Service { return &redisSvc{client: client} }
+func NewRedisClient(client RedisClient) Service {
+	return &redisSvc{client: client}
+}
 
 func (s *redisSvc) CheckAndSet(ctx context.Context, key string, ttl time.Duration) error {
 	ok, err := s.client.SetNX(ctx, key, 1, ttl)

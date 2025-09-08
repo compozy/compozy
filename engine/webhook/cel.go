@@ -11,9 +11,14 @@ import (
 // CELAdapter evaluates CEL filter expressions for webhook events.
 // Context contract for evaluation: { payload: map[string]any }
 // The context builder also supports headers and query for future use.
-type CELAdapter struct{ eval *task.CELEvaluator }
+type CELAdapter struct {
+	eval *task.CELEvaluator
+}
 
-func NewCELdapter(eval *task.CELEvaluator) *CELAdapter { return &CELAdapter{eval: eval} }
+// NewCELAdapter creates a new CELAdapter. Preferred constructor.
+func NewCELAdapter(eval *task.CELEvaluator) *CELAdapter {
+	return &CELAdapter{eval: eval}
+}
 
 // Allow returns true when the CEL expression evaluates to true. Empty expressions allow by default.
 func (a *CELAdapter) Allow(ctx context.Context, expr string, data map[string]any) (bool, error) {

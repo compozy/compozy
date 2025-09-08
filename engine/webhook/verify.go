@@ -41,8 +41,8 @@ type VerifyConfig struct {
 	Skew     time.Duration
 }
 
-// NewVerifyConfig creates a Verifier based on the provided configuration.
-func NewVerifyConfig(cfg VerifyConfig) (Verifier, error) {
+// NewVerifier creates a Verifier based on the provided configuration.
+func NewVerifier(cfg VerifyConfig) (Verifier, error) {
 	switch cfg.Strategy {
 	case StrategyNone:
 		return noneVerifier{}, nil
@@ -93,7 +93,9 @@ func resolveSecret(s string) ([]byte, error) {
 
 type noneVerifier struct{}
 
-func (noneVerifier) Verify(_ context.Context, _ *http.Request, _ []byte) error { return nil }
+func (noneVerifier) Verify(_ context.Context, _ *http.Request, _ []byte) error {
+	return nil
+}
 
 type hmacVerifier struct {
 	secret []byte
@@ -191,7 +193,9 @@ func parseStripeSignatureHeader(header string) (string, []string, error) {
 	return tsStr, candidates, nil
 }
 
-type githubVerifier struct{ secret []byte }
+type githubVerifier struct {
+	secret []byte
+}
 
 func (v githubVerifier) Verify(_ context.Context, r *http.Request, body []byte) error {
 	sig := r.Header.Get(headerGitHubSignature)

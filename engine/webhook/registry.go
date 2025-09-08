@@ -28,7 +28,9 @@ type Lookup interface {
 	Get(string) (RegistryEntry, bool)
 }
 
-func normalizeSlug(s string) string { return strings.ToLower(strings.TrimSpace(s)) }
+func normalizeSlug(s string) string {
+	return strings.ToLower(strings.TrimSpace(s))
+}
 
 func (r *Registry) Add(slug string, e RegistryEntry) error {
 	r.mu.Lock()

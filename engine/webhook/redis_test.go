@@ -13,7 +13,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type goRedisAdapter struct{ c redis.UniversalClient }
+type goRedisAdapter struct {
+	c redis.UniversalClient
+}
 
 func (a *goRedisAdapter) SetNX(ctx context.Context, key string, value any, expiration time.Duration) (bool, error) {
 	return a.c.SetNX(ctx, key, value, expiration).Result()
