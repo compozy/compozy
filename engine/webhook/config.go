@@ -9,34 +9,34 @@ import (
 
 // Config represents per-workflow webhook settings and routing events.
 type Config struct {
-	Slug   string        `json:"slug"             yaml:"slug"`
-	Method string        `json:"method,omitempty" yaml:"method,omitempty"`
-	Events []EventConfig `json:"events"           yaml:"events"`
-	Verify *VerifySpec   `json:"verify,omitempty" yaml:"verify,omitempty"`
-	Dedupe *DedupeSpec   `json:"dedupe,omitempty" yaml:"dedupe,omitempty"`
+	Slug   string        `json:"slug"             yaml:"slug"             mapstructure:"slug"`
+	Method string        `json:"method,omitempty" yaml:"method,omitempty" mapstructure:"method"`
+	Events []EventConfig `json:"events"           yaml:"events"           mapstructure:"events"`
+	Verify *VerifySpec   `json:"verify,omitempty" yaml:"verify,omitempty" mapstructure:"verify"`
+	Dedupe *DedupeSpec   `json:"dedupe,omitempty" yaml:"dedupe,omitempty" mapstructure:"dedupe"`
 }
 
 // EventConfig defines a single routable event within a webhook trigger.
 type EventConfig struct {
-	Name   string            `json:"name"             yaml:"name"`
-	Filter string            `json:"filter"           yaml:"filter"`
-	Input  map[string]string `json:"input"            yaml:"input"`
-	Schema *schema.Schema    `json:"schema,omitempty" yaml:"schema,omitempty"`
+	Name   string            `json:"name"             yaml:"name"             mapstructure:"name"`
+	Filter string            `json:"filter"           yaml:"filter"           mapstructure:"filter"`
+	Input  map[string]string `json:"input"            yaml:"input"            mapstructure:"input"`
+	Schema *schema.Schema    `json:"schema,omitempty" yaml:"schema,omitempty" mapstructure:"schema"`
 }
 
 // VerifySpec defines signature verification options for webhook requests.
 type VerifySpec struct {
-	Strategy string        `json:"strategy,omitempty" yaml:"strategy,omitempty"`
-	Secret   string        `json:"secret,omitempty"   yaml:"secret,omitempty"`
-	Header   string        `json:"header,omitempty"   yaml:"header,omitempty"`
-	Skew     time.Duration `json:"skew,omitempty"     yaml:"skew,omitempty"`
+	Strategy string        `json:"strategy,omitempty" yaml:"strategy,omitempty" mapstructure:"strategy"`
+	Secret   string        `json:"secret,omitempty"   yaml:"secret,omitempty"   mapstructure:"strategy"`
+	Header   string        `json:"header,omitempty"   yaml:"header,omitempty"   mapstructure:"header"`
+	Skew     time.Duration `json:"skew,omitempty"     yaml:"skew,omitempty"     mapstructure:"skey"`
 }
 
 // DedupeSpec controls idempotency behavior for webhook requests.
 type DedupeSpec struct {
-	Enabled bool   `json:"enabled"       yaml:"enabled"`
-	TTL     string `json:"ttl,omitempty" yaml:"ttl,omitempty"`
-	Key     string `json:"key,omitempty" yaml:"key,omitempty"`
+	Enabled bool   `json:"enabled"       yaml:"enabled"       mapstructure:"enabled"`
+	TTL     string `json:"ttl,omitempty" yaml:"ttl,omitempty" mapstructure:"ttl"`
+	Key     string `json:"key,omitempty" yaml:"key,omitempty" mapstructure:"key"`
 }
 
 // ApplyDefaults sets default values for optional fields.

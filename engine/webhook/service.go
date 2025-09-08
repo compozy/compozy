@@ -53,7 +53,14 @@ func NewOrchestrator(
 	maxBody int64,
 	dedupeTTL time.Duration,
 ) *Orchestrator {
-	o := &Orchestrator{reg: reg, filter: filter, disp: disp, idem: idem, maxBody: maxBody, dedupeTTL: dedupeTTL}
+	o := &Orchestrator{
+		reg:       reg,
+		filter:    filter,
+		disp:      disp,
+		idem:      idem,
+		maxBody:   maxBody,
+		dedupeTTL: dedupeTTL,
+	}
 	o.verifierFactory = NewVerifier
 	o.renderer = NewTemplateRenderer()
 	if o.maxBody <= 0 {
@@ -92,7 +99,15 @@ func (o *Orchestrator) Process(ctx context.Context, slug string, r *http.Request
 		return Result{Status: http.StatusNotFound}, ErrNotFound
 	}
 	logger.FromContext(ctx).
-		Info("webhook request received", "slug", slug, "workflow_id", entry.WorkflowID, "correlation_id", corrID)
+		Info(
+			"webhook request received",
+			"slug",
+			slug,
+			"workflow_id",
+			entry.WorkflowID,
+			"correlation_id",
+			corrID,
+		)
 	body, rres, rerr := o.readBody(ctx, r)
 	if rerr != nil {
 		if o.metrics != nil {
@@ -144,7 +159,12 @@ func (o *Orchestrator) readBody(ctx context.Context, r *http.Request) ([]byte, R
 	return b, Result{}, nil
 }
 
-func (o *Orchestrator) verify(ctx context.Context, entry RegistryEntry, r *http.Request, body []byte) (Result, error) {
+func (o *Orchestrator) verify(
+	ctx context.Context,
+	entry RegistryEntry,
+	r *http.Request,
+	body []byte,
+) (Result, error) {
 	log := logger.FromContext(ctx)
 	if entry.Webhook != nil && entry.Webhook.Verify != nil && entry.Webhook.Verify.Strategy != StrategyNone {
 		v, err := o.verifierFactory(entry.Webhook.Verify.ToVerifyConfig())
