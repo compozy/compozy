@@ -23,11 +23,13 @@ type Processor interface {
 // @Accept json
 // @Produce json
 // @Param slug path string true "Webhook slug"
+// @Param payload body object true "Arbitrary JSON payload"
 // @Success 202 {object} map[string]any "Accepted and enqueued"
 // @Success 200 {object} map[string]any "Processed with no matching event"
 // @Failure 400 {object} map[string]any "Invalid or oversized payload"
 // @Failure 401 {object} map[string]any "Signature verification failed"
 // @Failure 404 {object} map[string]any "Webhook not found"
+// @Failure 409 {object} map[string]any "Duplicate idempotency key"
 // @Failure 429 {object} map[string]any "Rate limit exceeded"
 // @Failure 500 {object} map[string]any "Internal server error"
 // @Router /hooks/{slug} [post]

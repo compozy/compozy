@@ -1518,6 +1518,54 @@ definitions:
       token_utilization:
         type: number
     type: object
+  webhook.Config:
+    properties:
+      dedupe:
+        $ref: '#/definitions/webhook.DedupeSpec'
+      events:
+        items:
+          $ref: '#/definitions/webhook.EventConfig'
+        type: array
+      method:
+        type: string
+      slug:
+        type: string
+      verify:
+        $ref: '#/definitions/webhook.VerifySpec'
+    type: object
+  webhook.DedupeSpec:
+    properties:
+      enabled:
+        type: boolean
+      key:
+        type: string
+      ttl:
+        type: string
+    type: object
+  webhook.EventConfig:
+    properties:
+      filter:
+        type: string
+      input:
+        additionalProperties:
+          type: string
+        type: object
+      name:
+        type: string
+      schema:
+        $ref: '#/definitions/schema.Schema'
+    type: object
+  webhook.VerifySpec:
+    properties:
+      header:
+        type: string
+      secret:
+        type: string
+      skew:
+        $ref: '#/definitions/time.Duration'
+      strategy:
+        type: string
+    type: object
   wfrouter.EventRequest:
     properties:
       name:
@@ -1748,13 +1796,19 @@ definitions:
         allOf:
           - $ref: '#/definitions/workflow.TriggerType'
         description: Type of trigger mechanism (e.g., "signal" for external signals)
+      webhook:
+        allOf:
+          - $ref: '#/definitions/webhook.Config'
+        description: Webhook holds configuration when Type==webhook
     type: object
   workflow.TriggerType:
     enum:
       - signal
+      - webhook
     type: string
     x-enum-varnames:
       - TriggerTypeSignal
+      - TriggerTypeWebhook
 
 info:
   contact:
@@ -2885,6 +2939,69 @@ paths:
       summary: Send signal to workflow execution
       tags:
         - executions
+  /hooks/{slug}:
+    post:
+      consumes:
+        - application/json
+      description: Accepts webhook payloads and triggers matching workflow events.
+      parameters:
+        - description: Webhook slug
+          in: path
+          name: slug
+          required: true
+          type: string
+        - description: Arbitrary JSON payload
+          in: body
+          name: payload
+          required: true
+          schema:
+            type: object
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Processed with no matching event
+          schema:
+            additionalProperties: true
+            type: object
+        "202":
+          description: Accepted and enqueued
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid or oversized payload
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Signature verification failed
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Webhook not found
+          schema:
+            additionalProperties: true
+            type: object
+        "409":
+          description: Duplicate idempotency key
+          schema:
+            additionalProperties: true
+            type: object
+        "429":
+          description: Rate limit exceeded
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Trigger webhook
+      tags:
+        - webhooks
   /memory/{memory_ref}/append:
     post:
       consumes:

@@ -31,6 +31,7 @@ import (
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
+	"go.opentelemetry.io/otel/metric"
 )
 
 func CreateHealthHandler(server *Server, version string) gin.HandlerFunc {
@@ -130,7 +131,6 @@ func RegisterRoutes(ctx context.Context, router *gin.Engine, state *appstate.Sta
 
 	// Get configuration
 	cfg := config.Get()
-
 	// Debug log for admin key
 	log := logger.FromContext(ctx)
 	if cfg.Server.Auth.AdminKey.Value() != "" {
@@ -145,11 +145,13 @@ func RegisterRoutes(ctx context.Context, router *gin.Engine, state *appstate.Sta
 
 	// Setup Swagger and documentation endpoints
 	setupSwaggerAndDocs(router, prefixURL)
-
-	if err := registerPublicWebhookRoutes(ctx, router, state, prefixURL); err != nil {
+	var meter metric.Meter
+	if server != nil && server.monitoring != nil && server.monitoring.IsInitialized() {
+		meter = server.monitoring.Meter()
+	}
+	if err := registerPublicWebhookRoutes(ctx, router, state, prefixURL, meter); err != nil {
 		return err
 	}
-
 	// Root endpoint with API information
 	router.GET("/", func(c *gin.Context) {
 		host := c.Request.Host
@@ -222,6 +224,7 @@ func registerPublicWebhookRoutes(
 	router *gin.Engine,
 	state *appstate.State,
 	prefixURL string,
+	meter metric.Meter,
 ) error {
 	const defaultMaxBody int64 = 1 << 20
 	hooks := router.Group(prefixURL + "/hooks")
@@ -250,6 +253,9 @@ func registerPublicWebhookRoutes(
 		)
 	}
 	orchestrator := webhook.NewOrchestrator(reg, filter, disp, nil, defaultMaxBody, 10*time.Minute)
+	if meter != nil {
+		orchestrator.SetMetrics(webhook.NewMetrics(ctx, meter))
+	}
 	webhook.RegisterPublic(hooks, orchestrator)
 	_ = ctx
 	return nil

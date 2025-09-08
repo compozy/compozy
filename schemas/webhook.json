@@ -53,6 +53,9 @@
         },
         "header": {
           "type": "string"
+        },
+        "skew": {
+          "type": "integer"
         }
       },
       "additionalProperties": false,
@@ -67,21 +70,21 @@
     "method": {
       "type": "string"
     },
-    "verify": {
-      "$ref": "#/$defs/VerifySpec"
-    },
-    "dedupe": {
-      "$ref": "#/$defs/DedupeSpec"
-    },
     "events": {
       "items": {
         "$ref": "#/$defs/EventConfig"
       },
       "type": "array"
+    },
+    "verify": {
+      "$ref": "#/$defs/VerifySpec"
+    },
+    "dedupe": {
+      "$ref": "#/$defs/DedupeSpec"
     }
   },
   "additionalProperties": false,
   "type": "object",
-  "description": "Config defines per-workflow webhook settings and routing events.",
+  "description": "Config represents per-workflow webhook settings and routing events.",
   "yamlCompatible": true
 }

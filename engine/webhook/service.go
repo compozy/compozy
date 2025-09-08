@@ -40,6 +40,7 @@ type Orchestrator struct {
 	disp            services.SignalDispatcher
 	maxBody         int64
 	dedupeTTL       time.Duration
+	metrics         *Metrics
 }
 
 // NewOrchestrator creates a new orchestrator with provided dependencies
@@ -63,25 +64,60 @@ func NewOrchestrator(
 	return o
 }
 
+// SetMetrics attaches metrics instrumentation
+func (o *Orchestrator) SetMetrics(m *Metrics) { o.metrics = m }
+
 // Process executes the webhook pipeline for a given slug and request
 func (o *Orchestrator) Process(ctx context.Context, slug string, r *http.Request) (Result, error) {
+	start := time.Now()
+	corrID := requestCorrelationID(r)
 	entry, ok := o.reg.Get(slug)
+	if o.metrics != nil {
+		o.metrics.OnReceived(ctx, slug, func() string {
+			if ok {
+				return entry.WorkflowID
+			}
+			return ""
+		}())
+	}
 	if !ok {
+		logger.FromContext(ctx).Warn("webhook slug not found", "slug", slug, "correlation_id", corrID)
+		if o.metrics != nil {
+			o.metrics.ObserveOverall(ctx, slug, "", time.Since(start))
+		}
 		return Result{Status: http.StatusNotFound}, ErrNotFound
 	}
+	logger.FromContext(ctx).
+		Info("webhook request received", "slug", slug, "workflow_id", entry.WorkflowID, "correlation_id", corrID)
 	body, rres, rerr := o.readBody(ctx, r)
 	if rerr != nil {
+		if o.metrics != nil {
+			o.metrics.OnFailed(ctx, slug, entry.WorkflowID, "bad_request")
+			o.metrics.ObserveOverall(ctx, slug, entry.WorkflowID, time.Since(start))
+		}
 		return rres, rerr
 	}
-	vres, verr := o.verify(ctx, entry, r, body)
+	vres, verr := o.verifyWithMetrics(ctx, entry, r, body, slug)
 	if verr != nil {
+		if o.metrics != nil {
+			o.metrics.ObserveOverall(ctx, slug, entry.WorkflowID, time.Since(start))
+		}
 		return vres, verr
 	}
 	ires, ierr := o.checkIdempotency(ctx, entry, slug, r, body)
 	if ierr != nil {
+		if errors.Is(ierr, ErrDuplicate) && o.metrics != nil {
+			o.metrics.OnDuplicate(ctx, slug, entry.WorkflowID)
+			o.metrics.OnFailed(ctx, slug, entry.WorkflowID, "duplicate")
+			o.metrics.ObserveOverall(ctx, slug, entry.WorkflowID, time.Since(start))
+		}
 		return ires, ierr
 	}
-	return o.processEvents(ctx, entry, r, body)
+	res, err := o.processEventsWithMetrics(ctx, entry, r, body, slug, corrID)
+	if o.metrics != nil {
+		o.metrics.ObserveOverall(ctx, slug, entry.WorkflowID, time.Since(start))
+	}
+	return res, err
 }
 
 func requestCorrelationID(r *http.Request) string {
@@ -118,6 +154,27 @@ func (o *Orchestrator) verify(ctx context.Context, entry RegistryEntry, r *http.
 		}
 	}
 	return Result{}, nil
+}
+
+func (o *Orchestrator) verifyWithMetrics(
+	ctx context.Context,
+	entry RegistryEntry,
+	r *http.Request,
+	body []byte,
+	slug string,
+) (Result, error) {
+	start := time.Now()
+	res, err := o.verify(ctx, entry, r, body)
+	if o.metrics != nil && entry.Webhook != nil && entry.Webhook.Verify != nil &&
+		entry.Webhook.Verify.Strategy != StrategyNone {
+		o.metrics.ObserveVerify(ctx, slug, entry.WorkflowID, time.Since(start))
+		if err == nil {
+			o.metrics.OnVerified(ctx, slug, entry.WorkflowID)
+		} else {
+			o.metrics.OnFailed(ctx, slug, entry.WorkflowID, "verification_failed")
+		}
+	}
+	return res, err
 }
 
 func (o *Orchestrator) checkIdempotency(
@@ -162,47 +219,193 @@ func (o *Orchestrator) checkIdempotency(
 	return Result{}, nil
 }
 
-func (o *Orchestrator) processEvents(
+// removed legacy processEvents in favor of metrics-enabled version
+
+func (o *Orchestrator) processEventsWithMetrics(
 	ctx context.Context,
 	entry RegistryEntry,
 	r *http.Request,
 	body []byte,
+	slug string,
+	corrID string,
 ) (Result, error) {
-	log := logger.FromContext(ctx)
-	var payload map[string]any
-	if err := json.Unmarshal(body, &payload); err != nil {
-		log.Warn("failed to parse json", "error", err)
-		return Result{Status: http.StatusBadRequest}, ErrBadRequest
+	payload, rres, rerr := o.parsePayload(ctx, slug, entry.WorkflowID, corrID, body)
+	if rerr != nil {
+		return rres, rerr
 	}
 	ctxData := BuildContext(payload, r.Header, r.URL.Query())
 	for _, ev := range entry.Webhook.Events {
 		if err := ctx.Err(); err != nil {
-			log.Warn("context canceled", "error", err)
 			return Result{Status: http.StatusRequestTimeout}, err
 		}
-		allow, ferr := o.filter.Allow(ctx, ev.Filter, ctxData)
-		if ferr != nil {
-			log.Warn("filter evaluation failed", "error", ferr, "event", ev.Name)
-			return Result{Status: http.StatusBadRequest}, ErrBadRequest
+		allow, rres, rerr := o.allowEvent(ctx, slug, entry.WorkflowID, corrID, ev, ctxData)
+		if rerr != nil {
+			return rres, rerr
 		}
 		if !allow {
 			continue
 		}
-		rendered, merr := o.render(ctx, RenderContext{Payload: payload}, ev.Input)
-		if merr != nil {
-			log.Warn("render failed", "error", merr, "event", ev.Name)
-			return Result{Status: http.StatusBadRequest}, ErrBadRequest
+		rendered, rres, rerr := o.renderEvent(ctx, slug, entry.WorkflowID, corrID, ev, payload)
+		if rerr != nil {
+			return rres, rerr
 		}
-		if verr := ValidateTemplate(ctx, rendered, ev.Schema); verr != nil {
-			log.Warn("schema validation failed", "error", verr, "event", ev.Name)
-			return Result{Status: http.StatusUnprocessableEntity}, ErrUnprocessableEntity
+		rres2, rerr2 := o.validateEvent(ctx, slug, entry.WorkflowID, corrID, ev, rendered)
+		if rerr2 != nil {
+			return rres2, rerr2
 		}
-		corrID := requestCorrelationID(r)
-		if err := o.disp.DispatchSignal(ctx, ev.Name, rendered, corrID); err != nil {
-			log.Error("dispatch failed", "error", err, "event", ev.Name)
-			return Result{Status: http.StatusInternalServerError}, err
-		}
-		return Result{Status: http.StatusAccepted, Payload: map[string]any{"status": "accepted", "event": ev.Name}}, nil
+		return o.dispatchEvent(ctx, slug, entry.WorkflowID, corrID, ev, rendered)
 	}
+	if o.metrics != nil {
+		o.metrics.OnNoMatch(ctx, slug, entry.WorkflowID)
+		o.metrics.OnFailed(ctx, slug, entry.WorkflowID, "no_match")
+	}
+	logger.FromContext(ctx).Info(
+		"webhook no matching event",
+		"slug", slug,
+		"workflow_id", entry.WorkflowID,
+		"correlation_id", corrID,
+	)
 	return Result{Status: http.StatusNoContent, Payload: map[string]any{"status": "no_matching_event"}}, nil
+}
+
+func (o *Orchestrator) parsePayload(
+	ctx context.Context,
+	slug string,
+	workflowID string,
+	corrID string,
+	body []byte,
+) (map[string]any, Result, error) {
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil {
+		logger.FromContext(ctx).Warn(
+			"failed to parse json",
+			"error", err,
+			"slug", slug,
+			"workflow_id", workflowID,
+			"correlation_id", corrID,
+		)
+		if o.metrics != nil {
+			o.metrics.OnFailed(ctx, slug, workflowID, "bad_request")
+		}
+		return nil, Result{Status: http.StatusBadRequest}, ErrBadRequest
+	}
+	return payload, Result{}, nil
+}
+
+func (o *Orchestrator) allowEvent(
+	ctx context.Context,
+	slug string,
+	workflowID string,
+	corrID string,
+	ev EventConfig,
+	ctxData map[string]any,
+) (bool, Result, error) {
+	allow, ferr := o.filter.Allow(ctx, ev.Filter, ctxData)
+	if ferr != nil {
+		logger.FromContext(ctx).Warn(
+			"filter evaluation failed",
+			"error", ferr,
+			"event", ev.Name,
+			"slug", slug,
+			"workflow_id", workflowID,
+			"correlation_id", corrID,
+		)
+		if o.metrics != nil {
+			o.metrics.OnFailed(ctx, slug, workflowID, "bad_request")
+		}
+		return false, Result{Status: http.StatusBadRequest}, ErrBadRequest
+	}
+	return allow, Result{}, nil
+}
+
+func (o *Orchestrator) renderEvent(
+	ctx context.Context,
+	slug string,
+	workflowID string,
+	corrID string,
+	ev EventConfig,
+	payload map[string]any,
+) (map[string]any, Result, error) {
+	start := time.Now()
+	rendered, merr := o.render(ctx, RenderContext{Payload: payload}, ev.Input)
+	if o.metrics != nil {
+		o.metrics.ObserveRender(ctx, slug, workflowID, ev.Name, time.Since(start))
+	}
+	if merr != nil {
+		logger.FromContext(ctx).Warn(
+			"render failed",
+			"error", merr,
+			"event", ev.Name,
+			"slug", slug,
+			"workflow_id", workflowID,
+			"correlation_id", corrID,
+		)
+		if o.metrics != nil {
+			o.metrics.OnFailed(ctx, slug, workflowID, "render_error")
+		}
+		return nil, Result{Status: http.StatusBadRequest}, ErrBadRequest
+	}
+	return rendered, Result{}, nil
+}
+
+func (o *Orchestrator) validateEvent(
+	ctx context.Context,
+	slug string,
+	workflowID string,
+	corrID string,
+	ev EventConfig,
+	rendered map[string]any,
+) (Result, error) {
+	if verr := ValidateTemplate(ctx, rendered, ev.Schema); verr != nil {
+		logger.FromContext(ctx).Warn(
+			"schema validation failed",
+			"error", verr,
+			"event", ev.Name,
+			"slug", slug,
+			"workflow_id", workflowID,
+			"correlation_id", corrID,
+		)
+		if o.metrics != nil {
+			o.metrics.OnFailed(ctx, slug, workflowID, "schema_error")
+		}
+		return Result{Status: http.StatusUnprocessableEntity}, ErrUnprocessableEntity
+	}
+	return Result{}, nil
+}
+
+func (o *Orchestrator) dispatchEvent(
+	ctx context.Context,
+	slug string,
+	workflowID string,
+	corrID string,
+	ev EventConfig,
+	rendered map[string]any,
+) (Result, error) {
+	start := time.Now()
+	if err := o.disp.DispatchSignal(ctx, ev.Name, rendered, corrID); err != nil {
+		logger.FromContext(ctx).Error(
+			"dispatch failed",
+			"error", err,
+			"event", ev.Name,
+			"slug", slug,
+			"workflow_id", workflowID,
+			"correlation_id", corrID,
+		)
+		if o.metrics != nil {
+			o.metrics.OnFailed(ctx, slug, workflowID, "dispatch_error")
+		}
+		return Result{Status: http.StatusInternalServerError}, err
+	}
+	if o.metrics != nil {
+		o.metrics.ObserveDispatch(ctx, slug, workflowID, ev.Name, time.Since(start))
+		o.metrics.OnDispatched(ctx, slug, workflowID, ev.Name)
+	}
+	logger.FromContext(ctx).Info(
+		"webhook event dispatched",
+		"event", ev.Name,
+		"slug", slug,
+		"workflow_id", workflowID,
+		"correlation_id", corrID,
+	)
+	return Result{Status: http.StatusAccepted, Payload: map[string]any{"status": "accepted", "event": ev.Name}}, nil
 }

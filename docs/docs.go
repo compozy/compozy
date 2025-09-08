@@ -1176,6 +1176,97 @@ const docTemplate = `{
                 }
             }
         },
+        "/hooks/{slug}": {
+            "post": {
+                "description": "Accepts webhook payloads and triggers matching workflow events.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "webhooks"
+                ],
+                "summary": "Trigger webhook",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Webhook slug",
+                        "name": "slug",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Arbitrary JSON payload",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Processed with no matching event",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "202": {
+                        "description": "Accepted and enqueued",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid or oversized payload",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Signature verification failed",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Webhook not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "409": {
+                        "description": "Duplicate idempotency key",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "429": {
+                        "description": "Rate limit exceeded",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/memory/health": {
             "get": {
                 "description": "Returns comprehensive health information for the memory system",
@@ -5721,6 +5812,80 @@ const docTemplate = `{
                 }
             }
         },
+        "webhook.Config": {
+            "type": "object",
+            "properties": {
+                "dedupe": {
+                    "$ref": "#/definitions/webhook.DedupeSpec"
+                },
+                "events": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/webhook.EventConfig"
+                    }
+                },
+                "method": {
+                    "type": "string"
+                },
+                "slug": {
+                    "type": "string"
+                },
+                "verify": {
+                    "$ref": "#/definitions/webhook.VerifySpec"
+                }
+            }
+        },
+        "webhook.DedupeSpec": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "ttl": {
+                    "type": "string"
+                }
+            }
+        },
+        "webhook.EventConfig": {
+            "type": "object",
+            "properties": {
+                "filter": {
+                    "type": "string"
+                },
+                "input": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "schema": {
+                    "$ref": "#/definitions/schema.Schema"
+                }
+            }
+        },
+        "webhook.VerifySpec": {
+            "type": "object",
+            "properties": {
+                "header": {
+                    "type": "string"
+                },
+                "secret": {
+                    "type": "string"
+                },
+                "skew": {
+                    "$ref": "#/definitions/time.Duration"
+                },
+                "strategy": {
+                    "type": "string"
+                }
+            }
+        },
         "wfrouter.EventRequest": {
             "type": "object",
             "required": [
@@ -6012,16 +6177,26 @@ const docTemplate = `{
                             "$ref": "#/definitions/workflow.TriggerType"
                         }
                     ]
+                },
+                "webhook": {
+                    "description": "Webhook holds configuration when Type==webhook",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/webhook.Config"
+                        }
+                    ]
                 }
             }
         },
         "workflow.TriggerType": {
             "type": "string",
             "enum": [
-                "signal"
+                "signal",
+                "webhook"
             ],
             "x-enum-varnames": [
-                "TriggerTypeSignal"
+                "TriggerTypeSignal",
+                "TriggerTypeWebhook"
             ]
         }
     },
