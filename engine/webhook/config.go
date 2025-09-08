@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/engine/schema"
+	"github.com/compozy/compozy/pkg/config"
 )
 
 // Config represents per-workflow webhook settings and routing events.
@@ -40,8 +41,9 @@ type DedupeSpec struct {
 
 // ApplyDefaults sets default values for optional fields.
 func ApplyDefaults(cfg *Config) {
+	globalCfg := config.Get()
 	if cfg.Method == "" {
-		cfg.Method = "POST"
+		cfg.Method = globalCfg.Webhooks.DefaultMethod
 	}
 	if cfg.Verify != nil && cfg.Verify.Strategy == "" {
 		cfg.Verify.Strategy = StrategyNone

@@ -9,16 +9,33 @@ import (
 	"github.com/compozy/compozy/pkg/tplengine"
 )
 
+// TemplateRenderer provides shared template engine functionality
+// to avoid per-call allocations when rendering webhook templates
+type TemplateRenderer struct {
+	engine *tplengine.TemplateEngine
+}
+
+// NewTemplateRenderer creates a new template renderer with a shared engine
+func NewTemplateRenderer() *TemplateRenderer {
+	return &TemplateRenderer{
+		engine: tplengine.NewEngine(tplengine.FormatJSON),
+	}
+}
+
 type RenderContext struct {
 	Payload map[string]any
 }
 
-func RenderTemplate(ctx context.Context, rctx RenderContext, input map[string]string) (map[string]any, error) {
+// RenderTemplate renders webhook templates using the shared template engine
+func (r *TemplateRenderer) RenderTemplate(
+	ctx context.Context,
+	rctx RenderContext,
+	input map[string]string,
+) (map[string]any, error) {
 	_ = ctx
-	engine := tplengine.NewEngine(tplengine.FormatJSON)
 	out := make(map[string]any, len(input))
 	for k, tmpl := range input {
-		val, err := engine.ParseAny(tmpl, map[string]any{"payload": rctx.Payload})
+		val, err := r.engine.ParseAny(tmpl, map[string]any{"payload": rctx.Payload})
 		if err != nil {
 			if isMissingKeyErr(err) {
 				out[k] = ""

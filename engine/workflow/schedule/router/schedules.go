@@ -4,7 +4,6 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/compozy/compozy/engine/infra/server/appstate"
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/workflow/schedule"
 	"github.com/gin-gonic/gin"
@@ -41,7 +40,16 @@ func getScheduleManager(c *gin.Context) (schedule.Manager, bool) {
 		))
 		return nil, false
 	}
-	scheduleManager, ok := appState.Extensions[appstate.ScheduleManagerKey].(schedule.Manager)
+	v, ok := appState.ScheduleManager()
+	if !ok || v == nil {
+		router.RespondWithError(c, http.StatusInternalServerError, router.NewRequestError(
+			http.StatusInternalServerError,
+			"schedule manager not initialized",
+			errors.New("schedule manager not found in app state"),
+		))
+		return nil, false
+	}
+	scheduleManager, ok := v.(schedule.Manager)
 	if !ok || scheduleManager == nil {
 		router.RespondWithError(c, http.StatusInternalServerError, router.NewRequestError(
 			http.StatusInternalServerError,

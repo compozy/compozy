@@ -9,6 +9,7 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task/services"
+	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 )
 
@@ -35,7 +36,7 @@ type Orchestrator struct {
 	reg             Lookup
 	verifierFactory func(VerifyConfig) (Verifier, error)
 	idem            Service
-	render          func(context.Context, RenderContext, map[string]string) (map[string]any, error)
+	renderer        *TemplateRenderer
 	filter          *CELAdapter
 	disp            services.SignalDispatcher
 	maxBody         int64
@@ -54,31 +55,34 @@ func NewOrchestrator(
 ) *Orchestrator {
 	o := &Orchestrator{reg: reg, filter: filter, disp: disp, idem: idem, maxBody: maxBody, dedupeTTL: dedupeTTL}
 	o.verifierFactory = NewVerifier
-	o.render = RenderTemplate
+	o.renderer = NewTemplateRenderer()
 	if o.maxBody <= 0 {
-		o.maxBody = 1 << 20
+		globalCfg := config.Get()
+		o.maxBody = globalCfg.Webhooks.DefaultMaxBody
 	}
 	if o.dedupeTTL <= 0 {
-		o.dedupeTTL = 10 * time.Minute
+		globalCfg := config.Get()
+		o.dedupeTTL = globalCfg.Webhooks.DefaultDedupeTTL
 	}
 	return o
 }
 
 // SetMetrics attaches metrics instrumentation
-func (o *Orchestrator) SetMetrics(m *Metrics) { o.metrics = m }
+func (o *Orchestrator) SetMetrics(m *Metrics) {
+	o.metrics = m
+}
 
 // Process executes the webhook pipeline for a given slug and request
 func (o *Orchestrator) Process(ctx context.Context, slug string, r *http.Request) (Result, error) {
 	start := time.Now()
 	corrID := requestCorrelationID(r)
 	entry, ok := o.reg.Get(slug)
+	workflowID := ""
+	if ok {
+		workflowID = entry.WorkflowID
+	}
 	if o.metrics != nil {
-		o.metrics.OnReceived(ctx, slug, func() string {
-			if ok {
-				return entry.WorkflowID
-			}
-			return ""
-		}())
+		o.metrics.OnReceived(ctx, slug, workflowID)
 	}
 	if !ok {
 		logger.FromContext(ctx).Warn("webhook slug not found", "slug", slug, "correlation_id", corrID)
@@ -219,8 +223,6 @@ func (o *Orchestrator) checkIdempotency(
 	return Result{}, nil
 }
 
-// removed legacy processEvents in favor of metrics-enabled version
-
 func (o *Orchestrator) processEventsWithMetrics(
 	ctx context.Context,
 	entry RegistryEntry,
@@ -234,26 +236,30 @@ func (o *Orchestrator) processEventsWithMetrics(
 		return rres, rerr
 	}
 	ctxData := BuildContext(payload, r.Header, r.URL.Query())
+	// Add a reasonable timeout for event processing
+	eventCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
 	for _, ev := range entry.Webhook.Events {
-		if err := ctx.Err(); err != nil {
+		if err := eventCtx.Err(); err != nil {
 			return Result{Status: http.StatusRequestTimeout}, err
 		}
-		allow, rres, rerr := o.allowEvent(ctx, slug, entry.WorkflowID, corrID, ev, ctxData)
+		allow, rres, rerr := o.allowEvent(eventCtx, slug, entry.WorkflowID, corrID, ev, ctxData)
 		if rerr != nil {
 			return rres, rerr
 		}
 		if !allow {
 			continue
 		}
-		rendered, rres, rerr := o.renderEvent(ctx, slug, entry.WorkflowID, corrID, ev, payload)
+		rendered, rres, rerr := o.renderEvent(eventCtx, slug, entry.WorkflowID, corrID, ev, payload)
 		if rerr != nil {
 			return rres, rerr
 		}
-		rres2, rerr2 := o.validateEvent(ctx, slug, entry.WorkflowID, corrID, ev, rendered)
+		rres2, rerr2 := o.validateEvent(eventCtx, slug, entry.WorkflowID, corrID, ev, rendered)
 		if rerr2 != nil {
 			return rres2, rerr2
 		}
-		return o.dispatchEvent(ctx, slug, entry.WorkflowID, corrID, ev, rendered)
+		return o.dispatchEvent(eventCtx, slug, entry.WorkflowID, corrID, ev, rendered)
 	}
 	if o.metrics != nil {
 		o.metrics.OnNoMatch(ctx, slug, entry.WorkflowID)
@@ -327,7 +333,7 @@ func (o *Orchestrator) renderEvent(
 	payload map[string]any,
 ) (map[string]any, Result, error) {
 	start := time.Now()
-	rendered, merr := o.render(ctx, RenderContext{Payload: payload}, ev.Input)
+	rendered, merr := o.renderer.RenderTemplate(ctx, RenderContext{Payload: payload}, ev.Input)
 	if o.metrics != nil {
 		o.metrics.ObserveRender(ctx, slug, workflowID, ev.Name, time.Since(start))
 	}

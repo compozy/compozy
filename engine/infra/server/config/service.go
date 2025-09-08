@@ -99,7 +99,7 @@ func (s *service) LoadProject(
 	slugs := workflow.SlugsFromList(workflows)
 	if err := project.NewWebhookSlugsValidator(slugs).Validate(); err != nil {
 		log.Error("Invalid webhook configuration", "error", err)
-		return nil, nil, nil, err
+		return nil, nil, nil, fmt.Errorf("webhook configuration invalid: %w", err)
 	}
 
 	return projectConfig, workflows, configRegistry, nil

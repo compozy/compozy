@@ -343,17 +343,21 @@ func GenerateParserSchemas(ctx context.Context, outDir string) error {
 										"name":   map[string]any{"type": "string"},
 										"schema": map[string]any{"$ref": "#/$defs/Schema"},
 									},
-									"required": []any{"type", "name"},
+									"unevaluatedProperties": false,
+									"required":              []any{"type", "name"},
 								},
 								map[string]any{
 									"properties": map[string]any{
 										"type":    map[string]any{"const": "webhook"},
 										"webhook": map[string]any{"$ref": "webhook.json"},
 									},
-									"required": []any{"type", "webhook"},
+									"unevaluatedProperties": false,
+									"required":              []any{"type", "webhook"},
 								},
 							}
 							trig["type"] = "object"
+							// Optional: discriminator hint for tooling
+							trig["discriminator"] = map[string]any{"propertyName": "type"}
 							delete(trig, "properties")
 							updated = true
 						}

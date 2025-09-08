@@ -194,6 +194,74 @@ func TestCELEvaluator_Evaluate(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, result2)
 	})
+	t.Run("Should evaluate expressions with headers variable", func(t *testing.T) {
+		evaluator, err := NewCELEvaluator()
+		require.NoError(t, err)
+		ctx := context.Background()
+		data := map[string]any{
+			"headers": map[string]any{
+				"content-type": "application/json",
+				"user-agent":   "test-agent",
+			},
+		}
+		result, err := evaluator.Evaluate(ctx, `headers["content-type"] == "application/json"`, data)
+		require.NoError(t, err)
+		assert.True(t, result)
+	})
+	t.Run("Should evaluate expressions with query variable", func(t *testing.T) {
+		evaluator, err := NewCELEvaluator()
+		require.NoError(t, err)
+		ctx := context.Background()
+		data := map[string]any{
+			"query": map[string]any{
+				"status": "active",
+				"limit":  "10",
+			},
+		}
+		result, err := evaluator.Evaluate(ctx, `query.status == "active"`, data)
+		require.NoError(t, err)
+		assert.True(t, result)
+	})
+	t.Run("Should evaluate expressions with payload, headers, and query together", func(t *testing.T) {
+		evaluator, err := NewCELEvaluator()
+		require.NoError(t, err)
+		ctx := context.Background()
+		data := map[string]any{
+			"payload": map[string]any{
+				"action": "create",
+				"userId": 123,
+			},
+			"headers": map[string]any{
+				"authorization": "Bearer token123",
+				"content-type":  "application/json",
+			},
+			"query": map[string]any{
+				"source":  "web",
+				"version": "v1",
+			},
+		}
+		// Test webhook filter condition using all three variables
+		expression := `payload.action == "create" && headers["content-type"] == "application/json" && query.source == "web"`
+		result, err := evaluator.Evaluate(ctx, expression, data)
+		require.NoError(t, err)
+		assert.True(t, result)
+	})
+	t.Run("Should handle empty headers and query maps", func(t *testing.T) {
+		evaluator, err := NewCELEvaluator()
+		require.NoError(t, err)
+		ctx := context.Background()
+		data := map[string]any{
+			"payload": map[string]any{
+				"status": "ok",
+			},
+			"headers": map[string]any{},
+			"query":   map[string]any{},
+		}
+		// Test that empty headers and query maps don't cause errors
+		result, err := evaluator.Evaluate(ctx, `payload.status == "ok"`, data)
+		require.NoError(t, err)
+		assert.True(t, result)
+	})
 	t.Run("Should cache compiled programs for performance", func(t *testing.T) {
 		// Use small cache size to test eviction
 		evaluator, err := NewCELEvaluator(WithCacheSize(3))
@@ -305,7 +373,7 @@ func TestCELEvaluator_CostLimit(t *testing.T) {
 		// This expression has high cost due to multiple string operations
 		result, err := evaluator.Evaluate(
 			ctx,
-			`signal.payload.value + signal.payload.value + signal.payload.value + 
+			`signal.payload.value + signal.payload.value + signal.payload.value +
 			 signal.payload.value + signal.payload.value + signal.payload.value +
 			 signal.payload.value + signal.payload.value + signal.payload.value +
 			 signal.payload.value + signal.payload.value + signal.payload.value == "testtesttesttesttesttesttesttesttesttesttesttest"`,

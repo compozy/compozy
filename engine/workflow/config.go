@@ -684,11 +684,17 @@ func FindAgentConfig[C core.Config](workflows []*Config, agentID string) (C, err
 	return cfg, fmt.Errorf("agent not found: %s", agentID)
 }
 
-// SlugsFromList returns the slugs from a list of workflows
+// SlugsFromList returns all webhook slugs from a list of workflows.
+// Empty slugs are ignored.
 func SlugsFromList(workflows []*Config) []string {
 	slugs := make([]string, 0, len(workflows))
 	for _, wf := range workflows {
-		slugs = append(slugs, wf.ID)
+		for i := range wf.Triggers {
+			t := &wf.Triggers[i]
+			if t.Type == TriggerTypeWebhook && t.Webhook != nil && t.Webhook.Slug != "" {
+				slugs = append(slugs, t.Webhook.Slug)
+			}
+		}
 	}
 	return slugs
 }

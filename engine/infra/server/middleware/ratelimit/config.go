@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/compozy/compozy/engine/infra/server/routes"
 	"github.com/ulule/limiter/v3"
 )
 
@@ -62,33 +63,33 @@ func DefaultConfig() *Config {
 			Disabled: false,
 		},
 		RouteRates: map[string]RateConfig{
-			"/api/v0/memory": {
+			routes.Base() + "/memory": {
 				Limit:    200, // More reasonable for memory operations
 				Period:   1 * time.Minute,
 				Disabled: false,
 			},
-			"/api/v0/hooks": {
+			routes.Hooks(): {
 				Limit:    60, // Moderate default for public webhooks
 				Period:   1 * time.Minute,
 				Disabled: false,
 			},
-			"/api/v0/workflow": {
+			routes.Base() + "/workflow": {
 				Limit:    100,
 				Period:   1 * time.Minute,
 				Disabled: false,
 			},
-			"/api/v0/task": {
+			routes.Base() + "/task": {
 				Limit:    100,
 				Period:   1 * time.Minute,
 				Disabled: false,
 			},
 			// Auth endpoints - stricter limits to prevent brute force attacks
-			"/api/v0/auth": {
+			routes.Base() + "/auth": {
 				Limit:    20, // Stricter limit for auth operations
 				Period:   1 * time.Minute,
 				Disabled: false,
 			},
-			"/api/v0/users": {
+			routes.Base() + "/users": {
 				Limit:    30, // Moderate limit for user management (admin only)
 				Period:   1 * time.Minute,
 				Disabled: false,
@@ -106,7 +107,7 @@ func DefaultConfig() *Config {
 			"/health",
 			"/metrics",
 			"/swagger",
-			"/api/v0/health",
+			routes.HealthVersioned(),
 		},
 		ExcludedIPs: []string{},
 		FailOpen:    true, // Default to fail-open for availability

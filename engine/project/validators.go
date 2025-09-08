@@ -38,7 +38,7 @@ func NewWebhookSlugsValidator(slugs []string) *WebhookSlugsValidator {
 }
 
 func (v *WebhookSlugsValidator) Validate() error {
-	seen := map[string]struct{}{}
+	seen := make(map[string]struct{}, len(v.slugs))
 	for _, slug := range v.slugs {
 		if slug == "" {
 			continue

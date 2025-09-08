@@ -237,6 +237,6 @@ func TestFactory_ErrorPaths(t *testing.T) {
 	t.Run("Should fail when env secret not set", func(t *testing.T) {
 		_, err := NewVerifier(VerifyConfig{Strategy: "github", Secret: "env://MISSING_ENV_VAR"})
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "secret env not set")
+		assert.Contains(t, err.Error(), "secret env \"MISSING_ENV_VAR\" not set")
 	})
 }

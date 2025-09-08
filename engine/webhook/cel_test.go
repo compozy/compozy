@@ -11,26 +11,28 @@ import (
 )
 
 func TestCELAdapter_Allow(t *testing.T) {
+	t.Parallel()
 	eval, err := task.NewCELEvaluator()
 	require.NoError(t, err)
 	a := NewCELAdapter(eval)
 	ctx := context.Background()
 
 	t.Run("Should allow when expression is true", func(t *testing.T) {
+		t.Parallel()
 		data := map[string]any{"payload": map[string]any{"status": "ok"}}
 		allowed, err := a.Allow(ctx, "payload.status == 'ok'", data)
 		require.NoError(t, err)
 		assert.True(t, allowed)
 	})
-
 	t.Run("Should reject when expression is false", func(t *testing.T) {
+		t.Parallel()
 		data := map[string]any{"payload": map[string]any{"status": "fail"}}
 		allowed, err := a.Allow(ctx, "payload.status == 'ok'", data)
 		require.NoError(t, err)
 		assert.False(t, allowed)
 	})
-
 	t.Run("Should return error on invalid syntax", func(t *testing.T) {
+		t.Parallel()
 		data := map[string]any{"payload": map[string]any{"status": "ok"}}
 		_, err := a.Allow(ctx, "payload.status = 'ok'", data)
 		require.Error(t, err)

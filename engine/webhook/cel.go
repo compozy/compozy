@@ -2,6 +2,7 @@ package webhook
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/url"
 
@@ -22,21 +23,33 @@ func NewCELAdapter(eval *task.CELEvaluator) *CELAdapter {
 
 // Allow returns true when the CEL expression evaluates to true. Empty expressions allow by default.
 func (a *CELAdapter) Allow(ctx context.Context, expr string, data map[string]any) (bool, error) {
+	if a == nil || a.eval == nil {
+		return false, fmt.Errorf("cel adapter not initialized")
+	}
 	if expr == "" {
 		return true, nil
 	}
 	return a.eval.Evaluate(ctx, expr, data)
 }
 
+const (
+	ctxKeyPayload = "payload"
+	ctxKeyHeaders = "headers"
+	ctxKeyQuery   = "query"
+)
+
 // BuildContext builds the evaluation context map for webhook filters.
 // Primary contract exposes only payload; headers and query are provided for extensibility.
 func BuildContext(payload map[string]any, headers http.Header, query url.Values) map[string]any {
-	ctx := map[string]any{"payload": payload}
+	if payload == nil {
+		payload = map[string]any{}
+	}
+	ctx := map[string]any{ctxKeyPayload: payload}
 	if headers != nil {
-		ctx["headers"] = headers
+		ctx[ctxKeyHeaders] = headers
 	}
 	if query != nil {
-		ctx["query"] = query
+		ctx[ctxKeyQuery] = query
 	}
 	return ctx
 }

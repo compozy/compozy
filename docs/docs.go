@@ -1192,10 +1192,46 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
+                        "example": "\"my-webhook\"",
                         "description": "Webhook slug",
                         "name": "slug",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"idemp-123\"",
+                        "description": "Optional idempotency key to prevent duplicate processing",
+                        "name": "X-Idempotency-Key",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"corr-456\"",
+                        "description": "Optional correlation ID for request tracing",
+                        "name": "X-Correlation-ID",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"sha256=abc123...\"",
+                        "description": "Optional HMAC signature header (configurable per webhook)",
+                        "name": "X-Sig",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"t=123,v1=def...\"",
+                        "description": "Stripe webhook signature (when using stripe verification)",
+                        "name": "Stripe-Signature",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"sha256=ghi789...\"",
+                        "description": "GitHub webhook signature (when using github verification)",
+                        "name": "X-Hub-Signature-256",
+                        "in": "header"
                     },
                     {
                         "description": "Arbitrary JSON payload",
@@ -1209,59 +1245,129 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Processed with no matching event",
+                        "description": "Processed with no matching event\" example({\"status\":200,\"message\":\"no matching event\",\"data\":{}})",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     },
                     "202": {
-                        "description": "Accepted and enqueued",
+                        "description": "Accepted and enqueued\" example({\"status\":202,\"message\":\"webhook accepted\",\"data\":{\"event_id\":\"evt_123\"}})",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     },
                     "400": {
-                        "description": "Invalid or oversized payload",
+                        "description": "Invalid or oversized payload\" example({\"status\":400,\"error\":{\"code\":\"BAD_REQUEST\",\"message\":\"invalid payload\",\"details\":\"payload too large\"}})",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     },
                     "401": {
-                        "description": "Signature verification failed",
+                        "description": "Signature verification failed\" example({\"status\":401,\"error\":{\"code\":\"UNAUTHORIZED\",\"message\":\"signature verification failed\",\"details\":\"invalid signature\"}})",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     },
                     "404": {
-                        "description": "Webhook not found",
+                        "description": "Webhook not found\" example({\"status\":404,\"error\":{\"code\":\"NOT_FOUND\",\"message\":\"webhook not found\",\"details\":\"\"}})",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     },
                     "409": {
-                        "description": "Duplicate idempotency key",
+                        "description": "Duplicate idempotency key\" example({\"status\":409,\"error\":{\"code\":\"DUPLICATE\",\"message\":\"duplicate request\",\"details\":\"idempotency key already processed\"}})",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "429": {
-                        "description": "Rate limit exceeded",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     },
                     "500": {
-                        "description": "Internal server error",
+                        "description": "Internal server error\" example({\"status\":500,\"error\":{\"code\":\"INTERNAL_ERROR\",\"message\":\"internal server error\",\"details\":\"\"}})",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 }

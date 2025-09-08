@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/engine/infra/server/appstate"
+	"github.com/compozy/compozy/engine/infra/server/routes"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/engine/workflow/schedule"
@@ -90,14 +91,13 @@ func setupTest(_ *testing.T) (*gin.Engine, *MockScheduleManager) {
 				Name: "test-project",
 			},
 		},
-		Extensions: map[string]any{
-			appstate.ScheduleManagerKey: mockManager,
-		},
+		Extensions: map[appstate.ExtensionKey]any{},
 	}
+	state.SetScheduleManager(mockManager)
 	// Add middleware
 	router.Use(appstate.StateMiddleware(state))
 	// Register routes
-	apiBase := router.Group("/api/v0")
+	apiBase := router.Group(routes.Base())
 	Register(apiBase)
 	return router, mockManager
 }
@@ -135,7 +135,7 @@ func TestListSchedules(t *testing.T) {
 		}
 		mockManager.On("ListSchedules", mock.Anything).Return(schedules, nil)
 		// Make request
-		req := httptest.NewRequest("GET", "/api/v0/schedules", http.NoBody)
+		req := httptest.NewRequest("GET", routes.Base()+"/schedules", http.NoBody)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 		// Verify response
@@ -164,7 +164,7 @@ func TestListSchedules(t *testing.T) {
 	t.Run("Should handle empty schedule list", func(t *testing.T) {
 		router, mockManager := setupTest(t)
 		mockManager.On("ListSchedules", mock.Anything).Return([]*schedule.Info{}, nil)
-		req := httptest.NewRequest("GET", "/api/v0/schedules", http.NoBody)
+		req := httptest.NewRequest("GET", routes.Base()+"/schedules", http.NoBody)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -180,7 +180,7 @@ func TestListSchedules(t *testing.T) {
 	t.Run("Should handle list error", func(t *testing.T) {
 		router, mockManager := setupTest(t)
 		mockManager.On("ListSchedules", mock.Anything).Return(nil, errors.New("failed to connect"))
-		req := httptest.NewRequest("GET", "/api/v0/schedules", http.NoBody)
+		req := httptest.NewRequest("GET", routes.Base()+"/schedules", http.NoBody)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
@@ -213,7 +213,7 @@ func TestGetSchedule(t *testing.T) {
 			LastRunStatus: "unknown",
 		}
 		mockManager.On("GetSchedule", mock.Anything, "workflow-1").Return(scheduleInfo, nil)
-		req := httptest.NewRequest("GET", "/api/v0/schedules/workflow-1", http.NoBody)
+		req := httptest.NewRequest("GET", routes.Base()+"/schedules/workflow-1", http.NoBody)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -234,7 +234,7 @@ func TestGetSchedule(t *testing.T) {
 		router, mockManager := setupTest(t)
 		mockManager.On("GetSchedule", mock.Anything, "workflow-999").
 			Return(nil, schedule.ErrScheduleNotFound)
-		req := httptest.NewRequest("GET", "/api/v0/schedules/workflow-999", http.NoBody)
+		req := httptest.NewRequest("GET", routes.Base()+"/schedules/workflow-999", http.NoBody)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusNotFound, w.Code)
@@ -276,7 +276,7 @@ func TestUpdateSchedule(t *testing.T) {
 			Enabled: &enabled,
 		}
 		bodyBytes, _ := json.Marshal(body)
-		req := httptest.NewRequest("PATCH", "/api/v0/schedules/workflow-1", bytes.NewBuffer(bodyBytes))
+		req := httptest.NewRequest("PATCH", routes.Base()+"/schedules/workflow-1", bytes.NewBuffer(bodyBytes))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
@@ -298,7 +298,7 @@ func TestUpdateSchedule(t *testing.T) {
 		router, _ := setupTest(t)
 		body := map[string]any{}
 		bodyBytes, _ := json.Marshal(body)
-		req := httptest.NewRequest("PATCH", "/api/v0/schedules/workflow-1", bytes.NewBuffer(bodyBytes))
+		req := httptest.NewRequest("PATCH", routes.Base()+"/schedules/workflow-1", bytes.NewBuffer(bodyBytes))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
@@ -337,7 +337,7 @@ func TestUpdateSchedule(t *testing.T) {
 			Cron: &cronValue,
 		}
 		bodyBytes, _ := json.Marshal(body)
-		req := httptest.NewRequest("PATCH", "/api/v0/schedules/workflow-1", bytes.NewBuffer(bodyBytes))
+		req := httptest.NewRequest("PATCH", routes.Base()+"/schedules/workflow-1", bytes.NewBuffer(bodyBytes))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
@@ -367,7 +367,7 @@ func TestUpdateSchedule(t *testing.T) {
 			Enabled: &enabled,
 		}
 		bodyBytes, _ := json.Marshal(body)
-		req := httptest.NewRequest("PATCH", "/api/v0/schedules/workflow-999", bytes.NewBuffer(bodyBytes))
+		req := httptest.NewRequest("PATCH", routes.Base()+"/schedules/workflow-999", bytes.NewBuffer(bodyBytes))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
@@ -380,7 +380,7 @@ func TestDeleteSchedule(t *testing.T) {
 	t.Run("Should delete schedule successfully", func(t *testing.T) {
 		router, mockManager := setupTest(t)
 		mockManager.On("DeleteSchedule", mock.Anything, "workflow-1").Return(nil)
-		req := httptest.NewRequest("DELETE", "/api/v0/schedules/workflow-1", http.NoBody)
+		req := httptest.NewRequest("DELETE", routes.Base()+"/schedules/workflow-1", http.NoBody)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusNoContent, w.Code)
@@ -391,7 +391,7 @@ func TestDeleteSchedule(t *testing.T) {
 		router, mockManager := setupTest(t)
 		mockManager.On("DeleteSchedule", mock.Anything, "workflow-999").
 			Return(schedule.ErrScheduleNotFound)
-		req := httptest.NewRequest("DELETE", "/api/v0/schedules/workflow-999", http.NoBody)
+		req := httptest.NewRequest("DELETE", routes.Base()+"/schedules/workflow-999", http.NoBody)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusNotFound, w.Code)
@@ -411,7 +411,7 @@ func TestDeleteSchedule(t *testing.T) {
 		router, mockManager := setupTest(t)
 		mockManager.On("DeleteSchedule", mock.Anything, "workflow-1").
 			Return(errors.New("temporal error"))
-		req := httptest.NewRequest("DELETE", "/api/v0/schedules/workflow-1", http.NoBody)
+		req := httptest.NewRequest("DELETE", routes.Base()+"/schedules/workflow-1", http.NoBody)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusInternalServerError, w.Code)

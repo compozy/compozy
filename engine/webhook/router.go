@@ -2,11 +2,24 @@ package webhook
 
 import (
 	"context"
+	"errors"
 	"net/http"
 
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
 )
+
+// SuccessResponse represents the unified success response envelope
+type SuccessResponse struct {
+	Data    any    `json:"data"`
+	Message string `json:"message"`
+}
+
+// ErrorResponse represents the unified error response envelope
+type ErrorResponse struct {
+	Error   string `json:"error"`
+	Details string `json:"details,omitempty"`
+}
 
 // Processor defines the minimal interface required by the HTTP router.
 // It is implemented by Orchestrator.
@@ -22,48 +35,71 @@ type Processor interface {
 // @Tags webhooks
 // @Accept json
 // @Produce json
-// @Param slug path string true "Webhook slug"
+// @Param slug path string true "Webhook slug" example("my-webhook")
+// @Param X-Idempotency-Key header string false "Optional idempotency key to prevent duplicate processing"
+// @Param X-Idempotency-Key example("idemp-123")
+// @Param X-Correlation-ID header string false "Optional correlation ID for request tracing"
+// @Param X-Correlation-ID example("corr-456")
+// @Param X-Sig header string false "Optional HMAC signature header (configurable per webhook)"
+// @Param X-Sig example("sha256=abc123...")
+// @Param Stripe-Signature header string false "Stripe webhook signature (when using stripe verification)"
+// @Param Stripe-Signature example("t=123,v1=def...")
+// @Param X-Hub-Signature-256 header string false "GitHub webhook signature (when using github verification)"
+// @Param X-Hub-Signature-256 example("sha256=ghi789...")
 // @Param payload body object true "Arbitrary JSON payload"
-// @Success 202 {object} map[string]any "Accepted and enqueued"
-// @Success 200 {object} map[string]any "Processed with no matching event"
-// @Failure 400 {object} map[string]any "Invalid or oversized payload"
-// @Failure 401 {object} map[string]any "Signature verification failed"
-// @Failure 404 {object} map[string]any "Webhook not found"
-// @Failure 409 {object} map[string]any "Duplicate idempotency key"
-// @Failure 429 {object} map[string]any "Rate limit exceeded"
-// @Failure 500 {object} map[string]any "Internal server error"
-// @Router /hooks/{slug} [post]
+// @Param payload example({"event":"user.created","data":{"id":123,"name":"John"}})
+// @Success 202 {object} SuccessResponse "Accepted and enqueued"
+// @Success 200 {object} SuccessResponse "Processed successfully"
+// @Failure 400 {object} ErrorResponse "Invalid or oversized payload"
+// @Failure 401 {object} ErrorResponse "Signature verification failed"
+// @Failure 404 {object} ErrorResponse "Webhook not found"
+// @Failure 409 {object} ErrorResponse "Duplicate idempotency key"
+// @Failure 422 {object} ErrorResponse "Unprocessable entity"
+// @Failure 429 {object} ErrorResponse "Rate limit exceeded"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @x-example-success {"data":{"result":"ok"},"message":"Success"}
+// @x-example-error {"error":"bad_request","details":"invalid JSON payload"}
+// @Router /api/v0/hooks/{slug} [post]
 func RegisterPublic(r *gin.RouterGroup, p Processor) {
 	r.POST("/:slug", func(c *gin.Context) {
 		slug := c.Param("slug")
 		res, err := p.Process(c.Request.Context(), slug, c.Request)
 		if err != nil {
-			switch err {
-			case ErrNotFound:
-				c.JSON(res.Status, gin.H{"error": "not_found"})
-			case ErrUnauthorized:
-				c.JSON(res.Status, gin.H{"error": "unauthorized"})
-			case ErrDuplicate:
-				c.JSON(res.Status, gin.H{"error": "duplicate"})
-			case ErrBadRequest:
-				c.JSON(res.Status, gin.H{"error": "bad_request"})
-			case ErrUnprocessableEntity:
-				c.JSON(res.Status, gin.H{"error": "unprocessable_entity"})
+			var statusCode int
+			var errorResponse ErrorResponse
+			switch {
+			case errors.Is(err, ErrNotFound):
+				statusCode = http.StatusNotFound
+				errorResponse = ErrorResponse{Error: "not_found", Details: "webhook not found"}
+			case errors.Is(err, ErrUnauthorized):
+				statusCode = http.StatusUnauthorized
+				errorResponse = ErrorResponse{Error: "unauthorized", Details: "signature verification failed"}
+			case errors.Is(err, ErrDuplicate):
+				statusCode = http.StatusConflict
+				errorResponse = ErrorResponse{Error: "duplicate", Details: "idempotency key already processed"}
+			case errors.Is(err, ErrBadRequest):
+				statusCode = http.StatusBadRequest
+				errorResponse = ErrorResponse{Error: "bad_request", Details: "invalid or oversized payload"}
+			case errors.Is(err, ErrUnprocessableEntity):
+				statusCode = http.StatusUnprocessableEntity
+				errorResponse = ErrorResponse{Error: "unprocessable_entity", Details: "payload processing failed"}
 			default:
 				logger.FromContext(c.Request.Context()).Error("webhook processing failed", "error", err, "slug", slug)
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "internal"})
+				statusCode = http.StatusInternalServerError
+				errorResponse = ErrorResponse{Error: "internal", Details: "internal server error"}
 			}
+			c.JSON(statusCode, errorResponse)
 			return
 		}
-		if res.Payload == nil {
-			c.Status(res.Status)
-			return
+		// Always return responses using the mandated envelope {data, message}
+		status := res.Status
+		if status == http.StatusNoContent {
+			status = http.StatusOK
 		}
-		if res.Status == http.StatusNoContent {
-			// Return 200 with explicit payload to avoid proxies dropping bodies on 204
-			c.JSON(http.StatusOK, res.Payload)
-			return
+		envelope := SuccessResponse{
+			Data:    res.Payload,
+			Message: "Success",
 		}
-		c.JSON(res.Status, res.Payload)
+		c.JSON(status, envelope)
 	})
 }

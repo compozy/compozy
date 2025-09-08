@@ -1,6 +1,7 @@
 package size
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -9,6 +10,13 @@ import (
 // BodySizeLimiter limits the request body size for the route group.
 func BodySizeLimiter(limit int64) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if c.Request.ContentLength > 0 && c.Request.ContentLength > limit {
+			c.AbortWithStatusJSON(http.StatusRequestEntityTooLarge, gin.H{
+				"error":   "request body too large",
+				"details": "max bytes allowed: " + fmt.Sprint(limit),
+			})
+			return
+		}
 		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, limit)
 		c.Next()
 	}

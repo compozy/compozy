@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/cli/tui/models"
+	"github.com/compozy/compozy/engine/infra/server/routes"
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 )
@@ -55,7 +56,7 @@ func getBaseURL(cfg *config.Config) (string, error) {
 		cfg.Server.Host == "::1" {
 		scheme = "http"
 	}
-	baseURL := fmt.Sprintf("%s://%s:%d/api/v0", scheme, cfg.Server.Host, cfg.Server.Port)
+	baseURL := fmt.Sprintf("%s://%s:%d%s", scheme, cfg.Server.Host, cfg.Server.Port, routes.Base())
 
 	// Final validation
 	if _, err := url.Parse(baseURL); err != nil {

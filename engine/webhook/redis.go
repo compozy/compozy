@@ -25,7 +25,7 @@ type redisSvc struct {
 	client RedisClient
 }
 
-func NewRedisClient(client RedisClient) Service {
+func NewRedisService(client RedisClient) Service {
 	return &redisSvc{client: client}
 }
 
@@ -41,6 +41,7 @@ func (s *redisSvc) CheckAndSet(ctx context.Context, key string, ttl time.Duratio
 }
 
 const HeaderIdempotencyKey = "X-Idempotency-Key"
+const idempotencyPrefix = "idempotency:webhook:"
 
 func DeriveKey(h http.Header, body []byte, jsonField string) (string, error) {
 	if k := strings.TrimSpace(h.Get(HeaderIdempotencyKey)); k != "" {
@@ -51,7 +52,7 @@ func DeriveKey(h http.Header, body []byte, jsonField string) (string, error) {
 	}
 	var m map[string]any
 	if err := json.Unmarshal(body, &m); err != nil {
-		return "", err
+		return "", fmt.Errorf("derive idempotency key: invalid json: %w", err)
 	}
 	v, ok := m[jsonField]
 	if !ok {
@@ -69,5 +70,8 @@ func DeriveKey(h http.Header, body []byte, jsonField string) (string, error) {
 }
 
 func KeyWithNamespace(namespace, key string) string {
-	return "idempotency:webhook:" + namespace + ":" + key
+	if strings.TrimSpace(namespace) == "" {
+		return idempotencyPrefix + key
+	}
+	return idempotencyPrefix + namespace + ":" + key
 }

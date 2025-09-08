@@ -15,9 +15,17 @@ import (
 type contextKey string
 
 const (
-	StateKey           contextKey = "app_state"
-	ScheduleManagerKey string     = "scheduleManager"
-	WebhookRegistryKey string     = "webhook.registry"
+	StateKey contextKey = "app_state"
+)
+
+// ExtensionKey is a distinct type for keys stored in State.Extensions to avoid
+// accidental collisions and stringly-typed access across the codebase.
+// Prefer using helper methods that rely on these typed keys.
+type ExtensionKey string
+
+const (
+	extensionScheduleManagerKey ExtensionKey = "scheduleManager"
+	extensionWebhookRegistryKey ExtensionKey = "webhook.registry"
 )
 
 type BaseDeps struct {
@@ -45,7 +53,7 @@ type State struct {
 	BaseDeps
 	CWD        *core.PathCWD
 	Worker     *worker.Worker
-	Extensions map[string]any
+	Extensions map[ExtensionKey]any
 }
 
 func NewState(deps BaseDeps, worker *worker.Worker) (*State, error) {
@@ -60,7 +68,7 @@ func NewState(deps BaseDeps, worker *worker.Worker) (*State, error) {
 		CWD:        cwd,
 		BaseDeps:   deps,
 		Worker:     worker,
-		Extensions: make(map[string]any),
+		Extensions: make(map[ExtensionKey]any),
 	}, nil
 }
 
@@ -74,6 +82,34 @@ func GetState(ctx context.Context) (*State, error) {
 		return nil, fmt.Errorf("app state not found in context")
 	}
 	return state, nil
+}
+
+// SetWebhookRegistry stores the webhook registry in extensions with type safety
+func (s *State) SetWebhookRegistry(v any) {
+	if s.Extensions == nil {
+		s.Extensions = make(map[ExtensionKey]any)
+	}
+	s.Extensions[extensionWebhookRegistryKey] = v
+}
+
+// WebhookRegistry retrieves the webhook registry from extensions with type safety
+func (s *State) WebhookRegistry() (any, bool) {
+	v, ok := s.Extensions[extensionWebhookRegistryKey]
+	return v, ok
+}
+
+// SetScheduleManager stores the schedule manager in extensions with type safety
+func (s *State) SetScheduleManager(v any) {
+	if s.Extensions == nil {
+		s.Extensions = make(map[ExtensionKey]any)
+	}
+	s.Extensions[extensionScheduleManagerKey] = v
+}
+
+// ScheduleManager retrieves the schedule manager from extensions with type safety
+func (s *State) ScheduleManager() (any, bool) {
+	v, ok := s.Extensions[extensionScheduleManagerKey]
+	return v, ok
 }
 
 func StateMiddleware(state *State) gin.HandlerFunc {

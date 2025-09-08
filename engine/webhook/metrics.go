@@ -2,6 +2,7 @@ package webhook
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/compozy/compozy/pkg/logger"
@@ -26,22 +27,26 @@ type Metrics struct {
 }
 
 // NewMetrics initializes webhook metrics using the provided meter
-func NewMetrics(ctx context.Context, meter metric.Meter) *Metrics {
+func NewMetrics(ctx context.Context, meter metric.Meter) (*Metrics, error) {
 	log := logger.FromContext(ctx)
 	m := &Metrics{meter: meter, log: log}
-	m.init()
-	return m
-}
-
-func (m *Metrics) init() {
-	if m.meter == nil {
-		return
+	if err := m.init(); err != nil {
+		return nil, err
 	}
-	m.initCounters()
-	m.initHistograms()
+	return m, nil
 }
 
-func (m *Metrics) initCounters() {
+func (m *Metrics) init() error {
+	if m.meter == nil {
+		return nil
+	}
+	if err := m.initCounters(); err != nil {
+		return err
+	}
+	return m.initHistograms()
+}
+
+func (m *Metrics) initCounters() error {
 	var err error
 	m.receivedTotal, err = m.meter.Int64Counter(
 		"compozy_webhook_received_total",
@@ -49,7 +54,7 @@ func (m *Metrics) initCounters() {
 		metric.WithUnit("1"),
 	)
 	if err != nil {
-		m.log.Error("Failed to create webhook received counter", "error", err)
+		return fmt.Errorf("failed to create webhook received counter: %w", err)
 	}
 	m.verifiedTotal, err = m.meter.Int64Counter(
 		"compozy_webhook_verified_total",
@@ -57,7 +62,7 @@ func (m *Metrics) initCounters() {
 		metric.WithUnit("1"),
 	)
 	if err != nil {
-		m.log.Error("Failed to create webhook verified counter", "error", err)
+		return fmt.Errorf("failed to create webhook verified counter: %w", err)
 	}
 	m.duplicateTotal, err = m.meter.Int64Counter(
 		"compozy_webhook_duplicate_total",
@@ -65,7 +70,7 @@ func (m *Metrics) initCounters() {
 		metric.WithUnit("1"),
 	)
 	if err != nil {
-		m.log.Error("Failed to create webhook duplicate counter", "error", err)
+		return fmt.Errorf("failed to create webhook duplicate counter: %w", err)
 	}
 	m.dispatchedTotal, err = m.meter.Int64Counter(
 		"compozy_webhook_dispatched_total",
@@ -73,7 +78,7 @@ func (m *Metrics) initCounters() {
 		metric.WithUnit("1"),
 	)
 	if err != nil {
-		m.log.Error("Failed to create webhook dispatched counter", "error", err)
+		return fmt.Errorf("failed to create webhook dispatched counter: %w", err)
 	}
 	m.noMatchTotal, err = m.meter.Int64Counter(
 		"compozy_webhook_no_match_total",
@@ -81,7 +86,7 @@ func (m *Metrics) initCounters() {
 		metric.WithUnit("1"),
 	)
 	if err != nil {
-		m.log.Error("Failed to create webhook no_match counter", "error", err)
+		return fmt.Errorf("failed to create webhook no_match counter: %w", err)
 	}
 	m.failedTotal, err = m.meter.Int64Counter(
 		"compozy_webhook_failed_total",
@@ -89,11 +94,12 @@ func (m *Metrics) initCounters() {
 		metric.WithUnit("1"),
 	)
 	if err != nil {
-		m.log.Error("Failed to create webhook failed counter", "error", err)
+		return fmt.Errorf("failed to create webhook failed counter: %w", err)
 	}
+	return nil
 }
 
-func (m *Metrics) initHistograms() {
+func (m *Metrics) initHistograms() error {
 	var err error
 	m.processingHistogram, err = m.meter.Float64Histogram(
 		"compozy_webhook_processing_duration_seconds",
@@ -101,7 +107,7 @@ func (m *Metrics) initHistograms() {
 		metric.WithExplicitBucketBoundaries(.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10),
 	)
 	if err != nil {
-		m.log.Error("Failed to create webhook processing duration histogram", "error", err)
+		return fmt.Errorf("failed to create webhook processing duration histogram: %w", err)
 	}
 	m.verifyHistogram, err = m.meter.Float64Histogram(
 		"compozy_webhook_verify_duration_seconds",
@@ -109,7 +115,7 @@ func (m *Metrics) initHistograms() {
 		metric.WithExplicitBucketBoundaries(.001, .005, .01, .025, .05, .1, .25, .5),
 	)
 	if err != nil {
-		m.log.Error("Failed to create webhook verify duration histogram", "error", err)
+		return fmt.Errorf("failed to create webhook verify duration histogram: %w", err)
 	}
 	m.renderHistogram, err = m.meter.Float64Histogram(
 		"compozy_webhook_render_duration_seconds",
@@ -117,7 +123,7 @@ func (m *Metrics) initHistograms() {
 		metric.WithExplicitBucketBoundaries(.001, .005, .01, .025, .05, .1, .25, .5),
 	)
 	if err != nil {
-		m.log.Error("Failed to create webhook render duration histogram", "error", err)
+		return fmt.Errorf("failed to create webhook render duration histogram: %w", err)
 	}
 	m.dispatchHistogram, err = m.meter.Float64Histogram(
 		"compozy_webhook_dispatch_duration_seconds",
@@ -125,8 +131,9 @@ func (m *Metrics) initHistograms() {
 		metric.WithExplicitBucketBoundaries(.001, .005, .01, .025, .05, .1, .25, .5, 1),
 	)
 	if err != nil {
-		m.log.Error("Failed to create webhook dispatch duration histogram", "error", err)
+		return fmt.Errorf("failed to create webhook dispatch duration histogram: %w", err)
 	}
+	return nil
 }
 
 func (m *Metrics) attrs(slug, workflowID string) metric.MeasurementOption {

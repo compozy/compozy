@@ -33,7 +33,8 @@ func TestService_CheckAndSet(t *testing.T) {
 	t.Run("Should set key on first call and detect duplicate within TTL", func(t *testing.T) {
 		mr := miniredis.RunT(t)
 		client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-		svc := NewRedisClient(&goRedisAdapter{c: client})
+		defer client.Close()
+		svc := NewRedisService(&goRedisAdapter{c: client})
 		ctx := context.Background()
 		err := svc.CheckAndSet(ctx, "k1", time.Minute)
 		require.NoError(t, err)
@@ -44,7 +45,8 @@ func TestService_CheckAndSet(t *testing.T) {
 	t.Run("Should allow reuse after TTL expiration", func(t *testing.T) {
 		mr := miniredis.RunT(t)
 		client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-		svc := NewRedisClient(&goRedisAdapter{c: client})
+		defer client.Close()
+		svc := NewRedisService(&goRedisAdapter{c: client})
 		ctx := context.Background()
 		err := svc.CheckAndSet(ctx, "k2", time.Second)
 		require.NoError(t, err)
@@ -54,7 +56,7 @@ func TestService_CheckAndSet(t *testing.T) {
 	})
 
 	t.Run("Should propagate client errors", func(t *testing.T) {
-		svc := NewRedisClient(badClient{})
+		svc := NewRedisService(badClient{})
 		err := svc.CheckAndSet(context.Background(), "k3", time.Minute)
 		assert.ErrorIs(t, err, errBoom)
 	})
@@ -67,6 +69,14 @@ func TestDeriveKey(t *testing.T) {
 		got, err := DeriveKey(h, []byte(`{"id":"body-123"}`), "id")
 		require.NoError(t, err)
 		assert.Equal(t, "hdr-123", got)
+	})
+
+	t.Run("Should trim spaces from header value", func(t *testing.T) {
+		h := make(http.Header)
+		h.Set(HeaderIdempotencyKey, "  hdr-456  ")
+		got, err := DeriveKey(h, []byte(`{"id":"body-456"}`), "id")
+		require.NoError(t, err)
+		assert.Equal(t, "hdr-456", got)
 	})
 
 	t.Run("Should derive from JSON field when header missing", func(t *testing.T) {

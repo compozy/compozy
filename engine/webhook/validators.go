@@ -1,6 +1,9 @@
 package webhook
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // ValidateTrigger validates a webhook trigger configuration.
 func ValidateTrigger(cfg *Config) error {
@@ -24,9 +27,12 @@ func validateBasics(cfg *Config) error {
 		return fmt.Errorf("webhook slug is required")
 	}
 	if cfg.Method != "" {
-		m := cfg.Method
-		if m != "POST" && m != "PUT" && m != "PATCH" {
-			return fmt.Errorf("invalid webhook method: %s", m)
+		m := strings.ToUpper(strings.TrimSpace(cfg.Method))
+		switch m {
+		case "POST", "PUT", "PATCH":
+			cfg.Method = m
+		default:
+			return fmt.Errorf("invalid webhook method: %s", cfg.Method)
 		}
 	}
 	if len(cfg.Events) == 0 {
@@ -46,7 +52,7 @@ func validateEvents(cfg *Config) error {
 			return fmt.Errorf("duplicate event name '%s' in webhook trigger", e.Name)
 		}
 		evtNames[e.Name] = struct{}{}
-		if e.Filter == "" {
+		if strings.TrimSpace(e.Filter) == "" {
 			return fmt.Errorf("event[%s] filter is required", e.Name)
 		}
 		if len(e.Input) == 0 {

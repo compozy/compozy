@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/compozy/compozy/pkg/config"
 )
 
 const (
@@ -62,9 +64,10 @@ func NewVerifier(cfg VerifyConfig) (Verifier, error) {
 		}
 		allowedSkew := cfg.Skew
 		if allowedSkew == 0 {
-			allowedSkew = 5 * time.Minute
+			globalCfg := config.Get()
+			allowedSkew = globalCfg.Webhooks.StripeSkew
 		}
-		return stripeVerifier{secret: sec, skew: allowedSkew}, nil
+		return stripeVerifier{secret: sec, skew: allowedSkew, now: time.Now}, nil
 	case StrategyGitHub:
 		sec, err := resolveSecret(cfg.Secret)
 		if err != nil {
@@ -84,7 +87,7 @@ func resolveSecret(s string) ([]byte, error) {
 		key := strings.TrimPrefix(s, prefixEnv)
 		val := os.Getenv(key)
 		if val == "" {
-			return nil, errors.New("secret env not set")
+			return nil, fmt.Errorf("secret env %q not set", key)
 		}
 		return []byte(val), nil
 	}
@@ -123,6 +126,7 @@ func (v hmacVerifier) Verify(_ context.Context, r *http.Request, body []byte) er
 type stripeVerifier struct {
 	secret []byte
 	skew   time.Duration
+	now    func() time.Time
 }
 
 func (v stripeVerifier) Verify(_ context.Context, r *http.Request, body []byte) error {
@@ -138,9 +142,9 @@ func (v stripeVerifier) Verify(_ context.Context, r *http.Request, body []byte) 
 	if err != nil {
 		return errors.New("invalid Stripe timestamp")
 	}
-	now := time.Now()
+	currentTime := v.now()
 	tstamp := time.Unix(ts, 0)
-	if now.Sub(tstamp) > v.skew || tstamp.Sub(now) > v.skew {
+	if currentTime.Sub(tstamp) > v.skew || tstamp.Sub(currentTime) > v.skew {
 		return errors.New("timestamp skew too large")
 	}
 	mac := hmac.New(sha256.New, v.secret)
