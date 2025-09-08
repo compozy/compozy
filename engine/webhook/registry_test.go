@@ -1,29 +1,28 @@
-package registry
+package webhook
 
 import (
 	"sync"
 	"testing"
 
-	"github.com/compozy/compozy/engine/webhook"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestRegistry_AddAndGet(t *testing.T) {
 	t.Run("Should register unique slugs and retrieve entries", func(t *testing.T) {
-		reg := New()
-		e1 := Entry{
+		reg := NewRegistry()
+		e1 := RegistryEntry{
 			WorkflowID: "wf-1",
-			Webhook: &webhook.Config{
+			Webhook: &Config{
 				Slug:   "alpha",
-				Events: []webhook.EventConfig{{Name: "ev", Filter: "true", Input: map[string]string{"a": "b"}}},
+				Events: []EventConfig{{Name: "ev", Filter: "true", Input: map[string]string{"a": "b"}}},
 			},
 		}
-		e2 := Entry{
+		e2 := RegistryEntry{
 			WorkflowID: "wf-2",
-			Webhook: &webhook.Config{
+			Webhook: &Config{
 				Slug:   "beta",
-				Events: []webhook.EventConfig{{Name: "ev2", Filter: "true", Input: map[string]string{"c": "d"}}},
+				Events: []EventConfig{{Name: "ev2", Filter: "true", Input: map[string]string{"c": "d"}}},
 			},
 		}
 		require.NoError(t, reg.Add(" alpha ", e1))
@@ -41,12 +40,12 @@ func TestRegistry_AddAndGet(t *testing.T) {
 
 func TestRegistry_DuplicateSlug(t *testing.T) {
 	t.Run("Should fail on duplicate slug", func(t *testing.T) {
-		reg := New()
-		e := Entry{
+		reg := NewRegistry()
+		e := RegistryEntry{
 			WorkflowID: "wf-1",
-			Webhook: &webhook.Config{
+			Webhook: &Config{
 				Slug:   "dup",
-				Events: []webhook.EventConfig{{Name: "ev", Filter: "true", Input: map[string]string{"a": "b"}}},
+				Events: []EventConfig{{Name: "ev", Filter: "true", Input: map[string]string{"a": "b"}}},
 			},
 		}
 		require.NoError(t, reg.Add("dup", e))
@@ -58,22 +57,22 @@ func TestRegistry_DuplicateSlug(t *testing.T) {
 
 func TestRegistry_SlugValidationAndMismatch(t *testing.T) {
 	t.Run("Should reject empty slug and mismatched payload slug", func(t *testing.T) {
-		reg := New()
-		badEntry := Entry{
+		reg := NewRegistry()
+		badEntry := RegistryEntry{
 			WorkflowID: "wf-1",
-			Webhook: &webhook.Config{
+			Webhook: &Config{
 				Slug:   "beta",
-				Events: []webhook.EventConfig{{Name: "ev", Filter: "true", Input: map[string]string{"a": "b"}}},
+				Events: []EventConfig{{Name: "ev", Filter: "true", Input: map[string]string{"a": "b"}}},
 			},
 		}
 		err1 := reg.Add(" ", badEntry)
 		require.Error(t, err1)
 		assert.ErrorContains(t, err1, "slug must not be empty")
-		mismatch := Entry{
+		mismatch := RegistryEntry{
 			WorkflowID: "wf-2",
-			Webhook: &webhook.Config{
+			Webhook: &Config{
 				Slug:   "gamma",
-				Events: []webhook.EventConfig{{Name: "ev2", Filter: "true", Input: map[string]string{"c": "d"}}},
+				Events: []EventConfig{{Name: "ev2", Filter: "true", Input: map[string]string{"c": "d"}}},
 			},
 		}
 		err2 := reg.Add("delta", mismatch)
@@ -84,12 +83,12 @@ func TestRegistry_SlugValidationAndMismatch(t *testing.T) {
 
 func TestRegistry_ConcurrentReads(t *testing.T) {
 	t.Run("Should handle concurrent Get calls safely", func(t *testing.T) {
-		reg := New()
-		e := Entry{
+		reg := NewRegistry()
+		e := RegistryEntry{
 			WorkflowID: "wf-1",
-			Webhook: &webhook.Config{
+			Webhook: &Config{
 				Slug:   "alpha",
-				Events: []webhook.EventConfig{{Name: "ev", Filter: "true", Input: map[string]string{"a": "b"}}},
+				Events: []EventConfig{{Name: "ev", Filter: "true", Input: map[string]string{"a": "b"}}},
 			},
 		}
 		require.NoError(t, reg.Add("alpha", e))

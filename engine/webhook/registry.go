@@ -1,33 +1,35 @@
-package registry
+package webhook
 
 import (
 	"errors"
 	"fmt"
 	"strings"
 	"sync"
-
-	"github.com/compozy/compozy/engine/webhook"
 )
 
-type Entry struct {
+type RegistryEntry struct {
 	WorkflowID string
-	Webhook    *webhook.Config
+	Webhook    *Config
 }
 
 type Registry struct {
 	mu     sync.RWMutex
-	bySlug map[string]Entry
+	bySlug map[string]RegistryEntry
 }
 
 var ErrDuplicateSlug = errors.New("duplicate webhook slug")
 
-func New() *Registry { return &Registry{bySlug: map[string]Entry{}} }
+func NewRegistry() *Registry {
+	return &Registry{bySlug: map[string]RegistryEntry{}}
+}
 
-type Lookup interface{ Get(string) (Entry, bool) }
+type Lookup interface {
+	Get(string) (RegistryEntry, bool)
+}
 
 func normalizeSlug(s string) string { return strings.ToLower(strings.TrimSpace(s)) }
 
-func (r *Registry) Add(slug string, e Entry) error {
+func (r *Registry) Add(slug string, e RegistryEntry) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	key := normalizeSlug(slug)
@@ -50,7 +52,7 @@ func (r *Registry) Add(slug string, e Entry) error {
 	return nil
 }
 
-func (r *Registry) Get(slug string) (Entry, bool) {
+func (r *Registry) Get(slug string) (RegistryEntry, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	e, ok := r.bySlug[normalizeSlug(slug)]

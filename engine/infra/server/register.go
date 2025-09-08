@@ -17,7 +17,7 @@ import (
 	memrouter "github.com/compozy/compozy/engine/memory/router"
 	tkrouter "github.com/compozy/compozy/engine/task/router"
 	toolrouter "github.com/compozy/compozy/engine/tool/router"
-	"github.com/compozy/compozy/engine/webhook/registry"
+	"github.com/compozy/compozy/engine/webhook"
 	"github.com/compozy/compozy/engine/workflow"
 	wfrouter "github.com/compozy/compozy/engine/workflow/router"
 	schedulerouter "github.com/compozy/compozy/engine/workflow/schedule/router"
@@ -211,12 +211,12 @@ func RegisterRoutes(ctx context.Context, router *gin.Engine, state *appstate.Sta
 }
 
 func attachWebhookRegistry(ctx context.Context, state *appstate.State) error {
-	reg := registry.New()
+	reg := webhook.NewRegistry()
 	for _, wf := range state.Workflows {
 		for i := range wf.Triggers {
 			t := wf.Triggers[i]
 			if t.Type == workflow.TriggerTypeWebhook && t.Webhook != nil {
-				entry := registry.Entry{WorkflowID: wf.ID, Webhook: t.Webhook}
+				entry := webhook.RegistryEntry{WorkflowID: wf.ID, Webhook: t.Webhook}
 				if err := reg.Add(t.Webhook.Slug, entry); err != nil {
 					return fmt.Errorf(
 						"webhook registry: failed to add slug '%s' from workflow '%s': %w",

@@ -1,4 +1,4 @@
-package verify
+package webhook
 
 import (
 	"context"
@@ -33,16 +33,16 @@ type Verifier interface {
 	Verify(ctx context.Context, r *http.Request, body []byte) error
 }
 
-// Config defines verification strategy and options.
-type Config struct {
+// VerifyConfig defines verification strategy and options.
+type VerifyConfig struct {
 	Strategy string
 	Secret   string
 	Header   string
 	Skew     time.Duration
 }
 
-// New creates a Verifier based on the provided configuration.
-func New(cfg Config) (Verifier, error) {
+// NewVerifyConfig creates a Verifier based on the provided configuration.
+func NewVerifyConfig(cfg VerifyConfig) (Verifier, error) {
 	switch cfg.Strategy {
 	case StrategyNone:
 		return noneVerifier{}, nil

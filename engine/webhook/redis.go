@@ -1,4 +1,4 @@
-package idempotency
+package webhook
 
 import (
 	"context"
@@ -23,7 +23,7 @@ type RedisClient interface {
 
 type redisSvc struct{ client RedisClient }
 
-func NewRedis(client RedisClient) Service { return &redisSvc{client: client} }
+func NewRedisClient(client RedisClient) Service { return &redisSvc{client: client} }
 
 func (s *redisSvc) CheckAndSet(ctx context.Context, key string, ttl time.Duration) error {
 	ok, err := s.client.SetNX(ctx, key, 1, ttl)

@@ -1,4 +1,4 @@
-package idempotency
+package webhook
 
 import (
 	"context"
@@ -31,7 +31,7 @@ func TestService_CheckAndSet(t *testing.T) {
 	t.Run("Should set key on first call and detect duplicate within TTL", func(t *testing.T) {
 		mr := miniredis.RunT(t)
 		client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-		svc := NewRedis(&goRedisAdapter{c: client})
+		svc := NewRedisClient(&goRedisAdapter{c: client})
 		ctx := context.Background()
 		err := svc.CheckAndSet(ctx, "k1", time.Minute)
 		require.NoError(t, err)
@@ -42,7 +42,7 @@ func TestService_CheckAndSet(t *testing.T) {
 	t.Run("Should allow reuse after TTL expiration", func(t *testing.T) {
 		mr := miniredis.RunT(t)
 		client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
-		svc := NewRedis(&goRedisAdapter{c: client})
+		svc := NewRedisClient(&goRedisAdapter{c: client})
 		ctx := context.Background()
 		err := svc.CheckAndSet(ctx, "k2", time.Second)
 		require.NoError(t, err)
@@ -52,7 +52,7 @@ func TestService_CheckAndSet(t *testing.T) {
 	})
 
 	t.Run("Should propagate client errors", func(t *testing.T) {
-		svc := NewRedis(badClient{})
+		svc := NewRedisClient(badClient{})
 		err := svc.CheckAndSet(context.Background(), "k3", time.Minute)
 		assert.ErrorIs(t, err, errBoom)
 	})
