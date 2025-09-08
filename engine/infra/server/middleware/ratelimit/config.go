@@ -67,6 +67,11 @@ func DefaultConfig() *Config {
 				Period:   1 * time.Minute,
 				Disabled: false,
 			},
+			"/api/v0/hooks": {
+				Limit:    60, // Moderate default for public webhooks
+				Period:   1 * time.Minute,
+				Disabled: false,
+			},
 			"/api/v0/workflow": {
 				Limit:    100,
 				Period:   1 * time.Minute,

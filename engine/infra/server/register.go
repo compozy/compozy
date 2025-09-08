@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"time"
 
 	docs "github.com/compozy/compozy/docs"
 	agentrouter "github.com/compozy/compozy/engine/agent/router"
@@ -13,11 +14,15 @@ import (
 	_ "github.com/compozy/compozy/engine/infra/monitoring" // Import for swagger docs
 	"github.com/compozy/compozy/engine/infra/server/appstate"
 	authmw "github.com/compozy/compozy/engine/infra/server/middleware/auth"
+	sizemw "github.com/compozy/compozy/engine/infra/server/middleware/size"
 	"github.com/compozy/compozy/engine/memory"
 	memrouter "github.com/compozy/compozy/engine/memory/router"
+	"github.com/compozy/compozy/engine/task"
 	tkrouter "github.com/compozy/compozy/engine/task/router"
+	"github.com/compozy/compozy/engine/task/services"
 	toolrouter "github.com/compozy/compozy/engine/tool/router"
 	"github.com/compozy/compozy/engine/webhook"
+	"github.com/compozy/compozy/engine/worker"
 	"github.com/compozy/compozy/engine/workflow"
 	wfrouter "github.com/compozy/compozy/engine/workflow/router"
 	schedulerouter "github.com/compozy/compozy/engine/workflow/schedule/router"
@@ -27,8 +32,6 @@ import (
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
-
-// moved to register_webhook.go
 
 func CreateHealthHandler(server *Server, version string) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -143,6 +146,10 @@ func RegisterRoutes(ctx context.Context, router *gin.Engine, state *appstate.Sta
 	// Setup Swagger and documentation endpoints
 	setupSwaggerAndDocs(router, prefixURL)
 
+	if err := registerPublicWebhookRoutes(ctx, router, state, prefixURL); err != nil {
+		return err
+	}
+
 	// Root endpoint with API information
 	router.GET("/", func(c *gin.Context) {
 		host := c.Request.Host
@@ -207,6 +214,44 @@ func RegisterRoutes(ctx context.Context, router *gin.Engine, state *appstate.Sta
 		"swagger_base_path", docs.SwaggerInfo.BasePath,
 		"auth_enabled", cfg.Server.Auth.Enabled,
 	)
+	return nil
+}
+
+func registerPublicWebhookRoutes(
+	ctx context.Context,
+	router *gin.Engine,
+	state *appstate.State,
+	prefixURL string,
+) error {
+	const defaultMaxBody int64 = 1 << 20
+	hooks := router.Group(prefixURL + "/hooks")
+	hooks.Use(sizemw.BodySizeLimiter(defaultMaxBody))
+	var reg webhook.Lookup
+	if ext, ok := state.Extensions[appstate.WebhookRegistryKey]; ok {
+		if r, ok := ext.(webhook.Lookup); ok {
+			reg = r
+		}
+	}
+	if reg == nil {
+		reg = webhook.NewRegistry()
+	}
+	eval, err := task.NewCELEvaluator()
+	if err != nil {
+		return fmt.Errorf("failed to init CEL evaluator: %w", err)
+	}
+	filter := webhook.NewCELAdapter(eval)
+	var disp services.SignalDispatcher
+	if state.Worker != nil {
+		disp = worker.NewSignalDispatcher(
+			state.Worker.GetClient(),
+			state.Worker.GetDispatcherID(),
+			state.Worker.GetTaskQueue(),
+			state.Worker.GetDispatcherID(),
+		)
+	}
+	orchestrator := webhook.NewOrchestrator(reg, filter, disp, nil, defaultMaxBody, 10*time.Minute)
+	webhook.RegisterPublic(hooks, orchestrator)
+	_ = ctx
 	return nil
 }
 
