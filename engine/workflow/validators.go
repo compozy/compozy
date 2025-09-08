@@ -7,6 +7,7 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/schema"
+	"github.com/compozy/compozy/engine/webhook"
 )
 
 // -----------------------------------------------------------------------------
@@ -150,23 +151,45 @@ func NewTriggersValidator(config *Config) *TriggersValidator {
 }
 
 func (v *TriggersValidator) Validate() error {
-	seen := map[string]struct{}{}
+	signalNames := map[string]struct{}{}
 	for i := range v.config.Triggers {
-		trigger := &v.config.Triggers[i]
-		if trigger.Type != TriggerTypeSignal {
-			return fmt.Errorf("unsupported trigger type: %s", trigger.Type)
-		}
-		if trigger.Name == "" {
-			return fmt.Errorf("trigger name is required")
-		}
-		if _, dup := seen[trigger.Name]; dup {
-			return fmt.Errorf("duplicate trigger name: %s", trigger.Name)
-		}
-		seen[trigger.Name] = struct{}{}
-		if trigger.Schema != nil {
-			if _, err := trigger.Schema.Compile(); err != nil {
-				return fmt.Errorf("invalid trigger schema for %s: %w", trigger.Name, err)
+		t := &v.config.Triggers[i]
+		switch t.Type {
+		case TriggerTypeSignal:
+			if err := validateSignalTrigger(t, signalNames); err != nil {
+				return err
 			}
+		case TriggerTypeWebhook:
+			if t.Webhook == nil {
+				return fmt.Errorf("webhook config is required for webhook triggers")
+			}
+			if t.Name != "" {
+				return fmt.Errorf("name is not allowed for webhook triggers")
+			}
+			if err := webhook.ValidateTrigger(t.Webhook); err != nil {
+				return err
+			}
+		default:
+			return fmt.Errorf("unsupported trigger type: %s", t.Type)
+		}
+	}
+	return nil
+}
+
+func validateSignalTrigger(t *Trigger, seen map[string]struct{}) error {
+	if t.Name == "" {
+		return fmt.Errorf("trigger name is required")
+	}
+	if t.Webhook != nil {
+		return fmt.Errorf("webhook config is not allowed for signal triggers")
+	}
+	if _, dup := seen[t.Name]; dup {
+		return fmt.Errorf("duplicate trigger name: %s", t.Name)
+	}
+	seen[t.Name] = struct{}{}
+	if t.Schema != nil {
+		if _, err := t.Schema.Compile(); err != nil {
+			return fmt.Errorf("invalid trigger schema for %s: %w", t.Name, err)
 		}
 	}
 	return nil

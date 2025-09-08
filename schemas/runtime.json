@@ -5,30 +5,30 @@
   "description": "Complete runtime configuration for both tool execution and system behavior",
   "properties": {
     "async_token_counter_buffer_size": {
-      "description": "AsyncTokenCounterBufferSize sets the token counter queue size.\n\nLarger buffers handle traffic spikes better but use more memory.\nDefault: 1000",
+      "description": "AsyncTokenCounterBufferSize sets the token counter queue size.\n\nLarger buffers handle traffic spikes better but use more memory.\nDefault: 100",
       "type": "integer"
     },
     "async_token_counter_workers": {
-      "description": "AsyncTokenCounterWorkers sets the number of token counting workers.\n\nMore workers improve throughput for high-volume token counting.\nDefault: 5",
+      "description": "AsyncTokenCounterWorkers sets the number of token counting workers.\n\nMore workers improve throughput for high-volume token counting.\nDefault: 4",
       "type": "integer"
     },
     "bun_permissions": {
-      "description": "BunPermissions defines runtime security permissions for Bun.\n\nDefault: [\"--allow-read\", \"--allow-env\", \"--allow-net\"]",
+      "description": "BunPermissions defines runtime security permissions for Bun.\n\nDefault: [\"--allow-read\"]",
       "items": {
         "type": "string"
       },
       "type": "array"
     },
     "dispatcher_heartbeat_interval": {
-      "description": "DispatcherHeartbeatInterval sets how often dispatchers report health.\n\nLower values provide faster failure detection but increase load.\nDefault: 5s",
+      "description": "DispatcherHeartbeatInterval sets how often dispatchers report health.\n\nLower values provide faster failure detection but increase load.\nDefault: 30s",
       "type": "integer"
     },
     "dispatcher_heartbeat_ttl": {
-      "description": "DispatcherHeartbeatTTL sets heartbeat expiration time.\n\nMust be greater than heartbeat interval to handle network delays.\nDefault: 15s (3x interval)",
+      "description": "DispatcherHeartbeatTTL sets heartbeat expiration time.\n\nMust be greater than heartbeat interval to handle network delays.\nDefault: 90s",
       "type": "integer"
     },
     "dispatcher_stale_threshold": {
-      "description": "DispatcherStaleThreshold defines when a dispatcher is considered failed.\n\nTriggers reassignment of dispatcher's workflows.\nDefault: 30s",
+      "description": "DispatcherStaleThreshold defines when a dispatcher is considered failed.\n\nTriggers reassignment of dispatcher's workflows.\nDefault: 120s",
       "type": "integer"
     },
     "entrypoint": {
@@ -59,7 +59,7 @@
       "type": "string"
     },
     "tool_execution_timeout": {
-      "description": "ToolExecutionTimeout sets the maximum time for tool execution.\n\nPrevents runaway tools from blocking workflows.\nDefault: 30s",
+      "description": "ToolExecutionTimeout sets the maximum time for tool execution.\n\nPrevents runaway tools from blocking workflows.\nDefault: 60s",
       "type": "integer"
     },
     "type": {

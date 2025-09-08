@@ -166,6 +166,8 @@ func TestConfig_TriggerValidation(t *testing.T) {
 	})
 }
 
+// Webhook-specific validations are covered in engine/webhook tests.
+
 func TestConfig_MCPValidation(t *testing.T) {
 	t.Run("Should validate individual MCP configurations", func(t *testing.T) {
 		// Set required environment variable for MCP validation

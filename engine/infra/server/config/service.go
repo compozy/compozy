@@ -89,10 +89,16 @@ func (s *service) LoadProject(
 	}
 
 	ev := ref.NewEvaluator(evaluatorOptions...)
-
 	workflows, err := workflow.WorkflowsFromProject(projectConfig, ev)
 	if err != nil {
 		log.Error("Failed to load workflows", "error", err)
+		return nil, nil, nil, err
+	}
+
+	// Validate webhook slugs
+	slugs := workflow.SlugsFromList(workflows)
+	if err := project.NewWebhookSlugsValidator(slugs).Validate(); err != nil {
+		log.Error("Invalid webhook configuration", "error", err)
 		return nil, nil, nil, err
 	}
 

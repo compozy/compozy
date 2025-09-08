@@ -344,6 +344,16 @@ triggers:
       properties:
         event_data: { type: string }
 
+  - type: webhook
+    webhook:
+      slug: "provider-events"
+      method: POST
+      events:
+        - name: "checkout.session.completed"
+          filter: payload.type == "checkout.session.completed"
+          input:
+            event_id: "{{ payload.id }}"
+
 # Execution sequence
 tasks:
   - id: "task-id"

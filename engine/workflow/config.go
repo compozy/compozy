@@ -15,6 +15,7 @@ import (
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/tool"
+	"github.com/compozy/compozy/engine/webhook"
 	"github.com/compozy/compozy/pkg/ref"
 )
 
@@ -30,6 +31,9 @@ const (
 	// Signal triggers allow workflows to be initiated by external HTTP requests
 	// or system events, enabling webhook-style integrations and event-driven workflows.
 	TriggerTypeSignal TriggerType = "signal"
+	// TriggerTypeWebhook represents HTTP webhook-based triggers.
+	// Webhook triggers enable provider-agnostic ingress with per-event routing and validation.
+	TriggerTypeWebhook TriggerType = "webhook"
 )
 
 // OverlapPolicy defines how scheduled workflows handle overlapping executions.
@@ -86,11 +90,13 @@ const (
 //	      required: [userId, email]
 type Trigger struct {
 	// Type of trigger mechanism (e.g., "signal" for external signals)
-	Type TriggerType `json:"type"             yaml:"type"             mapstructure:"type"`
+	Type TriggerType `json:"type"              yaml:"type"              mapstructure:"type"`
 	// Unique name for identifying this trigger
-	Name string `json:"name"             yaml:"name"             mapstructure:"name"`
+	Name string `json:"name"              yaml:"name"              mapstructure:"name"`
 	// Schema for validating trigger input data (optional)
-	Schema *schema.Schema `json:"schema,omitempty" yaml:"schema,omitempty" mapstructure:"schema,omitempty"`
+	Schema *schema.Schema `json:"schema,omitempty"  yaml:"schema,omitempty"  mapstructure:"schema,omitempty"`
+	// Webhook holds configuration when Type==webhook
+	Webhook *webhook.Config `json:"webhook,omitempty" yaml:"webhook,omitempty" mapstructure:"webhook,omitempty"`
 }
 
 // Schedule defines when and how a workflow should be executed automatically.
@@ -514,6 +520,12 @@ func (w *Config) SetDefaults() {
 			w.Schedule.OverlapPolicy = OverlapSkip
 		}
 	}
+	for i := range w.Triggers {
+		t := &w.Triggers[i]
+		if t.Type == TriggerTypeWebhook && t.Webhook != nil {
+			webhook.ApplyDefaults(t.Webhook)
+		}
+	}
 	for i := range w.MCPs {
 		w.MCPs[i].SetDefaults()
 	}
@@ -670,4 +682,13 @@ func FindAgentConfig[C core.Config](workflows []*Config, agentID string) (C, err
 		}
 	}
 	return cfg, fmt.Errorf("agent not found: %s", agentID)
+}
+
+// SlugsFromList returns the slugs from a list of workflows
+func SlugsFromList(workflows []*Config) []string {
+	slugs := make([]string, 0, len(workflows))
+	for _, wf := range workflows {
+		slugs = append(slugs, wf.ID)
+	}
+	return slugs
 }
