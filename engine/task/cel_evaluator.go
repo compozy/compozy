@@ -44,6 +44,8 @@ func NewCELEvaluator(opts ...CELEvaluatorOption) (*CELEvaluator, error) {
 		cel.Variable("processor", cel.MapType(cel.StringType, cel.DynType)),
 		cel.Variable("task", cel.MapType(cel.StringType, cel.DynType)),
 		cel.Variable("workflow", cel.MapType(cel.StringType, cel.DynType)),
+		// Allow webhook filters to use `{ payload: map[string]any }`
+		cel.Variable("payload", cel.MapType(cel.StringType, cel.DynType)),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create CEL environment: %w", err)
