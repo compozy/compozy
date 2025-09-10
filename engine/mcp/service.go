@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -77,6 +78,10 @@ func (s *RegisterService) Deregister(ctx context.Context, mcpID string) error {
 		return fmt.Errorf("failed to deregister MCP from proxy: %w", err)
 	}
 
+	s.registeredMu.Lock()
+	delete(s.registered, mcpID)
+	s.registeredMu.Unlock()
+
 	log.Info("Successfully deregistered MCP from proxy", "mcp_id", mcpID)
 	return nil
 }
@@ -111,7 +116,11 @@ func (s *RegisterService) ListRegistered(ctx context.Context) ([]string, error) 
 // Shutdown deregisters all MCPs and cleans up resources
 func (s *RegisterService) Shutdown(ctx context.Context) error {
 	log := logger.FromContext(ctx)
-	defer func() { _ = s.proxy.Close() }()
+	defer func() {
+		if err := s.proxy.Close(); err != nil {
+			log.Warn("Failed to close MCP proxy client", "error", err)
+		}
+	}()
 	log.Info("Shutting down MCP register, deregistering all MCPs")
 	ids := s.collectShutdownIDs(ctx)
 	if len(ids) == 0 {
@@ -126,16 +135,17 @@ func (s *RegisterService) Shutdown(ctx context.Context) error {
 // collectShutdownIDs determines which MCP IDs to deregister, preferring locally tracked IDs.
 // Helper placed directly after Shutdown per request.
 func (s *RegisterService) collectShutdownIDs(ctx context.Context) []string {
-	s.registeredMu.RLock()
+	s.registeredMu.Lock()
 	if len(s.registered) > 0 {
 		ids := make([]string, 0, len(s.registered))
 		for id := range s.registered {
 			ids = append(ids, id)
 		}
-		s.registeredMu.RUnlock()
+		s.registered = make(map[string]struct{})
+		s.registeredMu.Unlock()
 		return ids
 	}
-	s.registeredMu.RUnlock()
+	s.registeredMu.Unlock()
 	mcps, err := s.ListRegistered(ctx)
 	if err != nil {
 		logger.FromContext(ctx).Warn("Skipping MCP deregistration due to list failure", "reason", err)
@@ -427,108 +437,135 @@ func parseCommand(command string) ([]string, error) {
 	if command == "" {
 		return nil, fmt.Errorf("command cannot be empty")
 	}
-
-	// Trim whitespace
 	command = strings.TrimSpace(command)
-
-	// Basic validation - reject obviously malicious patterns
 	if strings.Contains(command, "\n") || strings.Contains(command, "\r") {
 		return nil, fmt.Errorf("command cannot contain newlines")
 	}
-
-	// Use shell lexer to properly parse quoted arguments
 	parts, err := shlex.Split(command)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse command: %w", err)
 	}
-
 	if len(parts) == 0 {
 		return nil, fmt.Errorf("command cannot be empty after parsing")
 	}
-
-	// Validate command name (basic check)
 	if strings.HasPrefix(parts[0], "-") {
 		return nil, fmt.Errorf("command name cannot start with dash")
 	}
-
 	return parts, nil
 }
 
 // EnsureMultiple registers multiple MCPs in parallel with error handling
 func (s *RegisterService) EnsureMultiple(ctx context.Context, configs []Config) error {
 	log := logger.FromContext(ctx)
+	if err := s.validateEnsureMultipleInput(ctx, configs); err != nil {
+		return err
+	}
+	maxConcurrent := s.getConcurrencyLimit(log)
+	log.Info("Registering multiple MCPs with proxy", "count", len(configs), "max_concurrent", maxConcurrent)
+	results := s.executeConcurrentRegistrations(ctx, configs, maxConcurrent)
+	s.logRegistrationResults(log, configs, results)
+	return s.aggregateRegistrationErrors(results.errors)
+}
+
+// validateEnsureMultipleInput performs input validation for EnsureMultiple
+func (s *RegisterService) validateEnsureMultipleInput(ctx context.Context, configs []Config) error {
 	if len(configs) == 0 {
 		return nil
 	}
 	if ctx.Err() != nil {
 		return fmt.Errorf("registration canceled: %w", ctx.Err())
 	}
-	log.Info("Registering multiple MCPs with proxy", "count", len(configs))
-	// Use a worker pool for concurrent registration
-	results := make(chan struct {
-		mcpID string
-		err   error
-	}, len(configs))
-	// Limit concurrent registrations to avoid overwhelming the proxy
-	const maxConcurrent = 5
-	work := make(chan Config, len(configs))
-	// Start fixed number of workers
-	for range maxConcurrent {
-		go s.ensureWorker(ctx, work, results)
-	}
-	// Send work to workers with early cancel
-	for i := range configs {
-		if ctx.Err() != nil {
-			close(work)
-			close(results)
-			return fmt.Errorf("registration canceled: %w", ctx.Err())
-		}
-		work <- configs[i]
-	}
-	close(work)
-	// Collect results
-	var errs []error
-	successCount := 0
-	for range configs {
-		select {
-		case res := <-results:
-			if res.err != nil {
-				log.Error("Failed to register MCP", "mcp_id", res.mcpID, "error", res.err)
-				errs = append(errs, fmt.Errorf("MCP %s: %w", res.mcpID, res.err))
-			} else {
-				successCount++
-			}
-		case <-ctx.Done():
-			return fmt.Errorf("registration canceled: %w", ctx.Err())
-		}
-	}
-	close(results)
-	log.Info("MCP registration completed",
-		"total", len(configs),
-		"successful", successCount,
-		"failed", len(errs))
-	// Return combined error if any registrations failed
-	if len(errs) > 0 {
-		return fmt.Errorf("failed to register %d MCPs: %v", len(errs), errs)
-	}
 	return nil
 }
 
-// ensureWorker consumes work items and emits results; placed directly after EnsureMultiple
-func (s *RegisterService) ensureWorker(ctx context.Context, work <-chan Config, results chan<- struct {
-	mcpID string
-	err   error
-}) {
-	for cfg := range work {
-		if ctx.Err() != nil {
-			return
+// getConcurrencyLimit retrieves the maximum concurrent registrations from config with fallback
+func (s *RegisterService) getConcurrencyLimit(log logger.Logger) int {
+	maxConcurrent := 5 // fallback to previous default
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Debug("Config not initialized, using default concurrency limit", "fallback", maxConcurrent)
+			}
+		}()
+		if cfg := appconfig.Get(); cfg != nil && cfg.LLM.MaxConcurrentTools > 0 {
+			maxConcurrent = cfg.LLM.MaxConcurrentTools
 		}
-		err := s.Ensure(ctx, &cfg)
-		results <- struct {
-			mcpID string
-			err   error
-		}{mcpID: cfg.ID, err: err}
+	}()
+	return maxConcurrent
+}
+
+// registrationResults holds the results of concurrent MCP registration
+type registrationResults struct {
+	successCount int
+	errors       []error
+}
+
+// executeConcurrentRegistrations performs the actual concurrent MCP registrations
+func (s *RegisterService) executeConcurrentRegistrations(
+	ctx context.Context,
+	configs []Config,
+	maxConcurrent int,
+) registrationResults {
+	g, gCtx := errgroup.WithContext(ctx)
+	g.SetLimit(maxConcurrent)
+	var mu sync.Mutex
+	var errs []error
+	var successCount int
+	for i := range configs {
+		config := configs[i]
+		g.Go(func() error {
+			return s.registerSingleMCP(gCtx, &config, &mu, &errs, &successCount)
+		})
 	}
+	g.Wait()
+	return registrationResults{
+		successCount: successCount,
+		errors:       errs,
+	}
+}
+
+// registerSingleMCP registers a single MCP and handles result collection
+func (s *RegisterService) registerSingleMCP(
+	ctx context.Context,
+	config *Config,
+	mu *sync.Mutex,
+	errs *[]error,
+	successCount *int,
+) error {
+	log := logger.FromContext(ctx)
+	if err := s.Ensure(ctx, config); err != nil {
+		mu.Lock()
+		log.Error("Failed to register MCP", "mcp_id", config.ID, "error", err)
+		*errs = append(*errs, fmt.Errorf("MCP %s: %w", config.ID, err))
+		mu.Unlock()
+		return err // Continue with other registrations
+	}
+	mu.Lock()
+	*successCount++
+	mu.Unlock()
+	return nil
+}
+
+// logRegistrationResults logs the final results of the MCP registration process
+func (s *RegisterService) logRegistrationResults(log logger.Logger, configs []Config, results registrationResults) {
+	if len(results.errors) > 0 {
+		log.Info("MCP registration completed with errors",
+			"total", len(configs),
+			"successful", results.successCount,
+			"failed", len(results.errors))
+	} else {
+		log.Info("MCP registration completed successfully",
+			"total", len(configs),
+			"successful", results.successCount)
+	}
+}
+
+// aggregateRegistrationErrors combines multiple registration errors into a single error
+func (s *RegisterService) aggregateRegistrationErrors(errs []error) error {
+	if len(errs) > 0 {
+		return fmt.Errorf("failed to register %d MCPs: %w", len(errs), errors.Join(errs...))
+	}
+	return nil
 }
 
 // -----------------------------------------------------------------------------
@@ -539,7 +576,7 @@ func (s *RegisterService) ensureWorker(ctx context.Context, work <-chan Config, 
 // Returns nil if MCP_PROXY_URL is not configured
 func SetupForWorkflows(ctx context.Context, workflows []WorkflowConfig) (*RegisterService, error) {
 	log := logger.FromContext(ctx)
-	service := setupRegisterServiceFromApp(log)
+	service := setupRegisterServiceFromApp(ctx)
 	if service == nil {
 		return nil, nil
 	}
@@ -590,7 +627,8 @@ func SetupForWorkflows(ctx context.Context, workflows []WorkflowConfig) (*Regist
 }
 
 // setupRegisterServiceFromApp builds a RegisterService from application config; helper placed under its caller
-func setupRegisterServiceFromApp(log logger.Logger) *RegisterService {
+func setupRegisterServiceFromApp(ctx context.Context) *RegisterService {
+	log := logger.FromContext(ctx)
 	proxyURL := appconfig.Get().LLM.ProxyURL
 	if proxyURL == "" {
 		return nil
