@@ -3,8 +3,8 @@ package server
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"sort"
-	"time"
 
 	docs "github.com/compozy/compozy/docs"
 	agentrouter "github.com/compozy/compozy/engine/agent/router"
@@ -60,10 +60,10 @@ func setupSwaggerAndDocs(router *gin.Engine, prefixURL string) {
 	// Configure gin-swagger with custom URL
 	url := ginSwagger.URL("/swagger/doc.json")
 	router.GET("/swagger-ui", func(c *gin.Context) {
-		c.Redirect(301, "/swagger/index.html")
+		c.Redirect(http.StatusMovedPermanently, "/swagger/index.html")
 	})
 	router.GET("/docs-ui", func(c *gin.Context) {
-		c.Redirect(301, "/docs/index.html")
+		c.Redirect(http.StatusMovedPermanently, "/docs/index.html")
 	})
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(
 		swaggerFiles.Handler,
@@ -86,7 +86,7 @@ func RegisterRoutes(ctx context.Context, router *gin.Engine, state *appstate.Sta
 		return err
 	}
 
-	setupDiagnosticEndpoints(router, version, prefixURL)
+	setupDiagnosticEndpoints(router, version, prefixURL, server)
 
 	if err := setupAuthSystem(ctx, apiBase, state, cfg, server); err != nil {
 		return err
@@ -105,10 +105,10 @@ func registerPublicWebhookRoutes(
 	state *appstate.State,
 	meter metric.Meter,
 ) error {
-	const defaultMaxBody int64 = 1 << 20
-	const defaultDedupeTTL = 10 * time.Minute
+	cfg := config.Get()
+	limiterMax := cfg.Webhooks.DefaultMaxBody
 	hooks := router.Group(routes.Hooks())
-	hooks.Use(sizemw.BodySizeLimiter(defaultMaxBody))
+	hooks.Use(sizemw.BodySizeLimiter(limiterMax))
 	var reg webhook.Lookup
 	if ext, ok := state.WebhookRegistry(); ok {
 		if r, ok := ext.(webhook.Lookup); ok {
@@ -132,7 +132,8 @@ func registerPublicWebhookRoutes(
 			state.Worker.GetDispatcherID(),
 		)
 	}
-	orchestrator := webhook.NewOrchestrator(reg, filter, dispatcher, nil, defaultMaxBody, defaultDedupeTTL)
+	// Pass zeroes so NewOrchestrator falls back to config values internally.
+	orchestrator := webhook.NewOrchestrator(reg, filter, dispatcher, nil, 0, 0)
 	if meter != nil {
 		metrics, err := webhook.NewMetrics(ctx, meter)
 		if err != nil {
@@ -222,11 +223,11 @@ func setupWebhookSystem(ctx context.Context, state *appstate.State, router *gin.
 }
 
 // setupDiagnosticEndpoints configures root and health check endpoints
-func setupDiagnosticEndpoints(router *gin.Engine, version, prefixURL string) {
+func setupDiagnosticEndpoints(router *gin.Engine, version, prefixURL string, server *Server) {
 	// Root endpoint with API information
 	router.GET("/", createRootHandler(version, prefixURL))
 	// Health check endpoint with readiness probe
-	router.GET("/health", CreateHealthHandler(nil, version))
+	router.GET("/health", CreateHealthHandler(server, version))
 }
 
 // createRootHandler creates the root endpoint handler with API information
@@ -239,7 +240,7 @@ func createRootHandler(version, prefixURL string) gin.HandlerFunc {
 		}
 		baseURL := fmt.Sprintf("%s://%s", scheme, host)
 
-		c.JSON(200, gin.H{
+		c.JSON(http.StatusOK, gin.H{
 			"data": gin.H{
 				"name":        "Compozy API",
 				"version":     version,
@@ -363,7 +364,7 @@ func buildHealthResponse(healthStatus, version string, ready bool, scheduleStatu
 // determineHealthStatusCode returns appropriate HTTP status code based on readiness
 func determineHealthStatusCode(ready bool) int {
 	if !ready {
-		return 503
+		return http.StatusServiceUnavailable
 	}
-	return 200
+	return http.StatusOK
 }

@@ -3,6 +3,7 @@ package tplengine
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html"
 	html_template "html/template"
@@ -18,6 +19,12 @@ import (
 	"github.com/Masterminds/sprig/v3"
 	"github.com/compozy/compozy/engine/core"
 )
+
+// ErrMissingKey is returned (wrapped) when a template references a
+// non-existent map key while running with missingkey=error.
+// Callers can use errors.Is(err, ErrMissingKey) to detect this case
+// instead of matching error strings.
+var ErrMissingKey = errors.New("tplengine: missing key")
 
 const (
 	trueString  = "true"
@@ -163,10 +170,33 @@ func (e *TemplateEngine) renderTemplate(tmpl *template.Template, context map[str
 
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, processedContext); err != nil {
+		if isExecMissingKey(err) {
+			return "", fmt.Errorf("template execution error: %w", ErrMissingKey)
+		}
 		return "", fmt.Errorf("template execution error: %w", err)
 	}
 
 	return buf.String(), nil
+}
+
+// isExecMissingKey reports whether err came from text/template execution due
+// to a missing map key (with missingkey=error). The Go templates library does
+// not expose a typed error for this case, so we conservatively detect common
+// messages and centralize the logic here.
+func isExecMissingKey(err error) bool {
+	if err == nil {
+		return false
+	}
+	var execErr *template.ExecError
+	if errors.As(err, &execErr) && execErr.Err != nil {
+		msg := execErr.Err.Error()
+		return strings.Contains(msg, "map has no entry for key") || strings.Contains(msg, "missingkey") ||
+			strings.Contains(msg, "missing key")
+	}
+	// Some callers wrap the ExecError; fall back to message scan.
+	msg := err.Error()
+	return strings.Contains(msg, "map has no entry for key") || strings.Contains(msg, "missingkey") ||
+		strings.Contains(msg, "missing key")
 }
 
 // ProcessString processes a template string and returns the result

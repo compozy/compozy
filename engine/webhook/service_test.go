@@ -25,6 +25,16 @@ func newOrchestratorForTest(t *testing.T, disp services.SignalDispatcher) *Orche
 	return NewOrchestrator(reg, filter, disp, redisSvc, 1024*64, time.Minute)
 }
 
+// newOrchestratorWithIdem creates an orchestrator with injected Service for testing
+func newOrchestratorWithIdem(t *testing.T, disp services.SignalDispatcher, idem Service) *Orchestrator {
+	t.Helper()
+	eval, err := task.NewCELEvaluator()
+	require.NoError(t, err)
+	filter := NewCELAdapter(eval)
+	reg := &MockLookup{}
+	return NewOrchestrator(reg, filter, disp, idem, 1024*64, time.Minute)
+}
+
 func TestOrchestrator_Process(t *testing.T) {
 	t.Run("Should return 404 when slug not found", func(t *testing.T) {
 		o := newOrchestratorForTest(t, services.NewMockSignalDispatcher())
@@ -36,6 +46,7 @@ func TestOrchestrator_Process(t *testing.T) {
 
 		res, err := o.Process(context.Background(), "missing", r)
 		require.Error(t, err)
+		assert.ErrorContains(t, err, "not found")
 		assert.Equal(t, http.StatusNotFound, res.Status)
 		reg.AssertExpectations(t)
 	})
@@ -98,7 +109,8 @@ func TestOrchestrator_Process(t *testing.T) {
 
 	t.Run("Should return 202 then 409 for duplicates", func(t *testing.T) {
 		disp := services.NewMockSignalDispatcher()
-		o := newOrchestratorForTest(t, disp)
+		mockIdemSvc := &MockRedisService{}
+		o := newOrchestratorWithIdem(t, disp, mockIdemSvc)
 
 		r1 := httptestRequest("{\"id\":\"1\"}")
 		r1.Header.Set(HeaderIdempotencyKey, "K")
@@ -119,13 +131,12 @@ func TestOrchestrator_Process(t *testing.T) {
 		}
 		reg.On("Get", "dupe").Return(entry, true)
 
-		// Setup Redis mock - first call succeeds, second fails (duplicate)
-		redisClient := o.idem.(*redisSvc).client.(*MockRedisClient)
-		redisClient.On("SetNX", mock.Anything, "idempotency:webhook:dupe:K", 1, mock.AnythingOfType("time.Duration")).
-			Return(true, nil).
+		// Setup idempotency service mock - first call succeeds, second fails (duplicate)
+		mockIdemSvc.On("CheckAndSet", mock.Anything, "idempotency:webhook:dupe:K", mock.AnythingOfType("time.Duration")).
+			Return(nil).
 			Once()
-		redisClient.On("SetNX", mock.Anything, "idempotency:webhook:dupe:K", 1, mock.AnythingOfType("time.Duration")).
-			Return(false, nil).
+		mockIdemSvc.On("CheckAndSet", mock.Anything, "idempotency:webhook:dupe:K", mock.AnythingOfType("time.Duration")).
+			Return(ErrDuplicate).
 			Once()
 
 		res, err := o.Process(context.Background(), "dupe", r1)
@@ -137,7 +148,7 @@ func TestOrchestrator_Process(t *testing.T) {
 		assert.Equal(t, http.StatusConflict, res.Status)
 
 		reg.AssertExpectations(t)
-		redisClient.AssertExpectations(t)
+		mockIdemSvc.AssertExpectations(t)
 	})
 
 	t.Run("Should return 204 (router maps to 200) when no matching event", func(t *testing.T) {

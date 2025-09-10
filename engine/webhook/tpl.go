@@ -2,6 +2,7 @@ package webhook
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -32,9 +33,14 @@ func (r *TemplateRenderer) RenderTemplate(
 	rctx RenderContext,
 	input map[string]string,
 ) (map[string]any, error) {
-	_ = ctx
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	out := make(map[string]any, len(input))
 	for k, tmpl := range input {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		val, err := r.engine.ParseAny(tmpl, map[string]any{"payload": rctx.Payload})
 		if err != nil {
 			if isMissingKeyErr(err) {
@@ -64,6 +70,11 @@ func isMissingKeyErr(err error) bool {
 	if err == nil {
 		return false
 	}
+	if errors.Is(err, tplengine.ErrMissingKey) {
+		return true
+	}
+	// Fallback for legacy errors; guard with stricter patterns
 	msg := err.Error()
-	return strings.Contains(msg, "map has no entry for key") || strings.Contains(msg, "missingkey")
+	return strings.Contains(msg, "map has no entry for key") || strings.Contains(msg, "missing key") ||
+		strings.Contains(msg, "missingkey")
 }

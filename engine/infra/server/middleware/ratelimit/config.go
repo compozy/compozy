@@ -124,15 +124,18 @@ func (rc RateConfig) ToLimiterRate() limiter.Rate {
 
 // Validate validates the configuration
 func (c *Config) Validate() error {
-	if c.GlobalRate.Limit <= 0 {
-		return fmt.Errorf("global rate limit must be positive")
+	if !c.GlobalRate.Disabled && (c.GlobalRate.Limit <= 0 || c.GlobalRate.Period <= 0) {
+		return fmt.Errorf("global rate limit must be positive with non-zero period")
 	}
-	if c.APIKeyRate.Limit <= 0 {
-		return fmt.Errorf("API key rate limit must be positive")
+	if !c.APIKeyRate.Disabled && (c.APIKeyRate.Limit <= 0 || c.APIKeyRate.Period <= 0) {
+		return fmt.Errorf("API key rate limit must be positive with non-zero period")
 	}
 	for route, rate := range c.RouteRates {
-		if rate.Limit <= 0 {
-			return fmt.Errorf("route rate limit for %s must be positive", route)
+		if rate.Disabled {
+			continue
+		}
+		if rate.Limit <= 0 || rate.Period <= 0 {
+			return fmt.Errorf("route rate limit for %s must be positive with non-zero period", route)
 		}
 	}
 	return nil

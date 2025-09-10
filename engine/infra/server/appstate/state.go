@@ -3,6 +3,7 @@ package appstate
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/store"
@@ -15,7 +16,7 @@ import (
 type contextKey string
 
 const (
-	StateKey contextKey = "app_state"
+	stateKey contextKey = "app_state"
 )
 
 // ExtensionKey is a distinct type for keys stored in State.Extensions to avoid
@@ -53,6 +54,7 @@ type State struct {
 	BaseDeps
 	CWD        *core.PathCWD
 	Worker     *worker.Worker
+	mu         sync.RWMutex
 	Extensions map[ExtensionKey]any
 }
 
@@ -73,11 +75,11 @@ func NewState(deps BaseDeps, worker *worker.Worker) (*State, error) {
 }
 
 func WithState(ctx context.Context, state *State) context.Context {
-	return context.WithValue(ctx, StateKey, state)
+	return context.WithValue(ctx, stateKey, state)
 }
 
 func GetState(ctx context.Context) (*State, error) {
-	state, ok := ctx.Value(StateKey).(*State)
+	state, ok := ctx.Value(stateKey).(*State)
 	if !ok {
 		return nil, fmt.Errorf("app state not found in context")
 	}
@@ -86,6 +88,8 @@ func GetState(ctx context.Context) (*State, error) {
 
 // SetWebhookRegistry stores the webhook registry in extensions with type safety
 func (s *State) SetWebhookRegistry(v any) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.Extensions == nil {
 		s.Extensions = make(map[ExtensionKey]any)
 	}
@@ -94,12 +98,16 @@ func (s *State) SetWebhookRegistry(v any) {
 
 // WebhookRegistry retrieves the webhook registry from extensions with type safety
 func (s *State) WebhookRegistry() (any, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	v, ok := s.Extensions[extensionWebhookRegistryKey]
 	return v, ok
 }
 
 // SetScheduleManager stores the schedule manager in extensions with type safety
 func (s *State) SetScheduleManager(v any) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.Extensions == nil {
 		s.Extensions = make(map[ExtensionKey]any)
 	}
@@ -108,6 +116,8 @@ func (s *State) SetScheduleManager(v any) {
 
 // ScheduleManager retrieves the schedule manager from extensions with type safety
 func (s *State) ScheduleManager() (any, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	v, ok := s.Extensions[extensionScheduleManagerKey]
 	return v, ok
 }

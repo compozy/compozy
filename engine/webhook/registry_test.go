@@ -8,17 +8,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func mkEntry(wf, slug string) RegistryEntry {
+	return RegistryEntry{
+		WorkflowID: wf,
+		Webhook: &Config{
+			Slug:   slug,
+			Events: []EventConfig{{Name: "ev", Filter: "true", Input: map[string]string{"a": "b"}}},
+		},
+	}
+}
+
 func TestRegistry_AddAndGet(t *testing.T) {
 	t.Run("Should register unique slugs and retrieve entries", func(t *testing.T) {
 		t.Parallel()
 		reg := NewRegistry()
-		e1 := RegistryEntry{
-			WorkflowID: "wf-1",
-			Webhook: &Config{
-				Slug:   "alpha",
-				Events: []EventConfig{{Name: "ev", Filter: "true", Input: map[string]string{"a": "b"}}},
-			},
-		}
+		e1 := mkEntry("wf-1", "alpha")
 		e2 := RegistryEntry{
 			WorkflowID: "wf-2",
 			Webhook: &Config{
@@ -43,13 +47,7 @@ func TestRegistry_DuplicateSlug(t *testing.T) {
 	t.Run("Should fail on duplicate slug", func(t *testing.T) {
 		t.Parallel()
 		reg := NewRegistry()
-		e := RegistryEntry{
-			WorkflowID: "wf-1",
-			Webhook: &Config{
-				Slug:   "dup",
-				Events: []EventConfig{{Name: "ev", Filter: "true", Input: map[string]string{"a": "b"}}},
-			},
-		}
+		e := mkEntry("wf-1", "dup")
 		require.NoError(t, reg.Add("dup", e))
 		err := reg.Add("DUP", e)
 		require.Error(t, err)
@@ -61,13 +59,7 @@ func TestRegistry_SlugValidationAndMismatch(t *testing.T) {
 	t.Run("Should reject empty slug and mismatched payload slug", func(t *testing.T) {
 		t.Parallel()
 		reg := NewRegistry()
-		badEntry := RegistryEntry{
-			WorkflowID: "wf-1",
-			Webhook: &Config{
-				Slug:   "beta",
-				Events: []EventConfig{{Name: "ev", Filter: "true", Input: map[string]string{"a": "b"}}},
-			},
-		}
+		badEntry := mkEntry("wf-1", "beta")
 		err1 := reg.Add(" ", badEntry)
 		require.Error(t, err1)
 		assert.ErrorContains(t, err1, "slug must not be empty")
@@ -88,13 +80,7 @@ func TestRegistry_Remove(t *testing.T) {
 	t.Run("Should remove webhook by slug", func(t *testing.T) {
 		t.Parallel()
 		reg := NewRegistry()
-		e := RegistryEntry{
-			WorkflowID: "wf-1",
-			Webhook: &Config{
-				Slug:   "remove-me",
-				Events: []EventConfig{{Name: "ev", Filter: "true", Input: map[string]string{"a": "b"}}},
-			},
-		}
+		e := mkEntry("wf-1", "remove-me")
 
 		// Add entry
 		require.NoError(t, reg.Add("remove-me", e))
@@ -158,7 +144,6 @@ func TestRegistry_Slugs(t *testing.T) {
 
 		slugs := reg.Slugs()
 		assert.Empty(t, slugs)
-		assert.IsType(t, []string{}, slugs)
 	})
 
 	t.Run("Should return slugs after remove operations", func(t *testing.T) {
@@ -166,9 +151,9 @@ func TestRegistry_Slugs(t *testing.T) {
 		reg := NewRegistry()
 
 		// Add multiple entries
-		require.NoError(t, reg.Add("alpha", RegistryEntry{WorkflowID: "wf-1", Webhook: &Config{Slug: "alpha"}}))
-		require.NoError(t, reg.Add("beta", RegistryEntry{WorkflowID: "wf-2", Webhook: &Config{Slug: "beta"}}))
-		require.NoError(t, reg.Add("gamma", RegistryEntry{WorkflowID: "wf-3", Webhook: &Config{Slug: "gamma"}}))
+		require.NoError(t, reg.Add("alpha", mkEntry("wf-1", "alpha")))
+		require.NoError(t, reg.Add("beta", mkEntry("wf-2", "beta")))
+		require.NoError(t, reg.Add("gamma", mkEntry("wf-3", "gamma")))
 
 		// Verify all slugs present
 		slugs := reg.Slugs()
@@ -187,13 +172,7 @@ func TestRegistry_ConcurrentReads(t *testing.T) {
 	t.Run("Should handle concurrent Get calls safely", func(t *testing.T) {
 		t.Parallel()
 		reg := NewRegistry()
-		e := RegistryEntry{
-			WorkflowID: "wf-1",
-			Webhook: &Config{
-				Slug:   "alpha",
-				Events: []EventConfig{{Name: "ev", Filter: "true", Input: map[string]string{"a": "b"}}},
-			},
-		}
+		e := mkEntry("wf-1", "alpha")
 		require.NoError(t, reg.Add("alpha", e))
 		var wg sync.WaitGroup
 		for range 100 {

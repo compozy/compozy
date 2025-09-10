@@ -50,7 +50,15 @@ func getScheduleManager(c *gin.Context) (schedule.Manager, bool) {
 		return nil, false
 	}
 	scheduleManager, ok := v.(schedule.Manager)
-	if !ok || scheduleManager == nil {
+	if !ok {
+		router.RespondWithError(c, http.StatusInternalServerError, router.NewRequestError(
+			http.StatusInternalServerError,
+			"invalid schedule manager type",
+			errors.New("schedule manager has wrong type in app state"),
+		))
+		return nil, false
+	}
+	if scheduleManager == nil {
 		router.RespondWithError(c, http.StatusInternalServerError, router.NewRequestError(
 			http.StatusInternalServerError,
 			"schedule manager not initialized",

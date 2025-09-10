@@ -1383,16 +1383,13 @@ func buildMCPProxyConfig(registry *definition.Registry) MCPProxyConfig {
 // WebhooksConfig contains webhook processing and validation configuration.
 type WebhooksConfig struct {
 	// DefaultMethod specifies the default HTTP method for webhook requests.
-	DefaultMethod string `koanf:"default_method" json:"default_method" yaml:"default_method" mapstructure:"default_method" env:"WEBHOOKS_DEFAULT_METHOD"`
-
+	DefaultMethod string `koanf:"default_method"     json:"default_method"     yaml:"default_method"     mapstructure:"default_method"     env:"WEBHOOKS_DEFAULT_METHOD"     validate:"oneof=GET POST PUT DELETE PATCH HEAD OPTIONS"`
 	// DefaultMaxBody specifies the default maximum body size for webhook requests (in bytes).
-	DefaultMaxBody int64 `koanf:"default_max_body" json:"default_max_body" yaml:"default_max_body" mapstructure:"default_max_body" env:"WEBHOOKS_DEFAULT_MAX_BODY"`
-
+	DefaultMaxBody int64 `koanf:"default_max_body"   json:"default_max_body"   yaml:"default_max_body"   mapstructure:"default_max_body"   env:"WEBHOOKS_DEFAULT_MAX_BODY"   validate:"min=1"`
 	// DefaultDedupeTTL specifies the default time-to-live for webhook deduplication.
-	DefaultDedupeTTL time.Duration `koanf:"default_dedupe_ttl" json:"default_dedupe_ttl" yaml:"default_dedupe_ttl" mapstructure:"default_dedupe_ttl" env:"WEBHOOKS_DEFAULT_DEDUPE_TTL"`
-
+	DefaultDedupeTTL time.Duration `koanf:"default_dedupe_ttl" json:"default_dedupe_ttl" yaml:"default_dedupe_ttl" mapstructure:"default_dedupe_ttl" env:"WEBHOOKS_DEFAULT_DEDUPE_TTL" validate:"min=0"`
 	// StripeSkew specifies the allowed timestamp skew for Stripe webhook verification.
-	StripeSkew time.Duration `koanf:"stripe_skew" json:"stripe_skew" yaml:"stripe_skew" mapstructure:"stripe_skew" env:"WEBHOOKS_STRIPE_SKEW"`
+	StripeSkew time.Duration `koanf:"stripe_skew"        json:"stripe_skew"        yaml:"stripe_skew"        mapstructure:"stripe_skew"        env:"WEBHOOKS_STRIPE_SKEW"        validate:"min=0"`
 }
 
 func buildWebhooksConfig(registry *definition.Registry) WebhooksConfig {

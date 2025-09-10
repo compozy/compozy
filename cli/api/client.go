@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/compozy/compozy/cli/tui/models"
@@ -46,9 +47,8 @@ func getBaseURL(cfg *config.Config) (string, error) {
 		if _, err := url.Parse(cfg.CLI.BaseURL); err != nil {
 			return "", fmt.Errorf("invalid base URL from CLI config: %w", err)
 		}
-		return cfg.CLI.BaseURL, nil
+		return strings.TrimRight(cfg.CLI.BaseURL, "/"), nil
 	}
-
 	// Fallback: construct from server host and port
 	scheme := "https"
 	if cfg.Server.Host == "localhost" || cfg.Server.Host == "127.0.0.1" || cfg.Server.Host == "0.0.0.0" ||
@@ -57,12 +57,10 @@ func getBaseURL(cfg *config.Config) (string, error) {
 		scheme = "http"
 	}
 	baseURL := fmt.Sprintf("%s://%s:%d%s", scheme, cfg.Server.Host, cfg.Server.Port, routes.Base())
-
-	// Final validation
+	baseURL = strings.TrimRight(baseURL, "/")
 	if _, err := url.Parse(baseURL); err != nil {
 		return "", fmt.Errorf("invalid base URL constructed from server config: %w", err)
 	}
-
 	return baseURL, nil
 }
 

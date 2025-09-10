@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/compozy/compozy/pkg/logger"
+	"github.com/compozy/compozy/engine/core"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 )
@@ -13,7 +13,6 @@ import (
 // Metrics provides instrumentation for webhook processing
 type Metrics struct {
 	meter               metric.Meter
-	log                 logger.Logger
 	receivedTotal       metric.Int64Counter
 	verifiedTotal       metric.Int64Counter
 	duplicateTotal      metric.Int64Counter
@@ -27,9 +26,8 @@ type Metrics struct {
 }
 
 // NewMetrics initializes webhook metrics using the provided meter
-func NewMetrics(ctx context.Context, meter metric.Meter) (*Metrics, error) {
-	log := logger.FromContext(ctx)
-	m := &Metrics{meter: meter, log: log}
+func NewMetrics(_ context.Context, meter metric.Meter) (*Metrics, error) {
+	m := &Metrics{meter: meter}
 	if err := m.init(); err != nil {
 		return nil, err
 	}
@@ -104,6 +102,7 @@ func (m *Metrics) initHistograms() error {
 	m.processingHistogram, err = m.meter.Float64Histogram(
 		"compozy_webhook_processing_duration_seconds",
 		metric.WithDescription("Overall webhook processing duration"),
+		metric.WithUnit("s"),
 		metric.WithExplicitBucketBoundaries(.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10),
 	)
 	if err != nil {
@@ -112,6 +111,7 @@ func (m *Metrics) initHistograms() error {
 	m.verifyHistogram, err = m.meter.Float64Histogram(
 		"compozy_webhook_verify_duration_seconds",
 		metric.WithDescription("Webhook verification duration"),
+		metric.WithUnit("s"),
 		metric.WithExplicitBucketBoundaries(.001, .005, .01, .025, .05, .1, .25, .5),
 	)
 	if err != nil {
@@ -120,6 +120,7 @@ func (m *Metrics) initHistograms() error {
 	m.renderHistogram, err = m.meter.Float64Histogram(
 		"compozy_webhook_render_duration_seconds",
 		metric.WithDescription("Webhook render duration"),
+		metric.WithUnit("s"),
 		metric.WithExplicitBucketBoundaries(.001, .005, .01, .025, .05, .1, .25, .5),
 	)
 	if err != nil {
@@ -128,6 +129,7 @@ func (m *Metrics) initHistograms() error {
 	m.dispatchHistogram, err = m.meter.Float64Histogram(
 		"compozy_webhook_dispatch_duration_seconds",
 		metric.WithDescription("Webhook dispatch duration"),
+		metric.WithUnit("s"),
 		metric.WithExplicitBucketBoundaries(.001, .005, .01, .025, .05, .1, .25, .5, 1),
 	)
 	if err != nil {
@@ -186,7 +188,7 @@ func (m *Metrics) OnFailed(ctx context.Context, slug, workflowID, reason string)
 			metric.WithAttributes(
 				attribute.String("slug", slug),
 				attribute.String("workflow_id", workflowID),
-				attribute.String("reason", reason),
+				attribute.String("reason", core.RedactString(reason)),
 			),
 		)
 	}

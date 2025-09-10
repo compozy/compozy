@@ -104,4 +104,84 @@ func TestDeriveKey(t *testing.T) {
 		_, err := DeriveKey(h, []byte(`not-json`), "id")
 		assert.Error(t, err)
 	})
+
+	t.Run("Should support nested JSON fields with dot notation", func(t *testing.T) {
+		h := make(http.Header)
+		got, err := DeriveKey(h, []byte(`{"data":{"id":"nested-123"}}`), "data.id")
+		require.NoError(t, err)
+		assert.Equal(t, "nested-123", got)
+	})
+
+	t.Run("Should support deeply nested JSON fields", func(t *testing.T) {
+		h := make(http.Header)
+		got, err := DeriveKey(h, []byte(`{"data":{"user":{"profile":{"id":"deep-456"}}}}`), "data.user.profile.id")
+		require.NoError(t, err)
+		assert.Equal(t, "deep-456", got)
+	})
+
+	t.Run("Should return ErrKeyNotFound when nested path doesn't exist", func(t *testing.T) {
+		h := make(http.Header)
+		_, err := DeriveKey(h, []byte(`{"data":{"user":{"name":"john"}}}`), "data.user.id")
+		assert.ErrorIs(t, err, ErrKeyNotFound)
+	})
+
+	t.Run("Should return ErrKeyNotFound when intermediate path is not an object", func(t *testing.T) {
+		h := make(http.Header)
+		_, err := DeriveKey(h, []byte(`{"data":{"user":"not-an-object"}}`), "data.user.id")
+		assert.ErrorIs(t, err, ErrKeyNotFound)
+	})
+
+	t.Run("Should coerce non-string nested JSON values", func(t *testing.T) {
+		h := make(http.Header)
+		got, err := DeriveKey(h, []byte(`{"data":{"user":{"id":789}}}`), "data.user.id")
+		require.NoError(t, err)
+		assert.Equal(t, "789", got)
+	})
+
+	t.Run("Should handle nested boolean values", func(t *testing.T) {
+		h := make(http.Header)
+		got, err := DeriveKey(h, []byte(`{"data":{"active":true}}`), "data.active")
+		require.NoError(t, err)
+		assert.Equal(t, "true", got)
+	})
+
+	t.Run("Should handle nested null values", func(t *testing.T) {
+		h := make(http.Header)
+		got, err := DeriveKey(h, []byte(`{"data":{"value":null}}`), "data.value")
+		require.NoError(t, err)
+		assert.Equal(t, "<nil>", got)
+	})
+
+	t.Run("Should return ErrKeyNotFound for empty nested string values", func(t *testing.T) {
+		h := make(http.Header)
+		_, err := DeriveKey(h, []byte(`{"data":{"id":""}}`), "data.id")
+		assert.ErrorIs(t, err, ErrKeyNotFound)
+	})
+
+	t.Run("Should return ErrKeyNotFound for whitespace-only nested string values", func(t *testing.T) {
+		h := make(http.Header)
+		_, err := DeriveKey(h, []byte(`{"data":{"id":"   "}}`), "data.id")
+		assert.ErrorIs(t, err, ErrKeyNotFound)
+	})
+
+	t.Run("Should prefer header over nested field", func(t *testing.T) {
+		h := make(http.Header)
+		h.Set(HeaderIdempotencyKey, "header-key")
+		got, err := DeriveKey(h, []byte(`{"data":{"id":"nested-key"}}`), "data.id")
+		require.NoError(t, err)
+		assert.Equal(t, "header-key", got)
+	})
+
+	t.Run("Should handle nested arrays (return as string)", func(t *testing.T) {
+		h := make(http.Header)
+		got, err := DeriveKey(h, []byte(`{"data":{"items":[1,2,3]}}`), "data.items")
+		require.NoError(t, err)
+		assert.Equal(t, "[1 2 3]", got)
+	})
+
+	t.Run("Should return ErrKeyNotFound when root is not an object", func(t *testing.T) {
+		h := make(http.Header)
+		_, err := DeriveKey(h, []byte(`"not-an-object"`), "data.id")
+		assert.ErrorIs(t, err, ErrKeyNotFound)
+	})
 }

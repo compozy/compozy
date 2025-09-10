@@ -166,12 +166,12 @@ func logAuthFailures(log logger.Logger, c *gin.Context, status int, userID any) 
 // isSecuritySensitiveEndpoint checks if the endpoint is security-sensitive
 // Uses precise matching to avoid false positives
 func isSecuritySensitiveEndpoint(path string) bool {
-	base := routes.Base()
 	securitySensitivePrefixes := []string{
-		base + "/auth/",
-		base + "/users/",
-		base + "/executions/",
-		base + "/workflows/",
+		routes.Auth() + "/",
+		routes.Users() + "/",
+		routes.Executions() + "/",
+		routes.Workflows() + "/",
+		routes.Hooks() + "/",
 	}
 	for _, prefix := range securitySensitivePrefixes {
 		if strings.HasPrefix(path, prefix) {

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -102,6 +103,23 @@ func setupTest(_ *testing.T) (*gin.Engine, *MockScheduleManager) {
 	return router, mockManager
 }
 
+// doJSON performs a JSON request to the router and returns the response recorder
+func doJSON(router http.Handler, method, path string, body any) *httptest.ResponseRecorder {
+	var buf io.Reader
+	if body != nil {
+		b, err := json.Marshal(body)
+		if err != nil {
+			panic("failed to marshal JSON body in test helper: " + err.Error())
+		}
+		buf = bytes.NewBuffer(b)
+	}
+	req := httptest.NewRequest(method, path, buf)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	return w
+}
+
 func TestListSchedules(t *testing.T) {
 	t.Run("Should list all schedules successfully", func(t *testing.T) {
 		router, mockManager := setupTest(t)
@@ -135,9 +153,7 @@ func TestListSchedules(t *testing.T) {
 		}
 		mockManager.On("ListSchedules", mock.Anything).Return(schedules, nil)
 		// Make request
-		req := httptest.NewRequest("GET", routes.Base()+"/schedules", http.NoBody)
-		w := httptest.NewRecorder()
-		router.ServeHTTP(w, req)
+		w := doJSON(router, "GET", routes.Base()+"/schedules", nil)
 		// Verify response
 		assert.Equal(t, http.StatusOK, w.Code)
 		var response struct {
@@ -164,9 +180,7 @@ func TestListSchedules(t *testing.T) {
 	t.Run("Should handle empty schedule list", func(t *testing.T) {
 		router, mockManager := setupTest(t)
 		mockManager.On("ListSchedules", mock.Anything).Return([]*schedule.Info{}, nil)
-		req := httptest.NewRequest("GET", routes.Base()+"/schedules", http.NoBody)
-		w := httptest.NewRecorder()
-		router.ServeHTTP(w, req)
+		w := doJSON(router, "GET", routes.Base()+"/schedules", nil)
 		assert.Equal(t, http.StatusOK, w.Code)
 		var response struct {
 			Data ScheduleListResponse `json:"data"`
@@ -180,9 +194,7 @@ func TestListSchedules(t *testing.T) {
 	t.Run("Should handle list error", func(t *testing.T) {
 		router, mockManager := setupTest(t)
 		mockManager.On("ListSchedules", mock.Anything).Return(nil, errors.New("failed to connect"))
-		req := httptest.NewRequest("GET", routes.Base()+"/schedules", http.NoBody)
-		w := httptest.NewRecorder()
-		router.ServeHTTP(w, req)
+		w := doJSON(router, "GET", routes.Base()+"/schedules", nil)
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
 		var response struct {
 			Status int `json:"status"`
@@ -195,6 +207,67 @@ func TestListSchedules(t *testing.T) {
 		assert.Equal(t, 500, response.Status)
 		assert.Equal(t, "failed to list schedules", response.Error.Message)
 		mockManager.AssertExpectations(t)
+	})
+	t.Run("Should return 500 when schedule manager not initialized", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+		router := gin.New()
+		// Create app state WITHOUT schedule manager
+		state := &appstate.State{
+			BaseDeps: appstate.BaseDeps{
+				ProjectConfig: &project.Config{
+					Name: "test-project",
+				},
+			},
+			Extensions: map[appstate.ExtensionKey]any{},
+		}
+		// Don't call state.SetScheduleManager(...) to simulate missing manager
+		router.Use(appstate.StateMiddleware(state))
+		apiBase := router.Group(routes.Base())
+		Register(apiBase)
+
+		w := doJSON(router, "GET", routes.Base()+"/schedules", nil)
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+		var response struct {
+			Status int `json:"status"`
+			Error  struct {
+				Message string `json:"message"`
+			} `json:"error"`
+		}
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+		assert.Equal(t, 500, response.Status)
+		assert.Equal(t, "schedule manager not initialized", response.Error.Message)
+	})
+	t.Run("Should return 500 when schedule manager has wrong type", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+		router := gin.New()
+		// Create app state with wrong type for schedule manager
+		state := &appstate.State{
+			BaseDeps: appstate.BaseDeps{
+				ProjectConfig: &project.Config{
+					Name: "test-project",
+				},
+			},
+			Extensions: map[appstate.ExtensionKey]any{},
+		}
+		// Inject wrong type instead of schedule.Manager
+		state.SetScheduleManager(struct{}{}) // Empty struct is not a schedule.Manager
+		router.Use(appstate.StateMiddleware(state))
+		apiBase := router.Group(routes.Base())
+		Register(apiBase)
+
+		w := doJSON(router, "GET", routes.Base()+"/schedules", nil)
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+		var response struct {
+			Status int `json:"status"`
+			Error  struct {
+				Message string `json:"message"`
+			} `json:"error"`
+		}
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+		assert.Equal(t, 500, response.Status)
+		assert.Equal(t, "invalid schedule manager type", response.Error.Message)
 	})
 }
 
@@ -213,9 +286,7 @@ func TestGetSchedule(t *testing.T) {
 			LastRunStatus: "unknown",
 		}
 		mockManager.On("GetSchedule", mock.Anything, "workflow-1").Return(scheduleInfo, nil)
-		req := httptest.NewRequest("GET", routes.Base()+"/schedules/workflow-1", http.NoBody)
-		w := httptest.NewRecorder()
-		router.ServeHTTP(w, req)
+		w := doJSON(router, "GET", routes.Base()+"/schedules/workflow-1", nil)
 		assert.Equal(t, http.StatusOK, w.Code)
 		var response struct {
 			Status  int                  `json:"status"`
@@ -234,9 +305,7 @@ func TestGetSchedule(t *testing.T) {
 		router, mockManager := setupTest(t)
 		mockManager.On("GetSchedule", mock.Anything, "workflow-999").
 			Return(nil, schedule.ErrScheduleNotFound)
-		req := httptest.NewRequest("GET", routes.Base()+"/schedules/workflow-999", http.NoBody)
-		w := httptest.NewRecorder()
-		router.ServeHTTP(w, req)
+		w := doJSON(router, "GET", routes.Base()+"/schedules/workflow-999", nil)
 		assert.Equal(t, http.StatusNotFound, w.Code)
 		var response struct {
 			Status int `json:"status"`
@@ -275,11 +344,7 @@ func TestUpdateSchedule(t *testing.T) {
 		body := UpdateScheduleRequest{
 			Enabled: &enabled,
 		}
-		bodyBytes, _ := json.Marshal(body)
-		req := httptest.NewRequest("PATCH", routes.Base()+"/schedules/workflow-1", bytes.NewBuffer(bodyBytes))
-		req.Header.Set("Content-Type", "application/json")
-		w := httptest.NewRecorder()
-		router.ServeHTTP(w, req)
+		w := doJSON(router, "PATCH", routes.Base()+"/schedules/workflow-1", body)
 		assert.Equal(t, http.StatusOK, w.Code)
 		var response struct {
 			Status  int                  `json:"status"`
@@ -297,11 +362,7 @@ func TestUpdateSchedule(t *testing.T) {
 	t.Run("Should reject request with no fields provided", func(t *testing.T) {
 		router, _ := setupTest(t)
 		body := map[string]any{}
-		bodyBytes, _ := json.Marshal(body)
-		req := httptest.NewRequest("PATCH", routes.Base()+"/schedules/workflow-1", bytes.NewBuffer(bodyBytes))
-		req.Header.Set("Content-Type", "application/json")
-		w := httptest.NewRecorder()
-		router.ServeHTTP(w, req)
+		w := doJSON(router, "PATCH", routes.Base()+"/schedules/workflow-1", body)
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 		var response struct {
 			Status int `json:"status"`
@@ -336,11 +397,7 @@ func TestUpdateSchedule(t *testing.T) {
 		body := UpdateScheduleRequest{
 			Cron: &cronValue,
 		}
-		bodyBytes, _ := json.Marshal(body)
-		req := httptest.NewRequest("PATCH", routes.Base()+"/schedules/workflow-1", bytes.NewBuffer(bodyBytes))
-		req.Header.Set("Content-Type", "application/json")
-		w := httptest.NewRecorder()
-		router.ServeHTTP(w, req)
+		w := doJSON(router, "PATCH", routes.Base()+"/schedules/workflow-1", body)
 		assert.Equal(t, http.StatusOK, w.Code)
 		var response struct {
 			Status  int                  `json:"status"`
@@ -366,11 +423,7 @@ func TestUpdateSchedule(t *testing.T) {
 		body := UpdateScheduleRequest{
 			Enabled: &enabled,
 		}
-		bodyBytes, _ := json.Marshal(body)
-		req := httptest.NewRequest("PATCH", routes.Base()+"/schedules/workflow-999", bytes.NewBuffer(bodyBytes))
-		req.Header.Set("Content-Type", "application/json")
-		w := httptest.NewRecorder()
-		router.ServeHTTP(w, req)
+		w := doJSON(router, "PATCH", routes.Base()+"/schedules/workflow-999", body)
 		assert.Equal(t, http.StatusNotFound, w.Code)
 		mockManager.AssertExpectations(t)
 	})
@@ -380,9 +433,7 @@ func TestDeleteSchedule(t *testing.T) {
 	t.Run("Should delete schedule successfully", func(t *testing.T) {
 		router, mockManager := setupTest(t)
 		mockManager.On("DeleteSchedule", mock.Anything, "workflow-1").Return(nil)
-		req := httptest.NewRequest("DELETE", routes.Base()+"/schedules/workflow-1", http.NoBody)
-		w := httptest.NewRecorder()
-		router.ServeHTTP(w, req)
+		w := doJSON(router, "DELETE", routes.Base()+"/schedules/workflow-1", nil)
 		assert.Equal(t, http.StatusNoContent, w.Code)
 		assert.Empty(t, w.Body.String())
 		mockManager.AssertExpectations(t)
@@ -391,9 +442,7 @@ func TestDeleteSchedule(t *testing.T) {
 		router, mockManager := setupTest(t)
 		mockManager.On("DeleteSchedule", mock.Anything, "workflow-999").
 			Return(schedule.ErrScheduleNotFound)
-		req := httptest.NewRequest("DELETE", routes.Base()+"/schedules/workflow-999", http.NoBody)
-		w := httptest.NewRecorder()
-		router.ServeHTTP(w, req)
+		w := doJSON(router, "DELETE", routes.Base()+"/schedules/workflow-999", nil)
 		assert.Equal(t, http.StatusNotFound, w.Code)
 		var response struct {
 			Status int `json:"status"`
@@ -411,9 +460,7 @@ func TestDeleteSchedule(t *testing.T) {
 		router, mockManager := setupTest(t)
 		mockManager.On("DeleteSchedule", mock.Anything, "workflow-1").
 			Return(errors.New("temporal error"))
-		req := httptest.NewRequest("DELETE", routes.Base()+"/schedules/workflow-1", http.NoBody)
-		w := httptest.NewRecorder()
-		router.ServeHTTP(w, req)
+		w := doJSON(router, "DELETE", routes.Base()+"/schedules/workflow-1", nil)
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
 		var response struct {
 			Status int `json:"status"`
