@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/engine/infra/server/routes"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
 )
@@ -166,10 +167,11 @@ func logAuthFailures(log logger.Logger, c *gin.Context, status int, userID any) 
 // Uses precise matching to avoid false positives
 func isSecuritySensitiveEndpoint(path string) bool {
 	securitySensitivePrefixes := []string{
-		"/api/v0/auth/",
-		"/api/v0/users/",
-		"/api/v0/executions/",
-		"/api/v0/workflows/",
+		routes.Auth() + "/",
+		routes.Users() + "/",
+		routes.Executions() + "/",
+		routes.Workflows() + "/",
+		routes.Hooks() + "/",
 	}
 	for _, prefix := range securitySensitivePrefixes {
 		if strings.HasPrefix(path, prefix) {

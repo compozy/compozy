@@ -28,6 +28,7 @@ func CreateRegistry() *Registry {
 	registerCacheFields(registry)
 	registerWorkerFields(registry)
 	registerMCPProxyFields(registry)
+	registerWebhooksFields(registry)
 	return registry
 }
 
@@ -1104,5 +1105,43 @@ func registerMCPProxyFields(registry *Registry) {
 		EnvVar:  "MCP_PROXY_SHUTDOWN_TIMEOUT",
 		Type:    durationType,
 		Help:    "Maximum time to wait for graceful shutdown",
+	})
+}
+
+func registerWebhooksFields(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path:    "webhooks.default_method",
+		Default: "POST",
+		CLIFlag: "webhook-default-method",
+		EnvVar:  "WEBHOOKS_DEFAULT_METHOD",
+		Type:    reflect.TypeOf(""),
+		Help:    "Default HTTP method for webhook requests",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "webhooks.default_max_body",
+		Default: int64(1 << 20), // 1MB
+		CLIFlag: "webhook-default-max-body",
+		EnvVar:  "WEBHOOKS_DEFAULT_MAX_BODY",
+		Type:    reflect.TypeOf(int64(0)),
+		Help:    "Default maximum body size for webhook requests (bytes)",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "webhooks.default_dedupe_ttl",
+		Default: 10 * time.Minute,
+		CLIFlag: "webhook-default-dedupe-ttl",
+		EnvVar:  "WEBHOOKS_DEFAULT_DEDUPE_TTL",
+		Type:    durationType,
+		Help:    "Default time-to-live for webhook deduplication",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "webhooks.stripe_skew",
+		Default: 5 * time.Minute,
+		CLIFlag: "webhook-stripe-skew",
+		EnvVar:  "WEBHOOKS_STRIPE_SKEW",
+		Type:    durationType,
+		Help:    "Allowed timestamp skew for Stripe webhook verification",
 	})
 }

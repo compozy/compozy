@@ -24,3 +24,29 @@ func (v *WorkflowsValidator) Validate() error {
 	}
 	return nil
 }
+
+// -----------------------------------------------------------------------------
+// WebhookSlugsValidator - Validates uniqueness of webhook slugs across workflows
+// -----------------------------------------------------------------------------
+
+type WebhookSlugsValidator struct {
+	slugs []string
+}
+
+func NewWebhookSlugsValidator(slugs []string) *WebhookSlugsValidator {
+	return &WebhookSlugsValidator{slugs: slugs}
+}
+
+func (v *WebhookSlugsValidator) Validate() error {
+	seen := make(map[string]struct{}, len(v.slugs))
+	for _, slug := range v.slugs {
+		if slug == "" {
+			continue
+		}
+		if _, ok := seen[slug]; ok {
+			return fmt.Errorf("duplicate webhook slug '%s'", slug)
+		}
+		seen[slug] = struct{}{}
+	}
+	return nil
+}

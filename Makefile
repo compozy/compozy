@@ -36,7 +36,7 @@ LDFLAGS := -X github.com/compozy/compozy/pkg/version.Version=$(VERSION) -X githu
 SWAGGER_DIR=./docs
 SWAGGER_OUTPUT=$(SWAGGER_DIR)/swagger.json
 
-.PHONY: all test lint fmt clean build dev deps schemagen schemagen-watch help integration-test
+.PHONY: all test lint fmt modernize clean build dev deps schemagen schemagen-watch help integration-test
 .PHONY: tidy test-go start-docker stop-docker clean-docker reset-docker
 .PHONY: swagger swagger-deps swagger-gen swagger-serve check-go-version setup clean-go-cache
 
@@ -84,7 +84,6 @@ lint:
 	$(BUNCMD) run lint
 	$(LINTCMD) run --fix --allow-parallel-runners
 	@echo "Running modernize analyzer for min/max suggestions..."
-	#@go run golang.org/x/tools/gopls/internal/analysis/modernize/cmd/modernize@latest -fix ./...
 	@echo "Linting completed successfully"
 
 fmt:
@@ -92,6 +91,9 @@ fmt:
 	$(BUNCMD) run format
 	$(LINTCMD) fmt
 	@echo "Formatting completed successfully"
+
+modernize:
+	$(GOCMD) run golang.org/x/tools/gopls/internal/analysis/modernize/cmd/modernize@latest -fix ./...
 
 # -----------------------------------------------------------------------------
 # Development & Dependencies

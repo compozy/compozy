@@ -427,6 +427,7 @@ func flattenConfig(cfg *config.Config) map[string]string {
 	flattenRateLimitConfig(cfg, result)
 	flattenWorkerConfig(cfg, result)
 	flattenMCPProxyConfig(cfg, result)
+	flattenWebhooksConfig(cfg, result)
 	return result
 }
 
@@ -679,4 +680,12 @@ func flattenMCPProxyConfig(cfg *config.Config, result map[string]string) {
 	result["mcp_proxy.port"] = fmt.Sprintf("%d", cfg.MCPProxy.Port)
 	result["mcp_proxy.base_url"] = cfg.MCPProxy.BaseURL
 	result["mcp_proxy.shutdown_timeout"] = cfg.MCPProxy.ShutdownTimeout.String()
+}
+
+// flattenWebhooksConfig flattens webhooks configuration
+func flattenWebhooksConfig(cfg *config.Config, result map[string]string) {
+	result["webhooks.default_method"] = cfg.Webhooks.DefaultMethod
+	result["webhooks.default_max_body"] = fmt.Sprintf("%d", cfg.Webhooks.DefaultMaxBody)
+	result["webhooks.default_dedupe_ttl"] = cfg.Webhooks.DefaultDedupeTTL.String()
+	result["webhooks.stripe_skew"] = cfg.Webhooks.StripeSkew.String()
 }

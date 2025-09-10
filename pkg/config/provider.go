@@ -322,6 +322,7 @@ func addInfraDefaults(result map[string]any, defaultConfig *Config) {
 	result["cache"] = createCacheDefaults(defaultConfig)
 	result["worker"] = createWorkerDefaults(defaultConfig)
 	result["mcp_proxy"] = createMCPProxyDefaults(defaultConfig)
+	result["webhooks"] = createWebhooksDefaults(defaultConfig)
 }
 
 // createServerDefaults creates server configuration defaults
@@ -507,5 +508,15 @@ func createMCPProxyDefaults(defaultConfig *Config) map[string]any {
 		"port":             defaultConfig.MCPProxy.Port,
 		"base_url":         defaultConfig.MCPProxy.BaseURL,
 		"shutdown_timeout": defaultConfig.MCPProxy.ShutdownTimeout.String(),
+	}
+}
+
+// createWebhooksDefaults creates webhooks configuration defaults
+func createWebhooksDefaults(defaultConfig *Config) map[string]any {
+	return map[string]any{
+		"default_method":     defaultConfig.Webhooks.DefaultMethod,
+		"default_max_body":   defaultConfig.Webhooks.DefaultMaxBody,
+		"default_dedupe_ttl": defaultConfig.Webhooks.DefaultDedupeTTL.String(),
+		"stripe_skew":        defaultConfig.Webhooks.StripeSkew.String(),
 	}
 }

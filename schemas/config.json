@@ -207,7 +207,7 @@
           "type": "integer"
         },
         "max_tool_iterations": {
-          "description": "MaxToolIterations caps the maximum number of tool-iteration loops per request.\n\nThis acts as a global default and can be overridden by model-specific configuration\nin project files. Set to 0 to use the orchestrator's built-in default.\nDefault: 10 (registry default)",
+          "description": "MaxToolIterations caps the maximum number of tool-iteration loops per request.\n\nThis acts as a global default and can be overridden by model-specific configuration\nin project files. Set to 0 to use the orchestrator's built-in default.\nDefault: 100 (registry default)",
           "type": "integer"
         },
         "mcp_client_timeout": {
@@ -227,7 +227,7 @@
           "type": "integer"
         },
         "proxy_url": {
-          "description": "ProxyURL specifies the MCP proxy server endpoint.\n\nThe proxy handles:\n  - MCP server connections\n  - Tool discovery and routing\n  - Protocol translation\nDefault: \"http://localhost:6001\"",
+          "description": "ProxyURL specifies the MCP proxy server endpoint.\n\nThe proxy handles:\n  - MCP server connections\n  - Tool discovery and routing\n  - Protocol translation\nDefault: \"\" (empty; supply MCP proxy URL explicitly or derive from MCPProxy.BaseURL)",
           "type": "string"
         },
         "register_mcps": {
@@ -296,7 +296,7 @@
       "description": "MCPProxyConfig contains MCP proxy server configuration.",
       "properties": {
         "base_url": {
-          "description": "BaseURL specifies the base URL for MCP proxy API endpoints.\n\n**Default**: `\"http://localhost:6001\"`",
+          "description": "BaseURL specifies the base URL for MCP proxy API endpoints.\n\n**Default**: `\"\"` (empty string)",
           "type": "string"
         },
         "host": {
@@ -319,7 +319,7 @@
       "description": "MemoryConfig contains memory service configuration.",
       "properties": {
         "max_entries": {
-          "description": "MaxEntries limits memory entries per conversation.\n\nPrevents unbounded memory growth.\nDefault: 100",
+          "description": "MaxEntries limits memory entries per conversation.\n\nPrevents unbounded memory growth.\nDefault: 10000",
           "type": "integer"
         },
         "prefix": {
@@ -455,30 +455,30 @@
       "description": "RuntimeConfig contains runtime behavior configuration.",
       "properties": {
         "async_token_counter_buffer_size": {
-          "description": "AsyncTokenCounterBufferSize sets the token counter queue size.\n\nLarger buffers handle traffic spikes better but use more memory.\nDefault: 1000",
+          "description": "AsyncTokenCounterBufferSize sets the token counter queue size.\n\nLarger buffers handle traffic spikes better but use more memory.\nDefault: 100",
           "type": "integer"
         },
         "async_token_counter_workers": {
-          "description": "AsyncTokenCounterWorkers sets the number of token counting workers.\n\nMore workers improve throughput for high-volume token counting.\nDefault: 5",
+          "description": "AsyncTokenCounterWorkers sets the number of token counting workers.\n\nMore workers improve throughput for high-volume token counting.\nDefault: 4",
           "type": "integer"
         },
         "bun_permissions": {
-          "description": "BunPermissions defines runtime security permissions for Bun.\n\nDefault: [\"--allow-read\", \"--allow-env\", \"--allow-net\"]",
+          "description": "BunPermissions defines runtime security permissions for Bun.\n\nDefault: [\"--allow-read\"]",
           "items": {
             "type": "string"
           },
           "type": "array"
         },
         "dispatcher_heartbeat_interval": {
-          "description": "DispatcherHeartbeatInterval sets how often dispatchers report health.\n\nLower values provide faster failure detection but increase load.\nDefault: 5s",
+          "description": "DispatcherHeartbeatInterval sets how often dispatchers report health.\n\nLower values provide faster failure detection but increase load.\nDefault: 30s",
           "type": "integer"
         },
         "dispatcher_heartbeat_ttl": {
-          "description": "DispatcherHeartbeatTTL sets heartbeat expiration time.\n\nMust be greater than heartbeat interval to handle network delays.\nDefault: 15s (3x interval)",
+          "description": "DispatcherHeartbeatTTL sets heartbeat expiration time.\n\nMust be greater than heartbeat interval to handle network delays.\nDefault: 90s",
           "type": "integer"
         },
         "dispatcher_stale_threshold": {
-          "description": "DispatcherStaleThreshold defines when a dispatcher is considered failed.\n\nTriggers reassignment of dispatcher's workflows.\nDefault: 30s",
+          "description": "DispatcherStaleThreshold defines when a dispatcher is considered failed.\n\nTriggers reassignment of dispatcher's workflows.\nDefault: 120s",
           "type": "integer"
         },
         "entrypoint_path": {
@@ -498,7 +498,7 @@
           "type": "string"
         },
         "tool_execution_timeout": {
-          "description": "ToolExecutionTimeout sets the maximum time for tool execution.\n\nPrevents runaway tools from blocking workflows.\nDefault: 30s",
+          "description": "ToolExecutionTimeout sets the maximum time for tool execution.\n\nPrevents runaway tools from blocking workflows.\nDefault: 60s",
           "type": "integer"
         }
       },
@@ -548,7 +548,7 @@
           "type": "string"
         },
         "task_queue": {
-          "description": "TaskQueue identifies the queue for workflow tasks.\n\nWorkers poll this queue for tasks to execute.\nUse different queues for:\n  - Workflow type separation\n  - Priority-based routing\n  - Resource isolation\nDefault: \"compozy-queue\"",
+          "description": "TaskQueue identifies the queue for workflow tasks.\n\nWorkers poll this queue for tasks to execute.\nUse different queues for:\n  - Workflow type separation\n  - Priority-based routing\n  - Resource isolation\nDefault: \"compozy-tasks\"",
           "type": "string"
         }
       },
@@ -563,11 +563,11 @@
           "type": "integer"
         },
         "dispatcher_max_retries": {
-          "description": "DispatcherMaxRetries sets maximum dispatcher retry attempts.\n\n**Default**: `3`",
+          "description": "DispatcherMaxRetries sets maximum dispatcher retry attempts.\n\n**Default**: `2`",
           "type": "integer"
         },
         "dispatcher_retry_delay": {
-          "description": "DispatcherRetryDelay sets delay between dispatcher retry attempts.\n\n**Default**: `1s`",
+          "description": "DispatcherRetryDelay sets delay between dispatcher retry attempts.\n\n**Default**: `50ms`",
           "type": "integer"
         },
         "heartbeat_cleanup_timeout": {
@@ -575,11 +575,11 @@
           "type": "integer"
         },
         "mcp_proxy_health_check_timeout": {
-          "description": "MCPProxyHealthCheckTimeout sets timeout for MCP proxy health checks.\n\n**Default**: `5s`",
+          "description": "MCPProxyHealthCheckTimeout sets timeout for MCP proxy health checks.\n\n**Default**: `10s`",
           "type": "integer"
         },
         "mcp_shutdown_timeout": {
-          "description": "MCPShutdownTimeout sets timeout for MCP server shutdown.\n\n**Default**: `10s`",
+          "description": "MCPShutdownTimeout sets timeout for MCP server shutdown.\n\n**Default**: `30s`",
           "type": "integer"
         }
       },

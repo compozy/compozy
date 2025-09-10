@@ -380,6 +380,8 @@ func (p *Config) GetDefaultModel() *core.ProviderConfig {
 func (p *Config) Validate() error {
 	validator := schema.NewCompositeValidator(
 		schema.NewCWDValidator(p.CWD, p.Name),
+		// TODO: Add workflows validator back in
+		// NewWorkflowsValidator(p.Workflows),
 	)
 	if err := validator.Validate(); err != nil {
 		return err

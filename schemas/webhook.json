@@ -1,0 +1,90 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://schemas.compozy.com/webhook.json",
+  "$defs": {
+    "DedupeSpec": {
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "ttl": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "DedupeSpec controls idempotency behavior for webhook requests."
+    },
+    "EventConfig": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "filter": {
+          "type": "string"
+        },
+        "input": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "schema": {
+          "$ref": "#/$defs/Schema"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "EventConfig defines a single routable event within a webhook trigger."
+    },
+    "Schema": {
+      "type": "object"
+    },
+    "VerifySpec": {
+      "properties": {
+        "strategy": {
+          "type": "string"
+        },
+        "secret": {
+          "type": "string"
+        },
+        "header": {
+          "type": "string"
+        },
+        "skew": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "VerifySpec defines signature verification options for webhook requests."
+    }
+  },
+  "properties": {
+    "slug": {
+      "type": "string"
+    },
+    "method": {
+      "type": "string"
+    },
+    "events": {
+      "items": {
+        "$ref": "#/$defs/EventConfig"
+      },
+      "type": "array"
+    },
+    "verify": {
+      "$ref": "#/$defs/VerifySpec"
+    },
+    "dedupe": {
+      "$ref": "#/$defs/DedupeSpec"
+    }
+  },
+  "additionalProperties": false,
+  "type": "object",
+  "description": "Config represents per-workflow webhook settings and routing events.",
+  "yamlCompatible": true
+}

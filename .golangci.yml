@@ -103,6 +103,9 @@ linters:
           - lll
         source: "`.*`"
       - linters:
+          - lll
+        source: "^// @"
+      - linters:
           - errcheck
         path: mock_.*\.go$
     paths:

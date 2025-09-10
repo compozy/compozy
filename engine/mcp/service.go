@@ -517,7 +517,7 @@ func (s *RegisterService) executeConcurrentRegistrations(
 			return s.registerSingleMCP(gCtx, &config, &mu, &errs, &successCount)
 		})
 	}
-	g.Wait()
+	_ = g.Wait() //nolint:errcheck // Error handling is done within individual goroutines
 	return registrationResults{
 		successCount: successCount,
 		errors:       errs,

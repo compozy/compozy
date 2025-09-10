@@ -194,6 +194,110 @@ func TestCELEvaluator_Evaluate(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, result2)
 	})
+	t.Run("Should evaluate expressions with headers variable", func(t *testing.T) {
+		evaluator, err := NewCELEvaluator()
+		require.NoError(t, err)
+		ctx := context.Background()
+		data := map[string]any{
+			"headers": map[string]any{
+				"content-type": "application/json",
+				"user-agent":   "test-agent",
+			},
+		}
+		result, err := evaluator.Evaluate(ctx, `headers["content-type"] == "application/json"`, data)
+		require.NoError(t, err)
+		assert.True(t, result)
+	})
+	t.Run("Should evaluate expressions with query variable", func(t *testing.T) {
+		evaluator, err := NewCELEvaluator()
+		require.NoError(t, err)
+		ctx := context.Background()
+		data := map[string]any{
+			"query": map[string]any{
+				"status": "active",
+				"limit":  "10",
+			},
+		}
+		result, err := evaluator.Evaluate(ctx, `query.status == "active"`, data)
+		require.NoError(t, err)
+		assert.True(t, result)
+	})
+	t.Run("Should handle missing query key gracefully", func(t *testing.T) {
+		evaluator, err := NewCELEvaluator()
+		require.NoError(t, err)
+		ctx := context.Background()
+		data := map[string]any{
+			"query": map[string]any{
+				"status": "active",
+			},
+		}
+		// Test missing key access
+		result, err := evaluator.Evaluate(ctx, `query.missing_key == "value"`, data)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "no such key")
+		assert.False(t, result)
+	})
+	t.Run("Should handle type mismatches in query variables", func(t *testing.T) {
+		evaluator, err := NewCELEvaluator()
+		require.NoError(t, err)
+		ctx := context.Background()
+		data := map[string]any{
+			"query": map[string]any{
+				"count": "not-a-number", // string instead of number
+				"flag":  "true",         // string instead of boolean
+			},
+		}
+		// Test type mismatch with numeric comparison
+		result, err := evaluator.Evaluate(ctx, `query.count > 10`, data)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "no such overload")
+		assert.False(t, result)
+		// Test type mismatch with boolean operation
+		result2, err := evaluator.Evaluate(ctx, `query.flag && true`, data)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "no such overload")
+		assert.False(t, result2)
+	})
+	t.Run("Should evaluate expressions with payload, headers, and query together", func(t *testing.T) {
+		evaluator, err := NewCELEvaluator()
+		require.NoError(t, err)
+		ctx := context.Background()
+		data := map[string]any{
+			"payload": map[string]any{
+				"action": "create",
+				"userId": 123,
+			},
+			"headers": map[string]any{
+				"authorization": "Bearer token123",
+				"content-type":  "application/json",
+			},
+			"query": map[string]any{
+				"source":  "web",
+				"version": "v1",
+			},
+		}
+		// Test webhook filter condition using all three variables
+		expression := `payload.action == "create" && headers["content-type"] == "application/json" && query.source == "web"`
+		result, err := evaluator.Evaluate(ctx, expression, data)
+		require.NoError(t, err)
+		assert.True(t, result)
+	})
+	t.Run("Should handle empty headers and query maps", func(t *testing.T) {
+		evaluator, err := NewCELEvaluator()
+		require.NoError(t, err)
+		ctx := context.Background()
+		data := map[string]any{
+			"payload": map[string]any{
+				"status": "ok",
+			},
+			"headers": map[string]any{},
+			"query":   map[string]any{},
+		}
+		// Test that empty headers and query maps don't cause errors
+		result, err := evaluator.Evaluate(ctx, `payload.status == "ok"`, data)
+		require.NoError(t, err)
+		assert.True(t, result)
+	})
 	t.Run("Should cache compiled programs for performance", func(t *testing.T) {
 		// Use small cache size to test eviction
 		evaluator, err := NewCELEvaluator(WithCacheSize(3))
@@ -303,14 +407,11 @@ func TestCELEvaluator_CostLimit(t *testing.T) {
 			},
 		}
 		// This expression has high cost due to multiple string operations
-		result, err := evaluator.Evaluate(
-			ctx,
-			`signal.payload.value + signal.payload.value + signal.payload.value + 
+		expr := `signal.payload.value + signal.payload.value + signal.payload.value +
 			 signal.payload.value + signal.payload.value + signal.payload.value +
 			 signal.payload.value + signal.payload.value + signal.payload.value +
-			 signal.payload.value + signal.payload.value + signal.payload.value == "testtesttesttesttesttesttesttesttesttesttesttest"`,
-			data,
-		)
+			 signal.payload.value + signal.payload.value + signal.payload.value == "testtesttesttesttesttesttesttesttesttesttesttest"`
+		result, err := evaluator.Evaluate(ctx, expr, data)
 		// Should exceed cost limit or evaluate correctly
 		if err != nil {
 			assert.Contains(t, err.Error(), "exceeded cost limit")

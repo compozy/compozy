@@ -136,6 +136,14 @@ func getInfrastructureCategories() []FlagCategory {
 				"mcp-host", "mcp-port", "mcp-base-url",
 			},
 		},
+		{
+			Name:        "Webhooks Configuration",
+			Description: "Webhook processing and validation settings",
+			Flags: []string{
+				"webhook-default-method", "webhook-default-max-body",
+				"webhook-default-dedupe-ttl", "webhook-stripe-skew",
+			},
+		},
 	}
 }
 
