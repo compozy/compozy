@@ -1176,6 +1176,203 @@ const docTemplate = `{
                 }
             }
         },
+        "/hooks/{slug}": {
+            "post": {
+                "description": "Accepts webhook payloads and triggers matching workflow events.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "webhooks"
+                ],
+                "summary": "Trigger webhook",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"my-webhook\"",
+                        "description": "Webhook slug",
+                        "name": "slug",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"idemp-123\"",
+                        "description": "Optional idempotency key to prevent duplicate processing",
+                        "name": "X-Idempotency-Key",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"corr-456\"",
+                        "description": "Optional correlation ID for request tracing",
+                        "name": "X-Correlation-ID",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"sha256=abc123...\"",
+                        "description": "Optional HMAC signature header (configurable per webhook)",
+                        "name": "X-Sig",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"t=123,v1=def...\"",
+                        "description": "Stripe webhook signature (when using stripe verification)",
+                        "name": "Stripe-Signature",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"sha256=ghi789...\"",
+                        "description": "GitHub webhook signature (when using github verification)",
+                        "name": "X-Hub-Signature-256",
+                        "in": "header"
+                    },
+                    {
+                        "description": "Arbitrary JSON payload",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Processed with no matching event\" example({\"status\":200,\"message\":\"no matching event\",\"data\":{}})",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "202": {
+                        "description": "Accepted and enqueued\" example({\"status\":202,\"message\":\"webhook accepted\",\"data\":{\"event_id\":\"evt_123\"}})",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid or oversized payload\" example({\"status\":400,\"error\":{\"code\":\"BAD_REQUEST\",\"message\":\"invalid payload\",\"details\":\"payload too large\"}})",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Signature verification failed\" example({\"status\":401,\"error\":{\"code\":\"UNAUTHORIZED\",\"message\":\"signature verification failed\",\"details\":\"invalid signature\"}})",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Webhook not found\" example({\"status\":404,\"error\":{\"code\":\"NOT_FOUND\",\"message\":\"webhook not found\",\"details\":\"\"}})",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "409": {
+                        "description": "Duplicate idempotency key\" example({\"status\":409,\"error\":{\"code\":\"DUPLICATE\",\"message\":\"duplicate request\",\"details\":\"idempotency key already processed\"}})",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error\" example({\"status\":500,\"error\":{\"code\":\"INTERNAL_ERROR\",\"message\":\"internal server error\",\"details\":\"\"}})",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/memory/health": {
             "get": {
                 "description": "Returns comprehensive health information for the memory system",
@@ -5721,6 +5918,80 @@ const docTemplate = `{
                 }
             }
         },
+        "webhook.Config": {
+            "type": "object",
+            "properties": {
+                "dedupe": {
+                    "$ref": "#/definitions/webhook.DedupeSpec"
+                },
+                "events": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/webhook.EventConfig"
+                    }
+                },
+                "method": {
+                    "type": "string"
+                },
+                "slug": {
+                    "type": "string"
+                },
+                "verify": {
+                    "$ref": "#/definitions/webhook.VerifySpec"
+                }
+            }
+        },
+        "webhook.DedupeSpec": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "ttl": {
+                    "type": "string"
+                }
+            }
+        },
+        "webhook.EventConfig": {
+            "type": "object",
+            "properties": {
+                "filter": {
+                    "type": "string"
+                },
+                "input": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "schema": {
+                    "$ref": "#/definitions/schema.Schema"
+                }
+            }
+        },
+        "webhook.VerifySpec": {
+            "type": "object",
+            "properties": {
+                "header": {
+                    "type": "string"
+                },
+                "secret": {
+                    "type": "string"
+                },
+                "skew": {
+                    "$ref": "#/definitions/time.Duration"
+                },
+                "strategy": {
+                    "type": "string"
+                }
+            }
+        },
         "wfrouter.EventRequest": {
             "type": "object",
             "required": [
@@ -6012,16 +6283,26 @@ const docTemplate = `{
                             "$ref": "#/definitions/workflow.TriggerType"
                         }
                     ]
+                },
+                "webhook": {
+                    "description": "Webhook holds configuration when Type==webhook",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/webhook.Config"
+                        }
+                    ]
                 }
             }
         },
         "workflow.TriggerType": {
             "type": "string",
             "enum": [
-                "signal"
+                "signal",
+                "webhook"
             ],
             "x-enum-varnames": [
-                "TriggerTypeSignal"
+                "TriggerTypeSignal",
+                "TriggerTypeWebhook"
             ]
         }
     },

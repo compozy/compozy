@@ -93,11 +93,7 @@ func DefaultRetryConfig() RetryConfig {
 func (c *Client) ConfigureRetry(maxRetries uint64, base, maxDelay time.Duration, jitter bool, jitterPercent uint64) {
 	if maxRetries > 0 {
 		// Apply a conservative upper bound to avoid runaway retries
-		if maxRetries > 64 {
-			c.retryConf.MaxAttempts = 64
-		} else {
-			c.retryConf.MaxAttempts = maxRetries
-		}
+		c.retryConf.MaxAttempts = min(maxRetries, 64)
 	}
 	if base > 0 {
 		c.retryConf.BaseDelay = base

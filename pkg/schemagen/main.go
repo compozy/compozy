@@ -25,6 +25,7 @@ import (
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/tool"
+	"github.com/compozy/compozy/engine/webhook"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
@@ -126,6 +127,7 @@ func GenerateParserSchemas(ctx context.Context, outDir string) error {
 		{"task", &task.Config{}, "engine/task"},
 		{"tool", &tool.Config{}, "engine/tool"},
 		{"workflow", &workflow.Config{}, "engine/workflow"},
+		{"webhook", &webhook.Config{}, "engine/webhook"},
 		{"cache", &cache.Config{}, "engine/infra/cache"},
 		{"autoload", &autoload.Config{}, "engine/autoload"},
 		{"monitoring", &monitoring.Config{}, "engine/infra/monitoring"},
@@ -301,7 +303,7 @@ func GenerateParserSchemas(ctx context.Context, outDir string) error {
 				}
 
 			case "workflow":
-				// Fix references in workflow schema
+				// Fix references in workflow schema and use webhook.json for webhook trigger
 				if props, ok := schemaMap["properties"].(map[string]any); ok {
 					// Fix tools array
 					if tools, ok := props["tools"].(map[string]any); ok {
@@ -328,6 +330,35 @@ func GenerateParserSchemas(ctx context.Context, outDir string) error {
 					if tasks, ok := props["tasks"].(map[string]any); ok {
 						if items, ok := tasks["items"].(map[string]any); ok {
 							items["$ref"] = "task.json"
+							updated = true
+						}
+					}
+					// Build a discriminated union for Trigger that references webhook.json
+					if defs, ok := schemaMap["$defs"].(map[string]any); ok {
+						if trig, ok := defs["Trigger"].(map[string]any); ok {
+							trig["oneOf"] = []any{
+								map[string]any{
+									"properties": map[string]any{
+										"type":   map[string]any{"const": "signal"},
+										"name":   map[string]any{"type": "string"},
+										"schema": map[string]any{"$ref": "#/$defs/Schema"},
+									},
+									"additionalProperties": false,
+									"required":             []any{"type", "name"},
+								},
+								map[string]any{
+									"properties": map[string]any{
+										"type":    map[string]any{"const": "webhook"},
+										"webhook": map[string]any{"$ref": "webhook.json"},
+									},
+									"additionalProperties": false,
+									"required":             []any{"type", "webhook"},
+								},
+							}
+							trig["type"] = "object"
+							// Optional: discriminator hint for tooling
+							trig["discriminator"] = map[string]any{"propertyName": "type"}
+							delete(trig, "properties")
 							updated = true
 						}
 					}

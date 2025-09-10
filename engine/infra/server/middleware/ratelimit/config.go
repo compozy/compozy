@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/compozy/compozy/engine/infra/server/routes"
 	"github.com/ulule/limiter/v3"
 )
 
@@ -62,28 +63,33 @@ func DefaultConfig() *Config {
 			Disabled: false,
 		},
 		RouteRates: map[string]RateConfig{
-			"/api/v0/memory": {
+			routes.Base() + "/memory": {
 				Limit:    200, // More reasonable for memory operations
 				Period:   1 * time.Minute,
 				Disabled: false,
 			},
-			"/api/v0/workflow": {
+			routes.Hooks(): {
+				Limit:    60, // Moderate default for public webhooks
+				Period:   1 * time.Minute,
+				Disabled: false,
+			},
+			routes.Base() + "/workflow": {
 				Limit:    100,
 				Period:   1 * time.Minute,
 				Disabled: false,
 			},
-			"/api/v0/task": {
+			routes.Base() + "/task": {
 				Limit:    100,
 				Period:   1 * time.Minute,
 				Disabled: false,
 			},
 			// Auth endpoints - stricter limits to prevent brute force attacks
-			"/api/v0/auth": {
+			routes.Base() + "/auth": {
 				Limit:    20, // Stricter limit for auth operations
 				Period:   1 * time.Minute,
 				Disabled: false,
 			},
-			"/api/v0/users": {
+			routes.Base() + "/users": {
 				Limit:    30, // Moderate limit for user management (admin only)
 				Period:   1 * time.Minute,
 				Disabled: false,
@@ -101,7 +107,7 @@ func DefaultConfig() *Config {
 			"/health",
 			"/metrics",
 			"/swagger",
-			"/api/v0/health",
+			routes.HealthVersioned(),
 		},
 		ExcludedIPs: []string{},
 		FailOpen:    true, // Default to fail-open for availability
@@ -118,15 +124,18 @@ func (rc RateConfig) ToLimiterRate() limiter.Rate {
 
 // Validate validates the configuration
 func (c *Config) Validate() error {
-	if c.GlobalRate.Limit <= 0 {
-		return fmt.Errorf("global rate limit must be positive")
+	if !c.GlobalRate.Disabled && (c.GlobalRate.Limit <= 0 || c.GlobalRate.Period <= 0) {
+		return fmt.Errorf("global rate limit must be positive with non-zero period")
 	}
-	if c.APIKeyRate.Limit <= 0 {
-		return fmt.Errorf("API key rate limit must be positive")
+	if !c.APIKeyRate.Disabled && (c.APIKeyRate.Limit <= 0 || c.APIKeyRate.Period <= 0) {
+		return fmt.Errorf("API key rate limit must be positive with non-zero period")
 	}
 	for route, rate := range c.RouteRates {
-		if rate.Limit <= 0 {
-			return fmt.Errorf("route rate limit for %s must be positive", route)
+		if rate.Disabled {
+			continue
+		}
+		if rate.Limit <= 0 || rate.Period <= 0 {
+			return fmt.Errorf("route rate limit for %s must be positive with non-zero period", route)
 		}
 	}
 	return nil

@@ -92,7 +92,7 @@ func (m *MCPClientManager) Start(ctx context.Context) error {
 	// This improves startup time when multiple MCP servers need to be connected
 	g, groupCtx := errgroup.WithContext(ctx)
 	for _, def := range definitions {
-		def := def // capture loop variable for closure
+		// capture loop variable for closure
 		g.Go(func() error {
 			if err := m.AddClient(groupCtx, def); err != nil {
 				log.Error("Failed to add client during startup", "name", def.Name, "error", err)
@@ -198,11 +198,9 @@ func (m *MCPClientManager) AddClient(ctx context.Context, def *MCPDefinition) er
 	m.mu.Unlock()
 
 	// Start connection in background
-	m.wg.Add(1)
-	go func() {
-		defer m.wg.Done()
+	m.wg.Go(func() {
 		m.connectClient(m.ctx, client)
-	}()
+	})
 
 	log.Debug("Added MCP client", "name", def.Name, "transport", def.Transport)
 	return nil
@@ -502,9 +500,7 @@ func (m *MCPClientManager) triggerReconnection(client *MCPClient) {
 	m.reconnecting[name] = true
 	m.reconnectMu.Unlock()
 
-	m.wg.Add(1)
-	go func() {
-		defer m.wg.Done()
+	m.wg.Go(func() {
 		defer func() {
 			m.reconnectMu.Lock()
 			delete(m.reconnecting, name)
@@ -513,7 +509,7 @@ func (m *MCPClientManager) triggerReconnection(client *MCPClient) {
 
 		log.Info("Starting automatic reconnection", "name", name)
 		m.connectClient(m.ctx, client)
-	}()
+	})
 }
 
 // saveStatus saves a client status to storage

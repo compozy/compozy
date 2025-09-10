@@ -12,7 +12,7 @@
     },
     "max_entries": {
       "type": "integer",
-      "description": "MaxEntries limits memory entries per conversation.\n\nPrevents unbounded memory growth.\nDefault: 100"
+      "description": "MaxEntries limits memory entries per conversation.\n\nPrevents unbounded memory growth.\nDefault: 10000"
     }
   },
   "additionalProperties": false,

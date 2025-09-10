@@ -101,6 +101,11 @@ type Config struct {
 	//
 	// $ref: schema://application#mcpproxy
 	MCPProxy MCPProxyConfig `koanf:"mcp_proxy" json:"mcp_proxy" yaml:"mcp_proxy" mapstructure:"mcp_proxy" validate:"required"`
+
+	// Webhooks configures webhook processing and validation settings.
+	//
+	// $ref: schema://application#webhooks
+	Webhooks WebhooksConfig `koanf:"webhooks" json:"webhooks" yaml:"webhooks" mapstructure:"webhooks"`
 }
 
 // ServerConfig contains HTTP server configuration.
@@ -1101,6 +1106,7 @@ func defaultFromRegistry() *Config {
 		Cache:     buildCacheConfig(registry),
 		Worker:    buildWorkerConfig(registry),
 		MCPProxy:  buildMCPProxyConfig(registry),
+		Webhooks:  buildWebhooksConfig(registry),
 	}
 }
 
@@ -1371,5 +1377,26 @@ func buildMCPProxyConfig(registry *definition.Registry) MCPProxyConfig {
 		Port:            getInt(registry, "mcp_proxy.port"),
 		BaseURL:         getString(registry, "mcp_proxy.base_url"),
 		ShutdownTimeout: getDuration(registry, "mcp_proxy.shutdown_timeout"),
+	}
+}
+
+// WebhooksConfig contains webhook processing and validation configuration.
+type WebhooksConfig struct {
+	// DefaultMethod specifies the default HTTP method for webhook requests.
+	DefaultMethod string `koanf:"default_method"     json:"default_method"     yaml:"default_method"     mapstructure:"default_method"     env:"WEBHOOKS_DEFAULT_METHOD"     validate:"oneof=GET POST PUT DELETE PATCH HEAD OPTIONS"`
+	// DefaultMaxBody specifies the default maximum body size for webhook requests (in bytes).
+	DefaultMaxBody int64 `koanf:"default_max_body"   json:"default_max_body"   yaml:"default_max_body"   mapstructure:"default_max_body"   env:"WEBHOOKS_DEFAULT_MAX_BODY"   validate:"min=1"`
+	// DefaultDedupeTTL specifies the default time-to-live for webhook deduplication.
+	DefaultDedupeTTL time.Duration `koanf:"default_dedupe_ttl" json:"default_dedupe_ttl" yaml:"default_dedupe_ttl" mapstructure:"default_dedupe_ttl" env:"WEBHOOKS_DEFAULT_DEDUPE_TTL" validate:"min=0"`
+	// StripeSkew specifies the allowed timestamp skew for Stripe webhook verification.
+	StripeSkew time.Duration `koanf:"stripe_skew"        json:"stripe_skew"        yaml:"stripe_skew"        mapstructure:"stripe_skew"        env:"WEBHOOKS_STRIPE_SKEW"        validate:"min=0"`
+}
+
+func buildWebhooksConfig(registry *definition.Registry) WebhooksConfig {
+	return WebhooksConfig{
+		DefaultMethod:    getString(registry, "webhooks.default_method"),
+		DefaultMaxBody:   getInt64(registry, "webhooks.default_max_body"),
+		DefaultDedupeTTL: getDuration(registry, "webhooks.default_dedupe_ttl"),
+		StripeSkew:       getDuration(registry, "webhooks.stripe_skew"),
 	}
 }

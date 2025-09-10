@@ -2,6 +2,7 @@ package core
 
 import (
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -100,19 +101,15 @@ func isSensitiveHeader(headerName string) bool {
 	})
 	// Check for sensitive substrings anywhere in the header name
 	for _, segment := range segments {
-		for _, pattern := range sensitiveSubstrings {
-			if segment == pattern {
-				return true
-			}
+		if slices.Contains(sensitiveSubstrings, segment) {
+			return true
 		}
 	}
 	// Check for sensitive suffixes in the last segment
 	if len(segments) > 0 {
 		lastSegment := segments[len(segments)-1]
-		for _, suffix := range sensitiveSuffixes {
-			if lastSegment == suffix {
-				return true
-			}
+		if slices.Contains(sensitiveSuffixes, lastSegment) {
+			return true
 		}
 	}
 	return false

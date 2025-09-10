@@ -123,12 +123,10 @@ func TestTransactionService_ConcurrentAccess(t *testing.T) {
 
 		// Launch concurrent transformations
 		for range numGoroutines {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				err := transactionService.ApplyTransformation(ctx, taskExecID, transformer)
 				assert.NoError(t, err)
-			}()
+			})
 		}
 
 		wg.Wait()
@@ -232,13 +230,11 @@ func TestInputSanitizer_ConcurrentAccess(t *testing.T) {
 
 		// Launch concurrent sanitizations
 		for range numGoroutines {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				result := sanitizer.SanitizeTemplateInput(testInput)
 				assert.NotNil(t, result)
 				atomic.AddInt64(&sanitizationCount, 1)
-			}()
+			})
 		}
 
 		wg.Wait()
@@ -310,10 +306,7 @@ func TestUtilityFunctions_ConcurrentAccess(t *testing.T) {
 
 		// Launch concurrent sorted operations
 		for range numGoroutines {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-
+			wg.Go(func() {
 				// Test SortedMapKeys
 				keys := shared.SortedMapKeys(testMap)
 				assert.Len(t, keys, len(testMap))
@@ -326,7 +319,7 @@ func TestUtilityFunctions_ConcurrentAccess(t *testing.T) {
 				assert.NoError(t, err)
 
 				atomic.AddInt64(&operationCount, 1)
-			}()
+			})
 		}
 
 		wg.Wait()

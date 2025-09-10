@@ -205,20 +205,39 @@
     "Trigger": {
       "additionalProperties": false,
       "description": "Trigger defines an external event that can initiate workflow execution.",
-      "properties": {
-        "name": {
-          "description": "Unique name for identifying this trigger",
-          "type": "string"
+      "oneOf": [
+        {
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "schema": {
+              "$ref": "#/$defs/Schema"
+            },
+            "type": {
+              "const": "signal"
+            }
+          },
+          "required": [
+            "type",
+            "name"
+          ]
         },
-        "schema": {
-          "$ref": "#/$defs/Schema",
-          "description": "Schema for validating trigger input data (optional)"
-        },
-        "type": {
-          "description": "Type of trigger mechanism (e.g., \"signal\" for external signals)",
-          "type": "string"
+        {
+          "properties": {
+            "type": {
+              "const": "webhook"
+            },
+            "webhook": {
+              "$ref": "webhook.json"
+            }
+          },
+          "required": [
+            "type",
+            "webhook"
+          ]
         }
-      },
+      ],
       "type": "object"
     }
   },

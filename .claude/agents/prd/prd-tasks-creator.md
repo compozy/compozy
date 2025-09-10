@@ -49,7 +49,7 @@ Output Specifications:
 - File locations:
   - Feature folder: `/tasks/$ARGUMENTS/`
   - Tasks summary: `/tasks/$ARGUMENTS/_tasks.md`
-  - Individual tasks: `/tasks/$ARGUMENTS/<num>_task.md`
+  - Individual tasks: `/tasks/$ARGUMENTS/_task_<num>.md`
     </output_specifications>
 
 <task_creation_guidelines>

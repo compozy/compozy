@@ -1011,9 +1011,7 @@ func (m *manager) StartPeriodicReconciliation(
 	m.periodicCancel = cancel
 	m.mu.Unlock()
 	// Start periodic reconciliation goroutine
-	m.periodicWG.Add(1)
-	go func() {
-		defer m.periodicWG.Done()
+	m.periodicWG.Go(func() {
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		log.Info("Started periodic schedule reconciliation", "interval", interval, "project_id", m.projectID)
@@ -1030,7 +1028,7 @@ func (m *manager) StartPeriodicReconciliation(
 				}
 			}
 		}
-	}()
+	})
 	return nil
 }
 
