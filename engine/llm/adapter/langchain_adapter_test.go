@@ -51,6 +51,44 @@ func TestLangChainAdapter_ConvertMessages(t *testing.T) {
 	})
 }
 
+func TestLangChainAdapter_ConvertMessages_WithImageParts(t *testing.T) {
+	adapter := &LangChainAdapter{}
+
+	req := LLMRequest{
+		Messages: []Message{
+			{
+				Role:    "user",
+				Content: "Identify the object in the image",
+				Parts: []ContentPart{
+					ImageURLPart{URL: "https://example.com/img.png", Detail: "high"},
+				},
+			},
+		},
+	}
+
+	msgs := adapter.convertMessages(&req)
+	require.Len(t, msgs, 1)
+	parts := msgs[0].Parts
+	// Expect at least the text content and the image content
+	require.GreaterOrEqual(t, len(parts), 2)
+	// First part should be text from Content
+	if tc, ok := parts[0].(llms.TextContent); ok {
+		assert.Contains(t, tc.Text, "Identify the object")
+	} else {
+		t.Fatalf("first part should be TextContent, got %T", parts[0])
+	}
+	// One of the parts must be ImageURLContent
+	var foundImage bool
+	for _, p := range parts {
+		if img, ok := p.(llms.ImageURLContent); ok {
+			foundImage = true
+			assert.Equal(t, "https://example.com/img.png", img.URL)
+			assert.Equal(t, "high", img.Detail)
+		}
+	}
+	assert.True(t, foundImage, "expected ImageURLContent part")
+}
+
 func TestLangChainAdapter_MapMessageRole(t *testing.T) {
 	adapter := &LangChainAdapter{}
 

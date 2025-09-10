@@ -968,7 +968,7 @@ func (o *llmOrchestrator) buildLLMRequest(
 			"agent": request.Agent.ID,
 		})
 	}
-	messages := o.buildMessages(ctx, promptData.enhancedPrompt, memories)
+	messages := o.buildMessages(ctx, request, promptData.enhancedPrompt, memories)
 
 	// Determine temperature: use agent's configured value (explicit zero allowed; upstream default applies)
 	temperature := request.Agent.Config.Params.Temperature
@@ -1046,17 +1046,75 @@ func (o *llmOrchestrator) enhancePromptIfNeeded(
 
 func (o *llmOrchestrator) buildMessages(
 	ctx context.Context,
+	request Request,
 	enhancedPrompt string,
 	memories map[string]Memory,
 ) []llmadapter.Message {
+	// Build multimodal parts: only image parts from input (text remains in Content)
+	parts := o.buildImagePartsFromInput(request)
+
 	messages := []llmadapter.Message{{
 		Role:    "user",
 		Content: enhancedPrompt,
+		Parts:   parts,
 	}}
 	if len(memories) > 0 {
 		messages = PrepareMemoryContext(ctx, memories, messages)
 	}
 	return messages
+}
+
+// buildImagePartsFromInput extracts image URL parts from the action input.
+// Supported keys:
+// - image_url: string
+// - image_urls: []string
+// - images: []string (alias)
+// Optional key:
+// - image_detail: string (e.g., "low", "high") applies to all URLs
+func (o *llmOrchestrator) buildImagePartsFromInput(request Request) []llmadapter.ContentPart {
+	input := request.Action.GetInput()
+	if input == nil {
+		return nil
+	}
+	var out []llmadapter.ContentPart
+	// Optional detail hint
+	var detail string
+	if v, ok := input.AsMap()["image_detail"]; ok {
+		if s, ok := v.(string); ok {
+			detail = s
+		}
+	}
+	addURL := func(u string) {
+		u = strings.TrimSpace(u)
+		if u == "" {
+			return
+		}
+		out = append(out, llmadapter.ImageURLPart{URL: u, Detail: detail})
+	}
+	// Single URL
+	if v, ok := input.AsMap()["image_url"]; ok {
+		if s, ok := v.(string); ok {
+			addURL(s)
+		}
+	}
+	// Multiple URLs: image_urls or images
+	for _, key := range []string{"image_urls", "images"} {
+		if v, ok := input.AsMap()[key]; ok {
+			switch vv := v.(type) {
+			case []string:
+				for _, s := range vv {
+					addURL(s)
+				}
+			case []any:
+				for _, it := range vv {
+					if s, ok := it.(string); ok {
+						addURL(s)
+					}
+				}
+			}
+		}
+	}
+	return out
 }
 
 func (o *llmOrchestrator) storeResponseInMemoryAsync(

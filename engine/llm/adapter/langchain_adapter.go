@@ -79,10 +79,7 @@ func (a *LangChainAdapter) convertMessages(req *LLMRequest) []llms.MessageConten
 	for _, msg := range req.Messages {
 		msgType := a.mapMessageRole(msg.Role)
 		// Build parts supporting text, tool calls, and tool results
-		var parts []llms.ContentPart
-		if msg.Content != "" {
-			parts = append(parts, llms.TextContent{Text: msg.Content})
-		}
+		parts := a.buildContentParts(&msg)
 		// Assistant tool calls
 		if len(msg.ToolCalls) > 0 {
 			for _, tc := range msg.ToolCalls {
@@ -117,6 +114,30 @@ func (a *LangChainAdapter) convertMessages(req *LLMRequest) []llms.MessageConten
 	}
 
 	return messages
+}
+
+// buildContentParts converts textual content and multimodal parts to langchaingo parts.
+func (a *LangChainAdapter) buildContentParts(msg *Message) []llms.ContentPart {
+	var parts []llms.ContentPart
+	if msg != nil && msg.Content != "" {
+		parts = append(parts, llms.TextContent{Text: msg.Content})
+	}
+	if msg == nil || len(msg.Parts) == 0 {
+		return parts
+	}
+	for _, p := range msg.Parts {
+		switch v := p.(type) {
+		case TextPart:
+			parts = append(parts, llms.TextContent{Text: v.Text})
+		case ImageURLPart:
+			parts = append(parts, llms.ImageURLContent{URL: v.URL, Detail: v.Detail})
+		case BinaryPart:
+			parts = append(parts, llms.BinaryContent{MIMEType: v.MIMEType, Data: v.Data})
+		default:
+			// ignore unknown types
+		}
+	}
+	return parts
 }
 
 // mapMessageRole maps our role to langchain ChatMessageType
