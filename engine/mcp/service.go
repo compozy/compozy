@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"text/template"
 	tplparse "text/template/parse"
 	"time"
@@ -25,12 +26,16 @@ type WorkflowConfig interface {
 // RegisterService manages MCP registration lifecycle with the proxy
 type RegisterService struct {
 	proxy *Client
+	// registered holds MCP IDs successfully registered by this process
+	registeredMu sync.RWMutex
+	registered   map[string]struct{}
 }
 
 // New creates a new MCP registration service
 func NewRegisterService(proxyClient *Client) *RegisterService {
 	return &RegisterService{
-		proxy: proxyClient,
+		proxy:      proxyClient,
+		registered: make(map[string]struct{}),
 	}
 }
 
@@ -57,7 +62,10 @@ func (s *RegisterService) Ensure(ctx context.Context, config *Config) error {
 	if err := s.proxy.Register(ctx, &def); err != nil {
 		return fmt.Errorf("failed to register MCP with proxy: %w", err)
 	}
-
+	// Track successful registrations for best-effort shutdown without admin list
+	s.registeredMu.Lock()
+	s.registered[config.ID] = struct{}{}
+	s.registeredMu.Unlock()
 	return nil
 }
 
@@ -105,37 +113,55 @@ func (s *RegisterService) Shutdown(ctx context.Context) error {
 	log := logger.FromContext(ctx)
 	defer func() { _ = s.proxy.Close() }()
 	log.Info("Shutting down MCP register, deregistering all MCPs")
-	mcpIDs, err := s.ListRegistered(ctx)
-	if err != nil {
-		log.Error("Failed to get registered MCPs for shutdown", "error", err)
-		return fmt.Errorf("failed to get registered MCPs: %w", err)
-	}
-	if len(mcpIDs) == 0 {
+	ids := s.collectShutdownIDs(ctx)
+	if len(ids) == 0 {
 		log.Debug("No MCPs to deregister during shutdown")
 		return nil
 	}
-	log.Debug("Found MCPs to deregister", "count", len(mcpIDs))
-	// Use errgroup for concurrent deregistration
+	s.deregisterIDs(ctx, ids)
+	log.Info("MCP register shutdown completed successfully")
+	return nil
+}
+
+// collectShutdownIDs determines which MCP IDs to deregister, preferring locally tracked IDs.
+// Helper placed directly after Shutdown per request.
+func (s *RegisterService) collectShutdownIDs(ctx context.Context) []string {
+	s.registeredMu.RLock()
+	if len(s.registered) > 0 {
+		ids := make([]string, 0, len(s.registered))
+		for id := range s.registered {
+			ids = append(ids, id)
+		}
+		s.registeredMu.RUnlock()
+		return ids
+	}
+	s.registeredMu.RUnlock()
+	mcps, err := s.ListRegistered(ctx)
+	if err != nil {
+		logger.FromContext(ctx).Warn("Skipping MCP deregistration due to list failure", "reason", err)
+		return nil
+	}
+	return mcps
+}
+
+// deregisterIDs performs best-effort concurrent deregistration; helper kept close to Shutdown.
+func (s *RegisterService) deregisterIDs(ctx context.Context, ids []string) {
+	log := logger.FromContext(ctx)
 	g, gCtx := errgroup.WithContext(ctx)
-	for _, mcpID := range mcpIDs {
-		id := mcpID
+	for _, id := range ids {
+		id := id
 		g.Go(func() error {
 			if err := s.proxy.Deregister(gCtx, id); err != nil {
-				log.Error("Failed to deregister MCP during shutdown",
-					"mcp_id", id, "error", err)
-				return fmt.Errorf("failed to deregister %s: %w", id, err)
+				log.Warn("Failed to deregister MCP during shutdown", "mcp_id", id, "error", err)
+			} else {
+				log.Debug("Deregistered MCP during shutdown", "mcp_id", id)
 			}
-			log.Debug("Deregistered MCP during shutdown", "mcp_id", id)
 			return nil
 		})
 	}
-	// Wait for all deregistrations to complete
-	err = g.Wait()
-	if err != nil {
-		return fmt.Errorf("shutdown failed: %w", err)
+	if err := g.Wait(); err != nil {
+		log.Warn("Errors occurred during MCP deregistration", "error", err)
 	}
-	log.Info("MCP register shutdown completed successfully")
-	return nil
 }
 
 // HealthCheck verifies the proxy connection
@@ -225,12 +251,6 @@ func normalizeHeaders(h map[string]string) map[string]string {
 	return out
 }
 
-// redactHeaders returns a copy of headers with sensitive values redacted for logging.
-// Any header key containing "token", "key", or "secret" (case-insensitive), or
-// the Authorization header, will have its value replaced with "[REDACTED]".
-// Other headers have values passed through core.RedactString for safety.
-// redaction of headers moved to core.RedactHeaders
-
 // resolveHeadersWithEnv evaluates header templates using the provided env (hierarchical env already merged by loader)
 // It validates templates to prevent injection attacks.
 func resolveHeadersWithEnv(headers map[string]string, env core.EnvMap) map[string]string {
@@ -310,7 +330,9 @@ func walkListNode(n *tplparse.ListNode) error {
 	return nil
 }
 
-func walkActionNode(n *tplparse.ActionNode) error { return checkPipeNode(n.Pipe) }
+func walkActionNode(n *tplparse.ActionNode) error {
+	return checkPipeNode(n.Pipe)
+}
 
 func walkIfNode(n *tplparse.IfNode) error {
 	if err := checkPipeNode(n.Pipe); err != nil {
@@ -438,27 +460,29 @@ func (s *RegisterService) EnsureMultiple(ctx context.Context, configs []Config) 
 	if len(configs) == 0 {
 		return nil
 	}
+	if ctx.Err() != nil {
+		return fmt.Errorf("registration canceled: %w", ctx.Err())
+	}
 	log.Info("Registering multiple MCPs with proxy", "count", len(configs))
 	// Use a worker pool for concurrent registration
-	type result struct {
+	results := make(chan struct {
 		mcpID string
 		err   error
-	}
-	results := make(chan result, len(configs))
+	}, len(configs))
 	// Limit concurrent registrations to avoid overwhelming the proxy
 	const maxConcurrent = 5
 	work := make(chan Config, len(configs))
 	// Start fixed number of workers
-	for i := 0; i < maxConcurrent; i++ {
-		go func() {
-			for cfg := range work {
-				err := s.Ensure(ctx, &cfg)
-				results <- result{mcpID: cfg.ID, err: err}
-			}
-		}()
+	for range maxConcurrent {
+		go s.ensureWorker(ctx, work, results)
 	}
-	// Send work to workers
+	// Send work to workers with early cancel
 	for i := range configs {
+		if ctx.Err() != nil {
+			close(work)
+			close(results)
+			return fmt.Errorf("registration canceled: %w", ctx.Err())
+		}
 		work <- configs[i]
 	}
 	close(work)
@@ -490,6 +514,23 @@ func (s *RegisterService) EnsureMultiple(ctx context.Context, configs []Config) 
 	return nil
 }
 
+// ensureWorker consumes work items and emits results; placed directly after EnsureMultiple
+func (s *RegisterService) ensureWorker(ctx context.Context, work <-chan Config, results chan<- struct {
+	mcpID string
+	err   error
+}) {
+	for cfg := range work {
+		if ctx.Err() != nil {
+			return
+		}
+		err := s.Ensure(ctx, &cfg)
+		results <- struct {
+			mcpID string
+			err   error
+		}{mcpID: cfg.ID, err: err}
+	}
+}
+
 // -----------------------------------------------------------------------------
 // Setup and Initialization Functions
 // -----------------------------------------------------------------------------
@@ -498,16 +539,10 @@ func (s *RegisterService) EnsureMultiple(ctx context.Context, configs []Config) 
 // Returns nil if MCP_PROXY_URL is not configured
 func SetupForWorkflows(ctx context.Context, workflows []WorkflowConfig) (*RegisterService, error) {
 	log := logger.FromContext(ctx)
-	proxyURL := appconfig.Get().LLM.ProxyURL
-	if proxyURL == "" {
+	service := setupRegisterServiceFromApp(log)
+	if service == nil {
 		return nil, nil
 	}
-	clientTimeout := appconfig.Get().LLM.MCPClientTimeout
-	if clientTimeout <= 0 {
-		clientTimeout = 30 * time.Second
-	}
-	service := NewWithTimeout(proxyURL, clientTimeout)
-	log.Info("Initialized MCP register with proxy", "proxy_url", proxyURL)
 
 	// Collect unique MCPs declared by all workflows
 	allMCPs := CollectWorkflowMCPs(workflows)
@@ -554,6 +589,21 @@ func SetupForWorkflows(ctx context.Context, workflows []WorkflowConfig) (*Regist
 	return service, nil
 }
 
+// setupRegisterServiceFromApp builds a RegisterService from application config; helper placed under its caller
+func setupRegisterServiceFromApp(log logger.Logger) *RegisterService {
+	proxyURL := appconfig.Get().LLM.ProxyURL
+	if proxyURL == "" {
+		return nil
+	}
+	clientTimeout := appconfig.Get().LLM.MCPClientTimeout
+	if clientTimeout <= 0 {
+		clientTimeout = 30 * time.Second
+	}
+	service := NewWithTimeout(proxyURL, clientTimeout)
+	log.Info("Initialized MCP register with proxy", "proxy_url", proxyURL)
+	return service
+}
+
 // CollectWorkflowMCPs collects all unique MCP configurations from all workflows
 func CollectWorkflowMCPs(workflows []WorkflowConfig) []Config {
 	seen := make(map[string]bool)
@@ -576,6 +626,3 @@ func CollectWorkflowMCPs(workflows []WorkflowConfig) []Config {
 
 	return allMCPs
 }
-
-// readDurationEnv returns a parsed duration from env or the provided default on empty/invalid values
-// readDurationEnv removed in favor of pkg/config driven values
