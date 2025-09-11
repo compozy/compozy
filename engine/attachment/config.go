@@ -32,8 +32,8 @@ type ImageAttachment struct {
 }
 
 func (a *ImageAttachment) Type() Type { return TypeImage }
-func (a *ImageAttachment) Resolve(_ context.Context, _ *core.PathCWD) (Resolved, error) {
-	return nil, fmt.Errorf("image resolver not implemented")
+func (a *ImageAttachment) Resolve(ctx context.Context, cwd *core.PathCWD) (Resolved, error) {
+	return Resolve(ctx, a, cwd)
 }
 
 type PDFAttachment struct {
@@ -47,8 +47,8 @@ type PDFAttachment struct {
 }
 
 func (a *PDFAttachment) Type() Type { return TypePDF }
-func (a *PDFAttachment) Resolve(_ context.Context, _ *core.PathCWD) (Resolved, error) {
-	return nil, fmt.Errorf("pdf resolver not implemented")
+func (a *PDFAttachment) Resolve(ctx context.Context, cwd *core.PathCWD) (Resolved, error) {
+	return Resolve(ctx, a, cwd)
 }
 
 type AudioAttachment struct {
@@ -61,8 +61,8 @@ type AudioAttachment struct {
 }
 
 func (a *AudioAttachment) Type() Type { return TypeAudio }
-func (a *AudioAttachment) Resolve(_ context.Context, _ *core.PathCWD) (Resolved, error) {
-	return nil, fmt.Errorf("audio resolver not implemented")
+func (a *AudioAttachment) Resolve(ctx context.Context, cwd *core.PathCWD) (Resolved, error) {
+	return Resolve(ctx, a, cwd)
 }
 
 type VideoAttachment struct {
@@ -75,8 +75,8 @@ type VideoAttachment struct {
 }
 
 func (a *VideoAttachment) Type() Type { return TypeVideo }
-func (a *VideoAttachment) Resolve(_ context.Context, _ *core.PathCWD) (Resolved, error) {
-	return nil, fmt.Errorf("video resolver not implemented")
+func (a *VideoAttachment) Resolve(ctx context.Context, cwd *core.PathCWD) (Resolved, error) {
+	return Resolve(ctx, a, cwd)
 }
 
 type URLAttachment struct {
@@ -85,8 +85,8 @@ type URLAttachment struct {
 }
 
 func (a *URLAttachment) Type() Type { return TypeURL }
-func (a *URLAttachment) Resolve(_ context.Context, _ *core.PathCWD) (Resolved, error) {
-	return nil, fmt.Errorf("url resolver not implemented")
+func (a *URLAttachment) Resolve(ctx context.Context, _ *core.PathCWD) (Resolved, error) {
+	return Resolve(ctx, a, nil)
 }
 
 type FileAttachment struct {
@@ -95,8 +95,8 @@ type FileAttachment struct {
 }
 
 func (a *FileAttachment) Type() Type { return TypeFile }
-func (a *FileAttachment) Resolve(_ context.Context, _ *core.PathCWD) (Resolved, error) {
-	return nil, fmt.Errorf("file resolver not implemented")
+func (a *FileAttachment) Resolve(ctx context.Context, cwd *core.PathCWD) (Resolved, error) {
+	return Resolve(ctx, a, cwd)
 }
 
 // Config contains a list of polymorphic attachments.

@@ -1,5 +1,5 @@
 ---
-status: pending # Options: pending, in-progress, completed, excluded
+status: completed # Options: pending, in-progress, completed, excluded
 parallelizable: false # Whether this task can run in parallel when preconditions are met
 blocked_by: ["1.0", "4.0"] # List of task IDs that must be completed first
 ---
@@ -33,13 +33,13 @@ Implement the sophisticated normalization and template integration system that e
 
 ## Subtasks
 
-- [ ] 3.1 Implement structural normalization (`normalize.go`) to expand `paths`/`urls` into individual attachments
-- [ ] 3.2 Implement glob pattern support for `paths` using `github.com/bmatcuk/doublestar/v4`
-- [ ] 3.3 Design two-phase template engine integration architecture (`context_normalization.go`)
-- [ ] 3.4 Implement Phase 1: Template evaluation with deferral of unresolved `.tasks.*` references during normalization
-- [ ] 3.5 Implement Phase 2: Re-evaluate deferred templates at execution time with full runtime context
-- [ ] 3.6 Add metadata inheritance from pluralized sources to expanded individual attachments
-- [ ] 3.7 Unit tests for glob expansion, template deferral logic, and metadata inheritance
+- [x] 3.1 Implement structural normalization (`normalize.go`) to expand `paths`/`urls` into individual attachments
+- [x] 3.2 Implement glob pattern support for `paths` using `github.com/bmatcuk/doublestar/v4`
+- [x] 3.3 Design two-phase template engine integration architecture (`context_normalization.go`)
+- [x] 3.4 Implement Phase 1: Template evaluation with deferral of unresolved `.tasks.*` references during normalization
+- [x] 3.5 Implement Phase 2: Re-evaluate deferred templates at execution time with full runtime context
+- [x] 3.6 Add metadata inheritance from pluralized sources to expanded individual attachments
+- [x] 3.7 Unit tests for glob expansion, template deferral logic, and metadata inheritance
 
 ## Sequencing
 
@@ -117,3 +117,12 @@ Available context keys per technical specification:
 - Performance: Glob expansion handles large directories efficiently
 - All linter checks pass (`make lint`)
 - All tests pass (`make test`)
+
+## Review Recommendations (Zen MCP)
+
+- Centralize glob expansion with strict CWD checks; return CWD‑relative paths and verify `pathWithin` for each match.
+- Sort glob results for deterministic output ordering.
+- Clarify lifecycle: Phase 1 may yield a parent with deferred plural sources; Phase 2 must run before execution to guarantee singular `url`/`path` only.
+- Error handling: For unmatched patterns in Phase 1, keep behavior non‑fatal and log/debug; Phase 2 or resolvers may surface final errors if still unresolved.
+- Tests: Cover nested recursive globs (`**`), path‑traversal attempts (rejection), large directory sets, and unmatched patterns behavior.
+- Docs: Note that `urls`/`paths` are configuration‑time inputs; singular fields are the post‑normalization contract.

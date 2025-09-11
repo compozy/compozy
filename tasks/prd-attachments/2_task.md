@@ -1,5 +1,5 @@
 ---
-status: pending # Options: pending, in-progress, completed, excluded
+status: completed # Options: pending, in-progress, completed, excluded
 parallelizable: true # Whether this task can run in parallel when preconditions are met
 blocked_by: ["1.0"] # List of task IDs that must be completed first
 ---
@@ -33,13 +33,13 @@ Implement the resolver architecture with per-type resolvers, shared HTTP/filesys
 
 ## Subtasks
 
-- [ ] 2.1 Implement MIME detection logic (`mimedetect.go`) using `net/http.DetectContentType` + `mimetype` fallback
-- [ ] 2.2 Implement shared HTTP helper (`resolver_http.go`) with timeouts, redirects, size caps, and context cancellation
-- [ ] 2.3 Implement shared Filesystem helper (`resolver_fs.go`) with CWD-awareness and path traversal prevention
-- [ ] 2.4 Implement resolver factory (`resolver_factory.go`) to select resolvers based on `Attachment.Type()`
-- [ ] 2.5 Implement per-type resolvers (`resolver_image.go`, `resolver_pdf.go`, `resolver_audio.go`, `resolver_video.go`, `resolver_url.go`) with type-specific allowlists and limits
-- [ ] 2.6 Ensure all file-based `Resolved` handles correctly manage temp files and implement `Cleanup()`
-- [ ] 2.7 Unit tests for MIME detection, URL/path resolution, limits, cleanup, and context cancellation
+- [x] 2.1 Implement MIME detection logic (`mimedetect.go`) using `net/http.DetectContentType` + `mimetype` fallback
+- [x] 2.2 Implement shared HTTP helper (`resolver_http.go`) with timeouts, redirects, size caps, and context cancellation
+- [x] 2.3 Implement shared Filesystem helper (`resolver_fs.go`) with CWD-awareness and path traversal prevention
+- [x] 2.4 Implement resolver factory (`resolver_factory.go`) to select resolvers based on `Attachment.Type()`
+- [x] 2.5 Implement per-type resolvers (`resolver_image.go`, `resolver_pdf.go`, `resolver_audio.go`, `resolver_video.go`, `resolver_url.go`) with type-specific allowlists and limits
+- [x] 2.6 Ensure all file-based `Resolved` handles correctly manage temp files and implement `Cleanup()`
+- [x] 2.7 Unit tests for MIME detection, URL/path resolution, limits, cleanup, and context cancellation
 
 ## Sequencing
 

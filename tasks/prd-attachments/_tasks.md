@@ -20,32 +20,32 @@
 
 ## Tasks (≤6 parent tasks)
 
-- [ ] **1.0 Domain Model & Core Interfaces**
-  - [ ] Define `Attachment` and `Resolved` interfaces in `engine/attachment/resolver.go`
-  - [ ] Implement `baseAttachment` struct and all concrete types (`ImageAttachment`, `PDFAttachment`, `AudioAttachment`, `VideoAttachment`, `URLAttachment`, `FileAttachment`) in `engine/attachment/config.go`
-  - [ ] Add pluralized source support: `URLs []string` and `Paths []string` fields to applicable concrete types
-  - [ ] Implement polymorphic `UnmarshalYAML`/`UnmarshalJSON` with `type` discriminator and alias normalization (`document` → `pdf`)
-  - [ ] Add struct-level validation to ensure exactly one of `url`, `path`, `urls`, or `paths` is present per attachment
-  - [ ] Design `Resolved` interface with robust `Cleanup()` method for all resource handles (file descriptors, temp files)
-  - [ ] Success: Unit tests for polymorphic unmarshaling, validation errors, and interface contracts
+- [x] **1.0 Domain Model & Core Interfaces**
+  - [x] Define `Attachment` and `Resolved` interfaces in `engine/attachment/resolver.go`
+  - [x] Implement `baseAttachment` struct and all concrete types (`ImageAttachment`, `PDFAttachment`, `AudioAttachment`, `VideoAttachment`, `URLAttachment`, `FileAttachment`) in `engine/attachment/config.go`
+  - [x] Add pluralized source support: `URLs []string` and `Paths []string` fields to applicable concrete types
+  - [x] Implement polymorphic `UnmarshalYAML`/`UnmarshalJSON` with `type` discriminator and alias normalization (`document` → `pdf`)
+  - [x] Add struct-level validation to ensure exactly one of `url`, `path`, `urls`, or `paths` is present per attachment
+  - [x] Design `Resolved` interface with robust `Cleanup()` method for all resource handles (file descriptors, temp files)
+  - [x] Success: Unit tests for polymorphic unmarshaling, validation errors, and interface contracts
 
-- [ ] **2.0 Resolvers & Resource Management**
-  - [ ] Implement MIME detection logic (`mimedetect.go`) using `net/http.DetectContentType` + `mimetype` fallback
-  - [ ] Implement shared HTTP helper (`resolver_http.go`) with timeouts, redirects, size caps, and context cancellation
-  - [ ] Implement shared Filesystem helper (`resolver_fs.go`) with CWD-awareness and path traversal prevention
-  - [ ] Implement resolver factory (`resolver_factory.go`) to select resolvers based on `Attachment.Type()`
-  - [ ] Implement per-type resolvers (`resolver_image.go`, `resolver_pdf.go`, `resolver_audio.go`, `resolver_video.go`, `resolver_url.go`) with type-specific allowlists and limits
-  - [ ] Ensure all file-based `Resolved` handles correctly manage temp files and implement `Cleanup()`
-  - [ ] Success: Unit tests for MIME detection, URL/path resolution, limits, cleanup, and context cancellation
+- [x] **2.0 Resolvers & Resource Management**
+  - [x] Implement MIME detection logic (`mimedetect.go`) using `net/http.DetectContentType` + `mimetype` fallback
+  - [x] Implement shared HTTP helper (`resolver_http.go`) with timeouts, redirects, size caps, and context cancellation
+  - [x] Implement shared Filesystem helper (`resolver_fs.go`) with CWD-awareness and path traversal prevention
+  - [x] Implement resolver factory (`resolver_factory.go`) to select resolvers based on `Attachment.Type()`
+  - [x] Implement per-type resolvers (`resolver_image.go`, `resolver_pdf.go`, `resolver_audio.go`, `resolver_video.go`, `resolver_url.go`) with type-specific allowlists and limits
+  - [x] Ensure all file-based `Resolved` handles correctly manage temp files and implement `Cleanup()`
+  - [x] Success: Unit tests for MIME detection, URL/path resolution, limits, cleanup, and context cancellation
 
-- [ ] **3.0 Normalization & Template Integration**
-  - [ ] Implement structural normalization (`normalize.go`) to expand `paths`/`urls` into individual attachments
-  - [ ] Implement glob pattern support for `paths` using `github.com/bmatcuk/doublestar/v4`
-  - [ ] Implement two-phase template engine integration (`context_normalization.go`):
-    - [ ] Phase 1: Evaluate templates with deferral of unresolved `.tasks.*` references during normalization
-    - [ ] Phase 2: Re-evaluate deferred templates at execution time with full runtime context
-  - [ ] Add metadata inheritance from pluralized sources to expanded individual attachments
-  - [ ] Success: Unit tests for glob expansion, template deferral logic, and metadata inheritance
+- [x] **3.0 Normalization & Template Integration**
+  - [x] Implement structural normalization (`normalize.go`) to expand `paths`/`urls` into individual attachments
+  - [x] Implement glob pattern support for `paths` using `github.com/bmatcuk/doublestar/v4`
+  - [x] Implement two-phase template engine integration (`context_normalization.go`):
+    - [x] Phase 1: Evaluate templates with deferral of unresolved `.tasks.*` references during normalization
+    - [x] Phase 2: Re-evaluate deferred templates at execution time with full runtime context
+  - [x] Add metadata inheritance from pluralized sources to expanded individual attachments
+  - [x] Success: Unit tests for glob expansion, template deferral logic, and metadata inheritance
 
 - [ ] **4.0 Global Configuration & Schema Integration**
   - [ ] Implement all global settings (`attachments.*`) in `pkg/config` per global-config.mdc pattern:

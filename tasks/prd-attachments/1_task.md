@@ -1,5 +1,5 @@
 ---
-status: pending # Options: pending, in-progress, completed, excluded
+status: completed # Options: pending, in-progress, completed, excluded
 parallelizable: false # Whether this task can run in parallel when preconditions are met
 blocked_by: [] # List of task IDs that must be completed first
 ---
@@ -32,13 +32,13 @@ Establish the foundational polymorphic attachment architecture with core interfa
 
 ## Subtasks
 
-- [ ] 1.1 Define `Attachment` and `Resolved` interfaces in `engine/attachment/resolver.go`
-- [ ] 1.2 Implement `baseAttachment` struct and all concrete types in `engine/attachment/config.go`
-- [ ] 1.3 Add pluralized source support: `URLs []string` and `Paths []string` fields to applicable concrete types
-- [ ] 1.4 Implement polymorphic `UnmarshalYAML`/`UnmarshalJSON` with `type` discriminator and alias normalization (`document` → `pdf`)
-- [ ] 1.5 Add struct-level validation to ensure exactly one of `url`, `path`, `urls`, or `paths` is present per attachment
-- [ ] 1.6 Design `Resolved` interface with robust `Cleanup()` method for all resource handles (file descriptors, temp files)
-- [ ] 1.7 Unit tests for polymorphic unmarshaling, validation errors, and interface contracts
+- [x] 1.1 Define `Attachment` and `Resolved` interfaces in `engine/attachment/resolver.go`
+- [x] 1.2 Implement `baseAttachment` struct and all concrete types in `engine/attachment/config.go`
+- [x] 1.3 Add pluralized source support: `URLs []string` and `Paths []string` fields to applicable concrete types
+- [x] 1.4 Implement polymorphic `UnmarshalYAML`/`UnmarshalJSON` with `type` discriminator and alias normalization (`document` → `pdf`)
+- [x] 1.5 Add struct-level validation to ensure exactly one of `url`, `path`, `urls`, or `paths` is present per attachment
+- [x] 1.6 Design `Resolved` interface with robust `Cleanup()` method for all resource handles (file descriptors, temp files)
+- [x] 1.7 Unit tests for polymorphic unmarshaling, validation errors, and interface contracts
 
 ## Sequencing
 
