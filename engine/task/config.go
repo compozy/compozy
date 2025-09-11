@@ -77,11 +77,15 @@ import (
 	"dario.cat/mergo"
 
 	"github.com/compozy/compozy/engine/agent"
+	"github.com/compozy/compozy/engine/attachment"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/pkg/ref"
 )
+
+// Alias to embed attachments without colliding with BaseConfig field named "Config".
+type attachmentInlineConfig = attachment.Config
 
 // -----------------------------------------------------------------------------
 // BaseConfig - Common fields shared between Config and ParallelTaskItem
@@ -248,6 +252,9 @@ type BaseConfig struct {
 	// Task only executes if condition evaluates to true
 	// - **Example**: "input.status == 'approved' && input.amount > 1000"
 	Condition string `json:"condition,omitempty"  yaml:"condition,omitempty"  mapstructure:"condition,omitempty"`
+
+	// Attachments declared at the task scope are available to all nested agents/actions.
+	attachmentInlineConfig `json:",inline" yaml:",inline" mapstructure:",squash"`
 }
 
 // -----------------------------------------------------------------------------

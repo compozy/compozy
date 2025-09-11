@@ -419,6 +419,7 @@ func flattenConfig(cfg *config.Config) map[string]string {
 	flattenTemporalConfig(cfg, result)
 	flattenRuntimeConfig(cfg, result)
 	flattenLimitsConfig(cfg, result)
+	flattenAttachmentsConfig(cfg, result)
 	flattenMemoryConfig(cfg, result)
 	flattenLLMConfig(cfg, result)
 	flattenCLIConfig(cfg, result)
@@ -479,6 +480,28 @@ func flattenLimitsConfig(cfg *config.Config, result map[string]string) {
 	result["limits.max_total_content_size"] = fmt.Sprintf("%d", cfg.Limits.MaxTotalContentSize)
 	result["limits.max_task_context_depth"] = fmt.Sprintf("%d", cfg.Limits.MaxTaskContextDepth)
 	result["limits.parent_update_batch_size"] = fmt.Sprintf("%d", cfg.Limits.ParentUpdateBatchSize)
+}
+
+// flattenAttachmentsConfig flattens global attachments configuration
+func flattenAttachmentsConfig(cfg *config.Config, result map[string]string) {
+	result["attachments.max_download_size_bytes"] = fmt.Sprintf("%d", cfg.Attachments.MaxDownloadSizeBytes)
+	result["attachments.download_timeout"] = cfg.Attachments.DownloadTimeout.String()
+	result["attachments.max_redirects"] = fmt.Sprintf("%d", cfg.Attachments.MaxRedirects)
+	if len(cfg.Attachments.AllowedMIMETypes.Image) > 0 {
+		result["attachments.allowed_mime_types.image"] = strings.Join(cfg.Attachments.AllowedMIMETypes.Image, ",")
+	}
+	if len(cfg.Attachments.AllowedMIMETypes.Audio) > 0 {
+		result["attachments.allowed_mime_types.audio"] = strings.Join(cfg.Attachments.AllowedMIMETypes.Audio, ",")
+	}
+	if len(cfg.Attachments.AllowedMIMETypes.Video) > 0 {
+		result["attachments.allowed_mime_types.video"] = strings.Join(cfg.Attachments.AllowedMIMETypes.Video, ",")
+	}
+	if len(cfg.Attachments.AllowedMIMETypes.PDF) > 0 {
+		result["attachments.allowed_mime_types.pdf"] = strings.Join(cfg.Attachments.AllowedMIMETypes.PDF, ",")
+	}
+	if cfg.Attachments.TempDirQuotaBytes > 0 {
+		result["attachments.temp_dir_quota_bytes"] = fmt.Sprintf("%d", cfg.Attachments.TempDirQuotaBytes)
+	}
 }
 
 // flattenMemoryConfig flattens memory configuration (optional)

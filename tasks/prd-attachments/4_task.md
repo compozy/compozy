@@ -1,5 +1,5 @@
 ---
-status: pending # Options: pending, in-progress, completed, excluded
+status: in-progress # Options: pending, in-progress, completed, excluded
 parallelizable: true # Whether this task can run in parallel when preconditions are met
 blocked_by: ["1.0"] # List of task IDs that must be completed first
 ---
@@ -33,13 +33,13 @@ Implement comprehensive global configuration for attachments following the estab
 
 ## Subtasks
 
-- [ ] 4.1 Register attachment fields in `pkg/config/definition/schema.go` following global-config.mdc pattern
-- [ ] 4.2 Add typed structs in `pkg/config/config.go` with full tags (`koanf`, `json`, `yaml`, `mapstructure`, `env`, `validate`)
-- [ ] 4.3 Map from registry in appropriate `build<Section>Config(...)` functions
-- [ ] 4.4 Add CLI visibility in `cli/helpers/flag_categories.go` and diagnostics in `cli/cmd/config/config.go`
-- [ ] 4.5 Implement global limits: `max_download_size_bytes`, `download_timeout`, `max_redirects`, `allowed_mime_types.*`, `temp_dir_quota_bytes`
-- [ ] 4.6 Embed `attachment.Config` into Task, Agent, and Action configurations
-- [ ] 4.7 Validate integration: `compozy config show` displays attachments settings; validation works; env/CLI mapping functional
+- [x] 4.1 Register attachment fields in `pkg/config/definition/schema.go` following global-config.mdc pattern
+- [x] 4.2 Add typed structs in `pkg/config/config.go` with full tags (`koanf`, `json`, `yaml`, `mapstructure`, `env`, `validate`)
+- [x] 4.3 Map from registry in appropriate `build<Section>Config(...)` functions
+- [x] 4.4 Add CLI visibility in `cli/helpers/flag_categories.go` and diagnostics in `cli/cmd/config/config.go`
+- [x] 4.5 Implement global limits: `max_download_size_bytes`, `download_timeout`, `max_redirects`, `allowed_mime_types.*`, `temp_dir_quota_bytes`
+- [x] 4.6 Embed `attachment.Config` into Task, Agent, and Action configurations
+- [x] 4.7 Validate integration: `compozy config show` displays attachments settings; validation works; env/CLI mapping functional
 
 ## Sequencing
 

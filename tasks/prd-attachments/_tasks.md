@@ -48,13 +48,13 @@
   - [x] Success: Unit tests for glob expansion, template deferral logic, and metadata inheritance
 
 - [ ] **4.0 Global Configuration & Schema Integration**
-  - [ ] Implement all global settings (`attachments.*`) in `pkg/config` per global-config.mdc pattern:
-    - [ ] Register fields in `pkg/config/definition/schema.go` (Path, Default, CLIFlag, EnvVar, Type, Help)
-    - [ ] Add typed structs in `pkg/config/config.go` with full tags (`koanf`, `json`, `yaml`, `mapstructure`, `env`, `validate`)
-    - [ ] Map from registry in appropriate `build<Section>Config(...)`
-    - [ ] Add CLI visibility (`cli/helpers/flag_categories.go`) and diagnostics (`cli/cmd/config/config.go`)
-  - [ ] Add global limits: `max_download_size_bytes`, `download_timeout`, `max_redirects`, `allowed_mime_types.*`, `temp_dir_quota_bytes`
-  - [ ] Embed `attachment.Config` into `Task`, `Agent`, and `Action` configurations
+  - [x] Implement all global settings (`attachments.*`) in `pkg/config` per global-config.mdc pattern:
+    - [x] Register fields in `pkg/config/definition/schema.go` (Path, Default, CLIFlag, EnvVar, Type, Help)
+    - [x] Add typed structs in `pkg/config/config.go` with full tags (`koanf`, `json`, `yaml`, `mapstructure`, `env`, `validate`)
+    - [x] Map from registry in appropriate `build<Section>Config(...)`
+    - [x] Add CLI visibility (`cli/helpers/flag_categories.go`) and diagnostics (`cli/cmd/config/config.go`)
+  - [x] Add global limits: `max_download_size_bytes`, `download_timeout`, `max_redirects`, `allowed_mime_types.*`, `temp_dir_quota_bytes`
+  - [x] Embed `attachment.Config` into `Task`, `Agent`, and `Action` configurations
   - [ ] Success: `compozy config show` displays attachments settings; validation works; env/CLI mapping functional
 
 - [ ] **5.0 Execution Wiring & Orchestrator Integration**

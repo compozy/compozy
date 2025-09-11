@@ -107,6 +107,9 @@ type ActionConfig struct {
 	// explanatory text or reasoning alongside the structured output.
 	JSONMode bool `json:"json_mode"        yaml:"json_mode"        mapstructure:"json_mode"`
 	CWD      *core.PathCWD
+
+	// Embed attachments at action scope (use alias to keep pattern consistent with agent/task).
+	attachmentInlineConfig `json:",inline" yaml:",inline" mapstructure:",squash"`
 }
 
 func (a *ActionConfig) SetCWD(path string) error {
