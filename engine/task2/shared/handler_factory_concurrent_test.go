@@ -195,9 +195,7 @@ func TestResponseHandlerFactory_ConcurrentAccess(t *testing.T) {
 		}
 
 		// Concurrent RegisterAllHandlers
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			err := factory.RegisterAllHandlers(
 				handlers[task.TaskTypeBasic],
 				handlers[task.TaskTypeCollection],
@@ -210,7 +208,7 @@ func TestResponseHandlerFactory_ConcurrentAccess(t *testing.T) {
 			)
 			// May fail if handlers already registered
 			_ = err
-		}()
+		})
 
 		// Concurrent reads while registration is happening
 		numReaders := 10

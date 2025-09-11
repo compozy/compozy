@@ -356,9 +356,7 @@ func TestEvaluatorConcurrency(t *testing.T) {
 		var wg sync.WaitGroup
 		errs := make(chan error, 100)
 		for range 100 {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				result, err := ev.Eval(map[string]any{"v": map[string]any{"$ref": "local::value"}})
 				if err != nil {
 					errs <- err
@@ -367,7 +365,7 @@ func TestEvaluatorConcurrency(t *testing.T) {
 				if m, ok := result.(map[string]any); !ok || m["v"] != "ok" {
 					errs <- errors.New("wrong result")
 				}
-			}()
+			})
 		}
 		wg.Wait()
 		close(errs)

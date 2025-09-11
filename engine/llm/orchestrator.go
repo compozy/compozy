@@ -137,7 +137,7 @@ func (o *llmOrchestrator) executeWithClient(
 	// to allow multi-step workflows (e.g., read_file -> analyze -> write_file).
 	// Hard cap iterations to avoid infinite loops.
 	maxIterations := o.maxToolIterationsFor(request)
-	for iter := 0; iter < maxIterations; iter++ {
+	for iter := range maxIterations {
 		o.logLoopStart(ctx, request, &llmReq, iter)
 
 		response, err := o.generateLLMResponse(ctx, llmClient, &llmReq, request)

@@ -2,6 +2,7 @@ package llm
 
 import (
 	"fmt"
+	"maps"
 	"net/url"
 	"strings"
 	"time"
@@ -167,15 +168,11 @@ func WithRegisterMCPs(mcps []mcp.Config) Option {
 			dst := mcps[i]
 			if mcps[i].Headers != nil {
 				dst.Headers = make(map[string]string, len(mcps[i].Headers))
-				for k, v := range mcps[i].Headers {
-					dst.Headers[k] = v
-				}
+				maps.Copy(dst.Headers, mcps[i].Headers)
 			}
 			if mcps[i].Env != nil {
 				dst.Env = make(map[string]string, len(mcps[i].Env))
-				for k, v := range mcps[i].Env {
-					dst.Env[k] = v
-				}
+				maps.Copy(dst.Env, mcps[i].Env)
 			}
 			c.RegisterMCPs = append(c.RegisterMCPs, dst)
 		}
@@ -355,10 +352,7 @@ func (c *Config) CreateMCPClient() (*mcp.Client, error) {
 	}
 	// Align retry behavior with configured LLM retry settings
 	// RetryAttempts maps to retries (not attempts). Base and Max are respected.
-	attempts := c.RetryAttempts
-	if attempts < 0 {
-		attempts = 0
-	}
+	attempts := max(c.RetryAttempts, 0)
 	retries := uint64(attempts) //nolint:gosec // G115: bounds checked above and values come from validated config
 	// Configure retry with jitter percentage (capped inside the client)
 	jp := uint64(0)

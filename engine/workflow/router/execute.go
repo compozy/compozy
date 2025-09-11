@@ -5,6 +5,7 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/server/router"
+	"github.com/compozy/compozy/engine/infra/server/routes"
 	"github.com/gin-gonic/gin"
 )
 
@@ -17,7 +18,7 @@ type ExecuteWorkflowRequest struct {
 
 // ExecuteWorkflowResponse represents the response for workflow execution
 type ExecuteWorkflowResponse struct {
-	ExecURL    string `json:"exec_url"    example:"localhost:5001/api/workflows/executions/2Z4PVTL6K27XVT4A3NPKMDD5BG"`
+	ExecURL    string `json:"exec_url"    example:"localhost:5001/api/v0/executions/workflows/2Z4PVTL6K27XVT4A3NPKMDD5BG"`
 	ExecID     string `json:"exec_id"     example:"2Z4PVTL6K27XVT4A3NPKMDD5BG"`
 	WorkflowID string `json:"workflow_id" example:"data-processing"`
 }
@@ -61,7 +62,7 @@ func handleExecute(c *gin.Context) {
 	}
 
 	execID := workflowStateID.WorkflowExecID.String()
-	execURL := fmt.Sprintf("/api/v0/executions/workflows/%s", execID)
+	execURL := fmt.Sprintf("%s/executions/workflows/%s", routes.Base(), execID)
 	router.RespondAccepted(c, "workflow triggered successfully", gin.H{
 		"exec_url":    execURL,
 		"exec_id":     execID,

@@ -17,29 +17,25 @@ func TestMCPStatus_ThreadSafety(t *testing.T) {
 		iterations := 100
 		// Concurrent status updates
 		for range 10 {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				for range iterations {
 					status.UpdateStatus(StatusConnected, "")
 					status.UpdateStatus(StatusError, "test error")
 					status.RecordRequest(time.Millisecond * 100)
 					status.IncrementErrors()
 				}
-			}()
+			})
 		}
 		// Concurrent status reads
 		for range 10 {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				for range iterations {
 					statusCopy := status.SafeCopy()
 					assert.NotNil(t, statusCopy)
 					assert.Equal(t, "test-status", statusCopy.Name)
 					_ = status.CalculateUpTime()
 				}
-			}()
+			})
 		}
 		wg.Wait()
 		// Verify final state is consistent
@@ -127,9 +123,7 @@ func TestMCPStatus_RaceConditionDetection(t *testing.T) {
 		iterations := 200
 		// Concurrent operations that could cause race conditions
 		// 1. Status updates
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for i := range iterations {
 				switch i % 3 {
 				case 0:
@@ -140,35 +134,29 @@ func TestMCPStatus_RaceConditionDetection(t *testing.T) {
 					status.UpdateStatus(StatusConnecting, "")
 				}
 			}
-		}()
+		})
 		// 2. Request recording
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for i := range iterations {
 				responseTime := time.Duration(i%100+1) * time.Millisecond
 				status.RecordRequest(responseTime)
 			}
-		}()
+		})
 		// 3. Error incrementing
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for range iterations {
 				status.IncrementErrors()
 			}
-		}()
+		})
 		// 4. Reading operations
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for range iterations {
 				statusCopy := status.SafeCopy()
 				assert.NotNil(t, statusCopy)
 				uptime := status.CalculateUpTime()
 				assert.GreaterOrEqual(t, uptime, time.Duration(0))
 			}
-		}()
+		})
 		wg.Wait()
 		// Verify final consistency
 		finalCopy := status.SafeCopy()
@@ -244,29 +232,25 @@ func TestMCPStatus_DataIntegrity(t *testing.T) {
 		var requestMutex, errorMutex sync.Mutex
 		// Concurrent request recording
 		for range 5 {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				for range iterations {
 					status.RecordRequest(time.Millisecond * 50)
 					requestMutex.Lock()
 					expectedRequests++
 					requestMutex.Unlock()
 				}
-			}()
+			})
 		}
 		// Concurrent error incrementing
 		for range 3 {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				for range iterations {
 					status.IncrementErrors()
 					errorMutex.Lock()
 					expectedErrors++
 					errorMutex.Unlock()
 				}
-			}()
+			})
 		}
 		wg.Wait()
 		// Verify data integrity

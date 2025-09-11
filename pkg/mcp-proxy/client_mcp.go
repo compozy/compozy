@@ -3,6 +3,7 @@ package mcpproxy
 import (
 	"context"
 	"fmt"
+	"maps"
 	"sync"
 	"time"
 
@@ -154,9 +155,7 @@ func createSSEMCPClient(def *MCPDefinition) (*mcpclient.Client, bool, bool, erro
 	var options []transport.ClientOption
 	if len(def.Headers) > 0 {
 		hdr := make(map[string]string, len(def.Headers))
-		for k, v := range def.Headers {
-			hdr[k] = v
-		}
+		maps.Copy(hdr, def.Headers)
 		options = append(options, transport.WithHeaders(hdr))
 	}
 
@@ -173,9 +172,7 @@ func createStreamableHTTPMCPClient(def *MCPDefinition) (*mcpclient.Client, bool,
 	var options []transport.StreamableHTTPCOption
 	if len(def.Headers) > 0 {
 		hdr := make(map[string]string, len(def.Headers))
-		for k, v := range def.Headers {
-			hdr[k] = v
-		}
+		maps.Copy(hdr, def.Headers)
 		options = append(options, transport.WithHTTPHeaders(hdr))
 	}
 	if def.Timeout > 0 {

@@ -112,7 +112,7 @@ func TestConfig_TriggerValidation(t *testing.T) {
 		}
 		err = config.Validate()
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "duplicate trigger name: order.created")
+		assert.Contains(t, err.Error(), "workflow 'test-workflow' trigger[1] 'order.created': duplicate trigger name")
 	})
 
 	t.Run("Should validate trigger with valid schema", func(t *testing.T) {
@@ -162,9 +162,11 @@ func TestConfig_TriggerValidation(t *testing.T) {
 		}
 		err = config.Validate()
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid trigger schema for order.created")
+		assert.Contains(t, err.Error(), "workflow 'test-workflow' trigger[0] 'order.created': invalid trigger schema")
 	})
 }
+
+// Webhook-specific validations are covered in engine/webhook tests.
 
 func TestConfig_MCPValidation(t *testing.T) {
 	t.Run("Should validate individual MCP configurations", func(t *testing.T) {

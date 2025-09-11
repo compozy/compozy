@@ -4,7 +4,7 @@
   "properties": {
     "proxy_url": {
       "type": "string",
-      "description": "ProxyURL specifies the MCP proxy server endpoint.\n\nThe proxy handles:\n  - MCP server connections\n  - Tool discovery and routing\n  - Protocol translation\nDefault: \"http://localhost:6001\""
+      "description": "ProxyURL specifies the MCP proxy server endpoint.\n\nThe proxy handles:\n  - MCP server connections\n  - Tool discovery and routing\n  - Protocol translation\nDefault: \"\" (empty; supply MCP proxy URL explicitly or derive from MCPProxy.BaseURL)"
     },
     "mcp_readiness_timeout": {
       "type": "integer",
@@ -40,7 +40,7 @@
     },
     "max_tool_iterations": {
       "type": "integer",
-      "description": "MaxToolIterations caps the maximum number of tool-iteration loops per request.\n\nThis acts as a global default and can be overridden by model-specific configuration\nin project files. Set to 0 to use the orchestrator's built-in default.\nDefault: 10 (registry default)"
+      "description": "MaxToolIterations caps the maximum number of tool-iteration loops per request.\n\nThis acts as a global default and can be overridden by model-specific configuration\nin project files. Set to 0 to use the orchestrator's built-in default.\nDefault: 100 (registry default)"
     },
     "max_sequential_tool_errors": {
       "type": "integer",

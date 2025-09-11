@@ -18,6 +18,7 @@ import (
 	authmw "github.com/compozy/compozy/engine/infra/server/middleware/auth"
 	"github.com/compozy/compozy/engine/infra/server/middleware/ratelimit"
 	"github.com/compozy/compozy/engine/infra/server/router"
+	"github.com/compozy/compozy/engine/infra/server/routes"
 	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/task"
@@ -135,7 +136,7 @@ func convertRateLimitConfig(cfg *config.Config) *ratelimit.Config {
 			"/health",
 			"/metrics",
 			"/swagger",
-			"/api/v0/health",
+			routes.HealthVersioned(),
 		},
 	}
 }
@@ -467,7 +468,7 @@ func (s *Server) initializeScheduleManager(state *appstate.State, worker *worker
 		log.Debug("Schedule manager initialized without metrics")
 	}
 
-	state.Extensions[appstate.ScheduleManagerKey] = scheduleManager
+	state.SetScheduleManager(scheduleManager)
 	// Run schedule reconciliation in background with retry logic
 	go s.runReconciliationWithRetry(scheduleManager, workflows, log)
 }

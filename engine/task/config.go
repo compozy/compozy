@@ -575,7 +575,7 @@ type BasicTask struct {
 	//
 	// **Required fields:** provider, model
 	// **Optional fields:** api_key, api_url, params (temperature, max_tokens, etc.)
-	ModelConfig core.ProviderConfig `json:"model_config,omitempty" yaml:"model_config,omitempty" mapstructure:"model_config,omitempty"`
+	ModelConfig core.ProviderConfig `json:"model_config" yaml:"model_config,omitempty" mapstructure:"model_config,omitempty"`
 
 	// Action identifier that describes what this task does
 	// Used for logging and debugging purposes

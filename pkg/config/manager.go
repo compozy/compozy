@@ -142,14 +142,9 @@ func (m *Manager) startWatching(ctx context.Context, sources []Source) {
 		if source == nil {
 			continue
 		}
-
 		// Create a copy of source for the goroutine
 		src := source
-
-		m.watchWg.Add(1)
-		go func() {
-			defer m.watchWg.Done()
-
+		m.watchWg.Go(func() {
 			// Watch the source
 			err := src.Watch(m.watchCtx, func() {
 				// Debounce rapid changes
@@ -165,7 +160,7 @@ func (m *Manager) startWatching(ctx context.Context, sources []Source) {
 				// Source doesn't support watching or error occurred
 				logger.FromContext(ctx).Debug("source does not support watching", "error", err)
 			}
-		}()
+		})
 	}
 }
 

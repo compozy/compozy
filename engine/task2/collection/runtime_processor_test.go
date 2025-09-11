@@ -498,7 +498,7 @@ func TestRuntimeProcessor_EdgeCases(t *testing.T) {
 		// Template engine needs the item key to exist, even if empty
 		_, err := processor.ProcessItemConfig(baseConfig, map[string]any{})
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "map has no entry for key")
+		assert.Contains(t, err.Error(), "tplengine: missing key")
 	})
 
 	t.Run("Should handle ID field with no template", func(t *testing.T) {

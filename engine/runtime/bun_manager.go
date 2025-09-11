@@ -414,9 +414,7 @@ func (bm *BunManager) readStderrInBackground(
 	var stderrBuf bytes.Buffer
 	stderrBuf.Grow(64 * 1024) // pre-allocate small buffer to reduce reallocs
 	var stderrWg sync.WaitGroup
-	stderrWg.Add(1)
-	go func() {
-		defer stderrWg.Done()
+	stderrWg.Go(func() {
 		log := logger.FromContext(ctx)
 		// Use a small buffer for real-time reading
 		buf := make([]byte, 256) // Small buffer for immediate reads
@@ -475,7 +473,7 @@ func (bm *BunManager) readStderrInBackground(
 				break // EOF or error
 			}
 		}
-	}()
+	})
 	return &stderrBuf, &stderrWg
 }
 

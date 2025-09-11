@@ -106,6 +106,11 @@ type Config struct {
 	//
 	// $ref: schema://application#attachments
 	Attachments AttachmentsConfig `koanf:"attachments" json:"attachments" yaml:"attachments" mapstructure:"attachments"`
+
+	// Webhooks configures webhook processing and validation settings.
+	//
+	// $ref: schema://application#webhooks
+	Webhooks WebhooksConfig `koanf:"webhooks" json:"webhooks" yaml:"webhooks" mapstructure:"webhooks"`
 }
 
 // ServerConfig contains HTTP server configuration.
@@ -1133,6 +1138,7 @@ func defaultFromRegistry() *Config {
 		Cache:       buildCacheConfig(registry),
 		Worker:      buildWorkerConfig(registry),
 		MCPProxy:    buildMCPProxyConfig(registry),
+		Webhooks:    buildWebhooksConfig(registry),
 	}
 }
 
@@ -1418,4 +1424,21 @@ func buildAttachmentsConfig(registry *definition.Registry) AttachmentsConfig {
 	cfg.AllowedMIMETypes.Video = getStringSlice(registry, "attachments.allowed_mime_types.video")
 	cfg.AllowedMIMETypes.PDF = getStringSlice(registry, "attachments.allowed_mime_types.pdf")
 	return cfg
+}
+
+// WebhooksConfig contains webhook processing and validation configuration.
+type WebhooksConfig struct {
+	DefaultMethod    string        `koanf:"default_method"     json:"default_method"     yaml:"default_method"     mapstructure:"default_method"     env:"WEBHOOKS_DEFAULT_METHOD"     validate:"oneof=GET POST PUT DELETE PATCH HEAD OPTIONS"`
+	DefaultMaxBody   int64         `koanf:"default_max_body"   json:"default_max_body"   yaml:"default_max_body"   mapstructure:"default_max_body"   env:"WEBHOOKS_DEFAULT_MAX_BODY"   validate:"min=1"`
+	DefaultDedupeTTL time.Duration `koanf:"default_dedupe_ttl" json:"default_dedupe_ttl" yaml:"default_dedupe_ttl" mapstructure:"default_dedupe_ttl" env:"WEBHOOKS_DEFAULT_DEDUPE_TTL" validate:"min=0"`
+	StripeSkew       time.Duration `koanf:"stripe_skew"        json:"stripe_skew"        yaml:"stripe_skew"        mapstructure:"stripe_skew"        env:"WEBHOOKS_STRIPE_SKEW"        validate:"min=0"`
+}
+
+func buildWebhooksConfig(registry *definition.Registry) WebhooksConfig {
+	return WebhooksConfig{
+		DefaultMethod:    getString(registry, "webhooks.default_method"),
+		DefaultMaxBody:   getInt64(registry, "webhooks.default_max_body"),
+		DefaultDedupeTTL: getDuration(registry, "webhooks.default_dedupe_ttl"),
+		StripeSkew:       getDuration(registry, "webhooks.stripe_skew"),
+	}
 }

@@ -120,7 +120,7 @@ func TestToolInheritance_DeterministicOrdering(t *testing.T) {
 		})
 
 		// Act - resolve multiple times
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			resolvedTools, err := ResolveToolsWithHierarchy(projectConfig, nil, nil)
 
 			// Assert - same order every time

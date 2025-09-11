@@ -12,7 +12,7 @@
     },
     "task_queue": {
       "type": "string",
-      "description": "TaskQueue identifies the queue for workflow tasks.\n\nWorkers poll this queue for tasks to execute.\nUse different queues for:\n  - Workflow type separation\n  - Priority-based routing\n  - Resource isolation\nDefault: \"compozy-queue\""
+      "description": "TaskQueue identifies the queue for workflow tasks.\n\nWorkers poll this queue for tasks to execute.\nUse different queues for:\n  - Workflow type separation\n  - Priority-based routing\n  - Resource isolation\nDefault: \"compozy-tasks\""
     }
   },
   "additionalProperties": false,
