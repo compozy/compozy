@@ -2,7 +2,7 @@
 @baseUrl = http://localhost:5001/api/v0
 @workflowId = pokemon-img
 
-### Execute workflow
+### Execute workflow - Single Image with High Detail
 # @name executeWorkflow
 POST {{baseUrl}}/workflows/{{workflowId}}/executions
 Content-Type: application/json
@@ -10,9 +10,66 @@ Accept: application/json
 
 {
   "input": {
-    "image_url": "https://pokeflip.com/cdn/shop/articles/The_Phenomenal_Firepower_of_Charizard_-_The_Ultimate_Pokemon.jpg"
+    "image_url": "https://pokeflip.com/cdn/shop/articles/The_Phenomenal_Firepower_of_Charizard_-_The_Ultimate_Pokemon.jpg",
+    "image_detail": "high"
   }
 }
+
+### Execute workflow - Single Image with Low Detail
+# @name executeWorkflowLowDetail
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+Accept: application/json
+
+{
+  "input": {
+    "image_url": "https://pokeflip.com/cdn/shop/articles/The_Phenomenal_Firepower_of_Charizard_-_The_Ultimate_Pokemon.jpg",
+    "image_detail": "low"
+  }
+}
+
+### Execute workflow - Multiple Images (image_urls)
+# @name executeWorkflowMultiImages
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+Accept: application/json
+
+{
+  "input": {
+    "image_urls": [
+      "https://pokeflip.com/cdn/shop/articles/The_Phenomenal_Firepower_of_Charizard_-_The_Ultimate_Pokemon.jpg",
+      "https://example.com/pokemon2.png",
+      "https://example.com/pokemon3.png"
+    ],
+    "image_detail": "high"
+  }
+}
+
+### Execute workflow - Multiple Images (images alias)
+# @name executeWorkflowImagesAlias
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+Accept: application/json
+
+{
+  "input": {
+    "images": [
+      "https://pokeflip.com/cdn/shop/articles/The_Phenomenal_Firepower_of_Charizard_-_The_Ultimate_Pokemon.jpg",
+      "https://example.com/pokemon2.png"
+    ],
+    "image_detail": "low"
+  }
+}
+
+###
+# Supported Input Fields:
+# - image_url: string - Single image URL (required in current schema)
+# - image_urls: []string - Array of image URLs for multi-image analysis
+# - images: []string - Alias for image_urls
+# - image_detail: string - Detail level for analysis ("low", "high", "auto")
+#
+# Note: image_detail applies to all images in the request
+#
 
 ### Get execution details
 @execId = {{executeWorkflow.response.body.data.exec_id}}

@@ -326,60 +326,62 @@ func TestOrchestrator_ExecuteWithMemory(t *testing.T) {
 }
 
 func TestOrchestrator_BuildMessages_WithImageURLInput(t *testing.T) {
-	ctx := context.Background()
+	t.Run("Should attach image URL parts to user message", func(t *testing.T) {
+		ctx := context.Background()
 
-	mockRegistry := &MockToolRegistry{}
-	mockPromptBuilder := &MockPromptBuilder{}
-	mockFactory := &MockLLMFactory{}
-	mockClient := &MockLLMClient{}
+		mockRegistry := &MockToolRegistry{}
+		mockPromptBuilder := &MockPromptBuilder{}
+		mockFactory := &MockLLMFactory{}
+		mockClient := &MockLLMClient{}
 
-	orchestrator := NewOrchestrator(&OrchestratorConfig{
-		ToolRegistry:  mockRegistry,
-		PromptBuilder: mockPromptBuilder,
-		LLMFactory:    mockFactory,
-	})
+		orchestrator := NewOrchestrator(&OrchestratorConfig{
+			ToolRegistry:  mockRegistry,
+			PromptBuilder: mockPromptBuilder,
+			LLMFactory:    mockFactory,
+		})
 
-	// Registry list is invoked to advertise tools; return empty list
-	mockRegistry.On("ListAll", mock.Anything).Return([]Tool{}, nil)
+		// Registry list is invoked to advertise tools; return empty list
+		mockRegistry.On("ListAll", mock.Anything).Return([]Tool{}, nil)
 
-	// Prepare request with image_url in input
-	input := core.Input(map[string]any{
-		"image_url":    "https://example.com/pikachu.png",
-		"image_detail": "high",
-	})
-	agentCfg := &agent.Config{
-		ID:           "vision-agent",
-		Instructions: "You are a vision assistant",
-		Config:       core.ProviderConfig{Provider: "openai", Model: "gpt-4o-mini"},
-		CWD:          &core.PathCWD{Path: "."},
-	}
-	actionCfg := &agent.ActionConfig{ID: "recognize", Prompt: "Identify the Pokémon", With: &input}
-
-	req := Request{Agent: agentCfg, Action: actionCfg}
-
-	mockPromptBuilder.On("Build", ctx, actionCfg).Return("Identify the Pokémon", nil)
-	mockPromptBuilder.On("ShouldUseStructuredOutput", "openai", actionCfg, agentCfg.Tools).Return(false)
-	mockFactory.On("CreateClient", &agentCfg.Config).Return(mockClient, nil)
-
-	mockClient.On("GenerateContent", ctx, mock.MatchedBy(func(r *llmadapter.LLMRequest) bool {
-		if len(r.Messages) != 1 {
-			return false
+		// Prepare request with image_url in input
+		input := core.Input(map[string]any{
+			"image_url":    "https://example.com/pikachu.png",
+			"image_detail": "high",
+		})
+		agentCfg := &agent.Config{
+			ID:           "vision-agent",
+			Instructions: "You are a vision assistant",
+			Config:       core.ProviderConfig{Provider: "openai", Model: "gpt-4o-mini"},
+			CWD:          &core.PathCWD{Path: "."},
 		}
-		m := r.Messages[0]
-		if m.Role != "user" {
-			return false
-		}
-		var hasImage bool
-		for _, p := range m.Parts {
-			if _, ok := p.(llmadapter.ImageURLPart); ok {
-				hasImage = true
+		actionCfg := &agent.ActionConfig{ID: "recognize", Prompt: "Identify the Pokémon", With: &input}
+
+		req := Request{Agent: agentCfg, Action: actionCfg}
+
+		mockPromptBuilder.On("Build", ctx, actionCfg).Return("Identify the Pokémon", nil)
+		mockPromptBuilder.On("ShouldUseStructuredOutput", "openai", actionCfg, agentCfg.Tools).Return(false)
+		mockFactory.On("CreateClient", &agentCfg.Config).Return(mockClient, nil)
+
+		mockClient.On("GenerateContent", ctx, mock.MatchedBy(func(r *llmadapter.LLMRequest) bool {
+			if len(r.Messages) != 1 {
+				return false
 			}
-		}
-		return hasImage && m.Content == "Identify the Pokémon"
-	})).Return(&llmadapter.LLMResponse{Content: "Pikachu"}, nil)
-	mockClient.On("Close").Return(nil)
+			m := r.Messages[0]
+			if m.Role != "user" {
+				return false
+			}
+			var hasImage bool
+			for _, p := range m.Parts {
+				if _, ok := p.(llmadapter.ImageURLPart); ok {
+					hasImage = true
+				}
+			}
+			return hasImage && m.Content == "Identify the Pokémon"
+		})).Return(&llmadapter.LLMResponse{Content: "Pikachu"}, nil)
+		mockClient.On("Close").Return(nil)
 
-	out, err := orchestrator.Execute(ctx, req)
-	require.NoError(t, err)
-	require.NotNil(t, out)
+		out, err := orchestrator.Execute(ctx, req)
+		require.NoError(t, err)
+		require.NotNil(t, out)
+	})
 }
