@@ -32,7 +32,8 @@ type RegisterService struct {
 	registered   map[string]struct{}
 }
 
-// New creates a new MCP registration service
+// NewRegisterService creates a new RegisterService that uses the provided MCP proxy client.
+// The returned service has an initialized internal set for tracking registered MCP IDs.
 func NewRegisterService(proxyClient *Client) *RegisterService {
 	return &RegisterService{
 		proxy:      proxyClient,
@@ -239,7 +240,15 @@ func (s *RegisterService) convertToDefinition(config *Config) (Definition, error
 
 // normalizeHeaders returns a defensive copy of headers with case normalization.
 // It ensures the Authorization header uses proper casing but does NOT infer schemes.
-// Users must provide complete Authorization headers with the correct scheme.
+// normalizeHeaders returns a defensive copy of the provided headers with canonical
+// casing for the Authorization header.
+//
+// It preserves all header keys/values from the input map but normalizes any header
+// whose key equals "authorization" (case-insensitively) to the exact key
+// "Authorization". If the input is nil or empty, an empty map is returned.
+// The function does not modify the input map.
+//
+// Users must provide a complete Authorization value (including scheme) when one is used.
 func normalizeHeaders(h map[string]string) map[string]string {
 	if len(h) == 0 {
 		return map[string]string{}
@@ -262,7 +271,7 @@ func normalizeHeaders(h map[string]string) map[string]string {
 }
 
 // resolveHeadersWithEnv evaluates header templates using the provided env (hierarchical env already merged by loader)
-// It validates templates to prevent injection attacks.
+// the engine provides its own escaping protections.
 func resolveHeadersWithEnv(headers map[string]string, env core.EnvMap) map[string]string {
 	if len(headers) == 0 {
 		return headers
@@ -331,6 +340,8 @@ func walkTemplateNodes(n tplparse.Node) error {
 	}
 }
 
+// walkListNode walks each child node of the provided template ListNode and
+// validates them via walkTemplateNodes, returning the first error encountered.
 func walkListNode(n *tplparse.ListNode) error {
 	for _, ch := range n.Nodes {
 		if err := walkTemplateNodes(ch); err != nil {
@@ -340,10 +351,15 @@ func walkListNode(n *tplparse.ListNode) error {
 	return nil
 }
 
+// walkActionNode validates the given template ActionNode by checking its pipeline for disallowed
+// constructs and returns any validation error.
 func walkActionNode(n *tplparse.ActionNode) error {
 	return checkPipeNode(n.Pipe)
 }
 
+// walkIfNode validates an IfNode's pipe and recursively validates its List and ElseList children.
+// It ensures the condition pipe is allowed (via checkPipeNode) and walks any contained template node lists,
+// returning the first encountered validation error.
 func walkIfNode(n *tplparse.IfNode) error {
 	if err := checkPipeNode(n.Pipe); err != nil {
 		return err
@@ -432,7 +448,12 @@ func checkCommandNode(cmd *tplparse.CommandNode) error {
 }
 
 // parseCommand safely parses a command string into command and arguments
-// Uses shell lexer to properly handle quoted arguments with spaces
+// parseCommand parses a shell-like command string into its command and arguments.
+// It uses a shell lexer to handle quotes and escaped spaces, and applies validation:
+// - input must be non-empty and not contain newlines,
+// - the parsed result must contain at least one token,
+// - the command name (first token) must not start with a dash.
+// Returns the parsed tokens or a descriptive error.
 func parseCommand(command string) ([]string, error) {
 	if command == "" {
 		return nil, fmt.Errorf("command cannot be empty")
@@ -573,7 +594,28 @@ func (s *RegisterService) aggregateRegistrationErrors(errs []error) error {
 // -----------------------------------------------------------------------------
 
 // SetupForWorkflows creates and initializes an MCP RegisterService for the given workflows
-// Returns nil if MCP_PROXY_URL is not configured
+// SetupForWorkflows creates and initializes an MCP RegisterService from application
+// configuration and registers all unique MCPs referenced by the provided workflows.
+//
+// If the proxy is not configured (no MCP proxy URL), this returns (nil, nil).
+//
+// For a configured proxy, SetupForWorkflows will:
+// - build a RegisterService from app config,
+// - collect unique MCP configurations across the given workflows,
+// - attempt to deregister any existing MCPs with the same IDs (best-effort, errors are logged),
+// - register all collected MCPs, and
+// - wait (bounded by application-configured timeouts) for each MCP to report a connected state via the proxy.
+//
+// The function returns the initialized RegisterService even if some registration steps fail;
+// an error is returned when registration or readiness waiting fails.
+//
+// Parameters:
+// - ctx: context for cancellation and timeouts used during registration and readiness polling.
+// - workflows: a slice of WorkflowConfig used to discover MCP configurations to register.
+//
+// Side effects:
+// - May deregister and register MCPs on the configured proxy.
+// - Blocks until MCPs report readiness or the configured readiness timeout elapses.
 func SetupForWorkflows(ctx context.Context, workflows []WorkflowConfig) (*RegisterService, error) {
 	log := logger.FromContext(ctx)
 	service := setupRegisterServiceFromApp(ctx)
@@ -626,7 +668,10 @@ func SetupForWorkflows(ctx context.Context, workflows []WorkflowConfig) (*Regist
 	return service, nil
 }
 
-// setupRegisterServiceFromApp builds a RegisterService from application config; helper placed under its caller
+// setupRegisterServiceFromApp builds a RegisterService from application config.
+// It returns nil if no proxy URL is configured. The MCP client timeout is taken
+// from app config (defaults to 30s when unset or non-positive). The created
+// service is initialized with a proxy client using those settings.
 func setupRegisterServiceFromApp(ctx context.Context) *RegisterService {
 	log := logger.FromContext(ctx)
 	proxyURL := appconfig.Get().LLM.ProxyURL
@@ -642,7 +687,14 @@ func setupRegisterServiceFromApp(ctx context.Context) *RegisterService {
 	return service
 }
 
-// CollectWorkflowMCPs collects all unique MCP configurations from all workflows
+// CollectWorkflowMCPs returns a deduplicated list of MCP configs referenced by the provided workflows.
+// 
+// For each workflow it:
+// - retrieves MCP configs via GetMCPs,
+// - applies SetDefaults to each config,
+// - resolves header templates against the workflow's environment (GetEnv) when headers are present,
+// and then includes the config in the result if its ID has not already been seen.
+// The returned slice preserves the first-seen order of unique MCP IDs.
 func CollectWorkflowMCPs(workflows []WorkflowConfig) []Config {
 	seen := make(map[string]bool)
 	var allMCPs []Config
