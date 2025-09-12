@@ -9,6 +9,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type testWrap struct {
+	Attachments Attachments `yaml:"attachments" json:"attachments"`
+}
+
 func Test_Config_UnmarshalYAML_Polymorphic(t *testing.T) {
 	t.Run("Should unmarshal mixed attachment types with alias normalization", func(t *testing.T) {
 		data := []byte(`
@@ -30,7 +34,7 @@ attachments:
   - type: file
     path: ./bin/asset.bin
 `)
-		var cfg Config
+		var cfg testWrap
 		err := yaml.Unmarshal(data, &cfg)
 		require.NoError(t, err)
 		require.Len(t, cfg.Attachments, 6)
@@ -71,7 +75,7 @@ attachments:
     url: https://example.com/a.png
     path: ./local.png
 `)
-		var cfg Config
+		var cfg testWrap
 		err := yaml.Unmarshal(data, &cfg)
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "must not specify multiple source fields")
@@ -84,7 +88,7 @@ attachments:
   - type: image
     name: missing
 `)
-		var cfg Config
+		var cfg testWrap
 		err := yaml.Unmarshal(data, &cfg)
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "requires exactly one of")
@@ -96,10 +100,36 @@ attachments:
   - type: image
     urls: [" ", "\t"]
 `)
-		var cfg Config
+		var cfg testWrap
 		err := yaml.Unmarshal(data, &cfg)
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "requires exactly one of")
+	})
+
+	t.Run("Should normalize YAML alias 'document' to pdf", func(t *testing.T) {
+		data := []byte(`
+attachments:
+  - type: document
+    path: ./doc.pdf
+`)
+		var cfg testWrap
+		err := yaml.Unmarshal(data, &cfg)
+		require.NoError(t, err)
+		require.Len(t, cfg.Attachments, 1)
+		_, ok := cfg.Attachments[0].(*PDFAttachment)
+		require.True(t, ok)
+	})
+
+	t.Run("Should error for unknown YAML type", func(t *testing.T) {
+		data := []byte(`
+attachments:
+  - type: unknown
+    url: https://x
+`)
+		var cfg testWrap
+		err := yaml.Unmarshal(data, &cfg)
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "unknown attachment type")
 	})
 }
 
@@ -113,7 +143,7 @@ func Test_Config_UnmarshalJSON_Polymorphic(t *testing.T) {
     {"type":"file","path":"./bin.bin"}
   ]
 }`)
-		var cfg Config
+		var cfg testWrap
 		err := json.Unmarshal(raw, &cfg)
 		require.NoError(t, err)
 		require.Len(t, cfg.Attachments, 4)
@@ -129,7 +159,7 @@ func Test_Config_UnmarshalJSON_Polymorphic(t *testing.T) {
 
 	t.Run("Should error for unknown type", func(t *testing.T) {
 		raw := []byte(`{"attachments":[{"type":"unknown"}]}`)
-		var cfg Config
+		var cfg testWrap
 		err := json.Unmarshal(raw, &cfg)
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "unknown attachment type")
@@ -137,7 +167,7 @@ func Test_Config_UnmarshalJSON_Polymorphic(t *testing.T) {
 
 	t.Run("Should normalize JSON alias 'document' to pdf", func(t *testing.T) {
 		raw := []byte(`{"attachments":[{"type":"document","path":"./doc.pdf"}]}`)
-		var cfg Config
+		var cfg testWrap
 		err := json.Unmarshal(raw, &cfg)
 		require.NoError(t, err)
 		require.Len(t, cfg.Attachments, 1)

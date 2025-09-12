@@ -111,7 +111,7 @@ func CreateBasicAgentConfig() *agent.Config {
 		Actions: []*agent.ActionConfig{
 			{
 				ID:     "process_message",
-				Prompt: "Process a message for testing",
+				Prompt: "Process a message for testing. {{ if .input.message }}Message: {{ .input.message }}{{ end }}",
 				InputSchema: &schema.Schema{
 					"type": "object",
 					"properties": map[string]any{

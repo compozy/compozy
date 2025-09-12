@@ -2,18 +2,22 @@ package llmadapter
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/pkg/logger"
 	"github.com/tmc/langchaingo/llms"
 )
 
 // LangChainAdapter adapts langchaingo to our LLMClient interface
 type LangChainAdapter struct {
-	model       llms.Model
-	provider    core.ProviderConfig
-	errorParser *ErrorParser
+	model          llms.Model
+	provider       core.ProviderConfig
+	errorParser    *ErrorParser
+	validationMode ValidationMode
 }
 
 // NewLangChainAdapter creates a new LangChain adapter
@@ -32,6 +36,24 @@ func NewLangChainAdapter(config *core.ProviderConfig) (*LangChainAdapter, error)
 	}, nil
 }
 
+// ValidationMode controls how unsupported content is handled
+type ValidationMode int
+
+const (
+	ValidationModeWarn ValidationMode = iota
+	ValidationModeError
+	ValidationModeSilent
+)
+
+// SetValidationMode configures how unsupported content is handled
+func (a *LangChainAdapter) SetValidationMode(mode ValidationMode) { a.validationMode = mode }
+
+// convertAudioToDataURL converts audio binary to a base64 data URL
+func (a *LangChainAdapter) convertAudioToDataURL(mimeType string, data []byte) string {
+	b64 := base64.StdEncoding.EncodeToString(data)
+	return fmt.Sprintf("data:%s;base64,%s", mimeType, b64)
+}
+
 // GenerateContent implements LLMClient interface
 func (a *LangChainAdapter) GenerateContent(ctx context.Context, req *LLMRequest) (*LLMResponse, error) {
 	// Guard against nil request
@@ -43,7 +65,7 @@ func (a *LangChainAdapter) GenerateContent(ctx context.Context, req *LLMRequest)
 		return nil, fmt.Errorf("invalid conversation: %w", err)
 	}
 	// Convert our request to langchain format
-	messages := a.convertMessages(req)
+	messages := a.convertMessages(ctx, req)
 	options := a.buildCallOptions(req)
 	// Call the underlying model
 	response, err := a.model.GenerateContent(ctx, messages, options...)
@@ -67,7 +89,7 @@ func (a *LangChainAdapter) GenerateContent(ctx context.Context, req *LLMRequest)
 }
 
 // convertMessages converts our Message format to langchain MessageContent
-func (a *LangChainAdapter) convertMessages(req *LLMRequest) []llms.MessageContent {
+func (a *LangChainAdapter) convertMessages(ctx context.Context, req *LLMRequest) []llms.MessageContent {
 	messages := make([]llms.MessageContent, 0, len(req.Messages)+1)
 
 	// Add system prompt if provided
@@ -76,13 +98,14 @@ func (a *LangChainAdapter) convertMessages(req *LLMRequest) []llms.MessageConten
 	}
 
 	// Convert each message
-	for _, msg := range req.Messages {
-		msgType := a.mapMessageRole(msg.Role)
+	for i := range req.Messages {
+		m := &req.Messages[i]
+		msgType := a.mapMessageRole(m.Role)
 		// Build parts supporting text, tool calls, and tool results
-		parts := a.buildContentParts(&msg)
+		parts := a.buildContentParts(ctx, m)
 		// Assistant tool calls
-		if len(msg.ToolCalls) > 0 {
-			for _, tc := range msg.ToolCalls {
+		if len(m.ToolCalls) > 0 {
+			for _, tc := range m.ToolCalls {
 				parts = append(parts, llms.ToolCall{
 					ID:   tc.ID,
 					Type: "function",
@@ -94,8 +117,8 @@ func (a *LangChainAdapter) convertMessages(req *LLMRequest) []llms.MessageConten
 			}
 		}
 		// Tool results - only append for appropriate roles
-		if len(msg.ToolResults) > 0 && msg.Role == RoleTool {
-			for _, tr := range msg.ToolResults {
+		if len(m.ToolResults) > 0 && m.Role == RoleTool {
+			for _, tr := range m.ToolResults {
 				content := tr.Content
 				if len(tr.JSONContent) > 0 {
 					content = string(tr.JSONContent)
@@ -117,7 +140,7 @@ func (a *LangChainAdapter) convertMessages(req *LLMRequest) []llms.MessageConten
 }
 
 // buildContentParts converts textual content and multimodal parts to langchaingo parts.
-func (a *LangChainAdapter) buildContentParts(msg *Message) []llms.ContentPart {
+func (a *LangChainAdapter) buildContentParts(ctx context.Context, msg *Message) []llms.ContentPart {
 	var parts []llms.ContentPart
 	if msg != nil && msg.Content != "" {
 		parts = append(parts, llms.TextContent{Text: msg.Content})
@@ -132,13 +155,100 @@ func (a *LangChainAdapter) buildContentParts(msg *Message) []llms.ContentPart {
 		case ImageURLPart:
 			parts = append(parts, llms.ImageURLContent{URL: v.URL, Detail: v.Detail})
 		case BinaryPart:
-			parts = append(parts, llms.BinaryContent{MIMEType: v.MIMEType, Data: v.Data})
+			parts = a.handleBinary(ctx, v, parts)
 		default:
 			// ignore unknown types
 		}
 	}
 	return parts
 }
+
+func (a *LangChainAdapter) isPDFAndNonGoogle(mime string) bool {
+	return mime == "application/pdf" && a.provider.Provider != core.ProviderGoogle
+}
+
+func (a *LangChainAdapter) isImage(mime string) bool { return strings.HasPrefix(mime, "image/") }
+func (a *LangChainAdapter) isAudio(mime string) bool { return strings.HasPrefix(mime, "audio/") }
+func (a *LangChainAdapter) isVideo(mime string) bool { return strings.HasPrefix(mime, "video/") }
+
+func (a *LangChainAdapter) skipOrWarnBinary(
+	ctx context.Context,
+	v BinaryPart,
+	parts []llms.ContentPart,
+) []llms.ContentPart {
+	log := logger.FromContext(ctx)
+	if a.validationMode == ValidationModeError {
+		return parts
+	}
+	if a.validationMode == ValidationModeWarn {
+		log.Warn(
+			"Provider does not accept generic binary content. Skipping.",
+			"provider", string(a.provider.Provider),
+			"mime", v.MIMEType,
+			"size", len(v.Data),
+		)
+	}
+	return parts
+}
+
+func (a *LangChainAdapter) handleAV(ctx context.Context, v BinaryPart, parts []llms.ContentPart) []llms.ContentPart {
+	if a.provider.Provider == core.ProviderGoogle {
+		return append(parts, llms.BinaryContent{MIMEType: v.MIMEType, Data: v.Data})
+	}
+	if a.provider.Provider == core.ProviderOpenAI && a.isAudio(v.MIMEType) {
+		const maxAudioBytes = 25 * 1024 * 1024
+		if len(v.Data) > maxAudioBytes {
+			if a.validationMode == ValidationModeWarn {
+				logger.FromContext(ctx).Warn("Audio exceeds provider max size. Skipping.", "size", len(v.Data))
+			}
+			return parts
+		}
+		dataURL := a.convertAudioToDataURL(v.MIMEType, v.Data)
+		logger.FromContext(ctx).Debug("Converted audio to data URL for OpenAI", "mime", v.MIMEType, "size", len(v.Data))
+		return append(parts, llms.ImageURLContent{URL: dataURL})
+	}
+	if a.provider.Provider == core.ProviderOpenAI && a.isVideo(v.MIMEType) {
+		if a.validationMode == ValidationModeWarn {
+			logger.FromContext(ctx).
+				Warn("OpenAI does not support video input. Skipping video content.", "mime", v.MIMEType, "size", len(v.Data))
+		}
+		return parts
+	}
+	return parts
+}
+
+func (a *LangChainAdapter) handleBinary(
+	ctx context.Context,
+	v BinaryPart,
+	parts []llms.ContentPart,
+) []llms.ContentPart {
+	if a.isPDFAndNonGoogle(v.MIMEType) {
+		logger.FromContext(ctx).
+			Warn("Provider does not accept PDF binary. Omitting PDF content.", "provider", string(a.provider.Provider))
+		return append(
+			parts,
+			llms.TextContent{Text: "[PDF omitted: provider rejects PDF binaries; attach extracted text]"},
+		)
+	}
+	if a.isImage(v.MIMEType) {
+		b64 := base64.StdEncoding.EncodeToString(v.Data)
+		dataURL := fmt.Sprintf("data:%s;base64,%s", v.MIMEType, b64)
+		return append(parts, llms.ImageURLContent{URL: dataURL})
+	}
+	if a.isAudio(v.MIMEType) || a.isVideo(v.MIMEType) {
+		return a.handleAV(ctx, v, parts)
+	}
+	if a.provider.Provider == core.ProviderGoogle {
+		return append(parts, llms.BinaryContent{MIMEType: v.MIMEType, Data: v.Data})
+	}
+	return a.skipOrWarnBinary(ctx, v, parts)
+}
+
+// mapAudioMIMEToFormat maps MIME types to OpenAI input_audio formats.
+// Note: OpenAI Chat Completions (via langchaingo v0.1.13) does not expose
+// an input_audio content part type. Audio/video BinaryParts are therefore
+// omitted for OpenAI to avoid 400 errors. Other providers (e.g., GoogleAI)
+// receive BinaryContent directly and handle audio/video blobs.
 
 // mapMessageRole maps our role to langchain ChatMessageType
 func (a *LangChainAdapter) mapMessageRole(role string) llms.ChatMessageType {

@@ -36,6 +36,15 @@ func (a *ImageAttachment) Resolve(ctx context.Context, cwd *core.PathCWD) (Resol
 	return Resolve(ctx, a, cwd)
 }
 
+// MarshalJSON adds the discriminator field for correct round-trip encoding.
+func (a *ImageAttachment) MarshalJSON() ([]byte, error) {
+	type alias ImageAttachment
+	return json.Marshal(struct {
+		Type string `json:"type"`
+		alias
+	}{Type: string(TypeImage), alias: alias(*a)})
+}
+
 type PDFAttachment struct {
 	baseAttachment
 	Source   Source   `json:"-"                   yaml:"-"`
@@ -49,6 +58,14 @@ type PDFAttachment struct {
 func (a *PDFAttachment) Type() Type { return TypePDF }
 func (a *PDFAttachment) Resolve(ctx context.Context, cwd *core.PathCWD) (Resolved, error) {
 	return Resolve(ctx, a, cwd)
+}
+
+func (a *PDFAttachment) MarshalJSON() ([]byte, error) {
+	type alias PDFAttachment
+	return json.Marshal(struct {
+		Type string `json:"type"`
+		alias
+	}{Type: string(TypePDF), alias: alias(*a)})
 }
 
 type AudioAttachment struct {
@@ -65,6 +82,14 @@ func (a *AudioAttachment) Resolve(ctx context.Context, cwd *core.PathCWD) (Resol
 	return Resolve(ctx, a, cwd)
 }
 
+func (a *AudioAttachment) MarshalJSON() ([]byte, error) {
+	type alias AudioAttachment
+	return json.Marshal(struct {
+		Type string `json:"type"`
+		alias
+	}{Type: string(TypeAudio), alias: alias(*a)})
+}
+
 type VideoAttachment struct {
 	baseAttachment
 	Source Source   `json:"-"               yaml:"-"`
@@ -79,6 +104,14 @@ func (a *VideoAttachment) Resolve(ctx context.Context, cwd *core.PathCWD) (Resol
 	return Resolve(ctx, a, cwd)
 }
 
+func (a *VideoAttachment) MarshalJSON() ([]byte, error) {
+	type alias VideoAttachment
+	return json.Marshal(struct {
+		Type string `json:"type"`
+		alias
+	}{Type: string(TypeVideo), alias: alias(*a)})
+}
+
 type URLAttachment struct {
 	baseAttachment
 	URL string `json:"url" yaml:"url" mapstructure:"url"`
@@ -87,6 +120,14 @@ type URLAttachment struct {
 func (a *URLAttachment) Type() Type { return TypeURL }
 func (a *URLAttachment) Resolve(ctx context.Context, _ *core.PathCWD) (Resolved, error) {
 	return Resolve(ctx, a, nil)
+}
+
+func (a *URLAttachment) MarshalJSON() ([]byte, error) {
+	type alias URLAttachment
+	return json.Marshal(struct {
+		Type string `json:"type"`
+		alias
+	}{Type: string(TypeURL), alias: alias(*a)})
 }
 
 type FileAttachment struct {
@@ -99,25 +140,30 @@ func (a *FileAttachment) Resolve(ctx context.Context, cwd *core.PathCWD) (Resolv
 	return Resolve(ctx, a, cwd)
 }
 
-// Config contains a list of polymorphic attachments.
-type Config struct {
-	Attachments []Attachment `json:"attachments,omitempty" yaml:"attachments,omitempty" mapstructure:"attachments,omitempty"`
+func (a *FileAttachment) MarshalJSON() ([]byte, error) {
+	type alias FileAttachment
+	return json.Marshal(struct {
+		Type string `json:"type"`
+		alias
+	}{Type: string(TypeFile), alias: alias(*a)})
 }
 
-// UnmarshalYAML implements custom decoding to support polymorphic attachments using type discriminator.
-func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
-	var dto struct {
-		Attachments []map[string]any `yaml:"attachments"`
-	}
-	if err := unmarshal(&dto); err != nil {
-		return err
-	}
-	if len(dto.Attachments) == 0 {
-		c.Attachments = nil
+// Attachments is a slice of polymorphic Attachment values with custom decoding.
+type Attachments []Attachment
+
+// UnmarshalYAML (goccy/go-yaml compatible) decodes a sequence using a type discriminator.
+func (as *Attachments) UnmarshalYAML(unmarshal func(any) error) error {
+	var raw []map[string]any
+	if err := unmarshal(&raw); err != nil {
+		*as = nil
 		return nil
 	}
-	items := make([]Attachment, 0, len(dto.Attachments))
-	for i, m := range dto.Attachments {
+	if len(raw) == 0 {
+		*as = nil
+		return nil
+	}
+	items := make([]Attachment, 0, len(raw))
+	for i, m := range raw {
 		tval, ok := m["type"].(string)
 		if !ok {
 			return fmt.Errorf("attachment %d: missing or invalid type", i)
@@ -142,24 +188,23 @@ func (c *Config) UnmarshalYAML(unmarshal func(any) error) error {
 		}
 		items = append(items, att)
 	}
-	c.Attachments = items
+	*as = items
 	return nil
 }
 
-// UnmarshalJSON implements custom decoding to support polymorphic attachments using type discriminator.
-func (c *Config) UnmarshalJSON(data []byte) error {
-	var root struct {
-		Attachments []json.RawMessage `json:"attachments"`
-	}
-	if err := json.Unmarshal(data, &root); err != nil {
-		return err
-	}
-	if len(root.Attachments) == 0 {
-		c.Attachments = nil
+// UnmarshalJSON decodes a JSON array of attachments with a type discriminator.
+func (as *Attachments) UnmarshalJSON(data []byte) error {
+	var arr []json.RawMessage
+	if err := json.Unmarshal(data, &arr); err != nil {
+		*as = nil
 		return nil
 	}
-	items := make([]Attachment, 0, len(root.Attachments))
-	for i, raw := range root.Attachments {
+	if len(arr) == 0 {
+		*as = nil
+		return nil
+	}
+	items := make([]Attachment, 0, len(arr))
+	for i, raw := range arr {
 		var td struct {
 			Type string `json:"type"`
 		}
@@ -182,7 +227,7 @@ func (c *Config) UnmarshalJSON(data []byte) error {
 		}
 		items = append(items, att)
 	}
-	c.Attachments = items
+	*as = items
 	return nil
 }
 

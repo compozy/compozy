@@ -18,9 +18,6 @@ import (
 	"github.com/compozy/compozy/pkg/ref"
 )
 
-// Alias to embed attachments without colliding with existing field named "Config".
-type attachmentInlineConfig = attachment.Config
-
 type LLMProperties struct {
 	// Tools available to the agent for extending its capabilities.
 	// When tools are defined, the agent automatically has `toolChoice` set to `"auto"`,
@@ -154,8 +151,8 @@ type Config struct {
 	// This allows fields to be accessed directly on Config in YAML/JSON
 	LLMProperties `json:",inline" yaml:",inline" mapstructure:",squash"`
 
-	// Embed attachments configuration so agents can declare attachments at the agent scope.
-	attachmentInlineConfig `json:",inline" yaml:",inline" mapstructure:",squash"`
+	// Attachments declared at the agent scope.
+	Attachments attachment.Attachments `json:"attachments,omitempty" yaml:"attachments,omitempty" mapstructure:"attachments,omitempty"`
 
 	// Resource identifier for the autoloader system (must be `"agent"`).
 	// This field enables automatic discovery and registration of agent configurations.

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"dario.cat/mergo"
+	"github.com/compozy/compozy/engine/attachment"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/schema"
 )
@@ -108,8 +109,8 @@ type ActionConfig struct {
 	JSONMode bool `json:"json_mode"        yaml:"json_mode"        mapstructure:"json_mode"`
 	CWD      *core.PathCWD
 
-	// Embed attachments at action scope (use alias to keep pattern consistent with agent/task).
-	attachmentInlineConfig `json:",inline" yaml:",inline" mapstructure:",squash"`
+	// Attachments at action scope
+	Attachments attachment.Attachments `json:"attachments,omitempty" yaml:"attachments,omitempty" mapstructure:"attachments,omitempty"`
 }
 
 func (a *ActionConfig) SetCWD(path string) error {

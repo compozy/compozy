@@ -8,6 +8,7 @@ exclude: |
   (?x)^(
     CHANGELOG.md|
     tools/.*/package\.json|
+    .*\.(mp4|pdf|mp3|png)|
     bun.lockb|
     node_modules|
   )$

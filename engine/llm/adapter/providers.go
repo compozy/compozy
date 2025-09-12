@@ -202,6 +202,15 @@ func (m *MockLLM) GenerateContent(
 	// Extract prompt from messages
 	prompt := m.extractPrompt(messages)
 
+	// Attachments echo mode for tests: if the prompt contains ATTACHMENTS_ECHO,
+	// summarize how many image URLs and binary parts were provided. This is only
+	// used in tests that deliberately include that token in the user message.
+	if strings.Contains(prompt, "ATTACHMENTS_ECHO") {
+		img, bin := m.countMediaParts(messages)
+		content := fmt.Sprintf("attachments:image_urls=%d,binaries=%d", img, bin)
+		return &llms.ContentResponse{Choices: []*llms.ContentChoice{{Content: content}}}, nil
+	}
+
 	// Check for error conditions
 	if err := m.checkErrorConditions(prompt); err != nil {
 		return nil, err
@@ -230,6 +239,22 @@ func (m *MockLLM) extractPrompt(messages []llms.MessageContent) string {
 		}
 	}
 	return prompt
+}
+
+// countMediaParts scans message parts for image URLs and binary payloads.
+func (m *MockLLM) countMediaParts(messages []llms.MessageContent) (int, int) {
+	var img, bin int
+	for _, msg := range messages {
+		for _, p := range msg.Parts {
+			switch p.(type) {
+			case llms.ImageURLContent:
+				img++
+			case llms.BinaryContent:
+				bin++
+			}
+		}
+	}
+	return img, bin
 }
 
 // checkErrorConditions checks if the prompt should trigger an error

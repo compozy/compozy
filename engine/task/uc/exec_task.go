@@ -7,8 +7,10 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/engine/agent"
+	"github.com/compozy/compozy/engine/attachment"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/llm"
+	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
 	memcore "github.com/compozy/compozy/engine/memory/core"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/runtime"
@@ -342,8 +344,11 @@ func (uc *ExecuteTask) executeAgent(
 			"agent_id", agentConfig.ID,
 			"task_id", input.TaskConfig.ID)
 	}
-	// Create LLM service with resolved tools and memory
-	llmService, err := uc.createLLMService(ctx, agentConfig, input)
+	// Compute effective attachment content parts (if any)
+	parts, cleanup := uc.computeAttachmentParts(ctx, agentConfig, actionID, input)
+
+	// Create LLM service with resolved tools, memory, and attachment parts
+	llmService, err := uc.createLLMService(ctx, agentConfig, input, parts)
 	if err != nil {
 		return nil, err
 	}
@@ -354,6 +359,9 @@ func (uc *ExecuteTask) executeAgent(
 			log.Warn("Failed to close LLM service", "error", closeErr)
 		}
 	}()
+	if cleanup != nil {
+		defer cleanup()
+	}
 	// Resolve templates in promptText if present and context available
 	resolvedPrompt := uc.resolvePromptTemplates(ctx, promptText, agentConfig, input)
 	result, err := llmService.GenerateContent(ctx, agentConfig, taskWith, actionID, resolvedPrompt)
@@ -361,6 +369,66 @@ func (uc *ExecuteTask) executeAgent(
 		return nil, fmt.Errorf("failed to generate content: %w", err)
 	}
 	return result, nil
+}
+
+// computeAttachmentParts normalizes attachments across task/agent/action scopes,
+// merges them with correct precedence, and converts to LLM content parts. Returns
+// parts and a cleanup func (may be nil). Designed to keep executeAgent concise.
+func (uc *ExecuteTask) computeAttachmentParts(
+	ctx context.Context,
+	agentConfig *agent.Config,
+	actionID string,
+	input *ExecuteTaskInput,
+) ([]llmadapter.ContentPart, func()) {
+	if uc.templateEngine == nil || input == nil {
+		return nil, nil
+	}
+	log := logger.FromContext(ctx)
+	tplCtx := buildWorkflowContext(
+		input.WorkflowState,
+		input.WorkflowConfig,
+		input.TaskConfig,
+		input.ProjectConfig,
+	)
+	actionCfg := findActionConfig(agentConfig, actionID)
+	var taskAtts []attachment.Attachment
+	var taskCWDInit *core.PathCWD
+	if input.TaskConfig != nil {
+		taskAtts = input.TaskConfig.Attachments
+		taskCWDInit = input.TaskConfig.CWD
+	}
+	taskNorm := normalizeScopeLogged(
+		ctx, uc.templateEngine, tplCtx,
+		taskAtts, taskCWDInit, log, "Task",
+	)
+	agentNorm := normalizeScopeLogged(
+		ctx, uc.templateEngine, tplCtx,
+		agentConfig.Attachments, agentConfig.CWD, log, "Agent",
+	)
+	var actionNorm []attachment.Attachment
+	if actionCfg != nil {
+		actionNorm = normalizeScopeLogged(
+			ctx, uc.templateEngine, tplCtx,
+			actionCfg.Attachments, actionCfg.CWD, log, "Action",
+		)
+	}
+	var taskCWD *core.PathCWD
+	if input != nil && input.TaskConfig != nil {
+		taskCWD = input.TaskConfig.CWD
+	}
+	var actionCWD *core.PathCWD
+	if actionCfg != nil {
+		actionCWD = actionCfg.CWD
+	}
+	effective := attachment.ComputeEffectiveItems(taskNorm, taskCWD, agentNorm, agentConfig.CWD, actionNorm, actionCWD)
+	if len(effective) == 0 {
+		return nil, nil
+	}
+	parts, cleanup, convErr := attachment.ToContentPartsFromEffective(ctx, effective)
+	if convErr != nil {
+		log.Warn("Failed to convert attachments to content parts; continuing without parts", "error", convErr)
+	}
+	return parts, cleanup
 }
 
 // prepareAgentConfig handles agent configuration preparation including default model and template normalization
@@ -415,6 +483,7 @@ func (uc *ExecuteTask) createLLMService(
 	ctx context.Context,
 	agentConfig *agent.Config,
 	input *ExecuteTaskInput,
+	parts []llmadapter.ContentPart,
 ) (*llm.Service, error) {
 	log := logger.FromContext(ctx)
 	// Setup memory resolver and LLM options
@@ -452,6 +521,10 @@ func (uc *ExecuteTask) createLLMService(
 	if ids := uc.allowedMCPIDs(agentConfig, input); len(ids) > 0 {
 		llmOpts = append(llmOpts, llm.WithAllowedMCPNames(ids))
 	}
+	// Inject precomputed attachment parts when available
+	if len(parts) > 0 {
+		llmOpts = append(llmOpts, llm.WithAttachmentParts(parts))
+	}
 	// MCP registration is handled by server startup (engine/mcp.SetupForWorkflows)
 	// We no longer register workflow-level MCPs from the exec task.
 	llmService, err := llm.NewService(ctx, uc.runtime, agentConfig, llmOpts...)
@@ -459,6 +532,51 @@ func (uc *ExecuteTask) createLLMService(
 		return nil, fmt.Errorf("failed to create LLM service: %w", err)
 	}
 	return llmService, nil
+}
+
+// normalizeAttachments runs Phase1 and Phase2 normalization for attachments.
+func normalizeAttachments(
+	ctx context.Context,
+	eng *tplengine.TemplateEngine,
+	tplCtx map[string]any,
+	atts []attachment.Attachment,
+	cwd *core.PathCWD,
+) ([]attachment.Attachment, error) {
+	if len(atts) == 0 {
+		return nil, nil
+	}
+	n := attachment.NewContextNormalizer(eng, cwd)
+	p1, err := n.Phase1(ctx, atts, tplCtx)
+	if err != nil {
+		return nil, err
+	}
+	return n.Phase2(ctx, p1, tplCtx)
+}
+
+func findActionConfig(agentConfig *agent.Config, actionID string) *agent.ActionConfig {
+	if agentConfig == nil || actionID == "" {
+		return nil
+	}
+	if ac, err := agent.FindActionConfig(agentConfig.Actions, actionID); err == nil {
+		return ac
+	}
+	return nil
+}
+
+func normalizeScopeLogged(
+	ctx context.Context,
+	eng *tplengine.TemplateEngine,
+	tplCtx map[string]any,
+	atts []attachment.Attachment,
+	cwd *core.PathCWD,
+	log logger.Logger,
+	label string,
+) []attachment.Attachment {
+	out, err := normalizeAttachments(ctx, eng, tplCtx, atts, cwd)
+	if err != nil {
+		log.Warn(label+" attachments normalization failed", "error", err)
+	}
+	return out
 }
 
 // resolvePromptTemplates handles template resolution in the prompt text

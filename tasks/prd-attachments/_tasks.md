@@ -18,7 +18,7 @@
 - `tasks/prd-attachments/_prd.md` — Product requirements
 - `docs/content/docs/*` — User documentation updates
 
-## Tasks (≤6 parent tasks)
+## Tasks (≤7 parent tasks)
 
 - [x] **1.0 Domain Model & Core Interfaces**
   - [x] Define `Attachment` and `Resolved` interfaces in `engine/attachment/resolver.go`
@@ -67,28 +67,35 @@
   - [ ] Update `engine/llm/orchestrator.go` to use attachments exclusively, removing legacy `image_url/images` handling
   - [ ] Success: Integration tests verify image parts appear correctly; legacy fields removed; expanded attachments work
 
-- [ ] **6.0 Tests, Examples, and Documentation**
-  - [ ] Add comprehensive unit tests:
-    - [ ] Resolver factory selection tests (correct resolver chosen by `Attachment.Type()`)
-    - [ ] Per-type resolver tests covering success cases, limits (size, timeout), and error handling
-    - [ ] Resource cleanup tests: verify temp file cleanup on success, failure, and panic paths
-    - [ ] Context cancellation tests: verify network requests cancelled immediately when context cancelled
-    - [ ] Merge logic tests: ordering, de-duplication, override behavior
-    - [ ] Path traversal prevention tests
-  - [ ] Add integration tests:
-    - [ ] End-to-end attachment resolution and LLM part generation
-    - [ ] Template evaluation with workflow context
-    - [ ] Global configuration limit enforcement
-  - [ ] Update examples:
-    - [ ] Migrate `examples/pokemon-img` to use new `attachments` syntax
-    - [ ] Add examples showing pluralized sources (`paths`/`urls`) and glob patterns
-    - [ ] Add template examples (workflow input, previous task outputs)
-  - [ ] Update documentation:
-    - [ ] Configuration guide with all attachment types and options
-    - [ ] Provider support matrix for `BinaryPart` vs `ImageURLPart`
-    - [ ] Migration guide from `image_url/images` to `attachments` with examples
-    - [ ] Template integration examples and two-phase resolution explanation
-  - [ ] Success: CI tests pass; examples run; documentation complete; migration path clear
+- [ ] **6.0 Tests & Examples**
+  - [ ] Unit tests:
+    - [ ] Resolver factory selection by `Attachment.Type()`
+    - [ ] Per-type resolvers (success, size/timeout limits, redirects, MIME allowlist)
+    - [ ] Resource cleanup and context cancellation
+    - [ ] Merge logic ordering and de-duplication
+    - [ ] Path traversal prevention (filesystem resolver)
+  - [ ] Integration tests (no external network I/O):
+    - [ ] Router flow with attachments driving branch selection (image/audio/video)
+    - [ ] End-to-end LLM request assembly verifying `ContentPart` mapping
+    - [ ] Global `attachments.*` limits enforced via config/env
+    - [ ] Template deferral/evaluation across workflow context
+  - [ ] Examples:
+    - [ ] Rename `examples/pokemon-img` → `examples/pokemon`
+    - [ ] One workflow with a router → 3 tasks (analyze-image | analyze-audio | analyze-video)
+    - [ ] Seed example media (small CC‑licensed) acquired via Perplexity; examples only
+    - [ ] Adjust to new attachments spec
+  - [ ] Success: `make lint` + tests pass; integration tests stable; example runs locally
+
+- [ ] **7.0 Documentation**
+  - [ ] Create dedicated category `docs/content/docs/core/attachments/`
+    - [ ] `meta.json` with pages: `overview`, `configuration`, `router-patterns`
+  - [ ] Author pages mirroring Signals style (concise, pattern‑oriented):
+    - [ ] Overview: concepts, types, scope resolution (task/agent/action)
+    - [ ] Configuration: YAML schema and examples (paths/urls, globbing, template deferral)
+    - [ ] Router patterns: branch by attachment type; best practices
+  - [ ] Update `docs/content/docs/core/meta.json` to include `attachments`
+  - [ ] Cross‑link from tasks and agents docs where relevant
+  - [ ] Success: Docs build cleanly; links valid; content matches techspec
 
 ## Execution Plan
 
@@ -98,7 +105,6 @@
   - Task 3.0 requires completion of both 1.0 and 4.0 (needs config types and template engine)
   - Task 6.0 testing can begin incrementally as each prior task completes
   - Documentation drafting (part of 6.0) can start after 3.0
-  - Example migration (part of 6.0) can start after 5.0
 
 ## Notes
 

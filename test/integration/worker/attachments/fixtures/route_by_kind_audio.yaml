@@ -1,0 +1,43 @@
+name: attachments-router-audio
+
+workflow:
+  id: attachments-router
+  version: "1.0.0"
+  tasks:
+    - id: kind-router
+      type: router
+      action: select_by_kind
+      condition: "{{ .workflow.input.kind }}"
+      routes:
+        image: analyze-image
+        audio: analyze-audio
+        video: analyze-video
+      default_route: analyze-image
+
+    - id: analyze-image
+      type: basic
+      action: process_message
+
+    - id: analyze-audio
+      type: basic
+      action: process_message
+      final: true
+
+    - id: analyze-video
+      type: basic
+      action: process_message
+
+input:
+  kind: "audio"
+
+expected:
+  workflow_state:
+    status: "SUCCESS"
+    total_tasks: 2
+    completed_tasks: 2
+  task_states:
+    - name: kind-router
+      status: "SUCCESS"
+    - name: analyze-audio
+      status: "SUCCESS"
+      parent: kind-router

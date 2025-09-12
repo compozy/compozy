@@ -87,6 +87,7 @@ func NewService(ctx context.Context, runtime runtime.Runtime, agent *agent.Confi
 		RetryBackoffBase:        config.RetryBackoffBase,
 		RetryBackoffMax:         config.RetryBackoffMax,
 		RetryJitter:             config.RetryJitter,
+		AttachmentParts:         config.AttachmentParts,
 	}
 	llmOrchestrator := NewOrchestrator(&orchestratorConfig)
 	return &Service{

@@ -338,23 +338,22 @@ func TestOrchestrator_BuildMessages_WithImageURLInput(t *testing.T) {
 			ToolRegistry:  mockRegistry,
 			PromptBuilder: mockPromptBuilder,
 			LLMFactory:    mockFactory,
+			AttachmentParts: []llmadapter.ContentPart{
+				llmadapter.ImageURLPart{URL: "https://example.com/pikachu.png", Detail: "high"},
+			},
 		})
 
 		// Registry list is invoked to advertise tools; return empty list
 		mockRegistry.On("ListAll", mock.Anything).Return([]Tool{}, nil)
 
-		// Prepare request with image_url in input
-		input := core.Input(map[string]any{
-			"image_url":    "https://example.com/pikachu.png",
-			"image_detail": "high",
-		})
+		// Prepare basic request; parts are provided via orchestrator config
 		agentCfg := &agent.Config{
 			ID:           "vision-agent",
 			Instructions: "You are a vision assistant",
 			Config:       core.ProviderConfig{Provider: "openai", Model: "gpt-4o-mini"},
 			CWD:          &core.PathCWD{Path: "."},
 		}
-		actionCfg := &agent.ActionConfig{ID: "recognize", Prompt: "Identify the Pokémon", With: &input}
+		actionCfg := &agent.ActionConfig{ID: "recognize", Prompt: "Identify the Pokémon"}
 
 		req := Request{Agent: agentCfg, Action: actionCfg}
 
