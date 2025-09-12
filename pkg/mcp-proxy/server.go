@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -162,6 +163,7 @@ func (s *Server) metricsHandler(c *gin.Context) {
 func (s *Server) Start(ctx context.Context) error {
 	log := logger.FromContext(ctx)
 	log.Info("Starting MCP proxy server", "port", s.config.Port, "host", s.config.Host)
+	s.httpServer.BaseContext = func(_ net.Listener) context.Context { return ctx }
 
 	// Start client manager to restore existing MCP connections
 	if err := s.clientManager.Start(ctx); err != nil {

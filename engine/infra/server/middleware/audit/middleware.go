@@ -94,24 +94,22 @@ func logRequestDetails(c *gin.Context, start time.Time) {
 
 // logResponseDetails logs response information with security audit details
 func logResponseDetails(c *gin.Context, start time.Time) {
-	log := getCachedLogger(c)
 	duration := time.Since(start)
 	status := c.Writer.Status()
 	userID, userExists := c.Get("user_id")
-	responseLog := buildResponseLog(log, c, duration, status, userID, userExists)
-	logResponseBySeverity(responseLog, status)
-	logAuthFailures(log, c, status, userID)
+	logResponseBySeverity(c, duration, status, userID, userExists)
+	logAuthFailures(c, status, userID)
 }
 
 // buildResponseLog creates a structured response log with all relevant information
 func buildResponseLog(
-	log logger.Logger,
 	c *gin.Context,
 	duration time.Duration,
 	status int,
 	userID any,
 	userExists bool,
 ) logger.Logger {
+	log := getCachedLogger(c)
 	responseLog := log.With(
 		"method", c.Request.Method,
 		"path", c.Request.URL.Path,
@@ -136,7 +134,8 @@ func buildResponseLog(
 }
 
 // logResponseBySeverity logs response based on HTTP status code severity
-func logResponseBySeverity(responseLog logger.Logger, status int) {
+func logResponseBySeverity(c *gin.Context, duration time.Duration, status int, userID any, userExists bool) {
+	responseLog := buildResponseLog(c, duration, status, userID, userExists)
 	switch {
 	case status >= 500:
 		responseLog.Error("security_audit_response_error")
@@ -148,7 +147,8 @@ func logResponseBySeverity(responseLog logger.Logger, status int) {
 }
 
 // logAuthFailures logs authentication failures specifically
-func logAuthFailures(log logger.Logger, c *gin.Context, status int, userID any) {
+func logAuthFailures(c *gin.Context, status int, userID any) {
+	log := getCachedLogger(c)
 	if status == 401 || status == 403 {
 		log.Warn("security_audit_auth_failure",
 			"method", c.Request.Method,

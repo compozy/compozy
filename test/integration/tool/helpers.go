@@ -41,20 +41,18 @@ func SetupTestEnvironment(t *testing.T) *TestEnvironment {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTestTimeout)
 	// Ensure cancel is called even on test panic or early return.
 	t.Cleanup(cancel)
-	// Reset state to ensure clean test environment
-	if err := config.Close(ctx); err != nil {
-		t.Logf("Warning: failed to close config during test setup: %v", err)
-	}
-	config.ResetForTest()
+	// Reset migrations state only (config is context-scoped now)
 	store.ResetMigrationsForTest()
 	// Use shared container for better performance
 	pool, dbCleanup := helpers.GetSharedPostgresDB(ctx, t)
 	connStr := pool.Config().ConnString()
-	// Initialize config with fresh state
-	err := config.Initialize(ctx, nil, config.NewDefaultProvider())
+	// Initialize context-based config manager
+	mgr := config.NewManager(nil)
+	_, err := mgr.Load(ctx, config.NewDefaultProvider())
 	require.NoError(t, err)
+	ctx = config.ContextWithManager(ctx, mgr)
 	// Set up configuration
-	cfg := config.Get()
+	cfg := mgr.Get()
 	cfg.Database.AutoMigrate = false // Migrations already run in shared container
 	cfg.Database.ConnString = connStr
 	// Create store
@@ -69,9 +67,7 @@ func SetupTestEnvironment(t *testing.T) *TestEnvironment {
 			if err := testStore.DB.Close(ctx); err != nil {
 				t.Logf("Warning: failed to close database connection: %v", err)
 			}
-			if err := config.Close(ctx); err != nil {
-				t.Logf("Warning: failed to close config during cleanup: %v", err)
-			}
+			_ = mgr.Close(ctx)
 			dbCleanup()
 			// Cancel context to clean up any pending operations
 			cancel()

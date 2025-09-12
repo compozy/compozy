@@ -24,7 +24,6 @@ import (
 func TestToolInheritance_Runtime(t *testing.T) {
 	t.Run("Should execute workflow successfully with inherited project tools", func(t *testing.T) {
 		// Initialize global app config used by activities
-		require.NoError(t, utils.InitializeTestConfig())
 		// Build a very small workflow with one basic task using an agent without explicit tools
 		basicTask := helpers.CreateBasicTaskConfig("runtime-basic-task")
 		fixture := helpers.CreateBasicWorkflowFixture("tool-inheritance-runtime", basicTask)

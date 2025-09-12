@@ -51,7 +51,7 @@ func handleDevTUI(ctx context.Context, cobraCmd *cobra.Command, _ *cmd.CommandEx
 
 // runDevServer runs the development server with the provided configuration
 func runDevServer(ctx context.Context, cobraCmd *cobra.Command) error {
-	cfg := config.Get()
+	cfg := config.FromContext(ctx)
 	setupGinMode(cfg)
 	envFilePath, err := resolveEnvFilePath(cobraCmd)
 	if err != nil {
@@ -72,7 +72,7 @@ func runDevServer(ctx context.Context, cobraCmd *cobra.Command) error {
 		return RunWithWatcher(ctx, CWD, configFile, envFilePath)
 	}
 	srv := server.NewServer(ctx, CWD, configFile, envFilePath)
-	defer config.Close(ctx) // Ensure global config cleanup on exit
+	defer config.ManagerFromContext(ctx).Close(ctx)
 	return srv.Run()
 }
 

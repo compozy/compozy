@@ -16,6 +16,7 @@ import (
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
 	"github.com/compozy/compozy/engine/webhook"
+	pkgcfg "github.com/compozy/compozy/pkg/config"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -58,7 +59,11 @@ func newOrchestrator(
 	require.NoError(t, err)
 	filter := webhook.NewCELAdapter(eval)
 	idem := webhook.NewRedisService(&memRedis{})
-	return webhook.NewOrchestrator(reg, filter, disp, idem, maxBody, time.Minute)
+	cfg := &pkgcfg.Config{}
+	cfg.Webhooks.DefaultMaxBody = maxBody
+	cfg.Webhooks.DefaultDedupeTTL = time.Minute
+	cfg.Webhooks.StripeSkew = 5 * time.Minute
+	return webhook.NewOrchestrator(cfg, reg, filter, disp, idem, maxBody, time.Minute)
 }
 
 type testRegistry struct {

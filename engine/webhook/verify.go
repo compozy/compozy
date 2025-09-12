@@ -12,8 +12,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/compozy/compozy/pkg/config"
 )
 
 const (
@@ -44,6 +42,8 @@ type VerifyConfig struct {
 }
 
 // NewVerifier creates a Verifier based on the provided configuration.
+const defaultStripeSkew = 5 * time.Minute
+
 func NewVerifier(cfg VerifyConfig) (Verifier, error) {
 	switch cfg.Strategy {
 	case StrategyNone:
@@ -64,8 +64,7 @@ func NewVerifier(cfg VerifyConfig) (Verifier, error) {
 		}
 		allowedSkew := cfg.Skew
 		if allowedSkew == 0 {
-			globalCfg := config.Get()
-			allowedSkew = globalCfg.Webhooks.StripeSkew
+			allowedSkew = defaultStripeSkew
 		}
 		return stripeVerifier{secret: sec, skew: allowedSkew, now: time.Now}, nil
 	case StrategyGitHub:

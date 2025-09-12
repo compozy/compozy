@@ -54,8 +54,8 @@ func NewCommandExecutor(cmd *cobra.Command, opts ExecutorOptions) (*CommandExecu
 
 	// Initialize auth client if required
 	if opts.RequireAuth {
-		// Use global config
-		cfg := config.Get()
+		// Use context-based config
+		cfg := config.FromContext(ctx)
 
 		apiKey := getAPIKeyFromConfigOrFlag(cmd, cfg)
 

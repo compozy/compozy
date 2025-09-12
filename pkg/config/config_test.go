@@ -11,16 +11,17 @@ import (
 
 func TestLLM_MCP_Durations_ParseFromEnv(t *testing.T) {
 	t.Run("Should parse readiness durations from env", func(t *testing.T) {
-		ResetForTest()
 		t.Setenv("MCP_READINESS_TIMEOUT", "2s")
 		t.Setenv("MCP_READINESS_POLL_INTERVAL", "150ms")
-		err := Initialize(context.Background(), nil, NewDefaultProvider(), NewEnvProvider())
+		ctx := context.Background()
+		m := NewManager(NewService())
+		_, err := m.Load(ctx, NewDefaultProvider(), NewEnvProvider())
 		require.NoError(t, err)
-		cfg := Get()
+		cfg := m.Get()
 		require.NotNil(t, cfg)
 		assert.Equal(t, 2*time.Second, cfg.LLM.MCPReadinessTimeout)
 		assert.Equal(t, 150*time.Millisecond, cfg.LLM.MCPReadinessPollInterval)
-		ResetForTest()
+		_ = m.Close(ctx)
 	})
 }
 

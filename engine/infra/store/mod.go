@@ -26,7 +26,7 @@ func SetupStore(ctx context.Context, storeConfig *Config) (*Store, error) {
 
 // SetupStoreWithConfig creates a store using the provided app configuration
 func SetupStoreWithConfig(ctx context.Context) (*Store, error) {
-	cfg := config.Get()
+	cfg := config.FromContext(ctx)
 	// Debug logging
 	log := logger.FromContext(ctx)
 	log.Debug("Database configuration loaded",

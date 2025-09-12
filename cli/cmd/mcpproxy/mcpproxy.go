@@ -105,8 +105,8 @@ func runMCPProxy(
 	executor *cmd.CommandExecutor,
 	outputHandler func(*mcpproxy.Config) error,
 ) error {
-	// Get command-specific configuration directly from flags
-	proxyConfig := buildMCPProxyConfig(cobraCmd)
+	// Get command-specific configuration from context-backed config
+	proxyConfig := buildMCPProxyConfig(ctx, cobraCmd)
 
 	// Setup logging using global configuration
 	loggerInstance := setupMCPProxyLogging(cobraCmd, executor)
@@ -130,9 +130,9 @@ func runMCPProxy(
 }
 
 // buildMCPProxyConfig builds MCP proxy configuration from unified config system
-func buildMCPProxyConfig(_ *cobra.Command) *mcpproxy.Config {
+func buildMCPProxyConfig(ctx context.Context, _ *cobra.Command) *mcpproxy.Config {
 	// Get unified configuration
-	cfg := config.Get()
+	cfg := config.FromContext(ctx)
 	mcpConfig := cfg.MCPProxy
 
 	// Convert port from int to string as required by MCP proxy
@@ -156,7 +156,7 @@ func buildMCPProxyConfig(_ *cobra.Command) *mcpproxy.Config {
 
 // setupMCPProxyLogging configures logging for the MCP proxy using global configuration
 func setupMCPProxyLogging(cobraCmd *cobra.Command, _ *cmd.CommandExecutor) logger.Logger {
-	cfg := config.Get()
+	cfg := config.FromContext(cobraCmd.Context())
 	logLevel := cfg.Runtime.LogLevel
 	if envLevel := os.Getenv("MCP_PROXY_LOG_LEVEL"); envLevel != "" {
 		v := strings.ToLower(envLevel)

@@ -456,10 +456,10 @@ func NewTTLManager(lockConfig *memcore.LockConfig, memoryID string) *TTLManager 
 		return tm
 	}
 	// Parse configured TTLs with error logging
-	log := logger.FromContext(context.Background())
-	tm.appendTTL = parseTTLWithDefault(lockConfig.AppendTTL, tm.appendTTL, "append", memoryID, log)
-	tm.clearTTL = parseTTLWithDefault(lockConfig.ClearTTL, tm.clearTTL, "clear", memoryID, log)
-	tm.flushTTL = parseTTLWithDefault(lockConfig.FlushTTL, tm.flushTTL, "flush", memoryID, log)
+	ctx := context.Background()
+	tm.appendTTL = parseTTLWithDefault(ctx, lockConfig.AppendTTL, tm.appendTTL, "append", memoryID)
+	tm.clearTTL = parseTTLWithDefault(ctx, lockConfig.ClearTTL, tm.clearTTL, "clear", memoryID)
+	tm.flushTTL = parseTTLWithDefault(ctx, lockConfig.FlushTTL, tm.flushTTL, "flush", memoryID)
 	return tm
 }
 
@@ -475,11 +475,12 @@ func NewTTLManager(lockConfig *memcore.LockConfig, memoryID string) *TTLManager 
 //   - `memoryID`: Memory resource ID for logging context
 //   - `log`: Logger instance for error reporting
 func parseTTLWithDefault(
+	ctx context.Context,
 	ttlStr string,
 	defaultTTL time.Duration,
 	operation, memoryID string,
-	log logger.Logger,
 ) time.Duration {
+	log := logger.FromContext(ctx)
 	if ttlStr == "" {
 		return defaultTTL
 	}

@@ -84,7 +84,8 @@ func ResetMetricsForTesting(ctx context.Context) {
 }
 
 // initWorkflowMetrics initializes workflow-related metrics
-func initWorkflowMetrics(meter metric.Meter, log logger.Logger) error {
+func initWorkflowMetrics(ctx context.Context, meter metric.Meter) error {
+	log := logger.FromContext(ctx)
 	var err error
 	workflowStartedTotal, err = meter.Int64Counter(
 		"compozy_temporal_workflow_started_total",
@@ -123,7 +124,8 @@ func initWorkflowMetrics(meter metric.Meter, log logger.Logger) error {
 }
 
 // initWorkerMetrics initializes worker-related metrics
-func initWorkerMetrics(meter metric.Meter, log logger.Logger) error {
+func initWorkerMetrics(ctx context.Context, meter metric.Meter) error {
+	log := logger.FromContext(ctx)
 	var err error
 	workersRunning, err = meter.Int64UpDownCounter(
 		"compozy_temporal_workers_running_total",
@@ -160,7 +162,8 @@ func initWorkerMetrics(meter metric.Meter, log logger.Logger) error {
 }
 
 // initDispatcherMetrics initializes dispatcher-related metrics
-func initDispatcherMetrics(meter metric.Meter, log logger.Logger) error {
+func initDispatcherMetrics(ctx context.Context, meter metric.Meter) error {
+	log := logger.FromContext(ctx)
 	var err error
 	dispatcherActive, err = meter.Int64UpDownCounter(
 		"compozy_dispatcher_active_total",
@@ -225,17 +228,16 @@ func initMetrics(ctx context.Context, meter metric.Meter) {
 	if meter == nil {
 		return
 	}
-	log := logger.FromContext(ctx)
 	metricsMutex.Lock()
 	defer metricsMutex.Unlock()
 	initOnce.Do(func() {
-		if err := initWorkflowMetrics(meter, log); err != nil {
+		if err := initWorkflowMetrics(ctx, meter); err != nil {
 			return
 		}
-		if err := initWorkerMetrics(meter, log); err != nil {
+		if err := initWorkerMetrics(ctx, meter); err != nil {
 			return
 		}
-		if err := initDispatcherMetrics(meter, log); err != nil {
+		if err := initDispatcherMetrics(ctx, meter); err != nil {
 			return
 		}
 	})

@@ -23,12 +23,12 @@ type Operations struct {
 
 // NewOperations creates a new operations handler
 func NewOperations(
+	ctx context.Context,
 	instanceID string,
 	store core.Store,
 	lockManager LockManager,
 	tokenCounter core.TokenCounter,
 	metrics Metrics,
-	logger logger.Logger,
 ) *Operations {
 	return &Operations{
 		instanceID:   instanceID,
@@ -36,7 +36,7 @@ func NewOperations(
 		lockManager:  lockManager,
 		tokenCounter: tokenCounter,
 		metrics:      metrics,
-		logger:       logger,
+		logger:       logger.FromContext(ctx),
 	}
 }
 

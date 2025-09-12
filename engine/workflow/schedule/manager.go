@@ -574,7 +574,6 @@ func (m *manager) GetSchedule(ctx context.Context, workflowID string) (*Info, er
 
 // UpdateSchedule updates a schedule (for temporary overrides)
 func (m *manager) UpdateSchedule(ctx context.Context, workflowID string, update UpdateRequest) error {
-	log := logger.FromContext(ctx).With("workflow_id", workflowID, "project", m.projectID)
 	scheduleID := m.scheduleID(workflowID)
 	handle := m.client.ScheduleClient().GetHandle(ctx, scheduleID)
 
@@ -585,7 +584,7 @@ func (m *manager) UpdateSchedule(ctx context.Context, workflowID string, update 
 	}
 
 	// Log the API override operation
-	m.logAPIOverrideOperation(log, update)
+	m.logAPIOverrideOperation(ctx, update)
 
 	// Prepare override values
 	values, err := m.prepareOverrideValues(desc, update)
@@ -626,7 +625,8 @@ func (m *manager) getScheduleDescription(
 }
 
 // logAPIOverrideOperation logs the API override operation with appropriate actions
-func (m *manager) logAPIOverrideOperation(log logger.Logger, update UpdateRequest) {
+func (m *manager) logAPIOverrideOperation(ctx context.Context, update UpdateRequest) {
+	log := logger.FromContext(ctx)
 	var actions []string
 	if update.Enabled != nil {
 		if *update.Enabled {
@@ -728,7 +728,7 @@ func (m *manager) prepareOverrideValues(
 
 // validateCronExpression validates a cron expression
 func (m *manager) validateCronExpression(cronExpr string) error {
-	return ValidateCronExpression(cronExpr, "", nil)
+	return ValidateCronExpression(context.Background(), cronExpr, "")
 }
 
 // updateScheduleInTemporal updates the schedule in Temporal
@@ -847,8 +847,6 @@ func (m *manager) executeReconciliation(
 	toCreate, toUpdate map[string]*workflow.Config,
 	toDelete []string,
 ) error {
-	log := logger.FromContext(ctx)
-
 	// Create work queue with all operations
 	totalOps := len(toCreate) + len(toUpdate) + len(toDelete)
 	workQueue := make(chan workItem, totalOps)
@@ -863,9 +861,9 @@ func (m *manager) executeReconciliation(
 	// Start bounded worker pool
 	const maxWorkers = 10
 	var wg sync.WaitGroup
-	for range maxWorkers {
+	for i := 0; i < maxWorkers; i++ {
 		wg.Add(1)
-		go m.reconciliationWorker(ctx, log, workQueue, errChan, &wg)
+		go m.reconciliationWorker(ctx, workQueue, errChan, &wg)
 	}
 
 	// Wait for all workers to complete
@@ -873,7 +871,7 @@ func (m *manager) executeReconciliation(
 	close(errChan)
 
 	// Collect any errors
-	return m.collectReconciliationErrors(log, errChan)
+	return m.collectReconciliationErrors(ctx, errChan)
 }
 
 // queueCreateOperations queues create operations
@@ -932,21 +930,21 @@ func (m *manager) queueDeleteOperations(workQueue chan<- workItem, toDelete []st
 // reconciliationWorker processes work items from the queue
 func (m *manager) reconciliationWorker(
 	ctx context.Context,
-	log logger.Logger,
 	workQueue <-chan workItem,
 	errChan chan<- error,
 	wg *sync.WaitGroup,
 ) {
 	defer wg.Done()
 	for work := range workQueue {
-		if err := m.processWorkItem(ctx, log, work); err != nil {
+		if err := m.processWorkItem(ctx, work); err != nil {
 			errChan <- err
 		}
 	}
 }
 
 // processWorkItem processes a single work item with retry logic
-func (m *manager) processWorkItem(ctx context.Context, log logger.Logger, work workItem) error {
+func (m *manager) processWorkItem(ctx context.Context, work workItem) error {
+	log := logger.FromContext(ctx)
 	// Check context cancellation
 	if ctx.Err() != nil {
 		return ctx.Err()
@@ -974,7 +972,8 @@ func (m *manager) processWorkItem(ctx context.Context, log logger.Logger, work w
 }
 
 // collectReconciliationErrors collects errors from the error channel
-func (m *manager) collectReconciliationErrors(log logger.Logger, errChan <-chan error) error {
+func (m *manager) collectReconciliationErrors(ctx context.Context, errChan <-chan error) error {
+	log := logger.FromContext(ctx)
 	var multiErr *MultiError
 	for err := range errChan {
 		multiErr = AppendError(multiErr, err)

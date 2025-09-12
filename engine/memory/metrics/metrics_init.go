@@ -14,21 +14,21 @@ func InitMemoryMetrics(ctx context.Context, meter metric.Meter) {
 	if meter == nil {
 		return
 	}
-	log := logger.FromContext(ctx)
 	memoryMetricsOnce.Do(func() {
-		performMetricsInitialization(meter, log)
+		performMetricsInitialization(ctx, meter)
 	})
 }
 
-func performMetricsInitialization(meter metric.Meter, log logger.Logger) {
-	initializers := []func(metric.Meter, logger.Logger) error{
+func performMetricsInitialization(ctx context.Context, meter metric.Meter) {
+	log := logger.FromContext(ctx)
+	initializers := []func(context.Context, metric.Meter) error{
 		initCounterMetrics,
 		initHistogramMetrics,
 		initObservableGauges,
 		registerCallbacks,
 	}
 	for _, initializer := range initializers {
-		if err := initializer(meter, log); err != nil {
+		if err := initializer(ctx, meter); err != nil {
 			log.Error("Failed to initialize memory metrics", "error", err)
 			return
 		}
@@ -36,7 +36,8 @@ func performMetricsInitialization(meter metric.Meter, log logger.Logger) {
 	log.Info("Memory metrics initialized successfully")
 }
 
-func initCounterMetrics(meter metric.Meter, log logger.Logger) error {
+func initCounterMetrics(ctx context.Context, meter metric.Meter) error {
+	log := logger.FromContext(ctx)
 	counters := []struct {
 		name        string
 		description string
@@ -71,7 +72,8 @@ func initCounterMetrics(meter metric.Meter, log logger.Logger) error {
 	return nil
 }
 
-func initHistogramMetrics(meter metric.Meter, log logger.Logger) error {
+func initHistogramMetrics(ctx context.Context, meter metric.Meter) error {
+	log := logger.FromContext(ctx)
 	var err error
 	memoryOperationLatency, err = meter.Float64Histogram(
 		"compozy_memory_operation_duration_seconds",
@@ -84,7 +86,8 @@ func initHistogramMetrics(meter metric.Meter, log logger.Logger) error {
 	return nil
 }
 
-func initObservableGauges(meter metric.Meter, log logger.Logger) error {
+func initObservableGauges(ctx context.Context, meter metric.Meter) error {
+	log := logger.FromContext(ctx)
 	gauges := []struct {
 		name        string
 		description string
@@ -117,21 +120,22 @@ func initObservableGauges(meter metric.Meter, log logger.Logger) error {
 	return nil
 }
 
-func registerCallbacks(meter metric.Meter, log logger.Logger) error {
-	callbacks := []func(metric.Meter, logger.Logger) error{
+func registerCallbacks(ctx context.Context, meter metric.Meter) error {
+	callbacks := []func(context.Context, metric.Meter) error{
 		registerGoroutinePoolCallback,
 		registerTokensUsedCallback,
 		registerHealthStatusCallback,
 	}
 	for _, callback := range callbacks {
-		if err := callback(meter, log); err != nil {
+		if err := callback(ctx, meter); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func registerGoroutinePoolCallback(meter metric.Meter, log logger.Logger) error {
+func registerGoroutinePoolCallback(ctx context.Context, meter metric.Meter) error {
+	log := logger.FromContext(ctx)
 	if memoryGoroutinePoolActive == nil {
 		return nil
 	}
@@ -159,7 +163,8 @@ func registerGoroutinePoolCallback(meter metric.Meter, log logger.Logger) error 
 	return nil
 }
 
-func registerTokensUsedCallback(meter metric.Meter, log logger.Logger) error {
+func registerTokensUsedCallback(ctx context.Context, meter metric.Meter) error {
+	log := logger.FromContext(ctx)
 	if memoryTokensUsedGauge == nil {
 		return nil
 	}
@@ -188,7 +193,8 @@ func registerTokensUsedCallback(meter metric.Meter, log logger.Logger) error {
 	return nil
 }
 
-func registerHealthStatusCallback(meter metric.Meter, log logger.Logger) error {
+func registerHealthStatusCallback(ctx context.Context, meter metric.Meter) error {
+	log := logger.FromContext(ctx)
 	if memoryHealthStatusGauge == nil {
 		return nil
 	}

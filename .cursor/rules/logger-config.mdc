@@ -1,0 +1,70 @@
+---
+description: "Context-first rules for pkg/logger and pkg/config. Disallow DI and globals in runtime. Define edge-attachment and middleware propagation patterns."
+type: "agent-requested"
+alwaysApply: true
+tags: ["logger", "config", "context", "standards"]
+---
+
+# Logger & Config (Context-First)
+
+<purpose>
+Establish a single, consistent pattern to wire logging and configuration through `context.Context` across CLI, servers, workers, and background routines. Ensures zero dependency injection of loggers and no global config reads in runtime paths.
+</purpose>
+
+## Core Rules
+
+<critical>
+- MUST retrieve loggers with `logger.FromContext(ctx)`.
+- MUST retrieve config with `config.FromContext(ctx)`.
+- MUST attach dependencies at the edges:
+  - CLI/startup: build a `*config.Manager` and attach with `config.ContextWithManager(ctx, mgr)`; build the logger with `logger.SetupLogger(...)` and attach with `logger.ContextWithLogger(ctx, log)`.
+  - HTTP servers: ensure request contexts inherit BOTH manager and logger (e.g., in middleware) so handlers do not need DI.
+- NEVER pass loggers via function parameters or DI.
+- NEVER use a global configuration singleton.
+</critical>
+
+## Edge-Attachment Patterns
+
+<do>
+- CLI/root: extract flags → construct sources → `mgr.Load(...)` → `ctx = config.ContextWithManager(ctx, mgr)` → setup logger (respect `cfg.CLI.Debug/Quiet`) → `ctx = logger.ContextWithLogger(ctx, log)` → propagate.
+- Server startup: use the CLI-provided ctx; when building routers, add middleware that sets `c.Request = c.Request.WithContext(logger.ContextWithLogger(config.ContextWithManager(c.Request.Context(), mgr), log))`.
+- HTTP server: optionally set `http.Server.BaseContext` to a parent ctx that already carries manager+logger, to ensure all requests inherit them.
+</do>
+
+<dont>
+- Always use `config.FromContext(ctx)`; do not introduce any global accessor.
+- Don’t pass `logger.Logger` or configuration structs through parameters; always obtain them from `ctx`.
+- Don’t rely on the default logger except as a safety net; attach the configured logger at the edges.
+</dont>
+
+## Worker/Activities
+
+<guidance>
+- Activities should accept and propagate `ctx`. If an activity needs fine-grained log level, derive a new logger based on the current config and attach it to `ctx` before calling downstream code.
+- When creating runtime/cache/redis/etc. inside workers, always read from `config.FromContext(ctx)`; never globals.
+</guidance>
+
+## MCP Proxy
+
+<guidance>
+- Prefer `http.Server.BaseContext = func(_ net.Listener) context.Context { return ctx }` so requests inherit the startup context carrying manager+logger.
+- Avoid logger middleware that requires a logger parameter; use context-backed retrieval in handlers.
+</guidance>
+
+## Testing
+
+<testing>
+- Tests may use `config.Initialize` or `config.NewManager(...).Load(...)` and attach via `config.ContextWithManager`.
+- For logging in tests, prefer `logger.NewForTests()` and attach via `logger.ContextWithLogger`.
+- Mock or stub external tools/services; do not introduce DI of logger/config into code under test.
+</testing>
+
+## Verification Checklist
+
+<checklist>
+- Handlers/services/workers get `log := logger.FromContext(ctx)` and `cfg := config.FromContext(ctx)`.
+- No global configuration access in runtime code paths.
+- Middleware attaches BOTH manager and logger to `c.Request.Context()`.
+- CLI sets up manager+logger once and passes `ctx` down.
+- `make lint` and `make test` pass.
+</checklist>

@@ -20,11 +20,12 @@ var (
 )
 
 // initMetrics initializes the HTTP metrics instruments
-func initMetrics(meter metric.Meter, log logger.Logger) {
+func initMetrics(ctx context.Context, meter metric.Meter) {
 	// Skip initialization if meter is nil
 	if meter == nil {
 		return
 	}
+	log := logger.FromContext(ctx)
 	initOnce.Do(func() {
 		var err error
 		httpRequestsTotal, err = meter.Int64Counter(
@@ -67,11 +68,10 @@ func ResetMetricsForTesting() {
 // HTTPMetrics returns a Gin middleware that collects HTTP metrics
 func HTTPMetrics(ctx context.Context, meter metric.Meter) gin.HandlerFunc {
 	// Initialize metrics on first use
-	log := logger.FromContext(ctx)
-	initMetrics(meter, log)
+	initMetrics(ctx, meter)
 	return func(c *gin.Context) {
 		// Add logger to request context
-		reqCtx := logger.ContextWithLogger(c.Request.Context(), log)
+		reqCtx := logger.ContextWithLogger(c.Request.Context(), logger.FromContext(ctx))
 		c.Request = c.Request.WithContext(reqCtx)
 		// Skip metrics collection if instruments are not initialized
 		if httpRequestsTotal == nil {

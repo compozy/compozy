@@ -2,10 +2,9 @@ package worker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
-
-	"errors"
 
 	"github.com/compozy/compozy/engine/autoload"
 	"github.com/compozy/compozy/engine/core"
@@ -95,11 +94,9 @@ func buildRuntimeManager(
 	projectConfig *project.Config,
 ) (runtime.Runtime, error) {
 	log := logger.FromContext(ctx)
-	cfg := appconfig.Get()
-
+	cfg := appconfig.FromContext(ctx)
 	// Use factory to create runtime with direct unified config mapping
 	factory := runtime.NewDefaultFactory(projectRoot)
-
 	// Create a merged runtime config by applying project-specific overrides
 	mergedRuntimeConfig := cfg.Runtime
 
@@ -140,7 +137,7 @@ func NewWorker(
 	if config == nil {
 		return nil, errors.New("worker config cannot be nil")
 	}
-	client, err := createTemporalClient(ctx, clientConfig, log)
+	client, err := createTemporalClient(ctx, clientConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -148,19 +145,19 @@ func NewWorker(
 	if err != nil {
 		return nil, err
 	}
-	mcpRegister, err := setupMCPRegister(ctx, workflows, log)
+	mcpRegister, err := setupMCPRegister(ctx, workflows)
 	if err != nil {
 		return nil, err
 	}
 	templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
 	memoryManager, err := setupMemoryManager(
+		ctx,
 		config,
 		templateEngine,
 		workerCore.redisCache,
 		client,
 		workerCore.taskQueue,
 		projectConfig,
-		log,
 	)
 	if err != nil {
 		return nil, err
@@ -218,7 +215,8 @@ type dispatcherComponents struct {
 }
 
 // createTemporalClient creates and validates the Temporal client
-func createTemporalClient(ctx context.Context, clientConfig *TemporalConfig, log logger.Logger) (*Client, error) {
+func createTemporalClient(ctx context.Context, clientConfig *TemporalConfig) (*Client, error) {
+	log := logger.FromContext(ctx)
 	clientStart := time.Now()
 	client, err := NewClient(ctx, clientConfig)
 	if err != nil {
@@ -266,7 +264,7 @@ func setupRedisAndConfig(
 ) (*cache.Cache, services.ConfigStore, error) {
 	log := logger.FromContext(ctx)
 	cacheStart := time.Now()
-	cfg := appconfig.Get()
+	cfg := appconfig.FromContext(ctx)
 	// Build cache config from centralized Redis and cache config
 	cacheConfig := cache.FromAppConfig(cfg)
 
@@ -280,7 +278,8 @@ func setupRedisAndConfig(
 }
 
 // setupMCPRegister initializes MCP registration for workflows
-func setupMCPRegister(ctx context.Context, workflows []*wf.Config, log logger.Logger) (*mcp.RegisterService, error) {
+func setupMCPRegister(ctx context.Context, workflows []*wf.Config) (*mcp.RegisterService, error) {
+	log := logger.FromContext(ctx)
 	// Initialize MCP register and register all MCPs from all workflows
 	mcpStart := time.Now()
 	workflowConfigs := make([]mcp.WorkflowConfig, len(workflows))
@@ -297,14 +296,15 @@ func setupMCPRegister(ctx context.Context, workflows []*wf.Config, log logger.Lo
 
 // setupMemoryManager creates the memory manager if resource registry is available
 func setupMemoryManager(
+	ctx context.Context,
 	config *Config,
 	templateEngine *tplengine.TemplateEngine,
 	redisCache *cache.Cache,
 	client *Client,
 	taskQueue string,
 	projectConfig *project.Config,
-	log logger.Logger,
 ) (*memory.Manager, error) {
+	log := logger.FromContext(ctx)
 	if config.ResourceRegistry == nil {
 		log.Warn("Resource registry not provided, memory features will be disabled")
 		return nil, nil
@@ -347,7 +347,7 @@ func createDispatcher(projectConfig *project.Config, taskQueue string, client *C
 	}
 }
 
-func (o *Worker) Setup(_ context.Context) error {
+func (o *Worker) Setup(ctx context.Context) error {
 	o.worker.RegisterWorkflow(CompozyWorkflow)
 	o.worker.RegisterWorkflow(DispatcherWorkflow)
 	o.worker.RegisterActivity(o.activities.GetWorkflowData)
@@ -416,11 +416,11 @@ func (o *Worker) Setup(_ context.Context) error {
 		return err
 	}
 	// Track running worker for monitoring
-	interceptor.IncrementRunningWorkers(context.Background())
+	interceptor.IncrementRunningWorkers(ctx)
 	// Register dispatcher for health monitoring
-	cfg := appconfig.Get()
+	cfg := appconfig.FromContext(ctx)
 	monitoring.RegisterDispatcher(
-		context.Background(),
+		ctx,
 		o.dispatcherID,
 		cfg.Runtime.DispatcherStaleThreshold,
 	)
@@ -450,8 +450,8 @@ func (o *Worker) Stop(ctx context.Context) {
 		}
 		// Clean up heartbeat entry with background context to ensure completion
 		if o.activities != nil && o.redisCache != nil {
-			cfg := appconfig.Get()
-			cleanupCtx, cancel := context.WithTimeout(context.Background(), cfg.Worker.HeartbeatCleanupTimeout)
+			cfg := appconfig.FromContext(ctx)
+			cleanupCtx, cancel := context.WithTimeout(ctx, cfg.Worker.HeartbeatCleanupTimeout)
 			defer cancel()
 			if err := o.activities.RemoveDispatcherHeartbeat(cleanupCtx, o.dispatcherID); err != nil {
 				log.Error("Failed to remove dispatcher heartbeat", "error", err, "dispatcher_id", o.dispatcherID)
@@ -462,7 +462,7 @@ func (o *Worker) Stop(ctx context.Context) {
 	o.client.Close()
 	// Deregister all MCPs from proxy on shutdown
 	if o.mcpRegister != nil {
-		cfg := appconfig.Get()
+		cfg := appconfig.FromContext(ctx)
 		ctx, cancel := context.WithTimeout(ctx, cfg.Worker.MCPShutdownTimeout)
 		defer cancel()
 		if err := o.mcpRegister.Shutdown(ctx); err != nil {
@@ -527,7 +527,7 @@ func (o *Worker) TerminateDispatcher(ctx context.Context, reason string) error {
 
 func (o *Worker) ensureDispatcherRunning(ctx context.Context) {
 	log := logger.FromContext(ctx)
-	cfg := appconfig.Get()
+	cfg := appconfig.FromContext(ctx)
 	maxRetries := cfg.Worker.DispatcherMaxRetries
 	var safeMaxRetries uint64
 	if maxRetries <= 0 {
@@ -586,7 +586,7 @@ func (o *Worker) ensureDispatcherRunning(ctx context.Context) {
 // HealthCheck performs a comprehensive health check including cache connectivity
 func (o *Worker) HealthCheck(ctx context.Context) error {
 	log := logger.FromContext(ctx)
-	cfg := appconfig.Get()
+	cfg := appconfig.FromContext(ctx)
 	// Check Redis cache health
 	if o.redisCache != nil {
 		if err := o.redisCache.HealthCheck(ctx); err != nil {
@@ -630,7 +630,7 @@ func (o *Worker) HealthCheck(ctx context.Context) error {
 
 // checkMCPProxyHealth checks if MCP proxy is healthy when configured
 func (o *Worker) checkMCPProxyHealth(ctx context.Context) error {
-	cfg := appconfig.Get()
+	cfg := appconfig.FromContext(ctx)
 	if cfg.LLM.ProxyURL == "" {
 		return nil // No proxy configured
 	}

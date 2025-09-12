@@ -15,9 +15,9 @@ type AsyncOperationLogger struct {
 }
 
 // NewAsyncOperationLogger creates a new async operation logger
-func NewAsyncOperationLogger(log logger.Logger) *AsyncOperationLogger {
+func NewAsyncOperationLogger(ctx context.Context) *AsyncOperationLogger {
 	return &AsyncOperationLogger{
-		log: log,
+		log: logger.FromContext(ctx),
 	}
 }
 

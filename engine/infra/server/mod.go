@@ -102,7 +102,7 @@ type Server struct {
 
 func NewServer(ctx context.Context, cwd, configFile, envFilePath string) *Server {
 	serverCtx, cancel := context.WithCancel(ctx)
-	cfg := config.Get()
+	cfg := config.FromContext(serverCtx)
 
 	return &Server{
 		serverConfig:        &cfg.Server,
@@ -146,7 +146,7 @@ func (s *Server) buildRouter(state *appstate.State) error {
 	r.Use(gin.Recovery())
 
 	// Get config first
-	cfg := config.Get()
+	cfg := config.FromContext(s.ctx)
 
 	// Setup auth middleware first (before rate limiting)
 	authRepo := state.Store.NewAuthRepo()
@@ -182,11 +182,10 @@ func (s *Server) buildRouter(state *appstate.State) error {
 	}
 
 	// Add monitoring middleware BEFORE other middleware if monitoring is initialized
-	log := logger.FromContext(s.ctx)
 	if s.monitoring != nil && s.monitoring.IsInitialized() {
 		r.Use(s.monitoring.GinMiddleware(s.ctx))
 	}
-	r.Use(LoggerMiddleware(log))
+	r.Use(LoggerMiddleware(s.ctx))
 	if cfg.Server.CORSEnabled {
 		r.Use(CORSMiddleware(cfg.Server.CORS))
 	}
@@ -292,7 +291,7 @@ func (s *Server) setupStore() (*store.Store, func(), error) {
 func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	var cleanupFuncs []func()
 	log := logger.FromContext(s.ctx)
-	cfg := config.Get()
+	cfg := config.FromContext(s.ctx)
 	setupStart := time.Now()
 
 	projectConfig, workflows, configRegistry, err := s.setupProjectConfig()
@@ -470,14 +469,14 @@ func (s *Server) initializeScheduleManager(state *appstate.State, worker *worker
 
 	state.SetScheduleManager(scheduleManager)
 	// Run schedule reconciliation in background with retry logic
-	go s.runReconciliationWithRetry(scheduleManager, workflows, log)
+	go s.runReconciliationWithRetry(scheduleManager, workflows)
 }
 
 func (s *Server) runReconciliationWithRetry(
 	scheduleManager schedule.Manager,
 	workflows []*workflow.Config,
-	log logger.Logger,
 ) {
+	log := logger.FromContext(s.ctx)
 	startTime := time.Now()
 
 	err := retry.Do(

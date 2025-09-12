@@ -56,8 +56,8 @@ func RunWithWatcher(ctx context.Context, cwd, configFile, envFilePath string) er
 	restartChan := make(chan bool, 1)
 	go startWatcher(ctx, watcher, restartChan)
 
-	// Integrate with global config hot-reload
-	config.OnChange(func(_ *config.Config) {
+	// Integrate with config hot-reload via manager in context
+	config.ManagerFromContext(ctx).OnChange(func(_ *config.Config) {
 		log := logger.FromContext(ctx)
 		log.Info("Configuration change detected, triggering restart")
 		restartChan <- true
@@ -194,7 +194,7 @@ func runAndWatchServer(
 	restartChan chan bool,
 ) error {
 	log := logger.FromContext(ctx)
-	cfg := config.Get()
+	cfg := config.FromContext(ctx)
 	var retryDelay = initialRetryDelay
 
 	for {

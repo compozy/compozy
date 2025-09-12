@@ -7,8 +7,7 @@ import (
 
 // WorkflowAuthMiddleware creates workflow-specific authentication middleware
 // that checks for workflow exceptions and bypasses authentication for specific workflow IDs
-func WorkflowAuthMiddleware(authManager *Manager) gin.HandlerFunc {
-	cfg := config.Get()
+func WorkflowAuthMiddleware(authManager *Manager, cfg *config.Config) gin.HandlerFunc {
 	// Pre-compute workflow exceptions map for O(1) lookup performance
 	exceptionsMap := make(map[string]struct{}, len(cfg.Server.Auth.WorkflowExceptions))
 	for _, workflowID := range cfg.Server.Auth.WorkflowExceptions {

@@ -17,7 +17,8 @@ type Watcher struct {
 	mu        sync.RWMutex
 	// watched keeps track of actively watched absolute file paths.
 	// It's used to filter events and to support per-call context cancellation.
-	watched   map[string]struct{}
+	// We keep the per-path context so we can ignore events immediately when the context is canceled.
+	watched   map[string]context.Context
 	startOnce sync.Once // Ensures handleEvents goroutine is started only once
 	closeOnce sync.Once // Ensures Close is idempotent
 }
@@ -32,7 +33,7 @@ func NewWatcher() (*Watcher, error) {
 	return &Watcher{
 		watcher:   fsWatcher,
 		callbacks: make([]func(), 0),
-		watched:   make(map[string]struct{}),
+		watched:   make(map[string]context.Context),
 	}, nil
 }
 
@@ -49,9 +50,12 @@ func (w *Watcher) Watch(ctx context.Context, path string) error {
 		return fmt.Errorf("failed to watch file: %w", err)
 	}
 
-	// Mark path as being watched
+	// Mark path as being watched with its context
 	w.mu.Lock()
-	w.watched[absPath] = struct{}{}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	w.watched[absPath] = ctx
 	w.mu.Unlock()
 
 	// Stop watching this specific path when the provided context is canceled
@@ -98,9 +102,13 @@ func (w *Watcher) handleEvents() {
 			}
 			// Filter out events for paths that are no longer being watched
 			w.mu.RLock()
-			_, stillWatched := w.watched[event.Name]
+			pathCtx, stillWatched := w.watched[event.Name]
 			w.mu.RUnlock()
 			if !stillWatched {
+				continue
+			}
+			// If its context has been canceled, ignore any subsequent events
+			if pathCtx != nil && pathCtx.Err() != nil {
 				continue
 			}
 

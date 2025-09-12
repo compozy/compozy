@@ -59,7 +59,7 @@ func NewActivities(
 	}
 	// Create memory activities instance
 	// Note: MemoryActivities will use activity.GetLogger(ctx) internally for proper logging
-	memoryActivities := memacts.NewMemoryActivities(memoryManager, nil)
+	memoryActivities := memacts.NewMemoryActivities(context.Background(), memoryManager)
 
 	// Create task2 factory
 	envMerger := core.NewEnvMerger()
@@ -93,7 +93,7 @@ func NewActivities(
 // withActivityLogger ensures a request-scoped logger is present in the activity context
 // with the correct level derived from application configuration (e.g., --debug).
 func withActivityLogger(ctx context.Context) context.Context {
-	cfg := config.Get()
+	cfg := config.FromContext(ctx)
 	if !cfg.CLI.Debug && !cfg.CLI.Quiet {
 		return ctx
 	}
@@ -120,7 +120,7 @@ func (a *Activities) GetWorkflowData(ctx context.Context, input *wfacts.GetDataI
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	cfg := config.Get()
+	cfg := config.FromContext(ctx)
 	act := wfacts.NewGetData(a.projectConfig, a.workflows, cfg)
 	return act.Run(ctx, input)
 }
@@ -169,7 +169,7 @@ func (a *Activities) ExecuteBasicTask(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	cfg := config.Get()
+	cfg := config.FromContext(ctx)
 	act, err := tkfacts.NewExecuteBasic(
 		a.workflows,
 		a.workflowRepo,
@@ -241,7 +241,7 @@ func (a *Activities) ExecuteSubtask(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	cfg := config.Get()
+	cfg := config.FromContext(ctx)
 	act := tkfacts.NewExecuteSubtask(
 		a.workflows,
 		a.workflowRepo,

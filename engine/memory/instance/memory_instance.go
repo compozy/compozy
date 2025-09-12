@@ -279,7 +279,7 @@ func (mi *memoryInstance) AppendMany(ctx context.Context, msgs []llm.Message) er
 	}
 	mi.updateMetadataAndMetrics(ctx, totalTokenCount)
 	mi.metrics.RecordAppend(ctx, time.Since(start), totalTokenCount, nil)
-	mi.handleTTLForAppendMany(ctx, log)
+	mi.handleTTLForAppendMany(ctx)
 	mi.checkFlushTrigger(ctx)
 	if lockReleaseErr != nil {
 		return fmt.Errorf("operation completed but failed to release lock: %w", lockReleaseErr)
@@ -324,7 +324,8 @@ func (mi *memoryInstance) updateMetadataAndMetrics(ctx context.Context, totalTok
 }
 
 // handleTTLForAppendMany handles TTL configuration for AppendMany operation
-func (mi *memoryInstance) handleTTLForAppendMany(ctx context.Context, log logger.Logger) {
+func (mi *memoryInstance) handleTTLForAppendMany(ctx context.Context) {
+	log := logger.FromContext(ctx)
 	if mi.resourceConfig != nil && mi.resourceConfig.Persistence.ParsedTTL > 0 {
 		// Check if we need to set/extend TTL
 		currentTTL, err := mi.store.GetKeyTTL(ctx, mi.id)

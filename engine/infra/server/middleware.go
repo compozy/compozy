@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"slices"
 	"time"
@@ -11,15 +12,16 @@ import (
 )
 
 // LoggerMiddleware logs HTTP request details.
-func LoggerMiddleware(log logger.Logger) gin.HandlerFunc {
+func LoggerMiddleware(ctx context.Context) gin.HandlerFunc {
+	log := logger.FromContext(ctx)
 	return func(c *gin.Context) {
 		start := time.Now()
 		path := c.Request.URL.Path
 		raw := c.Request.URL.RawQuery
-		// Inject the configured logger into the request context so all
-		// downstream handlers use the correct log level/format.
-		ctx := logger.ContextWithLogger(c.Request.Context(), log)
-		c.Request = c.Request.WithContext(ctx)
+		mgr := config.ManagerFromContext(ctx)
+		reqCtx := config.ContextWithManager(c.Request.Context(), mgr)
+		reqCtx = logger.ContextWithLogger(reqCtx, log)
+		c.Request = c.Request.WithContext(reqCtx)
 
 		c.Next()
 		param := gin.LogFormatterParams{
@@ -33,13 +35,11 @@ func LoggerMiddleware(log logger.Logger) gin.HandlerFunc {
 		param.StatusCode = c.Writer.Status()
 		param.ErrorMessage = c.Errors.ByType(gin.ErrorTypePrivate).String()
 		param.BodySize = c.Writer.Size()
-		if raw != "" {
-			path = path + "?" + raw
-		}
+		// Avoid logging raw query strings to prevent leaking secrets
 		param.Path = path
 		// Use the request-scoped logger for request completion log
-		log := logger.FromContext(c.Request.Context())
-		log.Info("Request completed",
+		reqLog := logger.FromContext(c.Request.Context())
+		reqLog.Info("Request completed",
 			"timestamp", param.TimeStamp.Format(time.RFC3339),
 			"latency", param.Latency,
 			"client_ip", param.ClientIP,
@@ -47,6 +47,7 @@ func LoggerMiddleware(log logger.Logger) gin.HandlerFunc {
 			"status_code", param.StatusCode,
 			"body_size", param.BodySize,
 			"path", param.Path,
+			"query_present", raw != "",
 			"error", param.ErrorMessage,
 		)
 	}

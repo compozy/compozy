@@ -43,16 +43,13 @@ func TestMigrationsOptimized_Integration(t *testing.T) {
 	t.Run("Should return error when configuration is invalid", func(t *testing.T) {
 		ctx := context.Background()
 
-		// Reset config state first
-		config.Close(ctx)
-		config.ResetForTest()
-
-		// Initialize config with invalid database settings
-		err := config.Initialize(ctx, nil, config.NewDefaultProvider())
+		// Initialize context-based config manager with invalid database settings
+		mgr := config.NewManager(nil)
+		_, err := mgr.Load(ctx, config.NewDefaultProvider())
 		require.NoError(t, err)
-
+		ctx = config.ContextWithManager(ctx, mgr)
 		// Set invalid connection configuration
-		cfg := config.Get()
+		cfg := mgr.Get()
 		cfg.Database.AutoMigrate = true
 		cfg.Database.ConnString = "invalid://connection/string"
 
@@ -70,7 +67,7 @@ func TestMigrationsOptimized_Integration(t *testing.T) {
 		)
 
 		// Clean up config state
-		config.Close(ctx)
+		_ = mgr.Close(ctx)
 	})
 
 	t.Run("Should handle multiple migration calls idempotently", func(t *testing.T) {

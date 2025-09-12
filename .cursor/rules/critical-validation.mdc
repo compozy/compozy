@@ -16,7 +16,12 @@ alwaysApply: true
     - API standards: @.cursor/rules/api-standards.mdc
     - Security & quality: @.cursor/rules/quality-security.md
     - No Backwards Compatibility: @.cursor/rules/backwards-compatibility.mdc
-- **MUST** use `logger.FromContext(ctx)` - NEVER use logger as function parameter or dependency injection
+- **MUST** use `logger.FromContext(ctx)` - NEVER pass a logger as a parameter or via DI
+- **MUST** use `config.FromContext(ctx)` to read configuration in all code paths
+  - **NEVER** use any global configuration singleton.
+- **MUST** attach dependencies at the edges using context:
+  - At startup/CLI: create a `*config.Manager` and attach via `config.ContextWithManager(ctx, mgr)`; configure the logger with `logger.SetupLogger(...)` and attach via `logger.ContextWithLogger(ctx, log)`.
+  - In HTTP servers/middleware: propagate both manager and logger into `c.Request.Context()` so handlers use `config.FromContext` and `logger.FromContext`.
 - **MUST** run `make lint` and `make test` before completing ANY subtask
 **Enforcement:** Violating these standards results in immediate task rejection.
 </critical>

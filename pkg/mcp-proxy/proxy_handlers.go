@@ -198,16 +198,9 @@ func (p *ProxyHandlers) SSEProxyHandler(c *gin.Context) {
 	}
 
 	// Use cached definition to avoid repeated storage queries
-	def := proxyServer.def
 
-	// Apply middleware chain
 	middlewares := []gin.HandlerFunc{
-		recoverMiddleware(name), // Recovery should be outermost
-	}
-
-	// Add logging middleware
-	if def.LogEnabled {
-		middlewares = append(middlewares, logger.Middleware(log))
+		recoverMiddleware(name),
 	}
 
 	// Check if SSE server is available (test scenario)
