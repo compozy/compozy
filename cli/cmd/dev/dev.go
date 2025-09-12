@@ -52,6 +52,9 @@ func handleDevTUI(ctx context.Context, cobraCmd *cobra.Command, _ *cmd.CommandEx
 // runDevServer runs the development server with the provided configuration
 func runDevServer(ctx context.Context, cobraCmd *cobra.Command) error {
 	cfg := config.FromContext(ctx)
+	if cfg == nil {
+		return fmt.Errorf("missing config in context; ensure config.ContextWithManager is set in root command")
+	}
 	setupGinMode(cfg)
 	envFilePath, err := resolveEnvFilePath(cobraCmd)
 	if err != nil {
@@ -81,12 +84,14 @@ func runDevServer(ctx context.Context, cobraCmd *cobra.Command) error {
 
 // setupGinMode configures Gin mode based on debug configuration
 func setupGinMode(cfg *config.Config) {
-	if os.Getenv("GIN_MODE") == "" {
-		if cfg.CLI.Debug {
-			gin.SetMode(gin.DebugMode)
-		} else {
-			gin.SetMode(gin.ReleaseMode)
-		}
+	if os.Getenv("GIN_MODE") != "" {
+		return
+	}
+	debug := cfg != nil && cfg.CLI.Debug
+	if debug {
+		gin.SetMode(gin.DebugMode)
+	} else {
+		gin.SetMode(gin.ReleaseMode)
 	}
 }
 

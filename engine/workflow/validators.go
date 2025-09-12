@@ -22,7 +22,7 @@ func NewWorkflowValidator(config *Config) *Validator {
 	return &Validator{config: config}
 }
 
-func (v *Validator) Validate() error {
+func (v *Validator) Validate(ctx context.Context) error {
 	validator := schema.NewCompositeValidator(
 		schema.NewCWDValidator(v.config.CWD, v.config.ID),
 		NewTasksValidator(v.config),
@@ -37,7 +37,7 @@ func (v *Validator) Validate() error {
 	}
 	// ScheduleValidator needs context, so call it separately
 	scheduleValidator := NewScheduleValidator(v.config)
-	return scheduleValidator.Validate(context.Background())
+	return scheduleValidator.Validate(ctx)
 }
 
 // -----------------------------------------------------------------------------
@@ -350,8 +350,7 @@ func (v *ScheduleValidator) Validate(ctx context.Context) error {
 		}
 		input := core.Input(mergedInput)
 		validator := NewInputValidator(v.config, &input)
-		// Preserve values but detach cancellation to complete validation reliably
-		if err := validator.Validate(context.WithoutCancel(ctx)); err != nil {
+		if err := validator.Validate(ctx); err != nil {
 			return fmt.Errorf("schedule input validation error: %w", err)
 		}
 	}

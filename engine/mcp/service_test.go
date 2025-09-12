@@ -300,6 +300,68 @@ func TestRegisterService_ConvertToDefinition(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "MCP transport is required")
 	})
+
+	t.Run("Should return error for URL-based MCP with invalid transport", func(t *testing.T) {
+		client := NewProxyClient("http://localhost:7077", 5*time.Second)
+		service := NewRegisterService(client)
+
+		config := Config{
+			ID:        "test-mcp",
+			URL:       "http://example.com/mcp",
+			Transport: "stdio", // Invalid for URL-based MCP
+		}
+
+		_, err := service.convertToDefinition(&config)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "remote MCP must use 'sse' or 'streamable-http' transport")
+	})
+
+	t.Run("Should return error for command-based MCP with invalid transport", func(t *testing.T) {
+		client := NewProxyClient("http://localhost:7077", 5*time.Second)
+		service := NewRegisterService(client)
+
+		config := Config{
+			ID:        "test-mcp",
+			Command:   "node server.js",
+			Transport: "sse", // Invalid for command-based MCP
+		}
+
+		_, err := service.convertToDefinition(&config)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "stdio MCP must use 'stdio' transport")
+	})
+
+	t.Run("Should accept valid transport combinations", func(t *testing.T) {
+		client := NewProxyClient("http://localhost:7077", 5*time.Second)
+		service := NewRegisterService(client)
+
+		// Test valid URL + SSE
+		config1 := Config{
+			ID:        "test-mcp-sse",
+			URL:       "http://example.com/mcp",
+			Transport: "sse",
+		}
+		_, err := service.convertToDefinition(&config1)
+		assert.NoError(t, err)
+
+		// Test valid URL + streamable-http
+		config2 := Config{
+			ID:        "test-mcp-streamable",
+			URL:       "http://example.com/mcp",
+			Transport: "streamable-http",
+		}
+		_, err = service.convertToDefinition(&config2)
+		assert.NoError(t, err)
+
+		// Test valid command + stdio
+		config3 := Config{
+			ID:        "test-mcp-stdio",
+			Command:   "node server.js",
+			Transport: "stdio",
+		}
+		_, err = service.convertToDefinition(&config3)
+		assert.NoError(t, err)
+	})
 }
 
 func TestParseCommand(t *testing.T) {

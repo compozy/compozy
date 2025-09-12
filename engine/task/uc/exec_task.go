@@ -114,10 +114,33 @@ func (uc *ExecuteTask) normalizeProviderConfigWithEnv(
 	if cfg == nil {
 		return nil
 	}
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("context canceled before provider config normalization: %w", err)
+	}
+
+	// Build normalization context
+	normCtx, err := uc.buildNormalizationContext(ctx, input)
+	if err != nil {
+		return fmt.Errorf("failed to build normalization context: %w", err)
+	}
+
+	// Render provider config templates
+	if err := uc.renderProviderConfig(ctx, cfg, normCtx); err != nil {
+		return fmt.Errorf("failed to render provider config: %w", err)
+	}
+
+	return nil
+}
+
+// buildNormalizationContext creates the normalization context with merged environment variables
+func (uc *ExecuteTask) buildNormalizationContext(
+	ctx context.Context,
+	input *ExecuteTaskInput,
+) (*shared.NormalizationContext, error) {
 	// Build the standard normalization context using project/workflow/task rules
 	contextBuilder, err := shared.NewContextBuilderWithContext(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to create context builder: %w", err)
+		return nil, fmt.Errorf("failed to create context builder: %w", err)
 	}
 	normCtx := contextBuilder.BuildContext(input.WorkflowState, input.WorkflowConfig, input.TaskConfig)
 
@@ -134,6 +157,15 @@ func (uc *ExecuteTask) normalizeProviderConfigWithEnv(
 		normCtx.Variables["env"] = merged
 	}
 
+	return normCtx, nil
+}
+
+// renderProviderConfig converts config to map, parses templates, and updates the config in-place
+func (uc *ExecuteTask) renderProviderConfig(
+	_ context.Context,
+	cfg *core.ProviderConfig,
+	normCtx *shared.NormalizationContext,
+) error {
 	// Use existing template engine when available to keep behavior consistent
 	engine := uc.templateEngine
 	if engine == nil {
@@ -230,7 +262,7 @@ func (uc *ExecuteTask) reparseAgentConfig(
 	}
 
 	// Build template context with all workflow data including tasks outputs
-	contextBuilder, err := shared.NewContextBuilder()
+	contextBuilder, err := shared.NewContextBuilderWithContext(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to create context builder: %w", err)
 	}

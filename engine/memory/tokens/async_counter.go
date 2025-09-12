@@ -62,8 +62,20 @@ func NewAsyncTokenCounterWithContext(
 	workers int,
 	bufferSize int,
 ) *AsyncTokenCounter {
-	atc := NewAsyncTokenCounter(counter, workers, bufferSize)
-	atc.baseCtx = context.WithoutCancel(ctx)
+	if workers <= 0 {
+		workers = 10
+	}
+	if bufferSize <= 0 {
+		bufferSize = 1000
+	}
+	atc := &AsyncTokenCounter{
+		realCounter: counter,
+		queue:       make(chan *tokenCountRequest, bufferSize),
+		workers:     workers,
+		metrics:     NewTokenMetrics(),
+		baseCtx:     context.WithoutCancel(ctx),
+	}
+	atc.start()
 	return atc
 }
 

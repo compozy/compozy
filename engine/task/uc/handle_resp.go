@@ -227,7 +227,7 @@ func (uc *HandleResponse) normalizeTransitions(
 	}
 
 	// Create normalization context for task2 with proper Variables
-	contextBuilder, err := shared.NewContextBuilder()
+	contextBuilder, err := shared.NewContextBuilderWithContext(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create context builder: %w", err)
 	}

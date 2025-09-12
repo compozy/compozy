@@ -228,6 +228,19 @@ func (s *RegisterService) convertToDefinition(config *Config) (Definition, error
 		return def, fmt.Errorf("MCP must have either URL or command specified")
 	}
 
+	// Enforce transport compatibility per MCP spec
+	t := strings.ToLower(string(def.Transport))
+	if def.URL != "" {
+		if t != "sse" && t != "streamable-http" {
+			return def, fmt.Errorf("remote MCP must use 'sse' or 'streamable-http' transport: got %q", def.Transport)
+		}
+	}
+	if def.Command != "" {
+		if t != "stdio" {
+			return def, fmt.Errorf("stdio MCP must use 'stdio' transport: got %q", def.Transport)
+		}
+	}
+
 	return def, nil
 }
 

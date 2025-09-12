@@ -169,11 +169,11 @@ func (rm *ResilientManager) RedactContent(
 		if err == errors.ErrCircuitOpen {
 			metrics.RecordCircuitBreakerTrip(ctx, "", "")
 		}
-		// If resilience patterns fail, return original content
+		// If resilience patterns fail, return safe fallback with error
 		log.Error("Redaction failed with resilience patterns",
 			"error", err,
-			"fallback", "no_redaction")
-		return content, nil
+			"fallback", defaultRedaction)
+		return defaultRedaction, fmt.Errorf("redaction failed: %w", err)
 	}
 	if resultErr == nil && len(patterns) > 0 {
 		// Record successful redaction

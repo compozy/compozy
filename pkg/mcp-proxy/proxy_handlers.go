@@ -63,7 +63,7 @@ func (p *ProxyHandlers) RegisterMCPProxy(ctx context.Context, name string, def *
 	}
 
 	// Add logging configuration based on MCPDefinition
-	if def.LogEnabled {
+	if def != nil && def.LogEnabled {
 		serverOpts = append(serverOpts, server.WithLogging())
 	}
 
@@ -190,12 +190,12 @@ func (p *ProxyHandlers) SSEProxyHandler(c *gin.Context) {
 		return
 	}
 
-	// Check if proxy server is properly initialized
-	if proxyServer.def == nil {
-		log.Error("MCP proxy server not properly initialized", "name", name)
+	// Check if proxy server is properly initialized and ready
+	if proxyServer.client == nil || !proxyServer.client.IsConnected() {
+		log.Error("MCP proxy server not ready", "name", name)
 		c.JSON(
 			http.StatusInternalServerError,
-			gin.H{"error": "MCP server not properly initialized", "details": fmt.Sprintf("name=%s", name)},
+			gin.H{"error": "MCP server not ready", "details": fmt.Sprintf("name=%s", name)},
 		)
 		return
 	}
@@ -278,7 +278,11 @@ func (p *ProxyHandlers) initializeClientConnection(
 	resourceLoader := NewResourceLoader(client, mcpServer, name)
 
 	// Load critical capabilities first (tools)
-	if err := resourceLoader.LoadTools(ctx, def.ToolFilter); err != nil {
+	var toolFilter *ToolFilter
+	if def != nil {
+		toolFilter = def.ToolFilter
+	}
+	if err := resourceLoader.LoadTools(ctx, toolFilter); err != nil {
 		return err
 	}
 

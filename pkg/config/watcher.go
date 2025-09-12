@@ -19,8 +19,9 @@ type Watcher struct {
 	// It's used to filter events and to support per-call context cancellation.
 	// We keep the per-path context so we can ignore events immediately when the context is canceled.
 	watched   map[string]context.Context
-	startOnce sync.Once // Ensures handleEvents goroutine is started only once
-	closeOnce sync.Once // Ensures Close is idempotent
+	stopCh    chan struct{} // Signals all per-path goroutines to stop
+	startOnce sync.Once     // Ensures handleEvents goroutine is started only once
+	closeOnce sync.Once     // Ensures Close is idempotent
 }
 
 // NewWatcher creates a new configuration file watcher.
@@ -34,6 +35,7 @@ func NewWatcher() (*Watcher, error) {
 		watcher:   fsWatcher,
 		callbacks: make([]func(), 0),
 		watched:   make(map[string]context.Context),
+		stopCh:    make(chan struct{}),
 	}, nil
 }
 
@@ -61,7 +63,10 @@ func (w *Watcher) Watch(ctx context.Context, path string) error {
 	// Stop watching this specific path when the provided context is canceled
 	if done := ctx.Done(); done != nil {
 		go func(p string, done <-chan struct{}) {
-			<-done
+			select {
+			case <-done:
+			case <-w.stopCh:
+			}
 			// Remove from internal registry first to filter any in-flight events
 			w.mu.Lock()
 			delete(w.watched, p)
@@ -152,6 +157,7 @@ func (w *Watcher) Close() error {
 
 	// Use sync.Once to ensure we only close once
 	w.closeOnce.Do(func() {
+		close(w.stopCh)
 		if err := w.watcher.Close(); err != nil {
 			closeErr = fmt.Errorf("failed to close watcher: %w", err)
 		}

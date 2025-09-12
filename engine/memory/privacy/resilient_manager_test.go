@@ -176,8 +176,9 @@ func TestResilientManager_RedactContent(t *testing.T) {
 		content := "My SSN is 123-45-6789"
 		patterns := []string{`\d{3}-\d{2}-\d{4}`}
 		result, err := rm.RedactContent(context.Background(), content, patterns, "[REDACTED]")
-		require.NoError(t, err)
-		assert.Equal(t, content, result) // Should return original on timeout
+		require.Error(t, err)
+		assert.Equal(t, "[REDACTED]", result) // Should return safe fallback on timeout
+		assert.Contains(t, err.Error(), "redaction failed")
 	})
 }
 

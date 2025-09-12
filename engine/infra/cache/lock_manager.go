@@ -84,6 +84,10 @@ func NewRedisLockManager(client RedisInterface) (*RedisLockManager, error) {
 
 // Acquire attempts to acquire a distributed lock on the given resource
 func (m *RedisLockManager) Acquire(ctx context.Context, resource string, ttl time.Duration) (Lock, error) {
+	if ctx == nil {
+		return nil, fmt.Errorf("nil context")
+	}
+
 	start := time.Now()
 	defer func() {
 		m.metrics.mu.Lock()
@@ -239,10 +243,10 @@ func (l *redisLock) autoRenew() {
 		select {
 		case <-l.stopChan:
 			return
+		case <-l.ctx.Done():
+			return
 		case <-ticker.C:
-			// Respect application shutdown while preserving values
-			base := context.WithoutCancel(l.ctx)
-			ctx, cancel := context.WithTimeout(base, time.Second*5)
+			ctx, cancel := context.WithTimeout(l.ctx, 5*time.Second)
 			err := l.Refresh(ctx)
 			cancel()
 

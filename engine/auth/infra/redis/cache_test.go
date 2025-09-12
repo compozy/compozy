@@ -8,6 +8,7 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/compozy/compozy/engine/auth/model"
+	"github.com/compozy/compozy/engine/auth/uc"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
@@ -198,7 +199,7 @@ func TestCachedRepository_InvalidateAPIKeyCache(t *testing.T) {
 		nonExistentID := core.MustNewID()
 
 		// Mock the GetAPIKeyByID to return an error (key not found)
-		keyNotFoundErr := fmt.Errorf("api key not found")
+		keyNotFoundErr := uc.ErrAPIKeyNotFound
 		mockRepo.On("GetAPIKeyByID", ctx, nonExistentID).Return(nil, keyNotFoundErr).Once()
 
 		// Should not fail even if API key doesn't exist

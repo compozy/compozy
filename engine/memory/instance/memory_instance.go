@@ -197,7 +197,7 @@ func (mi *memoryInstance) Append(ctx context.Context, msg llm.Message) error {
 				"context", "memory_append_operation")
 		}
 	}()
-	// Compute token count for this message
+	// Compute token count for this message (may be estimate if async enabled)
 	tokenCount := mi.calculateTokenCountForMessage(ctx, msg)
 	if err := mi.store.AppendMessageWithTokenCount(ctx, mi.id, msg, tokenCount); err != nil {
 		mi.metrics.RecordAppend(ctx, time.Since(start), tokenCount, err)
@@ -212,6 +212,11 @@ func (mi *memoryInstance) Append(ctx context.Context, msg llm.Message) error {
 	}
 	mi.metrics.RecordAppend(ctx, time.Since(start), tokenCount, nil)
 	mi.metrics.RecordTokenCount(ctx, tokenCount)
+	// Reconcile actual token count asynchronously if async counter is available
+	if mi.asyncTokenCounter != nil {
+		base := context.WithoutCancel(ctx)
+		go mi.reconcileAsyncTokenCount(base, msg)
+	}
 	// Set TTL if configured and this is the first message
 	if mi.resourceConfig != nil && mi.resourceConfig.Persistence.ParsedTTL > 0 {
 		// Check if we need to set/extend TTL
@@ -235,6 +240,32 @@ func (mi *memoryInstance) Append(ctx context.Context, msg llm.Message) error {
 		return fmt.Errorf("operation completed but failed to release lock: %w", lockReleaseErr)
 	}
 	return nil
+}
+
+// reconcileAsyncTokenCount asynchronously reconciles the actual token count with the persisted estimate
+func (mi *memoryInstance) reconcileAsyncTokenCount(ctx context.Context, msg llm.Message) {
+	log := logger.FromContext(ctx)
+	// Actual content tokens via async worker
+	actualContent, err := mi.asyncTokenCounter.ProcessWithResult(ctx, mi.id, msg.Content)
+	if err != nil {
+		log.Debug("Async token reconciliation skipped", "error", err, "memory_id", mi.id)
+		return
+	}
+	// Role tokens sync (cheap) + structure overhead
+	actualRole := mi.calculateTokenCountWithFallback(ctx, string(msg.Role), "role")
+	actualTotal := actualContent + actualRole + messageStructureOverhead
+
+	// Estimated total used at write time
+	estTotal := mi.estimateTokenCount(msg.Content) + mi.estimateTokenCount(string(msg.Role)) + messageStructureOverhead
+	delta := actualTotal - estTotal
+	if delta == 0 {
+		return
+	}
+	if err := mi.store.IncrementTokenCount(ctx, mi.id, delta); err != nil {
+		log.Warn("Failed to reconcile token count delta", "delta", delta, "error", err, "memory_id", mi.id)
+	} else {
+		log.Debug("Reconciled token count delta", "delta", delta, "memory_id", mi.id)
+	}
 }
 
 // AppendMany atomically appends multiple messages to the memory.
@@ -279,6 +310,14 @@ func (mi *memoryInstance) AppendMany(ctx context.Context, msgs []llm.Message) er
 	}
 	mi.updateMetadataAndMetrics(ctx, totalTokenCount)
 	mi.metrics.RecordAppend(ctx, time.Since(start), totalTokenCount, nil)
+	// Reconcile actual token counts asynchronously if async counter is available
+	if mi.asyncTokenCounter != nil {
+		base := context.WithoutCancel(ctx)
+		for _, msg := range msgs {
+			msg := msg // capture loop variable
+			go mi.reconcileAsyncTokenCount(base, msg)
+		}
+	}
 	mi.handleTTLForAppendMany(ctx)
 	mi.checkFlushTrigger(ctx)
 	if lockReleaseErr != nil {

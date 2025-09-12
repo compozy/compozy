@@ -446,8 +446,12 @@ func (m *MCPClientManager) performHealthChecks() {
 	// Use errgroup for concurrent health checks with bounded parallelism
 	g, ctx := errgroup.WithContext(m.ctx)
 
-	// Create semaphore for bounded concurrency
-	semaphore := make(chan struct{}, m.config.HealthCheckParallelism)
+	// Create semaphore for bounded concurrency (ensure at least 1 to avoid deadlock)
+	parallelism := m.config.HealthCheckParallelism
+	if parallelism < 1 {
+		parallelism = 1
+	}
+	semaphore := make(chan struct{}, parallelism)
 
 	for name, client := range clientsToCheck {
 		// Capture loop variables

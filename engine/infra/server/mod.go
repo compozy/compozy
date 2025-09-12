@@ -12,6 +12,7 @@ import (
 
 	authuc "github.com/compozy/compozy/engine/auth/uc"
 	"github.com/compozy/compozy/engine/autoload"
+	"github.com/compozy/compozy/engine/infra/cache"
 	"github.com/compozy/compozy/engine/infra/monitoring"
 	"github.com/compozy/compozy/engine/infra/server/appstate"
 	csvc "github.com/compozy/compozy/engine/infra/server/config"
@@ -28,6 +29,7 @@ import (
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 	"github.com/sethvargo/go-retry"
 )
 
@@ -93,6 +95,7 @@ type Server struct {
 	envFilePath         string
 	router              *gin.Engine
 	monitoring          *monitoring.Service
+	redisClient         *redis.Client
 	ctx                 context.Context
 	cancel              context.CancelFunc
 	httpServer          *http.Server
@@ -120,6 +123,46 @@ func NewServer(ctx context.Context, cwd, configFile, envFilePath string) (*Serve
 	}, nil
 }
 
+// setupRedisClient creates a Redis client for rate limiting if Redis is configured
+func (s *Server) setupRedisClient(cfg *config.Config) (*redis.Client, func(), error) {
+	log := logger.FromContext(s.ctx)
+
+	// If no Redis host is configured, return nil (will use in-memory store)
+	if cfg.Redis.Host == "" || cfg.Redis.Host == "localhost" && cfg.Redis.Port == "6379" && cfg.Redis.URL == "" {
+		log.Debug("Redis not configured, rate limiting will use in-memory store")
+		return nil, func() {}, nil
+	}
+
+	// Create cache config from app config
+	cacheConfig := cache.FromAppConfig(cfg)
+
+	// Create Redis client using the cache package
+	redisInstance, err := cache.NewRedis(s.ctx, cacheConfig)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create Redis client for rate limiting: %w", err)
+	}
+
+	log.Info("Redis client created for rate limiting",
+		"host", cfg.Redis.Host,
+		"port", cfg.Redis.Port,
+		"db", cfg.Redis.DB)
+
+	redisClient := redisInstance.Client()
+	// We need *redis.Client for the rate limiting middleware, so we do a type assertion
+	client, ok := redisClient.(*redis.Client)
+	if !ok {
+		return nil, nil, fmt.Errorf("redis client is not a *redis.Client type")
+	}
+
+	cleanup := func() {
+		if err := redisInstance.Close(); err != nil {
+			log.Error("Failed to close Redis client", "error", err)
+		}
+	}
+
+	return client, cleanup, nil
+}
+
 // convertRateLimitConfig creates a rate limit config from the application config
 func convertRateLimitConfig(cfg *config.Config) *ratelimit.Config {
 	return &ratelimit.Config{
@@ -131,11 +174,9 @@ func convertRateLimitConfig(cfg *config.Config) *ratelimit.Config {
 			Limit:  cfg.RateLimit.APIKeyRate.Limit,
 			Period: cfg.RateLimit.APIKeyRate.Period,
 		},
-		RedisAddr:     fmt.Sprintf("%s:%s", cfg.Redis.Host, cfg.Redis.Port),
-		RedisPassword: cfg.Redis.Password,
-		RedisDB:       cfg.Redis.DB,
-		Prefix:        cfg.RateLimit.Prefix,
-		MaxRetry:      cfg.RateLimit.MaxRetry,
+		// RedisAddr, RedisPassword, RedisDB are no longer needed since we pass the client directly
+		Prefix:   cfg.RateLimit.Prefix,
+		MaxRetry: cfg.RateLimit.MaxRetry,
 		ExcludedPaths: []string{
 			"/health",
 			"/metrics",
@@ -168,9 +209,9 @@ func (s *Server) buildRouter(state *appstate.State) error {
 
 		// Use NewManagerWithMetrics if monitoring is initialized
 		if s.monitoring != nil && s.monitoring.IsInitialized() {
-			manager, err = ratelimit.NewManagerWithMetrics(s.ctx, rateLimitConfig, nil, s.monitoring.Meter())
+			manager, err = ratelimit.NewManagerWithMetrics(s.ctx, rateLimitConfig, s.redisClient, s.monitoring.Meter())
 		} else {
-			manager, err = ratelimit.NewManager(rateLimitConfig, nil)
+			manager, err = ratelimit.NewManager(rateLimitConfig, s.redisClient)
 		}
 
 		if err != nil {
@@ -179,9 +220,14 @@ func (s *Server) buildRouter(state *appstate.State) error {
 		} else {
 			// Apply global rate limit middleware
 			r.Use(manager.Middleware())
+			storageType := "in-memory"
+			if s.redisClient != nil {
+				storageType = "redis"
+			}
 			log.Info("Rate limiting enabled",
 				"global_limit", cfg.RateLimit.GlobalRate.Limit,
-				"global_period", cfg.RateLimit.GlobalRate.Period)
+				"global_period", cfg.RateLimit.GlobalRate.Period,
+				"storage", storageType)
 		}
 	}
 
@@ -311,6 +357,16 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 		return nil, cleanupFuncs, err
 	}
 	cleanupFuncs = append(cleanupFuncs, storeCleanup)
+
+	// Setup Redis client for rate limiting
+	redisClient, redisCleanup, err := s.setupRedisClient(cfg)
+	if err != nil {
+		return nil, cleanupFuncs, err
+	}
+	s.redisClient = redisClient
+	if redisCleanup != nil {
+		cleanupFuncs = append(cleanupFuncs, redisCleanup)
+	}
 
 	// Create Temporal config from unified config
 	clientConfig := &worker.TemporalConfig{
