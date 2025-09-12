@@ -1,6 +1,8 @@
 package router
 
 import (
+	"context"
+
 	"github.com/compozy/compozy/engine/auth/uc"
 	authmw "github.com/compozy/compozy/engine/infra/server/middleware/auth"
 	"github.com/compozy/compozy/pkg/config"
@@ -9,19 +11,24 @@ import (
 )
 
 // RegisterRoutes registers all auth routes
-func RegisterRoutes(apiBase *gin.RouterGroup, factory *uc.Factory) {
-	RegisterRoutesWithMetrics(apiBase, factory, nil)
+func RegisterRoutes(apiBase *gin.RouterGroup, factory *uc.Factory, cfg *config.Config) {
+	RegisterRoutesWithMetrics(context.Background(), apiBase, factory, cfg, nil)
 }
 
 // RegisterRoutesWithMetrics registers all auth routes with metrics instrumentation
-func RegisterRoutesWithMetrics(apiBase *gin.RouterGroup, factory *uc.Factory, meter metric.Meter) {
+func RegisterRoutesWithMetrics(
+	ctx context.Context,
+	apiBase *gin.RouterGroup,
+	factory *uc.Factory,
+	cfg *config.Config,
+	meter metric.Meter,
+) {
 	handler := NewHandler(factory)
-	cfg := config.Get()
 	authManager := authmw.NewManager(factory, cfg)
 
 	// Add metrics instrumentation if meter is provided
 	if meter != nil {
-		authManager = authManager.WithMetrics(meter)
+		authManager = authManager.WithMetrics(ctx, meter)
 	}
 
 	// Auth endpoints (require authentication)

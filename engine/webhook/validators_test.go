@@ -1,28 +1,19 @@
 package webhook
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/compozy/compozy/pkg/config"
 )
 
 func TestWebhook_ValidateTrigger_MinimalValid(t *testing.T) {
-	// Initialize config for test
-	ctx := context.Background()
-	config.ResetForTest()
-	err := config.Initialize(ctx, nil, config.NewDefaultProvider())
-	require.NoError(t, err)
-
 	cfg := &Config{
 		Slug:   "events",
 		Events: []EventConfig{{Name: "evt1", Filter: "true", Input: map[string]string{"a": "b"}}},
 	}
 	ApplyDefaults(cfg)
-	err = ValidateTrigger(cfg)
+	err := ValidateTrigger(cfg)
 	require.NoError(t, err)
 	assert.Equal(t, "POST", cfg.Method)
 }

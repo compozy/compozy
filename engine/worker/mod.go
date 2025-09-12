@@ -2,10 +2,9 @@ package worker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
-
-	"errors"
 
 	"github.com/compozy/compozy/engine/autoload"
 	"github.com/compozy/compozy/engine/core"
@@ -95,11 +94,12 @@ func buildRuntimeManager(
 	projectConfig *project.Config,
 ) (runtime.Runtime, error) {
 	log := logger.FromContext(ctx)
-	cfg := appconfig.Get()
-
+	cfg := appconfig.FromContext(ctx)
+	if cfg == nil {
+		return nil, fmt.Errorf("config manager not found in context")
+	}
 	// Use factory to create runtime with direct unified config mapping
 	factory := runtime.NewDefaultFactory(projectRoot)
-
 	// Create a merged runtime config by applying project-specific overrides
 	mergedRuntimeConfig := cfg.Runtime
 
@@ -140,7 +140,7 @@ func NewWorker(
 	if config == nil {
 		return nil, errors.New("worker config cannot be nil")
 	}
-	client, err := createTemporalClient(ctx, clientConfig, log)
+	client, err := createTemporalClient(ctx, clientConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -148,25 +148,26 @@ func NewWorker(
 	if err != nil {
 		return nil, err
 	}
-	mcpRegister, err := setupMCPRegister(ctx, workflows, log)
+	mcpRegister, err := setupMCPRegister(ctx, workflows)
 	if err != nil {
 		return nil, err
 	}
 	templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
 	memoryManager, err := setupMemoryManager(
+		ctx,
 		config,
 		templateEngine,
 		workerCore.redisCache,
 		client,
 		workerCore.taskQueue,
 		projectConfig,
-		log,
 	)
 	if err != nil {
 		return nil, err
 	}
 	dispatcher := createDispatcher(projectConfig, workerCore.taskQueue, client)
 	activities := NewActivities(
+		ctx,
 		projectConfig,
 		workflows,
 		config.WorkflowRepo(),
@@ -179,7 +180,7 @@ func NewWorker(
 		templateEngine,
 	)
 	interceptor.SetConfiguredWorkerCount(1)
-	lifecycleCtx, lifecycleCancel := context.WithCancel(context.Background())
+	lifecycleCtx, lifecycleCancel := context.WithCancel(context.WithoutCancel(ctx))
 	log.Debug("Worker initialization completed", "total_duration", time.Since(workerStart))
 	return &Worker{
 		client:          client,
@@ -218,7 +219,8 @@ type dispatcherComponents struct {
 }
 
 // createTemporalClient creates and validates the Temporal client
-func createTemporalClient(ctx context.Context, clientConfig *TemporalConfig, log logger.Logger) (*Client, error) {
+func createTemporalClient(ctx context.Context, clientConfig *TemporalConfig) (*Client, error) {
+	log := logger.FromContext(ctx)
 	clientStart := time.Now()
 	client, err := NewClient(ctx, clientConfig)
 	if err != nil {
@@ -266,7 +268,10 @@ func setupRedisAndConfig(
 ) (*cache.Cache, services.ConfigStore, error) {
 	log := logger.FromContext(ctx)
 	cacheStart := time.Now()
-	cfg := appconfig.Get()
+	cfg := appconfig.FromContext(ctx)
+	if cfg == nil {
+		return nil, nil, fmt.Errorf("config manager not found in context")
+	}
 	// Build cache config from centralized Redis and cache config
 	cacheConfig := cache.FromAppConfig(cfg)
 
@@ -280,7 +285,8 @@ func setupRedisAndConfig(
 }
 
 // setupMCPRegister initializes MCP registration for workflows
-func setupMCPRegister(ctx context.Context, workflows []*wf.Config, log logger.Logger) (*mcp.RegisterService, error) {
+func setupMCPRegister(ctx context.Context, workflows []*wf.Config) (*mcp.RegisterService, error) {
+	log := logger.FromContext(ctx)
 	// Initialize MCP register and register all MCPs from all workflows
 	mcpStart := time.Now()
 	workflowConfigs := make([]mcp.WorkflowConfig, len(workflows))
@@ -297,14 +303,15 @@ func setupMCPRegister(ctx context.Context, workflows []*wf.Config, log logger.Lo
 
 // setupMemoryManager creates the memory manager if resource registry is available
 func setupMemoryManager(
+	ctx context.Context,
 	config *Config,
 	templateEngine *tplengine.TemplateEngine,
 	redisCache *cache.Cache,
 	client *Client,
 	taskQueue string,
 	projectConfig *project.Config,
-	log logger.Logger,
 ) (*memory.Manager, error) {
+	log := logger.FromContext(ctx)
 	if config.ResourceRegistry == nil {
 		log.Warn("Resource registry not provided, memory features will be disabled")
 		return nil, nil
@@ -347,7 +354,7 @@ func createDispatcher(projectConfig *project.Config, taskQueue string, client *C
 	}
 }
 
-func (o *Worker) Setup(_ context.Context) error {
+func (o *Worker) Setup(ctx context.Context) error {
 	o.worker.RegisterWorkflow(CompozyWorkflow)
 	o.worker.RegisterWorkflow(DispatcherWorkflow)
 	o.worker.RegisterActivity(o.activities.GetWorkflowData)
@@ -416,11 +423,14 @@ func (o *Worker) Setup(_ context.Context) error {
 		return err
 	}
 	// Track running worker for monitoring
-	interceptor.IncrementRunningWorkers(context.Background())
+	interceptor.IncrementRunningWorkers(ctx)
 	// Register dispatcher for health monitoring
-	cfg := appconfig.Get()
+	cfg := appconfig.FromContext(ctx)
+	if cfg == nil {
+		return fmt.Errorf("config manager not found in context")
+	}
 	monitoring.RegisterDispatcher(
-		context.Background(),
+		ctx,
 		o.dispatcherID,
 		cfg.Runtime.DispatcherStaleThreshold,
 	)
@@ -430,45 +440,85 @@ func (o *Worker) Setup(_ context.Context) error {
 }
 
 func (o *Worker) Stop(ctx context.Context) {
-	log := logger.FromContext(ctx)
 	// Track worker stopping for monitoring
 	interceptor.DecrementRunningWorkers(ctx)
 	// Record dispatcher stop event for monitoring
+	o.stopDispatcherMonitoring(ctx)
+	// Cancel lifecycle context to stop background operations
+	o.cancelLifecycle()
+	// Terminate this instance's dispatcher since each server has its own
+	o.terminateDispatcher(ctx)
+	// Stop the worker and close client
+	o.worker.Stop()
+	o.client.Close()
+	// Deregister all MCPs from proxy on shutdown
+	o.shutdownMCPs(ctx)
+	// Close stores
+	o.closeStores(ctx)
+}
+
+func (o *Worker) stopDispatcherMonitoring(ctx context.Context) {
 	if o.dispatcherID != "" {
 		interceptor.StopDispatcher(ctx, o.dispatcherID)
 		monitoring.UnregisterDispatcher(ctx, o.dispatcherID)
 	}
-	// Cancel lifecycle context to stop background operations
+}
+
+func (o *Worker) cancelLifecycle() {
 	if o.lifecycleCancel != nil {
 		o.lifecycleCancel()
 	}
-	// Terminate this instance's dispatcher since each server has its own
+}
+
+func (o *Worker) terminateDispatcher(ctx context.Context) {
+	log := logger.FromContext(ctx)
 	if o.dispatcherID != "" {
 		log.Info("Terminating instance dispatcher", "dispatcher_id", o.dispatcherID)
 		if err := o.client.TerminateWorkflow(ctx, o.dispatcherID, "", "server shutdown"); err != nil {
 			log.Error("Failed to terminate dispatcher", "error", err, "dispatcher_id", o.dispatcherID)
 		}
-		// Clean up heartbeat entry with background context to ensure completion
-		if o.activities != nil && o.redisCache != nil {
-			cfg := appconfig.Get()
-			cleanupCtx, cancel := context.WithTimeout(context.Background(), cfg.Worker.HeartbeatCleanupTimeout)
+		o.cleanupDispatcherHeartbeat(ctx)
+	}
+}
+
+func (o *Worker) cleanupDispatcherHeartbeat(ctx context.Context) {
+	log := logger.FromContext(ctx)
+	if o.activities != nil && o.redisCache != nil {
+		cfg := appconfig.FromContext(ctx)
+		if cfg == nil {
+			log.Error(
+				"config manager not found in context, skipping heartbeat cleanup",
+				"dispatcher_id",
+				o.dispatcherID,
+			)
+		} else {
+			cleanupCtx, cancel := context.WithTimeout(ctx, cfg.Worker.HeartbeatCleanupTimeout)
 			defer cancel()
 			if err := o.activities.RemoveDispatcherHeartbeat(cleanupCtx, o.dispatcherID); err != nil {
 				log.Error("Failed to remove dispatcher heartbeat", "error", err, "dispatcher_id", o.dispatcherID)
 			}
 		}
 	}
-	o.worker.Stop()
-	o.client.Close()
-	// Deregister all MCPs from proxy on shutdown
+}
+
+func (o *Worker) shutdownMCPs(ctx context.Context) {
+	log := logger.FromContext(ctx)
 	if o.mcpRegister != nil {
-		cfg := appconfig.Get()
-		ctx, cancel := context.WithTimeout(ctx, cfg.Worker.MCPShutdownTimeout)
-		defer cancel()
-		if err := o.mcpRegister.Shutdown(ctx); err != nil {
-			log.Error("Failed to shutdown MCP register", "error", err)
+		cfg := appconfig.FromContext(ctx)
+		if cfg == nil {
+			log.Error("config manager not found in context, skipping MCP shutdown", "dispatcher_id", o.dispatcherID)
+		} else {
+			shutdownCtx, cancel := context.WithTimeout(ctx, cfg.Worker.MCPShutdownTimeout)
+			defer cancel()
+			if err := o.mcpRegister.Shutdown(shutdownCtx); err != nil {
+				log.Error("Failed to shutdown MCP register", "error", err)
+			}
 		}
 	}
+}
+
+func (o *Worker) closeStores(ctx context.Context) {
+	log := logger.FromContext(ctx)
 	if o.configStore != nil {
 		if err := o.configStore.Close(); err != nil {
 			log.Error("Failed to close config store", "error", err)
@@ -527,7 +577,11 @@ func (o *Worker) TerminateDispatcher(ctx context.Context, reason string) error {
 
 func (o *Worker) ensureDispatcherRunning(ctx context.Context) {
 	log := logger.FromContext(ctx)
-	cfg := appconfig.Get()
+	cfg := appconfig.FromContext(ctx)
+	if cfg == nil {
+		log.Error("config manager not found in context, cannot start dispatcher")
+		return
+	}
 	maxRetries := cfg.Worker.DispatcherMaxRetries
 	var safeMaxRetries uint64
 	if maxRetries <= 0 {
@@ -586,7 +640,10 @@ func (o *Worker) ensureDispatcherRunning(ctx context.Context) {
 // HealthCheck performs a comprehensive health check including cache connectivity
 func (o *Worker) HealthCheck(ctx context.Context) error {
 	log := logger.FromContext(ctx)
-	cfg := appconfig.Get()
+	cfg := appconfig.FromContext(ctx)
+	if cfg == nil {
+		return fmt.Errorf("config manager not found in context")
+	}
 	// Check Redis cache health
 	if o.redisCache != nil {
 		if err := o.redisCache.HealthCheck(ctx); err != nil {
@@ -630,7 +687,10 @@ func (o *Worker) HealthCheck(ctx context.Context) error {
 
 // checkMCPProxyHealth checks if MCP proxy is healthy when configured
 func (o *Worker) checkMCPProxyHealth(ctx context.Context) error {
-	cfg := appconfig.Get()
+	cfg := appconfig.FromContext(ctx)
+	if cfg == nil {
+		return nil // treat as "no proxy configured"
+	}
 	if cfg.LLM.ProxyURL == "" {
 		return nil // No proxy configured
 	}

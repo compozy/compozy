@@ -74,7 +74,7 @@ func handleConfigShowJSON(
 	log := logger.FromContext(ctx)
 	log.Debug("executing config show command in JSON mode")
 
-	cfg := config.Get()
+	cfg := config.FromContext(ctx)
 	format, err := cobraCmd.Flags().GetString("format")
 	if err != nil {
 		return fmt.Errorf("failed to get format flag: %w", err)
@@ -93,7 +93,7 @@ func handleConfigShowTUI(
 	log := logger.FromContext(ctx)
 	log.Debug("executing config show command in TUI mode")
 
-	cfg := config.Get()
+	cfg := config.FromContext(ctx)
 	format, err := cobraCmd.Flags().GetString("format")
 	if err != nil {
 		return fmt.Errorf("failed to get format flag: %w", err)
@@ -190,8 +190,8 @@ func handleConfigValidateJSON(
 	log := logger.FromContext(ctx)
 	log.Debug("executing config validate command in JSON mode")
 
-	cfg := config.Get()
-	service := config.GlobalManager.Service
+	cfg := config.FromContext(ctx)
+	service := config.ManagerFromContext(ctx).Service
 	if err := service.Validate(cfg); err != nil {
 		return outputValidationJSON(false, err.Error())
 	}
@@ -209,8 +209,8 @@ func handleConfigValidateTUI(
 	log := logger.FromContext(ctx)
 	log.Debug("executing config validate command in TUI mode")
 
-	cfg := config.Get()
-	service := config.GlobalManager.Service
+	cfg := config.FromContext(ctx)
+	service := config.ManagerFromContext(ctx).Service
 	if err := service.Validate(cfg); err != nil {
 		return fmt.Errorf("configuration validation failed: %w", err)
 	}
@@ -255,12 +255,12 @@ func runDiagnostics(
 		return fmt.Errorf("failed to get working directory: %w", err)
 	}
 
-	cfg := config.Get()
-	service := config.GlobalManager.Service
+	cfg := config.FromContext(ctx)
+	service := config.ManagerFromContext(ctx).Service
 	validationErr := service.Validate(cfg)
 
 	if isJSON {
-		return outputDiagnosticsResults(cwd, cfg, validationErr, verbose)
+		return outputDiagnosticsResults(ctx, cwd, cfg, validationErr, verbose)
 	}
 
 	return outputDiagnosticsTUI(ctx, cwd, validationErr, verbose)
@@ -279,10 +279,17 @@ func getVerboseFlag(cobraCmd *cobra.Command) (bool, error) {
 }
 
 // outputDiagnosticsResults outputs diagnostics in JSON format
-func outputDiagnosticsResults(cwd string, cfg *config.Config, validationErr error, verbose bool) error {
+func outputDiagnosticsResults(
+	ctx context.Context,
+	cwd string,
+	cfg *config.Config,
+	validationErr error,
+	verbose bool,
+) error {
 	diagnostics := map[string]any{
 		"working_directory": cwd,
-		"configuration":     cfg,
+		// Use flattened, redacted view to avoid leaking secrets
+		"configuration": flattenConfig(cfg),
 		"validation": map[string]any{
 			"valid": validationErr == nil,
 			"error": func() any {
@@ -296,7 +303,7 @@ func outputDiagnosticsResults(cwd string, cfg *config.Config, validationErr erro
 
 	if verbose {
 		sources := make(map[string]string)
-		if service, ok := config.GlobalManager.Service.(interface {
+		if service, ok := config.ManagerFromContext(ctx).Service.(interface {
 			GetSources() map[string]config.SourceType
 		}); ok {
 			serviceSources := service.GetSources()
@@ -347,7 +354,8 @@ func outputDiagnosticsTUI(ctx context.Context, cwd string, validationErr error, 
 // outputJSON outputs configuration as JSON
 func outputJSON(cfg *config.Config, sources map[string]config.SourceType, showSources bool) error {
 	output := make(map[string]any)
-	output["config"] = cfg
+	// Use redacted, flattened representation
+	output["config"] = flattenConfig(cfg)
 	if showSources && len(sources) > 0 {
 		output["sources"] = sources
 	}
@@ -360,7 +368,8 @@ func outputJSON(cfg *config.Config, sources map[string]config.SourceType, showSo
 // outputYAML outputs configuration as YAML
 func outputYAML(cfg *config.Config, sources map[string]config.SourceType, showSources bool) error {
 	output := make(map[string]any)
-	output["config"] = cfg
+	// Use redacted, flattened representation
+	output["config"] = flattenConfig(cfg)
 	if showSources && len(sources) > 0 {
 		output["sources"] = sources
 	}
@@ -498,7 +507,7 @@ func flattenMemoryConfig(cfg *config.Config, result map[string]string) {
 // flattenLLMConfig flattens LLM configuration (optional)
 func flattenLLMConfig(cfg *config.Config, result map[string]string) {
 	if cfg.LLM.ProxyURL != "" {
-		result["llm.proxy_url"] = cfg.LLM.ProxyURL
+		result["llm.proxy_url"] = redactURL(cfg.LLM.ProxyURL)
 	}
 	if cfg.LLM.MCPReadinessTimeout > 0 {
 		result["llm.mcp_readiness_timeout"] = cfg.LLM.MCPReadinessTimeout.String()
@@ -548,7 +557,7 @@ func flattenLLMConfig(cfg *config.Config, result map[string]string) {
 // flattenCLIConfig flattens CLI configuration
 func flattenCLIConfig(cfg *config.Config, result map[string]string) {
 	result["cli.api_key"] = redactSensitive(cfg.CLI.APIKey.String())
-	result["cli.base_url"] = cfg.CLI.BaseURL
+	result["cli.base_url"] = redactURL(cfg.CLI.BaseURL)
 	result["cli.timeout"] = cfg.CLI.Timeout.String()
 	result["cli.mode"] = cfg.CLI.Mode
 	result["cli.default_format"] = cfg.CLI.DefaultFormat
@@ -678,7 +687,7 @@ func flattenWorkerConfig(cfg *config.Config, result map[string]string) {
 func flattenMCPProxyConfig(cfg *config.Config, result map[string]string) {
 	result["mcp_proxy.host"] = cfg.MCPProxy.Host
 	result["mcp_proxy.port"] = fmt.Sprintf("%d", cfg.MCPProxy.Port)
-	result["mcp_proxy.base_url"] = cfg.MCPProxy.BaseURL
+	result["mcp_proxy.base_url"] = redactURL(cfg.MCPProxy.BaseURL)
 	result["mcp_proxy.shutdown_timeout"] = cfg.MCPProxy.ShutdownTimeout.String()
 }
 

@@ -106,14 +106,41 @@ func (uc *ExecuteTask) resolveModelConfig(input *ExecuteTaskInput) error {
 // - Task-level env (merged)
 // Ensure project-level env is included by the merger if required by spec.
 // The function updates cfg in-place with resolved values.
-func (uc *ExecuteTask) normalizeProviderConfigWithEnv(cfg *core.ProviderConfig, input *ExecuteTaskInput) error {
+func (uc *ExecuteTask) normalizeProviderConfigWithEnv(
+	ctx context.Context,
+	cfg *core.ProviderConfig,
+	input *ExecuteTaskInput,
+) error {
 	if cfg == nil {
 		return nil
 	}
-	// Build the standard normalization context using project/workflow/task rules
-	contextBuilder, err := shared.NewContextBuilder()
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("context canceled before provider config normalization: %w", err)
+	}
+
+	// Build normalization context
+	normCtx, err := uc.buildNormalizationContext(ctx, input)
 	if err != nil {
-		return fmt.Errorf("failed to create context builder: %w", err)
+		return fmt.Errorf("failed to build normalization context: %w", err)
+	}
+
+	// Render provider config templates
+	if err := uc.renderProviderConfig(ctx, cfg, normCtx); err != nil {
+		return fmt.Errorf("failed to render provider config: %w", err)
+	}
+
+	return nil
+}
+
+// buildNormalizationContext creates the normalization context with merged environment variables
+func (uc *ExecuteTask) buildNormalizationContext(
+	ctx context.Context,
+	input *ExecuteTaskInput,
+) (*shared.NormalizationContext, error) {
+	// Build the standard normalization context using project/workflow/task rules
+	contextBuilder, err := shared.NewContextBuilderWithContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create context builder: %w", err)
 	}
 	normCtx := contextBuilder.BuildContext(input.WorkflowState, input.WorkflowConfig, input.TaskConfig)
 
@@ -130,6 +157,15 @@ func (uc *ExecuteTask) normalizeProviderConfigWithEnv(cfg *core.ProviderConfig, 
 		normCtx.Variables["env"] = merged
 	}
 
+	return normCtx, nil
+}
+
+// renderProviderConfig converts config to map, parses templates, and updates the config in-place
+func (uc *ExecuteTask) renderProviderConfig(
+	_ context.Context,
+	cfg *core.ProviderConfig,
+	normCtx *shared.NormalizationContext,
+) error {
 	// Use existing template engine when available to keep behavior consistent
 	engine := uc.templateEngine
 	if engine == nil {
@@ -226,7 +262,7 @@ func (uc *ExecuteTask) reparseAgentConfig(
 	}
 
 	// Build template context with all workflow data including tasks outputs
-	contextBuilder, err := shared.NewContextBuilder()
+	contextBuilder, err := shared.NewContextBuilderWithContext(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to create context builder: %w", err)
 	}
@@ -385,7 +421,7 @@ func (uc *ExecuteTask) prepareAgentConfig(
 		}
 	}
 	// Ensure provider config templates (like API keys) are normalized with env
-	if err := uc.normalizeProviderConfigWithEnv(&agentConfig.Config, input); err != nil {
+	if err := uc.normalizeProviderConfigWithEnv(ctx, &agentConfig.Config, input); err != nil {
 		return fmt.Errorf("failed to normalize provider config: %w", err)
 	}
 	// Ensure we operate on the latest workflow state so template parsing sees
@@ -514,7 +550,7 @@ func (uc *ExecuteTask) executeDirectLLM(ctx context.Context, input *ExecuteTaskI
 		"provider", input.TaskConfig.ModelConfig.Provider,
 		"model", input.TaskConfig.ModelConfig.Model)
 	// Normalize provider config for direct LLM before execution
-	if err := uc.normalizeProviderConfigWithEnv(&syntheticAgent.Config, input); err != nil {
+	if err := uc.normalizeProviderConfigWithEnv(ctx, &syntheticAgent.Config, input); err != nil {
 		return nil, fmt.Errorf("failed to normalize provider config for direct LLM: %w", err)
 	}
 	promptText := input.TaskConfig.Prompt

@@ -538,7 +538,7 @@ func TestScheduleValidator_Validate(t *testing.T) {
 			Schedule: nil,
 		}
 		validator := NewScheduleValidator(config)
-		err = validator.Validate()
+		err = validator.Validate(context.Background())
 		assert.NoError(t, err)
 	})
 	t.Run("Should validate schedule configuration", func(t *testing.T) {
@@ -557,7 +557,7 @@ func TestScheduleValidator_Validate(t *testing.T) {
 			},
 		}
 		validator := NewScheduleValidator(config)
-		err = validator.Validate()
+		err = validator.Validate(context.Background())
 		assert.NoError(t, err)
 	})
 	t.Run("Should fail with invalid cron expression", func(t *testing.T) {
@@ -571,7 +571,7 @@ func TestScheduleValidator_Validate(t *testing.T) {
 			},
 		}
 		validator := NewScheduleValidator(config)
-		err = validator.Validate()
+		err = validator.Validate(context.Background())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "schedule validation error")
 		assert.Contains(t, err.Error(), "invalid cron expression")
@@ -607,7 +607,7 @@ func TestScheduleValidator_Validate(t *testing.T) {
 			},
 		}
 		validator := NewScheduleValidator(config)
-		err = validator.Validate()
+		err = validator.Validate(context.Background())
 		assert.NoError(t, err)
 	})
 	t.Run("Should fail when schedule input violates workflow input schema", func(t *testing.T) {
@@ -638,7 +638,7 @@ func TestScheduleValidator_Validate(t *testing.T) {
 			},
 		}
 		validator := NewScheduleValidator(config)
-		err = validator.Validate()
+		err = validator.Validate(context.Background())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "schedule input validation error")
 	})
@@ -666,7 +666,7 @@ func TestScheduleValidator_Validate(t *testing.T) {
 			},
 		}
 		validator := NewScheduleValidator(config)
-		err = validator.Validate()
+		err = validator.Validate(context.Background())
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "schedule input validation error")
 	})
@@ -695,7 +695,7 @@ func TestScheduleValidator_Validate(t *testing.T) {
 			},
 		}
 		validator := NewScheduleValidator(config)
-		err = validator.Validate()
+		err = validator.Validate(context.Background())
 		assert.NoError(t, err)
 	})
 	t.Run("Should be integrated into workflow validation", func(t *testing.T) {

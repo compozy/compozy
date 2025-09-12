@@ -80,7 +80,15 @@ func NewMCPClientManager(storage Storage, config *ClientManagerConfig) *MCPClien
 func (m *MCPClientManager) Start(ctx context.Context) error {
 	log := logger.FromContext(ctx)
 	log.Info("Starting MCP client manager")
-	m.ctx = logger.ContextWithLogger(m.ctx, log)
+	// Replace internal context with a cancelable derivative that preserves values
+	base := context.WithoutCancel(ctx)
+	// Cancel any previous background context to avoid leaks
+	if m.cancel != nil {
+		m.cancel()
+	}
+	mctx, cancel := context.WithCancel(base)
+	m.ctx = logger.ContextWithLogger(mctx, log)
+	m.cancel = cancel
 
 	// Load existing definitions and start clients
 	definitions, err := m.storage.ListMCPs(ctx)
@@ -438,8 +446,12 @@ func (m *MCPClientManager) performHealthChecks() {
 	// Use errgroup for concurrent health checks with bounded parallelism
 	g, ctx := errgroup.WithContext(m.ctx)
 
-	// Create semaphore for bounded concurrency
-	semaphore := make(chan struct{}, m.config.HealthCheckParallelism)
+	// Create semaphore for bounded concurrency (ensure at least 1 to avoid deadlock)
+	parallelism := m.config.HealthCheckParallelism
+	if parallelism < 1 {
+		parallelism = 1
+	}
+	semaphore := make(chan struct{}, parallelism)
 
 	for name, client := range clientsToCheck {
 		// Capture loop variables

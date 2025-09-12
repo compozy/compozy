@@ -57,6 +57,16 @@ func (m *Manager) Load(ctx context.Context, sources ...Source) (*Config, error) 
 	// Apply configuration atomically and notify callbacks
 	m.applyConfig(config)
 
+	// Rebind internal watch context to a non-canceling derivative of the caller's context
+	if ctx != nil {
+		// Cancel any existing watcher ctx to prevent leaks
+		if m.watchCancel != nil {
+			m.watchCancel()
+		}
+		base := context.WithoutCancel(ctx)
+		m.watchCtx, m.watchCancel = context.WithCancel(base)
+	}
+
 	// Start watching sources that support it
 	m.startWatching(ctx, sources)
 

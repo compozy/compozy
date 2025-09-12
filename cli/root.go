@@ -124,13 +124,15 @@ func SetupGlobalConfig(cmd *cobra.Command) error {
 		sources = append(sources, config.NewCLIProvider(cliFlags))
 	}
 
-	// Initialize global config
-	if err := config.Initialize(ctx, nil, sources...); err != nil {
-		return fmt.Errorf("failed to initialize global configuration: %w", err)
+	// Build a manager and attach it to context
+	mgr := config.NewManager(nil)
+	if _, err := mgr.Load(ctx, sources...); err != nil {
+		return fmt.Errorf("failed to initialize configuration: %w", err)
 	}
+	ctx = config.ContextWithManager(ctx, mgr)
 
 	// Setup logger based on configuration
-	cfg := config.Get()
+	cfg := config.FromContext(ctx)
 	logLevel := logger.InfoLevel
 	if cfg.CLI.Quiet {
 		logLevel = logger.DisabledLevel
@@ -143,7 +145,7 @@ func SetupGlobalConfig(cmd *cobra.Command) error {
 	cmd.SetContext(ctx)
 
 	// Optional: Register OnChange for hot-reload if needed (e.g., for long-running commands)
-	config.OnChange(func(_ *config.Config) {
+	mgr.OnChange(func(_ *config.Config) {
 		// Update logger or other runtime settings if necessary
 	})
 

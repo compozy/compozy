@@ -43,6 +43,7 @@ type LockMetrics struct {
 
 // redisLock implements the Lock interface
 type redisLock struct {
+	ctx        context.Context
 	manager    *RedisLockManager
 	key        string
 	value      string
@@ -83,6 +84,10 @@ func NewRedisLockManager(client RedisInterface) (*RedisLockManager, error) {
 
 // Acquire attempts to acquire a distributed lock on the given resource
 func (m *RedisLockManager) Acquire(ctx context.Context, resource string, ttl time.Duration) (Lock, error) {
+	if ctx == nil {
+		return nil, fmt.Errorf("nil context")
+	}
+
 	start := time.Now()
 	defer func() {
 		m.metrics.mu.Lock()
@@ -114,6 +119,7 @@ func (m *RedisLockManager) Acquire(ctx context.Context, resource string, ttl tim
 	m.metrics.mu.Unlock()
 
 	lock := &redisLock{
+		ctx:      ctx,
 		manager:  m,
 		key:      lockKey,
 		value:    lockValue,
@@ -237,8 +243,10 @@ func (l *redisLock) autoRenew() {
 		select {
 		case <-l.stopChan:
 			return
+		case <-l.ctx.Done():
+			return
 		case <-ticker.C:
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+			ctx, cancel := context.WithTimeout(l.ctx, 5*time.Second)
 			err := l.Refresh(ctx)
 			cancel()
 

@@ -32,6 +32,21 @@ func NewTaskOutputBuilder() TaskOutputBuilder {
 	}
 }
 
+// NewTaskOutputBuilderWithContext creates a new task output builder using limits
+// derived from the provided context when available. Falls back to the standard
+// configuration loading when values are absent.
+func NewTaskOutputBuilderWithContext(ctx context.Context) TaskOutputBuilder {
+	if ctx == nil {
+		return NewTaskOutputBuilder()
+	}
+	// Prefer values already attached to the context
+	if cfg := config.FromContext(ctx); cfg != nil && cfg.Limits.MaxTaskContextDepth > 0 {
+		return &DefaultTaskOutputBuilder{maxDepth: cfg.Limits.MaxTaskContextDepth}
+	}
+	// As a fallback, reuse the existing logic
+	return NewTaskOutputBuilder()
+}
+
 // getMaxContextDepthFromConfig gets the max context depth from config
 // with a default fallback of 10
 func getMaxContextDepthFromConfig() int {

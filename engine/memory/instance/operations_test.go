@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/compozy/compozy/engine/llm"
-	"github.com/compozy/compozy/pkg/logger"
 )
 
 // Test token counter that tracks calls
@@ -159,7 +158,6 @@ func TestOperations_calculateTokensFromMessages(t *testing.T) {
 			tokenCounter: tokenCounter,
 			metrics:      metrics,
 			instanceID:   "test-instance",
-			logger:       logger.NewForTests(),
 		}
 
 		// Execute
@@ -197,7 +195,6 @@ func TestOperations_calculateTokensFromMessages(t *testing.T) {
 			tokenCounter: tokenCounter,
 			metrics:      metrics,
 			instanceID:   "test-instance",
-			logger:       logger.NewForTests(),
 		}
 
 		// Execute
@@ -228,7 +225,6 @@ func TestOperations_calculateTokensFromMessages(t *testing.T) {
 			tokenCounter: tokenCounter,
 			metrics:      metrics,
 			instanceID:   "test-instance",
-			logger:       logger.NewForTests(),
 		}
 
 		// Execute
@@ -264,7 +260,6 @@ func TestOperations_calculateTokensFromMessages(t *testing.T) {
 			tokenCounter: tokenCounter,
 			metrics:      metrics,
 			instanceID:   "test-instance",
-			logger:       logger.NewForTests(),
 		}
 
 		// Execute multiple goroutines concurrently
@@ -351,7 +346,6 @@ func TestOperations_CachePerformance(t *testing.T) {
 			tokenCounter: tokenCounter,
 			metrics:      metrics,
 			instanceID:   "test-instance",
-			logger:       logger.NewForTests(),
 		}
 
 		// Execute

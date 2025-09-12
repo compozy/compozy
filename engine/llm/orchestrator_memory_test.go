@@ -74,8 +74,8 @@ type MockLLMFactory struct {
 	mock.Mock
 }
 
-func (m *MockLLMFactory) CreateClient(config *core.ProviderConfig) (llmadapter.LLMClient, error) {
-	args := m.Called(config)
+func (m *MockLLMFactory) CreateClient(ctx context.Context, config *core.ProviderConfig) (llmadapter.LLMClient, error) {
+	args := m.Called(ctx, config)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -124,7 +124,7 @@ func TestOrchestrator_ExecuteWithMemory(t *testing.T) {
 		// Setup expectations
 		mockPromptBuilder.On("Build", ctx, actionCfg).Return("Hello, how are you?", nil)
 		mockPromptBuilder.On("ShouldUseStructuredOutput", "openai", actionCfg, agentCfg.Tools).Return(false)
-		mockFactory.On("CreateClient", &agentCfg.Config).Return(mockClient, nil)
+		mockFactory.On("CreateClient", mock.Anything, &agentCfg.Config).Return(mockClient, nil)
 		mockClient.On("GenerateContent", ctx, mock.MatchedBy(func(req *llmadapter.LLMRequest) bool {
 			// Verify no memory messages are included
 			return len(req.Messages) == 1 && req.Messages[0].Content == "Hello, how are you?"
@@ -214,7 +214,7 @@ func TestOrchestrator_ExecuteWithMemory(t *testing.T) {
 		// Setup other expectations
 		mockPromptBuilder.On("Build", ctx, actionCfg).Return("What did we talk about last time?", nil)
 		mockPromptBuilder.On("ShouldUseStructuredOutput", "openai", actionCfg, agentCfg.Tools).Return(false)
-		mockFactory.On("CreateClient", &agentCfg.Config).Return(mockClient, nil)
+		mockFactory.On("CreateClient", mock.Anything, &agentCfg.Config).Return(mockClient, nil)
 		mockClient.On("GenerateContent", ctx, mock.MatchedBy(func(req *llmadapter.LLMRequest) bool {
 			// Verify memory messages are included
 			return len(req.Messages) == 3 &&
@@ -300,7 +300,7 @@ func TestOrchestrator_ExecuteWithMemory(t *testing.T) {
 		// Setup other expectations - should continue without memory
 		mockPromptBuilder.On("Build", ctx, actionCfg).Return("Hello", nil)
 		mockPromptBuilder.On("ShouldUseStructuredOutput", "openai", actionCfg, agentCfg.Tools).Return(false)
-		mockFactory.On("CreateClient", &agentCfg.Config).Return(mockClient, nil)
+		mockFactory.On("CreateClient", mock.Anything, &agentCfg.Config).Return(mockClient, nil)
 		mockClient.On("GenerateContent", ctx, mock.MatchedBy(func(req *llmadapter.LLMRequest) bool {
 			// Should proceed with just the user message
 			return len(req.Messages) == 1 && req.Messages[0].Content == "Hello"

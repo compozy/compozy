@@ -146,8 +146,9 @@ func (rm *ResilientManager) RedactContent(
 	start := time.Now()
 	var result string
 	var resultErr error
-	// Create a context with timeout for the operation
-	ctx, cancel := context.WithTimeout(context.Background(), rm.config.TimeoutDuration*2)
+	// Create a context with timeout for the operation; preserve values but detach cancellation
+	base := context.WithoutCancel(ctx)
+	ctx, cancel := context.WithTimeout(base, rm.config.TimeoutDuration*2)
 	defer cancel()
 	err := rm.runner.Run(ctx, func(_ context.Context) (runErr error) {
 		// Recover from panics and convert to errors
@@ -168,11 +169,11 @@ func (rm *ResilientManager) RedactContent(
 		if err == errors.ErrCircuitOpen {
 			metrics.RecordCircuitBreakerTrip(ctx, "", "")
 		}
-		// If resilience patterns fail, return original content
+		// If resilience patterns fail, return safe fallback with error
 		log.Error("Redaction failed with resilience patterns",
 			"error", err,
-			"fallback", "no_redaction")
-		return content, nil
+			"fallback", defaultRedaction)
+		return defaultRedaction, fmt.Errorf("redaction failed: %w", err)
 	}
 	if resultErr == nil && len(patterns) > 0 {
 		// Record successful redaction

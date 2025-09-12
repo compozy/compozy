@@ -84,7 +84,8 @@ func ResetMetricsForTesting(ctx context.Context) {
 }
 
 // initWorkflowMetrics initializes workflow-related metrics
-func initWorkflowMetrics(meter metric.Meter, log logger.Logger) error {
+func initWorkflowMetrics(ctx context.Context, meter metric.Meter) error {
+	log := logger.FromContext(ctx)
 	var err error
 	workflowStartedTotal, err = meter.Int64Counter(
 		"compozy_temporal_workflow_started_total",
@@ -123,7 +124,8 @@ func initWorkflowMetrics(meter metric.Meter, log logger.Logger) error {
 }
 
 // initWorkerMetrics initializes worker-related metrics
-func initWorkerMetrics(meter metric.Meter, log logger.Logger) error {
+func initWorkerMetrics(ctx context.Context, meter metric.Meter) error {
+	log := logger.FromContext(ctx)
 	var err error
 	workersRunning, err = meter.Int64UpDownCounter(
 		"compozy_temporal_workers_running_total",
@@ -160,7 +162,8 @@ func initWorkerMetrics(meter metric.Meter, log logger.Logger) error {
 }
 
 // initDispatcherMetrics initializes dispatcher-related metrics
-func initDispatcherMetrics(meter metric.Meter, log logger.Logger) error {
+func initDispatcherMetrics(ctx context.Context, meter metric.Meter) error {
+	log := logger.FromContext(ctx)
 	var err error
 	dispatcherActive, err = meter.Int64UpDownCounter(
 		"compozy_dispatcher_active_total",
@@ -225,17 +228,16 @@ func initMetrics(ctx context.Context, meter metric.Meter) {
 	if meter == nil {
 		return
 	}
-	log := logger.FromContext(ctx)
 	metricsMutex.Lock()
 	defer metricsMutex.Unlock()
 	initOnce.Do(func() {
-		if err := initWorkflowMetrics(meter, log); err != nil {
+		if err := initWorkflowMetrics(ctx, meter); err != nil {
 			return
 		}
-		if err := initWorkerMetrics(meter, log); err != nil {
+		if err := initWorkerMetrics(ctx, meter); err != nil {
 			return
 		}
-		if err := initDispatcherMetrics(meter, log); err != nil {
+		if err := initDispatcherMetrics(ctx, meter); err != nil {
 			return
 		}
 	})
@@ -251,13 +253,15 @@ func TemporalMetrics(ctx context.Context, meter metric.Meter) interceptor.Worker
 	}
 	initMetrics(ctx, meter)
 	return &metricsInterceptor{
-		meter: meter,
+		meter:   meter,
+		baseCtx: context.WithoutCancel(ctx),
 	}
 }
 
 type metricsInterceptor struct {
 	interceptor.WorkerInterceptorBase
-	meter metric.Meter
+	meter   metric.Meter
+	baseCtx context.Context
 }
 
 // InterceptWorkflow intercepts workflow execution for metrics collection
@@ -269,13 +273,15 @@ func (m *metricsInterceptor) InterceptWorkflow(
 		WorkflowInboundInterceptorBase: interceptor.WorkflowInboundInterceptorBase{
 			Next: next,
 		},
-		meter: m.meter,
+		meter:   m.meter,
+		baseCtx: m.baseCtx,
 	}
 }
 
 type workflowInboundInterceptor struct {
 	interceptor.WorkflowInboundInterceptorBase
-	meter metric.Meter
+	meter   metric.Meter
+	baseCtx context.Context
 }
 
 // ExecuteWorkflow records metrics for workflow execution
@@ -300,8 +306,8 @@ func (w *workflowInboundInterceptor) ExecuteWorkflow(
 	}
 	defer func() {
 		if r := recover(); r != nil {
-			// Use background context for panic logging since workflow context might be corrupted
-			log := logger.FromContext(context.Background())
+			// Use worker base context for logging; workflow ctx may be corrupted
+			log := logger.FromContext(w.baseCtx)
 			log.Error("Panic in Temporal metrics interceptor", "panic", r)
 			// Re-panic to let Temporal handle it properly
 			panic(r)
@@ -310,7 +316,8 @@ func (w *workflowInboundInterceptor) ExecuteWorkflow(
 	startTime := workflow.Now(ctx) // Use deterministic time
 	info := workflow.GetInfo(ctx)
 	workflowType := info.WorkflowType.Name
-	otelCtx := context.Background()
+	// Use base (worker) context so metrics correlate with worker traces/logs
+	otelCtx := w.baseCtx
 	wst.Add(otelCtx, 1,
 		metric.WithAttributes(attribute.String("workflow_type", workflowType)))
 	result, err := w.Next.ExecuteWorkflow(ctx, in)
@@ -339,8 +346,8 @@ func (w *workflowInboundInterceptor) ExecuteWorkflow(
 			metric.WithAttributes(
 				attribute.String("workflow_type", workflowType),
 				attribute.String("result", resultLabel)))
-		// Use background context for logging since workflow context is for Temporal operations
-		log := logger.FromContext(context.Background())
+		// Log using worker base context
+		log := logger.FromContext(w.baseCtx)
 		log.Debug(logMessage, "workflow_type", workflowType, "workflow_id", info.WorkflowExecution.ID, "error", err)
 	} else {
 		wtd.Record(otelCtx, duration,

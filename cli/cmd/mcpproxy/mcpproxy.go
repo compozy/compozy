@@ -105,8 +105,11 @@ func runMCPProxy(
 	executor *cmd.CommandExecutor,
 	outputHandler func(*mcpproxy.Config) error,
 ) error {
-	// Get command-specific configuration directly from flags
-	proxyConfig := buildMCPProxyConfig(cobraCmd)
+	// Get command-specific configuration from context-backed config
+	proxyConfig, err := buildMCPProxyConfig(ctx, cobraCmd)
+	if err != nil {
+		return err
+	}
 
 	// Setup logging using global configuration
 	loggerInstance := setupMCPProxyLogging(cobraCmd, executor)
@@ -130,9 +133,12 @@ func runMCPProxy(
 }
 
 // buildMCPProxyConfig builds MCP proxy configuration from unified config system
-func buildMCPProxyConfig(_ *cobra.Command) *mcpproxy.Config {
+func buildMCPProxyConfig(ctx context.Context, _ *cobra.Command) (*mcpproxy.Config, error) {
 	// Get unified configuration
-	cfg := config.Get()
+	cfg := config.FromContext(ctx)
+	if cfg == nil {
+		return nil, fmt.Errorf("configuration not found in context")
+	}
 	mcpConfig := cfg.MCPProxy
 
 	// Convert port from int to string as required by MCP proxy
@@ -149,15 +155,18 @@ func buildMCPProxyConfig(_ *cobra.Command) *mcpproxy.Config {
 		Port:            port,
 		BaseURL:         baseURL,
 		ShutdownTimeout: mcpConfig.ShutdownTimeout,
-	}
+	}, nil
 }
 
 // Note: Environment file loading is handled through the global --env-file flag and executor
 
 // setupMCPProxyLogging configures logging for the MCP proxy using global configuration
 func setupMCPProxyLogging(cobraCmd *cobra.Command, _ *cmd.CommandExecutor) logger.Logger {
-	cfg := config.Get()
-	logLevel := cfg.Runtime.LogLevel
+	cfg := config.FromContext(cobraCmd.Context())
+	logLevel := "info" // default log level
+	if cfg != nil {
+		logLevel = cfg.Runtime.LogLevel
+	}
 	if envLevel := os.Getenv("MCP_PROXY_LOG_LEVEL"); envLevel != "" {
 		v := strings.ToLower(envLevel)
 		switch v {
@@ -165,7 +174,7 @@ func setupMCPProxyLogging(cobraCmd *cobra.Command, _ *cmd.CommandExecutor) logge
 			logLevel = v
 		}
 	}
-	if cfg.CLI.Debug {
+	if cfg != nil && cfg.CLI.Debug {
 		logLevel = logLevelDebug
 	}
 	if debug, err := cobraCmd.Flags().GetBool("debug"); err == nil && debug {

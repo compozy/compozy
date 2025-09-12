@@ -54,8 +54,11 @@ func NewCommandExecutor(cmd *cobra.Command, opts ExecutorOptions) (*CommandExecu
 
 	// Initialize auth client if required
 	if opts.RequireAuth {
-		// Use global config
-		cfg := config.Get()
+		// Use context-based config
+		cfg := config.FromContext(ctx)
+		if cfg == nil {
+			return nil, fmt.Errorf("configuration manager not found in context")
+		}
 
 		apiKey := getAPIKeyFromConfigOrFlag(cmd, cfg)
 
@@ -137,6 +140,7 @@ func ExecuteWithContext(
 	handlers ModeHandlers,
 	args []string,
 ) error {
+	cmd.SetContext(ctx)
 	executor, err := NewCommandExecutor(cmd, opts)
 	if err != nil {
 		return HandleCommonErrors(err, helpers.DetectMode(cmd))

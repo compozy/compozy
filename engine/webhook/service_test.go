@@ -9,6 +9,7 @@ import (
 
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
+	pkgcfg "github.com/compozy/compozy/pkg/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -22,7 +23,11 @@ func newOrchestratorForTest(t *testing.T, disp services.SignalDispatcher) *Orche
 	redisClient := &MockRedisClient{}
 	redisSvc := NewRedisService(redisClient)
 	reg := &MockLookup{}
-	return NewOrchestrator(reg, filter, disp, redisSvc, 1024*64, time.Minute)
+	cfg := &pkgcfg.Config{}
+	cfg.Webhooks.DefaultMaxBody = 1024 * 64
+	cfg.Webhooks.DefaultDedupeTTL = time.Minute
+	cfg.Webhooks.StripeSkew = 5 * time.Minute
+	return NewOrchestrator(cfg, reg, filter, disp, redisSvc, 1024*64, time.Minute)
 }
 
 // newOrchestratorWithIdem creates an orchestrator with injected Service for testing
@@ -32,7 +37,11 @@ func newOrchestratorWithIdem(t *testing.T, disp services.SignalDispatcher, idem 
 	require.NoError(t, err)
 	filter := NewCELAdapter(eval)
 	reg := &MockLookup{}
-	return NewOrchestrator(reg, filter, disp, idem, 1024*64, time.Minute)
+	cfg := &pkgcfg.Config{}
+	cfg.Webhooks.DefaultMaxBody = 1024 * 64
+	cfg.Webhooks.DefaultDedupeTTL = time.Minute
+	cfg.Webhooks.StripeSkew = 5 * time.Minute
+	return NewOrchestrator(cfg, reg, filter, disp, idem, 1024*64, time.Minute)
 }
 
 func TestOrchestrator_Process(t *testing.T) {

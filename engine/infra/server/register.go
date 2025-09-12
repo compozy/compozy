@@ -79,7 +79,11 @@ func setupSwaggerAndDocs(router *gin.Engine, prefixURL string) {
 
 // RegisterRoutes orchestrates the complete setup of all HTTP routes
 func RegisterRoutes(ctx context.Context, router *gin.Engine, state *appstate.State, server *Server) error {
-	version, prefixURL, cfg := setupBasicConfiguration(ctx)
+	cfg := config.FromContext(ctx)
+	if cfg == nil {
+		return fmt.Errorf("missing config in context; ensure config.ContextWithManager is set before server init")
+	}
+	version, prefixURL, _ := setupBasicConfiguration(ctx)
 	apiBase := router.Group(prefixURL)
 
 	if err := setupWebhookSystem(ctx, state, router, server); err != nil {
@@ -105,7 +109,10 @@ func registerPublicWebhookRoutes(
 	state *appstate.State,
 	meter metric.Meter,
 ) error {
-	cfg := config.Get()
+	cfg := config.FromContext(ctx)
+	if cfg == nil {
+		return fmt.Errorf("missing config in context")
+	}
 	limiterMax := cfg.Webhooks.DefaultMaxBody
 	hooks := router.Group(routes.Hooks())
 	hooks.Use(sizemw.BodySizeLimiter(limiterMax))
@@ -133,7 +140,7 @@ func registerPublicWebhookRoutes(
 		)
 	}
 	// Pass zeroes so NewOrchestrator falls back to config values internally.
-	orchestrator := webhook.NewOrchestrator(reg, filter, dispatcher, nil, 0, 0)
+	orchestrator := webhook.NewOrchestrator(cfg, reg, filter, dispatcher, nil, 0, 0)
 	if meter != nil {
 		metrics, err := webhook.NewMetrics(ctx, meter)
 		if err != nil {
@@ -182,7 +189,7 @@ func attachWebhookRegistry(ctx context.Context, state *appstate.State) error {
 func setupBasicConfiguration(ctx context.Context) (string, string, *config.Config) {
 	version := core.GetVersion()
 	prefixURL := routes.Base()
-	cfg := config.Get()
+	cfg := config.FromContext(ctx)
 	log := logger.FromContext(ctx)
 	if cfg.Server.Auth.AdminKey.Value() != "" {
 		log.Info("Admin bootstrap key is configured")
@@ -260,7 +267,7 @@ func createRootHandler(version, prefixURL string) gin.HandlerFunc {
 
 // setupAuthSystem configures authentication middleware and routes
 func setupAuthSystem(
-	_ context.Context,
+	ctx context.Context,
 	apiBase *gin.RouterGroup,
 	state *appstate.State,
 	cfg *config.Config,
@@ -276,9 +283,9 @@ func setupAuthSystem(
 	}
 
 	if server != nil && server.monitoring != nil && server.monitoring.IsInitialized() {
-		authrouter.RegisterRoutesWithMetrics(apiBase, authFactory, server.monitoring.Meter())
+		authrouter.RegisterRoutesWithMetrics(ctx, apiBase, authFactory, cfg, server.monitoring.Meter())
 	} else {
-		authrouter.RegisterRoutes(apiBase, authFactory)
+		authrouter.RegisterRoutes(apiBase, authFactory, cfg)
 	}
 
 	return nil

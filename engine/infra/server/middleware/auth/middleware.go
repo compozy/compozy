@@ -32,13 +32,13 @@ func NewManager(factory *uc.Factory, cfg *config.Config) *Manager {
 }
 
 // WithMetrics adds metrics instrumentation to the manager
-func (m *Manager) WithMetrics(meter metric.Meter) *Manager {
+func (m *Manager) WithMetrics(ctx context.Context, meter metric.Meter) *Manager {
 	m.meter = meter
 
 	// Initialize auth metrics
 	if meter != nil {
 		if err := auth.InitMetrics(meter); err != nil {
-			log := logger.FromContext(context.Background())
+			log := logger.FromContext(ctx)
 			log.Error("Failed to initialize auth metrics", "error", err)
 		}
 	}

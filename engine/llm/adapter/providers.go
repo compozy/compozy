@@ -16,7 +16,11 @@ import (
 )
 
 // CreateLLMFactory creates an LLM instance based on the provider configuration
-func CreateLLMFactory(provider *core.ProviderConfig, responseFormat *openai.ResponseFormat) (llms.Model, error) {
+func CreateLLMFactory(
+	ctx context.Context,
+	provider *core.ProviderConfig,
+	responseFormat *openai.ResponseFormat,
+) (llms.Model, error) {
 	switch provider.Provider {
 	case core.ProviderOpenAI:
 		return createOpenAILLM(provider, responseFormat)
@@ -29,7 +33,7 @@ func CreateLLMFactory(provider *core.ProviderConfig, responseFormat *openai.Resp
 	case core.ProviderOllama:
 		return createOllamaLLM(provider, responseFormat)
 	case core.ProviderGoogle:
-		return createGoogleLLM(provider, responseFormat)
+		return createGoogleLLM(ctx, provider, responseFormat)
 	case core.ProviderDeepSeek:
 		return createDeepSeekLLM(provider, responseFormat)
 	case core.ProviderXAI:
@@ -121,7 +125,7 @@ func createMockLLM(p *core.ProviderConfig, _ *openai.ResponseFormat) (llms.Model
 }
 
 // createGoogleLLM creates a Google AI LLM instance
-func createGoogleLLM(p *core.ProviderConfig, _ *openai.ResponseFormat) (llms.Model, error) {
+func createGoogleLLM(ctx context.Context, p *core.ProviderConfig, _ *openai.ResponseFormat) (llms.Model, error) {
 	opts := []googleai.Option{
 		googleai.WithDefaultModel(p.Model),
 	}
@@ -134,7 +138,12 @@ func createGoogleLLM(p *core.ProviderConfig, _ *openai.ResponseFormat) (llms.Mod
 	if p.Organization != "" {
 		return nil, fmt.Errorf("googleai does not support organization")
 	}
-	return googleai.New(context.Background(), opts...)
+	// Use provided context (preserves logger/config/trace). For long-lived
+	// clients, caller should pass a base context via context.WithoutCancel.
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return googleai.New(ctx, opts...)
 }
 
 // createDeepSeekLLM creates a DeepSeek LLM instance

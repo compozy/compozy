@@ -25,7 +25,6 @@ func TestNewHealthService(t *testing.T) {
 		assert.Equal(t, manager, service.manager)
 		assert.Equal(t, 30*time.Second, service.checkInterval)
 		assert.Equal(t, 5*time.Second, service.healthTimeout)
-		assert.NotNil(t, service.log)
 		assert.NotNil(t, service.stopCh)
 	})
 }

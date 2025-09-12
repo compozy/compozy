@@ -46,11 +46,14 @@ func executeStartCommand(cobraCmd *cobra.Command, args []string) error {
 
 // handleStartTUI handles start command in TUI mode
 func handleStartTUI(ctx context.Context, _ *cobra.Command, _ *cmd.CommandExecutor, _ []string) error {
-	cfg := config.Get()
+	cfg := config.FromContext(ctx)
+	if cfg == nil {
+		return fmt.Errorf("configuration missing from context; attach a manager with config.ContextWithManager")
+	}
 	cfg.Runtime.Environment = productionEnvironment
 	gin.SetMode(gin.ReleaseMode)
 	logProductionSecurityWarnings(ctx, cfg)
-	if !helpers.IsPortAvailable(cfg.Server.Host, cfg.Server.Port) {
+	if !helpers.IsPortAvailable(ctx, cfg.Server.Host, cfg.Server.Port) {
 		return fmt.Errorf("port %d is not available on host %s", cfg.Server.Port, cfg.Server.Host)
 	}
 	cwd, err := os.Getwd()
@@ -59,7 +62,10 @@ func handleStartTUI(ctx context.Context, _ *cobra.Command, _ *cmd.CommandExecuto
 	}
 	configFile := cfg.CLI.ConfigFile
 	envFilePath := cfg.CLI.EnvFile
-	srv := server.NewServer(ctx, cwd, configFile, envFilePath)
+	srv, err := server.NewServer(ctx, cwd, configFile, envFilePath)
+	if err != nil {
+		return fmt.Errorf("failed to create server: %w", err)
+	}
 	return srv.Run()
 }
 

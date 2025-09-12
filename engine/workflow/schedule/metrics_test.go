@@ -23,7 +23,6 @@ func TestNewMetrics(t *testing.T) {
 		// Assert
 		assert.NotNil(t, metrics)
 		assert.Equal(t, meter, metrics.meter)
-		assert.NotNil(t, metrics.log)
 	})
 
 	t.Run("Should handle nil meter gracefully", func(t *testing.T) {

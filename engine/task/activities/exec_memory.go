@@ -79,7 +79,7 @@ func (a *ExecuteMemory) Run(ctx context.Context, input *ExecuteMemoryInput) (*ta
 		return nil, fmt.Errorf("failed to create memory normalizer: %w", err)
 	}
 	// Create context builder to build proper normalization context
-	contextBuilder, err := shared.NewContextBuilder()
+	contextBuilder, err := shared.NewContextBuilderWithContext(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create context builder: %w", err)
 	}

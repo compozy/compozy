@@ -17,8 +17,7 @@ import (
 
 // Sentinel errors for consistent error handling
 var (
-	ErrUserNotFound   = errors.New("user not found")
-	ErrAPIKeyNotFound = errors.New("API key not found")
+	ErrUserNotFound = errors.New("user not found")
 )
 
 // AuthRepo implements the auth.Repository interface
@@ -190,7 +189,7 @@ func (r *AuthRepo) GetAPIKeyByID(ctx context.Context, id core.ID) (*model.APIKey
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return nil, ErrAPIKeyNotFound
+			return nil, uc.ErrAPIKeyNotFound
 		}
 		return nil, fmt.Errorf("failed to get API key: %w", err)
 	}
@@ -217,7 +216,7 @@ func (r *AuthRepo) GetAPIKeyByHash(ctx context.Context, fingerprint []byte) (*mo
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return nil, ErrAPIKeyNotFound
+			return nil, uc.ErrAPIKeyNotFound
 		}
 		return nil, fmt.Errorf("failed to get API key: %w", err)
 	}

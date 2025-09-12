@@ -10,12 +10,11 @@ const (
 	maxPortScanAttempts = 100
 )
 
-// IsPortAvailable checks if a port is available for binding
-func IsPortAvailable(host string, port int) bool {
-	// Try to listen on the port with a short timeout
+// IsPortAvailable checks if a port is available for binding using the provided context
+func IsPortAvailable(ctx context.Context, host string, port int) bool {
 	addr := fmt.Sprintf("%s:%d", host, port)
 	lc := &net.ListenConfig{}
-	listener, err := lc.Listen(context.Background(), "tcp", addr)
+	listener, err := lc.Listen(ctx, "tcp", addr)
 	if err != nil {
 		return false
 	}
@@ -25,16 +24,16 @@ func IsPortAvailable(host string, port int) bool {
 
 // FindAvailablePort finds the next available port starting from the given port
 // It uses an exponential backoff strategy to efficiently find available ports
-func FindAvailablePort(host string, startPort int) (int, error) {
+func FindAvailablePort(ctx context.Context, host string, startPort int) (int, error) {
 	// First, try the requested port
-	if IsPortAvailable(host, startPort) {
+	if IsPortAvailable(ctx, host, startPort) {
 		return startPort, nil
 	}
 
 	// Common alternative ports for development servers
 	commonPorts := []int{5000, 5001, 5002, 5003, 5004, 5005, 5006, 5007, 5008, 5009, 5010}
 	for _, port := range commonPorts {
-		if port != startPort && IsPortAvailable(host, port) {
+		if port != startPort && IsPortAvailable(ctx, host, port) {
 			return port, nil
 		}
 	}
@@ -53,12 +52,12 @@ func FindAvailablePort(host string, startPort int) (int, error) {
 		portDown := startPort - i
 
 		// Check upward direction
-		if portUp <= 65535 && !triedPorts[portUp] && IsPortAvailable(host, portUp) {
+		if portUp <= 65535 && !triedPorts[portUp] && IsPortAvailable(ctx, host, portUp) {
 			return portUp, nil
 		}
 
 		// Check downward direction (but stay above privileged ports)
-		if portDown >= 1024 && !triedPorts[portDown] && IsPortAvailable(host, portDown) {
+		if portDown >= 1024 && !triedPorts[portDown] && IsPortAvailable(ctx, host, portDown) {
 			return portDown, nil
 		}
 	}

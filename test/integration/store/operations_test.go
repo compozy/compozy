@@ -23,18 +23,18 @@ import (
 // This is 70-90% faster than creating individual containers
 func setupTestWithSharedContainer(t *testing.T) (context.Context, *store.Store, func()) {
 	ctx := context.Background()
-	// Reset state to ensure clean test environment
-	config.Close(ctx)
-	config.ResetForTest()
+	// Reset migrations state only (config is context-scoped now)
 	store.ResetMigrationsForTest()
 	// Use shared container for better performance
 	pool, cleanup := helpers.GetSharedPostgresDB(ctx, t)
 	connStr := pool.Config().ConnString()
-	// Initialize config with fresh state
-	err := config.Initialize(ctx, nil, config.NewDefaultProvider())
+	// Initialize context-based config manager
+	mgr := config.NewManager(nil)
+	_, err := mgr.Load(ctx, config.NewDefaultProvider())
 	require.NoError(t, err)
+	ctx = config.ContextWithManager(ctx, mgr)
 	// Set up configuration
-	cfg := config.Get()
+	cfg := mgr.Get()
 	cfg.Database.AutoMigrate = false // Migrations already run in shared container
 	cfg.Database.ConnString = connStr
 	// Create store
@@ -43,7 +43,7 @@ func setupTestWithSharedContainer(t *testing.T) (context.Context, *store.Store, 
 	require.NotNil(t, testStore)
 	return ctx, testStore, func() {
 		testStore.DB.Close(ctx)
-		config.Close(ctx)
+		_ = mgr.Close(ctx)
 		cleanup() // This will truncate tables for next test
 	}
 }

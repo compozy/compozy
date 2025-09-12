@@ -12,7 +12,7 @@ import (
 // Metrics provides instrumentation for schedule operations
 type Metrics struct {
 	meter                      metric.Meter
-	log                        logger.Logger
+	ctx                        context.Context
 	scheduleOperationsTotal    metric.Int64Counter
 	scheduledWorkflowsTotal    metric.Int64UpDownCounter
 	reconcileDurationHistogram metric.Float64Histogram
@@ -21,11 +21,8 @@ type Metrics struct {
 
 // NewMetrics creates a new schedule metrics instance
 func NewMetrics(ctx context.Context, meter metric.Meter) *Metrics {
-	log := logger.FromContext(ctx)
-	m := &Metrics{
-		meter: meter,
-		log:   log,
-	}
+	ctx = logger.ContextWithLogger(ctx, logger.FromContext(ctx).With("component", "schedule_metrics"))
+	m := &Metrics{meter: meter, ctx: ctx}
 	m.initMetrics()
 	return m
 }
@@ -43,7 +40,7 @@ func (m *Metrics) initMetrics() {
 		metric.WithDescription("Total schedule operations"),
 	)
 	if err != nil {
-		m.log.Error("Failed to create schedule operations total counter", "error", err)
+		logger.FromContext(m.ctx).Error("Failed to create schedule operations total counter", "error", err)
 	}
 
 	// Scheduled workflows gauge
@@ -52,7 +49,7 @@ func (m *Metrics) initMetrics() {
 		metric.WithDescription("Number of scheduled workflows"),
 	)
 	if err != nil {
-		m.log.Error("Failed to create scheduled workflows total gauge", "error", err)
+		logger.FromContext(m.ctx).Error("Failed to create scheduled workflows total gauge", "error", err)
 	}
 
 	// Reconciliation duration histogram
@@ -62,7 +59,7 @@ func (m *Metrics) initMetrics() {
 		metric.WithExplicitBucketBoundaries(.1, .25, .5, 1, 2.5, 5, 10, 30, 60),
 	)
 	if err != nil {
-		m.log.Error("Failed to create reconcile duration histogram", "error", err)
+		logger.FromContext(m.ctx).Error("Failed to create reconcile duration histogram", "error", err)
 	}
 
 	// Reconciliation in-flight gauge
@@ -71,7 +68,7 @@ func (m *Metrics) initMetrics() {
 		metric.WithDescription("Number of in-flight reconciliation operations"),
 	)
 	if err != nil {
-		m.log.Error("Failed to create reconcile inflight gauge", "error", err)
+		logger.FromContext(m.ctx).Error("Failed to create reconcile inflight gauge", "error", err)
 	}
 }
 

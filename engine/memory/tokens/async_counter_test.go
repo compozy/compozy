@@ -12,6 +12,13 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
+// contextKey represents a context key type
+type contextKey string
+
+const (
+	testKey contextKey = "test_key"
+)
+
 type mockTokenCounterAsync struct {
 	mock.Mock
 }
@@ -287,6 +294,42 @@ func TestNewAsyncTokenCounter(t *testing.T) {
 		defer asyncCounter.Shutdown()
 		// Assert
 		assert.Equal(t, customBufferSize, cap(asyncCounter.queue))
+	})
+}
+
+func TestNewAsyncTokenCounterWithContext(t *testing.T) {
+	t.Run("Should create counter with provided context", func(t *testing.T) {
+		// Arrange
+		mockCounter := new(mockTokenCounterAsync)
+		ctx := context.Background()
+		ctx = context.WithValue(ctx, testKey, "test_value")
+
+		// Act
+		asyncCounter := NewAsyncTokenCounterWithContext(ctx, mockCounter, 2, 100)
+		defer asyncCounter.Shutdown()
+
+		// Assert
+		// The baseCtx should be set to the provided context (without cancel)
+		assert.NotNil(t, asyncCounter.baseCtx)
+		assert.NotEqual(t, context.Background(), asyncCounter.baseCtx)
+
+		// Check that the context value is preserved
+		val := asyncCounter.baseCtx.Value(testKey)
+		assert.Equal(t, "test_value", val)
+	})
+
+	t.Run("Should use default values when zero provided", func(t *testing.T) {
+		// Arrange
+		mockCounter := new(mockTokenCounterAsync)
+		ctx := context.Background()
+
+		// Act
+		asyncCounter := NewAsyncTokenCounterWithContext(ctx, mockCounter, 0, 0)
+		defer asyncCounter.Shutdown()
+
+		// Assert
+		assert.Equal(t, 10, asyncCounter.workers)      // Default workers
+		assert.Equal(t, 1000, cap(asyncCounter.queue)) // Default buffer size
 	})
 }
 

@@ -1,22 +1,12 @@
 package composite
 
 import (
-	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
 
-	testhelpers "github.com/compozy/compozy/test/helpers"
 	"github.com/compozy/compozy/test/integration/worker/helpers"
 )
-
-func TestMain(m *testing.M) {
-	// Initialize config for all tests in this package
-	if err := testhelpers.InitializeTestConfig(); err != nil {
-		panic("failed to initialize test config: " + err.Error())
-	}
-	os.Exit(m.Run())
-}
 
 func getTestDir() string {
 	_, filename, _, ok := runtime.Caller(0)

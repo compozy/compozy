@@ -22,8 +22,9 @@ Applies to project-wide configuration surfaced through `pkg/config` and the CLI 
 <principles>
 - Registry as the single source of truth: `pkg/config/definition/schema.go`
 - Precedence order (lowest → highest): defaults → YAML → env → CLI flags
-- Global manager: `pkg/config/global.go` + `pkg/config/manager.go`
-- CLI wiring: `cli/root.go` uses registry to add flags and initialize config
+- Context-first propagation: build a `*config.Manager`, attach to `ctx` via `config.ContextWithManager`, and read with `config.FromContext`
+- Do not depend on any global configuration singleton.
+- CLI wiring: `cli/root.go` uses the registry to add flags, loads sources into a manager, and attaches manager+logger to `ctx`
 </principles>
 
 ## Add a New Property (Existing Category)
@@ -202,7 +203,7 @@ Run: `make lint && make test`
 - Registry (defaults, CLI/env mapping, help text): `pkg/config/definition/schema.go`
 - Defaults to map (YAML provider baseline): `pkg/config/provider.go`
 - Loader & precedence rules: `pkg/config/loader.go`
-- Global manager lifecycle: `pkg/config/{global.go,manager.go}`
+- Manager lifecycle: `pkg/config/manager.go` (no global singleton)
 - Env mapping generator: `pkg/config/env_mappings.go`
 - CLI flags and extraction: `cli/helpers/{global.go,flag_categories.go}`
 - Config show/validate/diagnostics: `cli/cmd/config/config.go`

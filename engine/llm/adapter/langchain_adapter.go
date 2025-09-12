@@ -17,11 +17,11 @@ type LangChainAdapter struct {
 }
 
 // NewLangChainAdapter creates a new LangChain adapter
-func NewLangChainAdapter(config *core.ProviderConfig) (*LangChainAdapter, error) {
+func NewLangChainAdapter(ctx context.Context, config *core.ProviderConfig) (*LangChainAdapter, error) {
 	if config == nil {
 		return nil, fmt.Errorf("provider config is nil")
 	}
-	model, err := CreateLLMFactory(config, nil)
+	model, err := CreateLLMFactory(ctx, config, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create LLM model: %w", err)
 	}

@@ -18,17 +18,16 @@ type Operations struct {
 	tokenCounter core.TokenCounter
 	metrics      Metrics
 	instanceID   string
-	logger       logger.Logger
 }
 
 // NewOperations creates a new operations handler
 func NewOperations(
+	_ context.Context,
 	instanceID string,
 	store core.Store,
 	lockManager LockManager,
 	tokenCounter core.TokenCounter,
 	metrics Metrics,
-	logger logger.Logger,
 ) *Operations {
 	return &Operations{
 		instanceID:   instanceID,
@@ -36,12 +35,11 @@ func NewOperations(
 		lockManager:  lockManager,
 		tokenCounter: tokenCounter,
 		metrics:      metrics,
-		logger:       logger,
 	}
 }
 
 // AppendMessage appends a message with proper locking and metrics
-func (o *Operations) AppendMessage(ctx context.Context, msg llm.Message) error {
+func (o *Operations) AppendMessage(ctx context.Context, msg llm.Message) (err error) {
 	start := time.Now()
 
 	// Acquire append lock
@@ -50,20 +48,19 @@ func (o *Operations) AppendMessage(ctx context.Context, msg llm.Message) error {
 		o.metrics.RecordAppend(ctx, time.Since(start), 0, err)
 		return err
 	}
-	var lockReleaseErr error
 	defer func() {
-		lockReleaseErr = o.handleLockRelease(unlock, "append")
+		unlockErr := o.handleLockRelease(ctx, unlock, "append")
+		err = o.combineErrors(err, unlockErr, "append message")
 	}()
 
 	// Calculate token count
 	tokenCount := o.calculateTokenCount(ctx, msg)
 
 	// Append to store
-	var operationErr error
-	if err := o.store.AppendMessage(ctx, o.instanceID, msg); err != nil {
-		o.metrics.RecordAppend(ctx, time.Since(start), tokenCount, err)
-		operationErr = err
-		return o.combineErrors(operationErr, lockReleaseErr, "append message")
+	if opErr := o.store.AppendMessage(ctx, o.instanceID, msg); opErr != nil {
+		o.metrics.RecordAppend(ctx, time.Since(start), tokenCount, opErr)
+		err = opErr
+		return err
 	}
 
 	// Update token count metadata
@@ -73,11 +70,11 @@ func (o *Operations) AppendMessage(ctx context.Context, msg llm.Message) error {
 	}
 
 	o.metrics.RecordAppend(ctx, time.Since(start), tokenCount, nil)
-	return o.combineErrors(nil, lockReleaseErr, "append message")
+	return nil
 }
 
 // AppendMessageWithTokenCount appends a message and updates token count atomically
-func (o *Operations) AppendMessageWithTokenCount(ctx context.Context, msg llm.Message, tokenCount int) error {
+func (o *Operations) AppendMessageWithTokenCount(ctx context.Context, msg llm.Message, tokenCount int) (err error) {
 	start := time.Now()
 
 	// Acquire append lock
@@ -86,26 +83,25 @@ func (o *Operations) AppendMessageWithTokenCount(ctx context.Context, msg llm.Me
 		o.metrics.RecordAppend(ctx, time.Since(start), 0, err)
 		return err
 	}
-	var lockReleaseErr error
 	defer func() {
-		lockReleaseErr = o.handleLockRelease(unlock, "append")
+		unlockErr := o.handleLockRelease(ctx, unlock, "append")
+		err = o.combineErrors(err, unlockErr, "append message with token count")
 	}()
 
 	// Use atomic operation if available
-	var operationErr error
 	if atomicStore, ok := o.store.(core.AtomicOperations); ok {
-		operationErr = atomicStore.AppendMessageWithTokenCount(ctx, o.instanceID, msg, tokenCount)
+		err = atomicStore.AppendMessageWithTokenCount(ctx, o.instanceID, msg, tokenCount)
 	} else {
 		// Fallback to separate operations
 		if err := o.store.AppendMessage(ctx, o.instanceID, msg); err != nil {
-			operationErr = err
+			return err
 		} else if err := o.store.IncrementTokenCount(ctx, o.instanceID, tokenCount); err != nil {
-			operationErr = err
+			return err
 		}
 	}
 
-	o.metrics.RecordAppend(ctx, time.Since(start), tokenCount, operationErr)
-	return o.combineErrors(operationErr, lockReleaseErr, "append message with token count")
+	o.metrics.RecordAppend(ctx, time.Since(start), tokenCount, err)
+	return
 }
 
 // ReadMessages retrieves all messages
@@ -120,15 +116,15 @@ func (o *Operations) ReadMessages(ctx context.Context) ([]llm.Message, error) {
 }
 
 // ClearMessages removes all messages with proper locking
-func (o *Operations) ClearMessages(ctx context.Context) error {
+func (o *Operations) ClearMessages(ctx context.Context) (err error) {
 	// Acquire clear lock
 	unlock, err := o.lockManager.AcquireClearLock(ctx, o.instanceID)
 	if err != nil {
 		return err
 	}
-	var lockReleaseErr error
 	defer func() {
-		lockReleaseErr = o.handleLockRelease(unlock, "clear")
+		unlockErr := o.handleLockRelease(ctx, unlock, "clear")
+		err = o.combineErrors(err, unlockErr, "clear messages")
 	}()
 
 	// Clear messages
@@ -141,30 +137,32 @@ func (o *Operations) ClearMessages(ctx context.Context) error {
 		}
 	}
 
-	return o.combineErrors(operationErr, lockReleaseErr, "clear messages")
+	return operationErr
 }
 
 // GetMessageCount returns the number of messages
 func (o *Operations) GetMessageCount(ctx context.Context) (int, error) {
-	o.logger.Debug("GetMessageCount called", "instanceID", o.instanceID)
+	log := logger.FromContext(ctx)
+	log.Debug("GetMessageCount called", "instanceID", o.instanceID)
 	count, err := o.store.GetMessageCount(ctx, o.instanceID)
 	if err != nil {
-		o.logger.Error("Failed to get message count from store", "instanceID", o.instanceID, "error", err)
+		log.Error("Failed to get message count from store", "instanceID", o.instanceID, "error", err)
 		return 0, err
 	}
-	o.logger.Debug("Got message count from store", "instanceID", o.instanceID, "messageCount", count)
+	log.Debug("Got message count from store", "instanceID", o.instanceID, "messageCount", count)
 	return count, nil
 }
 
 // GetTokenCount returns the current token count
 func (o *Operations) GetTokenCount(ctx context.Context) (int, error) {
-	o.logger.Debug("GetTokenCount called", "instanceID", o.instanceID)
+	log := logger.FromContext(ctx)
+	log.Debug("GetTokenCount called", "instanceID", o.instanceID)
 	tokenCount, err := o.store.GetTokenCount(ctx, o.instanceID)
 	if err != nil {
-		o.logger.Error("Failed to get token count from store", "instanceID", o.instanceID, "error", err)
+		log.Error("Failed to get token count from store", "instanceID", o.instanceID, "error", err)
 		return 0, err
 	}
-	o.logger.Debug("Got token count from store", "instanceID", o.instanceID, "tokenCount", tokenCount)
+	log.Debug("Got token count from store", "instanceID", o.instanceID, "tokenCount", tokenCount)
 
 	// If token count is 0, it might need migration
 	if tokenCount == 0 {
@@ -201,7 +199,8 @@ func (o *Operations) calculateTokenCountWithFallback(ctx context.Context, text s
 	}
 	count, err := o.tokenCounter.CountTokens(ctx, text)
 	if err != nil {
-		o.logger.Warn("Failed to count tokens, using fallback estimation",
+		log := logger.FromContext(ctx)
+		log.Warn("Failed to count tokens, using fallback estimation",
 			"error", err, "text_type", description, "instance_id", o.instanceID)
 		return o.estimateTokenCount(text)
 	}
@@ -279,18 +278,20 @@ func (o *Operations) calculateTokensFromMessages(ctx context.Context) (int, erro
 }
 
 // recordMetadataError logs metadata operation errors without failing the main operation
-func (o *Operations) recordMetadataError(_ context.Context, operation string, err error) {
+func (o *Operations) recordMetadataError(ctx context.Context, operation string, err error) {
 	// Log metadata operation errors
-	o.logger.Error("Metadata operation failed",
+	log := logger.FromContext(ctx)
+	log.Error("Metadata operation failed",
 		"operation", operation,
 		"error", err,
 		"instance_id", o.instanceID)
 }
 
 // handleLockRelease standardizes lock release error handling across operations
-func (o *Operations) handleLockRelease(unlock func() error, operation string) error {
+func (o *Operations) handleLockRelease(ctx context.Context, unlock func() error, operation string) error {
 	if err := unlock(); err != nil {
-		o.logger.Error("Failed to release lock",
+		log := logger.FromContext(ctx)
+		log.Error("Failed to release lock",
 			"error", err,
 			"operation", operation,
 			"instance_id", o.instanceID)

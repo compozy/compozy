@@ -11,14 +11,11 @@ import (
 
 // AsyncOperationLogger provides structured logging for async memory operations
 type AsyncOperationLogger struct {
-	log logger.Logger
 }
 
 // NewAsyncOperationLogger creates a new async operation logger
-func NewAsyncOperationLogger(log logger.Logger) *AsyncOperationLogger {
-	return &AsyncOperationLogger{
-		log: log,
-	}
+func NewAsyncOperationLogger(_ context.Context) *AsyncOperationLogger {
+	return &AsyncOperationLogger{}
 }
 
 // LogAsyncOperationStart logs the start of an async operation
@@ -28,6 +25,7 @@ func (aol *AsyncOperationLogger) LogAsyncOperationStart(
 	memoryID string,
 	metadata map[string]any,
 ) {
+	log := logger.FromContext(ctx)
 	// Extract trace ID if available
 	span := trace.SpanFromContext(ctx)
 	traceID := ""
@@ -51,7 +49,7 @@ func (aol *AsyncOperationLogger) LogAsyncOperationStart(
 		baseFields = append(baseFields, k, v)
 	}
 
-	aol.log.Info("Async operation started", baseFields...)
+	log.Info("Async operation started", baseFields...)
 }
 
 // LogAsyncOperationComplete logs the completion of an async operation
@@ -63,6 +61,7 @@ func (aol *AsyncOperationLogger) LogAsyncOperationComplete(
 	err error,
 	metadata map[string]any,
 ) {
+	log := logger.FromContext(ctx)
 	// Extract trace ID if available
 	span := trace.SpanFromContext(ctx)
 	traceID := ""
@@ -93,9 +92,9 @@ func (aol *AsyncOperationLogger) LogAsyncOperationComplete(
 	}
 
 	if err != nil {
-		aol.log.Error("Async operation failed", baseFields...)
+		log.Error("Async operation failed", baseFields...)
 	} else {
-		aol.log.Info("Async operation completed", baseFields...)
+		log.Info("Async operation completed", baseFields...)
 	}
 }
 
@@ -124,6 +123,7 @@ func (aol *AsyncOperationLogger) LogTemporalWorkflow(
 	memoryID string,
 	metadata map[string]any,
 ) {
+	log := logger.FromContext(ctx)
 	baseFields := []any{
 		"workflow_id", workflowID,
 		"workflow_type", workflowType,
@@ -143,18 +143,19 @@ func (aol *AsyncOperationLogger) LogTemporalWorkflow(
 		baseFields = append(baseFields, k, v)
 	}
 
-	aol.log.Info("Temporal workflow scheduled", baseFields...)
+	log.Info("Temporal workflow scheduled", baseFields...)
 }
 
 // LogTokenManagement logs token management operations
 func (aol *AsyncOperationLogger) LogTokenManagement(
-	_ context.Context,
+	ctx context.Context,
 	memoryID string,
 	operation string,
 	tokensUsed int,
 	maxTokens int,
 	metadata map[string]any,
 ) {
+	log := logger.FromContext(ctx)
 	// Calculate usage percentage, avoiding division by zero
 	var usagePercentage float64
 	if maxTokens > 0 {
@@ -176,23 +177,24 @@ func (aol *AsyncOperationLogger) LogTokenManagement(
 
 	switch {
 	case tokensUsed > maxTokens:
-		aol.log.Warn("Token limit exceeded", baseFields...)
+		log.Warn("Token limit exceeded", baseFields...)
 	case maxTokens > 0 && float64(tokensUsed)/float64(maxTokens) > 0.9:
-		aol.log.Info("Token usage high", baseFields...)
+		log.Info("Token usage high", baseFields...)
 	default:
-		aol.log.Debug("Token management operation", baseFields...)
+		log.Debug("Token management operation", baseFields...)
 	}
 }
 
 // LogLockOperation logs distributed lock operations
 func (aol *AsyncOperationLogger) LogLockOperation(
-	_ context.Context,
+	ctx context.Context,
 	memoryID string,
 	operation string,
 	success bool,
 	duration time.Duration,
 	metadata map[string]any,
 ) {
+	log := logger.FromContext(ctx)
 	baseFields := []any{
 		"operation", operation,
 		"memory_id", memoryID,
@@ -207,19 +209,20 @@ func (aol *AsyncOperationLogger) LogLockOperation(
 	}
 
 	if success {
-		aol.log.Debug("Lock operation succeeded", baseFields...)
+		log.Debug("Lock operation succeeded", baseFields...)
 	} else {
-		aol.log.Warn("Lock operation failed", baseFields...)
+		log.Warn("Lock operation failed", baseFields...)
 	}
 }
 
 // LogPrivacyOperation logs privacy-related operations
 func (aol *AsyncOperationLogger) LogPrivacyOperation(
-	_ context.Context,
+	ctx context.Context,
 	memoryID string,
 	operation string,
 	metadata map[string]any,
 ) {
+	log := logger.FromContext(ctx)
 	baseFields := []any{
 		"operation", operation,
 		"memory_id", memoryID,
@@ -232,5 +235,5 @@ func (aol *AsyncOperationLogger) LogPrivacyOperation(
 		baseFields = append(baseFields, k, v)
 	}
 
-	aol.log.Info("Privacy operation", baseFields...)
+	log.Info("Privacy operation", baseFields...)
 }

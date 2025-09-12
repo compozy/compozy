@@ -6,7 +6,6 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	memcore "github.com/compozy/compozy/engine/memory/core"
-	"github.com/compozy/compozy/pkg/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -45,20 +44,11 @@ func (m *MockFlushableMemory) MarkFlushPending(ctx context.Context, pending bool
 }
 
 func TestNewMemoryActivities(t *testing.T) {
-	t.Run("Should create with provided logger", func(t *testing.T) {
+	t.Run("Should create with manager", func(t *testing.T) {
 		mockManager := &MockMemoryManager{}
-		testLogger := logger.NewForTests()
-		activities := NewMemoryActivities(mockManager, testLogger)
+		activities := NewMemoryActivities(context.Background(), mockManager)
 		assert.NotNil(t, activities)
 		assert.Equal(t, mockManager, activities.MemoryManager)
-		assert.Equal(t, testLogger, activities.Logger)
-	})
-	t.Run("Should create with default logger when nil provided", func(t *testing.T) {
-		mockManager := &MockMemoryManager{}
-		activities := NewMemoryActivities(mockManager, nil)
-		assert.NotNil(t, activities)
-		assert.Equal(t, mockManager, activities.MemoryManager)
-		assert.NotNil(t, activities.Logger)
 	})
 }
 
@@ -67,9 +57,8 @@ func TestMemoryActivities_FlushMemory(t *testing.T) {
 	// a Temporal activity context. This is a basic structure test.
 	t.Run("Should create activities structure", func(t *testing.T) {
 		mockManager := &MockMemoryManager{}
-		activities := NewMemoryActivities(mockManager, logger.NewForTests())
+		activities := NewMemoryActivities(context.Background(), mockManager)
 		assert.NotNil(t, activities)
 		assert.Equal(t, mockManager, activities.MemoryManager)
-		assert.NotNil(t, activities.Logger)
 	})
 }

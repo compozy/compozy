@@ -177,7 +177,7 @@ func (r *Repository) GetAPIKeyByID(ctx context.Context, id core.ID) (*model.APIK
 	var key model.APIKey
 	if err := pgxscan.Get(ctx, r.db, &key, query, args...); err != nil {
 		if pgxscan.NotFound(err) {
-			return nil, fmt.Errorf("API key not found")
+			return nil, uc.ErrAPIKeyNotFound
 		}
 		return nil, fmt.Errorf("scanning API key: %w", err)
 	}
@@ -220,7 +220,7 @@ func (r *Repository) GetAPIKeyByHash(ctx context.Context, hash []byte) (*model.A
 				dummyHash,
 				hash,
 			)
-			return nil, fmt.Errorf("API key not found")
+			return nil, uc.ErrAPIKeyNotFound
 		}
 		dbErr = err
 	}
@@ -278,7 +278,7 @@ func (r *Repository) UpdateAPIKeyLastUsed(ctx context.Context, id core.ID) error
 		return fmt.Errorf("updating API key last_used: %w", err)
 	}
 	if tag.RowsAffected() == 0 {
-		return fmt.Errorf("API key not found")
+		return uc.ErrAPIKeyNotFound
 	}
 	return nil
 }
@@ -297,7 +297,7 @@ func (r *Repository) DeleteAPIKey(ctx context.Context, id core.ID) error {
 		return fmt.Errorf("deleting API key: %w", err)
 	}
 	if tag.RowsAffected() == 0 {
-		return fmt.Errorf("API key not found")
+		return uc.ErrAPIKeyNotFound
 	}
 	return nil
 }

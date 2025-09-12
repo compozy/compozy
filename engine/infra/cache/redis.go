@@ -50,12 +50,13 @@ type Redis struct {
 	client redis.UniversalClient
 	config *Config
 	once   sync.Once // guarantees idempotent, race-free Close
-	log    logger.Logger
+	ctx    context.Context
 }
 
 // NewRedis creates a new Redis client with the provided configuration.
 func NewRedis(ctx context.Context, cfg *Config) (*Redis, error) {
-	log := logger.FromContext(ctx)
+	log := logger.FromContext(ctx).With("component", "infra_redis")
+	ctx = logger.ContextWithLogger(ctx, log)
 	if cfg == nil {
 		return nil, fmt.Errorf("redis config is required")
 	}
@@ -89,7 +90,7 @@ func NewRedis(ctx context.Context, cfg *Config) (*Redis, error) {
 		return nil, fmt.Errorf("pinging Redis server: %w", err)
 	}
 
-	log.With(
+	logger.FromContext(ctx).With(
 		"host", cfg.Host,
 		"port", cfg.Port,
 		"db", cfg.DB,
@@ -100,7 +101,7 @@ func NewRedis(ctx context.Context, cfg *Config) (*Redis, error) {
 	return &Redis{
 		client: client,
 		config: cfg,
-		log:    log,
+		ctx:    ctx,
 	}, nil
 }
 
@@ -110,9 +111,9 @@ func (r *Redis) Close() error {
 	r.once.Do(func() {
 		err = r.client.Close()
 		if err != nil {
-			r.log.Error("Redis connection close failed", "error", err)
+			logger.FromContext(r.ctx).Error("Redis connection close failed", "error", err)
 		} else {
-			r.log.Debug("Redis connection closed")
+			logger.FromContext(r.ctx).Debug("Redis connection closed")
 		}
 	})
 	return err

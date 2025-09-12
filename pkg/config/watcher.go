@@ -17,9 +17,11 @@ type Watcher struct {
 	mu        sync.RWMutex
 	// watched keeps track of actively watched absolute file paths.
 	// It's used to filter events and to support per-call context cancellation.
-	watched   map[string]struct{}
-	startOnce sync.Once // Ensures handleEvents goroutine is started only once
-	closeOnce sync.Once // Ensures Close is idempotent
+	// We keep the per-path context so we can ignore events immediately when the context is canceled.
+	watched   map[string]context.Context
+	stopCh    chan struct{} // Signals all per-path goroutines to stop
+	startOnce sync.Once     // Ensures handleEvents goroutine is started only once
+	closeOnce sync.Once     // Ensures Close is idempotent
 }
 
 // NewWatcher creates a new configuration file watcher.
@@ -32,7 +34,8 @@ func NewWatcher() (*Watcher, error) {
 	return &Watcher{
 		watcher:   fsWatcher,
 		callbacks: make([]func(), 0),
-		watched:   make(map[string]struct{}),
+		watched:   make(map[string]context.Context),
+		stopCh:    make(chan struct{}),
 	}, nil
 }
 
@@ -49,15 +52,21 @@ func (w *Watcher) Watch(ctx context.Context, path string) error {
 		return fmt.Errorf("failed to watch file: %w", err)
 	}
 
-	// Mark path as being watched
+	// Mark path as being watched with its context
 	w.mu.Lock()
-	w.watched[absPath] = struct{}{}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	w.watched[absPath] = ctx
 	w.mu.Unlock()
 
 	// Stop watching this specific path when the provided context is canceled
-	if ctx != nil {
-		go func(p string, c context.Context) {
-			<-c.Done()
+	if done := ctx.Done(); done != nil {
+		go func(p string, done <-chan struct{}) {
+			select {
+			case <-done:
+			case <-w.stopCh:
+			}
 			// Remove from internal registry first to filter any in-flight events
 			w.mu.Lock()
 			delete(w.watched, p)
@@ -70,7 +79,7 @@ func (w *Watcher) Watch(ctx context.Context, path string) error {
 					_ = err
 				}
 			}
-		}(absPath, ctx)
+		}(absPath, done)
 	}
 
 	// Start the event handler only once
@@ -98,9 +107,13 @@ func (w *Watcher) handleEvents() {
 			}
 			// Filter out events for paths that are no longer being watched
 			w.mu.RLock()
-			_, stillWatched := w.watched[event.Name]
+			pathCtx, stillWatched := w.watched[event.Name]
 			w.mu.RUnlock()
 			if !stillWatched {
+				continue
+			}
+			// If its context has been canceled, ignore any subsequent events
+			if pathCtx != nil && pathCtx.Err() != nil {
 				continue
 			}
 
@@ -144,6 +157,7 @@ func (w *Watcher) Close() error {
 
 	// Use sync.Once to ensure we only close once
 	w.closeOnce.Do(func() {
+		close(w.stopCh)
 		if err := w.watcher.Close(); err != nil {
 			closeErr = fmt.Errorf("failed to close watcher: %w", err)
 		}

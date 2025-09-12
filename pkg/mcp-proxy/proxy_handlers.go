@@ -63,7 +63,7 @@ func (p *ProxyHandlers) RegisterMCPProxy(ctx context.Context, name string, def *
 	}
 
 	// Add logging configuration based on MCPDefinition
-	if def.LogEnabled {
+	if def != nil && def.LogEnabled {
 		serverOpts = append(serverOpts, server.WithLogging())
 	}
 
@@ -99,8 +99,8 @@ func (p *ProxyHandlers) RegisterMCPProxy(ctx context.Context, name string, def *
 	// Initialize the client connection and add its capabilities to the server
 	// This runs in background after the server is registered
 	go func() {
-		// Independent context with timeout to avoid indefinite wait
-		bgCtx := logger.ContextWithLogger(context.Background(), log)
+		// Derive uncancelable context from caller to keep values but avoid premature cancellation
+		bgCtx := logger.ContextWithLogger(context.WithoutCancel(ctx), log)
 		timeout := 30 * time.Second
 		if def != nil && def.Timeout > 0 {
 			timeout = def.Timeout
@@ -138,7 +138,7 @@ func (p *ProxyHandlers) UnregisterMCPProxy(ctx context.Context, name string) err
 	}
 
 	// Shutdown server resources first
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
 	if proxyServer.sseServer != nil {
 		if err := proxyServer.sseServer.Shutdown(shutdownCtx); err != nil {
@@ -173,7 +173,7 @@ func (p *ProxyHandlers) SSEProxyHandler(c *gin.Context) {
 	log := logger.FromContext(c.Request.Context())
 	name := c.Param("name")
 	if name == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "MCP name is required"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "MCP name is required", "details": ""})
 		return
 	}
 
@@ -186,33 +186,32 @@ func (p *ProxyHandlers) SSEProxyHandler(c *gin.Context) {
 
 	if !exists {
 		log.Debug("MCP proxy server not found", "name", name)
-		c.JSON(http.StatusNotFound, gin.H{"error": "MCP server not found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "MCP server not found", "details": fmt.Sprintf("name=%s", name)})
 		return
 	}
 
-	// Check if proxy server is properly initialized
-	if proxyServer.def == nil {
-		log.Error("MCP proxy server not properly initialized", "name", name)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "MCP server not properly initialized"})
+	// Check if proxy server is properly initialized and ready
+	if proxyServer.client == nil || !proxyServer.client.IsConnected() {
+		log.Error("MCP proxy server not ready", "name", name)
+		c.JSON(
+			http.StatusInternalServerError,
+			gin.H{"error": "MCP server not ready", "details": fmt.Sprintf("name=%s", name)},
+		)
 		return
 	}
 
 	// Use cached definition to avoid repeated storage queries
-	def := proxyServer.def
 
-	// Apply middleware chain
 	middlewares := []gin.HandlerFunc{
-		recoverMiddleware(name), // Recovery should be outermost
-	}
-
-	// Add logging middleware
-	if def.LogEnabled {
-		middlewares = append(middlewares, logger.Middleware(log))
+		recoverMiddleware(name),
 	}
 
 	// Check if SSE server is available (test scenario)
 	if proxyServer.sseServer == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "SSE server not initialized"})
+		c.JSON(
+			http.StatusInternalServerError,
+			gin.H{"error": "SSE server not initialized", "details": fmt.Sprintf("name=%s", name)},
+		)
 		return
 	}
 
@@ -245,7 +244,7 @@ func (p *ProxyHandlers) StreamableHTTPProxyHandler(c *gin.Context) {
 	log := logger.FromContext(c.Request.Context())
 	name := c.Param("name")
 	if name == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "MCP name is required"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "MCP name is required", "details": ""})
 		return
 	}
 
@@ -279,7 +278,11 @@ func (p *ProxyHandlers) initializeClientConnection(
 	resourceLoader := NewResourceLoader(client, mcpServer, name)
 
 	// Load critical capabilities first (tools)
-	if err := resourceLoader.LoadTools(ctx, def.ToolFilter); err != nil {
+	var toolFilter *ToolFilter
+	if def != nil {
+		toolFilter = def.ToolFilter
+	}
+	if err := resourceLoader.LoadTools(ctx, toolFilter); err != nil {
 		return err
 	}
 
@@ -332,5 +335,3 @@ func (p *ProxyHandlers) GetProxyServer(name string) *ProxyServer {
 	defer p.serversMutex.RUnlock()
 	return p.servers[name]
 }
-
-// Note: IP allowlist middleware has been removed. Network-level controls should be used instead.

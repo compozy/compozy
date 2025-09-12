@@ -106,7 +106,7 @@ func (o *llmOrchestrator) executeWithValidatedRequest(
 	request Request,
 ) (*core.Output, error) {
 	memories := o.prepareMemoryContext(ctx, request)
-	llmClient, err := o.createLLMClient(request)
+	llmClient, err := o.createLLMClient(ctx, request)
 	if err != nil {
 		return nil, err
 	}
@@ -932,12 +932,12 @@ func (o *llmOrchestrator) prepareMemoryContext(
 	return memories
 }
 
-func (o *llmOrchestrator) createLLMClient(request Request) (llmadapter.LLMClient, error) {
+func (o *llmOrchestrator) createLLMClient(ctx context.Context, request Request) (llmadapter.LLMClient, error) {
 	factory := o.config.LLMFactory
 	if factory == nil {
 		factory = llmadapter.NewDefaultFactory()
 	}
-	llmClient, err := factory.CreateClient(&request.Agent.Config)
+	llmClient, err := factory.CreateClient(ctx, &request.Agent.Config)
 	if err != nil {
 		return nil, NewLLMError(err, ErrCodeLLMCreation, map[string]any{
 			"provider": request.Agent.Config.Provider,

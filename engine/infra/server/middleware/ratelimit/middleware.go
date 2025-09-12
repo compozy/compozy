@@ -87,7 +87,12 @@ func NewManager(config *Config, redisClient *redis.Client) (*Manager, error) {
 }
 
 // NewManagerWithMetrics creates a new rate limiting manager with metrics support
-func NewManagerWithMetrics(config *Config, redisClient *redis.Client, meter metric.Meter) (*Manager, error) {
+func NewManagerWithMetrics(
+	ctx context.Context,
+	config *Config,
+	redisClient *redis.Client,
+	meter metric.Meter,
+) (*Manager, error) {
 	m, err := NewManager(config, redisClient)
 	if err != nil {
 		return nil, err
@@ -98,7 +103,7 @@ func NewManagerWithMetrics(config *Config, redisClient *redis.Client, meter metr
 	// Initialize metrics
 	if meter != nil {
 		if err := InitMetrics(meter); err != nil {
-			log := logger.FromContext(context.Background())
+			log := logger.FromContext(ctx)
 			log.Error("Failed to initialize rate limit metrics", "error", err)
 		}
 	}
@@ -283,7 +288,7 @@ func (m *Manager) getKeyType(key string) string {
 }
 
 // UpdateRouteLimit updates the rate limit for a specific route
-func (m *Manager) UpdateRouteLimit(route string, rateConfig RateConfig) {
+func (m *Manager) UpdateRouteLimit(ctx context.Context, route string, rateConfig RateConfig) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -293,8 +298,8 @@ func (m *Manager) UpdateRouteLimit(route string, rateConfig RateConfig) {
 		m.limiters[route] = limiter.New(m.store, rateConfig.ToLimiterRate())
 	}
 
-	// Log update using context logger
-	log := logger.FromContext(context.Background())
+	// Log update using provided context
+	log := logger.FromContext(ctx)
 	log.Info("Updated rate limit for route", "route", route, "limit", rateConfig.Limit, "period", rateConfig.Period)
 }
 

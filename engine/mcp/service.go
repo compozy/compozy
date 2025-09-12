@@ -186,13 +186,6 @@ func (s *RegisterService) HealthCheck(ctx context.Context) error {
 	return nil
 }
 
-// SyncWithProxy is no longer needed since we always use proxy as source of truth
-func (s *RegisterService) SyncWithProxy(ctx context.Context) error {
-	log := logger.FromContext(ctx)
-	log.Debug("Registry synchronized with proxy")
-	return nil
-}
-
 // convertToDefinition converts an MCP config to a proxy definition
 func (s *RegisterService) convertToDefinition(config *Config) (Definition, error) {
 	def := Definition{
@@ -235,6 +228,19 @@ func (s *RegisterService) convertToDefinition(config *Config) (Definition, error
 		return def, fmt.Errorf("MCP must have either URL or command specified")
 	}
 
+	// Enforce transport compatibility per MCP spec
+	t := strings.ToLower(string(def.Transport))
+	if def.URL != "" {
+		if t != "sse" && t != "streamable-http" {
+			return def, fmt.Errorf("remote MCP must use 'sse' or 'streamable-http' transport: got %q", def.Transport)
+		}
+	}
+	if def.Command != "" {
+		if t != "stdio" {
+			return def, fmt.Errorf("stdio MCP must use 'stdio' transport: got %q", def.Transport)
+		}
+	}
+
 	return def, nil
 }
 
@@ -272,26 +278,24 @@ func normalizeHeaders(h map[string]string) map[string]string {
 
 // resolveHeadersWithEnv evaluates header templates using the provided env (hierarchical env already merged by loader)
 // the engine provides its own escaping protections.
-func resolveHeadersWithEnv(headers map[string]string, env core.EnvMap) map[string]string {
+func resolveHeadersWithEnv(ctx context.Context, headers map[string]string, env core.EnvMap) map[string]string {
 	if len(headers) == 0 {
 		return headers
 	}
 	out := make(map[string]string, len(headers))
 	engine := tplengine.NewEngine(tplengine.FormatText)
-	// Use a restricted context with only environment variables
-	// The template engine already provides XSS protection via htmlEscape functions
-	ctx := map[string]any{"env": env.AsMap()}
+	tplCtx := map[string]any{"env": map[string]string(env)}
 	for k, v := range headers {
 		if tplengine.HasTemplate(v) {
 			// Optional strict mode for template validation, disabled by default for compatibility.
-			if appconfig.Get().LLM.MCPHeaderTemplateStrict {
+			if cfg := appconfig.FromContext(ctx); cfg != nil && cfg.LLM.MCPHeaderTemplateStrict {
 				if err := validateTemplate(v); err != nil {
 					out[k] = v
 					continue
 				}
 			}
 			// Validate template doesn't contain dangerous patterns
-			if s, err := engine.ProcessString(v, ctx); err == nil {
+			if s, err := engine.ProcessString(v, tplCtx); err == nil {
 				out[k] = s
 			} else {
 				// Use original value if template processing fails
@@ -481,10 +485,10 @@ func (s *RegisterService) EnsureMultiple(ctx context.Context, configs []Config) 
 	if err := s.validateEnsureMultipleInput(ctx, configs); err != nil {
 		return err
 	}
-	maxConcurrent := s.getConcurrencyLimit(log)
+	maxConcurrent := s.getConcurrencyLimit(ctx)
 	log.Info("Registering multiple MCPs with proxy", "count", len(configs), "max_concurrent", maxConcurrent)
 	results := s.executeConcurrentRegistrations(ctx, configs, maxConcurrent)
-	s.logRegistrationResults(log, configs, results)
+	s.logRegistrationResults(ctx, configs, results)
 	return s.aggregateRegistrationErrors(results.errors)
 }
 
@@ -500,18 +504,11 @@ func (s *RegisterService) validateEnsureMultipleInput(ctx context.Context, confi
 }
 
 // getConcurrencyLimit retrieves the maximum concurrent registrations from config with fallback
-func (s *RegisterService) getConcurrencyLimit(log logger.Logger) int {
+func (s *RegisterService) getConcurrencyLimit(ctx context.Context) int {
 	maxConcurrent := 5 // fallback to previous default
-	func() {
-		defer func() {
-			if r := recover(); r != nil {
-				log.Debug("Config not initialized, using default concurrency limit", "fallback", maxConcurrent)
-			}
-		}()
-		if cfg := appconfig.Get(); cfg != nil && cfg.LLM.MaxConcurrentTools > 0 {
-			maxConcurrent = cfg.LLM.MaxConcurrentTools
-		}
-	}()
+	if cfg := appconfig.FromContext(ctx); cfg != nil && cfg.LLM.MaxConcurrentTools > 0 {
+		maxConcurrent = cfg.LLM.MaxConcurrentTools
+	}
 	return maxConcurrent
 }
 
@@ -568,7 +565,8 @@ func (s *RegisterService) registerSingleMCP(
 }
 
 // logRegistrationResults logs the final results of the MCP registration process
-func (s *RegisterService) logRegistrationResults(log logger.Logger, configs []Config, results registrationResults) {
+func (s *RegisterService) logRegistrationResults(ctx context.Context, configs []Config, results registrationResults) {
+	log := logger.FromContext(ctx)
 	if len(results.errors) > 0 {
 		log.Info("MCP registration completed with errors",
 			"total", len(configs),
@@ -623,8 +621,7 @@ func SetupForWorkflows(ctx context.Context, workflows []WorkflowConfig) (*Regist
 		return nil, nil
 	}
 
-	// Collect unique MCPs declared by all workflows
-	allMCPs := CollectWorkflowMCPs(workflows)
+	allMCPs := CollectWorkflowMCPs(ctx, workflows)
 	if len(allMCPs) == 0 {
 		return service, nil
 	}
@@ -650,12 +647,17 @@ func SetupForWorkflows(ctx context.Context, workflows []WorkflowConfig) (*Regist
 		clientNames = append(clientNames, allMCPs[i].ID)
 	}
 	// Bound the total wait; surface detailed errors on timeout
-	readinessTimeout := appconfig.Get().LLM.MCPReadinessTimeout
-	if readinessTimeout <= 0 {
+	cfg := appconfig.FromContext(ctx)
+	var readinessTimeout time.Duration
+	if cfg != nil && cfg.LLM.MCPReadinessTimeout > 0 {
+		readinessTimeout = cfg.LLM.MCPReadinessTimeout
+	} else {
 		readinessTimeout = 60 * time.Second
 	}
-	pollInterval := appconfig.Get().LLM.MCPReadinessPollInterval
-	if pollInterval <= 0 {
+	var pollInterval time.Duration
+	if cfg != nil && cfg.LLM.MCPReadinessPollInterval > 0 {
+		pollInterval = cfg.LLM.MCPReadinessPollInterval
+	} else {
 		pollInterval = 200 * time.Millisecond
 	}
 	waitCtx, cancel := context.WithTimeout(ctx, readinessTimeout)
@@ -674,28 +676,35 @@ func SetupForWorkflows(ctx context.Context, workflows []WorkflowConfig) (*Regist
 // service is initialized with a proxy client using those settings.
 func setupRegisterServiceFromApp(ctx context.Context) *RegisterService {
 	log := logger.FromContext(ctx)
-	proxyURL := appconfig.Get().LLM.ProxyURL
+	cfg := appconfig.FromContext(ctx)
+	var proxyURL string
+	if cfg != nil {
+		proxyURL = cfg.LLM.ProxyURL
+	}
 	if proxyURL == "" {
 		return nil
 	}
-	clientTimeout := appconfig.Get().LLM.MCPClientTimeout
-	if clientTimeout <= 0 {
+	var clientTimeout time.Duration
+	if cfg != nil && cfg.LLM.MCPClientTimeout > 0 {
+		clientTimeout = cfg.LLM.MCPClientTimeout
+	} else {
 		clientTimeout = 30 * time.Second
 	}
 	service := NewWithTimeout(proxyURL, clientTimeout)
-	log.Info("Initialized MCP register with proxy", "proxy_url", proxyURL)
+	// Avoid logging full proxy URL which may contain credentials
+	log.Info("Initialized MCP register with proxy", "proxy_configured", true)
 	return service
 }
 
 // CollectWorkflowMCPs returns a deduplicated list of MCP configs referenced by the provided workflows.
-// 
+//
 // For each workflow it:
 // - retrieves MCP configs via GetMCPs,
 // - applies SetDefaults to each config,
 // - resolves header templates against the workflow's environment (GetEnv) when headers are present,
 // and then includes the config in the result if its ID has not already been seen.
 // The returned slice preserves the first-seen order of unique MCP IDs.
-func CollectWorkflowMCPs(workflows []WorkflowConfig) []Config {
+func CollectWorkflowMCPs(ctx context.Context, workflows []WorkflowConfig) []Config {
 	seen := make(map[string]bool)
 	var allMCPs []Config
 
@@ -705,7 +714,7 @@ func CollectWorkflowMCPs(workflows []WorkflowConfig) []Config {
 			cfg := mcps[i]
 			cfg.SetDefaults()
 			if len(cfg.Headers) > 0 {
-				cfg.Headers = resolveHeadersWithEnv(cfg.Headers, workflow.GetEnv())
+				cfg.Headers = resolveHeadersWithEnv(ctx, cfg.Headers, workflow.GetEnv())
 			}
 			if !seen[cfg.ID] {
 				seen[cfg.ID] = true

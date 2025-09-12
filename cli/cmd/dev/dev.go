@@ -51,7 +51,10 @@ func handleDevTUI(ctx context.Context, cobraCmd *cobra.Command, _ *cmd.CommandEx
 
 // runDevServer runs the development server with the provided configuration
 func runDevServer(ctx context.Context, cobraCmd *cobra.Command) error {
-	cfg := config.Get()
+	cfg := config.FromContext(ctx)
+	if cfg == nil {
+		return fmt.Errorf("missing config in context; ensure config.ContextWithManager is set in root command")
+	}
 	setupGinMode(cfg)
 	envFilePath, err := resolveEnvFilePath(cobraCmd)
 	if err != nil {
@@ -61,7 +64,7 @@ func runDevServer(ctx context.Context, cobraCmd *cobra.Command) error {
 	if err != nil {
 		return err
 	}
-	if err := setupServerPort(cfg); err != nil {
+	if err := setupServerPort(ctx, cfg); err != nil {
 		return err
 	}
 	watch, configFile, err := getCommandFlags(cobraCmd)
@@ -71,19 +74,24 @@ func runDevServer(ctx context.Context, cobraCmd *cobra.Command) error {
 	if watch {
 		return RunWithWatcher(ctx, CWD, configFile, envFilePath)
 	}
-	srv := server.NewServer(ctx, CWD, configFile, envFilePath)
-	defer config.Close(ctx) // Ensure global config cleanup on exit
+	srv, err := server.NewServer(ctx, CWD, configFile, envFilePath)
+	if err != nil {
+		return fmt.Errorf("failed to create server: %w", err)
+	}
+	defer config.ManagerFromContext(ctx).Close(ctx)
 	return srv.Run()
 }
 
 // setupGinMode configures Gin mode based on debug configuration
 func setupGinMode(cfg *config.Config) {
-	if os.Getenv("GIN_MODE") == "" {
-		if cfg.CLI.Debug {
-			gin.SetMode(gin.DebugMode)
-		} else {
-			gin.SetMode(gin.ReleaseMode)
-		}
+	if os.Getenv("GIN_MODE") != "" {
+		return
+	}
+	debug := cfg != nil && cfg.CLI.Debug
+	if debug {
+		gin.SetMode(gin.DebugMode)
+	} else {
+		gin.SetMode(gin.ReleaseMode)
 	}
 }
 
@@ -125,8 +133,8 @@ func setupWorkingDirectory(ctx context.Context, cfg *config.Config) (string, err
 }
 
 // setupServerPort finds and configures an available port for the server
-func setupServerPort(cfg *config.Config) error {
-	availablePort, err := cliutils.FindAvailablePort(cfg.Server.Host, cfg.Server.Port)
+func setupServerPort(ctx context.Context, cfg *config.Config) error {
+	availablePort, err := cliutils.FindAvailablePort(ctx, cfg.Server.Host, cfg.Server.Port)
 	if err != nil {
 		return fmt.Errorf("no free port found near %d: %w", cfg.Server.Port, err)
 	}

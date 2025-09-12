@@ -448,8 +448,15 @@ func (w *Config) HasSchema() bool {
 }
 
 func (w *Config) Validate() error {
+	// Backward-compatible entry point without context
+	return w.ValidateWithContext(context.Background())
+}
+
+// ValidateWithContext validates the workflow configuration using the provided context.
+// Prefer this over Validate() to preserve cancellations and deadlines.
+func (w *Config) ValidateWithContext(ctx context.Context) error {
 	validator := NewWorkflowValidator(w)
-	return validator.Validate()
+	return validator.Validate(ctx)
 }
 
 func (w *Config) ValidateInput(ctx context.Context, input *core.Input) error {

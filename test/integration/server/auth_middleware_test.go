@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"crypto/sha256"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -165,7 +164,7 @@ func TestAuthMiddleware_RateLimiting(t *testing.T) {
 	t.Run("Should handle auth failures before rate limiting", func(t *testing.T) {
 		// Setup mock for invalid key
 		invalidHash := sha256.Sum256([]byte("invalid_key"))
-		fixture.mockRepo.On("GetAPIKeyByHash", mock.Anything, invalidHash[:]).Return(nil, fmt.Errorf("key not found"))
+		fixture.mockRepo.On("GetAPIKeyByHash", mock.Anything, invalidHash[:]).Return(nil, uc.ErrAPIKeyNotFound)
 		req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 		req.Header.Set("Authorization", "Bearer invalid_key")
 		w := httptest.NewRecorder()

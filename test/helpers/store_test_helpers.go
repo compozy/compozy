@@ -15,11 +15,6 @@ import (
 // This is much faster than creating individual containers
 func SetupStoreTestWithSharedDB(t *testing.T, autoMigrate bool) (context.Context, *store.Store, func()) {
 	ctx := context.Background()
-	// Reset state to ensure clean test environment
-	if err := config.Close(ctx); err != nil {
-		t.Logf("Warning: failed to close config during test setup: %v", err)
-	}
-	config.ResetForTest()
 	store.ResetMigrationsForTest()
 	// Use shared container for better performance
 	pool, cleanup := GetSharedPostgresDB(ctx, t)
@@ -28,11 +23,13 @@ func SetupStoreTestWithSharedDB(t *testing.T, autoMigrate bool) (context.Context
 	if !autoMigrate {
 		cleanupExistingSchema(ctx, pool)
 	}
-	// Initialize config with fresh state
-	err := config.Initialize(ctx, nil, config.NewDefaultProvider())
+	// Initialize context-based config manager for tests
+	mgr := config.NewManager(nil)
+	_, err := mgr.Load(ctx, config.NewDefaultProvider())
 	require.NoError(t, err)
+	ctx = config.ContextWithManager(ctx, mgr)
 	// Set up configuration
-	cfg := config.Get()
+	cfg := mgr.Get()
 	cfg.Database.AutoMigrate = autoMigrate
 	cfg.Database.ConnString = connStr
 	// Create store which will trigger migrations if enabled
@@ -44,9 +41,7 @@ func SetupStoreTestWithSharedDB(t *testing.T, autoMigrate bool) (context.Context
 		if err := testStore.DB.Close(ctx); err != nil {
 			t.Logf("Warning: failed to close database connection: %v", err)
 		}
-		if err := config.Close(ctx); err != nil {
-			t.Logf("Warning: failed to close config during cleanup: %v", err)
-		}
+		_ = mgr.Close(ctx)
 		cleanup() // This will truncate tables for next test
 	}
 }

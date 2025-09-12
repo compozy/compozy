@@ -143,7 +143,7 @@ func (a *ExecuteSubtask) loadConfigs(
 }
 
 func (a *ExecuteSubtask) normalizeTask(
-	_ context.Context,
+	ctx context.Context,
 	taskConfig *task.Config,
 	workflowState *workflow.State,
 	workflowConfig *workflow.Config,
@@ -155,7 +155,7 @@ func (a *ExecuteSubtask) normalizeTask(
 		return fmt.Errorf("failed to create subtask normalizer: %w", err)
 	}
 	// Create context builder to build proper normalization context
-	contextBuilder, err := shared.NewContextBuilder()
+	contextBuilder, err := shared.NewContextBuilderWithContext(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to create context builder: %w", err)
 	}
@@ -316,7 +316,7 @@ func (a *ExecuteSubtask) waitForPriorSiblings(
 		"parent_type", parentConfig.Type)
 
 	// Build ordered list of earlier sibling IDs.
-	priorSiblingIDs := a.findPriorSiblingIDs(parentConfig, currentTaskID, log)
+	priorSiblingIDs := a.findPriorSiblingIDs(ctx, parentConfig, currentTaskID)
 	if len(priorSiblingIDs) == 0 {
 		log.Debug("First child task - nothing to wait for",
 			"current_task_id", currentTaskID)
@@ -336,7 +336,7 @@ func (a *ExecuteSubtask) waitForPriorSiblings(
 	// Poll each prior sibling until it reaches a terminal state.
 	for _, siblingID := range priorSiblingIDs {
 		if err := a.waitForSingleSibling(
-			ctx, parentStateID, siblingID, currentTaskID, log, pollInterval, pollTimeout,
+			ctx, parentStateID, siblingID, currentTaskID, pollInterval, pollTimeout,
 		); err != nil {
 			return err
 		}
@@ -350,10 +350,11 @@ func (a *ExecuteSubtask) waitForPriorSiblings(
 
 // findPriorSiblingIDs returns the IDs of siblings that come before the current task.
 func (a *ExecuteSubtask) findPriorSiblingIDs(
+	ctx context.Context,
 	parentConfig *task.Config,
 	currentTaskID string,
-	log logger.Logger,
 ) []string {
+	log := logger.FromContext(ctx)
 	var ids []string
 	for i := range parentConfig.Tasks {
 		child := parentConfig.Tasks[i]
@@ -391,10 +392,10 @@ func (a *ExecuteSubtask) waitForSingleSibling(
 	parentStateID core.ID,
 	siblingID string,
 	currentTaskID string,
-	log logger.Logger,
 	pollInterval time.Duration,
 	pollTimeout time.Duration,
 ) error {
+	log := logger.FromContext(ctx)
 	// Small jitter to reduce thundering herd when many activities poll together.
 	// Use crypto/rand-based jitter to avoid predictability and satisfy security linters.
 	deadline := time.Now().Add(pollTimeout)

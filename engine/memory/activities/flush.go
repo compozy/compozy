@@ -17,21 +17,16 @@ type MemoryActivities struct {
 	// MemoryManager is the factory that creates properly configured memory instances
 	// based on the MemoryResourceID provided in activity input.
 	MemoryManager memcore.ManagerInterface
-	// Logger for activity-specific logging
-	Logger logger.Logger
 }
 
 // NewMemoryActivities creates a new instance of MemoryActivities.
 func NewMemoryActivities(
+	ctx context.Context,
 	manager memcore.ManagerInterface,
-	log logger.Logger,
 ) *MemoryActivities {
-	if log == nil {
-		log = logger.NewForTests()
-	}
+	_ = logger.FromContext(ctx)
 	return &MemoryActivities{
 		MemoryManager: manager,
-		Logger:        log,
 	}
 }
 

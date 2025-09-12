@@ -223,44 +223,77 @@ func (rbs *RuleBasedSummarizer) truncateSummaryIfNeeded(
 	if summaryTokens <= targetTokenCount {
 		return summaryStr
 	}
-	return rbs.performTruncation(summaryStr, targetTokenCount)
+	return rbs.performTruncation(ctx, summaryStr, targetTokenCount)
 }
 
-func (rbs *RuleBasedSummarizer) performTruncation(summaryStr string, targetTokenCount int) string {
+func (rbs *RuleBasedSummarizer) performTruncation(ctx context.Context, summaryStr string, targetTokenCount int) string {
 	if tiktokenCounter, ok := rbs.tokenCounter.(*tokens.TiktokenCounter); ok {
-		return rbs.truncateUsingTokenizer(summaryStr, targetTokenCount, tiktokenCounter)
+		return rbs.truncateUsingTokenizer(ctx, summaryStr, targetTokenCount, tiktokenCounter)
 	}
 	return rbs.truncateUsingCharacterEstimate(summaryStr, targetTokenCount)
 }
 
 func (rbs *RuleBasedSummarizer) truncateUsingTokenizer(
+	ctx context.Context,
 	summaryStr string,
 	targetTokenCount int,
 	tiktokenCounter *tokens.TiktokenCounter,
 ) string {
-	tokenList, err := tiktokenCounter.EncodeTokens(context.Background(), summaryStr)
+	base := context.WithoutCancel(ctx)
+	tokenList, err := tiktokenCounter.EncodeTokens(base, summaryStr)
 	if err != nil {
 		// Fallback to character-based estimation if tokenization fails
 		return rbs.truncateUsingCharacterEstimate(summaryStr, targetTokenCount)
 	}
 	if len(tokenList) > targetTokenCount {
-		tokenList = tokenList[:targetTokenCount-3]
-		truncatedStr, err := tiktokenCounter.DecodeTokens(context.Background(), tokenList)
+		if targetTokenCount <= 0 {
+			return ""
+		}
+		reserve := 3 // space for "..."
+		if targetTokenCount <= reserve {
+			reserve = 0
+		}
+		cutoff := targetTokenCount - reserve
+		if cutoff < 0 {
+			cutoff = 0
+		}
+		tokenList = tokenList[:cutoff]
+		truncatedStr, err := tiktokenCounter.DecodeTokens(base, tokenList)
 		if err != nil {
 			// Fallback to character-based estimation if decoding fails
 			return rbs.truncateUsingCharacterEstimate(summaryStr, targetTokenCount)
 		}
-		return truncatedStr + "..."
+		if reserve > 0 {
+			return truncatedStr + "..."
+		}
+		return truncatedStr
 	}
 	return summaryStr
 }
 
 func (rbs *RuleBasedSummarizer) truncateUsingCharacterEstimate(summaryStr string, targetTokenCount int) string {
 	targetChars := targetTokenCount * rbs.TokenFallbackRatio
-	if len(summaryStr) > targetChars {
-		return summaryStr[:targetChars-3] + "..."
+	if targetChars <= 0 {
+		return ""
 	}
-	return summaryStr
+	if len(summaryStr) <= targetChars {
+		return summaryStr
+	}
+	// If not enough room for ellipsis, return strict cut
+	if targetChars <= 3 {
+		if targetChars > len(summaryStr) {
+			targetChars = len(summaryStr)
+		}
+		return summaryStr[:targetChars]
+	}
+	end := targetChars - 3
+	if end < 0 {
+		end = 0
+	}
+	if end > len(summaryStr) {
+		end = len(summaryStr)
+	}
+	return summaryStr[:end] + "..."
 }
 
 // HybridFlushingStrategy applies a flushing strategy, potentially involving summarization.

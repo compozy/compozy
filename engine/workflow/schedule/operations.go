@@ -15,6 +15,9 @@ import (
 	"go.temporal.io/sdk/client"
 )
 
+// Precompiled 6-field cron parser to avoid repeated allocations
+var cronParser6Fields = cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
+
 // EnsureTemporalCron ensures the cron expression is in Temporal's expected format.
 // Temporal requires 7 fields for seconds support, so we append year if needed.
 // Returns the converted cron expression.
@@ -112,8 +115,8 @@ func isValidListYearField(yearField string) bool {
 	if err != nil || !matched {
 		return false
 	}
-	years := strings.SplitSeq(yearField, ",")
-	for yearStr := range years {
+	years := strings.Split(yearField, ",")
+	for _, yearStr := range years {
 		if !isValidSingleYear(yearStr) {
 			return false
 		}
@@ -269,73 +272,76 @@ func (m *manager) getScheduleInfo(
 //     Format: "second minute hour day-of-month month day-of-week"
 //     Example: "0 0 9 * * 1-5" (Every weekday at 9:00:00 AM)
 //     Note: When sending to Temporal, we automatically append year field
-func ValidateCronExpression(cronExpr string, workflowID string, log logger.Logger) error {
+func ValidateCronExpression(ctx context.Context, cronExpr string, workflowID string) error {
+	log := logger.FromContext(ctx)
 	// Check if it's an @every expression
 	if after, ok := strings.CutPrefix(cronExpr, "@every "); ok {
 		durationStr := after
 		_, err := time.ParseDuration(durationStr)
 		if err != nil {
-			if log != nil {
-				log.Error("Schedule validation failed - invalid @every duration",
-					"workflow_id", workflowID,
-					"cron", cronExpr,
-					"error", err)
-			}
+			log.Error("Schedule validation failed - invalid @every duration",
+				"workflow_id", workflowID,
+				"cron", cronExpr,
+				"error", err)
 			return fmt.Errorf("invalid @every duration '%s': %w", durationStr, err)
 		}
 		return nil
+	}
+	// Handle standard macros
+	switch cronExpr {
+	case "@yearly", "@annually":
+		cronExpr = "0 0 0 1 1 *" // sec min hour dom month dow
+	case "@monthly":
+		cronExpr = "0 0 0 1 * *"
+	case "@weekly":
+		cronExpr = "0 0 0 * * 0"
+	case "@daily", "@midnight":
+		cronExpr = "0 0 0 * * *"
+	case "@hourly":
+		cronExpr = "0 0 * * * *"
 	}
 	// Parse as 6 or 7-field cron expression
 	fields := len(strings.Fields(cronExpr))
 	switch fields {
 	case 6:
 		// 6-field format: second minute hour day month weekday
-		parser := cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
-		if _, err := parser.Parse(cronExpr); err != nil {
-			if log != nil {
-				log.Error("Schedule validation failed",
-					"workflow_id", workflowID,
-					"error", err,
-					"cron", cronExpr)
-			}
+		if _, err := cronParser6Fields.Parse(cronExpr); err != nil {
+			log.Error("Schedule validation failed",
+				"workflow_id", workflowID,
+				"error", err,
+				"cron", cronExpr)
 			return fmt.Errorf("invalid 6-field cron expression '%s': %w", cronExpr, err)
 		}
 	case 7:
 		// 7-field format: second minute hour day month weekday year
 		// Parse first 6 fields with standard parser
-		parser := cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
 		cronFields := strings.Fields(cronExpr)
 		sixFields := strings.Join(cronFields[:6], " ")
-		if _, err := parser.Parse(sixFields); err != nil {
-			if log != nil {
-				log.Error("Schedule validation failed",
-					"workflow_id", workflowID,
-					"error", err,
-					"cron", cronExpr)
-			}
+		if _, err := cronParser6Fields.Parse(sixFields); err != nil {
+			log.Error("Schedule validation failed",
+				"workflow_id", workflowID,
+				"error", err,
+				"cron", cronExpr)
 			return fmt.Errorf("invalid 7-field cron expression '%s': %w", cronExpr, err)
 		}
 		// Validate year field (7th field) - should be * or a valid year range
 		yearField := cronFields[6]
 		if !isValidYearField(yearField) {
-			if log != nil {
-				log.Error("Schedule validation failed - invalid year field",
-					"workflow_id", workflowID,
-					"cron", cronExpr,
-					"year_field", yearField)
-			}
+			log.Error("Schedule validation failed - invalid year field",
+				"workflow_id", workflowID,
+				"cron", cronExpr,
+				"year_field", yearField)
 			return fmt.Errorf("invalid year field in cron expression '%s': %s", cronExpr, yearField)
 		}
 	default:
-		if log != nil {
-			log.Error("Schedule validation failed - incorrect field count",
-				"workflow_id", workflowID,
-				"cron", cronExpr,
-				"expected_fields", "6 or 7",
-				"actual_fields", fields)
-		}
+		log.Error("Schedule validation failed - incorrect field count",
+			"workflow_id", workflowID,
+			"cron", cronExpr,
+			"expected_fields", "6 or 7",
+			"actual_fields", fields)
 		return fmt.Errorf(
-			"invalid cron expression '%s': expected 6 or 7 fields (second minute hour day month weekday [year]), got %d fields",
+			"invalid cron expression '%s': expected 6 or 7 fields "+
+				"(second minute hour day month weekday [year]), got %d fields",
 			cronExpr,
 			fields,
 		)
@@ -344,8 +350,8 @@ func ValidateCronExpression(cronExpr string, workflowID string, log logger.Logge
 }
 
 // validateCronForSchedule validates cron expression for schedule creation
-func (m *manager) validateCronForSchedule(wf *workflow.Config, log logger.Logger) error {
-	return ValidateCronExpression(wf.Schedule.Cron, wf.ID, log)
+func (m *manager) validateCronForSchedule(ctx context.Context, wf *workflow.Config) error {
+	return ValidateCronExpression(ctx, wf.Schedule.Cron, wf.ID)
 }
 
 // createSchedule creates a new schedule in Temporal
@@ -361,7 +367,7 @@ func (m *manager) createSchedule(ctx context.Context, scheduleID string, wf *wor
 		}()
 	}
 	// Validate cron expression
-	if err := m.validateCronForSchedule(wf, log); err != nil {
+	if err := m.validateCronForSchedule(ctx, wf); err != nil {
 		return err
 	}
 	// Build schedule specification
@@ -460,7 +466,7 @@ func (m *manager) updateSchedule(ctx context.Context, scheduleID string, wf *wor
 		}()
 	}
 	// Validate cron expression before attempting update
-	if err := m.validateCronForSchedule(wf, log); err != nil {
+	if err := m.validateCronForSchedule(ctx, wf); err != nil {
 		return err
 	}
 	handle := m.client.ScheduleClient().GetHandle(ctx, scheduleID)

@@ -17,6 +17,7 @@ type AsyncTokenCounter struct {
 	workers     int
 	wg          sync.WaitGroup
 	metrics     *TokenMetrics
+	baseCtx     context.Context
 }
 
 type tokenCountRequest struct {
@@ -48,6 +49,31 @@ func NewAsyncTokenCounter(
 		queue:       make(chan *tokenCountRequest, bufferSize),
 		workers:     workers,
 		metrics:     NewTokenMetrics(),
+		baseCtx:     context.Background(),
+	}
+	atc.start()
+	return atc
+}
+
+// NewAsyncTokenCounterWithContext creates a new async token counter with a base context
+func NewAsyncTokenCounterWithContext(
+	ctx context.Context,
+	counter memcore.TokenCounter,
+	workers int,
+	bufferSize int,
+) *AsyncTokenCounter {
+	if workers <= 0 {
+		workers = 10
+	}
+	if bufferSize <= 0 {
+		bufferSize = 1000
+	}
+	atc := &AsyncTokenCounter{
+		realCounter: counter,
+		queue:       make(chan *tokenCountRequest, bufferSize),
+		workers:     workers,
+		metrics:     NewTokenMetrics(),
+		baseCtx:     context.WithoutCancel(ctx),
 	}
 	atc.start()
 	return atc
@@ -57,7 +83,7 @@ func NewAsyncTokenCounter(
 func (atc *AsyncTokenCounter) start() {
 	for i := 0; i < atc.workers; i++ {
 		atc.wg.Add(1)
-		go atc.worker(context.Background(), i)
+		go atc.worker(atc.baseCtx, i)
 	}
 }
 

@@ -1,7 +1,6 @@
 package dispatch
 
 import (
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -19,16 +18,7 @@ import (
 	wf "github.com/compozy/compozy/engine/workflow"
 	wfacts "github.com/compozy/compozy/engine/workflow/activities"
 	"github.com/compozy/compozy/pkg/config"
-	testhelpers "github.com/compozy/compozy/test/helpers"
 )
-
-func TestMain(m *testing.M) {
-	// Initialize config for all tests in this package
-	if err := testhelpers.InitializeTestConfig(); err != nil {
-		panic("failed to initialize test config: " + err.Error())
-	}
-	os.Exit(m.Run())
-}
 
 func TestEventSignal_Structure(t *testing.T) {
 	t.Run("Should create EventSignal correctly", func(t *testing.T) {

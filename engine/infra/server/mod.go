@@ -12,6 +12,7 @@ import (
 
 	authuc "github.com/compozy/compozy/engine/auth/uc"
 	"github.com/compozy/compozy/engine/autoload"
+	"github.com/compozy/compozy/engine/infra/cache"
 	"github.com/compozy/compozy/engine/infra/monitoring"
 	"github.com/compozy/compozy/engine/infra/server/appstate"
 	csvc "github.com/compozy/compozy/engine/infra/server/config"
@@ -28,6 +29,7 @@ import (
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 	"github.com/sethvargo/go-retry"
 )
 
@@ -41,7 +43,7 @@ const (
 	scheduleRetryMaxDuration  = 5 * time.Minute
 	scheduleRetryBaseDelay    = 1 * time.Second
 	scheduleRetryMaxDelay     = 30 * time.Second
-	scheduleRetryMaxAttempts  = 20 // ~5 minutes with exponential backoff
+	// Use duration-capped exponential retry (~5 minutes total, 30s max delay)
 	// HTTP server timeouts
 	httpReadTimeout  = 15 * time.Second
 	httpWriteTimeout = 15 * time.Second
@@ -93,6 +95,7 @@ type Server struct {
 	envFilePath         string
 	router              *gin.Engine
 	monitoring          *monitoring.Service
+	redisClient         *redis.Client
 	ctx                 context.Context
 	cancel              context.CancelFunc
 	httpServer          *http.Server
@@ -100,9 +103,13 @@ type Server struct {
 	reconciliationState *reconciliationStatus
 }
 
-func NewServer(ctx context.Context, cwd, configFile, envFilePath string) *Server {
+func NewServer(ctx context.Context, cwd, configFile, envFilePath string) (*Server, error) {
 	serverCtx, cancel := context.WithCancel(ctx)
-	cfg := config.Get()
+	cfg := config.FromContext(serverCtx)
+	if cfg == nil {
+		cancel()
+		return nil, fmt.Errorf("configuration missing from context; attach a manager with config.ContextWithManager")
+	}
 
 	return &Server{
 		serverConfig:        &cfg.Server,
@@ -113,7 +120,47 @@ func NewServer(ctx context.Context, cwd, configFile, envFilePath string) *Server
 		cancel:              cancel,
 		shutdownChan:        make(chan struct{}, 1),
 		reconciliationState: &reconciliationStatus{},
+	}, nil
+}
+
+// setupRedisClient creates a Redis client for rate limiting if Redis is configured
+func (s *Server) setupRedisClient(cfg *config.Config) (*redis.Client, func(), error) {
+	log := logger.FromContext(s.ctx)
+
+	// If no Redis host is configured, return nil (will use in-memory store)
+	if cfg.Redis.Host == "" || cfg.Redis.Host == "localhost" && cfg.Redis.Port == "6379" && cfg.Redis.URL == "" {
+		log.Debug("Redis not configured, rate limiting will use in-memory store")
+		return nil, func() {}, nil
 	}
+
+	// Create cache config from app config
+	cacheConfig := cache.FromAppConfig(cfg)
+
+	// Create Redis client using the cache package
+	redisInstance, err := cache.NewRedis(s.ctx, cacheConfig)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create Redis client for rate limiting: %w", err)
+	}
+
+	log.Info("Redis client created for rate limiting",
+		"host", cfg.Redis.Host,
+		"port", cfg.Redis.Port,
+		"db", cfg.Redis.DB)
+
+	redisClient := redisInstance.Client()
+	// We need *redis.Client for the rate limiting middleware, so we do a type assertion
+	client, ok := redisClient.(*redis.Client)
+	if !ok {
+		return nil, nil, fmt.Errorf("redis client is not a *redis.Client type")
+	}
+
+	cleanup := func() {
+		if err := redisInstance.Close(); err != nil {
+			log.Error("Failed to close Redis client", "error", err)
+		}
+	}
+
+	return client, cleanup, nil
 }
 
 // convertRateLimitConfig creates a rate limit config from the application config
@@ -127,11 +174,9 @@ func convertRateLimitConfig(cfg *config.Config) *ratelimit.Config {
 			Limit:  cfg.RateLimit.APIKeyRate.Limit,
 			Period: cfg.RateLimit.APIKeyRate.Period,
 		},
-		RedisAddr:     fmt.Sprintf("%s:%s", cfg.Redis.Host, cfg.Redis.Port),
-		RedisPassword: cfg.Redis.Password,
-		RedisDB:       cfg.Redis.DB,
-		Prefix:        cfg.RateLimit.Prefix,
-		MaxRetry:      cfg.RateLimit.MaxRetry,
+		// RedisAddr, RedisPassword, RedisDB are no longer needed since we pass the client directly
+		Prefix:   cfg.RateLimit.Prefix,
+		MaxRetry: cfg.RateLimit.MaxRetry,
 		ExcludedPaths: []string{
 			"/health",
 			"/metrics",
@@ -146,7 +191,7 @@ func (s *Server) buildRouter(state *appstate.State) error {
 	r.Use(gin.Recovery())
 
 	// Get config first
-	cfg := config.Get()
+	cfg := config.FromContext(s.ctx)
 
 	// Setup auth middleware first (before rate limiting)
 	authRepo := state.Store.NewAuthRepo()
@@ -164,9 +209,9 @@ func (s *Server) buildRouter(state *appstate.State) error {
 
 		// Use NewManagerWithMetrics if monitoring is initialized
 		if s.monitoring != nil && s.monitoring.IsInitialized() {
-			manager, err = ratelimit.NewManagerWithMetrics(rateLimitConfig, nil, s.monitoring.Meter())
+			manager, err = ratelimit.NewManagerWithMetrics(s.ctx, rateLimitConfig, s.redisClient, s.monitoring.Meter())
 		} else {
-			manager, err = ratelimit.NewManager(rateLimitConfig, nil)
+			manager, err = ratelimit.NewManager(rateLimitConfig, s.redisClient)
 		}
 
 		if err != nil {
@@ -175,18 +220,22 @@ func (s *Server) buildRouter(state *appstate.State) error {
 		} else {
 			// Apply global rate limit middleware
 			r.Use(manager.Middleware())
+			storageType := "in-memory"
+			if s.redisClient != nil {
+				storageType = "redis"
+			}
 			log.Info("Rate limiting enabled",
 				"global_limit", cfg.RateLimit.GlobalRate.Limit,
-				"global_period", cfg.RateLimit.GlobalRate.Period)
+				"global_period", cfg.RateLimit.GlobalRate.Period,
+				"storage", storageType)
 		}
 	}
 
 	// Add monitoring middleware BEFORE other middleware if monitoring is initialized
-	log := logger.FromContext(s.ctx)
 	if s.monitoring != nil && s.monitoring.IsInitialized() {
 		r.Use(s.monitoring.GinMiddleware(s.ctx))
 	}
-	r.Use(LoggerMiddleware(log))
+	r.Use(LoggerMiddleware(s.ctx))
 	if cfg.Server.CORSEnabled {
 		r.Use(CORSMiddleware(cfg.Server.CORS))
 	}
@@ -260,7 +309,7 @@ func (s *Server) setupMonitoring(projectConfig *project.Config) func() {
 			"duration", monitoringDuration)
 		return func() {
 			monitoringCancel()
-			ctx, cancel := context.WithTimeout(context.Background(), monitoringShutdownTimeout)
+			ctx, cancel := context.WithTimeout(context.WithoutCancel(s.ctx), monitoringShutdownTimeout)
 			defer cancel()
 			if err := monitoringService.Shutdown(ctx); err != nil {
 				log.Error("Failed to shutdown monitoring service", "error", err)
@@ -292,7 +341,7 @@ func (s *Server) setupStore() (*store.Store, func(), error) {
 func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	var cleanupFuncs []func()
 	log := logger.FromContext(s.ctx)
-	cfg := config.Get()
+	cfg := config.FromContext(s.ctx)
 	setupStart := time.Now()
 
 	projectConfig, workflows, configRegistry, err := s.setupProjectConfig()
@@ -308,6 +357,16 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 		return nil, cleanupFuncs, err
 	}
 	cleanupFuncs = append(cleanupFuncs, storeCleanup)
+
+	// Setup Redis client for rate limiting
+	redisClient, redisCleanup, err := s.setupRedisClient(cfg)
+	if err != nil {
+		return nil, cleanupFuncs, err
+	}
+	s.redisClient = redisClient
+	if redisCleanup != nil {
+		cleanupFuncs = append(cleanupFuncs, redisCleanup)
+	}
 
 	// Create Temporal config from unified config
 	clientConfig := &worker.TemporalConfig{
@@ -427,7 +486,7 @@ func (s *Server) handleGracefulShutdown(srv *http.Server, cleanupFuncs []func())
 	// Clean up dependencies first
 	s.cleanup(cleanupFuncs)
 	s.cancel()
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), serverShutdownTimeout)
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.WithoutCancel(s.ctx), serverShutdownTimeout)
 	defer shutdownCancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		return fmt.Errorf("server shutdown failed: %w", err)
@@ -470,19 +529,21 @@ func (s *Server) initializeScheduleManager(state *appstate.State, worker *worker
 
 	state.SetScheduleManager(scheduleManager)
 	// Run schedule reconciliation in background with retry logic
-	go s.runReconciliationWithRetry(scheduleManager, workflows, log)
+	go s.runReconciliationWithRetry(scheduleManager, workflows)
 }
 
 func (s *Server) runReconciliationWithRetry(
 	scheduleManager schedule.Manager,
 	workflows []*workflow.Config,
-	log logger.Logger,
 ) {
+	log := logger.FromContext(s.ctx)
 	startTime := time.Now()
 
+	backoff := retry.NewExponential(scheduleRetryBaseDelay)
+	backoff = retry.WithCappedDuration(scheduleRetryMaxDelay, backoff)
 	err := retry.Do(
 		s.ctx,
-		retry.WithMaxRetries(scheduleRetryMaxAttempts, retry.NewExponential(scheduleRetryBaseDelay)),
+		retry.WithMaxDuration(scheduleRetryMaxDuration, backoff),
 		func(ctx context.Context) error {
 			reconcileStart := time.Now()
 			err := scheduleManager.ReconcileSchedules(ctx, workflows)
@@ -525,7 +586,7 @@ func (s *Server) runReconciliationWithRetry(
 			log.Error("Schedule reconciliation exhausted retries",
 				"error", err,
 				"duration", time.Since(startTime),
-				"max_attempts", scheduleRetryMaxAttempts)
+				"max_duration", scheduleRetryMaxDuration)
 		}
 	}
 }

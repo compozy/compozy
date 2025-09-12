@@ -222,7 +222,7 @@ func TestRateLimitMiddleware_PerKeyRateLimiting(t *testing.T) {
 			GlobalRate: ratelimit.RateConfig{Limit: 100, Period: 1 * time.Minute},
 			APIKeyRate: ratelimit.RateConfig{Limit: 100, Period: 1 * time.Minute},
 		}
-		manager, err := ratelimit.NewManagerWithMetrics(config, nil, monitoringService.Meter())
+		manager, err := ratelimit.NewManagerWithMetrics(ctx, config, nil, monitoringService.Meter())
 		require.NoError(t, err)
 		gin.SetMode(gin.TestMode)
 		router := gin.New()

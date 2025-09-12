@@ -22,7 +22,7 @@ func NewWorkflowValidator(config *Config) *Validator {
 	return &Validator{config: config}
 }
 
-func (v *Validator) Validate() error {
+func (v *Validator) Validate(ctx context.Context) error {
 	validator := schema.NewCompositeValidator(
 		schema.NewCWDValidator(v.config.CWD, v.config.ID),
 		NewTasksValidator(v.config),
@@ -31,9 +31,13 @@ func (v *Validator) Validate() error {
 		NewMCPsValidator(v.config),
 		NewTriggersValidator(v.config),
 		NewOutputsValidator(v.config),
-		NewScheduleValidator(v.config),
 	)
-	return validator.Validate()
+	if err := validator.Validate(); err != nil {
+		return err
+	}
+	// ScheduleValidator needs context, so call it separately
+	scheduleValidator := NewScheduleValidator(v.config)
+	return scheduleValidator.Validate(ctx)
 }
 
 // -----------------------------------------------------------------------------
@@ -322,7 +326,7 @@ func NewScheduleValidator(config *Config) *ScheduleValidator {
 	return &ScheduleValidator{config: config}
 }
 
-func (v *ScheduleValidator) Validate() error {
+func (v *ScheduleValidator) Validate(ctx context.Context) error {
 	// Skip validation if no schedule is configured
 	if v.config.Schedule == nil {
 		return nil
@@ -346,8 +350,7 @@ func (v *ScheduleValidator) Validate() error {
 		}
 		input := core.Input(mergedInput)
 		validator := NewInputValidator(v.config, &input)
-		// Use background context for schema validation
-		if err := validator.Validate(context.Background()); err != nil {
+		if err := validator.Validate(ctx); err != nil {
 			return fmt.Errorf("schedule input validation error: %w", err)
 		}
 	}

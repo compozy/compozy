@@ -46,6 +46,7 @@ type Orchestrator struct {
 
 // NewOrchestrator creates a new orchestrator with provided dependencies
 func NewOrchestrator(
+	cfg *config.Config,
 	reg Lookup,
 	filter *CELAdapter,
 	disp services.SignalDispatcher,
@@ -61,15 +62,25 @@ func NewOrchestrator(
 		maxBody:   maxBody,
 		dedupeTTL: dedupeTTL,
 	}
-	o.verifierFactory = NewVerifier
+	// Guard nil cfg to prevent panics; fall back to zero-values and local defaults below.
+	if cfg == nil {
+		cfg = &config.Config{}
+	}
+	// Ensure Stripe default skew and other verifier defaults use application cfg
+	o.verifierFactory = func(v VerifyConfig) (Verifier, error) {
+		if v.Strategy == StrategyStripe && v.Skew == 0 {
+			if cfg != nil && cfg.Webhooks.StripeSkew > 0 {
+				v.Skew = cfg.Webhooks.StripeSkew
+			}
+		}
+		return NewVerifier(v)
+	}
 	o.renderer = NewTemplateRenderer()
 	if o.maxBody <= 0 {
-		globalCfg := config.Get()
-		o.maxBody = globalCfg.Webhooks.DefaultMaxBody
+		o.maxBody = cfg.Webhooks.DefaultMaxBody
 	}
 	if o.dedupeTTL <= 0 {
-		globalCfg := config.Get()
-		o.dedupeTTL = globalCfg.Webhooks.DefaultDedupeTTL
+		o.dedupeTTL = cfg.Webhooks.DefaultDedupeTTL
 	}
 	return o
 }
@@ -231,7 +242,7 @@ func (o *Orchestrator) checkIdempotency(
 	if kerr != nil || key == "" {
 		return Result{}, nil
 	}
-	ns := KeyWithNamespace(entry.Webhook.Slug, key)
+	ns := KeyWithNamespace(slug, key)
 	if err := o.idem.CheckAndSet(ctx, ns, ttl); err != nil {
 		if errors.Is(err, ErrDuplicate) {
 			log.Info("duplicate webhook request", "slug", slug, "key", key)
