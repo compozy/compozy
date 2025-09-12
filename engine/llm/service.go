@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/tool"
+	appconfig "github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 )
 
@@ -27,6 +28,10 @@ func NewService(ctx context.Context, runtime runtime.Runtime, agent *agent.Confi
 	log := logger.FromContext(ctx)
 	// Build configuration
 	config := DefaultConfig()
+	// Context-first: merge application config when available
+	if ac := appconfig.FromContext(ctx); ac != nil {
+		WithAppConfig(ac)(config)
+	}
 	for _, opt := range opts {
 		opt(config)
 	}
@@ -87,6 +92,7 @@ func NewService(ctx context.Context, runtime runtime.Runtime, agent *agent.Confi
 		RetryBackoffBase:        config.RetryBackoffBase,
 		RetryBackoffMax:         config.RetryBackoffMax,
 		RetryJitter:             config.RetryJitter,
+		AttachmentParts:         config.AttachmentParts,
 	}
 	llmOrchestrator := NewOrchestrator(&orchestratorConfig)
 	return &Service{

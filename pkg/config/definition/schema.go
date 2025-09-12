@@ -20,6 +20,7 @@ func CreateRegistry() *Registry {
 	registerTemporalFields(registry)
 	registerRuntimeFields(registry)
 	registerLimitsFields(registry)
+	registerAttachmentsFields(registry)
 	registerMemoryFields(registry)
 	registerLLMFields(registry)
 	registerRateLimitFields(registry)
@@ -376,6 +377,84 @@ func registerLimitsFields(registry *Registry) {
 		EnvVar:  "LIMITS_PARENT_UPDATE_BATCH_SIZE",
 		Type:    reflect.TypeOf(0),
 		Help:    "Parent update batch size",
+	})
+}
+
+// registerAttachmentsFields registers global attachment-related configuration fields.
+// Follows patterns from .cursor/rules/global-config.mdc
+func registerAttachmentsFields(registry *Registry) {
+	// Size limit for downloads (bytes)
+	registry.Register(&FieldDef{
+		Path:    "attachments.max_download_size_bytes",
+		Default: 10_000_000,
+		CLIFlag: "attachments-max-download-size",
+		EnvVar:  "ATTACHMENTS_MAX_DOWNLOAD_SIZE_BYTES",
+		Type:    reflect.TypeOf(0),
+		Help:    "Maximum download size in bytes for attachment resolution",
+	})
+
+	// Per-request download timeout
+	registry.Register(&FieldDef{
+		Path:    "attachments.download_timeout",
+		Default: 30 * time.Second,
+		CLIFlag: "attachments-download-timeout",
+		EnvVar:  "ATTACHMENTS_DOWNLOAD_TIMEOUT",
+		Type:    durationType,
+		Help:    "Timeout for downloading attachments",
+	})
+
+	// HTTP redirects limit
+	registry.Register(&FieldDef{
+		Path:    "attachments.max_redirects",
+		Default: 3,
+		CLIFlag: "attachments-max-redirects",
+		EnvVar:  "ATTACHMENTS_MAX_REDIRECTS",
+		Type:    reflect.TypeOf(0),
+		Help:    "Maximum number of HTTP redirects when downloading attachments",
+	})
+
+	// Allowed MIME types per category
+	registry.Register(&FieldDef{
+		Path:    "attachments.allowed_mime_types.image",
+		Default: []string{"image/*"},
+		CLIFlag: "",
+		EnvVar:  "ATTACHMENTS_ALLOWED_MIME_TYPES_IMAGE",
+		Type:    reflect.TypeOf([]string{}),
+		Help:    "Allowed MIME types for image attachments",
+	})
+	registry.Register(&FieldDef{
+		Path:    "attachments.allowed_mime_types.audio",
+		Default: []string{"audio/*"},
+		CLIFlag: "",
+		EnvVar:  "ATTACHMENTS_ALLOWED_MIME_TYPES_AUDIO",
+		Type:    reflect.TypeOf([]string{}),
+		Help:    "Allowed MIME types for audio attachments",
+	})
+	registry.Register(&FieldDef{
+		Path:    "attachments.allowed_mime_types.video",
+		Default: []string{"video/*"},
+		CLIFlag: "",
+		EnvVar:  "ATTACHMENTS_ALLOWED_MIME_TYPES_VIDEO",
+		Type:    reflect.TypeOf([]string{}),
+		Help:    "Allowed MIME types for video attachments",
+	})
+	registry.Register(&FieldDef{
+		Path:    "attachments.allowed_mime_types.pdf",
+		Default: []string{"application/pdf"},
+		CLIFlag: "",
+		EnvVar:  "ATTACHMENTS_ALLOWED_MIME_TYPES_PDF",
+		Type:    reflect.TypeOf([]string{}),
+		Help:    "Allowed MIME types for PDF attachments",
+	})
+
+	// Optional temp directory quota (bytes)
+	registry.Register(&FieldDef{
+		Path:    "attachments.temp_dir_quota_bytes",
+		Default: int64(0),
+		CLIFlag: "",
+		EnvVar:  "ATTACHMENTS_TEMP_DIR_QUOTA_BYTES",
+		Type:    reflect.TypeOf(int64(0)),
+		Help:    "Optional quota in bytes for temporary files used during attachment resolution (0 = unlimited)",
 	})
 }
 

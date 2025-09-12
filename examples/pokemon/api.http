@@ -1,0 +1,69 @@
+### Pokemon Attachments Router API
+@baseUrl = http://localhost:5001/api/v0
+@workflowId = pokemon
+
+# -----
+# Image Execution
+# -----
+
+### Execute with image (uses URL or local file via ref)
+# @name executeImage
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+Accept: application/json
+
+{
+  "input": {
+    "kind": "image",
+    "ref": "media/pikachu.png"
+  }
+}
+
+### Get image execution by ID
+@imageExecId = {{executeImage.response.body.data.exec_id}}
+GET {{baseUrl}}/executions/workflows/{{imageExecId}}
+Accept: application/json
+
+# -----
+# Audio Execution
+# -----
+
+### Execute with audio
+# @name executeAudio
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+Accept: application/json
+
+{
+  "input": {
+    "kind": "audio",
+    "ref": "media/pikachu.mp3"
+  }
+}
+
+### Get audio execution by ID
+@audioExecId = {{executeAudio.response.body.data.exec_id}}
+GET {{baseUrl}}/executions/workflows/{{audioExecId}}
+Accept: application/json
+
+# -----
+# Video Execution
+# -----
+
+### Execute with video
+# @name executeVideo
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+Accept: application/json
+
+{
+  "input": {
+    "kind": "video",
+    "ref": "media/pikachu.mp4"
+  }
+}
+
+### Get video execution by ID
+@videoExecId = {{executeVideo.response.body.data.exec_id}}
+GET {{baseUrl}}/executions/workflows/{{videoExecId}}
+Accept: application/json

@@ -102,6 +102,11 @@ type Config struct {
 	// $ref: schema://application#mcpproxy
 	MCPProxy MCPProxyConfig `koanf:"mcp_proxy" json:"mcp_proxy" yaml:"mcp_proxy" mapstructure:"mcp_proxy" validate:"required"`
 
+	// Attachments configures global attachment handling limits and policies.
+	//
+	// $ref: schema://application#attachments
+	Attachments AttachmentsConfig `koanf:"attachments" json:"attachments" yaml:"attachments" mapstructure:"attachments"`
+
 	// Webhooks configures webhook processing and validation settings.
 	//
 	// $ref: schema://application#webhooks
@@ -850,6 +855,32 @@ type CacheConfig struct {
 	StatsInterval time.Duration `koanf:"stats_interval" json:"stats_interval" yaml:"stats_interval" mapstructure:"stats_interval" env:"CACHE_STATS_INTERVAL"`
 }
 
+// AttachmentsConfig contains global limits and policies for attachment handling.
+//
+// These settings control how attachments are downloaded, validated, and processed
+// across the system. They apply to all attachment resolutions regardless of scope.
+type AttachmentsConfig struct {
+	// MaxDownloadSizeBytes caps the maximum size (in bytes) for any single download.
+	// Default: 10_000_000 (10MB)
+	MaxDownloadSizeBytes int `koanf:"max_download_size_bytes" env:"ATTACHMENTS_MAX_DOWNLOAD_SIZE_BYTES" json:"max_download_size_bytes" yaml:"max_download_size_bytes" mapstructure:"max_download_size_bytes" validate:"min=1"`
+	// DownloadTimeout sets the timeout for downloading a single attachment.
+	// Default: 30s
+	DownloadTimeout time.Duration `koanf:"download_timeout"        env:"ATTACHMENTS_DOWNLOAD_TIMEOUT"        json:"download_timeout"        yaml:"download_timeout"        mapstructure:"download_timeout"`
+	// MaxRedirects limits the number of HTTP redirects followed during download.
+	// Default: 3
+	MaxRedirects int `koanf:"max_redirects"           env:"ATTACHMENTS_MAX_REDIRECTS"           json:"max_redirects"           yaml:"max_redirects"           mapstructure:"max_redirects"           validate:"min=0"`
+	// AllowedMIMETypes specifies MIME allowlists by content category.
+	AllowedMIMETypes struct {
+		Image []string `koanf:"image" env:"ATTACHMENTS_ALLOWED_MIME_TYPES_IMAGE" json:"image" yaml:"image" mapstructure:"image"`
+		Audio []string `koanf:"audio" env:"ATTACHMENTS_ALLOWED_MIME_TYPES_AUDIO" json:"audio" yaml:"audio" mapstructure:"audio"`
+		Video []string `koanf:"video" env:"ATTACHMENTS_ALLOWED_MIME_TYPES_VIDEO" json:"video" yaml:"video" mapstructure:"video"`
+		PDF   []string `koanf:"pdf"   env:"ATTACHMENTS_ALLOWED_MIME_TYPES_PDF"   json:"pdf"   yaml:"pdf"   mapstructure:"pdf"`
+	} `koanf:"allowed_mime_types"                                                json:"allowed_mime_types"      yaml:"allowed_mime_types"      mapstructure:"allowed_mime_types"`
+	// TempDirQuotaBytes optionally caps total temp storage used by attachment resolution.
+	// 0 disables the quota.
+	TempDirQuotaBytes int64 `koanf:"temp_dir_quota_bytes"    env:"ATTACHMENTS_TEMP_DIR_QUOTA_BYTES"    json:"temp_dir_quota_bytes"    yaml:"temp_dir_quota_bytes"    mapstructure:"temp_dir_quota_bytes"    validate:"min=0"`
+}
+
 // WorkerConfig contains Temporal worker configuration.
 //
 // **Temporal Worker Configuration** controls the behavior and performance characteristics
@@ -1093,20 +1124,21 @@ func Default() *Config {
 func defaultFromRegistry() *Config {
 	registry := definition.CreateRegistry()
 	return &Config{
-		Server:    buildServerConfig(registry),
-		Database:  buildDatabaseConfig(registry),
-		Temporal:  buildTemporalConfig(registry),
-		Runtime:   buildRuntimeConfig(registry),
-		Limits:    buildLimitsConfig(registry),
-		Memory:    buildMemoryConfig(registry),
-		LLM:       buildLLMConfig(registry),
-		RateLimit: buildRateLimitConfig(registry),
-		CLI:       buildCLIConfig(registry),
-		Redis:     buildRedisConfig(registry),
-		Cache:     buildCacheConfig(registry),
-		Worker:    buildWorkerConfig(registry),
-		MCPProxy:  buildMCPProxyConfig(registry),
-		Webhooks:  buildWebhooksConfig(registry),
+		Server:      buildServerConfig(registry),
+		Database:    buildDatabaseConfig(registry),
+		Temporal:    buildTemporalConfig(registry),
+		Runtime:     buildRuntimeConfig(registry),
+		Limits:      buildLimitsConfig(registry),
+		Attachments: buildAttachmentsConfig(registry),
+		Memory:      buildMemoryConfig(registry),
+		LLM:         buildLLMConfig(registry),
+		RateLimit:   buildRateLimitConfig(registry),
+		CLI:         buildCLIConfig(registry),
+		Redis:       buildRedisConfig(registry),
+		Cache:       buildCacheConfig(registry),
+		Worker:      buildWorkerConfig(registry),
+		MCPProxy:    buildMCPProxyConfig(registry),
+		Webhooks:    buildWebhooksConfig(registry),
 	}
 }
 
@@ -1380,16 +1412,26 @@ func buildMCPProxyConfig(registry *definition.Registry) MCPProxyConfig {
 	}
 }
 
+func buildAttachmentsConfig(registry *definition.Registry) AttachmentsConfig {
+	cfg := AttachmentsConfig{
+		MaxDownloadSizeBytes: getInt(registry, "attachments.max_download_size_bytes"),
+		DownloadTimeout:      getDuration(registry, "attachments.download_timeout"),
+		MaxRedirects:         getInt(registry, "attachments.max_redirects"),
+		TempDirQuotaBytes:    getInt64(registry, "attachments.temp_dir_quota_bytes"),
+	}
+	cfg.AllowedMIMETypes.Image = getStringSlice(registry, "attachments.allowed_mime_types.image")
+	cfg.AllowedMIMETypes.Audio = getStringSlice(registry, "attachments.allowed_mime_types.audio")
+	cfg.AllowedMIMETypes.Video = getStringSlice(registry, "attachments.allowed_mime_types.video")
+	cfg.AllowedMIMETypes.PDF = getStringSlice(registry, "attachments.allowed_mime_types.pdf")
+	return cfg
+}
+
 // WebhooksConfig contains webhook processing and validation configuration.
 type WebhooksConfig struct {
-	// DefaultMethod specifies the default HTTP method for webhook requests.
-	DefaultMethod string `koanf:"default_method"     json:"default_method"     yaml:"default_method"     mapstructure:"default_method"     env:"WEBHOOKS_DEFAULT_METHOD"     validate:"oneof=GET POST PUT DELETE PATCH HEAD OPTIONS"`
-	// DefaultMaxBody specifies the default maximum body size for webhook requests (in bytes).
-	DefaultMaxBody int64 `koanf:"default_max_body"   json:"default_max_body"   yaml:"default_max_body"   mapstructure:"default_max_body"   env:"WEBHOOKS_DEFAULT_MAX_BODY"   validate:"min=1"`
-	// DefaultDedupeTTL specifies the default time-to-live for webhook deduplication.
+	DefaultMethod    string        `koanf:"default_method"     json:"default_method"     yaml:"default_method"     mapstructure:"default_method"     env:"WEBHOOKS_DEFAULT_METHOD"     validate:"oneof=GET POST PUT DELETE PATCH HEAD OPTIONS"`
+	DefaultMaxBody   int64         `koanf:"default_max_body"   json:"default_max_body"   yaml:"default_max_body"   mapstructure:"default_max_body"   env:"WEBHOOKS_DEFAULT_MAX_BODY"   validate:"min=1"`
 	DefaultDedupeTTL time.Duration `koanf:"default_dedupe_ttl" json:"default_dedupe_ttl" yaml:"default_dedupe_ttl" mapstructure:"default_dedupe_ttl" env:"WEBHOOKS_DEFAULT_DEDUPE_TTL" validate:"min=0"`
-	// StripeSkew specifies the allowed timestamp skew for Stripe webhook verification.
-	StripeSkew time.Duration `koanf:"stripe_skew"        json:"stripe_skew"        yaml:"stripe_skew"        mapstructure:"stripe_skew"        env:"WEBHOOKS_STRIPE_SKEW"        validate:"min=0"`
+	StripeSkew       time.Duration `koanf:"stripe_skew"        json:"stripe_skew"        yaml:"stripe_skew"        mapstructure:"stripe_skew"        env:"WEBHOOKS_STRIPE_SKEW"        validate:"min=0"`
 }
 
 func buildWebhooksConfig(registry *definition.Registry) WebhooksConfig {

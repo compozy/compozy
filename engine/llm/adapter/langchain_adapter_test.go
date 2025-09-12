@@ -3,6 +3,7 @@ package llmadapter
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/engine/core"
@@ -23,7 +24,7 @@ func TestLangChainAdapter_ConvertMessages(t *testing.T) {
 			},
 		}
 
-		messages := adapter.convertMessages(&req)
+		messages := adapter.convertMessages(context.Background(), &req)
 
 		assert.Len(t, messages, 3)
 		// Check system message
@@ -44,10 +45,143 @@ func TestLangChainAdapter_ConvertMessages(t *testing.T) {
 			},
 		}
 
-		messages := adapter.convertMessages(&req)
+		messages := adapter.convertMessages(context.Background(), &req)
 
 		assert.Len(t, messages, 1)
 		assert.Equal(t, llms.ChatMessageTypeHuman, messages[0].Role)
+	})
+}
+
+func TestLangChainAdapter_ConvertMessages_WithImageParts(t *testing.T) {
+	adapter := &LangChainAdapter{}
+
+	req := LLMRequest{
+		Messages: []Message{
+			{
+				Role:    "user",
+				Content: "Identify the object in the image",
+				Parts: []ContentPart{
+					ImageURLPart{URL: "https://example.com/img.png", Detail: "high"},
+				},
+			},
+		},
+	}
+
+	msgs := adapter.convertMessages(context.Background(), &req)
+	require.Len(t, msgs, 1)
+	parts := msgs[0].Parts
+	// Expect at least the text content and the image content
+	require.GreaterOrEqual(t, len(parts), 2)
+	// First part should be text from Content
+	if tc, ok := parts[0].(llms.TextContent); ok {
+		assert.Contains(t, tc.Text, "Identify the object")
+	} else {
+		t.Fatalf("first part should be TextContent, got %T", parts[0])
+	}
+	// One of the parts must be ImageURLContent
+	var foundImage bool
+	for _, p := range parts {
+		if img, ok := p.(llms.ImageURLContent); ok {
+			foundImage = true
+			assert.Equal(t, "https://example.com/img.png", img.URL)
+			assert.Equal(t, "high", img.Detail)
+		}
+	}
+	assert.True(t, foundImage, "expected ImageURLContent part")
+}
+
+func TestLangChainAdapter_BuildContentParts_AudioVideo_ByProvider(t *testing.T) {
+	// Prepare a message carrying audio and video binary parts plus text
+	mkMsg := func() Message {
+		return Message{
+			Role:    "user",
+			Content: "Analyze the attached media",
+			Parts: []ContentPart{
+				BinaryPart{MIMEType: "audio/wav", Data: []byte{0x01, 0x02}},
+				BinaryPart{MIMEType: "video/mp4", Data: []byte{0x03, 0x04}},
+			},
+		}
+	}
+
+	t.Run("Google should forward audio/video as binary parts", func(t *testing.T) {
+		adapter := &LangChainAdapter{provider: core.ProviderConfig{Provider: core.ProviderGoogle}}
+		req := LLMRequest{Messages: []Message{mkMsg()}}
+		msgs := adapter.convertMessages(context.Background(), &req)
+		require.Len(t, msgs, 1)
+		// Expect first part is TextContent and two BinaryContent parts for media
+		var binCount int
+		for _, p := range msgs[0].Parts {
+			if _, ok := p.(llms.BinaryContent); ok {
+				binCount++
+			}
+		}
+		assert.Equal(t, 2, binCount)
+	})
+
+	// Providers that should skip audio/video (OpenAI-compatible and Ollama/Anthropic)
+	// Note: OpenAI now supports audio via data URL conversion, still skips video.
+	providers := []core.ProviderName{
+		core.ProviderGroq,
+		core.ProviderDeepSeek,
+		core.ProviderXAI,
+		core.ProviderOllama,
+		core.ProviderAnthropic,
+	}
+	for _, p := range providers {
+		p := p
+		t.Run("Provider "+string(p)+" should skip audio/video", func(t *testing.T) {
+			t.Parallel()
+			adapter := &LangChainAdapter{provider: core.ProviderConfig{Provider: p}}
+			req := LLMRequest{Messages: []Message{mkMsg()}}
+			msgs := adapter.convertMessages(context.Background(), &req)
+			require.Len(t, msgs, 1)
+			for _, part := range msgs[0].Parts {
+				if _, ok := part.(llms.BinaryContent); ok {
+					t.Fatalf("unexpected BinaryContent for provider %s", p)
+				}
+			}
+		})
+	}
+}
+
+func TestLangChainAdapter_OpenAI_AudioSupport(t *testing.T) {
+	t.Run("Should convert audio to base64 data URL for OpenAI", func(t *testing.T) {
+		adapter := &LangChainAdapter{provider: core.ProviderConfig{Provider: core.ProviderOpenAI}}
+		audioData := []byte{0x01, 0x02, 0x03}
+		msg := Message{
+			Role:    "user",
+			Content: "Analyze this audio",
+			Parts:   []ContentPart{BinaryPart{MIMEType: "audio/wav", Data: audioData}},
+		}
+		req := LLMRequest{Messages: []Message{msg}}
+		msgs := adapter.convertMessages(context.Background(), &req)
+		require.Len(t, msgs, 1)
+		var foundAudioURL bool
+		for _, part := range msgs[0].Parts {
+			if urlPart, ok := part.(llms.ImageURLContent); ok {
+				if strings.HasPrefix(urlPart.URL, "data:audio/wav;base64,") {
+					foundAudioURL = true
+				}
+			}
+		}
+		assert.True(t, foundAudioURL, "Expected audio as base64 data URL")
+	})
+}
+
+func TestLangChainAdapter_OpenAI_SkipGenericBinary(t *testing.T) {
+	t.Run("Should skip generic binary parts for OpenAI", func(t *testing.T) {
+		adapter := &LangChainAdapter{provider: core.ProviderConfig{Provider: core.ProviderOpenAI}}
+		msg := Message{Role: "user", Content: "Analyze", Parts: []ContentPart{
+			BinaryPart{MIMEType: "application/octet-stream", Data: []byte{0xAA, 0xBB}},
+		}}
+		req := LLMRequest{Messages: []Message{msg}}
+		msgs := adapter.convertMessages(context.Background(), &req)
+		require.Len(t, msgs, 1)
+		for _, p := range msgs[0].Parts {
+			if _, ok := p.(llms.BinaryContent); ok {
+				t.Fatalf("unexpected BinaryContent for OpenAI provider")
+			}
+		}
 	})
 }
 
