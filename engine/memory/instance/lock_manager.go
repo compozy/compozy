@@ -116,10 +116,11 @@ func (lm *LockManagerImpl) AcquireFlushLock(ctx context.Context, key string) (Un
 }
 
 // createUnlockFunc creates a function to release a lock
-func (lm *LockManagerImpl) createUnlockFunc(_ context.Context, lock Lock) UnlockFunc {
+func (lm *LockManagerImpl) createUnlockFunc(ctx context.Context, lock Lock) UnlockFunc {
 	return func() error {
-		// Create a new context with timeout for unlock operation
-		unlockCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		// Derive an uncancelable context but preserve values for logging/tracing
+		base := context.WithoutCancel(ctx)
+		unlockCtx, cancel := context.WithTimeout(base, 5*time.Second)
 		defer cancel()
 
 		if err := lock.Unlock(unlockCtx); err != nil {

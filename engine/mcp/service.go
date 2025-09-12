@@ -271,11 +271,11 @@ func resolveHeadersWithEnv(ctx context.Context, headers map[string]string, env c
 	}
 	out := make(map[string]string, len(headers))
 	engine := tplengine.NewEngine(tplengine.FormatText)
-	tplCtx := map[string]any{"env": env.AsMap()}
+	tplCtx := map[string]any{"env": map[string]string(env)}
 	for k, v := range headers {
 		if tplengine.HasTemplate(v) {
 			// Optional strict mode for template validation, disabled by default for compatibility.
-			if appconfig.FromContext(ctx).LLM.MCPHeaderTemplateStrict {
+			if cfg := appconfig.FromContext(ctx); cfg != nil && cfg.LLM.MCPHeaderTemplateStrict {
 				if err := validateTemplate(v); err != nil {
 					out[k] = v
 					continue
@@ -634,12 +634,17 @@ func SetupForWorkflows(ctx context.Context, workflows []WorkflowConfig) (*Regist
 		clientNames = append(clientNames, allMCPs[i].ID)
 	}
 	// Bound the total wait; surface detailed errors on timeout
-	readinessTimeout := appconfig.FromContext(ctx).LLM.MCPReadinessTimeout
-	if readinessTimeout <= 0 {
+	cfg := appconfig.FromContext(ctx)
+	var readinessTimeout time.Duration
+	if cfg != nil && cfg.LLM.MCPReadinessTimeout > 0 {
+		readinessTimeout = cfg.LLM.MCPReadinessTimeout
+	} else {
 		readinessTimeout = 60 * time.Second
 	}
-	pollInterval := appconfig.FromContext(ctx).LLM.MCPReadinessPollInterval
-	if pollInterval <= 0 {
+	var pollInterval time.Duration
+	if cfg != nil && cfg.LLM.MCPReadinessPollInterval > 0 {
+		pollInterval = cfg.LLM.MCPReadinessPollInterval
+	} else {
 		pollInterval = 200 * time.Millisecond
 	}
 	waitCtx, cancel := context.WithTimeout(ctx, readinessTimeout)
@@ -658,12 +663,18 @@ func SetupForWorkflows(ctx context.Context, workflows []WorkflowConfig) (*Regist
 // service is initialized with a proxy client using those settings.
 func setupRegisterServiceFromApp(ctx context.Context) *RegisterService {
 	log := logger.FromContext(ctx)
-	proxyURL := appconfig.FromContext(ctx).LLM.ProxyURL
+	cfg := appconfig.FromContext(ctx)
+	var proxyURL string
+	if cfg != nil {
+		proxyURL = cfg.LLM.ProxyURL
+	}
 	if proxyURL == "" {
 		return nil
 	}
-	clientTimeout := appconfig.FromContext(ctx).LLM.MCPClientTimeout
-	if clientTimeout <= 0 {
+	var clientTimeout time.Duration
+	if cfg != nil && cfg.LLM.MCPClientTimeout > 0 {
+		clientTimeout = cfg.LLM.MCPClientTimeout
+	} else {
 		clientTimeout = 30 * time.Second
 	}
 	service := NewWithTimeout(proxyURL, clientTimeout)

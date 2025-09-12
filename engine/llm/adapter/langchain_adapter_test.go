@@ -251,7 +251,7 @@ func TestNewLangChainAdapter(t *testing.T) {
 			Model:    "mock-model",
 		}
 
-		adapter, err := NewLangChainAdapter(&config)
+		adapter, err := NewLangChainAdapter(context.Background(), &config)
 
 		require.NoError(t, err)
 		assert.NotNil(t, adapter)

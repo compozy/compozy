@@ -1,6 +1,7 @@
 package llmadapter
 
 import (
+	"context"
 	"testing"
 
 	"github.com/compozy/compozy/engine/core"
@@ -11,7 +12,7 @@ func TestDefaultFactory_CreateClient(t *testing.T) {
 	factory := NewDefaultFactory()
 
 	t.Run("Should return error when config is nil", func(t *testing.T) {
-		client, err := factory.CreateClient(nil)
+		client, err := factory.CreateClient(context.Background(), nil)
 		assert.Nil(t, client)
 		assert.ErrorContains(t, err, "provider config must not be nil")
 	})
@@ -20,7 +21,7 @@ func TestDefaultFactory_CreateClient(t *testing.T) {
 		config := &core.ProviderConfig{
 			Provider: "unsupported",
 		}
-		client, err := factory.CreateClient(config)
+		client, err := factory.CreateClient(context.Background(), config)
 		assert.Nil(t, client)
 		assert.ErrorContains(t, err, "unsupported LLM provider")
 	})
@@ -30,7 +31,7 @@ func TestDefaultFactory_CreateClient(t *testing.T) {
 			Provider: core.ProviderOllama,
 			Model:    "llama2",
 		}
-		client, err := factory.CreateClient(config)
+		client, err := factory.CreateClient(context.Background(), config)
 		assert.NotNil(t, client)
 		assert.NoError(t, err)
 		assert.IsType(t, &LangChainAdapter{}, client)

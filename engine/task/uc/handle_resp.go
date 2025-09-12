@@ -164,7 +164,7 @@ func (uc *HandleResponse) applyOutputTransformation(ctx context.Context, input *
 	taskConfigs := task2.BuildTaskConfigsMap(input.WorkflowConfig.Tasks)
 
 	// Create normalization context with proper Variables
-	contextBuilder, err := shared.NewContextBuilder()
+	contextBuilder, err := shared.NewContextBuilderWithContext(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to create context builder: %w", err)
 	}

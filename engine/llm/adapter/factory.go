@@ -1,6 +1,7 @@
 package llmadapter
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/compozy/compozy/engine/core"
@@ -15,7 +16,7 @@ func NewDefaultFactory() Factory {
 }
 
 // CreateClient creates a new LLMClient for the given provider
-func (f *DefaultFactory) CreateClient(config *core.ProviderConfig) (LLMClient, error) {
+func (f *DefaultFactory) CreateClient(ctx context.Context, config *core.ProviderConfig) (LLMClient, error) {
 	if config == nil {
 		return nil, fmt.Errorf("provider config must not be nil")
 	}
@@ -23,7 +24,7 @@ func (f *DefaultFactory) CreateClient(config *core.ProviderConfig) (LLMClient, e
 	case core.ProviderOpenAI, core.ProviderAnthropic, core.ProviderGroq,
 		core.ProviderMock, core.ProviderOllama, core.ProviderGoogle,
 		core.ProviderDeepSeek, core.ProviderXAI:
-		return NewLangChainAdapter(config)
+		return NewLangChainAdapter(ctx, config)
 	default:
 		return nil, fmt.Errorf("unsupported LLM provider: %s", config.Provider)
 	}

@@ -95,6 +95,9 @@ func buildRuntimeManager(
 ) (runtime.Runtime, error) {
 	log := logger.FromContext(ctx)
 	cfg := appconfig.FromContext(ctx)
+	if cfg == nil {
+		return nil, fmt.Errorf("config manager not found in context")
+	}
 	// Use factory to create runtime with direct unified config mapping
 	factory := runtime.NewDefaultFactory(projectRoot)
 	// Create a merged runtime config by applying project-specific overrides
@@ -164,6 +167,7 @@ func NewWorker(
 	}
 	dispatcher := createDispatcher(projectConfig, workerCore.taskQueue, client)
 	activities := NewActivities(
+		ctx,
 		projectConfig,
 		workflows,
 		config.WorkflowRepo(),
@@ -176,7 +180,7 @@ func NewWorker(
 		templateEngine,
 	)
 	interceptor.SetConfiguredWorkerCount(1)
-	lifecycleCtx, lifecycleCancel := context.WithCancel(context.Background())
+	lifecycleCtx, lifecycleCancel := context.WithCancel(context.WithoutCancel(ctx))
 	log.Debug("Worker initialization completed", "total_duration", time.Since(workerStart))
 	return &Worker{
 		client:          client,
@@ -265,6 +269,9 @@ func setupRedisAndConfig(
 	log := logger.FromContext(ctx)
 	cacheStart := time.Now()
 	cfg := appconfig.FromContext(ctx)
+	if cfg == nil {
+		return nil, nil, fmt.Errorf("config manager not found in context")
+	}
 	// Build cache config from centralized Redis and cache config
 	cacheConfig := cache.FromAppConfig(cfg)
 
@@ -419,6 +426,9 @@ func (o *Worker) Setup(ctx context.Context) error {
 	interceptor.IncrementRunningWorkers(ctx)
 	// Register dispatcher for health monitoring
 	cfg := appconfig.FromContext(ctx)
+	if cfg == nil {
+		return fmt.Errorf("config manager not found in context")
+	}
 	monitoring.RegisterDispatcher(
 		ctx,
 		o.dispatcherID,
@@ -430,27 +440,58 @@ func (o *Worker) Setup(ctx context.Context) error {
 }
 
 func (o *Worker) Stop(ctx context.Context) {
-	log := logger.FromContext(ctx)
 	// Track worker stopping for monitoring
 	interceptor.DecrementRunningWorkers(ctx)
 	// Record dispatcher stop event for monitoring
+	o.stopDispatcherMonitoring(ctx)
+	// Cancel lifecycle context to stop background operations
+	o.cancelLifecycle()
+	// Terminate this instance's dispatcher since each server has its own
+	o.terminateDispatcher(ctx)
+	// Stop the worker and close client
+	o.worker.Stop()
+	o.client.Close()
+	// Deregister all MCPs from proxy on shutdown
+	o.shutdownMCPs(ctx)
+	// Close stores
+	o.closeStores(ctx)
+}
+
+func (o *Worker) stopDispatcherMonitoring(ctx context.Context) {
 	if o.dispatcherID != "" {
 		interceptor.StopDispatcher(ctx, o.dispatcherID)
 		monitoring.UnregisterDispatcher(ctx, o.dispatcherID)
 	}
-	// Cancel lifecycle context to stop background operations
+}
+
+func (o *Worker) cancelLifecycle() {
 	if o.lifecycleCancel != nil {
 		o.lifecycleCancel()
 	}
-	// Terminate this instance's dispatcher since each server has its own
+}
+
+func (o *Worker) terminateDispatcher(ctx context.Context) {
+	log := logger.FromContext(ctx)
 	if o.dispatcherID != "" {
 		log.Info("Terminating instance dispatcher", "dispatcher_id", o.dispatcherID)
 		if err := o.client.TerminateWorkflow(ctx, o.dispatcherID, "", "server shutdown"); err != nil {
 			log.Error("Failed to terminate dispatcher", "error", err, "dispatcher_id", o.dispatcherID)
 		}
-		// Clean up heartbeat entry with background context to ensure completion
-		if o.activities != nil && o.redisCache != nil {
-			cfg := appconfig.FromContext(ctx)
+		o.cleanupDispatcherHeartbeat(ctx)
+	}
+}
+
+func (o *Worker) cleanupDispatcherHeartbeat(ctx context.Context) {
+	log := logger.FromContext(ctx)
+	if o.activities != nil && o.redisCache != nil {
+		cfg := appconfig.FromContext(ctx)
+		if cfg == nil {
+			log.Error(
+				"config manager not found in context, skipping heartbeat cleanup",
+				"dispatcher_id",
+				o.dispatcherID,
+			)
+		} else {
 			cleanupCtx, cancel := context.WithTimeout(ctx, cfg.Worker.HeartbeatCleanupTimeout)
 			defer cancel()
 			if err := o.activities.RemoveDispatcherHeartbeat(cleanupCtx, o.dispatcherID); err != nil {
@@ -458,17 +499,26 @@ func (o *Worker) Stop(ctx context.Context) {
 			}
 		}
 	}
-	o.worker.Stop()
-	o.client.Close()
-	// Deregister all MCPs from proxy on shutdown
+}
+
+func (o *Worker) shutdownMCPs(ctx context.Context) {
+	log := logger.FromContext(ctx)
 	if o.mcpRegister != nil {
 		cfg := appconfig.FromContext(ctx)
-		ctx, cancel := context.WithTimeout(ctx, cfg.Worker.MCPShutdownTimeout)
-		defer cancel()
-		if err := o.mcpRegister.Shutdown(ctx); err != nil {
-			log.Error("Failed to shutdown MCP register", "error", err)
+		if cfg == nil {
+			log.Error("config manager not found in context, skipping MCP shutdown", "dispatcher_id", o.dispatcherID)
+		} else {
+			shutdownCtx, cancel := context.WithTimeout(ctx, cfg.Worker.MCPShutdownTimeout)
+			defer cancel()
+			if err := o.mcpRegister.Shutdown(shutdownCtx); err != nil {
+				log.Error("Failed to shutdown MCP register", "error", err)
+			}
 		}
 	}
+}
+
+func (o *Worker) closeStores(ctx context.Context) {
+	log := logger.FromContext(ctx)
 	if o.configStore != nil {
 		if err := o.configStore.Close(); err != nil {
 			log.Error("Failed to close config store", "error", err)
@@ -528,6 +578,10 @@ func (o *Worker) TerminateDispatcher(ctx context.Context, reason string) error {
 func (o *Worker) ensureDispatcherRunning(ctx context.Context) {
 	log := logger.FromContext(ctx)
 	cfg := appconfig.FromContext(ctx)
+	if cfg == nil {
+		log.Error("config manager not found in context, cannot start dispatcher")
+		return
+	}
 	maxRetries := cfg.Worker.DispatcherMaxRetries
 	var safeMaxRetries uint64
 	if maxRetries <= 0 {
@@ -587,6 +641,9 @@ func (o *Worker) ensureDispatcherRunning(ctx context.Context) {
 func (o *Worker) HealthCheck(ctx context.Context) error {
 	log := logger.FromContext(ctx)
 	cfg := appconfig.FromContext(ctx)
+	if cfg == nil {
+		return fmt.Errorf("config manager not found in context")
+	}
 	// Check Redis cache health
 	if o.redisCache != nil {
 		if err := o.redisCache.HealthCheck(ctx); err != nil {
@@ -631,6 +688,9 @@ func (o *Worker) HealthCheck(ctx context.Context) error {
 // checkMCPProxyHealth checks if MCP proxy is healthy when configured
 func (o *Worker) checkMCPProxyHealth(ctx context.Context) error {
 	cfg := appconfig.FromContext(ctx)
+	if cfg == nil {
+		return nil // treat as "no proxy configured"
+	}
 	if cfg.LLM.ProxyURL == "" {
 		return nil // No proxy configured
 	}

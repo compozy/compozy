@@ -288,7 +288,8 @@ func outputDiagnosticsResults(
 ) error {
 	diagnostics := map[string]any{
 		"working_directory": cwd,
-		"configuration":     cfg,
+		// Use flattened, redacted view to avoid leaking secrets
+		"configuration": flattenConfig(cfg),
 		"validation": map[string]any{
 			"valid": validationErr == nil,
 			"error": func() any {
@@ -353,7 +354,8 @@ func outputDiagnosticsTUI(ctx context.Context, cwd string, validationErr error, 
 // outputJSON outputs configuration as JSON
 func outputJSON(cfg *config.Config, sources map[string]config.SourceType, showSources bool) error {
 	output := make(map[string]any)
-	output["config"] = cfg
+	// Use redacted, flattened representation
+	output["config"] = flattenConfig(cfg)
 	if showSources && len(sources) > 0 {
 		output["sources"] = sources
 	}
@@ -366,7 +368,8 @@ func outputJSON(cfg *config.Config, sources map[string]config.SourceType, showSo
 // outputYAML outputs configuration as YAML
 func outputYAML(cfg *config.Config, sources map[string]config.SourceType, showSources bool) error {
 	output := make(map[string]any)
-	output["config"] = cfg
+	// Use redacted, flattened representation
+	output["config"] = flattenConfig(cfg)
 	if showSources && len(sources) > 0 {
 		output["sources"] = sources
 	}
@@ -504,7 +507,7 @@ func flattenMemoryConfig(cfg *config.Config, result map[string]string) {
 // flattenLLMConfig flattens LLM configuration (optional)
 func flattenLLMConfig(cfg *config.Config, result map[string]string) {
 	if cfg.LLM.ProxyURL != "" {
-		result["llm.proxy_url"] = cfg.LLM.ProxyURL
+		result["llm.proxy_url"] = redactURL(cfg.LLM.ProxyURL)
 	}
 	if cfg.LLM.MCPReadinessTimeout > 0 {
 		result["llm.mcp_readiness_timeout"] = cfg.LLM.MCPReadinessTimeout.String()
@@ -554,7 +557,7 @@ func flattenLLMConfig(cfg *config.Config, result map[string]string) {
 // flattenCLIConfig flattens CLI configuration
 func flattenCLIConfig(cfg *config.Config, result map[string]string) {
 	result["cli.api_key"] = redactSensitive(cfg.CLI.APIKey.String())
-	result["cli.base_url"] = cfg.CLI.BaseURL
+	result["cli.base_url"] = redactURL(cfg.CLI.BaseURL)
 	result["cli.timeout"] = cfg.CLI.Timeout.String()
 	result["cli.mode"] = cfg.CLI.Mode
 	result["cli.default_format"] = cfg.CLI.DefaultFormat
@@ -684,7 +687,7 @@ func flattenWorkerConfig(cfg *config.Config, result map[string]string) {
 func flattenMCPProxyConfig(cfg *config.Config, result map[string]string) {
 	result["mcp_proxy.host"] = cfg.MCPProxy.Host
 	result["mcp_proxy.port"] = fmt.Sprintf("%d", cfg.MCPProxy.Port)
-	result["mcp_proxy.base_url"] = cfg.MCPProxy.BaseURL
+	result["mcp_proxy.base_url"] = redactURL(cfg.MCPProxy.BaseURL)
 	result["mcp_proxy.shutdown_timeout"] = cfg.MCPProxy.ShutdownTimeout.String()
 }
 

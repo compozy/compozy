@@ -25,7 +25,7 @@ type HealthService struct {
 	checkInterval      time.Duration
 	healthTimeout      time.Duration
 	nearLimitThreshold float64
-	log                logger.Logger
+	ctx                context.Context
 	stopCh             chan struct{}
 	mu                 sync.RWMutex
 	lastGlobalCheck    time.Time
@@ -74,7 +74,7 @@ func NewHealthService(ctx context.Context, manager *Manager) *HealthService {
 
 // NewHealthServiceWithOptions creates a new memory health service with custom options
 func NewHealthServiceWithOptions(ctx context.Context, manager *Manager, opts *HealthServiceOptions) *HealthService {
-	log := logger.FromContext(ctx)
+	ctx = logger.ContextWithLogger(ctx, logger.FromContext(ctx).With("component", "memory_health_service"))
 	if opts == nil {
 		opts = &HealthServiceOptions{
 			CheckInterval:      defaultCheckInterval,
@@ -87,7 +87,7 @@ func NewHealthServiceWithOptions(ctx context.Context, manager *Manager, opts *He
 		checkInterval:      opts.CheckInterval,
 		healthTimeout:      opts.HealthTimeout,
 		nearLimitThreshold: opts.NearLimitThreshold,
-		log:                log.With("component", "memory_health_service"),
+		ctx:                ctx,
 		stopCh:             make(chan struct{}),
 	}
 }
@@ -95,13 +95,13 @@ func NewHealthServiceWithOptions(ctx context.Context, manager *Manager, opts *He
 // Start begins the health monitoring service
 func (mhs *HealthService) Start(ctx context.Context) {
 	go mhs.healthCheckLoop(ctx)
-	mhs.log.Info("Memory health service started", "check_interval", mhs.checkInterval)
+	logger.FromContext(ctx).Info("Memory health service started", "check_interval", mhs.checkInterval)
 }
 
 // Stop shuts down the health monitoring service
 func (mhs *HealthService) Stop() {
 	close(mhs.stopCh)
-	mhs.log.Info("Memory health service stopped")
+	logger.FromContext(mhs.ctx).Info("Memory health service stopped")
 }
 
 // GetOverallHealth returns the overall health status of the memory system
@@ -275,13 +275,13 @@ func (mhs *HealthService) RegisterInstance(memoryID string) {
 	}
 
 	mhs.healthStates.Store(memoryID, state)
-	mhs.log.Debug("Registered memory instance for health monitoring", "memory_id", memoryID)
+	logger.FromContext(mhs.ctx).Debug("Registered memory instance for health monitoring", "memory_id", memoryID)
 }
 
 // UnregisterInstance removes a memory instance from health monitoring
 func (mhs *HealthService) UnregisterInstance(memoryID string) {
 	mhs.healthStates.Delete(memoryID)
-	mhs.log.Debug("Unregistered memory instance from health monitoring", "memory_id", memoryID)
+	logger.FromContext(mhs.ctx).Debug("Unregistered memory instance from health monitoring", "memory_id", memoryID)
 }
 
 // healthCheckLoop performs periodic health checks
@@ -364,21 +364,21 @@ func (mhs *HealthService) checkInstanceHealth(ctx context.Context, memoryID stri
 		// 2. Not checked in over 5 minutes
 		// 3. Has too many consecutive failures
 		if !isHealthy {
-			mhs.log.Debug("Instance marked as unhealthy",
+			logger.FromContext(mhs.ctx).Debug("Instance marked as unhealthy",
 				"memory_id", memoryID,
 				"consecutive_failures", consecutiveFailures)
 			return false
 		}
 
 		if timeSinceCheck > 5*time.Minute {
-			mhs.log.Debug("Instance inactive for too long",
+			logger.FromContext(mhs.ctx).Debug("Instance inactive for too long",
 				"memory_id", memoryID,
 				"time_since_check", timeSinceCheck)
 			return false
 		}
 
 		if consecutiveFailures > 3 {
-			mhs.log.Debug("Too many consecutive failures",
+			logger.FromContext(mhs.ctx).Debug("Too many consecutive failures",
 				"memory_id", memoryID,
 				"failures", consecutiveFailures)
 			return false
@@ -394,7 +394,10 @@ func (mhs *HealthService) checkInstanceHealth(ctx context.Context, memoryID stri
 
 	// If we don't have health state for this instance, default to healthy
 	// This allows new instances to be considered healthy until proven otherwise
-	mhs.log.Debug("No health state found for instance, defaulting to healthy", "memory_id", memoryID)
+	logger.FromContext(mhs.ctx).Debug(
+		"No health state found for instance, defaulting to healthy",
+		"memory_id", memoryID,
+	)
 	return true
 }
 
@@ -406,7 +409,7 @@ func (mhs *HealthService) performOperationalChecks(ctx context.Context, memoryID
 		pingCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 		defer cancel()
 		if err := mhs.manager.baseRedisClient.Ping(pingCtx).Err(); err != nil {
-			mhs.log.Debug("Instance Redis connectivity check failed",
+			logger.FromContext(mhs.ctx).Debug("Instance Redis connectivity check failed",
 				"memory_id", memoryID,
 				"error", err)
 			return false
@@ -418,7 +421,7 @@ func (mhs *HealthService) performOperationalChecks(ctx context.Context, memoryID
 		writeCtx, writeCancel := context.WithTimeout(ctx, 2*time.Second)
 		defer writeCancel()
 		if err := mhs.manager.baseRedisClient.Set(writeCtx, testKey, testValue, 10*time.Second).Err(); err != nil {
-			mhs.log.Debug("Health check write operation failed",
+			logger.FromContext(mhs.ctx).Debug("Health check write operation failed",
 				"memory_id", memoryID,
 				"error", err)
 			return false
@@ -428,7 +431,7 @@ func (mhs *HealthService) performOperationalChecks(ctx context.Context, memoryID
 		defer readCancel()
 		val, err := mhs.manager.baseRedisClient.Get(readCtx, testKey).Result()
 		if err != nil || val != testValue {
-			mhs.log.Debug("Health check read operation failed",
+			logger.FromContext(mhs.ctx).Debug("Health check read operation failed",
 				"memory_id", memoryID,
 				"error", err,
 				"expected", testValue,
@@ -439,7 +442,7 @@ func (mhs *HealthService) performOperationalChecks(ctx context.Context, memoryID
 		delCtx, delCancel := context.WithTimeout(ctx, 1*time.Second)
 		defer delCancel()
 		if err := mhs.manager.baseRedisClient.Del(delCtx, testKey).Err(); err != nil {
-			mhs.log.Debug("Failed to cleanup health check test key",
+			logger.FromContext(mhs.ctx).Debug("Failed to cleanup health check test key",
 				"memory_id", memoryID,
 				"key", testKey,
 				"error", err)
@@ -452,7 +455,7 @@ func (mhs *HealthService) performOperationalChecks(ctx context.Context, memoryID
 		defer lockCancel()
 		lock, err := mhs.manager.baseLockManager.Acquire(lockCtx, lockKey, 5*time.Second)
 		if err != nil {
-			mhs.log.Debug("Health check lock acquisition failed",
+			logger.FromContext(mhs.ctx).Debug("Health check lock acquisition failed",
 				"memory_id", memoryID,
 				"error", err)
 			return false
@@ -461,13 +464,13 @@ func (mhs *HealthService) performOperationalChecks(ctx context.Context, memoryID
 		releaseCtx, releaseCancel := context.WithTimeout(ctx, 1*time.Second)
 		defer releaseCancel()
 		if err := lock.Release(releaseCtx); err != nil {
-			mhs.log.Debug("Health check lock release failed",
+			logger.FromContext(mhs.ctx).Debug("Health check lock release failed",
 				"memory_id", memoryID,
 				"error", err)
 			return false
 		}
 	}
-	mhs.log.Debug("Operational health checks passed", "memory_id", memoryID)
+	logger.FromContext(mhs.ctx).Debug("Operational health checks passed", "memory_id", memoryID)
 	return true
 }
 

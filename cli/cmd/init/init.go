@@ -130,8 +130,7 @@ func runInitJSON(ctx context.Context, _ *cobra.Command, _ *cmd.CommandExecutor, 
 	log.Debug("executing init command in JSON mode")
 
 	// Access global configuration from executor
-	cfg := config.FromContext(ctx)
-	if cfg.CLI.Debug {
+	if cfg := config.FromContext(ctx); cfg != nil && cfg.CLI.Debug {
 		log.Debug("debug mode enabled from global config")
 	}
 
@@ -207,8 +206,7 @@ func runInitTUI(ctx context.Context, _ *cobra.Command, _ *cmd.CommandExecutor, o
 	log.Debug("executing init command in TUI mode")
 
 	// Access global configuration from executor
-	cfg := config.FromContext(ctx)
-	if cfg.CLI.Debug {
+	if cfg := config.FromContext(ctx); cfg != nil && cfg.CLI.Debug {
 		log.Debug("debug mode enabled from global config")
 	}
 

@@ -119,6 +119,7 @@ func createTestActivities(
 
 	// Create test activities with real repositories
 	return worker.NewActivities(
+		context.Background(),
 		projectConfig,
 		workflows,
 		workflowRepo,

@@ -26,9 +26,9 @@ type EventConfig struct {
 // VerifySpec defines signature verification options for webhook requests.
 type VerifySpec struct {
 	Strategy string        `json:"strategy,omitempty" yaml:"strategy,omitempty" mapstructure:"strategy"`
-	Secret   string        `json:"secret,omitempty"   yaml:"secret,omitempty"   mapstructure:"strategy"`
+	Secret   string        `json:"secret,omitempty"   yaml:"secret,omitempty"   mapstructure:"secret"`
 	Header   string        `json:"header,omitempty"   yaml:"header,omitempty"   mapstructure:"header"`
-	Skew     time.Duration `json:"skew,omitempty"     yaml:"skew,omitempty"     mapstructure:"skey"`
+	Skew     time.Duration `json:"skew,omitempty"     yaml:"skew,omitempty"     mapstructure:"skew"`
 }
 
 // DedupeSpec controls idempotency behavior for webhook requests.

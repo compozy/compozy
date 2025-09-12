@@ -62,7 +62,7 @@ func TestNewService(t *testing.T) {
 // testFactory implements llmadapter.Factory for injecting a test client
 type testFactory struct{ client llmadapter.LLMClient }
 
-func (f testFactory) CreateClient(_ *core.ProviderConfig) (llmadapter.LLMClient, error) {
+func (f testFactory) CreateClient(_ context.Context, _ *core.ProviderConfig) (llmadapter.LLMClient, error) {
 	return f.client, nil
 }
 

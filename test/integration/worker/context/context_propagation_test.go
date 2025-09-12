@@ -3,14 +3,17 @@ package worker_test
 import (
 	"context"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"time"
 
 	"github.com/compozy/compozy/engine/task/activities"
 	"github.com/compozy/compozy/engine/worker"
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/tplengine"
+	"github.com/compozy/compozy/test/integration/worker/helpers"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.temporal.io/sdk/testsuite"
+	"go.temporal.io/sdk/workflow"
 )
 
 // sentinelKey is used to ensure the original context flows end-to-end
@@ -18,19 +21,14 @@ type sentinelKey struct{}
 
 func TestWorker_ContextPropagation_E2E(t *testing.T) {
 	t.Run("Should preserve context values across worker call chain", func(t *testing.T) {
-		// Build a base context with a unique sentinel value
 		base := context.WithValue(context.Background(), sentinelKey{}, "sentinel")
-
-		// Attach a minimal config manager to context (debug=false, quiet=false to avoid logger rewrites)
 		mgr := config.NewManager(nil)
 		_, err := mgr.Load(base, config.NewDefaultProvider())
 		require.NoError(t, err)
 		ctx := config.ContextWithManager(base, mgr)
-
-		// Build minimal dependencies for worker.Activities
-		// We only need the CEL evaluator path; others can be left nil
 		tple := tplengine.NewEngine(tplengine.FormatJSON)
 		acts := worker.NewActivities(
+			ctx,
 			nil,  // projectConfig
 			nil,  // workflows
 			nil,  // workflowRepo
@@ -42,21 +40,52 @@ func TestWorker_ContextPropagation_E2E(t *testing.T) {
 			nil,  // memoryManager
 			tple, // templateEngine (required by factory construction)
 		)
-
-		// Prepare a trivial condition evaluation
 		input := &activities.EvaluateConditionInput{Expression: "true"}
-
-		// Execute activity that uses the evaluator and propagates ctx as-is
 		res, err := acts.EvaluateCondition(ctx, input)
 		require.NoError(t, err)
 		assert.True(t, res)
-
-		// Assert our sentinel is still available on the original ctx after the call
-		// This ensures the chain did not replace the root context with context.Background/TODO
 		val := ctx.Value(sentinelKey{})
 		assert.Equal(t, "sentinel", val)
+		_ = mgr.Close(ctx)
+	})
+}
 
-		// Cleanup manager
+// readRuntimeEnvActivity returns cfg.Runtime.Environment from activity context
+func readRuntimeEnvActivity(ctx context.Context) (string, error) {
+	cfg := config.FromContext(ctx)
+	return cfg.Runtime.Environment, nil
+}
+
+// workflow calling readRuntimeEnvActivity and returning the value
+func cfgPropagationWorkflow(ctx workflow.Context) (string, error) {
+	opts := workflow.ActivityOptions{StartToCloseTimeout: 5 * time.Second}
+	ctx = workflow.WithActivityOptions(ctx, opts)
+	var env string
+	if err := workflow.ExecuteActivity(ctx, readRuntimeEnvActivity).Get(ctx, &env); err != nil {
+		return "", err
+	}
+	return env, nil
+}
+
+func TestWorker_GlobalConfigConsistency_Temporal(t *testing.T) {
+	t.Run("Should preserve pkg/config value inside Temporal activity", func(t *testing.T) {
+		t.Setenv("RUNTIME_ENVIRONMENT", "staging")
+		base := context.Background()
+		mgr := config.NewManager(nil)
+		_, err := mgr.Load(base, config.NewDefaultProvider(), config.NewEnvProvider())
+		require.NoError(t, err)
+		ctx := config.ContextWithManager(base, mgr)
+		suite := &testsuite.WorkflowTestSuite{}
+		helper := helpers.NewTemporalHelper(t, suite, "test-task-queue")
+		defer helper.Cleanup(t)
+		helper.RegisterActivity(readRuntimeEnvActivity)
+		helper.RegisterWorkflow(cfgPropagationWorkflow)
+		helper.ExecuteWorkflowSync(cfgPropagationWorkflow)
+		require.True(t, helper.IsWorkflowCompleted())
+		var got string
+		require.NoError(t, helper.GetWorkflowResult(&got))
+		want := config.FromContext(ctx).Runtime.Environment
+		assert.Equal(t, want, got)
 		_ = mgr.Close(ctx)
 	})
 }

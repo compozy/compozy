@@ -25,6 +25,9 @@ type DefaultServiceFactory struct{}
 // CreateService creates a bootstrap service with direct DB access
 func (f *DefaultServiceFactory) CreateService(ctx context.Context) (*bootstrap.Service, func(), error) {
 	cfg := config.FromContext(ctx)
+	if cfg == nil {
+		return nil, nil, fmt.Errorf("config manager not found in context")
+	}
 
 	// Add timeout for database connection to prevent indefinite hanging
 	dbCtx, cancel := context.WithTimeout(ctx, 10*time.Second)

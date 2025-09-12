@@ -96,8 +96,10 @@ type LLMClient interface {
 
 // Factory creates LLMClient instances based on provider configuration
 type Factory interface {
-	// CreateClient creates a new LLMClient for the given provider
-	CreateClient(config *core.ProviderConfig) (LLMClient, error)
+	// CreateClient creates a new LLMClient for the given provider.
+	// The provided context carries logger/trace/config values and must be
+	// threaded into any SDK initializations that require it (e.g., GoogleAI).
+	CreateClient(ctx context.Context, config *core.ProviderConfig) (LLMClient, error)
 }
 
 // ValidateConversation asserts role-specific constraints for messages:

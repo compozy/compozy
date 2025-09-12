@@ -223,29 +223,31 @@ func (rbs *RuleBasedSummarizer) truncateSummaryIfNeeded(
 	if summaryTokens <= targetTokenCount {
 		return summaryStr
 	}
-	return rbs.performTruncation(summaryStr, targetTokenCount)
+	return rbs.performTruncation(ctx, summaryStr, targetTokenCount)
 }
 
-func (rbs *RuleBasedSummarizer) performTruncation(summaryStr string, targetTokenCount int) string {
+func (rbs *RuleBasedSummarizer) performTruncation(ctx context.Context, summaryStr string, targetTokenCount int) string {
 	if tiktokenCounter, ok := rbs.tokenCounter.(*tokens.TiktokenCounter); ok {
-		return rbs.truncateUsingTokenizer(summaryStr, targetTokenCount, tiktokenCounter)
+		return rbs.truncateUsingTokenizer(ctx, summaryStr, targetTokenCount, tiktokenCounter)
 	}
 	return rbs.truncateUsingCharacterEstimate(summaryStr, targetTokenCount)
 }
 
 func (rbs *RuleBasedSummarizer) truncateUsingTokenizer(
+	ctx context.Context,
 	summaryStr string,
 	targetTokenCount int,
 	tiktokenCounter *tokens.TiktokenCounter,
 ) string {
-	tokenList, err := tiktokenCounter.EncodeTokens(context.Background(), summaryStr)
+	base := context.WithoutCancel(ctx)
+	tokenList, err := tiktokenCounter.EncodeTokens(base, summaryStr)
 	if err != nil {
 		// Fallback to character-based estimation if tokenization fails
 		return rbs.truncateUsingCharacterEstimate(summaryStr, targetTokenCount)
 	}
 	if len(tokenList) > targetTokenCount {
 		tokenList = tokenList[:targetTokenCount-3]
-		truncatedStr, err := tiktokenCounter.DecodeTokens(context.Background(), tokenList)
+		truncatedStr, err := tiktokenCounter.DecodeTokens(base, tokenList)
 		if err != nil {
 			// Fallback to character-based estimation if decoding fails
 			return rbs.truncateUsingCharacterEstimate(summaryStr, targetTokenCount)

@@ -41,7 +41,7 @@ const (
 	scheduleRetryMaxDuration  = 5 * time.Minute
 	scheduleRetryBaseDelay    = 1 * time.Second
 	scheduleRetryMaxDelay     = 30 * time.Second
-	scheduleRetryMaxAttempts  = 20 // ~5 minutes with exponential backoff
+	// Use duration-capped exponential retry (~5 minutes total, 30s max delay)
 	// HTTP server timeouts
 	httpReadTimeout  = 15 * time.Second
 	httpWriteTimeout = 15 * time.Second
@@ -100,9 +100,13 @@ type Server struct {
 	reconciliationState *reconciliationStatus
 }
 
-func NewServer(ctx context.Context, cwd, configFile, envFilePath string) *Server {
+func NewServer(ctx context.Context, cwd, configFile, envFilePath string) (*Server, error) {
 	serverCtx, cancel := context.WithCancel(ctx)
 	cfg := config.FromContext(serverCtx)
+	if cfg == nil {
+		cancel()
+		return nil, fmt.Errorf("configuration missing from context; attach a manager with config.ContextWithManager")
+	}
 
 	return &Server{
 		serverConfig:        &cfg.Server,
@@ -113,7 +117,7 @@ func NewServer(ctx context.Context, cwd, configFile, envFilePath string) *Server
 		cancel:              cancel,
 		shutdownChan:        make(chan struct{}, 1),
 		reconciliationState: &reconciliationStatus{},
-	}
+	}, nil
 }
 
 // convertRateLimitConfig creates a rate limit config from the application config
@@ -164,7 +168,7 @@ func (s *Server) buildRouter(state *appstate.State) error {
 
 		// Use NewManagerWithMetrics if monitoring is initialized
 		if s.monitoring != nil && s.monitoring.IsInitialized() {
-			manager, err = ratelimit.NewManagerWithMetrics(rateLimitConfig, nil, s.monitoring.Meter())
+			manager, err = ratelimit.NewManagerWithMetrics(s.ctx, rateLimitConfig, nil, s.monitoring.Meter())
 		} else {
 			manager, err = ratelimit.NewManager(rateLimitConfig, nil)
 		}
@@ -259,7 +263,7 @@ func (s *Server) setupMonitoring(projectConfig *project.Config) func() {
 			"duration", monitoringDuration)
 		return func() {
 			monitoringCancel()
-			ctx, cancel := context.WithTimeout(context.Background(), monitoringShutdownTimeout)
+			ctx, cancel := context.WithTimeout(context.WithoutCancel(s.ctx), monitoringShutdownTimeout)
 			defer cancel()
 			if err := monitoringService.Shutdown(ctx); err != nil {
 				log.Error("Failed to shutdown monitoring service", "error", err)
@@ -426,7 +430,7 @@ func (s *Server) handleGracefulShutdown(srv *http.Server, cleanupFuncs []func())
 	// Clean up dependencies first
 	s.cleanup(cleanupFuncs)
 	s.cancel()
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), serverShutdownTimeout)
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.WithoutCancel(s.ctx), serverShutdownTimeout)
 	defer shutdownCancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		return fmt.Errorf("server shutdown failed: %w", err)
@@ -479,9 +483,11 @@ func (s *Server) runReconciliationWithRetry(
 	log := logger.FromContext(s.ctx)
 	startTime := time.Now()
 
+	backoff := retry.NewExponential(scheduleRetryBaseDelay)
+	backoff = retry.WithCappedDuration(scheduleRetryMaxDelay, backoff)
 	err := retry.Do(
 		s.ctx,
-		retry.WithMaxRetries(scheduleRetryMaxAttempts, retry.NewExponential(scheduleRetryBaseDelay)),
+		retry.WithMaxDuration(scheduleRetryMaxDuration, backoff),
 		func(ctx context.Context) error {
 			reconcileStart := time.Now()
 			err := scheduleManager.ReconcileSchedules(ctx, workflows)
@@ -524,7 +530,7 @@ func (s *Server) runReconciliationWithRetry(
 			log.Error("Schedule reconciliation exhausted retries",
 				"error", err,
 				"duration", time.Since(startTime),
-				"max_attempts", scheduleRetryMaxAttempts)
+				"max_duration", scheduleRetryMaxDuration)
 		}
 	}
 }

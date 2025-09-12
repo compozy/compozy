@@ -78,8 +78,8 @@ func (uc *ValidateAPIKey) Execute(ctx context.Context) (*model.User, error) {
 		// Acquired semaphore, proceed with background task
 		go func() {
 			defer func() { <-backgroundTaskSem }() // Release semaphore when done
-			// Use background context for this operation to detach it from request lifecycle
-			bgCtx := context.Background()
+			// Detach cancellation but preserve values (logger, tracing)
+			bgCtx := context.WithoutCancel(ctx)
 			if updateErr := uc.repo.UpdateAPIKeyLastUsed(bgCtx, apiKey.ID); updateErr != nil {
 				// Extract logger without request-scoped values
 				bgLog := logger.FromContext(bgCtx)

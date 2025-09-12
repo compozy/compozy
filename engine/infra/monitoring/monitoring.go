@@ -87,7 +87,7 @@ func NewMonitoringService(ctx context.Context, cfg *Config) (*Service, error) {
 	select {
 	case <-ctx.Done():
 		// Clean up if context was canceled
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Second)
 		defer cancel()
 		if shutdownErr := provider.Shutdown(shutdownCtx); shutdownErr != nil {
 			log.Debug("Failed to shutdown provider during cancellation", "error", shutdownErr)

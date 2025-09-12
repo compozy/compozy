@@ -85,7 +85,10 @@ func main() {
     }
 
     // Create server instance
-    srv := server.NewServer(ctx, appConfig, ".", "compozy.yaml", ".env")
+    srv, err := server.NewServer(ctx, ".", "compozy.yaml", ".env")
+    if err != nil {
+        log.Fatal("Failed to create server:", err)
+    }
 
     // Start server (blocks until shutdown)
     if err := srv.Run(); err != nil {
@@ -102,7 +105,10 @@ func main() {
 
 ```go
 // Create server with configuration
-srv := server.NewServer(ctx, appConfig, cwd, configFile, envFile)
+srv, err := server.NewServer(ctx, cwd, configFile, envFile)
+if err != nil {
+    log.Fatal("Failed to create server:", err)
+}
 
 // Start server (this blocks until shutdown signal)
 if err := srv.Run(); err != nil {
@@ -278,7 +284,10 @@ func startProductionServer() error {
     }
 
     // Create server with production settings
-    srv := server.NewServer(ctx, appConfig, ".", "compozy.yaml", ".env")
+    srv, err := server.NewServer(ctx, ".", "compozy.yaml", ".env")
+    if err != nil {
+        log.Fatal("Failed to create server:", err)
+    }
 
     // Run server with graceful shutdown
     return srv.Run()
@@ -424,7 +433,7 @@ type Server struct {
     // private fields
 }
 
-func NewServer(ctx context.Context, appConfig *config.Config, cwd, configFile, envFilePath string) *Server
+func NewServer(ctx context.Context, cwd, configFile, envFilePath string) (*Server, error)
 func (s *Server) Run() error
 func (s *Server) Shutdown()
 func (s *Server) GetReconciliationStatus() (bool, time.Time, int, error)
@@ -537,7 +546,8 @@ func TestServer(t *testing.T) {
     }
 
     t.Run("Should create server instance", func(t *testing.T) {
-        srv := server.NewServer(ctx, appConfig, ".", "test.yaml", ".env")
+        srv, err := server.NewServer(ctx, ".", "test.yaml", ".env")
+        assert.NoError(t, err)
         assert.NotNil(t, srv)
         assert.Equal(t, "localhost", srv.Config.Host)
     })
@@ -592,7 +602,10 @@ func setupTestServer(t *testing.T) *server.Server {
         },
     }
 
-    srv := server.NewServer(ctx, appConfig, ".", "test.yaml", ".env")
+    srv, err := server.NewServer(ctx, ".", "test.yaml", ".env")
+    if err != nil {
+        t.Fatal("Failed to create server:", err)
+    }
 
     t.Cleanup(func() {
         srv.Shutdown()

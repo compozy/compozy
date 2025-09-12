@@ -60,7 +60,12 @@ func RunWithWatcher(ctx context.Context, cwd, configFile, envFilePath string) er
 	config.ManagerFromContext(ctx).OnChange(func(_ *config.Config) {
 		log := logger.FromContext(ctx)
 		log.Info("Configuration change detected, triggering restart")
-		restartChan <- true
+		select {
+		case restartChan <- true:
+			// enqueued
+		default:
+			// restart already pending
+		}
 	})
 
 	return runAndWatchServer(ctx, cwd, configFile, envFilePath, restartChan)
@@ -195,11 +200,14 @@ func runAndWatchServer(
 ) error {
 	log := logger.FromContext(ctx)
 	cfg := config.FromContext(ctx)
+	if cfg == nil {
+		return fmt.Errorf("missing configuration in context")
+	}
 	var retryDelay = initialRetryDelay
 
 	for {
 		// Find available port on each restart
-		availablePort, err := cliutils.FindAvailablePort(cfg.Server.Host, cfg.Server.Port)
+		availablePort, err := cliutils.FindAvailablePort(ctx, cfg.Server.Host, cfg.Server.Port)
 		if err != nil {
 			return fmt.Errorf("no free port found near %d: %w", cfg.Server.Port, err)
 		}
@@ -210,7 +218,10 @@ func runAndWatchServer(
 			cfg.Server.Port = availablePort
 		}
 
-		srv := server.NewServer(ctx, cwd, configFile, envFilePath)
+		srv, err := server.NewServer(ctx, cwd, configFile, envFilePath)
+		if err != nil {
+			return fmt.Errorf("failed to create server: %w", err)
+		}
 		serverErrChan := make(chan error, 1)
 		go func() {
 			serverErrChan <- srv.Run()

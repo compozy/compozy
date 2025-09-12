@@ -143,7 +143,7 @@ func (a *ExecuteSubtask) loadConfigs(
 }
 
 func (a *ExecuteSubtask) normalizeTask(
-	_ context.Context,
+	ctx context.Context,
 	taskConfig *task.Config,
 	workflowState *workflow.State,
 	workflowConfig *workflow.Config,
@@ -155,7 +155,7 @@ func (a *ExecuteSubtask) normalizeTask(
 		return fmt.Errorf("failed to create subtask normalizer: %w", err)
 	}
 	// Create context builder to build proper normalization context
-	contextBuilder, err := shared.NewContextBuilder()
+	contextBuilder, err := shared.NewContextBuilderWithContext(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to create context builder: %w", err)
 	}

@@ -385,6 +385,7 @@ func CreateTestActivities(
 	var memoryManager *memory.Manager
 
 	return worker.NewActivities(
+		context.Background(),
 		projectConfig,
 		workflows,
 		workflowRepo,

@@ -79,7 +79,11 @@ func setupSwaggerAndDocs(router *gin.Engine, prefixURL string) {
 
 // RegisterRoutes orchestrates the complete setup of all HTTP routes
 func RegisterRoutes(ctx context.Context, router *gin.Engine, state *appstate.State, server *Server) error {
-	version, prefixURL, cfg := setupBasicConfiguration(ctx)
+	cfg := config.FromContext(ctx)
+	if cfg == nil {
+		return fmt.Errorf("missing config in context; ensure config.ContextWithManager is set before server init")
+	}
+	version, prefixURL, _ := setupBasicConfiguration(ctx)
 	apiBase := router.Group(prefixURL)
 
 	if err := setupWebhookSystem(ctx, state, router, server); err != nil {
@@ -106,6 +110,9 @@ func registerPublicWebhookRoutes(
 	meter metric.Meter,
 ) error {
 	cfg := config.FromContext(ctx)
+	if cfg == nil {
+		return fmt.Errorf("missing config in context")
+	}
 	limiterMax := cfg.Webhooks.DefaultMaxBody
 	hooks := router.Group(routes.Hooks())
 	hooks.Use(sizemw.BodySizeLimiter(limiterMax))
@@ -260,7 +267,7 @@ func createRootHandler(version, prefixURL string) gin.HandlerFunc {
 
 // setupAuthSystem configures authentication middleware and routes
 func setupAuthSystem(
-	_ context.Context,
+	ctx context.Context,
 	apiBase *gin.RouterGroup,
 	state *appstate.State,
 	cfg *config.Config,
@@ -276,7 +283,7 @@ func setupAuthSystem(
 	}
 
 	if server != nil && server.monitoring != nil && server.monitoring.IsInitialized() {
-		authrouter.RegisterRoutesWithMetrics(apiBase, authFactory, cfg, server.monitoring.Meter())
+		authrouter.RegisterRoutesWithMetrics(ctx, apiBase, authFactory, cfg, server.monitoring.Meter())
 	} else {
 		authrouter.RegisterRoutes(apiBase, authFactory, cfg)
 	}

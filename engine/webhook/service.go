@@ -62,10 +62,16 @@ func NewOrchestrator(
 		maxBody:   maxBody,
 		dedupeTTL: dedupeTTL,
 	}
+	// Guard nil cfg to prevent panics; fall back to zero-values and local defaults below.
+	if cfg == nil {
+		cfg = &config.Config{}
+	}
 	// Ensure Stripe default skew and other verifier defaults use application cfg
 	o.verifierFactory = func(v VerifyConfig) (Verifier, error) {
 		if v.Strategy == StrategyStripe && v.Skew == 0 {
-			v.Skew = cfg.Webhooks.StripeSkew
+			if cfg != nil && cfg.Webhooks.StripeSkew > 0 {
+				v.Skew = cfg.Webhooks.StripeSkew
+			}
 		}
 		return NewVerifier(v)
 	}
@@ -236,7 +242,7 @@ func (o *Orchestrator) checkIdempotency(
 	if kerr != nil || key == "" {
 		return Result{}, nil
 	}
-	ns := KeyWithNamespace(entry.Webhook.Slug, key)
+	ns := KeyWithNamespace(slug, key)
 	if err := o.idem.CheckAndSet(ctx, ns, ttl); err != nil {
 		if errors.Is(err, ErrDuplicate) {
 			log.Info("duplicate webhook request", "slug", slug, "key", key)

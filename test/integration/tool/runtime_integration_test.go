@@ -68,6 +68,7 @@ func TestToolInheritance_Runtime(t *testing.T) {
 
 		// Build Activities with our custom project/workflow configs
 		activities := worker.NewActivities(
+			ctx,
 			prjCfg,
 			[]*workflow.Config{wfCfg},
 			workflowRepo,

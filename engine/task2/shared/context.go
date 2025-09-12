@@ -1,6 +1,7 @@
 package shared
 
 import (
+	"context"
 	"fmt"
 	"maps"
 	"sort"
@@ -81,6 +82,17 @@ func NewContextBuilder() (*ContextBuilder, error) {
 		TaskOutputBuilder:    NewTaskOutputBuilder(),
 		ConfigMerger:         NewConfigMerger(),
 	}, nil
+}
+
+// NewContextBuilderWithContext returns a ContextBuilder initialized with a
+// TaskOutputBuilder that respects limits from the provided context.
+func NewContextBuilderWithContext(ctx context.Context) (*ContextBuilder, error) {
+	b, err := NewContextBuilder()
+	if err != nil {
+		return nil, err
+	}
+	b.TaskOutputBuilder = NewTaskOutputBuilderWithContext(ctx)
+	return b, nil
 }
 
 func (cb *ContextBuilder) buildContextInternal(

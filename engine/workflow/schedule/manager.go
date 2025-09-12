@@ -587,7 +587,7 @@ func (m *manager) UpdateSchedule(ctx context.Context, workflowID string, update 
 	m.logAPIOverrideOperation(ctx, update)
 
 	// Prepare override values
-	values, err := m.prepareOverrideValues(desc, update)
+	values, err := m.prepareOverrideValues(ctx, workflowID, desc, update)
 	if err != nil {
 		return err
 	}
@@ -697,6 +697,8 @@ func (m *manager) constructScheduleFromDescription(desc *client.ScheduleDescript
 
 // prepareOverrideValues prepares the override values from current state and update request
 func (m *manager) prepareOverrideValues(
+	ctx context.Context,
+	workflowID string,
 	desc *client.ScheduleDescription,
 	update UpdateRequest,
 ) (map[string]any, error) {
@@ -717,7 +719,7 @@ func (m *manager) prepareOverrideValues(
 	}
 	if update.Cron != nil {
 		// Validate cron expression before storing
-		if err := m.validateCronExpression(*update.Cron); err != nil {
+		if err := m.validateCronExpression(ctx, workflowID, *update.Cron); err != nil {
 			return nil, err
 		}
 		values["cron"] = *update.Cron
@@ -727,8 +729,8 @@ func (m *manager) prepareOverrideValues(
 }
 
 // validateCronExpression validates a cron expression
-func (m *manager) validateCronExpression(cronExpr string) error {
-	return ValidateCronExpression(context.Background(), cronExpr, "")
+func (m *manager) validateCronExpression(ctx context.Context, workflowID, cronExpr string) error {
+	return ValidateCronExpression(ctx, cronExpr, workflowID)
 }
 
 // updateScheduleInTemporal updates the schedule in Temporal
@@ -913,13 +915,13 @@ func (m *manager) queueUpdateOperations(workQueue chan<- workItem, toUpdate map[
 // queueDeleteOperations queues delete operations
 func (m *manager) queueDeleteOperations(workQueue chan<- workItem, toDelete []string) {
 	for _, scheduleID := range toDelete {
-		// Capture loop variable
+		id := scheduleID // capture
 		workQueue <- workItem{
-			scheduleID: scheduleID,
+			scheduleID: id,
 			operation:  "delete",
 			execute: func(ctx context.Context) error {
-				if err := m.deleteSchedule(ctx, scheduleID); err != nil {
-					return fmt.Errorf("failed to delete schedule %s: %w", scheduleID, err)
+				if err := m.deleteSchedule(ctx, id); err != nil {
+					return fmt.Errorf("failed to delete schedule %s: %w", id, err)
 				}
 				return nil
 			},
@@ -1010,7 +1012,9 @@ func (m *manager) StartPeriodicReconciliation(
 	m.periodicCancel = cancel
 	m.mu.Unlock()
 	// Start periodic reconciliation goroutine
-	m.periodicWG.Go(func() {
+	m.periodicWG.Add(1)
+	go func() {
+		defer m.periodicWG.Done()
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		log.Info("Started periodic schedule reconciliation", "interval", interval, "project_id", m.projectID)
@@ -1020,14 +1024,13 @@ func (m *manager) StartPeriodicReconciliation(
 				log.Info("Stopping periodic schedule reconciliation", "project_id", m.projectID)
 				return
 			case <-ticker.C:
-				// Fetch the latest workflows on each tick
 				workflows := getWorkflows()
 				if err := m.ReconcileSchedules(periodicCtx, workflows); err != nil {
 					log.Error("Periodic reconciliation failed", "error", err)
 				}
 			}
 		}
-	})
+	}()
 	return nil
 }
 

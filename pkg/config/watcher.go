@@ -59,9 +59,9 @@ func (w *Watcher) Watch(ctx context.Context, path string) error {
 	w.mu.Unlock()
 
 	// Stop watching this specific path when the provided context is canceled
-	if ctx != nil {
-		go func(p string, c context.Context) {
-			<-c.Done()
+	if done := ctx.Done(); done != nil {
+		go func(p string, done <-chan struct{}) {
+			<-done
 			// Remove from internal registry first to filter any in-flight events
 			w.mu.Lock()
 			delete(w.watched, p)
@@ -74,7 +74,7 @@ func (w *Watcher) Watch(ctx context.Context, path string) error {
 					_ = err
 				}
 			}
-		}(absPath, ctx)
+		}(absPath, done)
 	}
 
 	// Start the event handler only once

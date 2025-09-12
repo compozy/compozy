@@ -146,8 +146,9 @@ func (rm *ResilientManager) RedactContent(
 	start := time.Now()
 	var result string
 	var resultErr error
-	// Create a context with timeout for the operation
-	ctx, cancel := context.WithTimeout(context.Background(), rm.config.TimeoutDuration*2)
+	// Create a context with timeout for the operation; preserve values but detach cancellation
+	base := context.WithoutCancel(ctx)
+	ctx, cancel := context.WithTimeout(base, rm.config.TimeoutDuration*2)
 	defer cancel()
 	err := rm.runner.Run(ctx, func(_ context.Context) (runErr error) {
 		// Recover from panics and convert to errors

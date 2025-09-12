@@ -95,8 +95,8 @@ func NewMemoryInstance(ctx context.Context, opts *BuilderOptions) (Instance, err
 			defer instance.flushWG.Done()
 			defer instance.flushMutex.Unlock()
 
-			// Use background context since this is independent of any single Append request
-			if err := instance.performAsyncFlushCheck(context.Background()); err != nil {
+			// Use uncancelable context derived from caller to preserve values (logger, config)
+			if err := instance.performAsyncFlushCheck(context.WithoutCancel(ctx)); err != nil {
 				log.Error("Failed to perform async flush check", "error", err, "memory_id", instance.id)
 			}
 		},

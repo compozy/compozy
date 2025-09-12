@@ -433,7 +433,7 @@ func (mm *Manager) createMemoryInstance(
 			bufferSize = mm.appConfig.Runtime.AsyncTokenCounterBufferSize
 		}
 	}
-	asyncTokenCounter := tokens.NewAsyncTokenCounter(tokenCounter, workers, bufferSize)
+	asyncTokenCounter := tokens.NewAsyncTokenCounterWithContext(ctx, tokenCounter, workers, bufferSize)
 	// Use the instance builder
 	instanceBuilder := instance.NewBuilder().
 		WithInstanceID(validatedKey).

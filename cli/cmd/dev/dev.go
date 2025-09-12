@@ -61,7 +61,7 @@ func runDevServer(ctx context.Context, cobraCmd *cobra.Command) error {
 	if err != nil {
 		return err
 	}
-	if err := setupServerPort(cfg); err != nil {
+	if err := setupServerPort(ctx, cfg); err != nil {
 		return err
 	}
 	watch, configFile, err := getCommandFlags(cobraCmd)
@@ -71,7 +71,10 @@ func runDevServer(ctx context.Context, cobraCmd *cobra.Command) error {
 	if watch {
 		return RunWithWatcher(ctx, CWD, configFile, envFilePath)
 	}
-	srv := server.NewServer(ctx, CWD, configFile, envFilePath)
+	srv, err := server.NewServer(ctx, CWD, configFile, envFilePath)
+	if err != nil {
+		return fmt.Errorf("failed to create server: %w", err)
+	}
 	defer config.ManagerFromContext(ctx).Close(ctx)
 	return srv.Run()
 }
@@ -125,8 +128,8 @@ func setupWorkingDirectory(ctx context.Context, cfg *config.Config) (string, err
 }
 
 // setupServerPort finds and configures an available port for the server
-func setupServerPort(cfg *config.Config) error {
-	availablePort, err := cliutils.FindAvailablePort(cfg.Server.Host, cfg.Server.Port)
+func setupServerPort(ctx context.Context, cfg *config.Config) error {
+	availablePort, err := cliutils.FindAvailablePort(ctx, cfg.Server.Host, cfg.Server.Port)
 	if err != nil {
 		return fmt.Errorf("no free port found near %d: %w", cfg.Server.Port, err)
 	}

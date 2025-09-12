@@ -15,6 +15,9 @@ import (
 	"go.temporal.io/sdk/client"
 )
 
+// Precompiled 6-field cron parser to avoid repeated allocations
+var cronParser6Fields = cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
+
 // EnsureTemporalCron ensures the cron expression is in Temporal's expected format.
 // Temporal requires 7 fields for seconds support, so we append year if needed.
 // Returns the converted cron expression.
@@ -284,13 +287,25 @@ func ValidateCronExpression(ctx context.Context, cronExpr string, workflowID str
 		}
 		return nil
 	}
+	// Handle standard macros
+	switch cronExpr {
+	case "@yearly", "@annually":
+		cronExpr = "0 0 0 1 1 *" // sec min hour dom month dow
+	case "@monthly":
+		cronExpr = "0 0 0 1 * *"
+	case "@weekly":
+		cronExpr = "0 0 0 * * 0"
+	case "@daily", "@midnight":
+		cronExpr = "0 0 0 * * *"
+	case "@hourly":
+		cronExpr = "0 0 * * * *"
+	}
 	// Parse as 6 or 7-field cron expression
 	fields := len(strings.Fields(cronExpr))
 	switch fields {
 	case 6:
 		// 6-field format: second minute hour day month weekday
-		parser := cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
-		if _, err := parser.Parse(cronExpr); err != nil {
+		if _, err := cronParser6Fields.Parse(cronExpr); err != nil {
 			log.Error("Schedule validation failed",
 				"workflow_id", workflowID,
 				"error", err,
@@ -300,10 +315,9 @@ func ValidateCronExpression(ctx context.Context, cronExpr string, workflowID str
 	case 7:
 		// 7-field format: second minute hour day month weekday year
 		// Parse first 6 fields with standard parser
-		parser := cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
 		cronFields := strings.Fields(cronExpr)
 		sixFields := strings.Join(cronFields[:6], " ")
-		if _, err := parser.Parse(sixFields); err != nil {
+		if _, err := cronParser6Fields.Parse(sixFields); err != nil {
 			log.Error("Schedule validation failed",
 				"workflow_id", workflowID,
 				"error", err,

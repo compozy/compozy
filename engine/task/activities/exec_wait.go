@@ -67,7 +67,7 @@ func (a *ExecuteWait) Run(ctx context.Context, input *ExecuteWaitInput) (*task.M
 		return nil, fmt.Errorf("failed to create wait normalizer: %w", err)
 	}
 	// Create context builder to build proper normalization context
-	contextBuilder, err := shared.NewContextBuilder()
+	contextBuilder, err := shared.NewContextBuilderWithContext(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create context builder: %w", err)
 	}

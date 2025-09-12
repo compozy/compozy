@@ -40,6 +40,7 @@ type Activities struct {
 }
 
 func NewActivities(
+	ctx context.Context,
 	projectConfig *project.Config,
 	workflows []*workflow.Config,
 	workflowRepo workflow.Repository,
@@ -59,7 +60,7 @@ func NewActivities(
 	}
 	// Create memory activities instance
 	// Note: MemoryActivities will use activity.GetLogger(ctx) internally for proper logging
-	memoryActivities := memacts.NewMemoryActivities(context.Background(), memoryManager)
+	memoryActivities := memacts.NewMemoryActivities(ctx, memoryManager)
 
 	// Create task2 factory
 	envMerger := core.NewEnvMerger()

@@ -71,7 +71,7 @@ func (a *ExecuteAggregate) Run(ctx context.Context, input *ExecuteAggregateInput
 		return nil, fmt.Errorf("failed to create aggregate normalizer: %w", err)
 	}
 	// Create context builder to build proper normalization context
-	contextBuilder, err := shared.NewContextBuilder()
+	contextBuilder, err := shared.NewContextBuilderWithContext(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create context builder: %w", err)
 	}
