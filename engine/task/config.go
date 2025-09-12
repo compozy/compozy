@@ -70,17 +70,21 @@ package task
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"time"
 
 	"dario.cat/mergo"
 
 	"github.com/compozy/compozy/engine/agent"
+	"github.com/compozy/compozy/engine/attachment"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/pkg/ref"
+	"github.com/mitchellh/mapstructure"
 )
 
 // -----------------------------------------------------------------------------
@@ -248,6 +252,9 @@ type BaseConfig struct {
 	// Task only executes if condition evaluates to true
 	// - **Example**: "input.status == 'approved' && input.amount > 1000"
 	Condition string `json:"condition,omitempty"  yaml:"condition,omitempty"  mapstructure:"condition,omitempty"`
+
+	// Attachments declared at the task scope are available to all nested agents/actions.
+	Attachments attachment.Attachments `json:"attachments,omitempty" yaml:"attachments,omitempty" mapstructure:"attachments,omitempty"`
 }
 
 // -----------------------------------------------------------------------------
@@ -2644,11 +2651,39 @@ func (t *Config) AsMap() (map[string]any, error) {
 
 // FromMap updates the provider configuration from a normalized map
 func (t *Config) FromMap(data any) error {
-	config, err := core.FromMapDefault[*Config](data)
+	var cfg *Config
+	// Build a decoder with a hook that converts []map[string]any -> attachment.Attachments
+	attSliceType := reflect.TypeOf(attachment.Attachments{})
+	decodeHook := func(_ reflect.Type, to reflect.Type, v any) (any, error) {
+		if to == attSliceType {
+			// Accept []any | []map[string]any and re-marshal via JSON into Attachments
+			if _, ok := v.([]any); ok {
+				b, err := json.Marshal(v)
+				if err != nil {
+					return nil, err
+				}
+				var atts attachment.Attachments
+				if err := json.Unmarshal(b, &atts); err != nil {
+					return nil, err
+				}
+				return atts, nil
+			}
+		}
+		return v, nil
+	}
+	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
+		WeaklyTypedInput: true,
+		Result:           &cfg,
+		TagName:          "mapstructure",
+		DecodeHook:       mapstructure.ComposeDecodeHookFunc(decodeHook),
+	})
 	if err != nil {
 		return err
 	}
-	return t.Merge(config)
+	if err := decoder.Decode(data); err != nil {
+		return err
+	}
+	return t.Merge(cfg)
 }
 
 func (t *Config) GetSleepDuration() (time.Duration, error) {

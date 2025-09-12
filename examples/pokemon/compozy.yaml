@@ -1,0 +1,22 @@
+name: pokemon
+version: 0.2.0
+description: Router example using unified attachments (image, audio, video)
+
+workflows:
+  - source: ./workflow.yaml
+
+models:
+  - provider: openai
+    model: gpt-4o-mini
+    api_key: "{{ .env.OPENAI_API_KEY }}"
+    default: true
+  - provider: google
+    model: gemini-2.5-flash
+    api_key: "{{ .env.GOOGLE_API_KEY }}"
+
+runtime:
+  type: bun
+  entrypoint: "./entrypoint.ts"
+  permissions:
+    - --allow-read
+    - --allow-net

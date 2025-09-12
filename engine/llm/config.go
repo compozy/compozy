@@ -56,6 +56,12 @@ type Config struct {
 	// proxy for this service instance (e.g., workflow-level MCPs). These are
 	// merged with agent-declared MCPs for registration.
 	RegisterMCPs []mcp.Config
+
+	// AttachmentParts carries precomputed multimodal parts (e.g., from
+	// attachments resolution). When provided, the orchestrator will include
+	// these parts in the user message instead of deriving them from legacy
+	// input fields.
+	AttachmentParts []llmadapter.ContentPart
 }
 
 func DefaultConfig() *Config {
@@ -186,6 +192,19 @@ func WithLLMFactory(factory llmadapter.Factory) Option {
 	}
 }
 
+// WithAttachmentParts injects precomputed multimodal parts for this service
+// instance. Use when higher layers (e.g., task UC) compute attachments and map
+// them to ContentPart values.
+func WithAttachmentParts(parts []llmadapter.ContentPart) Option {
+	return func(c *Config) {
+		c.AttachmentParts = nil
+		if len(parts) > 0 {
+			// Shallow copy is sufficient; ContentPart implementations are small values
+			c.AttachmentParts = append(c.AttachmentParts, parts...)
+		}
+	}
+}
+
 // WithMemoryProvider sets the memory provider for agent memory support
 func WithMemoryProvider(provider MemoryProvider) Option {
 	return func(c *Config) {
@@ -273,6 +292,11 @@ func WithAppConfig(appConfig *config.Config) Option {
 		}
 		if appConfig.LLM.RetryJitterPercent > 0 {
 			c.RetryJitterPercent = appConfig.LLM.RetryJitterPercent
+		}
+
+		// Align MCP client timeout with global LLM config when provided
+		if appConfig.LLM.MCPClientTimeout > 0 {
+			c.Timeout = appConfig.LLM.MCPClientTimeout
 		}
 
 		// Propagate MCP-related options

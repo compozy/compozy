@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"dario.cat/mergo"
+	"github.com/compozy/compozy/engine/attachment"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/schema"
 )
@@ -107,6 +108,9 @@ type ActionConfig struct {
 	// explanatory text or reasoning alongside the structured output.
 	JSONMode bool `json:"json_mode"        yaml:"json_mode"        mapstructure:"json_mode"`
 	CWD      *core.PathCWD
+
+	// Attachments at action scope
+	Attachments attachment.Attachments `json:"attachments,omitempty" yaml:"attachments,omitempty" mapstructure:"attachments,omitempty"`
 }
 
 func (a *ActionConfig) SetCWD(path string) error {

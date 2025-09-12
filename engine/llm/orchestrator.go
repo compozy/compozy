@@ -77,6 +77,9 @@ type OrchestratorConfig struct {
 	MaxConsecutiveSuccesses int  // Threshold for consecutive successes without progress (<=0 uses default)
 	EnableProgressTracking  bool // Enable progress/repetition detection in loop
 	NoProgressThreshold     int  // Iterations without progress before abort (<=0 uses default)
+	// AttachmentParts carries precomputed multimodal parts to include in the
+	// first user message. When present, legacy image_* input fields are ignored.
+	AttachmentParts []llmadapter.ContentPart
 }
 
 // Implementation of LLMOrchestrator
@@ -968,7 +971,7 @@ func (o *llmOrchestrator) buildLLMRequest(
 			"agent": request.Agent.ID,
 		})
 	}
-	messages := o.buildMessages(ctx, promptData.enhancedPrompt, memories)
+	messages := o.buildMessages(ctx, request, promptData.enhancedPrompt, memories)
 
 	// Determine temperature: use agent's configured value (explicit zero allowed; upstream default applies)
 	temperature := request.Agent.Config.Params.Temperature
@@ -1046,12 +1049,17 @@ func (o *llmOrchestrator) enhancePromptIfNeeded(
 
 func (o *llmOrchestrator) buildMessages(
 	ctx context.Context,
+	_ Request,
 	enhancedPrompt string,
 	memories map[string]Memory,
 ) []llmadapter.Message {
+	// Build multimodal parts from precomputed attachments (if any)
+	parts := o.config.AttachmentParts
+
 	messages := []llmadapter.Message{{
 		Role:    "user",
 		Content: enhancedPrompt,
+		Parts:   parts,
 	}}
 	if len(memories) > 0 {
 		messages = PrepareMemoryContext(ctx, memories, messages)

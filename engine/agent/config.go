@@ -10,6 +10,7 @@ import (
 
 	"dario.cat/mergo"
 
+	"github.com/compozy/compozy/engine/attachment"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/schema"
@@ -149,6 +150,9 @@ type Config struct {
 	// Embed LLMProperties with inline tags for backward compatibility
 	// This allows fields to be accessed directly on Config in YAML/JSON
 	LLMProperties `json:",inline" yaml:",inline" mapstructure:",squash"`
+
+	// Attachments declared at the agent scope.
+	Attachments attachment.Attachments `json:"attachments,omitempty" yaml:"attachments,omitempty" mapstructure:"attachments,omitempty"`
 
 	// Resource identifier for the autoloader system (must be `"agent"`).
 	// This field enables automatic discovery and registration of agent configurations.
