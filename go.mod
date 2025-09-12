@@ -1,6 +1,6 @@
 module github.com/compozy/compozy
 
-go 1.25.0
+go 1.25.1
 
 require (
 	dario.cat/mergo v1.0.2
