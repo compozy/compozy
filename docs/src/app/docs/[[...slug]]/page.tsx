@@ -1,15 +1,17 @@
 import { getMDXComponents } from "@/components/ui/mdx-components";
+import { baseUrl } from "@/lib/metadata";
 import { source } from "@/lib/source";
 import { createRelativeLink } from "fumadocs-ui/mdx";
 import { DocsBody, DocsDescription, DocsPage, DocsTitle } from "fumadocs-ui/page";
 import { notFound } from "next/navigation";
-import { LLMCopyButton, ViewOptions } from "../../../components/ai/page-actions";
+import { LLMCopyButton, OpenWithAI, ViewOptions } from "../../../components/ai/page-actions";
 
 export default async function Page(props: { params: Promise<{ slug?: string[] }> }) {
   const params = await props.params;
   const page = source.getPage(params.slug);
   if (!page) notFound();
   const MDXContent = page.data.body;
+  const absoluteUrl = new URL(page.url, baseUrl).toString();
 
   return (
     <DocsPage toc={page.data.toc} full={page.data.full} tableOfContent={{ style: "clerk" }}>
@@ -18,6 +20,7 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
         <DocsDescription>{page.data.description}</DocsDescription>
         <div className="flex flex-row gap-2 items-center border-b pb-6">
           <LLMCopyButton markdownUrl={`${page.url}.mdx`} />
+          <OpenWithAI pageUrl={absoluteUrl} />
           <ViewOptions
             markdownUrl={`${page.url}.mdx`}
             githubUrl={`https://github.com/compozy/compozy/blob/main/docs/content/docs/${page.path}`}
