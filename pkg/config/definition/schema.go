@@ -15,6 +15,7 @@ var (
 func CreateRegistry() *Registry {
 	registry := NewRegistry()
 
+	registerModeFields(registry)
 	registerServerFields(registry)
 	registerDatabaseFields(registry)
 	registerTemporalFields(registry)
@@ -31,6 +32,17 @@ func CreateRegistry() *Registry {
 	registerMCPProxyFields(registry)
 	registerWebhooksFields(registry)
 	return registry
+}
+
+func registerModeFields(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path:    "mode",
+		Default: "distributed",
+		CLIFlag: "",
+		EnvVar:  "APP_MODE",
+		Type:    reflect.TypeOf(""),
+		Help:    "Application mode: standalone or distributed. Defaults to distributed (tests default to standalone).",
+	})
 }
 
 func registerServerFields(registry *Registry) {

@@ -105,10 +105,16 @@ func SetupGlobalConfig(cmd *cobra.Command) error {
 		config.NewEnvProvider(),
 	}
 
-	// Add config file if specified
-	configFile, err := cmd.Flags().GetString("config")
-	if err != nil {
-		return fmt.Errorf("failed to get config file: %w", err)
+	// Add config file if specified (support root-level persistent flags)
+	var configFile string
+	if f := cmd.PersistentFlags().Lookup("config"); f != nil {
+		if v, err := cmd.PersistentFlags().GetString("config"); err == nil {
+			configFile = v
+		}
+	} else if f := cmd.Flags().Lookup("config"); f != nil {
+		if v, err := cmd.Flags().GetString("config"); err == nil {
+			configFile = v
+		}
 	}
 	if configFile != "" {
 		sources = append(sources, config.NewYAMLProvider(configFile))
@@ -130,6 +136,11 @@ func SetupGlobalConfig(cmd *cobra.Command) error {
 		return fmt.Errorf("failed to initialize configuration: %w", err)
 	}
 	ctx = config.ContextWithManager(ctx, mgr)
+
+	// Inject application mode into context early for wiring decisions
+	if cfg := config.FromContext(ctx); cfg != nil {
+		ctx = config.WithMode(ctx, cfg.Mode)
+	}
 
 	// Setup logger based on configuration
 	cfg := config.FromContext(ctx)

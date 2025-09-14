@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/pkg/config/definition"
+	"github.com/compozy/compozy/pkg/logger"
 )
 
 // Config represents the complete configuration for the Compozy system.
@@ -37,10 +38,22 @@ import (
 //	  environment: development
 //	  log_level: info
 type Config struct {
+	// Mode selects the overall operation mode for Compozy.
+	//
+	// Values:
+	//   - "standalone": Embedded, single-binary/dev-friendly mode
+	//   - "distributed": External infrastructure (Postgres/Redis/Temporal) mode
+	//
+	// Defaults:
+	//   - Tests: defaults to "standalone"
+	//   - CLI/runtime: defaults to "distributed" unless overridden by YAML
+	//
+	// $ref: schema://application#mode
+	Mode string `koanf:"mode"   json:"mode"   yaml:"mode"   env:"APP_MODE"`
 	// Server configures the HTTP API server settings.
 	//
 	// $ref: schema://application#server
-	Server ServerConfig `koanf:"server" json:"server" yaml:"server" mapstructure:"server" validate:"required"`
+	Server ServerConfig `koanf:"server" json:"server" yaml:"server"                mapstructure:"server" validate:"required"`
 
 	// Database configures the PostgreSQL database connection.
 	//
@@ -1147,13 +1160,21 @@ type Metadata struct {
 
 // Default returns a Config with default values for development.
 func Default() *Config {
-	return defaultFromRegistry()
+	cfg := defaultFromRegistry()
+	// Tests should default to standalone to avoid external infra dependencies
+	// and heavy integration requirements. Runtime/CLI keeps distributed by default
+	// unless YAML overrides it.
+	if logger.IsTestEnvironment() {
+		cfg.Mode = "standalone"
+	}
+	return cfg
 }
 
 // defaultFromRegistry creates a Config using the centralized registry
 func defaultFromRegistry() *Config {
 	registry := definition.CreateRegistry()
 	return &Config{
+		Mode:        getString(registry, "mode"),
 		Server:      buildServerConfig(registry),
 		Database:    buildDatabaseConfig(registry),
 		Temporal:    buildTemporalConfig(registry),

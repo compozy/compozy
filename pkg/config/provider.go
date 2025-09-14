@@ -293,6 +293,8 @@ func (d *defaultProvider) Close() error {
 func createDefaultMap() map[string]any {
 	defaultConfig := Default()
 	result := make(map[string]any)
+	// top-level defaults
+	result["mode"] = defaultConfig.Mode
 	addCoreDefaults(result, defaultConfig)
 	addServiceDefaults(result, defaultConfig)
 	addInfraDefaults(result, defaultConfig)

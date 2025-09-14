@@ -327,6 +327,11 @@ func (l *loader) unmarshalAndValidate() (*Config, error) {
 		return nil, fmt.Errorf("failed to unmarshal configuration: %w", err)
 	}
 
+	// Normalize fields that require formatting before validation
+	if config.Mode != "" {
+		config.Mode = NormalizeMode(config.Mode)
+	}
+
 	if err := l.Validate(&config); err != nil {
 		return nil, fmt.Errorf("configuration validation failed: %w", err)
 	}
@@ -388,48 +393,78 @@ func (l *loader) trackSource(key string, source SourceType) {
 
 // validateCustom performs custom validation beyond struct tags.
 func (l *loader) validateCustom(config *Config) error {
-	// Validate database configuration
-	if config.Database.ConnString == "" {
-		// If connection string is not provided, ensure individual components are
-		if config.Database.Host == "" || config.Database.Port == "" ||
-			config.Database.User == "" || config.Database.DBName == "" {
+	if err := validateMode(config); err != nil {
+		return err
+	}
+	if err := validateDatabase(config); err != nil {
+		return err
+	}
+	if err := validateTemporal(config); err != nil {
+		return err
+	}
+	if err := validateDispatcherTiming(config); err != nil {
+		return err
+	}
+	if err := validatePorts(config); err != nil {
+		return err
+	}
+	if err := validateAuth(config); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateMode(cfg *Config) error {
+	if cfg.Mode != "" && cfg.Mode != ModeStandalone && cfg.Mode != ModeDistributed {
+		return fmt.Errorf("invalid mode: %s (allowed: standalone, distributed)", cfg.Mode)
+	}
+	return nil
+}
+
+func validateDatabase(cfg *Config) error {
+	if cfg.Database.ConnString == "" {
+		if cfg.Database.Host == "" || cfg.Database.Port == "" || cfg.Database.User == "" || cfg.Database.DBName == "" {
 			return fmt.Errorf("database configuration incomplete: either conn_string or individual components required")
 		}
 	}
+	return nil
+}
 
-	// Validate Temporal configuration
-	if config.Temporal.HostPort == "" {
+func validateTemporal(cfg *Config) error {
+	if cfg.Temporal.HostPort == "" {
 		return fmt.Errorf("temporal host_port is required")
 	}
+	return nil
+}
 
-	// Validate dispatcher timing constraints
-	if config.Runtime.DispatcherHeartbeatTTL <= config.Runtime.DispatcherHeartbeatInterval {
+func validateDispatcherTiming(cfg *Config) error {
+	if cfg.Runtime.DispatcherHeartbeatTTL <= cfg.Runtime.DispatcherHeartbeatInterval {
 		return fmt.Errorf("dispatcher heartbeat TTL must be greater than heartbeat interval")
 	}
-
-	if config.Runtime.DispatcherStaleThreshold <= config.Runtime.DispatcherHeartbeatTTL {
+	if cfg.Runtime.DispatcherStaleThreshold <= cfg.Runtime.DispatcherHeartbeatTTL {
 		return fmt.Errorf("dispatcher stale threshold must be greater than heartbeat TTL")
 	}
+	return nil
+}
 
-	// Validate all port configurations consistently
-	if config.Redis.Port != "" {
-		if err := validateTCPPort(config.Redis.Port, "Redis port"); err != nil {
+func validatePorts(cfg *Config) error {
+	if cfg.Redis.Port != "" {
+		if err := validateTCPPort(cfg.Redis.Port, "Redis port"); err != nil {
 			return err
 		}
 	}
-
-	// Validate database port if specified
-	if config.Database.Port != "" {
-		if err := validateTCPPort(config.Database.Port, "Database port"); err != nil {
+	if cfg.Database.Port != "" {
+		if err := validateTCPPort(cfg.Database.Port, "Database port"); err != nil {
 			return err
 		}
 	}
+	return nil
+}
 
-	// Validate Auth configuration
-	if config.Server.Auth.Enabled && config.Server.Auth.AdminKey == "" {
+func validateAuth(cfg *Config) error {
+	if cfg.Server.Auth.Enabled && cfg.Server.Auth.AdminKey == "" {
 		return fmt.Errorf("server.auth.admin_key is required when authentication is enabled")
 	}
-
 	return nil
 }
 

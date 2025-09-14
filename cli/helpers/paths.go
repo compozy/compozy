@@ -14,10 +14,18 @@ import (
 // This function is context-independent and loads .env files into OS environment
 // before configuration system initialization
 func LoadEnvironmentFile(cmd *cobra.Command) error {
-	// Get env file path from command flag
-	envFile, err := cmd.Flags().GetString("env-file")
-	if err != nil {
-		return fmt.Errorf("failed to get env-file flag: %w", err)
+	// Get env file path from command flag (support root-level persistent flags)
+	var envFile string
+	if f := cmd.PersistentFlags().Lookup("env-file"); f != nil {
+		if v, err := cmd.PersistentFlags().GetString("env-file"); err == nil {
+			envFile = v
+		}
+	} else if f := cmd.Flags().Lookup("env-file"); f != nil {
+		if v, err := cmd.Flags().GetString("env-file"); err == nil {
+			envFile = v
+		}
+	} else {
+		envFile = ""
 	}
 
 	// If no env file specified, try default .env
