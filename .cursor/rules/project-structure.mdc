@@ -71,7 +71,7 @@ The MCP (Model Context Protocol) integration enables external tool servers:
 - **pkg/mcp-proxy/**: HTTP proxy for MCP servers (runs on port 6001)
 - **engine/llm/proxy_tool.go**: Tool for proxying MCP calls to external servers
 
-Configuration examples available in compozy-examples.mdc.
+Configuration examples available in compozy/examples.mdc.
 </mcp_integration>
 
 ## Runtime Environment

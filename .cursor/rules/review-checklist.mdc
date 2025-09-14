@@ -1,11 +1,4 @@
 ---
-description: Code review guidelines and checklist for Compozy development
-globs:
-  - "**/*.go"
-  - "**/*.yaml"
-  - "**/*.yml"
-  - "**/Makefile"
-  - "**/*.md"
 alwaysApply: true
 ---
 

@@ -37,7 +37,7 @@ You are a specialized **deep analysis meta-agent** focused on producing exhausti
 All findings and solution strategies must be validated against the workspace rules. Cross-check at minimum:
 
 - Architecture & Design: @architecture.mdc, @go-coding-standards.mdc, @backwards-compatibility.mdc
-- APIs & Docs: @api-standards.mdc, @quality-security.md, @core-libraries.mdc
+- APIs & Docs: @api-standards.mdc, @core-libraries.mdc
 - Testing & Review: @test-standards.mdc, @task-review.mdc (or project equivalent), docs/cursor_rules
 
 Compliance protocol:

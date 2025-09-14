@@ -1,3 +1,7 @@
+---
+alwaysApply: false
+---
+
 # Compozy Rule — Tool Configuration
 
 ## 1. Overview
@@ -6,7 +10,7 @@ Tools in Compozy are reusable, executable components that provide specific funct
 
 **When to use this:**
 - Creating custom business logic tools (TypeScript/JavaScript)
-- Integrating with external APIs or services 
+- Integrating with external APIs or services
 - Wrapping system commands or CLI tools
 - Defining reusable components for agents
 - Setting up tool validation schemas and environment configuration
@@ -26,7 +30,7 @@ input:
   type: "object"
   properties:
     param1:
-      type: "string" 
+      type: "string"
       description: "Description of parameter"
   required: ["param1"]
 
@@ -52,7 +56,7 @@ runtime:
   entrypoint: "./entrypoint.ts"
   permissions:
     - --allow-read
-    - --allow-write 
+    - --allow-write
     - --allow-net
     - --allow-env
 
@@ -86,7 +90,7 @@ export default {
 
 **Key Schema References:**
 - `input`: `#/$defs/Schema` - JSON Schema Draft 7 for input validation
-- `output`: `#/$defs/Schema` - JSON Schema Draft 7 for output validation  
+- `output`: `#/$defs/Schema` - JSON Schema Draft 7 for output validation
 - `with`: `#/$defs/Input` - Default parameters object
 - `env`: `#/$defs/EnvMap` - Environment variables (string keys/values)
 - `config`: `#/$defs/Input` - Static configuration separate from runtime input
@@ -103,7 +107,7 @@ export default {
 // weather_tool.ts
 interface WeatherData {
   temperature: number;
-  humidity: number; 
+  humidity: number;
   weather: string;
 }
 
@@ -131,7 +135,7 @@ tools:
       $ref: local::schemas.#(id=="city_input")
 ```
 
-### Memory Operations Tool  
+### Memory Operations Tool
 *From `examples/memory/memory_tool.ts`*
 
 ```typescript
@@ -147,7 +151,7 @@ export function memoryTool(input: MemoryInput): MemoryOutput {
   switch (input.operation) {
     case "read":
       return handleRead(input.memory_key);
-    case "append": 
+    case "append":
       return handleAppend(input.memory_key, input.message);
   }
 }
@@ -239,7 +243,7 @@ env:
 - **Wrong Entrypoint**: Export function names must match tool IDs in snake_case
 - **Type Mismatch**: Runtime type must match project setup (`bun` vs `node`)
 
-### Schema Validation Problems  
+### Schema Validation Problems
 - **Invalid JSON Schema**: Input/output schemas must be valid JSON Schema Draft 7
 - **Required Fields**: Forgetting to mark required parameters in input schema
 - **Type Mismatches**: Tool implementation types not matching schema definitions

@@ -1,3 +1,7 @@
+---
+alwaysApply: false
+---
+
 # Compozy Rule — Environment Configuration & Deployment
 
 <purpose>
@@ -8,7 +12,7 @@ Covers how end users configure environment-specific settings, manage deployment 
 
 Environment configuration in Compozy provides:
 - **Environment Variable Resolution**: Template-based configuration with precedence rules
-- **Multi-Environment Support**: Development, staging, and production configurations  
+- **Multi-Environment Support**: Development, staging, and production configurations
 - **Docker Deployment**: Container orchestration with health checks and graceful shutdown
 - **Configuration Precedence**: CLI flags > Config file > Environment variables > Defaults
 - **Security**: Template-based API key management and secrets handling
@@ -61,7 +65,7 @@ models:
   - provider: openai
     model: gpt-4
     api_key: "{{ .env.OPENAI_API_KEY }}"
-  - provider: anthropic  
+  - provider: anthropic
     model: claude-3-sonnet
     api_key: "{{ .env.ANTHROPIC_API_KEY }}"
 
@@ -75,16 +79,16 @@ runtime:
 
 cache:
   url: "{{ .env.REDIS_URL }}"
-  
+
 workflows:
   - source: ./workflows/main.yaml
 ```
 
 ## 3. Schema Alignment
 
-**Schema References**: 
+**Schema References**:
 - `schemas/config.json#/properties/envFile` - Environment file loading
-- `schemas/provider.json#/properties/api_key` - Template-based API key configuration  
+- `schemas/provider.json#/properties/api_key` - Template-based API key configuration
 - `schemas/compozy.json#/properties/models` - Provider configuration with environment templates
 - `cluster/compozy.Dockerfile` - Production Docker configuration
 - `cluster/docker-compose.yml` - Development Docker orchestration
@@ -105,7 +109,7 @@ workflows:
 
 **Development Environment**:
 ```yaml
-# compozy.dev.yaml  
+# compozy.dev.yaml
 runtime:
   log_level: debug
   tool_execution_timeout: "300s"
@@ -172,7 +176,7 @@ services:
 ```dockerfile
 # Production environment variables with defaults
 ENV RUNTIME_ENVIRONMENT=${RUNTIME_ENVIRONMENT:-production}
-ENV SERVER_HOST=${SERVER_HOST:-0.0.0.0}  
+ENV SERVER_HOST=${SERVER_HOST:-0.0.0.0}
 ENV SERVER_PORT=${SERVER_PORT:-5001}
 ENV DB_SSL_MODE=${DB_SSL_MODE:-require}
 
@@ -191,7 +195,7 @@ CMD ["/usr/local/bin/compozy", "server"]
 # Development
 compozy dev --env-file .env.development
 
-# Staging  
+# Staging
 compozy start --env-file .env.staging --config staging.yaml
 
 # Production
@@ -202,7 +206,7 @@ compozy server --env-file .env.production --config production.yaml
 
 ### Precedence Order (highest to lowest)
 1. **CLI Flags**: `--port 8080`, `--debug`
-2. **Config File**: Values from `compozy.yaml`  
+2. **Config File**: Values from `compozy.yaml`
 3. **Environment Variables**: `COMPOZY_*` prefixed variables
 4. **Defaults**: Built-in default values
 
@@ -213,7 +217,7 @@ COMPOZY_SERVER_HOST=0.0.0.0
 COMPOZY_SERVER_PORT=8080
 COMPOZY_DEBUG=true
 
-# Runtime configuration  
+# Runtime configuration
 RUNTIME_LOG_LEVEL=info
 TOOL_EXECUTION_TIMEOUT=60s
 RUNTIME_TYPE=bun
@@ -235,7 +239,7 @@ port: "{{ .env.PORT | default '3000' | int }}"
 # Conditional configuration
 ssl_mode: "{{ if eq .env.NODE_ENV 'production' }}require{{ else }}disable{{ end }}"
 
-# Complex template with multiple variables  
+# Complex template with multiple variables
 database_url: "postgres://{{ .env.DB_USER }}:{{ .env.DB_PASSWORD }}@{{ .env.DB_HOST }}:{{ .env.DB_PORT }}/{{ .env.DB_NAME }}"
 ```
 
@@ -265,13 +269,13 @@ services:
       retries: 3
       start_period: 30s
     restart: unless-stopped
-    
+
   nginx:
     image: nginx:alpine
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
     ports:
-      - "443:443" 
+      - "443:443"
       - "80:80"
     depends_on:
       - compozy
@@ -290,7 +294,7 @@ Compozy provides built-in health checks via:
   "status": "ok",
   "timestamp": "2024-01-15T10:30:00Z",
   "database": {"status": "healthy"},
-  "redis": {"status": "healthy"},  
+  "redis": {"status": "healthy"},
   "worker": {"status": "running"},
   "reconciliation": {
     "ready": true,
@@ -340,7 +344,7 @@ Compozy handles `SIGINT` and `SIGTERM` signals with:
 # Validate configuration
 compozy config validate --config production.yaml --env-file .env.production
 
-# Test health endpoint  
+# Test health endpoint
 curl http://localhost:5001/health
 
 # Check Docker health

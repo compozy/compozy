@@ -1,3 +1,7 @@
+---
+alwaysApply: false
+---
+
 # Compozy Rule — Scheduling and Triggers
 
 ## 1. Overview
@@ -73,7 +77,7 @@ Compozy supports three schedule formats based on `schemas/workflow.json#Schedule
 ```yaml
 schedule:
   cron: "@every 15s"    # Every 15 seconds
-  cron: "@every 5m"     # Every 5 minutes  
+  cron: "@every 5m"     # Every 5 minutes
   cron: "@every 1h30m"  # Every 1 hour 30 minutes
   cron: "@every 24h"    # Every 24 hours
 ```
@@ -112,25 +116,25 @@ schedule:
 schedule:
   # Cron expression (required)
   cron: "0 0 9 * * MON-FRI"
-  
+
   # Timezone (optional, default UTC)
   # Uses IANA timezone names
   timezone: "America/New_York"
-  
+
   # Schedule enabled state (optional, default true)
   enabled: true
-  
+
   # Overlap policy (optional, default skip)
   overlap_policy: "skip"
-  
+
   # Execution window (optional)
   start_at: "2024-01-01T00:00:00Z"
   end_at: "2024-12-31T23:59:59Z"
-  
+
   # Random execution delay (optional)
   # Helps distribute load
   jitter: "5m"
-  
+
   # Default input for scheduled runs (optional)
   input:
     source: "scheduled"
@@ -153,7 +157,7 @@ triggers:
         order_id: { type: string }
         customer_id: { type: string }
         total_amount: { type: number }
-        items: 
+        items:
           type: array
           items: { type: string }
       required: [order_id, customer_id, total_amount]
@@ -230,7 +234,7 @@ schedule:
 ### allow
 ```yaml
 schedule:
-  overlap_policy: "allow"  
+  overlap_policy: "allow"
 ```
 - Allows multiple executions to run concurrently
 - Use when executions are independent and can safely run in parallel
@@ -265,7 +269,7 @@ PATCH /api/v0/schedules/{workflow_id}
 Content-Type: application/json
 { "enabled": false }
 
-# Enable schedule  
+# Enable schedule
 PATCH /api/v0/schedules/{workflow_id}
 Content-Type: application/json
 { "enabled": true }
@@ -315,7 +319,7 @@ schedule:
   end_at: "2024-09-01T00:00:00Z"
 ```
 
-#### High-Frequency with Load Distribution  
+#### High-Frequency with Load Distribution
 ```yaml
 schedule:
   cron: "*/10 * * * * *"  # Every 10 seconds
@@ -348,7 +352,7 @@ tasks:
   - id: process-data
     type: basic
     $use: agent(local::agents.#(id="data-processor"))
-    
+
   - id: signal-completion
     type: signal
     signal:
@@ -387,7 +391,7 @@ config:
     initial_interval: "5m"
     maximum_interval: "1h"
     backoff_coefficient: 2.0
-    
+
   on_error:
     next: "handle-schedule-failure"
     with:
@@ -398,7 +402,7 @@ tasks:
   - id: main-task
     type: basic
     $use: agent(local::agents.#(id="processor"))
-    
+
   - id: handle-schedule-failure
     type: basic
     $use: agent(local::agents.#(id="error-handler"))
@@ -415,12 +419,12 @@ tasks:
 
 **Required fields from schemas:**
 - `schedule.cron` (required) - Cron expression string
-- `triggers[].type` (required) - Must be "signal" for signal triggers  
+- `triggers[].type` (required) - Must be "signal" for signal triggers
 - `triggers[].name` (required) - Unique trigger identifier
 
 **Enums and defaults:**
 - `overlap_policy`: skip (default), allow, buffer_one, cancel_other
-- `enabled`: true (default) 
+- `enabled`: true (default)
 - `timezone`: "UTC" (default)
 
 ## 9. Examples (from repo)
@@ -439,7 +443,7 @@ tasks:
 ## 10. Pitfalls & Gotchas
 
 1. **Cron Field Count**: Compozy expects 6-field format; automatically appends wildcard year for Temporal compatibility
-2. **Timezone Names**: Use IANA timezone names (e.g., "America/New_York", not "EST") 
+2. **Timezone Names**: Use IANA timezone names (e.g., "America/New_York", not "EST")
 3. **Overlap Policy Defaults**: Default is "skip" - explicitly set if you need different behavior
 4. **Jitter Format**: Use Go duration format ("5m", "30s") not human text ("5 minutes")
 5. **Signal Names**: Must be unique across the system; use workflow/task IDs in signal names
@@ -450,7 +454,7 @@ tasks:
 ## 11. Checklist
 
 - [ ] Cron expression uses 6-field format with valid values
-- [ ] Timezone uses IANA names if specified  
+- [ ] Timezone uses IANA names if specified
 - [ ] Overlap policy chosen based on concurrency requirements
 - [ ] Jitter uses Go duration format if specified
 - [ ] Signal triggers have unique names across workflows
@@ -473,5 +477,5 @@ tasks:
 
 **Save configuration:**
 - Place schedule config in workflow YAML files
-- Use `compozy.yaml` to reference scheduled workflows  
+- Use `compozy.yaml` to reference scheduled workflows
 - Commit API management scripts (`api.http`) for team use

@@ -1,3 +1,7 @@
+---
+alwaysApply: false
+---
+
 # Compozy Rule — Memory Systems
 
 ## 1. Overview
@@ -174,12 +178,12 @@ privacy_policy:
     - '\b(?:\+?1[-.\s]?)?\(?[2-9]\d{2}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b'
     # Custom patterns
     - '\baccount\s*#?\s*\d{6,12}\b'
-  
+
   # Message types that shouldn't be persisted
   non_persistable_message_types:
     - system
     - tool
-  
+
   default_redaction_string: "[REDACTED]"
 
 flushing:
@@ -226,7 +230,7 @@ tasks:
     operation: read
     memory_ref: user_conversation
     key_template: "user:{{.workflow.input.user_id}}:profile"
-    
+
   # Write operation (overwrites existing)
   - id: initialize_user
     type: memory
@@ -238,7 +242,7 @@ tasks:
       content: |
         User Profile: {{.workflow.input.user_data.name}}
         Created: {{now | date "2006-01-02 15:04:05"}}
-        
+
   # Append operation (adds to existing)
   - id: update_profile
     type: memory
@@ -248,7 +252,7 @@ tasks:
     payload:
       role: user
       content: "Profile updated at {{now}}"
-      
+
   # Statistics operation
   - id: get_stats
     type: memory
@@ -258,7 +262,7 @@ tasks:
     stats_config:
       include_content: true
       group_by: user
-      
+
   # Health check operation
   - id: health_check
     type: memory
@@ -268,7 +272,7 @@ tasks:
     health_config:
       include_stats: true
       check_connectivity: true
-      
+
   # Flush operation (trigger cleanup)
   - id: flush_memory
     type: memory
@@ -280,7 +284,7 @@ tasks:
       dry_run: false
       force: false
       threshold: 0.8
-      
+
   # Clear operation (remove all matching keys)
   - id: cleanup_data
     type: memory
@@ -290,7 +294,7 @@ tasks:
     clear_config:
       confirm: true
       backup: true
-      
+
   # Delete operation (remove specific key)
   - id: delete_profile
     type: memory
@@ -338,7 +342,7 @@ token_provider:
   api_key_env: OPENAI_API_KEY
   settings:
     timeout: "30s"
-    
+
 # Alternative providers
 # provider: anthropic, google, cohere, deepseek
 # Falls back to tiktoken if API unavailable
@@ -387,19 +391,19 @@ privacy_policy:
     # Financial data
     - '\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{3,6}\b'  # Credit cards
     - '\baccount\s*#?\s*\d{6,12}\b'                    # Account numbers
-    
+
     # Personal identifiers
     - '\b\d{3}-\d{2}-\d{4}\b'                          # SSN (US)
     - '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'  # Email
     - '\b(?:\+?1[-.\s]?)?\(?[2-9]\d{2}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b'  # Phone
-    
+
     # Technical identifiers
     - '\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b'  # UUID
     - '\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b'  # IPv4
-    
+
   # Custom redaction string
   default_redaction_string: "[CONFIDENTIAL]"
-  
+
   # Message types to exclude from persistence
   non_persistable_message_types:
     - system      # System messages

@@ -1,7 +1,6 @@
 ---
-description: Core Go patterns and conventions required for Compozy development
-globs: **/*.go
-alwaysApply: true
+globs: *.go
+alwaysApply: false
 ---
 
 # Core Go Patterns & Conventions

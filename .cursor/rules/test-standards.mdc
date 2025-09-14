@@ -1,3 +1,8 @@
+---
+globs: *_test.go
+alwaysApply: false
+---
+
 # Test Standards for Compozy Go Development
 
 <critical>

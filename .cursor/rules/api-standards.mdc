@@ -1,7 +1,6 @@
 ---
-description: API development standards and patterns for Compozy
 globs: **/*.go
-alwaysApply: true
+alwaysApply: false
 ---
 
 # API Development Standards

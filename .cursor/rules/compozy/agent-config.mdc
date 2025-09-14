@@ -1,10 +1,7 @@
 ---
-description: "Agent configuration patterns and examples for Compozy agents"
-globs:
-  - "**/agents/*.yaml"
-  - "**/agent.yaml"
 alwaysApply: false
 ---
+
 # Compozy Agent Configuration Examples
 
 <configuration_overview type="agent_config">

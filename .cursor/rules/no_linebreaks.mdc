@@ -1,6 +1,6 @@
 ---
-description: Formatting rule to eliminate unnecessary blank lines within function bodies and code blocks for cleaner, more compact code
-alwaysApply: true
+globs: *.go
+alwaysApply: false
 ---
 
 <formatting_rule type="linebreaks">

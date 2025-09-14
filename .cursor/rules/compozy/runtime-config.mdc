@@ -1,3 +1,7 @@
+---
+alwaysApply: false
+---
+
 # Compozy Rule — Runtime Configuration
 
 Runtime configuration in Compozy controls the JavaScript/TypeScript execution environment for custom tools, manages security permissions, and optimizes performance for your project's specific needs.
@@ -39,7 +43,7 @@ Global runtime settings are configured in the main application configuration and
 ```yaml
 # Application config (config.yaml)
 runtime:
-  runtime_type: "bun"                           # Default: "bun" 
+  runtime_type: "bun"                           # Default: "bun"
   entrypoint_path: "./tools.ts"                 # Default entrypoint
   tool_execution_timeout: "60s"                 # Default: 60s
   bun_permissions:                              # Security permissions
@@ -60,7 +64,7 @@ runtime:
   - `entrypoint`: Path to entrypoint file
   - `permissions`: Security permissions array
 
-### Global Configuration Schema References  
+### Global Configuration Schema References
 - `schemas/config.json#RuntimeConfig`: System-wide runtime configuration
   - `runtime_type`: Global runtime default (validate: "oneof=bun node")
   - `entrypoint_path`: Global entrypoint default
@@ -74,7 +78,7 @@ runtime:
 
 ### Default Values (from schemas)
 - `runtime_type`: "bun"
-- `entrypoint_path`: "./tools.ts"  
+- `entrypoint_path`: "./tools.ts"
 - `tool_execution_timeout`: 60s
 - `bun_permissions`: ["--allow-read"]
 
@@ -87,7 +91,7 @@ runtime:
   entrypoint: "./entrypoint.ts"
   permissions:
     - --allow-read           # File system read access
-    - --allow-write          # File system write access  
+    - --allow-write          # File system write access
     - --allow-net            # Network access
     - --allow-env            # Environment variable access
     - --allow-run            # Process spawning (use carefully)
@@ -197,7 +201,7 @@ TOOL_EXECUTION_TIMEOUT="120s"
 # Bun permissions
 RUNTIME_BUN_PERMISSIONS="--allow-read,--allow-net,--allow-write"
 
-# Performance tuning  
+# Performance tuning
 RUNTIME_ASYNC_TOKEN_COUNTER_WORKERS=5
 RUNTIME_ASYNC_TOKEN_COUNTER_BUFFER_SIZE=1000
 
@@ -263,7 +267,7 @@ permissions:
 | Permission | Purpose | Security Risk | Use Cases |
 |------------|---------|---------------|-----------|
 | `--allow-read` | File system reading | Low | Config reading, data processing |
-| `--allow-write` | File system writing | Medium | Data export, report generation |  
+| `--allow-write` | File system writing | Medium | Data export, report generation |
 | `--allow-net` | Network requests | Medium | API calls, web scraping |
 | `--allow-env` | Environment access | Low | Configuration, secrets |
 | `--allow-run` | Process spawning | High | System commands, external tools |
@@ -385,7 +389,7 @@ compozy dev --debug
 
 ### Validation & Testing
 - Use `compozy config validate` to verify configuration syntax
-- Test tool execution with `compozy dev --debug` for detailed logging  
+- Test tool execution with `compozy dev --debug` for detailed logging
 - Monitor runtime performance and adjust timeouts as needed
 - Validate entrypoint exports with TypeScript type checking
 

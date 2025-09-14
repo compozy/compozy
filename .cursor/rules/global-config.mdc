@@ -1,8 +1,6 @@
 ---
-description: "Standards for adding or changing global configuration properties and categories across pkg/config and CLI. Covers defaults, env/flag mapping, validation, sensitivity, and visibility in `compozy config` commands."
-type: "agent-requested"
-alwaysApply: true
-tags: ["configuration", "standards", "cli", "env", "defaults"]
+globs: *.go
+alwaysApply: false
 ---
 
 # Global Configuration Standards
