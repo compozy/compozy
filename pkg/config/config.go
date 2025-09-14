@@ -862,7 +862,7 @@ type CacheConfig struct {
 type AttachmentsConfig struct {
 	// MaxDownloadSizeBytes caps the maximum size (in bytes) for any single download.
 	// Default: 10_000_000 (10MB)
-	MaxDownloadSizeBytes int `koanf:"max_download_size_bytes" env:"ATTACHMENTS_MAX_DOWNLOAD_SIZE_BYTES" json:"max_download_size_bytes" yaml:"max_download_size_bytes" mapstructure:"max_download_size_bytes" validate:"min=1"`
+	MaxDownloadSizeBytes int64 `koanf:"max_download_size_bytes" env:"ATTACHMENTS_MAX_DOWNLOAD_SIZE_BYTES" json:"max_download_size_bytes" yaml:"max_download_size_bytes" mapstructure:"max_download_size_bytes" validate:"min=1"`
 	// DownloadTimeout sets the timeout for downloading a single attachment.
 	// Default: 30s
 	DownloadTimeout time.Duration `koanf:"download_timeout"        env:"ATTACHMENTS_DOWNLOAD_TIMEOUT"        json:"download_timeout"        yaml:"download_timeout"        mapstructure:"download_timeout"`
@@ -1414,7 +1414,7 @@ func buildMCPProxyConfig(registry *definition.Registry) MCPProxyConfig {
 
 func buildAttachmentsConfig(registry *definition.Registry) AttachmentsConfig {
 	cfg := AttachmentsConfig{
-		MaxDownloadSizeBytes: getInt(registry, "attachments.max_download_size_bytes"),
+		MaxDownloadSizeBytes: getInt64(registry, "attachments.max_download_size_bytes"),
 		DownloadTimeout:      getDuration(registry, "attachments.download_timeout"),
 		MaxRedirects:         getInt(registry, "attachments.max_redirects"),
 		TempDirQuotaBytes:    getInt64(registry, "attachments.temp_dir_quota_bytes"),

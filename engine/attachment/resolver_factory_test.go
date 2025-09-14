@@ -3,6 +3,7 @@ package attachment
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/compozy/compozy/engine/core"
@@ -18,13 +19,15 @@ func Test_Resolve_Factory_Routing(t *testing.T) {
 		require.True(t, ok)
 		require.Equal(t, a.URL, u)
 	})
-	t.Run("PDF URL should download to temp and cleanup", func(t *testing.T) {
+	t.Run("PDF path should resolve to local file", func(t *testing.T) {
 		// Use a tiny local HTTP server
 		// Covered in http test; here only exercise path-based resolution
 		dir := t.TempDir()
 		// Create fake pdf header (%PDF-1.)
 		pdf := []byte{'%', 'P', 'D', 'F', '-', '1', '.'}
 		p := writeTempFile(t, dir, "a.pdf", pdf)
+		expectedPath, err := filepath.EvalSymlinks(p)
+		require.NoError(t, err)
 		cwd, _ := core.CWDFromPath(dir)
 		a := &PDFAttachment{Path: "a.pdf", Source: SourcePath}
 		res, err := Resolve(context.Background(), a, cwd)
@@ -32,13 +35,13 @@ func Test_Resolve_Factory_Routing(t *testing.T) {
 		defer res.Cleanup()
 		fp, ok := res.AsFilePath()
 		require.True(t, ok)
-		require.Equal(t, p, fp)
+		require.Equal(t, expectedPath, fp)
 	})
 }
 
 func writeTempFile(t *testing.T, dir, name string, data []byte) string {
 	t.Helper()
-	p := dir + "/" + name
+	p := filepath.Join(dir, name)
 	if err := os.WriteFile(p, data, 0o644); err != nil {
 		t.Fatal(err)
 	}

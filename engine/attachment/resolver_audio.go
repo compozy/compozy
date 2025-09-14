@@ -2,14 +2,31 @@ package attachment
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/compozy/compozy/engine/core"
+	appconfig "github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 )
 
 func resolveAudio(ctx context.Context, a *AudioAttachment, cwd *core.PathCWD) (Resolved, error) {
 	if a.Source == SourceURL {
-		path, mime, err := httpDownloadToTemp(ctx, chooseURL(a.URL, a.URLs), 0)
+		u := chooseURL(a.URL, a.URLs)
+		if u == "" {
+			return nil, fmt.Errorf("audio URL is empty")
+		}
+		cfg := appconfig.FromContext(ctx)
+		maxBytes := int64(0)
+		if cfg != nil && cfg.Attachments.MaxDownloadSizeBytes > 0 {
+			maxBytes = cfg.Attachments.MaxDownloadSizeBytes
+		}
+		dctx := ctx
+		if cfg != nil && cfg.Attachments.DownloadTimeout > 0 {
+			var cancel context.CancelFunc
+			dctx, cancel = context.WithTimeout(ctx, cfg.Attachments.DownloadTimeout)
+			defer cancel()
+		}
+		path, mime, err := httpDownloadToTemp(dctx, u, maxBytes)
 		if err != nil {
 			return nil, err
 		}

@@ -24,7 +24,8 @@ func TestLangChainAdapter_ConvertMessages(t *testing.T) {
 			},
 		}
 
-		messages := adapter.convertMessages(context.Background(), &req)
+		messages, err := adapter.convertMessages(context.Background(), &req)
+		require.NoError(t, err)
 
 		assert.Len(t, messages, 3)
 		// Check system message
@@ -45,7 +46,8 @@ func TestLangChainAdapter_ConvertMessages(t *testing.T) {
 			},
 		}
 
-		messages := adapter.convertMessages(context.Background(), &req)
+		messages, err := adapter.convertMessages(context.Background(), &req)
+		require.NoError(t, err)
 
 		assert.Len(t, messages, 1)
 		assert.Equal(t, llms.ChatMessageTypeHuman, messages[0].Role)
@@ -67,7 +69,8 @@ func TestLangChainAdapter_ConvertMessages_WithImageParts(t *testing.T) {
 		},
 	}
 
-	msgs := adapter.convertMessages(context.Background(), &req)
+	msgs, err := adapter.convertMessages(context.Background(), &req)
+	require.NoError(t, err)
 	require.Len(t, msgs, 1)
 	parts := msgs[0].Parts
 	// Expect at least the text content and the image content
@@ -106,7 +109,8 @@ func TestLangChainAdapter_BuildContentParts_AudioVideo_ByProvider(t *testing.T) 
 	t.Run("Google should forward audio/video as binary parts", func(t *testing.T) {
 		adapter := &LangChainAdapter{provider: core.ProviderConfig{Provider: core.ProviderGoogle}}
 		req := LLMRequest{Messages: []Message{mkMsg()}}
-		msgs := adapter.convertMessages(context.Background(), &req)
+		msgs, err := adapter.convertMessages(context.Background(), &req)
+		require.NoError(t, err)
 		require.Len(t, msgs, 1)
 		// Expect first part is TextContent and two BinaryContent parts for media
 		var binCount int
@@ -133,7 +137,8 @@ func TestLangChainAdapter_BuildContentParts_AudioVideo_ByProvider(t *testing.T) 
 			t.Parallel()
 			adapter := &LangChainAdapter{provider: core.ProviderConfig{Provider: p}}
 			req := LLMRequest{Messages: []Message{mkMsg()}}
-			msgs := adapter.convertMessages(context.Background(), &req)
+			msgs, err := adapter.convertMessages(context.Background(), &req)
+			require.NoError(t, err)
 			require.Len(t, msgs, 1)
 			for _, part := range msgs[0].Parts {
 				if _, ok := part.(llms.BinaryContent); ok {
@@ -154,7 +159,8 @@ func TestLangChainAdapter_OpenAI_AudioSupport(t *testing.T) {
 			Parts:   []ContentPart{BinaryPart{MIMEType: "audio/wav", Data: audioData}},
 		}
 		req := LLMRequest{Messages: []Message{msg}}
-		msgs := adapter.convertMessages(context.Background(), &req)
+		msgs, err := adapter.convertMessages(context.Background(), &req)
+		require.NoError(t, err)
 		require.Len(t, msgs, 1)
 		var foundAudioURL bool
 		for _, part := range msgs[0].Parts {
@@ -175,7 +181,8 @@ func TestLangChainAdapter_OpenAI_SkipGenericBinary(t *testing.T) {
 			BinaryPart{MIMEType: "application/octet-stream", Data: []byte{0xAA, 0xBB}},
 		}}
 		req := LLMRequest{Messages: []Message{msg}}
-		msgs := adapter.convertMessages(context.Background(), &req)
+		msgs, err := adapter.convertMessages(context.Background(), &req)
+		require.NoError(t, err)
 		require.Len(t, msgs, 1)
 		for _, p := range msgs[0].Parts {
 			if _, ok := p.(llms.BinaryContent); ok {

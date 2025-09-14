@@ -498,16 +498,32 @@ func flattenAttachmentsConfig(cfg *config.Config, result map[string]string) {
 	result["attachments.download_timeout"] = cfg.Attachments.DownloadTimeout.String()
 	result["attachments.max_redirects"] = fmt.Sprintf("%d", cfg.Attachments.MaxRedirects)
 	if len(cfg.Attachments.AllowedMIMETypes.Image) > 0 {
-		result["attachments.allowed_mime_types.image"] = strings.Join(cfg.Attachments.AllowedMIMETypes.Image, ",")
+		v := append([]string(nil), cfg.Attachments.AllowedMIMETypes.Image...)
+		sort.Strings(v)
+		result["attachments.allowed_mime_types.image"] = strings.Join(v, ",")
+	} else {
+		result["attachments.allowed_mime_types.image"] = ""
 	}
 	if len(cfg.Attachments.AllowedMIMETypes.Audio) > 0 {
-		result["attachments.allowed_mime_types.audio"] = strings.Join(cfg.Attachments.AllowedMIMETypes.Audio, ",")
+		v := append([]string(nil), cfg.Attachments.AllowedMIMETypes.Audio...)
+		sort.Strings(v)
+		result["attachments.allowed_mime_types.audio"] = strings.Join(v, ",")
+	} else {
+		result["attachments.allowed_mime_types.audio"] = ""
 	}
 	if len(cfg.Attachments.AllowedMIMETypes.Video) > 0 {
-		result["attachments.allowed_mime_types.video"] = strings.Join(cfg.Attachments.AllowedMIMETypes.Video, ",")
+		v := append([]string(nil), cfg.Attachments.AllowedMIMETypes.Video...)
+		sort.Strings(v)
+		result["attachments.allowed_mime_types.video"] = strings.Join(v, ",")
+	} else {
+		result["attachments.allowed_mime_types.video"] = ""
 	}
 	if len(cfg.Attachments.AllowedMIMETypes.PDF) > 0 {
-		result["attachments.allowed_mime_types.pdf"] = strings.Join(cfg.Attachments.AllowedMIMETypes.PDF, ",")
+		v := append([]string(nil), cfg.Attachments.AllowedMIMETypes.PDF...)
+		sort.Strings(v)
+		result["attachments.allowed_mime_types.pdf"] = strings.Join(v, ",")
+	} else {
+		result["attachments.allowed_mime_types.pdf"] = ""
 	}
 	if cfg.Attachments.TempDirQuotaBytes > 0 {
 		result["attachments.temp_dir_quota_bytes"] = fmt.Sprintf("%d", cfg.Attachments.TempDirQuotaBytes)

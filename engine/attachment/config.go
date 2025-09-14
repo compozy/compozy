@@ -39,10 +39,7 @@ func (a *ImageAttachment) Resolve(ctx context.Context, cwd *core.PathCWD) (Resol
 // MarshalJSON adds the discriminator field for correct round-trip encoding.
 func (a *ImageAttachment) MarshalJSON() ([]byte, error) {
 	type alias ImageAttachment
-	return json.Marshal(struct {
-		Type string `json:"type"`
-		alias
-	}{Type: string(TypeImage), alias: alias(*a)})
+	return marshalAttachmentWithType(alias(*a), string(TypeImage))
 }
 
 type PDFAttachment struct {
@@ -62,10 +59,7 @@ func (a *PDFAttachment) Resolve(ctx context.Context, cwd *core.PathCWD) (Resolve
 
 func (a *PDFAttachment) MarshalJSON() ([]byte, error) {
 	type alias PDFAttachment
-	return json.Marshal(struct {
-		Type string `json:"type"`
-		alias
-	}{Type: string(TypePDF), alias: alias(*a)})
+	return marshalAttachmentWithType(alias(*a), string(TypePDF))
 }
 
 type AudioAttachment struct {
@@ -84,10 +78,7 @@ func (a *AudioAttachment) Resolve(ctx context.Context, cwd *core.PathCWD) (Resol
 
 func (a *AudioAttachment) MarshalJSON() ([]byte, error) {
 	type alias AudioAttachment
-	return json.Marshal(struct {
-		Type string `json:"type"`
-		alias
-	}{Type: string(TypeAudio), alias: alias(*a)})
+	return marshalAttachmentWithType(alias(*a), string(TypeAudio))
 }
 
 type VideoAttachment struct {
@@ -106,10 +97,7 @@ func (a *VideoAttachment) Resolve(ctx context.Context, cwd *core.PathCWD) (Resol
 
 func (a *VideoAttachment) MarshalJSON() ([]byte, error) {
 	type alias VideoAttachment
-	return json.Marshal(struct {
-		Type string `json:"type"`
-		alias
-	}{Type: string(TypeVideo), alias: alias(*a)})
+	return marshalAttachmentWithType(alias(*a), string(TypeVideo))
 }
 
 type URLAttachment struct {
@@ -124,10 +112,7 @@ func (a *URLAttachment) Resolve(ctx context.Context, _ *core.PathCWD) (Resolved,
 
 func (a *URLAttachment) MarshalJSON() ([]byte, error) {
 	type alias URLAttachment
-	return json.Marshal(struct {
-		Type string `json:"type"`
-		alias
-	}{Type: string(TypeURL), alias: alias(*a)})
+	return marshalAttachmentWithType(alias(*a), string(TypeURL))
 }
 
 type FileAttachment struct {
@@ -142,10 +127,7 @@ func (a *FileAttachment) Resolve(ctx context.Context, cwd *core.PathCWD) (Resolv
 
 func (a *FileAttachment) MarshalJSON() ([]byte, error) {
 	type alias FileAttachment
-	return json.Marshal(struct {
-		Type string `json:"type"`
-		alias
-	}{Type: string(TypeFile), alias: alias(*a)})
+	return marshalAttachmentWithType(alias(*a), string(TypeFile))
 }
 
 // Attachments is a slice of polymorphic Attachment values with custom decoding.
@@ -155,8 +137,16 @@ type Attachments []Attachment
 func (as *Attachments) UnmarshalYAML(unmarshal func(any) error) error {
 	var raw []map[string]any
 	if err := unmarshal(&raw); err != nil {
-		*as = nil
-		return nil
+		// Check if it's an empty/nil value
+		var empty any
+		if unmarshalErr := unmarshal(&empty); unmarshalErr != nil {
+			return fmt.Errorf("failed to unmarshal attachments: %w", err)
+		}
+		if empty == nil {
+			*as = nil
+			return nil
+		}
+		return fmt.Errorf("failed to unmarshal attachments: %w", err)
 	}
 	if len(raw) == 0 {
 		*as = nil
@@ -196,8 +186,12 @@ func (as *Attachments) UnmarshalYAML(unmarshal func(any) error) error {
 func (as *Attachments) UnmarshalJSON(data []byte) error {
 	var arr []json.RawMessage
 	if err := json.Unmarshal(data, &arr); err != nil {
-		*as = nil
-		return nil
+		// Check if it's a null value
+		if string(data) == "null" || len(data) == 0 {
+			*as = nil
+			return nil
+		}
+		return fmt.Errorf("failed to unmarshal attachments: %w", err)
 	}
 	if len(arr) == 0 {
 		*as = nil
@@ -312,37 +306,56 @@ func validateAndSetSource(att Attachment) error {
 }
 
 func validateMultiSource(kind string, url string, path string, urls []string, paths []string) (Source, error) {
-	u := strings.TrimSpace(url)
-	p := strings.TrimSpace(path)
-	urls = normalizeList(urls)
-	paths = normalizeList(paths)
-	provided := make([]string, 0, 4)
-	if u != "" {
-		provided = append(provided, "url")
-	}
-	if p != "" {
-		provided = append(provided, "path")
-	}
-	if len(urls) > 0 {
-		provided = append(provided, "urls")
-	}
-	if len(paths) > 0 {
-		provided = append(provided, "paths")
-	}
+	provided := countProvidedSources(url, path, urls, paths)
 	if len(provided) == 0 {
 		return "", fmt.Errorf("%s attachment requires exactly one of 'url', 'path', 'urls', or 'paths'", kind)
 	}
 	if len(provided) > 1 {
 		return "", fmt.Errorf(
-			"%s attachment must not specify multiple source fields (provided: %s)",
+			"%s attachment must not specify multiple source fields (provided fields: %s). "+
+				"Use only one of: url, path, urls, or paths",
 			kind,
-			strings.Join(provided, ","),
+			formatProvidedValues(url, path, urls, paths),
 		)
 	}
-	if u != "" || len(urls) > 0 {
+	if strings.TrimSpace(url) != "" || len(normalizeList(urls)) > 0 {
 		return SourceURL, nil
 	}
 	return SourcePath, nil
+}
+
+// marshalAttachmentWithType provides a common JSON encoding for attachments by
+// injecting the `type` discriminator and embedding the concrete fields.
+func marshalAttachmentWithType(att any, typeStr string) ([]byte, error) {
+	b, err := json.Marshal(att)
+	if err != nil {
+		return nil, err
+	}
+	var m map[string]any
+	if err := json.Unmarshal(b, &m); err != nil {
+		return nil, err
+	}
+	m["type"] = typeStr
+	return json.Marshal(m)
+}
+
+// countProvidedSources returns which of the mutually exclusive source fields
+// are present after trimming and normalizing inputs.
+func countProvidedSources(url string, path string, urls []string, paths []string) []string {
+	provided := make([]string, 0, 4)
+	if strings.TrimSpace(url) != "" {
+		provided = append(provided, "url")
+	}
+	if strings.TrimSpace(path) != "" {
+		provided = append(provided, "path")
+	}
+	if len(normalizeList(urls)) > 0 {
+		provided = append(provided, "urls")
+	}
+	if len(normalizeList(paths)) > 0 {
+		provided = append(provided, "paths")
+	}
+	return provided
 }
 
 func normalizeList(xs []string) []string {
@@ -357,4 +370,23 @@ func normalizeList(xs []string) []string {
 		}
 	}
 	return out
+}
+
+func formatProvidedValues(url string, path string, urls []string, paths []string) string {
+	parts := make([]string, 0, 4)
+	if strings.TrimSpace(url) != "" {
+		parts = append(parts, fmt.Sprintf("url=%q", strings.TrimSpace(url)))
+	}
+	if strings.TrimSpace(path) != "" {
+		parts = append(parts, fmt.Sprintf("path=%q", strings.TrimSpace(path)))
+	}
+	nURLs := normalizeList(urls)
+	if len(nURLs) > 0 {
+		parts = append(parts, fmt.Sprintf("urls=%v", nURLs))
+	}
+	nPaths := normalizeList(paths)
+	if len(nPaths) > 0 {
+		parts = append(parts, fmt.Sprintf("paths=%v", nPaths))
+	}
+	return strings.Join(parts, ", ")
 }

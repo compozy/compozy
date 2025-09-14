@@ -124,16 +124,17 @@ func TestNormalizePhase1_NestedGlob(t *testing.T) {
 
 func TestNormalizePhase1_PathTraversalPrevented(t *testing.T) {
 	t.Run("Should ignore patterns that escape CWD", func(t *testing.T) {
-		dir := t.TempDir()
-		// create sibling file outside a subdir to attempt traversal
-		sibling := t.TempDir()
-		mustWrite(t, filepath.Join(sibling, "outside.png"))
-		cwd := &core.PathCWD{Path: dir}
+		base := t.TempDir()
+		// parent file that would match ../*.png from sub
+		mustWrite(t, filepath.Join(base, "outside.png"))
+		sub := filepath.Join(base, "sub")
+		require.NoError(t, os.MkdirAll(sub, 0o755))
+		cwd := &core.PathCWD{Path: sub}
 		eng := tplengine.NewEngine(tplengine.FormatText)
 		in := &ImageAttachment{Source: SourcePath, Paths: []string{"../*.png"}}
-		res, err := NormalizePhase1(context.Background(), eng, cwd, []Attachment{in}, map[string]any{})
-		require.NoError(t, err)
-		assert.Len(t, res, 0)
+		_, err := NormalizePhase1(context.Background(), eng, cwd, []Attachment{in}, map[string]any{})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "match outside CWD")
 	})
 }
 
@@ -186,4 +187,65 @@ func mustWrite(t *testing.T, path string) {
 	t.Helper()
 	err := os.WriteFile(path, []byte("x"), 0o644)
 	require.NoError(t, err)
+}
+
+func Test_globWithinCWD_SymlinkSecurity(t *testing.T) {
+	t.Run("Should reject glob patterns matching symlinks outside CWD", func(t *testing.T) {
+		base := t.TempDir()
+		sub := filepath.Join(base, "sub")
+		require.NoError(t, os.MkdirAll(sub, 0o755))
+
+		// Create file outside CWD
+		outerFile := filepath.Join(filepath.Dir(base), "outside.png")
+		require.NoError(t, os.WriteFile(outerFile, []byte("png"), 0o644))
+		t.Cleanup(func() { _ = os.Remove(outerFile) })
+
+		// Create symlink inside sub pointing to file outside CWD
+		linkPath := filepath.Join(sub, "evil_link.png")
+		require.NoError(t, os.Symlink(outerFile, linkPath))
+		t.Cleanup(func() { _ = os.Remove(linkPath) })
+
+		cwd := &core.PathCWD{Path: sub}
+
+		// Should reject glob matching symlink outside CWD
+		_, err := globWithinCWD(cwd, "*.png")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "match outside CWD")
+	})
+
+	t.Run("Should allow glob patterns matching symlinks inside CWD", func(t *testing.T) {
+		dir := t.TempDir()
+
+		// Create real file inside CWD
+		realFile := filepath.Join(dir, "real.png")
+		require.NoError(t, os.WriteFile(realFile, []byte("png"), 0o644))
+
+		// Create symlink inside CWD pointing to real file
+		linkPath := filepath.Join(dir, "valid_link.png")
+		require.NoError(t, os.Symlink(realFile, linkPath))
+		t.Cleanup(func() { _ = os.Remove(linkPath) })
+
+		cwd := &core.PathCWD{Path: dir}
+
+		// Should allow glob matching symlink inside CWD
+		matches, err := globWithinCWD(cwd, "*.png")
+		require.NoError(t, err)
+		assert.Contains(t, matches, "valid_link.png")
+	})
+
+	t.Run("Should reject glob patterns with broken symlinks", func(t *testing.T) {
+		dir := t.TempDir()
+
+		// Create broken symlink
+		linkPath := filepath.Join(dir, "broken_link.png")
+		require.NoError(t, os.Symlink("/non/existent/file.png", linkPath))
+		t.Cleanup(func() { _ = os.Remove(linkPath) })
+
+		cwd := &core.PathCWD{Path: dir}
+
+		// Should reject glob with broken symlink
+		_, err := globWithinCWD(cwd, "*.png")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "path validation failed")
+	})
 }

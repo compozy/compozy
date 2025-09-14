@@ -11,6 +11,18 @@ import (
 	pdf "github.com/ledongthuc/pdf"
 )
 
+// resolverFunc defines the signature for attachment resolver functions
+type resolverFunc func(context.Context, EffectiveItem) (llmadapter.ContentPart, func())
+
+// resolvers maps attachment types to their resolver functions
+var resolvers = map[Type]resolverFunc{
+	TypeImage: resolveOneImage,
+	TypeAudio: resolveOneAudio,
+	TypeVideo: resolveOneVideo,
+	TypePDF:   resolveOnePDF,
+	TypeFile:  resolveOneFile,
+}
+
 // ToContentPartsFromEffective resolves the provided effective items and converts
 // supported attachments into LLM content parts. Supported mappings:
 // - Image + URL -> ImageURLPart
@@ -25,36 +37,16 @@ func ToContentPartsFromEffective(ctx context.Context, items []EffectiveItem) ([]
 	parts := make([]llmadapter.ContentPart, 0, len(items))
 	cleanups := make([]func(), 0)
 	for i := range items {
-		if p, c := resolveOneImage(ctx, items[i]); p != nil {
-			parts = append(parts, p)
-			if c != nil {
-				cleanups = append(cleanups, c)
+		it := items[i]
+		if resolver, exists := resolvers[it.Att.Type()]; exists {
+			if p, c := resolver(ctx, it); p != nil {
+				parts = append(parts, p)
+				if c != nil {
+					cleanups = append(cleanups, c)
+				}
 			}
 		}
-		if p, c := resolveOneAudio(ctx, items[i]); p != nil {
-			parts = append(parts, p)
-			if c != nil {
-				cleanups = append(cleanups, c)
-			}
-		}
-		if p, c := resolveOneVideo(ctx, items[i]); p != nil {
-			parts = append(parts, p)
-			if c != nil {
-				cleanups = append(cleanups, c)
-			}
-		}
-		if p, c := resolveOnePDF(ctx, items[i]); p != nil {
-			parts = append(parts, p)
-			if c != nil {
-				cleanups = append(cleanups, c)
-			}
-		}
-		if p, c := resolveOneFile(ctx, items[i]); p != nil {
-			parts = append(parts, p)
-			if c != nil {
-				cleanups = append(cleanups, c)
-			}
-		}
+		// ignore unknown types
 	}
 	return parts, func() {
 		for i := range cleanups {
@@ -77,7 +69,7 @@ func resolveOneImage(ctx context.Context, it EffectiveItem) (llmadapter.ContentP
 		return nil, nil
 	}
 	if u, ok := resolved.AsURL(); ok && u != "" {
-		return llmadapter.ImageURLPart{URL: u, Detail: detailFromMeta(it.Att.Meta())}, nil
+		return llmadapter.ImageURLPart{URL: u, Detail: detailFromMeta(it.Att.Meta())}, resolved.Cleanup
 	}
 	if p, ok := resolved.AsFilePath(); ok && p != "" {
 		bp := buildBinaryPart(ctx, resolved, p)
@@ -105,6 +97,12 @@ func resolveOneAudio(ctx context.Context, it EffectiveItem) (llmadapter.ContentP
 			return bp, resolved.Cleanup
 		}
 	}
+	if u, ok := resolved.AsURL(); ok && u != "" {
+		bp := buildBinaryPart(ctx, resolved, u)
+		if bp != nil {
+			return bp, resolved.Cleanup
+		}
+	}
 	return nil, nil
 }
 
@@ -121,6 +119,12 @@ func resolveOneVideo(ctx context.Context, it EffectiveItem) (llmadapter.ContentP
 	}
 	if p, ok := resolved.AsFilePath(); ok && p != "" {
 		bp := buildBinaryPart(ctx, resolved, p)
+		if bp != nil {
+			return bp, resolved.Cleanup
+		}
+	}
+	if u, ok := resolved.AsURL(); ok && u != "" {
+		bp := buildBinaryPart(ctx, resolved, u)
 		if bp != nil {
 			return bp, resolved.Cleanup
 		}
@@ -149,6 +153,12 @@ func resolveOnePDF(ctx context.Context, it EffectiveItem) (llmadapter.ContentPar
 			return bp, resolved.Cleanup
 		}
 	}
+	if u, ok := resolved.AsURL(); ok && u != "" {
+		bp := buildBinaryPart(ctx, resolved, u)
+		if bp != nil {
+			return bp, resolved.Cleanup
+		}
+	}
 	return nil, nil
 }
 
@@ -162,27 +172,32 @@ func resolveOneFile(ctx context.Context, it EffectiveItem) (llmadapter.ContentPa
 		logger.FromContext(ctx).Debug("Skip attachment: resolve failed", "type", string(it.Att.Type()), "error", err)
 		return nil, nil
 	}
+	// Prefer MIME-based handling first; derive a ref for logging.
+	var pathRef string
 	if p, ok := resolved.AsFilePath(); ok && p != "" {
-		mime := resolved.MIME()
-		if strings.HasPrefix(mime, "text/") {
-			rc, oerr := resolved.Open()
-			if oerr == nil {
-				const maxTextBytes = 5 * 1024 * 1024 // 5MB guard
-				b, rerr := io.ReadAll(io.LimitReader(rc, maxTextBytes+1))
-				_ = rc.Close()
-				if rerr == nil {
-					if len(b) > maxTextBytes {
-						logger.FromContext(ctx).Warn("Text file too large; truncating", "limit", maxTextBytes)
-						b = b[:maxTextBytes]
-					}
-					return llmadapter.TextPart{Text: string(b)}, resolved.Cleanup
+		pathRef = p
+	} else if u, ok := resolved.AsURL(); ok && u != "" {
+		pathRef = u
+	}
+	mime := resolved.MIME()
+	if strings.HasPrefix(mime, "text/") {
+		rc, oerr := resolved.Open()
+		if oerr == nil {
+			const maxTextBytes = 5 * 1024 * 1024
+			b, rerr := io.ReadAll(io.LimitReader(rc, maxTextBytes+1))
+			_ = rc.Close()
+			if rerr == nil {
+				if len(b) > maxTextBytes {
+					logger.FromContext(ctx).Warn("Text file too large; truncating", "limit", maxTextBytes)
+					b = b[:maxTextBytes]
 				}
+				return llmadapter.TextPart{Text: string(b)}, resolved.Cleanup
 			}
 		}
-		bp := buildBinaryPart(ctx, resolved, p)
-		if bp != nil {
-			return bp, resolved.Cleanup
-		}
+	}
+	bp := buildBinaryPart(ctx, resolved, pathRef)
+	if bp != nil {
+		return bp, resolved.Cleanup
 	}
 	return nil, nil
 }
@@ -222,12 +237,12 @@ func buildBinaryPart(ctx context.Context, r Resolved, path string) llmadapter.Co
 		logger.FromContext(ctx).Debug("Skip attachment: open failed", "path", path, "error", oerr)
 		return nil
 	}
+	defer rc.Close()
 	limit := int64(10 * 1024 * 1024)
 	if ac := appconfig.FromContext(ctx); ac != nil && ac.Attachments.MaxDownloadSizeBytes > 0 {
-		limit = int64(ac.Attachments.MaxDownloadSizeBytes)
+		limit = ac.Attachments.MaxDownloadSizeBytes
 	}
 	b, rerr := io.ReadAll(io.LimitReader(rc, limit+1))
-	_ = rc.Close()
 	if rerr != nil {
 		logger.FromContext(ctx).Debug("Skip attachment: read failed", "path", path, "error", rerr)
 		return nil

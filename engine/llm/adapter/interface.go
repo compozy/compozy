@@ -32,7 +32,7 @@ type Message struct {
 	// When non-empty, adapters should include these parts in addition to
 	// the textual Content (if provided). This enables vision/multimodal
 	// prompts while preserving backward compatibility with text-only flows.
-	Parts []ContentPart
+	Parts []ContentPart `json:"-"` // adapter-specific translation only
 	// ToolCalls carries function/tool calls emitted by the assistant.
 	// Constraint: only messages with Role == "assistant" may contain ToolCalls.
 	ToolCalls []ToolCall
@@ -60,6 +60,7 @@ type ImageURLPart struct {
 func (ImageURLPart) isPart() {}
 
 // BinaryPart represents a binary payload with MIME type (e.g. image/png).
+// BinaryPart.Data may be large; document expectations (small thumbnails, chunks, or streaming) to avoid copies.
 type BinaryPart struct {
 	MIMEType string
 	Data     []byte

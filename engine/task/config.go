@@ -84,6 +84,7 @@ import (
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/pkg/ref"
+	"github.com/compozy/compozy/pkg/tplengine"
 	"github.com/mitchellh/mapstructure"
 )
 
@@ -2651,13 +2652,13 @@ func (t *Config) AsMap() (map[string]any, error) {
 
 // FromMap updates the provider configuration from a normalized map
 func (t *Config) FromMap(data any) error {
-	var cfg *Config
-	// Build a decoder with a hook that converts []map[string]any -> attachment.Attachments
+	var tmp Config
+	// Build a decoder with a hook that converts any slice -> attachment.Attachments via JSON round‑trip
 	attSliceType := reflect.TypeOf(attachment.Attachments{})
 	decodeHook := func(_ reflect.Type, to reflect.Type, v any) (any, error) {
 		if to == attSliceType {
-			// Accept []any | []map[string]any and re-marshal via JSON into Attachments
-			if _, ok := v.([]any); ok {
+			rv := reflect.ValueOf(v)
+			if rv.IsValid() && rv.Kind() == reflect.Slice {
 				b, err := json.Marshal(v)
 				if err != nil {
 					return nil, err
@@ -2673,7 +2674,7 @@ func (t *Config) FromMap(data any) error {
 	}
 	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
 		WeaklyTypedInput: true,
-		Result:           &cfg,
+		Result:           &tmp,
 		TagName:          "mapstructure",
 		DecodeHook:       mapstructure.ComposeDecodeHookFunc(decodeHook),
 	})
@@ -2683,7 +2684,7 @@ func (t *Config) FromMap(data any) error {
 	if err := decoder.Decode(data); err != nil {
 		return err
 	}
-	return t.Merge(cfg)
+	return t.Merge(&tmp)
 }
 
 func (t *Config) GetSleepDuration() (time.Duration, error) {
@@ -2845,6 +2846,43 @@ func propagateCWDToSubTasks(config *Config) error {
 	return nil
 }
 
+// normalizeAttachmentsPhase1 attempts a best-effort Phase1 normalization for task-level attachments.
+// It safely ignores missing-key template errors to defer resolution to runtime and recurses into subtasks.
+func normalizeAttachmentsPhase1(cfg *Config, engine *tplengine.TemplateEngine, tplCtx map[string]any) error {
+	if cfg == nil {
+		return nil
+	}
+	if len(cfg.Attachments) > 0 {
+		n := attachment.NewContextNormalizer(engine, cfg.CWD)
+		res, err := n.Phase1(context.Background(), cfg.Attachments, tplCtx)
+		if err == nil {
+			cfg.Attachments = res
+		} else if !errors.Is(err, tplengine.ErrMissingKey) {
+			return fmt.Errorf("attachments normalization failed for task %s: %w", cfg.ID, err)
+		}
+	}
+	switch cfg.Type {
+	case TaskTypeParallel, TaskTypeComposite, TaskTypeRouter, TaskTypeAggregate:
+		for i := range cfg.Tasks {
+			if err := normalizeAttachmentsPhase1(&cfg.Tasks[i], engine, tplCtx); err != nil {
+				return err
+			}
+		}
+	case TaskTypeCollection:
+		if cfg.Task != nil {
+			if err := normalizeAttachmentsPhase1(cfg.Task, engine, tplCtx); err != nil {
+				return err
+			}
+		}
+		for i := range cfg.Tasks {
+			if err := normalizeAttachmentsPhase1(&cfg.Tasks[i], engine, tplCtx); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 // Load reads and parses a task configuration from a YAML or JSON file.
 // Applies defaults and propagates the working directory to all sub-tasks.
 // This is the basic loading function used when no template evaluation is needed.
@@ -2870,6 +2908,9 @@ func Load(cwd *core.PathCWD, path string) (*Config, error) {
 	}
 	applyDefaults(config)
 	if err := propagateCWDToSubTasks(config); err != nil {
+		return nil, err
+	}
+	if err := normalizeAttachmentsPhase1(config, tplengine.NewEngine(tplengine.FormatJSON), nil); err != nil {
 		return nil, err
 	}
 	return config, nil
@@ -2907,6 +2948,9 @@ func LoadAndEval(cwd *core.PathCWD, path string, ev *ref.Evaluator) (*Config, er
 	}
 	applyDefaults(config)
 	if err := propagateCWDToSubTasks(config); err != nil {
+		return nil, err
+	}
+	if err := normalizeAttachmentsPhase1(config, tplengine.NewEngine(tplengine.FormatJSON), scope); err != nil {
 		return nil, err
 	}
 	return config, nil

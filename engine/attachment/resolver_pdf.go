@@ -17,7 +17,7 @@ func resolvePDF(ctx context.Context, a *PDFAttachment, cwd *core.PathCWD) (Resol
 			(&resolvedFile{path: path, temp: true}).Cleanup()
 			return nil, errMimeDenied(TypePDF, mime)
 		}
-		logger.FromContext(ctx).Debug("Resolved URL attachment", "attachment_type", string(TypePDF))
+		logger.FromContext(ctx).Debug("Resolved URL attachment", "attachment_type", string(TypePDF), "mime", mime)
 		return &resolvedFile{path: path, mime: mime, temp: true}, nil
 	}
 	return resolveLocalFile(ctx, cwd, choosePath(a.Path, a.Paths), TypePDF)

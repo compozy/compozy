@@ -79,7 +79,8 @@ attachments:
 		err := yaml.Unmarshal(data, &cfg)
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "must not specify multiple source fields")
-		assert.ErrorContains(t, err, "provided: url,path")
+		assert.ErrorContains(t, err, `url="https://example.com/a.png"`)
+		assert.ErrorContains(t, err, `path="./local.png"`)
 	})
 
 	t.Run("Should error when no sources are provided", func(t *testing.T) {

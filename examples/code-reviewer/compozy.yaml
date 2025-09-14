@@ -11,7 +11,7 @@ models:
     api_key: "{{ .env.OPENAI_API_KEY }}"
     default: true
     params:
-      temperature: 0.3
+      temperature: 1
       max_tokens: 2000
 
 config:

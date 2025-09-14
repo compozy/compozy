@@ -918,7 +918,7 @@ func (o *llmOrchestrator) prepareMemoryContext(
 
 		memory, err := o.config.MemoryProvider.GetMemory(ctx, ref.ID, ref.Key)
 		if err != nil {
-			log.Error("Failed to get memory instance", "memory_id", ref.ID, "error", err)
+			log.Error("Failed to get memory instance", "memory_id", ref.ID, "error", core.RedactError(err))
 			continue
 		}
 		if memory != nil {
@@ -971,7 +971,12 @@ func (o *llmOrchestrator) buildLLMRequest(
 			"agent": request.Agent.ID,
 		})
 	}
-	messages := o.buildMessages(ctx, request, promptData.enhancedPrompt, memories)
+	messages := o.buildMessages(ctx, promptData.enhancedPrompt, memories)
+	if err := llmadapter.ValidateConversation(messages); err != nil {
+		return llmadapter.LLMRequest{}, NewLLMError(err, "INVALID_CONVERSATION", map[string]any{
+			"agent": request.Agent.ID,
+		})
+	}
 
 	// Determine temperature: use agent's configured value (explicit zero allowed; upstream default applies)
 	temperature := request.Agent.Config.Params.Temperature
@@ -1049,7 +1054,6 @@ func (o *llmOrchestrator) enhancePromptIfNeeded(
 
 func (o *llmOrchestrator) buildMessages(
 	ctx context.Context,
-	_ Request,
 	enhancedPrompt string,
 	memories map[string]Memory,
 ) []llmadapter.Message {
@@ -1430,7 +1434,7 @@ func (o *llmOrchestrator) callToolStructured(
 		log.Debug("Tool execution failed (structured mode)",
 			"tool_name", toolCall.Name,
 			"tool_call_id", toolCall.ID,
-			"error", err.Error(),
+			"error", core.RedactError(err),
 		)
 		return "", NewToolError(err, ErrCodeToolExecution, toolCall.Name, map[string]any{
 			"call_id": toolCall.ID,

@@ -386,10 +386,10 @@ func registerAttachmentsFields(registry *Registry) {
 	// Size limit for downloads (bytes)
 	registry.Register(&FieldDef{
 		Path:    "attachments.max_download_size_bytes",
-		Default: 10_000_000,
+		Default: int64(10_000_000),
 		CLIFlag: "attachments-max-download-size",
 		EnvVar:  "ATTACHMENTS_MAX_DOWNLOAD_SIZE_BYTES",
-		Type:    reflect.TypeOf(0),
+		Type:    reflect.TypeOf(int64(0)),
 		Help:    "Maximum download size in bytes for attachment resolution",
 	})
 

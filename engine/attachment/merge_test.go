@@ -32,7 +32,7 @@ func Test_ComputeEffectiveItems_DedupAndPrecedence(t *testing.T) {
 			[]Attachment{actionAtt},
 			nil,
 		)
-		require.Equal(t, 1, len(items))
+		require.Len(t, items, 1)
 		require.Equal(t, "action", items[0].Att.Meta()["who"])
 	})
 }
@@ -46,10 +46,12 @@ func Test_ComputeEffectiveItems_PathCanonicalization(t *testing.T) {
 		taskAtt := &ImageAttachment{Source: SourcePath, Path: "img.png"}
 		agentAtt := &ImageAttachment{Source: SourcePath, Path: "./img.png"}
 		items := ComputeEffectiveItems([]Attachment{taskAtt}, cwd, []Attachment{agentAtt}, cwd, nil, nil)
-		require.Equal(t, 1, len(items))
+		require.Len(t, items, 1)
 		// The last inserted with same key should win (agentAtt)
 		_, src, _, p := attFields(items[0].Att)
 		require.Equal(t, SourcePath, src)
 		require.Equal(t, "./img.png", p)
+		// Ensure EffectiveItem carries the correct CWD
+		require.True(t, items[0].CWD == cwd)
 	})
 }

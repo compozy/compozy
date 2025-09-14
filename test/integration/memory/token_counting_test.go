@@ -11,6 +11,7 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/llm"
+	memcore "github.com/compozy/compozy/engine/memory/core"
 )
 
 // TestTokenCountingWithMemoryIntegration tests token counting integrated with memory
@@ -19,7 +20,8 @@ func TestTokenCountingWithMemoryIntegration(t *testing.T) {
 		env := NewTestEnvironment(t)
 		defer env.Cleanup()
 		ctx := context.Background()
-		// Create memory instance
+
+		// Create memory instance using the manager but with synchronous token counting
 		memRef := core.MemoryReference{
 			ID:  "customer-support",
 			Key: "token-tracking-{{.test.id}}",
@@ -51,9 +53,15 @@ func TestTokenCountingWithMemoryIntegration(t *testing.T) {
 			// Get token count before adding
 			tokensBefore, err := instance.GetTokenCount(ctx)
 			require.NoError(t, err)
+
 			// Append message
 			err = instance.Append(ctx, msg)
 			require.NoError(t, err)
+
+			// Wait for async reconciliation to complete
+			err = waitForTokenCountStabilization(ctx, instance, 100*time.Millisecond)
+			require.NoError(t, err)
+
 			// Get token count after adding
 			tokensAfter, err := instance.GetTokenCount(ctx)
 			require.NoError(t, err)
@@ -78,6 +86,38 @@ func TestTokenCountingWithMemoryIntegration(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 0, finalTokens, "Token count should be 0 after clear")
 	})
+}
+
+// waitForTokenCountStabilization waits for async token count reconciliation to complete
+func waitForTokenCountStabilization(ctx context.Context, instance memcore.Memory, checkInterval time.Duration) error {
+	const maxWait = 2 * time.Second
+	const stabilizationChecks = 3
+	timeoutCtx, cancel := context.WithTimeout(ctx, maxWait)
+	defer cancel()
+	var lastCount int
+	stabilizedCount := 0
+	ticker := time.NewTicker(checkInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-timeoutCtx.Done():
+			return fmt.Errorf("token count did not stabilize within %v", maxWait)
+		case <-ticker.C:
+			count, err := instance.GetTokenCount(timeoutCtx)
+			if err != nil {
+				return fmt.Errorf("failed to get token count during stabilization: %w", err)
+			}
+			if count == lastCount {
+				stabilizedCount++
+				if stabilizedCount >= stabilizationChecks {
+					return nil // Token count has stabilized
+				}
+			} else {
+				stabilizedCount = 0
+				lastCount = count
+			}
+		}
+	}
 }
 
 // TestTokenCountingConsistency tests token counting consistency across operations

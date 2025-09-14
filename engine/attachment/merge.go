@@ -1,6 +1,8 @@
 package attachment
 
 import (
+	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -22,10 +24,19 @@ func canonicalKey(att Attachment, cwd *core.PathCWD) string {
 	if att == nil {
 		return ""
 	}
-	tp, src, url, path := attFields(att)
+	tp, src, urlStr, path := attFields(att)
+	if strings.TrimSpace(string(tp)) == "" {
+		return ""
+	}
 	if src == SourceURL {
-		if url != "" {
-			return string(tp) + ":url:" + strings.TrimSpace(url)
+		if urlStr != "" {
+			if u, err := url.Parse(strings.TrimSpace(urlStr)); err == nil {
+				u.Fragment = ""
+				u.User = nil
+				u.Host = strings.ToLower(u.Host)
+				return string(tp) + ":url:" + u.String()
+			}
+			return string(tp) + ":url:" + strings.TrimSpace(urlStr)
 		}
 		return ""
 	}
@@ -57,10 +68,26 @@ func attFields(att Attachment) (Type, Source, string, string) {
 }
 
 func makeAbs(cwd *core.PathCWD, rel string) string {
+	var base string
 	if cwd == nil || cwd.Path == "" {
-		return filepath.Clean(rel)
+		base = ""
+	} else {
+		base = filepath.Clean(cwd.Path)
 	}
-	return filepath.Clean(filepath.Join(cwd.Path, rel))
+	var abs string
+	if base == "" {
+		abs = filepath.Clean(rel)
+	} else {
+		abs = filepath.Clean(filepath.Join(base, rel))
+	}
+	if base != "" {
+		relToBase, err := filepath.Rel(base, abs)
+		if err != nil || relToBase == ".." || strings.HasPrefix(relToBase, ".."+string(os.PathSeparator)) {
+			// Path tries to escape the working directory, return empty string as error indicator
+			return ""
+		}
+	}
+	return abs
 }
 
 // ComputeEffectiveItems merges attachments from task, agent, and action scopes

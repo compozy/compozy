@@ -20,7 +20,7 @@ func (r *resolvedFile) AsFilePath() (string, bool)   { return r.path, true }
 func (r *resolvedFile) Open() (io.ReadCloser, error) { return os.Open(r.path) }
 func (r *resolvedFile) MIME() string                 { return r.mime }
 func (r *resolvedFile) Cleanup() {
-	if r.temp {
+	if r.temp && r.path != "" {
 		_ = os.Remove(r.path)
 	}
 }
@@ -65,7 +65,7 @@ func errMimeDenied(t Type, m string) error {
 // WithResolvedCleanup runs fn and guarantees Cleanup afterward.
 func WithResolvedCleanup(res Resolved, fn func() error) error {
 	if res == nil {
-		return nil
+		return fn()
 	}
 	defer res.Cleanup()
 	return fn()

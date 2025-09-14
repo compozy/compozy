@@ -2,6 +2,7 @@ package attachment
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/compozy/compozy/engine/core"
 )
@@ -22,6 +23,6 @@ func Resolve(ctx context.Context, att Attachment, cwd *core.PathCWD) (Resolved, 
 	case *FileAttachment:
 		return resolveFile(ctx, a, cwd)
 	default:
-		return nil, nil
+		return nil, fmt.Errorf("unsupported attachment type: %T", att)
 	}
 }

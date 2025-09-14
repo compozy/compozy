@@ -359,7 +359,7 @@ func TestOrchestrator_BuildMessages_WithImageURLInput(t *testing.T) {
 
 		mockPromptBuilder.On("Build", ctx, actionCfg).Return("Identify the Pokémon", nil)
 		mockPromptBuilder.On("ShouldUseStructuredOutput", "openai", actionCfg, agentCfg.Tools).Return(false)
-		mockFactory.On("CreateClient", &agentCfg.Config).Return(mockClient, nil)
+		mockFactory.On("CreateClient", mock.Anything, &agentCfg.Config).Return(mockClient, nil)
 
 		mockClient.On("GenerateContent", ctx, mock.MatchedBy(func(r *llmadapter.LLMRequest) bool {
 			if len(r.Messages) != 1 {
@@ -382,5 +382,11 @@ func TestOrchestrator_BuildMessages_WithImageURLInput(t *testing.T) {
 		out, err := orchestrator.Execute(ctx, req)
 		require.NoError(t, err)
 		require.NotNil(t, out)
+
+		// Verify expectations
+		mockPromptBuilder.AssertExpectations(t)
+		mockFactory.AssertExpectations(t)
+		mockClient.AssertExpectations(t)
+		mockRegistry.AssertExpectations(t)
 	})
 }

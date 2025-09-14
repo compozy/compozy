@@ -3,7 +3,7 @@
 This file provides comprehensive guidance for working with the Compozy codebase, including development commands, standards, and workflow patterns.
 
 <critical>
-- **YOU MUST ALWAYS CHECK** the .cursor/rules/critical-validation.mdc
+- **YOU MUST ALWAYS CHECK** the @.cursor/rules/critical-validation.mdc
 - **YOU CAN ONLY** finish a task if `make lint` and `make tests` are passing, your task should not finish before this
 
 ### For complex/big tasks
@@ -77,8 +77,8 @@ For YAML configuration patterns and examples:
 
 The project uses Go 1.25+ features and requires external dependencies to be mocked in tests when necessary.
 
-  <critical>
-- **YOU MUST ALWAYS CHECK** the .cursor/rules/critical-validation.mdc
+<critical>
+- **YOU MUST ALWAYS CHECK** the @.cursor/rules/critical-validation.mdc
 - **YOU CAN ONLY** finish a task if `make lint` and `make tests` are passing, your task should not finish before this
 
 ### For complex/big tasks
@@ -86,4 +86,4 @@ The project uses Go 1.25+ features and requires external dependencies to be mock
 - **YOU MUST** use Zen MCP (with Gemini 2.5 Pro) debug, analyze or tracer complex flow **BEFORE INITIATE A TASK**
 - **YOU MUST** use Zen MCP (with Gemini 2.5 Pro and O3) codereview tool **AFTER FINISH A TASK**
 - **YOU MUST ALWAYS** show all recommendations/issues from a Zen MCP review, does not matter if they are related to your task or not, you **NEED TO ALWAYS** show them.
-  </critical>
+  </critical

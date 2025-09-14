@@ -12,6 +12,15 @@ import (
 	"github.com/tmc/langchaingo/llms"
 )
 
+const (
+	// OpenAIMaxAudioBytes is the maximum audio file size supported by OpenAI
+	OpenAIMaxAudioBytes = 25 * 1024 * 1024
+
+	// OpenAIMaxPreEncodedAudioBytes is the maximum raw audio size before base64 encoding
+	// Base64 encoding increases size by ~33%, so ~18MB raw = ~25MB base64
+	OpenAIMaxPreEncodedAudioBytes = 18 * 1024 * 1024
+)
+
 // LangChainAdapter adapts langchaingo to our LLMClient interface
 type LangChainAdapter struct {
 	model          llms.Model
@@ -40,8 +49,11 @@ func NewLangChainAdapter(ctx context.Context, config *core.ProviderConfig) (*Lan
 type ValidationMode int
 
 const (
+	// ValidationModeWarn logs warnings for unsupported content but continues processing
 	ValidationModeWarn ValidationMode = iota
+	// ValidationModeError returns an error for unsupported content
 	ValidationModeError
+	// ValidationModeSilent ignores unsupported content without logging
 	ValidationModeSilent
 )
 
@@ -50,6 +62,10 @@ func (a *LangChainAdapter) SetValidationMode(mode ValidationMode) { a.validation
 
 // convertAudioToDataURL converts audio binary to a base64 data URL
 func (a *LangChainAdapter) convertAudioToDataURL(mimeType string, data []byte) string {
+	// Base64 encoding increases size by ~33%, check before encoding
+	if len(data) > OpenAIMaxPreEncodedAudioBytes {
+		return ""
+	}
 	b64 := base64.StdEncoding.EncodeToString(data)
 	return fmt.Sprintf("data:%s;base64,%s", mimeType, b64)
 }
@@ -65,7 +81,10 @@ func (a *LangChainAdapter) GenerateContent(ctx context.Context, req *LLMRequest)
 		return nil, fmt.Errorf("invalid conversation: %w", err)
 	}
 	// Convert our request to langchain format
-	messages := a.convertMessages(ctx, req)
+	messages, err := a.convertMessages(ctx, req)
+	if err != nil {
+		return nil, err
+	}
 	options := a.buildCallOptions(req)
 	// Call the underlying model
 	response, err := a.model.GenerateContent(ctx, messages, options...)
@@ -89,7 +108,7 @@ func (a *LangChainAdapter) GenerateContent(ctx context.Context, req *LLMRequest)
 }
 
 // convertMessages converts our Message format to langchain MessageContent
-func (a *LangChainAdapter) convertMessages(ctx context.Context, req *LLMRequest) []llms.MessageContent {
+func (a *LangChainAdapter) convertMessages(ctx context.Context, req *LLMRequest) ([]llms.MessageContent, error) {
 	messages := make([]llms.MessageContent, 0, len(req.Messages)+1)
 
 	// Add system prompt if provided
@@ -102,7 +121,10 @@ func (a *LangChainAdapter) convertMessages(ctx context.Context, req *LLMRequest)
 		m := &req.Messages[i]
 		msgType := a.mapMessageRole(m.Role)
 		// Build parts supporting text, tool calls, and tool results
-		parts := a.buildContentParts(ctx, m)
+		parts, err := a.buildContentParts(ctx, m)
+		if err != nil {
+			return nil, err
+		}
 		// Assistant tool calls
 		if len(m.ToolCalls) > 0 {
 			for _, tc := range m.ToolCalls {
@@ -136,17 +158,20 @@ func (a *LangChainAdapter) convertMessages(ctx context.Context, req *LLMRequest)
 		}
 	}
 
-	return messages
+	return messages, nil
 }
 
 // buildContentParts converts textual content and multimodal parts to langchaingo parts.
-func (a *LangChainAdapter) buildContentParts(ctx context.Context, msg *Message) []llms.ContentPart {
+func (a *LangChainAdapter) buildContentParts(ctx context.Context, msg *Message) ([]llms.ContentPart, error) {
+	if msg == nil {
+		return nil, nil
+	}
 	var parts []llms.ContentPart
-	if msg != nil && msg.Content != "" {
+	if msg.Content != "" {
 		parts = append(parts, llms.TextContent{Text: msg.Content})
 	}
-	if msg == nil || len(msg.Parts) == 0 {
-		return parts
+	if len(msg.Parts) == 0 {
+		return parts, nil
 	}
 	for _, p := range msg.Parts {
 		switch v := p.(type) {
@@ -155,12 +180,16 @@ func (a *LangChainAdapter) buildContentParts(ctx context.Context, msg *Message) 
 		case ImageURLPart:
 			parts = append(parts, llms.ImageURLContent{URL: v.URL, Detail: v.Detail})
 		case BinaryPart:
-			parts = a.handleBinary(ctx, v, parts)
+			var err error
+			parts, err = a.handleBinary(ctx, v, parts)
+			if err != nil {
+				return nil, err
+			}
 		default:
 			// ignore unknown types
 		}
 	}
-	return parts
+	return parts, nil
 }
 
 func (a *LangChainAdapter) isPDFAndNonGoogle(mime string) bool {
@@ -175,10 +204,10 @@ func (a *LangChainAdapter) skipOrWarnBinary(
 	ctx context.Context,
 	v BinaryPart,
 	parts []llms.ContentPart,
-) []llms.ContentPart {
+) ([]llms.ContentPart, error) {
 	log := logger.FromContext(ctx)
 	if a.validationMode == ValidationModeError {
-		return parts
+		return nil, fmt.Errorf("provider %s does not accept binary content of type %s", a.provider.Provider, v.MIMEType)
 	}
 	if a.validationMode == ValidationModeWarn {
 		log.Warn(
@@ -188,58 +217,80 @@ func (a *LangChainAdapter) skipOrWarnBinary(
 			"size", len(v.Data),
 		)
 	}
-	return parts
+	return parts, nil
 }
 
-func (a *LangChainAdapter) handleAV(ctx context.Context, v BinaryPart, parts []llms.ContentPart) []llms.ContentPart {
+func (a *LangChainAdapter) handleAV(
+	ctx context.Context,
+	v BinaryPart,
+	parts []llms.ContentPart,
+) ([]llms.ContentPart, error) {
 	if a.provider.Provider == core.ProviderGoogle {
-		return append(parts, llms.BinaryContent{MIMEType: v.MIMEType, Data: v.Data})
+		return append(parts, llms.BinaryContent{MIMEType: v.MIMEType, Data: v.Data}), nil
 	}
 	if a.provider.Provider == core.ProviderOpenAI && a.isAudio(v.MIMEType) {
-		const maxAudioBytes = 25 * 1024 * 1024
-		if len(v.Data) > maxAudioBytes {
+		if len(v.Data) > OpenAIMaxAudioBytes {
+			if a.validationMode == ValidationModeError {
+				return nil, fmt.Errorf(
+					"audio size %d exceeds OpenAI limit of %d bytes",
+					len(v.Data),
+					OpenAIMaxAudioBytes,
+				)
+			}
 			if a.validationMode == ValidationModeWarn {
 				logger.FromContext(ctx).Warn("Audio exceeds provider max size. Skipping.", "size", len(v.Data))
 			}
-			return parts
+			return parts, nil
 		}
 		dataURL := a.convertAudioToDataURL(v.MIMEType, v.Data)
+		if dataURL == "" {
+			if a.validationMode == ValidationModeError {
+				return nil, fmt.Errorf("audio data too large for base64 encoding")
+			}
+			if a.validationMode == ValidationModeWarn {
+				logger.FromContext(ctx).Warn("Audio too large for base64 encoding. Skipping.", "size", len(v.Data))
+			}
+			return parts, nil
+		}
 		logger.FromContext(ctx).Debug("Converted audio to data URL for OpenAI", "mime", v.MIMEType, "size", len(v.Data))
-		return append(parts, llms.ImageURLContent{URL: dataURL})
+		return append(parts, llms.ImageURLContent{URL: dataURL}), nil
 	}
 	if a.provider.Provider == core.ProviderOpenAI && a.isVideo(v.MIMEType) {
+		if a.validationMode == ValidationModeError {
+			return nil, fmt.Errorf("OpenAI does not support video input")
+		}
 		if a.validationMode == ValidationModeWarn {
 			logger.FromContext(ctx).
 				Warn("OpenAI does not support video input. Skipping video content.", "mime", v.MIMEType, "size", len(v.Data))
 		}
-		return parts
+		return parts, nil
 	}
-	return parts
+	return parts, nil
 }
 
 func (a *LangChainAdapter) handleBinary(
 	ctx context.Context,
 	v BinaryPart,
 	parts []llms.ContentPart,
-) []llms.ContentPart {
+) ([]llms.ContentPart, error) {
 	if a.isPDFAndNonGoogle(v.MIMEType) {
 		logger.FromContext(ctx).
 			Warn("Provider does not accept PDF binary. Omitting PDF content.", "provider", string(a.provider.Provider))
 		return append(
 			parts,
 			llms.TextContent{Text: "[PDF omitted: provider rejects PDF binaries; attach extracted text]"},
-		)
+		), nil
 	}
 	if a.isImage(v.MIMEType) {
 		b64 := base64.StdEncoding.EncodeToString(v.Data)
 		dataURL := fmt.Sprintf("data:%s;base64,%s", v.MIMEType, b64)
-		return append(parts, llms.ImageURLContent{URL: dataURL})
+		return append(parts, llms.ImageURLContent{URL: dataURL}), nil
 	}
 	if a.isAudio(v.MIMEType) || a.isVideo(v.MIMEType) {
 		return a.handleAV(ctx, v, parts)
 	}
 	if a.provider.Provider == core.ProviderGoogle {
-		return append(parts, llms.BinaryContent{MIMEType: v.MIMEType, Data: v.Data})
+		return append(parts, llms.BinaryContent{MIMEType: v.MIMEType, Data: v.Data}), nil
 	}
 	return a.skipOrWarnBinary(ctx, v, parts)
 }

@@ -14,6 +14,7 @@ import (
 
 func Test_ToContentPartsFromEffective_PDF_TextExtraction(t *testing.T) {
 	t.Run("Should extract text from small PDF and return TextPart", func(t *testing.T) {
+		t.Parallel()
 		dir := t.TempDir()
 		pdfPath := filepath.Join(dir, "hello.pdf")
 
@@ -27,10 +28,10 @@ func Test_ToContentPartsFromEffective_PDF_TextExtraction(t *testing.T) {
 		cwd, err := core.CWDFromPath(dir)
 		require.NoError(t, err)
 
-		items := []EffectiveItem{{Att: &PDFAttachment{baseAttachment: baseAttachment{}, Path: "hello.pdf"}, CWD: cwd}}
+		items := []EffectiveItem{{Att: &PDFAttachment{Path: "hello.pdf"}, CWD: cwd}}
 		parts, cleanup, err := ToContentPartsFromEffective(context.Background(), items)
 		if cleanup != nil {
-			cleanup()
+			defer cleanup()
 		}
 		require.NoError(t, err)
 		require.Len(t, parts, 1)

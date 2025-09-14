@@ -17,7 +17,7 @@ func resolveVideo(ctx context.Context, a *VideoAttachment, cwd *core.PathCWD) (R
 			(&resolvedFile{path: path, temp: true}).Cleanup()
 			return nil, errMimeDenied(TypeVideo, mime)
 		}
-		logger.FromContext(ctx).Debug("Resolved URL attachment", "attachment_type", string(TypeVideo))
+		logger.FromContext(ctx).Debug("Resolved URL attachment", "attachment_type", string(TypeVideo), "mime", mime)
 		return &resolvedFile{path: path, mime: mime, temp: true}, nil
 	}
 	return resolveLocalFile(ctx, cwd, choosePath(a.Path, a.Paths), TypeVideo)

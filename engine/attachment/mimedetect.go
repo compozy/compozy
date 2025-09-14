@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	appconfig "github.com/compozy/compozy/pkg/config"
+	"github.com/compozy/compozy/pkg/config"
 	"github.com/gabriel-vasile/mimetype"
 )
 
@@ -45,7 +45,7 @@ func isAllowedByType(t Type, mime string) bool {
 // isAllowedByTypeCtx consults global configuration allow-lists when available.
 // Falls back to the heuristic in isAllowedByType when config or list is empty.
 func isAllowedByTypeCtx(ctx context.Context, t Type, mime string) bool {
-	cfg := appconfig.FromContext(ctx)
+	cfg := config.FromContext(ctx)
 	if cfg == nil {
 		return isAllowedByType(t, mime)
 	}
@@ -65,19 +65,20 @@ func isAllowedByTypeCtx(ctx context.Context, t Type, mime string) bool {
 	if len(allow) == 0 {
 		return isAllowedByType(t, mime)
 	}
+	lmime := strings.ToLower(mime)
 	for i := range allow {
 		pat := strings.TrimSpace(allow[i])
 		if pat == "" {
 			continue
 		}
 		if strings.HasSuffix(pat, "/*") {
-			base := strings.ToLower(strings.TrimSuffix(pat, "*"))
-			if strings.HasPrefix(strings.ToLower(mime), base) {
+			base := strings.ToLower(strings.TrimSuffix(pat, "/*"))
+			if strings.HasPrefix(lmime, base) {
 				return true
 			}
 			continue
 		}
-		if strings.EqualFold(mime, pat) {
+		if strings.EqualFold(lmime, strings.ToLower(pat)) {
 			return true
 		}
 	}

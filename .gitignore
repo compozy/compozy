@@ -16,6 +16,7 @@ node_modules/
 /node_modules
 bun.lockb
 .bun
+.cache
 
 # === BUILD OUTPUT ===
 /build/
@@ -129,4 +130,4 @@ Thumbs.db
 
 # Task files
 tasks.json
-tasks/ 
+tasks/

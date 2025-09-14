@@ -34,7 +34,8 @@ type DynamicMockLLM struct {
 	fallback        *MockLLM
 }
 
-// (created via NewMockLLM) is used for prompts that don't match any expected action.
+// NewDynamicMockLLM creates a new dynamic mock LLM that returns fixture-defined outputs
+// for prompts that match expected action patterns. Falls back to NewMockLLM for unmatched prompts.
 func NewDynamicMockLLM(model string, expectedOutputs map[string]core.Output) *DynamicMockLLM {
 	copied := make(map[string]core.Output, len(expectedOutputs))
 	// shallow copy is enough for test fixtures; deep copy if needed later

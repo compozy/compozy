@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/attachment"
@@ -371,7 +372,6 @@ func (uc *ExecuteTask) executeAgent(
 	input *ExecuteTaskInput,
 ) (*core.Output, error) {
 	log := logger.FromContext(ctx)
-	// Prepare agent configuration
 	if err := uc.prepareAgentConfig(ctx, agentConfig, input, actionID); err != nil {
 		return nil, err
 	}
@@ -380,31 +380,86 @@ func (uc *ExecuteTask) executeAgent(
 			"agent_id", agentConfig.ID,
 			"task_id", input.TaskConfig.ID)
 	}
-	// Compute effective attachment content parts (if any)
 	parts, cleanup := uc.computeAttachmentParts(ctx, agentConfig, actionID, input)
-
-	// Create LLM service with resolved tools, memory, and attachment parts
 	llmService, err := uc.createLLMService(ctx, agentConfig, input, parts)
 	if err != nil {
 		return nil, err
 	}
-	// Ensure MCP connections are properly closed when agent execution completes
-	defer func() {
-		if closeErr := llmService.Close(); closeErr != nil {
-			// Log error but don't fail the task
-			log.Warn("Failed to close LLM service", "error", closeErr)
-		}
-	}()
 	if cleanup != nil {
 		defer cleanup()
 	}
-	// Resolve templates in promptText if present and context available
+	defer func() {
+		if closeErr := llmService.Close(); closeErr != nil {
+			log.Warn("Failed to close LLM service", "error", closeErr)
+		}
+	}()
 	resolvedPrompt := uc.resolvePromptTemplates(ctx, promptText, agentConfig, input)
 	result, err := llmService.GenerateContent(ctx, agentConfig, taskWith, actionID, resolvedPrompt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate content: %w", err)
 	}
 	return result, nil
+}
+
+func (uc *ExecuteTask) normalizeAttachmentsForScopes(
+	ctx context.Context,
+	input *ExecuteTaskInput,
+	agentConfig *agent.Config,
+	actionCfg *agent.ActionConfig,
+	tplCtx map[string]any,
+) (taskNorm, agentNorm, actionNorm []attachment.Attachment) {
+	log := logger.FromContext(ctx)
+	if input.TaskConfig != nil {
+		taskNorm = normalizeScopeLogged(
+			ctx, uc.templateEngine, tplCtx,
+			input.TaskConfig.Attachments, input.TaskConfig.CWD, log, "Task",
+		)
+	}
+	agentNorm = normalizeScopeLogged(
+		ctx, uc.templateEngine, tplCtx,
+		agentConfig.Attachments, agentConfig.CWD, log, "Agent",
+	)
+	if actionCfg != nil {
+		actionNorm = normalizeScopeLogged(
+			ctx, uc.templateEngine, tplCtx,
+			actionCfg.Attachments, actionCfg.CWD, log, "Action",
+		)
+	}
+	return taskNorm, agentNorm, actionNorm
+}
+
+// buildTplCtx creates the template context for attachment processing
+func (uc *ExecuteTask) buildTplCtx(input *ExecuteTaskInput) map[string]any {
+	return buildWorkflowContext(
+		input.WorkflowState,
+		input.WorkflowConfig,
+		input.TaskConfig,
+		input.ProjectConfig,
+	)
+}
+
+// extractCWDS extracts CWD values from task and action configurations
+func extractCWDS(input *ExecuteTaskInput, actionCfg *agent.ActionConfig) (*core.PathCWD, *core.PathCWD) {
+	var taskCWD *core.PathCWD
+	if input.TaskConfig != nil {
+		taskCWD = input.TaskConfig.CWD
+	}
+	var actionCWD *core.PathCWD
+	if actionCfg != nil {
+		actionCWD = actionCfg.CWD
+	}
+	return taskCWD, actionCWD
+}
+
+// normalizeScopes handles attachment normalization for all scopes
+func (uc *ExecuteTask) normalizeScopes(
+	ctx context.Context,
+	input *ExecuteTaskInput,
+	agentConfig *agent.Config,
+	actionCfg *agent.ActionConfig,
+	tplCtx map[string]any,
+) (taskNorm, agentNorm, actionNorm []attachment.Attachment) {
+	return uc.normalizeAttachmentsForScopes(ctx, input, agentConfig, actionCfg, tplCtx)
 }
 
 // computeAttachmentParts normalizes attachments across task/agent/action scopes,
@@ -416,46 +471,18 @@ func (uc *ExecuteTask) computeAttachmentParts(
 	actionID string,
 	input *ExecuteTaskInput,
 ) ([]llmadapter.ContentPart, func()) {
-	if uc.templateEngine == nil || input == nil {
+	if input == nil || uc.templateEngine == nil {
 		return nil, nil
 	}
 	log := logger.FromContext(ctx)
-	tplCtx := buildWorkflowContext(
-		input.WorkflowState,
-		input.WorkflowConfig,
-		input.TaskConfig,
-		input.ProjectConfig,
-	)
+	tplCtx := uc.buildTplCtx(input)
 	actionCfg := findActionConfig(agentConfig, actionID)
-	var taskAtts []attachment.Attachment
-	var taskCWDInit *core.PathCWD
-	if input.TaskConfig != nil {
-		taskAtts = input.TaskConfig.Attachments
-		taskCWDInit = input.TaskConfig.CWD
+	if actionID != "" && actionCfg == nil {
+		log.Warn("Action not found while merging attachments; continuing without action-scope attachments",
+			"agent_id", agentConfig.ID, "action_id", actionID)
 	}
-	taskNorm := normalizeScopeLogged(
-		ctx, uc.templateEngine, tplCtx,
-		taskAtts, taskCWDInit, log, "Task",
-	)
-	agentNorm := normalizeScopeLogged(
-		ctx, uc.templateEngine, tplCtx,
-		agentConfig.Attachments, agentConfig.CWD, log, "Agent",
-	)
-	var actionNorm []attachment.Attachment
-	if actionCfg != nil {
-		actionNorm = normalizeScopeLogged(
-			ctx, uc.templateEngine, tplCtx,
-			actionCfg.Attachments, actionCfg.CWD, log, "Action",
-		)
-	}
-	var taskCWD *core.PathCWD
-	if input != nil && input.TaskConfig != nil {
-		taskCWD = input.TaskConfig.CWD
-	}
-	var actionCWD *core.PathCWD
-	if actionCfg != nil {
-		actionCWD = actionCfg.CWD
-	}
+	taskNorm, agentNorm, actionNorm := uc.normalizeScopes(ctx, input, agentConfig, actionCfg, tplCtx)
+	taskCWD, actionCWD := extractCWDS(input, actionCfg)
 	effective := attachment.ComputeEffectiveItems(taskNorm, taskCWD, agentNorm, agentConfig.CWD, actionNorm, actionCWD)
 	if len(effective) == 0 {
 		return nil, nil
@@ -561,6 +588,12 @@ func (uc *ExecuteTask) createLLMService(
 	if len(parts) > 0 {
 		llmOpts = append(llmOpts, llm.WithAttachmentParts(parts))
 	}
+	// Derive LLM timeout from task -> runtime defaults
+	effectiveTimeout := deriveLLMTimeout(ctx, input, uc.appConfig)
+	if effectiveTimeout > 0 {
+		llmOpts = append(llmOpts, llm.WithTimeout(effectiveTimeout))
+		log.Debug("Configured LLM timeout", "timeout", effectiveTimeout.String())
+	}
 	// MCP registration is handled by server startup (engine/mcp.SetupForWorkflows)
 	// We no longer register workflow-level MCPs from the exec task.
 	llmService, err := llm.NewService(ctx, uc.runtime, agentConfig, llmOpts...)
@@ -568,6 +601,24 @@ func (uc *ExecuteTask) createLLMService(
 		return nil, fmt.Errorf("failed to create LLM service: %w", err)
 	}
 	return llmService, nil
+}
+
+func deriveLLMTimeout(ctx context.Context, input *ExecuteTaskInput, appCfg *config.Config) time.Duration {
+	log := logger.FromContext(ctx)
+	if input != nil && input.TaskConfig != nil && input.TaskConfig.Timeout != "" {
+		if d, err := time.ParseDuration(strings.TrimSpace(input.TaskConfig.Timeout)); err == nil && d > 0 {
+			return d
+		}
+		log.Warn(
+			"Invalid task timeout; falling back to defaults",
+			"timeout", input.TaskConfig.Timeout,
+			"error", "parse_failed",
+		)
+	}
+	if appCfg != nil && appCfg.Runtime.ToolExecutionTimeout > 0 {
+		return appCfg.Runtime.ToolExecutionTimeout
+	}
+	return 0
 }
 
 // normalizeAttachments runs Phase1 and Phase2 normalization for attachments.

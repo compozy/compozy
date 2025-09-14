@@ -26,19 +26,38 @@ func Test_AttachmentsRouter_Image(t *testing.T) {
 		)
 		require.NotNil(t, result)
 		fixture.AssertWorkflowState(t, result)
-		// Verify MockLLM received image parts by scanning outputs for echo marker
+		// Verify MockLLM received image parts by asserting image_urls > 0 (with safe fallback)
 		require.NotNil(t, result.Output)
 		var found bool
 		for _, ts := range result.Tasks {
-			if ts.Output != nil {
+			if ts.Output == nil {
+				continue
+			}
+			if att, ok := (*ts.Output)["attachments"].(map[string]any); ok {
+				if v, ok := att["image_urls"]; ok {
+					switch n := v.(type) {
+					case int:
+						if n > 0 {
+							found = true
+						}
+					case int64:
+						if n > 0 {
+							found = true
+						}
+					case float64:
+						if n > 0 {
+							found = true
+						}
+					}
+				}
+			} else {
 				s := fmt.Sprintf("%v", *ts.Output)
-				if strings.Contains(s, "attachments:image_urls=") {
+				if strings.Contains(s, "image_urls:") {
 					found = true
-					break
 				}
 			}
 		}
-		require.True(t, found, "Should include attachment echo marker in task outputs")
+		require.True(t, found, "Should include non-zero image_urls in task outputs")
 	})
 }
 

@@ -241,8 +241,8 @@ func applyTemplateString(eng *tplengine.TemplateEngine, ctx map[string]any, in s
 	if !ok {
 		return "", false, fmt.Errorf("template did not resolve to string")
 	}
-	// Deferred if original template references .tasks.* and engine kept it unchanged
-	deferred := tplengine.HasTemplate(in) && strings.Contains(in, ".tasks.") && s == in
+	// Deferred if original template references .tasks.* and still contains template syntax after evaluation
+	deferred := strings.Contains(in, ".tasks.") && tplengine.HasTemplate(s)
 	return s, deferred, nil
 }
 
@@ -256,7 +256,11 @@ func globWithinCWD(cwd *core.PathCWD, pattern string) ([]string, error) {
 	}
 	out := make([]string, 0, len(matches))
 	for _, m := range matches {
-		if !pathWithin(root, m) {
+		within, err := pathWithin(root, m)
+		if err != nil {
+			return nil, fmt.Errorf("path validation failed for match %s: %w", m, err)
+		}
+		if !within {
 			return nil, fmt.Errorf("match outside CWD: %s", m)
 		}
 		rel, rerr := filepath.Rel(root, m)
@@ -269,32 +273,90 @@ func globWithinCWD(cwd *core.PathCWD, pattern string) ([]string, error) {
 }
 
 // helpers to reduce cyclomatic complexity
+
+// attachment factory maps to avoid repetitive switches
+var attachmentSingleFactories = map[Type]func(baseAttachment, Source, string) Attachment{
+	TypeImage: func(b baseAttachment, s Source, v string) Attachment {
+		if s == SourceURL {
+			return &ImageAttachment{baseAttachment: b, Source: s, URL: v}
+		}
+		return &ImageAttachment{baseAttachment: b, Source: s, Path: v}
+	},
+	TypePDF: func(b baseAttachment, s Source, v string) Attachment {
+		if s == SourceURL {
+			return &PDFAttachment{baseAttachment: b, Source: s, URL: v}
+		}
+		return &PDFAttachment{baseAttachment: b, Source: s, Path: v}
+	},
+	TypeAudio: func(b baseAttachment, s Source, v string) Attachment {
+		if s == SourceURL {
+			return &AudioAttachment{baseAttachment: b, Source: s, URL: v}
+		}
+		return &AudioAttachment{baseAttachment: b, Source: s, Path: v}
+	},
+	TypeVideo: func(b baseAttachment, s Source, v string) Attachment {
+		if s == SourceURL {
+			return &VideoAttachment{baseAttachment: b, Source: s, URL: v}
+		}
+		return &VideoAttachment{baseAttachment: b, Source: s, Path: v}
+	},
+}
+
+var attachmentMultiFactories = map[Type]func(baseAttachment, Source, []string) Attachment{
+	TypeImage: func(b baseAttachment, s Source, v []string) Attachment {
+		if s == SourceURL {
+			return &ImageAttachment{baseAttachment: b, Source: s, URLs: v}
+		}
+		return &ImageAttachment{baseAttachment: b, Source: s, Paths: v}
+	},
+	TypePDF: func(b baseAttachment, s Source, v []string) Attachment {
+		if s == SourceURL {
+			return &PDFAttachment{baseAttachment: b, Source: s, URLs: v}
+		}
+		return &PDFAttachment{baseAttachment: b, Source: s, Paths: v}
+	},
+	TypeAudio: func(b baseAttachment, s Source, v []string) Attachment {
+		if s == SourceURL {
+			return &AudioAttachment{baseAttachment: b, Source: s, URLs: v}
+		}
+		return &AudioAttachment{baseAttachment: b, Source: s, Paths: v}
+	},
+	TypeVideo: func(b baseAttachment, s Source, v []string) Attachment {
+		if s == SourceURL {
+			return &VideoAttachment{baseAttachment: b, Source: s, URLs: v}
+		}
+		return &VideoAttachment{baseAttachment: b, Source: s, Paths: v}
+	},
+}
+
+func newAttachmentItem(kind Type, src Source, base baseAttachment, v string) Attachment {
+	if f, ok := attachmentSingleFactories[kind]; ok {
+		return f(base, src, v)
+	}
+	if src == SourceURL {
+		return &VideoAttachment{baseAttachment: base, Source: src, URL: v}
+	}
+	return &VideoAttachment{baseAttachment: base, Source: src, Path: v}
+}
+
+func newAttachmentParent(kind Type, src Source, base baseAttachment, v []string) Attachment {
+	if f, ok := attachmentMultiFactories[kind]; ok {
+		return f(base, src, v)
+	}
+	if src == SourceURL {
+		return &VideoAttachment{baseAttachment: base, Source: src, URLs: v}
+	}
+	return &VideoAttachment{baseAttachment: base, Source: src, Paths: v}
+}
+
 // newURLItem creates a concrete attachment for a single URL.
 func newURLItem(kind Type, base baseAttachment, u string) Attachment {
-	switch kind {
-	case TypeImage:
-		return &ImageAttachment{baseAttachment: base, Source: SourceURL, URL: u}
-	case TypePDF:
-		return &PDFAttachment{baseAttachment: base, Source: SourceURL, URL: u}
-	case TypeAudio:
-		return &AudioAttachment{baseAttachment: base, Source: SourceURL, URL: u}
-	default:
-		return &VideoAttachment{baseAttachment: base, Source: SourceURL, URL: u}
-	}
+	return newAttachmentItem(kind, SourceURL, base, u)
 }
 
 // newURLParent creates a parent attachment holding deferred URLs.
 func newURLParent(kind Type, base baseAttachment, urls []string) Attachment {
-	switch kind {
-	case TypeImage:
-		return &ImageAttachment{baseAttachment: base, Source: SourceURL, URLs: urls}
-	case TypePDF:
-		return &PDFAttachment{baseAttachment: base, Source: SourceURL, URLs: urls}
-	case TypeAudio:
-		return &AudioAttachment{baseAttachment: base, Source: SourceURL, URLs: urls}
-	default:
-		return &VideoAttachment{baseAttachment: base, Source: SourceURL, URLs: urls}
-	}
+	return newAttachmentParent(kind, SourceURL, base, urls)
 }
 
 // buildURLItems builds children for a set of resolved URLs.
@@ -329,30 +391,12 @@ func splitResolvedURLs(eng *tplengine.TemplateEngine, ctx map[string]any, urls [
 
 // newPathItem creates a concrete attachment for a single filesystem path.
 func newPathItem(kind Type, base baseAttachment, p string) Attachment {
-	switch kind {
-	case TypeImage:
-		return &ImageAttachment{baseAttachment: base, Source: SourcePath, Path: p}
-	case TypePDF:
-		return &PDFAttachment{baseAttachment: base, Source: SourcePath, Path: p}
-	case TypeAudio:
-		return &AudioAttachment{baseAttachment: base, Source: SourcePath, Path: p}
-	default:
-		return &VideoAttachment{baseAttachment: base, Source: SourcePath, Path: p}
-	}
+	return newAttachmentItem(kind, SourcePath, base, p)
 }
 
 // newPathParent creates a parent attachment holding deferred path patterns.
 func newPathParent(kind Type, base baseAttachment, ps []string) Attachment {
-	switch kind {
-	case TypeImage:
-		return &ImageAttachment{baseAttachment: base, Source: SourcePath, Paths: ps}
-	case TypePDF:
-		return &PDFAttachment{baseAttachment: base, Source: SourcePath, Paths: ps}
-	case TypeAudio:
-		return &AudioAttachment{baseAttachment: base, Source: SourcePath, Paths: ps}
-	default:
-		return &VideoAttachment{baseAttachment: base, Source: SourcePath, Paths: ps}
-	}
+	return newAttachmentParent(kind, SourcePath, base, ps)
 }
 
 // buildPathItems builds children for a set of resolved path matches.
@@ -387,8 +431,8 @@ func expandPathPatterns(
 		} else {
 			expanded, err := globWithinCWD(cwd, s)
 			if err != nil {
-				logger.FromContext(ctx).Debug("glob expansion failed", "pattern", s, "error", err)
-				continue
+				logger.FromContext(ctx).Warn("glob expansion failed", "pattern", s, "error", err)
+				return nil, nil, fmt.Errorf("failed to expand pattern %q: %w", s, err)
 			}
 			matches = append(matches, expanded...)
 		}

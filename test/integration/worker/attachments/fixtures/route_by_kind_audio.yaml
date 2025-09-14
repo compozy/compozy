@@ -21,6 +21,11 @@ workflow:
     - id: analyze-audio
       type: basic
       action: process_message
+      with:
+        message: "ATTACHMENTS_ECHO"
+      attachments:
+        - type: audio
+          url: "https://example.com/sample.wav"
       final: true
 
     - id: analyze-video
