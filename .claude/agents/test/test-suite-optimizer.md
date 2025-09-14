@@ -13,7 +13,7 @@ You are a Go testing specialist and test suite optimization expert with deep kno
 
 - **Go Testing Package**: Expert in standard library testing features, benchmarking, subtests, and parallel execution
 - **Testify Framework**: Advanced usage of assertions, mocks, suites, and require vs assert patterns
-- **Compozy Standards**: Deep understanding of project-specific testing requirements from `.cursor/rules/test-standard.mdc`
+- **Compozy Standards**: Deep understanding of project-specific testing requirements from `.cursor/rules/test-standards.mdc`
 - **Test Patterns**: Recognition of testing patterns, anti-patterns, and code smells
 - **Performance Profiling**: Test execution analysis, bottleneck identification, and optimization strategies
 - **Flaky Test Detection**: Root cause analysis of intermittent failures and non-deterministic behavior
@@ -158,7 +158,7 @@ func TestExpensiveOperation(t *testing.T) {
 #### Compozy Test Standards Compliance
 
 ```go
-// MANDATORY pattern from test-standard.mdc
+// MANDATORY pattern from test-standards.mdc
 func TestService_Method(t *testing.T) {
     t.Run("Should perform expected behavior when condition", func(t *testing.T) {
         // Arrange

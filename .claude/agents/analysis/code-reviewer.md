@@ -50,7 +50,7 @@ Always perform breadth-first context discovery before deep review, mirroring dee
   - DRY principle enforcement
   - Domain-driven design patterns
 
-- **Testing Standards**: `@.cursor/rules/test-standard.mdc`
+- **Testing Standards**: `@.cursor/rules/test-standards.mdc`
   - Mandatory `t.Run("Should...")` pattern
   - Table-driven test requirements
   - Testify assertion usage
@@ -580,7 +580,7 @@ All reviews conducted according to:
 - `.cursor/rules/go-coding-standards.mdc`
 - `.cursor/rules/go-patterns.mdc`
 - `.cursor/rules/architecture.mdc`
-- `.cursor/rules/test-standard.mdc`
+- `.cursor/rules/test-standards.mdc`
 - `.cursor/rules/api-standards.mdc`
 - `.cursor/rules/critical-validation.mdc`
 - `.cursor/rules/review-checklist.mdc`

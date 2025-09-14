@@ -26,6 +26,7 @@ func getFlagCategoryDefinitions() []FlagCategory {
 	categories = append(categories, getCoreCategories()...)
 	categories = append(categories, getServerCategories()...)
 	categories = append(categories, getRuntimeCategories()...)
+	categories = append(categories, getAttachmentsCategories()...)
 	categories = append(categories, getInfrastructureCategories()...)
 	return categories
 }
@@ -115,6 +116,22 @@ func getRuntimeCategories() []FlagCategory {
 			Flags: []string{
 				"max-nesting-depth", "max-string-length",
 				"max-message-content-length", "max-total-content-size",
+			},
+		},
+	}
+}
+
+func getAttachmentsCategories() []FlagCategory {
+	return []FlagCategory{
+		{
+			Name:        "Attachments & Media",
+			Description: "Attachment limits, timeouts and redirects",
+			Flags: []string{
+				"attachments-max-download-size",
+				"attachments-download-timeout",
+				"attachments-max-redirects",
+				"attachments-http-user-agent",
+				"attachments-ssrf-strict",
 			},
 		},
 	}

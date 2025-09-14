@@ -90,7 +90,14 @@ func TestService_GenerateContent_DirectPrompt(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = service.Close() })
 
-		out, err := service.GenerateContent(context.Background(), agentConfig, &core.Input{}, "", "Analyze this text")
+		out, err := service.GenerateContent(
+			context.Background(),
+			agentConfig,
+			&core.Input{},
+			"",
+			"Analyze this text",
+			[]llmadapter.ContentPart{},
+		)
 		require.NoError(t, err)
 		require.NotNil(t, out)
 		// Direct prompt returns text response parsed into {"response": ...}
@@ -111,7 +118,14 @@ func TestService_GenerateContent_DirectPrompt(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = service.Close() })
 
-		_, err = service.GenerateContent(context.Background(), agentConfig, &core.Input{}, "", "")
+		_, err = service.GenerateContent(
+			context.Background(),
+			agentConfig,
+			&core.Input{},
+			"",
+			"",
+			[]llmadapter.ContentPart{},
+		)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "either actionID or directPrompt must be provided")
 	})
@@ -136,7 +150,14 @@ func TestService_GenerateContent_DirectPrompt(t *testing.T) {
 		t.Cleanup(func() { _ = service.Close() })
 
 		with := core.Input{"text": "hello"}
-		out, err := service.GenerateContent(context.Background(), agentConfig, &with, "analyze", "")
+		out, err := service.GenerateContent(
+			context.Background(),
+			agentConfig,
+			&with,
+			"analyze",
+			"",
+			[]llmadapter.ContentPart{},
+		)
 		require.NoError(t, err)
 		require.NotNil(t, out)
 		assert.Equal(t, true, (*out)["ok"])
@@ -169,6 +190,7 @@ func TestService_GenerateContent_DirectPrompt(t *testing.T) {
 			&with,
 			"analyze",
 			"Focus on security implications",
+			[]llmadapter.ContentPart{},
 		)
 		require.NoError(t, err)
 		require.NotNil(t, out)

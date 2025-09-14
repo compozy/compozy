@@ -3,6 +3,10 @@ basePath: /api/v0
 definitions:
   agent.ActionConfig:
     properties:
+      attachments:
+        description: Attachments at action scope
+        items: {}
+        type: array
       cwd:
         $ref: '#/definitions/core.PathCWD'
       id:
@@ -98,6 +102,10 @@ definitions:
           $ref: inline:#action-configuration
         items:
           $ref: '#/definitions/agent.ActionConfig'
+        type: array
+      attachments:
+        description: Attachments declared at the agent scope.
+        items: {}
         type: array
       config:
         allOf:
@@ -1542,6 +1550,13 @@ definitions:
       ttl:
         type: string
     type: object
+  webhook.ErrorResponse:
+    properties:
+      details:
+        type: string
+      error:
+        type: string
+    type: object
   webhook.EventConfig:
     properties:
       filter:
@@ -1554,6 +1569,12 @@ definitions:
         type: string
       schema:
         $ref: '#/definitions/schema.Schema'
+    type: object
+  webhook.SuccessResponse:
+    properties:
+      data: {}
+      message:
+        type: string
     type: object
   webhook.VerifySpec:
     properties:
@@ -1588,7 +1609,7 @@ definitions:
         example: 2Z4PVTL6K27XVT4A3NPKMDD5BG
         type: string
       exec_url:
-        example: localhost:5001/api/workflows/executions/2Z4PVTL6K27XVT4A3NPKMDD5BG
+        example: localhost:5001/api/v0/executions/workflows/2Z4PVTL6K27XVT4A3NPKMDD5BG
         type: string
       workflow_id:
         example: data-processing
@@ -2511,6 +2532,98 @@ paths:
       summary: Call a tool on an MCP server
       tags:
         - MCP Tools
+  /api/v0/hooks/{slug}:
+    post:
+      consumes:
+        - application/json
+      description: Accepts webhook payloads and triggers matching workflow events.
+      parameters:
+        - description: Webhook slug
+          example: '"my-webhook"'
+          in: path
+          name: slug
+          required: true
+          type: string
+        - description: Optional idempotency key to prevent duplicate processing
+          example: '"idemp-123"'
+          in: header
+          name: X-Idempotency-Key
+          type: string
+        - description: Optional correlation ID for request tracing
+          example: '"corr-456"'
+          in: header
+          name: X-Correlation-ID
+          type: string
+        - description: Optional HMAC signature header (configurable per webhook)
+          example: '"sha256=abc123..."'
+          in: header
+          name: X-Sig
+          type: string
+        - description: Stripe webhook signature (when using stripe verification)
+          example: '"t=123,v1=def..."'
+          in: header
+          name: Stripe-Signature
+          type: string
+        - description: GitHub webhook signature (when using github verification)
+          example: '"sha256=ghi789..."'
+          in: header
+          name: X-Hub-Signature-256
+          type: string
+        - description: Arbitrary JSON payload
+          in: body
+          name: payload
+          required: true
+          schema:
+            type: object
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Processed successfully
+          schema:
+            $ref: '#/definitions/webhook.SuccessResponse'
+        "202":
+          description: Accepted and enqueued
+          schema:
+            $ref: '#/definitions/webhook.SuccessResponse'
+        "400":
+          description: Invalid or oversized payload
+          schema:
+            $ref: '#/definitions/webhook.ErrorResponse'
+        "401":
+          description: Signature verification failed
+          schema:
+            $ref: '#/definitions/webhook.ErrorResponse'
+        "404":
+          description: Webhook not found
+          schema:
+            $ref: '#/definitions/webhook.ErrorResponse'
+        "409":
+          description: Duplicate idempotency key
+          schema:
+            $ref: '#/definitions/webhook.ErrorResponse'
+        "422":
+          description: Unprocessable entity
+          schema:
+            $ref: '#/definitions/webhook.ErrorResponse'
+        "429":
+          description: Rate limit exceeded
+          schema:
+            $ref: '#/definitions/webhook.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/webhook.ErrorResponse'
+      summary: Trigger webhook
+      tags:
+        - webhooks
+      x-example-error:
+        details: invalid JSON payload
+        error: bad_request
+      x-example-success:
+        data:
+          result: ok
+        message: Success
   /auth/generate:
     post:
       consumes:
@@ -2939,124 +3052,6 @@ paths:
       summary: Send signal to workflow execution
       tags:
         - executions
-  /hooks/{slug}:
-    post:
-      consumes:
-        - application/json
-      description: Accepts webhook payloads and triggers matching workflow events.
-      parameters:
-        - description: Webhook slug
-          example: '"my-webhook"'
-          in: path
-          name: slug
-          required: true
-          type: string
-        - description: Optional idempotency key to prevent duplicate processing
-          example: '"idemp-123"'
-          in: header
-          name: X-Idempotency-Key
-          type: string
-        - description: Optional correlation ID for request tracing
-          example: '"corr-456"'
-          in: header
-          name: X-Correlation-ID
-          type: string
-        - description: Optional HMAC signature header (configurable per webhook)
-          example: '"sha256=abc123..."'
-          in: header
-          name: X-Sig
-          type: string
-        - description: Stripe webhook signature (when using stripe verification)
-          example: '"t=123,v1=def..."'
-          in: header
-          name: Stripe-Signature
-          type: string
-        - description: GitHub webhook signature (when using github verification)
-          example: '"sha256=ghi789..."'
-          in: header
-          name: X-Hub-Signature-256
-          type: string
-        - description: Arbitrary JSON payload
-          in: body
-          name: payload
-          required: true
-          schema:
-            type: object
-      produces:
-        - application/json
-      responses:
-        "200":
-          description: Processed with no matching event" example({"status":200,"message":"no matching
-            event","data":{}})
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  data:
-                    type: object
-                type: object
-        "202":
-          description: Accepted and enqueued" example({"status":202,"message":"webhook accepted","data":{"event_id":"evt_123"}})
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  data:
-                    type: object
-                type: object
-        "400":
-          description: Invalid or oversized payload" example({"status":400,"error":{"code":"BAD_REQUEST","message":"invalid
-            payload","details":"payload too large"}})
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-        "401":
-          description: Signature verification failed" example({"status":401,"error":{"code":"UNAUTHORIZED","message":"signature
-            verification failed","details":"invalid signature"}})
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-        "404":
-          description: Webhook not found" example({"status":404,"error":{"code":"NOT_FOUND","message":"webhook
-            not found","details":""}})
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-        "409":
-          description: Duplicate idempotency key" example({"status":409,"error":{"code":"DUPLICATE","message":"duplicate
-            request","details":"idempotency key already processed"}})
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-        "500":
-          description: Internal server error" example({"status":500,"error":{"code":"INTERNAL_ERROR","message":"internal
-            server error","details":""}})
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-      summary: Trigger webhook
-      tags:
-        - webhooks
   /memory/{memory_ref}/append:
     post:
       consumes:

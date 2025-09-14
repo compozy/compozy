@@ -8,9 +8,11 @@ import (
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
+	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/tool"
+	appconfig "github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 )
 
@@ -27,6 +29,10 @@ func NewService(ctx context.Context, runtime runtime.Runtime, agent *agent.Confi
 	log := logger.FromContext(ctx)
 	// Build configuration
 	config := DefaultConfig()
+	// Context-first: merge application config when available
+	if ac := appconfig.FromContext(ctx); ac != nil {
+		WithAppConfig(ac)(config)
+	}
 	for _, opt := range opts {
 		opt(config)
 	}
@@ -102,6 +108,7 @@ func (s *Service) GenerateContent(
 	taskWith *core.Input,
 	actionID string,
 	directPrompt string,
+	attachmentParts []llmadapter.ContentPart,
 ) (*core.Output, error) {
 	if agentConfig == nil {
 		return nil, fmt.Errorf("agent config cannot be nil")
@@ -134,7 +141,11 @@ func (s *Service) GenerateContent(
 		return nil, err
 	}
 
-	request := Request{Agent: effectiveAgent, Action: actionCopy}
+	request := Request{
+		Agent:           effectiveAgent,
+		Action:          actionCopy,
+		AttachmentParts: attachmentParts,
+	}
 	return s.orchestrator.Execute(ctx, request)
 }
 

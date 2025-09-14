@@ -306,6 +306,7 @@ func addCoreDefaults(result map[string]any, defaultConfig *Config) {
 	result["temporal"] = createTemporalDefaults(defaultConfig)
 	result["runtime"] = createRuntimeDefaults(defaultConfig)
 	result["limits"] = createLimitsDefaults(defaultConfig)
+	result["attachments"] = createAttachmentsDefaults(defaultConfig)
 }
 
 // addServiceDefaults adds service configuration defaults
@@ -392,6 +393,22 @@ func createLimitsDefaults(defaultConfig *Config) map[string]any {
 		"max_total_content_size":   defaultConfig.Limits.MaxTotalContentSize,
 		"max_task_context_depth":   defaultConfig.Limits.MaxTaskContextDepth,
 		"parent_update_batch_size": defaultConfig.Limits.ParentUpdateBatchSize,
+	}
+}
+
+// createAttachmentsDefaults creates attachments configuration defaults
+func createAttachmentsDefaults(defaultConfig *Config) map[string]any {
+	return map[string]any{
+		"max_download_size_bytes": defaultConfig.Attachments.MaxDownloadSizeBytes,
+		"download_timeout":        defaultConfig.Attachments.DownloadTimeout.String(),
+		"max_redirects":           defaultConfig.Attachments.MaxRedirects,
+		"allowed_mime_types": map[string]any{
+			"image": defaultConfig.Attachments.AllowedMIMETypes.Image,
+			"audio": defaultConfig.Attachments.AllowedMIMETypes.Audio,
+			"video": defaultConfig.Attachments.AllowedMIMETypes.Video,
+			"pdf":   defaultConfig.Attachments.AllowedMIMETypes.PDF,
+		},
+		"temp_dir_quota_bytes": defaultConfig.Attachments.TempDirQuotaBytes,
 	}
 }
 

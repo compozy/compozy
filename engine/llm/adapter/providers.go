@@ -2,6 +2,7 @@ package llmadapter
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -190,6 +191,9 @@ func createXAILLM(p *core.ProviderConfig, responseFormat *openai.ResponseFormat)
 	return openai.New(opts...)
 }
 
+// attachmentsEchoToken is used to trigger attachment echo mode in tests
+const attachmentsEchoToken = "ATTACHMENTS_ECHO"
+
 // MockLLM is a mock implementation of the LLM interface for testing
 type MockLLM struct {
 	model string
@@ -210,6 +214,27 @@ func (m *MockLLM) GenerateContent(
 ) (*llms.ContentResponse, error) {
 	// Extract prompt from messages
 	prompt := m.extractPrompt(messages)
+
+	// Attachments echo mode for tests: if the prompt contains attachmentsEchoToken,
+	// summarize how many image URLs and binary parts were provided. This is only
+	// used in tests that deliberately include that token in the user message.
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if strings.Contains(prompt, attachmentsEchoToken) {
+		img, bin := m.countMediaParts(messages)
+		response := map[string]map[string]int{
+			"attachments": {
+				"image_urls": img,
+				"binaries":   bin,
+			},
+		}
+		content, err := json.Marshal(response)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal attachments response: %w", err)
+		}
+		return &llms.ContentResponse{Choices: []*llms.ContentChoice{{Content: string(content)}}}, nil
+	}
 
 	// Check for error conditions
 	if err := m.checkErrorConditions(prompt); err != nil {
@@ -239,6 +264,22 @@ func (m *MockLLM) extractPrompt(messages []llms.MessageContent) string {
 		}
 	}
 	return prompt
+}
+
+// countMediaParts scans message parts for image URLs and binary payloads.
+func (m *MockLLM) countMediaParts(messages []llms.MessageContent) (int, int) {
+	var img, bin int
+	for _, msg := range messages {
+		for _, p := range msg.Parts {
+			switch p.(type) {
+			case llms.ImageURLContent:
+				img++
+			case llms.BinaryContent:
+				bin++
+			}
+		}
+	}
+	return img, bin
 }
 
 // checkErrorConditions checks if the prompt should trigger an error

@@ -96,7 +96,7 @@ And [additional expected outcomes]
 
 Validate requirements against project standards:
 
-- **Testing Standards**: @test-standard.mdc - MANDATORY `t.Run("Should...")` pattern, testify usage
+- **Testing Standards**: @test-standards.mdc - MANDATORY `t.Run("Should...")` pattern, testify usage
 - **Architecture**: @architecture.mdc - SOLID principles, Clean Architecture patterns
 - **API Standards**: @api-standards.mdc - RESTful design, versioning, error handling
 - **Security**: @quality-security.mdc - Security requirements and validation
@@ -249,7 +249,7 @@ And [system recovery behavior]
 
 ## 📐 Standards Compliance
 
-### Testing Standards (@test-standard.mdc)
+### Testing Standards (@test-standards.mdc)
 
 - All tests use `t.Run("Should...")` pattern
 - Testify assertions for Go tests

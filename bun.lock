@@ -135,6 +135,10 @@
         "typescript": "^5.8.0",
       },
     },
+    "examples/pokemon": {
+      "name": "@compozy/example-pokemon",
+      "version": "0.2.0",
+    },
     "examples/prompt-only": {
       "name": "@compozy/example-prompt-only",
       "version": "0.0.1",
@@ -502,6 +506,8 @@
     "@compozy/example-memory": ["@compozy/example-memory@workspace:examples/memory"],
 
     "@compozy/example-nested-tasks": ["@compozy/example-nested-tasks@workspace:examples/nested-tasks"],
+
+    "@compozy/example-pokemon": ["@compozy/example-pokemon@workspace:examples/pokemon"],
 
     "@compozy/example-prompt-only": ["@compozy/example-prompt-only@workspace:examples/prompt-only"],
 
