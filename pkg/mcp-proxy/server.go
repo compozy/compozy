@@ -163,6 +163,10 @@ func (s *Server) metricsHandler(c *gin.Context) {
 func (s *Server) Start(ctx context.Context) error {
 	log := logger.FromContext(ctx)
 	log.Info("Starting MCP proxy server", "port", s.config.Port, "host", s.config.Host)
+	// Explicit security note to avoid confusion: the proxy does not implement
+	// any application-level IP allow/deny filtering. Protect /admin endpoints
+	// using network controls (localhost binding, firewall, reverse proxy).
+	log.Info("MCP proxy has no built-in IP filtering; secure /admin endpoints via network controls")
 	s.httpServer.BaseContext = func(_ net.Listener) context.Context { return ctx }
 
 	// Start client manager to restore existing MCP connections

@@ -266,7 +266,7 @@ cache:
 
 1. **Custom Authentication**: Implement custom auth middleware for specific requirements
 2. **Audit Logging**: Enable comprehensive security event logging
-3. **IP Filtering**: Configure IP allowlists for admin endpoints
+3. **Network-Level Access**: Enforce IP restrictions at your perimeter (firewall, reverse proxy, security groups). The MCP proxy has no built-in IP allow/deny feature.
 4. **Token Rotation**: Implement API key rotation strategies
 5. **Multi-tenancy**: Configure namespace isolation for tenant separation
 

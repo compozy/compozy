@@ -8,7 +8,7 @@ versions:
   node: "20.x"
 
   # Package manager versions
-  bun: "1.2.18"
+  bun: "1.2.21"
   npm: "10.x"
 
   # Container base images
@@ -38,7 +38,6 @@ versions:
 
   # Test dependencies
   testcontainers: "v0.27.0"
-
 # Usage examples:
 # In workflows: ${{ vars.GO_VERSION }} or read from this file
 # In Dockerfiles: ARG GO_VERSION=1.25.1

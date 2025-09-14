@@ -18,11 +18,11 @@ This example shows how to use an MCP (Model Context Protocol) server for GitHub 
 
 This example is configured to use the remote GitHub MCP server via HTTP streaming.
 
-`workflow.yaml` config uses:
+`workflows/mcp.yaml` config uses:
 
 ```
 mcps:
-  - id: github-mcp
+  - id: github
     transport: streamable-http
     url: "https://api.githubcopilot.com/mcp"
     headers:
@@ -50,13 +50,32 @@ export GITHUB_MCP_AUTH_HEADER="Bearer eyJ..." # Copilot OAuth token (required fo
 ## Running
 
 ```bash
-cd examples/github-mcp
+cd examples/github
 ../../compozy dev
 ```
 
 Then, use the `api.http` file in this directory to execute the workflow and fetch the latest pull request. No local Docker container will be started in this mode.
 
 Note: The MCP proxy does not include built-in admin authentication. Protect the `/admin` API using network controls (localhost binding, firewall) or a reverse proxy in your environment.
+
+## Webhook trigger (GitHub)
+
+This example exposes a webhook at `/api/v0/hooks/github-issues` that accepts GitHub events using HMAC‑SHA256 verification (`X-Hub-Signature-256`). It listens for the `issue_comment` event with action `created` and maps fields into the `github_issue_comment_analyzer` workflow input.
+
+Configure the secret:
+
+```
+export GITHUB_WEBHOOK_SECRET=your-shared-secret
+```
+
+Use `api.http` → “Trigger via GitHub webhook” to simulate a request locally. When sending real GitHub webhooks, ensure the signature header is valid and that `X-GitHub-Event: issue_comment` is present.
+
+GitHub settings checklist:
+
+- Payload URL: `https://<your-host>/api/v0/hooks/github-issues`
+- Content type: `application/json` (required)
+- Secret: same value as `GITHUB_WEBHOOK_SECRET`
+- Events: “Let me select…” → enable “Issue comments”
 
 ## Expected behavior
 

@@ -49,7 +49,7 @@
     "@shikijs/themes": "3.9.1",
     "shiki": "3.9.1"
   },
-  "packageManager": "bun@1.2.18",
+  "packageManager": "bun@1.2.21",
   "dependencies": {
     "@types/micromatch": "^4.0.9",
     "lucide-static": "0.536.0",

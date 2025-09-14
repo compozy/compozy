@@ -6,7 +6,7 @@ inputs:
   bun-version:
     description: "Bun version to install"
     required: false
-    default: "1.2.18"
+    default: "1.2.21"
   cache-key-suffix:
     description: "Additional suffix for cache key"
     required: false
@@ -40,7 +40,8 @@ runs:
         path: |
           ~/.bun/install/cache
           node_modules
-        key: ${{ runner.os }}-bun-${{ inputs.bun-version }}-${{ hashFiles('**/bun.lockb', '**/package.json')}}${{
+        key:
+          ${{ runner.os }}-bun-${{ inputs.bun-version }}-${{ hashFiles('**/bun.lockb', '**/package.json')}}${{
           inputs.cache-key-suffix }}
         restore-keys: |
           ${{ runner.os }}-bun-${{ inputs.bun-version }}-

@@ -20,7 +20,7 @@ config:
     $ref: local::schemas.#(id=="repo_input")
 
 mcps:
-  - id: github-mcp
+  - id: github
     transport: streamable-http
     url: "https://api.githubcopilot.com/mcp"
     headers:
