@@ -48,8 +48,9 @@ type Orchestrator interface {
 
 // Request represents a request to the orchestrator
 type Request struct {
-	Agent  *agent.Config
-	Action *agent.ActionConfig
+	Agent           *agent.Config
+	Action          *agent.ActionConfig
+	AttachmentParts []llmadapter.ContentPart
 }
 
 // OrchestratorConfig configures the LLM orchestrator
@@ -77,9 +78,6 @@ type OrchestratorConfig struct {
 	MaxConsecutiveSuccesses int  // Threshold for consecutive successes without progress (<=0 uses default)
 	EnableProgressTracking  bool // Enable progress/repetition detection in loop
 	NoProgressThreshold     int  // Iterations without progress before abort (<=0 uses default)
-	// AttachmentParts carries precomputed multimodal parts to include in the
-	// first user message. When present, legacy image_* input fields are ignored.
-	AttachmentParts []llmadapter.ContentPart
 }
 
 // Implementation of LLMOrchestrator
@@ -952,7 +950,7 @@ func (o *llmOrchestrator) createLLMClient(ctx context.Context, request Request) 
 
 func (o *llmOrchestrator) closeLLMClient(ctx context.Context, llmClient llmadapter.LLMClient) {
 	if closeErr := llmClient.Close(); closeErr != nil {
-		logger.FromContext(ctx).Error("Failed to close LLM client", "error", closeErr)
+		logger.FromContext(ctx).Error("Failed to close LLM client", "error", core.RedactError(closeErr))
 	}
 }
 
@@ -971,10 +969,12 @@ func (o *llmOrchestrator) buildLLMRequest(
 			"agent": request.Agent.ID,
 		})
 	}
-	messages := o.buildMessages(ctx, promptData.enhancedPrompt, memories)
+	messages := o.buildMessages(ctx, promptData.enhancedPrompt, memories, request)
 	if err := llmadapter.ValidateConversation(messages); err != nil {
 		return llmadapter.LLMRequest{}, NewLLMError(err, "INVALID_CONVERSATION", map[string]any{
-			"agent": request.Agent.ID,
+			"agent":          request.Agent.ID,
+			"action":         request.Action.ID,
+			"messages_count": len(messages),
 		})
 	}
 
@@ -1056,10 +1056,17 @@ func (o *llmOrchestrator) buildMessages(
 	ctx context.Context,
 	enhancedPrompt string,
 	memories map[string]Memory,
+	request Request,
 ) []llmadapter.Message {
 	// Build multimodal parts from precomputed attachments (if any)
-	parts := o.config.AttachmentParts
+	parts := request.AttachmentParts
+	if parts == nil {
+		parts = []llmadapter.ContentPart{}
+	}
 
+	// NOTE: When both Content and Parts are present, adapters MUST NOT duplicate
+	// the text content. Content provides the prompt text while Parts provides
+	// multimodal attachments (images, files, etc.) that complement the prompt.
 	messages := []llmadapter.Message{{
 		Role:    "user",
 		Content: enhancedPrompt,
@@ -1120,7 +1127,7 @@ func (o *llmOrchestrator) storeResponseInMemoryAsync(
 		})
 		if err != nil {
 			log.Error("Failed to store response in memory",
-				"error", err,
+				"error", core.RedactError(err),
 				"agent_id", request.Agent.ID,
 				"action_id", request.Action.ID)
 			// Consider sending to a metrics/alerting system
@@ -1239,7 +1246,7 @@ func (o *llmOrchestrator) appendRegistryToolDefs(
 	allTools, err := o.config.ToolRegistry.ListAll(ctx)
 	if err != nil {
 		// Non-fatal: proceed with configured tools only
-		log.Warn("Failed to list tools from registry", "error", err)
+		log.Warn("Failed to list tools from registry", "error", core.RedactError(err))
 		return defs
 	}
 	for _, rt := range allTools {
@@ -1536,7 +1543,7 @@ func (o *llmOrchestrator) handleNoToolCalls(
 		key := "output_validator"
 		counters[key]++
 		log.Debug("Final parse failed; continuing loop",
-			"error", perr.Error(), "consecutive_errors", counters[key], "max", budget,
+			"error", core.RedactError(perr), "consecutive_errors", counters[key], "max", budget,
 		)
 		if counters[key] >= budget {
 			log.Warn("Error budget exceeded - output validation", "key", key, "max", budget)

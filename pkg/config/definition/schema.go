@@ -383,7 +383,13 @@ func registerLimitsFields(registry *Registry) {
 // registerAttachmentsFields registers global attachment-related configuration fields.
 // Follows patterns from .cursor/rules/global-config.mdc
 func registerAttachmentsFields(registry *Registry) {
-	// Size limit for downloads (bytes)
+	registerAttachmentsLimits(registry)
+	registerAttachmentsMime(registry)
+	registerAttachmentsQuota(registry)
+	registerAttachmentsExtras(registry)
+}
+
+func registerAttachmentsLimits(registry *Registry) {
 	registry.Register(&FieldDef{
 		Path:    "attachments.max_download_size_bytes",
 		Default: int64(10_000_000),
@@ -393,7 +399,6 @@ func registerAttachmentsFields(registry *Registry) {
 		Help:    "Maximum download size in bytes for attachment resolution",
 	})
 
-	// Per-request download timeout
 	registry.Register(&FieldDef{
 		Path:    "attachments.download_timeout",
 		Default: 30 * time.Second,
@@ -403,7 +408,6 @@ func registerAttachmentsFields(registry *Registry) {
 		Help:    "Timeout for downloading attachments",
 	})
 
-	// HTTP redirects limit
 	registry.Register(&FieldDef{
 		Path:    "attachments.max_redirects",
 		Default: 3,
@@ -412,8 +416,9 @@ func registerAttachmentsFields(registry *Registry) {
 		Type:    reflect.TypeOf(0),
 		Help:    "Maximum number of HTTP redirects when downloading attachments",
 	})
+}
 
-	// Allowed MIME types per category
+func registerAttachmentsMime(registry *Registry) {
 	registry.Register(&FieldDef{
 		Path:    "attachments.allowed_mime_types.image",
 		Default: []string{"image/*"},
@@ -446,8 +451,9 @@ func registerAttachmentsFields(registry *Registry) {
 		Type:    reflect.TypeOf([]string{}),
 		Help:    "Allowed MIME types for PDF attachments",
 	})
+}
 
-	// Optional temp directory quota (bytes)
+func registerAttachmentsQuota(registry *Registry) {
 	registry.Register(&FieldDef{
 		Path:    "attachments.temp_dir_quota_bytes",
 		Default: int64(0),
@@ -455,6 +461,53 @@ func registerAttachmentsFields(registry *Registry) {
 		EnvVar:  "ATTACHMENTS_TEMP_DIR_QUOTA_BYTES",
 		Type:    reflect.TypeOf(int64(0)),
 		Help:    "Optional quota in bytes for temporary files used during attachment resolution (0 = unlimited)",
+	})
+}
+
+func registerAttachmentsExtras(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path:    "attachments.text_part_max_bytes",
+		Default: int64(5 * 1024 * 1024),
+		CLIFlag: "",
+		EnvVar:  "ATTACHMENTS_TEXT_PART_MAX_BYTES",
+		Type:    reflect.TypeOf(int64(0)),
+		Help:    "Maximum text bytes loaded from files when converting to TextPart",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "attachments.pdf_extract_max_chars",
+		Default: 1_000_000,
+		CLIFlag: "",
+		EnvVar:  "ATTACHMENTS_PDF_EXTRACT_MAX_CHARS",
+		Type:    reflect.TypeOf(0),
+		Help:    "Maximum characters extracted from PDF when converting to text",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "attachments.http_user_agent",
+		Default: "Compozy/1.0",
+		CLIFlag: "attachments-http-user-agent",
+		EnvVar:  "ATTACHMENTS_HTTP_USER_AGENT",
+		Type:    reflect.TypeOf(""),
+		Help:    "User-Agent header for attachment HTTP requests",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "attachments.mime_head_max_bytes",
+		Default: 512,
+		CLIFlag: "",
+		EnvVar:  "ATTACHMENTS_MIME_HEAD_MAX_BYTES",
+		Type:    reflect.TypeOf(0),
+		Help:    "Number of initial bytes used for MIME detection",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "attachments.ssrf_strict",
+		Default: false,
+		CLIFlag: "attachments-ssrf-strict",
+		EnvVar:  "ATTACHMENTS_SSRF_STRICT",
+		Type:    reflect.TypeOf(true),
+		Help:    "Block local/loopback destinations even during tests (anti-SSRF)",
 	})
 }
 

@@ -12,16 +12,18 @@ alwaysApply: true
 - **MUST** follow all established project standards:
     - Architecture patterns: @.cursor/rules/architecture.mdc
     - Go coding standards: @.cursor/rules/go-coding-standards.mdc
-    - Testing requirements: @.cursor/rules/test-standard.mdc
+    - Testing requirements: @.cursor/rules/test-standards.mdc
     - API standards: @.cursor/rules/api-standards.mdc
     - Security & quality: @.cursor/rules/quality-security.md
     - No Backwards Compatibility: @.cursor/rules/backwards-compatibility.mdc
+    - Constants & magic numbers: @.cursor/rules/magic-numbers.mdc
 - **MUST** use `logger.FromContext(ctx)` - NEVER pass a logger as a parameter or via DI
 - **MUST** use `config.FromContext(ctx)` to read configuration in all code paths
   - **NEVER** use any global configuration singleton.
+- **MUST** inherit context properly - NEVER use context.Background() in runtime code paths
 - **MUST** run `make lint` and `make test` before completing ANY subtask
 - **ALWAYS CHECK** the .cursor/rules/zen-mcp-tools.mdc if you are using Zen MCP tools
+- **ALWAYS CHECK** the .cursor/rules/test-standards.mdc if you are writing tests
 
 **Enforcement:** Violating these standards results in immediate task rejection.
 </critical>
-

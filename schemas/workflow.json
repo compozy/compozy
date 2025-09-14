@@ -205,8 +205,12 @@
     "Trigger": {
       "additionalProperties": false,
       "description": "Trigger defines an external event that can initiate workflow execution.",
+      "discriminator": {
+        "propertyName": "type"
+      },
       "oneOf": [
         {
+          "additionalProperties": false,
           "properties": {
             "name": {
               "type": "string"
@@ -224,6 +228,7 @@
           ]
         },
         {
+          "additionalProperties": false,
           "properties": {
             "type": {
               "const": "webhook"

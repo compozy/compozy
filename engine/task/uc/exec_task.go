@@ -381,7 +381,7 @@ func (uc *ExecuteTask) executeAgent(
 			"task_id", input.TaskConfig.ID)
 	}
 	parts, cleanup := uc.computeAttachmentParts(ctx, agentConfig, actionID, input)
-	llmService, err := uc.createLLMService(ctx, agentConfig, input, parts)
+	llmService, err := uc.createLLMService(ctx, agentConfig, input)
 	if err != nil {
 		return nil, err
 	}
@@ -394,7 +394,7 @@ func (uc *ExecuteTask) executeAgent(
 		}
 	}()
 	resolvedPrompt := uc.resolvePromptTemplates(ctx, promptText, agentConfig, input)
-	result, err := llmService.GenerateContent(ctx, agentConfig, taskWith, actionID, resolvedPrompt)
+	result, err := llmService.GenerateContent(ctx, agentConfig, taskWith, actionID, resolvedPrompt, parts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate content: %w", err)
 	}
@@ -546,7 +546,6 @@ func (uc *ExecuteTask) createLLMService(
 	ctx context.Context,
 	agentConfig *agent.Config,
 	input *ExecuteTaskInput,
-	parts []llmadapter.ContentPart,
 ) (*llm.Service, error) {
 	log := logger.FromContext(ctx)
 	// Setup memory resolver and LLM options
@@ -584,10 +583,7 @@ func (uc *ExecuteTask) createLLMService(
 	if ids := uc.allowedMCPIDs(agentConfig, input); len(ids) > 0 {
 		llmOpts = append(llmOpts, llm.WithAllowedMCPNames(ids))
 	}
-	// Inject precomputed attachment parts when available
-	if len(parts) > 0 {
-		llmOpts = append(llmOpts, llm.WithAttachmentParts(parts))
-	}
+	// Note: Attachment parts are now passed directly to GenerateContent method
 	// Derive LLM timeout from task -> runtime defaults
 	effectiveTimeout := deriveLLMTimeout(ctx, input, uc.appConfig)
 	if effectiveTimeout > 0 {

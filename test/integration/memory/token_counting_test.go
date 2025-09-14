@@ -11,8 +11,11 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/llm"
-	memcore "github.com/compozy/compozy/engine/memory/core"
 )
+
+type tokenCounter interface {
+	GetTokenCount(ctx context.Context) (int, error)
+}
 
 // TestTokenCountingWithMemoryIntegration tests token counting integrated with memory
 func TestTokenCountingWithMemoryIntegration(t *testing.T) {
@@ -21,7 +24,7 @@ func TestTokenCountingWithMemoryIntegration(t *testing.T) {
 		defer env.Cleanup()
 		ctx := context.Background()
 
-		// Create memory instance using the manager but with synchronous token counting
+		// Create memory instance using the manager; token counting reconciles asynchronously, so we wait for stabilization
 		memRef := core.MemoryReference{
 			ID:  "customer-support",
 			Key: "token-tracking-{{.test.id}}",
@@ -58,8 +61,8 @@ func TestTokenCountingWithMemoryIntegration(t *testing.T) {
 			err = instance.Append(ctx, msg)
 			require.NoError(t, err)
 
-			// Wait for async reconciliation to complete
-			err = waitForTokenCountStabilization(ctx, instance, 100*time.Millisecond)
+			// Wait for async reconciliation to complete; ensure it stabilized after increasing from tokensBefore
+			err = waitForTokenCountStabilization(ctx, instance, tokensBefore, 100*time.Millisecond)
 			require.NoError(t, err)
 
 			// Get token count after adding
@@ -88,13 +91,27 @@ func TestTokenCountingWithMemoryIntegration(t *testing.T) {
 	})
 }
 
-// waitForTokenCountStabilization waits for async token count reconciliation to complete
-func waitForTokenCountStabilization(ctx context.Context, instance memcore.Memory, checkInterval time.Duration) error {
+// waitForTokenCountStabilization waits until token count increases beyond baseline
+// and then remains unchanged for stabilizationChecks consecutive reads.
+func waitForTokenCountStabilization(
+	ctx context.Context,
+	instance tokenCounter,
+	baselineCount int,
+	checkInterval time.Duration,
+) error {
 	const maxWait = 2 * time.Second
 	const stabilizationChecks = 3
+	if checkInterval <= 0 {
+		checkInterval = 100 * time.Millisecond
+	}
 	timeoutCtx, cancel := context.WithTimeout(ctx, maxWait)
 	defer cancel()
-	var lastCount int
+	// Prime lastCount with the first observed value.
+	lastCount, err := instance.GetTokenCount(timeoutCtx)
+	if err != nil {
+		return fmt.Errorf("failed to get initial token count: %w", err)
+	}
+	observedChange := lastCount > baselineCount
 	stabilizedCount := 0
 	ticker := time.NewTicker(checkInterval)
 	defer ticker.Stop()
@@ -107,14 +124,17 @@ func waitForTokenCountStabilization(ctx context.Context, instance memcore.Memory
 			if err != nil {
 				return fmt.Errorf("failed to get token count during stabilization: %w", err)
 			}
-			if count == lastCount {
-				stabilizedCount++
-				if stabilizedCount >= stabilizationChecks {
-					return nil // Token count has stabilized
-				}
-			} else {
-				stabilizedCount = 0
+			if count != lastCount {
 				lastCount = count
+				stabilizedCount = 0
+				if count > baselineCount {
+					observedChange = true
+				}
+				continue
+			}
+			stabilizedCount++
+			if observedChange && stabilizedCount >= stabilizationChecks {
+				return nil
 			}
 		}
 	}

@@ -50,12 +50,27 @@ func processAttachment(
 ) ([]Attachment, Attachment, error) {
 	switch v := a.(type) {
 	case *ImageAttachment:
-		return expandMulti(ctx, eng, cwd, v.baseAttachment, v.Source, v.URL, v.Path, v.URLs, v.Paths, TypeImage, tplCtx)
+		return expandMulti(ctx, eng, cwd, &params{
+			base:   v.baseAttachment,
+			src:    v.Source,
+			url:    v.URL,
+			path:   v.Path,
+			urls:   v.URLs,
+			paths:  v.Paths,
+			kind:   TypeImage,
+			tplCtx: tplCtx,
+		})
 	case *PDFAttachment:
-		items, parent, err := expandMulti(
-			ctx, eng, cwd, v.baseAttachment, v.Source,
-			v.URL, v.Path, v.URLs, v.Paths, TypePDF, tplCtx,
-		)
+		items, parent, err := expandMulti(ctx, eng, cwd, &params{
+			base:   v.baseAttachment,
+			src:    v.Source,
+			url:    v.URL,
+			path:   v.Path,
+			urls:   v.URLs,
+			paths:  v.Paths,
+			kind:   TypePDF,
+			tplCtx: tplCtx,
+		})
 		if err != nil {
 			return nil, nil, err
 		}
@@ -69,9 +84,27 @@ func processAttachment(
 		}
 		return items, parent, nil
 	case *AudioAttachment:
-		return expandMulti(ctx, eng, cwd, v.baseAttachment, v.Source, v.URL, v.Path, v.URLs, v.Paths, TypeAudio, tplCtx)
+		return expandMulti(ctx, eng, cwd, &params{
+			base:   v.baseAttachment,
+			src:    v.Source,
+			url:    v.URL,
+			path:   v.Path,
+			urls:   v.URLs,
+			paths:  v.Paths,
+			kind:   TypeAudio,
+			tplCtx: tplCtx,
+		})
 	case *VideoAttachment:
-		return expandMulti(ctx, eng, cwd, v.baseAttachment, v.Source, v.URL, v.Path, v.URLs, v.Paths, TypeVideo, tplCtx)
+		return expandMulti(ctx, eng, cwd, &params{
+			base:   v.baseAttachment,
+			src:    v.Source,
+			url:    v.URL,
+			path:   v.Path,
+			urls:   v.URLs,
+			paths:  v.Paths,
+			kind:   TypeVideo,
+			tplCtx: tplCtx,
+		})
 	case *URLAttachment:
 		s, _, err := applyTemplateString(eng, tplCtx, v.URL)
 		if err != nil {
@@ -101,30 +134,35 @@ func NormalizePhase2(
 	return NormalizePhase1(ctx, eng, cwd, atts, tplCtx)
 }
 
+// params holds parameters for the expandMulti function.
+type params struct {
+	base   baseAttachment
+	src    Source
+	url    string
+	path   string
+	urls   []string
+	paths  []string
+	kind   Type
+	tplCtx map[string]any
+}
+
 // expandMulti applies base templating and dispatches to URL/Path expansion.
 func expandMulti(
 	ctx context.Context,
 	eng *tplengine.TemplateEngine,
 	cwd *core.PathCWD,
-	base baseAttachment,
-	src Source,
-	url string,
-	path string,
-	urls []string,
-	paths []string,
-	kind Type,
-	tplCtx map[string]any,
+	a *params,
 ) ([]Attachment, Attachment, error) {
-	if err := applyTemplateOnBase(eng, tplCtx, &base); err != nil {
+	if err := applyTemplateOnBase(eng, a.tplCtx, &a.base); err != nil {
 		return nil, nil, err
 	}
-	switch src {
+	switch a.src {
 	case SourceURL:
-		return expandURLSource(eng, base, url, urls, kind, tplCtx)
+		return expandURLSource(eng, a.base, a.url, a.urls, a.kind, a.tplCtx)
 	case SourcePath:
-		return expandPathSource(ctx, eng, cwd, base, path, paths, kind, tplCtx)
+		return expandPathSource(ctx, eng, cwd, a.base, a.path, a.paths, a.kind, a.tplCtx)
 	default:
-		return nil, nil, fmt.Errorf("unknown source %s", src)
+		return nil, nil, fmt.Errorf("unknown source %s", a.src)
 	}
 }
 
@@ -195,19 +233,19 @@ func expandPathSource(
 }
 
 // applyTemplateOnBase evaluates templates in base fields (name, mime, meta).
-func applyTemplateOnBase(eng *tplengine.TemplateEngine, ctx map[string]any, b *baseAttachment) error {
+func applyTemplateOnBase(eng *tplengine.TemplateEngine, tplCtx map[string]any, b *baseAttachment) error {
 	if b == nil {
 		return nil
 	}
 	if b.NameStr != "" {
-		v, _, err := applyTemplateString(eng, ctx, b.NameStr)
+		v, _, err := applyTemplateString(eng, tplCtx, b.NameStr)
 		if err != nil {
 			return err
 		}
 		b.NameStr = v
 	}
 	if b.MIME != "" {
-		v, _, err := applyTemplateString(eng, ctx, b.MIME)
+		v, _, err := applyTemplateString(eng, tplCtx, b.MIME)
 		if err != nil {
 			return err
 		}
@@ -216,7 +254,7 @@ func applyTemplateOnBase(eng *tplengine.TemplateEngine, ctx map[string]any, b *b
 	if len(b.MetaMap) > 0 {
 		for k, val := range b.MetaMap {
 			if s, ok := val.(string); ok {
-				v, _, err := applyTemplateString(eng, ctx, s)
+				v, _, err := applyTemplateString(eng, tplCtx, s)
 				if err != nil {
 					return err
 				}
@@ -333,20 +371,15 @@ func newAttachmentItem(kind Type, src Source, base baseAttachment, v string) Att
 	if f, ok := attachmentSingleFactories[kind]; ok {
 		return f(base, src, v)
 	}
-	if src == SourceURL {
-		return &VideoAttachment{baseAttachment: base, Source: src, URL: v}
-	}
-	return &VideoAttachment{baseAttachment: base, Source: src, Path: v}
+	// Unreachable with supported kinds; return nil to surface misuse during tests
+	return nil
 }
 
 func newAttachmentParent(kind Type, src Source, base baseAttachment, v []string) Attachment {
 	if f, ok := attachmentMultiFactories[kind]; ok {
 		return f(base, src, v)
 	}
-	if src == SourceURL {
-		return &VideoAttachment{baseAttachment: base, Source: src, URLs: v}
-	}
-	return &VideoAttachment{baseAttachment: base, Source: src, Paths: v}
+	return nil
 }
 
 // newURLItem creates a concrete attachment for a single URL.

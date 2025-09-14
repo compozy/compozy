@@ -130,6 +130,8 @@ func getAttachmentsCategories() []FlagCategory {
 				"attachments-max-download-size",
 				"attachments-download-timeout",
 				"attachments-max-redirects",
+				"attachments-http-user-agent",
+				"attachments-ssrf-strict",
 			},
 		},
 	}

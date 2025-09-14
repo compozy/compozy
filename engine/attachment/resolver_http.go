@@ -14,12 +14,7 @@ import (
 	"github.com/compozy/compozy/pkg/logger"
 )
 
-// Defaults will be wired to global config in Task 4.0.
-var (
-	DefaultMaxDownloadSizeBytes int64 = 10 * 1024 * 1024
-	DefaultDownloadTimeout            = 30 * time.Second
-	DefaultMaxRedirects               = 3
-)
+// Defaults live in constants.go and mirror global config defaults.
 
 // Sentinel errors for policy handling and tests.
 var (
@@ -31,7 +26,7 @@ var (
 // enforcing size limits, timeouts, and redirect caps. It returns the temp
 // file path and detected MIME (from initial bytes). Callers MUST Cleanup().
 func httpDownloadToTemp(ctx context.Context, urlStr string, maxSize int64) (string, string, error) {
-	s, err := validateHTTPURL(urlStr)
+	s, err := validateHTTPURL(ctx, urlStr)
 	if err != nil {
 		return "", "", err
 	}
@@ -51,7 +46,11 @@ func httpDownloadToTemp(ctx context.Context, urlStr string, maxSize int64) (stri
 			return
 		}
 		// Set user-agent for better compatibility
-		req.Header.Set("User-Agent", "Compozy/1.0")
+		ua := HTTPUserAgent
+		if cfg := appconfig.FromContext(ctx); cfg != nil && cfg.Attachments.HTTPUserAgent != "" {
+			ua = cfg.Attachments.HTTPUserAgent
+		}
+		req.Header.Set("User-Agent", ua)
 		resp, err := client.Do(req)
 		if err != nil {
 			done <- result{"", "", fmt.Errorf("request failed: %w", err)}
@@ -67,9 +66,14 @@ func httpDownloadToTemp(ctx context.Context, urlStr string, maxSize int64) (stri
 			done <- result{"", "", fmt.Errorf("empty response from server")}
 			return
 		}
-		path, written, head, err := streamToTemp(effMaxSize, resp.Body)
+		path, written, head, err := streamToTemp(rctx, effMaxSize, resp.Body)
 		if err != nil {
 			done <- result{"", "", err}
+			return
+		}
+		if written == 0 {
+			_ = os.Remove(path)
+			done <- result{"", "", fmt.Errorf("empty response from server")}
 			return
 		}
 		mime := detectMIME(head)
@@ -102,10 +106,6 @@ func computeAttachmentLimits(ctx context.Context, maxSize int64) (int64, time.Du
 	effTimeout := DefaultDownloadTimeout
 	if cfg != nil && cfg.Attachments.DownloadTimeout > 0 {
 		effTimeout = cfg.Attachments.DownloadTimeout
-		// Honor a lowered package default as an upper bound (tests rely on this)
-		if DefaultDownloadTimeout > 0 && DefaultDownloadTimeout < effTimeout {
-			effTimeout = DefaultDownloadTimeout
-		}
 	}
 	effMaxRedirects := DefaultMaxRedirects
 	if cfg != nil && cfg.Attachments.MaxRedirects > 0 {
@@ -128,7 +128,7 @@ func makeHTTPClient(timeout time.Duration, maxRedirects int) (*http.Client, *int
 		if redirects >= maxRedirects {
 			return ErrMaxRedirectsExceeded
 		}
-		if _, err := validateHTTPURL(req.URL.String()); err != nil {
+		if _, err := validateHTTPURL(req.Context(), req.URL.String()); err != nil {
 			return err
 		}
 		return nil
@@ -136,8 +136,8 @@ func makeHTTPClient(timeout time.Duration, maxRedirects int) (*http.Client, *int
 	return client, &redirects
 }
 
-func streamToTemp(limit int64, r io.Reader) (string, int64, []byte, error) {
-	tmpf, err := os.CreateTemp("", "compozy-att-*")
+func streamToTemp(ctx context.Context, limit int64, r io.Reader) (string, int64, []byte, error) {
+	tmpf, err := os.CreateTemp("", TempFilePrefix+"*")
 	if err != nil {
 		return "", 0, nil, fmt.Errorf("temp file create failed: %w", err)
 	}
@@ -147,7 +147,7 @@ func streamToTemp(limit int64, r io.Reader) (string, int64, []byte, error) {
 		tmpf.Close()
 		os.Remove(path)
 	}
-	hc := &headCapture{}
+	hc := &headCapture{limit: mimeHeadLimit(ctx)}
 	lr := &io.LimitedReader{R: r, N: limit + 1}
 	tee := io.TeeReader(lr, hc)
 	written, cErr := io.Copy(tmpf, tee)
@@ -166,12 +166,15 @@ func streamToTemp(limit int64, r io.Reader) (string, int64, []byte, error) {
 	return path, written, hc.Bytes(), nil
 }
 
-// headCapture captures up to 512 bytes written through it.
-type headCapture struct{ b []byte }
+// headCapture captures up to MIMEHeadMaxBytes written through it.
+type headCapture struct {
+	b     []byte
+	limit int
+}
 
 func (h *headCapture) Write(p []byte) (int, error) {
-	if len(h.b) < 512 {
-		need := 512 - len(h.b)
+	if len(h.b) < h.limit {
+		need := h.limit - len(h.b)
 		if need > len(p) {
 			need = len(p)
 		}

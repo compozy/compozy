@@ -11,15 +11,16 @@ import (
 )
 
 func Test_Resolve_Factory_Routing(t *testing.T) {
-	t.Run("Image URL should become resolvedURL without fetch", func(t *testing.T) {
+	t.Run("Should resolve an image URL without fetching", func(t *testing.T) {
 		a := &ImageAttachment{URL: "https://example.com/x.png", Source: SourceURL}
 		res, err := Resolve(context.Background(), a, nil)
 		require.NoError(t, err)
+		defer res.Cleanup()
 		u, ok := res.AsURL()
 		require.True(t, ok)
 		require.Equal(t, a.URL, u)
 	})
-	t.Run("PDF path should resolve to local file", func(t *testing.T) {
+	t.Run("Should resolve a PDF local path to a file", func(t *testing.T) {
 		// Use a tiny local HTTP server
 		// Covered in http test; here only exercise path-based resolution
 		dir := t.TempDir()
@@ -28,7 +29,8 @@ func Test_Resolve_Factory_Routing(t *testing.T) {
 		p := writeTempFile(t, dir, "a.pdf", pdf)
 		expectedPath, err := filepath.EvalSymlinks(p)
 		require.NoError(t, err)
-		cwd, _ := core.CWDFromPath(dir)
+		cwd, err := core.CWDFromPath(dir)
+		require.NoError(t, err)
 		a := &PDFAttachment{Path: "a.pdf", Source: SourcePath}
 		res, err := Resolve(context.Background(), a, cwd)
 		require.NoError(t, err)

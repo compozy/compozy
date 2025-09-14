@@ -5,6 +5,7 @@
 # Go Parameters & Setup
 # -----------------------------------------------------------------------------
 GOCMD=$(shell which go)
+GOVERSION ?= $(shell awk '/^go /{print $$2}' go.mod 2>/dev/null || echo "1.25")
 GOBUILD=$(GOCMD) build
 GOTEST=$(GOCMD) test
 GOFMT=gofmt -s -w
@@ -45,7 +46,7 @@ SWAGGER_OUTPUT=$(SWAGGER_DIR)/swagger.json
 # -----------------------------------------------------------------------------
 check-go-version:
 	@echo "Checking Go version..."
-	@GO_VERSION=$$(go version 2>/dev/null | awk '{print $$3}' | sed 's/go//'); \
+	@GO_VERSION=$$($(GOCMD) version 2>/dev/null | awk '{print $$3}' | sed 's/go//'); \
 	REQUIRED_VERSION=$(GOVERSION); \
 	if [ -z "$$GO_VERSION" ]; then \
 		echo "$(RED)Error: Go is not available$(NC)"; \
@@ -163,6 +164,7 @@ schemagen-watch:
 
 # Build the compozy-release binary
 compozy-release:
+	mkdir -p $(BINARY_DIR)
 	$(GOBUILD) -o $(BINARY_DIR)/compozy-release ./pkg/release
 
 # Install go-semantic-release
@@ -311,7 +313,7 @@ help:
 	@echo ""
 	@echo "$(YELLOW)Requirements:$(NC)"
 	@echo "  Go $(GOVERSION) or later (via mise)"
-	@echo "  Bun (npm install -g bun)"
+	@echo "  Bun (see https://bun.sh for install instructions or use Homebrew: brew install oven-sh/bun/bun)"
 	@echo "  Docker & Docker Compose"
 	@echo ""
 	@echo "$(GREEN)Quick Start:$(NC)"

@@ -5,8 +5,8 @@ import (
 	"fmt"
 )
 
-func resolveURL(_ context.Context, a *URLAttachment) (Resolved, error) {
-	s, err := validateHTTPURL(a.URL)
+func resolveURL(ctx context.Context, a *URLAttachment) (Resolved, error) {
+	s, err := validateHTTPURL(ctx, a.URL)
 	if err != nil {
 		return nil, fmt.Errorf("invalid url attachment: %w", err)
 	}

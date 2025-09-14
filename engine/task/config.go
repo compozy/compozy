@@ -2848,13 +2848,18 @@ func propagateCWDToSubTasks(config *Config) error {
 
 // normalizeAttachmentsPhase1 attempts a best-effort Phase1 normalization for task-level attachments.
 // It safely ignores missing-key template errors to defer resolution to runtime and recurses into subtasks.
-func normalizeAttachmentsPhase1(cfg *Config, engine *tplengine.TemplateEngine, tplCtx map[string]any) error {
+func normalizeAttachmentsPhase1(
+	ctx context.Context,
+	cfg *Config,
+	engine *tplengine.TemplateEngine,
+	tplCtx map[string]any,
+) error {
 	if cfg == nil {
 		return nil
 	}
 	if len(cfg.Attachments) > 0 {
 		n := attachment.NewContextNormalizer(engine, cfg.CWD)
-		res, err := n.Phase1(context.Background(), cfg.Attachments, tplCtx)
+		res, err := n.Phase1(ctx, cfg.Attachments, tplCtx)
 		if err == nil {
 			cfg.Attachments = res
 		} else if !errors.Is(err, tplengine.ErrMissingKey) {
@@ -2864,18 +2869,18 @@ func normalizeAttachmentsPhase1(cfg *Config, engine *tplengine.TemplateEngine, t
 	switch cfg.Type {
 	case TaskTypeParallel, TaskTypeComposite, TaskTypeRouter, TaskTypeAggregate:
 		for i := range cfg.Tasks {
-			if err := normalizeAttachmentsPhase1(&cfg.Tasks[i], engine, tplCtx); err != nil {
+			if err := normalizeAttachmentsPhase1(ctx, &cfg.Tasks[i], engine, tplCtx); err != nil {
 				return err
 			}
 		}
 	case TaskTypeCollection:
 		if cfg.Task != nil {
-			if err := normalizeAttachmentsPhase1(cfg.Task, engine, tplCtx); err != nil {
+			if err := normalizeAttachmentsPhase1(ctx, cfg.Task, engine, tplCtx); err != nil {
 				return err
 			}
 		}
 		for i := range cfg.Tasks {
-			if err := normalizeAttachmentsPhase1(&cfg.Tasks[i], engine, tplCtx); err != nil {
+			if err := normalizeAttachmentsPhase1(ctx, &cfg.Tasks[i], engine, tplCtx); err != nil {
 				return err
 			}
 		}
@@ -2910,7 +2915,8 @@ func Load(cwd *core.PathCWD, path string) (*Config, error) {
 	if err := propagateCWDToSubTasks(config); err != nil {
 		return nil, err
 	}
-	if err := normalizeAttachmentsPhase1(config, tplengine.NewEngine(tplengine.FormatJSON), nil); err != nil {
+	if err := normalizeAttachmentsPhase1(context.TODO(), config,
+		tplengine.NewEngine(tplengine.FormatJSON), nil); err != nil {
 		return nil, err
 	}
 	return config, nil
@@ -2950,7 +2956,8 @@ func LoadAndEval(cwd *core.PathCWD, path string, ev *ref.Evaluator) (*Config, er
 	if err := propagateCWDToSubTasks(config); err != nil {
 		return nil, err
 	}
-	if err := normalizeAttachmentsPhase1(config, tplengine.NewEngine(tplengine.FormatJSON), scope); err != nil {
+	if err := normalizeAttachmentsPhase1(context.TODO(), config,
+		tplengine.NewEngine(tplengine.FormatJSON), scope); err != nil {
 		return nil, err
 	}
 	return config, nil

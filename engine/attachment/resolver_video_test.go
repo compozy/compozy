@@ -6,7 +6,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/compozy/compozy/engine/attachment/testutil"
 	"github.com/stretchr/testify/require"
 )
 
@@ -19,11 +18,11 @@ func Test_Resolver_URL_MIME_Denied_Video(t *testing.T) {
 			require.NoError(t, err)
 		}))
 		defer srv.Close()
-		before := testutil.SnapshotTempFiles(t)
+		before := SnapshotTempFiles(t)
 		a := &VideoAttachment{Source: SourceURL, URL: srv.URL}
 		_, err := resolveVideo(context.Background(), a, nil)
 		require.Error(t, err)
-		after := testutil.SnapshotTempFiles(t)
+		after := SnapshotTempFiles(t)
 		require.Equal(t, before, after)
 	})
 }

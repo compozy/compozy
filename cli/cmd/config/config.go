@@ -497,6 +497,19 @@ func flattenAttachmentsConfig(cfg *config.Config, result map[string]string) {
 	result["attachments.max_download_size_bytes"] = fmt.Sprintf("%d", cfg.Attachments.MaxDownloadSizeBytes)
 	result["attachments.download_timeout"] = cfg.Attachments.DownloadTimeout.String()
 	result["attachments.max_redirects"] = fmt.Sprintf("%d", cfg.Attachments.MaxRedirects)
+	if cfg.Attachments.TextPartMaxBytes > 0 {
+		result["attachments.text_part_max_bytes"] = fmt.Sprintf("%d", cfg.Attachments.TextPartMaxBytes)
+	}
+	if cfg.Attachments.PDFExtractMaxChars > 0 {
+		result["attachments.pdf_extract_max_chars"] = fmt.Sprintf("%d", cfg.Attachments.PDFExtractMaxChars)
+	}
+	if cfg.Attachments.MIMEHeadMaxBytes > 0 {
+		result["attachments.mime_head_max_bytes"] = fmt.Sprintf("%d", cfg.Attachments.MIMEHeadMaxBytes)
+	}
+	if cfg.Attachments.HTTPUserAgent != "" {
+		result["attachments.http_user_agent"] = cfg.Attachments.HTTPUserAgent
+	}
+	result["attachments.ssrf_strict"] = fmt.Sprintf("%t", cfg.Attachments.SSRFStrict)
 	if len(cfg.Attachments.AllowedMIMETypes.Image) > 0 {
 		v := append([]string(nil), cfg.Attachments.AllowedMIMETypes.Image...)
 		sort.Strings(v)

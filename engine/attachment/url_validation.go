@@ -6,13 +6,14 @@ import (
 	"fmt"
 	"net"
 	"net/url"
-	"os"
+
+	appconfig "github.com/compozy/compozy/pkg/config"
 )
 
 // validateHTTPURL parses, normalizes, and validates that s is an absolute HTTP(S) URL
 // and performs SSRF safeguards against loopback, link-local, and private ranges.
-// During unit tests, local addresses are allowed unless COMPOZY_SSRF_STRICT=1.
-func validateHTTPURL(s string) (string, error) {
+// During unit tests, local addresses are allowed unless ATTACHMENTS_SSRF_STRICT=1.
+func validateHTTPURL(ctx context.Context, s string) (string, error) {
 	u, err := url.Parse(s)
 	if err != nil {
 		return "", fmt.Errorf("invalid URL: %w", err)
@@ -28,7 +29,7 @@ func validateHTTPURL(s string) (string, error) {
 	if u.Host == "" {
 		return "", fmt.Errorf("invalid URL: missing host")
 	}
-	if ssrfStrict() || !allowLocalForTests() {
+	if ssrfStrict(ctx) || !allowLocalForTests() {
 		host := u.Hostname()
 		if host == "" {
 			return "", fmt.Errorf("invalid URL: missing host")
@@ -38,47 +39,40 @@ func validateHTTPURL(s string) (string, error) {
 			if isBlockedIP(ip) {
 				return "", fmt.Errorf("blocked destination IP: %s", ip.String())
 			}
-		} else {
-			if addrs, err := net.DefaultResolver.LookupIPAddr(context.Background(), host); err == nil {
-				for _, a := range addrs {
-					if isBlockedIP(a.IP) {
-						return "", fmt.Errorf("blocked destination IP: %s", a.IP.String())
-					}
+		} else if addrs, err := net.DefaultResolver.LookupIPAddr(ctx, host); err == nil {
+			for _, a := range addrs {
+				if isBlockedIP(a.IP) {
+					return "", fmt.Errorf("blocked destination IP: %s", a.IP.String())
 				}
 			}
+		} else if ssrfStrict(ctx) {
+			return "", fmt.Errorf("DNS resolution failed: %w", err)
 		}
 	}
 	return u.String(), nil
 }
 
 func isBlockedIP(ip net.IP) bool {
-	if ip.IsLoopback() || ip.IsUnspecified() || ip.IsMulticast() || ip.IsLinkLocalUnicast() {
+	if ip.IsLoopback() || ip.IsUnspecified() || ip.IsMulticast() || ip.IsLinkLocalUnicast() || ip.IsPrivate() {
 		return true
-	}
-	if ip4 := ip.To4(); ip4 != nil {
-		if ip4[0] == 10 {
-			return true
-		}
-		if ip4[0] == 172 && ip4[1] >= 16 && ip4[1] <= 31 {
-			return true
-		}
-		if ip4[0] == 192 && ip4[1] == 168 {
-			return true
-		}
 	}
 	return false
 }
 
 // allowLocalForTests returns true when running `go test` to avoid blocking
-// httptest servers bound to loopback. Can be overridden by COMPOZY_SSRF_STRICT.
-func allowLocalForTests() bool {
-	if ssrfStrict() {
-		return false
-	}
-	if flag.Lookup("test.v") != nil {
-		return true
+// httptest servers bound to loopback. Can be overridden by ATTACHMENTS_SSRF_STRICT.
+//
+// Examples:
+// - Allow loopback during tests (default): `go test ./...`
+// - Enforce strict blocking even in tests: `ATTACHMENTS_SSRF_STRICT=1 go test ./...`
+// - At runtime (non-tests), strictness is controlled by config/env: ATTACHMENTS_SSRF_STRICT.
+func allowLocalForTests() bool { return flag.Lookup("test.v") != nil }
+
+func ssrfStrict(ctx ...context.Context) bool {
+	if len(ctx) > 0 && ctx[0] != nil {
+		if cfg := appconfig.FromContext(ctx[0]); cfg != nil {
+			return cfg.Attachments.SSRFStrict
+		}
 	}
 	return false
 }
-
-func ssrfStrict() bool { return os.Getenv("COMPOZY_SSRF_STRICT") == "1" }

@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
+	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/tool"
@@ -92,7 +93,6 @@ func NewService(ctx context.Context, runtime runtime.Runtime, agent *agent.Confi
 		RetryBackoffBase:        config.RetryBackoffBase,
 		RetryBackoffMax:         config.RetryBackoffMax,
 		RetryJitter:             config.RetryJitter,
-		AttachmentParts:         config.AttachmentParts,
 	}
 	llmOrchestrator := NewOrchestrator(&orchestratorConfig)
 	return &Service{
@@ -108,6 +108,7 @@ func (s *Service) GenerateContent(
 	taskWith *core.Input,
 	actionID string,
 	directPrompt string,
+	attachmentParts []llmadapter.ContentPart,
 ) (*core.Output, error) {
 	if agentConfig == nil {
 		return nil, fmt.Errorf("agent config cannot be nil")
@@ -140,7 +141,11 @@ func (s *Service) GenerateContent(
 		return nil, err
 	}
 
-	request := Request{Agent: effectiveAgent, Action: actionCopy}
+	request := Request{
+		Agent:           effectiveAgent,
+		Action:          actionCopy,
+		AttachmentParts: attachmentParts,
+	}
 	return s.orchestrator.Execute(ctx, request)
 }
 

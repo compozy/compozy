@@ -3,15 +3,38 @@
 This file provides comprehensive guidance for working with the Compozy codebase, including development commands, standards, and workflow patterns.
 
 <critical>
-- **YOU MUST ALWAYS CHECK** the @.cursor/rules/critical-validation.mdc
+**MANDATORY REQUIREMENTS:**
+- **ALWAYS** check dependent files APIs before write tests to avoid write wrong code
+- **ALWAYS** verify against PRD and tech specs - NEVER make assumptions
+- **NEVER** use workarounds, especially in tests - implement proper solutions
+- **MUST** follow all established project standards:
+    - Architecture patterns: @.cursor/rules/architecture.mdc
+    - Go coding standards: @.cursor/rules/go-coding-standards.mdc
+    - Testing requirements: @.cursor/rules/test-standards.mdc
+    - API standards: @.cursor/rules/api-standards.mdc
+    - Security & quality: @.cursor/rules/quality-security.md
+    - No Backwards Compatibility: @.cursor/rules/backwards-compatibility.mdc
+    - Constants & magic numbers: @.cursor/rules/magic-numbers.mdc
+- **MUST** use `logger.FromContext(ctx)` - NEVER pass a logger as a parameter or via DI
+- **MUST** use `config.FromContext(ctx)` to read configuration in all code paths
+  - **NEVER** use any global configuration singleton.
+- **MUST** inherit context properly - NEVER use context.Background() in runtime code paths
+- **MUST** run `make lint` and `make test` before completing ANY subtask
+- **ALWAYS CHECK** the .cursor/rules/zen-mcp-tools.mdc if you are using Zen MCP tools
+- **ALWAYS CHECK** the .cursor/rules/test-standards.mdc if you are writing tests
+
 - **YOU CAN ONLY** finish a task if `make lint` and `make tests` are passing, your task should not finish before this
+- **MUST** inherit context properly - NEVER use context.Background() in runtime code paths
+- **MUST** inherit context properly - NEVER use context.Background() in runtime code paths
+
+**Enforcement:** Violating these standards results in immediate task rejection.
 
 ### For complex/big tasks
 
 - **YOU MUST** use Zen MCP (with Gemini 2.5 Pro) debug, analyze or tracer complex flow **BEFORE INITIATE A TASK**
 - **YOU MUST** use Zen MCP (with Gemini 2.5 Pro and O3) codereview tool **AFTER FINISH A TASK**
 - **YOU MUST ALWAYS** show all recommendations/issues from a Zen MCP review, does not matter if they are related to your task or not, you **NEED TO ALWAYS** show them.
-  </critical>
+  </critical
 
 ## Project Overview
 
@@ -55,7 +78,7 @@ make reset-db       # Reset database completely
 
 - **Code Formatting & Line Spacing**: .cursor/rules/no_linebreaks.mdc - NEVER add blank lines inside function bodies
 - **Go Coding Standards**: .cursor/rules/go-coding-standards.mdc - Function limits, error handling, documentation policy
-- **Testing Standards**: .cursor/rules/test-standard.mdc - MANDATORY `t.Run("Should...")` pattern, testify usage
+- **Testing Standards**: .cursor/rules/test-standards.mdc - MANDATORY `t.Run("Should...")` pattern, testify usage
 - **Go Implementation Patterns**: .cursor/rules/go-patterns.mdc - Canonical implementations of architecture principles
 - **Architecture Principles**: .cursor/rules/architecture.mdc - SOLID principles, Clean Architecture, DRY
 - **Code Quality & Security**: .cursor/rules/quality-security.mdc - Linting rules, security requirements
@@ -78,8 +101,31 @@ For YAML configuration patterns and examples:
 The project uses Go 1.25+ features and requires external dependencies to be mocked in tests when necessary.
 
 <critical>
-- **YOU MUST ALWAYS CHECK** the @.cursor/rules/critical-validation.mdc
+**MANDATORY REQUIREMENTS:**
+- **ALWAYS** check dependent files APIs before write tests to avoid write wrong code
+- **ALWAYS** verify against PRD and tech specs - NEVER make assumptions
+- **NEVER** use workarounds, especially in tests - implement proper solutions
+- **MUST** follow all established project standards:
+    - Architecture patterns: @.cursor/rules/architecture.mdc
+    - Go coding standards: @.cursor/rules/go-coding-standards.mdc
+    - Testing requirements: @.cursor/rules/test-standards.mdc
+    - API standards: @.cursor/rules/api-standards.mdc
+    - Security & quality: @.cursor/rules/quality-security.md
+    - No Backwards Compatibility: @.cursor/rules/backwards-compatibility.mdc
+    - Constants & magic numbers: @.cursor/rules/magic-numbers.mdc
+- **MUST** use `logger.FromContext(ctx)` - NEVER pass a logger as a parameter or via DI
+- **MUST** use `config.FromContext(ctx)` to read configuration in all code paths
+  - **NEVER** use any global configuration singleton.
+- **MUST** inherit context properly - NEVER use context.Background() in runtime code paths
+- **MUST** run `make lint` and `make test` before completing ANY subtask
+- **ALWAYS CHECK** the .cursor/rules/zen-mcp-tools.mdc if you are using Zen MCP tools
+
 - **YOU CAN ONLY** finish a task if `make lint` and `make tests` are passing, your task should not finish before this
+- **MUST** inherit context properly - NEVER use context.Background() in runtime code paths
+- **MUST** inherit context properly - NEVER use context.Background() in runtime code paths
+- **ALWAYS CHECK** the .cursor/rules/test-standards.mdc if you are writing tests
+
+**Enforcement:** Violating these standards results in immediate task rejection.
 
 ### For complex/big tasks
 

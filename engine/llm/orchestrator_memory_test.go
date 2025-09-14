@@ -338,15 +338,12 @@ func TestOrchestrator_BuildMessages_WithImageURLInput(t *testing.T) {
 			ToolRegistry:  mockRegistry,
 			PromptBuilder: mockPromptBuilder,
 			LLMFactory:    mockFactory,
-			AttachmentParts: []llmadapter.ContentPart{
-				llmadapter.ImageURLPart{URL: "https://example.com/pikachu.png", Detail: "high"},
-			},
 		})
 
 		// Registry list is invoked to advertise tools; return empty list
 		mockRegistry.On("ListAll", mock.Anything).Return([]Tool{}, nil)
 
-		// Prepare basic request; parts are provided via orchestrator config
+		// Prepare basic request; parts are provided via request
 		agentCfg := &agent.Config{
 			ID:           "vision-agent",
 			Instructions: "You are a vision assistant",
@@ -355,7 +352,13 @@ func TestOrchestrator_BuildMessages_WithImageURLInput(t *testing.T) {
 		}
 		actionCfg := &agent.ActionConfig{ID: "recognize", Prompt: "Identify the Pokémon"}
 
-		req := Request{Agent: agentCfg, Action: actionCfg}
+		req := Request{
+			Agent:  agentCfg,
+			Action: actionCfg,
+			AttachmentParts: []llmadapter.ContentPart{
+				llmadapter.ImageURLPart{URL: "https://example.com/pikachu.png", Detail: "high"},
+			},
+		}
 
 		mockPromptBuilder.On("Build", ctx, actionCfg).Return("Identify the Pokémon", nil)
 		mockPromptBuilder.On("ShouldUseStructuredOutput", "openai", actionCfg, agentCfg.Tools).Return(false)

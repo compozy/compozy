@@ -189,6 +189,25 @@ func mustWrite(t *testing.T, path string) {
 	require.NoError(t, err)
 }
 
+func TestAttachmentFactory_Exhaustive(t *testing.T) {
+	base := baseAttachment{}
+	kinds := []Type{TypeImage, TypePDF, TypeAudio, TypeVideo}
+	for _, k := range kinds {
+		t.Run("Should create non-nil single item for "+string(k), func(t *testing.T) {
+			a := newAttachmentItem(k, SourceURL, base, "https://x")
+			require.NotNil(t, a)
+			b := newAttachmentItem(k, SourcePath, base, "a")
+			require.NotNil(t, b)
+		})
+		t.Run("Should create non-nil parent for "+string(k), func(t *testing.T) {
+			p := newAttachmentParent(k, SourceURL, base, []string{"https://x"})
+			require.NotNil(t, p)
+			q := newAttachmentParent(k, SourcePath, base, []string{"a"})
+			require.NotNil(t, q)
+		})
+	}
+}
+
 func Test_globWithinCWD_SymlinkSecurity(t *testing.T) {
 	t.Run("Should reject glob patterns matching symlinks outside CWD", func(t *testing.T) {
 		base := t.TempDir()

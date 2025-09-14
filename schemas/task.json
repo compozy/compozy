@@ -1,5 +1,10 @@
 {
   "$defs": {
+    "Attachments": {
+      "description": "Attachments is a slice of polymorphic Attachment values with custom decoding.",
+      "items": true,
+      "type": "array"
+    },
     "ClearConfig": {
       "additionalProperties": false,
       "description": "ClearConfig controls memory clearing behavior",
@@ -316,6 +321,10 @@
     "agent": {
       "$ref": "agent.json",
       "description": "Agent configuration for AI-powered task execution\nOnly used when the task needs to interact with an LLM agent\nMutually exclusive with Tool field\n$ref: schema://agents"
+    },
+    "attachments": {
+      "$ref": "#/$defs/Attachments",
+      "description": "Attachments declared at the task scope are available to all nested agents/actions."
     },
     "batch": {
       "description": "Batch size for processing items in groups (0 = no batching)\nUseful for rate limiting or managing resource usage\n- **Example**: 10 means process 10 items at a time",

@@ -33,7 +33,7 @@ Validate recommendations against workspace rules and standards. At minimum:
 
 - Architecture & Design: @architecture.mdc, @go-coding-standards.mdc, @backwards-compatibility.mdc
 - APIs & Docs: @api-standards.mdc, @quality-security.md, @core-libraries.mdc
-- Testing & Review: @test-standard.mdc, @task-review.mdc (or project equivalent), docs/cursor_rules
+- Testing & Review: @test-standards.mdc, @task-review.mdc (or project equivalent), docs/cursor_rules
 
 Compliance protocol:
 

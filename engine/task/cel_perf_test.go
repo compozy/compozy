@@ -4,13 +4,15 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 )
+
+const maxExprEvalDuration = 200 * time.Millisecond
 
 func TestCELEvaluator_ConcurrentAccess(t *testing.T) {
 	evaluator, err := NewCELEvaluator(WithCacheSize(100))
@@ -51,38 +53,27 @@ func TestCELEvaluator_ConcurrentAccess(t *testing.T) {
 		},
 	}
 
-	var wg sync.WaitGroup
-	errorChan := make(chan error, numGoroutines*evaluationsPerGoroutine)
-
+	g, gctx := errgroup.WithContext(ctx)
 	for i := range numGoroutines {
-		wg.Add(1)
-		go func(goroutineID int) {
-			defer wg.Done()
-
+		i := i
+		g.Go(func() error {
 			for j := range evaluationsPerGoroutine {
-				expr := expressions[(goroutineID*evaluationsPerGoroutine+j)%len(expressions)]
-
-				result, err := evaluator.Evaluate(ctx, expr, data)
-				if err != nil {
-					errorChan <- fmt.Errorf("goroutine %d, iteration %d: %w", goroutineID, j, err)
-					return
+				if err := gctx.Err(); err != nil {
+					return err
 				}
-
+				expr := expressions[(i*evaluationsPerGoroutine+j)%len(expressions)]
+				result, err := evaluator.Evaluate(gctx, expr, data)
+				if err != nil {
+					return fmt.Errorf("goroutine %d, iteration %d: %w", i, j, err)
+				}
 				if !result {
-					errorChan <- fmt.Errorf("goroutine %d, iteration %d: expected true result for %s", goroutineID, j, expr)
-					return
+					return fmt.Errorf("goroutine %d, iteration %d: expected true result for %s", i, j, expr)
 				}
 			}
-		}(i)
+			return nil
+		})
 	}
-
-	wg.Wait()
-	close(errorChan)
-
-	// Check for any errors
-	for err := range errorChan {
-		t.Error(err)
-	}
+	require.NoError(t, g.Wait())
 }
 
 func TestCELEvaluator_StressTest(t *testing.T) {
@@ -179,7 +170,7 @@ func TestWaitTask_ExpressionComplexity(t *testing.T) {
 		expected   bool
 	}{
 		{
-			name:       "simple",
+			name:       "Should evaluate simple expression quickly",
 			expression: `signal.payload.status == "approved"`,
 			data: map[string]any{
 				"signal": map[string]any{
@@ -189,7 +180,7 @@ func TestWaitTask_ExpressionComplexity(t *testing.T) {
 			expected: true,
 		},
 		{
-			name:       "medium complexity",
+			name:       "Should evaluate medium-complexity expression quickly",
 			expression: `signal.payload.status == "approved" && signal.payload.priority > 5`,
 			data: map[string]any{
 				"signal": map[string]any{
@@ -202,7 +193,7 @@ func TestWaitTask_ExpressionComplexity(t *testing.T) {
 			expected: true,
 		},
 		{
-			name: "high complexity",
+			name: "Should evaluate high-complexity expression quickly",
 			expression: `signal.payload.status == "approved" &&
 						 signal.payload.priority > 5 &&
 						 has(signal.payload.metadata) &&
@@ -237,8 +228,8 @@ func TestWaitTask_ExpressionComplexity(t *testing.T) {
 
 			t.Logf("%s evaluation took %v", tc.name, duration)
 
-			// Even complex expressions should evaluate quickly (allowing some variance for different environments)
-			assert.Less(t, duration, 200*time.Millisecond, "Expression evaluation should be reasonably fast")
+			// Even complex expressions should evaluate quickly (allowing some variance across environments)
+			assert.Less(t, duration, maxExprEvalDuration, "Expression evaluation should be reasonably fast")
 		})
 	}
 }

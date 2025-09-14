@@ -1,0 +1,126 @@
+---
+description: "Standards to eliminate magic numbers and promote important constants to global configuration"
+globs:
+  - "**/*.go"
+alwaysApply: true
+tags: ["standards", "go", "maintainability", "configuration"]
+---
+
+# Magic Numbers & Constants
+
+<purpose>
+Eliminate unexplained numeric literals ("magic numbers") from runtime code. Make intent explicit with named, typed constants and ensure operator-tunable values live in the global configuration system.
+</purpose>
+
+<scope>
+Applies to all Go runtime code across the repo. Tests may use local test constants when appropriate. This rule complements existing linters (e.g., goconst) but is stricter for numeric literals.
+</scope>
+
+## What Is A Magic Number
+
+<definition>
+A magic number is any numeric literal whose meaning is not self-evident at the point of use. Examples: `5`, `10`, `0.75`, `30 * time.Second` embedded directly in logic for retries, timeouts, limits, sizes, thresholds, or statuses.
+</definition>
+
+## Decision Framework
+
+<checklist type="mandatory">
+1. Trivial/idiomatic literals allowed inline
+   - Index/length sentinels: `0`, `1`, `-1` (loops, slices, return codes where idiomatic)
+   - Obvious bit shifts and masks with clear context (e.g., `1 << 10` for KiB) — prefer a named constant when reused
+   - Enum/iota definitions and standard library constants (e.g., `http.StatusOK`)
+
+2. Fixed implementation detail (not operator-tunable)
+   - Promote to a well-named, typed `const` close to use; if shared within a package, place in a `constants.go` with grouped `const (...)` blocks and doc comments
+   - Prefer typed values: use `time.Duration` (e.g., `5 * time.Second`), explicit sizes, etc.
+
+3. Operator-tunable value (affects behavior in different environments)
+   - MUST be a config property, not a hardcoded literal
+   - Follow @.cursor/rules/global-config.mdc to add the field to the registry, typed struct, env/CLI, defaults, validation, and diagnostics
+   - Read via `config.FromContext(ctx)` in runtime code paths
+</checklist>
+
+## Naming, Placement, and Types
+
+<conventions>
+- Group package constants by domain with descriptive comments (see `pkg/mcp-proxy/constants.go` for style)
+- Use singular, intention-revealing names: `DefaultReconnectDelay`, `MaxConcurrentJobs`, `BackoffMultiplier`
+- Prefer `time.Duration` for time; express as `N * time.<Unit>`
+- Keep constants close to their usage unless widely shared in the package
+- For values consumed across packages and not operator-tunable, export from the owning package with clear docs
+</conventions>
+
+## Examples
+
+<example type="bad_practice">
+### Bad
+
+```go
+// Unclear intent; hard to tune and duplicate across code
+client := http.Client{Timeout: 30 * time.Second}
+for i := 0; i < 5; i++ { /* retry */ }
+if usage > 0.85 { throttle() }
+```
+</example>
+
+<example type="good_practice">
+### Good (constants)
+
+```go
+const (
+    // Retry and client defaults (package-scoped)
+    defaultHTTPClientTimeout = 30 * time.Second
+    defaultMaxRetries        = 5
+    throttleHighWatermark    = 0.85
+)
+
+client := http.Client{Timeout: defaultHTTPClientTimeout}
+for i := 0; i < defaultMaxRetries; i++ { /* ... */ }
+if usage > throttleHighWatermark { throttle() }
+```
+
+### Good (global configuration)
+
+```go
+cfg := config.FromContext(ctx)
+client := http.Client{Timeout: cfg.Runtime.HTTPClientTimeout}
+for i := 0; i < cfg.Runtime.MaxAPIRetries; i++ { /* ... */ }
+```
+</example>
+
+## Promotion Criteria (Constant → Config)
+
+<criteria>
+- Timeouts, deadlines, polling/intervals
+- Retry/backoff counts, factors, jitter
+- Concurrency and queue limits
+- Buffer sizes, payload/attachment limits
+- Thresholds impacting behavior (e.g., throttling, sampling)
+- Any value an operator might need to tune per environment
+</criteria>
+
+## Test Code Guidance
+
+<tests>
+- Prefer local test constants: `const testTimeout = 5 * time.Second`
+- It is acceptable to inline trivial literals in tests when they clearly express intent and are not reused
+- Avoid duplicating production constants in tests; import from the package or assert relative behavior
+</tests>
+
+## Verification
+
+<validation>
+- No unexplained numeric literals remain in runtime code paths
+- Reused values are named `const` with clear intent
+- Operator-tunable values are implemented through `pkg/config` per @.cursor/rules/global-config.mdc and read with `config.FromContext(ctx)`
+- `make fmt && make lint && make test` pass
+</validation>
+
+## Critical
+
+<critical>
+- **NEVER** introduce magic numbers in runtime code
+- **MUST** promote important constants to configuration using the process in @.cursor/rules/global-config.mdc
+- **MUST** inherit context properly — fetch config via `config.FromContext(ctx)`; do not use global singletons
+</critical>
+

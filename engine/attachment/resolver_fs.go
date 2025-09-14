@@ -12,8 +12,6 @@ import (
 	"github.com/compozy/compozy/pkg/logger"
 )
 
-const mimeDetectReadLimit = 512
-
 // resolveLocalFile safely resolves a path against CWD and verifies it remains
 // within the project tree. It detects MIME from the file head and returns a
 // resolvedFile handle without copying data. Cleanup is a no-op for local files.
@@ -23,8 +21,6 @@ func resolveLocalFile(ctx context.Context, cwd *core.PathCWD, rel string, kind T
 	}
 	root := filepath.Clean(cwd.Path)
 	joined := filepath.Clean(filepath.Join(root, rel))
-
-	// Resolve symlinks to prevent symlink-escape path traversal
 	resolvedRoot, err := filepath.EvalSymlinks(root)
 	if err != nil {
 		return nil, fmt.Errorf("resolve CWD symlinks: %w", err)
@@ -33,64 +29,81 @@ func resolveLocalFile(ctx context.Context, cwd *core.PathCWD, rel string, kind T
 	if err != nil {
 		return nil, fmt.Errorf("resolve path symlinks: %w", err)
 	}
-	within, err := pathWithin(resolvedRoot, resolvedJoined)
+	within, err := pathWithinResolved(resolvedRoot, resolvedJoined)
 	if err != nil {
 		return nil, fmt.Errorf("path validation failed: %w", err)
 	}
 	if !within {
 		return nil, fmt.Errorf("path outside CWD: %s", rel)
 	}
-
+	fi, statErr := os.Stat(resolvedJoined)
+	if statErr != nil {
+		return nil, fmt.Errorf("stat failed: %w", statErr)
+	}
+	if !fi.Mode().IsRegular() {
+		return nil, fmt.Errorf("not a regular file: %s", rel)
+	}
 	f, err := os.Open(resolvedJoined)
 	if err != nil {
 		return nil, fmt.Errorf("open failed: %w", err)
 	}
 	defer f.Close()
-	head := make([]byte, mimeDetectReadLimit)
-	n, rerr := f.Read(head)
-	if rerr != nil && rerr != io.EOF {
-		return nil, fmt.Errorf("read failed: %w", rerr)
+	mime, err := detectMIMEFromFile(ctx, f)
+	if err != nil {
+		return nil, err
 	}
-	mime := detectMIME(head[:n])
 	if !isAllowedByTypeCtx(ctx, kind, mime) {
 		return nil, errMimeDenied(kind, mime)
 	}
-	logger.FromContext(ctx).Debug("Resolved local attachment", "path", resolvedJoined, "mime", mime)
+	logger.FromContext(ctx).Debug("Resolved local attachment", "mime", mime)
 	return &resolvedFile{path: resolvedJoined, mime: mime, temp: false}, nil
 }
 
+// pathWithinResolved validates that targetResolved is inside rootResolved.
+// Preconditions: both arguments MUST be outputs of filepath.EvalSymlinks (or equivalent)
+// to avoid bypass via symlinks. Performs only Rel() + traversal checks.
+func pathWithinResolved(rootResolved, targetResolved string) (bool, error) {
+	rel, err := filepath.Rel(filepath.Clean(rootResolved), filepath.Clean(targetResolved))
+	if err != nil {
+		return false, fmt.Errorf("compute relative path: %w", err)
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		return false, nil
+	}
+	return true, nil
+}
+
 func pathWithin(root, target string) (bool, error) {
-	// Canonicalize root path by resolving symlinks and cleaning
 	resolvedRoot, err := filepath.EvalSymlinks(root)
 	if err != nil {
-		// If root symlink resolution fails, treat as insecure (fail-safe)
 		return false, fmt.Errorf("resolve root symlinks: %w", err)
 	}
 	resolvedRoot = filepath.Clean(resolvedRoot)
-
-	// Canonicalize target path by resolving symlinks and cleaning
 	resolvedTarget, err := filepath.EvalSymlinks(target)
 	if err != nil {
-		// If symlink resolution fails and file doesn't exist, treat as insecure
 		if os.IsNotExist(err) {
 			return false, fmt.Errorf("target path does not exist: %s", target)
 		}
-		// If symlink resolution fails for other reasons, treat as insecure (fail-safe)
 		return false, fmt.Errorf("resolve target symlinks: %w", err)
 	}
 	resolvedTarget = filepath.Clean(resolvedTarget)
-
-	// Compute relative path from resolved root to resolved target
 	rel, err := filepath.Rel(resolvedRoot, resolvedTarget)
 	if err != nil {
 		return false, fmt.Errorf("compute relative path: %w", err)
 	}
-
-	// Reject if relative path escapes the root
 	if rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
 		return false, nil
 	}
-
-	// Allow current directory and subdirectories
 	return true, nil
+}
+
+func detectMIMEFromFile(ctx context.Context, f *os.File) (string, error) {
+	// Note: this reads from the current file offset and advances it. Callers
+	// that need to reread from the beginning should seek back after this call.
+	head := make([]byte, mimeHeadLimit(ctx))
+	n, err := f.Read(head)
+	if err != nil && err != io.EOF {
+		return "", fmt.Errorf("read failed for %q: %w", filepath.Base(f.Name()), err)
+	}
+	return detectMIME(head[:n]), nil
 }

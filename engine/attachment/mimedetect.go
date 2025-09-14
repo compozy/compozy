@@ -84,3 +84,13 @@ func isAllowedByTypeCtx(ctx context.Context, t Type, mime string) bool {
 	}
 	return false
 }
+
+// mimeHeadLimit returns how many initial bytes should be captured for MIME
+// detection, consulting global config when available.
+func mimeHeadLimit(ctx context.Context) int {
+	cfg := config.FromContext(ctx)
+	if cfg != nil && cfg.Attachments.MIMEHeadMaxBytes > 0 {
+		return cfg.Attachments.MIMEHeadMaxBytes
+	}
+	return MIMEHeadMaxBytes
+}
