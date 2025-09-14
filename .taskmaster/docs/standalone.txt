@@ -1,0 +1,933 @@
+File Tree:
+|-- _prd.md
+|-- _techspec.md
+|-- 00-overview.md
+|-- 01-architecture-refactor.md
+|-- 02-component-changes.md
+|-- 03-data-migrations.md
+|-- 04-temporal-embedded.md
+|-- 05-sugardb-integration.md
+|-- 06-testing-strategy.md
+|-- 07-work-plan.md
+`-- 08-open-questions.md
+
+---
+File: /Users/pedronauck/Dev/compozy/_worktrees/embed/tasks/prd-standalone/03-data-migrations.md
+Contents:
+# Data & Migrations Plan
+
+## Drivers & DSNs
+
+- SQLite (standalone): use `modernc.org/sqlite` (pure Go). DSN example:
+  - `sqlite` driver name; DSN: `file:compozy.db?_foreign_keys=on&_journal_mode=WAL&_busy_timeout=5000`.
+- Postgres (distributed): keep `pgx` path and connstring.
+
+## Goose Integration
+
+- Migrations are owned by the concrete driver packages, not `store`.
+  - Postgres: `engine/infra/postgres/migrations/` (move current files here).
+  - SQLite: `engine/infra/sqlite/migrations/` (new files with equivalent schema).
+- Each driver exposes a helper:
+  - `postgres.ApplyMigrations(ctx context.Context, db *sql.DB) error` (or `*pgxpool.Pool`).
+  - `sqlite.ApplyMigrations(ctx context.Context, db *sql.DB) error`.
+- Advisory locks: Postgres-only. SQLite path must not use advisory locks.
+ - Version pinning: pin `goose` and driver deps in CI for deterministic runs; document upgrade steps.
+
+## SQLite Schema Parity
+
+- Replace `jsonb` columns with `TEXT` and rely on app-level JSON marshal/unmarshal (already provided by `ToJSONB`/`FromJSONB`).
+- Timestamps: use `DATETIME DEFAULT CURRENT_TIMESTAMP` and update triggers or explicit `updated_at` handling in queries.
+- CTEs: keep `WITH RECURSIVE` queries; placeholders change to `?` when the builder selects SQLite.
+ - Pragmas: prefer WAL and a sensible busy timeout for tests/dev; document that SQLite is for dev/standalone and not high write concurrency.
+
+## Repository Refactor Notes
+
+- Prefer the transactional-closure pattern over exposing tx types:
+  - `store.WithTransaction(ctx, func(repos store.Repositories) error) error` (drivers manage tx internally).
+- Replace `pgxscan` with local scan helpers:
+  - Implement `scanOne[T]` and `scanAll[T]` helpers using `rows.Scan` and `json.Unmarshal` for JSON fields.
+  - Provide adapters for both drivers behind an interface `Querier` with `QueryContext`, `QueryRowContext`, `ExecContext`.
+- Ensure `TaskHierarchyCTEQuery` is generated via builder (or maintain two constants via build tags). Preferred: central `QueryBuilder` that injects placeholder style.
+ - JSON handling: store JSON as TEXT in SQLite; marshal/unmarshal in adapters to keep domain clean.
+
+## Migration Rollout Steps
+
+1) Create new migration folders under `engine/infra/postgres` and `engine/infra/sqlite`; move existing Postgres SQL files.
+2) Implement `ApplyMigrations` helpers in each package; remove migration responsibilities from `engine/infra/store`.
+3) Provide SQLite bootstrapping for dev/test (temp file) and for `make dev` (project-root file path).
+4) Update tests to run migrations via the driver package used by the test run.
+ 5) Emit a short log/metric with `store_driver=postgres|sqlite` when applying migrations for observability.
+
+---
+File: /Users/pedronauck/Dev/compozy/_worktrees/embed/tasks/prd-standalone/00-overview.md
+Contents:
+# PRD: Standalone (Embedded) Mode for Compozy
+
+Goal: add a top-level `mode` property to `compozy.yaml` with two values:
+
+```
+# compozy.yaml
+mode: standalone   # embedded, single-binary/dev-friendly
+# mode: distributed  # external services (current behavior)
+```
+
+In `standalone` mode Compozy runs with zero external infra:
+
+- Database: SQLite (pure-Go driver) instead of PostgreSQL.
+- Cache/Locks/PubSub/Config: SugarDB (embedded) instead of Redis.
+- Temporal: embedded development server (Temporalite) launched in-process; the Go worker connects to `localhost:7233` managed by the same process.
+- Tests: default to `standalone` (no Testcontainers, no Docker required).
+
+This document set defines scope, architecture, and a stepwise plan to implement the feature with a greenfield mindset (no backwards compatibility required in this alpha).
+
+Refactor-first mandate:
+
+- Before any standalone wiring, split the data store by responsibility:
+  - `engine/infra/store`: interfaces and shared types only (driver-agnostic contract).
+  - `engine/infra/postgres`: PostgreSQL implementation and migrations.
+  - `engine/infra/sqlite`: SQLite implementation and migrations.
+  - App wiring chooses one implementation; default selection comes later with `mode`, but the package split lands first.
+
+- Mirror the same split for the cache layer:
+  - `engine/infra/cache`: contracts and neutral types only (KV/Lists/Hash/PubSub/Locks, Notification).
+  - `engine/infra/redis`: Redis adapter implementing contracts.
+  - `engine/infra/sugardb`: SugarDB adapter implementing contracts.
+  - Selection happens in bootstrap (`engine/infra/server`)  no constructors in contracts packages.
+
+Related directories in scope:
+
+- `engine/infra`
+- `engine/infra/redis`
+- `engine/infra/sugardb`
+- `engine/infra/postgres`
+- `engine/infra/sqlite`
+- `engine/worker`
+- `engine/memory`
+- `engine/webhook`
+- `pkg/mcp-proxy`
+
+Key outcomes:
+
+- Simple local dev experience (clone  `make dev` without services).
+- Faster, hermetic tests (no network, no containers).
+- Clear seams to continue supporting the current distributed path.
+
+Security and exposure defaults:
+
+- Standalone embeddeds run in-process only by default; no network listeners for embedded Temporal or SugarDB unless explicitly enabled.
+- Flags/envs can opt-in to expose ports for debugging; defaults must be non-public for safety.
+
+Observability and labeling:
+
+- At startup and in metrics, emit labels: `mode`, `store_driver`, `cache_driver`.
+- Example: `mode=standalone, store_driver=sqlite, cache_driver=sugardb`.
+
+Rate limiting behavior:
+
+- In standalone, default to an in-memory rate limiter (best-effort, single-process). Document that cross-process guarantees require Redis (distributed mode) or an explicit opt-in Redis even while in standalone.
+
+Configuration mode:
+
+- Add `mode` to root config and schema, with helpers in `pkg/config/mode.go`.
+- Bootstrap selects implementations based on `mode` and attaches selected instances into app state for graceful shutdown.
+
+Contracts and error taxonomy:
+
+- Cache contracts are driver-agnostic with neutral sentinel errors (e.g., `cache.ErrNotFound`), and adapters translate backend-specific errors.
+- Atomic memory operations (append+trim+metadata) are promoted to an explicit contract capability to guarantee parity across Redis and SugarDB.
+
+---
+File: /Users/pedronauck/Dev/compozy/_worktrees/embed/tasks/prd-standalone/08-open-questions.md
+Contents:
+# Open Questions & Decisions
+
+- Temporalite package path and API versions evolve  lock to a known version in `go.mod` and vendor if needed for dev reproducibility. Prefer Temporals official dev server programmatic APIs if available.
+- Lock Manager parity: Redlock vs. SugarDB locking  do we need cross-process safety beyond a single process in standalone? If not, keep it simple (process-local mutual exclusion + TTL-backed guards).
+- Memory service expectations on list sizes and trimming semantics  confirm with product expectations to map precisely to SugarDB.
+- Should standalone listen on network ports for SugarDB/Temporal, or keep both in-process only? Default to in-process only for security; add flags to expose if needed.
+- Do we keep `miniredis`-based tests as optional (distributed-only) or fully migrate them out? Proposal: keep as distributed-only coverage for Redis-specific behavior.
+- Keys iteration API shape: default proposal is `Keys(ctx, pattern) ([]string, error)`; validate if an iterator is preferable for large keyspaces.
+- Atomic list+metadata: contract capability adopted; finalize method signature and adapter semantics (Redis via Lua; SugarDB via critical section).
+
+Store split specifics:
+
+- Where should shared DTOs/entities live to avoid import cycles? Options: `engine/domain` vs. `engine/infra/store/types` (no impl deps).
+- Should the server wiring use a thin `engine/infra/datastore` facade that returns a `store.Store`, or construct directly in `engine/infra/server`?
+- How will we select the driver before `mode` lands? Temporary env var (e.g., `COMPOZY_STORE_DRIVER=postgres|sqlite`) acceptable for the refactor phase?
+ - Transactional-closure is the preferred pattern; if we ever need explicit Tx exposure for edge cases, what minimal surface should exist and where?
+
+Cache split specifics:
+
+- Exact shape of neutral interfaces: which list/hash operations are truly needed by `engine/memory`? Prefer minimal contracts to avoid adapter bloat.
+- Pub/Sub parity: does SugarDB support pattern subscriptions with the same semantics as Redis? If not, how will we emulate or document differences?
+- Lock semantics: is a token+TTL lock sufficient in standalone single-process? Do we need multi-process safety guarantees for dev? Document explicitly.
+- Metrics naming: keep consistent metric names across adapters; where implementations diverge, provide adapter labels.
+ - Atomic operations: if memory requires atomic Append+Trim+Metadata, should it be expressed as a contract method or implemented entirely in adapters with composition?
+ - SCAN/iteration semantics: define a neutral iterator in contracts vs. helper methods on adapters  which gives better portability?
+- Rate limiter: generic limiter interface + shim approach accepted; track middleware-specific needs and document in-memory default limitations.
+
+Other:
+
+- Rate limiter: in-memory path is best-effort in standalone; do we need an opt-in Redis path even in standalone for cross-process rate limiting?
+- Temporal lifecycle: should the server expose a readiness endpoint that includes Temporal readiness when in standalone?
+ - Port typing consistency across config structs (server, database, redis): standardize on int or string and document conversions.
+ - Context usage in shutdown: verify whether a `WithoutCancel` helper is necessary/appropriate or preserve cancellation; document decision.
+
+---
+File: /Users/pedronauck/Dev/compozy/_worktrees/embed/tasks/prd-standalone/04-temporal-embedded.md
+Contents:
+# Temporal Embedded Server Plan
+
+## Options Considered
+
+- Temporalite (recommended for standalone): embed a lightweight Temporal server in-process using SQLite persistence.
+  - Import: `github.com/temporalio/temporalite` or `github.com/temporalio/temporalite/server`.
+  - Typical boot:
+    - `srv := server.NewServer(server.Options{FrontendPort: 7233, Persistence: server.Persistence{DB: server.SQLite}})`
+    - `srv.Start()` and `srv.Stop()` on shutdown.
+- Programmatic Temporal server (heavier): `go.temporal.io/server/temporal` with `temporal.NewServer(...)` and explicit config loaders.
+
+## Proposed Implementation
+
+- New package `engine/infra/temporal`:
+  - `embedded.go` exposes `StartEmbedded(ctx) (stop func() error, err error)`.
+  - Use temporalite; store state in a temp dir (tests) or in project dir (dev) with SQLite WAL enabled.
+  - Ensure namespace `default` exists on startup.
+- Worker wiring remains unchanged; when `IsStandalone(ctx)`, default `HostPort` to `localhost:7233`.
+ - Security defaults: do not bind external ports by default; keep the dev server in-process only unless explicitly configured to expose ports for debugging.
+
+## Lifecycle
+
+- Start order (standalone): SQLite store (via `engine/infra/sqlite`)  SugarDB  Temporalite  HTTP server + worker.
+- Shutdown order: HTTP server  worker  Temporalite  SugarDB  SQLite.
+
+Readiness & retries:
+- Wrap `client.Dial` with a short capped exponential backoff (e.g., up to 5s total) when `IsStandalone(ctx)` to handle Temporalite cold start.
+- Validate namespace `default` exists; create if missing.
+ - Suggested backoff: start at 100ms, double up to 1s, cap at ~5s total.
+
+## Testing
+
+- For most unit tests, prefer `go.temporal.io/sdk/temporaltestserver` to avoid full server boot cost.
+- For integration tests requiring signals/dispatchers, use the embedded server to match runtime conditions.
+ - Add an e2e smoke test that validates startup order and readiness by booting the worker against the embedded server.
+
+## References
+
+- Temporal docs (programmatic server options): `/temporalio/documentation` (Context7)  `temporal.NewServer`, `server-options`.
+- Temporalite package usage (community reference).
+ - Security posture: embedded-only by default; document opt-in flags for port exposure.
+
+---
+File: /Users/pedronauck/Dev/compozy/_worktrees/embed/tasks/prd-standalone/05-sugardb-integration.md
+Contents:
+# SugarDB Integration Plan (Redis Replacement in Standalone)
+
+## Rationale
+
+SugarDB (`github.com/echovault/sugardb`) provides an embedded, Redis-like data store with:
+- KV, Lists, Hashes, Sets, Sorted Sets
+- Pub/Sub with pattern subscriptions
+- TTL/Expire semantics
+- Embeddable Go API (`sugardb.NewSugarDB()`)
+
+This maps cleanly to our current usage patterns in `infra/cache`, `engine/memory`, `pkg/mcp-proxy`.
+
+## Abstraction
+
+Introduce backend-neutral cache contracts in `engine/infra/cache` used by higher layers and implemented by adapters:
+
+```go
+// Pseudocode interfaces
+type KV interface {
+    Get(ctx context.Context, key string) (string, error)
+    Set(ctx context.Context, key string, value any, ttl time.Duration) error
+    Del(ctx context.Context, keys ...string) (int64, error)
+    MGet(ctx context.Context, keys ...string) ([]string, error)
+    Expire(ctx context.Context, key string, ttl time.Duration) (bool, error)
+}
+
+type Lists interface { LRange(...); LLen(...); LTrim(...); RPush(...) }
+type Hashes interface { HSet(...); HGet(...); HDel(...); HIncrBy(...) }
+type PubSub interface {
+    Publish(ctx context.Context, chan string, msg []byte) error
+    Subscribe(ctx context.Context, channels ...string) (MessageReader, error)
+    PSubscribe(ctx context.Context, patterns ...string) (MessageReader, error)
+}
+
+type LockManager interface {
+    Acquire(ctx context.Context, resource string, ttl time.Duration) (Lock, error)
+}
+
+// Neutral errors exposed by contracts (adapters must translate):
+var ErrNotFound = errors.New("cache: not found")
+var ErrDuplicate = errors.New("cache: duplicate")
+```
+
+Provide two adapters implementing the above under new packages: `engine/infra/redis` and `engine/infra/sugardb`.
+
+## Mapping to SugarDB
+
+- KV: `db.Set`, `db.Get`, `db.MGet`, `db.Del`, `db.Expire`.
+- Lists: `db.RPush`, `db.LRange`, `db.LLen`, `db.LTrim`.
+- Hash: `db.HSet`, `db.HGet`, `db.HDel`, `db.HIncrBy`.
+- Pub/Sub: `db.Publish`, `db.Subscribe`, `db.PSubscribe` (MessageReader handling per docs).
+- Locks: implement via `SetNX`/`Expire` semantics; if SugarDB lacks `SETNX`, emulate with a single-flight section guarded by process mutex; lock key holds owner/token; unlock compares token.
+ - Atomic list+metadata: provide an adapter-local atomic op using a single critical section in SugarDB; expose as contract method only if needed by multiple callsites.
+ - Keys/iteration: implement `Keys(pattern)` (or iterator) semantics consistently with Redis SCAN; document any pattern differences and ensure contract tests cover them.
+ - Metrics: label adapter as `cache_driver=sugardb` and emit basic health metrics.
+
+## Touch Points
+
+- Server wiring (bootstrap) selects adapter by `mode` and populates the `cache` facade; contracts package contains no constructors.
+ - `engine/memory/store/redis.go`  switch to `kv.go` using neutral interfaces.
+ - `engine/worker/mod.go`: `setupCacheAndConfig` uses the cache adapter; `services.ConfigStore` should accept KV.
+ - `pkg/mcp-proxy`: add `SugarStorage` using KV (scan keys with pattern equivalent if needed).
+ - Store layer is independent: selection between `engine/infra/postgres` and `engine/infra/sqlite` happens in server wiring; cache decisions must not reintroduce driver-specific deps into `store`.
+ - Worker heartbeat listing uses SCAN/iteration; encapsulate pattern iteration in adapter or expose a neutral iterator in contracts.
+  - Rate limiting: provide an in-memory limiter implementation for standalone; keep Redis-backed limiter available via adapter for distributed.
+
+## Minimal Examples (adapter sketch)
+
+```go
+// sugardb adapter wraps SugarDB primitives to satisfy cache.KVStore
+type sugarKV struct{ s *sugardb.SugarDB }
+func (k *sugarKV) Set(ctx context.Context, key string, v any, ttl time.Duration) error { /* ... */ return nil }
+```
+
+## Risks & Mitigations
+
+- Pub/Sub behavior differences: build a small compatibility layer; add tests matching current `Notification` semantics (pattern subs, buffering).
+- Lock fairness/robustness: time-based locks with tokens and TTL; provide metrics and retries like current Redlock variant.
+- Performance: acceptable for standalone/dev; document that distributed mode should continue using Redis.
+ - Consistency: ensure atomic list+metadata parity through contract tests (append, trim, token delta, TTL updates) and define behavior for edge cases explicitly.
+
+---
+File: /Users/pedronauck/Dev/compozy/_worktrees/embed/tasks/prd-standalone/06-testing-strategy.md
+Contents:
+# Testing Strategy (Standalone Default)
+
+## Principles
+
+- No external services in unit/integration tests by default.
+- Deterministic, hermetic, fast.
+
+## Defaults
+
+- Mode: `standalone` when running `go test` (set via `test` helper or env default).
+- DB: SQLite temporary file per test package; migrations applied programmatically.
+- Cache: SugarDB embedded per test (shared instance per package where safe).
+- Temporal: `temporaltestserver` for unit tests; embedded Temporalite for integration tests that cover worker/dispatcher flows.
+- Store: contract tests run against both drivers; default run uses SQLite.
+ - Cache: contract tests run against both adapters; default run uses SugarDB. A separate job runs the same suite against Redis (miniredis for unit-level or Testcontainers/Redis for integration-level).
+
+Adapter parity cases (must be covered in contract suites):
+- SCAN/iteration semantics used by worker heartbeat listing (pattern matching, pagination).
+- Atomic list+metadata behavior required by memory (append, trim, metadata counters, token deltas).
+ - TTL behavior for message lists and metadata across adapters.
+
+## Changes
+
+- Remove Testcontainers:
+  - Delete `test/helpers/database.go` (Postgres container) and references.
+  - Update `engine/infra/store/migrations_test.go` to use SQLite path.
+- Replace most `miniredis` uses with SugarDB in-process server; keep a subset of Redis-only tests under a `//go:build distributed` tag.
+- Introduce test helpers:
+  - `test/sqlite.go`: `NewTestSQLite(t *testing.T) (*sql.DB, func())`.
+  - `test/sugardb.go`: `NewTestSugarDB(t *testing.T) (*sugardb.SugarDB, func())`.
+  - `test/temporal.go`: `NewTemporalTestServer(t) (addr string, cleanup func())` and optionally `NewEmbeddedTemporal(t)` for integration.
+  - `test/cache_iter.go`: shared SCAN/iteration conformance tests driven by adapter factories.
+  - `test/cache_atomic.go`: shared atomic list+metadata conformance tests driven by adapter factories.
+ - Guardrails: ensure `make lint` and `make test` succeed without network/containers by default; CI matrix job runs Postgres/Redis-specific contract suites separately.
+- Add store contract suite:
+  - `test/store/contract_test.go`: tests written against `store.Store` interfaces only.
+  - `test/store/factory_postgres.go` and `factory_sqlite.go`: produce concrete stores; CI job matrix runs the same suite twice.
+ - Add cache contract suite:
+   - `test/cache/contract_test.go`: tests written against `cache` interfaces only.
+   - `test/cache/factory_redis.go` and `factory_sugar.go`: produce adapters; CI job matrix runs the same suite twice.
+
+## CI
+
+- Ensure `make lint` and `make test` run without Docker (standalone default). Provide a separate job for Postgres that uses Testcontainers or a dev DB, running only the contract suite.
+- Parallelize package tests; reduce global state in cache adapter.
+- Tag Redis-only tests with `//go:build distributed` and Sugar/SQLite defaults with no tags; ensure matrix executes both.
+ - Validate startup logs/metrics include adapter labels (store_driver, cache_driver) and `mode`.
+ - Add a smoke test that exercises Temporal embedded readiness/backoff by booting worker against in-process Temporal.
+ - Enforce coverage on business logic packages (80%) and include contract suites in coverage.
+
+---
+File: /Users/pedronauck/Dev/compozy/_worktrees/embed/tasks/prd-standalone/01-architecture-refactor.md
+Contents:
+# Architecture Refactor Plan (Standalone Mode)
+
+## Mode Selection & Wiring
+
+- Add `Mode` to root configuration and load it early (CLI and server):
+  - Update: `pkg/config/config.go` (root `Config`) to include `Mode string` with validation `oneof=standalone distributed`.
+  - Update: `pkg/config/definition/schema.go` to add `mode` to documented schema.
+  - Update: `cli/root.go` to ensure default `compozy.yaml` is read and `Mode` placed in context.
+  - Introduce: `pkg/config/mode.go` helpers: `IsStandalone(ctx)` and `IsDistributed(ctx)`.
+
+- Condition wiring at app start based on `mode`:
+  - `engine/infra/server/mod.go` (or centralized app bootstrap) builds the infra graph via small factories that are mode-aware.
+  - Emit adapter labels at boot: `mode`, `store_driver`, `cache_driver` via logger/metrics.
+  - Rate limiting: inject a generic cache-backed limiter or in-memory fallback in standalone; keep Redis-backed limiter in distributed. Provide a shim if a third-party middleware insists on `*redis.Client`.
+
+## Data Layer: Store Split (Interfaces  Implementations)
+
+Current:
+- `engine/infra/store` mixes contracts and Postgres-specific details (`pgxpool`, `pgx.Tx`, `pgxscan`, `jsonb`, advisory locks, recursive CTEs) and owns migrations.
+
+Target (refactor-first):
+- `engine/infra/store`: contracts only. Define repository interfaces and shared types; no driver code, no migrations, no builders, no constructors.
+- `engine/infra/postgres`: concrete implementation using `pgx` or `database/sql` adapter, Postgres-specific queries, placeholder format `$1`, and `goose` migrations in `engine/infra/postgres/migrations`.
+- `engine/infra/sqlite`: concrete implementation using `modernc.org/sqlite` via `database/sql`, placeholder `?`, and `goose` migrations in `engine/infra/sqlite/migrations` (JSON stored as TEXT, no advisory locks).
+- Each concrete package exposes a small factory: e.g., `postgres.NewStore(cfg) (store.Store, error)` and `sqlite.NewStore(path) (store.Store, error)`.
+
+Guidelines:
+- Prefer a transactional-closure API over exposing concrete `Tx` objects:
+  - `store.WithTransaction(ctx, func(repos store.Repositories) error) error` manages begin/commit/rollback.
+  - Service code becomes driver-agnostic; no `pgx.Tx` types in domain.
+- Keep Squirrel or a thin builder inside each concrete package; do not leak placeholder handling into `store`.
+- Keep scan helpers local to each implementation. If shared DTOs are needed, place them in `engine/infra/store/types` or `engine/domain` to avoid import cycles.
+- Migrations ownership is per-implementation; `store` must not import goose.
+
+Files to change (illustrative):
+- New: `engine/infra/store/interfaces.go` (contracts) and `engine/infra/store/types.go` (shared DTOs, errors).
+- New: `engine/infra/postgres/*` (queries, adapters, `migrate.go`, `migrations/*.sql`).
+- New: `engine/infra/sqlite/*` (queries, adapters, `migrate.go`, `migrations/*.sql`).
+- Move: repository implementations out of `engine/infra/store` into `engine/infra/postgres` and `engine/infra/sqlite`.
+- Remove: dialect switching and advisory lock concerns from `store`.
+- Update: domain/services/tests removing `pgx.Tx` from signatures in favor of the closure.
+
+Notes on SQL parity:
+- Replace `jsonb` with TEXT + app-level marshal/unmarshal for SQLite.
+- Recursive CTEs remain supported; ensure placeholder style comes from the local builder.
+- Transactions: implemented via `WithTransaction` closure; drivers handle concrete tx types internally.
+
+## Cache/Coordination: Redis  SugarDB
+
+Current:
+- `engine/infra/cache` co-locates contracts and Redis implementation (`RedisInterface`, `RedisLockManager`, `RedisNotificationSystem`) and a Redis-specific `SetupCache` factory.
+- Upstream `engine/worker` and `engine/memory` take dependencies that expose concrete Redis types (leaky abstraction).
+
+Target (refactor-first):
+- Split the cache layer:
+  - `engine/infra/cache`: contracts-only (KVStore, ListStore, HashStore, PubSub, LockManager, NotificationSystem, Message, metrics). No go-redis or SugarDB symbols; no constructors.
+  - `engine/infra/redis`: Redis adapter implementing contracts (`kv_redis.go`, `list_redis.go`, `lock_manager_redis.go`, `notification_redis.go`).
+  - `engine/infra/sugardb`: SugarDB adapter implementing contracts (`kv_sugar.go`, `list_sugar.go`, `lock_manager_sugar.go`, `notification_sugar.go`).
+- Move wiring selection to bootstrap (`engine/infra/server`): choose adapter by `mode`.
+- Update `engine/memory` and any consumers to depend only on contract interfaces.
+  - Add two explicit contract capabilities needed by higher layers:
+    - Keys iteration parity: `Keys(ctx, pattern string) ([]string, error)` or a neutral iterator interface owned by `cache`.
+    - Atomic list+metadata parity for memory: a single-method capability (e.g., `AppendAndTrimWithMetadata`) so adapters can guarantee atomicity (Redis via Lua, SugarDB via critical section).
+
+Files to change/add:
+- `engine/infra/cache/`:
+  - New: `interfaces.go` (role-based interfaces), `types.go` (Message, metrics), `errors.go`.
+  - Remove: Redis client exposure from `Cache` facade; expose only interfaces.
+  - Remove: `SetupCache` factory from this package (move to server wiring).
+  - Optional: `iterator.go` (if choosing iterator contract) to abstract SCAN/pattern iteration.
+- `engine/infra/redis/`: new adapter package with client setup and implementations of contracts.
+- `engine/infra/sugardb/`: new adapter package with implementations of contracts and embedded server bootstrap helpers for standalone.
+- Add: `engine/infra/cache/errors.go` with `var ErrNotFound = errors.New("cache: not found")` and any other sentinel errors; adapters must translate backend-specific errors (e.g., `redis.Nil`) to these.
+- Add: optional atomic operation contract if needed by memory: `AppendAndTrimWithMetadata(ctx, key string, messages [][]byte, tokenDelta int, maxLen int) error` implemented per backend.
+- `engine/worker/mod.go`: replace direct `cache.SetupCache` with mode-aware wiring that picks `redis` or `sugardb` adapter.
+- `engine/memory/store/redis.go`: refactor to backend-neutral `kv.go` using `cache` contracts; keep a thin redis-specific wrapper if necessary for distributed-only coverage.
+
+## Temporal: External  Embedded (Temporalite)
+
+Current:
+- `engine/worker/client.go` dials Temporal at a configured `HostPort`.
+
+Target (standalone):
+- Start an in-process Temporal dev server on boot, before worker initialization.
+  - Option A (simpler): Temporalite (SQLite-backed, single process). Typical usage:
+    - Import `github.com/temporalio/temporalite` (or `github.com/temporalio/temporalite/server`) and run `server.NewServer(...)` with SQLite persistence and default frontend port `7233`. Stop on shutdown.
+  - Option B (heavier): Programmatic `temporal.NewServer(...)` (from `go.temporal.io/server/temporal`) with an in-memory or sqlite persistence for a dev-only build.
+- The existing worker keeps using the SDK client but points to `localhost:7233` (namespace: `default`). Initialization order: start embedded Temporal  dial client  create worker  register workflows/activities.
+  - Do not bind external ports by default; keep Temporalite internal unless explicitly configured for debugging.
+
+Readiness & resiliency:
+- Add a small readiness wait/backoff around `client.Dial` when `IsStandalone(ctx)` to avoid races on boot.
+- Ensure graceful shutdown and order: HTTP  worker  Temporalite  cache  DB.
+ - Namespace bootstrap: ensure `default` exists, create if missing.
+
+Files to change/add:
+- `engine/infra/server/mod.go` (or a new `engine/infra/temporal/embedded.go`) to start/stop Temporalite in standalone.
+- `engine/worker/client.go` to default to `HostPort: localhost:7233` if standalone.
+- Config defaults: add a `temporal.dev_server_enabled` default when `mode=standalone`.
+
+## HTTP Server & App State
+
+- Keep `engine/infra/server` intact; switch dependency wiring only.
+- Extend `appstate.State` with `Mode` and pointers to the selected implementations (SQLite DB handle, SugarDB instance, embedded Temporal server handle) for graceful shutdown.
+- Change `BaseDeps.Store` and worker wiring to depend on repo factories or interfaces, not concrete `*store.Store`.
+ - Rate limiter decoupling: replace hard dependency on `*redis.Client` with an interface/adapter; in standalone use in-memory; in distributed inject Redis client via adapter.
+
+## Testing Strategy (high level)
+
+- Default tests to standalone: SQLite file in `t.TempDir()`, in-proc SugarDB, Temporalite or `temporaltestserver` per package needs.
+- Remove Testcontainers and Docker assumptions from helpers.
+- Keep miniredis only where exercising Redis-specific code paths; create parallel SugarDB-backed tests and make those the default.
+- Introduce contract test suites for store and cache; run against both drivers/adapters in CI. Tag Redis-only tests with `//go:build distributed`.
+ - Add explicit suites to validate:
+   - Keys iteration parity (pattern matching, pagination semantics)
+   - Atomic list+metadata parity, including TTL behavior and counter updates
+
+## Cross-Cutting Concerns
+
+- Observability: preserve metrics hooks on new SugarDB adapter and embedded Temporal.
+- Configuration: maintain `koanf` env overrides for mode-specific defaults.
+- Security: embedded mode is dev-oriented; call this out explicitly (no network listeners by default, unless asked).
+- MCP Proxy storage: provide SugarDB-backed implementation and a factory to pick by mode.
+- Webhook idempotency: rename Redis-specific service to backend-neutral and implement via cache `SetNX`/`Expire`.
+ - Error taxonomy: define neutral sentinel errors in contracts (`ErrNotFound`, `ErrDuplicate`); adapters must translate backend-specific errors.
+
+---
+File: /Users/pedronauck/Dev/compozy/_worktrees/embed/tasks/prd-standalone/02-component-changes.md
+Contents:
+# Components & File-Level Changes
+
+This is a concrete checklist of files to add/modify, organized by package.
+
+Paths are repository-relative. Lines are indicative starting anchors, not exact diffs.
+
+## pkg/config
+
+- `pkg/config/config.go`
+  - Add: `Mode string ` + "`koanf:\"mode\" json:\"mode\" yaml:\"mode\" mapstructure:\"mode\" validate:\"oneof=standalone distributed\"`"
+  - Defaults: `standalone` for tests; `distributed` for CLI unless present in YAML.
+- `pkg/config/definition/schema.go`
+  - Document `mode` at root.
+- `cli/root.go`
+  - Ensure `compozy.yaml` detection already present; pass `Mode` into context.
+- New: `pkg/config/mode.go`
+  - `func IsStandalone(ctx context.Context) bool`
+  - `func IsDistributed(ctx context.Context) bool`
+  - Port typing: keep port types consistent across subsystems; prefer `int` (with validation) unless a dependency requires string. If strings are required, apply consistently and document conversions.
+
+## engine/infra/store (DB Contracts)
+
+- New: `engine/infra/store/interfaces.go`
+  - Define `Store` root interface and sub-interfaces (e.g., `TaskRepository`, `WorkflowRepository`). Prefer a transactional-closure API:
+    - `WithTransaction(ctx context.Context, fn func(repos Repositories) error) error` where `Repositories` is a factory valid within the tx scope.
+- New: `engine/infra/store/types.go`
+  - Shared DTOs, errors, and value objects safe for both drivers (no imports from driver packages).
+- Remove driver-specific code from `store`; no goose, no `pgx`, no builders.
+  - Enforce transaction-closure only (`WithTransaction`) and expose repositories via a `Repositories` accessor to avoid leaking driver types.
+
+## engine/infra/postgres (Postgres Implementation)
+
+- New: `engine/infra/postgres/store.go`
+  - `func NewStore(ctx context.Context, cfg PostgresConfig) (store.Store, error)`.
+- New: query files (`task_repo.go`, `workflow_repo.go`), local scan helpers, and builders with `$` placeholders.
+- New: `engine/infra/postgres/migrate.go` using goose with `postgres` dialect.
+- Move: existing Postgres migrations to `engine/infra/postgres/migrations/*.sql`.
+ - Ensure all interactions with domain occur via contracts; remove `pgx.Tx` from domain/service signatures.
+  - Emit adapter label `store_driver=postgres` during bootstrap.
+
+## engine/infra/sqlite (SQLite Implementation)
+
+- New: `engine/infra/sqlite/store.go`
+  - `func NewStore(ctx context.Context, path string) (store.Store, error)` using `modernc.org/sqlite`.
+- New: query files (`task_repo.go`, `workflow_repo.go`), local scan helpers, builder with `?` placeholders.
+- New: `engine/infra/sqlite/migrate.go` using goose with `sqlite` dialect; JSON fields as TEXT.
+- Add: `engine/infra/sqlite/migrations/*.sql`.
+ - Provide builder/placeholder handling locally (`?`) and JSON TEXT handling.
+  - Emit adapter label `store_driver=sqlite` during bootstrap.
+
+## engine/infra/cache (Contracts Only)
+
+- New: `engine/infra/cache/interfaces.go`
+  - Define role-based interfaces: `KVStore`, `ListStore`, `HashStore`, `PubSub`, `LockManager`, `NotificationSystem`.
+  - All methods return standard Go values and `error`; no `go-redis` types.
+- New: `engine/infra/cache/types.go`
+  - `Message`, metrics structs, common errors; neutral and shared by all adapters.
+ - New: `engine/infra/cache/errors.go`
+   - `ErrNotFound`, `ErrDuplicate`, and any neutral sentinel errors; adapters translate from backend-specific errors (e.g., `redis.Nil`).
+- Update: `engine/infra/cache/mod.go`
+  - Change `Cache` facade to hold interfaces only (no concrete client field).
+  - Remove `SetupCache` constructor; wiring moves to server bootstrap.
+- Optional: add atomic method contract if memory requires it:
+  - `AppendAndTrimWithMetadata(ctx, key string, msgs [][]byte, tokenDelta int, maxLen int) error`.
+ - Add: `Keys(ctx, pattern string) ([]string, error)` or neutral iterator interface to encapsulate SCAN/pattern iteration across adapters.
+
+## engine/infra/redis (Adapter)
+
+- New package:
+  - `client.go`: build `go-redis` client from `config.RedisConfig`.
+  - `kv_redis.go`, `list_redis.go`, `hash_redis.go`: implement contracts wrapping client.
+  - `lock_manager_redis.go`: Redlock-based token TTL with Lua scripts.
+  - `notification_redis.go`: pub/sub and pattern-subscribe to `cache.Message`.
+  - `health_redis.go`: health checks.
+  - Translate `redis.Nil` to `cache.ErrNotFound`.
+  - Emit adapter label `cache_driver=redis` during bootstrap.
+
+## engine/infra/sugardb (Adapter)
+
+- New package:
+  - `server.go`: embedded SugarDB bootstrap (standalone mode/dev/tests).
+  - `kv_sugar.go`, `list_sugar.go`, `hash_sugar.go`: primitives mapping to SugarDB.
+  - `lock_manager_sugar.go`: token TTL lock with compare-and-set semantics.
+  - `notification_sugar.go`: pub/sub and pattern subscribe implementation.
+  - Provide equivalent semantics for atomic list operations and SCAN/pattern iteration used by worker activities.
+  - Emit adapter label `cache_driver=sugardb` during bootstrap.
+
+## engine/worker
+
+- Update: `engine/worker/mod.go`
+  - Rename `setupRedisAndConfig`  `setupCacheAndConfig` and select SugarDB if standalone.
+  - Keep `NewClient` path; ensure `client.Options{HostPort: localhost:7233}` when standalone.
+- Update: `engine/worker/client.go`
+  - If `IsStandalone(ctx)`, override `HostPort` to `localhost:7233`, `Namespace` to `default` unless explicitly provided.
+- New: `engine/infra/temporal/embedded.go`
+ - Start/stop embedded Temporal dev server (Temporalite) with SQLite persistence in `IsStandalone(ctx)`.
+ - Update: `engine/worker/activities/dispatcher_heartbeat.go`
+   - Replace direct `cache.Redis` usage with cache contracts (KV + scan iterator). Provide adapter-level iterator to encapsulate SCAN/pattern differences.
+ - Rate limiting: decouple middleware from a concrete `*redis.Client` via an adapter/shim; in standalone, default to in-memory limiter.
+
+## engine/memory
+
+- Update: `engine/memory/store/redis.go`  generalize to backend-neutral `kv.go` using the new `cache` interface. Keep a thin `redis.go` wrapper if needed.
+- Ensure `memory.ManagerOptions` fields (`BaseLockManager`, `BaseRedisClient`) become neutral (`BaseLockManager`, `BaseKV`), and preserve behavior.
+ - Replace Lua-script assumptions with adapter-neutral atomic method (if added) or equivalent sequence wrapped by adapter.
+ - Guarantee TTL behavior for lists/metadata in adapters and document best-effort constraints for standalone.
+
+## pkg/mcp-proxy
+
+- Update: `pkg/mcp-proxy/storage_factory.go`
+  - Support `StorageTypeSugar` and branch by `mode`.
+ - New: `pkg/mcp-proxy/sugar_storage.go`
+   - Implement the existing `Storage` interface using cache KV (or direct SugarDB) and translate `ErrNotFound` semantics.
+  - Avoid exposing `redis.Client` types outside the adapter/factory; keep public interfaces backend-neutral.
+
+## engine/infra/server (Bootstrap)
+
+- Update: `engine/infra/server/mod.go`
+  - If `IsStandalone(ctx)`: start embedded Temporal, init SugarDB, construct `engine/infra/sqlite` store, wire into `appstate.State`.
+  - If `IsDistributed(ctx)`: construct `engine/infra/postgres` store, keep Redis/Temporal client.
+ - Change `appstate.BaseDeps` to accept store/repository factories or interfaces, not concrete `*store.Store`.
+  - Emit startup metrics/log labels `mode`, `store_driver`, `cache_driver`.
+  - Rate limiter wiring: use in-memory limiter in standalone; in distributed, inject Redis-backed limiter via adapter. Provide a thin shim if middleware requires `*redis.Client`.
+
+## Tests
+
+- Add contract tests that run against both `postgres` and `sqlite` implementations using the same suite written against `store` interfaces.
+- Replace `test/helpers/database.go` with an SQLite helper (`NewTestSQLite(t)` returns `*sql.DB`, temporary file path, cleanup).
+- Migrations: run Goose via the concrete packages `migrate.go` (`postgres.ApplyMigrations`, `sqlite.ApplyMigrations`).
+- Replace `miniredis` usage gradually with SugarDB embedded server in default tests; keep `miniredis` for Redis-specific coverage under a `+build distributed` or tagged path.
+- Remove Testcontainers dependencies from `go.mod` and tests after migration.
+ - Add cache/store contract suites and run each against both adapters/drivers in CI; default job runs SQLite/SugarDB only (no Docker).
+ - Provide `test/sqlite.go`, `test/sugardb.go`, `test/temporal.go` helpers for uniform setup/teardown.
+  - Add dedicated suites for keys iteration parity and atomic list+metadata parity (including TTL and counter updates).
+  - Ensure `make lint` and `make test` succeed without network/containers by default (standalone); a separate CI job validates Postgres/Redis.
+
+---
+
+Notes:
+- The refactor intentionally introduces small adapters and factories to keep changes localized and avoid large-scale rewrites.
+- We explicitly do not require backwards-compatibility in alpha, but we keep the ability to run in `distributed` mode via a cleanly separated wiring layer.
+
+---
+File: /Users/pedronauck/Dev/compozy/_worktrees/embed/tasks/prd-standalone/07-work-plan.md
+Contents:
+# Work Breakdown & Sequencing
+
+## Zen MCP Reviews  Findings To Incorporate
+
+- High: `pgx.Tx` leaks in domain/services/tests; switch to transactional-closure; move migrations to implementation packages.
+- High: go-redis types and `cache.Redis` leak into many callsites; add cache contracts, adapters, and neutral errors.
+- Medium: Appstate/server wiring tied to concrete store; switch to interfaces/factories. MCP proxy is Redisonly; add Sugar backend + factory.
+- Medium: SCAN iteration and Redis Lua atomic ops parity; encapsulate via adapter or contract-level atomic op; add contract tests.
+- Low: Temporal startup/shutdown ordering; add readiness and retries. Inmemory rate limiter is besteffort; document limits.
+- Low: Update docs/metrics to add adapter labels; unify error taxonomy.
+ - Medium: Rate limiter decoupling from `*redis.Client`; provide adapter/shim and in-memory default for standalone.
+ - Medium: Add explicit cache contract for keys iteration and atomic list+metadata operations.
+
+## Milestones (PR Sequencing)
+
+1) PR1  Contracts foundation
+   - Add `Mode` to config/schema; `pkg/config/mode.go` helpers.
+   - Add store/cache contracts and sentinel errors; no callsite changes yet.
+   - Add testsuites skeletons for store/cache.
+2) PR2  Store split
+   - Move Postgres impl to `engine/infra/postgres` with migrations; add `engine/infra/sqlite`.
+   - Switch domain/services/tests to transactional-closure API (remove `pgx.Tx` from signatures).
+   - Migrate all migrations out of `engine/infra/store` into impl packages.
+3) PR3  Cache split
+   - Move Redis impl to `engine/infra/redis`; add `engine/infra/sugardb`.
+   - Switch memory/webhook/worker activities to cache contracts; eliminate direct `cache.Redis` usage.
+   - Introduce neutral cache errors (e.g., `cache.ErrNotFound`) and translate adapter-specific errors.
+   - Add neutral keys iteration (`Keys` or iterator interface) to contracts and implement in adapters.
+   - Provide atomic Append+Trim+Metadata parity as a contract capability; Redis via Lua, SugarDB via critical section.
+4) PR4  Wiring & embedded Temporal
+   - Mode-aware wiring in server; add `engine/infra/temporal/embedded.go`; readiness/backoff.
+   - Change `appstate.BaseDeps` to interface/factory deps.
+   - Update inmemory rate limiter documentation stating besteffort limitations in standalone.
+   - Rate limiter decoupling; middleware adapter/shim to avoid direct `*redis.Client` dependency.
+5) PR5  MCP Proxy storage
+   - Add Sugar storage + factory; switch usages.
+6) PR6  Test/CI hardening
+    - Default tests standalone; remove Testcontainers except store contract job; tag Redis-only tests. See Testing Strategy for full suite details.
+    - Ensure metrics include adapter labels (store_driver, cache_driver) at startup.
+
+## Step-by-step Tasks
+
+1. Define store contracts: create `engine/infra/store/interfaces.go` and `types.go` with tx boundaries and repo interfaces.
+2. Create `engine/infra/postgres` package; move Postgres repo code and migrations; expose `postgres.NewStore` and `postgres.ApplyMigrations`.
+3. Create `engine/infra/sqlite` package; add repo code and migrations; expose `sqlite.NewStore` and `sqlite.ApplyMigrations`.
+4. Define cache contracts in `engine/infra/cache` (KV/List/Hash/PubSub/Lock/Notification) and remove `SetupCache` from contracts.
+5. Create `engine/infra/redis` adapter; move current Redis code there; expose constructors returning contract interfaces.
+6. Create `engine/infra/sugardb` adapter; implement contracts; expose constructors.
+7. Update server wiring to construct selected store and cache implementations (temporary env flags acceptable until `mode` lands).
+8. Add `Mode` to config and schema; helper funcs; wire into server and CLI. Replace temporary flags.
+9. Update `engine/memory` to use neutral cache interfaces; rename `redis.go`  `kv.go` (or add `kv.go`).
+10. Update worker wiring to `setupCacheAndConfig`; add `KV`-based config store.
+11. Add `infra/temporal/embedded.go`; start/stop Temporalite on standalone boot.
+12. Test harness: add SQLite/SugarDB helpers and cache/store contract suites; convert tests; remove Testcontainers; tag Redis-only tests as distributed. Add cases for SCAN/iteration and atomic ops parity.
+13. Docs & examples: update README and examples to show `mode` usage; provide dev quickstart.
+14. Observability & taxonomy: add adapter labels (store_driver, cache_driver) to logs/metrics; unify error taxonomy across adapters; document rate limiter limits in standalone.
+
+## Risks & Mitigations
+
+- Query portability: validated via unit tests targeting both drivers; enforce placeholder formatting centrally.
+- Locking semantics: implement token-based locks with TTL; add property tests.
+- Pub/Sub differences: compatibility layer + contract tests.
+- Atomic list+metadata parity (Redis Lua): add adapter-local atomic op or emulate safely; covered by contract tests.
+- SCAN/pattern iteration differences: encapsulate iteration behind cache contract; test across adapters.
+
+## Acceptance Criteria
+
+- Store package contains only interfaces/types; all Postgres/SQLite specifics live in their packages.
+- Cache package contains only contracts/types; Redis and SugarDB specifics live in their packages.
+- `mode: standalone` boots without Postgres/Redis/Temporal external services.
+- All tests pass in standalone; CI runs without Docker. Store contract suite passes on both drivers.
+- Cache contract suite passes on both adapters.
+- `mode: distributed` preserves prior behavior.
+- MCP proxy supports both Redis and Sugar backends via factory.
+ - Domain/services/tests no longer expose `pgx.Tx` types; transactional-closure is in place project-wide.
+ - No callsite depends directly on `cache.Redis` or go-redis types; adapters satisfy contracts and translate errors to neutral taxonomy.
+ - Temporal embedded startup uses readiness/backoff; shutdown order verified; rate limiter limitations documented for standalone.
+ - Metrics include adapter labels; docs updated to reflect contracts/adapters and error taxonomy.
+  - Keys iteration parity and atomic list+metadata behavior validated by shared contract suites (see Testing Strategy).
+  - Rate limiter decoupled from `*redis.Client`; in-memory default in standalone with optional Redis opt-in.
+
+---
+File: /Users/pedronauck/Dev/compozy/_worktrees/embed/tasks/prd-standalone/_techspec.md
+Contents:
+# Technical Specification: Standalone (Embedded) Mode
+
+## Executive Summary
+
+See product context and objectives: @./tasks/prd-standalone/_prd.md and @./tasks/prd-standalone/00-overview.md.
+
+This Tech Spec enumerates architecture, implementation touchpoints, testing, and sequencing by referencing the canonical subsystem documents. It intentionally avoids duplicating content; each section points to the single source of truth.
+
+## System Architecture
+
+### Domain Placement
+
+- Architecture decisions and placement rationale: @./tasks/prd-standalone/01-architecture-refactor.md
+- Component/file mapping checklist: @./tasks/prd-standalone/02-component-changes.md
+
+### Component Overview
+
+- Store (contracts + Postgres/SQLite impls): @./tasks/prd-standalone/01-architecture-refactor.md and @./tasks/prd-standalone/02-component-changes.md
+- Cache (contracts + Redis/SugarDB adapters): @./tasks/prd-standalone/01-architecture-refactor.md and @./tasks/prd-standalone/05-sugardb-integration.md
+- Temporal embedded server lifecycle: @./tasks/prd-standalone/04-temporal-embedded.md
+- Server bootstrap mode wiring and rate limiter posture: @./tasks/prd-standalone/01-architecture-refactor.md and @./tasks/prd-standalone/02-component-changes.md
+
+## Implementation Design
+
+### Core Interfaces
+
+- Store contracts and transactional-closure pattern: @./tasks/prd-standalone/01-architecture-refactor.md
+- Cache contracts (KV/List/Hash/PubSub/Lock), neutral errors, keys iteration, and atomic list+metadata capability: @./tasks/prd-standalone/01-architecture-refactor.md and @./tasks/prd-standalone/05-sugardb-integration.md
+- Adapter surface and driver selection via mode: @./tasks/prd-standalone/02-component-changes.md
+
+### Data Models
+
+- Shared DTOs and driver-safe types: @./tasks/prd-standalone/01-architecture-refactor.md
+- Migration parity and schema notes (SQLite TEXT JSON, timestamps, CTEs): @./tasks/prd-standalone/03-data-migrations.md
+
+### API Endpoints
+
+- No new public HTTP endpoints are introduced by Standalone Mode. Server wiring and middleware notes: @./tasks/prd-standalone/01-architecture-refactor.md and @./tasks/prd-standalone/02-component-changes.md
+
+## Integration Points
+
+- Embedded Temporal server (readiness, namespace bootstrap, shutdown order): @./tasks/prd-standalone/04-temporal-embedded.md
+- SugarDB adapter mapping (KV/Lists/Hashes/PubSub/Locks, iteration parity, atomic op): @./tasks/prd-standalone/05-sugardb-integration.md
+- MCP Proxy storage selection and Sugar implementation: @./tasks/prd-standalone/02-component-changes.md
+
+## Impact Analysis
+
+Refer to component-level impact in the checklist and risks sections:
+- Store package split and migrations ownership: @./tasks/prd-standalone/02-component-changes.md and @./tasks/prd-standalone/03-data-migrations.md
+- Cache split and consumer refactors (worker, memory, webhook, rate limiter): @./tasks/prd-standalone/02-component-changes.md and @./tasks/prd-standalone/01-architecture-refactor.md
+- Server bootstrap changes and observability labels: @./tasks/prd-standalone/01-architecture-refactor.md
+
+## Testing Approach
+
+- Standalone-default testing, contract test suites, parity for keys iteration and atomic list+metadata, CI matrix guidance: @./tasks/prd-standalone/06-testing-strategy.md
+
+## Development Sequencing
+
+### Build Order
+
+- Milestones/PR sequencing and acceptance criteria: @./tasks/prd-standalone/07-work-plan.md
+
+### Technical Dependencies
+
+- Prerequisites and external tool pinning/usage (goose, drivers) and platform posture: @./tasks/prd-standalone/03-data-migrations.md and @./tasks/prd-standalone/04-temporal-embedded.md
+
+## Monitoring & Observability
+
+- Mode and adapter labeling, metrics expectations, and logging: @./tasks/prd-standalone/00-overview.md and @./tasks/prd-standalone/01-architecture-refactor.md
+
+## Technical Considerations
+
+### Key Decisions
+
+- Contracts-only packages, driver adapters, explicit atomic capability, keys iteration abstraction, and rate limiter decoupling: @./tasks/prd-standalone/01-architecture-refactor.md and @./tasks/prd-standalone/02-component-changes.md
+
+### Known Risks
+
+- Divergence risk, developer ergonomics, security defaults, and perf constraints: @./tasks/prd-standalone/07-work-plan.md and @./tasks/prd-standalone/08-open-questions.md
+
+### Special Requirements
+
+- Security posture (in-process by default, opt-in port exposure) and Temporal readiness/backoff: @./tasks/prd-standalone/00-overview.md and @./tasks/prd-standalone/04-temporal-embedded.md
+
+### Standards Compliance
+
+- Architecture principles: @.cursor/rules/architecture.mdc
+- Go coding standards and error handling: @.cursor/rules/go-coding-standards.mdc
+- Testing requirements: @.cursor/rules/test-standards.mdc
+- Security & quality: @.cursor/rules/quality-security.mdc
+- Backwards compatibility policy (development phase): @.cursor/rules/backwards-compatibility.mdc
+
+
+---
+File: /Users/pedronauck/Dev/compozy/_worktrees/embed/tasks/prd-standalone/_prd.md
+Contents:
+# Product Requirements Document (PRD): Standalone (Embedded) Mode
+
+## Overview
+
+Compozy will offer a Standalone (Embedded) Mode that runs entirely on a developers machine without external services. This mode enables fast, hermetic local development and testing by embedding the data store (SQLite), cache/coordination (SugarDB), and workflow engine (embedded Temporal dev server) behind a single binary and configuration flag. The feature targets developers and CI agents who need zero-infra setup, faster feedback loops, and deterministic tests.
+
+## Goals
+
+- Reduce time-to-first-successful-run for new developers to  5 minutes from a clean machine (clone  dev).
+- Enable `make test` to run without Docker or external services; decrease median test runtime by  30% compared to current baseline.
+- Provide a single config switch (`mode`) to choose Standalone vs Distributed; no code changes required by users.
+- Maintain clear observability of operating mode and backends via startup logs and metrics labels (mode, store_driver, cache_driver).
+- Preserve security posture in Standalone by running embedded services in-process and not exposing network ports by default.
+
+## User Stories
+
+- As a developer, I can clone the repo and run the system locally without installing Postgres/Redis/Temporal so that I can start contributing immediately.
+- As a CI job, I can run unit and integration tests without starting containers so that pipelines are faster and more reliable.
+- As a new contributor, I can enable Standalone with a one-line config change so that I dont need to learn ops tooling to be productive.
+- As a team lead, I can see in logs/metrics which mode and adapters are used so that I can diagnose environment-specific behavior quickly.
+
+## Core Features
+
+High-level description of the WHAT (not the HOW):
+
+1) Mode Selection
+- Top-level `mode` property in the project configuration with two values: `standalone` or `distributed`.
+- Validation ensures only allowed values; defaults documented (tests default to standalone; CLI defaults to distributed unless set by config).
+
+2) Standalone Runtime (Zero External Infra)
+- When `mode=standalone`, Compozy boots embedded services: SQLite for persistence, SugarDB for cache/locks/pubsub, and an embedded Temporal development server.
+- Embedded services run in-process and do not open external ports by default (security default), with explicit opt-in flags to expose for debugging.
+
+3) Developer Ergonomics
+- Out-of-the-box dev flow: `make dev` runs examples without Docker; `make test` executes without Testcontainers.
+- Documentation clearly signals mode posture and limitations (e.g., best-effort rate limiting, no cross-process guarantees).
+
+4) Observability and Mode Labeling
+- On startup and in metrics, the system emits labels: `mode`, `store_driver`, `cache_driver`.
+- Example: `mode=standalone, store_driver=sqlite, cache_driver=sugardb`.
+
+5) Rate Limiting Posture
+- In standalone, provide an in-memory rate limiter (single-process, best-effort) and document limitations.
+- Optionally allow Redis-backed limiter even in standalone when configured.
+
+### Functional Requirements (Numbered)
+- R1. The configuration supports a top-level `mode` with values `standalone | distributed`; invalid values are rejected with a clear error.
+- R2. With `mode=standalone`, the application runs without Postgres, Redis, or external Temporal; all required services are embedded in-process by default.
+- R3. Standalone runs should not bind external ports for embedded services by default; exposing ports requires explicit opt-in configuration.
+- R4. The system logs and metrics include `mode`, `store_driver`, and `cache_driver` labels during startup.
+- R5. The default developer flow (`make dev`, examples) works on a clean machine without Docker or external services.
+- R6. The default test flow (`make test`) succeeds without Docker or Testcontainers; a separate CI job may run distributed/adapter parity suites.
+- R7. Documentation describes Standalone vs Distributed behavior, limits, and how to switch modes.
+- R8. A safe, best-effort in-memory rate limiter is used by default in Standalone; documentation highlights single-process limits and opt-in Redis use.
+- R9. The feature does not require code changes in user workflows beyond configuration (no app-level code forks for modes).
+- R10. Security defaults prevent accidental exposure of embedded services; configuration allows opt-in exposure for debugging with clear warnings.
+
+## User Experience
+
+- Primary surface is configuration and CLI. Users specify `mode` in `compozy.yaml` and run familiar commands (`make dev`, `make test`).
+- Minimal configuration is required for Standalone; sensible defaults select embedded backends automatically.
+- Documentation provides a quick-start path for Standalone and a comparison table vs Distributed mode.
+- Accessibility: Documented keyboard-only CLI flows; examples use readable output, consistent formatting, and clear errors for invalid `mode` values.
+
+## High-Level Technical Constraints
+
+- Integrations: SQLite (embedded DB), SugarDB (embedded cache/locks/pubsub), an embedded Temporal development server.
+- Security: Embedded services must be in-process and non-public by default; exposing ports is opt-in for debugging only.
+- Performance: Standalone developer loops should be faster than the current Docker/Testcontainers baseline; success metrics define test/runtime targets.
+- Privacy: Data remains on the developer machine in Standalone; no external data movement by default.
+- Portability: Standalone mode targets macOS, Linux, and Windows developer environments via CLI.
+
+## Non-Goals (Out of Scope)
+
+- Production-grade high availability for embedded services.
+- Cross-process/cross-host coordination guarantees in Standalone (documented as best-effort).
+- Full parity for every distributed-only feature on day 1; parity is staged.
+- Replacing existing distributed mode or removing Postgres/Redis/Temporal support.
+
+## Phased Rollout Plan
+
+- MVP (Alpha): `mode` config, Standalone boot with SQLite/SugarDB/embedded-Temporal, in-process security defaults, metrics labels, in-memory rate limiter, quick-start/docs, basic examples.
+- Phase 2 (Parity & UX): Documentation enhancements, parity tests across adapters, improved error messages and diagnostics, explicit flags to expose embedded ports for debugging.
+- Phase 3 (Optimization): Broader example coverage, performance improvements on large projects, developer ergonomics polish (faster boot, better logs), extended CI matrices.
+
+## Success Metrics
+
+- Onboarding: New developer time-to-first-successful-run  5 minutes on a clean machine.
+- Test runtime: Median `make test` runtime improves by  30% vs current baseline without containers.
+- Adoption:  80% of local contributors use Standalone for daily development within 1 month of release.
+- Reliability:  95% of CI jobs that run in Standalone pass without transient infra-related flakiness.
+- Observability: 100% of Standalone boots emit `mode`, `store_driver`, and `cache_driver` labels.
+
+## Risks and Mitigations
+
+- Risk: Feature divergence between Standalone and Distributed modes.
+  - Mitigation: Shared contract tests and parity checks across adapters; clear acceptance criteria and CI gates.
+- Risk: Developer confusion about limitations (e.g., rate limiting semantics, embedded services not exposed).
+  - Mitigation: Prominent documentation of limits and opt-in flags; clear CLI errors and help messaging.
+- Risk: Security regressions if embedded services are unintentionally exposed.
+  - Mitigation: Default in-process, no external ports; warnings on opt-in exposure; add sanity checks in config.
+- Risk: Performance regressions on very large projects.
+  - Mitigation: Measure and iterate; publish baseline targets and track perf in CI.
+
+## Open Questions
+
+- Do we set `standalone` as default for tests globally, and `distributed` as default for CLI unless overridden, or provide a single global default?
+- Which OS/platforms need explicit validation matrices (e.g., Windows WSL vs native)?
+- What minimum performance targets for embedded Temporal workflows should be documented at the product level (non-technical phrasing)?
+- Should we expose a simple status endpoint reflecting Standalone readiness (including embedded Temporal) for dev tooling?
+
+## Appendix
+
+- Reference docs: Standalone Architecture & Component Plans (tasks/prd-standalone/*)
+- Quick-start snippet: add `mode: standalone` to project config and run `make dev` or `make test`.
+- Comparison table (Standalone vs Distributed): to be added in docs site as part of release notes.
+
+
+---
