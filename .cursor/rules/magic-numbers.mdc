@@ -123,4 +123,3 @@ for i := 0; i < cfg.Runtime.MaxAPIRetries; i++ { /* ... */ }
 - **MUST** promote important constants to configuration using the process in @.cursor/rules/global-config.mdc
 - **MUST** inherit context properly — fetch config via `config.FromContext(ctx)`; do not use global singletons
 </critical>
-
