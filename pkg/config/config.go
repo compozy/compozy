@@ -866,6 +866,11 @@ type CacheConfig struct {
 	//
 	// **Default**: `5m`
 	StatsInterval time.Duration `koanf:"stats_interval" json:"stats_interval" yaml:"stats_interval" mapstructure:"stats_interval" env:"CACHE_STATS_INTERVAL"`
+
+	// KeyScanCount controls the COUNT hint used by Redis SCAN for key iteration.
+	// Larger values reduce round-trips but may increase per-iteration latency.
+	// Set to a positive integer; defaults to 100.
+	KeyScanCount int `koanf:"key_scan_count" json:"key_scan_count" yaml:"key_scan_count" mapstructure:"key_scan_count" env:"CACHE_KEY_SCAN_COUNT" validate:"min=1"`
 }
 
 // AttachmentMIMEAllowlist holds allowed MIME types per category.
@@ -1440,6 +1445,7 @@ func buildCacheConfig(registry *definition.Registry) CacheConfig {
 		CompressionThreshold: getInt64(registry, "cache.compression_threshold"),
 		EvictionPolicy:       getString(registry, "cache.eviction_policy"),
 		StatsInterval:        getDuration(registry, "cache.stats_interval"),
+		KeyScanCount:         getInt(registry, "cache.key_scan_count"),
 	}
 }
 

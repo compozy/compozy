@@ -1137,6 +1137,14 @@ func registerCacheDataFields(registry *Registry) {
 		Type:    durationType,
 		Help:    "Interval for logging cache statistics (0 to disable)",
 	})
+	registry.Register(&FieldDef{
+		Path:    "cache.key_scan_count",
+		Default: 100,
+		CLIFlag: "",
+		EnvVar:  "CACHE_KEY_SCAN_COUNT",
+		Type:    reflect.TypeOf(int(0)),
+		Help:    "COUNT hint used by Redis SCAN for key iteration (positive integer)",
+	})
 }
 
 func registerCacheCompressionFields(registry *Registry) {
