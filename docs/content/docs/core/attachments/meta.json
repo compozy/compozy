@@ -1,0 +1,12 @@
+{
+  "title": "Attachments",
+  "description": "Unified files, media, and URLs for multimodal prompts with secure resolution and templating",
+  "icon": "Paperclip",
+  "pages": [
+    "overview",
+    "types-and-sources",
+    "llm-integration",
+    "security-and-limits",
+    "examples"
+  ]
+}

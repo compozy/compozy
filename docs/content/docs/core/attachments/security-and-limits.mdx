@@ -1,0 +1,73 @@
+---
+title: "Security & Limits"
+description: "Network and filesystem safeguards, MIME allow-lists, and configurable limits"
+---
+
+## Network Safety (SSRF)
+
+<List>
+  <ListItem title="Absolute HTTP(S) only">
+    Rejects non-HTTP schemes and relative URLs. Host must resolve and cannot be private/loopback/link‑local when strict.
+  </ListItem>
+  <ListItem title="Strict mode">
+    <code>ATTACHMENTS_SSRF_STRICT=1</code> or config turns on strict blocking even during tests.
+  </ListItem>
+  <ListItem title="Redirect cap">
+    Follows up to <code>max_redirects</code>.
+  </ListItem>
+</List>
+
+## Filesystem Safety
+
+<List>
+  <ListItem title="CWD confinement">
+    Paths are resolved against the task CWD; attempts to escape (including via symlinks) are denied.
+  </ListItem>
+  <ListItem title="Regular files only">
+    Non‑regular files are rejected.
+  </ListItem>
+</List>
+
+## MIME Policies
+
+Per‑type allow‑lists gate what content is accepted after detection from initial bytes. Empty lists fall back to type heuristics.
+
+```yaml
+attachments:
+  allowed_mime_types:
+    image: ["image/*"]
+    audio: ["audio/*"]
+    video: ["video/*"]
+    pdf:   ["application/pdf"]
+```
+
+## Global Limits & Settings
+
+| Setting | Description | Env Var | Default |
+| --- | --- | --- | --- |
+| `attachments.max_download_size_bytes` | Cap per download and binary part size | `ATTACHMENTS_MAX_DOWNLOAD_SIZE_BYTES` | 10_000_000 |
+| `attachments.download_timeout` | Timeout for a single remote fetch | `ATTACHMENTS_DOWNLOAD_TIMEOUT` | 30s |
+| `attachments.max_redirects` | Max HTTP redirects to follow | `ATTACHMENTS_MAX_REDIRECTS` | 3 |
+| `attachments.mime_head_max_bytes` | Bytes used for MIME detection | `ATTACHMENTS_MIME_HEAD_MAX_BYTES` | 512 |
+| `attachments.text_part_max_bytes` | Text bytes loaded from files | `ATTACHMENTS_TEXT_PART_MAX_BYTES` | 5_242_880 |
+| `attachments.pdf_extract_max_chars` | Max characters extracted from PDFs | `ATTACHMENTS_PDF_EXTRACT_MAX_CHARS` | 1_000_000 |
+| `attachments.http_user_agent` | User‑Agent header for downloads | `ATTACHMENTS_HTTP_USER_AGENT` | Compozy/1.0 |
+| `attachments.allowed_mime_types.*` | Per‑type allow‑lists | `ATTACHMENTS_ALLOWED_MIME_TYPES_*` | See above |
+| `attachments.ssrf_strict` | Block local/loopback even in tests | `ATTACHMENTS_SSRF_STRICT` | false |
+
+## Related
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Global Configuration"
+    description="Full set of application settings"
+    href="/docs/core/configuration/global"
+    icon="Settings"
+  />
+  <ReferenceCard
+    title="Providers"
+    description="Model capabilities and limitations"
+    href="/docs/core/configuration/providers"
+    icon="Cpu"
+  />
+</ReferenceCardList>

@@ -67,10 +67,10 @@ func TestHMACVerifier_ShouldValidateSignature(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "signature mismatch")
 	})
-	t.Run("Should resolve secret from env", func(t *testing.T) {
+	t.Run("Should resolve secret from env via template", func(t *testing.T) {
 		os.Setenv("HMAC_SECRET", "abc")
 		defer os.Unsetenv("HMAC_SECRET")
-		v, err := NewVerifier(VerifyConfig{Strategy: "hmac", Secret: "env://HMAC_SECRET", Header: "X-Sig"})
+		v, err := NewVerifier(VerifyConfig{Strategy: "hmac", Secret: "{{ .env.HMAC_SECRET }}", Header: "X-Sig"})
 		require.NoError(t, err)
 		mac := hmac.New(sha256.New, []byte("abc"))
 		_, _ = mac.Write([]byte("x"))
@@ -234,9 +234,10 @@ func TestFactory_ErrorPaths(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "empty secret")
 	})
-	t.Run("Should fail when env secret not set", func(t *testing.T) {
-		_, err := NewVerifier(VerifyConfig{Strategy: "github", Secret: "env://MISSING_ENV_VAR"})
+	t.Run("Should fail when secret template references missing env", func(t *testing.T) {
+		_, err := NewVerifier(VerifyConfig{Strategy: "github", Secret: "{{ .env.MISSING_ENV_VAR }}"})
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "secret env \"MISSING_ENV_VAR\" not set")
+		// Error comes from template rendering with missing key; check normalized message
+		assert.Contains(t, err.Error(), "missing environment variable")
 	})
 }

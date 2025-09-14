@@ -21,11 +21,10 @@ This file provides comprehensive guidance for working with the Compozy codebase,
 - **MUST** inherit context properly - NEVER use context.Background() in runtime code paths
 - **MUST** run `make lint` and `make test` before completing ANY subtask
 - **ALWAYS CHECK** the .cursor/rules/zen-mcp-tools.mdc if you are using Zen MCP tools
-- **ALWAYS CHECK** the .cursor/rules/test-standards.mdc if you are writing tests
 
 - **YOU CAN ONLY** finish a task if `make lint` and `make tests` are passing, your task should not finish before this
 - **MUST** inherit context properly - NEVER use context.Background() in runtime code paths
-- **MUST** inherit context properly - NEVER use context.Background() in runtime code paths
+- **ALWAYS CHECK** the .cursor/rules/test-standards.mdc if you are writing tests
 
 **Enforcement:** Violating these standards results in immediate task rejection.
 
@@ -121,7 +120,6 @@ The project uses Go 1.25+ features and requires external dependencies to be mock
 - **ALWAYS CHECK** the .cursor/rules/zen-mcp-tools.mdc if you are using Zen MCP tools
 
 - **YOU CAN ONLY** finish a task if `make lint` and `make tests` are passing, your task should not finish before this
-- **MUST** inherit context properly - NEVER use context.Background() in runtime code paths
 - **MUST** inherit context properly - NEVER use context.Background() in runtime code paths
 - **ALWAYS CHECK** the .cursor/rules/test-standards.mdc if you are writing tests
 

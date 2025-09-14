@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/compozy/compozy/pkg/tplengine"
 )
 
 const (
@@ -24,7 +26,6 @@ const (
 const (
 	headerStripeSignature = "Stripe-Signature"
 	headerGitHubSignature = "X-Hub-Signature-256"
-	prefixEnv             = "env://"
 	prefixGitHub          = "sha256="
 )
 
@@ -82,15 +83,41 @@ func resolveSecret(s string) ([]byte, error) {
 	if s == "" {
 		return nil, errors.New("empty secret")
 	}
-	if after, ok := strings.CutPrefix(s, prefixEnv); ok {
-		key := after
-		val := os.Getenv(key)
-		if val == "" {
-			return nil, fmt.Errorf("secret env %q not set", key)
-		}
-		return []byte(val), nil
+	// Resolve secrets using the project-wide template standard (e.g., "{{ .env.MY_SECRET }}").
+	// If the value is not a template, it is treated as a literal string.
+	if !tplengine.HasTemplate(s) {
+		return []byte(s), nil
 	}
-	return []byte(s), nil
+
+	// Build a minimal template context with host environment variables.
+	// We intentionally avoid reading from any global config singleton here.
+	// Map env var names to their values (strings). Missing keys cause a template error.
+	envMap := map[string]any{}
+	for _, kv := range os.Environ() {
+		if kv == "" {
+			continue
+		}
+		// Split only on the first '=' to preserve values that contain '='
+		if i := strings.IndexByte(kv, '='); i > 0 {
+			k := kv[:i]
+			v := kv[i+1:]
+			envMap[k] = v
+		}
+	}
+
+	engine := tplengine.NewEngine(tplengine.FormatText)
+	rendered, err := engine.RenderString(s, map[string]any{"env": envMap})
+	if err != nil {
+		// Normalize missing-key errors for clearer diagnostics in tests and logs.
+		if errors.Is(err, tplengine.ErrMissingKey) {
+			return nil, fmt.Errorf("secret template references missing environment variable(s): %w", err)
+		}
+		return nil, fmt.Errorf("failed to render secret template: %w", err)
+	}
+	if strings.TrimSpace(rendered) == "" {
+		return nil, errors.New("empty secret after template rendering")
+	}
+	return []byte(rendered), nil
 }
 
 type noneVerifier struct{}

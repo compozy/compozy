@@ -1,0 +1,121 @@
+---
+title: "Examples"
+description: "Practical patterns for attaching media at different scopes and routing by kind"
+---
+
+## Scope Patterns
+
+<Tabs items={["Task", "Agent", "Action"]}>
+  <Tab>
+    ```yaml
+    # Inside a task (basic)
+    type: basic
+    action: analyze_image
+    attachments:
+      - type: image
+        path: "./assets/photo.jpg"
+    ```
+  </Tab>
+  <Tab>
+    ```yaml
+    # Shared across all actions on this agent
+    resource: agent
+    id: reviewer
+    config:
+      provider: anthropic
+      model: claude-3-5-haiku-latest
+    instructions: "..."
+    attachments:
+      - type: file
+        path: "./guides/style.txt"
+    ```
+  </Tab>
+  <Tab>
+    ```yaml
+    # Specific to an action in an agent
+    actions:
+      - id: review-spec
+        prompt: "Review the provided document"
+        attachments:
+          - type: pdf
+            url: "https://example.com/spec.pdf"
+    ```
+  </Tab>
+</Tabs>
+
+## Router by Kind (Image/Audio/Video)
+
+```yaml
+id: media-router
+version: 1.0.0
+
+tasks:
+  - id: route-by-kind
+    type: router
+    condition: "{{ .workflow.input.kind }}"
+    routes:
+      image: analyze-image
+      audio: analyze-audio
+      video: analyze-video
+
+  - id: analyze-image
+    type: basic
+    action: analyze
+    attachments:
+      - type: image
+        path: "{{ .workflow.input.ref }}"
+    final: true
+
+  - id: analyze-audio
+    type: basic
+    action: analyze
+    attachments:
+      - type: audio
+        path: "{{ .workflow.input.ref }}"
+    final: true
+
+  - id: analyze-video
+    type: basic
+    action: analyze
+    attachments:
+      - type: video
+        path: "{{ .workflow.input.ref }}"
+    final: true
+```
+
+## Templating & Deferral
+
+```yaml
+attachments:
+  - type: image
+    # Resolved in Phase 1
+    url: "https://cdn.example.com/{{ .workflow.input.image_id }}.png"
+
+  - type: pdf
+    # May defer to Phase 2 if .tasks.extract.id not yet available
+    path: "outputs/{{ .tasks.extract.id }}/report.pdf"
+```
+
+## Next Steps
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Types & Sources"
+    description="Fields, constraints, and examples"
+    href="/docs/core/attachments/types-and-sources"
+    icon="FilePlus2"
+  />
+  <ReferenceCard
+    title="LLM Integration"
+    description="How parts are created and sent"
+    href="/docs/core/attachments/llm-integration"
+    icon="Image"
+  />
+  <ReferenceCard
+    title="Security & Limits"
+    description="Policies, allow-lists, and guardrails"
+    href="/docs/core/attachments/security-and-limits"
+    icon="Shield"
+  />
+</ReferenceCardList>
+

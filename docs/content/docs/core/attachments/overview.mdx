@@ -1,0 +1,87 @@
+---
+title: "Overview"
+description: "Attach images, audio, video, PDFs, files, and URLs to tasks/agents/actions with security-first resolution and multimodal LLM integration"
+---
+
+## What Are Attachments?
+
+Attachments provide a unified way to include external content (files and URLs) in Compozy workflows. They work across task, agent, and action scopes and are converted into multimodal parts for LLM calls when supported.
+
+## Key Capabilities
+
+<FeatureCardList cols={2}>
+  <FeatureCard
+    title="Unified Model"
+    description="Single, consistent schema for images, audio, video, PDFs, files, and URL references"
+    icon="Layers"
+  />
+  <FeatureCard
+    title="Templating Aware"
+    description="Supports template expressions with staged normalization to safely resolve .tasks.* values"
+    icon="Braces"
+  />
+  <FeatureCard
+    title="Multimodal Ready"
+    description="Maps resolved content to LLM parts (image URLs, text, or binary) for vision and audio/video models"
+    icon="Image"
+  />
+  <FeatureCard
+    title="Security-First"
+    description="SSRF protection, MIME allow-lists, CWD-bound file access, and bounded downloads"
+    icon="ShieldCheck"
+  />
+  <FeatureCard
+    title="Hierarchical Scopes"
+    description="Declare attachments at task, agent, or action level with deterministic merge and de-dup"
+    icon="GitMerge"
+  />
+  <FeatureCard
+    title="Configurable Limits"
+    description="Control size, timeouts, redirects, extraction limits, and detection depth via app config"
+    icon="Sliders"
+  />
+</FeatureCardList>
+
+## Where Attachments Apply
+
+<List>
+  <ListItem title="Tasks">
+    Add inputs for basic/router/collection flows; available to nested agent actions
+  </ListItem>
+  <ListItem title="Agents">
+    Provide shared context (e.g., brand assets, guidelines) for all actions
+  </ListItem>
+  <ListItem title="Actions">
+    Attach operation-specific inputs (e.g., the document under review)
+  </ListItem>
+</List>
+
+## Related Documentation
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Tasks"
+    description="Attach inputs to basic/router tasks and more"
+    href="/docs/core/tasks/overview"
+    icon="ListCheck"
+  />
+  <ReferenceCard
+    title="Agents"
+    description="How attachments fit into agent actions and prompts"
+    href="/docs/core/agents/overview"
+    icon="Bot"
+  />
+  <ReferenceCard
+    title="YAML Templates"
+    description="Use context variables and expressions in attachment fields"
+    href="/docs/core/yaml-templates/overview"
+    icon="FileCode"
+  />
+  <ReferenceCard
+    title="Global Configuration"
+    description="Tune download limits, MIME allow-lists, and security policies"
+    href="/docs/core/configuration/global"
+    icon="Settings"
+  />
+</ReferenceCardList>
+

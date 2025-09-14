@@ -1,0 +1,60 @@
+---
+title: "LLM Integration"
+description: "How attachments become multimodal parts for provider requests"
+---
+
+## Part Mapping
+
+Attachments that resolve successfully are converted to provider‑agnostic parts:
+
+| Attachment | Resolution | LLM Part | Notes |
+| --- | --- | --- | --- |
+| `image` | URL | `ImageURLPart` | Sent as a URL reference (no binary payload) |
+| `image` | Path | `BinaryPart` | Read and included as binary (`image/*`) |
+| `audio`, `video` | URL or Path | `BinaryPart` | Remote URLs are downloaded to temp under limits; MIME must match allow‑list |
+| `pdf` | URL or Path | `TextPart` or `BinaryPart` | Tries text extraction up to a configured limit; falls back to binary |
+| `file` | Path | `TextPart` or `BinaryPart` | `text/*` files are loaded as text (bounded); others as binary |
+| `url` | URL | — | Validated but not included as a part in this phase |
+
+<Callout>
+  Remote downloads (audio/video/pdf) create temporary files that are cleaned up automatically after request handling.
+</Callout>
+
+## Choosing URL vs Path
+
+<List>
+  <ListItem title="URL for images">
+    When supported by the provider, image URLs are cheaper and faster than uploading bytes.
+  </ListItem>
+  <ListItem title="Path for reliability">
+    Local paths embed the bytes, ensuring the prompt remains self‑contained regardless of external availability.
+  </ListItem>
+  <ListItem title="Large media">
+    Ensure global limits are sized appropriately to avoid truncation; otherwise prefer URLs when possible.
+  </ListItem>
+</List>
+
+## Prompt Assembly
+
+Attachments are passed alongside the user content. Adapters must avoid duplicating text content when parts are present.
+
+```text
+User message → { content: "...", parts: [ImageURLPart | BinaryPart | TextPart, ...] }
+```
+
+## Cross‑References
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Agent LLM Integration"
+    description="How prompts and tools are assembled for requests"
+    href="/docs/core/agents/llm-integration"
+    icon="Cpu"
+  />
+  <ReferenceCard
+    title="Structured Outputs"
+    description="Use schemas and JSON mode with attachments"
+    href="/docs/core/agents/structured-outputs"
+    icon="FileJson"
+  />
+</ReferenceCardList>

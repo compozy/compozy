@@ -12,6 +12,7 @@
     "tasks",
     "memory",
     "mcp",
-    "workflows"
+    "workflows",
+    "webhooks"
   ]
 }

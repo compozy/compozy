@@ -1,0 +1,486 @@
+---
+title: Webhooks
+description: Configure webhook triggers to route external HTTP events into Compozy workflows with verification, idempotency, filtering, and schema validation.
+---
+
+## Overview
+
+Webhooks let external systems trigger your workflows via HTTP. Each webhook belongs to a workflow and exposes a public endpoint at `/api/v0/hooks/{slug}`. Incoming requests are validated, optionally verified (HMAC/Stripe/GitHub), deduplicated, filtered with CEL expressions, transformed via templates, validated against JSON Schema, and finally dispatched to the workflow as a signal event.
+
+<Callout type="info" className="!mt-14">
+  Webhooks are defined inside a workflow under triggers. For a full workflow overview, see [Workflow configuration](/docs/core/configuration/workflows). For schema details, see the [Webhook JSON Schema](/docs/schema/webhooks).
+</Callout>
+
+## Key Capabilities
+
+<FeatureCardList cols={2}>
+  <FeatureCard
+    title="Signature Verification"
+    description="HMAC, Stripe, and GitHub strategies to verify request integrity"
+    icon="Shield"
+  />
+  <FeatureCard
+    title="Idempotency"
+    description="Prevent duplicate processing via header or payload key with TTL"
+    icon="Repeat"
+  />
+  <FeatureCard
+    title="Event Routing"
+    description="Route to named events using CEL filters over payload, headers, and query"
+    icon="GitBranch"
+  />
+  <FeatureCard
+    title="Validated Inputs"
+    description="Render inputs with templates then validate using JSON Schema"
+    icon="FileCheck"
+  />
+  <FeatureCard
+    title="Observability"
+    description="Structured logs and rich OpenTelemetry counters and histograms"
+    icon="BarChart3"
+  />
+  <FeatureCard
+    title="Operational Limits"
+    description="Configurable body size, dedupe TTL, Stripe skew, and 30s processing window"
+    icon="Timer"
+  />
+
+</FeatureCardList>
+
+## Quick Start
+
+```yaml title="workflow.yaml"
+id: orders
+version: "1.0.0"
+
+triggers:
+  - type: webhook
+    webhook:
+      slug: shopify-events           # Public path: POST /api/v0/hooks/shopify-events
+      events:
+        - name: order.created        # Will be dispatched as a workflow signal
+          filter: payload.type == "order_created"
+          input:                     # Map incoming JSON to your workflow inputs
+            order_id: "{{ .payload.data.id }}"
+            email: "{{ .payload.data.email }}"
+          schema:                    # (optional) Validate the rendered input
+            type: object
+            properties:
+              order_id: { type: string }
+              email: { type: string, format: email }
+            required: [order_id]
+```
+
+Send a request:
+
+```bash
+curl -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"type":"order_created","data":{"id":"o-123","email":"a@x.com"}}' \
+  http://localhost:5001/api/v0/hooks/shopify-events
+```
+
+## Endpoint & Responses
+
+- Path: `POST /api/v0/hooks/{slug}`
+- Method: Public webhook endpoint currently accepts only `POST` (v0). The `method` field in config is validated but does not change the public route yet.
+- Request body: JSON (validated as well‑formed; default max body: 1MB)
+- Optional headers:
+  - `X-Idempotency-Key`: Prevents duplicate processing (see Idempotency)
+  - `X-Correlation-ID` or `X-Request-ID`: For trace correlation (auto‑generated if missing)
+  - Signature headers (strategy specific): `X-Sig` (HMAC – configurable), `Stripe-Signature`, `X-Hub-Signature-256`
+
+Responses always use the `{ data, message }` envelope:
+
+```json title="202 Accepted"
+{
+  "data": {
+    "status": "accepted",
+    "event": "..."
+  },
+  "message": "Success"
+}
+```
+
+```json title="204/200 No match"
+{
+  "data": {
+    "status": "no_matching_event"
+  },
+  "message": "Success"
+}
+```
+- 400 Bad Request (invalid JSON/filters/templates)
+- 401 Unauthorized (verification failed)
+- 404 Not Found (unknown slug)
+- 409 Conflict (duplicate idempotency key)
+- 422 Unprocessable Entity (schema validation failed)
+- 500 Internal Server Error
+
+## How It Works
+
+<Steps>
+  <Step title="Receive">
+    Request hits `POST /api/v0/hooks/{slug}` and body is validated as JSON (size limit applies).
+  </Step>
+  <Step title="Verify (optional)">
+    If configured, the appropriate verifier runs: HMAC header, Stripe timestamp/skew, or GitHub signature.
+  </Step>
+  <Step title="Idempotency (optional)">
+    Duplicate detection using `X-Idempotency-Key` or a JSON dot-path key with TTL.
+  </Step>
+  <Step title="Filter & Map">
+    Evaluate CEL `filter` to select an event. Render `input` templates into a typed payload.
+  </Step>
+  <Step title="Validate & Dispatch">
+    Validate against JSON Schema (if provided). Dispatch matching event to workflow signal bus.
+  </Step>
+  <Step title="Respond">
+    Return `{ data, message }` envelope with appropriate status (202 on dispatch, 204/200 on no match).
+  </Step>
+</Steps>
+
+## Configuration
+
+Define webhooks under `triggers` with `type: webhook` and a `webhook` object.
+
+```yaml
+triggers:
+  - type: webhook
+    webhook:
+      slug: my-webhook        # required, unique across workflows at runtime
+      method: POST            # optional; allowed: POST, PUT, PATCH (default: POST)
+      verify:                 # optional signature verification
+        strategy: none|hmac|stripe|github
+        secret: "{{ .env.WEBHOOK_SECRET }}"   # use env via template
+        header: X-Sig                   # required for hmac strategy
+        skew: 5m                        # optional for stripe (default 5m)
+      dedupe:                 # optional idempotency configuration
+        enabled: true
+        ttl: 10m              # overrides application default
+        key: data.id          # dot-path within JSON body when header is absent
+      events:                 # one or more routable events
+        - name: user.created
+          filter: payload.event == "user.created"
+          input:
+            id: "{{ .payload.data.id }}"
+            email: "{{ .payload.data.email }}"
+          schema: { type: object, required: [id] }
+```
+
+### Events
+
+<Table>
+  <TableHeader>
+    <TableRow>
+      <TableHead>Property</TableHead>
+      <TableHead>Required</TableHead>
+      <TableHead>Description</TableHead>
+    </TableRow>
+  </TableHeader>
+  <TableBody>
+    <TableRow>
+      <TableCell><code>name</code></TableCell>
+      <TableCell>Yes</TableCell>
+      <TableCell>Dispatched signal name for the workflow.</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell><code>filter</code></TableCell>
+      <TableCell>Yes</TableCell>
+      <TableCell>CEL expression evaluated against <code>&#123; payload, headers, query &#125;</code>; typically <code>payload.*</code>.</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell><code>input</code></TableCell>
+      <TableCell>Yes</TableCell>
+      <TableCell>Map of template strings rendered with context <code>&#123; payload &#125;</code>. Missing keys render as empty string; other template errors return 400.</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell><code>schema</code></TableCell>
+      <TableCell>No</TableCell>
+      <TableCell>JSON Schema validating the rendered <code>input</code>; validation errors return 422.</TableCell>
+    </TableRow>
+  </TableBody>
+  </Table>
+
+Examples:
+
+```yaml
+filter: payload.type in ["order_created", "order_updated"]
+input:
+  order_id: "{{ .payload.data.id }}"
+  total: "{{ .payload.data.total }}"
+```
+
+<Callout type="info">
+  Header keys in CEL filters are normalized to lowercase. Example: `headers['x-github-event'] == 'push'`.
+</Callout>
+
+### Verification
+
+<Tabs items={["HMAC", "Stripe", "GitHub"]}>
+  <Tab>
+    ```yaml
+    verify:
+      strategy: hmac
+      secret: "{{ .env.WEBHOOK_SECRET }}"
+      header: X-Sig
+    ```
+    ```bash
+    curl -X POST http://localhost:5001/api/v0/hooks/hmac \
+      -H "Content-Type: application/json" \
+      -H "X-Sig: <hex_sha256(body)>" \
+      -d '{"event":"x","data":{}}'
+    ```
+  </Tab>
+  <Tab>
+    ```yaml
+    verify:
+      strategy: stripe
+      secret: "{{ .env.STRIPE_WEBHOOK_SECRET }}"
+      skew: 5m
+    ```
+    ```bash
+    curl -X POST http://localhost:5001/api/v0/hooks/stripe \
+      -H "Content-Type: application/json" \
+      -H "Stripe-Signature: t=...,v1=..." \
+      -d '{"id":"evt_...","object":"event","type":"payment_intent.succeeded","data":{}}'
+    ```
+  </Tab>
+  <Tab>
+    ```yaml
+    verify:
+      strategy: github
+      secret: "{{ .env.GITHUB_WEBHOOK_SECRET }}"
+    ```
+    ```bash
+    curl -X POST http://localhost:5001/api/v0/hooks/github \
+      -H "Content-Type: application/json" \
+      -H "X-GitHub-Event: push" \
+      -H "X-Hub-Signature-256: sha256=..." \
+      -d '{"ref":"refs/heads/main"}'
+    ```
+  </Tab>
+</Tabs>
+
+Choose one strategy per webhook:
+
+- `none`: No verification.
+- `hmac`: Compute `sha256(body)` with secret; compare against hex in a custom header.
+
+  ```yaml
+  verify:
+    strategy: hmac
+    secret: "{{ .env.WEBHOOK_SECRET }}"
+    header: X-Sig
+  ```
+
+- `stripe`: Uses `Stripe-Signature` header (`t=..., v1=...`) with timestamp skew check (default 5m, configurable).
+
+  ```yaml
+  verify:
+    strategy: stripe
+    secret: "{{ .env.STRIPE_WEBHOOK_SECRET }}"
+    skew: 5m
+  ```
+
+- `github`: Uses `X-Hub-Signature-256: sha256=...` with HMAC‑SHA256.
+
+  ```yaml
+  verify:
+    strategy: github
+    secret: "{{ .env.GITHUB_WEBHOOK_SECRET }}"
+  ```
+
+<Callout type="warning">
+  Use template references for secrets, e.g. <code>"&#123;&#123; .env.MY_SECRET &#125;&#125;"</code>. Values are resolved from host environment variables at runtime.
+</Callout>
+
+Example requests:
+
+```bash
+# GitHub
+curl -X POST http://localhost:5001/api/v0/hooks/github-issues \
+  -H "Content-Type: application/json" \
+  -H "X-GitHub-Event: push" \
+  -H "X-Hub-Signature-256: sha256=..." \
+  -d '{"ref":"refs/heads/main","repository":{...}}'
+
+# Stripe
+curl -X POST http://localhost:5001/api/v0/hooks/stripe \
+  -H "Content-Type: application/json" \
+  -H "Stripe-Signature: t=...,v1=..." \
+  -d '{"id":"evt_...","object":"event","type":"payment_intent.succeeded","data":{...}}'
+```
+
+### Idempotency
+
+Prevent duplicate processing of retried deliveries:
+
+- If `X-Idempotency-Key` header is present, it is used directly.
+- Otherwise, when `dedupe.key` is set, a key is derived from that JSON path in the request body.
+- Keys are namespaced per slug internally. Default TTL is 10m (configurable).
+
+```yaml
+dedupe:
+  enabled: true
+  ttl: 30m
+  key: data.id
+```
+
+### Limits & Defaults (application config)
+
+Global defaults are controlled by the server configuration:
+
+```yaml title="config.yaml"
+webhooks:
+  default_method: POST
+  default_max_body: 1048576    # 1 MiB
+  default_dedupe_ttl: 10m
+  stripe_skew: 5m
+```
+
+## Operational Insights
+
+<Table>
+  <TableHeader>
+    <TableRow>
+      <TableHead>Item</TableHead>
+      <TableHead>Description</TableHead>
+      <TableHead>Details</TableHead>
+    </TableRow>
+  </TableHeader>
+  <TableBody>
+    <TableRow>
+      <TableCell>Metrics – Counters</TableCell>
+      <TableCell>Total events observed by category.</TableCell>
+      <TableCell><code>compozy_webhook_received_total</code>, <code>..._verified_total</code>, <code>..._duplicate_total</code>, <code>..._dispatched_total</code>, <code>..._no_match_total</code>, <code>..._failed_total</code> (with <code>reason</code> attribute)</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>Metrics – Histograms</TableCell>
+      <TableCell>Latency distributions for key stages.</TableCell>
+      <TableCell><code>..._processing_duration_seconds</code>, <code>..._verify_duration_seconds</code>, <code>..._render_duration_seconds</code>, <code>..._dispatch_duration_seconds</code></TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>Logging</TableCell>
+      <TableCell>Structured logs with correlation IDs and error taxonomy mapped to HTTP responses.</TableCell>
+      <TableCell>Correlation ID precedence: <code>X-Correlation-ID</code> → <code>X-Request-ID</code> → generated by Compozy.</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>Processing Window</TableCell>
+      <TableCell>Per-request processing timeout.</TableCell>
+      <TableCell>~30 seconds maximum event processing time per webhook request.</TableCell>
+    </TableRow>
+  </TableBody>
+</Table>
+
+<AccordionGroup>
+  <Accordion title="Common Errors & Responses">
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Condition</TableHead>
+          <TableHead>Status</TableHead>
+          <TableHead>Details</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        <TableRow>
+          <TableCell>Invalid JSON / Exceeds Limit</TableCell>
+          <TableCell>400</TableCell>
+          <TableCell>Malformed body or payload too large</TableCell>
+        </TableRow>
+        <TableRow>
+          <TableCell>Verification failed</TableCell>
+          <TableCell>401</TableCell>
+          <TableCell>Signature mismatch or missing header</TableCell>
+        </TableRow>
+        <TableRow>
+          <TableCell>Duplicate idempotency key</TableCell>
+          <TableCell>409</TableCell>
+          <TableCell>Previously processed request</TableCell>
+        </TableRow>
+        <TableRow>
+          <TableCell>Schema validation error</TableCell>
+          <TableCell>422</TableCell>
+          <TableCell>Rendered input violates schema</TableCell>
+        </TableRow>
+      </TableBody>
+    </Table>
+  </Accordion>
+</AccordionGroup>
+
+## End-to-End Examples
+
+### GitHub Issues Comment
+
+```yaml
+triggers:
+  - type: webhook
+    webhook:
+      slug: github-issues
+      verify:
+        strategy: github
+        secret: "{{ .env.GITHUB_WEBHOOK_SECRET }}"
+      dedupe:
+        enabled: true
+        key: delivery.id
+      events:
+        - name: issue.commented
+          filter: payload.action == "created" && payload.issue != null
+          input:
+            issue_id: "{{ .payload.issue.id }}"
+            body: "{{ .payload.comment.body }}"
+```
+
+### Stripe Payment Succeeded
+
+```yaml
+triggers:
+  - type: webhook
+    webhook:
+      slug: stripe
+      verify:
+        strategy: stripe
+        secret: "{{ .env.STRIPE_WEBHOOK_SECRET }}"
+      events:
+        - name: payment.succeeded
+          filter: payload.type == "payment_intent.succeeded"
+          input:
+            id: "{{ .payload.data.object.id }}"
+            amount: "{{ .payload.data.object.amount_received }}"
+```
+
+## Next Steps
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Workflow Configuration"
+    description="Define workflow inputs, triggers, scheduling, and outputs"
+    href="/docs/core/configuration/workflows"
+    icon="Workflow"
+  />
+  <ReferenceCard
+    title="Signals Overview"
+    description="Understand event-driven execution and signal patterns"
+    href="/docs/core/signals/overview"
+    icon="Radio"
+  />
+  <ReferenceCard
+    title="Signal Triggers"
+    description="Explore how signals trigger workflows and schema patterns"
+    href="/docs/core/signals/signal-triggers"
+    icon="Bell"
+  />
+  <ReferenceCard
+    title="Template Variables"
+    description="Use YAML templates and context variables in inputs/outputs"
+    href="/docs/core/yaml-templates/context-variables"
+    icon="Braces"
+  />
+  <ReferenceCard
+    title="Webhook Schema"
+    description="Review the JSON Schema for webhook configuration"
+    href="/docs/schema/webhooks"
+    icon="FileJson"
+  />
+</ReferenceCardList>

@@ -50,7 +50,7 @@ func TestWebhook_ValidateTrigger_Errors(t *testing.T) {
 		}
 		err := ValidateTrigger(cfg)
 		require.ErrorContains(t, err, "hmac verification requires secret and header")
-		cfg.Verify.Secret = "env://SECRET"
+		cfg.Verify.Secret = "{{ .env.SECRET }}"
 		cfg.Verify.Header = "X-Signature"
 		err = ValidateTrigger(cfg)
 		require.NoError(t, err)

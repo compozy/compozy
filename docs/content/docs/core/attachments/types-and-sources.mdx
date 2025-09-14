@@ -1,0 +1,107 @@
+---
+title: "Types & Sources"
+description: "Supported attachment kinds, source fields, mutual exclusivity rules, and metadata"
+---
+
+## Supported Types
+
+| Type | Purpose | Accepted Sources |
+| --- | --- | --- |
+| `image` | Vision models and screenshots | `url`, `urls`, `path`, `paths` |
+| `pdf` | Documents; extracted to text when possible | `url`, `urls`, `path`, `paths` |
+| `audio` | Audio clips for transcription/analysis | `url`, `urls`, `path`, `paths` |
+| `video` | Short videos for multimodal models | `url`, `urls`, `path`, `paths` |
+| `file` | Generic files; text files become text parts | `path`, `paths` |
+| `url` | Reference to an absolute HTTP(S) URL | `url` |
+
+<Callout>
+  The <code>url</code> type is validated but not converted to an LLM content part in this phase. Use <code>image</code>/<code>audio</code>/<code>video</code>/<code>pdf</code>/<code>file</code> for multimodal prompts.
+</Callout>
+
+## Source Fields (Mutually Exclusive)
+
+Exactly one of these fields must be provided for an attachment that supports multiple sources:
+
+<List>
+  <ListItem title="Single value">
+    <code>url</code> or <code>path</code>
+  </ListItem>
+  <ListItem title="Multiple values">
+    <code>urls</code> or <code>paths</code> (expanded into many attachments)
+  </ListItem>
+</List>
+
+<Callout>
+  If more than one source field is set (e.g., both <code>url</code> and <code>paths</code>), configuration fails fast with a clear error.
+</Callout>
+
+## Base Fields
+
+| Field | Required | Description |
+| --- | --- | --- |
+| `name` | Optional | Friendly label for tooling and logs; supports templating |
+| `mime` | Optional | Hint for content type overrides; validated against allow-lists |
+| `meta` | Optional | Arbitrary map for adapter hints; currently supports `image_detail` (`low` \| `high` \| `auto`) |
+
+## Examples
+
+<Tabs items={["Image (URL)", "Image (Path)", "Audio (URLs)", "File (Paths)"]}>
+  <Tab>
+    ```yaml
+    attachments:
+      - type: image
+        url: "https://example.com/sample.png"
+        name: "hero"
+        meta:
+          image_detail: high
+    ```
+  </Tab>
+  <Tab>
+    ```yaml
+    attachments:
+      - type: image
+        path: "./assets/cover.jpg"
+    ```
+  </Tab>
+  <Tab>
+    ```yaml
+    attachments:
+      - type: audio
+        urls:
+          - "https://cdn.example.com/intro.wav"
+          - "https://cdn.example.com/outro.wav"
+    ```
+  </Tab>
+  <Tab>
+    ```yaml
+    attachments:
+      - type: file
+        paths:
+          - "docs/**/*.md"
+          - "README.md"
+    ```
+  </Tab>
+</Tabs>
+
+## Cross‑References
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Task Basics"
+    description="Where to declare attachments on tasks"
+    href="/docs/core/tasks/basic-tasks"
+    icon="ListChecks"
+  />
+  <ReferenceCard
+    title="Agents & Actions"
+    description="Attach context at agent or action scope"
+    href="/docs/core/agents/instructions-actions"
+    icon="Bot"
+  />
+  <ReferenceCard
+    title="Templates"
+    description="Use variables and expressions in fields"
+    href="/docs/core/yaml-templates/overview"
+    icon="FileCode2"
+  />
+</ReferenceCardList>

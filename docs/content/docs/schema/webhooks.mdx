@@ -1,0 +1,32 @@
+---
+title: Webhooks Schema
+description: JSON Schema for webhook trigger configuration
+---
+
+import webhookSchema from "@/schemas/webhook.json";
+
+<SchemaParams
+  schema={webhookSchema}
+  title="Webhook Configuration Schema"
+  collapsible={true}
+  defaultExpanded={true}
+  paramType="path"
+/>
+
+## Resources
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="JSON Schema Specification"
+    description="Official JSON Schema documentation and specification"
+    href="https://json-schema.org/"
+    icon="FileText"
+  />
+  <ReferenceCard
+    title="Common Webhook Patterns"
+    description="Background on webhook signatures, idempotency, and filtering"
+    href="https://www.webhook.org/" 
+    icon="ShieldCheck"
+  />
+</ReferenceCardList>
+
