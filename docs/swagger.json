@@ -430,6 +430,141 @@
                 }
             }
         },
+        "/api/v0/hooks/{slug}": {
+            "post": {
+                "description": "Accepts webhook payloads and triggers matching workflow events.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "webhooks"
+                ],
+                "summary": "Trigger webhook",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"my-webhook\"",
+                        "description": "Webhook slug",
+                        "name": "slug",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"idemp-123\"",
+                        "description": "Optional idempotency key to prevent duplicate processing",
+                        "name": "X-Idempotency-Key",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"corr-456\"",
+                        "description": "Optional correlation ID for request tracing",
+                        "name": "X-Correlation-ID",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"sha256=abc123...\"",
+                        "description": "Optional HMAC signature header (configurable per webhook)",
+                        "name": "X-Sig",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"t=123,v1=def...\"",
+                        "description": "Stripe webhook signature (when using stripe verification)",
+                        "name": "Stripe-Signature",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"sha256=ghi789...\"",
+                        "description": "GitHub webhook signature (when using github verification)",
+                        "name": "X-Hub-Signature-256",
+                        "in": "header"
+                    },
+                    {
+                        "description": "Arbitrary JSON payload",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Processed successfully",
+                        "schema": {
+                            "$ref": "#/definitions/webhook.SuccessResponse"
+                        }
+                    },
+                    "202": {
+                        "description": "Accepted and enqueued",
+                        "schema": {
+                            "$ref": "#/definitions/webhook.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid or oversized payload",
+                        "schema": {
+                            "$ref": "#/definitions/webhook.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Signature verification failed",
+                        "schema": {
+                            "$ref": "#/definitions/webhook.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Webhook not found",
+                        "schema": {
+                            "$ref": "#/definitions/webhook.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Duplicate idempotency key",
+                        "schema": {
+                            "$ref": "#/definitions/webhook.ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable entity",
+                        "schema": {
+                            "$ref": "#/definitions/webhook.ErrorResponse"
+                        }
+                    },
+                    "429": {
+                        "description": "Rate limit exceeded",
+                        "schema": {
+                            "$ref": "#/definitions/webhook.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/webhook.ErrorResponse"
+                        }
+                    }
+                },
+                "x-example-error": {
+                    "details": "invalid JSON payload",
+                    "error": "bad_request"
+                },
+                "x-example-success": {
+                    "data": {
+                        "result": "ok"
+                    },
+                    "message": "Success"
+                }
+            }
+        },
         "/auth/generate": {
             "post": {
                 "description": "Generate a new API key for the authenticated user",
@@ -1150,203 +1285,6 @@
                     },
                     "500": {
                         "description": "Internal server error",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
-        "/hooks/{slug}": {
-            "post": {
-                "description": "Accepts webhook payloads and triggers matching workflow events.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "webhooks"
-                ],
-                "summary": "Trigger webhook",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "example": "\"my-webhook\"",
-                        "description": "Webhook slug",
-                        "name": "slug",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "example": "\"idemp-123\"",
-                        "description": "Optional idempotency key to prevent duplicate processing",
-                        "name": "X-Idempotency-Key",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "example": "\"corr-456\"",
-                        "description": "Optional correlation ID for request tracing",
-                        "name": "X-Correlation-ID",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "example": "\"sha256=abc123...\"",
-                        "description": "Optional HMAC signature header (configurable per webhook)",
-                        "name": "X-Sig",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "example": "\"t=123,v1=def...\"",
-                        "description": "Stripe webhook signature (when using stripe verification)",
-                        "name": "Stripe-Signature",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "example": "\"sha256=ghi789...\"",
-                        "description": "GitHub webhook signature (when using github verification)",
-                        "name": "X-Hub-Signature-256",
-                        "in": "header"
-                    },
-                    {
-                        "description": "Arbitrary JSON payload",
-                        "name": "payload",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "type": "object"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Processed with no matching event\" example({\"status\":200,\"message\":\"no matching event\",\"data\":{}})",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "object"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "202": {
-                        "description": "Accepted and enqueued\" example({\"status\":202,\"message\":\"webhook accepted\",\"data\":{\"event_id\":\"evt_123\"}})",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "object"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid or oversized payload\" example({\"status\":400,\"error\":{\"code\":\"BAD_REQUEST\",\"message\":\"invalid payload\",\"details\":\"payload too large\"}})",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "401": {
-                        "description": "Signature verification failed\" example({\"status\":401,\"error\":{\"code\":\"UNAUTHORIZED\",\"message\":\"signature verification failed\",\"details\":\"invalid signature\"}})",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "404": {
-                        "description": "Webhook not found\" example({\"status\":404,\"error\":{\"code\":\"NOT_FOUND\",\"message\":\"webhook not found\",\"details\":\"\"}})",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "409": {
-                        "description": "Duplicate idempotency key\" example({\"status\":409,\"error\":{\"code\":\"DUPLICATE\",\"message\":\"duplicate request\",\"details\":\"idempotency key already processed\"}})",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/router.Response"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "error": {
-                                            "$ref": "#/definitions/router.ErrorInfo"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error\" example({\"status\":500,\"error\":{\"code\":\"INTERNAL_ERROR\",\"message\":\"internal server error\",\"details\":\"\"}})",
                         "schema": {
                             "allOf": [
                                 {
@@ -4421,6 +4359,11 @@
                 "prompt"
             ],
             "properties": {
+                "attachments": {
+                    "description": "Attachments at action scope",
+                    "type": "array",
+                    "items": {}
+                },
                 "cwd": {
                     "$ref": "#/definitions/core.PathCWD"
                 },
@@ -4476,6 +4419,11 @@
                     "items": {
                         "$ref": "#/definitions/agent.ActionConfig"
                     }
+                },
+                "attachments": {
+                    "description": "Attachments declared at the agent scope.",
+                    "type": "array",
+                    "items": {}
                 },
                 "config": {
                     "description": "LLM provider configuration defining which AI model to use and its parameters.\nSupports multiple providers including OpenAI, Anthropic, Google, Groq, and local models.\n\n**Required fields:** provider, model\n**Optional fields:** api_key, api_url, params (temperature, max_tokens, etc.)",
@@ -5948,6 +5896,17 @@
                 }
             }
         },
+        "webhook.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "details": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string"
+                }
+            }
+        },
         "webhook.EventConfig": {
             "type": "object",
             "properties": {
@@ -5965,6 +5924,15 @@
                 },
                 "schema": {
                     "$ref": "#/definitions/schema.Schema"
+                }
+            }
+        },
+        "webhook.SuccessResponse": {
+            "type": "object",
+            "properties": {
+                "data": {},
+                "message": {
+                    "type": "string"
                 }
             }
         },
@@ -6019,7 +5987,7 @@
                 },
                 "exec_url": {
                     "type": "string",
-                    "example": "localhost:5001/api/workflows/executions/2Z4PVTL6K27XVT4A3NPKMDD5BG"
+                    "example": "localhost:5001/api/v0/executions/workflows/2Z4PVTL6K27XVT4A3NPKMDD5BG"
                 },
                 "workflow_id": {
                     "type": "string",

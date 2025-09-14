@@ -275,6 +275,11 @@ func WithAppConfig(appConfig *config.Config) Option {
 			c.RetryJitterPercent = appConfig.LLM.RetryJitterPercent
 		}
 
+		// Align MCP client timeout with global LLM config when provided
+		if appConfig.LLM.MCPClientTimeout > 0 {
+			c.Timeout = appConfig.LLM.MCPClientTimeout
+		}
+
 		// Propagate MCP-related options
 		if len(appConfig.LLM.AllowedMCPNames) > 0 {
 			WithAllowedMCPNames(appConfig.LLM.AllowedMCPNames)(c)

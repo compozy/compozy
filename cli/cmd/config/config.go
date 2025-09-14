@@ -428,6 +428,7 @@ func flattenConfig(cfg *config.Config) map[string]string {
 	flattenTemporalConfig(cfg, result)
 	flattenRuntimeConfig(cfg, result)
 	flattenLimitsConfig(cfg, result)
+	flattenAttachmentsConfig(cfg, result)
 	flattenMemoryConfig(cfg, result)
 	flattenLLMConfig(cfg, result)
 	flattenCLIConfig(cfg, result)
@@ -489,6 +490,57 @@ func flattenLimitsConfig(cfg *config.Config, result map[string]string) {
 	result["limits.max_total_content_size"] = fmt.Sprintf("%d", cfg.Limits.MaxTotalContentSize)
 	result["limits.max_task_context_depth"] = fmt.Sprintf("%d", cfg.Limits.MaxTaskContextDepth)
 	result["limits.parent_update_batch_size"] = fmt.Sprintf("%d", cfg.Limits.ParentUpdateBatchSize)
+}
+
+// flattenAttachmentsConfig flattens global attachments configuration
+func flattenAttachmentsConfig(cfg *config.Config, result map[string]string) {
+	result["attachments.max_download_size_bytes"] = fmt.Sprintf("%d", cfg.Attachments.MaxDownloadSizeBytes)
+	result["attachments.download_timeout"] = cfg.Attachments.DownloadTimeout.String()
+	result["attachments.max_redirects"] = fmt.Sprintf("%d", cfg.Attachments.MaxRedirects)
+	if cfg.Attachments.TextPartMaxBytes > 0 {
+		result["attachments.text_part_max_bytes"] = fmt.Sprintf("%d", cfg.Attachments.TextPartMaxBytes)
+	}
+	if cfg.Attachments.PDFExtractMaxChars > 0 {
+		result["attachments.pdf_extract_max_chars"] = fmt.Sprintf("%d", cfg.Attachments.PDFExtractMaxChars)
+	}
+	if cfg.Attachments.MIMEHeadMaxBytes > 0 {
+		result["attachments.mime_head_max_bytes"] = fmt.Sprintf("%d", cfg.Attachments.MIMEHeadMaxBytes)
+	}
+	if cfg.Attachments.HTTPUserAgent != "" {
+		result["attachments.http_user_agent"] = cfg.Attachments.HTTPUserAgent
+	}
+	result["attachments.ssrf_strict"] = fmt.Sprintf("%t", cfg.Attachments.SSRFStrict)
+	if len(cfg.Attachments.AllowedMIMETypes.Image) > 0 {
+		v := append([]string(nil), cfg.Attachments.AllowedMIMETypes.Image...)
+		sort.Strings(v)
+		result["attachments.allowed_mime_types.image"] = strings.Join(v, ",")
+	} else {
+		result["attachments.allowed_mime_types.image"] = ""
+	}
+	if len(cfg.Attachments.AllowedMIMETypes.Audio) > 0 {
+		v := append([]string(nil), cfg.Attachments.AllowedMIMETypes.Audio...)
+		sort.Strings(v)
+		result["attachments.allowed_mime_types.audio"] = strings.Join(v, ",")
+	} else {
+		result["attachments.allowed_mime_types.audio"] = ""
+	}
+	if len(cfg.Attachments.AllowedMIMETypes.Video) > 0 {
+		v := append([]string(nil), cfg.Attachments.AllowedMIMETypes.Video...)
+		sort.Strings(v)
+		result["attachments.allowed_mime_types.video"] = strings.Join(v, ",")
+	} else {
+		result["attachments.allowed_mime_types.video"] = ""
+	}
+	if len(cfg.Attachments.AllowedMIMETypes.PDF) > 0 {
+		v := append([]string(nil), cfg.Attachments.AllowedMIMETypes.PDF...)
+		sort.Strings(v)
+		result["attachments.allowed_mime_types.pdf"] = strings.Join(v, ",")
+	} else {
+		result["attachments.allowed_mime_types.pdf"] = ""
+	}
+	if cfg.Attachments.TempDirQuotaBytes > 0 {
+		result["attachments.temp_dir_quota_bytes"] = fmt.Sprintf("%d", cfg.Attachments.TempDirQuotaBytes)
+	}
 }
 
 // flattenMemoryConfig flattens memory configuration (optional)

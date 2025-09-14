@@ -4,7 +4,8 @@
 # -----------------------------------------------------------------------------
 # Go Parameters & Setup
 # -----------------------------------------------------------------------------
-GOCMD=go
+GOCMD=$(shell which go)
+GOVERSION ?= $(shell awk '/^go /{print $$2}' go.mod 2>/dev/null || echo "1.25")
 GOBUILD=$(GOCMD) build
 GOTEST=$(GOCMD) test
 GOFMT=gofmt -s -w
@@ -45,15 +46,15 @@ SWAGGER_OUTPUT=$(SWAGGER_DIR)/swagger.json
 # -----------------------------------------------------------------------------
 check-go-version:
 	@echo "Checking Go version..."
-	@GO_VERSION=$$(go version 2>/dev/null | awk '{print $$3}' | sed 's/go//'); \
+	@GO_VERSION=$$($(GOCMD) version 2>/dev/null | awk '{print $$3}' | sed 's/go//'); \
 	REQUIRED_VERSION=$(GOVERSION); \
 	if [ -z "$$GO_VERSION" ]; then \
-		echo "$(RED)Error: Go is not installed$(NC)"; \
-		echo "Please install Go $(GOVERSION) from https://go.dev/dl/"; \
+		echo "$(RED)Error: Go is not available$(NC)"; \
+		echo "Please ensure Go $(GOVERSION) is installed via mise"; \
 		exit 1; \
 	elif [ "$$(printf '%s\n' "$$REQUIRED_VERSION" "$$GO_VERSION" | sort -V | head -n1)" != "$$REQUIRED_VERSION" ]; then \
 		echo "$(YELLOW)Warning: Go version $$GO_VERSION found, but $(GOVERSION) is required$(NC)"; \
-		echo "Please update Go to version $(GOVERSION) or later"; \
+		echo "Please update Go to version $(GOVERSION) with: mise use go@$(GOVERSION)"; \
 		exit 1; \
 	else \
 		echo "$(GREEN)✓ Go version $$GO_VERSION is compatible$(NC)"; \
@@ -116,7 +117,7 @@ deps: check-go-version clean-go-cache swagger-deps
 	@echo "Installing goose for migrations..."
 	@$(GOCMD) install github.com/pressly/goose/v3/cmd/goose@latest
 	@echo "Installing golangci-lint v2..."
-	@curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b $(go env GOPATH)/bin v2.2.1
+	@curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b $$($(GOCMD) env GOPATH)/bin v2.2.1
 	@echo "$(GREEN)✓ All dependencies installed successfully$(NC)"
 
 clean-go-cache:
@@ -163,12 +164,13 @@ schemagen-watch:
 
 # Build the compozy-release binary
 compozy-release:
+	mkdir -p $(BINARY_DIR)
 	$(GOBUILD) -o $(BINARY_DIR)/compozy-release ./pkg/release
 
 # Install go-semantic-release
 release-deps:
 	@echo "Installing go-semantic-release..."
-	@go install github.com/go-semantic-release/semantic-release/v2/cmd/semantic-release@latest
+	@$(GOCMD) install github.com/go-semantic-release/semantic-release/v2/cmd/semantic-release@latest
 
 # Run semantic-release in dry-run mode to preview the next version
 release-dry-run: release-deps
@@ -310,8 +312,8 @@ help:
 	@echo "  make migrate-down   - Rollback last migration"
 	@echo ""
 	@echo "$(YELLOW)Requirements:$(NC)"
-	@echo "  Go $(GOVERSION) or later"
-	@echo "  Bun (npm install -g bun)"
+	@echo "  Go $(GOVERSION) or later (via mise)"
+	@echo "  Bun (see https://bun.sh for install instructions or use Homebrew: brew install oven-sh/bun/bun)"
 	@echo "  Docker & Docker Compose"
 	@echo ""
 	@echo "$(GREEN)Quick Start:$(NC)"

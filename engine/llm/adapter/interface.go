@@ -28,6 +28,11 @@ type LLMRequest struct {
 type Message struct {
 	Role    string // "system", "user", "assistant", "tool"
 	Content string
+	// Parts carries multi-modal content parts (text, images, binaries).
+	// When non-empty, adapters should include these parts in addition to
+	// the textual Content (if provided). This enables vision/multimodal
+	// prompts while preserving backward compatibility with text-only flows.
+	Parts []ContentPart `json:"-"` // adapter-specific translation only
 	// ToolCalls carries function/tool calls emitted by the assistant.
 	// Constraint: only messages with Role == "assistant" may contain ToolCalls.
 	ToolCalls []ToolCall
@@ -35,6 +40,33 @@ type Message struct {
 	// Constraint: only messages with Role == "tool" may contain ToolResults.
 	ToolResults []ToolResult
 }
+
+// ContentPart is an interface for multi-modal message parts.
+// Implementations: TextPart, ImageURLPart, BinaryPart.
+type ContentPart interface{ isPart() }
+
+// TextPart represents a plain-text content part.
+type TextPart struct{ Text string }
+
+func (TextPart) isPart() {}
+
+// ImageURLPart represents an image referenced by a URL.
+// The optional Detail can hint the provider about quality (e.g. "low", "high").
+type ImageURLPart struct {
+	URL    string
+	Detail string // optional
+}
+
+func (ImageURLPart) isPart() {}
+
+// BinaryPart represents a binary payload with MIME type (e.g. image/png).
+// BinaryPart.Data may be large; document expectations (small thumbnails, chunks, or streaming) to avoid copies.
+type BinaryPart struct {
+	MIMEType string
+	Data     []byte
+}
+
+func (BinaryPart) isPart() {}
 
 // ToolDefinition represents a tool available to the LLM
 type ToolDefinition struct {

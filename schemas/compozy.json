@@ -262,6 +262,60 @@
       },
       "type": "object"
     },
+    "config_AttachmentsConfig": {
+      "additionalProperties": false,
+      "description": "AttachmentsConfig contains global limits and policies for attachment handling.",
+      "properties": {
+        "allowed_mime_types": {
+          "additionalProperties": false,
+          "description": "AllowedMIMETypes specifies MIME allowlists by content category.",
+          "properties": {
+            "audio": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "image": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "pdf": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "video": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
+        "download_timeout": {
+          "description": "DownloadTimeout sets the timeout for downloading a single attachment.\nDefault: 30s",
+          "type": "integer"
+        },
+        "max_download_size_bytes": {
+          "description": "MaxDownloadSizeBytes caps the maximum size (in bytes) for any single download.\nDefault: 10_000_000 (10MB)",
+          "type": "integer"
+        },
+        "max_redirects": {
+          "description": "MaxRedirects limits the number of HTTP redirects followed during download.\nDefault: 3",
+          "type": "integer"
+        },
+        "temp_dir_quota_bytes": {
+          "description": "TempDirQuotaBytes optionally caps total temp storage used by attachment resolution.\n0 disables the quota.",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
     "config_AuthConfig": {
       "additionalProperties": false,
       "description": "AuthConfig contains authentication configuration.",
@@ -816,6 +870,25 @@
       },
       "type": "object"
     },
+    "config_WebhooksConfig": {
+      "additionalProperties": false,
+      "description": "WebhooksConfig contains webhook processing and validation configuration.",
+      "properties": {
+        "default_dedupe_ttl": {
+          "type": "integer"
+        },
+        "default_max_body": {
+          "type": "integer"
+        },
+        "default_method": {
+          "type": "string"
+        },
+        "stripe_skew": {
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
     "config_WorkerConfig": {
       "additionalProperties": false,
       "description": "WorkerConfig contains Temporal worker configuration.",
@@ -853,6 +926,10 @@
   "additionalProperties": false,
   "description": "Complete configuration schema for compozy.yaml including both project and application settings",
   "properties": {
+    "attachments": {
+      "$ref": "#/$defs/config_AttachmentsConfig",
+      "description": "Attachments configures global attachment handling limits and policies.\n\n$ref: schema://application#attachments"
+    },
     "author": {
       "$ref": "#/$defs/Author",
       "description": "Author information for the project.\n\n$ref: inline:#author"
@@ -953,6 +1030,10 @@
     "version": {
       "description": "Version specifies the semantic version of this project configuration.\n\n**Format**: Follows [Semantic Versioning 2.0.0](https://semver.org/)\n  - `MAJOR.MINOR.PATCH` (e.g., `1.2.3`)\n  - Optional pre-release: `1.0.0-alpha.1`\n  - Optional build metadata: `1.0.0+20230615`",
       "type": "string"
+    },
+    "webhooks": {
+      "$ref": "#/$defs/config_WebhooksConfig",
+      "description": "Webhooks configures webhook processing and validation settings.\n\n$ref: schema://application#webhooks"
     },
     "worker": {
       "$ref": "#/$defs/config_WorkerConfig",

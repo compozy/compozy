@@ -1,0 +1,370 @@
+# Zen MCP Tools Usage Guide
+
+## Overview
+
+Zen MCP (Model Context Protocol) tools provide advanced AI-assisted development capabilities including code analysis, debugging, code review, planning, and more. These tools integrate with multiple AI providers (OpenAI, Google Gemini, Anthropic, etc.) to deliver expert-level assistance.
+
+## Core Requirements
+
+### Mandatory Parameters
+
+<mandatory_parameters type="all_tools">
+**Every Zen MCP tool call requires:**
+- `model`: AI model to use (e.g., "gpt5", "flash", "gemini-2.5-pro", "o3")
+  - Use `mcp_zen_listmodels` to see available models
+  - Common aliases: "gpt5", "flash", "pro", "mini", "nano", "o3", "gemini-pro"
+</mandatory_parameters>
+
+### Multi-Step Tool Parameters
+
+<multi_step_parameters type="required">
+**For tools supporting multi-step workflows (debug, analyze, codereview, etc.):**
+- `step`: Current step description/content
+- `step_number`: Current step index (starts at 1)
+- `total_steps`: Estimated total steps needed
+- `next_step_required`: Boolean indicating if more steps are needed
+- `findings`: Current discoveries/findings from this step
+</multi_step_parameters>
+
+## Tool-Specific Requirements
+
+### File-Based Tools
+
+<file_requirements type="mandatory">
+**Tools requiring file specifications:**
+- `relevant_files`: Array of FULL absolute paths (never relative paths)
+- `files_checked`: Array of examined file paths (for tracking)
+
+**Examples:**
+```json
+{
+  "relevant_files": ["/Users/username/project/main.go", "/Users/username/project/pkg/config/config.go"],
+  "files_checked": ["/Users/username/project/main.go"]
+}
+```
+
+**Validation:** Tools will fail with "All file paths must be FULL absolute paths" if relative paths are provided.
+</file_requirements>
+
+### Tool-Specific Parameters
+
+<tool_parameters type="by_tool">
+
+#### mcp_zen_codereview
+- **Required:** `relevant_files` (full absolute paths)
+- **Optional:** `review_type`, `focus_on`, `standards`, `severity_filter`
+- **Purpose:** Systematic code review with expert validation
+
+#### mcp_zen_debug
+- **Required:** Multi-step parameters
+- **Optional:** `relevant_files`, `relevant_context`, `hypothesis`
+- **Purpose:** Root cause analysis and debugging
+
+#### mcp_zen_analyze
+- **Required:** `relevant_files` (full absolute paths)
+- **Optional:** `analysis_type`, `output_format`
+- **Purpose:** Architecture and code analysis
+
+#### mcp_zen_precommit
+- **Required:** `path` (absolute path to git repository)
+- **Optional:** `compare_to`, `include_staged`, `include_unstaged`
+- **Purpose:** Pre-commit validation and change analysis
+
+#### mcp_zen_secaudit
+- **Required:** Multi-step parameters
+- **Optional:** `relevant_files`, `security_scope`, `threat_level`
+- **Purpose:** Security audit and vulnerability assessment
+
+#### mcp_zen_refactor
+- **Required:** Multi-step parameters
+- **Optional:** `relevant_files`, `refactor_type`, `focus_areas`
+- **Purpose:** Code refactoring analysis and recommendations
+
+#### mcp_zen_testgen
+- **Required:** Multi-step parameters
+- **Optional:** `relevant_files`
+- **Purpose:** Test suite generation
+
+#### mcp_zen_docgen
+- **Required:** Multi-step parameters + specific counters
+- **Optional:** `relevant_files`, `document_complexity`, `document_flow`
+- **Purpose:** Code documentation generation
+
+#### mcp_zen_tracer
+- **Required:** `target_description`, `trace_mode`
+- **Optional:** `relevant_files`
+- **Purpose:** Code execution flow and dependency tracing
+
+#### mcp_zen_thinkdeep
+- **Required:** Multi-step parameters
+- **Optional:** `relevant_files`, `problem_context`, `focus_areas`
+- **Purpose:** Deep investigation and analysis
+
+</tool_parameters>
+
+### Planning and Chat Tools
+
+<planning_tools type="simpler_requirements">
+
+#### mcp_zen_planner
+- **Required:** `step`, `step_number`, `total_steps`, `next_step_required`
+- **Purpose:** Complex task planning and breakdown
+
+#### mcp_zen_consensus
+- **Required:** `step`, `step_number`, `total_steps`, `next_step_required`, `findings`, `models`
+- **Purpose:** Multi-model consensus building
+
+#### mcp_zen_chat
+- **Required:** `prompt`
+- **Optional:** `files`, `images`, `continuation_id`
+- **Purpose:** Collaborative thinking and discussion
+</planning_tools>
+
+## Usage Patterns
+
+### Basic Single-Step Tool Call
+
+<basic_usage type="example">
+```json
+{
+  "tool_name": "mcp_zen_codereview",
+  "step": "Review authentication logic",
+  "step_number": 1,
+  "total_steps": 1,
+  "next_step_required": false,
+  "findings": "Initial code review",
+  "relevant_files": ["/absolute/path/to/auth.go"],
+  "model": "gpt5"
+}
+```
+</basic_usage>
+
+### Multi-Step Investigation Pattern
+
+<multi_step_usage type="example">
+```json
+{
+  "tool_name": "mcp_zen_debug",
+  "step": "Investigate API timeout issue",
+  "step_number": 1,
+  "total_steps": 3,
+  "next_step_required": true,
+  "findings": "Found timeout in handler, checking database connection",
+  "relevant_files": ["/path/to/handler.go", "/path/to/db.go"],
+  "confidence": "medium",
+  "hypothesis": "Database connection pool exhausted",
+  "model": "o3"
+}
+```
+</multi_step_usage>
+
+### Continuation Pattern
+
+<continuation_usage type="example">
+**Step 1 Response:**
+```json
+{
+  "continuation_id": "abc-123-def-456",
+  "next_step_required": true
+}
+```
+
+**Step 2 Call:**
+```json
+{
+  "continuation_id": "abc-123-def-456",
+  "step": "Continue investigation with new findings",
+  "step_number": 2,
+  "findings": "Updated findings based on previous step"
+}
+```
+</continuation_usage>
+
+## Error Handling and Validation
+
+### Common Validation Errors
+
+<validation_errors type="common_issues">
+
+#### Missing Required Fields
+```
+"Value error, Step 1 requires 'relevant_files' field to specify code files or directories to review"
+```
+
+#### Invalid File Paths
+```
+"All file paths must be FULL absolute paths. Invalid path: 'main.go'"
+```
+
+#### Missing Path Parameter
+```
+"Value error, Step 1 requires 'path' field to specify git repository location"
+```
+
+#### Model Not Configured
+```
+"Model 'invalid-model' is not available. Use mcp_zen_listmodels to see available models"
+```
+</validation_errors>
+
+### Status Responses
+
+<status_responses type="response_types">
+
+#### Success States
+- `"status": "calling_expert_analysis"` - Tool completed successfully with expert validation
+- `"status": "local_work_complete"` - Local analysis complete, ready for expert review
+- `"status": "planning_complete"` - Planning tool finished
+- `"status": "continuation_available"` - Chat/conversation can continue
+
+#### Error States
+- `"status": "files_required_to_continue"` - Need additional files to proceed
+- `"status": "validation_failed"` - Input validation error
+- `"<tool>_failed"` - Tool-specific failure (e.g., "codereview_failed")
+</status_responses>
+
+## Best Practices
+
+### File Path Requirements
+
+<file_paths type="critical">
+**CRITICAL:** Always use FULL absolute paths, never relative paths
+```bash
+# Get absolute path
+pwd
+# Example: /Users/username/project/main.go
+```
+</file_paths>
+
+### Model Selection
+
+<model_selection type="guidance">
+- **Complex analysis:** Use "o3", "gemini-2.5-pro", "gpt5"
+- **Fast tasks:** Use "flash", "mini", "nano"
+- **Creative tasks:** Use "gemini-2.5-flash", "gpt-4.1"
+- **Check availability:** Use `mcp_zen_listmodels` first
+</model_selection>
+
+### Multi-Step Workflow
+
+<multi_step_workflow type="pattern">
+1. Start with `total_steps` estimate (can adjust later)
+2. Set `next_step_required: true` for intermediate steps
+3. Use `continuation_id` from response for follow-up steps
+4. End with `next_step_required: false` when complete
+</multi_step_workflow>
+
+### Error Recovery
+
+<error_recovery type="handling">
+- **Missing files:** Provide requested files and continue with `continuation_id`
+- **Validation errors:** Fix parameters and retry
+- **Model unavailable:** Choose different model from `mcp_zen_listmodels`
+- **Incomplete analysis:** Continue with additional steps using `continuation_id`
+</error_recovery>
+
+## Integration with Development Workflow
+
+### Pre-Commit Validation
+
+<pre_commit_integration type="workflow">
+Use `mcp_zen_precommit` before committing:
+```json
+{
+  "path": "/absolute/path/to/git/repo",
+  "focus_on": "security",
+  "severity_filter": "high",
+  "model": "o3"
+}
+```
+</pre_commit_integration>
+
+### Code Review Process
+
+<code_review_integration type="workflow">
+1. Use `mcp_zen_codereview` for systematic review
+2. Follow up with `mcp_zen_refactor` for improvement suggestions
+3. Use `mcp_zen_testgen` for test coverage analysis
+</code_review_integration>
+
+### Debugging Workflow
+
+<debugging_integration type="workflow">
+1. Start with `mcp_zen_debug` for root cause analysis
+2. Use `mcp_zen_tracer` for execution flow understanding
+3. Apply `mcp_zen_analyze` for architectural insights
+</debugging_integration>
+
+## Available Models Summary
+
+<models_summary type="reference">
+Use `mcp_zen_listmodels` to get current availability. Common models include:
+
+**OpenAI:** gpt5, gpt5-mini, gpt5-nano, o3, o3-mini, o3-pro, o4-mini, gpt-4.1
+**Google:** gemini-2.5-pro, gemini-2.0-flash, gemini-2.0-flash-lite, gemini-2.5-flash
+**Anthropic (OpenRouter):** claude-opus-4.1, claude-sonnet-4.1, claude-3.5-haiku
+**Others:** deepseek-r1, mistral-large, llama-3-sonar
+</models_summary>
+
+## Critical Validation
+
+<validation_checklist type="mandatory">
+- ✅ `model` parameter always provided
+- ✅ File paths are FULL absolute paths (when required)
+- ✅ Multi-step parameters complete for complex tools
+- ✅ `continuation_id` used for follow-up steps
+- ✅ Model availability verified with `mcp_zen_listmodels`
+- ✅ Error responses handled appropriately
+- ✅ Required fields provided for each tool type
+</validation_checklist></contents>
+</xai:function_call">### Key Requirements for Zen MCP Tools
+
+Based on my testing, here are the critical requirements for using Zen MCP tools effectively:
+
+#### **1. Always Required Parameter**
+- **`model`**: Must specify an AI model (e.g., "gpt5", "flash", "o3", "gemini-2.5-pro")
+- Use `mcp_zen_listmodels` to check available models first
+
+#### **2. File Path Requirements (Critical)**
+- **FULL absolute paths only** - never relative paths
+- Tools fail with: `"All file paths must be FULL absolute paths. Invalid path: 'main.go'"`
+- Example: `["/Users/username/project/main.go"]`
+
+#### **3. Tool-Specific Requirements**
+
+**File-based tools** (`codereview`, `analyze`, `debug`, etc.):
+- `relevant_files`: Array of absolute paths
+- `files_checked`: Array for tracking examined files
+
+**Multi-step tools** (`debug`, `analyze`, `codereview`, `precommit`, etc.):
+- `step`: Current step description
+- `step_number`: Current step (starts at 1)
+- `total_steps`: Total estimated steps
+- `next_step_required`: Boolean for continuation
+- `findings`: Current discoveries
+
+**Git-based tools** (`precommit`):
+- `path`: Absolute path to git repository
+
+#### **4. Continuation Pattern**
+Many tools return `continuation_id` for follow-up interactions:
+```json
+{
+  "continuation_id": "abc-123-def-456",
+  "next_step_required": true
+}
+```
+
+#### **5. Validation Errors**
+Tools provide clear error messages when requirements aren't met:
+- Missing `relevant_files`: `"Step 1 requires 'relevant_files' field"`
+- Invalid paths: `"All file paths must be FULL absolute paths"`
+- Missing `path`: `"Step 1 requires 'path' field to specify git repository location"`
+
+#### **6. Status Responses**
+- `"calling_expert_analysis"`: Success with expert validation
+- `"files_required_to_continue"`: Need additional files
+- `"local_work_complete"`: Local analysis done
+- `"<tool>_failed"`: Tool-specific validation failure
+
+The rule file I created documents all these requirements with examples and best practices for reliable Zen MCP tool usage.

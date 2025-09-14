@@ -10,6 +10,7 @@ import (
 	llmadapter "github.com/compozy/compozy/engine/llm/adapter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 // testAsyncHook provides synchronization for async operations in tests
@@ -321,5 +322,74 @@ func TestOrchestrator_ExecuteWithMemory(t *testing.T) {
 		mockPromptBuilder.AssertExpectations(t)
 		mockFactory.AssertExpectations(t)
 		mockClient.AssertExpectations(t)
+	})
+}
+
+func TestOrchestrator_BuildMessages_WithImageURLInput(t *testing.T) {
+	t.Run("Should attach image URL parts to user message", func(t *testing.T) {
+		ctx := context.Background()
+
+		mockRegistry := &MockToolRegistry{}
+		mockPromptBuilder := &MockPromptBuilder{}
+		mockFactory := &MockLLMFactory{}
+		mockClient := &MockLLMClient{}
+
+		orchestrator := NewOrchestrator(&OrchestratorConfig{
+			ToolRegistry:  mockRegistry,
+			PromptBuilder: mockPromptBuilder,
+			LLMFactory:    mockFactory,
+		})
+
+		// Registry list is invoked to advertise tools; return empty list
+		mockRegistry.On("ListAll", mock.Anything).Return([]Tool{}, nil)
+
+		// Prepare basic request; parts are provided via request
+		agentCfg := &agent.Config{
+			ID:           "vision-agent",
+			Instructions: "You are a vision assistant",
+			Config:       core.ProviderConfig{Provider: "openai", Model: "gpt-4o-mini"},
+			CWD:          &core.PathCWD{Path: "."},
+		}
+		actionCfg := &agent.ActionConfig{ID: "recognize", Prompt: "Identify the Pokémon"}
+
+		req := Request{
+			Agent:  agentCfg,
+			Action: actionCfg,
+			AttachmentParts: []llmadapter.ContentPart{
+				llmadapter.ImageURLPart{URL: "https://example.com/pikachu.png", Detail: "high"},
+			},
+		}
+
+		mockPromptBuilder.On("Build", ctx, actionCfg).Return("Identify the Pokémon", nil)
+		mockPromptBuilder.On("ShouldUseStructuredOutput", "openai", actionCfg, agentCfg.Tools).Return(false)
+		mockFactory.On("CreateClient", mock.Anything, &agentCfg.Config).Return(mockClient, nil)
+
+		mockClient.On("GenerateContent", ctx, mock.MatchedBy(func(r *llmadapter.LLMRequest) bool {
+			if len(r.Messages) != 1 {
+				return false
+			}
+			m := r.Messages[0]
+			if m.Role != "user" {
+				return false
+			}
+			var hasImage bool
+			for _, p := range m.Parts {
+				if _, ok := p.(llmadapter.ImageURLPart); ok {
+					hasImage = true
+				}
+			}
+			return hasImage && m.Content == "Identify the Pokémon"
+		})).Return(&llmadapter.LLMResponse{Content: "Pikachu"}, nil)
+		mockClient.On("Close").Return(nil)
+
+		out, err := orchestrator.Execute(ctx, req)
+		require.NoError(t, err)
+		require.NotNil(t, out)
+
+		// Verify expectations
+		mockPromptBuilder.AssertExpectations(t)
+		mockFactory.AssertExpectations(t)
+		mockClient.AssertExpectations(t)
+		mockRegistry.AssertExpectations(t)
 	})
 }

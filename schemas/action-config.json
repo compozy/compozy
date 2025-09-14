@@ -1,5 +1,10 @@
 {
   "$defs": {
+    "Attachments": {
+      "description": "Attachments is a slice of polymorphic Attachment values with custom decoding.",
+      "items": true,
+      "type": "array"
+    },
     "Input": {
       "type": "object"
     },
@@ -22,6 +27,10 @@
   "additionalProperties": false,
   "description": "ActionConfig defines a structured action that an agent can perform.",
   "properties": {
+    "attachments": {
+      "$ref": "#/$defs/Attachments",
+      "description": "Attachments at action scope"
+    },
     "id": {
       "description": "Unique identifier for the action within the agent's scope.\nUsed to invoke specific actions programmatically.\n\n- **Examples:** `\"analyze-code\"`, `\"generate-summary\"`, `\"validate-data\"`",
       "type": "string"
