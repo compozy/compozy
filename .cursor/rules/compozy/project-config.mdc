@@ -1,8 +1,4 @@
 ---
-description: "Project configuration patterns and examples for compozy.yaml files"
-globs:
-  - "**/compozy.yaml"
-  - "**/*.compozy.yaml"
 alwaysApply: false
 ---
 

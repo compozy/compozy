@@ -1,10 +1,7 @@
 ---
-description: "Task type patterns and execution strategies for Compozy workflows"
-globs:
-  - "**/workflow.yaml"
-  - "**/workflows/*.yaml"
 alwaysApply: false
 ---
+
 # Compozy Task Patterns
 
 <configuration_overview type="task_patterns">

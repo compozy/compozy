@@ -1,7 +1,6 @@
 ---
-description: Required libraries and project utilities for Compozy development
 globs: **/*.go
-alwaysApply: true
+alwaysApply: false
 ---
 
 # Core Libraries & Project Utilities
