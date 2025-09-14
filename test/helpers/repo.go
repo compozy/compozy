@@ -4,10 +4,12 @@ import (
 	"context"
 	"testing"
 
-	"github.com/compozy/compozy/engine/infra/store"
+	"github.com/compozy/compozy/engine/infra/postgres"
+	"github.com/compozy/compozy/engine/task"
+	"github.com/compozy/compozy/engine/workflow"
 )
 
-func SetupTestRepos(ctx context.Context, t *testing.T) (*store.TaskRepo, *store.WorkflowRepo, func()) {
+func SetupTestRepos(ctx context.Context, t *testing.T) (task.Repository, workflow.Repository, func()) {
 	// Use retry logic for testcontainer setup
 	pool, cleanup, err := SetupTestReposWithRetry(ctx, t)
 	if err != nil {
@@ -21,7 +23,7 @@ func SetupTestRepos(ctx context.Context, t *testing.T) (*store.TaskRepo, *store.
 	}
 
 	// Create real repository instances
-	taskRepo := store.NewTaskRepo(pool)
-	workflowRepo := store.NewWorkflowRepo(pool)
+	taskRepo := postgres.NewTaskRepo(pool)
+	workflowRepo := postgres.NewWorkflowRepo(pool)
 	return taskRepo, workflowRepo, cleanup
 }

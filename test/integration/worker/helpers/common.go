@@ -11,7 +11,6 @@ import (
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/memory"
 	"github.com/compozy/compozy/engine/project"
 	coreruntime "github.com/compozy/compozy/engine/runtime"
@@ -367,8 +366,8 @@ func CreateParallelAgentConfig() *agent.Config {
 // repos, runtime, and config store.
 func CreateTestActivities(
 	_ *testing.T,
-	taskRepo *store.TaskRepo,
-	workflowRepo *store.WorkflowRepo,
+	taskRepo task.Repository,
+	workflowRepo workflow.Repository,
 	fixture *TestFixture,
 	runtime coreruntime.Runtime,
 	configStore *services.TestConfigStore,

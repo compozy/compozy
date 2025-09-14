@@ -231,7 +231,14 @@ func (uc *CreateChildTasks) createChildStatesInTransaction(
 	}
 
 	// Create all child states atomically in a single transaction
-	err := uc.taskRepo.CreateChildStatesInTransaction(ctx, parentState.TaskExecID, childStates)
+	err := uc.taskRepo.WithTransaction(ctx, func(r task.Repository) error {
+		for i := range childStates {
+			if err := r.UpsertState(ctx, childStates[i]); err != nil {
+				return fmt.Errorf("failed to create child state %s: %w", childStates[i].TaskID, err)
+			}
+		}
+		return nil
+	})
 	if err != nil {
 		return err
 	}

@@ -5,7 +5,8 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/engine/infra/store"
+	"github.com/compozy/compozy/engine/infra/postgres"
+	store "github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/workflow"
 	utils "github.com/compozy/compozy/test/helpers"
@@ -18,7 +19,7 @@ func TestWorkflowRepo_UpsertState(t *testing.T) {
 	t.Run("Should insert or update workflow state successfully", func(t *testing.T) {
 		mockSetup := utils.NewMockSetup(t)
 		defer mockSetup.Close()
-		repo := store.NewWorkflowRepo(mockSetup.Mock)
+		repo := postgres.NewWorkflowRepo(mockSetup.Mock)
 		ctx := context.Background()
 		state := &workflow.State{
 			WorkflowID:     "wf1",
@@ -48,7 +49,7 @@ func TestWorkflowRepo_GetState(t *testing.T) {
 	t.Run("Should get workflow state without tasks", func(t *testing.T) {
 		mockSetup := utils.NewMockSetup(t)
 		defer mockSetup.Close()
-		repo := store.NewWorkflowRepo(mockSetup.Mock)
+		repo := postgres.NewWorkflowRepo(mockSetup.Mock)
 		ctx := context.Background()
 		workflowExecID := core.ID("exec1")
 		dataBuilder := utils.NewDataBuilder()
@@ -84,7 +85,7 @@ func TestWorkflowRepo_GetState_WithTasks(t *testing.T) {
 	mockSetup := utils.NewMockSetup(t)
 	defer mockSetup.Close()
 
-	repo := store.NewWorkflowRepo(mockSetup.Mock)
+	repo := postgres.NewWorkflowRepo(mockSetup.Mock)
 	ctx := context.Background()
 	workflowExecID := core.ID("exec1")
 
@@ -136,7 +137,7 @@ func TestWorkflowRepo_GetState_NotFound(t *testing.T) {
 	mockSetup := utils.NewMockSetup(t)
 	defer mockSetup.Close()
 
-	repo := store.NewWorkflowRepo(mockSetup.Mock)
+	repo := postgres.NewWorkflowRepo(mockSetup.Mock)
 	ctx := context.Background()
 	workflowExecID := core.ID("exec1")
 
@@ -158,12 +159,12 @@ func TestWorkflowRepo_GetState_NotFound(t *testing.T) {
 func testSimpleWorkflowGet(
 	t *testing.T,
 	testName string,
-	setupAndRun func(*utils.MockSetup, *store.WorkflowRepo, context.Context),
+	setupAndRun func(*utils.MockSetup, workflow.Repository, context.Context),
 ) {
 	mockSetup := utils.NewMockSetup(t)
 	defer mockSetup.Close()
 
-	repo := store.NewWorkflowRepo(mockSetup.Mock)
+	repo := postgres.NewWorkflowRepo(mockSetup.Mock)
 	ctx := context.Background()
 
 	t.Run(testName, func(_ *testing.T) {
@@ -176,7 +177,7 @@ func TestWorkflowRepo_GetStateByID(t *testing.T) {
 	testSimpleWorkflowGet(
 		t,
 		"should get state by ID",
-		func(mockSetup *utils.MockSetup, repo *store.WorkflowRepo, ctx context.Context) {
+		func(mockSetup *utils.MockSetup, repo workflow.Repository, ctx context.Context) {
 			workflowID := "wf1"
 
 			tx := mockSetup.NewTransactionExpectations()
@@ -211,7 +212,7 @@ func TestWorkflowRepo_GetStateByTaskID(t *testing.T) {
 	testSimpleWorkflowGet(
 		t,
 		"should get state by task ID",
-		func(mockSetup *utils.MockSetup, repo *store.WorkflowRepo, ctx context.Context) {
+		func(mockSetup *utils.MockSetup, repo workflow.Repository, ctx context.Context) {
 			workflowID := "wf1"
 			taskID := "task1"
 
@@ -246,7 +247,7 @@ func TestWorkflowRepo_GetStateByAgentID(t *testing.T) {
 	testSimpleWorkflowGet(
 		t,
 		"should get state by agent ID",
-		func(mockSetup *utils.MockSetup, repo *store.WorkflowRepo, ctx context.Context) {
+		func(mockSetup *utils.MockSetup, repo workflow.Repository, ctx context.Context) {
 			workflowID := "wf1"
 			agentID := "agent1"
 
@@ -281,7 +282,7 @@ func TestWorkflowRepo_GetStateByToolID(t *testing.T) {
 	testSimpleWorkflowGet(
 		t,
 		"should get state by tool ID",
-		func(mockSetup *utils.MockSetup, repo *store.WorkflowRepo, ctx context.Context) {
+		func(mockSetup *utils.MockSetup, repo workflow.Repository, ctx context.Context) {
 			workflowID := "wf1"
 			toolID := "tool1"
 
@@ -316,7 +317,7 @@ func TestWorkflowRepo_UpdateStatus(t *testing.T) {
 	t.Run("Should update workflow status successfully", func(t *testing.T) {
 		mockSetup := utils.NewMockSetup(t)
 		defer mockSetup.Close()
-		repo := store.NewWorkflowRepo(mockSetup.Mock)
+		repo := postgres.NewWorkflowRepo(mockSetup.Mock)
 		ctx := context.Background()
 		workflowExecID := "exec1"
 		newStatus := core.StatusRunning
@@ -333,7 +334,7 @@ func TestWorkflowRepo_UpdateStatus_NotFound(t *testing.T) {
 	t.Run("Should return not found error when workflow does not exist", func(t *testing.T) {
 		mockSetup := utils.NewMockSetup(t)
 		defer mockSetup.Close()
-		repo := store.NewWorkflowRepo(mockSetup.Mock)
+		repo := postgres.NewWorkflowRepo(mockSetup.Mock)
 		ctx := context.Background()
 		workflowExecID := "nonexistent"
 		newStatus := core.StatusRunning

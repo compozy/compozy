@@ -14,13 +14,14 @@ import (
 	"github.com/compozy/compozy/engine/autoload"
 	"github.com/compozy/compozy/engine/infra/cache"
 	"github.com/compozy/compozy/engine/infra/monitoring"
+	"github.com/compozy/compozy/engine/infra/postgres"
+	"github.com/compozy/compozy/engine/infra/repo"
 	"github.com/compozy/compozy/engine/infra/server/appstate"
 	csvc "github.com/compozy/compozy/engine/infra/server/config"
 	authmw "github.com/compozy/compozy/engine/infra/server/middleware/auth"
 	"github.com/compozy/compozy/engine/infra/server/middleware/ratelimit"
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/server/routes"
-	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/worker"
@@ -128,7 +129,7 @@ func (s *Server) setupRedisClient(cfg *config.Config) (*redis.Client, func(), er
 	log := logger.FromContext(s.ctx)
 
 	// If no Redis host is configured, return nil (will use in-memory store)
-	if cfg.Redis.Host == "" || cfg.Redis.Host == "localhost" && cfg.Redis.Port == "6379" && cfg.Redis.URL == "" {
+	if !isRedisConfigured(cfg) {
 		log.Debug("Redis not configured, rate limiting will use in-memory store")
 		return nil, func() {}, nil
 	}
@@ -322,20 +323,58 @@ func (s *Server) setupMonitoring(projectConfig *project.Config) func() {
 }
 
 // setupStore initializes database store and returns store instance and cleanup function
-func (s *Server) setupStore() (*store.Store, func(), error) {
+func (s *Server) setupStore() (*repo.Provider, func(), error) {
 	log := logger.FromContext(s.ctx)
 	storeStart := time.Now()
-	storeInstance, err := store.SetupStoreWithConfig(s.ctx)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to setup store with unified config: %w", err)
+	cfg := config.FromContext(s.ctx)
+	if cfg == nil {
+		return nil, nil, fmt.Errorf(
+			"configuration missing from context; attach a manager with config.ContextWithManager",
+		)
 	}
-	log.Info("Database store initialized with unified config", "duration", time.Since(storeStart))
+	// Build driver config
+	pgCfg := &postgres.Config{
+		ConnString: cfg.Database.ConnString,
+		Host:       cfg.Database.Host,
+		Port:       cfg.Database.Port,
+		User:       cfg.Database.User,
+		Password:   cfg.Database.Password,
+		DBName:     cfg.Database.DBName,
+		SSLMode:    cfg.Database.SSLMode,
+	}
+	// Apply migrations if enabled (guarded by advisory lock)
+	if cfg.Database.AutoMigrate {
+		if err := postgres.ApplyMigrationsWithLock(s.ctx, postgres.DSNFor(pgCfg)); err != nil {
+			return nil, nil, fmt.Errorf("failed to apply migrations: %w", err)
+		}
+	}
+	// Initialize store
+	drv, err := postgres.NewStore(s.ctx, pgCfg)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to initialize postgres store: %w", err)
+	}
+	provider := repo.NewProvider(drv.Pool())
+	cacheDriver := "in-memory"
+	if isRedisConfigured(cfg) {
+		cacheDriver = "redis"
+	}
+	log.Info(
+		"Database store initialized",
+		"store_driver",
+		"postgres",
+		"mode",
+		cfg.Mode,
+		"cache_driver",
+		cacheDriver,
+		"duration",
+		time.Since(storeStart),
+	)
 	cleanup := func() {
 		ctx, cancel := context.WithTimeout(s.ctx, dbShutdownTimeout)
 		defer cancel()
-		storeInstance.DB.Close(ctx)
+		_ = drv.Close(ctx)
 	}
-	return storeInstance, cleanup, nil
+	return provider, cleanup, nil
 }
 
 func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
@@ -471,6 +510,28 @@ func (s *Server) startServer(srv *http.Server) {
 		// Trigger graceful shutdown instead of exiting abruptly
 		s.Shutdown()
 	}
+}
+
+// isRedisConfigured centralizes the logic to determine if Redis should be used.
+// Rules:
+// - If a full URL is provided, it's configured.
+// - If host is empty, it's not configured.
+// - If host is localhost with default port and URL empty, treat as not configured.
+// - Otherwise, configured.
+func isRedisConfigured(cfg *config.Config) bool {
+	if cfg == nil {
+		return false
+	}
+	if cfg.Redis.URL != "" {
+		return true
+	}
+	if cfg.Redis.Host == "" {
+		return false
+	}
+	if cfg.Redis.Host == "localhost" && cfg.Redis.Port == "6379" && cfg.Redis.URL == "" {
+		return false
+	}
+	return true
 }
 
 func (s *Server) handleGracefulShutdown(srv *http.Server, cleanupFuncs []func()) error {

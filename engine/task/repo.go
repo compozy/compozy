@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/engine/core"
-	"github.com/jackc/pgx/v5"
 )
 
 // StateFilter updated to include execution type filtering
@@ -29,10 +28,16 @@ type Repository interface {
 	UpsertState(ctx context.Context, state *State) error
 	GetState(ctx context.Context, taskExecID core.ID) (*State, error)
 
-	// Transaction operations
-	WithTx(ctx context.Context, fn func(pgx.Tx) error) error
-	GetStateForUpdate(ctx context.Context, tx pgx.Tx, taskExecID core.ID) (*State, error)
-	UpsertStateWithTx(ctx context.Context, tx pgx.Tx, state *State) error
+	// Transactional-closure API (driver-neutral)
+	// Executes fn within a single transaction, providing a repository bound
+	// to that transaction context. Implementations must ensure all calls on
+	// the provided repo participate in the same transaction.
+	WithTransaction(ctx context.Context, fn func(Repository) error) error
+
+	// Row-level lock retrieval. Must be called only from within
+	// WithTransaction; outside a transaction, implementations should return
+	// a descriptive error.
+	GetStateForUpdate(ctx context.Context, taskExecID core.ID) (*State, error)
 
 	// Workflow-level operations
 	ListTasksInWorkflow(ctx context.Context, workflowExecID core.ID) (map[string]*State, error)
@@ -43,7 +48,6 @@ type Repository interface {
 	// Parent-child relationship operations
 	ListChildren(ctx context.Context, parentStateID core.ID) ([]*State, error)
 	GetChildByTaskID(ctx context.Context, parentStateID core.ID, taskID string) (*State, error)
-	CreateChildStatesInTransaction(ctx context.Context, parentStateID core.ID, childStates []*State) error
 	GetTaskTree(ctx context.Context, rootStateID core.ID) ([]*State, error)
 	ListChildrenOutputs(ctx context.Context, parentStateID core.ID) (map[string]*core.Output, error)
 

@@ -7,7 +7,6 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
-	"github.com/jackc/pgx/v5"
 )
 
 // ParentStatusUpdater handles updating parent task status based on child task progress
@@ -114,18 +113,18 @@ func (s *ParentStatusUpdater) UpdateParentStatus(
 	input *UpdateParentStatusInput,
 ) (*task.State, error) {
 	var result *task.State
-	err := s.taskRepo.WithTx(ctx, func(tx pgx.Tx) error {
+	err := s.taskRepo.WithTransaction(ctx, func(repo task.Repository) error {
 		var txErr error
-		result, txErr = s.UpdateParentStatusWithTx(ctx, tx, input)
+		result, txErr = s.updateParentStatusInTx(ctx, repo, input)
 		return txErr
 	})
 	return result, err
 }
 
-// UpdateParentStatusWithTx updates a parent task's status within a transaction with proper locking
-func (s *ParentStatusUpdater) UpdateParentStatusWithTx(
+// updateParentStatusInTx updates a parent task's status within a transaction with proper locking
+func (s *ParentStatusUpdater) updateParentStatusInTx(
 	ctx context.Context,
-	tx pgx.Tx,
+	repo task.Repository,
 	input *UpdateParentStatusInput,
 ) (*task.State, error) {
 	if err := s.validateRecursionSafety(input); err != nil {
@@ -134,13 +133,13 @@ func (s *ParentStatusUpdater) UpdateParentStatusWithTx(
 	defer delete(input.visited, input.ParentStateID) // Clean up on exit
 
 	// Get current parent state with row-level lock to prevent concurrent updates
-	parentState, err := s.taskRepo.GetStateForUpdate(ctx, tx, input.ParentStateID)
+	parentState, err := repo.GetStateForUpdate(ctx, input.ParentStateID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get parent state %s with lock: %w", input.ParentStateID, err)
 	}
 
 	// Get progress information from child tasks
-	progressInfo, err := s.taskRepo.GetProgressInfo(ctx, input.ParentStateID)
+	progressInfo, err := repo.GetProgressInfo(ctx, input.ParentStateID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get progress info for parent %s: %w", input.ParentStateID, err)
 	}
@@ -158,11 +157,11 @@ func (s *ParentStatusUpdater) UpdateParentStatusWithTx(
 	// Track if we need to update the database
 	statusChanged := s.updateParentStateStatus(parentState, newStatus, progressInfo, input)
 	// Update parent state in database (always update to refresh progress metadata)
-	if err := s.taskRepo.UpsertStateWithTx(ctx, tx, parentState); err != nil {
+	if err := repo.UpsertState(ctx, parentState); err != nil {
 		return nil, fmt.Errorf("failed to update parent state %s: %w", input.ParentStateID, err)
 	}
 	// Handle recursive updates within the same transaction
-	if err := s.handleRecursiveUpdateWithTx(ctx, tx, input, parentState, statusChanged); err != nil {
+	if err := s.handleRecursiveUpdateInTx(ctx, repo, input, parentState, statusChanged); err != nil {
 		return nil, err
 	}
 	return parentState, nil
@@ -196,9 +195,9 @@ func (s *ParentStatusUpdater) updateParentStateStatus(
 }
 
 // handleRecursiveUpdateWithTx handles recursive parent status updates within a transaction
-func (s *ParentStatusUpdater) handleRecursiveUpdateWithTx(
+func (s *ParentStatusUpdater) handleRecursiveUpdateInTx(
 	ctx context.Context,
-	tx pgx.Tx,
+	repo task.Repository,
 	input *UpdateParentStatusInput,
 	parentState *task.State,
 	statusChanged bool,
@@ -206,7 +205,7 @@ func (s *ParentStatusUpdater) handleRecursiveUpdateWithTx(
 	if !input.Recursive || !statusChanged || parentState.ParentStateID == nil {
 		return nil
 	}
-	_, err := s.UpdateParentStatusWithTx(ctx, tx, &UpdateParentStatusInput{
+	_, err := s.updateParentStatusInTx(ctx, repo, &UpdateParentStatusInput{
 		ParentStateID: *parentState.ParentStateID,
 		Strategy:      input.Strategy,
 		Recursive:     true,

@@ -1,4 +1,4 @@
-package store
+package postgres
 
 import (
 	"encoding/json"
@@ -11,13 +11,10 @@ func ToJSONB(v any) ([]byte, error) {
 	if v == nil {
 		return nil, nil
 	}
-
-	// Handle typed nil pointers (e.g., (*core.Output)(nil))
 	rv := reflect.ValueOf(v)
 	if rv.Kind() == reflect.Ptr && rv.IsNil() {
 		return nil, nil
 	}
-
 	data, err := json.Marshal(v)
 	if err != nil {
 		return nil, fmt.Errorf("marshaling to jsonb: %w", err)

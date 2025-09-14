@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/engine/infra/store"
+	"github.com/compozy/compozy/engine/infra/repo"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/worker"
 	"github.com/compozy/compozy/engine/workflow"
@@ -30,7 +30,7 @@ const (
 )
 
 type BaseDeps struct {
-	Store         *store.Store
+	Store         *repo.Provider
 	ProjectConfig *project.Config
 	Workflows     []*workflow.Config
 	ClientConfig  *worker.TemporalConfig
@@ -39,7 +39,7 @@ type BaseDeps struct {
 func NewBaseDeps(
 	projectConfig *project.Config,
 	workflows []*workflow.Config,
-	store *store.Store,
+	store *repo.Provider,
 	clientConfig *worker.TemporalConfig,
 ) BaseDeps {
 	return BaseDeps{

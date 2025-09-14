@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -42,26 +41,20 @@ func (m *mockTaskRepository) GetState(ctx context.Context, taskExecID core.ID) (
 }
 
 // Transaction operations
-func (m *mockTaskRepository) WithTx(ctx context.Context, fn func(pgx.Tx) error) error {
+func (m *mockTaskRepository) WithTransaction(ctx context.Context, fn func(task.Repository) error) error {
 	args := m.Called(ctx, fn)
 	return args.Error(0)
 }
 
 func (m *mockTaskRepository) GetStateForUpdate(
 	ctx context.Context,
-	tx pgx.Tx,
 	taskExecID core.ID,
 ) (*task.State, error) {
-	args := m.Called(ctx, tx, taskExecID)
+	args := m.Called(ctx, taskExecID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*task.State), args.Error(1)
-}
-
-func (m *mockTaskRepository) UpsertStateWithTx(ctx context.Context, tx pgx.Tx, state *task.State) error {
-	args := m.Called(ctx, tx, state)
-	return args.Error(0)
 }
 
 // Workflow-level operations
@@ -131,15 +124,6 @@ func (m *mockTaskRepository) GetChildByTaskID(
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*task.State), args.Error(1)
-}
-
-func (m *mockTaskRepository) CreateChildStatesInTransaction(
-	ctx context.Context,
-	parentStateID core.ID,
-	childStates []*task.State,
-) error {
-	args := m.Called(ctx, parentStateID, childStates)
-	return args.Error(0)
 }
 
 func (m *mockTaskRepository) GetTaskTree(ctx context.Context, rootStateID core.ID) ([]*task.State, error) {

@@ -212,23 +212,26 @@ if err != nil {
 
 ### Transactions
 
-Use transactions for operations that require consistency:
+Use the driver-neutral transactional closure on the repository for consistency:
 
 ```go
-err = taskRepo.WithTx(ctx, func(tx pgx.Tx) error {
-    // Get task with lock
-    taskState, err := taskRepo.GetStateForUpdate(ctx, tx, taskExecID)
+err := taskRepo.WithTransaction(ctx, func(r task.Repository) error {
+    // Get task with row-level lock inside the same transaction
+    taskState, err := r.GetStateForUpdate(ctx, taskExecID)
     if err != nil {
         return err
     }
 
-    // Update task status
+    // Update task
     taskState.Status = core.StatusCompleted
     taskState.Output = &core.Output{"result": "success"}
 
-    // Save within transaction
-    return taskRepo.UpsertStateWithTx(ctx, tx, taskState)
+    // Persist within the transaction
+    return r.UpsertState(ctx, taskState)
 })
+if err != nil {
+    // handle error
+}
 ```
 
 ---
@@ -384,7 +387,15 @@ func ExampleTransactionUsage() {
         },
     }
 
-    err := taskRepo.CreateChildStatesInTransaction(ctx, parentTaskID, childStates)
+    // Create multiple child states atomically using the transactional closure
+    err := taskRepo.WithTransaction(ctx, func(r task.Repository) error {
+        for _, cs := range childStates {
+            if err := r.UpsertState(ctx, cs); err != nil {
+                return err
+            }
+        }
+        return nil
+    })
     if err != nil {
         log.Fatal(err)
     }
@@ -441,8 +452,6 @@ type DB struct {
 func NewDB(ctx context.Context, cfg *Config) (*DB, error)
 func (db *DB) Close(ctx context.Context) error
 func (db *DB) Pool() *pgxpool.Pool
-func (db *DB) WithTx(ctx context.Context, fn func(pgx.Tx) error) error
-
 // DBInterface methods
 func (db *DB) Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
 func (db *DB) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
@@ -462,7 +471,8 @@ func NewTaskRepo(db DBInterface) *TaskRepo
 // Core operations
 func (r *TaskRepo) UpsertState(ctx context.Context, state *task.State) error
 func (r *TaskRepo) GetState(ctx context.Context, taskExecID core.ID) (*task.State, error)
-func (r *TaskRepo) GetStateForUpdate(ctx context.Context, tx pgx.Tx, taskExecID core.ID) (*task.State, error)
+// Use repository closure for locked reads:
+// r.WithTransaction(ctx, func(rr task.Repository) { rr.GetStateForUpdate(ctx, id) ... })
 func (r *TaskRepo) ListStates(ctx context.Context, filter *task.StateFilter) ([]*task.State, error)
 
 // Workflow-specific queries
@@ -478,10 +488,9 @@ func (r *TaskRepo) GetChildByTaskID(ctx context.Context, parentStateID core.ID, 
 func (r *TaskRepo) GetTaskTree(ctx context.Context, rootStateID core.ID) ([]*task.State, error)
 func (r *TaskRepo) GetProgressInfo(ctx context.Context, parentStateID core.ID) (*task.ProgressInfo, error)
 
-// Transaction operations
-func (r *TaskRepo) WithTx(ctx context.Context, fn func(pgx.Tx) error) error
-func (r *TaskRepo) CreateChildStatesInTransaction(ctx context.Context, parentStateID core.ID, childStates []*task.State) error
-func (r *TaskRepo) UpsertStateWithTx(ctx context.Context, tx pgx.Tx, state *task.State) error
+// Transaction operations (driver-neutral closure)
+// Prefer using the domain interface:
+//   err := repo.WithTransaction(ctx, func(r task.Repository) error { ... })
 ```
 
 ### WorkflowRepo
