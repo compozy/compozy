@@ -43,11 +43,17 @@ func (a *Adapter) Capabilities() ccache.Capabilities {
 
 // --------------- KV ---------------
 func (a *Adapter) Get(_ context.Context, key string) (string, error) {
-    vals, err := a.db.MGet(key)
-    if err != nil { return "", err }
-    if len(vals) == 0 { return "", ccache.ErrNotFound }
-    if vals[0] == "" || vals[0] == "nil" || vals[0] == "(nil)" || vals[0] == "<nil>" { return "", ccache.ErrNotFound }
-    return vals[0], nil
+	vals, err := a.db.MGet(key)
+	if err != nil {
+		return "", err
+	}
+	if len(vals) == 0 {
+		return "", ccache.ErrNotFound
+	}
+	if vals[0] == "" || vals[0] == "nil" || vals[0] == "(nil)" || vals[0] == "<nil>" {
+		return "", ccache.ErrNotFound
+	}
+	return vals[0], nil
 }
 
 func (a *Adapter) Set(_ context.Context, key string, value any, ttl time.Duration) error {

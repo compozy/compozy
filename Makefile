@@ -216,6 +216,12 @@ test-nocache:
 	@bun run test
 	@gotestsum --format pkgname -- -race -count=1 -parallel=4 ./...
 
+# Run Redis-dependent tests marked with the 'distributed' build tag
+.PHONY: test-distributed
+test-distributed:
+	@echo "Running distributed (Redis) test lane..."
+	@gotestsum --format pkgname -- -race -parallel=4 -tags=distributed ./...
+
 # -----------------------------------------------------------------------------
 # Docker & Database Management
 # -----------------------------------------------------------------------------
@@ -301,9 +307,10 @@ help:
 	@echo ""
 	@echo "$(YELLOW)Development:$(NC)"
 	@echo "  make dev            - Run in development mode with hot reload"
-	@echo "  make test           - Run all tests"
-	@echo "  make lint           - Run linters and fix issues"
-	@echo "  make fmt            - Format code"
+		@echo "  make test           - Run all tests"
+		@echo "  make test-distributed - Run Redis-only tests (build tag: distributed)"
+		@echo "  make lint           - Run linters and fix issues"
+		@echo "  make fmt            - Format code"
 	@echo ""
 	@echo "$(YELLOW)Docker & Database:$(NC)"
 	@echo "  make start-docker   - Start Docker services"

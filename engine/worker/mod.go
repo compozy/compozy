@@ -166,7 +166,7 @@ func NewWorker(
 		return nil, err
 	}
 	dispatcher := createDispatcher(projectConfig, workerCore.taskQueue, client)
-	activities := NewActivities(
+	activities, err := NewActivities(
 		ctx,
 		projectConfig,
 		workflows,
@@ -179,6 +179,9 @@ func NewWorker(
 		memoryManager,
 		templateEngine,
 	)
+	if err != nil {
+		return nil, err
+	}
 	interceptor.SetConfiguredWorkerCount(1)
 	lifecycleCtx, lifecycleCancel := context.WithCancel(context.WithoutCancel(ctx))
 	log.Debug("Worker initialization completed", "total_duration", time.Since(workerStart))

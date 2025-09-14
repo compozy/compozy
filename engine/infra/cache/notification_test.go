@@ -1,3 +1,5 @@
+//go:build distributed
+
 package cache
 
 import (

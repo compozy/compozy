@@ -363,9 +363,10 @@ func createDatabaseDefaults(defaultConfig *Config) map[string]any {
 // createTemporalDefaults creates temporal configuration defaults
 func createTemporalDefaults(defaultConfig *Config) map[string]any {
 	return map[string]any{
-		"host_port":  defaultConfig.Temporal.HostPort,
-		"namespace":  defaultConfig.Temporal.Namespace,
-		"task_queue": defaultConfig.Temporal.TaskQueue,
+		"host_port":          defaultConfig.Temporal.HostPort,
+		"namespace":          defaultConfig.Temporal.Namespace,
+		"task_queue":         defaultConfig.Temporal.TaskQueue,
+		"dev_server_enabled": defaultConfig.Temporal.DevServerEnabled,
 	}
 }
 

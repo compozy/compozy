@@ -308,6 +308,12 @@ type TemporalConfig struct {
 	//   - Resource isolation
 	// Default: "compozy-tasks"
 	TaskQueue string `koanf:"task_queue" env:"TEMPORAL_TASK_QUEUE" json:"task_queue" yaml:"task_queue" mapstructure:"task_queue"`
+
+	// DevServerEnabled starts an embedded Temporal dev server when in standalone mode.
+	//
+	// Default: false
+	// Use only for local/dev. CI may set this to false to avoid unexpected server spin-up.
+	DevServerEnabled bool `koanf:"dev_server_enabled" env:"TEMPORAL_DEV_SERVER_ENABLED" json:"dev_server_enabled" yaml:"dev_server_enabled" mapstructure:"dev_server_enabled"`
 }
 
 // RuntimeConfig contains runtime behavior configuration.

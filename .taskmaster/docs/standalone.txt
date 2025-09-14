@@ -805,7 +805,6 @@ Refer to component-level impact in the checklist and risks sections:
 - Architecture principles: @.cursor/rules/architecture.mdc
 - Go coding standards and error handling: @.cursor/rules/go-coding-standards.mdc
 - Testing requirements: @.cursor/rules/test-standards.mdc
-- Security & quality: @.cursor/rules/quality-security.mdc
 - Backwards compatibility policy (development phase): @.cursor/rules/backwards-compatibility.mdc
 
 

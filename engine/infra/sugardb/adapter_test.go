@@ -29,7 +29,7 @@ func TestSugarAdapter_KV(t *testing.T) {
 		v, err := a.Get(ctx, "a")
 		require.NoError(t, err)
 		assert.Equal(t, "1", v)
-        // SugarDB Get returns a sentinel value for missing; treat via MGet below
+		// SugarDB Get returns a sentinel value for missing; treat via MGet below
 		_ = a.Set(ctx, "x", "x", 0)
 		_ = a.Set(ctx, "y", "y", 0)
 		n, err := a.Del(ctx, "x", "y")
@@ -38,7 +38,7 @@ func TestSugarAdapter_KV(t *testing.T) {
 		vals, err := a.MGet(ctx, "x", "missing", "y")
 		require.NoError(t, err)
 		assert.Equal(t, []string{"", "", ""}, vals)
-        // SugarDB TTL semantics differ; skip strict TTL validation here
+		// SugarDB TTL semantics differ; skip strict TTL validation here
 	})
 }
 

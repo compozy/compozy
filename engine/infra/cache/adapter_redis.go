@@ -205,9 +205,8 @@ type redisKeysIter struct {
 	count   int
 }
 
-func (a *RedisAdapter) Keys(ctx context.Context, pattern string) (KeyIterator, error) {
-	// Context is part of the interface for potential future use (e.g., logging)
-	_ = ctx
+func (a *RedisAdapter) Keys(_ context.Context, pattern string) (KeyIterator, error) {
+	// Iterator uses the provided context in Next() calls for cancellation.
 	return &redisKeysIter{client: a.client, pattern: pattern, cursor: 0, done: false, count: a.scanCount}, nil
 }
 

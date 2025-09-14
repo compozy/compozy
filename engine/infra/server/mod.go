@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"sync"
 	"syscall"
 	"time"
@@ -22,6 +23,7 @@ import (
 	"github.com/compozy/compozy/engine/infra/server/middleware/ratelimit"
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/server/routes"
+	temporal "github.com/compozy/compozy/engine/infra/server/temporal"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/worker"
@@ -32,6 +34,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 	"github.com/sethvargo/go-retry"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 )
 
 // Timeout constants for server operations
@@ -102,6 +106,17 @@ type Server struct {
 	httpServer          *http.Server
 	shutdownChan        chan struct{}
 	reconciliationState *reconciliationStatus
+	// temporal readiness and embedded server (standalone)
+	temporalMu       sync.RWMutex
+	temporalReady    bool
+	workerReady      bool
+	embeddedTemporal interface{ Stop() error }
+
+	// readiness metrics
+	readyGauge            metric.Int64ObservableGauge
+	readyTransitionsTotal metric.Int64Counter
+	readyCallback         metric.Registration
+	lastReady             bool
 }
 
 func NewServer(ctx context.Context, cwd, configFile, envFilePath string) (*Server, error) {
@@ -121,6 +136,7 @@ func NewServer(ctx context.Context, cwd, configFile, envFilePath string) (*Serve
 		cancel:              cancel,
 		shutdownChan:        make(chan struct{}, 1),
 		reconciliationState: &reconciliationStatus{},
+		lastReady:           false,
 	}, nil
 }
 
@@ -149,7 +165,11 @@ func (s *Server) setupRedisClient(cfg *config.Config) (*redis.Client, func(), er
 		"db", cfg.Redis.DB)
 
 	redisClient := redisInstance.Client()
-	// We need *redis.Client for the rate limiting middleware, so we do a type assertion
+	// NOTE(leaky-abstraction): The rate limiter depends on ulule/limiter's Redis store
+	// which accepts a concrete *redis.Client. Our cache layer exposes a generic
+	// redis.UniversalClient. We intentionally assert to *redis.Client here to avoid
+	// over-abstracting the limiter path. If in the future we wrap limiter with our
+	// own store abstraction, this assertion can be removed.
 	client, ok := redisClient.(*redis.Client)
 	if !ok {
 		return nil, nil, fmt.Errorf("redis client is not a *redis.Client type")
@@ -308,6 +328,8 @@ func (s *Server) setupMonitoring(projectConfig *project.Config) func() {
 			"enabled", projectConfig.MonitoringConfig.Enabled,
 			"path", projectConfig.MonitoringConfig.Path,
 			"duration", monitoringDuration)
+		// Initialize readiness metrics
+		s.initReadinessMetrics()
 		return func() {
 			monitoringCancel()
 			ctx, cancel := context.WithTimeout(context.WithoutCancel(s.ctx), monitoringShutdownTimeout)
@@ -397,6 +419,32 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	}
 	cleanupFuncs = append(cleanupFuncs, storeCleanup)
 
+	// Start embedded Temporal (standalone mode)
+	if cfg.Mode == "standalone" && cfg.Temporal.DevServerEnabled {
+		projDir := projectConfig.GetCWD().PathStr()
+		stateDir := filepath.Join(projDir, ".compozy", "state")
+		if err := os.MkdirAll(stateDir, 0o755); err != nil {
+			return nil, cleanupFuncs, fmt.Errorf("failed to create state dir: %w", err)
+		}
+		tStart := time.Now()
+		tsrv, terr := temporal.StartEmbedded(s.ctx, cfg, stateDir)
+		if terr != nil {
+			log.Warn("Embedded Temporal not started", "error", terr)
+		} else {
+			s.setTemporalReady(true)
+			s.onReadinessMaybeChanged("temporal_ready")
+			log.Info("Temporal namespace ready", "duration", time.Since(tStart))
+			s.embeddedTemporal = tsrv
+			cleanupFuncs = append(cleanupFuncs, func() {
+				if s.embeddedTemporal != nil {
+					if err := tsrv.Stop(); err != nil {
+						log.Warn("Failed to stop embedded temporal", "error", err)
+					}
+				}
+			})
+		}
+	}
+
 	// Setup Redis client for rate limiting
 	redisClient, redisCleanup, err := s.setupRedisClient(cfg)
 	if err != nil {
@@ -420,6 +468,9 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 		return nil, cleanupFuncs, err
 	}
 	log.Debug("Worker setup completed", "duration", time.Since(workerStart))
+	// mark worker readiness after successful setup
+	s.setWorkerReady(true)
+	s.onReadinessMaybeChanged("worker_ready")
 	cleanupFuncs = append(cleanupFuncs, func() {
 		ctx, cancel := context.WithTimeout(s.ctx, workerShutdownTimeout)
 		defer cancel()
@@ -477,6 +528,76 @@ func (s *Server) cleanup(cleanupFuncs []func()) {
 	for i := len(cleanupFuncs) - 1; i >= 0; i-- {
 		cleanupFuncs[i]()
 	}
+}
+
+// initReadinessMetrics registers readiness gauge and transition counter.
+func (s *Server) initReadinessMetrics() {
+	if s.monitoring == nil || !s.monitoring.IsInitialized() {
+		return
+	}
+	log := logger.FromContext(s.ctx)
+	meter := s.monitoring.Meter()
+	g, err := meter.Int64ObservableGauge(
+		"compozy_server_ready",
+		metric.WithDescription("Server readiness: 1 ready, 0 not_ready"),
+	)
+	if err == nil {
+		s.readyGauge = g
+		reg, regErr := meter.RegisterCallback(func(_ context.Context, o metric.Observer) error {
+			val := int64(0)
+			if s.isFullyReady() {
+				val = 1
+			}
+			o.ObserveInt64(s.readyGauge, val)
+			return nil
+		}, s.readyGauge)
+		if regErr != nil {
+			log.Error("Failed to register readiness gauge callback", "error", regErr)
+		} else {
+			s.readyCallback = reg
+		}
+	} else {
+		log.Error("Failed to create readiness gauge", "error", err)
+	}
+	c, err := meter.Int64Counter(
+		"compozy_server_ready_transitions_total",
+		metric.WithDescription("Count of readiness state transitions"),
+	)
+	if err == nil {
+		s.readyTransitionsTotal = c
+	} else {
+		log.Error("Failed to create readiness transition counter", "error", err)
+	}
+}
+
+// onReadinessMaybeChanged increments transition counter when overall readiness flips.
+func (s *Server) onReadinessMaybeChanged(reason string) {
+	now := s.isFullyReady()
+	s.temporalMu.Lock()
+	changed := (now != s.lastReady)
+	s.lastReady = now
+	s.temporalMu.Unlock()
+	if changed && s.monitoring != nil && s.monitoring.IsInitialized() && s.readyTransitionsTotal != nil {
+		const statusNotReady = "not_ready"
+		to := statusNotReady
+		if now {
+			to = "ready"
+		}
+		s.readyTransitionsTotal.Add(
+			s.ctx,
+			1,
+			metric.WithAttributes(
+				attribute.String("component", "server"),
+				attribute.String("to", to),
+				attribute.String("reason", reason),
+			),
+		)
+	}
+}
+
+// isFullyReady computes aggregate readiness for the server.
+func (s *Server) isFullyReady() bool {
+	return s.isTemporalReady() && s.isWorkerReady() && s.IsReconciliationReady()
 }
 
 func (s *Server) startAndRunServer(cleanupFuncs []func()) error {
@@ -570,6 +691,32 @@ func (s *Server) IsReconciliationReady() bool {
 	return s.reconciliationState.isReady()
 }
 
+// temporal readiness helpers
+//
+//nolint:unparam // future callers may set false to drop readiness
+func (s *Server) setTemporalReady(v bool) {
+	s.temporalMu.Lock()
+	s.temporalReady = v
+	s.temporalMu.Unlock()
+}
+
+//nolint:unparam // future callers may set false to drop readiness
+func (s *Server) setWorkerReady(v bool) {
+	s.temporalMu.Lock()
+	s.workerReady = v
+	s.temporalMu.Unlock()
+}
+func (s *Server) isTemporalReady() bool {
+	s.temporalMu.RLock()
+	defer s.temporalMu.RUnlock()
+	return s.temporalReady
+}
+func (s *Server) isWorkerReady() bool {
+	s.temporalMu.RLock()
+	defer s.temporalMu.RUnlock()
+	return s.workerReady
+}
+
 func (s *Server) initializeScheduleManager(state *appstate.State, worker *worker.Worker, workflows []*workflow.Config) {
 	log := logger.FromContext(s.ctx)
 
@@ -612,6 +759,7 @@ func (s *Server) runReconciliationWithRetry(
 			if err == nil {
 				// Success
 				s.reconciliationState.setCompleted()
+				s.onReadinessMaybeChanged("schedules_reconciled")
 				log.Info("Schedule reconciliation completed successfully",
 					"duration", time.Since(reconcileStart),
 					"total_duration", time.Since(startTime))

@@ -231,6 +231,15 @@ func registerTemporalFields(registry *Registry) {
 		Type:    reflect.TypeOf(""),
 		Help:    "Temporal task queue name",
 	})
+
+	registry.Register(&FieldDef{
+		Path:    "temporal.dev_server_enabled",
+		Default: false,
+		CLIFlag: "temporal-dev-server-enabled",
+		EnvVar:  "TEMPORAL_DEV_SERVER_ENABLED",
+		Type:    reflect.TypeOf(true),
+		Help:    "Enable embedded Temporal dev server (Temporalite) in standalone mode",
+	})
 }
 
 func registerRuntimeFields(registry *Registry) {

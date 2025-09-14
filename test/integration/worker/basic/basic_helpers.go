@@ -117,7 +117,7 @@ func createTestActivities(
 	var memoryManager *memory.Manager
 
 	// Create test activities with real repositories
-	return worker.NewActivities(
+	acts, err := worker.NewActivities(
 		context.Background(),
 		projectConfig,
 		workflows,
@@ -130,6 +130,8 @@ func createTestActivities(
 		memoryManager,
 		templateEngine,
 	)
+	require.NoError(t, err)
+	return acts
 }
 
 // registerTestActivities registers all necessary activities with Temporal test environment
