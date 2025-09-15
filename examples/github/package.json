@@ -1,5 +1,5 @@
 {
-  "name": "@compozy/example-github-mcp",
+  "name": "@compozy/example-github",
   "version": "0.0.1",
   "description": "Example using GitHub MCP to fetch latest PR",
   "private": true,

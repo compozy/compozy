@@ -1,3 +1,7 @@
+---
+alwaysApply: false
+---
+
 # Compozy Rule — Authentication & Security Configuration
 
 ## 1. Overview
@@ -135,7 +139,7 @@ runtime:
 
 # Full permissions (examples/code-reviewer)
 runtime:
-  type: bun  
+  type: bun
   permissions:
     - --allow-read                    # File system access
     - --allow-write                   # File modification
@@ -154,7 +158,7 @@ ratelimit:
     limit: 10000                      # Total system limit
     period: 3600                      # Per hour
   api_key_rate:
-    limit: 1000                       # Per API key limit  
+    limit: 1000                       # Per API key limit
     period: 3600                      # Per hour
   prefix: "compozy:ratelimit:"        # Redis key namespace
   max_retry: 3                        # Retry attempts
@@ -262,7 +266,7 @@ cache:
 
 1. **Custom Authentication**: Implement custom auth middleware for specific requirements
 2. **Audit Logging**: Enable comprehensive security event logging
-3. **IP Filtering**: Configure IP allowlists for admin endpoints
+3. **Network-Level Access**: Enforce IP restrictions at your perimeter (firewall, reverse proxy, security groups). The MCP proxy has no built-in IP allow/deny feature.
 4. **Token Rotation**: Implement API key rotation strategies
 5. **Multi-tenancy**: Configure namespace isolation for tenant separation
 

@@ -105,8 +105,8 @@
         "typescript": "^5.8.0",
       },
     },
-    "examples/github-mcp": {
-      "name": "@compozy/example-github-mcp",
+    "examples/github": {
+      "name": "@compozy/example-github",
       "version": "0.0.1",
       "devDependencies": {
         "oxlint": "^1.4.0",
@@ -501,7 +501,7 @@
 
     "@compozy/example-codereview": ["@compozy/example-codereview@workspace:examples/code-reviewer"],
 
-    "@compozy/example-github-mcp": ["@compozy/example-github-mcp@workspace:examples/github-mcp"],
+    "@compozy/example-github": ["@compozy/example-github@workspace:examples/github"],
 
     "@compozy/example-memory": ["@compozy/example-memory@workspace:examples/memory"],
 

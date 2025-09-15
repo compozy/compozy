@@ -1,8 +1,6 @@
 ---
-description: "Context-first rules for pkg/logger and pkg/config. Disallow DI and globals in runtime. Define edge-attachment and middleware propagation patterns."
-type: "agent-requested"
-alwaysApply: true
-tags: ["logger", "config", "context", "standards"]
+globs: *.go
+alwaysApply: false
 ---
 
 # Logger & Config (Context-First)

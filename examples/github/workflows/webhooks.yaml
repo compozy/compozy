@@ -1,0 +1,75 @@
+id: github_issue_comment_analyzer
+version: 0.1.0
+description: Analyze new GitHub issue comments via webhook and produce sentiment and metadata.
+
+triggers:
+  - type: webhook
+    webhook:
+      slug: github-issues
+      verify:
+        strategy: github
+        secret: "123"
+      dedupe:
+        enabled: true
+        key: delivery.id
+      events:
+        - name: issue.commented
+          filter: payload.action == "created" && payload.issue != null
+          input:
+            repository: "{{ .payload.repository.full_name }}"
+            issue_id: "{{ .payload.issue.id }}"
+            issue_number: "{{ .payload.issue.number }}"
+            issue_title: "{{ .payload.issue.title }}"
+            commenter: "{{ .payload.comment.user.login }}"
+            comment_id: "{{ .payload.comment.id }}"
+            comment_body: "{{ .payload.comment.body }}"
+
+agents:
+  - id: comment_analyst
+    json_mode: true
+    instructions: |
+      You analyze GitHub issue comments. Determine sentiment (positive, neutral, negative),
+      whether the comment asks a question, and extract short tags. Be concise and return ONLY JSON.
+      Do not fabricate repository or user details—use exactly what is provided.
+    actions:
+      - id: analyze_comment
+        json_mode: true
+        prompt: |
+          Analyze this GitHub issue comment.
+
+          Repository: {{ .input.repository }}
+          Issue  #: {{ .input.issue_number }} ("{{ .input.issue_title }}")
+          Commenter: {{ .input.commenter }}
+          Comment:
+          ---
+          {{ .input.comment_body }}
+          ---
+
+          Return strictly JSON with keys:
+          - sentiment: one of ["positive","neutral","negative"]
+          - summary: short summary of the comment (max 20 words)
+          - author: commenter login
+          - issue_number: number
+          - is_question: boolean
+          - toxicity_score: number between 0 and 1
+          - tags: array of 1-5 short tags
+          - action_required: boolean
+          - reasoning: brief reason for action (omit if action_required=false)
+
+tasks:
+  - id: analyze
+    type: basic
+    $use: agent(local::agents.#(id="comment_analyst"))
+    action: analyze_comment
+    with:
+      repository: "{{ .workflow.input.repository }}"
+      issue_number: "{{ .workflow.input.issue_number }}"
+      issue_title: "{{ .workflow.input.issue_title }}"
+      commenter: "{{ .workflow.input.commenter }}"
+      comment_body: "{{ .workflow.input.comment_body }}"
+    final: true
+
+outputs:
+  repository: "{{ .workflow.input.repository }}"
+  issue_number: "{{ .workflow.input.issue_number }}"
+  analysis: "{{ .tasks.analyze.output }}"

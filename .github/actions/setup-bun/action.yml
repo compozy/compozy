@@ -6,7 +6,7 @@ inputs:
   bun-version:
     description: "Bun version to install"
     required: false
-    default: "1.2.18"
+    default: "1.2.21"
   cache-key-suffix:
     description: "Additional suffix for cache key"
     required: false

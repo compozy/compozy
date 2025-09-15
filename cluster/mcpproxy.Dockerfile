@@ -65,15 +65,12 @@ RUN apk add --no-cache \
     procps \
     && if [ "$WITH_DOCKER_CLI" = "true" ]; then apk add --no-cache docker-cli; fi
 
-# Install Bun - pinned version with checksum verification (supply-chain hardening)
-ENV BUN_VERSION=1.1.45 BUN_SHA256=487c837f9183598f639fc64fad087b3d1cf5ea68ec13452ef5e11fb90e31eb96
-RUN set -e; \
-    curl -L -o /tmp/bun.zip "https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}/bun-linux-x64.zip"; \
-    echo "${BUN_SHA256}  /tmp/bun.zip" | sha256sum -c -; \
-    apk add --no-cache unzip; \
-    unzip -q /tmp/bun.zip -d /usr/local/bin; \
-    chmod +x /usr/local/bin/bun; \
-    rm -f /tmp/bun.zip
+# Install Bun runtime (align with other images)
+ENV BUN_VERSION=1.2.21
+RUN curl -fsSL https://bun.sh/install | bash -s "bun-v${BUN_VERSION}" \
+    && mv /root/.bun/bin/bun /usr/local/bin/ \
+    && chmod +x /usr/local/bin/bun \
+    && rm -rf /root/.bun
 
 # Install uv - pinned version with checksum verification for supply-chain security
 ARG TARGETARCH
@@ -97,6 +94,9 @@ RUN set -e; \
 # Create non-root user for production
 RUN addgroup -g 1001 -S mcpproxy \
     && adduser -u 1001 -S mcpproxy -G mcpproxy
+
+# Add tini for proper signal handling and zombie reaping (must be root)
+RUN apk add --no-cache tini
 
 # tzdata and ca-certificates already installed in runtime; no need to copy from builder
 
@@ -140,9 +140,6 @@ LABEL org.opencontainers.image.documentation="https://github.com/compozy/compozy
 LABEL org.opencontainers.image.vendor="Compozy"
 LABEL org.opencontainers.image.licenses="BSL-1.1"
 LABEL org.opencontainers.image.base.name="alpine:3.20"
-
-# Add tini for proper signal handling and zombie reaping
-RUN apk add --no-cache tini
 
 # Default command - run the compozy mcp-proxy subcommand
 ENTRYPOINT ["/sbin/tini", "--", "/app/compozy"]

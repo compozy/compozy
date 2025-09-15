@@ -116,6 +116,11 @@ func registerPublicWebhookRoutes(
 	limiterMax := cfg.Webhooks.DefaultMaxBody
 	hooks := router.Group(routes.Hooks())
 	hooks.Use(sizemw.BodySizeLimiter(limiterMax))
+	// Ensure project name is present in request context for downstream dispatch
+	if state.ProjectConfig.Name == "" {
+		return fmt.Errorf("project name is empty; set project.projectConfig.name")
+	}
+	hooks.Use(ProjectContextMiddleware(state.ProjectConfig.Name))
 	var reg webhook.Lookup
 	if ext, ok := state.WebhookRegistry(); ok {
 		if r, ok := ext.(webhook.Lookup); ok {

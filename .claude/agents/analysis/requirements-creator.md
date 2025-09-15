@@ -99,7 +99,6 @@ Validate requirements against project standards:
 - **Testing Standards**: @test-standards.mdc - MANDATORY `t.Run("Should...")` pattern, testify usage
 - **Architecture**: @architecture.mdc - SOLID principles, Clean Architecture patterns
 - **API Standards**: @api-standards.mdc - RESTful design, versioning, error handling
-- **Security**: @quality-security.mdc - Security requirements and validation
 - **Code Quality**: @go-coding-standards.mdc - Function limits, error handling patterns
 
 ## Requirements Workflow

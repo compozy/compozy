@@ -1,9 +1,6 @@
 ---
-description: "Standards to eliminate magic numbers and promote important constants to global configuration"
-globs:
-  - "**/*.go"
-alwaysApply: true
-tags: ["standards", "go", "maintainability", "configuration"]
+globs: *.go
+alwaysApply: false
 ---
 
 # Magic Numbers & Constants

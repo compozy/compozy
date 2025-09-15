@@ -1,7 +1,6 @@
 ---
-description:
-globs:
-alwaysApply: true
+globs: *.go
+alwaysApply: false
 ---
 
 # Go Coding Standards

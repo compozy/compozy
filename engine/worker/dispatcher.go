@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gosimple/slug"
@@ -51,7 +52,95 @@ func GetRegisteredSignalNames(signalMap map[string]*CompiledTrigger) []string {
 	return names
 }
 
+// registerSignalTrigger registers an explicit signal trigger in the signal map
+func registerSignalTrigger(
+	ctx workflow.Context,
+	signalMap map[string]*CompiledTrigger,
+	wcfg *wf.Config,
+	trigger *wf.Trigger,
+) error {
+	log := workflow.GetLogger(ctx)
+
+	if existing, exists := signalMap[trigger.Name]; exists {
+		return fmt.Errorf(
+			"duplicate signal name %q registered by both %q and %q",
+			trigger.Name,
+			existing.Config.ID,
+			wcfg.ID,
+		)
+	}
+
+	target := &CompiledTrigger{Config: wcfg, Trigger: trigger}
+	if trigger.Schema != nil {
+		compiled, err := trigger.Schema.Compile()
+		if err != nil {
+			log.Error("Failed to compile schema for trigger",
+				"signalName", trigger.Name, "workflow", wcfg.ID, "error", err)
+			return fmt.Errorf("failed to compile schema for %s: %w", trigger.Name, err)
+		}
+		target.CompiledSchema = compiled
+	}
+	signalMap[trigger.Name] = target
+	log.Debug("Registered signal trigger", "signalName", trigger.Name, "workflow", wcfg.ID)
+
+	return nil
+}
+
+// registerWebhookEvents registers webhook events as routable signals in the signal map
+func registerWebhookEvents(
+	ctx workflow.Context,
+	signalMap map[string]*CompiledTrigger,
+	wcfg *wf.Config,
+	trigger *wf.Trigger,
+) error {
+	log := workflow.GetLogger(ctx)
+
+	// Register each webhook event name as a routable signal
+	if trigger.Webhook == nil {
+		log.Warn("TriggerTypeWebhook has nil config; ignoring",
+			"workflow", wcfg.ID, "trigger", trigger.Name)
+		return nil
+	}
+	for _, ev := range trigger.Webhook.Events {
+		name := strings.TrimSpace(ev.Name)
+		if name == "" {
+			continue
+		}
+		if existing, exists := signalMap[name]; exists {
+			return fmt.Errorf(
+				"duplicate event/signal name %q (slug=%q) registered by both %q and %q",
+				name,
+				trigger.Webhook.Slug,
+				existing.Config.ID,
+				wcfg.ID,
+			)
+		}
+
+		target := &CompiledTrigger{Config: wcfg, Trigger: trigger}
+		if ev.Schema != nil {
+			compiled, err := ev.Schema.Compile()
+			if err != nil {
+				log.Error("Failed to compile schema for webhook event",
+					"event", name, "workflow", wcfg.ID, "error", err)
+				return fmt.Errorf("failed to compile schema for %s: %w", name, err)
+			}
+			target.CompiledSchema = compiled
+		}
+		signalMap[name] = target
+		log.Debug(
+			"Registered webhook event as signal",
+			"event", name,
+			"slug", trigger.Webhook.Slug,
+			"workflow", wcfg.ID,
+		)
+	}
+	return nil
+}
+
 // BuildSignalRoutingMap creates a map of signal names to compiled triggers with pre-compiled schemas
+// It aggregates both explicit signal triggers and webhook event names so that
+// webhook events can be dispatched through the same dispatcher without requiring
+// duplicate "signal" triggers in the workflow config.
 func BuildSignalRoutingMap(ctx workflow.Context, data *wfacts.GetData) (map[string]*CompiledTrigger, error) {
 	log := workflow.GetLogger(ctx)
 	signalMap := make(map[string]*CompiledTrigger)
@@ -59,34 +148,19 @@ func BuildSignalRoutingMap(ctx workflow.Context, data *wfacts.GetData) (map[stri
 	for _, wcfg := range data.Workflows {
 		for i := range wcfg.Triggers {
 			trigger := &wcfg.Triggers[i]
-			if trigger.Type == wf.TriggerTypeSignal {
-				if existing, exists := signalMap[trigger.Name]; exists {
-					return nil, fmt.Errorf(
-						"duplicate signal name %q registered by both %q and %q",
-						trigger.Name,
-						existing.Config.ID,
-						wcfg.ID,
-					)
+			switch trigger.Type {
+			case wf.TriggerTypeSignal:
+				if err := registerSignalTrigger(ctx, signalMap, wcfg, trigger); err != nil {
+					return nil, err
 				}
-
-				target := &CompiledTrigger{
-					Config:  wcfg,
-					Trigger: trigger,
+			case wf.TriggerTypeWebhook:
+				if err := registerWebhookEvents(ctx, signalMap, wcfg, trigger); err != nil {
+					return nil, err
 				}
-
-				// Pre-compile schema if defined
-				if trigger.Schema != nil {
-					compiled, err := trigger.Schema.Compile()
-					if err != nil {
-						log.Error("Failed to compile schema for trigger",
-							"signal", trigger.Name, "workflow", wcfg.ID, "error", err)
-						return nil, fmt.Errorf("failed to compile schema for %s: %w", trigger.Name, err)
-					}
-					target.CompiledSchema = compiled
-				}
-
-				signalMap[trigger.Name] = target
-				log.Debug("Registered signal trigger", "signal", trigger.Name, "workflow", wcfg.ID)
+			default:
+				// ignore other trigger types here
+				log.Debug("Ignoring unknown or unsupported trigger type",
+					"type", trigger.Type, "workflow", wcfg.ID, "trigger", trigger.Name)
 			}
 		}
 	}

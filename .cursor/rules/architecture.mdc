@@ -1,6 +1,4 @@
 ---
-description: Comprehensive architectural standards and design principles following SOLID principles, Clean Architecture, and DRY practices for building maintainable, scalable software
-globs:
 alwaysApply: true
 ---
 

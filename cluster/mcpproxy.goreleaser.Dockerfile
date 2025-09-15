@@ -24,7 +24,7 @@ RUN apk add --no-cache \
     procps
 
 # Install Bun - Latest stable version for production
-ENV BUN_VERSION=1.1.45
+ENV BUN_VERSION=1.2.21
 RUN curl -fsSL https://bun.sh/install | bash -s "bun-v${BUN_VERSION}" \
     && mv /root/.bun/bin/bun /usr/local/bin/ \
     && chmod +x /usr/local/bin/bun \

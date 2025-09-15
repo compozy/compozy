@@ -1,4 +1,4 @@
-name: github-mcp
+name: github
 version: "0.1.0"
 description: Minimal example using GitHub MCP to fetch latest pull request
 
@@ -7,7 +7,8 @@ author:
   url: https://github.com/pedronauck
 
 workflows:
-  - source: ./workflow.yaml
+  - source: ./workflows/mcp.yaml
+  - source: ./workflows/webhooks.yaml
 
 models:
   - provider: groq

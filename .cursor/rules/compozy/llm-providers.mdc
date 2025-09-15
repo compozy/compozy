@@ -1,3 +1,7 @@
+---
+alwaysApply: false
+---
+
 # Compozy Rule — LLM Provider Configuration
 
 ## 1. Overview
@@ -32,12 +36,12 @@ models:
     api_key: "{{ .env.OPENAI_API_KEY }}"
     temperature: 0.7
     max_tokens: 4000
-    
+
   # Cost-effective fallback
   - provider: groq
     model: llama-3.3-70b-versatile
     api_key: "{{ .env.GROQ_API_KEY }}"
-    
+
   # Local model for sensitive data
   - provider: ollama
     model: llama3.2:8b
@@ -60,7 +64,7 @@ models:
 
 **Provider Names** (from `engine/core/provider.go`):
 - `openai` - OpenAI GPT models
-- `anthropic` - Anthropic Claude models  
+- `anthropic` - Anthropic Claude models
 - `google` - Google Gemini models
 - `groq` - Groq fast inference
 - `ollama` - Local model hosting
@@ -249,8 +253,8 @@ models:
   - provider: openai
     model: gpt-4-turbo
     api_key: "{{ .env.OPENAI_API_KEY | default .env.BACKUP_OPENAI_KEY }}"
-    
-  # Different keys for different models  
+
+  # Different keys for different models
   - provider: openai
     model: gpt-3.5-turbo
     api_key: "{{ .env.OPENAI_CHEAP_KEY }}"  # Different key for cost optimization
@@ -266,7 +270,7 @@ models:
     api_key: "{{ .env.ENTERPRISE_API_KEY }}"
     api_url: "https://enterprise-api.company.com/v1"
     organization: "{{ .env.COMPANY_ORG_ID }}"
-    
+
   # Proxy configuration
   - provider: anthropic
     model: claude-3-opus
@@ -288,7 +292,7 @@ models:
       temperature: 0.1              # Low for factual tasks
       max_tokens: 2000              # Limit for cost control
       top_p: 0.9                    # Nucleus sampling
-      
+
       # Quality control
       seed: 42                      # Reproducible outputs
       stop_words: ["###", "END"]    # Stop generation patterns
@@ -305,12 +309,12 @@ models:
     params:
       temperature: 0.3
       max_tokens: 1000              # Conservative token limit
-      
+
   # Tier 2: Balanced performance/cost
   - provider: groq
     model: llama-3.3-70b-versatile
     api_key: "{{ .env.GROQ_API_KEY }}"
-    
+
   # Tier 3: Local for high-volume/sensitive tasks
   - provider: ollama
     model: llama3.2:8b
@@ -326,7 +330,7 @@ models:
     model: gpt-4
     api_key: "{{ .env.OPENAI_EU_KEY }}"
     api_url: "https://api.openai.eu/v1"
-    
+
   # On-premise for sensitive data
   - provider: ollama
     model: llama3.2:8b
@@ -356,7 +360,7 @@ models:
     model: gemini-1.5-pro
     api_key: "{{ .env.GOOGLE_API_KEY }}"
 
-# Code Generation - Specialized Models  
+# Code Generation - Specialized Models
 models:
   - provider: deepseek
     model: deepseek-coder
@@ -377,7 +381,7 @@ models:
 
 ## 8. Examples from Repository
 
-**Reference Examples**: 
+**Reference Examples**:
 - `examples/weather/compozy.yaml` - Groq + Ollama configuration
 - `examples/code-reviewer/compozy.yaml` - OpenAI o3-mini setup
 - `examples/memory/compozy.yaml` - Groq configuration

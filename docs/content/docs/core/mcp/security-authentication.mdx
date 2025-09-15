@@ -1,6 +1,6 @@
 ---
 title: "Security & Authentication"
-description: The MCP Proxy provides comprehensive security features including token-based authentication, IP filtering, rate limiting, and security headers. This guide covers configuring and managing security for your MCP deployments with multi-layered protection strategies.
+description: "The MCP Proxy provides security features including token-based authentication, rate limiting, and security headers. Important: the proxy does not implement application-level IP filtering; use network controls (firewall, reverse proxy, security groups) to restrict access to admin endpoints."
 ---
 
 <Callout type="warning">
@@ -28,10 +28,6 @@ mcps:
       header: "Authorization"
       prefix: "Bearer"
     security:
-      ip_whitelist:
-        - "127.0.0.1"
-        - "::1"
-        - "192.168.1.0/24"
       rate_limit:
         requests_per_minute: 60
         burst_size: 10
@@ -236,129 +232,21 @@ func main() {
 }
 ```
 
-## IP Filtering and Access Control
+## Network Access Control (No Built‑In IP Filtering)
 
-### Whitelist Configuration
+The MCP proxy does not implement application-level IP allow/deny lists. To restrict access to the admin API (`/admin`), enforce network controls at your perimeter:
 
-Configure IP whitelisting for access control:
+- Firewall rules or security groups allowing only trusted sources
+- Reverse proxy (e.g., Nginx) with `allow`/`deny` directives
+- Kubernetes `NetworkPolicy` / Ingress allowlists
 
-```yaml
-# IP whitelist configuration
-mcps:
-  - id: production_mcp
-    url: "http://localhost:6001"
-    security:
-      ip_whitelist:
-        # Local development
-        - "127.0.0.1"
-        - "::1"
-
-        # Private networks
-        - "192.168.0.0/16"
-        - "10.0.0.0/8"
-        - "172.16.0.0/12"
-
-        # Specific production IPs
-        - "203.0.113.0/24"
-        - "198.51.100.0/24"
-
-      # Block specific IPs
-      ip_blacklist:
-        - "192.168.1.100"
-        - "10.0.0.50"
-```
-
-### Dynamic IP Management
-
-Implement dynamic IP management:
-
-```go
-package security
-
-import (
-    "net"
-    "sync"
-    "time"
-)
-
-type IPManager struct {
-    whitelist map[string]time.Time
-    blacklist map[string]time.Time
-    mu        sync.RWMutex
-}
-
-func NewIPManager() *IPManager {
-    return &IPManager{
-        whitelist: make(map[string]time.Time),
-        blacklist: make(map[string]time.Time),
-    }
-}
-
-func (m *IPManager) IsAllowed(ip string) bool {
-    m.mu.RLock()
-    defer m.mu.RUnlock()
-
-    // Check blacklist first
-    if expiry, exists := m.blacklist[ip]; exists {
-        if time.Now().Before(expiry) {
-            return false
-        }
-        // Remove expired blacklist entry
-        delete(m.blacklist, ip)
-    }
-
-    // Check whitelist
-    if expiry, exists := m.whitelist[ip]; exists {
-        if time.Now().Before(expiry) {
-            return true
-        }
-        // Remove expired whitelist entry
-        delete(m.whitelist, ip)
-    }
-
-    return false
-}
-
-func (m *IPManager) AddToWhitelist(ip string, duration time.Duration) {
-    m.mu.Lock()
-    defer m.mu.Unlock()
-    m.whitelist[ip] = time.Now().Add(duration)
-}
-
-func (m *IPManager) AddToBlacklist(ip string, duration time.Duration) {
-    m.mu.Lock()
-    defer m.mu.Unlock()
-    m.blacklist[ip] = time.Now().Add(duration)
-}
-
-func (m *IPManager) IsInNetwork(ip string, networks []string) bool {
-    clientIP := net.ParseIP(ip)
-    if clientIP == nil {
-        return false
-    }
-
-    for _, network := range networks {
-        _, ipNet, err := net.ParseCIDR(network)
-        if err != nil {
-            // Try as single IP
-            if netIP := net.ParseIP(network); netIP != nil {
-                if clientIP.Equal(netIP) {
-                    return true
-                }
-            }
-            continue
-        }
-
-        if ipNet.Contains(clientIP) {
-            return true
-        }
-    }
-
-    return false
-}
-```
+Recommended local/dev hardening:
+- Bind the proxy to `127.0.0.1` (default)
+- Expose externally only behind a hardened reverse proxy
 
 ## Rate Limiting
+
+Rate limiting protects services from abuse and hot paths. This is distinct from IP-based access control: per‑IP limits constrain request rate from an address but do not allow/deny access by IP.
 
 ### Configuration Options
 
@@ -990,7 +878,7 @@ func (sm *SecurityMetrics) GetMetrics() map[string]interface{} {
 
 3. **Network Security**
    - Use HTTPS/TLS in production
-   - Implement IP whitelisting
+   - Enforce IP restrictions at the network level (firewall, reverse proxy, security groups)
    - Configure proper firewall rules
    - Monitor network traffic
 
@@ -1586,7 +1474,7 @@ describe('MCP Compliance Testing', () => {
 
 ## Security Testing
 
-<Tabs items={["Authentication Testing", "Rate Limiting Testing", "IP Filtering Testing", "Security Headers Testing", "Penetration Testing"]}>
+<Tabs items={["Authentication Testing", "Rate Limiting Testing", "Security Headers Testing", "Penetration Testing"]}>
 <Tab value="Authentication Testing">
 
 Test different authentication scenarios:
@@ -1637,34 +1525,6 @@ wait
 
 # Test per-IP rate limiting
 curl -H "X-Forwarded-For: 192.168.1.100" \
-  -H "Authorization: Bearer $TOKEN" \
-  http://localhost:6001/api/v1/mcp/list
-```
-
-</Tab>
-
-<Tab value="IP Filtering Testing">
-
-Test IP whitelist and blacklist functionality:
-
-```bash
-# Test allowed IP (should succeed)
-curl -H "X-Forwarded-For: 127.0.0.1" \
-  -H "Authorization: Bearer $TOKEN" \
-  http://localhost:6001/api/v1/mcp/list
-
-# Test blocked IP (should return 403)
-curl -H "X-Forwarded-For: 192.168.1.100" \
-  -H "Authorization: Bearer $TOKEN" \
-  http://localhost:6001/api/v1/mcp/list
-
-# Test network range
-curl -H "X-Forwarded-For: 192.168.1.50" \
-  -H "Authorization: Bearer $TOKEN" \
-  http://localhost:6001/api/v1/mcp/list
-
-# Test IPv6 addresses
-curl -H "X-Forwarded-For: ::1" \
   -H "Authorization: Bearer $TOKEN" \
   http://localhost:6001/api/v1/mcp/list
 ```
@@ -1803,41 +1663,6 @@ curl -H "Authorization: Bearer $TOKEN" \
 </AccordionContent>
 </AccordionItem>
 
-<AccordionItem title="IP Filtering Issues">
-<AccordionContent>
-
-**IP filtering troubleshooting:**
-
-<Steps>
-<Step title="403 Forbidden from Valid IP">
-```bash
-# Check real client IP
-curl -H "Authorization: Bearer $TOKEN" \
-  http://localhost:6001/admin/debug/client-ip
-
-# Test with different IP headers
-curl -H "X-Real-IP: 127.0.0.1" \
-  -H "Authorization: Bearer $TOKEN" \
-  http://localhost:6001/api/v1/mcp/list
-```
-
-**Solution**: Check proxy configuration and IP header precedence.
-</Step>
-
-<Step title="IP Whitelist Not Working">
-```bash
-# Test IP parsing
-curl -H "X-Forwarded-For: 192.168.1.1" \
-  -H "Authorization: Bearer $TOKEN" \
-  http://localhost:6001/api/v1/mcp/list -v
-```
-
-**Solution**: Verify CIDR notation and IP parsing logic.
-</Step>
-</Steps>
-
-</AccordionContent>
-</AccordionItem>
 
 <AccordionItem title="CORS Issues">
 <AccordionContent>
@@ -1892,12 +1717,6 @@ mcps:
       prefix: "Bearer"
 
     security:
-      # IP restrictions
-      ip_whitelist:
-        - "10.0.0.0/8"
-        - "172.16.0.0/12"
-        - "192.168.0.0/16"
-
       # Rate limiting
       rate_limit:
         requests_per_minute: 60
@@ -1932,7 +1751,7 @@ This comprehensive security configuration ensures your MCP deployments are prote
 **Key Metrics to Monitor:**
 - Authentication success/failure rates
 - Rate limiting violations
-- IP blacklist hits
+  - Suspicious source IPs observed
 - Security header violations
 - Token usage patterns
 - Anomalous request patterns
@@ -1955,7 +1774,6 @@ This comprehensive security configuration ensures your MCP deployments are prote
 
 **Pre-Production Checklist:**
 - [ ] Strong tokens generated and stored securely
-- [ ] IP whitelist configured for production IPs
 - [ ] Rate limiting enabled and tested
 - [ ] HTTPS/TLS configured with valid certificates
 - [ ] Security headers implemented
@@ -1967,7 +1785,6 @@ This comprehensive security configuration ensures your MCP deployments are prote
 
 **Regular Maintenance:**
 - [ ] Rotate authentication tokens monthly
-- [ ] Review IP whitelist quarterly
 - [ ] Update security headers annually
 - [ ] Test disaster recovery procedures
 - [ ] Security audit and penetration testing
@@ -1985,15 +1802,6 @@ auth:
   prefix: "Bearer"
 ```
 
-**IP Whitelisting Pattern:**
-```yaml
-security:
-  ip_whitelist:
-    - "127.0.0.1"      # Local
-    - "10.0.0.0/8"     # Private
-    - "172.16.0.0/12"  # Private
-    - "192.168.0.0/16" # Private
-```
 
 **Rate Limiting Pattern:**
 ```yaml
@@ -2028,11 +1836,6 @@ security:
 - Rate limit not working → Check middleware order
 - Per-IP limits not working → Verify IP extraction
 
-**IP Filtering Issues:**
-- 403 from valid IP → Check proxy IP headers
-- Whitelist not working → Verify CIDR notation
-- IPv6 issues → Ensure IPv6 support enabled
-
 **CORS Issues:**
 - Preflight failures → Check OPTIONS handling
 - Credentials not allowed → Set allow_credentials: true
@@ -2051,9 +1854,8 @@ security:
 Understanding the performance implications of security features:
 
 <Mermaid chart={`graph LR
-    A[Raw Request] --> B[+2ms IP Check]
-    B --> C[+1ms Token Validation]
-    C --> D[+0.5ms Rate Limiting]
+    A[Raw Request] --> B[+1ms Token Validation]
+    B --> C[+0.5ms Rate Limiting]
     D --> E[+0.3ms Security Headers]
     E --> F[+0.2ms CORS]
     F --> G[MCP Processing]
