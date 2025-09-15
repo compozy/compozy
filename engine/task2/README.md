@@ -311,7 +311,8 @@ errorNormalizer := factory.CreateErrorTransitionNormalizer()
 
 // Create domain services
 collectionExpander := factory.CreateCollectionExpander()
-configRepo, err := factory.CreateTaskConfigRepository(configStore)
+cwd, _ := core.CWDFromPath("/path/to/project")
+configRepo, err := factory.CreateTaskConfigRepository(configStore, cwd)
 if err != nil {
     log.Fatal(err)
 }
@@ -609,7 +610,7 @@ type Factory interface {
     CreateErrorTransitionNormalizer() *core.ErrorTransitionNormalizer
     CreateOutputTransformer() *core.OutputTransformer
     CreateCollectionExpander() shared.CollectionExpander
-    CreateTaskConfigRepository(configStore core.ConfigStore) (shared.TaskConfigRepository, error)
+    CreateTaskConfigRepository(configStore core.ConfigStore, cwd *core.PathCWD) (shared.TaskConfigRepository, error)
 }
 ```
 

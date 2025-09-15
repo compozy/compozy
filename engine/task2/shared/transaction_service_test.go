@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -45,15 +44,15 @@ func TestTransactionService_SaveStateWithLocking(t *testing.T) {
 		}
 
 		// Mock transaction behavior
-		mockTaskRepo.On("WithTx", ctx, mock.AnythingOfType("func(pgx.Tx) error")).
+		mockTaskRepo.On("WithTransaction", ctx, mock.AnythingOfType("func(task.Repository) error")).
 			Return(nil).
 			Run(func(args mock.Arguments) {
-				fn := args.Get(1).(func(pgx.Tx) error)
-				// Execute the function to trigger internal mocks
-				fn(nil)
+				fn := args.Get(1).(func(task.Repository) error)
+				// Use the same mock as the tx-scoped repo for simplicity
+				_ = fn(mockTaskRepo)
 			})
-		mockTaskRepo.On("GetStateForUpdate", ctx, mock.Anything, state.TaskExecID).Return(state, nil)
-		mockTaskRepo.On("UpsertStateWithTx", ctx, mock.Anything, state).Return(nil)
+		mockTaskRepo.On("GetStateForUpdate", ctx, state.TaskExecID).Return(state, nil)
+		mockTaskRepo.On("UpsertState", ctx, state).Return(nil)
 
 		// Act
 		err := service.SaveStateWithLocking(ctx, state)
@@ -77,7 +76,7 @@ func TestTransactionService_SaveStateWithLocking(t *testing.T) {
 
 		saveError := errors.New("database error")
 		// Mock transaction that returns error
-		mockTaskRepo.On("WithTx", ctx, mock.AnythingOfType("func(pgx.Tx) error")).Return(saveError)
+		mockTaskRepo.On("WithTransaction", ctx, mock.AnythingOfType("func(task.Repository) error")).Return(saveError)
 
 		// Act
 		err := service.SaveStateWithLocking(ctx, state)
@@ -104,15 +103,14 @@ func TestTransactionService_ApplyTransformation(t *testing.T) {
 		}
 
 		// Mock transaction behavior
-		mockTaskRepo.On("WithTx", ctx, mock.AnythingOfType("func(pgx.Tx) error")).
+		mockTaskRepo.On("WithTransaction", ctx, mock.AnythingOfType("func(task.Repository) error")).
 			Return(nil).
 			Run(func(args mock.Arguments) {
-				fn := args.Get(1).(func(pgx.Tx) error)
-				// Execute the function to trigger internal mocks
-				fn(nil)
+				fn := args.Get(1).(func(task.Repository) error)
+				_ = fn(mockTaskRepo)
 			})
-		mockTaskRepo.On("GetStateForUpdate", ctx, mock.Anything, taskExecID).Return(state, nil)
-		mockTaskRepo.On("UpsertStateWithTx", ctx, mock.Anything, mock.MatchedBy(func(s *task.State) bool {
+		mockTaskRepo.On("GetStateForUpdate", ctx, taskExecID).Return(state, nil)
+		mockTaskRepo.On("UpsertState", ctx, mock.MatchedBy(func(s *task.State) bool {
 			return s.Status == core.StatusSuccess
 		})).Return(nil)
 
@@ -146,17 +144,15 @@ func TestTransactionService_ApplyTransformation(t *testing.T) {
 		expectedError := fmt.Errorf("task processing failed: %w", transformError)
 
 		// Mock WithTx to execute the function and return the error it produces
-		mockTaskRepo.On("WithTx", ctx, mock.AnythingOfType("func(pgx.Tx) error")).
+		mockTaskRepo.On("WithTransaction", ctx, mock.AnythingOfType("func(task.Repository) error")).
 			Return(expectedError).
 			Run(func(args mock.Arguments) {
-				fn := args.Get(1).(func(pgx.Tx) error)
-				// Execute the function to trigger the mocks
-				err := fn(nil)
-				// Verify the error matches what we expect
+				fn := args.Get(1).(func(task.Repository) error)
+				err := fn(mockTaskRepo)
 				assert.Equal(t, expectedError.Error(), err.Error())
 			})
 
-		mockTaskRepo.On("GetStateForUpdate", ctx, mock.Anything, taskExecID).Return(state, nil)
+		mockTaskRepo.On("GetStateForUpdate", ctx, taskExecID).Return(state, nil)
 
 		transformer := func(_ *task.State) error {
 			return transformError
@@ -181,7 +177,8 @@ func TestTransactionService_ApplyTransformation(t *testing.T) {
 
 		// Mock WithTx to return error
 		transactionError := errors.New("database connection lost")
-		mockTaskRepo.On("WithTx", ctx, mock.AnythingOfType("func(pgx.Tx) error")).Return(transactionError)
+		mockTaskRepo.On("WithTransaction", ctx, mock.AnythingOfType("func(task.Repository) error")).
+			Return(transactionError)
 
 		transformer := func(s *task.State) error {
 			s.Status = core.StatusSuccess

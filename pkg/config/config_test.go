@@ -72,6 +72,8 @@ func TestConfig_Default(t *testing.T) {
 		assert.Equal(t, "compozy:memory:", cfg.Memory.Prefix)
 		assert.Equal(t, 24*time.Hour, cfg.Memory.TTL)
 		assert.Equal(t, 10000, cfg.Memory.MaxEntries)
+
+		// App mode removed in greenfield cleanup
 	})
 }
 
@@ -404,6 +406,7 @@ func TestCacheConfig_Defaults(t *testing.T) {
 		assert.Equal(t, int64(1024), cacheConfig.CompressionThreshold, "compression threshold should be 1KB")
 		assert.Equal(t, "lru", cacheConfig.EvictionPolicy, "eviction policy should default to lru")
 		assert.Equal(t, 5*time.Minute, cacheConfig.StatsInterval, "stats interval should default to 5m")
+		assert.Equal(t, 100, cacheConfig.KeyScanCount, "key scan count should default to 100")
 	})
 }
 

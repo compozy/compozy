@@ -659,6 +659,7 @@ func flattenCacheConfig(cfg *config.Config, result map[string]string) {
 	result["cache.compression_threshold"] = fmt.Sprintf("%d", cfg.Cache.CompressionThreshold)
 	result["cache.eviction_policy"] = cfg.Cache.EvictionPolicy
 	result["cache.stats_interval"] = cfg.Cache.StatsInterval.String()
+	result["cache.key_scan_count"] = fmt.Sprintf("%d", cfg.Cache.KeyScanCount)
 }
 
 // flattenRateLimitConfig flattens rate limit configuration

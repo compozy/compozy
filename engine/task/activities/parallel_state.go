@@ -29,6 +29,7 @@ type CreateParallelState struct {
 	createChildTasksUC *uc.CreateChildTasks
 	task2Factory       task2.Factory
 	configStore        services.ConfigStore
+	cwd                *core.PathCWD
 }
 
 // NewCreateParallelState creates a new CreateParallelState activity with task2 integration
@@ -37,15 +38,16 @@ func NewCreateParallelState(
 	workflowRepo workflow.Repository,
 	taskRepo task.Repository,
 	configStore services.ConfigStore,
-	_ *core.PathCWD,
+	cwd *core.PathCWD,
 	task2Factory task2.Factory,
 ) (*CreateParallelState, error) {
 	return &CreateParallelState{
 		loadWorkflowUC:     uc.NewLoadWorkflow(workflows, workflowRepo),
 		createStateUC:      uc.NewCreateState(taskRepo, configStore),
-		createChildTasksUC: uc.NewCreateChildTasksUC(taskRepo, configStore, task2Factory),
+		createChildTasksUC: uc.NewCreateChildTasksUC(taskRepo, configStore, task2Factory, cwd),
 		task2Factory:       task2Factory,
 		configStore:        configStore,
+		cwd:                cwd,
 	}, nil
 }
 
@@ -92,7 +94,7 @@ func (a *CreateParallelState) Run(ctx context.Context, input *CreateParallelStat
 		childConfigs[i] = &normalizedConfig.Tasks[i]
 	}
 	// Store parallel metadata using task2 repository
-	configRepo, err := a.task2Factory.CreateTaskConfigRepository(a.configStore)
+	configRepo, err := a.task2Factory.CreateTaskConfigRepository(a.configStore, a.cwd)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create task config repository: %w", err)
 	}

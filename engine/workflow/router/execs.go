@@ -31,6 +31,15 @@ func getExecution(c *gin.Context) {
 	if appState == nil {
 		return
 	}
+	if appState.Worker == nil {
+		reqErr := router.NewRequestError(
+			http.StatusServiceUnavailable,
+			"worker is not running; configure Redis or start the worker",
+			nil,
+		)
+		router.RespondWithError(c, reqErr.StatusCode, reqErr)
+		return
+	}
 	repo := appState.Worker.WorkflowRepo()
 	useCase := uc.NewGetExecution(repo, execID)
 	exec, err := useCase.Execute(c.Request.Context())
@@ -59,6 +68,15 @@ func getExecution(c *gin.Context) {
 func listAllExecutions(c *gin.Context) {
 	appState := router.GetAppState(c)
 	if appState == nil {
+		return
+	}
+	if appState.Worker == nil {
+		reqErr := router.NewRequestError(
+			http.StatusServiceUnavailable,
+			"worker is not running; configure Redis or start the worker",
+			nil,
+		)
+		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
 	repo := appState.Worker.WorkflowRepo()
@@ -99,6 +117,15 @@ func listExecutionsByID(c *gin.Context) {
 	if appState == nil {
 		return
 	}
+	if appState.Worker == nil {
+		reqErr := router.NewRequestError(
+			http.StatusServiceUnavailable,
+			"worker is not running; configure Redis or start the worker",
+			nil,
+		)
+		router.RespondWithError(c, reqErr.StatusCode, reqErr)
+		return
+	}
 	repo := appState.Worker.WorkflowRepo()
 	useCase := uc.NewListExecutionsByID(repo, wfID)
 	execs, err := useCase.Execute(c.Request.Context())
@@ -137,6 +164,15 @@ func pauseExecution(c *gin.Context) {
 	if appState == nil {
 		return
 	}
+	if appState.Worker == nil {
+		reqErr := router.NewRequestError(
+			http.StatusServiceUnavailable,
+			"worker is not running; configure Redis or start the worker",
+			nil,
+		)
+		router.RespondWithError(c, reqErr.StatusCode, reqErr)
+		return
+	}
 	useCase := uc.NewPauseExecution(appState.Worker, execID)
 	err := useCase.Execute(c.Request.Context())
 	if err != nil {
@@ -172,6 +208,15 @@ func resumeExecution(c *gin.Context) {
 	if appState == nil {
 		return
 	}
+	if appState.Worker == nil {
+		reqErr := router.NewRequestError(
+			http.StatusServiceUnavailable,
+			"worker is not running; configure Redis or start the worker",
+			nil,
+		)
+		router.RespondWithError(c, reqErr.StatusCode, reqErr)
+		return
+	}
 	useCase := uc.NewResumeExecution(appState.Worker, execID)
 	err := useCase.Execute(c.Request.Context())
 	if err != nil {
@@ -205,6 +250,15 @@ func cancelExecution(c *gin.Context) {
 	}
 	appState := router.GetAppState(c)
 	if appState == nil {
+		return
+	}
+	if appState.Worker == nil {
+		reqErr := router.NewRequestError(
+			http.StatusServiceUnavailable,
+			"worker is not running; configure Redis or start the worker",
+			nil,
+		)
+		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
 	useCase := uc.NewCancelExecution(appState.Worker, execID)
@@ -255,6 +309,15 @@ func sendSignalToExecution(c *gin.Context) {
 	}
 	appState := router.GetAppState(c)
 	if appState == nil {
+		return
+	}
+	if appState.Worker == nil {
+		reqErr := router.NewRequestError(
+			http.StatusServiceUnavailable,
+			"worker is not running; configure Redis or start the worker",
+			nil,
+		)
+		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
 

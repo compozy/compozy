@@ -293,6 +293,7 @@ func (d *defaultProvider) Close() error {
 func createDefaultMap() map[string]any {
 	defaultConfig := Default()
 	result := make(map[string]any)
+	// top-level defaults
 	addCoreDefaults(result, defaultConfig)
 	addServiceDefaults(result, defaultConfig)
 	addInfraDefaults(result, defaultConfig)
@@ -521,6 +522,7 @@ func createWorkerDefaults(defaultConfig *Config) map[string]any {
 // createMCPProxyDefaults creates MCP proxy configuration defaults
 func createMCPProxyDefaults(defaultConfig *Config) map[string]any {
 	return map[string]any{
+		"mode":             defaultConfig.MCPProxy.Mode,
 		"host":             defaultConfig.MCPProxy.Host,
 		"port":             defaultConfig.MCPProxy.Port,
 		"base_url":         defaultConfig.MCPProxy.BaseURL,

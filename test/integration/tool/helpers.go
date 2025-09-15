@@ -12,14 +12,12 @@ import (
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/llm"
 	"github.com/compozy/compozy/engine/project"
 	coreruntime "github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/engine/tool/resolver"
 	"github.com/compozy/compozy/engine/workflow"
-	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/test/helpers"
 )
 
@@ -30,7 +28,6 @@ const defaultTestTimeout = 30 * time.Second
 type TestEnvironment struct {
 	ctx     context.Context
 	pool    *pgxpool.Pool
-	store   *store.Store
 	cleanup func()
 }
 
@@ -41,33 +38,14 @@ func SetupTestEnvironment(t *testing.T) *TestEnvironment {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTestTimeout)
 	// Ensure cancel is called even on test panic or early return.
 	t.Cleanup(cancel)
-	// Reset migrations state only (config is context-scoped now)
-	store.ResetMigrationsForTest()
 	// Use shared container for better performance
 	pool, dbCleanup := helpers.GetSharedPostgresDB(ctx, t)
-	connStr := pool.Config().ConnString()
-	// Initialize context-based config manager
-	mgr := config.NewManager(nil)
-	_, err := mgr.Load(ctx, config.NewDefaultProvider())
-	require.NoError(t, err)
-	ctx = config.ContextWithManager(ctx, mgr)
-	// Set up configuration
-	cfg := mgr.Get()
-	cfg.Database.AutoMigrate = false // Migrations already run in shared container
-	cfg.Database.ConnString = connStr
-	// Create store
-	testStore, err := store.SetupStoreWithConfig(ctx)
-	require.NoError(t, err)
-	require.NotNil(t, testStore)
+	// Ensure tables exist (shared container migrations)
+	require.NoError(t, helpers.EnsureTablesExistForTest(pool))
 	env := &TestEnvironment{
-		ctx:   ctx,
-		pool:  pool,
-		store: testStore,
+		ctx:  ctx,
+		pool: pool,
 		cleanup: func() {
-			if err := testStore.DB.Close(ctx); err != nil {
-				t.Logf("Warning: failed to close database connection: %v", err)
-			}
-			_ = mgr.Close(ctx)
 			dbCleanup()
 			// Cancel context to clean up any pending operations
 			cancel()

@@ -99,7 +99,7 @@ func TestResponseConverter_ConvertToCollectionResponse(t *testing.T) {
 		}
 
 		// Act
-		response := converter.ConvertToCollectionResponse(ctx, result, nil, nil)
+		response := converter.ConvertToCollectionResponse(ctx, result, nil, nil, nil)
 
 		// Assert
 		require.NotNil(t, response)
@@ -119,7 +119,7 @@ func TestResponseConverter_ConvertToCollectionResponse(t *testing.T) {
 		}
 
 		// Act
-		response := converter.ConvertToCollectionResponse(ctx, result, nil, nil)
+		response := converter.ConvertToCollectionResponse(ctx, result, nil, nil, nil)
 
 		// Assert
 		require.NotNil(t, response)

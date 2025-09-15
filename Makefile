@@ -84,6 +84,8 @@ build: check-go-version swagger
 lint:
 	$(BUNCMD) run lint
 	$(LINTCMD) run --fix --allow-parallel-runners
+	@echo "Running static driver import guard..."
+	@./scripts/check-driver-imports.sh
 	@echo "Running modernize analyzer for min/max suggestions..."
 	@echo "Linting completed successfully"
 
@@ -242,7 +244,7 @@ DB_PORT ?= 5432
 DB_NAME ?= compozy
 
 GOOSE_DBSTRING=postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=disable
-GOOSE_COMMAND = GOOSE_DRIVER=postgres GOOSE_DBSTRING=${GOOSE_DBSTRING} goose -dir ./engine/infra/store/migrations
+GOOSE_COMMAND = GOOSE_DRIVER=postgres GOOSE_DBSTRING=${GOOSE_DBSTRING} goose -dir ./engine/infra/postgres/migrations
 
 migrate-status:
 	$(GOOSE_COMMAND) status
@@ -301,9 +303,9 @@ help:
 	@echo ""
 	@echo "$(YELLOW)Development:$(NC)"
 	@echo "  make dev            - Run in development mode with hot reload"
-	@echo "  make test           - Run all tests"
-	@echo "  make lint           - Run linters and fix issues"
-	@echo "  make fmt            - Format code"
+		@echo "  make test           - Run all tests"
+		@echo "  make lint           - Run linters and fix issues"
+		@echo "  make fmt            - Format code"
 	@echo ""
 	@echo "$(YELLOW)Docker & Database:$(NC)"
 	@echo "  make start-docker   - Start Docker services"

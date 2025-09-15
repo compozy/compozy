@@ -32,7 +32,8 @@ type DispatcherHeartbeatData struct {
 }
 
 // DispatcherHeartbeat records a heartbeat for the dispatcher workflow
-func DispatcherHeartbeat(ctx context.Context, cache *cache.Cache, input *DispatcherHeartbeatInput) error {
+// Uses cache contracts (KV) rather than direct Redis types.
+func DispatcherHeartbeat(ctx context.Context, kv cache.KV, input *DispatcherHeartbeatInput) error {
 	log := logger.FromContext(ctx)
 	// Validate input
 	if input.DispatcherID == "" {
@@ -45,8 +46,8 @@ func DispatcherHeartbeat(ctx context.Context, cache *cache.Cache, input *Dispatc
 		"dispatcher_id", input.DispatcherID,
 		"project", input.ProjectName,
 		"server_id", input.ServerID)
-	if cache == nil {
-		return fmt.Errorf("redis cache not configured")
+	if kv == nil {
+		return fmt.Errorf("cache KV not configured")
 	}
 	// Prepare heartbeat data
 	data := DispatcherHeartbeatData{
@@ -66,7 +67,7 @@ func DispatcherHeartbeat(ctx context.Context, cache *cache.Cache, input *Dispatc
 	if input.TTL > 0 {
 		ttl = input.TTL
 	}
-	err = cache.Redis.Set(ctx, key, string(jsonData), ttl).Err()
+	err = kv.Set(ctx, key, string(jsonData), ttl)
 	if err != nil {
 		return fmt.Errorf("failed to store heartbeat in Redis: %w", err)
 	}
@@ -103,39 +104,101 @@ type DispatcherInfo struct {
 	StaleDuration string    `json:"stale_duration,omitempty"`
 }
 
+// CacheContracts aggregates the cache interfaces needed by list operation.
+// It intentionally relies only on package-level contracts.
+type CacheContracts interface {
+	cache.KV
+	cache.KeysProvider
+}
+
 // ListActiveDispatchers returns a list of all active dispatcher workflows
 func ListActiveDispatchers(
 	ctx context.Context,
-	cache *cache.Cache,
+	contracts CacheContracts,
 	input *ListActiveDispatchersInput,
 ) (*ListActiveDispatchersOutput, error) {
 	log := logger.FromContext(ctx)
 	log.Debug("Listing active dispatchers", "project_filter", input.ProjectName)
-	if cache == nil {
-		return nil, fmt.Errorf("redis cache not configured")
+	if contracts == nil {
+		return nil, fmt.Errorf("cache contracts not configured")
 	}
 	// Default stale threshold is 2 minutes
 	staleThreshold := input.StaleThreshold
 	if staleThreshold == 0 {
 		staleThreshold = 2 * time.Minute
 	}
-	// Get all dispatcher heartbeat keys using SCAN (production-safe alternative to KEYS)
+	// Iterate dispatcher heartbeat keys using streaming iterator to avoid buffering
 	pattern := "dispatcher:heartbeat:*"
-	var keys []string
-	iter := cache.Redis.Scan(ctx, 0, pattern, 0).Iterator()
-	for iter.Next(ctx) {
-		keys = append(keys, iter.Val())
+	it, err := contracts.Keys(ctx, pattern)
+	if err != nil {
+		return nil, fmt.Errorf("failed to start key iteration: %w", err)
 	}
-	if err := iter.Err(); err != nil {
-		return nil, fmt.Errorf("failed to scan for dispatcher keys: %w", err)
+	var (
+		dispatchers   []DispatcherInfo
+		now           = time.Now()
+		totalScanned  int64
+		staleFound    int64
+		scanStartTime = time.Now()
+	)
+	// Retry parameters for transient Next() errors
+	const maxRetries = 3
+	const retryDelay = 50 * time.Millisecond
+	for {
+		batch, done, ierr := it.Next(ctx)
+		if ierr != nil {
+			// Simple bounded retry with backoff
+			var retried bool
+			for attempt := 1; attempt <= maxRetries; attempt++ {
+				select {
+				case <-ctx.Done():
+					return nil, ctx.Err()
+				case <-time.After(retryDelay * time.Duration(attempt)):
+				}
+				batch, done, ierr = it.Next(ctx)
+				if ierr == nil {
+					retried = true
+					break
+				}
+			}
+			if !retried && ierr != nil {
+				return nil, fmt.Errorf("failed during key iteration: %w", ierr)
+			}
+		}
+		totalScanned += int64(len(batch))
+		infos, stale := buildDispatchersFromKeys(ctx, log, contracts, batch, input.ProjectName, staleThreshold, now)
+		staleFound += stale
+		dispatchers = append(dispatchers, infos...)
+		if done {
+			break
+		}
 	}
-	var dispatchers []DispatcherInfo
-	now := time.Now()
+	// Record metrics and logs
+	duration := time.Since(scanStartTime)
+	interceptor.RecordDispatcherScan(ctx, totalScanned, staleFound, duration)
+	log.Debug("Dispatcher scan complete",
+		"keys_scanned", totalScanned,
+		"stale_found", staleFound,
+		"duration", duration,
+		"project_filter", input.ProjectName)
+	return &ListActiveDispatchersOutput{Dispatchers: dispatchers}, nil
+}
+
+// buildDispatchersFromKeys loads heartbeat data and returns dispatcher infos and stale count.
+func buildDispatchersFromKeys(
+	ctx context.Context,
+	log logger.Logger,
+	contracts CacheContracts,
+	keys []string,
+	projectFilter string,
+	staleThreshold time.Duration,
+	now time.Time,
+) ([]DispatcherInfo, int64) {
+	var out []DispatcherInfo
+	var staleFound int64
 	for _, key := range keys {
-		// Get heartbeat data
-		jsonData, err := cache.Redis.Get(ctx, key).Result()
-		if err != nil {
-			log.Warn("Failed to get heartbeat data", "key", key, "error", err)
+		jsonData, gerr := contracts.Get(ctx, key)
+		if gerr != nil {
+			log.Warn("Failed to get heartbeat data", "key", key, "error", gerr)
 			continue
 		}
 		var data DispatcherHeartbeatData
@@ -143,13 +206,14 @@ func ListActiveDispatchers(
 			log.Warn("Failed to unmarshal heartbeat data", "key", key, "error", err)
 			continue
 		}
-		// Apply project filter if specified
-		if input.ProjectName != "" && data.ProjectName != input.ProjectName {
+		if projectFilter != "" && data.ProjectName != projectFilter {
 			continue
 		}
-		// Check if stale
 		timeSinceHeartbeat := now.Sub(data.LastHeartbeat)
 		isStale := timeSinceHeartbeat > staleThreshold
+		if isStale {
+			staleFound++
+		}
 		info := DispatcherInfo{
 			DispatcherID:  data.DispatcherID,
 			ProjectName:   data.ProjectName,
@@ -160,26 +224,23 @@ func ListActiveDispatchers(
 		if isStale {
 			info.StaleDuration = timeSinceHeartbeat.Round(time.Second).String()
 		}
-		dispatchers = append(dispatchers, info)
+		out = append(out, info)
 	}
-	log.Debug("Found dispatchers",
-		"total", len(dispatchers),
-		"project_filter", input.ProjectName)
-	return &ListActiveDispatchersOutput{Dispatchers: dispatchers}, nil
+	return out, staleFound
 }
 
-// RemoveDispatcherHeartbeat removes a dispatcher's heartbeat from Redis
-func RemoveDispatcherHeartbeat(ctx context.Context, cache *cache.Cache, dispatcherID string) error {
+// RemoveDispatcherHeartbeat removes a dispatcher's heartbeat using cache contracts
+func RemoveDispatcherHeartbeat(ctx context.Context, kv cache.KV, dispatcherID string) error {
 	log := logger.FromContext(ctx)
 	log.Debug("Removing dispatcher heartbeat", "dispatcher_id", dispatcherID)
 	if dispatcherID == "" {
 		return fmt.Errorf("dispatcherID cannot be empty")
 	}
-	if cache == nil {
-		return fmt.Errorf("redis cache not configured")
+	if kv == nil {
+		return fmt.Errorf("cache KV not configured")
 	}
 	key := fmt.Sprintf("dispatcher:heartbeat:%s", dispatcherID)
-	err := cache.Redis.Del(ctx, key).Err()
+	_, err := kv.Del(ctx, key)
 	if err != nil {
 		return fmt.Errorf("failed to remove heartbeat: %w", err)
 	}

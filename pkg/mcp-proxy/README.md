@@ -19,7 +19,8 @@
   - [🔧 Configuration](#-configuration)
     - [Server Configuration](#server-configuration)
     - [MCP Definition Schema](#mcp-definition-schema)
-    - [Storage Options](#storage-options)
+  - [Storage Options](#storage-options)
+  - [Mode-Aware Defaults](#mode-aware-defaults)
   - [🎨 Examples](#-examples)
     - [Complete Production Setup](#complete-production-setup)
     - [Compozy Engine Integration](#compozy-engine-integration)
@@ -59,7 +60,7 @@ The proxy supports multiple transport protocols (stdio, SSE, streamable-http), p
 
 - **Multi-Transport Support**: Handles stdio, SSE, and streamable-http protocols
 - **Dynamic Registration**: Hot-add, update, or remove servers via Admin API
-- **Pluggable Storage**: In-memory (default) or Redis persistence
+- **Pluggable Storage**: In-memory (for tests) or Redis persistence
 - **Auto-Reconnection**: Automatic connection recovery with configurable back-off
 - **Tool Discovery**: Aggregates and exposes tools from all registered MCP servers
 - **Thread-Safe**: Safe for concurrent use across multiple goroutines
@@ -228,17 +229,22 @@ type MCPDefinition struct {
 ### Storage Options
 
 ```go
-// In-memory storage (default)
-storage := mcpproxy.NewInMemoryStorage()
+// In-memory storage (default for tests)
+storage := mcpproxy.NewMemoryStorage()
 
-// Redis storage
-redisConfig := &mcpproxy.RedisConfig{
-    Addr:     "localhost:6379",
-    Password: "secret",
-    DB:       0,
-}
-storage, err := mcpproxy.NewRedisStorage(redisConfig)
+// Redis storage (distributed environments)
+redisCfg := &mcpproxy.RedisConfig{Addr: "localhost:6379", DB: 0}
+redisStorage, err := mcpproxy.NewRedisStorage(redisCfg)
+
+// Redis storage (recommended)
+storage, _ := mcpproxy.NewRedisStorage(mcpproxy.DefaultRedisConfig())
 ```
+
+### Mode-Aware Defaults
+
+When embedded in Compozy, storage uses Redis by default when configured; otherwise tests may use memory.
+
+You can override the default by providing an explicit storage instance to the server factory.
 
 ---
 

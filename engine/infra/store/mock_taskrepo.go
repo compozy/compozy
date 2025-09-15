@@ -5,7 +5,6 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
-	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -91,15 +90,6 @@ func (m *MockTaskRepo) ListChildrenOutputs(ctx context.Context, parentID core.ID
 	return args.Get(0).(map[string]*core.Output), args.Error(1)
 }
 
-func (m *MockTaskRepo) CreateChildStatesInTransaction(
-	ctx context.Context,
-	parentID core.ID,
-	states []*task.State,
-) error {
-	args := m.Called(ctx, parentID, states)
-	return args.Error(0)
-}
-
 func (m *MockTaskRepo) GetTaskTree(ctx context.Context, rootID core.ID) ([]*task.State, error) {
 	args := m.Called(ctx, rootID)
 	if args.Get(0) == nil {
@@ -108,22 +98,17 @@ func (m *MockTaskRepo) GetTaskTree(ctx context.Context, rootID core.ID) ([]*task
 	return args.Get(0).([]*task.State), args.Error(1)
 }
 
-func (m *MockTaskRepo) WithTx(ctx context.Context, fn func(pgx.Tx) error) error {
+func (m *MockTaskRepo) WithTransaction(ctx context.Context, fn func(task.Repository) error) error {
 	args := m.Called(ctx, fn)
 	return args.Error(0)
 }
 
-func (m *MockTaskRepo) GetStateForUpdate(ctx context.Context, tx pgx.Tx, taskExecID core.ID) (*task.State, error) {
-	args := m.Called(ctx, tx, taskExecID)
+func (m *MockTaskRepo) GetStateForUpdate(ctx context.Context, taskExecID core.ID) (*task.State, error) {
+	args := m.Called(ctx, taskExecID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*task.State), args.Error(1)
-}
-
-func (m *MockTaskRepo) UpsertStateWithTx(ctx context.Context, tx pgx.Tx, state *task.State) error {
-	args := m.Called(ctx, tx, state)
-	return args.Error(0)
 }
 
 func (m *MockTaskRepo) GetProgressInfo(ctx context.Context, parentStateID core.ID) (*task.ProgressInfo, error) {

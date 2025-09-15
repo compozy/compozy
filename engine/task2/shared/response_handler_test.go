@@ -5,7 +5,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -114,14 +113,16 @@ func TestProcessMainTaskResponse(t *testing.T) {
 		}
 
 		// Mock expectations
-		// Mock WithTx for saveTaskState
-		taskRepo.On("WithTx", ctx, mock.AnythingOfType("func(pgx.Tx) error")).Run(func(args mock.Arguments) {
-			fn := args.Get(1).(func(pgx.Tx) error)
-			fn(nil) // Simulate transaction execution
-		}).Return(nil)
+		// Mock WithTransaction for saveTaskState
+		taskRepo.On("WithTransaction", ctx, mock.AnythingOfType("func(task.Repository) error")).
+			Run(func(args mock.Arguments) {
+				fn := args.Get(1).(func(task.Repository) error)
+				_ = fn(taskRepo)
+			}).
+			Return(nil)
 
-		taskRepo.On("GetStateForUpdate", ctx, mock.Anything, taskState.TaskExecID).Return(taskState, nil)
-		taskRepo.On("UpsertStateWithTx", ctx, mock.Anything, mock.MatchedBy(func(state *task.State) bool {
+		taskRepo.On("GetStateForUpdate", ctx, taskState.TaskExecID).Return(taskState, nil)
+		taskRepo.On("UpsertState", ctx, mock.MatchedBy(func(state *task.State) bool {
 			return state.Status == core.StatusSuccess
 		})).Return(nil)
 
@@ -189,14 +190,16 @@ func TestProcessMainTaskResponse(t *testing.T) {
 		}
 
 		// Mock expectations
-		// Mock WithTx for saveTaskState
-		taskRepo.On("WithTx", ctx, mock.AnythingOfType("func(pgx.Tx) error")).Run(func(args mock.Arguments) {
-			fn := args.Get(1).(func(pgx.Tx) error)
-			fn(nil) // Simulate transaction execution
-		}).Return(nil)
+		// Mock WithTransaction for saveTaskState
+		taskRepo.On("WithTransaction", ctx, mock.AnythingOfType("func(task.Repository) error")).
+			Run(func(args mock.Arguments) {
+				fn := args.Get(1).(func(task.Repository) error)
+				_ = fn(taskRepo)
+			}).
+			Return(nil)
 
-		taskRepo.On("GetStateForUpdate", ctx, mock.Anything, taskState.TaskExecID).Return(taskState, nil)
-		taskRepo.On("UpsertStateWithTx", ctx, mock.Anything, mock.MatchedBy(func(state *task.State) bool {
+		taskRepo.On("GetStateForUpdate", ctx, taskState.TaskExecID).Return(taskState, nil)
+		taskRepo.On("UpsertState", ctx, mock.MatchedBy(func(state *task.State) bool {
 			return state.Status == core.StatusFailed && state.Error != nil
 		})).Return(nil)
 
@@ -230,8 +233,8 @@ func TestProcessMainTaskResponse(t *testing.T) {
 			WorkflowState:  &workflow.State{WorkflowID: "test-workflow"},
 		}
 
-		// Mock WithTx to return context canceled error
-		taskRepo.On("WithTx", ctx, mock.AnythingOfType("func(pgx.Tx) error")).Return(context.Canceled)
+		// Mock WithTransaction to return context canceled error
+		taskRepo.On("WithTransaction", ctx, mock.AnythingOfType("func(task.Repository) error")).Return(context.Canceled)
 
 		// Cancel the context before processing
 		cancel()
@@ -325,18 +328,20 @@ func TestApplyDeferredOutputTransformation(t *testing.T) {
 		}
 
 		// Mock expectations
-		// Mock WithTx for ApplyDeferredOutputTransformation
-		taskRepo.On("WithTx", ctx, mock.AnythingOfType("func(pgx.Tx) error")).Run(func(args mock.Arguments) {
-			fn := args.Get(1).(func(pgx.Tx) error)
-			fn(nil) // Simulate transaction execution
-		}).Return(nil)
+		// Mock WithTransaction for ApplyDeferredOutputTransformation
+		taskRepo.On("WithTransaction", ctx, mock.AnythingOfType("func(task.Repository) error")).
+			Run(func(args mock.Arguments) {
+				fn := args.Get(1).(func(task.Repository) error)
+				_ = fn(taskRepo)
+			}).
+			Return(nil)
 
-		taskRepo.On("GetStateForUpdate", ctx, mock.Anything, taskState.TaskExecID).Return(taskState, nil)
+		taskRepo.On("GetStateForUpdate", ctx, taskState.TaskExecID).Return(taskState, nil)
 
 		outputTransformer.On("TransformOutput", ctx, taskState, input.TaskConfig, input.WorkflowConfig).
 			Return(map[string]any{"count": 3}, nil)
 
-		taskRepo.On("UpsertStateWithTx", ctx, mock.Anything, mock.MatchedBy(func(state *task.State) bool {
+		taskRepo.On("UpsertState", ctx, mock.MatchedBy(func(state *task.State) bool {
 			return state.Output != nil
 		})).Return(nil)
 
@@ -407,16 +412,15 @@ func TestApplyDeferredOutputTransformation(t *testing.T) {
 		transformError := errors.New("transformation failed")
 
 		// Mock expectations
-		// Since WithTx executes the function and returns its error, we need to mock it properly
-		taskRepo.On("WithTx", ctx, mock.AnythingOfType("func(pgx.Tx) error")).Return(
+		// Since WithTransaction executes the function and returns its error, we need to mock it properly
+		taskRepo.On("WithTransaction", ctx, mock.AnythingOfType("func(task.Repository) error")).Return(
 			errors.New("task processing failed: output transformation failed: transformation failed"),
 		).Run(func(args mock.Arguments) {
-			// Still execute the function to trigger mocks inside
-			fn := args.Get(1).(func(pgx.Tx) error)
-			fn(nil)
+			fn := args.Get(1).(func(task.Repository) error)
+			_ = fn(taskRepo)
 		})
 
-		taskRepo.On("GetStateForUpdate", ctx, mock.Anything, taskState.TaskExecID).Return(taskState, nil)
+		taskRepo.On("GetStateForUpdate", ctx, taskState.TaskExecID).Return(taskState, nil)
 
 		outputTransformer.On("TransformOutput", ctx, taskState, input.TaskConfig, input.WorkflowConfig).
 			Return(nil, transformError)
@@ -479,18 +483,20 @@ func TestApplyDeferredOutputTransformation(t *testing.T) {
 		}
 
 		// Mock expectations
-		// Mock WithTx for ApplyDeferredOutputTransformation
-		taskRepo.On("WithTx", ctx, mock.AnythingOfType("func(pgx.Tx) error")).Run(func(args mock.Arguments) {
-			fn := args.Get(1).(func(pgx.Tx) error)
-			fn(nil) // Simulate transaction execution
-		}).Return(nil)
+		// Mock WithTransaction for ApplyDeferredOutputTransformation
+		taskRepo.On("WithTransaction", ctx, mock.AnythingOfType("func(task.Repository) error")).
+			Run(func(args mock.Arguments) {
+				fn := args.Get(1).(func(task.Repository) error)
+				_ = fn(taskRepo)
+			}).
+			Return(nil)
 
-		taskRepo.On("GetStateForUpdate", ctx, mock.Anything, taskState.TaskExecID).Return(taskState, nil)
+		taskRepo.On("GetStateForUpdate", ctx, taskState.TaskExecID).Return(taskState, nil)
 
 		outputTransformer.On("TransformOutput", ctx, taskState, input.TaskConfig, input.WorkflowConfig).
 			Return(map[string]any{"count": 3}, nil)
 
-		taskRepo.On("UpsertStateWithTx", ctx, mock.Anything, mock.MatchedBy(func(state *task.State) bool {
+		taskRepo.On("UpsertState", ctx, mock.MatchedBy(func(state *task.State) bool {
 			return state.Output != nil
 		})).Return(nil)
 

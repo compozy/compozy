@@ -40,8 +40,24 @@ func CreateHealthHandler(server *Server, version string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx := c.Request.Context()
 		ready, healthStatus, scheduleStatus := buildScheduleStatus(ctx, server)
+		temporalReady := false
+		workerReady := false
+		mcpReady := false
+		if server != nil {
+			temporalReady = server.isTemporalReady()
+			workerReady = server.isWorkerReady()
+			mcpReady = server.isMCPReady()
+		}
+		if server != nil && !server.isFullyReady() {
+			ready = false
+			healthStatus = statusNotReady
+		}
 		memoryHealth := buildMemoryHealth(ctx, &ready, &healthStatus)
 		response := buildHealthResponse(healthStatus, version, ready, scheduleStatus, memoryHealth)
+		// Enrich with per-component readiness (align with /readyz) for a single aggregated view
+		response["temporal"] = gin.H{"ready": temporalReady}
+		response["worker"] = gin.H{"running": workerReady}
+		response["mcp_proxy"] = gin.H{"ready": mcpReady}
 		statusCode := determineHealthStatusCode(ready)
 
 		c.JSON(statusCode, gin.H{
@@ -107,6 +123,7 @@ func registerPublicWebhookRoutes(
 	ctx context.Context,
 	router *gin.Engine,
 	state *appstate.State,
+	server *Server,
 	meter metric.Meter,
 ) error {
 	cfg := config.FromContext(ctx)
@@ -145,7 +162,19 @@ func registerPublicWebhookRoutes(
 		)
 	}
 	// Pass zeroes so NewOrchestrator falls back to config values internally.
-	orchestrator := webhook.NewOrchestrator(cfg, reg, filter, dispatcher, nil, 0, 0)
+	// Wire idempotency service: use Redis when configured, otherwise in-memory.
+	var idemSvc webhook.Service
+	if server != nil && server.redisClient != nil {
+		// server.redisClient (*redis.Client) satisfies cache.RedisInterface
+		svc, err := webhook.NewServiceFromCache(server.redisClient)
+		if err != nil {
+			return fmt.Errorf("failed to initialize redis idempotency service: %w", err)
+		}
+		idemSvc = svc
+	} else {
+		idemSvc = webhook.NewInMemoryService()
+	}
+	orchestrator := webhook.NewOrchestrator(cfg, reg, filter, dispatcher, idemSvc, 0, 0)
 	if meter != nil {
 		metrics, err := webhook.NewMetrics(ctx, meter)
 		if err != nil {
@@ -231,7 +260,7 @@ func setupWebhookSystem(ctx context.Context, state *appstate.State, router *gin.
 		meter = server.monitoring.Meter()
 	}
 
-	return registerPublicWebhookRoutes(ctx, router, state, meter)
+	return registerPublicWebhookRoutes(ctx, router, state, server, meter)
 }
 
 // setupDiagnosticEndpoints configures root and health check endpoints
@@ -240,6 +269,55 @@ func setupDiagnosticEndpoints(router *gin.Engine, version, prefixURL string, ser
 	router.GET("/", createRootHandler(version, prefixURL))
 	// Health check endpoint with readiness probe
 	router.GET("/health", CreateHealthHandler(server, version))
+	// MCP health: reports embedded MCP proxy readiness in standalone mode
+	router.GET("/mcp/health", func(c *gin.Context) {
+		ready := false
+		if server != nil {
+			ready = server.isMCPReady()
+		}
+		code := determineHealthStatusCode(ready)
+		st := "ok"
+		if !ready {
+			st = statusNotReady
+		}
+		c.JSON(code, gin.H{"status": st})
+	})
+	// Kubernetes-style liveness and readiness endpoints
+	router.GET("/healthz", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	})
+	router.GET("/readyz", func(c *gin.Context) {
+		ctx := c.Request.Context()
+		ready, healthStatus, scheduleStatus := buildScheduleStatus(ctx, server)
+		temporalReady := false
+		workerReady := false
+		mcpReady := false
+		if server != nil {
+			temporalReady = server.isTemporalReady()
+			workerReady = server.isWorkerReady()
+			mcpReady = server.isMCPReady()
+			if !server.isFullyReady() {
+				ready = false
+				healthStatus = statusNotReady
+			}
+		} else {
+			ready = false
+			healthStatus = statusNotReady
+		}
+		statusCode := determineHealthStatusCode(ready)
+		c.JSON(statusCode, gin.H{
+			"data": gin.H{
+				"status":    healthStatus,
+				"version":   version,
+				"ready":     ready,
+				"temporal":  gin.H{"ready": temporalReady},
+				"worker":    gin.H{"running": workerReady},
+				"mcp_proxy": gin.H{"ready": mcpReady},
+				"schedules": scheduleStatus,
+			},
+			"message": "Success",
+		})
+	})
 }
 
 // createRootHandler creates the root endpoint handler with API information
@@ -330,7 +408,8 @@ func buildScheduleStatus(ctx context.Context, server *Server) (bool, string, gin
 			logger.FromContext(ctx).
 				Warn("Readiness probe check failed due to reconciliation error", "error", lastError)
 			scheduleStatus["status"] = "retrying"
-			scheduleStatus["last_error"] = "reconciliation failed, see server logs for details"
+			scheduleStatus["last_error"] = "reconciliation failed"
+			scheduleStatus["last_error_message"] = lastError.Error()
 			ready = false
 			healthStatus = "not_ready"
 		default:

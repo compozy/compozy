@@ -22,6 +22,7 @@ import (
 	"github.com/compozy/compozy/engine/task/services"
 	wkacts "github.com/compozy/compozy/engine/worker/activities"
 	wf "github.com/compozy/compozy/engine/workflow"
+	wfacts "github.com/compozy/compozy/engine/workflow/activities"
 	appconfig "github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/tplengine"
@@ -38,7 +39,8 @@ import (
 // -----------------------------------------------------------------------------
 
 const (
-	DispatcherEventChannel = "event_channel"
+	DispatcherEventChannel      = "event_channel"
+	workflowStartTimeoutDefault = 5 * time.Second
 )
 
 // -----------------------------------------------------------------------------
@@ -73,6 +75,164 @@ type Worker struct {
 	// Lifecycle management
 	lifecycleCtx    context.Context
 	lifecycleCancel context.CancelFunc
+}
+
+// registerActivities registers workflows and all activities with explicit labels
+// to ensure deterministic name resolution across refactors.
+func (o *Worker) registerActivities() {
+	o.registerWorkflows()
+	o.registerWorkflowActivities()
+	o.registerTaskActivities()
+	o.registerConfigActivities()
+	o.registerDispatcherActivities()
+	o.registerMemoryActivities()
+}
+
+func (o *Worker) registerWorkflows() {
+	o.worker.RegisterWorkflow(CompozyWorkflow)
+	o.worker.RegisterWorkflow(DispatcherWorkflow)
+}
+
+func (o *Worker) registerWorkflowActivities() {
+	o.worker.RegisterActivityWithOptions(
+		o.activities.GetWorkflowData,
+		activity.RegisterOptions{Name: wfacts.GetDataLabel},
+	)
+	o.worker.RegisterActivityWithOptions(
+		o.activities.TriggerWorkflow,
+		activity.RegisterOptions{Name: wfacts.TriggerLabel},
+	)
+	o.worker.RegisterActivityWithOptions(
+		o.activities.UpdateWorkflowState,
+		activity.RegisterOptions{Name: wfacts.UpdateStateLabel},
+	)
+	o.worker.RegisterActivityWithOptions(
+		o.activities.CompleteWorkflow,
+		activity.RegisterOptions{Name: wfacts.CompleteWorkflowLabel},
+	)
+}
+
+func (o *Worker) registerTaskActivities() {
+	o.worker.RegisterActivityWithOptions(
+		o.activities.ExecuteBasicTask,
+		activity.RegisterOptions{Name: tkacts.ExecuteBasicLabel},
+	)
+	o.worker.RegisterActivityWithOptions(
+		o.activities.ExecuteRouterTask,
+		activity.RegisterOptions{Name: tkacts.ExecuteRouterLabel},
+	)
+	o.worker.RegisterActivityWithOptions(
+		o.activities.ExecuteAggregateTask,
+		activity.RegisterOptions{Name: tkacts.ExecuteAggregateLabel},
+	)
+	o.worker.RegisterActivityWithOptions(
+		o.activities.ExecuteSignalTask,
+		activity.RegisterOptions{Name: tkacts.ExecuteSignalLabel},
+	)
+	o.worker.RegisterActivityWithOptions(
+		o.activities.ExecuteWaitTask,
+		activity.RegisterOptions{Name: tkacts.ExecuteWaitLabel},
+	)
+	o.worker.RegisterActivityWithOptions(
+		o.activities.ExecuteMemoryTask,
+		activity.RegisterOptions{Name: tkacts.ExecuteMemoryLabel},
+	)
+	o.worker.RegisterActivityWithOptions(
+		o.activities.NormalizeWaitProcessor,
+		activity.RegisterOptions{Name: tkacts.NormalizeWaitProcessorLabel},
+	)
+	o.worker.RegisterActivityWithOptions(
+		o.activities.EvaluateCondition,
+		activity.RegisterOptions{Name: tkacts.EvaluateConditionLabel},
+	)
+	o.worker.RegisterActivityWithOptions(
+		o.activities.ExecuteSubtask,
+		activity.RegisterOptions{Name: tkacts.ExecuteSubtaskLabel},
+	)
+	o.worker.RegisterActivityWithOptions(
+		o.activities.CreateParallelState,
+		activity.RegisterOptions{Name: tkacts.CreateParallelStateLabel},
+	)
+	o.worker.RegisterActivityWithOptions(
+		o.activities.GetParallelResponse,
+		activity.RegisterOptions{Name: tkacts.GetParallelResponseLabel},
+	)
+	o.worker.RegisterActivityWithOptions(
+		o.activities.CreateCollectionState,
+		activity.RegisterOptions{Name: tkacts.CreateCollectionStateLabel},
+	)
+	o.worker.RegisterActivityWithOptions(
+		o.activities.GetCollectionResponse,
+		activity.RegisterOptions{Name: tkacts.GetCollectionResponseLabel},
+	)
+	o.worker.RegisterActivityWithOptions(
+		o.activities.CreateCompositeState,
+		activity.RegisterOptions{Name: tkacts.CreateCompositeStateLabel},
+	)
+	o.worker.RegisterActivityWithOptions(
+		o.activities.GetCompositeResponse,
+		activity.RegisterOptions{Name: tkacts.GetCompositeResponseLabel},
+	)
+	o.worker.RegisterActivityWithOptions(
+		o.activities.GetProgress,
+		activity.RegisterOptions{Name: tkacts.GetProgressLabel},
+	)
+	o.worker.RegisterActivityWithOptions(
+		o.activities.UpdateParentStatus,
+		activity.RegisterOptions{Name: tkacts.UpdateParentStatusLabel},
+	)
+	o.worker.RegisterActivityWithOptions(
+		o.activities.UpdateChildState,
+		activity.RegisterOptions{Name: tkacts.UpdateChildStateLabel},
+	)
+	o.worker.RegisterActivityWithOptions(
+		o.activities.ListChildStates,
+		activity.RegisterOptions{Name: tkacts.ListChildStatesLabel},
+	)
+}
+
+func (o *Worker) registerConfigActivities() {
+	o.worker.RegisterActivityWithOptions(
+		o.activities.LoadTaskConfigActivity,
+		activity.RegisterOptions{Name: tkacts.LoadTaskConfigLabel},
+	)
+	o.worker.RegisterActivityWithOptions(
+		o.activities.LoadBatchConfigsActivity,
+		activity.RegisterOptions{Name: tkacts.LoadBatchConfigsLabel},
+	)
+	o.worker.RegisterActivityWithOptions(
+		o.activities.LoadCompositeConfigsActivity,
+		activity.RegisterOptions{Name: tkacts.LoadCompositeConfigsLabel},
+	)
+	o.worker.RegisterActivityWithOptions(
+		o.activities.LoadCollectionConfigsActivity,
+		activity.RegisterOptions{Name: tkacts.LoadCollectionConfigsLabel},
+	)
+}
+
+func (o *Worker) registerDispatcherActivities() {
+	o.worker.RegisterActivityWithOptions(
+		o.activities.DispatcherHeartbeat,
+		activity.RegisterOptions{Name: wkacts.DispatcherHeartbeatLabel},
+	)
+	o.worker.RegisterActivityWithOptions(
+		o.activities.ListActiveDispatchers,
+		activity.RegisterOptions{Name: wkacts.ListActiveDispatchersLabel},
+	)
+}
+
+func (o *Worker) registerMemoryActivities() {
+	if o.memoryManager == nil {
+		return
+	}
+	o.worker.RegisterActivityWithOptions(
+		o.activities.FlushMemory,
+		activity.RegisterOptions{Name: memacts.FlushMemoryLabel},
+	)
+	o.worker.RegisterActivityWithOptions(
+		o.activities.ClearFlushPendingFlag,
+		activity.RegisterOptions{Name: memacts.ClearFlushPendingLabel},
+	)
 }
 
 func buildWorkerOptions(ctx context.Context, monitoringService *monitoring.Service) *worker.Options {
@@ -166,7 +326,7 @@ func NewWorker(
 		return nil, err
 	}
 	dispatcher := createDispatcher(projectConfig, workerCore.taskQueue, client)
-	activities := NewActivities(
+	activities, err := NewActivities(
 		ctx,
 		projectConfig,
 		workflows,
@@ -179,6 +339,9 @@ func NewWorker(
 		memoryManager,
 		templateEngine,
 	)
+	if err != nil {
+		return nil, err
+	}
 	interceptor.SetConfiguredWorkerCount(1)
 	lifecycleCtx, lifecycleCancel := context.WithCancel(context.WithoutCancel(ctx))
 	log.Debug("Worker initialization completed", "total_duration", time.Since(workerStart))
@@ -272,6 +435,7 @@ func setupRedisAndConfig(
 	if cfg == nil {
 		return nil, nil, fmt.Errorf("config manager not found in context")
 	}
+
 	// Build cache config from centralized Redis and cache config
 	cacheConfig := cache.FromAppConfig(cfg)
 
@@ -316,6 +480,8 @@ func setupMemoryManager(
 		log.Warn("Resource registry not provided, memory features will be disabled")
 		return nil, nil
 	}
+
+	// Redis is a hard requirement; by this point, redisCache should be non-nil.
 	privacyManager := privacy.NewManager()
 
 	// Extract project ID for consistent namespace resolution
@@ -355,58 +521,7 @@ func createDispatcher(projectConfig *project.Config, taskQueue string, client *C
 }
 
 func (o *Worker) Setup(ctx context.Context) error {
-	o.worker.RegisterWorkflow(CompozyWorkflow)
-	o.worker.RegisterWorkflow(DispatcherWorkflow)
-	o.worker.RegisterActivity(o.activities.GetWorkflowData)
-	o.worker.RegisterActivity(o.activities.TriggerWorkflow)
-	o.worker.RegisterActivity(o.activities.UpdateWorkflowState)
-	o.worker.RegisterActivity(o.activities.CompleteWorkflow)
-	o.worker.RegisterActivity(o.activities.ExecuteBasicTask)
-	o.worker.RegisterActivity(o.activities.ExecuteRouterTask)
-	o.worker.RegisterActivity(o.activities.ExecuteAggregateTask)
-	o.worker.RegisterActivity(o.activities.ExecuteSignalTask)
-	o.worker.RegisterActivity(o.activities.ExecuteWaitTask)
-	o.worker.RegisterActivity(o.activities.ExecuteMemoryTask)
-	o.worker.RegisterActivityWithOptions(
-		o.activities.NormalizeWaitProcessor,
-		activity.RegisterOptions{Name: tkacts.NormalizeWaitProcessorLabel},
-	)
-	o.worker.RegisterActivity(o.activities.EvaluateCondition)
-	o.worker.RegisterActivity(o.activities.ExecuteSubtask)
-	o.worker.RegisterActivity(o.activities.CreateParallelState)
-	o.worker.RegisterActivity(o.activities.GetParallelResponse)
-	o.worker.RegisterActivity(o.activities.CreateCollectionState)
-	o.worker.RegisterActivity(o.activities.GetCollectionResponse)
-	o.worker.RegisterActivity(o.activities.CreateCompositeState)
-	o.worker.RegisterActivity(o.activities.GetCompositeResponse)
-	o.worker.RegisterActivity(o.activities.GetProgress)
-	o.worker.RegisterActivity(o.activities.UpdateParentStatus)
-	o.worker.RegisterActivity(o.activities.UpdateChildState)
-	o.worker.RegisterActivity(o.activities.ListChildStates)
-	o.worker.RegisterActivityWithOptions(
-		o.activities.LoadTaskConfigActivity,
-		activity.RegisterOptions{Name: tkacts.LoadTaskConfigLabel},
-	)
-	o.worker.RegisterActivityWithOptions(
-		o.activities.LoadBatchConfigsActivity,
-		activity.RegisterOptions{Name: tkacts.LoadBatchConfigsLabel},
-	)
-	o.worker.RegisterActivityWithOptions(
-		o.activities.LoadCompositeConfigsActivity,
-		activity.RegisterOptions{Name: tkacts.LoadCompositeConfigsLabel},
-	)
-	o.worker.RegisterActivityWithOptions(
-		o.activities.LoadCollectionConfigsActivity,
-		activity.RegisterOptions{Name: tkacts.LoadCollectionConfigsLabel},
-	)
-	o.worker.RegisterActivityWithOptions(
-		o.activities.DispatcherHeartbeat,
-		activity.RegisterOptions{Name: wkacts.DispatcherHeartbeatLabel},
-	)
-	o.worker.RegisterActivityWithOptions(
-		o.activities.ListActiveDispatchers,
-		activity.RegisterOptions{Name: wkacts.ListActiveDispatchersLabel},
-	)
+	o.registerActivities()
 	// Register memory activities if memory manager is available
 	if o.memoryManager != nil {
 		o.worker.RegisterActivityWithOptions(
@@ -574,6 +689,13 @@ func (o *Worker) TerminateDispatcher(ctx context.Context, reason string) error {
 	log.Info("Terminating dispatcher workflow", "dispatcher_id", o.dispatcherID, "reason", reason)
 	return o.client.TerminateWorkflow(ctx, o.dispatcherID, "", reason)
 }
+
+// isRedisConfigured mirrors server logic to decide whether Redis should be used.
+// Rules:
+// - URL provided => configured
+// - Empty host => not configured
+// - localhost:6379 with empty URL => treat as not configured (dev default)
+// Redis configuration is now required at startup; server ensures it.
 
 func (o *Worker) ensureDispatcherRunning(ctx context.Context) {
 	log := logger.FromContext(ctx)
@@ -744,8 +866,15 @@ func (o *Worker) TriggerWorkflow(
 		TaskQueue: o.taskQueue,
 	}
 	// MCPs are already registered at server startup, no need to register per workflow
+	// Bound the start call so HTTP handlers don't hang if Temporal is slow
+	timeout := workflowStartTimeoutDefault
+	if cfg := appconfig.FromContext(ctx); cfg != nil && cfg.Worker.StartWorkflowTimeout > 0 {
+		timeout = cfg.Worker.StartWorkflowTimeout
+	}
+	sctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 	_, err = o.client.ExecuteWorkflow(
-		ctx,
+		sctx,
 		options,
 		CompozyWorkflow,
 		workflowInput,

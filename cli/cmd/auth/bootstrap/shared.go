@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/engine/auth/bootstrap"
-	authrepo "github.com/compozy/compozy/engine/auth/infra/postgres"
 	authuc "github.com/compozy/compozy/engine/auth/uc"
-	"github.com/compozy/compozy/engine/infra/store"
+	"github.com/compozy/compozy/engine/infra/postgres"
+	"github.com/compozy/compozy/engine/infra/repo"
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 )
@@ -33,7 +33,8 @@ func (f *DefaultServiceFactory) CreateService(ctx context.Context) (*bootstrap.S
 	dbCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	dbCfg := &store.Config{
+	// Always use Postgres for auth bootstrap
+	dbCfg := &postgres.Config{
 		ConnString: cfg.Database.ConnString,
 		Host:       cfg.Database.Host,
 		Port:       cfg.Database.Port,
@@ -42,22 +43,20 @@ func (f *DefaultServiceFactory) CreateService(ctx context.Context) (*bootstrap.S
 		DBName:     cfg.Database.DBName,
 		SSLMode:    cfg.Database.SSLMode,
 	}
-
-	db, err := store.NewDB(dbCtx, dbCfg)
+	drv, err := postgres.NewStore(dbCtx, dbCfg)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
-
-	repo := authrepo.NewRepository(db)
-	factory := authuc.NewFactory(repo)
-	service := bootstrap.NewService(factory)
-
+	provider := repo.NewProvider(drv.Pool())
+	authRepo := provider.NewAuthRepo()
 	cleanup := func() {
-		if err := db.Close(ctx); err != nil {
+		if err := drv.Close(ctx); err != nil {
 			logger.FromContext(ctx).Error("Failed to close database", "error", err)
 		}
 	}
 
+	factory := authuc.NewFactory(authRepo)
+	service := bootstrap.NewService(factory)
 	return service, cleanup, nil
 }
 

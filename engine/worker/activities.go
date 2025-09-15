@@ -37,6 +37,11 @@ type Activities struct {
 	memoryActivities *memacts.MemoryActivities
 	templateEngine   *tplengine.TemplateEngine
 	task2Factory     task2.Factory
+	// Cached cache adapter contracts to avoid per-call instantiation
+	cacheKV   cache.KV
+	cacheKeys cache.KeysProvider
+	// Config manager to reattach into Temporal activity contexts
+	cfgManager *config.Manager
 }
 
 func NewActivities(
@@ -51,12 +56,11 @@ func NewActivities(
 	redisCache *cache.Cache,
 	memoryManager *memory.Manager,
 	templateEngine *tplengine.TemplateEngine,
-) *Activities {
+) (*Activities, error) {
 	// Create CEL evaluator once for reuse across all activity executions
 	celEvaluator, err := task.NewCELEvaluator()
 	if err != nil {
-		// This is a critical initialization error
-		panic(fmt.Sprintf("failed to create CEL evaluator: %v", err))
+		return nil, fmt.Errorf("activities: create CEL evaluator: %w", err)
 	}
 	// Create memory activities instance
 	// Note: MemoryActivities will use activity.GetLogger(ctx) internally for proper logging
@@ -71,10 +75,10 @@ func NewActivities(
 		TaskRepo:       taskRepo,
 	})
 	if err != nil {
-		panic(fmt.Sprintf("failed to create task2 factory: %v", err))
+		return nil, fmt.Errorf("activities: create task2 factory: %w", err)
 	}
 
-	return &Activities{
+	acts := &Activities{
 		projectConfig:    projectConfig,
 		workflows:        workflows,
 		workflowRepo:     workflowRepo,
@@ -88,7 +92,18 @@ func NewActivities(
 		memoryActivities: memoryActivities,
 		templateEngine:   templateEngine,
 		task2Factory:     task2Factory,
+		cfgManager:       config.ManagerFromContext(ctx),
 	}
+	// Initialize cache adapter contracts once if Redis is available
+	if redisCache != nil && redisCache.Redis != nil {
+		ad, err := cache.NewRedisAdapter(redisCache.Redis)
+		if err != nil {
+			return nil, fmt.Errorf("activities: create redis cache adapter: %w", err)
+		}
+		acts.cacheKV = ad
+		acts.cacheKeys = ad
+	}
+	return acts, nil
 }
 
 // withActivityLogger ensures a request-scoped logger is present in the activity context
@@ -111,6 +126,15 @@ func withActivityLogger(ctx context.Context) context.Context {
 		TimeFormat: "15:04:05",
 	})
 	return logger.ContextWithLogger(ctx, log)
+}
+
+// withActivityContext ensures logger and configuration manager are attached to the activity context
+func (a *Activities) withActivityContext(ctx context.Context) context.Context {
+	c := withActivityLogger(ctx)
+	if a != nil && a.cfgManager != nil {
+		c = config.ContextWithManager(c, a.cfgManager)
+	}
+	return c
 }
 
 // -----------------------------------------------------------------------------
@@ -164,9 +188,9 @@ func (a *Activities) ExecuteBasicTask(
 	ctx context.Context,
 	input *tkfacts.ExecuteBasicInput,
 ) (*task.MainTaskResponse, error) {
-	// Ensure logger is attached to the activity context so downstream code
-	// (use-cases, LLM orchestrator) can emit debug logs when enabled.
-	ctx = withActivityLogger(ctx)
+	// Ensure logger and configuration manager are attached to the activity context
+	// so downstream code (use-cases, LLM orchestrator) can emit logs and see app config.
+	ctx = a.withActivityContext(ctx)
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -269,6 +293,7 @@ func (a *Activities) GetParallelResponse(
 		a.taskRepo,
 		a.configStore,
 		a.task2Factory,
+		a.projectConfig.CWD,
 	)
 	return act.Run(ctx, input)
 }
@@ -339,6 +364,7 @@ func (a *Activities) GetCollectionResponse(
 		a.taskRepo,
 		a.configStore,
 		a.task2Factory,
+		a.projectConfig.CWD,
 	)
 	return act.Run(ctx, input)
 }
@@ -409,6 +435,7 @@ func (a *Activities) GetCompositeResponse(
 		a.taskRepo,
 		a.configStore,
 		a.task2Factory,
+		a.projectConfig.CWD,
 	)
 	return act.Run(ctx, input)
 }
@@ -443,7 +470,7 @@ func (a *Activities) LoadCompositeConfigsActivity(
 		return nil, err
 	}
 	// Create task config repository from factory
-	configRepo, err := a.task2Factory.CreateTaskConfigRepository(a.configStore)
+	configRepo, err := a.task2Factory.CreateTaskConfigRepository(a.configStore, a.projectConfig.CWD)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create task config repository: %w", err)
 	}
@@ -459,7 +486,7 @@ func (a *Activities) LoadCollectionConfigsActivity(
 		return nil, err
 	}
 	// Create task config repository from factory
-	configRepo, err := a.task2Factory.CreateTaskConfigRepository(a.configStore)
+	configRepo, err := a.task2Factory.CreateTaskConfigRepository(a.configStore, a.projectConfig.CWD)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create task config repository: %w", err)
 	}
@@ -567,18 +594,38 @@ func (a *Activities) EvaluateCondition(
 // -----------------------------------------------------------------------------
 
 func (a *Activities) DispatcherHeartbeat(ctx context.Context, input *wkacts.DispatcherHeartbeatInput) error {
-	return wkacts.DispatcherHeartbeat(ctx, a.redisCache, input)
+	ctx = a.withActivityContext(ctx)
+	if a.cacheKV == nil {
+		return wkacts.DispatcherHeartbeat(ctx, nil, input)
+	}
+	return wkacts.DispatcherHeartbeat(ctx, a.cacheKV, input)
 }
 
 func (a *Activities) ListActiveDispatchers(
 	ctx context.Context,
 	input *wkacts.ListActiveDispatchersInput,
 ) (*wkacts.ListActiveDispatchersOutput, error) {
-	return wkacts.ListActiveDispatchers(ctx, a.redisCache, input)
+	ctx = a.withActivityContext(ctx)
+	if a.cacheKV == nil || a.cacheKeys == nil {
+		return wkacts.ListActiveDispatchers(ctx, nil, input)
+	}
+	// Compose minimal contract interface
+	type contracts interface {
+		cache.KV
+		cache.KeysProvider
+	}
+	return wkacts.ListActiveDispatchers(ctx, struct{ contracts }{contracts: struct {
+		cache.KV
+		cache.KeysProvider
+	}{a.cacheKV, a.cacheKeys}}, input)
 }
 
 func (a *Activities) RemoveDispatcherHeartbeat(ctx context.Context, dispatcherID string) error {
-	return wkacts.RemoveDispatcherHeartbeat(ctx, a.redisCache, dispatcherID)
+	ctx = a.withActivityContext(ctx)
+	if a.cacheKV == nil {
+		return wkacts.RemoveDispatcherHeartbeat(ctx, nil, dispatcherID)
+	}
+	return wkacts.RemoveDispatcherHeartbeat(ctx, a.cacheKV, dispatcherID)
 }
 
 // -----------------------------------------------------------------------------

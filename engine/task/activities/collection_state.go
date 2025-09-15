@@ -30,6 +30,7 @@ type CreateCollectionState struct {
 	task2Factory       task2.Factory
 	configStore        services.ConfigStore
 	taskRepo           task.Repository
+	cwd                *core.PathCWD
 }
 
 // NewCreateCollectionState creates a new CreateCollectionState activity with task2 integration
@@ -38,16 +39,17 @@ func NewCreateCollectionState(
 	workflowRepo workflow.Repository,
 	taskRepo task.Repository,
 	configStore services.ConfigStore,
-	_ *core.PathCWD,
+	cwd *core.PathCWD,
 	task2Factory task2.Factory,
 ) (*CreateCollectionState, error) {
 	return &CreateCollectionState{
 		loadWorkflowUC:     uc.NewLoadWorkflow(workflows, workflowRepo),
 		createStateUC:      uc.NewCreateState(taskRepo, configStore),
-		createChildTasksUC: uc.NewCreateChildTasksUC(taskRepo, configStore, task2Factory),
+		createChildTasksUC: uc.NewCreateChildTasksUC(taskRepo, configStore, task2Factory, cwd),
 		task2Factory:       task2Factory,
 		configStore:        configStore,
 		taskRepo:           taskRepo,
+		cwd:                cwd,
 	}, nil
 }
 
@@ -84,7 +86,7 @@ func (a *CreateCollectionState) Run(ctx context.Context, input *CreateCollection
 		return nil, fmt.Errorf("expansion validation failed: %w", err)
 	}
 	// Store expanded configs for child task creation
-	configRepo, err := a.task2Factory.CreateTaskConfigRepository(a.configStore)
+	configRepo, err := a.task2Factory.CreateTaskConfigRepository(a.configStore, a.cwd)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create task config repository: %w", err)
 	}

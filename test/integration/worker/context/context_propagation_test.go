@@ -27,7 +27,7 @@ func TestWorker_ContextPropagation_E2E(t *testing.T) {
 		require.NoError(t, err)
 		ctx := config.ContextWithManager(base, mgr)
 		tple := tplengine.NewEngine(tplengine.FormatJSON)
-		acts := worker.NewActivities(
+		acts, err := worker.NewActivities(
 			ctx,
 			nil,  // projectConfig
 			nil,  // workflows
@@ -40,6 +40,7 @@ func TestWorker_ContextPropagation_E2E(t *testing.T) {
 			nil,  // memoryManager
 			tple, // templateEngine (required by factory construction)
 		)
+		require.NoError(t, err)
 		input := &activities.EvaluateConditionInput{Expression: "true"}
 		res, err := acts.EvaluateCondition(ctx, input)
 		require.NoError(t, err)

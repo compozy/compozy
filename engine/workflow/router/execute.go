@@ -2,6 +2,7 @@ package wfrouter
 
 import (
 	"fmt"
+	"net/http"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/server/router"
@@ -44,6 +45,15 @@ func handleExecute(c *gin.Context) {
 	}
 	state := router.GetAppState(c)
 	if state == nil {
+		return
+	}
+	if state.Worker == nil {
+		reqErr := router.NewRequestError(
+			http.StatusServiceUnavailable,
+			"worker is not running; configure Redis or start the worker",
+			nil,
+		)
+		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
 	body := router.GetRequestBody[ExecuteWorkflowRequest](c)

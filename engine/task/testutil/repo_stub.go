@@ -8,7 +8,6 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
-	"github.com/jackc/pgx/v5"
 )
 
 // InMemoryRepo is an in-memory implementation of task.Repository for testing
@@ -60,18 +59,13 @@ func (r *InMemoryRepo) UpsertState(_ context.Context, state *task.State) error {
 }
 
 // GetStateForUpdate retrieves a state with a lock (for testing, same as GetState)
-func (r *InMemoryRepo) GetStateForUpdate(ctx context.Context, _ pgx.Tx, taskExecID core.ID) (*task.State, error) {
+func (r *InMemoryRepo) GetStateForUpdate(ctx context.Context, taskExecID core.ID) (*task.State, error) {
 	return r.GetState(ctx, taskExecID)
 }
 
-// UpsertStateWithTx updates state within a transaction (for testing, same as UpsertState)
-func (r *InMemoryRepo) UpsertStateWithTx(ctx context.Context, _ pgx.Tx, state *task.State) error {
-	return r.UpsertState(ctx, state)
-}
-
-// WithTx executes a function within a transaction (no-op for testing)
-func (r *InMemoryRepo) WithTx(_ context.Context, fn func(pgx.Tx) error) error {
-	return fn(nil) // Pass nil transaction for testing
+// WithTransaction executes a function within a transaction (no-op for testing)
+func (r *InMemoryRepo) WithTransaction(_ context.Context, fn func(task.Repository) error) error {
+	return fn(r)
 }
 
 // ListChildren retrieves all child states for a given parent
@@ -209,14 +203,6 @@ func (r *InMemoryRepo) ListTasksByTool(
 	_ string,
 ) ([]*task.State, error) {
 	return nil, fmt.Errorf("not implemented")
-}
-
-func (r *InMemoryRepo) CreateChildStatesInTransaction(
-	_ context.Context,
-	_ core.ID,
-	_ []*task.State,
-) error {
-	return fmt.Errorf("not implemented")
 }
 
 func (r *InMemoryRepo) GetTaskTree(_ context.Context, _ core.ID) ([]*task.State, error) {

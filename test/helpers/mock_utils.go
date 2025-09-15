@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/engine/infra/store"
+	pgdriver "github.com/compozy/compozy/engine/infra/postgres"
 	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/assert"
 )
@@ -265,7 +265,7 @@ func NewDataBuilder() *DataBuilder {
 // MustCreateInputData creates test input data as JSONB
 func (td *DataBuilder) MustCreateInputData(data map[string]any) []byte {
 	input := core.Input(data)
-	inputData, err := store.ToJSONB(&input)
+	inputData, err := pgdriver.ToJSONB(&input)
 	if err != nil {
 		panic(err)
 	}
@@ -274,7 +274,7 @@ func (td *DataBuilder) MustCreateInputData(data map[string]any) []byte {
 
 // MustCreateNilJSONB creates nil JSONB data
 func (td *DataBuilder) MustCreateNilJSONB() []byte {
-	data, err := store.ToJSONB(nil)
+	data, err := pgdriver.ToJSONB(nil)
 	if err != nil {
 		panic(err)
 	}

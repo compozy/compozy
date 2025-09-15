@@ -32,6 +32,10 @@ var (
 	dispatcherUptimeSeconds  metric.Float64ObservableGauge
 	dispatcherUptimeCallback metric.Registration
 	dispatcherStartTimes     sync.Map // map[string]time.Time for tracking uptime per dispatcher
+	// Dispatcher key scan metrics
+	dispatcherKeysScannedTotal metric.Int64Counter
+	dispatcherStaleFoundTotal  metric.Int64Counter
+	dispatcherScanDuration     metric.Float64Histogram
 )
 
 // resetMetrics is used for testing purposes only
@@ -197,6 +201,10 @@ func initDispatcherMetrics(ctx context.Context, meter metric.Meter) error {
 		log.Error("Failed to create dispatcher uptime gauge", "error", err, "component", "temporal_metrics")
 		return err
 	}
+
+	if err := initDispatcherScanMetrics(meter, log); err != nil {
+		return err
+	}
 	// Register dispatcher uptime callback
 	dispatcherUptimeCallback, err = meter.RegisterCallback(func(_ context.Context, o metric.Observer) error {
 		now := time.Now()
@@ -218,6 +226,37 @@ func initDispatcherMetrics(ctx context.Context, meter metric.Meter) error {
 	}, dispatcherUptimeSeconds)
 	if err != nil {
 		log.Error("Failed to register dispatcher uptime callback", "error", err, "component", "temporal_metrics")
+		return err
+	}
+	return nil
+}
+
+// initDispatcherScanMetrics initializes metrics related to dispatcher key scans.
+func initDispatcherScanMetrics(meter metric.Meter, log logger.Logger) error {
+	var err error
+	dispatcherKeysScannedTotal, err = meter.Int64Counter(
+		"compozy_dispatcher_keys_scanned_total",
+		metric.WithDescription("Total dispatcher heartbeat keys scanned"),
+	)
+	if err != nil {
+		log.Error("Failed to create dispatcher keys scanned counter", "error", err, "component", "temporal_metrics")
+		return err
+	}
+	dispatcherStaleFoundTotal, err = meter.Int64Counter(
+		"compozy_dispatcher_stale_heartbeats_total",
+		metric.WithDescription("Total stale dispatcher heartbeats encountered during scans"),
+	)
+	if err != nil {
+		log.Error("Failed to create dispatcher stale counter", "error", err, "component", "temporal_metrics")
+		return err
+	}
+	dispatcherScanDuration, err = meter.Float64Histogram(
+		"compozy_dispatcher_scan_duration_seconds",
+		metric.WithDescription("Duration of dispatcher heartbeat scans"),
+		metric.WithExplicitBucketBoundaries(.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5),
+	)
+	if err != nil {
+		log.Error("Failed to create dispatcher scan duration histogram", "error", err, "component", "temporal_metrics")
 		return err
 	}
 	return nil
@@ -423,6 +462,21 @@ func RecordDispatcherHeartbeat(ctx context.Context, dispatcherID string) {
 	defer metricsMutex.RUnlock()
 	if dispatcherHeartbeatTotal != nil {
 		dispatcherHeartbeatTotal.Add(ctx, 1, metric.WithAttributes(attribute.String("dispatcher_id", dispatcherID)))
+	}
+}
+
+// RecordDispatcherScan records metrics for a dispatcher heartbeat scan operation.
+func RecordDispatcherScan(ctx context.Context, keysScanned int64, staleFound int64, duration time.Duration) {
+	metricsMutex.RLock()
+	defer metricsMutex.RUnlock()
+	if dispatcherKeysScannedTotal != nil {
+		dispatcherKeysScannedTotal.Add(ctx, keysScanned)
+	}
+	if dispatcherStaleFoundTotal != nil && staleFound > 0 {
+		dispatcherStaleFoundTotal.Add(ctx, staleFound)
+	}
+	if dispatcherScanDuration != nil {
+		dispatcherScanDuration.Record(ctx, duration.Seconds())
 	}
 }
 

@@ -11,7 +11,6 @@ import (
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/memory"
 	"github.com/compozy/compozy/engine/project"
 	coreruntime "github.com/compozy/compozy/engine/runtime"
@@ -366,9 +365,9 @@ func CreateParallelAgentConfig() *agent.Config {
 // initializes a JSON template engine, and constructs an Activities instance wired to the given
 // repos, runtime, and config store.
 func CreateTestActivities(
-	_ *testing.T,
-	taskRepo *store.TaskRepo,
-	workflowRepo *store.WorkflowRepo,
+	t *testing.T,
+	taskRepo task.Repository,
+	workflowRepo workflow.Repository,
 	fixture *TestFixture,
 	runtime coreruntime.Runtime,
 	configStore *services.TestConfigStore,
@@ -384,7 +383,7 @@ func CreateTestActivities(
 	// Create memory manager for tests - use nil for now as it's not needed for most tests
 	var memoryManager *memory.Manager
 
-	return worker.NewActivities(
+	acts, err := worker.NewActivities(
 		context.Background(),
 		projectConfig,
 		workflows,
@@ -397,6 +396,8 @@ func CreateTestActivities(
 		memoryManager,
 		templateEngine,
 	)
+	require.NoError(t, err)
+	return acts
 }
 
 // applyAgentToTask sets the agent configuration for taskConfig, clears any tool reference,

@@ -1,12 +1,6 @@
-package store
+package postgres
 
-// -----
-// Shared SQL Queries
-// -----
-
-// TaskHierarchyCTEQuery is a shared recursive CTE used to fetch all task states in a workflow,
-// including nested children, preserving the exact string used across the codebase to satisfy
-// goconst duplication rules.
+// TaskHierarchyCTEQuery returns all task states in a workflow including nested children.
 const TaskHierarchyCTEQuery = `
 		WITH RECURSIVE task_hierarchy AS (
 			-- Base case: top-level tasks only (parent_state_id IS NULL)

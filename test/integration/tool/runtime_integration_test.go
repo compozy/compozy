@@ -67,7 +67,7 @@ func TestToolInheritance_Runtime(t *testing.T) {
 		t.Cleanup(func() { _ = cfgStore.Close() })
 
 		// Build Activities with our custom project/workflow configs
-		activities := worker.NewActivities(
+		activities, err := worker.NewActivities(
 			ctx,
 			prjCfg,
 			[]*workflow.Config{wfCfg},
@@ -80,6 +80,7 @@ func TestToolInheritance_Runtime(t *testing.T) {
 			nil, // memory manager
 			tplengine.NewEngine(tplengine.FormatJSON),
 		)
+		require.NoError(t, err)
 
 		// Register activities (common set used by worker tests)
 		helpers.RegisterCommonActivities(env, activities)

@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## Unreleased
 
+### ⚠️ Breaking Changes
+
+- task2.Factory: `CreateTaskConfigRepository` now requires an explicit project CWD: `CreateTaskConfigRepository(configStore, cwd *core.PathCWD)`. Update call sites to pass the project CWD (e.g., from `project.Config.GetCWD()`), ensuring deterministic path propagation.
+
+### ✨ Improvements
+
+- Unified CWD handling: server no longer mutates `cfg.CLI.CWD`. The server stores its own `cwd` and passes it explicitly through config loading and app state, improving configuration immutability and hot‑reload safety.
+- Server shutdown is now idempotent and non‑blocking when called multiple times.
+
+### 📚 Docs & Notes
+
+- CLI dev no longer changes the process working directory. Tools or scripts that relied on process CWD should use absolute paths or `cfg.CLI.CWD`.
+
 ### ♻️  Refactoring
 
 - *(llm)* Improve llm package ([#235](https://github.com/compozy/compozy/issues/235))

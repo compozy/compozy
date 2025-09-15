@@ -29,7 +29,7 @@ func DefaultStorageConfig() *StorageConfig {
 }
 
 // NewStorage creates a new storage instance based on configuration
-func NewStorage(config *StorageConfig) (Storage, error) {
+func NewStorage(_ context.Context, config *StorageConfig) (Storage, error) {
 	if config == nil {
 		config = DefaultStorageConfig()
 	}
@@ -43,6 +43,9 @@ func NewStorage(config *StorageConfig) (Storage, error) {
 		return nil, fmt.Errorf("unsupported storage type: %s", config.Type)
 	}
 }
+
+// DefaultStorageConfigForMode returns default Redis storage regardless of mode.
+func DefaultStorageConfigForMode(_ string) *StorageConfig { return DefaultStorageConfig() }
 
 // MemoryStorage is a simple in-memory storage implementation for testing
 type MemoryStorage struct {

@@ -7,7 +7,8 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/engine/infra/store"
+	"github.com/compozy/compozy/engine/infra/postgres"
+	store "github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/task"
 	utils "github.com/compozy/compozy/test/helpers"
 	"github.com/jackc/pgx/v5"
@@ -26,7 +27,7 @@ func TestTaskRepo_UpsertState(t *testing.T) {
 	t.Run("Should insert or update task state successfully", func(t *testing.T) {
 		mockSetup := utils.NewMockSetup(t)
 		defer mockSetup.Close()
-		repo := store.NewTaskRepo(mockSetup.Mock)
+		repo := postgres.NewTaskRepo(mockSetup.Mock)
 		ctx := context.Background()
 		workflowID := "wf1"
 		workflowExecID := core.ID("exec1")
@@ -61,11 +62,11 @@ func TestTaskRepo_UpsertState(t *testing.T) {
 	})
 }
 
-func TestTaskRepo_CreateChildStatesInTransaction(t *testing.T) {
+func TestTaskRepo_WithTransaction_MultipleInserts(t *testing.T) {
 	t.Run("Should create multiple child states atomically", func(t *testing.T) {
 		mockSetup := utils.NewMockSetup(t)
 		defer mockSetup.Close()
-		repo := store.NewTaskRepo(mockSetup.Mock)
+		repo := postgres.NewTaskRepo(mockSetup.Mock)
 		ctx := context.Background()
 		parentStateID := core.ID("parent-exec-123")
 		workflowExecID := core.ID("exec1")
@@ -98,14 +99,21 @@ func TestTaskRepo_CreateChildStatesInTransaction(t *testing.T) {
 				childStates[1].ToolID, input2JSON, nilJSON, nilJSON,
 			).WillReturnResult(pgxmock.NewResult("INSERT", 1))
 		mockSetup.Mock.ExpectCommit()
-		err := repo.CreateChildStatesInTransaction(ctx, parentStateID, childStates)
+		err := repo.WithTransaction(ctx, func(r task.Repository) error {
+			for _, cs := range childStates {
+				if err := r.UpsertState(ctx, cs); err != nil {
+					return err
+				}
+			}
+			return nil
+		})
 		assert.NoError(t, err)
 		mockSetup.ExpectationsWereMet()
 	})
 	t.Run("Should rollback transaction on error", func(t *testing.T) {
 		mockSetup := utils.NewMockSetup(t)
 		defer mockSetup.Close()
-		repo := store.NewTaskRepo(mockSetup.Mock)
+		repo := postgres.NewTaskRepo(mockSetup.Mock)
 		ctx := context.Background()
 		parentStateID := core.ID("parent-exec-456")
 		workflowExecID := core.ID("exec2")
@@ -127,7 +135,14 @@ func TestTaskRepo_CreateChildStatesInTransaction(t *testing.T) {
 				childStates[0].ActionID, (*string)(nil), inputJSON, nilJSON, nilJSON,
 			).WillReturnError(fmt.Errorf("database error"))
 		mockSetup.Mock.ExpectRollback()
-		err := repo.CreateChildStatesInTransaction(ctx, parentStateID, childStates)
+		err := repo.WithTransaction(ctx, func(r task.Repository) error {
+			for _, cs := range childStates {
+				if err := r.UpsertState(ctx, cs); err != nil {
+					return err
+				}
+			}
+			return nil
+		})
 		assert.ErrorContains(t, err, "database error")
 		mockSetup.ExpectationsWereMet()
 	})
@@ -137,12 +152,12 @@ func TestTaskRepo_CreateChildStatesInTransaction(t *testing.T) {
 func testTaskGet(
 	t *testing.T,
 	testName string,
-	setupAndRun func(*utils.MockSetup, *store.TaskRepo, context.Context),
+	setupAndRun func(*utils.MockSetup, task.Repository, context.Context),
 ) {
 	mockSetup := utils.NewMockSetup(t)
 	defer mockSetup.Close()
 
-	repo := store.NewTaskRepo(mockSetup.Mock)
+	repo := postgres.NewTaskRepo(mockSetup.Mock)
 	ctx := context.Background()
 
 	t.Run(testName, func(_ *testing.T) {
@@ -155,7 +170,7 @@ func TestTaskRepo_GetState(t *testing.T) {
 	t.Run("Should get basic task state", func(t *testing.T) {
 		mockSetup := utils.NewMockSetup(t)
 		defer mockSetup.Close()
-		repo := store.NewTaskRepo(mockSetup.Mock)
+		repo := postgres.NewTaskRepo(mockSetup.Mock)
 		ctx := context.Background()
 		taskExecID := core.ID("task_exec1")
 		dataBuilder := utils.NewDataBuilder()
@@ -183,7 +198,7 @@ func TestTaskRepo_GetParallelStateEquivalent(t *testing.T) {
 	testTaskGet(
 		t,
 		"should get parent task with parallel execution type",
-		func(mockSetup *utils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
+		func(mockSetup *utils.MockSetup, repo task.Repository, ctx context.Context) {
 			parentExecID := core.ID("parent-exec-123")
 
 			dataBuilder := utils.NewDataBuilder()
@@ -213,7 +228,7 @@ func TestTaskRepo_GetParallelStateEquivalent(t *testing.T) {
 	testTaskGet(
 		t,
 		"should get child task with parent reference",
-		func(mockSetup *utils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
+		func(mockSetup *utils.MockSetup, repo task.Repository, ctx context.Context) {
 			childExecID := core.ID("child-exec-456")
 			parentExecID := core.ID("parent-exec-123")
 
@@ -247,7 +262,7 @@ func TestTaskRepo_GetState_NotFound(t *testing.T) {
 	t.Run("Should return not found error when task does not exist", func(t *testing.T) {
 		mockSetup := utils.NewMockSetup(t)
 		defer mockSetup.Close()
-		repo := store.NewTaskRepo(mockSetup.Mock)
+		repo := postgres.NewTaskRepo(mockSetup.Mock)
 		ctx := context.Background()
 		taskExecID := core.ID("task_exec1")
 		mockSetup.Mock.ExpectQuery("SELECT \\*").
@@ -263,12 +278,12 @@ func TestTaskRepo_GetState_NotFound(t *testing.T) {
 func testTaskList(
 	t *testing.T,
 	testName string,
-	setupAndRun func(*utils.MockSetup, *store.TaskRepo, context.Context),
+	setupAndRun func(*utils.MockSetup, task.Repository, context.Context),
 ) {
 	mockSetup := utils.NewMockSetup(t)
 	defer mockSetup.Close()
 
-	repo := store.NewTaskRepo(mockSetup.Mock)
+	repo := postgres.NewTaskRepo(mockSetup.Mock)
 	ctx := context.Background()
 
 	t.Run(testName, func(_ *testing.T) {
@@ -281,7 +296,7 @@ func TestTaskRepo_ListTasksInWorkflow(t *testing.T) {
 	testTaskList(
 		t,
 		"should list tasks in workflow",
-		func(mockSetup *utils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
+		func(mockSetup *utils.MockSetup, repo task.Repository, ctx context.Context) {
 			workflowExecID := core.ID("exec1")
 			agentID := "agent1"
 			toolID := "tool1"
@@ -314,7 +329,7 @@ func TestTaskRepo_ListTasksByStatus(t *testing.T) {
 	testTaskList(
 		t,
 		"should list tasks by status",
-		func(mockSetup *utils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
+		func(mockSetup *utils.MockSetup, repo task.Repository, ctx context.Context) {
 			workflowExecID := core.ID("exec1")
 			status := core.StatusPending
 
@@ -341,7 +356,7 @@ func TestTaskRepo_ListTasksByAgent(t *testing.T) {
 	testTaskList(
 		t,
 		"should list tasks by agent",
-		func(mockSetup *utils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
+		func(mockSetup *utils.MockSetup, repo task.Repository, ctx context.Context) {
 			workflowExecID := core.ID("exec1")
 			agentID := "agent1"
 
@@ -368,7 +383,7 @@ func TestTaskRepo_ListTasksByTool(t *testing.T) {
 	testTaskList(
 		t,
 		"should list tasks by tool",
-		func(mockSetup *utils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
+		func(mockSetup *utils.MockSetup, repo task.Repository, ctx context.Context) {
 			workflowExecID := core.ID("exec1")
 			toolID := "tool1"
 
@@ -395,7 +410,7 @@ func TestTaskRepo_ListStates(t *testing.T) {
 	testTaskList(
 		t,
 		"should list states with filter",
-		func(mockSetup *utils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
+		func(mockSetup *utils.MockSetup, repo task.Repository, ctx context.Context) {
 			filter := &task.StateFilter{
 				Status:         &[]core.StatusType{core.StatusPending}[0],
 				WorkflowExecID: &[]core.ID{core.ID("exec1")}[0],
@@ -424,7 +439,7 @@ func TestTaskRepo_ListChildren(t *testing.T) {
 	testTaskList(
 		t,
 		"should list child tasks for a given parent",
-		func(mockSetup *utils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
+		func(mockSetup *utils.MockSetup, repo task.Repository, ctx context.Context) {
 			parentStateID := core.ID("parent-exec-123")
 
 			// Create child task rows with parent_state_id set manually
@@ -455,7 +470,7 @@ func TestTaskRepo_ListChildren(t *testing.T) {
 	testTaskList(
 		t,
 		"should return empty list when parent has no children",
-		func(mockSetup *utils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
+		func(mockSetup *utils.MockSetup, repo task.Repository, ctx context.Context) {
 			parentStateID := core.ID("parent-with-no-children")
 
 			// Mock empty result set
@@ -479,7 +494,7 @@ func TestTaskRepo_ListChildren(t *testing.T) {
 	testTaskList(
 		t,
 		"should be equivalent to ListStates with ParentStateID filter",
-		func(mockSetup *utils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
+		func(mockSetup *utils.MockSetup, repo task.Repository, ctx context.Context) {
 			parentStateID := core.ID("parent-exec-456")
 
 			// Create child task rows
@@ -534,7 +549,7 @@ func TestTaskRepo_ListStatesWithExecutionTypeFilter(t *testing.T) {
 	testTaskList(
 		t,
 		"should filter states by execution type - parallel only",
-		func(mockSetup *utils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
+		func(mockSetup *utils.MockSetup, repo task.Repository, ctx context.Context) {
 			execType := task.ExecutionParallel
 			filter := &task.StateFilter{
 				ExecutionType: &execType,
@@ -561,7 +576,7 @@ func TestTaskRepo_ListStatesWithExecutionTypeFilter(t *testing.T) {
 	testTaskList(
 		t,
 		"should filter states by execution type - basic only",
-		func(mockSetup *utils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
+		func(mockSetup *utils.MockSetup, repo task.Repository, ctx context.Context) {
 			execType := task.ExecutionBasic
 			filter := &task.StateFilter{
 				ExecutionType: &execType,
@@ -589,7 +604,7 @@ func TestTaskRepo_ListStatesWithExecutionTypeFilter(t *testing.T) {
 	testTaskList(
 		t,
 		"should filter by parent state ID and execution type combined",
-		func(mockSetup *utils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
+		func(mockSetup *utils.MockSetup, repo task.Repository, ctx context.Context) {
 			parentStateID := core.ID("parent-exec-123")
 			execType := task.ExecutionBasic
 			filter := &task.StateFilter{
@@ -620,7 +635,7 @@ func TestTaskRepo_GetTaskTree(t *testing.T) {
 	testTaskList(
 		t,
 		"should retrieve complete task hierarchy using CTE",
-		func(mockSetup *utils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
+		func(mockSetup *utils.MockSetup, repo task.Repository, ctx context.Context) {
 			rootStateID := core.ID("root-exec-123")
 
 			// Create hierarchical task tree with root and children
@@ -680,7 +695,7 @@ func TestTaskRepo_GetTaskTree(t *testing.T) {
 	testTaskList(
 		t,
 		"should return only root task when no children exist",
-		func(mockSetup *utils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
+		func(mockSetup *utils.MockSetup, repo task.Repository, ctx context.Context) {
 			rootStateID := core.ID("lonely-root-123")
 
 			// Create single row for root task only
@@ -710,7 +725,7 @@ func TestTaskRepo_GetTaskTree(t *testing.T) {
 	testTaskList(
 		t,
 		"should return empty slice when root task does not exist",
-		func(mockSetup *utils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
+		func(mockSetup *utils.MockSetup, repo task.Repository, ctx context.Context) {
 			nonExistentRootID := core.ID("non-existent-root")
 
 			// Mock empty result set
@@ -736,7 +751,7 @@ func TestTaskRepo_GetProgressInfo(t *testing.T) {
 	testTaskList(
 		t,
 		"should aggregate progress information for parent task",
-		func(mockSetup *utils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
+		func(mockSetup *utils.MockSetup, repo task.Repository, ctx context.Context) {
 			parentStateID := core.ID("parent-exec-123")
 
 			// Mock single query for status counts
@@ -775,7 +790,7 @@ func TestTaskRepo_GetProgressInfo(t *testing.T) {
 	testTaskList(
 		t,
 		"should return empty progress info when parent has no children",
-		func(mockSetup *utils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
+		func(mockSetup *utils.MockSetup, repo task.Repository, ctx context.Context) {
 			parentStateID := core.ID("parent-with-no-children")
 
 			// Mock empty status query
@@ -801,7 +816,7 @@ func TestTaskRepo_GetProgressInfo(t *testing.T) {
 	testTaskList(
 		t,
 		"should calculate progress for wait_all strategy correctly",
-		func(mockSetup *utils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
+		func(mockSetup *utils.MockSetup, repo task.Repository, ctx context.Context) {
 			parentStateID := core.ID("wait-all-parent")
 
 			// Mock status query for all completed tasks

@@ -42,6 +42,7 @@ func ContextWithLogger(ctx context.Context, l Logger) context.Context {
 
 var defaultLogger Logger
 var defaultLoggerOnce sync.Once
+var defaultLoggerMu sync.RWMutex
 
 // FromContext retrieves a logger from the context, returning a default logger if none is found
 func FromContext(ctx context.Context) Logger {
@@ -59,9 +60,23 @@ func FromContext(ctx context.Context) Logger {
 // getDefaultLogger returns the singleton default logger, initializing it if needed
 func getDefaultLogger() Logger {
 	defaultLoggerOnce.Do(func() {
-		defaultLogger = NewLogger(nil)
+		// Initialize default logger exactly once, under lock
+		l := NewLogger(nil)
+		defaultLoggerMu.Lock()
+		defaultLogger = l
+		defaultLoggerMu.Unlock()
 	})
-	return defaultLogger
+	defaultLoggerMu.RLock()
+	l := defaultLogger
+	defaultLoggerMu.RUnlock()
+	return l
+}
+
+// SetDefaultLogger replaces the default package logger in a thread-safe manner.
+func SetDefaultLogger(l Logger) {
+	defaultLoggerMu.Lock()
+	defaultLogger = l
+	defaultLoggerMu.Unlock()
 }
 
 type loggerImpl struct {

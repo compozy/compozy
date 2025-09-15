@@ -15,7 +15,6 @@ import (
 	"github.com/compozy/compozy/engine/autoload"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/cache"
-	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/memory"
 	memcore "github.com/compozy/compozy/engine/memory/core"
 	"github.com/compozy/compozy/engine/memory/privacy"
@@ -800,7 +799,7 @@ func setupMemoryManager(
 }
 
 // setupTask2Factory creates a Task2 factory for testing
-func setupTask2Factory(t *testing.T, workflowRepo *store.WorkflowRepo, taskRepo *store.TaskRepo) task2.Factory {
+func setupTask2Factory(t *testing.T, workflowRepo workflow.Repository, taskRepo task.Repository) task2.Factory {
 	t.Helper()
 
 	templateEngine := tplengine.NewEngine(tplengine.FormatText)
@@ -833,7 +832,7 @@ func setupTestWorkflows() []*workflow.Config {
 func setupWorkflowStates(
 	ctx context.Context,
 	t *testing.T,
-	workflowRepo *store.WorkflowRepo,
+	workflowRepo workflow.Repository,
 	workflows []*workflow.Config,
 ) map[string]core.ID {
 	t.Helper()

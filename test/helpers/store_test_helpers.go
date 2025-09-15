@@ -6,44 +6,21 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
-
-	"github.com/compozy/compozy/engine/infra/store"
-	"github.com/compozy/compozy/pkg/config"
 )
 
-// SetupStoreTestWithSharedDB creates a test store using the shared database
-// This is much faster than creating individual containers
-func SetupStoreTestWithSharedDB(t *testing.T, autoMigrate bool) (context.Context, *store.Store, func()) {
+// SetupStoreTestWithSharedDB returns a ctx + shared pool prepared per autoMigrate flag.
+func SetupStoreTestWithSharedDB(t *testing.T, autoMigrate bool) (context.Context, *pgxpool.Pool, func()) {
 	ctx := context.Background()
-	store.ResetMigrationsForTest()
 	// Use shared container for better performance
 	pool, cleanup := GetSharedPostgresDB(ctx, t)
-	connStr := pool.Config().ConnString()
 	// Clean existing schema if we need a fresh start
 	if !autoMigrate {
 		cleanupExistingSchema(ctx, pool)
+	} else {
+		// Ensure tables exist for tests that expect migrated schema
+		require.NoError(t, ensureTablesExist(pool))
 	}
-	// Initialize context-based config manager for tests
-	mgr := config.NewManager(nil)
-	_, err := mgr.Load(ctx, config.NewDefaultProvider())
-	require.NoError(t, err)
-	ctx = config.ContextWithManager(ctx, mgr)
-	// Set up configuration
-	cfg := mgr.Get()
-	cfg.Database.AutoMigrate = autoMigrate
-	cfg.Database.ConnString = connStr
-	// Create store which will trigger migrations if enabled
-	testStore, err := store.SetupStoreWithConfig(ctx)
-	require.NoError(t, err)
-	require.NotNil(t, testStore)
-	return ctx, testStore, func() {
-		// Clean up store resources but keep shared database
-		if err := testStore.DB.Close(ctx); err != nil {
-			t.Logf("Warning: failed to close database connection: %v", err)
-		}
-		_ = mgr.Close(ctx)
-		cleanup() // This will truncate tables for next test
-	}
+	return ctx, pool, func() { cleanup() }
 }
 
 // cleanupExistingSchema removes existing tables and migration state for clean testing

@@ -27,6 +27,7 @@ type GetParallelResponse struct {
 	taskRepo     task.Repository
 	task2Factory task2.Factory
 	configStore  services.ConfigStore
+	cwd          *core.PathCWD
 }
 
 // NewGetParallelResponse creates a new GetParallelResponse activity with task2 integration
@@ -35,12 +36,14 @@ func NewGetParallelResponse(
 	taskRepo task.Repository,
 	configStore services.ConfigStore,
 	task2Factory task2.Factory,
+	cwd *core.PathCWD,
 ) *GetParallelResponse {
 	return &GetParallelResponse{
 		workflowRepo: workflowRepo,
 		taskRepo:     taskRepo,
 		task2Factory: task2Factory,
 		configStore:  configStore,
+		cwd:          cwd,
 	}
 }
 
@@ -131,7 +134,7 @@ func (a *GetParallelResponse) convertToMainTaskResponse(
 			State: result.State,
 		}
 		// Get parallel metadata from config store if available
-		configRepo, err := a.task2Factory.CreateTaskConfigRepository(a.configStore)
+		configRepo, err := a.task2Factory.CreateTaskConfigRepository(a.configStore, a.cwd)
 		if err != nil {
 			// Log error but don't fail - metadata is optional for response
 			logger.FromContext(ctx).Error("failed to create task config repository", "error", err)
