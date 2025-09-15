@@ -7,8 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"path/filepath"
-	"strings"
 	"time"
 
 	"dario.cat/mergo"
@@ -330,9 +328,15 @@ func (t *Config) ValidateOutput(ctx context.Context, output *core.Output) error 
 // Used for configuration composition and inheritance patterns.
 // The other configuration's fields will override this configuration's fields.
 func (t *Config) Merge(other any) error {
+	if t == nil {
+		return fmt.Errorf("failed to merge tool configs: %w", errors.New("nil config receiver"))
+	}
 	otherConfig, ok := other.(*Config)
 	if !ok {
-		return fmt.Errorf("failed to merge tool configs: %w", errors.New("invalid type for merge"))
+		return fmt.Errorf("failed to merge tool configs: invalid type for merge: %T", other)
+	}
+	if otherConfig == nil {
+		return nil
 	}
 	return mergo.Merge(t, otherConfig, mergo.WithOverride)
 }
@@ -383,8 +387,7 @@ func (t *Config) GetLLMDefinition() llms.Tool {
 // Used by the runtime system to determine the appropriate execution strategy.
 // Returns true for files with .ts or .TS extensions (case-insensitive).
 func IsTypeScript(path string) bool {
-	ext := filepath.Ext(path)
-	return strings.EqualFold(ext, ".ts")
+	return core.IsTypeScript(path)
 }
 
 // Load reads and parses a tool configuration from disk.

@@ -34,6 +34,11 @@ func ToStringMap(v any) map[string]string {
 }
 
 // ParseAnyDuration parses a duration from common forms. Returns false when unsupported.
+//
+// Notes on numeric handling:
+//   - int, int64: interpreted as time.Duration units directly.
+//   - float64: fractional values are truncated (not rounded) to their integer part
+//     before conversion. This is intentional and locked by tests.
 func ParseAnyDuration(v any) (time.Duration, bool) {
 	switch t := v.(type) {
 	case string:

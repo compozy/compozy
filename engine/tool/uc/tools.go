@@ -2,7 +2,7 @@ package uc
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/engine/workflow"
@@ -11,6 +11,9 @@ import (
 // -----------------------------------------------------------------------------
 // GetTool
 // -----------------------------------------------------------------------------
+
+// ErrToolNotFound is returned when a tool cannot be found in any workflow.
+var ErrToolNotFound = errors.New("tool not found")
 
 type GetTool struct {
 	workflows []*workflow.Config
@@ -32,7 +35,7 @@ func (uc *GetTool) Execute(_ context.Context) (*tool.Config, error) {
 			}
 		}
 	}
-	return nil, fmt.Errorf("tool not found")
+	return nil, ErrToolNotFound
 }
 
 // -----------------------------------------------------------------------------
@@ -51,13 +54,12 @@ func NewListTools(workflows []*workflow.Config) *ListTools {
 
 func (uc *ListTools) Execute(_ context.Context) ([]tool.Config, error) {
 	tools := make([]tool.Config, 0)
-	seen := make(map[string]bool)
-
+	seen := make(map[string]struct{})
 	for _, wf := range uc.workflows {
 		for i := range wf.Tools {
-			if !seen[wf.Tools[i].ID] {
+			if _, ok := seen[wf.Tools[i].ID]; !ok {
 				tools = append(tools, wf.Tools[i])
-				seen[wf.Tools[i].ID] = true
+				seen[wf.Tools[i].ID] = struct{}{}
 			}
 		}
 	}
