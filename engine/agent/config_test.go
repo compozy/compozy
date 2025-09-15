@@ -7,7 +7,10 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/schema"
+	mcpproxy "github.com/compozy/compozy/pkg/mcp-proxy"
+	"github.com/compozy/compozy/pkg/ref"
 	fixtures "github.com/compozy/compozy/test/fixtures"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -421,5 +424,75 @@ func Test_Config_Validate_WithMemory(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid memory configuration")
 		assert.Contains(t, err.Error(), "missing required 'key' field")
+	})
+}
+
+func Test_Config_Merge_Clone_AsMap_FromMap(t *testing.T) {
+	t.Run("Should merge with override precedence", func(t *testing.T) {
+		base := &Config{ID: "a", LLMProperties: LLMProperties{MaxIterations: 1}, Instructions: "x"}
+		other := &Config{LLMProperties: LLMProperties{MaxIterations: 5}, Instructions: "y"}
+		require.NoError(t, base.Merge(other))
+		assert.Equal(t, 5, base.MaxIterations)
+		assert.Equal(t, "y", base.Instructions)
+	})
+
+	t.Run("Should deep clone without sharing pointers", func(t *testing.T) {
+		cwd, _ := core.CWDFromPath("/tmp")
+		original := &Config{
+			ID:            "id",
+			CWD:           cwd,
+			LLMProperties: LLMProperties{Memory: []core.MemoryReference{{ID: "m", Key: "k", Mode: "read-write"}}},
+		}
+		cloned, err := original.Clone()
+		require.NoError(t, err)
+		require.NotNil(t, cloned)
+		assert.NotSame(t, original, cloned)
+		if original.CWD != nil && cloned.CWD != nil {
+			assert.NotSame(t, original.CWD, cloned.CWD)
+		}
+		// content preserved
+		assert.Equal(t, original.ID, cloned.ID)
+		assert.Equal(t, original.Memory[0].ID, cloned.Memory[0].ID)
+	})
+
+	t.Run("Should round-trip via AsMap and FromMap", func(t *testing.T) {
+		cfg := &Config{ID: "agent-x", Instructions: "do"}
+		m, err := cfg.AsMap()
+		require.NoError(t, err)
+		m["instructions"] = "updated"
+		var dst Config
+		require.NoError(t, dst.FromMap(m))
+		assert.Equal(t, "agent-x", dst.ID)
+		assert.Equal(t, "updated", dst.Instructions)
+	})
+}
+
+func Test_LoadAndEval_Basic(t *testing.T) {
+	t.Run("Should load with evaluator configured", func(t *testing.T) {
+		ev := ref.NewEvaluator(ref.WithLocalScope(map[string]any{"x": 1}))
+		var CWD *core.PathCWD
+		cfg, err := LoadAndEval(CWD, "fixtures/basic_agent.yaml", ev)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
+		assert.Equal(t, "code-assistant", cfg.ID)
+	})
+}
+
+func Test_Config_Validate_MCPErrorAggregation(t *testing.T) {
+	t.Run("Should aggregate MCP validation errors", func(t *testing.T) {
+		cwd, _ := core.CWDFromPath("/tmp")
+		cfg := &Config{ID: "a", Config: core.ProviderConfig{}, Instructions: "i", CWD: cwd}
+		cfg.MCPs = []mcp.Config{{ID: "srv", Resource: "mcp", Transport: mcpproxy.TransportStdio}}
+		err := cfg.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "mcp validation error")
+	})
+}
+
+func Test_Config_Validate_Noops(t *testing.T) {
+	t.Run("Should return nil for ValidateInput and ValidateOutput", func(t *testing.T) {
+		var cfg Config
+		assert.NoError(t, cfg.ValidateInput(context.Background(), &core.Input{}))
+		assert.NoError(t, cfg.ValidateOutput(context.Background(), &core.Output{}))
 	})
 }

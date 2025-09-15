@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/schema"
+	"github.com/compozy/compozy/pkg/ref"
 	fixtures "github.com/compozy/compozy/test/fixtures"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -187,5 +188,192 @@ func Test_ToolExecuteIsTypeScript(t *testing.T) {
 
 	t.Run("Should identify file without extension correctly", func(t *testing.T) {
 		assert.False(t, IsTypeScript("./script"))
+	})
+}
+
+func Test_Config_LLMDefinition_And_Maps(t *testing.T) {
+	t.Parallel()
+	t.Run("Should build LLM definition from config", func(t *testing.T) {
+		t.Parallel()
+		cfg := &Config{ID: "file-reader", Description: "Reads files", InputSchema: &schema.Schema{"type": "object"}}
+		def := cfg.GetLLMDefinition()
+		require.NotNil(t, def.Function)
+		assert.Equal(t, "function", def.Type)
+		assert.Equal(t, "file-reader", def.Function.Name)
+		assert.Equal(t, "Reads files", def.Function.Description)
+		assert.NotNil(t, def.Function.Parameters)
+	})
+	t.Run("Should convert to map and back with FromMap", func(t *testing.T) {
+		t.Parallel()
+		cfg := &Config{
+			ID:          "x",
+			Description: "desc",
+			Timeout:     "30s",
+			With:        &core.Input{"a": 1},
+			Config:      &core.Input{"b": true},
+		}
+		m, err := cfg.AsMap()
+		require.NoError(t, err)
+		var dst Config
+		require.NoError(t, dst.FromMap(m))
+		assert.Equal(t, "x", dst.ID)
+		assert.Equal(t, "desc", dst.Description)
+		assert.Equal(t, "30s", dst.Timeout)
+		assert.EqualValues(t, 1, (*dst.With)["a"])
+		assert.Equal(t, true, (*dst.Config)["b"])
+	})
+	t.Run("Should round-trip complex fields including schema and env", func(t *testing.T) {
+		t.Parallel()
+		cfg := &Config{
+			ID:          "complex",
+			Description: "with schema and env",
+			InputSchema: &schema.Schema{
+				"type":       "object",
+				"properties": map[string]any{"k": map[string]any{"type": "string"}},
+			},
+			Env:    &core.EnvMap{"X": "1"},
+			Config: &core.Input{"nested": map[string]any{"flag": true}},
+		}
+		m, err := cfg.AsMap()
+		require.NoError(t, err)
+		var dst Config
+		require.NoError(t, dst.FromMap(m))
+		assert.Equal(t, "complex", dst.ID)
+		assert.Equal(t, "1", dst.GetEnv().Prop("X"))
+		require.NotNil(t, dst.InputSchema)
+		compiled, err := dst.InputSchema.Compile()
+		require.NoError(t, err)
+		require.NotNil(t, compiled.Properties)
+		_, ok := (*compiled.Properties)["k"]
+		assert.True(t, ok)
+		nested := (*dst.Config)["nested"].(map[string]any)
+		assert.Equal(t, true, nested["flag"])
+	})
+}
+
+func Test_Config_LoadAndEval_EnvTemplate(t *testing.T) {
+	t.Parallel()
+	t.Run("Should load config with template unchanged (evaluated elsewhere)", func(t *testing.T) {
+		t.Parallel()
+		_, filename, _, ok := runtime.Caller(0)
+		require.True(t, ok)
+		cwd, dst := fixtures.SetupConfigTest(t, filename)
+		path := dst + "/config_example.yaml"
+		ev := ref.NewEvaluator(ref.WithGlobalScope(map[string]any{"env": map[string]any{"API_SECRET": "sekret"}}))
+		cfg, err := LoadAndEval(cwd, path, ev)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
+		assert.Equal(t, "api-client", cfg.ID)
+		assert.Equal(t, "{{ .env.API_SECRET }}", cfg.GetEnv().Prop("API_KEY"))
+	})
+}
+
+func Test_Config_Clone_And_Accessors(t *testing.T) {
+	t.Parallel()
+	t.Run("Should clone config deeply without affecting original", func(t *testing.T) {
+		t.Parallel()
+		c := &Config{ID: "t1", Description: "a", With: &core.Input{"key": "original"}}
+		clone, err := c.Clone()
+		require.NoError(t, err)
+		require.NotNil(t, clone)
+		clone.Description = "b"
+		assert.Equal(t, "a", c.Description)
+		assert.Equal(t, "b", clone.Description)
+		(*clone.With)["key"] = "modified"
+		assert.Equal(t, "original", (*c.With)["key"])
+	})
+	t.Run("Should expose defaults and detect schema presence", func(t *testing.T) {
+		t.Parallel()
+		c := &Config{}
+		in := c.GetInput()
+		cfg := c.GetConfig()
+		assert.NotNil(t, in)
+		assert.NotNil(t, cfg)
+		assert.False(t, c.HasSchema())
+		c.InputSchema = &schema.Schema{"type": "object"}
+		assert.True(t, c.HasSchema())
+	})
+}
+
+func Test_ToolConfigMerge_InvalidType(t *testing.T) {
+	t.Parallel()
+	t.Run("Should return error when merging with wrong type", func(t *testing.T) {
+		t.Parallel()
+		var a Config
+		err := a.Merge(&struct{}{})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid type for merge")
+	})
+	t.Run("Should return error when merging into nil receiver", func(t *testing.T) {
+		t.Parallel()
+		var p *Config
+		err := p.Merge(&Config{})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "nil config")
+	})
+}
+
+func Test_ToolConfigOutputValidation(t *testing.T) {
+	t.Parallel()
+	t.Run("Should validate output against schema", func(t *testing.T) {
+		t.Parallel()
+		cfg := &Config{
+			ID:           "fmt",
+			OutputSchema: &schema.Schema{"type": "object", "required": []string{"formatted_code"}},
+		}
+		out := core.Output{"formatted_code": "ok"}
+		err := cfg.ValidateOutput(context.Background(), &out)
+		require.NoError(t, err)
+	})
+	t.Run("Should return error when required output field is missing", func(t *testing.T) {
+		t.Parallel()
+		cfg := &Config{
+			ID:           "fmt",
+			OutputSchema: &schema.Schema{"type": "object", "required": []string{"formatted_code"}},
+		}
+		out := core.Output{"other": true}
+		err := cfg.ValidateOutput(context.Background(), &out)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "formatted_code")
+	})
+	t.Run("Should return error when field has wrong type", func(t *testing.T) {
+		t.Parallel()
+		cfg := &Config{ID: "fmt", OutputSchema: &schema.Schema{
+			"type":       "object",
+			"properties": map[string]any{"formatted_code": map[string]any{"type": "string"}},
+			"required":   []string{"formatted_code"},
+		}}
+		out := core.Output{"formatted_code": 123}
+		err := cfg.ValidateOutput(context.Background(), &out)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "formatted_code")
+	})
+}
+
+func Test_ToolConfig_ValidateNilPaths(t *testing.T) {
+	t.Parallel()
+	t.Run("Should skip input validation when schema is nil", func(t *testing.T) {
+		t.Parallel()
+		cfg := &Config{ID: "fmt"}
+		err := cfg.ValidateInput(context.Background(), &core.Input{"x": 1})
+		require.NoError(t, err)
+	})
+	t.Run("Should skip input validation when input is nil", func(t *testing.T) {
+		t.Parallel()
+		cfg := &Config{ID: "fmt", InputSchema: &schema.Schema{"type": "object"}}
+		err := cfg.ValidateInput(context.Background(), nil)
+		require.NoError(t, err)
+	})
+	t.Run("Should skip output validation when schema is nil", func(t *testing.T) {
+		t.Parallel()
+		cfg := &Config{ID: "fmt"}
+		err := cfg.ValidateOutput(context.Background(), &core.Output{"y": true})
+		require.NoError(t, err)
+	})
+	t.Run("Should skip output validation when output is nil", func(t *testing.T) {
+		t.Parallel()
+		cfg := &Config{ID: "fmt", OutputSchema: &schema.Schema{"type": "object"}}
+		err := cfg.ValidateOutput(context.Background(), nil)
+		require.NoError(t, err)
 	})
 }

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/schema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	// "github.com/compozy/compozy/engine/autoload" // For later when registry is used
@@ -102,4 +103,30 @@ func TestMemoryValidator_Validate(t *testing.T) {
 	// 	require.Error(t, err)
 	// 	assert.Contains(t, err.Error(), "memory resource with ID 'non-existent-mem' referenced by agent is not defined")
 	// })
+}
+
+func TestActionsValidator_Validate(t *testing.T) {
+	t.Run("Should return nil when actions slice is nil", func(t *testing.T) {
+		v := NewActionsValidator(nil)
+		assert.NoError(t, v.Validate())
+	})
+
+	t.Run("Should validate all actions and return error on invalid", func(t *testing.T) {
+		valid := &ActionConfig{ID: "ok", Prompt: "p"}
+		require.NoError(t, valid.SetCWD("/tmp"))
+		invalid := &ActionConfig{ID: "bad"} // missing CWD -> schema.CWDValidator fails
+		v := NewActionsValidator([]*ActionConfig{valid, invalid})
+		err := v.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "current working directory is required")
+	})
+
+	t.Run("Should pass when all actions are valid", func(t *testing.T) {
+		a1 := &ActionConfig{ID: "a1", Prompt: "p1", InputSchema: &schema.Schema{"type": "object"}}
+		require.NoError(t, a1.SetCWD("/tmp"))
+		a2 := &ActionConfig{ID: "a2", Prompt: "p2"}
+		require.NoError(t, a2.SetCWD("/tmp"))
+		v := NewActionsValidator([]*ActionConfig{a1, a2})
+		assert.NoError(t, v.Validate())
+	})
 }

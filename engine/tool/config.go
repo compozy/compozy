@@ -334,6 +334,9 @@ func (t *Config) Merge(other any) error {
 	if !ok {
 		return fmt.Errorf("failed to merge tool configs: %w", errors.New("invalid type for merge"))
 	}
+	if t == nil {
+		return fmt.Errorf("failed to merge tool configs: %w", errors.New("nil config receiver"))
+	}
 	return mergo.Merge(t, otherConfig, mergo.WithOverride)
 }
 
