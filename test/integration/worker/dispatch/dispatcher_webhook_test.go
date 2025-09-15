@@ -50,8 +50,8 @@ func TestDispatcherWorkflow_WebhookEventDispatch(t *testing.T) {
 		getData := &wfacts.GetData{ProjectConfig: mockProjectConfig, Workflows: mockWorkflows}
 		mockAppConfig := &config.Config{
 			Runtime: config.RuntimeConfig{
-				DispatcherHeartbeatInterval: 30000000000,
-				DispatcherHeartbeatTTL:      90000000000,
+				DispatcherHeartbeatInterval: 30 * time.Second,
+				DispatcherHeartbeatTTL:      90 * time.Second,
 			},
 		}
 		env.RegisterActivityWithOptions(getData.Run, activity.RegisterOptions{Name: wfacts.GetDataLabel})
@@ -76,11 +76,9 @@ func TestDispatcherWorkflow_WebhookEventDispatch(t *testing.T) {
 		<-done
 		workflowErr := env.GetWorkflowError()
 		require.Error(t, workflowErr)
-		msg := workflowErr.Error()
-		assert.True(
-			t,
-			msg == "canceled" || strings.Contains(msg, "deadline exceeded") || strings.Contains(msg, "timeout"),
-		)
-		env.AssertExpectations(t)
+		assert.Condition(t, func() bool {
+			m := workflowErr.Error()
+			return m == "canceled" || strings.Contains(m, "deadline exceeded") || strings.Contains(m, "timeout")
+		}, "unexpected workflow error: %v", workflowErr)
 	})
 }

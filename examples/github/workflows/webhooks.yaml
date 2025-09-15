@@ -38,7 +38,7 @@ agents:
           Analyze this GitHub issue comment.
 
           Repository: {{ .input.repository }}
-          Issue #: {{ .input.issue_number }} ("{{ .input.issue_title }}")
+          Issue  #: {{ .input.issue_number }} ("{{ .input.issue_title }}")
           Commenter: {{ .input.commenter }}
           Comment:
           ---
