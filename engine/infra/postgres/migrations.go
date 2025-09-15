@@ -9,6 +9,9 @@ import (
 
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/pressly/goose/v3"
+
+	// Register pgx stdlib driver for database/sql usage in migrations.
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 //go:embed migrations/*.sql

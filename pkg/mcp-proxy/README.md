@@ -19,7 +19,8 @@
   - [🔧 Configuration](#-configuration)
     - [Server Configuration](#server-configuration)
     - [MCP Definition Schema](#mcp-definition-schema)
-    - [Storage Options](#storage-options)
+  - [Storage Options](#storage-options)
+  - [Mode-Aware Defaults](#mode-aware-defaults)
   - [🎨 Examples](#-examples)
     - [Complete Production Setup](#complete-production-setup)
     - [Compozy Engine Integration](#compozy-engine-integration)
@@ -228,17 +229,26 @@ type MCPDefinition struct {
 ### Storage Options
 
 ```go
-// In-memory storage (default)
-storage := mcpproxy.NewInMemoryStorage()
+// In-memory storage (default for tests)
+storage := mcpproxy.NewMemoryStorage()
 
-// Redis storage
-redisConfig := &mcpproxy.RedisConfig{
-    Addr:     "localhost:6379",
-    Password: "secret",
-    DB:       0,
-}
-storage, err := mcpproxy.NewRedisStorage(redisConfig)
+// Redis storage (distributed environments)
+redisCfg := &mcpproxy.RedisConfig{Addr: "localhost:6379", DB: 0}
+redisStorage, err := mcpproxy.NewRedisStorage(redisCfg)
+
+// SugarDB storage (standalone environments)
+// Uses embedded SugarDB to persist MCP definitions
+sugarStorage := mcpproxy.NewSugarDBStorage()
 ```
+
+### Mode-Aware Defaults
+
+When embedded in Compozy, storage selection follows the global `mode`:
+
+- `mode=standalone`: defaults to SugarDB storage (embedded) for zero external deps.
+- `mode=distributed`: defaults to Redis storage when configured; otherwise falls back to memory.
+
+You can override the default by providing an explicit storage instance to the server factory.
 
 ---
 

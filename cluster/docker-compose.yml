@@ -92,26 +92,6 @@ services:
       timeout: 3s
       retries: 5
 
-  # PostgreSQL dedicated for testing (no cleanup needed!)
-  test-postgresql:
-    container_name: test-postgresql
-    image: postgres:${TEMPORAL_POSTGRESQL_VERSION:-15-alpine}
-    environment:
-      POSTGRES_USER: ${TEST_DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${TEST_DB_PASSWORD:-postgres}
-      POSTGRES_DB: ${TEST_DB_NAME:-compozy_test}
-    networks:
-      - temporal-network
-    ports:
-      - "${TEST_DB_PORT:-5434}:5432" # Different port for test database
-    volumes:
-      - test_postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${TEST_DB_USER:-postgres}"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-
   temporal:
     container_name: temporal
     image: temporalio/auto-setup:${TEMPORAL_VERSION:-latest}
@@ -282,8 +262,6 @@ volumes:
   temporal_postgres_data:
     driver: local
   app_postgres_data:
-    driver: local
-  test_postgres_data:
     driver: local
   prometheus_data:
     driver: local

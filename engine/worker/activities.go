@@ -3,6 +3,8 @@ package worker
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/compozy/compozy/engine/infra/cache"
 	"github.com/compozy/compozy/engine/memory"
@@ -21,6 +23,7 @@ import (
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/tplengine"
+	sdk "github.com/echovault/sugardb/sugardb"
 )
 
 type Activities struct {
@@ -40,6 +43,8 @@ type Activities struct {
 	// Cached cache adapter contracts to avoid per-call instantiation
 	cacheKV   cache.KV
 	cacheKeys cache.KeysProvider
+	// Config manager to reattach into Temporal activity contexts
+	cfgManager *config.Manager
 }
 
 func NewActivities(
@@ -90,6 +95,7 @@ func NewActivities(
 		memoryActivities: memoryActivities,
 		templateEngine:   templateEngine,
 		task2Factory:     task2Factory,
+		cfgManager:       config.ManagerFromContext(ctx),
 	}
 	// Initialize cache adapter contracts once if Redis is available
 	if redisCache != nil && redisCache.Redis != nil {
@@ -99,6 +105,21 @@ func NewActivities(
 		}
 		acts.cacheKV = ad
 		acts.cacheKeys = ad
+	} else {
+		// Standalone path: provide SugarDB-backed KV (no iteration) for heartbeats
+		cfg := config.FromContext(ctx)
+		if cfg != nil && config.IsStandalone(ctx) {
+			base := config.SugarDBBaseDir(cfg)
+			path := filepath.Join(base, "cache")
+			if err := os.MkdirAll(path, 0o755); err == nil {
+				conf := sdk.DefaultConfig()
+				conf.DataDir = path
+				if db, err := sdk.NewSugarDB(sdk.WithConfig(conf), sdk.WithContext(ctx)); err == nil {
+					acts.cacheKV = newSugarKV(db)
+					// KeysProvider not implemented in SugarDB adapter; ListActiveDispatchers will be skipped.
+				}
+			}
+		}
 	}
 	return acts, nil
 }
@@ -123,6 +144,15 @@ func withActivityLogger(ctx context.Context) context.Context {
 		TimeFormat: "15:04:05",
 	})
 	return logger.ContextWithLogger(ctx, log)
+}
+
+// withActivityContext ensures logger and configuration manager are attached to the activity context
+func (a *Activities) withActivityContext(ctx context.Context) context.Context {
+	c := withActivityLogger(ctx)
+	if a != nil && a.cfgManager != nil {
+		c = config.ContextWithManager(c, a.cfgManager)
+	}
+	return c
 }
 
 // -----------------------------------------------------------------------------
@@ -176,9 +206,9 @@ func (a *Activities) ExecuteBasicTask(
 	ctx context.Context,
 	input *tkfacts.ExecuteBasicInput,
 ) (*task.MainTaskResponse, error) {
-	// Ensure logger is attached to the activity context so downstream code
-	// (use-cases, LLM orchestrator) can emit debug logs when enabled.
-	ctx = withActivityLogger(ctx)
+	// Ensure logger and configuration manager are attached to the activity context
+	// so downstream code (use-cases, LLM orchestrator) can emit logs and see app config.
+	ctx = a.withActivityContext(ctx)
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -582,6 +612,7 @@ func (a *Activities) EvaluateCondition(
 // -----------------------------------------------------------------------------
 
 func (a *Activities) DispatcherHeartbeat(ctx context.Context, input *wkacts.DispatcherHeartbeatInput) error {
+	ctx = a.withActivityContext(ctx)
 	if a.cacheKV == nil {
 		return wkacts.DispatcherHeartbeat(ctx, nil, input)
 	}
@@ -592,6 +623,7 @@ func (a *Activities) ListActiveDispatchers(
 	ctx context.Context,
 	input *wkacts.ListActiveDispatchersInput,
 ) (*wkacts.ListActiveDispatchersOutput, error) {
+	ctx = a.withActivityContext(ctx)
 	if a.cacheKV == nil || a.cacheKeys == nil {
 		return wkacts.ListActiveDispatchers(ctx, nil, input)
 	}
@@ -607,6 +639,7 @@ func (a *Activities) ListActiveDispatchers(
 }
 
 func (a *Activities) RemoveDispatcherHeartbeat(ctx context.Context, dispatcherID string) error {
+	ctx = a.withActivityContext(ctx)
 	if a.cacheKV == nil {
 		return wkacts.RemoveDispatcherHeartbeat(ctx, nil, dispatcherID)
 	}

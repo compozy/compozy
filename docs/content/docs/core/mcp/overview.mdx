@@ -75,7 +75,7 @@ MCP is a protocol that allows AI agents to:
     D --> J[Databases]`} />
 
 <Callout type="info" className="my-8">
-**Proxy Architecture**: The MCP proxy runs on port 6001 and manages all server connections, providing a unified HTTP interface for multiple transport types.
+**Proxy Architecture**: By default, the embedded MCP proxy binds to an ephemeral port (0) and logs its effective base URL (for example, base_url=http://127.0.0.1:58023). You can pin a port by setting `MCP_PROXY_PORT` or `--mcp-port`.
 </Callout>
 
 ### Key Components

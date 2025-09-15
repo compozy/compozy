@@ -40,12 +40,24 @@ func CreateHealthHandler(server *Server, version string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx := c.Request.Context()
 		ready, healthStatus, scheduleStatus := buildScheduleStatus(ctx, server)
+		temporalReady := false
+		workerReady := false
+		mcpReady := false
+		if server != nil {
+			temporalReady = server.isTemporalReady()
+			workerReady = server.isWorkerReady()
+			mcpReady = server.isMCPReady()
+		}
 		if server != nil && !server.isFullyReady() {
 			ready = false
 			healthStatus = statusNotReady
 		}
 		memoryHealth := buildMemoryHealth(ctx, &ready, &healthStatus)
 		response := buildHealthResponse(healthStatus, version, ready, scheduleStatus, memoryHealth)
+		// Enrich with per-component readiness (align with /readyz) for a single aggregated view
+		response["temporal"] = gin.H{"ready": temporalReady}
+		response["worker"] = gin.H{"running": workerReady}
+		response["mcp_proxy"] = gin.H{"ready": mcpReady}
 		statusCode := determineHealthStatusCode(ready)
 
 		c.JSON(statusCode, gin.H{

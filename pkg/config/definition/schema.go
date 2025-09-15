@@ -37,11 +37,11 @@ func CreateRegistry() *Registry {
 func registerModeFields(registry *Registry) {
 	registry.Register(&FieldDef{
 		Path:    "mode",
-		Default: "distributed",
+		Default: "standalone",
 		CLIFlag: "",
 		EnvVar:  "APP_MODE",
 		Type:    reflect.TypeOf(""),
-		Help:    "Application mode: standalone or distributed. Defaults to distributed (tests default to standalone).",
+		Help:    "Application mode: standalone or distributed. Defaults to standalone.",
 	})
 }
 
@@ -234,11 +234,11 @@ func registerTemporalFields(registry *Registry) {
 
 	registry.Register(&FieldDef{
 		Path:    "temporal.dev_server_enabled",
-		Default: false,
+		Default: true,
 		CLIFlag: "temporal-dev-server-enabled",
 		EnvVar:  "TEMPORAL_DEV_SERVER_ENABLED",
 		Type:    reflect.TypeOf(true),
-		Help:    "Enable embedded Temporal dev server (Temporalite) in standalone mode",
+		Help:    "Enable embedded Temporal dev server (embedded_temporal) in standalone mode",
 	})
 }
 
@@ -1223,6 +1223,15 @@ func registerWorkerFields(registry *Registry) {
 		Type:    durationType,
 		Help:    "Timeout for MCP proxy health checks",
 	})
+
+	registry.Register(&FieldDef{
+		Path:    "worker.start_workflow_timeout",
+		Default: 5 * time.Second,
+		CLIFlag: "",
+		EnvVar:  "WORKER_START_WORKFLOW_TIMEOUT",
+		Type:    durationType,
+		Help:    "Timeout for starting a workflow execution to avoid hanging requests",
+	})
 }
 
 func registerMCPProxyFields(registry *Registry) {
@@ -1237,11 +1246,11 @@ func registerMCPProxyFields(registry *Registry) {
 
 	registry.Register(&FieldDef{
 		Path:    "mcp_proxy.port",
-		Default: 6001,
+		Default: 0,
 		CLIFlag: "mcp-port",
 		EnvVar:  "MCP_PROXY_PORT",
 		Type:    reflect.TypeOf(0),
-		Help:    "Port for MCP proxy server to listen on",
+		Help:    "Port for MCP proxy server to listen on (0 = ephemeral)",
 	})
 
 	registry.Register(&FieldDef{

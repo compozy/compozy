@@ -981,6 +981,13 @@ type WorkerConfig struct {
 	//
 	// **Default**: `10s`
 	MCPProxyHealthCheckTimeout time.Duration `koanf:"mcp_proxy_health_check_timeout" json:"mcp_proxy_health_check_timeout" yaml:"mcp_proxy_health_check_timeout" mapstructure:"mcp_proxy_health_check_timeout" env:"WORKER_MCP_PROXY_HEALTH_CHECK_TIMEOUT"`
+
+	// StartWorkflowTimeout bounds the HTTP handler's call to start a
+	// workflow execution to avoid hanging requests when Temporal is slow
+	// or unreachable. If zero or negative, a safe default is used.
+	//
+	// **Default**: `5s`
+	StartWorkflowTimeout time.Duration `koanf:"start_workflow_timeout" json:"start_workflow_timeout" yaml:"start_workflow_timeout" mapstructure:"start_workflow_timeout" env:"WORKER_START_WORKFLOW_TIMEOUT"`
 }
 
 // MCPProxyConfig contains MCP proxy server configuration.
@@ -992,8 +999,8 @@ type WorkerConfig struct {
 //
 //	mcp_proxy:
 //	  host: 0.0.0.0
-//	  port: 6001
-//	  base_url: http://localhost:6001
+//	  port: 0           # 0 = ephemeral; actual port is logged
+//	  base_url: ""      # auto-computed from bound address when empty
 type MCPProxyConfig struct {
 	// Host specifies the network interface to bind the MCP proxy server to.
 	//
@@ -1002,7 +1009,7 @@ type MCPProxyConfig struct {
 
 	// Port specifies the TCP port for the MCP proxy server.
 	//
-	// **Default**: `6001`
+	// **Default**: `0` (ephemeral)
 	Port int `koanf:"port" json:"port" yaml:"port" mapstructure:"port" env:"MCP_PROXY_PORT"`
 
 	// BaseURL specifies the base URL for MCP proxy API endpoints.
@@ -1469,6 +1476,7 @@ func buildWorkerConfig(registry *definition.Registry) WorkerConfig {
 		DispatcherRetryDelay:       getDuration(registry, "worker.dispatcher_retry_delay"),
 		DispatcherMaxRetries:       getInt(registry, "worker.dispatcher_max_retries"),
 		MCPProxyHealthCheckTimeout: getDuration(registry, "worker.mcp_proxy_health_check_timeout"),
+		StartWorkflowTimeout:       getDuration(registry, "worker.start_workflow_timeout"),
 	}
 }
 

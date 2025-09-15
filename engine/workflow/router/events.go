@@ -42,6 +42,18 @@ func handleEvent(c *gin.Context) {
 	}
 
 	state := router.GetAppState(c)
+	if state == nil {
+		return
+	}
+	if state.Worker == nil {
+		reqErr := router.NewRequestError(
+			http.StatusServiceUnavailable,
+			"worker is not running; configure Redis or start the worker",
+			nil,
+		)
+		router.RespondWithError(c, reqErr.StatusCode, reqErr)
+		return
+	}
 	workerMgr := state.Worker
 	projectName := state.ProjectConfig.Name
 	dispatcherID := workerMgr.GetDispatcherID() // Use this instance's dispatcher

@@ -37,6 +37,11 @@ type Config struct {
 	Host            string
 	BaseURL         string // Base URL for SSE server
 	ShutdownTimeout time.Duration
+	// UseOSSignalHandler controls whether the server installs its own
+	// OS signal handler and blocks awaiting SIGINT/SIGTERM.
+	// When running embedded inside another server, set this to false
+	// so shutdown is driven by the parent context only.
+	UseOSSignalHandler bool
 }
 
 // Validate validates the server configuration
@@ -254,9 +259,28 @@ func (s *Server) Stop(ctx context.Context) error {
 // waitForShutdown waits for shutdown signals and handles graceful shutdown
 func (s *Server) waitForShutdown(ctx context.Context, errChan <-chan error) error {
 	log := logger.FromContext(ctx)
+	// When embedded, do not install an OS signal handler; rely on ctx.
+	if !s.config.UseOSSignalHandler {
+		select {
+		case <-ctx.Done():
+			log.Debug("Context canceled, shutting down server")
+			return s.Stop(ctx)
+		case err := <-errChan:
+			if err != nil {
+				log.Error("HTTP server failed", "error", err)
+				if stopErr := s.Stop(ctx); stopErr != nil {
+					log.Error("Failed to stop server after HTTP failure", "error", stopErr)
+				}
+				return err
+			}
+			return s.Stop(ctx)
+		}
+	}
+
+	// Standalone mode: install OS signal handler
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	defer signal.Stop(quit) // Clean up signal handler to prevent resource leak
+	defer signal.Stop(quit)
 
 	select {
 	case <-ctx.Done():

@@ -17,6 +17,8 @@ type Provider struct {
 	sq   *sqli.Store
 }
 
+const modeStandalone = "standalone"
+
 // NewProvider constructs a Provider. Pass whichever driver is initialized for the
 // current mode. Drivers not used can be nil.
 func NewProvider(mode string, pg *pgxpool.Pool, sq *sqli.Store) *Provider {
@@ -26,14 +28,24 @@ func NewProvider(mode string, pg *pgxpool.Pool, sq *sqli.Store) *Provider {
 // NewAuthRepo returns an auth repository based on mode: standalone uses SQLite
 // when available; otherwise Postgres.
 func (p *Provider) NewAuthRepo() uc.Repository {
-	if p.mode == "standalone" && p.sq != nil {
+	if p.mode == modeStandalone && p.sq != nil {
 		return sqli.NewAuthRepo(p.sq.DB())
 	}
 	return postgres.NewAuthRepo(p.pg)
 }
 
 // NewTaskRepo returns a task repository.
-func (p *Provider) NewTaskRepo() task.Repository { return postgres.NewTaskRepo(p.pg) }
+func (p *Provider) NewTaskRepo() task.Repository {
+	if p.mode == modeStandalone && p.sq != nil {
+		return sqli.NewTaskRepo(p.sq.DB())
+	}
+	return postgres.NewTaskRepo(p.pg)
+}
 
 // NewWorkflowRepo returns a workflow repository.
-func (p *Provider) NewWorkflowRepo() workflow.Repository { return postgres.NewWorkflowRepo(p.pg) }
+func (p *Provider) NewWorkflowRepo() workflow.Repository {
+	if p.mode == modeStandalone && p.sq != nil {
+		return sqli.NewWorkflowRepo(p.sq.DB())
+	}
+	return postgres.NewWorkflowRepo(p.pg)
+}

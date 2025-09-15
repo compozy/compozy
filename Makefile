@@ -84,6 +84,8 @@ build: check-go-version swagger
 lint:
 	$(BUNCMD) run lint
 	$(LINTCMD) run --fix --allow-parallel-runners
+	@echo "Running static driver import guard..."
+	@./scripts/check-driver-imports.sh
 	@echo "Running modernize analyzer for min/max suggestions..."
 	@echo "Linting completed successfully"
 
@@ -102,7 +104,7 @@ modernize:
 
 dev: EXAMPLE=weather
 dev:
-	wgo run . dev --cwd examples/$(EXAMPLE) --env-file .env --debug --watch
+	GOFLAGS="-tags=embedded_temporal" wgo run . dev --cwd examples/$(EXAMPLE) --env-file .env --debug --watch
 
 tidy:
 	@echo "Tidying modules..."
@@ -206,7 +208,7 @@ release-major: release-deps
 
 test:
 	@bun run test
-	@gotestsum --format pkgname -- -race -parallel=4 ./...
+	@gotestsum --format pkgname -- -race -parallel=4 -tags=embedded_temporal ./...
 
 test-coverage:
 	@bun run test

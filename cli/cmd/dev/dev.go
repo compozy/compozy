@@ -55,6 +55,11 @@ func runDevServer(ctx context.Context, cobraCmd *cobra.Command) error {
 	if cfg == nil {
 		return fmt.Errorf("missing config in context; ensure config.ContextWithManager is set in root command")
 	}
+	// Ensure best dev experience: force embedded Temporal dev server in standalone mode
+	// This avoids worker skip warnings when no external Temporal is running.
+	if cfg.Mode == config.ModeStandalone {
+		cfg.Temporal.DevServerEnabled = true
+	}
 	setupGinMode(cfg)
 	envFilePath, err := resolveEnvFilePath(cobraCmd)
 	if err != nil {

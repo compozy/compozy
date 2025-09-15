@@ -37,6 +37,7 @@ Key features include:
 - **Rate Limiting**: Configurable request rate limiting middleware
   - Standalone uses an in-memory limiter by default (best-effort, single-process). Redis can be explicitly configured to enable distributed limiting.
 - **CORS Support**: Cross-origin resource sharing configuration
+- **Embedded MCP Proxy (Standalone)**: Runs the MCP Proxy in-process with SugarDB storage, exposes `/mcp/health`, and integrates into readiness
 
 ---
 
@@ -201,6 +202,16 @@ func CreateHealthHandler(server *server.Server, version string) gin.HandlerFunc 
     }
 }
 ```
+
+### Embedded MCP Proxy (Standalone)
+
+When `mode=standalone`, the server embeds the MCP Proxy and manages its lifecycle:
+
+- Storage defaults to SugarDB (embedded) for zero external dependencies.
+- Health endpoint: `/mcp/health` returns 200 when the proxy is serving.
+- Readiness: aggregated into `/health` via `CreateHealthHandler`.
+
+Integration tests validate endpoint exposure and readiness impact (see `test/integration/server/mcp_health_test.go`).
 
 ---
 

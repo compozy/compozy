@@ -25,7 +25,12 @@
 
 ## 🎯 Overview
 
-The `cache` package provides a comprehensive Redis-based caching and coordination layer for the Compozy workflow orchestration engine. It combines Redis client operations, distributed locking using the Redlock algorithm, and pub/sub notifications into a unified interface.
+The `cache` package provides a backend-neutral caching and coordination layer for the Compozy workflow orchestration engine. It defines contracts (KV/Lists/Hashes/PubSub/Lock) with neutral errors and capability flags, implemented by adapter packages:
+
+- `engine/infra/redis` — Redis adapter (distributed mode)
+- `engine/infra/sugardb` — SugarDB adapter (standalone mode)
+
+This package previously described a Redis-centric design; the architecture now uses contracts with adapter parity. See tasks/prd-standalone/05-sugardb-integration.md for details and parity expectations.
 
 This package is designed to handle:
 
@@ -46,11 +51,23 @@ This package is designed to handle:
 
 ## ⚡ Design Highlights
 
-- **Redlock Algorithm**: Implements Redis distributed locking with automatic renewal and safe release
-- **Type-Safe Events**: Strongly typed event structures for workflow and task notifications
-- **Graceful Degradation**: Fallback mechanisms and comprehensive error handling
-- **Metrics Integration**: Built-in metrics for monitoring lock operations and notification performance
+- **Contracts + Adapters**: Driver-neutral interfaces with Redis/SugarDB adapter parity
+- **Distributed Locking**: Token + TTL locks with refresh/release; Redis via Lua, SugarDB via CAS
+- **Pub/Sub**: Channels and pattern subscriptions across adapters
+- **Metrics Integration**: Adapter labels (`cache_driver`) and operation metrics
 - **Configuration Validation**: Extensive validation with environment variable support
+
+### Capability Matrix (summary)
+
+| Capability                      | Redis | SugarDB |
+| ------------------------------- | ----- | ------- |
+| KV (Get/Set/Del/MGet/Expire)    | Yes   | Yes     |
+| Lists (RPush/LRange/LLen/LTrim) | Yes   | Yes     |
+| Hashes (HSet/HGet/HDel/HIncrBy) | Yes   | Yes     |
+| Pub/Sub (channels + patterns)   | Yes   | Yes     |
+| Locks (token + TTL)             | Yes   | Yes     |
+| Keys Iteration (pattern scan)   | Yes   | Yes     |
+| Atomic List + Metadata          | Yes   | Yes     |
 
 ---
 
