@@ -17,6 +17,6 @@ func Test_ProjectNameContext(t *testing.T) {
 	})
 	t.Run("Should error when project name not present", func(t *testing.T) {
 		_, err := GetProjectName(context.Background())
-		assert.Error(t, err)
+		assert.ErrorContains(t, err, "project name not found")
 	})
 }

@@ -1,6 +1,7 @@
 package toolrouter
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/compozy/compozy/engine/infra/server/router"
@@ -31,14 +32,15 @@ func getToolByID(c *gin.Context) {
 	if appState == nil {
 		return
 	}
-	uc := uc.NewGetTool(appState.Workflows, toolID)
-	tool, err := uc.Execute(c.Request.Context())
+	usecase := uc.NewGetTool(appState.Workflows, toolID)
+	tool, err := usecase.Execute(c.Request.Context())
 	if err != nil {
-		reqErr := router.NewRequestError(
-			http.StatusNotFound,
-			"tool not found",
-			err,
-		)
+		if errors.Is(err, uc.ErrToolNotFound) {
+			reqErr := router.NewRequestError(http.StatusNotFound, "tool not found", err)
+			router.RespondWithError(c, reqErr.StatusCode, reqErr)
+			return
+		}
+		reqErr := router.NewRequestError(http.StatusInternalServerError, "failed to retrieve tool", err)
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}

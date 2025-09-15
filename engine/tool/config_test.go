@@ -220,7 +220,7 @@ func Test_Config_LLMDefinition_And_Maps(t *testing.T) {
 		assert.Equal(t, "desc", dst.Description)
 		assert.Equal(t, "30s", dst.Timeout)
 		assert.EqualValues(t, 1, (*dst.With)["a"])
-		assert.Equal(t, true, (*dst.Config)["b"])
+		assert.EqualValues(t, true, (*dst.Config)["b"])
 	})
 	t.Run("Should round-trip complex fields including schema and env", func(t *testing.T) {
 		t.Parallel()
@@ -247,7 +247,7 @@ func Test_Config_LLMDefinition_And_Maps(t *testing.T) {
 		_, ok := (*compiled.Properties)["k"]
 		assert.True(t, ok)
 		nested := (*dst.Config)["nested"].(map[string]any)
-		assert.Equal(t, true, nested["flag"])
+		assert.EqualValues(t, true, nested["flag"])
 	})
 }
 
@@ -258,7 +258,7 @@ func Test_Config_LoadAndEval_EnvTemplate(t *testing.T) {
 		_, filename, _, ok := runtime.Caller(0)
 		require.True(t, ok)
 		cwd, dst := fixtures.SetupConfigTest(t, filename)
-		path := dst + "/config_example.yaml"
+		path := filepath.Join(dst, "config_example.yaml")
 		ev := ref.NewEvaluator(ref.WithGlobalScope(map[string]any{"env": map[string]any{"API_SECRET": "sekret"}}))
 		cfg, err := LoadAndEval(cwd, path, ev)
 		require.NoError(t, err)
@@ -293,6 +293,14 @@ func Test_Config_Clone_And_Accessors(t *testing.T) {
 		c.InputSchema = &schema.Schema{"type": "object"}
 		assert.True(t, c.HasSchema())
 	})
+	t.Run("Should deep-clone nested maps inside Config", func(t *testing.T) {
+		t.Parallel()
+		c := &Config{Config: &core.Input{"nested": map[string]any{"flag": true}}}
+		clone, err := c.Clone()
+		require.NoError(t, err)
+		(*clone.Config)["nested"].(map[string]any)["flag"] = false
+		assert.EqualValues(t, true, (*c.Config)["nested"].(map[string]any)["flag"])
+	})
 }
 
 func Test_ToolConfigMerge_InvalidType(t *testing.T) {
@@ -301,15 +309,13 @@ func Test_ToolConfigMerge_InvalidType(t *testing.T) {
 		t.Parallel()
 		var a Config
 		err := a.Merge(&struct{}{})
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid type for merge")
+		require.ErrorContains(t, err, "invalid type for merge")
 	})
 	t.Run("Should return error when merging into nil receiver", func(t *testing.T) {
 		t.Parallel()
 		var p *Config
 		err := p.Merge(&Config{})
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "nil config")
+		require.ErrorContains(t, err, "nil config")
 	})
 }
 

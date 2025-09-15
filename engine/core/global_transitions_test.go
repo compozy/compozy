@@ -19,6 +19,14 @@ func Test_SuccessTransition_Mapping(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 2, (*st.With)["b"])
 	})
+	t.Run("Should handle nil With safely", func(t *testing.T) {
+		st := &SuccessTransition{}
+		m, err := st.AsMap()
+		require.NoError(t, err)
+		assert.NotNil(t, m)
+		require.NoError(t, st.FromMap(map[string]any{}))
+		assert.Nil(t, st.With)
+	})
 }
 
 func Test_ErrorTransition_Mapping(t *testing.T) {
@@ -32,5 +40,13 @@ func Test_ErrorTransition_Mapping(t *testing.T) {
 		err = et.FromMap(map[string]any{"with": map[string]any{"z": 3}})
 		require.NoError(t, err)
 		assert.Equal(t, 3, (*et.With)["z"])
+	})
+	t.Run("Should handle nil With safely", func(t *testing.T) {
+		et := &ErrorTransition{}
+		m, err := et.AsMap()
+		require.NoError(t, err)
+		assert.NotNil(t, m)
+		require.NoError(t, et.FromMap(map[string]any{}))
+		assert.Nil(t, et.With)
 	})
 }

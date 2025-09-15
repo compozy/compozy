@@ -11,6 +11,7 @@ import (
 )
 
 func TestGetAgent_Execute(t *testing.T) {
+	t.Parallel()
 	t.Run("Should return agent when ID exists across workflows", func(t *testing.T) {
 		wf1 := &workflow.Config{Agents: []agent.Config{{ID: "a1"}}}
 		wf2 := &workflow.Config{Agents: []agent.Config{{ID: "a2"}}}
@@ -32,6 +33,7 @@ func TestGetAgent_Execute(t *testing.T) {
 }
 
 func TestListAgents_Execute(t *testing.T) {
+	t.Parallel()
 	t.Run("Should return unique agents across workflows", func(t *testing.T) {
 		wf1 := &workflow.Config{Agents: []agent.Config{{ID: "a1"}, {ID: "a2"}}}
 		wf2 := &workflow.Config{Agents: []agent.Config{{ID: "a2"}, {ID: "a3"}}}

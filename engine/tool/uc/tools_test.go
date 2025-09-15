@@ -31,7 +31,6 @@ func TestGetTool_Execute(t *testing.T) {
 		assert.Error(t, err)
 		assert.True(t, errors.Is(err, ErrToolNotFound))
 		assert.Nil(t, got)
-		assert.Contains(t, err.Error(), "tool not found")
 	})
 	t.Run("Should deterministically return first match when duplicate IDs across workflows", func(t *testing.T) {
 		t.Parallel()

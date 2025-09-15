@@ -33,7 +33,7 @@ func Test_Input_Functions(t *testing.T) {
 		var nilIn *Input
 		r2, err := nilIn.Merge(&b)
 		require.NoError(t, err)
-		assert.Equal(t, &b, r2)
+		assert.Same(t, &b, r2)
 	})
 	t.Run("Should clone input deeply", func(t *testing.T) {
 		in := &Input{"x": []int{1}}

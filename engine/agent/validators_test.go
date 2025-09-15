@@ -11,19 +11,19 @@ import (
 )
 
 func TestMemoryValidator_Validate(t *testing.T) {
-	t.Run("Valid: No memory references (nil)", func(t *testing.T) {
+	t.Run("Should pass with no memory references (nil)", func(t *testing.T) {
 		validator := NewMemoryValidator(nil /*, mockRegistry */)
 		err := validator.Validate()
 		assert.NoError(t, err)
 	})
 
-	t.Run("Valid: No memory references (empty slice)", func(t *testing.T) {
+	t.Run("Should pass with no memory references (empty slice)", func(t *testing.T) {
 		validator := NewMemoryValidator([]core.MemoryReference{} /*, mockRegistry */)
 		err := validator.Validate()
 		assert.NoError(t, err)
 	})
 
-	t.Run("Valid: Single memory reference", func(t *testing.T) {
+	t.Run("Should validate a single memory reference", func(t *testing.T) {
 		refs := []core.MemoryReference{
 			{ID: "mem1", Key: "key-{{.workflow.id}}", Mode: "read-write"},
 		}
@@ -33,7 +33,7 @@ func TestMemoryValidator_Validate(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("Valid: Multiple memory references", func(t *testing.T) {
+	t.Run("Should validate multiple memory references", func(t *testing.T) {
 		refs := []core.MemoryReference{
 			{ID: "mem1", Key: "key1", Mode: "read-write"},
 			{ID: "mem2", Key: "key2", Mode: "read-only"},
@@ -43,7 +43,7 @@ func TestMemoryValidator_Validate(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("Invalid: Missing ID in a reference", func(t *testing.T) {
+	t.Run("Should error when ID is missing", func(t *testing.T) {
 		refs := []core.MemoryReference{
 			{ID: "", Key: "key1", Mode: "read-write"}, // Empty ID
 		}
@@ -53,7 +53,7 @@ func TestMemoryValidator_Validate(t *testing.T) {
 		assert.Contains(t, err.Error(), "memory reference at index 0 has an empty ID")
 	})
 
-	t.Run("Invalid: Missing Key in a reference", func(t *testing.T) {
+	t.Run("Should error when Key is missing", func(t *testing.T) {
 		refs := []core.MemoryReference{
 			{ID: "mem1", Key: "", Mode: "read-write"}, // Empty Key
 		}
@@ -63,7 +63,7 @@ func TestMemoryValidator_Validate(t *testing.T) {
 		assert.Contains(t, err.Error(), "memory reference for ID 'mem1' (index 0) has an empty key template")
 	})
 
-	t.Run("Invalid: Invalid Mode in a reference", func(t *testing.T) {
+	t.Run("Should error when Mode is invalid", func(t *testing.T) {
 		refs := []core.MemoryReference{
 			{ID: "mem1", Key: "key1", Mode: "write-only"}, // Invalid mode
 		}
@@ -73,7 +73,7 @@ func TestMemoryValidator_Validate(t *testing.T) {
 		assert.Contains(t, err.Error(), "memory reference for ID 'mem1' (index 0) has invalid mode 'write-only'")
 	})
 
-	t.Run("Invalid: Mode defaults to read-write if empty, but validator re-checks", func(t *testing.T) {
+	t.Run("Should revalidate mode string strictly even if defaulted", func(t *testing.T) {
 		// normalizeAndValidateMemoryConfig should set a default mode.
 		// AgentMemoryValidator then re-validates this.
 		// This test ensures AgentMemoryValidator itself checks the mode string strictly.
@@ -91,18 +91,7 @@ func TestMemoryValidator_Validate(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid mode 'bad-mode'")
 	})
-
-	// Placeholder for when registry check is active in Task 4.0
-	// t.Run("Invalid: Memory ID does not exist in registry", func(t *testing.T) {
-	// 	refs := []core.MemoryReference{
-	// 		{ID: "non-existent-mem", Key: "key1", Mode: "read-write"},
-	// 	}
-	// 	// Setup mockRegistry to return false for mockRegistry.MemoryExists("non-existent-mem")
-	// 	validator := NewAgentMemoryValidator(refs, mockRegistry)
-	// 	err := validator.Validate()
-	// 	require.Error(t, err)
-	// 	assert.Contains(t, err.Error(), "memory resource with ID 'non-existent-mem' referenced by agent is not defined")
-	// })
+	// TODO: Enable registry existence validation when the registry integration is available
 }
 
 func TestActionsValidator_Validate(t *testing.T) {
@@ -113,7 +102,8 @@ func TestActionsValidator_Validate(t *testing.T) {
 
 	t.Run("Should validate all actions and return error on invalid", func(t *testing.T) {
 		valid := &ActionConfig{ID: "ok", Prompt: "p"}
-		require.NoError(t, valid.SetCWD("/tmp"))
+		tmp := t.TempDir()
+		require.NoError(t, valid.SetCWD(tmp))
 		invalid := &ActionConfig{ID: "bad"} // missing CWD -> schema.CWDValidator fails
 		v := NewActionsValidator([]*ActionConfig{valid, invalid})
 		err := v.Validate()
@@ -123,9 +113,10 @@ func TestActionsValidator_Validate(t *testing.T) {
 
 	t.Run("Should pass when all actions are valid", func(t *testing.T) {
 		a1 := &ActionConfig{ID: "a1", Prompt: "p1", InputSchema: &schema.Schema{"type": "object"}}
-		require.NoError(t, a1.SetCWD("/tmp"))
+		tmp := t.TempDir()
+		require.NoError(t, a1.SetCWD(tmp))
 		a2 := &ActionConfig{ID: "a2", Prompt: "p2"}
-		require.NoError(t, a2.SetCWD("/tmp"))
+		require.NoError(t, a2.SetCWD(tmp))
 		v := NewActionsValidator([]*ActionConfig{a1, a2})
 		assert.NoError(t, v.Validate())
 	})

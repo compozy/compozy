@@ -27,6 +27,7 @@ type errorResponse struct {
 	Error  struct {
 		Code    string `json:"code"`
 		Message string `json:"message"`
+		Details string `json:"details"`
 	} `json:"error"`
 }
 
@@ -57,13 +58,17 @@ func TestRouter_ListAndGetTools(t *testing.T) {
 		require.Equal(t, http.StatusOK, res.Code)
 		require.Equal(t, "application/json; charset=utf-8", res.Header().Get("Content-Type"))
 		var body struct {
-			Status int `json:"status"`
-			Data   struct {
+			Status  int    `json:"status"`
+			Message string `json:"message"`
+			Data    struct {
 				Tools []tool.Config `json:"tools"`
 			} `json:"data"`
 		}
 		require.NoError(t, json.Unmarshal(res.Body.Bytes(), &body))
 		require.Equal(t, 200, body.Status)
+		// message is optional but server includes a default success message in some routes
+		// Assert it exists to enforce response shape when provided
+		assert.NotEmpty(t, body.Message)
 		assert.Len(t, body.Data.Tools, 2)
 		ids := map[string]bool{}
 		for i := range body.Data.Tools {
@@ -118,5 +123,6 @@ func TestRouter_ListAndGetTools(t *testing.T) {
 		var body errorResponse
 		require.NoError(t, json.Unmarshal(res.Body.Bytes(), &body))
 		assert.Equal(t, "INTERNAL_ERROR", body.Error.Code)
+		assert.NotEmpty(t, body.Error.Details)
 	})
 }

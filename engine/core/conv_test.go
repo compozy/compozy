@@ -47,6 +47,10 @@ func Test_ParseAnyDuration(t *testing.T) {
 		assert.False(t, ok1)
 		assert.False(t, ok2)
 	})
+	t.Run("Should reject whitespace-only string", func(t *testing.T) {
+		_, ok := ParseAnyDuration("   ")
+		assert.False(t, ok)
+	})
 }
 
 func Test_ParseAnyInt(t *testing.T) {
@@ -69,5 +73,9 @@ func Test_ParseAnyInt(t *testing.T) {
 		_, ok2 := ParseAnyInt(" ")
 		_, ok3 := ParseAnyInt("abc")
 		assert.False(t, ok1 || ok2 || ok3)
+	})
+	t.Run("Should reject decimal json.Number", func(t *testing.T) {
+		_, ok := ParseAnyInt(json.Number("11.2"))
+		assert.False(t, ok)
 	})
 }

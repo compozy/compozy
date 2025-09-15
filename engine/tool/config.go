@@ -332,10 +332,13 @@ func (t *Config) ValidateOutput(ctx context.Context, output *core.Output) error 
 func (t *Config) Merge(other any) error {
 	otherConfig, ok := other.(*Config)
 	if !ok {
-		return fmt.Errorf("failed to merge tool configs: %w", errors.New("invalid type for merge"))
+		return fmt.Errorf("failed to merge tool configs: invalid type for merge: %T", other)
 	}
 	if t == nil {
 		return fmt.Errorf("failed to merge tool configs: %w", errors.New("nil config receiver"))
+	}
+	if otherConfig == nil {
+		return nil
 	}
 	return mergo.Merge(t, otherConfig, mergo.WithOverride)
 }

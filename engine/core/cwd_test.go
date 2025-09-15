@@ -32,7 +32,8 @@ func Test_CWDFromPath_And_Methods(t *testing.T) {
 		file := filepath.Join(dir, "b.txt")
 		require.NoError(t, os.WriteFile(file, []byte("y"), 0o644))
 		var p *PathCWD
-		assert.Error(t, p.Set("whatever"))
+		err := p.Set("whatever")
+		assert.ErrorContains(t, err, "CWD is nil")
 		c := &PathCWD{}
 		require.NoError(t, c.Set(dir))
 		assert.Equal(t, dir, c.PathStr())
@@ -43,9 +44,13 @@ func Test_CWDFromPath_And_Methods(t *testing.T) {
 		clone, err := c.Clone()
 		require.NoError(t, err)
 		assert.Equal(t, c.Path, clone.Path)
+		// missing file on a valid CWD yields not found
+		_, err = c.JoinAndCheck("missing2")
+		assert.ErrorContains(t, err, "file not found or inaccessible")
+		// empty CWD yields not-set error
 		c2 := &PathCWD{}
 		_, err = c2.JoinAndCheck("missing")
-		assert.Error(t, err)
+		assert.ErrorContains(t, err, "CWD is not set")
 	})
 	t.Run("Should read file via ReadFile", func(t *testing.T) {
 		dir := t.TempDir()

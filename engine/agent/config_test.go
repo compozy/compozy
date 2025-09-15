@@ -33,13 +33,11 @@ func Test_LoadAgent(t *testing.T) {
 
 		require.NotNil(t, config.ID)
 		require.NotNil(t, config.Config)
-		require.NotNil(t, config.Config.Params.Temperature)
-		require.NotNil(t, config.Config.Params.MaxTokens)
 
 		assert.Equal(t, "code-assistant", config.ID)
 		assert.Equal(t, core.ProviderAnthropic, config.Config.Provider)
 		assert.Equal(t, "claude-4-opus", config.Config.Model)
-		assert.InDelta(t, float32(0.7), config.Config.Params.Temperature, 0.0001)
+		assert.InDelta(t, 0.7, config.Config.Params.Temperature, 1e-6)
 		assert.Equal(t, int32(4000), config.Config.Params.MaxTokens)
 
 		require.Len(t, config.Actions, 1)
@@ -469,9 +467,9 @@ func Test_Config_Merge_Clone_AsMap_FromMap(t *testing.T) {
 
 func Test_LoadAndEval_Basic(t *testing.T) {
 	t.Run("Should load with evaluator configured", func(t *testing.T) {
+		cwd, dstPath := setupTest(t, "basic_agent.yaml")
 		ev := ref.NewEvaluator(ref.WithLocalScope(map[string]any{"x": 1}))
-		var CWD *core.PathCWD
-		cfg, err := LoadAndEval(CWD, "fixtures/basic_agent.yaml", ev)
+		cfg, err := LoadAndEval(cwd, dstPath, ev)
 		require.NoError(t, err)
 		require.NotNil(t, cfg)
 		assert.Equal(t, "code-assistant", cfg.ID)

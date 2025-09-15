@@ -18,6 +18,8 @@ func Test_ProviderConfig_Conversions(t *testing.T) {
 		m, err := pc.AsMap()
 		require.NoError(t, err)
 		assert.Equal(t, tmp["model"], m["model"])
+		assert.Equal(t, tmp["provider"], m["provider"])
+		assert.Equal(t, tmp["api_key"], m["api_key"])
 	})
 	t.Run("Should merge from map with override (empty values overwrite)", func(t *testing.T) {
 		pc := &ProviderConfig{Provider: ProviderMock, Model: "m1", APIKey: "k1", Params: PromptParams{MaxTokens: 10}}

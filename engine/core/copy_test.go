@@ -1,7 +1,6 @@
 package core
 
 import (
-	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -25,11 +24,11 @@ func TestDeepCopy_Input(t *testing.T) {
 		orig := Input{"a": 1, "nums": []int{1, 2, 3}, "nested": map[string]any{"k1": "v1"}, "strs": []string{"x", "y"}}
 		cpy, err := DeepCopy[Input](orig)
 		require.NoError(t, err)
-		assert.True(t, reflect.DeepEqual(cpy, orig))
+		assert.Equal(t, orig, cpy)
 		mutateNestedStructures(map[string]any(cpy))
-		assert.False(t, reflect.DeepEqual(cpy, orig))
+		assert.NotEqual(t, orig, cpy)
 		want := Input{"a": 1, "nums": []int{1, 2, 3}, "nested": map[string]any{"k1": "v1"}, "strs": []string{"x", "y"}}
-		assert.True(t, reflect.DeepEqual(orig, want))
+		assert.Equal(t, want, orig)
 		_, ok := any(cpy).(Input)
 		assert.True(t, ok)
 	})
@@ -46,11 +45,11 @@ func TestDeepCopy_Output(t *testing.T) {
 		orig := Output{"x": "y", "nums": []int{10, 20}, "nested": map[string]any{"n": 1}}
 		cpy, err := DeepCopy[Output](orig)
 		require.NoError(t, err)
-		assert.True(t, reflect.DeepEqual(cpy, orig))
+		assert.Equal(t, orig, cpy)
 		mutateNestedStructures(map[string]any(cpy))
-		assert.False(t, reflect.DeepEqual(cpy, orig))
+		assert.NotEqual(t, orig, cpy)
 		want := Output{"x": "y", "nums": []int{10, 20}, "nested": map[string]any{"n": 1}}
-		assert.True(t, reflect.DeepEqual(orig, want))
+		assert.Equal(t, want, orig)
 		_, ok := any(cpy).(Output)
 		assert.True(t, ok)
 	})
@@ -69,11 +68,11 @@ func TestDeepCopy_InputPtr(t *testing.T) {
 		cpyPtr, err := DeepCopy[*Input](orig)
 		require.NoError(t, err)
 		require.NotNil(t, cpyPtr)
-		assert.True(t, reflect.DeepEqual(*cpyPtr, *orig))
+		assert.Equal(t, *orig, *cpyPtr)
 		mutateNestedStructures(map[string]any(*cpyPtr))
-		assert.False(t, reflect.DeepEqual(*cpyPtr, *orig))
+		assert.NotEqual(t, *orig, *cpyPtr)
 		want := Input{"k": "v", "nums": []int{1, 2}, "nested": map[string]any{"a": "b"}}
-		assert.True(t, reflect.DeepEqual(*orig, want))
+		assert.Equal(t, want, *orig)
 	})
 	t.Run("Should return nil when *Input is nil or points to nil map", func(t *testing.T) {
 		var pnil *Input
@@ -95,11 +94,11 @@ func TestDeepCopy_OutputPtr(t *testing.T) {
 		cpyPtr, err := DeepCopy[*Output](orig)
 		require.NoError(t, err)
 		require.NotNil(t, cpyPtr)
-		assert.True(t, reflect.DeepEqual(*cpyPtr, *orig))
+		assert.Equal(t, *orig, *cpyPtr)
 		mutateNestedStructures(map[string]any(*cpyPtr))
-		assert.False(t, reflect.DeepEqual(*cpyPtr, *orig))
+		assert.NotEqual(t, *orig, *cpyPtr)
 		want := Output{"ok": true, "nested": map[string]any{"k": "v"}, "nums": []int{4, 5, 6}}
-		assert.True(t, reflect.DeepEqual(*orig, want))
+		assert.Equal(t, want, *orig)
 	})
 	t.Run("Should return nil when *Output is nil or points to nil map", func(t *testing.T) {
 		var pnil *Output
@@ -144,24 +143,24 @@ func TestDeepCopy_Generic(t *testing.T) {
 		}
 		cpy, err := DeepCopy[genericStruct](orig)
 		require.NoError(t, err)
-		assert.True(t, reflect.DeepEqual(cpy, orig))
+		assert.Equal(t, orig, cpy)
 		cpy.N, cpy.Arr[0], cpy.Nst.K, cpy.Nst.V["x"] = 8, 999, "k2", 77
-		assert.False(t, reflect.DeepEqual(cpy, orig))
+		assert.NotEqual(t, orig, cpy)
 		want := genericStruct{
 			N:   7,
 			S:   "abc",
 			Arr: []int{1, 2, 3},
 			Nst: &nestedStruct{K: "k", V: map[string]int{"x": 1}},
 		}
-		assert.True(t, reflect.DeepEqual(orig, want))
+		assert.Equal(t, want, orig)
 		m := map[string]any{"a": 1, "b": []string{"a", "b"}, "c": map[string]any{"z": 1}}
 		mc, err := DeepCopy[map[string]any](m)
 		require.NoError(t, err)
-		assert.True(t, reflect.DeepEqual(mc, m))
+		assert.Equal(t, m, mc)
 		mc["a"] = 2
 		mc["b"].([]string)[0] = "changed"
 		mc["c"].(map[string]any)["z"] = 9
-		assert.False(t, reflect.DeepEqual(mc, m))
+		assert.NotEqual(t, m, mc)
 	})
 }
 
@@ -170,13 +169,13 @@ func Test_deepCopyMap_SucceedsOnMapAny(t *testing.T) {
 		orig := map[string]any{"k": []int{1, 2}, "m": map[string]any{"x": 1}}
 		cpy, err := deepCopyMap(orig)
 		require.NoError(t, err)
-		assert.True(t, reflect.DeepEqual(cpy, orig))
+		assert.Equal(t, orig, cpy)
 		if s, ok := cpy["k"].([]int); ok && len(s) > 0 {
 			s[0] = 999
 		}
 		if nm, ok := cpy["m"].(map[string]any); ok {
 			nm["x"] = 999
 		}
-		assert.False(t, reflect.DeepEqual(cpy, orig))
+		assert.NotEqual(t, orig, cpy)
 	})
 }

@@ -21,6 +21,7 @@ func setupRouterWithState(t *testing.T, state *appstatepkg.State) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.Use(appstatepkg.StateMiddleware(state))
+	r.Use(router.ErrorHandler())
 	api := r.Group("/api/v0")
 	Register(api)
 	return r
@@ -32,7 +33,12 @@ func Test_listAgents_Handler(t *testing.T) {
 		proj := &project.Config{}
 		require.NoError(t, proj.SetCWD("/tmp"))
 		st, err := appstatepkg.NewState(
-			appstatepkg.NewBaseDeps(proj, []*workflow.Config{{Agents: []agent.Config{{ID: "dev"}}}}, nil, nil),
+			appstatepkg.NewBaseDeps(
+				proj,
+				[]*workflow.Config{{ID: "w1", Agents: []agent.Config{{ID: "dev"}}}},
+				nil,
+				nil,
+			),
 			nil,
 		)
 		require.NoError(t, err)
@@ -50,7 +56,7 @@ func Test_getAgentByID_Handler(t *testing.T) {
 	t.Run("Should return 200 when agent exists", func(t *testing.T) {
 		proj := &project.Config{}
 		require.NoError(t, proj.SetCWD("/tmp"))
-		wf := &workflow.Config{Agents: []agent.Config{{ID: "code-assistant"}}}
+		wf := &workflow.Config{ID: "w1", Agents: []agent.Config{{ID: "code-assistant"}}}
 		st, err := appstatepkg.NewState(appstatepkg.NewBaseDeps(proj, []*workflow.Config{wf}, nil, nil), nil)
 		require.NoError(t, err)
 
@@ -65,7 +71,7 @@ func Test_getAgentByID_Handler(t *testing.T) {
 	t.Run("Should return 404 when agent does not exist", func(t *testing.T) {
 		proj := &project.Config{}
 		require.NoError(t, proj.SetCWD("/tmp"))
-		wf := &workflow.Config{Agents: []agent.Config{{ID: "one"}}}
+		wf := &workflow.Config{ID: "w1", Agents: []agent.Config{{ID: "one"}}}
 		st, err := appstatepkg.NewState(appstatepkg.NewBaseDeps(proj, []*workflow.Config{wf}, nil, nil), nil)
 		require.NoError(t, err)
 		r := setupRouterWithState(t, st)
