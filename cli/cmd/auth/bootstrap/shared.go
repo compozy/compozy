@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/engine/auth/bootstrap"
-	authrepo "github.com/compozy/compozy/engine/auth/infra/postgres"
 	authuc "github.com/compozy/compozy/engine/auth/uc"
 	"github.com/compozy/compozy/engine/infra/postgres"
+	"github.com/compozy/compozy/engine/infra/repo"
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 )
@@ -48,8 +48,9 @@ func (f *DefaultServiceFactory) CreateService(ctx context.Context) (*bootstrap.S
 		return nil, nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	repo := authrepo.NewRepository(drv.Pool())
-	factory := authuc.NewFactory(repo)
+	provider := repo.NewProvider("distributed", drv.Pool(), nil)
+	authRepo := provider.NewAuthRepo()
+	factory := authuc.NewFactory(authRepo)
 	service := bootstrap.NewService(factory)
 
 	cleanup := func() {

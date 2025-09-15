@@ -77,3 +77,17 @@ func (s *Server) HealthCheck(_ context.Context) error {
 // defaultDBBasePath resolves the base path for embedded SugarDB persistence.
 // If cfg is nil or empty, defaults to ~/.compozy.
 // base path resolution centralized in pkg/config.SugarDBBaseDir
+
+// Stop attempts to gracefully stop the embedded SugarDB instance.
+// If the underlying SDK exposes a Close method, it will be invoked.
+// Otherwise, Stop is a no-op.
+func (s *Server) Stop() error {
+	if s == nil || s.db == nil {
+		return nil
+	}
+	// Best-effort: call Close if available on the underlying type.
+	if closer, ok := any(s.db).(interface{ Close() error }); ok {
+		return closer.Close()
+	}
+	return nil
+}

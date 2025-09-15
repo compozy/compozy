@@ -1,0 +1,164 @@
+package redis
+
+import (
+	"context"
+	"encoding/hex"
+	"encoding/json"
+	"time"
+
+	"github.com/compozy/compozy/engine/auth/model"
+	"github.com/compozy/compozy/engine/auth/uc"
+	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/pkg/logger"
+	rds "github.com/redis/go-redis/v9"
+)
+
+// CachedRepository decorates an auth repository with Redis-backed caching.
+// Security: never caches sensitive hash bytes. For validation lookups
+// (GetAPIKeyByHash), only a fingerprint->ID mapping is cached; the full
+// record is always fetched from the underlying repository by ID.
+type CachedRepository struct {
+	repo   uc.Repository
+	client *rds.Client
+	ttl    time.Duration
+}
+
+// NewCachedRepository returns a Redis-backed caching decorator.
+func NewCachedRepository(repo uc.Repository, client *rds.Client, ttl time.Duration) uc.Repository {
+	if ttl <= 0 {
+		ttl = 30 * time.Second
+	}
+	return &CachedRepository{repo: repo, client: client, ttl: ttl}
+}
+
+func (c *CachedRepository) idKey(id core.ID) string { return "auth:apikey:id:" + id.String() }
+func (c *CachedRepository) fpKey(fp []byte) string  { return "auth:apikey:fp:" + hex.EncodeToString(fp) }
+func (c *CachedRepository) sanitize(k *model.APIKey) *model.APIKey {
+	if k == nil {
+		return nil
+	}
+	cp := *k
+	cp.Hash = nil // never cache sensitive hash bytes
+	return &cp
+}
+
+// --- Cache-aware API Key methods ---
+
+func (c *CachedRepository) GetAPIKeyByHash(ctx context.Context, fingerprint []byte) (*model.APIKey, error) {
+	log := logger.FromContext(ctx)
+	// Try fingerprint -> ID mapping first
+	if c.client != nil {
+		if s, err := c.client.Get(ctx, c.fpKey(fingerprint)).Result(); err == nil && s != "" {
+			id, perr := core.ParseID(s)
+			if perr == nil {
+				// Fetch full record (contains Hash) from underlying repo by ID
+				key, gerr := c.repo.GetAPIKeyByID(ctx, id)
+				if gerr == nil {
+					return key, nil
+				}
+				log.Debug("repo.GetAPIKeyByID after fp mapping failed", "error", gerr)
+			}
+		}
+	}
+	// Miss or error: fallback to underlying repo by fingerprint
+	key, err := c.repo.GetAPIKeyByHash(ctx, fingerprint)
+	if err != nil {
+		return nil, err
+	}
+	// Cache mapping only (no hash bytes)
+	if c.client != nil {
+		if err := c.client.Set(ctx, c.fpKey(fingerprint), key.ID.String(), c.ttl).Err(); err != nil {
+			log.Warn("redis: set fp->id mapping failed", "error", err)
+		}
+	}
+	return key, nil
+}
+
+func (c *CachedRepository) GetAPIKeyByID(ctx context.Context, id core.ID) (*model.APIKey, error) {
+	log := logger.FromContext(ctx)
+	if c.client != nil {
+		if s, err := c.client.Get(ctx, c.idKey(id)).Result(); err == nil && s != "" {
+			var masked model.APIKey
+			if jerr := json.Unmarshal([]byte(s), &masked); jerr == nil {
+				return &masked, nil
+			}
+			log.Debug("redis: unmarshal cached api key failed", "error", err)
+		}
+	}
+	key, err := c.repo.GetAPIKeyByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if c.client != nil {
+		if b, jerr := json.Marshal(c.sanitize(key)); jerr == nil {
+			if err := c.client.Set(ctx, c.idKey(id), b, c.ttl).Err(); err != nil {
+				log.Warn("redis: set id cache failed", "error", err)
+			}
+		}
+	}
+	return key, nil
+}
+
+func (c *CachedRepository) UpdateAPIKeyLastUsed(ctx context.Context, id core.ID) error {
+	if err := c.repo.UpdateAPIKeyLastUsed(ctx, id); err != nil {
+		return err
+	}
+	// Best-effort invalidation of ID cache
+	if c.client != nil {
+		if err := c.client.Del(ctx, c.idKey(id)).Err(); err != nil {
+			logger.FromContext(ctx).Warn("redis: del id cache failed", "error", err)
+		}
+	}
+	return nil
+}
+
+func (c *CachedRepository) DeleteAPIKey(ctx context.Context, id core.ID) error {
+	if err := c.repo.DeleteAPIKey(ctx, id); err != nil {
+		return err
+	}
+	if c.client != nil {
+		if err := c.client.Del(ctx, c.idKey(id)).Err(); err != nil {
+			logger.FromContext(ctx).Warn("redis: del id cache failed", "error", err)
+		}
+	}
+	// Attempt to delete fp mapping too (best-effort).
+	if c.client != nil {
+		if k, err := c.repo.GetAPIKeyByID(ctx, id); err == nil {
+			if err := c.client.Del(ctx, c.fpKey(k.Fingerprint)).Err(); err != nil {
+				logger.FromContext(ctx).Warn("redis: del fp cache failed", "error", err)
+			}
+		}
+	}
+	return nil
+}
+
+// --- Delegated methods (no caching) ---
+
+func (c *CachedRepository) CreateAPIKey(ctx context.Context, key *model.APIKey) error {
+	return c.repo.CreateAPIKey(ctx, key)
+}
+func (c *CachedRepository) ListAPIKeysByUserID(ctx context.Context, userID core.ID) ([]*model.APIKey, error) {
+	return c.repo.ListAPIKeysByUserID(ctx, userID)
+}
+
+func (c *CachedRepository) CreateUser(ctx context.Context, user *model.User) error {
+	return c.repo.CreateUser(ctx, user)
+}
+func (c *CachedRepository) GetUserByID(ctx context.Context, id core.ID) (*model.User, error) {
+	return c.repo.GetUserByID(ctx, id)
+}
+func (c *CachedRepository) GetUserByEmail(ctx context.Context, email string) (*model.User, error) {
+	return c.repo.GetUserByEmail(ctx, email)
+}
+func (c *CachedRepository) ListUsers(ctx context.Context) ([]*model.User, error) {
+	return c.repo.ListUsers(ctx)
+}
+func (c *CachedRepository) UpdateUser(ctx context.Context, user *model.User) error {
+	return c.repo.UpdateUser(ctx, user)
+}
+func (c *CachedRepository) DeleteUser(ctx context.Context, id core.ID) error {
+	return c.repo.DeleteUser(ctx, id)
+}
+func (c *CachedRepository) CreateInitialAdminIfNone(ctx context.Context, user *model.User) error {
+	return c.repo.CreateInitialAdminIfNone(ctx, user)
+}

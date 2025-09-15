@@ -68,3 +68,19 @@ func TestInMemoryGlobalRateLimit_RefillAfterPeriod(t *testing.T) {
 	res3 := doReq(r, "5.6.7.8")
 	require.Equal(t, 200, res3.Code)
 }
+
+func TestInMemoryRateLimit_SetsHeaders(t *testing.T) {
+	cfg := &Config{
+		GlobalRate: RateConfig{Limit: 2, Period: time.Minute},
+		APIKeyRate: RateConfig{Limit: 100, Period: time.Minute},
+		RouteRates: map[string]RateConfig{},
+		Prefix:     "test:ratelimit:",
+		MaxRetry:   1,
+	}
+	r := buildRouterForTest(t, cfg)
+	res := doReq(r, "9.9.9.9")
+	require.Equal(t, 200, res.Code)
+	require.NotEmpty(t, res.Header().Get("X-RateLimit-Limit"))
+	require.NotEmpty(t, res.Header().Get("X-RateLimit-Remaining"))
+	require.NotEmpty(t, res.Header().Get("X-RateLimit-Reset"))
+}

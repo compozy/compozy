@@ -16,6 +16,7 @@ import (
 	"github.com/compozy/compozy/engine/infra/cache"
 	"github.com/compozy/compozy/engine/infra/monitoring"
 	"github.com/compozy/compozy/engine/infra/postgres"
+	rediscache "github.com/compozy/compozy/engine/infra/redis"
 	"github.com/compozy/compozy/engine/infra/repo"
 	"github.com/compozy/compozy/engine/infra/server/appstate"
 	csvc "github.com/compozy/compozy/engine/infra/server/config"
@@ -24,6 +25,8 @@ import (
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/server/routes"
 	temporal "github.com/compozy/compozy/engine/infra/server/temporal"
+	"github.com/compozy/compozy/engine/infra/sqlite"
+	sugarauth "github.com/compozy/compozy/engine/infra/sugardb"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/worker"
@@ -41,6 +44,10 @@ import (
 
 // Timeout constants for server operations
 const (
+	// Status constants for server readiness
+	statusNotReady = "not_ready"
+	statusReady    = "ready"
+	// Timeout constants for server operations
 	monitoringInitTimeout     = 500 * time.Millisecond
 	monitoringShutdownTimeout = 5 * time.Second
 	dbShutdownTimeout         = 30 * time.Second
@@ -133,6 +140,9 @@ type Server struct {
 	lastReady             bool
 
 	shutdownOnce sync.Once
+
+	// embedded SugarDB for auth cache (standalone)
+	sugarAuthCleanup func()
 }
 
 func NewServer(ctx context.Context, cwd, configFile, envFilePath string) (*Server, error) {
@@ -158,9 +168,22 @@ func NewServer(ctx context.Context, cwd, configFile, envFilePath string) (*Serve
 	}, nil
 }
 
-// setupRedisClient creates a Redis client for rate limiting if Redis is configured
-func (s *Server) setupRedisClient(cfg *config.Config) (*redis.Client, func(), error) {
+// SetupRedisClient creates a Redis client for rate limiting if Redis is configured
+func (s *Server) SetupRedisClient(cfg *config.Config) (*redis.Client, func(), error) {
 	log := logger.FromContext(s.ctx)
+	// In standalone mode, use in-memory limiter unless Redis is explicitly configured
+	if cfg != nil && cfg.Mode == modeStandalone && !isRedisConfigured(cfg) {
+		log.Info(
+			"rate limiter initialized",
+			"driver",
+			"memory",
+			"mode",
+			cfg.Mode,
+			"note",
+			"best-effort, single-process semantics",
+		)
+		return nil, func() {}, nil
+	}
 
 	// If no Redis host is configured, return nil (will use in-memory store)
 	if !isRedisConfigured(cfg) {
@@ -225,6 +248,38 @@ func convertRateLimitConfig(cfg *config.Config) *ratelimit.Config {
 	}
 }
 
+// buildAuthRepo composes the auth repository with an optional cache decorator
+// and returns the decorated repo and selected cache driver label.
+func (s *Server) buildAuthRepo(cfg *config.Config, base authuc.Repository) (authuc.Repository, string) {
+	repo := base
+	driver := "none"
+	const cacheDriverRedis = "redis"
+	ttl := cfg.Cache.TTL
+	if ttl <= 0 {
+		ttl = 24 * time.Hour
+	}
+	if s.redisClient != nil {
+		repo = rediscache.NewCachedRepository(repo, s.redisClient, ttl)
+		driver = cacheDriverRedis
+		return repo, driver
+	}
+	if cfg.Mode == modeStandalone {
+		if sugar, err := sugarauth.NewEmbedded(s.ctx); err == nil && sugar != nil {
+			repo = sugarauth.NewAuthCachedRepository(repo, sugar.DB(), ttl)
+			driver = "sugardb"
+			// register cleanup
+			s.sugarAuthCleanup = func() {
+				if stopErr := sugar.Stop(); stopErr != nil {
+					logger.FromContext(s.ctx).Warn("SugarDB auth cache stop failed", "error", stopErr)
+				}
+			}
+		} else {
+			logger.FromContext(s.ctx).Warn("SugarDB auth cache not initialized; continuing without cache")
+		}
+	}
+	return repo, driver
+}
+
 func (s *Server) buildRouter(state *appstate.State) error {
 	r := gin.New()
 	r.Use(gin.Recovery())
@@ -233,7 +288,14 @@ func (s *Server) buildRouter(state *appstate.State) error {
 	cfg := config.FromContext(s.ctx)
 
 	// Setup auth middleware first (before rate limiting)
-	authRepo := state.Store.NewAuthRepo()
+	baseAuth := state.Store.NewAuthRepo()
+	authRepoDriver := "postgres"
+	if cfg.Mode == modeStandalone {
+		authRepoDriver = "sqlite"
+	}
+	authRepo, authCacheDriver := s.buildAuthRepo(cfg, baseAuth)
+	logger.FromContext(s.ctx).
+		Info("auth repository configured", "auth_repo_driver", authRepoDriver, "auth_cache_driver", authCacheDriver)
 	authFactory := authuc.NewFactory(authRepo)
 	authManager := authmw.NewManager(authFactory, cfg)
 	r.Use(authManager.Middleware())
@@ -259,14 +321,15 @@ func (s *Server) buildRouter(state *appstate.State) error {
 		} else {
 			// Apply global rate limit middleware
 			r.Use(manager.Middleware())
-			storageType := "in-memory"
+			driver := "memory"
 			if s.redisClient != nil {
-				storageType = "redis"
+				driver = "redis"
 			}
-			log.Info("Rate limiting enabled",
+			log.Info("rate limiter initialized",
+				"driver", driver,
+				"mode", cfg.Mode,
 				"global_limit", cfg.RateLimit.GlobalRate.Limit,
-				"global_period", cfg.RateLimit.GlobalRate.Period,
-				"storage", storageType)
+				"global_period", cfg.RateLimit.GlobalRate.Period)
 		}
 	}
 
@@ -398,7 +461,28 @@ func (s *Server) setupStore() (*repo.Provider, func(), error) {
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to initialize postgres store: %w", err)
 	}
-	provider := repo.NewProvider(drv.Pool())
+	// Optionally initialize SQLite store for standalone auth provider
+	var sqliteStore *sqlite.Store
+	if cfg.Mode == modeStandalone {
+		projDir := s.cwd
+		stateDir := filepath.Join(projDir, ".compozy", "state")
+		if err := os.MkdirAll(stateDir, 0o755); err != nil {
+			return nil, nil, fmt.Errorf("failed to create state dir: %w", err)
+		}
+		dbPath := filepath.Join(stateDir, "compozy.sqlite")
+		sq, err := sqlite.NewStore(s.ctx, dbPath)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to initialize sqlite store: %w", err)
+		}
+		// Apply SQLite migrations
+		if err := sqlite.ApplyMigrations(s.ctx, sq.DB()); err != nil {
+			_ = sq.Close(s.ctx)
+			return nil, nil, fmt.Errorf("failed to apply sqlite migrations: %w", err)
+		}
+		sqliteStore = sq
+	}
+
+	provider := repo.NewProvider(cfg.Mode, drv.Pool(), sqliteStore)
 	cacheDriver := "in-memory"
 	if isRedisConfigured(cfg) {
 		cacheDriver = "redis"
@@ -418,6 +502,9 @@ func (s *Server) setupStore() (*repo.Provider, func(), error) {
 		ctx, cancel := context.WithTimeout(s.ctx, dbShutdownTimeout)
 		defer cancel()
 		_ = drv.Close(ctx)
+		if sqliteStore != nil {
+			_ = sqliteStore.Close(ctx)
+		}
 	}
 	return provider, cleanup, nil
 }
@@ -461,7 +548,7 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	}
 
 	// Setup Redis client for rate limiting
-	redisClient, redisCleanup, err := s.setupRedisClient(cfg)
+	redisClient, redisCleanup, err := s.SetupRedisClient(cfg)
 	if err != nil {
 		return nil, cleanupFuncs, err
 	}
@@ -571,6 +658,10 @@ func setupWorker(
 func (s *Server) cleanup(cleanupFuncs []func()) {
 	for i := len(cleanupFuncs) - 1; i >= 0; i-- {
 		cleanupFuncs[i]()
+	}
+	// best-effort additional cleanups
+	if s.sugarAuthCleanup != nil {
+		s.sugarAuthCleanup()
 	}
 }
 

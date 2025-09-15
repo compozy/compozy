@@ -35,6 +35,7 @@ Key features include:
 - **Graceful Shutdown**: Signal handling with proper resource cleanup
 - **Monitoring Integration**: Built-in metrics and health check endpoints
 - **Rate Limiting**: Configurable request rate limiting middleware
+  - Standalone uses an in-memory limiter by default (best-effort, single-process). Redis can be explicitly configured to enable distributed limiting.
 - **CORS Support**: Cross-origin resource sharing configuration
 
 ---
