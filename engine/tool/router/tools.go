@@ -6,6 +6,7 @@ import (
 
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/tool/uc"
+	"github.com/compozy/compozy/engine/workflow"
 	"github.com/gin-gonic/gin"
 )
 
@@ -32,7 +33,17 @@ func getToolByID(c *gin.Context) {
 	if appState == nil {
 		return
 	}
-	usecase := uc.NewGetTool(appState.Workflows, toolID)
+	workflowID := router.GetWorkflowID(c)
+	if workflowID == "" {
+		return
+	}
+	wfCfg, err := workflow.FindConfig(appState.Workflows, workflowID)
+	if err != nil {
+		reqErr := router.NewRequestError(http.StatusNotFound, "workflow not found", err)
+		router.RespondWithError(c, reqErr.StatusCode, reqErr)
+		return
+	}
+	usecase := uc.NewGetTool([]*workflow.Config{wfCfg}, toolID)
 	tool, err := usecase.Execute(c.Request.Context())
 	if err != nil {
 		if errors.Is(err, uc.ErrToolNotFound) {
@@ -63,8 +74,18 @@ func listTools(c *gin.Context) {
 	if appState == nil {
 		return
 	}
-	uc := uc.NewListTools(appState.Workflows)
-	tools, err := uc.Execute(c.Request.Context())
+	workflowID := router.GetWorkflowID(c)
+	if workflowID == "" {
+		return
+	}
+	wfCfg, err := workflow.FindConfig(appState.Workflows, workflowID)
+	if err != nil {
+		reqErr := router.NewRequestError(http.StatusNotFound, "workflow not found", err)
+		router.RespondWithError(c, reqErr.StatusCode, reqErr)
+		return
+	}
+	usecase := uc.NewListTools([]*workflow.Config{wfCfg})
+	tools, err := usecase.Execute(c.Request.Context())
 	if err != nil {
 		reqErr := router.NewRequestError(
 			http.StatusInternalServerError,

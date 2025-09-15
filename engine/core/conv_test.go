@@ -24,6 +24,16 @@ func Test_ToStringMap(t *testing.T) {
 	t.Run("Should return nil for unsupported input", func(t *testing.T) {
 		assert.Nil(t, ToStringMap(123))
 	})
+	t.Run("Should return nil for nil input", func(t *testing.T) {
+		got := ToStringMap(nil)
+		assert.Nil(t, got)
+	})
+	t.Run("Should not mutate src when mutating returned map", func(t *testing.T) {
+		src := map[string]string{"a": "1"}
+		got := ToStringMap(src)
+		got["a"] = "z"
+		assert.Equal(t, "1", src["a"])
+	})
 }
 
 func Test_ParseAnyDuration(t *testing.T) {
@@ -40,6 +50,11 @@ func Test_ParseAnyDuration(t *testing.T) {
 		assert.Equal(t, time.Duration(5), d1)
 		assert.Equal(t, time.Duration(7), d2)
 		assert.Equal(t, time.Duration(9), d3)
+	})
+	t.Run("Should truncate float64 fractional values (current behavior)", func(t *testing.T) {
+		d, ok := ParseAnyDuration(1.9)
+		assert.True(t, ok)
+		assert.Equal(t, time.Duration(1), d)
 	})
 	t.Run("Should return false for empty/invalid", func(t *testing.T) {
 		_, ok1 := ParseAnyDuration("")
@@ -77,5 +92,12 @@ func Test_ParseAnyInt(t *testing.T) {
 	t.Run("Should reject decimal json.Number", func(t *testing.T) {
 		_, ok := ParseAnyInt(json.Number("11.2"))
 		assert.False(t, ok)
+	})
+	t.Run("Should parse negative integers and reject spaced numeric strings", func(t *testing.T) {
+		i, ok := ParseAnyInt(-3)
+		assert.True(t, ok)
+		assert.Equal(t, -3, i)
+		_, ok2 := ParseAnyInt(" 10 ")
+		assert.False(t, ok2)
 	})
 }

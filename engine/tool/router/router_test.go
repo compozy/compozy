@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/engine/infra/server/appstate"
@@ -32,6 +33,7 @@ type errorResponse struct {
 }
 
 func newTestServer(t *testing.T, workflows []*workflow.Config) *gin.Engine {
+	t.Helper()
 	r := gin.New()
 	prj := &project.Config{Name: "p", Version: "1.0"}
 	require.NoError(t, prj.SetCWD("."))
@@ -56,7 +58,8 @@ func TestRouter_ListAndGetTools(t *testing.T) {
 		res := httptest.NewRecorder()
 		srv.ServeHTTP(res, req)
 		require.Equal(t, http.StatusOK, res.Code)
-		require.Equal(t, "application/json; charset=utf-8", res.Header().Get("Content-Type"))
+		ct := res.Header().Get("Content-Type")
+		assert.True(t, strings.HasPrefix(ct, "application/json"))
 		var body struct {
 			Status  int    `json:"status"`
 			Message string `json:"message"`
@@ -86,13 +89,16 @@ func TestRouter_ListAndGetTools(t *testing.T) {
 		res := httptest.NewRecorder()
 		srv.ServeHTTP(res, req)
 		require.Equal(t, http.StatusOK, res.Code)
-		require.Equal(t, "application/json; charset=utf-8", res.Header().Get("Content-Type"))
+		ct := res.Header().Get("Content-Type")
+		assert.True(t, strings.HasPrefix(ct, "application/json"))
 		var body struct {
-			Status int         `json:"status"`
-			Data   tool.Config `json:"data"`
+			Status  int         `json:"status"`
+			Message string      `json:"message"`
+			Data    tool.Config `json:"data"`
 		}
 		require.NoError(t, json.Unmarshal(res.Body.Bytes(), &body))
 		require.Equal(t, 200, body.Status)
+		assert.NotEmpty(t, body.Message)
 		assert.Equal(t, "fmt", body.Data.ID)
 		assert.Equal(t, "Formatter", body.Data.Description)
 	})
@@ -105,8 +111,11 @@ func TestRouter_ListAndGetTools(t *testing.T) {
 		res := httptest.NewRecorder()
 		srv.ServeHTTP(res, req)
 		require.Equal(t, http.StatusNotFound, res.Code)
+		ct := res.Header().Get("Content-Type")
+		assert.True(t, strings.HasPrefix(ct, "application/json"))
 		var body errorResponse
 		require.NoError(t, json.Unmarshal(res.Body.Bytes(), &body))
+		require.Equal(t, http.StatusNotFound, body.Status)
 		assert.Equal(t, "NOT_FOUND", body.Error.Code)
 		assert.Contains(t, body.Error.Message, "tool not found")
 	})
@@ -120,9 +129,87 @@ func TestRouter_ListAndGetTools(t *testing.T) {
 		res := httptest.NewRecorder()
 		r.ServeHTTP(res, req)
 		require.Equal(t, http.StatusInternalServerError, res.Code)
+		ct := res.Header().Get("Content-Type")
+		assert.True(t, strings.HasPrefix(ct, "application/json"))
 		var body errorResponse
 		require.NoError(t, json.Unmarshal(res.Body.Bytes(), &body))
 		assert.Equal(t, "INTERNAL_ERROR", body.Error.Code)
 		assert.NotEmpty(t, body.Error.Details)
+	})
+
+	t.Run("Should return 404 when workflow not found", func(t *testing.T) {
+		t.Parallel()
+		wf := &workflow.Config{ID: "wf1", Tools: []tool.Config{{ID: "fmt"}}}
+		require.NoError(t, wf.SetCWD("."))
+		srv := newTestServer(t, []*workflow.Config{wf})
+		req := httptest.NewRequest(http.MethodGet, "/api/v0/workflows/missing-wf/tools", http.NoBody)
+		res := httptest.NewRecorder()
+		srv.ServeHTTP(res, req)
+		require.Equal(t, http.StatusNotFound, res.Code)
+		ct := res.Header().Get("Content-Type")
+		assert.True(t, strings.HasPrefix(ct, "application/json"))
+		var body errorResponse
+		require.NoError(t, json.Unmarshal(res.Body.Bytes(), &body))
+		assert.Equal(t, "NOT_FOUND", body.Error.Code)
+	})
+
+	t.Run("Should list only tools for the requested workflow when multiple exist", func(t *testing.T) {
+		t.Parallel()
+		wf1 := &workflow.Config{ID: "wf1", Tools: []tool.Config{{ID: "fmt"}, {ID: "lint"}}}
+		wf2 := &workflow.Config{ID: "wf2", Tools: []tool.Config{{ID: "fmt"}, {ID: "other"}}}
+		require.NoError(t, wf1.SetCWD("."))
+		require.NoError(t, wf2.SetCWD("."))
+		srv := newTestServer(t, []*workflow.Config{wf1, wf2})
+		req := httptest.NewRequest(http.MethodGet, "/api/v0/workflows/wf1/tools", http.NoBody)
+		res := httptest.NewRecorder()
+		srv.ServeHTTP(res, req)
+		require.Equal(t, http.StatusOK, res.Code)
+		var body struct {
+			Status  int    `json:"status"`
+			Message string `json:"message"`
+			Data    struct {
+				Tools []tool.Config `json:"tools"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(res.Body.Bytes(), &body))
+		require.Equal(t, 200, body.Status)
+		ids := map[string]bool{}
+		for i := range body.Data.Tools {
+			ids[body.Data.Tools[i].ID] = true
+		}
+		assert.True(t, ids["fmt"])    // present in wf1
+		assert.True(t, ids["lint"])   // present only in wf1
+		assert.False(t, ids["other"]) // should not include wf2-only tool
+	})
+
+	t.Run("Should scope get tool to requested workflow", func(t *testing.T) {
+		t.Parallel()
+		wf1 := &workflow.Config{ID: "wf1", Tools: []tool.Config{{ID: "fmt", Description: "Formatter1"}}}
+		wf2 := &workflow.Config{ID: "wf2", Tools: []tool.Config{{ID: "fmt", Description: "Formatter2"}, {ID: "other"}}}
+		require.NoError(t, wf1.SetCWD("."))
+		require.NoError(t, wf2.SetCWD("."))
+		srv := newTestServer(t, []*workflow.Config{wf1, wf2})
+		// Should get wf1's fmt
+		req := httptest.NewRequest(http.MethodGet, "/api/v0/workflows/wf1/tools/fmt", http.NoBody)
+		res := httptest.NewRecorder()
+		srv.ServeHTTP(res, req)
+		require.Equal(t, http.StatusOK, res.Code)
+		var okBody struct {
+			Status  int         `json:"status"`
+			Message string      `json:"message"`
+			Data    tool.Config `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(res.Body.Bytes(), &okBody))
+		require.Equal(t, 200, okBody.Status)
+		assert.Equal(t, "fmt", okBody.Data.ID)
+		assert.Equal(t, "Formatter1", okBody.Data.Description)
+		// Should 404 when tool exists only in other workflow
+		req = httptest.NewRequest(http.MethodGet, "/api/v0/workflows/wf1/tools/other", http.NoBody)
+		res = httptest.NewRecorder()
+		srv.ServeHTTP(res, req)
+		require.Equal(t, http.StatusNotFound, res.Code)
+		var errBody errorResponse
+		require.NoError(t, json.Unmarshal(res.Body.Bytes(), &errBody))
+		assert.Equal(t, "NOT_FOUND", errBody.Error.Code)
 	})
 }

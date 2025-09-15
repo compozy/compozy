@@ -29,8 +29,6 @@ func TestDeepCopy_Input(t *testing.T) {
 		assert.NotEqual(t, orig, cpy)
 		want := Input{"a": 1, "nums": []int{1, 2, 3}, "nested": map[string]any{"k1": "v1"}, "strs": []string{"x", "y"}}
 		assert.Equal(t, want, orig)
-		_, ok := any(cpy).(Input)
-		assert.True(t, ok)
 	})
 	t.Run("Should return nil for nil Input", func(t *testing.T) {
 		var orig Input
@@ -50,8 +48,6 @@ func TestDeepCopy_Output(t *testing.T) {
 		assert.NotEqual(t, orig, cpy)
 		want := Output{"x": "y", "nums": []int{10, 20}, "nested": map[string]any{"n": 1}}
 		assert.Equal(t, want, orig)
-		_, ok := any(cpy).(Output)
-		assert.True(t, ok)
 	})
 	t.Run("Should return nil for nil Output", func(t *testing.T) {
 		var orig Output
@@ -68,6 +64,7 @@ func TestDeepCopy_InputPtr(t *testing.T) {
 		cpyPtr, err := DeepCopy[*Input](orig)
 		require.NoError(t, err)
 		require.NotNil(t, cpyPtr)
+		assert.NotSame(t, orig, cpyPtr)
 		assert.Equal(t, *orig, *cpyPtr)
 		mutateNestedStructures(map[string]any(*cpyPtr))
 		assert.NotEqual(t, *orig, *cpyPtr)
@@ -94,6 +91,7 @@ func TestDeepCopy_OutputPtr(t *testing.T) {
 		cpyPtr, err := DeepCopy[*Output](orig)
 		require.NoError(t, err)
 		require.NotNil(t, cpyPtr)
+		assert.NotSame(t, orig, cpyPtr)
 		assert.Equal(t, *orig, *cpyPtr)
 		mutateNestedStructures(map[string]any(*cpyPtr))
 		assert.NotEqual(t, *orig, *cpyPtr)
