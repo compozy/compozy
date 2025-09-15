@@ -433,6 +433,7 @@ func flattenConfig(cfg *config.Config) map[string]string {
 	flattenLLMConfig(cfg, result)
 	flattenCLIConfig(cfg, result)
 	flattenRedisConfig(cfg, result)
+	flattenSugarDBConfig(cfg, result)
 	flattenCacheConfig(cfg, result)
 	flattenRateLimitConfig(cfg, result)
 	flattenWorkerConfig(cfg, result)
@@ -750,4 +751,12 @@ func flattenWebhooksConfig(cfg *config.Config, result map[string]string) {
 	result["webhooks.default_max_body"] = fmt.Sprintf("%d", cfg.Webhooks.DefaultMaxBody)
 	result["webhooks.default_dedupe_ttl"] = cfg.Webhooks.DefaultDedupeTTL.String()
 	result["webhooks.stripe_skew"] = cfg.Webhooks.StripeSkew.String()
+}
+
+// flattenSugarDBConfig flattens embedded SugarDB configuration
+func flattenSugarDBConfig(cfg *config.Config, result map[string]string) {
+	if cfg == nil {
+		return
+	}
+	result["sugardb.db_path"] = cfg.SugarDB.DBPath
 }

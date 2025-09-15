@@ -10,8 +10,9 @@ import (
 type StorageType string
 
 const (
-	StorageTypeRedis  StorageType = "redis"
-	StorageTypeMemory StorageType = "memory"
+	StorageTypeRedis   StorageType = "redis"
+	StorageTypeMemory  StorageType = "memory"
+	StorageTypeSugarDB StorageType = "sugardb"
 )
 
 // StorageConfig holds configuration for storage backends
@@ -29,7 +30,7 @@ func DefaultStorageConfig() *StorageConfig {
 }
 
 // NewStorage creates a new storage instance based on configuration
-func NewStorage(config *StorageConfig) (Storage, error) {
+func NewStorage(ctx context.Context, config *StorageConfig) (Storage, error) {
 	if config == nil {
 		config = DefaultStorageConfig()
 	}
@@ -39,9 +40,24 @@ func NewStorage(config *StorageConfig) (Storage, error) {
 		return NewRedisStorage(config.Redis)
 	case StorageTypeMemory:
 		return NewMemoryStorage(), nil
+	case StorageTypeSugarDB:
+		return NewSugarDBStorage(ctx)
 	default:
 		return nil, fmt.Errorf("unsupported storage type: %s", config.Type)
 	}
+}
+
+// DefaultStorageConfigForMode returns a default storage configuration suitable
+// for the provided application mode without mutating the legacy behavior of
+// DefaultStorageConfig() used by existing tests.
+//
+// - standalone: SugarDB (embedded, no external infra)
+// - distributed: Redis (external)
+func DefaultStorageConfigForMode(mode string) *StorageConfig {
+	if mode == "standalone" {
+		return &StorageConfig{Type: StorageTypeSugarDB}
+	}
+	return DefaultStorageConfig()
 }
 
 // MemoryStorage is a simple in-memory storage implementation for testing

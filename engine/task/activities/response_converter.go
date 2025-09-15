@@ -53,8 +53,9 @@ func (rc *ResponseConverter) ConvertToCollectionResponse(
 	result *shared.ResponseOutput,
 	configStore task2core.ConfigStore,
 	task2Factory interface {
-		CreateTaskConfigRepository(store task2core.ConfigStore) (shared.TaskConfigRepository, error)
+		CreateTaskConfigRepository(store task2core.ConfigStore, cwd *core.PathCWD) (shared.TaskConfigRepository, error)
 	},
+	cwd *core.PathCWD,
 ) *task.CollectionResponse {
 	if result == nil {
 		return &task.CollectionResponse{
@@ -81,7 +82,7 @@ func (rc *ResponseConverter) ConvertToCollectionResponse(
 	}
 	// Get collection metadata from config store if available - with nil checks
 	if configStore != nil && task2Factory != nil && result.State != nil {
-		configRepo, err := task2Factory.CreateTaskConfigRepository(configStore)
+		configRepo, err := task2Factory.CreateTaskConfigRepository(configStore, cwd)
 		if err != nil {
 			// Log error but don't fail - metadata is optional for response
 			logger.FromContext(ctx).Error("failed to create task config repository", "error", err)

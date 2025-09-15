@@ -31,6 +31,7 @@ import (
 	"github.com/compozy/compozy/engine/workflow/schedule"
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
+	mcpproxy "github.com/compozy/compozy/pkg/mcp-proxy"
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 	"github.com/sethvargo/go-retry"
@@ -53,6 +54,10 @@ const (
 	httpReadTimeout  = 15 * time.Second
 	httpWriteTimeout = 15 * time.Second
 	httpIdleTimeout  = 60 * time.Second
+	modeStandalone   = "standalone"
+	// MCP readiness probe defaults (config overrides total timeout)
+	mcpHealthPollInterval   = 200 * time.Millisecond
+	mcpHealthRequestTimeout = 500 * time.Millisecond
 )
 
 type reconciliationStatus struct {
@@ -106,17 +111,28 @@ type Server struct {
 	httpServer          *http.Server
 	shutdownChan        chan struct{}
 	reconciliationState *reconciliationStatus
-	// temporal readiness and embedded server (standalone)
-	temporalMu       sync.RWMutex
+	// readiness aggregation and embedded server (standalone)
+	readinessMu      sync.RWMutex
 	temporalReady    bool
 	workerReady      bool
 	embeddedTemporal interface{ Stop() error }
+
+	// embedded MCP proxy (standalone)
+	mcpMu      sync.RWMutex
+	mcpReady   bool
+	mcpBaseURL string
+	mcpProxy   interface {
+		Start(context.Context) error
+		Stop(context.Context) error
+	}
 
 	// readiness metrics
 	readyGauge            metric.Int64ObservableGauge
 	readyTransitionsTotal metric.Int64Counter
 	readyCallback         metric.Registration
 	lastReady             bool
+
+	shutdownOnce sync.Once
 }
 
 func NewServer(ctx context.Context, cwd, configFile, envFilePath string) (*Server, error) {
@@ -126,6 +142,8 @@ func NewServer(ctx context.Context, cwd, configFile, envFilePath string) (*Serve
 		cancel()
 		return nil, fmt.Errorf("configuration missing from context; attach a manager with config.ContextWithManager")
 	}
+
+	// Do not mutate cfg.CLI.CWD; the server uses its own cwd field.
 
 	return &Server{
 		serverConfig:        &cfg.Server,
@@ -332,6 +350,11 @@ func (s *Server) setupMonitoring(projectConfig *project.Config) func() {
 		s.initReadinessMetrics()
 		return func() {
 			monitoringCancel()
+			if s.readyCallback != nil {
+				if err := s.readyCallback.Unregister(); err != nil {
+					log.Error("Failed to unregister readiness callback", "error", err)
+				}
+			}
 			ctx, cancel := context.WithTimeout(context.WithoutCancel(s.ctx), monitoringShutdownTimeout)
 			defer cancel()
 			if err := monitoringService.Shutdown(ctx); err != nil {
@@ -419,30 +442,22 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	}
 	cleanupFuncs = append(cleanupFuncs, storeCleanup)
 
+	// Start embedded MCP Proxy first in standalone so workers can register MCPs
+	if cfg.Mode == modeStandalone {
+		mcpCleanup, mcpErr := s.setupMCPProxy(s.ctx)
+		if mcpErr != nil {
+			return nil, cleanupFuncs, mcpErr
+		}
+		if mcpCleanup != nil {
+			cleanupFuncs = append(cleanupFuncs, mcpCleanup)
+		}
+	}
+
 	// Start embedded Temporal (standalone mode)
-	if cfg.Mode == "standalone" && cfg.Temporal.DevServerEnabled {
-		projDir := projectConfig.GetCWD().PathStr()
-		stateDir := filepath.Join(projDir, ".compozy", "state")
-		if err := os.MkdirAll(stateDir, 0o755); err != nil {
-			return nil, cleanupFuncs, fmt.Errorf("failed to create state dir: %w", err)
-		}
-		tStart := time.Now()
-		tsrv, terr := temporal.StartEmbedded(s.ctx, cfg, stateDir)
-		if terr != nil {
-			log.Warn("Embedded Temporal not started", "error", terr)
-		} else {
-			s.setTemporalReady(true)
-			s.onReadinessMaybeChanged("temporal_ready")
-			log.Info("Temporal namespace ready", "duration", time.Since(tStart))
-			s.embeddedTemporal = tsrv
-			cleanupFuncs = append(cleanupFuncs, func() {
-				if s.embeddedTemporal != nil {
-					if err := tsrv.Stop(); err != nil {
-						log.Warn("Failed to stop embedded temporal", "error", err)
-					}
-				}
-			})
-		}
+	if tCleanup, terr := s.setupEmbeddedTemporal(projectConfig, cfg); terr == nil && tCleanup != nil {
+		cleanupFuncs = append(cleanupFuncs, tCleanup)
+	} else if terr != nil {
+		log.Warn("Embedded Temporal not started", "error", terr)
 	}
 
 	// Setup Redis client for rate limiting
@@ -483,6 +498,35 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	s.initializeScheduleManager(state, worker, workflows)
 	log.Info("Server dependencies setup completed", "total_duration", time.Since(setupStart))
 	return state, cleanupFuncs, nil
+}
+
+// setupEmbeddedTemporal starts Temporalite in standalone mode and wires cleanup.
+func (s *Server) setupEmbeddedTemporal(projectConfig *project.Config, cfg *config.Config) (func(), error) {
+	if cfg.Mode != modeStandalone || !cfg.Temporal.DevServerEnabled {
+		return nil, nil
+	}
+	log := logger.FromContext(s.ctx)
+	projDir := projectConfig.GetCWD().PathStr()
+	stateDir := filepath.Join(projDir, ".compozy", "state")
+	if err := os.MkdirAll(stateDir, 0o755); err != nil {
+		return nil, fmt.Errorf("failed to create state dir: %w", err)
+	}
+	tStart := time.Now()
+	tsrv, terr := temporal.StartEmbedded(s.ctx, cfg, stateDir)
+	if terr != nil {
+		return nil, terr
+	}
+	s.setTemporalReady(true)
+	s.onReadinessMaybeChanged("temporal_ready")
+	log.Info("Temporal namespace ready", "duration", time.Since(tStart))
+	s.embeddedTemporal = tsrv
+	return func() {
+		if s.embeddedTemporal != nil {
+			if err := tsrv.Stop(); err != nil {
+				log.Warn("Failed to stop embedded temporal", "error", err)
+			}
+		}
+	}, nil
 }
 
 func setupWorker(
@@ -573,15 +617,14 @@ func (s *Server) initReadinessMetrics() {
 // onReadinessMaybeChanged increments transition counter when overall readiness flips.
 func (s *Server) onReadinessMaybeChanged(reason string) {
 	now := s.isFullyReady()
-	s.temporalMu.Lock()
+	s.readinessMu.Lock()
 	changed := (now != s.lastReady)
 	s.lastReady = now
-	s.temporalMu.Unlock()
+	s.readinessMu.Unlock()
 	if changed && s.monitoring != nil && s.monitoring.IsInitialized() && s.readyTransitionsTotal != nil {
-		const statusNotReady = "not_ready"
 		to := statusNotReady
 		if now {
-			to = "ready"
+			to = statusReady
 		}
 		s.readyTransitionsTotal.Add(
 			s.ctx,
@@ -597,16 +640,26 @@ func (s *Server) onReadinessMaybeChanged(reason string) {
 
 // isFullyReady computes aggregate readiness for the server.
 func (s *Server) isFullyReady() bool {
-	return s.isTemporalReady() && s.isWorkerReady() && s.IsReconciliationReady()
+	return s.isTemporalReady() && s.isWorkerReady() && s.isMCPReady() && s.IsReconciliationReady()
 }
 
 func (s *Server) startAndRunServer(cleanupFuncs []func()) error {
 	srv := s.createHTTPServer()
 	s.httpServer = srv
-	// Start server in goroutine
-	go s.startServer(srv)
-	// Wait for shutdown signal and handle graceful shutdown
-	return s.handleGracefulShutdown(srv, cleanupFuncs)
+	// Start server in goroutine with error channel to catch immediate failures
+	errChan := make(chan error, 1)
+	go s.startServer(srv, errChan)
+	select {
+	case err := <-errChan:
+		if err != nil {
+			s.cleanup(cleanupFuncs)
+			return err
+		}
+	case <-time.After(100 * time.Millisecond):
+		// Server started successfully
+	}
+	// Wait for shutdown signal, server failure, or programmatic shutdown
+	return s.handleGracefulShutdown(srv, cleanupFuncs, errChan)
 }
 
 func (s *Server) createHTTPServer() *http.Server {
@@ -624,13 +677,14 @@ func (s *Server) createHTTPServer() *http.Server {
 	}
 }
 
-func (s *Server) startServer(srv *http.Server) {
+func (s *Server) startServer(srv *http.Server, errChan chan<- error) {
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log := logger.FromContext(s.ctx)
-		log.Error("Server failed to start, initiating shutdown", "error", err)
-		// Trigger graceful shutdown instead of exiting abruptly
-		s.Shutdown()
+		log.Error("HTTP server failed", "error", err)
+		errChan <- fmt.Errorf("HTTP server failed: %w", err)
+		return
 	}
+	errChan <- nil
 }
 
 // isRedisConfigured centralizes the logic to determine if Redis should be used.
@@ -655,7 +709,7 @@ func isRedisConfigured(cfg *config.Config) bool {
 	return true
 }
 
-func (s *Server) handleGracefulShutdown(srv *http.Server, cleanupFuncs []func()) error {
+func (s *Server) handleGracefulShutdown(srv *http.Server, cleanupFuncs []func(), errChan <-chan error) error {
 	log := logger.FromContext(s.ctx)
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
@@ -664,6 +718,14 @@ func (s *Server) handleGracefulShutdown(srv *http.Server, cleanupFuncs []func())
 		log.Debug("Received shutdown signal, initiating graceful shutdown")
 	case <-s.shutdownChan:
 		log.Debug("Received programmatic shutdown signal, initiating graceful shutdown")
+	case err := <-errChan:
+		if err != nil {
+			log.Error("Server reported failure, shutting down", "error", err)
+			s.cleanup(cleanupFuncs)
+			s.cancel()
+			return err
+		}
+		log.Debug("HTTP server closed, proceeding with shutdown")
 	}
 	// Clean up dependencies first
 	s.cleanup(cleanupFuncs)
@@ -678,7 +740,12 @@ func (s *Server) handleGracefulShutdown(srv *http.Server, cleanupFuncs []func())
 }
 
 func (s *Server) Shutdown() {
-	s.shutdownChan <- struct{}{}
+	s.shutdownOnce.Do(func() {
+		select {
+		case s.shutdownChan <- struct{}{}:
+		default:
+		}
+	})
 }
 
 // GetReconciliationStatus returns the current reconciliation status
@@ -693,28 +760,212 @@ func (s *Server) IsReconciliationReady() bool {
 
 // temporal readiness helpers
 //
-//nolint:unparam // future callers may set false to drop readiness
+
 func (s *Server) setTemporalReady(v bool) {
-	s.temporalMu.Lock()
+	s.readinessMu.Lock()
 	s.temporalReady = v
-	s.temporalMu.Unlock()
+	s.readinessMu.Unlock()
 }
 
-//nolint:unparam // future callers may set false to drop readiness
 func (s *Server) setWorkerReady(v bool) {
-	s.temporalMu.Lock()
+	s.readinessMu.Lock()
 	s.workerReady = v
-	s.temporalMu.Unlock()
+	s.readinessMu.Unlock()
 }
 func (s *Server) isTemporalReady() bool {
-	s.temporalMu.RLock()
-	defer s.temporalMu.RUnlock()
+	s.readinessMu.RLock()
+	defer s.readinessMu.RUnlock()
 	return s.temporalReady
 }
 func (s *Server) isWorkerReady() bool {
-	s.temporalMu.RLock()
-	defer s.temporalMu.RUnlock()
+	s.readinessMu.RLock()
+	defer s.readinessMu.RUnlock()
 	return s.workerReady
+}
+
+// mcp readiness helpers
+//
+
+func (s *Server) setMCPReady(v bool) {
+	s.mcpMu.Lock()
+	s.mcpReady = v
+	s.mcpMu.Unlock()
+}
+func (s *Server) isMCPReady() bool {
+	s.mcpMu.RLock()
+	defer s.mcpMu.RUnlock()
+	return s.mcpReady
+}
+
+// setupMCPProxy boots the embedded MCP proxy when running in standalone mode.
+// It starts the proxy in a goroutine, waits for health readiness, and returns a cleanup.
+// Configuration is sourced from config.FromContext(ctx). It sets cfg.LLM.ProxyURL
+// when empty so downstream components (worker, LLM) can reach the proxy.
+func (s *Server) setupMCPProxy(ctx context.Context) (func(), error) {
+	log := logger.FromContext(ctx)
+	cfg := config.FromContext(ctx)
+	if cfg == nil {
+		return nil, fmt.Errorf("configuration missing from context; attach a manager with config.ContextWithManager")
+	}
+	if cfg.Mode != modeStandalone {
+		return func() {}, nil
+	}
+	host, portStr := normalizeMCPHostAndPort(cfg)
+	// Build storage + server via helper
+	initialBase := initialMCPBaseURL(host, portStr, cfg.MCPProxy.BaseURL)
+	server, driver, err := s.newMCPProxyServer(ctx, cfg.Mode, host, portStr, initialBase, cfg.MCPProxy.ShutdownTimeout)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize MCP proxy: %w", err)
+	}
+	// Start proxy in background
+	go func() {
+		if err := server.Start(ctx); err != nil {
+			logger.FromContext(ctx).Error("Embedded MCP proxy exited with error", "error", err)
+		}
+	}()
+	// Build HTTP client and timeouts
+	total := mcpProbeTimeout(cfg)
+	client := &http.Client{Timeout: mcpHealthRequestTimeout}
+	// Wait until the proxy bound its listener so BaseURL reflects the actual port
+	bctx, bcancel := context.WithTimeout(ctx, total)
+	select {
+	case <-server.Bound():
+	case <-bctx.Done():
+		bcancel()
+		ctx2, cancel := context.WithTimeout(context.WithoutCancel(ctx), cfg.MCPProxy.ShutdownTimeout)
+		if stopErr := server.Stop(ctx2); stopErr != nil {
+			logger.FromContext(ctx).Warn("Failed to stop embedded MCP proxy after bind timeout", "error", stopErr)
+		}
+		cancel()
+		return nil, fmt.Errorf("embedded MCP proxy did not bind within timeout")
+	}
+	bcancel()
+	// Use the server's effective BaseURL (handles :0) for readiness polling
+	baseURL := server.BaseURL()
+	s.mcpBaseURL = baseURL
+	ready := s.awaitMCPProxyReady(ctx, client, baseURL, total)
+	if !ready {
+		// Ensure proxy is stopped to avoid leaks
+		ctx2, cancel := context.WithTimeout(context.WithoutCancel(ctx), cfg.MCPProxy.ShutdownTimeout)
+		if stopErr := server.Stop(ctx2); stopErr != nil {
+			logger.FromContext(ctx).Warn("Failed to stop embedded MCP proxy after readiness failure", "error", stopErr)
+		}
+		cancel()
+		return nil, fmt.Errorf("embedded MCP proxy failed readiness within timeout: %s", baseURL)
+	}
+	// Mark readiness, set proxy URL if needed, and log
+	s.afterMCPReady(ctx, cfg, baseURL, driver)
+	// Cleanup wiring
+	cleanup := func() {
+		ctx2, cancel := context.WithTimeout(context.WithoutCancel(ctx), cfg.MCPProxy.ShutdownTimeout)
+		defer cancel()
+		if err := server.Stop(ctx2); err != nil {
+			log.Warn("Failed to stop embedded MCP proxy", "error", err)
+		}
+		s.setMCPReady(false)
+		s.onReadinessMaybeChanged("mcp_stopped")
+	}
+	s.mcpProxy = server
+	return cleanup, nil
+}
+
+// awaitMCPProxyReady polls the MCP proxy /healthz until ready or timeout.
+func (s *Server) awaitMCPProxyReady(
+	ctx context.Context,
+	client *http.Client,
+	baseURL string,
+	total time.Duration,
+) bool {
+	deadline := time.Now().Add(total)
+	for time.Now().Before(deadline) {
+		rctx, cancel := context.WithTimeout(ctx, mcpHealthRequestTimeout)
+		req, reqErr := http.NewRequestWithContext(rctx, http.MethodGet, baseURL+"/healthz", http.NoBody)
+		if reqErr != nil {
+			cancel()
+			time.Sleep(mcpHealthPollInterval)
+			continue
+		}
+		resp, err := client.Do(req)
+		if err == nil && resp != nil && resp.StatusCode == http.StatusOK {
+			_ = resp.Body.Close()
+			cancel()
+			return true
+		}
+		if resp != nil {
+			_ = resp.Body.Close()
+		}
+		cancel()
+		time.Sleep(mcpHealthPollInterval)
+	}
+	return false
+}
+
+// afterMCPReady marks MCP readiness, sets ProxyURL if empty, and logs startup.
+func (s *Server) afterMCPReady(ctx context.Context, cfg *config.Config, baseURL, driver string) {
+	s.setMCPReady(true)
+	s.onReadinessMaybeChanged("mcp_ready")
+	if cfg.LLM.ProxyURL == "" {
+		cfg.LLM.ProxyURL = baseURL
+		logger.FromContext(ctx).Info("Set LLM proxy URL from embedded MCP proxy", "proxy_url", baseURL)
+	}
+	logger.FromContext(ctx).Info(
+		"Embedded MCP proxy started",
+		"mode", cfg.Mode,
+		"mcp_storage_driver", driver,
+		"base_url", baseURL,
+	)
+}
+
+// normalizeMCPHostAndPort resolves host and port string, using 127.0.0.1 and :0 defaults.
+func normalizeMCPHostAndPort(cfg *config.Config) (string, string) {
+	host := cfg.MCPProxy.Host
+	if host == "" {
+		host = "127.0.0.1"
+	}
+	if cfg.MCPProxy.Port <= 0 {
+		return host, "0"
+	}
+	return host, fmt.Sprintf("%d", cfg.MCPProxy.Port)
+}
+
+// initialMCPBaseURL computes a base URL prior to binding; for :0 it is a placeholder.
+func initialMCPBaseURL(host, portStr, cfgBase string) string {
+	if cfgBase != "" {
+		return cfgBase
+	}
+	bhost := host
+	if host == "0.0.0.0" || host == "::" {
+		bhost = "127.0.0.1"
+	}
+	return fmt.Sprintf("http://%s:%s", bhost, portStr)
+}
+
+// mcpProbeTimeout returns the configured health check timeout with a sane default.
+func mcpProbeTimeout(cfg *config.Config) time.Duration {
+	if cfg.Worker.MCPProxyHealthCheckTimeout <= 0 {
+		return 10 * time.Second
+	}
+	return cfg.Worker.MCPProxyHealthCheckTimeout
+}
+
+// newMCPProxyServer constructs the embedded MCP proxy server and returns it with a driver label.
+func (s *Server) newMCPProxyServer(
+	ctx context.Context,
+	mode string,
+	host string,
+	port string,
+	baseURL string,
+	shutdown time.Duration,
+) (*mcpproxy.Server, string, error) {
+	stCfg := mcpproxy.DefaultStorageConfigForMode(mode)
+	storage, err := mcpproxy.NewStorage(ctx, stCfg)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to initialize MCP storage: %w", err)
+	}
+	cm := mcpproxy.NewMCPClientManager(storage, nil)
+	mcfg := &mcpproxy.Config{Host: host, Port: port, BaseURL: baseURL, ShutdownTimeout: shutdown}
+	server := mcpproxy.NewServer(mcfg, storage, cm)
+	return server, string(stCfg.Type), nil
 }
 
 func (s *Server) initializeScheduleManager(state *appstate.State, worker *worker.Worker, workflows []*workflow.Config) {

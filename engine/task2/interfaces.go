@@ -3,9 +3,10 @@ package task2
 import (
 	"context"
 
+	enginecore "github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task2/contracts"
-	"github.com/compozy/compozy/engine/task2/core"
+	task2core "github.com/compozy/compozy/engine/task2/core"
 	"github.com/compozy/compozy/engine/task2/shared"
 )
 
@@ -15,11 +16,11 @@ type Factory interface {
 	CreateNormalizer(taskType task.Type) (contracts.TaskNormalizer, error)
 
 	// Component normalizers
-	CreateAgentNormalizer() *core.AgentNormalizer
-	CreateToolNormalizer() *core.ToolNormalizer
-	CreateSuccessTransitionNormalizer() *core.SuccessTransitionNormalizer
-	CreateErrorTransitionNormalizer() *core.ErrorTransitionNormalizer
-	CreateOutputTransformer() *core.OutputTransformer
+	CreateAgentNormalizer() *task2core.AgentNormalizer
+	CreateToolNormalizer() *task2core.ToolNormalizer
+	CreateSuccessTransitionNormalizer() *task2core.SuccessTransitionNormalizer
+	CreateErrorTransitionNormalizer() *task2core.ErrorTransitionNormalizer
+	CreateOutputTransformer() *task2core.OutputTransformer
 
 	// Response handler creation
 	CreateResponseHandler(ctx context.Context, taskType task.Type) (shared.TaskResponseHandler, error)
@@ -28,5 +29,8 @@ type Factory interface {
 	CreateCollectionExpander() shared.CollectionExpander
 
 	// Infrastructure service creation
-	CreateTaskConfigRepository(configStore core.ConfigStore) (shared.TaskConfigRepository, error)
+	CreateTaskConfigRepository(
+		configStore task2core.ConfigStore,
+		cwd *enginecore.PathCWD,
+	) (shared.TaskConfigRepository, error)
 }

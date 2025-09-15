@@ -35,19 +35,14 @@ import (
 	"go.opentelemetry.io/otel/metric"
 )
 
-const statusNotReady = "not_ready"
-
 // CreateHealthHandler creates a health check endpoint handler
 func CreateHealthHandler(server *Server, version string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx := c.Request.Context()
 		ready, healthStatus, scheduleStatus := buildScheduleStatus(ctx, server)
-		if server != nil {
-			// Aggregate readiness with temporal and worker
-			if !server.isTemporalReady() || !server.isWorkerReady() || !ready {
-				ready = false
-				healthStatus = statusNotReady
-			}
+		if server != nil && !server.isFullyReady() {
+			ready = false
+			healthStatus = statusNotReady
 		}
 		memoryHealth := buildMemoryHealth(ctx, &ready, &healthStatus)
 		response := buildHealthResponse(healthStatus, version, ready, scheduleStatus, memoryHealth)
@@ -253,11 +248,23 @@ func setupWebhookSystem(ctx context.Context, state *appstate.State, router *gin.
 
 // setupDiagnosticEndpoints configures root and health check endpoints
 func setupDiagnosticEndpoints(router *gin.Engine, version, prefixURL string, server *Server) {
-	const statusNotReady = "not_ready"
 	// Root endpoint with API information
 	router.GET("/", createRootHandler(version, prefixURL))
 	// Health check endpoint with readiness probe
 	router.GET("/health", CreateHealthHandler(server, version))
+	// MCP health: reports embedded MCP proxy readiness in standalone mode
+	router.GET("/mcp/health", func(c *gin.Context) {
+		ready := false
+		if server != nil {
+			ready = server.isMCPReady()
+		}
+		code := determineHealthStatusCode(ready)
+		st := "ok"
+		if !ready {
+			st = statusNotReady
+		}
+		c.JSON(code, gin.H{"status": st})
+	})
 	// Kubernetes-style liveness and readiness endpoints
 	router.GET("/healthz", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
@@ -267,10 +274,12 @@ func setupDiagnosticEndpoints(router *gin.Engine, version, prefixURL string, ser
 		ready, healthStatus, scheduleStatus := buildScheduleStatus(ctx, server)
 		temporalReady := false
 		workerReady := false
+		mcpReady := false
 		if server != nil {
 			temporalReady = server.isTemporalReady()
 			workerReady = server.isWorkerReady()
-			if !temporalReady || !workerReady {
+			mcpReady = server.isMCPReady()
+			if !server.isFullyReady() {
 				ready = false
 				healthStatus = statusNotReady
 			}
@@ -286,6 +295,7 @@ func setupDiagnosticEndpoints(router *gin.Engine, version, prefixURL string, ser
 				"ready":     ready,
 				"temporal":  gin.H{"ready": temporalReady},
 				"worker":    gin.H{"running": workerReady},
+				"mcp_proxy": gin.H{"ready": mcpReady},
 				"schedules": scheduleStatus,
 			},
 			"message": "Success",

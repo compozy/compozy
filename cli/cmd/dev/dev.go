@@ -116,20 +116,23 @@ func resolveEnvFilePath(cobraCmd *cobra.Command) (string, error) {
 
 // setupWorkingDirectory changes to the specified working directory and returns the absolute path
 func setupWorkingDirectory(ctx context.Context, cfg *config.Config) (string, error) {
-	if cfg.CLI.CWD != "" {
-		if err := os.Chdir(cfg.CLI.CWD); err != nil {
-			return "", fmt.Errorf("failed to change working directory to %s: %w", cfg.CLI.CWD, err)
-		}
-	}
 	log := logger.FromContext(ctx)
-	CWD, err := filepath.Abs(".")
+	if cfg.CLI.CWD == "" {
+		wd, err := os.Getwd()
+		if err != nil {
+			return "", fmt.Errorf("failed to get current working directory: %w", err)
+		}
+		cfg.CLI.CWD = wd
+	}
+	abs, err := filepath.Abs(cfg.CLI.CWD)
 	if err != nil {
-		return "", fmt.Errorf("failed to get absolute path: %w", err)
+		return "", fmt.Errorf("failed to resolve working directory: %w", err)
 	}
-	if cfg.CLI.CWD != "" {
-		log.Info("Working directory changed", "cwd", cfg.CLI.CWD)
+	if abs != cfg.CLI.CWD {
+		cfg.CLI.CWD = abs
 	}
-	return CWD, nil
+	log.Debug("Using working directory", "cwd", cfg.CLI.CWD)
+	return cfg.CLI.CWD, nil
 }
 
 // setupServerPort finds and configures an available port for the server

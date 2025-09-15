@@ -281,6 +281,7 @@ func (a *Activities) GetParallelResponse(
 		a.taskRepo,
 		a.configStore,
 		a.task2Factory,
+		a.projectConfig.CWD,
 	)
 	return act.Run(ctx, input)
 }
@@ -351,6 +352,7 @@ func (a *Activities) GetCollectionResponse(
 		a.taskRepo,
 		a.configStore,
 		a.task2Factory,
+		a.projectConfig.CWD,
 	)
 	return act.Run(ctx, input)
 }
@@ -421,6 +423,7 @@ func (a *Activities) GetCompositeResponse(
 		a.taskRepo,
 		a.configStore,
 		a.task2Factory,
+		a.projectConfig.CWD,
 	)
 	return act.Run(ctx, input)
 }
@@ -455,7 +458,7 @@ func (a *Activities) LoadCompositeConfigsActivity(
 		return nil, err
 	}
 	// Create task config repository from factory
-	configRepo, err := a.task2Factory.CreateTaskConfigRepository(a.configStore)
+	configRepo, err := a.task2Factory.CreateTaskConfigRepository(a.configStore, a.projectConfig.CWD)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create task config repository: %w", err)
 	}
@@ -471,7 +474,7 @@ func (a *Activities) LoadCollectionConfigsActivity(
 		return nil, err
 	}
 	// Create task config repository from factory
-	configRepo, err := a.task2Factory.CreateTaskConfigRepository(a.configStore)
+	configRepo, err := a.task2Factory.CreateTaskConfigRepository(a.configStore, a.projectConfig.CWD)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create task config repository: %w", err)
 	}

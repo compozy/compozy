@@ -25,6 +25,7 @@ type GetCollectionResponse struct {
 	taskRepo     task.Repository
 	task2Factory task2.Factory
 	configStore  services.ConfigStore
+	cwd          *core.PathCWD
 }
 
 // NewGetCollectionResponse creates a new GetCollectionResponse activity with task2 integration
@@ -33,12 +34,14 @@ func NewGetCollectionResponse(
 	taskRepo task.Repository,
 	configStore services.ConfigStore,
 	task2Factory task2.Factory,
+	cwd *core.PathCWD,
 ) *GetCollectionResponse {
 	return &GetCollectionResponse{
 		workflowRepo: workflowRepo,
 		taskRepo:     taskRepo,
 		task2Factory: task2Factory,
 		configStore:  configStore,
+		cwd:          cwd,
 	}
 }
 
@@ -117,5 +120,5 @@ func (a *GetCollectionResponse) convertToCollectionResponse(
 	result *shared.ResponseOutput,
 ) *task.CollectionResponse {
 	converter := NewResponseConverter()
-	return converter.ConvertToCollectionResponse(ctx, result, a.configStore, a.task2Factory)
+	return converter.ConvertToCollectionResponse(ctx, result, a.configStore, a.task2Factory, a.cwd)
 }

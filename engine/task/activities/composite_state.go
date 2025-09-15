@@ -29,6 +29,7 @@ type CreateCompositeState struct {
 	createChildTasksUC *uc.CreateChildTasks
 	task2Factory       task2.Factory
 	configStore        services.ConfigStore
+	cwd                *core.PathCWD
 }
 
 // NewCreateCompositeState creates a new CreateCompositeState activity with task2 integration
@@ -37,15 +38,16 @@ func NewCreateCompositeState(
 	workflowRepo workflow.Repository,
 	taskRepo task.Repository,
 	configStore services.ConfigStore,
-	_ *core.PathCWD,
+	cwd *core.PathCWD,
 	task2Factory task2.Factory,
 ) (*CreateCompositeState, error) {
 	return &CreateCompositeState{
 		loadWorkflowUC:     uc.NewLoadWorkflow(workflows, workflowRepo),
 		createStateUC:      uc.NewCreateState(taskRepo, configStore),
-		createChildTasksUC: uc.NewCreateChildTasksUC(taskRepo, configStore, task2Factory),
+		createChildTasksUC: uc.NewCreateChildTasksUC(taskRepo, configStore, task2Factory, cwd),
 		task2Factory:       task2Factory,
 		configStore:        configStore,
+		cwd:                cwd,
 	}, nil
 }
 
@@ -100,7 +102,7 @@ func (a *CreateCompositeState) Run(ctx context.Context, input *CreateCompositeSt
 		childConfigs[i] = &normalizedConfig.Tasks[i]
 	}
 	// Store composite metadata using task2 repository
-	configRepo, err := a.task2Factory.CreateTaskConfigRepository(a.configStore)
+	configRepo, err := a.task2Factory.CreateTaskConfigRepository(a.configStore, a.cwd)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create task config repository: %w", err)
 	}

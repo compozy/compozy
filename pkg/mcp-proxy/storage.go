@@ -11,17 +11,6 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// Storage defines the interface for MCP definition persistence
-type Storage interface {
-	SaveMCP(ctx context.Context, def *MCPDefinition) error
-	LoadMCP(ctx context.Context, name string) (*MCPDefinition, error)
-	DeleteMCP(ctx context.Context, name string) error
-	ListMCPs(ctx context.Context) ([]*MCPDefinition, error)
-	SaveStatus(ctx context.Context, status *MCPStatus) error
-	LoadStatus(ctx context.Context, name string) (*MCPStatus, error)
-	Close() error
-}
-
 // RedisStorage implements Storage using Redis
 type RedisStorage struct {
 	client *redis.Client

@@ -26,17 +26,20 @@ type CreateChildTasks struct {
 	taskRepo     task.Repository
 	configStore  services.ConfigStore
 	task2Factory task2.Factory
+	defaultCWD   *core.PathCWD
 }
 
 func NewCreateChildTasksUC(
 	taskRepo task.Repository,
 	configStore services.ConfigStore,
 	task2Factory task2.Factory,
+	defaultCWD *core.PathCWD,
 ) *CreateChildTasks {
 	return &CreateChildTasks{
 		taskRepo:     taskRepo,
 		configStore:  configStore,
 		task2Factory: task2Factory,
+		defaultCWD:   defaultCWD,
 	}
 }
 
@@ -74,7 +77,11 @@ func (uc *CreateChildTasks) createParallelChildren(
 	parentConfig *task.Config,
 ) error {
 	// Create config repository from factory
-	configRepo, err := uc.task2Factory.CreateTaskConfigRepository(uc.configStore)
+	cwd := parentConfig.GetCWD()
+	if cwd == nil {
+		cwd = uc.defaultCWD
+	}
+	configRepo, err := uc.task2Factory.CreateTaskConfigRepository(uc.configStore, cwd)
 	if err != nil {
 		return fmt.Errorf("failed to create task config repository: %w", err)
 	}
@@ -105,7 +112,11 @@ func (uc *CreateChildTasks) createCollectionChildren(
 	parentConfig *task.Config,
 ) error {
 	// Create config repository from factory
-	configRepo, err := uc.task2Factory.CreateTaskConfigRepository(uc.configStore)
+	cwd := parentConfig.GetCWD()
+	if cwd == nil {
+		cwd = uc.defaultCWD
+	}
+	configRepo, err := uc.task2Factory.CreateTaskConfigRepository(uc.configStore, cwd)
 	if err != nil {
 		return fmt.Errorf("failed to create task config repository: %w", err)
 	}
@@ -136,7 +147,11 @@ func (uc *CreateChildTasks) createCompositeChildren(
 	parentConfig *task.Config,
 ) error {
 	// Create config repository from factory
-	configRepo, err := uc.task2Factory.CreateTaskConfigRepository(uc.configStore)
+	cwd := parentConfig.GetCWD()
+	if cwd == nil {
+		cwd = uc.defaultCWD
+	}
+	configRepo, err := uc.task2Factory.CreateTaskConfigRepository(uc.configStore, cwd)
 	if err != nil {
 		return fmt.Errorf("failed to create task config repository: %w", err)
 	}

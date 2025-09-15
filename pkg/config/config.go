@@ -124,6 +124,11 @@ type Config struct {
 	//
 	// $ref: schema://application#webhooks
 	Webhooks WebhooksConfig `koanf:"webhooks" json:"webhooks" yaml:"webhooks" mapstructure:"webhooks"`
+
+	// SugarDB configures embedded SugarDB persistence for standalone mode.
+	//
+	// $ref: schema://application#sugardb
+	SugarDB SugarDBConfig `koanf:"sugardb" json:"sugardb" yaml:"sugardb" mapstructure:"sugardb"`
 }
 
 // ServerConfig contains HTTP server configuration.
@@ -1197,6 +1202,7 @@ func defaultFromRegistry() *Config {
 		RateLimit:   buildRateLimitConfig(registry),
 		CLI:         buildCLIConfig(registry),
 		Redis:       buildRedisConfig(registry),
+		SugarDB:     buildSugarDBConfig(registry),
 		Cache:       buildCacheConfig(registry),
 		Worker:      buildWorkerConfig(registry),
 		MCPProxy:    buildMCPProxyConfig(registry),
@@ -1472,6 +1478,20 @@ func buildMCPProxyConfig(registry *definition.Registry) MCPProxyConfig {
 		Port:            getInt(registry, "mcp_proxy.port"),
 		BaseURL:         getString(registry, "mcp_proxy.base_url"),
 		ShutdownTimeout: getDuration(registry, "mcp_proxy.shutdown_timeout"),
+	}
+}
+
+// SugarDBConfig contains embedded SugarDB persistence configuration.
+type SugarDBConfig struct {
+	// DBPath is the base directory for SugarDB data. Subdirectories are created
+	// per logical component (e.g., "mcp", "cache"). Tilde (~) expands to the
+	// current user's home directory at runtime.
+	DBPath string `koanf:"db_path" json:"db_path" yaml:"db_path" mapstructure:"db_path" env:"SUGARDB_DB_PATH"`
+}
+
+func buildSugarDBConfig(registry *definition.Registry) SugarDBConfig {
+	return SugarDBConfig{
+		DBPath: getString(registry, "sugardb.db_path"),
 	}
 }
 

@@ -27,6 +27,7 @@ type GetCompositeResponse struct {
 	taskRepo     task.Repository
 	task2Factory task2.Factory
 	configStore  services.ConfigStore
+	cwd          *core.PathCWD
 }
 
 // NewGetCompositeResponse creates a new GetCompositeResponse activity with task2 integration
@@ -35,12 +36,14 @@ func NewGetCompositeResponse(
 	taskRepo task.Repository,
 	configStore services.ConfigStore,
 	task2Factory task2.Factory,
+	cwd *core.PathCWD,
 ) *GetCompositeResponse {
 	return &GetCompositeResponse{
 		workflowRepo: workflowRepo,
 		taskRepo:     taskRepo,
 		task2Factory: task2Factory,
 		configStore:  configStore,
+		cwd:          cwd,
 	}
 }
 
@@ -107,7 +110,7 @@ func (a *GetCompositeResponse) convertToMainTaskResponse(
 			State: result.State,
 		}
 		// Get composite metadata from config store if available
-		configRepo, err := a.task2Factory.CreateTaskConfigRepository(a.configStore)
+		configRepo, err := a.task2Factory.CreateTaskConfigRepository(a.configStore, a.cwd)
 		if err != nil {
 			// Log error but don't fail - metadata is optional for response
 			logger.FromContext(ctx).Error("failed to create task config repository", "error", err)

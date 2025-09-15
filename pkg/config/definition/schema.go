@@ -14,7 +14,6 @@ var (
 // This is the SINGLE SOURCE OF TRUTH for all configuration defaults
 func CreateRegistry() *Registry {
 	registry := NewRegistry()
-
 	registerModeFields(registry)
 	registerServerFields(registry)
 	registerDatabaseFields(registry)
@@ -27,6 +26,7 @@ func CreateRegistry() *Registry {
 	registerRateLimitFields(registry)
 	registerCLIFields(registry)
 	registerRedisFields(registry)
+	registerSugarDBFields(registry)
 	registerCacheFields(registry)
 	registerWorkerFields(registry)
 	registerMCPProxyFields(registry)
@@ -599,7 +599,6 @@ func registerLLMFields(registry *Registry) {
 	})
 
 	registerLLMRetryAndLimits(registry)
-
 	registerLLMMCPExtras(registry)
 }
 
@@ -1088,11 +1087,6 @@ func registerBehaviorFlags(registry *Registry) {
 }
 
 func registerCacheFields(registry *Registry) {
-	// Only register cache-specific fields, not Redis connection fields
-	registerCacheOperationFields(registry)
-}
-
-func registerCacheOperationFields(registry *Registry) {
 	registerCacheDataFields(registry)
 	registerCacheCompressionFields(registry)
 }
@@ -1304,5 +1298,25 @@ func registerWebhooksFields(registry *Registry) {
 		EnvVar:  "WEBHOOKS_STRIPE_SKEW",
 		Type:    durationType,
 		Help:    "Allowed timestamp skew for Stripe webhook verification",
+	})
+}
+
+// registerSugarDBFields registers SugarDB related configuration.
+// The db_path defines the base directory where embedded SugarDB persists
+// its AOF/WAL/snapshots. Runtime components derive logical subfolders
+// from this base:
+//   - <db_path>/mcp   : data for MCP proxy server
+//   - <db_path>/cache : data for embedded cache/locks/pubsub
+//
+// Default follows project standard: create under user's ~/.compozy.
+func registerSugarDBFields(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path:    "sugardb.db_path",
+		Default: "",
+		CLIFlag: "sugardb-db-path",
+		EnvVar:  "SUGARDB_DB_PATH",
+		Type:    reflect.TypeOf(""),
+		Help: "Base path for embedded SugarDB persistence (default: <project_dir>/.compozy; " +
+			"creates <db_path>/mcp and <db_path>/cache)",
 	})
 }

@@ -147,6 +147,13 @@ func getInfrastructureCategories() []FlagCategory {
 			},
 		},
 		{
+			Name:        "SugarDB Configuration",
+			Description: "Embedded SugarDB persistence settings",
+			Flags: []string{
+				"sugardb-db-path",
+			},
+		},
+		{
 			Name:        "MCP Proxy Configuration",
 			Description: "Model Context Protocol proxy settings",
 			Flags: []string{

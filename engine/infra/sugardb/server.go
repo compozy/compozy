@@ -3,8 +3,11 @@ package sugardb
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
+	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	sdk "github.com/echovault/sugardb/sugardb"
 )
@@ -14,11 +17,26 @@ type Server struct{ db *sdk.SugarDB }
 
 // NewEmbedded creates a new embedded SugarDB instance.
 func NewEmbedded(ctx context.Context) (*Server, error) {
-	db, err := sdk.NewSugarDB()
+	log := logger.FromContext(ctx)
+
+	base := config.SugarDBBaseDir(config.FromContext(ctx))
+	dataDir := filepath.Join(base, "cache")
+	if err := os.MkdirAll(dataDir, 0o755); err != nil {
+		return nil, fmt.Errorf("create sugardb cache dir: %w", err)
+	}
+
+	conf := sdk.DefaultConfig()
+	// Note: DataDir controls AOF/WAL/Snapshot location per SugarDB docs.
+	conf.DataDir = dataDir
+
+	db, err := sdk.NewSugarDB(
+		sdk.WithConfig(conf),
+		sdk.WithContext(ctx),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("sugardb init failed: %w", err)
 	}
-	logger.FromContext(ctx).With("cache_driver", "sugardb").Info("SugarDB embedded initialized")
+	log.With("cache_driver", "sugardb", "data_dir", dataDir).Info("SugarDB embedded initialized")
 	return &Server{db: db}, nil
 }
 
@@ -55,3 +73,7 @@ func (s *Server) HealthCheck(_ context.Context) error {
 	}
 	return nil
 }
+
+// defaultDBBasePath resolves the base path for embedded SugarDB persistence.
+// If cfg is nil or empty, defaults to ~/.compozy.
+// base path resolution centralized in pkg/config.SugarDBBaseDir

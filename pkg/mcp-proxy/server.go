@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -25,6 +26,9 @@ type Server struct {
 	clientManager ClientManager
 	adminHandlers *AdminHandlers
 	proxyHandlers *ProxyHandlers
+	ln            net.Listener
+	boundCh       chan struct{}
+	boundOnce     sync.Once
 }
 
 // Config holds server configuration
@@ -89,6 +93,7 @@ func NewServer(config *Config, storage Storage, clientManager ClientManager) *Se
 			WriteTimeout: 30 * time.Second,
 			IdleTimeout:  120 * time.Second,
 		},
+		boundCh: make(chan struct{}),
 	}
 
 	server.setupRoutes()
@@ -165,15 +170,38 @@ func (s *Server) Start(ctx context.Context) error {
 	log.Info("Starting MCP proxy server", "port", s.config.Port, "host", s.config.Host)
 	s.httpServer.BaseContext = func(_ net.Listener) context.Context { return ctx }
 
+	// Create listener explicitly to support port "0" binding without probe-close-bind race
+	var lc net.ListenConfig
+	ln, err := lc.Listen(ctx, "tcp", s.config.Host+":"+s.config.Port)
+	if err != nil {
+		return fmt.Errorf("failed to bind listener: %w", err)
+	}
+	s.ln = ln
+
+	// If BaseURL is empty or port is "0", compute the actual BaseURL from bound address
+	if tcp, ok := ln.Addr().(*net.TCPAddr); ok {
+		hostForURL := s.config.Host
+		if hostForURL == "0.0.0.0" || hostForURL == "::" {
+			hostForURL = "127.0.0.1"
+		}
+		if s.config.BaseURL == "" || s.config.Port == "0" {
+			s.config.BaseURL = fmt.Sprintf("http://%s:%d", hostForURL, tcp.Port)
+			s.proxyHandlers.SetBaseURL(s.config.BaseURL)
+		}
+	}
+	// Signal that listener is bound and BaseURL is available
+	s.boundOnce.Do(func() { close(s.boundCh) })
+
 	// Start client manager to restore existing MCP connections
 	if err := s.clientManager.Start(ctx); err != nil {
+		_ = ln.Close()
 		return fmt.Errorf("failed to start client manager: %w", err)
 	}
 
 	// Start server in a goroutine with error channel
 	errChan := make(chan error, 1)
 	go func() {
-		if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := s.httpServer.Serve(ln); err != nil && err != http.ErrServerClosed {
 			errChan <- fmt.Errorf("HTTP server failed: %w", err)
 		} else {
 			errChan <- nil
@@ -250,3 +278,14 @@ func (s *Server) waitForShutdown(ctx context.Context, errChan <-chan error) erro
 }
 
 // Client IP resolution relies on gin's default ClientIP() behavior.
+
+// BaseURL returns the effective base URL after the server has bound.
+// When the server is configured with port "0" or BaseURL was empty,
+// this reflects the computed URL using the bound ephemeral port.
+func (s *Server) BaseURL() string {
+	return s.config.BaseURL
+}
+
+// Bound returns a channel that is closed once the server listener is bound
+// and BaseURL is populated (useful when port "0" is requested).
+func (s *Server) Bound() <-chan struct{} { return s.boundCh }

@@ -172,10 +172,10 @@ func (f *DefaultNormalizerFactory) CreateCollectionExpander() shared.CollectionE
 // CreateTaskConfigRepository creates a task configuration repository
 func (f *DefaultNormalizerFactory) CreateTaskConfigRepository(
 	configStore core.ConfigStore,
+	cwd *enginecore.PathCWD,
 ) (shared.TaskConfigRepository, error) {
-	cwd, err := enginecore.CWDFromPath("")
-	if err != nil {
-		return nil, fmt.Errorf("failed to create CWD from path: %w", err)
+	if cwd == nil {
+		return nil, fmt.Errorf("cwd cannot be nil: pass project CWD to CreateTaskConfigRepository")
 	}
 	return core.NewTaskConfigRepository(configStore, cwd), nil
 }

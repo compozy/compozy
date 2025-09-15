@@ -142,8 +142,11 @@ func SetupGlobalConfig(cmd *cobra.Command) error {
 		ctx = config.WithMode(ctx, cfg.Mode)
 	}
 
-	// Setup logger based on configuration
+	// Ensure a single source of truth for working directory
 	cfg := config.FromContext(ctx)
+	ensureDefaultCWD(cfg)
+
+	// Setup logger based on configuration
 	logLevel := logger.InfoLevel
 	if cfg.CLI.Quiet {
 		logLevel = logger.DisabledLevel
@@ -161,4 +164,17 @@ func SetupGlobalConfig(cmd *cobra.Command) error {
 	})
 
 	return nil
+}
+
+// ensureDefaultCWD guarantees cfg.CLI.CWD is set to an absolute path.
+func ensureDefaultCWD(cfg *config.Config) {
+	if cfg == nil {
+		return
+	}
+	if cfg.CLI.CWD != "" {
+		return
+	}
+	if wd, err := os.Getwd(); err == nil {
+		cfg.CLI.CWD = wd
+	}
 }

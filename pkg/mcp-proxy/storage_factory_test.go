@@ -42,7 +42,7 @@ func TestNewStorage(t *testing.T) {
 			},
 		}
 
-		storage, err := NewStorage(config)
+		storage, err := NewStorage(context.Background(), config)
 		require.NoError(t, err)
 		assert.IsType(t, &RedisStorage{}, storage)
 		defer storage.Close()
@@ -53,14 +53,14 @@ func TestNewStorage(t *testing.T) {
 			Type: StorageTypeMemory,
 		}
 
-		storage, err := NewStorage(config)
+		storage, err := NewStorage(context.Background(), config)
 		require.NoError(t, err)
 		assert.IsType(t, &MemoryStorage{}, storage)
 		defer storage.Close()
 	})
 
 	t.Run("Should reject nil config with connection error", func(t *testing.T) {
-		storage, err := NewStorage(nil)
+		storage, err := NewStorage(context.Background(), nil)
 		assert.ErrorContains(t, err, "failed to connect to Redis")
 		assert.Nil(t, storage)
 	})
@@ -70,7 +70,7 @@ func TestNewStorage(t *testing.T) {
 			Type: StorageType("unsupported"),
 		}
 
-		storage, err := NewStorage(config)
+		storage, err := NewStorage(context.Background(), config)
 		assert.ErrorContains(t, err, "unsupported storage type")
 		assert.Nil(t, storage)
 	})
