@@ -57,14 +57,11 @@ func runDevServer(ctx context.Context, cobraCmd *cobra.Command) error {
 	}
 	// Embedded Temporal dev server is no longer supported; external Temporal is required.
 	setupGinMode(cfg)
-	envFilePath, err := resolveEnvFilePath(cobraCmd)
-	if err != nil {
-		return err
-	}
 	CWD, err := setupWorkingDirectory(ctx, cfg)
 	if err != nil {
 		return err
 	}
+	envFilePath := resolveEnvFilePath(cobraCmd, CWD)
 	if err := setupServerPort(ctx, cfg); err != nil {
 		return err
 	}
@@ -79,8 +76,15 @@ func runDevServer(ctx context.Context, cobraCmd *cobra.Command) error {
 	if err != nil {
 		return fmt.Errorf("failed to create server: %w", err)
 	}
-	defer config.ManagerFromContext(ctx).Close(ctx)
-	return srv.Run()
+	manager := config.ManagerFromContext(ctx)
+	if manager == nil {
+		return fmt.Errorf("configuration manager missing from context")
+	}
+	if runErr := srv.Run(); runErr != nil {
+		_ = manager.Close(ctx)
+		return runErr
+	}
+	return manager.Close(ctx)
 }
 
 // setupGinMode configures Gin mode based on debug configuration
@@ -96,23 +100,33 @@ func setupGinMode(cfg *config.Config) {
 	}
 }
 
-// resolveEnvFilePath gets and resolves the environment file path before directory changes
-func resolveEnvFilePath(cobraCmd *cobra.Command) (string, error) {
-	envFilePath, err := cobraCmd.Flags().GetString("env-file")
-	if err != nil {
-		return "", fmt.Errorf("failed to get env-file flag: %w", err)
+// resolveEnvFilePath resolves the environment file path against baseDir when relative
+func resolveEnvFilePath(cobraCmd *cobra.Command, baseDir string) string {
+	var envFilePath string
+	if flag := cobraCmd.Flags().Lookup("env-file"); flag != nil {
+		envFilePath = flag.Value.String()
+	} else if flag := cobraCmd.InheritedFlags().Lookup("env-file"); flag != nil {
+		envFilePath = flag.Value.String()
 	}
 	if envFilePath == "" {
 		envFilePath = ".env"
 	}
-	if !filepath.IsAbs(envFilePath) {
-		originalCWD, err := os.Getwd()
-		if err != nil {
-			return "", fmt.Errorf("failed to get current working directory: %w", err)
-		}
-		envFilePath = filepath.Join(originalCWD, envFilePath)
+	if filepath.IsAbs(envFilePath) {
+		return envFilePath
 	}
-	return envFilePath, nil
+	joined := filepath.Join(baseDir, envFilePath)
+	if _, err := os.Stat(joined); err == nil {
+		return joined
+	}
+	originalCWD, cwdErr := os.Getwd()
+	if cwdErr != nil {
+		return joined
+	}
+	fallback := filepath.Join(originalCWD, envFilePath)
+	if _, err := os.Stat(fallback); err == nil {
+		return fallback
+	}
+	return joined
 }
 
 // setupWorkingDirectory changes to the specified working directory and returns the absolute path

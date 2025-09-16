@@ -9,11 +9,14 @@ import (
 	"github.com/compozy/compozy/engine/infra/cache"
 	"github.com/compozy/compozy/engine/infra/monitoring"
 	"github.com/compozy/compozy/engine/infra/monitoring/interceptor"
+	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 )
 
 // DispatcherHeartbeatLabel is the activity label for dispatcher heartbeat
 const DispatcherHeartbeatLabel = "DispatcherHeartbeat"
+
+const dispatcherHeartbeatKeyPrefix = "dispatcher:heartbeat"
 
 // DispatcherHeartbeatInput contains the input for the heartbeat activity
 type DispatcherHeartbeatInput struct {
@@ -62,11 +65,8 @@ func DispatcherHeartbeat(ctx context.Context, kv cache.KV, input *DispatcherHear
 	}
 	// Store in Redis with configurable TTL (default 5 minutes)
 	// TTL should be significantly longer than heartbeat interval to handle network delays
-	key := fmt.Sprintf("dispatcher:heartbeat:%s", input.DispatcherID)
-	ttl := 5 * time.Minute
-	if input.TTL > 0 {
-		ttl = input.TTL
-	}
+	key := fmt.Sprintf("%s:%s", dispatcherHeartbeatKeyPrefix, input.DispatcherID)
+	ttl := resolveHeartbeatTTL(ctx, input.TTL)
 	err = kv.Set(ctx, key, string(jsonData), ttl)
 	if err != nil {
 		return fmt.Errorf("failed to store heartbeat in Redis: %w", err)
@@ -123,12 +123,9 @@ func ListActiveDispatchers(
 		return nil, fmt.Errorf("cache contracts not configured")
 	}
 	// Default stale threshold is 2 minutes
-	staleThreshold := input.StaleThreshold
-	if staleThreshold == 0 {
-		staleThreshold = 2 * time.Minute
-	}
+	staleThreshold := resolveStaleThreshold(ctx, input.StaleThreshold)
 	// Iterate dispatcher heartbeat keys using streaming iterator to avoid buffering
-	pattern := "dispatcher:heartbeat:*"
+	pattern := dispatcherHeartbeatKeyPrefix + ":*"
 	it, err := contracts.Keys(ctx, pattern)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start key iteration: %w", err)
@@ -165,7 +162,7 @@ func ListActiveDispatchers(
 			}
 		}
 		totalScanned += int64(len(batch))
-		infos, stale := buildDispatchersFromKeys(ctx, log, contracts, batch, input.ProjectName, staleThreshold, now)
+		infos, stale := buildDispatchersFromKeys(ctx, contracts, batch, input.ProjectName, staleThreshold, now)
 		staleFound += stale
 		dispatchers = append(dispatchers, infos...)
 		if done {
@@ -186,13 +183,13 @@ func ListActiveDispatchers(
 // buildDispatchersFromKeys loads heartbeat data and returns dispatcher infos and stale count.
 func buildDispatchersFromKeys(
 	ctx context.Context,
-	log logger.Logger,
 	contracts CacheContracts,
 	keys []string,
 	projectFilter string,
 	staleThreshold time.Duration,
 	now time.Time,
 ) ([]DispatcherInfo, int64) {
+	log := logger.FromContext(ctx)
 	var out []DispatcherInfo
 	var staleFound int64
 	for _, key := range keys {
@@ -239,10 +236,43 @@ func RemoveDispatcherHeartbeat(ctx context.Context, kv cache.KV, dispatcherID st
 	if kv == nil {
 		return fmt.Errorf("cache KV not configured")
 	}
-	key := fmt.Sprintf("dispatcher:heartbeat:%s", dispatcherID)
+	key := fmt.Sprintf("%s:%s", dispatcherHeartbeatKeyPrefix, dispatcherID)
 	_, err := kv.Del(ctx, key)
 	if err != nil {
 		return fmt.Errorf("failed to remove heartbeat: %w", err)
 	}
 	return nil
+}
+
+const defaultHeartbeatTTL = 5 * time.Minute
+const defaultStaleThreshold = 2 * time.Minute
+
+func resolveHeartbeatTTL(ctx context.Context, in time.Duration) time.Duration {
+	if in > 0 {
+		return in
+	}
+	if cfg := config.FromContext(ctx); cfg != nil {
+		if cfg.Worker.Dispatcher.HeartbeatTTL > 0 {
+			return cfg.Worker.Dispatcher.HeartbeatTTL
+		}
+		if cfg.Runtime.DispatcherHeartbeatTTL > 0 {
+			return cfg.Runtime.DispatcherHeartbeatTTL
+		}
+	}
+	return defaultHeartbeatTTL
+}
+
+func resolveStaleThreshold(ctx context.Context, in time.Duration) time.Duration {
+	if in > 0 {
+		return in
+	}
+	if cfg := config.FromContext(ctx); cfg != nil {
+		if cfg.Worker.Dispatcher.StaleThreshold > 0 {
+			return cfg.Worker.Dispatcher.StaleThreshold
+		}
+		if cfg.Runtime.DispatcherStaleThreshold > 0 {
+			return cfg.Runtime.DispatcherStaleThreshold
+		}
+	}
+	return defaultStaleThreshold
 }

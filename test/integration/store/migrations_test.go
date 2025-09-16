@@ -1,8 +1,10 @@
 package store
 
 import (
+	"context"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -38,10 +40,20 @@ func TestMigrationsOptimized_Integration(t *testing.T) {
 	})
 
 	t.Run("Should error on invalid DSN when applying migrations", func(t *testing.T) {
-		// Using goose directly here is out of scope; just verify our helper fails appropriately by calling ensureTablesExist on a nil pool path is not possible.
-		// This test ensures the previous behavior is covered by lower layers and can be removed if flaky.
-		// No-op assertion for compatibility.
-		assert.True(t, true)
+		// Test that migrations fail gracefully with an invalid connection
+		invalidPool, err := pgxpool.New(
+			context.Background(),
+			"postgres://invalid:invalid@nonexistent:5432/db?sslmode=disable",
+		)
+		require.NoError(t, err, "Pool creation should succeed with lazy connection")
+		require.NotNil(t, invalidPool, "Pool should be created even with invalid DSN")
+
+		// Now try to run migrations, which should fail when attempting to connect
+		err = helpers.EnsureTablesExistForTest(invalidPool)
+		require.Error(t, err, "Should fail when attempting to run migrations on invalid connection")
+		require.Contains(t, err.Error(), "failed to run goose migrations", "Error should be from migration execution")
+
+		invalidPool.Close()
 	})
 
 	t.Run("Should handle multiple migration calls idempotently", func(t *testing.T) {
@@ -68,7 +80,7 @@ func TestMigrationsOptimized_Integration(t *testing.T) {
 		// Verify workflow_states table structure
 		var columnCount int
 		err := pool.QueryRow(ctx,
-			`SELECT COUNT(*) FROM information_schema.columns 
+			`SELECT COUNT(*) FROM information_schema.columns
              WHERE table_name = 'workflow_states'`).Scan(&columnCount)
 		require.NoError(t, err)
 		assert.Equal(t, 8, columnCount, "workflow_states should have 8 columns")
@@ -76,7 +88,7 @@ func TestMigrationsOptimized_Integration(t *testing.T) {
 		// Verify indexes exist
 		var indexCount int
 		err = pool.QueryRow(ctx,
-			`SELECT COUNT(*) FROM pg_indexes 
+			`SELECT COUNT(*) FROM pg_indexes
 			 WHERE tablename = 'workflow_states'`).Scan(&indexCount)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, indexCount, 5, "workflow_states should have at least 5 indexes")
@@ -85,7 +97,7 @@ func TestMigrationsOptimized_Integration(t *testing.T) {
 		var constraintExists bool
 		err = pool.QueryRow(ctx,
 			`SELECT EXISTS (
-				SELECT 1 FROM information_schema.table_constraints 
+				SELECT 1 FROM information_schema.table_constraints
 				WHERE table_name = 'workflow_states' AND constraint_type = 'PRIMARY KEY'
 			)`).Scan(&constraintExists)
 		require.NoError(t, err)

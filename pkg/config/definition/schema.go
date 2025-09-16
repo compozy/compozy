@@ -1176,6 +1176,24 @@ func registerWorkerFields(registry *Registry) {
 	})
 
 	registry.Register(&FieldDef{
+		Path:    "worker.dispatcher.heartbeat_ttl",
+		Default: 5 * time.Minute,
+		CLIFlag: "",
+		EnvVar:  "WORKER_DISPATCHER_HEARTBEAT_TTL",
+		Type:    durationType,
+		Help:    "TTL for dispatcher heartbeat records",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "worker.dispatcher.stale_threshold",
+		Default: 2 * time.Minute,
+		CLIFlag: "",
+		EnvVar:  "WORKER_DISPATCHER_STALE_THRESHOLD",
+		Type:    durationType,
+		Help:    "Duration after which a dispatcher heartbeat is considered stale",
+	})
+
+	registry.Register(&FieldDef{
 		Path:    "worker.dispatcher_retry_delay",
 		Default: 50 * time.Millisecond,
 		CLIFlag: "",
@@ -1215,11 +1233,11 @@ func registerWorkerFields(registry *Registry) {
 func registerMCPProxyFields(registry *Registry) {
 	registry.Register(&FieldDef{
 		Path:    "mcp_proxy.mode",
-		Default: "",
+		Default: "standalone",
 		CLIFlag: "",
 		EnvVar:  "MCP_PROXY_MODE",
 		Type:    reflect.TypeOf(""),
-		Help:    "MCP proxy mode: 'standalone' embeds the proxy; empty uses external proxy",
+		Help:    "MCP proxy mode: 'standalone' embeds the proxy (needs fixed port); empty keeps external proxy defaults",
 	})
 	registry.Register(&FieldDef{
 		Path:    "mcp_proxy.host",

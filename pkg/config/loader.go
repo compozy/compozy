@@ -406,6 +406,9 @@ func (l *loader) validateCustom(config *Config) error {
 	if err := validateAuth(config); err != nil {
 		return err
 	}
+	if err := validateMCPProxy(config); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -452,6 +455,13 @@ func validatePorts(cfg *Config) error {
 func validateAuth(cfg *Config) error {
 	if cfg.Server.Auth.Enabled && cfg.Server.Auth.AdminKey == "" {
 		return fmt.Errorf("server.auth.admin_key is required when authentication is enabled")
+	}
+	return nil
+}
+
+func validateMCPProxy(cfg *Config) error {
+	if cfg.MCPProxy.Mode == mcpProxyModeStandalone && cfg.MCPProxy.Port == 0 {
+		return fmt.Errorf("mcp_proxy.port must be set when mcp_proxy.mode=standalone to ensure a stable listener")
 	}
 	return nil
 }

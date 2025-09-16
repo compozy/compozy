@@ -229,7 +229,15 @@ func (t *taskRepoTx) UpsertState(ctx context.Context, state *task.State) error {
 }
 
 func (t *taskRepoTx) GetState(ctx context.Context, taskExecID core.ID) (*task.State, error) {
-	return t.parent.GetState(ctx, taskExecID)
+	query := `SELECT * FROM task_states WHERE task_exec_id = $1`
+	var stateDB task.StateDB
+	if err := pgxscan.Get(ctx, t.tx, &stateDB, query, taskExecID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, store.ErrTaskNotFound
+		}
+		return nil, fmt.Errorf("scanning state: %w", err)
+	}
+	return stateDB.ToState()
 }
 
 func (t *taskRepoTx) GetStateForUpdate(ctx context.Context, taskExecID core.ID) (*task.State, error) {

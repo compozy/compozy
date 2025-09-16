@@ -80,19 +80,20 @@ func NewService(ctx context.Context, runtime runtime.Runtime, agent *agent.Confi
 	promptBuilder := NewPromptBuilder()
 	// Create orchestrator
 	orchestratorConfig := OrchestratorConfig{
-		ToolRegistry:            toolRegistry,
-		PromptBuilder:           promptBuilder,
-		RuntimeManager:          runtime,
-		LLMFactory:              config.LLMFactory,
-		MemoryProvider:          config.MemoryProvider,
-		Timeout:                 config.Timeout,
-		MaxConcurrentTools:      config.MaxConcurrentTools,
-		MaxToolIterations:       config.MaxToolIterations,
-		MaxSequentialToolErrors: config.MaxSequentialToolErrors,
-		RetryAttempts:           config.RetryAttempts,
-		RetryBackoffBase:        config.RetryBackoffBase,
-		RetryBackoffMax:         config.RetryBackoffMax,
-		RetryJitter:             config.RetryJitter,
+		ToolRegistry:                  toolRegistry,
+		PromptBuilder:                 promptBuilder,
+		RuntimeManager:                runtime,
+		LLMFactory:                    config.LLMFactory,
+		MemoryProvider:                config.MemoryProvider,
+		Timeout:                       config.Timeout,
+		MaxConcurrentTools:            config.MaxConcurrentTools,
+		MaxToolIterations:             config.MaxToolIterations,
+		MaxSequentialToolErrors:       config.MaxSequentialToolErrors,
+		StructuredOutputRetryAttempts: config.StructuredOutputRetryAttempts,
+		RetryAttempts:                 config.RetryAttempts,
+		RetryBackoffBase:              config.RetryBackoffBase,
+		RetryBackoffMax:               config.RetryBackoffMax,
+		RetryJitter:                   config.RetryJitter,
 	}
 	llmOrchestrator := NewOrchestrator(&orchestratorConfig)
 	return &Service{

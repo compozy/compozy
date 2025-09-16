@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // newIntegrationServer creates a new server instance with default config manager
@@ -30,19 +31,20 @@ func TestServer_Health_And_Liveness_Endpoints(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	srv := newIntegrationServer(t)
 	r := gin.New()
-	// Wire exported health handler and simple liveness
 	r.GET("/health", engserver.CreateHealthHandler(srv, "v0"))
 	r.GET("/healthz", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"status": "ok"}) })
-
-	// Liveness should be OK
-	w := httptest.NewRecorder()
-	req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, "/healthz", http.NoBody)
-	r.ServeHTTP(w, req)
-	assert.Equal(t, http.StatusOK, w.Code)
-
-	// Overall health should be 503 on a fresh server (not fully ready)
-	w2 := httptest.NewRecorder()
-	req2, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, "/health", http.NoBody)
-	r.ServeHTTP(w2, req2)
-	assert.Equal(t, http.StatusServiceUnavailable, w2.Code)
+	t.Run("Should report liveness OK", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "/healthz", http.NoBody)
+		require.NoError(t, err)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+	t.Run("Should return 503 when server is not fully ready", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "/health", http.NoBody)
+		require.NoError(t, err)
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+	})
 }

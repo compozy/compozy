@@ -2,18 +2,40 @@ package postgres
 
 import "fmt"
 
+const (
+	defaultHost     = "localhost"
+	defaultPort     = "5432"
+	defaultUser     = "postgres"
+	defaultPassword = ""
+	defaultDB       = "postgres"
+	defaultSSLMode  = "disable"
+)
+
 // dsn builds a pgx-compatible DSN string from Config when ConnString is empty.
 func dsn(cfg *Config) string {
+	if cfg == nil {
+		cfg = &Config{}
+	}
 	if cfg.ConnString != "" {
 		return cfg.ConnString
 	}
-	host := defaultIfEmpty(cfg.Host, "localhost")
-	port := defaultIfEmpty(cfg.Port, "5432")
-	user := defaultIfEmpty(cfg.User, "postgres")
-	pass := defaultIfEmpty(cfg.Password, "")
-	db := defaultIfEmpty(cfg.DBName, "postgres")
-	ssl := defaultIfEmpty(cfg.SSLMode, "disable")
-	return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s", host, port, user, pass, db, ssl)
+	cfgWithDefaults := Config{
+		Host:     defaultIfEmpty(cfg.Host, defaultHost),
+		Port:     defaultIfEmpty(cfg.Port, defaultPort),
+		User:     defaultIfEmpty(cfg.User, defaultUser),
+		Password: defaultIfEmpty(cfg.Password, defaultPassword),
+		DBName:   defaultIfEmpty(cfg.DBName, defaultDB),
+		SSLMode:  defaultIfEmpty(cfg.SSLMode, defaultSSLMode),
+	}
+	return fmt.Sprintf(
+		"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+		cfgWithDefaults.Host,
+		cfgWithDefaults.Port,
+		cfgWithDefaults.User,
+		cfgWithDefaults.Password,
+		cfgWithDefaults.DBName,
+		cfgWithDefaults.SSLMode,
+	)
 }
 
 // DSNFor returns a DSN appropriate for database/sql with the pgx stdlib driver.

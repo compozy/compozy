@@ -206,7 +206,7 @@ func (uc *CreateChildTasks) createChildStatesInTransaction(
 	childConfigs []*task.Config,
 ) error {
 	log := logger.FromContext(ctx)
-	// Collect configs to save after transaction succeeds
+	// Collect configs to save alongside prepared states
 	var configsToSave []childConfigRef
 
 	// Prepare all child states first
@@ -238,11 +238,32 @@ func (uc *CreateChildTasks) createChildStatesInTransaction(
 		childState := task.CreateBasicState(childStateInput, childPartialState)
 		childStates = append(childStates, childState)
 
-		// Collect config to save after transaction succeeds
+		// Collect config to save prior to persisting states
 		configsToSave = append(configsToSave, childConfigRef{
 			id:  childTaskExecID,
 			cfg: childConfig,
 		})
+	}
+
+	rollbackConfigs := func(ids []core.ID) {
+		for _, savedID := range ids {
+			if deleteErr := uc.configStore.Delete(ctx, savedID.String()); deleteErr != nil {
+				log.Warn("Failed to rollback config during error recovery",
+					"config_id", savedID,
+					"rollback_error", deleteErr,
+				)
+			}
+		}
+	}
+
+	var savedConfigIDs []core.ID
+	for _, c := range configsToSave {
+		if err := uc.configStore.Save(ctx, c.id.String(), c.cfg); err != nil {
+			rollbackConfigs(savedConfigIDs)
+			return fmt.Errorf("failed to save child config %s before transaction (rolled back %d configs): %w",
+				c.cfg.ID, len(savedConfigIDs), err)
+		}
+		savedConfigIDs = append(savedConfigIDs, c.id)
 	}
 
 	// Create all child states atomically in a single transaction
@@ -255,26 +276,8 @@ func (uc *CreateChildTasks) createChildStatesInTransaction(
 		return nil
 	})
 	if err != nil {
+		rollbackConfigs(savedConfigIDs)
 		return err
-	}
-
-	// Save configs only after database transaction succeeds
-	var savedConfigIDs []core.ID
-	for _, c := range configsToSave {
-		if err := uc.configStore.Save(ctx, c.id.String(), c.cfg); err != nil {
-			// Best-effort rollback: delete any configs already saved
-			for _, savedID := range savedConfigIDs {
-				if deleteErr := uc.configStore.Delete(ctx, savedID.String()); deleteErr != nil {
-					log.Warn("Failed to rollback config during error recovery",
-						"config_id", savedID,
-						"rollback_error", deleteErr,
-					)
-				}
-			}
-			return fmt.Errorf("failed to save child config %s after transaction (rolled back %d configs): %w",
-				c.cfg.ID, len(savedConfigIDs), err)
-		}
-		savedConfigIDs = append(savedConfigIDs, c.id)
 	}
 
 	return nil

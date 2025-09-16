@@ -176,13 +176,11 @@ func (s *Server) SetupRedisClient(cfg *config.Config) (*redis.Client, func(), er
 	log := logger.FromContext(s.ctx)
 	// Require Redis to be configured
 	if !isRedisConfigured(cfg) {
-		return nil, nil, fmt.Errorf("redis is required but not configured")
+		log.Warn("Redis not configured; continuing without rate limiting cache")
+		return nil, nil, nil
 	}
 
-	// Create cache config from app config
 	cacheConfig := cache.FromAppConfig(cfg)
-
-	// Create Redis client using the cache package
 	redisInstance, err := cache.NewRedis(s.ctx, cacheConfig)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create Redis client for rate limiting: %w", err)
@@ -194,11 +192,6 @@ func (s *Server) SetupRedisClient(cfg *config.Config) (*redis.Client, func(), er
 		"db", cfg.Redis.DB)
 
 	redisClient := redisInstance.Client()
-	// NOTE(leaky-abstraction): The rate limiter depends on ulule/limiter's Redis store
-	// which accepts a concrete *redis.Client. Our cache layer exposes a generic
-	// redis.UniversalClient. We intentionally assert to *redis.Client here to avoid
-	// over-abstracting the limiter path. If in the future we wrap limiter with our
-	// own store abstraction, this assertion can be removed.
 	client, ok := redisClient.(*redis.Client)
 	if !ok {
 		return nil, nil, fmt.Errorf("redis client is not a *redis.Client type")
@@ -469,8 +462,8 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	}
 	cleanupFuncs = append(cleanupFuncs, storeCleanup)
 
-	// Start embedded MCP Proxy if configured to standalone mode
-	if cfg.MCPProxy.Mode == modeStandalone {
+	// Start embedded MCP Proxy if effective mode is standalone
+	if shouldEmbedMCPProxy(cfg) {
 		mcpCleanup, mcpErr := s.setupMCPProxy(s.ctx)
 		if mcpErr != nil {
 			return nil, cleanupFuncs, mcpErr
@@ -818,6 +811,54 @@ func isRedisConfigured(cfg *config.Config) bool {
 	return true
 }
 
+func shouldEmbedMCPProxy(cfg *config.Config) bool {
+	if cfg == nil {
+		return false
+	}
+	if cfg.MCPProxy.Mode != modeStandalone {
+		return false
+	}
+	if cfg.LLM.ProxyURL != "" {
+		return false
+	}
+	return true
+}
+
+func storageConfigForMCP(cfg *config.Config) *mcpproxy.StorageConfig {
+	if cfg == nil {
+		return mcpproxy.DefaultStorageConfig()
+	}
+	if !isRedisConfigured(cfg) {
+		return &mcpproxy.StorageConfig{Type: mcpproxy.StorageTypeMemory}
+	}
+	app := cfg.Redis
+	redisCfg := &mcpproxy.RedisConfig{
+		URL:             app.URL,
+		Addr:            redisAddr(app.Host, app.Port),
+		Password:        app.Password,
+		DB:              app.DB,
+		PoolSize:        app.PoolSize,
+		MinIdleConns:    app.MinIdleConns,
+		MaxRetries:      app.MaxRetries,
+		DialTimeout:     app.DialTimeout,
+		ReadTimeout:     app.ReadTimeout,
+		WriteTimeout:    app.WriteTimeout,
+		PoolTimeout:     app.PoolTimeout,
+		MinRetryBackoff: app.MinRetryBackoff,
+		MaxRetryBackoff: app.MaxRetryBackoff,
+		TLSEnabled:      app.TLSEnabled,
+		TLSConfig:       app.TLSConfig,
+	}
+	return &mcpproxy.StorageConfig{Type: mcpproxy.StorageTypeRedis, Redis: redisCfg}
+}
+
+func redisAddr(host, port string) string {
+	if host == "" || port == "" {
+		return ""
+	}
+	return fmt.Sprintf("%s:%s", host, port)
+}
+
 func (s *Server) handleGracefulShutdown(srv *http.Server, cleanupFuncs []func(), errChan <-chan error) error {
 	log := logger.FromContext(s.ctx)
 	quit := make(chan os.Signal, 1)
@@ -938,7 +979,7 @@ func (s *Server) setupMCPProxy(ctx context.Context) (func(), error) {
 	initialBase := initialMCPBaseURL(host, portStr, cfg.MCPProxy.BaseURL)
 	server, driver, err := s.newMCPProxyServer(
 		ctx,
-		cfg.MCPProxy.Mode,
+		cfg,
 		host,
 		portStr,
 		initialBase,
@@ -1084,19 +1125,18 @@ func mcpProbeTimeout(cfg *config.Config) time.Duration {
 // newMCPProxyServer constructs the embedded MCP proxy server and returns it with a driver label.
 func (s *Server) newMCPProxyServer(
 	ctx context.Context,
-	mode string,
+	cfg *config.Config,
 	host string,
 	port string,
 	baseURL string,
 	shutdown time.Duration,
 ) (*mcpproxy.Server, string, error) {
-	stCfg := mcpproxy.DefaultStorageConfigForMode(mode)
-	storage, err := mcpproxy.NewStorage(ctx, stCfg)
+	storageCfg := storageConfigForMCP(cfg)
+	storage, err := mcpproxy.NewStorage(ctx, storageCfg)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to initialize MCP storage: %w", err)
 	}
 	cm := mcpproxy.NewMCPClientManager(storage, nil)
-	// Disable OS signal handling for embedded proxy; parent server owns signals
 	mcfg := &mcpproxy.Config{
 		Host:               host,
 		Port:               port,
@@ -1105,7 +1145,7 @@ func (s *Server) newMCPProxyServer(
 		UseOSSignalHandler: false,
 	}
 	server := mcpproxy.NewServer(mcfg, storage, cm)
-	return server, string(stCfg.Type), nil
+	return server, string(storageCfg.Type), nil
 }
 
 func (s *Server) initializeScheduleManager(state *appstate.State, worker *worker.Worker, workflows []*workflow.Config) {

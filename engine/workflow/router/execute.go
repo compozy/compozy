@@ -2,7 +2,6 @@ package wfrouter
 
 import (
 	"fmt"
-	"net/http"
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/server/router"
@@ -36,6 +35,7 @@ type ExecuteWorkflowResponse struct {
 //	@Success		202			{object}	router.Response{data=ExecuteWorkflowResponse}	"Workflow triggered successfully"
 //	@Failure		400			{object}	router.Response{error=router.ErrorInfo}			"Invalid input or workflow ID"
 //	@Failure		404			{object}	router.Response{error=router.ErrorInfo}			"Workflow not found"
+//	@Failure		503			{object}	router.Response{error=router.ErrorInfo}			"Worker unavailable"
 //	@Failure		500			{object}	router.Response{error=router.ErrorInfo}			"Internal server error"
 //	@Router			/workflows/{workflow_id}/executions [post]
 func handleExecute(c *gin.Context) {
@@ -43,20 +43,14 @@ func handleExecute(c *gin.Context) {
 	if workflowID == "" {
 		return
 	}
-	state := router.GetAppState(c)
+	state := router.GetAppStateWithWorker(c)
 	if state == nil {
 		return
 	}
-	if state.Worker == nil {
-		reqErr := router.NewRequestError(
-			http.StatusServiceUnavailable,
-			"worker is not running; configure Redis or start the worker",
-			nil,
-		)
-		router.RespondWithError(c, reqErr.StatusCode, reqErr)
+	body := router.GetRequestBody[ExecuteWorkflowRequest](c)
+	if body == nil {
 		return
 	}
-	body := router.GetRequestBody[ExecuteWorkflowRequest](c)
 	worker := state.Worker
 	workflowStateID, err := worker.TriggerWorkflow(
 		c.Request.Context(),

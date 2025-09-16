@@ -522,17 +522,6 @@ func createDispatcher(projectConfig *project.Config, taskQueue string, client *C
 
 func (o *Worker) Setup(ctx context.Context) error {
 	o.registerActivities()
-	// Register memory activities if memory manager is available
-	if o.memoryManager != nil {
-		o.worker.RegisterActivityWithOptions(
-			o.activities.FlushMemory,
-			activity.RegisterOptions{Name: memacts.FlushMemoryLabel},
-		)
-		o.worker.RegisterActivityWithOptions(
-			o.activities.ClearFlushPendingFlag,
-			activity.RegisterOptions{Name: memacts.ClearFlushPendingLabel},
-		)
-	}
 	err := o.worker.Start()
 	if err != nil {
 		return err

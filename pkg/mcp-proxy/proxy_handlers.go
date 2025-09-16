@@ -82,9 +82,12 @@ func (p *ProxyHandlers) RegisterMCPProxy(ctx context.Context, name string, def *
 	)
 
 	// Create SSE server for this MCP server
+	p.serversMutex.RLock()
+	baseURL := p.baseURL
+	p.serversMutex.RUnlock()
 	sseServer := server.NewSSEServer(mcpServer,
 		server.WithStaticBasePath(name),
-		server.WithBaseURL(p.baseURL),
+		server.WithBaseURL(baseURL),
 	)
 
 	proxyServer := &ProxyServer{

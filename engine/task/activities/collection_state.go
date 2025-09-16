@@ -54,6 +54,10 @@ func NewCreateCollectionState(
 }
 
 func (a *CreateCollectionState) Run(ctx context.Context, input *CreateCollectionStateInput) (*task.State, error) {
+	// Validate input
+	if input == nil || input.TaskConfig == nil {
+		return nil, fmt.Errorf("invalid input: nil request or task config")
+	}
 	// Validate task type
 	if input.TaskConfig.Type != task.TaskTypeCollection {
 		return nil, fmt.Errorf("unsupported task type: %s", input.TaskConfig.Type)
@@ -62,15 +66,6 @@ func (a *CreateCollectionState) Run(ctx context.Context, input *CreateCollection
 	workflowState, workflowConfig, err := a.loadWorkflowUC.Execute(ctx, &uc.LoadWorkflowInput{
 		WorkflowID:     input.WorkflowID,
 		WorkflowExecID: input.WorkflowExecID,
-	})
-	if err != nil {
-		return nil, err
-	}
-	// Create parent state first with the original collection config
-	state, err := a.createStateUC.Execute(ctx, &uc.CreateStateInput{
-		WorkflowState:  workflowState,
-		WorkflowConfig: workflowConfig,
-		TaskConfig:     input.TaskConfig,
 	})
 	if err != nil {
 		return nil, err
@@ -85,35 +80,55 @@ func (a *CreateCollectionState) Run(ctx context.Context, input *CreateCollection
 	if err := expander.ValidateExpansion(expansionResult); err != nil {
 		return nil, fmt.Errorf("expansion validation failed: %w", err)
 	}
-	// Store expanded configs for child task creation
-	configRepo, err := a.task2Factory.CreateTaskConfigRepository(a.configStore, a.cwd)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create task config repository: %w", err)
-	}
-	collectionMetadata := &task2core.CollectionTaskMetadata{
-		ParentStateID: state.TaskExecID,
-		ChildConfigs:  expansionResult.ChildConfigs,
-		ItemCount:     expansionResult.ItemCount,
-		SkippedCount:  expansionResult.SkippedCount,
-	}
-	if err := configRepo.StoreCollectionMetadata(ctx, state.TaskExecID, collectionMetadata); err != nil {
-		return nil, fmt.Errorf("failed to store collection metadata: %w", err)
-	}
-	// Add metadata to state output
-	a.addCollectionMetadata(state, expansionResult)
-	// Update the state in the repository to persist the metadata
-	if err := a.taskRepo.UpsertState(ctx, state); err != nil {
-		return nil, fmt.Errorf("failed to update state with collection metadata: %w", err)
-	}
-	// Create child tasks
-	if err := a.createChildTasksUC.Execute(ctx, &uc.CreateChildTasksInput{
-		ParentStateID:  state.TaskExecID,
-		WorkflowExecID: input.WorkflowExecID,
-		WorkflowID:     input.WorkflowID,
+
+	var createdState *task.State
+	if err := a.taskRepo.WithTransaction(ctx, func(repo task.Repository) error {
+		createStateUC := uc.NewCreateState(repo, a.configStore)
+		createChildTasksUC := uc.NewCreateChildTasksUC(repo, a.configStore, a.task2Factory, a.cwd)
+
+		state, err := createStateUC.Execute(ctx, &uc.CreateStateInput{
+			WorkflowState:  workflowState,
+			WorkflowConfig: workflowConfig,
+			TaskConfig:     input.TaskConfig,
+		})
+		if err != nil {
+			return err
+		}
+
+		configRepo, err := a.task2Factory.CreateTaskConfigRepository(a.configStore, a.cwd)
+		if err != nil {
+			return fmt.Errorf("failed to create task config repository: %w", err)
+		}
+		collectionMetadata := &task2core.CollectionTaskMetadata{
+			ParentStateID: state.TaskExecID,
+			ChildConfigs:  expansionResult.ChildConfigs,
+			ItemCount:     expansionResult.ItemCount,
+			SkippedCount:  expansionResult.SkippedCount,
+		}
+		if err := configRepo.StoreCollectionMetadata(ctx, state.TaskExecID, collectionMetadata); err != nil {
+			return fmt.Errorf("failed to store collection metadata: %w", err)
+		}
+
+		a.addCollectionMetadata(state, expansionResult)
+		if err := repo.UpsertState(ctx, state); err != nil {
+			return fmt.Errorf("failed to update state with collection metadata: %w", err)
+		}
+
+		if err := createChildTasksUC.Execute(ctx, &uc.CreateChildTasksInput{
+			ParentStateID:  state.TaskExecID,
+			WorkflowExecID: input.WorkflowExecID,
+			WorkflowID:     input.WorkflowID,
+		}); err != nil {
+			return fmt.Errorf("failed to create child tasks: %w", err)
+		}
+
+		createdState = state
+		return nil
 	}); err != nil {
-		return nil, fmt.Errorf("failed to create child tasks: %w", err)
+		return nil, err
 	}
-	return state, nil
+
+	return createdState, nil
 }
 
 func (a *CreateCollectionState) addCollectionMetadata(state *task.State, result *shared.ExpansionResult) {

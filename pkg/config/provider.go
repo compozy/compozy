@@ -516,6 +516,10 @@ func createWorkerDefaults(defaultConfig *Config) map[string]any {
 		"dispatcher_retry_delay":         defaultConfig.Worker.DispatcherRetryDelay.String(),
 		"dispatcher_max_retries":         defaultConfig.Worker.DispatcherMaxRetries,
 		"mcp_proxy_health_check_timeout": defaultConfig.Worker.MCPProxyHealthCheckTimeout.String(),
+		"dispatcher": map[string]any{
+			"heartbeat_ttl":   defaultConfig.Worker.Dispatcher.HeartbeatTTL.String(),
+			"stale_threshold": defaultConfig.Worker.Dispatcher.StaleThreshold.String(),
+		},
 	}
 }
 

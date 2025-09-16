@@ -3,6 +3,7 @@ package ratelimit
 import (
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 
@@ -32,21 +33,20 @@ func doReq(r *gin.Engine, ip string) *httptest.ResponseRecorder {
 }
 
 func TestInMemoryGlobalRateLimit_BlocksSecondRequest(t *testing.T) {
-	cfg := &Config{
-		GlobalRate: RateConfig{Limit: 1, Period: time.Second},
-		APIKeyRate: RateConfig{Limit: 100, Period: time.Minute},
-		RouteRates: map[string]RateConfig{},
-		Prefix:     "test:ratelimit:",
-		MaxRetry:   1,
-	}
-	r := buildRouterForTest(t, cfg)
-
-	// First request should pass
-	res1 := doReq(r, "1.2.3.4")
-	require.Equal(t, 200, res1.Code)
-	// Second immediate request should be blocked (same IP key)
-	res2 := doReq(r, "1.2.3.4")
-	require.Equal(t, 429, res2.Code)
+	t.Run("Should block second request when global limit is 1 per second", func(t *testing.T) {
+		cfg := &Config{
+			GlobalRate: RateConfig{Limit: 1, Period: time.Second},
+			APIKeyRate: RateConfig{Limit: 100, Period: time.Minute},
+			RouteRates: map[string]RateConfig{},
+			Prefix:     "test:ratelimit:",
+			MaxRetry:   1,
+		}
+		r := buildRouterForTest(t, cfg)
+		res1 := doReq(r, "1.2.3.4")
+		require.Equal(t, http.StatusOK, res1.Code)
+		res2 := doReq(r, "1.2.3.4")
+		require.Equal(t, http.StatusTooManyRequests, res2.Code)
+	})
 }
 
 func TestInMemoryGlobalRateLimit_RefillAfterPeriod(t *testing.T) {
@@ -60,27 +60,44 @@ func TestInMemoryGlobalRateLimit_RefillAfterPeriod(t *testing.T) {
 	r := buildRouterForTest(t, cfg)
 
 	res1 := doReq(r, "5.6.7.8")
-	require.Equal(t, 200, res1.Code)
+	require.Equal(t, http.StatusOK, res1.Code)
 	res2 := doReq(r, "5.6.7.8")
-	require.Equal(t, 429, res2.Code)
+	require.Equal(t, http.StatusTooManyRequests, res2.Code)
 	// Wait for refill and try again
 	time.Sleep(120 * time.Millisecond)
 	res3 := doReq(r, "5.6.7.8")
-	require.Equal(t, 200, res3.Code)
+	require.Equal(t, http.StatusOK, res3.Code)
 }
 
 func TestInMemoryRateLimit_SetsHeaders(t *testing.T) {
-	cfg := &Config{
-		GlobalRate: RateConfig{Limit: 2, Period: time.Minute},
-		APIKeyRate: RateConfig{Limit: 100, Period: time.Minute},
-		RouteRates: map[string]RateConfig{},
-		Prefix:     "test:ratelimit:",
-		MaxRetry:   1,
-	}
-	r := buildRouterForTest(t, cfg)
-	res := doReq(r, "9.9.9.9")
-	require.Equal(t, 200, res.Code)
-	require.NotEmpty(t, res.Header().Get("X-RateLimit-Limit"))
-	require.NotEmpty(t, res.Header().Get("X-RateLimit-Remaining"))
-	require.NotEmpty(t, res.Header().Get("X-RateLimit-Reset"))
+	t.Run("Should set rate-limit headers on success", func(t *testing.T) {
+		cfg := &Config{
+			GlobalRate: RateConfig{Limit: 2, Period: time.Minute},
+			APIKeyRate: RateConfig{Limit: 100, Period: time.Minute},
+			RouteRates: map[string]RateConfig{},
+			Prefix:     "test:ratelimit:",
+			MaxRetry:   1,
+		}
+		r := buildRouterForTest(t, cfg)
+		res := doReq(r, "9.9.9.9")
+		require.Equal(t, http.StatusOK, res.Code)
+		limitHeader := res.Header().Get("X-RateLimit-Limit")
+		require.NotEmpty(t, limitHeader)
+		limit, err := strconv.ParseInt(limitHeader, 10, 64)
+		require.NoError(t, err)
+		require.Equal(t, cfg.GlobalRate.Limit, limit)
+		remainingHeader := res.Header().Get("X-RateLimit-Remaining")
+		require.NotEmpty(t, remainingHeader)
+		remaining, err := strconv.ParseInt(remainingHeader, 10, 64)
+		require.NoError(t, err)
+		require.Equal(t, cfg.GlobalRate.Limit-1, remaining)
+		resetHeader := res.Header().Get("X-RateLimit-Reset")
+		require.NotEmpty(t, resetHeader)
+		reset, err := strconv.ParseInt(resetHeader, 10, 64)
+		require.NoError(t, err)
+		now := time.Now().Unix()
+		require.GreaterOrEqual(t, reset, now)
+		maxReset := now + int64(cfg.GlobalRate.Period.Seconds()) + 1
+		require.LessOrEqual(t, reset, maxReset)
+	})
 }

@@ -31,7 +31,10 @@ type EventResponse struct {
 // @Produce     json
 // @Param       event body EventRequest true "Event data"
 // @Success     202 {object} router.Response{data=EventResponse}
-// @Failure     400 {object} router.Response{error=router.ErrorInfo}
+// @Failure     400 {object} router.Response{error=router.ErrorInfo} "Invalid event"
+// @Failure     409 {object} router.Response{error=router.ErrorInfo} "Conflict"
+// @Failure     503 {object} router.Response{error=router.ErrorInfo} "Worker unavailable"
+// @Failure     500 {object} router.Response{error=router.ErrorInfo} "Internal server error"
 // @Router      /events [post]
 func handleEvent(c *gin.Context) {
 	var req EventRequest
@@ -41,17 +44,8 @@ func handleEvent(c *gin.Context) {
 		return
 	}
 
-	state := router.GetAppState(c)
-	if state == nil {
-		return
-	}
-	if state.Worker == nil {
-		reqErr := router.NewRequestError(
-			http.StatusServiceUnavailable,
-			"worker is not running; configure Redis or start the worker",
-			nil,
-		)
-		router.RespondWithError(c, reqErr.StatusCode, reqErr)
+	state, ok := ensureWorkerReady(c)
+	if !ok {
 		return
 	}
 	workerMgr := state.Worker
@@ -80,16 +74,17 @@ func handleEvent(c *gin.Context) {
 		projectName,
 	)
 	if err != nil {
-		reqErr := router.NewRequestError(http.StatusInternalServerError, "Failed to send event", err)
-		var statusCode int
+		statusCode := http.StatusInternalServerError
+		reason := "Failed to send event"
 		switch status.Code(err) {
 		case codes.NotFound, codes.InvalidArgument:
 			statusCode = http.StatusBadRequest
+			reason = "Invalid event"
 		case codes.AlreadyExists:
 			statusCode = http.StatusConflict
-		default:
-			statusCode = http.StatusInternalServerError
+			reason = "Conflict"
 		}
+		reqErr := router.NewRequestError(statusCode, reason, err)
 		router.RespondWithError(c, statusCode, reqErr)
 		return
 	}

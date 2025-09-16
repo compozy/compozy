@@ -738,6 +738,7 @@ func flattenWorkerConfig(cfg *config.Config, result map[string]string) {
 
 // flattenMCPProxyConfig flattens MCP proxy configuration
 func flattenMCPProxyConfig(cfg *config.Config, result map[string]string) {
+	result["mcp_proxy.mode"] = cfg.MCPProxy.Mode
 	result["mcp_proxy.host"] = cfg.MCPProxy.Host
 	result["mcp_proxy.port"] = fmt.Sprintf("%d", cfg.MCPProxy.Port)
 	result["mcp_proxy.base_url"] = redactURL(cfg.MCPProxy.BaseURL)

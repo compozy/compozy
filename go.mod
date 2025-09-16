@@ -40,7 +40,7 @@ require (
 	github.com/kaptinlin/jsonschema v0.4.13
 	github.com/knadh/koanf/providers/env/v2 v2.0.0
 	github.com/knadh/koanf/providers/structs v1.0.0
-	github.com/knadh/koanf/v2 v2.2.2
+	github.com/knadh/koanf/v2 v2.3.0
 	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728
 	github.com/mark3labs/mcp-go v0.39.1
 	github.com/mattn/go-isatty v0.0.20
@@ -82,8 +82,8 @@ require (
 	go.opentelemetry.io/otel/metric v1.38.0
 	go.opentelemetry.io/otel/sdk/metric v1.38.0
 	go.opentelemetry.io/otel/trace v1.38.0
-	go.temporal.io/api v1.50.1
-	go.temporal.io/sdk v1.34.0
+	go.temporal.io/api v1.53.0
+	go.temporal.io/sdk v1.36.0
 	golang.org/x/crypto v0.42.0
 	golang.org/x/oauth2 v0.31.0
 	golang.org/x/sync v0.17.0
@@ -177,7 +177,7 @@ require (
 	github.com/googleapis/gax-go/v2 v2.14.2 // indirect
 	github.com/gosimple/unidecode v1.0.1 // indirect
 	github.com/grafana/regexp v0.0.0-20240518133315-a468a5bfb3bc // indirect
-	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0 // indirect
+	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.2 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.26.3 // indirect
 	github.com/huandu/xstrings v1.5.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect

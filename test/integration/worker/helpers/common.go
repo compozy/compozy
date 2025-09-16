@@ -20,6 +20,8 @@ import (
 	"github.com/compozy/compozy/engine/task/services"
 	"github.com/compozy/compozy/engine/worker"
 	"github.com/compozy/compozy/engine/workflow"
+	"github.com/compozy/compozy/pkg/config"
+	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/tplengine"
 	utils "github.com/compozy/compozy/test/helpers"
 )
@@ -383,8 +385,15 @@ func CreateTestActivities(
 	// Create memory manager for tests - use nil for now as it's not needed for most tests
 	var memoryManager *memory.Manager
 
+	ctx := context.Background()
+	mgr := config.NewManager(config.NewService())
+	_, err := mgr.Load(ctx, config.NewDefaultProvider(), config.NewEnvProvider())
+	require.NoError(t, err)
+	log := logger.NewForTests()
+	ctx = logger.ContextWithLogger(config.ContextWithManager(ctx, mgr), log)
+
 	acts, err := worker.NewActivities(
-		context.Background(),
+		ctx,
 		projectConfig,
 		workflows,
 		workflowRepo,

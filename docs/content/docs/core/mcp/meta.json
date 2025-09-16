@@ -4,6 +4,7 @@
   "icon": "Plug",
   "pages": [
     "overview",
+    "migration-notes",
     "mcp-proxy-server",
     "transport-configuration",
     "security-authentication",

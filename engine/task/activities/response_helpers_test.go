@@ -40,6 +40,11 @@ func (m *mockTaskRepository) GetState(ctx context.Context, taskExecID core.ID) (
 	return args.Get(0).(*task.State), args.Error(1)
 }
 
+func newOutput(data map[string]any) *core.Output {
+	out := core.Output(data)
+	return &out
+}
+
 // Transaction operations
 func (m *mockTaskRepository) WithTransaction(ctx context.Context, fn func(task.Repository) error) error {
 	args := m.Called(ctx, fn)
@@ -192,9 +197,9 @@ func TestProcessParentTask(t *testing.T) {
 		// Mock expectations
 		mockRepo.On("GetProgressInfo", ctx, parentExecID).Return(progressInfo, nil)
 		mockRepo.On("ListChildrenOutputs", ctx, parentExecID).Return(map[string]*core.Output{
-			"child1": {"result": "success1"},
-			"child2": {"result": "success2"},
-			"child3": {"result": "success3"},
+			"child1": newOutput(map[string]any{"result": "success1"}),
+			"child2": newOutput(map[string]any{"result": "success2"}),
+			"child3": newOutput(map[string]any{"result": "success3"}),
 		}, nil)
 
 		// Act
@@ -243,8 +248,8 @@ func TestProcessParentTask(t *testing.T) {
 		// Mock expectations
 		mockRepo.On("GetProgressInfo", ctx, parentExecID).Return(progressInfo, nil)
 		mockRepo.On("ListChildrenOutputs", ctx, parentExecID).Return(map[string]*core.Output{
-			"child1": {"result": "success1"},
-			"child2": {"result": "success2"},
+			"child1": newOutput(map[string]any{"result": "success1"}),
+			"child2": newOutput(map[string]any{"result": "success2"}),
 			// child3 failed, no output
 		}, nil)
 		// For collection tasks with failed children, we need to mock ListChildren
@@ -457,9 +462,9 @@ func TestAggregateChildOutputs(t *testing.T) {
 		}
 
 		childOutputs := map[string]*core.Output{
-			"child1": {"value": 1},
-			"child2": {"value": 2},
-			"child3": {"value": 3},
+			"child1": newOutput(map[string]any{"value": 1}),
+			"child2": newOutput(map[string]any{"value": 2}),
+			"child3": newOutput(map[string]any{"value": 3}),
 		}
 
 		// Mock expectations
@@ -529,9 +534,9 @@ func TestAggregateChildOutputs(t *testing.T) {
 		}
 
 		childOutputs := map[string]*core.Output{
-			"child1": {"value": 1},
+			"child1": newOutput(map[string]any{"value": 1}),
 			"child2": nil, // Nil output
-			"child3": {"value": 3},
+			"child3": newOutput(map[string]any{"value": 3}),
 		}
 
 		// Mock expectations

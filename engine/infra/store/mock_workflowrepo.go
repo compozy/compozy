@@ -26,7 +26,7 @@ func (m *MockWorkflowRepo) UpsertState(ctx context.Context, state *workflow.Stat
 	return args.Error(0)
 }
 
-func (m *MockWorkflowRepo) UpdateStatus(ctx context.Context, id string, status core.StatusType) error {
+func (m *MockWorkflowRepo) UpdateStatus(ctx context.Context, id core.ID, status core.StatusType) error {
 	args := m.Called(ctx, id, status)
 	return args.Error(0)
 }

@@ -319,7 +319,7 @@ func TestWorkflowRepo_UpdateStatus(t *testing.T) {
 		defer mockSetup.Close()
 		repo := postgres.NewWorkflowRepo(mockSetup.Mock)
 		ctx := context.Background()
-		workflowExecID := "exec1"
+		workflowExecID := core.ID("exec1")
 		newStatus := core.StatusRunning
 		mockSetup.Mock.ExpectExec("UPDATE workflow_states").
 			WithArgs(newStatus, workflowExecID).
@@ -336,7 +336,7 @@ func TestWorkflowRepo_UpdateStatus_NotFound(t *testing.T) {
 		defer mockSetup.Close()
 		repo := postgres.NewWorkflowRepo(mockSetup.Mock)
 		ctx := context.Background()
-		workflowExecID := "nonexistent"
+		workflowExecID := core.ID("nonexistent")
 		newStatus := core.StatusRunning
 		mockSetup.Mock.ExpectExec("UPDATE workflow_states").
 			WithArgs(newStatus, workflowExecID).

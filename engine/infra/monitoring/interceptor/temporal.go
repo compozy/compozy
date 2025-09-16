@@ -75,6 +75,9 @@ func resetMetrics(ctx context.Context) {
 	dispatcherHeartbeatTotal = nil
 	dispatcherLifecycleTotal = nil
 	dispatcherUptimeSeconds = nil
+	dispatcherKeysScannedTotal = nil
+	dispatcherStaleFoundTotal = nil
+	dispatcherScanDuration = nil
 	dispatcherStartTimes = sync.Map{}
 	initOnce = sync.Once{}
 }
@@ -404,12 +407,19 @@ func SetConfiguredWorkerCount(count int64) {
 	configuredWorkerCountValue.Store(count)
 }
 
+func metricsContext(ctx context.Context) context.Context {
+	if ctx == nil {
+		return context.Background()
+	}
+	return context.WithoutCancel(ctx)
+}
+
 // IncrementRunningWorkers increments the running workers counter
 func IncrementRunningWorkers(ctx context.Context) {
 	metricsMutex.RLock()
 	defer metricsMutex.RUnlock()
 	if workersRunning != nil {
-		workersRunning.Add(ctx, 1)
+		workersRunning.Add(metricsContext(ctx), 1)
 	}
 }
 
@@ -418,7 +428,7 @@ func DecrementRunningWorkers(ctx context.Context) {
 	metricsMutex.RLock()
 	defer metricsMutex.RUnlock()
 	if workersRunning != nil {
-		workersRunning.Add(ctx, -1)
+		workersRunning.Add(metricsContext(ctx), -1)
 	}
 }
 
@@ -427,10 +437,14 @@ func StartDispatcher(ctx context.Context, dispatcherID string) {
 	metricsMutex.RLock()
 	defer metricsMutex.RUnlock()
 	if dispatcherActive != nil {
-		dispatcherActive.Add(ctx, 1, metric.WithAttributes(attribute.String("dispatcher_id", dispatcherID)))
+		dispatcherActive.Add(
+			metricsContext(ctx),
+			1,
+			metric.WithAttributes(attribute.String("dispatcher_id", dispatcherID)),
+		)
 	}
 	if dispatcherLifecycleTotal != nil {
-		dispatcherLifecycleTotal.Add(ctx, 1,
+		dispatcherLifecycleTotal.Add(metricsContext(ctx), 1,
 			metric.WithAttributes(
 				attribute.String("dispatcher_id", dispatcherID),
 				attribute.String("event", "start")))
@@ -444,10 +458,14 @@ func StopDispatcher(ctx context.Context, dispatcherID string) {
 	metricsMutex.RLock()
 	defer metricsMutex.RUnlock()
 	if dispatcherActive != nil {
-		dispatcherActive.Add(ctx, -1, metric.WithAttributes(attribute.String("dispatcher_id", dispatcherID)))
+		dispatcherActive.Add(
+			metricsContext(ctx),
+			-1,
+			metric.WithAttributes(attribute.String("dispatcher_id", dispatcherID)),
+		)
 	}
 	if dispatcherLifecycleTotal != nil {
-		dispatcherLifecycleTotal.Add(ctx, 1,
+		dispatcherLifecycleTotal.Add(metricsContext(ctx), 1,
 			metric.WithAttributes(
 				attribute.String("dispatcher_id", dispatcherID),
 				attribute.String("event", "stop")))
@@ -461,7 +479,11 @@ func RecordDispatcherHeartbeat(ctx context.Context, dispatcherID string) {
 	metricsMutex.RLock()
 	defer metricsMutex.RUnlock()
 	if dispatcherHeartbeatTotal != nil {
-		dispatcherHeartbeatTotal.Add(ctx, 1, metric.WithAttributes(attribute.String("dispatcher_id", dispatcherID)))
+		dispatcherHeartbeatTotal.Add(
+			metricsContext(ctx),
+			1,
+			metric.WithAttributes(attribute.String("dispatcher_id", dispatcherID)),
+		)
 	}
 }
 
@@ -470,13 +492,13 @@ func RecordDispatcherScan(ctx context.Context, keysScanned int64, staleFound int
 	metricsMutex.RLock()
 	defer metricsMutex.RUnlock()
 	if dispatcherKeysScannedTotal != nil {
-		dispatcherKeysScannedTotal.Add(ctx, keysScanned)
+		dispatcherKeysScannedTotal.Add(metricsContext(ctx), keysScanned)
 	}
 	if dispatcherStaleFoundTotal != nil && staleFound > 0 {
-		dispatcherStaleFoundTotal.Add(ctx, staleFound)
+		dispatcherStaleFoundTotal.Add(metricsContext(ctx), staleFound)
 	}
 	if dispatcherScanDuration != nil {
-		dispatcherScanDuration.Record(ctx, duration.Seconds())
+		dispatcherScanDuration.Record(metricsContext(ctx), duration.Seconds())
 	}
 }
 
@@ -485,7 +507,7 @@ func RecordDispatcherRestart(ctx context.Context, dispatcherID string) {
 	metricsMutex.RLock()
 	defer metricsMutex.RUnlock()
 	if dispatcherLifecycleTotal != nil {
-		dispatcherLifecycleTotal.Add(ctx, 1,
+		dispatcherLifecycleTotal.Add(metricsContext(ctx), 1,
 			metric.WithAttributes(
 				attribute.String("dispatcher_id", dispatcherID),
 				attribute.String("event", "restart")))

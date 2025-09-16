@@ -205,7 +205,7 @@ func (r *WorkflowRepo) UpsertState(ctx context.Context, state *workflow.State) e
 	return nil
 }
 
-func (r *WorkflowRepo) UpdateStatus(ctx context.Context, workflowExecID string, status core.StatusType) error {
+func (r *WorkflowRepo) UpdateStatus(ctx context.Context, workflowExecID core.ID, status core.StatusType) error {
 	query := `UPDATE workflow_states SET status = $1, updated_at = now() WHERE workflow_exec_id = $2`
 	tag, err := r.db.Exec(ctx, query, status, workflowExecID)
 	if err != nil {
@@ -331,19 +331,26 @@ func (r *WorkflowRepo) GetStateByToolID(ctx context.Context, workflowID, toolID 
 }
 
 func (r *WorkflowRepo) determineFinalWorkflowStatus(tasks map[string]*task.State) core.StatusType {
-	finalStatus := core.StatusSuccess
+	hasRunning := false
+	hasFailed := false
 	for _, taskState := range tasks {
 		if taskState.ParentStateID != nil {
 			continue
 		}
 		switch taskState.Status {
-		case core.StatusFailed:
-			finalStatus = core.StatusFailed
 		case core.StatusRunning, core.StatusPending:
-			finalStatus = core.StatusRunning
+			hasRunning = true
+		case core.StatusFailed:
+			hasFailed = true
 		}
 	}
-	return finalStatus
+	if hasRunning {
+		return core.StatusRunning
+	}
+	if hasFailed {
+		return core.StatusFailed
+	}
+	return core.StatusSuccess
 }
 
 func (r *WorkflowRepo) createWorkflowOutputMap(tasks map[string]*task.State) map[string]any {

@@ -2,6 +2,7 @@ package mcpproxy
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -19,29 +20,38 @@ type RedisStorage struct {
 
 // RedisConfig holds Redis connection configuration
 type RedisConfig struct {
-	Addr         string
-	Password     string
-	DB           int
-	PoolSize     int
-	MinIdleConns int
-	MaxRetries   int
-	DialTimeout  time.Duration
-	ReadTimeout  time.Duration
-	WriteTimeout time.Duration
+	URL             string
+	Addr            string
+	Password        string
+	DB              int
+	PoolSize        int
+	MinIdleConns    int
+	MaxRetries      int
+	DialTimeout     time.Duration
+	ReadTimeout     time.Duration
+	WriteTimeout    time.Duration
+	PoolTimeout     time.Duration
+	MinRetryBackoff time.Duration
+	MaxRetryBackoff time.Duration
+	TLSEnabled      bool
+	TLSConfig       *tls.Config
 }
 
 // DefaultRedisConfig returns a default Redis configuration
 func DefaultRedisConfig() *RedisConfig {
 	return &RedisConfig{
-		Addr:         "localhost:6379",
-		Password:     "",
-		DB:           0,
-		PoolSize:     10,
-		MinIdleConns: 2,
-		MaxRetries:   3,
-		DialTimeout:  5 * time.Second,
-		ReadTimeout:  3 * time.Second,
-		WriteTimeout: 3 * time.Second,
+		Addr:            "localhost:6379",
+		Password:        "",
+		DB:              0,
+		PoolSize:        10,
+		MinIdleConns:    2,
+		MaxRetries:      3,
+		DialTimeout:     5 * time.Second,
+		ReadTimeout:     3 * time.Second,
+		WriteTimeout:    3 * time.Second,
+		PoolTimeout:     4 * time.Second,
+		MinRetryBackoff: 8 * time.Millisecond,
+		MaxRetryBackoff: 512 * time.Millisecond,
 	}
 }
 
@@ -50,21 +60,12 @@ func NewRedisStorage(config *RedisConfig) (*RedisStorage, error) {
 	if config == nil {
 		config = DefaultRedisConfig()
 	}
-
-	client := redis.NewClient(&redis.Options{
-		Addr:         config.Addr,
-		Password:     config.Password,
-		DB:           config.DB,
-		PoolSize:     config.PoolSize,
-		MinIdleConns: config.MinIdleConns,
-		MaxRetries:   config.MaxRetries,
-		DialTimeout:  config.DialTimeout,
-		ReadTimeout:  config.ReadTimeout,
-		WriteTimeout: config.WriteTimeout,
-	})
-
-	// Test the connection to ensure Redis is accessible
-	ctx, cancel := context.WithTimeout(context.Background(), config.DialTimeout)
+	opt, err := redisOptionsFromConfig(config)
+	if err != nil {
+		return nil, err
+	}
+	client := redis.NewClient(opt)
+	ctx, cancel := context.WithTimeout(context.Background(), pingTimeout(config))
 	defer cancel()
 
 	if err := client.Ping(ctx).Err(); err != nil {
@@ -75,6 +76,88 @@ func NewRedisStorage(config *RedisConfig) (*RedisStorage, error) {
 		client: client,
 		prefix: "mcp_proxy",
 	}, nil
+}
+
+func redisOptionsFromConfig(cfg *RedisConfig) (*redis.Options, error) {
+	if cfg == nil {
+		cfg = DefaultRedisConfig()
+	}
+	var opt *redis.Options
+	if cfg.URL != "" {
+		parsed, err := redis.ParseURL(cfg.URL)
+		if err != nil {
+			return nil, fmt.Errorf("invalid redis url: %w", err)
+		}
+		opt = parsed
+		if cfg.Password != "" {
+			opt.Password = cfg.Password
+		}
+		if cfg.DB != 0 {
+			opt.DB = cfg.DB
+		}
+	} else {
+		addr := cfg.Addr
+		if addr == "" {
+			addr = "localhost:6379"
+		}
+		opt = &redis.Options{
+			Addr:     addr,
+			Password: cfg.Password,
+			DB:       cfg.DB,
+		}
+	}
+	applyRedisConfigToOptions(opt, cfg)
+	return opt, nil
+}
+
+func applyRedisConfigToOptions(opt *redis.Options, cfg *RedisConfig) {
+	if opt == nil || cfg == nil {
+		return
+	}
+	if cfg.PoolSize > 0 {
+		opt.PoolSize = cfg.PoolSize
+	}
+	if cfg.MinIdleConns > 0 {
+		opt.MinIdleConns = cfg.MinIdleConns
+	}
+	if cfg.MaxRetries != 0 {
+		opt.MaxRetries = cfg.MaxRetries
+	}
+	if cfg.DialTimeout > 0 {
+		opt.DialTimeout = cfg.DialTimeout
+	}
+	if cfg.ReadTimeout > 0 {
+		opt.ReadTimeout = cfg.ReadTimeout
+	}
+	if cfg.WriteTimeout > 0 {
+		opt.WriteTimeout = cfg.WriteTimeout
+	}
+	if cfg.PoolTimeout > 0 {
+		opt.PoolTimeout = cfg.PoolTimeout
+	}
+	if cfg.MinRetryBackoff > 0 {
+		opt.MinRetryBackoff = cfg.MinRetryBackoff
+	}
+	if cfg.MaxRetryBackoff > 0 {
+		opt.MaxRetryBackoff = cfg.MaxRetryBackoff
+	}
+	if cfg.TLSEnabled {
+		if cfg.TLSConfig != nil {
+			opt.TLSConfig = cfg.TLSConfig
+		} else {
+			opt.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+		}
+	}
+}
+
+func pingTimeout(cfg *RedisConfig) time.Duration {
+	if cfg == nil {
+		return 5 * time.Second
+	}
+	if cfg.DialTimeout > 0 {
+		return cfg.DialTimeout
+	}
+	return 5 * time.Second
 }
 
 // Ping tests the Redis connection

@@ -60,10 +60,10 @@ func FromContext(ctx context.Context) Logger {
 // getDefaultLogger returns the singleton default logger, initializing it if needed
 func getDefaultLogger() Logger {
 	defaultLoggerOnce.Do(func() {
-		// Initialize default logger exactly once, under lock
-		l := NewLogger(nil)
 		defaultLoggerMu.Lock()
-		defaultLogger = l
+		if defaultLogger == nil {
+			defaultLogger = NewLogger(nil)
+		}
 		defaultLoggerMu.Unlock()
 	})
 	defaultLoggerMu.RLock()
@@ -75,7 +75,11 @@ func getDefaultLogger() Logger {
 // SetDefaultLogger replaces the default package logger in a thread-safe manner.
 func SetDefaultLogger(l Logger) {
 	defaultLoggerMu.Lock()
-	defaultLogger = l
+	if l == nil {
+		defaultLogger = NewLogger(nil)
+	} else {
+		defaultLogger = l
+	}
 	defaultLoggerMu.Unlock()
 }
 

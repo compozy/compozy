@@ -8,6 +8,10 @@ import (
 	"github.com/compozy/compozy/pkg/config/definition"
 )
 
+const (
+	mcpProxyModeStandalone = "standalone"
+)
+
 // Config represents the complete configuration for the Compozy system.
 //
 // **Application Configuration** controls the runtime behavior of the Compozy server and services.
@@ -966,6 +970,15 @@ type WorkerConfig struct {
 	//
 	// **Default**: `5s`
 	StartWorkflowTimeout time.Duration `koanf:"start_workflow_timeout" json:"start_workflow_timeout" yaml:"start_workflow_timeout" mapstructure:"start_workflow_timeout" env:"WORKER_START_WORKFLOW_TIMEOUT"`
+
+	// Dispatcher defines heartbeat tracking for dispatcher leases.
+	Dispatcher WorkerDispatcherConfig `koanf:"dispatcher" json:"dispatcher" yaml:"dispatcher" mapstructure:"dispatcher"`
+}
+
+// WorkerDispatcherConfig holds dispatcher heartbeat tracking configuration.
+type WorkerDispatcherConfig struct {
+	HeartbeatTTL   time.Duration `koanf:"heartbeat_ttl"   json:"heartbeat_ttl"   yaml:"heartbeat_ttl"   mapstructure:"heartbeat_ttl"   env:"WORKER_DISPATCHER_HEARTBEAT_TTL"`
+	StaleThreshold time.Duration `koanf:"stale_threshold" json:"stale_threshold" yaml:"stale_threshold" mapstructure:"stale_threshold" env:"WORKER_DISPATCHER_STALE_THRESHOLD"`
 }
 
 // MCPProxyConfig contains MCP proxy server configuration.
@@ -1456,13 +1469,27 @@ func buildWorkerConfig(registry *definition.Registry) WorkerConfig {
 		DispatcherMaxRetries:       getInt(registry, "worker.dispatcher_max_retries"),
 		MCPProxyHealthCheckTimeout: getDuration(registry, "worker.mcp_proxy_health_check_timeout"),
 		StartWorkflowTimeout:       getDuration(registry, "worker.start_workflow_timeout"),
+		Dispatcher:                 buildWorkerDispatcherConfig(registry),
+	}
+}
+
+func buildWorkerDispatcherConfig(registry *definition.Registry) WorkerDispatcherConfig {
+	return WorkerDispatcherConfig{
+		HeartbeatTTL:   getDuration(registry, "worker.dispatcher.heartbeat_ttl"),
+		StaleThreshold: getDuration(registry, "worker.dispatcher.stale_threshold"),
 	}
 }
 
 func buildMCPProxyConfig(registry *definition.Registry) MCPProxyConfig {
+	mode := getString(registry, "mcp_proxy.mode")
+	port := getInt(registry, "mcp_proxy.port")
+	if mode == mcpProxyModeStandalone && port == 0 {
+		port = 6001
+	}
 	return MCPProxyConfig{
+		Mode:            mode,
 		Host:            getString(registry, "mcp_proxy.host"),
-		Port:            getInt(registry, "mcp_proxy.port"),
+		Port:            port,
 		BaseURL:         getString(registry, "mcp_proxy.base_url"),
 		ShutdownTimeout: getDuration(registry, "mcp_proxy.shutdown_timeout"),
 	}
