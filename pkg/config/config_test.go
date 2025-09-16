@@ -186,7 +186,7 @@ func TestConfig_Validation(t *testing.T) {
 		cfg.MCPProxy.Port = 0
 		err := svc.Validate(cfg)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "mcp_proxy.port must be set when mcp_proxy.mode=standalone")
+		assert.Contains(t, err.Error(), "mcp_proxy.port must be non-zero in standalone mode")
 	})
 
 	t.Run("Should allow standalone MCP proxy when port provided", func(t *testing.T) {

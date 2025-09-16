@@ -157,7 +157,8 @@ func setupServerPort(ctx context.Context, cfg *config.Config) error {
 		return fmt.Errorf("no free port found near %d: %w", cfg.Server.Port, err)
 	}
 	if availablePort != cfg.Server.Port {
-		// Note: We can't use logger here as context isn't available in this helper
+		log := logger.FromContext(ctx)
+		log.Info("server port reassigned", "from", cfg.Server.Port, "to", availablePort)
 		cfg.Server.Port = availablePort
 	}
 	return nil

@@ -135,7 +135,7 @@ func (r *WorkflowRepo) ListStates(ctx context.Context, filter *workflow.StateFil
 		return nil, fmt.Errorf("scanning states: %w", err)
 	}
 	if len(statesDB) == 0 {
-		return nil, nil
+		return []*workflow.State{}, nil
 	}
 	execIDs := make([]string, 0, len(statesDB))
 	for _, sdb := range statesDB {

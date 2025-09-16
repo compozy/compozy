@@ -33,6 +33,7 @@ type Config struct {
 	MaxSequentialToolErrors int
 	// StructuredOutputRetryAttempts controls how many times the orchestrator
 	// will retry to obtain a valid structured response before failing.
+	// Acceptable range: 0–10. When 0 or negative, falls back to default (2).
 	StructuredOutputRetryAttempts int
 	// Retry configuration
 	RetryAttempts      int
@@ -69,7 +70,7 @@ func DefaultConfig() *Config {
 		MaxConcurrentTools:            10,
 		MaxToolIterations:             10,
 		MaxSequentialToolErrors:       8,
-		StructuredOutputRetryAttempts: 2,
+		StructuredOutputRetryAttempts: defaultStructuredOutputRetries,
 		RetryAttempts:                 3,
 		RetryBackoffBase:              100 * time.Millisecond,
 		RetryBackoffMax:               10 * time.Second,
@@ -115,6 +116,9 @@ func WithMaxConcurrentTools(maxTools int) Option {
 // WithStructuredOutputRetries sets the structured output retry attempts
 func WithStructuredOutputRetries(attempts int) Option {
 	return func(c *Config) {
+		if attempts < 0 {
+			attempts = 0 // let effective default kick in
+		}
 		c.StructuredOutputRetryAttempts = attempts
 	}
 }

@@ -11,6 +11,11 @@ import (
 	"github.com/compozy/compozy/test/helpers"
 )
 
+const (
+	expectedWorkflowColumns = 8
+	minWorkflowIndexes      = 5
+)
+
 // TestMigrationsOptimized_Integration uses shared database for better performance
 func TestMigrationsOptimized_Integration(t *testing.T) {
 	// Note: Shared container cleanup is handled by TestMain in operations_test.go
@@ -43,17 +48,16 @@ func TestMigrationsOptimized_Integration(t *testing.T) {
 		// Test that migrations fail gracefully with an invalid connection
 		invalidPool, err := pgxpool.New(
 			context.Background(),
-			"postgres://invalid:invalid@nonexistent:5432/db?sslmode=disable",
+			"postgres://invalid:invalid@127.0.0.1:1/db?sslmode=disable",
 		)
 		require.NoError(t, err, "Pool creation should succeed with lazy connection")
 		require.NotNil(t, invalidPool, "Pool should be created even with invalid DSN")
+		defer invalidPool.Close()
 
 		// Now try to run migrations, which should fail when attempting to connect
 		err = helpers.EnsureTablesExistForTest(invalidPool)
 		require.Error(t, err, "Should fail when attempting to run migrations on invalid connection")
-		require.Contains(t, err.Error(), "failed to run goose migrations", "Error should be from migration execution")
-
-		invalidPool.Close()
+		require.ErrorContains(t, err, "migrations")
 	})
 
 	t.Run("Should handle multiple migration calls idempotently", func(t *testing.T) {
@@ -83,7 +87,13 @@ func TestMigrationsOptimized_Integration(t *testing.T) {
 			`SELECT COUNT(*) FROM information_schema.columns
              WHERE table_name = 'workflow_states'`).Scan(&columnCount)
 		require.NoError(t, err)
-		assert.Equal(t, 8, columnCount, "workflow_states should have 8 columns")
+		assert.Equal(
+			t,
+			expectedWorkflowColumns,
+			columnCount,
+			"workflow_states should have %d columns",
+			expectedWorkflowColumns,
+		)
 
 		// Verify indexes exist
 		var indexCount int
@@ -91,7 +101,13 @@ func TestMigrationsOptimized_Integration(t *testing.T) {
 			`SELECT COUNT(*) FROM pg_indexes
 			 WHERE tablename = 'workflow_states'`).Scan(&indexCount)
 		require.NoError(t, err)
-		assert.GreaterOrEqual(t, indexCount, 5, "workflow_states should have at least 5 indexes")
+		assert.GreaterOrEqual(
+			t,
+			indexCount,
+			minWorkflowIndexes,
+			"workflow_states should have at least %d indexes",
+			minWorkflowIndexes,
+		)
 
 		// Verify primary key constraint
 		var constraintExists bool

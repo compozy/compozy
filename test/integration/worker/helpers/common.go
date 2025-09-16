@@ -385,7 +385,7 @@ func CreateTestActivities(
 	// Create memory manager for tests - use nil for now as it's not needed for most tests
 	var memoryManager *memory.Manager
 
-	ctx := context.Background()
+	ctx := t.Context()
 	mgr := config.NewManager(config.NewService())
 	_, err := mgr.Load(ctx, config.NewDefaultProvider(), config.NewEnvProvider())
 	require.NoError(t, err)

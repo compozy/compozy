@@ -37,7 +37,7 @@ func GetAppStateWithWorker(c *gin.Context) *appstate.State {
 		if !c.Writer.Written() {
 			reqErr := NewRequestError(
 				http.StatusServiceUnavailable,
-				"application state not initialized",
+				ErrMsgAppStateNotInitialized,
 				nil,
 			)
 			RespondWithError(c, reqErr.StatusCode, reqErr)
@@ -47,7 +47,7 @@ func GetAppStateWithWorker(c *gin.Context) *appstate.State {
 	if state.Worker == nil {
 		reqErr := NewRequestError(
 			http.StatusServiceUnavailable,
-			"worker is not running; configure Redis or start the worker",
+			ErrMsgWorkerNotRunning,
 			nil,
 		)
 		RespondWithError(c, reqErr.StatusCode, reqErr)

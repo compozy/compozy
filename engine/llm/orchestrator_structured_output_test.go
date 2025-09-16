@@ -70,4 +70,6 @@ func TestHandleNoToolCallsStructuredOutputRetry(t *testing.T) {
 	require.Nil(t, output)
 	require.False(t, cont)
 	require.Error(t, err)
+	require.ErrorContains(t, err, "output_validator")
+	require.ErrorContains(t, err, "budget exceeded")
 }

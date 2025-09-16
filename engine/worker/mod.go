@@ -410,7 +410,7 @@ func setupWorkerCore(
 	projectRoot := projectConfig.GetCWD().PathStr()
 	rtManager, err := buildRuntimeManager(ctx, projectRoot, projectConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to created execution manager: %w", err)
+		return nil, fmt.Errorf("failed to create execution manager: %w", err)
 	}
 	redisCache, configStore, err := setupRedisAndConfig(ctx)
 	if err != nil {
@@ -679,13 +679,6 @@ func (o *Worker) TerminateDispatcher(ctx context.Context, reason string) error {
 	return o.client.TerminateWorkflow(ctx, o.dispatcherID, "", reason)
 }
 
-// isRedisConfigured mirrors server logic to decide whether Redis should be used.
-// Rules:
-// - URL provided => configured
-// - Empty host => not configured
-// - localhost:6379 with empty URL => treat as not configured (dev default)
-// Redis configuration is now required at startup; server ensures it.
-
 func (o *Worker) ensureDispatcherRunning(ctx context.Context) {
 	log := logger.FromContext(ctx)
 	cfg := appconfig.FromContext(ctx)
@@ -707,8 +700,15 @@ func (o *Worker) ensureDispatcherRunning(ctx context.Context) {
 			retry.NewExponential(cfg.Worker.DispatcherRetryDelay),
 		),
 		func(ctx context.Context) error {
+			// Bound each attempt to avoid hanging when Temporal is slow/unreachable
+			attemptTimeout := workflowStartTimeoutDefault
+			if cfg.Worker.StartWorkflowTimeout > 0 {
+				attemptTimeout = cfg.Worker.StartWorkflowTimeout
+			}
+			actx, cancel := context.WithTimeout(ctx, attemptTimeout)
+			defer cancel()
 			_, err := o.client.SignalWithStartWorkflow(
-				ctx,
+				actx,
 				o.dispatcherID,
 				DispatcherEventChannel,
 				nil,

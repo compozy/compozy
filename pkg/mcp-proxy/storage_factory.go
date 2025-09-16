@@ -29,14 +29,14 @@ func DefaultStorageConfig() *StorageConfig {
 }
 
 // NewStorage creates a new storage instance based on configuration
-func NewStorage(_ context.Context, config *StorageConfig) (Storage, error) {
+func NewStorage(ctx context.Context, config *StorageConfig) (Storage, error) {
 	if config == nil {
 		config = DefaultStorageConfig()
 	}
 
 	switch config.Type {
 	case StorageTypeRedis:
-		return NewRedisStorage(config.Redis)
+		return NewRedisStorage(ctx, config.Redis)
 	case StorageTypeMemory:
 		return NewMemoryStorage(), nil
 	default:

@@ -1138,6 +1138,39 @@ type CLIConfig struct {
 	EnvFile string `koanf:"env_file" env:"COMPOZY_ENV_FILE" json:"EnvFile" yaml:"env_file" mapstructure:"env_file"`
 }
 
+// WebhooksConfig contains webhook processing and validation configuration.
+// These settings control how incoming webhooks are processed, validated,
+// and deduplicated across the system.
+//
+// Example configuration:
+//
+//	webhooks:
+//	  default_method: POST
+//	  default_max_body: 1048576        # 1MB
+//	  default_dedupe_ttl: 10m          # 10 minutes
+//	  stripe_skew: 5m                  # 5 minutes
+type WebhooksConfig struct {
+	// DefaultMethod specifies the default HTTP method for webhook requests.
+	// Default: "POST"
+	// Valid values: GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS
+	DefaultMethod string `koanf:"default_method" json:"default_method" yaml:"default_method" mapstructure:"default_method" env:"WEBHOOKS_DEFAULT_METHOD" validate:"oneof=GET POST PUT DELETE PATCH HEAD OPTIONS"`
+
+	// DefaultMaxBody caps the maximum size (in bytes) for webhook request bodies.
+	// Default: 1,048,576 (1MB)
+	// Must be greater than 0
+	DefaultMaxBody int64 `koanf:"default_max_body" json:"default_max_body" yaml:"default_max_body" mapstructure:"default_max_body" env:"WEBHOOKS_DEFAULT_MAX_BODY" validate:"min=1"`
+
+	// DefaultDedupeTTL sets the default time-to-live for webhook deduplication.
+	// Default: 10m (10 minutes)
+	// Must be non-negative
+	DefaultDedupeTTL time.Duration `koanf:"default_dedupe_ttl" json:"default_dedupe_ttl" yaml:"default_dedupe_ttl" mapstructure:"default_dedupe_ttl" env:"WEBHOOKS_DEFAULT_DEDUPE_TTL" validate:"min=0"`
+
+	// StripeSkew sets the allowed timestamp skew for Stripe webhook verification.
+	// Default: 5m (5 minutes)
+	// Must be non-negative
+	StripeSkew time.Duration `koanf:"stripe_skew" json:"stripe_skew" yaml:"stripe_skew" mapstructure:"stripe_skew" env:"WEBHOOKS_STRIPE_SKEW" validate:"min=0"`
+}
+
 // Service defines the configuration management service interface.
 // It provides methods for loading, watching, and validating configuration.
 type Service interface {
@@ -1513,14 +1546,6 @@ func buildAttachmentsConfig(registry *definition.Registry) AttachmentsConfig {
 			PDF:   getStringSlice(registry, "attachments.allowed_mime_types.pdf"),
 		},
 	}
-}
-
-// WebhooksConfig contains webhook processing and validation configuration.
-type WebhooksConfig struct {
-	DefaultMethod    string        `koanf:"default_method"     json:"default_method"     yaml:"default_method"     mapstructure:"default_method"     env:"WEBHOOKS_DEFAULT_METHOD"     validate:"oneof=GET POST PUT DELETE PATCH HEAD OPTIONS"`
-	DefaultMaxBody   int64         `koanf:"default_max_body"   json:"default_max_body"   yaml:"default_max_body"   mapstructure:"default_max_body"   env:"WEBHOOKS_DEFAULT_MAX_BODY"   validate:"min=1"`
-	DefaultDedupeTTL time.Duration `koanf:"default_dedupe_ttl" json:"default_dedupe_ttl" yaml:"default_dedupe_ttl" mapstructure:"default_dedupe_ttl" env:"WEBHOOKS_DEFAULT_DEDUPE_TTL" validate:"min=0"`
-	StripeSkew       time.Duration `koanf:"stripe_skew"        json:"stripe_skew"        yaml:"stripe_skew"        mapstructure:"stripe_skew"        env:"WEBHOOKS_STRIPE_SKEW"        validate:"min=0"`
 }
 
 func buildWebhooksConfig(registry *definition.Registry) WebhooksConfig {

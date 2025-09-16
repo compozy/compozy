@@ -409,6 +409,9 @@ func (l *loader) validateCustom(config *Config) error {
 	if err := validateMCPProxy(config); err != nil {
 		return err
 	}
+	if err := validateCache(config); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -460,8 +463,16 @@ func validateAuth(cfg *Config) error {
 }
 
 func validateMCPProxy(cfg *Config) error {
-	if cfg.MCPProxy.Mode == mcpProxyModeStandalone && cfg.MCPProxy.Port == 0 {
-		return fmt.Errorf("mcp_proxy.port must be set when mcp_proxy.mode=standalone to ensure a stable listener")
+	mode := strings.TrimSpace(cfg.MCPProxy.Mode)
+	if mode == "standalone" && cfg.MCPProxy.Port == 0 {
+		return fmt.Errorf("mcp_proxy.port must be non-zero in standalone mode")
+	}
+	return nil
+}
+
+func validateCache(cfg *Config) error {
+	if cfg.Cache.KeyScanCount <= 0 {
+		return fmt.Errorf("cache.key_scan_count must be > 0")
 	}
 	return nil
 }

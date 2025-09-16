@@ -47,7 +47,11 @@ func newOutput(data map[string]any) *core.Output {
 
 // Transaction operations
 func (m *mockTaskRepository) WithTransaction(ctx context.Context, fn func(task.Repository) error) error {
-	args := m.Called(ctx, fn)
+	args := m.Called(ctx, mock.AnythingOfType("func(task.Repository) error"))
+	if fn != nil {
+		// Execute the transaction function with the mock repository
+		return fn(m)
+	}
 	return args.Error(0)
 }
 
@@ -425,7 +429,7 @@ func TestProcessParentTask(t *testing.T) {
 		// Mock expectations
 		mockRepo.On("GetProgressInfo", ctx, parentExecID).Return(progressInfo, nil)
 		mockRepo.On("ListChildrenOutputs", ctx, parentExecID).Return(map[string]*core.Output{
-			"child1": {"result": "success"},
+			"child1": newOutput(map[string]any{"result": "success"}),
 		}, nil)
 		mockRepo.On("ListChildren", ctx, parentExecID).Return(failedChildren, nil)
 
@@ -501,8 +505,8 @@ func TestAggregateChildOutputs(t *testing.T) {
 
 		// Only 2 outputs available (race condition)
 		childOutputs := map[string]*core.Output{
-			"child1": {"value": 1},
-			"child2": {"value": 2},
+			"child1": newOutput(map[string]any{"value": 1}),
+			"child2": newOutput(map[string]any{"value": 2}),
 		}
 
 		// Mock expectations

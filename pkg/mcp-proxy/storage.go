@@ -12,6 +12,12 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+const (
+	defaultRedisAddr   = "localhost:6379"
+	defaultScanCount   = 100
+	defaultPingTimeout = 1 * time.Second
+)
+
 // RedisStorage implements Storage using Redis
 type RedisStorage struct {
 	client *redis.Client
@@ -31,6 +37,7 @@ type RedisConfig struct {
 	ReadTimeout     time.Duration
 	WriteTimeout    time.Duration
 	PoolTimeout     time.Duration
+	PingTimeout     time.Duration
 	MinRetryBackoff time.Duration
 	MaxRetryBackoff time.Duration
 	TLSEnabled      bool
@@ -40,7 +47,7 @@ type RedisConfig struct {
 // DefaultRedisConfig returns a default Redis configuration
 func DefaultRedisConfig() *RedisConfig {
 	return &RedisConfig{
-		Addr:            "localhost:6379",
+		Addr:            defaultRedisAddr,
 		Password:        "",
 		DB:              0,
 		PoolSize:        10,
@@ -50,34 +57,37 @@ func DefaultRedisConfig() *RedisConfig {
 		ReadTimeout:     3 * time.Second,
 		WriteTimeout:    3 * time.Second,
 		PoolTimeout:     4 * time.Second,
+		PingTimeout:     1 * time.Second,
 		MinRetryBackoff: 8 * time.Millisecond,
 		MaxRetryBackoff: 512 * time.Millisecond,
 	}
 }
 
 // NewRedisStorage creates a new Redis-based storage instance
-func NewRedisStorage(config *RedisConfig) (*RedisStorage, error) {
-	if config == nil {
-		config = DefaultRedisConfig()
+func NewRedisStorage(ctx context.Context, cfg *RedisConfig) (*RedisStorage, error) {
+	if cfg == nil {
+		cfg = DefaultRedisConfig()
 	}
-	opt, err := redisOptionsFromConfig(config)
+	opt, err := redisOptionsFromConfig(cfg)
 	if err != nil {
 		return nil, err
 	}
 	client := redis.NewClient(opt)
-	ctx, cancel := context.WithTimeout(context.Background(), pingTimeout(config))
+	pingCtx, cancel := context.WithTimeout(ctx, pingTimeout(cfg))
 	defer cancel()
-
-	if err := client.Ping(ctx).Err(); err != nil {
+	if err := client.Ping(pingCtx).Err(); err != nil {
 		return nil, fmt.Errorf("failed to connect to Redis: %w", err)
 	}
-
 	return &RedisStorage{
 		client: client,
 		prefix: "mcp_proxy",
 	}, nil
 }
 
+// redisOptionsFromConfig builds Redis options from configuration.
+// URL precedence: if URL is provided, it takes precedence and individual fields
+// (Password, DB) can override URL components. If no URL is provided,
+// individual Addr, Password, and DB fields are used directly.
 func redisOptionsFromConfig(cfg *RedisConfig) (*redis.Options, error) {
 	if cfg == nil {
 		cfg = DefaultRedisConfig()
@@ -98,7 +108,7 @@ func redisOptionsFromConfig(cfg *RedisConfig) (*redis.Options, error) {
 	} else {
 		addr := cfg.Addr
 		if addr == "" {
-			addr = "localhost:6379"
+			addr = defaultRedisAddr
 		}
 		opt = &redis.Options{
 			Addr:     addr,
@@ -152,12 +162,15 @@ func applyRedisConfigToOptions(opt *redis.Options, cfg *RedisConfig) {
 
 func pingTimeout(cfg *RedisConfig) time.Duration {
 	if cfg == nil {
-		return 5 * time.Second
+		return defaultPingTimeout
+	}
+	if cfg.PingTimeout > 0 {
+		return cfg.PingTimeout
 	}
 	if cfg.DialTimeout > 0 {
 		return cfg.DialTimeout
 	}
-	return 5 * time.Second
+	return defaultPingTimeout
 }
 
 // Ping tests the Redis connection
@@ -175,23 +188,18 @@ func (r *RedisStorage) SaveMCP(ctx context.Context, def *MCPDefinition) error {
 	if def == nil {
 		return fmt.Errorf("definition cannot be nil")
 	}
-
 	if err := def.Validate(); err != nil {
 		return fmt.Errorf("invalid definition: %w", err)
 	}
-
 	def.SetDefaults()
-
 	data, err := json.Marshal(def)
 	if err != nil {
 		return fmt.Errorf("failed to marshal definition: %w", err)
 	}
-
 	key := r.getMCPKey(def.Name)
 	if err := r.client.Set(ctx, key, data, 0).Err(); err != nil {
 		return fmt.Errorf("failed to save definition to Redis: %w", err)
 	}
-
 	return nil
 }
 
@@ -200,7 +208,6 @@ func (r *RedisStorage) LoadMCP(ctx context.Context, name string) (*MCPDefinition
 	if name == "" {
 		return nil, fmt.Errorf("name cannot be empty")
 	}
-
 	key := r.getMCPKey(name)
 	data, err := r.client.Get(ctx, key).Result()
 	if err != nil {
@@ -209,14 +216,11 @@ func (r *RedisStorage) LoadMCP(ctx context.Context, name string) (*MCPDefinition
 		}
 		return nil, fmt.Errorf("failed to load definition from Redis: %w", err)
 	}
-
 	var def MCPDefinition
 	if err := json.Unmarshal([]byte(data), &def); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal definition: %w", err)
 	}
-
 	def.SetDefaults()
-
 	return &def, nil
 }
 
@@ -226,24 +230,56 @@ func (r *RedisStorage) DeleteMCP(ctx context.Context, name string) error {
 	if name == "" {
 		return fmt.Errorf("name cannot be empty")
 	}
-
 	key := r.getMCPKey(name)
 	deleted, err := r.client.Del(ctx, key).Result()
 	if err != nil {
 		return fmt.Errorf("failed to delete definition from Redis: %w", err)
 	}
-
 	if deleted == 0 {
 		return fmt.Errorf("MCP definition '%s' not found", name)
 	}
-
-	// Also delete the status if it exists
 	statusKey := r.getStatusKey(name)
 	if _, err := r.client.Del(ctx, statusKey).Result(); err != nil {
 		log.Warn("Failed to delete status during MCP deletion", "name", name, "error", err)
 	}
-
 	return nil
+}
+
+// loadDefinitionsBatch processes a batch of Redis keys into MCP definitions
+func (r *RedisStorage) loadDefinitionsBatch(ctx context.Context, log logger.Logger, keys []string) []*MCPDefinition {
+	var definitions []*MCPDefinition
+	if len(keys) == 0 {
+		return definitions
+	}
+	values, err := r.client.MGet(ctx, keys...).Result()
+	if err != nil {
+		log.Error("Failed to get values from Redis", "error", err)
+		return definitions
+	}
+	for i, value := range values {
+		if value == nil {
+			continue
+		}
+		var raw []byte
+		switch v := value.(type) {
+		case string:
+			raw = []byte(v)
+		case []byte:
+			raw = v
+		default:
+			log.Warn("Unexpected value type for key", "key", keys[i])
+			continue
+		}
+		var def MCPDefinition
+		if err := json.Unmarshal(raw, &def); err != nil {
+			log.Warn("Failed to unmarshal definition", "key", keys[i], "error", err)
+			continue
+		}
+		def.SetDefaults()
+		defCopy := def
+		definitions = append(definitions, &defCopy)
+	}
+	return definitions
 }
 
 // ListMCPs lists all MCP definitions from Redis using SCAN for better performance
@@ -252,58 +288,17 @@ func (r *RedisStorage) ListMCPs(ctx context.Context) ([]*MCPDefinition, error) {
 	pattern := r.getMCPKey("*")
 	var definitions []*MCPDefinition
 	var cursor uint64
-
 	for {
-		// Use SCAN instead of KEYS to avoid blocking Redis
-		keys, nextCursor, err := r.client.Scan(ctx, cursor, pattern, 100).Result()
+		keys, nextCursor, err := r.client.Scan(ctx, cursor, pattern, defaultScanCount).Result()
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan keys from Redis: %w", err)
 		}
-
-		if len(keys) > 0 {
-			// Get values for this batch of keys
-			values, err := r.client.MGet(ctx, keys...).Result()
-			if err != nil {
-				return nil, fmt.Errorf("failed to get values from Redis: %w", err)
-			}
-
-			// Process each value in this batch
-			for i, value := range values {
-				if value == nil {
-					// Skip nil values (key was deleted between SCAN and MGET)
-					continue
-				}
-
-				var raw []byte
-				switch v := value.(type) {
-				case string:
-					raw = []byte(v)
-				case []byte:
-					raw = v
-				default:
-					log.Warn("Unexpected value type for key", "key", keys[i])
-					continue
-				}
-
-				var def MCPDefinition
-				if err := json.Unmarshal(raw, &def); err != nil {
-					log.Warn("Failed to unmarshal definition", "key", keys[i], "error", err)
-					continue
-				}
-
-				def.SetDefaults()
-				// create a copy to preserve unique address per iteration
-				defCopy := def
-				definitions = append(definitions, &defCopy)
-			}
-		}
-
+		definitions = append(definitions, r.loadDefinitionsBatch(ctx, log, keys)...)
 		cursor = nextCursor
 		if cursor == 0 {
-			break // Scan complete
+			break
 		}
 	}
-
 	return definitions, nil
 }
 
@@ -312,21 +307,17 @@ func (r *RedisStorage) SaveStatus(ctx context.Context, status *MCPStatus) error 
 	if status == nil {
 		return fmt.Errorf("status cannot be nil")
 	}
-
 	if status.Name == "" {
 		return fmt.Errorf("status name cannot be empty")
 	}
-
 	data, err := json.Marshal(status)
 	if err != nil {
 		return fmt.Errorf("failed to marshal status: %w", err)
 	}
-
 	key := r.getStatusKey(status.Name)
 	if err := r.client.Set(ctx, key, data, 0).Err(); err != nil {
 		return fmt.Errorf("failed to save status to Redis: %w", err)
 	}
-
 	return nil
 }
 
@@ -335,22 +326,18 @@ func (r *RedisStorage) LoadStatus(ctx context.Context, name string) (*MCPStatus,
 	if name == "" {
 		return nil, fmt.Errorf("name cannot be empty")
 	}
-
 	key := r.getStatusKey(name)
 	data, err := r.client.Get(ctx, key).Result()
 	if err != nil {
 		if err == redis.Nil {
-			// Return default status if not found
 			return NewMCPStatus(name), nil
 		}
 		return nil, fmt.Errorf("failed to load status from Redis: %w", err)
 	}
-
 	var status MCPStatus
 	if err := json.Unmarshal([]byte(data), &status); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal status: %w", err)
 	}
-
 	return &status, nil
 }
 

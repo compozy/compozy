@@ -15,7 +15,6 @@ import (
 
 // DispatcherHeartbeatLabel is the activity label for dispatcher heartbeat
 const DispatcherHeartbeatLabel = "DispatcherHeartbeat"
-
 const dispatcherHeartbeatKeyPrefix = "dispatcher:heartbeat"
 
 // DispatcherHeartbeatInput contains the input for the heartbeat activity
@@ -192,15 +191,21 @@ func buildDispatchersFromKeys(
 	log := logger.FromContext(ctx)
 	var out []DispatcherInfo
 	var staleFound int64
-	for _, key := range keys {
-		jsonData, gerr := contracts.Get(ctx, key)
-		if gerr != nil {
-			log.Warn("Failed to get heartbeat data", "key", key, "error", gerr)
+	if len(keys) == 0 {
+		return out, 0
+	}
+	vals, gerr := contracts.MGet(ctx, keys...)
+	if gerr != nil {
+		log.Warn("Failed to MGET heartbeat data", "count", len(keys), "error", gerr)
+		return out, 0
+	}
+	for i, jsonData := range vals {
+		if jsonData == "" {
 			continue
 		}
 		var data DispatcherHeartbeatData
 		if err := json.Unmarshal([]byte(jsonData), &data); err != nil {
-			log.Warn("Failed to unmarshal heartbeat data", "key", key, "error", err)
+			log.Warn("Failed to unmarshal heartbeat data", "key", keys[i], "error", err)
 			continue
 		}
 		if projectFilter != "" && data.ProjectName != projectFilter {

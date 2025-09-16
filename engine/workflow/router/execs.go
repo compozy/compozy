@@ -388,7 +388,7 @@ func respondWithExecutionError(c *gin.Context, err error, msgs executionErrorMes
 		"status_code", statusCode,
 		"reason", reason,
 	)
-	reqErr := router.NewRequestError(statusCode, reason, nil)
+	reqErr := router.NewRequestError(statusCode, reason, err) // ensure router sanitizes details
 	router.RespondWithError(c, statusCode, reqErr)
 }
 

@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/compozy/compozy/engine/infra/server"
@@ -16,7 +15,7 @@ func TestSetupRedisClient_SkipsWhenRedisMissing(t *testing.T) {
 		t.Setenv("REDIS_URL", "")
 		t.Setenv("REDIS_HOST", "")
 		t.Setenv("REDIS_PORT", "")
-		_ = os.Unsetenv("REDIS_PASSWORD")
+		t.Setenv("REDIS_PASSWORD", "")
 		mgr := config.NewManager(config.NewService())
 		ctx := config.ContextWithManager(context.Background(), mgr)
 		_, err := mgr.Load(ctx, config.NewDefaultProvider(), config.NewEnvProvider())

@@ -734,6 +734,9 @@ func flattenWorkerConfig(cfg *config.Config, result map[string]string) {
 	result["worker.dispatcher_retry_delay"] = cfg.Worker.DispatcherRetryDelay.String()
 	result["worker.dispatcher_max_retries"] = fmt.Sprintf("%d", cfg.Worker.DispatcherMaxRetries)
 	result["worker.mcp_proxy_health_check_timeout"] = cfg.Worker.MCPProxyHealthCheckTimeout.String()
+	result["worker.start_workflow_timeout"] = cfg.Worker.StartWorkflowTimeout.String()
+	result["worker.dispatcher.heartbeat_ttl"] = cfg.Worker.Dispatcher.HeartbeatTTL.String()
+	result["worker.dispatcher.stale_threshold"] = cfg.Worker.Dispatcher.StaleThreshold.String()
 }
 
 // flattenMCPProxyConfig flattens MCP proxy configuration

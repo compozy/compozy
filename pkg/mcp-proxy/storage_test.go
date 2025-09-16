@@ -26,7 +26,7 @@ func setupTestRedis(t *testing.T) (*RedisStorage, func()) {
 		WriteTimeout: 10 * time.Second,
 	}
 
-	storage, err := NewRedisStorage(config)
+	storage, err := NewRedisStorage(context.Background(), config)
 	require.NoError(t, err)
 
 	cleanup := func() {
@@ -60,7 +60,7 @@ func TestNewRedisStorage(t *testing.T) {
 			WriteTimeout: 3 * time.Second,
 		}
 
-		storage, err := NewRedisStorage(config)
+		storage, err := NewRedisStorage(context.Background(), config)
 		require.NoError(t, err)
 		assert.NotNil(t, storage)
 		assert.Equal(t, "mcp_proxy", storage.prefix)

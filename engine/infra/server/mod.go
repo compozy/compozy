@@ -64,8 +64,12 @@ const (
 	// MCP readiness probe defaults (config overrides total timeout)
 	mcpHealthPollInterval   = 200 * time.Millisecond
 	mcpHealthRequestTimeout = 500 * time.Millisecond
-	hostAny                 = "0.0.0.0"
-	hostLoopback            = "127.0.0.1"
+	// Temporal reachability timeout
+	temporalReachabilityTimeout = 1500 * time.Millisecond
+	// Server start probe delay
+	serverStartProbeDelay = 100 * time.Millisecond
+	hostAny               = "0.0.0.0"
+	hostLoopback          = "127.0.0.1"
 )
 
 type reconciliationStatus struct {
@@ -421,7 +425,9 @@ func (s *Server) setupStore() (*repo.Provider, func(), error) {
 		SSLMode:    cfg.Database.SSLMode,
 	}
 	if cfg.Database.AutoMigrate {
-		if err := postgres.ApplyMigrationsWithLock(s.ctx, postgres.DSNFor(pgCfg)); err != nil {
+		mctx, mcancel := context.WithTimeout(s.ctx, dbShutdownTimeout)
+		defer mcancel()
+		if err := postgres.ApplyMigrationsWithLock(mctx, postgres.DSNFor(pgCfg)); err != nil {
 			return nil, nil, fmt.Errorf("failed to apply migrations: %w", err)
 		}
 	}
@@ -583,7 +589,7 @@ func (s *Server) maybeStartWorker(
 ) (*worker.Worker, func(), error) {
 	log := logger.FromContext(s.ctx)
 	// Require external Temporal to be reachable; no embedded Temporal.
-	if !isHostPortReachable(s.ctx, cfg.Temporal.HostPort, 1500*time.Millisecond) {
+	if !isHostPortReachable(s.ctx, cfg.Temporal.HostPort, temporalReachabilityTimeout) {
 		return nil, nil, fmt.Errorf("temporal not reachable at %s", cfg.Temporal.HostPort)
 	}
 	// Mark temporal ready when reachable
@@ -756,7 +762,7 @@ func (s *Server) startAndRunServer(cleanupFuncs []func()) error {
 			s.cleanup(cleanupFuncs)
 			return err
 		}
-	case <-time.After(100 * time.Millisecond):
+	case <-time.After(serverStartProbeDelay):
 		// Server started successfully
 		s.logStartupBanner()
 	}
@@ -922,9 +928,6 @@ func (s *Server) IsReconciliationReady() bool {
 	return s.reconciliationState.isReady()
 }
 
-// temporal readiness helpers
-//
-
 func (s *Server) setTemporalReady(v bool) {
 	s.readinessMu.Lock()
 	s.temporalReady = v
@@ -946,9 +949,6 @@ func (s *Server) isWorkerReady() bool {
 	defer s.readinessMu.RUnlock()
 	return s.workerReady
 }
-
-// mcp readiness helpers
-//
 
 func (s *Server) setMCPReady(v bool) {
 	s.mcpMu.Lock()
@@ -1177,7 +1177,6 @@ func (s *Server) runReconciliationWithRetry(
 ) {
 	log := logger.FromContext(s.ctx)
 	startTime := time.Now()
-
 	backoff := retry.NewExponential(scheduleRetryBaseDelay)
 	backoff = retry.WithCappedDuration(scheduleRetryMaxDelay, backoff)
 	err := retry.Do(

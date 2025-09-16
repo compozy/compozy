@@ -16,6 +16,13 @@ import (
 
 const CreateCollectionStateLabel = "CreateCollectionState"
 
+const (
+	outputKeyCollectionMetadata = "collection_metadata"
+	outKeyItemCount             = "item_count"
+	outKeySkippedCount          = "skipped_count"
+	outKeyChildCount            = "child_count"
+)
+
 type CreateCollectionStateInput struct {
 	WorkflowID     string       `json:"workflow_id"`
 	WorkflowExecID core.ID      `json:"workflow_exec_id"`
@@ -80,12 +87,10 @@ func (a *CreateCollectionState) Run(ctx context.Context, input *CreateCollection
 	if err := expander.ValidateExpansion(expansionResult); err != nil {
 		return nil, fmt.Errorf("expansion validation failed: %w", err)
 	}
-
 	var createdState *task.State
 	if err := a.taskRepo.WithTransaction(ctx, func(repo task.Repository) error {
 		createStateUC := uc.NewCreateState(repo, a.configStore)
 		createChildTasksUC := uc.NewCreateChildTasksUC(repo, a.configStore, a.task2Factory, a.cwd)
-
 		state, err := createStateUC.Execute(ctx, &uc.CreateStateInput{
 			WorkflowState:  workflowState,
 			WorkflowConfig: workflowConfig,
@@ -94,7 +99,6 @@ func (a *CreateCollectionState) Run(ctx context.Context, input *CreateCollection
 		if err != nil {
 			return err
 		}
-
 		configRepo, err := a.task2Factory.CreateTaskConfigRepository(a.configStore, a.cwd)
 		if err != nil {
 			return fmt.Errorf("failed to create task config repository: %w", err)
@@ -108,12 +112,10 @@ func (a *CreateCollectionState) Run(ctx context.Context, input *CreateCollection
 		if err := configRepo.StoreCollectionMetadata(ctx, state.TaskExecID, collectionMetadata); err != nil {
 			return fmt.Errorf("failed to store collection metadata: %w", err)
 		}
-
 		a.addCollectionMetadata(state, expansionResult)
 		if err := repo.UpsertState(ctx, state); err != nil {
 			return fmt.Errorf("failed to update state with collection metadata: %w", err)
 		}
-
 		if err := createChildTasksUC.Execute(ctx, &uc.CreateChildTasksInput{
 			ParentStateID:  state.TaskExecID,
 			WorkflowExecID: input.WorkflowExecID,
@@ -121,7 +123,6 @@ func (a *CreateCollectionState) Run(ctx context.Context, input *CreateCollection
 		}); err != nil {
 			return fmt.Errorf("failed to create child tasks: %w", err)
 		}
-
 		createdState = state
 		return nil
 	}); err != nil {
@@ -136,9 +137,9 @@ func (a *CreateCollectionState) addCollectionMetadata(state *task.State, result 
 		output := make(core.Output)
 		state.Output = &output
 	}
-	(*state.Output)["collection_metadata"] = map[string]any{
-		"item_count":    result.ItemCount,
-		"skipped_count": result.SkippedCount,
-		"child_count":   len(result.ChildConfigs),
+	(*state.Output)[outputKeyCollectionMetadata] = map[string]any{
+		outKeyItemCount:    result.ItemCount,
+		outKeySkippedCount: result.SkippedCount,
+		outKeyChildCount:   len(result.ChildConfigs),
 	}
 }

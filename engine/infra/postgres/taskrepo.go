@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/task"
+	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/georgysavva/scany/v2/pgxscan"
 	"github.com/jackc/pgx/v5"
@@ -17,6 +18,37 @@ import (
 )
 
 const maxTaskTreeDepth = 100
+
+var taskStateColumns = []string{
+	"task_exec_id",
+	"task_id",
+	"workflow_exec_id",
+	"workflow_id",
+	"component",
+	"status",
+	"execution_type",
+	"parent_state_id",
+	"agent_id",
+	"action_id",
+	"tool_id",
+	"input",
+	"output",
+	"error",
+	"created_at",
+	"updated_at",
+}
+
+const taskStateColumnsSQL = "task_exec_id, task_id, workflow_exec_id, workflow_id, " +
+	"component, status, execution_type, parent_state_id, agent_id, action_id, " +
+	"tool_id, input, output, error, created_at, updated_at"
+
+func maxDepthFromConfig(ctx context.Context) int {
+	cfg := config.FromContext(ctx)
+	if cfg != nil && cfg.Limits.MaxTaskContextDepth > 0 {
+		return cfg.Limits.MaxTaskContextDepth
+	}
+	return maxTaskTreeDepth
+}
 
 // DB is the minimal database interface TaskRepo depends on (pgxpool or pgxmock).
 type DB interface {
@@ -31,29 +63,34 @@ type TaskRepo struct {
 	db DB
 }
 
-func NewTaskRepo(db DB) *TaskRepo { return &TaskRepo{db: db} }
+func NewTaskRepo(db DB) *TaskRepo {
+	if db == nil {
+		panic("NewTaskRepo: db must not be nil")
+	}
+	return &TaskRepo{db: db}
+}
 
 // ListStates retrieves task states based on the provided filter.
 func (r *TaskRepo) ListStates(ctx context.Context, filter *task.StateFilter) ([]*task.State, error) {
-	sb := squirrel.Select("*").From("task_states").PlaceholderFormat(squirrel.Dollar)
+	return r.listStatesWith(ctx, r.db, filter)
+}
+
+func (r *TaskRepo) listStatesWith(
+	ctx context.Context,
+	runner pgxscan.Querier,
+	filter *task.StateFilter,
+) ([]*task.State, error) {
+	sb := squirrel.Select(taskStateColumns...).From("task_states").PlaceholderFormat(squirrel.Dollar)
 	sb = r.applyStateFilter(sb, filter)
 	sql, args, err := sb.ToSql()
 	if err != nil {
 		return nil, fmt.Errorf("building query: %w", err)
 	}
 	var statesDB []*task.StateDB
-	if err := pgxscan.Select(ctx, r.db, &statesDB, sql, args...); err != nil {
+	if err := pgxscan.Select(ctx, runner, &statesDB, sql, args...); err != nil {
 		return nil, fmt.Errorf("scanning states: %w", err)
 	}
-	var states []*task.State
-	for _, stateDB := range statesDB {
-		state, err := stateDB.ToState()
-		if err != nil {
-			return nil, fmt.Errorf("converting state: %w", err)
-		}
-		states = append(states, state)
-	}
-	return states, nil
+	return convertStates(statesDB)
 }
 
 func (r *TaskRepo) applyStateFilter(sb squirrel.SelectBuilder, filter *task.StateFilter) squirrel.SelectBuilder {
@@ -91,6 +128,18 @@ func (r *TaskRepo) applyStateFilter(sb squirrel.SelectBuilder, filter *task.Stat
 		sb = sb.Where(squirrel.Eq{"execution_type": *filter.ExecutionType})
 	}
 	return sb
+}
+
+func convertStates(statesDB []*task.StateDB) ([]*task.State, error) {
+	var states []*task.State
+	for _, stateDB := range statesDB {
+		state, err := stateDB.ToState()
+		if err != nil {
+			return nil, fmt.Errorf("converting state: %w", err)
+		}
+		states = append(states, state)
+	}
+	return states, nil
 }
 
 // buildUpsertArgs prepares the SQL query and arguments for upserting a task state
@@ -156,7 +205,7 @@ func (r *TaskRepo) UpsertState(ctx context.Context, state *task.State) error {
 
 // GetState retrieves a task state by its task execution ID.
 func (r *TaskRepo) GetState(ctx context.Context, taskExecID core.ID) (*task.State, error) {
-	query := `SELECT * FROM task_states WHERE task_exec_id = $1`
+	query := fmt.Sprintf("SELECT %s FROM task_states WHERE task_exec_id = $1", taskStateColumnsSQL)
 	var stateDB task.StateDB
 	if err := pgxscan.Get(ctx, r.db, &stateDB, query, taskExecID); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -173,7 +222,7 @@ func (r *TaskRepo) GetStateForUpdate(_ context.Context, _ core.ID) (*task.State,
 }
 
 func (r *TaskRepo) getStateForUpdateTx(ctx context.Context, tx pgx.Tx, taskExecID core.ID) (*task.State, error) {
-	query := `SELECT * FROM task_states WHERE task_exec_id = $1 FOR UPDATE`
+	query := fmt.Sprintf("SELECT %s FROM task_states WHERE task_exec_id = $1 FOR UPDATE", taskStateColumnsSQL)
 	var stateDB task.StateDB
 	if err := pgxscan.Get(ctx, tx, &stateDB, query, taskExecID); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -204,7 +253,10 @@ func (r *TaskRepo) WithTransaction(ctx context.Context, fn func(task.Repository)
 				log.Error("Failed to rollback transaction", "error", rbErr)
 			}
 		} else {
-			cbErr = tx.Commit(ctx)
+			if err := tx.Commit(ctx); err != nil {
+				log.Error("Failed to commit transaction", "error", err)
+				cbErr = fmt.Errorf("commit transaction: %w", err)
+			}
 		}
 	}()
 	cbErr = fn(repoTx)
@@ -217,7 +269,7 @@ type taskRepoTx struct {
 }
 
 func (t *taskRepoTx) ListStates(ctx context.Context, filter *task.StateFilter) ([]*task.State, error) {
-	return t.parent.ListStates(ctx, filter)
+	return t.parent.listStatesWith(ctx, t.tx, filter)
 }
 
 func (t *taskRepoTx) WithTransaction(_ context.Context, fn func(task.Repository) error) error {
@@ -229,7 +281,7 @@ func (t *taskRepoTx) UpsertState(ctx context.Context, state *task.State) error {
 }
 
 func (t *taskRepoTx) GetState(ctx context.Context, taskExecID core.ID) (*task.State, error) {
-	query := `SELECT * FROM task_states WHERE task_exec_id = $1`
+	query := fmt.Sprintf("SELECT %s FROM task_states WHERE task_exec_id = $1", taskStateColumnsSQL)
 	var stateDB task.StateDB
 	if err := pgxscan.Get(ctx, t.tx, &stateDB, query, taskExecID); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -245,7 +297,25 @@ func (t *taskRepoTx) GetStateForUpdate(ctx context.Context, taskExecID core.ID) 
 }
 
 func (t *taskRepoTx) ListTasksInWorkflow(ctx context.Context, workflowExecID core.ID) (map[string]*task.State, error) {
-	return t.parent.ListTasksInWorkflow(ctx, workflowExecID)
+	query := fmt.Sprintf(`
+		SELECT DISTINCT ON (task_id) %s
+		FROM task_states
+		WHERE workflow_exec_id = $1
+		ORDER BY task_id, created_at DESC
+	`, taskStateColumnsSQL)
+	var statesDB []*task.StateDB
+	if err := pgxscan.Select(ctx, t.tx, &statesDB, query, workflowExecID); err != nil {
+		return nil, fmt.Errorf("scanning states: %w", err)
+	}
+	result := make(map[string]*task.State, len(statesDB))
+	for _, sdb := range statesDB {
+		s, err := sdb.ToState()
+		if err != nil {
+			return nil, fmt.Errorf("converting state: %w", err)
+		}
+		result[s.TaskID] = s
+	}
+	return result, nil
 }
 
 func (t *taskRepoTx) ListTasksByStatus(
@@ -253,7 +323,12 @@ func (t *taskRepoTx) ListTasksByStatus(
 	workflowExecID core.ID,
 	status core.StatusType,
 ) ([]*task.State, error) {
-	return t.parent.ListTasksByStatus(ctx, workflowExecID, status)
+	query := fmt.Sprintf("SELECT %s FROM task_states WHERE workflow_exec_id = $1 AND status = $2", taskStateColumnsSQL)
+	var statesDB []*task.StateDB
+	if err := pgxscan.Select(ctx, t.tx, &statesDB, query, workflowExecID, status); err != nil {
+		return nil, fmt.Errorf("scanning states: %w", err)
+	}
+	return convertStates(statesDB)
 }
 
 func (t *taskRepoTx) ListTasksByAgent(
@@ -261,7 +336,15 @@ func (t *taskRepoTx) ListTasksByAgent(
 	workflowExecID core.ID,
 	agentID string,
 ) ([]*task.State, error) {
-	return t.parent.ListTasksByAgent(ctx, workflowExecID, agentID)
+	query := fmt.Sprintf(
+		"SELECT %s FROM task_states WHERE workflow_exec_id = $1 AND agent_id = $2",
+		taskStateColumnsSQL,
+	)
+	var statesDB []*task.StateDB
+	if err := pgxscan.Select(ctx, t.tx, &statesDB, query, workflowExecID, agentID); err != nil {
+		return nil, fmt.Errorf("scanning states: %w", err)
+	}
+	return convertStates(statesDB)
 }
 
 func (t *taskRepoTx) ListTasksByTool(
@@ -269,42 +352,132 @@ func (t *taskRepoTx) ListTasksByTool(
 	workflowExecID core.ID,
 	toolID string,
 ) ([]*task.State, error) {
-	return t.parent.ListTasksByTool(ctx, workflowExecID, toolID)
+	query := fmt.Sprintf("SELECT %s FROM task_states WHERE workflow_exec_id = $1 AND tool_id = $2", taskStateColumnsSQL)
+	var statesDB []*task.StateDB
+	if err := pgxscan.Select(ctx, t.tx, &statesDB, query, workflowExecID, toolID); err != nil {
+		return nil, fmt.Errorf("scanning states: %w", err)
+	}
+	return convertStates(statesDB)
 }
 
 func (t *taskRepoTx) ListChildren(ctx context.Context, parentStateID core.ID) ([]*task.State, error) {
-	return t.parent.ListChildren(ctx, parentStateID)
+	query := fmt.Sprintf("SELECT %s FROM task_states WHERE parent_state_id = $1 ORDER BY task_id", taskStateColumnsSQL)
+	var statesDB []*task.StateDB
+	if err := pgxscan.Select(ctx, t.tx, &statesDB, query, parentStateID); err != nil {
+		return nil, fmt.Errorf("scanning child states: %w", err)
+	}
+	return convertStates(statesDB)
 }
 
 func (t *taskRepoTx) ListChildrenOutputs(ctx context.Context, parentStateID core.ID) (map[string]*core.Output, error) {
-	return t.parent.ListChildrenOutputs(ctx, parentStateID)
+	query := `SELECT task_id, output FROM task_states WHERE parent_state_id = $1 AND output IS NOT NULL ORDER BY task_id`
+	rows, err := t.tx.Query(ctx, query, parentStateID)
+	if err != nil {
+		return nil, fmt.Errorf("querying child outputs: %w", err)
+	}
+	defer rows.Close()
+	outs := make(map[string]*core.Output)
+	for rows.Next() {
+		var taskID string
+		var outputJSON []byte
+		if err := rows.Scan(&taskID, &outputJSON); err != nil {
+			return nil, fmt.Errorf("scanning child output: %w", err)
+		}
+		var out core.Output
+		if err := json.Unmarshal(outputJSON, &out); err != nil {
+			return nil, fmt.Errorf("unmarshaling output for task %s: %w", taskID, err)
+		}
+		outs[taskID] = &out
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterating child outputs: %w", err)
+	}
+	return outs, nil
 }
 
 func (t *taskRepoTx) GetChildByTaskID(ctx context.Context, parentStateID core.ID, taskID string) (*task.State, error) {
-	return t.parent.GetChildByTaskID(ctx, parentStateID, taskID)
+	query := fmt.Sprintf(
+		"SELECT %s FROM task_states WHERE parent_state_id = $1 AND task_id = $2 "+
+			"ORDER BY created_at DESC LIMIT 1",
+		taskStateColumnsSQL,
+	)
+	var stateDB task.StateDB
+	if err := pgxscan.Get(ctx, t.tx, &stateDB, query, parentStateID, taskID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, store.ErrTaskNotFound
+		}
+		return nil, fmt.Errorf("scanning child state: %w", err)
+	}
+	return stateDB.ToState()
 }
 
 func (t *taskRepoTx) GetTaskTree(ctx context.Context, rootStateID core.ID) ([]*task.State, error) {
-	return t.parent.GetTaskTree(ctx, rootStateID)
+	return t.parent.getTaskTreeWith(ctx, t.tx, rootStateID)
 }
 
 func (t *taskRepoTx) GetProgressInfo(ctx context.Context, parentStateID core.ID) (*task.ProgressInfo, error) {
-	return t.parent.GetProgressInfo(ctx, parentStateID)
+	statusQuery := `SELECT status, COUNT(*) as status_count FROM task_states WHERE parent_state_id = $1 GROUP BY status`
+	progressInfo := &task.ProgressInfo{StatusCounts: make(map[core.StatusType]int)}
+	statusRows, err := t.tx.Query(ctx, statusQuery, parentStateID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query status counts: %w", err)
+	}
+	defer statusRows.Close()
+	var totalChildren int
+	for statusRows.Next() {
+		var status string
+		var count int
+		if err := statusRows.Scan(&status, &count); err != nil {
+			return nil, fmt.Errorf("failed to scan status row: %w", err)
+		}
+		progressInfo.StatusCounts[core.StatusType(status)] = count
+		totalChildren += count
+	}
+	if err := statusRows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating status rows: %w", err)
+	}
+	progressInfo.TotalChildren = totalChildren
+	progressInfo.SuccessCount = progressInfo.StatusCounts[core.StatusSuccess]
+	progressInfo.FailedCount = progressInfo.StatusCounts[core.StatusFailed]
+	progressInfo.CanceledCount = progressInfo.StatusCounts[core.StatusCanceled]
+	progressInfo.TimedOutCount = progressInfo.StatusCounts[core.StatusTimedOut]
+	progressInfo.RunningCount = progressInfo.StatusCounts[core.StatusRunning] +
+		progressInfo.StatusCounts[core.StatusWaiting] +
+		progressInfo.StatusCounts[core.StatusPaused]
+	progressInfo.PendingCount = progressInfo.StatusCounts[core.StatusPending]
+	progressInfo.TerminalCount = progressInfo.SuccessCount +
+		progressInfo.FailedCount +
+		progressInfo.CanceledCount +
+		progressInfo.TimedOutCount
+	if progressInfo.TotalChildren > 0 {
+		progressInfo.CompletionRate = float64(progressInfo.SuccessCount) / float64(progressInfo.TotalChildren)
+		progressInfo.FailureRate = float64(
+			progressInfo.FailedCount+progressInfo.TimedOutCount,
+		) / float64(
+			progressInfo.TotalChildren,
+		)
+	}
+	return progressInfo, nil
 }
 
 // ListTasksInWorkflow retrieves task states by workflow exec id.
 func (r *TaskRepo) ListTasksInWorkflow(ctx context.Context, workflowExecID core.ID) (map[string]*task.State, error) {
-	query := `SELECT * FROM task_states WHERE workflow_exec_id = $1`
+	query := fmt.Sprintf(`
+		SELECT DISTINCT ON (task_id) %s
+		FROM task_states
+		WHERE workflow_exec_id = $1
+		ORDER BY task_id, created_at DESC
+	`, taskStateColumnsSQL)
 	var statesDB []*task.StateDB
 	if err := pgxscan.Select(ctx, r.db, &statesDB, query, workflowExecID); err != nil {
 		return nil, fmt.Errorf("scanning states: %w", err)
 	}
+	states, err := convertStates(statesDB)
+	if err != nil {
+		return nil, err
+	}
 	result := make(map[string]*task.State)
-	for _, stateDB := range statesDB {
-		state, err := stateDB.ToState()
-		if err != nil {
-			return nil, fmt.Errorf("converting state: %w", err)
-		}
+	for _, state := range states {
 		result[state.TaskID] = state
 	}
 	return result, nil
@@ -315,20 +488,12 @@ func (r *TaskRepo) ListTasksByStatus(
 	workflowExecID core.ID,
 	status core.StatusType,
 ) ([]*task.State, error) {
-	query := `SELECT * FROM task_states WHERE workflow_exec_id = $1 AND status = $2`
+	query := fmt.Sprintf("SELECT %s FROM task_states WHERE workflow_exec_id = $1 AND status = $2", taskStateColumnsSQL)
 	var statesDB []*task.StateDB
 	if err := pgxscan.Select(ctx, r.db, &statesDB, query, workflowExecID, status); err != nil {
 		return nil, fmt.Errorf("scanning states: %w", err)
 	}
-	var states []*task.State
-	for _, stateDB := range statesDB {
-		state, err := stateDB.ToState()
-		if err != nil {
-			return nil, fmt.Errorf("converting state: %w", err)
-		}
-		states = append(states, state)
-	}
-	return states, nil
+	return convertStates(statesDB)
 }
 
 func (r *TaskRepo) ListTasksByAgent(
@@ -336,54 +501,33 @@ func (r *TaskRepo) ListTasksByAgent(
 	workflowExecID core.ID,
 	agentID string,
 ) ([]*task.State, error) {
-	query := `SELECT * FROM task_states WHERE workflow_exec_id = $1 AND agent_id = $2`
+	query := fmt.Sprintf(
+		"SELECT %s FROM task_states WHERE workflow_exec_id = $1 AND agent_id = $2",
+		taskStateColumnsSQL,
+	)
 	var statesDB []*task.StateDB
 	if err := pgxscan.Select(ctx, r.db, &statesDB, query, workflowExecID, agentID); err != nil {
 		return nil, fmt.Errorf("scanning states: %w", err)
 	}
-	var states []*task.State
-	for _, stateDB := range statesDB {
-		state, err := stateDB.ToState()
-		if err != nil {
-			return nil, fmt.Errorf("converting state: %w", err)
-		}
-		states = append(states, state)
-	}
-	return states, nil
+	return convertStates(statesDB)
 }
 
 func (r *TaskRepo) ListTasksByTool(ctx context.Context, workflowExecID core.ID, toolID string) ([]*task.State, error) {
-	query := `SELECT * FROM task_states WHERE workflow_exec_id = $1 AND tool_id = $2`
+	query := fmt.Sprintf("SELECT %s FROM task_states WHERE workflow_exec_id = $1 AND tool_id = $2", taskStateColumnsSQL)
 	var statesDB []*task.StateDB
 	if err := pgxscan.Select(ctx, r.db, &statesDB, query, workflowExecID, toolID); err != nil {
 		return nil, fmt.Errorf("scanning states: %w", err)
 	}
-	var states []*task.State
-	for _, stateDB := range statesDB {
-		state, err := stateDB.ToState()
-		if err != nil {
-			return nil, fmt.Errorf("converting state: %w", err)
-		}
-		states = append(states, state)
-	}
-	return states, nil
+	return convertStates(statesDB)
 }
 
 func (r *TaskRepo) ListChildren(ctx context.Context, parentStateID core.ID) ([]*task.State, error) {
-	query := `SELECT * FROM task_states WHERE parent_state_id = $1 ORDER BY task_id`
+	query := fmt.Sprintf("SELECT %s FROM task_states WHERE parent_state_id = $1 ORDER BY task_id", taskStateColumnsSQL)
 	var statesDB []*task.StateDB
 	if err := pgxscan.Select(ctx, r.db, &statesDB, query, parentStateID); err != nil {
 		return nil, fmt.Errorf("scanning child states: %w", err)
 	}
-	var states []*task.State
-	for _, stateDB := range statesDB {
-		state, err := stateDB.ToState()
-		if err != nil {
-			return nil, fmt.Errorf("converting child state: %w", err)
-		}
-		states = append(states, state)
-	}
-	return states, nil
+	return convertStates(statesDB)
 }
 
 func (r *TaskRepo) ListChildrenOutputs(ctx context.Context, parentStateID core.ID) (map[string]*core.Output, error) {
@@ -413,7 +557,11 @@ func (r *TaskRepo) ListChildrenOutputs(ctx context.Context, parentStateID core.I
 }
 
 func (r *TaskRepo) GetChildByTaskID(ctx context.Context, parentStateID core.ID, taskID string) (*task.State, error) {
-	query := `SELECT * FROM task_states WHERE parent_state_id = $1 AND task_id = $2 ORDER BY created_at DESC LIMIT 1`
+	query := fmt.Sprintf(
+		"SELECT %s FROM task_states WHERE parent_state_id = $1 AND task_id = $2 "+
+			"ORDER BY created_at DESC LIMIT 1",
+		taskStateColumnsSQL,
+	)
 	var stateDB task.StateDB
 	if err := pgxscan.Get(ctx, r.db, &stateDB, query, parentStateID, taskID); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -449,16 +597,12 @@ func (r *TaskRepo) GetTaskTree(ctx context.Context, rootStateID core.ID) ([]*tas
         ORDER BY depth, created_at
     `
 	var statesDB []*task.StateDB
-	if err := pgxscan.Select(ctx, r.db, &statesDB, query, rootStateID, maxTaskTreeDepth); err != nil {
+	if err := pgxscan.Select(ctx, r.db, &statesDB, query, rootStateID, maxDepthFromConfig(ctx)); err != nil {
 		return nil, fmt.Errorf("scanning task tree: %w", err)
 	}
-	var states []*task.State
-	for _, stateDB := range statesDB {
-		state, err := stateDB.ToState()
-		if err != nil {
-			return nil, fmt.Errorf("converting task tree state: %w", err)
-		}
-		states = append(states, state)
+	states, err := convertStates(statesDB)
+	if err != nil {
+		return nil, fmt.Errorf("converting task tree state: %w", err)
 	}
 	return states, nil
 }
@@ -506,6 +650,44 @@ func (r *TaskRepo) GetProgressInfo(ctx context.Context, parentStateID core.ID) (
 		)
 	}
 	return progressInfo, nil
+}
+
+// getTaskTreeWith executes GetTaskTree against any pgxscan.Querier (pool or tx).
+func (r *TaskRepo) getTaskTreeWith(ctx context.Context, q pgxscan.Querier, rootStateID core.ID) ([]*task.State, error) {
+	query := `
+        WITH RECURSIVE task_tree AS (
+            SELECT task_exec_id, task_id, workflow_exec_id, workflow_id, component,
+                   status, execution_type, parent_state_id, agent_id, action_id, tool_id,
+                   input, output, error, created_at, updated_at, 0 as depth
+            FROM task_states
+            WHERE task_exec_id = $1
+            UNION ALL
+            SELECT ts.task_exec_id, ts.task_id, ts.workflow_exec_id, ts.workflow_id, ts.component,
+                   ts.status, ts.execution_type, ts.parent_state_id, ts.agent_id, ts.action_id, ts.tool_id,
+                   ts.input, ts.output, ts.error, ts.created_at, ts.updated_at, tt.depth + 1
+            FROM task_states ts
+            INNER JOIN task_tree tt ON ts.parent_state_id = tt.task_exec_id
+            WHERE tt.depth < $2
+        )
+        SELECT task_exec_id, task_id, workflow_exec_id, workflow_id, component,
+               status, execution_type, parent_state_id, agent_id, action_id, tool_id,
+               input, output, error, created_at, updated_at
+        FROM task_tree
+        ORDER BY depth, created_at
+    `
+	var statesDB []*task.StateDB
+	if err := pgxscan.Select(ctx, q, &statesDB, query, rootStateID, maxDepthFromConfig(ctx)); err != nil {
+		return nil, fmt.Errorf("scanning task tree: %w", err)
+	}
+	states := make([]*task.State, 0, len(statesDB))
+	for _, sdb := range statesDB {
+		s, err := sdb.ToState()
+		if err != nil {
+			return nil, fmt.Errorf("converting task tree state: %w", err)
+		}
+		states = append(states, s)
+	}
+	return states, nil
 }
 
 func (r *TaskRepo) UpsertStateWithTx(ctx context.Context, tx pgx.Tx, state *task.State) error {

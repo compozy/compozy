@@ -142,7 +142,7 @@ func (o *llmOrchestrator) executeWithClient(
 	// to allow multi-step workflows (e.g., read_file -> analyze -> write_file).
 	// Hard cap iterations to avoid infinite loops.
 	maxIterations := o.maxToolIterationsFor(request)
-	for iter := range maxIterations {
+	for iter := 0; iter < maxIterations; iter++ {
 		o.logLoopStart(ctx, request, &llmReq, iter)
 
 		response, err := o.generateLLMResponse(ctx, llmClient, &llmReq, request)
@@ -1564,10 +1564,10 @@ func (o *llmOrchestrator) handleNoToolCalls(
 	if perr != nil {
 		key := "output_validator"
 		counters[key]++
-		log.Debug("Final parse failed; continuing loop",
-			"error", core.RedactError(perr), "consecutive_errors", counters[key], "max", budget,
-		)
 		structuredBudget := o.effectiveStructuredOutputRetries()
+		log.Debug("Final parse failed; continuing loop",
+			"error", core.RedactError(perr), "consecutive_errors", counters[key], "max", structuredBudget,
+		)
 		if counters[key] >= structuredBudget {
 			log.Warn("Error budget exceeded - output validation", "key", key, "max", structuredBudget)
 			return nil, false, fmt.Errorf("tool error budget exceeded for %s: %v", key, perr)

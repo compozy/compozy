@@ -48,17 +48,14 @@ func (uc *CreateChildTasks) Execute(ctx context.Context, input *CreateChildTasks
 	if err != nil {
 		return fmt.Errorf("failed to retrieve parent state: %w", err)
 	}
-
 	if err := uc.validateParentState(parentState); err != nil {
 		return err
 	}
-
 	// Load parent task config to get its environment
 	parentConfig, err := uc.configStore.Get(ctx, parentState.TaskExecID.String())
 	if err != nil {
 		return fmt.Errorf("failed to load parent task config: %w", err)
 	}
-
 	switch parentState.ExecutionType {
 	case task.ExecutionParallel:
 		return uc.createParallelChildren(ctx, parentState, parentConfig)
@@ -85,12 +82,10 @@ func (uc *CreateChildTasks) createParallelChildren(
 	if err != nil {
 		return fmt.Errorf("failed to create task config repository: %w", err)
 	}
-
 	metadataAny, err := configRepo.LoadParallelMetadata(ctx, parentState.TaskExecID)
 	if err != nil {
 		return err
 	}
-
 	metadata, ok := metadataAny.(*task2core.ParallelTaskMetadata)
 	if !ok {
 		return fmt.Errorf(
@@ -98,11 +93,9 @@ func (uc *CreateChildTasks) createParallelChildren(
 			metadataAny,
 		)
 	}
-
 	if err := uc.validateChildConfigs(metadata.ChildConfigs); err != nil {
 		return err
 	}
-
 	return uc.createChildStatesInTransaction(ctx, parentState, parentConfig, metadata.ChildConfigs)
 }
 
@@ -120,12 +113,10 @@ func (uc *CreateChildTasks) createCollectionChildren(
 	if err != nil {
 		return fmt.Errorf("failed to create task config repository: %w", err)
 	}
-
 	metadataAny, err := configRepo.LoadCollectionMetadata(ctx, parentState.TaskExecID)
 	if err != nil {
 		return err
 	}
-
 	metadata, ok := metadataAny.(*task2core.CollectionTaskMetadata)
 	if !ok {
 		return fmt.Errorf(
@@ -133,11 +124,9 @@ func (uc *CreateChildTasks) createCollectionChildren(
 			metadataAny,
 		)
 	}
-
 	if err := uc.validateChildConfigs(metadata.ChildConfigs); err != nil {
 		return err
 	}
-
 	return uc.createChildStatesInTransaction(ctx, parentState, parentConfig, metadata.ChildConfigs)
 }
 
@@ -155,12 +144,10 @@ func (uc *CreateChildTasks) createCompositeChildren(
 	if err != nil {
 		return fmt.Errorf("failed to create task config repository: %w", err)
 	}
-
 	metadataAny, err := configRepo.LoadCompositeMetadata(ctx, parentState.TaskExecID)
 	if err != nil {
 		return err
 	}
-
 	metadata, ok := metadataAny.(*task2core.CompositeTaskMetadata)
 	if !ok {
 		return fmt.Errorf(
@@ -168,7 +155,6 @@ func (uc *CreateChildTasks) createCompositeChildren(
 			metadataAny,
 		)
 	}
-
 	if err := uc.validateChildConfigs(metadata.ChildConfigs); err != nil {
 		return err
 	}
@@ -208,20 +194,17 @@ func (uc *CreateChildTasks) createChildStatesInTransaction(
 	log := logger.FromContext(ctx)
 	// Collect configs to save alongside prepared states
 	var configsToSave []childConfigRef
-
 	// Prepare all child states first
 	var childStates []*task.State
 	for i := range childConfigs {
 		childConfig := childConfigs[i]
 		childTaskExecID := core.MustNewID()
-
 		// Create child partial state by recursively processing the child config
 		// Pass parent's environment for inheritance
 		childPartialState, err := uc.processChildConfig(childConfig, parentConfig.Env)
 		if err != nil {
 			return fmt.Errorf("failed to process child config %s: %w", childConfig.ID, err)
 		}
-
 		// Create child state input with parent reference
 		childStateInput := &task.CreateStateInput{
 			WorkflowID:     parentState.WorkflowID,
@@ -229,22 +212,18 @@ func (uc *CreateChildTasks) createChildStatesInTransaction(
 			TaskID:         childConfig.ID,
 			TaskExecID:     childTaskExecID,
 		}
-
 		// Set parent relationship in partial state
 		parentID := parentState.TaskExecID
 		childPartialState.ParentStateID = &parentID
-
 		// Create child state (without persisting yet)
 		childState := task.CreateBasicState(childStateInput, childPartialState)
 		childStates = append(childStates, childState)
-
 		// Collect config to save prior to persisting states
 		configsToSave = append(configsToSave, childConfigRef{
 			id:  childTaskExecID,
 			cfg: childConfig,
 		})
 	}
-
 	rollbackConfigs := func(ids []core.ID) {
 		for _, savedID := range ids {
 			if deleteErr := uc.configStore.Delete(ctx, savedID.String()); deleteErr != nil {
@@ -255,7 +234,6 @@ func (uc *CreateChildTasks) createChildStatesInTransaction(
 			}
 		}
 	}
-
 	var savedConfigIDs []core.ID
 	for _, c := range configsToSave {
 		if err := uc.configStore.Save(ctx, c.id.String(), c.cfg); err != nil {
@@ -307,9 +285,9 @@ func (uc *CreateChildTasks) processChildConfig(
 			MergedEnv:     mergedEnv,
 		}, nil
 	case agentConfig != nil:
-		return uc.processAgent(agentConfig, executionType, childConfig.Action, childConfig.With, parentEnv)
+		return uc.processAgent(agentConfig, executionType, childConfig.Action, childConfig.With, mergedEnv)
 	case toolConfig != nil:
-		return uc.processTool(toolConfig, executionType, childConfig.With, parentEnv)
+		return uc.processTool(toolConfig, executionType, childConfig.With, mergedEnv)
 	default:
 		var actionID *string
 		if childConfig.Action != "" {
@@ -340,11 +318,15 @@ func (uc *CreateChildTasks) processAgent(
 	}
 	// Merge parent environment with agent environment
 	mergedEnv := uc.mergeEnvironments(parentEnv, agentConfig.Env)
+	var actionPtr *string
+	if actionID != "" {
+		actionPtr = &actionID
+	}
 	return &task.PartialState{
 		Component:     core.ComponentAgent,
 		ExecutionType: executionType,
 		AgentID:       &agentID,
-		ActionID:      &actionID,
+		ActionID:      actionPtr,
 		Input:         input,
 		MergedEnv:     mergedEnv,
 	}, nil

@@ -36,11 +36,17 @@ func CORSMiddleware(cfg config.CORSConfig) gin.HandlerFunc {
 		}
 		if allowed && origin != "" {
 			c.Header("Access-Control-Allow-Origin", origin)
+			c.Header("Vary", "Origin")
 			if cfg.AllowCredentials {
 				c.Header("Access-Control-Allow-Credentials", "true")
 			}
 			c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-			c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+			reqHdr := c.Request.Header.Get("Access-Control-Request-Headers")
+			if reqHdr != "" {
+				c.Header("Access-Control-Allow-Headers", reqHdr)
+			} else {
+				c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+			}
 			if cfg.MaxAge > 0 {
 				c.Header("Access-Control-Max-Age", strconv.Itoa(cfg.MaxAge))
 			}

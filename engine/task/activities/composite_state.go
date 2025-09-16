@@ -15,6 +15,7 @@ import (
 )
 
 const CreateCompositeStateLabel = "CreateCompositeState"
+const compositeMaxWorkersSingle = 1
 
 type CreateCompositeStateInput struct {
 	WorkflowID     string       `json:"workflow_id"`
@@ -80,7 +81,6 @@ func (a *CreateCompositeState) Run(ctx context.Context, input *CreateCompositeSt
 	if err := a.taskRepo.WithTransaction(ctx, func(repo task.Repository) error {
 		createStateUC := uc.NewCreateState(repo, a.configStore)
 		createChildTasksUC := uc.NewCreateChildTasksUC(repo, a.configStore, a.task2Factory, a.cwd)
-
 		state, err := createStateUC.Execute(ctx, &uc.CreateStateInput{
 			WorkflowState:  workflowState,
 			WorkflowConfig: workflowConfig,
@@ -89,13 +89,12 @@ func (a *CreateCompositeState) Run(ctx context.Context, input *CreateCompositeSt
 		if err != nil {
 			return err
 		}
-
-		if err := a.storeCompositeArtifacts(ctx, state, normalizedConfig, childConfigs); err != nil {
-			return err
-		}
 		a.addCompositeMetadata(state, normalizedConfig, len(childConfigs))
 		if err := repo.UpsertState(ctx, state); err != nil {
 			return fmt.Errorf("failed to update state with composite metadata: %w", err)
+		}
+		if err := a.storeCompositeArtifacts(ctx, state, normalizedConfig, childConfigs); err != nil {
+			return err
 		}
 		if err := createChildTasksUC.Execute(ctx, &uc.CreateChildTasksInput{
 			ParentStateID:  state.TaskExecID,
@@ -104,13 +103,11 @@ func (a *CreateCompositeState) Run(ctx context.Context, input *CreateCompositeSt
 		}); err != nil {
 			return fmt.Errorf("failed to create child tasks: %w", err)
 		}
-
 		createdState = state
 		return nil
 	}); err != nil {
 		return nil, err
 	}
-
 	return createdState, nil
 }
 
@@ -168,7 +165,7 @@ func (a *CreateCompositeState) storeCompositeArtifacts(
 		ParentStateID: state.TaskExecID,
 		ChildConfigs:  childConfigs,
 		Strategy:      string(config.GetStrategy()),
-		MaxWorkers:    1,
+		MaxWorkers:    compositeMaxWorkersSingle,
 	}
 	if err := configRepo.StoreCompositeMetadata(ctx, state.TaskExecID, metadata); err != nil {
 		return fmt.Errorf("failed to store composite metadata: %w", err)
