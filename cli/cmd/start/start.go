@@ -56,13 +56,14 @@ func handleStartTUI(ctx context.Context, _ *cobra.Command, _ *cmd.CommandExecuto
 	if !helpers.IsPortAvailable(ctx, cfg.Server.Host, cfg.Server.Port) {
 		return fmt.Errorf("port %d is not available on host %s", cfg.Server.Port, cfg.Server.Host)
 	}
-	cwd, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("failed to get current working directory: %w", err)
+	if cfg.CLI.CWD == "" {
+		if wd, err := os.Getwd(); err == nil {
+			cfg.CLI.CWD = wd
+		}
 	}
 	configFile := cfg.CLI.ConfigFile
 	envFilePath := cfg.CLI.EnvFile
-	srv, err := server.NewServer(ctx, cwd, configFile, envFilePath)
+	srv, err := server.NewServer(ctx, cfg.CLI.CWD, configFile, envFilePath)
 	if err != nil {
 		return fmt.Errorf("failed to create server: %w", err)
 	}

@@ -20,7 +20,7 @@ func SetupLogger(lvl LogLevel, json, source bool) Logger {
 	// configured level and formatting (e.g., activities without an
 	// injected logger in their context).
 	// This helps propagate --debug from CLI into background workers.
-	defaultLogger = l
+	SetDefaultLogger(l)
 	return l
 }
 

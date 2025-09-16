@@ -72,6 +72,14 @@ func TestConfig_Default(t *testing.T) {
 		assert.Equal(t, "compozy:memory:", cfg.Memory.Prefix)
 		assert.Equal(t, 24*time.Hour, cfg.Memory.TTL)
 		assert.Equal(t, 10000, cfg.Memory.MaxEntries)
+
+		// MCP proxy defaults preserve classic external port
+		assert.Equal(t, mcpProxyModeStandalone, cfg.MCPProxy.Mode)
+		assert.Equal(t, "127.0.0.1", cfg.MCPProxy.Host)
+		assert.Equal(t, 6001, cfg.MCPProxy.Port)
+		assert.Equal(t, "", cfg.MCPProxy.BaseURL)
+
+		// App mode removed in greenfield cleanup
 	})
 }
 
@@ -169,6 +177,31 @@ func TestConfig_Validation(t *testing.T) {
 				}
 			})
 		}
+	})
+
+	t.Run("Should require non-ephemeral MCP proxy port when standalone", func(t *testing.T) {
+		svc := NewService()
+		cfg := Default()
+		cfg.MCPProxy.Mode = mcpProxyModeStandalone
+		cfg.MCPProxy.Port = 0
+		err := svc.Validate(cfg)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "mcp_proxy.port must be non-zero in standalone mode")
+	})
+
+	t.Run("Should allow standalone MCP proxy when port provided", func(t *testing.T) {
+		svc := NewService()
+		cfg := Default()
+		cfg.MCPProxy.Mode = mcpProxyModeStandalone
+		cfg.MCPProxy.Port = 6200
+		err := svc.Validate(cfg)
+		assert.NoError(t, err)
+	})
+
+	t.Run("Should default MCP proxy to standalone with fixed port", func(t *testing.T) {
+		cfg := Default()
+		assert.Equal(t, mcpProxyModeStandalone, cfg.MCPProxy.Mode)
+		assert.Equal(t, 6001, cfg.MCPProxy.Port)
 	})
 
 	t.Run("Should validate limits are positive", func(t *testing.T) {
@@ -404,6 +437,7 @@ func TestCacheConfig_Defaults(t *testing.T) {
 		assert.Equal(t, int64(1024), cacheConfig.CompressionThreshold, "compression threshold should be 1KB")
 		assert.Equal(t, "lru", cacheConfig.EvictionPolicy, "eviction policy should default to lru")
 		assert.Equal(t, 5*time.Minute, cacheConfig.StatsInterval, "stats interval should default to 5m")
+		assert.Equal(t, 100, cacheConfig.KeyScanCount, "key scan count should default to 100")
 	})
 }
 

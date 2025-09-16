@@ -55,15 +55,13 @@ func runDevServer(ctx context.Context, cobraCmd *cobra.Command) error {
 	if cfg == nil {
 		return fmt.Errorf("missing config in context; ensure config.ContextWithManager is set in root command")
 	}
+	// Embedded Temporal dev server is no longer supported; external Temporal is required.
 	setupGinMode(cfg)
-	envFilePath, err := resolveEnvFilePath(cobraCmd)
-	if err != nil {
-		return err
-	}
 	CWD, err := setupWorkingDirectory(ctx, cfg)
 	if err != nil {
 		return err
 	}
+	envFilePath := resolveEnvFilePath(cobraCmd, CWD)
 	if err := setupServerPort(ctx, cfg); err != nil {
 		return err
 	}
@@ -78,8 +76,15 @@ func runDevServer(ctx context.Context, cobraCmd *cobra.Command) error {
 	if err != nil {
 		return fmt.Errorf("failed to create server: %w", err)
 	}
-	defer config.ManagerFromContext(ctx).Close(ctx)
-	return srv.Run()
+	manager := config.ManagerFromContext(ctx)
+	if manager == nil {
+		return fmt.Errorf("configuration manager missing from context")
+	}
+	if runErr := srv.Run(); runErr != nil {
+		_ = manager.Close(ctx)
+		return runErr
+	}
+	return manager.Close(ctx)
 }
 
 // setupGinMode configures Gin mode based on debug configuration
@@ -95,41 +100,54 @@ func setupGinMode(cfg *config.Config) {
 	}
 }
 
-// resolveEnvFilePath gets and resolves the environment file path before directory changes
-func resolveEnvFilePath(cobraCmd *cobra.Command) (string, error) {
-	envFilePath, err := cobraCmd.Flags().GetString("env-file")
-	if err != nil {
-		return "", fmt.Errorf("failed to get env-file flag: %w", err)
+// resolveEnvFilePath resolves the environment file path against baseDir when relative
+func resolveEnvFilePath(cobraCmd *cobra.Command, baseDir string) string {
+	var envFilePath string
+	if flag := cobraCmd.Flags().Lookup("env-file"); flag != nil {
+		envFilePath = flag.Value.String()
+	} else if flag := cobraCmd.InheritedFlags().Lookup("env-file"); flag != nil {
+		envFilePath = flag.Value.String()
 	}
 	if envFilePath == "" {
 		envFilePath = ".env"
 	}
-	if !filepath.IsAbs(envFilePath) {
-		originalCWD, err := os.Getwd()
-		if err != nil {
-			return "", fmt.Errorf("failed to get current working directory: %w", err)
-		}
-		envFilePath = filepath.Join(originalCWD, envFilePath)
+	if filepath.IsAbs(envFilePath) {
+		return envFilePath
 	}
-	return envFilePath, nil
+	joined := filepath.Join(baseDir, envFilePath)
+	if _, err := os.Stat(joined); err == nil {
+		return joined
+	}
+	originalCWD, cwdErr := os.Getwd()
+	if cwdErr != nil {
+		return joined
+	}
+	fallback := filepath.Join(originalCWD, envFilePath)
+	if _, err := os.Stat(fallback); err == nil {
+		return fallback
+	}
+	return joined
 }
 
 // setupWorkingDirectory changes to the specified working directory and returns the absolute path
 func setupWorkingDirectory(ctx context.Context, cfg *config.Config) (string, error) {
-	if cfg.CLI.CWD != "" {
-		if err := os.Chdir(cfg.CLI.CWD); err != nil {
-			return "", fmt.Errorf("failed to change working directory to %s: %w", cfg.CLI.CWD, err)
-		}
-	}
 	log := logger.FromContext(ctx)
-	CWD, err := filepath.Abs(".")
+	if cfg.CLI.CWD == "" {
+		wd, err := os.Getwd()
+		if err != nil {
+			return "", fmt.Errorf("failed to get current working directory: %w", err)
+		}
+		cfg.CLI.CWD = wd
+	}
+	abs, err := filepath.Abs(cfg.CLI.CWD)
 	if err != nil {
-		return "", fmt.Errorf("failed to get absolute path: %w", err)
+		return "", fmt.Errorf("failed to resolve working directory: %w", err)
 	}
-	if cfg.CLI.CWD != "" {
-		log.Info("Working directory changed", "cwd", cfg.CLI.CWD)
+	if abs != cfg.CLI.CWD {
+		cfg.CLI.CWD = abs
 	}
-	return CWD, nil
+	log.Debug("Using working directory", "cwd", cfg.CLI.CWD)
+	return cfg.CLI.CWD, nil
 }
 
 // setupServerPort finds and configures an available port for the server
@@ -139,7 +157,8 @@ func setupServerPort(ctx context.Context, cfg *config.Config) error {
 		return fmt.Errorf("no free port found near %d: %w", cfg.Server.Port, err)
 	}
 	if availablePort != cfg.Server.Port {
-		// Note: We can't use logger here as context isn't available in this helper
+		log := logger.FromContext(ctx)
+		log.Info("server port reassigned", "from", cfg.Server.Port, "to", availablePort)
 		cfg.Server.Port = availablePort
 	}
 	return nil

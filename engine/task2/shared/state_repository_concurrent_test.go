@@ -7,7 +7,6 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
-	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -53,23 +52,17 @@ func (m *MockTaskRepository) UpsertState(ctx context.Context, state *task.State)
 	return args.Error(0)
 }
 
-func (m *MockTaskRepository) WithTx(ctx context.Context, fn func(pgx.Tx) error) error {
+func (m *MockTaskRepository) WithTransaction(ctx context.Context, fn func(task.Repository) error) error {
 	args := m.Called(ctx, fn)
 	return args.Error(0)
 }
 
 func (m *MockTaskRepository) GetStateForUpdate(
 	ctx context.Context,
-	tx pgx.Tx,
 	taskExecID core.ID,
 ) (*task.State, error) {
-	args := m.Called(ctx, tx, taskExecID)
+	args := m.Called(ctx, taskExecID)
 	return args.Get(0).(*task.State), args.Error(1)
-}
-
-func (m *MockTaskRepository) UpsertStateWithTx(ctx context.Context, tx pgx.Tx, state *task.State) error {
-	args := m.Called(ctx, tx, state)
-	return args.Error(0)
 }
 
 func (m *MockTaskRepository) ListTasksInWorkflow(
@@ -119,15 +112,6 @@ func (m *MockTaskRepository) GetChildByTaskID(
 ) (*task.State, error) {
 	args := m.Called(ctx, parentStateID, taskID)
 	return args.Get(0).(*task.State), args.Error(1)
-}
-
-func (m *MockTaskRepository) CreateChildStatesInTransaction(
-	ctx context.Context,
-	parentStateID core.ID,
-	childStates []*task.State,
-) error {
-	args := m.Called(ctx, parentStateID, childStates)
-	return args.Error(0)
 }
 
 func (m *MockTaskRepository) GetTaskTree(ctx context.Context, rootStateID core.ID) ([]*task.State, error) {

@@ -25,7 +25,7 @@
 
 ## 🎯 Overview
 
-The `cache` package provides a comprehensive Redis-based caching and coordination layer for the Compozy workflow orchestration engine. It combines Redis client operations, distributed locking using the Redlock algorithm, and pub/sub notifications into a unified interface.
+The `cache` package provides a caching and coordination layer for the Compozy workflow orchestration engine. It defines contracts (KV/Lists/Hashes/PubSub/Lock) with a Redis adapter implementation.
 
 This package is designed to handle:
 
@@ -46,11 +46,23 @@ This package is designed to handle:
 
 ## ⚡ Design Highlights
 
-- **Redlock Algorithm**: Implements Redis distributed locking with automatic renewal and safe release
-- **Type-Safe Events**: Strongly typed event structures for workflow and task notifications
-- **Graceful Degradation**: Fallback mechanisms and comprehensive error handling
-- **Metrics Integration**: Built-in metrics for monitoring lock operations and notification performance
+- **Contracts + Adapter**: Driver-neutral interfaces with a Redis adapter
+- **Distributed Locking**: Token + TTL locks with refresh/release using Redis Lua
+- **Pub/Sub**: Channels and pattern subscriptions via Redis
+- **Metrics Integration**: Adapter labels (`cache_driver`) and operation metrics
 - **Configuration Validation**: Extensive validation with environment variable support
+
+### Capabilities (summary)
+
+| Capability                      | Redis |
+| ------------------------------- | ----- |
+| KV (Get/Set/Del/MGet/Expire)    | Yes   |
+| Lists (RPush/LRange/LLen/LTrim) | Yes   |
+| Hashes (HSet/HGet/HDel/HIncrBy) | Yes   |
+| Pub/Sub (channels + patterns)   | Yes   |
+| Locks (token + TTL)             | Yes   |
+| Keys Iteration (pattern scan)   | Yes   |
+| Atomic List + Metadata          | Yes   |
 
 ---
 

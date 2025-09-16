@@ -24,10 +24,11 @@ import (
 
 // Default configuration constants
 const (
-	defaultMaxConcurrentTools = 10
-	defaultRetryAttempts      = 3
-	defaultRetryBackoffBase   = 100 * time.Millisecond
-	defaultRetryBackoffMax    = 10 * time.Second
+	defaultMaxConcurrentTools      = 10
+	defaultRetryAttempts           = 3
+	defaultRetryBackoffBase        = 100 * time.Millisecond
+	defaultRetryBackoffMax         = 10 * time.Second
+	defaultStructuredOutputRetries = 2
 	// defaultMaxToolIterations caps the tool-call iteration loop when no overrides are provided
 	defaultMaxToolIterations       = 10
 	defaultMaxConsecutiveSuccesses = 3
@@ -69,6 +70,9 @@ type OrchestratorConfig struct {
 	// MaxSequentialToolErrors limits how many sequential failures for the same tool
 	// (or content-level error) are tolerated before aborting. When <= 0, defaults to 8.
 	MaxSequentialToolErrors int
+	// StructuredOutputRetryAttempts limits how many times the orchestrator will
+	// attempt to recover from invalid structured output before failing.
+	StructuredOutputRetryAttempts int
 	// Retry configuration
 	RetryAttempts    int           // Number of retry attempts for LLM operations
 	RetryBackoffBase time.Duration // Base delay for exponential backoff retry strategy
@@ -138,7 +142,7 @@ func (o *llmOrchestrator) executeWithClient(
 	// to allow multi-step workflows (e.g., read_file -> analyze -> write_file).
 	// Hard cap iterations to avoid infinite loops.
 	maxIterations := o.maxToolIterationsFor(request)
-	for iter := range maxIterations {
+	for iter := 0; iter < maxIterations; iter++ {
 		o.logLoopStart(ctx, request, &llmReq, iter)
 
 		response, err := o.generateLLMResponse(ctx, llmClient, &llmReq, request)
@@ -550,6 +554,14 @@ func (o *llmOrchestrator) computeErrorBudget() int {
 		b = 8
 	}
 	return b
+}
+
+func (o *llmOrchestrator) effectiveStructuredOutputRetries() int {
+	attempts := o.config.StructuredOutputRetryAttempts
+	if attempts <= 0 {
+		attempts = defaultStructuredOutputRetries
+	}
+	return attempts
 }
 
 // effectiveNoProgressThreshold resolves the no-progress threshold with defaults.
@@ -1485,6 +1497,16 @@ func (o *llmOrchestrator) parseContent(
 	}
 
 	// Not valid JSON, return as text response
+	if action != nil && action.ShouldUseJSONOutput() {
+		return nil, NewLLMError(
+			fmt.Errorf("expected structured JSON output but received plain text"),
+			ErrCodeInvalidResponse,
+			map[string]any{
+				"action":  action.ID,
+				"content": content,
+			},
+		)
+	}
 	output := core.Output(map[string]any{
 		"response": content,
 	})
@@ -1542,11 +1564,12 @@ func (o *llmOrchestrator) handleNoToolCalls(
 	if perr != nil {
 		key := "output_validator"
 		counters[key]++
+		structuredBudget := o.effectiveStructuredOutputRetries()
 		log.Debug("Final parse failed; continuing loop",
-			"error", core.RedactError(perr), "consecutive_errors", counters[key], "max", budget,
+			"error", core.RedactError(perr), "consecutive_errors", counters[key], "max", structuredBudget,
 		)
-		if counters[key] >= budget {
-			log.Warn("Error budget exceeded - output validation", "key", key, "max", budget)
+		if counters[key] >= structuredBudget {
+			log.Warn("Error budget exceeded - output validation", "key", key, "max", structuredBudget)
 			return nil, false, fmt.Errorf("tool error budget exceeded for %s: %v", key, perr)
 		}
 		pseudoID := fmt.Sprintf("call_%s_%d", key, time.Now().UnixNano())
@@ -1561,6 +1584,7 @@ func (o *llmOrchestrator) handleNoToolCalls(
 		obs := map[string]any{
 			"error":   "Invalid final response: schema/format check failed",
 			"details": perr.Error(),
+			"attempt": counters[key],
 		}
 		if b, mErr := json.Marshal(obs); mErr == nil {
 			llmReq.Messages = append(llmReq.Messages, llmadapter.Message{

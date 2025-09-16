@@ -8,7 +8,6 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/task"
-	"github.com/jackc/pgx/v5"
 )
 
 // TransactionService handles all transaction-related operations for task state management
@@ -18,10 +17,10 @@ import (
 // 2. Gracefully degrading to non-transactional operations when transactions aren't available
 // 3. Providing consistent API regardless of underlying repository capabilities
 //
-// The pattern is implemented through the TransactionalRepository interface:
+// The pattern is implemented through the driver-neutral closure on task.Repository:
 //
-//	type TransactionalRepository interface {
-//	    WithTx(ctx context.Context, fn func(tx pgx.Tx) error) error
+//	type Repository interface {
+//	    WithTransaction(ctx context.Context, fn func(Repository) error) error
 //	}
 //
 // Example usage:
@@ -81,9 +80,8 @@ type StateTransformer func(state *task.State) error
 
 // transactionalRepo defines the interface for repositories supporting transactions
 type transactionalRepo interface {
-	WithTx(ctx context.Context, fn func(tx pgx.Tx) error) error
-	GetStateForUpdate(ctx context.Context, tx pgx.Tx, taskExecID core.ID) (*task.State, error)
-	UpsertStateWithTx(ctx context.Context, tx pgx.Tx, state *task.State) error
+	WithTransaction(ctx context.Context, fn func(task.Repository) error) error
+	GetStateForUpdate(ctx context.Context, taskExecID core.ID) (*task.State, error)
 }
 
 // getTransactionalRepo checks if the repository supports transactions
@@ -100,38 +98,27 @@ func (s *TransactionService) saveWithTransaction(
 	state *task.State,
 	txRepo transactionalRepo,
 ) error {
-	return txRepo.WithTx(ctx, func(tx pgx.Tx) error {
-		// Get latest state with row-level lock
-		latestState, err := txRepo.GetStateForUpdate(ctx, tx, state.TaskExecID)
+	return txRepo.WithTransaction(ctx, func(repo task.Repository) error {
+		latestState, err := repo.GetStateForUpdate(ctx, state.TaskExecID)
 		if err != nil {
-			// Check if this is a new state (doesn't exist yet)
 			if errors.Is(err, store.ErrTaskNotFound) {
-				// For new states, directly save without merging
-				if err := txRepo.UpsertStateWithTx(ctx, tx, state); err != nil {
+				if err := repo.UpsertState(ctx, state); err != nil {
 					return fmt.Errorf("unable to save new task state: %w", err)
 				}
 				return nil
 			}
 			return fmt.Errorf("unable to acquire task lock for update: %w", err)
 		}
-
-		// Merge changes into latest state
 		s.mergeStateChanges(latestState, state)
-
-		// Update only the merged fields back to the original state
-		// DO NOT overwrite identity fields like TaskExecID
 		state.Status = latestState.Status
 		state.Output = latestState.Output
 		state.Error = latestState.Error
 		if state.Input == nil && latestState.Input != nil {
 			state.Input = latestState.Input
 		}
-
-		// Save with transaction safety
-		if err := txRepo.UpsertStateWithTx(ctx, tx, latestState); err != nil {
+		if err := repo.UpsertState(ctx, latestState); err != nil {
 			return fmt.Errorf("unable to save task changes: %w", err)
 		}
-
 		return nil
 	})
 }
@@ -174,23 +161,17 @@ func (s *TransactionService) applyWithTransaction(
 	transformer StateTransformer,
 	txRepo transactionalRepo,
 ) error {
-	return txRepo.WithTx(ctx, func(tx pgx.Tx) error {
-		// Get latest state with lock
-		state, err := txRepo.GetStateForUpdate(ctx, tx, taskExecID)
+	return txRepo.WithTransaction(ctx, func(repo task.Repository) error {
+		state, err := repo.GetStateForUpdate(ctx, taskExecID)
 		if err != nil {
 			return fmt.Errorf("unable to retrieve task for update: %w", err)
 		}
-
-		// Apply transformation
 		if err := transformer(state); err != nil {
 			return fmt.Errorf("task processing failed: %w", err)
 		}
-
-		// Save transformed state
-		if err := txRepo.UpsertStateWithTx(ctx, tx, state); err != nil {
+		if err := repo.UpsertState(ctx, state); err != nil {
 			return fmt.Errorf("unable to save processed task: %w", err)
 		}
-
 		return nil
 	})
 }

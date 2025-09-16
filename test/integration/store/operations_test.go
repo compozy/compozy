@@ -7,54 +7,34 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/compozy/compozy/engine/auth/model"
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/engine/infra/store"
+	"github.com/compozy/compozy/engine/infra/postgres"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/workflow"
-	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/test/helpers"
 )
 
 // setupTestWithSharedContainer creates a test database using the shared container pattern
 // This is 70-90% faster than creating individual containers
-func setupTestWithSharedContainer(t *testing.T) (context.Context, *store.Store, func()) {
+func setupTestWithSharedContainer(t *testing.T) (context.Context, *pgxpool.Pool, func()) {
 	ctx := context.Background()
-	// Reset migrations state only (config is context-scoped now)
-	store.ResetMigrationsForTest()
-	// Use shared container for better performance
 	pool, cleanup := helpers.GetSharedPostgresDB(ctx, t)
-	connStr := pool.Config().ConnString()
-	// Initialize context-based config manager
-	mgr := config.NewManager(nil)
-	_, err := mgr.Load(ctx, config.NewDefaultProvider())
-	require.NoError(t, err)
-	ctx = config.ContextWithManager(ctx, mgr)
-	// Set up configuration
-	cfg := mgr.Get()
-	cfg.Database.AutoMigrate = false // Migrations already run in shared container
-	cfg.Database.ConnString = connStr
-	// Create store
-	testStore, err := store.SetupStoreWithConfig(ctx)
-	require.NoError(t, err)
-	require.NotNil(t, testStore)
-	return ctx, testStore, func() {
-		testStore.DB.Close(ctx)
-		_ = mgr.Close(ctx)
-		cleanup() // This will truncate tables for next test
-	}
+	// ensure tables exist
+	require.NoError(t, helpers.EnsureTablesExistForTest(pool))
+	return ctx, pool, func() { cleanup() }
 }
 
 // TestStoreOperations_Integration tests comprehensive store repository operations
 func TestStoreOperations_Integration(t *testing.T) {
 	t.Run("Should perform complete auth repository operations", func(t *testing.T) {
-		ctx, testStore, cleanup := setupTestWithSharedContainer(t)
+		ctx, pool, cleanup := setupTestWithSharedContainer(t)
 		defer cleanup()
-
-		authRepo := testStore.NewAuthRepo()
+		authRepo := postgres.NewAuthRepo(pool)
 
 		// Test user creation
 		userID := core.MustNewID()
@@ -125,11 +105,10 @@ func TestStoreOperations_Integration(t *testing.T) {
 	})
 
 	t.Run("Should perform complete task repository operations", func(t *testing.T) {
-		ctx, testStore, cleanup := setupTestWithSharedContainer(t)
+		ctx, pool, cleanup := setupTestWithSharedContainer(t)
 		defer cleanup()
-
-		taskRepo := testStore.NewTaskRepo()
-		workflowRepo := testStore.NewWorkflowRepo()
+		taskRepo := postgres.NewTaskRepo(pool)
+		workflowRepo := postgres.NewWorkflowRepo(pool)
 
 		// First create a workflow state (required for foreign key constraint)
 		workflowExecID := core.MustNewID()
@@ -194,10 +173,9 @@ func TestStoreOperations_Integration(t *testing.T) {
 	})
 
 	t.Run("Should perform complete workflow repository operations", func(t *testing.T) {
-		ctx, testStore, cleanup := setupTestWithSharedContainer(t)
+		ctx, pool, cleanup := setupTestWithSharedContainer(t)
 		defer cleanup()
-
-		workflowRepo := testStore.NewWorkflowRepo()
+		workflowRepo := postgres.NewWorkflowRepo(pool)
 
 		// Test workflow state creation
 		workflowExecID := core.MustNewID()
@@ -250,10 +228,10 @@ func TestStoreOperations_Integration(t *testing.T) {
 	})
 
 	t.Run("Should handle concurrent repository operations", func(t *testing.T) {
-		ctx, testStore, cleanup := setupTestWithSharedContainer(t)
+		ctx, pool, cleanup := setupTestWithSharedContainer(t)
 		defer cleanup()
 
-		authRepo := testStore.NewAuthRepo()
+		authRepo := postgres.NewAuthRepo(pool)
 
 		// Test concurrent user creation
 		numUsers := 10
@@ -290,11 +268,10 @@ func TestStoreOperations_Integration(t *testing.T) {
 	})
 
 	t.Run("Should handle error scenarios gracefully", func(t *testing.T) {
-		ctx, testStore, cleanup := setupTestWithSharedContainer(t)
+		ctx, pool, cleanup := setupTestWithSharedContainer(t)
 		defer cleanup()
-
-		authRepo := testStore.NewAuthRepo()
-		taskRepo := testStore.NewTaskRepo()
+		authRepo := postgres.NewAuthRepo(pool)
+		taskRepo := postgres.NewTaskRepo(pool)
 
 		// Test duplicate user creation
 		userID := core.MustNewID()

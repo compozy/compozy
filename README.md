@@ -61,6 +61,8 @@ cd my-ai-app
 compozy dev
 ```
 
+> **Note**: When using MCP tools in standalone mode, ensure `mcp_proxy.port` is set to a fixed port (not 0). See [MCP Configuration](./docs/content/docs/core/configuration/project-setup.mdx) for details.
+
 For a complete walkthrough, check out our [**Quick Start Guide**](./docs/content/docs/core/getting-started/quick-start.mdx).
 
 ## 📚 Documentation

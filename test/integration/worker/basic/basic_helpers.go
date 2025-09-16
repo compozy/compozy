@@ -14,7 +14,6 @@ import (
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/memory"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/runtime"
@@ -96,8 +95,8 @@ func executeWorkflowAndGetState(
 // createTestActivities creates activity instances for testing
 func createTestActivities(
 	t *testing.T,
-	taskRepo *store.TaskRepo,
-	workflowRepo *store.WorkflowRepo,
+	taskRepo task.Repository,
+	workflowRepo workflow.Repository,
 	fixture *helpers.TestFixture,
 ) *worker.Activities {
 	// For testing, we need to create a minimal project config and workflow configs
@@ -118,7 +117,7 @@ func createTestActivities(
 	var memoryManager *memory.Manager
 
 	// Create test activities with real repositories
-	return worker.NewActivities(
+	acts, err := worker.NewActivities(
 		context.Background(),
 		projectConfig,
 		workflows,
@@ -131,6 +130,8 @@ func createTestActivities(
 		memoryManager,
 		templateEngine,
 	)
+	require.NoError(t, err)
+	return acts
 }
 
 // registerTestActivities registers all necessary activities with Temporal test environment

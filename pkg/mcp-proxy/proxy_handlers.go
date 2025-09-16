@@ -44,6 +44,14 @@ func NewProxyHandlers(
 	}
 }
 
+// SetBaseURL updates the base URL used for SSE servers created after this call.
+// It is safe to call this during startup when binding to an ephemeral port.
+func (p *ProxyHandlers) SetBaseURL(u string) {
+	p.serversMutex.Lock()
+	p.baseURL = u
+	p.serversMutex.Unlock()
+}
+
 // RegisterMCPProxy registers an MCP client as a proxy server
 func (p *ProxyHandlers) RegisterMCPProxy(ctx context.Context, name string, def *MCPDefinition) error {
 	log := logger.FromContext(ctx)
@@ -74,9 +82,12 @@ func (p *ProxyHandlers) RegisterMCPProxy(ctx context.Context, name string, def *
 	)
 
 	// Create SSE server for this MCP server
+	p.serversMutex.RLock()
+	baseURL := p.baseURL
+	p.serversMutex.RUnlock()
 	sseServer := server.NewSSEServer(mcpServer,
 		server.WithStaticBasePath(name),
-		server.WithBaseURL(p.baseURL),
+		server.WithBaseURL(baseURL),
 	)
 
 	proxyServer := &ProxyServer{

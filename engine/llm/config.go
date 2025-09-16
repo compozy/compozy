@@ -31,6 +31,10 @@ type Config struct {
 	// for the same tool (or content-level error) before aborting the task.
 	// When <= 0, a default of 8 is used (see DefaultConfig).
 	MaxSequentialToolErrors int
+	// StructuredOutputRetryAttempts controls how many times the orchestrator
+	// will retry to obtain a valid structured response before failing.
+	// Acceptable range: 0–10. When 0 or negative, falls back to default (2).
+	StructuredOutputRetryAttempts int
 	// Retry configuration
 	RetryAttempts      int
 	RetryBackoffBase   time.Duration
@@ -60,20 +64,21 @@ type Config struct {
 
 func DefaultConfig() *Config {
 	return &Config{
-		ProxyURL:                   "http://localhost:6001",
-		CacheTTL:                   5 * time.Minute,
-		Timeout:                    300 * time.Second,
-		MaxConcurrentTools:         10,
-		MaxToolIterations:          10,
-		MaxSequentialToolErrors:    8,
-		RetryAttempts:              3,
-		RetryBackoffBase:           100 * time.Millisecond,
-		RetryBackoffMax:            10 * time.Second,
-		RetryJitter:                true,
-		RetryJitterPercent:         10,
-		EnableStructuredOutput:     true,
-		EnableToolCaching:          true,
-		FailOnMCPRegistrationError: false,
+		ProxyURL:                      "http://localhost:6001",
+		CacheTTL:                      5 * time.Minute,
+		Timeout:                       300 * time.Second,
+		MaxConcurrentTools:            10,
+		MaxToolIterations:             10,
+		MaxSequentialToolErrors:       8,
+		StructuredOutputRetryAttempts: defaultStructuredOutputRetries,
+		RetryAttempts:                 3,
+		RetryBackoffBase:              100 * time.Millisecond,
+		RetryBackoffMax:               10 * time.Second,
+		RetryJitter:                   true,
+		RetryJitterPercent:            10,
+		EnableStructuredOutput:        true,
+		EnableToolCaching:             true,
+		FailOnMCPRegistrationError:    false,
 	}
 }
 
@@ -105,6 +110,16 @@ func WithTimeout(timeout time.Duration) Option {
 func WithMaxConcurrentTools(maxTools int) Option {
 	return func(c *Config) {
 		c.MaxConcurrentTools = maxTools
+	}
+}
+
+// WithStructuredOutputRetries sets the structured output retry attempts
+func WithStructuredOutputRetries(attempts int) Option {
+	return func(c *Config) {
+		if attempts < 0 {
+			attempts = 0 // let effective default kick in
+		}
+		c.StructuredOutputRetryAttempts = attempts
 	}
 }
 

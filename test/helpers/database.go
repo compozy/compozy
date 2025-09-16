@@ -275,7 +275,7 @@ func ensureTablesExist(db *pgxpool.Pool) error {
 		return err
 	}
 
-	migrationDir := filepath.Join(projectRoot, "engine", "infra", "store", "migrations")
+	migrationDir := filepath.Join(projectRoot, "engine", "infra", "postgres", "migrations")
 
 	// Run migrations up to the latest version
 	if err := goose.Up(sqlDB, migrationDir); err != nil {
@@ -284,3 +284,6 @@ func ensureTablesExist(db *pgxpool.Pool) error {
 
 	return nil
 }
+
+// EnsureTablesExistForTest is a small wrapper to expose ensureTablesExist to tests in other packages.
+func EnsureTablesExistForTest(db *pgxpool.Pool) error { return ensureTablesExist(db) }

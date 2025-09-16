@@ -14,7 +14,6 @@ var (
 // This is the SINGLE SOURCE OF TRUTH for all configuration defaults
 func CreateRegistry() *Registry {
 	registry := NewRegistry()
-
 	registerServerFields(registry)
 	registerDatabaseFields(registry)
 	registerTemporalFields(registry)
@@ -578,7 +577,6 @@ func registerLLMFields(registry *Registry) {
 	})
 
 	registerLLMRetryAndLimits(registry)
-
 	registerLLMMCPExtras(registry)
 }
 
@@ -1067,11 +1065,6 @@ func registerBehaviorFlags(registry *Registry) {
 }
 
 func registerCacheFields(registry *Registry) {
-	// Only register cache-specific fields, not Redis connection fields
-	registerCacheOperationFields(registry)
-}
-
-func registerCacheOperationFields(registry *Registry) {
 	registerCacheDataFields(registry)
 	registerCacheCompressionFields(registry)
 }
@@ -1125,6 +1118,14 @@ func registerCacheDataFields(registry *Registry) {
 		Type:    durationType,
 		Help:    "Interval for logging cache statistics (0 to disable)",
 	})
+	registry.Register(&FieldDef{
+		Path:    "cache.key_scan_count",
+		Default: 100,
+		CLIFlag: "",
+		EnvVar:  "CACHE_KEY_SCAN_COUNT",
+		Type:    reflect.TypeOf(int(0)),
+		Help:    "COUNT hint used by Redis SCAN for key iteration (positive integer)",
+	})
 }
 
 func registerCacheCompressionFields(registry *Registry) {
@@ -1175,6 +1176,24 @@ func registerWorkerFields(registry *Registry) {
 	})
 
 	registry.Register(&FieldDef{
+		Path:    "worker.dispatcher.heartbeat_ttl",
+		Default: 5 * time.Minute,
+		CLIFlag: "",
+		EnvVar:  "WORKER_DISPATCHER_HEARTBEAT_TTL",
+		Type:    durationType,
+		Help:    "TTL for dispatcher heartbeat records",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "worker.dispatcher.stale_threshold",
+		Default: 2 * time.Minute,
+		CLIFlag: "",
+		EnvVar:  "WORKER_DISPATCHER_STALE_THRESHOLD",
+		Type:    durationType,
+		Help:    "Duration after which a dispatcher heartbeat is considered stale",
+	})
+
+	registry.Register(&FieldDef{
 		Path:    "worker.dispatcher_retry_delay",
 		Default: 50 * time.Millisecond,
 		CLIFlag: "",
@@ -1200,9 +1219,26 @@ func registerWorkerFields(registry *Registry) {
 		Type:    durationType,
 		Help:    "Timeout for MCP proxy health checks",
 	})
+
+	registry.Register(&FieldDef{
+		Path:    "worker.start_workflow_timeout",
+		Default: 5 * time.Second,
+		CLIFlag: "",
+		EnvVar:  "WORKER_START_WORKFLOW_TIMEOUT",
+		Type:    durationType,
+		Help:    "Timeout for starting a workflow execution to avoid hanging requests",
+	})
 }
 
 func registerMCPProxyFields(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path:    "mcp_proxy.mode",
+		Default: "standalone",
+		CLIFlag: "",
+		EnvVar:  "MCP_PROXY_MODE",
+		Type:    reflect.TypeOf(""),
+		Help:    "MCP proxy mode: 'standalone' embeds the proxy (needs fixed port); empty keeps external proxy defaults",
+	})
 	registry.Register(&FieldDef{
 		Path:    "mcp_proxy.host",
 		Default: "127.0.0.1",
@@ -1214,11 +1250,11 @@ func registerMCPProxyFields(registry *Registry) {
 
 	registry.Register(&FieldDef{
 		Path:    "mcp_proxy.port",
-		Default: 6001,
+		Default: 0,
 		CLIFlag: "mcp-port",
 		EnvVar:  "MCP_PROXY_PORT",
 		Type:    reflect.TypeOf(0),
-		Help:    "Port for MCP proxy server to listen on",
+		Help:    "Port for MCP proxy server to listen on (0 = ephemeral)",
 	})
 
 	registry.Register(&FieldDef{

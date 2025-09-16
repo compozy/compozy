@@ -8,7 +8,6 @@ import (
 	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/workflow"
-	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -155,16 +154,15 @@ func TestHandleResponse_UpdateParentStatusIfNeeded(t *testing.T) {
 		mockTaskRepo.On("GetProgressInfo", mock.Anything, parentState.TaskExecID).Return(progressInfo, nil)
 
 		// Mock the transaction-related calls
-		mockTaskRepo.On("WithTx", mock.Anything, mock.AnythingOfType("func(pgx.Tx) error")).
+		mockTaskRepo.On("WithTransaction", mock.Anything, mock.AnythingOfType("func(task.Repository) error")).
 			Return(nil).
 			Run(func(args mock.Arguments) {
-				// Execute the transaction function with a nil transaction for testing
-				fn := args.Get(1).(func(pgx.Tx) error)
-				fn(nil)
+				fn := args.Get(1).(func(task.Repository) error)
+				_ = fn(mockTaskRepo)
 			})
-		mockTaskRepo.On("GetStateForUpdate", mock.Anything, mock.Anything, parentState.TaskExecID).
+		mockTaskRepo.On("GetStateForUpdate", mock.Anything, parentState.TaskExecID).
 			Return(parentState, nil)
-		mockTaskRepo.On("UpsertStateWithTx", mock.Anything, mock.Anything, mock.MatchedBy(func(state *task.State) bool {
+		mockTaskRepo.On("UpsertState", mock.Anything, mock.MatchedBy(func(state *task.State) bool {
 			return state.TaskExecID == parentState.TaskExecID && state.Status == core.StatusSuccess
 		})).Return(nil)
 
@@ -212,16 +210,15 @@ func TestHandleResponse_UpdateParentStatusIfNeeded(t *testing.T) {
 		mockTaskRepo.On("GetProgressInfo", mock.Anything, parentState.TaskExecID).Return(progressInfo, nil)
 
 		// Mock the transaction-related calls
-		mockTaskRepo.On("WithTx", mock.Anything, mock.AnythingOfType("func(pgx.Tx) error")).
+		mockTaskRepo.On("WithTransaction", mock.Anything, mock.AnythingOfType("func(task.Repository) error")).
 			Return(nil).
 			Run(func(args mock.Arguments) {
-				// Execute the transaction function with a nil transaction for testing
-				fn := args.Get(1).(func(pgx.Tx) error)
-				fn(nil)
+				fn := args.Get(1).(func(task.Repository) error)
+				_ = fn(mockTaskRepo)
 			})
-		mockTaskRepo.On("GetStateForUpdate", mock.Anything, mock.Anything, parentState.TaskExecID).
+		mockTaskRepo.On("GetStateForUpdate", mock.Anything, parentState.TaskExecID).
 			Return(parentState, nil)
-		mockTaskRepo.On("UpsertStateWithTx", mock.Anything, mock.Anything, mock.MatchedBy(func(state *task.State) bool {
+		mockTaskRepo.On("UpsertState", mock.Anything, mock.MatchedBy(func(state *task.State) bool {
 			return state.TaskExecID == parentState.TaskExecID && state.Status == core.StatusFailed
 		})).Return(nil)
 

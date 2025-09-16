@@ -26,6 +26,12 @@ const (
 	ErrNotFoundCode     = "NOT_FOUND"
 )
 
+// Error messages
+const (
+	ErrMsgAppStateNotInitialized = "application state not initialized"
+	ErrMsgWorkerNotRunning       = "worker is not running; configure Redis or start the worker"
+)
+
 // Error represents errors that can occur during server operations
 type Error struct {
 	Code    string `json:"code"`

@@ -22,7 +22,7 @@ type StateFilter struct {
 type Repository interface {
 	ListStates(ctx context.Context, filter *StateFilter) ([]*State, error)
 	UpsertState(ctx context.Context, state *State) error
-	UpdateStatus(ctx context.Context, workflowExecID string, status core.StatusType) error
+	UpdateStatus(ctx context.Context, workflowExecID core.ID, status core.StatusType) error
 	GetState(ctx context.Context, workflowExecID core.ID) (*State, error)
 	GetStateByID(ctx context.Context, workflowID string) (*State, error)
 	GetStateByTaskID(ctx context.Context, workflowID, taskID string) (*State, error)

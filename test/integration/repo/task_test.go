@@ -1,827 +1,558 @@
 package store
 
 import (
-	"context"
-	"fmt"
-	"os"
+	"errors"
 	"testing"
 
-	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/engine/infra/store"
-	"github.com/compozy/compozy/engine/task"
-	utils "github.com/compozy/compozy/test/helpers"
-	"github.com/jackc/pgx/v5"
-	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/compozy/compozy/engine/core"
+	store "github.com/compozy/compozy/engine/infra/store"
+	"github.com/compozy/compozy/engine/task"
 )
 
-func TestMain(m *testing.M) {
-	// Run tests
-	exitCode := m.Run()
-	// Cleanup if needed
-	os.Exit(exitCode)
-}
+func TestTaskRepoIntegration(t *testing.T) {
+	t.Run("Should upsert and retrieve task state", func(t *testing.T) {
+		env := newRepoTestEnv(t)
+		truncateRepoTables(env.ctx, t, env.pool)
 
-func TestTaskRepo_UpsertState(t *testing.T) {
-	t.Run("Should insert or update task state successfully", func(t *testing.T) {
-		mockSetup := utils.NewMockSetup(t)
-		defer mockSetup.Close()
-		repo := store.NewTaskRepo(mockSetup.Mock)
-		ctx := context.Background()
-		workflowID := "wf1"
-		workflowExecID := core.ID("exec1")
-		agentID := "agent1"
+		workflowExecID := core.MustNewID()
+		workflowID := "wf-upsert"
+		input := core.Input{"key": "value"}
+		upsertWorkflowState(t, env, workflowID, workflowExecID, &input)
+
+		agentID := "agent-upsert"
 		actionID := "default_action"
+		taskExecID := core.MustNewID()
 		state := &task.State{
-			TaskExecID:     core.ID("task_exec1"),
-			TaskID:         "task1",
 			Component:      core.ComponentAgent,
 			Status:         core.StatusPending,
+			TaskID:         "task-upsert",
+			TaskExecID:     taskExecID,
 			WorkflowID:     workflowID,
 			WorkflowExecID: workflowExecID,
 			ExecutionType:  task.ExecutionBasic,
 			AgentID:        &agentID,
 			ActionID:       &actionID,
-			Input:          &core.Input{"key": "value"},
+			Input:          &input,
 		}
-		dataBuilder := utils.NewDataBuilder()
-		inputJSON := dataBuilder.MustCreateInputData(map[string]any{"key": "value"})
-		expectedOutputJSON := dataBuilder.MustCreateNilJSONB()
-		expectedErrorJSON := dataBuilder.MustCreateNilJSONB()
-		queries := mockSetup.NewQueryExpectations()
-		queries.ExpectTaskStateQueryForUpsert([]any{
-			state.TaskExecID, state.TaskID, state.WorkflowExecID, state.WorkflowID, state.Component, state.Status,
-			state.ExecutionType, (*string)(nil), state.AgentID, state.ActionID, state.ToolID, inputJSON,
-			expectedOutputJSON,
-			expectedErrorJSON,
+
+		require.NoError(t, env.taskRepo.UpsertState(env.ctx, state))
+
+		stored, err := env.taskRepo.GetState(env.ctx, taskExecID)
+		require.NoError(t, err)
+		assert.Equal(t, core.StatusPending, stored.Status)
+		assert.Equal(t, taskExecID, stored.TaskExecID)
+		assert.Equal(t, actionID, *stored.ActionID)
+		require.NotNil(t, stored.Input)
+		assert.Equal(t, "value", (*stored.Input)["key"])
+
+		state.Status = core.StatusSuccess
+		output := core.Output{"result": "ok"}
+		state.Output = &output
+		require.NoError(t, env.taskRepo.UpsertState(env.ctx, state))
+
+		updated, err := env.taskRepo.GetState(env.ctx, taskExecID)
+		require.NoError(t, err)
+		assert.Equal(t, core.StatusSuccess, updated.Status)
+		require.NotNil(t, updated.Output)
+		assert.Equal(t, "ok", (*updated.Output)["result"])
+	})
+
+	t.Run("Should manage transactions", func(t *testing.T) {
+		t.Run("Should commit child states when closure succeeds", func(t *testing.T) {
+			env := newRepoTestEnv(t)
+			truncateRepoTables(env.ctx, t, env.pool)
+
+			workflowExecID := core.MustNewID()
+			workflowID := "wf-tx-success"
+			upsertWorkflowState(t, env, workflowID, workflowExecID, nil)
+
+			parentExecID := core.MustNewID()
+			parentState := &task.State{
+				Component:      core.ComponentTask,
+				Status:         core.StatusRunning,
+				TaskID:         "parent-task",
+				TaskExecID:     parentExecID,
+				WorkflowID:     workflowID,
+				WorkflowExecID: workflowExecID,
+				ExecutionType:  task.ExecutionParallel,
+			}
+			require.NoError(t, env.taskRepo.UpsertState(env.ctx, parentState))
+
+			childOneExec := core.MustNewID()
+			childTwoExec := core.MustNewID()
+			parentPtr := parentExecID
+			toolID := "tool-child"
+			agentID := "agent-child"
+			actionID := "child-action"
+			childInput := core.Input{"task": "child"}
+
+			err := env.taskRepo.WithTransaction(env.ctx, func(r task.Repository) error {
+				stateOne := &task.State{
+					Component:      core.ComponentAgent,
+					Status:         core.StatusPending,
+					TaskID:         "child-one",
+					TaskExecID:     childOneExec,
+					WorkflowID:     workflowID,
+					WorkflowExecID: workflowExecID,
+					ExecutionType:  task.ExecutionBasic,
+					ParentStateID:  &parentPtr,
+					AgentID:        &agentID,
+					ActionID:       &actionID,
+					Input:          &childInput,
+				}
+				if err := r.UpsertState(env.ctx, stateOne); err != nil {
+					return err
+				}
+				stateTwo := &task.State{
+					Component:      core.ComponentTool,
+					Status:         core.StatusPending,
+					TaskID:         "child-two",
+					TaskExecID:     childTwoExec,
+					WorkflowID:     workflowID,
+					WorkflowExecID: workflowExecID,
+					ExecutionType:  task.ExecutionBasic,
+					ParentStateID:  &parentPtr,
+					ToolID:         &toolID,
+				}
+				return r.UpsertState(env.ctx, stateTwo)
+			})
+
+			require.NoError(t, err)
+
+			children, err := env.taskRepo.ListChildren(env.ctx, parentExecID)
+			require.NoError(t, err)
+			assert.Len(t, children, 2)
+
+			outputs, err := env.taskRepo.ListChildrenOutputs(env.ctx, parentExecID)
+			require.NoError(t, err)
+			assert.Len(t, outputs, 0)
 		})
-		err := repo.UpsertState(ctx, state)
-		assert.NoError(t, err)
-		mockSetup.ExpectationsWereMet()
-	})
-}
 
-func TestTaskRepo_CreateChildStatesInTransaction(t *testing.T) {
-	t.Run("Should create multiple child states atomically", func(t *testing.T) {
-		mockSetup := utils.NewMockSetup(t)
-		defer mockSetup.Close()
-		repo := store.NewTaskRepo(mockSetup.Mock)
-		ctx := context.Background()
-		parentStateID := core.ID("parent-exec-123")
-		workflowExecID := core.ID("exec1")
-		childStates := []*task.State{
-			task.CreateAgentSubTaskState(
-				"child1", core.ID("child1-exec"), "wf1", workflowExecID,
-				&parentStateID, "agent1", "action1", &core.Input{"task": "subtask1"}),
-			task.CreateToolSubTaskState(
-				"child2", core.ID("child2-exec"), "wf1", workflowExecID,
-				&parentStateID, "tool1", &core.Input{"task": "subtask2"}),
+		t.Run("Should rollback child states when closure fails", func(t *testing.T) {
+			env := newRepoTestEnv(t)
+			truncateRepoTables(env.ctx, t, env.pool)
+
+			workflowExecID := core.MustNewID()
+			workflowID := "wf-tx-rollback"
+			upsertWorkflowState(t, env, workflowID, workflowExecID, nil)
+
+			parentExecID := core.MustNewID()
+			parentState := &task.State{
+				Component:      core.ComponentTask,
+				Status:         core.StatusRunning,
+				TaskID:         "parent-task",
+				TaskExecID:     parentExecID,
+				WorkflowID:     workflowID,
+				WorkflowExecID: workflowExecID,
+				ExecutionType:  task.ExecutionParallel,
+			}
+			require.NoError(t, env.taskRepo.UpsertState(env.ctx, parentState))
+
+			parentPtr := parentExecID
+			childExec := core.MustNewID()
+			agentID := "agent-rollback"
+			actionID := "rollback-action"
+
+			failingErr := errors.New("intentional failure")
+			err := env.taskRepo.WithTransaction(env.ctx, func(r task.Repository) error {
+				child := &task.State{
+					Component:      core.ComponentAgent,
+					Status:         core.StatusPending,
+					TaskID:         "child-rollback",
+					TaskExecID:     childExec,
+					WorkflowID:     workflowID,
+					WorkflowExecID: workflowExecID,
+					ExecutionType:  task.ExecutionBasic,
+					ParentStateID:  &parentPtr,
+					AgentID:        &agentID,
+					ActionID:       &actionID,
+				}
+				if err := r.UpsertState(env.ctx, child); err != nil {
+					return err
+				}
+				return failingErr
+			})
+
+			require.ErrorIs(t, err, failingErr)
+
+			children, err := env.taskRepo.ListChildren(env.ctx, parentExecID)
+			require.NoError(t, err)
+			assert.Empty(t, children)
+		})
+	})
+
+	t.Run("Should get task state and handle not found", func(t *testing.T) {
+		env := newRepoTestEnv(t)
+		truncateRepoTables(env.ctx, t, env.pool)
+
+		workflowExecID := core.MustNewID()
+		workflowID := "wf-get"
+		upsertWorkflowState(t, env, workflowID, workflowExecID, nil)
+
+		agentID := "agent-get"
+		actionID := "get-action"
+		taskExecID := core.MustNewID()
+		state := &task.State{
+			Component:      core.ComponentAgent,
+			Status:         core.StatusRunning,
+			TaskID:         "task-get",
+			TaskExecID:     taskExecID,
+			WorkflowID:     workflowID,
+			WorkflowExecID: workflowExecID,
+			ExecutionType:  task.ExecutionBasic,
+			AgentID:        &agentID,
+			ActionID:       &actionID,
 		}
-		dataBuilder := utils.NewDataBuilder()
-		input1JSON := dataBuilder.MustCreateInputData(map[string]any{"task": "subtask1"})
-		input2JSON := dataBuilder.MustCreateInputData(map[string]any{"task": "subtask2"})
-		nilJSON := dataBuilder.MustCreateNilJSONB()
-		mockSetup.Mock.ExpectBegin()
-		parentStateIDStr := string(parentStateID)
-		mockSetup.Mock.ExpectExec("INSERT INTO task_states").
-			WithArgs(
-				childStates[0].TaskExecID, childStates[0].TaskID, childStates[0].WorkflowExecID,
-				childStates[0].WorkflowID, childStates[0].Component, childStates[0].Status,
-				childStates[0].ExecutionType, &parentStateIDStr, childStates[0].AgentID,
-				childStates[0].ActionID, (*string)(nil), input1JSON, nilJSON, nilJSON,
-			).WillReturnResult(pgxmock.NewResult("INSERT", 1))
-		mockSetup.Mock.ExpectExec("INSERT INTO task_states").
-			WithArgs(
-				childStates[1].TaskExecID, childStates[1].TaskID, childStates[1].WorkflowExecID,
-				childStates[1].WorkflowID, childStates[1].Component, childStates[1].Status,
-				childStates[1].ExecutionType, &parentStateIDStr, (*string)(nil), (*string)(nil),
-				childStates[1].ToolID, input2JSON, nilJSON, nilJSON,
-			).WillReturnResult(pgxmock.NewResult("INSERT", 1))
-		mockSetup.Mock.ExpectCommit()
-		err := repo.CreateChildStatesInTransaction(ctx, parentStateID, childStates)
-		assert.NoError(t, err)
-		mockSetup.ExpectationsWereMet()
+		require.NoError(t, env.taskRepo.UpsertState(env.ctx, state))
+
+		fetched, err := env.taskRepo.GetState(env.ctx, taskExecID)
+		require.NoError(t, err)
+		assert.Equal(t, "task-get", fetched.TaskID)
+
+		_, err = env.taskRepo.GetState(env.ctx, core.MustNewID())
+		require.ErrorIs(t, err, store.ErrTaskNotFound)
 	})
-	t.Run("Should rollback transaction on error", func(t *testing.T) {
-		mockSetup := utils.NewMockSetup(t)
-		defer mockSetup.Close()
-		repo := store.NewTaskRepo(mockSetup.Mock)
-		ctx := context.Background()
-		parentStateID := core.ID("parent-exec-456")
-		workflowExecID := core.ID("exec2")
-		childStates := []*task.State{
-			task.CreateAgentSubTaskState(
-				"child1", core.ID("child1-exec"), "wf2", workflowExecID,
-				&parentStateID, "agent1", "action1", &core.Input{"task": "subtask1"}),
+
+	t.Run("Should list task states using available filters", func(t *testing.T) {
+		env := newRepoTestEnv(t)
+		truncateRepoTables(env.ctx, t, env.pool)
+
+		workflowExecID := core.MustNewID()
+		workflowID := "wf-list"
+		upsertWorkflowState(t, env, workflowID, workflowExecID, nil)
+
+		agentID := "agent-list"
+		actionID := "list-action"
+		toolID := "tool-list"
+
+		stateA := &task.State{
+			Component:      core.ComponentAgent,
+			Status:         core.StatusPending,
+			TaskID:         "task-a",
+			TaskExecID:     core.MustNewID(),
+			WorkflowID:     workflowID,
+			WorkflowExecID: workflowExecID,
+			ExecutionType:  task.ExecutionBasic,
+			AgentID:        &agentID,
+			ActionID:       &actionID,
 		}
-		dataBuilder := utils.NewDataBuilder()
-		inputJSON := dataBuilder.MustCreateInputData(map[string]any{"task": "subtask1"})
-		nilJSON := dataBuilder.MustCreateNilJSONB()
-		mockSetup.Mock.ExpectBegin()
-		parentStateIDStr := string(parentStateID)
-		mockSetup.Mock.ExpectExec("INSERT INTO task_states").
-			WithArgs(
-				childStates[0].TaskExecID, childStates[0].TaskID, childStates[0].WorkflowExecID,
-				childStates[0].WorkflowID, childStates[0].Component, childStates[0].Status,
-				childStates[0].ExecutionType, &parentStateIDStr, childStates[0].AgentID,
-				childStates[0].ActionID, (*string)(nil), inputJSON, nilJSON, nilJSON,
-			).WillReturnError(fmt.Errorf("database error"))
-		mockSetup.Mock.ExpectRollback()
-		err := repo.CreateChildStatesInTransaction(ctx, parentStateID, childStates)
-		assert.ErrorContains(t, err, "database error")
-		mockSetup.ExpectationsWereMet()
+		stateB := &task.State{
+			Component:      core.ComponentTool,
+			Status:         core.StatusRunning,
+			TaskID:         "task-b",
+			TaskExecID:     core.MustNewID(),
+			WorkflowID:     workflowID,
+			WorkflowExecID: workflowExecID,
+			ExecutionType:  task.ExecutionBasic,
+			ToolID:         &toolID,
+		}
+		otherWorkflowExec := core.MustNewID()
+		upsertWorkflowState(t, env, "wf-other", otherWorkflowExec, nil)
+		stateC := &task.State{
+			Component:      core.ComponentAgent,
+			Status:         core.StatusFailed,
+			TaskID:         "task-c",
+			TaskExecID:     core.MustNewID(),
+			WorkflowID:     "wf-other",
+			WorkflowExecID: otherWorkflowExec,
+			ExecutionType:  task.ExecutionBasic,
+			AgentID:        &agentID,
+			ActionID:       &actionID,
+		}
+
+		require.NoError(t, env.taskRepo.UpsertState(env.ctx, stateA))
+		require.NoError(t, env.taskRepo.UpsertState(env.ctx, stateB))
+		require.NoError(t, env.taskRepo.UpsertState(env.ctx, stateC))
+
+		tasksByWorkflow, err := env.taskRepo.ListTasksInWorkflow(env.ctx, workflowExecID)
+		require.NoError(t, err)
+		assert.Len(t, tasksByWorkflow, 2)
+		assert.Equal(t, "task-a", tasksByWorkflow["task-a"].TaskID)
+		assert.Equal(t, "task-b", tasksByWorkflow["task-b"].TaskID)
+
+		byStatus, err := env.taskRepo.ListTasksByStatus(env.ctx, workflowExecID, core.StatusPending)
+		require.NoError(t, err)
+		require.Len(t, byStatus, 1)
+		assert.Equal(t, "task-a", byStatus[0].TaskID)
+
+		byAgent, err := env.taskRepo.ListTasksByAgent(env.ctx, workflowExecID, agentID)
+		require.NoError(t, err)
+		require.Len(t, byAgent, 1)
+		assert.Equal(t, "task-a", byAgent[0].TaskID)
+
+		byTool, err := env.taskRepo.ListTasksByTool(env.ctx, workflowExecID, toolID)
+		require.NoError(t, err)
+		require.Len(t, byTool, 1)
+		assert.Equal(t, "task-b", byTool[0].TaskID)
+
+		filter := &task.StateFilter{WorkflowExecID: &workflowExecID}
+		filtered, err := env.taskRepo.ListStates(env.ctx, filter)
+		require.NoError(t, err)
+		assert.Len(t, filtered, 2)
 	})
-}
 
-// Helper function for task Get tests
-func testTaskGet(
-	t *testing.T,
-	testName string,
-	setupAndRun func(*utils.MockSetup, *store.TaskRepo, context.Context),
-) {
-	mockSetup := utils.NewMockSetup(t)
-	defer mockSetup.Close()
+	t.Run("Should list children, child outputs, and fetch child by task id", func(t *testing.T) {
+		env := newRepoTestEnv(t)
+		truncateRepoTables(env.ctx, t, env.pool)
 
-	repo := store.NewTaskRepo(mockSetup.Mock)
-	ctx := context.Background()
+		workflowExecID := core.MustNewID()
+		workflowID := "wf-children"
+		upsertWorkflowState(t, env, workflowID, workflowExecID, nil)
 
-	t.Run(testName, func(_ *testing.T) {
-		setupAndRun(mockSetup, repo, ctx)
-		mockSetup.ExpectationsWereMet()
+		parentExecID := core.MustNewID()
+		parentState := &task.State{
+			Component:      core.ComponentTask,
+			Status:         core.StatusRunning,
+			TaskID:         "parent",
+			TaskExecID:     parentExecID,
+			WorkflowID:     workflowID,
+			WorkflowExecID: workflowExecID,
+			ExecutionType:  task.ExecutionParallel,
+		}
+		require.NoError(t, env.taskRepo.UpsertState(env.ctx, parentState))
+
+		parentPtr := parentExecID
+		agentID := "agent-child"
+		actionID := "child-action"
+		output := core.Output{"result": "ok"}
+		childOne := &task.State{
+			Component:      core.ComponentAgent,
+			Status:         core.StatusSuccess,
+			TaskID:         "child-1",
+			TaskExecID:     core.MustNewID(),
+			WorkflowID:     workflowID,
+			WorkflowExecID: workflowExecID,
+			ExecutionType:  task.ExecutionBasic,
+			ParentStateID:  &parentPtr,
+			AgentID:        &agentID,
+			ActionID:       &actionID,
+			Output:         &output,
+		}
+		toolID := "tool-child"
+		childTwo := &task.State{
+			Component:      core.ComponentTool,
+			Status:         core.StatusRunning,
+			TaskID:         "child-2",
+			TaskExecID:     core.MustNewID(),
+			WorkflowID:     workflowID,
+			WorkflowExecID: workflowExecID,
+			ExecutionType:  task.ExecutionBasic,
+			ParentStateID:  &parentPtr,
+			ToolID:         &toolID,
+		}
+
+		require.NoError(t, env.taskRepo.UpsertState(env.ctx, childOne))
+		require.NoError(t, env.taskRepo.UpsertState(env.ctx, childTwo))
+
+		children, err := env.taskRepo.ListChildren(env.ctx, parentExecID)
+		require.NoError(t, err)
+		require.Len(t, children, 2)
+		assert.Equal(t, parentExecID, *children[0].ParentStateID)
+
+		outputs, err := env.taskRepo.ListChildrenOutputs(env.ctx, parentExecID)
+		require.NoError(t, err)
+		require.Len(t, outputs, 1)
+		assert.Equal(t, "ok", (*outputs["child-1"])["result"])
+
+		childByTask, err := env.taskRepo.GetChildByTaskID(env.ctx, parentExecID, "child-1")
+		require.NoError(t, err)
+		assert.Equal(t, "child-1", childByTask.TaskID)
+
+		emptyParentID := core.MustNewID()
+		children, err = env.taskRepo.ListChildren(env.ctx, emptyParentID)
+		require.NoError(t, err)
+		assert.Empty(t, children)
 	})
-}
 
-func TestTaskRepo_GetState(t *testing.T) {
-	t.Run("Should get basic task state", func(t *testing.T) {
-		mockSetup := utils.NewMockSetup(t)
-		defer mockSetup.Close()
-		repo := store.NewTaskRepo(mockSetup.Mock)
-		ctx := context.Background()
-		taskExecID := core.ID("task_exec1")
-		dataBuilder := utils.NewDataBuilder()
-		inputData := dataBuilder.MustCreateInputData(map[string]any{"key": "value"})
-		taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
-		taskRows := taskRowBuilder.CreateTaskStateRowsWithExecution(
-			"task_exec1", "task1", "exec1", "wf1",
-			core.StatusPending, task.ExecutionBasic, "agent1", nil, inputData,
-		)
-		mockSetup.Mock.ExpectQuery("SELECT \\*").
-			WithArgs(taskExecID).
-			WillReturnRows(taskRows)
-		state, err := repo.GetState(ctx, taskExecID)
-		assert.NoError(t, err)
-		assert.Equal(t, taskExecID, state.TaskExecID)
-		assert.Equal(t, core.StatusPending, state.Status)
-		assert.Equal(t, task.ExecutionBasic, state.ExecutionType)
-		assert.NotNil(t, state.Input)
-		assert.Equal(t, "agent1", *state.AgentID)
-		mockSetup.ExpectationsWereMet()
+	t.Run("Should build task tree for hierarchical executions", func(t *testing.T) {
+		env := newRepoTestEnv(t)
+		truncateRepoTables(env.ctx, t, env.pool)
+
+		workflowExecID := core.MustNewID()
+		workflowID := "wf-tree"
+		upsertWorkflowState(t, env, workflowID, workflowExecID, nil)
+
+		rootExecID := core.MustNewID()
+		rootState := &task.State{
+			Component:      core.ComponentTask,
+			Status:         core.StatusRunning,
+			TaskID:         "root",
+			TaskExecID:     rootExecID,
+			WorkflowID:     workflowID,
+			WorkflowExecID: workflowExecID,
+			ExecutionType:  task.ExecutionParallel,
+		}
+		require.NoError(t, env.taskRepo.UpsertState(env.ctx, rootState))
+
+		rootPtr := rootExecID
+		agentID := "agent-tree"
+		actionID := "tree-action"
+		childOneExec := core.MustNewID()
+		childOne := &task.State{
+			Component:      core.ComponentAgent,
+			Status:         core.StatusRunning,
+			TaskID:         "child-1",
+			TaskExecID:     childOneExec,
+			WorkflowID:     workflowID,
+			WorkflowExecID: workflowExecID,
+			ExecutionType:  task.ExecutionBasic,
+			ParentStateID:  &rootPtr,
+			AgentID:        &agentID,
+			ActionID:       &actionID,
+		}
+		childTwo := &task.State{
+			Component:      core.ComponentTask,
+			Status:         core.StatusPending,
+			TaskID:         "child-2",
+			TaskExecID:     core.MustNewID(),
+			WorkflowID:     workflowID,
+			WorkflowExecID: workflowExecID,
+			ExecutionType:  task.ExecutionBasic,
+			ParentStateID:  &rootPtr,
+		}
+		grandParentPtr := childOneExec
+		grandChild := &task.State{
+			Component:      core.ComponentTool,
+			Status:         core.StatusPending,
+			TaskID:         "grandchild",
+			TaskExecID:     core.MustNewID(),
+			WorkflowID:     workflowID,
+			WorkflowExecID: workflowExecID,
+			ExecutionType:  task.ExecutionBasic,
+			ParentStateID:  &grandParentPtr,
+		}
+
+		require.NoError(t, env.taskRepo.UpsertState(env.ctx, childOne))
+		require.NoError(t, env.taskRepo.UpsertState(env.ctx, childTwo))
+		require.NoError(t, env.taskRepo.UpsertState(env.ctx, grandChild))
+
+		tree, err := env.taskRepo.GetTaskTree(env.ctx, rootExecID)
+		require.NoError(t, err)
+		require.Len(t, tree, 4)
+		assert.Equal(t, "root", tree[0].TaskID)
+		assert.Equal(t, rootExecID, tree[0].TaskExecID)
+		assert.True(t, tree[0].IsParallelRoot())
+		assert.Equal(t, "child-1", tree[1].TaskID)
+		assert.Equal(t, "child-2", tree[2].TaskID)
+		assert.Equal(t, "grandchild", tree[3].TaskID)
+
+		emptyTree, err := env.taskRepo.GetTaskTree(env.ctx, core.MustNewID())
+		require.NoError(t, err)
+		assert.Empty(t, emptyTree)
 	})
-}
 
-func TestTaskRepo_GetParallelStateEquivalent(t *testing.T) {
-	testTaskGet(
-		t,
-		"should get parent task with parallel execution type",
-		func(mockSetup *utils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
-			parentExecID := core.ID("parent-exec-123")
+	t.Run("Should aggregate task progress information", func(t *testing.T) {
+		env := newRepoTestEnv(t)
+		truncateRepoTables(env.ctx, t, env.pool)
 
-			dataBuilder := utils.NewDataBuilder()
-			inputData := dataBuilder.MustCreateInputData(map[string]any{"strategy": "wait_all"})
+		workflowExecID := core.MustNewID()
+		workflowID := "wf-progress"
+		upsertWorkflowState(t, env, workflowID, workflowExecID, nil)
 
-			taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
-			parentRows := taskRowBuilder.CreateTaskStateRowsWithExecution(
-				"parent-exec-123", "parent-task", "exec1", "wf1",
-				core.StatusRunning, task.ExecutionParallel, "", nil, inputData,
-			)
+		parentExecID := core.MustNewID()
+		parentState := &task.State{
+			Component:      core.ComponentTask,
+			Status:         core.StatusRunning,
+			TaskID:         "parent",
+			TaskExecID:     parentExecID,
+			WorkflowID:     workflowID,
+			WorkflowExecID: workflowExecID,
+			ExecutionType:  task.ExecutionParallel,
+		}
+		require.NoError(t, env.taskRepo.UpsertState(env.ctx, parentState))
 
-			mockSetup.Mock.ExpectQuery("SELECT \\*").
-				WithArgs(parentExecID).
-				WillReturnRows(parentRows)
+		parentPtr := parentExecID
+		agentID := "agent-progress"
+		actionID := "progress-action"
+		successChild := &task.State{
+			Component:      core.ComponentAgent,
+			Status:         core.StatusSuccess,
+			TaskID:         "child-success",
+			TaskExecID:     core.MustNewID(),
+			WorkflowID:     workflowID,
+			WorkflowExecID: workflowExecID,
+			ExecutionType:  task.ExecutionBasic,
+			ParentStateID:  &parentPtr,
+			AgentID:        &agentID,
+			ActionID:       &actionID,
+		}
+		failedChild := &task.State{
+			Component:      core.ComponentAgent,
+			Status:         core.StatusFailed,
+			TaskID:         "child-failed",
+			TaskExecID:     core.MustNewID(),
+			WorkflowID:     workflowID,
+			WorkflowExecID: workflowExecID,
+			ExecutionType:  task.ExecutionBasic,
+			ParentStateID:  &parentPtr,
+			AgentID:        &agentID,
+			ActionID:       &actionID,
+		}
+		runningChild := &task.State{
+			Component:      core.ComponentTool,
+			Status:         core.StatusRunning,
+			TaskID:         "child-running",
+			TaskExecID:     core.MustNewID(),
+			WorkflowID:     workflowID,
+			WorkflowExecID: workflowExecID,
+			ExecutionType:  task.ExecutionBasic,
+			ParentStateID:  &parentPtr,
+		}
 
-			state, err := repo.GetState(ctx, parentExecID)
-			assert.NoError(t, err)
-			assert.Equal(t, parentExecID, state.TaskExecID)
-			assert.Equal(t, "parent-task", state.TaskID)
-			assert.Equal(t, core.StatusRunning, state.Status)
-			assert.Equal(t, task.ExecutionParallel, state.ExecutionType)
-			assert.Nil(t, state.ParentStateID) // Parent task has no parent
-			assert.True(t, state.IsParallelRoot())
-		},
-	)
+		require.NoError(t, env.taskRepo.UpsertState(env.ctx, successChild))
+		require.NoError(t, env.taskRepo.UpsertState(env.ctx, failedChild))
+		require.NoError(t, env.taskRepo.UpsertState(env.ctx, runningChild))
 
-	testTaskGet(
-		t,
-		"should get child task with parent reference",
-		func(mockSetup *utils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
-			childExecID := core.ID("child-exec-456")
-			parentExecID := core.ID("parent-exec-123")
+		progressInfo, err := env.taskRepo.GetProgressInfo(env.ctx, parentExecID)
+		require.NoError(t, err)
+		require.NotNil(t, progressInfo)
+		assert.Equal(t, 3, progressInfo.TotalChildren)
+		assert.Equal(t, 1, progressInfo.SuccessCount)
+		assert.Equal(t, 1, progressInfo.FailedCount)
+		assert.Equal(t, 1, progressInfo.RunningCount)
+		assert.True(t, progressInfo.HasFailures())
+		assert.False(t, progressInfo.IsComplete(task.StrategyWaitAll))
 
-			dataBuilder := utils.NewDataBuilder()
-			inputData := dataBuilder.MustCreateInputData(map[string]any{"task": "subtask"})
+		status := progressInfo.CalculateOverallStatus(task.StrategyWaitAll)
+		assert.Equal(t, core.StatusRunning, status)
 
-			taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
-			childRows := taskRowBuilder.CreateEmptyTaskStateRows().
-				AddRow("child-exec-456", "child-task", "exec1", "wf1", core.ComponentAgent, core.StatusPending,
-					task.ExecutionBasic, parentExecID, "agent1", "action1", nil, inputData, nil, nil, nil, nil)
+		progressInfo, err = env.taskRepo.GetProgressInfo(env.ctx, core.MustNewID())
+		require.NoError(t, err)
+		assert.Equal(t, 0, progressInfo.TotalChildren)
+		assert.Equal(t, 0.0, progressInfo.CompletionRate)
+		assert.Equal(t, 0.0, progressInfo.FailureRate)
+		assert.Empty(t, progressInfo.StatusCounts)
 
-			mockSetup.Mock.ExpectQuery("SELECT \\*").
-				WithArgs(childExecID).
-				WillReturnRows(childRows)
+		truncateRepoTables(env.ctx, t, env.pool)
+		upsertWorkflowState(t, env, workflowID, workflowExecID, nil)
+		parentExecID = core.MustNewID()
+		parentState.TaskExecID = parentExecID
+		require.NoError(t, env.taskRepo.UpsertState(env.ctx, parentState))
+		parentPtr = parentExecID
+		successChild.TaskExecID = core.MustNewID()
+		successChild.ParentStateID = &parentPtr
+		require.NoError(t, env.taskRepo.UpsertState(env.ctx, successChild))
+		require.NoError(t, env.taskRepo.UpsertState(env.ctx, &task.State{
+			Component:      core.ComponentAgent,
+			Status:         core.StatusSuccess,
+			TaskID:         "child-success-2",
+			TaskExecID:     core.MustNewID(),
+			WorkflowID:     workflowID,
+			WorkflowExecID: workflowExecID,
+			ExecutionType:  task.ExecutionBasic,
+			ParentStateID:  &parentPtr,
+			AgentID:        &agentID,
+			ActionID:       &actionID,
+		}))
 
-			state, err := repo.GetState(ctx, childExecID)
-			assert.NoError(t, err)
-			assert.Equal(t, childExecID, state.TaskExecID)
-			assert.Equal(t, "child-task", state.TaskID)
-			assert.Equal(t, core.StatusPending, state.Status)
-			assert.Equal(t, task.ExecutionBasic, state.ExecutionType)
-			assert.NotNil(t, state.ParentStateID)
-			assert.Equal(t, parentExecID, *state.ParentStateID)
-			assert.True(t, state.IsChildTask())
-			assert.False(t, state.IsParallelRoot())
-		},
-	)
-}
-
-func TestTaskRepo_GetState_NotFound(t *testing.T) {
-	t.Run("Should return not found error when task does not exist", func(t *testing.T) {
-		mockSetup := utils.NewMockSetup(t)
-		defer mockSetup.Close()
-		repo := store.NewTaskRepo(mockSetup.Mock)
-		ctx := context.Background()
-		taskExecID := core.ID("task_exec1")
-		mockSetup.Mock.ExpectQuery("SELECT \\*").
-			WithArgs(taskExecID).
-			WillReturnError(pgx.ErrNoRows)
-		_, err := repo.GetState(ctx, taskExecID)
-		assert.ErrorIs(t, err, store.ErrTaskNotFound)
-		mockSetup.ExpectationsWereMet()
+		progressInfo, err = env.taskRepo.GetProgressInfo(env.ctx, parentExecID)
+		require.NoError(t, err)
+		status = progressInfo.CalculateOverallStatus(task.StrategyWaitAll)
+		assert.Equal(t, core.StatusSuccess, status)
+		assert.True(t, progressInfo.IsComplete(task.StrategyWaitAll))
+		assert.True(t, progressInfo.IsAllComplete())
 	})
-}
-
-// Helper for list tests that return multiple states
-func testTaskList(
-	t *testing.T,
-	testName string,
-	setupAndRun func(*utils.MockSetup, *store.TaskRepo, context.Context),
-) {
-	mockSetup := utils.NewMockSetup(t)
-	defer mockSetup.Close()
-
-	repo := store.NewTaskRepo(mockSetup.Mock)
-	ctx := context.Background()
-
-	t.Run(testName, func(_ *testing.T) {
-		setupAndRun(mockSetup, repo, ctx)
-		mockSetup.ExpectationsWereMet()
-	})
-}
-
-func TestTaskRepo_ListTasksInWorkflow(t *testing.T) {
-	testTaskList(
-		t,
-		"should list tasks in workflow",
-		func(mockSetup *utils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
-			workflowExecID := core.ID("exec1")
-			agentID := "agent1"
-			toolID := "tool1"
-
-			taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
-			taskRows := taskRowBuilder.CreateEmptyTaskStateRows().
-				AddRow("task_exec1", "task1", "exec1", "wf1", core.ComponentAgent, core.StatusPending,
-					task.ExecutionBasic, nil, agentID, "default_action", nil, nil, nil, nil, nil, nil).
-				AddRow("task_exec2", "task2", "exec1", "wf1", core.ComponentTool, core.StatusRunning,
-					task.ExecutionBasic, nil, nil, nil, toolID, nil, nil, nil, nil, nil)
-
-			mockSetup.Mock.ExpectQuery("SELECT \\*").
-				WithArgs(workflowExecID).
-				WillReturnRows(taskRows)
-
-			states, err := repo.ListTasksInWorkflow(ctx, workflowExecID)
-			assert.NoError(t, err)
-			assert.Len(t, states, 2)
-			assert.Contains(t, states, "task1")
-			assert.Contains(t, states, "task2")
-			assert.Equal(t, "agent1", *states["task1"].AgentID)
-			assert.Equal(t, "tool1", *states["task2"].ToolID)
-			assert.Equal(t, task.ExecutionBasic, states["task1"].ExecutionType)
-			assert.Equal(t, task.ExecutionBasic, states["task2"].ExecutionType)
-		},
-	)
-}
-
-func TestTaskRepo_ListTasksByStatus(t *testing.T) {
-	testTaskList(
-		t,
-		"should list tasks by status",
-		func(mockSetup *utils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
-			workflowExecID := core.ID("exec1")
-			status := core.StatusPending
-
-			taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
-			taskRows := taskRowBuilder.CreateTaskStateRowsWithExecution(
-				"task_exec1", "task1", "exec1", "wf1",
-				core.StatusPending, task.ExecutionBasic, nil, nil, nil,
-			)
-
-			mockSetup.Mock.ExpectQuery("SELECT \\*").
-				WithArgs(workflowExecID, status).
-				WillReturnRows(taskRows)
-
-			states, err := repo.ListTasksByStatus(ctx, workflowExecID, status)
-			assert.NoError(t, err)
-			assert.Len(t, states, 1)
-			assert.Equal(t, core.StatusPending, states[0].Status)
-			assert.Equal(t, task.ExecutionBasic, states[0].ExecutionType)
-		},
-	)
-}
-
-func TestTaskRepo_ListTasksByAgent(t *testing.T) {
-	testTaskList(
-		t,
-		"should list tasks by agent",
-		func(mockSetup *utils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
-			workflowExecID := core.ID("exec1")
-			agentID := "agent1"
-
-			taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
-			taskRows := taskRowBuilder.CreateTaskStateRowsWithExecution(
-				"task_exec1", "task1", "exec1", "wf1",
-				core.StatusPending, task.ExecutionBasic, agentID, nil, nil,
-			)
-
-			mockSetup.Mock.ExpectQuery("SELECT \\*").
-				WithArgs(workflowExecID, agentID).
-				WillReturnRows(taskRows)
-
-			states, err := repo.ListTasksByAgent(ctx, workflowExecID, agentID)
-			assert.NoError(t, err)
-			assert.Len(t, states, 1)
-			assert.Equal(t, "agent1", *states[0].AgentID)
-			assert.Equal(t, task.ExecutionBasic, states[0].ExecutionType)
-		},
-	)
-}
-
-func TestTaskRepo_ListTasksByTool(t *testing.T) {
-	testTaskList(
-		t,
-		"should list tasks by tool",
-		func(mockSetup *utils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
-			workflowExecID := core.ID("exec1")
-			toolID := "tool1"
-
-			taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
-			taskRows := taskRowBuilder.CreateTaskStateRowsWithExecution(
-				"task_exec1", "task1", "exec1", "wf1",
-				core.StatusPending, task.ExecutionBasic, nil, toolID, nil,
-			)
-
-			mockSetup.Mock.ExpectQuery("SELECT \\*").
-				WithArgs(workflowExecID, toolID).
-				WillReturnRows(taskRows)
-
-			states, err := repo.ListTasksByTool(ctx, workflowExecID, toolID)
-			assert.NoError(t, err)
-			assert.Len(t, states, 1)
-			assert.Equal(t, "tool1", *states[0].ToolID)
-			assert.Equal(t, task.ExecutionBasic, states[0].ExecutionType)
-		},
-	)
-}
-
-func TestTaskRepo_ListStates(t *testing.T) {
-	testTaskList(
-		t,
-		"should list states with filter",
-		func(mockSetup *utils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
-			filter := &task.StateFilter{
-				Status:         &[]core.StatusType{core.StatusPending}[0],
-				WorkflowExecID: &[]core.ID{core.ID("exec1")}[0],
-			}
-
-			taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
-			taskRows := taskRowBuilder.CreateTaskStateRowsWithExecution(
-				"task_exec1", "task1", "exec1", "wf1",
-				core.StatusPending, task.ExecutionBasic, nil, nil, nil,
-			)
-
-			mockSetup.Mock.ExpectQuery("SELECT \\*").
-				WithArgs(core.StatusPending, core.ID("exec1")).
-				WillReturnRows(taskRows)
-
-			states, err := repo.ListStates(ctx, filter)
-			assert.NoError(t, err)
-			assert.Len(t, states, 1)
-			assert.Equal(t, core.StatusPending, states[0].Status)
-			assert.Equal(t, task.ExecutionBasic, states[0].ExecutionType)
-		},
-	)
-}
-
-func TestTaskRepo_ListChildren(t *testing.T) {
-	testTaskList(
-		t,
-		"should list child tasks for a given parent",
-		func(mockSetup *utils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
-			parentStateID := core.ID("parent-exec-123")
-
-			// Create child task rows with parent_state_id set manually
-			childRows := mockSetup.Mock.NewRows([]string{
-				"task_exec_id", "task_id", "workflow_exec_id", "workflow_id",
-				"component", "status", "execution_type", "parent_state_id",
-				"agent_id", "action_id", "tool_id", "input", "output", "error",
-				"created_at", "updated_at",
-			}).AddRow(
-				"child_exec1", "child1", "exec1", "wf1",
-				core.ComponentTask, core.StatusPending, task.ExecutionBasic, parentStateID,
-				nil, nil, nil, nil, nil, nil, nil, nil,
-			)
-
-			mockSetup.Mock.ExpectQuery("SELECT \\*").
-				WithArgs(parentStateID).
-				WillReturnRows(childRows)
-
-			children, err := repo.ListChildren(ctx, parentStateID)
-			assert.NoError(t, err)
-			assert.Len(t, children, 1)
-			assert.Equal(t, "child1", children[0].TaskID)
-			assert.Equal(t, core.StatusPending, children[0].Status)
-			assert.Equal(t, parentStateID, *children[0].ParentStateID)
-		},
-	)
-
-	testTaskList(
-		t,
-		"should return empty list when parent has no children",
-		func(mockSetup *utils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
-			parentStateID := core.ID("parent-with-no-children")
-
-			// Mock empty result set
-			emptyRows := mockSetup.Mock.NewRows([]string{
-				"task_exec_id", "task_id", "workflow_exec_id", "workflow_id",
-				"component", "status", "execution_type", "parent_state_id",
-				"agent_id", "action_id", "tool_id", "input", "output", "error",
-				"created_at", "updated_at",
-			})
-
-			mockSetup.Mock.ExpectQuery("SELECT \\*").
-				WithArgs(parentStateID).
-				WillReturnRows(emptyRows)
-
-			children, err := repo.ListChildren(ctx, parentStateID)
-			assert.NoError(t, err)
-			assert.Len(t, children, 0)
-		},
-	)
-
-	testTaskList(
-		t,
-		"should be equivalent to ListStates with ParentStateID filter",
-		func(mockSetup *utils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
-			parentStateID := core.ID("parent-exec-456")
-
-			// Create child task rows
-			childRows := mockSetup.Mock.NewRows([]string{
-				"task_exec_id", "task_id", "workflow_exec_id", "workflow_id",
-				"component", "status", "execution_type", "parent_state_id",
-				"agent_id", "action_id", "tool_id", "input", "output", "error",
-				"created_at", "updated_at",
-			}).AddRow(
-				"child_exec2", "child2", "exec2", "wf2",
-				core.ComponentTask, core.StatusRunning, task.ExecutionBasic, parentStateID,
-				nil, nil, nil, nil, nil, nil, nil, nil,
-			)
-
-			// Test ListChildren
-			mockSetup.Mock.ExpectQuery("SELECT \\*").
-				WithArgs(parentStateID).
-				WillReturnRows(childRows)
-
-			children, err := repo.ListChildren(ctx, parentStateID)
-			assert.NoError(t, err)
-			assert.Len(t, children, 1)
-			assert.Equal(t, "child2", children[0].TaskID)
-
-			// Test equivalent ListStates call with ParentStateID filter
-			childRowsCopy := mockSetup.Mock.NewRows([]string{
-				"task_exec_id", "task_id", "workflow_exec_id", "workflow_id",
-				"component", "status", "execution_type", "parent_state_id",
-				"agent_id", "action_id", "tool_id", "input", "output", "error",
-				"created_at", "updated_at",
-			}).AddRow(
-				"child_exec2", "child2", "exec2", "wf2",
-				core.ComponentTask, core.StatusRunning, task.ExecutionBasic, parentStateID,
-				nil, nil, nil, nil, nil, nil, nil, nil,
-			)
-
-			mockSetup.Mock.ExpectQuery("SELECT \\*").
-				WithArgs(parentStateID).
-				WillReturnRows(childRowsCopy)
-
-			filter := &task.StateFilter{ParentStateID: &parentStateID}
-			filteredStates, err := repo.ListStates(ctx, filter)
-			assert.NoError(t, err)
-			assert.Len(t, filteredStates, 1)
-			assert.Equal(t, children[0].TaskID, filteredStates[0].TaskID)
-			assert.Equal(t, children[0].Status, filteredStates[0].Status)
-		},
-	)
-}
-
-func TestTaskRepo_ListStatesWithExecutionTypeFilter(t *testing.T) {
-	testTaskList(
-		t,
-		"should filter states by execution type - parallel only",
-		func(mockSetup *utils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
-			execType := task.ExecutionParallel
-			filter := &task.StateFilter{
-				ExecutionType: &execType,
-			}
-
-			taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
-			taskRows := taskRowBuilder.CreateTaskStateRowsWithExecution(
-				"parent-exec-1", "parent-task", "exec1", "wf1",
-				core.StatusRunning, task.ExecutionParallel, "", nil, nil,
-			)
-
-			mockSetup.Mock.ExpectQuery("SELECT \\*").
-				WithArgs(task.ExecutionParallel).
-				WillReturnRows(taskRows)
-
-			states, err := repo.ListStates(ctx, filter)
-			assert.NoError(t, err)
-			assert.Len(t, states, 1)
-			assert.Equal(t, task.ExecutionParallel, states[0].ExecutionType)
-			assert.True(t, states[0].IsParallelExecution())
-		},
-	)
-
-	testTaskList(
-		t,
-		"should filter states by execution type - basic only",
-		func(mockSetup *utils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
-			execType := task.ExecutionBasic
-			filter := &task.StateFilter{
-				ExecutionType: &execType,
-			}
-
-			taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
-			taskRows := taskRowBuilder.CreateTaskStateRowsWithExecution(
-				"child-exec-1", "child-task", "exec1", "wf1",
-				core.StatusPending, task.ExecutionBasic, "agent1", nil, nil,
-			)
-
-			mockSetup.Mock.ExpectQuery("SELECT \\*").
-				WithArgs(task.ExecutionBasic).
-				WillReturnRows(taskRows)
-
-			states, err := repo.ListStates(ctx, filter)
-			assert.NoError(t, err)
-			assert.Len(t, states, 1)
-			assert.Equal(t, task.ExecutionBasic, states[0].ExecutionType)
-			assert.NotEqual(t, task.ExecutionParallel, states[0].ExecutionType)
-			assert.True(t, states[0].IsBasic())
-		},
-	)
-
-	testTaskList(
-		t,
-		"should filter by parent state ID and execution type combined",
-		func(mockSetup *utils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
-			parentStateID := core.ID("parent-exec-123")
-			execType := task.ExecutionBasic
-			filter := &task.StateFilter{
-				ParentStateID: &parentStateID,
-				ExecutionType: &execType,
-			}
-
-			taskRowBuilder := mockSetup.NewTaskStateRowBuilder()
-			taskRows := taskRowBuilder.CreateEmptyTaskStateRows().
-				AddRow("child-exec-1", "child1", "exec1", "wf1", core.ComponentAgent, core.StatusPending,
-					task.ExecutionBasic, parentStateID, "agent1", "action1", nil, nil, nil, nil, nil, nil)
-
-			mockSetup.Mock.ExpectQuery("SELECT \\*").
-				WithArgs(parentStateID, task.ExecutionBasic).
-				WillReturnRows(taskRows)
-
-			states, err := repo.ListStates(ctx, filter)
-			assert.NoError(t, err)
-			assert.Len(t, states, 1)
-			assert.Equal(t, task.ExecutionBasic, states[0].ExecutionType)
-			assert.Equal(t, parentStateID, *states[0].ParentStateID)
-			assert.True(t, states[0].IsChildTask())
-		},
-	)
-}
-
-func TestTaskRepo_GetTaskTree(t *testing.T) {
-	testTaskList(
-		t,
-		"should retrieve complete task hierarchy using CTE",
-		func(mockSetup *utils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
-			rootStateID := core.ID("root-exec-123")
-
-			// Create hierarchical task tree with root and children
-			treeRows := mockSetup.Mock.NewRows([]string{
-				"task_exec_id", "task_id", "workflow_exec_id", "workflow_id",
-				"component", "status", "execution_type", "parent_state_id",
-				"agent_id", "action_id", "tool_id", "input", "output", "error",
-				"created_at", "updated_at",
-			}).AddRow(
-				// Root task (depth 0)
-				"root-exec-123", "root-task", "exec1", "wf1",
-				core.ComponentTask, core.StatusRunning, task.ExecutionParallel, nil,
-				nil, nil, nil, nil, nil, nil, nil, nil,
-			).AddRow(
-				// Child task 1 (depth 1)
-				"child1-exec-456", "child1", "exec1", "wf1",
-				core.ComponentAgent, core.StatusPending, task.ExecutionBasic, rootStateID,
-				nil, nil, nil, nil, nil, nil, nil, nil,
-			).AddRow(
-				// Child task 2 (depth 1)
-				"child2-exec-789", "child2", "exec1", "wf1",
-				core.ComponentAgent, core.StatusSuccess, task.ExecutionBasic, rootStateID,
-				nil, nil, nil, nil, nil, nil, nil, nil,
-			).AddRow(
-				// Grandchild task (depth 2)
-				"grandchild-exec-999", "grandchild", "exec1", "wf1",
-				core.ComponentTool, core.StatusRunning, task.ExecutionBasic, core.ID("child1-exec-456"),
-				nil, nil, nil, nil, nil, nil, nil, nil,
-			)
-
-			mockSetup.Mock.ExpectQuery("WITH RECURSIVE task_tree").
-				WithArgs(rootStateID, 100).
-				WillReturnRows(treeRows)
-
-			tree, err := repo.GetTaskTree(ctx, rootStateID)
-			assert.NoError(t, err)
-			assert.Len(t, tree, 4)
-
-			// Verify root task
-			assert.Equal(t, "root-task", tree[0].TaskID)
-			assert.Equal(t, rootStateID, tree[0].TaskExecID)
-			assert.Nil(t, tree[0].ParentStateID)
-			assert.Equal(t, task.ExecutionParallel, tree[0].ExecutionType)
-
-			// Verify children are ordered by depth, then created_at
-			assert.Equal(t, "child1", tree[1].TaskID)
-			assert.Equal(t, rootStateID, *tree[1].ParentStateID)
-			assert.Equal(t, "child2", tree[2].TaskID)
-			assert.Equal(t, rootStateID, *tree[2].ParentStateID)
-
-			// Verify grandchild
-			assert.Equal(t, "grandchild", tree[3].TaskID)
-			assert.Equal(t, core.ID("child1-exec-456"), *tree[3].ParentStateID)
-		},
-	)
-
-	testTaskList(
-		t,
-		"should return only root task when no children exist",
-		func(mockSetup *utils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
-			rootStateID := core.ID("lonely-root-123")
-
-			// Create single row for root task only
-			singleRow := mockSetup.Mock.NewRows([]string{
-				"task_exec_id", "task_id", "workflow_exec_id", "workflow_id",
-				"component", "status", "execution_type", "parent_state_id",
-				"agent_id", "action_id", "tool_id", "input", "output", "error",
-				"created_at", "updated_at",
-			}).AddRow(
-				"lonely-root-123", "lonely-task", "exec1", "wf1",
-				core.ComponentTask, core.StatusSuccess, task.ExecutionBasic, nil,
-				nil, nil, nil, nil, nil, nil, nil, nil,
-			)
-
-			mockSetup.Mock.ExpectQuery("WITH RECURSIVE task_tree").
-				WithArgs(rootStateID, 100).
-				WillReturnRows(singleRow)
-
-			tree, err := repo.GetTaskTree(ctx, rootStateID)
-			assert.NoError(t, err)
-			assert.Len(t, tree, 1)
-			assert.Equal(t, "lonely-task", tree[0].TaskID)
-			assert.Nil(t, tree[0].ParentStateID)
-		},
-	)
-
-	testTaskList(
-		t,
-		"should return empty slice when root task does not exist",
-		func(mockSetup *utils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
-			nonExistentRootID := core.ID("non-existent-root")
-
-			// Mock empty result set
-			emptyRows := mockSetup.Mock.NewRows([]string{
-				"task_exec_id", "task_id", "workflow_exec_id", "workflow_id",
-				"component", "status", "execution_type", "parent_state_id",
-				"agent_id", "action_id", "tool_id", "input", "output", "error",
-				"created_at", "updated_at",
-			})
-
-			mockSetup.Mock.ExpectQuery("WITH RECURSIVE task_tree").
-				WithArgs(nonExistentRootID, 100).
-				WillReturnRows(emptyRows)
-
-			tree, err := repo.GetTaskTree(ctx, nonExistentRootID)
-			assert.NoError(t, err)
-			assert.Len(t, tree, 0)
-		},
-	)
-}
-
-func TestTaskRepo_GetProgressInfo(t *testing.T) {
-	testTaskList(
-		t,
-		"should aggregate progress information for parent task",
-		func(mockSetup *utils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
-			parentStateID := core.ID("parent-exec-123")
-
-			// Mock single query for status counts
-			statusRows := mockSetup.Mock.NewRows([]string{
-				"status", "status_count",
-			}).AddRow(string(core.StatusSuccess), 1).
-				AddRow(string(core.StatusFailed), 1).
-				AddRow(string(core.StatusRunning), 1)
-
-			mockSetup.Mock.ExpectQuery("SELECT status").
-				WithArgs(parentStateID).
-				WillReturnRows(statusRows)
-
-			progressInfo, err := repo.GetProgressInfo(ctx, parentStateID)
-			assert.NoError(t, err)
-			assert.NotNil(t, progressInfo)
-
-			// Verify aggregated counts
-			assert.Equal(t, 3, progressInfo.TotalChildren)
-			assert.Equal(t, 1, progressInfo.SuccessCount)
-			assert.Equal(t, 1, progressInfo.FailedCount)
-			assert.Equal(t, 1, progressInfo.RunningCount)
-			assert.Equal(t, 0, progressInfo.PendingCount)
-
-			// Verify calculated rates
-			assert.InDelta(t, 0.333, progressInfo.CompletionRate, 0.01)
-			assert.InDelta(t, 0.333, progressInfo.FailureRate, 0.01)
-
-			// Verify status counts map
-			assert.Equal(t, 1, progressInfo.StatusCounts[core.StatusSuccess])
-			assert.Equal(t, 1, progressInfo.StatusCounts[core.StatusFailed])
-			assert.Equal(t, 1, progressInfo.StatusCounts[core.StatusRunning])
-		},
-	)
-
-	testTaskList(
-		t,
-		"should return empty progress info when parent has no children",
-		func(mockSetup *utils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
-			parentStateID := core.ID("parent-with-no-children")
-
-			// Mock empty status query
-			emptyStatusRows := mockSetup.Mock.NewRows([]string{
-				"status", "status_count",
-			})
-
-			mockSetup.Mock.ExpectQuery("SELECT status").
-				WithArgs(parentStateID).
-				WillReturnRows(emptyStatusRows)
-
-			progressInfo, err := repo.GetProgressInfo(ctx, parentStateID)
-			assert.NoError(t, err)
-			assert.NotNil(t, progressInfo)
-			assert.Equal(t, 0, progressInfo.TotalChildren)
-			assert.Equal(t, 0.0, progressInfo.CompletionRate)
-			assert.Equal(t, 0.0, progressInfo.FailureRate)
-			assert.NotNil(t, progressInfo.StatusCounts)
-			assert.Len(t, progressInfo.StatusCounts, 0)
-		},
-	)
-
-	testTaskList(
-		t,
-		"should calculate progress for wait_all strategy correctly",
-		func(mockSetup *utils.MockSetup, repo *store.TaskRepo, ctx context.Context) {
-			parentStateID := core.ID("wait-all-parent")
-
-			// Mock status query for all completed tasks
-			allCompletedStatusRows := mockSetup.Mock.NewRows([]string{
-				"status", "status_count",
-			}).AddRow(string(core.StatusSuccess), 2)
-
-			mockSetup.Mock.ExpectQuery("SELECT status").
-				WithArgs(parentStateID).
-				WillReturnRows(allCompletedStatusRows)
-
-			progressInfo, err := repo.GetProgressInfo(ctx, parentStateID)
-			assert.NoError(t, err)
-
-			// Test different strategies
-			waitAllStatus := progressInfo.CalculateOverallStatus(task.StrategyWaitAll)
-			assert.Equal(t, core.StatusSuccess, waitAllStatus)
-			assert.True(t, progressInfo.IsComplete(task.StrategyWaitAll))
-			assert.False(t, progressInfo.HasFailures())
-			assert.True(t, progressInfo.IsAllComplete())
-		},
-	)
 }

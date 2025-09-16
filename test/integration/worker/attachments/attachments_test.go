@@ -2,9 +2,12 @@ package attachments
 
 import (
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/compozy/compozy/engine/attachment"
 	"github.com/compozy/compozy/test/integration/worker/helpers"
 	"github.com/stretchr/testify/require"
 )
@@ -69,6 +72,35 @@ func Test_AttachmentsRouter_Audio(t *testing.T) {
 		db := helpers.NewDatabaseHelper(t)
 		t.Cleanup(func() { db.Cleanup(t) })
 		fixture := loader.LoadFixture(t, "", "route_by_kind_audio")
+		// Serve a tiny WAV so attachment resolution doesn't hit external network
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "audio/wav")
+			// Minimal RIFF header + silence bytes
+			_, _ = w.Write(
+				[]byte(
+					"RIFF\x24\x00\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00\x40\x1f\x00\x00\x80\x3e\x00\x00\x02\x00\x10\x00data\x00\x00\x00\x00",
+				),
+			)
+		}))
+		t.Cleanup(srv.Close)
+		// Rewrite audio URL in fixture to local server
+		if fixture != nil && fixture.Workflow != nil {
+			for i := range fixture.Workflow.Tasks {
+				tk := &fixture.Workflow.Tasks[i]
+				if tk.ID == "analyze-audio" && len(tk.Attachments) > 0 {
+					for j := range tk.Attachments {
+						if tk.Attachments[j].Type() == attachment.TypeAudio {
+							if a, ok := tk.Attachments[j].(*attachment.AudioAttachment); ok {
+								a.URL = srv.URL + "/sample.wav"
+								a.Path = ""
+								a.URLs = nil
+								a.Paths = nil
+							}
+						}
+					}
+				}
+			}
+		}
 		result := helpers.ExecuteWorkflowAndGetState(
 			t,
 			fixture,

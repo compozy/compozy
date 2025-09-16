@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -41,27 +40,30 @@ func (m *mockTaskRepository) GetState(ctx context.Context, taskExecID core.ID) (
 	return args.Get(0).(*task.State), args.Error(1)
 }
 
+func newOutput(data map[string]any) *core.Output {
+	out := core.Output(data)
+	return &out
+}
+
 // Transaction operations
-func (m *mockTaskRepository) WithTx(ctx context.Context, fn func(pgx.Tx) error) error {
-	args := m.Called(ctx, fn)
+func (m *mockTaskRepository) WithTransaction(ctx context.Context, fn func(task.Repository) error) error {
+	args := m.Called(ctx, mock.AnythingOfType("func(task.Repository) error"))
+	if fn != nil {
+		// Execute the transaction function with the mock repository
+		return fn(m)
+	}
 	return args.Error(0)
 }
 
 func (m *mockTaskRepository) GetStateForUpdate(
 	ctx context.Context,
-	tx pgx.Tx,
 	taskExecID core.ID,
 ) (*task.State, error) {
-	args := m.Called(ctx, tx, taskExecID)
+	args := m.Called(ctx, taskExecID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*task.State), args.Error(1)
-}
-
-func (m *mockTaskRepository) UpsertStateWithTx(ctx context.Context, tx pgx.Tx, state *task.State) error {
-	args := m.Called(ctx, tx, state)
-	return args.Error(0)
 }
 
 // Workflow-level operations
@@ -133,15 +135,6 @@ func (m *mockTaskRepository) GetChildByTaskID(
 	return args.Get(0).(*task.State), args.Error(1)
 }
 
-func (m *mockTaskRepository) CreateChildStatesInTransaction(
-	ctx context.Context,
-	parentStateID core.ID,
-	childStates []*task.State,
-) error {
-	args := m.Called(ctx, parentStateID, childStates)
-	return args.Error(0)
-}
-
 func (m *mockTaskRepository) GetTaskTree(ctx context.Context, rootStateID core.ID) ([]*task.State, error) {
 	args := m.Called(ctx, rootStateID)
 	if args.Get(0) == nil {
@@ -208,9 +201,9 @@ func TestProcessParentTask(t *testing.T) {
 		// Mock expectations
 		mockRepo.On("GetProgressInfo", ctx, parentExecID).Return(progressInfo, nil)
 		mockRepo.On("ListChildrenOutputs", ctx, parentExecID).Return(map[string]*core.Output{
-			"child1": {"result": "success1"},
-			"child2": {"result": "success2"},
-			"child3": {"result": "success3"},
+			"child1": newOutput(map[string]any{"result": "success1"}),
+			"child2": newOutput(map[string]any{"result": "success2"}),
+			"child3": newOutput(map[string]any{"result": "success3"}),
 		}, nil)
 
 		// Act
@@ -259,8 +252,8 @@ func TestProcessParentTask(t *testing.T) {
 		// Mock expectations
 		mockRepo.On("GetProgressInfo", ctx, parentExecID).Return(progressInfo, nil)
 		mockRepo.On("ListChildrenOutputs", ctx, parentExecID).Return(map[string]*core.Output{
-			"child1": {"result": "success1"},
-			"child2": {"result": "success2"},
+			"child1": newOutput(map[string]any{"result": "success1"}),
+			"child2": newOutput(map[string]any{"result": "success2"}),
 			// child3 failed, no output
 		}, nil)
 		// For collection tasks with failed children, we need to mock ListChildren
@@ -436,7 +429,7 @@ func TestProcessParentTask(t *testing.T) {
 		// Mock expectations
 		mockRepo.On("GetProgressInfo", ctx, parentExecID).Return(progressInfo, nil)
 		mockRepo.On("ListChildrenOutputs", ctx, parentExecID).Return(map[string]*core.Output{
-			"child1": {"result": "success"},
+			"child1": newOutput(map[string]any{"result": "success"}),
 		}, nil)
 		mockRepo.On("ListChildren", ctx, parentExecID).Return(failedChildren, nil)
 
@@ -473,9 +466,9 @@ func TestAggregateChildOutputs(t *testing.T) {
 		}
 
 		childOutputs := map[string]*core.Output{
-			"child1": {"value": 1},
-			"child2": {"value": 2},
-			"child3": {"value": 3},
+			"child1": newOutput(map[string]any{"value": 1}),
+			"child2": newOutput(map[string]any{"value": 2}),
+			"child3": newOutput(map[string]any{"value": 3}),
 		}
 
 		// Mock expectations
@@ -512,8 +505,8 @@ func TestAggregateChildOutputs(t *testing.T) {
 
 		// Only 2 outputs available (race condition)
 		childOutputs := map[string]*core.Output{
-			"child1": {"value": 1},
-			"child2": {"value": 2},
+			"child1": newOutput(map[string]any{"value": 1}),
+			"child2": newOutput(map[string]any{"value": 2}),
 		}
 
 		// Mock expectations
@@ -545,9 +538,9 @@ func TestAggregateChildOutputs(t *testing.T) {
 		}
 
 		childOutputs := map[string]*core.Output{
-			"child1": {"value": 1},
+			"child1": newOutput(map[string]any{"value": 1}),
 			"child2": nil, // Nil output
-			"child3": {"value": 3},
+			"child3": newOutput(map[string]any{"value": 3}),
 		}
 
 		// Mock expectations

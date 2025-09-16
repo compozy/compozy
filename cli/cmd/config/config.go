@@ -659,6 +659,7 @@ func flattenCacheConfig(cfg *config.Config, result map[string]string) {
 	result["cache.compression_threshold"] = fmt.Sprintf("%d", cfg.Cache.CompressionThreshold)
 	result["cache.eviction_policy"] = cfg.Cache.EvictionPolicy
 	result["cache.stats_interval"] = cfg.Cache.StatsInterval.String()
+	result["cache.key_scan_count"] = fmt.Sprintf("%d", cfg.Cache.KeyScanCount)
 }
 
 // flattenRateLimitConfig flattens rate limit configuration
@@ -733,10 +734,14 @@ func flattenWorkerConfig(cfg *config.Config, result map[string]string) {
 	result["worker.dispatcher_retry_delay"] = cfg.Worker.DispatcherRetryDelay.String()
 	result["worker.dispatcher_max_retries"] = fmt.Sprintf("%d", cfg.Worker.DispatcherMaxRetries)
 	result["worker.mcp_proxy_health_check_timeout"] = cfg.Worker.MCPProxyHealthCheckTimeout.String()
+	result["worker.start_workflow_timeout"] = cfg.Worker.StartWorkflowTimeout.String()
+	result["worker.dispatcher.heartbeat_ttl"] = cfg.Worker.Dispatcher.HeartbeatTTL.String()
+	result["worker.dispatcher.stale_threshold"] = cfg.Worker.Dispatcher.StaleThreshold.String()
 }
 
 // flattenMCPProxyConfig flattens MCP proxy configuration
 func flattenMCPProxyConfig(cfg *config.Config, result map[string]string) {
+	result["mcp_proxy.mode"] = cfg.MCPProxy.Mode
 	result["mcp_proxy.host"] = cfg.MCPProxy.Host
 	result["mcp_proxy.port"] = fmt.Sprintf("%d", cfg.MCPProxy.Port)
 	result["mcp_proxy.base_url"] = redactURL(cfg.MCPProxy.BaseURL)

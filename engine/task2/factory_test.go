@@ -193,7 +193,9 @@ func TestExtendedFactory_CreateTaskConfigRepository(t *testing.T) {
 
 		// Act
 		configStore := services.NewTestConfigStore(t)
-		repo, err := factory.CreateTaskConfigRepository(configStore)
+		cwd, err := core.CWDFromPath(".")
+		require.NoError(t, err)
+		repo, err := factory.CreateTaskConfigRepository(configStore, cwd)
 
 		// Assert
 		require.NoError(t, err)

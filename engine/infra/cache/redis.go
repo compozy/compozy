@@ -91,6 +91,7 @@ func NewRedis(ctx context.Context, cfg *Config) (*Redis, error) {
 	}
 
 	logger.FromContext(ctx).With(
+		"cache_driver", "redis",
 		"host", cfg.Host,
 		"port", cfg.Port,
 		"db", cfg.DB,

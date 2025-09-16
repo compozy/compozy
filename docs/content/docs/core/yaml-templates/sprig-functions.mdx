@@ -203,7 +203,7 @@ key_count: "{{ len .config }}"                        # Number of keys
 
 # Key operations
 has_key: "{{ hasKey .config 'database' }}"            # Check for key existence
-get_value: "{{ .config.database | default 'sqlite' }}" # Get with default
+get_value: "{{ .config.database | default 'postgres' }}" # Get with default
 
 # Map manipulation
 subset: "{{ pick .config 'host' 'port' 'database' }}" # Create subset map
@@ -521,7 +521,7 @@ Real-world examples of function usage in typical scenarios.
 
 ```yaml
 # Environment-based configuration
-database_url: "{{ .env.DATABASE_URL | default 'sqlite://local.db' }}"
+database_url: "{{ .env.DATABASE_URL | default 'postgres://user:pass@localhost:5432/compozy?sslmode=disable' }}"
 debug_mode: "{{ .env.DEBUG | default 'false' | bool }}"
 port: "{{ .env.PORT | default '3000' | int }}"
 

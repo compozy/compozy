@@ -293,6 +293,7 @@ func (d *defaultProvider) Close() error {
 func createDefaultMap() map[string]any {
 	defaultConfig := Default()
 	result := make(map[string]any)
+	// top-level defaults
 	addCoreDefaults(result, defaultConfig)
 	addServiceDefaults(result, defaultConfig)
 	addInfraDefaults(result, defaultConfig)
@@ -515,12 +516,17 @@ func createWorkerDefaults(defaultConfig *Config) map[string]any {
 		"dispatcher_retry_delay":         defaultConfig.Worker.DispatcherRetryDelay.String(),
 		"dispatcher_max_retries":         defaultConfig.Worker.DispatcherMaxRetries,
 		"mcp_proxy_health_check_timeout": defaultConfig.Worker.MCPProxyHealthCheckTimeout.String(),
+		"dispatcher": map[string]any{
+			"heartbeat_ttl":   defaultConfig.Worker.Dispatcher.HeartbeatTTL.String(),
+			"stale_threshold": defaultConfig.Worker.Dispatcher.StaleThreshold.String(),
+		},
 	}
 }
 
 // createMCPProxyDefaults creates MCP proxy configuration defaults
 func createMCPProxyDefaults(defaultConfig *Config) map[string]any {
 	return map[string]any{
+		"mode":             defaultConfig.MCPProxy.Mode,
 		"host":             defaultConfig.MCPProxy.Host,
 		"port":             defaultConfig.MCPProxy.Port,
 		"base_url":         defaultConfig.MCPProxy.BaseURL,

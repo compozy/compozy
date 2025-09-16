@@ -2,92 +2,59 @@ package server
 
 import (
 	"context"
-	"fmt"
-	"slices"
-	"time"
+	"net/http"
+	"strconv"
 
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
 )
 
-// LoggerMiddleware logs HTTP request details.
+// LoggerMiddleware attaches request-scoped logger metadata.
 func LoggerMiddleware(ctx context.Context) gin.HandlerFunc {
-	log := logger.FromContext(ctx)
 	return func(c *gin.Context) {
-		start := time.Now()
-		path := c.Request.URL.Path
-		raw := c.Request.URL.RawQuery
 		mgr := config.ManagerFromContext(ctx)
-		reqCtx := config.ContextWithManager(c.Request.Context(), mgr)
+		log := logger.FromContext(ctx)
+		reqCtx := c.Request.Context()
+		reqCtx = config.ContextWithManager(reqCtx, mgr)
 		reqCtx = logger.ContextWithLogger(reqCtx, log)
 		c.Request = c.Request.WithContext(reqCtx)
-
 		c.Next()
-		param := gin.LogFormatterParams{
-			Request: c.Request,
-			Keys:    c.Keys,
-		}
-		param.TimeStamp = time.Now()
-		param.Latency = param.TimeStamp.Sub(start)
-		param.ClientIP = c.ClientIP()
-		param.Method = c.Request.Method
-		param.StatusCode = c.Writer.Status()
-		param.ErrorMessage = c.Errors.ByType(gin.ErrorTypePrivate).String()
-		param.BodySize = c.Writer.Size()
-		// Avoid logging raw query strings to prevent leaking secrets
-		param.Path = path
-		// Use the request-scoped logger for request completion log
-		reqLog := logger.FromContext(c.Request.Context())
-		reqLog.Info("Request completed",
-			"timestamp", param.TimeStamp.Format(time.RFC3339),
-			"latency", param.Latency,
-			"client_ip", param.ClientIP,
-			"method", param.Method,
-			"status_code", param.StatusCode,
-			"body_size", param.BodySize,
-			"path", param.Path,
-			"query_present", raw != "",
-			"error", param.ErrorMessage,
-		)
 	}
 }
 
-// CORSMiddleware enables CORS support with configurable origins.
-func CORSMiddleware(corsConfig config.CORSConfig) gin.HandlerFunc {
+// CORSMiddleware applies basic CORS headers based on configuration.
+func CORSMiddleware(cfg config.CORSConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		origin := c.Request.Header.Get("Origin")
-
-		// Check if origin is allowed
-		isAllowed := len(corsConfig.AllowedOrigins) > 0 && contains(corsConfig.AllowedOrigins, origin)
-
-		if isAllowed {
-			c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
-			if corsConfig.AllowCredentials {
-				c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		allowed := false
+		for _, allowedOrigin := range cfg.AllowedOrigins {
+			if allowedOrigin == "*" || allowedOrigin == origin {
+				allowed = true
+				break
 			}
 		}
-
-		c.Writer.Header().Set(
-			"Access-Control-Allow-Headers",
-			"Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, "+
-				"Authorization, accept, origin, Cache-Control, X-Requested-With",
-		)
-		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE")
-
-		if corsConfig.MaxAge > 0 {
-			c.Writer.Header().Set("Access-Control-Max-Age", fmt.Sprintf("%d", corsConfig.MaxAge))
+		if allowed && origin != "" {
+			c.Header("Access-Control-Allow-Origin", origin)
+			c.Header("Vary", "Origin")
+			if cfg.AllowCredentials {
+				c.Header("Access-Control-Allow-Credentials", "true")
+			}
+			c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+			reqHdr := c.Request.Header.Get("Access-Control-Request-Headers")
+			if reqHdr != "" {
+				c.Header("Access-Control-Allow-Headers", reqHdr)
+			} else {
+				c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+			}
+			if cfg.MaxAge > 0 {
+				c.Header("Access-Control-Max-Age", strconv.Itoa(cfg.MaxAge))
+			}
 		}
-
-		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(204)
+		if c.Request.Method == http.MethodOptions {
+			c.AbortWithStatus(http.StatusNoContent)
 			return
 		}
 		c.Next()
 	}
-}
-
-// contains checks if a string slice contains a specific string
-func contains(slice []string, item string) bool {
-	return slices.Contains(slice, item)
 }

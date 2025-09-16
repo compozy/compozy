@@ -8,6 +8,10 @@ import (
 	"github.com/compozy/compozy/pkg/config/definition"
 )
 
+const (
+	mcpProxyModeStandalone = "standalone"
+)
+
 // Config represents the complete configuration for the Compozy system.
 //
 // **Application Configuration** controls the runtime behavior of the Compozy server and services.
@@ -295,6 +299,8 @@ type TemporalConfig struct {
 	//   - Resource isolation
 	// Default: "compozy-tasks"
 	TaskQueue string `koanf:"task_queue" env:"TEMPORAL_TASK_QUEUE" json:"task_queue" yaml:"task_queue" mapstructure:"task_queue"`
+
+	// Embedded Temporal not supported; dev server flag removed.
 }
 
 // RuntimeConfig contains runtime behavior configuration.
@@ -853,6 +859,11 @@ type CacheConfig struct {
 	//
 	// **Default**: `5m`
 	StatsInterval time.Duration `koanf:"stats_interval" json:"stats_interval" yaml:"stats_interval" mapstructure:"stats_interval" env:"CACHE_STATS_INTERVAL"`
+
+	// KeyScanCount controls the COUNT hint used by Redis SCAN for key iteration.
+	// Larger values reduce round-trips but may increase per-iteration latency.
+	// Set to a positive integer; defaults to 100.
+	KeyScanCount int `koanf:"key_scan_count" json:"key_scan_count" yaml:"key_scan_count" mapstructure:"key_scan_count" env:"CACHE_KEY_SCAN_COUNT" validate:"min=1"`
 }
 
 // AttachmentMIMEAllowlist holds allowed MIME types per category.
@@ -952,6 +963,22 @@ type WorkerConfig struct {
 	//
 	// **Default**: `10s`
 	MCPProxyHealthCheckTimeout time.Duration `koanf:"mcp_proxy_health_check_timeout" json:"mcp_proxy_health_check_timeout" yaml:"mcp_proxy_health_check_timeout" mapstructure:"mcp_proxy_health_check_timeout" env:"WORKER_MCP_PROXY_HEALTH_CHECK_TIMEOUT"`
+
+	// StartWorkflowTimeout bounds the HTTP handler's call to start a
+	// workflow execution to avoid hanging requests when Temporal is slow
+	// or unreachable. If zero or negative, a safe default is used.
+	//
+	// **Default**: `5s`
+	StartWorkflowTimeout time.Duration `koanf:"start_workflow_timeout" json:"start_workflow_timeout" yaml:"start_workflow_timeout" mapstructure:"start_workflow_timeout" env:"WORKER_START_WORKFLOW_TIMEOUT"`
+
+	// Dispatcher defines heartbeat tracking for dispatcher leases.
+	Dispatcher WorkerDispatcherConfig `koanf:"dispatcher" json:"dispatcher" yaml:"dispatcher" mapstructure:"dispatcher"`
+}
+
+// WorkerDispatcherConfig holds dispatcher heartbeat tracking configuration.
+type WorkerDispatcherConfig struct {
+	HeartbeatTTL   time.Duration `koanf:"heartbeat_ttl"   json:"heartbeat_ttl"   yaml:"heartbeat_ttl"   mapstructure:"heartbeat_ttl"   env:"WORKER_DISPATCHER_HEARTBEAT_TTL"`
+	StaleThreshold time.Duration `koanf:"stale_threshold" json:"stale_threshold" yaml:"stale_threshold" mapstructure:"stale_threshold" env:"WORKER_DISPATCHER_STALE_THRESHOLD"`
 }
 
 // MCPProxyConfig contains MCP proxy server configuration.
@@ -963,9 +990,18 @@ type WorkerConfig struct {
 //
 //	mcp_proxy:
 //	  host: 0.0.0.0
-//	  port: 6001
-//	  base_url: http://localhost:6001
+//	  port: 0           # 0 = ephemeral; actual port is logged
+//	  base_url: ""      # auto-computed from bound address when empty
 type MCPProxyConfig struct {
+	// Mode controls how the MCP proxy runs within Compozy.
+	//
+	// Values:
+	//   - "standalone": embed MCP proxy inside the server
+	//   - "": external MCP proxy (default)
+	//
+	// When embedded, the server manages lifecycle and health of the proxy
+	// and will set LLM.ProxyURL if empty.
+	Mode string `koanf:"mode" json:"mode" yaml:"mode" mapstructure:"mode" env:"MCP_PROXY_MODE"`
 	// Host specifies the network interface to bind the MCP proxy server to.
 	//
 	// **Default**: `"0.0.0.0"`
@@ -973,7 +1009,7 @@ type MCPProxyConfig struct {
 
 	// Port specifies the TCP port for the MCP proxy server.
 	//
-	// **Default**: `6001`
+	// **Default**: `0` (ephemeral)
 	Port int `koanf:"port" json:"port" yaml:"port" mapstructure:"port" env:"MCP_PROXY_PORT"`
 
 	// BaseURL specifies the base URL for MCP proxy API endpoints.
@@ -1102,6 +1138,39 @@ type CLIConfig struct {
 	EnvFile string `koanf:"env_file" env:"COMPOZY_ENV_FILE" json:"EnvFile" yaml:"env_file" mapstructure:"env_file"`
 }
 
+// WebhooksConfig contains webhook processing and validation configuration.
+// These settings control how incoming webhooks are processed, validated,
+// and deduplicated across the system.
+//
+// Example configuration:
+//
+//	webhooks:
+//	  default_method: POST
+//	  default_max_body: 1048576        # 1MB
+//	  default_dedupe_ttl: 10m          # 10 minutes
+//	  stripe_skew: 5m                  # 5 minutes
+type WebhooksConfig struct {
+	// DefaultMethod specifies the default HTTP method for webhook requests.
+	// Default: "POST"
+	// Valid values: GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS
+	DefaultMethod string `koanf:"default_method" json:"default_method" yaml:"default_method" mapstructure:"default_method" env:"WEBHOOKS_DEFAULT_METHOD" validate:"oneof=GET POST PUT DELETE PATCH HEAD OPTIONS"`
+
+	// DefaultMaxBody caps the maximum size (in bytes) for webhook request bodies.
+	// Default: 1,048,576 (1MB)
+	// Must be greater than 0
+	DefaultMaxBody int64 `koanf:"default_max_body" json:"default_max_body" yaml:"default_max_body" mapstructure:"default_max_body" env:"WEBHOOKS_DEFAULT_MAX_BODY" validate:"min=1"`
+
+	// DefaultDedupeTTL sets the default time-to-live for webhook deduplication.
+	// Default: 10m (10 minutes)
+	// Must be non-negative
+	DefaultDedupeTTL time.Duration `koanf:"default_dedupe_ttl" json:"default_dedupe_ttl" yaml:"default_dedupe_ttl" mapstructure:"default_dedupe_ttl" env:"WEBHOOKS_DEFAULT_DEDUPE_TTL" validate:"min=0"`
+
+	// StripeSkew sets the allowed timestamp skew for Stripe webhook verification.
+	// Default: 5m (5 minutes)
+	// Must be non-negative
+	StripeSkew time.Duration `koanf:"stripe_skew" json:"stripe_skew" yaml:"stripe_skew" mapstructure:"stripe_skew" env:"WEBHOOKS_STRIPE_SKEW" validate:"min=0"`
+}
+
 // Service defines the configuration management service interface.
 // It provides methods for loading, watching, and validating configuration.
 type Service interface {
@@ -1147,7 +1216,8 @@ type Metadata struct {
 
 // Default returns a Config with default values for development.
 func Default() *Config {
-	return defaultFromRegistry()
+	cfg := defaultFromRegistry()
+	return cfg
 }
 
 // defaultFromRegistry creates a Config using the centralized registry
@@ -1419,6 +1489,7 @@ func buildCacheConfig(registry *definition.Registry) CacheConfig {
 		CompressionThreshold: getInt64(registry, "cache.compression_threshold"),
 		EvictionPolicy:       getString(registry, "cache.eviction_policy"),
 		StatsInterval:        getDuration(registry, "cache.stats_interval"),
+		KeyScanCount:         getInt(registry, "cache.key_scan_count"),
 	}
 }
 
@@ -1430,13 +1501,28 @@ func buildWorkerConfig(registry *definition.Registry) WorkerConfig {
 		DispatcherRetryDelay:       getDuration(registry, "worker.dispatcher_retry_delay"),
 		DispatcherMaxRetries:       getInt(registry, "worker.dispatcher_max_retries"),
 		MCPProxyHealthCheckTimeout: getDuration(registry, "worker.mcp_proxy_health_check_timeout"),
+		StartWorkflowTimeout:       getDuration(registry, "worker.start_workflow_timeout"),
+		Dispatcher:                 buildWorkerDispatcherConfig(registry),
+	}
+}
+
+func buildWorkerDispatcherConfig(registry *definition.Registry) WorkerDispatcherConfig {
+	return WorkerDispatcherConfig{
+		HeartbeatTTL:   getDuration(registry, "worker.dispatcher.heartbeat_ttl"),
+		StaleThreshold: getDuration(registry, "worker.dispatcher.stale_threshold"),
 	}
 }
 
 func buildMCPProxyConfig(registry *definition.Registry) MCPProxyConfig {
+	mode := getString(registry, "mcp_proxy.mode")
+	port := getInt(registry, "mcp_proxy.port")
+	if mode == mcpProxyModeStandalone && port == 0 {
+		port = 6001
+	}
 	return MCPProxyConfig{
+		Mode:            mode,
 		Host:            getString(registry, "mcp_proxy.host"),
-		Port:            getInt(registry, "mcp_proxy.port"),
+		Port:            port,
 		BaseURL:         getString(registry, "mcp_proxy.base_url"),
 		ShutdownTimeout: getDuration(registry, "mcp_proxy.shutdown_timeout"),
 	}
@@ -1460,14 +1546,6 @@ func buildAttachmentsConfig(registry *definition.Registry) AttachmentsConfig {
 			PDF:   getStringSlice(registry, "attachments.allowed_mime_types.pdf"),
 		},
 	}
-}
-
-// WebhooksConfig contains webhook processing and validation configuration.
-type WebhooksConfig struct {
-	DefaultMethod    string        `koanf:"default_method"     json:"default_method"     yaml:"default_method"     mapstructure:"default_method"     env:"WEBHOOKS_DEFAULT_METHOD"     validate:"oneof=GET POST PUT DELETE PATCH HEAD OPTIONS"`
-	DefaultMaxBody   int64         `koanf:"default_max_body"   json:"default_max_body"   yaml:"default_max_body"   mapstructure:"default_max_body"   env:"WEBHOOKS_DEFAULT_MAX_BODY"   validate:"min=1"`
-	DefaultDedupeTTL time.Duration `koanf:"default_dedupe_ttl" json:"default_dedupe_ttl" yaml:"default_dedupe_ttl" mapstructure:"default_dedupe_ttl" env:"WEBHOOKS_DEFAULT_DEDUPE_TTL" validate:"min=0"`
-	StripeSkew       time.Duration `koanf:"stripe_skew"        json:"stripe_skew"        yaml:"stripe_skew"        mapstructure:"stripe_skew"        env:"WEBHOOKS_STRIPE_SKEW"        validate:"min=0"`
 }
 
 func buildWebhooksConfig(registry *definition.Registry) WebhooksConfig {

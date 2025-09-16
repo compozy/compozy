@@ -6,6 +6,7 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/server/appstate"
+	"github.com/compozy/compozy/engine/worker"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
 )
@@ -28,6 +29,39 @@ func GetAppState(c *gin.Context) *appstate.State {
 		return nil
 	}
 	return appState
+}
+
+func GetAppStateWithWorker(c *gin.Context) *appstate.State {
+	state := GetAppState(c)
+	if state == nil {
+		if !c.Writer.Written() {
+			reqErr := NewRequestError(
+				http.StatusServiceUnavailable,
+				ErrMsgAppStateNotInitialized,
+				nil,
+			)
+			RespondWithError(c, reqErr.StatusCode, reqErr)
+		}
+		return nil
+	}
+	if state.Worker == nil {
+		reqErr := NewRequestError(
+			http.StatusServiceUnavailable,
+			ErrMsgWorkerNotRunning,
+			nil,
+		)
+		RespondWithError(c, reqErr.StatusCode, reqErr)
+		return nil
+	}
+	return state
+}
+
+func GetWorker(c *gin.Context) *worker.Worker {
+	state := GetAppStateWithWorker(c)
+	if state == nil {
+		return nil
+	}
+	return state.Worker
 }
 
 func GetRequestBody[T any](c *gin.Context) *T {

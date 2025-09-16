@@ -35,7 +35,9 @@ Key features include:
 - **Graceful Shutdown**: Signal handling with proper resource cleanup
 - **Monitoring Integration**: Built-in metrics and health check endpoints
 - **Rate Limiting**: Configurable request rate limiting middleware
+  - Standalone uses an in-memory limiter by default (best-effort, single-process). Redis can be explicitly configured to enable distributed limiting.
 - **CORS Support**: Cross-origin resource sharing configuration
+- **Embedded MCP Proxy**: When enabled via `mcp_proxy.mode: standalone`, runs the MCP Proxy in-process, exposes `/mcp/health`, and integrates into readiness. Storage uses Redis when configured; memory is for tests only.
 
 ---
 
@@ -200,6 +202,12 @@ func CreateHealthHandler(server *server.Server, version string) gin.HandlerFunc 
     }
 }
 ```
+
+### Embedded MCP Proxy
+
+When `mcp_proxy.mode=standalone`, the server embeds the MCP Proxy and manages its lifecycle. Readiness is aggregated into `/health` via `CreateHealthHandler`.
+
+Integration tests validate endpoint exposure and readiness impact (see `test/integration/server/mcp_health_test.go`).
 
 ---
 
@@ -540,8 +548,11 @@ func TestServer(t *testing.T) {
             Port: 0, // Random port
         },
         Database: config.DatabaseConfig{
-            Driver: "sqlite",
-            Name:   ":memory:",
+            Host: "localhost",
+            Port: "5432",
+            User: "postgres",
+            Password: "postgres",
+            Name: "compozy",
         },
     }
 
@@ -597,8 +608,11 @@ func setupTestServer(t *testing.T) *server.Server {
             Port: getFreePort(),
         },
         Database: config.DatabaseConfig{
-            Driver: "sqlite",
-            Name:   ":memory:",
+            Host: "localhost",
+            Port: "5432",
+            User: "postgres",
+            Password: "postgres",
+            Name: "compozy",
         },
     }
 

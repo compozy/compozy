@@ -25,12 +25,10 @@ func RegisterRoutesWithMetrics(
 ) {
 	handler := NewHandler(factory)
 	authManager := authmw.NewManager(factory, cfg)
-
 	// Add metrics instrumentation if meter is provided
 	if meter != nil {
 		authManager = authManager.WithMetrics(ctx, meter)
 	}
-
 	// Auth endpoints (require authentication)
 	auth := apiBase.Group("/auth")
 	{
@@ -41,7 +39,6 @@ func RegisterRoutesWithMetrics(
 		auth.GET("/keys", handler.ListKeys)
 		auth.DELETE("/keys/:id", handler.RevokeKey)
 	}
-
 	// Admin endpoints for user management
 	admin := apiBase.Group("/users")
 	admin.Use(authManager.Middleware())
