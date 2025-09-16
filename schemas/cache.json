@@ -34,6 +34,10 @@
       "type": "integer",
       "description": "StatsInterval controls how often cache statistics are logged.\n\nSet to 0 to disable statistics logging.\nUseful for monitoring cache hit rates and performance.\n\n**Default**: `5m`"
     },
+    "key_scan_count": {
+      "type": "integer",
+      "description": "KeyScanCount controls the COUNT hint used by Redis SCAN for key iteration.\nLarger values reduce round-trips but may increase per-iteration latency.\nSet to a positive integer; defaults to 100."
+    },
     "url": {
       "type": "string",
       "description": "URL provides a complete Redis connection string.\n\nFormat: `redis://[user:password@]host:port/db`\nTakes precedence over individual connection parameters."

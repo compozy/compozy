@@ -257,6 +257,16 @@ func (a *Config) SetCWD(path string) error {
 			return err
 		}
 	}
+	// Propagate CWD to inline tool configurations as well. Agent-level tools
+	// are validated later when creating the LLM service (via resolved tools),
+	// and require a non-empty CWD for path resolution and execution. When tools
+	// are declared at workflow/project level, CWD propagation happens there;
+	// for agent-scoped tools we must set it here to avoid validation failures.
+	for i := range a.Tools {
+		if err := a.Tools[i].SetCWD(path); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

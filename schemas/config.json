@@ -1,43 +1,51 @@
 {
   "$defs": {
+    "AttachmentMIMEAllowlist": {
+      "additionalProperties": false,
+      "description": "AttachmentMIMEAllowlist holds allowed MIME types per category.",
+      "properties": {
+        "audio": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "image": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "pdf": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "video": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
     "AttachmentsConfig": {
       "additionalProperties": false,
       "description": "AttachmentsConfig contains global limits and policies for attachment handling.",
       "properties": {
         "allowed_mime_types": {
-          "additionalProperties": false,
-          "description": "AllowedMIMETypes specifies MIME allowlists by content category.",
-          "properties": {
-            "audio": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "image": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "pdf": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "video": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            }
-          },
-          "type": "object"
+          "$ref": "#/$defs/AttachmentMIMEAllowlist",
+          "description": "AllowedMIMETypes specifies MIME allowlists by content category.\n\nEmpty lists do not allow everything; they mean \"use built-in defaults\"\nper attachment type. Resolvers fall back to type heuristics when the\nallowlist for a category is empty."
         },
         "download_timeout": {
           "description": "DownloadTimeout sets the timeout for downloading a single attachment.\nDefault: 30s",
           "type": "integer"
+        },
+        "http_user_agent": {
+          "description": "HTTPUserAgent sets the User-Agent header for outbound downloads.\nDefault: \"Compozy/1.0\"",
+          "type": "string"
         },
         "max_download_size_bytes": {
           "description": "MaxDownloadSizeBytes caps the maximum size (in bytes) for any single download.\nDefault: 10_000_000 (10MB)",
@@ -47,8 +55,24 @@
           "description": "MaxRedirects limits the number of HTTP redirects followed during download.\nDefault: 3",
           "type": "integer"
         },
+        "mime_head_max_bytes": {
+          "description": "MIMEHeadMaxBytes controls how many initial bytes are used for MIME detection.\nDefault: 512",
+          "type": "integer"
+        },
+        "pdf_extract_max_chars": {
+          "description": "PDFExtractMaxChars caps the number of characters extracted from PDFs.\nDefault: 1_000_000",
+          "type": "integer"
+        },
+        "ssrf_strict": {
+          "description": "SSRFStrict enforces blocking of local/loopback/private/multicast destinations even in tests.\nDefault: false",
+          "type": "boolean"
+        },
         "temp_dir_quota_bytes": {
           "description": "TempDirQuotaBytes optionally caps total temp storage used by attachment resolution.\n0 disables the quota.",
+          "type": "integer"
+        },
+        "text_part_max_bytes": {
+          "description": "TextPartMaxBytes caps the number of bytes loaded from text files into LLM parts.\nDefault: 5_242_880 (5MB)",
           "type": "integer"
         }
       },
@@ -178,6 +202,10 @@
         "eviction_policy": {
           "description": "EvictionPolicy controls how items are removed when cache is full.\n\nOptions:\n  - `\"lru\"`: Least Recently Used (default)\n  - `\"lfu\"`: Least Frequently Used\n  - `\"ttl\"`: Time-based expiration only\n\n**Default**: `\"lru\"`",
           "type": "string"
+        },
+        "key_scan_count": {
+          "description": "KeyScanCount controls the COUNT hint used by Redis SCAN for key iteration.\nLarger values reduce round-trips but may increase per-iteration latency.\nSet to a positive integer; defaults to 100.",
+          "type": "integer"
         },
         "max_item_size": {
           "description": "MaxItemSize limits the maximum size of a single cached item.\n\nPrevents large objects from consuming excessive memory.\nItems larger than this are not cached.\n\n**Default**: `1048576` (1MB)",
@@ -357,8 +385,12 @@
           "description": "Host specifies the network interface to bind the MCP proxy server to.\n\n**Default**: `\"0.0.0.0\"`",
           "type": "string"
         },
+        "mode": {
+          "description": "Mode controls how the MCP proxy runs within Compozy.\n\nValues:\n  - \"standalone\": embed MCP proxy inside the server\n  - \"\": external MCP proxy (default)\n\nWhen embedded, the server manages lifecycle and health of the proxy\nand will set LLM.ProxyURL if empty.",
+          "type": "string"
+        },
         "port": {
-          "description": "Port specifies the TCP port for the MCP proxy server.\n\n**Default**: `6001`",
+          "description": "Port specifies the TCP port for the MCP proxy server.\n\n**Default**: `0` (ephemeral)",
           "type": "integer"
         },
         "shutdown_timeout": {
@@ -613,15 +645,19 @@
       "description": "WebhooksConfig contains webhook processing and validation configuration.",
       "properties": {
         "default_dedupe_ttl": {
+          "description": "DefaultDedupeTTL sets the default time-to-live for webhook deduplication.\nDefault: 10m (10 minutes)\nMust be non-negative",
           "type": "integer"
         },
         "default_max_body": {
+          "description": "DefaultMaxBody caps the maximum size (in bytes) for webhook request bodies.\nDefault: 1,048,576 (1MB)\nMust be greater than 0",
           "type": "integer"
         },
         "default_method": {
+          "description": "DefaultMethod specifies the default HTTP method for webhook requests.\nDefault: \"POST\"\nValid values: GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS",
           "type": "string"
         },
         "stripe_skew": {
+          "description": "StripeSkew sets the allowed timestamp skew for Stripe webhook verification.\nDefault: 5m (5 minutes)\nMust be non-negative",
           "type": "integer"
         }
       },
@@ -634,6 +670,10 @@
         "config_store_ttl": {
           "description": "ConfigStoreTTL sets how long worker configurations are cached.\n\n**Default**: `24h`",
           "type": "integer"
+        },
+        "dispatcher": {
+          "$ref": "#/$defs/WorkerDispatcherConfig",
+          "description": "Dispatcher defines heartbeat tracking for dispatcher leases."
         },
         "dispatcher_max_retries": {
           "description": "DispatcherMaxRetries sets maximum dispatcher retry attempts.\n\n**Default**: `2`",
@@ -653,6 +693,23 @@
         },
         "mcp_shutdown_timeout": {
           "description": "MCPShutdownTimeout sets timeout for MCP server shutdown.\n\n**Default**: `30s`",
+          "type": "integer"
+        },
+        "start_workflow_timeout": {
+          "description": "StartWorkflowTimeout bounds the HTTP handler's call to start a\nworkflow execution to avoid hanging requests when Temporal is slow\nor unreachable. If zero or negative, a safe default is used.\n\n**Default**: `5s`",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "WorkerDispatcherConfig": {
+      "additionalProperties": false,
+      "description": "WorkerDispatcherConfig holds dispatcher heartbeat tracking configuration.",
+      "properties": {
+        "heartbeat_ttl": {
+          "type": "integer"
+        },
+        "stale_threshold": {
           "type": "integer"
         }
       },
