@@ -39,6 +39,60 @@
       "additionalProperties": false,
       "type": "object",
       "description": "CORSConfig contains CORS configuration."
+    },
+    "ServerTimeouts": {
+      "properties": {
+        "monitoring_init": {
+          "type": "integer"
+        },
+        "monitoring_shutdown": {
+          "type": "integer"
+        },
+        "db_shutdown": {
+          "type": "integer"
+        },
+        "worker_shutdown": {
+          "type": "integer"
+        },
+        "server_shutdown": {
+          "type": "integer"
+        },
+        "http_read": {
+          "type": "integer"
+        },
+        "http_write": {
+          "type": "integer"
+        },
+        "http_idle": {
+          "type": "integer"
+        },
+        "schedule_retry_max_duration": {
+          "type": "integer"
+        },
+        "schedule_retry_base_delay": {
+          "type": "integer"
+        },
+        "schedule_retry_max_delay": {
+          "type": "integer"
+        },
+        "schedule_retry_max_attempts": {
+          "type": "integer",
+          "description": "ScheduleRetryMaxAttempts limits the number of reconciliation retry attempts.\nWhen set to a value \u003e= 1, this takes precedence over ScheduleRetryMaxDuration."
+        },
+        "schedule_retry_backoff_seconds": {
+          "type": "integer",
+          "description": "ScheduleRetryBackoffSeconds sets the base backoff in seconds used to build\nthe exponential backoff for reconciliation retries. If zero, a sensible\ndefault is applied in code."
+        },
+        "temporal_reachability": {
+          "type": "integer"
+        },
+        "start_probe_delay": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "ServerTimeouts defines tunable durations for server operations."
     }
   },
   "properties": {
@@ -65,6 +119,10 @@
     "auth": {
       "$ref": "#/$defs/AuthConfig",
       "description": "Auth configures API authentication settings."
+    },
+    "timeouts": {
+      "$ref": "#/$defs/ServerTimeouts",
+      "description": "Timeouts contains operator-tunable timeouts and retry/backoff settings\nfor server startup, shutdown, and HTTP behavior.\n\n$ref: schema://application#server.timeouts"
     }
   },
   "additionalProperties": false,

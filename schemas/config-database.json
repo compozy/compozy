@@ -33,6 +33,10 @@
     "auto_migrate": {
       "type": "boolean",
       "description": "AutoMigrate enables automatic database migrations on startup.\n\nWhen enabled, the system will automatically apply any pending database\nmigrations when establishing a database connection. This eliminates\nthe need for manual migration commands.\n\nDefault: true"
+    },
+    "migration_timeout": {
+      "type": "integer",
+      "description": "MigrationTimeout sets the maximum allowed time for applying database\nmigrations during startup. It must be equal to or greater than the\nadvisory lock acquisition window used by ApplyMigrationsWithLock (45s).\n\nDefault: 2m"
     }
   },
   "additionalProperties": false,

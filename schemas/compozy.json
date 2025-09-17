@@ -504,6 +504,10 @@
           "description": "Host specifies the database server hostname or IP address.\n\nDefault: \"localhost\"",
           "type": "string"
         },
+        "migration_timeout": {
+          "description": "MigrationTimeout sets the maximum allowed time for applying database\nmigrations during startup. It must be equal to or greater than the\nadvisory lock acquisition window used by ApplyMigrationsWithLock (45s).\n\nDefault: 2m",
+          "type": "integer"
+        },
         "name": {
           "description": "DBName specifies the database name to connect to.\n\nDefault: \"compozy\"",
           "type": "string"
@@ -878,6 +882,64 @@
         },
         "timeout": {
           "description": "Timeout sets the maximum duration for processing requests.\n\nApplies to all HTTP operations including request reading, processing, and response writing.\nDefault: 30s. Increase for long-running operations.",
+          "type": "integer"
+        },
+        "timeouts": {
+          "$ref": "#/$defs/config_ServerTimeouts",
+          "description": "Timeouts contains operator-tunable timeouts and retry/backoff settings\nfor server startup, shutdown, and HTTP behavior.\n\n$ref: schema://application#server.timeouts"
+        }
+      },
+      "type": "object"
+    },
+    "config_ServerTimeouts": {
+      "additionalProperties": false,
+      "description": "ServerTimeouts defines tunable durations for server operations.",
+      "properties": {
+        "db_shutdown": {
+          "type": "integer"
+        },
+        "http_idle": {
+          "type": "integer"
+        },
+        "http_read": {
+          "type": "integer"
+        },
+        "http_write": {
+          "type": "integer"
+        },
+        "monitoring_init": {
+          "type": "integer"
+        },
+        "monitoring_shutdown": {
+          "type": "integer"
+        },
+        "schedule_retry_backoff_seconds": {
+          "description": "ScheduleRetryBackoffSeconds sets the base backoff in seconds used to build\nthe exponential backoff for reconciliation retries. If zero, a sensible\ndefault is applied in code.",
+          "type": "integer"
+        },
+        "schedule_retry_base_delay": {
+          "type": "integer"
+        },
+        "schedule_retry_max_attempts": {
+          "description": "ScheduleRetryMaxAttempts limits the number of reconciliation retry attempts.\nWhen set to a value \u003e= 1, this takes precedence over ScheduleRetryMaxDuration.",
+          "type": "integer"
+        },
+        "schedule_retry_max_delay": {
+          "type": "integer"
+        },
+        "schedule_retry_max_duration": {
+          "type": "integer"
+        },
+        "server_shutdown": {
+          "type": "integer"
+        },
+        "start_probe_delay": {
+          "type": "integer"
+        },
+        "temporal_reachability": {
+          "type": "integer"
+        },
+        "worker_shutdown": {
           "type": "integer"
         }
       },

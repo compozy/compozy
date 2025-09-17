@@ -2532,6 +2532,28 @@ paths:
       summary: Call a tool on an MCP server
       tags:
         - MCP Tools
+  /api/v0/health:
+    get:
+      consumes:
+        - application/json
+      description: Returns overall service health, readiness and components status
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Service is healthy
+          schema:
+            additionalProperties: true
+            type: object
+        "503":
+          description: Service is not ready
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get server health
+      tags:
+        - health
+        - diagnostics
   /api/v0/hooks/{slug}:
     post:
       consumes:
@@ -2758,7 +2780,43 @@ paths:
                     $ref: '#/definitions/wfrouter.EventResponse'
                 type: object
         "400":
-          description: Bad Request
+          description: Invalid event
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "404":
+          description: Not found
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "409":
+          description: Conflict
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "503":
+          description: Worker unavailable
           schema:
             allOf:
               - $ref: '#/definitions/router.Response'
@@ -2793,6 +2851,15 @@ paths:
                 type: object
         "500":
           description: Internal server error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "503":
+          description: Worker unavailable
           schema:
             allOf:
               - $ref: '#/definitions/router.Response'
@@ -2854,6 +2921,15 @@ paths:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
                 type: object
+        "503":
+          description: Worker unavailable
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
       summary: Get workflow execution by ID
       tags:
         - executions
@@ -2892,6 +2968,15 @@ paths:
                 type: object
         "500":
           description: Internal server error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "503":
+          description: Worker unavailable
           schema:
             allOf:
               - $ref: '#/definitions/router.Response'
@@ -2944,6 +3029,15 @@ paths:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
                 type: object
+        "503":
+          description: Worker unavailable
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
       summary: Pause workflow execution
       tags:
         - executions
@@ -2982,6 +3076,15 @@ paths:
                 type: object
         "500":
           description: Internal server error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "503":
+          description: Worker unavailable
           schema:
             allOf:
               - $ref: '#/definitions/router.Response'
@@ -3042,6 +3145,15 @@ paths:
                 type: object
         "500":
           description: Internal server error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "503":
+          description: Worker unavailable
           schema:
             allOf:
               - $ref: '#/definitions/router.Response'
@@ -4218,6 +4330,15 @@ paths:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
                 type: object
+        "503":
+          description: Worker unavailable
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
       summary: List executions by workflow ID
       tags:
         - workflows
@@ -4270,6 +4391,15 @@ paths:
                 type: object
         "500":
           description: Internal server error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "503":
+          description: Worker unavailable
           schema:
             allOf:
               - $ref: '#/definitions/router.Response'
