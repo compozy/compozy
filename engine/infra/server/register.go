@@ -154,12 +154,22 @@ func registerPublicWebhookRoutes(
 	filter := webhook.NewCELAdapter(eval)
 	var dispatcher services.SignalDispatcher
 	if state.Worker != nil {
-		dispatcher = worker.NewSignalDispatcher(
-			state.Worker.GetClient(),
-			state.Worker.GetDispatcherID(),
-			state.Worker.GetTaskQueue(),
-			state.Worker.GetDispatcherID(),
-		)
+		dispatcherID := state.Worker.GetDispatcherID()
+		taskQueue := state.Worker.GetTaskQueue()
+		if dispatcherID != "" && taskQueue != "" {
+			dispatcher = worker.NewSignalDispatcher(
+				state.Worker.GetClient(),
+				dispatcherID,
+				taskQueue,
+				state.Worker.GetServerID(),
+			)
+		} else {
+			logger.FromContext(ctx).Warn(
+				"Worker missing dispatcher metadata; webhook dispatch disabled",
+				"dispatcher_id", dispatcherID,
+				"task_queue", taskQueue,
+			)
+		}
 	}
 	// Pass zeroes so NewOrchestrator falls back to config values internally.
 	// Wire idempotency service: use Redis when configured, otherwise in-memory.

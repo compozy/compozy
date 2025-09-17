@@ -672,7 +672,7 @@ func FindConfig(workflows []*Config, workflowID string) (*Config, error) {
 			return wf, nil
 		}
 	}
-	return nil, fmt.Errorf("workflow not found")
+	return nil, fmt.Errorf("workflow not found: %s", workflowID)
 }
 
 func FindAgentConfig[C core.Config](workflows []*Config, agentID string) (C, error) {

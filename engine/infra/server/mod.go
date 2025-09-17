@@ -549,6 +549,7 @@ func setupWorker(
 ) (*worker.Worker, error) {
 	log := logger.FromContext(ctx)
 	workerCreateStart := time.Now()
+	log.Debug("Initializing worker with workflow configs", "workflow_count", len(deps.Workflows))
 	workerConfig := &worker.Config{
 		WorkflowRepo: func() workflow.Repository {
 			return deps.Store.NewWorkflowRepo()
