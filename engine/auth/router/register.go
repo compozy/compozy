@@ -29,19 +29,15 @@ func RegisterRoutesWithMetrics(
 	if meter != nil {
 		authManager = authManager.WithMetrics(ctx, meter)
 	}
-	// Auth endpoints (require authentication)
+	// Auth endpoints
 	auth := apiBase.Group("/auth")
 	{
-		// These endpoints require authentication
-		auth.Use(authManager.Middleware())
-		auth.Use(authManager.RequireAuth())
 		auth.POST("/generate", handler.GenerateKey)
 		auth.GET("/keys", handler.ListKeys)
 		auth.DELETE("/keys/:id", handler.RevokeKey)
 	}
 	// Admin endpoints for user management
 	admin := apiBase.Group("/users")
-	admin.Use(authManager.Middleware())
 	admin.Use(authManager.RequireAdmin())
 	{
 		admin.GET("", handler.ListUsers)

@@ -9,6 +9,8 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
+const swaggerModelsExpandDepthCollapsed = -1
+
 func setupSwaggerAndDocs(router *gin.Engine, prefixURL string) {
 	docs.SwaggerInfo.BasePath = prefixURL
 	docs.SwaggerInfo.Host = ""
@@ -23,11 +25,11 @@ func setupSwaggerAndDocs(router *gin.Engine, prefixURL string) {
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(
 		swaggerFiles.Handler,
 		url,
-		ginSwagger.DefaultModelsExpandDepth(-1),
+		ginSwagger.DefaultModelsExpandDepth(swaggerModelsExpandDepthCollapsed),
 	))
 	router.GET("/docs/*any", ginSwagger.WrapHandler(
 		swaggerFiles.Handler,
 		url,
-		ginSwagger.DefaultModelsExpandDepth(-1),
+		ginSwagger.DefaultModelsExpandDepth(swaggerModelsExpandDepthCollapsed),
 	))
 }

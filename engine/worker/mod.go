@@ -799,18 +799,13 @@ func (o *Worker) ensureDispatcherRunning(ctx context.Context) {
 		return
 	}
 	maxRetries := cfg.Worker.DispatcherMaxRetries
-	var safeMaxRetries uint64
-	if maxRetries <= 0 {
-		safeMaxRetries = 0
-	} else {
-		safeMaxRetries = uint64(maxRetries)
+	backoff := retry.NewExponential(cfg.Worker.DispatcherRetryDelay)
+	if maxRetries > 0 {
+		backoff = retry.WithMaxRetries(uint64(maxRetries), backoff)
 	}
 	err := retry.Do(
 		ctx,
-		retry.WithMaxRetries(
-			safeMaxRetries,
-			retry.NewExponential(cfg.Worker.DispatcherRetryDelay),
-		),
+		backoff,
 		func(ctx context.Context) error {
 			// Bound each attempt to avoid hanging when Temporal is slow/unreachable
 			attemptTimeout := workflowStartTimeoutDefault
@@ -964,6 +959,13 @@ func (o *Worker) TriggerWorkflow(
 		Input:          mergedInput, // Use merged input with defaults
 		InitialTaskID:  initTaskID,
 	}
+	// Pre-persist a Pending state BEFORE starting the Temporal workflow
+	// to avoid duplicate starts on retries when persistence fails after start.
+	repo := o.config.WorkflowRepo()
+	pendingState := wf.NewState(workflowID, workflowExecID, mergedInput).WithStatus(core.StatusPending)
+	if err := repo.UpsertState(ctx, pendingState); err != nil {
+		return nil, fmt.Errorf("failed to persist initial (pending) workflow state: %w", err)
+	}
 	options := client.StartWorkflowOptions{
 		ID:        buildWorkflowID(workflowID, workflowInput.WorkflowExecID),
 		TaskQueue: o.taskQueue,
@@ -983,12 +985,32 @@ func (o *Worker) TriggerWorkflow(
 		workflowInput,
 	)
 	if err != nil {
+		// Transition pre-persisted Pending state to Failed with error context.
+		// Best-effort: log if persistence fails but return original start error.
+		persistErr := func() error {
+			failed := wf.NewState(workflowID, workflowExecID, mergedInput).
+				WithStatus(core.StatusFailed).
+				WithError(core.NewError(err, "WORKFLOW_START_FAILED", map[string]any{
+					"workflow_id": workflowID,
+					"exec_id":     workflowExecID.String(),
+				}))
+			return repo.UpsertState(ctx, failed)
+		}()
+		if persistErr != nil {
+			logger.FromContext(ctx).Error(
+				"Failed to persist failed workflow state after start error",
+				"error", persistErr, "workflow_id", workflowID, "exec_id", workflowExecID,
+			)
+		}
 		return nil, fmt.Errorf("failed to start workflow: %w", err)
 	}
-	initialState := wf.NewState(workflowID, workflowInput.WorkflowExecID, workflowInput.Input)
-	repo := o.config.WorkflowRepo()
-	if err := repo.UpsertState(ctx, initialState); err != nil {
-		return nil, fmt.Errorf("failed to persist initial workflow state: %w", err)
+	// Transition to Running on successful start (activity TriggerWorkflow will also upsert Running soon after).
+	if err := repo.UpdateStatus(ctx, workflowExecID, core.StatusRunning); err != nil {
+		// Do not fail the request; log and continue to avoid duplicate starts on retries.
+		logger.FromContext(ctx).Error(
+			"Failed to transition workflow state to RUNNING after start",
+			"error", err, "workflow_id", workflowID, "exec_id", workflowExecID,
+		)
 	}
 	return &workflowInput, nil
 }

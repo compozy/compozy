@@ -8,6 +8,10 @@ import (
 // WorkflowAuthMiddleware creates workflow-specific authentication middleware
 // that checks for workflow exceptions and bypasses authentication for specific workflow IDs
 func WorkflowAuthMiddleware(authManager *Manager, cfg *config.Config) gin.HandlerFunc {
+	// If auth is explicitly disabled, become a no-op
+	if cfg != nil && !cfg.Server.Auth.Enabled {
+		return func(c *gin.Context) { c.Next() }
+	}
 	if cfg == nil {
 		// Secure default: no exceptions when config is unavailable
 		return func(c *gin.Context) {

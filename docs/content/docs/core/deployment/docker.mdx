@@ -284,7 +284,7 @@ Both images include health checks:
 
 ```bash
 # Check Compozy server health (using health endpoint)
-curl -f http://localhost:5001/health || echo "Health check failed"
+curl -f http://localhost:5001/api/v0/health || echo "Health check failed"
 
 # Alternative: Check process status
 docker exec compozy-server ps aux | grep compozy
@@ -351,7 +351,7 @@ docker exec -it compozy-server /bin/sh
 docker exec compozy-server compozy workflow list
 
 # Check health via HTTP endpoint
-curl -f http://localhost:5001/health
+curl -f http://localhost:5001/api/v0/health
 ```
 
 ### Common Issues
@@ -367,7 +367,7 @@ curl -f http://localhost:5001/health
 docker exec compozy-server env | grep -E '^(DB_|REDIS_|TEMPORAL_)'
 
 # Test database connection via health endpoint
-curl -f http://localhost:5001/health
+curl -f http://localhost:5001/api/v0/health
 
 # Or check logs for connection errors
 docker logs compozy-server --tail 50

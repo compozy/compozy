@@ -9,6 +9,16 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// Health endpoint
+//
+//	@Summary      Get server health
+//	@Description  Returns overall service health, readiness and components status
+//	@Tags         health,diagnostics
+//	@Accept       json
+//	@Produce      json
+//	@Success      200 {object} map[string]interface{} "Service is healthy"
+//	@Failure      503 {object} map[string]interface{} "Service is not ready"
+//	@Router       /api/v0/health [get]
 func CreateHealthHandler(server *Server, version string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx := c.Request.Context()
@@ -18,7 +28,7 @@ func CreateHealthHandler(server *Server, version string) gin.HandlerFunc {
 		)
 		response := buildHealthResponse(healthStatus, version, ready, scheduleStatus, memoryHealth)
 		response["temporal"] = gin.H{"ready": temporalReady}
-		response["worker"] = gin.H{"running": workerReady}
+		response["worker"] = gin.H{"ready": workerReady}
 		response["mcp_proxy"] = gin.H{"ready": mcpReady}
 		statusCode := determineHealthStatusCode(ready)
 		c.JSON(statusCode, gin.H{

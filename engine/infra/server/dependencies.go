@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -33,12 +34,13 @@ func (s *Server) setupProjectConfig() (*project.Config, []*workflow.Config, *aut
 func (s *Server) setupMonitoring(projectConfig *project.Config) func() {
 	log := logger.FromContext(s.ctx)
 	monitoringStart := time.Now()
-	monitoringCtx, monitoringCancel := context.WithTimeout(s.ctx, monitoringInitTimeout)
+	timeouts := config.FromContext(s.ctx).Server.Timeouts
+	monitoringCtx, monitoringCancel := context.WithTimeout(s.ctx, timeouts.MonitoringInit)
 	monitoringService, err := monitoring.NewMonitoringService(monitoringCtx, projectConfig.MonitoringConfig)
 	monitoringDuration := time.Since(monitoringStart)
 	if err != nil {
 		monitoringCancel()
-		if err == context.DeadlineExceeded {
+		if errors.Is(err, context.DeadlineExceeded) {
 			log.Warn("Monitoring initialization timed out, continuing without monitoring",
 				"duration", monitoringDuration)
 		} else {
@@ -62,7 +64,7 @@ func (s *Server) setupMonitoring(projectConfig *project.Config) func() {
 					log.Error("Failed to unregister readiness callback", "error", err)
 				}
 			}
-			ctx, cancel := context.WithTimeout(context.WithoutCancel(s.ctx), monitoringShutdownTimeout)
+			ctx, cancel := context.WithTimeout(context.WithoutCancel(s.ctx), timeouts.MonitoringShutdown)
 			defer cancel()
 			if err := monitoringService.Shutdown(ctx); err != nil {
 				log.Error("Failed to shutdown monitoring service", "error", err)
@@ -93,7 +95,7 @@ func (s *Server) setupStore() (*repo.Provider, func(), error) {
 		SSLMode:    cfg.Database.SSLMode,
 	}
 	if cfg.Database.AutoMigrate {
-		mctx, mcancel := context.WithTimeout(s.ctx, dbShutdownTimeout)
+		mctx, mcancel := context.WithTimeout(s.ctx, cfg.Database.MigrationTimeout)
 		defer mcancel()
 		if err := postgres.ApplyMigrationsWithLock(mctx, postgres.DSNFor(pgCfg)); err != nil {
 			return nil, nil, fmt.Errorf("failed to apply migrations: %w", err)
@@ -110,9 +112,11 @@ func (s *Server) setupStore() (*repo.Provider, func(), error) {
 		"duration", time.Since(storeStart),
 	)
 	cleanup := func() {
-		ctx, cancel := context.WithTimeout(s.ctx, dbShutdownTimeout)
+		ctx, cancel := context.WithTimeout(s.ctx, cfg.Server.Timeouts.DBShutdown)
 		defer cancel()
-		_ = drv.Close(ctx)
+		if err := drv.Close(ctx); err != nil {
+			logger.FromContext(s.ctx).Warn("Failed to close store", "error", err)
+		}
 	}
 	return provider, cleanup, nil
 }

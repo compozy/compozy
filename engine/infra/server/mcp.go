@@ -17,7 +17,7 @@ func (s *Server) setupMCPProxy(ctx context.Context) (func(), error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("configuration missing from context; attach a manager with config.ContextWithManager")
 	}
-	if cfg.MCPProxy.Mode != modeStandalone {
+	if !shouldEmbedMCPProxy(cfg) {
 		return func() {}, nil
 	}
 	host, portStr := normalizeMCPHostAndPort(cfg)
@@ -32,7 +32,7 @@ func (s *Server) setupMCPProxy(ctx context.Context) (func(), error) {
 		}
 	}()
 	total := mcpProbeTimeout(cfg)
-	client := &http.Client{Timeout: mcpHealthRequestTimeout}
+	client := &http.Client{Timeout: cfg.LLM.MCPClientTimeout}
 	bctx, bcancel := context.WithTimeout(ctx, total)
 	select {
 	case <-server.Bound():
@@ -84,11 +84,11 @@ func (s *Server) awaitMCPProxyReady(
 			return false
 		default:
 		}
-		rctx, cancel := context.WithTimeout(ctx, mcpHealthRequestTimeout)
+		rctx, cancel := context.WithTimeout(ctx, config.FromContext(ctx).LLM.MCPClientTimeout)
 		req, reqErr := http.NewRequestWithContext(rctx, http.MethodGet, baseURL+"/healthz", http.NoBody)
 		if reqErr != nil {
 			cancel()
-			time.Sleep(mcpHealthPollInterval)
+			time.Sleep(config.FromContext(ctx).LLM.MCPReadinessPollInterval)
 			continue
 		}
 		resp, err := client.Do(req)
@@ -101,7 +101,7 @@ func (s *Server) awaitMCPProxyReady(
 			_ = resp.Body.Close()
 		}
 		cancel()
-		time.Sleep(mcpHealthPollInterval)
+		time.Sleep(config.FromContext(ctx).LLM.MCPReadinessPollInterval)
 	}
 	return false
 }
@@ -163,7 +163,7 @@ func (s *Server) newMCPProxyServer(
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to initialize MCP storage: %w", err)
 	}
-	cm := mcpproxy.NewMCPClientManager(storage, nil)
+	cm := mcpproxy.NewMCPClientManager(ctx, storage, nil)
 	mcfg := &mcpproxy.Config{
 		Host:               host,
 		Port:               port,

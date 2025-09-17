@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 
 	authrouter "github.com/compozy/compozy/engine/auth/router"
 	authuc "github.com/compozy/compozy/engine/auth/uc"
@@ -15,9 +16,12 @@ func setupAuthSystem(
 	ctx context.Context,
 	apiBase *gin.RouterGroup,
 	state *appstate.State,
-	cfg *config.Config,
 	server *Server,
 ) error {
+	cfg := config.FromContext(ctx)
+	if cfg == nil {
+		return fmt.Errorf("missing config in context")
+	}
 	authRepo := state.Store.NewAuthRepo()
 	authFactory := authuc.NewFactory(authRepo)
 	authManager := authmw.NewManager(authFactory, cfg)
@@ -25,10 +29,11 @@ func setupAuthSystem(
 		apiBase.Use(authManager.Middleware())
 		apiBase.Use(authManager.RequireAuth())
 	}
+	// Always pass runtime context; avoid context.Background() wrappers
 	if server != nil && server.monitoring != nil && server.monitoring.IsInitialized() {
 		authrouter.RegisterRoutesWithMetrics(ctx, apiBase, authFactory, cfg, server.monitoring.Meter())
 	} else {
-		authrouter.RegisterRoutes(apiBase, authFactory, cfg)
+		authrouter.RegisterRoutesWithMetrics(ctx, apiBase, authFactory, cfg, nil)
 	}
 	return nil
 }

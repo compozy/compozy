@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/engine/infra/server/appstate"
+	"github.com/compozy/compozy/engine/memory"
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/gin-gonic/gin"
 )
@@ -15,17 +16,23 @@ func RegisterRoutes(ctx context.Context, router *gin.Engine, state *appstate.Sta
 	if cfg == nil {
 		return fmt.Errorf("missing config in context; ensure config.ContextWithManager is set before server init")
 	}
-	version, prefixURL := setupBasicConfiguration(ctx, cfg)
+	version, prefixURL := setupBasicConfiguration(ctx)
 	apiBase := router.Group(prefixURL)
 	if err := setupWebhookSystem(ctx, state, router, server, cfg); err != nil {
 		return err
 	}
 	setupSwaggerAndDocs(router, prefixURL)
 	setupDiagnosticEndpoints(router, version, prefixURL, server)
-	if err := setupAuthSystem(ctx, apiBase, state, cfg, server); err != nil {
+	if err := setupAuthSystem(ctx, apiBase, state, server); err != nil {
 		return err
 	}
-	setupComponentRoutes(apiBase)
-	logRegistrationComplete(ctx, state, cfg)
+	var memoryHealthService *memory.HealthService
+	if state != nil && state.Worker != nil {
+		if mm := state.Worker.GetMemoryManager(); mm != nil {
+			memoryHealthService = memory.NewHealthService(ctx, mm)
+		}
+	}
+	setupComponentRoutes(apiBase, memoryHealthService)
+	logRegistrationComplete(ctx, state)
 	return nil
 }

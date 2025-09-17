@@ -461,6 +461,7 @@ func flattenDatabaseConfig(cfg *config.Config, result map[string]string) {
 	result["database.name"] = cfg.Database.DBName
 	result["database.ssl_mode"] = cfg.Database.SSLMode
 	result["database.auto_migrate"] = fmt.Sprintf("%v", cfg.Database.AutoMigrate)
+	result["database.migration_timeout"] = cfg.Database.MigrationTimeout.String()
 }
 
 // flattenTemporalConfig flattens temporal configuration

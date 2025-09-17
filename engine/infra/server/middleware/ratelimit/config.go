@@ -104,10 +104,13 @@ func DefaultConfig() *Config {
 		HealthCheckInterval: 30 * time.Second,
 		DisableHeaders:      false,
 		ExcludedPaths: []string{
-			"/health",
-			"/metrics",
-			"/swagger",
-			routes.HealthVersioned(),
+			"/health",                // legacy/unversioned
+			routes.HealthVersioned(), // versioned API health
+			"/healthz",               // k8s liveness probe
+			"/readyz",                // k8s readiness probe
+			"/mcp/health",            // MCP readiness probe
+			"/metrics",               // Prometheus
+			"/swagger",               // docs
 		},
 		ExcludedIPs: []string{},
 		FailOpen:    true, // Default to fail-open for availability

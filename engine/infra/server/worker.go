@@ -41,6 +41,10 @@ func setupWorker(
 	setupStartTime := time.Now()
 	if err := worker.Setup(ctx); err != nil {
 		log.Error("Failed to setup worker", "error", err)
+		cfg := config.FromContext(ctx)
+		stopCtx, cancel := context.WithTimeout(ctx, cfg.Server.Timeouts.WorkerShutdown)
+		defer cancel()
+		worker.Stop(stopCtx)
 		return nil, fmt.Errorf("failed to setup worker: %w", err)
 	}
 	log.Debug("Worker setup done", "duration", time.Since(setupStartTime))
@@ -53,7 +57,7 @@ func (s *Server) maybeStartWorker(
 	configRegistry *autoload.ConfigRegistry,
 ) (*worker.Worker, func(), error) {
 	log := logger.FromContext(s.ctx)
-	if !isHostPortReachable(s.ctx, cfg.Temporal.HostPort, temporalReachabilityTimeout) {
+	if !isHostPortReachable(s.ctx, cfg.Temporal.HostPort, cfg.Server.Timeouts.TemporalReachability) {
 		return nil, nil, fmt.Errorf("temporal not reachable at %s", cfg.Temporal.HostPort)
 	}
 	s.setTemporalReady(true)
@@ -67,7 +71,7 @@ func (s *Server) maybeStartWorker(
 	s.setWorkerReady(true)
 	s.onReadinessMaybeChanged("worker_ready")
 	cleanup := func() {
-		ctx, cancel := context.WithTimeout(s.ctx, workerShutdownTimeout)
+		ctx, cancel := context.WithTimeout(s.ctx, cfg.Server.Timeouts.WorkerShutdown)
 		defer cancel()
 		w.Stop(ctx)
 	}
@@ -99,11 +103,31 @@ func (s *Server) runReconciliationWithRetry(
 ) {
 	log := logger.FromContext(s.ctx)
 	startTime := time.Now()
-	backoff := retry.NewExponential(scheduleRetryBaseDelay)
-	backoff = retry.WithCappedDuration(scheduleRetryMaxDelay, backoff)
+	cfg := config.FromContext(s.ctx)
+	baseDelay := cfg.Server.Timeouts.ScheduleRetryBaseDelay
+	if secs := cfg.Server.Timeouts.ScheduleRetryBackoffSeconds; secs > 0 {
+		baseDelay = time.Duration(secs) * time.Second
+	}
+	if baseDelay <= 0 {
+		baseDelay = 1 * time.Second
+	}
+	backoff := retry.NewExponential(baseDelay)
+	backoff = retry.WithCappedDuration(cfg.Server.Timeouts.ScheduleRetryMaxDelay, backoff)
+	var policy = retry.WithMaxDuration(cfg.Server.Timeouts.ScheduleRetryMaxDuration, backoff)
+	if cfg.Server.Timeouts.ScheduleRetryMaxAttempts >= 1 {
+		attempts := cfg.Server.Timeouts.ScheduleRetryMaxAttempts
+		if attempts > 1000000 {
+			attempts = 1000000
+		}
+		var attempts64 uint64
+		for i := 0; i < attempts; i++ {
+			attempts64++
+		}
+		policy = retry.WithMaxRetries(attempts64, backoff)
+	}
 	err := retry.Do(
 		s.ctx,
-		retry.WithMaxDuration(scheduleRetryMaxDuration, backoff),
+		policy,
 		func(ctx context.Context) error {
 			reconcileStart := time.Now()
 			err := scheduleManager.ReconcileSchedules(ctx, workflows)
@@ -135,7 +159,7 @@ func (s *Server) runReconciliationWithRetry(
 			log.Error("Schedule reconciliation exhausted retries",
 				"error", err,
 				"duration", time.Since(startTime),
-				"max_duration", scheduleRetryMaxDuration)
+				"max_duration", cfg.Server.Timeouts.ScheduleRetryMaxDuration)
 		}
 	}
 }

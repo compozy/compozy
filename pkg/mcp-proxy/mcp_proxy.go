@@ -16,17 +16,17 @@ func DefaultConfig() *Config {
 }
 
 // New creates a new MCP proxy server with default configuration and in-memory storage
-func New() (*Server, error) {
-	return NewWithConfig(DefaultConfig())
+func New(ctx context.Context) (*Server, error) {
+	return NewWithConfig(ctx, DefaultConfig())
 }
 
 // NewWithConfig creates a new MCP proxy server with custom configuration and in-memory storage
-func NewWithConfig(config *Config) (*Server, error) {
+func NewWithConfig(ctx context.Context, config *Config) (*Server, error) {
 	if config == nil {
 		return nil, fmt.Errorf("config cannot be nil")
 	}
 	storage := NewMemoryStorage()
-	clientManager := NewMCPClientManager(storage, nil)
+	clientManager := NewMCPClientManager(ctx, storage, nil)
 	return NewServer(config, storage, clientManager), nil
 }
 
@@ -36,13 +36,13 @@ func NewWithRedis(ctx context.Context, config *Config, redisConfig *RedisConfig)
 	if err != nil {
 		return nil, err
 	}
-	clientManager := NewMCPClientManager(storage, nil)
+	clientManager := NewMCPClientManager(ctx, storage, nil)
 	return NewServer(config, storage, clientManager), nil
 }
 
 // Run starts the MCP proxy server and blocks until shutdown with in-memory storage
 func Run(ctx context.Context, config *Config) error {
-	server, err := NewWithConfig(config)
+	server, err := NewWithConfig(ctx, config)
 	if err != nil {
 		return err
 	}

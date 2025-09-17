@@ -11,14 +11,14 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func setupComponentRoutes(apiBase *gin.RouterGroup) {
+func setupComponentRoutes(apiBase *gin.RouterGroup, healthService *memory.HealthService) {
 	wfrouter.Register(apiBase)
 	tkrouter.Register(apiBase)
 	agentrouter.Register(apiBase)
 	toolrouter.Register(apiBase)
 	schedulerouter.Register(apiBase)
 	memrouter.Register(apiBase)
-	if globalHealthService := memory.GetGlobalHealthService(); globalHealthService != nil {
-		memory.RegisterMemoryHealthRoutes(apiBase, globalHealthService)
+	if healthService != nil {
+		memory.RegisterMemoryHealthRoutes(apiBase, healthService)
 	}
 }

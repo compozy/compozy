@@ -36,6 +36,7 @@ func (rs *reconciliationStatus) setCompleted() {
 	rs.completed = true
 	rs.lastAttempt = time.Now()
 	rs.lastError = nil
+	rs.attemptCount++
 }
 
 func (rs *reconciliationStatus) setError(err error) {
@@ -144,12 +145,14 @@ func (s *Server) setTemporalReady(v bool) {
 	s.readinessMu.Lock()
 	s.temporalReady = v
 	s.readinessMu.Unlock()
+	s.onReadinessMaybeChanged("temporal")
 }
 
 func (s *Server) setWorkerReady(v bool) {
 	s.readinessMu.Lock()
 	s.workerReady = v
 	s.readinessMu.Unlock()
+	s.onReadinessMaybeChanged("worker")
 }
 
 func (s *Server) isTemporalReady() bool {
@@ -168,6 +171,7 @@ func (s *Server) setMCPReady(v bool) {
 	s.readinessMu.Lock()
 	s.mcpReady = v
 	s.readinessMu.Unlock()
+	s.onReadinessMaybeChanged("mcp")
 }
 
 func (s *Server) isMCPReady() bool {

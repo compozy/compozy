@@ -63,10 +63,13 @@ func convertRateLimitConfig(cfg *config.Config) *ratelimit.Config {
 		Prefix:   cfg.RateLimit.Prefix,
 		MaxRetry: cfg.RateLimit.MaxRetry,
 		ExcludedPaths: []string{
-			"/health",
-			"/metrics",
-			"/swagger",
-			routes.HealthVersioned(),
+			"/health",                // legacy/unversioned
+			routes.HealthVersioned(), // versioned API health
+			"/healthz",               // k8s liveness probe
+			"/readyz",                // k8s readiness probe
+			"/mcp/health",            // MCP readiness probe
+			"/metrics",               // Prometheus
+			"/swagger",               // docs
 		},
 	}
 }
@@ -150,8 +153,16 @@ func (s *Server) buildRouter(state *appstate.State) error {
 
 func (s *Server) logStartupBanner() {
 	log := logger.FromContext(s.ctx)
-	host := friendlyHost(s.serverConfig.Host)
-	httpURL := fmt.Sprintf("http://%s:%d", host, s.serverConfig.Port)
+	// Prefer values from runtime config context, fallback to serverConfig
+	cfg := config.FromContext(s.ctx)
+	host := s.serverConfig.Host
+	port := s.serverConfig.Port
+	if cfg != nil {
+		host = cfg.Server.Host
+		port = cfg.Server.Port
+	}
+	fh := friendlyHost(host)
+	httpURL := fmt.Sprintf("http://%s:%d", fh, port)
 	apiURL := fmt.Sprintf("%s%s", httpURL, routes.Base())
 	swaggerURL := fmt.Sprintf("%s/swagger/index.html", httpURL)
 	docsURL := fmt.Sprintf("%s/docs/index.html", httpURL)
@@ -165,7 +176,7 @@ func (s *Server) logStartupBanner() {
 	lines := []string{
 		fmt.Sprintf("Compozy %s", ver),
 		fmt.Sprintf("  API           > %s", apiURL),
-		fmt.Sprintf("  Health        > %s/health", httpURL),
+		fmt.Sprintf("  Health        > %s%s/health", httpURL, routes.Base()),
 		fmt.Sprintf("  Readyz        > %s/readyz", httpURL),
 		fmt.Sprintf("  Swagger       > %s", swaggerURL),
 		fmt.Sprintf("  Docs          > %s", docsURL),

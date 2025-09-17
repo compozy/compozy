@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
-	"time"
 
 	"github.com/compozy/compozy/engine/infra/monitoring"
 	"github.com/compozy/compozy/pkg/config"
@@ -15,26 +14,11 @@ import (
 )
 
 const (
-	statusNotReady              = "not_ready"
-	statusReady                 = "ready"
-	monitoringInitTimeout       = 500 * time.Millisecond
-	monitoringShutdownTimeout   = 5 * time.Second
-	dbShutdownTimeout           = 30 * time.Second
-	workerShutdownTimeout       = 30 * time.Second
-	serverShutdownTimeout       = 5 * time.Second
-	scheduleRetryMaxDuration    = 5 * time.Minute
-	scheduleRetryBaseDelay      = 1 * time.Second
-	scheduleRetryMaxDelay       = 30 * time.Second
-	httpReadTimeout             = 15 * time.Second
-	httpWriteTimeout            = 15 * time.Second
-	httpIdleTimeout             = 60 * time.Second
-	modeStandalone              = "standalone"
-	mcpHealthPollInterval       = 200 * time.Millisecond
-	mcpHealthRequestTimeout     = 500 * time.Millisecond
-	temporalReachabilityTimeout = 1500 * time.Millisecond
-	serverStartProbeDelay       = 100 * time.Millisecond
-	hostAny                     = "0.0.0.0"
-	hostLoopback                = "127.0.0.1"
+	statusNotReady = "not_ready"
+	statusReady    = "ready"
+	modeStandalone = "standalone"
+	hostAny        = "0.0.0.0"
+	hostLoopback   = "127.0.0.1"
 )
 
 type MCPProxy interface {

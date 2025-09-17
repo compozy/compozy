@@ -343,19 +343,38 @@ func createServerDefaults(defaultConfig *Config) map[string]any {
 			"enabled":             defaultConfig.Server.Auth.Enabled,
 			"workflow_exceptions": defaultConfig.Server.Auth.WorkflowExceptions,
 		},
+		"timeouts": map[string]any{
+			"monitoring_init":                defaultConfig.Server.Timeouts.MonitoringInit.String(),
+			"monitoring_shutdown":            defaultConfig.Server.Timeouts.MonitoringShutdown.String(),
+			"db_shutdown":                    defaultConfig.Server.Timeouts.DBShutdown.String(),
+			"worker_shutdown":                defaultConfig.Server.Timeouts.WorkerShutdown.String(),
+			"server_shutdown":                defaultConfig.Server.Timeouts.ServerShutdown.String(),
+			"http_read":                      defaultConfig.Server.Timeouts.HTTPRead.String(),
+			"http_write":                     defaultConfig.Server.Timeouts.HTTPWrite.String(),
+			"http_idle":                      defaultConfig.Server.Timeouts.HTTPIdle.String(),
+			"schedule_retry_max_duration":    defaultConfig.Server.Timeouts.ScheduleRetryMaxDuration.String(),
+			"schedule_retry_base_delay":      defaultConfig.Server.Timeouts.ScheduleRetryBaseDelay.String(),
+			"schedule_retry_max_delay":       defaultConfig.Server.Timeouts.ScheduleRetryMaxDelay.String(),
+			"schedule_retry_max_attempts":    defaultConfig.Server.Timeouts.ScheduleRetryMaxAttempts,
+			"schedule_retry_backoff_seconds": defaultConfig.Server.Timeouts.ScheduleRetryBackoffSeconds,
+			"temporal_reachability":          defaultConfig.Server.Timeouts.TemporalReachability.String(),
+			"start_probe_delay":              defaultConfig.Server.Timeouts.StartProbeDelay.String(),
+		},
 	}
 }
 
 // createDatabaseDefaults creates database configuration defaults
 func createDatabaseDefaults(defaultConfig *Config) map[string]any {
 	return map[string]any{
-		"host":        defaultConfig.Database.Host,
-		"port":        defaultConfig.Database.Port,
-		"user":        defaultConfig.Database.User,
-		"password":    defaultConfig.Database.Password,
-		"name":        defaultConfig.Database.DBName,
-		"ssl_mode":    defaultConfig.Database.SSLMode,
-		"conn_string": defaultConfig.Database.ConnString,
+		"host":              defaultConfig.Database.Host,
+		"port":              defaultConfig.Database.Port,
+		"user":              defaultConfig.Database.User,
+		"password":          defaultConfig.Database.Password,
+		"name":              defaultConfig.Database.DBName,
+		"ssl_mode":          defaultConfig.Database.SSLMode,
+		"conn_string":       defaultConfig.Database.ConnString,
+		"auto_migrate":      defaultConfig.Database.AutoMigrate,
+		"migration_timeout": defaultConfig.Database.MigrationTimeout.String(),
 	}
 }
 

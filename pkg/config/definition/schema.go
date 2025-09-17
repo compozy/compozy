@@ -33,70 +33,93 @@ func CreateRegistry() *Registry {
 }
 
 func registerServerFields(registry *Registry) {
-	registry.Register(&FieldDef{
-		Path:    "server.host",
-		Default: "0.0.0.0",
-		CLIFlag: "host",
-		EnvVar:  "SERVER_HOST",
-		Type:    reflect.TypeOf(""),
-		Help:    "Host to bind the server to",
-	})
+	registerServerCoreFields(registry)
+	registerServerTimeoutFields(registry)
+	registerServerAuthFields(registry)
+}
 
-	registry.Register(&FieldDef{
-		Path:    "server.port",
-		Default: 5001,
-		CLIFlag: "port",
-		EnvVar:  "SERVER_PORT",
-		Type:    reflect.TypeOf(0),
-		Help:    "Port to run the server on",
-	})
+func registerServerCoreFields(registry *Registry) {
+	registerServerHostPortCors(registry)
+	registerServerTimeoutField(registry)
+}
 
-	registry.Register(&FieldDef{
-		Path:    "server.cors_enabled",
-		Default: true,
-		CLIFlag: "cors",
-		EnvVar:  "SERVER_CORS_ENABLED",
-		Type:    reflect.TypeOf(true),
-		Help:    "Enable CORS",
-	})
+func registerServerHostPortCors(registry *Registry) {
+	registry.Register(
+		&FieldDef{
+			Path:    "server.host",
+			Default: "0.0.0.0",
+			CLIFlag: "host",
+			EnvVar:  "SERVER_HOST",
+			Type:    reflect.TypeOf(""),
+			Help:    "Host to bind the server to",
+		},
+	)
+	registry.Register(
+		&FieldDef{
+			Path:    "server.port",
+			Default: 5001,
+			CLIFlag: "port",
+			EnvVar:  "SERVER_PORT",
+			Type:    reflect.TypeOf(0),
+			Help:    "Port to run the server on",
+		},
+	)
+	registry.Register(
+		&FieldDef{
+			Path:    "server.cors_enabled",
+			Default: true,
+			CLIFlag: "cors",
+			EnvVar:  "SERVER_CORS_ENABLED",
+			Type:    reflect.TypeOf(true),
+			Help:    "Enable CORS",
+		},
+	)
+	registry.Register(
+		&FieldDef{
+			Path:    "server.cors.allowed_origins",
+			Default: []string{"http://localhost:3000", "http://localhost:5001"},
+			CLIFlag: "cors-allowed-origins",
+			EnvVar:  "SERVER_CORS_ALLOWED_ORIGINS",
+			Type:    reflect.TypeOf([]string{}),
+			Help:    "Allowed CORS origins (comma-separated)",
+		},
+	)
+	registry.Register(
+		&FieldDef{
+			Path:    "server.cors.allow_credentials",
+			Default: true,
+			CLIFlag: "cors-allow-credentials",
+			EnvVar:  "SERVER_CORS_ALLOW_CREDENTIALS",
+			Type:    reflect.TypeOf(true),
+			Help:    "Allow credentials in CORS requests",
+		},
+	)
+	registry.Register(
+		&FieldDef{
+			Path:    "server.cors.max_age",
+			Default: 86400,
+			CLIFlag: "cors-max-age",
+			EnvVar:  "SERVER_CORS_MAX_AGE",
+			Type:    reflect.TypeOf(0),
+			Help:    "CORS preflight max age in seconds",
+		},
+	)
+}
 
-	// CORS configuration fields
-	registry.Register(&FieldDef{
-		Path:    "server.cors.allowed_origins",
-		Default: []string{"http://localhost:3000", "http://localhost:5001"}, // Development defaults
-		CLIFlag: "cors-allowed-origins",
-		EnvVar:  "SERVER_CORS_ALLOWED_ORIGINS",
-		Type:    reflect.TypeOf([]string{}),
-		Help:    "Allowed CORS origins (comma-separated)",
-	})
+func registerServerTimeoutField(registry *Registry) {
+	registry.Register(
+		&FieldDef{
+			Path:    "server.timeout",
+			Default: 30 * time.Second,
+			CLIFlag: "",
+			EnvVar:  "SERVER_TIMEOUT",
+			Type:    durationType,
+			Help:    "Server timeout",
+		},
+	)
+}
 
-	registry.Register(&FieldDef{
-		Path:    "server.cors.allow_credentials",
-		Default: true,
-		CLIFlag: "cors-allow-credentials",
-		EnvVar:  "SERVER_CORS_ALLOW_CREDENTIALS",
-		Type:    reflect.TypeOf(true),
-		Help:    "Allow credentials in CORS requests",
-	})
-
-	registry.Register(&FieldDef{
-		Path:    "server.cors.max_age",
-		Default: 86400, // 24 hours
-		CLIFlag: "cors-max-age",
-		EnvVar:  "SERVER_CORS_MAX_AGE",
-		Type:    reflect.TypeOf(0),
-		Help:    "CORS preflight max age in seconds",
-	})
-
-	registry.Register(&FieldDef{
-		Path:    "server.timeout",
-		Default: 30 * time.Second,
-		CLIFlag: "",
-		EnvVar:  "SERVER_TIMEOUT",
-		Type:    durationType,
-		Help:    "Server timeout",
-	})
-
+func registerServerAuthFields(registry *Registry) {
 	// Authentication configuration
 	registry.Register(&FieldDef{
 		Path:    "server.auth.enabled",
@@ -115,6 +138,160 @@ func registerServerFields(registry *Registry) {
 		Type:    reflect.TypeOf([]string{}),
 		Help:    "List of workflow IDs that are exempt from authentication (comma-separated)",
 	})
+}
+
+func registerServerTimeoutFields(registry *Registry) {
+	registerServerShutdownTimeouts(registry)
+	registerServerHTTPTimeouts(registry)
+	registerServerScheduleTimeouts(registry)
+	registerServerMiscTimeouts(registry)
+}
+
+func registerServerShutdownTimeouts(registry *Registry) {
+	registry.Register(
+		&FieldDef{
+			Path:    "server.timeouts.monitoring_init",
+			Default: 500 * time.Millisecond,
+			EnvVar:  "SERVER_MONITORING_INIT_TIMEOUT",
+			Type:    durationType,
+			Help:    "Timeout for monitoring service initialization",
+		},
+	)
+	registry.Register(
+		&FieldDef{
+			Path:    "server.timeouts.monitoring_shutdown",
+			Default: 5 * time.Second,
+			EnvVar:  "SERVER_MONITORING_SHUTDOWN_TIMEOUT",
+			Type:    durationType,
+			Help:    "Timeout for monitoring service shutdown",
+		},
+	)
+	registry.Register(
+		&FieldDef{
+			Path:    "server.timeouts.db_shutdown",
+			Default: 30 * time.Second,
+			EnvVar:  "SERVER_DB_SHUTDOWN_TIMEOUT",
+			Type:    durationType,
+			Help:    "Timeout for database shutdown",
+		},
+	)
+	registry.Register(
+		&FieldDef{
+			Path:    "server.timeouts.worker_shutdown",
+			Default: 30 * time.Second,
+			EnvVar:  "SERVER_WORKER_SHUTDOWN_TIMEOUT",
+			Type:    durationType,
+			Help:    "Timeout for worker shutdown",
+		},
+	)
+	registry.Register(
+		&FieldDef{
+			Path:    "server.timeouts.server_shutdown",
+			Default: 5 * time.Second,
+			EnvVar:  "SERVER_SHUTDOWN_TIMEOUT",
+			Type:    durationType,
+			Help:    "Timeout for HTTP server graceful shutdown",
+		},
+	)
+}
+
+func registerServerHTTPTimeouts(registry *Registry) {
+	registry.Register(
+		&FieldDef{
+			Path:    "server.timeouts.http_read",
+			Default: 15 * time.Second,
+			EnvVar:  "SERVER_HTTP_READ_TIMEOUT",
+			Type:    durationType,
+			Help:    "HTTP server read timeout",
+		},
+	)
+	registry.Register(
+		&FieldDef{
+			Path:    "server.timeouts.http_write",
+			Default: 15 * time.Second,
+			EnvVar:  "SERVER_HTTP_WRITE_TIMEOUT",
+			Type:    durationType,
+			Help:    "HTTP server write timeout",
+		},
+	)
+	registry.Register(
+		&FieldDef{
+			Path:    "server.timeouts.http_idle",
+			Default: 60 * time.Second,
+			EnvVar:  "SERVER_HTTP_IDLE_TIMEOUT",
+			Type:    durationType,
+			Help:    "HTTP server idle timeout",
+		},
+	)
+}
+
+func registerServerScheduleTimeouts(registry *Registry) {
+	registry.Register(
+		&FieldDef{
+			Path:    "server.timeouts.schedule_retry_max_duration",
+			Default: 5 * time.Minute,
+			EnvVar:  "SERVER_SCHEDULE_RETRY_MAX_DURATION",
+			Type:    durationType,
+			Help:    "Max total duration for schedule reconciliation retries",
+		},
+	)
+	registry.Register(
+		&FieldDef{
+			Path:    "server.timeouts.schedule_retry_base_delay",
+			Default: 1 * time.Second,
+			EnvVar:  "SERVER_SCHEDULE_RETRY_BASE_DELAY",
+			Type:    durationType,
+			Help:    "Base delay for schedule reconciliation backoff",
+		},
+	)
+	registry.Register(
+		&FieldDef{
+			Path:    "server.timeouts.schedule_retry_max_delay",
+			Default: 30 * time.Second,
+			EnvVar:  "SERVER_SCHEDULE_RETRY_MAX_DELAY",
+			Type:    durationType,
+			Help:    "Max backoff delay for schedule reconciliation",
+		},
+	)
+	registry.Register(
+		&FieldDef{
+			Path:    "server.timeouts.schedule_retry_max_attempts",
+			Default: 0,
+			EnvVar:  "SERVER_SCHEDULE_RETRY_MAX_ATTEMPTS",
+			Type:    reflect.TypeOf(0),
+			Help:    "Max attempts for schedule reconciliation retries (0 = use max duration)",
+		},
+	)
+	registry.Register(
+		&FieldDef{
+			Path:    "server.timeouts.schedule_retry_backoff_seconds",
+			Default: 0,
+			EnvVar:  "SERVER_SCHEDULE_RETRY_BACKOFF_SECONDS",
+			Type:    reflect.TypeOf(0),
+			Help:    "Base backoff in seconds for reconciliation retries (0 = use base_delay)",
+		},
+	)
+}
+
+func registerServerMiscTimeouts(registry *Registry) {
+	registry.Register(
+		&FieldDef{
+			Path:    "server.timeouts.temporal_reachability",
+			Default: 1500 * time.Millisecond,
+			EnvVar:  "SERVER_TEMPORAL_REACHABILITY_TIMEOUT",
+			Type:    durationType,
+			Help:    "Reachability check timeout for Temporal",
+		},
+	)
+	registry.Register(
+		&FieldDef{
+			Path:    "server.timeouts.start_probe_delay",
+			Default: 100 * time.Millisecond,
+			EnvVar:  "SERVER_START_PROBE_DELAY",
+			Type:    durationType,
+			Help:    "Delay before considering HTTP server started",
+		},
+	)
 }
 
 func registerDatabaseFields(registry *Registry) {
@@ -188,6 +365,15 @@ func registerDatabaseFields(registry *Registry) {
 		EnvVar:  "DB_AUTO_MIGRATE",
 		Type:    reflect.TypeOf(true),
 		Help:    "Automatically run database migrations on startup",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "database.migration_timeout",
+		Default: 2 * time.Minute,
+		CLIFlag: "db-migration-timeout",
+		EnvVar:  "DB_MIGRATION_TIMEOUT",
+		Type:    durationType,
+		Help:    "Maximum duration allowed for startup database migrations (must be >= 45s)",
 	})
 }
 

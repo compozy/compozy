@@ -3,12 +3,14 @@ package server
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 )
 
@@ -36,22 +38,30 @@ func (s *Server) startAndRunServer(cleanupFuncs []func()) error {
 			s.cleanup(cleanupFuncs)
 			return err
 		}
-	case <-time.After(serverStartProbeDelay):
+	case <-time.After(config.FromContext(s.ctx).Server.Timeouts.StartProbeDelay):
 		s.logStartupBanner()
 	}
 	return s.handleGracefulShutdown(srv, cleanupFuncs, errChan)
 }
 
 func (s *Server) createHTTPServer() *http.Server {
-	addr := fmt.Sprintf("%s:%d", s.serverConfig.Host, s.serverConfig.Port)
+	cfg := config.FromContext(s.ctx)
+	host := s.serverConfig.Host
+	port := s.serverConfig.Port
+	if cfg != nil {
+		host = cfg.Server.Host
+		port = cfg.Server.Port
+	}
+	addr := fmt.Sprintf("%s:%d", host, port)
 	log := logger.FromContext(s.ctx)
 	log.Info("Starting HTTP server", "address", fmt.Sprintf("http://%s", addr))
 	return &http.Server{
 		Addr:         addr,
 		Handler:      s.router,
-		ReadTimeout:  httpReadTimeout,
-		WriteTimeout: httpWriteTimeout,
-		IdleTimeout:  httpIdleTimeout,
+		BaseContext:  func(net.Listener) context.Context { return s.ctx },
+		ReadTimeout:  cfg.Server.Timeouts.HTTPRead,
+		WriteTimeout: cfg.Server.Timeouts.HTTPWrite,
+		IdleTimeout:  cfg.Server.Timeouts.HTTPIdle,
 	}
 }
 
@@ -62,13 +72,13 @@ func (s *Server) startServer(srv *http.Server, errChan chan<- error) {
 		errChan <- fmt.Errorf("HTTP server failed: %w", err)
 		return
 	}
-	errChan <- nil
 }
 
 func (s *Server) handleGracefulShutdown(srv *http.Server, cleanupFuncs []func(), errChan <-chan error) error {
 	log := logger.FromContext(s.ctx)
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(quit)
 	select {
 	case <-quit:
 		log.Debug("Received shutdown signal, initiating graceful shutdown")
@@ -85,7 +95,10 @@ func (s *Server) handleGracefulShutdown(srv *http.Server, cleanupFuncs []func(),
 	}
 	s.cleanup(cleanupFuncs)
 	s.cancel()
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.WithoutCancel(s.ctx), serverShutdownTimeout)
+	shutdownCtx, shutdownCancel := context.WithTimeout(
+		context.WithoutCancel(s.ctx),
+		config.FromContext(s.ctx).Server.Timeouts.ServerShutdown,
+	)
 	defer shutdownCancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		return fmt.Errorf("server shutdown failed: %w", err)

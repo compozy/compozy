@@ -21,7 +21,7 @@ func Middleware(cfg config.CORSConfig) gin.HandlerFunc {
 		}
 		if allowed && origin != "" {
 			c.Header("Access-Control-Allow-Origin", origin)
-			c.Header("Vary", "Origin")
+			c.Header("Vary", "Origin, Access-Control-Request-Method, Access-Control-Request-Headers")
 			if cfg.AllowCredentials {
 				c.Header("Access-Control-Allow-Credentials", "true")
 			}
@@ -37,8 +37,10 @@ func Middleware(cfg config.CORSConfig) gin.HandlerFunc {
 			}
 		}
 		if c.Request.Method == http.MethodOptions {
-			c.AbortWithStatus(http.StatusNoContent)
-			return
+			if allowed && origin != "" {
+				c.AbortWithStatus(http.StatusNoContent)
+				return
+			}
 		}
 		c.Next()
 	}

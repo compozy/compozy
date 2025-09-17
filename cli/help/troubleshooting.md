@@ -74,7 +74,7 @@ Error: failed to connect to server at http://localhost:5000
 
 ```bash
 # Check if server is running
-curl http://localhost:5000/health
+curl http://localhost:5000/api/v0/health
 
 # Verify server URL configuration
 compozy config show --debug | grep server_url
@@ -322,7 +322,7 @@ compozy dev --config ./test-config.yaml --debug --help
 
 ```bash
 # Test server connectivity
-curl -v http://localhost:5000/health
+curl -v http://localhost:5000/api/v0/health
 
 # Check DNS resolution
 nslookup api.compozy.com
@@ -384,7 +384,7 @@ env | grep COMPOZY_ | sort
 echo "=== Configuration ==="
 compozy config show --debug
 echo "=== Network ==="
-curl -I http://localhost:5000/health 2>&1 || echo "Server not reachable"
+curl -I http://localhost:5000/api/v0/health 2>&1 || echo "Server not reachable"
 ```
 
 ## Common Error Messages

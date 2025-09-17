@@ -9,7 +9,7 @@ import (
 
 func setupDiagnosticEndpoints(router *gin.Engine, version, prefixURL string, server *Server) {
 	router.GET("/", createRootHandler(version, prefixURL))
-	router.GET("/health", CreateHealthHandler(server, version))
+	router.GET(prefixURL+"/health", CreateHealthHandler(server, version))
 	router.GET("/mcp/health", func(c *gin.Context) {
 		ready := false
 		if server != nil {
@@ -20,10 +20,16 @@ func setupDiagnosticEndpoints(router *gin.Engine, version, prefixURL string, ser
 		if !ready {
 			status = statusNotReady
 		}
-		c.JSON(code, gin.H{"status": status})
+		c.JSON(code, gin.H{
+			"data":    gin.H{"status": status},
+			"message": "Success",
+		})
 	})
 	router.GET("/healthz", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+		c.JSON(http.StatusOK, gin.H{
+			"data":    gin.H{"status": "ok"},
+			"message": "Success",
+		})
 	})
 	router.GET("/readyz", func(c *gin.Context) {
 		ctx := c.Request.Context()
@@ -58,7 +64,7 @@ func createRootHandler(version, prefixURL string) gin.HandlerFunc {
 				"version":     version,
 				"description": "Next-level Agentic Orchestration Platform, tasks, and tools",
 				"endpoints": gin.H{
-					"health":  fmt.Sprintf("%s/health", baseURL),
+					"health":  fmt.Sprintf("%s%s/health", baseURL, prefixURL),
 					"api":     fmt.Sprintf("%s%s", baseURL, prefixURL),
 					"swagger": fmt.Sprintf("%s/swagger/index.html", baseURL),
 					"docs":    fmt.Sprintf("%s/docs/index.html", baseURL),

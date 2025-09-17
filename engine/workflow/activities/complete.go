@@ -2,6 +2,7 @@ package activities
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -114,11 +115,9 @@ func NewCompleteWorkflow(
 func (a *CompleteWorkflow) findWorkflowConfig(ctx context.Context, workflowID string) *wf.Config {
 	// First, try to read under read lock
 	a.workflowsMu.RLock()
-	if a.workflows != nil {
-		if config, exists := a.workflows[workflowID]; exists {
-			a.workflowsMu.RUnlock()
-			return config
-		}
+	if config, exists := a.workflows[workflowID]; exists {
+		a.workflowsMu.RUnlock()
+		return config
 	}
 	a.workflowsMu.RUnlock()
 	// Attempt to lazily reload workflows from project
@@ -137,10 +136,8 @@ func (a *CompleteWorkflow) reloadWorkflowsIfNeeded(
 	a.workflowsMu.Lock()
 	defer a.workflowsMu.Unlock()
 	// Double-check existence after acquiring write lock
-	if a.workflows != nil {
-		if config, exists := a.workflows[workflowID]; exists {
-			return config
-		}
+	if config, exists := a.workflows[workflowID]; exists {
+		return config
 	}
 	// Perform the expensive reload operation
 	newWorkflows, err := a.loadWorkflowsFromProject(ctx)
@@ -213,7 +210,7 @@ func (a *CompleteWorkflow) completeWorkflowWithRetry(ctx context.Context, workfl
 	transformer wf.OutputTransformer) (*wf.State, error) {
 	state, err := a.workflowRepo.CompleteWorkflow(ctx, workflowExecID, transformer)
 	if err != nil {
-		if err == store.ErrWorkflowNotReady {
+		if errors.Is(err, store.ErrWorkflowNotReady) {
 			return nil, temporal.NewApplicationError(
 				fmt.Sprintf("workflow %s not ready for completion, tasks still running", workflowExecID),
 				"workflow_not_ready",

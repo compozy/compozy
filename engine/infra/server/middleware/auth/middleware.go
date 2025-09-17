@@ -49,6 +49,17 @@ func (m *Manager) WithMetrics(ctx context.Context, meter metric.Meter) *Manager 
 // Middleware returns the authentication middleware
 func (m *Manager) Middleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Respect runtime config: short‑circuit when auth is disabled
+		// Prefer explicitly attached config in context; avoid default fallback in tests
+		if c.Request.Context().Value(config.ManagerCtxKey) != nil {
+			if cfg := config.FromContext(c.Request.Context()); cfg != nil && !cfg.Server.Auth.Enabled {
+				c.Next()
+				return
+			}
+		} else if m.config != nil && !m.config.Server.Auth.Enabled { // fallback for tests
+			c.Next()
+			return
+		}
 		start := time.Now()
 		log := logger.FromContext(c.Request.Context())
 
@@ -149,6 +160,16 @@ func (e *authError) Error() string {
 // RequireAuth returns middleware that requires authentication
 func (m *Manager) RequireAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// No-op when auth is disabled
+		if c.Request.Context().Value(config.ManagerCtxKey) != nil {
+			if cfg := config.FromContext(c.Request.Context()); cfg != nil && !cfg.Server.Auth.Enabled {
+				c.Next()
+				return
+			}
+		} else if m.config != nil && !m.config.Server.Auth.Enabled { // fallback for tests
+			c.Next()
+			return
+		}
 		if _, ok := userctx.UserFromContext(c.Request.Context()); !ok {
 			c.JSON(401, gin.H{"error": "Authentication required", "details": "This endpoint requires a valid API key"})
 			c.Abort()
@@ -161,6 +182,16 @@ func (m *Manager) RequireAuth() gin.HandlerFunc {
 // RequireAdmin returns middleware that requires admin role
 func (m *Manager) RequireAdmin() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// No-op when auth is disabled
+		if c.Request.Context().Value(config.ManagerCtxKey) != nil {
+			if cfg := config.FromContext(c.Request.Context()); cfg != nil && !cfg.Server.Auth.Enabled {
+				c.Next()
+				return
+			}
+		} else if m.config != nil && !m.config.Server.Auth.Enabled { // fallback for tests
+			c.Next()
+			return
+		}
 		user, ok := userctx.UserFromContext(c.Request.Context())
 		if !ok || user.Role != model.RoleAdmin {
 			c.JSON(403, gin.H{"error": "Admin access required", "details": "This endpoint requires admin privileges"})
