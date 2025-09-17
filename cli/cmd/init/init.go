@@ -192,7 +192,7 @@ func runInitJSON(ctx context.Context, _ *cobra.Command, _ *cmd.CommandExecutor, 
 		"files": map[string]string{
 			"config":   "compozy.yaml",
 			"env":      envFileName,
-			"http":     "compozy.http",
+			"http":     "api.http",
 			"workflow": "workflows/main.yaml",
 		},
 	}
@@ -275,7 +275,7 @@ func runInitTUI(ctx context.Context, _ *cobra.Command, _ *cmd.CommandExecutor, o
 		fmt.Printf("  • %s - Environment variables template\n", envFileName)
 	}
 
-	fmt.Printf("  • compozy.http - API test requests\n")
+	fmt.Printf("  • api.http - API test requests\n")
 
 	fmt.Printf("\n📋 Next steps:\n")
 	fmt.Printf("  1. cd %s\n", opts.Path)

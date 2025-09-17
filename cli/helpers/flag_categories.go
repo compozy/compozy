@@ -74,6 +74,7 @@ func getServerCategories() []FlagCategory {
 			Flags: []string{
 				"db-host", "db-port", "db-user", "db-password",
 				"db-name", "db-ssl-mode", "db-conn-string", "db-auto-migrate",
+				"db-migration-timeout",
 			},
 		},
 	}

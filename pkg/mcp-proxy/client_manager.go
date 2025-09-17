@@ -60,16 +60,20 @@ func DefaultClientManagerConfig() *ClientManagerConfig {
 }
 
 // NewMCPClientManager creates a new MCP client manager
-func NewMCPClientManager(storage Storage, config *ClientManagerConfig) *MCPClientManager {
+// The provided context seeds the manager's internal lifecycle context so that
+// cancellation propagates to background operations. The Start method will
+// replace the internal context with a child of the Start ctx to preserve
+// request-scoped values while maintaining proper cancellation.
+func NewMCPClientManager(ctx context.Context, storage Storage, config *ClientManagerConfig) *MCPClientManager {
 	if config == nil {
 		config = DefaultClientManagerConfig()
 	}
-
-	ctx, cancel := context.WithCancel(context.Background())
+	base := context.WithoutCancel(ctx)
+	mctx, cancel := context.WithCancel(base)
 	return &MCPClientManager{
 		storage:      storage,
 		clients:      make(map[string]*MCPClient),
-		ctx:          ctx,
+		ctx:          mctx,
 		cancel:       cancel,
 		config:       config,
 		reconnecting: make(map[string]bool),

@@ -26,7 +26,7 @@ var dockerComposeTemplate string
 //go:embed env.example.tmpl
 var envExampleTemplate string
 
-//go:embed compozy.http.tmpl
+//go:embed api.http.tmpl
 var compozyHTTPTemplate string
 
 //go:embed gitignore.tmpl
@@ -71,7 +71,7 @@ func (t *Template) GetFiles() []template.File {
 			Content: greetingToolTemplate,
 		},
 		{
-			Name:    "compozy.http",
+			Name:    "api.http",
 			Content: compozyHTTPTemplate,
 		},
 		{

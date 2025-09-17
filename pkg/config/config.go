@@ -173,6 +173,36 @@ type ServerConfig struct {
 
 	// Auth configures API authentication settings.
 	Auth AuthConfig `koanf:"auth" json:"auth" yaml:"auth" mapstructure:"auth"`
+
+	// Timeouts contains operator-tunable timeouts and retry/backoff settings
+	// for server startup, shutdown, and HTTP behavior.
+	//
+	// $ref: schema://application#server.timeouts
+	Timeouts ServerTimeouts `koanf:"timeouts" json:"timeouts" yaml:"timeouts" mapstructure:"timeouts"`
+}
+
+// ServerTimeouts defines tunable durations for server operations.
+type ServerTimeouts struct {
+	MonitoringInit           time.Duration `koanf:"monitoring_init"                json:"monitoring_init"                yaml:"monitoring_init"                mapstructure:"monitoring_init"`
+	MonitoringShutdown       time.Duration `koanf:"monitoring_shutdown"            json:"monitoring_shutdown"            yaml:"monitoring_shutdown"            mapstructure:"monitoring_shutdown"`
+	DBShutdown               time.Duration `koanf:"db_shutdown"                    json:"db_shutdown"                    yaml:"db_shutdown"                    mapstructure:"db_shutdown"`
+	WorkerShutdown           time.Duration `koanf:"worker_shutdown"                json:"worker_shutdown"                yaml:"worker_shutdown"                mapstructure:"worker_shutdown"`
+	ServerShutdown           time.Duration `koanf:"server_shutdown"                json:"server_shutdown"                yaml:"server_shutdown"                mapstructure:"server_shutdown"`
+	HTTPRead                 time.Duration `koanf:"http_read"                      json:"http_read"                      yaml:"http_read"                      mapstructure:"http_read"`
+	HTTPWrite                time.Duration `koanf:"http_write"                     json:"http_write"                     yaml:"http_write"                     mapstructure:"http_write"`
+	HTTPIdle                 time.Duration `koanf:"http_idle"                      json:"http_idle"                      yaml:"http_idle"                      mapstructure:"http_idle"`
+	ScheduleRetryMaxDuration time.Duration `koanf:"schedule_retry_max_duration"    json:"schedule_retry_max_duration"    yaml:"schedule_retry_max_duration"    mapstructure:"schedule_retry_max_duration"`
+	ScheduleRetryBaseDelay   time.Duration `koanf:"schedule_retry_base_delay"      json:"schedule_retry_base_delay"      yaml:"schedule_retry_base_delay"      mapstructure:"schedule_retry_base_delay"`
+	ScheduleRetryMaxDelay    time.Duration `koanf:"schedule_retry_max_delay"       json:"schedule_retry_max_delay"       yaml:"schedule_retry_max_delay"       mapstructure:"schedule_retry_max_delay"`
+	// ScheduleRetryMaxAttempts limits the number of reconciliation retry attempts.
+	// When set to a value >= 1, this takes precedence over ScheduleRetryMaxDuration.
+	ScheduleRetryMaxAttempts int `koanf:"schedule_retry_max_attempts"    json:"schedule_retry_max_attempts"    yaml:"schedule_retry_max_attempts"    mapstructure:"schedule_retry_max_attempts"`
+	// ScheduleRetryBackoffSeconds sets the base backoff in seconds used to build
+	// the exponential backoff for reconciliation retries. If zero, a sensible
+	// default is applied in code.
+	ScheduleRetryBackoffSeconds int           `koanf:"schedule_retry_backoff_seconds" json:"schedule_retry_backoff_seconds" yaml:"schedule_retry_backoff_seconds" mapstructure:"schedule_retry_backoff_seconds"`
+	TemporalReachability        time.Duration `koanf:"temporal_reachability"          json:"temporal_reachability"          yaml:"temporal_reachability"          mapstructure:"temporal_reachability"`
+	StartProbeDelay             time.Duration `koanf:"start_probe_delay"              json:"start_probe_delay"              yaml:"start_probe_delay"              mapstructure:"start_probe_delay"`
 }
 
 // CORSConfig contains CORS configuration.
@@ -260,6 +290,13 @@ type DatabaseConfig struct {
 	//
 	// Default: true
 	AutoMigrate bool `koanf:"auto_migrate" json:"auto_migrate" yaml:"auto_migrate" mapstructure:"auto_migrate" env:"DB_AUTO_MIGRATE"`
+
+	// MigrationTimeout sets the maximum allowed time for applying database
+	// migrations during startup. It must be equal to or greater than the
+	// advisory lock acquisition window used by ApplyMigrationsWithLock (45s).
+	//
+	// Default: 2m
+	MigrationTimeout time.Duration `koanf:"migration_timeout" json:"migration_timeout" yaml:"migration_timeout" mapstructure:"migration_timeout" env:"DB_MIGRATION_TIMEOUT"`
 }
 
 // TemporalConfig contains Temporal workflow engine configuration.
@@ -1342,18 +1379,40 @@ func buildServerConfig(registry *definition.Registry) ServerConfig {
 			WorkflowExceptions: getStringSlice(registry, "server.auth.workflow_exceptions"),
 			AdminKey:           SensitiveString(getString(registry, "server.auth.admin_key")),
 		},
+		Timeouts: buildServerTimeouts(registry),
+	}
+}
+
+func buildServerTimeouts(registry *definition.Registry) ServerTimeouts {
+	return ServerTimeouts{
+		MonitoringInit:              getDuration(registry, "server.timeouts.monitoring_init"),
+		MonitoringShutdown:          getDuration(registry, "server.timeouts.monitoring_shutdown"),
+		DBShutdown:                  getDuration(registry, "server.timeouts.db_shutdown"),
+		WorkerShutdown:              getDuration(registry, "server.timeouts.worker_shutdown"),
+		ServerShutdown:              getDuration(registry, "server.timeouts.server_shutdown"),
+		HTTPRead:                    getDuration(registry, "server.timeouts.http_read"),
+		HTTPWrite:                   getDuration(registry, "server.timeouts.http_write"),
+		HTTPIdle:                    getDuration(registry, "server.timeouts.http_idle"),
+		ScheduleRetryMaxDuration:    getDuration(registry, "server.timeouts.schedule_retry_max_duration"),
+		ScheduleRetryBaseDelay:      getDuration(registry, "server.timeouts.schedule_retry_base_delay"),
+		ScheduleRetryMaxDelay:       getDuration(registry, "server.timeouts.schedule_retry_max_delay"),
+		ScheduleRetryMaxAttempts:    getInt(registry, "server.timeouts.schedule_retry_max_attempts"),
+		ScheduleRetryBackoffSeconds: getInt(registry, "server.timeouts.schedule_retry_backoff_seconds"),
+		TemporalReachability:        getDuration(registry, "server.timeouts.temporal_reachability"),
+		StartProbeDelay:             getDuration(registry, "server.timeouts.start_probe_delay"),
 	}
 }
 
 func buildDatabaseConfig(registry *definition.Registry) DatabaseConfig {
 	return DatabaseConfig{
-		Host:        getString(registry, "database.host"),
-		Port:        getString(registry, "database.port"),
-		User:        getString(registry, "database.user"),
-		Password:    getString(registry, "database.password"),
-		DBName:      getString(registry, "database.name"),
-		SSLMode:     getString(registry, "database.ssl_mode"),
-		AutoMigrate: getBool(registry, "database.auto_migrate"),
+		Host:             getString(registry, "database.host"),
+		Port:             getString(registry, "database.port"),
+		User:             getString(registry, "database.user"),
+		Password:         getString(registry, "database.password"),
+		DBName:           getString(registry, "database.name"),
+		SSLMode:          getString(registry, "database.ssl_mode"),
+		AutoMigrate:      getBool(registry, "database.auto_migrate"),
+		MigrationTimeout: getDuration(registry, "database.migration_timeout"),
 	}
 }
 

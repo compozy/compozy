@@ -1,0 +1,79 @@
+package server
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"sync"
+
+	"github.com/compozy/compozy/engine/infra/monitoring"
+	"github.com/compozy/compozy/pkg/config"
+	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
+	"go.opentelemetry.io/otel/metric"
+)
+
+const (
+	statusNotReady = "not_ready"
+	statusReady    = "ready"
+	modeStandalone = "standalone"
+	hostAny        = "0.0.0.0"
+	hostLoopback   = "127.0.0.1"
+)
+
+type MCPProxy interface {
+	Start(context.Context) error
+	Stop(context.Context) error
+}
+
+type Server struct {
+	serverConfig          *config.ServerConfig
+	cwd                   string
+	configFile            string
+	envFilePath           string
+	router                *gin.Engine
+	monitoring            *monitoring.Service
+	redisClient           *redis.Client
+	ctx                   context.Context
+	cancel                context.CancelFunc
+	httpServer            *http.Server
+	shutdownChan          chan struct{}
+	reconciliationState   *reconciliationStatus
+	readinessMu           sync.RWMutex
+	temporalReady         bool
+	workerReady           bool
+	mcpReady              bool
+	mcpBaseURL            string
+	mcpProxy              MCPProxy
+	readyGauge            metric.Int64ObservableGauge
+	readyTransitionsTotal metric.Int64Counter
+	readyCallback         metric.Registration
+	lastReady             bool
+	shutdownOnce          sync.Once
+	storeDriverLabel      string
+	cacheDriverLabel      string
+	authRepoDriverLabel   string
+	authCacheDriverLabel  string
+	cleanupMu             sync.Mutex
+	extraCleanups         []func()
+}
+
+func NewServer(ctx context.Context, cwd, configFile, envFilePath string) (*Server, error) {
+	serverCtx, cancel := context.WithCancel(ctx)
+	cfg := config.FromContext(serverCtx)
+	if cfg == nil {
+		cancel()
+		return nil, fmt.Errorf("configuration missing from context; attach a manager with config.ContextWithManager")
+	}
+	return &Server{
+		serverConfig:        &cfg.Server,
+		cwd:                 cwd,
+		configFile:          configFile,
+		envFilePath:         envFilePath,
+		ctx:                 serverCtx,
+		cancel:              cancel,
+		shutdownChan:        make(chan struct{}, 1),
+		reconciliationState: &reconciliationStatus{},
+		lastReady:           false,
+	}, nil
+}

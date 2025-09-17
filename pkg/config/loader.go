@@ -421,6 +421,10 @@ func validateDatabase(cfg *Config) error {
 			return fmt.Errorf("database configuration incomplete: either conn_string or individual components required")
 		}
 	}
+	// Ensure migration timeout is sufficient for advisory lock window (45s)
+	if cfg.Database.MigrationTimeout < 45*time.Second {
+		return fmt.Errorf("database.migration_timeout must be >= 45s, got: %s", cfg.Database.MigrationTimeout)
+	}
 	return nil
 }
 

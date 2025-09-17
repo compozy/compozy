@@ -42,7 +42,7 @@ func Workflows() string {
 }
 
 // HealthVersioned returns the versioned health path (e.g., "/api/v0/health").
-// Note: The primary health endpoint is currently unversioned at "/health".
+// The primary health endpoint is versioned and mounted under the API base path.
 func HealthVersioned() string {
 	return Base() + "/health"
 }

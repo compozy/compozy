@@ -1,30 +1,15 @@
-package server
+package corsmiddleware
 
 import (
-	"context"
 	"net/http"
 	"strconv"
 
 	"github.com/compozy/compozy/pkg/config"
-	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
 )
 
-// LoggerMiddleware attaches request-scoped logger metadata.
-func LoggerMiddleware(ctx context.Context) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		mgr := config.ManagerFromContext(ctx)
-		log := logger.FromContext(ctx)
-		reqCtx := c.Request.Context()
-		reqCtx = config.ContextWithManager(reqCtx, mgr)
-		reqCtx = logger.ContextWithLogger(reqCtx, log)
-		c.Request = c.Request.WithContext(reqCtx)
-		c.Next()
-	}
-}
-
-// CORSMiddleware applies basic CORS headers based on configuration.
-func CORSMiddleware(cfg config.CORSConfig) gin.HandlerFunc {
+// Middleware applies basic CORS headers based on configuration.
+func Middleware(cfg config.CORSConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		origin := c.Request.Header.Get("Origin")
 		allowed := false
@@ -36,7 +21,7 @@ func CORSMiddleware(cfg config.CORSConfig) gin.HandlerFunc {
 		}
 		if allowed && origin != "" {
 			c.Header("Access-Control-Allow-Origin", origin)
-			c.Header("Vary", "Origin")
+			c.Header("Vary", "Origin, Access-Control-Request-Method, Access-Control-Request-Headers")
 			if cfg.AllowCredentials {
 				c.Header("Access-Control-Allow-Credentials", "true")
 			}
@@ -52,8 +37,10 @@ func CORSMiddleware(cfg config.CORSConfig) gin.HandlerFunc {
 			}
 		}
 		if c.Request.Method == http.MethodOptions {
-			c.AbortWithStatus(http.StatusNoContent)
-			return
+			if allowed && origin != "" {
+				c.AbortWithStatus(http.StatusNoContent)
+				return
+			}
 		}
 		c.Next()
 	}

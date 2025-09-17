@@ -15,7 +15,7 @@ import (
 func setupTestManager() (*MCPClientManager, *MemoryStorage, *ClientManagerConfig) {
 	storage := NewMemoryStorage()
 	config := DefaultClientManagerConfig()
-	manager := NewMCPClientManager(storage, config)
+	manager := NewMCPClientManager(context.Background(), storage, config)
 	return manager, storage, config
 }
 
@@ -232,7 +232,7 @@ func TestMCPClientManager_ReconnectionPrevention(t *testing.T) {
 	t.Run("Should prevent concurrent reconnection attempts for same client", func(t *testing.T) {
 		storage := NewMemoryStorage()
 		config := DefaultClientManagerConfig()
-		manager := NewMCPClientManager(storage, config)
+		manager := NewMCPClientManager(context.Background(), storage, config)
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -287,7 +287,7 @@ func TestMCPClientManager_ConcurrentOperations(t *testing.T) {
 		storage := NewMemoryStorage()
 		config := DefaultClientManagerConfig()
 		config.MaxConcurrentConnections = 10
-		manager := NewMCPClientManager(storage, config)
+		manager := NewMCPClientManager(context.Background(), storage, config)
 
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()

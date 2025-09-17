@@ -57,6 +57,18 @@ func NewActivities(
 	memoryManager *memory.Manager,
 	templateEngine *tplengine.TemplateEngine,
 ) (*Activities, error) {
+	log := logger.FromContext(ctx)
+	ids := make([]string, 0, len(workflows))
+	for _, wf := range workflows {
+		if wf != nil {
+			ids = append(ids, wf.ID)
+		}
+	}
+	const maxIDs = 20
+	if len(ids) > maxIDs {
+		ids = ids[:maxIDs]
+	}
+	log.Debug("Initializing activities", "workflow_count", len(workflows), "workflow_ids", ids)
 	// Create CEL evaluator once for reuse across all activity executions
 	celEvaluator, err := task.NewCELEvaluator()
 	if err != nil {
@@ -176,7 +188,7 @@ func (a *Activities) CompleteWorkflow(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	act := wfacts.NewCompleteWorkflow(a.workflowRepo, a.workflows)
+	act := wfacts.NewCompleteWorkflow(a.workflowRepo, a.workflows, a.projectConfig)
 	return act.Run(ctx, input)
 }
 

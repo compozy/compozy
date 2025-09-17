@@ -2,8 +2,12 @@ package worker
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/compozy/compozy/engine/autoload"
@@ -26,6 +30,7 @@ import (
 	appconfig "github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/tplengine"
+	"github.com/gosimple/slug"
 	"github.com/sethvargo/go-retry"
 	"go.temporal.io/api/enums/v1"
 	"go.temporal.io/api/serviceerror"
@@ -39,8 +44,12 @@ import (
 // -----------------------------------------------------------------------------
 
 const (
-	DispatcherEventChannel      = "event_channel"
-	workflowStartTimeoutDefault = 5 * time.Second
+	DispatcherEventChannel        = "event_channel"
+	workflowStartTimeoutDefault   = 5 * time.Second
+	maxTaskQueueLength            = 200
+	maxDispatcherQueueSegment     = 200
+	maxDispatcherWorkflowIDLength = 240
+	hashSuffixLen                 = 8 // hex-encoded 4 bytes
 )
 
 // -----------------------------------------------------------------------------
@@ -325,7 +334,7 @@ func NewWorker(
 	if err != nil {
 		return nil, err
 	}
-	dispatcher := createDispatcher(projectConfig, workerCore.taskQueue, client)
+	dispatcher := createDispatcher(workerCore.taskQueue, client)
 	activities, err := NewActivities(
 		ctx,
 		projectConfig,
@@ -400,11 +409,10 @@ func setupWorkerCore(
 	projectConfig *project.Config,
 	client *Client,
 ) (*workerCoreComponents, error) {
-	// Use TaskQueue from client config if provided, otherwise generate from project name
-	taskQueue := client.config.TaskQueue
-	if taskQueue == "" {
-		taskQueue = GetTaskQueue(projectConfig.Name)
-	}
+	taskQueue := deriveTaskQueue(ctx, client.config.TaskQueue, projectConfig)
+	client.config.TaskQueue = taskQueue
+	log := logger.FromContext(ctx)
+	log.Debug("derived task queue for worker", "task_queue", taskQueue)
 	workerOptions := buildWorkerOptions(ctx, config.MonitoringService)
 	worker := client.NewWorker(taskQueue, workerOptions)
 	projectRoot := projectConfig.GetCWD().PathStr()
@@ -423,6 +431,102 @@ func setupWorkerCore(
 		redisCache:  redisCache,
 		configStore: configStore,
 	}, nil
+}
+
+func deriveTaskQueue(ctx context.Context, configuredQueue string, projectConfig *project.Config) string {
+	segments := make([]string, 0, 4)
+	base := strings.TrimSpace(configuredQueue)
+	if base == "" {
+		base = "compozy-tasks"
+	}
+	segments = append(segments, sanitizeQueueSegment(base))
+	if projectConfig != nil && projectConfig.Name != "" {
+		segments = append(segments, sanitizeQueueSegment(projectConfig.Name))
+	}
+	segments = append(segments, queueScopeParts(ctx)...)
+	queue := strings.Join(segments, "-")
+	return truncateWithHash(queue, maxTaskQueueLength)
+}
+
+func queueScopeParts(ctx context.Context) []string {
+	parts := make([]string, 0, 3)
+	if scoped := strings.TrimSpace(os.Getenv("COMPOZY_TASK_QUEUE_SCOPE")); scoped != "" {
+		parts = append(parts, sanitizeQueueSegment(scoped))
+		return parts
+	}
+	cfg := appconfig.FromContext(ctx)
+	if cfg != nil && cfg.Runtime.Environment != "" {
+		parts = append(parts, sanitizeQueueSegment(cfg.Runtime.Environment))
+	}
+	if os.Getenv("CI") != "" {
+		ciHints := []string{
+			os.Getenv("CI_RUN_ID"),
+			os.Getenv("GITHUB_RUN_ID"),
+			os.Getenv("BUILD_ID"),
+			os.Getenv("BUILD_NUMBER"),
+		}
+		for _, hint := range ciHints {
+			if hint != "" {
+				parts = append(parts, sanitizeQueueSegment(hint))
+				break
+			}
+		}
+		return dedupeQueueSegments(parts)
+	}
+	user := strings.TrimSpace(os.Getenv("USER"))
+	if user == "" {
+		user = strings.TrimSpace(os.Getenv("USERNAME"))
+	}
+	if user != "" {
+		parts = append(parts, sanitizeQueueSegment(user))
+	}
+	if host, err := os.Hostname(); err == nil && host != "" {
+		parts = append(parts, sanitizeQueueSegment(host))
+	}
+	return dedupeQueueSegments(parts)
+}
+
+func sanitizeQueueSegment(value string) string {
+	slugged := slug.Make(value)
+	if slugged == "" {
+		return "segment"
+	}
+	return slugged
+}
+
+func dedupeQueueSegments(segments []string) []string {
+	if len(segments) == 0 {
+		return segments
+	}
+	seen := make(map[string]struct{}, len(segments))
+	result := make([]string, 0, len(segments))
+	for _, segment := range segments {
+		if segment == "" {
+			continue
+		}
+		if _, ok := seen[segment]; ok {
+			continue
+		}
+		seen[segment] = struct{}{}
+		result = append(result, segment)
+	}
+	return result
+}
+
+func truncateWithHash(value string, limit int) string {
+	if limit <= 0 {
+		return ""
+	}
+	if len(value) <= limit {
+		return value
+	}
+	if limit <= hashSuffixLen {
+		return value[:limit]
+	}
+	hash := sha256.Sum256([]byte(value))
+	suffix := hex.EncodeToString(hash[:4])
+	cut := limit - hashSuffixLen
+	return value[:cut] + suffix
 }
 
 // setupRedisAndConfig sets up Redis cache and configuration management
@@ -509,9 +613,12 @@ func setupMemoryManager(
 }
 
 // createDispatcher creates dispatcher components with unique IDs
-func createDispatcher(projectConfig *project.Config, taskQueue string, client *Client) *dispatcherComponents {
-	serverID := core.MustNewID().String()[:8]
-	dispatcherID := fmt.Sprintf("dispatcher-%s-%s", GetTaskQueue(projectConfig.Name), serverID)
+func createDispatcher(taskQueue string, client *Client) *dispatcherComponents {
+	serverID := core.MustNewID().String()
+	queueSegment := sanitizeQueueSegment(taskQueue)
+	queueSegment = truncateWithHash(queueSegment, maxDispatcherQueueSegment)
+	dispatcherID := fmt.Sprintf("dispatcher-%s-%s", queueSegment, serverID)
+	dispatcherID = truncateWithHash(dispatcherID, maxDispatcherWorkflowIDLength)
 	signalDispatcher := NewSignalDispatcher(client, dispatcherID, taskQueue, serverID)
 	return &dispatcherComponents{
 		dispatcherID:     dispatcherID,
@@ -658,6 +765,11 @@ func (o *Worker) GetDispatcherID() string {
 	return o.dispatcherID
 }
 
+// GetServerID returns the unique identifier for this worker instance
+func (o *Worker) GetServerID() string {
+	return o.serverID
+}
+
 // GetTaskQueue returns this worker's task queue name
 func (o *Worker) GetTaskQueue() string {
 	return o.taskQueue
@@ -687,18 +799,13 @@ func (o *Worker) ensureDispatcherRunning(ctx context.Context) {
 		return
 	}
 	maxRetries := cfg.Worker.DispatcherMaxRetries
-	var safeMaxRetries uint64
-	if maxRetries <= 0 {
-		safeMaxRetries = 0
-	} else {
-		safeMaxRetries = uint64(maxRetries)
+	backoff := retry.NewExponential(cfg.Worker.DispatcherRetryDelay)
+	if maxRetries > 0 {
+		backoff = retry.WithMaxRetries(uint64(maxRetries), backoff)
 	}
 	err := retry.Do(
 		ctx,
-		retry.WithMaxRetries(
-			safeMaxRetries,
-			retry.NewExponential(cfg.Worker.DispatcherRetryDelay),
-		),
+		backoff,
 		func(ctx context.Context) error {
 			// Bound each attempt to avoid hanging when Temporal is slow/unreachable
 			attemptTimeout := workflowStartTimeoutDefault
@@ -831,6 +938,8 @@ func (o *Worker) TriggerWorkflow(
 ) (*WorkflowInput, error) {
 	// Start workflow
 	workflowExecID := core.MustNewID()
+	log := logger.FromContext(ctx)
+	log.Debug("TriggerWorkflow requested", "workflow_id", workflowID, "registered_workflows", len(o.workflows))
 	workflowConfig, err := wf.FindConfig(o.workflows, workflowID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find workflow config: %w", err)
@@ -849,6 +958,13 @@ func (o *Worker) TriggerWorkflow(
 		WorkflowExecID: workflowExecID,
 		Input:          mergedInput, // Use merged input with defaults
 		InitialTaskID:  initTaskID,
+	}
+	// Pre-persist a Pending state BEFORE starting the Temporal workflow
+	// to avoid duplicate starts on retries when persistence fails after start.
+	repo := o.config.WorkflowRepo()
+	pendingState := wf.NewState(workflowID, workflowExecID, mergedInput).WithStatus(core.StatusPending)
+	if err := repo.UpsertState(ctx, pendingState); err != nil {
+		return nil, fmt.Errorf("failed to persist initial (pending) workflow state: %w", err)
 	}
 	options := client.StartWorkflowOptions{
 		ID:        buildWorkflowID(workflowID, workflowInput.WorkflowExecID),
@@ -869,7 +985,32 @@ func (o *Worker) TriggerWorkflow(
 		workflowInput,
 	)
 	if err != nil {
+		// Transition pre-persisted Pending state to Failed with error context.
+		// Best-effort: log if persistence fails but return original start error.
+		persistErr := func() error {
+			failed := wf.NewState(workflowID, workflowExecID, mergedInput).
+				WithStatus(core.StatusFailed).
+				WithError(core.NewError(err, "WORKFLOW_START_FAILED", map[string]any{
+					"workflow_id": workflowID,
+					"exec_id":     workflowExecID.String(),
+				}))
+			return repo.UpsertState(ctx, failed)
+		}()
+		if persistErr != nil {
+			logger.FromContext(ctx).Error(
+				"Failed to persist failed workflow state after start error",
+				"error", persistErr, "workflow_id", workflowID, "exec_id", workflowExecID,
+			)
+		}
 		return nil, fmt.Errorf("failed to start workflow: %w", err)
+	}
+	// Transition to Running on successful start (activity TriggerWorkflow will also upsert Running soon after).
+	if err := repo.UpdateStatus(ctx, workflowExecID, core.StatusRunning); err != nil {
+		// Do not fail the request; log and continue to avoid duplicate starts on retries.
+		logger.FromContext(ctx).Error(
+			"Failed to transition workflow state to RUNNING after start",
+			"error", err, "workflow_id", workflowID, "exec_id", workflowExecID,
+		)
 	}
 	return &workflowInput, nil
 }

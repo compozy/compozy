@@ -284,7 +284,7 @@ services:
 ### Health Check Implementation
 
 Compozy provides built-in health checks via:
-- **HTTP Endpoint**: `GET /health` - Basic health status
+- **HTTP Endpoint**: `GET /api/v0/health` - Basic health status
 - **Docker Health Check**: Configured in Dockerfile with proper timeouts
 - **Component Health**: Database, Redis, Temporal, and Worker status
 
@@ -345,7 +345,7 @@ Compozy handles `SIGINT` and `SIGTERM` signals with:
 compozy config validate --config production.yaml --env-file .env.production
 
 # Test health endpoint
-curl http://localhost:5001/health
+curl http://localhost:5001/api/v0/health
 
 # Check Docker health
 docker ps --filter health=healthy
