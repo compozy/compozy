@@ -2,7 +2,7 @@
 ### This file contains HTTP requests to test the weather agent workflow
 ### Make sure Compozy is running on localhost:5001 before executing these requests
 
-@baseUrl = http://localhost:5002/api/v0
+@baseUrl = http://localhost:5001/api/v0
 @workflowId = weather
 
 ### -----------------------------------------------------------------------------

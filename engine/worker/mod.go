@@ -49,6 +49,7 @@ const (
 	maxTaskQueueLength            = 200
 	maxDispatcherQueueSegment     = 200
 	maxDispatcherWorkflowIDLength = 240
+	hashSuffixLen                 = 8 // hex-encoded 4 bytes
 )
 
 // -----------------------------------------------------------------------------
@@ -410,6 +411,8 @@ func setupWorkerCore(
 ) (*workerCoreComponents, error) {
 	taskQueue := deriveTaskQueue(ctx, client.config.TaskQueue, projectConfig)
 	client.config.TaskQueue = taskQueue
+	log := logger.FromContext(ctx)
+	log.Debug("derived task queue for worker", "task_queue", taskQueue)
 	workerOptions := buildWorkerOptions(ctx, config.MonitoringService)
 	worker := client.NewWorker(taskQueue, workerOptions)
 	projectRoot := projectConfig.GetCWD().PathStr()
@@ -438,7 +441,7 @@ func deriveTaskQueue(ctx context.Context, configuredQueue string, projectConfig 
 	}
 	segments = append(segments, sanitizeQueueSegment(base))
 	if projectConfig != nil && projectConfig.Name != "" {
-		segments = append(segments, GetTaskQueue(projectConfig.Name))
+		segments = append(segments, sanitizeQueueSegment(projectConfig.Name))
 	}
 	segments = append(segments, queueScopeParts(ctx)...)
 	queue := strings.Join(segments, "-")
@@ -477,6 +480,9 @@ func queueScopeParts(ctx context.Context) []string {
 	if user != "" {
 		parts = append(parts, sanitizeQueueSegment(user))
 	}
+	if host, err := os.Hostname(); err == nil && host != "" {
+		parts = append(parts, sanitizeQueueSegment(host))
+	}
 	return dedupeQueueSegments(parts)
 }
 
@@ -514,15 +520,12 @@ func truncateWithHash(value string, limit int) string {
 	if len(value) <= limit {
 		return value
 	}
-	if limit <= 8 {
+	if limit <= hashSuffixLen {
 		return value[:limit]
 	}
 	hash := sha256.Sum256([]byte(value))
 	suffix := hex.EncodeToString(hash[:4])
-	cut := limit - len(suffix)
-	if cut < 1 {
-		cut = limit
-	}
+	cut := limit - hashSuffixLen
 	return value[:cut] + suffix
 }
 
@@ -941,9 +944,7 @@ func (o *Worker) TriggerWorkflow(
 	// Start workflow
 	workflowExecID := core.MustNewID()
 	log := logger.FromContext(ctx)
-	if log != nil {
-		log.Debug("TriggerWorkflow requested", "workflow_id", workflowID, "registered_workflows", len(o.workflows))
-	}
+	log.Debug("TriggerWorkflow requested", "workflow_id", workflowID, "registered_workflows", len(o.workflows))
 	workflowConfig, err := wf.FindConfig(o.workflows, workflowID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find workflow config: %w", err)
