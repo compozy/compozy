@@ -115,3 +115,138 @@ func TestCompile_BasicSelectorValidation(t *testing.T) {
 		assert.Contains(t, err.Error(), "exactly one of agent or tool is required")
 	})
 }
+
+func TestCompile_SuggestNearestAgentIDs(t *testing.T) {
+	t.Run("Should suggest nearest agent IDs on not found", func(t *testing.T) {
+		ctx := withCtx(t)
+		store := resources.NewMemoryResourceStore()
+		proj := &project.Config{Name: "demo"}
+		a1 := &agent.Config{
+			ID:           "writer",
+			Instructions: "You are a writer.",
+			Config:       core.ProviderConfig{Provider: core.ProviderAnthropic, Model: "claude-3-haiku"},
+		}
+		a2 := &agent.Config{
+			ID:           "writer_pro",
+			Instructions: "Pro writer.",
+			Config:       core.ProviderConfig{Provider: core.ProviderAnthropic, Model: "claude-3-sonnet"},
+		}
+		_, err := store.Put(ctx, resources.ResourceKey{Project: "demo", Type: resources.ResourceAgent, ID: a1.ID}, a1)
+		require.NoError(t, err)
+		_, err = store.Put(ctx, resources.ResourceKey{Project: "demo", Type: resources.ResourceAgent, ID: a2.ID}, a2)
+		require.NoError(t, err)
+		wf := &Config{
+			ID: "wf_suggest",
+			Tasks: []task.Config{
+				{BaseConfig: task.BaseConfig{ID: "t1", Type: task.TaskTypeBasic, Agent: &agent.Config{ID: "writr"}}},
+			},
+		}
+		_, err = wf.Compile(ctx, proj, store)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "Did you mean")
+		require.Contains(t, err.Error(), "writer")
+	})
+}
+
+func TestCompile_TaskModelPrecedence(t *testing.T) {
+	t.Run("task.model overrides agent default and global", func(t *testing.T) {
+		ctx := withCtx(t)
+		store := resources.NewMemoryResourceStore()
+		proj := &project.Config{Name: "demo"}
+		defaultAgent := &agent.Config{
+			ID:           "writer",
+			Instructions: "You are a writer.",
+			Config:       core.ProviderConfig{Provider: core.ProviderOpenAI, Model: "gpt-4o"},
+		}
+		_, err := store.Put(
+			ctx,
+			resources.ResourceKey{Project: "demo", Type: resources.ResourceAgent, ID: defaultAgent.ID},
+			defaultAgent,
+		)
+		require.NoError(t, err)
+		modelFast := &core.ProviderConfig{Provider: core.ProviderAnthropic, Model: "claude-3-5-haiku"}
+		_, err = store.Put(
+			ctx,
+			resources.ResourceKey{Project: "demo", Type: resources.ResourceModel, ID: "fast"},
+			modelFast,
+		)
+		require.NoError(t, err)
+		wf := &Config{
+			ID: "wf_model_prec",
+			Tasks: []task.Config{
+				{
+					BaseConfig: task.BaseConfig{
+						ID:    "t1",
+						Type:  task.TaskTypeBasic,
+						Agent: &agent.Config{ID: "writer", Model: "fast"},
+					},
+				},
+			},
+		}
+		compiled, err := wf.Compile(ctx, proj, store)
+		require.NoError(t, err)
+		got := compiled.Tasks[0].Agent
+		require.NotNil(t, got)
+		assert.Equal(t, core.ProviderAnthropic, got.Config.Provider)
+		assert.Equal(t, "claude-3-5-haiku", got.Config.Model)
+	})
+}
+
+func TestCompile_SuggestNearestToolIDs(t *testing.T) {
+	t.Run("Should suggest nearest tool IDs on not found", func(t *testing.T) {
+		ctx := withCtx(t)
+		store := resources.NewMemoryResourceStore()
+		proj := &project.Config{Name: "demo"}
+		tl1 := &tool.Config{ID: "format", Description: "format code"}
+		_, err := store.Put(ctx, resources.ResourceKey{Project: "demo", Type: resources.ResourceTool, ID: tl1.ID}, tl1)
+		require.NoError(t, err)
+		wf := &Config{
+			ID: "wf_tool_suggest",
+			Tasks: []task.Config{
+				{BaseConfig: task.BaseConfig{ID: "t1", Type: task.TaskTypeBasic, Tool: &tool.Config{ID: "frmat"}}},
+			},
+		}
+		_, err = wf.Compile(ctx, proj, store)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "Did you mean")
+		require.Contains(t, err.Error(), "format")
+	})
+}
+
+func TestCompile_SuggestNearestModelIDs(t *testing.T) {
+	t.Run("Should suggest nearest model IDs when task.model not found", func(t *testing.T) {
+		ctx := withCtx(t)
+		store := resources.NewMemoryResourceStore()
+		proj := &project.Config{Name: "demo"}
+		a := &agent.Config{
+			ID:           "writer",
+			Instructions: "You are a writer.",
+			Config:       core.ProviderConfig{Provider: core.ProviderOpenAI, Model: "gpt-4o"},
+		}
+		_, err := store.Put(ctx, resources.ResourceKey{Project: "demo", Type: resources.ResourceAgent, ID: a.ID}, a)
+		require.NoError(t, err)
+		model := &core.ProviderConfig{Provider: core.ProviderAnthropic, Model: "claude-3-5-haiku"}
+		_, err = store.Put(
+			ctx,
+			resources.ResourceKey{Project: "demo", Type: resources.ResourceModel, ID: "fast"},
+			model,
+		)
+		require.NoError(t, err)
+		wf := &Config{
+			ID: "wf_model_suggest",
+			Tasks: []task.Config{
+				{
+					BaseConfig: task.BaseConfig{
+						ID:    "t1",
+						Type:  task.TaskTypeBasic,
+						Agent: &agent.Config{ID: "writer", Model: "fas"},
+					},
+				},
+			},
+		}
+		_, err = wf.Compile(ctx, proj, store)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "Did you mean")
+		require.Contains(t, err.Error(), "fast")
+	})
+}

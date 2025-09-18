@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 
 	"dario.cat/mergo"
@@ -738,12 +740,23 @@ func compileSelectors(ctx context.Context, proj *project.Config, store resources
 
 // SelectorNotFoundError signals a missing resource by type+ID
 type SelectorNotFoundError struct {
-	Type resources.ResourceType
-	ID   string
+	Type       resources.ResourceType
+	ID         string
+	Project    string
+	Candidates []string
 }
 
 func (e *SelectorNotFoundError) Error() string {
-	return fmt.Sprintf("%s '%s' not found", string(e.Type), e.ID)
+	if len(e.Candidates) == 0 {
+		return fmt.Sprintf("%s '%s' not found in project '%s'", string(e.Type), e.ID, e.Project)
+	}
+	return fmt.Sprintf(
+		"%s '%s' not found in project '%s'. Did you mean: %s?",
+		string(e.Type),
+		e.ID,
+		e.Project,
+		strings.Join(e.Candidates, ", "),
+	)
 }
 
 // TypeMismatchError signals a resource type conflict in the store
@@ -786,7 +799,12 @@ func resolveAgent(
 		val, _, err := store.Get(ctx, key)
 		if err != nil {
 			if errors.Is(err, resources.ErrNotFound) {
-				return nil, &SelectorNotFoundError{Type: resources.ResourceAgent, ID: in.ID}
+				return nil, &SelectorNotFoundError{
+					Type:       resources.ResourceAgent,
+					ID:         in.ID,
+					Project:    proj.Name,
+					Candidates: nearestIDs(ctx, store, proj.Name, resources.ResourceAgent, in.ID),
+				}
 			}
 			return nil, fmt.Errorf("agent lookup failed for '%s': %w", in.ID, err)
 		}
@@ -835,7 +853,12 @@ func resolveTool(
 		val, _, err := store.Get(ctx, key)
 		if err != nil {
 			if errors.Is(err, resources.ErrNotFound) {
-				return nil, &SelectorNotFoundError{Type: resources.ResourceTool, ID: in.ID}
+				return nil, &SelectorNotFoundError{
+					Type:       resources.ResourceTool,
+					ID:         in.ID,
+					Project:    proj.Name,
+					Candidates: nearestIDs(ctx, store, proj.Name, resources.ResourceTool, in.ID),
+				}
 			}
 			return nil, fmt.Errorf("tool lookup failed for '%s': %w", in.ID, err)
 		}
@@ -910,7 +933,12 @@ func applyAgentModelSelector(
 	val, _, err := store.Get(ctx, key)
 	if err != nil {
 		if errors.Is(err, resources.ErrNotFound) {
-			return &SelectorNotFoundError{Type: resources.ResourceModel, ID: modelID}
+			return &SelectorNotFoundError{
+				Type:       resources.ResourceModel,
+				ID:         modelID,
+				Project:    proj.Name,
+				Candidates: nearestIDs(ctx, store, proj.Name, resources.ResourceModel, modelID),
+			}
 		}
 		return fmt.Errorf("model lookup failed for '%s': %w", modelID, err)
 	}
@@ -919,43 +947,40 @@ func applyAgentModelSelector(
 	if !ok {
 		return &TypeMismatchError{Type: resources.ResourceModel, ID: modelID, Got: val}
 	}
-	// Merge resolved model defaults into agent config (agent fields win)
-	mergeProviderDefaults(&a.Config, pc)
+	// Task-level model selector takes precedence over agent defaults per PRD
+	// Always override identity (Provider/Model). Fill other fields only if not explicitly set.
+	overrideProviderIdentity(&a.Config, pc)
+	mergeProviderParamsPreferDst(&a.Config.Params, &pc.Params)
+	if a.Config.APIKey == "" {
+		a.Config.APIKey = pc.APIKey
+	}
+	if a.Config.APIURL == "" {
+		a.Config.APIURL = pc.APIURL
+	}
+	if a.Config.Organization == "" {
+		a.Config.Organization = pc.Organization
+	}
+	if a.Config.MaxToolIterations == 0 {
+		a.Config.MaxToolIterations = pc.MaxToolIterations
+	}
 	return nil
 }
 
 // mergeProviderDefaults copies non-set fields from src into dst.
 // Explicit values already present in dst take precedence.
-func mergeProviderDefaults(dst *core.ProviderConfig, src *core.ProviderConfig) {
+// removed legacy merge helpers in favor of explicit precedence helpers
+
+// overrideProviderIdentity sets Provider and Model from src unconditionally.
+func overrideProviderIdentity(dst *core.ProviderConfig, src *core.ProviderConfig) {
 	if dst == nil || src == nil {
 		return
 	}
-	mergeProviderIdentity(dst, src)
-	mergeProviderParams(&dst.Params, &src.Params)
-	if dst.Organization == "" {
-		dst.Organization = src.Organization
-	}
-	if dst.MaxToolIterations == 0 {
-		dst.MaxToolIterations = src.MaxToolIterations
-	}
+	dst.Provider = src.Provider
+	dst.Model = src.Model
 }
 
-func mergeProviderIdentity(dst *core.ProviderConfig, src *core.ProviderConfig) {
-	if dst.Provider == "" {
-		dst.Provider = src.Provider
-	}
-	if dst.Model == "" {
-		dst.Model = src.Model
-	}
-	if dst.APIKey == "" {
-		dst.APIKey = src.APIKey
-	}
-	if dst.APIURL == "" {
-		dst.APIURL = src.APIURL
-	}
-}
-
-func mergeProviderParams(dst *core.PromptParams, src *core.PromptParams) {
+// mergeProviderParamsPreferDst copies unset params from src; keeps dst values if already set.
+func mergeProviderParamsPreferDst(dst *core.PromptParams, src *core.PromptParams) {
 	if dst == nil || src == nil {
 		return
 	}
@@ -965,22 +990,46 @@ func mergeProviderParams(dst *core.PromptParams, src *core.PromptParams) {
 		do     func()
 	}
 	ops := []copier{
-		{dst.IsSetMaxTokens(), src.IsSetMaxTokens(), func() { dst.MaxTokens = src.MaxTokens }},
-		{dst.IsSetTemperature(), src.IsSetTemperature(), func() { dst.Temperature = src.Temperature }},
+		{dst.IsSetMaxTokens(), src.IsSetMaxTokens(), func() {
+			if !dst.IsSetMaxTokens() {
+				dst.MaxTokens = src.MaxTokens
+			}
+		}},
+		{dst.IsSetTemperature(), src.IsSetTemperature(), func() {
+			if !dst.IsSetTemperature() {
+				dst.Temperature = src.Temperature
+			}
+		}},
 		{dst.IsSetStopWords(), src.IsSetStopWords(), func() {
-			if len(src.StopWords) > 0 {
+			if !dst.IsSetStopWords() && len(src.StopWords) > 0 {
 				dst.StopWords = append([]string(nil), src.StopWords...)
 			}
 		}},
-		{dst.IsSetTopK(), src.IsSetTopK(), func() { dst.TopK = src.TopK }},
-		{dst.IsSetTopP(), src.IsSetTopP(), func() { dst.TopP = src.TopP }},
-		{dst.IsSetSeed(), src.IsSetSeed(), func() { dst.Seed = src.Seed }},
-		{dst.IsSetMinLength(), src.IsSetMinLength(), func() { dst.MinLength = src.MinLength }},
-		{
-			dst.IsSetRepetitionPenalty(),
-			src.IsSetRepetitionPenalty(),
-			func() { dst.RepetitionPenalty = src.RepetitionPenalty },
-		},
+		{dst.IsSetTopK(), src.IsSetTopK(), func() {
+			if !dst.IsSetTopK() {
+				dst.TopK = src.TopK
+			}
+		}},
+		{dst.IsSetTopP(), src.IsSetTopP(), func() {
+			if !dst.IsSetTopP() {
+				dst.TopP = src.TopP
+			}
+		}},
+		{dst.IsSetSeed(), src.IsSetSeed(), func() {
+			if !dst.IsSetSeed() {
+				dst.Seed = src.Seed
+			}
+		}},
+		{dst.IsSetMinLength(), src.IsSetMinLength(), func() {
+			if !dst.IsSetMinLength() {
+				dst.MinLength = src.MinLength
+			}
+		}},
+		{dst.IsSetRepetitionPenalty(), src.IsSetRepetitionPenalty(), func() {
+			if !dst.IsSetRepetitionPenalty() {
+				dst.RepetitionPenalty = src.RepetitionPenalty
+			}
+		}},
 	}
 	for i := range ops {
 		c := ops[i]
@@ -988,6 +1037,99 @@ func mergeProviderParams(dst *core.PromptParams, src *core.PromptParams) {
 			c.do()
 		}
 	}
+}
+
+// nearestIDs returns up to 5 nearest IDs by prefix and edit distance within a project/type.
+func nearestIDs(
+	ctx context.Context,
+	store resources.ResourceStore,
+	project string,
+	typ resources.ResourceType,
+	target string,
+) []string {
+	log := logger.FromContext(ctx)
+	_ = pkgcfg.FromContext(ctx)
+	keys, err := store.List(ctx, project, typ)
+	if err != nil {
+		log.Debug("list for suggestions failed", "project", project, "type", string(typ), "err", err)
+		return nil
+	}
+	ids := make([]string, 0, len(keys))
+	for i := range keys {
+		ids = append(ids, keys[i].ID)
+	}
+	type cand struct {
+		id    string
+		score int
+	}
+	cands := make([]cand, 0, len(ids))
+	lower := strings.ToLower(target)
+	for _, id := range ids {
+		s := strings.ToLower(id)
+		if strings.HasPrefix(s, lower) {
+			cands = append(cands, cand{id: id, score: 0})
+			continue
+		}
+		cands = append(cands, cand{id: id, score: levenshtein(lower, s)})
+	}
+	sort.Slice(cands, func(i, j int) bool {
+		if cands[i].score == cands[j].score {
+			return cands[i].id < cands[j].id
+		}
+		return cands[i].score < cands[j].score
+	})
+	limit := 5
+	if len(cands) < limit {
+		limit = len(cands)
+	}
+	out := make([]string, 0, limit)
+	for i := 0; i < limit; i++ {
+		out = append(out, cands[i].id)
+	}
+	return out
+}
+
+// levenshtein computes Levenshtein edit distance between a and b.
+func levenshtein(a, b string) int {
+	if a == b {
+		return 0
+	}
+	la := len(a)
+	lb := len(b)
+	if la == 0 {
+		return lb
+	}
+	if lb == 0 {
+		return la
+	}
+	prev := make([]int, lb+1)
+	curr := make([]int, lb+1)
+	for j := 0; j <= lb; j++ {
+		prev[j] = j
+	}
+	for i := 1; i <= la; i++ {
+		curr[0] = i
+		ai := a[i-1]
+		for j := 1; j <= lb; j++ {
+			cost := 0
+			if ai != b[j-1] {
+				cost = 1
+			}
+			del := prev[j] + 1
+			ins := curr[j-1] + 1
+			sub := prev[j-1] + cost
+			m := del
+			if ins < m {
+				m = ins
+			}
+			if sub < m {
+				m = sub
+			}
+			curr[j] = m
+		}
+		prev, curr = curr, prev
+	}
+	return prev[lb]
 }
 
 func WorkflowsFromProject(projectConfig *project.Config) ([]*Config, error) {
