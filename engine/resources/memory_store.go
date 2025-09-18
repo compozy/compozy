@@ -3,7 +3,6 @@ package resources
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -59,24 +58,25 @@ func (s *MemoryResourceStore) Put(ctx context.Context, key ResourceKey, value an
 		return "", fmt.Errorf("store is closed")
 	}
 	s.items[key] = storedEntry{value: cp, etag: etag}
-	wlist := s.copyWatchersLocked(key.Project, key.Type)
-	s.mu.Unlock()
+	// Broadcast while holding the lock to prevent concurrent channel close.
 	evt := Event{Type: EventPut, Key: key, ETag: etag, At: time.Now().UTC()}
-	for _, w := range wlist {
+	keyspace := watcherKeyspace(key.Project, key.Type)
+	for _, w := range s.watchers[keyspace] {
+		if w.closed {
+			continue
+		}
 		select {
 		case w.ch <- evt:
 		default:
 			log.Warn(
 				"watch channel full; dropping event",
-				"project",
-				key.Project,
-				"type",
-				string(key.Type),
-				"id",
-				key.ID,
+				"project", key.Project,
+				"type", string(key.Type),
+				"id", key.ID,
 			)
 		}
 	}
+	s.mu.Unlock()
 	return etag, nil
 }
 
@@ -122,26 +122,27 @@ func (s *MemoryResourceStore) Delete(ctx context.Context, key ResourceKey) error
 		etag = entry.etag
 		delete(s.items, key)
 	}
-	wlist := s.copyWatchersLocked(key.Project, key.Type)
-	s.mu.Unlock()
+	// Broadcast while holding the lock to prevent concurrent channel close.
 	if existed {
 		evt := Event{Type: EventDelete, Key: key, ETag: etag, At: time.Now().UTC()}
-		for _, w := range wlist {
+		keyspace := watcherKeyspace(key.Project, key.Type)
+		for _, w := range s.watchers[keyspace] {
+			if w.closed {
+				continue
+			}
 			select {
 			case w.ch <- evt:
 			default:
 				log.Warn(
 					"watch channel full; dropping event",
-					"project",
-					key.Project,
-					"type",
-					string(key.Type),
-					"id",
-					key.ID,
+					"project", key.Project,
+					"type", string(key.Type),
+					"id", key.ID,
 				)
 			}
 		}
 	}
+	s.mu.Unlock()
 	return nil
 }
 
@@ -254,23 +255,8 @@ func (s *MemoryResourceStore) removeWatcher(project string, typ ResourceType, ta
 	s.mu.Unlock()
 }
 
-func (s *MemoryResourceStore) copyWatchersLocked(project string, typ ResourceType) []*watcher {
-	keyspace := watcherKeyspace(project, typ)
-	src := s.watchers[keyspace]
-	if len(src) == 0 {
-		return nil
-	}
-	dst := make([]*watcher, len(src))
-	copy(dst, src)
-	return dst
-}
+// copyWatchersLocked was removed; broadcasting now occurs while the store lock is held
 
-func watcherKeyspace(project string, typ ResourceType) string {
-	var b strings.Builder
-	b.WriteString(project)
-	b.WriteString("|")
-	b.WriteString(string(typ))
-	return b.String()
-}
+func watcherKeyspace(project string, typ ResourceType) string { return project + "|" + string(typ) }
 
 // removed: local deepCopy/ETag/writeStableJSON in favor of core.DeepCopy and core.ETagFromAny

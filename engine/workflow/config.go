@@ -12,10 +12,16 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/project"
+	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/engine/webhook"
+	pkgcfg "github.com/compozy/compozy/pkg/config"
+	"github.com/compozy/compozy/pkg/logger"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 )
 
 // TriggerType defines the type of event that can initiate workflow execution.
@@ -575,6 +581,308 @@ func (w *Config) Clone() (*Config, error) {
 		return nil, nil
 	}
 	return core.DeepCopy(w)
+}
+
+// Compile materializes a workflow configuration by resolving ID-based selectors
+// (agent/tool) and applying precedence rules. It deep-copies resolved configs so
+// no mutable state is shared across tasks at runtime.
+//
+// Rules (MVP per PRD):
+// - For basic tasks, exactly one of agent/tool must be set
+// - If Agent/Tool contains only an ID (selector), resolve from ResourceStore
+// - If agent model is empty, fill from project default model (when available)
+// - Deep-copy all resolved configs
+//
+// NOTE: Schema ID linking and MCP selector support will be completed in later tasks
+// (see tasks/prd-refs/_task_6.0.md and _task_7.0.md).
+func (w *Config) Compile(ctx context.Context, proj *project.Config, store resources.ResourceStore) (*Config, error) {
+	_ = pkgcfg.FromContext(ctx)
+	log := logger.FromContext(ctx)
+	meter := otel.GetMeterProvider().Meter("compozy")
+	compileDur, derr := meter.Float64Histogram(
+		"compozy_compile_duration_seconds",
+		metric.WithDescription("Duration of workflow compile step"),
+	)
+	compileCnt, cerr := meter.Int64Counter(
+		"compozy_compile_total",
+		metric.WithDescription("Count of workflow compile attempts"),
+	)
+	started := time.Now()
+	if store == nil {
+		return nil, fmt.Errorf("compile failed: resource store is required")
+	}
+	if proj == nil || proj.Name == "" {
+		return nil, fmt.Errorf("compile failed: project with valid name is required")
+	}
+	compiled, err := w.Clone()
+	if err != nil {
+		return nil, fmt.Errorf("failed to clone workflow '%s': %w", w.ID, err)
+	}
+	for i := range compiled.Tasks {
+		if err = compileTaskRecursive(ctx, proj, store, &compiled.Tasks[i]); err != nil {
+			break
+		}
+	}
+	dur := time.Since(started).Seconds()
+	if err != nil {
+		if cerr == nil {
+			compileCnt.Add(ctx, 1, metric.WithAttributes(attribute.String("status", "error")))
+		}
+		if derr == nil {
+			compileDur.Record(ctx, dur, metric.WithAttributes(attribute.String("status", "error")))
+		}
+		return nil, fmt.Errorf("compile failed for task '%s': %w", compiled.Tasks[0].ID, err)
+	}
+	if cerr == nil {
+		compileCnt.Add(ctx, 1, metric.WithAttributes(attribute.String("status", "ok")))
+	}
+	if derr == nil {
+		compileDur.Record(ctx, dur, metric.WithAttributes(attribute.String("status", "ok")))
+	}
+	log.Debug("Workflow compiled", "workflow_id", compiled.ID)
+	return compiled, nil
+}
+
+func compileTaskRecursive(
+	ctx context.Context,
+	proj *project.Config,
+	store resources.ResourceStore,
+	t *task.Config,
+) error {
+	if t == nil {
+		return nil
+	}
+	if err := compileChildren(ctx, proj, store, t); err != nil {
+		return err
+	}
+	if err := compileRouterInline(ctx, proj, store, t); err != nil {
+		return err
+	}
+	if err := validateBasicSelectors(t); err != nil {
+		return err
+	}
+	if err := compileSelectors(ctx, proj, store, t); err != nil {
+		return err
+	}
+	return nil
+}
+
+func compileChildren(ctx context.Context, proj *project.Config, store resources.ResourceStore, t *task.Config) error {
+	if t.Type == task.TaskTypeParallel {
+		for i := range t.Tasks {
+			if err := compileTaskRecursive(ctx, proj, store, &t.Tasks[i]); err != nil {
+				return err
+			}
+		}
+	}
+	if t.Task != nil {
+		if err := compileTaskRecursive(ctx, proj, store, t.Task); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func compileRouterInline(
+	ctx context.Context,
+	proj *project.Config,
+	store resources.ResourceStore,
+	t *task.Config,
+) error {
+	if t.Type != task.TaskTypeRouter || t.Routes == nil {
+		return nil
+	}
+	for rk, rv := range t.Routes {
+		if m, ok := rv.(map[string]any); ok {
+			inline, err := core.FromMapDefault[task.Config](m)
+			if err != nil {
+				return fmt.Errorf("router route '%s' decode failed: %w", rk, err)
+			}
+			if err := compileTaskRecursive(ctx, proj, store, &inline); err != nil {
+				return fmt.Errorf("router route '%s' compile failed: %w", rk, err)
+			}
+			t.Routes[rk] = inline
+		}
+	}
+	return nil
+}
+
+func compileSelectors(ctx context.Context, proj *project.Config, store resources.ResourceStore, t *task.Config) error {
+	if t.AgentRef != "" {
+		resolved, err := resolveAgent(ctx, proj, store, &agent.Config{ID: t.AgentRef})
+		if err != nil {
+			return err
+		}
+		t.Agent = resolved
+	} else if t.Agent != nil {
+		resolved, err := resolveAgent(ctx, proj, store, t.Agent)
+		if err != nil {
+			return err
+		}
+		t.Agent = resolved
+	}
+	if t.ToolRef != "" {
+		resolved, err := resolveTool(ctx, proj, store, &tool.Config{ID: t.ToolRef})
+		if err != nil {
+			return err
+		}
+		t.Tool = resolved
+	} else if t.Tool != nil {
+		resolved, err := resolveTool(ctx, proj, store, t.Tool)
+		if err != nil {
+			return err
+		}
+		t.Tool = resolved
+	}
+	return nil
+}
+
+func validateBasicSelectors(t *task.Config) error {
+	if t.Type != task.TaskTypeBasic {
+		return nil
+	}
+	hasAgent := t.Agent != nil || (t.AgentRef != "")
+	hasTool := t.Tool != nil || (t.ToolRef != "")
+	if hasAgent == hasTool { // both true or both false
+		return fmt.Errorf(
+			"task '%s' invalid selectors: exactly one of agent/agent_ref or tool/tool_ref is required",
+			t.ID,
+		)
+	}
+	return nil
+}
+
+// SelectorNotFoundError signals a missing resource by type+ID
+type SelectorNotFoundError struct {
+	Type resources.ResourceType
+	ID   string
+}
+
+func (e *SelectorNotFoundError) Error() string {
+	return fmt.Sprintf("%s '%s' not found", string(e.Type), e.ID)
+}
+
+// TypeMismatchError signals a resource type conflict in the store
+type TypeMismatchError struct {
+	Type resources.ResourceType
+	ID   string
+	Got  any
+}
+
+func (e *TypeMismatchError) Error() string {
+	return fmt.Sprintf("%s '%s' has incompatible type %T", string(e.Type), e.ID, e.Got)
+}
+
+func resolveAgent(
+	ctx context.Context,
+	proj *project.Config,
+	store resources.ResourceStore,
+	in *agent.Config,
+) (*agent.Config, error) {
+	log := logger.FromContext(ctx)
+	// Treat as selector when only ID is provided (no provider/model/instructions)
+	if isAgentSelector(in) {
+		key := resources.ResourceKey{Project: proj.Name, Type: resources.ResourceAgent, ID: in.ID}
+		val, _, err := store.Get(ctx, key)
+		if err != nil {
+			if errors.Is(err, resources.ErrNotFound) {
+				return nil, &SelectorNotFoundError{Type: resources.ResourceAgent, ID: in.ID}
+			}
+			return nil, fmt.Errorf("agent lookup failed for '%s': %w", in.ID, err)
+		}
+		got, ok := val.(*agent.Config)
+		if !ok {
+			return nil, &TypeMismatchError{Type: resources.ResourceAgent, ID: in.ID, Got: val}
+		}
+		clone, err := got.Clone()
+		if err != nil {
+			return nil, fmt.Errorf("failed to clone agent '%s': %w", in.ID, err)
+		}
+		fillAgentModelDefault(clone, proj)
+		log.Debug("Resolved agent selector", "agent_id", in.ID)
+		return clone, nil
+	}
+	// Inline agent; deep-copy and apply default model if missing
+	clone, err := in.Clone()
+	if err != nil {
+		return nil, fmt.Errorf("failed to clone inline agent '%s': %w", in.ID, err)
+	}
+	fillAgentModelDefault(clone, proj)
+	return clone, nil
+}
+
+func resolveTool(
+	ctx context.Context,
+	proj *project.Config,
+	store resources.ResourceStore,
+	in *tool.Config,
+) (*tool.Config, error) {
+	log := logger.FromContext(ctx)
+	if isToolSelector(in) {
+		key := resources.ResourceKey{Project: proj.Name, Type: resources.ResourceTool, ID: in.ID}
+		val, _, err := store.Get(ctx, key)
+		if err != nil {
+			if errors.Is(err, resources.ErrNotFound) {
+				return nil, &SelectorNotFoundError{Type: resources.ResourceTool, ID: in.ID}
+			}
+			return nil, fmt.Errorf("tool lookup failed for '%s': %w", in.ID, err)
+		}
+		got, ok := val.(*tool.Config)
+		if !ok {
+			return nil, &TypeMismatchError{Type: resources.ResourceTool, ID: in.ID, Got: val}
+		}
+		clone, err := got.Clone()
+		if err != nil {
+			return nil, fmt.Errorf("failed to clone tool '%s': %w", in.ID, err)
+		}
+		log.Debug("Resolved tool selector", "tool_id", in.ID)
+		return clone, nil
+	}
+	clone, err := in.Clone()
+	if err != nil {
+		return nil, fmt.Errorf("failed to clone inline tool '%s': %w", in.ID, err)
+	}
+	return clone, nil
+}
+
+func isAgentSelector(a *agent.Config) bool {
+	if a == nil {
+		return false
+	}
+	hasID := a.ID != ""
+	noProvider := a.Config.Provider == ""
+	noModel := a.Config.Model == ""
+	noInstr := a.Instructions == ""
+	return hasID && noProvider && noModel && noInstr && len(a.Tools) == 0 && len(a.MCPs) == 0
+}
+
+func isToolSelector(t *tool.Config) bool {
+	if t == nil {
+		return false
+	}
+	return t.ID != "" && t.Description == "" && t.Timeout == "" && t.InputSchema == nil && t.OutputSchema == nil
+}
+
+func fillAgentModelDefault(a *agent.Config, proj *project.Config) {
+	if a == nil || proj == nil {
+		return
+	}
+	if a.Config.Provider == "" || a.Config.Model == "" {
+		if def := proj.GetDefaultModel(); def != nil {
+			if a.Config.Provider == "" {
+				a.Config.Provider = def.Provider
+			}
+			if a.Config.Model == "" {
+				a.Config.Model = def.Model
+			}
+			if a.Config.APIKey == "" {
+				a.Config.APIKey = def.APIKey
+			}
+			if a.Config.APIURL == "" {
+				a.Config.APIURL = def.APIURL
+			}
+		}
+	}
 }
 
 func WorkflowsFromProject(projectConfig *project.Config) ([]*Config, error) {

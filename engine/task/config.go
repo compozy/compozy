@@ -191,11 +191,15 @@ type BaseConfig struct {
 	// Mutually exclusive with Tool field
 	// $ref: schema://agents
 	Agent *agent.Config `json:"agent,omitempty"      yaml:"agent,omitempty"      mapstructure:"agent,omitempty"`
+	// Explicit selector for an agent by ID (mutually exclusive with Agent)
+	AgentRef string `json:"agent_ref,omitempty"  yaml:"agent_ref,omitempty"  mapstructure:"agent_ref,omitempty"`
 	// Tool configuration for executing specific tool operations
 	// Used when the task needs to execute a predefined tool
 	// Mutually exclusive with Agent field
 	// $ref: schema://tools
 	Tool *tool.Config `json:"tool,omitempty"       yaml:"tool,omitempty"       mapstructure:"tool,omitempty"`
+	// Explicit selector for a tool by ID (mutually exclusive with Tool)
+	ToolRef string `json:"tool_ref,omitempty"   yaml:"tool_ref,omitempty"   mapstructure:"tool_ref,omitempty"`
 	// Schema definition for validating task input parameters
 	// Follows JSON Schema specification for type validation
 	// Format:
@@ -2478,11 +2482,35 @@ func (t *Config) Validate() error {
 			return fmt.Errorf("invalid wait task '%s': %w", t.ID, err)
 		}
 	}
+	if err := t.validateBasicSelectorRules(); err != nil {
+		return err
+	}
 	// Validate memory task specific fields
 	if t.Type == TaskTypeMemory {
 		if err := t.validateMemoryTask(); err != nil {
 			return fmt.Errorf("invalid memory task '%s': %w", t.ID, err)
 		}
+	}
+	return nil
+}
+
+// validateBasicSelectorRules enforces mutual exclusivity and presence rules
+// for basic task selectors across inline and explicit ref fields.
+func (t *Config) validateBasicSelectorRules() error {
+	if t.Type != TaskTypeBasic {
+		return nil
+	}
+	hasAgent := t.Agent != nil || (t.AgentRef != "")
+	hasTool := t.Tool != nil || (t.ToolRef != "")
+	if hasAgent && hasTool {
+		return fmt.Errorf("basic task '%s': agent(+agent_ref) and tool(+tool_ref) are mutually exclusive", t.ID)
+	}
+	// Allow neither at validation time; compile() will enforce presence before execution
+	if t.Agent != nil && t.AgentRef != "" {
+		return fmt.Errorf("basic task '%s': agent and agent_ref are mutually exclusive", t.ID)
+	}
+	if t.Tool != nil && t.ToolRef != "" {
+		return fmt.Errorf("basic task '%s': tool and tool_ref are mutually exclusive", t.ID)
 	}
 	return nil
 }
