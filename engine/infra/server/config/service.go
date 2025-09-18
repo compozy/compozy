@@ -7,6 +7,7 @@ import (
 	"github.com/compozy/compozy/engine/autoload"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/project"
+	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/logger"
 )
@@ -83,5 +84,53 @@ func (s *service) LoadProject(
 		return nil, nil, nil, fmt.Errorf("webhook configuration invalid: %w", err)
 	}
 
-	return projectConfig, workflows, configRegistry, nil
+	compiled, err := s.indexAndCompile(ctx, projectConfig, workflows, configRegistry)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return projectConfig, compiled, configRegistry, nil
+}
+
+// indexAndCompile builds an in-memory resource store, indexes discovered
+// resources, and compiles workflows against the store.
+func (s *service) indexAndCompile(
+	ctx context.Context,
+	projectConfig *project.Config,
+	workflows []*workflow.Config,
+	configRegistry *autoload.ConfigRegistry,
+) ([]*workflow.Config, error) {
+	log := logger.FromContext(ctx)
+	store := resources.NewMemoryResourceStore()
+	if err := projectConfig.IndexToResourceStore(ctx, store); err != nil {
+		log.Error("Failed to index project resources", "error", err)
+		return nil, err
+	}
+	for _, wf := range workflows {
+		if wf == nil {
+			continue
+		}
+		if err := wf.IndexToResourceStore(ctx, projectConfig.Name, store); err != nil {
+			log.Error("Failed to index workflow resources", "workflow_id", wf.ID, "error", err)
+			return nil, err
+		}
+	}
+	if configRegistry != nil {
+		if err := configRegistry.SyncToResourceStore(ctx, projectConfig.Name, store); err != nil {
+			log.Error("Failed to publish autoload resources to store", "error", err)
+			return nil, err
+		}
+	}
+	compiled := make([]*workflow.Config, 0, len(workflows))
+	for _, wf := range workflows {
+		if wf == nil {
+			continue
+		}
+		c, err := wf.Compile(ctx, projectConfig, store)
+		if err != nil {
+			log.Error("Workflow compile failed", "workflow_id", wf.ID, "error", err)
+			return nil, err
+		}
+		compiled = append(compiled, c)
+	}
+	return compiled, nil
 }
