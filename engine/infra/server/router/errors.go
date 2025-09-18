@@ -24,6 +24,7 @@ const (
 	ErrUnauthorizedCode = "UNAUTHORIZED"
 	ErrForbiddenCode    = "FORBIDDEN"
 	ErrNotFoundCode     = "NOT_FOUND"
+	ErrConflictCode     = "CONFLICT"
 )
 
 // Error messages
@@ -135,6 +136,8 @@ func (e *RequestError) GetErrorInfo() *ErrorInfo {
 		code = ErrUnauthorizedCode
 	case http.StatusForbidden:
 		code = ErrForbiddenCode
+	case http.StatusConflict:
+		code = ErrConflictCode
 	}
 
 	return &ErrorInfo{
@@ -155,6 +158,8 @@ func getStatusCode(code string) int {
 		return http.StatusForbidden
 	case ErrNotFoundCode:
 		return http.StatusNotFound
+	case ErrConflictCode:
+		return http.StatusConflict
 	default:
 		return http.StatusInternalServerError
 	}

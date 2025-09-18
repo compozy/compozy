@@ -27,6 +27,7 @@ type ExtensionKey string
 const (
 	extensionScheduleManagerKey ExtensionKey = "scheduleManager"
 	extensionWebhookRegistryKey ExtensionKey = "webhook.registry"
+	extensionResourceStoreKey   ExtensionKey = "resource.store"
 )
 
 type BaseDeps struct {
@@ -119,6 +120,24 @@ func (s *State) ScheduleManager() (any, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	v, ok := s.Extensions[extensionScheduleManagerKey]
+	return v, ok
+}
+
+// SetResourceStore stores the resources.ResourceStore in extensions with type safety
+func (s *State) SetResourceStore(v any) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.Extensions == nil {
+		s.Extensions = make(map[ExtensionKey]any)
+	}
+	s.Extensions[extensionResourceStoreKey] = v
+}
+
+// ResourceStore retrieves the resources.ResourceStore from extensions with type safety
+func (s *State) ResourceStore() (any, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	v, ok := s.Extensions[extensionResourceStoreKey]
 	return v, ok
 }
 

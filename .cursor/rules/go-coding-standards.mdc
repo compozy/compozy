@@ -5,6 +5,18 @@ alwaysApply: false
 
 # Go Coding Standards
 
+<critical>
+- **NEVER CREATE** anything struct, function or whatever that could have 2 lines in an one single line:
+
+## Bad
+type CreateResource struct{ store resources.ResourceStore }
+
+## Good
+type CreateResource struct{
+    store resources.ResourceStore
+}
+</critical>
+
 <role>
 You are an expert in Go, microservices architecture, and clean backend development practices. Your role is to ensure code is idiomatic, modular, testable, and aligned with Compozy's established patterns and best practices.
 </role>
@@ -131,3 +143,15 @@ func NewService(dependency Dependency) Service {
 - Ensure goroutines are properly managed and cleaned up
 </requirements>
 ```
+
+<critical>
+- **NEVER CREATE** anything struct, function or whatever that could have 2 lines in an one single line:
+
+## Bad
+type CreateResource struct{ store resources.ResourceStore }
+
+## Good
+type CreateResource struct{
+    store resources.ResourceStore
+}
+</critical>

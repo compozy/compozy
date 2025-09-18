@@ -18,7 +18,7 @@ definitions:
         type: string
       input:
         allOf:
-          - '#/definitions/schema.Schema'
+          - $ref: '#/definitions/schema.Schema'
         description: |-
           JSON Schema defining the expected input parameters for this action.
           Enables validation and type checking of inputs before execution.
@@ -38,7 +38,7 @@ definitions:
         type: boolean
       output:
         allOf:
-          - '#/definitions/schema.Schema'
+          - $ref: '#/definitions/schema.Schema'
         description: |-
           JSON Schema defining the expected output format from this action.
           Used for validating agent responses and ensuring consistent output structure.
@@ -59,7 +59,7 @@ definitions:
         type: string
       with:
         allOf:
-          - '#/definitions/core.Input'
+          - $ref: '#/definitions/core.Input'
         description: |-
           Default parameters to provide to the action.
           These are merged with runtime parameters, with runtime values taking precedence.
@@ -111,7 +111,7 @@ definitions:
         $ref: '#/definitions/core.PathCWD'
       env:
         allOf:
-          - '#/definitions/core.EnvMap'
+          - $ref: '#/definitions/core.EnvMap'
         description: |-
           Environment variables available during agent execution.
           Used for configuration, secrets, and runtime settings.
@@ -204,11 +204,11 @@ definitions:
         type: array
       model:
         allOf:
-          - '#/definitions/agent.Model'
+          - $ref: '#/definitions/agent.Model'
         description: |-
           Model selects which LLM model to use.
           Supports two forms:
-            - string: a model ID to be resolved via the ResourceStore (e.g. "openai:gpt-4o-mini")
+            - string: a model ID to be resolved via the ResourceStore (e.g. "openai-gpt-4o-mini")
             - object: an inline core.ProviderConfig with provider/model/params
 
           During compile/link, string refs are resolved and merged with inline
@@ -237,7 +237,7 @@ definitions:
         type: array
       with:
         allOf:
-          - '#/definitions/core.Input'
+          - $ref: '#/definitions/core.Input'
         description: |-
           Default input parameters passed to the agent on every invocation.
           These values are merged with runtime inputs, with runtime values taking precedence.
@@ -254,7 +254,7 @@ definitions:
     properties:
       config:
         allOf:
-          - '#/definitions/core.ProviderConfig'
+          - $ref: '#/definitions/core.ProviderConfig'
         description: |-
           Config holds an inline provider configuration when specified as a mapping.
           When Ref is set, Config may be merged with the resolved model during linking.
@@ -350,7 +350,7 @@ definitions:
         type: string
       with:
         allOf:
-          - '#/definitions/core.Input'
+          - $ref: '#/definitions/core.Input'
         description: |-
           Error context passed to the handler
           Includes error details: { "error": "{{ .error }}", "attempt": "{{ .retryCount }}" }
@@ -524,14 +524,14 @@ definitions:
         type: string
       params:
         allOf:
-          - '#/definitions/core.PromptParams'
+          - $ref: '#/definitions/core.PromptParams'
         description: |-
           Params contains the generation parameters that control LLM behavior.
           These parameters are applied to all requests using this provider configuration.
           Can be overridden at the task or action level for specific requirements.
       provider:
         allOf:
-          - '#/definitions/core.ProviderName'
+          - $ref: '#/definitions/core.ProviderName'
         description: |-
           Provider specifies which AI service to use for LLM operations.
           Must match one of the supported ProviderName constants.
@@ -743,7 +743,7 @@ definitions:
         type: string
       start_timeout:
         allOf:
-          - '#/definitions/time.Duration'
+          - $ref: '#/definitions/time.Duration'
         description: |-
           StartTimeout is the **maximum time to wait** for the MCP server to start.
 
@@ -764,7 +764,7 @@ definitions:
           **Recommendation**: Set to at least 10-30s for Docker-based servers.
       transport:
         allOf:
-          - '#/definitions/mcpproxy.TransportType'
+          - $ref: '#/definitions/mcpproxy.TransportType'
         description: |-
           Transport defines the **communication transport mechanism**.
 
@@ -888,7 +888,7 @@ definitions:
         $ref: '#/definitions/time.Duration'
       toolFilter:
         allOf:
-          - '#/definitions/mcpproxy.ToolFilter'
+          - $ref: '#/definitions/mcpproxy.ToolFilter'
         description: Tool filtering
       transport:
         $ref: '#/definitions/mcpproxy.TransportType'
@@ -1233,7 +1233,7 @@ definitions:
         type: string
       component:
         allOf:
-          - '#/definitions/core.ComponentType'
+          - $ref: '#/definitions/core.ComponentType'
         description: Core identification
       created_at:
         description: Timestamps for audit trails and progress tracking
@@ -1242,7 +1242,7 @@ definitions:
         $ref: '#/definitions/core.Error'
       execution_type:
         allOf:
-          - '#/definitions/task.ExecutionType'
+          - $ref: '#/definitions/task.ExecutionType'
         description: Execution type and strategy
       input:
         $ref: '#/definitions/core.Input'
@@ -1351,7 +1351,7 @@ definitions:
     properties:
       config:
         allOf:
-          - '#/definitions/core.Input'
+          - $ref: '#/definitions/core.Input'
         description: |-
           Configuration parameters passed to the tool separately from input data.
           Provides static configuration that tools can use for initialization and behavior control.
@@ -1371,7 +1371,7 @@ definitions:
             ```
       cwd:
         allOf:
-          - '#/definitions/core.PathCWD'
+          - $ref: '#/definitions/core.PathCWD'
         description: |-
           CWD defines the working directory for tool execution.
           Used for resolving relative file paths and setting process working directory.
@@ -1386,7 +1386,7 @@ definitions:
         type: string
       env:
         allOf:
-          - '#/definitions/core.EnvMap'
+          - $ref: '#/definitions/core.EnvMap'
         description: |-
           Environment variables available during tool execution.
           Variables are isolated to the tool's execution context for security.
@@ -1412,7 +1412,7 @@ definitions:
         type: string
       input:
         allOf:
-          - '#/definitions/schema.Schema'
+          - $ref: '#/definitions/schema.Schema'
         description: |-
           JSON schema defining the expected input parameters for the tool.
           Used for validation before execution and to generate LLM function call definitions.
@@ -1423,7 +1423,7 @@ definitions:
           - **Integration:** Automatically converts to LLM function parameters
       output:
         allOf:
-          - '#/definitions/schema.Schema'
+          - $ref: '#/definitions/schema.Schema'
         description: |-
           JSON schema defining the expected output format from the tool.
           Used for validation after execution and documentation purposes.
@@ -1449,7 +1449,7 @@ definitions:
         type: string
       with:
         allOf:
-          - '#/definitions/core.Input'
+          - $ref: '#/definitions/core.Input'
         description: |-
           Default input parameters merged with runtime parameters provided by agents.
           Provides a way to set tool defaults while allowing runtime customization.
@@ -1632,7 +1632,7 @@ definitions:
     properties:
       payload:
         allOf:
-          - '#/definitions/core.Input'
+          - $ref: '#/definitions/core.Input'
         description: Payload contains the data to send with the signal
       signal_name:
         description: SignalName is the name of the signal to send to the workflow execution
@@ -1655,7 +1655,7 @@ definitions:
         $ref: '#/definitions/core.Author'
       config:
         allOf:
-          - '#/definitions/workflow.Opts'
+          - $ref: '#/definitions/workflow.Opts'
         description: Configuration
       description:
         type: string
@@ -1687,7 +1687,7 @@ definitions:
     properties:
       env:
         allOf:
-          - '#/definitions/core.EnvMap'
+          - $ref: '#/definitions/core.EnvMap'
         description: |-
           Environment variables available to the workflow and its components
           These variables are accessible to all tasks, agents, and tools within the workflow
@@ -1700,19 +1700,19 @@ definitions:
         type: string
       input:
         allOf:
-          - '#/definitions/schema.Schema'
+          - $ref: '#/definitions/schema.Schema'
         description: |-
           Input schema for validating workflow input parameters
           Uses JSON Schema format to define expected input structure and validation rules
       on_error:
         allOf:
-          - '#/definitions/core.ErrorTransition'
+          - $ref: '#/definitions/core.ErrorTransition'
         description: |-
           Error handler configuration
           Defines what happens when a task fails after all retries
       retry_policy:
         allOf:
-          - '#/definitions/core.RetryPolicyConfig'
+          - $ref: '#/definitions/core.RetryPolicyConfig'
         description: |-
           Retry configuration for transient failures
           Automatically retries failed tasks with exponential backoff
@@ -1781,7 +1781,7 @@ definitions:
         type: string
       overlap_policy:
         allOf:
-          - '#/definitions/workflow.OverlapPolicy'
+          - $ref: '#/definitions/workflow.OverlapPolicy'
         description: |-
           Policy for handling overlapping executions (optional, default skip)
           Options: skip, allow, buffer_one, cancel_other
@@ -1824,15 +1824,15 @@ definitions:
         type: string
       schema:
         allOf:
-          - '#/definitions/schema.Schema'
+          - $ref: '#/definitions/schema.Schema'
         description: Schema for validating trigger input data (optional)
       type:
         allOf:
-          - '#/definitions/workflow.TriggerType'
+          - $ref: '#/definitions/workflow.TriggerType'
         description: Type of trigger mechanism (e.g., "signal" for external signals)
       webhook:
         allOf:
-          - '#/definitions/webhook.Config'
+          - $ref: '#/definitions/webhook.Config'
         description: Webhook holds configuration when Type==webhook
     type: object
   workflow.TriggerType:
@@ -2787,7 +2787,7 @@ paths:
           description: Accepted
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
                     $ref: '#/definitions/wfrouter.EventResponse'
@@ -2796,7 +2796,7 @@ paths:
           description: Invalid event
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -2805,7 +2805,7 @@ paths:
           description: Not found
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -2814,7 +2814,7 @@ paths:
           description: Conflict
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -2823,7 +2823,7 @@ paths:
           description: Internal server error
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -2832,7 +2832,7 @@ paths:
           description: Worker unavailable
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -2852,7 +2852,7 @@ paths:
           description: Workflow executions retrieved successfully
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
                     properties:
@@ -2866,7 +2866,7 @@ paths:
           description: Internal server error
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -2875,7 +2875,7 @@ paths:
           description: Worker unavailable
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -2902,7 +2902,7 @@ paths:
           description: Workflow execution retrieved successfully
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
                     $ref: '#/definitions/workflow.State'
@@ -2911,7 +2911,7 @@ paths:
           description: Invalid execution ID
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -2920,7 +2920,7 @@ paths:
           description: Execution not found
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -2929,7 +2929,7 @@ paths:
           description: Internal server error
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -2938,7 +2938,7 @@ paths:
           description: Worker unavailable
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -2965,7 +2965,7 @@ paths:
           description: Workflow execution canceled successfully
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
                     type: string
@@ -2974,7 +2974,7 @@ paths:
           description: Invalid execution ID
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -2983,7 +2983,7 @@ paths:
           description: Internal server error
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -2992,7 +2992,7 @@ paths:
           description: Worker unavailable
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -3019,7 +3019,7 @@ paths:
           description: Workflow execution paused successfully
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
                     type: string
@@ -3028,7 +3028,7 @@ paths:
           description: Invalid execution ID
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -3037,7 +3037,7 @@ paths:
           description: Internal server error
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -3046,7 +3046,7 @@ paths:
           description: Worker unavailable
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -3073,7 +3073,7 @@ paths:
           description: Workflow execution resumed successfully
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
                     type: string
@@ -3082,7 +3082,7 @@ paths:
           description: Invalid execution ID
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -3091,7 +3091,7 @@ paths:
           description: Internal server error
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -3100,7 +3100,7 @@ paths:
           description: Worker unavailable
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -3133,7 +3133,7 @@ paths:
           description: Signal sent successfully
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
                     $ref: '#/definitions/wfrouter.SignalResponse'
@@ -3142,7 +3142,7 @@ paths:
           description: Invalid execution ID or signal data
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -3151,7 +3151,7 @@ paths:
           description: Execution not found
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -3160,7 +3160,7 @@ paths:
           description: Internal server error
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -3169,7 +3169,7 @@ paths:
           description: Worker unavailable
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -3202,7 +3202,7 @@ paths:
           description: Memory appended successfully
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
                     $ref: '#/definitions/service.AppendResponse'
@@ -3211,7 +3211,7 @@ paths:
           description: Invalid request
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -3220,7 +3220,7 @@ paths:
           description: Internal server error
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -3253,7 +3253,7 @@ paths:
           description: Memory cleared successfully
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
                     $ref: '#/definitions/uc.ClearMemoryResult'
@@ -3262,7 +3262,7 @@ paths:
           description: Invalid request
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -3271,7 +3271,7 @@ paths:
           description: Internal server error
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -3304,7 +3304,7 @@ paths:
           description: Memory deleted successfully
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
                     $ref: '#/definitions/service.DeleteResponse'
@@ -3313,7 +3313,7 @@ paths:
           description: Invalid request
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -3322,7 +3322,7 @@ paths:
           description: Internal server error
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -3357,7 +3357,7 @@ paths:
             strategy was used
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
                     $ref: '#/definitions/uc.FlushMemoryResult'
@@ -3366,7 +3366,7 @@ paths:
           description: Invalid request
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -3375,7 +3375,7 @@ paths:
           description: Internal server error
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -3413,7 +3413,7 @@ paths:
           description: Memory health retrieved successfully
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
                     $ref: '#/definitions/uc.HealthMemoryResult'
@@ -3422,7 +3422,7 @@ paths:
           description: Invalid request
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -3431,7 +3431,7 @@ paths:
           description: Internal server error
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -3474,7 +3474,7 @@ paths:
           description: Memory read successfully
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
                     properties:
@@ -3503,7 +3503,7 @@ paths:
           description: Invalid request
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -3512,7 +3512,7 @@ paths:
           description: Memory not found
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -3521,7 +3521,7 @@ paths:
           description: Internal server error
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -3564,7 +3564,7 @@ paths:
           description: Memory statistics retrieved successfully
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
                     $ref: '#/definitions/uc.StatsMemoryOutput'
@@ -3573,7 +3573,7 @@ paths:
           description: Invalid request
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -3582,7 +3582,7 @@ paths:
           description: Internal server error
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -3615,7 +3615,7 @@ paths:
           description: Memory written successfully
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
                     $ref: '#/definitions/service.WriteResponse'
@@ -3624,7 +3624,7 @@ paths:
           description: Invalid request
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -3633,7 +3633,7 @@ paths:
           description: Internal server error
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -3714,6 +3714,180 @@ paths:
       summary: Prometheus metrics endpoint
       tags:
         - Operations
+  /resources/{type}:
+    get:
+      description: List resource keys for a given type and project
+      parameters:
+        - description: Resource type
+          in: path
+          name: type
+          required: true
+          type: string
+        - description: Project override
+          in: query
+          name: project
+          type: string
+        - description: ID prefix filter
+          in: query
+          name: q
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Keys listed
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    properties:
+                      keys:
+                        items:
+                          type: string
+                        type: array
+                    type: object
+                type: object
+      summary: List resources
+      tags:
+        - resources
+    post:
+      consumes:
+        - application/json
+      description: Create a resource in the current project
+      parameters:
+        - description: Resource type (agent|tool|mcp|schema|model|workflow|memory|project)
+          in: path
+          name: type
+          required: true
+          type: string
+      produces:
+        - application/json
+      responses:
+        "201":
+          description: Created resource
+          headers:
+            ETag:
+              description: ETag for the stored value
+              type: string
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    type: object
+                type: object
+      summary: Create resource
+      tags:
+        - resources
+  /resources/{type}/{id}:
+    delete:
+      description: Delete a resource by ID (idempotent)
+      parameters:
+        - description: Resource type
+          in: path
+          name: type
+          required: true
+          type: string
+        - description: Resource ID
+          in: path
+          name: id
+          required: true
+          type: string
+      responses:
+        "204":
+          description: Deleted
+      summary: Delete resource
+      tags:
+        - resources
+    get:
+      description: Get a resource by ID
+      parameters:
+        - description: Resource type
+          in: path
+          name: type
+          required: true
+          type: string
+        - description: Resource ID
+          in: path
+          name: id
+          required: true
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Resource returned
+          headers:
+            ETag:
+              description: ETag for the stored value
+              type: string
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    type: object
+                type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      summary: Get resource
+      tags:
+        - resources
+    put:
+      consumes:
+        - application/json
+      description: Upserts a resource. If-Match enforces optimistic locking when provided.
+      parameters:
+        - description: Resource type
+          in: path
+          name: type
+          required: true
+          type: string
+        - description: Resource ID
+          in: path
+          name: id
+          required: true
+          type: string
+        - description: Current ETag for optimistic locking
+          in: header
+          name: If-Match
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Updated resource
+          headers:
+            ETag:
+              description: New ETag for the stored value
+              type: string
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    type: object
+                type: object
+        "409":
+          description: Conflict
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      summary: Upsert resource
+      tags:
+        - resources
   /schedules:
     get:
       consumes:
@@ -3726,7 +3900,7 @@ paths:
           description: Schedules retrieved successfully
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
                     $ref: '#/definitions/schedulerouter.ScheduleListResponse'
@@ -3735,7 +3909,7 @@ paths:
           description: Internal server error
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -3765,7 +3939,7 @@ paths:
           description: Invalid workflow ID
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -3774,7 +3948,7 @@ paths:
           description: Schedule not found
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -3783,7 +3957,7 @@ paths:
           description: Internal server error
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -3809,7 +3983,7 @@ paths:
           description: Schedule retrieved successfully
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
                     $ref: '#/definitions/schedulerouter.ScheduleInfoResponse'
@@ -3818,7 +3992,7 @@ paths:
           description: Invalid workflow ID
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -3827,7 +4001,7 @@ paths:
           description: Schedule not found
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -3836,7 +4010,7 @@ paths:
           description: Internal server error
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -3869,7 +4043,7 @@ paths:
           description: Schedule updated successfully
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
                     $ref: '#/definitions/schedulerouter.ScheduleInfoResponse'
@@ -3878,7 +4052,7 @@ paths:
           description: Invalid request
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -3887,7 +4061,7 @@ paths:
           description: Schedule not found
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -3896,7 +4070,7 @@ paths:
           description: Internal server error
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -4121,7 +4295,7 @@ paths:
           description: Workflows retrieved successfully
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
                     properties:
@@ -4135,7 +4309,7 @@ paths:
           description: Internal server error
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -4162,7 +4336,7 @@ paths:
           description: Workflow retrieved successfully
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
                     $ref: '#/definitions/wfrouter.WorkflowResponse'
@@ -4171,7 +4345,7 @@ paths:
           description: Invalid workflow ID
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -4180,7 +4354,7 @@ paths:
           description: Workflow not found
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -4189,7 +4363,7 @@ paths:
           description: Internal server error
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -4215,7 +4389,7 @@ paths:
           description: Agents retrieved successfully
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
                     properties:
@@ -4229,7 +4403,7 @@ paths:
           description: Internal server error
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -4261,7 +4435,7 @@ paths:
           description: Agent retrieved successfully
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
                     $ref: '#/definitions/agent.Config'
@@ -4270,7 +4444,7 @@ paths:
           description: Invalid agent ID
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -4279,7 +4453,7 @@ paths:
           description: Agent not found
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -4288,7 +4462,7 @@ paths:
           description: Internal server error
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -4315,7 +4489,7 @@ paths:
           description: Workflow executions retrieved successfully
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
                     properties:
@@ -4329,7 +4503,7 @@ paths:
           description: Invalid workflow ID
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -4338,7 +4512,7 @@ paths:
           description: Internal server error
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -4347,7 +4521,7 @@ paths:
           description: Worker unavailable
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -4379,7 +4553,7 @@ paths:
           description: Workflow triggered successfully
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
                     $ref: '#/definitions/wfrouter.ExecuteWorkflowResponse'
@@ -4388,7 +4562,7 @@ paths:
           description: Invalid input or workflow ID
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -4397,7 +4571,7 @@ paths:
           description: Workflow not found
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -4406,7 +4580,7 @@ paths:
           description: Internal server error
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -4415,7 +4589,7 @@ paths:
           description: Worker unavailable
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -4442,7 +4616,7 @@ paths:
           description: Tasks retrieved successfully
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
                     properties:
@@ -4456,7 +4630,7 @@ paths:
           description: Invalid workflow ID
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -4465,7 +4639,7 @@ paths:
           description: Workflow not found
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -4474,7 +4648,7 @@ paths:
           description: Internal server error
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -4507,7 +4681,7 @@ paths:
           description: Task retrieved successfully
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
                     $ref: '#/definitions/tkrouter.TaskResponse'
@@ -4516,7 +4690,7 @@ paths:
           description: Invalid workflow or task ID
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -4525,7 +4699,7 @@ paths:
           description: Task not found
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -4534,7 +4708,7 @@ paths:
           description: Internal server error
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -4560,7 +4734,7 @@ paths:
           description: Tools retrieved successfully
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
                     properties:
@@ -4574,7 +4748,7 @@ paths:
           description: Internal server error
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -4606,7 +4780,7 @@ paths:
           description: Tool retrieved successfully
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   data:
                     $ref: '#/definitions/tool.Config'
@@ -4615,7 +4789,7 @@ paths:
           description: Invalid tool ID
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -4624,7 +4798,7 @@ paths:
           description: Tool not found
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'
@@ -4633,7 +4807,7 @@ paths:
           description: Internal server error
           schema:
             allOf:
-              - '#/definitions/router.Response'
+              - $ref: '#/definitions/router.Response'
               - properties:
                   error:
                     $ref: '#/definitions/router.ErrorInfo'

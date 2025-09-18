@@ -24,11 +24,12 @@ type Service interface {
 // service is the concrete implementation of the Service interface
 type service struct {
 	envFilePath string
+	store       resources.ResourceStore
 }
 
 // NewService creates and initializes a new config service
-func NewService(envFilePath string) Service {
-	return &service{envFilePath: envFilePath}
+func NewService(envFilePath string, store resources.ResourceStore) Service {
+	return &service{envFilePath: envFilePath, store: store}
 }
 
 // LoadProject loads a project configuration and handles AutoLoad integration
@@ -100,7 +101,10 @@ func (s *service) indexAndCompile(
 	configRegistry *autoload.ConfigRegistry,
 ) ([]*workflow.Config, error) {
 	log := logger.FromContext(ctx)
-	store := resources.NewMemoryResourceStore()
+	if s.store == nil {
+		return nil, fmt.Errorf("resource store not provided")
+	}
+	store := s.store
 	if err := projectConfig.IndexToResourceStore(ctx, store); err != nil {
 		log.Error("Failed to index project resources", "error", err)
 		return nil, err

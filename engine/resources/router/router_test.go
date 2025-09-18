@@ -1,0 +1,164 @@
+package resourcesrouter
+
+import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"strings"
+	"testing"
+
+	"github.com/compozy/compozy/engine/infra/server/appstate"
+	infrarouter "github.com/compozy/compozy/engine/infra/server/router"
+	"github.com/compozy/compozy/engine/project"
+	"github.com/compozy/compozy/engine/resources"
+	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestMain(m *testing.M) { gin.SetMode(gin.TestMode); os.Exit(m.Run()) }
+
+type apiError struct {
+	Status int `json:"status"`
+	Error  struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+		Details string `json:"details"`
+	} `json:"error"`
+}
+
+func newServerWithStore(t *testing.T) *gin.Engine {
+	t.Helper()
+	r := gin.New()
+	prj := &project.Config{Name: "p", Version: "1.0"}
+	require.NoError(t, prj.SetCWD("."))
+	deps := appstate.NewBaseDeps(prj, nil, nil, nil)
+	st, err := appstate.NewState(deps, nil)
+	require.NoError(t, err)
+	st.SetResourceStore(resources.NewMemoryResourceStore())
+	r.Use(appstate.StateMiddleware(st))
+	r.Use(infrarouter.ErrorHandler())
+	api := r.Group("/api/v0")
+	Register(api)
+	return r
+}
+
+func TestResourcesRouter_CRUDAndETag(t *testing.T) {
+	t.Parallel()
+	srv := newServerWithStore(t)
+	t.Run("Should create and get with same ETag", func(t *testing.T) {
+		t.Parallel()
+		body := `{"id":"a1","type":"agent","name":"A"}`
+		res1 := httptest.NewRecorder()
+		req1 := httptest.NewRequest(http.MethodPost, "/api/v0/resources/agent", strings.NewReader(body))
+		srv.ServeHTTP(res1, req1)
+		require.Equal(t, http.StatusCreated, res1.Code)
+		etag := res1.Header().Get("ETag")
+		require.NotEmpty(t, etag)
+		loc := res1.Header().Get("Location")
+		assert.Equal(t, "/api/v0/resources/agent/a1", loc)
+		res2 := httptest.NewRecorder()
+		req2 := httptest.NewRequest(http.MethodGet, "/api/v0/resources/agent/a1", http.NoBody)
+		srv.ServeHTTP(res2, req2)
+		require.Equal(t, http.StatusOK, res2.Code)
+		assert.Equal(t, etag, res2.Header().Get("ETag"))
+	})
+	t.Run("Should list and filter by prefix", func(t *testing.T) {
+		t.Parallel()
+		_ = sendJSON(srv, http.MethodPost, "/api/v0/resources/agent", `{"id":"pre1","type":"agent"}`)
+		_ = sendJSON(srv, http.MethodPost, "/api/v0/resources/agent", `{"id":"pre2","type":"agent"}`)
+		_ = sendJSON(srv, http.MethodPost, "/api/v0/resources/agent", `{"id":"x","type":"agent"}`)
+		res := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/api/v0/resources/agent?q=pre", http.NoBody)
+		srv.ServeHTTP(res, req)
+		require.Equal(t, http.StatusOK, res.Code)
+		var body struct {
+			Status int `json:"status"`
+			Data   struct {
+				Keys []string `json:"keys"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(res.Body.Bytes(), &body))
+		assert.ElementsMatch(t, []string{"pre1", "pre2"}, body.Data.Keys)
+	})
+	t.Run("Should reject project field in body", func(t *testing.T) {
+		t.Parallel()
+		res := sendJSON(srv, http.MethodPost, "/api/v0/resources/agent", `{"id":"bad1","type":"agent","project":"x"}`)
+		require.Equal(t, http.StatusBadRequest, res.Code)
+	})
+	t.Run("Should reject invalid id with whitespace", func(t *testing.T) {
+		t.Parallel()
+		res := sendJSON(srv, http.MethodPost, "/api/v0/resources/agent", `{"id":"a 1","type":"agent"}`)
+		require.Equal(t, http.StatusBadRequest, res.Code)
+	})
+	t.Run("Should handle PUT with If-Match and conflicts", func(t *testing.T) {
+		t.Parallel()
+		res := sendJSON(srv, http.MethodPost, "/api/v0/resources/tool", `{"id":"t1","type":"tool","v":1}`)
+		et := res.Header().Get("ETag")
+		resBad := httptest.NewRecorder()
+		reqBad := httptest.NewRequest(
+			http.MethodPut,
+			"/api/v0/resources/tool/t1",
+			strings.NewReader(`{"id":"t1","type":"tool","v":2}`),
+		)
+		reqBad.Header.Set("If-Match", "stale")
+		srv.ServeHTTP(resBad, reqBad)
+		require.Equal(t, http.StatusConflict, resBad.Code)
+		var e apiError
+		require.NoError(t, json.Unmarshal(resBad.Body.Bytes(), &e))
+		assert.Equal(t, "CONFLICT", e.Error.Code)
+		resOK := httptest.NewRecorder()
+		reqOK := httptest.NewRequest(
+			http.MethodPut,
+			"/api/v0/resources/tool/t1",
+			strings.NewReader(`{"id":"t1","type":"tool","v":3}`),
+		)
+		reqOK.Header.Set("If-Match", et)
+		srv.ServeHTTP(resOK, reqOK)
+		require.Equal(t, http.StatusOK, resOK.Code)
+		assert.NotEqual(t, et, resOK.Header().Get("ETag"))
+	})
+	t.Run("Should delete idempotently", func(t *testing.T) {
+		t.Parallel()
+		_ = sendJSON(srv, http.MethodPost, "/api/v0/resources/mcp", `{"id":"m1","type":"mcp"}`)
+		res1 := httptest.NewRecorder()
+		req1 := httptest.NewRequest(http.MethodDelete, "/api/v0/resources/mcp/m1", http.NoBody)
+		srv.ServeHTTP(res1, req1)
+		require.Equal(t, http.StatusNoContent, res1.Code)
+		res2 := httptest.NewRecorder()
+		req2 := httptest.NewRequest(http.MethodDelete, "/api/v0/resources/mcp/m1", http.NoBody)
+		srv.ServeHTTP(res2, req2)
+		require.Equal(t, http.StatusNoContent, res2.Code)
+	})
+	t.Run("Should return 400 for unknown type and bad JSON", func(t *testing.T) {
+		t.Parallel()
+		res := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/api/v0/resources/unknown", strings.NewReader(`{"id":"a"}`))
+		srv.ServeHTTP(res, req)
+		require.Equal(t, http.StatusBadRequest, res.Code)
+		r2 := httptest.NewRecorder()
+		q := httptest.NewRequest(http.MethodPost, "/api/v0/resources/agent", strings.NewReader("{invalid json}"))
+		srv.ServeHTTP(r2, q)
+		require.Equal(t, http.StatusBadRequest, r2.Code)
+	})
+}
+
+func TestResourcesRouter_MissingState(t *testing.T) {
+	t.Parallel()
+	r := gin.New()
+	r.Use(infrarouter.ErrorHandler())
+	api := r.Group("/api/v0")
+	Register(api)
+	res := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/resources/agent/a1", http.NoBody)
+	r.ServeHTTP(res, req)
+	require.Equal(t, http.StatusInternalServerError, res.Code)
+}
+
+func sendJSON(srv *gin.Engine, method, path, body string) *httptest.ResponseRecorder {
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(method, path, strings.NewReader(body))
+	srv.ServeHTTP(rec, req)
+	return rec
+}
