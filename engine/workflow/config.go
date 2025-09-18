@@ -16,7 +16,6 @@ import (
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/engine/webhook"
-	"github.com/compozy/compozy/pkg/ref"
 )
 
 // TriggerType defines the type of event that can initiate workflow execution.
@@ -578,12 +577,12 @@ func (w *Config) Clone() (*Config, error) {
 	return core.DeepCopy(w)
 }
 
-func WorkflowsFromProject(projectConfig *project.Config, ev *ref.Evaluator) ([]*Config, error) {
+func WorkflowsFromProject(projectConfig *project.Config) ([]*Config, error) {
 	cwd := projectConfig.GetCWD()
 	projectEnv := projectConfig.GetEnv()
 	var ws []*Config
 	for _, wf := range projectConfig.Workflows {
-		config, err := LoadAndEval(cwd, wf.Source, ev)
+		config, err := Load(cwd, wf.Source)
 		if err != nil {
 			return nil, err
 		}
@@ -648,23 +647,9 @@ func Load(cwd *core.PathCWD, path string) (*Config, error) {
 	return config, nil
 }
 
-func LoadAndEval(cwd *core.PathCWD, path string, ev *ref.Evaluator) (*Config, error) {
-	filePath, err := core.ResolvePath(cwd, path)
-	if err != nil {
-		return nil, err
-	}
-	scope, err := core.MapFromFilePath(filePath)
-	if err != nil {
-		return nil, err
-	}
-	ev.WithLocalScope(scope)
-	config, _, err := core.LoadConfigWithEvaluator[*Config](filePath, ev)
-	if err != nil {
-		return nil, err
-	}
-	config.SetDefaults()
-	return config, nil
-}
+// LoadAndEval has been removed in favor of plain Load(). Directive-based
+// evaluation ($ref/$use/etc.) is deprecated; ID-based resolution occurs in the
+// compile/link step. Use Load() to parse workflow files and reject directives.
 
 func FindConfig(workflows []*Config, workflowID string) (*Config, error) {
 	for _, wf := range workflows {

@@ -1,11 +1,13 @@
 package core
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
-	"github.com/compozy/compozy/pkg/ref"
 	"gopkg.in/yaml.v3"
 )
 
@@ -39,48 +41,19 @@ func ResolvePath(cwd *PathCWD, path string) (string, error) {
 func LoadConfig[T Config](filePath string) (T, string, error) {
 	var zero T
 
-	file, err := os.Open(filePath)
+	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return zero, "", fmt.Errorf("failed to open config file: %w", err)
 	}
-	defer file.Close()
 
-	var config T
-	decoder := yaml.NewDecoder(file)
-	if err := decoder.Decode(&config); err != nil {
-		return zero, "", fmt.Errorf("failed to decode YAML config: %w", err)
-	}
-
-	config.SetFilePath(filePath)
-	if err := config.SetCWD(filepath.Dir(filePath)); err != nil {
+	// Pre-scan YAML to reject any directive keys starting with '$'
+	if err := rejectDollarKeys(data, filePath); err != nil {
 		return zero, "", err
 	}
 
-	return config, filePath, nil
-}
-
-func LoadConfigWithEvaluator[T Config](filePath string, ev *ref.Evaluator) (T, string, error) {
-	var zero T
-
-	file, err := os.Open(filePath)
-	if err != nil {
-		return zero, "", fmt.Errorf("failed to open config file: %w", err)
-	}
-	defer file.Close()
-
-	node, err := ref.ProcessReaderWithEvaluator(file, ev)
-	if err != nil {
-		return zero, "", fmt.Errorf("failed to process file: %w", err)
-	}
-
-	processedData, err := yaml.Marshal(node)
-	if err != nil {
-		return zero, "", fmt.Errorf("failed to marshal processed config: %w", err)
-	}
-
 	var config T
-	if err := yaml.Unmarshal(processedData, &config); err != nil {
-		return zero, "", fmt.Errorf("failed to unmarshal processed config: %w", err)
+	if err := yaml.Unmarshal(data, &config); err != nil {
+		return zero, "", fmt.Errorf("failed to decode YAML config: %w", err)
 	}
 
 	config.SetFilePath(filePath)
@@ -104,4 +77,59 @@ func MapFromFilePath(path string) (map[string]any, error) {
 	}
 
 	return itemMap, nil
+}
+
+// rejectDollarKeys scans YAML documents and returns an error when encountering
+// any mapping key that starts with '$' (e.g., $ref, $use, $merge, $ptr).
+// It preserves precise line/column information for actionable messages.
+func rejectDollarKeys(data []byte, filePath string) error {
+	dec := yaml.NewDecoder(bytes.NewReader(data))
+	for {
+		var doc yaml.Node
+		if err := dec.Decode(&doc); err != nil {
+			if err == io.EOF {
+				break
+			}
+			return fmt.Errorf("failed to parse YAML in %s: %w", filePath, err)
+		}
+		if err := walkAndReject(&doc, filePath); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func walkAndReject(n *yaml.Node, filePath string) error {
+	if n == nil {
+		return nil
+	}
+	switch n.Kind {
+	case yaml.DocumentNode, yaml.SequenceNode:
+		for _, c := range n.Content {
+			if err := walkAndReject(c, filePath); err != nil {
+				return err
+			}
+		}
+	case yaml.MappingNode:
+		for i := 0; i < len(n.Content); i += 2 {
+			key := n.Content[i]
+			val := n.Content[i+1]
+			if key != nil && key.Kind == yaml.ScalarNode && strings.HasPrefix(key.Value, "$") {
+				// Provide actionable error guiding users to ID-based syntax
+				return fmt.Errorf(
+					"%s:%d:%d: unsupported directive key '%s' detected; "+
+						"directives like $ref/$use/$merge/$ptr are deprecated. "+
+						"Use ID-based references and the compile/link step instead (see PRD: References Overhaul)",
+					filePath,
+					key.Line,
+					key.Column,
+					key.Value,
+				)
+			}
+			if err := walkAndReject(val, filePath); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }

@@ -9,7 +9,6 @@ import (
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/logger"
-	"github.com/compozy/compozy/pkg/ref"
 )
 
 // Service defines the contract for configuration loading and processing
@@ -69,27 +68,9 @@ func (s *service) LoadProject(
 		}
 	}
 
-	globalScope, err := projectConfig.AsMap()
-	if err != nil {
-		log.Error("Failed to convert project config to map", "error", err)
-		return nil, nil, nil, err
-	}
-
-	// Load workflows from sources with registry-aware evaluator
-	var evaluatorOptions []ref.EvalConfigOption
-	evaluatorOptions = append(evaluatorOptions,
-		ref.WithGlobalScope(globalScope),
-		ref.WithCacheEnabled(),
-	)
-
-	// Add resource resolver for auto-loaded configurations
-	if projectConfig.AutoLoad != nil && projectConfig.AutoLoad.Enabled {
-		resolver := &autoloadResourceResolver{registry: configRegistry}
-		evaluatorOptions = append(evaluatorOptions, ref.WithResourceResolver(resolver))
-	}
-
-	ev := ref.NewEvaluator(evaluatorOptions...)
-	workflows, err := workflow.WorkflowsFromProject(projectConfig, ev)
+	// Load workflows without directive evaluation (deprecated). Any $-prefixed
+	// keys are rejected at parse time; ID-based linking occurs in compile phase.
+	workflows, err := workflow.WorkflowsFromProject(projectConfig)
 	if err != nil {
 		log.Error("Failed to load workflows", "error", err)
 		return nil, nil, nil, err

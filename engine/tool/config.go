@@ -14,7 +14,6 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/pkg/logger"
-	"github.com/compozy/compozy/pkg/ref"
 	"github.com/tmc/langchaingo/llms"
 )
 
@@ -409,14 +408,4 @@ func Load(cwd *core.PathCWD, path string) (*Config, error) {
 // Template expressions in the configuration are evaluated using the provided evaluator.
 // This enables dynamic configuration based on environment variables and context.
 // The path is resolved relative to the provided working directory.
-func LoadAndEval(cwd *core.PathCWD, path string, ev *ref.Evaluator) (*Config, error) {
-	filePath, err := core.ResolvePath(cwd, path)
-	if err != nil {
-		return nil, err
-	}
-	config, _, err := core.LoadConfigWithEvaluator[*Config](filePath, ev)
-	if err != nil {
-		return nil, err
-	}
-	return config, nil
-}
+// LoadAndEval has been removed. Use Load() and the compile/link step instead.

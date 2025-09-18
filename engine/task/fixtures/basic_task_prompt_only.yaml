@@ -3,7 +3,6 @@
 
 id: text-analysis-prompt
 type: basic
-$use: agent(local::agents.#(id=="text-processor"))
 
 # Direct prompt without action - new capability
 prompt: "Analyze the following text for sentiment and key themes"

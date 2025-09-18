@@ -8,7 +8,6 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/schema"
-	"github.com/compozy/compozy/pkg/ref"
 	fixtures "github.com/compozy/compozy/test/fixtures"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -251,7 +250,7 @@ func Test_Config_LLMDefinition_And_Maps(t *testing.T) {
 	})
 }
 
-func Test_Config_LoadAndEval_EnvTemplate(t *testing.T) {
+func Test_Config_Load_EnvTemplate(t *testing.T) {
 	t.Parallel()
 	t.Run("Should load config with template unchanged (evaluated elsewhere)", func(t *testing.T) {
 		t.Parallel()
@@ -259,8 +258,7 @@ func Test_Config_LoadAndEval_EnvTemplate(t *testing.T) {
 		require.True(t, ok)
 		cwd, dst := fixtures.SetupConfigTest(t, filename)
 		path := filepath.Join(dst, "config_example.yaml")
-		ev := ref.NewEvaluator(ref.WithGlobalScope(map[string]any{"env": map[string]any{"API_SECRET": "sekret"}}))
-		cfg, err := LoadAndEval(cwd, path, ev)
+		cfg, err := Load(cwd, path)
 		require.NoError(t, err)
 		require.NotNil(t, cfg)
 		assert.Equal(t, "api-client", cfg.ID)

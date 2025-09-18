@@ -8,7 +8,6 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/schema"
-	"github.com/compozy/compozy/pkg/ref"
 	fixtures "github.com/compozy/compozy/test/fixtures"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,25 +21,10 @@ func setupTest(t *testing.T, workflowFile string) (*core.PathCWD, string) {
 	return cwd, dstPath
 }
 
-var globalScope = map[string]any{
-	"models": []any{
-		map[string]any{
-			"id":       "gpt-4o",
-			"provider": "openai",
-			"model":    "gpt-4o",
-			"params": map[string]any{
-				"temperature": 0.7,
-				"max_tokens":  4000,
-			},
-		},
-	},
-}
-
 func Test_LoadWorkflow(t *testing.T) {
 	t.Run("Should load basic workflow configuration correctly", func(t *testing.T) {
 		cwd, dstPath := setupTest(t, "basic_workflow.yaml")
-		ev := ref.NewEvaluator(ref.WithGlobalScope(globalScope))
-		config, err := LoadAndEval(cwd, dstPath, ev)
+		config, err := Load(cwd, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 		require.NotNil(t, config.Opts)

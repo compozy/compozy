@@ -15,7 +15,6 @@ import (
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/tool"
-	"github.com/compozy/compozy/pkg/ref"
 )
 
 type LLMProperties struct {
@@ -441,14 +440,4 @@ func Load(cwd *core.PathCWD, path string) (*Config, error) {
 // LoadAndEval loads a configuration with template evaluation support.
 // This function processes template expressions like {{.env.API_KEY}} and {{.workflow.input.value}}
 // before loading the agent configuration, enabling dynamic configuration patterns.
-func LoadAndEval(cwd *core.PathCWD, path string, ev *ref.Evaluator) (*Config, error) {
-	filePath, err := core.ResolvePath(cwd, path)
-	if err != nil {
-		return nil, err
-	}
-	config, _, err := core.LoadConfigWithEvaluator[*Config](filePath, ev)
-	if err != nil {
-		return nil, err
-	}
-	return config, nil
-}
+// LoadAndEval has been removed. Use Load() and the compile/link step instead.

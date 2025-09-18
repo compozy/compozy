@@ -83,7 +83,6 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/tool"
-	"github.com/compozy/compozy/pkg/ref"
 	"github.com/compozy/compozy/pkg/tplengine"
 	"github.com/mitchellh/mapstructure"
 )
@@ -2935,30 +2934,4 @@ func Load(cwd *core.PathCWD, path string) (*Config, error) {
 // Returns:
 //   - *Config: Parsed, evaluated, and validated task configuration
 //   - error: Any loading, evaluation, or validation errors
-func LoadAndEval(cwd *core.PathCWD, path string, ev *ref.Evaluator) (*Config, error) {
-	filePath, err := core.ResolvePath(cwd, path)
-	if err != nil {
-		return nil, err
-	}
-	scope, err := core.MapFromFilePath(filePath)
-	if err != nil {
-		return nil, err
-	}
-	ev.WithLocalScope(scope)
-	config, _, err := core.LoadConfigWithEvaluator[*Config](filePath, ev)
-	if err != nil {
-		return nil, err
-	}
-	if string(config.Type) == "" {
-		config.Type = TaskTypeBasic
-	}
-	applyDefaults(config)
-	if err := propagateCWDToSubTasks(config); err != nil {
-		return nil, err
-	}
-	if err := normalizeAttachmentsPhase1(context.TODO(), config,
-		tplengine.NewEngine(tplengine.FormatJSON), scope); err != nil {
-		return nil, err
-	}
-	return config, nil
-}
+// LoadAndEval has been removed. Use Load() and the compile/link step instead.

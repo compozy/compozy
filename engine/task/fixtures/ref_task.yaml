@@ -9,7 +9,6 @@ agents:
     instructions: You are a powerful AI coding assistant.
 
 id: code-format
-$use: agent(local::agents.#(id=="code-assistant"))
 action: format
 
 with:

@@ -10,7 +10,6 @@ import (
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/schema"
 	mcpproxy "github.com/compozy/compozy/pkg/mcp-proxy"
-	"github.com/compozy/compozy/pkg/ref"
 	fixtures "github.com/compozy/compozy/test/fixtures"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -465,11 +464,10 @@ func Test_Config_Merge_Clone_AsMap_FromMap(t *testing.T) {
 	})
 }
 
-func Test_LoadAndEval_Basic(t *testing.T) {
-	t.Run("Should load with evaluator configured", func(t *testing.T) {
+func Test_Load_Basic_WithNoEvaluator(t *testing.T) {
+	t.Run("Should load agent without evaluator", func(t *testing.T) {
 		cwd, dstPath := setupTest(t, "basic_agent.yaml")
-		ev := ref.NewEvaluator(ref.WithLocalScope(map[string]any{"x": 1}))
-		cfg, err := LoadAndEval(cwd, dstPath, ev)
+		cfg, err := Load(cwd, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, cfg)
 		assert.Equal(t, "code-assistant", cfg.ID)
