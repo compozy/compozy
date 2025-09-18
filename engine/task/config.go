@@ -191,15 +191,11 @@ type BaseConfig struct {
 	// Mutually exclusive with Tool field
 	// $ref: schema://agents
 	Agent *agent.Config `json:"agent,omitempty"      yaml:"agent,omitempty"      mapstructure:"agent,omitempty"`
-	// Explicit selector for an agent by ID (mutually exclusive with Agent)
-	AgentRef string `json:"agent_ref,omitempty"  yaml:"agent_ref,omitempty"  mapstructure:"agent_ref,omitempty"`
 	// Tool configuration for executing specific tool operations
 	// Used when the task needs to execute a predefined tool
 	// Mutually exclusive with Agent field
 	// $ref: schema://tools
 	Tool *tool.Config `json:"tool,omitempty"       yaml:"tool,omitempty"       mapstructure:"tool,omitempty"`
-	// Explicit selector for a tool by ID (mutually exclusive with Tool)
-	ToolRef string `json:"tool_ref,omitempty"   yaml:"tool_ref,omitempty"   mapstructure:"tool_ref,omitempty"`
 	// Schema definition for validating task input parameters
 	// Follows JSON Schema specification for type validation
 	// Format:
@@ -2500,17 +2496,11 @@ func (t *Config) validateBasicSelectorRules() error {
 	if t.Type != TaskTypeBasic {
 		return nil
 	}
-	hasAgent := t.Agent != nil || (t.AgentRef != "")
-	hasTool := t.Tool != nil || (t.ToolRef != "")
+	hasAgent := t.Agent != nil
+	hasTool := t.Tool != nil
+	// Enforce mutual exclusivity only; presence is enforced at compile time
 	if hasAgent && hasTool {
-		return fmt.Errorf("basic task '%s': agent(+agent_ref) and tool(+tool_ref) are mutually exclusive", t.ID)
-	}
-	// Allow neither at validation time; compile() will enforce presence before execution
-	if t.Agent != nil && t.AgentRef != "" {
-		return fmt.Errorf("basic task '%s': agent and agent_ref are mutually exclusive", t.ID)
-	}
-	if t.Tool != nil && t.ToolRef != "" {
-		return fmt.Errorf("basic task '%s': tool and tool_ref are mutually exclusive", t.ID)
+		return fmt.Errorf("basic task '%s': agent and tool are mutually exclusive", t.ID)
 	}
 	return nil
 }
@@ -2699,11 +2689,33 @@ func (t *Config) FromMap(data any) error {
 		}
 		return v, nil
 	}
+	// Extend decode hook to coerce string-form selectors to IDs for agent/tool
+	agentPtr := reflect.TypeOf(&agent.Config{})
+	toolPtr := reflect.TypeOf(&tool.Config{})
+	extendedHook := func(from reflect.Type, to reflect.Type, v any) (any, error) {
+		// Preserve existing behavior
+		if nv, err := decodeHook(from, to, v); nv != nil || err != nil {
+			return nv, err
+		}
+		// Support agent: "writer" → &agent.Config{ID:"writer"}
+		if to == agentPtr {
+			if s, ok := v.(string); ok {
+				return &agent.Config{ID: s}, nil
+			}
+		}
+		// Support tool: "fmt" → &tool.Config{ID:"fmt"}
+		if to == toolPtr {
+			if s, ok := v.(string); ok {
+				return &tool.Config{ID: s}, nil
+			}
+		}
+		return v, nil
+	}
 	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
 		WeaklyTypedInput: true,
 		Result:           &tmp,
 		TagName:          "mapstructure",
-		DecodeHook:       mapstructure.ComposeDecodeHookFunc(decodeHook),
+		DecodeHook:       mapstructure.ComposeDecodeHookFunc(extendedHook),
 	})
 	if err != nil {
 		return err

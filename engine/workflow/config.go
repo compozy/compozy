@@ -631,7 +631,10 @@ func (w *Config) Compile(ctx context.Context, proj *project.Config, store resour
 		if derr == nil {
 			compileDur.Record(ctx, dur, metric.WithAttributes(attribute.String("status", "error")))
 		}
-		return nil, fmt.Errorf("compile failed for task '%s': %w", compiled.Tasks[0].ID, err)
+		if te, ok := err.(*compileTaskError); ok {
+			return nil, fmt.Errorf("compile failed for task '%s': %w", te.id, te.err)
+		}
+		return nil, fmt.Errorf("compile failed: %w", err)
 	}
 	if cerr == nil {
 		compileCnt.Add(ctx, 1, metric.WithAttributes(attribute.String("status", "ok")))
@@ -653,16 +656,13 @@ func compileTaskRecursive(
 		return nil
 	}
 	if err := compileChildren(ctx, proj, store, t); err != nil {
-		return err
+		return withCompileTaskErr(t.ID, err)
 	}
 	if err := compileRouterInline(ctx, proj, store, t); err != nil {
-		return err
-	}
-	if err := validateBasicSelectors(t); err != nil {
-		return err
+		return withCompileTaskErr(t.ID, err)
 	}
 	if err := compileSelectors(ctx, proj, store, t); err != nil {
-		return err
+		return withCompileTaskErr(t.ID, err)
 	}
 	return nil
 }
@@ -694,8 +694,8 @@ func compileRouterInline(
 	}
 	for rk, rv := range t.Routes {
 		if m, ok := rv.(map[string]any); ok {
-			inline, err := core.FromMapDefault[task.Config](m)
-			if err != nil {
+			var inline task.Config
+			if err := inline.FromMap(m); err != nil {
 				return fmt.Errorf("router route '%s' decode failed: %w", rk, err)
 			}
 			if err := compileTaskRecursive(ctx, proj, store, &inline); err != nil {
@@ -708,26 +708,22 @@ func compileRouterInline(
 }
 
 func compileSelectors(ctx context.Context, proj *project.Config, store resources.ResourceStore, t *task.Config) error {
-	if t.AgentRef != "" {
-		resolved, err := resolveAgent(ctx, proj, store, &agent.Config{ID: t.AgentRef})
-		if err != nil {
-			return err
+	// Enforce PRD selector grammar at compile time for basic tasks
+	if t.Type == task.TaskTypeBasic {
+		hasAgent := t.Agent != nil
+		hasTool := t.Tool != nil
+		if hasAgent == hasTool { // both true or both false
+			return fmt.Errorf("task '%s' invalid selectors: exactly one of agent or tool is required", t.ID)
 		}
-		t.Agent = resolved
-	} else if t.Agent != nil {
+	}
+	if t.Agent != nil {
 		resolved, err := resolveAgent(ctx, proj, store, t.Agent)
 		if err != nil {
 			return err
 		}
 		t.Agent = resolved
 	}
-	if t.ToolRef != "" {
-		resolved, err := resolveTool(ctx, proj, store, &tool.Config{ID: t.ToolRef})
-		if err != nil {
-			return err
-		}
-		t.Tool = resolved
-	} else if t.Tool != nil {
+	if t.Tool != nil {
 		resolved, err := resolveTool(ctx, proj, store, t.Tool)
 		if err != nil {
 			return err
@@ -737,20 +733,8 @@ func compileSelectors(ctx context.Context, proj *project.Config, store resources
 	return nil
 }
 
-func validateBasicSelectors(t *task.Config) error {
-	if t.Type != task.TaskTypeBasic {
-		return nil
-	}
-	hasAgent := t.Agent != nil || (t.AgentRef != "")
-	hasTool := t.Tool != nil || (t.ToolRef != "")
-	if hasAgent == hasTool { // both true or both false
-		return fmt.Errorf(
-			"task '%s' invalid selectors: exactly one of agent/agent_ref or tool/tool_ref is required",
-			t.ID,
-		)
-	}
-	return nil
-}
+// validateBasicSelectors removed: validation is consolidated in task.Config.Validate
+// and compileSelectors enforces PRD grammar for presence.
 
 // SelectorNotFoundError signals a missing resource by type+ID
 type SelectorNotFoundError struct {
@@ -771,6 +755,22 @@ type TypeMismatchError struct {
 
 func (e *TypeMismatchError) Error() string {
 	return fmt.Sprintf("%s '%s' has incompatible type %T", string(e.Type), e.ID, e.Got)
+}
+
+// compileTaskError wraps an inner error with the task ID where it occurred.
+type compileTaskError struct {
+	id  string
+	err error
+}
+
+func (e *compileTaskError) Error() string { return e.err.Error() }
+func (e *compileTaskError) Unwrap() error { return e.err }
+
+func withCompileTaskErr(id string, err error) error {
+	if err == nil {
+		return nil
+	}
+	return &compileTaskError{id: id, err: err}
 }
 
 func resolveAgent(
@@ -798,6 +798,12 @@ func resolveAgent(
 		if err != nil {
 			return nil, fmt.Errorf("failed to clone agent '%s': %w", in.ID, err)
 		}
+		// Apply agent-level model selector if provided on the incoming selector
+		if in.Model != "" {
+			if err := applyAgentModelSelector(ctx, proj, store, clone, in.Model); err != nil {
+				return nil, err
+			}
+		}
 		fillAgentModelDefault(clone, proj)
 		log.Debug("Resolved agent selector", "agent_id", in.ID)
 		return clone, nil
@@ -806,6 +812,12 @@ func resolveAgent(
 	clone, err := in.Clone()
 	if err != nil {
 		return nil, fmt.Errorf("failed to clone inline agent '%s': %w", in.ID, err)
+	}
+	// If inline agent specifies a model selector, resolve it into the provider config
+	if in.Model != "" {
+		if err := applyAgentModelSelector(ctx, proj, store, clone, in.Model); err != nil {
+			return nil, err
+		}
 	}
 	fillAgentModelDefault(clone, proj)
 	return clone, nil
@@ -885,6 +897,99 @@ func fillAgentModelDefault(a *agent.Config, proj *project.Config) {
 	}
 }
 
+// applyAgentModelSelector resolves a model resource by ID and merges it into the
+// agent's ProviderConfig, preserving any explicitly set fields on the agent.
+func applyAgentModelSelector(
+	ctx context.Context,
+	proj *project.Config,
+	store resources.ResourceStore,
+	a *agent.Config,
+	modelID string,
+) error {
+	key := resources.ResourceKey{Project: proj.Name, Type: resources.ResourceModel, ID: modelID}
+	val, _, err := store.Get(ctx, key)
+	if err != nil {
+		if errors.Is(err, resources.ErrNotFound) {
+			return &SelectorNotFoundError{Type: resources.ResourceModel, ID: modelID}
+		}
+		return fmt.Errorf("model lookup failed for '%s': %w", modelID, err)
+	}
+	// Models are stored as *core.ProviderConfig
+	pc, ok := val.(*core.ProviderConfig)
+	if !ok {
+		return &TypeMismatchError{Type: resources.ResourceModel, ID: modelID, Got: val}
+	}
+	// Merge resolved model defaults into agent config (agent fields win)
+	mergeProviderDefaults(&a.Config, pc)
+	return nil
+}
+
+// mergeProviderDefaults copies non-set fields from src into dst.
+// Explicit values already present in dst take precedence.
+func mergeProviderDefaults(dst *core.ProviderConfig, src *core.ProviderConfig) {
+	if dst == nil || src == nil {
+		return
+	}
+	mergeProviderIdentity(dst, src)
+	mergeProviderParams(&dst.Params, &src.Params)
+	if dst.Organization == "" {
+		dst.Organization = src.Organization
+	}
+	if dst.MaxToolIterations == 0 {
+		dst.MaxToolIterations = src.MaxToolIterations
+	}
+}
+
+func mergeProviderIdentity(dst *core.ProviderConfig, src *core.ProviderConfig) {
+	if dst.Provider == "" {
+		dst.Provider = src.Provider
+	}
+	if dst.Model == "" {
+		dst.Model = src.Model
+	}
+	if dst.APIKey == "" {
+		dst.APIKey = src.APIKey
+	}
+	if dst.APIURL == "" {
+		dst.APIURL = src.APIURL
+	}
+}
+
+func mergeProviderParams(dst *core.PromptParams, src *core.PromptParams) {
+	if dst == nil || src == nil {
+		return
+	}
+	type copier struct {
+		dstSet bool
+		srcSet bool
+		do     func()
+	}
+	ops := []copier{
+		{dst.IsSetMaxTokens(), src.IsSetMaxTokens(), func() { dst.MaxTokens = src.MaxTokens }},
+		{dst.IsSetTemperature(), src.IsSetTemperature(), func() { dst.Temperature = src.Temperature }},
+		{dst.IsSetStopWords(), src.IsSetStopWords(), func() {
+			if len(src.StopWords) > 0 {
+				dst.StopWords = append([]string(nil), src.StopWords...)
+			}
+		}},
+		{dst.IsSetTopK(), src.IsSetTopK(), func() { dst.TopK = src.TopK }},
+		{dst.IsSetTopP(), src.IsSetTopP(), func() { dst.TopP = src.TopP }},
+		{dst.IsSetSeed(), src.IsSetSeed(), func() { dst.Seed = src.Seed }},
+		{dst.IsSetMinLength(), src.IsSetMinLength(), func() { dst.MinLength = src.MinLength }},
+		{
+			dst.IsSetRepetitionPenalty(),
+			src.IsSetRepetitionPenalty(),
+			func() { dst.RepetitionPenalty = src.RepetitionPenalty },
+		},
+	}
+	for i := range ops {
+		c := ops[i]
+		if !c.dstSet && c.srcSet {
+			c.do()
+		}
+	}
+}
+
 func WorkflowsFromProject(projectConfig *project.Config) ([]*Config, error) {
 	cwd := projectConfig.GetCWD()
 	projectEnv := projectConfig.GetEnv()
@@ -954,10 +1059,6 @@ func Load(cwd *core.PathCWD, path string) (*Config, error) {
 	config.SetDefaults()
 	return config, nil
 }
-
-// LoadAndEval has been removed in favor of plain Load(). Directive-based
-// evaluation ($ref/$use/etc.) is deprecated; ID-based resolution occurs in the
-// compile/link step. Use Load() to parse workflow files and reject directives.
 
 func FindConfig(workflows []*Config, workflowID string) (*Config, error) {
 	for _, wf := range workflows {

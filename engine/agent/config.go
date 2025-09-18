@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 
+	"gopkg.in/yaml.v3"
+
 	"dario.cat/mergo"
 
 	"github.com/compozy/compozy/engine/attachment"
@@ -150,6 +152,17 @@ type Config struct {
 	// This allows fields to be accessed directly on Config in YAML/JSON
 	LLMProperties `json:",inline" yaml:",inline" mapstructure:",squash"`
 
+	// Model is an optional model selector that references a model resource ID
+	// stored in the ResourceStore. When set, the compile/link step resolves
+	// this ID (e.g., "openai:gpt-4o" or "anthropic:claude-3-5-haiku-latest")
+	// to a concrete core.ProviderConfig and merges it into Config.
+	//
+	// Precedence:
+	//   - Explicit fields in Config (provider/model/params) take precedence
+	//     over the resolved model resource.
+	//   - If neither is provided, the workflow/project default model is used.
+	Model string `json:"model,omitempty" yaml:"model,omitempty" mapstructure:"model,omitempty"`
+
 	// Attachments declared at the agent scope.
 	Attachments attachment.Attachments `json:"attachments,omitempty" yaml:"attachments,omitempty" mapstructure:"attachments,omitempty"`
 
@@ -223,6 +236,30 @@ type Config struct {
 
 	filePath string
 	CWD      *core.PathCWD
+}
+
+// UnmarshalYAML supports both string-form selectors ("agent: \"writer\"") and
+// full object form. When a scalar string is provided, it is interpreted as the
+// agent ID selector (ID-only). Object form follows normal decoding.
+func (a *Config) UnmarshalYAML(value *yaml.Node) error {
+	if value == nil {
+		return nil
+	}
+	if value.Kind == yaml.ScalarNode {
+		var id string
+		if err := value.Decode(&id); err != nil {
+			return err
+		}
+		a.ID = id
+		return nil
+	}
+	type alias Config
+	var tmp alias
+	if err := value.Decode(&tmp); err != nil {
+		return err
+	}
+	*a = Config(tmp)
+	return nil
 }
 
 // Component returns the configuration type identifier for agents.

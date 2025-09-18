@@ -15,6 +15,7 @@ import (
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/tmc/langchaingo/llms"
+	"gopkg.in/yaml.v3"
 )
 
 // Config represents a tool configuration in Compozy.
@@ -180,6 +181,30 @@ type Config struct {
 	// CWD defines the working directory for tool execution.
 	// Used for resolving relative file paths and setting process working directory.
 	CWD *core.PathCWD
+}
+
+// UnmarshalYAML supports both string-form selectors ("tool: \"fmt\"") and
+// full object form. When a scalar string is provided, it is interpreted as the
+// tool ID selector (ID-only). Object form follows normal decoding.
+func (t *Config) UnmarshalYAML(value *yaml.Node) error {
+	if value == nil {
+		return nil
+	}
+	if value.Kind == yaml.ScalarNode {
+		var id string
+		if err := value.Decode(&id); err != nil {
+			return err
+		}
+		t.ID = id
+		return nil
+	}
+	type alias Config
+	var tmp alias
+	if err := value.Decode(&tmp); err != nil {
+		return err
+	}
+	*t = Config(tmp)
+	return nil
 }
 
 // Component returns the configuration type identifier for this tool config.

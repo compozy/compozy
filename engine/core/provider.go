@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 
 	"dario.cat/mergo"
+	"gopkg.in/yaml.v3"
 )
 
 // ProviderName represents the name of a supported LLM provider in the Compozy ecosystem.
@@ -111,7 +112,74 @@ type PromptParams struct {
 	// - **Recommended**: 1.0 (no penalty) to 1.2 (moderate penalty)
 	// - **Provider Support**: Primarily local models (Ollama, etc.)
 	RepetitionPenalty float64 `json:"repetition_penalty,omitempty" yaml:"repetition_penalty,omitempty" mapstructure:"repetition_penalty,omitempty"`
+	// internal presence flags (not serialized)
+	_set ppSet `json:"-"                            yaml:"-"`
 }
+
+// ppSet tracks which YAML keys were explicitly present for PromptParams.
+// This enables precise merge semantics (distinguish unset vs explicit zero).
+type ppSet struct {
+	MaxTokens         bool
+	Temperature       bool
+	StopWords         bool
+	TopK              bool
+	TopP              bool
+	Seed              bool
+	MinLength         bool
+	RepetitionPenalty bool
+}
+
+// UnmarshalYAML records which keys are present, then decodes into the struct.
+// This preserves intent for zero values during merges.
+func (p *PromptParams) UnmarshalYAML(value *yaml.Node) error {
+	if value == nil {
+		return nil
+	}
+	// Track key presence
+	var raw map[string]any
+	if err := value.Decode(&raw); err != nil {
+		return err
+	}
+	flags := ppSet{}
+	for k := range raw {
+		switch k {
+		case "max_tokens":
+			flags.MaxTokens = true
+		case "temperature":
+			flags.Temperature = true
+		case "stop_words":
+			flags.StopWords = true
+		case "top_k":
+			flags.TopK = true
+		case "top_p":
+			flags.TopP = true
+		case "seed":
+			flags.Seed = true
+		case "min_length":
+			flags.MinLength = true
+		case "repetition_penalty":
+			flags.RepetitionPenalty = true
+		}
+	}
+	type alias PromptParams
+	var tmp alias
+	if err := value.Decode(&tmp); err != nil {
+		return err
+	}
+	*p = PromptParams(tmp)
+	p._set = flags
+	return nil
+}
+
+// Presence helpers (exported via methods) for cross-package checks
+func (p *PromptParams) IsSetMaxTokens() bool         { return p._set.MaxTokens }
+func (p *PromptParams) IsSetTemperature() bool       { return p._set.Temperature }
+func (p *PromptParams) IsSetStopWords() bool         { return p._set.StopWords }
+func (p *PromptParams) IsSetTopK() bool              { return p._set.TopK }
+func (p *PromptParams) IsSetTopP() bool              { return p._set.TopP }
+func (p *PromptParams) IsSetSeed() bool              { return p._set.Seed }
+func (p *PromptParams) IsSetMinLength() bool         { return p._set.MinLength }
+func (p *PromptParams) IsSetRepetitionPenalty() bool { return p._set.RepetitionPenalty }
 
 // ProviderConfig represents the complete configuration for an LLM provider in Compozy workflows.
 // This configuration defines how agents connect to and interact with specific AI services.
