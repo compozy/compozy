@@ -8,6 +8,7 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/resources"
+	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/pkg/logger"
@@ -146,6 +147,102 @@ func TestCompile_SuggestNearestAgentIDs(t *testing.T) {
 		require.Contains(t, err.Error(), "Did you mean")
 		require.Contains(t, err.Error(), "writer")
 	})
+}
+
+func TestSchemaIDLinking_FromMap(t *testing.T) {
+	ctx := withCtx(t)
+	store := resources.NewMemoryResourceStore()
+
+	// Project with a reusable schema indexed by ID
+	proj := &project.Config{
+		Name: "proj1",
+		Schemas: []schema.Schema{
+			{
+				"id":   "my_schema",
+				"type": "object",
+				"properties": map[string]any{
+					"x": map[string]any{"type": "string"},
+				},
+				"required": []any{"x"},
+			},
+		},
+	}
+	require.NoError(t, proj.IndexToResourceStore(ctx, store))
+
+	// Tool decoded from map with input: "my_schema"
+	var tl tool.Config
+	require.NoError(t, tl.FromMap(map[string]any{
+		"id":          "t1",
+		"description": "test tool",
+		"input":       "my_schema",
+	}))
+
+	// Agent action decoded from map with input: "my_schema"
+	var act agent.ActionConfig
+	require.NoError(t, act.FromMap(map[string]any{
+		"id":        "act",
+		"prompt":    "Do something",
+		"json_mode": true,
+		"input":     "my_schema",
+	}))
+	ag := agent.Config{
+		ID:           "a1",
+		Instructions: "You are helpful",
+		Config:       core.ProviderConfig{Provider: core.ProviderOpenAI, Model: "gpt-4o-mini"},
+		Actions:      []*agent.ActionConfig{&act},
+	}
+
+	// Task decoded from map with input: "my_schema" and tool selector
+	var tTool task.Config
+	require.NoError(t, tTool.FromMap(map[string]any{
+		"id":    "t_tool",
+		"type":  string(task.TaskTypeBasic),
+		"tool":  map[string]any{"id": "t1"},
+		"input": "my_schema",
+	}))
+
+	// Second task using the agent to exercise agent action schema linking
+	tAgent := task.Config{
+		BaseConfig: task.BaseConfig{ID: "t_agent", Type: task.TaskTypeBasic, Agent: &agent.Config{ID: "a1"}},
+		BasicTask:  task.BasicTask{Action: "act"},
+	}
+
+	wf := &Config{
+		ID:     "wf_link",
+		Tools:  []tool.Config{tl},
+		Agents: []agent.Config{ag},
+		Tasks:  []task.Config{tTool, tAgent},
+	}
+
+	// Index workflow-scoped resources (agents/tools) so selectors can resolve
+	require.NoError(t, wf.IndexToResourceStore(ctx, proj.Name, store))
+
+	compiled, err := wf.Compile(ctx, proj, store)
+	require.NoError(t, err)
+	require.Len(t, compiled.Tasks, 2)
+
+	// Task-level input schema should be linked (no longer a ref)
+	ts := compiled.Tasks[0]
+	require.NotNil(t, ts.InputSchema)
+	isRef, _ := ts.InputSchema.IsRef()
+	assert.False(t, isRef)
+	assert.Equal(t, "object", (*ts.InputSchema)["type"]) // materialized schema
+
+	// Tool input schema should be linked on the resolved tool
+	require.NotNil(t, ts.Tool)
+	require.NotNil(t, ts.Tool.InputSchema)
+	isRefTool, _ := ts.Tool.InputSchema.IsRef()
+	assert.False(t, isRefTool)
+	assert.Equal(t, "object", (*ts.Tool.InputSchema)["type"])
+
+	// Agent action input schema should be linked on the resolved agent
+	ta := compiled.Tasks[1]
+	require.NotNil(t, ta.Agent)
+	require.NotEmpty(t, ta.Agent.Actions)
+	require.NotNil(t, ta.Agent.Actions[0].InputSchema)
+	isRefAct, _ := ta.Agent.Actions[0].InputSchema.IsRef()
+	assert.False(t, isRefAct)
+	assert.Equal(t, "object", (*ta.Agent.Actions[0].InputSchema)["type"])
 }
 
 func TestCompile_TaskModelPrecedence(t *testing.T) {

@@ -2,8 +2,8 @@ id: wait-task
 version: 0.1.0
 description: Simple workflow demonstrating wait task functionality
 
-config:
-  input:
+schemas:
+  - id: wait_input
     type: object
     properties:
       initial_message:
@@ -15,24 +15,28 @@ config:
       signal_name:
         type: string
         default: "ready_signal"
+  - id: echo_input
+    type: object
+    properties:
+      message:
+        type: string
+        description: Message to echo
+    required:
+      - message
+
+config:
+  input: wait_input
 
 tools:
   - id: echo_tool
     description: Simple echo tool for testing
-    input:
-      type: object
-      properties:
-        message:
-          type: string
-          description: Message to echo
-      required:
-        - message
+    input: echo_input
 
 tasks:
   # Initial task before waiting
   - id: initial_step
     type: basic
-    $use: tool(local::tools.#(id="echo_tool"))
+    tool: echo_tool
     with:
       message: "{{ .workflow.input.initial_message }}"
     on_success:
@@ -45,7 +49,7 @@ tasks:
     condition: 'signal.payload.status == "ready"'
     timeout: "5m"
     processor:
-      $use: tool(local::tools.#(id="echo_tool"))
+      tool: echo_tool
       with:
         message: "Processing signal: {{ .signal.payload.status }}"
     on_success:
@@ -54,7 +58,7 @@ tasks:
   # Final task after condition is met
   - id: final_step
     type: basic
-    $use: tool(local::tools.#(id="echo_tool"))
+    tool: echo_tool
     with:
       message: "Wait condition satisfied! Signal received from wait task."
 

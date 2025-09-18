@@ -16,8 +16,7 @@ schemas:
       - repository
 
 config:
-  input:
-    $ref: local::schemas.#(id=="repo_input")
+  input: repo_input
 
 mcps:
   - id: github
@@ -65,7 +64,7 @@ agents:
 tasks:
   - id: latest_pr
     type: basic
-    $use: agent(local::agents.#(id="github_assistant"))
+    agent: github_assistant
     action: get_last_pull_request
     with:
       repository: "{{ .workflow.input.repository }}"

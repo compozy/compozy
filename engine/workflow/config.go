@@ -620,9 +620,12 @@ func (w *Config) Compile(ctx context.Context, proj *project.Config, store resour
 	if err != nil {
 		return nil, fmt.Errorf("failed to clone workflow '%s': %w", w.ID, err)
 	}
-	for i := range compiled.Tasks {
-		if err = compileTaskRecursive(ctx, proj, store, &compiled.Tasks[i]); err != nil {
-			break
+	// Link workflow-scoped schema references (config input, triggers)
+	if err = linkWorkflowSchemas(ctx, proj, store, compiled); err == nil {
+		for i := range compiled.Tasks {
+			if err = compileTaskRecursive(ctx, proj, store, &compiled.Tasks[i]); err != nil {
+				break
+			}
 		}
 	}
 	dur := time.Since(started).Seconds()
@@ -656,6 +659,10 @@ func compileTaskRecursive(
 ) error {
 	if t == nil {
 		return nil
+	}
+	// Link task-level schema references
+	if err := linkTaskSchemas(ctx, proj, store, t); err != nil {
+		return withCompileTaskErr(t.ID, err)
 	}
 	if err := compileChildren(ctx, proj, store, t); err != nil {
 		return withCompileTaskErr(t.ID, err)
@@ -823,6 +830,10 @@ func resolveAgent(
 			}
 		}
 		fillAgentModelDefault(clone, proj)
+		// Link schemas within agent actions if any
+		if err := linkAgentSchemas(ctx, proj, store, clone); err != nil {
+			return nil, err
+		}
 		log.Debug("Resolved agent selector", "agent_id", in.ID)
 		return clone, nil
 	}
@@ -838,6 +849,9 @@ func resolveAgent(
 		}
 	}
 	fillAgentModelDefault(clone, proj)
+	if err := linkAgentSchemas(ctx, proj, store, clone); err != nil {
+		return nil, err
+	}
 	return clone, nil
 }
 
@@ -870,12 +884,189 @@ func resolveTool(
 		if err != nil {
 			return nil, fmt.Errorf("failed to clone tool '%s': %w", in.ID, err)
 		}
+		if err := linkToolSchemas(ctx, proj, store, clone); err != nil {
+			return nil, err
+		}
 		log.Debug("Resolved tool selector", "tool_id", in.ID)
 		return clone, nil
 	}
 	clone, err := in.Clone()
 	if err != nil {
 		return nil, fmt.Errorf("failed to clone inline tool '%s': %w", in.ID, err)
+	}
+	if err := linkToolSchemas(ctx, proj, store, clone); err != nil {
+		return nil, err
+	}
+	return clone, nil
+}
+
+// linkWorkflowSchemas resolves schema ID references in workflow config input and triggers.
+func linkWorkflowSchemas(ctx context.Context, proj *project.Config, store resources.ResourceStore, w *Config) error {
+	if w == nil {
+		return nil
+	}
+	if w.Opts.InputSchema != nil {
+		if isRef, id := w.Opts.InputSchema.IsRef(); isRef {
+			sc, err := fetchSchema(ctx, proj, store, id)
+			if err != nil {
+				return fmt.Errorf("workflow '%s' input schema '%s' lookup failed: %w", w.ID, id, err)
+			}
+			w.Opts.InputSchema = sc
+		}
+	}
+	for i := range w.Triggers {
+		t := &w.Triggers[i]
+		if t.Schema != nil {
+			if isRef, id := t.Schema.IsRef(); isRef {
+				sc, err := fetchSchema(ctx, proj, store, id)
+				if err != nil {
+					return fmt.Errorf("trigger '%s' schema '%s' lookup failed: %w", t.Name, id, err)
+				}
+				t.Schema = sc
+			}
+		}
+		if t.Webhook != nil {
+			// Webhook events may also carry schemas; link them here
+			for ei := range t.Webhook.Events {
+				e := &t.Webhook.Events[ei]
+				if e.Schema != nil {
+					if isRef, id := e.Schema.IsRef(); isRef {
+						sc, err := fetchSchema(ctx, proj, store, id)
+						if err != nil {
+							return fmt.Errorf("webhook event '%s' schema '%s' lookup failed: %w", e.Name, id, err)
+						}
+						e.Schema = sc
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// linkTaskSchemas resolves schema ID references on task-level input/output.
+func linkTaskSchemas(ctx context.Context, proj *project.Config, store resources.ResourceStore, t *task.Config) error {
+	if t == nil {
+		return nil
+	}
+	if t.InputSchema != nil {
+		if isRef, id := t.InputSchema.IsRef(); isRef {
+			sc, err := fetchSchema(ctx, proj, store, id)
+			if err != nil {
+				return fmt.Errorf("task '%s' input schema '%s' lookup failed: %w", t.ID, id, err)
+			}
+			t.InputSchema = sc
+		}
+	}
+	if t.OutputSchema != nil {
+		if isRef, id := t.OutputSchema.IsRef(); isRef {
+			sc, err := fetchSchema(ctx, proj, store, id)
+			if err != nil {
+				return fmt.Errorf("task '%s' output schema '%s' lookup failed: %w", t.ID, id, err)
+			}
+			t.OutputSchema = sc
+		}
+	}
+	return nil
+}
+
+// linkToolSchemas resolves schema ID references on tool input/output.
+func linkToolSchemas(ctx context.Context, proj *project.Config, store resources.ResourceStore, tl *tool.Config) error {
+	if tl == nil {
+		return nil
+	}
+	if tl.InputSchema != nil {
+		if isRef, id := tl.InputSchema.IsRef(); isRef {
+			sc, err := fetchSchema(ctx, proj, store, id)
+			if err != nil {
+				return fmt.Errorf("tool '%s' input schema '%s' lookup failed: %w", tl.ID, id, err)
+			}
+			tl.InputSchema = sc
+		}
+	}
+	if tl.OutputSchema != nil {
+		if isRef, id := tl.OutputSchema.IsRef(); isRef {
+			sc, err := fetchSchema(ctx, proj, store, id)
+			if err != nil {
+				return fmt.Errorf("tool '%s' output schema '%s' lookup failed: %w", tl.ID, id, err)
+			}
+			tl.OutputSchema = sc
+		}
+	}
+	return nil
+}
+
+// linkAgentSchemas resolves schema ID references on agent actions.
+func linkAgentSchemas(ctx context.Context, proj *project.Config, store resources.ResourceStore, a *agent.Config) error {
+	if a == nil {
+		return nil
+	}
+	for i := range a.Actions {
+		ac := a.Actions[i]
+		if ac == nil {
+			continue
+		}
+		if ac.InputSchema != nil {
+			if isRef, id := ac.InputSchema.IsRef(); isRef {
+				sc, err := fetchSchema(ctx, proj, store, id)
+				if err != nil {
+					return fmt.Errorf(
+						"agent '%s' action '%s' input schema '%s' lookup failed: %w",
+						a.ID,
+						ac.ID,
+						id,
+						err,
+					)
+				}
+				ac.InputSchema = sc
+			}
+		}
+		if ac.OutputSchema != nil {
+			if isRef, id := ac.OutputSchema.IsRef(); isRef {
+				sc, err := fetchSchema(ctx, proj, store, id)
+				if err != nil {
+					return fmt.Errorf(
+						"agent '%s' action '%s' output schema '%s' lookup failed: %w",
+						a.ID,
+						ac.ID,
+						id,
+						err,
+					)
+				}
+				ac.OutputSchema = sc
+			}
+		}
+	}
+	return nil
+}
+
+// fetchSchema loads a schema by ID from the ResourceStore and returns a deep copy.
+func fetchSchema(
+	ctx context.Context,
+	proj *project.Config,
+	store resources.ResourceStore,
+	id string,
+) (*schema.Schema, error) {
+	key := resources.ResourceKey{Project: proj.Name, Type: resources.ResourceSchema, ID: id}
+	val, _, err := store.Get(ctx, key)
+	if err != nil {
+		if errors.Is(err, resources.ErrNotFound) {
+			return nil, &SelectorNotFoundError{
+				Type:       resources.ResourceSchema,
+				ID:         id,
+				Project:    proj.Name,
+				Candidates: nearestIDs(ctx, store, proj.Name, resources.ResourceSchema, id),
+			}
+		}
+		return nil, fmt.Errorf("schema lookup failed for '%s': %w", id, err)
+	}
+	sc, ok := val.(*schema.Schema)
+	if !ok {
+		return nil, &TypeMismatchError{Type: resources.ResourceSchema, ID: id, Got: val}
+	}
+	clone, err := sc.Clone()
+	if err != nil {
+		return nil, fmt.Errorf("failed to clone schema '%s': %w", id, err)
 	}
 	return clone, nil
 }

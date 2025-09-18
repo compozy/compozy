@@ -2,8 +2,8 @@ id: basic-memory
 version: 0.1.0
 description: Simple conversational agent that remembers user information
 
-config:
-  input:
+schemas:
+  - id: conversation_input
     type: object
     properties:
       user_id:
@@ -17,34 +17,39 @@ config:
     required:
       - user_id
       - message
+  - id: memory_tool_input
+    type: object
+    properties:
+      operation:
+        type: string
+        enum:
+          - read
+          - append
+        description: Memory operation to perform
+      memory_key:
+        type: string
+        description: Memory key to operate on
+      message:
+        type: string
+        description: Message to append (for append operation)
+    required:
+      - operation
+
+config:
+  input: conversation_input
 
 tools:
   - id: memory_tool
     description: Memory operations for conversation history
-    input:
-      type: object
-      properties:
-        operation:
-          type: string
-          enum:
-            - "read"
-            - "append"
-          description: Memory operation to perform
-        memory_key:
-          type: string
-          description: Memory key to operate on
-        message:
-          type: string
-          description: Message to append (for append operation)
-      required:
-        - operation
+    input: memory_tool_input
 
 agents:
   - id: conversation_agent
+    model: groq:llama-3.3-70b-versatile
     config:
-      $ref: global::models.#(provider=="groq")
-      temperature: 0.7
-      max_tokens: 500
+      params:
+        temperature: 0.7
+        max_tokens: 500
     memory:
       - id: user_memory
         key: "user:{{.workflow.input.user_id}}"
@@ -83,7 +88,7 @@ tasks:
   # Load previous conversation from memory
   - id: load_memory
     type: basic
-    $use: tool(local::tools.#(id="memory_tool"))
+    tool: memory_tool
     with:
       operation: "read"
       memory_key: "user:{{ .workflow.input.user_id }}"
@@ -93,7 +98,7 @@ tasks:
   # Chat with the user
   - id: chat
     type: basic
-    $use: agent(local::agents.#(id="conversation_agent"))
+    agent: conversation_agent
     action: chat
     on_success:
       next: save_memory
@@ -101,7 +106,7 @@ tasks:
   # Save the conversation to memory
   - id: save_memory
     type: basic
-    $use: tool(local::tools.#(id="memory_tool"))
+    tool: memory_tool
     with:
       operation: "append"
       memory_key: "user:{{ .workflow.input.user_id }}"

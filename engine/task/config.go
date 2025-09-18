@@ -2715,7 +2715,7 @@ func (t *Config) FromMap(data any) error {
 		WeaklyTypedInput: true,
 		Result:           &tmp,
 		TagName:          "mapstructure",
-		DecodeHook:       mapstructure.ComposeDecodeHookFunc(extendedHook),
+		DecodeHook:       mapstructure.ComposeDecodeHookFunc(extendedHook, core.StringToMapAliasPtrHook),
 	})
 	if err != nil {
 		return err

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 
 	"github.com/mitchellh/mapstructure"
 )
@@ -63,10 +64,49 @@ func FromMapDefault[T any](data any) (T, error) {
 		WeaklyTypedInput: true,
 		Result:           &config,
 		TagName:          "mapstructure", // Use mapstructure tags as per project standard
+		DecodeHook:       mapstructure.ComposeDecodeHookFunc(StringToMapAliasPtrHook),
 	})
 	if err != nil {
 		return config, err
 	}
 
 	return config, decoder.Decode(data)
+}
+
+// stringToMapAliasPtrHook converts a scalar string into a pointer to any
+// named map type whose underlying type is map[string]any. This enables
+// mapstructure to accept string IDs for alias types like *schema.Schema
+// when decoding from generic maps (e.g., router inline routes), aligning
+// behavior with YAML unmarshalling which already supports scalar schema IDs.
+//
+// The hook creates a new map value and sets a reserved key "__schema_ref__"
+// to the provided string. The schema linker later interprets this sentinel
+// as a schema ID to resolve. This avoids an import cycle with the schema
+// package while maintaining consistent semantics across decoders.
+// StringToMapAliasPtrHook is exported for reuse.
+func StringToMapAliasPtrHook(from reflect.Type, to reflect.Type, data any) (any, error) {
+	if from.Kind() != reflect.String {
+		return data, nil
+	}
+	// Expect pointer to a named map type with map[string]any underlying
+	if to.Kind() != reflect.Ptr {
+		return data, nil
+	}
+	elem := to.Elem()
+	if elem.Kind() != reflect.Map {
+		return data, nil
+	}
+	if elem.Key().Kind() != reflect.String || elem.Elem().Kind() != reflect.Interface {
+		return data, nil
+	}
+	// Construct map and set sentinel reference
+	id, ok := data.(string)
+	if !ok {
+		return data, nil
+	}
+	m := reflect.MakeMap(elem)
+	m.SetMapIndex(reflect.ValueOf("__schema_ref__"), reflect.ValueOf(id))
+	ptr := reflect.New(elem)
+	ptr.Elem().Set(m)
+	return ptr.Interface(), nil
 }

@@ -13,14 +13,12 @@ schemas:
       - city
 
 config:
-  input:
-    $ref: local::schemas.#(id=="city_input")
+  input: city_input
 
 tools:
   - id: weather_tool
     description: Get the current weather for a specific location
-    input:
-      $ref: local::schemas.#(id=="city_input")
+    input: city_input
   - id: save_data
     description: Save the weather data to a file
 
@@ -109,7 +107,7 @@ agents:
 tasks:
   - id: weather
     type: basic
-    $use: agent(local::agents.#(id="tourist_guide"))
+    agent: tourist_guide
     action: get_weather
     with:
       city: "{{ .workflow.input.city }}"
@@ -124,7 +122,7 @@ tasks:
 
   - id: activities
     type: basic
-    $use: agent(local::agents.#(id="tourist_guide"))
+    agent: tourist_guide
     action: suggest_activities
     on_success:
       next: activity_analysis
@@ -136,7 +134,7 @@ tasks:
     task:
       id: "analyze-activity-{{ .index }}"
       type: basic
-      $use: agent(local::agents.#(id="tourist_guide"))
+      agent: tourist_guide
       action: analyze_activity
       outputs:
         activity: "{{ .item }}"
@@ -149,7 +147,7 @@ tasks:
 
   - id: clothing
     type: basic
-    $use: agent(local::agents.#(id="tourist_guide"))
+    agent: tourist_guide
     action: suggest_clothing
     outputs:
       save_data:
@@ -168,7 +166,7 @@ tasks:
     task:
       id: "validate-clothing-{{ .index }}"
       type: basic
-      $use: agent(local::agents.#(id="tourist_guide"))
+      agent: tourist_guide
       action: validate_clothing
       outputs:
         clothing_item: "{{ .item }}"
@@ -195,10 +193,8 @@ tasks:
     type: router
     condition: '{{ .tasks.clothing.output.save_data.clothing | empty | ternary "no_clothes" "has_clothes" }}'
     routes:
-      has_clothes:
-        $ref: local::tasks.#(id="save_results")
-      no_clothes:
-        $ref: local::tasks.#(id="no_results")
+      has_clothes: save_results
+      no_clothes: no_results
 
   - id: save_results
     type: composite
@@ -206,20 +202,20 @@ tasks:
     tasks:
       - id: save_json
         type: basic
-        $use: tool(local::tools.#(id="save_data"))
+        tool: save_data
         with:
           payload: "{{ .tasks.aggr.output }}"
           format: "json"
       - id: save_txt
         type: basic
-        $use: tool(local::tools.#(id="save_data"))
+        tool: save_data
         with:
           payload: "{{ .tasks.aggr.output }}"
           format: "txt"
 
   - id: no_results
     type: basic
-    $use: tool(local::tools.#(id="save_data"))
+    tool: save_data
     final: true
     with:
       payload: "{{ .tasks.aggr.output }}"
