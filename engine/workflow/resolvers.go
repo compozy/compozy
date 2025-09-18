@@ -7,6 +7,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/adrg/strutil"
+	"github.com/adrg/strutil/metrics"
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/project"
@@ -440,24 +442,36 @@ func nearestIDs(
 
 func rankAndSelectTopIDs(target string, ids []string, limit int) []string {
 	type cand struct {
-		id    string
-		score int
+		id     string
+		prefix bool
+		jwsim  float64
+		lev    int
 	}
 	cands := make([]cand, 0, len(ids))
 	lower := strings.ToLower(target)
+	jw := metrics.NewJaroWinkler()
+	levm := metrics.NewLevenshtein()
 	for _, id := range ids {
 		s := strings.ToLower(id)
+		c := cand{id: id}
 		if strings.HasPrefix(s, lower) {
-			cands = append(cands, cand{id: id, score: 0})
-			continue
+			c.prefix = true
 		}
-		cands = append(cands, cand{id: id, score: levenshtein(lower, s)})
+		c.jwsim = strutil.Similarity(lower, s, jw)
+		c.lev = levm.Distance(lower, s)
+		cands = append(cands, c)
 	}
 	sort.Slice(cands, func(i, j int) bool {
-		if cands[i].score == cands[j].score {
-			return cands[i].id < cands[j].id
+		if cands[i].prefix != cands[j].prefix {
+			return cands[i].prefix && !cands[j].prefix
 		}
-		return cands[i].score < cands[j].score
+		if cands[i].jwsim != cands[j].jwsim {
+			return cands[i].jwsim > cands[j].jwsim
+		}
+		if cands[i].lev != cands[j].lev {
+			return cands[i].lev < cands[j].lev
+		}
+		return cands[i].id < cands[j].id
 	})
 	if len(cands) < limit {
 		limit = len(cands)
@@ -469,45 +483,4 @@ func rankAndSelectTopIDs(target string, ids []string, limit int) []string {
 	return out
 }
 
-// levenshtein computes Levenshtein edit distance between a and b.
-func levenshtein(a, b string) int {
-	if a == b {
-		return 0
-	}
-	la := len(a)
-	lb := len(b)
-	if la == 0 {
-		return lb
-	}
-	if lb == 0 {
-		return la
-	}
-	prev := make([]int, lb+1)
-	curr := make([]int, lb+1)
-	for j := 0; j <= lb; j++ {
-		prev[j] = j
-	}
-	for i := 1; i <= la; i++ {
-		curr[0] = i
-		ai := a[i-1]
-		for j := 1; j <= lb; j++ {
-			cost := 0
-			if ai != b[j-1] {
-				cost = 1
-			}
-			del := prev[j] + 1
-			ins := curr[j-1] + 1
-			sub := prev[j-1] + cost
-			m := del
-			if ins < m {
-				m = ins
-			}
-			if sub < m {
-				m = sub
-			}
-			curr[j] = m
-		}
-		prev, curr = curr, prev
-	}
-	return prev[lb]
-}
+// removed local Levenshtein in favor of github.com/adrg/strutil/metrics
