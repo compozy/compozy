@@ -39,7 +39,7 @@ func TestCollectionTask_CodeReviewer(t *testing.T) {
 func createCodeReviewerTestAgent() *agent.Config {
 	return &agent.Config{
 		ID:           "analyzer",
-		Config:       core.ProviderConfig{Provider: core.ProviderMock, Model: "test-model"},
+		Model:        agent.Model{Config: core.ProviderConfig{Provider: core.ProviderMock, Model: "test-model"}},
 		Instructions: "Test agent for code reviewer",
 		Actions: []*agent.ActionConfig{
 			{

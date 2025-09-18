@@ -84,7 +84,7 @@ filter: "{{ ne .item.status 'inactive' }}"
 # Task template applied to each item
 task:
   id: "process-user-{{ .index }}"
-  $use: agent(local::agents.#(id=="user-processor"))
+  agent: user-processor
   action: process_user
   with:
     user_id: "{{ .item.id }}"
@@ -111,7 +111,7 @@ items: "{{ .workflow.input.documents }}"
 
 task:
   id: "process-doc-{{ .index }}"
-  $use: tool(local::tools.#(id=="document-processor"))
+  tool: document-processor
   with:
     document: "{{ .item }}"
     sequence_number: "{{ .index }}"
@@ -127,7 +127,7 @@ items: "{{ .workflow.input.images }}"
 
 task:
   id: "process-image-{{ .index }}"
-  $use: tool(local::tools.#(id=="image-processor"))
+  tool: image-processor
   with:
     image: "{{ .item }}"
     parallel_index: "{{ .index }}"
@@ -142,7 +142,7 @@ items: "{{ .workflow.input.records }}"
 
 task:
   id: "process-batch-{{ .batch_index }}"
-  $use: tool(local::tools.#(id=="batch-processor"))
+  tool: batch-processor
   with:
     records: "{{ .batch }}"
     batch_number: "{{ .batch_index }}"
@@ -161,7 +161,7 @@ filter: "{{ eq .item.status 'pending' }}"
 
 task:
   id: "process-order-{{ .index }}"
-  $use: agent(local::agents.#(id=="order-processor"))
+  agent: order-processor
   action: process_order
   with:
     order: "{{ .item }}"
@@ -175,7 +175,7 @@ filter: "{{ and (ne .item.status 'inactive') (gt .item.age 18) (ne .item.email '
 
 task:
   id: "process-user-{{ .index }}"
-  $use: agent(local::agents.#(id=="user-processor"))
+  agent: user-processor
   action: process_adult_user
   with:
     user: "{{ .item }}"
@@ -189,7 +189,7 @@ filter: "{{ and (gt .item.date '2024-01-01') (lt .item.date '2024-12-31') }}"
 
 task:
   id: "process-event-{{ .index }}"
-  $use: tool(local::tools.#(id=="event-processor"))
+  tool: event-processor
   with:
     event: "{{ .item }}"
     year: "2024"
@@ -209,7 +209,7 @@ items: "{{ .workflow.input.large_dataset }}"
 
 task:
   id: "process-batch-{{ .batch_index }}"
-  $use: tool(local::tools.#(id=="batch-processor"))
+  tool: batch-processor
   with:
     batch: "{{ .batch }}"
     batch_size: "{{ len .batch }}"
@@ -225,7 +225,7 @@ items: "{{ .workflow.input.items }}"
 
 task:
   id: "process-batch-{{ .batch_index }}"
-  $use: agent(local::agents.#(id=="batch-processor"))
+  agent: batch-processor
   action: process_batch
   with:
     items: "{{ .batch }}"
@@ -245,7 +245,7 @@ items: "{{ .workflow.input.time_series }}"
 
 task:
   id: "analyze-window-{{ .batch_index }}"
-  $use: agent(local::agents.#(id=="time-series-analyzer"))
+  agent: time-series-analyzer
   action: analyze_window
   with:
     window_data: "{{ .batch }}"
@@ -267,7 +267,7 @@ index_var: idx        # Custom variable name for current index
 
 task:
   id: "process-product-{{ .idx }}"
-  $use: agent(local::agents.#(id=="product-processor"))
+  agent: product-processor
   action: process_product
   with:
     # Access current item
@@ -296,7 +296,7 @@ items: "{{ .workflow.input.tasks }}"
 
 task:
   id: "execute-task-{{ .index }}"
-  $use: tool(local::tools.#(id=="task-executor"))
+  tool: task-executor
   with:
     task_definition: "{{ .item }}"
     execution_order: "{{ .index }}"
@@ -386,7 +386,7 @@ filter: |
 
 task:
   id: "process-transaction-{{ .index }}"
-  $use: agent(local::agents.#(id=="transaction-processor"))
+  agent: transaction-processor
   action: process_transaction
   with:
     transaction: "{{ .item }}"
@@ -438,7 +438,7 @@ task:
   task:
     id: "process-employee-{{ .parent_index }}-{{ .index }}"
     type: basic
-    $use: agent(local::agents.#(id=="employee-processor"))
+    agent: employee-processor
     action: process_employee
     with:
       employee: "{{ .item }}"

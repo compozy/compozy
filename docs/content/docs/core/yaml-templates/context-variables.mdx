@@ -312,7 +312,7 @@ available_env: "{{ keys .env | join ', ' }}"
 ```yaml title="Basic Task Context"
 - id: api_request
   type: basic
-  $use: tool(local::tools.#(id=="http_client"))
+  tool: http_client
   with:
     # Workflow input
     url: "{{ .workflow.input.api_endpoint }}"

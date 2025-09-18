@@ -94,10 +94,10 @@ func TestRuntimeProcessor_ProcessItemConfig(t *testing.T) {
 		baseConfig.Agent = &agent.Config{
 			ID:           "test-agent",
 			Instructions: "Process: {{.item.prompt}}",
-			Config: core.ProviderConfig{
+			Model: agent.Model{Config: core.ProviderConfig{
 				Provider: "{{.item.provider}}",
 				Model:    "{{.item.model}}",
-			},
+			}},
 		}
 
 		itemContext := map[string]any{
@@ -112,8 +112,8 @@ func TestRuntimeProcessor_ProcessItemConfig(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, result.Agent)
 		assert.Equal(t, "Process: analyze data", result.Agent.Instructions)
-		assert.Equal(t, core.ProviderName("openai"), result.Agent.Config.Provider)
-		assert.Equal(t, "gpt-4", result.Agent.Config.Model)
+		assert.Equal(t, core.ProviderName("openai"), result.Agent.Model.Config.Provider)
+		assert.Equal(t, "gpt-4", result.Agent.Model.Config.Model)
 	})
 
 	t.Run("Should process tool configuration templates with nested parameters", func(t *testing.T) {
@@ -549,10 +549,7 @@ func TestRuntimeProcessor_EdgeCases(t *testing.T) {
 		baseConfig.Agent = &agent.Config{
 			ID:           "test-agent",
 			Instructions: "Process item",
-			Config: core.ProviderConfig{
-				Provider: "openai",
-				Model:    "gpt-4",
-			},
+			Model:        agent.Model{Config: core.ProviderConfig{Provider: "openai", Model: "gpt-4"}},
 			Actions: []*agent.ActionConfig{
 				{
 					ID:     "action1",
@@ -688,10 +685,7 @@ func TestRuntimeProcessor_EdgeCases(t *testing.T) {
 		baseConfig.Agent = &agent.Config{
 			ID:           "test-agent",
 			Instructions: "Process",
-			Config: core.ProviderConfig{
-				Provider: "openai",
-				Model:    "gpt-4",
-			},
+			Model:        agent.Model{Config: core.ProviderConfig{Provider: "openai", Model: "gpt-4"}},
 			LLMProperties: agent.LLMProperties{
 				Tools: []tool.Config{
 					{

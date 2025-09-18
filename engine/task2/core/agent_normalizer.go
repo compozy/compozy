@@ -240,7 +240,9 @@ func (n *AgentNormalizer) normalizeAgentActions(
 				"id":           config.ID,
 				"input":        config.With,
 				"instructions": config.Instructions,
-				"config":       config.Config,
+				// Keep key name `config` for backward template compatibility,
+				// but now it carries the resolved provider configuration.
+				"config": config.Model.Config,
 			},
 			CurrentInput:  aConfig.With,
 			MergedEnv:     ctx.MergedEnv,

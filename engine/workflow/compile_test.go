@@ -31,7 +31,9 @@ func TestCompile_ResolveAgentSelector(t *testing.T) {
 		a := &agent.Config{
 			ID:           "writer",
 			Instructions: "You are a writer.",
-			Config:       core.ProviderConfig{Provider: core.ProviderAnthropic, Model: "claude-3-haiku"},
+			Model: agent.Model{
+				Config: core.ProviderConfig{Provider: core.ProviderAnthropic, Model: "claude-3-haiku"},
+			},
 		}
 		_, err := store.Put(ctx, resources.ResourceKey{Project: "demo", Type: resources.ResourceAgent, ID: "writer"}, a)
 		require.NoError(t, err)
@@ -47,14 +49,14 @@ func TestCompile_ResolveAgentSelector(t *testing.T) {
 		got := compiled.Tasks[0].Agent
 		require.NotNil(t, got)
 		assert.Equal(t, "writer", got.ID)
-		assert.Equal(t, core.ProviderAnthropic, got.Config.Provider)
-		assert.Equal(t, "claude-3-haiku", got.Config.Model)
+		assert.Equal(t, core.ProviderAnthropic, got.Model.Config.Provider)
+		assert.Equal(t, "claude-3-haiku", got.Model.Config.Model)
 		// Ensure deep copy (mutate compiled copy should not affect store value)
-		got.Config.Model = "modified"
+		got.Model.Config.Model = "modified"
 		v, _, err := store.Get(ctx, resources.ResourceKey{Project: "demo", Type: resources.ResourceAgent, ID: "writer"})
 		require.NoError(t, err)
 		original := v.(*agent.Config)
-		assert.Equal(t, "claude-3-haiku", original.Config.Model)
+		assert.Equal(t, "claude-3-haiku", original.Model.Config.Model)
 	})
 }
 
@@ -125,12 +127,16 @@ func TestCompile_SuggestNearestAgentIDs(t *testing.T) {
 		a1 := &agent.Config{
 			ID:           "writer",
 			Instructions: "You are a writer.",
-			Config:       core.ProviderConfig{Provider: core.ProviderAnthropic, Model: "claude-3-haiku"},
+			Model: agent.Model{
+				Config: core.ProviderConfig{Provider: core.ProviderAnthropic, Model: "claude-3-haiku"},
+			},
 		}
 		a2 := &agent.Config{
 			ID:           "writer_pro",
 			Instructions: "Pro writer.",
-			Config:       core.ProviderConfig{Provider: core.ProviderAnthropic, Model: "claude-3-sonnet"},
+			Model: agent.Model{
+				Config: core.ProviderConfig{Provider: core.ProviderAnthropic, Model: "claude-3-sonnet"},
+			},
 		}
 		_, err := store.Put(ctx, resources.ResourceKey{Project: "demo", Type: resources.ResourceAgent, ID: a1.ID}, a1)
 		require.NoError(t, err)
@@ -188,7 +194,7 @@ func TestSchemaIDLinking_FromMap(t *testing.T) {
 	ag := agent.Config{
 		ID:           "a1",
 		Instructions: "You are helpful",
-		Config:       core.ProviderConfig{Provider: core.ProviderOpenAI, Model: "gpt-4o-mini"},
+		Model:        agent.Model{Config: core.ProviderConfig{Provider: core.ProviderOpenAI, Model: "gpt-4o-mini"}},
 		Actions:      []*agent.ActionConfig{&act},
 	}
 
@@ -253,7 +259,7 @@ func TestCompile_TaskModelPrecedence(t *testing.T) {
 		defaultAgent := &agent.Config{
 			ID:           "writer",
 			Instructions: "You are a writer.",
-			Config:       core.ProviderConfig{Provider: core.ProviderOpenAI, Model: "gpt-4o"},
+			Model:        agent.Model{Config: core.ProviderConfig{Provider: core.ProviderOpenAI, Model: "gpt-4o"}},
 		}
 		_, err := store.Put(
 			ctx,
@@ -275,7 +281,7 @@ func TestCompile_TaskModelPrecedence(t *testing.T) {
 					BaseConfig: task.BaseConfig{
 						ID:    "t1",
 						Type:  task.TaskTypeBasic,
-						Agent: &agent.Config{ID: "writer", Model: "fast"},
+						Agent: &agent.Config{ID: "writer", Model: agent.Model{Ref: "fast"}},
 					},
 				},
 			},
@@ -284,8 +290,8 @@ func TestCompile_TaskModelPrecedence(t *testing.T) {
 		require.NoError(t, err)
 		got := compiled.Tasks[0].Agent
 		require.NotNil(t, got)
-		assert.Equal(t, core.ProviderAnthropic, got.Config.Provider)
-		assert.Equal(t, "claude-3-5-haiku", got.Config.Model)
+		assert.Equal(t, core.ProviderAnthropic, got.Model.Config.Provider)
+		assert.Equal(t, "claude-3-5-haiku", got.Model.Config.Model)
 	})
 }
 
@@ -318,7 +324,7 @@ func TestCompile_SuggestNearestModelIDs(t *testing.T) {
 		a := &agent.Config{
 			ID:           "writer",
 			Instructions: "You are a writer.",
-			Config:       core.ProviderConfig{Provider: core.ProviderOpenAI, Model: "gpt-4o"},
+			Model:        agent.Model{Config: core.ProviderConfig{Provider: core.ProviderOpenAI, Model: "gpt-4o"}},
 		}
 		_, err := store.Put(ctx, resources.ResourceKey{Project: "demo", Type: resources.ResourceAgent, ID: a.ID}, a)
 		require.NoError(t, err)
@@ -336,7 +342,7 @@ func TestCompile_SuggestNearestModelIDs(t *testing.T) {
 					BaseConfig: task.BaseConfig{
 						ID:    "t1",
 						Type:  task.TaskTypeBasic,
-						Agent: &agent.Config{ID: "writer", Model: "fas"},
+						Agent: &agent.Config{ID: "writer", Model: agent.Model{Ref: "fas"}},
 					},
 				},
 			},

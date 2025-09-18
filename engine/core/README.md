@@ -308,16 +308,6 @@ if err != nil {
     log.Fatal(err)
 }
 
-// Load with template evaluation
-evaluator := ref.NewEvaluator(context)
-config, path, err := core.LoadConfigWithEvaluator[*MyConfig](
-    "/path/to/config.yaml",
-    evaluator,
-)
-if err != nil {
-    log.Fatal(err)
-}
-
 // Load as generic map
 configMap, err := core.MapFromFilePath("/path/to/config.yaml")
 if err != nil {
@@ -648,7 +638,6 @@ type MemoryReference struct {
 ```go
 func ResolvePath(cwd *PathCWD, path string) (string, error)
 func LoadConfig[T Config](filePath string) (T, string, error)
-func LoadConfigWithEvaluator[T Config](filePath string, ev *ref.Evaluator) (T, string, error)
 func MapFromFilePath(path string) (map[string]any, error)
 ```
 

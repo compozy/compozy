@@ -188,7 +188,7 @@ func createTestWorkflowConfigs(fixture *helpers.TestFixture) []*workflow.Config 
 			// Use a minimal agent configuration for integration testing
 			tasks[i].Agent = &agent.Config{
 				ID:           "test-agent",
-				Config:       *providerConfig,
+				Model:        agent.Model{Config: *providerConfig},
 				Instructions: "Test agent for integration testing",
 				With:         tasks[i].With, // Copy task's with field to agent
 				Actions: []*agent.ActionConfig{

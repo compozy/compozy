@@ -159,7 +159,7 @@ Basic tasks use a **declarative YAML structure** that makes them easy to read, w
     ```yaml title="Task Identity"
     id: analyze-sentiment
     type: basic
-    $use: agent(local::agents.#(id=="sentiment-analyzer"))
+    agent: sentiment-analyzer
     action: analyze_text  # Required for agents
     ```
 
@@ -248,7 +248,7 @@ Agent tasks execute AI models with specific instructions:
 ```yaml
 id: analyze-text
 type: basic
-$use: agent(local::agents.#(id=="text-analyzer"))
+agent: text-analyzer
 action: analyze_sentiment
 
 # Agent configuration (can be inline or referenced)
@@ -282,7 +282,7 @@ Tool tasks execute TypeScript functions in secure Bun runtime:
 ```yaml
 id: format-code
 type: basic
-$use: tool(local::tools.#(id=="formatter"))
+tool: formatter
 
 # Tool configuration (can be inline or referenced)
 tool:
@@ -309,7 +309,7 @@ Comprehensive task configuration options:
 ```yaml
 id: complete-task-example
 type: basic
-$use: agent(local::agents.#(id=="processor"))
+agent: processor
 action: process_data
 
 # Input validation schema
@@ -361,7 +361,7 @@ Advanced flow control and error handling:
 
 ```yaml
 id: resilient-task
-$use: agent(local::agents.#(id=="processor"))
+agent: processor
 action: process
 
 with:
@@ -428,7 +428,7 @@ Agents excel at **cognitive tasks** that require understanding, reasoning, and i
 ```yaml
 # Example: Content analysis agent
 id: analyze-content
-$use: agent(local::agents.#(id=="content-analyst"))
+agent: content-analyst
 action: analyze_content
 
 agent:
@@ -527,7 +527,7 @@ Tools are perfect for **deterministic operations** that require precise, predict
 ```yaml
 # Example: Data processing tool
 id: process-csv
-$use: tool(local::tools.#(id=="csv-processor"))
+tool: csv-processor
 
 tool:
   id: csv-processor
@@ -632,7 +632,7 @@ outputs:
 ```yaml
 # Efficient task configuration
 id: optimized-task
-$use: tool(local::tools.#(id=="processor"))
+tool: processor
 
 # Set appropriate timeouts
 timeout: 2m
@@ -660,7 +660,7 @@ outputs:
 
 ```yaml
 id: resilient-task
-$use: agent(local::agents.#(id=="processor"))
+agent: processor
 action: process
 
 # Comprehensive error handling
@@ -699,7 +699,7 @@ Master these essential patterns to build robust, maintainable workflows with bas
 
     ```yaml title="Good: Focused Task"
     id: validate-email
-    $use: tool(local::tools.#(id=="email-validator"))
+    tool: email-validator
     with:
       email: "{{ .workflow.input.email }}"
     ```
@@ -711,7 +711,7 @@ Master these essential patterns to build robust, maintainable workflows with bas
 
     ```yaml title="Idempotent Design"
     id: generate-report
-    $use: agent(local::agents.#(id=="reporter"))
+    agent: reporter
     action: create_report
     with:
       data: "{{ .workflow.input.data }}"
@@ -725,7 +725,7 @@ Master these essential patterns to build robust, maintainable workflows with bas
 
     ```yaml title="Robust Error Handling"
     id: api-call
-    $use: tool(local::tools.#(id=="http-client"))
+    tool: http-client
 
     retry_policy:
       maximum_attempts: 3
@@ -776,7 +776,7 @@ Master these essential patterns to build robust, maintainable workflows with bas
 
 ```yaml title="Conditional Execution"
 id: conditional-processing
-$use: agent(local::agents.#(id=="processor"))
+agent: processor
 action: process_data
 
 # Conditional input preparation
@@ -804,7 +804,7 @@ on_success:
 
 ```yaml title="Data Pipeline"
 id: transform-data
-$use: tool(local::tools.#(id=="transformer"))
+tool: transformer
 
 with:
   raw_data: "{{ .tasks.fetch_data.output.results }}"
@@ -836,7 +836,7 @@ on_error:
 
 ```yaml title="Fallback Strategy"
 id: primary-service-call
-$use: tool(local::tools.#(id=="primary-api"))
+tool: primary-api
 
 retry_policy:
   maximum_attempts: 2
@@ -850,7 +850,7 @@ on_error:
 
 ---
 id: fallback-service
-$use: tool(local::tools.#(id=="backup-api"))
+tool: backup-api
 
 with:
   request: "{{ .workflow.tasks.primary-service-call.with.original_request }}"
@@ -870,7 +870,7 @@ outputs:
 
 ```yaml title="State Accumulation"
 id: process-batch
-$use: agent(local::agents.#(id=="batch-processor"))
+agent: batch-processor
 action: process_items
 
 with:

@@ -1,6 +1,6 @@
 agents:
   - id: code-assistant
-    config:
+    model:
       provider: anthropic
       model: claude-4-opus
       params:

@@ -6,8 +6,15 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/project"
+	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/schema"
+	"github.com/compozy/compozy/engine/task"
+	"github.com/compozy/compozy/engine/tool"
+	"github.com/compozy/compozy/engine/webhook"
+	"github.com/compozy/compozy/pkg/logger"
 	fixtures "github.com/compozy/compozy/test/fixtures"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -59,11 +66,10 @@ func Test_LoadWorkflow(t *testing.T) {
 		require.Len(t, config.Agents, 1)
 		agentConfig := config.Agents[0]
 		assert.Equal(t, "code-assistant", agentConfig.ID)
-		require.NotNil(t, agentConfig.Config)
-		assert.Equal(t, core.ProviderName("openai"), agentConfig.Config.Provider)
-		assert.Equal(t, "gpt-4o", agentConfig.Config.Model)
-		assert.InDelta(t, float64(0.7), agentConfig.Config.Params.Temperature, 0.0001)
-		assert.Equal(t, int32(4000), agentConfig.Config.Params.MaxTokens)
+		assert.Equal(t, core.ProviderName("openai"), agentConfig.Model.Config.Provider)
+		assert.Equal(t, "gpt-4o", agentConfig.Model.Config.Model)
+		assert.InDelta(t, float64(0.7), agentConfig.Model.Config.Params.Temperature, 0.0001)
+		assert.Equal(t, int32(4000), agentConfig.Model.Config.Params.MaxTokens)
 
 		// Validate env
 		assert.Equal(t, "1.0.0", config.GetEnv().Prop("WORKFLOW_VERSION"))
@@ -358,5 +364,124 @@ func TestWorkflowConfig_ScheduleDefaults(t *testing.T) {
 		assert.NotPanics(t, func() {
 			config.SetDefaults()
 		})
+	})
+}
+
+func fixturesCWD(t *testing.T) *core.PathCWD {
+	_, filename, _, ok := runtime.Caller(0)
+	require.True(t, ok)
+	dir := filepath.Join(filepath.Dir(filename), "fixtures")
+	CWD, err := core.CWDFromPath(dir)
+	require.NoError(t, err)
+	return CWD
+}
+
+func TestWorkflowsFromProject_AndHelpers(t *testing.T) {
+	t.Run("Should load workflows from project and inject env", func(t *testing.T) {
+		cwd := fixturesCWD(t)
+		proj := &project.Config{
+			Name:      "proj-wf-list",
+			Workflows: []*project.WorkflowSourceConfig{{Source: "basic_workflow.yaml"}, {Source: "mcp_workflow.yaml"}},
+		}
+		require.NoError(t, proj.SetCWD(cwd.PathStr()))
+		proj.SetEnv(core.EnvMap{"X": "Y"})
+		wfs, err := WorkflowsFromProject(proj)
+		require.NoError(t, err)
+		require.Len(t, wfs, 2)
+		for _, w := range wfs {
+			require.NotNil(t, w.Opts.Env)
+			assert.Equal(t, "Y", w.GetEnv().Prop("X"))
+			assert.Equal(t, core.ConfigWorkflow, w.Component())
+			m, err := w.AsMap()
+			require.NoError(t, err)
+			require.NotEmpty(t, m["id"])
+			var w2 Config
+			require.NoError(t, w2.FromMap(m))
+			assert.Equal(t, w.GetID(), w2.GetID())
+		}
+	})
+	t.Run("Should find agent config across workflows and handle not found", func(t *testing.T) {
+		wf1 := &Config{ID: "a", Agents: []agent.Config{{ID: "writer"}}}
+		wf2 := &Config{ID: "b"}
+		list := []*Config{wf1, wf2}
+		got, err := FindAgentConfig[*agent.Config](list, "writer")
+		require.NoError(t, err)
+		require.NotNil(t, got)
+		assert.Equal(t, "writer", got.ID)
+		_, err = FindAgentConfig[*agent.Config](list, "nope")
+		require.Error(t, err)
+		_, err = FindAgentConfig[*tool.Config](list, "writer")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "agent config is not of type *tool.Config")
+	})
+	t.Run("Should collect webhook slugs from workflows", func(t *testing.T) {
+		wf1 := &Config{
+			ID:       "w1",
+			Triggers: []Trigger{{Type: TriggerTypeWebhook, Name: "web", Webhook: &webhook.Config{Slug: "hello"}}},
+		}
+		wf2 := &Config{ID: "w2", Triggers: []Trigger{{Type: TriggerTypeSignal, Name: "sig"}}}
+		slugs := SlugsFromList([]*Config{wf1, wf2})
+		assert.ElementsMatch(t, []string{"hello"}, slugs)
+	})
+	t.Run("Should determine next task and find workflow config", func(t *testing.T) {
+		n2 := "t2"
+		wf := &Config{ID: "wfX", Tasks: []task.Config{}}
+		t1 := taskConfig("t1", &n2, nil)
+		t2 := taskConfig("t2", nil, nil)
+		w := &Config{ID: "wfY", Tasks: []task.Config{t1, t2}}
+		next := w.DetermineNextTask(&w.Tasks[0], true)
+		require.NotNil(t, next)
+		assert.Equal(t, "t2", next.ID)
+		got, err := FindConfig([]*Config{wf, w}, "wfY")
+		require.NoError(t, err)
+		assert.Equal(t, "wfY", got.ID)
+	})
+}
+
+func taskConfig(id string, onSuccessNext *string, onErrorNext *string) task.Config {
+	var onSuccess *core.SuccessTransition
+	if onSuccessNext != nil {
+		onSuccess = &core.SuccessTransition{Next: onSuccessNext}
+	}
+	var onError *core.ErrorTransition
+	if onErrorNext != nil {
+		onError = &core.ErrorTransition{Next: onErrorNext}
+	}
+	return task.Config{
+		BaseConfig: task.BaseConfig{ID: id, Type: task.TaskTypeBasic, OnSuccess: onSuccess, OnError: onError},
+	}
+}
+
+func TestLinkWorkflowTriggersSchemas(t *testing.T) {
+	t.Run("Should resolve schema refs for trigger and webhook events", func(t *testing.T) {
+		ctx := logger.ContextWithLogger(ctxWithBG(), logger.NewForTests())
+		store := resources.NewMemoryResourceStore()
+		proj := &project.Config{
+			Name:    "proj1",
+			Schemas: []schema.Schema{{"id": "trig", "type": "object"}, {"id": "evt", "type": "object"}},
+		}
+		require.NoError(t, proj.IndexToResourceStore(ctx, store))
+		wf := &Config{
+			ID: "wf1",
+			Triggers: []Trigger{
+				{
+					Type:   TriggerTypeSignal,
+					Name:   "t1",
+					Schema: &schema.Schema{"__schema_ref__": "trig"},
+					Webhook: &webhook.Config{
+						Slug:   "s",
+						Events: []webhook.EventConfig{{Name: "e1", Schema: &schema.Schema{"__schema_ref__": "evt"}}},
+					},
+				},
+			},
+		}
+		require.NoError(t, linkWorkflowSchemas(ctx, proj, store, wf))
+		require.NotNil(t, wf.Triggers[0].Schema)
+		isRef, _ := wf.Triggers[0].Schema.IsRef()
+		assert.False(t, isRef)
+		require.NotNil(t, wf.Triggers[0].Webhook)
+		require.Len(t, wf.Triggers[0].Webhook.Events, 1)
+		isRefEvt, _ := wf.Triggers[0].Webhook.Events[0].Schema.IsRef()
+		assert.False(t, isRefEvt)
 	})
 }

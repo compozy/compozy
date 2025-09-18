@@ -31,13 +31,13 @@ func Test_LoadAgent(t *testing.T) {
 		require.NotNil(t, config)
 
 		require.NotNil(t, config.ID)
-		require.NotNil(t, config.Config)
+		// Model config is resolved via the Model field
 
 		assert.Equal(t, "code-assistant", config.ID)
-		assert.Equal(t, core.ProviderAnthropic, config.Config.Provider)
-		assert.Equal(t, "claude-4-opus", config.Config.Model)
-		assert.InDelta(t, 0.7, config.Config.Params.Temperature, 1e-6)
-		assert.Equal(t, int32(4000), config.Config.Params.MaxTokens)
+		assert.Equal(t, core.ProviderAnthropic, config.Model.Config.Provider)
+		assert.Equal(t, "claude-4-opus", config.Model.Config.Model)
+		assert.InDelta(t, 0.7, config.Model.Config.Params.Temperature, 1e-6)
+		assert.Equal(t, int32(4000), config.Model.Config.Params.MaxTokens)
 
 		require.Len(t, config.Actions, 1)
 		action := config.Actions[0]
@@ -181,7 +181,7 @@ func Test_AgentConfigValidation(t *testing.T) {
 	t.Run("Should validate config with all required fields", func(t *testing.T) {
 		config := &Config{
 			ID:           agentID,
-			Config:       core.ProviderConfig{},
+			Model:        Model{Config: core.ProviderConfig{}},
 			Instructions: "test instructions",
 			CWD:          agentCWD,
 		}
@@ -192,7 +192,7 @@ func Test_AgentConfigValidation(t *testing.T) {
 	t.Run("Should return error when CWD is missing", func(t *testing.T) {
 		config := &Config{
 			ID:           agentID,
-			Config:       core.ProviderConfig{},
+			Model:        Model{Config: core.ProviderConfig{}},
 			Instructions: "test instructions",
 		}
 		err := config.Validate()
@@ -278,7 +278,12 @@ func TestActionConfig_DeepCopy(t *testing.T) {
 func TestConfig_normalizeAndValidateMemoryConfig(t *testing.T) {
 	agentCWD, _ := core.CWDFromPath("/test")
 	validBaseConfig := func() *Config { // Helper to get a minimally valid config
-		return &Config{ID: "test-agent", Config: core.ProviderConfig{}, Instructions: "do stuff", CWD: agentCWD}
+		return &Config{
+			ID:           "test-agent",
+			Model:        Model{Config: core.ProviderConfig{}},
+			Instructions: "do stuff",
+			CWD:          agentCWD,
+		}
 	}
 
 	t.Run("Should handle single memory reference", func(t *testing.T) {
@@ -395,7 +400,7 @@ func TestConfig_normalizeAndValidateMemoryConfig(t *testing.T) {
 func Test_Config_Validate_WithMemory(t *testing.T) {
 	agentCWD, _ := core.CWDFromPath("/test")
 	baseCfg := func() Config {
-		return Config{ID: "test", Config: core.ProviderConfig{}, Instructions: "test", CWD: agentCWD}
+		return Config{ID: "test", Model: Model{Config: core.ProviderConfig{}}, Instructions: "test", CWD: agentCWD}
 	}
 
 	t.Run("Valid memory config passes full validation", func(t *testing.T) {
@@ -477,7 +482,7 @@ func Test_Load_Basic_WithNoEvaluator(t *testing.T) {
 func Test_Config_Validate_MCPErrorAggregation(t *testing.T) {
 	t.Run("Should aggregate MCP validation errors", func(t *testing.T) {
 		cwd, _ := core.CWDFromPath("/tmp")
-		cfg := &Config{ID: "a", Config: core.ProviderConfig{}, Instructions: "i", CWD: cwd}
+		cfg := &Config{ID: "a", Model: Model{Config: core.ProviderConfig{}}, Instructions: "i", CWD: cwd}
 		cfg.MCPs = []mcp.Config{{ID: "srv", Resource: "mcp", Transport: mcpproxy.TransportStdio}}
 		err := cfg.Validate()
 		assert.Error(t, err)

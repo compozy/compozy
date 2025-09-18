@@ -399,11 +399,11 @@ tasks:
     routes:
       analysis:
         type: basic
-        $use: agent(local::agents.#(id="analyst"))
+        agent: analyst
         action: analyze-data
       generation:
         type: basic
-        $use: agent(local::agents.#(id="writer"))
+        agent: writer
         action: generate-content
 ```
 

@@ -149,7 +149,7 @@ tasks:
     items: "{{.workflow.input.items}}"
     task:
       type: basic
-      $use: agent(local::agents.#(id="processor"))
+      agent: processor
       action: process-item
 
 agents:

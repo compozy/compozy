@@ -154,9 +154,8 @@ func main() {
 #### Tool Configuration Management
 
 ```go
-// Load tool with template evaluation
-evaluator := ref.NewEvaluator()
-config, err := tool.LoadAndEval(cwd, "tools/api-client.yaml", evaluator)
+// Load tool configuration (legacy template evaluation removed)
+config, err := tool.Load(cwd, "tools/api-client.yaml")
 if err != nil {
     return err
 }
@@ -534,14 +533,7 @@ cwd, _ := core.CWDFromPath("/project")
 config, err := tool.Load(cwd, "tools/my-tool.yaml")
 ```
 
-#### `LoadAndEval(cwd *core.PathCWD, path string, ev *ref.Evaluator) (*Config, error)`
-
-Loads tool configuration with template evaluation.
-
-```go
-evaluator := ref.NewEvaluator()
-config, err := tool.LoadAndEval(cwd, "tools/my-tool.yaml", evaluator)
-```
+// Removed: LoadAndEval (legacy)
 
 #### `IsTypeScript(path string) bool`
 

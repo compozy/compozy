@@ -120,13 +120,13 @@ input:
 tasks:
   - id: validate-registration
     type: basic
-    $use: tool(local::tools.#(id=="user-validator"))
+    tool: user-validator
     with:
       user_data: "{{ .workflow.input.registration_data }}"
 
   - id: create-profile
     type: basic
-    $use: agent(local::agents.#(id=="profile-creator"))
+    agent: profile-creator
     instructions: "Create comprehensive user profile"
     with:
       user_id: "{{ .workflow.input.user_id }}"
@@ -187,14 +187,14 @@ tasks:
     tasks:
       - id: validate-registration
         type: basic
-        $use: tool(local::tools.#(id=="user-validator"))
+        tool: user-validator
         with:
           user_data: "{{ .workflow.input.registration_data }}"
           compliance_check: true
 
       - id: create-user-profile
         type: basic
-        $use: agent(local::agents.#(id=="profile-creator"))
+        agent: profile-creator
         instructions: |
           Create a comprehensive user profile with:
           - Account preferences based on registration source
@@ -211,7 +211,7 @@ tasks:
     routes:
       free:
         type: basic
-        $use: tool(local::tools.#(id=="email-sender"))
+        tool: email-sender
         with:
           template: "welcome-free"
           to: "{{ .workflow.input.email }}"
@@ -221,7 +221,7 @@ tasks:
         tasks:
           - id: send-pro-welcome
             type: basic
-            $use: tool(local::tools.#(id=="email-sender"))
+            tool: email-sender
             with:
               template: "welcome-pro"
               to: "{{ .workflow.input.email }}"
@@ -305,14 +305,14 @@ tasks:
     tasks:
       - id: check-inventory
         type: basic
-        $use: tool(local::tools.#(id=="inventory-checker"))
+        tool: inventory-checker
         with:
           items: "{{ .workflow.input.items }}"
           reserve_stock: false
 
       - id: validate-customer
         type: basic
-        $use: agent(local::agents.#(id=="customer-validator"))
+        agent: customer-validator
         instructions: "Validate customer creditworthiness and shipping address"
         with:
           customer_id: "{{ .workflow.input.customer_id }}"
@@ -320,14 +320,14 @@ tasks:
 
       - id: calculate-shipping
         type: basic
-        $use: tool(local::tools.#(id=="shipping-calculator"))
+        tool: shipping-calculator
         with:
           items: "{{ .workflow.input.items }}"
           customer_id: "{{ .workflow.input.customer_id }}"
 
   - id: process-payment
     type: basic
-    $use: tool(local::tools.#(id=="payment-processor"))
+    tool: payment-processor
     with:
       order_id: "{{ .workflow.input.order_id }}"
       amount: "{{ .workflow.input.total_amount }}"
@@ -355,7 +355,7 @@ tasks:
     tasks:
       - id: reserve-inventory
         type: basic
-        $use: tool(local::tools.#(id=="inventory-manager"))
+        tool: inventory-manager
         with:
           operation: "reserve"
           items: "{{ .workflow.input.items }}"
@@ -363,7 +363,7 @@ tasks:
 
       - id: create-shipment
         type: basic
-        $use: tool(local::tools.#(id=="shipment-creator"))
+        tool: shipment-creator
         with:
           order_id: "{{ .workflow.input.order_id }}"
           items: "{{ .workflow.input.items }}"
@@ -371,7 +371,7 @@ tasks:
 
       - id: send-confirmation
         type: basic
-        $use: tool(local::tools.#(id=="notification-service"))
+        tool: notification-service
         with:
           type: "order-confirmation"
           customer_id: "{{ .workflow.input.customer_id }}"
@@ -445,21 +445,21 @@ tasks:
     tasks:
       - id: fetch-service-state
         type: basic
-        $use: tool(local::tools.#(id=="service-monitor"))
+        tool: service-monitor
         with:
           service: "{{ .workflow.input.service }}"
           metrics: ["health", "dependencies", "recent_errors"]
 
       - id: check-recent-changes
         type: basic
-        $use: tool(local::tools.#(id=="deployment-tracker"))
+        tool: deployment-tracker
         with:
           service: "{{ .workflow.input.service }}"
           time_window: "1h"
 
       - id: analyze-patterns
         type: basic
-        $use: agent(local::agents.#(id=="anomaly-detector"))
+        agent: anomaly-detector
         instructions: "Identify patterns and anomalies in metrics"
         with:
           current_metrics: "{{ .workflow.input.metrics }}"
@@ -467,7 +467,7 @@ tasks:
 
   - id: assess-incident
     type: basic
-    $use: agent(local::agents.#(id=="incident-analyzer"))
+    agent: incident-analyzer
     model: claude-4-opus
     instructions: |
       Analyze the incident with the enriched context and determine:
@@ -505,7 +505,7 @@ tasks:
         tasks:
           - id: apply-fixes
             type: basic
-            $use: tool(local::tools.#(id=="auto-remediation"))
+            tool: auto-remediation
             with:
               actions: "{{ .tasks.assess-incident.output.remediation_actions }}"
               service: "{{ .workflow.input.service }}"
@@ -523,14 +523,14 @@ tasks:
         tasks:
           - id: prepare-runbook
             type: basic
-            $use: agent(local::agents.#(id=="runbook-generator"))
+            agent: runbook-generator
             instructions: "Generate step-by-step remediation runbook"
             with:
               incident: "{{ .tasks.assess-incident.output }}"
 
           - id: notify-oncall
             type: basic
-            $use: tool(local::tools.#(id=="pagerduty"))
+            tool: pagerduty
             with:
               priority: "P2"
               incident_details:
@@ -553,7 +553,7 @@ tasks:
 
   - id: track-incident
     type: basic
-    $use: tool(local::tools.#(id=="incident-tracker"))
+    tool: incident-tracker
     with:
       alert_id: "{{ .workflow.input.alert_id }}"
       service: "{{ .workflow.input.service }}"
@@ -572,7 +572,7 @@ tasks:
 
     processor:
       type: basic
-      $use: agent(local::agents.#(id=="stability-analyzer"))
+      agent: stability-analyzer
       instructions: "Analyze service stability and confirm incident resolution"
       with:
         stability_data: "{{ .signal.payload }}"

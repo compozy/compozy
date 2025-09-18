@@ -28,7 +28,7 @@ JSON mode can be enabled at multiple levels, providing flexibility for different
     ```yaml
     agents:
       - id: data-processor
-        config:
+        model:
           provider: openai
           model: gpt-4-turbo-preview
         json_mode: true  # All actions default to JSON
@@ -125,7 +125,7 @@ This basic approach works well for simple schemas. For complex validation patter
 
 ## Reusable Schemas
 
-Define reusable schemas within your workflow to promote consistency and reduce duplication across multiple agents and actions. This approach leverages Compozy's [`$ref` directive](/docs/core/yaml-templates/directives#ref-directive) to reference schema definitions.
+Define reusable schemas within your workflow to promote consistency and reduce duplication across multiple agents and actions. Reference schemas directly by ID (no `$ref`).
 
 ### Defining Schemas
 
@@ -177,7 +177,7 @@ schemas:
 
 ### Referencing Schemas
 
-Use the [`$ref` directive](/docs/core/yaml-templates/directives#ref-directive) to reference defined schemas in your agent actions:
+Reference defined schemas in your agent actions by ID:
 
 <Tabs items={["Basic Reference", "Input Validation", "Complex Composition"]}>
   <Tab value="Basic Reference">
@@ -189,13 +189,11 @@ Use the [`$ref` directive](/docs/core/yaml-templates/directives#ref-directive) t
         actions:
           - id: validate-user
             prompt: "Validate the user data structure"
-            output:
-              $ref: "local::schemas.#(id==\"user_profile\")"
+            output: user_profile
 
           - id: classify-content
             prompt: "Classify the content type"
-            output:
-              $ref: "local::schemas.#(id==\"classification_result\")"
+            output: classification_result
     ```
   </Tab>
 
@@ -204,16 +202,14 @@ Use the [`$ref` directive](/docs/core/yaml-templates/directives#ref-directive) t
 
     ```yaml
     config:
-      input:
-        $ref: "local::schemas.#(id==\"user_profile\")"
+      input: user_profile
 
     agents:
       - id: profile-analyzer
         actions:
           - id: analyze-profile
             prompt: "Analyze the user profile: {{.input | toJson}}"
-            output:
-              $ref: "local::schemas.#(id==\"api_response\")"
+            output: api_response
     ```
 
     This pattern ensures consistent validation throughout your workflow execution.
@@ -226,7 +222,7 @@ Use the [`$ref` directive](/docs/core/yaml-templates/directives#ref-directive) t
     schemas:
       - id: enhanced_response
         allOf:
-          - $ref: "local::schemas.#(id==\"api_response\")"
+          - api_response
           - type: object
             properties:
               timestamp:
@@ -241,8 +237,7 @@ Use the [`$ref` directive](/docs/core/yaml-templates/directives#ref-directive) t
         actions:
           - id: process-request
             prompt: "Process the API request"
-            output:
-              $ref: "local::schemas.#(id==\"enhanced_response\")"
+            output: enhanced_response
     ```
 
     Learn more about schema composition in the YAML Template Advanced Patterns documentation.
@@ -260,7 +255,7 @@ Reusable schemas provide several advantages for workflow development:
 - **Integration**: Seamless integration with [YAML template system](/docs/core/yaml-templates/overview) and [workflow configuration](/docs/core/configuration/workflows)
 
 <Callout type="info">
-  For schemas shared across multiple workflows, consider defining them in your [global configuration](/docs/core/configuration/global) and using `global::` references, or organize them in external files with `resource::` references as described in the [Template Directives](/docs/core/yaml-templates/directives) documentation.
+  For schemas shared across multiple workflows, consider defining them in your [global configuration](/docs/core/configuration/global) and reference them by ID. See [ID References](/docs/core/yaml-templates/directives) for patterns.
 </Callout>
 
 ## Practical Examples
@@ -327,8 +322,7 @@ Real-world examples demonstrating structured outputs in common scenarios. These 
               Return all monetary values as numbers without currency symbols.
               Return dates in ISO 8601 format.
             json_mode: true
-            output:
-              $ref: "local::schemas.#(id==\"invoice_data\")"
+            output: invoice_data
     ```
 
     This pattern works well for document processing workflows that need to extract and validate financial data.
@@ -371,7 +365,7 @@ Real-world examples demonstrating structured outputs in common scenarios. These 
 
               Focus on purchase patterns, frequency, and value trends.
             output:
-              $ref: "local::schemas.#(id==\"customer_analysis\")"
+              customer_analysis
     ```
 
     Ideal for multi-agent workflows where customer analysis feeds into recommendation engines or marketing automation.
@@ -417,15 +411,13 @@ Real-world examples demonstrating structured outputs in common scenarios. These 
             prompt: |
               Generate an API request for: {{.input.operation}}
               Target system: {{.input.target_system}}
-            output:
-              $ref: "local::schemas.#(id==\"api_request\")"
+            output: api_request
 
           - id: process-response
             prompt: |
               Process the API response and extract key information:
               {{.input.api_response | toJson}}
-            output:
-              $ref: "local::schemas.#(id==\"api_response\")"
+            output: api_response
     ```
 
     This pattern enables robust [tool integration](/docs/core/tools/overview) and seamless connectivity with external services.
@@ -483,8 +475,8 @@ For advanced validation patterns and custom error handling, explore YAML Templat
     icon="Code"
   />
   <ReferenceCard
-    title="Template Directives"
-    description="Deep dive into $ref and $use directives for reusable schema patterns and resource composition"
+    title="ID References"
+    description="How to reference schemas, agents, tools, and MCPs by ID"
     href="/docs/core/yaml-templates/directives"
     icon="Link"
   />

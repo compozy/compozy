@@ -107,11 +107,8 @@ func TestOrchestrator_ExecuteWithMemory(t *testing.T) {
 		agentCfg := &agent.Config{
 			ID:           "test-agent",
 			Instructions: "You are a helpful assistant",
-			Config: core.ProviderConfig{
-				Provider: "openai",
-				Model:    "gpt-4",
-			},
-			CWD: &core.PathCWD{Path: "."},
+			Model:        agent.Model{Config: core.ProviderConfig{Provider: "openai", Model: "gpt-4"}},
+			CWD:          &core.PathCWD{Path: "."},
 		}
 		actionCfg := &agent.ActionConfig{
 			ID:     "test-action",
@@ -125,7 +122,7 @@ func TestOrchestrator_ExecuteWithMemory(t *testing.T) {
 		// Setup expectations
 		mockPromptBuilder.On("Build", ctx, actionCfg).Return("Hello, how are you?", nil)
 		mockPromptBuilder.On("ShouldUseStructuredOutput", "openai", actionCfg, agentCfg.Tools).Return(false)
-		mockFactory.On("CreateClient", mock.Anything, &agentCfg.Config).Return(mockClient, nil)
+		mockFactory.On("CreateClient", mock.Anything, &agentCfg.Model.Config).Return(mockClient, nil)
 		mockClient.On("GenerateContent", ctx, mock.MatchedBy(func(req *llmadapter.LLMRequest) bool {
 			// Verify no memory messages are included
 			return len(req.Messages) == 1 && req.Messages[0].Content == "Hello, how are you?"
@@ -172,10 +169,7 @@ func TestOrchestrator_ExecuteWithMemory(t *testing.T) {
 		agentCfg := &agent.Config{
 			ID:           "test-agent",
 			Instructions: "You are a helpful assistant",
-			Config: core.ProviderConfig{
-				Provider: "openai",
-				Model:    "gpt-4",
-			},
+			Model:        agent.Model{Config: core.ProviderConfig{Provider: "openai", Model: "gpt-4"}},
 			LLMProperties: agent.LLMProperties{
 				Memory: []core.MemoryReference{
 					{ID: "test-memory", Key: "user-123", Mode: "read-write"},
@@ -215,7 +209,7 @@ func TestOrchestrator_ExecuteWithMemory(t *testing.T) {
 		// Setup other expectations
 		mockPromptBuilder.On("Build", ctx, actionCfg).Return("What did we talk about last time?", nil)
 		mockPromptBuilder.On("ShouldUseStructuredOutput", "openai", actionCfg, agentCfg.Tools).Return(false)
-		mockFactory.On("CreateClient", mock.Anything, &agentCfg.Config).Return(mockClient, nil)
+		mockFactory.On("CreateClient", mock.Anything, &agentCfg.Model.Config).Return(mockClient, nil)
 		mockClient.On("GenerateContent", ctx, mock.MatchedBy(func(req *llmadapter.LLMRequest) bool {
 			// Verify memory messages are included
 			return len(req.Messages) == 3 &&
@@ -271,10 +265,7 @@ func TestOrchestrator_ExecuteWithMemory(t *testing.T) {
 		agentCfg := &agent.Config{
 			ID:           "test-agent",
 			Instructions: "You are a helpful assistant",
-			Config: core.ProviderConfig{
-				Provider: "openai",
-				Model:    "gpt-4",
-			},
+			Model:        agent.Model{Config: core.ProviderConfig{Provider: "openai", Model: "gpt-4"}},
 			LLMProperties: agent.LLMProperties{
 				Memory: []core.MemoryReference{
 					{ID: "test-memory", Key: "user-123", Mode: "read-write"},
@@ -301,7 +292,7 @@ func TestOrchestrator_ExecuteWithMemory(t *testing.T) {
 		// Setup other expectations - should continue without memory
 		mockPromptBuilder.On("Build", ctx, actionCfg).Return("Hello", nil)
 		mockPromptBuilder.On("ShouldUseStructuredOutput", "openai", actionCfg, agentCfg.Tools).Return(false)
-		mockFactory.On("CreateClient", mock.Anything, &agentCfg.Config).Return(mockClient, nil)
+		mockFactory.On("CreateClient", mock.Anything, &agentCfg.Model.Config).Return(mockClient, nil)
 		mockClient.On("GenerateContent", ctx, mock.MatchedBy(func(req *llmadapter.LLMRequest) bool {
 			// Should proceed with just the user message
 			return len(req.Messages) == 1 && req.Messages[0].Content == "Hello"
@@ -347,7 +338,7 @@ func TestOrchestrator_BuildMessages_WithImageURLInput(t *testing.T) {
 		agentCfg := &agent.Config{
 			ID:           "vision-agent",
 			Instructions: "You are a vision assistant",
-			Config:       core.ProviderConfig{Provider: "openai", Model: "gpt-4o-mini"},
+			Model:        agent.Model{Config: core.ProviderConfig{Provider: "openai", Model: "gpt-4o-mini"}},
 			CWD:          &core.PathCWD{Path: "."},
 		}
 		actionCfg := &agent.ActionConfig{ID: "recognize", Prompt: "Identify the Pokémon"}
@@ -362,7 +353,7 @@ func TestOrchestrator_BuildMessages_WithImageURLInput(t *testing.T) {
 
 		mockPromptBuilder.On("Build", ctx, actionCfg).Return("Identify the Pokémon", nil)
 		mockPromptBuilder.On("ShouldUseStructuredOutput", "openai", actionCfg, agentCfg.Tools).Return(false)
-		mockFactory.On("CreateClient", mock.Anything, &agentCfg.Config).Return(mockClient, nil)
+		mockFactory.On("CreateClient", mock.Anything, &agentCfg.Model.Config).Return(mockClient, nil)
 
 		mockClient.On("GenerateContent", ctx, mock.MatchedBy(func(r *llmadapter.LLMRequest) bool {
 			if len(r.Messages) != 1 {

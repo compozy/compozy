@@ -209,7 +209,7 @@ func TestConfigOrchestrator_NormalizeAgentComponent(t *testing.T) {
 		agentConfig := &agent.Config{
 			ID:           "agent1",
 			Instructions: "Use model {{ .workflow.input.model }}",
-			Config:       core.ProviderConfig{},
+			Model:        agent.Model{Config: core.ProviderConfig{}},
 			With: &core.Input{
 				"agent_input": "{{ .parent.with.task_input }}",
 			},

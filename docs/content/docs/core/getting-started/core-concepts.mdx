@@ -89,7 +89,7 @@ Execute a single tool or agent action
 ```yaml title="Basic Task"
 - id: fetch_data
   type: basic
-  $use: tool(local::tools.#(id=="api_client"))
+  tool: api_client
   with:
     endpoint: "/users/{{ .workflow.input.user_id }}"
 ```
@@ -142,7 +142,7 @@ Process arrays of data
   task:
     id: "process-email-{{ .index }}"
     type: basic
-    $use: agent(local::agents.#(id=="email_processor"))
+    agent: email_processor
     with:
       email: "{{ .item }}"
 ```
@@ -159,9 +159,19 @@ Conditional branching based on data
   condition: '{{ .tasks.classify.output.priority }}'
   routes:
     high:
-      $ref: local::tasks.#(id="urgent_handler")
+      id: urgent_handler
+      type: basic
+      tool: incident_notifier
+      with:
+        priority: high
+        payload: "{{ .tasks.classify.output }}"
     low:
-      $ref: local::tasks.#(id="standard_handler")
+      id: standard_handler
+      type: basic
+      tool: task_logger
+      with:
+        level: info
+        payload: "{{ .tasks.classify.output }}"
 ```
 </Tab>
 
@@ -236,8 +246,8 @@ instructions: |
   Always maintain a professional, friendly tone.
 
 tools:
-  - $ref: local::tools.#(id=="knowledge_base")
-  - $ref: local::tools.#(id=="ticket_system")
+  - knowledge_base
+  - ticket_system
 
 actions:
   - id: classify_intent
@@ -415,7 +425,7 @@ tasks:
 
   - id: process_with_context
     type: basic
-    $use: agent(local::agents.#(id=="assistant"))
+    agent: assistant
     action: respond
     with:
       message: "{{ .workflow.input.message }}"
@@ -440,8 +450,7 @@ Agents with built-in memory integration for automatic context management
 ```yaml title="Agent with Memory"
 agents:
   - id: memory_agent
-    config:
-      $ref: global::models.#(provider=="groq")
+    model: groq-llama-3.3-70b
     instructions: |
       You are a helpful assistant with persistent memory.
       Use conversation history to provide contextual responses.
@@ -457,7 +466,7 @@ agents:
 tasks:
   - id: conversational_response
     type: basic
-    $use: agent(local::agents.#(id=="memory_agent"))
+    agent: memory_agent
     action: chat_with_memory
     with:
       message: "{{ .workflow.input.message }}"
@@ -560,7 +569,7 @@ Accept: application/json
 tasks:
   - id: process_order
     type: basic
-    $use: agent(local::agents.#(id=="order_processor"))
+    agent: order_processor
     with:
       order: "{{ .workflow.input.order }}"
     on_success:
@@ -667,16 +676,16 @@ References within the same YAML file using local scope
 
 ```yaml title="Local References"
 # Reference tools defined in the same file
-$ref: local::tools.#(id=="weather_tool")
+weather_tool
 
 # Reference agents in the current workflow
-$ref: local::agents.#(id=="assistant")
+assistant
 
 # Reference schemas for validation
-$ref: local::schemas.#(id=="user_input")
+user_input
 
 # Reference tasks for routing
-$ref: local::tasks.#(id=="save_results")
+save_results
 ```
 </Tab>
 
@@ -684,14 +693,15 @@ $ref: local::tasks.#(id=="save_results")
 Project-level references that span across the entire project
 
 ```yaml title="Global References"
-# Reference models from compozy.yaml
-$ref: global::models.#(provider=="groq")
+# Reference models by ID (defined in compozy.yaml)
+model: groq-llama-3.3-70b
 
-# Reference global configuration
-$ref: global::models.#(provider=="groq")
+# Reference global configuration values via template variables
+runtime: "{{ .project.runtime }}"
 
-# Access project-wide settings
-$ref: global::runtime.#(type=="bun")
+# Access project-wide settings using IDs and template variables
+build:
+  toolchain: bun
 ```
 </Tab>
 
@@ -700,13 +710,13 @@ External file references for modular configurations
 
 ```yaml title="Resource References"
 # Reference agents from external files
-$ref: resource::agent::#(id=="specialist")
+specialist
 
 # Reference tools from tool files
-$ref: resource::tool::#(id=="data_processor")
+data_processor
 
 # Reference workflows from other files
-$ref: resource::workflow::#(id=="preprocessing")
+preprocessing
 ```
 </Tab>
 </Tabs>
@@ -776,7 +786,7 @@ Handle errors in workflows using `retry`, `on_error`, and `on_success` to contro
 tasks:
   - id: risky_operation
     type: basic
-    $use: agent(local::agents.#(id=="sophisticated_agent"))
+    agent: sophisticated_agent
     retry: # [!code highlight]
       max_attempts: 3 # [!code highlight]
       backoff: exponential # [!code highlight]
@@ -787,7 +797,7 @@ tasks:
 
   - id: handle_error
     type: basic
-    $use: tool(local::tools.#(id=="error_handler"))
+    tool: error_handler
     with:
       error: "{{ .tasks.risky_operation.error }}" # [!code highlight]
 ```
@@ -821,7 +831,7 @@ tasks:
 
     config:
       input:
-        $ref: local::schemas.#(id=="user_request")
+        user_request
     ```
   </Step>
 

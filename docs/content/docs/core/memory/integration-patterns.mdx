@@ -42,9 +42,10 @@ The fundamental pattern uses a single memory resource with dynamic key templates
 # Define your agent with memory
 agents:
   - id: chat_agent
+    model: openai:gpt-4o-mini
     config:
-      $ref: global::models.#(provider=="openai")
-      temperature: 0.7
+      params:
+        temperature: 0.7
 
     # Memory configuration - automatic loading and saving
     memory:
@@ -67,7 +68,7 @@ agents:
 tasks:
   - id: handle_chat
     type: basic
-    $use: agent(local::agents.#(id="chat_agent"))
+    agent: chat_agent
     action: chat
     with:
       message: "{{.workflow.input.message}}"
@@ -86,8 +87,7 @@ Complex applications can access multiple memory contexts simultaneously:
 ```yaml
 agents:
   - id: support_agent
-    config:
-      $ref: global::models.#(provider=="openai")
+    model: openai:gpt-4o-mini
 
     memory:
       # Conversation history for this ticket
@@ -136,8 +136,7 @@ Use dynamic keys and conditional memory loading for sophisticated applications:
 ```yaml
 agents:
   - id: adaptive_agent
-    config:
-      $ref: global::models.#(provider=="openai")
+    model: openai:gpt-4o-mini
 
     memory:
       # Session memory with timestamp
@@ -189,7 +188,7 @@ tasks:
   # Process with the loaded context
   - id: generate_response
     type: basic
-    $use: agent(local::agents.#(id="chat_agent"))
+    agent: chat_agent
     with:
       message: "{{.workflow.input.message}}"
       context: "{{.tasks.load_conversation.output.history}}"
@@ -376,8 +375,7 @@ Complete examples showing how to combine different integration patterns for comm
     # Agent with multiple memory contexts
     agents:
       - id: support_agent
-        config:
-          $ref: global::models.#(provider=="openai")
+        model: openai:gpt-4o-mini
           model: gpt-4
 
         memory:
@@ -424,7 +422,7 @@ Complete examples showing how to combine different integration patterns for comm
 
       - id: handle_support_request
         type: basic
-        $use: agent(local::agents.#(id="support_agent"))
+        agent: support_agent
         with:
           request: "{{.workflow.input.request}}"
           priority: "{{.workflow.input.priority}}"
@@ -446,9 +444,10 @@ Complete examples showing how to combine different integration patterns for comm
     # Chat agent with user-specific memory
     agents:
       - id: chat_agent
+        model: openai:gpt-4o-mini
         config:
-          $ref: global::models.#(provider=="openai")
-          temperature: 0.8
+          params:
+            temperature: 0.8
 
         memory:
           - id: user_conversation
@@ -472,7 +471,7 @@ Complete examples showing how to combine different integration patterns for comm
     tasks:
       - id: handle_message
         type: basic
-        $use: agent(local::agents.#(id="chat_agent"))
+        agent: chat_agent
         action: chat
         with:
           message: "{{.workflow.input.message}}"
@@ -494,9 +493,7 @@ Complete examples showing how to combine different integration patterns for comm
     # Assistant agent with session and user memory
     agents:
       - id: personal_assistant
-        config:
-          $ref: global::models.#(provider=="openai")
-          model: gpt-4
+        model: openai-gpt-4o
 
         memory:
           - id: session_memory
@@ -507,8 +504,8 @@ Complete examples showing how to combine different integration patterns for comm
             mode: read-only
 
         tools:
-          - $ref: local::tools.#(id=="calendar_tool")
-          - $ref: local::tools.#(id=="email_tool")
+          - calendar_tool
+          - email_tool
 
         instructions: |
           You are a personal assistant with access to:

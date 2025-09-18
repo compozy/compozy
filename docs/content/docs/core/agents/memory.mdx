@@ -67,7 +67,7 @@ Configure memory references in your agent:
 ```yaml
 agents:
   - id: conversational-agent
-    config:
+    model:
       provider: openai
       model: gpt-4-turbo-preview
     instructions: |
@@ -181,7 +181,7 @@ Build conversational agents with context. This example demonstrates how to imple
 tasks:
   - id: chat
     type: basic
-    $use: agent(local::agents.#(id="chat-agent"))
+    agent: chat-agent
     action: respond
     with:
       message: "{{.workflow.input.message}}"

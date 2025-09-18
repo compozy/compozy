@@ -100,10 +100,10 @@ func CreateTestWorkflowConfig(tools []tool.Config) *workflow.Config {
 func CreateTestAgentConfig(tools []tool.Config) *agent.Config {
 	cfg := &agent.Config{
 		ID: "test-agent",
-		Config: core.ProviderConfig{
+		Model: agent.Model{Config: core.ProviderConfig{
 			Provider: core.ProviderMock,
 			Model:    "test-model",
-		},
+		}},
 		Instructions: "Test agent for integration testing",
 		LLMProperties: agent.LLMProperties{
 			Tools: tools,

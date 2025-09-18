@@ -38,11 +38,11 @@ func TestBasicNormalizer_AgentNormalization(t *testing.T) {
 				Type: task.TaskTypeBasic,
 				Agent: &agent.Config{
 					ID: "tourist_guide",
-					Config: core.ProviderConfig{
+					Model: agent.Model{Config: core.ProviderConfig{
 						Provider: "groq",
 						Model:    "llama3-70b-8192",
 						APIKey:   "{{ .env.GROQ_API_KEY }}",
-					},
+					}},
 					Instructions: "You are a helpful weather assistant",
 				},
 			},
@@ -65,7 +65,12 @@ func TestBasicNormalizer_AgentNormalization(t *testing.T) {
 		require.NotNil(t, taskConfig.Agent)
 
 		// Check that the API key template was evaluated
-		assert.Equal(t, "test-api-key-12345", taskConfig.Agent.Config.APIKey, "API key template should be evaluated")
+		assert.Equal(
+			t,
+			"test-api-key-12345",
+			taskConfig.Agent.Model.Config.APIKey,
+			"API key template should be evaluated",
+		)
 	})
 
 	t.Run("Should handle agent config with multiple template fields", func(t *testing.T) {
@@ -78,7 +83,7 @@ func TestBasicNormalizer_AgentNormalization(t *testing.T) {
 				Type: task.TaskTypeBasic,
 				Agent: &agent.Config{
 					ID: "assistant",
-					Config: core.ProviderConfig{
+					Model: agent.Model{Config: core.ProviderConfig{
 						Provider: "openai",
 						Model:    "{{ .model_name }}",
 						APIKey:   "{{ .env.OPENAI_API_KEY }}",
@@ -86,7 +91,7 @@ func TestBasicNormalizer_AgentNormalization(t *testing.T) {
 							Temperature: 0.7,  // Will be overridden by template
 							MaxTokens:   1000, // Will be overridden by template
 						},
-					},
+					}},
 					Instructions: "{{ .instructions }}",
 				},
 			},
@@ -109,8 +114,8 @@ func TestBasicNormalizer_AgentNormalization(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		require.NotNil(t, taskConfig.Agent)
-		assert.Equal(t, "gpt-4", taskConfig.Agent.Config.Model)
-		assert.Equal(t, "sk-test-key", taskConfig.Agent.Config.APIKey)
+		assert.Equal(t, "gpt-4", taskConfig.Agent.Model.Config.Model)
+		assert.Equal(t, "sk-test-key", taskConfig.Agent.Model.Config.APIKey)
 		assert.Equal(t, "You are a data processing assistant", taskConfig.Agent.Instructions)
 	})
 
@@ -149,11 +154,11 @@ func TestBasicNormalizer_AgentNormalization(t *testing.T) {
 				Type: task.TaskTypeBasic,
 				Agent: &agent.Config{
 					ID: "tourist_guide", // This would be set by $use
-					Config: core.ProviderConfig{
+					Model: agent.Model{Config: core.ProviderConfig{
 						Provider: "groq",
 						Model:    "llama3-70b-8192",
 						APIKey:   "{{ .env.GROQ_API_KEY }}",
-					},
+					}},
 					Instructions: "You are a tourist guide",
 				},
 			},
@@ -174,6 +179,6 @@ func TestBasicNormalizer_AgentNormalization(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.Equal(t, "tourist_guide", taskConfig.Agent.ID)
-		assert.Equal(t, "test-key", taskConfig.Agent.Config.APIKey)
+		assert.Equal(t, "test-key", taskConfig.Agent.Model.Config.APIKey)
 	})
 }

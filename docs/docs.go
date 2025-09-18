@@ -4663,7 +4663,6 @@ const docTemplate = `{
         "agent.Config": {
             "type": "object",
             "required": [
-                "config",
                 "id",
                 "instructions"
             ],
@@ -4679,14 +4678,6 @@ const docTemplate = `{
                     "description": "Attachments declared at the agent scope.",
                     "type": "array",
                     "items": {}
-                },
-                "config": {
-                    "description": "LLM provider configuration defining which AI model to use and its parameters.\nSupports multiple providers including OpenAI, Anthropic, Google, Groq, and local models.\n\n**Required fields:** provider, model\n**Optional fields:** api_key, api_url, params (temperature, max_tokens, etc.)",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/core.ProviderConfig"
-                        }
-                    ]
                 },
                 "cwd": {
                     "$ref": "#/definitions/core.PathCWD"
@@ -4704,7 +4695,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "instructions": {
-                    "description": "System instructions that define the agent's personality, behavior, and constraints.\nThese instructions guide how the agent interprets tasks and generates responses.\n\n**Best practices:**\n- Be clear and specific about the agent's role\n- Define boundaries and ethical guidelines\n- Include domain-specific knowledge or constraints\n- Use markdown formatting for better structure",
+                    "description": "Provider configuration is now expressed through the polymorphic ` + "`" + `Model` + "`" + ` field.\nThe previous ` + "`" + `Config core.ProviderConfig` + "`" + ` field has been removed.\nSystem instructions that define the agent's personality, behavior, and constraints.\nThese instructions guide how the agent interprets tasks and generates responses.\n\n**Best practices:**\n- Be clear and specific about the agent's role\n- Define boundaries and ethical guidelines\n- Include domain-specific knowledge or constraints\n- Use markdown formatting for better structure",
                     "type": "string"
                 },
                 "json_mode": {
@@ -4729,6 +4720,14 @@ const docTemplate = `{
                         "$ref": "#/definitions/core.MemoryReference"
                     }
                 },
+                "model": {
+                    "description": "Model selects which LLM model to use.\nSupports two forms:\n  - string: a model ID to be resolved via the ResourceStore (e.g. \"openai-gpt-4o-mini\")\n  - object: an inline core.ProviderConfig with provider/model/params\n\nDuring compile/link, string refs are resolved and merged with inline\nfields following project precedence rules. Defaults are filled from the\nproject when neither ref nor inline identity is provided.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/agent.Model"
+                        }
+                    ]
+                },
                 "resource": {
                     "description": "Resource identifier for the autoloader system (must be ` + "`" + `\"agent\"` + "`" + `).\nThis field enables automatic discovery and registration of agent configurations.",
                     "type": "string"
@@ -4745,6 +4744,19 @@ const docTemplate = `{
                     "allOf": [
                         {
                             "$ref": "#/definitions/core.Input"
+                        }
+                    ]
+                }
+            }
+        },
+        "agent.Model": {
+            "type": "object",
+            "properties": {
+                "config": {
+                    "description": "Config holds an inline provider configuration when specified as a mapping.\nWhen Ref is set, Config may be merged with the resolved model during linking.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.ProviderConfig"
                         }
                     ]
                 }

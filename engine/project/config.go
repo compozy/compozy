@@ -9,6 +9,7 @@ import (
 	"slices"
 
 	"dario.cat/mergo"
+	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/autoload"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/monitoring"
@@ -668,4 +669,26 @@ func Load(ctx context.Context, cwd *core.PathCWD, path string, envFilePath strin
 	}
 	config.SetEnv(env)
 	return config, nil
+}
+
+func (p *Config) SetDefaultModel(agent *agent.Config) {
+	if agent == nil || p == nil {
+		return
+	}
+	if agent.Model.Config.Provider == "" || agent.Model.Config.Model == "" {
+		if def := p.GetDefaultModel(); def != nil {
+			if agent.Model.Config.Provider == "" {
+				agent.Model.Config.Provider = def.Provider
+			}
+			if agent.Model.Config.Model == "" {
+				agent.Model.Config.Model = def.Model
+			}
+			if agent.Model.Config.APIKey == "" {
+				agent.Model.Config.APIKey = def.APIKey
+			}
+			if agent.Model.Config.APIURL == "" {
+				agent.Model.Config.APIURL = def.APIURL
+			}
+		}
+	}
 }

@@ -7,10 +7,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 
 	"gopkg.in/yaml.v3"
 
 	"dario.cat/mergo"
+	"github.com/mitchellh/mapstructure"
 
 	"github.com/compozy/compozy/engine/attachment"
 	"github.com/compozy/compozy/engine/core"
@@ -152,16 +154,15 @@ type Config struct {
 	// This allows fields to be accessed directly on Config in YAML/JSON
 	LLMProperties `json:",inline" yaml:",inline" mapstructure:",squash"`
 
-	// Model is an optional model selector that references a model resource ID
-	// stored in the ResourceStore. When set, the compile/link step resolves
-	// this ID (e.g., "openai:gpt-4o" or "anthropic:claude-3-5-haiku-latest")
-	// to a concrete core.ProviderConfig and merges it into Config.
+	// Model selects which LLM model to use.
+	// Supports two forms:
+	//   - string: a model ID to be resolved via the ResourceStore (e.g. "openai-gpt-4o-mini")
+	//   - object: an inline core.ProviderConfig with provider/model/params
 	//
-	// Precedence:
-	//   - Explicit fields in Config (provider/model/params) take precedence
-	//     over the resolved model resource.
-	//   - If neither is provided, the workflow/project default model is used.
-	Model string `json:"model,omitempty" yaml:"model,omitempty" mapstructure:"model,omitempty"`
+	// During compile/link, string refs are resolved and merged with inline
+	// fields following project precedence rules. Defaults are filled from the
+	// project when neither ref nor inline identity is provided.
+	Model Model `json:"model,omitempty" yaml:"model,omitempty" mapstructure:"model,omitempty"`
 
 	// Attachments declared at the agent scope.
 	Attachments attachment.Attachments `json:"attachments,omitempty" yaml:"attachments,omitempty" mapstructure:"attachments,omitempty"`
@@ -174,12 +175,8 @@ type Config struct {
 	//
 	// - **Examples:** `"code-assistant"`, `"data-analyst"`, `"customer-support"`
 	ID string `json:"id"                 yaml:"id"                 mapstructure:"id"                 validate:"required"`
-	// LLM provider configuration defining which AI model to use and its parameters.
-	// Supports multiple providers including OpenAI, Anthropic, Google, Groq, and local models.
-	//
-	// **Required fields:** provider, model
-	// **Optional fields:** api_key, api_url, params (temperature, max_tokens, etc.)
-	Config core.ProviderConfig `json:"config"             yaml:"config"             mapstructure:"config"             validate:"required"`
+	// Provider configuration is now expressed through the polymorphic `Model` field.
+	// The previous `Config core.ProviderConfig` field has been removed.
 	// System instructions that define the agent's personality, behavior, and constraints.
 	// These instructions guide how the agent interprets tasks and generates responses.
 	//
@@ -328,6 +325,12 @@ func (a *Config) GetEnv() core.EnvMap {
 	return *a.Env
 }
 
+// GetProviderConfig returns a pointer to the effective provider configuration associated
+// with this agent. Callers may modify the returned config in-place.
+func (a *Config) GetProviderConfig() *core.ProviderConfig {
+	return &a.Model.Config
+}
+
 // HasSchema indicates whether this configuration supports schema validation.
 // Returns false for agents since they operate on dynamic natural language prompts
 // rather than structured input/output schemas like tools.
@@ -452,11 +455,37 @@ func (a *Config) AsMap() (map[string]any, error) {
 // This is used during configuration loading and template evaluation to
 // reconstruct agent configurations from deserialized data.
 func (a *Config) FromMap(data any) error {
-	config, err := core.FromMapDefault[*Config](data)
+	if data == nil {
+		return nil
+	}
+	// Use a local decoder to handle string→Model for the `model` field while
+	// preserving existing hooks for types like *schema.Schema.
+	var dst Config
+	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
+		WeaklyTypedInput: true,
+		Result:           &dst,
+		TagName:          "mapstructure",
+		DecodeHook: mapstructure.ComposeDecodeHookFunc(
+			core.StringToMapAliasPtrHook,
+			func(from reflect.Type, to reflect.Type, v any) (any, error) {
+				// Support assigning a scalar string to agent.Model
+				if from.Kind() == reflect.String && to == reflect.TypeOf(Model{}) {
+					if s, ok := v.(string); ok {
+						return Model{Ref: s}, nil
+					}
+					return v, nil
+				}
+				return v, nil
+			},
+		),
+	})
 	if err != nil {
 		return err
 	}
-	return a.Merge(config)
+	if err := decoder.Decode(data); err != nil {
+		return err
+	}
+	return a.Merge(&dst)
 }
 
 // Load reads an agent configuration from a YAML or JSON file.
@@ -473,8 +502,3 @@ func Load(cwd *core.PathCWD, path string) (*Config, error) {
 	}
 	return config, nil
 }
-
-// LoadAndEval loads a configuration with template evaluation support.
-// This function processes template expressions like {{.env.API_KEY}} and {{.workflow.input.value}}
-// before loading the agent configuration, enabling dynamic configuration patterns.
-// LoadAndEval has been removed. Use Load() and the compile/link step instead.

@@ -23,10 +23,10 @@ Compozy uses three distinct patterns for working with tools:
     Define tools in separate files with `resource: tool`. This creates reusable tool components.
   </ListItem>
   <ListItem title="Tool Reference in Agents">
-    Reference tools in agent configurations using `$ref: local::tools.#(id=="tool-id")`.
+    Reference tools in agent configurations using `tool-id`.
   </ListItem>
   <ListItem title="Tool Usage in Tasks">
-    Use tools in task configurations with `$use: tool(local::tools.#(id="tool-id"))`.
+    Use tools in task configurations with `tool: tool-id`.
   </ListItem>
 </List>
 
@@ -37,33 +37,29 @@ Assign tools to agents in the agent configuration:
 ```yaml
 agents:
   - id: data-processor
-    config:
+    model:
       provider: openai
       model: gpt-4-turbo-preview
     instructions: |
       You are a data processing assistant.
       Use available tools to fetch, process, and analyze data.
     tools:
-      - $ref: local::tools.#(id=="fetch-data")
-      - $ref: local::tools.#(id=="transform-data")
-      - $ref: local::tools.#(id=="save-results")
+      - fetch-data
+      - transform-data
+      - save-results
 ```
 
 ### Tool References
 
-Tools must be defined separately and then referenced in agent configurations:
-
-<Callout type="warning">
-  Tools cannot be defined inline within agent configurations. They must be defined in separate files with `resource: tool` and then referenced using `$ref` patterns.
-</Callout>
+Tools can be defined in separate files (autoloaded) or inline within the same YAML file. Reference tools by ID in agent configurations; `$ref` is no longer supported.
 
 <Tabs items={["Local Reference", "Resource Reference (Required)"]} defaultValue="Local Reference">
   <Tab value="Local Reference">
     ```yaml
     # Reference tools defined in the same workflow file
     tools:
-      - $ref: local::tools.#(id=="weather_tool")
-      - $ref: local::tools.#(id=="calculator")
+      - weather_tool
+      - calculator
     ```
   </Tab>
 
@@ -85,7 +81,7 @@ Tools must be defined separately and then referenced in agent configurations:
     agents:
       - id: my-agent
         tools:
-          - $ref: local::tools.#(id=="file-reader")
+          - file-reader
     ```
   </Tab>
 </Tabs>
@@ -124,7 +120,7 @@ tools:
 # No tools declared here → agent inherits project/workflow tools.
 agents:
   - id: analyzer
-    config:
+    model:
       provider: openai
       model: gpt-4o
 ```
@@ -177,7 +173,7 @@ agents:
       You are a system administrator with access to server tools.
     # Standard tools (defined with resource: tool)
     tools:
-      - $ref: local::tools.#(id=="log-analyzer")
+      - log-analyzer
     # MCP servers (separate configuration)
     mcps:
       - id: filesystem

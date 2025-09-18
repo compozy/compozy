@@ -52,12 +52,11 @@ config:
     required: [message]
 ```
 
-For reusable validation, reference [schemas](#schema-definitions) using Compozy's `$ref` [directive](/docs/core/yaml-templates/directives):
+For reusable validation, reference [schemas](#schema-definitions) by schema ID:
 
 ```yaml
 config:
-  input:
-    $ref: "local::schemas.#(id==\"user_input\")"
+  input: user_input
 ```
 
 Input validation errors are returned when executing workflows, helping developers quickly identify and fix issues.
@@ -146,15 +145,14 @@ schemas:
     required: [email, name]
 ```
 
-Reference schemas using Compozy's `$ref` syntax:
+Reference schemas by ID in any `input`/`output` schema field:
 
 ```yaml
 config:
-  input:
-    $ref: "local::schemas.#(id==\"customer_data\")"
+  input: customer_data
 ```
 
-Schemas integrate with the broader [YAML Template System](/docs/core/yaml-templates/overview) and support all JSON Schema features. Learn more about [reference patterns](/docs/core/yaml-templates/directives).
+Schemas integrate with the broader [YAML Template System](/docs/core/yaml-templates/overview) and support all JSON Schema features. Learn more about [ID reference patterns](/docs/core/yaml-templates/directives).
 
 ## MCP Servers
 

@@ -68,7 +68,7 @@ mcps:
 
 agents:
   - id: search-assistant
-    config:
+    model:
       provider: openai
       model: gpt-4o
       params:

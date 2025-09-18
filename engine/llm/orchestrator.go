@@ -769,8 +769,8 @@ func extractTopLevelErrorMessage(s string) (string, bool) {
 // with precedence: agent model override > orchestrator config > default.
 func (o *llmOrchestrator) maxToolIterationsFor(request Request) int {
 	maxIterations := o.config.MaxToolIterations
-	if request.Agent != nil && request.Agent.Config.MaxToolIterations > 0 {
-		maxIterations = request.Agent.Config.MaxToolIterations
+	if request.Agent != nil && request.Agent.Model.Config.MaxToolIterations > 0 {
+		maxIterations = request.Agent.Model.Config.MaxToolIterations
 	}
 	if maxIterations <= 0 {
 		maxIterations = defaultMaxToolIterations
@@ -894,11 +894,11 @@ func (o *llmOrchestrator) createLLMClient(ctx context.Context, request Request) 
 	if factory == nil {
 		factory = llmadapter.NewDefaultFactory()
 	}
-	llmClient, err := factory.CreateClient(ctx, &request.Agent.Config)
+	llmClient, err := factory.CreateClient(ctx, &request.Agent.Model.Config)
 	if err != nil {
 		return nil, NewLLMError(err, ErrCodeLLMCreation, map[string]any{
-			"provider": request.Agent.Config.Provider,
-			"model":    request.Agent.Config.Model,
+			"provider": request.Agent.Model.Config.Provider,
+			"model":    request.Agent.Model.Config.Model,
 		})
 	}
 	return llmClient, nil
@@ -935,7 +935,7 @@ func (o *llmOrchestrator) buildLLMRequest(
 	}
 
 	// Determine temperature: use agent's configured value (explicit zero allowed; upstream default applies)
-	temperature := request.Agent.Config.Params.Temperature
+	temperature := request.Agent.Model.Config.Params.Temperature
 
 	// Determine tool choice: default to "auto" when tools are available
 	toolChoice := ""
@@ -980,7 +980,7 @@ func (o *llmOrchestrator) buildPromptData(ctx context.Context, request Request) 
 		})
 	}
 	shouldUseStructured := o.config.PromptBuilder.ShouldUseStructuredOutput(
-		string(request.Agent.Config.Provider),
+		string(request.Agent.Model.Config.Provider),
 		request.Action,
 		request.Agent.Tools,
 	)

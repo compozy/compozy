@@ -219,9 +219,8 @@ func (al *AutoLoader) GetConfig() *Config {
 
 // CreateResourceResolver creates a ResourceResolver for use with pkg/ref
 // This resolver can be used to enable resource:: scope references in the ref system
-func (al *AutoLoader) CreateResourceResolver() *ResourceResolver {
-	return NewResourceResolver(al.registry)
-}
+// CreateResourceResolver has been removed along with legacy pkg/ref support.
+// ID-based resource linking via ResourceStore supersedes directive-based resolution.
 
 // Stats returns current statistics about loaded configurations
 func (al *AutoLoader) Stats() map[string]int {

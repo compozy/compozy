@@ -676,7 +676,7 @@ func TestMemoryResolverWorkflowIntegration(t *testing.T) {
 		agentConfig := &agent.Config{
 			ID:           "test-agent",
 			Instructions: "Test agent for memory resolver",
-			Config:       core.ProviderConfig{Provider: core.ProviderMock, Model: "test-model"},
+			Model:        agent.Model{Config: core.ProviderConfig{Provider: core.ProviderMock, Model: "test-model"}},
 		}
 
 		// Manually set resolved memory references (simulating validation)

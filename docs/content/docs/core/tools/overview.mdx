@@ -96,8 +96,8 @@ tools:
 agents:
   - id: reviewer
     tools:
-      - $ref: local::tools.#(id=="code-analyzer")
-      - $ref: local::tools.#(id=="read_file")
+      - code-analyzer
+      - read_file
 ```
 
 ## Core Features
@@ -261,7 +261,7 @@ Built-in optimizations ensure tools run efficiently:
         type: basic
         agent: data-analyst
         action: analyze
-        $use: tool(local::tools.data-processor)
+        tool: data-processor
         with:
           data: "{{ .inputs.customers }}"
           operation: filter

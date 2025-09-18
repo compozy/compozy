@@ -97,14 +97,11 @@ fmt.Printf("Max Iterations: %d\n", agentConfig.GetMaxIterations())
 // Create a basic agent configuration
 config := &agent.Config{
     ID: "code-assistant",
-    Config: core.ProviderConfig{
-        Provider: "anthropic",
-        Model: "claude-4-opus",
-        Params: map[string]any{
-            "temperature": 0.7,
-            "max_tokens":  4000,
-        },
-    },
+    Model: agent.Model{Config: core.ProviderConfig{
+        Provider: core.ProviderAnthropic,
+        Model:    "claude-4-opus",
+        Params:   core.PromptParams{Temperature: 0.7, MaxTokens: 4000},
+    }},
     Instructions: "You are an expert software engineer...",
     MaxIterations: 10,
     JSONMode: false,
@@ -116,16 +113,7 @@ if err := config.Validate(); err != nil {
 }
 ```
 
-#### Loading with Template Evaluation
-
-```go
-// Load agent with dynamic template evaluation
-evaluator := ref.NewEvaluator(context)
-config, err := agent.LoadAndEval(cwd, "agents/dynamic-agent.yaml", evaluator)
-if err != nil {
-    log.Fatal(err)
-}
-```
+// Removed: LoadAndEval and ref.Evaluator (legacy). Use Load only; linking occurs at workflow compile time.
 
 ### Configuration Format
 
@@ -135,7 +123,7 @@ if err != nil {
 resource: "agent"
 id: "code-assistant"
 
-config:
+model:
   provider: "anthropic"
   model: "claude-4-opus"
   params:
@@ -457,9 +445,7 @@ type ActionConfig struct {
 
 Loads an agent configuration from a file.
 
-#### `LoadAndEval(cwd *core.PathCWD, path string, ev *ref.Evaluator) (*Config, error)`
-
-Loads and evaluates an agent configuration with template processing.
+// Removed: LoadAndEval (legacy)
 
 #### `FindActionConfig(actions []*ActionConfig, id string) (*ActionConfig, error)`
 

@@ -208,9 +208,6 @@ func createTestAgentConfig() *agent.Config {
 			Tools: []tool.Config{},
 			MCPs:  []mcp.Config{},
 		},
-		Config: core.ProviderConfig{
-			Provider: "test",
-			Model:    "test-model",
-		},
+		Model: agent.Model{Config: core.ProviderConfig{Provider: "test", Model: "test-model"}},
 	}
 }
