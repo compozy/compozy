@@ -4,22 +4,27 @@ import (
 	"context"
 	"errors"
 	"time"
+
+	"github.com/compozy/compozy/engine/core"
 )
 
 // ResourceType identifies the category of a stored resource.
 // Values align with existing engine core config types, with additional types like "model".
-type ResourceType string
+// ResourceType aliases core.ConfigType to avoid type drift across packages.
+// Additional resource-specific types (e.g., schema, model) are defined below.
+type ResourceType = core.ConfigType
 
 const (
-	ResourceProject  ResourceType = "project"
-	ResourceWorkflow ResourceType = "workflow"
-	ResourceTask     ResourceType = "task"
-	ResourceAgent    ResourceType = "agent"
-	ResourceTool     ResourceType = "tool"
-	ResourceMCP      ResourceType = "mcp"
-	ResourceSchema   ResourceType = "schema"
-	ResourceModel    ResourceType = "model"
-	ResourceMemory   ResourceType = "memory"
+	ResourceProject  ResourceType = core.ConfigProject
+	ResourceWorkflow ResourceType = core.ConfigWorkflow
+	ResourceTask     ResourceType = core.ConfigTask
+	ResourceAgent    ResourceType = core.ConfigAgent
+	ResourceTool     ResourceType = core.ConfigTool
+	ResourceMCP      ResourceType = core.ConfigMCP
+	ResourceMemory   ResourceType = core.ConfigMemory
+	// Resource-specific extensions not yet in core:
+	ResourceSchema ResourceType = "schema"
+	ResourceModel  ResourceType = "model"
 )
 
 // ResourceKey uniquely identifies a resource within a project and type.

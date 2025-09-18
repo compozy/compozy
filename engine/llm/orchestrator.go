@@ -7,7 +7,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -474,67 +473,12 @@ func stableJSONFingerprint(raw []byte) string {
 		return hex.EncodeToString(sum[:])
 	}
 	var b bytes.Buffer
-	writeStableJSON(&b, v)
+	core.WriteStableJSON(&b, v)
 	sum := sha256.Sum256(b.Bytes())
 	return hex.EncodeToString(sum[:])
 }
 
-// writeStableJSON writes a canonical JSON-like representation with sorted keys.
-func writeStableJSON(b *bytes.Buffer, v any) {
-	switch t := v.(type) {
-	case map[string]any:
-		keys := make([]string, 0, len(t))
-		for k := range t {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-		b.WriteByte('{')
-		for i, k := range keys {
-			if i > 0 {
-				b.WriteByte(',')
-			}
-			if bs, mErr := json.Marshal(k); mErr == nil {
-				b.Write(bs)
-			} else {
-				b.WriteString("\"")
-				b.WriteString(k)
-				b.WriteString("\"")
-			}
-			b.WriteByte(':')
-			writeStableJSON(b, t[k])
-		}
-		b.WriteByte('}')
-	case []any:
-		b.WriteByte('[')
-		for i, e := range t {
-			if i > 0 {
-				b.WriteByte(',')
-			}
-			writeStableJSON(b, e)
-		}
-		b.WriteByte(']')
-	case string:
-		if bs, mErr := json.Marshal(t); mErr == nil {
-			b.Write(bs)
-		} else {
-			b.WriteString("\"")
-			b.WriteString(t)
-			b.WriteString("\"")
-		}
-	case float64, bool, nil:
-		if bs, mErr := json.Marshal(t); mErr == nil {
-			b.Write(bs)
-		} else {
-			b.WriteString("null")
-		}
-	default:
-		if bs, mErr := json.Marshal(t); mErr == nil {
-			b.Write(bs)
-		} else {
-			b.WriteString("null")
-		}
-	}
-}
+// canonical JSON writer consolidated in core.WriteStableJSON
 
 // detectNoProgress updates counters and detects no-progress condition
 func (o *llmOrchestrator) detectNoProgress(threshold int, current string, last *string, counter *int) bool {

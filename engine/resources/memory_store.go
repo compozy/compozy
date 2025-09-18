@@ -1,17 +1,13 @@
 package resources
 
 import (
-	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"fmt"
-	"sort"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 )
@@ -44,16 +40,19 @@ func NewMemoryResourceStore() *MemoryResourceStore {
 
 // Put inserts or replaces a resource value at the given key and broadcasts an event.
 func (s *MemoryResourceStore) Put(ctx context.Context, key ResourceKey, value any) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", fmt.Errorf("context canceled: %w", err)
+	}
 	_ = config.FromContext(ctx)
 	log := logger.FromContext(ctx)
 	if value == nil {
 		return "", fmt.Errorf("nil value is not allowed")
 	}
-	cp, err := deepCopy(value)
+	cp, err := core.DeepCopy[any](value)
 	if err != nil {
 		return "", fmt.Errorf("deep copy failed: %w", err)
 	}
-	etag := computeETag(cp)
+	etag := core.ETagFromAny(cp)
 	s.mu.Lock()
 	if s.closed {
 		s.mu.Unlock()
@@ -83,6 +82,9 @@ func (s *MemoryResourceStore) Put(ctx context.Context, key ResourceKey, value an
 
 // Get retrieves a resource value by key, returning a deep copy.
 func (s *MemoryResourceStore) Get(ctx context.Context, key ResourceKey) (any, string, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, "", fmt.Errorf("context canceled: %w", err)
+	}
 	_ = config.FromContext(ctx)
 	s.mu.RLock()
 	if s.closed {
@@ -94,7 +96,7 @@ func (s *MemoryResourceStore) Get(ctx context.Context, key ResourceKey) (any, st
 	if !ok {
 		return nil, "", ErrNotFound
 	}
-	cp, err := deepCopy(entry.value)
+	cp, err := core.DeepCopy[any](entry.value)
 	if err != nil {
 		return nil, "", fmt.Errorf("deep copy failed: %w", err)
 	}
@@ -103,6 +105,9 @@ func (s *MemoryResourceStore) Get(ctx context.Context, key ResourceKey) (any, st
 
 // Delete removes a resource by key and broadcasts an event if existed.
 func (s *MemoryResourceStore) Delete(ctx context.Context, key ResourceKey) error {
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("context canceled: %w", err)
+	}
 	_ = config.FromContext(ctx)
 	log := logger.FromContext(ctx)
 	existed := false
@@ -142,6 +147,9 @@ func (s *MemoryResourceStore) Delete(ctx context.Context, key ResourceKey) error
 
 // List returns keys for a project and type.
 func (s *MemoryResourceStore) List(ctx context.Context, project string, typ ResourceType) ([]ResourceKey, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("context canceled: %w", err)
+	}
 	_ = config.FromContext(ctx)
 	s.mu.RLock()
 	if s.closed {
@@ -160,6 +168,9 @@ func (s *MemoryResourceStore) List(ctx context.Context, project string, typ Reso
 
 // Watch subscribes to events for project and type. It primes the subscriber with current PUTs.
 func (s *MemoryResourceStore) Watch(ctx context.Context, project string, typ ResourceType) (<-chan Event, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("context canceled: %w", err)
+	}
 	_ = config.FromContext(ctx)
 	log := logger.FromContext(ctx)
 	keyspace := watcherKeyspace(project, typ)
@@ -190,10 +201,7 @@ func (s *MemoryResourceStore) Watch(ctx context.Context, project string, typ Res
 		}
 	}
 	s.mu.Unlock()
-	go func() {
-		<-ctx.Done()
-		s.removeWatcher(project, typ, w)
-	}()
+	go func() { <-ctx.Done(); s.removeWatcher(project, typ, w) }()
 	return ch, nil
 }
 
@@ -265,78 +273,4 @@ func watcherKeyspace(project string, typ ResourceType) string {
 	return b.String()
 }
 
-func deepCopy(v any) (any, error) {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return nil, err
-	}
-	var out any
-	if err := json.Unmarshal(b, &out); err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func computeETag(v any) string {
-	var buf bytes.Buffer
-	writeStableJSON(&buf, v)
-	sum := sha256.Sum256(buf.Bytes())
-	return hex.EncodeToString(sum[:])
-}
-
-// writeStableJSON serializes v into a canonical JSON-like form with sorted map keys.
-func writeStableJSON(b *bytes.Buffer, v any) {
-	switch t := v.(type) {
-	case map[string]any:
-		keys := make([]string, 0, len(t))
-		for k := range t {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-		b.WriteByte('{')
-		for i, k := range keys {
-			if i > 0 {
-				b.WriteByte(',')
-			}
-			if bs, err := json.Marshal(k); err == nil {
-				b.Write(bs)
-			} else {
-				b.WriteString("\"")
-				b.WriteString(k)
-				b.WriteString("\"")
-			}
-			b.WriteByte(':')
-			writeStableJSON(b, t[k])
-		}
-		b.WriteByte('}')
-	case []any:
-		b.WriteByte('[')
-		for i, e := range t {
-			if i > 0 {
-				b.WriteByte(',')
-			}
-			writeStableJSON(b, e)
-		}
-		b.WriteByte(']')
-	case string:
-		if bs, err := json.Marshal(t); err == nil {
-			b.Write(bs)
-		} else {
-			b.WriteString("\"")
-			b.WriteString(t)
-			b.WriteString("\"")
-		}
-	case float64, bool, nil:
-		if bs, err := json.Marshal(t); err == nil {
-			b.Write(bs)
-		} else {
-			b.WriteString("null")
-		}
-	default:
-		if bs, err := json.Marshal(t); err == nil {
-			b.Write(bs)
-		} else {
-			b.WriteString("null")
-		}
-	}
-}
+// removed: local deepCopy/ETag/writeStableJSON in favor of core.DeepCopy and core.ETagFromAny
