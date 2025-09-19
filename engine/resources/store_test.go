@@ -74,7 +74,7 @@ func (s *exampleStore) Watch(ctx context.Context, _ string, _ ResourceType) (<-c
 func (s *exampleStore) Close() error { return nil }
 
 func ExampleResourceStore_basic() {
-	ctx := context.TODO()
+	ctx := context.Background()
 	st := newExampleStore()
 	key := ResourceKey{Project: "proj", Type: ResourceAgent, ID: "writer"}
 	_, _ = st.Put(ctx, key, map[string]any{"resource": "agent", "id": "writer"})
@@ -89,7 +89,7 @@ func ExampleResourceStore_basic() {
 }
 
 func TestExampleStorePutGet(t *testing.T) {
-	ctx := context.TODO()
+	ctx := context.Background()
 	st := newExampleStore()
 	key := ResourceKey{Project: "p", Type: ResourceTool, ID: "browser"}
 	if _, err := st.Put(ctx, key, map[string]any{"resource": "tool", "id": "browser"}); err != nil {

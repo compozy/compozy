@@ -348,6 +348,9 @@ func (r *ConfigRegistry) publishTypeBucket(
 		if _, err := store.Put(ctx, key, entry.config); err != nil {
 			return fmt.Errorf("failed to publish %s '%s' to store: %w", string(rtype), id, err)
 		}
+		if err := resources.WriteMetaForAutoload(ctx, store, project, rtype, id); err != nil {
+			return fmt.Errorf("failed to write autoload meta for %s '%s': %w", string(rtype), id, err)
+		}
 	}
 	return nil
 }

@@ -16,7 +16,7 @@ const rshort = 500 * time.Millisecond
 
 func newTestRedisClient(t *testing.T) (cache.RedisInterface, *miniredis.Miniredis) {
 	mr := miniredis.RunT(t)
-	ctx := context.TODO()
+	ctx := context.Background()
 	cfg := &cache.Config{RedisConfig: &appcfg.RedisConfig{URL: "redis://" + mr.Addr(), PingTimeout: time.Second}}
 	r, err := cache.NewRedis(ctx, cfg)
 	require.NoError(t, err)
@@ -29,7 +29,7 @@ func newTestRedisClient(t *testing.T) (cache.RedisInterface, *miniredis.Miniredi
 
 func TestRedisStore_PutGetDeepCopy(t *testing.T) {
 	t.Run("Should store and return deep copies with deterministic ETags", func(t *testing.T) {
-		ctx := context.TODO()
+		ctx := context.Background()
 		c, mr := newTestRedisClient(t)
 		defer mr.Close()
 		st := NewRedisResourceStore(c, WithReconcileInterval(50*time.Millisecond))
@@ -55,7 +55,7 @@ func TestRedisStore_PutGetDeepCopy(t *testing.T) {
 
 func TestRedisStore_ListAndDelete(t *testing.T) {
 	t.Run("Should list by project/type and delete idempotently", func(t *testing.T) {
-		ctx := context.TODO()
+		ctx := context.Background()
 		c, mr := newTestRedisClient(t)
 		defer mr.Close()
 		st := NewRedisResourceStore(c)
@@ -75,7 +75,7 @@ func TestRedisStore_ListAndDelete(t *testing.T) {
 
 func TestRedisStore_Watch_PrimeAndEvents(t *testing.T) {
 	t.Run("Should prime and receive put/delete events via PubSub", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.TODO())
+		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		c, mr := newTestRedisClient(t)
 		defer mr.Close()
@@ -113,7 +113,7 @@ func TestRedisStore_Watch_PrimeAndEvents(t *testing.T) {
 
 func TestRedisStore_Watch_StopOnCancel(t *testing.T) {
 	t.Run("Should close channel on context cancel", func(t *testing.T) {
-		base := context.TODO()
+		base := context.Background()
 		c, mr := newTestRedisClient(t)
 		defer mr.Close()
 		st := NewRedisResourceStore(c)
@@ -127,5 +127,28 @@ func TestRedisStore_Watch_StopOnCancel(t *testing.T) {
 		case <-time.After(rshort):
 			t.Fatalf("timeout waiting channel close")
 		}
+	})
+}
+
+func TestRedisStore_ListWithValues_AndPage(t *testing.T) {
+	t.Run("Should return items with ETags and paginate", func(t *testing.T) {
+		ctx := context.Background()
+		c, mr := newTestRedisClient(t)
+		defer mr.Close()
+		st := NewRedisResourceStore(c)
+		for i := range 7 {
+			id := "k" + string(rune('a'+i))
+			_, _ = st.Put(ctx, ResourceKey{Project: "p", Type: ResourceAgent, ID: id}, map[string]any{"id": id})
+		}
+		items, err := st.ListWithValues(ctx, "p", ResourceAgent)
+		require.NoError(t, err)
+		require.Len(t, items, 7)
+		for i := range items {
+			require.NotEmpty(t, items[i].ETag)
+		}
+		page, total, err := st.ListWithValuesPage(ctx, "p", ResourceAgent, 3, 3)
+		require.NoError(t, err)
+		require.Equal(t, 7, total)
+		require.Len(t, page, 3)
 	})
 }

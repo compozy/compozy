@@ -114,6 +114,19 @@ func (s *Schema) Clone() (*Schema, error) {
 	return core.DeepCopy(s)
 }
 
+// GetID extracts the id field from a schema when present, else returns empty string.
+func GetID(s *Schema) string {
+	if s == nil {
+		return ""
+	}
+	if v, ok := (*s)["id"]; ok {
+		if str, ok2 := v.(string); ok2 {
+			return str
+		}
+	}
+	return ""
+}
+
 // ApplyDefaults merges default values from the schema with the provided input
 func (s *Schema) ApplyDefaults(input map[string]any) (map[string]any, error) {
 	if s == nil {

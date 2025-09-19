@@ -56,6 +56,13 @@ type Event struct {
 	At   time.Time   `json:"at"`
 }
 
+// StoredItem bundles a key with its stored value and ETag for bulk operations.
+type StoredItem struct {
+	Key   ResourceKey `json:"key"`
+	Value any         `json:"value"`
+	ETag  string      `json:"etag"`
+}
+
 // ResourceStore is the contract for storing and linking referencable resources.
 // Implementations must be safe for concurrent use.
 //
@@ -80,6 +87,20 @@ type ResourceStore interface {
 	// On subscription, implementations may choose to emit synthetic PUT events
 	// for current items to prime caches.
 	Watch(ctx context.Context, project string, typ ResourceType) (<-chan Event, error)
+
+	// ListWithValues returns keys and values (with ETags) for a given project and type
+	// in a batched fashion. Implementations should minimize round-trips to the backend.
+	ListWithValues(ctx context.Context, project string, typ ResourceType) ([]StoredItem, error)
+
+	// ListWithValuesPage returns a paginated slice of StoredItem and the total count
+	// of items for the given project and type. Implementations may fetch all values
+	// and slice, or apply efficient backend paging where possible.
+	ListWithValuesPage(
+		ctx context.Context,
+		project string,
+		typ ResourceType,
+		offset, limit int,
+	) ([]StoredItem, int, error)
 
 	// Close releases underlying resources.
 	Close() error

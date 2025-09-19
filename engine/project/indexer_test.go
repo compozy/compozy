@@ -34,3 +34,15 @@ func TestProject_IndexToResourceStore(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, v2)
 }
+
+func TestProject_IndexToResourceStore_WritesMeta(t *testing.T) {
+	ctx := context.Background()
+	store := resources.NewMemoryResourceStore()
+	p := &Config{Name: "demo", Tools: []tool.Config{{ID: "fmt"}}}
+	require.NoError(t, p.IndexToResourceStore(ctx, store))
+	metaKey := resources.ResourceKey{Project: "demo", Type: resources.ResourceMeta, ID: "demo:tool:fmt"}
+	v, _, err := store.Get(ctx, metaKey)
+	require.NoError(t, err)
+	m := v.(map[string]any)
+	require.Equal(t, "yaml", m["source"].(string))
+}

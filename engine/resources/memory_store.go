@@ -259,4 +259,62 @@ func (s *MemoryResourceStore) removeWatcher(project string, typ ResourceType, ta
 
 func watcherKeyspace(project string, typ ResourceType) string { return project + "|" + string(typ) }
 
+// ListWithValues returns copies of keys, values and etags for project/type.
+func (s *MemoryResourceStore) ListWithValues(
+	ctx context.Context,
+	project string,
+	typ ResourceType,
+) ([]StoredItem, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("context canceled: %w", err)
+	}
+	_ = config.FromContext(ctx)
+	s.mu.RLock()
+	if s.closed {
+		s.mu.RUnlock()
+		return nil, fmt.Errorf("store is closed")
+	}
+	out := make([]StoredItem, 0)
+	for k, e := range s.items {
+		if k.Project == project && k.Type == typ {
+			cp, err := core.DeepCopy[any](e.value)
+			if err != nil {
+				s.mu.RUnlock()
+				return nil, fmt.Errorf("deep copy failed: %w", err)
+			}
+			out = append(out, StoredItem{Key: k, Value: cp, ETag: e.etag})
+		}
+	}
+	s.mu.RUnlock()
+	return out, nil
+}
+
+// ListWithValuesPage returns a page of items and the total count.
+func (s *MemoryResourceStore) ListWithValuesPage(
+	ctx context.Context,
+	project string,
+	typ ResourceType,
+	offset, limit int,
+) ([]StoredItem, int, error) {
+	items, err := s.ListWithValues(ctx, project, typ)
+	if err != nil {
+		return nil, 0, err
+	}
+	total := len(items)
+	if offset < 0 {
+		offset = 0
+	}
+	if limit <= 0 {
+		limit = total
+	}
+	if offset > total {
+		return []StoredItem{}, total, nil
+	}
+	end := offset + limit
+	if end > total {
+		end = total
+	}
+	return items[offset:end], total, nil
+}
+
 // removed: local deepCopy/ETag/writeStableJSON in favor of core.DeepCopy and core.ETagFromAny

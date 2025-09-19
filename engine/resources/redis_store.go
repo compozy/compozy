@@ -186,6 +186,102 @@ func (s *RedisResourceStore) List(ctx context.Context, project string, typ Resou
 	return res, nil
 }
 
+// ListWithValues returns keys with their JSON values (decoded) and ETags using batched MGET.
+func (s *RedisResourceStore) ListWithValues(
+	ctx context.Context,
+	project string,
+	typ ResourceType,
+) ([]StoredItem, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("context canceled: %w", err)
+	}
+	_ = config.FromContext(ctx)
+	if s.closed.Load() {
+		return nil, fmt.Errorf("store is closed")
+	}
+	// Collect keys using SCAN
+	pattern := s.keyPrefix(project, typ) + ":*"
+	var cursor uint64
+	redisKeys := make([]string, 0, 128)
+	resKeys := make([]ResourceKey, 0, 128)
+	for {
+		keys, next, err := s.r.Scan(ctx, cursor, pattern, 256).Result()
+		if err != nil {
+			return nil, err
+		}
+		for _, full := range keys {
+			if rk, ok := s.parseKey(full); ok {
+				resKeys = append(resKeys, rk)
+				redisKeys = append(redisKeys, full)
+			}
+		}
+		cursor = next
+		if cursor == 0 {
+			break
+		}
+	}
+	if len(redisKeys) == 0 {
+		return []StoredItem{}, nil
+	}
+	// Batch fetch values
+	vals, err := s.r.MGet(ctx, redisKeys...).Result()
+	if err != nil {
+		return nil, err
+	}
+	out := make([]StoredItem, 0, len(vals))
+	for i, raw := range vals {
+		if raw == nil {
+			continue
+		}
+		var bs []byte
+		switch t := raw.(type) {
+		case string:
+			bs = []byte(t)
+		case []byte:
+			bs = t
+		default:
+			// fallback to string representation
+			bs = []byte(fmt.Sprint(t))
+		}
+		var v any
+		if err := json.Unmarshal(bs, &v); err != nil {
+			continue
+		}
+		sum := sha256.Sum256(bs)
+		etag := hex.EncodeToString(sum[:])
+		out = append(out, StoredItem{Key: resKeys[i], Value: v, ETag: etag})
+	}
+	return out, nil
+}
+
+// ListWithValuesPage returns a page of items and the total count.
+func (s *RedisResourceStore) ListWithValuesPage(
+	ctx context.Context,
+	project string,
+	typ ResourceType,
+	offset, limit int,
+) ([]StoredItem, int, error) {
+	items, err := s.ListWithValues(ctx, project, typ)
+	if err != nil {
+		return nil, 0, err
+	}
+	total := len(items)
+	if offset < 0 {
+		offset = 0
+	}
+	if limit <= 0 {
+		limit = total
+	}
+	if offset > total {
+		return []StoredItem{}, total, nil
+	}
+	end := offset + limit
+	if end > total {
+		end = total
+	}
+	return items[offset:end], total, nil
+}
+
 // Watch subscribes to events for a project and type. It primes and periodically reconciles.
 func (s *RedisResourceStore) Watch(ctx context.Context, project string, typ ResourceType) (<-chan Event, error) {
 	if err := ctx.Err(); err != nil {

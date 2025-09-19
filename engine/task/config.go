@@ -2954,7 +2954,7 @@ func Load(cwd *core.PathCWD, path string) (*Config, error) {
 	if err := propagateCWDToSubTasks(config); err != nil {
 		return nil, err
 	}
-	if err := normalizeAttachmentsPhase1(context.TODO(), config,
+	if err := normalizeAttachmentsPhase1(context.Background(), config,
 		tplengine.NewEngine(tplengine.FormatJSON), nil); err != nil {
 		return nil, err
 	}

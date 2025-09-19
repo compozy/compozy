@@ -62,6 +62,7 @@ func setupAdminRoutes(
 	})
 	admin.GET("/export-yaml", func(c *gin.Context) { adminExportYAMLHandler(c) })
 	admin.GET("/import-yaml", func(c *gin.Context) { adminImportYAMLHandler(c) })
+	registerMetaRoutes(admin)
 	return nil
 }
 

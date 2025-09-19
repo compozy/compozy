@@ -1,6 +1,7 @@
 package resourcesrouter
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -63,6 +64,14 @@ func TestResourcesRouter_CRUDAndETag(t *testing.T) {
 		srv.ServeHTTP(res2, req2)
 		require.Equal(t, http.StatusOK, res2.Code)
 		assert.Equal(t, etag, res2.Header().Get("ETag"))
+	})
+	// Not found path
+	t.Run("Should return 404 when resource not found", func(t *testing.T) {
+		t.Parallel()
+		res := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/api/v0/resources/agent/missing", http.NoBody)
+		srv.ServeHTTP(res, req)
+		require.Equal(t, http.StatusNotFound, res.Code)
 	})
 	t.Run("Should list and filter by prefix", func(t *testing.T) {
 		t.Parallel()
@@ -154,6 +163,63 @@ func TestResourcesRouter_MissingState(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/resources/agent/a1", http.NoBody)
 	r.ServeHTTP(res, req)
 	require.Equal(t, http.StatusInternalServerError, res.Code)
+}
+
+type errListStore struct{ resources.MemoryResourceStore }
+
+func (e *errListStore) List(_ context.Context, _ string, _ resources.ResourceType) ([]resources.ResourceKey, error) {
+	return nil, assert.AnError
+}
+
+func TestResourcesRouter_Errors(t *testing.T) {
+	t.Parallel()
+	t.Run("Should return 500 on list error", func(t *testing.T) {
+		r := gin.New()
+		prj := &project.Config{Name: "p", Version: "1.0"}
+		require.NoError(t, prj.SetCWD("."))
+		deps := appstate.NewBaseDeps(prj, nil, nil, nil)
+		st, err := appstate.NewState(deps, nil)
+		require.NoError(t, err)
+		st.SetResourceStore(&errListStore{})
+		r.Use(appstate.StateMiddleware(st))
+		r.Use(infrarouter.ErrorHandler())
+		api := r.Group("/api/v0")
+		Register(api)
+		res := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/api/v0/resources/agent", http.NoBody)
+		r.ServeHTTP(res, req)
+		require.Equal(t, http.StatusInternalServerError, res.Code)
+	})
+	t.Run("Should return 400 on create without id", func(t *testing.T) {
+		srv := newServerWithStore(t)
+		res := httptest.NewRecorder()
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/api/v0/resources/agent",
+			strings.NewReader(`{"type":"agent","instructions":"x"}`),
+		)
+		srv.ServeHTTP(res, req)
+		require.Equal(t, http.StatusBadRequest, res.Code)
+	})
+	t.Run("Should return 400 when id param is blank", func(t *testing.T) {
+		srv := newServerWithStore(t)
+		r1 := httptest.NewRecorder()
+		q1 := httptest.NewRequest(http.MethodGet, "/api/v0/resources/agent/%20", http.NoBody)
+		srv.ServeHTTP(r1, q1)
+		require.Equal(t, http.StatusBadRequest, r1.Code)
+		r2 := httptest.NewRecorder()
+		q2 := httptest.NewRequest(http.MethodDelete, "/api/v0/resources/agent/%20", http.NoBody)
+		srv.ServeHTTP(r2, q2)
+		require.Equal(t, http.StatusBadRequest, r2.Code)
+		r3 := httptest.NewRecorder()
+		q3 := httptest.NewRequest(
+			http.MethodPut,
+			"/api/v0/resources/agent/%20",
+			strings.NewReader(`{"id":"a","type":"agent"}`),
+		)
+		srv.ServeHTTP(r3, q3)
+		require.Equal(t, http.StatusBadRequest, r3.Code)
+	})
 }
 
 func sendJSON(srv *gin.Engine, method, path, body string) *httptest.ResponseRecorder {
