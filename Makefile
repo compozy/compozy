@@ -208,7 +208,7 @@ release-major: release-deps
 
 test:
 	@bun run test
-	@gotestsum --format pkgname -- -race -parallel=4 ./...
+	@gotestsum --format pkgname  -- -race -parallel=4 ./...
 
 test-coverage:
 	@bun run test

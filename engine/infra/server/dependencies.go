@@ -12,12 +12,14 @@ import (
 	"github.com/compozy/compozy/engine/infra/repo"
 	"github.com/compozy/compozy/engine/infra/server/appstate"
 	csvc "github.com/compozy/compozy/engine/infra/server/config"
+	"github.com/compozy/compozy/engine/infra/server/reconciler"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/worker"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
+	redis "github.com/redis/go-redis/v9"
 )
 
 func (s *Server) setupProjectConfig(
@@ -136,12 +138,7 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	if redisCleanup != nil {
 		cleanupFuncs = append(cleanupFuncs, redisCleanup)
 	}
-	var resourceStore resources.ResourceStore
-	if s.redisClient != nil {
-		resourceStore = resources.NewRedisResourceStore(s.redisClient)
-	} else {
-		resourceStore = resources.NewMemoryResourceStore()
-	}
+	resourceStore := chooseResourceStore(s.redisClient)
 	projectConfig, workflows, configRegistry, err := s.setupProjectConfig(resourceStore)
 	if err != nil {
 		return nil, cleanupFuncs, err
@@ -181,11 +178,27 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 		return nil, cleanupFuncs, fmt.Errorf("failed to create app state: %w", err)
 	}
 	state.SetResourceStore(resourceStore)
+	if configRegistry != nil {
+		state.SetConfigRegistry(configRegistry)
+	}
 	if w != nil {
 		s.initializeScheduleManager(state, w, workflows)
 	}
+	// Start live update reconciler in builder mode (watch ResourceStore and scoped recompile)
+	if r, err := reconciler.StartIfBuilderMode(s.ctx, state); err != nil {
+		return nil, cleanupFuncs, fmt.Errorf("failed to start reconciler: %w", err)
+	} else if r != nil {
+		cleanupFuncs = append(cleanupFuncs, func() { r.Stop() })
+	}
 	s.emitStartupSummary(time.Since(setupStart))
 	return state, cleanupFuncs, nil
+}
+
+func chooseResourceStore(redisClient *redis.Client) resources.ResourceStore {
+	if redisClient != nil {
+		return resources.NewRedisResourceStore(redisClient)
+	}
+	return resources.NewMemoryResourceStore()
 }
 
 func (s *Server) finalizeStartupLabels() {

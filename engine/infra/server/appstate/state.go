@@ -28,6 +28,7 @@ const (
 	extensionScheduleManagerKey ExtensionKey = "scheduleManager"
 	extensionWebhookRegistryKey ExtensionKey = "webhook.registry"
 	extensionResourceStoreKey   ExtensionKey = "resource.store"
+	extensionConfigRegistryKey  ExtensionKey = "config.registry"
 )
 
 type BaseDeps struct {
@@ -138,6 +139,24 @@ func (s *State) ResourceStore() (any, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	v, ok := s.Extensions[extensionResourceStoreKey]
+	return v, ok
+}
+
+// SetConfigRegistry stores the autoload.ConfigRegistry in extensions
+func (s *State) SetConfigRegistry(v any) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.Extensions == nil {
+		s.Extensions = make(map[ExtensionKey]any)
+	}
+	s.Extensions[extensionConfigRegistryKey] = v
+}
+
+// ConfigRegistry retrieves the autoload.ConfigRegistry from extensions
+func (s *State) ConfigRegistry() (any, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	v, ok := s.Extensions[extensionConfigRegistryKey]
 	return v, ok
 }
 
