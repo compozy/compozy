@@ -25,6 +25,9 @@ const (
 	// Resource-specific extensions not yet in core:
 	ResourceSchema ResourceType = "schema"
 	ResourceModel  ResourceType = "model"
+	// ResourceMeta stores provenance or auxiliary metadata for resources.
+	// Not exposed via public HTTP router; used by importers/admin tooling.
+	ResourceMeta ResourceType = "meta"
 )
 
 // ResourceKey uniquely identifies a resource within a project and type.

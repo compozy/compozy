@@ -192,6 +192,44 @@ func (c *client) parseResponse(resp *http.Response, result any) error {
 	return nil
 }
 
+// CallGET performs a raw GET request to a path under the API base URL using the concrete client.
+// It parses the standard API envelope and returns any server-side error as Go error.
+func CallGET(ctx context.Context, ac AuthClient, path string) error {
+	impl, ok := ac.(*client)
+	if !ok {
+		return fmt.Errorf("unsupported client implementation")
+	}
+	resp, err := impl.doRequest(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	var envelope models.APIResponse
+	if err := impl.parseResponse(resp, &envelope); err != nil {
+		return err
+	}
+	return nil
+}
+
+// CallGETDecode performs GET and decodes the response envelope for callers who
+// want to display additional details.
+func CallGETDecode(ctx context.Context, ac AuthClient, path string) (*models.APIResponse, error) {
+	impl, ok := ac.(*client)
+	if !ok {
+		return nil, fmt.Errorf("unsupported client implementation")
+	}
+	resp, err := impl.doRequest(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	var envelope models.APIResponse
+	if err := impl.parseResponse(resp, &envelope); err != nil {
+		return nil, err
+	}
+	return &envelope, nil
+}
+
 // GenerateKey generates a new API key
 func (c *client) GenerateKey(ctx context.Context, req *GenerateKeyRequest) (string, error) {
 	resp, err := c.doRequest(ctx, http.MethodPost, "/auth/generate", req)

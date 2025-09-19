@@ -60,6 +60,8 @@ func setupAdminRoutes(
 	admin.GET("/reload", func(c *gin.Context) {
 		adminReloadHandler(c, server)
 	})
+	admin.GET("/export-yaml", func(c *gin.Context) { adminExportYAMLHandler(c) })
+	admin.GET("/import-yaml", func(c *gin.Context) { adminImportYAMLHandler(c) })
 	return nil
 }
 
