@@ -1,0 +1,14 @@
+id: agent-with-mcps
+
+model:
+  provider: openai
+  model: gpt-4o-mini
+
+instructions: |
+  Test agent with MCPs in mixed forms.
+
+mcps:
+  - fs
+  - id: http
+    url: http://localhost:3000/mcp
+    transport: sse

@@ -81,6 +81,57 @@ func Test_LoadAgent(t *testing.T) {
 	})
 }
 
+func Test_AgentMCPs_Decode_YAML_And_FromMap(t *testing.T) {
+	t.Run("Should decode mcps from YAML with scalar and object forms", func(t *testing.T) {
+		cwd, dstPath := setupTest(t, "agent_mcps_dual.yaml")
+		cfg, err := Load(cwd, dstPath)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
+		require.Len(t, cfg.MCPs, 2)
+		assert.Equal(t, "fs", cfg.MCPs[0].ID)
+		assert.Equal(t, "http", cfg.MCPs[1].ID)
+		assert.Equal(t, "http://localhost:3000/mcp", cfg.MCPs[1].URL)
+	})
+
+	t.Run("Should decode mcps from map with string IDs", func(t *testing.T) {
+		var dst Config
+		m := map[string]any{
+			"id":           "x",
+			"instructions": "i",
+			"model": map[string]any{
+				"provider": string(core.ProviderOpenAI),
+				"model":    "gpt-4o-mini",
+			},
+			"mcps": []any{
+				"srv1",
+				map[string]any{"id": "srv2", "url": "http://example"},
+			},
+		}
+		err := dst.FromMap(m)
+		require.NoError(t, err)
+		require.Len(t, dst.MCPs, 2)
+		assert.Equal(t, "srv1", dst.MCPs[0].ID)
+		assert.Equal(t, "srv2", dst.MCPs[1].ID)
+		assert.Equal(t, "http://example", dst.MCPs[1].URL)
+	})
+
+	t.Run("Should fail when mcps contains invalid non-string value", func(t *testing.T) {
+		var dst Config
+		m := map[string]any{
+			"id":           "x",
+			"instructions": "i",
+			"model": map[string]any{
+				"provider": string(core.ProviderOpenAI),
+				"model":    "gpt-4o-mini",
+			},
+			// invalid element (number) should cause decode error
+			"mcps": []any{12345},
+		}
+		err := dst.FromMap(m)
+		require.Error(t, err)
+	})
+}
+
 func Test_AgentActionConfigValidation(t *testing.T) {
 	actionCWD, err := core.CWDFromPath("/test/path")
 	require.NoError(t, err)

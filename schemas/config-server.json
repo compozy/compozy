@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://schemas.compozy.com/config-server.json",
+  "$id": "config-server.json",
   "$defs": {
     "AuthConfig": {
       "properties": {
@@ -123,6 +123,14 @@
     "timeouts": {
       "$ref": "#/$defs/ServerTimeouts",
       "description": "Timeouts contains operator-tunable timeouts and retry/backoff settings\nfor server startup, shutdown, and HTTP behavior.\n\n$ref: schema://application#server.timeouts"
+    },
+    "source_of_truth": {
+      "type": "string",
+      "description": "SourceOfTruth selects where the server loads workflows from.\n\nValues:\n  - \"repo\": load YAML from repository and index to store (default)\n  - \"builder\": load workflows from ResourceStore (compile-from-store)"
+    },
+    "seed_from_repo_on_empty": {
+      "type": "boolean",
+      "description": "SeedFromRepoOnEmpty controls whether builder mode seeds the store from\nrepository YAML once when the store is empty. Disabled by default."
     }
   },
   "additionalProperties": false,

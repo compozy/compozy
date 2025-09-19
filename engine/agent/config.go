@@ -475,6 +475,15 @@ func (a *Config) FromMap(data any) error {
 					}
 					return v, nil
 				}
+				// Support assigning a scalar string to mcp.Config.
+				// This enables dual-form decoding of MCPs, particularly when
+				// elements in the `mcps` slice are provided as string IDs.
+				if from.Kind() == reflect.String && to == reflect.TypeOf(mcp.Config{}) {
+					if s, ok := v.(string); ok {
+						return mcp.Config{ID: s}, nil
+					}
+					return v, nil
+				}
 				return v, nil
 			},
 		),

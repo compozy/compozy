@@ -64,6 +64,7 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	mcpproxy "github.com/compozy/compozy/pkg/mcp-proxy"
+	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -316,6 +317,32 @@ type Config struct {
 	// max_sessions: 0   # Unlimited sessions
 	// ```
 	MaxSessions int `yaml:"max_sessions,omitempty"  json:"max_sessions,omitempty"`
+}
+
+// UnmarshalYAML supports both scalar string and full object forms.
+// When a scalar string is provided, it is interpreted as an ID-only
+// selector (e.g., "mcps: [\"filesystem\"]" -> Config{ID: "filesystem"}).
+// Object form follows normal decoding.
+// This mirrors tool/agent dual-form behavior for a consistent authoring UX.
+func (c *Config) UnmarshalYAML(value *yaml.Node) error {
+	if value == nil {
+		return nil
+	}
+	if value.Kind == yaml.ScalarNode {
+		var id string
+		if err := value.Decode(&id); err != nil {
+			return err
+		}
+		c.ID = id
+		return nil
+	}
+	type alias Config
+	var tmp alias
+	if err := value.Decode(&tmp); err != nil {
+		return err
+	}
+	*c = Config(tmp)
+	return nil
 }
 
 // SetDefaults sets **default values** for optional configuration fields.

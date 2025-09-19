@@ -2,10 +2,13 @@ package workflow
 
 import (
 	"context"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/schema"
@@ -351,5 +354,102 @@ func TestCompile_SuggestNearestModelIDs(t *testing.T) {
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "Did you mean")
 		require.Contains(t, err.Error(), "fast")
+	})
+}
+
+func TestCompile_ResolveMCPSelector(t *testing.T) {
+	t.Run("Should resolve MCP by ID and deepcopy into agent", func(t *testing.T) {
+		ctx := withCtx(t)
+		store := resources.NewMemoryResourceStore()
+		proj := &project.Config{Name: "demo"}
+
+		// MCP proxy is required by mcp.Config.Validate
+		require.NoError(t, os.Setenv("MCP_PROXY_URL", "http://localhost:4000/proxy"))
+		defer os.Unsetenv("MCP_PROXY_URL")
+
+		// Put MCP into store
+		mc := &mcp.Config{ID: "srv", URL: "http://localhost:3000/mcp"}
+		_, err := store.Put(ctx, resources.ResourceKey{Project: "demo", Type: resources.ResourceMCP, ID: mc.ID}, mc)
+		require.NoError(t, err)
+
+		// Inline agent that references MCP selector by ID
+		wf := &Config{
+			ID: "wf_mcp_1",
+			Tasks: []task.Config{
+				{
+					BaseConfig: task.BaseConfig{
+						ID:   "t1",
+						Type: task.TaskTypeBasic,
+						Agent: &agent.Config{
+							ID:           "inline-agent",
+							Instructions: "You are helpful.",
+							Model: agent.Model{
+								Config: core.ProviderConfig{Provider: core.ProviderOpenAI, Model: "gpt-4o-mini"},
+							},
+							LLMProperties: agent.LLMProperties{
+								MCPs: []mcp.Config{{ID: "srv"}},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		compiled, err := wf.Compile(ctx, proj, store)
+		require.NoError(t, err)
+		got := compiled.Tasks[0].Agent
+		require.NotNil(t, got)
+		require.Len(t, got.MCPs, 1)
+		// Ensure deep copy: mutate compiled copy should not affect store value
+		got.MCPs[0].URL = "http://modified:9999"
+		v, _, err := store.Get(ctx, resources.ResourceKey{Project: "demo", Type: resources.ResourceMCP, ID: "srv"})
+		require.NoError(t, err)
+		original := v.(*mcp.Config)
+		assert.Equal(t, "http://localhost:3000/mcp", original.URL)
+		// Defaults applied
+		assert.NotEmpty(t, got.MCPs[0].Proto)
+		assert.NotEmpty(t, got.MCPs[0].Transport)
+	})
+
+	t.Run("Should suggest nearest MCP IDs on not found", func(t *testing.T) {
+		ctx := withCtx(t)
+		store := resources.NewMemoryResourceStore()
+		proj := &project.Config{Name: "demo"}
+		require.NoError(t, os.Setenv("MCP_PROXY_URL", "http://localhost:4000/proxy"))
+		defer os.Unsetenv("MCP_PROXY_URL")
+
+		// Seed store with some MCPs for suggestions
+		m1 := &mcp.Config{ID: "server", URL: "http://localhost:3001/mcp"}
+		m2 := &mcp.Config{ID: "srv-alpha", URL: "http://localhost:3002/mcp"}
+		_, err := store.Put(ctx, resources.ResourceKey{Project: "demo", Type: resources.ResourceMCP, ID: m1.ID}, m1)
+		require.NoError(t, err)
+		_, err = store.Put(ctx, resources.ResourceKey{Project: "demo", Type: resources.ResourceMCP, ID: m2.ID}, m2)
+		require.NoError(t, err)
+
+		wf := &Config{
+			ID: "wf_mcp_suggest",
+			Tasks: []task.Config{{
+				BaseConfig: task.BaseConfig{
+					ID:   "t1",
+					Type: task.TaskTypeBasic,
+					Agent: &agent.Config{
+						ID:           "inline-agent",
+						Instructions: "Helper",
+						Model: agent.Model{
+							Config: core.ProviderConfig{Provider: core.ProviderOpenAI, Model: "gpt-4o-mini"},
+						},
+						LLMProperties: agent.LLMProperties{
+							MCPs: []mcp.Config{{ID: "svr"}},
+						},
+					},
+				},
+			}},
+		}
+
+		_, err = wf.Compile(ctx, proj, store)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "Did you mean")
+		// Expect one of the known IDs in the suggestion list
+		require.True(t, strings.Contains(err.Error(), "server") || strings.Contains(err.Error(), "srv-alpha"))
 	})
 }

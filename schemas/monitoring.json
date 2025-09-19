@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://schemas.compozy.com/monitoring.json",
+  "$id": "monitoring.json",
   "properties": {
     "enabled": {
       "type": "boolean",

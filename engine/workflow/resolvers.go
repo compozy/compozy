@@ -11,6 +11,7 @@ import (
 	"github.com/adrg/strutil/metrics"
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/schema"
@@ -96,6 +97,10 @@ func finishAgentSetup(
 	}
 	proj.SetDefaultModel(agentCfg)
 	if err := linkAgentSchemas(ctx, proj, store, agentCfg); err != nil {
+		return err
+	}
+	// Resolve MCP selectors declared on the agent (e.g., { id: "srv" }).
+	if err := resolveMCPs(ctx, proj, store, agentCfg); err != nil {
 		return err
 	}
 	return nil
@@ -314,6 +319,70 @@ func isToolSelector(t *tool.Config) bool {
 		return false
 	}
 	return t.ID != "" && t.Description == "" && t.Timeout == "" && t.InputSchema == nil && t.OutputSchema == nil
+}
+
+// isMCPSelector returns true when an MCP config is an ID-only selector.
+// We detect selectors using the same principle as tools: ID present and the
+// rest of identifying fields empty (no URL/Command provided).
+func isMCPSelector(mc *mcp.Config) bool {
+	if mc == nil {
+		return false
+	}
+	// Treat as a selector only when it is strictly ID-only with no other
+	// substantive fields set. This avoids misclassifying partially-defined
+	// inline MCP configs (e.g., headers/env) as selectors.
+	return mc.ID != "" && mc.URL == "" && mc.Command == "" && len(mc.Headers) == 0 && len(mc.Env) == 0
+}
+
+// resolveMCPs resolves any ID-only MCP selectors on the provided agent config
+// by fetching the concrete definitions from the ResourceStore. Resolved entries
+// are deep-copied, defaults are applied, and basic validation is performed to
+// surface configuration errors early in the compile phase.
+func resolveMCPs(
+	ctx context.Context,
+	proj *project.Config,
+	store resources.ResourceStore,
+	a *agent.Config,
+) error {
+	if a == nil || len(a.MCPs) == 0 {
+		return nil
+	}
+	log := logger.FromContext(ctx)
+	for i := range a.MCPs {
+		if !isMCPSelector(&a.MCPs[i]) {
+			// Inline definition: ensure defaults for consistency
+			a.MCPs[i].SetDefaults()
+			continue
+		}
+		id := a.MCPs[i].ID
+		key := resources.ResourceKey{Project: proj.Name, Type: resources.ResourceMCP, ID: id}
+		val, _, err := store.Get(ctx, key)
+		if err != nil {
+			if errors.Is(err, resources.ErrNotFound) {
+				return &SelectorNotFoundError{
+					Type:       resources.ResourceMCP,
+					ID:         id,
+					Project:    proj.Name,
+					Candidates: nearestIDs(ctx, store, proj.Name, resources.ResourceMCP, id),
+				}
+			}
+			return fmt.Errorf("mcp lookup failed for '%s': %w", id, err)
+		}
+		got, ok := val.(*mcp.Config)
+		if !ok {
+			return &TypeMismatchError{Type: resources.ResourceMCP, ID: id, Got: val}
+		}
+		clone, err := got.Clone()
+		if err != nil {
+			return fmt.Errorf("failed to clone mcp '%s': %w", id, err)
+		}
+		// Apply defaults; defer validation to explicit validation phases to
+		// keep compile independent from runtime environment requirements.
+		clone.SetDefaults()
+		a.MCPs[i] = *clone
+		log.Debug("Resolved mcp selector", "mcp_id", id)
+	}
+	return nil
 }
 
 // applyAgentModelSelector resolves a model resource by ID and merges it into the

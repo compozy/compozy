@@ -94,6 +94,10 @@
           "description": "Maximum time to wait for a task to start executing\nDefault: \"1m\"\n\n- **Example**: \"30s\", \"5m\", \"1h\"",
           "type": "string"
         },
+        "source_of_truth": {
+          "description": "SourceOfTruth optionally overrides server default for this project.\nValues: \"repo\" or \"builder\".",
+          "type": "string"
+        },
         "start_to_close_timeout": {
           "description": "Maximum time for task execution once started\nDefault: \"5m\"\n\n- **Example**: \"30s\", \"10m\", \"1h\"",
           "type": "string"
@@ -880,6 +884,14 @@
           "description": "Port specifies the TCP port for the HTTP server.\n\nValid range: 1-65535. Common ports:\n  - `8080`: Default development port\n  - `80`: Standard HTTP (requires privileges)\n  - `443`: Standard HTTPS (requires privileges)",
           "type": "integer"
         },
+        "seed_from_repo_on_empty": {
+          "description": "SeedFromRepoOnEmpty controls whether builder mode seeds the store from\nrepository YAML once when the store is empty. Disabled by default.",
+          "type": "boolean"
+        },
+        "source_of_truth": {
+          "description": "SourceOfTruth selects where the server loads workflows from.\n\nValues:\n  - \"repo\": load YAML from repository and index to store (default)\n  - \"builder\": load workflows from ResourceStore (compile-from-store)",
+          "type": "string"
+        },
         "timeout": {
           "description": "Timeout sets the maximum duration for processing requests.\n\nApplies to all HTTP operations including request reading, processing, and response writing.\nDefault: 30s. Increase for long-running operations.",
           "type": "integer"
@@ -1040,7 +1052,7 @@
       "type": "object"
     }
   },
-  "$id": "https://schemas.compozy.com/compozy.json",
+  "$id": "compozy.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "Complete configuration schema for compozy.yaml including both project and application settings",
@@ -1054,7 +1066,7 @@
       "description": "Author information for the project.\n\n$ref: inline:#author"
     },
     "autoload": {
-      "$ref": "#/$defs/Config",
+      "$ref": "autoload.json",
       "description": "AutoLoad configures automatic loading and reloading of project resources during development.\n\n$ref: inline:#autoload\n\n**Development Benefits**:\n  - Hot-reload agents and workflows without restart\n  - Automatic discovery of new resources\n  - Faster iteration cycles\n  - Validation on file changes\n\n**Example**:\n\n```yaml\nautoload:\n  enabled: true\n  strict: true              # Fail on validation errors\n  watch_interval: 2s        # Check for changes every 2 seconds\n  include:\n    - \"agents/**/*.yaml\"\n    - \"workflows/**/*.yaml\"\n    - \"memory/**/*.yaml\"\n  exclude:\n    - \"**/*.tmp\"\n    - \"**/*~\"\n```"
     },
     "cache": {
@@ -1101,7 +1113,7 @@
       "type": "array"
     },
     "monitoring": {
-      "$ref": "#/$defs/Config",
+      "$ref": "monitoring.json",
       "description": "MonitoringConfig enables observability and metrics collection for performance tracking.\n\n$ref: inline:#monitoring"
     },
     "name": {
@@ -1142,7 +1154,7 @@
     "tools": {
       "description": "Tools defines shared tool definitions available to all workflows and agents\nwithin this project. These tools are inherited unless explicitly overridden.\n\n**Inheritance Rules**:\n  - Agent tools completely override inheritance when present\n  - Workflow tools override project tools by ID\n  - Tool ID collisions resolved by precedence: Agent \u003e Workflow \u003e Project\n\n**Location \u0026 autoload**:\n  - Place reusable tool configuration files under the `tools/` directory (e.g., `tools/*.yaml`)\n  - If autoload is enabled, files in `tools/` will be discovered and validated automatically\n\n**Example**:\n\n```yaml\ntools:\n  - id: code-analyzer\n    description: Analyzes code quality and patterns\n    timeout: 30s\n  - id: data-processor\n    description: Processes and transforms data\n```",
       "items": {
-        "$ref": "#/$defs/Config"
+        "$ref": "tool.json"
       },
       "type": "array"
     },

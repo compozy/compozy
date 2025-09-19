@@ -618,6 +618,14 @@
           "description": "Port specifies the TCP port for the HTTP server.\n\nValid range: 1-65535. Common ports:\n  - `8080`: Default development port\n  - `80`: Standard HTTP (requires privileges)\n  - `443`: Standard HTTPS (requires privileges)",
           "type": "integer"
         },
+        "seed_from_repo_on_empty": {
+          "description": "SeedFromRepoOnEmpty controls whether builder mode seeds the store from\nrepository YAML once when the store is empty. Disabled by default.",
+          "type": "boolean"
+        },
+        "source_of_truth": {
+          "description": "SourceOfTruth selects where the server loads workflows from.\n\nValues:\n  - \"repo\": load YAML from repository and index to store (default)\n  - \"builder\": load workflows from ResourceStore (compile-from-store)",
+          "type": "string"
+        },
         "timeout": {
           "description": "Timeout sets the maximum duration for processing requests.\n\nApplies to all HTTP operations including request reading, processing, and response writing.\nDefault: 30s. Increase for long-running operations.",
           "type": "integer"
@@ -778,7 +786,7 @@
       "type": "object"
     }
   },
-  "$id": "https://schemas.compozy.com/config.json",
+  "$id": "config.json",
   "$schema": "http://json-schema.org/draft-07/schema#",
   "additionalProperties": false,
   "description": "Config represents the complete configuration for the Compozy system.",
