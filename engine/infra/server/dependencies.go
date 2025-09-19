@@ -138,7 +138,7 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	if redisCleanup != nil {
 		cleanupFuncs = append(cleanupFuncs, redisCleanup)
 	}
-	resourceStore := chooseResourceStore(s.redisClient)
+	resourceStore := chooseResourceStore(s.redisClient, cfg)
 	projectConfig, workflows, configRegistry, err := s.setupProjectConfig(resourceStore)
 	if err != nil {
 		return nil, cleanupFuncs, err
@@ -194,7 +194,15 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	return state, cleanupFuncs, nil
 }
 
-func chooseResourceStore(redisClient *redis.Client) resources.ResourceStore {
+func chooseResourceStore(redisClient *redis.Client, cfg *config.Config) resources.ResourceStore {
+	// In repo mode, workflows are loaded directly from YAML and require
+	// preserving concrete Go types in the ResourceStore for schema/agent/tool
+	// resolution. The Redis-backed store serializes values to JSON which loses
+	// type information and causes type mismatches during compilation.
+	// Use in-memory store for repo source of truth to retain types.
+	if cfg != nil && cfg.Server.SourceOfTruth == sourceRepo {
+		return resources.NewMemoryResourceStore()
+	}
 	if redisClient != nil {
 		return resources.NewRedisResourceStore(redisClient)
 	}

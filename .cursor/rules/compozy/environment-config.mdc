@@ -239,6 +239,30 @@ port: "{{ .env.PORT | default '3000' | int }}"
 # Conditional configuration
 ssl_mode: "{{ if eq .env.NODE_ENV 'production' }}require{{ else }}disable{{ end }}"
 
+## 6. Webhooks & Attachments (Global Runtime)
+
+<runtime_globals type="webhooks_and_attachments">
+Add these to your YAML config or set via env/CLI flags:
+
+```yaml
+webhooks:
+  default_method: POST
+  default_max_body: 1048576        # 1MB
+  default_dedupe_ttl: 10m
+  stripe_skew: 5m
+
+attachments:
+  download_timeout: 30s
+  max_redirects: 3
+  ssrf_strict: false
+  allowed_mime_types:
+    image: ["image/*"]
+    pdf:   ["application/pdf"]
+```
+
+See compozy/api-webhooks.mdc and compozy/attachments.mdc for details.
+</runtime_globals>
+
 # Complex template with multiple variables
 database_url: "postgres://{{ .env.DB_USER }}:{{ .env.DB_PASSWORD }}@{{ .env.DB_HOST }}:{{ .env.DB_PORT }}/{{ .env.DB_NAME }}"
 ```

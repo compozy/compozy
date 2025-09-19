@@ -1,0 +1,116 @@
+---
+alwaysApply: false
+---
+
+# Resources API — CRUD + ETag/If-Match
+
+<api_group type="resources">
+Defines REST endpoints to create, list, read, update, and delete project-scoped resources stored in the `ResourceStore`.
+
+Base prefix MUST be obtained from `routes.Base()` at runtime (currently `/api/v0`). Examples below omit the base and show only the group path.
+</api_group>
+
+## Types and Mapping
+
+<resource_types type="path_segment_to_enum">
+Allowed `{type}` values map to `resources.ResourceType`:
+- `agent` → `ResourceAgent`
+- `tool` → `ResourceTool`
+- `mcp` → `ResourceMCP`
+- `schema` → `ResourceSchema`
+- `model` → `ResourceModel`
+- `workflow` → `ResourceWorkflow`
+- `memory` → `ResourceMemory`
+- `project` → `ResourceProject`
+
+Unknown `{type}` MUST return `400 Bad Request` with `{ error: "unknown resource type" }`.
+</resource_types>
+
+## Endpoints
+
+<endpoint type="create">
+- Method/Path: `POST /resources/{type}`
+- Request: JSON object (must contain a valid `id`; must NOT contain `project`; body-internal `type` must match path if present)
+- Response: `201 Created` with headers:
+  - `ETag: <hash>` deterministic content hash
+  - `Location: {base}/resources/{type}/{id}`
+- Envelope: `{ data: object, message: "resource created" }`
+- Errors: `400` invalid input | `500` internal
+</endpoint>
+
+<endpoint type="list">
+- Method/Path: `GET /resources/{type}`
+- Query: `project` (optional override), `q` (optional ID prefix filter; case-sensitive)
+- Response: `200 OK` `{ data: { keys: string[] }, message: "keys listed" }`
+</endpoint>
+
+<endpoint type="get">
+- Method/Path: `GET /resources/{type}/{id}`
+- Response: `200 OK` with `ETag: <hash>` and `{ data: object, message: "resource" }`
+- Errors: `404 not found`
+</endpoint>
+
+<endpoint type="put">
+- Method/Path: `PUT /resources/{type}/{id}`
+- Request: JSON object (path `id` must match body `id` if present; `type` must match path if present)
+- Concurrency:
+  - Accept `If-Match` header; when present, stale/missing or mismatched ETag MUST yield `409 Conflict`.
+- Response: `200 OK` with `ETag: <new-hash>` and `{ data: object, message: "resource updated" }`
+- Errors: `400` invalid input | `409` stale or mismatch | `500` internal
+</endpoint>
+
+<endpoint type="delete">
+- Method/Path: `DELETE /resources/{type}/{id}`
+- Semantics: Idempotent (deleting a missing resource still returns `204`).
+- Response: `204 No Content`.
+</endpoint>
+
+## Headers and Concurrency
+
+<headers type="etag_ifmatch">
+- ETag: Deterministic content hash computed over canonical JSON bytes (see tasks/0007-etag-and-canonical-json.md).
+- If-Match: Optional on `PUT` to enforce optimistic locking; compare against current ETag.
+</headers>
+
+## Project Scoping
+
+<scoping type="project">
+- Default project: `appstate.State.ProjectConfig.Name`.
+- Override via `?project=` query param (future authZ required for cross-project access).
+</scoping>
+
+## Swagger Annotations
+
+<swagger type="annotations">
+- Use `@Tags resources`.
+- Use `@Router /resources/{type}[/{id}] [method]` without the base prefix; server wiring applies `routes.Base()`.
+- Include headers with `@Header` in `201/200` responses where ETag/Location apply. Example for POST:
+  - `@Header 201 {string} ETag     "ETag for the stored value"`
+  - `@Header 201 {string} Location "Absolute URL to the created resource"`
+</swagger>
+
+## Validation Rules
+
+<validation type="payload">
+- Body must be a JSON object.
+- Body MUST NOT include `project` (project comes from context/query).
+- If present, body `id` and `type` must match path `id` and `{type}`.
+- Reject empty or invalid IDs with `400`.
+</validation>
+
+## Test Plan (Summary)
+
+<tests type="unit">
+See tasks/0008-resources-api-test-plan.md for full coverage. At minimum:
+- Create→Get roundtrip with stable ETag.
+- List with default project and with `?q=` prefix.
+- PUT without `If-Match` (unconditional) vs with `If-Match` (conflict on mismatch).
+- Idempotent delete.
+- Unknown type and bad JSON return `400`.
+</tests>
+
+## Future
+
+<future type="watch">
+- SSE watch endpoint (planned): `GET /resources/{type}/watch?project=` streaming `{type,key,etag,at}` events. See tasks/0005 and tasks/0006.
+</future>

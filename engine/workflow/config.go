@@ -720,8 +720,33 @@ func compileSelectors(ctx context.Context, proj *project.Config, store resources
 	if t.Type == task.TaskTypeBasic {
 		hasAgent := t.Agent != nil
 		hasTool := t.Tool != nil
-		if hasAgent == hasTool { // both true or both false
-			return fmt.Errorf("task '%s' invalid selectors: exactly one of agent or tool is required", t.ID)
+		// Direct LLM (prompt-only) mode: model_config (+fallbacks) + prompt
+		hasDirect := (strings.TrimSpace(t.Prompt) != "") &&
+			((t.ModelConfig.Provider != "" && t.ModelConfig.Model != "") || true)
+		// Note: provider/model may be injected later via defaults; runtime validator enforces
+		// concrete availability. At compile time we only need to permit the shape.
+		// Exactly one executor must be selected among agent, tool, direct LLM.
+		execCount := 0
+		if hasAgent {
+			execCount++
+		}
+		if hasTool {
+			execCount++
+		}
+		if hasDirect {
+			execCount++
+		}
+		if execCount == 0 {
+			return fmt.Errorf(
+				"task '%s' invalid selectors: exactly one executor required: agent, tool, or direct LLM",
+				t.ID,
+			)
+		}
+		if execCount > 1 {
+			return fmt.Errorf(
+				"task '%s' invalid selectors: cannot specify multiple executor types; use only one",
+				t.ID,
+			)
 		}
 	}
 	if t.Agent != nil {

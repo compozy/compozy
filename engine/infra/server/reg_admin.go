@@ -19,6 +19,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const (
+	sourceRepo    = "repo"
+	sourceBuilder = "builder"
+)
+
 // staticSource is a minimal in-memory config source used to override values for a single operation.
 // It implements pkg/config.Source.
 type staticSource struct {
@@ -74,7 +79,7 @@ func setupAdminRoutes(
 //	@Tags         admin
 //	@Accept       json
 //	@Produce      json
-//	@Param        source  query  string  false  "yaml|store"  Enums(yaml,store)
+//	@Param        source  query  string  false  "The source to reload from. Defaults to 'repo'."  Enums(repo,builder)
 //	@Success      200  {object}  router.Response{data=map[string]any}  "Reload completed"
 //	@Failure      400  {object}  router.Response{error=router.ErrorInfo} "Invalid parameters"
 //	@Failure      401  {object}  router.Response{error=router.ErrorInfo} "Unauthorized"
@@ -136,10 +141,10 @@ func adminReloadHandler(c *gin.Context, server *Server) {
 
 func resolveSourceMode(param string) string {
 	switch param {
-	case "", "yaml", "repo":
-		return "repo"
-	case "store", "builder":
-		return "builder"
+	case "", "yaml", sourceRepo:
+		return sourceRepo
+	case "store", sourceBuilder:
+		return sourceBuilder
 	default:
 		return ""
 	}

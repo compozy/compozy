@@ -1,0 +1,75 @@
+---
+alwaysApply: false
+---
+
+# Compozy API Endpoints — Index & Grouping
+
+<api_index type="overview">
+This rule groups public HTTP API endpoints by category and links to specific rules that define request/response envelopes, headers, and behavioral guarantees.
+
+All paths are prefixed by the dynamic base returned at runtime from `routes.Base()` (currently `/api/v0`). Do not hardcode `/api/v1`; use `routes.Base()` in server code and Swagger annotations.
+</api_index>
+
+## Categories
+
+<api_group type="resources">
+- Purpose: CRUD over project-scoped referencable resources stored in the `ResourceStore` (agent, tool, mcp, schema, model, workflow, memory, project).
+- Endpoints: `POST/GET/PUT/DELETE {base}/resources/{type}[/{id}]` plus `GET {base}/resources/{type}` for listing.
+- Concurrency: `ETag` response header on reads/writes; `If-Match` request header on `PUT` for optimistic locking.
+- Rule: See compozy/api-resources.mdc.
+</api_group>
+
+<api_group type="webhooks">
+- Purpose: Public ingress for external events; routes payloads to workflows by webhook `slug`.
+- Endpoint: `POST {base}/hooks/{slug}` returning unified `{data, message}` envelope.
+- Features: Signature verification strategies (none, hmac, stripe, github), idempotency, payload size limits, metrics.
+- Rule: See compozy/api-webhooks.mdc.
+</api_group>
+
+<api_group type="workflows">
+- Purpose: Introspection of compiled workflow components.
+- Endpoints:
+  - Agents: `GET {base}/workflows/{workflow_id}/agents`, `GET {base}/workflows/{workflow_id}/agents/{agent_id}`
+  - Tools: `GET {base}/workflows/{workflow_id}/tools`, `GET {base}/workflows/{workflow_id}/tools/{tool_id}`
+- Envelopes: Must use `router.Response` with `{data, message}`.
+</api_group>
+
+<api_group type="memory">
+- Purpose: Read/write/append/delete/flush/clear/stats operations for configured memory backends.
+- Example endpoints: `/memory/{memory_ref}/read|write|append|delete|flush|clear|health|stats`.
+- Notes: Keep handlers wired via server `setupComponentRoutes` and respect health semantics used by readiness.
+</api_group>
+
+<api_group type="admin">
+- Purpose: Operational actions for administrators.
+- Endpoints: `GET {base}/admin/reload`, `GET {base}/admin/export-yaml`, `GET {base}/admin/import-yaml`.
+- Requirements: Tag with `admin`; use unified envelope; surface strategy and counts on import/export; secure via auth.
+</api_group>
+
+<api_group type="auth_users">
+- Purpose: API key lifecycle and user management.
+- Endpoints: `POST {base}/auth/generate`, `GET {base}/auth/keys`, `DELETE {base}/auth/keys/{id}`, `POST {base}/users`.
+- Notes: Bearer auth required; redact sensitive hash data in responses.
+</api_group>
+
+<api_group type="health_diagnostics">
+- Purpose: Health probe and diagnostics exposure for orchestration.
+- Endpoint: `GET /api/v0/health` (non-versioned for external checkers).
+- Notes: Include `ready`, `status`, `version`, `schedules`, and conditional `memory`, `worker`, `temporal`, `mcp_proxy` fields.
+ - Implementation note: This path is intentionally fixed today; if the base ever becomes dynamic for health, update Swagger and operators' checks accordingly.
+</api_group>
+
+## Global API Rules
+
+<api_rules type="envelopes_and_headers">
+- Response Envelope: Always return `{ data: any, message: string }` for successes and `{ error: string, details?: string }` for errors.
+- Error Mapping: Use `router.NewRequestError` for 4xx and `router.RespondWithServerError` for 5xx.
+- Versioning: Only use `routes.Base()` to prefix groups in Swagger `@Router` annotations.
+- Tracing: Support `X-Correlation-ID`; propagate where handlers create requests (webhooks already uses helper).
+</api_rules>
+
+## Future
+
+<api_future type="watch_and_notifications">
+- Resource watch via Server-Sent Events (SSE): `GET {base}/resources/{type}/watch?project=` streams `{type,key,etag,at}`. Not yet implemented; tracked in tasks/0005 and tasks/0006.
+</api_future>

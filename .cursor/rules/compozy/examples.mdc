@@ -3,7 +3,6 @@ alwaysApply: false
 ---
 
 Compozy uses YAML configuration files to define projects, workflows, agents, tools, and runtime settings. This index references focused documentation for each configuration type.
-</configuration_overview>
 
 ## Configuration File Types
 
@@ -31,12 +30,18 @@ See [compozy/agent-config.mdc](mdc:.cursor/rules/compozy-agent-config.mdc) for:
 - Agent with MCP integration
 - Tool integration patterns
 
-### Shared Patterns
-See [compozy/shared-patterns.mdc](mdc:.cursor/rules/compozy-shared-patterns.mdc) for:
-- MCP integration patterns (filesystem, HTTP)
-- Reference patterns (local, global, resource)
-- Template expression patterns
-- Use patterns for tools and agents
+### Attachments
+See [compozy/attachments.mdc](mdc:.cursor/rules/compozy-attachments.mdc) for:
+- Attachment types and sources (image, pdf, audio, video, file, url)
+- Global limits and SSRF protections
+- LLM parts behavior and YAML examples
+
+### HTTP API
+See [compozy/api-index.mdc](mdc:.cursor/rules/compozy-api-index.mdc) for grouped API categories and links, including:
+- Resources CRUD with ETag/If-Match
+- Webhooks ingress and verification
+- Workflow component introspection (agents, tools)
+- Admin, Auth/Users, Memory, Health
 
 ## Quick Reference
 

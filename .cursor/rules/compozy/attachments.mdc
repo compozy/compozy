@@ -1,0 +1,101 @@
+---
+alwaysApply: false
+---
+
+# Attachments — Types, Limits, and Usage
+
+<attachments_overview type="features">
+Defines how to declare, resolve, and constrain attachments used by tasks and agents. Covers allowed types, source forms, global limits, SSRF protections, and LLM parts extraction.
+</attachments_overview>
+
+## Allowed Types and Sources
+
+<attachment_types type="schema">
+Supported `type` values and mutually exclusive source fields:
+
+- `image` — `url|path|urls|paths`
+- `pdf`   — `url|path|urls|paths` (+ optional `max_pages`)
+- `audio` — `url|path|urls|paths`
+- `video` — `url|path|urls|paths`
+- `file`  — `path` (local file only)
+- `url`   — `url` (treat as remote document)
+
+Common optional fields: `name`, `mime`, `meta` (free-form object).
+
+Validation rules:
+- Exactly one of the singular or plural source sets must be provided for a given attachment.
+- `type` is required; unknown types are rejected.
+</attachment_types>
+
+## YAML Usage
+
+<attachment_yaml type="task_examples">
+```yaml
+# Provide an image and a PDF to an analysis task
+- id: analyze
+  type: basic
+  agent: doc_analyst
+  with:
+    query: "Summarize the attached content"
+  attachments:
+    - type: image
+      url: https://example.com/promo.png
+      name: promo
+      meta: { image_detail: high }
+    - type: pdf
+      path: ./docs/report.pdf
+      max_pages: 5
+```
+
+```yaml
+# Use audio/video URLs (plural form)
+attachments:
+  - type: audio
+    urls:
+      - https://cdn.example.com/a1.mp3
+      - https://cdn.example.com/a2.mp3
+  - type: video
+    paths: [./clips/intro.mp4]
+```
+</attachment_yaml>
+
+## Global Limits and Policies
+
+<attachment_limits type="config">
+Configured under `attachments.*` in the global config (env/CLI/YAML). Key fields:
+
+- `attachments.max_download_size_bytes` — Max single download size (bytes). Default: 10MB.
+- `attachments.download_timeout` — Per-download timeout. Default: 30s.
+- `attachments.max_redirects` — HTTP redirect limit. Default: 3.
+- `attachments.allowed_mime_types.{image|audio|video|pdf}` — Allowlist per category; empty means use built-in defaults per type.
+- `attachments.temp_dir_quota_bytes` — Cap on temp storage used while resolving.
+- `attachments.text_part_max_bytes` — Max bytes loaded from text files for LLM parts (default 5MB).
+- `attachments.pdf_extract_max_chars` — Max characters extracted from PDFs (default 1,000,000).
+- `attachments.http_user_agent` — User-Agent for outbound downloads (default "Compozy/1.0").
+- `attachments.mime_head_max_bytes` — Bytes sampled for MIME detection (default 512).
+- `attachments.ssrf_strict` — Block private/loopback/multicast targets even in tests (default false).
+</attachment_limits>
+
+## Security
+
+<attachment_security type="guidelines">
+- Enforce SSRF protections when `ssrf_strict=true`.
+- Resolve local file attachments relative to the compiled project CWD; never assume process CWD.
+- Respect MIME allowlists; when empty, rely on type heuristics + detection.
+</attachment_security>
+
+## LLM Parts Behavior
+
+<attachment_llm_parts type="behavior">
+- Image attachments contribute image parts with optional `meta.image_detail`.
+- PDF attachments are extracted to text (bounded by `pdf_extract_max_chars`); pages can be limited via `max_pages`.
+- Audio/video types are not converted to text by default; tools may process them explicitly.
+- Non-image attachments are ignored by image-only phases.
+</attachment_llm_parts>
+
+## CLI Flags and Env
+
+<attachment_cli type="flags">
+- CLI flags exist for most fields (e.g., `--attachments-download-timeout`, `--attachments-max-redirects`, `--attachments-ssrf-strict`). See `cli/helpers/flag_categories.go`.
+- Env var overrides follow `ATTACHMENTS_*` naming (e.g., `ATTACHMENTS_DOWNLOAD_TIMEOUT`).
+</attachment_cli>

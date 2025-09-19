@@ -106,7 +106,7 @@ func TestCompile_BasicSelectorValidation(t *testing.T) {
 		}
 		_, err := wf.Compile(ctx, proj, store)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "exactly one of agent or tool is required")
+		assert.Contains(t, err.Error(), "cannot specify multiple executor types")
 	})
 	t.Run("Should error when neither agent nor tool set on basic task", func(t *testing.T) {
 		ctx := withCtx(t)
@@ -118,7 +118,7 @@ func TestCompile_BasicSelectorValidation(t *testing.T) {
 		}
 		_, err := wf.Compile(ctx, proj, store)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "exactly one of agent or tool is required")
+		assert.Contains(t, err.Error(), "exactly one executor required")
 	})
 }
 
