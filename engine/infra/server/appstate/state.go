@@ -141,6 +141,22 @@ func (s *State) ResourceStore() (any, bool) {
 	return v, ok
 }
 
+// ReplaceWorkflows swaps the compiled workflow set atomically under RW lock
+func (s *State) ReplaceWorkflows(workflows []*workflow.Config) {
+	s.mu.Lock()
+	s.Workflows = workflows
+	s.mu.Unlock()
+}
+
+// GetWorkflows returns the current compiled workflow set under read lock
+func (s *State) GetWorkflows() []*workflow.Config {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]*workflow.Config, len(s.Workflows))
+	copy(out, s.Workflows)
+	return out
+}
+
 func StateMiddleware(state *State) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx := WithState(c.Request.Context(), state)

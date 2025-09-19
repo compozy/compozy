@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"dario.cat/mergo"
 	"github.com/compozy/compozy/engine/agent"
@@ -415,7 +416,16 @@ func (p *Config) Validate() error {
 			return fmt.Errorf("autoload configuration validation failed: %w", p.autoloadValidError)
 		}
 	}
-
+	if p.Opts.SourceOfTruth != "" {
+		m := strings.ToLower(strings.TrimSpace(p.Opts.SourceOfTruth))
+		if m != "repo" && m != "builder" {
+			return fmt.Errorf(
+				"project configuration error: opts.source_of_truth must be 'repo' or 'builder', got '%s'",
+				p.Opts.SourceOfTruth,
+			)
+		}
+		p.Opts.SourceOfTruth = m
+	}
 	return nil
 }
 

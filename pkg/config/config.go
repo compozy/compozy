@@ -179,6 +179,17 @@ type ServerConfig struct {
 	//
 	// $ref: schema://application#server.timeouts
 	Timeouts ServerTimeouts `koanf:"timeouts" json:"timeouts" yaml:"timeouts" mapstructure:"timeouts"`
+
+	// SourceOfTruth selects where the server loads workflows from.
+	//
+	// Values:
+	//   - "repo": load YAML from repository and index to store (default)
+	//   - "builder": load workflows from ResourceStore (compile-from-store)
+	SourceOfTruth string `koanf:"source_of_truth" json:"source_of_truth" yaml:"source_of_truth" mapstructure:"source_of_truth" env:"SERVER_SOURCE_OF_TRUTH" validate:"oneof=repo builder"`
+
+	// SeedFromRepoOnEmpty controls whether builder mode seeds the store from
+	// repository YAML once when the store is empty. Disabled by default.
+	SeedFromRepoOnEmpty bool `koanf:"seed_from_repo_on_empty" json:"seed_from_repo_on_empty" yaml:"seed_from_repo_on_empty" mapstructure:"seed_from_repo_on_empty" env:"SERVER_SEED_FROM_REPO_ON_EMPTY"`
 }
 
 // ServerTimeouts defines tunable durations for server operations.
@@ -1379,7 +1390,9 @@ func buildServerConfig(registry *definition.Registry) ServerConfig {
 			WorkflowExceptions: getStringSlice(registry, "server.auth.workflow_exceptions"),
 			AdminKey:           SensitiveString(getString(registry, "server.auth.admin_key")),
 		},
-		Timeouts: buildServerTimeouts(registry),
+		SourceOfTruth:       getString(registry, "server.source_of_truth"),
+		SeedFromRepoOnEmpty: getBool(registry, "server.seed_from_repo_on_empty"),
+		Timeouts:            buildServerTimeouts(registry),
 	}
 }
 

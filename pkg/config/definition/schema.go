@@ -41,6 +41,28 @@ func registerServerFields(registry *Registry) {
 func registerServerCoreFields(registry *Registry) {
 	registerServerHostPortCors(registry)
 	registerServerTimeoutField(registry)
+	// server.source_of_truth determines whether to load workflows from repo (YAML) or builder store
+	registry.Register(
+		&FieldDef{
+			Path:    "server.source_of_truth",
+			Default: "repo",
+			CLIFlag: "",
+			EnvVar:  "SERVER_SOURCE_OF_TRUTH",
+			Type:    reflect.TypeOf(""),
+			Help:    "Source of truth for workflows: repo|builder",
+		},
+	)
+	// server.seed_from_repo_on_empty controls optional seeding behavior in builder mode
+	registry.Register(
+		&FieldDef{
+			Path:    "server.seed_from_repo_on_empty",
+			Default: false,
+			CLIFlag: "",
+			EnvVar:  "SERVER_SEED_FROM_REPO_ON_EMPTY",
+			Type:    reflect.TypeOf(true),
+			Help:    "If true, seed store from repo YAML once when empty (builder mode)",
+		},
+	)
 }
 
 func registerServerHostPortCors(registry *Registry) {

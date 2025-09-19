@@ -87,7 +87,7 @@ func registerPublicWebhookRoutes(
 
 func attachWebhookRegistry(ctx context.Context, state *appstate.State) error {
 	reg := webhook.NewRegistry()
-	for _, wf := range state.Workflows {
+	for _, wf := range state.GetWorkflows() {
 		for i := range wf.Triggers {
 			t := wf.Triggers[i]
 			if t.Type == workflow.TriggerTypeWebhook && t.Webhook != nil {
