@@ -15,8 +15,12 @@ import (
 // @Accept json
 // @Produce json
 // @Param type path string true "Resource type (agent|tool|mcp|schema|model|workflow|memory|project)"
+// @Param resource body object true "Resource payload (must include id; 'type' optional but if present must match path)"
 // @Success 201 {object} router.Response{data=object} "Created resource"
 // @Header 201 {string} ETag "ETag for the stored value"
+// @Failure 400 {object} router.Response{error=router.ErrorInfo}
+// @Failure 401 {object} router.Response{error=router.ErrorInfo}
+// @Failure 403 {object} router.Response{error=router.ErrorInfo}
 // @Router /resources/{type} [post]
 func createResource(c *gin.Context) {
 	rs, ok := router.GetResourceStore(c)
@@ -155,9 +159,13 @@ func getResourceByID(c *gin.Context) {
 // @Param type path string true "Resource type"
 // @Param id path string true "Resource ID"
 // @Param If-Match header string false "Current ETag for optimistic locking"
+// @Param resource body object true "Resource payload (full object with id and fields; 'type' optional but if present must match path)"
 // @Success 200 {object} router.Response{data=object} "Updated resource"
 // @Header 200 {string} ETag "New ETag for the stored value"
 // @Failure 409 {object} router.Response{error=router.ErrorInfo}
+// @Failure 400 {object} router.Response{error=router.ErrorInfo}
+// @Failure 401 {object} router.Response{error=router.ErrorInfo}
+// @Failure 403 {object} router.Response{error=router.ErrorInfo}
 // @Router /resources/{type}/{id} [put]
 func putResourceByID(c *gin.Context) {
 	rs, ok := router.GetResourceStore(c)
@@ -227,7 +235,9 @@ func putResourceByID(c *gin.Context) {
 // @Tags resources
 // @Param type path string true "Resource type"
 // @Param id path string true "Resource ID"
-// @Success 204 "Deleted"
+// @Success 200 {object} router.Response{data=object} "Deleted"
+// @Failure 401 {object} router.Response{error=router.ErrorInfo}
+// @Failure 403 {object} router.Response{error=router.ErrorInfo}
 // @Router /resources/{type}/{id} [delete]
 func deleteResourceByID(c *gin.Context) {
 	rs, ok := router.GetResourceStore(c)
@@ -253,5 +263,5 @@ func deleteResourceByID(c *gin.Context) {
 		router.RespondWithServerError(c, router.ErrInternalCode, "failed to delete resource", err)
 		return
 	}
-	router.RespondNoContent(c)
+	router.RespondOK(c, "resource deleted", gin.H{"id": id})
 }

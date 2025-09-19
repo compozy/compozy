@@ -46,7 +46,7 @@ func LoadConfig[T Config](filePath string) (T, string, error) {
 		return zero, "", fmt.Errorf("failed to open config file: %w", err)
 	}
 
-	// Pre-scan YAML to reject any directive keys starting with '$'
+	// Pre-scan YAML to reject any directive keys starting with '$' outside schema contexts
 	if err := rejectDollarKeys(data, filePath); err != nil {
 		return zero, "", err
 	}
@@ -92,21 +92,21 @@ func rejectDollarKeys(data []byte, filePath string) error {
 			}
 			return fmt.Errorf("failed to parse YAML in %s: %w", filePath, err)
 		}
-		if err := walkAndReject(&doc, filePath); err != nil {
+		if err := walkAndReject(&doc, filePath, nil); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func walkAndReject(n *yaml.Node, filePath string) error {
+func walkAndReject(n *yaml.Node, filePath string, path []string) error {
 	if n == nil {
 		return nil
 	}
 	switch n.Kind {
 	case yaml.DocumentNode, yaml.SequenceNode:
 		for _, c := range n.Content {
-			if err := walkAndReject(c, filePath); err != nil {
+			if err := walkAndReject(c, filePath, path); err != nil {
 				return err
 			}
 		}
@@ -115,21 +115,33 @@ func walkAndReject(n *yaml.Node, filePath string) error {
 			key := n.Content[i]
 			val := n.Content[i+1]
 			if key != nil && key.Kind == yaml.ScalarNode && strings.HasPrefix(key.Value, "$") {
-				// Provide actionable error guiding users to ID-based syntax
-				return fmt.Errorf(
-					"%s:%d:%d: unsupported directive key '%s' detected; "+
-						"directives like $ref/$use/$merge/$ptr are deprecated. "+
-						"Use ID-based references and the compile/link step instead (see PRD: References Overhaul)",
-					filePath,
-					key.Line,
-					key.Column,
-					key.Value,
-				)
+				if !inSchemaContext(path) {
+					return fmt.Errorf(
+						"%s:%d:%d: unsupported directive key '%s' detected; "+
+							"directives like $ref/$use/$merge/$ptr in configuration are deprecated. "+
+							"Use ID-based references and the compile/link step instead",
+						filePath,
+						key.Line,
+						key.Column,
+						key.Value,
+					)
+				}
 			}
-			if err := walkAndReject(val, filePath); err != nil {
+			nextPath := append(append([]string(nil), path...), key.Value)
+			if err := walkAndReject(val, filePath, nextPath); err != nil {
 				return err
 			}
 		}
 	}
 	return nil
+}
+
+func inSchemaContext(path []string) bool {
+	for i := len(path) - 1; i >= 0; i-- {
+		switch path[i] {
+		case "input", "output", "schema", "schemas", "input_schema", "output_schema":
+			return true
+		}
+	}
+	return false
 }

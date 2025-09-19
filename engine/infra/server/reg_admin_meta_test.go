@@ -38,7 +38,17 @@ func TestAdminMetaEndpoints(t *testing.T) {
 	})
 	api := r.Group(routes.Base())
 	factory := authuc.NewFactory(dummyRepo{})
-	admin := CreateAdminGroup(api, factory, configForTests(t))
+	// build context with config manager
+	cfgMgr := config.NewManager(config.NewService())
+	t.Setenv("SERVER_AUTH_ADMIN_KEY", "0123456789abcdef")
+	_, err = cfgMgr.Load(
+		context.Background(),
+		config.NewDefaultProvider(),
+		config.NewCLIProvider(map[string]any{"auth-enabled": true}),
+	)
+	require.NoError(t, err)
+	ctx := config.ContextWithManager(context.Background(), cfgMgr)
+	admin := CreateAdminGroup(ctx, api, factory)
 	registerMetaRoutes(admin)
 	// seed a meta entry
 	_, _ = store.Put(
@@ -75,14 +85,4 @@ func TestAdminMetaEndpoints(t *testing.T) {
 }
 
 // configForTests returns enabled-auth config
-func configForTests(t *testing.T) *config.Config {
-	t.Setenv("SERVER_AUTH_ADMIN_KEY", "0123456789abcdef")
-	cfgMgr := config.NewManager(config.NewService())
-	_, err := cfgMgr.Load(
-		context.Background(),
-		config.NewDefaultProvider(),
-		config.NewCLIProvider(map[string]any{"auth-enabled": true}),
-	)
-	require.NoError(t, err)
-	return cfgMgr.Get()
-}
+// (no-op) removed: configForTests; tests now build ctx with config manager inline

@@ -5,6 +5,7 @@
   "pages": [
     "project-setup",
     "global",
+    "server",
     "autoload",
     "providers",
     "runtime",

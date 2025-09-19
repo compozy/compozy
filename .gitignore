@@ -10,6 +10,7 @@ sessions/
 ./compozy
 diff.txt
 engine/schema/reviews/*.md
+ai-docs/reviews-pr-*
 
 # === DEPENDENCIES ===
 node_modules/

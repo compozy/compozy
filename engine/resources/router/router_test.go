@@ -134,11 +134,11 @@ func TestResourcesRouter_CRUDAndETag(t *testing.T) {
 		res1 := httptest.NewRecorder()
 		req1 := httptest.NewRequest(http.MethodDelete, "/api/v0/resources/mcp/m1", http.NoBody)
 		srv.ServeHTTP(res1, req1)
-		require.Equal(t, http.StatusNoContent, res1.Code)
+		require.Equal(t, http.StatusOK, res1.Code)
 		res2 := httptest.NewRecorder()
 		req2 := httptest.NewRequest(http.MethodDelete, "/api/v0/resources/mcp/m1", http.NoBody)
 		srv.ServeHTTP(res2, req2)
-		require.Equal(t, http.StatusNoContent, res2.Code)
+		require.Equal(t, http.StatusOK, res2.Code)
 	})
 	t.Run("Should return 400 for unknown type and bad JSON", func(t *testing.T) {
 		t.Parallel()

@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "config-mcpproxy.json",
+  "properties": {
+    "mode": {
+      "type": "string",
+      "description": "Mode controls how the MCP proxy runs within Compozy.\n\nValues:\n  - \"standalone\": embed MCP proxy inside the server\n  - \"\": external MCP proxy (default)\n\nWhen embedded, the server manages lifecycle and health of the proxy\nand will set LLM.ProxyURL if empty."
+    },
+    "host": {
+      "type": "string",
+      "description": "Host specifies the network interface to bind the MCP proxy server to.\n\n**Default**: `\"0.0.0.0\"`"
+    },
+    "port": {
+      "type": "integer",
+      "description": "Port specifies the TCP port for the MCP proxy server.\n\n**Default**: `0` (ephemeral)"
+    },
+    "base_url": {
+      "type": "string",
+      "description": "BaseURL specifies the base URL for MCP proxy API endpoints.\n\n**Default**: `\"\"` (empty string)"
+    },
+    "shutdown_timeout": {
+      "type": "integer",
+      "description": "ShutdownTimeout sets timeout for graceful shutdown.\n\n**Default**: `30s`"
+    }
+  },
+  "additionalProperties": false,
+  "type": "object",
+  "description": "MCPProxyConfig contains MCP proxy server configuration.",
+  "yamlCompatible": true
+}

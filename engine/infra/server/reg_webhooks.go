@@ -25,7 +25,6 @@ func setupWebhookSystem(
 	state *appstate.State,
 	router *gin.Engine,
 	server *Server,
-	cfg *config.Config,
 ) error {
 	if err := attachWebhookRegistry(ctx, state); err != nil {
 		return err
@@ -34,7 +33,7 @@ func setupWebhookSystem(
 	if server != nil && server.monitoring != nil && server.monitoring.IsInitialized() {
 		meter = server.monitoring.Meter()
 	}
-	return registerPublicWebhookRoutes(ctx, router, state, server, cfg, meter)
+	return registerPublicWebhookRoutes(ctx, router, state, server, meter)
 }
 
 func registerPublicWebhookRoutes(
@@ -42,9 +41,9 @@ func registerPublicWebhookRoutes(
 	router *gin.Engine,
 	state *appstate.State,
 	server *Server,
-	cfg *config.Config,
 	meter metric.Meter,
 ) error {
+	cfg := config.FromContext(ctx)
 	limiterMax := cfg.Webhooks.DefaultMaxBody
 	hooks := router.Group(routes.Hooks())
 	hooks.Use(sizemw.BodySizeLimiter(limiterMax))
@@ -72,7 +71,19 @@ func registerPublicWebhookRoutes(
 	if err != nil {
 		return fmt.Errorf("failed to initialize redis idempotency service: %w", err)
 	}
-	orchestrator := webhook.NewOrchestrator(cfg, reg, filter, dispatcher, idemSvc, 0, 0)
+	const (
+		DefaultWebhookMaxRetries   = 0
+		DefaultWebhookInitialDelay = 0
+	)
+	orchestrator := webhook.NewOrchestrator(
+		cfg,
+		reg,
+		filter,
+		dispatcher,
+		idemSvc,
+		DefaultWebhookMaxRetries,
+		DefaultWebhookInitialDelay,
+	)
 	if meter != nil {
 		metrics, err := webhook.NewMetrics(ctx, meter)
 		if err != nil {

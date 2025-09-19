@@ -58,7 +58,6 @@ func TestReverseIndex_ComputeImpacted(t *testing.T) {
 			wf,
 		)
 		require.NoError(t, err)
-
 		// Build state and reconciler
 		st := &appstate.State{
 			BaseDeps:   appstate.BaseDeps{ProjectConfig: &project.Config{Name: "proj"}},
@@ -70,7 +69,6 @@ func TestReverseIndex_ComputeImpacted(t *testing.T) {
 		r, err := New(ctx, st)
 		require.NoError(t, err)
 		require.NoError(t, r.buildInitialIndex(ctx))
-
 		// Simulate a tool event that should impact nothing yet (no deps), but pipeline works
 		impacted, deletes := r.computeImpacted(
 			ctx,
@@ -98,7 +96,6 @@ func TestDebounce_BatchesEvents(t *testing.T) {
 			wf,
 		)
 		require.NoError(t, err)
-
 		st := &appstate.State{
 			BaseDeps:   appstate.BaseDeps{ProjectConfig: &project.Config{Name: "proj"}},
 			Extensions: map[appstate.ExtensionKey]any{},
@@ -106,12 +103,10 @@ func TestDebounce_BatchesEvents(t *testing.T) {
 		st.SetResourceStore(store)
 		ms := &mockSchedule{}
 		st.SetScheduleManager(ms)
-
 		r, err := New(ctx, st)
 		require.NoError(t, err)
 		require.NoError(t, r.Start(ctx))
 		defer r.Stop()
-
 		// burst of events
 		for i := 0; i < 5; i++ {
 			_, err := store.Put(

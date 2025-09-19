@@ -1,125 +1,88 @@
 {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "project-options.json",
   "$defs": {
     "ErrorTransition": {
-      "additionalProperties": false,
-      "description": "ErrorTransition defines error handling behavior when a task fails.",
       "properties": {
         "next": {
-          "description": "ID of the error handler task\n\n- **Example**: \"handle-error\", \"retry-with-fallback\"",
-          "type": "string"
+          "type": "string",
+          "description": "ID of the error handler task\n\n- **Example**: \"handle-error\", \"retry-with-fallback\""
         },
         "with": {
-          "description": "Error context passed to the handler\nIncludes error details: { \"error\": \"{{ .error }}\", \"attempt\": \"{{ .retryCount }}\" }",
-          "type": "object"
+          "$ref": "#/$defs/Input",
+          "description": "Error context passed to the handler\nIncludes error details: { \"error\": \"{{ .error }}\", \"attempt\": \"{{ .retryCount }}\" }"
         }
       },
-      "type": "object"
+      "additionalProperties": false,
+      "type": "object",
+      "description": "ErrorTransition defines error handling behavior when a task fails."
     },
     "Input": {
       "type": "object"
     },
     "RetryPolicyConfig": {
-      "additionalProperties": false,
-      "description": "RetryPolicyConfig defines automatic retry behavior for failed tasks.",
       "properties": {
-        "backoff_coefficient": {
-          "description": "Multiplier for exponential backoff\n- **Default:** `2.0` (doubles each time)\n- **Example:** `1.5`, `2.0`, `3.0`",
-          "type": "number"
-        },
         "initial_interval": {
-          "description": "Initial delay before first retry\n- **Default:** `\"1s\"`\n- **Example:** `\"500ms\"`, `\"2s\"`, `\"1m\"`",
-          "type": "string"
+          "type": "string",
+          "description": "Initial delay before first retry\n- **Default:** `\"1s\"`\n- **Example:** `\"500ms\"`, `\"2s\"`, `\"1m\"`"
+        },
+        "backoff_coefficient": {
+          "type": "number",
+          "description": "Multiplier for exponential backoff\n- **Default:** `2.0` (doubles each time)\n- **Example:** `1.5`, `2.0`, `3.0`"
         },
         "maximum_attempts": {
-          "description": "Maximum retry attempts\n- **Default:** `3`\n- **Example:** `5` for critical operations",
-          "type": "integer"
+          "type": "integer",
+          "description": "Maximum retry attempts\n- **Default:** `3`\n- **Example:** `5` for critical operations"
         },
         "maximum_interval": {
-          "description": "Maximum delay between retries\n- **Default:** `\"1m\"`\n- **Example:** `\"30s\"`, `\"5m\"`, `\"1h\"`",
-          "type": "string"
+          "type": "string",
+          "description": "Maximum delay between retries\n- **Default:** `\"1m\"`\n- **Example:** `\"30s\"`, `\"5m\"`, `\"1h\"`"
         },
         "non_retryable_error_types": {
-          "description": "Error types that should not trigger retries\n- **Example:** `[\"ValidationError\", \"AuthenticationError\"]`",
           "items": {
             "type": "string"
           },
-          "type": "array"
+          "type": "array",
+          "description": "Error types that should not trigger retries\n- **Example:** `[\"ValidationError\", \"AuthenticationError\"]`"
         }
       },
-      "type": "object"
+      "additionalProperties": false,
+      "type": "object",
+      "description": "RetryPolicyConfig defines automatic retry behavior for failed tasks."
     }
   },
-  "$id": "project-options.json",
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "additionalProperties": false,
-  "description": "Opts contains project-specific configuration options.",
   "properties": {
-    "heartbeat_timeout": {
-      "description": "Interval for task heartbeat signals\nUsed for long-running tasks to indicate progress\n\n- **Example**: \"10s\", \"30s\", \"1m\"",
-      "type": "string"
-    },
     "on_error": {
-      "additionalProperties": false,
-      "description": "ErrorTransition defines error handling behavior when a task fails.",
-      "properties": {
-        "next": {
-          "description": "ID of the error handler task\n\n- **Example**: \"handle-error\", \"retry-with-fallback\"",
-          "type": "string"
-        },
-        "with": {
-          "description": "Error context passed to the handler\nIncludes error details: { \"error\": \"{{ .error }}\", \"attempt\": \"{{ .retryCount }}\" }",
-          "type": "object"
-        }
-      },
-      "type": "object"
+      "$ref": "#/$defs/ErrorTransition",
+      "description": "Error handler configuration\nDefines what happens when a task fails after all retries"
     },
     "retry_policy": {
-      "additionalProperties": false,
-      "description": "RetryPolicyConfig defines automatic retry behavior for failed tasks.",
-      "properties": {
-        "backoff_coefficient": {
-          "description": "Multiplier for exponential backoff\n- **Default:** `2.0` (doubles each time)\n- **Example:** `1.5`, `2.0`, `3.0`",
-          "type": "number"
-        },
-        "initial_interval": {
-          "description": "Initial delay before first retry\n- **Default:** `\"1s\"`\n- **Example:** `\"500ms\"`, `\"2s\"`, `\"1m\"`",
-          "type": "string"
-        },
-        "maximum_attempts": {
-          "description": "Maximum retry attempts\n- **Default:** `3`\n- **Example:** `5` for critical operations",
-          "type": "integer"
-        },
-        "maximum_interval": {
-          "description": "Maximum delay between retries\n- **Default:** `\"1m\"`\n- **Example:** `\"30s\"`, `\"5m\"`, `\"1h\"`",
-          "type": "string"
-        },
-        "non_retryable_error_types": {
-          "description": "Error types that should not trigger retries\n- **Example:** `[\"ValidationError\", \"AuthenticationError\"]`",
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        }
-      },
-      "type": "object"
-    },
-    "schedule_to_close_timeout": {
-      "description": "Total timeout from scheduling to completion\nDefault: \"6m\"\n\n- **Example**: \"1m\", \"15m\", \"2h\"",
-      "type": "string"
+      "$ref": "#/$defs/RetryPolicyConfig",
+      "description": "Retry configuration for transient failures\nAutomatically retries failed tasks with exponential backoff"
     },
     "schedule_to_start_timeout": {
-      "description": "Maximum time to wait for a task to start executing\nDefault: \"1m\"\n\n- **Example**: \"30s\", \"5m\", \"1h\"",
-      "type": "string"
-    },
-    "source_of_truth": {
-      "description": "SourceOfTruth optionally overrides server default for this project.\nValues: \"repo\" or \"builder\".",
-      "type": "string"
+      "type": "string",
+      "description": "Maximum time to wait for a task to start executing\nDefault: \"1m\"\n\n- **Example**: \"30s\", \"5m\", \"1h\""
     },
     "start_to_close_timeout": {
-      "description": "Maximum time for task execution once started\nDefault: \"5m\"\n\n- **Example**: \"30s\", \"10m\", \"1h\"",
-      "type": "string"
+      "type": "string",
+      "description": "Maximum time for task execution once started\nDefault: \"5m\"\n\n- **Example**: \"30s\", \"10m\", \"1h\""
+    },
+    "schedule_to_close_timeout": {
+      "type": "string",
+      "description": "Total timeout from scheduling to completion\nDefault: \"6m\"\n\n- **Example**: \"1m\", \"15m\", \"2h\""
+    },
+    "heartbeat_timeout": {
+      "type": "string",
+      "description": "Interval for task heartbeat signals\nUsed for long-running tasks to indicate progress\n\n- **Example**: \"10s\", \"30s\", \"1m\""
+    },
+    "source_of_truth": {
+      "type": "string",
+      "description": "SourceOfTruth optionally overrides server default for this project.\nValues: \"repo\" or \"builder\"."
     }
   },
+  "additionalProperties": false,
   "type": "object",
+  "description": "Opts contains project-specific configuration options.",
   "yamlCompatible": true
 }

@@ -51,6 +51,8 @@ func adminResourceTypeFromPath(c *gin.Context) (resources.ResourceType, bool) {
 // @Param type path string true "Resource type"
 // @Param id path string true "Resource ID"
 // @Success 200 {object} router.Response{data=object}
+// @Failure 401 {object} router.Response{error=router.ErrorInfo}
+// @Failure 403 {object} router.Response{error=router.ErrorInfo}
 // @Failure 404 {object} router.Response{error=router.ErrorInfo}
 // @Router /admin/meta/{type}/{id} [get]
 func adminGetMeta(c *gin.Context) {
@@ -97,6 +99,8 @@ func adminGetMeta(c *gin.Context) {
 // @Param project query string false "Project override"
 // @Param limit query int false "Max results (default 50)"
 // @Success 200 {object} router.Response{data=object}
+// @Failure 401 {object} router.Response{error=router.ErrorInfo}
+// @Failure 403 {object} router.Response{error=router.ErrorInfo}
 // @Router /admin/meta/changes [get]
 func adminListMetaChanges(c *gin.Context) {
 	st := router.GetAppState(c)

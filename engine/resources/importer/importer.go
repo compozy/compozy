@@ -64,7 +64,6 @@ func ImportFromDir(
 	updatedBy string,
 ) (*Result, error) {
 	_ = config.FromContext(ctx)
-	log := logger.FromContext(ctx)
 	if project == "" {
 		return nil, fmt.Errorf("project is required")
 	}
@@ -102,7 +101,6 @@ func ImportFromDir(
 		}
 		imp, skp, owr, err := applyForType(
 			ctx,
-			log,
 			store,
 			project,
 			typ,
@@ -162,7 +160,6 @@ func parseTypeFiles(files []string) ([]map[string]any, []string, error) {
 
 func applyForType(
 	ctx context.Context,
-	log logger.Logger,
 	store resources.ResourceStore,
 	project string,
 	typ resources.ResourceType,
@@ -171,6 +168,7 @@ func applyForType(
 	strategy Strategy,
 	updatedBy string,
 ) (imported int, skipped int, overwritten int, err error) {
+	log := logger.FromContext(ctx)
 	createUC := uc.NewCreateResource(store)
 	upsertUC := uc.NewUpsertResource(store)
 	for i := range bodies {

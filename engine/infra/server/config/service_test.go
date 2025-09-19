@@ -49,5 +49,8 @@ func TestCompileFromStore_WebhookSlugValidation(t *testing.T) {
 		require.NoError(t, err)
 		_, err = svc.compileFromStore(ctx, proj, nil)
 		require.Error(t, err)
+		require.ErrorContains(t, err, "webhook")
+		require.ErrorContains(t, err, "invalid")
+		require.ErrorContains(t, err, "duplicate")
 	})
 }

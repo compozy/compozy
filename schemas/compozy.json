@@ -6,27 +6,7 @@
         "contributors": {
           "description": "Additional contributors who helped develop the project.\n\nUse this to acknowledge team members, collaborators, or external contributors.",
           "items": {
-            "additionalProperties": false,
-            "description": "Contributor represents an individual who contributed to the project.",
-            "properties": {
-              "email": {
-                "description": "Email address for contributor contact.",
-                "type": "string"
-              },
-              "name": {
-                "description": "Full name of the contributor.",
-                "type": "string"
-              },
-              "organization": {
-                "description": "Organization or team the contributor belongs to.",
-                "type": "string"
-              },
-              "url": {
-                "description": "URL to contributor's profile or portfolio.\n\nExamples: `\"https://github.com/username\"`, `\"https://linkedin.com/in/name\"`",
-                "type": "string"
-              }
-            },
-            "type": "object"
+            "$ref": "#/$defs/Contributor"
           },
           "type": "array"
         },
@@ -81,8 +61,8 @@
           "type": "string"
         },
         "with": {
-          "description": "Error context passed to the handler\nIncludes error details: { \"error\": \"{{ .error }}\", \"attempt\": \"{{ .retryCount }}\" }",
-          "type": "object"
+          "$ref": "#/$defs/Input",
+          "description": "Error context passed to the handler\nIncludes error details: { \"error\": \"{{ .error }}\", \"attempt\": \"{{ .retryCount }}\" }"
         }
       },
       "type": "object"
@@ -99,49 +79,12 @@
           "type": "string"
         },
         "on_error": {
-          "additionalProperties": false,
-          "description": "ErrorTransition defines error handling behavior when a task fails.",
-          "properties": {
-            "next": {
-              "description": "ID of the error handler task\n\n- **Example**: \"handle-error\", \"retry-with-fallback\"",
-              "type": "string"
-            },
-            "with": {
-              "description": "Error context passed to the handler\nIncludes error details: { \"error\": \"{{ .error }}\", \"attempt\": \"{{ .retryCount }}\" }",
-              "type": "object"
-            }
-          },
-          "type": "object"
+          "$ref": "#/$defs/ErrorTransition",
+          "description": "Error handler configuration\nDefines what happens when a task fails after all retries"
         },
         "retry_policy": {
-          "additionalProperties": false,
-          "description": "RetryPolicyConfig defines automatic retry behavior for failed tasks.",
-          "properties": {
-            "backoff_coefficient": {
-              "description": "Multiplier for exponential backoff\n- **Default:** `2.0` (doubles each time)\n- **Example:** `1.5`, `2.0`, `3.0`",
-              "type": "number"
-            },
-            "initial_interval": {
-              "description": "Initial delay before first retry\n- **Default:** `\"1s\"`\n- **Example:** `\"500ms\"`, `\"2s\"`, `\"1m\"`",
-              "type": "string"
-            },
-            "maximum_attempts": {
-              "description": "Maximum retry attempts\n- **Default:** `3`\n- **Example:** `5` for critical operations",
-              "type": "integer"
-            },
-            "maximum_interval": {
-              "description": "Maximum delay between retries\n- **Default:** `\"1m\"`\n- **Example:** `\"30s\"`, `\"5m\"`, `\"1h\"`",
-              "type": "string"
-            },
-            "non_retryable_error_types": {
-              "description": "Error types that should not trigger retries\n- **Example:** `[\"ValidationError\", \"AuthenticationError\"]`",
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            }
-          },
-          "type": "object"
+          "$ref": "#/$defs/RetryPolicyConfig",
+          "description": "Retry configuration for transient failures\nAutomatically retries failed tasks with exponential backoff"
         },
         "schedule_to_close_timeout": {
           "description": "Total timeout from scheduling to completion\nDefault: \"6m\"\n\n- **Example**: \"1m\", \"15m\", \"2h\"",
@@ -247,50 +190,8 @@
           "type": "string"
         },
         "params": {
-          "additionalProperties": false,
-          "description": "PromptParams defines the parameters that control LLM behavior during text generation.",
-          "properties": {
-            "max_length": {
-              "description": "MaxLength provides an alternative way to specify maximum response length.\nTypically used by providers that distinguish between length and token limits.\n- **Range**: MinLength to provider-specific maximum\n- **Provider Support**: Primarily local models and some API providers",
-              "type": "integer"
-            },
-            "max_tokens": {
-              "description": "MaxTokens limits the maximum number of tokens in the generated response.\nThis parameter is crucial for cost control and response time management.\n- **Range**: 1 to model-specific maximum (e.g., 8192 for GPT-4)\n- **Default**: Provider-specific default (typically 1000-2000)",
-              "type": "integer"
-            },
-            "min_length": {
-              "description": "MinLength specifies the minimum number of tokens that must be generated.\nPrevents the model from generating responses that are too short.\n- **Range**: 1 to MaxTokens\n- **Provider Support**: Limited; primarily local models",
-              "type": "integer"
-            },
-            "repetition_penalty": {
-              "description": "RepetitionPenalty reduces the likelihood of repeating the same tokens.\nValues \u003e 1.0 penalize repetition, values \u003c 1.0 encourage it.\n- **Range**: 0.1 to 2.0\n- **Recommended**: 1.0 (no penalty) to 1.2 (moderate penalty)\n- **Provider Support**: Primarily local models (Ollama, etc.)",
-              "type": "number"
-            },
-            "seed": {
-              "description": "Seed provides a random seed for reproducible outputs.\nWhen set, the same input with the same parameters will generate identical responses.\n- **Use Cases**: Testing, debugging, demonstration, A/B testing\n\u003e **Note:**: Not all providers support seeding; OpenAI and some others do",
-              "type": "integer"
-            },
-            "stop_words": {
-              "description": "StopWords defines a list of strings that will halt text generation when encountered.\nUseful for creating structured outputs or preventing unwanted content patterns.\n\n- **Example**: `[\"END\", \"STOP\", \"\\n\\n---\"]` for section-based content\n\u003e **Note:**: Not all providers support stop words; check provider documentation",
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "temperature": {
-              "description": "Temperature controls the randomness of the generated text.\nLower values produce more deterministic, focused responses.\nHigher values increase creativity and variation but may reduce coherence.\n- **Range**: 0.0 (deterministic) to 1.0 (maximum randomness)\n- **Recommended**: 0.1-0.3 for factual tasks, 0.7-0.9 for creative tasks",
-              "type": "number"
-            },
-            "top_k": {
-              "description": "TopK limits the number of highest probability tokens considered during sampling.\nLower values focus on the most likely tokens, higher values allow more variety.\n- **Range**: 1 to vocabulary size (typically 1-100)\n- **Provider Support**: Primarily Google models and some local models",
-              "type": "integer"
-            },
-            "top_p": {
-              "description": "TopP (nucleus sampling) considers only tokens with cumulative probability up to this value.\nDynamically adjusts the vocabulary size based on probability distribution.\n- **Range**: 0.0 to 1.0\n- **Recommended**: 0.9 for balanced outputs, 0.95 for more variety",
-              "type": "number"
-            }
-          },
-          "type": "object"
+          "$ref": "#/$defs/PromptParams",
+          "description": "Params contains the generation parameters that control LLM behavior.\nThese parameters are applied to all requests using this provider configuration.\nCan be overridden at the task or action level for specific requirements."
         },
         "provider": {
           "description": "Provider specifies which AI service to use for LLM operations.\nMust match one of the supported ProviderName constants.\n\n- **Examples**: `\"openai\"`, `\"anthropic\"`, `\"google\"`, `\"ollama\"`",
@@ -401,35 +302,8 @@
       "description": "AttachmentsConfig contains global limits and policies for attachment handling.",
       "properties": {
         "allowed_mime_types": {
-          "additionalProperties": false,
-          "description": "AttachmentMIMEAllowlist holds allowed MIME types per category.",
-          "properties": {
-            "audio": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "image": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "pdf": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "video": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            }
-          },
-          "type": "object"
+          "$ref": "#/$defs/config_AttachmentMIMEAllowlist",
+          "description": "AllowedMIMETypes specifies MIME allowlists by content category.\n\nEmpty lists do not allow everything; they mean \"use built-in defaults\"\nper attachment type. Resolvers fall back to type heuristics when the\nallowlist for a category is empty."
         },
         "download_timeout": {
           "description": "DownloadTimeout sets the timeout for downloading a single attachment.\nDefault: 30s",
@@ -835,34 +709,12 @@
       "description": "RateLimitConfig contains rate limiting configuration.",
       "properties": {
         "api_key_rate": {
-          "additionalProperties": false,
-          "description": "RateConfig represents a single rate limit configuration.",
-          "properties": {
-            "limit": {
-              "description": "Limit specifies the maximum number of requests allowed.\n\nMust be greater than 0.\nExample: 100 for 100 requests per period",
-              "type": "integer"
-            },
-            "period": {
-              "description": "Period defines the time window for the rate limit.\n\nCommon values:\n  - `\"1s\"`: Per second\n  - `\"1m\"`: Per minute\n  - `\"1h\"`: Per hour\n  - `\"24h\"`: Per day",
-              "type": "integer"
-            }
-          },
-          "type": "object"
+          "$ref": "#/$defs/config_RateConfig",
+          "description": "APIKeyRate applies per API key.\n\nEnsures fair usage across different clients."
         },
         "global_rate": {
-          "additionalProperties": false,
-          "description": "RateConfig represents a single rate limit configuration.",
-          "properties": {
-            "limit": {
-              "description": "Limit specifies the maximum number of requests allowed.\n\nMust be greater than 0.\nExample: 100 for 100 requests per period",
-              "type": "integer"
-            },
-            "period": {
-              "description": "Period defines the time window for the rate limit.\n\nCommon values:\n  - `\"1s\"`: Per second\n  - `\"1m\"`: Per minute\n  - `\"1h\"`: Per hour\n  - `\"24h\"`: Per day",
-              "type": "integer"
-            }
-          },
-          "type": "object"
+          "$ref": "#/$defs/config_RateConfig",
+          "description": "GlobalRate applies to all requests system-wide.\n\nProtects against total system overload."
         },
         "max_retry": {
           "description": "MaxRetry sets retry attempts for rate-limited requests.\n\nDefault: 3",
@@ -1013,42 +865,12 @@
       "description": "ServerConfig contains HTTP server configuration.",
       "properties": {
         "auth": {
-          "additionalProperties": false,
-          "description": "AuthConfig contains authentication configuration.",
-          "properties": {
-            "admin_key": {
-              "type": "string"
-            },
-            "enabled": {
-              "type": "boolean"
-            },
-            "workflow_exceptions": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            }
-          },
-          "type": "object"
+          "$ref": "#/$defs/config_AuthConfig",
+          "description": "Auth configures API authentication settings."
         },
         "cors": {
-          "additionalProperties": false,
-          "description": "CORSConfig contains CORS configuration.",
-          "properties": {
-            "allow_credentials": {
-              "type": "boolean"
-            },
-            "allowed_origins": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "max_age": {
-              "type": "integer"
-            }
-          },
-          "type": "object"
+          "$ref": "#/$defs/config_CORSConfig",
+          "description": "CORS configures Cross-Origin Resource Sharing policies.\n\nOnly applies when CORSEnabled is true."
         },
         "cors_enabled": {
           "description": "CORSEnabled enables Cross-Origin Resource Sharing headers.\n\nSet to `true` when the API is accessed from web browsers on different origins.",
@@ -1075,58 +897,8 @@
           "type": "integer"
         },
         "timeouts": {
-          "additionalProperties": false,
-          "description": "ServerTimeouts defines tunable durations for server operations.",
-          "properties": {
-            "db_shutdown": {
-              "type": "integer"
-            },
-            "http_idle": {
-              "type": "integer"
-            },
-            "http_read": {
-              "type": "integer"
-            },
-            "http_write": {
-              "type": "integer"
-            },
-            "monitoring_init": {
-              "type": "integer"
-            },
-            "monitoring_shutdown": {
-              "type": "integer"
-            },
-            "schedule_retry_backoff_seconds": {
-              "description": "ScheduleRetryBackoffSeconds sets the base backoff in seconds used to build\nthe exponential backoff for reconciliation retries. If zero, a sensible\ndefault is applied in code.",
-              "type": "integer"
-            },
-            "schedule_retry_base_delay": {
-              "type": "integer"
-            },
-            "schedule_retry_max_attempts": {
-              "description": "ScheduleRetryMaxAttempts limits the number of reconciliation retry attempts.\nWhen set to a value \u003e= 1, this takes precedence over ScheduleRetryMaxDuration.",
-              "type": "integer"
-            },
-            "schedule_retry_max_delay": {
-              "type": "integer"
-            },
-            "schedule_retry_max_duration": {
-              "type": "integer"
-            },
-            "server_shutdown": {
-              "type": "integer"
-            },
-            "start_probe_delay": {
-              "type": "integer"
-            },
-            "temporal_reachability": {
-              "type": "integer"
-            },
-            "worker_shutdown": {
-              "type": "integer"
-            }
-          },
-          "type": "object"
+          "$ref": "#/$defs/config_ServerTimeouts",
+          "description": "Timeouts contains operator-tunable timeouts and retry/backoff settings\nfor server startup, shutdown, and HTTP behavior.\n\n$ref: schema://application#server.timeouts"
         }
       },
       "type": "object"
@@ -1236,17 +1008,8 @@
           "type": "integer"
         },
         "dispatcher": {
-          "additionalProperties": false,
-          "description": "WorkerDispatcherConfig holds dispatcher heartbeat tracking configuration.",
-          "properties": {
-            "heartbeat_ttl": {
-              "type": "integer"
-            },
-            "stale_threshold": {
-              "type": "integer"
-            }
-          },
-          "type": "object"
+          "$ref": "#/$defs/config_WorkerDispatcherConfig",
+          "description": "Dispatcher defines heartbeat tracking for dispatcher leases."
         },
         "dispatcher_max_retries": {
           "description": "DispatcherMaxRetries sets maximum dispatcher retry attempts.\n\n**Default**: `2`",
@@ -1295,411 +1058,48 @@
   "description": "Complete configuration schema for compozy.yaml including both project and application settings",
   "properties": {
     "attachments": {
-      "additionalProperties": false,
-      "description": "AttachmentsConfig contains global limits and policies for attachment handling.",
-      "properties": {
-        "allowed_mime_types": {
-          "$ref": "#/$defs/config_AttachmentMIMEAllowlist",
-          "description": "AllowedMIMETypes specifies MIME allowlists by content category.\n\nEmpty lists do not allow everything; they mean \"use built-in defaults\"\nper attachment type. Resolvers fall back to type heuristics when the\nallowlist for a category is empty."
-        },
-        "download_timeout": {
-          "description": "DownloadTimeout sets the timeout for downloading a single attachment.\nDefault: 30s",
-          "type": "integer"
-        },
-        "http_user_agent": {
-          "description": "HTTPUserAgent sets the User-Agent header for outbound downloads.\nDefault: \"Compozy/1.0\"",
-          "type": "string"
-        },
-        "max_download_size_bytes": {
-          "description": "MaxDownloadSizeBytes caps the maximum size (in bytes) for any single download.\nDefault: 10_000_000 (10MB)",
-          "type": "integer"
-        },
-        "max_redirects": {
-          "description": "MaxRedirects limits the number of HTTP redirects followed during download.\nDefault: 3",
-          "type": "integer"
-        },
-        "mime_head_max_bytes": {
-          "description": "MIMEHeadMaxBytes controls how many initial bytes are used for MIME detection.\nDefault: 512",
-          "type": "integer"
-        },
-        "pdf_extract_max_chars": {
-          "description": "PDFExtractMaxChars caps the number of characters extracted from PDFs.\nDefault: 1_000_000",
-          "type": "integer"
-        },
-        "ssrf_strict": {
-          "description": "SSRFStrict enforces blocking of local/loopback/private/multicast destinations even in tests.\nDefault: false",
-          "type": "boolean"
-        },
-        "temp_dir_quota_bytes": {
-          "description": "TempDirQuotaBytes optionally caps total temp storage used by attachment resolution.\n0 disables the quota.",
-          "type": "integer"
-        },
-        "text_part_max_bytes": {
-          "description": "TextPartMaxBytes caps the number of bytes loaded from text files into LLM parts.\nDefault: 5_242_880 (5MB)",
-          "type": "integer"
-        }
-      },
-      "type": "object"
+      "$ref": "#/$defs/config_AttachmentsConfig",
+      "description": "Attachments configures global attachment handling limits and policies.\n\n$ref: schema://application#attachments"
     },
     "author": {
-      "additionalProperties": false,
-      "properties": {
-        "contributors": {
-          "description": "Additional contributors who helped develop the project.\n\nUse this to acknowledge team members, collaborators, or external contributors.",
-          "items": {
-            "$ref": "#/$defs/Contributor"
-          },
-          "type": "array"
-        },
-        "email": {
-          "description": "Email contact for project-related communication.\n\nUse team emails for shared ownership: `\"ai-team@company.com\"`",
-          "type": "string"
-        },
-        "name": {
-          "description": "Name of the author or team responsible for the project.\n\nExamples: `\"Jane Smith\"`, `\"AI Platform Team\"`, `\"Data Science Division\"`",
-          "type": "string"
-        },
-        "organization": {
-          "description": "Organization or company affiliation.\n\nExamples: `\"ACME Corporation\"`, `\"AI Research Lab\"`, `\"Engineering Division\"`",
-          "type": "string"
-        },
-        "url": {
-          "description": "URL to author's profile, repository, or team page.\n\nExamples: `\"https://github.com/username\"`, `\"https://company.com/team/ai\"`",
-          "type": "string"
-        }
-      },
-      "type": "object"
+      "$ref": "#/$defs/Author",
+      "description": "Author information for the project.\n\n$ref: inline:#author"
     },
     "autoload": {
       "$ref": "autoload.json",
       "description": "AutoLoad configures automatic loading and reloading of project resources during development.\n\n$ref: inline:#autoload\n\n**Development Benefits**:\n  - Hot-reload agents and workflows without restart\n  - Automatic discovery of new resources\n  - Faster iteration cycles\n  - Validation on file changes\n\n**Example**:\n\n```yaml\nautoload:\n  enabled: true\n  strict: true              # Fail on validation errors\n  watch_interval: 2s        # Check for changes every 2 seconds\n  include:\n    - \"agents/**/*.yaml\"\n    - \"workflows/**/*.yaml\"\n    - \"memory/**/*.yaml\"\n  exclude:\n    - \"**/*.tmp\"\n    - \"**/*~\"\n```"
     },
     "cache": {
-      "additionalProperties": false,
-      "description": "CacheConfig contains cache-specific configuration settings.",
-      "properties": {
-        "compression_enabled": {
-          "description": "CompressionEnabled activates data compression for cached items.\n\nReduces memory usage and network bandwidth at the cost of CPU.\nUses gzip compression for items above CompressionThreshold.\n\n**Default**: `true`",
-          "type": "boolean"
-        },
-        "compression_threshold": {
-          "description": "CompressionThreshold sets the minimum size for compression.\n\nItems smaller than this are stored uncompressed to avoid\nCPU overhead for minimal space savings.\n\n**Default**: `1024` (1KB)",
-          "type": "integer"
-        },
-        "enabled": {
-          "description": "Enabled determines if caching is active.\n\nWhen disabled, all cache operations become no-ops.\nUseful for debugging or when Redis is unavailable.\n\n**Default**: `true`",
-          "type": "boolean"
-        },
-        "eviction_policy": {
-          "description": "EvictionPolicy controls how items are removed when cache is full.\n\nOptions:\n  - `\"lru\"`: Least Recently Used (default)\n  - `\"lfu\"`: Least Frequently Used\n  - `\"ttl\"`: Time-based expiration only\n\n**Default**: `\"lru\"`",
-          "type": "string"
-        },
-        "key_scan_count": {
-          "description": "KeyScanCount controls the COUNT hint used by Redis SCAN for key iteration.\nLarger values reduce round-trips but may increase per-iteration latency.\nSet to a positive integer; defaults to 100.",
-          "type": "integer"
-        },
-        "max_item_size": {
-          "description": "MaxItemSize limits the maximum size of a single cached item.\n\nPrevents large objects from consuming excessive memory.\nItems larger than this are not cached.\n\n**Default**: `1048576` (1MB)",
-          "type": "integer"
-        },
-        "prefix": {
-          "description": "Prefix namespaces cache keys in Redis.\n\nPrevents key collisions when sharing Redis with other applications.\nFormat: `\"\u003capp\u003e:\u003cenvironment\u003e:cache:\"`\n\n**Default**: `\"compozy:cache:\"`",
-          "type": "string"
-        },
-        "stats_interval": {
-          "description": "StatsInterval controls how often cache statistics are logged.\n\nSet to 0 to disable statistics logging.\nUseful for monitoring cache hit rates and performance.\n\n**Default**: `5m`",
-          "type": "integer"
-        },
-        "ttl": {
-          "description": "TTL sets the default time-to-live for cached items.\n\nBalances data freshness with cache efficiency.\nCan be overridden per operation.\n\n**Default**: `24h`",
-          "type": "integer"
-        }
-      },
-      "type": "object"
+      "$ref": "#/$defs/config_CacheConfig",
+      "description": "Cache configures caching behavior and performance settings.\n\n$ref: schema://application#cache"
     },
     "cli": {
-      "additionalProperties": false,
-      "description": "CLIConfig contains CLI-specific configuration.",
-      "properties": {
-        "APIKey": {
-          "description": "APIKey authenticates CLI requests to the Compozy API.\n\n**Security**: Always use environment variables for API keys.\nNever commit API keys to version control.",
-          "type": "string"
-        },
-        "BaseURL": {
-          "description": "BaseURL specifies the Compozy API endpoint.\n\nDefault: \"https://api.compozy.com\"\nUse custom endpoints for self-hosted or development environments.",
-          "type": "string"
-        },
-        "ColorMode": {
-          "description": "ColorMode controls terminal color output.\n\nOptions:\n  - `\"auto\"`: Detect terminal color support (default)\n  - `\"on\"`: Force color output\n  - `\"off\"`: Disable all color output",
-          "type": "string"
-        },
-        "ConfigFile": {
-          "description": "ConfigFile specifies a custom configuration file path.\n\nDefault: \"./compozy.yaml\" or \"~/.compozy/config.yaml\"",
-          "type": "string"
-        },
-        "Debug": {
-          "description": "Debug enables verbose debug logging.\n\nShows detailed API requests, responses, and internal operations.",
-          "type": "boolean"
-        },
-        "DefaultFormat": {
-          "description": "DefaultFormat sets the default output format.\n\nOptions:\n  - `\"json\"`: JSON format for programmatic consumption\n  - `\"tui\"`: Terminal UI with tables and formatting (default)\n  - `\"auto\"`: Automatically detect based on terminal capabilities",
-          "type": "string"
-        },
-        "EnvFile": {
-          "description": "EnvFile specifies a .env file to load environment variables from.\n\nVariables in this file are loaded before processing configuration.",
-          "type": "string"
-        },
-        "Interactive": {
-          "description": "Interactive enables interactive prompts and confirmations.\n\nDefault: true\nSet to false for non-interactive environments.",
-          "type": "boolean"
-        },
-        "Mode": {
-          "description": "Mode controls the CLI execution behavior.\n\nAvailable modes:\n  - `\"normal\"`: Standard interactive mode (default)\n  - `\"batch\"`: Non-interactive batch processing\n  - `\"script\"`: Optimized for scripting (minimal output)",
-          "type": "string"
-        },
-        "NoColor": {
-          "description": "NoColor disables all color output regardless of terminal support.\n\nOverrides ColorMode when set to true.",
-          "type": "boolean"
-        },
-        "OutputFormatAlias": {
-          "description": "OutputFormatAlias allows custom output format aliases.\n\nUsed internally for format customization.",
-          "type": "string"
-        },
-        "PageSize": {
-          "description": "PageSize sets the number of results per page in list operations.\n\nDefault: 50\nRange: 1-1000",
-          "type": "integer"
-        },
-        "Quiet": {
-          "description": "Quiet suppresses all non-error output.\n\nUseful for scripting and automation.",
-          "type": "boolean"
-        },
-        "ServerURL": {
-          "description": "ServerURL overrides the server URL for local development.\n\nThis takes precedence over BaseURL when set.\nExample: \"http://localhost:8080\" for local server",
-          "type": "string"
-        },
-        "Timeout": {
-          "description": "Timeout sets the maximum duration for API requests.\n\nDefault: 30s\nIncrease for long-running operations like workflow execution.",
-          "type": "integer"
-        }
-      },
-      "type": "object"
+      "$ref": "#/$defs/config_CLIConfig",
+      "description": "CLI configures command-line interface behavior.\n\n$ref: schema://application#cli"
     },
     "config": {
-      "additionalProperties": false,
-      "description": "Opts contains project-specific configuration options.",
-      "properties": {
-        "heartbeat_timeout": {
-          "description": "Interval for task heartbeat signals\nUsed for long-running tasks to indicate progress\n\n- **Example**: \"10s\", \"30s\", \"1m\"",
-          "type": "string"
-        },
-        "on_error": {
-          "$ref": "#/$defs/ErrorTransition",
-          "description": "Error handler configuration\nDefines what happens when a task fails after all retries"
-        },
-        "retry_policy": {
-          "$ref": "#/$defs/RetryPolicyConfig",
-          "description": "Retry configuration for transient failures\nAutomatically retries failed tasks with exponential backoff"
-        },
-        "schedule_to_close_timeout": {
-          "description": "Total timeout from scheduling to completion\nDefault: \"6m\"\n\n- **Example**: \"1m\", \"15m\", \"2h\"",
-          "type": "string"
-        },
-        "schedule_to_start_timeout": {
-          "description": "Maximum time to wait for a task to start executing\nDefault: \"1m\"\n\n- **Example**: \"30s\", \"5m\", \"1h\"",
-          "type": "string"
-        },
-        "source_of_truth": {
-          "description": "SourceOfTruth optionally overrides server default for this project.\nValues: \"repo\" or \"builder\".",
-          "type": "string"
-        },
-        "start_to_close_timeout": {
-          "description": "Maximum time for task execution once started\nDefault: \"5m\"\n\n- **Example**: \"30s\", \"10m\", \"1h\"",
-          "type": "string"
-        }
-      },
-      "type": "object"
+      "$ref": "#/$defs/Opts",
+      "description": "Opts contains project-wide configuration options for performance tuning and behavior control.\n\n$ref: inline:#project-options"
     },
     "database": {
-      "additionalProperties": false,
-      "description": "DatabaseConfig contains database connection configuration.",
-      "properties": {
-        "auto_migrate": {
-          "description": "AutoMigrate enables automatic database migrations on startup.\n\nWhen enabled, the system will automatically apply any pending database\nmigrations when establishing a database connection. This eliminates\nthe need for manual migration commands.\n\nDefault: true",
-          "type": "boolean"
-        },
-        "conn_string": {
-          "description": "ConnString provides a complete PostgreSQL connection URL.\n\nFormat: `postgres://user:password@host:port/database?sslmode=mode`\nTakes precedence over individual connection parameters.",
-          "type": "string"
-        },
-        "host": {
-          "description": "Host specifies the database server hostname or IP address.\n\nDefault: \"localhost\"",
-          "type": "string"
-        },
-        "migration_timeout": {
-          "description": "MigrationTimeout sets the maximum allowed time for applying database\nmigrations during startup. It must be equal to or greater than the\nadvisory lock acquisition window used by ApplyMigrationsWithLock (45s).\n\nDefault: 2m",
-          "type": "integer"
-        },
-        "name": {
-          "description": "DBName specifies the database name to connect to.\n\nDefault: \"compozy\"",
-          "type": "string"
-        },
-        "password": {
-          "description": "Password specifies the database password for authentication.\n\n**Security**: Use environment variables in production.",
-          "type": "string"
-        },
-        "port": {
-          "description": "Port specifies the database server port.\n\nDefault: \"5432\" (PostgreSQL default)",
-          "type": "string"
-        },
-        "ssl_mode": {
-          "description": "SSLMode configures SSL/TLS connection security.\n\nOptions:\n  - `\"disable\"`: No SSL (development only)\n  - `\"prefer\"`: Try SSL, fallback to non-SSL\n  - `\"require\"`: SSL required (recommended)\n  - `\"verify-ca\"`: SSL with CA verification\n  - `\"verify-full\"`: SSL with full verification",
-          "type": "string"
-        },
-        "user": {
-          "description": "User specifies the database username for authentication.",
-          "type": "string"
-        }
-      },
-      "type": "object"
+      "$ref": "#/$defs/config_DatabaseConfig",
+      "description": "Database configures the PostgreSQL database connection.\n\n$ref: schema://application#database"
     },
     "description": {
       "description": "Description provides a human-readable explanation of the project's purpose and capabilities.\n\n**Guidelines**:\n  - Be specific about what the project does\n  - Include primary use cases and benefits\n  - Keep it concise (1-3 sentences)\n  - Avoid technical jargon for broader understanding\n\n**Example**: `\"Multi-agent customer support system with automated ticket routing\"`",
       "type": "string"
     },
     "limits": {
-      "additionalProperties": false,
-      "description": "LimitsConfig contains system limits and constraints.",
-      "properties": {
-        "max_message_content": {
-          "description": "MaxMessageContent limits LLM message content size.\n\nPrevents excessive API costs and timeouts.\nDefault: 50MB (52428800 bytes)",
-          "type": "integer"
-        },
-        "max_nesting_depth": {
-          "description": "MaxNestingDepth limits JSON/YAML structure nesting.\n\nPrevents stack overflow from deeply nested data.\nDefault: 20",
-          "type": "integer"
-        },
-        "max_string_length": {
-          "description": "MaxStringLength limits individual string values.\n\nApplies to all string fields in requests and responses.\nDefault: 10MB (10485760 bytes)",
-          "type": "integer"
-        },
-        "max_task_context_depth": {
-          "description": "MaxTaskContextDepth limits task execution stack depth.\n\nPrevents infinite recursion in workflow execution.\nDefault: 10",
-          "type": "integer"
-        },
-        "max_total_content_size": {
-          "description": "MaxTotalContentSize limits total request/response size.\n\nPrevents memory exhaustion from large payloads.\nDefault: 100MB (104857600 bytes)",
-          "type": "integer"
-        },
-        "parent_update_batch_size": {
-          "description": "ParentUpdateBatchSize controls database update batching.\n\nLarger batches improve throughput but increase memory usage.\nDefault: 100",
-          "type": "integer"
-        }
-      },
-      "type": "object"
+      "$ref": "#/$defs/config_LimitsConfig",
+      "description": "Limits defines system resource limits and constraints.\n\n$ref: schema://application#limits"
     },
     "llm": {
-      "additionalProperties": false,
-      "description": "LLMConfig contains LLM service configuration.",
-      "properties": {
-        "allowed_mcp_names": {
-          "description": "AllowedMCPNames restricts which MCP servers/tools are considered eligible\nfor advertisement and invocation. When empty, all discovered MCP tools\nare eligible.",
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "fail_on_mcp_registration_error": {
-          "description": "FailOnMCPRegistrationError enforces fail-fast behavior when registering\nMCP configurations sourced from agents/projects. When true, MCP\nregistration failures cause service initialization to error.",
-          "type": "boolean"
-        },
-        "max_concurrent_tools": {
-          "description": "MaxConcurrentTools limits the number of tools that can execute in parallel.\n\nControls resource usage and prevents overwhelming downstream services.\nHigher values improve throughput, lower values reduce resource contention.\nDefault: 10",
-          "type": "integer"
-        },
-        "max_sequential_tool_errors": {
-          "description": "MaxSequentialToolErrors caps how many sequential tool execution/content errors\nare tolerated for the same tool before aborting the task. Set to 0 to use\nthe orchestrator's built-in default.\nDefault: 10 (registry default)",
-          "type": "integer"
-        },
-        "max_tool_iterations": {
-          "description": "MaxToolIterations caps the maximum number of tool-iteration loops per request.\n\nThis acts as a global default and can be overridden by model-specific configuration\nin project files. Set to 0 to use the orchestrator's built-in default.\nDefault: 100 (registry default)",
-          "type": "integer"
-        },
-        "mcp_client_timeout": {
-          "description": "MCPClientTimeout sets the HTTP client timeout for MCP proxy communication.",
-          "type": "integer"
-        },
-        "mcp_header_template_strict": {
-          "description": "MCPHeaderTemplateStrict enables strict template validation for MCP HTTP headers.\nWhen true, allows only simple lookups (no pipelines/function calls/inclusions).\nDefault: false",
-          "type": "boolean"
-        },
-        "mcp_readiness_poll_interval": {
-          "description": "MCPReadinessPollInterval sets how often to poll the proxy for MCP connection status.\nDefault: 200ms",
-          "type": "integer"
-        },
-        "mcp_readiness_timeout": {
-          "description": "MCPReadinessTimeout bounds how long to wait for MCP clients to connect during setup.\nDefault: 60s",
-          "type": "integer"
-        },
-        "proxy_url": {
-          "description": "ProxyURL specifies the MCP proxy server endpoint.\n\nThe proxy handles:\n  - MCP server connections\n  - Tool discovery and routing\n  - Protocol translation\nDefault: \"\" (empty; supply MCP proxy URL explicitly or derive from MCPProxy.BaseURL)",
-          "type": "string"
-        },
-        "register_mcps": {
-          "description": "RegisterMCPs contains additional MCP configurations to be registered\nwith the MCP proxy at runtime. Represented as a generic slice to avoid\nimport cycles with engine packages.",
-          "items": {
-            "type": "object"
-          },
-          "type": "array"
-        },
-        "retry_attempts": {
-          "description": "RetryAttempts configures the number of retry attempts for LLM operations.\n\nControls how many times the orchestrator will retry failed LLM requests\nbefore giving up. Higher values improve reliability but may increase latency.\nDefault: 3",
-          "type": "integer"
-        },
-        "retry_backoff_base": {
-          "description": "RetryBackoffBase sets the base delay for exponential backoff retry strategy.\n\nThe actual delay will be calculated as base * (2 ^ attempt) with optional jitter.\nLower values retry faster, higher values reduce server load.\nDefault: 100ms",
-          "type": "integer"
-        },
-        "retry_backoff_max": {
-          "description": "RetryBackoffMax limits the maximum delay between retry attempts.\n\nPrevents exponential backoff from creating extremely long delays.\nShould be set based on user tolerance for response time.\nDefault: 10s",
-          "type": "integer"
-        },
-        "retry_jitter": {
-          "description": "RetryJitter enables random jitter in retry delays to avoid thundering herd.\n\nWhen enabled, adds randomness to retry delays to prevent all clients\nfrom retrying simultaneously. Improves system stability under load.\nDefault: true",
-          "type": "boolean"
-        },
-        "retry_jitter_percent": {
-          "description": "RetryJitterPercent controls jitter strength when retry_jitter is enabled.",
-          "type": "integer"
-        }
-      },
-      "type": "object"
+      "$ref": "#/$defs/config_LLMConfig",
+      "description": "LLM configures the LLM proxy service.\n\n$ref: schema://application#llm"
     },
     "mcp_proxy": {
-      "additionalProperties": false,
-      "description": "MCPProxyConfig contains MCP proxy server configuration.",
-      "properties": {
-        "base_url": {
-          "description": "BaseURL specifies the base URL for MCP proxy API endpoints.\n\n**Default**: `\"\"` (empty string)",
-          "type": "string"
-        },
-        "host": {
-          "description": "Host specifies the network interface to bind the MCP proxy server to.\n\n**Default**: `\"0.0.0.0\"`",
-          "type": "string"
-        },
-        "mode": {
-          "description": "Mode controls how the MCP proxy runs within Compozy.\n\nValues:\n  - \"standalone\": embed MCP proxy inside the server\n  - \"\": external MCP proxy (default)\n\nWhen embedded, the server manages lifecycle and health of the proxy\nand will set LLM.ProxyURL if empty.",
-          "type": "string"
-        },
-        "port": {
-          "description": "Port specifies the TCP port for the MCP proxy server.\n\n**Default**: `0` (ephemeral)",
-          "type": "integer"
-        },
-        "shutdown_timeout": {
-          "description": "ShutdownTimeout sets timeout for graceful shutdown.\n\n**Default**: `30s`",
-          "type": "integer"
-        }
-      },
-      "type": "object"
+      "$ref": "#/$defs/config_MCPProxyConfig",
+      "description": "MCPProxy configures the MCP proxy server.\n\n$ref: schema://application#mcpproxy"
     },
     "memories": {
       "description": "Memories declares project-scoped memory resources that agents and tasks can reference\nby ID. These are indexed into the ResourceStore under the current project and can be\nused across workflows for conversation and state sharing.\n\nExample:\n\n memories:\n   - id: conversation\n     type: buffer\n     persistence:\n       type: in_memory\n\nThe Resource field on memory.Config is optional in project-level definitions and will\ndefault to \"memory\" during validation.",
@@ -1709,64 +1109,13 @@
       "type": "array"
     },
     "memory": {
-      "additionalProperties": false,
-      "description": "MemoryConfig contains memory service configuration.",
-      "properties": {
-        "max_entries": {
-          "description": "MaxEntries limits memory entries per conversation.\n\nPrevents unbounded memory growth.\nDefault: 10000",
-          "type": "integer"
-        },
-        "prefix": {
-          "description": "Prefix namespaces memory keys in Redis.\n\nPrevents key collisions when sharing Redis.\nDefault: \"compozy:memory:\"",
-          "type": "string"
-        },
-        "ttl": {
-          "description": "TTL sets memory entry expiration time.\n\nBalances context retention with storage costs.\nDefault: 24h",
-          "type": "integer"
-        }
-      },
-      "type": "object"
+      "$ref": "#/$defs/config_MemoryConfig",
+      "description": "Memory configures the memory service for agent conversations.\n\n$ref: schema://application#memory"
     },
     "models": {
       "description": "Models configures the LLM providers and model settings available to this project.\n\n$ref: schema://provider\n\n**Multi-Model Support**:\n  - Configure multiple providers for redundancy\n  - Different models for different tasks (cost/performance optimization)\n  - Fallback chains for high availability\n\n**Supported Providers**:\n  - OpenAI (GPT-4, GPT-3.5, etc.)\n  - Anthropic (Claude models)\n  - Google (Gemini models)\n  - Groq (Fast inference)\n  - Ollama (Local models)\n  - Custom providers via API compatibility\n\n**Example**:\n\n```yaml\nmodels:\n # Primary model for complex reasoning\n - provider: openai\n   model: gpt-4-turbo\n   api_key: \"{{ .env.OPENAI_API_KEY }}\"\n   temperature: 0.7\n   max_tokens: 4000\n\n # Fallback for cost optimization\n - provider: anthropic\n   model: claude-3-haiku\n   api_key: \"{{ .env.ANTHROPIC_API_KEY }}\"\n\n # Local model for sensitive data\n - provider: ollama\n   model: llama2:13b\n   api_url: http://localhost:11434\n```",
       "items": {
-        "additionalProperties": false,
-        "description": "ProviderConfig represents the complete configuration for an LLM provider in Compozy workflows.",
-        "properties": {
-          "api_key": {
-            "description": "APIKey contains the authentication key for the AI provider.\n\n- **Security**: Use template references to environment variables.\n- **Examples**: `\"{{ .env.OPENAI_API_KEY }}\"`, `\"{{ .secrets.ANTHROPIC_KEY }}\"`\n\u003e **Note:**: Required for most cloud providers, optional for local providers",
-            "type": "string"
-          },
-          "api_url": {
-            "description": "APIURL specifies a custom API endpoint for the provider.\n**Use Cases**:\n  - Local model hosting (Ollama, OpenAI-compatible servers)\n  - Enterprise API gateways\n  - Regional API endpoints\n  - Custom proxy servers\n\n**Examples**: `\"http://localhost:11434\"`, `\"https://api.openai.com/v1\"`",
-            "type": "string"
-          },
-          "default": {
-            "description": "Default indicates that this model should be used as the fallback when no explicit\nmodel configuration is provided at the task or agent level.\n\n**Behavior**:\n  - Only one model per project can be marked as default\n  - When set to true, this model will be used for tasks/agents without explicit model config\n  - Validation ensures at most one default model per project\n\n**Example**:\n```yaml\nmodels:\n  - provider: openai\n    model: gpt-4\n    default: true  # This will be used by default\n```",
-            "type": "boolean"
-          },
-          "max_tool_iterations": {
-            "description": "MaxToolIterations optionally caps the maximum number of tool-call iterations\nduring a single LLM request when tools are available.\nWhen \u003e 0, overrides the global default for this model; 0 uses the global default.",
-            "type": "integer"
-          },
-          "model": {
-            "description": "Model defines the specific model identifier to use with the provider.\nModel names are provider-specific and determine capabilities and pricing.\n\n- **Examples**:\n  - OpenAI: `\"gpt-4-turbo\"`, `\"gpt-3.5-turbo\"`\n  - Anthropic: `\"claude-4-opus\"`, `\"claude-3-5-haiku-latest\"`\n  - Google: `\"gemini-pro\"`, `\"gemini-pro-vision\"`\n  - Ollama: `\"llama2:13b\"`, `\"mistral:7b\"`",
-            "type": "string"
-          },
-          "organization": {
-            "description": "Organization specifies the organization ID for providers that support it.\n- **Primary Use**: OpenAI organization management for billing and access control\n\n- **Example**: `\"org-123456789abcdef\"`\n\u003e **Note:**: Optional for most providers",
-            "type": "string"
-          },
-          "params": {
-            "$ref": "#/$defs/PromptParams",
-            "description": "Params contains the generation parameters that control LLM behavior.\nThese parameters are applied to all requests using this provider configuration.\nCan be overridden at the task or action level for specific requirements."
-          },
-          "provider": {
-            "description": "Provider specifies which AI service to use for LLM operations.\nMust match one of the supported ProviderName constants.\n\n- **Examples**: `\"openai\"`, `\"anthropic\"`, `\"google\"`, `\"ollama\"`",
-            "type": "string"
-          }
-        },
-        "type": "object"
+        "$ref": "#/$defs/ProviderConfig"
       },
       "type": "array"
     },
@@ -1779,251 +1128,35 @@
       "type": "string"
     },
     "ratelimit": {
-      "additionalProperties": false,
-      "description": "RateLimitConfig contains rate limiting configuration.",
-      "properties": {
-        "api_key_rate": {
-          "$ref": "#/$defs/config_RateConfig",
-          "description": "APIKeyRate applies per API key.\n\nEnsures fair usage across different clients."
-        },
-        "global_rate": {
-          "$ref": "#/$defs/config_RateConfig",
-          "description": "GlobalRate applies to all requests system-wide.\n\nProtects against total system overload."
-        },
-        "max_retry": {
-          "description": "MaxRetry sets retry attempts for rate-limited requests.\n\nDefault: 3",
-          "type": "integer"
-        },
-        "prefix": {
-          "description": "Prefix namespaces rate limit keys in Redis.\n\nDefault: \"ratelimit:\"",
-          "type": "string"
-        }
-      },
-      "type": "object"
+      "$ref": "#/$defs/config_RateLimitConfig",
+      "description": "RateLimit configures API rate limiting.\n\n$ref: schema://application#ratelimit"
     },
     "redis": {
-      "additionalProperties": false,
-      "description": "RedisConfig contains Redis connection configuration.",
-      "properties": {
-        "db": {
-          "description": "DB selects the Redis database number.\n\nDefault: 0",
-          "type": "integer"
-        },
-        "dial_timeout": {
-          "description": "DialTimeout sets timeout for establishing new connections.\n\nDefault: 5s",
-          "type": "integer"
-        },
-        "host": {
-          "description": "Host specifies the Redis server hostname or IP address.\n\nDefault: \"localhost\"",
-          "type": "string"
-        },
-        "max_idle_conns": {
-          "description": "MaxIdleConns sets the maximum number of idle connections.\n\nDefault: 0",
-          "type": "integer"
-        },
-        "max_retries": {
-          "description": "MaxRetries sets the maximum number of retries before giving up.\n\nDefault: 3",
-          "type": "integer"
-        },
-        "max_retry_backoff": {
-          "description": "MaxRetryBackoff sets maximum backoff between retries.\n\nDefault: 512ms",
-          "type": "integer"
-        },
-        "min_idle_conns": {
-          "description": "MinIdleConns sets the minimum number of idle connections.\n\nDefault: 0",
-          "type": "integer"
-        },
-        "min_retry_backoff": {
-          "description": "MinRetryBackoff sets minimum backoff between retries.\n\nDefault: 8ms",
-          "type": "integer"
-        },
-        "notification_buffer_size": {
-          "description": "NotificationBufferSize sets buffer size for pub/sub notifications.\n\nDefault: 100",
-          "type": "integer"
-        },
-        "password": {
-          "description": "Password authenticates with Redis.\n\n**Security**: Use environment variables in production.",
-          "type": "string"
-        },
-        "ping_timeout": {
-          "description": "PingTimeout sets timeout for ping command.\n\nDefault: 1s",
-          "type": "integer"
-        },
-        "pool_size": {
-          "description": "PoolSize sets the maximum number of socket connections.\n\nDefault: 10 per CPU",
-          "type": "integer"
-        },
-        "pool_timeout": {
-          "description": "PoolTimeout sets timeout for getting connection from pool.\n\nDefault: ReadTimeout + 1s",
-          "type": "integer"
-        },
-        "port": {
-          "description": "Port specifies the Redis server port as a string.\n\n**Format**: String representation of port number (1-65535)\n**YAML**: Both \"6379\" (quoted) and 6379 (numeric) are accepted\n**Breaking Change**: Changed from int to string in v2.0.0\n\nDefault: \"6379\"",
-          "type": "string"
-        },
-        "read_timeout": {
-          "description": "ReadTimeout sets timeout for socket reads.\n\nDefault: 3s",
-          "type": "integer"
-        },
-        "tls_enabled": {
-          "description": "TLSEnabled enables TLS encryption.\n\nDefault: false",
-          "type": "boolean"
-        },
-        "url": {
-          "description": "URL provides a complete Redis connection string.\n\nFormat: `redis://[user:password@]host:port/db`\nTakes precedence over individual connection parameters.",
-          "type": "string"
-        },
-        "write_timeout": {
-          "description": "WriteTimeout sets timeout for socket writes.\n\nDefault: ReadTimeout",
-          "type": "integer"
-        }
-      },
-      "type": "object"
+      "$ref": "#/$defs/config_RedisConfig",
+      "description": "Redis configures the Redis connection for all services.\n\n$ref: schema://application#redis"
     },
     "runtime": {
-      "additionalProperties": false,
-      "description": "RuntimeConfig defines project-specific runtime overrides.",
-      "properties": {
-        "entrypoint": {
-          "description": "Entrypoint specifies the path to the JavaScript/TypeScript entrypoint file.\nOverrides global runtime.entrypoint_path setting if specified.",
-          "type": "string"
-        },
-        "permissions": {
-          "description": "Permissions defines runtime security permissions.\nOverrides global runtime.bun_permissions setting if specified.",
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "type": {
-          "description": "Type specifies the JavaScript runtime to use for tool execution.\nOverrides global runtime.runtime_type setting if specified.",
-          "type": "string"
-        }
-      },
-      "type": "object"
+      "$ref": "#/$defs/RuntimeConfig",
+      "description": "Runtime specifies the JavaScript/TypeScript execution environment for custom tools.\nNOTE: Runtime configuration has been moved to global config (pkg/config.RuntimeConfig)\nThis field is kept for backwards compatibility and project-specific overrides.\n\n$ref: schema://application#runtime"
     },
     "schemas": {
       "description": "Schemas defines the data validation schemas used throughout the project workflows.\n\n**Schema Benefits**:\n  - Type safety for workflow inputs/outputs\n  - Early error detection and validation\n  - Self-documenting data contracts\n  - IDE autocomplete support\n\n**Example**:\n\n```yaml\nschemas:\n - id: user-input\n   schema:\n     type: object\n     properties:\n       name:\n         type: string\n         minLength: 1\n       age:\n         type: integer\n         minimum: 0\n     required: [\"name\"]\n```",
       "items": {
-        "type": "object"
+        "$ref": "#/$defs/Schema"
       },
       "type": "array"
     },
     "server": {
-      "additionalProperties": false,
-      "description": "ServerConfig contains HTTP server configuration.",
-      "properties": {
-        "auth": {
-          "$ref": "#/$defs/config_AuthConfig",
-          "description": "Auth configures API authentication settings."
-        },
-        "cors": {
-          "$ref": "#/$defs/config_CORSConfig",
-          "description": "CORS configures Cross-Origin Resource Sharing policies.\n\nOnly applies when CORSEnabled is true."
-        },
-        "cors_enabled": {
-          "description": "CORSEnabled enables Cross-Origin Resource Sharing headers.\n\nSet to `true` when the API is accessed from web browsers on different origins.",
-          "type": "boolean"
-        },
-        "host": {
-          "description": "Host specifies the network interface to bind the server to.\n\nCommon values:\n  - `\"0.0.0.0\"`: Listen on all interfaces (default)\n  - `\"127.0.0.1\"` or `\"localhost\"`: Local access only\n  - Specific IP: Bind to a specific network interface",
-          "type": "string"
-        },
-        "port": {
-          "description": "Port specifies the TCP port for the HTTP server.\n\nValid range: 1-65535. Common ports:\n  - `8080`: Default development port\n  - `80`: Standard HTTP (requires privileges)\n  - `443`: Standard HTTPS (requires privileges)",
-          "type": "integer"
-        },
-        "seed_from_repo_on_empty": {
-          "description": "SeedFromRepoOnEmpty controls whether builder mode seeds the store from\nrepository YAML once when the store is empty. Disabled by default.",
-          "type": "boolean"
-        },
-        "source_of_truth": {
-          "description": "SourceOfTruth selects where the server loads workflows from.\n\nValues:\n  - \"repo\": load YAML from repository and index to store (default)\n  - \"builder\": load workflows from ResourceStore (compile-from-store)",
-          "type": "string"
-        },
-        "timeout": {
-          "description": "Timeout sets the maximum duration for processing requests.\n\nApplies to all HTTP operations including request reading, processing, and response writing.\nDefault: 30s. Increase for long-running operations.",
-          "type": "integer"
-        },
-        "timeouts": {
-          "$ref": "#/$defs/config_ServerTimeouts",
-          "description": "Timeouts contains operator-tunable timeouts and retry/backoff settings\nfor server startup, shutdown, and HTTP behavior.\n\n$ref: schema://application#server.timeouts"
-        }
-      },
-      "type": "object"
+      "$ref": "#/$defs/config_ServerConfig",
+      "description": "Server configures the HTTP API server settings.\n\n$ref: schema://application#server"
     },
     "system_runtime": {
-      "additionalProperties": false,
-      "description": "RuntimeConfig contains runtime behavior configuration.",
-      "properties": {
-        "async_token_counter_buffer_size": {
-          "description": "AsyncTokenCounterBufferSize sets the token counter queue size.\n\nLarger buffers handle traffic spikes better but use more memory.\nDefault: 100",
-          "type": "integer"
-        },
-        "async_token_counter_workers": {
-          "description": "AsyncTokenCounterWorkers sets the number of token counting workers.\n\nMore workers improve throughput for high-volume token counting.\nDefault: 4",
-          "type": "integer"
-        },
-        "bun_permissions": {
-          "description": "BunPermissions defines runtime security permissions for Bun.\n\nDefault: [\"--allow-read\"]",
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "dispatcher_heartbeat_interval": {
-          "description": "DispatcherHeartbeatInterval sets how often dispatchers report health.\n\nLower values provide faster failure detection but increase load.\nDefault: 30s",
-          "type": "integer"
-        },
-        "dispatcher_heartbeat_ttl": {
-          "description": "DispatcherHeartbeatTTL sets heartbeat expiration time.\n\nMust be greater than heartbeat interval to handle network delays.\nDefault: 90s",
-          "type": "integer"
-        },
-        "dispatcher_stale_threshold": {
-          "description": "DispatcherStaleThreshold defines when a dispatcher is considered failed.\n\nTriggers reassignment of dispatcher's workflows.\nDefault: 120s",
-          "type": "integer"
-        },
-        "entrypoint_path": {
-          "description": "EntrypointPath specifies the path to the JavaScript/TypeScript entrypoint file.\n\nDefault: \"./tools.ts\"",
-          "type": "string"
-        },
-        "environment": {
-          "description": "Environment specifies the deployment environment.\n\nAffects:\n  - Error verbosity and stack traces\n  - Performance optimizations\n  - Debug endpoints availability\n  - Default timeouts and limits\n\nValues: \"development\", \"staging\", \"production\"",
-          "type": "string"
-        },
-        "log_level": {
-          "description": "LogLevel controls logging verbosity.\n\nLevels (least to most verbose):\n  - `\"error\"`: Critical errors only\n  - `\"warn\"`: Warnings and errors\n  - `\"info\"`: General operational info (default)\n  - `\"debug\"`: Detailed debugging information",
-          "type": "string"
-        },
-        "runtime_type": {
-          "description": "RuntimeType specifies the JavaScript runtime to use for tool execution.\n\nValues: \"bun\", \"node\"\nDefault: \"bun\"",
-          "type": "string"
-        },
-        "tool_execution_timeout": {
-          "description": "ToolExecutionTimeout sets the maximum time for tool execution.\n\nPrevents runaway tools from blocking workflows.\nDefault: 60s",
-          "type": "integer"
-        }
-      },
-      "type": "object"
+      "$ref": "#/$defs/config_RuntimeConfig",
+      "description": "Runtime configures system runtime behavior and performance.\n\n$ref: schema://application#runtime"
     },
     "temporal": {
-      "additionalProperties": false,
-      "description": "TemporalConfig contains Temporal workflow engine configuration.",
-      "properties": {
-        "host_port": {
-          "description": "HostPort specifies the Temporal server endpoint.\n\nFormat: `host:port`\nDefault: \"localhost:7233\"",
-          "type": "string"
-        },
-        "namespace": {
-          "description": "Namespace isolates workflows within Temporal.\n\nUse different namespaces for:\n  - Environment separation (dev, staging, prod)\n  - Multi-tenant deployments\n  - Workflow versioning\nDefault: \"default\"",
-          "type": "string"
-        },
-        "task_queue": {
-          "description": "TaskQueue identifies the queue for workflow tasks.\n\nWorkers poll this queue for tasks to execute.\nUse different queues for:\n  - Workflow type separation\n  - Priority-based routing\n  - Resource isolation\nDefault: \"compozy-tasks\"",
-          "type": "string"
-        }
-      },
-      "type": "object"
+      "$ref": "#/$defs/config_TemporalConfig",
+      "description": "Temporal configures the workflow engine connection.\n\n$ref: schema://application#temporal"
     },
     "tools": {
       "description": "Tools defines shared tool definitions available to all workflows and agents\nwithin this project. These tools are inherited unless explicitly overridden.\n\n**Inheritance Rules**:\n  - Agent tools completely override inheritance when present\n  - Workflow tools override project tools by ID\n  - Tool ID collisions resolved by precedence: Agent \u003e Workflow \u003e Project\n\n**Location \u0026 autoload**:\n  - Place reusable tool configuration files under the `tools/` directory (e.g., `tools/*.yaml`)\n  - If autoload is enabled, files in `tools/` will be discovered and validated automatically\n\n**Example**:\n\n```yaml\ntools:\n  - id: code-analyzer\n    description: Analyzes code quality and patterns\n    timeout: 30s\n  - id: data-processor\n    description: Processes and transforms data\n```",
@@ -2037,79 +1170,17 @@
       "type": "string"
     },
     "webhooks": {
-      "additionalProperties": false,
-      "description": "WebhooksConfig contains webhook processing and validation configuration.",
-      "properties": {
-        "default_dedupe_ttl": {
-          "description": "DefaultDedupeTTL sets the default time-to-live for webhook deduplication.\nDefault: 10m (10 minutes)\nMust be non-negative",
-          "type": "integer"
-        },
-        "default_max_body": {
-          "description": "DefaultMaxBody caps the maximum size (in bytes) for webhook request bodies.\nDefault: 1,048,576 (1MB)\nMust be greater than 0",
-          "type": "integer"
-        },
-        "default_method": {
-          "description": "DefaultMethod specifies the default HTTP method for webhook requests.\nDefault: \"POST\"\nValid values: GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS",
-          "type": "string"
-        },
-        "stripe_skew": {
-          "description": "StripeSkew sets the allowed timestamp skew for Stripe webhook verification.\nDefault: 5m (5 minutes)\nMust be non-negative",
-          "type": "integer"
-        }
-      },
-      "type": "object"
+      "$ref": "#/$defs/config_WebhooksConfig",
+      "description": "Webhooks configures webhook processing and validation settings.\n\n$ref: schema://application#webhooks"
     },
     "worker": {
-      "additionalProperties": false,
-      "description": "WorkerConfig contains Temporal worker configuration.",
-      "properties": {
-        "config_store_ttl": {
-          "description": "ConfigStoreTTL sets how long worker configurations are cached.\n\n**Default**: `24h`",
-          "type": "integer"
-        },
-        "dispatcher": {
-          "$ref": "#/$defs/config_WorkerDispatcherConfig",
-          "description": "Dispatcher defines heartbeat tracking for dispatcher leases."
-        },
-        "dispatcher_max_retries": {
-          "description": "DispatcherMaxRetries sets maximum dispatcher retry attempts.\n\n**Default**: `2`",
-          "type": "integer"
-        },
-        "dispatcher_retry_delay": {
-          "description": "DispatcherRetryDelay sets delay between dispatcher retry attempts.\n\n**Default**: `50ms`",
-          "type": "integer"
-        },
-        "heartbeat_cleanup_timeout": {
-          "description": "HeartbeatCleanupTimeout sets timeout for heartbeat cleanup operations.\n\n**Default**: `5s`",
-          "type": "integer"
-        },
-        "mcp_proxy_health_check_timeout": {
-          "description": "MCPProxyHealthCheckTimeout sets timeout for MCP proxy health checks.\n\n**Default**: `10s`",
-          "type": "integer"
-        },
-        "mcp_shutdown_timeout": {
-          "description": "MCPShutdownTimeout sets timeout for MCP server shutdown.\n\n**Default**: `30s`",
-          "type": "integer"
-        },
-        "start_workflow_timeout": {
-          "description": "StartWorkflowTimeout bounds the HTTP handler's call to start a\nworkflow execution to avoid hanging requests when Temporal is slow\nor unreachable. If zero or negative, a safe default is used.\n\n**Default**: `5s`",
-          "type": "integer"
-        }
-      },
-      "type": "object"
+      "$ref": "#/$defs/config_WorkerConfig",
+      "description": "Worker configures Temporal worker settings.\n\n$ref: schema://application#worker"
     },
     "workflows": {
       "description": "Workflows defines the list of workflow files that compose this project's AI capabilities.",
       "items": {
-        "additionalProperties": false,
-        "description": "WorkflowSourceConfig defines the source location for a workflow file.",
-        "properties": {
-          "source": {
-            "description": "Source specifies the path to the workflow YAML file relative to the project root.\n\nThis file contains the task definitions, agent configurations, and execution flow.\nPaths can be:\n  - **Relative**: `\"./workflows/data-analysis.yaml\"` (recommended)\n  - **Nested**: `\"workflows/pipelines/etl.yaml\"`\n  - **Top-level**: `\"main-workflow.yaml\"`\n\nBest practices:\n  - Organize workflows by domain or functionality\n  - Use descriptive names that indicate the workflow's purpose\n  - Keep related workflows in the same directory",
-            "type": "string"
-          }
-        },
-        "type": "object"
+        "$ref": "#/$defs/WorkflowSourceConfig"
       },
       "type": "array"
     }

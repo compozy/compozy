@@ -61,12 +61,12 @@ func setupAdminRoutes(
 	}
 	authRepo := state.Store.NewAuthRepo()
 	factory := authuc.NewFactory(authRepo)
-	admin := CreateAdminGroup(apiBase, factory, cfg)
-	admin.GET("/reload", func(c *gin.Context) {
+	admin := CreateAdminGroup(ctx, apiBase, factory)
+	admin.POST("/reload", func(c *gin.Context) {
 		adminReloadHandler(c, server)
 	})
-	admin.GET("/export-yaml", func(c *gin.Context) { adminExportYAMLHandler(c) })
-	admin.GET("/import-yaml", func(c *gin.Context) { adminImportYAMLHandler(c) })
+	admin.POST("/export-yaml", func(c *gin.Context) { adminExportYAMLHandler(c) })
+	admin.POST("/import-yaml", func(c *gin.Context) { adminImportYAMLHandler(c) })
 	registerMetaRoutes(admin)
 	return nil
 }
@@ -85,7 +85,7 @@ func setupAdminRoutes(
 //	@Failure      401  {object}  router.Response{error=router.ErrorInfo} "Unauthorized"
 //	@Failure      403  {object}  router.Response{error=router.ErrorInfo} "Forbidden"
 //	@Failure      500  {object}  router.Response{error=router.ErrorInfo} "Internal server error"
-//	@Router       /admin/reload [get]
+//	@Router       /admin/reload [post]
 func adminReloadHandler(c *gin.Context, server *Server) {
 	start := time.Now()
 	ctx := c.Request.Context()

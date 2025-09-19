@@ -3,10 +3,13 @@ package admin
 import (
 	"context"
 	"fmt"
+	"net/url"
+	"strings"
 
 	"github.com/compozy/compozy/cli/api"
 	"github.com/compozy/compozy/cli/cmd"
 	"github.com/compozy/compozy/cli/helpers"
+	"github.com/compozy/compozy/cli/tui/models"
 	"github.com/spf13/cobra"
 )
 
@@ -27,12 +30,13 @@ func exportCmd() *cobra.Command {
 		Use:   "export",
 		Short: "Export store to YAML in project directories",
 		RunE: func(cobraCmd *cobra.Command, _ []string) error {
+			path := "/admin/export-yaml"
 			return cmd.ExecuteCommand(cobraCmd, cmd.ExecutorOptions{RequireAuth: true}, cmd.ModeHandlers{
 				JSON: func(ctx context.Context, _ *cobra.Command, executor *cmd.CommandExecutor, _ []string) error {
-					return callAdminEndpoint(ctx, executor, "/admin/export-yaml")
+					return callAdminPostEndpoint(ctx, executor, path)
 				},
 				TUI: func(ctx context.Context, _ *cobra.Command, executor *cmd.CommandExecutor, _ []string) error {
-					return callAdminEndpoint(ctx, executor, "/admin/export-yaml")
+					return callAdminPostEndpoint(ctx, executor, path)
 				},
 			}, nil)
 		},
@@ -48,15 +52,20 @@ func importCmd() *cobra.Command {
 		Short: "Import YAML from project directories into store",
 		RunE: func(cobraCmd *cobra.Command, _ []string) error {
 			path := "/admin/import-yaml"
-			if strategy != "" {
-				path = fmt.Sprintf("%s?strategy=%s", path, strategy)
+			if s := strings.TrimSpace(strings.ToLower(strategy)); s != "" {
+				switch s {
+				case "seed_only", "overwrite_conflicts":
+					path = fmt.Sprintf("%s?strategy=%s", path, url.QueryEscape(s))
+				default:
+					return fmt.Errorf("invalid --strategy: %q (allowed: seed_only|overwrite_conflicts)", strategy)
+				}
 			}
 			return cmd.ExecuteCommand(cobraCmd, cmd.ExecutorOptions{RequireAuth: true}, cmd.ModeHandlers{
 				JSON: func(ctx context.Context, _ *cobra.Command, executor *cmd.CommandExecutor, _ []string) error {
-					return callAdminEndpoint(ctx, executor, path)
+					return callAdminPostEndpoint(ctx, executor, path)
 				},
 				TUI: func(ctx context.Context, _ *cobra.Command, executor *cmd.CommandExecutor, _ []string) error {
-					return callAdminEndpoint(ctx, executor, path)
+					return callAdminPostEndpoint(ctx, executor, path)
 				},
 			}, nil)
 		},
@@ -66,12 +75,16 @@ func importCmd() *cobra.Command {
 	return c
 }
 
-func callAdminEndpoint(ctx context.Context, executor *cmd.CommandExecutor, path string) error {
+func callAdminPostEndpoint(ctx context.Context, executor *cmd.CommandExecutor, path string) error {
 	client := executor.GetAuthClient()
 	if client == nil {
 		return fmt.Errorf("auth client not initialized")
 	}
-	env, err := api.CallGETDecode(ctx, client, path)
+	var (
+		env *models.APIResponse
+		err error
+	)
+	env, err = api.CallPOSTDecode(ctx, client, path, nil)
 	if err != nil {
 		return err
 	}

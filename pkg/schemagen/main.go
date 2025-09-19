@@ -96,159 +96,6 @@ func removeCWDProperties(schemaMap map[string]any) bool {
 	return updated
 }
 
-// inlineSimpleDefs traverses a schema map and inlines references to simple local
-// definitions that commonly cause nested $defs lookup issues after bundling.
-//
-// Specifically replaces:
-//   - $ref: "#/$defs/Input"  -> { "type": "object" }
-//   - $ref: "#/$defs/Schema" -> { "type": "object" }
-//   - $ref: "#/$defs/EnvMap" -> { "type": "object", "additionalProperties": {"type":"string"} }
-//
-// Also supports legacy "definitions" container for completeness.
-func inlineSimpleDefs(schemaMap map[string]any) bool {
-	updated := false
-
-	var visit func(node any) bool
-	visit = func(node any) bool {
-		changed := false
-		switch v := node.(type) {
-		case map[string]any:
-			// Replace known simple $ref patterns with inline schemas
-			if ref, ok := v["$ref"].(string); ok {
-				switch ref {
-				case "#/$defs/Input", "#/definitions/Input":
-					delete(v, "$ref")
-					v["type"] = "object"
-					changed = true
-				case "#/$defs/Schema", "#/definitions/Schema":
-					delete(v, "$ref")
-					v["type"] = "object"
-					changed = true
-				case "#/$defs/EnvMap", "#/definitions/EnvMap":
-					delete(v, "$ref")
-					v["type"] = "object"
-					v["additionalProperties"] = map[string]any{"type": "string"}
-					changed = true
-				}
-			}
-
-			// Recurse into all nested values
-			for _, child := range v {
-				if visit(child) {
-					changed = true
-				}
-			}
-		case []any:
-			for _, item := range v {
-				if visit(item) {
-					changed = true
-				}
-			}
-		}
-		return changed
-	}
-
-	if visit(schemaMap) {
-		updated = true
-	}
-
-	return updated
-}
-
-// inlineRootDefRefs walks the schema and replaces any {"$ref":"#/$defs/Name"}
-// with a deep copy of the corresponding schema from root $defs. This avoids
-// nested $defs references after downstream bundling (e.g. in Storybook/RJSF).
-func inlineRootDefRefs(schemaMap map[string]any) bool {
-	defs, ok := schemaMap["$defs"].(map[string]any)
-	if !ok || len(defs) == 0 {
-		return false
-	}
-
-	// Deep copy helper
-	var deepCopy func(v any) any
-	deepCopy = func(v any) any {
-		switch t := v.(type) {
-		case map[string]any:
-			m := make(map[string]any, len(t))
-			for k, vv := range t {
-				m[k] = deepCopy(vv)
-			}
-			return m
-		case []any:
-			s := make([]any, len(t))
-			for i, vv := range t {
-				s[i] = deepCopy(vv)
-			}
-			return s
-		default:
-			return v
-		}
-	}
-
-	var rewrite func(node any) (any, bool)
-	rewrite = func(node any) (any, bool) {
-		switch v := node.(type) {
-		case map[string]any:
-			// If this node is precisely a $ref to root $defs, replace entirely
-			if ref, ok := v["$ref"].(string); ok && strings.HasPrefix(ref, "#/$defs/") {
-				name := strings.TrimPrefix(ref, "#/$defs/")
-				if def, ok := defs[name]; ok {
-					return deepCopy(def), true
-				}
-			}
-			// Otherwise, recurse into children
-			changed := false
-			for k, child := range v {
-				newChild, childChanged := rewrite(child)
-				if childChanged {
-					v[k] = newChild
-					changed = true
-				}
-			}
-			return v, changed
-		case []any:
-			changed := false
-			for i, item := range v {
-				newItem, itemChanged := rewrite(item)
-				if itemChanged {
-					v[i] = newItem
-					changed = true
-				}
-			}
-			return v, changed
-		default:
-			return v, false
-		}
-	}
-
-	_, changed := rewrite(schemaMap)
-	return changed
-}
-
-// hasAnyRootDefsRef returns true if the schema still contains any $ref that
-// targets root-level $defs (e.g., "#/$defs/Name"). This is useful for
-// validation/logging to catch potential frontend resolution issues early.
-func hasAnyRootDefsRef(node any) bool {
-	switch v := node.(type) {
-	case map[string]any:
-		if ref, ok := v["$ref"].(string); ok && strings.HasPrefix(ref, "#/$defs/") {
-			return true
-		}
-		for _, child := range v {
-			if hasAnyRootDefsRef(child) {
-				return true
-			}
-		}
-	case []any:
-		for _, item := range v {
-			if hasAnyRootDefsRef(item) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 // GenerateParserSchemas generates JSON schemas for parser structs and writes them to the output directory.
 func GenerateParserSchemas(ctx context.Context, outDir string) error {
 	log := logger.FromContext(ctx)
@@ -258,10 +105,6 @@ func GenerateParserSchemas(ctx context.Context, outDir string) error {
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
-
-	// Create a base URI for schema cross-references
-	// Use relative paths for better bundling and local development
-	baseSchemaURI := ""
 
 	// Define the structs for which to generate schemas
 	schemas := []struct {
@@ -296,6 +139,12 @@ func GenerateParserSchemas(ctx context.Context, outDir string) error {
 		{"config-llm", &config.LLMConfig{}, "pkg/config"},
 		{"config-ratelimit", &config.RateLimitConfig{}, "pkg/config"},
 		{"config-cli", &config.CLIConfig{}, "pkg/config"},
+		{"config-redis", &config.RedisConfig{}, "pkg/config"},
+		{"config-cache", &config.CacheConfig{}, "pkg/config"},
+		{"config-worker", &config.WorkerConfig{}, "pkg/config"},
+		{"config-mcpproxy", &config.MCPProxyConfig{}, "pkg/config"},
+		{"config-attachments", &config.AttachmentsConfig{}, "pkg/config"},
+		{"config-webhooks", &config.WebhooksConfig{}, "pkg/config"},
 	}
 
 	// Track runtime schemas for merging
@@ -431,18 +280,6 @@ func GenerateParserSchemas(ctx context.Context, outDir string) error {
 
 			// Remove CWD properties from all schemas recursively
 			if removeCWDProperties(schemaMap) {
-				updated = true
-			}
-
-			// Inline simple local $defs references to avoid nested $defs resolution issues
-			if inlineSimpleDefs(schemaMap) {
-				updated = true
-			}
-
-			// Inline any root $defs references throughout the document to eliminate
-			// internal $ref dependencies. This produces schemas that are friendlier
-			// to consumers that only resolve root-level $defs.
-			if inlineRootDefRefs(schemaMap) {
 				updated = true
 			}
 
@@ -650,15 +487,6 @@ func GenerateParserSchemas(ctx context.Context, outDir string) error {
 			if updated {
 				schemaJSON, _ = json.MarshalIndent(schemaMap, "", "  ")
 			}
-
-			// Emit a warning if any root $defs references remain (helps catch frontend issues)
-			if hasAnyRootDefsRef(schemaMap) {
-				log.Warn(
-					"Schema still contains root $defs $ref entries; consider inlining to improve compatibility",
-					"name",
-					s.name,
-				)
-			}
 		}
 
 		// Write to file
@@ -671,12 +499,12 @@ func GenerateParserSchemas(ctx context.Context, outDir string) error {
 	}
 
 	// Generate the merged runtime schema
-	if err := generateMergedRuntimeSchema(ctx, outDir, baseSchemaURI, projectRuntimeSchema, configRuntimeSchema); err != nil {
+	if err := generateMergedRuntimeSchema(ctx, outDir, projectRuntimeSchema, configRuntimeSchema); err != nil {
 		return fmt.Errorf("failed to generate merged runtime schema: %w", err)
 	}
 
 	// Generate unified compozy.yaml schema
-	if err := generateUnifiedSchema(ctx, outDir, baseSchemaURI); err != nil {
+	if err := generateUnifiedSchema(ctx, outDir); err != nil {
 		return fmt.Errorf("failed to generate unified schema: %w", err)
 	}
 
@@ -685,7 +513,7 @@ func GenerateParserSchemas(ctx context.Context, outDir string) error {
 
 // generateUnifiedSchema creates a unified schema combining project.Config and config.Config
 // This provides a complete view of all settings available in compozy.yaml
-func generateUnifiedSchema(ctx context.Context, outDir string, baseSchemaURI string) error {
+func generateUnifiedSchema(ctx context.Context, outDir string) error {
 	log := logger.FromContext(ctx)
 	log.Info("Generating unified compozy.yaml schema")
 
@@ -803,11 +631,6 @@ func generateUnifiedSchema(ctx context.Context, outDir string, baseSchemaURI str
 	// Remove CWD properties
 	removeCWDProperties(projectMap)
 
-	// Inline simple local $defs to maximize compatibility with schema consumers
-	inlineSimpleDefs(projectMap)
-	// Inline any root $defs refs as concrete schemas
-	inlineRootDefRefs(projectMap)
-
 	// Serialize to JSON with proper formatting
 	schemaJSON, err := json.MarshalIndent(projectMap, "", "  ")
 	if err != nil {
@@ -849,7 +672,6 @@ func updateReferences(data any, oldPrefix, newPrefix string) {
 func generateMergedRuntimeSchema(
 	ctx context.Context,
 	outDir string,
-	baseSchemaURI string,
 	projectRuntimeJSON, configRuntimeJSON []byte,
 ) error {
 	log := logger.FromContext(ctx)
@@ -875,8 +697,6 @@ func generateMergedRuntimeSchema(
 
 	// Sanitize merged runtime schema
 	removeCWDProperties(projectRuntimeMap)
-	inlineSimpleDefs(projectRuntimeMap)
-	inlineRootDefRefs(projectRuntimeMap)
 	projectRuntimeMap["title"] = "Compozy Runtime Configuration"
 	projectRuntimeMap["description"] = "Complete runtime configuration for both tool execution and system behavior"
 

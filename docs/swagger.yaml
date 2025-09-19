@@ -375,7 +375,6 @@ definitions:
         type: string
     required:
       - id
-      - key
     type: object
   core.Output:
     additionalProperties: {}
@@ -2261,111 +2260,6 @@ paths:
       summary: Proxy streamable HTTP requests to MCP server
       tags:
         - MCP Proxy
-  /admin/export-yaml:
-    get:
-      description: |-
-        Writes deterministic YAML files to project directories.
-        Targets: agents/, tools/, workflows/, schemas/, mcps/, models/.
-        Admin only.
-      produces:
-        - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  data:
-                    additionalProperties: true
-                    type: object
-                type: object
-        "401":
-          description: Unauthorized
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-        "403":
-          description: Forbidden
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-      summary: Export store contents to YAML
-      tags:
-        - admin
-  /admin/import-yaml:
-    get:
-      description: |-
-        Reads YAML from project directories and upserts to ResourceStore.
-        Strategies: seed_only | overwrite_conflicts. Admin only.
-      parameters:
-        - description: seed_only|overwrite_conflicts
-          enum:
-            - seed_only
-            - overwrite_conflicts
-          in: query
-          name: strategy
-          type: string
-      produces:
-        - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  data:
-                    additionalProperties: true
-                    type: object
-                type: object
-        "401":
-          description: Unauthorized
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-        "403":
-          description: Forbidden
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            allOf:
-              - $ref: '#/definitions/router.Response'
-              - properties:
-                  error:
-                    $ref: '#/definitions/router.ErrorInfo'
-                type: object
-      summary: Import YAML into store
-      tags:
-        - admin
   /admin/mcps:
     get:
       description: Get a list of all configured Model Context Protocol servers
@@ -2597,6 +2491,24 @@ paths:
                   data:
                     type: object
                 type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
         "404":
           description: Not Found
           schema:
@@ -2632,21 +2544,39 @@ paths:
                   data:
                     type: object
                 type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
       summary: List recent provenance changes (admin)
       tags:
         - admin
   /admin/reload:
-    get:
+    post:
       consumes:
         - application/json
       description: |-
         Rebuild compiled workflows from yaml|store and
         trigger schedule reconciliation. Admin only.
       parameters:
-        - description: yaml|store
+        - description: The source to reload from. Defaults to 'repo'.
           enum:
-            - yaml
-            - store
+            - repo
+            - builder
           in: query
           name: source
           type: string
@@ -2780,6 +2710,113 @@ paths:
       summary: Call a tool on an MCP server
       tags:
         - MCP Tools
+  /api/v0/admin/export-yaml:
+    post:
+      description: |-
+        Writes deterministic YAML files to project directories.
+        Targets: agents/, tools/, workflows/, schemas/, mcps/, models/.
+        Admin only.
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: 'Example: {\"data\":{\"workflow\":5,\"agent\":2},\"message\":\"export completed\"}'
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    additionalProperties: true
+                    type: object
+                type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      security:
+        - ApiKeyAuth: []
+      summary: Export store contents to YAML
+      tags:
+        - admin
+  /api/v0/admin/import-yaml:
+    post:
+      description: |-
+        Reads YAML from project directories and upserts to ResourceStore.
+        Strategies: seed_only | overwrite_conflicts. Admin only.
+      parameters:
+        - description: seed_only|overwrite_conflicts
+          enum:
+            - seed_only
+            - overwrite_conflicts
+          in: query
+          name: strategy
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    additionalProperties: true
+                    type: object
+                type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      summary: Import YAML into store
+      tags:
+        - admin
   /api/v0/health:
     get:
       consumes:
@@ -3996,6 +4033,12 @@ paths:
           name: type
           required: true
           type: string
+        - description: Resource payload (must include id; 'type' optional but if present must match path)
+          in: body
+          name: resource
+          required: true
+          schema:
+            type: object
       produces:
         - application/json
       responses:
@@ -4011,6 +4054,33 @@ paths:
               - properties:
                   data:
                     type: object
+                type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
       summary: Create resource
       tags:
@@ -4030,8 +4100,33 @@ paths:
           required: true
           type: string
       responses:
-        "204":
+        "200":
           description: Deleted
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    type: object
+                type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
       summary: Delete resource
       tags:
         - resources
@@ -4095,6 +4190,13 @@ paths:
           in: header
           name: If-Match
           type: string
+        - description: Resource payload (full object with id and fields; 'type' optional but if present
+            must match path)
+          in: body
+          name: resource
+          required: true
+          schema:
+            type: object
       produces:
         - application/json
       responses:
@@ -4110,6 +4212,33 @@ paths:
               - properties:
                   data:
                     type: object
+                type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
                 type: object
         "409":
           description: Conflict

@@ -6,27 +6,7 @@
         "contributors": {
           "description": "Additional contributors who helped develop the project.\n\nUse this to acknowledge team members, collaborators, or external contributors.",
           "items": {
-            "additionalProperties": false,
-            "description": "Contributor represents an individual who contributed to the project.",
-            "properties": {
-              "email": {
-                "description": "Email address for contributor contact.",
-                "type": "string"
-              },
-              "name": {
-                "description": "Full name of the contributor.",
-                "type": "string"
-              },
-              "organization": {
-                "description": "Organization or team the contributor belongs to.",
-                "type": "string"
-              },
-              "url": {
-                "description": "URL to contributor's profile or portfolio.\n\nExamples: `\"https://github.com/username\"`, `\"https://linkedin.com/in/name\"`",
-                "type": "string"
-              }
-            },
-            "type": "object"
+            "$ref": "#/$defs/Contributor"
           },
           "type": "array"
         },
@@ -87,8 +67,8 @@
           "type": "string"
         },
         "with": {
-          "description": "Error context passed to the handler\nIncludes error details: { \"error\": \"{{ .error }}\", \"attempt\": \"{{ .retryCount }}\" }",
-          "type": "object"
+          "$ref": "#/$defs/Input",
+          "description": "Error context passed to the handler\nIncludes error details: { \"error\": \"{{ .error }}\", \"attempt\": \"{{ .retryCount }}\" }"
         }
       },
       "type": "object"
@@ -101,64 +81,24 @@
       "description": "Opts defines workflow-specific configuration options.",
       "properties": {
         "env": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "description": "Environment variables available to the workflow and its components\nThese variables are accessible to all tasks, agents, and tools within the workflow",
-          "type": "object"
+          "$ref": "#/$defs/EnvMap",
+          "description": "Environment variables available to the workflow and its components\nThese variables are accessible to all tasks, agents, and tools within the workflow"
         },
         "heartbeat_timeout": {
           "description": "Interval for task heartbeat signals\nUsed for long-running tasks to indicate progress\n\n- **Example**: \"10s\", \"30s\", \"1m\"",
           "type": "string"
         },
         "input": {
-          "description": "Input schema for validating workflow input parameters\nUses JSON Schema format to define expected input structure and validation rules",
-          "type": "object"
+          "$ref": "#/$defs/Schema",
+          "description": "Input schema for validating workflow input parameters\nUses JSON Schema format to define expected input structure and validation rules"
         },
         "on_error": {
-          "additionalProperties": false,
-          "description": "ErrorTransition defines error handling behavior when a task fails.",
-          "properties": {
-            "next": {
-              "description": "ID of the error handler task\n\n- **Example**: \"handle-error\", \"retry-with-fallback\"",
-              "type": "string"
-            },
-            "with": {
-              "description": "Error context passed to the handler\nIncludes error details: { \"error\": \"{{ .error }}\", \"attempt\": \"{{ .retryCount }}\" }",
-              "type": "object"
-            }
-          },
-          "type": "object"
+          "$ref": "#/$defs/ErrorTransition",
+          "description": "Error handler configuration\nDefines what happens when a task fails after all retries"
         },
         "retry_policy": {
-          "additionalProperties": false,
-          "description": "RetryPolicyConfig defines automatic retry behavior for failed tasks.",
-          "properties": {
-            "backoff_coefficient": {
-              "description": "Multiplier for exponential backoff\n- **Default:** `2.0` (doubles each time)\n- **Example:** `1.5`, `2.0`, `3.0`",
-              "type": "number"
-            },
-            "initial_interval": {
-              "description": "Initial delay before first retry\n- **Default:** `\"1s\"`\n- **Example:** `\"500ms\"`, `\"2s\"`, `\"1m\"`",
-              "type": "string"
-            },
-            "maximum_attempts": {
-              "description": "Maximum retry attempts\n- **Default:** `3`\n- **Example:** `5` for critical operations",
-              "type": "integer"
-            },
-            "maximum_interval": {
-              "description": "Maximum delay between retries\n- **Default:** `\"1m\"`\n- **Example:** `\"30s\"`, `\"5m\"`, `\"1h\"`",
-              "type": "string"
-            },
-            "non_retryable_error_types": {
-              "description": "Error types that should not trigger retries\n- **Example:** `[\"ValidationError\", \"AuthenticationError\"]`",
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            }
-          },
-          "type": "object"
+          "$ref": "#/$defs/RetryPolicyConfig",
+          "description": "Retry configuration for transient failures\nAutomatically retries failed tasks with exponential backoff"
         },
         "schedule_to_close_timeout": {
           "description": "Total timeout from scheduling to completion\nDefault: \"6m\"\n\n- **Example**: \"1m\", \"15m\", \"2h\"",
@@ -319,132 +259,12 @@
       "type": "array"
     },
     "author": {
-      "additionalProperties": false,
-      "properties": {
-        "contributors": {
-          "description": "Additional contributors who helped develop the project.\n\nUse this to acknowledge team members, collaborators, or external contributors.",
-          "items": {
-            "additionalProperties": false,
-            "description": "Contributor represents an individual who contributed to the project.",
-            "properties": {
-              "email": {
-                "description": "Email address for contributor contact.",
-                "type": "string"
-              },
-              "name": {
-                "description": "Full name of the contributor.",
-                "type": "string"
-              },
-              "organization": {
-                "description": "Organization or team the contributor belongs to.",
-                "type": "string"
-              },
-              "url": {
-                "description": "URL to contributor's profile or portfolio.\n\nExamples: `\"https://github.com/username\"`, `\"https://linkedin.com/in/name\"`",
-                "type": "string"
-              }
-            },
-            "type": "object"
-          },
-          "type": "array"
-        },
-        "email": {
-          "description": "Email contact for project-related communication.\n\nUse team emails for shared ownership: `\"ai-team@company.com\"`",
-          "type": "string"
-        },
-        "name": {
-          "description": "Name of the author or team responsible for the project.\n\nExamples: `\"Jane Smith\"`, `\"AI Platform Team\"`, `\"Data Science Division\"`",
-          "type": "string"
-        },
-        "organization": {
-          "description": "Organization or company affiliation.\n\nExamples: `\"ACME Corporation\"`, `\"AI Research Lab\"`, `\"Engineering Division\"`",
-          "type": "string"
-        },
-        "url": {
-          "description": "URL to author's profile, repository, or team page.\n\nExamples: `\"https://github.com/username\"`, `\"https://company.com/team/ai\"`",
-          "type": "string"
-        }
-      },
-      "type": "object"
+      "$ref": "#/$defs/Author",
+      "description": "Author information for workflow attribution\nHelps track ownership and responsibility for workflow maintenance"
     },
     "config": {
-      "additionalProperties": false,
-      "description": "Opts defines workflow-specific configuration options.",
-      "properties": {
-        "env": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "description": "Environment variables available to the workflow and its components\nThese variables are accessible to all tasks, agents, and tools within the workflow",
-          "type": "object"
-        },
-        "heartbeat_timeout": {
-          "description": "Interval for task heartbeat signals\nUsed for long-running tasks to indicate progress\n\n- **Example**: \"10s\", \"30s\", \"1m\"",
-          "type": "string"
-        },
-        "input": {
-          "description": "Input schema for validating workflow input parameters\nUses JSON Schema format to define expected input structure and validation rules",
-          "type": "object"
-        },
-        "on_error": {
-          "additionalProperties": false,
-          "description": "ErrorTransition defines error handling behavior when a task fails.",
-          "properties": {
-            "next": {
-              "description": "ID of the error handler task\n\n- **Example**: \"handle-error\", \"retry-with-fallback\"",
-              "type": "string"
-            },
-            "with": {
-              "description": "Error context passed to the handler\nIncludes error details: { \"error\": \"{{ .error }}\", \"attempt\": \"{{ .retryCount }}\" }",
-              "type": "object"
-            }
-          },
-          "type": "object"
-        },
-        "retry_policy": {
-          "additionalProperties": false,
-          "description": "RetryPolicyConfig defines automatic retry behavior for failed tasks.",
-          "properties": {
-            "backoff_coefficient": {
-              "description": "Multiplier for exponential backoff\n- **Default:** `2.0` (doubles each time)\n- **Example:** `1.5`, `2.0`, `3.0`",
-              "type": "number"
-            },
-            "initial_interval": {
-              "description": "Initial delay before first retry\n- **Default:** `\"1s\"`\n- **Example:** `\"500ms\"`, `\"2s\"`, `\"1m\"`",
-              "type": "string"
-            },
-            "maximum_attempts": {
-              "description": "Maximum retry attempts\n- **Default:** `3`\n- **Example:** `5` for critical operations",
-              "type": "integer"
-            },
-            "maximum_interval": {
-              "description": "Maximum delay between retries\n- **Default:** `\"1m\"`\n- **Example:** `\"30s\"`, `\"5m\"`, `\"1h\"`",
-              "type": "string"
-            },
-            "non_retryable_error_types": {
-              "description": "Error types that should not trigger retries\n- **Example:** `[\"ValidationError\", \"AuthenticationError\"]`",
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            }
-          },
-          "type": "object"
-        },
-        "schedule_to_close_timeout": {
-          "description": "Total timeout from scheduling to completion\nDefault: \"6m\"\n\n- **Example**: \"1m\", \"15m\", \"2h\"",
-          "type": "string"
-        },
-        "schedule_to_start_timeout": {
-          "description": "Maximum time to wait for a task to start executing\nDefault: \"1m\"\n\n- **Example**: \"30s\", \"5m\", \"1h\"",
-          "type": "string"
-        },
-        "start_to_close_timeout": {
-          "description": "Maximum time for task execution once started\nDefault: \"5m\"\n\n- **Example**: \"30s\", \"10m\", \"1h\"",
-          "type": "string"
-        }
-      },
-      "type": "object"
+      "$ref": "#/$defs/Opts",
+      "description": "Configuration options including input schema and environment variables\nControls workflow behavior, validation, and runtime environment"
     },
     "description": {
       "description": "Human-readable description of the workflow's purpose\nShould clearly explain what the workflow does and when to use it",
@@ -462,57 +282,21 @@
       "type": "array"
     },
     "outputs": {
-      "type": "object"
+      "$ref": "#/$defs/Output",
+      "description": "Output mappings to structure the final workflow results\nUse template expressions to extract and transform task outputs\n- **Example**: ticket_id: \"{{ .tasks.create-ticket.output.id }}\""
     },
     "resource": {
       "description": "Resource reference for external workflow definitions\nFormat: \"compozy:workflow:\u003cname\u003e\" - allows referencing pre-built workflows",
       "type": "string"
     },
     "schedule": {
-      "additionalProperties": false,
-      "description": "Schedule defines when and how a workflow should be executed automatically.",
-      "properties": {
-        "cron": {
-          "description": "Cron expression for scheduling (required)\nSupports standard cron format: \"minute hour day month weekday\"\nSpecial strings: @yearly, @monthly, @weekly, @daily, @hourly",
-          "type": "string"
-        },
-        "enabled": {
-          "description": "Whether the schedule is enabled (optional, default true)\nSet to false to temporarily disable scheduled runs without removing the configuration",
-          "type": "boolean"
-        },
-        "end_at": {
-          "description": "End date for the schedule (optional)\nSchedule will not run after this time",
-          "format": "date-time",
-          "type": "string"
-        },
-        "input": {
-          "description": "Default input values for scheduled runs (optional)\nThese inputs are merged with any trigger inputs when the workflow executes",
-          "type": "object"
-        },
-        "jitter": {
-          "description": "Random delay to add to execution time (optional)\nFormat: \"5m\", \"1h\", \"30s\" - helps distribute load when many workflows run at the same time",
-          "type": "string"
-        },
-        "overlap_policy": {
-          "description": "Policy for handling overlapping executions (optional, default skip)\nOptions: skip, allow, buffer_one, cancel_other",
-          "type": "string"
-        },
-        "start_at": {
-          "description": "Start date for the schedule (optional)\nSchedule will not run before this time",
-          "format": "date-time",
-          "type": "string"
-        },
-        "timezone": {
-          "description": "Timezone for schedule execution (optional, default UTC)\nUses IANA timezone names (e.g., \"America/New_York\", \"Europe/London\")",
-          "type": "string"
-        }
-      },
-      "type": "object"
+      "$ref": "#/$defs/Schedule",
+      "description": "Schedule configuration for automated workflow execution\nEnable cron-based scheduling with timezone support and overlap policies"
     },
     "schemas": {
       "description": "JSON schemas for validating data structures used in the workflow\nDefine reusable schemas that can be referenced throughout the workflow\nusing $ref syntax (e.g., $ref: local::schemas.#(id=\"user_schema\"))",
       "items": {
-        "type": "object"
+        "$ref": "#/$defs/Schema"
       },
       "type": "array"
     },
@@ -533,27 +317,7 @@
     "triggers": {
       "description": "Event triggers that can initiate workflow execution\nDefine external events (webhooks, signals) that can start the workflow\nEach trigger can have its own input schema for validation",
       "items": {
-        "additionalProperties": false,
-        "description": "Trigger defines an external event that can initiate workflow execution.",
-        "properties": {
-          "name": {
-            "description": "Unique name for identifying this trigger",
-            "type": "string"
-          },
-          "schema": {
-            "description": "Schema for validating trigger input data (optional)",
-            "type": "object"
-          },
-          "type": {
-            "description": "Type of trigger mechanism (e.g., \"signal\" for external signals)",
-            "type": "string"
-          },
-          "webhook": {
-            "$ref": "webhook.json",
-            "description": "Webhook holds configuration when Type==webhook"
-          }
-        },
-        "type": "object"
+        "$ref": "#/$defs/Trigger"
       },
       "type": "array"
     },

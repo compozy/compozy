@@ -110,7 +110,8 @@ func setupAdminTestRouter(t *testing.T, withAdminUser bool, state *appstate.Stat
 	}
 	apiBase := r.Group(routes.Base())
 	factory := authuc.NewFactory(dummyRepo{})
-	admin := CreateAdminGroup(apiBase, factory, cfgMgr.Get())
+	ctx := config.ContextWithManager(context.Background(), cfgMgr)
+	admin := CreateAdminGroup(ctx, apiBase, factory)
 	admin.GET("/reload", func(c *gin.Context) { adminReloadHandler(c, &Server{envFilePath: ".env"}) })
 	return r
 }

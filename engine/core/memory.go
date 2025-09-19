@@ -20,7 +20,7 @@ type MemoryReference struct {
 	Mode string `yaml:"mode,omitempty" json:"mode,omitempty" validate:"omitempty,oneof=read-write read-only"`
 	// Key is a template string that resolves to the actual memory instance key.
 	// e.g., "support-{{ .workflow.input.conversationId }}"
-	Key string `yaml:"key"            json:"key"            validate:"required"`
+	Key string `yaml:"key,omitempty"  json:"key,omitempty"  validate:"omitempty"`
 	// ResolvedKey is the key after template evaluation.
 	ResolvedKey string `yaml:"-"              json:"-"`
 }

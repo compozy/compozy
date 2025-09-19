@@ -203,6 +203,7 @@ func (s *service) compileFromStore(
 
 // shouldSeedFromRepo controls one-time seeding behavior for builder mode.
 // Default is disabled to avoid surprising mutations.
+// Docs: see /docs/core/configuration/server#seed-from-repo-on-empty
 func (s *service) shouldSeedFromRepo(ctx context.Context, _ *project.Config) bool {
 	if c := pkgcfg.FromContext(ctx); c != nil {
 		return c.Server.SourceOfTruth == "builder" && c.Server.SeedFromRepoOnEmpty

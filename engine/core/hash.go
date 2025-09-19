@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"reflect"
 	"sort"
 )
 
@@ -14,38 +15,12 @@ import (
 func WriteStableJSON(b *bytes.Buffer, v any) {
 	switch t := v.(type) {
 	case map[string]any:
-		keys := make([]string, 0, len(t))
-		for k := range t {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-		b.WriteByte('{')
-		for i, k := range keys {
-			if i > 0 {
-				b.WriteByte(',')
-			}
-			if bs, err := json.Marshal(k); err == nil {
-				b.Write(bs)
-			} else {
-				b.WriteString("\"")
-				b.WriteString(k)
-				b.WriteString("\"")
-			}
-			b.WriteByte(':')
-			WriteStableJSON(b, t[k])
-		}
-		b.WriteByte('}')
+		writeMapStringAny(b, t)
 	case []any:
-		b.WriteByte('[')
-		for i, e := range t {
-			if i > 0 {
-				b.WriteByte(',')
-			}
-			WriteStableJSON(b, e)
-		}
-		b.WriteByte(']')
+		writeSliceAny(b, t)
 	case string:
-		if bs, err := json.Marshal(t); err == nil {
+		bs, err := json.Marshal(t)
+		if err == nil {
 			b.Write(bs)
 		} else {
 			b.WriteString("\"")
@@ -53,18 +28,107 @@ func WriteStableJSON(b *bytes.Buffer, v any) {
 			b.WriteString("\"")
 		}
 	case float64, bool, nil:
-		if bs, err := json.Marshal(t); err == nil {
+		bs, err := json.Marshal(t)
+		if err == nil {
 			b.Write(bs)
 		} else {
 			b.WriteString("null")
 		}
 	default:
-		if bs, err := json.Marshal(t); err == nil {
+		rv := reflect.ValueOf(v)
+		if !rv.IsValid() {
+			b.WriteString("null")
+			return
+		}
+		if rv.Kind() == reflect.Map && rv.Type().Key().Kind() == reflect.String {
+			writeReflectedMap(b, rv)
+			return
+		}
+		if rv.Kind() == reflect.Slice || rv.Kind() == reflect.Array {
+			writeReflectedSlice(b, rv)
+			return
+		}
+		bs, err := json.Marshal(t)
+		if err == nil {
 			b.Write(bs)
 		} else {
 			b.WriteString("null")
 		}
 	}
+}
+
+func writeMapStringAny(b *bytes.Buffer, m map[string]any) {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	b.WriteByte('{')
+	for i, k := range keys {
+		if i > 0 {
+			b.WriteByte(',')
+		}
+		kb, err := json.Marshal(k)
+		if err == nil {
+			b.Write(kb)
+		} else {
+			b.WriteString("\"")
+			b.WriteString(k)
+			b.WriteString("\"")
+		}
+		b.WriteByte(':')
+		WriteStableJSON(b, m[k])
+	}
+	b.WriteByte('}')
+}
+
+func writeSliceAny(b *bytes.Buffer, s []any) {
+	b.WriteByte('[')
+	for i, e := range s {
+		if i > 0 {
+			b.WriteByte(',')
+		}
+		WriteStableJSON(b, e)
+	}
+	b.WriteByte(']')
+}
+
+func writeReflectedMap(b *bytes.Buffer, rv reflect.Value) {
+	keys := rv.MapKeys()
+	sk := make([]string, 0, len(keys))
+	for i := range keys {
+		sk = append(sk, keys[i].String())
+	}
+	sort.Strings(sk)
+	b.WriteByte('{')
+	for i, k := range sk {
+		if i > 0 {
+			b.WriteByte(',')
+		}
+		kb, err := json.Marshal(k)
+		if err == nil {
+			b.Write(kb)
+		} else {
+			b.WriteString("\"")
+			b.WriteString(k)
+			b.WriteString("\"")
+		}
+		b.WriteByte(':')
+		WriteStableJSON(b, rv.MapIndex(reflect.ValueOf(k)).Interface())
+	}
+	b.WriteByte('}')
+}
+
+func writeReflectedSlice(b *bytes.Buffer, rv reflect.Value) {
+	b.WriteByte('[')
+	n := rv.Len()
+	for i := 0; i < n; i++ {
+		if i > 0 {
+			b.WriteByte(',')
+		}
+		WriteStableJSON(b, rv.Index(i).Interface())
+	}
+	b.WriteByte(']')
 }
 
 // StableJSONBytes returns the canonical JSON-like bytes for v using WriteStableJSON.

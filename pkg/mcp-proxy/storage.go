@@ -246,7 +246,8 @@ func (r *RedisStorage) DeleteMCP(ctx context.Context, name string) error {
 }
 
 // loadDefinitionsBatch processes a batch of Redis keys into MCP definitions
-func (r *RedisStorage) loadDefinitionsBatch(ctx context.Context, log logger.Logger, keys []string) []*MCPDefinition {
+func (r *RedisStorage) loadDefinitionsBatch(ctx context.Context, keys []string) []*MCPDefinition {
+	log := logger.FromContext(ctx)
 	var definitions []*MCPDefinition
 	if len(keys) == 0 {
 		return definitions
@@ -284,7 +285,6 @@ func (r *RedisStorage) loadDefinitionsBatch(ctx context.Context, log logger.Logg
 
 // ListMCPs lists all MCP definitions from Redis using SCAN for better performance
 func (r *RedisStorage) ListMCPs(ctx context.Context) ([]*MCPDefinition, error) {
-	log := logger.FromContext(ctx)
 	pattern := r.getMCPKey("*")
 	var definitions []*MCPDefinition
 	var cursor uint64
@@ -293,7 +293,7 @@ func (r *RedisStorage) ListMCPs(ctx context.Context) ([]*MCPDefinition, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan keys from Redis: %w", err)
 		}
-		definitions = append(definitions, r.loadDefinitionsBatch(ctx, log, keys)...)
+		definitions = append(definitions, r.loadDefinitionsBatch(ctx, keys)...)
 		cursor = nextCursor
 		if cursor == 0 {
 			break

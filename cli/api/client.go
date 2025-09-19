@@ -230,6 +230,25 @@ func CallGETDecode(ctx context.Context, ac AuthClient, path string) (*models.API
 	return &envelope, nil
 }
 
+// CallPOSTDecode performs POST and decodes the response envelope for callers who
+// want to display additional details. The body is JSON-encoded when non-nil.
+func CallPOSTDecode(ctx context.Context, ac AuthClient, path string, body any) (*models.APIResponse, error) {
+	impl, ok := ac.(*client)
+	if !ok {
+		return nil, fmt.Errorf("unsupported client implementation")
+	}
+	resp, err := impl.doRequest(ctx, http.MethodPost, path, body)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	var envelope models.APIResponse
+	if err := impl.parseResponse(resp, &envelope); err != nil {
+		return nil, err
+	}
+	return &envelope, nil
+}
+
 // GenerateKey generates a new API key
 func (c *client) GenerateKey(ctx context.Context, req *GenerateKeyRequest) (string, error) {
 	resp, err := c.doRequest(ctx, http.MethodPost, "/auth/generate", req)

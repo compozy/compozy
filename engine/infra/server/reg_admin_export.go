@@ -14,13 +14,14 @@ import (
 //	@Description  Writes deterministic YAML files to project directories.
 //	@Description  Targets: agents/, tools/, workflows/, schemas/, mcps/, models/.
 //	@Description  Admin only.
+//	@Security     ApiKeyAuth
 //	@Tags         admin
 //	@Produce      json
-//	@Success      200  {object}  router.Response{data=map[string]any}
+//	@Success      200  {object}  router.Response{data=map[string]any}  "Example: {\"data\":{\"workflow\":5,\"agent\":2},\"message\":\"export completed\"}"
 //	@Failure      401  {object}  router.Response{error=router.ErrorInfo}
 //	@Failure      403  {object}  router.Response{error=router.ErrorInfo}
 //	@Failure      500  {object}  router.Response{error=router.ErrorInfo}
-//	@Router       /admin/export-yaml [get]
+//	@Router       /api/v0/admin/export-yaml [post]
 func adminExportYAMLHandler(c *gin.Context) {
 	st := router.GetAppState(c)
 	if st == nil {

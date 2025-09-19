@@ -3,6 +3,7 @@ package agent
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 
 	enginecore "github.com/compozy/compozy/engine/core"
 	"gopkg.in/yaml.v3"
@@ -26,12 +27,15 @@ func (m *Model) HasRef() bool { return m != nil && m.Ref != "" }
 
 // HasConfig reports whether this model has an inline provider configuration.
 func (m *Model) HasConfig() bool {
-	return m != nil && (m.Config.Provider != "" || m.Config.Model != "")
+	if m == nil {
+		return false
+	}
+	return !reflect.ValueOf(m.Config).IsZero()
 }
 
 // IsEmpty reports whether no ref nor inline provider config has been provided.
 func (m *Model) IsEmpty() bool {
-	return m == nil || (!m.HasRef() && m.Config.Provider == "" && m.Config.Model == "")
+	return m == nil || (!m.HasRef() && !m.HasConfig())
 }
 
 // UnmarshalYAML supports both scalar refs and inline provider configs.

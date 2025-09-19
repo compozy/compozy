@@ -18,7 +18,7 @@ func RegisterRoutes(ctx context.Context, router *gin.Engine, state *appstate.Sta
 	}
 	version, prefixURL := setupBasicConfiguration(ctx)
 	apiBase := router.Group(prefixURL)
-	if err := setupWebhookSystem(ctx, state, router, server, cfg); err != nil {
+	if err := setupWebhookSystem(ctx, state, router, server); err != nil {
 		return err
 	}
 	setupSwaggerAndDocs(router, prefixURL)
