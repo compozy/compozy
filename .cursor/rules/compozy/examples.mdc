@@ -50,7 +50,7 @@ workflows:
 # Basic task structure
 - id: task_name
   type: basic
-  $use: tool(local::tools.#(id=="tool_name"))
+  tool: tool_name
   with:
     param: "{{ .workflow.input.value }}"
 

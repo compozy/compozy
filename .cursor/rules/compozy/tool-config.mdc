@@ -131,8 +131,7 @@ export async function weatherTool(input: { city: string }): Promise<WeatherData>
 tools:
   - id: weather_tool
     description: Get the current weather for a specific location
-    input:
-      $ref: local::schemas.#(id=="city_input")
+    input: city_input
 ```
 
 ### Memory Operations Tool
@@ -278,8 +277,8 @@ env:
 - Set up environment-specific configuration overrides
 
 **Integration Points:**
-- Reference tools in agent configurations: `$ref: local::tools.#(id=="tool-id")`
-- Use tools in workflow tasks: `$use: tool(local::tools.#(id=="tool-id"))`
+- Reference tools by ID in agent configurations (e.g., `tools: [write_file]`)
+- Use tools in workflow tasks with selectors (e.g., `tool: write_file`)
 - Configure MCP tool integrations for external capabilities
 
 **Testing & Validation:**

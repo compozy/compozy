@@ -2261,6 +2261,111 @@ paths:
       summary: Proxy streamable HTTP requests to MCP server
       tags:
         - MCP Proxy
+  /admin/export-yaml:
+    get:
+      description: |-
+        Writes deterministic YAML files to project directories.
+        Targets: agents/, tools/, workflows/, schemas/, mcps/, models/.
+        Admin only.
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    additionalProperties: true
+                    type: object
+                type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      summary: Export store contents to YAML
+      tags:
+        - admin
+  /admin/import-yaml:
+    get:
+      description: |-
+        Reads YAML from project directories and upserts to ResourceStore.
+        Strategies: seed_only | overwrite_conflicts. Admin only.
+      parameters:
+        - description: seed_only|overwrite_conflicts
+          enum:
+            - seed_only
+            - overwrite_conflicts
+          in: query
+          name: strategy
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    additionalProperties: true
+                    type: object
+                type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      summary: Import YAML into store
+      tags:
+        - admin
   /admin/mcps:
     get:
       description: Get a list of all configured Model Context Protocol servers
@@ -2467,6 +2572,136 @@ paths:
       summary: Update an MCP definition
       tags:
         - MCP Management
+  /admin/meta/{type}/{id}:
+    get:
+      parameters:
+        - description: Resource type
+          in: path
+          name: type
+          required: true
+          type: string
+        - description: Resource ID
+          in: path
+          name: id
+          required: true
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    type: object
+                type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      summary: Get resource provenance metadata (admin)
+      tags:
+        - admin
+  /admin/meta/changes:
+    get:
+      parameters:
+        - description: Project override
+          in: query
+          name: project
+          type: string
+        - description: Max results (default 50)
+          in: query
+          name: limit
+          type: integer
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    type: object
+                type: object
+      summary: List recent provenance changes (admin)
+      tags:
+        - admin
+  /admin/reload:
+    get:
+      consumes:
+        - application/json
+      description: |-
+        Rebuild compiled workflows from yaml|store and
+        trigger schedule reconciliation. Admin only.
+      parameters:
+        - description: yaml|store
+          enum:
+            - yaml
+            - store
+          in: query
+          name: source
+          type: string
+      produces:
+        - application/json
+      responses:
+        "200":
+          description: Reload completed
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  data:
+                    additionalProperties: true
+                    type: object
+                type: object
+        "400":
+          description: Invalid parameters
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+              - $ref: '#/definitions/router.Response'
+              - properties:
+                  error:
+                    $ref: '#/definitions/router.ErrorInfo'
+                type: object
+      summary: Reload configuration and reconcile schedules
+      tags:
+        - admin
   /admin/tools:
     get:
       description: Get a list of all tools available from all connected MCP servers

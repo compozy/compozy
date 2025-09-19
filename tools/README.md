@@ -73,12 +73,12 @@ Performs HTTP/HTTPS requests.
 
 ### In Workflows
 
-Add the tool to your workflow YAML:
+Reference the tool by ID in your workflow YAML:
 
 ```yaml
 tools:
   - id: file-reader
-    $use: "@compozy/tool-read-file"
+    description: Read file contents
 
 tasks:
   read-config:

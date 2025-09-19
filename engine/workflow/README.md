@@ -428,8 +428,7 @@ triggers:
 
   - type: signal
     name: "order-completed"
-    schema:
-      $ref: "order_schema"
+    schema: order_schema
 ```
 
 ---
@@ -739,8 +738,7 @@ tools:
 triggers:
   - type: signal
     name: user-registered
-    schema:
-      $ref: "local::config.input"
+    schema: workflow_input
 
   - type: signal
     name: email-verified

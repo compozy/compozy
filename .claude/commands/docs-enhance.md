@@ -69,9 +69,9 @@ Apply icons from lucide-react consistently (e.g., "Zap" for performance, as in @
 ### 6. Technical Accuracy Validation
 **MUST** verify technical content against actual project:
 
-- Analyze project structure to ensure YAML examples reference existing APIs (e.g., validate $use: agent(...) points to real IDs as in @.docs/content/docs/core/tasks/composite-tasks.mdx).
+- Analyze project structure to ensure YAML examples reference existing APIs (e.g., validate `agent: <id>` selectors point to real IDs as in @.docs/content/docs/core/tasks/composite-tasks.mdx).
 - Validate configuration options match actual implementation (e.g., provider params in @.docs/content/docs/core/agents/llm-integration.mdx).
-- Check tool/agent references point to valid endpoints (e.g., $ref: local::tools.#(id=="...") in @.docs/content/docs/core/agents/tools.mdx).
+- Check tool/agent references point to valid endpoints (e.g., `tool: <id>` in @.docs/content/docs/core/agents/tools.mdx).
 - Verify example code uses correct schemas and patterns (e.g., JSON schemas in @.docs/content/docs/core/agents/structured-outputs.mdx).
 - Remove outdated examples that reference non-existent functionality (e.g., ensure no deprecated task types like in tasks/meta.json).
 </technical_requirements>
@@ -83,7 +83,7 @@ Before completing the enhancement, verify:
 
 - [ ] All API endpoints exist in the project (e.g., /api/v0/memory/... in @.docs/content/docs/core/agents/memory.mdx)
 - [ ] Configuration schemas match implementation (e.g., output schemas in @.docs/content/docs/core/agents/structured-outputs.mdx)
-- [ ] Tool/agent references are valid (e.g., $use: tool(...) in @.docs/content/docs/core/tasks/collection-tasks.mdx)
+- [ ] Tool/agent references are valid (e.g., `tool: <id>` in @.docs/content/docs/core/tasks/collection-tasks.mdx)
 - [ ] Examples use current syntax (e.g., YAML templates in @.docs/content/docs/core/agents/instructions-actions.mdx)
 - [ ] Links point to existing documentation (e.g., /docs/core/tasks/basic-tasks in multiple files)
 - [ ] Code examples are tested and working (e.g., curl commands in @.docs/content/docs/core/agents/memory.mdx)
@@ -144,7 +144,7 @@ Before completing the enhancement, verify:
 
 ### Technical Accuracy
 - Code/examples validated (e.g., YAML in @.docs/content/docs/core/tasks/signal-tasks.mdx matches APIs).
-- Examples use current syntax/patterns (e.g., $ref in @.docs/content/docs/core/agents/structured-outputs.mdx).
+- Examples use current syntax/patterns (e.g., ID-based selectors in @.docs/content/docs/core/agents/structured-outputs.mdx).
 - Links to existing content (e.g., /docs/core/tasks/...).
 - No outdated info (e.g., current providers in @.docs/content/docs/core/agents/llm-integration.mdx).
 

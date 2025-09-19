@@ -264,8 +264,25 @@
       "description": "PersistenceConfig defines how memory instances are persisted.",
       "properties": {
         "circuit_breaker": {
-          "$ref": "#/$defs/CircuitBreakerConfig",
-          "description": "CircuitBreaker configures resilience for persistence operations."
+          "additionalProperties": false,
+          "description": "CircuitBreakerConfig defines parameters for a circuit breaker pattern.",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "max_failures": {
+              "type": "integer"
+            },
+            "reset_timeout": {
+              "description": "e.g., \"30s\"",
+              "type": "string"
+            },
+            "timeout": {
+              "description": "e.g., \"100ms\"",
+              "type": "string"
+            }
+          },
+          "type": "object"
         },
         "ttl": {
           "description": "TTL is the time-to-live for memory instances in this resource.\nParsed as a duration string (e.g., \"24h\", \"30m\").",

@@ -18,14 +18,12 @@ schemas:
       - style
 
 config:
-  input:
-    $ref: local::schemas.#(id=="greeting_input")
+  input: greeting_input
 
 tools:
   - id: greeting_tool
     description: Generate personalized greetings
-    input:
-      $ref: local::schemas.#(id=="greeting_input")
+    input: greeting_input
 
 agents:
   - id: greeter
@@ -41,7 +39,7 @@ agents:
 tasks:
   - id: greet
     type: basic
-    $use: agent(local::agents.#(id=="greeter"))
+    agent: greeter
     action: create_greeting
     final: true
 

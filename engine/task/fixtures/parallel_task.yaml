@@ -4,7 +4,7 @@ strategy: wait_all
 max_workers: 4
 timeout: 5m
 
-# Example of using task reference with $use
+# Example of referencing another task config by ID
 task:
   id: validation_task
   type: basic

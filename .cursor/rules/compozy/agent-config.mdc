@@ -30,7 +30,7 @@ instructions: |
   Always respond in valid JSON format when json_mode is enabled.
 
 tools:
-  - $ref: local::tools.#(id=="weather_tool")
+  - weather_tool
 
 actions:
   - id: get_weather
