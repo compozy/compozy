@@ -68,10 +68,7 @@ func (v *MemoryValidator) Validate() error {
 			// This should ideally be caught earlier by struct validation tags on MemoryReference
 			return fmt.Errorf("memory reference at index %d has an empty ID", i)
 		}
-		if ref.Key == "" {
-			// Also should be caught by struct validation on MemoryReference
-			return fmt.Errorf("memory reference for ID '%s' (index %d) has an empty key template", ref.ID, i)
-		}
+		// Key may be empty in ID-only form; runtime will use the memory.Config default_key_template.
 		if ref.Mode != MemoryModeReadWrite && ref.Mode != MemoryModeReadOnly {
 			return fmt.Errorf(
 				"memory reference for ID '%s' (index %d) has invalid mode '%s'; must be '%s' or '%s'",

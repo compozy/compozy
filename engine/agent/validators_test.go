@@ -53,14 +53,13 @@ func TestMemoryValidator_Validate(t *testing.T) {
 		assert.Contains(t, err.Error(), "memory reference at index 0 has an empty ID")
 	})
 
-	t.Run("Should error when Key is missing", func(t *testing.T) {
+	t.Run("Should allow missing Key (fallback to default_key_template)", func(t *testing.T) {
 		refs := []core.MemoryReference{
-			{ID: "mem1", Key: "", Mode: "read-write"}, // Empty Key
+			{ID: "mem1", Key: "", Mode: "read-write"}, // Empty Key allowed
 		}
 		validator := NewMemoryValidator(refs /*, mockRegistry */)
 		err := validator.Validate()
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "memory reference for ID 'mem1' (index 0) has an empty key template")
+		assert.NoError(t, err)
 	})
 
 	t.Run("Should error when Mode is invalid", func(t *testing.T) {

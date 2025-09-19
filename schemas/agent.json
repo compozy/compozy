@@ -5,32 +5,33 @@
       "description": "ActionConfig defines a structured action that an agent can perform.",
       "properties": {
         "attachments": {
-          "$ref": "#/$defs/Attachments",
-          "description": "Attachments at action scope"
+          "description": "Attachments is a slice of polymorphic Attachment values with custom decoding.",
+          "items": true,
+          "type": "array"
         },
         "id": {
           "description": "Unique identifier for the action within the agent's scope.\nUsed to invoke specific actions programmatically.\n\n- **Examples:** `\"analyze-code\"`, `\"generate-summary\"`, `\"validate-data\"`",
           "type": "string"
         },
         "input": {
-          "$ref": "#/$defs/Schema",
-          "description": "JSON Schema defining the expected input parameters for this action.\nEnables validation and type checking of inputs before execution.\n\nIf `nil`, the action accepts any input format without validation.\n\n**Schema format:** JSON Schema Draft 7"
+          "description": "JSON Schema defining the expected input parameters for this action.\nEnables validation and type checking of inputs before execution.\n\nIf `nil`, the action accepts any input format without validation.\n\n**Schema format:** JSON Schema Draft 7",
+          "type": "object"
         },
         "json_mode": {
           "description": "Forces JSON-formatted output for this specific action.\nWhen `true`, the agent must return valid JSON that conforms to the output schema.\n\n**Note:** If an `OutputSchema` is defined, JSON mode is automatically enabled.\n\n⚠️ **Trade-off:** Enabling JSON mode may limit the agent's ability to provide\nexplanatory text or reasoning alongside the structured output.",
           "type": "boolean"
         },
         "output": {
-          "$ref": "#/$defs/Schema",
-          "description": "JSON Schema defining the expected output format from this action.\nUsed for validating agent responses and ensuring consistent output structure.\n\nIf `nil`, no output validation is performed.\n\n**Schema format:** JSON Schema Draft 7"
+          "description": "JSON Schema defining the expected output format from this action.\nUsed for validating agent responses and ensuring consistent output structure.\n\nIf `nil`, no output validation is performed.\n\n**Schema format:** JSON Schema Draft 7",
+          "type": "object"
         },
         "prompt": {
           "description": "Detailed instructions for the agent when executing this action.\nShould clearly define the expected behavior, output format, and any constraints.\n\n**Best practices:**\n- Be specific about the desired outcome\n- Include examples if complex formatting is required\n- Define clear success criteria\n- Specify any limitations or boundaries",
           "type": "string"
         },
         "with": {
-          "$ref": "#/$defs/Input",
-          "description": "Default parameters to provide to the action.\nThese are merged with runtime parameters, with runtime values taking precedence.\n\n**Use cases:**\n- Setting default configuration options\n- Providing constant context values\n- Pre-filling common parameters"
+          "description": "Default parameters to provide to the action.\nThese are merged with runtime parameters, with runtime values taking precedence.\n\n**Use cases:**\n- Setting default configuration options\n- Providing constant context values\n- Pre-filling common parameters",
+          "type": "object"
         }
       },
       "type": "object"
@@ -96,8 +97,50 @@
           "type": "string"
         },
         "params": {
-          "$ref": "#/$defs/PromptParams",
-          "description": "Params contains the generation parameters that control LLM behavior.\nThese parameters are applied to all requests using this provider configuration.\nCan be overridden at the task or action level for specific requirements."
+          "additionalProperties": false,
+          "description": "PromptParams defines the parameters that control LLM behavior during text generation.",
+          "properties": {
+            "max_length": {
+              "description": "MaxLength provides an alternative way to specify maximum response length.\nTypically used by providers that distinguish between length and token limits.\n- **Range**: MinLength to provider-specific maximum\n- **Provider Support**: Primarily local models and some API providers",
+              "type": "integer"
+            },
+            "max_tokens": {
+              "description": "MaxTokens limits the maximum number of tokens in the generated response.\nThis parameter is crucial for cost control and response time management.\n- **Range**: 1 to model-specific maximum (e.g., 8192 for GPT-4)\n- **Default**: Provider-specific default (typically 1000-2000)",
+              "type": "integer"
+            },
+            "min_length": {
+              "description": "MinLength specifies the minimum number of tokens that must be generated.\nPrevents the model from generating responses that are too short.\n- **Range**: 1 to MaxTokens\n- **Provider Support**: Limited; primarily local models",
+              "type": "integer"
+            },
+            "repetition_penalty": {
+              "description": "RepetitionPenalty reduces the likelihood of repeating the same tokens.\nValues \u003e 1.0 penalize repetition, values \u003c 1.0 encourage it.\n- **Range**: 0.1 to 2.0\n- **Recommended**: 1.0 (no penalty) to 1.2 (moderate penalty)\n- **Provider Support**: Primarily local models (Ollama, etc.)",
+              "type": "number"
+            },
+            "seed": {
+              "description": "Seed provides a random seed for reproducible outputs.\nWhen set, the same input with the same parameters will generate identical responses.\n- **Use Cases**: Testing, debugging, demonstration, A/B testing\n\u003e **Note:**: Not all providers support seeding; OpenAI and some others do",
+              "type": "integer"
+            },
+            "stop_words": {
+              "description": "StopWords defines a list of strings that will halt text generation when encountered.\nUseful for creating structured outputs or preventing unwanted content patterns.\n\n- **Example**: `[\"END\", \"STOP\", \"\\n\\n---\"]` for section-based content\n\u003e **Note:**: Not all providers support stop words; check provider documentation",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "temperature": {
+              "description": "Temperature controls the randomness of the generated text.\nLower values produce more deterministic, focused responses.\nHigher values increase creativity and variation but may reduce coherence.\n- **Range**: 0.0 (deterministic) to 1.0 (maximum randomness)\n- **Recommended**: 0.1-0.3 for factual tasks, 0.7-0.9 for creative tasks",
+              "type": "number"
+            },
+            "top_k": {
+              "description": "TopK limits the number of highest probability tokens considered during sampling.\nLower values focus on the most likely tokens, higher values allow more variety.\n- **Range**: 1 to vocabulary size (typically 1-100)\n- **Provider Support**: Primarily Google models and some local models",
+              "type": "integer"
+            },
+            "top_p": {
+              "description": "TopP (nucleus sampling) considers only tokens with cumulative probability up to this value.\nDynamically adjusts the vocabulary size based on probability distribution.\n- **Range**: 0.0 to 1.0\n- **Recommended**: 0.9 for balanced outputs, 0.95 for more variety",
+              "type": "number"
+            }
+          },
+          "type": "object"
         },
         "provider": {
           "description": "Provider specifies which AI service to use for LLM operations.\nMust match one of the supported ProviderName constants.\n\n- **Examples**: `\"openai\"`, `\"anthropic\"`, `\"google\"`, `\"ollama\"`",
@@ -174,17 +217,54 @@
     "actions": {
       "description": "Structured actions the agent can perform with defined input/output schemas.\nActions provide type-safe interfaces for specific agent capabilities.\n\n**Example:**\n```yaml\nactions:\n  - id: \"review-code\"\n    prompt: |\n      Analyze code {{.input.code}} for quality and improvements\n    json_mode: true\n    input:\n      type: \"object\"\n      properties:\n        code:\n          type: \"string\"\n          description: \"The code to review\"\n    output:\n      type: \"object\"\n      properties:\n        quality:\n          type: \"string\"\n          description: \"The quality of the code\"\n```\n\n$ref: inline:#action-configuration",
       "items": {
-        "$ref": "#/$defs/ActionConfig"
+        "additionalProperties": false,
+        "description": "ActionConfig defines a structured action that an agent can perform.",
+        "properties": {
+          "attachments": {
+            "description": "Attachments is a slice of polymorphic Attachment values with custom decoding.",
+            "items": true,
+            "type": "array"
+          },
+          "id": {
+            "description": "Unique identifier for the action within the agent's scope.\nUsed to invoke specific actions programmatically.\n\n- **Examples:** `\"analyze-code\"`, `\"generate-summary\"`, `\"validate-data\"`",
+            "type": "string"
+          },
+          "input": {
+            "description": "JSON Schema defining the expected input parameters for this action.\nEnables validation and type checking of inputs before execution.\n\nIf `nil`, the action accepts any input format without validation.\n\n**Schema format:** JSON Schema Draft 7",
+            "type": "object"
+          },
+          "json_mode": {
+            "description": "Forces JSON-formatted output for this specific action.\nWhen `true`, the agent must return valid JSON that conforms to the output schema.\n\n**Note:** If an `OutputSchema` is defined, JSON mode is automatically enabled.\n\n⚠️ **Trade-off:** Enabling JSON mode may limit the agent's ability to provide\nexplanatory text or reasoning alongside the structured output.",
+            "type": "boolean"
+          },
+          "output": {
+            "description": "JSON Schema defining the expected output format from this action.\nUsed for validating agent responses and ensuring consistent output structure.\n\nIf `nil`, no output validation is performed.\n\n**Schema format:** JSON Schema Draft 7",
+            "type": "object"
+          },
+          "prompt": {
+            "description": "Detailed instructions for the agent when executing this action.\nShould clearly define the expected behavior, output format, and any constraints.\n\n**Best practices:**\n- Be specific about the desired outcome\n- Include examples if complex formatting is required\n- Define clear success criteria\n- Specify any limitations or boundaries",
+            "type": "string"
+          },
+          "with": {
+            "description": "Default parameters to provide to the action.\nThese are merged with runtime parameters, with runtime values taking precedence.\n\n**Use cases:**\n- Setting default configuration options\n- Providing constant context values\n- Pre-filling common parameters",
+            "type": "object"
+          }
+        },
+        "type": "object"
       },
       "type": "array"
     },
     "attachments": {
-      "$ref": "#/$defs/Attachments",
-      "description": "Attachments declared at the agent scope."
+      "description": "Attachments is a slice of polymorphic Attachment values with custom decoding.",
+      "items": true,
+      "type": "array"
     },
     "env": {
-      "$ref": "#/$defs/EnvMap",
-      "description": "Environment variables available during agent execution.\nUsed for configuration, secrets, and runtime settings.\n\n**Example:**\n```yaml\nenv:\n  API_KEY: \"{{.env.OPENAI_API_KEY}}\"\n  DEBUG_MODE: \"true\"\n```"
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Environment variables available during agent execution.\nUsed for configuration, secrets, and runtime settings.\n\n**Example:**\n```yaml\nenv:\n  API_KEY: \"{{.env.OPENAI_API_KEY}}\"\n  DEBUG_MODE: \"true\"\n```",
+      "type": "object"
     },
     "id": {
       "description": "Unique identifier for the agent within the project scope.\nUsed for referencing the agent in workflows and other configurations.\n\n- **Examples:** `\"code-assistant\"`, `\"data-analyst\"`, `\"customer-support\"`",
@@ -212,13 +292,105 @@
     "memory": {
       "description": "Memory references enabling the agent to access persistent context.\nMemory provides stateful interactions across workflow steps and sessions.\n\n**Configuration format:**\n```yaml\nmemory:\n  - id: \"user_context\"           # Memory resource ID\n    key: \"user:{{.user_id}}\"     # Dynamic key with template\n    mode: \"read-write\"           # Access mode (default: \"read-write\")\n```\n\n**Access modes:**\n- `\"read-write\"`: Full access to read and modify memory\n- `\"read-only\"`: Can only read existing memory entries",
       "items": {
-        "$ref": "#/$defs/MemoryReference"
+        "additionalProperties": false,
+        "description": "MemoryReference is used in Agent configuration to point to a MemoryResource and define how the agent interacts with it.",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "key": {
+            "description": "Key is a template string that resolves to the actual memory instance key.\ne.g., \"support-{{ .workflow.input.conversationId }}\"",
+            "type": "string"
+          },
+          "mode": {
+            "description": "Mode defines access permissions (e.g., \"read-write\", \"read-only\").",
+            "type": "string"
+          }
+        },
+        "type": "object"
       },
       "type": "array"
     },
     "model": {
-      "$ref": "#/$defs/Model",
-      "description": "Model selects which LLM model to use.\nSupports two forms:\n  - string: a model ID to be resolved via the ResourceStore (e.g. \"openai-gpt-4o-mini\")\n  - object: an inline core.ProviderConfig with provider/model/params\n\nDuring compile/link, string refs are resolved and merged with inline\nfields following project precedence rules. Defaults are filled from the\nproject when neither ref nor inline identity is provided."
+      "additionalProperties": false,
+      "description": "Model represents an agent model that can be specified either as: - a string reference to a model resource ID (to be resolved during compile/link), or - an inline ProviderConfig defining provider/model and parameters.",
+      "properties": {
+        "api_key": {
+          "description": "APIKey contains the authentication key for the AI provider.\n\n- **Security**: Use template references to environment variables.\n- **Examples**: `\"{{ .env.OPENAI_API_KEY }}\"`, `\"{{ .secrets.ANTHROPIC_KEY }}\"`\n\u003e **Note:**: Required for most cloud providers, optional for local providers",
+          "type": "string"
+        },
+        "api_url": {
+          "description": "APIURL specifies a custom API endpoint for the provider.\n**Use Cases**:\n  - Local model hosting (Ollama, OpenAI-compatible servers)\n  - Enterprise API gateways\n  - Regional API endpoints\n  - Custom proxy servers\n\n**Examples**: `\"http://localhost:11434\"`, `\"https://api.openai.com/v1\"`",
+          "type": "string"
+        },
+        "default": {
+          "description": "Default indicates that this model should be used as the fallback when no explicit\nmodel configuration is provided at the task or agent level.\n\n**Behavior**:\n  - Only one model per project can be marked as default\n  - When set to true, this model will be used for tasks/agents without explicit model config\n  - Validation ensures at most one default model per project\n\n**Example**:\n```yaml\nmodels:\n  - provider: openai\n    model: gpt-4\n    default: true  # This will be used by default\n```",
+          "type": "boolean"
+        },
+        "max_tool_iterations": {
+          "description": "MaxToolIterations optionally caps the maximum number of tool-call iterations\nduring a single LLM request when tools are available.\nWhen \u003e 0, overrides the global default for this model; 0 uses the global default.",
+          "type": "integer"
+        },
+        "model": {
+          "description": "Model defines the specific model identifier to use with the provider.\nModel names are provider-specific and determine capabilities and pricing.\n\n- **Examples**:\n  - OpenAI: `\"gpt-4-turbo\"`, `\"gpt-3.5-turbo\"`\n  - Anthropic: `\"claude-4-opus\"`, `\"claude-3-5-haiku-latest\"`\n  - Google: `\"gemini-pro\"`, `\"gemini-pro-vision\"`\n  - Ollama: `\"llama2:13b\"`, `\"mistral:7b\"`",
+          "type": "string"
+        },
+        "organization": {
+          "description": "Organization specifies the organization ID for providers that support it.\n- **Primary Use**: OpenAI organization management for billing and access control\n\n- **Example**: `\"org-123456789abcdef\"`\n\u003e **Note:**: Optional for most providers",
+          "type": "string"
+        },
+        "params": {
+          "additionalProperties": false,
+          "description": "PromptParams defines the parameters that control LLM behavior during text generation.",
+          "properties": {
+            "max_length": {
+              "description": "MaxLength provides an alternative way to specify maximum response length.\nTypically used by providers that distinguish between length and token limits.\n- **Range**: MinLength to provider-specific maximum\n- **Provider Support**: Primarily local models and some API providers",
+              "type": "integer"
+            },
+            "max_tokens": {
+              "description": "MaxTokens limits the maximum number of tokens in the generated response.\nThis parameter is crucial for cost control and response time management.\n- **Range**: 1 to model-specific maximum (e.g., 8192 for GPT-4)\n- **Default**: Provider-specific default (typically 1000-2000)",
+              "type": "integer"
+            },
+            "min_length": {
+              "description": "MinLength specifies the minimum number of tokens that must be generated.\nPrevents the model from generating responses that are too short.\n- **Range**: 1 to MaxTokens\n- **Provider Support**: Limited; primarily local models",
+              "type": "integer"
+            },
+            "repetition_penalty": {
+              "description": "RepetitionPenalty reduces the likelihood of repeating the same tokens.\nValues \u003e 1.0 penalize repetition, values \u003c 1.0 encourage it.\n- **Range**: 0.1 to 2.0\n- **Recommended**: 1.0 (no penalty) to 1.2 (moderate penalty)\n- **Provider Support**: Primarily local models (Ollama, etc.)",
+              "type": "number"
+            },
+            "seed": {
+              "description": "Seed provides a random seed for reproducible outputs.\nWhen set, the same input with the same parameters will generate identical responses.\n- **Use Cases**: Testing, debugging, demonstration, A/B testing\n\u003e **Note:**: Not all providers support seeding; OpenAI and some others do",
+              "type": "integer"
+            },
+            "stop_words": {
+              "description": "StopWords defines a list of strings that will halt text generation when encountered.\nUseful for creating structured outputs or preventing unwanted content patterns.\n\n- **Example**: `[\"END\", \"STOP\", \"\\n\\n---\"]` for section-based content\n\u003e **Note:**: Not all providers support stop words; check provider documentation",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "temperature": {
+              "description": "Temperature controls the randomness of the generated text.\nLower values produce more deterministic, focused responses.\nHigher values increase creativity and variation but may reduce coherence.\n- **Range**: 0.0 (deterministic) to 1.0 (maximum randomness)\n- **Recommended**: 0.1-0.3 for factual tasks, 0.7-0.9 for creative tasks",
+              "type": "number"
+            },
+            "top_k": {
+              "description": "TopK limits the number of highest probability tokens considered during sampling.\nLower values focus on the most likely tokens, higher values allow more variety.\n- **Range**: 1 to vocabulary size (typically 1-100)\n- **Provider Support**: Primarily Google models and some local models",
+              "type": "integer"
+            },
+            "top_p": {
+              "description": "TopP (nucleus sampling) considers only tokens with cumulative probability up to this value.\nDynamically adjusts the vocabulary size based on probability distribution.\n- **Range**: 0.0 to 1.0\n- **Recommended**: 0.9 for balanced outputs, 0.95 for more variety",
+              "type": "number"
+            }
+          },
+          "type": "object"
+        },
+        "provider": {
+          "description": "Provider specifies which AI service to use for LLM operations.\nMust match one of the supported ProviderName constants.\n\n- **Examples**: `\"openai\"`, `\"anthropic\"`, `\"google\"`, `\"ollama\"`",
+          "type": "string"
+        }
+      },
+      "type": "object"
     },
     "resource": {
       "description": "Resource identifier for the autoloader system (must be `\"agent\"`).\nThis field enables automatic discovery and registration of agent configurations.",
@@ -232,8 +404,8 @@
       "type": "array"
     },
     "with": {
-      "$ref": "#/$defs/Input",
-      "description": "Default input parameters passed to the agent on every invocation.\nThese values are merged with runtime inputs, with runtime values taking precedence.\n\n**Use cases:**\n- Setting default configuration values\n- Providing constant context or settings\n- Injecting workflow-level parameters"
+      "description": "Default input parameters passed to the agent on every invocation.\nThese values are merged with runtime inputs, with runtime values taking precedence.\n\n**Use cases:**\n- Setting default configuration values\n- Providing constant context or settings\n- Injecting workflow-level parameters",
+      "type": "object"
     }
   },
   "type": "object",

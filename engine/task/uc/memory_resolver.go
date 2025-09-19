@@ -72,22 +72,7 @@ func (r *MemoryResolver) GetMemory(ctx context.Context, memoryID string, keyTemp
 		return nil, nil
 	}
 
-	// Defensive validation: Check for empty key template
-	if keyTemplate == "" {
-		log.Error("Empty memory key template detected",
-			"memory_id", memoryID,
-			"workflow_context", fmt.Sprintf("%+v", r.workflowContext),
-			"workflow_context_keys", getContextKeys(r.workflowContext),
-		)
-		// Return detailed error to help diagnose the issue
-		return nil, fmt.Errorf(
-			"memory key template is empty for memory_id=%s. "+
-				"This may indicate the agent's memory configuration was not properly loaded. "+
-				"Workflow context keys: %v",
-			memoryID,
-			getContextKeys(r.workflowContext),
-		)
-	}
+	// Allow empty keyTemplate: manager will fall back to memory.Config.default_key_template if available.
 
 	// Create a memory reference for the manager
 	// IMPORTANT: We pass the template in the Key field, NOT in ResolvedKey
@@ -213,16 +198,4 @@ func (r *MemoryResolver) ResolveAgentMemories(ctx context.Context, agent *agent.
 	)
 
 	return memories, nil
-}
-
-// getContextKeys returns the keys from a context map for debugging purposes
-func getContextKeys(context map[string]any) []string {
-	if context == nil {
-		return []string{}
-	}
-	keys := make([]string, 0, len(context))
-	for k := range context {
-		keys = append(keys, k)
-	}
-	return keys
 }

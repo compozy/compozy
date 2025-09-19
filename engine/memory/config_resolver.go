@@ -196,9 +196,28 @@ func (mm *Manager) getKeyToValidate(
 		log.Debug("Using pre-resolved key", "key", agentMemoryRef.ResolvedKey)
 		return agentMemoryRef.ResolvedKey
 	}
-
-	// Otherwise, resolve from template
-	return mm.resolveKeyFromTemplate(ctx, agentMemoryRef.Key, agentMemoryRef.ID, workflowContextData)
+	// Determine template to use: agent-specified key, or fallback to
+	// memory.Config.default_key_template if agent key is empty.
+	keyTemplate := agentMemoryRef.Key
+	if keyTemplate == "" {
+		log := logger.FromContext(ctx)
+		// Attempt to load memory config to retrieve default key template
+		if mm.resourceRegistry != nil {
+			if configMap, err := mm.resourceRegistry.Get("memory", agentMemoryRef.ID); err == nil {
+				if cfg, err2 := mm.createConfigFromMap(agentMemoryRef.ID, configMap); err2 == nil && cfg != nil {
+					if cfg.DefaultKeyTemplate != "" {
+						keyTemplate = cfg.DefaultKeyTemplate
+						log.Debug("Using default_key_template from memory config",
+							"memory_id", agentMemoryRef.ID,
+							"template", keyTemplate,
+						)
+					}
+				}
+			}
+		}
+	}
+	// Resolve from template (may still be empty and will be validated later)
+	return mm.resolveKeyFromTemplate(ctx, keyTemplate, agentMemoryRef.ID, workflowContextData)
 }
 
 // resolveKeyFromTemplate handles template resolution for memory keys

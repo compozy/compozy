@@ -411,14 +411,13 @@ func TestConfig_normalizeAndValidateMemoryConfig(t *testing.T) {
 		assert.Contains(t, err.Error(), "missing required 'id' field")
 	})
 
-	t.Run("Should require Key in memory reference", func(t *testing.T) {
+	t.Run("Should allow missing Key in memory reference (fallback handled at runtime)", func(t *testing.T) {
 		cfg := validBaseConfig()
 		cfg.Memory = []core.MemoryReference{
-			{ID: "mem1"}, // Missing Key
+			{ID: "mem1"}, // Missing Key now allowed
 		}
 		err := cfg.NormalizeAndValidateMemoryConfig()
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "missing required 'key' field")
+		require.NoError(t, err)
 	})
 
 	t.Run("Should reject invalid mode", func(t *testing.T) {
@@ -468,15 +467,13 @@ func Test_Config_Validate_WithMemory(t *testing.T) {
 		) // This will fail if AgentMemoryValidator tries to use a nil registry to check ID existence
 	})
 
-	t.Run("Invalid memory config (missing key) fails full validation", func(t *testing.T) {
+	t.Run("Missing key is allowed at validation (runtime will enforce via default_key_template)", func(t *testing.T) {
 		cfg := baseCfg()
 		cfg.Memory = []core.MemoryReference{
 			{ID: "mem1"}, // Missing Key
 		}
 		err := cfg.Validate()
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid memory configuration")
-		assert.Contains(t, err.Error(), "missing required 'key' field")
+		assert.NoError(t, err)
 	})
 }
 

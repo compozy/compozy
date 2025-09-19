@@ -1,57 +1,77 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "author.json",
   "$defs": {
     "Contributor": {
+      "additionalProperties": false,
+      "description": "Contributor represents an individual who contributed to the project.",
       "properties": {
-        "name": {
-          "type": "string",
-          "description": "Full name of the contributor."
-        },
         "email": {
-          "type": "string",
-          "description": "Email address for contributor contact."
+          "description": "Email address for contributor contact.",
+          "type": "string"
         },
-        "url": {
-          "type": "string",
-          "description": "URL to contributor's profile or portfolio.\n\nExamples: `\"https://github.com/username\"`, `\"https://linkedin.com/in/name\"`"
+        "name": {
+          "description": "Full name of the contributor.",
+          "type": "string"
         },
         "organization": {
-          "type": "string",
-          "description": "Organization or team the contributor belongs to."
+          "description": "Organization or team the contributor belongs to.",
+          "type": "string"
+        },
+        "url": {
+          "description": "URL to contributor's profile or portfolio.\n\nExamples: `\"https://github.com/username\"`, `\"https://linkedin.com/in/name\"`",
+          "type": "string"
         }
       },
-      "additionalProperties": false,
-      "type": "object",
-      "description": "Contributor represents an individual who contributed to the project."
+      "type": "object"
     }
   },
+  "$id": "author.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
   "properties": {
-    "name": {
-      "type": "string",
-      "description": "Name of the author or team responsible for the project.\n\nExamples: `\"Jane Smith\"`, `\"AI Platform Team\"`, `\"Data Science Division\"`"
+    "contributors": {
+      "description": "Additional contributors who helped develop the project.\n\nUse this to acknowledge team members, collaborators, or external contributors.",
+      "items": {
+        "additionalProperties": false,
+        "description": "Contributor represents an individual who contributed to the project.",
+        "properties": {
+          "email": {
+            "description": "Email address for contributor contact.",
+            "type": "string"
+          },
+          "name": {
+            "description": "Full name of the contributor.",
+            "type": "string"
+          },
+          "organization": {
+            "description": "Organization or team the contributor belongs to.",
+            "type": "string"
+          },
+          "url": {
+            "description": "URL to contributor's profile or portfolio.\n\nExamples: `\"https://github.com/username\"`, `\"https://linkedin.com/in/name\"`",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "type": "array"
     },
     "email": {
-      "type": "string",
-      "description": "Email contact for project-related communication.\n\nUse team emails for shared ownership: `\"ai-team@company.com\"`"
+      "description": "Email contact for project-related communication.\n\nUse team emails for shared ownership: `\"ai-team@company.com\"`",
+      "type": "string"
     },
-    "url": {
-      "type": "string",
-      "description": "URL to author's profile, repository, or team page.\n\nExamples: `\"https://github.com/username\"`, `\"https://company.com/team/ai\"`"
+    "name": {
+      "description": "Name of the author or team responsible for the project.\n\nExamples: `\"Jane Smith\"`, `\"AI Platform Team\"`, `\"Data Science Division\"`",
+      "type": "string"
     },
     "organization": {
-      "type": "string",
-      "description": "Organization or company affiliation.\n\nExamples: `\"ACME Corporation\"`, `\"AI Research Lab\"`, `\"Engineering Division\"`"
+      "description": "Organization or company affiliation.\n\nExamples: `\"ACME Corporation\"`, `\"AI Research Lab\"`, `\"Engineering Division\"`",
+      "type": "string"
     },
-    "contributors": {
-      "items": {
-        "$ref": "#/$defs/Contributor"
-      },
-      "type": "array",
-      "description": "Additional contributors who helped develop the project.\n\nUse this to acknowledge team members, collaborators, or external contributors."
+    "url": {
+      "description": "URL to author's profile, repository, or team page.\n\nExamples: `\"https://github.com/username\"`, `\"https://company.com/team/ai\"`",
+      "type": "string"
     }
   },
-  "additionalProperties": false,
   "type": "object",
   "yamlCompatible": true
 }

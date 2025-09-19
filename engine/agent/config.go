@@ -357,9 +357,9 @@ func (a *Config) NormalizeAndValidateMemoryConfig() error {
 		if a.Memory[i].ID == "" {
 			return fmt.Errorf("memory reference %d missing required 'id' field", i)
 		}
-		if a.Memory[i].Key == "" {
-			return fmt.Errorf("memory reference %d (id: %s) missing required 'key' field", i, a.Memory[i].ID)
-		}
+		// Key can be empty when using ID-only form; runtime will fall back to
+		// memory.Config.default_key_template (if provided). ResolvedKey may also
+		// be provided directly by REST APIs.
 		if a.Memory[i].Mode == "" {
 			a.Memory[i].Mode = defaultMemoryMode
 		}
@@ -475,12 +475,17 @@ func (a *Config) FromMap(data any) error {
 					}
 					return v, nil
 				}
-				// Support assigning a scalar string to mcp.Config.
-				// This enables dual-form decoding of MCPs, particularly when
-				// elements in the `mcps` slice are provided as string IDs.
+				// Support assigning a scalar string to mcp.Config
 				if from.Kind() == reflect.String && to == reflect.TypeOf(mcp.Config{}) {
 					if s, ok := v.(string); ok {
 						return mcp.Config{ID: s}, nil
+					}
+					return v, nil
+				}
+				// Support assigning a scalar string to core.MemoryReference
+				if from.Kind() == reflect.String && to == reflect.TypeOf(core.MemoryReference{}) {
+					if s, ok := v.(string); ok {
+						return core.MemoryReference{ID: s}, nil
 					}
 					return v, nil
 				}

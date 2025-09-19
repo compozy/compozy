@@ -155,6 +155,100 @@ func inlineSimpleDefs(schemaMap map[string]any) bool {
 	return updated
 }
 
+// inlineRootDefRefs walks the schema and replaces any {"$ref":"#/$defs/Name"}
+// with a deep copy of the corresponding schema from root $defs. This avoids
+// nested $defs references after downstream bundling (e.g. in Storybook/RJSF).
+func inlineRootDefRefs(schemaMap map[string]any) bool {
+	defs, ok := schemaMap["$defs"].(map[string]any)
+	if !ok || len(defs) == 0 {
+		return false
+	}
+
+	// Deep copy helper
+	var deepCopy func(v any) any
+	deepCopy = func(v any) any {
+		switch t := v.(type) {
+		case map[string]any:
+			m := make(map[string]any, len(t))
+			for k, vv := range t {
+				m[k] = deepCopy(vv)
+			}
+			return m
+		case []any:
+			s := make([]any, len(t))
+			for i, vv := range t {
+				s[i] = deepCopy(vv)
+			}
+			return s
+		default:
+			return v
+		}
+	}
+
+	var rewrite func(node any) (any, bool)
+	rewrite = func(node any) (any, bool) {
+		switch v := node.(type) {
+		case map[string]any:
+			// If this node is precisely a $ref to root $defs, replace entirely
+			if ref, ok := v["$ref"].(string); ok && strings.HasPrefix(ref, "#/$defs/") {
+				name := strings.TrimPrefix(ref, "#/$defs/")
+				if def, ok := defs[name]; ok {
+					return deepCopy(def), true
+				}
+			}
+			// Otherwise, recurse into children
+			changed := false
+			for k, child := range v {
+				newChild, childChanged := rewrite(child)
+				if childChanged {
+					v[k] = newChild
+					changed = true
+				}
+			}
+			return v, changed
+		case []any:
+			changed := false
+			for i, item := range v {
+				newItem, itemChanged := rewrite(item)
+				if itemChanged {
+					v[i] = newItem
+					changed = true
+				}
+			}
+			return v, changed
+		default:
+			return v, false
+		}
+	}
+
+	_, changed := rewrite(schemaMap)
+	return changed
+}
+
+// hasAnyRootDefsRef returns true if the schema still contains any $ref that
+// targets root-level $defs (e.g., "#/$defs/Name"). This is useful for
+// validation/logging to catch potential frontend resolution issues early.
+func hasAnyRootDefsRef(node any) bool {
+	switch v := node.(type) {
+	case map[string]any:
+		if ref, ok := v["$ref"].(string); ok && strings.HasPrefix(ref, "#/$defs/") {
+			return true
+		}
+		for _, child := range v {
+			if hasAnyRootDefsRef(child) {
+				return true
+			}
+		}
+	case []any:
+		for _, item := range v {
+			if hasAnyRootDefsRef(item) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // GenerateParserSchemas generates JSON schemas for parser structs and writes them to the output directory.
 func GenerateParserSchemas(ctx context.Context, outDir string) error {
 	log := logger.FromContext(ctx)
@@ -216,7 +310,7 @@ func GenerateParserSchemas(ctx context.Context, outDir string) error {
 			schemaReflector := &jsonschema.Reflector{
 				RequiredFromJSONSchemaTags: true,                   // Respect `validate:"required"` tags
 				AllowAdditionalProperties:  false,                  // Disallow additional properties
-				DoNotReference:             true,                   // Inline nested types to avoid $defs/$ref proliferation
+				DoNotReference:             false,                  // Use $ref for nested types; we inline selectively later
 				BaseSchemaID:               "",                     // Use relative paths for better bundling
 				ExpandedStruct:             true,                   // Expand struct definitions to include full comments
 				FieldNameTag:               "json",                 // Use json tags for field names
@@ -278,7 +372,7 @@ func GenerateParserSchemas(ctx context.Context, outDir string) error {
 		schemaReflector := &jsonschema.Reflector{
 			RequiredFromJSONSchemaTags: true,                   // Respect `validate:"required"` tags
 			AllowAdditionalProperties:  false,                  // Disallow additional properties
-			DoNotReference:             true,                   // Inline nested types to avoid $defs/$ref proliferation
+			DoNotReference:             false,                  // Use $ref for nested types; we inline selectively later
 			BaseSchemaID:               "",                     // Use relative paths for better bundling
 			ExpandedStruct:             true,                   // Expand struct definitions to include full comments
 			FieldNameTag:               "json",                 // Use json tags for field names
@@ -342,6 +436,13 @@ func GenerateParserSchemas(ctx context.Context, outDir string) error {
 
 			// Inline simple local $defs references to avoid nested $defs resolution issues
 			if inlineSimpleDefs(schemaMap) {
+				updated = true
+			}
+
+			// Inline any root $defs references throughout the document to eliminate
+			// internal $ref dependencies. This produces schemas that are friendlier
+			// to consumers that only resolve root-level $defs.
+			if inlineRootDefRefs(schemaMap) {
 				updated = true
 			}
 
@@ -423,6 +524,18 @@ func GenerateParserSchemas(ctx context.Context, outDir string) error {
 							updated = true
 						}
 					}
+
+					// Also fix the top-level triggers[].items.webhook reference (alternate shape)
+					if triggers, ok := props["triggers"].(map[string]any); ok {
+						if items, ok := triggers["items"].(map[string]any); ok {
+							if tprops, ok := items["properties"].(map[string]any); ok {
+								if webhookProp, ok := tprops["webhook"].(map[string]any); ok {
+									webhookProp["$ref"] = "webhook.json"
+									updated = true
+								}
+							}
+						}
+					}
 				}
 
 			case "task":
@@ -445,20 +558,34 @@ func GenerateParserSchemas(ctx context.Context, outDir string) error {
 							updated = true
 						}
 					}
-					// Fix processor self-reference (recursive task config)
+					// Break UI recursion: avoid self-referencing the entire task schema.
+					// Represent nested task slots as opaque objects for form rendering.
 					if processor, ok := props["processor"].(map[string]any); ok {
-						processor["$ref"] = "#"
+						delete(processor, "$ref")
+						processor["type"] = "object"
+						processor["additionalProperties"] = false
+						if _, ok := processor["description"]; !ok {
+							processor["description"] = "Nested processor task configuration (simplified to avoid infinite recursion in forms)."
+						}
 						updated = true
 					}
-					// Fix task self-reference (for collection tasks)
-					if task, ok := props["task"].(map[string]any); ok {
-						task["$ref"] = "#"
+					if taskProp, ok := props["task"].(map[string]any); ok {
+						delete(taskProp, "$ref")
+						taskProp["type"] = "object"
+						taskProp["additionalProperties"] = false
+						if _, ok := taskProp["description"]; !ok {
+							taskProp["description"] = "Nested task configuration (simplified for UI forms)."
+						}
 						updated = true
 					}
-					// Fix tasks array self-reference (for parallel/composite tasks)
 					if tasks, ok := props["tasks"].(map[string]any); ok {
 						if items, ok := tasks["items"].(map[string]any); ok {
-							items["$ref"] = "#"
+							delete(items, "$ref")
+							items["type"] = "object"
+							items["additionalProperties"] = false
+							if _, ok := items["description"]; !ok {
+								items["description"] = "Task item (simplified for UI forms)."
+							}
 							updated = true
 						}
 					}
@@ -509,12 +636,28 @@ func GenerateParserSchemas(ctx context.Context, outDir string) error {
 							updated = true
 						}
 					}
+					// Fix memories array reference to point to memory.json
+					if memories, ok := props["memories"].(map[string]any); ok {
+						if items, ok := memories["items"].(map[string]any); ok {
+							items["$ref"] = "memory.json"
+							updated = true
+						}
+					}
 				}
 			}
 
 			// Re-serialize if we made changes
 			if updated {
 				schemaJSON, _ = json.MarshalIndent(schemaMap, "", "  ")
+			}
+
+			// Emit a warning if any root $defs references remain (helps catch frontend issues)
+			if hasAnyRootDefsRef(schemaMap) {
+				log.Warn(
+					"Schema still contains root $defs $ref entries; consider inlining to improve compatibility",
+					"name",
+					s.name,
+				)
 			}
 		}
 
@@ -550,7 +693,7 @@ func generateUnifiedSchema(ctx context.Context, outDir string, baseSchemaURI str
 	projectReflector := &jsonschema.Reflector{
 		RequiredFromJSONSchemaTags: true,
 		AllowAdditionalProperties:  false,
-		DoNotReference:             true,
+		DoNotReference:             false,
 		BaseSchemaID:               "", // Use relative paths for better bundling
 		ExpandedStruct:             true,
 		FieldNameTag:               "json",
@@ -561,7 +704,7 @@ func generateUnifiedSchema(ctx context.Context, outDir string, baseSchemaURI str
 	configReflector := &jsonschema.Reflector{
 		RequiredFromJSONSchemaTags: true,
 		AllowAdditionalProperties:  false,
-		DoNotReference:             true,
+		DoNotReference:             false,
 		BaseSchemaID:               "", // Use relative paths for better bundling
 		ExpandedStruct:             true,
 		FieldNameTag:               "json",
@@ -637,6 +780,12 @@ func generateUnifiedSchema(ctx context.Context, outDir string, baseSchemaURI str
 				items["$ref"] = "tool.json"
 			}
 		}
+		// Ensure memories items reference memory.json for clarity and reuse
+		if memories, ok := props["memories"].(map[string]any); ok {
+			if items, ok := memories["items"].(map[string]any); ok {
+				items["$ref"] = "memory.json"
+			}
+		}
 		// Ensure autoload and monitoring reference their standalone schemas
 		if autoload, ok := props["autoload"].(map[string]any); ok {
 			autoload["$ref"] = "autoload.json"
@@ -656,6 +805,8 @@ func generateUnifiedSchema(ctx context.Context, outDir string, baseSchemaURI str
 
 	// Inline simple local $defs to maximize compatibility with schema consumers
 	inlineSimpleDefs(projectMap)
+	// Inline any root $defs refs as concrete schemas
+	inlineRootDefRefs(projectMap)
 
 	// Serialize to JSON with proper formatting
 	schemaJSON, err := json.MarshalIndent(projectMap, "", "  ")
@@ -725,6 +876,7 @@ func generateMergedRuntimeSchema(
 	// Sanitize merged runtime schema
 	removeCWDProperties(projectRuntimeMap)
 	inlineSimpleDefs(projectRuntimeMap)
+	inlineRootDefRefs(projectRuntimeMap)
 	projectRuntimeMap["title"] = "Compozy Runtime Configuration"
 	projectRuntimeMap["description"] = "Complete runtime configuration for both tool execution and system behavior"
 

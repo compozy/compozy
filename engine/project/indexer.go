@@ -20,40 +20,17 @@ func (p *Config) IndexToResourceStore(ctx context.Context, store resources.Resou
 	if p.Name == "" {
 		return fmt.Errorf("project name is required for indexing")
 	}
-	// Tools (project-level shared tools)
-	for i := range p.Tools {
-		tl := &p.Tools[i]
-		if tl.ID == "" {
-			return fmt.Errorf("project tool at index %d missing id", i)
-		}
-		key := resources.ResourceKey{Project: p.Name, Type: resources.ResourceTool, ID: tl.ID}
-		if _, err := store.Put(ctx, key, tl); err != nil {
-			return fmt.Errorf("store put tool '%s': %w", tl.ID, err)
-		}
+	if err := p.indexProjectTools(ctx, store); err != nil {
+		return err
 	}
-	// Schemas (optional list; expect an 'id' field in the schema map)
-	for i := range p.Schemas {
-		sc := &p.Schemas[i]
-		sid := schemaID(sc)
-		if sid == "" {
-			continue // skip unnamed schemas
-		}
-		key := resources.ResourceKey{Project: p.Name, Type: resources.ResourceSchema, ID: sid}
-		if _, err := store.Put(ctx, key, sc); err != nil {
-			return fmt.Errorf("store put schema '%s': %w", sid, err)
-		}
+	if err := p.indexProjectMemories(ctx, store); err != nil {
+		return err
 	}
-	// Models: derive a stable id as "<provider>:<model>"
-	for i := range p.Models {
-		m := p.Models[i]
-		if m == nil || m.Model == "" {
-			continue
-		}
-		id := fmt.Sprintf("%s:%s", string(m.Provider), m.Model)
-		key := resources.ResourceKey{Project: p.Name, Type: resources.ResourceModel, ID: id}
-		if _, err := store.Put(ctx, key, m); err != nil {
-			return fmt.Errorf("store put model '%s': %w", id, err)
-		}
+	if err := p.indexProjectSchemas(ctx, store); err != nil {
+		return err
+	}
+	if err := p.indexProjectModels(ctx, store); err != nil {
+		return err
 	}
 	return nil
 }
@@ -68,4 +45,72 @@ func schemaID(s *schema.Schema) string {
 		}
 	}
 	return ""
+}
+
+// indexProjectTools publishes project-level tools to the store.
+func (p *Config) indexProjectTools(ctx context.Context, store resources.ResourceStore) error {
+	for i := range p.Tools {
+		tl := &p.Tools[i]
+		if tl.ID == "" {
+			return fmt.Errorf("project tool at index %d missing id", i)
+		}
+		key := resources.ResourceKey{Project: p.Name, Type: resources.ResourceTool, ID: tl.ID}
+		if _, err := store.Put(ctx, key, tl); err != nil {
+			return fmt.Errorf("store put tool '%s': %w", tl.ID, err)
+		}
+	}
+	return nil
+}
+
+// indexProjectMemories publishes project-level memory resources to the store.
+func (p *Config) indexProjectMemories(ctx context.Context, store resources.ResourceStore) error {
+	for i := range p.Memories {
+		m := &p.Memories[i]
+		if m.ID == "" {
+			return fmt.Errorf("project memory at index %d missing id", i)
+		}
+		if m.Resource == "" {
+			m.Resource = string(resources.ResourceMemory)
+		}
+		if err := m.Validate(); err != nil {
+			return fmt.Errorf("memory '%s' validation failed: %w", m.ID, err)
+		}
+		key := resources.ResourceKey{Project: p.Name, Type: resources.ResourceMemory, ID: m.ID}
+		if _, err := store.Put(ctx, key, m); err != nil {
+			return fmt.Errorf("store put memory '%s': %w", m.ID, err)
+		}
+	}
+	return nil
+}
+
+// indexProjectSchemas publishes project-level schemas to the store.
+func (p *Config) indexProjectSchemas(ctx context.Context, store resources.ResourceStore) error {
+	for i := range p.Schemas {
+		sc := &p.Schemas[i]
+		sid := schemaID(sc)
+		if sid == "" {
+			continue // skip unnamed schemas
+		}
+		key := resources.ResourceKey{Project: p.Name, Type: resources.ResourceSchema, ID: sid}
+		if _, err := store.Put(ctx, key, sc); err != nil {
+			return fmt.Errorf("store put schema '%s': %w", sid, err)
+		}
+	}
+	return nil
+}
+
+// indexProjectModels publishes project-level models to the store.
+func (p *Config) indexProjectModels(ctx context.Context, store resources.ResourceStore) error {
+	for i := range p.Models {
+		m := p.Models[i]
+		if m == nil || m.Model == "" {
+			continue
+		}
+		id := fmt.Sprintf("%s:%s", string(m.Provider), m.Model)
+		key := resources.ResourceKey{Project: p.Name, Type: resources.ResourceModel, ID: id}
+		if _, err := store.Put(ctx, key, m); err != nil {
+			return fmt.Errorf("store put model '%s': %w", id, err)
+		}
+	}
+	return nil
 }
