@@ -26,6 +26,9 @@ func RegisterRoutes(ctx context.Context, router *gin.Engine, state *appstate.Sta
 	if err := setupAuthSystem(ctx, apiBase, state, server); err != nil {
 		return err
 	}
+	if err := setupAdminRoutes(ctx, apiBase, state, server); err != nil {
+		return err
+	}
 	var memoryHealthService *memory.HealthService
 	if state != nil && state.Worker != nil {
 		if mm := state.Worker.GetMemoryManager(); mm != nil {
