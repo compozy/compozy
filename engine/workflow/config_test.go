@@ -1,7 +1,6 @@
 package workflow
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -15,8 +14,8 @@ import (
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/engine/webhook"
-	"github.com/compozy/compozy/pkg/logger"
 	fixtures "github.com/compozy/compozy/test/fixtures"
+	testutil "github.com/compozy/compozy/test/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -29,15 +28,10 @@ func setupTest(t *testing.T, workflowFile string) (*core.PathCWD, string) {
 	return cwd, dstPath
 }
 
-func workflowTestContext(t *testing.T) context.Context {
-	t.Helper()
-	return logger.ContextWithLogger(context.Background(), logger.NewForTests())
-}
-
 func Test_LoadWorkflow(t *testing.T) {
 	t.Run("Should load basic workflow configuration correctly", func(t *testing.T) {
 		cwd, dstPath := setupTest(t, "basic_workflow.yaml")
-		ctx := workflowTestContext(t)
+		ctx := testutil.TestContext(t)
 		config, err := Load(ctx, cwd, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
@@ -85,7 +79,7 @@ func Test_LoadWorkflow(t *testing.T) {
 
 	t.Run("Should return error for invalid workflow configuration", func(t *testing.T) {
 		cwd, dstPath := setupTest(t, "invalid_workflow.yaml")
-		ctx := workflowTestContext(t)
+		ctx := testutil.TestContext(t)
 		config, err := Load(ctx, cwd, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
@@ -141,7 +135,7 @@ func TestLoadMCPWorkflow(t *testing.T) {
 	t.Run("Should load MCP workflow configuration successfully", func(t *testing.T) {
 		CWD, err := core.CWDFromPath("./fixtures")
 		require.NoError(t, err)
-		ctx := workflowTestContext(t)
+		ctx := testutil.TestContext(t)
 		config, err := Load(ctx, CWD, "mcp_workflow.yaml")
 		require.NoError(t, err)
 		require.NotNil(t, config)
@@ -156,7 +150,7 @@ func TestLoadMCPWorkflow(t *testing.T) {
 		CWD, err := core.CWDFromPath("./fixtures")
 		require.NoError(t, err)
 
-		ctx := workflowTestContext(t)
+		ctx := testutil.TestContext(t)
 		config, err := Load(ctx, CWD, "mcp_workflow.yaml")
 		require.NoError(t, err)
 
@@ -184,7 +178,7 @@ func TestLoadMCPWorkflow(t *testing.T) {
 		CWD, err := core.CWDFromPath("./fixtures")
 		require.NoError(t, err)
 
-		ctx := workflowTestContext(t)
+		ctx := testutil.TestContext(t)
 		config, err := Load(ctx, CWD, "mcp_workflow.yaml")
 		require.NoError(t, err)
 
@@ -395,7 +389,7 @@ func TestWorkflowsFromProject_AndHelpers(t *testing.T) {
 		}
 		require.NoError(t, proj.SetCWD(cwd.PathStr()))
 		proj.SetEnv(core.EnvMap{"X": "Y"})
-		ctx := workflowTestContext(t)
+		ctx := testutil.TestContext(t)
 		wfs, err := WorkflowsFromProject(ctx, proj)
 		require.NoError(t, err)
 		require.Len(t, wfs, 2)
@@ -465,7 +459,7 @@ func taskConfig(id string, onSuccessNext *string, onErrorNext *string) task.Conf
 
 func TestLinkWorkflowTriggersSchemas(t *testing.T) {
 	t.Run("Should resolve schema refs for trigger and webhook events", func(t *testing.T) {
-		ctx := logger.ContextWithLogger(ctxWithBG(), logger.NewForTests())
+		ctx := testutil.TestContext(t)
 		store := resources.NewMemoryResourceStore()
 		proj := &project.Config{
 			Name:    "proj1",

@@ -126,8 +126,7 @@ func (r *MemoryResolver) resolveKey(ctx context.Context, keyTemplate string) (st
 	)
 
 	if r.templateEngine == nil {
-		// Check if the key appears to be a template
-		if strings.Contains(keyTemplate, "{{") {
+		if tplengine.HasTemplate(keyTemplate) {
 			log.Error("Template engine is nil but key has template syntax",
 				"key_template", keyTemplate)
 			return "", fmt.Errorf("template engine is required to resolve key template: %s", keyTemplate)

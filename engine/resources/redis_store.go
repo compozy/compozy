@@ -165,7 +165,8 @@ func (s *RedisResourceStore) PutIfMatch(
 	}
 	const casScript = `local current = redis.call("GET", KEYS[1])
 if not current then return {err="NOT_FOUND"} end
-if current ~= ARGV[1] then return {err="MISMATCH"} end
+local expected = ARGV[1]
+if current ~= expected then return {err="MISMATCH"} end
 redis.call("SET", KEYS[1], ARGV[2])
 redis.call("SET", KEYS[2], ARGV[3])
 return ARGV[3]`
@@ -335,7 +336,7 @@ func (s *RedisResourceStore) ListWithValues(
 		log.Warn("mget etags failed; falling back to hashing", "error", etErr)
 		etVals = make([]any, len(redisKeys))
 	}
-	return s.buildStoredItems(vals, etVals, resKeys), nil
+	return s.buildStoredItems(ctx, vals, etVals, resKeys), nil
 }
 
 // scanResourceKeys scans Redis for resource keys and returns parsed keys, raw Redis keys, and ETag keys.
@@ -370,7 +371,13 @@ func (s *RedisResourceStore) scanResourceKeys(
 }
 
 // buildStoredItems decodes MGET results and pairs them with corresponding ETags.
-func (s *RedisResourceStore) buildStoredItems(vals []any, etVals []any, resKeys []ResourceKey) []StoredItem {
+func (s *RedisResourceStore) buildStoredItems(
+	ctx context.Context,
+	vals []any,
+	etVals []any,
+	resKeys []ResourceKey,
+) []StoredItem {
+	log := logger.FromContext(ctx)
 	out := make([]StoredItem, 0, len(vals))
 	for i, raw := range vals {
 		if raw == nil {
@@ -387,6 +394,11 @@ func (s *RedisResourceStore) buildStoredItems(vals []any, etVals []any, resKeys 
 		}
 		var v any
 		if err := json.Unmarshal(bs, &v); err != nil {
+			var key ResourceKey
+			if i < len(resKeys) {
+				key = resKeys[i]
+			}
+			log.Debug("failed to unmarshal stored item", "error", err, "key", key)
 			continue
 		}
 		var etag ETag
@@ -410,6 +422,24 @@ func (s *RedisResourceStore) buildStoredItems(vals []any, etVals []any, resKeys 
 }
 
 // ListWithValuesPage returns a page of items and the total count.
+func paginateSlice[T any](items []T, offset, limit int) ([]T, int) {
+	total := len(items)
+	if offset < 0 {
+		offset = 0
+	}
+	if limit <= 0 {
+		limit = total
+	}
+	if offset > total {
+		return []T{}, total
+	}
+	end := offset + limit
+	if end > total {
+		end = total
+	}
+	return items[offset:end], total
+}
+
 func (s *RedisResourceStore) ListWithValuesPage(
 	ctx context.Context,
 	project string,
@@ -420,21 +450,8 @@ func (s *RedisResourceStore) ListWithValuesPage(
 	if err != nil {
 		return nil, 0, err
 	}
-	total := len(items)
-	if offset < 0 {
-		offset = 0
-	}
-	if limit <= 0 {
-		limit = total
-	}
-	if offset > total {
-		return []StoredItem{}, total, nil
-	}
-	end := offset + limit
-	if end > total {
-		end = total
-	}
-	return items[offset:end], total, nil
+	page, total := paginateSlice(items, offset, limit)
+	return page, total, nil
 }
 
 // Watch subscribes to events for a project and type. It primes and periodically reconciles.

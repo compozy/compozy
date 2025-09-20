@@ -26,7 +26,7 @@ func setupTest(t *testing.T, agentFile string) (*core.PathCWD, string) {
 func Test_LoadAgent(t *testing.T) {
 	t.Run("Should load basic agent configuration correctly", func(t *testing.T) {
 		cwd, dstPath := setupTest(t, "basic_agent.yaml")
-		config, err := Load(cwd, dstPath)
+		config, err := Load(context.Background(), cwd, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -84,7 +84,7 @@ func Test_LoadAgent(t *testing.T) {
 func Test_AgentMCPs_Decode_YAML_And_FromMap(t *testing.T) {
 	t.Run("Should decode mcps from YAML with scalar and object forms", func(t *testing.T) {
 		cwd, dstPath := setupTest(t, "agent_mcps_dual.yaml")
-		cfg, err := Load(cwd, dstPath)
+		cfg, err := Load(context.Background(), cwd, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, cfg)
 		require.Len(t, cfg.MCPs, 2)
@@ -520,7 +520,7 @@ func Test_Config_Merge_Clone_AsMap_FromMap(t *testing.T) {
 func Test_Load_Basic_WithNoEvaluator(t *testing.T) {
 	t.Run("Should load agent without evaluator", func(t *testing.T) {
 		cwd, dstPath := setupTest(t, "basic_agent.yaml")
-		cfg, err := Load(cwd, dstPath)
+		cfg, err := Load(context.Background(), cwd, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, cfg)
 		assert.Equal(t, "code-assistant", cfg.ID)

@@ -470,11 +470,23 @@ type LimitsConfig struct {
 	// Default: 20
 	MaxNestingDepth int `koanf:"max_nesting_depth" validate:"min=1" env:"LIMITS_MAX_NESTING_DEPTH" json:"max_nesting_depth" yaml:"max_nesting_depth" mapstructure:"max_nesting_depth"`
 
+	// MaxConfigFileNestingDepth limits nesting depth when parsing configuration files.
+	//
+	// Prevents stack overflow from deeply nested YAML documents supplied by users.
+	// Default: 100
+	MaxConfigFileNestingDepth int `koanf:"max_config_file_nesting_depth" validate:"min=1" env:"LIMITS_MAX_CONFIG_FILE_NESTING_DEPTH" json:"max_config_file_nesting_depth" yaml:"max_config_file_nesting_depth" mapstructure:"max_config_file_nesting_depth"`
+
 	// MaxStringLength limits individual string values.
 	//
 	// Applies to all string fields in requests and responses.
 	// Default: 10MB (10485760 bytes)
 	MaxStringLength int `koanf:"max_string_length" validate:"min=1" env:"LIMITS_MAX_STRING_LENGTH" json:"max_string_length" yaml:"max_string_length" mapstructure:"max_string_length"`
+
+	// MaxConfigFileSize limits configuration file size during loads.
+	//
+	// Prevents memory exhaustion when loading large YAML/JSON documents.
+	// Default: 10MB (10485760 bytes)
+	MaxConfigFileSize int `koanf:"max_config_file_size" validate:"min=1" env:"LIMITS_MAX_CONFIG_FILE_SIZE" json:"max_config_file_size" yaml:"max_config_file_size" mapstructure:"max_config_file_size"`
 
 	// MaxMessageContent limits LLM message content size.
 	//
@@ -1490,12 +1502,14 @@ func buildRuntimeConfig(registry *definition.Registry) RuntimeConfig {
 
 func buildLimitsConfig(registry *definition.Registry) LimitsConfig {
 	return LimitsConfig{
-		MaxNestingDepth:       getInt(registry, "limits.max_nesting_depth"),
-		MaxStringLength:       getInt(registry, "limits.max_string_length"),
-		MaxMessageContent:     getInt(registry, "limits.max_message_content"),
-		MaxTotalContentSize:   getInt(registry, "limits.max_total_content_size"),
-		MaxTaskContextDepth:   getInt(registry, "limits.max_task_context_depth"),
-		ParentUpdateBatchSize: getInt(registry, "limits.parent_update_batch_size"),
+		MaxNestingDepth:           getInt(registry, "limits.max_nesting_depth"),
+		MaxConfigFileNestingDepth: getInt(registry, "limits.max_config_file_nesting_depth"),
+		MaxStringLength:           getInt(registry, "limits.max_string_length"),
+		MaxConfigFileSize:         getInt(registry, "limits.max_config_file_size"),
+		MaxMessageContent:         getInt(registry, "limits.max_message_content"),
+		MaxTotalContentSize:       getInt(registry, "limits.max_total_content_size"),
+		MaxTaskContextDepth:       getInt(registry, "limits.max_task_context_depth"),
+		ParentUpdateBatchSize:     getInt(registry, "limits.parent_update_batch_size"),
 	}
 }
 

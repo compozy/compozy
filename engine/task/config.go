@@ -2941,7 +2941,7 @@ func Load(ctx context.Context, cwd *core.PathCWD, path string) (*Config, error) 
 	if err != nil {
 		return nil, err
 	}
-	config, _, err := core.LoadConfig[*Config](filePath)
+	config, _, err := core.LoadConfig[*Config](ctx, filePath)
 	if err != nil {
 		return nil, err
 	}

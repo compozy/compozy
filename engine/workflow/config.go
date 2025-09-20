@@ -586,6 +586,28 @@ func (w *Config) Clone() (*Config, error) {
 	return core.DeepCopy(w)
 }
 
+func setupCompileMetrics() (metric.Float64Histogram, metric.Int64Counter) {
+	meter := otel.GetMeterProvider().Meter("compozy")
+	var hist metric.Float64Histogram
+	var cnt metric.Int64Counter
+	if meter == nil {
+		return nil, nil
+	}
+	if h, err := meter.Float64Histogram(
+		"compozy_compile_duration_seconds",
+		metric.WithDescription("Duration of workflow compile step"),
+	); err == nil {
+		hist = h
+	}
+	if c, err := meter.Int64Counter(
+		"compozy_compile_total",
+		metric.WithDescription("Count of workflow compile attempts"),
+	); err == nil {
+		cnt = c
+	}
+	return hist, cnt
+}
+
 // Compile materializes a workflow configuration by resolving ID-based selectors
 // (agent/tool) and applying precedence rules. It deep-copies resolved configs so
 // no mutable state is shared across tasks at runtime.
@@ -598,26 +620,36 @@ func (w *Config) Clone() (*Config, error) {
 //
 // NOTE: Schema ID linking and MCP selector support will be completed in later tasks
 // (see tasks/prd-refs/_task_6.0.md and _task_7.0.md).
-func (w *Config) Compile(ctx context.Context, proj *project.Config, store resources.ResourceStore) (*Config, error) {
+
+func (w *Config) Compile(
+	ctx context.Context,
+	proj *project.Config,
+	store resources.ResourceStore,
+) (compiled *Config, err error) {
 	_ = pkgcfg.FromContext(ctx)
 	log := logger.FromContext(ctx)
-	meter := otel.GetMeterProvider().Meter("compozy")
-	compileDur, derr := meter.Float64Histogram(
-		"compozy_compile_duration_seconds",
-		metric.WithDescription("Duration of workflow compile step"),
-	)
-	compileCnt, cerr := meter.Int64Counter(
-		"compozy_compile_total",
-		metric.WithDescription("Count of workflow compile attempts"),
-	)
+	compileDur, compileCnt := setupCompileMetrics()
 	started := time.Now()
+	defer func() {
+		status := "ok"
+		if err != nil {
+			status = "error"
+		}
+		if compileCnt != nil {
+			compileCnt.Add(ctx, 1, metric.WithAttributes(attribute.String("status", status)))
+		}
+		if compileDur != nil {
+			dur := time.Since(started).Seconds()
+			compileDur.Record(ctx, dur, metric.WithAttributes(attribute.String("status", status)))
+		}
+	}()
 	if store == nil {
 		return nil, fmt.Errorf("compile failed: resource store is required")
 	}
 	if proj == nil || proj.Name == "" {
 		return nil, fmt.Errorf("compile failed: project with valid name is required")
 	}
-	compiled, err := w.Clone()
+	compiled, err = w.Clone()
 	if err != nil {
 		return nil, fmt.Errorf("failed to clone workflow '%s': %w", w.ID, err)
 	}
@@ -629,24 +661,11 @@ func (w *Config) Compile(ctx context.Context, proj *project.Config, store resour
 			}
 		}
 	}
-	dur := time.Since(started).Seconds()
 	if err != nil {
-		if cerr == nil {
-			compileCnt.Add(ctx, 1, metric.WithAttributes(attribute.String("status", "error")))
-		}
-		if derr == nil {
-			compileDur.Record(ctx, dur, metric.WithAttributes(attribute.String("status", "error")))
-		}
 		if te, ok := err.(*compileTaskError); ok {
 			return nil, fmt.Errorf("compile failed for task '%s': %w", te.id, te.err)
 		}
 		return nil, fmt.Errorf("compile failed: %w", err)
-	}
-	if cerr == nil {
-		compileCnt.Add(ctx, 1, metric.WithAttributes(attribute.String("status", "ok")))
-	}
-	if derr == nil {
-		compileDur.Record(ctx, dur, metric.WithAttributes(attribute.String("status", "ok")))
 	}
 	log.Debug("Workflow compiled", "project", proj.Name, "workflow_id", compiled.ID)
 	return compiled, nil
@@ -912,7 +931,7 @@ func Load(ctx context.Context, cwd *core.PathCWD, path string) (*Config, error) 
 	if err != nil {
 		return nil, err
 	}
-	config, _, err := core.LoadConfig[*Config](filePath)
+	config, _, err := core.LoadConfig[*Config](ctx, filePath)
 	if err != nil {
 		return nil, err
 	}

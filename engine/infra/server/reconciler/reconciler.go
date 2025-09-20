@@ -174,7 +174,7 @@ func makeDebouncer(ctx context.Context, r *Reconciler, debWait, debMaxWait time.
 	return debFn, cancel
 }
 
-func NewReconsiler(ctx context.Context, state *appstate.State) (*Reconciler, error) {
+func NewReconciler(ctx context.Context, state *appstate.State) (*Reconciler, error) {
 	log := logger.FromContext(ctx)
 	if state == nil {
 		return nil, fmt.Errorf("nil state")
@@ -214,11 +214,6 @@ func NewReconsiler(ctx context.Context, state *appstate.State) (*Reconciler, err
 	r.cancelDebounce = cancel
 	log.Info("Reconciler initialized", "project", r.proj.Name)
 	return r, nil
-}
-
-// NewReconciler is the canonical constructor (compat shim).
-func NewReconciler(ctx context.Context, state *appstate.State) (*Reconciler, error) {
-	return NewReconsiler(ctx, state)
 }
 
 func (r *Reconciler) Start(ctx context.Context) error {
@@ -780,7 +775,7 @@ func StartIfBuilderMode(ctx context.Context, state *appstate.State) (*Reconciler
 	if cfg == nil || cfg.Server.SourceOfTruth != modeBuilder {
 		return nil, nil
 	}
-	r, err := NewReconsiler(ctx, state)
+	r, err := NewReconciler(ctx, state)
 	if err != nil {
 		return nil, err
 	}

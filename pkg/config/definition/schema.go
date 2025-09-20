@@ -542,12 +542,30 @@ func registerLimitsFields(registry *Registry) {
 	})
 
 	registry.Register(&FieldDef{
+		Path:    "limits.max_config_file_nesting_depth",
+		Default: 100,
+		CLIFlag: "max-config-file-nesting-depth",
+		EnvVar:  "LIMITS_MAX_CONFIG_FILE_NESTING_DEPTH",
+		Type:    reflect.TypeOf(0),
+		Help:    "Maximum nesting depth when parsing configuration files",
+	})
+
+	registry.Register(&FieldDef{
 		Path:    "limits.max_string_length",
 		Default: 10485760, // 10MB
 		CLIFlag: "max-string-length",
 		EnvVar:  "LIMITS_MAX_STRING_LENGTH",
 		Type:    reflect.TypeOf(0),
 		Help:    "Maximum string length",
+	})
+
+	registry.Register(&FieldDef{
+		Path:    "limits.max_config_file_size",
+		Default: 10485760, // 10MB
+		CLIFlag: "max-config-file-size",
+		EnvVar:  "LIMITS_MAX_CONFIG_FILE_SIZE",
+		Type:    reflect.TypeOf(0),
+		Help:    "Maximum configuration file size in bytes",
 	})
 
 	registry.Register(&FieldDef{

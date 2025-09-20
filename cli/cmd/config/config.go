@@ -486,7 +486,9 @@ func flattenRuntimeConfig(cfg *config.Config, result map[string]string) {
 // flattenLimitsConfig flattens limits configuration
 func flattenLimitsConfig(cfg *config.Config, result map[string]string) {
 	result["limits.max_nesting_depth"] = fmt.Sprintf("%d", cfg.Limits.MaxNestingDepth)
+	result["limits.max_config_file_nesting_depth"] = fmt.Sprintf("%d", cfg.Limits.MaxConfigFileNestingDepth)
 	result["limits.max_string_length"] = fmt.Sprintf("%d", cfg.Limits.MaxStringLength)
+	result["limits.max_config_file_size"] = fmt.Sprintf("%d", cfg.Limits.MaxConfigFileSize)
 	result["limits.max_message_content"] = fmt.Sprintf("%d", cfg.Limits.MaxMessageContent)
 	result["limits.max_total_content_size"] = fmt.Sprintf("%d", cfg.Limits.MaxTotalContentSize)
 	result["limits.max_task_context_depth"] = fmt.Sprintf("%d", cfg.Limits.MaxTaskContextDepth)

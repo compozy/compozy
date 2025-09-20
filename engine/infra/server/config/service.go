@@ -294,10 +294,11 @@ func (s *service) resolveMode(ctx context.Context, projectConfig *project.Config
 	}
 	log.Info("Resolved source of truth mode", "mode", mode)
 	if meter := otel.GetMeterProvider().Meter("compozy"); meter != nil {
-		if sel, err := meter.Int64Counter(
+		sel, err := meter.Int64Counter(
 			"compozy_mode_selected_total",
 			metric.WithDescription("Count of server mode selections at startup"),
-		); err == nil {
+		)
+		if err == nil {
 			sel.Add(ctx, 1, metric.WithAttributes(attribute.String("mode", mode)))
 		}
 	}

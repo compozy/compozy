@@ -274,7 +274,11 @@ func (t *Config) GetTimeout(ctx context.Context, globalTimeout time.Duration) (t
 					return rem, nil
 				}
 			} else {
-				return 0, fmt.Errorf("context deadline exceeded before resolving timeout: %w", context.DeadlineExceeded)
+				err := ctx.Err()
+				if err == nil {
+					err = context.DeadlineExceeded
+				}
+				return 0, fmt.Errorf("context deadline exceeded before resolving timeout: %w", err)
 			}
 		}
 		return globalTimeout, nil
@@ -294,7 +298,11 @@ func (t *Config) GetTimeout(ctx context.Context, globalTimeout time.Duration) (t
 	}
 	if dl, ok := ctx.Deadline(); ok {
 		if rem := time.Until(dl); rem <= 0 {
-			return 0, fmt.Errorf("context deadline exceeded before resolving timeout: %w", context.DeadlineExceeded)
+			err := ctx.Err()
+			if err == nil {
+				err = context.DeadlineExceeded
+			}
+			return 0, fmt.Errorf("context deadline exceeded before resolving timeout: %w", err)
 		} else if rem < timeout {
 			return rem, nil
 		}
@@ -440,12 +448,12 @@ func IsTypeScript(path string) bool {
 // Load reads and parses a tool configuration from disk.
 // The path is resolved relative to the provided working directory.
 // Returns the parsed configuration or an error if loading fails.
-func Load(cwd *core.PathCWD, path string) (*Config, error) {
+func Load(ctx context.Context, cwd *core.PathCWD, path string) (*Config, error) {
 	filePath, err := core.ResolvePath(cwd, path)
 	if err != nil {
 		return nil, err
 	}
-	config, _, err := core.LoadConfig[*Config](filePath)
+	config, _, err := core.LoadConfig[*Config](ctx, filePath)
 	if err != nil {
 		return nil, err
 	}

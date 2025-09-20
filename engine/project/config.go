@@ -676,7 +676,7 @@ func loadAndPrepareConfig(ctx context.Context, cwd *core.PathCWD, path string) (
 		return nil, ctx.Err()
 	default:
 	}
-	config, _, err := core.LoadConfig[*Config](filePath)
+	config, _, err := core.LoadConfig[*Config](ctx, filePath)
 	if err != nil {
 		return nil, err
 	}

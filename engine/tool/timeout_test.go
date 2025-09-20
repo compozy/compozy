@@ -131,7 +131,7 @@ func TestToolConfig_GetTimeout_ContextInteraction(t *testing.T) {
 func TestToolConfig_ValidateTimeout(t *testing.T) {
 	t.Run("Should validate valid timeout format", func(t *testing.T) {
 		cwd, dstPath := setupTestTimeout(t, "basic_tool.yaml")
-		config, err := Load(cwd, dstPath)
+		config, err := Load(context.Background(), cwd, dstPath)
 		require.NoError(t, err)
 		config.Timeout = "5m"
 
@@ -141,7 +141,7 @@ func TestToolConfig_ValidateTimeout(t *testing.T) {
 
 	t.Run("Should return error for invalid timeout format", func(t *testing.T) {
 		cwd, dstPath := setupTestTimeout(t, "basic_tool.yaml")
-		config, err := Load(cwd, dstPath)
+		config, err := Load(context.Background(), cwd, dstPath)
 		require.NoError(t, err)
 		config.Timeout = "invalid-timeout"
 
@@ -152,7 +152,7 @@ func TestToolConfig_ValidateTimeout(t *testing.T) {
 
 	t.Run("Should return error for zero timeout", func(t *testing.T) {
 		cwd, dstPath := setupTestTimeout(t, "basic_tool.yaml")
-		config, err := Load(cwd, dstPath)
+		config, err := Load(context.Background(), cwd, dstPath)
 		require.NoError(t, err)
 		config.Timeout = "0s"
 
@@ -163,7 +163,7 @@ func TestToolConfig_ValidateTimeout(t *testing.T) {
 
 	t.Run("Should return error for negative timeout", func(t *testing.T) {
 		cwd, dstPath := setupTestTimeout(t, "basic_tool.yaml")
-		config, err := Load(cwd, dstPath)
+		config, err := Load(context.Background(), cwd, dstPath)
 		require.NoError(t, err)
 		config.Timeout = "-5s"
 
@@ -174,7 +174,7 @@ func TestToolConfig_ValidateTimeout(t *testing.T) {
 
 	t.Run("Should validate successfully when timeout is empty", func(t *testing.T) {
 		cwd, dstPath := setupTestTimeout(t, "basic_tool.yaml")
-		config, err := Load(cwd, dstPath)
+		config, err := Load(context.Background(), cwd, dstPath)
 		require.NoError(t, err)
 		config.Timeout = ""
 
@@ -186,7 +186,7 @@ func TestToolConfig_ValidateTimeout(t *testing.T) {
 func TestToolConfig_Integration(t *testing.T) {
 	t.Run("Should load and parse tool with timeout configuration", func(t *testing.T) {
 		cwd, dstPath := setupTestTimeout(t, "quick_tool.yaml")
-		config, err := Load(cwd, dstPath)
+		config, err := Load(context.Background(), cwd, dstPath)
 		require.NoError(t, err)
 
 		// Verify timeout field is loaded correctly
@@ -205,7 +205,7 @@ func TestToolConfig_Integration(t *testing.T) {
 
 	t.Run("Should load tool with long timeout configuration", func(t *testing.T) {
 		cwd, dstPath := setupTestTimeout(t, "slow_tool.yaml")
-		config, err := Load(cwd, dstPath)
+		config, err := Load(context.Background(), cwd, dstPath)
 		require.NoError(t, err)
 
 		// Verify timeout field is loaded correctly
@@ -224,7 +224,7 @@ func TestToolConfig_Integration(t *testing.T) {
 
 	t.Run("Should use global timeout when tool has no timeout configured", func(t *testing.T) {
 		cwd, dstPath := setupTestTimeout(t, "basic_tool.yaml")
-		config, err := Load(cwd, dstPath)
+		config, err := Load(context.Background(), cwd, dstPath)
 		require.NoError(t, err)
 
 		// Verify timeout field is empty (not configured in basic_tool.yaml)

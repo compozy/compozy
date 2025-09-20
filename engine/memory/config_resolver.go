@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/engine/memory/privacy"
 	"github.com/compozy/compozy/engine/memory/tokens"
 	"github.com/compozy/compozy/pkg/logger"
+	"github.com/compozy/compozy/pkg/tplengine"
 )
 
 // validKeyPattern is a compiled regex for validating memory keys
@@ -228,8 +229,7 @@ func (mm *Manager) resolveKeyFromTemplate(
 	workflowContextData map[string]any,
 ) string {
 	log := logger.FromContext(ctx)
-	// Check if it contains template syntax
-	if !strings.Contains(keyTemplate, "{{") {
+	if !tplengine.HasTemplate(keyTemplate) {
 		log.Debug("Using literal key (no template syntax detected)", "key", keyTemplate)
 		return keyTemplate
 	}

@@ -2,12 +2,14 @@ package core
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/compozy/compozy/pkg/config"
 	"gopkg.in/yaml.v3"
 )
 
@@ -35,13 +37,25 @@ func ResolvePath(cwd *PathCWD, path string) (string, error) {
 	return absPath, nil
 }
 
-func LoadConfig[T Config](filePath string) (T, string, error) {
+func LoadConfig[T Config](ctx context.Context, filePath string) (T, string, error) {
 	var zero T
+	info, err := os.Stat(filePath)
+	if err != nil {
+		return zero, "", fmt.Errorf("failed to stat config file %s: %w", filePath, err)
+	}
+	cfg := config.FromContext(ctx)
+	if cfg == nil {
+		return zero, "", fmt.Errorf("no configuration found in context")
+	}
+	maxSize := cfg.Limits.MaxConfigFileSize
+	if info.Size() > int64(maxSize) {
+		return zero, "", fmt.Errorf("config file %s exceeds maximum size of %d bytes", filePath, maxSize)
+	}
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return zero, "", fmt.Errorf("failed to read config file %s: %w", filePath, err)
 	}
-	if err := rejectDollarKeys(data, filePath); err != nil {
+	if err := rejectDollarKeys(ctx, data, filePath); err != nil {
 		return zero, "", err
 	}
 	var config T
@@ -59,12 +73,24 @@ func LoadConfig[T Config](filePath string) (T, string, error) {
 	return config, abs, nil
 }
 
-func MapFromFilePath(path string) (map[string]any, error) {
+func MapFromFilePath(ctx context.Context, path string) (map[string]any, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to stat file %s: %w", path, err)
+	}
+	cfg := config.FromContext(ctx)
+	if cfg == nil {
+		return nil, fmt.Errorf("no configuration found in context")
+	}
+	maxSize := cfg.Limits.MaxConfigFileSize
+	if info.Size() > int64(maxSize) {
+		return nil, fmt.Errorf("file %s exceeds maximum size of %d bytes", path, maxSize)
+	}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file %s: %w", path, err)
 	}
-	if err := rejectDollarKeys(data, path); err != nil {
+	if err := rejectDollarKeys(ctx, data, path); err != nil {
 		return nil, err
 	}
 	dec := yaml.NewDecoder(bytes.NewReader(data))
@@ -82,7 +108,11 @@ func MapFromFilePath(path string) (map[string]any, error) {
 // rejectDollarKeys scans YAML documents and returns an error when encountering
 // any mapping key that starts with '$' (e.g., $ref, $use, $merge, $ptr).
 // It preserves precise line/column information for actionable messages.
-func rejectDollarKeys(data []byte, filePath string) error {
+func rejectDollarKeys(ctx context.Context, data []byte, filePath string) error {
+	cfg := config.FromContext(ctx)
+	if cfg == nil {
+		return fmt.Errorf("no configuration found in context")
+	}
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	for {
 		var doc yaml.Node
@@ -95,51 +125,69 @@ func rejectDollarKeys(data []byte, filePath string) error {
 		if isSchemaDocument(&doc) {
 			continue
 		}
-		if err := walkAndReject(&doc, filePath, nil); err != nil {
+		if err := walkAndReject(ctx, &doc, filePath, nil); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func walkAndReject(n *yaml.Node, filePath string, path []string) error {
+func walkAndReject(ctx context.Context, n *yaml.Node, filePath string, path []string) error {
+	cfg := config.FromContext(ctx)
+	if cfg == nil {
+		return fmt.Errorf("no configuration found in context")
+	}
+	maxDepth := cfg.Limits.MaxConfigFileNestingDepth
+	if len(path) > maxDepth {
+		return fmt.Errorf("YAML nesting depth exceeds maximum of %d levels", maxDepth)
+	}
 	if n == nil {
 		return nil
 	}
 	switch n.Kind {
 	case yaml.DocumentNode, yaml.SequenceNode:
-		for _, c := range n.Content {
-			if err := walkAndReject(c, filePath, path); err != nil {
-				return err
+		return walkSequence(ctx, n.Content, filePath, path)
+	case yaml.MappingNode:
+		return walkMapping(ctx, n, filePath, path)
+	}
+	return nil
+}
+
+func walkSequence(ctx context.Context, nodes []*yaml.Node, filePath string, path []string) error {
+	for _, c := range nodes {
+		if err := walkAndReject(ctx, c, filePath, path); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func walkMapping(ctx context.Context, n *yaml.Node, filePath string, path []string) error {
+	schemaCtx := inSchemaContext(path) || isSchemaMapping(n)
+	for i := 0; i < len(n.Content); i += 2 {
+		key := n.Content[i]
+		val := n.Content[i+1]
+		if key != nil && key.Kind == yaml.ScalarNode && strings.HasPrefix(key.Value, "$") {
+			if !schemaCtx {
+				return fmt.Errorf(
+					"%s:%d:%d: unsupported directive key '%s'; "+
+						"directives like $ref/$use/$merge/$ptr are deprecated. "+
+						"Use ID-based references instead",
+					filePath,
+					key.Line,
+					key.Column,
+					key.Value,
+				)
 			}
 		}
-	case yaml.MappingNode:
-		schemaCtx := inSchemaContext(path) || isSchemaMapping(n)
-		for i := 0; i < len(n.Content); i += 2 {
-			key := n.Content[i]
-			val := n.Content[i+1]
-			if key != nil && key.Kind == yaml.ScalarNode && strings.HasPrefix(key.Value, "$") {
-				if !schemaCtx {
-					return fmt.Errorf(
-						"%s:%d:%d: unsupported directive key '%s'; "+
-							"directives like $ref/$use/$merge/$ptr are deprecated. "+
-							"Use ID-based references instead",
-						filePath,
-						key.Line,
-						key.Column,
-						key.Value,
-					)
-				}
-			}
-			var nextPath []string
-			if key != nil && key.Kind == yaml.ScalarNode {
-				nextPath = append(append([]string(nil), path...), key.Value)
-			} else {
-				nextPath = append(append([]string(nil), path...), "<non-scalar-key>")
-			}
-			if err := walkAndReject(val, filePath, nextPath); err != nil {
-				return err
-			}
+		var nextPath []string
+		if key != nil && key.Kind == yaml.ScalarNode {
+			nextPath = append(append([]string(nil), path...), key.Value)
+		} else {
+			nextPath = append(append([]string(nil), path...), "<non-scalar-key>")
+		}
+		if err := walkAndReject(ctx, val, filePath, nextPath); err != nil {
+			return err
 		}
 	}
 	return nil

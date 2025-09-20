@@ -505,12 +505,12 @@ func (a *Config) FromMap(data any) error {
 // Load reads an agent configuration from a YAML or JSON file.
 // This function resolves the file path relative to the provided working directory
 // and loads the configuration without template evaluation.
-func Load(cwd *core.PathCWD, path string) (*Config, error) {
+func Load(ctx context.Context, cwd *core.PathCWD, path string) (*Config, error) {
 	filePath, err := core.ResolvePath(cwd, path)
 	if err != nil {
 		return nil, err
 	}
-	config, _, err := core.LoadConfig[*Config](filePath)
+	config, _, err := core.LoadConfig[*Config](ctx, filePath)
 	if err != nil {
 		return nil, err
 	}

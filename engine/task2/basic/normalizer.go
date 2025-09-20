@@ -109,8 +109,7 @@ func (n *Normalizer) checkMapForRuntimeReferences(m map[string]any) bool {
 	for _, v := range m {
 		switch val := v.(type) {
 		case string:
-			// Check for template syntax with .tasks reference
-			if strings.Contains(val, "{{") && strings.Contains(val, ".tasks.") {
+			if tplengine.HasTemplate(val) && strings.Contains(val, ".tasks.") {
 				return true
 			}
 		case map[string]any:
@@ -118,7 +117,7 @@ func (n *Normalizer) checkMapForRuntimeReferences(m map[string]any) bool {
 				return true
 			}
 		case []any:
-			// Handle slices of any type
+			// Handle slices of any type.
 			for _, item := range val {
 				switch itemVal := item.(type) {
 				case map[string]any:
@@ -126,7 +125,7 @@ func (n *Normalizer) checkMapForRuntimeReferences(m map[string]any) bool {
 						return true
 					}
 				case string:
-					if strings.Contains(itemVal, "{{") && strings.Contains(itemVal, ".tasks.") {
+					if tplengine.HasTemplate(itemVal) && strings.Contains(itemVal, ".tasks.") {
 						return true
 					}
 				}

@@ -24,7 +24,7 @@ func setupTest(t *testing.T, toolFile string) (*core.PathCWD, string) {
 func Test_LoadTool(t *testing.T) {
 	t.Run("Should load basic tool configuration correctly", func(t *testing.T) {
 		cwd, dstPath := setupTest(t, "basic_tool.yaml")
-		config, err := Load(cwd, dstPath)
+		config, err := Load(context.Background(), cwd, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -71,7 +71,7 @@ func Test_LoadTool(t *testing.T) {
 
 	t.Run("Should return error for invalid tool configuration", func(t *testing.T) {
 		cwd, dstPath := setupTest(t, "invalid_tool.yaml")
-		config, err := Load(cwd, dstPath)
+		config, err := Load(context.Background(), cwd, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -258,7 +258,7 @@ func Test_Config_Load_EnvTemplate(t *testing.T) {
 		require.True(t, ok)
 		cwd, dst := fixtures.SetupConfigTest(t, filename)
 		path := filepath.Join(dst, "config_example.yaml")
-		cfg, err := Load(cwd, path)
+		cfg, err := Load(context.Background(), cwd, path)
 		require.NoError(t, err)
 		require.NotNil(t, cfg)
 		assert.Equal(t, "api-client", cfg.ID)
