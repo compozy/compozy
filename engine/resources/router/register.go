@@ -52,6 +52,8 @@ func projectFromQueryOrDefault(c *gin.Context) string {
 	}
 	st := router.GetAppState(c)
 	if st == nil {
+		// Prior RespondWithError was sent; stop handler by marking abort
+		c.Abort()
 		return ""
 	}
 	return st.ProjectConfig.Name

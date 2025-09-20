@@ -70,7 +70,7 @@ func createResource(c *gin.Context) {
 		}
 		return
 	}
-	setETag(c, out.ETag)
+	setETag(c, string(out.ETag))
 	setLocation(c, c.Param("type"), out.ID)
 	router.RespondCreated(c, "resource created", out.Value)
 }
@@ -83,6 +83,9 @@ func createResource(c *gin.Context) {
 // @Param project query string false "Project override"
 // @Param q query string false "ID prefix filter"
 // @Success 200 {object} router.Response{data=object{keys=[]string}} "Keys listed"
+// @Failure 400 {object} router.Response{error=router.ErrorInfo}
+// @Failure 401 {object} router.Response{error=router.ErrorInfo}
+// @Failure 403 {object} router.Response{error=router.ErrorInfo}
 // @Router /resources/{type} [get]
 func listResources(c *gin.Context) {
 	rs, ok := router.GetResourceStore(c)
@@ -119,7 +122,10 @@ func listResources(c *gin.Context) {
 // @Param id path string true "Resource ID"
 // @Success 200 {object} router.Response{data=object} "Resource returned"
 // @Header 200 {string} ETag "ETag for the stored value"
+// @Failure 400 {object} router.Response{error=router.ErrorInfo}
 // @Failure 404 {object} router.Response{error=router.ErrorInfo}
+// @Failure 401 {object} router.Response{error=router.ErrorInfo}
+// @Failure 403 {object} router.Response{error=router.ErrorInfo}
 // @Router /resources/{type}/{id} [get]
 func getResourceByID(c *gin.Context) {
 	rs, ok := router.GetResourceStore(c)
@@ -153,7 +159,7 @@ func getResourceByID(c *gin.Context) {
 		router.RespondWithServerError(c, router.ErrInternalCode, "failed to get resource", err)
 		return
 	}
-	setETag(c, out.ETag)
+	setETag(c, string(out.ETag))
 	router.RespondOK(c, "resource", out.Value)
 }
 
@@ -200,7 +206,8 @@ func putResourceByID(c *gin.Context) {
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return
 	}
-	ifMatch := strings.TrimSpace(c.GetHeader("If-Match"))
+	rawIfMatch := strings.TrimSpace(c.GetHeader("If-Match"))
+	ifMatch := normalizeETag(rawIfMatch)
 	usecase := uc.NewUpsertResource(rs)
 	out, err := usecase.Execute(
 		c.Request.Context(),
@@ -210,7 +217,7 @@ func putResourceByID(c *gin.Context) {
 		handleUpsertError(c, err)
 		return
 	}
-	setETag(c, out.ETag)
+	setETag(c, string(out.ETag))
 	router.RespondOK(c, "resource updated", out.Value)
 }
 
@@ -248,6 +255,7 @@ func handleUpsertError(c *gin.Context, err error) {
 // @Param type path string true "Resource type"
 // @Param id path string true "Resource ID"
 // @Success 200 {object} router.Response{data=object} "Deleted"
+// @Failure 400 {object} router.Response{error=router.ErrorInfo}
 // @Failure 401 {object} router.Response{error=router.ErrorInfo}
 // @Failure 403 {object} router.Response{error=router.ErrorInfo}
 // @Router /resources/{type}/{id} [delete]
@@ -278,4 +286,21 @@ func deleteResourceByID(c *gin.Context) {
 		return
 	}
 	router.RespondOK(c, "resource deleted", gin.H{"id": id})
+}
+
+// normalizeETag canonicalizes the If-Match header so optimistic locking tolerates
+// weak validators, quotes, and multi-value headers.
+func normalizeETag(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
+	if idx := strings.IndexByte(s, ','); idx >= 0 {
+		s = s[:idx]
+	}
+	s = strings.TrimSpace(s)
+	if strings.HasPrefix(s, "W/") {
+		s = strings.TrimSpace(strings.TrimPrefix(s, "W/"))
+	}
+	return strings.Trim(s, `"`)
 }

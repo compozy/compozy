@@ -196,7 +196,11 @@ func (t *Config) UnmarshalYAML(value *yaml.Node) error {
 			return err
 		}
 		t.ID = id
+		t.Resource = "tool"
 		return nil
+	}
+	if value.Kind != yaml.MappingNode {
+		return fmt.Errorf("tool config must be scalar ID or mapping, got kind=%v", value.Kind)
 	}
 	type alias Config
 	var tmp alias
@@ -204,6 +208,9 @@ func (t *Config) UnmarshalYAML(value *yaml.Node) error {
 		return err
 	}
 	*t = Config(tmp)
+	if t.Resource == "" {
+		t.Resource = "tool"
+	}
 	return nil
 }
 
@@ -254,18 +261,16 @@ func (t *Config) GetEnv() core.EnvMap {
 	return *t.Env
 }
 
-// GetTimeout returns the tool's configured timeout or falls back to the global timeout.
+// GetTimeout returns the tool's configured timeout or the provided global default.
 // Used by the runtime system to enforce execution time limits and prevent runaway tools.
 // Returns an error if the timeout format is invalid or the value is non-positive.
-func (t *Config) GetTimeout(globalTimeout time.Duration) (time.Duration, error) {
+func (t *Config) GetTimeout(ctx context.Context, globalTimeout time.Duration) (time.Duration, error) {
 	if t.Timeout == "" {
 		return globalTimeout, nil
 	}
 	timeout, err := time.ParseDuration(t.Timeout)
 	if err != nil {
-		// Log warning for debugging
-		// Note: We can't get activity context here, so using context.Background()
-		logger.FromContext(context.Background()).Warn(
+		logger.FromContext(ctx).Warn(
 			"Invalid tool timeout format",
 			"tool_id", t.ID,
 			"configured_timeout", t.Timeout,

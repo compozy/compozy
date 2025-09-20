@@ -206,7 +206,7 @@ if err := config.ValidateOutput(ctx, output); err != nil {
 ```go
 // Get effective timeout (tool-specific or global fallback)
 globalTimeout := 60 * time.Second
-timeout, err := config.GetTimeout(globalTimeout)
+timeout, err := config.GetTimeout(ctx, globalTimeout)
 if err != nil {
     return fmt.Errorf("invalid timeout: %w", err)
 }
@@ -518,7 +518,7 @@ type Config struct {
 - `Validate() error` - Validates tool configuration
 - `ValidateInput(ctx context.Context, input *core.Input) error` - Validates input parameters
 - `ValidateOutput(ctx context.Context, output *core.Output) error` - Validates output data
-- `GetTimeout(globalTimeout time.Duration) (time.Duration, error)` - Gets effective timeout
+- `GetTimeout(ctx context.Context, globalTimeout time.Duration) (time.Duration, error)` - Gets effective timeout
 - `GetLLMDefinition() llms.Tool` - Generates LLM function definition
 - `HasSchema() bool` - Checks if tool has validation schemas
 

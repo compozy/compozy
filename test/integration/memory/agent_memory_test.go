@@ -148,7 +148,12 @@ func TestAgentMemoryResolver(t *testing.T) {
 		// Should now fail due to invalid template resolution
 		memories, err := memoryResolver.ResolveAgentMemories(ctx, agentConfig)
 		assert.Error(t, err, "Should fail when template resolution produces invalid key")
-		assert.Contains(t, err.Error(), "memory key validation failed", "Error should indicate validation failure")
+		assert.Contains(
+			t,
+			err.Error(),
+			"failed to execute key template",
+			"Error should indicate template resolution failure",
+		)
 		assert.Nil(t, memories, "Should not return memories when resolution fails")
 	})
 

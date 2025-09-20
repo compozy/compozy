@@ -118,11 +118,11 @@ func (s *service) indexAndCompile(
 ) ([]*workflow.Config, error) {
 	log := logger.FromContext(ctx)
 	if s.store == nil {
-		return nil, fmt.Errorf("resource store not provided")
+		return nil, fmt.Errorf("indexAndCompile: resource store not provided")
 	}
 	if err := s.indexProjectAndWorkflows(ctx, projectConfig, workflows, configRegistry); err != nil {
 		log.Error("Failed to index resources", "error", err)
-		return nil, err
+		return nil, fmt.Errorf("indexAndCompile: project=%s: %w", projectConfig.Name, err)
 	}
 	compiled := make([]*workflow.Config, 0, len(workflows))
 	for _, wf := range workflows {
@@ -132,7 +132,7 @@ func (s *service) indexAndCompile(
 		c, err := wf.Compile(ctx, projectConfig, s.store)
 		if err != nil {
 			log.Error("Workflow compile failed", "workflow_id", wf.ID, "error", err)
-			return nil, err
+			return nil, fmt.Errorf("indexAndCompile: project=%s workflow=%s: %w", projectConfig.Name, wf.ID, err)
 		}
 		compiled = append(compiled, c)
 	}
@@ -183,7 +183,7 @@ func (s *service) compileFromStore(
 	}
 	keys, err := s.store.List(ctx, projectConfig.Name, resources.ResourceWorkflow)
 	if err != nil {
-		return nil, fmt.Errorf("list workflows from store failed: %w", err)
+		return nil, fmt.Errorf("list workflows from store failed (project=%s): %w", projectConfig.Name, err)
 	}
 	if len(keys) == 0 {
 		if s.shouldSeedFromRepo(ctx, projectConfig) {
@@ -193,7 +193,7 @@ func (s *service) compileFromStore(
 			}
 			relisted, err := s.store.List(ctx, projectConfig.Name, resources.ResourceWorkflow)
 			if err != nil {
-				return nil, fmt.Errorf("list after seed failed: %w", err)
+				return nil, fmt.Errorf("list after seed failed (project=%s): %w", projectConfig.Name, err)
 			}
 			keys = relisted
 		} else {

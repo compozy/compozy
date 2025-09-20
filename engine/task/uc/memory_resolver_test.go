@@ -95,7 +95,7 @@ func TestMemoryResolver_GetMemory(t *testing.T) {
 		memory, err := resolver.GetMemory(ctx, "test-memory", "invalid-{{ .missing }}")
 		assert.Error(t, err)
 		assert.Nil(t, memory)
-		assert.ErrorContains(t, err, "failed to get memory instance")
+		assert.ErrorContains(t, err, "failed to execute key template")
 	})
 	t.Run("Should handle memory instance error", func(t *testing.T) {
 		setup, memMgr := setupTestMemoryManager(t)

@@ -17,4 +17,5 @@
 - **YOU MUST** follow project standards and rules from .cursor/rules, and ensure all items in <arguments> are addressed;
 - If, in the end, you don't have all issues from <arguments> fixed, your work will be **INVALIDATED**;
 - After making all the changes, you need to update the progress in the _summary.md file and all the related $ARGUMENTS:type.md files.
+- **MUST DO:** If $ARGUMENTf:type is `issue`, after resolve the issue you need to call the `gh` command to resolve it 
 </critical>

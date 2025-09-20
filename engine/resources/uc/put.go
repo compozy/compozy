@@ -21,7 +21,7 @@ type UpsertInput struct {
 
 type UpsertOutput struct {
 	Value map[string]any
-	ETag  string
+	ETag  resources.ETag
 }
 
 type UpsertResource struct {
@@ -35,6 +35,9 @@ func NewUpsertResource(store resources.ResourceStore) *UpsertResource {
 func (uc *UpsertResource) Execute(ctx context.Context, in *UpsertInput) (*UpsertOutput, error) {
 	_ = config.FromContext(ctx)
 	log := logger.FromContext(ctx)
+	if in == nil {
+		return nil, fmt.Errorf("upsert resource: nil input")
+	}
 	if _, err := validateBody(in.Type, in.Body, in.ID, false); err != nil {
 		return nil, err
 	}
@@ -43,11 +46,11 @@ func (uc *UpsertResource) Execute(ctx context.Context, in *UpsertInput) (*Upsert
 	}
 	key := resources.ResourceKey{Project: in.Project, Type: in.Type, ID: in.ID}
 	var (
-		etag string
+		etag resources.ETag
 		err  error
 	)
 	if in.IfMatch != "" {
-		etag, err = uc.store.PutIfMatch(ctx, key, in.Body, in.IfMatch)
+		etag, err = uc.store.PutIfMatch(ctx, key, in.Body, resources.ETag(in.IfMatch))
 		switch {
 		case errors.Is(err, resources.ErrNotFound):
 			return nil, ErrIfMatchStaleOrMissing

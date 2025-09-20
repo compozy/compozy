@@ -93,11 +93,7 @@ const (
 	defaultDebounceMaxWait = 500 * time.Millisecond
 )
 
-func New(ctx context.Context, state *appstate.State) (*Reconciler, error) {
-	log := logger.FromContext(ctx)
-	if state == nil {
-		return nil, fmt.Errorf("nil state")
-	}
+func resolveStore(state *appstate.State) (resources.ResourceStore, error) {
 	v, ok := state.ResourceStore()
 	if !ok {
 		return nil, fmt.Errorf("resource store not found in state")
@@ -106,6 +102,10 @@ func New(ctx context.Context, state *appstate.State) (*Reconciler, error) {
 	if !ok {
 		return nil, fmt.Errorf("invalid resource store type")
 	}
+	return store, nil
+}
+
+func resolveSched(state *appstate.State) (schedule.Manager, error) {
 	sm, ok := state.ScheduleManager()
 	if !ok {
 		return nil, fmt.Errorf("schedule manager not set")
@@ -114,8 +114,10 @@ func New(ctx context.Context, state *appstate.State) (*Reconciler, error) {
 	if !ok {
 		return nil, fmt.Errorf("invalid schedule manager type")
 	}
-	evTot, evDrop, recTot, bDur := newReconcilerMetrics(ctx)
-	cfg := pkgcfg.FromContext(ctx)
+	return sched, nil
+}
+
+func deriveSettings(cfg *pkgcfg.Config) (string, int, time.Duration, time.Duration) {
 	mode := "repo"
 	queueSize := defaultQueueCap
 	debWait := defaultDebounceWait
@@ -134,16 +136,58 @@ func New(ctx context.Context, state *appstate.State) (*Reconciler, error) {
 			debMaxWait = v
 		}
 	}
+	return mode, queueSize, debWait, debMaxWait
+}
+
+func resolveProject(state *appstate.State) (*project.Config, error) {
 	proj := state.ProjectConfig
 	if proj == nil || proj.Name == "" {
 		return nil, fmt.Errorf("project config is required")
 	}
+	return proj, nil
+}
+
+func resolveRegistry(state *appstate.State) *autoload.ConfigRegistry {
 	var reg *autoload.ConfigRegistry
-	if v2, ok2 := state.ConfigRegistry(); ok2 {
-		if rr, ok3 := v2.(*autoload.ConfigRegistry); ok3 {
+	if v, ok := state.ConfigRegistry(); ok {
+		if rr, ok2 := v.(*autoload.ConfigRegistry); ok2 {
 			reg = rr
 		}
 	}
+	return reg
+}
+
+func makeDebouncer(ctx context.Context, r *Reconciler, debWait, debMaxWait time.Duration) (func(), func()) {
+	debFn, cancel := debounce.NewWithMaxWait(debWait, debMaxWait, func() {
+		c := r.runCtx
+		if c == nil {
+			c = context.WithoutCancel(ctx)
+		}
+		r.onDebounceFire(c)
+	})
+	return debFn, cancel
+}
+
+func NewReconsiler(ctx context.Context, state *appstate.State) (*Reconciler, error) {
+	log := logger.FromContext(ctx)
+	if state == nil {
+		return nil, fmt.Errorf("nil state")
+	}
+	store, err := resolveStore(state)
+	if err != nil {
+		return nil, err
+	}
+	sched, err := resolveSched(state)
+	if err != nil {
+		return nil, err
+	}
+	evTot, evDrop, recTot, bDur := newReconcilerMetrics(ctx)
+	mode, queueSize, debWait, debMaxWait := deriveSettings(pkgcfg.FromContext(ctx))
+	proj, err := resolveProject(state)
+	if err != nil {
+		return nil, err
+	}
+	reg := resolveRegistry(state)
 	r := &Reconciler{
 		store:          store,
 		state:          state,
@@ -159,11 +203,7 @@ func New(ctx context.Context, state *appstate.State) (*Reconciler, error) {
 		recompileTotal: recTot,
 		batchDur:       bDur,
 	}
-	debFn, cancel := debounce.NewWithMaxWait(
-		debWait,
-		debMaxWait,
-		func() { r.onDebounceFire(context.WithoutCancel(ctx)) },
-	)
+	debFn, cancel := makeDebouncer(ctx, r, debWait, debMaxWait)
 	r.deb = debFn
 	r.cancelDebounce = cancel
 	log.Info("Reconciler initialized", "project", r.proj.Name)
@@ -690,7 +730,7 @@ func StartIfBuilderMode(ctx context.Context, state *appstate.State) (*Reconciler
 	if cfg == nil || cfg.Server.SourceOfTruth != "builder" {
 		return nil, nil
 	}
-	r, err := New(ctx, state)
+	r, err := NewReconsiler(ctx, state)
 	if err != nil {
 		return nil, err
 	}

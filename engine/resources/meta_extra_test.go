@@ -59,12 +59,14 @@ func TestIndexPutWithMeta_ConflictAndErrors(t *testing.T) {
 
 type failingPutStore struct{ err error }
 
-func (f *failingPutStore) Put(context.Context, ResourceKey, any) (string, error) { return "", f.err }
-func (f *failingPutStore) PutIfMatch(context.Context, ResourceKey, any, string) (string, error) {
-	return "", f.err
+func (f *failingPutStore) Put(context.Context, ResourceKey, any) (ETag, error) {
+	return ETag(""), f.err
 }
-func (f *failingPutStore) Get(context.Context, ResourceKey) (any, string, error) {
-	return nil, "", ErrNotFound
+func (f *failingPutStore) PutIfMatch(context.Context, ResourceKey, any, ETag) (ETag, error) {
+	return ETag(""), f.err
+}
+func (f *failingPutStore) Get(context.Context, ResourceKey) (any, ETag, error) {
+	return nil, ETag(""), ErrNotFound
 }
 func (f *failingPutStore) Delete(context.Context, ResourceKey) error { return nil }
 func (f *failingPutStore) List(context.Context, string, ResourceType) ([]ResourceKey, error) {
@@ -90,9 +92,9 @@ func (f *failingPutStore) Close() error { return nil }
 
 type failingMetaOnlyStore struct{ inner ResourceStore }
 
-func (s *failingMetaOnlyStore) Put(ctx context.Context, key ResourceKey, value any) (string, error) {
+func (s *failingMetaOnlyStore) Put(ctx context.Context, key ResourceKey, value any) (ETag, error) {
 	if key.Type == ResourceMeta {
-		return "", errors.New("meta-fail")
+		return ETag(""), errors.New("meta-fail")
 	}
 	return s.inner.Put(ctx, key, value)
 }
@@ -100,14 +102,14 @@ func (s *failingMetaOnlyStore) PutIfMatch(
 	ctx context.Context,
 	key ResourceKey,
 	value any,
-	expectedETag string,
-) (string, error) {
+	expectedETag ETag,
+) (ETag, error) {
 	if key.Type == ResourceMeta {
-		return "", errors.New("meta-fail")
+		return ETag(""), errors.New("meta-fail")
 	}
 	return s.inner.PutIfMatch(ctx, key, value, expectedETag)
 }
-func (s *failingMetaOnlyStore) Get(ctx context.Context, key ResourceKey) (any, string, error) {
+func (s *failingMetaOnlyStore) Get(ctx context.Context, key ResourceKey) (any, ETag, error) {
 	return s.inner.Get(ctx, key)
 }
 func (s *failingMetaOnlyStore) Delete(ctx context.Context, key ResourceKey) error {

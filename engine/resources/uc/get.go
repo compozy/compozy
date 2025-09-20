@@ -16,7 +16,7 @@ type GetInput struct {
 
 type GetOutput struct {
 	Value any
-	ETag  string
+	ETag  resources.ETag
 }
 
 type GetResource struct {

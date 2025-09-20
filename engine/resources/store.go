@@ -47,12 +47,18 @@ const (
 	EventDelete EventType = "delete"
 )
 
+// ETag represents a deterministic content hash for a stored value.
+// Contract: ETags MUST be computed from canonical/stable bytes of the value
+// (encoder-independent) so that different encoders yield the same ETag for
+// semantically equal data. ETags MUST remain stable across process restarts
+// and environments for identical logical values.
+type ETag string
+
 // Event describes a change in the store for watchers.
-// ETag is a deterministic content hash for the affected value.
 type Event struct {
 	Type EventType   `json:"type"`
 	Key  ResourceKey `json:"key"`
-	ETag string      `json:"etag"`
+	ETag ETag        `json:"etag"`
 	At   time.Time   `json:"at"`
 }
 
@@ -60,7 +66,7 @@ type Event struct {
 type StoredItem struct {
 	Key   ResourceKey `json:"key"`
 	Value any         `json:"value"`
-	ETag  string      `json:"etag"`
+	ETag  ETag        `json:"etag"`
 }
 
 // ResourceStore is the contract for storing and linking referencable resources.
@@ -71,15 +77,15 @@ type StoredItem struct {
 type ResourceStore interface {
 	// Put inserts or replaces a resource value at the given key.
 	// Returns a deterministic ETag for the stored value.
-	Put(ctx context.Context, key ResourceKey, value any) (etag string, err error)
+	Put(ctx context.Context, key ResourceKey, value any) (etag ETag, err error)
 
 	// PutIfMatch replaces a resource value only if the current ETag matches the expected value.
 	// Returns ErrNotFound if the resource does not exist and ErrETagMismatch when the ETag differs.
-	PutIfMatch(ctx context.Context, key ResourceKey, value any, expectedETag string) (etag string, err error)
+	PutIfMatch(ctx context.Context, key ResourceKey, value any, expectedETag ETag) (etag ETag, err error)
 
 	// Get retrieves a resource by key. If not found, returns (nil, "", ErrNotFound).
 	// Implementations should return a deep copy of the stored value.
-	Get(ctx context.Context, key ResourceKey) (value any, etag string, err error)
+	Get(ctx context.Context, key ResourceKey) (value any, etag ETag, err error)
 
 	// Delete removes a resource by key. Deleting a missing key must be idempotent.
 	Delete(ctx context.Context, key ResourceKey) error

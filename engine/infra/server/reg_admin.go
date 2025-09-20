@@ -19,11 +19,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const (
-	sourceRepo    = "repo"
-	sourceBuilder = "builder"
-)
-
 // staticSource is a minimal in-memory config source used to override values for a single operation.
 // It implements pkg/config.Source.
 type staticSource struct {

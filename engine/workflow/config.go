@@ -721,10 +721,9 @@ func compileSelectors(ctx context.Context, proj *project.Config, store resources
 		hasAgent := t.Agent != nil
 		hasTool := t.Tool != nil
 		// Direct LLM (prompt-only) mode: model_config (+fallbacks) + prompt
-		hasDirect := (strings.TrimSpace(t.Prompt) != "") &&
-			((t.ModelConfig.Provider != "" && t.ModelConfig.Model != "") || true)
-		// Note: provider/model may be injected later via defaults; runtime validator enforces
-		// concrete availability. At compile time we only need to permit the shape.
+		hasDirect := strings.TrimSpace(t.Prompt) != ""
+		// Note: provider/model defaults may be injected later; runtime validation ensures
+		// concrete availability. Compile-time only needs to gate on prompt presence.
 		// Exactly one executor must be selected among agent, tool, direct LLM.
 		execCount := 0
 		if hasAgent {

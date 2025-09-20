@@ -9,14 +9,25 @@
  * - Summary language corrected (review threads can be resolved; general PR comments cannot).
  *
  * Usage:
- *   GITHUB_TOKEN=ghp_... bun pr-review.ts <PR_NUMBER>
+ *   GITHUB_TOKEN=ghp_... bun pr-review.ts <PR_NUMBER> [--unresolve-missing-marker]
+ *
+ * Flags:
+ *   --unresolve-missing-marker  If set, any GitHub review thread that is currently
+ *                               resolved BUT does not contain the ADDRESSED_MARKER
+ *                               in any comment will be un-resolved via GraphQL.
+ *   --hide-resolved            If set, resolved review threads will not have issue
+ *                               files generated (only unresolved issues will be created).
  */
 
 import { graphql } from "@octokit/graphql";
 import { Octokit } from "@octokit/rest";
+import { $ } from "bun";
 import { promises as fs } from "fs";
-import { execSync } from "node:child_process";
 import { join } from "path";
+
+// ---------- Constants ----------
+const CODERABBIT_BOT_LOGIN = "coderabbitai[bot]";
+const ADDRESSED_MARKER = "✅ Addressed in commit";
 
 // ---------- Types ----------
 interface BaseUser {
@@ -71,25 +82,61 @@ interface ReviewThread {
   };
 }
 
-interface GraphQLResponse {
+type ResolutionPolicy = "strict" | "github";
+
+interface PageInfo {
+  hasNextPage: boolean;
+  endCursor: string | null;
+}
+
+interface GraphQLThreadsPage {
   repository: {
     pullRequest: {
       reviewThreads: {
-        nodes: ReviewThread[];
+        nodes: Array<
+          ReviewThread & {
+            comments: ReviewThread["comments"] & { pageInfo: PageInfo };
+          }
+        >;
+        pageInfo: PageInfo;
       };
     };
   };
+}
+
+interface GraphQLThreadCommentsPage {
+  node:
+    | null
+    | (ReviewThread & {
+        comments: ReviewThread["comments"] & { pageInfo: PageInfo };
+      });
 }
 
 // ---------- Main ----------
 async function main() {
   const args = process.argv.slice(2);
   if (args.length === 0) {
-    console.error("Usage: bun pr-review.ts <pr_number>");
+    console.error(
+      "Usage: bun pr-review.ts <pr_number> [--unresolve-missing-marker] [--hide-resolved]"
+    );
     process.exit(1);
   }
 
   const prNumber = Number(args[0]);
+  const unresolveMissingMarker = args.includes("--unresolve-missing-marker");
+  const hideResolved = args.includes("--hide-resolved");
+  let resolutionPolicy: ResolutionPolicy = "strict";
+  const policyArg = args.find(a => a.startsWith("--resolution-policy="));
+  if (policyArg) {
+    const val = policyArg.split("=")[1]?.trim().toLowerCase();
+    if (val === "github" || val === "strict") {
+      resolutionPolicy = val as ResolutionPolicy;
+    } else {
+      console.warn(
+        `Warning: unknown --resolution-policy value '${val}'. Falling back to 'strict'.`
+      );
+    }
+  }
   if (!Number.isInteger(prNumber)) {
     console.error("Error: PR number must be a valid integer");
     process.exit(1);
@@ -116,18 +163,24 @@ async function main() {
   console.log("  → review threads (GraphQL) ...");
   const reviewThreads = await fetchReviewThreads(token, owner, repo, prNumber);
 
+  if (unresolveMissingMarker) {
+    console.log("  → enforcing policy by unresolving threads missing the ADDRESSED_MARKER ...");
+    const { attempted, changed } = await unresolveThreadsMissingMarker(token, reviewThreads);
+    console.log(`    Unresolve attempts: ${attempted} • actually changed: ${changed}`);
+  }
+
   console.log("  → pull request reviews (REST) ...");
   const allSimpleReviews = await fetchAllPullRequestReviews(octokit, owner, repo, prNumber);
 
   // Filter to CodeRabbit bot comments only
   const coderabbitReviewComments = allReviewComments.filter(
-    c => c.user?.login === "coderabbitai[bot]"
+    c => c.user?.login === CODERABBIT_BOT_LOGIN
   );
   const coderabbitIssueComments = allIssueComments.filter(
-    c => c.user?.login === "coderabbitai[bot]"
+    c => c.user?.login === CODERABBIT_BOT_LOGIN
   );
   const coderabbitSimpleReviews = allSimpleReviews.filter(
-    r => r.user?.login === "coderabbitai[bot]" && (r.body?.trim()?.length ?? 0) > 0
+    r => r.user?.login === CODERABBIT_BOT_LOGIN && (r.body?.trim()?.length ?? 0) > 0
   );
 
   if (
@@ -168,13 +221,22 @@ async function main() {
 
   // Count resolution by policy: thread resolved AND contains "✅ Addressed in commit"
   const resolvedCount = reviewComments.filter(c =>
-    isCommentResolvedByPolicy(c, reviewThreads)
+    isCommentResolvedByPolicy(c, reviewThreads, resolutionPolicy)
   ).length;
   const unresolvedCount = reviewComments.length - resolvedCount;
 
   console.log("Creating issue files (resolvable review threads) in issues/ ...");
+  let createdIssueCount = 0;
   for (let i = 0; i < reviewComments.length; i++) {
-    await createIssueFile(issuesDir, i + 1, reviewComments[i], reviewThreads);
+    const comment = reviewComments[i];
+    const isResolved = isCommentResolvedByPolicy(comment, reviewThreads, resolutionPolicy);
+
+    if (hideResolved && isResolved) {
+      console.log(`  Skipped resolved issue ${i + 1}: ${comment.path}:${comment.line}`);
+      continue;
+    }
+
+    await createIssueFile(issuesDir, ++createdIssueCount, comment, reviewThreads, resolutionPolicy);
   }
 
   console.log("Creating comment files (simple comments) in comments/ ...");
@@ -210,18 +272,24 @@ async function main() {
     resolvedCount,
     unresolvedCount,
     reviewThreads,
-    allExtracted
+    resolutionPolicy,
+    allExtracted,
+    createdIssueCount,
+    hideResolved
   );
 
-  const totalGenerated = reviewComments.length + simpleItems.length;
-  console.log(`\n✅ Done. ${totalGenerated} files in ${outputDir}`);
+  const totalGenerated = createdIssueCount + simpleItems.length;
+  console.log(
+    `\n✅ Done. ${totalGenerated} files in ${outputDir}${hideResolved ? ` (${reviewComments.length - createdIssueCount} resolved issues hidden)` : ""}`
+  );
   console.log(`ℹ️ Threads resolved: ${resolvedCount} • unresolved: ${unresolvedCount}`);
 }
 
 // ---------- Helpers ----------
 async function getRepoInfo(): Promise<{ owner: string; repo: string }> {
   try {
-    const remoteUrl = execSync("git config --get remote.origin.url", { encoding: "utf8" }).trim();
+    const { stdout } = await $`git config --get remote.origin.url`.quiet();
+    const remoteUrl = stdout.toString().trim();
     const match = remoteUrl.match(/github\.com[\/:]([^\/]+)\/([^\/\.]+)/);
     if (match) return { owner: match[1], repo: match[2] };
     throw new Error("Could not parse repository information from git remote");
@@ -244,7 +312,7 @@ async function fetchAllReviewComments(
       owner,
       repo,
       pull_number: prNumber,
-      per_page: 100,
+      per_page: 500,
     });
 
     // Normalize to the fields we use (and ensure id/node_id present)
@@ -274,7 +342,7 @@ async function fetchAllIssueComments(
       owner,
       repo,
       issue_number: prNumber,
-      per_page: 100,
+      per_page: 500,
     });
 
     return comments.map((c: any) => ({
@@ -299,7 +367,7 @@ async function fetchAllPullRequestReviews(
       owner,
       repo,
       pull_number: prNumber,
-      per_page: 100,
+      per_page: 500,
     });
 
     return reviews.map((r: any) => ({
@@ -322,15 +390,17 @@ async function fetchReviewThreads(
   prNumber: number
 ): Promise<ReviewThread[]> {
   try {
-    const query = `
-      query($owner: String!, $repo: String!, $number: Int!) {
+    const perPage = 100; // GitHub GraphQL max for connections
+
+    const threadsQuery = `
+      query($owner: String!, $repo: String!, $number: Int!, $cursor: String) {
         repository(owner: $owner, name: $repo) {
           pullRequest(number: $number) {
-            reviewThreads(first: 100) {
+            reviewThreads(first: ${perPage}, after: $cursor) {
               nodes {
                 id
                 isResolved
-                comments(first: 100) {
+                comments(first: ${perPage}) {
                   nodes {
                     id
                     databaseId
@@ -338,22 +408,94 @@ async function fetchReviewThreads(
                     author { login }
                     createdAt
                   }
+                  pageInfo { hasNextPage endCursor }
                 }
               }
+              pageInfo { hasNextPage endCursor }
             }
           }
         }
       }
     `;
 
-    const result = await graphql<GraphQLResponse>(query, {
-      owner,
-      repo,
-      number: prNumber,
-      headers: { authorization: `token ${token}` },
-    });
+    const threadCommentsQuery = `
+      query($id: ID!, $cursor: String) {
+        node(id: $id) {
+          ... on PullRequestReviewThread {
+            id
+            isResolved
+            comments(first: ${perPage}, after: $cursor) {
+              nodes {
+                id
+                databaseId
+                body
+                author { login }
+                createdAt
+              }
+              pageInfo { hasNextPage endCursor }
+            }
+          }
+        }
+      }
+    `;
 
-    return result.repository.pullRequest.reviewThreads.nodes;
+    const headers = { authorization: `token ${token}` } as const;
+    const all = new Map<
+      string,
+      ReviewThread & { comments: { nodes: ReviewThread["comments"]["nodes"] } }
+    >();
+
+    let cursor: string | null = null;
+    let hasNext = true;
+    while (hasNext) {
+      const page = await graphql<GraphQLThreadsPage>(threadsQuery, {
+        owner,
+        repo,
+        number: prNumber,
+        cursor,
+        headers,
+      });
+
+      const rt = page.repository.pullRequest.reviewThreads;
+      for (const node of rt.nodes) {
+        // Initialize or merge thread entry
+        const existing = all.get(node.id);
+        if (!existing) {
+          all.set(node.id, {
+            id: node.id,
+            isResolved: node.isResolved,
+            comments: { nodes: [...node.comments.nodes] },
+          });
+        } else {
+          // Update resolution status and append comments
+          existing.isResolved = node.isResolved;
+          existing.comments.nodes.push(...node.comments.nodes);
+        }
+
+        // Paginate comments for this thread if needed
+        let cHasNext = node.comments.pageInfo.hasNextPage;
+        let cCursor = node.comments.pageInfo.endCursor;
+        while (cHasNext) {
+          const cPage = await graphql<GraphQLThreadCommentsPage>(threadCommentsQuery, {
+            id: node.id,
+            cursor: cCursor,
+            headers,
+          });
+          const n = cPage.node;
+          if (!n) break;
+          const entry = all.get(n.id)!;
+          entry.isResolved = n.isResolved;
+          entry.comments.nodes.push(...n.comments.nodes);
+          cHasNext = n.comments.pageInfo.hasNextPage;
+          cCursor = n.comments.pageInfo.endCursor;
+        }
+      }
+
+      hasNext = rt.pageInfo.hasNextPage;
+      cursor = rt.pageInfo.endCursor;
+    }
+
+    return Array.from(all.values());
   } catch (error) {
     console.warn("Warning: Could not fetch review threads:", error);
     return [];
@@ -384,7 +526,11 @@ function isCommentResolved(comment: Comment, reviewThreads: ReviewThread[]): boo
 
 // Policy-level resolution: the thread must be resolved AND contain
 // a confirmation marker "✅ Addressed in commit" somewhere in the thread.
-function isCommentResolvedByPolicy(comment: Comment, reviewThreads: ReviewThread[]): boolean {
+function isCommentResolvedByPolicy(
+  comment: Comment,
+  reviewThreads: ReviewThread[],
+  policy: ResolutionPolicy = "strict"
+): boolean {
   if (!("path" in comment && "line" in comment)) return false;
   const rc = comment as ReviewComment;
   for (const thread of reviewThreads) {
@@ -394,8 +540,12 @@ function isCommentResolvedByPolicy(comment: Comment, reviewThreads: ReviewThread
         (!!rc.node_id && tc.id === rc.node_id)
     );
     if (match) {
+      if (policy === "github") {
+        return Boolean(thread.isResolved);
+      }
+      // strict policy (default): require marker
       const hasAddressed = thread.comments.nodes.some(tc =>
-        (tc.body || "").includes("✅ Addressed in commit")
+        (tc.body || "").includes(ADDRESSED_MARKER)
       );
       return Boolean(thread.isResolved && hasAddressed);
     }
@@ -407,11 +557,12 @@ async function createIssueFile(
   outputDir: string,
   issueNumber: number,
   comment: ReviewComment,
-  reviewThreads: ReviewThread[]
+  reviewThreads: ReviewThread[],
+  resolutionPolicy: ResolutionPolicy
 ): Promise<void> {
   const file = join(outputDir, `issue_${issueNumber.toString().padStart(3, "0")}.md`);
   const formattedDate = formatDate(comment.created_at);
-  const resolvedStatus = isCommentResolvedByPolicy(comment, reviewThreads)
+  const resolvedStatus = isCommentResolvedByPolicy(comment, reviewThreads, resolutionPolicy)
     ? "- [x] RESOLVED ✓"
     : "- [ ] UNRESOLVED";
   const thread = findThreadForReviewComment(comment, reviewThreads);
@@ -426,39 +577,12 @@ async function createIssueFile(
 
 ${comment.body}
 
-## How To Resolve This Issue
+## Resolve
 
-This comment belongs to a GitHub review thread. To mark it as resolved programmatically, call GitHub's GraphQL API using your \`GITHUB_TOKEN\` (scope: \`repo\`).
-
-- Thread ID: ${threadId ? `\`${threadId}\`` : "(not found)"}
-- Endpoint: \`POST https://api.github.com/graphql\`
-
-GitHub CLI example:
+Thread ID: ${threadId ? `\`${threadId}\`` : "(not found)"}
 
 \`\`\`bash
-gh api graphql \\
-  -f query='mutation($threadId: ID!) { resolveReviewThread(input: { threadId: $threadId }) { thread { isResolved } } }' \\
-  -F threadId='${threadId || "<THREAD_ID>"}'
-\`\`\`
-
-curl example:
-
-\`\`\`bash
-curl -sS -H "Authorization: bearer $GITHUB_TOKEN" \\
-     -H "Content-Type: application/json" \\
-     --data '{
-       "query": "mutation($threadId: ID!) { resolveReviewThread(input: { threadId: $threadId }) { thread { isResolved } } }",
-       "variables": { "threadId": "${threadId || "<THREAD_ID>"}" }
-     }' \\
-     https://api.github.com/graphql
-\`\`\`
-
-To unresolve the thread, use:
-
-\`\`\`bash
-gh api graphql \\
-  -f query='mutation($threadId: ID!) { unresolveReviewThread(input: { threadId: $threadId }) { thread { isResolved } } }' \\
-  -F threadId='${threadId || "<THREAD_ID>"}'
+gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -F id=${threadId || "<THREAD_ID>"}
 \`\`\`
 
 ---
@@ -568,12 +692,15 @@ async function createSummaryFile(
   resolvedCount: number,
   unresolvedCount: number,
   reviewThreads: ReviewThread[],
+  resolutionPolicy: ResolutionPolicy,
   extracted: {
     file: string;
     resolved: boolean;
     summaryPath: string;
     section: "nitpick" | "outside" | "duplicate";
-  }[]
+  }[],
+  createdIssueCount: number,
+  hideResolved: boolean
 ): Promise<void> {
   const now = new Date().toISOString();
   let content = `# PR Review #${prNumber} - CodeRabbit AI Export
@@ -582,7 +709,7 @@ This folder contains exported issues (resolvable review threads) and simple comm
 
 ## Summary
 
-- **Issues (resolvable review comments):** ${reviewComments.length}
+- **Issues (resolvable review comments):** ${createdIssueCount}${hideResolved ? ` (filtered from ${reviewComments.length} total)` : ""}
 - **Comments (simple, not resolvable):** ${simpleItems.length}
  - **Nitpicks:** ${extracted.filter(e => e.section === "nitpick").length}
  - **Outside-of-diff:** ${extracted.filter(e => e.section === "outside").length}
@@ -596,11 +723,20 @@ This folder contains exported issues (resolvable review threads) and simple comm
 
 `;
 
+  let issueIndex = 0;
   for (let i = 0; i < reviewComments.length; i++) {
-    const checked = isCommentResolvedByPolicy(reviewComments[i], reviewThreads) ? "x" : " ";
-    const issueFile = `issues/issue_${(i + 1).toString().padStart(3, "0")}.md`;
-    const loc = ` ${reviewComments[i].path}:${reviewComments[i].line}`;
-    content += `- [${checked}] [Issue ${i + 1}](${issueFile}) -${loc}\n`;
+    const comment = reviewComments[i];
+    const isResolved = isCommentResolvedByPolicy(comment, reviewThreads, resolutionPolicy);
+
+    if (hideResolved && isResolved) {
+      continue; // Skip resolved issues when hideResolved is true
+    }
+
+    issueIndex++;
+    const checked = isResolved ? "x" : " ";
+    const issueFile = `issues/issue_${issueIndex.toString().padStart(3, "0")}.md`;
+    const loc = ` ${comment.path}:${comment.line}`;
+    content += `- [${checked}] [Issue ${issueIndex}](${issueFile}) -${loc}\n`;
   }
 
   content += `\n## Comments (not resolvable)\n\n`;
@@ -705,7 +841,54 @@ function isNitpickResolved(detailsHtml: string): boolean {
   if (!detailsHtml) return false;
   const lower = detailsHtml.toLowerCase();
   // Heuristic: consider resolved if the details block contains this explicit marker.
-  return lower.includes("✅ addressed in commit");
+  return lower.includes(ADDRESSED_MARKER.toLowerCase());
+}
+
+// ---- Optional policy enforcement (unresolve on missing marker) ----
+async function unresolveThreadsMissingMarker(
+  token: string,
+  threads: ReviewThread[]
+): Promise<{ attempted: number; changed: number }> {
+  let attempted = 0;
+  let changed = 0;
+  for (const t of threads) {
+    const hasMarker = t.comments.nodes.some(tc => (tc.body || "").includes(ADDRESSED_MARKER));
+    if (t.isResolved && !hasMarker) {
+      attempted++;
+      try {
+        const ok = await unresolveReviewThread(token, t.id);
+        if (ok) changed++;
+      } catch (e) {
+        console.warn(`    Warning: failed to unresolve thread ${t.id.substring(0, 12)}...`, e);
+      }
+    }
+  }
+  return { attempted, changed };
+}
+
+async function unresolveReviewThread(token: string, threadId: string): Promise<boolean> {
+  const mutation = `
+    mutation($threadId: ID!) {
+      unresolveReviewThread(input: { threadId: $threadId }) {
+        thread { id isResolved }
+      }
+    }
+  `;
+  try {
+    const result = await graphql<{
+      unresolveReviewThread: { thread: { id: string; isResolved: boolean } };
+    }>(mutation, {
+      threadId,
+      headers: { authorization: `token ${token}` },
+    });
+    return result.unresolveReviewThread.thread?.isResolved === false;
+  } catch (error) {
+    console.warn(
+      `    Warning: GraphQL failed to unresolve thread ${threadId.substring(0, 12)}...`,
+      error
+    );
+    return false;
+  }
 }
 
 function sanitizePath(p: string): string {

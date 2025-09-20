@@ -21,7 +21,7 @@ func newExampleStore() *exampleStore {
 	return &exampleStore{m: make(map[ResourceKey]any)}
 }
 
-func (s *exampleStore) Put(_ context.Context, key ResourceKey, value any) (string, error) {
+func (s *exampleStore) Put(_ context.Context, key ResourceKey, value any) (ETag, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if m, ok := value.(map[string]any); ok {
@@ -31,33 +31,33 @@ func (s *exampleStore) Put(_ context.Context, key ResourceKey, value any) (strin
 	} else {
 		s.m[key] = value
 	}
-	return core.ETagFromAny(s.m[key]), nil
+	return ETag(core.ETagFromAny(s.m[key])), nil
 }
 
-func (s *exampleStore) Get(_ context.Context, key ResourceKey) (any, string, error) {
+func (s *exampleStore) Get(_ context.Context, key ResourceKey) (any, ETag, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	v, ok := s.m[key]
 	if !ok {
-		return nil, "", ErrNotFound
+		return nil, ETag(""), ErrNotFound
 	}
 	if m, ok := v.(map[string]any); ok {
 		c := make(map[string]any, len(m))
 		maps.Copy(c, m)
-		return c, core.ETagFromAny(c), nil
+		return c, ETag(core.ETagFromAny(c)), nil
 	}
-	return v, core.ETagFromAny(v), nil
+	return v, ETag(core.ETagFromAny(v)), nil
 }
 
-func (s *exampleStore) PutIfMatch(_ context.Context, key ResourceKey, value any, expectedETag string) (string, error) {
+func (s *exampleStore) PutIfMatch(_ context.Context, key ResourceKey, value any, expectedETag ETag) (ETag, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	cur, ok := s.m[key]
 	if !ok {
-		return "", ErrNotFound
+		return ETag(""), ErrNotFound
 	}
-	if core.ETagFromAny(cur) != expectedETag {
-		return "", ErrETagMismatch
+	if core.ETagFromAny(cur) != string(expectedETag) {
+		return ETag(""), ErrETagMismatch
 	}
 	if m, ok := value.(map[string]any); ok {
 		c := make(map[string]any, len(m))
@@ -66,7 +66,7 @@ func (s *exampleStore) PutIfMatch(_ context.Context, key ResourceKey, value any,
 	} else {
 		s.m[key] = value
 	}
-	return core.ETagFromAny(s.m[key]), nil
+	return ETag(core.ETagFromAny(s.m[key])), nil
 }
 
 func (s *exampleStore) Delete(_ context.Context, key ResourceKey) error {

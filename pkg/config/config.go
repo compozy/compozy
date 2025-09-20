@@ -221,9 +221,9 @@ type ServerTimeouts struct {
 
 // ReconcilerConfig defines tunable options for the workflow reconciler.
 type ReconcilerConfig struct {
-	QueueCapacity   int           `koanf:"queue_capacity"    json:"queue_capacity"    yaml:"queue_capacity"    mapstructure:"queue_capacity"`
-	DebounceWait    time.Duration `koanf:"debounce_wait"     json:"debounce_wait"     yaml:"debounce_wait"     mapstructure:"debounce_wait"`
-	DebounceMaxWait time.Duration `koanf:"debounce_max_wait" json:"debounce_max_wait" yaml:"debounce_max_wait" mapstructure:"debounce_max_wait"`
+	QueueCapacity   int           `koanf:"queue_capacity"    json:"queue_capacity"    yaml:"queue_capacity"    mapstructure:"queue_capacity"    env:"SERVER_RECONCILER_QUEUE_CAPACITY"    validate:"min=0"`
+	DebounceWait    time.Duration `koanf:"debounce_wait"     json:"debounce_wait"     yaml:"debounce_wait"     mapstructure:"debounce_wait"     env:"SERVER_RECONCILER_DEBOUNCE_WAIT"     validate:"min=0"`
+	DebounceMaxWait time.Duration `koanf:"debounce_max_wait" json:"debounce_max_wait" yaml:"debounce_max_wait" mapstructure:"debounce_max_wait" env:"SERVER_RECONCILER_DEBOUNCE_MAX_WAIT" validate:"min=0"`
 }
 
 // CORSConfig contains CORS configuration.
@@ -1427,6 +1427,12 @@ func buildServerTimeouts(registry *definition.Registry) ServerTimeouts {
 	}
 }
 
+const (
+	DefaultReconcilerQueueCapacity   = 1024
+	DefaultReconcilerDebounceWait    = 300 * time.Millisecond
+	DefaultReconcilerDebounceMaxWait = 500 * time.Millisecond
+)
+
 func buildReconcilerConfig(registry *definition.Registry) ReconcilerConfig {
 	cfg := ReconcilerConfig{
 		QueueCapacity:   getInt(registry, "server.reconciler.queue_capacity"),
@@ -1434,13 +1440,13 @@ func buildReconcilerConfig(registry *definition.Registry) ReconcilerConfig {
 		DebounceMaxWait: getDuration(registry, "server.reconciler.debounce_max_wait"),
 	}
 	if cfg.QueueCapacity <= 0 {
-		cfg.QueueCapacity = 1024
+		cfg.QueueCapacity = DefaultReconcilerQueueCapacity
 	}
 	if cfg.DebounceWait <= 0 {
-		cfg.DebounceWait = 300 * time.Millisecond
+		cfg.DebounceWait = DefaultReconcilerDebounceWait
 	}
 	if cfg.DebounceMaxWait <= 0 {
-		cfg.DebounceMaxWait = 500 * time.Millisecond
+		cfg.DebounceMaxWait = DefaultReconcilerDebounceMaxWait
 	}
 	return cfg
 }

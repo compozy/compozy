@@ -73,14 +73,22 @@ func (r *MemoryResolver) GetMemory(ctx context.Context, memoryID string, keyTemp
 	}
 
 	// Allow empty keyTemplate: manager will fall back to memory.Config.default_key_template if available.
+	var resolvedKey string
+	if strings.TrimSpace(keyTemplate) != "" {
+		var err error
+		resolvedKey, err = r.resolveKey(ctx, keyTemplate)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	// Create a memory reference for the manager
 	// IMPORTANT: We pass the template in the Key field, NOT in ResolvedKey
 	// The Manager's resolveMemoryKey method will handle the template resolution
 	memRef := core.MemoryReference{
 		ID:          memoryID,
-		Key:         keyTemplate,              // This contains the template string
-		ResolvedKey: "",                       // Leave empty - Manager will resolve
+		Key:         keyTemplate, // This contains the template string
+		ResolvedKey: resolvedKey,
 		Mode:        core.MemoryModeReadWrite, // TODO: Get mode from agent memory configuration
 	}
 

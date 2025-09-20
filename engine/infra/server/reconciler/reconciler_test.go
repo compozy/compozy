@@ -66,7 +66,7 @@ func TestReverseIndex_ComputeImpacted(t *testing.T) {
 		st.SetResourceStore(store)
 		ms := &mockSchedule{}
 		st.SetScheduleManager(ms)
-		r, err := New(ctx, st)
+		r, err := NewReconsiler(ctx, st)
 		require.NoError(t, err)
 		require.NoError(t, r.buildInitialIndex(ctx))
 		// Simulate a tool event that should impact nothing yet (no deps), but pipeline works
@@ -103,7 +103,7 @@ func TestDebounce_BatchesEvents(t *testing.T) {
 		st.SetResourceStore(store)
 		ms := &mockSchedule{}
 		st.SetScheduleManager(ms)
-		r, err := New(ctx, st)
+		r, err := NewReconsiler(ctx, st)
 		require.NoError(t, err)
 		require.NoError(t, r.Start(ctx))
 		defer r.Stop()

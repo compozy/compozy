@@ -22,7 +22,7 @@ type MemoryResourceStore struct {
 
 type storedEntry struct {
 	value any
-	etag  string
+	etag  ETag
 }
 
 type watcher struct {
@@ -38,24 +38,24 @@ func NewMemoryResourceStore() *MemoryResourceStore {
 }
 
 // Put inserts or replaces a resource value at the given key and broadcasts an event.
-func (s *MemoryResourceStore) Put(ctx context.Context, key ResourceKey, value any) (string, error) {
+func (s *MemoryResourceStore) Put(ctx context.Context, key ResourceKey, value any) (ETag, error) {
 	if err := ctx.Err(); err != nil {
-		return "", fmt.Errorf("context canceled: %w", err)
+		return ETag(""), fmt.Errorf("context canceled: %w", err)
 	}
 	_ = config.FromContext(ctx)
 	log := logger.FromContext(ctx)
 	if value == nil {
-		return "", fmt.Errorf("nil value is not allowed")
+		return ETag(""), fmt.Errorf("nil value is not allowed")
 	}
 	cp, err := core.DeepCopy[any](value)
 	if err != nil {
-		return "", fmt.Errorf("deep copy failed: %w", err)
+		return ETag(""), fmt.Errorf("deep copy failed: %w", err)
 	}
-	etag := core.ETagFromAny(cp)
+	etag := ETag(core.ETagFromAny(cp))
 	s.mu.Lock()
 	if s.closed {
 		s.mu.Unlock()
-		return "", fmt.Errorf("store is closed")
+		return ETag(""), fmt.Errorf("store is closed")
 	}
 	s.items[key] = storedEntry{value: cp, etag: etag}
 	// Broadcast while holding the lock to prevent concurrent channel close.
@@ -85,34 +85,34 @@ func (s *MemoryResourceStore) PutIfMatch(
 	ctx context.Context,
 	key ResourceKey,
 	value any,
-	expectedETag string,
-) (string, error) {
+	expectedETag ETag,
+) (ETag, error) {
 	if err := ctx.Err(); err != nil {
-		return "", fmt.Errorf("context canceled: %w", err)
+		return ETag(""), fmt.Errorf("context canceled: %w", err)
 	}
 	_ = config.FromContext(ctx)
 	log := logger.FromContext(ctx)
 	if value == nil {
-		return "", fmt.Errorf("nil value is not allowed")
+		return ETag(""), fmt.Errorf("nil value is not allowed")
 	}
 	cp, err := core.DeepCopy[any](value)
 	if err != nil {
-		return "", fmt.Errorf("deep copy failed: %w", err)
+		return ETag(""), fmt.Errorf("deep copy failed: %w", err)
 	}
-	etag := core.ETagFromAny(cp)
+	etag := ETag(core.ETagFromAny(cp))
 	s.mu.Lock()
 	if s.closed {
 		s.mu.Unlock()
-		return "", fmt.Errorf("store is closed")
+		return ETag(""), fmt.Errorf("store is closed")
 	}
 	entry, ok := s.items[key]
 	if !ok {
 		s.mu.Unlock()
-		return "", ErrNotFound
+		return ETag(""), ErrNotFound
 	}
 	if entry.etag != expectedETag {
 		s.mu.Unlock()
-		return "", ErrETagMismatch
+		return ETag(""), ErrETagMismatch
 	}
 	s.items[key] = storedEntry{value: cp, etag: etag}
 	evt := Event{Type: EventPut, Key: key, ETag: etag, At: time.Now().UTC()}
@@ -137,24 +137,24 @@ func (s *MemoryResourceStore) PutIfMatch(
 }
 
 // Get retrieves a resource value by key, returning a deep copy.
-func (s *MemoryResourceStore) Get(ctx context.Context, key ResourceKey) (any, string, error) {
+func (s *MemoryResourceStore) Get(ctx context.Context, key ResourceKey) (any, ETag, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, "", fmt.Errorf("context canceled: %w", err)
+		return nil, ETag(""), fmt.Errorf("context canceled: %w", err)
 	}
 	_ = config.FromContext(ctx)
 	s.mu.RLock()
 	if s.closed {
 		s.mu.RUnlock()
-		return nil, "", fmt.Errorf("store is closed")
+		return nil, ETag(""), fmt.Errorf("store is closed")
 	}
 	entry, ok := s.items[key]
 	s.mu.RUnlock()
 	if !ok {
-		return nil, "", ErrNotFound
+		return nil, ETag(""), ErrNotFound
 	}
 	cp, err := core.DeepCopy[any](entry.value)
 	if err != nil {
-		return nil, "", fmt.Errorf("deep copy failed: %w", err)
+		return nil, ETag(""), fmt.Errorf("deep copy failed: %w", err)
 	}
 	return cp, entry.etag, nil
 }
@@ -167,7 +167,7 @@ func (s *MemoryResourceStore) Delete(ctx context.Context, key ResourceKey) error
 	_ = config.FromContext(ctx)
 	log := logger.FromContext(ctx)
 	existed := false
-	etag := ""
+	var etag ETag
 	s.mu.Lock()
 	if s.closed {
 		s.mu.Unlock()
@@ -352,25 +352,44 @@ func (s *MemoryResourceStore) ListWithValuesPage(
 	typ ResourceType,
 	offset, limit int,
 ) ([]StoredItem, int, error) {
-	items, err := s.ListWithValues(ctx, project, typ)
-	if err != nil {
-		return nil, 0, err
+	if err := ctx.Err(); err != nil {
+		return nil, 0, fmt.Errorf("context canceled: %w", err)
 	}
-	total := len(items)
+	_ = config.FromContext(ctx)
 	if offset < 0 {
 		offset = 0
 	}
 	if limit <= 0 {
-		limit = total
+		// max int portable expression
+		limit = int(^uint(0) >> 1)
 	}
+	s.mu.RLock()
+	if s.closed {
+		s.mu.RUnlock()
+		return nil, 0, fmt.Errorf("store is closed")
+	}
+	total := 0
+	end := offset + limit
+	out := make([]StoredItem, 0)
+	for k, e := range s.items {
+		if k.Project != project || k.Type != typ {
+			continue
+		}
+		if total >= offset && total < end {
+			cp, err := core.DeepCopy[any](e.value)
+			if err != nil {
+				s.mu.RUnlock()
+				return nil, 0, fmt.Errorf("deep copy failed: %w", err)
+			}
+			out = append(out, StoredItem{Key: k, Value: cp, ETag: e.etag})
+		}
+		total++
+	}
+	s.mu.RUnlock()
 	if offset > total {
 		return []StoredItem{}, total, nil
 	}
-	end := offset + limit
-	if end > total {
-		end = total
-	}
-	return items[offset:end], total, nil
+	return out, total, nil
 }
 
 // removed: local deepCopy/ETag/writeStableJSON in favor of core.DeepCopy and core.ETagFromAny

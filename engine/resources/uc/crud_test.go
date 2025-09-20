@@ -51,9 +51,9 @@ func TestCreateGetDelete_AndMetaErrors(t *testing.T) {
 
 type failingMetaStore struct{ inner resources.ResourceStore }
 
-func (s *failingMetaStore) Put(ctx context.Context, key resources.ResourceKey, value any) (string, error) {
+func (s *failingMetaStore) Put(ctx context.Context, key resources.ResourceKey, value any) (resources.ETag, error) {
 	if key.Type == resources.ResourceMeta {
-		return "", errAssert
+		return resources.ETag(""), errAssert
 	}
 	return s.inner.Put(ctx, key, value)
 }
@@ -61,14 +61,14 @@ func (s *failingMetaStore) PutIfMatch(
 	ctx context.Context,
 	key resources.ResourceKey,
 	value any,
-	expectedETag string,
-) (string, error) {
+	expectedETag resources.ETag,
+) (resources.ETag, error) {
 	if key.Type == resources.ResourceMeta {
-		return "", errAssert
+		return resources.ETag(""), errAssert
 	}
 	return s.inner.PutIfMatch(ctx, key, value, expectedETag)
 }
-func (s *failingMetaStore) Get(ctx context.Context, key resources.ResourceKey) (any, string, error) {
+func (s *failingMetaStore) Get(ctx context.Context, key resources.ResourceKey) (any, resources.ETag, error) {
 	return s.inner.Get(ctx, key)
 }
 func (s *failingMetaStore) Delete(ctx context.Context, key resources.ResourceKey) error {
@@ -145,7 +145,7 @@ func TestUpsert_IfMatchPaths(t *testing.T) {
 				Type:    resources.ResourceTool,
 				ID:      "t",
 				Body:    map[string]any{"id": "t", "type": "tool"},
-				IfMatch: out.ETag + "x",
+				IfMatch: string(out.ETag) + "x",
 			},
 		)
 		require.ErrorIs(t, err, ErrETagMismatch)
@@ -167,7 +167,7 @@ func TestUpsert_IfMatchPaths(t *testing.T) {
 				Type:    resources.ResourceTool,
 				ID:      "t",
 				Body:    map[string]any{"id": "t", "type": "tool", "v": 2.0},
-				IfMatch: out.ETag,
+				IfMatch: string(out.ETag),
 			},
 		)
 		require.NoError(t, err)

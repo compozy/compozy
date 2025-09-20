@@ -73,7 +73,7 @@ func (t *InternalTool) executeTool(ctx context.Context, input *core.Input, confi
 		env = *t.env
 	}
 	globalTimeout := t.runtime.GetGlobalTimeout()
-	toolTimeout, err := t.config.GetTimeout(globalTimeout)
+	toolTimeout, err := t.config.GetTimeout(ctx, globalTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tool timeout: %w", err)
 	}

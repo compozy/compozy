@@ -1,6 +1,7 @@
 package tool
 
 import (
+	"context"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -23,7 +24,7 @@ func TestToolConfig_GetTimeout(t *testing.T) {
 	t.Run("Should return global timeout when tool timeout is empty", func(t *testing.T) {
 		config := &Config{}
 		globalTimeout := 60 * time.Second
-		result, err := config.GetTimeout(globalTimeout)
+		result, err := config.GetTimeout(context.Background(), globalTimeout)
 		require.NoError(t, err)
 		require.Equal(t, globalTimeout, result)
 	})
@@ -35,7 +36,7 @@ func TestToolConfig_GetTimeout(t *testing.T) {
 		}
 		globalTimeout := 60 * time.Second
 		expected := 5 * time.Minute
-		result, err := config.GetTimeout(globalTimeout)
+		result, err := config.GetTimeout(context.Background(), globalTimeout)
 		require.NoError(t, err)
 		require.Equal(t, expected, result)
 	})
@@ -46,7 +47,7 @@ func TestToolConfig_GetTimeout(t *testing.T) {
 			Timeout: "invalid-timeout",
 		}
 		globalTimeout := 60 * time.Second
-		result, err := config.GetTimeout(globalTimeout)
+		result, err := config.GetTimeout(context.Background(), globalTimeout)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "invalid tool timeout")
 		require.Equal(t, time.Duration(0), result)
@@ -58,7 +59,7 @@ func TestToolConfig_GetTimeout(t *testing.T) {
 			Timeout: "0s",
 		}
 		globalTimeout := 60 * time.Second
-		result, err := config.GetTimeout(globalTimeout)
+		result, err := config.GetTimeout(context.Background(), globalTimeout)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "timeout must be positive")
 		require.Equal(t, time.Duration(0), result)
@@ -70,7 +71,7 @@ func TestToolConfig_GetTimeout(t *testing.T) {
 			Timeout: "-5s",
 		}
 		globalTimeout := 60 * time.Second
-		result, err := config.GetTimeout(globalTimeout)
+		result, err := config.GetTimeout(context.Background(), globalTimeout)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "timeout must be positive")
 		require.Equal(t, time.Duration(0), result)
@@ -95,7 +96,7 @@ func TestToolConfig_GetTimeout(t *testing.T) {
 					Timeout: tc.timeout,
 				}
 				globalTimeout := 60 * time.Second
-				result, err := config.GetTimeout(globalTimeout)
+				result, err := config.GetTimeout(context.Background(), globalTimeout)
 				require.NoError(t, err)
 				require.Equal(t, tc.expected, result)
 			})
@@ -169,7 +170,7 @@ func TestToolConfig_Integration(t *testing.T) {
 
 		// Verify GetTimeout returns correct duration
 		globalTimeout := 60 * time.Second
-		toolTimeout, err := config.GetTimeout(globalTimeout)
+		toolTimeout, err := config.GetTimeout(context.Background(), globalTimeout)
 		require.NoError(t, err)
 		require.Equal(t, 30*time.Second, toolTimeout)
 
@@ -188,7 +189,7 @@ func TestToolConfig_Integration(t *testing.T) {
 
 		// Verify GetTimeout returns correct duration
 		globalTimeout := 60 * time.Second
-		toolTimeout, err := config.GetTimeout(globalTimeout)
+		toolTimeout, err := config.GetTimeout(context.Background(), globalTimeout)
 		require.NoError(t, err)
 		require.Equal(t, 10*time.Minute, toolTimeout)
 
@@ -207,7 +208,7 @@ func TestToolConfig_Integration(t *testing.T) {
 
 		// Verify GetTimeout returns global timeout
 		globalTimeout := 120 * time.Second
-		toolTimeout, err := config.GetTimeout(globalTimeout)
+		toolTimeout, err := config.GetTimeout(context.Background(), globalTimeout)
 		require.NoError(t, err)
 		require.Equal(t, globalTimeout, toolTimeout)
 	})

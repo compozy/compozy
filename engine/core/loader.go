@@ -74,6 +74,11 @@ func MapFromFilePath(path string) (map[string]any, error) {
 		return nil, fmt.Errorf("failed to read file: %w", err)
 	}
 
+	// Pre-scan YAML to reject any directive keys starting with '$' outside schema contexts
+	if err := rejectDollarKeys(data, path); err != nil {
+		return nil, err
+	}
+
 	var itemMap map[string]any
 	err = yaml.Unmarshal(data, &itemMap)
 	if err != nil {

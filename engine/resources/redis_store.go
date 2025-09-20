@@ -19,16 +19,19 @@ import (
 
 // RedisResourceStore implements ResourceStore backed by Redis with Pub/Sub watch.
 type RedisResourceStore struct {
-	r         cache.RedisInterface
-	prefix    string
-	reconcile time.Duration
-	closed    atomic.Bool
+	r           cache.RedisInterface
+	prefix      string
+	reconcile   time.Duration
+	watchBuffer int
+	closed      atomic.Bool
 }
 
 const (
-	defaultPrefix    = "res"
-	defaultReconcile = 30 * time.Second
-	minReconcile     = time.Second
+	defaultPrefix         = "res"
+	defaultReconcile      = 30 * time.Second
+	minReconcile          = time.Second
+	watchBackpressureWarn = 500 * time.Millisecond
+	watchSendInterval     = 25 * time.Millisecond
 )
 
 // RedisStoreOption configures RedisResourceStore.
@@ -52,37 +55,54 @@ func WithReconcileInterval(d time.Duration) RedisStoreOption {
 	}
 }
 
+// WithWatchBuffer overrides the watch channel capacity (default 256).
+func WithWatchBuffer(n int) RedisStoreOption {
+	return func(s *RedisResourceStore) {
+		if n > 0 {
+			s.watchBuffer = n
+		}
+	}
+}
+
 // NewRedisResourceStore creates a new Redis-backed resource store.
 func NewRedisResourceStore(client cache.RedisInterface, opts ...RedisStoreOption) *RedisResourceStore {
 	if client == nil {
 		panic("NewRedisResourceStore: nil Redis client")
 	}
-	s := &RedisResourceStore{r: client, prefix: defaultPrefix, reconcile: defaultReconcile}
+	s := &RedisResourceStore{
+		r:           client,
+		prefix:      defaultPrefix,
+		reconcile:   defaultReconcile,
+		watchBuffer: defaultWatchBuffer,
+	}
 	for _, o := range opts {
 		o(s)
 	}
 	if s.reconcile <= 0 {
 		s.reconcile = defaultReconcile
 	}
+	if s.watchBuffer <= 0 {
+		s.watchBuffer = defaultWatchBuffer
+	}
 	return s
 }
 
 // Put stores or replaces a resource value and publishes a PUT event.
-func (s *RedisResourceStore) Put(ctx context.Context, key ResourceKey, value any) (string, error) {
+func (s *RedisResourceStore) Put(ctx context.Context, key ResourceKey, value any) (ETag, error) {
 	if err := ctx.Err(); err != nil {
-		return "", fmt.Errorf("context canceled: %w", err)
+		return ETag(""), fmt.Errorf("context canceled: %w", err)
 	}
 	_ = config.FromContext(ctx)
 	log := logger.FromContext(ctx)
 	if s.closed.Load() {
-		return "", fmt.Errorf("store is closed")
+		return ETag(""), fmt.Errorf("store is closed")
 	}
 	if value == nil {
-		return "", fmt.Errorf("nil value is not allowed")
+		return ETag(""), fmt.Errorf("nil value is not allowed")
 	}
-	cp, err := core.DeepCopy[any](value)
+	cp, err := core.DeepCopy(value)
 	if err != nil {
-		return "", fmt.Errorf("deep copy failed: %w", err)
+		return ETag(""), fmt.Errorf("deep copy failed: %w", err)
 	}
 	jsonBytes := core.StableJSONBytes(cp)
 	sum := sha256.Sum256(jsonBytes)
@@ -93,13 +113,13 @@ func (s *RedisResourceStore) Put(ctx context.Context, key ResourceKey, value any
 	pipe.Set(ctx, k, jsonBytes, 0)
 	pipe.Set(ctx, etagKey, etag, 0)
 	if _, err := pipe.Exec(ctx); err != nil {
-		return "", err
+		return ETag(""), err
 	}
-	evt := Event{Type: EventPut, Key: key, ETag: etag, At: time.Now().UTC()}
+	evt := Event{Type: EventPut, Key: key, ETag: ETag(etag), At: time.Now().UTC()}
 	if err := s.publish(ctx, key.Project, key.Type, &evt); err != nil {
 		log.Warn("publish put failed", "error", err)
 	}
-	return etag, nil
+	return ETag(etag), nil
 }
 
 // PutIfMatch updates a resource only when the supplied ETag matches the current value.
@@ -107,22 +127,22 @@ func (s *RedisResourceStore) PutIfMatch(
 	ctx context.Context,
 	key ResourceKey,
 	value any,
-	expectedETag string,
-) (string, error) {
+	expectedETag ETag,
+) (ETag, error) {
 	if err := ctx.Err(); err != nil {
-		return "", fmt.Errorf("context canceled: %w", err)
+		return ETag(""), fmt.Errorf("context canceled: %w", err)
 	}
 	_ = config.FromContext(ctx)
 	log := logger.FromContext(ctx)
 	if s.closed.Load() {
-		return "", fmt.Errorf("store is closed")
+		return ETag(""), fmt.Errorf("store is closed")
 	}
 	if value == nil {
-		return "", fmt.Errorf("nil value is not allowed")
+		return ETag(""), fmt.Errorf("nil value is not allowed")
 	}
-	cp, err := core.DeepCopy[any](value)
+	cp, err := core.DeepCopy(value)
 	if err != nil {
-		return "", fmt.Errorf("deep copy failed: %w", err)
+		return ETag(""), fmt.Errorf("deep copy failed: %w", err)
 	}
 	jsonBytes := core.StableJSONBytes(cp)
 	newSum := sha256.Sum256(jsonBytes)
@@ -132,14 +152,14 @@ func (s *RedisResourceStore) PutIfMatch(
 	current, err := s.r.Get(ctx, valueKey).Bytes()
 	if err != nil {
 		if err == redis.Nil {
-			return "", ErrNotFound
+			return ETag(""), ErrNotFound
 		}
-		return "", err
+		return ETag(""), err
 	}
 	curSum := sha256.Sum256(current)
 	curETag := hex.EncodeToString(curSum[:])
-	if curETag != expectedETag {
-		return "", ErrETagMismatch
+	if curETag != string(expectedETag) {
+		return ETag(""), ErrETagMismatch
 	}
 	const casScript = `local current = redis.call("GET", KEYS[1])
 if not current then return {err="NOT_FOUND"} end
@@ -151,49 +171,49 @@ return ARGV[3]`
 	if err := cmd.Err(); err != nil {
 		switch {
 		case strings.Contains(err.Error(), "NOT_FOUND"):
-			return "", ErrNotFound
+			return ETag(""), ErrNotFound
 		case strings.Contains(err.Error(), "MISMATCH"):
-			return "", ErrETagMismatch
+			return ETag(""), ErrETagMismatch
 		default:
-			return "", err
+			return ETag(""), err
 		}
 	}
-	evt := Event{Type: EventPut, Key: key, ETag: newETag, At: time.Now().UTC()}
+	evt := Event{Type: EventPut, Key: key, ETag: ETag(newETag), At: time.Now().UTC()}
 	if err := s.publish(ctx, key.Project, key.Type, &evt); err != nil {
 		log.Warn("publish put failed", "error", err)
 	}
-	return newETag, nil
+	return ETag(newETag), nil
 }
 
 // Get retrieves a resource by key. Returns ErrNotFound if not present.
-func (s *RedisResourceStore) Get(ctx context.Context, key ResourceKey) (any, string, error) {
+func (s *RedisResourceStore) Get(ctx context.Context, key ResourceKey) (any, ETag, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, "", fmt.Errorf("context canceled: %w", err)
+		return nil, ETag(""), fmt.Errorf("context canceled: %w", err)
 	}
 	_ = config.FromContext(ctx)
 	if s.closed.Load() {
-		return nil, "", fmt.Errorf("store is closed")
+		return nil, ETag(""), fmt.Errorf("store is closed")
 	}
 	k := s.keyFor(key)
 	bs, err := s.r.Get(ctx, k).Bytes()
 	if err != nil {
 		if err == redis.Nil {
-			return nil, "", ErrNotFound
+			return nil, ETag(""), ErrNotFound
 		}
-		return nil, "", err
+		return nil, ETag(""), err
 	}
 	var v any
 	if err := json.Unmarshal(bs, &v); err != nil {
-		return nil, "", fmt.Errorf("unmarshal failed: %w", err)
+		return nil, ETag(""), fmt.Errorf("unmarshal failed: %w", err)
 	}
-	etag := ""
+	var etag ETag
 	if et, err := s.r.Get(ctx, s.etagKey(key)).Result(); err == nil {
-		etag = et
+		etag = ETag(et)
 	} else if err == redis.Nil {
 		sum := sha256.Sum256(bs)
-		etag = hex.EncodeToString(sum[:])
+		etag = ETag(hex.EncodeToString(sum[:]))
 	} else if err != nil {
-		return nil, "", err
+		return nil, ETag(""), err
 	}
 	return v, etag, nil
 }
@@ -232,7 +252,7 @@ func (s *RedisResourceStore) Delete(ctx context.Context, key ResourceKey) error 
 			bs = string(bsb)
 		} else {
 			// fallback: publish delete without etag
-			evt := Event{Type: EventDelete, Key: key, ETag: "", At: time.Now().UTC()}
+			evt := Event{Type: EventDelete, Key: key, ETag: ETag(""), At: time.Now().UTC()}
 			if err := s.publish(ctx, key.Project, key.Type, &evt); err != nil {
 				log.Warn("publish delete failed", "error", err)
 			}
@@ -240,7 +260,7 @@ func (s *RedisResourceStore) Delete(ctx context.Context, key ResourceKey) error 
 		}
 	}
 	sum := sha256.Sum256([]byte(bs))
-	etag := hex.EncodeToString(sum[:])
+	etag := ETag(hex.EncodeToString(sum[:]))
 	evt := Event{Type: EventDelete, Key: key, ETag: etag, At: time.Now().UTC()}
 	if err := s.publish(ctx, key.Project, key.Type, &evt); err != nil {
 		log.Warn("publish delete failed", "error", err)
@@ -340,7 +360,7 @@ func (s *RedisResourceStore) ListWithValues(
 			continue
 		}
 		sum := sha256.Sum256(bs)
-		etag := hex.EncodeToString(sum[:])
+		etag := ETag(hex.EncodeToString(sum[:]))
 		out = append(out, StoredItem{Key: resKeys[i], Value: v, ETag: etag})
 	}
 	return out, nil
@@ -384,7 +404,11 @@ func (s *RedisResourceStore) Watch(ctx context.Context, project string, typ Reso
 	if s.closed.Load() {
 		return nil, fmt.Errorf("store is closed")
 	}
-	ch := make(chan Event, defaultWatchBuffer)
+	buffer := s.watchBuffer
+	if buffer <= 0 {
+		buffer = defaultWatchBuffer
+	}
+	ch := make(chan Event, buffer)
 	topic := s.eventsChannel(project, typ)
 	ps := s.r.Subscribe(ctx, topic)
 	if _, err := ps.Receive(ctx); err != nil {
@@ -404,16 +428,14 @@ func (s *RedisResourceStore) Watch(ctx context.Context, project string, typ Reso
 			}
 			_ = v
 			evt := Event{Type: EventPut, Key: k, ETag: et, At: time.Now().UTC()}
-			select {
-			case ch <- evt:
-			case <-ctx.Done():
+			if !deliverEvent(ctx, ch, &evt, log) {
 				return
 			}
 		}
 	}
 	msgs := ps.Channel()
 	interval := s.reconcile
-	if interval <= 0 {
+	if interval < minReconcile {
 		interval = defaultReconcile
 	}
 	go s.runWatchLoop(ctx, ch, ps, msgs, interval, prime, log)
@@ -432,13 +454,20 @@ func (s *RedisResourceStore) runWatchLoop(
 	defer close(ch)
 	defer func() { _ = ps.Close() }()
 	prime()
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
+	var (
+		ticker *time.Ticker
+		tickCh <-chan time.Time
+	)
+	if interval >= minReconcile {
+		ticker = time.NewTicker(interval)
+		tickCh = ticker.C
+		defer ticker.Stop()
+	}
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
+		case <-tickCh:
 			prime()
 		case m, ok := <-msgs:
 			if !ok {
@@ -449,11 +478,61 @@ func (s *RedisResourceStore) runWatchLoop(
 				log.Warn("event decode failed", "error", err)
 				continue
 			}
-			select {
-			case ch <- evt:
-			case <-ctx.Done():
+			if !deliverEvent(ctx, ch, &evt, log) {
 				return
 			}
+		}
+	}
+}
+
+func deliverEvent(ctx context.Context, ch chan Event, evt *Event, log logger.Logger) bool {
+	if ch == nil {
+		return false
+	}
+	var (
+		waitTimer *time.Timer
+		waitStart time.Time
+	)
+	defer func() {
+		if waitTimer != nil {
+			waitTimer.Stop()
+		}
+	}()
+	for {
+		select {
+		case ch <- *evt:
+			if !waitStart.IsZero() {
+				if delay := time.Since(waitStart); delay >= watchBackpressureWarn {
+					log.Warn(
+						"watch delivery delayed",
+						"delay", delay,
+						"project", evt.Key.Project,
+						"type", string(evt.Key.Type),
+						"id", evt.Key.ID,
+					)
+				}
+			}
+			return true
+		case <-ctx.Done():
+			return false
+		default:
+		}
+		if waitTimer == nil {
+			waitTimer = time.NewTimer(watchSendInterval)
+			waitStart = time.Now()
+		} else {
+			if !waitTimer.Stop() {
+				select {
+				case <-waitTimer.C:
+				default:
+				}
+			}
+			waitTimer.Reset(watchSendInterval)
+		}
+		select {
+		case <-ctx.Done():
+			return false
+		case <-waitTimer.C:
 		}
 	}
 }
@@ -486,7 +565,9 @@ func (s *RedisResourceStore) keyFor(k ResourceKey) string {
 	return b.String()
 }
 
-func (s *RedisResourceStore) etagKey(k ResourceKey) string { return s.keyFor(k) + ":etag" }
+func (s *RedisResourceStore) etagKey(k ResourceKey) string {
+	return s.keyFor(k) + ":etag"
+}
 
 func (s *RedisResourceStore) keyPrefix(project string, typ ResourceType) string {
 	b := strings.Builder{}

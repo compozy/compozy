@@ -20,7 +20,7 @@ type CreateInput struct {
 
 type CreateOutput struct {
 	Value map[string]any
-	ETag  string
+	ETag  resources.ETag
 	ID    string
 }
 

@@ -74,18 +74,18 @@ func registerPublicWebhookRoutes(
 	if err != nil {
 		return fmt.Errorf("failed to initialize redis idempotency service: %w", err)
 	}
-	const (
-		DefaultWebhookMaxRetries   = 0
-		DefaultWebhookInitialDelay = 0
-	)
+	// Use operator-configured limits rather than hardcoded constants.
+	// These map to orchestrator's maxBody and dedupeTTL parameters.
+	maxBody := cfg.Webhooks.DefaultMaxBody
+	dedupeTTL := cfg.Webhooks.DefaultDedupeTTL
 	orchestrator := webhook.NewOrchestrator(
 		cfg,
 		reg,
 		filter,
 		dispatcher,
 		idemSvc,
-		DefaultWebhookMaxRetries,
-		DefaultWebhookInitialDelay,
+		maxBody,
+		dedupeTTL,
 	)
 	if meter != nil {
 		metrics, err := webhook.NewMetrics(ctx, meter)

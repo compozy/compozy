@@ -202,7 +202,7 @@ func applyForType(
 				}
 				if _, err := upsertUC.Execute(
 					ctx,
-					&uc.UpsertInput{Project: project, Type: typ, ID: id, Body: b, IfMatch: etag},
+					&uc.UpsertInput{Project: project, Type: typ, ID: id, Body: b, IfMatch: string(etag)},
 				); err != nil {
 					return 0, 0, 0, fmt.Errorf("upsert %s/%s: %w", string(typ), id, err)
 				}

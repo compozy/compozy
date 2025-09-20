@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/engine/agent"
+	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/stretchr/testify/assert"
@@ -29,7 +30,10 @@ func TestAllowedMCPIDs(t *testing.T) {
 
 	t.Run("Should return nil when neither agent nor workflow declares MCPs", func(t *testing.T) {
 		exec := &ExecuteTask{}
-		ids := exec.allowedMCPIDs(&agent.Config{}, &ExecuteTaskInput{WorkflowConfig: &workflow.Config{}})
+		agentCfg := &agent.Config{
+			Model: agent.Model{Config: core.ProviderConfig{Provider: core.ProviderMock, Model: "mock-model"}},
+		}
+		ids := exec.allowedMCPIDs(agentCfg, &ExecuteTaskInput{WorkflowConfig: &workflow.Config{}})
 		assert.Nil(t, ids)
 	})
 	t.Run("Should trim spaces and normalize casing", func(t *testing.T) {

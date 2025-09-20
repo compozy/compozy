@@ -22,6 +22,7 @@ import (
 //	@Success      200  {object}  router.Response{data=map[string]any}
 //	@Failure      401  {object}  router.Response{error=router.ErrorInfo}
 //	@Failure      403  {object}  router.Response{error=router.ErrorInfo}
+//	@Failure      409  {object}  router.Response{error=router.ErrorInfo}
 //	@Failure      500  {object}  router.Response{error=router.ErrorInfo}
 //	@Router       /api/v0/admin/import-yaml [post]
 func adminImportYAMLHandler(c *gin.Context) {

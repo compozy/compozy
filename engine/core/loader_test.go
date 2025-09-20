@@ -13,7 +13,10 @@ func TestRejectDollarKeys(t *testing.T) {
 	})
 	t.Run("Should reject $ at root outside schema context", func(t *testing.T) {
 		y := []byte("$ref: something")
-		require.Error(t, rejectDollarKeys(y, "test.yaml"))
+		err := rejectDollarKeys(y, "test.yaml")
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "test.yaml:1:1:")
+		require.Contains(t, err.Error(), "unsupported directive key '$ref'")
 	})
 	t.Run("Should allow nested $ref inside schema", func(t *testing.T) {
 		y := []byte(
