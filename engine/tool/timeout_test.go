@@ -14,6 +14,7 @@ import (
 )
 
 func setupTestTimeout(t *testing.T, toolFile string) (*core.PathCWD, string) {
+	t.Helper()
 	_, filename, _, ok := runtime.Caller(0)
 	require.True(t, ok)
 	cwd, dstPath := fixtures.SetupConfigTest(t, filename)
@@ -104,6 +105,26 @@ func TestToolConfig_GetTimeout(t *testing.T) {
 				require.Equal(t, tc.expected, result)
 			})
 		}
+	})
+}
+
+func TestToolConfig_GetTimeout_ContextInteraction(t *testing.T) {
+	t.Run("Should cap by ctx deadline when earlier than tool timeout", func(t *testing.T) {
+		cfg := &Config{ID: "test-tool", Timeout: "5m"}
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		got, err := cfg.GetTimeout(ctx, 10*time.Minute)
+		require.NoError(t, err)
+		require.LessOrEqual(t, got, 2*time.Second)
+	})
+	t.Run("Should error when context already expired", func(t *testing.T) {
+		cfg := &Config{ID: "test-tool", Timeout: "5m"}
+		ctx, cancel := context.WithTimeout(context.Background(), 0)
+		defer cancel()
+		time.Sleep(time.Millisecond)
+		got, err := cfg.GetTimeout(ctx, 10*time.Minute)
+		require.Error(t, err)
+		require.Equal(t, time.Duration(0), got)
 	})
 }
 

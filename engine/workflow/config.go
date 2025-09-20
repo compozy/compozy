@@ -454,6 +454,8 @@ func (w *Config) HasSchema() bool {
 }
 
 // Deprecated: Prefer ValidateWithContext(ctx); this uses a context without deadlines/cancellation.
+//
+
 func (w *Config) Validate() error {
 	return w.ValidateWithContext(context.TODO())
 }
@@ -646,7 +648,7 @@ func (w *Config) Compile(ctx context.Context, proj *project.Config, store resour
 	if derr == nil {
 		compileDur.Record(ctx, dur, metric.WithAttributes(attribute.String("status", "ok")))
 	}
-	log.Debug("Workflow compiled", "workflow_id", compiled.ID)
+	log.Debug("Workflow compiled", "project", proj.Name, "workflow_id", compiled.ID)
 	return compiled, nil
 }
 
@@ -701,15 +703,27 @@ func compileRouterInline(
 		return nil
 	}
 	for rk, rv := range t.Routes {
-		if m, ok := rv.(map[string]any); ok {
+		switch route := rv.(type) {
+		case map[string]any:
 			var inline task.Config
-			if err := inline.FromMap(m); err != nil {
+			if err := inline.FromMap(route); err != nil {
 				return fmt.Errorf("router route '%s' decode failed: %w", rk, err)
 			}
 			if err := compileTaskRecursive(ctx, proj, store, &inline); err != nil {
 				return fmt.Errorf("router route '%s' compile failed: %w", rk, err)
 			}
 			t.Routes[rk] = inline
+		case task.Config:
+			t.Routes[rk] = route
+		case *task.Config:
+			if route == nil {
+				return fmt.Errorf("router route '%s' has nil task config", rk)
+			}
+			if err := compileTaskRecursive(ctx, proj, store, route); err != nil {
+				return fmt.Errorf("router route '%s' compile failed: %w", rk, err)
+			}
+		default:
+			return fmt.Errorf("router route '%s' has unsupported type %T", rk, rv)
 		}
 	}
 	return nil
@@ -821,12 +835,15 @@ func withCompileTaskErr(id string, err error) error {
 	return &compileTaskError{id: id, err: err}
 }
 
-func WorkflowsFromProject(projectConfig *project.Config) ([]*Config, error) {
+func WorkflowsFromProject(ctx context.Context, projectConfig *project.Config) ([]*Config, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	cwd := projectConfig.GetCWD()
 	projectEnv := projectConfig.GetEnv()
 	var ws []*Config
 	for _, wf := range projectConfig.Workflows {
-		config, err := Load(cwd, wf.Source)
+		config, err := Load(ctx, cwd, wf.Source)
 		if err != nil {
 			return nil, err
 		}
@@ -878,7 +895,10 @@ func setAgentsCWD(wc *Config, cwd *core.PathCWD) error {
 	return nil
 }
 
-func Load(cwd *core.PathCWD, path string) (*Config, error) {
+func Load(ctx context.Context, cwd *core.PathCWD, path string) (*Config, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	filePath, err := core.ResolvePath(cwd, path)
 	if err != nil {
 		return nil, err

@@ -61,11 +61,11 @@ func NewMemoryResolver(
 // Returns nil if no memory is configured or available.
 func (r *MemoryResolver) GetMemory(ctx context.Context, memoryID string, keyTemplate string) (llm.Memory, error) {
 	log := logger.FromContext(ctx)
-	log.Debug("Resolving memory access",
-		"memory_id", memoryID,
-		"key_template", keyTemplate,
-	)
-
+	log.Debug("Resolving memory access", "memory_id", memoryID)
+	if strings.TrimSpace(memoryID) == "" {
+		log.Warn("Empty memory ID provided")
+		return nil, nil
+	}
 	if r.memoryManager == nil {
 		log.Warn("Memory manager is nil")
 		return nil, nil
@@ -78,6 +78,9 @@ func (r *MemoryResolver) GetMemory(ctx context.Context, memoryID string, keyTemp
 		resolvedKey, err = r.resolveKey(ctx, keyTemplate)
 		if err != nil {
 			return nil, err
+		}
+		if strings.TrimSpace(resolvedKey) == "" {
+			return nil, fmt.Errorf("resolved key template to empty string: %q", keyTemplate)
 		}
 	}
 
@@ -92,14 +95,13 @@ func (r *MemoryResolver) GetMemory(ctx context.Context, memoryID string, keyTemp
 		memRef.Key = keyTemplate
 	}
 
-	log.Debug("Passing memory reference to manager", "memory_id", memoryID, "key_template", keyTemplate)
+	log.Debug("Passing memory reference to manager", "memory_id", memoryID)
 
 	// Get the memory instance from the manager
 	memInstance, err := r.memoryManager.GetInstance(ctx, memRef, r.workflowContext)
 	if err != nil {
 		log.Error("Failed to get memory instance",
 			"memory_id", memoryID,
-			"key_template", keyTemplate,
 			"error", err,
 			"workflow_context", fmt.Sprintf("%+v", r.workflowContext),
 		)
@@ -177,12 +179,8 @@ func (r *MemoryResolver) ResolveAgentMemories(ctx context.Context, agent *agent.
 	copy(localMemoryRefs, memoryRefs)
 
 	for i := range localMemoryRefs {
-		// Skip read-only memories for now (will be handled in Task 8)
 		if localMemoryRefs[i].Mode == core.MemoryModeReadOnly {
-			log.Debug("Skipping read-only memory (not yet implemented)",
-				"memory_id", localMemoryRefs[i].ID,
-				"mode", localMemoryRefs[i].Mode,
-			)
+			log.Warn("Skipping read-only memory; mode not supported", "memory_id", localMemoryRefs[i].ID)
 			continue
 		}
 
@@ -202,6 +200,5 @@ func (r *MemoryResolver) ResolveAgentMemories(ctx context.Context, agent *agent.
 		"agent_id", agent.ID,
 		"memory_count", len(memories),
 	)
-
 	return memories, nil
 }

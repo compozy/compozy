@@ -37,22 +37,17 @@ func ResolvePath(cwd *PathCWD, path string) (string, error) {
 
 func LoadConfig[T Config](filePath string) (T, string, error) {
 	var zero T
-
 	data, err := os.ReadFile(filePath)
 	if err != nil {
-		return zero, "", fmt.Errorf("failed to read config file: %w", err)
+		return zero, "", fmt.Errorf("failed to read config file %s: %w", filePath, err)
 	}
-
-	// Pre-scan YAML to reject any directive keys starting with '$' outside schema contexts
 	if err := rejectDollarKeys(data, filePath); err != nil {
 		return zero, "", err
 	}
-
 	var config T
 	if err := yaml.Unmarshal(data, &config); err != nil {
 		return zero, "", fmt.Errorf("failed to decode YAML config in %s: %w", filePath, err)
 	}
-
 	abs, err := ResolvePath(nil, filePath)
 	if err != nil {
 		return zero, "", err
@@ -61,27 +56,26 @@ func LoadConfig[T Config](filePath string) (T, string, error) {
 	if err := config.SetCWD(filepath.Dir(abs)); err != nil {
 		return zero, "", err
 	}
-
 	return config, abs, nil
 }
 
 func MapFromFilePath(path string) (map[string]any, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read file: %w", err)
+		return nil, fmt.Errorf("failed to read file %s: %w", path, err)
 	}
-
-	// Pre-scan YAML to reject any directive keys starting with '$' outside schema contexts
 	if err := rejectDollarKeys(data, path); err != nil {
 		return nil, err
 	}
-
+	dec := yaml.NewDecoder(bytes.NewReader(data))
 	var itemMap map[string]any
-	err = yaml.Unmarshal(data, &itemMap)
-	if err != nil {
+	if err := dec.Decode(&itemMap); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal YAML in %s: %w", path, err)
 	}
-
+	var extra yaml.Node
+	if err := dec.Decode(&extra); err != io.EOF {
+		return nil, fmt.Errorf("multiple YAML documents found in %s; MapFromFilePath expects a single document", path)
+	}
 	return itemMap, nil
 }
 
@@ -137,7 +131,12 @@ func walkAndReject(n *yaml.Node, filePath string, path []string) error {
 					)
 				}
 			}
-			nextPath := append(append([]string(nil), path...), key.Value)
+			var nextPath []string
+			if key != nil && key.Kind == yaml.ScalarNode {
+				nextPath = append(append([]string(nil), path...), key.Value)
+			} else {
+				nextPath = append(append([]string(nil), path...), "<non-scalar-key>")
+			}
 			if err := walkAndReject(val, filePath, nextPath); err != nil {
 				return err
 			}
@@ -181,17 +180,21 @@ func isSchemaMapping(n *yaml.Node) bool {
 	if n == nil || n.Kind != yaml.MappingNode {
 		return false
 	}
+	hasSchemaSentinel := false
+	hasStructure := false
 	for i := 0; i < len(n.Content); i += 2 {
 		k := n.Content[i]
 		if k == nil || k.Kind != yaml.ScalarNode {
 			continue
 		}
 		switch k.Value {
-		case "$schema", "$id", "$defs", "definitions", "properties", "patternProperties",
-			"additionalProperties", "items", "prefixItems", "contains",
-			"type", "allOf", "anyOf", "oneOf", "not", "if", "then", "else":
-			return true
+		case "$schema", "$id", "$defs", "definitions":
+			hasSchemaSentinel = true
+		case "properties", "patternProperties", "additionalProperties",
+			"items", "prefixItems", "contains",
+			"allOf", "anyOf", "oneOf", "not", "if", "then", "else":
+			hasStructure = true
 		}
 	}
-	return false
+	return hasSchemaSentinel || hasStructure
 }

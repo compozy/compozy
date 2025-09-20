@@ -157,7 +157,7 @@ func (a *CompleteWorkflow) loadWorkflowsFromProject(ctx context.Context) (map[st
 		return nil, ctx.Err()
 	default:
 	}
-	reloaded, err := wf.WorkflowsFromProject(a.projectConfig)
+	reloaded, err := wf.WorkflowsFromProject(ctx, a.projectConfig)
 	if err != nil {
 		return nil, err
 	}

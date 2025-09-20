@@ -263,7 +263,9 @@ func (t *Config) GetEnv() core.EnvMap {
 
 // GetTimeout returns the tool's configured timeout or the provided global default.
 // Used by the runtime system to enforce execution time limits and prevent runaway tools.
-// Returns an error if the timeout format is invalid or the value is non-positive.
+// Returns an error if the tool timeout is invalid or non-positive. When Timeout is empty:
+// - with a ctx deadline: returns remaining time (or error if already expired);
+// - without a ctx deadline: returns globalTimeout (which may be 0 to mean "no limit").
 func (t *Config) GetTimeout(ctx context.Context, globalTimeout time.Duration) (time.Duration, error) {
 	if t.Timeout == "" {
 		if dl, ok := ctx.Deadline(); ok {
@@ -288,7 +290,7 @@ func (t *Config) GetTimeout(ctx context.Context, globalTimeout time.Duration) (t
 		return 0, fmt.Errorf("invalid tool timeout '%s': %w", t.Timeout, err)
 	}
 	if timeout <= 0 {
-		return 0, fmt.Errorf("tool timeout must be positive, got: %v", timeout)
+		return 0, fmt.Errorf("timeout must be positive, got: %v", timeout)
 	}
 	if dl, ok := ctx.Deadline(); ok {
 		if rem := time.Until(dl); rem <= 0 {

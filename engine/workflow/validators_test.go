@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/schema"
+	"github.com/compozy/compozy/pkg/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -176,8 +177,8 @@ func TestConfig_MCPValidation(t *testing.T) {
 
 		CWD, err := core.CWDFromPath("./fixtures")
 		require.NoError(t, err)
-
-		config, err := Load(CWD, "mcp_workflow.yaml")
+		ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+		config, err := Load(ctx, CWD, "mcp_workflow.yaml")
 		require.NoError(t, err)
 
 		// Test that MCP configs are validated

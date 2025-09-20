@@ -1,6 +1,7 @@
 package resources
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -114,7 +115,7 @@ func (s *RedisResourceStore) Put(ctx context.Context, key ResourceKey, value any
 	pipe.Set(ctx, k, jsonBytes, 0)
 	pipe.Set(ctx, etagKey, etag, 0)
 	if _, err := pipe.Exec(ctx); err != nil {
-		return ETag(""), err
+		return ETag(""), fmt.Errorf("redis pipeline exec: %w", err)
 	}
 	evt := Event{Type: EventPut, Key: key, ETag: ETag(etag), At: time.Now().UTC()}
 	if err := s.publish(ctx, key.Project, key.Type, &evt); err != nil {
@@ -155,7 +156,7 @@ func (s *RedisResourceStore) PutIfMatch(
 		if err == redis.Nil {
 			return ETag(""), ErrNotFound
 		}
-		return ETag(""), err
+		return ETag(""), fmt.Errorf("redis GET current value: %w", err)
 	}
 	curSum := sha256.Sum256(current)
 	curETag := hex.EncodeToString(curSum[:])
@@ -176,7 +177,7 @@ return ARGV[3]`
 		case strings.Contains(err.Error(), "MISMATCH"):
 			return ETag(""), ErrETagMismatch
 		default:
-			return ETag(""), err
+			return ETag(""), fmt.Errorf("redis CAS eval: %w", err)
 		}
 	}
 	evt := Event{Type: EventPut, Key: key, ETag: ETag(newETag), At: time.Now().UTC()}
@@ -201,10 +202,12 @@ func (s *RedisResourceStore) Get(ctx context.Context, key ResourceKey) (any, ETa
 		if err == redis.Nil {
 			return nil, ETag(""), ErrNotFound
 		}
-		return nil, ETag(""), err
+		return nil, ETag(""), fmt.Errorf("redis GET value: %w", err)
 	}
 	var v any
-	if err := json.Unmarshal(bs, &v); err != nil {
+	dec := json.NewDecoder(bytes.NewReader(bs))
+	dec.UseNumber()
+	if err := dec.Decode(&v); err != nil {
 		return nil, ETag(""), fmt.Errorf("unmarshal failed: %w", err)
 	}
 	var etag ETag
@@ -214,7 +217,7 @@ func (s *RedisResourceStore) Get(ctx context.Context, key ResourceKey) (any, ETa
 		sum := sha256.Sum256(bs)
 		etag = ETag(hex.EncodeToString(sum[:]))
 	} else if err != nil {
-		return nil, ETag(""), err
+		return nil, ETag(""), fmt.Errorf("redis GET etag: %w", err)
 	}
 	return v, etag, nil
 }
@@ -241,7 +244,7 @@ func (s *RedisResourceStore) Delete(ctx context.Context, key ResourceKey) error 
 		if err == redis.Nil {
 			return nil
 		}
-		return err
+		return fmt.Errorf("redis delete eval: %w", err)
 	}
 	if res == nil {
 		return nil
@@ -284,7 +287,7 @@ func (s *RedisResourceStore) List(ctx context.Context, project string, typ Resou
 	for {
 		keys, next, err := s.r.Scan(ctx, cursor, pattern, scanCount).Result()
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("redis SCAN: %w", err)
 		}
 		for _, full := range keys {
 			if rk, ok := s.parseKey(full); ok {
@@ -309,6 +312,7 @@ func (s *RedisResourceStore) ListWithValues(
 		return nil, fmt.Errorf("context canceled: %w", err)
 	}
 	_ = config.FromContext(ctx)
+	log := logger.FromContext(ctx)
 	if s.closed.Load() {
 		return nil, fmt.Errorf("store is closed")
 	}
@@ -323,11 +327,12 @@ func (s *RedisResourceStore) ListWithValues(
 	// Batch fetch values
 	vals, err := s.r.MGet(ctx, redisKeys...).Result()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("redis MGET values: %w", err)
 	}
 	// Batch fetch etags (best-effort; fall back to hashing on miss)
 	etVals, etErr := s.r.MGet(ctx, etagKeys...).Result()
 	if etErr != nil {
+		log.Warn("mget etags failed; falling back to hashing", "error", etErr)
 		etVals = make([]any, len(redisKeys))
 	}
 	return s.buildStoredItems(vals, etVals, resKeys), nil
@@ -347,7 +352,7 @@ func (s *RedisResourceStore) scanResourceKeys(
 	for {
 		keys, next, err := s.r.Scan(ctx, cursor, pattern, scanCount).Result()
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, nil, nil, fmt.Errorf("redis SCAN: %w", err)
 		}
 		for _, full := range keys {
 			if rk, ok := s.parseKey(full); ok {
@@ -378,7 +383,7 @@ func (s *RedisResourceStore) buildStoredItems(vals []any, etVals []any, resKeys 
 		case []byte:
 			bs = t
 		default:
-			bs = []byte(fmt.Sprint(t))
+			continue
 		}
 		var v any
 		if err := json.Unmarshal(bs, &v); err != nil {
@@ -485,7 +490,11 @@ func (s *RedisResourceStore) runWatchLoop(
 ) {
 	log := logger.FromContext(ctx)
 	defer close(ch)
-	defer func() { _ = ps.Close() }()
+	defer func() {
+		if err := ps.Close(); err != nil {
+			log.Warn("pubsub close failed", "error", err)
+		}
+	}()
 	prime()
 	var (
 		ticker *time.Ticker
@@ -583,9 +592,12 @@ func (s *RedisResourceStore) Close() error {
 func (s *RedisResourceStore) publish(ctx context.Context, project string, typ ResourceType, evt *Event) error {
 	payload, err := json.Marshal(evt)
 	if err != nil {
-		return err
+		return fmt.Errorf("marshal event: %w", err)
 	}
-	return s.r.Publish(ctx, s.eventsChannel(project, typ), payload).Err()
+	if err := s.r.Publish(ctx, s.eventsChannel(project, typ), payload).Err(); err != nil {
+		return fmt.Errorf("redis publish: %w", err)
+	}
+	return nil
 }
 
 func (s *RedisResourceStore) keyFor(k ResourceKey) string {

@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/autoload"
 	"github.com/compozy/compozy/engine/infra/server/appstate"
+	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/task"
@@ -93,6 +94,11 @@ const (
 	defaultDebounceMaxWait = 500 * time.Millisecond
 )
 
+const (
+	modeRepo    = "repo"
+	modeBuilder = "builder"
+)
+
 func resolveStore(state *appstate.State) (resources.ResourceStore, error) {
 	v, ok := state.ResourceStore()
 	if !ok {
@@ -118,13 +124,13 @@ func resolveSched(state *appstate.State) (schedule.Manager, error) {
 }
 
 func deriveSettings(cfg *pkgcfg.Config) (string, int, time.Duration, time.Duration) {
-	mode := "repo"
+	mode := modeRepo
 	queueSize := defaultQueueCap
 	debWait := defaultDebounceWait
 	debMaxWait := defaultDebounceMaxWait
 	if cfg != nil {
-		if cfg.Server.SourceOfTruth == "builder" {
-			mode = "builder"
+		if cfg.Server.SourceOfTruth == modeBuilder {
+			mode = modeBuilder
 		}
 		if v := cfg.Server.Reconciler.QueueCapacity; v > 0 {
 			queueSize = v
@@ -161,7 +167,7 @@ func makeDebouncer(ctx context.Context, r *Reconciler, debWait, debMaxWait time.
 	debFn, cancel := debounce.NewWithMaxWait(debWait, debMaxWait, func() {
 		c := r.runCtx
 		if c == nil {
-			c = context.WithoutCancel(ctx)
+			c = ctx
 		}
 		r.onDebounceFire(c)
 	})
@@ -274,7 +280,10 @@ func (r *Reconciler) forward(ctx context.Context, typ resources.ResourceType, ch
 				default:
 				}
 				if r.eventsDropped != nil {
-					r.eventsDropped.Add(ctx, 1, metric.WithAttributes(attribute.String("type", string(typ))))
+					r.eventsDropped.Add(ctx, 1, metric.WithAttributes(
+						attribute.String("type", string(typ)),
+						attribute.String("reason", "drop_oldest"),
+					))
 				}
 				log.Warn("reconciler queue full; dropping oldest")
 				sent := false
@@ -285,7 +294,10 @@ func (r *Reconciler) forward(ctx context.Context, typ resources.ResourceType, ch
 				}
 				if !sent {
 					if r.eventsDropped != nil {
-						r.eventsDropped.Add(ctx, 1, metric.WithAttributes(attribute.String("type", string(typ))))
+						r.eventsDropped.Add(ctx, 1, metric.WithAttributes(
+							attribute.String("type", string(typ)),
+							attribute.String("reason", "drop_incoming"),
+						))
 					}
 					log.Warn("reconciler queue still full; dropping incoming event")
 				}
@@ -381,11 +393,17 @@ func (r *Reconciler) recompileAndSwap(
 	}
 	compiled, err := r.compileImpacted(ctx, impacted, deletes)
 	if err != nil {
+		if r.recompileTotal != nil {
+			r.recompileTotal.Add(ctx, 1, metric.WithAttributes(attribute.String("status", "error")))
+		}
 		return err
 	}
 	next := r.buildNextSet(compiled, deletes)
 	slugs := workflow.SlugsFromList(next)
 	if err := project.NewWebhookSlugsValidator(slugs).Validate(); err != nil {
+		if r.recompileTotal != nil {
+			r.recompileTotal.Add(ctx, 1, metric.WithAttributes(attribute.String("status", "error")))
+		}
 		return fmt.Errorf("webhook slugs invalid after update: %w", err)
 	}
 	r.state.ReplaceWorkflows(next)
@@ -405,7 +423,7 @@ func (r *Reconciler) compileImpacted(
 	deletes map[string]struct{},
 ) (map[string]*workflow.Config, error) {
 	compiled := make(map[string]*workflow.Config)
-	if r.mode == "repo" {
+	if r.mode == modeRepo {
 		return r.compileFromRepo(ctx, impacted, deletes)
 	}
 	for id := range impacted {
@@ -417,21 +435,9 @@ func (r *Reconciler) compileImpacted(
 		if err != nil {
 			return nil, fmt.Errorf("get workflow '%s' failed: %w", id, err)
 		}
-		var wf *workflow.Config
-		switch tv := v.(type) {
-		case *workflow.Config:
-			wf = tv
-		case workflow.Config:
-			tmp := tv
-			wf = &tmp
-		case map[string]any:
-			var tmp workflow.Config
-			if err := tmp.FromMap(tv); err != nil {
-				return nil, fmt.Errorf("decode workflow '%s' failed: %w", id, err)
-			}
-			wf = &tmp
-		default:
-			return nil, fmt.Errorf("unsupported stored workflow type %T for %s", tv, id)
+		wf, err := toWorkflow(v)
+		if err != nil {
+			return nil, fmt.Errorf("decode workflow '%s' failed: %w", id, err)
 		}
 		c, err := wf.Compile(ctx, r.proj, r.store)
 		if err != nil {
@@ -450,7 +456,7 @@ func (r *Reconciler) compileFromRepo(
 ) (map[string]*workflow.Config, error) {
 	log := logger.FromContext(ctx)
 	compiled := make(map[string]*workflow.Config)
-	all, err := workflow.WorkflowsFromProject(r.proj)
+	all, err := workflow.WorkflowsFromProject(ctx, r.proj)
 	if err != nil {
 		return nil, fmt.Errorf("load workflows from repo failed: %w", err)
 	}
@@ -486,6 +492,24 @@ func (r *Reconciler) compileFromRepo(
 		compiled[id] = c
 	}
 	return compiled, nil
+}
+
+func toWorkflow(v any) (*workflow.Config, error) {
+	switch tv := v.(type) {
+	case *workflow.Config:
+		return tv, nil
+	case workflow.Config:
+		tmp := tv
+		return &tmp, nil
+	case map[string]any:
+		var tmp workflow.Config
+		if err := tmp.FromMap(tv); err != nil {
+			return nil, err
+		}
+		return &tmp, nil
+	default:
+		return nil, fmt.Errorf("unsupported workflow value %T", v)
+	}
 }
 
 func (r *Reconciler) buildNextSet(
@@ -526,21 +550,9 @@ func (r *Reconciler) buildInitialIndex(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		var wf *workflow.Config
-		switch tv := v.(type) {
-		case *workflow.Config:
-			wf = tv
-		case workflow.Config:
-			tmp := tv
-			wf = &tmp
-		case map[string]any:
-			var tmp workflow.Config
-			if err := tmp.FromMap(tv); err != nil {
-				return err
-			}
-			wf = &tmp
-		default:
-			return fmt.Errorf("unsupported workflow value %T", tv)
+		wf, err := toWorkflow(v)
+		if err != nil {
+			return fmt.Errorf("decode workflow '%s' failed: %w", keys[i].ID, err)
 		}
 		r.recordDeps(wf)
 	}
@@ -612,6 +624,9 @@ func (r *Reconciler) collectDeps(wf *workflow.Config) []depKey {
 	if wf == nil {
 		return out
 	}
+	for i := range wf.MCPs {
+		appendMCPDep(&out, &wf.MCPs[i])
+	}
 	if wf.Opts.InputSchema != nil {
 		if ok, id := wf.Opts.InputSchema.IsRef(); ok {
 			out = append(out, depKey{typ: resources.ResourceSchema, id: id})
@@ -668,6 +683,7 @@ func (r *Reconciler) walkTask(tcfg *task.Config, out *[]depKey) {
 				*out = append(*out, depKey{typ: resources.ResourceModel, id: tcfg.Agent.Model.Ref})
 			}
 		}
+		appendAgentMCPDeps(tcfg.Agent, out)
 	}
 	if tcfg.Tool != nil {
 		if r.isToolSelector(tcfg.Tool) {
@@ -707,6 +723,7 @@ func (r *Reconciler) collectAgentDeps(a *agent.Config, out *[]depKey) {
 	if a.Model.HasRef() {
 		*out = append(*out, depKey{typ: resources.ResourceModel, id: a.Model.Ref})
 	}
+	appendAgentMCPDeps(a, out)
 	for i := range a.Actions {
 		ac := a.Actions[i]
 		if ac == nil {
@@ -723,6 +740,22 @@ func (r *Reconciler) collectAgentDeps(a *agent.Config, out *[]depKey) {
 			}
 		}
 	}
+}
+
+func appendAgentMCPDeps(a *agent.Config, out *[]depKey) {
+	if a == nil {
+		return
+	}
+	for i := range a.MCPs {
+		appendMCPDep(out, &a.MCPs[i])
+	}
+}
+
+func appendMCPDep(out *[]depKey, mc *mcp.Config) {
+	if mc == nil || mc.ID == "" {
+		return
+	}
+	*out = append(*out, depKey{typ: resources.ResourceMCP, id: mc.ID})
 }
 
 func (r *Reconciler) isAgentSelector(a *agent.Config) bool {
@@ -744,7 +777,7 @@ func (r *Reconciler) isToolSelector(tl *tool.Config) bool {
 
 func StartIfBuilderMode(ctx context.Context, state *appstate.State) (*Reconciler, error) {
 	cfg := pkgcfg.FromContext(ctx)
-	if cfg == nil || cfg.Server.SourceOfTruth != "builder" {
+	if cfg == nil || cfg.Server.SourceOfTruth != modeBuilder {
 		return nil, nil
 	}
 	r, err := NewReconsiler(ctx, state)

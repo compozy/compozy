@@ -239,7 +239,7 @@ func (s *service) seedFromRepo(
 	projectConfig *project.Config,
 	configRegistry *autoload.ConfigRegistry,
 ) error {
-	workflows, err := workflow.WorkflowsFromProject(projectConfig)
+	workflows, err := workflow.WorkflowsFromProject(ctx, projectConfig)
 	if err != nil {
 		return fmt.Errorf("seed load workflows failed: %w", err)
 	}
@@ -338,7 +338,7 @@ func (s *service) loadFromRepo(
 	configRegistry *autoload.ConfigRegistry,
 ) ([]*workflow.Config, error) {
 	log := logger.FromContext(ctx)
-	workflows, err := workflow.WorkflowsFromProject(projectConfig)
+	workflows, err := workflow.WorkflowsFromProject(ctx, projectConfig)
 	if err != nil {
 		log.Error("Failed to load workflows", "error", err)
 		return nil, err

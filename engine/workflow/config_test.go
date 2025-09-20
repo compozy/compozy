@@ -1,6 +1,7 @@
 package workflow
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -28,10 +29,16 @@ func setupTest(t *testing.T, workflowFile string) (*core.PathCWD, string) {
 	return cwd, dstPath
 }
 
+func workflowTestContext(t *testing.T) context.Context {
+	t.Helper()
+	return logger.ContextWithLogger(context.Background(), logger.NewForTests())
+}
+
 func Test_LoadWorkflow(t *testing.T) {
 	t.Run("Should load basic workflow configuration correctly", func(t *testing.T) {
 		cwd, dstPath := setupTest(t, "basic_workflow.yaml")
-		config, err := Load(cwd, dstPath)
+		ctx := workflowTestContext(t)
+		config, err := Load(ctx, cwd, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 		require.NotNil(t, config.Opts)
@@ -78,7 +85,8 @@ func Test_LoadWorkflow(t *testing.T) {
 
 	t.Run("Should return error for invalid workflow configuration", func(t *testing.T) {
 		cwd, dstPath := setupTest(t, "invalid_workflow.yaml")
-		config, err := Load(cwd, dstPath)
+		ctx := workflowTestContext(t)
+		config, err := Load(ctx, cwd, dstPath)
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -133,8 +141,8 @@ func TestLoadMCPWorkflow(t *testing.T) {
 	t.Run("Should load MCP workflow configuration successfully", func(t *testing.T) {
 		CWD, err := core.CWDFromPath("./fixtures")
 		require.NoError(t, err)
-
-		config, err := Load(CWD, "mcp_workflow.yaml")
+		ctx := workflowTestContext(t)
+		config, err := Load(ctx, CWD, "mcp_workflow.yaml")
 		require.NoError(t, err)
 		require.NotNil(t, config)
 
@@ -148,7 +156,8 @@ func TestLoadMCPWorkflow(t *testing.T) {
 		CWD, err := core.CWDFromPath("./fixtures")
 		require.NoError(t, err)
 
-		config, err := Load(CWD, "mcp_workflow.yaml")
+		ctx := workflowTestContext(t)
+		config, err := Load(ctx, CWD, "mcp_workflow.yaml")
 		require.NoError(t, err)
 
 		// Verify MCP configurations
@@ -175,7 +184,8 @@ func TestLoadMCPWorkflow(t *testing.T) {
 		CWD, err := core.CWDFromPath("./fixtures")
 		require.NoError(t, err)
 
-		config, err := Load(CWD, "mcp_workflow.yaml")
+		ctx := workflowTestContext(t)
+		config, err := Load(ctx, CWD, "mcp_workflow.yaml")
 		require.NoError(t, err)
 
 		err = config.Validate()
@@ -385,7 +395,8 @@ func TestWorkflowsFromProject_AndHelpers(t *testing.T) {
 		}
 		require.NoError(t, proj.SetCWD(cwd.PathStr()))
 		proj.SetEnv(core.EnvMap{"X": "Y"})
-		wfs, err := WorkflowsFromProject(proj)
+		ctx := workflowTestContext(t)
+		wfs, err := WorkflowsFromProject(ctx, proj)
 		require.NoError(t, err)
 		require.Len(t, wfs, 2)
 		for _, w := range wfs {
